@@ -51,12 +51,12 @@ register(FunctionSpec(
     outputs=[PortSpec('result', 'image', description="Le rendu de la card.")]))
 
 
-#: Réglages dont le changement périme la GÉNÉRATION : tout ce que le modèle lit. Les réglages de
-#: sortie n'y sont pas — c'est le sens du découpage.
-GENERATE_WATCHED = ('prompt', 'negative_prompt', 'prompt_keywords', 'model', 'quality_intent',
-                    'generation_mode', 'reference_image', 'image_strength',
-                    'width', 'height', 'steps', 'guidance_scale', 'seed', 'num_images',
-                    'video_duration', 'video_fps', 'video_resolution')
+#: Ce que la GÉNÉRATION surveille HORS schéma : le prompt et ses mots-clés, le mode, l'image de
+#: référence, la taille. Les RÉGLAGES déclarent eux-mêmes ce qu'ils périment (`Param.stales`,
+#: params.py, 2026-10-05) ; `PIPELINE.watched_of(spec)` réunit les deux. Les réglages de sortie
+#: n'y sont pas — c'est le sens du découpage.
+GENERATE_WATCHED = ('prompt', 'prompt_keywords', 'generation_mode', 'reference_image',
+                    'width', 'height')
 
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('generate', label='Génération', watched=GENERATE_WATCHED, gpu=True, share=9,

@@ -49,11 +49,15 @@ PARAMS = derive_from_model(
             options_auto="silent",
             dom_id={"panel": "animation_model", "item": "settingsAnimationModel",
                     "batch": "batchSettingsAnimationModel"},
-            contexts=PANEL_ITEM_BATCH),
+            contexts=PANEL_ITEM_BATCH,
+            # Ce que chaque réglage PÉRIME (`Param.stales`, 2026-10-05) : `ProcessSpec.watched`
+            # s'en dérive (function_specs.py n'y garde que les champs hors schéma).
+            stales=("animate",)),
         "text_content": dict(type="textarea", label="Texte à dire", icon="fa-quote-left",
                              show_if="text_content",   # auto-porté : vide (standalone) = masqué
                              dom_id={"item": "settingsTextContent"}, contexts=("item",),
-                             help="La relance régénère la voix depuis ce texte."),
+                             help="La relance régénère la voix depuis ce texte.",
+                             stales=("speak",)),
         # Options tirées du CATALOGUE (route F4b ②, 2026-09-01) — OBLIGATOIRE ici, pas
         # optionnel : `AvatarJob.tts_model` a perdu son `choices=` dans le même geste, donc
         # `derive_from_model` ne peut plus fournir la moindre option. Sans cette déclaration
@@ -67,30 +71,34 @@ PARAMS = derive_from_model(
                              # « auto » + prévision (brique commune auto_model, 2026-09-02)
                              # — le lancement résout dans workers.py.
                              options_auto=True,
-                             dom_id={"item": "settingsTtsModel"}, contexts=("item",)),
+                             dom_id={"item": "settingsTtsModel"}, contexts=("item",),
+                             stales=("speak",)),
         # Curseur de qualité du tirage « auto » — mêmes conditions de visibilité que le
         # select sur lequel il pèse (job porteur de texte ET modèle « auto »).
         "quality_intent": intent_param(
             dom_id={"item": "settingsQualityIntent"}, contexts=("item",),
-            show_if={"field": "tts_model", "equals": "auto"},
+            show_if={"field": "tts_model", "equals": "auto"}, stales=("speak",),
         ),
         "language":     dict(type="select", label="Langue", icon="fa-language",
                              show_if="text_content",
-                             dom_id={"item": "settingsLanguage"}, contexts=("item",)),
+                             dom_id={"item": "settingsLanguage"}, contexts=("item",),
+                             stales=("speak",)),
         "voice_preset": dict(type="select", label="Voix", icon="fa-user", chip=True,
                              show_if="text_content", options_source="voices",
-                             dom_id={"item": "settingsVoicePreset"}, contexts=("item",)),
+                             dom_id={"item": "settingsVoicePreset"}, contexts=("item",),
+                             stales=("speak",)),
         "use_enhancer": dict(type="toggle", label="Amélioration CodeFormer", chip=True,
                              icon="fa-wand-magic-sparkles",
                              help="Restauration faciale haute qualité — légèrement plus lent. "
                                   "Photo animée seulement : sans effet sur un avatar 3D.",
                              dom_id={"panel": "use_enhancer", "item": "settingsUseEnhancer"},
-                             contexts=PANEL_ITEM_BATCH),
+                             contexts=PANEL_ITEM_BATCH, stales=("enhance",)),
         "bbox_shift":   dict(type="range", label="Bbox shift", icon="fa-arrows-up-down", chip=True,
                              dom_id={"panel": "bbox_shift", "item": "settingsBboxShift"},
                              min=-9, max=9, step=1, contexts=PANEL_ITEM_BATCH,
                              help="Décalage vertical de la zone bouche (px). 0 = auto. "
-                                  "Photo animée seulement : sans effet sur un avatar 3D."),
+                                  "Photo animée seulement : sans effet sur un avatar 3D.",
+                             stales=("animate",)),
     },
 )
 

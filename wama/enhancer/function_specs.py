@@ -42,11 +42,11 @@ register(FunctionSpec(
     outputs=[PortSpec('result', 'video', description="Le média amélioré au format demandé.")]))
 
 
-#: Réglages dont le changement périme l'AMÉLIORATION : ce que lisent les deux glus. Les champs
-#: d'une file n'existent pas dans l'autre : la photo les lit absents, toujours pareil.
-GENERATE_WATCHED = ('input_file', 'quality_intent',
-                    'ai_model', 'upscale_factor', 'denoise', 'blend_factor', 'tile_size',
-                    'engine', 'mode', 'denoising_strength', 'quality')
+#: Ce que l'AMÉLIORATION surveille HORS schéma : le fichier, la tuile, et `denoising_strength`
+#: (le champ du réglage `strength`). Les RÉGLAGES des deux files déclarent eux-mêmes ce qu'ils
+#: périment (`Param.stales`, params.py, 2026-10-05) ; `PIPELINE.watched_of(spec)` réunit les deux.
+#: Les champs d'une file n'existent pas dans l'autre : la photo les lit absents, toujours pareil.
+GENERATE_WATCHED = ('input_file', 'tile_size', 'denoising_strength')
 
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('generate', label='Amélioration', watched=GENERATE_WATCHED, gpu=True, share=9,

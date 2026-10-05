@@ -21,23 +21,23 @@
           "label": "Génération",
           "share": 9,
           "watched": [
-            "prompt",
-            "negative_prompt",
-            "prompt_keywords",
             "model",
             "quality_intent",
-            "generation_mode",
-            "reference_image",
-            "image_strength",
-            "width",
-            "height",
+            "negative_prompt",
+            "num_images",
             "steps",
             "guidance_scale",
             "seed",
-            "num_images",
+            "image_strength",
+            "video_resolution",
             "video_duration",
             "video_fps",
-            "video_resolution"
+            "prompt",
+            "prompt_keywords",
+            "generation_mode",
+            "reference_image",
+            "width",
+            "height"
           ]
         }
       },

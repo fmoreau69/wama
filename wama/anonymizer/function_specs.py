@@ -57,13 +57,13 @@ register(FunctionSpec(
     outputs=[PortSpec('result', 'video', description="Le média flouté au format demandé.")]))
 
 
-#: Réglages dont le changement périme la DÉTECTION : ce que son détecteur reçoit.
-DETECT_WATCHED = ('file', 'target_mode', 'classes2blur', 'sam3_prompt', 'model_to_use',
-                  'precision_level', 'use_segmentation', 'detection_threshold')
-#: … et le FLOUTAGE : ce que sa glu lit de l'élément. Les réglages d'AFFICHAGE (`show_*`) ne
-#: périment rien : ils ne changent que l'aperçu.
-BLUR_WATCHED = ('blur_ratio', 'rounded_edges', 'roi_enlargement', 'progressive_blur',
-                'interpolate_detections', 'max_interpolation_frames')
+#: Ce que la DÉTECTION surveille HORS schéma : le fichier et les classes (liste éditée à part).
+#: Les RÉGLAGES déclarent eux-mêmes ce qu'ils périment (`Param.stales`, params.py, 2026-10-05) —
+#: détection : mode, prompt SAM3, modèle, curseur, segmentation, seuil ; floutage : flou, bords,
+#: zone, flou progressif, interpolation. `PIPELINE.watched_of(spec)` réunit les deux. Les réglages
+#: d'AFFICHAGE (`show_*`) ne périment rien : ils ne changent que l'aperçu (`stales=()`).
+DETECT_WATCHED = ('file', 'classes2blur')
+BLUR_WATCHED = ()
 
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('detect', label='Détection', watched=DETECT_WATCHED, gpu=True, share=7,

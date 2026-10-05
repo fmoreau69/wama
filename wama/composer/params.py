@@ -24,7 +24,9 @@ PARAMS = [
     # (décision Fabien 18/08 : l'intention d'abord, les réglages ensuite) — contexts item
     # seulement, donc l'ordre du VOLET (Modèle → Durée → Format → Qualité) est inchangé.
     Param(name="prompt", type="textarea", label="Prompt", icon="fa-pen",
-          dom_id={"item": "settingsPrompt"}, contexts=("item",)),
+          dom_id={"item": "settingsPrompt"}, contexts=("item",),
+          # Périme la partition et le rendu (`Param.stales`, dont `ProcessSpec.watched` se dérive).
+          stales=("plan", "render")),
     # Route F4b (2026-10-01) : les options viennent du CATALOGUE, bornées par la TÂCHE — jamais par
     # la source : un modèle installé depuis le model manager (YuE2, prospecté) entre sans une ligne
     # de code. Valeurs = CLÉS ENTIÈRES (migration des lignes : `utils/model_choice.normalize`).
@@ -45,7 +47,7 @@ PARAMS = [
           # Les modèles proposés SONT ceux du composer : leurs entrées ouvrent les ports de la card
           # (la partition de YuE2, 2026-10-01) — `app_registry.app_input_ports`.
           options_ports=True,
-          default=AUTO_MUSIC),
+          default=AUTO_MUSIC, stales=("plan", "render")),
     # Voix (2026-10-04, question de Fabien : « chant ou pas, dans le prompt ou par un réglage ? »).
     # Le prompt le dit par sa FORME (paroles balisées) — « auto » le lit ; le réglage tranche quand
     # la forme ne suffit pas. Lu au LANCEMENT (`utils/vocals.prepare_prompt`) et par le tirage
@@ -57,7 +59,7 @@ PARAMS = [
                "écrites pour vous, dans une langue que le modèle chante. Seuls certains modèles "
                "chantent ; en automatique, le tirage les retient.",
           dom_id={"panel": "vocalsSelect", "item": "settingsVocals", "batch": "batchSettingsVocals"},
-          contexts=PANEL_ITEM_BATCH),
+          contexts=PANEL_ITEM_BATCH, stales=("plan", "render")),
     # Paroles de l'ÉLÉMENT (2026-10-04) : écrites pour l'utilisateur quand il demande une chanson
     # sans en donner, et éditables ici. Masquées en instrumental (elles ne seraient pas chantées).
     Param(name="lyrics", type="textarea", label="Paroles", icon="fa-music",
@@ -65,13 +67,13 @@ PARAMS = [
                "si vous demandez une chanson sans en donner ; modifiez-les puis relancez. Des "
                "paroles écrites dans le prompt, sous la description, priment.",
           show_if={"field": "vocals", "in": [VOCALS_AUTO, VOCALS_SONG]},
-          dom_id={"item": "settingsLyrics"}, contexts=("item",)),
+          dom_id={"item": "settingsLyrics"}, contexts=("item",), stales=("plan", "render")),
     # Curseur rapide/qualité commun (chantier C, 2026-09-20) : visible sur les « auto », lu au
     # LANCEMENT par le tirage (`resolve_auto_model` → `item=gen`). Rendu par le renderer commun
     # (volet : même hôte que le modèle ; modale/lot : lu génériquement par WamaParams.read).
     Param(name="quality_intent", dom_id={"panel": "qualityIntent", "item": "settingsQualityIntent",
                                           "batch": "batchSettingsQualityIntent"},
-          contexts=PANEL_ITEM_BATCH,
+          contexts=PANEL_ITEM_BATCH, stales=("plan", "render"),
           **intent_param(show_if={"field": "model", "in": [AUTO_MUSIC, AUTO_SFX]})),
     # `default=210` (3:30, la durée d'une chanson — Fabien, 2026-10-04 ; c'était 10 s) : celui du
     # bouton « Réinitialiser » et d'un profil neuf. Sans défaut, un curseur rendu sans valeur se
@@ -89,7 +91,9 @@ PARAMS = [
           # 300 s) : avant, 10 min étaient proposées et la tâche réduisait en silence au
           # lancement. Capacité du catalogue, la même que `clamp_duration` lit ; « auto » ou
           # modèle sans plafond déclaré → curseur du schéma, intact.
-          cap_from={"field": "model", "capability": "max_duration_s"}),
+          cap_from={"field": "model", "capability": "max_duration_s"},
+          # La durée est au RENDU seul : la partition ne la lit pas.
+          stales=("render",)),
 ]
 
 # Format + qualité de sortie depuis la brique commune (audio, early-binding auto via le catalogue).

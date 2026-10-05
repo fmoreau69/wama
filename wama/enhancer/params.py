@@ -87,27 +87,31 @@ MEDIA_PARAMS = [
           # Catalogue (desc + VRAM) branchable depuis l'ALIGNEMENT des model_key (18/08,
           # artefact _fp16 retiré : clés = valeurs d'option) ; le repli statique reste.
           help_source='enhancer',
-          help_fallback=MEDIA_MODEL_HELP),
+          help_fallback=MEDIA_MODEL_HELP,
+          # Ce que chaque réglage PÉRIME (`Param.stales`, 2026-10-05) : `ProcessSpec.watched`
+          # s'en dérive (function_specs.py n'y garde que les champs hors schéma).
+          stales=('generate',)),
     # Le BESOIN que « auto » filtre avant de classer : ×2 et ×4 ne sont pas deux qualités,
     # ce sont deux résultats (un modèle désigné impose le sien — le champ ne sert qu'à auto).
     Param(name='upscale_factor', type='select', label="Facteur d'agrandissement", icon='fa-expand',
           choices=[('2', '×2'), ('4', '×4')], default='4',
           dom_id={'panel': 'mediaUpscaleFactor', 'item': 'settingsUpscaleFactor'},
           contexts=('panel', 'item'),
-          show_if={'field': 'ai_model', 'equals': 'auto'}),
+          show_if={'field': 'ai_model', 'equals': 'auto'}, stales=('generate',)),
     # Curseur rapide ↔ qualité (chantier C) — visible SEULEMENT sur « auto » : il pèse sur ce
     # tirage-là et rien d'autre. Rendu/tricolore : renderer commun `type='intent'` ; volet :
     # partial `common/_intent_slider.html`.
     Param(name='quality_intent',
           dom_id={'panel': 'mediaQualityIntent', 'item': 'settingsQualityIntent'},
-          contexts=('panel', 'item'),
+          contexts=('panel', 'item'), stales=('generate',),
           **intent_param(show_if={'field': 'ai_model', 'equals': 'auto'})),
     Param(name='denoise', type='toggle', label='Débruitage', icon='fa-broom',
           chip=True, chip_label='Débruitage',
-          dom_id={'panel': 'defaultDenoise', 'item': 'settingsDenoise'}, contexts=('panel', 'item')),
+          dom_id={'panel': 'defaultDenoise', 'item': 'settingsDenoise'}, contexts=('panel', 'item'),
+          stales=('generate',)),
     Param(name='blend_factor', type='range', label='Blend', icon='fa-sliders-h', chip=True,
           dom_id={'panel': 'defaultBlendFactor', 'item': 'settingsBlendFactor'},
-          min=0, max=1, step=0.1, contexts=('panel', 'item')),
+          min=0, max=1, step=0.1, contexts=('panel', 'item'), stales=('generate',)),
 ]
 
 # ── Domaine AUDIO — modèle AudioEnhancement ───────────────────────────────────
@@ -128,10 +132,10 @@ AUDIO_PARAMS = [
           options_auto=True,
           choices=list(AudioEnhancement.ENGINE_CHOICES),
           help_source='enhancer',   # moteurs audio au catalogue (déjà alignés) ; repli statique
-          help_fallback=AUDIO_ENGINE_HELP),
+          help_fallback=AUDIO_ENGINE_HELP, stales=('generate',)),
     Param(name='quality_intent',
           dom_id={'panel': 'audioQualityIntent', 'item': 'settingsAudioQualityIntent'},
-          contexts=('panel', 'item'),
+          contexts=('panel', 'item'), stales=('generate',),
           **intent_param(show_if={'field': 'engine', 'equals': 'auto'})),
     # mode/force/qualité = spécifiques Resemble → affichés seulement si engine=resemble (show_if).
     Param(name='mode', type='select', label='Mode', icon='fa-sliders-h', chip=True,
@@ -139,17 +143,21 @@ AUDIO_PARAMS = [
           choices=[('both', 'Débruitage + Amélioration (Recommandé)'),
                    ('denoise', 'Débruitage seul (Rapide)'),
                    ('enhance', 'Amélioration seule')],
-          show_if={'field': 'engine', 'equals': 'resemble'}),
+          show_if={'field': 'engine', 'equals': 'resemble'}, stales=('generate',)),
     Param(name='strength', type='range', label='Force débruitage', icon='fa-wind',
           dom_id={'panel': 'audioDenoisingStrength', 'item': 'settingsAudioStrength'},
           min=0, max=1, step=0.1, contexts=('panel', 'item'),
-          show_if={'field': 'engine', 'equals': 'resemble'}),
+          show_if={'field': 'engine', 'equals': 'resemble'},
+          # Le champ est `denoising_strength` (mappé côté vue) : c'est LUI que la photo lit,
+          # déclaré hors schéma dans function_specs.py — `strength`, absent de l'élément, y
+          # reste constant (lu vide) et ne périme rien à lui seul.
+          stales=('generate',)),
     Param(name='quality', type='select', label='Qualité (NFE)', icon='fa-star',
           dom_id={'panel': 'audioQuality', 'item': 'settingsAudioQuality'}, contexts=('panel', 'item'),
           choices=[('32', 'Rapide (32 étapes)'),
                    ('64', 'Équilibré (64 étapes)'),
                    ('128', 'Meilleur (128 étapes)')],
-          show_if={'field': 'engine', 'equals': 'resemble'}),
+          show_if={'field': 'engine', 'equals': 'resemble'}, stales=('generate',)),
 ]
 
 # ── Format/qualité de SORTIE (la docstring le PROMETTAIT « via la brique commune » sans

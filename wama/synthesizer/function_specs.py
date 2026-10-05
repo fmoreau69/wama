@@ -41,10 +41,12 @@ register(FunctionSpec(
     outputs=[PortSpec('audio', 'audio', description="La parole au format demandé.")]))
 
 
-#: Réglages dont le changement périme la SYNTHÈSE : tout ce que sa glu lit de l'élément. Le texte
-#: extrait (`text_content`) n'y est pas : la glu l'ÉCRIT, depuis `text_file` qui, lui, y est.
-GENERATE_WATCHED = ('text_file', 'tts_model', 'quality_intent', 'voice_preset', 'voice_reference',
-                    'language', 'speed', 'pitch', 'multi_speaker', 'scene_description')
+#: Ce que la SYNTHÈSE surveille HORS schéma : le fichier texte, la voix de référence jointe, le
+#: multi-locuteur et la scène. Les RÉGLAGES (modèle, curseur, voix, langue, vitesse, hauteur)
+#: déclarent eux-mêmes ce qu'ils périment (`Param.stales`, params.py, 2026-10-05) ;
+#: `PIPELINE.watched_of(spec)` réunit les deux. Le texte extrait (`text_content`) n'y est pas : la
+#: glu l'ÉCRIT, depuis `text_file` qui, lui, y est.
+GENERATE_WATCHED = ('text_file', 'voice_reference', 'multi_speaker', 'scene_description')
 
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('generate', label='Synthèse', watched=GENERATE_WATCHED, gpu=True, share=9,

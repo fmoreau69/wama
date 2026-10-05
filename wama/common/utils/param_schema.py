@@ -190,6 +190,15 @@ class Param:
                                                 # fichier désigné — et posée dans le champ, BORNÉE par son
                                                 # max (y compris celui de `cap_from`). Une valeur que
                                                 # l'utilisateur change ensuite reste la sienne.
+    stales: Optional[Tuple[str, ...]] = None    # Process du pipeline de l'app que ce réglage PÉRIME quand il
+                                                # change (2026-10-05, forme demandée par la session pipeline) :
+                                                # `('plan', 'render')`. `ProcessSpec.watched` en est DÉRIVÉ
+                                                # (`AppPipeline.watched_of`) — le réglage le dit une fois, au
+                                                # lieu d'être recopié dans la liste de chaque process.
+                                                # `()` = DÉCLARÉ sans péremption (réglage d'AFFICHAGE : les
+                                                # `show_*` de l'anonymizer). `None` = non déclaré : la garde
+                                                # `tests_process_watched` le refuse, sauf interrupteur d'un
+                                                # process (`toggle`) ou réglage de sortie (`output_spec`).
 
     def to_dict(self) -> dict:
         return asdict(self)

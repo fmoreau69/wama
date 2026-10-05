@@ -29,14 +29,14 @@
           ],
           "share": 7,
           "watched": [
-            "file",
             "target_mode",
-            "classes2blur",
             "sam3_prompt",
             "model_to_use",
             "precision_level",
+            "detection_threshold",
             "use_segmentation",
-            "detection_threshold"
+            "file",
+            "classes2blur"
           ]
         }
       },

@@ -30,9 +30,9 @@
           "watched": [
             "text_content",
             "tts_model",
-            "voice_preset",
+            "quality_intent",
             "language",
-            "quality_intent"
+            "voice_preset"
           ]
         }
       },
@@ -51,12 +51,12 @@
           ],
           "share": 4,
           "watched": [
+            "animation_model",
+            "bbox_shift",
             "audio_input",
             "avatar_source",
             "avatar_gallery_name",
-            "avatar_upload",
-            "animation_model",
-            "bbox_shift"
+            "avatar_upload"
           ]
         }
       },

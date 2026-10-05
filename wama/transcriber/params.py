@@ -79,6 +79,10 @@ PARAMS = derive_from_model(
             help_fallback={"auto": "Choisit le modèle au lancement : Whisper d'abord, puis selon "
                                    "la mémoire GPU libre et, si votre profil l'autorise, un modèle "
                                    "distant."},
+            # Ce que chaque réglage PÉRIME (`Param.stales`, 2026-10-05) : `ProcessSpec.watched`
+            # s'en dérive. Les INTERRUPTEURS des process optionnels (diarisation, résumé,
+            # cohérence) n'en déclarent pas : ils sont le `toggle` de leur process.
+            stales=("transcribe",),
         ),
         "quality_intent": intent_param(
             dom_id={"panel": "qualityIntent"}, contexts=("panel",),
@@ -88,7 +92,7 @@ PARAMS = derive_from_model(
             chip=True,
             type="textarea", label="Mots-clés contextuels", icon="fa-tags",
             dom_id={"panel": "hotwordsInput", "item": "settingsHotwords"},
-            help="Séparés par des virgules",
+            help="Séparés par des virgules", stales=("transcribe",),
         ),
         "preprocess_audio": dict(
             label="Prétraitement audio", icon="fa-wand-magic-sparkles",
@@ -101,26 +105,28 @@ PARAMS = derive_from_model(
                       'propre ou lointain : à réserver aux fonds très bruyants.</span><br>'
                       '<a href="#" class="text-info text-decoration-none" data-bs-toggle="modal" '
                       'data-bs-target="#preprocessingModal"><i class="fas fa-circle-question"></i> En savoir plus</a>',
+            stales=("transcribe",),
         ),
         "level_speech": dict(
             label="Nivellement de la parole", icon="fa-sliders",
             help="Amène chaque voix au même niveau tout au long de l'audio (les voix faibles sont "
                  "remontées, les fortes rabaissées, sans remonter le bruit des silences). Appliqué "
                  "en premier, avant le prétraitement. Mesuré : aide les enregistrements lointains "
-                 "ou faits à bas niveau, neutre sur un enregistrement propre."),
+                 "ou faits à bas niveau, neutre sur un enregistrement propre.",
+            stales=("transcribe",)),
         "vad_mode": dict(
             type="select", label="Filtre de parole (VAD)", icon="fa-wave-square",
             help="Whisper et Albert sautent les passages jugés sans parole. « Auto » vérifie "
                  "d'abord que le filtre "
                  "ne rejette pas une parole lointaine (entretien enregistré à distance) et le "
                  "désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les "
-                 "longs silences."),
+                 "longs silences.", stales=("transcribe",)),
         "language_mode": dict(
             type="select", label="Langues parlées", icon="fa-language",
             help="« Auto » écoute plusieurs passages de l'audio avant de transcrire : s'il entend "
                  "plusieurs langues, chaque passage est transcrit dans la sienne. « Une seule » "
                  "garde la même langue partout (évite qu'un passage bruité soit traduit). "
-                 "« Plusieurs » la redécide à chaque passage de 30 s."),
+                 "« Plusieurs » la redécide à chaque passage de 30 s.", stales=("transcribe",)),
         "enable_diarization": dict(
             chip=True, chip_label="Diarisation",label="Identifier les locuteurs", icon="fa-users",
             dom_id={"panel": "diarizationToggle", "item": "settingsDiarization"},
@@ -129,7 +135,8 @@ PARAMS = derive_from_model(
             type="select", label="Modèle de diarisation", icon="fa-users-gear",
             show_if="enable_diarization",
             help="community-1 succède à 3.1 (mêmes auteurs). En cours d'évaluation sur des "
-                 "réunions annotées : le meilleur des deux n'est pas encore établi."),
+                 "réunions annotées : le meilleur des deux n'est pas encore établi.",
+            stales=("diarize",)),
         "generate_summary": dict(
             chip=True, chip_label="Résumé",label="Générer un résumé", icon="fa-file-lines",
             dom_id={"panel": "globalGenerateSummary", "item": "settingsGenerateSummary"}),
@@ -137,6 +144,7 @@ PARAMS = derive_from_model(
             type="radio", label="", icon="fa-list", show_if="generate_summary",
             radio_name={"panel": "globalSummaryType", "item": "summary_type"}, inline=True,
             choices=[("structured", "Structuré"), ("meeting", "Réunion")],
+            stales=("summarize",),
         ),
         "verify_coherence": dict(
             chip=True, chip_label="Cohérence",label="Vérifier la cohérence", icon="fa-check-double",

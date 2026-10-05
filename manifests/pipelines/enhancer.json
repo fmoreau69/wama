@@ -21,17 +21,18 @@
           "label": "Amélioration",
           "share": 9,
           "watched": [
-            "input_file",
+            "engine",
             "quality_intent",
+            "mode",
+            "strength",
+            "quality",
             "ai_model",
             "upscale_factor",
             "denoise",
             "blend_factor",
+            "input_file",
             "tile_size",
-            "engine",
-            "mode",
-            "denoising_strength",
-            "quality"
+            "denoising_strength"
           ]
         }
       },

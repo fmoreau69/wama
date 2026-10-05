@@ -234,6 +234,14 @@ VIDEO_PARAMS = derive_from_model(
     },
 )
 
+# Ce que chaque réglage PÉRIME (`Param.stales`, 2026-10-05) : TOUS les réglages de génération des
+# deux domaines périment la génération — `ProcessSpec.watched` s'en dérive (function_specs.py n'y
+# garde que les champs hors schéma). Posé AVANT d'ajouter les réglages de SORTIE, qui sont au
+# process `output` commun (`output_spec`) et ne périment pas la génération.
+for _param in IMAGE_PARAMS + VIDEO_PARAMS:
+    _param.stales = ("generate",)
+del _param
+
 
 # ── Format de sortie (brique commune) ──────────────────────────────────────────
 # Imager est EARLY BINDING (app_registry : format choisi À LA GÉNÉRATION, pas au
