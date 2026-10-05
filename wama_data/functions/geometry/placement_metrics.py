@@ -44,6 +44,21 @@ Métrique #4 — **biais de DISTANCE par portée** (`range_bias_curve`, 2026-10-
   du cam_analyzer : la projection sol de l'arrière donnait 0,60 à 30-40 m, la hauteur de boîte non.
   `correct_range` applique une courbe (repli : pas de correction là où elle ne sait rien).
 
+Métrique #5 — **accord de DISTANCE entre caméras** (`camera_pair_agreement`, 2026-10-05) : la #4 prend
+  sa référence dans la caméra elle-même (le sol vu de près) — une erreur d'ÉCHELLE de toute la caméra
+  lui échappe. Ici la référence est une AUTRE caméra : un objet vu par deux caméras au même instant
+  (recouvrement) ou à un relais bref doit être placé au même endroit par les deux. Le rapport des
+  distances, par paire de caméras, et l'échelle de chaque caméra relative à celle dont les deux
+  méthodes s'accordent (`relative_camera_scales`, `agreeing_camera`). Née d'un constat de Fabien : des
+  trajectoires droites qui s'incurvent autour de la navette, comme si les latérales plaçaient trop loin.
+  ⚠ Mesuré le jour même : les recouvrements avant ↔ latérale sont aux BORDS des deux images (chacune
+  place l'objet hors du champ de l'autre) — la #5 y juge les bords, pas l'échelle au travers.
+
+Métrique #6 — **écartement d'un immobile selon la caméra** (`static_offset_gaps`, 2026-10-05) : un
+  objet immobile a la même distance latérale à la trajectoire de la plateforme quelle que soit la caméra
+  qui le voit — sans recalage temporel. C'est la grandeur du renflement vu de dessus : mesurée sur
+  ENA_CASA, les latérales écartent les garés de +1,3 à +1,5 m de plus que l'avant.
+
 Pur (numpy) : le cœur `track_position_spread` ne dépend ni de Django ni de pandas et se teste
 hors serveur. Le wrapper `placement_spread` (FunctionSpec) l'adapte à un `TypedFrame`.
 """
@@ -351,6 +366,255 @@ def range_curve_is_usable(curve, *, ratio_bounds=(0.4, 2.0), min_bins=2):
     return True, 'ok'
 
 
+def _position_at(series, t, *, max_dt, fit_window, cache):
+    """Position d'un objet vue par UNE caméra à l'instant `t` : interpolée entre deux observations qui
+    l'encadrent (chacune à moins de `max_dt`), sinon prolongée par une droite ajustée sur les
+    observations de la dernière (ou première) `fit_window` s — le cas du relais sans recouvrement.
+    `series` = tableau trié (t, x, y). Rend ((x, y), interpolée ?) ou None."""
+    ts = series[:, 0]
+    i = int(np.searchsorted(ts, t, side='right'))
+    left, right = i - 1, i
+    if left >= 0 and ts[left] == t:
+        return (float(series[left, 1]), float(series[left, 2])), True
+    if left >= 0 and right < len(ts) and t - ts[left] <= max_dt and ts[right] - t <= max_dt:
+        w = (t - ts[left]) / (ts[right] - ts[left])
+        p = series[left, 1:3] + w * (series[right, 1:3] - series[left, 1:3])
+        return (float(p[0]), float(p[1])), True
+    if left >= 0 and t - ts[left] <= max_dt:          # la caméra a cessé de le voir juste avant
+        key, sel = ('end', left), (ts >= ts[left] - fit_window) & (ts <= ts[left])
+    elif right < len(ts) and ts[right] - t <= max_dt:  # elle commence à le voir juste après
+        key, sel = ('start', right), (ts >= ts[right]) & (ts <= ts[right] + fit_window)
+    else:
+        return None
+    if key not in cache:
+        pts = series[sel]
+        if len(pts) < 3 or pts[-1, 0] - pts[0, 0] < 0.2:
+            cache[key] = None
+        else:
+            cache[key] = (np.polyfit(pts[:, 0], pts[:, 1], 1), np.polyfit(pts[:, 0], pts[:, 2], 1))
+    fit = cache[key]
+    if fit is None:
+        return None
+    return (float(np.polyval(fit[0], t)), float(np.polyval(fit[1], t))), False
+
+
+def camera_pair_agreement(observations, *, max_dt=0.5, fit_window=0.6, ref_range=(3.0, 40.0),
+                          min_objects=5):
+    """Cœur PUR de la métrique #5 — ACCORD DE DISTANCE ENTRE CAMÉRAS (2026-10-05).
+
+    `observations` : itérable de (t, caméra, objet, x, y, cam_x, cam_y[, méthode]) — position monde (m)
+      d'un objet telle que CETTE caméra la place à l'instant `t` (s), et la position monde de cette caméra
+      au même instant. Un même objet doit porter le même identifiant d'une caméra à l'autre. `méthode`
+      (facultative) : comment la caméra a mesuré cette position — le résultat est alors aussi détaillé
+      par méthode de B (`by_method`), pour dire QUELLE mesure porte un désaccord.
+    Pour chaque objet vu par deux caméras A et B, chaque observation de B à moins de `max_dt` d'une
+    observation de A est confrontée à la position que A donne au même instant (`_position_at`) :
+    rapport = distance mesurée par B (caméra B → sa position) / distance de B à la position de A.
+    Rapport > 1 : B place l'objet plus LOIN que A ne le place. Agrégé par objet (médiane) puis sur les
+    objets, pour qu'un objet longtemps vu par les deux ne pèse pas plus qu'un relais bref.
+
+    ⚠ Biais de sélection : seuls comptent les objets que le suivi a RÉUNIS sous un même identifiant ;
+    un désaccord au-delà de sa porte d'association devient un relais raté et sort de la mesure — les
+    écarts rendus sont donc des bornes basses.
+    Rend {'A>B': {'objects', 'pairs', 'ratio', 'p25', 'p75', 'gap_m', 'interpolated_share', 'curve',
+    'by_method'}} (sans les paires de moins de `min_objects` objets), `curve` étant le rapport par tranche
+    de la distance de B à la position de A (`range_bias_curve`), `by_method` = {méthode de B: {'objects',
+    'ratio'}}."""
+    from collections import defaultdict
+    by_obj = defaultdict(lambda: defaultdict(list))
+    codes = {}                                     # méthode -> code numérique (colonne du tableau)
+    for ob in observations:
+        t, cam, obj, x, y, cx, cy = ob[:7]
+        if all(np.isfinite(v) for v in (t, x, y, cx, cy)):
+            m = codes.setdefault(ob[7] if len(ob) > 7 else None, len(codes))
+            by_obj[obj][cam].append((float(t), float(x), float(y), float(cx), float(cy), float(m)))
+    names = {c: m for m, c in codes.items()}
+    per_obj = defaultdict(lambda: defaultdict(lambda: ([], [])))   # paire -> objet -> (rapports, écarts)
+    per_method = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))   # paire -> méthode -> objet
+    curve_pairs, n_pairs, n_interp = defaultdict(list), defaultdict(int), defaultdict(int)
+    for obj, cams in by_obj.items():
+        if len(cams) < 2:
+            continue
+        series = {}
+        for cam, rows in cams.items():
+            arr = np.asarray(sorted(rows), dtype=float)
+            _, first = np.unique(arr[:, 0], return_index=True)
+            series[cam] = arr[first]
+        for a, sa in series.items():
+            cache, sa3 = {}, sa[:, :3]       # l'ajustement d'un bout de A sert à toutes les caméras B
+            for b, sb in series.items():
+                if a == b:
+                    continue
+                key = f'{a}>{b}'
+                # tri préalable, vectorisé : seules les observations de B proches d'une observation de A
+                ta = sa[:, 0]
+                k = np.searchsorted(ta, sb[:, 0])
+                prev_dt = np.where(k > 0, sb[:, 0] - ta[np.maximum(k - 1, 0)], np.inf)
+                next_dt = np.where(k < len(ta), ta[np.minimum(k, len(ta) - 1)] - sb[:, 0], np.inf)
+                for t, xb, yb, cxb, cyb, mb in sb[np.minimum(prev_dt, next_dt) <= max_dt]:
+                    hit = _position_at(sa3, t, max_dt=max_dt, fit_window=fit_window, cache=cache)
+                    if hit is None:
+                        continue
+                    (xa, ya), interp = hit
+                    r_ref = float(np.hypot(xa - cxb, ya - cyb))
+                    if not ref_range[0] <= r_ref <= ref_range[1]:
+                        continue
+                    ratio = float(np.hypot(xb - cxb, yb - cyb)) / r_ref
+                    per_obj[key][obj][0].append(ratio)
+                    per_obj[key][obj][1].append(float(np.hypot(xb - xa, yb - ya)))
+                    per_method[key][names[int(mb)]][obj].append(ratio)
+                    curve_pairs[key].append((r_ref, ratio))
+                    n_pairs[key] += 1
+                    n_interp[key] += interp
+    out = {}
+    for key, objs in sorted(per_obj.items()):
+        if len(objs) < min_objects:
+            continue
+        ratios = np.asarray([np.median(r) for r, _g in objs.values()])
+        gaps = np.asarray([np.median(g) for _r, g in objs.values()])
+        out[key] = {'objects': len(objs), 'pairs': n_pairs[key],
+                    'ratio': round(float(np.median(ratios)), 3),
+                    'p25': round(float(np.percentile(ratios, 25)), 3),
+                    'p75': round(float(np.percentile(ratios, 75)), 3),
+                    'gap_m': round(float(np.median(gaps)), 2),
+                    'interpolated_share': round(n_interp[key] / n_pairs[key], 3),
+                    'curve': range_bias_curve(curve_pairs[key]),
+                    'by_method': {m: {'objects': len(o),
+                                      'ratio': round(float(np.median([np.median(r) for r in o.values()])), 3)}
+                                  for m, o in sorted(per_method[key].items(), key=lambda kv: str(kv[0]))
+                                  if m is not None and len(o) >= min_objects}}
+    return out
+
+
+def _signed_offset(path, pt, t0, t1, *, window_s, min_move_m=0.5):
+    """Distance signée (m) d'un point à une trajectoire `path` [(t, x, y)] — + à gauche du sens de
+    marche —, cherchée sur la portion parcourue pendant [t0 − window_s ; t1 + window_s]. None si la
+    plateforme n'y avance pas (arrêtée : pas de direction de route)."""
+    sel = path[(path[:, 0] >= t0 - window_s) & (path[:, 0] <= t1 + window_s)]
+    if len(sel) < 5:
+        return None
+    d = np.hypot(sel[:, 1] - pt[0], sel[:, 2] - pt[1])
+    i = int(np.argmin(d))
+    j0, j1 = max(i - 3, 0), min(i + 3, len(sel) - 1)
+    ve, vn = sel[j1, 1] - sel[j0, 1], sel[j1, 2] - sel[j0, 2]
+    norm = float(np.hypot(ve, vn))
+    if norm < min_move_m:
+        return None
+    # distance PERPENDICULAIRE à la direction locale de la trajectoire — et non au point échantillonné le
+    # plus proche, qui ajoute l'écart longitudinal quand la trajectoire est échantillonnée lâchement
+    return float((ve * (pt[1] - sel[i, 2]) - vn * (pt[0] - sel[i, 1])) / norm)
+
+
+def static_offset_gaps(observations, path, *, min_obs=5, offset_range=(1.0, 15.0), window_s=5.0,
+                       min_objects=5):
+    """Cœur PUR de la métrique #6 — ÉCARTEMENT D'UN IMMOBILE SELON LA CAMÉRA (2026-10-05).
+
+    Un objet IMMOBILE vu par plusieurs caméras d'une plateforme mobile est au même endroit pour toutes :
+    sa distance latérale à la trajectoire de la plateforme (son « écartement ») ne dépend pas de la
+    caméra qui le voit. Aucun recalage temporel n'est nécessaire, contrairement aux relais
+    (`camera_pair_agreement`), et c'est la grandeur que l'œil juge sur une vue de dessus : une caméra
+    qui place trop loin écarte les objets de la route — les trajectoires droites s'incurvent autour de
+    la plateforme.
+
+    `observations` : itérable de (t, caméra, objet, x, y) — objets IMMOBILES seulement (le choix est à
+      l'appelant) ; `path` : [(t, x, y)] trajectoire de la plateforme. Point fixe d'un objet par caméra :
+      médiane de ses positions (au moins `min_obs`) ; écartement signé (`_signed_offset`), gardé dans
+      `offset_range` en valeur absolue.
+    Rend {'offsets': {caméra: {'objects', 'median_m'}}, 'gaps': {'B-A': {'objects', 'median_m', 'p25',
+    'p75'}}} — `gaps` : |écartement par B| − |écartement par A| sur les objets vus des deux et placés du
+    même côté (> 0 : B les écarte davantage)."""
+    from collections import defaultdict
+    P = np.asarray(path, dtype=float).reshape(-1, 3)    # liste ou tableau numpy (trajectoire du suivi)
+    P = P[np.argsort(P[:, 0], kind='stable')]
+    by = defaultdict(lambda: defaultdict(list))
+    for t, cam, obj, x, y in observations:
+        if all(np.isfinite(v) for v in (t, x, y)):
+            by[obj][cam].append((float(t), float(x), float(y)))
+    offs_all = defaultdict(list)
+    gaps = defaultdict(list)
+    for obj, cams in by.items():
+        offs = {}
+        for cam, rows in cams.items():
+            if len(rows) < min_obs:
+                continue
+            a = np.asarray(rows)
+            v = _signed_offset(P, (float(np.median(a[:, 1])), float(np.median(a[:, 2]))),
+                               float(a[:, 0].min()), float(a[:, 0].max()), window_s=window_s)
+            if v is not None and offset_range[0] <= abs(v) <= offset_range[1]:
+                offs[cam] = v
+                offs_all[cam].append(abs(v))
+        for a_cam, va in offs.items():
+            for b_cam, vb in offs.items():
+                if a_cam != b_cam and np.sign(va) == np.sign(vb):
+                    gaps[f'{b_cam}-{a_cam}'].append(abs(vb) - abs(va))
+    return {'offsets': {c: {'objects': len(v), 'median_m': round(float(np.median(v)), 2)}
+                        for c, v in sorted(offs_all.items())},
+            'gaps': {k: {'objects': len(v), 'median_m': round(float(np.median(v)), 2),
+                         'p25': round(float(np.percentile(v, 25)), 2),
+                         'p75': round(float(np.percentile(v, 75)), 2)}
+                     for k, v in sorted(gaps.items()) if len(v) >= min_objects}}
+
+
+def relative_camera_scales(agreement, anchor):
+    """Échelle de distance de chaque caméra RELATIVE à `anchor`, tirée des paires de
+    `camera_pair_agreement` : le rapport A>B vaut ≈ échelle(B) / échelle(A). Pour une caméra liée
+    directement à l'ancre, moyenne géométrique des deux sens (ancre>C et 1 / C>ancre) ; sinon en deux
+    sauts par une caméra intermédiaire liée à l'ancre. Rend {caméra: {'scale', 'via'}} (1 = d'accord
+    avec l'ancre, > 1 = place plus loin qu'elle)."""
+    ratio = {k: v['ratio'] for k, v in (agreement or {}).items() if v.get('ratio')}
+    cams = {c for k in ratio for c in k.split('>')}
+    if anchor not in cams:
+        return {}
+
+    def direct(c):
+        logs = []
+        if f'{anchor}>{c}' in ratio:
+            logs.append(np.log(ratio[f'{anchor}>{c}']))
+        if f'{c}>{anchor}' in ratio:
+            logs.append(-np.log(ratio[f'{c}>{anchor}']))
+        return float(np.mean(logs)) if logs else None
+
+    out = {}
+    first = {c: direct(c) for c in cams - {anchor}}
+    for c, lg in first.items():
+        if lg is not None:
+            out[c] = {'scale': round(float(np.exp(lg)), 3), 'via': 'direct'}
+    for c in cams - {anchor} - set(out):
+        logs, vias = [], []
+        for m, lm in first.items():
+            if lm is None or m == c:
+                continue
+            hop = []
+            if f'{m}>{c}' in ratio:
+                hop.append(np.log(ratio[f'{m}>{c}']))
+            if f'{c}>{m}' in ratio:
+                hop.append(-np.log(ratio[f'{c}>{m}']))
+            if hop:
+                logs.append(lm + float(np.mean(hop)))
+                vias.append(m)
+        if logs:
+            out[c] = {'scale': round(float(np.exp(np.mean(logs))), 3), 'via': '+'.join(sorted(vias))}
+    return out
+
+
+def agreeing_camera(range_bias, *, near_bins=2):
+    """La caméra dont les DEUX méthodes indépendantes (projection sol et hauteur de boîte) s'accordent le
+    mieux de près, d'après les courbes de `range_bias_curve` (méthode `box` jugée sur la référence
+    `ground`) : deux mesures indépendantes qui concordent sont le meilleur indice d'une échelle juste,
+    d'où l'ancre de `relative_camera_scales`. Rend (caméra, écart) ou (None, None)."""
+    best = (None, None)
+    for cam, v in (range_bias or {}).items():
+        if (v or {}).get('reference') != 'ground':
+            continue
+        known = [b['ratio'] for b in (v.get('box') or [])[:near_bins] if b.get('ratio')]
+        if not known:
+            continue
+        dev = float(np.mean([abs(np.log(r)) for r in known]))
+        if best[1] is None or dev < best[1]:
+            best = (cam, round(dev, 4))
+    return best
+
+
 def _iou(a, b):
     """Recouvrement de deux boîtes [x0, y0, x1, y1] (0 si l'une manque) — DÉLÈGUE au domicile unique
     `shapes.box_iou` depuis le 2026-10-05 (trois copies identiques vivaient ici, au cam_analyzer et à
@@ -546,6 +810,85 @@ RANGE_BIAS_SPEC = register(FunctionSpec(
     ],
     cost={'cpu_bound': True},
     fn=range_bias_frame,
+))
+
+
+def camera_pair_agreement_frame(observations: TypedFrame, *, max_dt=0.5) -> TypedFrame:
+    """Wrapper FunctionSpec de la métrique #5 : une ligne par paire de caméras (A>B)."""
+    import pandas as pd
+    df = observations.df
+    rows = zip(df['t'], df['camera'], df['object'], df['x'], df['y'], df['cam_x'], df['cam_y'])
+    res = camera_pair_agreement(rows, max_dt=max_dt)
+    out = [{'pair': k, **{f: v[f] for f in ('objects', 'pairs', 'ratio', 'p25', 'p75', 'gap_m',
+                                             'interpolated_share')}} for k, v in res.items()]
+    return TypedFrame(pd.DataFrame(out), DataType.TABLE)
+
+
+CAMERA_PAIR_AGREEMENT_SPEC = register(FunctionSpec(
+    key='camera_pair_agreement',
+    name='Accord de distance entre caméras',
+    description="Mesure, sans vérité terrain, si deux caméras placent un même objet à la même distance : "
+                "quand un objet est vu par deux caméras au même instant (recouvrement) ou à un relais "
+                "bref, la position de l'une est confrontée à celle de l'autre. Rapport > 1 : la seconde "
+                "caméra place plus LOIN. Universelle (toute paire de caméras d'un même repère) ; révèle "
+                "une erreur d'échelle qu'une caméra ne peut pas voir seule.",
+    category=FunctionCategory.INDICATOR,
+    tags=['geometry', 'placement-quality', 'calibration', 'multi-camera', 'no-ground-truth'],
+    inputs=[
+        PortSpec('observations', DataType.TABLE,
+                 required_fields=['t', 'camera', 'object', 'x', 'y', 'cam_x', 'cam_y'],
+                 description="Une ligne par observation : instant, caméra, identifiant d'objet commun aux "
+                             "caméras, position placée par cette caméra et position de la caméra."),
+    ],
+    outputs=[
+        PortSpec('pairs', DataType.TABLE,
+                 produced_fields=['pair', 'objects', 'pairs', 'ratio', 'p25', 'p75', 'gap_m',
+                                  'interpolated_share'],
+                 description="Une ligne par paire A>B : rapport médian des distances (1 = d'accord), "
+                             "écart médian en mètres."),
+    ],
+    params=[
+        ParamSpec('max_dt', 'float', 0.5, 0.05, 5.0, unit='s',
+                  description="Écart de temps maximal (s) entre les observations confrontées."),
+    ],
+    cost={'cpu_bound': True},
+    fn=camera_pair_agreement_frame,
+))
+
+
+def static_offset_gaps_frame(observations: TypedFrame, path: TypedFrame) -> TypedFrame:
+    """Wrapper FunctionSpec de la métrique #6 : une ligne par paire de caméras (B-A)."""
+    import pandas as pd
+    df, pf = observations.df, path.df
+    res = static_offset_gaps(zip(df['t'], df['camera'], df['object'], df['x'], df['y']),
+                             list(zip(pf['t'], pf['x'], pf['y'])))
+    return TypedFrame(pd.DataFrame([{'pair': k, **v} for k, v in res['gaps'].items()]), DataType.TABLE,
+                      meta={'offsets': res['offsets']})
+
+
+STATIC_OFFSET_GAPS_SPEC = register(FunctionSpec(
+    key='static_offset_gaps',
+    name="Écartement d'un immobile selon la caméra",
+    description="Mesure, sans vérité terrain, si les caméras d'une plateforme mobile placent un même objet "
+                "IMMOBILE à la même distance latérale de sa trajectoire. Une caméra qui écarte davantage "
+                "place trop loin : vue de dessus, les trajectoires droites s'incurvent autour de la "
+                "plateforme. Universelle (toute caméra, toute plateforme qui avance).",
+    category=FunctionCategory.INDICATOR,
+    tags=['geometry', 'placement-quality', 'calibration', 'multi-camera', 'no-ground-truth'],
+    inputs=[
+        PortSpec('observations', DataType.TABLE, required_fields=['t', 'camera', 'object', 'x', 'y'],
+                 description="Une ligne par observation d'un objet IMMOBILE : instant, caméra, identifiant "
+                             "commun aux caméras, position placée par cette caméra."),
+        PortSpec('path', DataType.TABLE, required_fields=['t', 'x', 'y'], group='reference',
+                 description="Trajectoire de la plateforme, dans le même repère."),
+    ],
+    outputs=[
+        PortSpec('gaps', DataType.TABLE, produced_fields=['pair', 'objects', 'median_m', 'p25', 'p75'],
+                 description="Une ligne par paire B-A : de combien B écarte davantage les objets que A "
+                             "(m, > 0 : B place plus loin de la route)."),
+    ],
+    cost={'cpu_bound': True},
+    fn=static_offset_gaps_frame,
 ))
 
 

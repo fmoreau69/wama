@@ -1,0 +1,89 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "indicator",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne par observation : instant, caméra, identifiant d'objet commun aux caméras, position placée par cette caméra et position de la caméra.",
+        "group": "travail",
+        "key": "observations",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "t",
+          "camera",
+          "object",
+          "x",
+          "y",
+          "cam_x",
+          "cam_y"
+        ]
+      }
+    ],
+    "key": "camera_pair_agreement",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne par paire A>B : rapport médian des distances (1 = d'accord), écart médian en mètres.",
+        "key": "pairs",
+        "optional": false,
+        "produced_fields": [
+          "pair",
+          "objects",
+          "pairs",
+          "ratio",
+          "p25",
+          "p75",
+          "gap_m",
+          "interpolated_share"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 0.5,
+        "description": "Écart de temps maximal (s) entre les observations confrontées.",
+        "key": "max_dt",
+        "max": 5.0,
+        "min": 0.05,
+        "type": "float",
+        "unit": "s"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "geometry",
+      "placement-quality",
+      "calibration",
+      "multi-camera",
+      "no-ground-truth"
+    ],
+    "visibility": "public"
+  },
+  "description": "Mesure, sans vérité terrain, si deux caméras placent un même objet à la même distance : quand un objet est vu par deux caméras au même instant (recouvrement) ou à un relais bref, la position de l'une est confrontée à celle de l'autre. Rapport > 1 : la seconde caméra place plus LOIN. Universelle (toute paire de caméras d'un même repère) ; révèle une erreur d'échelle qu'une caméra ne peut pas voir seule.",
+  "key": "camera_pair_agreement",
+  "manifest_kind": "function",
+  "name": "Accord de distance entre caméras",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:camera_pair_agreement",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

@@ -1,0 +1,87 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "indicator",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne par observation d'un objet IMMOBILE : instant, caméra, identifiant commun aux caméras, position placée par cette caméra.",
+        "group": "travail",
+        "key": "observations",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "t",
+          "camera",
+          "object",
+          "x",
+          "y"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Trajectoire de la plateforme, dans le même repère.",
+        "group": "reference",
+        "key": "path",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "t",
+          "x",
+          "y"
+        ]
+      }
+    ],
+    "key": "static_offset_gaps",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne par paire B-A : de combien B écarte davantage les objets que A (m, > 0 : B place plus loin de la route).",
+        "key": "gaps",
+        "optional": false,
+        "produced_fields": [
+          "pair",
+          "objects",
+          "median_m",
+          "p25",
+          "p75"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "geometry",
+      "placement-quality",
+      "calibration",
+      "multi-camera",
+      "no-ground-truth"
+    ],
+    "visibility": "public"
+  },
+  "description": "Mesure, sans vérité terrain, si les caméras d'une plateforme mobile placent un même objet IMMOBILE à la même distance latérale de sa trajectoire. Une caméra qui écarte davantage place trop loin : vue de dessus, les trajectoires droites s'incurvent autour de la plateforme. Universelle (toute caméra, toute plateforme qui avance).",
+  "key": "static_offset_gaps",
+  "manifest_kind": "function",
+  "name": "Écartement d'un immobile selon la caméra",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:static_offset_gaps",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}
