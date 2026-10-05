@@ -166,6 +166,30 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         self.assertIn('blur', stale)
         self.assertNotIn('detect', stale)
 
+    def _blur_reading(self, media_kind, **settings):
+        """The arguments the blur gives the common reading of the detections."""
+        def engine(**kwargs):
+            doc = _document()
+            doc['media'] = media_kind
+            return doc
+        with mock.patch.object(detections, 'by_frame', wraps=detections.by_frame) as reading:
+            self._run(engine=engine, **settings)
+        self.assertEqual('SUCCESS', self.media.status, self.media.error_message)
+        return reading.call_args.kwargs
+
+    def test_a_video_blur_passes_the_card_interpolation_and_prolonging(self):
+        """Wiring that no error would reveal : a lost setting only blurs less."""
+        kwargs = self._blur_reading('video', interpolate_detections=True,
+                                    max_interpolation_frames=20, max_extrapolation_frames=7)
+        self.assertEqual((True, 20, 7), (kwargs['interpolate'], kwargs['max_gap'],
+                                         kwargs['max_extrapolation']))
+
+    def test_an_image_is_never_interpolated_nor_prolonged(self):
+        kwargs = self._blur_reading('image', interpolate_detections=True,
+                                    max_interpolation_frames=20, max_extrapolation_frames=7)
+        self.assertEqual((False, 0), (bool(kwargs['interpolate']), kwargs['max_extrapolation']))
+
+
     def test_changing_the_format_replays_the_output_alone_and_keeps_the_blurred_original(self):
         self._run()
         before = self._started()
@@ -325,3 +349,32 @@ class DetectMediaRoutingTest(TestCase):
         tag, processor, yolo, _ = self._route(use_sam3=False)
         self.assertEqual('yolo11n', tag)
         processor.assert_not_called()
+
+
+class SegmentationNoteTest(TestCase):
+    """Card #1026 (2026-10-05) : slider at 50, faces blurred as RECTANGLES, nothing said — the
+    only face segmentation model of the catalogue was not installed. The note names it."""
+
+    def setUp(self):
+        from wama.model_manager.models import AIModel
+        self.user = get_user_model().objects.create_user('anonymizer_seg_note', password='x')
+        AIModel.objects.create(model_key='anonymizer:face_yolov8m-seg_60.pt',
+                               name='face_yolov8m-seg_60', model_type='vision', source='anonymizer',
+                               is_available=False,
+                               capabilities={'task': 'segment', 'classes': ['face']})
+
+    def _note(self, polygons=None, **settings):
+        media = Media(user=self.user, classes2blur=['face'], **settings)
+        doc = _document()
+        if polygons:
+            doc['frames'][0]['d'][0]['polygons'] = polygons
+        return tasks._segmentation_note(media, doc)
+
+    def test_asked_and_missed_it_names_the_model_to_install(self):
+        note = self._note(precision_level=60, use_segmentation=False)
+        self.assertIn('face_yolov8m-seg_60.pt', note)
+        self.assertIn('rectangulaires', note)
+
+    def test_nothing_is_said_when_it_was_not_asked_or_took_place(self):
+        self.assertEqual('', self._note(precision_level=30, use_segmentation=False))
+        self.assertEqual('', self._note(precision_level=60, polygons=[[[8, 8], [40, 8], [40, 40]]]))
