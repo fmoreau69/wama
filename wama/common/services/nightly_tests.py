@@ -433,6 +433,7 @@ try:
                                                register_volet_scenarios,
                                                register_worker_death_scenarios)
     from wama.common.services.ui_smoke_matching import (register_media_library_scenarios,
+                                                        register_vocals_scenarios,
                                                         register_voice_language_scenarios,
                                                         register_voice_library_scenarios)
     from wama.common.services.ui_smoke_menus import register_menu_scenarios
@@ -445,6 +446,8 @@ try:
     # 2026-09-30 — un champ de voix ouvre la médiathèque : ajouter (fichier, micro) puis choisir.
     register_voice_library_scenarios()
     register_media_library_scenarios()
+    # 2026-10-05 — la voix d'un morceau (composer) et le ✨ de la brique (imager).
+    register_vocals_scenarios()
     # 2026-09-14 — les MENUS (cascade, clavier, « Envoyer vers » serveur, état médiathèque) :
     # même raison, et versés de la sonde de session le jour même. Un menu refermé 7 ms après son
     # ouverture, ↓ détourné par Bootstrap : aucun des deux ne lève d'erreur.
