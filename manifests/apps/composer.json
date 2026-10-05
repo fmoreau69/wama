@@ -987,6 +987,10 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "plan",
+              "render"
+            ],
             "step": null,
             "type": "textarea",
             "unit": ""
@@ -1043,6 +1047,10 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "plan",
+              "render"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -1107,6 +1115,10 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "plan",
+              "render"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -1160,6 +1172,10 @@
                 "song"
               ]
             },
+            "stales": [
+              "plan",
+              "render"
+            ],
             "step": null,
             "type": "textarea",
             "unit": ""
@@ -1217,6 +1233,10 @@
                 "auto:text-to-audio"
               ]
             },
+            "stales": [
+              "plan",
+              "render"
+            ],
             "step": 1,
             "type": "intent",
             "unit": ""
@@ -1274,6 +1294,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "render"
+            ],
             "step": 5,
             "type": "range",
             "unit": "s"
@@ -1358,6 +1381,7 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": null,
             "step": null,
             "type": "select",
             "unit": ""
@@ -1433,6 +1457,7 @@
                 "opus"
               ]
             },
+            "stales": null,
             "step": null,
             "type": "select",
             "unit": ""

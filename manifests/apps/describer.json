@@ -991,6 +991,7 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": null,
             "step": null,
             "type": "select",
             "unit": ""
@@ -1055,6 +1056,7 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": null,
             "step": null,
             "type": "select",
             "unit": ""
@@ -1106,6 +1108,7 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": null,
             "step": 50,
             "type": "range",
             "unit": ""
@@ -1157,6 +1160,7 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": null,
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -1208,6 +1212,7 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": null,
             "step": null,
             "type": "toggle",
             "unit": ""

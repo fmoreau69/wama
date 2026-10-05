@@ -1230,6 +1230,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "detect"
+            ],
             "step": null,
             "type": "radio",
             "unit": ""
@@ -1282,6 +1285,9 @@
               "equals": "description",
               "field": "target_mode"
             },
+            "stales": [
+              "detect"
+            ],
             "step": null,
             "type": "textarea",
             "unit": ""
@@ -1338,6 +1344,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "detect"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -1387,6 +1396,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "detect"
+            ],
             "step": 5,
             "type": "intent",
             "unit": ""
@@ -1436,6 +1448,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "detect"
+            ],
             "step": 0.05,
             "type": "range",
             "unit": ""
@@ -1485,6 +1500,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "blur"
+            ],
             "step": 2,
             "type": "range",
             "unit": ""
@@ -1532,6 +1550,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "blur"
+            ],
             "step": 1,
             "type": "number",
             "unit": ""
@@ -1581,6 +1602,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "blur"
+            ],
             "step": 0.05,
             "type": "range",
             "unit": ""
@@ -1630,6 +1654,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "blur"
+            ],
             "step": 1,
             "type": "range",
             "unit": ""
@@ -1677,6 +1704,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "blur"
+            ],
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -1727,6 +1757,9 @@
               "equals": true,
               "field": "interpolate_detections"
             },
+            "stales": [
+              "blur"
+            ],
             "step": 1,
             "type": "number",
             "unit": ""
@@ -1774,6 +1807,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "detect"
+            ],
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -1821,6 +1857,7 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [],
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -1868,6 +1905,7 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [],
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -1915,6 +1953,7 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [],
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -1962,6 +2001,7 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [],
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -2089,6 +2129,7 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": null,
             "step": null,
             "type": "select",
             "unit": ""
@@ -2149,6 +2190,7 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": null,
             "step": null,
             "type": "select",
             "unit": ""

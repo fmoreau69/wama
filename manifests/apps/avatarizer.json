@@ -957,6 +957,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": "text_content",
+            "stales": [
+              "speak"
+            ],
             "step": null,
             "type": "textarea",
             "unit": ""
@@ -1006,6 +1009,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": "text_content",
+            "stales": [
+              "speak"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -1056,6 +1062,9 @@
               "equals": "auto",
               "field": "tts_model"
             },
+            "stales": [
+              "speak"
+            ],
             "step": 1,
             "type": "intent",
             "unit": ""
@@ -1164,6 +1173,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": "text_content",
+            "stales": [
+              "speak"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -1211,6 +1223,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": "text_content",
+            "stales": [
+              "speak"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -1267,6 +1282,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "animate"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -1317,6 +1335,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "enhance"
+            ],
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -1367,6 +1388,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
+            "stales": [
+              "animate"
+            ],
             "step": 1,
             "type": "range",
             "unit": ""
