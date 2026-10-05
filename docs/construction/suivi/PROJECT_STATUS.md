@@ -22219,3 +22219,36 @@ autre instance en codegen) ; la photo `watched_of` n'a pas été rejouée sur un
 inchangé) · mesure interne de qualité musicale (décision) · réunion des deux dessinateurs d'onde →
 chantier SURFACES (`ROUTE §F3b`, décision `§13` en ouverture) · page d'édition partition + paroles,
 même chantier.
+
+## §CLÔTURE — 2026-10-05, « ANONYMIZER : DÉTECTIONS, APERÇU, TRAJECTOIRES » — clos (`545129c3` → `ff44f31c`, non poussés) — 🔚 relancer gunicorn + workers · budget de langue à recaler (pas à moi)
+
+Session du chantier pipeline (anonymizer séparé en Détection → Floutage → Sortie, 04/10), puis
+les retours de Fabien sur la card #1026. Détail et gardes : `ROUTE §10.6`, bloc anonymizer.
+- ✅ Interpolation : liaison par piste OU par place, réglage seule limite, centre en COURBE
+  (`hermite_gap`). ✅ Face « Détection » après traitement + Comparer sur vidéos synchronisées
+  (`PreviewRegistry.register(faces=)`, `WamaPreviewOverlay`). ✅ Segmentation empêchée dite en
+  console. ✅ Primitives du cam_analyzer portées au commun `wama_data/functions` (`hermite_gap`,
+  `box_iou`) ; le cam et le Data délèguent (`feb56cd2`), garde `TheOldCopiesDelegateTest`.
+- ✅ **Extrapolation aux bouts** (`dc096d1f`, décision de Fabien) : `max_extrapolation_frames`,
+  défaut 5, 0 = jamais — réglage SÉPARÉ de l'interpolation (un seul côté : quelques images ;
+  l'interpolation, encadrée, comble 50 images). Migration `anonymizer/0035` additive
+  (`db_default`) APPLIQUÉE. Manifestes `apps`/`pipelines/anonymizer` régénérés.
+- `render_media` → `paint_media` (`ea6331c0`) : faux positif de `check_redundancy` contre la
+  colle `_render` du composer, débruité de mon côté.
+- **Vérifié** : 586 tests du périmètre sur HEAD (worktree) — anonymizer, détections, aperçu,
+  pipeline, cam_analyzer, `wama_data` geometry/kinematics — tous verts SAUF le budget de langue
+  ci-dessous ; navigateur (serveur jetable) : faces, surcouche, Comparer synchronisé, 0 erreur
+  JS ; live relancé : `wama-preview-overlay.js` et l'inspecteur à jour servis (200).
+- 🔴 **Relancer gunicorn ET workers** : l'extrapolation (`dc096d1f`) et `paint_media`
+  (`ea6331c0`) sont arrivés APRÈS la relance de l'après-midi.
+- 🔴 **Budget de langue DÉPASSÉ, pas par moi** — `tests_identifier_language` : code 2678 > 2670,
+  classes de test 135 > 132, méthodes 1319 > 1310 (mesuré sur HEAD ET sur l'arbre, contre-épreuve
+  faite). Mon seul identifiant relevé est renommé (`a0e98bd0`). Plusieurs relevés sont des noms
+  ANGLAIS que la liste noire prend pour du français (`declare`, `declares`, `poses`,
+  `refuses` : `composer/tests_prompt_harness`, `tests_process_eta`, `tests_codegen_from_scratch`,
+  `tests_input_match_capability`, `tests_process_pipeline:438`, `enhancer/tests_task`,
+  `cam_analyzer/tests_pipeline_eta`) — à trancher : affûter l'instrument (mots ambigus) ou
+  renommer ; le reste vient des sessions du jour (`--detail`).
+- ⚠ Laissés tels quels, pas à moi : `manifests/apps/anonymizer.json` dans l'arbre est une
+  version ANCIENNE (209 lignes de moins que HEAD, `native_outputs` absent) ; `check_docs` :
+  5 références cassées, aucune dans mes blocs.
