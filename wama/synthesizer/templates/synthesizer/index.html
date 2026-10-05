@@ -488,6 +488,9 @@ document.addEventListener('DOMContentLoaded', function () {
             // Le MÊME catalogue que la direction modèle→choix : `input_match_meta` ne porte que
             // les entrées, jamais les langues — sans ce pont, le slot langue ne saurait rien.
             capsProvider: modelCaps ? modelCaps.caps : null,
+            // Rejugé à l'arrivée du catalogue (2026-10-05) : sans lui, une langue choisie ne
+            // grisait les moteurs qu'au geste suivant.
+            capsReady: modelCaps ? modelCaps.ready : null,
             statusId: 'inputMatchStatus',
         });
         // Troisième direction, ouverte le 2026-09-27 (constat de Fabien : « le sélecteur de

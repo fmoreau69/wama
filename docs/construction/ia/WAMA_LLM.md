@@ -184,6 +184,11 @@ s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
 - Adopté par imager (4 champs) et **composer** (2026-10-04 : mixin + migration `0018`, la modale
   rend le prompt à deux états avec son ✨, la tâche envoie `effective_prompt` sans seconde passe) ;
   prêt pour le studio, sans code par app.
+- **Le déclencheur ✨ est celui de la brique** (`trigger`, + `modelSelect` : le modèle visé apporte
+  son contrat) — composer depuis le 2026-10-04, **imager** depuis le 2026-10-05 (card et modale ;
+  le bouton écrit dans l'app et son handler délégué, qui recopiait l'appel SANS le modèle visé,
+  sont retirés). La brique DIT une erreur et un prompt vide (toast commun) et n'appelle pas deux
+  fois pendant l'attente — ce que le bouton de l'imager faisait et que la brique taisait.
 - ⚠ **Ce qui se poste depuis la modale = le texte AFFICHÉ + son état** — jamais l'original sous
   l'état `processed` : `apply_prompt_state` l'écrirait dans l'enrichi. C'est ce que faisait la
   modale de l'imager du 2026-08-05 au 2026-10-04 (enregistrer une card enrichie remplaçait
@@ -195,9 +200,12 @@ s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
   première ligne balisée (`[Verse]`, `[Chorus]`… — `tagged_lyrics`, la même découpe que les
   backends musicaux). Traduction et enrichissement ne voient que la **description** ; les paroles
   sont recollées **telles quelles**, au lancement (`process_prompt_for`), au ✨ et à l'ingestion
-  (`enrich_prompt_value`). Si le modèle ne déclare pas la langue du profil, la console le dit
-  (aucune détection de langue d'un texte n'existe dans WAMA : la langue supposée est celle du
-  profil, comme pour la description). Des paroles SEULES n'ont rien à enrichir, et c'est dit.
+  (`enrich_prompt_value`). Si le modèle ne déclare pas la langue des paroles, la console le dit :
+  depuis le 2026-10-05 c'est la langue DÉTECTÉE des paroles (`common/utils/text_language`,
+  `langid`, mécanisme `content_language`) ; un verdict peu sûr retombe sur celle du profil.
+  ⚠ Cette ligne disait la veille « aucune détection de langue d'un texte n'existe dans WAMA » —
+  faux, un relevé borné à `common/` (l'heuristique morte du describer, retirée, et `langid`, déjà
+  installé, existaient). Des paroles SEULES n'ont rien à enrichir, et c'est dit.
 - **Contrat à l'ingestion** : l'enrichissement à l'ingestion reçoit le contrat du modèle choisi
   (avant : le skill seul — la forme MusicGen pour une card destinée à YuE2). Sous un « auto » dont
   un candidat porte un contrat, l'ingestion **s'abstient** : le lancement enrichit avec le
@@ -209,7 +217,10 @@ s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
   `song` (chanté ; sans paroles fournies, elles sont **écrites** — `write_lyrics_for`, skill
   `composer-lyrics`, dans une langue que le modèle chante : celle du profil, sinon l'anglais).
   C'est le SEUL chemin où un LLM écrit des paroles, et il faut le demander. Qui chante : la
-  capacité `supports_vocals` du MODÈLE, déclarée par son manifeste (YuE2, MiniMax-Music3) ;
+  capacité `supports_vocals` du MODÈLE, déclarée par son manifeste (YuE2, MiniMax-Music3 ; ACE-Step
+  aussi depuis le 2026-10-05, mais sans backend musical il est dit inlançable — contrat de tâche
+  `text-to-music` devenu LIANT le même jour —, donc ni tiré ni proposé sans grisage) ; « Chanson »
+  grise au sélecteur (volet et modale) les modèles qui ne chantent pas (`INPUT_MODEL_MATCHING §6.11`) ;
   sous « auto », le tirage ne retient que ceux-là quand la voix est voulue ; un modèle choisi qui
   ne chante pas reçoit la description seule, et la console le dit. Les paroles écrites sont
   **gardées sur la card** (champ `lyrics`, même jour) : éditables dans la modale ⚙ (« Paroles »,

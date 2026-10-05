@@ -86,3 +86,34 @@ class DeclaredModelListTest(SimpleTestCase):
         self.assertIsNone(backend_missing(row('transcriber:qwen3-asr-1.7b')))
         # Hors contrat liant, le verdict reste permissif (rien ne change pour `detect`).
         self.assertIsNone(backend_missing(row('huggingface:org/unlisted', task='detect')))
+
+
+class MusicContractIsBindingTest(SimpleTestCase):
+    """2026-10-05 — `text-to-music` was NOT binding: ACE-Step (engine `transformers`, no music
+    backend) passed for executable, offered without greying and DRAWABLE by « auto », then failed
+    at launch. Binding, it is said unlaunchable; the five served music models keep their backend."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.entries = resolvable_entries()
+
+    def _row(self, key, engine):
+        return SimpleNamespace(model_key=key, capabilities={'task': 'text-to-music'},
+                               composition={'runtime': {'engine': engine}},
+                               source=key.split(':', 1)[0], is_proposed=False, execution='local')
+
+    def test_a_music_model_no_backend_serves_is_said_unlaunchable(self):
+        invalidate_engine_cache()
+        self.assertTrue(TASK_CONTRACTS['text-to-music'][2])
+        self.assertIn('aucun backend de text-to-music',
+                      backend_missing(self._row('huggingface:ACE-Step/Ace-Step1.5', 'transformers'))
+                      or '')
+
+    def test_the_served_music_models_keep_their_backend(self):
+        for engine, model_id, module in (('audiocraft', 'musicgen-small', 'audiocraft_backend'),
+                                         ('yue', 'm-a-p/YuE2-3B', 'yue2_3b_backend')):
+            with self.subTest(engine=engine):
+                chosen = resolve_entry(engine, model_id, self.entries, task='text-to-music')
+                self.assertIsNotNone(chosen)
+                self.assertTrue(chosen.module.endswith(module), chosen.module)

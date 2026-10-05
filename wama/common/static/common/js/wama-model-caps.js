@@ -139,7 +139,12 @@
     const url = base + (cfg.task
       ? '?task=' + encodeURIComponent(cfg.task)
       : '?source=' + encodeURIComponent(cfg.source));
-    fetch(url)
+    // `ready` (2026-10-05) : se résout quand les capacités du catalogue sont là (ou que le fetch a
+    // échoué). Un consommateur qui juge AVANT (l'appariement `WamaInputMatch`, `capsReady`) lisait
+    // des capacités vides et ne rejugeait jamais : une langue choisie ne grisait les moteurs
+    // qu'au geste suivant, et un slot de capacité (la voix « Chanson » du composer) aurait tout
+    // grisé à l'ouverture.
+    const ready = fetch(url)
       .then(function (r) { return r.json(); })
       .then(function (data) {
         (data.models || []).forEach(function (m) {
@@ -149,10 +154,11 @@
           }
         });
         render();
+        return capsByKey;
       })
-      .catch(function () { /* pas de catalogue → on ne filtre pas (dégradation douce) */ });
+      .catch(function () { return capsByKey; /* pas de catalogue → on ne filtre pas */ });
 
-    return { render: render, caps: function () { return capsByKey; } };
+    return { render: render, caps: function () { return capsByKey; }, ready: ready };
   }
 
   /*

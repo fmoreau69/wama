@@ -59,6 +59,9 @@
                 endpoint: CFG().urls.enhancePrompt, csrf: CFG().csrfToken,
                 original: data.prompt || '', processed: data.prompt_processed || '',
                 keywords: data.prompt_keywords || [],
+                // ✨ de la brique (2026-10-05) et le modèle de LA MODALE : son contrat s'applique.
+                trigger: true,
+                modelSelect: domain === 'video' ? '#video_settings_model' : '#settings_model',
             });
         }
     }

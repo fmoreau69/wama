@@ -204,22 +204,32 @@ def _with_lyrics(head, lyrics):
 
 def _rejoin_lyrics(res, original, lyrics, user, console):
     """Les paroles reviennent INTACTES après la description traitée — et on prévient quand le
-    modèle ne déclare pas la langue dans laquelle elles sont (supposée : celle du profil, comme
-    pour la description ; aucune détection de langue du texte n'existe dans WAMA)."""
+    modèle ne déclare pas la langue dans laquelle elles SONT : celle que dit `text_language`
+    (2026-10-05) ; si elle n'est pas sûre, celle du profil, supposée comme pour la description.
+    ⚠ Le 2026-10-04 on n'a supposé que le profil, en écrivant « aucune détection de langue du
+    texte n'existe dans WAMA » — faux : un relevé par motif borné à `common/`, qui ne voyait pas
+    l'heuristique (morte) du describer ni `langid`, déjà installé."""
     res = dict(res)
     res['prompt'] = _with_lyrics(res.get('prompt'), lyrics)
     res['original'] = original
     res['lyrics_spared'] = True
+    if not console:
+        return res
+    from .text_language import detect_text_language
     routing = res.get('routing') or {}
-    if console:
-        if routing.get('input_translate'):
-            from .prompt_pipeline import _user_lang
-            langs = ', '.join(l for l in (routing.get('model_languages') or []) if l != '*')
-            console(f"🎤 Paroles gardées telles quelles (jamais traduites). Si elles sont en "
-                    f"« {_user_lang(user)} », ce modèle ne déclare pas cette langue"
-                    f"{f' ({langs})' if langs else ''} : il risque de mal les chanter.")
-        else:
-            console("🎤 Paroles gardées telles quelles : seule la description est traitée.")
+    model_langs = [l for l in (routing.get('model_languages') or [])]
+    named = ', '.join(l for l in model_langs if l != '*')
+    sung = detect_text_language(lyrics)
+    if sung and model_langs and '*' not in model_langs and sung not in model_langs:
+        console(f"🎤 Paroles en « {sung} », gardées telles quelles (jamais traduites) : ce modèle "
+                f"ne déclare pas cette langue ({named}), il risque de mal les chanter.")
+    elif not sung and routing.get('input_translate'):
+        from .prompt_pipeline import _user_lang
+        console(f"🎤 Paroles gardées telles quelles (jamais traduites). Si elles sont en "
+                f"« {_user_lang(user)} », ce modèle ne déclare pas cette langue"
+                f"{f' ({named})' if named else ''} : il risque de mal les chanter.")
+    else:
+        console("🎤 Paroles gardées telles quelles : seule la description est traitée.")
     return res
 
 

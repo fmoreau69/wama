@@ -148,18 +148,5 @@ def format_audio_result(text: str, output_style: str, is_summary: bool) -> str:
         return f"{prefix}\n\n{text}"
 
 
-def detect_language(text: str) -> str:
-    """Simple language detection."""
-    # Common French words
-    french_words = ['le', 'la', 'les', 'de', 'du', 'des', 'un', 'une', 'est', 'sont', 'avec', 'pour', 'dans', 'sur']
-    # Common English words
-    english_words = ['the', 'a', 'an', 'is', 'are', 'with', 'for', 'in', 'on', 'at', 'to', 'of']
-
-    words = text.lower().split()[:100]  # Check first 100 words
-
-    french_count = sum(1 for w in words if w in french_words)
-    english_count = sum(1 for w in words if w in english_words)
-
-    if french_count > english_count:
-        return 'fr'
-    return 'en'
+# `detect_language(text)` (heuristique français/anglais par mots courants) RETIRÉ le 2026-10-05 :
+# appelé nulle part. La langue d'un texte est la brique commune `common/utils/text_language`.

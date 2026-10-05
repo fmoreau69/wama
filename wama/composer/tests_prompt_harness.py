@@ -123,6 +123,27 @@ class TheLyricsNeverGoThroughTheLLMTest(SimpleTestCase):
         self.assertIn('en, zh', said[-1])
         self.assertIn('jamais traduites', said[-1])
 
+    def _said_for(self, lyrics, profile_translates=True):
+        from wama.common.utils.app_metadata import process_prompt_for
+        said = []
+        routing = {'input_translate': profile_translates, 'model_languages': ['en', 'zh']}
+        with self._pipeline(routing), \
+                mock.patch('wama.common.utils.app_metadata._resolve_model',
+                           return_value=(None, 'music', None)):
+            process_prompt_for('composer', 'prompt', 'Pop douce\n' + lyrics, console=said.append)
+        return said[-1]
+
+    def test_the_language_judged_is_the_one_of_the_lyrics_not_the_profile_s(self):
+        # 2026-10-05: the profile was assumed — English lyrics typed by a French user were said
+        # « maybe fr, not sung », French lyrics given to an English model with an English profile
+        # were not said at all.
+        english = self._said_for("[Verse]\nWalking in the rain alone\n[Chorus]\nAnd I sing for you tonight")
+        self.assertIn('seule la description est traitée', english)
+        french = self._said_for("[Verse]\nSous la pluie je marche seul\n[Chorus]\nEt je chante pour toi",
+                                profile_translates=False)
+        self.assertIn('Paroles en « fr »', french)
+        self.assertIn('en, zh', french)
+
     def test_a_prompt_without_tags_goes_through_whole(self):
         from wama.common.utils.app_metadata import process_prompt_for
         with self._pipeline() as pipeline, \
@@ -267,3 +288,60 @@ class TheBrickOffersItsTriggerWhenAskedTest(SimpleTestCase):
 
     def test_without_it_nothing_changes_for_the_apps_that_have_their_own_button(self):
         self.assertEqual('', self._bar({'app': 'imager'}))
+
+    def _enrich(self, prompt, answer, clicks=2):
+        """Clicks the brick's ✨ with a fake `fetch` that answers `answer`; returns (calls, toasts,
+        state). 2026-10-05: the brick re-rendered in SILENCE on an error — the imager's own ✨
+        button, now retired for the brick's, said it."""
+        from py_mini_racer import MiniRacer
+        v8 = MiniRacer()
+        v8.eval("""
+            function el() { return {style: {}, dataset: {}, innerHTML: '', textContent: '',
+                                    addEventListener: function () {}, querySelector: function () { return null; },
+                                    insertAdjacentElement: function () {}}; }
+            var toasts = []; var calls = 0;
+            var window = {WamaApp: {toast: function (m) { toasts.push(m); }}};
+            var document = {createElement: function () { return el(); },
+                            querySelector: function () { return null; }};
+            var field = el(); field.tagName = 'TEXTAREA';
+            var answer = %s;
+            function fetch() { calls++; return Promise.resolve({json: function () {
+                return Promise.resolve(answer); }}); }
+        """ % json.dumps(answer))
+        v8.eval((Path(settings.BASE_DIR) / 'staticfiles/common/js/wama-prompt-enrich.js')
+                .read_text(encoding='utf-8'))
+        v8.eval(f"field.value = {json.dumps(prompt)};"
+                "var c = window.WamaPromptEnrich.attach(field, {app: 'imager', trigger: true});"
+                + "c.enrich();" * clicks)
+        return json.loads(v8.eval("JSON.stringify([calls, toasts, c.state()])"))
+
+    def test_an_error_is_said_and_a_second_click_does_not_call_twice(self):
+        calls, toasts, state = self._enrich('un chat', {'error': 'Enrichissement indisponible'})
+        self.assertEqual(1, calls, 'a click during the LLM call relaunches nothing')
+        self.assertEqual(['Enrichissement indisponible'], toasts)
+        self.assertEqual('user', state)
+
+    def test_an_empty_prompt_is_said_and_nothing_is_sent(self):
+        calls, toasts, _state = self._enrich('   ', {'enhanced': 'x'}, clicks=1)
+        self.assertEqual(0, calls)
+        self.assertEqual(1, len(toasts))
+
+    def test_an_enrichment_is_posed_on_the_field(self):
+        calls, toasts, state = self._enrich('un chat', {'enhanced': 'a cat, soft light'})
+        self.assertEqual((1, [], 'processed'), (calls, toasts, state))
+
+
+class TheImagerUsesTheBrickTriggerTest(SimpleTestCase):
+    """The imager's ✨ was a button written in the app plus a delegated handler that re-did the
+    brick's call WITHOUT the target model (so without its prompt contract) — retired 2026-10-05."""
+
+    def test_the_card_and_the_modal_declare_the_trigger_with_their_model(self):
+        root = Path(settings.BASE_DIR) / 'staticfiles/imager/js'
+        card = (root / 'input_card.js').read_text(encoding='utf-8')
+        modal = (root / 'settings_modal.js').read_text(encoding='utf-8')
+        index = (root / 'index.js').read_text(encoding='utf-8')
+        self.assertIn("trigger: true, modelSelect: '#' + d.selectId", card)
+        self.assertIn('trigger: true', modal)
+        self.assertIn("'#video_settings_model' : '#settings_model'", modal)
+        for src in (card, index):
+            self.assertNotIn('enhance-prompt-btn', src, 'the hand-written ✨ is back')

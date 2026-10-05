@@ -108,7 +108,9 @@ class UneVoixCloneeExigeUnMoteurQuiCloneTest(TestCase):
         from pathlib import Path
         from django.conf import settings
         js = (Path(settings.BASE_DIR) / 'wama/common/static/common/js/wama-input-match.js').read_text(encoding='utf-8')
-        self.assertIn("if (mid === 'auto') return true;", js)
+        # Forme généralisée le 2026-10-05 (l'« auto » d'un groupe aussi) ; le COMPORTEMENT est
+        # exercé en V8 par `tests_input_match_capability` (jumeau de `auto_model.is_auto`).
+        self.assertIn("if (isAutoValue(mid)) return true;", js)
 
 
 class PrevisionTest(TestCase):
@@ -553,9 +555,15 @@ class PredicatDeVoixClonéeDéfiniUneFoisTest(TestCase):
             # l'avatarizer déclarait tout et n'incluait ni l'un ni l'autre — le bloc, gardé par
             # `if (window.WamaModelCaps)`, était mort sans signal. Cette garde ne lisait que la
             # déclaration ; elle lit désormais aussi le <script src>.
-            for brique in ('common/js/wama-model-caps.js', 'common/js/wama-input-match.js'):
-                self.assertIn(brique, gabarit, f'{page} : la brique {brique} n’est pas chargée — '
-                                               'le bloc d’appariement se tait sans elle')
+            # Deux formes de chargement : le <script src> direct, ou — depuis `09b557e8` (socle JS
+            # d'app, ROUTE §11 #25) — le socle commun AVEC le drapeau de la brique. La garde lisait
+            # le seul <script src> et était rouge depuis ce portage (relevé le 2026-10-05).
+            socle = 'common/_app_scripts.html' in gabarit
+            for brique, drapeau in (('common/js/wama-model-caps.js', 'with_model_caps=True'),
+                                    ('common/js/wama-input-match.js', 'with_input_match=True')):
+                self.assertTrue(brique in gabarit or (socle and drapeau in gabarit),
+                                f'{page} : la brique {brique} n’est pas chargée — '
+                                'le bloc d’appariement se tait sans elle')
 
     def test_les_briques_exposent_les_deux_directions(self):
         caps_js = self._lire('wama/common/static/common/js/wama-model-caps.js')

@@ -658,8 +658,11 @@ TASK_CONTRACTS = {
     'image-to-video': ('image_generation_base', 'ImageGenerationBackend', True),
     'text-to-speech': ('tts_base', 'TTSBackend', True),
     # 2026-10-01 : la signature que le composer appelle, enfin DÉCLARÉE (cf. music_generation_base).
-    # Non liant, comme `detect` : il donne la forme d'un NOUVEAU backend sans en refuser un.
-    'text-to-music': ('music_generation_base', 'MusicGenerationBackend', False),
+    # LIANT depuis le 2026-10-05 : les trois backends musicaux en dérivent (AudioCraft, audio.cpp,
+    # YuE2 — mesuré : routage inchangé pour les cinq modèles servis). Non liant, il laissait
+    # ACE-Step (moteur `transformers`, aucun backend musical) réputé exécutable : proposé au select
+    # sans grisage, TIRABLE par « auto », puis en échec au lancement. Liant, il est dit inlançable.
+    'text-to-music': ('music_generation_base', 'MusicGenerationBackend', True),
     # 2026-10-03 : l'audio → sa partition (SheetSage2), maillon du cover. Écrit AVANT le backend,
     # pour que le rôle `backend` le reçoive. Non liant, comme `text-to-music`.
     'audio-to-score': ('score_extraction_base', 'ScoreExtractionBackend', False),

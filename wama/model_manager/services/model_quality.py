@@ -126,6 +126,9 @@ DECLARED_PRIORS = {
     # appui comparatif lisible : les votes humains de Music Arena (CC-BY-4.0, parquet converti,
     # lu le 2026-10-03 ; les mois 2026-04 à 07 n'étaient pas lisibles). PEU de duels : ce sont des
     # RANGS, pas des mesures — à remplacer dès qu'un banc couvre ces modèles.
+    # Corroboré le 2026-10-05 (sans valeur changée) : classement INSTRUMENTAL d'Artificial
+    # Analysis (page web, votes humains ; son API n'a pas de catégorie musique) — MusicGen 881
+    # contre MiniMax Music 3.0 1000, l'ordre déclaré ici (WAMA_QUALITE §étage a priori).
     'composer:musicgen-medium': (60.12, "Music Arena 2026-03 : 22 duels contre acestep-1.5-turbo, "
                                         "8 victoires contre 6 (8 « mauvais tous deux ») — aucune "
                                         "différence mesurable : même rang qu'ACE-Step 1.5 (lu le "
