@@ -162,7 +162,6 @@ def _enhance_media(enhancement, ctx):
     aperçu « pendant » (vidéo), conversion de sortie inline. Une exception = FAILURE (le
     squelette pose statut/console/notification) ; l'aperçu partiel est retiré ICI."""
     from wama.common.utils.output_naming import compose_output_name
-    from wama.common.utils.preview_utils import clear_partial
     from wama.common.utils.work_dir import work_dir
 
     from wama.common.utils.auto_model import is_auto, quality_intent_of
@@ -185,8 +184,10 @@ def _enhance_media(enhancement, ctx):
         'tile_size': int(enhancement.tile_size or 0),
     }
     extra = {}
-    if nature == 'video':
-        extra['frame_callback'] = _during_preview(enhancement)
+    frames = _partial_frames(enhancement) if nature == 'video' else None
+    if frames is not None:
+        extra['frame_callback'] = lambda frame, index: frames.publish(
+            {'enhanced': ('Amélioration', frame)}, index=index)
 
     try:
         with work_dir('enhancer') as _work:
@@ -203,8 +204,8 @@ def _enhance_media(enhancement, ctx):
                 enhancement, local,
                 f"{app_media_dir('enhancer', enhancement.user_id, 'output/media')}/{output_filename}")
     finally:
-        if nature == 'video':
-            clear_partial('enhancer', enhancement.id)   # la face SORTIE prend le relais
+        if frames is not None:
+            frames.close()           # la face SORTIE prend le relais ; le JPEG partiel part
 
     enhancement.output_file.name = saved
     ctx.progress(95)
@@ -223,28 +224,16 @@ def _enhance_media(enhancement, ctx):
         models=[f'enhancer:{model}'])
 
 
-def _during_preview(enhancement):
-    """Aperçu « PENDANT » (brique COMMUNE preview_utils, `?side=during`) : la frame AMÉLIORÉE
-    courante publiée ~toutes les 2 s (la cadence est tenue par la route). Les frames
-    temporaires vivent hors MEDIA : on copie un JPEG partiel sous l'output utilisateur (même
-    patron que l'anonymizer). Rend le `frame_callback` de la route vidéo."""
-    import cv2
-    from django.conf import settings
+def _partial_frames(enhancement):
+    """Aperçu « PENDANT » d'une vidéo : la frame AMÉLIORÉE courante, par la brique commune
+    `preview_utils.PartialFrames` (JPEG sous l'output utilisateur, URL versionnée, retiré en fin
+    de run). La cadence (~2 s) est tenue par la route vidéo, d'où `every=0`. Jusqu'au 2026-10-04
+    l'enhancer recopiait ce patron de l'anonymizer, à la main, sans retirer son JPEG."""
     from wama.common.utils.media_paths import get_app_media_path
-    from wama.common.utils.preview_utils import publish_partial
-
-    pdir = os.path.join(str(get_app_media_path('enhancer', enhancement.user_id, 'output')),
-                        'partials')
-    os.makedirs(pdir, exist_ok=True)
-    partial_abs = os.path.join(pdir, f'during_{enhancement.id}.jpg')
-    partial_url = (settings.MEDIA_URL
-                   + os.path.relpath(partial_abs, settings.MEDIA_ROOT).replace('\\', '/'))
-
-    def _publish(frame, index):
-        cv2.imwrite(partial_abs, frame)
-        publish_partial('enhancer', enhancement.id, f'{partial_url}?v={index}')
-
-    return _publish
+    from wama.common.utils.preview_utils import PartialFrames
+    folder = os.path.join(str(get_app_media_path('enhancer', enhancement.user_id, 'output')),
+                          'partials')
+    return PartialFrames('enhancer', enhancement.id, folder, every=0)
 
 
 # ── Glu AUDIO ───────────────────────────────────────────────────────────────────────────

@@ -122,12 +122,15 @@ class CardOutputTest(TestCase):
     def test_a_duplicate_shares_the_input_never_the_output(self):
         from wama.anonymizer.models import Media
         own = self._file('output', 'shared_blurred_sam3_5.png')
+        found = self._file('output', 'shared_detections_sam3_5.json', b'{}')
         media = self._media(status='SUCCESS',
-                            output_file=os.path.relpath(own, self.root).replace(os.sep, '/'))
+                            output_file=os.path.relpath(own, self.root).replace(os.sep, '/'),
+                            detections_file=os.path.relpath(found, self.root).replace(os.sep, '/'))
         new_id = self.client.post(f'/anonymizer/duplicate/{media.pk}/').json()['duplicated']
         copy = Media.objects.get(pk=new_id)
         self.assertEqual(media.file.name, copy.file.name)
         self.assertFalse(copy.output_file)
+        self.assertFalse(copy.detections_file, 'nor its detections (2026-10-04)')
 
     def test_deleting_a_card_releases_its_own_output(self):
         """Depuis le 2026-09-30 (`MEDIA_STORAGE_TIERING` D34) la card part, sa sortie RESTE et
