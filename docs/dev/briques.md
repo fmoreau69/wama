@@ -1276,7 +1276,7 @@ L'historique de l'assistant côté SERVEUR — remplace le localStorage web et l
 
 - **Domicile** : `wama/common/services/conversation_store.py` · **doc** : [docs/construction/suivi/ROADMAP.md §19.5](../construction/suivi/ROADMAP.md)
 - **Module** : Store de conversation — l'historique de l'assistant, côté SERVEUR.
-- **API publique** (7) :
+- **API publique** (8) :
   - `thread(user, surface: str='web', thread_key: str='') -> Conversation` — Le fil de cet utilisateur pour cette surface — créé au besoin.
   - `history(conversation, limite: int=MAX_TOURS) -> list` — Les derniers tours du fil, au format attendu par `run_assistant_turn`.
   - `record_exchange(conversation, message: str, resultat: dict) -> None` — Enregistre le tour utilisateur ET la réponse de l'assistant, en une transaction.
@@ -1284,6 +1284,7 @@ L'historique de l'assistant côté SERVEUR — remplace le localStorage web et l
   - `display_entries(conversation, limite: int=60) -> list` — Les derniers tours du fil au format d'AFFICHAGE d'une surface : les étapes d'outils
   - `conversations_of(user, limite: int=50) -> list` — Fils d'un utilisateur, le plus récemment actif d'abord (liste d'UI).
   - `clear(user, conversation_id: int) -> bool` — Supprime UN fil — uniquement l'un des SIENS.
+  - `clear_thread(user, surface: str='web', thread_key: str='') -> bool` — Supprime le fil NOMMÉ `(user, surface, thread_key)` — le geste « Effacer » du chat web et
 
 ### Ingest de source
 
@@ -2059,7 +2060,7 @@ Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivi
 
 ### Preview unifiée
 
-Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement (2026-09-13, §17ter trou 2). Une app DÉCLARE ses faces d'aperçu entre Entrée et Sortie (`register(faces=)`, l'anonymizer : « Détection », le document `detections` dessiné sur l'entrée par `WamaPreviewOverlay`) ; une face `compare_base` est la référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05)
+Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement (2026-09-13, §17ter trou 2). Une app DÉCLARE ses faces d'aperçu entre Entrée et Sortie (`register(faces=)`, l'anonymizer : « Détection », le document `detections` dessiné sur l'entrée par `WamaPreviewOverlay`) ; une face `compare_base` est la référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05). La modale porte les mêmes faces d'où qu'on l'ouvre (volet, vignette de card), suit la face PENDANT en direct avec ses vues, et son PLEIN ÉCRAN est elle-même agrandie (la surcouche image seule ne sert plus qu'aux galeries sans élément)
 
 - **Domicile** : `wama/common/utils/preview_registry.py`
 - **Module** : WAMA Common - Preview Registry
