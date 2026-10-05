@@ -352,14 +352,11 @@ def range_curve_is_usable(curve, *, ratio_bounds=(0.4, 2.0), min_bins=2):
 
 
 def _iou(a, b):
-    """Recouvrement de deux boîtes [x0, y0, x1, y1] (0 si l'une manque)."""
-    if not a or not b or len(a) < 4 or len(b) < 4:
-        return 0.0
-    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
-    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
-    inter = ix * iy
-    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
-    return inter / union if union > 0 else 0.0
+    """Recouvrement de deux boîtes [x0, y0, x1, y1] (0 si l'une manque) — DÉLÈGUE au domicile unique
+    `shapes.box_iou` depuis le 2026-10-05 (trois copies identiques vivaient ici, au cam_analyzer et à
+    l'anonymizer). Le nom reste : la métrique de continuité et ses tests l'appellent."""
+    from .shapes import box_iou
+    return box_iou(a, b)
 
 
 def tracking_continuity_frame(observations: TypedFrame, *, frame_field='frame', camera_field='camera',

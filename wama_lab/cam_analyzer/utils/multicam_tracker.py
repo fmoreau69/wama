@@ -252,15 +252,10 @@ CLASS_FAMILY = {'motorcycle': 'two_wheel', 'bicycle': 'two_wheel',
                 'person': 'person'}
 
 
-def box_iou(a, b):
-    """IoU de deux boîtes [x0, y0, x1, y1] (0 si l'une manque)."""
-    if not a or not b or len(a) < 4 or len(b) < 4:
-        return 0.0
-    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
-    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
-    inter = ix * iy
-    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
-    return inter / union if union > 0 else 0.0
+# IoU de deux boîtes [x0, y0, x1, y1] (0 si l'une manque) — DÉLÈGUE au domicile unique depuis le
+# 2026-10-05 (`wama_data.functions.geometry.shapes.box_iou`, porté au commun avec l'anonymizer et la
+# métrique de continuité, qui en portaient chacun une copie identique). Le nom reste importable ici.
+from wama_data.functions.geometry.shapes import box_iou  # noqa: E402
 
 
 #: Au-delà de ce recouvrement, deux boîtes d'une même image sont UN objet détecté deux fois
@@ -325,7 +320,8 @@ def reanchor_ghosts(ghost_links, smoothed, shuttle_at, *, use_smoothed=True, ego
     ⚑ ghost_hermite (`use_hermite`, 2026-10-05) : entre les deux points lissés, une courbe qui
     respecte les VITESSES lissées aux deux bords (`velocities` = {(gid, image): (ve, vn)},
     `frame_dt` = secondes par image) au lieu de la ligne droite — plus de cassure de cap au bord du
-    trou (`hermite_ghost`, repli linéaire si les vitesses ne sont pas cohérentes avec la corde)."""
+    trou (`hermite_ghost` → `kinematics.gap_fill.hermite_gap`, repli linéaire si les vitesses ne sont
+    pas cohérentes avec la corde)."""
     jumps, removed = [], 0
     for fr, det, gid, f0, f1, a, fn in ghost_links:
         s0, s1 = smoothed.get((gid, f0)), smoothed.get((gid, f1))
@@ -504,21 +500,13 @@ def hermite_ghost(p0, v0, p1, v1, gap_s, a):
     p1 (vitesse v1) — courbe d'Hermite : elle part dans la direction et à l'allure de l'arrivée, et
     rejoint la sortie de même, là où la ligne droite cassait le cap aux deux bords (⚑ ghost_hermite,
     2026-10-05). Repli LINÉAIRE quand les vitesses sont incohérentes avec la corde (la courbe
-    s'écarterait de plus de max(2 m, ¼ de la corde) : un détour inventé est pire qu'une droite)."""
-    linear = (p0[0] + a * (p1[0] - p0[0]), p0[1] + a * (p1[1] - p0[1]))
-    if v0 is None or v1 is None:
-        return linear
-    chord = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
-    bulge = gap_s * math.hypot(v0[0] - v1[0], v0[1] - v1[1]) / 8.0     # écart au milieu de la corde
-    if bulge > max(2.0, 0.25 * chord):
-        return linear
-    # allures incompatibles avec la distance à couvrir : la courbe dépasserait ses extrémités
-    if max(math.hypot(*v0), math.hypot(*v1)) * gap_s > 2.0 * chord + 4.0:
-        return linear
-    h00, h10 = 2 * a ** 3 - 3 * a ** 2 + 1, a ** 3 - 2 * a ** 2 + a
-    h01, h11 = -2 * a ** 3 + 3 * a ** 2, a ** 3 - a ** 2
-    return (h00 * p0[0] + h10 * gap_s * v0[0] + h01 * p1[0] + h11 * gap_s * v1[0],
-            h00 * p0[1] + h10 * gap_s * v0[1] + h01 * p1[1] + h11 * gap_s * v1[1])
+    s'écarterait de plus de max(2 m, ¼ de la corde) : un détour inventé est pire qu'une droite).
+
+    DÉLÈGUE depuis le 2026-10-05 au domicile commun `wama_data.functions.kinematics.gap_fill.
+    hermite_gap` (porté pour l'anonymizer, qui comble ses trous de détection de la même façon) — mêmes
+    seuils par défaut, la garde de lenteur `min_speed_share` n'est pas demandée ici."""
+    from wama_data.functions.kinematics.gap_fill import hermite_gap
+    return hermite_gap(p0, v0, p1, v1, gap_s, a)
 
 
 def range_fix(ego, curve):
