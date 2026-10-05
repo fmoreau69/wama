@@ -22372,3 +22372,25 @@ perdu ne fait que flouter moins), la note « segmentation demandée mais ratée 
 synchro des deux vidéos de Comparer (V8, fausses vidéos). Gardées et prouvées par mutation ;
 83 tests OK. **Seul reste sans garde, déclaré** : la position des badges du curseur Comparer
 (CSS, vue au navigateur le 05/10).
+
+## §CLÔTURE — 2026-10-05, « WRITER à deux process + générateur multi-process + revérification + HTML en médiathèque » — `3055f0d7`, `c14bace8` + commit de ce bloc, non poussés — 🔚 rééditer un document produit ailleurs
+
+- **Livré** : le générateur sait une app à plusieurs process (patron composer, `ROUTE §10.6`
+  position commune du 05/10, blocs ✅ et 🔎) ; le Writer en `write` → `layout` avec la référence
+  de mise en page, glues du rôle `codegen` (Albert), génération réelle mesurée ; palette du Studio
+  (étiquette, filtre, un process suit l'accès de son app) et console des entrées non transmises ;
+  revérification « rien réinventé » : sept écarts repris de leurs domiciles (`Param.stales`,
+  `addToQueue({ports: 'card'})`…).
+- **HTML en médiathèque** (demande de Fabien) : `html`/`htm` admis en `document`
+  (`media_library/natures.py`, migration locale `media_library/0020_document_html`, appliquée
+  côté WSL) ; parade au serveur web (`MEDIA_STORAGE_TIERING §9.8`, README) **appliquée par
+  Fabien à l'Apache de service et mesurée** (`Content-Security-Policy: sandbox` + `nosniff`).
+- 🔴 **Relancer gunicorn** (formats de la médiathèque lus au démarrage ; dernière relance AVANT
+  cet ajout).
+- 🔚 **Restes** : rééditer dans WAMA un document produit ailleurs (séparer `work_result` /
+  `attach_result` de l'évaluation ; page d'édition → chantier SURFACES) ; chemins du corpus en
+  dur dans six modules antérieurs ; lancement Studio d'un nœud rattaché non gardé par l'accès de
+  l'app ; docs générées (`WAMA_MECANISMES.md`, `docs/dev/briques.md`) à régénérer depuis HEAD
+  (`mecanismes.py` a bougé) ; échecs connus hors de ce chantier : `ItemEditRouteAliasTest`
+  (imager), budgets de langue (autres sessions), `tests_picker_list:86` (MIME `audio/x-wav` de
+  WSL).

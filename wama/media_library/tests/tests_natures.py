@@ -25,6 +25,8 @@ from wama.media_library.models import (ALLOWED_EXTENSIONS, ASSET_TYPE_CATEGORY, 
 #: `srt`/`vtt` admis en `document` (les références de ces jeux). Empreinte recalée à la mesure.
 #: ⚠ Nature `score` AJOUTÉE le 2026-10-01 (demande de Fabien : importer une partition ou un MIDI
 #: — catégorie `score` d'`app_registry`, port `reference_score` de YuE2). Recalée à la mesure.
+#: ⚠ `html`/`htm` admis en `document` le 2026-10-05 (demande de Fabien : un modèle de mise en
+#: page, une page source du converter — `MEDIA_STORAGE_TIERING §9.8`). Recalée à la mesure.
 ASSET_TYPES_AVANT = [
     ('voice', 'Voix'), ('speech', 'Parole enregistrée'), ('audio_music', 'Musique'),
     ('audio_sfx', 'Bruitage'),
@@ -41,7 +43,7 @@ ALLOWED_AVANT = {  # empreinte FIGÉE de l'ancien littéral — c'est la recopie
     'audio_sfx':   ['wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac', 'aiff'],  # wama:redondance-ok — empreinte figée (test)
     'image':       ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'],  # wama:redondance-ok — empreinte figée (test)
     'video':       ['mp4', 'webm', 'mov', 'avi', 'mkv'],  # wama:redondance-ok — empreinte figée (test)
-    'document':    ['pdf', 'txt', 'docx', 'md', 'csv', 'srt', 'vtt'],  # wama:redondance-ok — empreinte figée (test)
+    'document':    ['pdf', 'txt', 'docx', 'md', 'csv', 'srt', 'vtt', 'html', 'htm'],  # wama:redondance-ok — empreinte figée (test)
     'avatar':      ['jpg', 'jpeg', 'png', 'webp'],  # wama:redondance-ok — empreinte figée (test)
     'object3d':    ['glb', 'gltf', 'obj', 'fbx', 'stl', 'ply', 'usdz'],  # wama:redondance-ok — empreinte figée (test)
     'score':       ['abc', 'mid', 'midi', 'musicxml', 'mxl'],  # wama:redondance-ok — empreinte figée (test)
@@ -62,6 +64,13 @@ class LaDeclarationReproduitLesTablesDAvantTest(TestCase):
 
     def test_ASSET_TYPE_CATEGORY_derive_a_l_identique(self):
         self.assertEqual(ASSET_TYPE_CATEGORY, CATEGORIE_AVANT)
+
+    def test_an_html_file_is_offered_as_a_document(self):
+        """A layout reference or a source page can be filed as a document (2026-10-05) — the
+        `document` media category already knew `.html`/`.htm`, the library nature now agrees."""
+        from wama.media_library.services import candidate_asset_types
+        self.assertEqual(['document'], candidate_asset_types('gabarit.html'))
+        self.assertEqual(['document'], candidate_asset_types('PAGE.HTM'))
 
     def test_TYPE_GROUPS_suit_et_connait_le_3d(self):
         self.assertEqual(TYPE_GROUPS['audio'], ['voice', 'speech', 'audio_music', 'audio_sfx'])
