@@ -2613,6 +2613,28 @@ def _run_global_tracking(session):
         # Compteurs de SOURCE de placement (G7 rendu visible) : un A/B ne vaut que si l'on
         # sait quelle part des détections est réellement passée par la projection sol.
         rs['placement_sources'] = _gt.get('placement_sources') or {}
+        # Biais de DISTANCE par portée (2026-10-05), mesuré AUTOMATIQUEMENT sur les garés de ce calcul,
+        # par caméra et par méthode : persisté dans la config pour que ⚑ range_correction l'applique au
+        # calcul SUIVANT — rien à saisir pour une nouvelle vue caméra. Le rapport complet (dont le
+        # résiduel corrigé, contrôle automatique) va au résumé ; une ligne par caméra en console.
+        _rb = _gt.get('range_bias') or {}
+        _config_changed = False
+        if _rb:
+            rs['range_bias'] = _rb
+            _cfg = dict(session.config or {})
+            _cfg['range_bias'] = {p: {k: v[k] for k in ('ground', 'box', 'objects', 'reference') if k in v}
+                                  for p, v in _rb.items()}
+            session.config = _cfg
+            _config_changed = True
+
+            def _fmt(curve):
+                return ' / '.join(f"{b['ratio']:.2f}" if b.get('ratio') else '—' for b in (curve or []))
+            for _p, _v in _rb.items():
+                _console(session.user_id,
+                         f"Biais de distance {_p} ({_v.get('objects')} garés) — mesuré / vrai par tranche "
+                         f"4-10…30-40 m : sol {_fmt(_v.get('ground'))} · hauteur de boîte {_fmt(_v.get('box'))}"
+                         + (f" · après correction : sol {_fmt(_v['ground_corrige'])}" if _v.get('ground_corrige') else '')
+                         + (f", boîte {_fmt(_v['box_corrige'])}" if _v.get('box_corrige') else ''))
         # POURQUOI le filtre des garés a écarté (2026-09-09). « 77 stationnés détectés » ne
         # disait pas si les 4113 autres étaient mobiles, vus trop brièvement, ou trop étalés —
         # et l'ignorer a fait conclure faux DEUX fois depuis les données persistées. Un filtre
@@ -2674,7 +2696,7 @@ def _run_global_tracking(session):
         except Exception:
             logger.warning('aggregate_markings failed (non-blocking)', exc_info=True)
         session.results_summary = rs
-        session.save(update_fields=['results_summary'])
+        session.save(update_fields=['results_summary', 'config'] if _config_changed else ['results_summary'])
         mark_completed(session, 'global_tracking', output_summary={
             'tracks': _gt['tracks'], 'stationary': len(stat), 'features': _features_seen})
         _console(session.user_id,

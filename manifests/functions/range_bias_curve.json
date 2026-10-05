@@ -1,0 +1,86 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "indicator",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne par observation d'un objet immobile : position monde de la caméra, position et distance de la méthode de référence, et une colonne `range_<méthode>` par méthode à juger.",
+        "group": "travail",
+        "key": "observations",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "object",
+          "cam_e",
+          "cam_n",
+          "ref_e",
+          "ref_n",
+          "ref_range"
+        ]
+      }
+    ],
+    "key": "range_bias_curve",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne par méthode et tranche : 1 = juste, < 1 = distances comprimées.",
+        "key": "curve",
+        "optional": false,
+        "produced_fields": [
+          "method",
+          "lo",
+          "hi",
+          "n",
+          "ratio",
+          "p25",
+          "p75"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 150,
+        "description": "Observations minimales pour qu'une tranche porte un rapport.",
+        "key": "min_obs",
+        "max": 100000,
+        "min": 10,
+        "type": "int",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "geometry",
+      "placement-quality",
+      "calibration",
+      "no-ground-truth"
+    ],
+    "visibility": "public"
+  },
+  "description": "Mesure, sans vérité terrain, si une méthode de mesure de distance est juste LOIN comme PRÈS : un objet immobile ne bouge pas — sa position fixe est prise sur ses observations proches, et le rapport distance mesurée / distance vraie (caméra → ce point) est donné par tranche de distance. Universelle (toute caméra, toute méthode) ; la courbe sert aussi à CORRIGER la méthode (`correct_range`).",
+  "key": "range_bias_curve",
+  "manifest_kind": "function",
+  "name": "Biais de distance par portée",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:range_bias_curve",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

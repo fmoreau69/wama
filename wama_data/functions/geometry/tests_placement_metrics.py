@@ -141,3 +141,85 @@ class TrackingContinuityTest(SimpleTestCase):
               [(f, 'front', 2, 10, 0.0, 0.0, b) for f in range(10, 20)] + \
               [(f, 'front', 1, 10, 0.0, 0.0, a) for f in range(200, 210)]
         self.assertEqual(tracking_continuity(obs)['switchbacks'], 0)
+
+
+def _ground(r):
+    """Projection sol SIMULÉE : juste jusqu'à 15 m, puis comprimée (0,8 à 35 m) — la forme mesurée."""
+    return r if r <= 15 else r * (1.0 - 0.01 * (r - 15.0))
+
+
+def _parked_obs(n_objects=40):
+    """Des garés en (e, 50·k), vus d'une caméra qui s'en approche le long de l'axe nord, de 40 à 4 m
+    (pas de 0,05 m). Référence : la projection sol ; méthodes : sol (comprimé) et boîte (+12 %)."""
+    rows = []
+    for k in range(n_objects):
+        oe, on = 3.0 + 0.1 * k, 50.0 * k
+        for i in range(721):
+            r_true = 40.0 - 0.05 * i
+            cn = on - r_true
+            g = _ground(r_true)
+            rows.append((k, oe, cn, oe, cn + g, g, {'ground': g, 'box': r_true * 1.12}))
+    return rows
+
+
+class RangeBiasTest(SimpleTestCase):
+    """Métrique #4 (2026-10-05) : biais de distance par portée, arbitré par « un garé ne bouge pas »."""
+
+    def test_the_curve_finds_the_compression_and_the_constant_bias(self):
+        from wama_data.functions.geometry.placement_metrics import range_bias_curve, static_range_ratios
+        ratios, used = static_range_ratios(_parked_obs())
+        self.assertEqual(used, 40)
+        ground = {(b['lo'], b['hi']): b['ratio'] for b in range_bias_curve(ratios['ground'])}
+        box = {(b['lo'], b['hi']): b['ratio'] for b in range_bias_curve(ratios['box'])}
+        self.assertAlmostEqual(ground[(4.0, 10.0)], 1.0, places=2)
+        self.assertLess(ground[(30.0, 40.0)], 0.85)
+        for b in box.values():
+            self.assertAlmostEqual(b, 1.12, places=2)
+
+    def test_correcting_with_the_measured_curve_brings_the_ratios_back_to_one(self):
+        """Le contrôle automatique : la même mesure sur les distances CORRIGÉES rend ~1."""
+        from wama_data.functions.geometry.placement_metrics import (correct_range, range_bias_curve,
+                                                                    static_range_ratios)
+        rows = _parked_obs()
+        ratios, _ = static_range_ratios(rows)
+        curve = range_bias_curve(ratios['ground'])
+        fixed = [(o, ce, cn, re, rn, rr, {'ground_corrige': correct_range(r['ground'], curve)})
+                 for o, ce, cn, re, rn, rr, r in rows]
+        after, _ = static_range_ratios(fixed)
+        for b in range_bias_curve(after['ground_corrige']):
+            self.assertAlmostEqual(b['ratio'], 1.0, delta=0.03, msg=b)
+
+    def test_a_bin_without_enough_observations_corrects_nothing(self):
+        from wama_data.functions.geometry.placement_metrics import correct_range, range_bias_curve
+        curve = range_bias_curve([(12.0, 0.9)] * 10)
+        self.assertTrue(all(b['ratio'] is None for b in curve))
+        self.assertEqual(correct_range(25.0, curve), 25.0)
+
+    def test_an_implausible_curve_is_refused(self):
+        from wama_data.functions.geometry.placement_metrics import range_curve_is_usable
+        good = [{'lo': 4.0, 'hi': 10.0, 'ratio': 1.0}, {'lo': 30.0, 'hi': 40.0, 'ratio': 0.6}]
+        self.assertTrue(range_curve_is_usable(good)[0])
+        wild = [{'lo': 4.0, 'hi': 10.0, 'ratio': 1.0}, {'lo': 30.0, 'hi': 40.0, 'ratio': 0.1}]
+        self.assertFalse(range_curve_is_usable(wild)[0])
+        # une distance corrigée qui DÉCROÎT quand la distance mesurée croît échangerait deux objets
+        # (une tranche vraie de 20 m mesurée à 10 m, une de 8 m mesurée à 12 m : l'ordre s'inverse)
+        folding = [{'lo': 15.0, 'hi': 25.0, 'ratio': 0.5}, {'lo': 7.0, 'hi': 9.0, 'ratio': 1.5}]
+        self.assertFalse(range_curve_is_usable(folding)[0])
+        # une seule tranche : un facteur d'échelle tiré de peu d'objets, instable d'un calcul à l'autre
+        self.assertFalse(range_curve_is_usable([{'lo': 4.0, 'hi': 10.0, 'ratio': 0.83}])[0])
+
+    def test_an_object_never_seen_near_gives_no_anchor(self):
+        from wama_data.functions.geometry.placement_metrics import static_range_ratios
+        far_only = [(1, 0.0, 0.0, 0.0, 30.0, 30.0, {'ground': 30.0})] * 50
+        self.assertEqual(static_range_ratios(far_only), ({}, 0))
+
+    def test_declared_in_the_catalogue(self):
+        from wama.common.catalog import function_catalog as fc
+        fc.load_all()
+        spec = fc.get('range_bias_curve')
+        self.assertIsNotNone(spec)
+        out = spec.fn(TypedFrame(pd.DataFrame([
+            {'object': o, 'cam_e': ce, 'cam_n': cn, 'ref_e': re, 'ref_n': rn, 'ref_range': rr,
+             'range_ground': r['ground'], 'range_box': r['box']} for o, ce, cn, re, rn, rr, r in _parked_obs(10)]),
+            DataType.TABLE))
+        self.assertEqual(set(out.df['method']), {'ground', 'box'})

@@ -521,6 +521,73 @@ def hermite_ghost(p0, v0, p1, v1, gap_s, a):
             h00 * p0[1] + h10 * gap_s * v0[1] + h01 * p1[1] + h11 * gap_s * v1[1])
 
 
+def range_fix(ego, curve):
+    """⚑ range_correction : position caméra (latéral, longitudinal) dont la DISTANCE est corrigée par
+    une courbe de biais (`placement_metrics.correct_range`) — la direction est gardée. Sans courbe : telle
+    quelle."""
+    if curve is None or ego is None:
+        return ego
+    from wama_data.functions.geometry.placement_metrics import correct_range
+    r = math.hypot(ego[0], ego[1])
+    if r <= 0:
+        return ego
+    k = correct_range(r, curve) / r
+    return (ego[0] * k, ego[1] * k)
+
+
+def measure_range_bias(per_cam, parked, geo, projectors, pose_at, *, applied=None):
+    """Courbes de BIAIS DE DISTANCE de chaque caméra, mesurées sur les garés de CE calcul (2026-10-05,
+    demande de Fabien : « le plus universel possible, par mesure automatisée — ne pas refaire ça à la
+    main pour chaque nouvelle vue caméra »). Arbitre : un garé ne bouge pas (`placement_metrics.
+    static_range_ratios`) ; méthodes jugées : la projection sol (`ground`) et la hauteur de boîte
+    (`box`), chacune BRUTE — la courbe se réapprend toujours sur le brut, elle ne s'empile pas.
+
+    `per_cam` = {caméra: (largeur, hauteur, {image: DetectionFrame})} ; `parked` = gids des garés ;
+    `projectors` = {caméra: GroundProjector} (la référence PROCHE ; sans projecteur, la hauteur de boîte
+    sert de référence) ; `pose_at(image)` → (e, n, cap) de la navette ; `applied` = {(caméra, méthode):
+    courbe} appliquée pendant ce calcul — son résiduel (`<méthode>_corrige`) est le contrôle automatique.
+    Rend {caméra: {'objects', 'reference', 'ground', 'box', 'ground_corrige'?, 'box_corrige'?}}."""
+    from wama_data.functions.geometry.placement_metrics import (
+        correct_range, range_bias_curve, static_range_ratios)
+    applied = applied or {}
+    parked = set(parked or ())
+    out = {}
+    for pos, (iw, ih, frames) in per_cam.items():
+        g = geo.get(pos)
+        if g is None:
+            continue
+        gp = projectors.get(pos)
+        obs = []
+        for fn, f in frames.items():
+            dets = [d for d in (f.detections or []) if d.get('global_track_id') in parked
+                    and not d.get('predicted') and not d.get('artifact') and d.get('class_name') in CLASS_DIMS]
+            if not dets:
+                continue
+            se, sn, sh = pose_at(fn)
+            ce, cn = ego_to_world(se, sn, sh, g['mount'][0], g['mount'][1])
+            for d in dets:
+                ge = ground_ego(gp, d.get('bbox')) if gp is not None else None
+                pe = pinhole_ego(d, iw, ih, g.get('fov_v') or 60.0, fov_h_deg=g['fov_h'],
+                                 dist_scale=g['dist_scale'], k1=g.get('k1') or 0.0)
+                ref = ge if gp is not None else pe
+                if ref is None:
+                    continue
+                xv, yv = _cam_to_vehicle(ref[0], ref[1], g['yaw'])
+                re_, rn_ = ego_to_world(se, sn, sh, xv + g['mount'][0], yv + g['mount'][1])
+                ranges = {'ground': math.hypot(*ge) if ge else None, 'box': math.hypot(*pe) if pe else None}
+                for method in ('ground', 'box'):
+                    c = applied.get((pos, method))
+                    if c is not None and ranges[method] is not None:
+                        ranges[f'{method}_corrige'] = correct_range(ranges[method], c)
+                obs.append((d['global_track_id'], ce, cn, re_, rn_, math.hypot(*ref), ranges))
+        ratios, used = static_range_ratios(obs)
+        if not used:
+            continue
+        out[pos] = {'objects': used, 'reference': 'ground' if gp is not None else 'box',
+                    **{m: range_bias_curve(pairs) for m, pairs in ratios.items()}}
+    return out
+
+
 #: ⚑ duplicate_chain_merge : au-delà de cette distance monde, deux boîtes qui se recouvrent dans une
 #: même image ne sont PAS le même véhicule (deux véhicules distincts ne tiennent pas à moins de 2 m
 #: l'un de l'autre, centre à centre : deux garés voisins sont à ≈ 2,3 m).
@@ -679,6 +746,19 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         if _gproj:
             logger.info('projection sol active (⚑ auto_ground_calib/depth_estimation) pour %s',
                         sorted(_gproj.keys()))
+    # ⚑ range_correction (2026-10-05) : courbes de BIAIS DE DISTANCE mesurées AUTOMATIQUEMENT au calcul
+    # précédent (`measure_range_bias`, plus bas, sur ses garés) — par caméra et par méthode, sans rien à
+    # saisir pour une nouvelle vue. Une courbe n'est appliquée que si elle est plausible
+    # (`range_curve_is_usable` : rapports bornés, distance corrigée croissante).
+    from wama_data.functions.geometry.placement_metrics import range_curve_is_usable
+    _rb_applied = {}
+    if _feat.get('range_correction', False):
+        for _pos, _v in (((session.config or {}).get('range_bias')) or {}).items():
+            for _m in ('ground', 'box'):
+                _c = (_v or {}).get(_m)
+                if _c and range_curve_is_usable(_c)[0]:
+                    _rb_applied[(_pos, _m)] = _c
+        logger.info('correction de portée (⚑ range_correction) : %s', sorted(_rb_applied) or 'aucune courbe')
 
     per_cam = {}
     for c in cams:
@@ -743,11 +823,13 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     ego = ground_ego(_gproj[pos], d.get('bbox'))
                     if ego is not None:
                         _psrc = 'ground:' + _gc_src.get(pos, 'homographie')
+                        ego = range_fix(ego, _rb_applied.get((pos, 'ground')))   # ⚑ range_correction
                 if ego is None:
                     ego = pinhole_ego(d, iw, ih, fov_v_deg,
                                       fov_h_deg=_g['fov_h'], dist_scale=_g['dist_scale'], k1=_g['k1'])
                     if ego is not None:
                         _psrc = 'pinhole'
+                        ego = range_fix(ego, _rb_applied.get((pos, 'box')))      # ⚑ range_correction
                 relaxed = False
                 if ego is None:
                     # Mesure DÉGRADÉE (bbox coupée au bord) : autorisée UNIQUEMENT pour
@@ -765,6 +847,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                             or not (isinstance(bb, (list, tuple)) and len(bb) >= 4)):
                         continue
                     dm = dm * _g['dist_scale']
+                    if (pos, 'box') in _rb_applied:                                  # ⚑ range_correction
+                        from wama_data.functions.geometry.placement_metrics import correct_range
+                        dm = correct_range(dm, _rb_applied[(pos, 'box')])
                     fx = iw / (2.0 * math.tan(math.radians(_g['fov_h']) / 2.0))
                     _ux = undistorted_x((bb[0] + bb[2]) / 2.0, bb[3], iw, ih, fx, _g['k1'])
                     ego = (dm * (_ux - iw / 2.0) / fx, dm)
@@ -1489,6 +1574,24 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                 if wv:
                     d['world_vel'] = [round(wv[0], 2), round(wv[1], 2)]
 
+    # ── Biais de DISTANCE par portée, mesuré AUTOMATIQUEMENT à chaque calcul (2026-10-05) ──────────
+    # Sur les garés de CE calcul, pour chaque caméra : la projection sol et la hauteur de boîte, BRUTES,
+    # jugées par « un garé ne bouge pas ». La courbe est rendue (et persistée par la tâche) pour être
+    # APPLIQUÉE au calcul suivant sous ⚑ range_correction ; sous la bascule, le résiduel corrigé de
+    # ce calcul est le contrôle automatique (rapports attendus ~1). Mesuré à la main le 2026-10-05 :
+    # sol arrière 0,60 à 30-40 m, hauteur de boîte sans compression — `CAM_ANALYZER_CHANGELOG`.
+    range_bias = {}
+    try:
+        _meas_proj = {p: (_gproj.get(p) or ground_projector_for(session, p, _geo[p])) for p in _geo}
+        range_bias = measure_range_bias(
+            per_cam, stationary_gids, _geo, {p: gp for p, gp in _meas_proj.items() if gp is not None},
+            lambda fn: _shuttle_pose_at(sh_traj, fn / fps * scale + off), applied=_rb_applied)
+        logger.info('[tracking 360°] biais de distance par portée : %s', {
+            p: {m: [b['ratio'] for b in v[m]] for m in v if isinstance(v.get(m), list)}
+            for p, v in range_bias.items()})
+    except Exception:
+        logger.warning('measure_range_bias (contrôle qualité) échoué', exc_info=True)
+
     # Métrique #3 (2026-10-01) : ce que le suivi DUPLIQUE ou PERD, après recollement (gids racines).
     continuity = None
     try:
@@ -1557,6 +1660,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'calibration_reference_gids': calibration_reference,
             'placement_spread': placement_spread,
             'placement_sources': dict(_src_counts),
+            # courbes de biais de distance de CE calcul (⚑ range_correction les applique au suivant)
+            'range_bias': range_bias,
             'stationary_rejects': _rejets,
             'stationary_gate_by_gid': _gate_by_gid,
             'stationary_rule': _stationary_rule,

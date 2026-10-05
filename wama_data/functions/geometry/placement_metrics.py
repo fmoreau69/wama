@@ -34,6 +34,16 @@ Métrique #3 — **continuité de suivi** (`tracking_continuity`, 2026-10-01) : 
     même endroit de l'image (boîtes qui se recouvrent) : le même objet a perdu son identifiant. C'est
     la perte qu'un compteur de chaînes ne voit pas quand le détecteur, lui aussi, change de numéro.
 
+Métrique #4 — **biais de DISTANCE par portée** (`range_bias_curve`, 2026-10-05) : une méthode de
+  mesure de distance (projection sol, hauteur de boîte…) est-elle juste LOIN comme PRÈS ? Arbitre
+  sans vérité terrain : un objet IMMOBILE ne bouge pas. Sa position fixe est prise sur ses
+  observations PROCHES (où la méthode de référence est précise) ; pour chaque observation, la
+  distance VRAIE est celle de la caméra (pose du moment) à ce point fixe ; le rapport mesuré / vrai,
+  par tranche de distance vraie, est la courbe de biais. Universelle : toute caméra, toute méthode,
+  calculée automatiquement à chaque passage — rien à saisir pour une nouvelle vue. Née d'une mesure
+  du cam_analyzer : la projection sol de l'arrière donnait 0,60 à 30-40 m, la hauteur de boîte non.
+  `correct_range` applique une courbe (repli : pas de correction là où elle ne sait rien).
+
 Pur (numpy) : le cœur `track_position_spread` ne dépend ni de Django ni de pandas et se teste
 hors serveur. Le wrapper `placement_spread` (FunctionSpec) l'adapte à un `TypedFrame`.
 """
@@ -243,6 +253,104 @@ def tracking_continuity(observations, *, root=None, close_m=4.0, min_frames=12, 
             'tracks_mixing_objects': len(mixing)}
 
 
+#: Tranches de distance VRAIE (m) de la courbe de biais — les mêmes pour toute caméra.
+RANGE_BINS = ((4.0, 10.0), (10.0, 15.0), (15.0, 20.0), (20.0, 25.0), (25.0, 30.0), (30.0, 40.0))
+#: Observations minimales pour qu'une tranche porte un rapport (sinon : rien de su, pas de correction).
+RANGE_MIN_OBS = 150
+
+
+def static_range_ratios(observations, *, near=(4.0, 10.0), min_near=3):
+    """Rapports distance mesurée / distance VRAIE pour des objets IMMOBILES — cœur pur de la métrique #4.
+
+    `observations` : itérable de (objet, cam_e, cam_n, ref_e, ref_n, ref_range, ranges) —
+      `cam_e/cam_n` la position monde de la caméra à cet instant ; `ref_e/ref_n/ref_range` la position
+      monde et la distance donnée par la méthode de RÉFÉRENCE (ou None) ; `ranges` = {méthode: distance
+      mesurée ou None}.
+    Le point fixe d'un objet est la médiane de ses positions de référence prises PRÈS (`near`, au moins
+    `min_near`) ; les objets sans assez d'observations proches sont ignorés.
+    Rend ({méthode: [(distance vraie, rapport), …]}, nombre d'objets retenus)."""
+    from collections import defaultdict
+    by_obj = defaultdict(list)
+    for ob in observations:
+        by_obj[ob[0]].append(ob)
+    out = defaultdict(list)
+    used = 0
+    for obs in by_obj.values():
+        near_pts = [(o[3], o[4]) for o in obs
+                    if o[5] is not None and near[0] <= o[5] <= near[1] and o[3] is not None]
+        if len(near_pts) < min_near:
+            continue
+        ae = float(np.median([p[0] for p in near_pts]))
+        an = float(np.median([p[1] for p in near_pts]))
+        used += 1
+        for _obj, ce, cn, _re, _rn, _rr, ranges in obs:
+            r_true = float(np.hypot(ae - ce, an - cn))
+            if r_true <= 0:
+                continue
+            for method, r in (ranges or {}).items():
+                if r is not None:
+                    out[method].append((r_true, float(r) / r_true))
+    return dict(out), used
+
+
+def range_bias_curve(pairs, *, bins=RANGE_BINS, min_obs=RANGE_MIN_OBS):
+    """Courbe de biais d'une méthode : par tranche de distance vraie, la médiane du rapport mesuré /
+    vrai et sa dispersion (p25-p75). `pairs` = [(distance vraie, rapport)]. Une tranche qui a moins de
+    `min_obs` observations n'a pas de rapport (None) : on n'y sait rien, on n'y corrigera rien.
+    Rend [{'lo', 'hi', 'n', 'ratio', 'p25', 'p75'}, …]."""
+    out = []
+    for lo, hi in bins:
+        vals = [q for r, q in pairs if lo <= r < hi]
+        row = {'lo': lo, 'hi': hi, 'n': len(vals), 'ratio': None, 'p25': None, 'p75': None}
+        if len(vals) >= min_obs:
+            row.update(ratio=round(float(np.median(vals)), 3), p25=round(float(np.percentile(vals, 25)), 3),
+                       p75=round(float(np.percentile(vals, 75)), 3))
+        out.append(row)
+    return out
+
+
+def correct_range(r_measured, curve):
+    """Distance corrigée par une courbe de biais (`range_bias_curve`) : r_mesurée / rapport, le rapport
+    étant interpolé sur la distance MESURÉE (centre de chaque tranche ramené en distance mesurée).
+    En deçà de la 1ʳᵉ tranche connue : sa valeur ; au-delà de la dernière : la dernière (pas
+    d'extrapolation inventée). Courbe vide ou inexploitable : la distance telle quelle."""
+    pts = sorted(((r['lo'] + r['hi']) / 2.0 * r['ratio'], r['ratio'])
+                 for r in (curve or []) if r.get('ratio'))
+    if not pts or r_measured is None:
+        return r_measured
+    if r_measured <= pts[0][0]:
+        ratio = pts[0][1]
+    elif r_measured >= pts[-1][0]:
+        ratio = pts[-1][1]
+    else:
+        ratio = pts[0][1]
+        for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+            if x0 <= r_measured <= x1:
+                ratio = y0 + (y1 - y0) * (r_measured - x0) / (x1 - x0) if x1 > x0 else y0
+                break
+    return r_measured / ratio if ratio > 0 else r_measured
+
+
+def range_curve_is_usable(curve, *, ratio_bounds=(0.4, 2.0), min_bins=2):
+    """Une courbe ne s'applique que si elle est PLAUSIBLE : au moins `min_bins` tranches mesurées,
+    rapports dans des bornes physiques, et la distance corrigée CROISSANTE avec la distance mesurée
+    (sinon deux objets échangeraient leur ordre de profondeur). Rend (bool, raison).
+
+    `min_bins` (2026-10-05) : une courbe d'UNE tranche n'est qu'un facteur d'échelle tiré de peu
+    d'objets — mesuré sur la latérale droite (59 garés, tranche 4-10 m seule) : 0,83 à un calcul, 0,96
+    au suivant ; la correction tirée du premier SUR-corrigeait le second (1,15)."""
+    known = [r for r in (curve or []) if r.get('ratio')]
+    if len(known) < min_bins:
+        return False, f'moins de {min_bins} tranches mesurées'
+    if any(not ratio_bounds[0] <= r['ratio'] <= ratio_bounds[1] for r in known):
+        return False, 'rapport hors bornes physiques'
+    grid = [1.0 + 0.5 * i for i in range(100)]
+    corrected = [correct_range(r, curve) for r in grid]
+    if any(b <= a for a, b in zip(corrected, corrected[1:])):
+        return False, 'distance corrigée non croissante'
+    return True, 'ok'
+
+
 def _iou(a, b):
     """Recouvrement de deux boîtes [x0, y0, x1, y1] (0 si l'une manque)."""
     if not a or not b or len(a) < 4 or len(b) < 4:
@@ -394,6 +502,53 @@ CAMERA_CONSISTENCY_SPEC = register(FunctionSpec(
     ],
     cost={'cpu_bound': True},
     fn=camera_consistency_frame,
+))
+
+
+def range_bias_frame(observations: TypedFrame, *, object_field='object', min_obs=RANGE_MIN_OBS) -> TypedFrame:
+    """Wrapper FunctionSpec de la métrique #4 : une ligne par (méthode, tranche). Les colonnes
+    `range_<méthode>` du tableau d'entrée sont les distances mesurées par chaque méthode."""
+    import pandas as pd
+    df = observations.df
+    methods = [c[len('range_'):] for c in df.columns if c.startswith('range_')]
+
+    def _v(x):
+        return None if x is None or x != x else float(x)
+    rows = [(r[object_field], float(r['cam_e']), float(r['cam_n']), _v(r.get('ref_e')), _v(r.get('ref_n')),
+             _v(r.get('ref_range')), {m: _v(r[f'range_{m}']) for m in methods}) for _, r in df.iterrows()]
+    ratios, used = static_range_ratios(rows)
+    out = [{'method': m, **b} for m, pairs in ratios.items() for b in range_bias_curve(pairs, min_obs=min_obs)]
+    return TypedFrame(pd.DataFrame(out), DataType.TABLE, meta={'objects': used})
+
+
+RANGE_BIAS_SPEC = register(FunctionSpec(
+    key='range_bias_curve',
+    name='Biais de distance par portée',
+    description="Mesure, sans vérité terrain, si une méthode de mesure de distance est juste LOIN comme "
+                "PRÈS : un objet immobile ne bouge pas — sa position fixe est prise sur ses observations "
+                "proches, et le rapport distance mesurée / distance vraie (caméra → ce point) est donné "
+                "par tranche de distance. Universelle (toute caméra, toute méthode) ; la courbe sert "
+                "aussi à CORRIGER la méthode (`correct_range`).",
+    category=FunctionCategory.INDICATOR,
+    tags=['geometry', 'placement-quality', 'calibration', 'no-ground-truth'],
+    inputs=[
+        PortSpec('observations', DataType.TABLE,
+                 required_fields=['object', 'cam_e', 'cam_n', 'ref_e', 'ref_n', 'ref_range'],
+                 description="Une ligne par observation d'un objet immobile : position monde de la "
+                             "caméra, position et distance de la méthode de référence, et une colonne "
+                             "`range_<méthode>` par méthode à juger."),
+    ],
+    outputs=[
+        PortSpec('curve', DataType.TABLE,
+                 produced_fields=['method', 'lo', 'hi', 'n', 'ratio', 'p25', 'p75'],
+                 description='Une ligne par méthode et tranche : 1 = juste, < 1 = distances comprimées.'),
+    ],
+    params=[
+        ParamSpec('min_obs', 'int', RANGE_MIN_OBS, 10, 100000,
+                  description="Observations minimales pour qu'une tranche porte un rapport."),
+    ],
+    cost={'cpu_bound': True},
+    fn=range_bias_frame,
 ))
 
 
