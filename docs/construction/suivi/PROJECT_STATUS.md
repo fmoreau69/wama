@@ -22004,3 +22004,17 @@ projetteraient le WIP de trois mécanismes d'autres sessions ; à faire depuis H
 **Restes** : 6 process sur 22 n'apprennent toujours rien d'une card à l'autre (sortie commune ×5,
 import du transcriber) — ils pèsent leur dernière durée sur la card ; la taille de l'entrée de la
 sortie n'existe pas avant le moteur.
+
+## §PALIER — 2026-10-05 (suite), « TRAJECTOIRES : PRIMITIVES DU CAM_ANALYZER AU COMMUN » — livré (`10edb722`, `a3848cc8`, non poussés) — 🔚 délégation des copies cam/Data (demandée à la session cam) · extrapolation aux bouts (décision)
+
+Recadrage de Fabien : les fonctions du cam_analyzer vont dans la bibliothèque COMMUNE de
+fonctions, `wama_data/functions` (où il prend déjà `kalman_rts_cv` et l'extrapolation) — pas
+dans `wama/common/` comme je le proposais. Portés : `kinematics/gap_fill.hermite_gap` (la courbe
+des fantômes) et `geometry/shapes.box_iou` (trois copies → une). L'anonymizer comble ses trous de
+détection en courbe, vitesses de bord mesurées sur 3 maillons ; card #1026 : 11 trous sur 371
+s'écartent de la droite de plus d'une demi-taille. Détail : `ROUTE §10.6` bloc anonymizer.
+- ⏳ `multicam_tracker.hermite_ghost` / `box_iou` et `placement_metrics._iou` délèguent quand la
+  session cam libère ces fichiers ; `tests_gap_fill.ThePortIsFaithfulTest` tient l'égalité.
+- ⏳ Décision de Fabien : l'EXTRAPOLATION aux bouts d'un objet (flouter avant sa première
+  détection et après sa dernière), avec `extrapolate_speed_accel` — demande un réglage.
+- 🔴 Relancer les workers (le floutage lit la nouvelle interpolation).
