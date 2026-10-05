@@ -180,7 +180,13 @@ ASSET_NATURES: Dict[str, Nature] = {
         label='Document', category='document', icon='fa-file-alt',
         # `srt`/`vtt` (2026-09-28) : une transcription horodatée — les RÉFÉRENCES des jeux
         # d'évaluation ASR, que le transcriber lit déjà (`transcript_documents`).
-        extensions=('pdf', 'txt', 'docx', 'md', 'csv', 'srt', 'vtt'),
+        # `html`/`htm` (2026-10-05, demande de Fabien) : un document de référence — le modèle de
+        # mise en page du Writer, la page source du converter. La catégorie `document` les portait
+        # déjà (`app_registry.DOCUMENT_EXTENSIONS`) ; l'aperçu les rend en iframe SANS script.
+        # ⚠ Ouvert DIRECTEMENT, un HTML de `/media/` s'exécute sur l'origine de WAMA : le serveur
+        # web doit le servir en bac à sable (en-tête `Content-Security-Policy: sandbox`,
+        # `MEDIA_STORAGE_TIERING §9.8`).
+        extensions=('pdf', 'txt', 'docx', 'md', 'csv', 'srt', 'vtt', 'html', 'htm'),
     ),
     'avatar': Nature(
         label='Avatar', category='image', icon='fa-user-circle',
