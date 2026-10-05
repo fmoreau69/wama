@@ -1172,8 +1172,10 @@ MECHANISMS = (
               "— le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de "
               "Fabien : détection et floutage séparés dans l'anonymizer). Écrit par un process "
               "« Détection », relu par le floutage (`blur_utils.blur_detections`, rendu image par "
-              "image `render_media`) et par l'aperçu (`draw`) ; interpolation des trous d'une "
-              "piste à la lecture (`by_frame`). Sans Django ni app : la Data et le Lab peuvent le lire",
+              "image `render_media`) et par l'aperçu (`draw`) ; interpolation des trous d'un "
+              "objet à la lecture (`by_frame`) — même objet par la piste OU par la place (`iou`, "
+              "déplacement borné), le réglage seul pour limite (2026-10-05, card #1026). Sans "
+              "Django ni app : la Data et le Lab peuvent le lire",
               'wama/common/utils/detections.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=('wama/common/utils/blur_utils.py',)),
@@ -1518,10 +1520,14 @@ MECHANISMS = (
               "Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; "
               "un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three "
               "vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement "
-              "(2026-09-13, §17ter trou 2)",
+              "(2026-09-13, §17ter trou 2). Une app DÉCLARE ses faces d'aperçu entre Entrée et "
+              "Sortie (`register(faces=)`, l'anonymizer : « Détection », le document `detections` "
+              "dessiné sur l'entrée par `WamaPreviewOverlay`) ; une face `compare_base` est la "
+              "référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05)",
               'wama/common/utils/preview_registry.py', '',
               annexes=('wama/common/utils/preview_utils.py',
                        'wama/common/static/common/js/media-preview.js',
+                       'wama/common/static/common/js/wama-preview-overlay.js',
                        'wama/common/static/common/js/wama-3d-viewer.js',
                        'wama/common/templates/common/_three_importmap.html')),
     Mechanism('card_gear', 'data-* du gear ⚙ des cards',
