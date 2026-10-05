@@ -4201,6 +4201,16 @@ def build_tools_list() -> str:
     précédente itérait le dict manuel `TOOL_DESCRIPTIONS` tout en annonçant l'exhaustivité :
     elle en montrait 40 sur 43, et privait le composer de tout outil de démarrage visible.
     """
+    # UNE FOIS PAR PROCESSUS, pas une fois par tour (2026-10-05, question de Fabien : « est-ce
+    # suffisant de lui donner une fois au démarrage ? »). Le MODÈLE, lui, doit recevoir la liste
+    # à chaque appel — il n'a pas de mémoire d'un appel à l'autre. Mais la CONSTRUIRE à chaque
+    # tour coûtait 0,5 s mesurée (les descriptions d'arguments interrogent l'inventaire des
+    # backends) pour un texte qui ne dépend que du registre. La clé est le registre lui-même
+    # (noms ET fonctions) : un outil ajouté, retiré ou remplacé la change, donc aucune durée de
+    # validité à régler.
+    signature = tuple((name, id(fn)) for name, fn in sorted(TOOL_REGISTRY.items()))
+    if _TOOLS_LIST_CACHE.get('signature') == signature:
+        return _TOOLS_LIST_CACHE['text']
     # Ordre alphabétique systématique (convention WAMA : applications listées par ordre
     # alphabétique) — l'ordre de définition reflétait l'ordre d'implémentation, sans logique.
     lines = ['Available tools:']
@@ -4208,4 +4218,10 @@ def build_tools_list() -> str:
         args = ', '.join((meta.get('args') or {}).keys())
         desc = meta.get('description', '')
         lines.append(f'- {name}({args}): {desc}')
-    return '\n'.join(lines)
+    text = '\n'.join(lines)
+    _TOOLS_LIST_CACHE.update(signature=signature, text=text)
+    return text
+
+
+#: Mémoire de `build_tools_list` — par processus, invalidée par un changement du registre.
+_TOOLS_LIST_CACHE: dict = {}

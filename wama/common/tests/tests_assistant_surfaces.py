@@ -521,3 +521,38 @@ class WarmUpTest(TestCase):
             for thread in threading.enumerate():
                 if thread.name == 'wama-assistant-warm-up':
                     thread.join(5)
+
+
+class ToolsListBuiltOncePerProcessTest(TestCase):
+    """La liste d'outils du prompt se construit UNE fois par processus (2026-10-05) : la refaire
+    à chaque tour coûtait 0,5 s, pour un texte qui ne dépend que du registre."""
+
+    def setUp(self):
+        from wama import tool_api
+        self.tool_api = tool_api
+        tool_api._TOOLS_LIST_CACHE.clear()
+        self.addCleanup(tool_api._TOOLS_LIST_CACHE.clear)
+
+    def test_the_second_turn_does_not_rebuild_the_list(self):
+        api = self.tool_api
+        with mock.patch.object(api, 'tool_descriptions', wraps=api.tool_descriptions) as built:
+            first = api.build_tools_list()
+            second = api.build_tools_list()
+        self.assertEqual(1, built.call_count)
+        self.assertEqual(first, second)
+        self.assertIn('- search_docs(', first)
+
+    def test_a_tool_added_or_replaced_rebuilds_it(self):
+        api = self.tool_api
+
+        def brand_new_tool(user):
+            """A tool that did not exist a moment ago."""
+            return {}
+
+        before = api.build_tools_list()
+        with mock.patch.dict(api.TOOL_REGISTRY, {'brand_new_tool': brand_new_tool}):
+            during = api.build_tools_list()
+        after = api.build_tools_list()
+        self.assertNotIn('brand_new_tool', before)
+        self.assertIn('- brand_new_tool(', during)
+        self.assertEqual(before, after)
