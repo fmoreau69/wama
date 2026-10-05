@@ -262,12 +262,13 @@ Garantit la VRAM avant un chargement, la reprend sur les autres modèles, et ré
 
 ### Pipeline déclaré d'une app (plusieurs process)
 
-Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surveillés, degré, condition d'application) comme le cam_analyzer déclare ses passes ; le registre devient un manifeste `pipeline` à nœuds `function` (`register_app_pipeline`). Dit ce qu'un lancement JOUE (`steps_to_run` : ce qui n'est plus à jour et son aval ; une card à jour relancée rejoue tout), ce qui est PÉRIMÉ (`refresh` : réglage changé, sortie d'amont remplacée, cascade) et l'état déduit de la card (`card_state`). L'exécution reste au squelette de tâche (`run_item_task(pipeline=…, processes=…)`), une ligne d'exécution par process
+Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surveillés, degré, condition d'application) comme le cam_analyzer déclare ses passes ; le registre devient un manifeste `pipeline` à nœuds `function` (`register_app_pipeline`). Dit ce qu'un lancement JOUE (`steps_to_run` : ce qui n'est plus à jour et son aval ; une card à jour relancée rejoue tout), ce qui est PÉRIMÉ (`refresh` : réglage changé, sortie d'amont remplacée, cascade) et l'état déduit de la card (`card_state`). L'exécution reste au squelette de tâche (`run_item_task(pipeline=…, processes=…)`), une ligne d'exécution par process. Une VUE lit dans une fenêtre (`preload` … `release`) : lignes lues une fois, réponses de `applies` retenues par (process, modèle) — un `applies` peut résoudre le backend du modèle (0,56 s l'appel, mesuré le 2026-10-05)
 
 - **Domicile** : `wama/common/services/process_pipeline.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Pipeline DÉCLARÉ d'une app — la pièce du moteur commun qui dit « cette card porte PLUSIEURS process, dans cet ordre, et voici lesquels sont à (re)jouer ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 3.2, 4.3 à 4.5 (marche P3, palier B) et décision n°11.
-- **API publique** (10) :
+- **API publique** (11) :
   - `preload(items) -> None` — Lit en UNE requête les lignes d'exécution de tous ces éléments (même modèle) et les pose
+  - `release(item) -> None` — Referme la fenêtre de `preload` sur cet élément : une instance gardée par l'appelant (un
   - `class ProcessSpec` — Un process d'un pipeline d'app — les champs de `pass_tracking.Pass` qui ne sont pas
   - `output_fingerprint(ref: str) -> str` — Empreinte de la sortie d'un process (chemin relatif à MEDIA_ROOT) : celle de la brique
   - `declared_stales(app: str) -> dict` — `{process: [réglages]}` — ce que chaque réglage du schéma de `app` déclare périmer
