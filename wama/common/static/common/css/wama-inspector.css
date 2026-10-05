@@ -216,14 +216,18 @@ body.wama-simple .wama-settings-hint--simple { display: inline; }
 /* ── Preview entrée/sortie + slider comparatif (2026-07-12, STUDIO_VISION) ── */
 .wama-preview-sides { display: inline-flex; }
 .wama-compare { position: relative; display: inline-block; max-width: 100%; }
-.wama-compare img { max-width: 100%; max-height: 220px; border-radius: 6px; display: block; }
+.wama-compare img, .wama-compare video { max-width: 100%; max-height: 220px; border-radius: 6px; display: block; }
 .wama-compare-top { position: absolute; inset: 0; width: 50%; overflow: hidden;
                     border-right: 2px solid #0dcaf0; }
-.wama-compare-top img { max-width: none; }
+.wama-compare-top img, .wama-compare-top video { max-width: none; }
+/* Comparer des VIDÉOS (2026-10-05) : les contrôles sont ceux de la référence, sous le calque. */
+.wama-compare-top { pointer-events: none; }
 .wama-compare-badge { position: absolute; top: 4px; font-size: .65rem; padding: 1px 6px;
                       border-radius: 4px; background: rgba(0,0,0,.55); color: #fff; }
-.wama-compare-badge.in { left: 4px; }
-.wama-compare-badge.out { right: 4px; }
+/* Le calque SORTIE est rogné depuis la GAUCHE : son badge est à gauche, la référence à droite
+   (inversés jusqu'au 2026-10-05 — vu en comparant détection et floutage). */
+.wama-compare-badge.in { right: 4px; }
+.wama-compare-badge.out { left: 4px; z-index: 1; }
 .wama-compare-range { max-width: 100%; margin-top: .25rem; }
 
 /* ═══ PILE — modificateur de file (CARD_DESIGN §11 v3.5) ═══════════════════════════════

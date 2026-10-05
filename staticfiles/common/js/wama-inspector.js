@@ -278,6 +278,11 @@
         '<i class="fas fa-external-link-alt"></i> Ouvrir</a>';
     }
     host.innerHTML = '<div class="wama-inspector-preview text-center">' + media + '</div>';
+    // Une face qui porte une SURCOUCHE (la « Détection » de l'anonymizer, 2026-10-05) : les
+    // détections dessinées par-dessus le média, à la frame courante.
+    if (data.overlay && global.WamaPreviewOverlay) {
+      WamaPreviewOverlay.attach(host.querySelector('.wama-inspector-preview-media'), data.overlay);
+    }
     _previewCaption(host, name, data);
   }
 
@@ -756,9 +761,16 @@
       bar.appendChild(mk('Entrée', 'fa-right-to-bracket', d.side === 'input', function () {
         _fetchPreviewSide(baseUrl, 'input', title);
       }));
+      // Les faces DÉCLARÉES par l'app (`PreviewRegistry.register(faces=)`), entre l'entrée et
+      // la sortie — l'anonymizer : « Détection ».
+      (s.faces || []).forEach(function (f) {
+        bar.appendChild(mk(f.label, f.icon || 'fa-layer-group', d.side === f.key, function () {
+          _fetchPreviewSide(baseUrl, f.key, title);
+        }));
+      });
       if (s.comparable) {
         bar.appendChild(mk('Comparer', 'fa-left-right', d.side === 'compare', function () {
-          _renderCompare(baseUrl, title);
+          _renderCompare(baseUrl, title, s);
         }));
       }
       bar.appendChild(mk('Sortie', 'fa-flag-checkered', d.side === 'output', function () {
@@ -769,10 +781,14 @@
 
     // Slider comparatif entrée/sortie (V1 : images) — l'image SORTIE est rognée par un
     // conteneur dont la largeur suit le curseur ; les deux images ont la même géométrie.
-    function _renderCompare(baseUrl, title) {
+    function _renderCompare(baseUrl, title, sides) {
       var sep = baseUrl.indexOf('?') === -1 ? '?' : '&';
+      var s = sides || { has_input: true, has_output: true, comparable: true };
+      var baseSide = s.compare_base || 'input';
+      var baseLabel = baseSide === 'input' ? 'Entrée'
+        : ((s.faces || []).filter(function (f) { return f.key === baseSide; })[0] || {}).label || baseSide;
       Promise.all([
-        fetch(baseUrl + sep + 'side=input').then(function (r) { return r.json(); }),
+        fetch(baseUrl + sep + 'side=' + baseSide).then(function (r) { return r.json(); }),
         fetch(baseUrl + sep + 'side=output').then(function (r) { return r.json(); }),
       ]).then(function (both) {
         var inD = both[0], outD = both[1];
@@ -780,11 +796,23 @@
         previewHost.innerHTML = '';
         var wrap = document.createElement('div');
         wrap.className = 'wama-compare';
-        wrap.innerHTML =
-          '<img class="wama-compare-base" src="' + inD.url + '" alt="Entrée">' +
-          '<div class="wama-compare-top"><img src="' + outD.url + '" alt="Sortie"></div>' +
-          '<span class="wama-compare-badge in">Entrée</span>' +
-          '<span class="wama-compare-badge out">Sortie</span>';
+        // Les deux vidéos jouent ENSEMBLE : échappatoire de la lecture exclusive (wama-app-base).
+        wrap.setAttribute('data-wama-multiplay', '');
+        var isVideo = (inD.mime_type || '').indexOf('video/') === 0;
+        if (isVideo) {
+          // Deux VIDÉOS (2026-10-05) : la référence porte les contrôles, l'autre la suit.
+          wrap.innerHTML =
+            '<video class="wama-compare-base" src="' + escapeHtml(inD.url) + '" controls muted playsinline></video>' +
+            '<div class="wama-compare-top"><video src="' + escapeHtml(outD.url) + '" muted playsinline></video></div>' +
+            '<span class="wama-compare-badge in">' + escapeHtml(baseLabel) + '</span>' +
+            '<span class="wama-compare-badge out">Sortie</span>';
+        } else {
+          wrap.innerHTML =
+            '<img class="wama-compare-base" src="' + escapeHtml(inD.url) + '" alt="' + escapeHtml(baseLabel) + '">' +
+            '<div class="wama-compare-top"><img src="' + escapeHtml(outD.url) + '" alt="Sortie"></div>' +
+            '<span class="wama-compare-badge in">' + escapeHtml(baseLabel) + '</span>' +
+            '<span class="wama-compare-badge out">Sortie</span>';
+        }
         previewHost.appendChild(wrap);
         var range = document.createElement('input');
         range.type = 'range';
@@ -793,15 +821,23 @@
         previewHost.appendChild(range);
         var base = wrap.querySelector('.wama-compare-base');
         var top = wrap.querySelector('.wama-compare-top');
-        var topImg = top.querySelector('img');
+        var topImg = top.querySelector('img, video');
         function sync() {
           topImg.style.width = base.clientWidth + 'px';
           top.style.width = range.value + '%';
         }
-        base.addEventListener('load', sync);
+        base.addEventListener(isVideo ? 'loadedmetadata' : 'load', sync);
         range.addEventListener('input', sync);
-        if (base.complete) sync();
-        _renderSideToggle(baseUrl, { side: 'compare', sides: { has_input: true, has_output: true, comparable: true } }, title);
+        if (base.complete || (isVideo && base.readyState >= 1)) sync();
+        if (isVideo && global.WamaPreviewOverlay) WamaPreviewOverlay.syncVideos(base, topImg);
+        // La référence porte sa surcouche (les détections dessinées), sous le côté « Sortie ».
+        if (inD.overlay && global.WamaPreviewOverlay) {
+          WamaPreviewOverlay.attach(base, inD.overlay);
+          var holder = base.parentNode;
+          holder.style.display = 'block';
+          wrap.insertBefore(holder, wrap.firstChild);
+        }
+        _renderSideToggle(baseUrl, { side: 'compare', sides: s }, title);
       });
     }
 

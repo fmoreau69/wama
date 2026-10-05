@@ -89,7 +89,7 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     progressive_blur = models.IntegerField(default=25)
     detection_threshold = models.FloatField(default=0.25)
     interpolate_detections = models.BooleanField(default=True, verbose_name='Interpolate missing detections')
-    max_interpolation_frames = models.IntegerField(default=15, verbose_name='Max frames to interpolate (capped at 0.5s)')
+    max_interpolation_frames = models.IntegerField(default=15, verbose_name='Max frames to interpolate')
 
     show_preview = models.BooleanField(default=True)
     show_boxes = models.BooleanField(default=True)

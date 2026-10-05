@@ -37,7 +37,8 @@ class PreviewRegistry:
     def register(cls, app_name: str, model_class: Type[models.Model],
                  adapter: Callable[[models.Model, Any], Dict[str, Any]],
                  file_field: str = 'input_file',
-                 user_field: str = 'user'):
+                 user_field: str = 'user',
+                 faces=None):
         """
         Register a model for preview.
 
@@ -55,12 +56,19 @@ class PreviewRegistry:
             - duration: str (optional) - duration display
             - resolution: str (optional) - resolution display
             - properties: str (optional) - additional properties
+
+        `faces` (2026-10-05) : des FACES d'aperçu propres à l'app, entre Entrée et Sortie —
+        `[{'key', 'label', 'icon', 'adapter': (instance, request) -> dict | None,
+        'compare_base': bool}]`. L'anonymizer y déclare « Détection » (l'entrée, ses détections
+        dessinées par-dessus : `overlay`). Une face `compare_base` est le côté de RÉFÉRENCE du
+        mode Comparer à la place de l'entrée. Un adaptateur qui rend None : face absente.
         """
         cls._registry[app_name] = {
             'model': model_class,
             'adapter': adapter,
             'file_field': file_field,
             'user_field': user_field,
+            'faces': list(faces or []),
         }
         logger.debug(f"Registered preview adapter for {app_name}: {model_class.__name__}")
 
@@ -96,6 +104,12 @@ class PreviewRegistry:
             raise ValueError(f"App '{app_name}' not registered for preview")
 
         return reg['adapter'](instance, request)
+
+    @classmethod
+    def faces(cls, app_name: str) -> list:
+        """Les faces d'aperçu déclarées par l'app (cf. `register(faces=)`)."""
+        reg = cls._registry.get(app_name)
+        return list(reg.get('faces') or []) if reg else []
 
     @classmethod
     def is_registered(cls, app_name: str) -> bool:

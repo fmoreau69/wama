@@ -372,3 +372,32 @@ class DuringVariantsOfThePreviewTest(SimpleTestCase):
                     bar.children[0].className.indexOf('btn-outline-info') >= 0, picked[0]];
         })()""")
         self.assertEqual([2, 'Détection', True, True, 'detection'], list(out))
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class PreviewOverlayTest(SimpleTestCase):
+    """The detections drawn over a preview (2026-10-05) : the frame shown at a playing time, and
+    where the picture really sits in its element (`object-fit: contain`, bars included)."""
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM)
+        self.v8.eval((JS / 'wama-preview-overlay.js').read_text(encoding='utf-8'))
+
+    def test_the_frame_of_a_playing_time(self):
+        out = self.v8.eval("""(function () {
+            var O = window.WamaPreviewOverlay, v = {media: 'video', fps: 15};
+            return [O.frameAt(v, 0), O.frameAt(v, 1.0), O.frameAt(v, 2.07), O.frameAt(v, -1),
+                    O.frameAt({media: 'image'}, 3), O.frameAt(null, 3)];
+        })()""")
+        self.assertEqual([0, 15, 31, 0, 0, 0], list(out))
+
+    def test_where_the_picture_sits_in_its_element(self):
+        out = self.v8.eval("""(function () {
+            var O = window.WamaPreviewOverlay;
+            var wide = O.contentRect(400, 300, 800, 300);   // bars above and below
+            var tall = O.contentRect(400, 300, 300, 600);   // bars left and right
+            return [wide.x, wide.y, wide.scale, tall.x, tall.y, tall.scale, O.contentRect(0, 0, 1, 1).scale];
+        })()""")
+        self.assertEqual([0, 75, 0.5, 125, 0, 0.5, 1], list(out))
