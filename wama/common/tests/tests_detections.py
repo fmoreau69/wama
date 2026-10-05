@@ -189,3 +189,41 @@ class RenderMediaTest(SimpleTestCase):
         with self.assertRaises(RuntimeError):
             dets.render_media(source, {}, lambda image, found: image,
                               os.path.join(self.folder, 'x.png'))
+
+
+class RenderVideoTest(SimpleTestCase):
+    """A VIDEO is re-written frame by frame (MJPEG intermediate, then ffmpeg : H.264 + the
+    source's audio when it has one) — only the frames that carry detections are painted."""
+
+    def setUp(self):
+        import shutil as _shutil
+        if not _shutil.which('ffmpeg'):
+            self.skipTest('ffmpeg absent')
+        self.folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.folder, True)
+        self.source = os.path.join(self.folder, 'clip.mp4')
+        writer = cv2.VideoWriter(self.source, cv2.VideoWriter_fourcc(*'mp4v'), 10, (64, 64))
+        for _ in range(10):
+            writer.write(_stripes())
+        writer.release()
+
+    def test_each_frame_is_painted_with_ITS_detections_and_the_result_is_an_mp4(self):
+        painted, seen = [], []
+        frames = {3: [dets.detection(box=[8, 8, 40, 40], label='face')]}
+
+        def paint(image, found):
+            painted.append(len(found))
+            return blur_detections(image, found, blur_ratio=15)
+
+        written = dets.render_media(
+            self.source, frames, paint, os.path.join(self.folder, 'out', 'clip_blurred.avi'),
+            on_frame=lambda i, original, out, found: seen.append(i),
+            progress=lambda done, total: None)
+        self.assertTrue(written.endswith('clip_blurred.mp4') and os.path.isfile(written))
+        self.assertEqual([1], painted, 'only frame 3 carries a detection')
+        self.assertEqual(list(range(10)), seen)
+        self.assertFalse(os.path.exists(os.path.join(self.folder, 'out', 'clip_blurred.avi')),
+                         'the intermediate is removed')
+        capture = cv2.VideoCapture(written)
+        self.assertGreaterEqual(int(capture.get(cv2.CAP_PROP_FRAME_COUNT)), 9)
+        capture.release()

@@ -135,3 +135,61 @@ class Sam3DetectorTest(SimpleTestCase):
         engine.text_prompt, engine.input_path = '', None
         with self.assertRaises(ValueError):
             engine.detect(media_path='/nowhere.png', sam3_prompt='  ')
+
+
+class VideoDetectionTest(SimpleTestCase):
+    """On a VIDEO both engines walk the frames : YOLO in a stream (`track(stream=True)` — no
+    frame kept), SAM3 frame by frame ; the document says the video (fps, frame count) and keeps
+    only the frames that carry a detection."""
+
+    def setUp(self):
+        self.folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.folder, True)
+        self.source = os.path.join(self.folder, 'clip.mp4')
+        writer = cv2.VideoWriter(self.source, cv2.VideoWriter_fourcc(*'mp4v'), 10, (64, 48))
+        for _ in range(5):
+            writer.write(np.zeros((48, 64, 3), np.uint8))
+        writer.release()
+
+    def test_yolo_streams_the_video_and_keeps_its_tracks(self):
+        from wama.common.backends.anonymize import Anonymize
+        faces = mock.Mock()
+        faces.track.return_value = iter(
+            [_result([_box([1, 1, 20, 20], 0, 0.9, track=7)] if i % 2 == 0 else [], {0: 'face'})
+             for i in range(5)])
+        engine = Anonymize.__new__(Anonymize)
+        engine.models = [{'yolo': faces, 'name': 'faces.pt', 'classes': ['face'], 'seg': False,
+                          'class_list': ['face']}]
+        engine.model, engine.model_name = faces, 'faces.pt'
+        engine.task, engine.ret_mask, engine.device, engine.conf = 'detect', False, 'cpu', 0.25
+        engine.input_path, engine.classes2blur = None, ['face']
+        done = []
+        with mock.patch.object(Anonymize, '_reessayer', lambda self, op, replier_sur_cpu=None: op()):
+            doc = engine.detect(media_path=self.source, classes2blur=['face'],
+                                progress=lambda d, t: done.append((d, t)))
+        self.assertTrue(faces.track.call_args.kwargs['stream'], 'no frame kept in memory')
+        faces.predict.assert_not_called()
+        self.assertEqual(('video', 10.0, 5), (doc['media'], doc['fps'], doc['frame_count']))
+        self.assertEqual([0, 2, 4], [f['i'] for f in doc['frames']])
+        self.assertEqual({'m0:7'}, {d['track'] for f in doc['frames'] for d in f['d']})
+        self.assertEqual((5, 5), done[-1])
+
+    def test_sam3_walks_the_frames_and_one_failing_frame_does_not_stop_the_media(self):
+        from wama.common.backends.sam3_processor import SAM3Processor
+        mask = np.zeros((48, 64), np.float32)
+        mask[5:20, 5:20] = 1.0
+        calls = []
+
+        def segment(self_, pil):
+            calls.append(1)
+            if len(calls) == 2:
+                raise RuntimeError('one frame fails')
+            return [mask], [0.9], ['face']
+        engine = SAM3Processor.__new__(SAM3Processor)
+        engine.text_prompt, engine.input_path, engine.confidence_threshold = '', None, 0.3
+        with mock.patch.object(SAM3Processor, '_ensure_image_model'), \
+                mock.patch.object(SAM3Processor, '_segment', segment):
+            doc = engine.detect(media_path=self.source, sam3_prompt='face')
+        self.assertEqual(('video', 5), (doc['media'], doc['frame_count']))
+        self.assertEqual([0, 2, 3, 4], [f['i'] for f in doc['frames']],
+                         'the failing frame has no detection, the others go on')

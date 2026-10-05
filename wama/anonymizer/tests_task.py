@@ -270,3 +270,44 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         detected.assert_not_called()
         self.assertEqual('FAILURE', self.media.status)
         self.assertIn('sans fichier', self.media.error_message)
+
+
+class DetectMediaRoutingTest(TestCase):
+    """`detect_media` chooses the detector : SAM3 for a DESCRIPTION when it is installed and the
+    prompt valid, otherwise — or when SAM3 fails — the YOLO detector, said in the console. Both
+    return the document ; neither blurs."""
+
+    def _route(self, *, installed=True, valid=True, sam3_raises=False, use_sam3=True):
+        sam3_doc, yolo_doc = _document(tag='sam3'), _document(tag='yolo11n')
+        processor = mock.Mock()
+        processor.return_value.detect.side_effect = (
+            RuntimeError('cuda out of memory') if sam3_raises else (lambda **kw: sam3_doc))
+        yolo = mock.Mock()
+        yolo.return_value.detect.return_value = yolo_doc
+        with mock.patch.object(tasks, 'check_sam3_installed', return_value=installed), \
+                mock.patch.object(tasks, 'validate_sam3_prompt',
+                                  return_value=(valid, None if valid else 'empty')), \
+                mock.patch('wama.common.backends.manager.backend_for_key', return_value=processor), \
+                mock.patch.object(tasks.anonymize, 'Anonymize', yolo), \
+                mock.patch.object(tasks, '_console') as console:
+            doc = tasks.detect_media(media_path='/in/x.png', use_sam3=use_sam3,
+                                     sam3_prompt='face', classes2blur=['face'], user_id=None)
+        return doc['tag'], processor, yolo, console
+
+    def test_a_description_goes_to_sam3(self):
+        tag, processor, yolo, _ = self._route()
+        self.assertEqual('sam3', tag)
+        processor.return_value.load_model.assert_called_once_with('auto')
+        yolo.assert_not_called()
+
+    def test_without_sam3_or_with_an_invalid_prompt_yolo_detects(self):
+        for kwargs in ({'installed': False}, {'valid': False}, {'sam3_raises': True}):
+            with self.subTest(**kwargs):
+                tag, _processor, yolo, _ = self._route(**kwargs)
+                self.assertEqual('yolo11n', tag)
+                yolo.return_value.load_model.assert_called_once()
+
+    def test_classes_go_to_yolo_without_touching_sam3(self):
+        tag, processor, yolo, _ = self._route(use_sam3=False)
+        self.assertEqual('yolo11n', tag)
+        processor.assert_not_called()

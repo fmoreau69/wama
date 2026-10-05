@@ -95,3 +95,37 @@ class PartialFramesTest(SimpleTestCase):
         frames.close()
         self.assertEqual([], os.listdir(folder))
         self.assertIsNone(cache.get(preview_utils._partial_variants_key('anonymizer', 7)))
+
+
+class NoAppWritesItsOwnPartialFrameTest(SimpleTestCase):
+    """Generic over the apps : a FRAME published to the « during » preview goes through
+    `PartialFrames` (2026-10-04). The enhancer copied the anonymizer's hand-written publisher —
+    path, URL, publication, and no cleanup of its JPEG — which the brick now holds once."""
+
+    def test_no_app_module_writes_an_image_and_publishes_it_by_hand(self):
+        from pathlib import Path
+        from django.conf import settings
+        offenders = []
+        for root in ('wama', 'wama_lab'):
+            for path in (Path(settings.BASE_DIR) / root).rglob('*.py'):
+                if 'tests' in path.name or 'common' in path.parts or 'migrations' in path.parts:
+                    continue
+                text = path.read_text(encoding='utf-8', errors='ignore')
+                if 'publish_partial(' in text and 'imwrite(' in text:
+                    offenders.append(str(path.relative_to(settings.BASE_DIR)))
+        self.assertEqual([], offenders, 'use `preview_utils.PartialFrames`')
+
+
+class DuringPreviewCriterionKnowsTheBrickTest(SimpleTestCase):
+    """The grid criterion `during_preview` reads the EMISSION in the app's code : an app that
+    publishes through `PartialFrames` emits (the anonymizer and the enhancer went red the day
+    they adopted it — a criterion behind its mechanism)."""
+
+    def test_an_app_that_publishes_through_the_brick_emits(self):
+        from wama.common.tests import tests_queue_delete_contract as contract
+        f, cc = contract.CriteresDeLaGrilleTest._app(self, {
+            'tasks.py': "frames = PartialFrames('app', 1, folder)\n"})
+        criterion = next(c for c in cc.CRITERIA if c.key == 'during_preview')
+        self.assertIs(True, criterion.fn(f)[0])
+        f, cc = contract.CriteresDeLaGrilleTest._app(self, {'tasks.py': "x = 1\n"})
+        self.assertIs(False, criterion.fn(f)[0], 'counter-proof : no emission, red')
