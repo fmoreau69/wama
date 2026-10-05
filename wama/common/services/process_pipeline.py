@@ -49,6 +49,8 @@ UPSTREAM_KEY = '@upstream'
 
 #: Attribut posé sur un élément par `preload` : ses lignes d'exécution, lues une fois.
 PRELOADED = '_process_rows'
+#: … et, dans la même fenêtre, les réponses de `applies` par (process, modèle).
+APPLIES_MEMO = '_process_applies'
 
 
 def preload(items) -> None:
@@ -57,11 +59,23 @@ def preload(items) -> None:
 
     Pour les VUES seulement (une page de file : N cards, une requête) ; la tâche, elle, lit la
     base à chaque question. Mesuré le 2026-10-03 : sans cela la bande des process coûtait six
-    requêtes par card (lignes relues par `refresh`, `card_rows` et `shown_state`)."""
+    requêtes par card (lignes relues par `refresh`, `card_rows` et `shown_state`).
+
+    La même fenêtre retient les réponses de `applies` (2026-10-05) : celui du composer et du
+    transcriber résout le backend du modèle — 0,56 s l'appel sur ce poste —, et la bande des
+    process, l'ETA du lancement et la card posaient chacune la question."""
     items = [item for item in items if item is not None]
     grouped = process_runs.lines_by_item(items)
     for item in items:
         setattr(item, PRELOADED, grouped.get(str(item.pk), []))
+        item.__dict__.setdefault(APPLIES_MEMO, {})
+
+
+def release(item) -> None:
+    """Referme la fenêtre de `preload` sur cet élément : une instance gardée par l'appelant (un
+    test, une vue qui écrit ensuite) ne relira ni des lignes ni des réponses périmées."""
+    item.__dict__.pop(PRELOADED, None)
+    item.__dict__.pop(APPLIES_MEMO, None)
 
 
 @dataclass(frozen=True)
@@ -389,7 +403,22 @@ class AppPipeline:
         (le `plan` du composer face à `extract_score`) pose la question de son rival ICI, pour
         qu'elle n'ait qu'une réponse."""
         return (self.enabled(spec, item) and self.can_run(spec)
-                and (spec.applies is None or spec.applies(item, model_key)))
+                and self.applies(spec, item, model_key))
+
+    @staticmethod
+    def applies(spec: ProcessSpec, item, model_key=None) -> bool:
+        """Le modèle sert-il ce process pour cet élément (`ProcessSpec.applies`) ? Dans une
+        fenêtre de `preload`, la réponse est retenue par (process, modèle) : hors d'elle (la
+        tâche), elle est reposée à chaque fois."""
+        if spec.applies is None:
+            return True
+        memo = getattr(item, '__dict__', {}).get(APPLIES_MEMO)
+        if memo is None:
+            return bool(spec.applies(item, model_key))
+        key = (spec.key, model_key)
+        if key not in memo:
+            memo[key] = bool(spec.applies(item, model_key))
+        return memo[key]
 
     def applicable(self, item, model_key=None) -> list:
         """Les process qui ont lieu pour cet élément, dans l'ordre de lancement (`takes_place`)."""
@@ -535,7 +564,7 @@ class AppPipeline:
             # lieu ici (`can_run`). L'interrupteur, lui, n'en retire pas : un optionnel désactivé
             # reste visible, en case à cocher.
             if row is None and not (model_key and self.can_run(spec)
-                                    and (spec.applies is None or spec.applies(item, model_key))):
+                                    and self.applies(spec, item, model_key)):
                 continue
             summary = (row.output_summary or {}) if row is not None else {}
             out.append({
@@ -642,7 +671,7 @@ def card_view(item, model_key=DECLARED, preloaded: bool = False):
         if not preloaded:
             # Les lignes lues pour CETTE question ne restent pas sur l'élément : une instance
             # gardée par l'appelant (un test, une vue qui écrit ensuite) relirait du périmé.
-            item.__dict__.pop(PRELOADED, None)
+            release(item)
     return rows, state, dict(PROCESS_STATUS_CHOICES).get(state, state)
 
 

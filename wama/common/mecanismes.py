@@ -167,7 +167,10 @@ MECHANISMS = (
               "n'est plus à jour et son aval ; une card à jour relancée rejoue tout), ce qui est "
               "PÉRIMÉ (`refresh` : réglage changé, sortie d'amont remplacée, cascade) et l'état "
               "déduit de la card (`card_state`). L'exécution reste au squelette de tâche "
-              "(`run_item_task(pipeline=…, processes=…)`), une ligne d'exécution par process",
+              "(`run_item_task(pipeline=…, processes=…)`), une ligne d'exécution par process. "
+              "Une VUE lit dans une fenêtre (`preload` … `release`) : lignes lues une fois, "
+              "réponses de `applies` retenues par (process, modèle) — un `applies` peut résoudre "
+              "le backend du modèle (0,56 s l'appel, mesuré le 2026-10-05)",
               'wama/common/services/process_pipeline.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/tests/tests_process_pipeline.py',),
               depends_on=('process_runs', 'input_provenance')),

@@ -22292,3 +22292,73 @@ laissée au navigateur de test (elle expire seule) ; rien d'autre en base.
 +8 code, +3 classes, +10 méthodes, aucun dans mes fichiers neufs) ; sélecteurs 175 ; assistant
 169 ; `check_templates` 1 défaut, dans une jumelle du bac à sable ; plage réservée du calendrier
 verte avec la nouvelle entrée planifiée.
+
+## §CLÔTURE — 2026-10-05, « PORTAGE + ETA PAR PROCESS » — session du 03→05/10 — ✅ revérification complète demandée par Fabien, commit de ce bloc, non poussé — 🔴 RECHARGER gunicorn (fenêtre de lecture de la vue de progression) — 🔚 ETA propre de la sortie commune et de l'import
+
+**Livré dans la session** (tout non poussé) : `89e7a189` (anonymizer et outil de l'assistant :
+« en cours » posé par le LANCEUR) · `381e52ce` + `a70095b5` (#37 fabrique des vues de
+progression, 10/10) · `94b9b8b6` (triplet d'ETA en un lieu, `request_user` par défaut) ·
+`09b557e8` (socle JS `_app_scripts`, #25 soldé) · `43c52df4` + `88c4ac48` (ETA par process,
+vérifiée après relance) · le commit de ce bloc.
+
+**La revérification a trouvé UN défaut, à moi** : `launch_eta` passe par `steps_to_run`, donc par
+`applies`, qui pour le composer et le transcriber RÉSOUT le backend du modèle (0,56 s l'appel) —
+la question était posée deux fois par card. Profilé : page du composer **7,5 → 15 s** pour 10
+cards, et chaque relevé de progression d'une card en vol doublé. Corrigé DANS LE MOTEUR, par sa
+fenêtre de lecture existante : `preload` retient aussi les réponses de `applies` par (process,
+modèle), `release` referme la fenêtre, la vue de progression lit l'ETA et la bande dans UNE
+fenêtre. Mesuré après : **5,6 s** (moins qu'avant le chantier). Le choix de fraîcheur du
+`FileCache` (2026-09-14) n'est pas touché ; il fixe toujours ~0,56 s par résolution — reste
+signalé, à trancher à part (`ROUTE §10.6` 4.5).
+
+**Rien de réinventé** : `check_redundancy` — 82 trouvailles, aucune sur un symbole de la session
+(`pass_tracking._queue` rapproché de `queue_progress` par le nom : c'est la file de passes en
+cache du cam_analyzer, faux positif). Les briques sont celles qui existaient : la règle des
+passes du cam_analyzer remontée, `resolve_impl` remonté du studio, `fallback_seconds` de
+l'estimateur pour l'a priori d'app, la fenêtre `preload` du moteur.
+
+**Gardes, une par livrable** (toutes nommées dans un test) : lanceurs → `anonymizer/tests_task`,
+`tests_tool_api_start` · fabrique → `tests_progress_views`, `tests_item_lifecycle_contract` ·
+`request_user` → `tests_progress_views.RequestUserTest` (AJOUTÉE à la clôture) · socle JS →
+critère `app_scripts_common` + contrats de file · ETA par process → `tests_process_eta`
+(plan, somme, ▶ borné, taille gardée, déclaration par process, aucun triplet littéral) ;
+AJOUTÉES à la clôture : mémo de `applies` et vue en UNE fenêtre, clés de process apprises
+seulement, imager et transcriber « modèle non chargé », TTS commune, aiguillage de l'enhancer,
+card du composer, 3ᵉ forme du critère `eta_seeded`. **Douze règles prouvées par mutation**
+(six à la livraison, six à la clôture) — toutes tuées.
+
+**Joué en réel par le worker** (copie de la card anonymizer #1026, supprimée) : plan `PENDING`
+écrit par la tâche, lignes portant tâche, durée et taille, clé neuve `anonymizer:blur:img`
+apprise, estimation 24,4 s pour 24,5 réels.
+
+**Suite complète** (WSL, 5624 tests, après le correctif) : 28 FAIL + 1 ERROR, **aucun dans le
+périmètre de la session**. Établis : `kinematics.tests_gap_fill`, `cam_analyzer`
+`tests_calibration_reference` et `tests_ortho_correction` **verts en isolé** (arbre de la
+session cam modifié pendant le run) ; `tests_taxonomie_ollama` (`KeyError: 'albert:distant'`,
+chantier de l'origine des modèles, `80543acf`) ; `EveryAppPipelineTest` sur l'anonymizer : le
+`manifests/pipelines/anonymizer.json` de l'ARBRE n'a pas `max_extrapolation_frames` que HEAD
+porte (`dc096d1f`, autre session — commit par index construit sans mise à jour de l'arbre) ;
+`ItemEditRouteAliasTest` préexistant (consigné par -42, `e0ba6318`) ; les autres comme au
+palier du jour (docs générées, `accounts`, notifications, contrat d'import, `lyrics`, budgets
+de langue dépassés par du code d'autres fichiers).
+
+**Contrôles attendus au prochain /reprise** (mesurés ce jour) : grille **948/967** ; ciblé
+`tests_process_eta` + `tests_progress_views` + `tests_process_pipeline` + `tests_process_watched`
+**OK** ; `check_docs` 5 références cassées, **4 cibles distinctes**, aucune écrite par cette
+session (ROUTE l.327 et 3533, PROJECT_STATUS anciens) ; corpus de manifestes : 19 périmés, aucun
+de cette session (modèles, `anonymizer` ci-dessus).
+
+**Restes, nommément** :
+1. 6 process sur 22 n'apprennent rien d'une card à l'autre (sortie commune ×5, import du
+   transcriber) — leur dernière durée sur la card seulement ;
+2. ~0,56 s par résolution de backend (`FileCache` relit les fichiers `backends/`) — la bande du
+   composer coûte encore ~5 s pour 10 cards : décision de fraîcheur à prendre ;
+3. l'apprise `anonymizer:img:sam3` était à 26,7 s/Mpx pour 0,68 mesuré — elle converge
+   (14,7 après un run) ;
+4. restes antérieurs de la session, inchangés : imager et audio_enhancer en spec de détail
+   (trois formes), jumelles R90 (`imager_01` sans socle), contexte `batch` du synthesizer,
+   converter : visiteur bloqué par `@login_required`.
+
+**Artefacts** : scripts de mesure (équivalence, coût de page, essai réel, mutations, commits)
+dans le scratchpad de session, jetables. Effets de bord : une card anonymizer créée puis
+supprimée par la vue de l'app ; ETA apprise par ce run réel (données vraies, compte réel).

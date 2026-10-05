@@ -203,6 +203,194 @@ class SkeletonPlansTheLaunchTest(TestCase):
         self.assertEqual(3.0, record.call_args_list[0].kwargs['size'])
 
 
+class AppliesIsAskedOncePerReadTest(TestCase):
+    """`applies` of the composer and the transcriber resolves the backend of the model — 0.56 s a
+    call on this host. The process strip, the launch ETA and the card each asked it : the composer
+    page went from 7.5 s to 15 s for 10 cards (2026-10-05). Within a `preload` window the answer is
+    kept per (process, model) ; outside it (the task) it is asked again every time."""
+
+    def setUp(self):
+        self.calls = []
+
+        def applies(item, model_key):
+            self.calls.append(model_key)
+            return True
+        self.pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('render', applies=applies,
+                        eta=lambda item: ('demo:render', 1.0, 'item')),
+        ), label='Demo', model_of=lambda item: 'model-a')
+        self.spec = self.pipeline.spec('render')
+
+    def test_within_a_read_window_the_answer_is_kept_per_model(self):
+        from wama.common.services.process_pipeline import preload
+        item = _Element()
+        preload([item])
+        for _ in range(3):
+            self.pipeline.takes_place(self.spec, item, 'model-a')
+        self.pipeline.takes_place(self.spec, item, 'model-b')
+        self.assertEqual(['model-a', 'model-b'], self.calls)
+
+    def test_outside_the_window_and_after_release_it_is_asked_again(self):
+        from wama.common.services.process_pipeline import preload, release
+        item = _Element()
+        self.pipeline.takes_place(self.spec, item, 'model-a')
+        self.pipeline.takes_place(self.spec, item, 'model-a')
+        preload([item])
+        self.pipeline.takes_place(self.spec, item, 'model-a')
+        release(item)
+        self.pipeline.takes_place(self.spec, item, 'model-a')
+        self.assertEqual(4, len(self.calls))
+
+    def test_the_progress_view_reads_once_for_the_eta_and_the_strip(self):
+        """One window in the progress view : the launch ETA and the process strip share it."""
+        from wama.common.services.process_pipeline import card_view, preload, release
+        item = _Element(duration=30)
+        with mock.patch.dict(APP_PIPELINES, {'demo_pipeline': self.pipeline}), \
+                mock.patch('wama.model_manager.services.eta_estimator.estimate',
+                           _learned({'demo:render': 3.0})):
+            preload([item])
+            try:
+                self.assertEqual(3.0, process_runs.launch_eta(item))
+                card_view(item, preloaded=True)
+            finally:
+                release(item)
+        self.assertEqual(['model-a'], self.calls, 'asked once for the ETA and the strip')
+
+
+class TheProgressViewReadsInOneWindowTest(TestCase):
+    """The REAL progress view (the factory, on the composer's model) : the launch ETA and the
+    process strip ask `applies` once per request — what made each poll pay the backend
+    resolution twice."""
+
+    def test_one_progress_request_asks_applies_once(self):
+        from django.test import RequestFactory
+        from wama.common.utils.progress_views import make_progress_views
+        from wama.composer.models import ComposerGeneration
+        calls = []
+
+        def applies(item, model_key):
+            calls.append(model_key)
+            return True
+        pipeline = AppPipeline('composer', (
+            ProcessSpec('render', applies=applies, eta=lambda item: ('demo:render', 1.0, 'item')),
+        ), label='Demo', model_of=lambda item: 'model-a')
+        user = get_user_model().objects.create_user('eta_one_window', password='x')
+        gen = ComposerGeneration.objects.create(user=user, prompt='calm piano', duration=30,
+                                                status='RUNNING')
+        view = make_progress_views(work_model=ComposerGeneration, app_id='composer',
+                                   get_user=lambda r: r.user)['progress']
+        request = RequestFactory().get('/x/')
+        request.user = user
+        with mock.patch.dict(APP_PIPELINES, {'composer': pipeline}), \
+                mock.patch('wama.model_manager.services.eta_estimator.estimate',
+                           _learned({'demo:render': 3.0})):
+            data = __import__('json').loads(view(request, gen.pk).content)
+        self.assertEqual(3.0, data['estimated_seconds'])
+        self.assertEqual(['model-a'], calls)
+
+
+class ProcessKeysAreLearnedOnlyTest(TestCase):
+    """A PROCESS key (`<app>:<process>…`, or a model key suffixed by the process) has no domain a
+    priori — the estimator's describe MODELS (6 s per produced second of video : wrong by an order
+    of magnitude for a blur). Each such declaration says `0.0` ; a MODEL key keeps the estimator's
+    a priori (or the app's own, the composer catalogue's)."""
+
+    def _eta(self, path, item):
+        return process_runs.process_eta(ProcessSpec('x', eta=path), item)
+
+    def test_every_process_key_declares_no_a_priori(self):
+        from types import SimpleNamespace as NS
+        media = NS(media_type='video', file_ext='mp4', duration_inSec=10.0, width=0, height=0)
+        gen = NS(model='composer:musicgen-small', duration=30.0)
+        transcript = NS(duration_seconds=60.0, diarization_model='community-1',
+                        summary_type='meeting')
+        cases = [('anonymizer.tasks:blur_eta', media, 'anonymizer:blur:'),
+                 ('composer.tasks:plan_eta', gen, ':plan'),
+                 ('composer.tasks:extract_score_eta', gen, 'composer:extract_score'),
+                 ('transcriber.workers:align_eta', transcript, 'transcriber:align'),
+                 ('transcriber.workers:diarize_eta', transcript, 'transcriber:diarize'),
+                 ('transcriber.workers:summarize_eta', transcript, 'transcriber:summarize'),
+                 ('transcriber.workers:coherence_eta', transcript, 'transcriber:coherence')]
+        for path, item, marker in cases:
+            with self.subTest(declaration=path):
+                key, _size, _unit, _loaded, prior = self._eta(path, item)
+                self.assertIn(marker, key)
+                self.assertEqual(0.0, prior)
+
+    def test_the_composer_render_keeps_the_catalogue_a_priori(self):
+        from types import SimpleNamespace as NS
+        from wama.composer.utils.model_config import estimate_seconds
+        key, size, _unit, loaded, prior = self._eta(
+            'composer.tasks:render_eta', NS(model='composer:musicgen-small', duration=30.0))
+        self.assertEqual((False, estimate_seconds('musicgen-small', 30.0)), (loaded, prior))
+        self.assertGreater(prior, 0)
+
+
+class OneTripletPerFamilyTest(TestCase):
+    """The shared triplets : the synthesizer and the voice of the avatarizer learn under the
+    common TTS key ; the enhancer's one pipeline estimates each queue by its own triplet."""
+
+    def test_the_synthesizer_learns_under_the_common_tts_key(self):
+        from types import SimpleNamespace as NS
+        from wama.common.tts.service_client import tts_eta_key_size
+        from wama.synthesizer.workers import synthesizer_eta_key_size
+        synthesis = NS(text_content='Bonjour à tous.', tts_model='synthesizer:kokoro')
+        self.assertEqual(tts_eta_key_size('Bonjour à tous.', 'synthesizer:kokoro'),
+                         synthesizer_eta_key_size(synthesis))
+        self.assertIsNone(tts_eta_key_size('', 'synthesizer:kokoro'), 'no text, no estimate')
+
+    def test_the_enhancer_estimates_each_queue_by_its_own_triplet(self):
+        from wama.enhancer.models import AudioEnhancement, Enhancement
+        from wama.enhancer.tasks import generate_eta_key_size
+        self.assertTrue(generate_eta_key_size(AudioEnhancement())[0].startswith('enhancer:audio:'))
+        self.assertTrue(generate_eta_key_size(Enhancement())[0].startswith('enhancer:img:'))
+
+    def test_a_glue_that_learns_the_load_apart_declares_its_model_not_loaded(self):
+        """The imager and the transcriber measure the cold load apart and learn it : their
+        declaration says « model not loaded », the load counts at the start (the old views did)."""
+        from types import SimpleNamespace as NS
+        from wama.imager.models import ImageGeneration
+        imager = process_runs.process_eta(ProcessSpec('generate', eta='imager.tasks:generate_eta'),
+                                          ImageGeneration(model='auto', steps=20, num_images=2))
+        transcript = NS(used_backend='whisper', backend='whisper', duration_seconds=60.0)
+        transcriber = process_runs.process_eta(
+            ProcessSpec('transcribe', eta='transcriber.workers:transcribe_eta'), transcript)
+        self.assertEqual(('imager:img:auto', 40, 'step', False),
+                         (imager[0], imager[1], imager[2], imager[3]))
+        self.assertEqual((60.0, 'audio_sec', False), transcriber[1:4])
+
+    def test_the_composer_card_shows_the_launch_estimate_else_the_catalogue_one(self):
+        from wama.composer.models import ComposerGeneration
+        from wama.composer.utils.model_config import estimate_seconds
+        user = get_user_model().objects.create_user('eta_composer_card', password='x')
+        gen = ComposerGeneration.objects.create(user=user, prompt='calm piano', duration=30,
+                                                model='composer:musicgen-small')
+        with mock.patch('wama.common.services.process_runs.launch_eta', return_value=42.4):
+            self.assertEqual(42, ComposerGeneration.objects.get(pk=gen.pk).estimated_seconds)
+        with mock.patch('wama.common.services.process_runs.launch_eta', return_value=None):
+            self.assertEqual(estimate_seconds('musicgen-small', 30),
+                             ComposerGeneration.objects.get(pk=gen.pk).estimated_seconds)
+
+
+class EtaSeededCriterionReadsTheDeclaredFormTest(SimpleTestCase):
+    """The `eta_seeded` criterion knew two forms (`estimate(` in the views, `eta_for=` at the
+    factory) : with the per-process ETA, the seven pipeline apps have neither — it would have
+    turned them partial and pushed them back to the old form (2026-10-05)."""
+
+    def test_a_pipeline_app_is_seen_through_its_declared_process_eta(self):
+        from wama.common.services import conformity_checker as cc
+        state, proof = cc._eta_seeded(cc._AppFiles('anonymizer'))
+        self.assertIs(True, state)
+        self.assertIn('function_specs.py', proof)
+
+    def test_a_single_process_app_is_still_seen_through_its_view_hook(self):
+        """Counter-proof : the converter keeps `eta_for=` and stays green by it."""
+        from wama.common.services import conformity_checker as cc
+        state, proof = cc._eta_seeded(cc._AppFiles('converter'))
+        self.assertIs(True, state)
+        self.assertIn('views.py', proof)
+
+
 def _app_dir(app) -> Path:
     for root in ('wama', 'wama_lab', 'wama_data'):
         candidate = Path(settings.BASE_DIR) / root / app
