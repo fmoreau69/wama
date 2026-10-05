@@ -336,6 +336,37 @@ def controles(code: str, nom_impose: str, app_id: str = None, item_fields=None,
                             if isinstance(a, ast.Constant) and a.value in labels})
         if hardcoded:
             out['warnings'].append(f'label d\'app écrit en dur {hardcoded} : passer ctx.app_id')
+    # Attribut INEXISTANT d'un module importé (2026-10-05 : `os.mkstemp` au lieu de
+    # `tempfile.mkstemp` — compile, passe tous les contrôles, et lève au premier lancement).
+    # Seuls les modules importés par `import x` sont jugés, et seulement s'ils s'importent ici.
+    import importlib
+    modules = {}
+    for n in ast.walk(arbre):
+        if isinstance(n, ast.Import):
+            for a in n.names:
+                if not a.name.startswith('wama'):
+                    modules[a.asname or a.name.split('.')[0]] = a.name if a.asname else a.name.split('.')[0]
+    for n in ast.walk(arbre):
+        if (isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
+                and n.value.id in modules):
+            try:
+                mod = importlib.import_module(modules[n.value.id])
+            except Exception:
+                continue
+            if not hasattr(mod, n.attr):
+                out['warnings'].append(f'attribut inexistant : {n.value.id}.{n.attr}')
+    # Fichier temporaire hors du dossier de destination puis `replace`/`rename` : sous WSL,
+    # `/tmp` et `/mnt/d` (MEDIA_ROOT) sont deux systèmes de fichiers — `EXDEV` au déplacement.
+    temps = [n for n in ast.walk(arbre) if isinstance(n, ast.Call)
+             and (getattr(n.func, 'attr', None) or getattr(n.func, 'id', None))
+             in ('mkstemp', 'NamedTemporaryFile', 'mktemp')]
+    moves = [n for n in ast.walk(arbre) if isinstance(n, ast.Call)
+             and getattr(n.func, 'attr', None) in ('replace', 'rename')
+             and getattr(n.func.value, 'id', None) == 'os']
+    if moves and any(not any(k.arg == 'dir' for k in t.keywords) for t in temps):
+        out['warnings'].append('fichier temporaire créé HORS du dossier de destination puis '
+                               'déplacé (os.replace/rename) : échoue entre deux systèmes de '
+                               'fichiers (WSL : /tmp ≠ MEDIA_ROOT) — passer dir=<dossier cible>')
     autres = [n for n in arbre.body
               if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Import,
                                     ast.ImportFrom))]
@@ -366,6 +397,114 @@ def controles(code: str, nom_impose: str, app_id: str = None, item_fields=None,
     return out
 
 
+#: Glu RÉELLE d'un PROCESS (2026-10-05) : le composer est la 1ʳᵉ app à plusieurs process portée
+#: sur le patron (décision n°11). `_plan` écrit sa sortie en FICHIER et la rend sous `fields` ET
+#: `output_ref` — c'est ce geste que le modèle doit reproduire.
+PROCESS_FEWSHOT = (('composer', 'wama/composer/tasks.py', ('_plan',)),)
+
+
+def declared_pipeline_of(man: dict) -> tuple:
+    """(manifeste `pipeline`, fonctions) déclarés pour l'app — par la CLÉ (`pipeline_decl`),
+    jamais par une facette du manifeste `app`. Une jumelle (`writer_01`) se lit sous sa clé
+    d'origine : c'est elle que portent le corpus et les brouillons."""
+    from wama.common.manifests.codegen.pipeline_decl import declared_pipeline
+    key = man.get('key') or ''
+    pipeline, functions = declared_pipeline(key)
+    if not pipeline and re.search(r'_\d{2}$', key):
+        pipeline, functions = declared_pipeline(re.sub(r'_\d{2}$', '', key))
+    return pipeline, functions
+
+
+def matiere_process(man: dict, pipeline: dict, functions: dict, spec: dict,
+                    all_specs: list) -> str:
+    """Ce que le modèle doit savoir du process qu'il écrit : sa place dans le pipeline (amonts
+    et leurs SORTIES, à lire sur l'élément), ses sorties déclarées, son manifeste `function`
+    (ports) et la ou les cibles de prompt qui le concernent (celles dont il SURVEILLE le champ)."""
+    from wama.common.manifests.codegen.pipeline_decl import process_function
+    by_key = {s['key']: s for s in all_specs}
+    upstream = [f"  - `{k}` ({by_key[k]['label'] or k}) : a écrit {by_key[k]['outputs'] or '—'} "
+                f"sur l'élément — CE PROCESS LES LIT (fichiers relatifs à MEDIA_ROOT)"
+                for k in spec['depends_on'] if k in by_key]
+    others = sorted({o for s in all_specs if s['key'] != spec['key'] for o in s['outputs']})
+    targets = [t for t in ((man.get('body') or {}).get('prompts') or {}).get('targets') or []
+               if t.get('field') in spec['watched']]
+    function = process_function(spec, functions)
+    lines = [
+        f"PROCESS À ÉCRIRE : `{spec['key']}` ({spec['label'] or spec['key']}) — UN process du "
+        f"pipeline de l'app, jamais la tâche entière. Les autres process ont leur propre glu.",
+        f"Pipeline (ordre) : {' → '.join(s['key'] for s in all_specs)}.",
+        "Amont(s) :" if upstream else "Amont(s) : aucun.", *upstream,
+        f"Sortie(s) DÉCLARÉE(S) de ce process : {spec['outputs']} — chacune ÉCRITE comme FICHIER "
+        f"(chemin relatif à MEDIA_ROOT) et rendue sous `fields` ; la principale aussi sous "
+        f"`output_ref` (son empreinte périme l'aval).",
+        f"Champs que ce process NE DOIT PAS écrire (sorties des AUTRES process) : {others or '—'}.",
+        f"Réglages SURVEILLÉS (les seuls qui le concernent) : {spec['watched']} — chacun est LU "
+        f"sur l'élément et EMPLOYÉ (consigne système du LLM : nature du document, langue, "
+        f"format…) ; s'il change, ce process se rejoue : un réglage surveillé mais ignoré rejoue "
+        f"le process pour rien. Les fichiers de référence passent par `process_prompt_for`, le "
+        f"curseur rapide/qualité par `resolve_model_choice(item=…)`.",
+    ]
+    if targets:
+        lines.append("Cible(s) de prompt de CE process — passer par `process_prompt_for(ctx.app_id, "
+                     "<champ>, <valeur>, instance=item, user=item.user, console=ctx.console)` ; "
+                     "une valeur VIDE reste traitée quand une référence est jointe :")
+        lines += [f"  - {json.dumps(t, ensure_ascii=False)}" for t in targets]
+    if function:
+        lines.append(f"Manifeste `function` du process :\n{json.dumps(function, ensure_ascii=False, indent=1)}")
+    lines.append("⚠ L'exemple du composer (`_plan`) appelle des helpers PROPRES au composer "
+                 "(`_output_place`, `_backend`, `_model_key`…) : ils n'existent pas ici.")
+    return '\n'.join(lines)
+
+
+def read_by_bricks(man: dict) -> set:
+    """Réglages qu'une BRIQUE lit pour la glu, sans `item.<champ>` dans son code : les fichiers
+    de référence des cibles de prompt (`process_prompt_for`) et le curseur de type `intent`
+    (`resolve_model_choice(item=…)`)."""
+    body = (man or {}).get('body') or {}
+    refs = {t.get('reference_field') for t in (body.get('prompts') or {}).get('targets') or []}
+    intents = {f.get('name') for s in ((body.get('params') or {}).get('schemas') or {}).values()
+               for f in s or [] if f.get('type') == 'intent'}
+    return {n for n in refs | intents if n}
+
+
+def process_checks(code: str, nom_impose: str, spec: dict, all_specs: list,
+                   by_bricks: set = frozenset(), settings_fields=()) -> list:
+    """Contrôles propres à une glu de PROCESS : ses sorties écrites et nommées (`output_ref`),
+    aucune sortie d'un AUTRE process écrite, chaque sortie d'amont LUE, chaque réglage SURVEILLÉ
+    lu (2026-10-05 : la 1ʳᵉ glu de `write` ignorait `document_kind` et `language`, qu'elle
+    surveille — le process se rejouait à leur changement sans jamais en tenir compte)."""
+    tree = ast.parse(code)
+    fn = next((n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == nom_impose),
+              None)
+    if fn is None:
+        return []
+    written = _returned_field_keys(fn)
+    warnings = [f'sortie déclarée non écrite dans `fields` : {o}'
+                for o in spec['outputs'] if o not in written]
+    returns_ref = any(isinstance(n, ast.Dict) and any(
+        isinstance(k, ast.Constant) and k.value == 'output_ref' for k in n.keys)
+        for n in ast.walk(fn))
+    if spec['outputs'] and not returns_ref:
+        warnings.append('`output_ref` absent du retour : la sortie ne périmera pas l\'aval')
+    others = {o for s in all_specs if s['key'] != spec['key'] for o in s['outputs']}
+    warnings += [f'écrit la sortie d\'un AUTRE process : {o}' for o in sorted(written & others)]
+    read = {n.attr for n in ast.walk(fn) if isinstance(n, ast.Attribute)
+            and isinstance(n.value, ast.Name) and n.value.id == 'item'}
+    by_key = {s['key']: s for s in all_specs}
+    warnings += [f'sortie d\'amont jamais lue : item.{o}'
+                 for k in spec['depends_on'] for o in by_key.get(k, {}).get('outputs', ())
+                 if o not in read]
+    warnings += [f'réglage surveillé jamais lu : item.{w}'
+                 for w in spec['watched'] if w not in read and w not in by_bricks]
+    # L'inverse, plus grave : un réglage LU mais pas SURVEILLÉ — la sortie en dépend, et ne se
+    # périme pas quand il change (vécu le jour même : `write` lisait `style_instruction`, le
+    # réglage de la MISE EN FORME — le fond aurait mêlé la forme sans jamais se rejouer).
+    warnings += [f'lit un réglage qu\'il ne SURVEILLE pas : item.{s} (sa sortie ne se périmera '
+                 f'pas quand il change — il appartient à un autre process)'
+                 for s in sorted(read & set(settings_fields or ())) if s not in spec['watched']]
+    return warnings
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--app', required=True, help="App cible (ex. converter, ou le label d'une "
@@ -375,7 +514,12 @@ def main():
                          "manifests/app_drafts/editor.json) — remplace l'extraction live.")
     ap.add_argument('--task', default=None,
                     help='Fonction de tâche lifecycle (défaut : la seule déclarée).')
+    ap.add_argument('--process', default=None,
+                    help="Process du PIPELINE de l'app (app à plusieurs process, décision n°11) : "
+                         "vise le trou `_process_<tâche>_<process>`.")
     add_llm_arguments(ap, role='codegen')
+    ap.add_argument('--repair-rounds', type=int, default=1,
+                    help="Tours de réparation quand les contrôles relèvent un défaut (0 = aucun).")
     ap.add_argument('--truth', default=None,
                     help="Vérité terrain jointe à la revue : 'module.dotted:fonction'.")
     args = ap.parse_args()
@@ -387,6 +531,20 @@ def main():
     if not task:
         raise SystemExit(f"--task requis (lifecycle déclarées : {lifecycle})")
     nom_impose = f'_process_{task}'
+    process_matter, process_spec, all_specs = '', None, []
+    pipeline, functions = declared_pipeline_of(man)
+    if pipeline:
+        from wama.common.manifests.codegen.pipeline_decl import process_specs
+        all_specs = process_specs(pipeline)
+    if len(all_specs) >= 2:
+        keys = [s['key'] for s in all_specs]
+        if args.process not in keys:
+            raise SystemExit(f"--process requis : l'app déclare un pipeline de process {keys}")
+        process_spec = next(s for s in all_specs if s['key'] == args.process)
+        nom_impose = f'_process_{task}_{args.process}'
+        process_matter = matiere_process(man, pipeline, functions, process_spec, all_specs)
+    elif args.process:
+        raise SystemExit(f"--process {args.process} : aucun pipeline à plusieurs process déclaré")
 
     # Fichier mince du gabarit A2b : montre au modèle le wrapper et le trou EXACTS.
     from wama.common.manifests.codegen.tasks_gen import render_tasks
@@ -401,7 +559,8 @@ def main():
         (REPO_ROOT / 'wama/common/utils/task_skeleton.py').read_text(encoding='utf-8')))
     fewshot = '\n\n'.join(
         f'===== GLU RÉELLE ({app}) =====\n{_source_de(REPO_ROOT / chemin, noms)}'
-        for app, chemin, noms in FEWSHOT if app != args.app)
+        for app, chemin, noms in (FEWSHOT + (PROCESS_FEWSHOT if process_spec else ()))
+        if app != args.app)
 
     corps = json.dumps(man, ensure_ascii=False, indent=1)
     jambes = '\n'.join(json.dumps(m, ensure_ascii=False) for m in resolus)
@@ -424,27 +583,57 @@ def main():
         f'Propriétés lisibles en plus : {", ".join(props) or "(aucune)"} — tout autre '
         f'attribut d\'item est INTERDIT.\n\n'
         f'FICHIER MINCE généré (le wrapper appelle ta glu) :\n{mince}\n\n'
-        f'Écris la fonction `{nom_impose}(item, ctx)` qui remplit ce trou '
+        + (f'{process_matter}\n\n' if process_matter else '') +
+        f'Écris la fonction `{nom_impose}(item, ctx)` qui remplit ce trou — et lui SEUL '
         f'(bloc ```python seul).')[:MAX_MATTER_CHARS]
 
     model = resolve_model(args.provider, 'codegen', args.model)
     print(f'[codegen] {args.provider} / {model} | app : {args.app} | glu : {nom_impose}')
+    def judge(code: str) -> dict:
+        verif = controles(code, nom_impose, args.app,
+                          item_fields=[c.split(' (')[0] for c in champs],
+                          settings_fields=((proc.get('model_spec') or {}).get('item') or {})
+                          .get('params_fields'))
+        if process_spec and verif['compile_ok']:
+            verif['warnings'] += process_checks(
+                code, nom_impose, process_spec, all_specs, read_by_bricks(man),
+                ((proc.get('model_spec') or {}).get('item') or {}).get('params_fields'))
+        # Une brique que le manifeste DÉCLENCHE et que la glu n'appelle pas (2026-10-01 : `auto`
+        # passé tel quel à la brique LLM au lieu d'être tiré par `resolve_model_choice`) — la
+        # montrer dans la matière ne suffit pas, l'oubli doit se voir.
+        if verif['compile_ok']:
+            called = {getattr(n.func, 'id', None) or getattr(n.func, 'attr', None)
+                      for n in ast.walk(ast.parse(code)) if isinstance(n, ast.Call)}
+            for _key, names in _triggered(resolus, man):
+                verif['warnings'] += [f'brique déclenchée par le manifeste non appelée : {name}'
+                                      for name in names if name not in called]
+        return verif
+
     reponse = call_llm(args.provider, model, PROMPT, user_msg, num_ctx=CODEGEN_NUM_CTX,
                        temperature=CODEGEN_TEMPERATURE, timeout=CODEGEN_TIMEOUT)
     code = extract_code(reponse)
-    verif = controles(code, nom_impose, args.app,
-                      item_fields=[c.split(' (')[0] for c in champs],
-                      settings_fields=((proc.get('model_spec') or {}).get('item') or {})
-                      .get('params_fields'))
-    # Une brique que le manifeste DÉCLENCHE et que la glu n'appelle pas (2026-10-01 : `auto`
-    # passé tel quel à la brique LLM au lieu d'être tiré par `resolve_model_choice`) — la
-    # montrer dans la matière ne suffit pas, l'oubli doit se voir.
-    if verif['compile_ok']:
-        called = {getattr(n.func, 'id', None) or getattr(n.func, 'attr', None)
-                  for n in ast.walk(ast.parse(code)) if isinstance(n, ast.Call)}
-        for _key, names in _triggered(resolus, man):
-            verif['warnings'] += [f'brique déclenchée par le manifeste non appelée : {name}'
-                                  for name in names if name not in called]
+    verif = judge(code)
+    # Tour de RÉPARATION (2026-10-05) : les contrôles mécaniques relevaient un défaut que le
+    # modèle ne voyait jamais — l'humain le corrigeait à l'application, ou relançait au hasard
+    # (vécu : le label `'writer'` écrit en dur, deux tirages de suite). Le modèle relit sa
+    # proposition et les avertissements, une fois ; la chaîne juge encore la réponse, et les
+    # deux essais restent dans la sortie. Toujours rien d'appliqué.
+    attempts = []
+    for _round in range(args.repair_rounds):
+        if verif['compile_ok'] and verif['signature_ok'] and not verif['warnings']:
+            break
+        attempts.append({'code': code, 'checks': verif})
+        print(f"[codegen] réparation {_round + 1} — {len(verif['warnings'])} avertissement(s)")
+        tail = (f"\n\nTA PROPOSITION PRÉCÉDENTE :\n```python\n{code}\n```\n\n"
+                f"Les CONTRÔLES MÉCANIQUES y ont relevé :\n"
+                + '\n'.join(f'- {w}' for w in verif['warnings'] or ['(ne compile pas)'])
+                + f"\n\nRends la fonction `{nom_impose}(item, ctx)` corrigée, ENTIÈRE "
+                  f"(bloc ```python seul).")
+        repair_msg = user_msg[:max(0, MAX_MATTER_CHARS - len(tail))] + tail
+        reponse = call_llm(args.provider, model, PROMPT, repair_msg, num_ctx=CODEGEN_NUM_CTX,
+                           temperature=CODEGEN_TEMPERATURE, timeout=CODEGEN_TIMEOUT)
+        code = extract_code(reponse)
+        verif = judge(code)
 
     verite = None
     if args.truth:
@@ -455,10 +644,13 @@ def main():
     # `write_output` produit EXACTEMENT le même fichier qu'avant : le nom se compose
     # `{role}_{slug}_{horodatage}.json`, donc `codegen_{app}_{task}_{horodatage}.json` avec
     # ce slug, et l'enveloppe pose les mêmes `status`/`role` en tête. Vérifié avant bascule.
-    sortie = write_output('codegen', f'{args.app}_{task}', {
+    sortie = write_output('codegen', f'{args.app}_{task}' + (f'_{args.process}' if process_spec
+                                                              else ''), {
         'provider': args.provider,
         'model': model,
         'app': args.app, 'task': task, 'function': nom_impose,
+        **({'process': args.process} if process_spec else {}),
+        **({'repaired_from': attempts} if attempts else {}),
         'checks': verif,
         'code': code,
         # La réponse BRUTE (2026-10-01) : un code mal extrait ne se diagnostique qu'en la relisant.

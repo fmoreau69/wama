@@ -13,7 +13,9 @@ RÈGLES STRICTES :
    - ctx.console(message)          → ligne console utilisateur (best-effort) ;
    - retour {'fields': {champs du modèle à persister au succès},
              'eta': (clé, taille, unité),      # optionnel — seeding ETA (record_run)
-             'label': 'nom lisible'}           # optionnel — console ✓ / notification
+             'label': 'nom lisible',           # optionnel — console ✓ / notification
+             'models': [clé du modèle employé],  # le modèle TIRÉ, jamais réécrit dans `fields`
+             'output_ref': 'chemin relatif'}   # process d'un pipeline : la sortie qui périme l'aval
    Une exception = FAILURE, gérée par le squelette. Ton nettoyage d'échec (fichiers
    temporaires…) reste DANS la glu (try/finally ou except-reraise).
 3. Imports LOURDS (torch, transformers, diffusers, librairies de modèles) À L'INTÉRIEUR de
@@ -38,3 +40,7 @@ RÈGLES STRICTES :
    exemples est INTERDIT — si la brique dont tu as besoin n'y figure pas, préfère
    raise NotImplementedError à un import deviné.
 7. Commentaires sobres, en français, uniquement pour les contraintes non évidentes.
+8. Le LABEL de l'app est TOUJOURS `ctx.app_id` — dans un appel de brique, un chemin média
+   (`app_media_dir(ctx.app_id, …)`), une clé. Jamais le nom de l'app écrit en dur : la glu
+   tourne aussi sous un label de jumelle (`<app>_01`), où le nom en dur range ailleurs et ne
+   trouve pas les déclarations de l'app.

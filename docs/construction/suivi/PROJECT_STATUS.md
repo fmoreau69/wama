@@ -21918,6 +21918,35 @@ Trois retours de Fabien après une vidéo jouée (card #1026, compte réel, lue 
   `common/` avec Data et Lab qui y délèguent ; `iou` a déjà deux jumeaux (Data, Lab).
 - Laissé dans l'arbre, pas à moi : le hunk `blur_eta` de `wama/anonymizer/tasks.py`.
 
+## §PALIER — 2026-10-05, « WRITER : la référence de mise en page PAR LA ROUTE — le générateur apprend les apps à plusieurs process ; palette et console du Studio » — non commité (en attente de Fabien) — 🔴 RECHARGER gunicorn ET workers (writer_01 recréé ; code Studio) — 🔚 rééditer un document produit ailleurs
+
+Ordre approuvé par Fabien (« oui pour les trois, dans l'ordre proposé ») :
+
+- ① **Position commune consignée** : `WAMA_APP_GENERATION_ROUTE §10.6`, après la décision n°11. Un
+  catalogue pour tout nœud ; la catégorie est le rôle, le rattachement une propriété ; « affiché ≠
+  exécutable » au Studio.
+- ② **Générateur multi-process + Writer en `write` → `layout`** : `codegen/pipeline_decl.py` et
+  `function_specs_gen.py` (neufs), branches pipeline de `tasks_gen` / `models_gen` / `views_gen` /
+  `templates_gen`, ports secondaires reçus sous leur nom, process « Sortie » commun = `output_spec`.
+  Brouillons `manifests/app_drafts/{pipelines,functions}/writer*.json` ; le résultat du Writer est
+  `output_file` (`backend_result` corrigé).
+  Rôle `codegen` : `--process`, contrôles de process, **tour de réparation**, règle 8 du prompt
+  (`ctx.app_id`). Glus par Albert (qwen3.8 > 900 s deux fois), appliquées par `app_sandbox glue`.
+  Génération réelle (compte de test) : SUCCESS, forme reprise sans le texte, ▶ `layout` seul,
+  fond intact.
+- ③ **Studio** : étiquette d'app et filtre par app dans la palette (mesuré au navigateur) ;
+  console quand une entrée d'amont n'est pas transmise (`_run_app_function(console=)`).
+- Trous fermés au passage : une jumelle n'entre plus au corpus (`manifest_export`) ;
+  `app_sandbox remove` désapplique aussi la base de TEST conservée (une autre session voyait
+  ses tests tomber sur `writer_01_writerdocument.draft_file`).
+- Coordination : champ `ProcessSpec.eta` posé à la demande de la session « ETA par process »
+  (export `graph()` + générateur) ; elle commite ses hunks `eta` et le bloc `graph()`.
+- Tests : codegen, pipeline, catalogues, Studio verts ; restent rouges, pas de mon fait :
+  `ItemEditRouteAliasTest` (imager, préexistant) et les budgets de langue (WIP d'autres
+  instances ; mon seul identifiant français, `ligne_sec`, renommé).
+- 🔚 Ensuite : la RÉÉDITION d'un document produit ailleurs (séparer `work_result` /
+  `attach_result` de l'évaluation) ; la page d'édition relève du chantier SURFACES.
+
 ### Suite du 2026-10-05 (session assistant) — tours RÉELS mesurés, liste d'outils construite une fois, restes soldés
 
 - **La mesure qui manquait** : trois tours de Fabien par Albert À TRAVERS gunicorn — premier

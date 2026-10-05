@@ -69,11 +69,32 @@ def _rappel_rag(prompt, user, *, k=3, semantic=False):
     return extraits, sources
 
 
+#: Ce que dit au modèle le bloc replié, selon la LECTURE de la référence : un contexte de
+#: contenu se reprend, une mise en page se reproduit sans que son texte soit repris.
+_REFERENCE_BLOCKS = {
+    'content': '[Reference context]',
+    'form': ('[Layout reference — reproduce this LAYOUT and visual STYLE; '
+             'never reuse its text]'),
+}
+
+
+def _fold_references(result, reference_files, reading, language, console, timeout):
+    """Comprend les fichiers de référence et replie le bloc dans `result['prompt']` (en place)."""
+    from .reference_comprehension import comprehend_files
+    ctx = comprehend_files(reference_files, language=language or 'en', console=console,
+                           timeout=timeout, reading=reading)
+    if ctx:
+        head = _REFERENCE_BLOCKS.get(reading, _REFERENCE_BLOCKS['content'])
+        base = str(result['prompt'] or '').strip()
+        result['prompt'] = f"{base}\n\n{head}\n{ctx}" if base else f"{head}\n{ctx}"
+        result['reference_context'] = True
+
+
 def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_type=None,
                    user=None, input_lang=None, glossary=None, enrich=False,
                    reference_files=None, console=None, timeout=120,
                    app=None, domain=None, rag=False, rag_k=3, rag_semantic=False,
-                   prompt_contract=None):
+                   prompt_contract=None, reference_reading='content'):
     """
     Traite un prompt selon les métadonnées (KIND + capacités du modèle cible).
 
@@ -92,6 +113,10 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
     `reference_files` : chemin(s) de fichier(s) de référence fournis par l'utilisateur. S'ils
     existent, ils sont compris (image/doc/texte) et repliés dans le prompt comme contexte de
     grounding (cf. [[reference_comprehension]]). Data-gated : aucun coût si la liste est vide.
+    `reference_reading` : `content` (ce que la référence dit) ou `form` (comment elle est faite —
+    la référence de MISE EN PAGE, 2026-10-01), déclaré par la cible (`PROMPT_TARGETS`). Une
+    consigne VIDE accompagnée d'une référence est traitée quand même : « fais comme ce document »
+    se dit aussi sans un mot.
 
     `rag` : si True ET `user` fourni, ajoute au prompt des extraits des documents de
     l'utilisateur (fragments `RagChunk` visibles par lui — cf. `WAMA_MEMORY.md`). OPT-IN et
@@ -108,6 +133,10 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
               'reference_context': False, 'rag': False, 'rag_sources': [],
               'routing': None, 'reason': 'direct'}
     if not prompt or not str(prompt).strip():
+        # Rien à traduire ni à enrichir — mais une référence jointe se lit quand même.
+        if reference_files and kind in ('generative', 'intent'):
+            _fold_references(result, reference_files, reference_reading,
+                             input_lang or _user_lang(user), console, timeout)
         return result
 
     try:
@@ -195,12 +224,8 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
         # Data-gated : ne fait rien si aucun fichier fourni (no-op tant qu'aucune app ne déclare
         # `reference_field` dans PROMPT_TARGETS). Replie un contexte de grounding dans le prompt.
         if reference_files and kind in ('generative', 'intent'):
-            from .reference_comprehension import comprehend_files
             ref_lang = (routing.get('input_pivot') if result['translated'] else lang) or 'en'
-            ctx = comprehend_files(reference_files, language=ref_lang, console=console, timeout=timeout)
-            if ctx:
-                result['prompt'] = f"{result['prompt']}\n\n[Reference context]\n{ctx}"
-                result['reference_context'] = True
+            _fold_references(result, reference_files, reference_reading, ref_lang, console, timeout)
 
         # ── Hook B : RAG — contexte tiré de ce que l'utilisateur POSSÈDE (WAMA_MEMORY.md) ──
         # OPT-IN (`rag=True`) et data-gated : sans rappel, le prompt sort INCHANGÉ. Aucune app ne

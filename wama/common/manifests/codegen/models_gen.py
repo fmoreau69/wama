@@ -78,6 +78,14 @@ def _champ_option(entry: dict) -> str:
     return f"{nom} = models.CharField(max_length=255, blank=True, default={str(d or '')!r})"
 
 
+def _declares_step_outputs(app_id: str) -> bool:
+    """L'app déclare-t-elle un pipeline dont un process a des SORTIES fichier (`pipeline_decl`) ?"""
+    from wama.common.manifests.codegen.pipeline_decl import declared_pipeline, process_specs
+    pipeline, _ = declared_pipeline(app_id)
+    steps = process_specs(pipeline) if pipeline else []
+    return len(steps) >= 2 and any(s['outputs'] for s in steps)
+
+
 def declared_result_fields(body: dict, input_field: str = '') -> list:
     """Champs de RÉSULTAT que le manifeste DÉCLARE déjà : `[(nom, 'text' | 'file')]`, dans
     l'ordre de déclaration, sans doublon ni champ d'entrée.
@@ -266,7 +274,7 @@ def render_models(manifest: dict) -> tuple:
         'from wama.common.models import (BatchMixin, ProcessingTimeMixin, ScopedManager,',
         '                                ScopedVisibility)',
         ('from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output'
-         if any(k == 'file' for _n, k in results)
+         if any(k == 'file' for _n, k in results) or _declares_step_outputs(app_id)
          else 'from wama.common.utils.media_paths import upload_to_user_input'),
         '',
         '',
@@ -321,6 +329,35 @@ def render_models(manifest: dict) -> tuple:
                 l.append(f"    {nom} = models.FileField(upload_to=upload_to_user_output("
                          f"'{app_id}'), max_length=500, blank=True, null=True)")
         l += ['']
+    # App à PLUSIEURS process (2026-10-05, patron composer — décision n°11, ROUTE §10.6) : le
+    # pipeline se lit par la CLÉ (`pipeline_decl`). Deux familles de colonnes en DÉRIVENT :
+    #  • les SORTIES déclarées des process (`ProcessSpec.outputs` : `planned_score` au composer) —
+    #    des FICHIERS de la card : retrait, rétention, révisions et l'empreinte « entrée remplacée »
+    #    ne savent suivre qu'un fichier ;
+    #  • les PORTS d'entrée fichier de l'app autres que l'entrée principale, nommés comme LUI
+    #    (`reference_score` au composer : la card, l'outil et le nœud du studio disent le même
+    #    nom — « un port = l'argument du même nom »). Réservé aux apps à pipeline : sur les dix
+    #    apps réelles, un port n'est PAS une colonne du même nom (mesuré le 2026-10-05) ; la
+    #    règle vaut pour les ports NOUVEAUX, pas en rattrapage.
+    from wama.common.manifests.codegen.pipeline_decl import declared_pipeline, process_specs
+    _pipeline, _ = declared_pipeline(app_id)
+    _steps = process_specs(_pipeline) if _pipeline else []
+    if len(_steps) >= 2:
+        have = taken | {n for n, _k in results}
+        step_outputs = [o for s in _steps for o in s['outputs'] if o not in have]
+        ports = [p.get('id') for p in ((body.get('ports') or {}).get('inputs') or [])
+                 if p.get('group') in ('travail', 'reference') and p.get('id')
+                 and p.get('id') not in have and p.get('id') not in step_outputs]
+        if step_outputs or ports:
+            l += ['    # Pipeline de la card (function_specs.PIPELINE) — sorties des process, ports.']
+        for nom in dict.fromkeys(step_outputs):
+            l.append(f"    {nom} = models.FileField(upload_to=upload_to_user_output("
+                     f"'{app_id}'), max_length=500, blank=True, null=True)")
+        for nom in dict.fromkeys(ports):
+            l.append(f"    {nom} = models.FileField(upload_to=upload_to_user_input("
+                     f"'{app_id}'), max_length=500, blank=True, null=True)")
+        if step_outputs or ports:
+            l += ['']
     l += [f'    # TROU DE GLU {mark} — autres champs de RÉSULTAT (non déclarés au manifeste)',
           '    # et logique métier : marche B, puis migration dédiée. Le spine ne bouge pas.',
           '',

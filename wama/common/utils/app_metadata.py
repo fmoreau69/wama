@@ -15,6 +15,11 @@ Chaque target : {field, kind, [model_field, source, default_model_type, when, do
 - when              : ce qui conditionne le traitement — un attribut booléen de l'instance
                       (ex. 'use_sam3'), ou une condition de la grammaire `show_if` du schéma
                       ({'field': 'target_mode', 'equals': 'description'}, 2026-09-27).
+- reference_field   : champ fichier dont le contenu est replié dans le prompt (fichier de
+                      référence, `reference_comprehension`) ;
+- reference_reading : `content` (défaut — ce que la référence DIT) ou `form` (comment elle est
+                      FAITE : styles, squelette, mise en page — la référence de mise en page du
+                      Writer, 2026-10-01). Lue avec une consigne vide aussi.
 - lyrics            : le prompt peut porter des PAROLES balisées après sa description
                       (`[Verse]`, `[Chorus]`… — `tagged_lyrics`). Traduction et enrichissement
                       ne touchent que la DESCRIPTION ; les paroles sont rendues telles quelles
@@ -168,7 +173,11 @@ def process_prompt_for(app: str, field: str, value, instance=None, user=None, co
     `full`, un dict de même forme marquant l'absence de traitement).
     """
     tgt = _target(app, field)
-    if tgt is None or not value or not str(value).strip():
+    empty = not value or not str(value).strip()
+    # Une consigne VIDE n'arrête pas une cible qui a une référence JOINTE (2026-10-01 : la
+    # référence de mise en page du Writer — « fais comme ce document » se dit sans un mot).
+    references = _resolve_reference_files(instance, tgt) if tgt is not None else None
+    if tgt is None or (empty and not references):
         if full:
             return {'prompt': value, 'original': value, 'translated': False, 'enriched': False,
                     'reference_context': False, 'routing': None, 'reason': 'no-target'}
@@ -180,7 +189,8 @@ def process_prompt_for(app: str, field: str, value, instance=None, user=None, co
     res = process_prompt(value or '', kind=tgt.get('kind', 'text'),
                          model_capabilities=caps, model_type=mtype,
                          enrich=tgt.get('enrich', False) if enrich is None else enrich,
-                         reference_files=_resolve_reference_files(instance, tgt),
+                         reference_files=references,
+                         reference_reading=tgt.get('reference_reading', 'content'),
                          user=user, console=console, glossary=glossary,
                          app=app, domain=domain, prompt_contract=contract)
     if lyrics:

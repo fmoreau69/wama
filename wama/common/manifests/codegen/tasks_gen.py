@@ -116,6 +116,65 @@ def render_tasks(manifest: dict) -> tuple:
     compose = bool(routes and schema_symbole and nature_champ
                    and (result_kind == 'file' or result_field))
 
+    # ── App à PLUSIEURS process (2026-10-05, patron composer — décision n°11, ROUTE §10.6) ──
+    # Le pipeline se lit par la CLÉ de l'app (`pipeline_decl`, jamais une facette du manifeste
+    # `app`). Une tâche, des glus : `run_item_task(pipeline=, processes=, only=)` joue les process
+    # retenus, `process=` borne le lancement (▶ d'un process, `steps_to_run(only=)`) — défaut
+    # `None` : un worker en service qui ne connaît pas l'argument reste compatible.
+    from wama.common.manifests.codegen.pipeline_decl import declared_pipeline, process_specs
+    _pipeline, _functions = declared_pipeline(app_id)
+    _steps = process_specs(_pipeline) if _pipeline else []
+    if len(_steps) >= 2 and len(taches) == 1:
+        fn = taches[0]['function']
+        name_kw = f", name='{taches[0]['task_name']}'" if taches[0].get('task_name') else ''
+        glus = ', '.join(f"'{s['key']}': _process_{fn}_{s['key']}" for s in _steps)
+        lignes += [
+            '',
+            f'@shared_task(bind=True{name_kw})',
+            f'def {fn}(self, item_id: int, process: str | None = None):',
+            '    """Tâche de la card : joue son PIPELINE (`function_specs.PIPELINE`). `process` : ▶ d\'UN',
+            '    process — lui et ses seuls amonts périmés (`steps_to_run(only=)`)."""',
+            '    from wama.common.utils.task_skeleton import run_item_task',
+            '    from .function_specs import PIPELINE',
+            f"    run_item_task(self, app_id='{app_id}', model={item_model}, item_id=item_id,",
+            f'                  pipeline=PIPELINE, processes={{{glus}}},',
+            f"                  only=process, notify_label='{label}')",
+        ]
+        from wama.common.manifests.codegen.pipeline_decl import OUTPUT_PROCESS_KEY
+        for s in _steps:
+            outputs = ', '.join(s['outputs']) or '(aucune déclarée)'
+            ups = ', '.join(s['depends_on']) or 'aucun'
+            if s['key'] == OUTPUT_PROCESS_KEY:
+                # Process « Sortie » COMMUN : sa glu est la brique `output_step` — le trou ne
+                # demande que le champ du rendu et son domaine, jamais un traitement réécrit.
+                lignes += [
+                    '',
+                    '',
+                    f'def _process_{fn}_{s["key"]}(item, ctx):',
+                    f'    """TROU DE GLU {mark} — process COMMUN « Sortie » (amont : {ups}), marche B.',
+                    '',
+                    '    Sa glu est la brique `output_process.output_step(<champ du rendu>, domain=…,',
+                    '    app_id=ctx.app_id)(item, ctx)` : réglages de sortie (format, qualité,',
+                    '    agrandissement) appliqués à l\'original que l\'amont a écrit. Rien d\'autre."""',
+                    f"    raise NotImplementedError('{mark} process {s['key']} non généré (marche B)')",
+                ]
+                continue
+            lignes += [
+                '',
+                '',
+                f'def _process_{fn}_{s["key"]}(item, ctx):',
+                f'    """TROU DE GLU {mark} — process `{s["key"]}` ({s["label"] or s["key"]}), marche B.',
+                '',
+                f'    Amont(s) : {ups}. Sortie(s) DÉCLARÉE(S) : {outputs} — un FICHIER de la card,',
+                '    rendu sous `fields` ET sous `output_ref` (le chemin relatif) : c\'est son empreinte',
+                '    qui périme l\'aval quand cette sortie est remplacée. Contrat `task_skeleton` :',
+                '    ctx.progress/ctx.console/ctx.app_id ; retour {fields, output_ref, label, models} ;',
+                '    une exception = FAILURE de la card."""',
+                f"    raise NotImplementedError('{mark} process {s['key']} non généré (marche B)')",
+            ]
+        lignes.append('')
+        return '\n'.join(lignes), None
+
     for t in taches:
         fn = t['function']
         name_kw = f", name='{t['task_name']}'" if t.get('task_name') else ''

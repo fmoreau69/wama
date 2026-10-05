@@ -1,0 +1,66 @@
+{
+  "body": {
+    "app": "writer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "writer.tasks:write_document_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le FOND rédigé par le process précédent : le contenu à mettre en forme, sans le changer.",
+        "group": "travail",
+        "key": "draft",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Modèle de mise en page, OPTIONNEL : on en reprend la FORME (styles, structure), jamais le contenu.",
+        "group": "reference",
+        "key": "reference_layout",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "writer.layout",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le document mis en forme (HTML autonome).",
+        "key": "document",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "text",
+      "llm",
+      "document",
+      "format"
+    ],
+    "visibility": "public"
+  },
+  "description": "Met en FORME le fond rédigé, selon la consigne de forme et, s'il est joint, le modèle de mise en page (dont on reprend les styles et la structure, jamais le texte). Changer la forme ne rejoue que ce process.",
+  "key": "writer.layout",
+  "manifest_kind": "function",
+  "name": "Writer — mettre en forme",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "manifests/app_drafts/functions/writer.layout.json",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "media"
+}

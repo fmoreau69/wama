@@ -3991,9 +3991,17 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
    seul chemin de la prévision, tuiles Importer · Médiathèque · URL sur tous les ports
    (`WAMA_APP_GENERATION_ROUTE §10.5`, fin du bloc REVÉRIFICATION). Mesuré : ajout consigne +
    référence, prévision = lancement (qwen3.8), réglage resté « auto ».
-   🔚 Ensuite (décisions) : la référence de MISE EN PAGE (entrée `reference_layout` et lecture des
-   références selon l'usage — contenu ou forme), les sources cards/RAG, l'hébergement, la
-   promotion hors du bac à sable.
+   ✅ 2026-10-05 — la référence de MISE EN PAGE, par la route : le Writer a DEUX process sur le
+   patron du composer (`write` → le FOND dans `draft_file` ; `layout` → le HTML depuis le fond, la
+   consigne de forme et le port `reference_layout`, lu en lecture `form` —
+   `reference_comprehension.comprehend_files(reading=)`), déclarés par des manifestes `pipeline`
+   et `function` autorés (`manifests/app_drafts/`). Le GÉNÉRATEUR a appris les apps à plusieurs
+   process et les glus sont venues du rôle `codegen` (Albert), jamais écrites à la main
+   (`WAMA_APP_GENERATION_ROUTE §10.6`, position commune du 05/10, bloc ✅). Mesuré : forme reprise
+   sans le texte du modèle ; changer la forme ne rejoue que `layout`, le fond reste intact.
+   🔚 Ensuite (décisions) : la RÉÉDITION d'un document produit ailleurs (comme la reprise d'une
+   transcription : séparer `work_result`/`attach_result` de l'évaluation, puis la page d'édition
+   — chantier SURFACES), les sources cards/RAG, l'hébergement, la promotion hors du bac à sable.
 2. Publier (capacité commune).
 3. PDF par Chromium.
 4. docx / tex / pptx par Pandoc.

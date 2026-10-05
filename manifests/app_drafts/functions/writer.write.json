@@ -1,0 +1,65 @@
+{
+  "body": {
+    "app": "writer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "writer.tasks:write_document_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "prompt",
+        "description": "La consigne : ce que le document doit dire, et pour qui.",
+        "group": "travail",
+        "key": "prompt",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Document de référence, OPTIONNEL : il nourrit le contenu (faits, chiffres, termes) sans être recopié.",
+        "group": "reference",
+        "key": "reference_document",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "writer.write",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le FOND : un texte structuré en sections (Markdown), lisible et corrigeable — la mise en forme le reprend.",
+        "key": "draft",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "text",
+      "llm",
+      "document"
+    ],
+    "visibility": "public"
+  },
+  "description": "Rédige le FOND du document depuis la consigne et, s'il est joint, le document de référence : un texte structuré en sections, sans mise en forme. Le fond est un fichier de la card — lisible, corrigeable, et sa correction périme la mise en forme.",
+  "key": "writer.write",
+  "manifest_kind": "function",
+  "name": "Writer — rédiger le fond",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "manifests/app_drafts/functions/writer.write.json",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "media"
+}

@@ -3002,7 +3002,7 @@ mécanismes et dupliqué deux briques** — tous testés, tous verts. Corrigé :
 
 | réinvention | ce qui existait | correction |
 |---|---|---|
-| facette `pipelines` + nœud `kind: process` | kind `pipeline` (`builtin/pipeline.py:35`) ; « un process d'app EST un pipeline à 1 nœud » (30/08) ; étapes internes d'une app Médias = décision n°11 / P4 | retirée (`WAMA_MANIFEST_SPEC §3.1` garde le récit) ; le Writer est UN process |
+| facette `pipelines` + nœud `kind: process` | kind `pipeline` (`builtin/pipeline.py:35`) ; « un process d'app EST un pipeline à 1 nœud » (30/08) ; étapes internes d'une app Médias = décision n°11 / P4 | retirée (`WAMA_MANIFEST_SPEC §3.1` garde le récit) ; le Writer était UN process jusqu'à la décision n°11 (02/10) — ~~UN process~~ deux process sur le patron composer, position commune du 05/10 (`§10.6` point 9) |
 | `pipeline_process_order` | `studio/tasks.py:56`, `pass_tracking.py:220` | retiré |
 | `task_skeleton.run_process_steps` | `_run_app_function` (`studio/tasks.py:250`) ; §10.6 4.5 interdit une 4ᵉ pièce | retiré |
 | port `source_document` écrit à la main | ports DÉRIVÉS (`app_registry.py:440-497`) des jetons `INPUT_TYPES` | jeton `reference_document` (rôle × nature, règle du `work_object3d`) dans `modes.inputs` |
@@ -4359,6 +4359,78 @@ possible **sans aucun process**.
     Historique : une facette `pipelines` à nœuds `process` avait été écrite le 2026-10-01 pour le
     Writer, puis RETIRÉE le jour même (elle doublait le kind `pipeline`, un tri topologique
     existant et le moteur commun — `WAMA_MANIFEST_SPEC §3.1` garde le récit).
+    **Position COMMUNE, 2026-10-05 (Fabien, sessions Writer et pipeline confrontées)** — question
+    de Fabien : *« les fonctions sont les fonctions de calcul du monde data — on a fait rentrer le
+    monde media dans les fonctions ? »*, puis *« faut-il rester sur process d'app ? »*.
+    - **UN catalogue pour tout ce qui devient un NŒUD** — calculs Data, passes du Lab, process
+      d'une app Médias. Le kind `pipeline` ne connaît que `source | sink | app | function`
+      (`builtin/pipeline.py:35`) : un process n'est dessinable au Studio (`3d8dc994`, pipelines
+      déclarés ouverts en diagramme) que s'il est au catalogue. C'est la « glu INTER-mondes »
+      d'`AGENTS.md`, pas un catalogue du monde Data.
+    - **La CATÉGORIE est le rôle, le RATTACHEMENT une propriété.** Le cam_analyzer range ses passes
+      GPU en `DETECTOR` / `INDICATOR`, le composer ses process en `TRANSFORM` ; l'app n'est que
+      `binding=APP, app=…` — OÙ ça s'exécute et où ça range. « Process d'app » n'est PAS une
+      catégorie : le mot garde un sens comme propriété d'exécution (décision n°2 : sortie
+      persistée pour un process rattaché, recalculée pour une fonction pure ;
+      `ProcessRun.process_kind`).
+    - **Palette du Studio** : la catégorie reste l'axe (« Fonctions par catégorie », 5.4) ; l'app
+      d'un process rattaché s'y lit en ÉTIQUETTE et se FILTRE — aucune donnée neuve,
+      `FunctionSpec.binding` / `.app` suffisent. ✅ 05/10 : étiquette d'app sur chaque process
+      rattaché et filtre « toutes / calcul (sans app) / app : … » en tête des fonctions
+      (`wama-studio.js`, `functionAppFilter`), mesuré au navigateur (95 fonctions, 51 étiquetées,
+      4 pour le composer, 44 pures).
+    - **Affiché n'est pas exécutable — au Studio.** La card a son ▶ par process (`only=`, P5) ;
+      le Studio non : un nœud `function` rattaché lance son `impl` avec les paramètres du nœud
+      (`studio/tasks.py:234-267`) — donc la tâche ENTIÈRE d'une card déjà existante
+      (`generation_id`, `session_id`), pas le process nommé, et ce que l'amont lui envoie et que
+      la tâche n'accepte pas est JETÉ sans un mot (`studio/tasks.py:245-252`). Même `impl` pour
+      deux process : `composer.plan` / `.render` (`compose_task`), `yolo_detect` / `yolopv2_lanes`
+      (`process_session_task`). La réponse n'est pas un `impl` par process (le squelette JOUE le
+      pipeline) mais le lancement borné de P5 (`compose_task(process=)`, `steps_to_run(only=)`)
+      que le nœud du Studio renseignerait, sur un élément CRÉÉ depuis ses ports par le runner des
+      nœuds `app` (`generic_runner`). ⏳ reste du 5.4 ; d'ici là, une ligne de console dit l'entrée
+      jetée — ✅ 05/10 (`_run_app_function(console=)`, avertissement dans la console du Studio,
+      tenu par `tests_image_to_3d`).
+    - **Trois formes au Studio** : entrée → app → sortie (nœud `app`, existe) ; entrée → UN
+      process → sortie (le nœud `function` du process — affiché, exécution ci-dessus) ; entrée →
+      pipeline de l'app → sortie (le diagramme déclaré, chargé à PLAT aujourd'hui ; le nœud
+      `pipeline` qui le RÉFÉRENCE sans le recopier, 3.1, laissé à la première session qui en a un
+      besoin réel — prévenir la session pipeline avant de toucher `builtin/pipeline.py`).
+    - **Le Writer** suit le patron du composer à l'identique : deux process `TRANSFORM` rattachés
+      (`write` : consigne + document de référence → le FOND ; `layout` : fond + consigne de forme +
+      port `reference_layout` → le HTML), le FOND dans un FICHIER de la card (l'empreinte
+      « entrée remplacée » ne suit que des fichiers, comme les révisions et le partage), une
+      colonne par port nommée comme lui. Né d'un manifeste : c'est le GÉNÉRATEUR qui doit
+      produire `function_specs.py`, les `FunctionSpec` et une glu par process depuis un manifeste
+      `pipeline` autoré — `tasks_gen` ne savait qu'une tâche à un process.
+    - ✅ **Le générateur sait une app à plusieurs process (2026-10-05, session Writer).** Le
+      pipeline se lit par la CLÉ (`codegen/pipeline_decl.py` : corpus, sinon brouillons
+      `manifests/app_drafts/{pipelines,functions}/`), jamais par une facette du manifeste `app` ;
+      sans pipeline déclaré, tout est rendu comme avant (un process, le cas normal).
+      `function_specs_gen` écrit les `FunctionSpec` (label réel `_APP`, lu du paquet) et
+      `register_app_pipeline` ; le process « Sortie » commun y est `output_spec`, jamais recopié.
+      `tasks_gen` écrit la tâche à `process=` (▶ d'un process, `only=`) et UN trou par process ;
+      `models_gen` une colonne `FileField` par sortie déclarée et par port fichier ; `views_gen`
+      la route `start_process` (`make_process_start_view`, `reset_outputs`) et le dépôt d'attache
+      qui reçoit chaque port SECONDAIRE sous son nom (le principal reste sous `file`) ;
+      `templates_gen` câble ces ports dans `addToQueue` (ids lus sur l'onglet de la card v4) ;
+      le rôle `codegen` vise un process (`--process`, nom imposé `_process_<tâche>_<process>`,
+      contrôles : sorties écrites, `output_ref` rendu, aucune sortie d'un autre process, sorties
+      d'amont lues, réglages SURVEILLÉS lus, aucun réglage lu SANS être surveillé — sa sortie ne
+      se périmerait pas). Tenu par `tests_codegen_from_scratch.AnAppWithSeveralProcessesIsGeneratedTest`.
+      Le rôle a gagné un **tour de RÉPARATION** (`--repair-rounds`, défaut 1) : le modèle relit sa
+      proposition et les avertissements, la chaîne rejuge, les deux essais restent dans la sortie
+      — et deux contrôles généraux (attribut inexistant d'un module importé : `os.mkstemp` ;
+      temporaire hors du dossier cible puis `os.replace`, `EXDEV` sous WSL). **Mesure** : glus de
+      `write` et `layout` par Albert (gpt-oss-120b ; qwen3.8 a dépassé 900 s deux fois sur une
+      matière de ~50 000 caractères), appliquées par `app_sandbox glue` ; génération réelle sous
+      le compte de test : SUCCESS en 22 s (deux lignes, qwen3.5:4b tiré en auto), forme du modèle
+      de mise en page reprise sans son texte, puis consigne de forme changée → seul `layout` à
+      jouer, ▶ borné en 5 s, fond intact (même fichier), mention demandée présente.
+      Deux trous de route fermés au passage : une jumelle n'entre plus au corpus (`manifest_export`
+      écarte ses fonctions et son pipeline, comme `non_sandbox_apps` pour le kind `app`), et
+      `app_sandbox remove` désapplique aussi la base de TEST conservée (une jumelle recréée y
+      gardait l'ancien schéma, et les tests d'autres apps tombaient — signalé par une autre session).
 
 #### 10. Pièges relevés — à ne pas refaire
 

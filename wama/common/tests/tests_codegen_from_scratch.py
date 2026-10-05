@@ -99,7 +99,9 @@ class DeclaredResultFieldsAreGeneratedTest(SimpleTestCase):
         self.assertIsNotNone(src, reason)
         fields = _class_fields(src, 'WriterDocument')
         self.assertIn('output_file', fields, 'the previewed output file is missing')
-        self.assertIn('result_text', fields, 'the text result (the « fond ») is missing')
+        # The « fond » is no longer a text column: since 2026-10-05 it is the FILE written by the
+        # `write` process (`draft_file`, AnAppWithSeveralProcessesIsGeneratedTest).
+        self.assertIn('draft_file', fields, 'the « fond » written by `write` is missing')
         self.assertEqual(1, src.count('reference_document = '),
                          'the input field must not come back as a result field')
         compile(src, 'models.py', 'exec')
@@ -162,3 +164,88 @@ class DeclaredResultFieldsAreGeneratedTest(SimpleTestCase):
                 missing = expected - _class_fields(src, spec['name'])
                 self.assertFalse(missing, f'{app}: declared result fields not generated {missing}')
         self.assertGreaterEqual(measured, 3, 'too few apps measured to say anything')
+
+
+def _calls(src: str, name: str) -> list:
+    """Calls to `name` in rendered source, as AST nodes (the evaluated shape, not a substring)."""
+    return [n for n in ast.walk(ast.parse(src))
+            if isinstance(n, ast.Call) and getattr(n.func, 'id', None) == name]
+
+
+class AnAppWithSeveralProcessesIsGeneratedTest(SimpleTestCase):
+    """An app with several processes is generated on the composer pattern (decision n°11, ROUTE
+    §10.6, common position of 2026-10-05): each process a `FunctionSpec binding: app`, the
+    registry declared by `register_app_pipeline`, one glue hole per process. The pipeline is found
+    by the app KEY (`pipeline_decl`), never by a facet of the `app` manifest. Test case: the
+    Writer — writing the content, then laying it out."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.manifest = json.loads(DRAFT.read_text(encoding='utf-8'))
+
+    def test_the_declared_pipeline_is_read_by_the_app_key(self):
+        from wama.common.manifests.codegen.pipeline_decl import declared_pipeline, process_specs
+        pipeline, functions = declared_pipeline('writer')
+        specs = process_specs(pipeline)
+        self.assertEqual(['write', 'layout'], [s['key'] for s in specs])
+        self.assertEqual(['write'], specs[1]['depends_on'], 'the dependency comes from the link')
+        self.assertEqual(['draft_file'], specs[0]['outputs'])
+        self.assertEqual({'writer.write', 'writer.layout'}, set(functions))
+
+    def test_function_specs_declares_one_function_and_one_process_per_node(self):
+        from wama.common.manifests.codegen.function_specs_gen import render_function_specs
+        src, reason = render_function_specs(self.manifest)
+        self.assertIsNotNone(src, reason)
+        self.assertEqual(['write', 'layout'],
+                         [c.args[0].value for c in _calls(src, 'ProcessSpec')])
+        self.assertEqual(2, len(_calls(src, 'FunctionSpec')))
+        self.assertEqual(1, len(_calls(src, 'register_app_pipeline')))
+
+    def test_an_app_without_a_declared_pipeline_gets_no_function_specs(self):
+        from wama.common.manifests.codegen.function_specs_gen import render_function_specs
+        src, _reason = render_function_specs({**self.manifest, 'key': 'no_such_app'})
+        self.assertIsNone(src)
+
+    def test_the_task_plays_the_pipeline_with_one_hole_per_process(self):
+        from wama.common.manifests.codegen.tasks_gen import render_tasks
+        src, reason = render_tasks(self.manifest)
+        self.assertIsNotNone(src, reason)
+        tree = ast.parse(src)
+        functions = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+        self.assertIn('process', [a.arg for a in functions['write_document_task'].args.args],
+                      'the ▶ of ONE process needs the bounded launch')
+        for key in ('write', 'layout'):
+            self.assertIn(f'_process_write_document_task_{key}', functions)
+        run = _calls(src, 'run_item_task')[0]
+        self.assertEqual({'pipeline', 'processes', 'only'} - {k.arg for k in run.keywords}, set())
+
+    def test_the_model_gets_the_step_outputs_and_every_file_port(self):
+        from wama.common.manifests.codegen.models_gen import render_models
+        src, reason = render_models(self.manifest)
+        self.assertIsNotNone(src, reason)
+        fields = _class_fields(src, 'WriterDocument')
+        self.assertIn('draft_file', fields, 'the output of `write` is a FILE of the card')
+        self.assertIn('reference_layout', fields, 'the second reference port must be stored')
+
+    def test_the_secondary_port_is_received_under_its_name(self):
+        from wama.common.manifests.codegen.views_gen import _donnees
+        manifest = copy.deepcopy(self.manifest)
+        manifest['body']['data'] = {'models': [{'name': 'WriterDocument', 'fields': [
+            {'name': n, 'class': 'django.db.models.FileField'}
+            for n in ('reference_document', 'reference_layout', 'draft_file', 'output_file')]}]}
+        self.assertEqual(['reference_layout'], _donnees(manifest)['secondary_ports'])
+
+    def test_the_common_output_process_is_declared_by_its_brick(self):
+        """The « Sortie » process of a real app (the composer) is the common one: declared by
+        `output_spec`, never copied field by field into a `ProcessSpec`."""
+        from wama.common.manifests.codegen.function_specs_gen import render_function_specs
+        from wama.common.manifests.codegen.pipeline_decl import OUTPUT_PROCESS_KEY
+        from wama.common.services.output_process import OUTPUT_KEY
+        self.assertEqual(OUTPUT_KEY, OUTPUT_PROCESS_KEY)
+        composer = json.loads((Path(settings.BASE_DIR) / 'manifests' / 'apps' / 'composer.json')
+                              .read_text(encoding='utf-8'))
+        src, reason = render_function_specs(composer)
+        self.assertIsNotNone(src, reason)
+        self.assertEqual(1, len(_calls(src, 'output_spec')))
+        self.assertNotIn(OUTPUT_KEY, [c.args[0].value for c in _calls(src, 'ProcessSpec')])

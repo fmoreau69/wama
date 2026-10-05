@@ -1,0 +1,74 @@
+{
+  "body": {
+    "layout": {},
+    "links": [
+      {
+        "from": "write",
+        "to": "layout",
+        "to_port": "draft"
+      }
+    ],
+    "nodes": [
+      {
+        "app": null,
+        "function": "writer.write",
+        "id": "write",
+        "kind": "function",
+        "params": {
+          "degree": "required",
+          "gpu": true,
+          "label": "Rédaction",
+          "outputs": [
+            "draft_file"
+          ],
+          "share": 2,
+          "watched": [
+            "prompt",
+            "reference_document",
+            "document_kind",
+            "language",
+            "model",
+            "quality_intent"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "writer.layout",
+        "id": "layout",
+        "kind": "function",
+        "params": {
+          "degree": "required",
+          "gpu": true,
+          "label": "Mise en forme",
+          "outputs": [
+            "output_file"
+          ],
+          "share": 2,
+          "watched": [
+            "style_instruction",
+            "reference_layout",
+            "document_kind",
+            "output_format",
+            "language",
+            "model",
+            "quality_intent"
+          ]
+        }
+      }
+    ]
+  },
+  "description": "Pipeline AUTORÉ (brouillon) de l'app Writer — le FOND puis la FORME (ROADMAP §21.5) : changer la forme ne rejoue que la mise en forme ; un fond retouché périme la mise en forme. Patron du composer (décision n°11, ROUTE §10.6).",
+  "key": "writer",
+  "manifest_kind": "pipeline",
+  "name": "Writer — rédaction puis mise en forme",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "manifests/app_drafts/pipelines/writer.json",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "media"
+}
