@@ -261,6 +261,18 @@ class BlurShapeTest(SimpleTestCase):
             self.assertGreater(wider.sum(), plain.sum(), finish)
             self.assertTrue(wider[plain].all(), f'{finish} : never less than the shape')
 
+    def test_a_reduction_narrows_the_blurred_zone_of_a_shape_and_of_a_box(self):
+        """2026-10-06 (Fabien) : l'agrandissement RÉDUIT aussi (0,75–1,25)."""
+        from wama.common.utils.blur_utils import blur_detection
+        untouched = _stripes()
+        plain = (self._blur() != untouched).any(axis=2).sum()
+        narrow = (self._blur(roi_enlargement=0.75) != untouched).any(axis=2).sum()
+        self.assertLess(narrow, plain, 'a shape')
+        box = [20, 20, 40, 40]
+        whole = (blur_detection(_stripes(), box, 'plate', 9, 0, 0, 1.0) != untouched).any(axis=2).sum()
+        less = (blur_detection(_stripes(), box, 'plate', 9, 0, 0, 0.75) != untouched).any(axis=2).sum()
+        self.assertLess(less, whole, 'a box')
+
     def test_the_progressive_blur_fades_outward_and_keeps_the_shape_fully_blurred(self):
         image = _stripes()
         mask = dets.polygons_to_mask(self.SQUARE, image.shape) > 0

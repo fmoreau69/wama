@@ -95,7 +95,7 @@ PARAMS = derive_from_model(
                              contexts=PANEL_ITEM_BATCH, stales=("enhance",)),
         "bbox_shift":   dict(type="range", label="Bbox shift", icon="fa-arrows-up-down", chip=True,
                              dom_id={"panel": "bbox_shift", "item": "settingsBboxShift"},
-                             min=-9, max=9, step=1, contexts=PANEL_ITEM_BATCH,
+                             min=-10, max=10, step=1, contexts=PANEL_ITEM_BATCH,
                              help="Décalage vertical de la zone bouche (px). 0 = auto. "
                                   "Photo animée seulement : sans effet sur un avatar 3D.",
                              stales=("animate",)),
