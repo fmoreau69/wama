@@ -22411,3 +22411,16 @@ inchangée. `paint_media` → `rewrite_media` (« paint » = génération par IA
   mélange se voit encore sur des plaques garées serrées.
 - ⚠ Bascule `feature_flags` du protocole du 19/08 non posée (`Media` sans champ de
   configuration) : retour arrière par revert ; comparaison chiffrée faite.
+
+## §PALIER — 2026-10-06, « APERÇU : PENDANT EN PLEIN ÉCRAN, MODALE À FACES » — livré (`8816a106`, non poussé) — 🔴 recharger la page (JS/CSS communs)
+
+Demandes de Fabien : la face Pendant en plein écran, puis les faces Entrée | Détection |
+Comparer | Sortie dans la modale ET le plein écran. Brique commune `media-preview.js` (toute
+app) ; détail : `ROUTE §10.6`, bloc anonymizer. La modale suit Pendant en direct (vues à part),
+porte ses faces d'où qu'on l'ouvre (volet, vignette), et le plein écran d'un élément est la
+modale agrandie. Défaut ancien corrigé au passage : navigation au clavier de la modale en
+`ReferenceError` depuis le 2026-07-21. Vérifié au navigateur (serveur jetable), 0 erreur JS ;
+gardes `PreviewModalTest` prouvées par mutation.
+- Aucune relance serveur nécessaire : du JS et du CSS servis (recharger la page suffit).
+- ⚠ Un passage du smoke sur quatre a échoué sur une étape non identifiée (sortie tronquée),
+  les trois autres sont verts de bout en bout : à surveiller si la modale se comporte mal.
