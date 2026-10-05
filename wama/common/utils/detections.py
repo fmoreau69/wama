@@ -361,8 +361,8 @@ def max_gap_for(fps: float, wanted: int) -> int:
 
 
 # ── Rendu d'un média depuis ses détections ────────────────────────────────────────────────────
-def render_media(source: str, frames: dict, paint, output_path: str, *, on_frame=None,
-                 progress=None) -> str:
+def paint_media(source: str, frames: dict, paint, output_path: str, *, on_frame=None,
+                progress=None) -> str:
     """Réécrit le média `source` en peignant chaque frame avec SES détections :
     `paint(image, détections) -> image` (le floutage, ou le dessin d'aperçu). Rend le chemin
     RÉELLEMENT écrit — une vidéo sort toujours en `.mp4`, audio d'origine recollé.

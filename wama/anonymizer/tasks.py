@@ -542,7 +542,7 @@ def _blur(media, ctx):
     _console(user.id, f"Floutage — média {media.id}…")
     ctx.progress(2)
     try:
-        written = detections.render_media(
+        written = detections.paint_media(
             source, frames_map, paint, target, on_frame=on_frame,
             progress=lambda done, total: ctx.progress(min(99, int(done * 100 / max(total, 1)))))
     finally:
