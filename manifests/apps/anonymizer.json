@@ -532,6 +532,25 @@
             },
             {
               "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "5",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "5",
+                  "imports": []
+                },
+                "verbose_name": {
+                  "expr": "'Frames to extrapolate before/after'",
+                  "imports": []
+                }
+              },
+              "name": "max_extrapolation_frames"
+            },
+            {
+              "args": [],
               "class": "django.db.models.BooleanField",
               "kwargs": {
                 "default": {
@@ -1767,6 +1786,56 @@
           {
             "advanced": true,
             "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 5,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "group": "",
+            "help": "Un objet reste flouté ce nombre d'images avant sa première détection et après sa dernière (il entre ou sort du champ), à sa vitesse. 0 : jamais.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-arrows-left-right",
+            "inline": false,
+            "label": "Frames à prolonger avant/après",
+            "max": 30,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "max_extrapolation_frames",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_domain": null,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "blur"
+            ],
+            "step": 1,
+            "type": "number",
+            "unit": ""
+          },
+          {
+            "advanced": true,
+            "cap_from": null,
             "chip": true,
             "chip_label": "Segmentation",
             "choices": null,
@@ -2468,6 +2537,7 @@
             "progressive_blur",
             "interpolate_detections",
             "max_interpolation_frames",
+            "max_extrapolation_frames",
             "use_segmentation",
             "show_preview",
             "show_boxes",
@@ -2534,6 +2604,7 @@
             "detection_threshold": "range — Seuil de détection [0–1] (défaut : 0.25)",
             "file_path": "str (requis)",
             "interpolate_detections": "toggle — Interpoler les détections manquantes (défaut : True)",
+            "max_extrapolation_frames": "number — Un objet reste flouté ce nombre d'images avant sa première détection et après sa dernière (il entre ou sort du champ), à sa vitesse. 0 : jamais. [0–30] (défaut : 5)",
             "max_interpolation_frames": "number — Un trou de détection d'au plus ce nombre d'images est comblé, entre deux détections du même objet (même piste, ou même place). [1–60] (défaut : 15)",
             "model_to_use": "select — Automatique : choisi au lancement selon le curseur et les classes. (défaut : 'auto')",
             "output_format": "select — Conversion inline après floutage (brique converter). « Original » = format produit par le pipeline. (défaut : 'original')",

@@ -518,7 +518,8 @@ def _blur(media, ctx):
     video = doc.get('media') == 'video'
     frames_map = detections.by_frame(
         doc, interpolate=video and media.interpolate_detections,
-        max_gap=detections.max_gap_for(doc.get('fps'), media.max_interpolation_frames))
+        max_gap=detections.max_gap_for(doc.get('fps'), media.max_interpolation_frames),
+        max_extrapolation=media.max_extrapolation_frames if video else 0)
     settings_ = {'blur_ratio': media.blur_ratio, 'rounded_edges': media.rounded_edges,
                  'progressive_blur': media.progressive_blur,
                  'roi_enlargement': media.roi_enlargement}

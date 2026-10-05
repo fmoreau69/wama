@@ -221,12 +221,22 @@ def _edge_velocity(det, frame, links_of, incoming):
 
 
 def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
-             min_iou: float = 0.2) -> dict:
+             max_extrapolation: int = 0, min_iou: float = 0.2) -> dict:
     """{indice de frame: [détections]} — détections RELEVÉES, plus, si `interpolate`, celles que
     l'on déduit dans les TROUS d'un objet : entre une détection et la suivante du MÊME objet
-    (`_same_object` : même piste, ou à défaut même place), au plus `max_gap` frames manquantes,
-    jamais avant la première ni après la dernière. Une détection déduite porte
-    `interpolated: True` et son rectangle seul : un contour ne s'interpole pas.
+    (`_same_object` : même piste, ou à défaut même place), au plus `max_gap` frames manquantes.
+    Une détection déduite porte `interpolated: True` et son rectangle seul : un contour ne
+    s'interpole pas.
+
+    `max_extrapolation` (2026-10-05, décision de Fabien) : un objet est aussi PROLONGÉ de ce
+    nombre d'images avant sa première détection et après sa dernière — là où il entre dans le
+    champ ou en sort sans être encore vu. À sa vitesse de bord, tenue CONSTANTE
+    (`extrapolate_speed_accel`, bibliothèque commune ; deviner une accélération sur un seul côté
+    ferait dériver la boîte), immobile sans vitesse ; jamais hors de la vidéo. Réglage SÉPARÉ de
+    l'interpolation : encadrée par deux observations, elle comble 50 images sans inventer ;
+    l'extrapolation n'a qu'un côté, elle ne vaut que pour quelques images. Une détection
+    prolongée porte `interpolated: True` (« déduite » : le floutage la ramène dans l'image) et
+    `extrapolated: True`.
 
     Le CENTRE suit une courbe d'Hermite (`hermite_gap`, la même que les fantômes du
     cam_analyzer) : il part à la vitesse d'arrivée de l'objet et rejoint sa vitesse de reprise,
@@ -239,8 +249,11 @@ def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
     frames = {}
     for frame in doc.get('frames') or []:
         frames.setdefault(int(frame['i']), []).extend(frame.get('d') or [])
-    if not interpolate or max_gap <= 0:
+    fill = interpolate and max_gap > 0
+    if not fill and max_extrapolation <= 0:
         return frames
+    # Sans interpolation, seuls deux voisins IMMÉDIATS se relient (de quoi lire une vitesse).
+    window = max_gap if fill else 0
     seen = sorted(frames)
     position = {index: n for n, index in enumerate(seen)}
     claimed = set()                         # (frame, rang) déjà successeur d'une détection
@@ -250,7 +263,7 @@ def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
         for det in frames[index]:
             successor = None
             for later in seen[position[index] + 1:]:
-                if later - index - 1 > max_gap:
+                if later - index - 1 > window:
                     break
                 # Dans la PREMIÈRE frame qui porte le même objet, le candidat le plus PROCHE.
                 matches = [(_shift(det, other), rank, other)
@@ -270,7 +283,7 @@ def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
             after[id(det)], before[id(other)] = link, link
     from wama_data.functions.kinematics.gap_fill import hermite_gap
     deduced = {}
-    for link in links:
+    for link in links if fill else ():
         index, det, later, other = link
         span = later - index
         if span < 2:
@@ -295,9 +308,45 @@ def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
                 'track': det.get('track'), 'label': det.get('label', ''),
                 'conf': det.get('conf', 1.0), 'box': [int(round(v)) for v in box],
                 'interpolated': True})
+    if max_extrapolation > 0:
+        # Longueur INCONNUE (OpenCV rend 0 pour certains flux) : pas de borne — une image
+        # prolongée au-delà de la fin n'est jamais lue par le rendu.
+        last = int(doc.get('frame_count') or 0) - 1
+        last = last if last >= seen[-1] else None
+        for index in seen:
+            for det in frames[index]:
+                # Un BOUT d'objet : pas de maillon entrant (il commence), ou sortant (il finit).
+                if id(det) not in before:
+                    _prolong(det, index, _edge_velocity(det, index, after, incoming=False),
+                             -1, max_extrapolation, last, deduced)
+                if id(det) not in after:
+                    _prolong(det, index, _edge_velocity(det, index, before, incoming=True),
+                             1, max_extrapolation, last, deduced)
     for index, found in deduced.items():
         frames.setdefault(index, []).extend(found)
     return frames
+
+
+def _prolong(det, index, velocity, direction, count, last, deduced):
+    """Prolonge `det` (à `index`) de `count` images vers l'avant (`direction=1`) ou l'arrière
+    (`-1`), à `velocity` (pixels par image, dans le sens du temps) tenue constante — la
+    fonction commune `extrapolate_speed_accel`, nourrie de deux points pour qu'elle n'invente
+    pas d'accélération. Le temps est retourné vers l'arrière."""
+    from wama_data.functions.kinematics.extrapolation import extrapolate_speed_accel
+    cx, cy = _center(det['box'])
+    width, height = det['box'][2] - det['box'][0], det['box'][3] - det['box'][1]
+    vx, vy = velocity if velocity else (0.0, 0.0)
+    vx, vy = vx * direction, vy * direction
+    track = extrapolate_speed_accel([[-1.0, cx - vx, cy - vy], [0.0, cx, cy]], count, dt=1.0)
+    for step, (_t, x, y) in enumerate(track[2:], start=1):
+        frame = index + direction * step
+        if frame < 0 or (last is not None and frame > last):
+            break
+        deduced.setdefault(frame, []).append({
+            'track': det.get('track'), 'label': det.get('label', ''),
+            'conf': det.get('conf', 1.0), 'interpolated': True, 'extrapolated': True,
+            'box': [int(round(v)) for v in (x - width / 2, y - height / 2,
+                                            x + width / 2, y + height / 2)]})
 
 
 def max_gap_for(fps: float, wanted: int) -> int:

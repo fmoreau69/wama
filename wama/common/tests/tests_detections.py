@@ -147,6 +147,37 @@ class InterpolationTest(SimpleTestCase):
                          [frames[i][0]['box'] for i in (2, 3, 4)],
                          'straight line : [16…], [22…], [28…]')
 
+    def _moving(self, frame_count=10):
+        doc = dets.new_document(media='video', width=100, height=100, fps=30,
+                                frame_count=frame_count)
+        dets.add(doc, 4, [dets.detection(box=[20, 0, 30, 10], label='face')])
+        dets.add(doc, 5, [dets.detection(box=[30, 0, 40, 10], label='face')])
+        return doc
+
+    def test_an_object_is_prolonged_before_its_first_and_after_its_last_detection(self):
+        frames = dets.by_frame(self._moving(), max_extrapolation=2)
+        self.assertEqual({2: [0, 0, 10, 10], 3: [10, 0, 20, 10], 6: [40, 0, 50, 10],
+                          7: [50, 0, 60, 10]},
+                         {i: f[0]['box'] for i, f in frames.items() if i not in (4, 5)},
+                         'at its own speed, backward and forward ; no interpolation asked')
+        prolonged = frames[7][0]
+        self.assertEqual((True, True), (prolonged['interpolated'], prolonged['extrapolated']),
+                         'deduced : the blur brings it back into the image')
+
+    def test_prolonging_stops_at_the_ends_of_the_video_and_zero_means_never(self):
+        frames = dets.by_frame(self._moving(frame_count=7), max_extrapolation=10)
+        self.assertEqual([0, 1, 2, 3, 4, 5, 6], sorted(frames))
+        self.assertEqual([4, 5], sorted(dets.by_frame(self._moving(), max_extrapolation=0)))
+
+    def test_a_lone_detection_is_held_still_and_a_gap_end_is_not_doubled(self):
+        doc = self._doc((3, [40, 40, 50, 50], None))      # length unknown : no bound after
+        frames = dets.by_frame(doc, max_extrapolation=1)
+        self.assertEqual([[40, 40, 50, 50]] * 2, [frames[2][0]['box'], frames[4][0]['box']])
+        # Inside a FILLED gap nothing is prolonged : only the two ends of the object are.
+        doc = self._doc((0, [0, 0, 10, 10], None), (4, [40, 0, 50, 10], None))
+        frames = dets.by_frame(doc, interpolate=True, max_gap=5, max_extrapolation=1)
+        self.assertEqual([1, 1, 1, 1], [len(frames[i]) for i in (1, 2, 3, 5)])
+
     def test_a_jittery_arrival_is_read_over_several_frames_not_the_last_one(self):
         # The centre moves 10, 5, then 15 px : 10 per frame over the three, 15 on the last link
         # alone — a speed that would make the curve bulge, hence a straight line.

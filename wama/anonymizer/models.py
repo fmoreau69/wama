@@ -90,6 +90,10 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     detection_threshold = models.FloatField(default=0.25)
     interpolate_detections = models.BooleanField(default=True, verbose_name='Interpolate missing detections')
     max_interpolation_frames = models.IntegerField(default=15, verbose_name='Max frames to interpolate')
+    # 2026-10-05 (décision de Fabien) : prolonger un objet avant sa première détection et après
+    # sa dernière — réglage SÉPARÉ de l'interpolation (un seul côté : quelques images, pas 50).
+    max_extrapolation_frames = models.IntegerField(default=5, db_default=5,
+                                                   verbose_name='Frames to extrapolate before/after')
 
     show_preview = models.BooleanField(default=True)
     show_boxes = models.BooleanField(default=True)
