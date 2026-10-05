@@ -203,7 +203,10 @@ sous `wama_data/functions/<domaine>/` — 4 sous-paquets : `io/` (parsing, ex. R
 > (`extrapolate_speed_accel`, `extrapolate_kalman`), `kinematics/collision.py`
 > (`collision_detection`), `kinematics/rts_smoother.py` (`kalman_rts_cv` — domicile unique du
 > lisseur Kalman+RTS depuis le 2026-09-05 ; `cam_analyzer/utils/trajectory_smoother.py` lui
-> délègue, et `driving.ego_track_filter` l'emploie pour la pose du véhicule porteur).
+> délègue, et `driving.ego_track_filter` l'emploie pour la pose du véhicule porteur),
+> `kinematics/gap_fill.py` (`hermite_gap` — trou d'une trajectoire comblé en courbe, porté des
+> fantômes du cam_analyzer le 2026-10-05, employé aussi par l'interpolation des détections de
+> l'anonymizer) et `geometry/shapes.py` (`box_iou`, domicile unique de l'IoU de boîtes, même date).
 
 Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
 - **`pure`** — signature `(données_typées, params) → données_typées`, chaînable direct. Défaut pour

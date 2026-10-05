@@ -3879,11 +3879,25 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       MÊME piste, et `max_gap_for` plafonnait le réglage à 0,5 s de vidéo SANS LE DIRE (50
 >       valait 7 à 15 images). Les détections sans piste (SAM3, ou YOLO qui réattribue un id
 >       après une perte) restaient isolées : **18 trous sur 19** subsistaient sur #1026.
->       Désormais deux détections sont le même objet par la piste, OU par la place (IoU
->       `detections.iou`, ou déplacement du centre borné par l'écart — un petit objet rapide est
+>       Désormais deux détections sont le même objet par la piste, OU par la place
+>       (recouvrement, ou déplacement du centre borné par l'écart — un petit objet rapide est
 >       suivi, un saut lointain non) ; le plus proche est le successeur ; **le réglage est la
 >       seule limite** (libellé et aide le disent). Mesuré sur #1026 : **1 trou sur 19** (67
 >       images, au-delà du réglage de 50).
+>     - **Les primitives de trajectoire sont COMMUNES** (recadrage de Fabien le jour même : « les
+>       fonctions du cam analyzer sont censées être dans le commun ») : le recouvrement
+>       `geometry.shapes.box_iou` et le trou comblé en COURBE `kinematics.gap_fill.hermite_gap`
+>       vivent dans la bibliothèque de fonctions `wama_data/functions`, où le cam_analyzer prend
+>       déjà son lissage (`kalman_rts_cv`) et son extrapolation. Portés depuis le cam_analyzer
+>       (`hermite_ghost` de ses fantômes, `box_iou`) ; les seuils de la courbe sont devenus des
+>       paramètres (mètres là-bas, pixels à l'échelle de l'objet ici). Le centre d'une détection
+>       déduite part à la vitesse d'ARRIVÉE de l'objet et rejoint sa vitesse de REPRISE, au lieu
+>       d'une droite. Trois copies de l'IoU (cam, `placement_metrics._iou`, la mienne) → une ;
+>       ⏳ les deux copies restantes délèguent quand la session cam libère ses fichiers
+>       (`tests_gap_fill.ThePortIsFaithfulTest` garde l'égalité d'ici là). ⏳ **Reste proposé** :
+>       l'EXTRAPOLATION aux bouts d'un objet (flouter quelques images avant sa première
+>       détection et après sa dernière — là où un visage entre dans le champ et échappe au flou),
+>       avec `extrapolate_speed_accel` du même paquet ; elle demande un réglage, donc une décision.
 >     - **Curseur à 50 et rectangles** : la segmentation de visage du catalogue
 >       (`face_yolov8m-seg_60.pt`) n'est pas installée, la détection s'est faite en boîtes. Rien
 >       ne le disait ; la console le dit après la détection (`_segmentation_note`) et nomme le
@@ -3907,10 +3921,13 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       `tests_preview_faces` (face après détection, repli sur l'entrée, réglages d'affichage,
 >       `data-wama-multiplay` — prouvée par mutation), `tests_cap_from_js.PreviewOverlayTest`
 >       (V8). `545129c3`.
->     - ⏳ **Ouvert — question de Fabien** : réutiliser la cinématique du cam_analyzer (Kalman
->       + RTS, comblement d'Hermite, extrapolation aux bouts) pour l'interpolation des
->       détections ; cela demande de la loger dans `common/` (le substrat n'importe pas les
->       mondes), monde Data et Lab y déléguant. Proposé, non décidé.
+>     - ~~⏳ Ouvert — réutiliser la cinématique du cam_analyzer~~ → fait, ci-dessus (les
+>       primitives sont communes). ⚠ Ma première réponse proposait de les loger dans
+>       `wama/common/` « parce que le substrat n'importe pas les mondes » : c'était lire la règle
+>       des mondes plus largement qu'elle n'est écrite — elle vise le REGISTRE de fonctions (qui
+>       ne connaît pas ses producteurs), et la bibliothèque `wama_data/functions` est déjà la
+>       brique commune où le Lab se sert (`WAMA_DATA_FUNCTION_CARDS §7`, et le plan du floutage
+>       acté le 19/08 : « fonctions pures dans `wama_data/functions/` »).
 > - ✅ **Joué par la chaîne EN SERVICE après relance (03/10 soir, compte de test)** : anonymizer
 >   (3,1 s, modèle tiré nommé), transcriber `import` + résumé (18,2 s, aucun moteur ASR), image
 >   en « auto » (98,7 s), **vidéo en « auto »** (LTX fp8, 273 s — jamais jouée avant par le

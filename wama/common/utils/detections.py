@@ -163,13 +163,13 @@ def valid_box(box, shape, min_size: int = 5):
 
 
 # ── Lecture par frame, interpolation ──────────────────────────────────────────────────────────
-def iou(a, b) -> float:
-    """Recouvrement de deux rectangles (x1, y1, x2, y2), de 0 à 1."""
-    x1, y1 = max(a[0], b[0]), max(a[1], b[1])
-    x2, y2 = min(a[2], b[2]), min(a[3], b[3])
-    inter = max(0, x2 - x1) * max(0, y2 - y1)
-    union = ((a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter)
-    return inter / union if union > 0 else 0.0
+# Les primitives de trajectoire sont celles de la bibliothèque de fonctions COMMUNE
+# (`wama_data/functions`, où le cam_analyzer prend déjà son lissage et son extrapolation) :
+# recouvrement `geometry.shapes.box_iou`, trou comblé en courbe `kinematics.gap_fill.hermite_gap`.
+# Importées à l'appel : lire un document ne charge pas toute la bibliothèque.
+
+def _center(box):
+    return ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
 
 
 def _shift(a, b) -> float:
@@ -190,9 +190,34 @@ def _same_object(a, b, min_iou: float, elapsed: int = 1) -> bool:
         return False
     if a.get('track') is not None and b.get('track') is not None and a['track'] == b['track']:
         return True
-    if iou(a['box'], b['box']) >= min_iou:
+    from wama_data.functions.geometry.shapes import box_iou
+    if box_iou(a['box'], b['box']) >= min_iou:
         return True
     return _shift(a, b) <= 0.5 + max(1, elapsed)
+
+
+#: Maillons sur lesquels se mesure la vitesse d'un bord de trou : une différence sur UN maillon
+#: suit le tremblement de la boîte détectée (card #1026 : −22 px/image sur un visage immobile en
+#: moyenne). Le cam_analyzer lit, lui, des vitesses LISSÉES.
+VELOCITY_LINKS = 3
+
+
+def _edge_velocity(det, frame, links_of, incoming):
+    """Vitesse du centre (pixels par image) de `det` (à `frame`) : en y ARRIVANT (`incoming`,
+    on remonte ses maillons entrants `links_of` = {id(dét.): maillon}) ou en en REPARTANT (ses
+    maillons sortants) — mesurée de bout en bout sur au plus `VELOCITY_LINKS` maillons. Un
+    maillon est (frame, dét., frame suivante, dét. suivante). None sans maillon."""
+    far_frame, far = frame, det
+    for _ in range(VELOCITY_LINKS):
+        link = links_of.get(id(far))
+        if link is None:
+            break
+        far_frame, far = (link[0], link[1]) if incoming else (link[2], link[3])
+    if far is det:
+        return None
+    (x0, y0), (x1, y1) = _center(det['box']), _center(far['box'])
+    elapsed = frame - far_frame                 # négatif en repartant : le signe se compense
+    return ((x0 - x1) / elapsed, (y0 - y1) / elapsed)
 
 
 def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
@@ -202,6 +227,11 @@ def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
     (`_same_object` : même piste, ou à défaut même place), au plus `max_gap` frames manquantes,
     jamais avant la première ni après la dernière. Une détection déduite porte
     `interpolated: True` et son rectangle seul : un contour ne s'interpole pas.
+
+    Le CENTRE suit une courbe d'Hermite (`hermite_gap`, la même que les fantômes du
+    cam_analyzer) : il part à la vitesse d'arrivée de l'objet et rejoint sa vitesse de reprise,
+    vitesses lues sur les maillons voisins ; une droite sans elles, ou quand la courbe ferait un
+    détour (seuils à l'échelle de l'objet). La TAILLE s'interpole en ligne droite.
 
     ⚠ Corrigé le 2026-10-05 (card #1026) : seules les détections d'une même PISTE se reliaient.
     Or le suivi ne donne une piste qu'aux objets CONFIRMÉS — 82 détections sur 533 n'en avaient
@@ -214,7 +244,8 @@ def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
     seen = sorted(frames)
     position = {index: n for n, index in enumerate(seen)}
     claimed = set()                         # (frame, rang) déjà successeur d'une détection
-    deduced = {}
+    links = []                              # (frame, dét., frame suivante, dét. suivante)
+    after, before = {}, {}                  # id(dét.) → son maillon sortant / entrant
     for index in seen:
         for det in frames[index]:
             successor = None
@@ -234,13 +265,36 @@ def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
                 continue
             later, rank, other = successor
             claimed.add((later, rank))
-            for gap_index in range(index + 1, later):
-                ratio = (gap_index - index) / (later - index)
-                box = [a + (b - a) * ratio for a, b in zip(det['box'], other['box'])]
-                deduced.setdefault(gap_index, []).append({
-                    'track': det.get('track'), 'label': det.get('label', ''),
-                    'conf': det.get('conf', 1.0), 'box': [int(round(v)) for v in box],
-                    'interpolated': True})
+            link = (index, det, later, other)
+            links.append(link)
+            after[id(det)], before[id(other)] = link, link
+    from wama_data.functions.kinematics.gap_fill import hermite_gap
+    deduced = {}
+    for link in links:
+        index, det, later, other = link
+        span = later - index
+        if span < 2:
+            continue
+        # Vitesses aux bords : celle de l'ARRIVÉE (maillons entrants) et de la REPRISE (sortants).
+        v0 = _edge_velocity(det, index, before, incoming=True)
+        v1 = _edge_velocity(other, later, after, incoming=False)
+        w0, h0 = det['box'][2] - det['box'][0], det['box'][3] - det['box'][1]
+        w1, h1 = other['box'][2] - other['box'][0], other['box'][3] - other['box'][1]
+        size = max(w0, h0, 1)
+        c0, c1 = _center(det['box']), _center(other['box'])
+        for gap_index in range(index + 1, later):
+            ratio = (gap_index - index) / span
+            width, height = w0 + (w1 - w0) * ratio, h0 + (h1 - h0) * ratio
+            # Seuils à l'échelle de l'objet, dans le rapport de ceux du cam_analyzer (2 m et 4 m
+            # pour une voiture d'environ 4,5 m : une demi-taille, une taille) ; et une droite
+            # quand les allures aux bords n'expliquent pas la moitié du chemin.
+            x, y = hermite_gap(c0, v0, c1, v1, span, ratio, min_bulge=size / 2,
+                               overshoot_margin=size, min_speed_share=0.5)
+            box = [x - width / 2, y - height / 2, x + width / 2, y + height / 2]
+            deduced.setdefault(gap_index, []).append({
+                'track': det.get('track'), 'label': det.get('label', ''),
+                'conf': det.get('conf', 1.0), 'box': [int(round(v)) for v in box],
+                'interpolated': True})
     for index, found in deduced.items():
         frames.setdefault(index, []).extend(found)
     return frames

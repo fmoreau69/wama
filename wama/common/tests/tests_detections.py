@@ -137,6 +137,25 @@ class InterpolationTest(SimpleTestCase):
         deduced = [d for f in frames.values() for d in f if d.get('interpolated')]
         self.assertTrue(all(d['track'] == 'm0:1' for d in deduced))
 
+    def test_an_object_slowing_down_in_a_gap_keeps_its_arrival_speed_first(self):
+        # Arrives at 10 px per frame, leaves at 2 : the curve of the common gap filler (the one
+        # of the cam_analyzer's ghosts) slows down along the gap, a straight line would not.
+        doc = self._doc((0, [0, 0, 10, 10], None), (1, [10, 0, 20, 10], None),
+                        (5, [34, 0, 44, 10], None), (6, [36, 0, 46, 10], None))
+        frames = dets.by_frame(doc, interpolate=True, max_gap=5)
+        self.assertEqual([[19, 0, 29, 10], [26, 0, 36, 10], [31, 0, 41, 10]],
+                         [frames[i][0]['box'] for i in (2, 3, 4)],
+                         'straight line : [16…], [22…], [28…]')
+
+    def test_a_jittery_arrival_is_read_over_several_frames_not_the_last_one(self):
+        # The centre moves 10, 5, then 15 px : 10 per frame over the three, 15 on the last link
+        # alone — a speed that would make the curve bulge, hence a straight line.
+        doc = self._doc((0, [0, 0, 10, 10], None), (1, [10, 0, 20, 10], None),
+                        (2, [15, 0, 25, 10], None), (3, [30, 0, 40, 10], None),
+                        (7, [54, 0, 64, 10], None), (8, [56, 0, 66, 10], None))
+        frames = dets.by_frame(doc, interpolate=True, max_gap=5)
+        self.assertEqual([39, 0, 49, 10], frames[4][0]['box'], 'last link only : [36…]')
+
     def test_the_setting_is_the_limit_with_no_hidden_ceiling(self):
         """Until 2026-10-05 the setting was capped at half a second without a word : 50 frames
         meant 7 at 15 frames per second (card #1026)."""
