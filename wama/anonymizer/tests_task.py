@@ -121,6 +121,21 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
                          process_runs.line(self.media, 'detect').output_ref)
         self.assertEqual([], self.media.native_outputs, 'nothing transformed : a single file')
 
+    def test_a_pointed_card_is_read_where_its_file_is(self):
+        """Une card DÉSIGNÉE pointe son fichier (`media_paths.reference_or_copy`) : l'entrée vit
+        dans `temp/`, rien n'est copié dans `anonymizer/input/`. Mesuré le 2026-10-05 (Discord,
+        card #1036) : la tâche reconstruisait le chemin dans `input/` — « Input file not found »,
+        puis « Image illisible ». La détection ET le floutage lisent le fichier de la card."""
+        temp = get_app_media_path('anonymizer', self.user.id, 'input').parent.parent / 'temp'
+        temp.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(self.input), str(temp / 'street.png'))
+        Media.objects.filter(pk=self.media.pk).update(file=f'users/{self.user.id}/temp/street.png')
+        outcome, detected = self._run()
+        self.assertEqual('SUCCESS', self.media.status, self.media.error_message)
+        self.assertEqual(str(temp / 'street.png'), self.engine_kwargs['media_path'])
+        self.assertTrue(self.media.output_file.name.endswith(
+            f'street_blurred_yolo11n_{self.media.pk}.png'), self.media.output_file.name)
+
     def test_a_blur_setting_blurs_again_without_detecting(self):
         self._run()
         before, first = self._started(), self._output_pixels()
