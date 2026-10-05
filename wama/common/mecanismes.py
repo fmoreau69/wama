@@ -1188,9 +1188,11 @@ MECHANISMS = (
               "image `render_media`) et par l'aperçu (`draw`) ; interpolation des trous d'un "
               "objet à la lecture (`by_frame`) — même objet par la piste OU par la place, le "
               "réglage seul pour limite, le centre comblé en COURBE (2026-10-05, card #1026) ; "
-              "recouvrement et courbe sont les primitives communes de `wama_data/functions` "
-              "(`box_iou`, `hermite_gap`), celles des fantômes du cam_analyzer. Sans Django ni "
-              "app : la Data et le Lab peuvent le lire",
+              "et PROLONGÉ de quelques images avant sa première détection et après sa dernière "
+              "(`max_extrapolation`, réglage séparé). Recouvrement, courbe et extrapolation sont "
+              "les primitives communes de `wama_data/functions` (`box_iou`, `hermite_gap`, "
+              "`extrapolate_speed_accel`), celles du cam_analyzer. Sans Django ni app : la Data "
+              "et le Lab peuvent le lire",
               'wama/common/utils/detections.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=('wama/common/utils/blur_utils.py',)),
