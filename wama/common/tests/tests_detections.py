@@ -225,7 +225,7 @@ class DrawAndBlurTest(SimpleTestCase):
         self.assertTrue((out == _stripes()).all())
 
 
-class RenderMediaTest(SimpleTestCase):
+class PaintMediaTest(SimpleTestCase):
 
     def setUp(self):
         self.folder = tempfile.mkdtemp()
@@ -236,7 +236,7 @@ class RenderMediaTest(SimpleTestCase):
         cv2.imwrite(source, _stripes())
         seen = []
         frames = {0: [dets.detection(box=[8, 8, 40, 40], label='face')]}
-        written = dets.render_media(
+        written = dets.paint_media(
             source, frames, lambda image, found: blur_detections(image, found, blur_ratio=15),
             os.path.join(self.folder, 'out', 'in_blurred.png'),
             on_frame=lambda i, original, painted, found: seen.append((i, len(found))))
@@ -250,7 +250,7 @@ class RenderMediaTest(SimpleTestCase):
         source = os.path.join(self.folder, 'in.png')
         cv2.imwrite(source, _stripes())
         painted = []
-        written = dets.render_media(source, {}, lambda image, found: painted.append(1) or image,
+        written = dets.paint_media(source, {}, lambda image, found: painted.append(1) or image,
                                     os.path.join(self.folder, 'same.png'))
         self.assertEqual([], painted, 'no detection : no paint')
         self.assertTrue((cv2.imread(written) == _stripes()).all())
@@ -260,11 +260,11 @@ class RenderMediaTest(SimpleTestCase):
         with open(source, 'wb') as out:
             out.write(b'not an image')
         with self.assertRaises(RuntimeError):
-            dets.render_media(source, {}, lambda image, found: image,
+            dets.paint_media(source, {}, lambda image, found: image,
                               os.path.join(self.folder, 'x.png'))
 
 
-class RenderVideoTest(SimpleTestCase):
+class PaintVideoTest(SimpleTestCase):
     """A VIDEO is re-written frame by frame (MJPEG intermediate, then ffmpeg : H.264 + the
     source's audio when it has one) — only the frames that carry detections are painted."""
 
@@ -288,7 +288,7 @@ class RenderVideoTest(SimpleTestCase):
             painted.append(len(found))
             return blur_detections(image, found, blur_ratio=15)
 
-        written = dets.render_media(
+        written = dets.paint_media(
             self.source, frames, paint, os.path.join(self.folder, 'out', 'clip_blurred.avi'),
             on_frame=lambda i, original, out, found: seen.append(i),
             progress=lambda done, total: None)

@@ -1185,7 +1185,7 @@ MECHANISMS = (
               "— le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de "
               "Fabien : détection et floutage séparés dans l'anonymizer). Écrit par un process "
               "« Détection », relu par le floutage (`blur_utils.blur_detections`, rendu image par "
-              "image `render_media`) et par l'aperçu (`draw`) ; interpolation des trous d'un "
+              "image `paint_media`) et par l'aperçu (`draw`) ; interpolation des trous d'un "
               "objet à la lecture (`by_frame`) — même objet par la piste OU par la place, le "
               "réglage seul pour limite, le centre comblé en COURBE (2026-10-05, card #1026) ; "
               "et PROLONGÉ de quelques images avant sa première détection et après sa dernière "

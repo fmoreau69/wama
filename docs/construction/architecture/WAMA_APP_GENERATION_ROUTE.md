@@ -3860,7 +3860,9 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >     `DetectionBackend.process` = `detect` (point d'entrée du contrat commun). Ils n'écrivent et
 >     ne floutent plus rien.
 >   - **Le floutage se joue SANS MODÈLE** depuis le document : `blur_utils.blur_detections`
->     (contour, sinon rectangle) et `detections.render_media` (image par image, audio recollé).
+>     (contour, sinon rectangle) et `detections.paint_media` (image par image, audio recollé ;
+>     `render_media` jusqu'au 2026-10-05 — renommée : `check_redundancy` la rapprochait par le
+>     nom de la colle `_render` du composer, sans rapport).
 >     L'interpolation des trous d'un objet se fait À LA LECTURE (`by_frame`) : la couper ou la
 >     régler ne redétecte pas. Réglages surveillés : détection = fichier, mode, classes, prompt,
 >     modèle, précision, segmentation, seuil ; floutage = intensité, bords, agrandissement,
