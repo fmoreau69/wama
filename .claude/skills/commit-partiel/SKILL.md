@@ -223,6 +223,17 @@ mais c'est défaire son geste dans son dos.
   commande — règle de `CLAUDE.md`), et lire le compte « hunks=… miens=… » avant d'appliquer :
   zéro sur un fichier qu'on sait avoir touché = mauvais répertoire, pas « rien à moi ».
 
+- 🔴 **2026-10-05 — une GARDE qui s'arrête ne protège que ce qui lui est enchaîné par `&&`.**
+  Vécu : `python garde.py && git diff … ; git commit … -- <chemins>` — la garde a bien refusé
+  (« fichier déjà modifié par autrui », le point d'étape venait d'être touché à l'instant), mais le
+  `git commit` qui suivait un POINT-VIRGULE est parti quand même, par chemin, et a emporté 29
+  lignes d'une autre session sous mon message. Rattrapé par remplacement du commit (`commit-tree`
+  sur le parent + `update-ref <nouveau> <fautif>`, puis `git reset -q HEAD -- <fichier>`) : les
+  lignes sont revenues non commitées dans l'arbre.
+  ✅ La garde et le commit vivent dans le MÊME script, ou sont liés par `&&` de bout en bout ;
+  jamais un `;` entre une vérification et le geste qu'elle autorise. Et un fichier « propre il y a
+  une minute » ne l'est plus : c'est l'état AU MOMENT du commit qui compte.
+
 ## 4. Docs générées
 
 Un bloc régénéré (`doc_facts`) projette le REGISTRE tel qu'il est dans l'arbre, WIP d'autrui
