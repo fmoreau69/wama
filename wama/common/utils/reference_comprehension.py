@@ -148,11 +148,12 @@ def _read_html(path: str):
 
 
 def _html_text(path: str) -> str:
-    """CONTENU d'un HTML : son texte visible (scripts et styles écartés)."""
-    soup = _read_html(path)
-    for tag in soup(['script', 'style', 'noscript']):
-        tag.decompose()
-    return ' '.join(soup.get_text(' ').split())
+    """CONTENU d'un HTML : son texte lisible — la brique commune des pages web
+    (`url_ingest.html_to_readable_text`, revérification du 2026-10-05 : une seconde extraction
+    vivait ici)."""
+    from wama.common.utils.url_ingest import html_to_readable_text
+    with open(path, encoding='utf-8', errors='replace') as fh:
+        return html_to_readable_text(fh.read())
 
 
 def _html_form(path: str) -> str:

@@ -202,6 +202,30 @@ class AnAppWithSeveralProcessesIsGeneratedTest(SimpleTestCase):
         self.assertEqual(2, len(_calls(src, 'FunctionSpec')))
         self.assertEqual(1, len(_calls(src, 'register_app_pipeline')))
 
+    def test_every_setting_says_what_it_makes_stale_and_is_never_copied_into_watched(self):
+        """The rule `tests_process_watched` holds for real apps (`Param.stales`, 2026-10-05),
+        applied to an app BORN from a manifest — that guard skips sandbox twins, so the draft is
+        held here: each element setting names the processes it makes stale (or `[]`), a stale
+        names a declared process, and the generated `ProcessSpec.watched` keeps only the fields
+        OFF the schema."""
+        from wama.common.manifests.codegen.function_specs_gen import render_function_specs
+        from wama.common.manifests.codegen.pipeline_decl import (declared_pipeline,
+                                                                 process_specs, schema_stales)
+        from wama.common.utils.output_formats import OUTPUT_PARAM_NAMES
+        keys = {s['key'] for s in process_specs(declared_pipeline('writer')[0])}
+        settings_ = {p['name']: p for schema in self.manifest['body']['params']['schemas'].values()
+                     for p in schema if 'item' in (p.get('contexts') or ())}
+        for name, p in settings_.items():
+            with self.subTest(setting=name):
+                self.assertTrue(p.get('stales') is not None or name in OUTPUT_PARAM_NAMES,
+                                'declare `stales` (or `[]` for a display setting)')
+        self.assertLessEqual(set(schema_stales(self.manifest)), keys)
+        src, reason = render_function_specs(self.manifest)
+        self.assertIsNotNone(src, reason)
+        for call in _calls(src, 'ProcessSpec'):
+            watched = next((ast.literal_eval(k.value) for k in call.keywords if k.arg == 'watched'), ())
+            self.assertEqual([], [w for w in watched if w in settings_], call.args[0].value)
+
     def test_an_app_without_a_declared_pipeline_gets_no_function_specs(self):
         from wama.common.manifests.codegen.function_specs_gen import render_function_specs
         src, _reason = render_function_specs({**self.manifest, 'key': 'no_such_app'})
@@ -240,9 +264,7 @@ class AnAppWithSeveralProcessesIsGeneratedTest(SimpleTestCase):
         """The « Sortie » process of a real app (the composer) is the common one: declared by
         `output_spec`, never copied field by field into a `ProcessSpec`."""
         from wama.common.manifests.codegen.function_specs_gen import render_function_specs
-        from wama.common.manifests.codegen.pipeline_decl import OUTPUT_PROCESS_KEY
         from wama.common.services.output_process import OUTPUT_KEY
-        self.assertEqual(OUTPUT_KEY, OUTPUT_PROCESS_KEY)
         composer = json.loads((Path(settings.BASE_DIR) / 'manifests' / 'apps' / 'composer.json')
                               .read_text(encoding='utf-8'))
         src, reason = render_function_specs(composer)

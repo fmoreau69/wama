@@ -408,10 +408,12 @@ def declared_pipeline_of(man: dict) -> tuple:
     jamais par une facette du manifeste `app`. Une jumelle (`writer_01`) se lit sous sa clé
     d'origine : c'est elle que portent le corpus et les brouillons."""
     from wama.common.manifests.codegen.pipeline_decl import declared_pipeline
+    from wama.common.sandbox import LABEL_RE
     key = man.get('key') or ''
     pipeline, functions = declared_pipeline(key)
-    if not pipeline and re.search(r'_\d{2}$', key):
-        pipeline, functions = declared_pipeline(re.sub(r'_\d{2}$', '', key))
+    twin = LABEL_RE.match(key)
+    if not pipeline and twin:
+        pipeline, functions = declared_pipeline(twin.group('base'))
     return pipeline, functions
 
 
@@ -534,8 +536,10 @@ def main():
     process_matter, process_spec, all_specs = '', None, []
     pipeline, functions = declared_pipeline_of(man)
     if pipeline:
-        from wama.common.manifests.codegen.pipeline_decl import process_specs
-        all_specs = process_specs(pipeline)
+        from wama.common.manifests.codegen.pipeline_decl import process_specs, watched_of
+        # Ce qu'un process surveille = les réglages qui le nomment (`stales`) + ses champs hors
+        # schéma : c'est l'union que la matière montre et que les contrôles jugent.
+        all_specs = [{**s, 'watched': watched_of(man, s)} for s in process_specs(pipeline)]
     if len(all_specs) >= 2:
         keys = [s['key'] for s in all_specs]
         if args.process not in keys:
@@ -609,9 +613,9 @@ def main():
                                       for name in names if name not in called]
         return verif
 
-    reponse = call_llm(args.provider, model, PROMPT, user_msg, num_ctx=CODEGEN_NUM_CTX,
+    response = call_llm(args.provider, model, PROMPT, user_msg, num_ctx=CODEGEN_NUM_CTX,
                        temperature=CODEGEN_TEMPERATURE, timeout=CODEGEN_TIMEOUT)
-    code = extract_code(reponse)
+    code = extract_code(response)
     verif = judge(code)
     # Tour de RÉPARATION (2026-10-05) : les contrôles mécaniques relevaient un défaut que le
     # modèle ne voyait jamais — l'humain le corrigeait à l'application, ou relançait au hasard
@@ -630,9 +634,9 @@ def main():
                 + f"\n\nRends la fonction `{nom_impose}(item, ctx)` corrigée, ENTIÈRE "
                   f"(bloc ```python seul).")
         repair_msg = user_msg[:max(0, MAX_MATTER_CHARS - len(tail))] + tail
-        reponse = call_llm(args.provider, model, PROMPT, repair_msg, num_ctx=CODEGEN_NUM_CTX,
+        response = call_llm(args.provider, model, PROMPT, repair_msg, num_ctx=CODEGEN_NUM_CTX,
                            temperature=CODEGEN_TEMPERATURE, timeout=CODEGEN_TIMEOUT)
-        code = extract_code(reponse)
+        code = extract_code(response)
         verif = judge(code)
 
     verite = None
@@ -654,7 +658,7 @@ def main():
         'checks': verif,
         'code': code,
         # La réponse BRUTE (2026-10-01) : un code mal extrait ne se diagnostique qu'en la relisant.
-        'raw_response': reponse,
+        'raw_response': response,
         'truth': verite,
         'matter_chars': len(user_msg),
     })

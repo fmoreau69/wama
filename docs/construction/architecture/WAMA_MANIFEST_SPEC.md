@@ -295,15 +295,20 @@ Writer (alors « Editor ») rédige le fond PUIS le met en forme.
 
 **Comment une app Médias se déclare AUJOURD'HUI** (le Writer, `manifests/app_drafts/writer.json`) :
 - ses **entrées** par les jetons d'`app_modes.INPUT_TYPES`, dans `modes.domains[].inputs`
-  (`['prompt', 'reference_document']`) — les ports de la card v4 en DÉRIVENT
+  (`['prompt', 'reference_document', 'reference_layout']`) — les ports de la card v4 en DÉRIVENT
   (`app_registry.studio_node_ports`) ; la facette `ports` ne déclare que les NATURES (jetons pour
   ids, comme le composer) ;
 - sa **consigne** par une cible de `PROMPT_TARGETS` (facette `prompts`) : `kind: 'intent'` et
   `reference_field` — le pipeline de prompts comprend le document de référence ;
-- son **traitement** en **un seul process** (`§10.6` 11) : une glu qui rédige puis met en forme.
-  ⏳ Depuis le 2026-10-02 le moyen d'en faire deux process existe (décision n°11, moteur à
-  plusieurs process : `run_item_task(pipeline=…, processes=…)`) ; le Writer n'y est pas porté —
-  le composer est le pilote.
+- ~~son **traitement** en **un seul process** (`§10.6` 11) : une glu qui rédige puis met en
+  forme~~ — ⚠ **corrigé le 2026-10-05** : le Writer a DEUX process sur le patron du composer
+  (`write` → le fond dans `draft_file`, `layout` → le HTML avec le port `reference_layout`),
+  déclarés comme ceux d'une app existante — un manifeste `pipeline` et un manifeste `function` par
+  process, sous la clé de l'app, ici en BROUILLON (`manifests/app_drafts/{pipelines,functions}/`),
+  lus par le générateur (`codegen/pipeline_decl.py`). Le manifeste `app` ne gagne toujours aucune
+  facette ; ses réglages déclarent les process qu'ils périment (`stales`, comme `Param.stales`),
+  le pipeline ne garde que les champs hors schéma (`WAMA_APP_GENERATION_ROUTE §10.6`, position
+  commune du 05/10).
 
 ---
 

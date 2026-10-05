@@ -4438,6 +4438,36 @@ possible **sans aucun process**.
       le compte de test : SUCCESS en 22 s (deux lignes, qwen3.5:4b tiré en auto), forme du modèle
       de mise en page reprise sans son texte, puis consigne de forme changée → seul `layout` à
       jouer, ▶ borné en 5 s, fond intact (même fichier), mention demandée présente.
+    - 🔎 **Revérification « rien réinventé » (05/10, demande de Fabien), après le commit
+      `3055f0d7`** — sept écarts, tous corrigés :
+      1. `pipeline_decl` lisait `node['kind']`/`node['function']` → `node_kind()`/`function_key()`,
+         « les DEUX seuls lecteurs » de la convention (`builtin/pipeline.py:22`) ; ses dossiers
+         viennent de `manifest_export.DOSSIERS` ; la clé du process « Sortie » est importée
+         d'`output_process`, plus recopiée ;
+      2. `function_specs_gen` recopiait les catégories → dérivées de `FunctionCategory` ; une
+         catégorie inconnue devenait `transform` sans un mot → refusée, raison à l'appui ;
+      3. **`Param.stales`** (session pipeline, le même jour) : le générateur écrivait des listes
+         `watched` complètes, que `tests_process_watched` interdit aux apps réelles. Le brouillon
+         déclare `stales` sur ses réglages, le pipeline ne garde que les ports hors schéma,
+         `function_specs_gen` retire ce que le schéma déclare (`pipeline_decl.schema_stales`), le
+         rôle `codegen` juge l'union (`pipeline_decl.watched_of`) ; la règle de la garde est tenue
+         sur le brouillon (`tests_codegen_from_scratch`), la garde réelle écartant les jumelles ;
+      4. le relevé des ports de la card vivait DEUX fois (composer, gabarit généré) → brique
+         `WamaApp.addToQueue({ports: 'card', portOptions})`, relu à chaque envoi ; chaque port
+         reçu sous son nom (`file` en repli pour une dépose `WamaImport`). Mesuré au serveur
+         jetable : writer_01 reçoit contenu + mise en page, `composer.add` vert ;
+      5. `reference_comprehension._html_text` refaisait `url_ingest.html_to_readable_text` ;
+      6. `run_codegen` recalculait le label d'origine d'une jumelle → `sandbox.LABEL_RE` ;
+         `app_sandbox` recalculait le nom de la base de test → Django
+         (`connection.creation._get_test_db_name`) ;
+      7. la palette du Studio montrait les process d'une app non ouverte au compte (et ceux des
+         jumelles dev-only) → un process rattaché suit `accessible(user, 'app', spec.app)`
+         (`PROFILES_PERMISSIONS §8.9.4`) ; le test qui figeait l'ancien comportement est réécrit.
+      Constats périmés corrigés : `WAMA_MANIFEST_SPEC §3.1` (« le Writer, un seul process »),
+      `WAMA_LLM` (1ᵉʳ adopteur réel de `reference_field`, lectures `content`/`form`). Restes
+      DÉCLARÉS, non soldés : les chemins du corpus écrits en dur dans six modules antérieurs (un
+      domicile commun reste à créer) ; le lancement d'un nœud rattaché depuis le Studio n'est
+      pas gardé par l'accès de l'app.
       Deux trous de route fermés au passage : une jumelle n'entre plus au corpus (`manifest_export`
       écarte ses fonctions et son pipeline, comme `non_sandbox_apps` pour le kind `app`), et
       `app_sandbox remove` désapplique aussi la base de TEST conservée (une jumelle recréée y

@@ -258,12 +258,7 @@
         // Les ports de la card — le morceau à reprendre (cover) : audio `work_audio` (MusicGen
         // Melody), partition `work_score` (YuE2) — sont DÉRIVÉS des capacités des modèles ; chacun
         // est posté sous le nom de son PORT (2026-10-03). Seul le port principal a un champ URL.
-        const ports = Array.from(document.querySelectorAll('#composerNewCard [data-port-pane]'))
-            .filter((pane) => pane.dataset.portInput && pane.dataset.portPane !== 'lot')
-            .map((pane) => (pane.dataset.portInput === 'melodyInput'
-                ? { inputId: 'melodyInput', field: pane.dataset.portPane,
-                    urlField: 'source_url', urlInputId: 'melodyUrlInput' }
-                : { inputId: pane.dataset.portInput, field: pane.dataset.portPane }));
+        // Le relevé des ports est celui de la brique (`ports: 'card'`, 2026-10-05).
         WamaApp.addToQueue({
             url:       APP.generateUrl,
             csrfToken: CSRF,
@@ -271,7 +266,8 @@
             prompt:    { inputId: promptInput ? promptInput.id : '', field: 'prompt' },
             // Référence fournie → jointe. Plus de test hardcodé par modèle : l'appariement
             // WamaInputMatch garantit qu'un modèle incompatible n'est pas sélectionnable.
-            ports:     ports,
+            ports:     'card',
+            portOptions: { melodyInput: { urlField: 'source_url', urlInputId: 'melodyUrlInput' } },
             extraFields: function (fd) {
                 fd.append('model', modelSelect?.value || 'auto:text-to-music');
                 fd.append('duration', getSelectedDuration());

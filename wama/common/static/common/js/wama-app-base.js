@@ -747,6 +747,12 @@
    *                  Le champ URL est `urlInputId`, sinon le `[data-port-url]` de l'onglet du
    *                  port. Un port SANS `urlField` dont l'URL est remplie est REFUSÉ, avec le
    *                  motif : une URL ignorée en silence est le pire des cas ;
+   *                  `'card'` (2026-10-05) : les ports LUS sur la card d'entrée v4 du bouton
+   *                  (`[data-wama-ports]`), relus à chaque envoi — un onglet par port, chacun posté
+   *                  sous le nom de son PORT (`data-port-pane`), l'onglet Lot exclu. Le composer et
+   *                  le générateur d'apps écrivaient chacun ce relevé ;
+   *    portOptions:  avec `ports: 'card'`, `{<id de l'input>: {urlField, urlInputId, field}}` —
+   *                  ce qu'un port précis ajoute (le champ URL du port principal) ;
    *    extraFields:  function (fd) — les champs propres à l'app ;
    *    validate:     function (fd) → message d'erreur, ou '' (rien n'est posté) ;
    *    successMessage: texte, ou function (data) → texte, du toast de succès ;
@@ -767,6 +773,19 @@
       const pane = port.inputId && document.querySelector('[data-port-input="' + port.inputId + '"]');
       const el = pane && pane.querySelector('[data-port-url]');
       return el ? el : null;
+    };
+    // Les ports de l'envoi : la liste donnée, ou ceux de la card du bouton (`ports: 'card'`).
+    const portsOf = function () {
+      if (opts.ports !== 'card') return opts.ports || [];
+      const card = button && button.closest('[data-wama-ports]');
+      if (!card) return [];
+      const extra = opts.portOptions || {};
+      return Array.prototype.filter.call(card.querySelectorAll('[data-port-pane]'), function (pane) {
+        return pane.dataset.portInput && pane.dataset.portPane !== 'lot';
+      }).map(function (pane) {
+        return Object.assign({ inputId: pane.dataset.portInput, field: pane.dataset.portPane },
+                             extra[pane.dataset.portInput] || {});
+      });
     };
     const promptValue = function (el) {
       const enrich = global.WamaPromptEnrich && global.WamaPromptEnrich.get
@@ -790,7 +809,7 @@
       const promptEl = p && document.getElementById(p.inputId);
       if (promptEl) fd.set(p.field || 'prompt', promptValue(promptEl));
       let refusal = '';
-      (opts.ports || []).forEach(function (port) {
+      portsOf().forEach(function (port) {
         const input = document.getElementById(port.inputId);
         if (appendInput(fd, input, port.field || 'file')) return;
         const url = urlOf(port);
@@ -807,7 +826,7 @@
     function clear() {
       const promptEl = opts.prompt && document.getElementById(opts.prompt.inputId);
       if (promptEl) promptEl.value = '';
-      (opts.ports || []).forEach(function (port) {
+      portsOf().forEach(function (port) {
         const input = document.getElementById(port.inputId);
         if (input) { try { input.value = ''; } catch (e) { /* lecture seule */ } clearDesignation(input); }
         const url = urlOf(port);

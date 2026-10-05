@@ -853,7 +853,9 @@ MECHANISMS = (
 
     *_domain('Contenu & prompts', (
     Mechanism('prompt_pipeline', 'Pipeline de prompts',
-              "Traduction/enrichissement centralisés, déclarés par PROMPT_TARGETS",
+              "Traduction/enrichissement centralisés, déclarés par PROMPT_TARGETS ; fichiers de "
+              "référence compris et repliés (`reference_field`), lus pour leur CONTENU ou leur "
+              "FORME (`reference_reading`, 05/10 — le modèle de mise en page du Writer)",
               'wama/common/utils/prompt_enrichment.py', 'docs/construction/ia/WAMA_LLM.md',
               annexes=('wama/common/utils/app_metadata.py',
                        'wama/common/utils/prompt_pipeline.py',
@@ -1697,7 +1699,9 @@ MECHANISMS = (
               "la garde (sinon refusée, motif dit), rien n'est lancé (règle des deux temps). Côté "
               "serveur : `received_inputs`. Mode DÉRIVÉ des ports par le générateur "
               "(`views_gen.prompt_entry` : consigne sans port de travail). Adoptée le jour même "
-              "par imager, avatarizer, composer et synthesizer (leur formulaire maison retiré)",
+              "par imager, avatarizer, composer et synthesizer (leur formulaire maison retiré). "
+              "`ports: 'card'` (05/10) : les ports relus sur la card v4 à chaque envoi, chacun "
+              "posté sous son nom — le relevé que le composer et le générateur écrivaient chacun",
               'wama/common/static/common/js/wama-app-base.js', 'docs/construction/ui/CARD_DESIGN.md',
               annexes=('wama/common/manifests/codegen/templates_gen.py',
                        'wama/common/manifests/codegen/views_gen.py'),

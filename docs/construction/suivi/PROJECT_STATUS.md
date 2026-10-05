@@ -22145,3 +22145,16 @@ portée dans la tâche de tracking) ; après la relance, la mesure tourne au pro
 les quatre ⚑ apparaissent dans « Comparer » · push de 4 commits cam_analyzer/wama_data · ⚠ service
 IGN partiellement indisponible pendant les rejeux (mêmes conditions pour tous, garés non concluants
 à ±2) · scripts de rejeu et de mutation dans le scratchpad de session, jetables.
+
+### Revérification « rien réinventé » du palier WRITER (2026-10-05, demande de Fabien) — après `3055f0d7`
+
+- Sept écarts corrigés, détail dans `WAMA_APP_GENERATION_ROUTE §10.6` (position commune, bloc 🔎) :
+  lecteurs de nœud et dossiers du corpus repris de leurs domiciles ; catégories dérivées de
+  `FunctionCategory` (une inconnue est refusée) ; **`Param.stales`** adopté par le générateur et
+  le brouillon du Writer ; relevé des ports de la card → `addToQueue({ports: 'card'})` (le
+  composer en est le 2ᵉ adopteur) ; texte HTML par `url_ingest` ; label de jumelle et base de test
+  par leurs accesseurs ; palette du Studio : un process suit l'accès de son app.
+- Mesuré : writer_01 recréé ; génération réelle rejouée (SUCCESS, ▶ `layout` seul, fond intact) ;
+  serveur jetable : writer_01 reçoit ses deux références, `composer.add` vert.
+- 🔚 Restes déclarés : chemins du corpus en dur dans six modules antérieurs ; lancement Studio
+  d'un nœud rattaché non gardé par l'accès de l'app.
