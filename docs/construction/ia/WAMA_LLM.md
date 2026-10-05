@@ -1247,6 +1247,29 @@ dans `!aide`) efface le fil courant d'un canal — le « Effacer » du chat web,
 l'effaçait elle-même). Seul ce fil part ; garde d'identité d'abord. ⚠ La trace part avec lui,
 comme côté web. Gardes : `gateway.tests.ForgetGestureTests` (2 mutations, 2 rouges).
 
+**Puis, le soir même, sur un fil VIERGE (`!oublier`) : le modèle agit — et deux défauts de plus**
+apparaissent derrière, chacun caché jusque-là par le précédent (la leçon du skill : *chaque
+défaut en cachait un autre*). Fil n° 35 : `inspect_user_file` → `add_to_anonymizer` refusé par
+le schéma (`target_mode='plate'`, `output_quality=90` — le refus dit les valeurs valides, le
+modèle se corrige seul) → `add_to_anonymizer` (#1036) → `start_anonymizer` →
+`get_anonymizer_status`.
+1. **La réponse affichée était l'appel brut** `{"tool": "get_anonymizer_status", "args": {}}` :
+   cinq outils pour une limite de cinq, et la sortie de boucle rendait `messages[-2]` — le texte
+   du dernier APPEL. Levé : `MAX_TOOL_ITERATIONS` 5 → 8 (le parcours ordinaire en prend 4 ; une
+   correction de réglage suffisait à l'épuiser), et la limite ouvre un dernier tour SANS outil
+   (`_TOOL_LIMIT_PROMPT`) ; si le modèle veut encore un outil, la réponse est la TRACE des
+   actions exécutées (`_TOOL_LIMIT_NOTICE`), jamais l'appel. Gardes `tests_unsourced_links.
+   ToolLimitTest` (2 mutations, 2 rouges).
+2. **La tâche #1036 a échoué** : « Input file not found: …/anonymizer/input/DSC05016_zjGuits.JPG ».
+   Depuis le 28/09, `add_to_anonymizer` DÉSIGNE le fichier déposé (`media_paths.designate` :
+   la card pointe `temp/`, rien n'est recopié) ; la tâche RECONSTRUISAIT l'entrée dans
+   `anonymizer/input/` (`get_input_media_path`). Les dépôts par la page web passaient — leur
+   fichier y est vraiment. Mesuré en base : #1036 est la SEULE card pointée de l'anonymizer ;
+   une désignation depuis le gestionnaire de fichiers ou la médiathèque passe par la même brique
+   (`received_inputs` → `designate`) et aurait échoué pareil — déduit, non rejoué. *Ce n'est donc pas l'assistant qui avait cessé de marcher le 27/09 :
+   le 22/09, l'élément 647 avait été COPIÉ dans `input/`.* Levé : la tâche lit `media.file.path`
+   (REMOVAL_LEDGER R104).
+
 **Chaîne prouvée de bout en bout le 23/09 sur l'item réel 647** : `start_anonymizer` →
 `RUNNING` → `SUCCESS` (`users/1/anonymizer/output/IMG-…_blurred_sam3.jpg`) →
 `get_anonymizer_status` porte l'`output_url` → `_produced_files` ne rend QUE ce fichier-là

@@ -162,3 +162,44 @@ class InventedTurnTest(TestCase):
         result, models = self._turn(llm)
         self.assertEqual(['small:4b', 'big:8b'], models)
         self.assertEqual('Aucune tâche en cours.', result['response'])
+
+
+class ToolLimitTest(TestCase):
+    """Ce qui sort de la boucle quand la limite d'outils est atteinte (2026-10-05).
+
+    LE DÉFAUT MESURÉ (Discord, card #1036) : inspection → ajout refusé par le schéma → ajout →
+    lancement → statut, cinq outils pour une limite de cinq ; la boucle rendait alors le texte
+    du dernier appel — `{"tool": "get_anonymizer_status", "args": {}}` affiché comme réponse.
+    """
+
+    CALL = '{"tool": "get_anonymizer_status", "args": {}}'
+
+    def _turn(self, llm):
+        from unittest import mock
+
+        from django.contrib.auth.models import User
+
+        from wama.common.services import assistant_engine
+        user = User.objects.create(username='tool_limit')
+        with mock.patch.object(assistant_engine, '_llm_call', side_effect=llm) as call:
+            result = assistant_engine.run_assistant_turn(user, 'floute la plaque',
+                                                         provider='ollama', model='m')
+        return result, call.call_count
+
+    def test_the_model_gets_a_last_turn_to_answer(self):
+        from wama.common.services import assistant_engine
+
+        def llm(messages, *a, **k):
+            if messages[-1]['content'] == assistant_engine._TOOL_LIMIT_PROMPT:
+                return 'Le floutage est lancé, je vous préviens à la fin.', {}
+            return self.CALL, {}
+        result, calls = self._turn(llm)
+        self.assertEqual(assistant_engine.MAX_TOOL_ITERATIONS + 1, calls)
+        self.assertEqual('Le floutage est lancé, je vous préviens à la fin.', result['response'])
+        self.assertEqual(assistant_engine.MAX_TOOL_ITERATIONS, len(result['tool_steps']))
+
+    def test_a_raw_tool_call_never_leaves_the_loop(self):
+        result, _ = self._turn(lambda *a, **k: (self.CALL, {}))
+        self.assertNotIn('{"tool"', result['response'])
+        self.assertIn('get_anonymizer_status', result['response'])   # la trace, dite
+        self.assertIn('limite', result['response'])
