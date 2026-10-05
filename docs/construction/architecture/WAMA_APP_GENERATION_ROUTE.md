@@ -3893,8 +3893,9 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       paramètres (mètres là-bas, pixels à l'échelle de l'objet ici). Le centre d'une détection
 >       déduite part à la vitesse d'ARRIVÉE de l'objet et rejoint sa vitesse de REPRISE, au lieu
 >       d'une droite. Trois copies de l'IoU (cam, `placement_metrics._iou`, la mienne) → une ;
->       ⏳ les deux copies restantes délèguent quand la session cam libère ses fichiers
->       (`tests_gap_fill.ThePortIsFaithfulTest` garde l'égalité d'ici là). ⏳ **Reste proposé** :
+>       ✅ les anciens noms du cam_analyzer et du monde Data DÉLÈGUENT (`feb56cd2`, session
+>       cam), gardé par `tests_gap_fill.TheOldCopiesDelegateTest` (la fonction commune
+>       substituée, l'ancien nom la suit). ⏳ **Reste proposé** :
 >       l'EXTRAPOLATION aux bouts d'un objet (flouter quelques images avant sa première
 >       détection et après sa dernière — là où un visage entre dans le champ et échappe au flou),
 >       avec `extrapolate_speed_accel` du même paquet ; elle demande un réglage, donc une décision.

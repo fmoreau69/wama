@@ -36,22 +36,32 @@ class HermiteGapTest(SimpleTestCase):
         self.assertEqual((100.0, 0.0), hermite_gap(*args, min_bulge=50.0, min_speed_share=0.5))
 
 
-class ThePortIsFaithfulTest(SimpleTestCase):
-    """While the cam_analyzer and the Data world still carry their own copies, the common ones
-    must answer exactly like them (once they delegate, this stays true by construction)."""
+class TheOldCopiesDelegateTest(SimpleTestCase):
+    """The cam_analyzer and the Data world kept their NAMES (`hermite_ghost`, `box_iou`,
+    `_iou`) but delegate to the common primitives since `feb56cd2` — until then this class
+    compared their results. Comparing results is now trivial ; what must hold is that no copy
+    grows back : replace the common function, the old name must follow it."""
 
-    def test_hermite_gap_answers_like_the_ghosts_of_the_cam_analyzer(self):
+    def test_the_ghosts_of_the_cam_analyzer_are_the_common_curve(self):
+        from unittest import mock
         from wama_lab.cam_analyzer.utils.multicam_tracker import hermite_ghost
-        speeds = [None, (0.0, 0.0), (3.0, 1.0), (-2.0, 4.0), (12.0, -9.0)]
-        for v0, v1 in itertools.product(speeds, repeat=2):
-            for p1, span, a in (((10.0, 2.0), 3.0, 0.3), ((1.0, 0.5), 8.0, 0.7)):
-                self.assertEqual(hermite_ghost((0.0, 0.0), v0, p1, v1, span, a),
-                                 hermite_gap((0.0, 0.0), v0, p1, v1, span, a))
+        with mock.patch('wama_data.functions.kinematics.gap_fill.hermite_gap',
+                        return_value=('common',)) as common:
+            self.assertEqual(('common',), hermite_ghost((0, 0), None, (1, 1), None, 2.0, 0.5))
+        common.assert_called_once_with((0, 0), None, (1, 1), None, 2.0, 0.5)
+        # … with the cam_analyzer's defaults : the slowness guard is not asked there.
+        self.assertNotEqual((100.0, 0.0), hermite_ghost((0, 0), (1, 0), (200, 0), (11, 0), 6, 0.5))
 
-    def test_box_iou_answers_like_the_two_copies(self):
+    def test_the_two_iou_copies_are_the_common_one(self):
+        from unittest import mock
         from wama_data.functions.geometry.placement_metrics import _iou
-        from wama_lab.cam_analyzer.utils.multicam_tracker import box_iou as cam_box_iou
+        from wama_lab.cam_analyzer.utils import multicam_tracker
+        self.assertIs(box_iou, multicam_tracker.box_iou)
+        with mock.patch('wama_data.functions.geometry.shapes.box_iou', return_value=0.42):
+            self.assertEqual(0.42, _iou([0, 0, 1, 1], [0, 0, 1, 1]))
+
+    def test_box_iou_values(self):
         boxes = [None, [], [0, 0, 10, 10], [5, 5, 15, 15], [20, 20, 30, 30], [0, 0, 0, 0]]
-        for a, b in itertools.product(boxes, repeat=2):
-            self.assertEqual(cam_box_iou(a, b), box_iou(a, b))
-            self.assertEqual(_iou(a, b), box_iou(a, b))
+        expected = {(2, 2): 1.0, (2, 3): 25 / 175, (3, 2): 25 / 175, (3, 3): 1.0, (4, 4): 1.0}
+        for (i, a), (j, b) in itertools.product(enumerate(boxes), repeat=2):
+            self.assertAlmostEqual(expected.get((i, j), 0.0), box_iou(a, b))
