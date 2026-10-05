@@ -50,11 +50,24 @@ def history(conversation, limite: int = MAX_TOURS) -> list:
     Rend les tours dans l'ORDRE CHRONOLOGIQUE même si on n'en prend que la fin : une
     conversation servie à l'envers produit des réponses incohérentes, et le défaut est
     difficile à voir depuis l'extérieur.
+
+    ⚠⚠ UN TOUR D'ASSISTANT PORTE SES `tool_steps` (2026-10-05). Jusque-là seul le TEXTE
+    repartait : dans l'historique du modèle, chaque « c'est terminé » passé apparaissait comme
+    une réponse donnée SANS outil — l'exemple même de ce qu'il ne doit pas faire, resservi à
+    chaque tour. Mesuré sur le fil Discord n° 11 : le même modèle (`deepseek-v4-flash`) et le
+    même message appellent l'outil sans historique et inventent tout avec lui. Le moteur
+    (`assistant_engine._sanitize_history`) déplie ces étapes sous la forme de la boucle.
     """
     if conversation is None:
         return []
     derniers = list(conversation.turns.order_by('-created_at', '-pk')[:limite])
-    return [{'role': t.role, 'content': t.content} for t in reversed(derniers)]
+    tours = []
+    for t in reversed(derniers):
+        tour = {'role': t.role, 'content': t.content}
+        if t.role == 'assistant' and t.tool_steps:
+            tour['tool_steps'] = t.tool_steps
+        tours.append(tour)
+    return tours
 
 
 @transaction.atomic

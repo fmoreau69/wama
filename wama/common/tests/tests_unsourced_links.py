@@ -150,3 +150,15 @@ class InventedTurnTest(TestCase):
         result, models = self._turn(lambda *a, **k: ('Bonjour ! Que puis-je faire ?', {}))
         self.assertEqual(['small:4b'], models)
         self.assertEqual('Bonjour ! Que puis-je faire ?', result['response'])
+
+    def test_a_mark_copied_from_the_history_counts_as_an_invented_turn(self):
+        """Fil Discord n° 11, 05/10 : la mention RECOPIÉE d'un tour passé, sans aucune adresse —
+        rien à retirer, donc le contrôle restait muet et « ID 649 terminé » partait."""
+        copied = ("La tâche 649 est terminée.\n\n"
+                  "📥 Télécharger l'image anonymisée (lien non vérifié — retiré)")
+
+        def llm(messages, model, *a, **k):
+            return (copied if model == 'small:4b' else 'Aucune tâche en cours.'), {}
+        result, models = self._turn(llm)
+        self.assertEqual(['small:4b', 'big:8b'], models)
+        self.assertEqual('Aucune tâche en cours.', result['response'])
