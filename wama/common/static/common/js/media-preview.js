@@ -83,8 +83,8 @@
                 const base = _itemAddress(endpoint);
                 data._baseUrl = base;
                 // Un élément EN COURS qui publie son aperçu : on ouvre sur ce qui se construit.
-                if (data.sides && data.sides.has_during && data.side !== 'during') {
-                    return fetch(_duringAddress(base, null))
+                if (data.sides && data.sides.has_during && data.side !== 'during' && window.WamaInspector) {
+                    return fetch(window.WamaInspector.duringUrl(base, null))
                         .then(function (r) { return r.ok ? r.json() : null; })
                         .then(function (d) {
                             if (d && d.side === 'during') { d._baseUrl = base; showPreviewModal(d); }
@@ -329,12 +329,13 @@
     function _sepQS(u) { return u.indexOf('?') === -1 ? '?' : '&'; }
 
     // ── Face PENDANT suivie en direct (2026-10-05) ─────────────────────────────────────────────
-    // Même cadence et même adresse que le volet (`WamaInspector.duringUrl`, vue choisie gardée) ;
-    // l'élément terminé → sa SORTIE, comme dans le volet. Arrêt à la fermeture ou sur une autre face.
-    let _modalDuring = null;   // {timer, base, variant, sig}
+    // Par le suiveur COMMUN du volet (`WamaInspector.followDuring` : même adresse, même cadence,
+    // vue choisie gardée, fin lue à l'état de la card) — la modale en avait sa copie, retirée le
+    // 2026-10-06 (« rien réinventé ? »). L'élément terminé → sa SORTIE, comme dans le volet.
+    let _modalDuring = null;   // le suiveur en cours
 
     function _stopModalDuring() {
-        if (_modalDuring && _modalDuring.timer) clearInterval(_modalDuring.timer);
+        if (_modalDuring) _modalDuring.stop();
         _modalDuring = null;
     }
 
@@ -347,42 +348,26 @@
         return parts[0] + (kept.length ? '?' + kept.join('&') : '');
     }
 
-    function _duringAddress(base, variant) {
-        if (window.WamaInspector && WamaInspector.duringUrl) return WamaInspector.duringUrl(base, variant);
-        return base + _sepQS(base) + 'side=during' + (variant ? '&variant=' + encodeURIComponent(variant) : '');
-    }
-
     function _startModalDuring(modal, data) {
         _stopModalDuring();
-        const state = { base: data._baseUrl, variant: data.variant || null, sig: '', timer: null };
-        _modalDuring = state;
-        state.tick = function () {
-            if (_modalDuring !== state) return;
-            fetch(_duringAddress(state.base, state.variant))
-                .then(function (r) { return r.ok ? r.json() : null; })
-                .then(function (d) {
-                    if (_modalDuring !== state || !d) return;
-                    if (!d.sides || !d.sides.has_during) {
-                        // Plus rien qui se construit : l'élément est terminé → sa sortie.
-                        _stopModalDuring();
-                        if (d.sides && d.sides.has_output) {
-                            fetch(state.base + _sepQS(state.base) + 'side=output')
-                                .then(function (r) { return r.ok ? r.json() : null; })
-                                .then(function (o) { if (o) { o._baseUrl = state.base; showPreviewModal(o); } });
-                        }
-                        return;
-                    }
-                    const sig = JSON.stringify([d.url || '', d.variant || '', (d.variants || []).length]);
-                    if (sig === state.sig) return;
-                    state.sig = sig;
-                    d._baseUrl = state.base;
-                    d._duringTick = true;
-                    showPreviewModal(d);
-                })
-                .catch(function () {});
-        };
-        state.sig = JSON.stringify([data.url || '', data.variant || '', (data.variants || []).length]);
-        state.timer = setInterval(state.tick, 1300);
+        const I = window.WamaInspector;
+        if (!I || !I.followDuring) return;
+        const base = data._baseUrl;
+        const card = I.cardOfPreview(base);
+        _modalDuring = I.followDuring(base, {
+            variant: data.variant || null,
+            isRunning: card ? function () { return I.isRunningCard(card); } : null,
+            onFrame: function (d) {
+                d._baseUrl = base;
+                d._duringTick = true;
+                showPreviewModal(d);
+            },
+            onEnd: function () {
+                fetch(base + _sepQS(base) + 'side=output')
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (o) { if (o && o.side === 'output') { o._baseUrl = base; showPreviewModal(o); } });
+            },
+        });
     }
 
     /** Toggle Entrée/Comparer/Sortie DANS le plein écran — commun, réutilise `?side=X`. Ne s'affiche
@@ -423,35 +408,25 @@
         _renderModalVariants(modal, data);
     }
 
-    /** Les VUES publiées pendant le traitement (l'anonymizer : Détection | Floutage) — une barre À
-     *  PART sous celle des faces, comme dans le volet : une vue de la face Pendant n'est pas une
-     *  face (la face « Détection » d'après le traitement porte le même nom). */
+    /** Les VUES publiées pendant le traitement (l'anonymizer : Détection | Floutage) — la barre
+     *  COMMUNE du volet (`WamaInspector.variantToggle`), posée À PART sous celle des faces : une
+     *  vue de la face Pendant n'est pas une face (la face « Détection » porte le même nom). */
     function _renderModalVariants(modal, data) {
-        let bar = modal.querySelector('.wama-modal-variants');
+        let holder = modal.querySelector('.wama-modal-variants');
         const variants = data.side === 'during' ? (data.variants || []) : [];
-        if (variants.length < 2) { if (bar) bar.remove(); return; }
-        if (!bar) {
-            bar = document.createElement('div');
-            bar.className = 'wama-modal-variants btn-group btn-group-sm';
-            bar.style.cssText = 'position:absolute;top:52px;left:50%;transform:translateX(-50%);z-index:6;';
+        const I = window.WamaInspector;
+        if (variants.length < 2 || !I || !I.variantToggle) { if (holder) holder.remove(); return; }
+        if (!holder) {
+            holder = document.createElement('div');
+            holder.className = 'wama-modal-variants';
+            holder.style.cssText = 'position:absolute;top:52px;left:50%;transform:translateX(-50%);z-index:6;';
             const container = modal.querySelector('.preview-container');
-            if (container) container.appendChild(bar);
+            if (container) container.appendChild(holder);
         }
-        bar.innerHTML = '';
-        variants.forEach(function (v) {
-            const b = document.createElement('button');
-            b.type = 'button';
-            b.setAttribute('data-variant', v.key);
-            b.className = 'btn btn-sm px-3 ' + (v.key === data.variant ? 'btn-warning' : 'btn-outline-warning');
-            b.textContent = v.label || v.key;
-            b.addEventListener('click', function () {
-                if (!_modalDuring) return;
-                _modalDuring.variant = v.key;
-                _modalDuring.sig = '';
-                _modalDuring.tick();
-            });
-            bar.appendChild(b);
-        });
+        holder.innerHTML = '';
+        holder.appendChild(I.variantToggle(variants, data.variant, function (key) {
+            if (_modalDuring) _modalDuring.choose(key);
+        }));
     }
 
     /** Comparaison côte-à-côte (entrée | sortie) dans le plein écran — réutilise buildPreviewContent. */
