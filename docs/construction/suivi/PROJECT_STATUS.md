@@ -22362,3 +22362,13 @@ de cette session (modèles, `anonymizer` ci-dessus).
 **Artefacts** : scripts de mesure (équivalence, coût de page, essai réel, mutations, commits)
 dans le scratchpad de session, jetables. Effets de bord : une card anonymizer créée puis
 supprimée par la vue de l'app ; ETA apprise par ce run réel (données vraies, compte réel).
+
+## §CLÔTURE (complément) — 2026-10-05, « ANONYMIZER » — gardes manquantes ajoutées (`5e1157d7`)
+
+Le tableau livrable → garde (question de Fabien : « tous les tests nécessaires ajoutés ? ») a
+trouvé TROIS livrables sans garde, tous du genre qui ne se voit pas à l'exécution : le floutage
+qui transmet `interpolate`/`max_gap`/`max_extrapolation` de la card à `by_frame` (un réglage
+perdu ne fait que flouter moins), la note « segmentation demandée mais ratée » (card #1026), la
+synchro des deux vidéos de Comparer (V8, fausses vidéos). Gardées et prouvées par mutation ;
+83 tests OK. **Seul reste sans garde, déclaré** : la position des badges du curseur Comparer
+(CSS, vue au navigateur le 05/10).
