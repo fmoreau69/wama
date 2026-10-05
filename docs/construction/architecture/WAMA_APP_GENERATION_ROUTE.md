@@ -3808,7 +3808,7 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >     ne floutent plus rien.
 >   - **Le floutage se joue SANS MODÈLE** depuis le document : `blur_utils.blur_detections`
 >     (contour, sinon rectangle) et `detections.render_media` (image par image, audio recollé).
->     L'interpolation des trous d'une piste se fait À LA LECTURE (`by_frame`) : la couper ou la
+>     L'interpolation des trous d'un objet se fait À LA LECTURE (`by_frame`) : la couper ou la
 >     régler ne redétecte pas. Réglages surveillés : détection = fichier, mode, classes, prompt,
 >     modèle, précision, segmentation, seuil ; floutage = intensité, bords, agrandissement,
 >     flou progressif, interpolation. Les réglages d'AFFICHAGE (`show_*`) ne périment rien :
@@ -3830,9 +3830,45 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >     interpolation coupée → floutage seul. SAM3 (« face ») : un contour, flou au contour (vu à
 >     l'écran). Navigateur (serveur de dev jetable WSL) : bande « Détection → Floutage →
 >     Sortie », bouton de bascule, vue par défaut = floutage, choix tenu, 0 erreur JS.
->   - ⏳ Restes : une face « Détection » APRÈS le traitement (aujourd'hui l'aperçu ne la montre
->     que pendant) ; l'ETA de la card lit la clé de la détection, le floutage apprend la sienne
->     (`anonymizer:blur:…`) — même limite que l'avatarizer : la vue n'additionne pas deux clés.
+>   - ~~⏳ Restes : une face « Détection » APRÈS le traitement~~ — ✅ **livrée le 2026-10-05**
+>     (ci-dessous) ; l'ETA par process est soldée par l'entrée « ETA par process » plus haut.
+>   - ✅ **Retours de Fabien sur la card #1026 (2026-10-05)** — trois défauts vus à l'usage :
+>     - **L'interpolation laissait les trous** : `by_frame` ne reliait que deux détections de la
+>       MÊME piste, et `max_gap_for` plafonnait le réglage à 0,5 s de vidéo SANS LE DIRE (50
+>       valait 7 à 15 images). Les détections sans piste (SAM3, ou YOLO qui réattribue un id
+>       après une perte) restaient isolées : **18 trous sur 19** subsistaient sur #1026.
+>       Désormais deux détections sont le même objet par la piste, OU par la place (IoU
+>       `detections.iou`, ou déplacement du centre borné par l'écart — un petit objet rapide est
+>       suivi, un saut lointain non) ; le plus proche est le successeur ; **le réglage est la
+>       seule limite** (libellé et aide le disent). Mesuré sur #1026 : **1 trou sur 19** (67
+>       images, au-delà du réglage de 50).
+>     - **Curseur à 50 et rectangles** : la segmentation de visage du catalogue
+>       (`face_yolov8m-seg_60.pt`) n'est pas installée, la détection s'est faite en boîtes. Rien
+>       ne le disait ; la console le dit après la détection (`_segmentation_note`) et nomme le
+>       modèle manquant. Aucune installation faite (décision de Fabien).
+>     - **Face « Détection » après le traitement, et Comparer « comme les autres apps »** :
+>       brique commune, pas un mécanisme d'app — `PreviewRegistry.register(faces=)` déclare des
+>       faces d'aperçu entre Entrée et Sortie (adaptateur, icône, `compare_base`) ;
+>       l'anonymizer y déclare « Détection » = l'ENTRÉE + le document `detections` dessiné
+>       par-dessus dans le navigateur (`overlay`, réglages d'affichage `show_*` de la card),
+>       sans réencodage. Une face `compare_base` est le côté de référence de Comparer, qui
+>       s'ouvre aux **VIDÉOS** (deux vidéos synchronisées : lecture, pause, position), au volet
+>       comme au plein écran. JS commun `WamaPreviewOverlay` (`attach`, `syncVideos`, `frameAt`,
+>       `contentRect`). Les deux surfaces posent `data-wama-multiplay`, l'échappatoire DÉJÀ
+>       prévue de la lecture exclusive commune (`wama-app-base.js`) — sans elle la vidéo
+>       comparée mettait la référence en pause. Badges du curseur Comparer inversés depuis
+>       l'origine (le calque Sortie est rogné depuis la gauche), corrigés pour toutes les apps.
+>     - **Vérifié** : navigateur sur serveur de dev jetable (vidéo témoin H.264 traitée en réel,
+>       retirée) — Entrée | Détection | Comparer | Sortie, surcouche à la taille de la vidéo,
+>       positions [2, 2], lecture [3,22, 3,22], 0 erreur JS. Gardes : `tests_detections`
+>       (liaison par la place, petit objet rapide, plus proche candidat, aucun plafond caché),
+>       `tests_preview_faces` (face après détection, repli sur l'entrée, réglages d'affichage,
+>       `data-wama-multiplay` — prouvée par mutation), `tests_cap_from_js.PreviewOverlayTest`
+>       (V8). `545129c3`.
+>     - ⏳ **Ouvert — question de Fabien** : réutiliser la cinématique du cam_analyzer (Kalman
+>       + RTS, comblement d'Hermite, extrapolation aux bouts) pour l'interpolation des
+>       détections ; cela demande de la loger dans `common/` (le substrat n'importe pas les
+>       mondes), monde Data et Lab y déléguant. Proposé, non décidé.
 > - ✅ **Joué par la chaîne EN SERVICE après relance (03/10 soir, compte de test)** : anonymizer
 >   (3,1 s, modèle tiré nommé), transcriber `import` + résumé (18,2 s, aucun moteur ASR), image
 >   en « auto » (98,7 s), **vidéo en « auto »** (LTX fp8, 273 s — jamais jouée avant par le
