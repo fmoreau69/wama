@@ -22394,3 +22394,20 @@ synchro des deux vidéos de Comparer (V8, fausses vidéos). Gardées et prouvée
   (`mecanismes.py` a bougé) ; échecs connus hors de ce chantier : `ItemEditRouteAliasTest`
   (imager), budgets de langue (autres sessions), `tests_picker_list:86` (MIME `audio/x-wav` de
   WSL).
+
+## §PALIER — 2026-10-05 (soir), « ANONYMIZER : RETOURS SAM3 (card #1034) » — livré (`5c105309`, `ca4a86a3`, non poussés) — 🔴 relancer workers + gunicorn, puis rejouer une vidéo SAM3
+
+Quatre retours de Fabien, tous mesurés et vrais (détail : `ROUTE §10.6`, bloc anonymizer ;
+retraits R103) : finitions ignorées au contour et fondu vers l'intérieur (plaques LISIBLES,
+0,2 % des pixels des formes entièrement floutés) ; floutage plus long que la détection (image
+entière floutée par détection, 656 ms/image) ; liaison sans borne (394 trous entre objets
+différents) ; détections déduites rectangulaires. Corrigé par `blur_shapes` (un flou, finitions
+communes, fondu extérieur), `_link_cost` (prédiction, tolérance bornée), `_moved_polygons`.
+Mesuré sur #1034 : 100 % des formes floutées, 47 ms/image, aucune déduite rectangulaire ; #1026
+inchangée. `paint_media` → `rewrite_media` (« paint » = génération par IA dans WAMA).
+- 🔴 Relancer, puis rejouer le FLOUTAGE seul de #1034 (▶ « Floutage » : la détection ne se
+  refait pas) — attendu : environ une minute au lieu de 458 s, plaques floutées.
+- ⏳ 54 trous relient encore des objets à 2-2,9 tailles (tolérance bornée) : à regarder si un
+  mélange se voit encore sur des plaques garées serrées.
+- ⚠ Bascule `feature_flags` du protocole du 19/08 non posée (`Media` sans champ de
+  configuration) : retour arrière par revert ; comparaison chiffrée faite.
