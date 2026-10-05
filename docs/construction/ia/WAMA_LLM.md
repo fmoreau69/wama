@@ -587,6 +587,29 @@ la surface reçoit un événement `eta` que le chat décompte à la place du mot
   pour une progression en pourcentage, et chargé sur les seules pages d'app).
 Gardes : `tests_assistant_stream.TurnWaitTest`, `tests_assistant_voice_js.ChatScriptParsesTest`.
 
+**Mesuré EN SERVICE le 2026-10-05, sur trois tours RÉELS de Fabien par Albert** (durées lues
+sur les tours) : premier texte à 5,97 s, 3,41 s et 1,69 s ; fin à 6,07 s, 4,46 s et 11,63 s.
+Découpe d'un tour (processus préchauffé, même prompt) : **notre préparation 0,6 à 0,7 s, FIXE** ;
+l'attente du premier texte chez le fournisseur 0,5 à 2,9 s, **variable d'un appel à l'autre** ;
+le reste est la génération, que le flux rend utile. Les quatre workers ont journalisé leur
+préchauffage à la relance du 05/10 (le doute du 04/10 sur le quatrième est levé).
+
+✅ **La liste d'outils se construit UNE fois par processus (2026-10-05).** Question de Fabien :
+*« pour les prompts d'outils, est-ce suffisant de lui donner une fois au démarrage ? »* Deux
+choses distinctes portaient ce nom :
+- **la CONSTRUIRE** — oui, une fois suffit, et c'était le gros de notre préparation : 0,51 s par
+  tour (les descriptions d'arguments interrogent l'inventaire des backends) pour un texte qui ne
+  dépend que du registre. `tool_api.build_tools_list` la garde en mémoire, clé = le registre
+  (noms et fonctions). Préparation d'un tour : **0,74 s → 0,07 s**.
+- **la DONNER au modèle** — non : un modèle n'a aucune mémoire d'un appel à l'autre, chaque appel
+  doit porter ce qu'il doit savoir. Ce qui s'en approche est le cache de préfixe du fournisseur,
+  déjà servi par le levier 2 du 22/09 (partie fixe d'abord). Coût MESURÉ de la liste côté Albert
+  (10 990 caractères sur 19 511, 73 outils), six appels alternés : premier texte à 1,66 s de
+  médiane avec, 1,14 s sans — environ 0,5 s, noyé dans une dispersion de 0,35 à 2,77 s.
+⏳ Son idée de fond — n'annoncer qu'un index et charger les outils d'une app à la demande, comme
+les skills — reste le levier ③ du 22/09 : gain ≈ 0,5 s par tour chez Albert, au prix d'un tour de
+plus chaque fois que l'assistant doit d'abord charger. À décider sur l'usage, pas sur la latence.
+
 ✅ **Les cinq leviers du 2026-10-04 sont câblés.** Levier ANTÉRIEUR toujours ouvert : le ③
 du 22/09 (réduire le prompt d'outils — 19 534 caractères de prompt par tour, mesuré ce jour).
 
