@@ -1464,7 +1464,7 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
 
 ### Document de détections (type `detections` sur disque)
 
-Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) — le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de Fabien : détection et floutage séparés dans l'anonymizer). Écrit par un process « Détection », relu par le floutage (`blur_utils.blur_detections`, rendu image par image `render_media`) et par l'aperçu (`draw`) ; interpolation des trous d'un objet à la lecture (`by_frame`) — même objet par la piste OU par la place, le réglage seul pour limite, le centre comblé en COURBE (2026-10-05, card #1026) ; recouvrement et courbe sont les primitives communes de `wama_data/functions` (`box_iou`, `hermite_gap`), celles des fantômes du cam_analyzer. Sans Django ni app : la Data et le Lab peuvent le lire
+Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) — le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de Fabien : détection et floutage séparés dans l'anonymizer). Écrit par un process « Détection », relu par le floutage (`blur_utils.blur_detections`, rendu image par image `render_media`) et par l'aperçu (`draw`) ; interpolation des trous d'un objet à la lecture (`by_frame`) — même objet par la piste OU par la place, le réglage seul pour limite, le centre comblé en COURBE (2026-10-05, card #1026) ; et PROLONGÉ de quelques images avant sa première détection et après sa dernière (`max_extrapolation`, réglage séparé). Recouvrement, courbe et extrapolation sont les primitives communes de `wama_data/functions` (`box_iou`, `hermite_gap`, `extrapolate_speed_accel`), celles du cam_analyzer. Sans Django ni app : la Data et le Lab peuvent le lire
 
 - **Domicile** : `wama/common/utils/detections.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Les DÉTECTIONS d'un média, sur disque — le type de donnée commun `detections` (`common/catalog/data_types.DataType.DETECTIONS` : objets détectés par frame — frame, bbox, classe, piste).
@@ -1480,7 +1480,7 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
   - `polygons_to_mask(polygons, shape) -> 'object'` — Le masque (uint8, 0/255) que dessinent des polygones sur une image de forme `shape`.
   - `box_of_polygons(polygons) -> list` — Le rectangle englobant de polygones (x1, y1, x2, y2).
   - `valid_box(box, shape, min_size: int=5)` — Le rectangle ramené dans l'image ; None s'il est vide ou plus petit que `min_size`.
-  - `by_frame(doc: dict, *, interpolate: bool=False, max_gap: int=0, min_iou: float=0.2) -> dict` — {indice de frame: [détections]} — détections RELEVÉES, plus, si `interpolate`, celles que
+  - `by_frame(doc: dict, *, interpolate: bool=False, max_gap: int=0, max_extrapolation: int=0, min_iou: float=0.2) -> dict` — {indice de frame: [détections]} — détections RELEVÉES, plus, si `interpolate`, celles que
   - `max_gap_for(fps: float, wanted: int) -> int` — Le trou le plus long que l'on comble : le RÉGLAGE, tel quel.
   - `render_media(source: str, frames: dict, paint, output_path: str, *, on_frame=None, progress=None) -> str` — Réécrit le média `source` en peignant chaque frame avec SES détections :
   - `draw(image, detections, *, boxes: bool=True, labels: bool=True, confidence: bool=True)` — Une COPIE de l'image avec les détections dessinées : contour plein translucide quand la
