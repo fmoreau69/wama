@@ -287,6 +287,10 @@ def reference_or_copy(source_path, app_name: str, user_id, subfolder: str = 'inp
     (`preview_utils`, via `field.url`). Rien dans la chaîne ne suppose que le fichier vive dans le
     dossier de l'app : la route « importer un fichier déjà sur le serveur » du synthesizer le fait
     depuis des mois.
+    ⚠ **Faux pour la tâche de l'anonymizer jusqu'au 2026-10-05** : elle RECONSTRUISAIT l'entrée en
+    `anonymizer/input/<nom>` (`get_input_media_path`, REMOVAL_LEDGER R104) — toute card pointée
+    échouait, « Input file not found ». Une tâche lit le champ fichier de sa card, jamais un
+    dossier ; garde `anonymizer.tests_task…test_a_pointed_card_is_read_where_its_file_is`.
 
     Ce qui se copie encore, et pourquoi :
       * un dépôt depuis le poste (il n'a pas de source dans WAMA) ;

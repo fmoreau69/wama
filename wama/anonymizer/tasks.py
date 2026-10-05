@@ -6,7 +6,6 @@ from django.core.cache import cache
 from django.contrib.auth import get_user_model
 from .models import Media
 from wama.common.backends import anonymize
-from .utils.media_utils import get_input_media_path
 from .utils.yolo_utils import get_model_path
 from wama.common.app_registry import normalize_types
 from wama.common.utils.media_paths import get_app_media_path
@@ -230,7 +229,11 @@ def _detection_kwargs(media, user):
     _console(user.id, f"[DEBUG] SAM3 settings: use_sam3={use_sam3}, prompt='{sam3_prompt[:30] if sam3_prompt else ''}'")
 
     kwargs = {
-        'media_path': get_input_media_path(media.file.name, user.id),
+        # Le fichier de la card, là où il EST : un `FileField` est un pointeur (`media_paths.
+        # reference_or_copy`) — une entrée désignée vit dans `temp/` ou la médiathèque, pas dans
+        # `anonymizer/input/`. Jusqu'au 2026-10-05 le chemin était RECONSTRUIT dans ce dossier
+        # (`get_input_media_path`, R104) : toute card pointée échouait (« Input file not found »).
+        'media_path': media.file.path,
         'file_ext': media.file_ext,
         # Assaini : un vieux chemin de sauvegarde a injecté le BOOLÉEN sérialisé 'false'
         # dans des listes de classes (médias 220/221/225 constatés le 2026-08-17) — une
@@ -514,7 +517,7 @@ def _blur(media, ctx):
         raise RuntimeError(f"Floutage : détections illisibles ({exc}) — relancer la "
                            "détection.") from exc
     user = media.user
-    source = get_input_media_path(media.file.name, user.id)
+    source = media.file.path   # le fichier de la card, pointé ou non (cf. `_detect`, R104)
     video = doc.get('media') == 'video'
     frames_map = detections.by_frame(
         doc, interpolate=video and media.interpolate_detections,
