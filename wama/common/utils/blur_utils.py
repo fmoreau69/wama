@@ -12,148 +12,86 @@ Elles vivaient dans `wama/anonymizer/core/`, ce qui attachait deux backends à l
 bloquait leur passage au substrat transversal. Aucune dépendance Django, aucune dépendance
 d'app : `cv2`, `numpy`, et la géométrie de `bounds`.
 """
+from math import sqrt
+
 import cv2
 import numpy as np
 from .bounds import Bounds
 
 
-def apply_mask_blur(im0, mask, blur_ratio, progressive_blur=0):
-    """
-    Apply blur using a segmentation mask.
+def _shape_alpha(polygons, shape, *, scale, grow, feather, margin):
+    """(x0, y0, alpha) d'UNE forme : sa couverture (0 → 1) dans sa boîte élargie de `margin`,
+    agrandissement, élargissement et fondu extérieur compris ; None si elle est vide."""
+    parts = [np.asarray(p, dtype=np.float32).reshape(-1, 2) for p in polygons or [] if len(p) >= 3]
+    if not parts:
+        return None
+    height, width = shape[:2]
+    points = np.concatenate(parts)
+    centre = (points.min(axis=0) + points.max(axis=0)) / 2
+    parts = [(s - centre) * scale + centre for s in parts]
+    points = np.concatenate(parts)
+    x0 = max(0, int(np.floor(points[:, 0].min())) - margin)
+    y0 = max(0, int(np.floor(points[:, 1].min())) - margin)
+    x1 = min(width, int(np.ceil(points[:, 0].max())) + margin + 1)
+    y1 = min(height, int(np.ceil(points[:, 1].max())) + margin + 1)
+    if x1 <= x0 or y1 <= y0:
+        return None
+    mask = np.zeros((y1 - y0, x1 - x0), dtype=np.uint8)
+    cv2.fillPoly(mask, [np.round(s - (x0, y0)).astype(np.int32).reshape(-1, 1, 2) for s in parts],
+                 255)
+    if not mask.any():
+        return None
+    if grow:
+        mask = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE,
+                                                          (2 * grow + 1, 2 * grow + 1)))
+    alpha = mask.astype(np.float32) / 255.0
+    if feather:
+        alpha = np.maximum(alpha, cv2.GaussianBlur(alpha, (feather, feather), 0))
+    return x0, y0, alpha
 
-    Args:
-        im0: Input image (numpy array BGR)
-        mask: Binary segmentation mask (numpy array, same size as im0, values 0-255)
-        blur_ratio: Blur kernel size (must be odd)
-        progressive_blur: Progressive blur strength for smooth edges (0 to disable)
 
-    Returns:
-        Modified image with mask-based blur applied
-    """
-    # Ensure mask is uint8
-    if mask.dtype != np.uint8:
-        mask = mask.astype(np.uint8)
+def blur_shapes(im0, shapes, *, blur_ratio, rounded_edges=0, progressive_blur=0,
+                roi_enlargement=1.0):
+    """Floute les FORMES des détections segmentées d'une image (`shapes` : une liste de
+    polygones par détection) — avec les MÊMES finitions qu'un rectangle : l'agrandissement
+    multiplie l'aire (`Bounds.scale`), les bords élargissent de `rounded_edges` pixels (en
+    arrondi), le flou progressif fond le bord VERS L'EXTÉRIEUR — la forme elle-même reste
+    entièrement floutée, quel que soit le réglage. Les couvertures se réunissent (maximum) et la
+    zone qui les contient est floutée UNE fois : deux formes voisines ne se floutent pas l'une
+    l'autre en cascade.
 
-    # Ensure mask is 2D
-    if len(mask.shape) > 2:
-        mask = mask[:, :, 0]
-
-    # Normalize blur ratio
+    ⚠ Remplace le 2026-10-05 `blur_segmentation` → `apply_mask_blur` (card #1034, SAM3) : ce
+    chemin ignorait l'agrandissement et les bords, fondait le bord VERS L'INTÉRIEUR — mesuré sur
+    100 images de #1034 au flou progressif 100 : 0,2 % des pixels des formes entièrement
+    floutés, les plaques restaient LISIBLES —, et flouait l'IMAGE ENTIÈRE pour chaque détection,
+    plus des diagnostics plein cadre imprimés à chaque fois (656 ms par image, plus long que la
+    détection). Le flou porte sur la zone des formes élargie de la demi-taille du noyau :
+    identique au pixel près dans les formes (le noyau n'y voit rien au-delà), au coût du
+    recadrage (proposé dès le 2026-08-19, PROJECT_STATUS « FLOUTAGE ANONYMIZER »)."""
     blur_ratio = normalize_blur_ratio(blur_ratio)
-
-    # Create blurred version of the entire image
-    blurred = cv2.GaussianBlur(im0, (blur_ratio, blur_ratio), 0)
-
-    # Apply progressive blur to mask edges if requested
-    if progressive_blur > 0:
-        blur_strength = max(3, int(progressive_blur))
-        if blur_strength % 2 == 0:
-            blur_strength += 1
-        # Smooth the mask edges for gradual transition
-        smooth_mask = cv2.GaussianBlur(mask, (blur_strength, blur_strength), 0)
-    else:
-        smooth_mask = mask
-
-    # Normalize mask to float [0, 1]
-    alpha = smooth_mask.astype(np.float32) / 255.0
-
-    # Debug: Check alpha values
-    alpha_max = alpha.max()
-    alpha_mean = alpha[alpha > 0].mean() if np.any(alpha > 0) else 0
-    if alpha_max < 0.5:
-        print(f"[apply_mask_blur] Warning: alpha values are low - max={alpha_max:.3f}, mean={alpha_mean:.3f}")
-
-    # Expand alpha to 3 channels for proper blending
-    alpha_3ch = np.dstack([alpha, alpha, alpha])
-
-    # Convert images to float for proper blending
-    im0_float = im0.astype(np.float32)
-    blurred_float = blurred.astype(np.float32)
-
-    # Blend: where mask is 1 (white) use blurred, where 0 (black) use original
-    result = (blurred_float * alpha_3ch + im0_float * (1.0 - alpha_3ch))
-
-    # Clip values to valid range and convert back to uint8
-    result = np.clip(result, 0, 255).astype(np.uint8)
-
-    # Debug: Verify blur was actually applied by comparing pixel differences in masked area
-    mask_binary = mask > 127
-    if np.any(mask_binary):
-        diff = np.abs(result.astype(np.float32) - im0.astype(np.float32))
-        masked_diff = diff[mask_binary]
-        avg_diff = masked_diff.mean() if masked_diff.size > 0 else 0
-        if avg_diff < 1.0:
-            print(f"[apply_mask_blur] Warning: blur effect is minimal - avg pixel change={avg_diff:.2f}")
-
-    return result
-
-
-def blur_segmentation(im0, segmentation_mask, blur_ratio, progressive_blur=0):
-    """
-    Apply blur to a segmented region.
-
-    Args:
-        im0: Input image (numpy array BGR)
-        segmentation_mask: Segmentation mask from YOLO (H x W, values 0-255 or 0-1)
-        blur_ratio: Blur kernel size
-        progressive_blur: Progressive blur strength for smooth edges
-
-    Returns:
-        Modified image with segmentation-based blur applied
-    """
-    if segmentation_mask is None or segmentation_mask.size == 0:
-        print(f"[blur_segmentation] Skipping: mask is None or empty")
+    grow = max(0, int(rounded_edges or 0))
+    feather = max(0, int(progressive_blur or 0))
+    if feather and feather % 2 == 0:
+        feather += 1
+    options = dict(scale=sqrt(max(float(roi_enlargement or 1.0), 1e-6)), grow=grow,
+                   feather=feather, margin=blur_ratio // 2 + grow + feather + 2)
+    pieces = [piece for piece in (_shape_alpha(polygons, im0.shape, **options)
+                                  for polygons in shapes or []) if piece]
+    if not pieces:
         return im0
-
-    # Handle multi-dimensional masks (take first channel if needed)
-    if len(segmentation_mask.shape) > 2:
-        segmentation_mask = segmentation_mask[:, :, 0]
-
-    # Normalize mask to 0-255 range
-    if segmentation_mask.max() <= 1.0:
-        segmentation_mask = (segmentation_mask * 255).astype(np.uint8)
-    else:
-        segmentation_mask = segmentation_mask.astype(np.uint8)
-
-    # Check if mask has any non-zero values
-    mask_sum = segmentation_mask.sum()
-    if mask_sum == 0:
-        print(f"[blur_segmentation] Warning: mask is all zeros, skipping")
-        return im0
-
-    # Ensure mask is the same size as the image
-    # Use INTER_NEAREST to preserve binary mask edges (no interpolation artifacts)
-    original_shape = segmentation_mask.shape
-    if segmentation_mask.shape[:2] != im0.shape[:2]:
-        print(f"[blur_segmentation] Resizing mask from {original_shape} to {im0.shape[:2]}")
-        segmentation_mask = cv2.resize(
-            segmentation_mask,
-            (im0.shape[1], im0.shape[0]),
-            interpolation=cv2.INTER_NEAREST
-        )
-        # Check mask again after resize
-        if segmentation_mask.sum() == 0:
-            print(f"[blur_segmentation] Warning: mask became all zeros after resize "
-                  f"from {original_shape} to {segmentation_mask.shape}")
-            return im0
-
-    # Calculate mask coverage
-    total_pixels = segmentation_mask.shape[0] * segmentation_mask.shape[1]
-    nonzero_pixels = np.count_nonzero(segmentation_mask)
-    high_value_pixels = np.count_nonzero(segmentation_mask > 127)  # Pixels with significant blur
-    coverage_pct = (nonzero_pixels / total_pixels) * 100
-    active_pct = (high_value_pixels / total_pixels) * 100
-
-    # Find bounding box of the mask for debugging
-    nonzero_coords = np.argwhere(segmentation_mask > 0)
-    if len(nonzero_coords) > 0:
-        y_min, x_min = nonzero_coords.min(axis=0)
-        y_max, x_max = nonzero_coords.max(axis=0)
-        print(f"[blur_segmentation] Mask coverage: {coverage_pct:.2f}% ({nonzero_pixels} px), "
-              f"active (>127): {active_pct:.2f}% ({high_value_pixels} px), "
-              f"bbox: x={x_min}-{x_max}, y={y_min}-{y_max}")
-
-    return apply_mask_blur(im0, segmentation_mask, blur_ratio, progressive_blur)
+    x0 = min(x for x, _y, _a in pieces)
+    y0 = min(y for _x, y, _a in pieces)
+    x1 = max(x + a.shape[1] for x, _y, a in pieces)
+    y1 = max(y + a.shape[0] for _x, y, a in pieces)
+    alpha = np.zeros((y1 - y0, x1 - x0), dtype=np.float32)
+    for x, y, piece in pieces:
+        window = alpha[y - y0:y - y0 + piece.shape[0], x - x0:x - x0 + piece.shape[1]]
+        np.maximum(window, piece, out=window)
+    region = im0[y0:y1, x0:x1]
+    blurred = cv2.GaussianBlur(region, (blur_ratio, blur_ratio), 0)
+    alpha = alpha[:, :, None]
+    im0[y0:y1, x0:x1] = (blurred * alpha + region * (1.0 - alpha)).astype(np.uint8)
+    return im0
 
 
 def apply_progressive_blur(im0, bounds, blur_ratio, progressive_blur):
@@ -331,17 +269,22 @@ def blur_detection(im0, detection_box, label, blur_ratio, rounded_edges, progres
 def blur_detections(im0, detections, *, blur_ratio, rounded_edges=5, progressive_blur=0,
                     roi_enlargement=1.0):
     """Floute, sur UNE image, les détections d'un document `detections` (`common/utils/
-    detections.py`) : au CONTOUR quand la détection en porte un (segmentation), au rectangle
-    sinon. Une détection DÉDUITE (interpolée) a son rectangle ramené dans l'image d'abord.
+    detections.py`) : à la FORME quand la détection en porte une (segmentation, `blur_shapes`),
+    au rectangle sinon — les mêmes finitions dans les deux cas. Une détection DÉDUITE
+    (interpolée, prolongée) a son rectangle ramené dans l'image d'abord.
 
     C'est le second temps de l'anonymisation depuis le 2026-10-04 : la détection est un process
     à part, ce floutage repart de ce qu'elle a écrit."""
-    from .detections import polygons_to_mask, valid_box
+    from .detections import valid_box
     blur_ratio = normalize_blur_ratio(blur_ratio)
+    # Les FORMES d'abord, toutes ensemble et toutes classes (le fondu va vers l'extérieur, il ne
+    # découvre jamais l'objet — contrairement à l'ellipse d'un rectangle, d'où la règle « visage,
+    # personne » qui reste celle des rectangles).
+    im0 = blur_shapes(im0, [det['polygons'] for det in detections or [] if det.get('polygons')],
+                      blur_ratio=blur_ratio, rounded_edges=rounded_edges,
+                      progressive_blur=progressive_blur, roi_enlargement=roi_enlargement)
     for det in detections or []:
         if det.get('polygons'):
-            im0 = blur_segmentation(im0, polygons_to_mask(det['polygons'], im0.shape),
-                                    blur_ratio, progressive_blur)
             continue
         box = valid_box(det.get('box'), im0.shape) if det.get('interpolated') else det.get('box')
         if box is None:

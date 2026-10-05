@@ -172,28 +172,70 @@ def _center(box):
     return ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
 
 
-def _shift(a, b) -> float:
-    """Distance entre les centres de deux rectangles, en TAILLES de `a` (sa plus grande dimension)."""
-    ax, ay = (a['box'][0] + a['box'][2]) / 2, (a['box'][1] + a['box'][3]) / 2
-    bx, by = (b['box'][0] + b['box'][2]) / 2, (b['box'][1] + b['box'][3]) / 2
-    size = max(a['box'][2] - a['box'][0], a['box'][3] - a['box'][1], 1)
-    return ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5 / size
+#: Déplacement toléré SANS vitesse connue : une demi-taille, plus 0,8 taille par image écoulée,
+#: au plus sur `STILL_FRAMES` images. Mesuré sur la card #1026 : des visages de 8 px qui avancent
+#: de 6 px par image (2,4 tailles en trois images, aucun recouvrement).
+STILL_FRAMES = 3
 
 
-def _same_object(a, b, min_iou: float, elapsed: int = 1) -> bool:
-    """Deux détections, à `elapsed` frames d'écart, sont-elles le même objet ? La PISTE le dit
-    quand les deux en ont une ; sinon la position — même classe, et recouvrement, ou un
-    déplacement d'au plus une demi-taille plus une taille par frame écoulée (mesuré sur la card
-    #1026 : des visages de 8 px qui avancent de 6 px par image ne se recouvrent plus du tout
-    après trois images)."""
+def _link_cost(a, b, min_iou: float, elapsed: int = 1, velocity=None):
+    """Deux détections, à `elapsed` images d'écart, sont-elles le même objet ? None si non ;
+    sinon leur écart en tailles de `a`, pour choisir le plus proche. La PISTE le dit quand les
+    deux en ont une ; sinon même classe, tailles comparables (au plus du simple au double), et
+    une position PLAUSIBLE : près de celle que PRÉDIT la vitesse de `a` (1 taille + 0,1 par
+    image), ou près de sa dernière position (voir `STILL_FRAMES`), ou recouvrement.
+
+    ⚠ Corrigé le 2026-10-05 (card #1034, SAM3 : aucune piste, des plaques qui « clignotent ») :
+    la tolérance grandissait d'une taille par image manquante SANS BORNE — 394 trous reliaient
+    deux objets différents, jusqu'à 26 tailles d'écart, et l'interpolation les mélangeait."""
     if a.get('label') != b.get('label'):
-        return False
+        return None
     if a.get('track') is not None and b.get('track') is not None and a['track'] == b['track']:
-        return True
-    from wama_data.functions.geometry.shapes import box_iou
-    if box_iou(a['box'], b['box']) >= min_iou:
-        return True
-    return _shift(a, b) <= 0.5 + max(1, elapsed)
+        return 0.0
+    size_a = max(a['box'][2] - a['box'][0], a['box'][3] - a['box'][1], 1)
+    size_b = max(b['box'][2] - b['box'][0], b['box'][3] - b['box'][1], 1)
+    if max(size_a, size_b) > 2 * min(size_a, size_b):
+        return None
+    (ax, ay), (bx, by) = _center(a['box']), _center(b['box'])
+    still = ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5 / size_a
+    costs = []
+    if still <= 0.5 + 0.8 * min(elapsed, STILL_FRAMES):
+        costs.append(still)
+    if velocity is not None:
+        px, py = ax + velocity[0] * elapsed, ay + velocity[1] * elapsed
+        predicted = ((px - bx) ** 2 + (py - by) ** 2) ** 0.5 / size_a
+        if predicted <= 1.0 + 0.1 * elapsed:
+            costs.append(predicted)
+    if not costs:
+        from wama_data.functions.geometry.shapes import box_iou
+        if box_iou(a['box'], b['box']) >= min_iou:
+            costs.append(still)
+    return min(costs) if costs else None
+
+
+def _moved_polygons(source, box):
+    """Les contours de `source` portés sur le rectangle `box` (déplacés, mis à l'échelle) — une
+    détection DÉDUITE garde la forme segmentée de la plus proche détection relevée, au lieu de
+    devenir un rectangle (card #1034 : 10 916 détections déduites, toutes rectangulaires)."""
+    polygons = source.get('polygons')
+    if not polygons:
+        return None
+    sx0, sy0, sx1, sy1 = source['box'][:4]
+    kx = (box[2] - box[0]) / max(sx1 - sx0, 1)
+    ky = (box[3] - box[1]) / max(sy1 - sy0, 1)
+    return [[[int(round(box[0] + (x - sx0) * kx)), int(round(box[1] + (y - sy0) * ky))]
+             for x, y in polygon] for polygon in polygons]
+
+
+def _deduced(det, box, source=None, **flags):
+    """Une détection DÉDUITE (interpolée ou prolongée) : le rectangle, et la forme de `source`."""
+    box = [int(round(v)) for v in box]
+    found = {'track': det.get('track'), 'label': det.get('label', ''),
+             'conf': det.get('conf', 1.0), 'box': box, 'interpolated': True, **flags}
+    polygons = _moved_polygons(source or det, box)
+    if polygons:
+        found['polygons'] = polygons
+    return found
 
 
 #: Maillons sur lesquels se mesure la vitesse d'un bord de trou : une différence sur UN maillon
@@ -224,9 +266,9 @@ def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
              max_extrapolation: int = 0, min_iou: float = 0.2) -> dict:
     """{indice de frame: [détections]} — détections RELEVÉES, plus, si `interpolate`, celles que
     l'on déduit dans les TROUS d'un objet : entre une détection et la suivante du MÊME objet
-    (`_same_object` : même piste, ou à défaut même place), au plus `max_gap` frames manquantes.
-    Une détection déduite porte `interpolated: True` et son rectangle seul : un contour ne
-    s'interpole pas.
+    (`_link_cost` : même piste, ou à défaut une position plausible), au plus `max_gap` frames
+    manquantes. Une détection déduite porte `interpolated: True`, et la FORME de la détection
+    relevée la plus proche (`_moved_polygons`) quand celle-ci est segmentée.
 
     `max_extrapolation` (2026-10-05, décision de Fabien) : un objet est aussi PROLONGÉ de ce
     nombre d'images avant sa première détection et après sa dernière — là où il entre dans le
@@ -262,16 +304,21 @@ def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
     for index in seen:
         for det in frames[index]:
             successor = None
+            # La vitesse d'ARRIVÉE (maillons déjà posés) : elle prédit où chercher la suite.
+            velocity = _edge_velocity(det, index, before, incoming=True)
             for later in seen[position[index] + 1:]:
                 if later - index - 1 > window:
                     break
                 # Dans la PREMIÈRE frame qui porte le même objet, le candidat le plus PROCHE.
-                matches = [(_shift(det, other), rank, other)
-                           for rank, other in enumerate(frames[later])
-                           if (later, rank) not in claimed
-                           and _same_object(det, other, min_iou, later - index)]
+                matches = []
+                for rank, other in enumerate(frames[later]):
+                    if (later, rank) in claimed:
+                        continue
+                    cost = _link_cost(det, other, min_iou, later - index, velocity)
+                    if cost is not None:
+                        matches.append((cost, rank, other))
                 if matches:
-                    _distance, rank, other = min(matches, key=lambda m: m[0])
+                    _cost, rank, other = min(matches, key=lambda m: m[0])
                     successor = (later, rank, other)
                     break
             if successor is None:
@@ -304,10 +351,9 @@ def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
             x, y = hermite_gap(c0, v0, c1, v1, span, ratio, min_bulge=size / 2,
                                overshoot_margin=size, min_speed_share=0.5)
             box = [x - width / 2, y - height / 2, x + width / 2, y + height / 2]
-            deduced.setdefault(gap_index, []).append({
-                'track': det.get('track'), 'label': det.get('label', ''),
-                'conf': det.get('conf', 1.0), 'box': [int(round(v)) for v in box],
-                'interpolated': True})
+            # La forme : celle de la détection relevée la plus PROCHE dans le temps.
+            deduced.setdefault(gap_index, []).append(
+                _deduced(det, box, source=det if ratio <= 0.5 else other))
     if max_extrapolation > 0:
         # Longueur INCONNUE (OpenCV rend 0 pour certains flux) : pas de borne — une image
         # prolongée au-delà de la fin n'est jamais lue par le rendu.
@@ -342,11 +388,9 @@ def _prolong(det, index, velocity, direction, count, last, deduced):
         frame = index + direction * step
         if frame < 0 or (last is not None and frame > last):
             break
-        deduced.setdefault(frame, []).append({
-            'track': det.get('track'), 'label': det.get('label', ''),
-            'conf': det.get('conf', 1.0), 'interpolated': True, 'extrapolated': True,
-            'box': [int(round(v)) for v in (x - width / 2, y - height / 2,
-                                            x + width / 2, y + height / 2)]})
+        deduced.setdefault(frame, []).append(_deduced(
+            det, (x - width / 2, y - height / 2, x + width / 2, y + height / 2),
+            extrapolated=True))
 
 
 def max_gap_for(fps: float, wanted: int) -> int:
@@ -355,16 +399,16 @@ def max_gap_for(fps: float, wanted: int) -> int:
     ⚠ Jusqu'au 2026-10-05 il était plafonné en silence à 0,5 s de vidéo : un réglage de 50
     images valait 7 à 15 i/s (card #1026) — le réglage mentait. Le plafond protégeait d'un
     flou qui suivrait un autre objet ; c'est désormais le rattachement par piste OU par
-    position (`_same_object`) qui l'évite, et le réglage dit ce qu'il fait. `fps` reste lu par
+    position plausible (`_link_cost`) qui l'évite, et le réglage dit ce qu'il fait. `fps` reste lu par
     les appelants qui raisonnent en secondes."""
     return max(0, int(wanted or 0))
 
 
 # ── Rendu d'un média depuis ses détections ────────────────────────────────────────────────────
-def paint_media(source: str, frames: dict, paint, output_path: str, *, on_frame=None,
-                progress=None) -> str:
+def rewrite_media(source: str, frames: dict, apply, output_path: str, *, on_frame=None,
+                  progress=None) -> str:
     """Réécrit le média `source` en peignant chaque frame avec SES détections :
-    `paint(image, détections) -> image` (le floutage, ou le dessin d'aperçu). Rend le chemin
+    `apply(image, détections) -> image` (le floutage, ou le dessin d'aperçu). Rend le chemin
     RÉELLEMENT écrit — une vidéo sort toujours en `.mp4`, audio d'origine recollé.
 
     `frames`   : {indice: [détections]} (`by_frame`) ;
@@ -380,7 +424,7 @@ def paint_media(source: str, frames: dict, paint, output_path: str, *, on_frame=
         if image is None:
             raise RuntimeError(f"Image illisible : {os.path.basename(source)}")
         found = frames.get(0, [])
-        painted = paint(image.copy(), found) if found else image
+        painted = apply(image.copy(), found) if found else image
         ext = os.path.splitext(output_path)[1].lower()
         params = ([cv2.IMWRITE_JPEG_QUALITY, 95] if ext in ('.jpg', '.jpeg')
                   else [cv2.IMWRITE_PNG_COMPRESSION, 3] if ext == '.png' else [])
@@ -414,7 +458,7 @@ def paint_media(source: str, frames: dict, paint, output_path: str, *, on_frame=
             if not ok:
                 break
             found = frames.get(index, [])
-            painted = paint(image.copy(), found) if found else image
+            painted = apply(image.copy(), found) if found else image
             writer.write(painted)
             if on_frame:
                 on_frame(index, image, painted, found)

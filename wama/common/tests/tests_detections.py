@@ -174,7 +174,7 @@ class InterpolationTest(SimpleTestCase):
         frames = dets.by_frame(doc, max_extrapolation=1)
         self.assertEqual([[40, 40, 50, 50]] * 2, [frames[2][0]['box'], frames[4][0]['box']])
         # Inside a FILLED gap nothing is prolonged : only the two ends of the object are.
-        doc = self._doc((0, [0, 0, 10, 10], None), (4, [40, 0, 50, 10], None))
+        doc = self._doc((0, [0, 0, 10, 10], None), (4, [12, 0, 22, 10], None))
         frames = dets.by_frame(doc, interpolate=True, max_gap=5, max_extrapolation=1)
         self.assertEqual([1, 1, 1, 1], [len(frames[i]) for i in (1, 2, 3, 5)])
 
@@ -192,6 +192,83 @@ class InterpolationTest(SimpleTestCase):
         meant 7 at 15 frames per second (card #1026)."""
         self.assertEqual(50, dets.max_gap_for(15, 50))
         self.assertEqual(0, dets.max_gap_for(30, None))
+
+
+class SegmentedShapesOverGapsTest(SimpleTestCase):
+    """Card #1034 (SAM3, 2026-10-05) : no track, flickering objects — the gaps linked two
+    different plates up to 26 sizes apart, and every deduced detection was a RECTANGLE."""
+
+    def _doc(self, *seen):
+        doc = dets.new_document(media='video', width=400, height=100, fps=25)
+        for index, box, polygons in seen:
+            dets.add(doc, index, [dets.detection(box=box, label='plate', polygons=polygons)])
+        return doc
+
+    def test_a_deduced_detection_keeps_the_shape_of_the_nearest_seen_one(self):
+        # 3 px per frame : the shape moves with the box, taken from the NEAREST seen frame.
+        triangle = [[[0, 0], [10, 0], [5, 10]]]
+        moved = [[[12, 0], [22, 0], [17, 10]]]
+        doc = self._doc((0, [0, 0, 10, 10], triangle), (4, [12, 0, 22, 10], moved))
+        frames = dets.by_frame(doc, interpolate=True, max_gap=5, max_extrapolation=1)
+        self.assertEqual([[[3, 0], [13, 0], [8, 10]]], frames[1][0]['polygons'], 'from frame 0')
+        self.assertEqual([[[9, 0], [19, 0], [14, 10]]], frames[3][0]['polygons'], 'from frame 4')
+        self.assertEqual([[[15, 0], [25, 0], [20, 10]]], frames[5][0]['polygons'],
+                         'prolonged : the shape too')
+
+    def test_an_object_that_vanishes_is_not_linked_to_another_one_far_away(self):
+        # 20 frames later : the old tolerance (one size per missing frame) accepted 20.5 sizes.
+        doc = self._doc((0, [0, 0, 10, 10], None), (1, [0, 0, 10, 10], None),
+                        (21, [170, 0, 180, 10], None))
+        frames = dets.by_frame(doc, interpolate=True, max_gap=25)
+        self.assertEqual([0, 1, 21], sorted(frames), 'a plate 17 sizes away is another plate')
+
+    def test_two_sizes_far_apart_are_not_the_same_object(self):
+        doc = self._doc((0, [0, 0, 10, 10], None), (2, [2, 0, 32, 30], None))
+        self.assertEqual([0, 2], sorted(dets.by_frame(doc, interpolate=True, max_gap=5)))
+
+
+class BlurShapeTest(SimpleTestCase):
+    """The blur of SEGMENTED detections (`blur_shapes`, 2026-10-05) : the whole image was blurred
+    for each detection, and the finishes were ignored on a shape."""
+
+    SQUARE = [[[20, 20], [40, 20], [40, 40], [20, 40]]]
+
+    def _blur(self, shapes=None, **finish):
+        from wama.common.utils.blur_utils import blur_shapes
+        return blur_shapes(_stripes(), shapes or [self.SQUARE], blur_ratio=9, **finish)
+
+    def test_two_neighbour_shapes_are_blurred_at_once_not_one_over_the_other(self):
+        left = [[[4, 4], [20, 4], [20, 20], [4, 20]]]
+        right = [[[24, 4], [40, 4], [40, 20], [24, 20]]]
+        image = _stripes()
+        mask = dets.polygons_to_mask(left + right, image.shape) > 0
+        out = self._blur([left, right])
+        self.assertTrue((out[mask] == cv2.GaussianBlur(image, (9, 9), 0)[mask]).all(),
+                        'both exactly as one blur of the image — no cascade')
+
+    def test_without_finishes_it_is_the_whole_image_blur_inside_the_shape(self):
+        image = _stripes()
+        mask = dets.polygons_to_mask(self.SQUARE, image.shape) > 0
+        expected = image.copy()
+        expected[mask] = cv2.GaussianBlur(image, (9, 9), 0)[mask]
+        self.assertTrue((self._blur() == expected).all(), 'cropped = whole image, to the pixel')
+
+    def test_enlargement_and_edges_widen_the_blurred_zone(self):
+        untouched = _stripes()
+        plain = (self._blur() != untouched).any(axis=2)
+        for finish in ({'roi_enlargement': 2.0}, {'rounded_edges': 4}):
+            wider = (self._blur(**finish) != untouched).any(axis=2)
+            self.assertGreater(wider.sum(), plain.sum(), finish)
+            self.assertTrue(wider[plain].all(), f'{finish} : never less than the shape')
+
+    def test_the_progressive_blur_fades_outward_and_keeps_the_shape_fully_blurred(self):
+        image = _stripes()
+        mask = dets.polygons_to_mask(self.SQUARE, image.shape) > 0
+        soft = self._blur(progressive_blur=9)
+        self.assertTrue((soft[mask] == cv2.GaussianBlur(image, (9, 9), 0)[mask]).all(),
+                        'the shape itself : fully blurred')
+        outside = (soft != image).any(axis=2) & ~mask
+        self.assertTrue(outside.any(), 'the fade spreads outside the shape')
 
 
 class DrawAndBlurTest(SimpleTestCase):
@@ -225,7 +302,7 @@ class DrawAndBlurTest(SimpleTestCase):
         self.assertTrue((out == _stripes()).all())
 
 
-class PaintMediaTest(SimpleTestCase):
+class RewriteMediaTest(SimpleTestCase):
 
     def setUp(self):
         self.folder = tempfile.mkdtemp()
@@ -236,7 +313,7 @@ class PaintMediaTest(SimpleTestCase):
         cv2.imwrite(source, _stripes())
         seen = []
         frames = {0: [dets.detection(box=[8, 8, 40, 40], label='face')]}
-        written = dets.paint_media(
+        written = dets.rewrite_media(
             source, frames, lambda image, found: blur_detections(image, found, blur_ratio=15),
             os.path.join(self.folder, 'out', 'in_blurred.png'),
             on_frame=lambda i, original, painted, found: seen.append((i, len(found))))
@@ -250,7 +327,7 @@ class PaintMediaTest(SimpleTestCase):
         source = os.path.join(self.folder, 'in.png')
         cv2.imwrite(source, _stripes())
         painted = []
-        written = dets.paint_media(source, {}, lambda image, found: painted.append(1) or image,
+        written = dets.rewrite_media(source, {}, lambda image, found: painted.append(1) or image,
                                     os.path.join(self.folder, 'same.png'))
         self.assertEqual([], painted, 'no detection : no paint')
         self.assertTrue((cv2.imread(written) == _stripes()).all())
@@ -260,11 +337,11 @@ class PaintMediaTest(SimpleTestCase):
         with open(source, 'wb') as out:
             out.write(b'not an image')
         with self.assertRaises(RuntimeError):
-            dets.paint_media(source, {}, lambda image, found: image,
+            dets.rewrite_media(source, {}, lambda image, found: image,
                               os.path.join(self.folder, 'x.png'))
 
 
-class PaintVideoTest(SimpleTestCase):
+class RewriteVideoTest(SimpleTestCase):
     """A VIDEO is re-written frame by frame (MJPEG intermediate, then ffmpeg : H.264 + the
     source's audio when it has one) — only the frames that carry detections are painted."""
 
@@ -288,7 +365,7 @@ class PaintVideoTest(SimpleTestCase):
             painted.append(len(found))
             return blur_detections(image, found, blur_ratio=15)
 
-        written = dets.paint_media(
+        written = dets.rewrite_media(
             self.source, frames, paint, os.path.join(self.folder, 'out', 'clip_blurred.avi'),
             on_frame=lambda i, original, out, found: seen.append(i),
             progress=lambda done, total: None)
