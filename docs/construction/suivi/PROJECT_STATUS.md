@@ -22252,3 +22252,43 @@ les retours de Fabien sur la card #1026. Détail et gardes : `ROUTE §10.6`, blo
 - ⚠ Laissés tels quels, pas à moi : `manifests/apps/anonymizer.json` dans l'arbre est une
   version ANCIENNE (209 lignes de moins que HEAD, `native_outputs` absent) ; `check_docs` :
   5 références cassées, aucune dans mes blocs.
+
+## §CLÔTURE — 2026-10-05, « ASSISTANT + JOURNAL DES CONNEXIONS + ORIGINE DES MODÈLES » — clôture de la session du 03→05/10 — non poussé — 🔴 RECHARGER gunicorn, relancer beat — 🔚 réglages de moteur qui disparaissent à la 2ᵉ ouverture (NON reproduit, question posée à Fabien)
+
+**Commits du 05/10** : `766f66d6` liste d'outils construite une fois · `51fcb174` tours réels
+mesurés · `ee61a916` leçon au skill de commit partiel · `80543acf` origine des modèles dans les
+sélecteurs · `5e7e53ce` journal des connexions.
+
+- **Journal des connexions** : détail `PROFILES_PERMISSIONS §1.7`. Marqué (24 personnes sur
+  1 087 lignes), refus nommés et motivés, purge à six mois (beat 01:40), profil + admin.
+- **Origine des modèles** : `ROADMAP §8d` — vérifiée en service par la route (groupes « WAMA
+  local »…) et au navigateur dans le Reader (`backend` : 4 options sous 1 groupe).
+- **Latence** : `WAMA_LLM §1bis`. Trois tours réels de Fabien par Albert : premier texte 1,7 à
+  6,0 s ; préparation d'un tour 0,74 s → 0,07 s.
+
+**🔚 POINT D'ENTRÉE** : le défaut signalé par Fabien — « les réglages de moteurs s'affichent la
+première fois, puis plus rien quand j'y retourne dans la modale d'une card, quelle que soit
+l'app ». NON REPRODUIT au navigateur (compte de test, service en marche) : Synthesizer,
+Enhancer, Anonymizer — réglages d'un process puis modale complète, en alternance, six ouvertures
+chacun, mêmes champs à chaque fois, aucune erreur de console ; Reader et Describer à la suite.
+Il manque le geste exact (quelle app, quel bouton, quelle zone se vide). ⚠ Ne pas conclure à
+l'absence de défaut : le compte de test n'a pas les cards de Fabien, et le regroupement des
+options par origine (`80543acf`) est arrivé à la relance qui précède son constat.
+
+**File des chantiers ouverts** : ① ce défaut de modale ; ② chemin local à froid (122 s) —
+trois leviers proposés, non décidés (tirage qui compte le chargement, maintien plus long sous
+arbitrage du gouverneur, attente annoncée) ; ③ outils chargés à la demande (décision d'usage) ;
+④ vecteurs des fragments neufs la nuit (décision) ; ⑤ suites du journal des connexions (durée de
+session, accès par jeton, page hors admin) ; ⑥ `diarization_model` du transcriber hors catalogue.
+
+**Non gardé par un test** : la card « Derniers accès » n'est vérifiée que par son rendu (200 et
+libellés) ; les intitulés d'origine ne sont pas vus par un test de navigateur.
+
+**Effets de bord** : migrations `accounts/0026` et `common/0027` appliquées, non versionnées ;
+1 087 lignes du journal marquées ; session du compte de test créée puis supprimée, une autre
+laissée au navigateur de test (elle expire seule) ; rien d'autre en base.
+
+**Contrôles MESURÉS** : journal 22 tests + suite `accounts` 136 (verts, hors budgets de langue :
++8 code, +3 classes, +10 méthodes, aucun dans mes fichiers neufs) ; sélecteurs 175 ; assistant
+169 ; `check_templates` 1 défaut, dans une jumelle du bac à sable ; plage réservée du calendrier
+verte avec la nouvelle entrée planifiée.
