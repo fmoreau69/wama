@@ -39,6 +39,25 @@ class QueueFormulaTest(SimpleTestCase):
         self.assertEqual(0, out['total'])
 
 
+class RequestUserTest(TestCase):
+    """The default user of the factory (`request_user`) : the logged-in account, otherwise the
+    shared anonymous one — the rule the ten apps rewrote each in its `_get_user`."""
+
+    def test_the_logged_in_account_is_the_user(self):
+        from wama.common.utils.progress_views import request_user
+        request = RequestFactory().get('/x/')
+        request.user = get_user_model().objects.create_user('progress-request-user', password='x')
+        self.assertEqual(request.user, request_user(request))
+
+    def test_a_visitor_reads_as_the_shared_anonymous_account(self):
+        from django.contrib.auth.models import AnonymousUser
+        from wama.accounts.views import get_or_create_anonymous_user
+        from wama.common.utils.progress_views import request_user
+        request = RequestFactory().get('/x/')
+        request.user = AnonymousUser()
+        self.assertEqual(get_or_create_anonymous_user(), request_user(request))
+
+
 class OneEtaPlacePerAppTest(SimpleTestCase):
     """The ETA triplet an app's progress view estimates with is the one its task LEARNS — declared
     ONCE, in the task module, and read by the view (ROUTE §11 #37). Written twice, it diverged :

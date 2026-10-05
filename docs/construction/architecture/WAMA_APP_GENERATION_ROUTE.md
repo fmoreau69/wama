@@ -3676,6 +3676,28 @@ process** (clé ETA du process, pas de l'app), signal `RunOutcome` par process, 
 > n'existe pas avant le moteur — et `transcriber.import` ; aucun triplet littéral dans une glu).
 > **Reste** : 6 process sur 22 n'apprennent toujours rien d'une card à l'autre — la sortie commune
 > (`output`, ×5) et l'import du transcriber : ils ne pèsent que leur dernière durée sur la card.
+>
+> ⚠ **Revérification du même jour — un coût que la livraison n'avait pas mesuré.** L'`applies`
+> du composer et du transcriber RÉSOUT le backend du modèle (`backend_for_key` → inventaire :
+> **0,56 s l'appel** sur ce poste, `FileCache` relisant chaque fichier `backends/` — choix voulu du
+> 2026-09-14 : un fichier modifié est relu). `launch_eta` passant par `steps_to_run`, la question
+> était posée DEUX fois par card : page du composer **7,5 → 15 s** pour 10 cards (profilé). Remède
+> dans le moteur, sans toucher à ce choix : la fenêtre de `preload` retient aussi les réponses de
+> `applies` par (process, modèle) (`AppPipeline.applies`, `release` referme la fenêtre), et la vue
+> de progression lit l'ETA et la bande dans UNE fenêtre. Mesuré après : **5,6 s** (la bande seule,
+> avant ce chantier, en coûtait 7,5). La tâche, qui ne précharge pas, repose la question à chaque
+> fois. Garde : `tests_process_eta.AppliesIsAskedOncePerReadTest`.
+> ⚠ Reste mesuré, hors de ce chantier : 0,56 s par résolution de backend reste le coût de TOUTE
+> surface qui en enchaîne (la bande du composer, 10 cards = ~5 s) — c'est le choix de fraîcheur du
+> `FileCache` qui le fixe, il se tranche à part.
+>
+> ✅ **Joué en réel par le worker en service** (copie de la card anonymizer #1026, une image,
+> supprimée ensuite) : pendant la détection, `blur` et `output` sont `PENDING` avec la tâche du
+> lancement ; chaque ligne garde sa durée et sa taille (27,8 Mpx) ; la clé neuve
+> `anonymizer:blur:img` apprend (0 → 1 échantillon) ; l'estimation passe à 24,4 s dès la détection
+> rendue (réel 24,5). Avant le départ elle annonçait 741 s : l'apprise de `anonymizer:img:sam3`
+> valait 26,7 s/Mpx pour 0,68 mesuré, séquelle d'un apprentissage antérieur (l'ancienne vue disait
+> 736) ; elle converge (14,7 après ce run, α = 0,3).
 
 **Gestes de lancement** : un process · un étage (sous-pipeline) · tout · **compléter manquant +
 périmé** (les deux boutons de `ROADMAP §9.2.bis`, généralisés).

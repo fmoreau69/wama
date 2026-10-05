@@ -168,13 +168,13 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
         from wama.common.services.process_pipeline import card_view, pipeline_of
         if pipeline_of(item) is None:
             return None
-        if pipeline_model is None:
-            return card_view(item)          # le modèle DÉCLARÉ par le pipeline de l'app
+        if pipeline_model is None:          # le modèle DÉCLARÉ par le pipeline de l'app
+            return card_view(item, preloaded=True)
         try:
             model_key = pipeline_model(item)
         except Exception:
             model_key = None
-        return card_view(item, model_key)
+        return card_view(item, model_key, preloaded=True)
 
     def _read(request, pk):
         user = get_user(request)
@@ -196,11 +196,19 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
             'error': message,
             'error_message': message,
         }
-        if item.status in IN_FLIGHT:
-            seconds = _estimate(item)
-            if seconds is not None:
-                data['estimated_seconds'] = seconds
-        view = _pipeline(item)
+        # UNE fenêtre de lecture pour l'ETA et la bande des process (`preload` … `release`) :
+        # lignes lues une fois, et `applies` — qui résout le backend du modèle — demandé une fois.
+        from wama.common.services.process_pipeline import pipeline_of, preload, release
+        if pipeline_of(item) is not None:
+            preload([item])
+        try:
+            if item.status in IN_FLIGHT:
+                seconds = _estimate(item)
+                if seconds is not None:
+                    data['estimated_seconds'] = seconds
+            view = _pipeline(item)
+        finally:
+            release(item)
         if view is not None:
             # Les PROCESS bougent pendant le traitement (`WamaApp.updateProcessRows`) ; `status`
             # reste celui de l'ÉLÉMENT — c'est lui qui dit « en vol » au front.
