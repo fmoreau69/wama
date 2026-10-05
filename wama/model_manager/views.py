@@ -1225,6 +1225,44 @@ def api_models_db(request):
     })
 
 
+def _groups_by_origin(groups: list, info: list) -> list:
+    """Range les options sous l'ORIGINE de leur modèle — « WAMA local », « Albert API (DINUM) »,
+    « API Anthropic (Claude) », « Claude Code (abonnement) ».
+
+    POURQUOI (Fabien, 2026-10-05) : « dans les sélecteurs de modèles, il manque l'information de
+    localité d'inférence… on ne sait pas si on choisit un modèle local ou distant ». L'origine
+    n'était dite que SOUS le sélecteur, une fois le modèle choisi. Elle devient l'intitulé du
+    groupe dans la liste elle-même : lisible avant de choisir, et dans un volet étroit où un
+    suffixe de libellé serait coupé.
+
+    UNE règle pour toutes les listes, donc pour toutes les apps et l'assistant : chaque groupe
+    reçu est scindé par origine. Un groupe déjà nommé (tâche, catégorie) garde son nom, suivi
+    de l'origine (« Chansons — WAMA local ») ; un groupe anonyme prend l'origine pour nom.
+    Local d'abord, puis l'échelle des hébergements (`external_sources.model_origin`).
+    `task` reste sur le PREMIER groupe d'une tâche : c'est lui que l'« auto » de groupe nomme.
+    """
+    from wama.common.external_sources import model_origin
+    execution_of = {d['id']: d.get('execution') or '' for d in info}
+    out = []
+    for group in groups:
+        by_origin = {}
+        for option in group.get('options') or []:
+            value = option['value'] if isinstance(option, dict) else option[0]
+            key, label, rank = model_origin(value, execution_of.get(value, ''))
+            by_origin.setdefault((rank, label, key), []).append(option)
+        first = True
+        for (rank, label, key), options in sorted(by_origin.items()):
+            named = dict(group, options=options, key=key, origin=key,
+                         group=f"{group['group']} — {label}" if group.get('group') else label)
+            if not first:
+                named.pop('task', None)
+            first = False
+            out.append(named)
+    # Un domaine VIDE garde sa forme d'origine (un groupe sans option) : rien à dire d'une
+    # origine quand il n'y a aucun modèle.
+    return out or groups
+
+
 @login_required
 @require_GET
 def api_model_options(request):
@@ -1342,6 +1380,7 @@ def api_model_options(request):
         groups = ([{'options': by_category.pop('')}] if '' in by_category else []) + [
             {'group': CATEGORY_LABELS.get(k, k), 'options': v}
             for k, v in sorted(by_category.items())] or [{'options': options}]
+    groups = _groups_by_origin(groups, info)
     reponse = {'success': True, 'groups': groups}
     # « auto » en 1ʳᵉ option + PRÉVISION du modèle retenu (brique commune auto_model,
     # décision Fabien 2026-09-01). OPT-IN par le schéma (`options_auto`) : seule une app

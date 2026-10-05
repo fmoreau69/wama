@@ -68,7 +68,7 @@
                 : (typeof fallback[sel.value] === 'object' ? fallback[sel.value] : {});
       let txt = m.description || fb || (typeof rawMeta === 'string' ? rawMeta : '');
       // ORIGINE (2026-10-04) : où le modèle tourne — « Cloud souverain · Albert API (DINUM) ·
-      // gratuit », « Local · Ollama »… Dérivée par le catalogue (`AIModel.origin_label`), posée
+      // gratuit », « WAMA local · Ollama »… Dérivée par le catalogue (`AIModel.origin_label`), posée
       // en TÊTE : c'est la première chose à savoir quand une liste mêle local et distant.
       if (m.origin) txt = txt ? (m.origin + ' — ' + txt) : m.origin;
       const vram = m.recommended_vram_gb || m.vram_gb;

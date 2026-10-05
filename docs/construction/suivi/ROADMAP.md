@@ -1515,6 +1515,16 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
   (DINUM) · gratuit », « Local · Ollama »), servi par l'API du catalogue et affiché par
   `WamaModelHelp` — pour un distant toujours, pour un local quand la liste mêle les deux.
   L'assistant déclare désormais `help_source` : son sélecteur n'avait AUCUNE aide contextuelle.
+  ✅ **L'origine se lit DANS la liste (2026-10-05).** Sous le sélecteur elle n'apparaissait qu'une
+  fois le modèle choisi ; remarque de Fabien : « on ne sait pas si on choisit un modèle local ou
+  distant… c'est le cas partout ». La route commune des options (`api_model_options`) range
+  désormais chaque liste sous l'origine de ses modèles — « WAMA local », « Albert API (DINUM) »,
+  « API Anthropic (Claude) », « Claude Code (abonnement) » — local d'abord, puis l'échelle des
+  hébergements (`external_sources.model_origin`, `_groups_by_origin`). Un groupe déjà nommé
+  (tâche, catégorie) garde son nom suivi de l'origine ; « auto » reste en tête, hors groupe.
+  Une règle, donc l'assistant et les dix sélecteurs de modèle des apps (tous sur la source
+  `catalog`). ⏳ Seule liste encore écrite en dur : `diarization_model` du transcriber.
+  ⚠ Non vu au navigateur : vérifié par la route réelle (4 groupes pour l'assistant) et par V8.
   ✅ **Abonnement Claude Code : le modèle se CHOISIT et se DIT** (2026-10-03, décision de Fabien).
   Le protocole `claude_cli` n'a toujours pas de liste : c'est la ligne DÉCLARÉE qui s'étend, pas
   un mécanisme neuf. La source déclare ses modèles (`ExternalSource.declared_models`) — `default`

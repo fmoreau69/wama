@@ -271,8 +271,9 @@ class ModeBoundOptionsTest(TestCase):
     def test_the_menu_is_grouped_by_task_with_the_catalogue_labels(self):
         groups = dict(self._values(group='task', auto='1'))
         self.assertEqual(['auto'], groups.get(None), '« auto » heads the menu, outside any group')
-        self.assertEqual(['yolo:a.pt'], groups.get('Détection'))
-        self.assertEqual(['sam3', 'yolo:b-seg.pt'], groups.get('Segmentation'))
+        # Chaque groupe DIT aussi où tournent ses modèles (2026-10-05).
+        self.assertEqual(['yolo:a.pt'], groups.get('Détection — WAMA local'))
+        self.assertEqual(['sam3', 'yolo:b-seg.pt'], groups.get('Segmentation — WAMA local'))
 
     def test_a_multi_task_menu_announces_no_forecast(self):
         """The app settles « auto » at launch with what the domain does not say (the element's
@@ -370,13 +371,15 @@ class CategoryGroupedOptionsTest(TestCase):
 
     def test_uncategorised_models_head_the_list_and_a_category_is_an_optgroup(self):
         groups = self._groups()
-        self.assertEqual((None, ['imager:plain-a']), groups[0])
-        self.assertEqual(('Logos', ['imager:logo-b']), groups[1])
+        # Les modèles sans catégorie ouvrent la liste, sous leur ORIGINE (2026-10-05).
+        self.assertEqual(('WAMA local', ['imager:plain-a']), groups[0])
+        self.assertEqual(('Logos — WAMA local', ['imager:logo-b']), groups[1])
 
-    def test_auto_joins_the_anonymous_head_group_never_a_named_one(self):
+    def test_auto_heads_the_list_on_its_own_never_inside_a_named_group(self):
+        # « auto » peut tirer un modèle local comme distant : il n'appartient à aucune origine.
         groups = self._groups(auto='1')
-        self.assertEqual(['auto', 'imager:plain-a'], groups[0][1])
-        self.assertEqual(2, len(groups))
+        self.assertEqual((None, ['auto']), groups[0])
+        self.assertEqual(['WAMA local', 'Logos — WAMA local'], [name for name, _ in groups[1:]])
 
     def test_an_empty_domain_still_answers_one_group(self):
         AIModel.objects.filter(model_key__in=['imager:plain-a', 'imager:logo-b']).delete()
@@ -475,3 +478,52 @@ class TaskBoundAutoTest(TestCase):
                 'auto:text-to-music', spec={'task': 'text-to-music,text-to-audio'}))
         self.assertEqual('text-to-music', seen['task'])
         self.assertIsNone(seen['source'])
+
+
+class OriginGroupsTest(TestCase):
+    """Chaque sélecteur de modèle DIT où l'inférence a lieu (Fabien, 2026-10-05 : « on ne sait pas
+    si on choisit un modèle local ou distant »). La règle vit dans la route commune des options,
+    donc elle vaut pour l'assistant et pour toutes les apps sans une ligne de plus."""
+
+    def _groups(self, groups, executions):
+        from wama.model_manager.views import _groups_by_origin
+        info = [{'id': key, 'execution': execution} for key, execution in executions.items()]
+        return [(g['group'], g.get('key'), [o[0] if isinstance(o, list) else o['value']
+                                           for o in g['options']], g.get('task'))
+                for g in _groups_by_origin(groups, info)]
+
+    def test_a_flat_list_is_split_by_origin_local_first_then_the_hosting_scale(self):
+        executions = {'anthropic:claude-x': 'cloud', 'ollama:qwen': 'local',
+                      'claude_code:opus': 'cloud', 'albert:mistral': 'cloud'}
+        groups = self._groups([{'options': [[k, k] for k in executions]}], executions)
+        self.assertEqual(
+            [('WAMA local', 'local', ['ollama:qwen'], None),
+             ('Albert API (DINUM)', 'albert', ['albert:mistral'], None),
+             ('API Anthropic (Claude)', 'anthropic', ['anthropic:claude-x'], None),
+             ('Claude Code (abonnement)', 'claude_code', ['claude_code:opus'], None)], groups)
+
+    def test_a_named_group_keeps_its_name_and_says_the_origin(self):
+        executions = {'composer:a': 'local', 'albert:b': 'cloud'}
+        groups = self._groups([{'group': 'Chansons', 'task': 'text-to-song',
+                                'options': [['composer:a', 'A'], ['albert:b', 'B']]}], executions)
+        self.assertEqual(['Chansons — WAMA local', 'Chansons — Albert API (DINUM)'],
+                         [name for name, *_ in groups])
+        # Un seul groupe par tâche porte `task` : c'est lui que l'« auto » de groupe nomme.
+        self.assertEqual(['text-to-song', None], [task for *_, task in groups])
+
+    def test_a_disabled_option_stays_listed_under_its_origin(self):
+        option = {'value': 'imager:x', 'label': 'X — backend absent', 'disabled': True, 'title': 'r'}
+        groups = self._groups([{'options': [option]}], {'imager:x': 'local'})
+        self.assertEqual([('WAMA local', 'local', ['imager:x'], None)], groups)
+
+    def test_an_empty_domain_keeps_its_single_empty_group(self):
+        from wama.model_manager.views import _groups_by_origin
+        self.assertEqual([{'options': []}], _groups_by_origin([{'options': []}], []))
+
+    def test_a_remote_model_of_an_unknown_source_is_never_called_local(self):
+        from wama.common.external_sources import model_origin
+        key, label, rank = model_origin('mystery:model', 'cloud')
+        self.assertNotEqual('WAMA local', label)
+        self.assertGreater(rank, model_origin('claude_code:opus', 'cloud')[2])
+        self.assertEqual(('local', 'WAMA local', 0), model_origin('imager:x', 'local'))
+        self.assertEqual(('local', 'WAMA local', 0), model_origin('imager:x', ''))
