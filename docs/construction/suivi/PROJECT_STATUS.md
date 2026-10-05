@@ -21917,3 +21917,23 @@ Trois retours de Fabien après une vidéo jouée (card #1026, compte réel, lue 
   Hermite, extrapolation aux bouts) pour les détections, ce qui suppose de la loger dans
   `common/` avec Data et Lab qui y délèguent ; `iou` a déjà deux jumeaux (Data, Lab).
 - Laissé dans l'arbre, pas à moi : le hunk `blur_eta` de `wama/anonymizer/tasks.py`.
+
+### Suite du 2026-10-05 (session assistant) — tours RÉELS mesurés, liste d'outils construite une fois, restes soldés
+
+- **La mesure qui manquait** : trois tours de Fabien par Albert À TRAVERS gunicorn — premier
+  texte 5,97 s, 3,41 s, 1,69 s. Découpe et suites : `WAMA_LLM §1bis`. L'ETA apprise vaut 2,68 s
+  de moyenne (5 mesures) : le décompte s'affichera donc désormais pour ce modèle.
+- **Préchauffage du 4ᵉ worker** : levé — les quatre l'ont journalisé à la relance du 05/10.
+- **Liste d'outils construite une fois par processus** (`tool_api.build_tools_list`, `766f66d6`) :
+  préparation d'un tour 0,74 s → 0,07 s. Gardes : `ToolsListBuiltOncePerProcessTest`.
+- **Agrandisseur de l'Enhancer** : il prend ses fournisseurs à la brique commune
+  (`ai_upscaler.py:197-198`), qui offre de nouveau la carte graphique. NON mesuré sur un
+  agrandissement réel.
+- ⚠ **Faute de méthode, réparée** : un commit par chemin (`32c28606`, remplacé) a emporté 29
+  lignes de ce fichier écrites par une autre session — la garde du script s'était arrêtée, mais
+  la commande suivante, séparée par un point-virgule, est partie quand même. Remplacé par
+  `766f66d6` (mes deux fichiers seuls) ; les 29 lignes sont revenues non commitées dans l'arbre.
+  *Une garde qui s'arrête ne protège que ce qui est enchaîné à elle par `&&`.*
+- 🔴 recharger gunicorn pour la liste d'outils. 🔚 inchangés : chemin local à froid (122 s) ·
+  journal des connexions (2 décisions) · vecteurs des fragments neufs la nuit (décision) ·
+  outils chargés à la demande (décision) · écoute de la voix au navigateur.
