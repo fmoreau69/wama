@@ -594,3 +594,67 @@ class OriginalFileCaptionTests(TestCase):
         message = _Rate([self._Piece()])
         self._legender(message, self._file())      # ne lève pas
         self.assertIsNone(message.content)
+
+
+class ForgetGestureTests(TestCase):
+    """`!oublier` — repartir d'un fil vierge (2026-10-05).
+
+    Un fil où une fabrication est entrée la resservait au modèle à chaque tour (fil Discord
+    n° 11, `WAMA_LLM.md` §2026-10-05). Le geste efface CE fil — pas les autres fils de la
+    personne, jamais ceux d'autrui — par la même brique que « Effacer » du chat web.
+    """
+
+    def setUp(self):
+        from wama.common.services import conversation_store as store
+        self.store = store
+        self.user = User.objects.create(username='fabien')
+        confirm_link(self.user, request_link(CANAL, EXT_ID).code)
+
+    def _msg(self, text, thread='salon-1'):
+        return core.IncomingMessage(channel=CANAL, external_id=EXT_ID, text=text, thread=thread)
+
+    def _record(self, user, thread_key, surface=CANAL):
+        fil = self.store.thread(user, surface=surface, thread_key=thread_key)
+        self.store.record_exchange(fil, 'statut ?', {'response': 'La tâche 649 est terminée.'})
+        return fil
+
+    def test_the_gesture_is_announced_in_the_help(self):
+        self.assertIn('!oublier', core.handle_message(self._msg('!aide')).text)
+
+    def test_forget_erases_this_thread_only(self):
+        from wama.common.models import Conversation
+        here = self._record(self.user, 'salon-1')
+        elsewhere = self._record(self.user, 'salon-2')
+        web = self._record(self.user, '', surface='web')
+        with patch('wama.common.services.assistant_engine.run_assistant_turn') as moteur:
+            reply = core.handle_message(self._msg('!oublier'))
+        moteur.assert_not_called()
+        self.assertIn('effacée', reply.text)
+        self.assertFalse(Conversation.objects.filter(pk=here.pk).exists())
+        self.assertTrue(Conversation.objects.filter(pk__in=[elsewhere.pk, web.pk]).count() == 2)
+
+    def test_the_next_turn_starts_without_history(self):
+        self._record(self.user, 'salon-1')
+        core.handle_message(self._msg('!oublier'))
+        with patch('wama.common.services.assistant_engine.run_assistant_turn',
+                   side_effect=_simulated_reply) as moteur:
+            core.handle_message(self._msg('bonjour'))
+        self.assertEqual([], moteur.call_args.kwargs['history'])
+
+    def test_someone_else_s_thread_with_the_same_key_is_untouched(self):
+        from wama.common.models import Conversation
+        other = self._record(User.objects.create(username='alice'), 'salon-1')
+        core.handle_message(self._msg('!oublier'))
+        self.assertTrue(Conversation.objects.filter(pk=other.pk).exists())
+
+    def test_nothing_to_forget_is_said(self):
+        self.assertIn('rien à effacer', core.handle_message(self._msg('!oublier')).text)
+
+    def test_an_unknown_person_forgets_nothing(self):
+        """La garde d'identité passe AVANT le geste : un inconnu n'efface rien."""
+        from wama.common.models import Conversation
+        mine = self._record(self.user, 'salon-1')
+        reply = core.handle_message(core.IncomingMessage(
+            channel=CANAL, external_id='999', text='!oublier', thread='salon-1'))
+        self.assertIn('!lier', reply.text)
+        self.assertTrue(Conversation.objects.filter(pk=mine.pk).exists())

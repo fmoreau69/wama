@@ -88,6 +88,7 @@ HELP_TEXT = (
     "• `!delier` — supprimer la liaison\n"
     "• `!code <question>` — déléguer une question SUR LE DÉPÔT à Claude Code "
     "(développeurs/admins ; consomme l'abonnement)\n"
+    "• `!oublier` — effacer la conversation de ce fil et repartir de zéro\n"
     "• `!aide` — ce message\n"
     "Sinon, écrivez simplement ce que vous voulez faire : « transcris le fichier que je "
     "viens d'envoyer », « où en est ma transcription ? ». Les pièces jointes sont déposées "
@@ -165,6 +166,17 @@ def _handle(msg: IncomingMessage) -> Reply:
             "👋 Je ne sais pas encore qui vous êtes dans WAMA.\n"
             "Envoyez `!lier` pour obtenir un code d'appariement."
         ))
+
+    # ── Repartir d'un fil vierge ─────────────────────────────────────────────────
+    # Le « Effacer » du chat web, pour un canal (2026-10-05) : un fil où une fabrication est
+    # entrée la resservait au modèle à chaque tour (`WAMA_LLM.md` §2026-10-05). Même brique que
+    # le web (`conversation_store.clear_thread`) ; seul CE fil part, jamais les autres.
+    if commande in ('!oublier', '!forget'):
+        from wama.common.services import conversation_store
+        if conversation_store.clear_thread(user, surface=msg.channel,
+                                           thread_key=_thread_key(msg)):
+            return Reply(private=True, text="🧹 Conversation effacée : je repars de zéro.")
+        return Reply(private=True, text="Il n'y avait rien à effacer dans ce fil.")
 
     # ── Délégation au dépôt via Claude Code — geste EXPLICITE ────────────────────
     # ⚠ POURQUOI UN GESTE, et pas « le modèle décidera » : en Discord le tour part sur le
