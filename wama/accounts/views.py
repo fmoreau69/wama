@@ -232,6 +232,8 @@ def profile_view(request):
         'is_ldap': _is_ldap_user(request),
         'channel_links': liaisons,
         'rattachement': rattachement_institutionnel(profile),
+        # Ses DERNIERS accès, refus compris : c'est lui qui sait si une ligne n'est pas de lui.
+        'recent_access': recent_access(request.user),
         'cloud_policies': UserProfile.CLOUD_POLICIES,
         # Plafond d'hébergement : l'échelle et ses libellés ont UN domicile (`external_sources`).
         'cloud_hostings': [(level, external_sources.HOSTING_CEILING_LABELS[level])
@@ -335,6 +337,17 @@ def cloud_policy_update(request):
         setattr(profile, name, value)
     profile.save(update_fields=list(values))
     return JsonResponse({'success': True, **values})
+
+
+def recent_access(user, limit: int = 8) -> list:
+    """Les derniers accès au compte de `user` — connexions, déconnexions et REFUS sur son nom —
+    tels que le journal les garde (`AccessLog`, six mois). Montrés au profil : le titulaire est
+    le seul à pouvoir dire « ce n'était pas moi »."""
+    from django.db.models import Q
+
+    from .models import AccessLog
+    return list(AccessLog.objects.filter(Q(user=user) | Q(username__iexact=user.username))
+                .order_by('-timestamp')[:limit])
 
 
 def rattachement_institutionnel(profile):

@@ -29,11 +29,12 @@ from .models import AccessLog
 
 @admin.register(AccessLog)
 class AccessLogAdmin(admin.ModelAdmin):
-    list_display = ('timestamp', 'username', 'event', 'ip')
-    list_filter = ('event', 'timestamp')
+    list_display = ('timestamp', 'username', 'event', 'kind', 'reason', 'auth_backend', 'ip')
+    list_filter = ('kind', 'event', 'reason', 'timestamp')
     search_fields = ('username', 'ip')
     date_hierarchy = 'timestamp'
-    readonly_fields = ('user', 'username', 'event', 'ip', 'user_agent', 'timestamp')
+    readonly_fields = ('user', 'username', 'event', 'kind', 'reason', 'auth_backend', 'ip',
+                       'user_agent', 'timestamp')
 
     def has_add_permission(self, request):
         return False   # journal en lecture seule

@@ -163,6 +163,17 @@ def purge_visitors_task(dry_run=False):
     return summary
 
 
+@shared_task(name='common.purge_access_log')
+def purge_access_log_task(dry_run=False):
+    """Purge quotidienne du journal des connexions au-delà de sa durée de conservation
+    (`accounts/moderation.py`, six mois par défaut — décision de Fabien, 2026-10-05)."""
+    from wama.accounts.moderation import purge_access_log
+    summary = purge_access_log(dry_run=dry_run)
+    if summary['purged']:
+        logger.info("[accès] %s", summary)
+    return summary
+
+
 @shared_task(name='common.sync_docs_corpus')
 def sync_docs_corpus_task(dry_run=False):
     """Projection nocturne de la doc DÉCLARÉE vers le corpus système de l'assistant

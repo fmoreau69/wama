@@ -536,6 +536,10 @@ WAMA_SMB_DNS_SUFFIXES = [s.strip().strip('.') for s in
                          os.environ.get('WAMA_SMB_DNS_SUFFIXES', '').split(',') if s.strip()]
 WAMA_SMB_DEFAULT_DOMAIN = os.environ.get('WAMA_SMB_DEFAULT_DOMAIN', '').strip()
 
+# Journal des connexions : durée de conservation en jours (six mois — recommandation CNIL :
+# six mois à un an pour ce type de trace ; décision de Fabien, 2026-10-05).
+WAMA_ACCESS_LOG_RETENTION_DAYS = int(os.environ.get('WAMA_ACCESS_LOG_RETENTION_DAYS', '183'))
+
 # Modération des nouveaux comptes (login LDAP = toute l'université → gate).
 WAMA_MODERATE_NEW_USERS = os.environ.get('WAMA_MODERATE_NEW_USERS', '1') == '1'
 WAMA_MODERATOR_EMAILS = [e for e in os.environ.get('WAMA_MODERATOR_EMAILS', '').split(',') if e.strip()]
@@ -877,6 +881,12 @@ if ENABLE_CELERY:
             # la plage réservée aux tests nocturnes (`tests_calendar`, corrigé le 2026-10-04).
             'schedule': 3600.0,
             'options': {'queue': 'default'},  # I/O disque, pas de GPU
+        },
+        # Journal des connexions : purge au-delà de la durée de conservation (six mois).
+        'purge-access-log': {
+            'task': 'common.purge_access_log',
+            'schedule': crontab(hour=1, minute=40),
+            'options': {'queue': 'default'},
         },
         # Corpus système de l'assistant : la doc déclarée, reprojetée chaque nuit (lecture de
         # fichiers, aucun modèle — `common/memory/docs_corpus.py`).
