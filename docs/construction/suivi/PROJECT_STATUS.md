@@ -22158,3 +22158,64 @@ IGN partiellement indisponible pendant les rejeux (mêmes conditions pour tous, 
   serveur jetable : writer_01 reçoit ses deux références, `composer.add` vert.
 - 🔚 Restes déclarés : chemins du corpus en dur dans six modules antérieurs ; lancement Studio
   d'un nœud rattaché non gardé par l'accès de l'app.
+
+## §PALIER — 2026-10-05, « COMPOSER : RESTES DE LA CLÔTURE DU 04/10 SOLDÉS — grisage des non-chanteurs, ✨ de l'imager sur la brique, ACE-Step, langue des paroles détectée, `watched` DÉRIVÉ des réglages » — ✅ non poussé — 🔴 RECHARGER gunicorn ET workers (`Param.stales`, `watched_of`, `text_language`) — 🔚 essai GPU YuE2 « Chanson » · mesure interne de qualité musicale (décision)
+
+**Commits** `65d37d2e` (restes 1-4 et 6) · `8ccde499` (scénarios nocturnes `composer.vocals_matching`,
+`imager.prompt_enrich_trigger`) · `3e96c5eb` (référence de doc) · `b03b221b` (reste 5) · `e5c60399`
+(manifestes `app` — clé `stales` — carte des mécanismes et API des briques régénérées DEPUIS UN
+WORKTREE DE HEAD `c14bace8`). Non régénérés, artefacts du worktree : le bloc de grille du skill
+`conformite` (`logs/` gitignoré) et `WAMA_DATA_WORLD` (consommateurs comptés à 0 dans l'arbre
+jetable) ; les manifestes `model` périmés viennent du catalogue en base, pas de cette session.
+
+Les six restes nommés au §CLÔTURE du 04/10, un par un :
+1. **« Chanson » grise les modèles qui ne chantent pas** — au volet ET dans la modale ⚙, par la brique
+   d'appariement (`WamaInputMatch.capabilitySlot`), pas par un code du composer. Au passage :
+   `isAutoValue` (jumeau client de `auto_model.is_auto` — un « auto » de groupe n'est plus grisé) et
+   `capsReady` (l'appariement ne juge plus avant l'arrivée du catalogue). `INPUT_MODEL_MATCHING §6.11`.
+2. **✨ de l'imager** = option `trigger` de `WamaPromptEnrich` (card + modale) ; le bouton écrit dans
+   l'app est retiré. La brique dit désormais ses erreurs (toast), refuse un prompt vide et un double clic.
+3. **ACE-Step** : le contrat `text-to-music` est devenu LIANT (`backend_inventory.TASK_CONTRACTS`) —
+   sans backend, le modèle est dit inlançable au lieu d'être tirable ; `supports_vocals` déclaré.
+4. **Langue des paroles DÉTECTÉE** (`common/utils/text_language.py`, `langid` régularisé par la route
+   `library`, mécanisme `content_language`) ; une langue que le modèle ne chante pas est signalée ;
+   repli sur le profil quand la détection est incertaine. ⚠ La clôture du 04/10 disait « aucune
+   détection de langue d'un texte dans WAMA » : FAUX — relevé borné à `common/`, le describer en
+   portait une (morte, retirée). Corrigé dans les docs.
+5. **`watched` dérivé du schéma** (forme convenue avec la session pipeline, §CLÔTURE ci-dessus ⑤) :
+   `Param.stales` déclare les process qu'un réglage périme — `()` pour un réglage d'affichage, sans
+   défaut implicite ; `ProcessSpec.watched` ne garde que les champs HORS schéma ;
+   `AppPipeline.watched_of(spec)` réunit les deux et c'est lui que lisent la photo, l'export et la
+   bande. Sept apps. Équivalence mesurée process par process : identique, sauf `enhancer.generate`
+   qui gagne `strength` (champ `denoising_strength`, déjà surveillé). Note `ROUTE §10.6`.
+   ⚠ Le générateur et les jumelles écrivent encore des listes explicites : l'union les accepte, rien
+   n'est cassé ; leur faire émettre `stales` est un pas de plus, non fait.
+6. **Banc tiers YuE2 + MusicGen** : il n'existe pas en lisible par machine (l'API v2 d'Artificial
+   Analysis n'a pas de catégorie musique ; WildSongBench ne couvre pas MusicGen). L'ordre déclaré
+   (`DECLARED_PRIORS`) est corroboré par les pages publiques ; la voie est une MESURE INTERNE
+   (`WAMA_QUALITE`) — **décision de Fabien**, non entreprise.
+
+**Gardes** : `tests_input_match_capability` (V8 + jumeau `is_auto`), `tests_prompt_harness`
+(brique : erreur / vide / occupé ; l'imager passe par la brique ; langue des paroles),
+`tests_backend_contract_routing.MusicContractIsBindingTest`, `tests_text_language`,
+`tests_process_watched` (6 — tout réglage d'élément rendu compte, `stales` nomme un process connu,
+aucun réglage recopié à la main ; **prouvée par mutation** : `stales` de la durée retiré → rouge,
+`hotwords` recopié dans `watched` → rouge). `check_redundancy` 91 → 82 : plus aucune trouvaille
+`watched` (les `_output()` restants sont dans les tâches, hors session). Scénarios navigateur joués sur un serveur de dev jetable :
+`composer.vocals_matching` 9/9, `imager.prompt_enrich_trigger` 4/4.
+
+**Contrôles MESURÉS** : suites touchées (process, pipeline, squelette, codegen, bac à sable, réglages,
+grille de schéma + les sept apps) **779 tests, 1 rouge** —
+`tests_codegen_lot.ItemEditRouteAliasTest.test_an_item_edit_route_with_pk_gets_the_opener_and_a_conventional_body`,
+**préexistant** : rouge identique sur HEAD `3055f0d7` sans mes modifications (worktree). La route
+d'édition de l'imager est alignée depuis le 29/09 (`25947526` : `update_settings` →
+`views.generation_settings`) et le générateur nomme le corps conventionnel d'après la ROUTE, pas d'après
+la VUE déclarée → bouchon 501. À qui : le générateur (`views_gen`, `corps_update`), session codegen.
+
+**Non prouvé, nommément** : aucun rendu GPU en voix « Chanson » (GPU occupé, 23,2/24,6 Go, et une
+autre instance en codegen) ; la photo `watched_of` n'a pas été rejouée sur une card réelle du live.
+
+**Restes, nommément** : essai GPU YuE2 « Chanson » sans paroles (point d'entrée du §CLÔTURE du 04/10,
+inchangé) · mesure interne de qualité musicale (décision) · réunion des deux dessinateurs d'onde →
+chantier SURFACES (`ROUTE §F3b`, décision `§13` en ouverture) · page d'édition partition + paroles,
+même chantier.
