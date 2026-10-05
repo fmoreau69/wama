@@ -16,7 +16,10 @@
         "kind": "function",
         "params": {
           "degree": "required",
+          "eta": "imager.tasks:generate_eta",
           "gpu": true,
+          "label": "Génération",
+          "share": 9,
           "watched": [
             "prompt",
             "negative_prompt",
@@ -46,6 +49,7 @@
         "params": {
           "degree": "required",
           "gpu": false,
+          "label": "Sortie",
           "watched": [
             "output_format",
             "output_quality",

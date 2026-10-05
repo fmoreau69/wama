@@ -437,6 +437,45 @@ def transcriber_eta_key_size(t, engine: str = None):
     return make_key('transcriber', engine), duration, 'audio_sec'
 
 
+def transcribe_eta(t):
+    """ETA déclarée du process `transcribe` (`ProcessSpec.eta`) : le triplet que la glu apprend
+    (elle mesure le chargement à part), modèle réputé NON chargé."""
+    triplet = transcriber_eta_key_size(t)
+    return (*triplet, False) if triplet else None
+
+
+def step_eta_key_size(t, process: str, variant: str = ''):
+    """(clé, taille, unité) de l'ETA d'un process SECONDAIRE de la card (alignement, locuteurs,
+    résumé, cohérence) : ∝ durée audio, sous `transcriber:<process>[:<variante>]` ; None sans
+    durée connue. Rendu par sa glu (`record_run`) et déclaré à son process."""
+    duration = float(t.duration_seconds or 0)
+    if duration <= 0:
+        return None
+    return f"transcriber:{process}{f':{variant}' if variant else ''}", duration, 'audio_sec'
+
+
+def _learned_only(triplet):
+    """Une clé de PROCESS n'a pas d'a priori de domaine — ceux de l'estimateur décrivent des
+    modèles (0,25 s par seconde d'audio : un ASR, pas un résumé) : estimée apprise seulement."""
+    return (*triplet, True, 0.0) if triplet else None
+
+
+def align_eta(t):
+    return _learned_only(step_eta_key_size(t, 'align'))
+
+
+def diarize_eta(t):
+    return _learned_only(step_eta_key_size(t, 'diarize', getattr(t, 'diarization_model', '')))
+
+
+def summarize_eta(t):
+    return _learned_only(step_eta_key_size(t, 'summarize', getattr(t, 'summary_type', '')))
+
+
+def coherence_eta(t):
+    return _learned_only(step_eta_key_size(t, 'coherence'))
+
+
 @shared_task(bind=True)
 def transcribe(self, transcript_id: int, process: str = None):
     """Transcription d'une card, prétraitement selon son réglage. `process` : lancement borné à ce
@@ -844,7 +883,8 @@ def _diarize_step(t, ctx):
     _set_partial_text(t.id, t.text)
     _save_output_files(t, t.used_backend)
     voices = len({s.speaker_id for s in segments if s.speaker_id})
-    return {'label': f"{voices} voix", 'output_fingerprint': _transcript_fingerprint(t)}
+    return {'label': f"{voices} voix", 'output_fingerprint': _transcript_fingerprint(t),
+            'eta': step_eta_key_size(t, 'diarize', getattr(t, 'diarization_model', ''))}
 
 
 def _summarize_step(t, ctx):
@@ -881,7 +921,8 @@ def _summarize_step(t, ctx):
     _console(t.user_id, "Résumé LLM généré ✓")
     _set_partial_text(t.id, t.text)
     _save_output_files(t, t.used_backend)
-    return {'label': 'compte-rendu' if t.summary_type == 'meeting' else 'résumé'}
+    return {'label': 'compte-rendu' if t.summary_type == 'meeting' else 'résumé',
+            'eta': step_eta_key_size(t, 'summarize', t.summary_type)}
 
 
 def _coherence_step(t, ctx):
@@ -923,7 +964,8 @@ def _coherence_step(t, ctx):
     except Exception as seg_err:
         _console(t.user_id, f"Avertissement: cohérence par-segment échouée ({seg_err})", level='warning')
     _save_output_files(t, t.used_backend)
-    return {'label': f"cohérence {t.coherence_score}/100"}
+    return {'label': f"cohérence {t.coherence_score}/100",
+            'eta': step_eta_key_size(t, 'coherence')}
 
 
 def _import_step(t, ctx):
@@ -970,7 +1012,8 @@ def _align_step(t, ctx):
     label = f"{outcome.get('aligned', 0)} mot(s) recalé(s)" + (
         f", {kept} passage(s) estimé(s)" if kept else '')
     return {'label': label, 'models': [outcome['model_key']] if outcome.get('model_key') else None,
-            'output_fingerprint': _transcript_fingerprint(t)}
+            'output_fingerprint': _transcript_fingerprint(t),
+            'eta': step_eta_key_size(t, 'align')}
 
 
 #: La glu de chaque process du pipeline (`function_specs.PIPELINE`).

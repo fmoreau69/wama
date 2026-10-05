@@ -10,7 +10,12 @@ porté par une card, la « passe » un NŒUD de son pipeline, la « caméra » l
 « profil » les réglages que le process surveille.
 
 CE QUE CE MODULE FAIT
+  • annonce les process d'un lancement : `plan` (leurs lignes passent `PENDING`, « son tour
+    n'est pas venu », avec la tâche qui les jouera) ;
   • écrit la ligne d'un process : `start`, `await_resources`, `succeed`, `fail` ;
+  • estime la durée d'un process d'après ses lignes : `row_eta_seconds`, `last_duration` (règle
+    reprise de `pass_tracking`, l'ETA par process du cam_analyzer, 2026-10-01), et celle d'un
+    LANCEMENT : `launch_eta`, la somme de ses process (`ProcessSpec.eta`, 2026-10-05) ;
   • referme les lignes ouvertes d'un élément stoppé ou réconcilié : `close_open` ;
   • dit ce qui est périmé : `stale_nodes` (réglage surveillé changé, puis cascade vers l'aval) ;
   • déduit l'état d'une card de ses process : `aggregate` (règle du point 4.4).
@@ -100,6 +105,28 @@ def _write(item, node_id, instance_key, defaults):
     return run
 
 
+def plan(item, steps, *, task_id: str = '') -> int:
+    """Le lancement ANNONCE les process qu'il va jouer : leurs lignes passent `PENDING` — « son
+    tour n'est pas venu », la table des états de `ROUTE §10.6` — et portent la tâche qui les
+    jouera. C'est ce qui dit, PENDANT le traitement, ce que fait CE lancement : un ▶ borné à un
+    process n'y inscrit que lui et ses amonts périmés (`AppPipeline.steps_to_run(only=)`).
+
+    `steps` : `[(nœud, clé de process, nature)]`. Ce que la ligne a rendu la fois d'avant (durée,
+    taille, sortie, photo) est GARDÉ : `start` en relit la durée, la péremption la sortie. Seule
+    l'erreur d'un échec passé est effacée — il ne décrit plus le lancement. Une ligne `PENDING`
+    n'est pas « ouverte » (`OPEN_STATES`) : un arrêt la laisse telle quelle, « pas encore
+    lancée ». Rend le nombre de lignes écrites."""
+    written = 0
+    for node_id, process_key, kind in steps:
+        defaults = {'status': JOB_PENDING, 'task_id': task_id or '', 'error_message': ''}
+        if line(item, node_id) is None:
+            defaults.update({'process_key': process_key or item._meta.app_label,
+                             'process_kind': kind})
+        _write(item, node_id, '', defaults)
+        written += 1
+    return written
+
+
 def start(item, node_id: str = MAIN_NODE, *, process_key: str = '', kind: str = 'app',
           version: str = '', instance_key: str = '', settings_snapshot: dict | None = None,
           model_key: str = '', task_id: str = ''):
@@ -117,9 +144,9 @@ def start(item, node_id: str = MAIN_NODE, *, process_key: str = '', kind: str = 
     summary = {}
     if previous is not None and previous.duration_s:
         summary['previous_duration_s'] = previous.duration_s
-        size = (previous.output_summary or {}).get('eta_size_s')
+        size = (previous.output_summary or {}).get(ETA_SIZE_KEY)
         if size:
-            summary['eta_size_s'] = size
+            summary[ETA_SIZE_KEY] = size
     return _write(item, node_id, instance_key, {
         'process_kind': kind,
         'process_key': process_key or item._meta.app_label,
@@ -222,6 +249,123 @@ def safely(writer, *args, **kwargs):
         logger.warning("[process_runs] %s : ligne d'exécution non écrite", writer.__name__,
                        exc_info=True)
         return None
+
+
+# ── Durée d'un process (ETA par process) ─────────────────────────────────────────────────────
+# Reprise TELLE QUELLE de `pass_tracking` (cam_analyzer, 2026-10-01), qui la tenait pour ses
+# passes : le moteur commun a désormais des process dans sept apps.
+
+#: Clé de `output_summary` qui porte la TAILLE sur laquelle la durée d'une ligne a été mesurée
+#: (dans l'unité de l'ETA du process) — `start` la garde avec `previous_duration_s`.
+ETA_SIZE_KEY = 'eta_size_s'
+
+
+def row_eta_seconds(size, last_duration, last_size, learned_seconds):
+    """Durée estimée d'un process : sa DERNIÈRE durée sur cet élément (le meilleur prédicteur
+    d'une relance), mise à l'échelle si la taille a changé ; sinon l'appris du service commun ;
+    sinon None — pas d'a priori générique, dont l'ordre de grandeur serait faux ici."""
+    if not size:
+        return None
+    if last_duration:
+        return float(last_duration) * (size / last_size) if last_size else float(last_duration)
+    return float(learned_seconds) if learned_seconds else None
+
+
+def last_duration(row) -> tuple:
+    """`(durée, taille)` de la dernière exécution connue d'une ligne : sa durée mesurée, sinon
+    celle que `start` a gardée de l'exécution précédente ; la taille sur laquelle elle l'a été
+    (`ETA_SIZE_KEY`), ou None. `(None, None)` sans ligne ni durée."""
+    if row is None:
+        return None, None
+    if isinstance(row, dict):         # une ligne déjà SÉRIALISÉE (panneau du cam_analyzer)
+        summary = row.get('output_summary') or {}
+        duration = row.get('duration_s')
+    else:
+        summary = row.output_summary or {}
+        duration = row.duration_s
+    return duration or summary.get('previous_duration_s'), summary.get(ETA_SIZE_KEY)
+
+
+def process_eta(spec, item):
+    """L'ETA DÉCLARÉE d'un process pour cet élément (`ProcessSpec.eta`) : `(clé, taille, unité,
+    modèle chargé, a priori de l'app)`, ou None — process sans déclaration, ou déclaration
+    illisible (dite au journal, jamais levée : une estimation ne casse pas une vue).
+
+    La fonction déclarée rend `(clé, taille, unité[, modèle chargé[, a priori]])` : les trois
+    premiers sont ceux que la glu apprend (`record_run`) ; « modèle chargé » vaut vrai par défaut
+    (celui de la fabrique des vues de progression) ; l'a priori est le `fallback_seconds` de
+    `eta_estimator.estimate` — l'estimation PROPRE à l'app avant tout apprentissage."""
+    declared = getattr(spec, 'eta', None)
+    if not declared:
+        return None
+    try:
+        if isinstance(declared, str):
+            from wama.common.catalog.function_catalog import resolve_impl
+            declared = resolve_impl(declared)
+        triplet = declared(item)
+    except Exception:
+        logger.warning("[process_runs] ETA du process « %s » illisible", spec.key, exc_info=True)
+        return None
+    if not triplet:
+        return None
+    key, size, unit = triplet[:3]
+    return (key, size, unit, triplet[3] if len(triplet) > 3 else True,
+            triplet[4] if len(triplet) > 4 else None)
+
+
+def step_eta_seconds(spec, item, row) -> float | None:
+    """Durée estimée d'UN process de la card : la règle de `row_eta_seconds` (sa dernière durée
+    sur cet élément, mise à l'échelle, sinon l'appris), puis — démarrage à froid — l'a priori :
+    celui de l'app quand elle le déclare, sinon celui du service commun (par modèle puis par
+    domaine) — la règle de `eta_estimator.estimate`. Un process sans ETA déclarée ne vaut que sa
+    dernière durée connue."""
+    last, last_size = last_duration(row)
+    eta = process_eta(spec, item)
+    if eta is None:
+        return float(last) if last else None
+    key, size, unit, loaded, prior = eta
+    from wama.model_manager.services.eta_estimator import estimate
+    learned = estimate(key, size=size, unit=unit, model_loaded=loaded, fallback_seconds=0.0)
+    seconds = row_eta_seconds(size, last, last_size, learned)
+    if seconds is None:
+        seconds = estimate(key, size=size, unit=unit, model_loaded=loaded,
+                           fallback_seconds=prior) or None
+    return seconds
+
+
+def launch_eta(item) -> float | None:
+    """Durée TOTALE estimée du lancement d'une card à process : la somme de ses process — ceux
+    que CE lancement joue (`plan` les a marqués de sa tâche ; avant qu'il ne tourne, ceux que
+    `steps_to_run` retiendrait). Un process déjà rendu pendant ce lancement compte sa durée
+    MESURÉE. C'est un total, la graine de `WamaEta` (`seedSeconds`) : le front le ramène au
+    restant par la progression de la card, que le squelette pondère des mêmes process (`share`).
+
+    None quand l'app n'a pas de pipeline, qu'aucun de ses process ne déclare d'ETA (la vue garde
+    alors l'estimation de l'app, `make_progress_views(eta_for=…)`), ou que rien n'est estimable."""
+    from wama.common.services.process_pipeline import pipeline_of
+    pipeline = pipeline_of(item)
+    if pipeline is None or not any(getattr(spec, 'eta', None) for spec in pipeline.specs):
+        return None
+    rows = pipeline.rows(item)
+    task_id = getattr(item, 'task_id', '') or ''
+    planned = []
+    if task_id and getattr(item, 'status', None) in OPEN_STATES:
+        planned = [spec for spec in pipeline.ordered()
+                   if spec.key in rows and rows[spec.key].task_id == task_id]
+    if not planned:
+        try:
+            planned = pipeline.steps_to_run(item, pipeline.requested_model(item))
+        except ValueError:
+            return None
+    total = 0.0
+    for spec in planned:
+        row = rows.get(spec.key)
+        if (row is not None and task_id and row.task_id == task_id
+                and row.status == JOB_SUCCESS and row.duration_s):
+            total += float(row.duration_s)
+            continue
+        total += step_eta_seconds(spec, item, row) or 0.0
+    return total if total > 0 else None
 
 
 # ── Péremption (point 4.3) ───────────────────────────────────────────────────────────────────

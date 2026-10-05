@@ -93,22 +93,47 @@ def _call_tts_service(job: AvatarJob) -> str:
 # Celery task
 # ---------------------------------------------------------------------------
 
+def _video_seconds(job) -> float:
+    """La durée de la vidéo d'une card : mesurée, sinon ~ texte / 15 (mode pipeline)."""
+    duration = float(job.duration_seconds or 0)
+    if not duration and job.mode == 'pipeline' and job.text_content:
+        duration = len(job.text_content) / 15.0
+    return duration
+
+
 def avatarizer_eta_key_size(job, duration: float = None, avatar_3d: bool = None):
-    """(clé, taille, unité) de l'ETA d'une animation — temps ∝ durée vidéo. Clé par qualité
-    (CodeFormer ≫ rapide) ; un rendu TalkingHead n'a pas le coût d'un lip-sync : clé à part, sinon
-    il fausse l'ETA apprise de MuseTalk. UN lieu, partagé par la glu (durée mesurée, moteur TIRÉ)
-    et la vue de progression (durée connue, sinon ~ texte / 15 ; avatar 3D lu sur la NATURE du
-    fichier, `input_match.work_token_for`, la brique du tirage) — ROUTE §11 #37. Jusque-là la vue
-    estimait toujours sous la clé de qualité : un avatar 3D n'y lisait jamais ce qu'il apprenait."""
+    """(clé, taille, unité) de l'ETA de l'ANIMATION — temps ∝ durée vidéo. Un rendu TalkingHead
+    n'a pas le coût d'un lip-sync : clé à part, sinon il fausse l'ETA apprise de MuseTalk. UN
+    lieu, partagé par la glu (durée mesurée, moteur TIRÉ) et la déclaration du process
+    (`ProcessSpec.eta` : durée connue, sinon ~ texte / 15 ; avatar 3D lu sur la NATURE du fichier,
+    `input_match.work_token_for`, la brique du tirage) — ROUTE §11 #37.
+
+    ⚠ La clé d'une photo ne dépend plus de la qualité (2026-10-05) : depuis que l'amélioration
+    faciale est un process à part (« Visage », qui apprend `avatarizer:codeformer`), l'animation
+    seule apprend sous `avatarizer:fast` — la vue estimait encore une photo « qualité » sous
+    `avatarizer:quality`, une clé que plus rien n'apprenait."""
     if avatar_3d is None:
         from .function_specs import is_3d_avatar
         avatar_3d = is_3d_avatar(job)
     if duration is None:
-        duration = float(job.duration_seconds or 0)
-        if not duration and job.mode == 'pipeline' and job.text_content:
-            duration = len(job.text_content) / 15.0
-    key = 'avatarizer:talkinghead' if avatar_3d else f'avatarizer:{job.quality_mode}'
+        duration = _video_seconds(job)
+    key = 'avatarizer:talkinghead' if avatar_3d else 'avatarizer:fast'
     return key, duration, 'video_sec'
+
+
+def enhance_eta_key_size(job, duration: float = None):
+    """(clé, taille, unité) de l'ETA du process « Visage » : l'amélioration faciale (CodeFormer),
+    ∝ durée vidéo ; None quand elle n'est pas demandée (le process ne fait que rendre la vidéo
+    animée)."""
+    duration = _video_seconds(job) if duration is None else duration
+    return ('avatarizer:codeformer', duration, 'video_sec') if job.use_enhancer else None
+
+
+def speak_eta_key_size(job, tts_model: str = None):
+    """(clé, taille, unité) de l'ETA du process « Voix » : celle du service TTS commun, sous le
+    modèle employé (`tts_model`, tiré au lancement) ou demandé."""
+    from wama.common.tts.service_client import tts_eta_key_size
+    return tts_eta_key_size(job.text_content, tts_model or job.tts_model)
 
 
 @shared_task(bind=True, max_retries=60, default_retry_delay=10)
@@ -186,6 +211,7 @@ def _speak(job, ctx):
         return {'fields': {'audio_input': job.audio_input.name}, 'label': 'audio de la voix',
                 'console_success': "Audio TTS généré ✓",
                 'models': [tts_model] if tts_model else None,
+                'eta': speak_eta_key_size(job, tts_model),
                 'output_ref': job.audio_input.name}
     except TTSServiceLoadingError as e:
         # Service TTS en démarrage — rendre le worker GPU et revenir (politique du squelette
@@ -388,11 +414,11 @@ def _animate(job, ctx):
         # Seeding ETA : la durée est celle de CE process (l'animation seule — l'amélioration
         # faciale apprend la sienne, `_enhance`) : clé du moteur, jamais celle de la qualité.
         from wama.common.services.output_process import generated
-        eta_key = 'avatarizer:talkinghead' if avatar_3d else 'avatarizer:fast'
         return generated(
             [str(cible)],
             fields=fields,
-            eta=(eta_key, _dur, 'video_sec') if _dur > 0 else None,
+            eta=(avatarizer_eta_key_size(job, duration=_dur, avatar_3d=avatar_3d)
+                 if _dur > 0 else None),
             label=getattr(job, 'name', '') or f"avatar #{job_id}",
             console_success=f"Vidéo animée : {os.path.basename(str(cible))}",
             models=[model_key])
@@ -438,7 +464,7 @@ def _enhance(job, ctx):
     result = step(job, ctx)
     duration = float(job.duration_seconds or 0)
     if job.use_enhancer and duration > 0:
-        result['eta'] = ('avatarizer:codeformer', duration, 'video_sec')
+        result['eta'] = enhance_eta_key_size(job, duration)
         result['models'] = ['avatarizer:codeformer']
     return result
 

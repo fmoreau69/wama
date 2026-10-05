@@ -344,12 +344,6 @@ def _decorate_card(job, preloaded=False):
     return job
 
 
-def _eta_triplet(job):
-    """Le triplet d'ETA, celui que la glu apprend (`workers.avatarizer_eta_key_size`)."""
-    from .workers import avatarizer_eta_key_size
-    return (*avatarizer_eta_key_size(job), True)
-
-
 def _progress_extra(job):
     """Les clés PROPRES que le JS de l'avatarizer lit : la vidéo, puis les réglages montrés."""
     return {
@@ -369,12 +363,11 @@ def _progress_extra(job):
 
 
 # Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
-# 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et le modèle de sa bande
-# de process.
+# 2026-10-03) — l'app n'y déclare que ses clés propres. L'ETA est celle de ses PROCESS
+# (`function_specs.PIPELINE`, 2026-10-05).
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(work_model=AvatarJob, app_id='avatarizer',
-                          eta_for=_eta_triplet, extra=_progress_extra)
+_pv = make_progress_views(work_model=AvatarJob, app_id='avatarizer', extra=_progress_extra)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 

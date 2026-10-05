@@ -16,7 +16,10 @@
         "kind": "function",
         "params": {
           "degree": "required",
+          "eta": "enhancer.tasks:generate_eta_key_size",
           "gpu": true,
+          "label": "Amélioration",
+          "share": 9,
           "watched": [
             "input_file",
             "quality_intent",
@@ -40,6 +43,7 @@
         "params": {
           "degree": "required",
           "gpu": false,
+          "label": "Sortie",
           "watched": [
             "output_format",
             "output_quality",

@@ -118,10 +118,10 @@ def _clear_during(synthesis):
 def synthesizer_eta_key_size(synthesis):
     """(clé, taille, unité) de l'ETA d'une synthèse — durée ∝ longueur du texte, par modèle TTS ;
     None sans texte. UN lieu, partagé par la glu (`record_run`) et la vue de progression
-    (`estimate`) : les deux l'écrivaient chacune (ROUTE §11 #37)."""
-    from wama.model_manager.services.eta_estimator import make_key
-    text = synthesis.text_content or ''
-    return (make_key('synthesizer', synthesis.tts_model), len(text), 'char') if text else None
+    (`estimate`) : les deux l'écrivaient chacune (ROUTE §11 #37). La règle est celle du service
+    TTS commun (`tts_eta_key_size`), que la voix de l'avatarizer apprend aussi."""
+    from wama.common.tts.service_client import tts_eta_key_size
+    return tts_eta_key_size(synthesis.text_content, synthesis.tts_model)
 
 
 @shared_task(bind=True, max_retries=60, default_retry_delay=10)

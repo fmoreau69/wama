@@ -1041,14 +1041,6 @@ def card_html(request, pk: int):
     return HttpResponse(html)
 
 
-def _eta_triplet(t):
-    """Le triplet d'ETA, celui que le worker apprend (`workers.transcriber_eta_key_size`) —
-    chargement mesuré à part, modèle réputé NON chargé."""
-    from .workers import transcriber_eta_key_size
-    triplet = transcriber_eta_key_size(t)
-    return (*triplet, False) if triplet else None
-
-
 def _progress_extra(t):
     """Les clés PROPRES que le JS du transcriber lit : texte partiel et action en cours pendant le
     traitement, propriétés du fichier, puis le résultat et ses enrichissements."""
@@ -1076,12 +1068,12 @@ def _progress_extra(t):
 
 
 # Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
-# 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et le modèle de sa bande
-# de process.
+# 2026-10-03) — l'app n'y déclare que ses clés propres. L'ETA est celle de ses PROCESS
+# (`function_specs.PIPELINE`, 2026-10-05) : une transcription diarisée et résumée n'est plus
+# estimée à la seule transcription.
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(work_model=Transcript, app_id='transcriber', eta_for=_eta_triplet,
-                          extra=_progress_extra)
+_pv = make_progress_views(work_model=Transcript, app_id='transcriber', extra=_progress_extra)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 

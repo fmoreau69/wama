@@ -26,7 +26,12 @@
         "kind": "function",
         "params": {
           "degree": "required",
+          "eta": "composer.tasks:extract_score_eta",
           "gpu": true,
+          "label": "Partition extraite",
+          "outputs": [
+            "extracted_score"
+          ],
           "watched": [
             "melody_reference",
             "source_url"
@@ -40,7 +45,12 @@
         "kind": "function",
         "params": {
           "degree": "required",
+          "eta": "composer.tasks:plan_eta",
           "gpu": true,
+          "label": "Partition",
+          "outputs": [
+            "planned_score"
+          ],
           "watched": [
             "prompt",
             "prompt_processed",
@@ -58,7 +68,13 @@
         "kind": "function",
         "params": {
           "degree": "required",
+          "eta": "composer.tasks:render_eta",
           "gpu": true,
+          "label": "Rendu",
+          "outputs": [
+            "audio_output"
+          ],
+          "share": 3,
           "watched": [
             "prompt",
             "prompt_processed",
@@ -81,6 +97,7 @@
         "params": {
           "degree": "required",
           "gpu": false,
+          "label": "Sortie",
           "watched": [
             "output_format",
             "output_quality",

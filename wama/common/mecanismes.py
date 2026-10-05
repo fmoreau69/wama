@@ -149,9 +149,13 @@ MECHANISMS = (
               "un « auto »), sortie, durée. Dit ce qui est périmé (`stale_nodes` : réglage "
               "surveillé changé, puis cascade) et déduit l'état d'une card de ses process "
               "(`aggregate`). L'élément reste la vérité lue par l'interface tant qu'il porte "
-              "`status` ; l'arrêt et la réconciliation referment les lignes ouvertes",
+              "`status` ; l'arrêt et la réconciliation referment les lignes ouvertes. Le "
+              "lancement y écrit son PLAN (`plan` : ses process `PENDING`, avec sa tâche) ; "
+              "l'ETA d'un process (`step_eta_seconds`, règle des passes du cam_analyzer) et celle "
+              "d'une card, la somme de ce que joue son lancement (`launch_eta`, 2026-10-05)",
               'wama/common/services/process_runs.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
-              annexes=('wama/common/tests/tests_process_runs.py',),
+              annexes=('wama/common/tests/tests_process_runs.py',
+                       'wama/common/tests/tests_process_eta.py'),
               depends_on=('item_revisions',)),
     # Ajouté le 2026-10-02 (P3 palier B, décision n°11) : le registre des passes du cam_analyzer
     # rendu indépendant de la session — 1er adopteur, le composer (`plan` → `render`).
@@ -1295,7 +1299,9 @@ MECHANISMS = (
               "la barre commune (réussi = 100, en cours = sa progression vivante, échec et attente "
               "= 0 : un échec n'est pas terminé), un vocabulaire COMPLET ; les spécificités en "
               "crochets (`eta_for` = le triplet d'ETA, déclaré UNE fois dans le module de tâches "
-              "— `<app>_eta_key_size`, que la glu rend aussi à `record_run` —, `extra`, "
+              "— `<app>_eta_key_size`, que la glu rend aussi à `record_run` — pour une app à un "
+              "seul process ; une card à process est estimée par `process_runs.launch_eta`), "
+              "`extra`, "
               "`progress_of` — même crochet que `batch_views` —, `pipeline_model` pour la bande "
               "des process, `domains` pour une barre par domaine ; utilisateur par défaut : "
               "connecté, sinon anonyme). Le générateur d'apps la consomme. Critère "

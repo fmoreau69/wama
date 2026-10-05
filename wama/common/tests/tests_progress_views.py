@@ -48,10 +48,20 @@ class OneEtaPlacePerAppTest(SimpleTestCase):
             'imager', 'reader', 'synthesizer', 'transcriber')
 
     def test_every_eta_hook_of_a_view_delegates_to_the_task_module(self):
+        """An app whose PROCESSES declare their ETA (`ProcessSpec.eta`, 2026-10-05) has no view
+        hook any more — `tests_process_eta.EveryAppProcessNamesItsEtaTest` holds it."""
         import ast
         from pathlib import Path
         from django.conf import settings
+        from wama.common.catalog import function_catalog
+        from wama.common.services.process_pipeline import APP_PIPELINES
+        function_catalog.load_all()
+        by_processes = {app for app, pipeline in APP_PIPELINES.items()
+                        if any(spec.eta for spec in pipeline.specs)}
+        self.assertTrue(by_processes, 'no app estimates by its processes : the guard is blind')
         for app in self.APPS:
+            if app in by_processes:
+                continue
             with self.subTest(app=app):
                 src = (Path(settings.BASE_DIR) / 'wama' / app / 'views.py').read_text(
                     encoding='utf-8')
@@ -123,6 +133,16 @@ class FactoryViewsTest(TestCase):
         views = self._views(eta_for=lambda item: ('k', 1, 'item'), eta_fallback=lambda item: 30)
         with mock.patch('wama.model_manager.services.eta_estimator.estimate', return_value=0):
             self.assertEqual(30, self._get(views['progress'], self.item.pk)['estimated_seconds'])
+
+    def test_a_card_whose_processes_name_their_eta_is_estimated_at_their_sum(self):
+        """`process_runs.launch_eta` prevails over the app triplet : one triplet per app gave the
+        render alone of the composer the time of a score + a render (2026-10-05)."""
+        views = self._views(eta_for=lambda item: ('k', 1, 'item'))
+        with mock.patch('wama.common.services.process_runs.launch_eta', return_value=42.0), \
+                mock.patch('wama.model_manager.services.eta_estimator.estimate',
+                           return_value=7.0) as estimate:
+            self.assertEqual(42.0, self._get(views['progress'], self.item.pk)['estimated_seconds'])
+        estimate.assert_not_called()
 
     def test_extra_keys_complete_the_common_payload(self):
         data = self._get(self._views(extra=lambda item: {'partial_text': 'abc'})['progress'],

@@ -111,7 +111,8 @@ class SynthesisTaskOnSkeletonTest(TestCase):
         item = self._run(broken)
         self.assertEqual(('FAILURE', 0), (item.status, item.progress))
         self.assertIn('the voice model crashed', item.error_message)
-        self.assertEqual({'generate': 'FAILURE'}, self._states())
+        # La sortie, PRÉVUE par le lancement, n'a pas joué : son tour n'est pas venu (`plan`).
+        self.assertEqual({'generate': 'FAILURE', 'output': 'PENDING'}, self._states())
 
     def test_a_tts_service_still_loading_is_not_a_failure_the_task_comes_back(self):
         from wama.common.tts.service_client import TTSServiceLoadingError

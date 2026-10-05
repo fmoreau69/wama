@@ -101,6 +101,10 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
         eta_for        : callable(élément) -> `(clé, taille, unité)` ou `(clé, taille, unité,
                          modèle_chargé)` — le triplet que l'app passe à `eta_estimator.estimate`,
                          déclaré une fois. Absent ou `None` rendu : pas d'estimation.
+                         ⚠ Une card à process dont les process déclarent leur ETA
+                         (`ProcessSpec.eta`) est estimée par `process_runs.launch_eta` — la
+                         somme de ce que joue le lancement ; `eta_for` ne sert plus qu'aux apps à
+                         un seul process.
         eta_fallback   : callable(élément) -> secondes, quand l'estimation apprise est vide
                          (composer : durée × `gen_factor` du catalogue + surcoût).
         extra          : callable(élément) -> dict — les clés PROPRES que le JS de l'app lit
@@ -129,7 +133,17 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
         return _bounded(cached if cached is not None else getattr(item, progress_field, 0))
 
     def _estimate(item):
-        seconds = 0.0
+        # Une card à PROCESS dont les process déclarent leur ETA (`ProcessSpec.eta`) : la somme
+        # de ceux que ce lancement joue (2026-10-05). Un seul triplet par app donnait au rendu
+        # seul du composer la durée d'une partition + d'un rendu, et à une transcription
+        # diarisée celle de la seule transcription.
+        from wama.common.services.process_runs import launch_eta
+        try:
+            seconds = launch_eta(item) or 0.0
+        except Exception:
+            seconds = 0.0
+        if seconds:
+            return seconds
         if eta_for is not None:
             try:
                 triplet = eta_for(item)

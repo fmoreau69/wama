@@ -414,7 +414,13 @@ progress, global_progress = _pv['progress'], _pv['global_progress']
   avec le modèle TIRÉ ; la vue de progression le lit sans (« auto » y est sa propre famille).
   Écrit deux fois, il diverge (l'avatarizer estimait un avatar 3D sous une clé jamais apprise).
   Tenu par `tests_progress_views.OneEtaPlacePerAppTest`.
-- Autres crochets : `eta_fallback` (a-priori du catalogue), `progress_of` (progression vivante
+- **Une app à PIPELINE ne passe pas `eta_for`** (2026-10-05) : chaque process DÉCLARE son ETA
+  (`ProcessSpec(..., eta='<app>.tasks:<process>_eta')`, la fonction que sa glu rend aussi à
+  `record_run` ; forme `(clé, taille, unité[, modèle chargé[, a priori]])`) et la card est estimée
+  à la SOMME de ce que joue son lancement (`process_runs.launch_eta`, `ROUTE §10.6` 4.5). Une clé
+  de process (`<app>:<process>`) déclare l'a priori `0.0` : apprise seulement. Tenu par
+  `tests_process_eta.EveryAppProcessNamesItsEtaTest`.
+- Autres crochets : `eta_fallback` (a-priori d'une app à un seul process), `progress_of` (progression vivante
   ailleurs qu'au cache commun : reader, anonymizer), `queryset` (file restreinte : converter),
   `domains` (une barre par domaine : imager), `get_user` (défaut : connecté, sinon anonyme).
 

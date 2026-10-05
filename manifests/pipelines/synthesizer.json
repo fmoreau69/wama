@@ -16,7 +16,10 @@
         "kind": "function",
         "params": {
           "degree": "required",
+          "eta": "synthesizer.workers:synthesizer_eta_key_size",
           "gpu": true,
+          "label": "Synthèse",
+          "share": 9,
           "watched": [
             "text_file",
             "tts_model",
@@ -39,6 +42,7 @@
         "params": {
           "degree": "required",
           "gpu": false,
+          "label": "Sortie",
           "watched": [
             "output_format",
             "output_quality",

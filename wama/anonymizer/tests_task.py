@@ -244,7 +244,10 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         outcome, _ = self._run(broken)
         self.assertEqual('FAILURE', self.media.status)
         self.assertIn('the detector crashed', self.media.error_message)
-        self.assertEqual({'detect': 'FAILURE'}, self._states())
+        # Ce que le lancement avait PRÉVU et qui n'a pas joué reste « son tour n'est pas venu »
+        # (`process_runs.plan`, 2026-10-05) — jamais « réussi » sous un process en échec.
+        self.assertEqual({'detect': 'FAILURE', 'blur': 'PENDING', 'output': 'PENDING'},
+                         self._states())
         self.assertIsNone(cache.get(f'anon_task_owner:media:{self.media.pk}'))
         self.assertIsNone(cache.get(f'anon_lock:media:{self.media.pk}'))
 

@@ -1132,13 +1132,6 @@ def start_all_generations(request):
 VIDEO_MODES = ('txt2vid', 'img2vid')
 
 
-def _eta_triplet(generation):
-    """Le triplet d'ETA, celui que la tâche apprend (`tasks.imager_eta_key_size`) — chargement
-    mesuré à part, modèle réputé NON chargé (le coût à froid compris)."""
-    from .tasks import imager_eta_key_size
-    return (*imager_eta_key_size(generation), False)
-
-
 def _progress_extra(generation):
     """Les clés PROPRES que le JS de l'imager lit : les sorties et leur nature."""
     data = {
@@ -1153,13 +1146,13 @@ def _progress_extra(generation):
 
 
 # Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
-# 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et ses deux domaines de
-# file (image, vidéo).
+# 2026-10-03) — l'app n'y déclare que ses clés propres et ses deux domaines de file (image,
+# vidéo). L'ETA est celle de ses PROCESS (`function_specs.PIPELINE`, 2026-10-05).
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
 _pv = make_progress_views(
     work_model=ImageGeneration,
-    app_id='imager', eta_for=_eta_triplet, extra=_progress_extra,
+    app_id='imager', extra=_progress_extra,
     domains={'image': lambda qs: qs.exclude(generation_mode__in=VIDEO_MODES),
              'video': lambda qs: qs.filter(generation_mode__in=VIDEO_MODES)})
 progress, global_progress = _pv['progress'], _pv['global_progress']

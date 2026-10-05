@@ -94,6 +94,11 @@ class ProcessSpec:
                   tâche est installé (2026-10-03, `composer.extract_score`). Absent = toujours.
                   Distinct d'`applies`, qui juge un élément : `available` juge l'installation, et
                   c'est lui que lisent les ENTRÉES ÉTENDUES (`covering_inputs`).
+      eta         chemin `module:attribut` (forme de `FunctionSpec.impl`, résolu paresseusement
+                  par `function_catalog.resolve_impl`) vers `(élément) -> (clé, taille, unité[,
+                  modèle chargé[, a priori]])` — l'ETA PAR PROCESS (`ROUTE §10.6` 4.5), celle que
+                  sa glu apprend ; lue par `process_runs.launch_eta`. Absent = le process ne vaut
+                  que sa dernière durée sur la card.
     """
     key: str
     label: str = ''
@@ -107,6 +112,7 @@ class ProcessSpec:
     outputs: tuple = ()
     toggle: str = ''
     available: Callable = None
+    eta: object = None
 
 
 def output_fingerprint(ref: str) -> str:
@@ -254,10 +260,19 @@ class AppPipeline:
         `pass_tracking.pipeline_graph` : un process = un nœud `function`, une dépendance = un
         lien. Les `params` portent ce qui est propre au process et absent du `FunctionSpec`."""
         from wama.common.manifests.builtin.pipeline import FUNCTION_NODE_PREFIX
+        # `label`, `outputs`, `share` exportés depuis le 2026-10-05 (session Writer) : le
+        # GÉNÉRATEUR relit ce manifeste pour écrire `function_specs.py`, les colonnes de sortie et
+        # la remise à zéro d'un ▶ borné — sans eux, un pipeline exporté puis régénéré perdait
+        # ce que `reset_outputs` remplace. Ajout pur : un champ vide n'est pas écrit.
         nodes = [{'id': spec.key, 'app': f'{FUNCTION_NODE_PREFIX}{self.function_key(spec)}',
                   'params': {'degree': spec.degree, 'gpu': spec.gpu,
                              'watched': list(spec.watched),
-                             **({'toggle': spec.toggle} if spec.toggle else {})}}
+                             **({'toggle': spec.toggle} if spec.toggle else {}),
+                             **({'label': spec.label} if spec.label else {}),
+                             **({'outputs': list(spec.outputs)} if spec.outputs else {}),
+                             **({'share': spec.share} if spec.share != 1 else {}),
+                             **({'eta': spec.eta} if isinstance(spec.eta, str) and spec.eta
+                                else {})}}
                  for spec in self.specs]
         links = [{'from': upstream, 'to': spec.key, 'to_port': None}
                  for spec in self.specs for upstream in spec.depends_on]

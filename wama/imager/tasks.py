@@ -85,6 +85,12 @@ def imager_eta_key_size(generation, model: str = None) -> tuple[str, float, str]
     return f'imager:img:{model}', max(steps, 1), 'step'
 
 
+def generate_eta(generation):
+    """ETA déclarée du process `generate` (`ProcessSpec.eta`) : le triplet que la glu apprend,
+    modèle réputé NON chargé — la glu apprend le chargement à part, il compte au démarrage."""
+    return (*imager_eta_key_size(generation), False)
+
+
 def _declared_model_key(generation):
     """La clé de catalogue du modèle que la card DÉSIGNE, ou None sous « auto » (le tirage se
     fait dans la glu, après l'ingestion) — ce que le squelette lit pour prévenir d'un

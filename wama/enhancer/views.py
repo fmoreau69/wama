@@ -547,24 +547,14 @@ def start(request, pk: int):
         }, status=500)
 
 
-def _eta_triplet(enhancement):
-    from .tasks import enhancer_eta_key_size
-    return enhancer_eta_key_size(enhancement)
-
-
-def _audio_eta_triplet(ae):
-    from .tasks import audio_enhancer_eta_key_size
-    return audio_enhancer_eta_key_size(ae)
-
-
 # Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
-# 2026-10-03) — l'app n'y déclare que ses triplets d'ETA, pour ses DEUX files (média, audio).
+# 2026-10-03), pour ses DEUX files (média, audio). L'ETA est celle de ses PROCESS
+# (`function_specs.PIPELINE`, 2026-10-05).
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(work_model=Enhancement, app_id='enhancer', eta_for=_eta_triplet)
+_pv = make_progress_views(work_model=Enhancement, app_id='enhancer')
 progress, global_progress = _pv['progress'], _pv['global_progress']
-_apv = make_progress_views(work_model=AudioEnhancement, app_id='audio_enhancer',
-                           eta_for=_audio_eta_triplet)
+_apv = make_progress_views(work_model=AudioEnhancement, app_id='audio_enhancer')
 audio_progress, audio_global_progress = _apv['progress'], _apv['global_progress']
 
 

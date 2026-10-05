@@ -41,6 +41,17 @@ def service_url() -> str:
     return base_url('tts_service')
 
 
+def tts_eta_key_size(text, model):
+    """(clé, taille, unité) de l'ETA d'une synthèse par le service : durée ∝ longueur du texte,
+    apprise par MODÈLE TTS — la même clé quelle que soit l'app qui fait parler le service
+    (synthesizer, voix de l'avatarizer) : un moteur parle au même débit pour toutes. None sans
+    texte. Rendu par la glu (`record_run`) et déclaré à son process (`ProcessSpec.eta`)."""
+    from wama.model_manager.services.eta_estimator import make_key
+    from .constants import DEFAULT_TTS_MODEL
+    text = text or ''
+    return (make_key(DEFAULT_TTS_MODEL.split(':', 1)[0], model), len(text), 'char') if text else None
+
+
 def tts_via_service(text, model, *, language='fr', voice_preset='default',
                     speaker_wav=None, multi_speaker=False, scene_description='',
                     options=None, read_timeout=DEFAULT_READ_TIMEOUT, raw=False):

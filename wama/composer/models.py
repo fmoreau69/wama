@@ -1,3 +1,5 @@
+from functools import cached_property
+
 from django.db import models
 from wama.common.models import (JOB_STATUS_CHOICES, NativeOutputsMixin, ProcessingTimeMixin,
                                 PromptScoped, ScopedManager, ScopedVisibility)
@@ -146,25 +148,24 @@ class ComposerGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, 
         from wama.composer.utils.model_choice import label_of
         return label_of(self.model)
 
-    @property
+    @cached_property
     def estimated_seconds(self) -> int:
-        """Temps de génération estimé (s). Apprend des runs réels (ETA seeding) ;
-        l'heuristique statique sert de démarrage à froid (fallback) tant qu'aucun run
-        n'est enregistré pour ce modèle sur ce matériel."""
+        """Temps estimé (s) de ce que le ▶ de la card jouerait : la somme de ses process
+        (`process_runs.launch_eta` — partition, rendu, sortie, chacun appris de ses runs réels),
+        la même que la vue de progression ; l'heuristique statique du catalogue
+        (`model_config.estimate_seconds`) quand rien n'est estimable (2026-10-05 : cette propriété
+        recalculait le seul rendu, troisième copie de la règle)."""
         from wama.common.utils.model_keys import model_id
         from wama.composer.utils.model_choice import normalize
         from wama.composer.utils.model_config import estimate_seconds
-        key = normalize(self.model)
-        static = estimate_seconds(model_id(key), self.duration)
         try:
-            from wama.model_manager.services.eta_estimator import estimate
-            # Clé ETA = la clé de catalogue (identique à l'ancienne `composer:<id>` pour les
-            # modèles du composer : l'historique appris est conservé).
-            return int(round(estimate(
-                key, size=float(self.duration or 0),
-                unit='audio_sec', model_loaded=True, fallback_seconds=static)))
+            from wama.common.services.process_runs import launch_eta
+            seconds = launch_eta(self)
+            if seconds:
+                return int(round(seconds))
         except Exception:
-            return static
+            pass
+        return estimate_seconds(model_id(normalize(self.model)), self.duration)
 
     @property
     def estimated_display(self) -> str:
