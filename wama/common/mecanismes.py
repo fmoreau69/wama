@@ -1919,6 +1919,14 @@ MECHANISMS = (
               "(`probe_object3d` : format, faces, rig, animations) sous la clé `attributes` — ce "
               "que la médiathèque pose à l'ingest sur la nature `object3d` (A′)",
               'wama/common/utils/media_probe.py', 'docs/construction/suivi/ROADMAP.md §17ter'),
+    Mechanism('content_language', "Langue d'un contenu (écrit, parlé)",
+              "La langue d'un TEXTE (`langid`, balises de section retirées, verdict peu sûr = "
+              "inconnue — les paroles du composer, 2026-10-05) et celle d'un AUDIO (Whisper sur "
+              "plusieurs passages — la langue d'un fichier proposée, le transcriber). Deux faces, "
+              "une question : en quelle langue est ce contenu ? — jamais une heuristique d'app "
+              "(celle du describer, morte, est retirée le jour même)",
+              'wama/common/utils/text_language.py', 'docs/construction/ia/WAMA_LLM.md',
+              annexes=('wama/common/utils/spoken_language.py',)),
     Mechanism('asset_natures', "Natures d'assets de la médiathèque (A′)",
               "UNE déclaration par nature (`ASSET_NATURES` : libellé, catégorie ∈ MEDIA_CATEGORIES, "
               "extensions, icône, pivot, schéma d'attributs, `data_type` inter-mondes) dont "

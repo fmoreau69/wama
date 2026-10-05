@@ -514,6 +514,29 @@ port de TRAVAIL (`INPUT_TYPES`). Correction, à périmètre de JETONS :
   soir même un a priori DÉCLARÉ et sourcé (`WAMA_QUALITE`, étage a priori) : rapide → MusicGen
   Small, équilibré et qualité → YuE2 (il retombait sur la VRAM : MiniMax-Music3).
 
+### 6.11 Une VALEUR de réglage exige une CAPACITÉ — `capabilitySlot` (2026-10-05)
+
+> Déclencheur : le réglage « Voix » du composer (`WAMA_LLM.md §Paroles et contrat`). « Chanson »
+> demande un modèle qui CHANTE — capacité `supports_vocals`, déclarée par le manifeste du modèle.
+> Le 04/10 seuls le tirage « auto » et la console du lancement le savaient ; le sélecteur ne
+> grisait rien.
+
+- **La forme est celle de la langue (§6.7)** : un slot de VALEUR avec son prédicat `accepts` sur
+  les capacités du catalogue (`capsProvider`), généralisé en `WamaInputMatch.capabilitySlot(id,
+  {capability, values, label})` — la page déclare l'id du champ, les valeurs qui exigent la
+  capacité, et la capacité. Capacité ABSENTE du catalogue = non (un modèle ne promet que ce
+  qu'il déclare). Volet ET modale ⚙ (rebranchée à chaque ouverture, patron de l'avatarizer).
+- **Deux défauts de la brique, trouvés en l'écrivant** :
+  1. seul `auto` nu échappait au grisage — l'« auto » d'un GROUPE (`auto:<tâche>`) aurait été
+     grisé comme un modèle. `isAutoValue`, jumeau client de `auto_model.is_auto` (garde qui les
+     confronte) ;
+  2. la première passe jugeait AVANT l'arrivée des capacités du catalogue et n'était jamais
+     rejouée : une langue choisie ne grisait les moteurs qu'au geste suivant (synthesizer,
+     avatarizer), et un slot de capacité aurait TOUT grisé à l'ouverture puis basculé le select
+     en silence. `WamaModelCaps.init` rend `ready` (promesse) ; `WamaInputMatch.init({capsReady})`
+     ne juge pas avant, puis rejoue. L'appariement rejoue aussi sur `wama:options-filled`.
+- Gardes : `tests_input_match_capability` (V8 sur les briques servies, deux mutations prouvées).
+
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 
 **Demande de Fabien** : *« il faut que les paramètres modale/inspecteur tirent leurs infos des

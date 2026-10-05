@@ -91,27 +91,24 @@
         // L'aide du modèle (description + VRAM) n'est plus câblée ici : le select est celui du
         // volet, dont `WamaParams` câble l'aide depuis le schéma (`help_source='imager'`).
 
-        // ── Enrichissement de prompt (pipeline commun conservé) ──
+        // ── Enrichissement de prompt : la brique COMMUNE et son déclencheur ✨ (2026-10-05) ──
+        // Le ✨ était un bouton écrit ICI, servi par un handler délégué d'index.js qui recopiait
+        // l'appel de la brique — sans le modèle visé, donc sans son CONTRAT de prompt. Il est
+        // désormais celui de la brique (`trigger`, comme le composer), avec le select du volet.
         if (window.WamaPromptEnrich) {
             WamaPromptEnrich.attach(promptEl, {
                 app: 'imager', domain: d.domain,
                 endpoint: CFG.enhanceUrl, csrf: CFG.csrf,
                 original: promptEl.value, processed: '',
+                trigger: true, modelSelect: '#' + d.selectId,
             });
         }
 
-        // ── Affordances sous le prompt : bouton ✨ + tags proposés (chips) ──
-        // Le déclencheur ✨ est le handler DÉLÉGUÉ existant d'index.js (.enhance-prompt-btn,
-        // data-target/data-mode) ; les chips sont la brique WamaPromptChips par domaine.
+        // ── Tags proposés (chips) sous le prompt : la brique WamaPromptChips par domaine ──
         (function () {
             const bar = document.createElement('div');
             bar.className = 'd-flex align-items-start gap-2 mt-1';
-            bar.innerHTML =
-                '<button type="button" class="btn btn-sm btn-outline-info enhance-prompt-btn py-0" ' +
-                'data-target="' + d.promptId + '" data-mode="' + d.domain + '" ' +
-                'title="Traduire et enrichir le prompt (le texte original est conservé)">' +
-                '<i class="fas fa-wand-magic-sparkles"></i></button>' +
-                '<div id="' + d.prefix + 'PromptChips" class="flex-grow-1"></div>';
+            bar.innerHTML = '<div id="' + d.prefix + 'PromptChips" class="flex-grow-1"></div>';
             promptEl.insertAdjacentElement('afterend', bar);
             if (window.WamaPromptChips) {
                 WamaPromptChips.init({ container: '#' + d.prefix + 'PromptChips',

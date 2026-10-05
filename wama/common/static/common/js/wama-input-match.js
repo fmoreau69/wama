@@ -51,6 +51,14 @@
     });
   }
 
+  /* Une valeur de select demande-t-elle le TIRAGE ? `auto`, ou l'« auto » borné à une tâche
+     (`auto:text-to-music`). Jumeau client de `common/utils/auto_model.is_auto` /
+     `model_keys.AUTO_TASK_PREFIX` — la garde `tests_input_match_capability` confronte les deux. */
+  const AUTO_TASK_PREFIX = 'auto:';
+  function isAutoValue(v) {
+    return v === 'auto' || (typeof v === 'string' && v.indexOf(AUTO_TASK_PREFIX) === 0);
+  }
+
   function init(cfg) {
     cfg = cfg || {};
     const select = document.getElementById(cfg.selectId);
@@ -85,6 +93,11 @@
     const capsProvider = typeof cfg.capsProvider === 'function' ? cfg.capsProvider : null;
     const capsOf = (mid) => Object.assign(
       {}, meta[mid] || {}, (capsProvider && (capsProvider() || {})[mid]) || {});
+    // `capsReady` (2026-10-05, la promesse `ready` de WamaModelCaps) : tant que les capacités du
+    // catalogue ne sont pas arrivées, un slot qui en JUGE (`accepts`) ne grise rien — il jugerait
+    // sur du vide, et un modèle courant grisé fait basculer le select (cf. `refresh`). À
+    // l'arrivée, l'appariement est REJOUÉ : la première passe n'était pas un verdict.
+    let capsLoaded = !cfg.capsReady;
 
     // Un slot peut porter son PROPRE prédicat de compatibilité (`accepts(caps, el)`). C'est ce
     // qui fait entrer une VALEUR (la langue) dans l'appariement, là où le défaut ne sait juger
@@ -95,9 +108,13 @@
       // « auto » n'est pas un moteur : c'est le TIRAGE, qui reçoit la contrainte au lancement
       // (`resolve_model_choice(requires=…)` — une voix clonée exige `supports_cloning`). Le
       // griser excluait « auto » et « ma voix » l'un l'autre (observé 13/09, décision Fabien).
-      if (mid === 'auto') return true;
+      // L'« auto » d'un GROUPE (`auto:<tâche>`, composer) aussi (2026-10-05) : seul `auto` nu
+      // était reconnu — sans incidence tant que ses slots étaient des FICHIERS (la vue lui
+      // injecte l'union des entrées du groupe), faux pour un slot de VALEUR, lu sur le catalogue.
+      if (isAutoValue(mid)) return true;
       const s = slots[sid] || {};
       if (typeof s.accepts === 'function') {
+        if (!capsLoaded) return true;
         return !!s.accepts(capsOf(mid), document.getElementById(s.inputId));
       }
       return acceptsOf(mid).has(sid);
@@ -224,6 +241,10 @@
       if (inp) inp.addEventListener('change', refresh);
     });
     select.addEventListener('change', refresh);
+    // Options REMPLIES après coup (`options_source`, WamaParams émet `wama:options-filled`) : les
+    // juger à nouveau — même règle que WamaModelCaps (2026-09-22). Sans ce rejeu, un select peuplé
+    // du catalogue après l'init n'était apparié qu'au premier geste de l'utilisateur.
+    select.addEventListener('wama:options-filled', refresh);
     instances.add({
       select: select,
       clear: (sid) => {
@@ -242,6 +263,10 @@
     bindClearOnce();
 
     refresh();
+    if (cfg.capsReady && typeof cfg.capsReady.then === 'function') {
+      cfg.capsReady.then(() => { capsLoaded = true; if (select.isConnected) refresh(); },
+                         () => { capsLoaded = true; });
+    }
     return { refresh: refresh, isLaunchable: () => refresh().launchable, provided: provided };
   }
 
@@ -310,6 +335,36 @@
         if (langs.indexOf(v) !== -1) return true;
         return (caps.fallback_languages || []).indexOf(v) !== -1;
       },
+    };
+  }
+
+  /*
+   * Slot CAPACITÉ — une VALEUR de réglage qui exige une capacité du MODÈLE (2026-10-05).
+   * Déclencheur : le réglage « Voix » du composer. « Chanson » demande un modèle qui CHANTE
+   * (`supports_vocals`) ; jusque-là la console le disait au lancement, le sélecteur ne grisait
+   * rien. Même forme que `langSlot` (une valeur, un prédicat `accepts` sur les capacités du
+   * catalogue lues par `capsProvider`), généralisée : la page déclare l'id du champ, les valeurs
+   * qui exigent la capacité et le nom de la capacité — aucun cas d'app ici.
+   * Une valeur se CHANGE (pas de chip, pas de ✕) ; « auto » n'est jamais grisé (le tirage reçoit
+   * la contrainte au lancement — `slotAccepts`). Capacité absente du catalogue = non : un modèle
+   * qui ne la DÉCLARE pas ne la promet pas.
+   *
+   *   slots: { vocals: WamaInputMatch.capabilitySlot('vocalsSelect',
+   *              { capability: 'supports_vocals', values: ['song'], label: 'Voix : chanson' }) },
+   *   capsProvider: modelCaps.caps
+   */
+  function capabilitySlot(inputId, opts) {
+    opts = opts || {};
+    const values = opts.values || [];
+    return {
+      inputId: inputId,
+      label: opts.label || opts.capability,
+      isProvided: function (el) { return !!(el && values.indexOf(el.value) !== -1); },
+      describe: function (el) {
+        const o = el && el.selectedOptions && el.selectedOptions[0];
+        return o ? o.textContent.trim() : (el ? el.value : '');
+      },
+      accepts: function (caps) { return !!(caps && caps[opts.capability]); },
     };
   }
 
@@ -435,6 +490,7 @@
   }
 
   global.WamaInputMatch = { init: init, voiceSlot: voiceSlot, langSlot: langSlot,
+                            capabilitySlot: capabilitySlot, isAutoValue: isAutoValue,
                             voicesFollowLanguage: voicesFollowLanguage,
                             voiceGroupOrder: voiceGroupOrder };
 })(window);

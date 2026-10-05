@@ -106,6 +106,25 @@
         });
     }
 
+    // L'APPARIEMENT dans la modale ⚙ (2026-10-05) : la voix « Chanson » grise les modèles qui ne
+    // chantent pas, comme au volet — la MÊME déclaration (`COMPOSER_MATCH.vocalsSlot`, gabarit),
+    // branchée à CHAQUE ouverture : la modale est re-générée (patron de l'avatarizer,
+    // `wireTtsMatching`). `WamaInputMatch` est ré-initialisable depuis le 24/09.
+    function _wireSettingsMatching() {
+        const match = window.COMPOSER_MATCH;
+        if (!match || !window.WamaInputMatch || !document.getElementById('settingsVocals')) return;
+        const caps = window.WamaModelCaps
+            ? WamaModelCaps.init({ task: match.task, modelSelectId: 'settingsModel' }) : null;
+        WamaInputMatch.init({
+            selectId: 'settingsModel',
+            meta: match.meta || {},
+            inputLabels: match.labels || {},
+            slots: { vocals: match.vocalsSlot('settingsVocals') },
+            capsProvider: caps ? caps.caps : null,
+            capsReady: caps ? caps.ready : null,
+        });
+    }
+
     // Estimation (~20s) DANS la modale ⚙ : greffée à côté de la valeur du slider Durée du
     // formulaire GÉNÉRÉ (les champs n'existent qu'à l'ouverture — hook `decorate` du cycle commun).
     function _wireSettingsEstimate(host) {
@@ -183,6 +202,7 @@
             decorate: function (host) {
                 _wireSettingsEstimate(host);
                 _wireSettingsPrompt(host, card);
+                _wireSettingsMatching();
             },
             collect: function (fd, host, data, restart) {
                 fd.append('restart', restart ? '1' : '0');

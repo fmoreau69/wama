@@ -1,0 +1,36 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "numpy"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "langid"
+      ]
+    },
+    "identity": {
+      "author": "Marco Lui",
+      "license": "BSD",
+      "repository": "https://github.com/saffsd/langid.py",
+      "summary": "langid.py is a standalone Language Identification (LangID) tool.",
+      "version": "1.1.6"
+    },
+    "install": {
+      "pip": "langid==1.1.6",
+      "requires_python": null
+    }
+  },
+  "description": "langid.py is a standalone Language Identification (LangID) tool.",
+  "key": "langid",
+  "manifest_kind": "library",
+  "name": "langid",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:langid==1.1.6",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -230,49 +230,9 @@
 
 
 
-        // Prompt enhancement buttons (image + video)
-        document.addEventListener('click', function(e) {
-            const btn = e.target.closest('.enhance-prompt-btn');
-            if (!btn) return;
-            const targetId = btn.dataset.target;
-            const mode = btn.dataset.mode || 'image';
-            const textarea = document.getElementById(targetId);
-            if (!textarea || !textarea.value.trim()) return;
-            const icon = btn.querySelector('i');
-            const originalClass = icon.className;
-            icon.className = 'fas fa-spinner fa-spin';
-            btn.disabled = true;
-            fetch(config.urls.enhancePrompt, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-CSRFToken': config.csrfToken},
-                body: JSON.stringify({
-                    prompt: promptOf(textarea), app: 'imager', domain: mode,
-                    // Mots-clés cliqués → glossaire : préservés VERBATIM par l'enrichissement.
-                    keywords: window.WamaPromptChips ? WamaPromptChips.activeFor(textarea) : []
-                })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.enhanced) {
-                    textarea.dataset.originalPrompt = promptOf(textarea);
-                    // Passe par la brique commune : c'est elle qui tient les deux états
-                    // (« voir mon prompt » / « revenir au mien ») et resynchronise les chips.
-                    if (window.WamaPromptEnrich && WamaPromptEnrich.get(textarea)) {
-                        WamaPromptEnrich.setProcessed(textarea, data.enhanced);
-                    } else {
-                        textarea.value = data.enhanced;
-                        if (window.WamaPromptChips) WamaPromptChips.refreshFor(textarea);
-                    }
-                } else {
-                    WamaApp.toast(data.error || 'Erreur lors de l\'amélioration du prompt', 'error');
-                }
-            })
-            .catch(() => WamaApp.toast('Erreur réseau', 'error'))
-            .finally(() => {
-                icon.className = originalClass;
-                btn.disabled = false;
-            });
-        });
+        // Le ✨ « Traduire et enrichir » est celui de la brique `WamaPromptEnrich` (option
+        // `trigger`, input_card.js et settings_modal.js) depuis le 2026-10-05 : le handler
+        // délégué qui vivait ici recopiait son appel, sans le modèle visé (donc sans contrat).
     }
 
 

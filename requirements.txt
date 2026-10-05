@@ -38,6 +38,9 @@ requests>=2.32.3
 # dépendance implicite régularisée le 2026-08-29 (déjà présents dans les deux venvs).
 beautifulsoup4>=4.12
 lxml>=5.0
+# langid : langue d'un TEXTE (`common/utils/text_language`, les paroles du composer) — présent
+# dans les deux venvs comme dépendance de boson_multimodal, régularisé le 2026-10-05 (BSD).
+langid>=1.1.6
 # Lecteur de doc (common/docs_catalog.py, 2026-09-11) — déjà présent dans les deux venvs comme
 # dépendance de `rich` ; déclaré parce que WAMA l'importe désormais directement. `html=False`
 # échappe nativement le HTML brut des .md (raison du choix face à Python-Markdown).

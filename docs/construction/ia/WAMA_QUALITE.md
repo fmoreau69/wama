@@ -99,6 +99,20 @@ classe que les notés, et une synchro d'une autre instance a appliqué la table 
 pendant une heure, YuE2 a gagné même au curseur rapide. Mesuré après : rapide → MusicGen Small,
 équilibré et qualité → YuE2, cover → YuE2. ⏳ Un banc tiers qui couvre YuE2 et MusicGen, ou une
 mesure interne, PRIME dès qu'il existe.
+**Recherché le 2026-10-05 — il n'existe pas** (sous forme lisible par machine) :
+- l'API v2 d'Artificial Analysis (source `artificial_analysis`, déjà branchée) n'expose AUCUNE
+  catégorie musique : elle documente cinq familles média (image, édition, image→vidéo, voix,
+  vidéo) ; les chemins musicaux sondés rendent 404 ;
+- ses classements musique n'existent que sur la PAGE web (votes humains) : en **instrumental**,
+  MiniMax Music 3.0 = 1000 (ancre), **MusicGen = 881** (−119 Elo) ; en **chanté**, aucun modèle
+  ouvert (ni YuE, ni ACE-Step, ni MusicGen) ;
+- WildSongBench (fiche de YuE2) couvre YuE2, MiniMax Music 3 et ACE-Step — pas MusicGen.
+MiniMax Music 3 est l'unique modèle commun aux deux échelles : il CORROBORE l'ordre déclaré
+(MusicGen sous MiniMax Music 3, qui est sous YuE2) sans permettre de le MESURER (deux échelles,
+deux protocoles — les raccorder serait un choix, pas une mesure). Les valeurs déclarées restent
+donc telles quelles ; la corroboration est portée dans leur source (`DECLARED_PRIORS`).
+⇒ La voie qui reste est la **mesure interne** (étage 3) : un évaluateur automatique de qualité
+musicale tourné sur les sorties du composer — chantier à décider, pas un reste d'intégration.
 
 ⏳ **`AIModel.cost_tier` reste NON LU, et c'est délibéré** (question tranchée le 26/09,
 demande initiale de Fabien de « brancher l'arbitrage honnête », retirée après mesure). Le

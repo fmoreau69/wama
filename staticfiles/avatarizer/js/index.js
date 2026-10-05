@@ -501,6 +501,9 @@
                 },
                 // Le MÊME catalogue que la direction modèle→choix (langues incluses).
                 capsProvider: modelCaps ? modelCaps.caps : null,
+                // Rejugé à l'arrivée du catalogue (2026-10-05) : sans lui, une langue choisie ne
+                // grisait les moteurs qu'au geste suivant.
+                capsReady: modelCaps ? modelCaps.ready : null,
             });
             // Troisième direction (2026-09-27) : les groupes de voix de la langue CHOISIE
             // remontent en tête du sélecteur. Rien n'est masqué — un timbre se clone d'une

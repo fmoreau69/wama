@@ -148,8 +148,15 @@
 
     Ctrl.prototype.enrich = function () {
         var self = this;
+        // Rien à enrichir : le DIRE (le serveur refuserait un prompt vide, en silence ici).
+        if (!(this.original || '').trim()) {
+            this._say('Écrivez d’abord un prompt à enrichir.');
+            return;
+        }
+        if (this._busy) return;            // un clic de plus pendant l'appel LLM ne relance rien
+        this._busy = true;
         var link = this.bar.querySelector('[data-act="redo"]');
-        if (link) link.textContent = '…';
+        if (link) link.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enrichissement…';
         // Ré-enrichir part TOUJOURS du prompt de l'utilisateur, jamais de l'enrichi précédent :
         // enrichir un enrichi empile les couches de style et finit par noyer le sujet.
         var kws = (window.WamaPromptChips ? WamaPromptChips.activeFor(this.field) : null)
@@ -168,10 +175,21 @@
         })
         .then(function (r) { return r.json(); })
         .then(function (d) {
+            self._busy = false;
             if (d.enhanced) self.setProcessed(d.enhanced);
-            else self.render();
+            else { self.render(); self._say(d.error || 'Enrichissement indisponible.'); }
         })
-        .catch(function () { self.render(); });
+        .catch(function () {
+            self._busy = false;
+            self.render();
+            self._say('Enrichissement indisponible (erreur réseau).');
+        });
+    };
+
+    /** Une erreur DITE (toast commun) — jusqu'au 2026-10-05 la brique rerendait en silence ;
+     *  le bouton ✨ écrit dans l'imager, lui, le disait : c'est ce que le portage garde. */
+    Ctrl.prototype._say = function (msg) {
+        if (global.WamaApp && global.WamaApp.toast) global.WamaApp.toast(msg, 'error');
     };
 
     Ctrl.prototype.snapshot = function () {

@@ -169,7 +169,7 @@ ce que la modale de lot poste : modèle/durée/format/qualité — le prompt res
     window.COMPOSER_QUEUE_COUNT = {{ active_count }};{# items actifs (amorçage barre globale) #}
 </script>
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'composer:global_progress' %}";</script>
-{% include 'common/_app_scripts.html' with with_input_match=True %}  {# socle JS d'app commun (ROUTE §11 #25) #}
+{% include 'common/_app_scripts.html' with with_input_match=True with_model_caps=True %}  {# socle JS d'app commun (ROUTE §11 #25) #}
 <script>
 // Import batch COMMUN (WamaBatchImport, pattern transcriber) : aperçu serveur dans la detect bar,
 // « Créer seulement » ≠ « Créer et lancer » (le lancement passe par composer:batch_start —
@@ -300,19 +300,39 @@ window.COMPOSER_PARAMS_SCHEMA = {{ params_json|safe }};
     }
     // Appariement entrées⇄modèles (brique commune) : meta du CATALOGUE ; le mapping input_id →
     // ids DOM reflète la déclaration de l'include _new_item_card ci-dessus (slot mélodie).
+    // VOIX (2026-10-05) : « Chanson » grise les modèles qui ne CHANTENT pas (capacité
+    // `supports_vocals` du catalogue, `WamaInputMatch.capabilitySlot`) — la même configuration
+    // sert le volet ici et la modale ⚙ (index.js, à chaque ouverture). Les capacités sont lues sur
+    // le domaine du select (`options_query` du réglage Modèle), jamais une liste écrite ici.
+    var modelParam = schema.filter(function (p) { return p.name === 'model'; })[0] || {};
+    window.COMPOSER_MATCH = {
+        meta: {{ input_match_meta|default:"{}"|safe }},
+        labels: {{ input_labels|default:"{}"|safe }},
+        task: (modelParam.options_query || {}).task || '',
+        vocalsSlot: function (inputId) {
+            return WamaInputMatch.capabilitySlot(inputId, {
+                capability: 'supports_vocals', values: ['song'], label: 'Voix : chanson' });
+        },
+    };
     if (window.WamaInputMatch) {
+        var panelCaps = window.WamaModelCaps
+            ? WamaModelCaps.init({ task: COMPOSER_MATCH.task, modelSelectId: 'modelSelect' }) : null;
+        // Les slots SONT les ports de la card (2026-10-03) : lus du DOM, jamais écrits ici —
+        // la partition de YuE2 n'était pas déclarée dans la liste écrite à la main.
+        var panelSlots = Array.from(document.querySelectorAll('#composerNewCard [data-port-pane]'))
+            .filter(function (p) { return p.dataset.portInput; })
+            .reduce(function (acc, p) {
+                acc[p.dataset.portPane] = { inputId: p.dataset.portInput, zoneId: p.id || undefined };
+                return acc;
+            }, {});
+        panelSlots.vocals = COMPOSER_MATCH.vocalsSlot('vocalsSelect');
         WamaInputMatch.init({
             selectId: 'modelSelect',
-            meta: {{ input_match_meta|default:"{}"|safe }},
-            inputLabels: {{ input_labels|default:"{}"|safe }},
-            // Les slots SONT les ports de la card (2026-10-03) : lus du DOM, jamais écrits ici —
-            // la partition de YuE2 n'était pas déclarée dans la liste écrite à la main.
-            slots: Array.from(document.querySelectorAll('#composerNewCard [data-port-pane]'))
-                .filter(function (p) { return p.dataset.portInput; })
-                .reduce(function (acc, p) {
-                    acc[p.dataset.portPane] = { inputId: p.dataset.portInput, zoneId: p.id || undefined };
-                    return acc;
-                }, {}),
+            meta: COMPOSER_MATCH.meta,
+            inputLabels: COMPOSER_MATCH.labels,
+            slots: panelSlots,
+            capsProvider: panelCaps ? panelCaps.caps : null,
+            capsReady: panelCaps ? panelCaps.ready : null,
             statusId: 'inputMatchStatus',
         });
     }
