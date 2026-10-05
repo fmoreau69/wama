@@ -524,7 +524,7 @@
                   "imports": []
                 },
                 "verbose_name": {
-                  "expr": "'Max frames to interpolate (capped at 0.5s)'",
+                  "expr": "'Max frames to interpolate'",
                   "imports": []
                 }
               },
@@ -1697,7 +1697,7 @@
             "display_format": "",
             "dom_id": "",
             "group": "",
-            "help": "",
+            "help": "Un trou de détection d'au plus ce nombre d'images est comblé, entre deux détections du même objet (même piste, ou même place).",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -2492,7 +2492,7 @@
             "detection_threshold": "range — Seuil de détection [0–1] (défaut : 0.25)",
             "file_path": "str (requis)",
             "interpolate_detections": "toggle — Interpoler les détections manquantes (défaut : True)",
-            "max_interpolation_frames": "number — Frames max à interpoler [1–60] (défaut : 15)",
+            "max_interpolation_frames": "number — Un trou de détection d'au plus ce nombre d'images est comblé, entre deux détections du même objet (même piste, ou même place). [1–60] (défaut : 15)",
             "model_to_use": "select — Automatique : choisi au lancement selon le curseur et les classes. (défaut : 'auto')",
             "output_format": "select — Conversion inline après floutage (brique converter). « Original » = format produit par le pipeline. (défaut : 'original')",
             "output_quality": "select — Qualité de sortie (choix : web | balanced | max) (défaut : 'balanced')",
