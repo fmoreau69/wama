@@ -3968,6 +3968,26 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       (garde `BlurShapeTest`). ⚠ Le protocole du 19/08 prévoyait une bascule
 >       `feature_flags` : `Media` n'a pas de champ de configuration, le retour arrière est un
 >       `git revert` ; la comparaison chiffrée, elle, est faite. Retraits : `REMOVAL_LEDGER` R103.
+>     - ✅ **La modale d'aperçu et son plein écran (2026-10-06, demande de Fabien : « mettre la
+>       during_preview en plein écran », puis « la modale et le plein écran avec entrée,
+>       détection, comparaison, sortie »)** — brique COMMUNE (`media-preview.js`), toute app.
+>       Quatre trous, aucun ne levait d'erreur : la face PENDANT du volet n'ouvrait pas la
+>       modale (le double-clic rouvrait la face précédente) ; la modale ignorait cette face (une
+>       image figée) ; ouverte d'une VIGNETTE de card, elle n'avait jamais ses faces (adresse de
+>       l'élément non transmise par `openPreview`) ; le plein écran était une surcouche réservée
+>       aux images, sans faces. Désormais : la modale suit la face Pendant EN DIRECT (même
+>       cadence et même vue que le volet, barre des vues À PART sous celle des faces — la vue
+>       « Détection » n'est pas la face « Détection »), ouvre sur Pendant un élément en cours,
+>       repasse à la Sortie à la fin ; le PLEIN ÉCRAN d'un élément est la modale agrandie
+>       (`modal-fullscreen`, bouton d'en-tête, ou l'image), médias à toute la hauteur — faces,
+>       surcouche des détections, Comparer et direct compris ; la surcouche image seule reste
+>       pour les galeries sans élément. Au passage : la navigation au clavier de la modale
+>       levait une `ReferenceError` depuis le 2026-07-21 (`data` au lieu de `item`). Vérifié au
+>       navigateur (serveur jetable, card témoin traitée en réel puis repassée « en cours » avec
+>       deux vues publiées comme le worker) : faces depuis le volet et la vignette, plein écran
+>       remis à zéro à la fermeture, vue changée et gardée en direct, 0 erreur JS. Gardes
+>       `tests_cap_from_js.PreviewModalTest` (adresse d'élément en V8, chemins vers la modale,
+>       navigation — prouvées par mutation).
 >     - **Curseur à 50 et rectangles** : la segmentation de visage du catalogue
 >       (`face_yolov8m-seg_60.pt`) n'est pas installée, la détection s'est faite en boîtes. Rien
 >       ne le disait ; la console le dit après la détection (`_segmentation_note`) et nomme le

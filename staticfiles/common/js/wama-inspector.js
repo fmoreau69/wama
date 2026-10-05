@@ -716,6 +716,9 @@
           if (sig === lastSig) return;
           lastSig = sig;
           renderInlinePreview(previewHost, d, false);
+          // Double-clic → la modale commune, sur CETTE face suivie en direct (2026-10-05 : seule
+          // face du volet sans plein écran — le double-clic rouvrait la face précédente).
+          _attachFullscreen(d, baseUrl);
           if (d.variants && d.variants.length > 1) {
             previewHost.appendChild(variantToggle(d.variants, d.variant, function (key) {
               variant = key;
