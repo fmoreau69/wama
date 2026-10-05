@@ -163,40 +163,98 @@ def valid_box(box, shape, min_size: int = 5):
 
 
 # ── Lecture par frame, interpolation ──────────────────────────────────────────────────────────
-def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0) -> dict:
+def iou(a, b) -> float:
+    """Recouvrement de deux rectangles (x1, y1, x2, y2), de 0 à 1."""
+    x1, y1 = max(a[0], b[0]), max(a[1], b[1])
+    x2, y2 = min(a[2], b[2]), min(a[3], b[3])
+    inter = max(0, x2 - x1) * max(0, y2 - y1)
+    union = ((a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter)
+    return inter / union if union > 0 else 0.0
+
+
+def _shift(a, b) -> float:
+    """Distance entre les centres de deux rectangles, en TAILLES de `a` (sa plus grande dimension)."""
+    ax, ay = (a['box'][0] + a['box'][2]) / 2, (a['box'][1] + a['box'][3]) / 2
+    bx, by = (b['box'][0] + b['box'][2]) / 2, (b['box'][1] + b['box'][3]) / 2
+    size = max(a['box'][2] - a['box'][0], a['box'][3] - a['box'][1], 1)
+    return ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5 / size
+
+
+def _same_object(a, b, min_iou: float, elapsed: int = 1) -> bool:
+    """Deux détections, à `elapsed` frames d'écart, sont-elles le même objet ? La PISTE le dit
+    quand les deux en ont une ; sinon la position — même classe, et recouvrement, ou un
+    déplacement d'au plus une demi-taille plus une taille par frame écoulée (mesuré sur la card
+    #1026 : des visages de 8 px qui avancent de 6 px par image ne se recouvrent plus du tout
+    après trois images)."""
+    if a.get('label') != b.get('label'):
+        return False
+    if a.get('track') is not None and b.get('track') is not None and a['track'] == b['track']:
+        return True
+    if iou(a['box'], b['box']) >= min_iou:
+        return True
+    return _shift(a, b) <= 0.5 + max(1, elapsed)
+
+
+def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
+             min_iou: float = 0.2) -> dict:
     """{indice de frame: [détections]} — détections RELEVÉES, plus, si `interpolate`, celles que
-    l'on déduit dans les TROUS d'une piste (au plus `max_gap` frames manquantes entre deux
-    détections connues de la même piste, jamais au-delà de la dernière). Une détection déduite
-    porte `interpolated: True` et son rectangle seul : un contour ne s'interpole pas."""
+    l'on déduit dans les TROUS d'un objet : entre une détection et la suivante du MÊME objet
+    (`_same_object` : même piste, ou à défaut même place), au plus `max_gap` frames manquantes,
+    jamais avant la première ni après la dernière. Une détection déduite porte
+    `interpolated: True` et son rectangle seul : un contour ne s'interpole pas.
+
+    ⚠ Corrigé le 2026-10-05 (card #1026) : seules les détections d'une même PISTE se reliaient.
+    Or le suivi ne donne une piste qu'aux objets CONFIRMÉS — 82 détections sur 533 n'en avaient
+    pas — et il en donne une NOUVELLE quand il reperd l'objet : 18 trous sur 19 subsistaient."""
     frames = {}
     for frame in doc.get('frames') or []:
         frames.setdefault(int(frame['i']), []).extend(frame.get('d') or [])
     if not interpolate or max_gap <= 0:
         return frames
-    tracks = {}
-    for index in sorted(frames):
+    seen = sorted(frames)
+    position = {index: n for n, index in enumerate(seen)}
+    claimed = set()                         # (frame, rang) déjà successeur d'une détection
+    deduced = {}
+    for index in seen:
         for det in frames[index]:
-            if det.get('track') is not None:
-                tracks.setdefault(det['track'], []).append((index, det))
-    for track, seen in tracks.items():
-        for (start, first), (end, last) in zip(seen, seen[1:]):
-            gap = end - start - 1
-            if gap <= 0 or gap > max_gap:
+            successor = None
+            for later in seen[position[index] + 1:]:
+                if later - index - 1 > max_gap:
+                    break
+                # Dans la PREMIÈRE frame qui porte le même objet, le candidat le plus PROCHE.
+                matches = [(_shift(det, other), rank, other)
+                           for rank, other in enumerate(frames[later])
+                           if (later, rank) not in claimed
+                           and _same_object(det, other, min_iou, later - index)]
+                if matches:
+                    _distance, rank, other = min(matches, key=lambda m: m[0])
+                    successor = (later, rank, other)
+                    break
+            if successor is None:
                 continue
-            for index in range(start + 1, end):
-                ratio = (index - start) / (end - start)
-                box = [a + (b - a) * ratio for a, b in zip(first['box'], last['box'])]
-                frames.setdefault(index, []).append({
-                    'track': track, 'label': first.get('label', ''), 'conf': first.get('conf', 1.0),
-                    'box': [int(round(v)) for v in box], 'interpolated': True})
+            later, rank, other = successor
+            claimed.add((later, rank))
+            for gap_index in range(index + 1, later):
+                ratio = (gap_index - index) / (later - index)
+                box = [a + (b - a) * ratio for a, b in zip(det['box'], other['box'])]
+                deduced.setdefault(gap_index, []).append({
+                    'track': det.get('track'), 'label': det.get('label', ''),
+                    'conf': det.get('conf', 1.0), 'box': [int(round(v)) for v in box],
+                    'interpolated': True})
+    for index, found in deduced.items():
+        frames.setdefault(index, []).extend(found)
     return frames
 
 
-def max_gap_for(fps: float, wanted: int, seconds: float = 0.5) -> int:
-    """Le trou le plus long que l'on comble : le réglage, plafonné à `seconds` de vidéo — au-delà,
-    un objet a pu sortir du champ (règle du moteur depuis l'origine)."""
-    ceiling = int((fps or 30) * seconds)
-    return max(0, min(int(wanted or 0), ceiling))
+def max_gap_for(fps: float, wanted: int) -> int:
+    """Le trou le plus long que l'on comble : le RÉGLAGE, tel quel.
+
+    ⚠ Jusqu'au 2026-10-05 il était plafonné en silence à 0,5 s de vidéo : un réglage de 50
+    images valait 7 à 15 i/s (card #1026) — le réglage mentait. Le plafond protégeait d'un
+    flou qui suivrait un autre objet ; c'est désormais le rattachement par piste OU par
+    position (`_same_object`) qui l'évite, et le réglage dit ce qu'il fait. `fps` reste lu par
+    les appelants qui raisonnent en secondes."""
+    return max(0, int(wanted or 0))
 
 
 # ── Rendu d'un média depuis ses détections ────────────────────────────────────────────────────

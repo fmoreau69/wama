@@ -18,7 +18,8 @@ class AnonymizerConfig(AppConfig):
 
         # Register for unified preview
         from wama.common.utils.preview_registry import PreviewRegistry
-        from wama.common.utils.preview_utils import anonymizer_preview_adapter
+        from wama.common.utils.preview_utils import (anonymizer_detection_face,
+                                                     anonymizer_preview_adapter)
         from .models import Media
 
         PreviewRegistry.register(
@@ -26,7 +27,11 @@ class AnonymizerConfig(AppConfig):
             model_class=Media,
             adapter=anonymizer_preview_adapter,
             file_field='file',
-            user_field='user'
+            user_field='user',
+            # Face « Détection » (2026-10-05) : ce que la détection a vu, et le côté de
+            # référence du mode Comparer (Détection | Sortie).
+            faces=[{'key': 'detection', 'label': 'Détection', 'icon': 'fa-vector-square',
+                    'adapter': anonymizer_detection_face, 'compare_base': True}],
         )
 
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md) — audit 2026-07-11.

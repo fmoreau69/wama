@@ -101,12 +101,34 @@ class InterpolationTest(SimpleTestCase):
         self.assertEqual(([20, 0, 30, 10], True), (middle['box'], middle['interpolated']))
         self.assertNotIn('interpolated', frames[0][0])
 
-    def test_nothing_is_deduced_beyond_the_ceiling_after_the_last_or_without_a_track(self):
-        doc = self._doc((0, [0, 0, 10, 10], 'm0:1'), (10, [40, 0, 50, 10], 'm0:1'),
-                        (20, [0, 0, 10, 10], None), (22, [0, 0, 10, 10], None))
+    def test_nothing_is_deduced_beyond_the_setting_or_after_the_last(self):
+        doc = self._doc((0, [0, 0, 10, 10], 'm0:1'), (10, [40, 0, 50, 10], 'm0:1'))
+        self.assertEqual([0, 10], sorted(dets.by_frame(doc, interpolate=True, max_gap=5)),
+                         'a 9-frame gap is above the setting')
+        self.assertEqual(list(range(11)), sorted(dets.by_frame(doc, interpolate=True, max_gap=9)))
+        self.assertEqual([0, 10], sorted(dets.by_frame(doc)), 'off : only what was seen')
+
+    def test_detections_WITHOUT_a_track_are_linked_by_their_place(self):
+        """Card #1026 (2026-10-05) : the tracker gives an id to CONFIRMED objects only — 82
+        detections out of 533 had none, and their gaps were never filled."""
+        doc = self._doc((20, [0, 0, 10, 10], None), (23, [3, 0, 13, 10], None))
         frames = dets.by_frame(doc, interpolate=True, max_gap=5)
-        self.assertEqual([0, 10, 20, 22], sorted(frames), 'a 9-frame gap is above the ceiling')
-        self.assertEqual([0, 10, 20, 22], sorted(dets.by_frame(doc)), 'off : only what was seen')
+        self.assertEqual([20, 21, 22, 23], sorted(frames))
+        self.assertEqual([1, 0, 11, 10], frames[21][0]['box'])
+
+    def test_a_small_fast_object_is_followed_but_a_far_jump_is_not(self):
+        """8-px faces moving 6 px per frame no longer overlap after three frames : the allowed
+        shift grows with the frames elapsed. A face that appears elsewhere is another face."""
+        doc = self._doc((0, [100, 100, 108, 108], None), (3, [119, 95, 127, 103], None),
+                        (6, [300, 20, 308, 28], None))
+        frames = dets.by_frame(doc, interpolate=True, max_gap=5)
+        self.assertEqual([0, 1, 2, 3, 6], sorted(frames))
+
+    def test_the_closest_candidate_is_the_successor(self):
+        doc = self._doc((0, [0, 0, 10, 10], None),
+                        (2, [30, 0, 40, 10], None), (2, [4, 0, 14, 10], None))
+        frames = dets.by_frame(doc, interpolate=True, max_gap=5)
+        self.assertEqual([2, 0, 12, 10], frames[1][0]['box'])
 
     def test_two_tracks_never_mix(self):
         doc = self._doc((0, [0, 0, 10, 10], 'm0:1'), (2, [90, 90, 99, 99], 'm1:1'),
@@ -115,10 +137,11 @@ class InterpolationTest(SimpleTestCase):
         deduced = [d for f in frames.values() for d in f if d.get('interpolated')]
         self.assertTrue(all(d['track'] == 'm0:1' for d in deduced))
 
-    def test_the_gap_is_capped_at_half_a_second_of_video(self):
-        self.assertEqual(15, dets.max_gap_for(30, 20))
-        self.assertEqual(10, dets.max_gap_for(30, 10))
-        self.assertEqual(15, dets.max_gap_for(0, 60), 'unknown fps : 30 assumed')
+    def test_the_setting_is_the_limit_with_no_hidden_ceiling(self):
+        """Until 2026-10-05 the setting was capped at half a second without a word : 50 frames
+        meant 7 at 15 frames per second (card #1026)."""
+        self.assertEqual(50, dets.max_gap_for(15, 50))
+        self.assertEqual(0, dets.max_gap_for(30, None))
 
 
 class DrawAndBlurTest(SimpleTestCase):

@@ -393,6 +393,41 @@ def _drawn(media, image, found):
                 confidence=media.show_conf)
 
 
+def _segmentation_note(media, doc):
+    """Ce qui empêche la SEGMENTATION demandée, dit en clair — ou '' quand elle a eu lieu ou
+    n'était pas demandée. Demandée : le curseur au-delà de son seuil, ou le réglage explicite.
+
+    Né de la card #1026 (2026-10-05) : curseur à 50, des visages en RECTANGLES, et rien ne le
+    disait. Le seul modèle qui segmente les visages au catalogue n'était pas INSTALLÉ ; la
+    couverture retombait sur un détecteur sans un mot. On nomme ce qui manque, et où l'obtenir."""
+    from wama.common.services.model_coverage import segmentation_for_intent
+    wanted = bool(media.use_segmentation) or segmentation_for_intent(media.precision_level)
+    if not wanted or doc.get('engine') != 'yolo':
+        return ''
+    if any(d.get('polygons') for f in doc.get('frames') or [] for d in f['d']):
+        return ''
+    if not doc.get('frames'):
+        return ''
+    from wama.common.services.model_coverage import formes_equivalentes
+    from wama.model_manager.models import AIModel
+    asked = set()
+    for name in doc.get('classes') or []:
+        asked |= formes_equivalentes(name)
+    missing = []
+    for key, caps in (AIModel.objects.filter(source='anonymizer', is_available=False)
+                      .values_list('model_key', 'capabilities')):
+        caps = caps or {}
+        covered = {c.lower() for c in (caps.get('classes') or [])}
+        if caps.get('task') == 'segment' and covered & asked:
+            missing.append(key.split(':')[-1])
+    if missing:
+        return ("Segmentation demandée, mais aucun modèle de segmentation INSTALLÉ ne couvre "
+                f"{', '.join(sorted(doc.get('classes') or []))} : contours rectangulaires. À "
+                f"installer depuis le Model Manager : {', '.join(sorted(missing))}.")
+    return ("Segmentation demandée, mais aucun modèle du catalogue ne segmente "
+            f"{', '.join(sorted(doc.get('classes') or []))} : contours rectangulaires.")
+
+
 def _detect(media, ctx):
     """GLU du process `detect` (« Détection », 2026-10-04) : choix du ou des modèles, détection
     (YOLO ou SAM3), document `detections` écrit dans la sortie de l'app et posé sur la card
@@ -439,6 +474,9 @@ def _detect(media, ctx):
     shown = len(doc.get('frames') or [])
     _console(user.id, f"Détection : {found} objet(s) sur {shown} image(s)"
              + ("" if found else " — rien ne sera flouté"), 'info' if found else 'warning')
+    note = _segmentation_note(media, doc)
+    if note:
+        _console(user.id, note, 'warning')
     return {
         'fields': {'detections_file': rel},
         'output_ref': rel,

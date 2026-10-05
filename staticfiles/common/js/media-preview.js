@@ -335,6 +335,10 @@
                 .then(function (nd) { if (nd) { nd._baseUrl = base; nd.sides = nd.sides || s; showPreviewModal(nd); } });
         };
         add('Entrée', 'fa-right-to-bracket', data.side === 'input', function () { goSide('input'); });
+        // Faces DÉCLARÉES par l'app (2026-10-05) — l'anonymizer : « Détection ».
+        (s.faces || []).forEach(function (f) {
+            add(f.label, f.icon || 'fa-layer-group', data.side === f.key, function () { goSide(f.key); });
+        });
         if (s.comparable) add('Comparer', 'fa-left-right', data.side === 'compare', function () { _modalCompare(modal, base, s); });
         add('Sortie', 'fa-flag-checkered', data.side === 'output', function () { goSide('output'); });
     }
@@ -343,7 +347,8 @@
     function _modalCompare(modal, base, s) {
         const container = modal.querySelector('.preview-container');
         Promise.all([
-            fetch(base + _sepQS(base) + 'side=input').then(function (r) { return r.ok ? r.json() : null; }),
+            // La face de RÉFÉRENCE déclarée par l'app (sinon l'entrée) contre la sortie.
+            fetch(base + _sepQS(base) + 'side=' + (s.compare_base || 'input')).then(function (r) { return r.ok ? r.json() : null; }),
             fetch(base + _sepQS(base) + 'side=output').then(function (r) { return r.ok ? r.json() : null; }),
         ]).then(function (a) {
             const din = a[0], dout = a[1];
@@ -352,13 +357,21 @@
                 function (el) { el.remove(); });
             const wrap = document.createElement('div');
             wrap.style.cssText = 'display:flex;gap:10px;width:100%;height:100%;align-items:center;justify-content:center;';
-            [din, dout].forEach(function (dd) {
+            // Les deux vidéos jouent ENSEMBLE : échappatoire de la lecture exclusive (wama-app-base).
+            wrap.setAttribute('data-wama-multiplay', '');
+            const shown = [din, dout].map(function (dd) {
                 const col = document.createElement('div');
                 col.style.cssText = 'flex:1;min-width:0;max-height:100%;text-align:center;overflow:auto;';
-                col.appendChild(buildPreviewContent(dd));
+                const el = buildPreviewContent(dd);
+                col.appendChild(el);
                 wrap.appendChild(col);
+                return el;
             });
             container.appendChild(wrap);
+            // Deux vidéos côte à côte : la seconde suit la première (lecture, pause, position).
+            if (shown[0].tagName === 'VIDEO' && shown[1].tagName === 'VIDEO' && window.WamaPreviewOverlay) {
+                WamaPreviewOverlay.syncVideos(shown[0], shown[1]);
+            }
             din._baseUrl = base; din.sides = s; din.side = 'compare';
             _renderModalSides(modal, din);
         });
@@ -377,6 +390,10 @@
             video.autoplay = false;
             video.className = 'w-100';
             video.style.maxHeight = '70vh';
+            // Une face à SURCOUCHE (détections) : posée une fois la vidéo dans la page.
+            if (data.overlay && window.WamaPreviewOverlay) {
+                setTimeout(function () { WamaPreviewOverlay.attach(video, data.overlay); }, 0);
+            }
             return video;
         } else if (mimeType.startsWith('audio/')) {
             if (window.WamaAudioPlayer) {
@@ -408,6 +425,9 @@
             img.style.maxHeight = '70vh';
             img.alt = data.name || 'Image preview';
             wrapper.appendChild(img);
+            if (data.overlay && window.WamaPreviewOverlay) {
+                setTimeout(function () { WamaPreviewOverlay.attach(img, data.overlay); }, 0);
+            }
 
             const fullscreenBtn = document.createElement('button');
             fullscreenBtn.className = 'preview-fullscreen-btn';

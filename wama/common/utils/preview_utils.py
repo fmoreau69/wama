@@ -426,20 +426,41 @@ def unified_preview(request, app_name: str, pk: int):
         during_data = _during_preview_data(app_name, instance, request)   # chantier 2 (PENDANT)
         has_input = bool(preview_data and not preview_data.get('error'))
         has_output = bool(output_data)
-        cat_in = _mime_category(preview_data.get('mime_type')) if has_input else ''
+        # Faces DÉCLARÉES par l'app (2026-10-05) — l'anonymizer : « Détection ».
+        faces = {}
+        for face in PreviewRegistry.faces(app_name):
+            try:
+                face_data = face['adapter'](instance, request)
+            except Exception as exc:
+                logger.warning(f"Preview face {app_name}/{face.get('key')}: {exc}")
+                face_data = None
+            if face_data:
+                faces[face['key']] = (face, face_data)
+        base_key = next((key for key, (face, _d) in faces.items() if face.get('compare_base')),
+                        'input')
+        base_data = faces[base_key][1] if base_key in faces else (preview_data if has_input else None)
+        cat_base = _mime_category(base_data.get('mime_type')) if base_data else ''
         cat_out = _mime_category(output_data.get('mime_type')) if has_output else ''
         from wama.common.app_registry import app_supports_during_preview
         sides = {
             'has_input': has_input,
             'has_output': has_output,
-            # slider comparatif V1 : images uniquement (vidéos = toggle seulement)
-            'comparable': bool(has_input and has_output and cat_in == cat_out and cat_in == 'image'),
+            # Comparer : deux images (curseur), ou deux VIDÉOS synchronisées (2026-10-05).
+            'comparable': bool(base_data and has_output and cat_base == cat_out
+                               and cat_base in ('image', 'video')),
+            'compare_base': base_key,
+            'faces': [{'key': key, 'label': face.get('label') or key,
+                       'icon': face.get('icon') or 'fa-layer-group'}
+                      for key, (face, _d) in faces.items()],
             # PENDANT : l'app SAIT-elle streamer (capacité) vs a-t-elle un partiel MAINTENANT
             'during_capable': app_supports_during_preview(app_name),
             'has_during': bool(during_data),
         }
         side = (request.GET.get('side') or 'input').lower()
-        if side == 'during' and during_data:
+        if side in faces:
+            data = dict(faces[side][1])
+            data['side'] = side
+        elif side == 'during' and during_data:
             data = dict(during_data)
             data['side'] = 'during'
         elif side == 'output' and has_output:
@@ -520,6 +541,25 @@ def anonymizer_preview_adapter(media, request):
         "resolution": f"{media.width}x{media.height}" if media.width and media.height else "",
         "properties": media.properties if hasattr(media, 'properties') else "",
     }
+
+
+def anonymizer_detection_face(media, request):
+    """Face « Détection » de l'anonymizer (2026-10-05, demande de Fabien) : le média d'ENTRÉE et,
+    par-dessus, ce que la détection a trouvé — dessiné dans le navigateur depuis le document
+    `detections` de la card (`overlay`), sans réencoder de vidéo. Absente tant que la détection
+    n'a pas eu lieu."""
+    if not getattr(media, 'detections_file', None):
+        return None
+    from django.utils.encoding import iri_to_uri
+    data = anonymizer_preview_adapter(media, request)
+    data['name'] = f"Détections — {data.get('name', '')}"
+    data['overlay'] = {
+        'kind': 'detections',
+        'url': request.build_absolute_uri(_versioned(iri_to_uri(media.detections_file.url))),
+        'boxes': bool(media.show_boxes), 'labels': bool(media.show_labels),
+        'confidence': bool(media.show_conf),
+    }
+    return data
 
 
 def synthesizer_preview_adapter(synthesis, request):

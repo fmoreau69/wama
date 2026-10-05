@@ -170,6 +170,10 @@ PARAMS = derive_from_model(
         "max_interpolation_frames": dict(
             type="number", label="Frames max à interpoler", icon="fa-film",
             min=1, max=60, step=1, advanced=True,
+            # Le réglage dit ce qu'il fait depuis le 2026-10-05 : il était plafonné en silence à
+            # 0,5 s de vidéo (50 valait 7 à 15 i/s, card #1026).
+            help="Un trou de détection d'au plus ce nombre d'images est comblé, entre deux "
+                 "détections du même objet (même piste, ou même place).",
             show_if={"field": "interpolate_detections", "equals": True},
         ),
         "use_segmentation": dict(
