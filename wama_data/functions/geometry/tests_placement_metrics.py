@@ -405,3 +405,34 @@ class StaticOffsetGapsTest(SimpleTestCase):
                                  DataType.TABLE),
                       TypedFrame(pd.DataFrame(self.PATH, columns=['t', 'x', 'y']), DataType.TABLE))
         self.assertIn('left-front', set(out.df['pair']))
+
+
+class StaticOffsetNearTest(SimpleTestCase):
+    """#6, point fixe pris de PRÈS (2026-10-05) : une caméra qui comprime au loin ne fausse pas la référence."""
+
+    def test_far_views_of_a_compressing_camera_are_left_out(self):
+        from wama_data.functions.geometry.placement_metrics import static_offset_gaps
+        path = [(t / 2.0, 4.0 * t / 2.0, 0.0) for t in range(200)]
+        rows = []
+        for k in range(8):
+            x = 40.0 + 15.0 * k
+            for i in range(16):   # l'avant voit le garé de 30 m à 0 m ; au-delà de 15 m il le rapproche de la route
+                t = (x - 30.0 + 2.0 * i - 4.5) / 4.0
+                cx = 4.0 * t + 4.5
+                d = x - cx
+                y = 5.0 if d <= 15.0 else 2.0
+                rows.append((t, 'front', k, x, y, cx, 0.0))
+            for i in range(8):
+                t = x / 4.0 + i / 4.0
+                rows.append((t, 'left', k, x, 5.0, 4.0 * t + 3.4, 1.0))
+        near = static_offset_gaps(rows, path)['gaps']['left-front']['median_m']
+        everything = static_offset_gaps(rows, path, near_m=None)['gaps']['left-front']['median_m']
+        self.assertAlmostEqual(near, 0.0, places=2)
+        self.assertGreater(everything, 1.0)
+
+    def test_an_excluded_camera_is_never_the_anchor(self):
+        from wama_data.functions.geometry.placement_metrics import agreeing_camera
+        rb = {'front': {'reference': 'ground', 'box': [{'ratio': 0.97}, {'ratio': 1.03}]},
+              'left': {'reference': 'ground', 'box': [{'ratio': 1.0}, {'ratio': 1.0}]}}
+        self.assertEqual(agreeing_camera(rb)[0], 'left')
+        self.assertEqual(agreeing_camera(rb, exclude={'left'})[0], 'front')

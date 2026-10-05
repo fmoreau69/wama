@@ -196,6 +196,16 @@ FEATURES = [
             "projection sol arrière 0,60 à 30-40 m, avant 0,78 au-delà de 20 m. Universel : rien à "
             "saisir pour une nouvelle vue caméra. Tracking à rejouer (deux fois la 1ʳᵉ fois).",
             default=False, scope='compute'),
+    Feature('offset_pitch_calib', "Inclinaison des caméras par l'écartement des garés (mesure automatique)",
+            "Une voiture garée ne bouge pas : sa distance à la trajectoire de la navette ne doit pas "
+            "dépendre de la caméra qui la voit. À chaque calcul du tracking, on cherche pour chaque caméra "
+            "l'inclinaison (tangage) qui ANNULE cet écart avec la caméra de référence — celle dont la "
+            "projection sol et la hauteur de boîte s'accordent. La bascule applique l'inclinaison du calcul "
+            "PRÉCÉDENT (si elle réduit l'écart, sur au moins 20 garés, à ±5°). Constat du 2026-10-05 : les "
+            "latérales écartaient les garés de +1,3 à +1,5 m de plus que l'avant — les trajectoires droites "
+            "s'incurvaient autour de la navette. Universel : rien à régler pour une nouvelle vue caméra. "
+            "Tracking à rejouer (deux fois la 1ʳᵉ fois).",
+            default=False, scope='compute'),
     Feature('ghost_hermite', 'Trous comblés en COURBE',
             "Un trou de suivi (≤ 6 s) était comblé par une ligne droite entre ses deux bords : le cap "
             "cassait à l'entrée et à la sortie, et la ligne pouvait couper une file de garés. La courbe "

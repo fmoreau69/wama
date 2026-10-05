@@ -506,7 +506,7 @@ def _signed_offset(path, pt, t0, t1, *, window_s, min_move_m=0.5):
 
 
 def static_offset_gaps(observations, path, *, min_obs=5, offset_range=(1.0, 15.0), window_s=5.0,
-                       min_objects=5):
+                       min_objects=5, near_m=15.0):
     """Cœur PUR de la métrique #6 — ÉCARTEMENT D'UN IMMOBILE SELON LA CAMÉRA (2026-10-05).
 
     Un objet IMMOBILE vu par plusieurs caméras d'une plateforme mobile est au même endroit pour toutes :
@@ -516,10 +516,14 @@ def static_offset_gaps(observations, path, *, min_obs=5, offset_range=(1.0, 15.0
     qui place trop loin écarte les objets de la route — les trajectoires droites s'incurvent autour de
     la plateforme.
 
-    `observations` : itérable de (t, caméra, objet, x, y) — objets IMMOBILES seulement (le choix est à
-      l'appelant) ; `path` : [(t, x, y)] trajectoire de la plateforme. Point fixe d'un objet par caméra :
-      médiane de ses positions (au moins `min_obs`) ; écartement signé (`_signed_offset`), gardé dans
-      `offset_range` en valeur absolue.
+    `observations` : itérable de (t, caméra, objet, x, y[, cam_x, cam_y]) — objets IMMOBILES seulement
+      (le choix est à l'appelant) ; `path` : [(t, x, y)] trajectoire de la plateforme. Point fixe d'un
+      objet par caméra : médiane de ses positions (au moins `min_obs`) ; écartement signé
+      (`_signed_offset`), gardé dans `offset_range` en valeur absolue.
+    `near_m` : avec la position de la caméra, seules ses observations à moins de `near_m` comptent — une
+      caméra dont les distances se compriment au loin rapprocherait de la route les objets vus de loin et
+      fausserait la référence (mesuré sur ENA_CASA : avant/arrière −0,97 m toutes distances, −0,32 m à
+      15 m). Sans position de caméra, toutes comptent.
     Rend {'offsets': {caméra: {'objects', 'median_m'}}, 'gaps': {'B-A': {'objects', 'median_m', 'p25',
     'p75'}}} — `gaps` : |écartement par B| − |écartement par A| sur les objets vus des deux et placés du
     même côté (> 0 : B les écarte davantage)."""
@@ -527,9 +531,13 @@ def static_offset_gaps(observations, path, *, min_obs=5, offset_range=(1.0, 15.0
     P = np.asarray(path, dtype=float).reshape(-1, 3)    # liste ou tableau numpy (trajectoire du suivi)
     P = P[np.argsort(P[:, 0], kind='stable')]
     by = defaultdict(lambda: defaultdict(list))
-    for t, cam, obj, x, y in observations:
-        if all(np.isfinite(v) for v in (t, x, y)):
-            by[obj][cam].append((float(t), float(x), float(y)))
+    for ob in observations:
+        t, cam, obj, x, y = ob[:5]
+        if not all(np.isfinite(v) for v in (t, x, y)):
+            continue
+        if near_m is not None and len(ob) >= 7 and np.hypot(x - ob[5], y - ob[6]) > near_m:
+            continue
+        by[obj][cam].append((float(t), float(x), float(y)))
     offs_all = defaultdict(list)
     gaps = defaultdict(list)
     for obj, cams in by.items():
@@ -597,14 +605,16 @@ def relative_camera_scales(agreement, anchor):
     return out
 
 
-def agreeing_camera(range_bias, *, near_bins=2):
+def agreeing_camera(range_bias, *, near_bins=2, exclude=()):
     """La caméra dont les DEUX méthodes indépendantes (projection sol et hauteur de boîte) s'accordent le
     mieux de près, d'après les courbes de `range_bias_curve` (méthode `box` jugée sur la référence
     `ground`) : deux mesures indépendantes qui concordent sont le meilleur indice d'une échelle juste,
-    d'où l'ancre de `relative_camera_scales`. Rend (caméra, écart) ou (None, None)."""
+    d'où l'ancre de `relative_camera_scales`. `exclude` : caméras déjà réglées SUR une ancre — leur
+    accord en découle, il ne prouve plus rien, et l'ancre basculerait d'un calcul à l'autre.
+    Rend (caméra, écart) ou (None, None)."""
     best = (None, None)
     for cam, v in (range_bias or {}).items():
-        if (v or {}).get('reference') != 'ground':
+        if cam in exclude or (v or {}).get('reference') != 'ground':
             continue
         known = [b['ratio'] for b in (v.get('box') or [])[:near_bins] if b.get('ratio')]
         if not known:
