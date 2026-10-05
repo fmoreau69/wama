@@ -3417,6 +3417,17 @@ panneau parle `JOB_*`).
 >   et `register_app_pipeline(app, specs)`, qui inscrit le registre comme source de manifeste
 >   `pipeline` sous la clé de l'app. `graph()` rend la forme CANVAS de `pass_tracking.
 >   pipeline_graph` — le studio l'ouvre sans rien apprendre.
+> - 🔧 **Ce qu'un process SURVEILLE se DÉRIVE des réglages depuis le 2026-10-05** (forme demandée par
+>   la session pipeline, appliquée aux sept apps) : le réglage déclare les process qu'il périme
+>   (`Param.stales`, `('plan', 'render')`), `ProcessSpec.watched` ne porte plus que les champs HORS
+>   schéma (fichiers d'entrée, `prompt_processed`…), et `AppPipeline.watched_of(spec)` réunit les
+>   deux — ordre du schéma, puis la liste ; c'est lui que lisent la photo, l'export et la bande.
+>   Pas de défaut implicite : un réglage d'AFFICHAGE se DÉCLARE sans péremption (`stales=()`, les
+>   `show_*` de l'anonymizer) ; les interrupteurs (`toggle`) et les réglages de sortie
+>   (`output_spec`) restent ce qu'ils étaient. Garde générique `tests_process_watched` (tout réglage
+>   d'élément rendu compte, `stales` qui nomme un process connu, aucun réglage recopié à la main).
+>   Né de `check_redundancy`, qui relevait ces listes comme des noms recopiés du schéma dans les six
+>   pipelines. Une jumelle de bac à sable garde ses listes explicites : l'union les accepte.
 > - **Un seul tri** : `topo_order` est remonté de `studio/tasks.py` dans
 >   `manifests/builtin/pipeline.py` (à côté de `graph_to_body`) ; le studio l'importe de là, le
 >   moteur ordonne par lui. Pas de troisième fonction d'ordre.

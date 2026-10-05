@@ -73,7 +73,11 @@ class ProcessSpec:
       label       libellé COURT pour la card (« Partition », « Rendu ») — le nom long est celui
                   du `FunctionSpec` au catalogue ; vide = la clé ;
       depends_on  amonts : ordre de lancement, et propagation de la péremption ;
-      watched     réglages de l'ÉLÉMENT dont le changement rend le process périmé ;
+      watched     champs de l'ÉLÉMENT HORS schéma dont le changement rend le process périmé
+                  (fichiers d'entrée, `prompt_processed`…). Les RÉGLAGES du schéma déclarent
+                  eux-mêmes les process qu'ils périment (`Param.stales`, 2026-10-05) ; ce que le
+                  process surveille vraiment est `AppPipeline.watched_of(spec)` — l'union, dans
+                  l'ordre du schéma puis de cette liste ;
       degree      `required` (son échec fait échouer la card) | `optional` ;
       function    clé du catalogue de fonctions quand elle diffère de `<app>.<key>` ;
       gpu         le process charge le GPU (dit à l'utilisateur, jamais une garde) ;
@@ -150,6 +154,24 @@ def _output_lost(row) -> bool:
     return not os.path.exists(os.path.join(settings.MEDIA_ROOT, row.output_ref))
 
 
+def declared_stales(app: str) -> dict:
+    """`{process: [réglages]}` — ce que chaque réglage du schéma de `app` déclare périmer
+    (`Param.stales`), dans l'ordre du schéma, TOUS les schémas déclarés réunis (une app à
+    plusieurs domaines — imager image + vidéo — en a plusieurs ; un nom n'y compte qu'une fois).
+    Lu par `AppPipeline.watched_of` et par sa garde. `{}` pour une app sans schéma."""
+    from wama.common.utils.param_schema import _pget, declared_param_schemas
+    out, seen = {}, set()
+    for schema in ((declared_param_schemas(app) or {}).get('schemas') or {}).values():
+        for param in schema:
+            name = _pget(param, 'name')
+            if name in seen:
+                continue
+            seen.add(name)
+            for process in (_pget(param, 'stales') or ()):
+                out.setdefault(process, []).append(name)
+    return out
+
+
 class AppPipeline:
     """Le pipeline déclaré d'une app : ses `ProcessSpec`, et ce qui s'en dérive."""
 
@@ -194,6 +216,20 @@ class AppPipeline:
     def function_key(self, spec: ProcessSpec) -> str:
         """Clé `FUNCTION_CATALOG` du process — le nœud `function` qu'il devient au manifeste."""
         return spec.function or f'{self.app}.{spec.key}'
+
+    def watched_of(self, spec: ProcessSpec) -> tuple:
+        """Ce que le process SURVEILLE : les réglages du schéma de l'app qui le nomment dans leur
+        `stales` (ordre du schéma, tous domaines confondus — imager image + vidéo), puis les
+        champs hors schéma de `spec.watched`. Ce que lisent la photo, l'export et la bande.
+
+        Avant le 2026-10-05, la liste était écrite à la main dans chaque `function_specs.py` :
+        `check_redundancy` la relevait dans les SIX pipelines comme des noms recopiés du schéma.
+        Calculé une fois par process : le schéma ne change pas pendant la vie du processus."""
+        cache = self.__dict__.setdefault('_watched_cache', {})
+        if spec.key not in cache:
+            names = list(declared_stales(self.app).get(spec.key, ()))
+            cache[spec.key] = tuple(dict.fromkeys(names + list(spec.watched)))
+        return cache[spec.key]
 
     # ── Entrées ÉTENDUES par le pipeline (2026-10-03) ───────────────────────────────────────
     # Un modèle déclare ce qu'IL consomme (catalogue). Au sein d'un pipeline, un process AMONT
@@ -266,7 +302,7 @@ class AppPipeline:
         # ce que `reset_outputs` remplace. Ajout pur : un champ vide n'est pas écrit.
         nodes = [{'id': spec.key, 'app': f'{FUNCTION_NODE_PREFIX}{self.function_key(spec)}',
                   'params': {'degree': spec.degree, 'gpu': spec.gpu,
-                             'watched': list(spec.watched),
+                             'watched': list(self.watched_of(spec)),
                              **({'toggle': spec.toggle} if spec.toggle else {}),
                              **({'label': spec.label} if spec.label else {}),
                              **({'outputs': list(spec.outputs)} if spec.outputs else {}),
@@ -323,7 +359,7 @@ class AppPipeline:
         """Photo de ce que le process SURVEILLE aujourd'hui : ses réglages, et l'empreinte de la
         sortie de chacun de ses amonts qui a tourné (un amont sans ligne n'y figure pas)."""
         rows = self.rows(item) if rows is None else rows
-        taken = process_runs.snapshot(item, spec.watched)
+        taken = process_runs.snapshot(item, self.watched_of(spec))
         upstream = {key: _fingerprint_of(rows[key])
                     for key in spec.depends_on if key in rows}
         if upstream:
@@ -512,7 +548,7 @@ class AppPipeline:
                 'output_label': summary.get('label') or '',
                 'error': (row.error_message or '') if row is not None else '',
                 # Les réglages que CE process surveille : ce que son ⚙ montre (P5, 5.1).
-                'watched': list(spec.watched),
+                'watched': list(self.watched_of(spec)),
                 # L'interrupteur d'un `optional` (case à cocher de la bande) et son état.
                 'toggle': spec.toggle,
                 'enabled': self.enabled(spec, item),

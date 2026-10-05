@@ -141,9 +141,10 @@ register(FunctionSpec(
     outputs=[PortSpec('report', 'document', description="Score, remarques et version proposée.")]))
 
 
-#: Réglages dont le changement périme la transcription : tout ce que sa glu lit de l'élément.
-_TRANSCRIBE_WATCHED = ('backend', 'hotwords', 'preprocess_audio', 'level_speech', 'vad_mode',
-                       'language_mode')
+#: `watched` : les champs HORS schéma (le résultat importé). Les RÉGLAGES déclarent eux-mêmes ce
+#: qu'ils périment (`Param.stales`, params.py, 2026-10-05) — transcription : modèle, mots-clés,
+#: prétraitement, nivellement, filtre de parole, langues ; locuteurs : modèle de diarisation ;
+#: résumé : son type. `PIPELINE.watched_of(spec)` réunit les deux.
 
 def _requested_model(t):
     """Le modèle que la card demande, « auto » compris : les process se montrent AVANT le
@@ -153,7 +154,7 @@ def _requested_model(t):
 
 
 PIPELINE = register_app_pipeline(_APP, (
-    ProcessSpec('transcribe', label='Transcription', watched=_TRANSCRIBE_WATCHED,
+    ProcessSpec('transcribe', label='Transcription',
                 applies=_transcribes, gpu=True, share=17, eta='transcriber.workers:transcribe_eta'),
     # L'import relit un document (quelques secondes) : pas d'ETA propre, sa dernière durée suffit.
     ProcessSpec('import', label='Import', watched=('work_result',),
@@ -161,12 +162,12 @@ PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('align', label='Alignement', depends_on=('import',), degree=OPTIONAL,
                 applies=_align_applies, gpu=True, share=2, eta='transcriber.workers:align_eta'),
     ProcessSpec('diarize', label='Locuteurs', depends_on=('transcribe', 'import', 'align'),
-                watched=('diarization_model',), degree=OPTIONAL, toggle='enable_diarization',
+                degree=OPTIONAL, toggle='enable_diarization',
                 applies=_diarize_applies, gpu=True, share=1, eta='transcriber.workers:diarize_eta'),
     # Résumé et cohérence lisent le texte ET ses locuteurs (le compte-rendu de réunion les cite,
     # la cohérence par segment s'écrit sur les segments que la diarisation réécrit).
     ProcessSpec('summarize', label='Résumé', depends_on=('transcribe', 'import', 'diarize'),
-                watched=('summary_type',), degree=OPTIONAL, toggle='generate_summary', share=1,
+                degree=OPTIONAL, toggle='generate_summary', share=1,
                 eta='transcriber.workers:summarize_eta'),
     ProcessSpec('coherence', label='Cohérence',
                 depends_on=('transcribe', 'import', 'align', 'diarize'),

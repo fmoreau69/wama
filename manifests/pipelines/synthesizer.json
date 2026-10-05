@@ -21,14 +21,14 @@
           "label": "Synthèse",
           "share": 9,
           "watched": [
-            "text_file",
             "tts_model",
             "quality_intent",
-            "voice_preset",
-            "voice_reference",
             "language",
+            "voice_preset",
             "speed",
             "pitch",
+            "text_file",
+            "voice_reference",
             "multi_speaker",
             "scene_description"
           ]

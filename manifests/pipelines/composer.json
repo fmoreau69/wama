@@ -53,11 +53,11 @@
           ],
           "watched": [
             "prompt",
-            "prompt_processed",
+            "model",
             "vocals",
             "lyrics",
-            "model",
-            "quality_intent"
+            "quality_intent",
+            "prompt_processed"
           ]
         }
       },
@@ -77,12 +77,12 @@
           "share": 3,
           "watched": [
             "prompt",
-            "prompt_processed",
+            "model",
             "vocals",
             "lyrics",
-            "model",
             "quality_intent",
             "duration",
+            "prompt_processed",
             "reference_score",
             "melody_reference",
             "source_url"

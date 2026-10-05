@@ -88,12 +88,15 @@ PARAMS = derive_from_model(
             icon="fa-bullseye", chip=True, chip_label="Désignation",
             help="Classes : une liste d'objets à flouter. Description : ce qu'il faut flouter, "
                  "décrit en texte.",
+            # Ce que chaque réglage PÉRIME (`Param.stales`, 2026-10-05) : `ProcessSpec.watched`
+            # s'en dérive (function_specs.py n'y garde que les champs hors schéma).
+            stales=("detect",),
         ),
         "sam3_prompt": dict(
             type="textarea", label="Prompt SAM3", icon="fa-comment-dots",
             dom_id={"panel": "user_setting_sam3_prompt"}, group="description",
             show_if={"field": "target_mode", "equals": "description"},
-            help='Ex. « blur all faces and license plates ».',
+            help='Ex. « blur all faces and license plates ».', stales=("detect",),
         ),
         # Menu de modèle tiré du CATALOGUE (2026-09-27) : les tâches qui localisent ce qu'on
         # floute (pose, classification et boîtes orientées n'y ont pas de sens), bornées par le
@@ -109,6 +112,7 @@ PARAMS = derive_from_model(
             help_source="anonymizer",
             chip=True, default="auto",
             help="Automatique : choisi au lancement selon le curseur et les classes.",
+            stales=("detect",),
         ),
         # ⚠ step ALIGNÉ SUR LE RÉEL (2026-08-19). Le curseur déclarait 101 positions alors que
         # le moteur n'en distingue que CINQ : `get_model_size_from_precision`
@@ -127,12 +131,12 @@ PARAMS = derive_from_model(
         "precision_level": intent_param(
             dom_id={"panel": "user_setting_precision_level"}, step=5,
             help="5 paliers effectifs (n/s/m/l/x) ; à partir de 50, segmentation fine.",
-            chip=True, group="model",
+            chip=True, group="model", stales=("detect",),
         ),
         "detection_threshold": dict(
             type="range", label="Seuil de détection", icon="fa-crosshairs",
             dom_id={"panel": "user_setting_detection_threshold"}, min=0, max=1, step=0.05,
-            group="comment",
+            group="comment", stales=("detect",),
         ),
         # ⚠ step=2 N'ÉTAIT PAS ARBITRAIRE (compris le 2026-08-19) : `blur_ratio` est la TAILLE
         # DE NOYAU d'un flou gaussien, qui DOIT être impaire — `normalize_blur_ratio`
@@ -145,27 +149,27 @@ PARAMS = derive_from_model(
             type="range", label="Intensité du flou", icon="fa-droplet",
             dom_id={"panel": "user_setting_blur_ratio"}, min=1, max=99, step=2,
             help="Taille du noyau gaussien (impaire).",
-            group="comment",
+            group="comment", stales=("blur",),
         ),
         "rounded_edges": dict(
             type="number", label="Bords arrondis", icon="fa-border-top-left",
-            min=0, max=50, step=1, advanced=True,
+            min=0, max=50, step=1, advanced=True, stales=("blur",),
         ),
         # roi_enlargement / progressive_blur : advanced=True mais AFFICHÉS dans « Comment
         # flouter » comme au volet droit — le groupe explicite prime sur le repli Avancé.
         "roi_enlargement": dict(
             type="range", label="Agrandissement de la zone", icon="fa-up-right-and-down-left-from-center",
             dom_id={"panel": "user_setting_roi_enlargement"}, min=1.0, max=2.0, step=0.05,
-            advanced=True, group="comment",
+            advanced=True, group="comment", stales=("blur",),
         ),
         "progressive_blur": dict(
             type="range", label="Flou progressif", icon="fa-chart-line",
             dom_id={"panel": "user_setting_progressive_blur"}, min=0, max=100, step=1,
-            advanced=True, group="comment",
+            advanced=True, group="comment", stales=("blur",),
         ),
         "interpolate_detections": dict(
             type="toggle", label="Interpoler les détections manquantes", icon="fa-wave-square",
-            advanced=True, chip=True, chip_label="Interpolation",
+            advanced=True, chip=True, chip_label="Interpolation", stales=("blur",),
         ),
         "max_interpolation_frames": dict(
             type="number", label="Frames max à interpoler", icon="fa-film",
@@ -174,21 +178,23 @@ PARAMS = derive_from_model(
             # 0,5 s de vidéo (50 valait 7 à 15 i/s, card #1026).
             help="Un trou de détection d'au plus ce nombre d'images est comblé, entre deux "
                  "détections du même objet (même piste, ou même place).",
-            show_if={"field": "interpolate_detections", "equals": True},
+            show_if={"field": "interpolate_detections", "equals": True}, stales=("blur",),
         ),
         "use_segmentation": dict(
             type="toggle", label="Segmentation fine (contours)", icon="fa-draw-polygon",
             help="Masque au contour de l'objet plutôt qu'au rectangle détecté.",
-            advanced=True, chip=True, chip_label="Segmentation",
+            advanced=True, chip=True, chip_label="Segmentation", stales=("detect",),
         ),
+        # Réglages d'AFFICHAGE : ils ne périment rien (`stales=()`, DÉCLARÉ) — ils ne changent
+        # que la vue « Détection » de l'aperçu.
         "show_preview": dict(type="toggle", label="Afficher l'aperçu", icon="fa-eye",
-                             advanced=True, group="afficher"),
+                             advanced=True, group="afficher", stales=()),
         "show_boxes": dict(type="toggle", label="Afficher les boîtes", icon="fa-vector-square",
-                           advanced=True, group="afficher"),
+                           advanced=True, group="afficher", stales=()),
         "show_labels": dict(type="toggle", label="Afficher les libellés", icon="fa-tag",
-                            advanced=True, group="afficher"),
+                            advanced=True, group="afficher", stales=()),
         "show_conf": dict(type="toggle", label="Afficher la confiance", icon="fa-percent",
-                          advanced=True, group="afficher"),
+                          advanced=True, group="afficher", stales=()),
         # ⚠ Sans options déclarées, ces deux selects rendaient VIDES dans la modale
         # (CharField sans choices → derive_from_model n'a rien à offrir) — constat
         # Fabien 14/08 (« pas accès aux format/qualité »). Options = brique commune.

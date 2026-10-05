@@ -128,9 +128,10 @@ class WrittenLyricsAreKeptOnTheCardTest(TestCase):
     def test_a_card_lyric_change_makes_the_score_and_the_render_stale(self):
         from wama.composer.function_specs import PIPELINE
         for key in ('plan', 'render'):
-            self.assertIn('lyrics', PIPELINE.spec(key).watched)
-            self.assertIn('vocals', PIPELINE.spec(key).watched)
-            self.assertIn('prompt_processed', PIPELINE.spec(key).watched)
+            watched = PIPELINE.watched_of(PIPELINE.spec(key))   # dérivé des réglages (2026-10-05)
+            self.assertIn('lyrics', watched)
+            self.assertIn('vocals', watched)
+            self.assertIn('prompt_processed', watched)
 
 
 class WhoSingsIsDeclaredByTheCatalogueTest(TestCase):

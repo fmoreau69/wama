@@ -79,17 +79,19 @@ register(FunctionSpec(
     outputs=[PortSpec('video', 'video', description="La vidéo au visage amélioré.")]))
 
 
+# `watched` : les champs HORS schéma (fichiers, avatar) — les RÉGLAGES déclarent eux-mêmes ce
+# qu'ils périment (`Param.stales`, params.py, 2026-10-05) ; `PIPELINE.watched_of(spec)` réunit
+# les deux. Voix : texte, modèle TTS, curseur, langue, voix ; animation : modèle, bbox ;
+# visage : `use_enhancer`.
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('speak', label='Voix',
-                watched=('text_content', 'tts_model', 'voice_preset', 'language', 'quality_intent'),
                 share=1, applies=_speak_applies, outputs=('audio_input',),
                 eta='avatarizer.workers:speak_eta_key_size'),
     ProcessSpec('animate', label='Animation', depends_on=('speak',),
-                watched=('audio_input', 'avatar_source', 'avatar_gallery_name', 'avatar_upload',
-                         'animation_model', 'bbox_shift'),
+                watched=('audio_input', 'avatar_source', 'avatar_gallery_name', 'avatar_upload'),
                 gpu=True, share=4, outputs=('output_video',),
                 eta='avatarizer.workers:avatarizer_eta_key_size'),
-    ProcessSpec('enhance', label='Visage', depends_on=('animate',), watched=('use_enhancer',),
+    ProcessSpec('enhance', label='Visage', depends_on=('animate',),
                 gpu=True, share=3, applies=_enhance_applies,
                 eta='avatarizer.workers:enhance_eta_key_size'),
 ), label='Avatarizer — voix, animation, visage', source_ref='avatarizer.function_specs:PIPELINE',

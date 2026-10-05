@@ -88,6 +88,13 @@ PARAMS = derive_from_model(
     },
 )
 
+# Ce que chaque réglage PÉRIME (`Param.stales`, 2026-10-05) : tous les réglages de synthèse
+# périment la synthèse — `ProcessSpec.watched` s'en dérive (function_specs.py n'y garde que les
+# champs hors schéma). Posé AVANT les réglages de SORTIE, qui sont au process `output` commun.
+for _param in PARAMS:
+    _param.stales = ("generate",)
+del _param
+
 # Format + qualité de FICHIER de sortie : BRIQUE COMMUNE auto depuis APP_CATALOG (domaine audio +
 # early-binding déduits du catalogue). L'app ne fournit que les dom_id de ses surfaces.
 # ⚠ Pas de contexte "batch" ici — HISTORIQUE : la vue de lot n'acceptait que tts_model/language/
