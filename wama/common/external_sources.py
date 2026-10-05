@@ -96,6 +96,35 @@ CLOUD_ORIGIN_LABELS = {
     'third_party': 'Cloud commercial',
 }
 
+#: Comment on dit qu'un modèle tourne SUR SITE (poids sur cette machine, Ollama compris) — le
+#: premier anneau de la présentation, celui dont rien ne sort.
+LOCAL_ORIGIN_LABEL = 'WAMA local'
+
+#: Clé de l'origine locale dans un regroupement d'options (les distantes portent leur source).
+LOCAL_ORIGIN_KEY = 'local'
+
+
+def model_origin(model_key: str, execution: str = '') -> tuple:
+    """`(clé, libellé, rang)` de l'ORIGINE d'un modèle — où son inférence a lieu.
+
+    Un modèle exécuté sur site rend `('local', 'WAMA local', 0)`. Un modèle distant rend la
+    clé et le libellé de sa SOURCE déclarée (« Albert API (DINUM) », « API Anthropic (Claude) »,
+    « Claude Code (abonnement) ») ; son rang suit l'échelle des hébergements — privé,
+    souverain, commercial — pour que le plus proche soit proposé d'abord.
+    C'est ce que les sélecteurs de modèle affichent en INTITULÉ de groupe (demande de Fabien,
+    2026-10-05 : « on ne sait pas si on choisit un modèle local ou distant »).
+    """
+    if execution != 'cloud':
+        return LOCAL_ORIGIN_KEY, LOCAL_ORIGIN_LABEL, 0
+    source = (model_key or '').partition(':')[0]
+    declared = by_key().get(source)
+    if declared is None:
+        return source or 'cloud', 'Cloud', len(HOSTING_SCALE) + 1
+    rank = (HOSTING_SCALE.index(declared.hosting) + 1 if declared.hosting in HOSTING_SCALE
+            else len(HOSTING_SCALE) + 1)
+    return declared.key, declared.label, rank
+
+
 #: Plafond par défaut d'un profil : les clouds commerciaux « seulement si on les choisit,
 #: jamais par défaut » (même diapositive).
 HOSTING_CEILING_DEFAULT = 'sovereign'

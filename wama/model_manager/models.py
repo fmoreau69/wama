@@ -842,7 +842,7 @@ class AIModel(models.Model):
 
     @property
     def origin_label(self) -> str:
-        """OÙ ce modèle s'exécute, dit simplement — « Local · Ollama », « Cloud souverain ·
+        """OÙ ce modèle s'exécute, dit simplement — « WAMA local · Ollama », « Cloud souverain ·
         Albert API (DINUM) · gratuit », « Cloud commercial · API Anthropic (Claude) · facturé à
         l'usage ».
 
@@ -851,9 +851,11 @@ class AIModel(models.Model):
         la source et son hébergement (`external_sources`), `cost_tier` : aucun libellé recopié
         dans une description. C'est aussi l'intention du 02/10 : DIRE quand une donnée part.
         """
-        if self.execution != EXECUTION_CLOUD:
-            return 'Local · Ollama' if self.source == 'ollama' else 'Local'
         from wama.common import external_sources
+        if self.execution != EXECUTION_CLOUD:
+            # Le MÊME mot que l'intitulé de groupe des sélecteurs (`model_origin`).
+            local = external_sources.LOCAL_ORIGIN_LABEL
+            return f'{local} · Ollama' if self.source == 'ollama' else local
         try:
             src = external_sources.get(self.source)
         except Exception:

@@ -128,7 +128,10 @@ class LEcranEtLaGardeNeDiverjentPasTests(TestCase):
 
     def _options(self, user):
         self.client.force_login(user)
-        groupes = self.client.get(self.OPTIONS).json()['groups'][0]['options']
+        # Toutes les options, quel que soit leur groupe : la liste est rangée par ORIGINE
+        # depuis le 2026-10-05 (« WAMA local », « Albert API »…).
+        groupes = [o for g in self.client.get(self.OPTIONS).json()['groups']
+                   for o in g['options']]
         return [(o[0] if isinstance(o, list) else o['value']) for o in groupes]
 
     def test_un_membre_du_groupe_dev_voit_l_abonnement_bien_que_non_staff(self):

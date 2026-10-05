@@ -270,7 +270,10 @@ class AbonnementPersonnelTest(TestCase):
 
     def _options(self, user):
         self.client.force_login(user)
-        groupes = self.client.get(self.OPTIONS).json()['groups'][0]['options']
+        # Toutes les options, quel que soit leur groupe : la liste est rangée par ORIGINE
+        # depuis le 2026-10-05 (« WAMA local », « Albert API »…).
+        groupes = [o for g in self.client.get(self.OPTIONS).json()['groups']
+                   for o in g['options']]
         return [(o[0] if isinstance(o, list) else o['value']) for o in groupes]
 
     def test_le_selecteur_commun_propose_les_modeles_ouverts_et_pas_ceux_des_autres(self):
@@ -636,8 +639,8 @@ class OriginLabelTest(TestCase):
         return AIModel(model_key=key, name=key, model_type='llm', source=key.split(':')[0], **fields)
 
     def test_each_origin_is_said_in_plain_words(self):
-        self.assertEqual('Local · Ollama', self._row('ollama:x').origin_label)
-        self.assertEqual('Local', self._row('imager:x').origin_label)
+        self.assertEqual('WAMA local · Ollama', self._row('ollama:x').origin_label)
+        self.assertEqual('WAMA local', self._row('imager:x').origin_label)
         self.assertEqual('Cloud souverain · Albert API (DINUM) · gratuit (quota)',
                          self._row('albert:x', execution='cloud', cost_tier='free').origin_label)
         self.assertEqual("Cloud commercial · API Anthropic (Claude) · facturé à l'usage",
@@ -646,4 +649,4 @@ class OriginLabelTest(TestCase):
                          self._row('claude_code:x', execution='cloud', cost_tier='subscription').origin_label)
 
     def test_the_catalogue_api_carries_the_origin(self):
-        self.assertEqual('Local · Ollama', self._row('ollama:x').to_dict()['origin'])
+        self.assertEqual('WAMA local · Ollama', self._row('ollama:x').to_dict()['origin'])
