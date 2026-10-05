@@ -2635,6 +2635,24 @@ def _run_global_tracking(session):
                          f"4-10…30-40 m : sol {_fmt(_v.get('ground'))} · hauteur de boîte {_fmt(_v.get('box'))}"
                          + (f" · après correction : sol {_fmt(_v['ground_corrige'])}" if _v.get('ground_corrige') else '')
                          + (f", boîte {_fmt(_v['box_corrige'])}" if _v.get('box_corrige') else ''))
+        # Accord de DISTANCE entre caméras (2026-10-05, métrique #5) : un objet vu par deux caméras doit
+        # être placé au même endroit par les deux. Mesure seule, au résumé et en console.
+        _ca = _gt.get('camera_agreement') or {}
+        if _ca.get('pairs'):
+            rs['camera_agreement'] = _ca
+            _console(session.user_id,
+                     "Accord de distance entre caméras (B place à × la distance de A) : " + " · ".join(
+                         f"{k} {v['ratio']:.2f} ({v['objects']} objets, écart {v['gap_m']} m)"
+                         for k, v in _ca['pairs'].items())
+                     + (f" — échelle relative à {_ca['anchor']} : " + ", ".join(
+                         f"{c} {v['scale']:.2f}" for c, v in sorted(_ca['scales'].items()))
+                        if _ca.get('scales') else ''))
+        _po = (_ca.get('parked_offsets') or {}).get('gaps') or {}
+        if _po:
+            rs['camera_agreement'] = _ca
+            _console(session.user_id,
+                     "Écartement des garés à la trajectoire selon la caméra (B écarte de plus que A) : "
+                     + " · ".join(f"{k} {v['median_m']:+.2f} m ({v['objects']} garés)" for k, v in _po.items()))
         # POURQUOI le filtre des garés a écarté (2026-09-09). « 77 stationnés détectés » ne
         # disait pas si les 4113 autres étaient mobiles, vus trop brièvement, ou trop étalés —
         # et l'ignorer a fait conclure faux DEUX fois depuis les données persistées. Un filtre

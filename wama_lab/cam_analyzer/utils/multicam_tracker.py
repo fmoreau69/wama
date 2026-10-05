@@ -776,12 +776,14 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                 dirty.add(f)
 
     _continuity_obs = []   # (image, caméra, chaîne détecteur, gid, e, n) — métrique #3
+    _pair_obs = []         # (instant, caméra, gid, e, n, caméra e, caméra n, méthode) — métrique #5, mesures pleines
     _chain_switch = defaultdict(int)
     _live_chain = {}   # (gid, caméra) -> (chaîne détecteur, dernier instant) — ⚑ birth_same_camera_guard
     _birth_guard = _feat.get('birth_same_camera_guard', True)
     for fn in all_fns:
         t = fn / fps * scale + off
         se, sn, sh = _shuttle_pose_at(sh_traj, t)
+        _cam_world = {}   # caméra -> sa position monde à cet instant (métrique #5)
         # Détections de cette frame (toutes caméras) en position monde.
         dets_here = []
         for pos, (iw, ih, frames) in per_cam.items():
@@ -972,6 +974,11 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     best['e'], best['n'], best['last_t'] = e, n, t
             d['global_track_id'] = best['id']
             _continuity_obs.append((fn, pos, _tid, best['id'], e, n, d.get('bbox')))
+            if not relaxed:   # une boîte coupée au bord est une mesure biaisée : hors de l'accord entre caméras
+                _cw = _cam_world.get(pos)
+                if _cw is None:
+                    _cw = _cam_world[pos] = ego_to_world(se, sn, sh, *_geo[pos]['mount'])
+                _pair_obs.append((t, pos, best['id'], e, n, _cw[0], _cw[1], d.get('placement_source')))
             # Diagnostic (2026-10-01) : une chaîne de détecteur qui CHANGE de gid, et pourquoi.
             if ck and ck in chain and chain[ck]['gid'] != best['id']:
                 _chain_switch[_lock_note or 'autre'] += 1
@@ -1580,6 +1587,38 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     except Exception:
         logger.warning('measure_range_bias (contrôle qualité) échoué', exc_info=True)
 
+    # ── Accord de DISTANCE entre caméras, mesuré AUTOMATIQUEMENT à chaque calcul (2026-10-05) ───────────
+    # Le biais par portée ci-dessus prend sa référence dans la caméra elle-même : une erreur d'échelle de
+    # TOUTE la caméra lui échappe. Ici, un objet vu par deux caméras (recouvrement ou relais bref) doit
+    # être placé au même endroit par les deux ; l'échelle de chaque caméra est rendue relative à celle dont
+    # la projection sol et la hauteur de boîte s'accordent le mieux. Constat de Fabien : des trajectoires
+    # droites qui s'incurvent autour de la navette. Mesure seule : aucune position n'est changée.
+    camera_agreement = {}
+    _rooted = [(o[0], o[1], _root(o[2])) + o[3:] for o in _pair_obs]
+    try:
+        from wama_data.functions.geometry.placement_metrics import (
+            agreeing_camera, camera_pair_agreement, relative_camera_scales)
+        _pairs = camera_pair_agreement(_rooted)
+        _anchor, _anchor_gap = agreeing_camera(range_bias)
+        camera_agreement.update(pairs=_pairs, anchor=_anchor, anchor_methods_gap=_anchor_gap,
+                                scales=relative_camera_scales(_pairs, _anchor) if _anchor else {})
+        logger.info('[tracking 360°] accord de distance entre caméras : %s ; échelles (ancre %s) : %s',
+                    {k: (v['ratio'], v['objects']) for k, v in _pairs.items()}, _anchor,
+                    camera_agreement['scales'])
+    except Exception:
+        logger.warning('camera_pair_agreement (contrôle qualité) échoué', exc_info=True)
+    # Métrique #6 : un garé ne bouge pas, quelle que soit la caméra qui le voit — son écartement à la
+    # trajectoire de la navette doit être le même. C'est la grandeur du renflement vu de dessus.
+    try:
+        from wama_data.functions.geometry.placement_metrics import static_offset_gaps
+        _parked = set(stationary_gids)
+        camera_agreement['parked_offsets'] = static_offset_gaps(
+            [o[:5] for o in _rooted if o[2] in _parked], sh_traj[:, :3])
+        logger.info('[tracking 360°] écartement des garés selon la caméra : %s',
+                    {k: v['median_m'] for k, v in camera_agreement['parked_offsets']['gaps'].items()})
+    except Exception:
+        logger.warning('static_offset_gaps (contrôle qualité) échoué', exc_info=True)
+
     # Métrique #3 (2026-10-01) : ce que le suivi DUPLIQUE ou PERD, après recollement (gids racines).
     continuity = None
     try:
@@ -1650,6 +1689,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'placement_sources': dict(_src_counts),
             # courbes de biais de distance de CE calcul (⚑ range_correction les applique au suivant)
             'range_bias': range_bias,
+            # accord de distance entre caméras (métrique #5) — mesure seule
+            'camera_agreement': camera_agreement,
             'stationary_rejects': _rejets,
             'stationary_gate_by_gid': _gate_by_gid,
             'stationary_rule': _stationary_rule,
