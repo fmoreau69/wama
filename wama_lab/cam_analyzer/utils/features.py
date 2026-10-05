@@ -177,6 +177,22 @@ FEATURES = [
             "moins de 2 m) est fondu dans l'autre AVANT le recollement ; deux numéros vus une seule fois "
             "séparés dans une même image ne le sont jamais. Tracking à rejouer après bascule.",
             default=False, scope='compute'),
+    Feature('stitch_bidirectional', 'Recollement dans les DEUX sens',
+            "Deux morceaux de trajectoire sont jugés comme UNE trajectoire : en plus de prolonger la fin "
+            "de A jusqu'au début de B, on ramène B en arrière (sa vitesse estimée sur ses premières "
+            "secondes) jusqu'à la fin de A, et le meilleur raccord compte — entre deux morceaux qui "
+            "ROULENT (≥ 3 m/s), et jamais s'ils vont en sens opposés ; les morceaux lents gardent la "
+            "règle d'avant. Constat du 2026-10-05 : la Twingo G1588 (1780 s) qui ACCÉLÈRE pour doubler "
+            "(~3 puis 6,5 m/s à l'arrière, 11 m/s à l'avant) — A prolongé la manquait de 9,4 m. "
+            "Tracking à rejouer après bascule.",
+            default=False, scope='compute'),
+    Feature('ghost_hermite', 'Trous comblés en COURBE',
+            "Un trou de suivi (≤ 6 s) était comblé par une ligne droite entre ses deux bords : le cap "
+            "cassait à l'entrée et à la sortie, et la ligne pouvait couper une file de garés. La courbe "
+            "part dans la direction et à l'allure de l'arrivée et rejoint la sortie de même (vitesses "
+            "lissées) ; repli sur la droite si les vitesses ne sont pas cohérentes avec la distance. "
+            "Tracking à rejouer après bascule.",
+            default=False, scope='compute'),
     Feature('measured_camera_yaw', 'Orientation des latérales MESURÉE',
             "Utilise l'orientation de montage des caméras latérales MESURÉE sur la session (passe "
             "« Champ des caméras » : le mouvement de la navette, tiré de la trace, contraint les "

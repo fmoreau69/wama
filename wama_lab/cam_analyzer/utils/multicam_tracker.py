@@ -313,20 +313,29 @@ def _mixed_family_gids(cls_votes, min_weight=3.0, minority_share=0.2):
 
 
 def reanchor_ghosts(ghost_links, smoothed, shuttle_at, *, use_smoothed=True, ego_length_m=4.75,
-                  ego_width_m=2.11):
+                  ego_width_m=2.11, velocities=None, frame_dt=None, use_hermite=False):
     """Repose les fantômes sur la trajectoire LISSÉE et retire ceux tombés dans l'emprise navette.
 
     `ghost_links` : [(frame, détection fantôme, gid, f0, f1, a, fn)] — le fantôme de l'image `fn`
     est à la fraction `a` du trou entre les observations réelles `f0` et `f1` ; `smoothed` :
     {(gid, fn): (e, n)} des observations RÉELLES lissées ; `shuttle_at(fn)` → (e, n, cap) de la
     navette (centre arrière). Modifie les détections en place ; rend (sauts au bord du trou en m,
-    nombre retirés). Sans les deux points lissés, le fantôme garde l'interpolation brute."""
+    nombre retirés). Sans les deux points lissés, le fantôme garde l'interpolation brute.
+
+    ⚑ ghost_hermite (`use_hermite`, 2026-10-05) : entre les deux points lissés, une courbe qui
+    respecte les VITESSES lissées aux deux bords (`velocities` = {(gid, image): (ve, vn)},
+    `frame_dt` = secondes par image) au lieu de la ligne droite — plus de cassure de cap au bord du
+    trou (`hermite_ghost`, repli linéaire si les vitesses ne sont pas cohérentes avec la corde)."""
     jumps, removed = [], 0
     for fr, det, gid, f0, f1, a, fn in ghost_links:
         s0, s1 = smoothed.get((gid, f0)), smoothed.get((gid, f1))
         lat, lon = det['vehicle_xy']
         if use_smoothed and s0 and s1:
-            we, wn = s0[0] + a * (s1[0] - s0[0]), s0[1] + a * (s1[1] - s0[1])
+            if use_hermite and velocities is not None and frame_dt:
+                we, wn = hermite_ghost(s0, velocities.get((gid, f0)), s1, velocities.get((gid, f1)),
+                                       (f1 - f0) * frame_dt, a)
+            else:
+                we, wn = s0[0] + a * (s1[0] - s0[0]), s0[1] + a * (s1[1] - s0[1])
             se, sn, sh = shuttle_at(fn)
             lat, lon = world_to_vehicle(we, wn, se, sn, sh)
             det['world_en'] = [round(we, 2), round(wn, 2)]
@@ -418,6 +427,98 @@ def one_to_one_stitches(pairs, spans, overlap_tolerance_s=0.25):
         stitched.add(start)
         links.append((start, end))
     return links, refused
+
+
+#: ⚑ stitch_bidirectional : le raccord par l'arrière et le refus des sens opposés ne valent qu'entre
+#: deux morceaux qui ROULENT franchement. En deçà, la direction n'est que du bruit de placement —
+#: A/B du 2026-10-05 avec un seuil de 1 m/s : 18 000 paires refusées, recollements 1282 → 1120,
+#: relais ratés 54 → 58, garés 698 → 732 (des garés vus de deux caméras « roulent » à 1-2 m/s).
+STITCH_MOVING_MS = 3.0
+
+
+def stitch_link_ratio(end_fit, start, start_fit, gate_m, *, bidirectional=False):
+    """Écart NORMALISÉ (1 = bord de la porte `gate_m + 1,5 × trou`) entre la fin d'un morceau A et
+    le début d'un morceau B, et le sens du raccord. Rend `(ratio, refusé, par_l_arrière)`.
+
+    `end_fit` = (t_fin, t_sain, e, n, ve, vn) de A — point SAIN et vitesse ajustés sur sa queue ;
+    `start` = (t0, e0, n0), 1ʳᵉ observation de B ; `start_fit` = (t0, t_sain, e, n, ve, vn) de B,
+    le même ajustement sur sa TÊTE (None s'il n'y en a pas).
+
+    Sans `bidirectional` : la règle d'avant — A prolongé jusqu'au début de B.
+    ⚑ stitch_bidirectional (2026-10-05) : A et B jugés comme UNE trajectoire — on garde aussi le
+    raccord de B RAMENÉ en arrière jusqu'à la fin de A (comparé à A prolongé au même instant), et le
+    meilleur des deux compte. Constat de Fabien (G1588, 1780 s) : la Twingo qui double par la gauche
+    ACCÉLÈRE — vue à l'arrière à ~3 puis 6,5 m/s, puis à l'avant à 11 m/s ; la vitesse de fin de A,
+    ajustée sur sa queue saine (qui exclut sa dernière ½ s, la plus rapide), la faisait attendre à
+    9,4 m de son retour (porte 5,3 m) ; B ramené tombe à ~4 m. Entre deux morceaux qui ROULENT
+    (≥ `STITCH_MOVING_MS`), un raccord est REFUSÉ quand leurs mouvements sont opposés.
+    Morceaux plus lents : la règle d'avant, inchangée (A/B ci-dessus `STITCH_MOVING_MS`)."""
+    te, tw, ew, nw, ve, vn = end_fit
+    t0, e0, n0 = start
+    gap = t0 - te
+    gate = gate_m + 1.5 * gap
+    ratio = math.hypot(e0 - (ew + ve * (t0 - tw)), n0 - (nw + vn * (t0 - tw))) / gate
+    if not bidirectional or start_fit is None:
+        return ratio, False, False
+    _t0b, tb, eb, nb, vbe, vbn = start_fit
+    sa, sb = math.hypot(ve, vn), math.hypot(vbe, vbn)
+    # Seulement entre deux morceaux qui ROULENT franchement. A/B du 2026-10-05 sans cette borne :
+    # 85 garés perdus (26 au solde) — un garé vu à l'avant recollé à SA vue de l'arrière, qui
+    # « roule » à 1-2 m/s (placement qui dérive d'une caméra à l'autre) : le lien est peut-être
+    # juste, mais le filtre des garés refuse ensuite l'objet ainsi réuni.
+    if sa < STITCH_MOVING_MS or sb < STITCH_MOVING_MS:
+        return ratio, False, False
+    if ve * vbe + vn * vbn < 0:
+        return ratio, True, False
+    a_at_end = (ew + ve * (te - tw), nw + vn * (te - tw))
+    b_back = (eb - vbe * (tb - te), nb - vbn * (tb - te))
+    back = math.hypot(b_back[0] - a_at_end[0], b_back[1] - a_at_end[1]) / gate
+    return (back, False, True) if back < ratio else (ratio, False, False)
+
+
+def track_head_fit(hist):
+    """Ajustement linéaire de la TÊTE d'un morceau — le jumeau de l'ajustement de fin du recollement :
+    fenêtre de 2 s commençant 0,5 s APRÈS la 1ʳᵉ observation (les toutes premières, boîte coupée à
+    l'entrée du champ, sont les plus corrompues). `hist` = [(image, t, e, n, …)]. Rend
+    (t0, t_sain, e, n, ve, vn), ou None faute de 3 points."""
+    hs = sorted(hist, key=lambda h: h[1])
+    t0 = hs[0][1]
+    win = [h for h in hs if t0 + 0.5 <= h[1] <= t0 + 2.5] or hs[:4]
+    if len(win) < 3:
+        return None
+    tm = sum(h[1] for h in win) / len(win)
+    em = sum(h[2] for h in win) / len(win)
+    nm = sum(h[3] for h in win) / len(win)
+    den = sum((h[1] - tm) ** 2 for h in win)
+    if den <= 1e-6:
+        return None
+    ve = sum((h[1] - tm) * (h[2] - em) for h in win) / den
+    vn = sum((h[1] - tm) * (h[3] - nm) for h in win) / den
+    # point SAIN = la droite ajustée au 1er instant de la fenêtre (pas la mesure brute)
+    tb = win[0][1]
+    return (t0, tb, em + ve * (tb - tm), nm + vn * (tb - tm), ve, vn)
+
+
+def hermite_ghost(p0, v0, p1, v1, gap_s, a):
+    """Position d'un fantôme à la fraction `a` d'un trou de `gap_s` secondes entre p0 (vitesse v0) et
+    p1 (vitesse v1) — courbe d'Hermite : elle part dans la direction et à l'allure de l'arrivée, et
+    rejoint la sortie de même, là où la ligne droite cassait le cap aux deux bords (⚑ ghost_hermite,
+    2026-10-05). Repli LINÉAIRE quand les vitesses sont incohérentes avec la corde (la courbe
+    s'écarterait de plus de max(2 m, ¼ de la corde) : un détour inventé est pire qu'une droite)."""
+    linear = (p0[0] + a * (p1[0] - p0[0]), p0[1] + a * (p1[1] - p0[1]))
+    if v0 is None or v1 is None:
+        return linear
+    chord = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
+    bulge = gap_s * math.hypot(v0[0] - v1[0], v0[1] - v1[1]) / 8.0     # écart au milieu de la corde
+    if bulge > max(2.0, 0.25 * chord):
+        return linear
+    # allures incompatibles avec la distance à couvrir : la courbe dépasserait ses extrémités
+    if max(math.hypot(*v0), math.hypot(*v1)) * gap_s > 2.0 * chord + 4.0:
+        return linear
+    h00, h10 = 2 * a ** 3 - 3 * a ** 2 + 1, a ** 3 - 2 * a ** 2 + a
+    h01, h11 = -2 * a ** 3 + 3 * a ** 2, a ** 3 - a ** 2
+    return (h00 * p0[0] + h10 * gap_s * v0[0] + h01 * p1[0] + h11 * gap_s * v1[0],
+            h00 * p0[1] + h10 * gap_s * v0[1] + h01 * p1[1] + h11 * gap_s * v1[1])
 
 
 #: ⚑ duplicate_chain_merge : au-delà de cette distance monde, deux boîtes qui se recouvrent dans une
@@ -902,6 +1003,10 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         hs = min(hist, key=lambda h: h[1])
         _starts.append((gid, hs[1], hs[2], hs[3]))
     _starts.sort(key=lambda s: s[1])
+    # ⚑ stitch_bidirectional (2026-10-05) : la TÊTE de chaque morceau est ajustée comme sa queue,
+    # pour juger un raccord dans les deux sens (`stitch_link_ratio`).
+    _bidir = _feat.get('stitch_bidirectional', False)
+    _startfit = {gid: track_head_fit(hist) for gid, hist in track_hist.items()} if _bidir else {}
     _fam_of = ({g: dominant_family(v, min_share=0.6) for g, v in cls_votes.items()}
                if _family_gate else {})
     _stitch_refused = 0
@@ -934,10 +1039,15 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             if gap <= 0 or gap > stitch_gap_s:
                 continue
             sp = math.hypot(ve, vn)
-            dtp = t0 - tw                     # horizon de prédiction depuis le point sain
-            pe = ew + ve * dtp
-            pn = nw + vn * dtp
-            ratio = math.hypot(e0 - pe, n0 - pn) / (gate_m + 1.5 * gap)
+            # A prolongé jusqu'au début de B (depuis son point sain) ; sous ⚑ stitch_bidirectional,
+            # aussi B ramené jusqu'à la fin de A, et le sens des deux mouvements
+            ratio, _wrong_way, _by_back = stitch_link_ratio(fit, (t0, e0, n0), _startfit.get(gid),
+                                                            gate_m, bidirectional=_bidir)
+            if _wrong_way:
+                _stitch_diag['paires_refusees_sens'] += 1
+                continue
+            if _by_back and ratio < 1.0:
+                _stitch_diag['paires_dans_porte_par_l_arriere'] += 1
             if sp < 1.0 and gap > 2.0:
                 _slow_in_gate = _slow_in_gate or ratio < 1.0
                 continue
@@ -1329,7 +1439,10 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         ghost_links, smoothed, lambda fn: _shuttle_pose_at(sh_traj, fn / fps * scale + off),
         use_smoothed=_use_smooth,
         ego_length_m=float(getattr(_prof, 'ego_length_m', None) or 4.75),
-        ego_width_m=float(getattr(_prof, 'ego_width_m', None) or 2.11))
+        ego_width_m=float(getattr(_prof, 'ego_width_m', None) or 2.11),
+        # ⚑ ghost_hermite : la courbe suit les vitesses LISSÉES aux deux bords du trou
+        velocities=smoothed_vel, frame_dt=scale / fps,
+        use_hermite=_feat.get('ghost_hermite', False))
     if ghost_links:
         logger.info("[fantômes] %s posés (%s), %s retirés dans l'emprise navette · saut au bord p50 %s p90 %s",
                     len(ghost_links) - ghosts_in_footprint,

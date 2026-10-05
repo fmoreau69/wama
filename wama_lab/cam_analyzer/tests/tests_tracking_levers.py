@@ -135,6 +135,89 @@ class DuplicateChainMergeTest(SimpleTestCase):
                         "fondre AVANT le recollement : la fin du doublon ne doit plus être un morceau")
 
 
+class StitchBidirectionalTest(SimpleTestCase):
+    """⚑ stitch_bidirectional (2026-10-05) — chiffres RÉELS de la Twingo G1588 (rejeu, 1779-1782 s) :
+    elle accélère pour doubler — fin arrière ajustée à 3,7 m/s, tête avant à ~11 m/s."""
+    END_A = (1779.00, 1778.50, 56.65, -221.20, -0.79, 3.66)      # fin de G1545 (arrière)
+    START_B = (1780.17, 53.29, -205.88)                           # 1ʳᵉ observation de G1588 (gauche)
+    HEAD_B = (1780.17, 1780.75, 54.06, -197.87, 0.86, 11.0)        # tête de G1588 (avant)
+
+    def test_forward_only_misses_the_twingo(self):
+        ratio, refused, back = mt.stitch_link_ratio(self.END_A, self.START_B, self.HEAD_B, 3.5)
+        self.assertGreater(ratio, 1.0)
+        self.assertFalse(refused or back)
+
+    def test_both_ways_link_the_twingo(self):
+        ratio, refused, back = mt.stitch_link_ratio(self.END_A, self.START_B, self.HEAD_B, 3.5,
+                                                    bidirectional=True)
+        self.assertLess(ratio, 1.0)
+        self.assertTrue(back)
+        self.assertFalse(refused)
+
+    def test_two_moving_pieces_in_opposite_directions_are_refused(self):
+        end = (522.83, 522.80, 53.95, -233.2, 0.0, -10.0)        # vers le sud, 10 m/s
+        head = (528.50, 529.00, 54.33, -253.3, 0.3, 5.0)         # vers le nord, 5 m/s
+        self.assertTrue(mt.stitch_link_ratio(end, (528.5, 54.29, -254.72), head, 3.5,
+                                             bidirectional=True)[1])
+
+    def test_g459_itself_is_left_to_the_duplicate_merge(self):
+        """Le morceau arrière de G459 roule à 2,8 m/s, sous le seuil des morceaux qui « roulent » : la
+        direction d'un morceau lent n'est que du bruit de placement (A/B : refuser dès 1 m/s coûtait
+        162 recollements). G459 relève de ⚑ duplicate_chain_merge."""
+        end = (522.83, 522.80, 53.95, -233.2, 0.0, -10.0)
+        head = (528.50, 529.00, 54.33, -253.3, 0.3, 2.8)
+        self.assertFalse(mt.stitch_link_ratio(end, (528.5, 54.29, -254.72), head, 3.5,
+                                              bidirectional=True)[1])
+
+    def test_slow_pieces_keep_the_forward_only_rule(self):
+        """Un garé vu à l'avant puis « roulant » à 1-2 m/s à l'arrière (placement qui dérive) : pas de
+        raccord par l'arrière — sans cette borne, 85 garés perdus à l'A/B du 2026-10-05."""
+        end = (100.0, 99.5, 0.0, 0.0, 0.0, 0.8)
+        head = (101.0, 101.5, 0.0, 6.0, 0.0, 1.5)
+        fwd = mt.stitch_link_ratio(end, (101.0, 0.0, 6.0), head, 3.5)
+        both = mt.stitch_link_ratio(end, (101.0, 0.0, 6.0), head, 3.5, bidirectional=True)
+        self.assertEqual(fwd[0], both[0])
+        self.assertFalse(both[2])
+
+    def test_the_head_fit_skips_the_first_half_second(self):
+        hist = [(i, 10.0 + i / 12, 0.0, 2.0 * (i / 12), 'car') for i in range(36)]
+        hist[0] = (0, 10.0, 0.0, 30.0, 'car')            # entrée de champ corrompue
+        t0, tb, e, n, ve, vn = mt.track_head_fit(hist)
+        self.assertEqual(t0, 10.0)
+        self.assertAlmostEqual(vn, 2.0, places=6)
+        self.assertAlmostEqual(n, 2.0 * (tb - 10.0), places=6)
+
+
+class GhostHermiteTest(SimpleTestCase):
+    """⚑ ghost_hermite (2026-10-05) : la courbe du trou respecte les vitesses à ses deux bords."""
+
+    def test_the_curve_leaves_and_arrives_along_the_velocities(self):
+        p0, v0, p1, v1, T = (0.0, 0.0), (0.0, 10.0), (4.0, 20.0), (4.0, 10.0), 2.0
+        self.assertEqual(mt.hermite_ghost(p0, v0, p1, v1, T, 0.0), p0)
+        self.assertEqual(mt.hermite_ghost(p0, v0, p1, v1, T, 1.0), p1)
+        e, n = mt.hermite_ghost(p0, v0, p1, v1, T, 0.05)
+        self.assertLess(abs(e / n), 0.1, 'au départ, la courbe suit la vitesse (vers le nord)')
+
+    def test_straight_and_steady_is_the_straight_line(self):
+        p = mt.hermite_ghost((0.0, 0.0), (0.0, 5.0), (0.0, 10.0), (0.0, 5.0), 2.0, 0.3)
+        self.assertAlmostEqual(p[0], 0.0)
+        self.assertAlmostEqual(p[1], 3.0)
+
+    def test_incoherent_velocities_fall_back_to_the_line(self):
+        """Des vitesses opposées sur une corde courte inventeraient un détour : la droite reste."""
+        p = mt.hermite_ghost((0.0, 0.0), (10.0, 0.0), (2.0, 0.0), (-10.0, 0.0), 3.0, 0.5)
+        self.assertEqual(p, (1.0, 0.0))
+
+    def test_switches_declared_off_and_wired(self):
+        by_key = {f.key: f for f in FEATURES}
+        for k in ('stitch_bidirectional', 'ghost_hermite'):
+            self.assertFalse(by_key[k].default, k)
+            self.assertEqual(by_key[k].scope, 'compute', k)
+        src = inspect.getsource(mt.annotate_global_tracks)
+        self.assertIn("bidirectional=_bidir", src)
+        self.assertIn("use_hermite=_feat.get('ghost_hermite', False)", src)
+
+
 class ServerHeadingTest(SimpleTestCase):
     """Le cap d'un véhicule qui roule vient de la vitesse LISSÉE du serveur (2026-10-02) : la trace
     de la page, vidée à chaque saut, faisait dessiner un véhicule qui traverse dans l'axe de la route."""
