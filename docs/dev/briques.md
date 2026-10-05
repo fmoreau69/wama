@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**188 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**189 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1374,7 +1374,7 @@ Un worker publie plusieurs vues du même instant (`publish_partial(variant=, lab
 
 - **Domicile** : `wama/common/utils/preview_utils.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common - Preview Utilities
-- **API publique** (13) :
+- **API publique** (14) :
   - `get_or_create_anonymous_user()` — Get or create the anonymous user.
   - `publish_partial(app_name, pk, url_or_path, variant=None, label=None)` — Worker : publie l'URL (média) d'un aperçu PARTIEL courant, servi par `?side=during`.
   - `class PartialFrames` — L'aperçu « pendant » en IMAGES d'une vidéo en cours de traitement : une frame (ou
@@ -1386,6 +1386,7 @@ Un worker publie plusieurs vues du même instant (`publish_partial(variant=, lab
   - `unified_preview(request, app_name: str, pk: int)` — Unified preview endpoint for any registered app.
   - `register_app_preview(app_name: str, model_class, file_field: str='input_file', user_field: str='user', duration_field: str=None, width_field: str=None, height_…` — Convenience function to register an app with common field patterns.
   - `anonymizer_preview_adapter(media, request)` — Custom adapter for Anonymizer Media model.
+  - `anonymizer_detection_face(media, request)` — Face « Détection » de l'anonymizer (2026-10-05, demande de Fabien) : le média d'ENTRÉE et,
   - `synthesizer_preview_adapter(synthesis, request)` — Custom adapter for Synthesizer VoiceSynthesis model - previews audio output.
   - `transcriber_preview_adapter(transcript, request)` — Custom adapter for Transcriber Transcript model.
 
@@ -1455,11 +1456,11 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
 
 ### Document de détections (type `detections` sur disque)
 
-Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) — le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de Fabien : détection et floutage séparés dans l'anonymizer). Écrit par un process « Détection », relu par le floutage (`blur_utils.blur_detections`, rendu image par image `render_media`) et par l'aperçu (`draw`) ; interpolation des trous d'une piste à la lecture (`by_frame`). Sans Django ni app : la Data et le Lab peuvent le lire
+Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) — le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de Fabien : détection et floutage séparés dans l'anonymizer). Écrit par un process « Détection », relu par le floutage (`blur_utils.blur_detections`, rendu image par image `render_media`) et par l'aperçu (`draw`) ; interpolation des trous d'un objet à la lecture (`by_frame`) — même objet par la piste OU par la place (`iou`, déplacement borné), le réglage seul pour limite (2026-10-05, card #1026). Sans Django ni app : la Data et le Lab peuvent le lire
 
 - **Domicile** : `wama/common/utils/detections.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Les DÉTECTIONS d'un média, sur disque — le type de donnée commun `detections` (`common/catalog/data_types.DataType.DETECTIONS` : objets détectés par frame — frame, bbox, classe, piste).
-- **API publique** (15) :
+- **API publique** (16) :
   - `new_document(*, media: str, width: int, height: int, fps: float=0.0, frame_count: int=1, engine: str='', models=(), classes=(), prompt: str='') -> dict` — Un document vide, prêt à recevoir ses frames (`add`).
   - `detection(*, box, label: str='', conf: float=1.0, track=None, polygons=None) -> dict` — Une détection au format du document : entiers pour les pixels, confiance arrondie.
   - `add(doc: dict, frame_index: int, detections) -> None` — Range les détections d'UNE frame (rien n'est écrit pour une frame vide). Deux appels
@@ -1471,8 +1472,9 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
   - `polygons_to_mask(polygons, shape) -> 'object'` — Le masque (uint8, 0/255) que dessinent des polygones sur une image de forme `shape`.
   - `box_of_polygons(polygons) -> list` — Le rectangle englobant de polygones (x1, y1, x2, y2).
   - `valid_box(box, shape, min_size: int=5)` — Le rectangle ramené dans l'image ; None s'il est vide ou plus petit que `min_size`.
-  - `by_frame(doc: dict, *, interpolate: bool=False, max_gap: int=0) -> dict` — {indice de frame: [détections]} — détections RELEVÉES, plus, si `interpolate`, celles que
-  - `max_gap_for(fps: float, wanted: int, seconds: float=0.5) -> int` — Le trou le plus long que l'on comble : le réglage, plafonné à `seconds` de vidéo — au-delà,
+  - `iou(a, b) -> float` — Recouvrement de deux rectangles (x1, y1, x2, y2), de 0 à 1.
+  - `by_frame(doc: dict, *, interpolate: bool=False, max_gap: int=0, min_iou: float=0.2) -> dict` — {indice de frame: [détections]} — détections RELEVÉES, plus, si `interpolate`, celles que
+  - `max_gap_for(fps: float, wanted: int) -> int` — Le trou le plus long que l'on comble : le RÉGLAGE, tel quel.
   - `render_media(source: str, frames: dict, paint, output_path: str, *, on_frame=None, progress=None) -> str` — Réécrit le média `source` en peignant chaque frame avec SES détections :
   - `draw(image, detections, *, boxes: bool=True, labels: bool=True, confidence: bool=True)` — Une COPIE de l'image avec les détections dessinées : contour plein translucide quand la
 
@@ -2049,7 +2051,7 @@ Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivi
 
 ### Preview unifiée
 
-Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement (2026-09-13, §17ter trou 2)
+Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement (2026-09-13, §17ter trou 2). Une app DÉCLARE ses faces d'aperçu entre Entrée et Sortie (`register(faces=)`, l'anonymizer : « Détection », le document `detections` dessiné sur l'entrée par `WamaPreviewOverlay`) ; une face `compare_base` est la référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05)
 
 - **Domicile** : `wama/common/utils/preview_registry.py`
 - **Module** : WAMA Common - Preview Registry
@@ -2396,6 +2398,15 @@ REGISTRE de capacités de lecture — aucun format privilégié : ajouter un for
   - `probe(path) -> SourceInfo` — Inventaire d'une source, quel que soit son format.
   - `load(path, streams=None, timestampers=None, name: str='') -> TemporalReferential` — Lit une source et rend un référentiel temporel prêt à interroger.
   - `reader_modules() -> List[str]` — Modules de lecture du paquet — **DÉCOUVERTS, jamais cités**.
+
+### Langue d'un contenu (écrit, parlé)
+
+La langue d'un TEXTE (`langid`, balises de section retirées, verdict peu sûr = inconnue — les paroles du composer, 2026-10-05) et celle d'un AUDIO (Whisper sur plusieurs passages — la langue d'un fichier proposée, le transcriber). Deux faces, une question : en quelle langue est ce contenu ? — jamais une heuristique d'app (celle du describer, morte, est retirée le jour même)
+
+- **Domicile** : `wama/common/utils/text_language.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
+- **Module** : La LANGUE d'un texte — pendant écrit de `spoken_language` (2026-10-05).
+- **API publique** (1) :
+  - `detect_text_language(text) -> str` — Code ISO 639-1 de la langue du texte (`fr`, `en`, `zh`…), ou '' si elle n'est pas sûre.
 
 ### Le texte À DIRE (préparation avant vocalisation)
 
