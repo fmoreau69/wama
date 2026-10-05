@@ -78,6 +78,19 @@
                 return response.json();
             })
             .then(function(data) {
+                // L'adresse de l'ÉLÉMENT (sans face ni vue) : sans elle, la modale ouverte d'une
+                // vignette de card n'avait jamais ses faces Entrée | Détection | Comparer | Sortie.
+                const base = _itemAddress(endpoint);
+                data._baseUrl = base;
+                // Un élément EN COURS qui publie son aperçu : on ouvre sur ce qui se construit.
+                if (data.sides && data.sides.has_during && data.side !== 'during') {
+                    return fetch(_duringAddress(base, null))
+                        .then(function (r) { return r.ok ? r.json() : null; })
+                        .then(function (d) {
+                            if (d && d.side === 'during') { d._baseUrl = base; showPreviewModal(d); }
+                            else showPreviewModal(data);
+                        });
+                }
                 showPreviewModal(data);
             })
             .catch(function(err) {
@@ -235,6 +248,8 @@
             showPreviewError('No media URL available');
             return;
         }
+        // Une autre face que celle qui se CONSTRUIT : le suivi en direct s'arrête.
+        if (!data._duringTick) _stopModalDuring();
 
         // Store current data for fullscreen
         currentPreviewData = data;
@@ -270,6 +285,9 @@
 
         // Toggle Entrée/Comparer/Sortie dans le plein écran (si l'appelant a fourni _baseUrl+sides).
         _renderModalSides(modal, data);
+        // La face PENDANT se suit EN DIRECT dans la modale comme dans le volet (2026-10-05,
+        // demande de Fabien : voir les détections de l'anonymizer en grand pendant le traitement).
+        if (data.side === 'during' && data._baseUrl && !data._duringTick) _startModalDuring(modal, data);
 
         // Update navigation UI
         updateNavigationUI(modal);
@@ -282,6 +300,8 @@
         if (!_cleanupBound) {
             _cleanupBound = true;
             modal.addEventListener('hidden.bs.modal', function() {
+                _stopModalDuring();
+                _setModalFull(modal, false);
                 const c = modal.querySelector('.preview-container');
                 const video = c ? c.querySelector('video') : null;
                 const audio = c ? c.querySelector('audio') : null;
@@ -308,13 +328,71 @@
 
     function _sepQS(u) { return u.indexOf('?') === -1 ? '?' : '&'; }
 
+    // ── Face PENDANT suivie en direct (2026-10-05) ─────────────────────────────────────────────
+    // Même cadence et même adresse que le volet (`WamaInspector.duringUrl`, vue choisie gardée) ;
+    // l'élément terminé → sa SORTIE, comme dans le volet. Arrêt à la fermeture ou sur une autre face.
+    let _modalDuring = null;   // {timer, base, variant, sig}
+
+    function _stopModalDuring() {
+        if (_modalDuring && _modalDuring.timer) clearInterval(_modalDuring.timer);
+        _modalDuring = null;
+    }
+
+    /** L'adresse d'aperçu d'un élément, sans face ni vue (`?side=`, `&variant=`) — pure. */
+    function _itemAddress(endpoint) {
+        const parts = String(endpoint || '').split('?');
+        const kept = (parts[1] || '').split('&').filter(function (p) {
+            return p && !/^(side|variant)=/.test(p);
+        });
+        return parts[0] + (kept.length ? '?' + kept.join('&') : '');
+    }
+
+    function _duringAddress(base, variant) {
+        if (window.WamaInspector && WamaInspector.duringUrl) return WamaInspector.duringUrl(base, variant);
+        return base + _sepQS(base) + 'side=during' + (variant ? '&variant=' + encodeURIComponent(variant) : '');
+    }
+
+    function _startModalDuring(modal, data) {
+        _stopModalDuring();
+        const state = { base: data._baseUrl, variant: data.variant || null, sig: '', timer: null };
+        _modalDuring = state;
+        state.tick = function () {
+            if (_modalDuring !== state) return;
+            fetch(_duringAddress(state.base, state.variant))
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (d) {
+                    if (_modalDuring !== state || !d) return;
+                    if (!d.sides || !d.sides.has_during) {
+                        // Plus rien qui se construit : l'élément est terminé → sa sortie.
+                        _stopModalDuring();
+                        if (d.sides && d.sides.has_output) {
+                            fetch(state.base + _sepQS(state.base) + 'side=output')
+                                .then(function (r) { return r.ok ? r.json() : null; })
+                                .then(function (o) { if (o) { o._baseUrl = state.base; showPreviewModal(o); } });
+                        }
+                        return;
+                    }
+                    const sig = JSON.stringify([d.url || '', d.variant || '', (d.variants || []).length]);
+                    if (sig === state.sig) return;
+                    state.sig = sig;
+                    d._baseUrl = state.base;
+                    d._duringTick = true;
+                    showPreviewModal(d);
+                })
+                .catch(function () {});
+        };
+        state.sig = JSON.stringify([data.url || '', data.variant || '', (data.variants || []).length]);
+        state.timer = setInterval(state.tick, 1300);
+    }
+
     /** Toggle Entrée/Comparer/Sortie DANS le plein écran — commun, réutilise `?side=X`. Ne s'affiche
-     *  que si l'appelant a passé `_baseUrl` + `sides` (has_input && has_output). */
+     *  que si l'appelant a passé `_baseUrl` + `sides` (has_input && has_output, ou une face PENDANT). */
     function _renderModalSides(modal, data) {
         const container = modal.querySelector('.preview-container');
         let bar = modal.querySelector('.wama-modal-sides');
         const s = data.sides, base = data._baseUrl;
-        if (!base || !s || !s.has_input || !s.has_output) { if (bar) bar.remove(); return; }
+        const during = data.side === 'during';
+        if (!base || !s || (!during && !(s.has_input && s.has_output))) { if (bar) bar.remove(); return; }
         if (!bar) {
             bar = document.createElement('div');
             bar.className = 'wama-modal-sides btn-group btn-group-sm';
@@ -339,8 +417,41 @@
         (s.faces || []).forEach(function (f) {
             add(f.label, f.icon || 'fa-layer-group', data.side === f.key, function () { goSide(f.key); });
         });
-        if (s.comparable) add('Comparer', 'fa-left-right', data.side === 'compare', function () { _modalCompare(modal, base, s); });
-        add('Sortie', 'fa-flag-checkered', data.side === 'output', function () { goSide('output'); });
+        if (s.has_during || during) add('Pendant', 'fa-hourglass-half', during, function () { goSide('during'); });
+        if (s.comparable && s.has_output) add('Comparer', 'fa-left-right', data.side === 'compare', function () { _modalCompare(modal, base, s); });
+        if (s.has_output) add('Sortie', 'fa-flag-checkered', data.side === 'output', function () { goSide('output'); });
+        _renderModalVariants(modal, data);
+    }
+
+    /** Les VUES publiées pendant le traitement (l'anonymizer : Détection | Floutage) — une barre À
+     *  PART sous celle des faces, comme dans le volet : une vue de la face Pendant n'est pas une
+     *  face (la face « Détection » d'après le traitement porte le même nom). */
+    function _renderModalVariants(modal, data) {
+        let bar = modal.querySelector('.wama-modal-variants');
+        const variants = data.side === 'during' ? (data.variants || []) : [];
+        if (variants.length < 2) { if (bar) bar.remove(); return; }
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.className = 'wama-modal-variants btn-group btn-group-sm';
+            bar.style.cssText = 'position:absolute;top:52px;left:50%;transform:translateX(-50%);z-index:6;';
+            const container = modal.querySelector('.preview-container');
+            if (container) container.appendChild(bar);
+        }
+        bar.innerHTML = '';
+        variants.forEach(function (v) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.setAttribute('data-variant', v.key);
+            b.className = 'btn btn-sm px-3 ' + (v.key === data.variant ? 'btn-warning' : 'btn-outline-warning');
+            b.textContent = v.label || v.key;
+            b.addEventListener('click', function () {
+                if (!_modalDuring) return;
+                _modalDuring.variant = v.key;
+                _modalDuring.sig = '';
+                _modalDuring.tick();
+            });
+            bar.appendChild(b);
+        });
     }
 
     /** Comparaison côte-à-côte (entrée | sortie) dans le plein écran — réutilise buildPreviewContent. */
@@ -416,7 +527,7 @@
             const wrapper = document.createElement('div');
             wrapper.className = 'preview-image-wrapper';
             wrapper.ondblclick = function() {
-                openFullscreen(data.url, data.name);
+                _expand(data);
             };
 
             const img = document.createElement('img');
@@ -435,7 +546,7 @@
             fullscreenBtn.innerHTML = _SVG_EXPAND;
             fullscreenBtn.onclick = function(e) {
                 e.stopPropagation();
-                openFullscreen(data.url, data.name);
+                _expand(data);
             };
             wrapper.appendChild(fullscreenBtn);
 
@@ -637,7 +748,9 @@
         meta.textContent = metaParts.join(' | ');
 
         // Toggle Entrée/Comparer/Sortie dans le plein écran (si l'appelant a fourni _baseUrl+sides).
-        _renderModalSides(modal, data);
+        // ⚠ `item`, pas `data` (inexistante ici) : corrigé le 2026-10-05, la navigation au
+        // clavier levait une ReferenceError depuis le 2026-07-21.
+        _renderModalSides(modal, item);
 
         // Update navigation UI
         updateNavigationUI(modal);
@@ -718,7 +831,8 @@
                     <div class="modal-header border-secondary py-2">
                         <h6 class="modal-title text-truncate" style="max-width:70%;font-size:.95rem;"></h6>
                         <span class="wama-preview-counter text-muted small ms-2" style="display:none;white-space:nowrap;flex-shrink:0;"></span>
-                        <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <button type="button" class="btn btn-sm btn-outline-light ms-auto me-2 py-0 wama-preview-full-toggle" title="Plein écran"><i class="fas fa-expand"></i></button>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body p-0 position-relative">
                         <!-- Boutons nav FRÈRES du container (pas dedans) — évite tout conflit z-index/flex -->
@@ -733,6 +847,11 @@
             </div>
         `;
 
+        modal.querySelector('.wama-preview-full-toggle').addEventListener('click', function (e) {
+            e.stopPropagation();
+            const dialog = modal.querySelector('.modal-dialog');
+            _setModalFull(modal, !dialog.classList.contains('modal-fullscreen'));
+        });
         modal.querySelector('.wama-preview-nav-prev').addEventListener('click', function(e) {
             e.stopPropagation();
             navigatePreview(-1);
@@ -743,6 +862,29 @@
         });
 
         return modal;
+    }
+
+    /** La modale à TOUT l'écran, ou rendue à sa taille (2026-10-05) : elle garde ses faces, sa
+     *  comparaison et le suivi en direct — le plein écran d'un élément est la modale agrandie. */
+    function _setModalFull(modal, on) {
+        const dialog = modal && modal.querySelector('.modal-dialog');
+        if (!dialog) return;
+        dialog.classList.toggle('modal-fullscreen', !!on);
+        const toggle = modal.querySelector('.wama-preview-full-toggle');
+        if (toggle) {
+            toggle.title = on ? 'Quitter le plein écran' : 'Plein écran';
+            toggle.innerHTML = '<i class="fas ' + (on ? 'fa-compress' : 'fa-expand') + '"></i>';
+        }
+    }
+
+    /** Agrandir une image : un ÉLÉMENT (il a des faces) → la modale à tout l'écran ; une image
+     *  de galerie sans élément → la surcouche image (zoom taille réelle, navigation). */
+    function _expand(data) {
+        if (data && data._baseUrl && data.sides) {
+            _setModalFull(document.getElementById('wamaMediaPreviewModal'), true);
+            return;
+        }
+        openFullscreen(data.url, data.name);
     }
 
     /**
@@ -885,5 +1027,7 @@
     window.showTextModal = showTextModal;
     window.openWamaFullscreen = openFullscreen;
     window.closeWamaFullscreen = closeFullscreen;
+    // Les fonctions pures de la modale (gardées en V8, `tests_cap_from_js`).
+    window.WamaMediaPreview = { itemAddress: _itemAddress };
 
 })();

@@ -426,3 +426,51 @@ class PreviewOverlayTest(SimpleTestCase):
             return trace;
         })()""")
         self.assertEqual([True, 2, 2, 1, 1, 3, 1.5], list(out))
+
+
+class PreviewModalTest(SimpleTestCase):
+    """The preview modal and its full screen (2026-10-05, Fabien : « mettre la during_preview en
+    plein écran », then « la modale et le plein écran avec entrée, détection, comparaison,
+    sortie »). Four defects that no error revealed : a modal opened from a card THUMBNAIL never
+    had its faces (no item address), the PENDING face of the side panel had no full screen, the
+    full screen was an image-only overlay, and the keyboard navigation of the modal raised a
+    ReferenceError since 2026-07-21."""
+
+    def test_the_item_address_drops_the_face_and_the_view_only(self):
+        from py_mini_racer import MiniRacer
+        v8 = MiniRacer()
+        v8.eval(FAKE_DOM)
+        v8.eval((JS / 'media-preview.js').read_text(encoding='utf-8'))
+        out = v8.eval("""(function () {
+            var a = window.WamaMediaPreview.itemAddress;
+            return [a('/common/preview/anonymizer/7/?side=output'),
+                    a('/common/preview/anonymizer/7/?side=during&variant=blur'),
+                    a('/p/7/?app=x&side=input&keep=1'), a('/p/7/'), a('')];
+        })()""")
+        self.assertEqual(['/common/preview/anonymizer/7/', '/common/preview/anonymizer/7/',
+                          '/p/7/?app=x&keep=1', '/p/7/', ''], list(out))
+
+    def _body(self, name, function):
+        text = (JS / name).read_text(encoding='utf-8')
+        body = text[text.index(function):]
+        return body[:body.index('\n    }\n')]
+
+    def test_every_way_into_the_modal_carries_the_item_and_its_live_face(self):
+        self.assertIn('data._baseUrl = base', self._body('media-preview.js', 'function openPreview'),
+                      'a card thumbnail opens the modal WITH its faces')
+        self.assertIn('_attachFullscreen(d, baseUrl)', self._body('wama-inspector.js',
+                                                                 'function _startDuring'),
+                      'the PENDING face of the side panel opens the modal too')
+        self.assertIn('_startModalDuring(modal, data)', self._body('media-preview.js',
+                                                                  'function showPreviewModal('),
+                      'the PENDING face is followed live in the modal')
+        navigation = self._body('media-preview.js', 'function navigatePreview')
+        self.assertIn('_renderModalSides(modal, item)', navigation)
+        self.assertNotIn('_renderModalSides(modal, data)', navigation)
+
+    def test_the_full_screen_of_an_item_is_the_modal_itself(self):
+        expand = self._body('media-preview.js', 'function _expand')
+        self.assertIn('_setModalFull(', expand, 'an item keeps its faces in full screen')
+        css = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / 'common' / 'css'
+               / 'media-preview.css').read_text(encoding='utf-8')
+        self.assertIn('.modal-dialog.modal-fullscreen .preview-container img', css)

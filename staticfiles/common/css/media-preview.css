@@ -30,6 +30,37 @@
     display: block;
 }
 
+/* PLEIN ÉCRAN = la modale à tout l'écran (2026-10-05, demande de Fabien) : ses faces (Entrée,
+   Détection, Pendant, Comparer, Sortie), la comparaison et le direct y restent — la surcouche
+   image seule (#wamaFullscreenOverlay) ne sert plus qu'aux galeries sans élément. */
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .preview-container {
+    min-height: calc(100vh - 110px) !important;   /* le conteneur porte `min-height:300px` en ligne */
+}
+/* Le média PREND la hauteur (une image ne grandit pas seule au-delà de sa taille naturelle) ;
+   `contain` garde les proportions — c'est aussi ce que suppose la surcouche des détections. */
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .preview-container img,
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .preview-container video {
+    height: calc(100vh - 130px) !important;
+    max-height: calc(100vh - 130px) !important;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+}
+/* Comparer en plein écran : deux colonnes, chacune sa moitié. */
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .preview-container > div[style*="flex"] img,
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .preview-container > div[style*="flex"] video {
+    width: 100%;
+}
+/* Le bouton d'agrandissement de l'image : en bas, hors de la barre des faces ; inutile une fois
+   la modale à tout l'écran. */
+#wamaMediaPreviewModal .preview-fullscreen-btn {
+    top: auto;
+    bottom: 10px;
+}
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .preview-fullscreen-btn {
+    display: none;
+}
+
 /* === AUDIO PREVIEW === */
 
 #wamaMediaPreviewModal .wama-audio-preview {
