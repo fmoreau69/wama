@@ -23,9 +23,13 @@ jumelle (`writer_01`) déclare donc ses fonctions `writer_01.<process>` et son p
 from __future__ import annotations
 
 from wama.common.manifests.codegen.pipeline_decl import (OUTPUT_PROCESS_KEY, declared_pipeline,
-                                                         process_specs)
+                                                         process_specs, schema_stales)
 
-_CATEGORIES = {'transform', 'enricher', 'detector', 'indicator', 'resampler', 'join', 'aggregate'}
+def _category_names() -> set:
+    """Les catégories du catalogue, DÉRIVÉES de `FunctionCategory` (une liste recopiée ici les
+    doublait — revérification du 2026-10-05)."""
+    from wama.common.catalog.function_catalog import FunctionCategory
+    return {v for k, v in vars(FunctionCategory).items() if k.isupper() and isinstance(v, str)}
 
 
 def _port(p: dict) -> str:
@@ -68,6 +72,16 @@ def render_function_specs(manifest: dict) -> tuple:
     unknown = [s['function'] for s in specs if s['function'] not in functions]
     if unknown:
         return None, f"fonction(s) sans manifeste `function` : {', '.join(unknown)}"
+    # La catégorie est le RÔLE du process (position commune du 05/10) : une catégorie absente ou
+    # inconnue se refuse en le disant — elle devenait `transform` sans un mot.
+    categories = _category_names()
+    wrong = [f"{s['function']} ({((functions[s['function']].get('body') or {}).get('category'))!r})"
+             for s in specs
+             if str((functions[s['function']].get('body') or {}).get('category') or '').lower()
+             not in categories]
+    if wrong:
+        return None, (f"catégorie absente ou inconnue : {', '.join(wrong)} "
+                      f"(connues : {', '.join(sorted(categories))})")
     model_field = _model_field(manifest)
     mark = _GEN_MARK.format(app_id=app_key)
 
@@ -93,9 +107,7 @@ def render_function_specs(manifest: dict) -> tuple:
     for s in specs:
         body = functions[s['function']].get('body') or {}
         f_manifest = functions[s['function']]
-        category = (body.get('category') or 'transform').lower()
-        if category not in _CATEGORIES:
-            category = 'transform'
+        category = str(body.get('category')).lower()
         tags = list(body.get('tags') or [])
         inputs = ', '.join(_port(p) for p in body.get('inputs') or [])
         outputs = ', '.join(_port(p) for p in body.get('outputs') or [])
@@ -119,6 +131,13 @@ def render_function_specs(manifest: dict) -> tuple:
             f"    value = getattr(item, {model_field!r}, '') or ''",
             '    return None if is_auto(value) else value',
         ]
+    # `watched` ne garde que les champs HORS schéma : un réglage du schéma déclare lui-même les
+    # process qu'il périme (`Param.stales`, 2026-10-05) et `AppPipeline.watched_of` réunit les
+    # deux. Un pipeline EXPORTÉ porte l'union ; on en retire ce que le schéma dit déjà — la
+    # lecture, côté manifeste, de `process_pipeline.declared_stales`.
+    declared = schema_stales(manifest)
+    for s in specs:
+        s['watched'] = [w for w in s['watched'] if w not in declared.get(s['key'], ())]
     lines += ['', '', 'PIPELINE = register_app_pipeline(_APP, (']
     for s in specs:
         if s['key'] == OUTPUT_PROCESS_KEY:

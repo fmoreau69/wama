@@ -476,19 +476,13 @@ def render_index(manifest: dict) -> tuple:
                        " primary_btn_icon='fa-plus'")
         # L'URL d'un port n'est postée que si l'élément a de quoi la garder (`source_url`,
         # téléchargée au lancement) ; sinon la brique REFUSE une URL remplie, motif à l'appui.
-        url_field = ", urlField: 'source_url'" if 'source_url' in (_cols or ()) else ''
-        ports_js = (f"[{{ inputId: '{app}RefInput', field: 'file'{url_field} }}]"
-                    if refs else '[]')   # attache ⇒ aucun port de travail
-        # Références SECONDAIRES (2026-10-05, le Writer) : la card v4 les rend déjà, avec des
-        # ids DÉRIVÉS de leur port (`<card>-<port>-input`, `_new_item_card_v4.html`) — on lit
-        # l'id sur l'onglet (`data-port-input`), jamais un littéral, et chacune est postée sous
-        # le nom de son PORT, comme au composer ; `views_gen` la reçoit sous ce nom.
-        if prompt_first and refs[1:]:
-            extra = [p.get('id') for p in refs[1:] if p.get('id')]
-            ports_js += (f".concat({extra!r}.map(function (port) {{\n"
-                         "            var pane = document.querySelector('[data-port-pane=\"' + port + '\"]');\n"
-                         "            return { inputId: pane ? pane.dataset.portInput : '', field: port };\n"
-                         "        }))")
+        # Les ports sont ceux de la CARD (`ports: 'card'`, brique `addToQueue`, 2026-10-05) : un
+        # onglet par port de la card v4, références secondaires comprises (ids dérivés de leur
+        # port), chacun posté sous le nom de son PORT — `views_gen` les reçoit sous ce nom. Le
+        # relevé vivait ici ET dans le composer ; il est dans la brique.
+        url_field = (f",\n        portOptions:  {{ '{app}RefInput': {{ urlField: 'source_url' }} }}"
+                     if refs and 'source_url' in (_cols or ()) else '')
+        ports_js = "'card'" + url_field
         attach_js = f'''
     // AJOUT À LA FILE (mode attache) — brique commune : consigne + réglages du volet + fichier
     // joint ou désigné ; rien n'est lancé — on ajoute, on règle, puis ▶.

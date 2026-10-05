@@ -23,12 +23,7 @@
           ],
           "share": 2,
           "watched": [
-            "prompt",
-            "reference_document",
-            "document_kind",
-            "language",
-            "model",
-            "quality_intent"
+            "reference_document"
           ]
         }
       },
@@ -46,19 +41,13 @@
           ],
           "share": 2,
           "watched": [
-            "style_instruction",
-            "reference_layout",
-            "document_kind",
-            "output_format",
-            "language",
-            "model",
-            "quality_intent"
+            "reference_layout"
           ]
         }
       }
     ]
   },
-  "description": "Pipeline AUTORÉ (brouillon) de l'app Writer — le FOND puis la FORME (ROADMAP §21.5) : changer la forme ne rejoue que la mise en forme ; un fond retouché périme la mise en forme. Patron du composer (décision n°11, ROUTE §10.6).",
+  "description": "Pipeline AUTORÉ (brouillon) de l'app Writer — le FOND puis la FORME (ROADMAP §21.5) : changer la forme ne rejoue que la mise en forme ; un fond retouché périme la mise en forme. Patron du composer (décision n°11, ROUTE §10.6). `watched` ne porte que les champs HORS schéma : les réglages déclarent eux-mêmes ce qu'ils périment (`stales`, au manifeste `app`).",
   "key": "writer",
   "manifest_kind": "pipeline",
   "name": "Writer — rédaction puis mise en forme",

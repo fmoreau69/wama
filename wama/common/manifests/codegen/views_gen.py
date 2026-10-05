@@ -133,8 +133,8 @@ def _donnees(manifest: dict) -> dict:
     d['prompt_first'], d['prompt_field'] = prompt_entry(body, champs)
     # Ports FICHIER SECONDAIRES (2026-10-05, le Writer : `reference_layout` à côté de
     # `reference_document`) — chacun posté sous le nom de son PORT, comme au composer
-    # (`addToQueue`, ports lus de la card v4). Le port principal reste sous `file` (`WamaImport`
-    # et les gestes nocturnes le postent ainsi). Seul un port qui EST une colonne est reçu.
+    # (`addToQueue(ports: 'card')`). Le port principal se reçoit sous le sien, `file` en repli
+    # (le nom d'une dépose `WamaImport`). Seul un port qui EST une colonne est reçu.
     d['secondary_ports'] = [
         p['id'] for p in ((body.get('ports') or {}).get('inputs') or [])
         if p.get('id') and p.get('group') in ('travail', 'reference')
@@ -609,7 +609,11 @@ def upload(request):
     désigné). Mode ATTACHE dérivé du port `prompt` du manifeste."""
     from wama.common.utils.media_paths import received_inputs
     user = _user(request)
-    received = received_inputs(request, user, '{app}', field='file')
+    # Chaque port est posté sous SON nom (`addToQueue(ports: 'card')`) ; `file` reste le nom
+    # d'une dépose (`WamaImport`), accepté en repli pour le port principal.
+    received = received_inputs(request, user, '{app}', field='{d['input_field']}')
+    if not received and not received.refusal:
+        received = received_inputs(request, user, '{app}', field='file')
     kwargs = {{'user': user}}
     f = received[0] if received else None
     if f is not None:

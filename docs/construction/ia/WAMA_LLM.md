@@ -1403,6 +1403,18 @@ image → vision, document → lecteurs de lot, budgets bornés) et les replie d
 4. **1er adopteur : le DESCRIBER** (VLM/LLM : un document de domaine guide la description) ;
    **2ᵉ : l'ASSISTANT** (même brique, portée conversation).
 
+✅ **Premier adopteur RÉEL : le Writer** (bac à sable, 2026-10-01 → 10-05) — avant le describer
+prévu ci-dessus, parce que la route « app de zéro » l'a demandé. Deux cibles : `prompt` avec le
+document de référence (lu pour son CONTENU), `style_instruction` avec le modèle de mise en page
+(lu pour sa FORME). La cible déclare la lecture — `reference_reading: 'content' | 'form'`
+(`app_metadata.PROMPT_TARGETS` → `process_prompt(reference_reading=)` →
+`reference_comprehension.comprehend_files(reading=)`) : un HTML en `form` livre ses styles et son
+squelette sans son texte, une image en `form` sa seule mise en page ; le bloc replié le dit au
+modèle (« reproduire la mise en page, jamais le texte »). Une consigne VIDE accompagnée d'une
+référence est traitée quand même. Le texte d'un HTML lu pour son contenu passe par la brique des
+pages web (`url_ingest.html_to_readable_text`). Mesuré : forme du modèle reprise, aucun mot du
+gabarit dans le document produit (`WAMA_APP_GENERATION_ROUTE §10.6`, position commune du 05/10).
+
 **Limite connue, v2 de la même brique** : `comprehend_files` travaille sous budget. Pour un gros
 document, découper et retrouver les passages utiles EN MÉMOIRE pour la durée de l'appel (comme
 Claude/ChatGPT), toujours sans écrire dans le RAG.

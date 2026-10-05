@@ -371,10 +371,10 @@ def _manage(args: list, env: dict = None) -> subprocess.CompletedProcess:
 
 
 def _test_database_name() -> str:
-    """Le nom de la base de TEST (celle que `manage.py test --keepdb` conserve d'un run à l'autre)."""
-    from django.conf import settings as dj_settings
-    db = dj_settings.DATABASES['default']
-    return (db.get('TEST') or {}).get('NAME') or f"test_{db['NAME']}"
+    """Le nom de la base de TEST (celle que `manage.py test --keepdb` conserve d'un run à l'autre)
+    — celui que Django calcule lui-même (`TEST.NAME`, sinon `test_<NAME>`)."""
+    from django.db import connection
+    return connection.creation._get_test_db_name()
 
 
 def replace_glue_hole(source: str, function: str, code: str) -> str:

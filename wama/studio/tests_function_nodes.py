@@ -270,7 +270,25 @@ class LaPaletteServeLesFonctionsTest(TestCase):
         self.assertEqual(set(node['inputs'][0]) >= {'id', 'label', 'group', 'types', 'multi'}, True)
         self.assertIn('table', node['output']['types'], "super-types servis : geo_track entre dans table")
         self.assertIn('geo_track', d['data_types'])
-        self.assertIn('function:cam_analyzer.distance', d['nodes'])
+
+    def _nodes(self):
+        import json
+        from wama.studio.views import api_nodes
+        req = RequestFactory().get('/studio/api/nodes/')
+        req.user = self.user
+        return json.loads(api_nodes(req).content)['nodes']
+
+    def test_a_bound_process_follows_the_access_of_its_app(self):
+        """A process of an app (`binding=APP`) is shown only to an account that may open the app —
+        the same decision as the app node itself (2026-10-05). Before, the Lab passes were offered
+        to an account the Lab is closed to."""
+        from django.contrib.auth.models import Group
+        nodes = self._nodes()
+        self.assertNotIn('cam_analyzer', nodes)
+        self.assertNotIn('function:cam_analyzer.distance', nodes)
+        self.assertIn('function:ego_track_filter', nodes, 'a pure function has no app to follow')
+        self.user.groups.add(Group.objects.get_or_create(name='role:recherche')[0])
+        self.assertIn('function:cam_analyzer.distance', self._nodes())
 
     def test_un_port_de_fonction_emporte_sa_DESCRIPTION_jusqu_au_canvas(self):
         """Elle devient l'infobulle du port (smoke du 09/09 : elle n'était rendue nulle part).

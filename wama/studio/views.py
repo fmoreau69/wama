@@ -59,6 +59,12 @@ def api_nodes(request):
     for key, spec in sorted(fc.FUNCTION_CATALOG.items()):
         if spec.visibility != 'public':
             continue
+        # Un process RATTACHÉ suit l'accès de son app, comme le nœud de l'app ci-dessus
+        # (2026-10-05 : les process d'une jumelle dev-only et ceux d'une app non ouverte au
+        # compte s'affichaient à tous).
+        if (spec.binding == fc.Binding.APP and spec.app and accessible
+                and not accessible(request.user, 'app', spec.app)):
+            continue
         ports = fc.function_node_ports(key)
         nodes[f'{FUNCTION_NODE_PREFIX}{key}'] = {
             'label': spec.name or key,
