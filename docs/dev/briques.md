@@ -266,10 +266,11 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
 
 - **Domicile** : `wama/common/services/process_pipeline.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Pipeline DÉCLARÉ d'une app — la pièce du moteur commun qui dit « cette card porte PLUSIEURS process, dans cet ordre, et voici lesquels sont à (re)jouer ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 3.2, 4.3 à 4.5 (marche P3, palier B) et décision n°11.
-- **API publique** (9) :
+- **API publique** (10) :
   - `preload(items) -> None` — Lit en UNE requête les lignes d'exécution de tous ces éléments (même modèle) et les pose
   - `class ProcessSpec` — Un process d'un pipeline d'app — les champs de `pass_tracking.Pass` qui ne sont pas
   - `output_fingerprint(ref: str) -> str` — Empreinte de la sortie d'un process (chemin relatif à MEDIA_ROOT) : celle de la brique
+  - `declared_stales(app: str) -> dict` — `{process: [réglages]}` — ce que chaque réglage du schéma de `app` déclare périmer
   - `class AppPipeline` — Le pipeline déclaré d'une app : ses `ProcessSpec`, et ce qui s'en dérive.
   - `register_app_pipeline(app: str, specs, *, label: str, description: str='', source_ref: str='', model_of=None) -> AppPipeline` — Déclare le pipeline d'une app et l'inscrit comme source de manifeste `pipeline` sous la
   - `pipeline_of(item) -> AppPipeline | None` — Le pipeline déclaré par l'app de cet élément, ou None (app à un seul process). Charge
@@ -1322,7 +1323,7 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
 
 ### Pipeline de prompts
 
-Traduction/enrichissement centralisés, déclarés par PROMPT_TARGETS
+Traduction/enrichissement centralisés, déclarés par PROMPT_TARGETS ; fichiers de référence compris et repliés (`reference_field`), lus pour leur CONTENU ou leur FORME (`reference_reading`, 05/10 — le modèle de mise en page du Writer)
 
 - **Domicile** : `wama/common/utils/prompt_enrichment.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
 - **Module** : Enrichissement de prompt génératif (ROADMAP §16.6, hook « A » de la PromptPipeline).
@@ -1526,7 +1527,7 @@ Une CLÉ de catalogue → `{rôle: Path}` des composants de `composition.compone
 
 ### Gabarits de génération d'app (marches S2 + B1)
 
-Rend le code CONVENTIONNEL d'une app depuis son manifeste — une cible par fichier (apps/urls/models/params/tasks/views/templates), consommées par `app_sandbox substitute` et le write-back ; le hors-convention reste un TROU NOMMÉ (stubs 501, commentaires [manifest-gen]), jamais un manque silencieux. Depuis le 02/09 (marche B1 CLOSE), le corps des TÂCHES se COMPOSE aussi : `backends/__init__.ROUTES` de l'app (nature → callable au contrat commun) monte au manifeste (processing.backend_routes) et tasks_gen émet l'appel — import relatif au paquet, la jumelle a CONVERTI (SUCCESS mesuré). DEUX SAVEURS depuis le 03/09 (2ᵉ app routée, describer) : `RESULT` déclare ce que les backends produisent — 'file' (le backend écrit output_path) ou 'text' (il REND le texte, la tâche le persiste dans la colonne déclarée et publie l'aperçu partiel) ; `NATURE_FIELD` nomme la colonne de nature. ⚠ Un fichier substitué doit exposer TOUT ce que les fichiers COPIÉS lui importent : params_gen émet l'alias `<X> = <X>_JSON` (le models copié importe la graphie courte — ImportError au rendu de CHAQUE card sinon)
+Rend le code CONVENTIONNEL d'une app depuis son manifeste — une cible par fichier (apps/urls/models/params/tasks/views/templates), consommées par `app_sandbox substitute` et le write-back ; le hors-convention reste un TROU NOMMÉ (stubs 501, commentaires [manifest-gen]), jamais un manque silencieux. Depuis le 02/09 (marche B1 CLOSE), le corps des TÂCHES se COMPOSE aussi : `backends/__init__.ROUTES` de l'app (nature → callable au contrat commun) monte au manifeste (processing.backend_routes) et tasks_gen émet l'appel — import relatif au paquet, la jumelle a CONVERTI (SUCCESS mesuré). DEUX SAVEURS depuis le 03/09 (2ᵉ app routée, describer) : `RESULT` déclare ce que les backends produisent — 'file' (le backend écrit output_path) ou 'text' (il REND le texte, la tâche le persiste dans la colonne déclarée et publie l'aperçu partiel) ; `NATURE_FIELD` nomme la colonne de nature. ⚠ Un fichier substitué doit exposer TOUT ce que les fichiers COPIÉS lui importent : params_gen émet l'alias `<X> = <X>_JSON` (le models copié importe la graphie courte — ImportError au rendu de CHAQUE card sinon). PLUSIEURS PROCESS depuis le 05/10 (le Writer, patron composer, décision n°11) : le pipeline se lit par la CLÉ (`pipeline_decl` : corpus, sinon brouillons), `function_specs_gen` écrit FunctionSpec + register_app_pipeline (le process « Sortie » commun = output_spec), tasks_gen une glu par process (`process=`), models_gen une colonne par sortie et par port, views_gen `start_process`
 
 - **Domicile** : `wama/common/manifests/codegen/templates_gen.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Gabarit `templates/<app>/index.html` (marche A — v1, marche S2).
@@ -1921,7 +1922,7 @@ Le suivi d'UNE card (`progress`) et la barre de FILE (`global_progress`) en une 
 
 ### Ajout à la file (mode attache)
 
-Bouton « Ajouter à la file » de la card d'entrée : consigne + réglages du volet + fichier joint ou désigné par port (`appendInput`), URL postée seulement si l'élément la garde (sinon refusée, motif dit), rien n'est lancé (règle des deux temps). Côté serveur : `received_inputs`. Mode DÉRIVÉ des ports par le générateur (`views_gen.prompt_entry` : consigne sans port de travail). Adoptée le jour même par imager, avatarizer, composer et synthesizer (leur formulaire maison retiré)
+Bouton « Ajouter à la file » de la card d'entrée : consigne + réglages du volet + fichier joint ou désigné par port (`appendInput`), URL postée seulement si l'élément la garde (sinon refusée, motif dit), rien n'est lancé (règle des deux temps). Côté serveur : `received_inputs`. Mode DÉRIVÉ des ports par le générateur (`views_gen.prompt_entry` : consigne sans port de travail). Adoptée le jour même par imager, avatarizer, composer et synthesizer (leur formulaire maison retiré). `ports: 'card'` (05/10) : les ports relus sur la card v4 à chaque envoi, chacun posté sous son nom — le relevé que le composer et le générateur écrivaient chacun
 
 - **Domicile** : `wama/common/static/common/js/wama-app-base.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
@@ -2628,7 +2629,8 @@ Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la s
 
 - **Domicile** : `wama/common/external_sources.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : external_sources — registre DÉCLARATIF des sources externes joignables par WAMA.
-- **API publique** (14) :
+- **API publique** (15) :
+  - `model_origin(model_key: str, execution: str='') -> tuple` — `(clé, libellé, rang)` de l'ORIGINE d'un modèle — où son inférence a lieu.
   - `hosting_within(hosting: str, ceiling: str) -> bool` — `hosting` est-il admis par un profil plafonné à `ceiling` ?
   - `class ExternalSource` — Une source externe : ce qu'elle est et comment on l'adresse — jamais comment on la lit.
   - `by_key() -> dict[str, ExternalSource]`
