@@ -848,7 +848,14 @@ class EveryAppPipelineTest(SimpleTestCase):
         from django.conf import settings
         from wama.common.management.commands.manifest_export import _pipeline_keys
         from wama.common.manifests.ingest import extract
+        from wama.common.sandbox import sandbox_labels
+        twins = set(sandbox_labels())
         for app in self.pipelines:
+            if app in twins:
+                # A sandbox twin is never versioned (`non_sandbox_apps`): the corpus holds real
+                # apps. Its pipeline must stay OUT of the export instead.
+                self.assertNotIn(app, _pipeline_keys())
+                continue
             with self.subTest(app=app):
                 self.assertIn(app, _pipeline_keys())
                 written = Path(settings.BASE_DIR) / 'manifests' / 'pipelines' / f'{app}.json'

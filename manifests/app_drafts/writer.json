@@ -36,7 +36,6 @@
           {"display": true, "field": "model", "label": "Modèle"}
         ],
         "result_file": "output_file",
-        "result_text": "result_text",
         "source_file": "reference_document"
       },
       "preview": {
@@ -57,7 +56,7 @@
           "accepts": ["prompt", "document"],
           "icon": "fa-file-lines",
           "id": "document",
-          "inputs": ["prompt", "reference_document"],
+          "inputs": ["prompt", "reference_document", "reference_layout"],
           "label": "Document",
           "modes": []
         }
@@ -176,6 +175,14 @@
           "label": "Document de référence",
           "multi": false,
           "types": ["document"]
+        },
+        {
+          "description": "Un document dont on reprend la FORME (mise en page, styles, structure) — jamais le contenu.",
+          "group": "reference",
+          "id": "reference_layout",
+          "label": "Modèle de mise en page",
+          "multi": false,
+          "types": ["document"]
         }
       ],
       "outputs": [
@@ -184,7 +191,7 @@
     },
     "processing": {
       "anti_race": true,
-      "backend_result": {"field": "result_text", "kind": "text"},
+      "backend_result": {"field": "output_file", "kind": "file"},
       "batch_link_model": "WriterBatchItem",
       "endpoints": [
         "about", "batch_create", "batch_delete", "batch_download", "batch_duplicate",
@@ -192,10 +199,11 @@
         "clear_all", "consolidate", "console", "delete", "download", "download_all",
         "duplicate", "global_progress", "help", "index", "merge", "move_to_batch",
         "progress", "remove_from_batch", "reorder", "reorder_queue", "start", "start_all",
-        "stop", "update_settings", "upload"
+        "start_process", "stop", "update_settings", "upload"
       ],
       "extra_routes": [
-        {"name": "update_settings", "pattern": "settings/<int:pk>/", "view": "views.update_settings"}
+        {"name": "update_settings", "pattern": "settings/<int:pk>/", "view": "views.update_settings"},
+        {"name": "start_process", "pattern": "start/<int:pk>/<str:process>/", "view": "views.start_process"}
       ],
       "item_model": "WriterDocument",
       "model_spec": {
@@ -233,6 +241,13 @@
           "kind": "intent",
           "model_field": "model",
           "reference_field": "reference_document"
+        },
+        {
+          "field": "style_instruction",
+          "kind": "intent",
+          "model_field": "model",
+          "reference_field": "reference_layout",
+          "reference_reading": "form"
         }
       ]
     },

@@ -30,6 +30,7 @@ vierges. Drop symétrique : `migrate <label> zero` AVANT le retrait du registre/
 """
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -59,6 +60,10 @@ _SUBSTITUTABLE = {
     # copie d'avant le 18/08, sans le contexte 'panel' → volet PARAMÈTRES vide, 31/08).
     'params': ('params.py', 'wama.common.manifests.codegen.params_gen', 'render_params'),
     'tasks':  ('tasks.py',  'wama.common.manifests.codegen.tasks_gen',  'render_tasks'),
+    # Le PIPELINE d'une app à plusieurs process (2026-10-05, patron composer) — rendu seulement
+    # quand l'app en déclare un (`pipeline_decl`) ; sinon la cible n'a rien à générer.
+    'function_specs': ('function_specs.py', 'wama.common.manifests.codegen.function_specs_gen',
+                       'render_function_specs'),
     'views':  ('views.py',  'wama.common.manifests.codegen.views_gen',  'render_views'),
     # Multi-fichiers (le gabarit rend un DICT nom→contenu) : écrits sous templates/<label>/.
     'templates': ('templates/', 'wama.common.manifests.codegen.templates_gen', 'render_index'),
@@ -356,11 +361,20 @@ def _save_entry(entry: dict) -> None:
     save_registry(out)
 
 
-def _manage(args: list) -> subprocess.CompletedProcess:
+def _manage(args: list, env: dict = None) -> subprocess.CompletedProcess:
     """manage.py en SOUS-PROCESS FRAIS : le boot relit sandbox_apps.json — le process
-    courant, lui, ne connaît pas (encore/plus) la jumelle (même principe que app_regen_check)."""
+    courant, lui, ne connaît pas (encore/plus) la jumelle (même principe que app_regen_check).
+    `env` : variables AJOUTÉES à l'environnement du sous-process (la base de test, au retrait)."""
     return subprocess.run([sys.executable, str(BASE_DIR / 'manage.py'), *args],
-                          capture_output=True, text=True, cwd=str(BASE_DIR))
+                          capture_output=True, text=True, cwd=str(BASE_DIR),
+                          env={**os.environ, **env} if env else None)
+
+
+def _test_database_name() -> str:
+    """Le nom de la base de TEST (celle que `manage.py test --keepdb` conserve d'un run à l'autre)."""
+    from django.conf import settings as dj_settings
+    db = dj_settings.DATABASES['default']
+    return (db.get('TEST') or {}).get('NAME') or f"test_{db['NAME']}"
 
 
 def replace_glue_hole(source: str, function: str, code: str) -> str:
@@ -595,8 +609,14 @@ class Command(BaseCommand):
                                       f'({len(text.splitlines())} lignes, '
                                       f'{holes[str(dest.relative_to(pkg))]} trou(s) de glu)')
 
-        # 1. Premier temps : ce qui ne dépend que du manifeste.
-        first = render(['apps', 'models', 'params', 'tasks'], manifest)
+        # 1. Premier temps : ce qui ne dépend que du manifeste. Le pipeline (une app à plusieurs
+        # process) se lit par la CLÉ, comme au corpus (`pipeline_decl`) : `function_specs.py`
+        # n'est rendu que s'il est déclaré — sans lui, une app à un process, le cas normal.
+        from wama.common.manifests.codegen.pipeline_decl import declared_pipeline
+        targets = ['apps', 'models', 'params', 'tasks']
+        if declared_pipeline(key)[0]:
+            targets.append('function_specs')
+        first = render(targets, manifest)
         (pkg / 'migrations').mkdir(parents=True, exist_ok=True)
         (pkg / '__init__.py').write_text('', encoding='utf-8')
         (pkg / 'migrations' / '__init__.py').write_text('', encoding='utf-8')
@@ -1015,6 +1035,17 @@ class Command(BaseCommand):
             for line in (r.stderr or r.stdout).strip().splitlines()[-5:]:
                 self.stdout.write(f'    {line}')
             raise CommandError('migrate zero a échoué — rien retiré (relancer après correction).')
+        # 1 ter. La base de TEST conservée (`--keepdb`) porte aussi les tables de la jumelle, et
+        # sa migration `0001` y reste marquée appliquée : une jumelle RECRÉÉE sous le même label
+        # y garderait l'ANCIEN schéma. Mesuré le 2026-10-05 (writer_01 recréé avec `draft_file`) :
+        # `file_references` interroge toutes les tables à champ fichier, la colonne manquait, et
+        # les tests d'AUTRES apps tombaient en ERROR. Non bloquant : sans base de test, rien à faire.
+        if has_migrations:
+            # `WAMA_DB_NAME` est la variable que `settings.py` lit pour le nom de la base.
+            rt = _manage(['migrate', label, 'zero', '--skip-checks'],
+                         env={'WAMA_DB_NAME': _test_database_name()})
+            self.stdout.write(f'  base de test ({_test_database_name()}) : migrate {label} zero → '
+                              f'{"rc=0" if rt.returncode == 0 else "ignoré (base absente ou refus)"}')
 
         # 1 bis. Révisions de ses éléments (`common.ItemRevision`, désignées par app + type +
         # numéro) : sans cette purge, la jumelle RECRÉÉE sous le même label repart à l'élément

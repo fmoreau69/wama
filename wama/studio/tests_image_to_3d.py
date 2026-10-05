@@ -114,3 +114,32 @@ class LExecuteurPasseLesFichiersDeLAmontTest(TestCase):
                             inputs=[PortSpec('image', 'image')])
         with self.assertRaisesRegex(ValueError, 'image'):
             _run_app_function(spec, {'user_id': 7}, lambda **k: None, 10, inputs={})
+
+    def test_an_upstream_input_the_task_does_not_take_is_said_not_silently_dropped(self):
+        """ROUTE §10.6, common position of 2026-10-05: an app-bound node runs the WHOLE task of
+        its app; an upstream file that task does not take is not passed — and the console says so."""
+        from wama.common.catalog.function_catalog import FunctionSpec, PortSpec, Binding
+        from wama.studio.tasks import _run_app_function
+        spec = FunctionSpec(key='t.fake3', name='f', description='', category='transform',
+                            binding=Binding.APP, app='studio',
+                            impl='studio.tests_image_to_3d:fake_impl',
+                            inputs=[PortSpec('image', 'image')])
+        said = []
+        _run_app_function(spec, {'user_id': 7}, lambda **k: None, 10,
+                          inputs={'image': 'users/7/x.png', 'draft': 'users/7/d.md'},
+                          console=said.append)
+        self.assertEqual(1, len(said))
+        self.assertIn('draft', said[0])
+        self.assertNotIn('image', said[0].split('—')[1].split(':')[0])
+
+    def test_nothing_is_said_when_every_upstream_input_is_taken(self):
+        from wama.common.catalog.function_catalog import FunctionSpec, PortSpec, Binding
+        from wama.studio.tasks import _run_app_function
+        spec = FunctionSpec(key='t.fake4', name='f', description='', category='transform',
+                            binding=Binding.APP, app='studio',
+                            impl='studio.tests_image_to_3d:fake_impl',
+                            inputs=[PortSpec('image', 'image')])
+        said = []
+        _run_app_function(spec, {'user_id': 7}, lambda **k: None, 10,
+                          inputs={'image': 'users/7/x.png'}, console=said.append)
+        self.assertEqual([], said)

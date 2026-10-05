@@ -59,6 +59,10 @@
 .studio-pal-section:first-child > summary { margin-top: 0; }
 .studio-pal-subgroup { font-size: .6rem; text-transform: uppercase; letter-spacing: .05em; color: #6f7890; margin: .3rem 0 0 .9rem; }
 .studio-pal-empty { font-size: .72rem; color: #8b93a7; margin-left: .9rem; }
+/* Process RATTACHÉ à une app : son app en étiquette, et un filtre par app en tête des fonctions
+   (position commune du 2026-10-05, ROUTE §10.6 — la catégorie reste l'axe). */
+.studio-pal-app { margin-left: auto; font-size: .62rem; color: #c9b5e8; border: 1px solid rgba(201, 181, 232, .35); border-radius: .4rem; padding: 0 .3rem; white-space: nowrap; }
+.studio-pal-filter { font-size: .72rem; margin: .1rem 0 .2rem .9rem; width: auto; max-width: calc(100% - .9rem); background-color: #1f2430; color: #e6e9f0; border-color: rgba(255, 255, 255, .15); }
 
 /* Inspecteur : déplacé dans le VOLET DROIT global (base.html) — styles hérités de l'inspecteur commun.
    Voir studio/index.html (blocks right_panel_*) + wama-inspector-autofill.css. */

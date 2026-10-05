@@ -59,7 +59,16 @@ def _pipeline_keys() -> list:
     """Clés des pipelines DÉCLARÉS EN CODE (`register_pipeline_source`, ex. `cam_analyzer`).
     Les pipelines du canvas (StudioPipeline, clé = pk) sont PRIVÉS : jamais au corpus."""
     from wama.common.manifests.builtin.pipeline import registered_pipeline_keys
-    return registered_pipeline_keys()
+    from wama.common.sandbox import sandbox_labels
+    twins = set(sandbox_labels())
+    return [k for k in registered_pipeline_keys() if k not in twins]
+
+
+def _is_twin_function(spec, twins: set) -> bool:
+    """Une fonction d'une JUMELLE du bac à sable (2026-10-05 : `writer_01.write`, née de
+    `function_specs.py` généré) — le corpus versionne les apps RÉELLES, jamais un bac à sable,
+    comme `non_sandbox_apps` le fait pour le kind `app`."""
+    return getattr(spec, 'app', '') in twins
 
 
 def _function_keys() -> list:
@@ -73,7 +82,9 @@ def _function_keys() -> list:
         load_all()
     except Exception:
         pass
-    return sorted(FUNCTION_CATALOG)
+    from wama.common.sandbox import sandbox_labels
+    twins = set(sandbox_labels())
+    return sorted(k for k, spec in FUNCTION_CATALOG.items() if not _is_twin_function(spec, twins))
 
 
 def _model_keys() -> list:

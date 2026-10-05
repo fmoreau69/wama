@@ -105,6 +105,13 @@
         var item = el('div', 'studio-pal-item');
         item.style.setProperty('--app-c', a.color || '#6ea8fe');
         item.innerHTML = '<i class="' + (a.icon || 'fas fa-cube') + '"></i><span>' + a.label + '</span>';
+        // Un process RATTACHÉ à une app porte son app en ÉTIQUETTE (position commune du
+        // 2026-10-05, ROUTE §10.6) : la catégorie reste l'axe de la palette, l'app une propriété.
+        if (a.kind === 'function' && a.binding === 'app' && a.app) {
+            var tag = el('small', 'studio-pal-app', appLabel(a.app));
+            item.appendChild(tag);
+            item.dataset.fnApp = a.app;
+        }
         item.title = a.title || ('Ajouter ' + a.label + ' (clic, ou glisser sur le canvas)');
         item.addEventListener('click', function () { (onPick || addNode)(id); });
         if (!onPick) {
@@ -166,17 +173,79 @@
 
         if (fnIds.length) {
             var functions = paletteSection('functions', 'Fonctions', fnIds.length);
+            var filter = functionAppFilter(fnIds);
+            if (filter) functions.appendChild(filter);
             var byCategory = {};
             fnIds.forEach(function (id) {
                 var c = apps[id].category || 'autres';
                 (byCategory[c] = byCategory[c] || []).push(id);
             });
             Object.keys(byCategory).sort().forEach(function (c) {
-                functions.appendChild(el('div', 'studio-pal-subgroup', c));
-                byCategory[c].forEach(function (id) { functions.appendChild(paletteItem(id, apps[id])); });
+                var head = el('div', 'studio-pal-subgroup', c);
+                head.dataset.subgroup = c;
+                functions.appendChild(head);
+                byCategory[c].forEach(function (id) {
+                    var item = paletteItem(id, apps[id]);
+                    item.dataset.subgroup = c;
+                    functions.appendChild(item);
+                });
             });
             paletteList.appendChild(functions);
+            applyFunctionFilter(functions);
         }
+    }
+
+    // Libellé d'une app pour l'étiquette d'un process : celui de son nœud d'app s'il existe
+    // (le catalogue des apps), sinon sa clé.
+    function appLabel(key) {
+        return (apps[key] && apps[key].label) || key;
+    }
+
+    // FILTRE par app des fonctions (2026-10-05) : « toutes », les fonctions PURES (calcul, sans
+    // app), puis une entrée par app qui a des process au catalogue. Retenu par navigateur.
+    var FN_FILTER_KEY = 'wama_studio_palette_fn_app';
+    function functionAppFilter(fnIds) {
+        var owners = {};
+        fnIds.forEach(function (id) {
+            var a = apps[id];
+            if (a.binding === 'app' && a.app) owners[a.app] = appLabel(a.app);
+        });
+        var keys = Object.keys(owners).sort(function (x, y) { return owners[x].localeCompare(owners[y]); });
+        if (!keys.length) return null;
+        var select = el('select', 'form-select form-select-sm studio-pal-filter');
+        select.title = 'Filtrer les fonctions par app';
+        [['', 'Toutes les fonctions'], ['__pure__', 'Calcul (sans app)']]
+            .concat(keys.map(function (k) { return [k, 'App : ' + owners[k]]; }))
+            .forEach(function (o) {
+                var opt = el('option', null, o[1]);
+                opt.value = o[0];
+                select.appendChild(opt);
+            });
+        var remembered = '';
+        try { remembered = localStorage.getItem(FN_FILTER_KEY) || ''; } catch (e) {}
+        select.value = Array.prototype.some.call(select.options, function (o) { return o.value === remembered; })
+            ? remembered : '';
+        select.addEventListener('change', function () {
+            try { localStorage.setItem(FN_FILTER_KEY, select.value); } catch (e) {}
+            applyFunctionFilter(select.closest('.studio-pal-section'));
+        });
+        return select;
+    }
+
+    function applyFunctionFilter(section) {
+        if (!section) return;
+        var select = section.querySelector('.studio-pal-filter');
+        var wanted = select ? select.value : '';
+        var shown = {};
+        section.querySelectorAll('.studio-pal-item').forEach(function (item) {
+            var owner = item.dataset.fnApp || '';
+            var keep = !wanted || (wanted === '__pure__' ? !owner : owner === wanted);
+            item.style.display = keep ? '' : 'none';
+            if (keep) shown[item.dataset.subgroup] = true;
+        });
+        section.querySelectorAll('.studio-pal-subgroup').forEach(function (head) {
+            head.style.display = shown[head.dataset.subgroup] ? '' : 'none';
+        });
     }
 
     // ── Nœud ─────────────────────────────────────────────────────────────

@@ -438,9 +438,9 @@ def render_index(manifest: dict) -> tuple:
     refs = [p for p in ((body.get('ports') or {}).get('inputs') or [])
             if p.get('group') == 'reference']
     if refs:
-        # La card commune n'offre qu'UN slot de référence — vrai aussi des 2 gabarits manuels
-        # qui la paramètrent (composer, imager). Plusieurs ports déclarés : on rend le premier
-        # et on NOMME les autres (trou visible), jamais un slot silencieusement perdu.
+        # Les ids `reference_*` de la card désignent la PREMIÈRE référence ; la card v4 rend les
+        # suivantes sous des ids dérivés de leur port (2026-10-01). ~~La card commune n'offre
+        # qu'UN slot de référence~~ — vrai jusqu'au 2026-10-01, corrigé le 2026-10-05.
         ref = refs[0]
         # Même brique que le port travail : un port de référence `document` n'est plus perdu.
         from wama.common.app_registry import accept_for_types
@@ -449,7 +449,9 @@ def render_index(manifest: dict) -> tuple:
                     f" reference_input_id='{app}RefInput' reference_chip_id='{app}RefChip'"
                     f" reference_accept='{ref_accept}'"
                     f" reference_label='{ref.get('label') or 'Référence'}'")
-        surplus = ''.join(
+        # En mode ATTACHE, les références secondaires sont câblées (`addToQueue`, plus bas) : la
+        # card v4 les rend. Hors attache, le dépôt crée l'élément et rien ne les joint : trou nommé.
+        surplus = '' if prompt_first else ''.join(
             f"\n    // TROU DE GLU {mark} — port de référence supplémentaire NON rendu : `{p.get('id')}`."
             for p in refs[1:])
         ref_js = f'''
@@ -477,6 +479,16 @@ def render_index(manifest: dict) -> tuple:
         url_field = ", urlField: 'source_url'" if 'source_url' in (_cols or ()) else ''
         ports_js = (f"[{{ inputId: '{app}RefInput', field: 'file'{url_field} }}]"
                     if refs else '[]')   # attache ⇒ aucun port de travail
+        # Références SECONDAIRES (2026-10-05, le Writer) : la card v4 les rend déjà, avec des
+        # ids DÉRIVÉS de leur port (`<card>-<port>-input`, `_new_item_card_v4.html`) — on lit
+        # l'id sur l'onglet (`data-port-input`), jamais un littéral, et chacune est postée sous
+        # le nom de son PORT, comme au composer ; `views_gen` la reçoit sous ce nom.
+        if prompt_first and refs[1:]:
+            extra = [p.get('id') for p in refs[1:] if p.get('id')]
+            ports_js += (f".concat({extra!r}.map(function (port) {{\n"
+                         "            var pane = document.querySelector('[data-port-pane=\"' + port + '\"]');\n"
+                         "            return { inputId: pane ? pane.dataset.portInput : '', field: port };\n"
+                         "        }))")
         attach_js = f'''
     // AJOUT À LA FILE (mode attache) — brique commune : consigne + réglages du volet + fichier
     // joint ou désigné ; rien n'est lancé — on ajoute, on règle, puis ▶.

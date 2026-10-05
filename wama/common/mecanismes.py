@@ -1010,14 +1010,21 @@ MECHANISMS = (
               "publie l'aperçu partiel) ; `NATURE_FIELD` nomme la colonne de nature. "
               "⚠ Un fichier substitué doit exposer TOUT ce que les fichiers COPIÉS lui "
               "importent : params_gen émet l'alias `<X> = <X>_JSON` (le models copié importe "
-              "la graphie courte — ImportError au rendu de CHAQUE card sinon)",
+              "la graphie courte — ImportError au rendu de CHAQUE card sinon). "
+              "PLUSIEURS PROCESS depuis le 05/10 (le Writer, patron composer, décision n°11) : "
+              "le pipeline se lit par la CLÉ (`pipeline_decl` : corpus, sinon brouillons), "
+              "`function_specs_gen` écrit FunctionSpec + register_app_pipeline (le process "
+              "« Sortie » commun = output_spec), tasks_gen une glu par process (`process=`), "
+              "models_gen une colonne par sortie et par port, views_gen `start_process`",
               'wama/common/manifests/codegen/templates_gen.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/manifests/codegen/apps_gen.py',
                        'wama/common/manifests/codegen/urls_gen.py',
                        'wama/common/manifests/codegen/models_gen.py',
                        'wama/common/manifests/codegen/params_gen.py',
                        'wama/common/manifests/codegen/tasks_gen.py',
-                       'wama/common/manifests/codegen/views_gen.py')),
+                       'wama/common/manifests/codegen/views_gen.py',
+                       'wama/common/manifests/codegen/function_specs_gen.py',
+                       'wama/common/manifests/codegen/pipeline_decl.py')),
     Mechanism('backend_inventory', 'Vivier des backends (registre DÉRIVÉ)',
               "Inventaire des moteurs de WAMA, dérivé À CHAQUE AFFICHAGE des déclarations "
               "`wama/<app>/backends/` (ROUTES/RESULT/NATURE_FIELD + classes BaseModelBackend "

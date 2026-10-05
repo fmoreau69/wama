@@ -231,14 +231,18 @@ def app_function_job_kwargs(impl: str) -> list:
             and p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)]
 
 
-def _run_app_function(spec, params: dict, save_state, deadline_s: float, inputs: dict | None = None):
+def _run_app_function(spec, params: dict, save_state, deadline_s: float, inputs: dict | None = None,
+                      console=None):
     """Fonction `app`-bound = un JOB : `impl` (tâche Celery) lancée avec les params du nœud,
     puis POLLÉE comme un nœud-app. Sans `.delay` (fonction ordinaire), appel direct.
 
     `inputs` (2026-09-13, §17ter trou 4) : les FICHIERS reçus de l'amont, par PORT (`{'image':
     'users/…/x.png'}`) — une fonction média (`studio.image_to_3d`) reçoit ainsi l'image du nœud
     précédent, là où les passes du cam_analyzer ne prenaient que des params (`session_id`).
-    Un port qui n'est pas un paramètre de la tâche n'est pas passé : l'introspection décide."""
+    Un port qui n'est pas un paramètre de la tâche n'est pas passé : l'introspection décide —
+    et depuis le 2026-10-05 `console(message)` le DIT (`ROUTE §10.6`, position commune : un nœud
+    rattaché lance la tâche ENTIÈRE de son app, pas le process nommé ; une entrée d'amont que
+    cette tâche ne prend pas était jetée sans un mot)."""
     target = _impl_callable(spec.impl)
     required = app_function_job_kwargs(spec.impl)
     kwargs = {k: v for k, v in (params or {}).items() if v not in (None, '')}
@@ -250,6 +254,11 @@ def _run_app_function(spec, params: dict, save_state, deadline_s: float, inputs:
         except (TypeError, ValueError):
             acceptes = set(inputs)
         kwargs.update({k: v for k, v in inputs.items() if k in acceptes and v not in (None, '')})
+        dropped = sorted(k for k, v in inputs.items() if k not in acceptes and v not in (None, ''))
+        if dropped and console:
+            console(f"{spec.key} : entrée(s) d'amont NON transmise(s) — {', '.join(dropped)} : "
+                    f"la tâche `{spec.impl}` ne les prend pas (un nœud rattaché lance la tâche "
+                    f"entière de son app ; le lancement d'un process seul n'est pas encore câblé).")
     missing = [k for k in required if k not in kwargs]
     if missing:
         raise ValueError(f"paramètre(s) requis manquant(s) pour {spec.key} : {', '.join(missing)}")
@@ -487,7 +496,10 @@ def run_pipeline_task(self, run_id):
                     params_noeud.setdefault('user_id', user.pk)
                     res = _run_app_function(spec, params_noeud,
                                             lambda **kw: _save_state(nid, **kw), NODE_TIMEOUT_S,
-                                            inputs=fichiers)
+                                            inputs=fichiers,
+                                            console=lambda m: _console(
+                                                user.id, f"Studio run #{run.pk} : {m}",
+                                                level='warning'))
                     otype = spec.outputs[0].data_type if spec.outputs else 'scalar'
                     # Un résultat qui EST un fichier média (chemin relatif sous MEDIA_ROOT) se
                     # transmet comme tel — le nœud « Sortie » le range en médiathèque avec ses

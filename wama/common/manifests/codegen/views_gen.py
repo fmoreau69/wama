@@ -131,6 +131,14 @@ def _donnees(manifest: dict) -> dict:
     # moyen d'ajouter un élément (relevé par Fabien). Le champ de la consigne est celui de sa
     # cible de prompt (`PROMPT_TARGETS`), sinon la colonne `prompt`.
     d['prompt_first'], d['prompt_field'] = prompt_entry(body, champs)
+    # Ports FICHIER SECONDAIRES (2026-10-05, le Writer : `reference_layout` à côté de
+    # `reference_document`) — chacun posté sous le nom de son PORT, comme au composer
+    # (`addToQueue`, ports lus de la card v4). Le port principal reste sous `file` (`WamaImport`
+    # et les gestes nocturnes le postent ainsi). Seul un port qui EST une colonne est reçu.
+    d['secondary_ports'] = [
+        p['id'] for p in ((body.get('ports') or {}).get('inputs') or [])
+        if p.get('id') and p.get('group') in ('travail', 'reference')
+        and p['id'] != d['input_field'] and p['id'] in champs]
     d['a_output'] = 'output_file' in champs
     d['file_fields'] = [n for n, f in champs.items()
                         if str(f.get('class', '')).rsplit('.', 1)[-1] in ('FileField', 'ImageField')]
@@ -266,7 +274,12 @@ def render_views(manifest: dict) -> tuple:
     # `release_card_files(item)`, qui lit ce que la card porte (ses champs fichier, ses listes de
     # chemins déclarées) — la liste ne sert plus qu'à dériver les SORTIES.
     champs_fichiers = [d['input_field']] + [n for n in d['file_fields'] if n != d['input_field']]
-    champs_sortie = [n for n in champs_fichiers if n != d['input_field']]
+    # Les PORTS d'entrée sont des ENTRÉES, pas des sorties : une copie les garde (2026-10-05 — le
+    # port `reference_layout` du Writer, une colonne du même nom, aurait été vidé à la duplication).
+    ports_entree = {p.get('id') for p in
+                    (((manifest.get('body') or {}).get('ports') or {}).get('inputs') or [])}
+    champs_sortie = [n for n in champs_fichiers
+                     if n != d['input_field'] and n not in ports_entree]
     # Nom de fichier pour les propriétés d'ENTRÉE de la card (input_props_for) : le champ
     # nom déclaré, sinon le nom du FileField lui-même.
     nom_pour_props = (f"getattr(item, '{d['name_field']}', '') or ''" if d['name_field']
@@ -567,6 +580,21 @@ def upload(request):
                      if has_url else '')
         if has_url:
             vide += " and not kwargs.get('source_url')"
+        # Ports secondaires : reçus par la MÊME brique, chacun sous son nom de port ; leur
+        # provenance s'enregistre comme celle du principal. Un port secondaire ne suffit pas à
+        # créer l'élément (une référence de forme n'est pas une consigne).
+        sec = d['secondary_ports']
+        secondary_lines = (f"\n    _others = []"
+                     f"\n    for _port in {tuple(sec)!r}:"
+                     f"\n        _r = received_inputs(request, user, '{app}', field=_port)"
+                     f"\n        if _r:"
+                     f"\n            kwargs[_port] = _r[0].value"
+                     f"\n            _others.append((_port, _r[0]))"
+                     f"\n        elif _r.refusal and not _avert:"
+                     f"\n            _avert = _r.refusal"
+                     if sec else '')
+        record_sec = ("\n    for _port, _r in _others:\n        _r.record(item, _port)"
+                      if sec else '')
         # La CONSIGNE vient de la card seule : passée par la cascade, une consigne vide
         # retomberait sur la DERNIÈRE consigne enregistrée, et chaque ajout l'enregistrerait
         # comme défaut du suivant. Elle sort du POST donné à la cascade et se pose après.
@@ -590,13 +618,13 @@ def upload(request):
     if f is not None:
         {up_nature.replace(chr(10) + '    ', chr(10) + '        ')}
     else:
-        _avert = received.refusal{att_reglages}{ligne_url}
+        _avert = received.refusal{secondary_lines}{att_reglages}{ligne_url}
     if f is None and {vide}:
         return JsonResponse({{'error': received.refusal or 'Rien à ajouter : écrivez une consigne '
                                        'ou joignez un fichier.'}}, status=400)
     item = {item}.objects.create(**kwargs){up_wrap}
     if f is not None:
-        f.record(item, '{d['input_field']}')   # provenance d'un fichier DÉSIGNÉ
+        f.record(item, '{d['input_field']}')   # provenance d'un fichier DÉSIGNÉ{record_sec}
     return JsonResponse({{'id': item.id, 'status': item.status, 'warning': _avert}})'''
 
     # APERÇU DE LOT — conventionnel, plus un stub (2026-08-22). Le parsing d'un fichier de lot
@@ -743,6 +771,25 @@ def {_nom_bc}(request):
     )
     return JsonResponse({{'success': True, 'count': len(crees),
                          'batches': len(lots), 'warnings': avertissements}})'''
+
+    # ▶ d'UN process (P5, `ROUTE §10.6` 5.1) — app à PLUSIEURS process seulement (le pipeline se
+    # lit par la CLÉ, `pipeline_decl`) : la fabrique COMMUNE `make_process_start_view`, comme les
+    # six apps réelles. Seules les sorties DÉCLARÉES du process lancé sont remplacées
+    # (`reset_outputs`) ; la sortie d'un amont reste — c'est ce qu'un lancement borné reprend.
+    from wama.common.manifests.codegen.pipeline_decl import declared_pipeline, process_specs
+    _pipeline, _ = declared_pipeline(app)
+    if _pipeline and len(process_specs(_pipeline)) >= 2:
+        vues['start_process'] = f'''def _reset_for_process(item, process):
+    """Remise à zéro d'un ▶ borné, sous le verrou (`begin_processing`)."""
+    from .function_specs import PIPELINE
+    PIPELINE.reset_outputs(item, (process,))
+    item.progress = 0
+    item.error_message = ''
+
+
+start_process = make_process_start_view(
+    work_model={item}, task_for=lambda _item: {task}, get_user=_user,
+    reset_for_process=_reset_for_process)'''
 
     vues['start'] = f'''@require_POST
 def start(request, pk):
@@ -1288,7 +1335,7 @@ from wama.common.utils.batch_views import apply_item_settings, make_batch_views,
 from wama.common.utils.progress_views import make_progress_views
 from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 {imports_forme}
-from wama.common.utils.queue_view import apply_queue_sort_filter
+{'from wama.common.utils.process_views import make_process_start_view' + chr(10) if 'start_process' in vues else ''}from wama.common.utils.queue_view import apply_queue_sort_filter
 
 {import_models}
 from .tasks import {task}

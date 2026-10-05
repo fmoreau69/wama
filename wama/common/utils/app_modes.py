@@ -130,6 +130,12 @@ INPUT_TYPES = {
     # seul document. Premier consommateur : le Writer (ROADMAP §21.5).
     'reference_document': {'label': 'Document de référence', 'kind': 'file', 'accept': 'document', 'multi': False, 'port': 'reference',
                            'description': "Un document qui NOURRIT le contenu (faits, chiffres, termes) sans être recopié ni transformé."},
+    # Même nature (`document`), autre RÔLE (2026-10-01, demande de Fabien) — le précédent est
+    # voix / mélodie, deux références audio aux usages distincts, donc deux jetons. On en reprend
+    # la FORME, jamais le contenu : sa cible de prompt la lit en `reference_reading: 'form'`.
+    # Premier consommateur : le Writer, pour garder un style d'un document à l'autre d'une série.
+    'reference_layout': {'label': 'Modèle de mise en page', 'kind': 'file', 'accept': 'document', 'multi': False, 'port': 'reference',
+                         'description': "Un document dont on reprend la FORME (mise en page, styles, structure) — jamais le contenu."},
     # ── Entrées consommées par l'APP, jamais par un modèle (2026-09-23) ─────────────────
     # Les jetons ci-dessus sont lus par un MODÈLE (ils arrivent par ses `inputs_required`/
     # `inputs_optional`). Ces deux-là sont lus par l'app AUTOUR du modèle : aucun moteur ne les
