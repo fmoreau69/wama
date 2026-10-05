@@ -191,6 +191,67 @@
     return bar;
   }
 
+  // Une card est-elle EN COURS (son `data-status`) ? Le volet a la card ; la modale la retrouve
+  // par l'adresse d'aperçu de l'élément (`data-preview-url` commence par elle).
+  function isRunningCard(card) {
+    var st = card && card.dataset && card.dataset.status;
+    return st === 'RUNNING' || st === 'PROCESSING';
+  }
+  function cardOfPreview(baseUrl) {
+    var all = document.querySelectorAll('[data-preview-url]');
+    for (var i = 0; i < all.length; i++) {
+      if ((all[i].getAttribute('data-preview-url') || '').indexOf(baseUrl) === 0) {
+        return all[i].closest ? all[i].closest('[data-status]') : null;
+      }
+    }
+    return null;
+  }
+
+  // ── Suivre la face PENDANT (2026-10-06) : UN suiveur, pour le volet ET la modale ──────────
+  // Il interroge `?side=during` (vue choisie gardée), ne rend que ce qui a CHANGÉ (sans quoi un
+  // média partiel recréait son lecteur et redémarrait toutes les 1,3 s — 2026-08-13), et dit la
+  // fin : élément plus en cours (`isRunning`), ou partiels retirés après en avoir montré. Une app
+  // qui ne publie rien : arrêt, sans fin annoncée. La modale en avait sa copie (2026-10-05,
+  // retirée le lendemain à la question de Fabien « rien réinventé ? »).
+  //   opts = { variant, isRunning(), onFrame(données), onEnd(données|null), every }
+  //   rend { stop(), choose(variante) }
+  function followDuring(baseUrl, opts) {
+    opts = opts || {};
+    var state = { variant: opts.variant || null, sig: '', timer: null, stopped: false };
+    function stop() {
+      state.stopped = true;
+      if (state.timer) { clearInterval(state.timer); state.timer = null; }
+    }
+    function end(d) { stop(); if (opts.onEnd) opts.onEnd(d || null); }
+    function tick() {
+      if (state.stopped) return;
+      if (opts.isRunning && !opts.isRunning()) { end(null); return; }
+      fetch(duringUrl(baseUrl, state.variant))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (state.stopped) return;
+          if (!d || !d.sides || !d.sides.during_capable) { stop(); return; }   // ne publie rien
+          // Rien de publié À CET INSTANT : pas encore, ou entre deux process (l'anonymizer retire
+          // ses partiels entre la détection et le floutage). La fin se lit à l'état de l'élément
+          // (`isRunning`) ; sans lui, la disparition des partiels après en avoir montré la dit.
+          if (!d.sides.has_during) { if (!opts.isRunning && state.sig) end(d); return; }
+          var sig = JSON.stringify([d.url || '', d.mime_type || '', (d.peaks || []).length,
+                                    (typeof d.content === 'string') ? d.content.length : -1,
+                                    d.variant || '', (d.variants || []).length]);
+          if (sig === state.sig) return;
+          state.sig = sig;
+          if (opts.onFrame) opts.onFrame(d);
+        })
+        .catch(function () {});
+    }
+    state.timer = setInterval(tick, opts.every || 1300);
+    tick();
+    return {
+      stop: stop,
+      choose: function (variant) { state.variant = variant; state.sig = ''; tick(); },
+    };
+  }
+
   function renderInlinePreview(host, data, autoplay) {
     if (!host) return;
     // Collection AVANT l'aiguillage par mime : `files` décrit N sorties, `mime_type` ne décrit
@@ -637,8 +698,8 @@
         if (db) db.addEventListener('click', deselect);
       }).catch(hideDetail);
     }
-    var _duringTimer = null;
-    function _stopDuring() { if (_duringTimer) { clearInterval(_duringTimer); _duringTimer = null; } }
+    var _during = null;
+    function _stopDuring() { if (_during) { _during.stop(); _during = null; } }
 
     // Double-clic sur l'aperçu → PLEIN ÉCRAN via la modale commune (WamaMediaPreview, PAS de
     // réinvention) + icône overlay indicative. Le texte inline (prompt/sortie) passe par text_content.
@@ -688,48 +749,25 @@
 
     function _startDuring(baseUrl, card, title) {
       _stopDuring();
-      var lastSig = '';   // dédup : ne re-rendre que si le payload a CHANGÉ (2026-08-13) —
-                          // sans ça, une URL média partielle (converter audio/webm) recréait
-                          // le lecteur toutes les 1,3 s et REDÉMARRAIT la lecture. L'onde
-                          // (peaks) et le texte (content) grandissent → leur signature change
-                          // à chaque tick, le comportement « qui se construit » est préservé.
       // VARIANTES (2026-10-04) : plusieurs vues du même instant publiées par le worker
       // (`preview_utils.publish_partial(variant=)` — l'anonymizer : détections dessinées /
-      // frame floutée). La vue CHOISIE par l'utilisateur est gardée d'un tick à l'autre ;
-      // sans choix, le serveur rend la dernière publiée.
-      var variant = null;
-      var tick = function () {
-        var st = card && card.dataset && card.dataset.status;
-        if (st !== 'RUNNING' && st !== 'PROCESSING') {   // terminé → bascule sur la SORTIE
-          _stopDuring();
-          _fetchPreviewSide(baseUrl, 'output', title);
-          return;
-        }
-        var u = duringUrl(baseUrl, variant);
-        fetch(u).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-          if (!d || !d.sides || !d.sides.during_capable) { _stopDuring(); return; }  // ne streame pas → stop
-          if (!d.sides.has_during) return;
-          var sig = JSON.stringify([d.url || '', d.mime_type || '',
-                                    (d.peaks || []).length,
-                                    (typeof d.content === 'string') ? d.content.length : -1,
-                                    d.variant || '', (d.variants || []).length]);
-          if (sig === lastSig) return;
-          lastSig = sig;
+      // frame floutée). La vue CHOISIE est gardée par le suiveur commun d'un tick à l'autre.
+      var follower = followDuring(baseUrl, {
+        isRunning: function () { return isRunningCard(card); },
+        onEnd: function () { _fetchPreviewSide(baseUrl, 'output', title); },   // → la SORTIE
+        onFrame: function (d) {
           renderInlinePreview(previewHost, d, false);
           // Double-clic → la modale commune, sur CETTE face suivie en direct (2026-10-05 : seule
           // face du volet sans plein écran — le double-clic rouvrait la face précédente).
           _attachFullscreen(d, baseUrl);
           if (d.variants && d.variants.length > 1) {
             previewHost.appendChild(variantToggle(d.variants, d.variant, function (key) {
-              variant = key;
-              lastSig = '';
-              tick();
+              follower.choose(key);
             }));
           }
-        }).catch(function () {});
-      };
-      _duringTimer = setInterval(tick, 1300);
-      tick();
+        },
+      });
+      _during = follower;
     }
 
     function _fetchPreviewSide(baseUrl, side, title) {
@@ -1601,6 +1639,8 @@
                            cloneBatchActions: cloneBatchActions,
                            renderInlinePreview: renderInlinePreview,
                            duringUrl: duringUrl, variantToggle: variantToggle,
+                           followDuring: followDuring, isRunningCard: isRunningCard,
+                           cardOfPreview: cardOfPreview,
                            gearValues: gearValues, sharedGearValues: sharedGearValues,
                            hydrateCardPreviews: hydrateCardPreviews };
 })(window);

@@ -3988,6 +3988,26 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       remis à zéro à la fermeture, vue changée et gardée en direct, 0 erreur JS. Gardes
 >       `tests_cap_from_js.PreviewModalTest` (adresse d'élément en V8, chemins vers la modale,
 >       navigation — prouvées par mutation).
+>     - ✅ **Relecture « rien réinventé ? » (Fabien, 2026-10-06)** — trois réinventions de ma
+>       main, retirées : la modale avait SA copie du suiveur de la face Pendant (adresse, cadence,
+>       déduplication, fin) à côté de celle du volet → UN suiveur `WamaInspector.followDuring`,
+>       employé par les deux ; sa barre de vues maison → `WamaInspector.variantToggle` ; son
+>       adresse « pendant » de repli → `WamaInspector.duringUrl` (l'inspecteur est global,
+>       `base.html`). La fin se lit à l'ÉTAT de la card (`isRunningCard`, retrouvée par
+>       `cardOfPreview` depuis la modale), pas à la disparition des partiels : l'anonymizer les
+>       retire entre la détection et le floutage, un suiveur qui s'y fiait aurait coupé le direct
+>       au milieu du traitement. Garde V8 du suiveur (rendu des seuls changements, vue gardée, un
+>       trou entre deux process n'est pas la fin, fin unique) prouvée par mutation ; smoke
+>       navigateur rejoué, 0 erreur JS.
+>     - ✅ **L'agrandissement de la zone RÉDUIT aussi : 0,75 – 1,25** (Fabien, 2026-10-06 : « à la
+>       base 0,5 à 1,5 »). Deux bornes CONCURRENTES vivaient pour ce réglage : le volet, écrit en
+>       gabarit, 0,5–1,5 ; la modale, rendue du schéma, 1,0–2,0 (agrandir seulement). Le relevé sur
+>       les dix apps en a trouvé deux autres, alignés le même jour : `progressive_blur` (volet
+>       3–31 pas 2, sans le 0 qui désactive ; schéma 0–100) et `bbox_shift` de l'avatarizer (le
+>       SCHÉMA seul à −9–9 contre le moteur, le modèle et le volet à −10–10). Le gabarit ne peut
+>       pas se passer de bornes (un curseur sans bornes arrondit 1,05 à 1 avant tout script) :
+>       garde générique `tests_settings_surfaces.PanelBoundsFollowTheSchemaTest`, toute app.
+>       ⏳ Le remède de fond reste le « volet rendu du schéma » (reste du 2026-09-27). `1fdd4d15`.
 >     - **Curseur à 50 et rectangles** : la segmentation de visage du catalogue
 >       (`face_yolov8m-seg_60.pt`) n'est pas installée, la détection s'est faite en boîtes. Rien
 >       ne le disait ; la console le dit après la détection (`_segmentation_note`) et nomme le

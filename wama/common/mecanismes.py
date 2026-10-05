@@ -1549,7 +1549,8 @@ MECHANISMS = (
               "dessiné sur l'entrée par `WamaPreviewOverlay`) ; une face `compare_base` est la "
               "référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05). La modale "
               "porte les mêmes faces d'où qu'on l'ouvre (volet, vignette de card), suit la "
-              "face PENDANT en direct avec ses vues, et son PLEIN ÉCRAN est elle-même agrandie "
+              "face PENDANT en direct avec ses vues — par le MÊME suiveur que le volet "
+              "(`WamaInspector.followDuring`) —, et son PLEIN ÉCRAN est elle-même agrandie "
               "(la surcouche image seule ne sert plus qu'aux galeries sans élément)",
               'wama/common/utils/preview_registry.py', '',
               annexes=('wama/common/utils/preview_utils.py',

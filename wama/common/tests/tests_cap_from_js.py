@@ -468,6 +468,57 @@ class PreviewModalTest(SimpleTestCase):
         self.assertIn('_renderModalSides(modal, item)', navigation)
         self.assertNotIn('_renderModalSides(modal, data)', navigation)
 
+    def test_one_follower_of_the_pending_face_for_the_panel_and_the_modal(self):
+        """The modal had its own copy of the panel's follower (2026-10-05, removed the next day
+        at Fabien's « rien réinventé ? ») : both go through `WamaInspector.followDuring`."""
+        self.assertIn('followDuring(', self._body('wama-inspector.js', 'function _startDuring'))
+        modal = self._body('media-preview.js', 'function _startModalDuring')
+        self.assertIn('I.followDuring(', modal)
+        self.assertNotIn('setInterval', modal)
+        self.assertIn('I.variantToggle(', self._body('media-preview.js',
+                                                    'function _renderModalVariants'))
+
+    def test_the_follower_renders_changes_only_keeps_the_view_and_ends_on_the_card(self):
+        from py_mini_racer import MiniRacer
+        v8 = MiniRacer()
+        v8.eval(FAKE_DOM)
+        # A synchronous fake fetch and clock : each call answers the next payload.
+        v8.eval("""
+            var calls = [], payloads = [], timers = [];
+            function setInterval(fn) { timers.push(fn); return timers.length; }
+            function clearInterval() {}
+            function thenable(value) {
+              return {then: function (f) { return thenable(f(value)); }, catch: function () {}};
+            }
+            function fetch(url) {
+              calls.push(url);
+              var body = payloads.shift();
+              return thenable({ok: true, json: function () { return body; }});
+            }
+        """)
+        v8.eval((JS / 'wama-inspector.js').read_text(encoding='utf-8'))
+        out = v8.eval("""(function () {
+            var frame = function (url) { return {url: url, variant: 'blur',
+              sides: {during_capable: true, has_during: true}}; };
+            var gap = {sides: {during_capable: true, has_during: false}};
+            var shown = [], ended = [], running = true;
+            payloads = [frame('a.jpg'), frame('a.jpg'), gap, frame('b.jpg')];
+            var f = window.WamaInspector.followDuring('/p/7/', {
+              isRunning: function () { return running; },
+              onFrame: function (d) { shown.push(d.url); },
+              onEnd: function () { ended.push('end'); }});
+            timers[0](); timers[0](); timers[0]();      // same frame, gap between processes, new
+            payloads = [frame('c.jpg')];
+            f.choose('detection');                      // the chosen view is asked at once
+            running = false; timers[0]();               // the card is done → end, once
+            timers[0]();
+            return [shown, ended, calls[calls.length - 1]];
+        })()""")
+        self.assertEqual(['a.jpg', 'b.jpg', 'c.jpg'], list(out[0]),
+                         'same frame not re-rendered ; a gap between processes is not the end')
+        self.assertEqual(['end'], list(out[1]))
+        self.assertEqual('/p/7/?side=during&variant=detection', out[2])
+
     def test_the_full_screen_of_an_item_is_the_modal_itself(self):
         expand = self._body('media-preview.js', 'function _expand')
         self.assertIn('_setModalFull(', expand, 'an item keeps its faces in full screen')
