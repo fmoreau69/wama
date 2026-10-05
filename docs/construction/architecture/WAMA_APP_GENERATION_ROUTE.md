@@ -3906,10 +3906,19 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       d'une droite. Trois copies de l'IoU (cam, `placement_metrics._iou`, la mienne) → une ;
 >       ✅ les anciens noms du cam_analyzer et du monde Data DÉLÈGUENT (`feb56cd2`, session
 >       cam), gardé par `tests_gap_fill.TheOldCopiesDelegateTest` (la fonction commune
->       substituée, l'ancien nom la suit). ⏳ **Reste proposé** :
->       l'EXTRAPOLATION aux bouts d'un objet (flouter quelques images avant sa première
->       détection et après sa dernière — là où un visage entre dans le champ et échappe au flou),
->       avec `extrapolate_speed_accel` du même paquet ; elle demande un réglage, donc une décision.
+>       substituée, l'ancien nom la suit).
+>     - ✅ **EXTRAPOLATION aux bouts d'un objet** (décision de Fabien le même jour, `dc096d1f`) :
+>       un objet reste flouté `max_extrapolation_frames` images (défaut **5**, `0` = jamais)
+>       avant sa première détection et après sa dernière — là où un visage entre dans le champ
+>       sans être encore vu. **Réglage SÉPARÉ de l'interpolation** (question de Fabien : un
+>       seul nombre ou deux ?) : encadrée par deux observations, l'interpolation comble 50
+>       images sans inventer ; l'extrapolation n'a qu'un côté et dérive au-delà de quelques
+>       images — un nombre commun aurait forcé à mal régler l'un des deux. Vitesse de bord sur
+>       3 maillons tenue CONSTANTE, par `kinematics.extrapolate_speed_accel` (commune) nourrie
+>       de deux points (aucune accélération devinée d'un seul côté) ; immobile sans vitesse ;
+>       bornée à la vidéo (longueur inconnue : pas de borne, le rendu ne lit pas au-delà).
+>       Marquée `interpolated` (le floutage la ramène dans l'image) + `extrapolated`. Migration
+>       0035 additive (`db_default`), `stales=("blur",)` : le changer rejoue le floutage seul.
 >     - **Curseur à 50 et rectangles** : la segmentation de visage du catalogue
 >       (`face_yolov8m-seg_60.pt`) n'est pas installée, la détection s'est faite en boîtes. Rien
 >       ne le disait ; la console le dit après la détection (`_segmentation_note`) et nomme le
