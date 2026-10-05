@@ -576,6 +576,111 @@ def measure_range_bias(per_cam, parked, geo, projectors, pose_at, *, applied=Non
     return out
 
 
+#: Recherche d'inclinaison par l'écartement des garés : ±5° autour du tangage en service, par pas de 1°
+#: puis de 0,25° autour du meilleur. Au-delà de 5°, ce n'est plus un réglage fin : la calibration sol
+#: elle-même est à reprendre.
+OFFSET_PITCH_SPAN_DEG = 5.0
+#: Garés minimum, vus de près par la caméra ET par l'ancre, pour qu'un tangage soit proposé.
+OFFSET_PITCH_MIN_OBJECTS = 20
+
+
+def offset_pitch_search(session, per_cam, parked, geo, anchor, anchor_obs, path, pose_at, time_at, pitches, *,
+                        center_place=False, per_object=40):
+    """Tangage de chaque caméra qui ANNULE son écart d'écartement des garés avec l'ancre (2026-10-05,
+    métrique #6 `static_offset_gaps`, demande de Fabien : trajectoires droites incurvées autour de la
+    navette, et « le plus universel possible, par mesure automatisée »). Un garé ne bouge pas : sa
+    distance à la trajectoire de la navette ne doit pas dépendre de la caméra qui le voit ; l'ancre est
+    la caméra dont la projection sol et la hauteur de boîte s'accordent (`agreeing_camera`).
+
+    Pour chaque caméra à projection sol (`pitches` = {caméra: tangage en service}) sauf l'ancre, ses
+    garés sont RE-PROJETÉS à chaque tangage candidat — même chaîne que le suivi : bas de boîte au sol,
+    centre du véhicule sous `center_place` (axe parallèle à la navette, comme un garé), repère monde — et
+    confrontés aux observations proches de l'ancre (`anchor_obs`, telles que le suivi les a placées).
+    `pose_at(image)` → (e, n, cap) de la navette, `time_at(image)` → instant (même base que `path`).
+    `per_object` borne le nombre d'observations par garé (coût). Rend {caméra: {'from_deg', 'pitch_deg',
+    'gap_before_m', 'gap_after_m', 'objects', 'anchor'}} — mesure seule ; ⚑ offset_pitch_calib
+    l'applique au calcul suivant."""
+    from wama_data.functions.geometry.placement_metrics import static_offset_gaps
+    from wama_data.functions.geometry.shapes import visible_face_to_center
+    parked = set(parked or ())
+    out = {}
+    for pos, p0 in (pitches or {}).items():
+        if pos == anchor or pos not in per_cam or p0 is None:
+            continue
+        g = geo[pos]
+        _iw, _ih, frames = per_cam[pos]
+        by_obj = defaultdict(list)
+        for fn, f in frames.items():
+            for d in (f.detections or []):
+                gid = d.get('global_track_id')
+                if (gid in parked and not d.get('predicted') and not d.get('artifact')
+                        and d.get('class_name') in CLASS_DIMS and d.get('bbox')):
+                    by_obj[gid].append((fn, d['bbox'], d['class_name']))
+        samples = []
+        for gid, rows in by_obj.items():
+            step = max(1, len(rows) // per_object)
+            for fn, bb, cls in rows[::step]:
+                se, sn, sh = pose_at(fn)
+                ce, cn = ego_to_world(se, sn, sh, g['mount'][0], g['mount'][1])
+                samples.append((time_at(fn), gid, bb, cls, se, sn, sh, ce, cn))
+        if not samples:
+            continue
+
+        def gap_at(pitch):
+            gp = ground_projector_for(session, pos, g, pitch_deg=pitch)
+            if gp is None:
+                return None, 0
+            rows = []
+            for t, gid, bb, cls, se, sn, sh, ce, cn in samples:
+                ego = ground_ego(gp, bb)
+                if ego is None:
+                    continue
+                if center_place:
+                    dims = CLASS_DIMS[cls]
+                    ego = visible_face_to_center(ego[0], ego[1], dims[0], dims[1], 0.0 - g['yaw'])
+                xv, yv = _cam_to_vehicle(ego[0], ego[1], g['yaw'])
+                e, n = ego_to_world(se, sn, sh, xv + g['mount'][0], yv + g['mount'][1])
+                rows.append((t, pos, gid, e, n, ce, cn))
+            res = static_offset_gaps(list(anchor_obs) + rows, path).get('gaps', {}).get(f'{pos}-{anchor}')
+            return (res['median_m'], res['objects']) if res else (None, 0)
+
+        before, n0 = gap_at(p0)
+        if before is None or n0 < OFFSET_PITCH_MIN_OBJECTS:
+            continue
+        tried = {p0: before}
+        for k in range(-int(OFFSET_PITCH_SPAN_DEG), int(OFFSET_PITCH_SPAN_DEG) + 1):
+            p = round(p0 + k, 2)
+            if p not in tried:
+                tried[p] = gap_at(p)[0]
+        coarse = min((p for p, v in tried.items() if v is not None), key=lambda p: abs(tried[p]))
+        for k in (-0.75, -0.5, -0.25, 0.25, 0.5, 0.75):
+            p = round(coarse + k, 2)
+            if abs(p - p0) <= OFFSET_PITCH_SPAN_DEG and p not in tried:
+                tried[p] = gap_at(p)[0]
+        best = min((p for p, v in tried.items() if v is not None), key=lambda p: abs(tried[p]))
+        out[pos] = {'from_deg': round(p0, 2), 'pitch_deg': best, 'gap_before_m': before,
+                    'gap_after_m': tried[best], 'objects': n0, 'anchor': anchor}
+    return out
+
+
+def offset_pitch_is_usable(entry):
+    """Un tangage proposé par `offset_pitch_search` ne s'applique que s'il n'AGRANDIT pas l'écart, sur assez
+    de garés, sans sortir de la plage de recherche. Rend le tangage, ou None.
+    « N'agrandit pas » et non « réduit » : une caméra qui a CONVERGÉ (tangage inchangé, écart déjà ~0) doit
+    garder son tangage — l'exigence stricte la renvoyait au tangage d'origine au calcul suivant (rejeu du
+    2026-10-05 : gauche 19° → 15,5°, écart +0,01 → +1,29 m)."""
+    if not entry:
+        return None
+    try:
+        if (entry['objects'] >= OFFSET_PITCH_MIN_OBJECTS
+                and abs(entry['pitch_deg'] - entry['from_deg']) <= OFFSET_PITCH_SPAN_DEG
+                and abs(entry['gap_after_m']) <= abs(entry['gap_before_m'])):
+            return float(entry['pitch_deg'])
+    except (KeyError, TypeError):
+        return None
+    return None
+
+
 #: ⚑ duplicate_chain_merge : au-delà de cette distance monde, deux boîtes qui se recouvrent dans une
 #: même image ne sont PAS le même véhicule (deux véhicules distincts ne tiennent pas à moins de 2 m
 #: l'un de l'autre, centre à centre : deux garés voisins sont à ≈ 2,3 m).
@@ -726,11 +831,21 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                if isinstance(v, dict)}
     _src_counts = defaultdict(int)
     _gproj = {}
+    # ⚑ offset_pitch_calib (2026-10-05) : tangage par caméra qui annule l'écart d'écartement des garés avec
+    # l'ancre, MESURÉ au calcul précédent (`offset_pitch_search`, plus bas) — appliqué s'il est plausible.
+    _op_cfg = ((session.config or {}).get('offset_pitch') or {}) if _feat.get('offset_pitch_calib', False) else {}
+    _pitch_used = {}   # caméra -> tangage de sa projection sol dans CE calcul (base de la recherche)
     if _feat.get('auto_ground_calib', False) or _feat.get('depth_estimation', False):
         for pos in _geo:
-            gp = ground_projector_for(session, pos, _geo[pos])
+            _op_p = offset_pitch_is_usable(_op_cfg.get(pos))
+            gp = ground_projector_for(session, pos, _geo[pos], pitch_deg=_op_p)
             if gp is not None:
                 _gproj[pos] = gp
+                _pitch_used[pos] = _op_p if _op_p is not None else (
+                    ((session.config or {}).get('ground_calib') or {}).get(pos) or {}).get('pitch_deg')
+        if _op_cfg:
+            logger.info('tangage par l\'écartement des garés (⚑ offset_pitch_calib) : %s',
+                        {p: offset_pitch_is_usable(v) for p, v in _op_cfg.items()})
         if _gproj:
             logger.info('projection sol active (⚑ auto_ground_calib/depth_estimation) pour %s',
                         sorted(_gproj.keys()))
@@ -1599,7 +1714,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         from wama_data.functions.geometry.placement_metrics import (
             agreeing_camera, camera_pair_agreement, relative_camera_scales)
         _pairs = camera_pair_agreement(_rooted)
-        _anchor, _anchor_gap = agreeing_camera(range_bias)
+        _anchor, _anchor_gap = agreeing_camera(   # une caméra réglée sur l'ancre ne le devient pas
+            range_bias, exclude={p for p, v in _op_cfg.items() if offset_pitch_is_usable(v) is not None})
         camera_agreement.update(pairs=_pairs, anchor=_anchor, anchor_methods_gap=_anchor_gap,
                                 scales=relative_camera_scales(_pairs, _anchor) if _anchor else {})
         logger.info('[tracking 360°] accord de distance entre caméras : %s ; échelles (ancre %s) : %s',
@@ -1613,11 +1729,25 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         from wama_data.functions.geometry.placement_metrics import static_offset_gaps
         _parked = set(stationary_gids)
         camera_agreement['parked_offsets'] = static_offset_gaps(
-            [o[:5] for o in _rooted if o[2] in _parked], sh_traj[:, :3])
+            [o[:7] for o in _rooted if o[2] in _parked], sh_traj[:, :3])
         logger.info('[tracking 360°] écartement des garés selon la caméra : %s',
                     {k: v['median_m'] for k, v in camera_agreement['parked_offsets']['gaps'].items()})
     except Exception:
         logger.warning('static_offset_gaps (contrôle qualité) échoué', exc_info=True)
+    # Tangage qui ANNULERAIT l'écart de chaque caméra avec l'ancre : mesuré à chaque calcul, appliqué au
+    # suivant sous ⚑ offset_pitch_calib — rien à régler à la main pour une nouvelle vue.
+    offset_pitch = {}
+    try:
+        _anc = camera_agreement.get('anchor')
+        if _anc:
+            offset_pitch = offset_pitch_search(
+                session, per_cam, stationary_gids, _geo, _anc,
+                [o[:7] for o in _rooted if o[1] == _anc and o[2] in set(stationary_gids)], sh_traj[:, :3],
+                lambda fn: _shuttle_pose_at(sh_traj, fn / fps * scale + off),
+                lambda fn: fn / fps * scale + off, _pitch_used, center_place=_center_place)
+            logger.info('[tracking 360°] tangage par l\'écartement des garés (ancre %s) : %s', _anc, offset_pitch)
+    except Exception:
+        logger.warning('offset_pitch_search (contrôle qualité) échoué', exc_info=True)
 
     # Métrique #3 (2026-10-01) : ce que le suivi DUPLIQUE ou PERD, après recollement (gids racines).
     continuity = None
@@ -1691,6 +1821,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'range_bias': range_bias,
             # accord de distance entre caméras (métrique #5) — mesure seule
             'camera_agreement': camera_agreement,
+            # tangage par caméra qui annule l'écart d'écartement des garés (⚑ offset_pitch_calib l'applique au suivant)
+            'offset_pitch': offset_pitch,
             'stationary_rejects': _rejets,
             'stationary_gate_by_gid': _gate_by_gid,
             'stationary_rule': _stationary_rule,

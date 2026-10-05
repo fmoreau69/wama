@@ -305,11 +305,14 @@ def pinhole_ego(det, iw, ih, fov_v_deg=60.0, fov_h_deg=None, dist_scale=1.0, k1=
     return lateral, dm       # [latéral, longitudinal]
 
 
-def ground_projector_for(session, position, geo):
+def ground_projector_for(session, position, geo, pitch_deg=None):
     """GroundProjector à partir du pitch/hauteur ESTIMÉS et persistés
     (`config['ground_calib'][pos]`, cf. homography_estimator.store_ground_calib).
     Retourne None si pas de calib pour cette caméra → l'appelant retombe sur le pinhole.
-    Étape 2a du plan de calibration sol : l'ANGLE, derrière ⚑ auto_ground_calib."""
+    Étape 2a du plan de calibration sol : l'ANGLE, derrière ⚑ auto_ground_calib.
+    `pitch_deg` : tangage imposé à la place du tangage persisté (hauteur inchangée) — la recherche
+    d'inclinaison par l'écartement des garés (`multicam_tracker.offset_pitch_search`) et son application
+    (⚑ offset_pitch_calib)."""
     cal = ((session.config or {}).get('ground_calib') or {}).get(position)
     if not cal:
         return None
@@ -322,7 +325,8 @@ def ground_projector_for(session, position, geo):
         # champ VERTICAL effectif (`camera_geometry`, source unique) — cf. `estimate_camera`
         intr = intrinsics_from_fov(cam.width, cam.height, geo['fov_h'],
                                    geo.get('fov_v') or CAMERA_FOV_V.get(position, 61.0))
-        _cal = dict(intr, height_m=cal['height_m'], pitch_deg=cal['pitch_deg'],
+        _cal = dict(intr, height_m=cal['height_m'],
+                    pitch_deg=cal['pitch_deg'] if pitch_deg is None else float(pitch_deg),
                     hfov_deg=geo['fov_h'], lens_type='rectilinear')
         if geo.get('k1'):
             _cal['radial_inverse'] = float(geo['k1'])                    # ⚑ lens_distortion

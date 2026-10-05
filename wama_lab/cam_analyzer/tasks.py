@@ -2647,6 +2647,18 @@ def _run_global_tracking(session):
                      + (f" — échelle relative à {_ca['anchor']} : " + ", ".join(
                          f"{c} {v['scale']:.2f}" for c, v in sorted(_ca['scales'].items()))
                         if _ca.get('scales') else ''))
+        # Tangage qui annule l'écart d'écartement des garés avec l'ancre (2026-10-05) : persisté dans la
+        # config pour que ⚑ offset_pitch_calib l'applique au calcul SUIVANT, comme le biais par portée.
+        _op = _gt.get('offset_pitch') or {}
+        if _op:
+            rs['offset_pitch'] = _op
+            _cfg = dict(session.config or {})
+            _cfg['offset_pitch'] = _op
+            session.config = _cfg
+            _config_changed = True
+            _console(session.user_id, "Inclinaison qui annule l'écart d'écartement des garés : " + " · ".join(
+                f"{p} {v['from_deg']}° → {v['pitch_deg']}° (écart {v['gap_before_m']:+.2f} → "
+                f"{v['gap_after_m']:+.2f} m, {v['objects']} garés, réf. {v['anchor']})" for p, v in _op.items()))
         _po = (_ca.get('parked_offsets') or {}).get('gaps') or {}
         if _po:
             rs['camera_agreement'] = _ca

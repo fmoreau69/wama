@@ -263,3 +263,103 @@ class ServerHeadingTest(SimpleTestCase):
         self.assertIn("camFeat.server_heading !== false && Array.isArray(det.world_vel)", js)
         self.assertIn("let _vEst = _srvSpeed;", js)
         self.assertTrue({f.key: f for f in FEATURES}['server_heading'].default)
+
+
+class OffsetPitchCalibTest(SimpleTestCase):
+    """⚑ offset_pitch_calib (2026-10-05) : le tangage d'une caméra qui annule l'écart d'écartement de ses
+    garés avec l'ancre — un garé ne bouge pas, sa distance à la route ne dépend pas de la caméra. Rig : la
+    navette roule plein nord à 4 m/s ; caméra droite en (1 ; 3,4) regardant à l'est ; garés à 6 m à l'est.
+    Projecteur simulé : distance × (1 + 0,05 × (18 − tangage)) — juste à 18°, trop loin en dessous."""
+    GEO = {'right': {'yaw': 90.0, 'mount': (1.0, 3.4)}}
+
+    class _Frame:
+        def __init__(self, dets):
+            self.detections = dets
+
+    class _Proj:
+        def __init__(self, pitch):
+            self.k = 1.0 + 0.05 * (18.0 - pitch)
+
+    def _scene(self, n=24):
+        import numpy as np
+        frames, anchor = {}, []
+        for k in range(n):
+            y = 20.0 + 15.0 * k
+            for fn in range(0, 12 * 120):
+                t = fn / 12.0
+                sn = 4.0 * t
+                if 3.0 <= y - sn - 4.5 <= 12.0 and fn % 3 == 0:     # l'avant le voit de près : juste
+                    anchor.append((t, 'front', k, 6.0, y, 0.0, sn + 4.5))
+                dy = y - sn - 3.4
+                if -5.0 <= dy <= 5.0 and fn % 3 == 0:                # la droite le voit par le travers
+                    # repère caméra (latéral, longitudinal) vrai de ce garé : longitudinal 5 m, latéral −dy
+                    frames.setdefault(fn, self._Frame([]))
+                    frames[fn].detections.append({'global_track_id': k, 'class_name': 'car',
+                                                  'bbox': [-dy, 5.0, 0, 0]})
+        path = np.asarray([(t / 2.0, 0.0, 2.0 * t) for t in range(400)])
+        return {'right': (384, 248, frames)}, anchor, path
+
+    def _search(self, p0):
+        from unittest import mock
+        per_cam, anchor, path = self._scene()
+        with mock.patch.object(mt, 'ground_projector_for', lambda s, pos, g, pitch_deg=None: self._Proj(pitch_deg)), \
+                mock.patch.object(mt, 'ground_ego', lambda gp, bb: (bb[0], bb[1] * gp.k)):
+            return mt.offset_pitch_search(None, per_cam, set(range(24)), self.GEO, 'front', anchor, path,
+                                          lambda fn: (0.0, 4.0 * fn / 12.0, 0.0), lambda fn: fn / 12.0,
+                                          {'right': p0})
+
+    def test_the_search_finds_the_pitch_that_puts_the_parked_cars_where_the_anchor_sees_them(self):
+        res = self._search(15.0)['right']
+        self.assertAlmostEqual(res['gap_before_m'], 0.75, places=1)   # 5 m × 0,15 : trop loin de 0,75 m
+        self.assertEqual(res['pitch_deg'], 18.0)
+        self.assertAlmostEqual(res['gap_after_m'], 0.0, places=2)
+        self.assertEqual(res['from_deg'], 15.0)
+        self.assertEqual(res['objects'], 24)
+
+    def test_a_camera_already_right_keeps_its_pitch(self):
+        """Contre-épreuve : au bon tangage, rien ne bouge."""
+        res = self._search(18.0)['right']
+        self.assertEqual(res['pitch_deg'], 18.0)
+        self.assertAlmostEqual(res['gap_before_m'], 0.0, places=2)
+
+    def test_the_anchor_is_never_searched(self):
+        self.assertEqual(mt.offset_pitch_search(None, {}, set(), {}, 'front', [], [], None, None,
+                                                {'front': 13.0}), {})
+
+    def test_a_proposal_applies_only_if_it_reduces_the_gap_on_enough_cars(self):
+        ok = {'from_deg': 15.5, 'pitch_deg': 19.0, 'gap_before_m': 0.95, 'gap_after_m': 0.0, 'objects': 178}
+        self.assertEqual(mt.offset_pitch_is_usable(ok), 19.0)
+        self.assertIsNone(mt.offset_pitch_is_usable(dict(ok, objects=12)))
+        self.assertIsNone(mt.offset_pitch_is_usable(dict(ok, gap_after_m=1.2)))
+        self.assertIsNone(mt.offset_pitch_is_usable(dict(ok, pitch_deg=21.0)))
+        self.assertIsNone(mt.offset_pitch_is_usable(None))
+        self.assertIsNone(mt.offset_pitch_is_usable({'objects': 30}))
+        # une caméra qui a CONVERGÉ garde son tangage (rejeu : la gauche retombait de 19° à 15,5°)
+        converged = {'from_deg': 19.0, 'pitch_deg': 19.0, 'gap_before_m': 0.01, 'gap_after_m': 0.01, 'objects': 189}
+        self.assertEqual(mt.offset_pitch_is_usable(converged), 19.0)
+
+    def test_the_imposed_pitch_reaches_the_ground_projector(self):
+        """Le tangage imposé change la projection ; sans lui, le tangage persisté sert."""
+        from types import SimpleNamespace
+        from wama_lab.cam_analyzer.utils.prediction_adapter import ground_projector_for
+        cam = SimpleNamespace(width=384, height=248)
+        session = SimpleNamespace(
+            config={'ground_calib': {'left': {'pitch_deg': 15.5, 'height_m': 2.3}}},
+            cameras=SimpleNamespace(filter=lambda **kw: SimpleNamespace(first=lambda: cam)))
+        geo = {'fov_h': 79.6, 'fov_v': 55.0}
+        stored = ground_projector_for(session, 'left', geo).project(192, 200)
+        steeper = ground_projector_for(session, 'left', geo, pitch_deg=19.0).project(192, 200)
+        same = ground_projector_for(session, 'left', geo, pitch_deg=15.5).project(192, 200)
+        self.assertLess(steeper[1], stored[1])        # plus incliné : le même pixel touche le sol plus près
+        self.assertAlmostEqual(same[1], stored[1], places=9)
+
+    def test_declared_off_measured_every_run_and_persisted_by_the_task(self):
+        f = {x.key: x for x in FEATURES}['offset_pitch_calib']
+        self.assertFalse(f.default)
+        self.assertEqual(f.scope, 'compute')
+        src = inspect.getsource(mt.annotate_global_tracks)
+        self.assertIn('offset_pitch_search(', src)
+        self.assertIn("'offset_pitch': offset_pitch", src)
+        self.assertIn('pitch_deg=_op_p', src)
+        from wama_lab.cam_analyzer import tasks
+        self.assertIn("_cfg['offset_pitch']", inspect.getsource(tasks._run_global_tracking))
