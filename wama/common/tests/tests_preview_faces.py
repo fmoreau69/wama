@@ -87,7 +87,7 @@ class CompareLetsBothVideosPlayTest(TestCase):
     starts : the compared video started by the sync paused the reference at once (seen in the
     browser on 2026-10-05). Both compare surfaces must carry its declared escape hatch."""
 
-    def test_both_compare_surfaces_declare_simultaneous_playback(self):
+    def test_both_compare_surfaces_let_the_two_videos_play_together(self):
         from django.conf import settings
         js = os.path.join(settings.BASE_DIR, 'wama', 'common', 'static', 'common', 'js')
         for name, function in (('wama-inspector.js', 'function _renderCompare'),
