@@ -21894,3 +21894,26 @@ Question de Fabien avant la clôture : « a-t-on bien tout consigné ? rien oubl
 **Contrôles attendus au prochain /reprise (mesurés le 05/10).** Tests (WSL, base isolée) : anonymizer, enhancer, briques communes — verts, SAUF `EveryAppPipelineTest` (7 apps) : rouge à cause d'un changement NON COMMITÉ d'une autre session (`process_pipeline.manifest` exporte désormais `label`/`outputs`/`share`, « session Writer », 05/10 12:33) — leur ré-export le soldera. Budgets de langue : « code » recalé à 2670 sur HEAD ; noms de tests dépassés par d'autres sessions (134 > 132, > 1310). `check_docs` : 5 cassées anciennes, 0 périmée. Grille 948/967. Dans l'arbre, `docs/dev/briques.md` est plus ancien que HEAD (écrit 04/10 15:32 par une autre session) — `DocDeveloppeurTest` rouge sur l'arbre, vert sur HEAD.
 
 **File des chantiers ouverts.** ① Retour de test de Fabien (anonymizer à trois process, bascule de l'aperçu). ② Vue « Détection » APRÈS le traitement (image : simple ; vidéo : superposition navigateur ou seconde vidéo). ③ ETA d'une card à deux process coûteux (une seule clé lue). ④ Studio : `STALE`. ⑤ `watched` dérivés du schéma (`Param` → process) : PRIS par la session -42 (accord du 05/10, forme convenue : attribut sur le réglage, pas de défaut implicite, garde « tout réglage rattaché ou déclaré sans péremption »). ⑥ Lab (autre session) : `cam_analyzer` a ses propres masque→polygones et écriture vidéo annotée — candidats à `common/utils/detections.py`, non touchés.
+
+## §PALIER — 2026-10-05, « ANONYMIZER : RETOURS DE LA CARD #1026 » — livré (`545129c3`, `fbc6254a`, `b58e459c`, non poussés) — 🔚 relancer gunicorn + workers · question cinématique ouverte
+
+Trois retours de Fabien après une vidéo jouée (card #1026, compte réel, lue seulement) :
+
+- **Interpolation** : les trous subsistaient — `by_frame` ne reliait que la MÊME piste et
+  `max_gap_for` plafonnait le réglage à 0,5 s sans le dire. Liaison par la piste OU par la
+  place, le réglage seule limite : sur #1026, 18 trous sur 19 → 1 (67 images > 50).
+- **Segmentation à 50** : `face_yolov8m-seg_60.pt` n'est pas installé → boîtes ; la console le
+  dit désormais. Aucune installation faite.
+- **Face « Détection » après traitement + Comparer sur vidéos** : `PreviewRegistry.register(faces=)`,
+  `WamaPreviewOverlay` ; Comparer ouvert aux vidéos synchronisées (volet + plein écran),
+  `data-wama-multiplay` (sinon la vidéo comparée pausait la référence) ; badges du curseur
+  Comparer inversés depuis l'origine, corrigés pour toutes les apps.
+- Détail et gardes : `WAMA_APP_GENERATION_ROUTE §10.6`, bloc anonymizer. Tests 76 OK (worktree
+  HEAD + ces fichiers ; l'arbre principal porte le WIP « ETA par process » d'une autre session) ;
+  smoke navigateur sur serveur de dev jetable, 0 erreur JS.
+- 🔴 **Relancer gunicorn ET workers** (Python de l'aperçu et de la tâche) ; la migration
+  `anonymizer/0034` (libellé seul) est appliquée.
+- ⏳ **Ouvert — décision de Fabien** : réutiliser la cinématique du cam_analyzer (Kalman + RTS,
+  Hermite, extrapolation aux bouts) pour les détections, ce qui suppose de la loger dans
+  `common/` avec Data et Lab qui y délèguent ; `iou` a déjà deux jumeaux (Data, Lab).
+- Laissé dans l'arbre, pas à moi : le hunk `blur_eta` de `wama/anonymizer/tasks.py`.
