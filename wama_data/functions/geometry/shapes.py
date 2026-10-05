@@ -8,6 +8,21 @@ Autonome (numpy pur).
 import numpy as np
 
 
+def box_iou(a, b) -> float:
+    """Recouvrement de deux boîtes alignées [x0, y0, x1, y1], de 0 à 1 (0 si l'une manque).
+
+    Domicile unique depuis le 2026-10-05 : trois copies identiques vivaient au cam_analyzer
+    (`multicam_tracker.box_iou`), au monde Data (`placement_metrics._iou`) et à l'anonymizer
+    (`common/utils/detections.iou`)."""
+    if not a or not b or len(a) < 4 or len(b) < 4:
+        return 0.0
+    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    inter = ix * iy
+    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+    return inter / union if union > 0 else 0.0
+
+
 def rect_intersect_sat(rect1, rect2):
     """
     Collision entre 2 rectangles orientés via le théorème des axes séparateurs (SAT).
