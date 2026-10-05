@@ -879,6 +879,13 @@ def _strip_unsourced_urls(text: str, tool_steps: list, message: str = '',
     if removed is None:
         removed = []
 
+    # La MENTION elle-même, écrite par le modèle : il l'a RECOPIÉE d'un tour passé (mesuré le
+    # 2026-10-05, fil Discord n° 11 — « 📥 Télécharger… (lien non vérifié — retiré) » sans
+    # aucune adresse). Aucune URL à retirer, donc le contrôle de tour inventé restait muet :
+    # la mention compte comme un lien retiré, puisque c'en est la trace.
+    if _UNSOURCED_MARK in text:
+        removed.append(_UNSOURCED_MARK)
+
     def _known(url):
         return url.rstrip('.,;:!?') in sources or url in sources
 
@@ -995,18 +1002,64 @@ def _parse_tool_call(text: str) -> dict | None:
     return None
 
 
-def _sanitize_history(history) -> list:
+#: Longueur d'un résultat d'outil d'un tour PASSÉ dans l'historique resservi : assez pour que le
+#: modèle voie que la réponse venait d'un outil, pas assez pour noyer la fenêtre.
+_HISTORY_RESULT_CHARS = 600
+#: Ce qui remplace, dans l'historique, une réponse passée SANS outil qui citait un résultat.
+_HISTORY_INVENTED_PLACEHOLDER = (
+    "(Réponse retirée de l'historique : elle annonçait un résultat alors qu'aucun outil "
+    "n'avait été appelé.)")
+
+
+def _tool_result_message(tool_name: str, tool_result, limit: int = None) -> dict:
+    """Le résultat d'un outil tel que le modèle le lit — UNE forme, dans la boucle du tour comme
+    dans l'historique resservi (une forme différente ne serait pas reconnue comme un exemple)."""
+    payload = json.dumps(tool_result, ensure_ascii=False, default=str)
+    if limit and len(payload) > limit:
+        payload = payload[:limit] + '…'
+    return {"role": "user", "content": f"Résultat du tool {tool_name} : {payload}"}
+
+
+def _sanitize_history(history, limit: int = 20) -> list:
     """
     Assainit l'historique fourni par le client : seuls les tours `user`/`assistant` à
     contenu textuel passent. Indispensable depuis que la boucle est exposée à une surface
     token (un client ne doit pas pouvoir injecter un tour `system`).
+
+    `limit` borne les TOURS (10 échanges), avant dépliage des outils : borner après couperait
+    un échange entre l'appel et son résultat.
+
+    ⚠⚠ LES OUTILS D'UN TOUR PASSÉ SONT DÉPLIÉS (2026-10-05). Un tour d'assistant qui porte des
+    `tool_steps` (store, `conversation_store.history`) est resservi comme la boucle l'a joué :
+    l'appel `{"tool": …}`, son résultat (tronqué), puis la réponse. Sans cela, l'historique ne
+    montrait que des réponses SANS outil, et le modèle les imitait — fil Discord n° 11 : le
+    même modèle et le même message appellent l'outil sans historique, inventent tout avec lui
+    (`WAMA_LLM.md` §2026-10-05). Un client qui fournit des `tool_steps` n'obtient rien de plus
+    qu'en écrivant ce texte lui-même : ce sont des messages `user`/`assistant` ordinaires.
+
+    Une réponse passée SANS outil qui porte la mention de lien retiré est une fabrication que
+    le contrôle de sortie a déjà signalée : elle est remplacée par une note, pour ne plus servir
+    de modèle (« ID 649 » du 05/10 = « 648 » du 27/09 + 1).
     """
+    turns = [turn for turn in (history or [])
+             if isinstance(turn, dict)
+             and turn.get('role') in ('user', 'assistant')
+             and isinstance(turn.get('content'), str)][-limit:]
     clean = []
-    for turn in (history or []):
-        if (isinstance(turn, dict)
-                and turn.get('role') in ('user', 'assistant')
-                and isinstance(turn.get('content'), str)):
-            clean.append({'role': turn['role'], 'content': turn['content']})
+    for turn in turns:
+        content = turn['content']
+        if turn['role'] == 'assistant':
+            steps = [s for s in (turn.get('tool_steps') or [])
+                     if isinstance(s, dict) and isinstance(s.get('tool'), str)]
+            for step in steps:
+                call = {'tool': step['tool'], 'args': step.get('args') or {}}
+                clean.append({'role': 'assistant',
+                              'content': json.dumps(call, ensure_ascii=False, default=str)})
+                clean.append(_tool_result_message(step['tool'], step.get('result'),
+                                                  limit=_HISTORY_RESULT_CHARS))
+            if not steps and _UNSOURCED_MARK in content:
+                content = _HISTORY_INVENTED_PLACEHOLDER
+        clean.append({'role': turn['role'], 'content': content})
     return clean
 
 
@@ -1240,7 +1293,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
         return f"{base_label} · dev" if development else base_label
 
     # Build messages: system + prior history (capped) + current user message
-    prior = _sanitize_history(history)[-20:]  # keep last 10 exchanges max
+    prior = _sanitize_history(history)  # 10 derniers échanges, outils dépliés
     messages = [
         {"role": "system", "content": system_prompt},
         *prior,
@@ -1378,10 +1431,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
 
         # Add assistant tool-call turn + tool result to conversation
         messages.append({"role": "assistant", "content": text})
-        messages.append({
-            "role": "user",
-            "content": f"Résultat du tool {tool_name} : {json.dumps(tool_result, ensure_ascii=False)}",
-        })
+        messages.append(_tool_result_message(tool_name, tool_result))
 
     # Reached iteration limit — return last LLM text as-is
     logger.warning("[ai_chat] tool-calling iteration limit reached")

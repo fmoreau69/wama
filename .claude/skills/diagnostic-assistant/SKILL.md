@@ -63,6 +63,12 @@ valait 2 au lieu de 25.
 - ⚠ **L'historique du fil est une SOURCE pour le modèle.** Une fabrication qui y entre est
   resservie à chaque tour et ré-émise, même après correction du prompt. Regarder les tours
   ANTÉRIEURS avant de conclure que le correctif ne marche pas.
+- ⭐ **REJOUER le tour, AVEC et SANS son historique** (2026-10-05, ce geste a tranché « le
+  modèle ou le fil ? »). `run_assistant_turn(user, msg, provider=…, model=…, history=…,
+  surface=…)` avec `wama.tool_api.execute_tool` remplacé par un double qui bouchonne les
+  outils `add`/`start` (`tool_role`) et laisse passer les lectures — jamais de tâche réelle
+  sur le compte id=1. Plusieurs tirages : un taux, pas un tirage. Même modèle, même message,
+  outil sans historique et fabrication avec = le FIL est en cause, pas le modèle.
 - ⚠ **Une réponse « je ne peux pas » se vérifie contre `build_tools_list()`** : l'outil
   existe-t-il ? Trois refus sur quatre de la session fondatrice portaient sur des outils que
   l'assistant AVAIT.

@@ -1187,6 +1187,60 @@ Deux contrôles, dans `assistant_engine` et `development_models` (commit `cf6449
    (« bonjour ») n'est pas visé.
 ⚠ Limite connue : « je lance l'anonymisation » SANS lien ni outil n'est pas attrapé par (2) —
 c'est le plancher (1) qui le prévient, a priori.
+⚠⚠ **RÉFUTÉ le 2026-10-05** (§ suivant) : le plancher ne prévenait rien — un modèle bien
+au-dessus (`deepseek-v4-flash` par Albert) a inventé les mêmes tours sur le même fil. Le
+« a priori » portait sur le MODÈLE ; la cause était ce qu'on lui SERVAIT.
+
+#### 2026-10-05 — l'historique servi ne montrait AUCUN outil : le modèle imitait des réponses sans outil
+
+> Fabien, depuis Discord : « flouter la plaque » sur une photo déposée, puis « quel est le
+> statut ? » → « terminé (ID 649) » et un « 📥 Télécharger… » qui n'est pas un lien. Même
+> symptôme que le 27/09, sur le même fil n° 11. Question posée : *qu'a-t-on cassé depuis ?
+> le modèle ? les skills ?*
+
+**Mesuré, dans cet ordre** (skill `diagnostic-assistant`) :
+1. Les deux tours : `tool_steps` vides, aucune ligne `tool_call` au journal, aucun élément
+   créé. « 649 » = « 648 » du 27/09 + 1. Le vrai floutage de la photo (item 1031) avait été
+   lancé depuis la page web. La mention « (lien non vérifié — retiré) » n'était pas celle du
+   filtre : le modèle l'avait RECOPIÉE des tours du 27/09 — aucune URL, donc `_invented_turn`
+   restait muet.
+2. Taux d'outils par modèle (tours d'assistant depuis le 20/09) : Albert « défaut » 20/21 ;
+   `deepseek-v4-flash` **0/8**, web compris ; `qwen3.8` 9/12. Seul tour Discord réussi du fil :
+   26/09 23:05 (`qwen3.8`, `get_anonymizer_status`, fichier joint).
+3. **Rejeu réel** vers Albert (outils d'écriture bouchonnés, compte réel intact) : SANS
+   historique, le même modèle et le même message appellent l'outil ; AVEC l'historique du fil,
+   il reproduit les deux réponses du jour à l'identique, « ID 649 » compris.
+4. Ni le fournisseur ni les skills : la réponse d'Albert arrive en `content` avec l'appel JSON
+   attendu (`tool_calls` natif vide — hypothèse écartée par mesure), et le bloc d'outils est
+   construit à chaque tour depuis le registre, compétence chargée ou non.
+
+**La cause** : `conversation_store.history` ne servait que le TEXTE des réponses. Dans le
+contexte du modèle, chaque « terminé » passé était une réponse donnée sans outil — dix
+exemples à imiter contre une consigne. Le correctif du 23/09 (`_strip_unsourced_urls`) avait
+nommé le mécanisme (« il lit ses propres mensonges ») mais pas sa moitié : *il ne lisait jamais
+ses vérités non plus*, puisque les appels réels disparaissaient de l'historique. Un fil où une
+fabrication entre ne pouvait donc plus guérir, quel que soit le modèle.
+
+**Levé par trois contrôles** (`assistant_engine`, `conversation_store`) :
+1. `history()` rend les `tool_steps` d'un tour d'assistant ; `_sanitize_history` les DÉPLIE
+   comme la boucle les a joués — l'appel `{"tool": …}`, son résultat (tronqué à 600 caractères,
+   par `_tool_result_message`, la forme UNIQUE de la boucle), puis la réponse. La borne porte
+   sur les TOURS, avant dépliage (sinon un échange serait coupé entre appel et résultat).
+2. Une réponse passée SANS outil qui porte la mention de lien retiré est remplacée, dans
+   l'historique servi, par une note — elle cesse de servir d'exemple. La base n'est pas touchée.
+3. La mention écrite par le modèle lui-même compte comme un lien retiré : `_invented_turn`
+   reprend le tour.
+
+**Mesure de l'effet**, même rejeu, 4 tirages par cas : texte seul **0/8** tours outillés ;
+outils dépliés **8/8** (lancement : `add_to_anonymizer` + `start_anonymizer` ; statut :
+`get_anonymizer_status`). Une annotation « aucun outil appelé » sur les réponses sans outil
+n'ajoutait rien (8/8) : non retenue. ⚠ Un tirage isolé antérieur avait raté les deux tours
+(10/12 au total) : le gain est un TAUX, pas une garantie — le contrôle de sortie (3) reste le
+filet. Gardes : `tests_conversation.HistoryCarriesToolStepsTests`,
+`tests_unsourced_links.InventedTurnTest.test_a_mark_copied_from_the_history_counts_as_an_invented_turn`,
+chacune prouvée par mutation (4 mutations, 4 rouges).
+⚠ Reste : un « je lance » SANS outil et SANS mention n'est toujours attrapé par aucun contrôle
+de sortie — seul l'historique assaini le rend improbable.
 
 **Chaîne prouvée de bout en bout le 23/09 sur l'item réel 647** : `start_anonymizer` →
 `RUNNING` → `SUCCESS` (`users/1/anonymizer/output/IMG-…_blurred_sam3.jpg`) →
