@@ -58,7 +58,12 @@ python manage.py test                       # SUITE COMPLÈTE (~15 min) — ajou
 > là où il y avait **un seul défaut, dans le test** : il exemptait `export_binding` en dur
 > et ignorait `export_formats`, sa clé jumelle ajoutée après lui. Les apps étaient justes.
 > Un compte d'échecs ne dit pas COMBIEN de causes il y a — les relever toutes :
-> `manage.py test 2>&1 | grep -E "^(FAIL|ERROR):|AssertionError"`.
+> `manage.py test > /tmp/suite.log 2>&1` puis
+> `grep -E "^(FAIL|ERROR): test|^AssertionError|^Ran |^OK|^FAILED" /tmp/suite.log`.
+> ⚠ **Le motif `^(FAIL|ERROR):` seul attrape aussi les lignes de JOURNAL** (`ERROR:django.request:…`,
+> émises par des tests sains) : le 2026-10-05, elles ont rempli un `head -80` et coupé le verdict
+> — une suite de 43 minutes à relancer. Le ` test` après les deux-points distingue l'en-tête
+> d'un test d'une ligne de journal ; la sortie complète dans un fichier laisse relire sans relancer.
 
 **État attendu au 2026-08-29** (mesuré ce jour ; c'était **852** le 25/08, **911** le 26/08 et
 **1145** le 28/08 — le total grossit à chaque test ajouté, **ne pas en faire un critère** : les
