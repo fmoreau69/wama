@@ -32,9 +32,10 @@ L'appel POST /tts UNIQUE vers le microservice TTS (payload contractuel, 503 « l
 
 - **Domicile** : `wama/common/tts/service_client.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md §2bis](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Client COMMUN du microservice TTS (`tts_service.py`, FastAPI, uvicorn :8001).
-- **API publique** (3) :
+- **API publique** (4) :
   - `class TTSServiceLoadingError(Exception)` — Le service TTS répond 503 « loading » (démarrage/chargement d'un moteur) —
   - `service_url() -> str` — URL du service TTS : settings Django si disponibles, sinon env, sinon défaut.
+  - `tts_eta_key_size(text, model)` — (clé, taille, unité) de l'ETA d'une synthèse par le service : durée ∝ longueur du texte,
   - `tts_via_service(text, model, *, language='fr', voice_preset='default', speaker_wav=None, multi_speaker=False, scene_description='', options=None, read_timeout=…` — Synthétise `text` via le microservice TTS et renvoie le chemin d'un WAV TEMPORAIRE
 
 ### Contrat de backend
@@ -204,16 +205,17 @@ Le registre `IMPORTERS` EST le dispatch ET la source du résolveur SERVEUR « En
 
 ### Lignes d'exécution des process
 
-UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process sur les six états communs, photo des réglages surveillés, modèle EMPLOYÉ (lisible pendant un « auto »), sortie, durée. Dit ce qui est périmé (`stale_nodes` : réglage surveillé changé, puis cascade) et déduit l'état d'une card de ses process (`aggregate`). L'élément reste la vérité lue par l'interface tant qu'il porte `status` ; l'arrêt et la réconciliation referment les lignes ouvertes
+UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process sur les six états communs, photo des réglages surveillés, modèle EMPLOYÉ (lisible pendant un « auto »), sortie, durée. Dit ce qui est périmé (`stale_nodes` : réglage surveillé changé, puis cascade) et déduit l'état d'une card de ses process (`aggregate`). L'élément reste la vérité lue par l'interface tant qu'il porte `status` ; l'arrêt et la réconciliation referment les lignes ouvertes. Le lancement y écrit son PLAN (`plan` : ses process `PENDING`, avec sa tâche) ; l'ETA d'un process (`step_eta_seconds`, règle des passes du cam_analyzer) et celle d'une card, la somme de ce que joue son lancement (`launch_eta`, 2026-10-05)
 
 - **Domicile** : `wama/common/services/process_runs.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lignes d'exécution des process — la pièce du MOTEUR COMMUN de pipeline qui dit « tel process, pour telle card, dans tel état ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 4.1 à 4.5 (marche P3).
-- **API publique** (15) :
+- **API publique** (21) :
   - `address(item) -> dict` — Adresse d'un élément : `{app, object_type, object_id}` — dérivée de l'élément SEUL, pour
   - `lines(item)` — Les lignes d'exécution d'un élément (une requête, ordonnée par nœud).
   - `lines_by_item(items) -> dict` — `{pk (texte): [lignes]}` des éléments d'UN même modèle — UNE requête pour toute une page
   - `line(item, node_id: str=MAIN_NODE, instance_key: str='')` — La ligne d'un nœud, ou None s'il n'a jamais été lancé.
   - `snapshot(settings, watched) -> dict` — Photo des réglages SURVEILLÉS : `{clé: valeur}` pour chaque clé de `watched`, lue d'un
+  - `plan(item, steps, *, task_id: str='') -> int` — Le lancement ANNONCE les process qu'il va jouer : leurs lignes passent `PENDING` — « son
   - `start(item, node_id: str=MAIN_NODE, *, process_key: str='', kind: str='app', version: str='', instance_key: str='', settings_snapshot: dict | None=None, model_…` — Le process PART : la ligne passe `RUNNING`, sa photo de réglages est prise, l'erreur et
   - `await_resources(item, node_id: str=MAIN_NODE, *, process_key: str='', instance_key: str='', task_id: str='')` — Le tour du process est venu, la VRAM libre ne suffit pas : la ligne le dit, sans effacer
   - `succeed(item, node_id: str=MAIN_NODE, *, instance_key: str='', output_ref: str='', output_summary: dict | None=None, model_key: str | None=None, process_key: s…` — Le process a RENDU son résultat : `SUCCESS`, durée mesurée depuis `start`.
@@ -221,6 +223,11 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
   - `close_open(item, to_status: str=JOB_FAILURE, message: str='') -> int` — Referme les lignes OUVERTES d'un élément qu'on arrête ou qu'on réconcilie : une tâche
   - `forget(item) -> int` — Retire les lignes d'un élément qu'on SUPPRIME (une ligne sans élément ne se lit plus
   - `safely(writer, *args, **kwargs)` — Appelle un écrivain de ce module SANS jamais lever : le cycle de vie d'un traitement ne
+  - `row_eta_seconds(size, last_duration, last_size, learned_seconds)` — Durée estimée d'un process : sa DERNIÈRE durée sur cet élément (le meilleur prédicteur
+  - `last_duration(row) -> tuple` — `(durée, taille)` de la dernière exécution connue d'une ligne : sa durée mesurée, sinon
+  - `process_eta(spec, item)` — L'ETA DÉCLARÉE d'un process pour cet élément (`ProcessSpec.eta`) : `(clé, taille, unité,
+  - `step_eta_seconds(spec, item, row) -> float | None` — Durée estimée d'UN process de la card : la règle de `row_eta_seconds` (sa dernière durée
+  - `launch_eta(item) -> float | None` — Durée TOTALE estimée du lancement d'une card à process : la somme de ses process — ceux
   - `stale_nodes(states: dict, depends_on: dict, snapshots: dict | None=None, current: dict | None=None) -> set` — Nœuds à passer `STALE`, parmi ceux qui sont en `SUCCESS`.
   - `mark_stale(item, node_ids) -> int` — Passe `STALE` les lignes `SUCCESS` des nœuds donnés. Rend le nombre de lignes changées.
   - `aggregate(processes) -> str` — État d'une CARD déduit de ses process — la règle du point 4.4, validée telle quelle le
@@ -1456,11 +1463,11 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
 
 ### Document de détections (type `detections` sur disque)
 
-Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) — le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de Fabien : détection et floutage séparés dans l'anonymizer). Écrit par un process « Détection », relu par le floutage (`blur_utils.blur_detections`, rendu image par image `render_media`) et par l'aperçu (`draw`) ; interpolation des trous d'un objet à la lecture (`by_frame`) — même objet par la piste OU par la place (`iou`, déplacement borné), le réglage seul pour limite (2026-10-05, card #1026). Sans Django ni app : la Data et le Lab peuvent le lire
+Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) — le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de Fabien : détection et floutage séparés dans l'anonymizer). Écrit par un process « Détection », relu par le floutage (`blur_utils.blur_detections`, rendu image par image `render_media`) et par l'aperçu (`draw`) ; interpolation des trous d'un objet à la lecture (`by_frame`) — même objet par la piste OU par la place, le réglage seul pour limite, le centre comblé en COURBE (2026-10-05, card #1026) ; recouvrement et courbe sont les primitives communes de `wama_data/functions` (`box_iou`, `hermite_gap`), celles des fantômes du cam_analyzer. Sans Django ni app : la Data et le Lab peuvent le lire
 
 - **Domicile** : `wama/common/utils/detections.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Les DÉTECTIONS d'un média, sur disque — le type de donnée commun `detections` (`common/catalog/data_types.DataType.DETECTIONS` : objets détectés par frame — frame, bbox, classe, piste).
-- **API publique** (16) :
+- **API publique** (15) :
   - `new_document(*, media: str, width: int, height: int, fps: float=0.0, frame_count: int=1, engine: str='', models=(), classes=(), prompt: str='') -> dict` — Un document vide, prêt à recevoir ses frames (`add`).
   - `detection(*, box, label: str='', conf: float=1.0, track=None, polygons=None) -> dict` — Une détection au format du document : entiers pour les pixels, confiance arrondie.
   - `add(doc: dict, frame_index: int, detections) -> None` — Range les détections d'UNE frame (rien n'est écrit pour une frame vide). Deux appels
@@ -1472,7 +1479,6 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
   - `polygons_to_mask(polygons, shape) -> 'object'` — Le masque (uint8, 0/255) que dessinent des polygones sur une image de forme `shape`.
   - `box_of_polygons(polygons) -> list` — Le rectangle englobant de polygones (x1, y1, x2, y2).
   - `valid_box(box, shape, min_size: int=5)` — Le rectangle ramené dans l'image ; None s'il est vide ou plus petit que `min_size`.
-  - `iou(a, b) -> float` — Recouvrement de deux rectangles (x1, y1, x2, y2), de 0 à 1.
   - `by_frame(doc: dict, *, interpolate: bool=False, max_gap: int=0, min_iou: float=0.2) -> dict` — {indice de frame: [détections]} — détections RELEVÉES, plus, si `interpolate`, celles que
   - `max_gap_for(fps: float, wanted: int) -> int` — Le trou le plus long que l'on comble : le RÉGLAGE, tel quel.
   - `render_media(source: str, frames: dict, paint, output_path: str, *, on_frame=None, progress=None) -> str` — Réécrit le média `source` en peignant chaque frame avec SES détections :
@@ -1902,7 +1908,7 @@ Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, bat
 
 ### Vues de progression (fabrique commune)
 
-Le suivi d'UNE card (`progress`) et la barre de FILE (`global_progress`) en une fabrique — `make_progress_views` (`ROUTE §11 #37`, 2026-10-03). Les dix apps les écrivaient à la main : trois formules de progression d'ensemble, quatre vocabulaires de clés que le JS commun absorbait. UNE formule, celle du contrat de la barre commune (réussi = 100, en cours = sa progression vivante, échec et attente = 0 : un échec n'est pas terminé), un vocabulaire COMPLET ; les spécificités en crochets (`eta_for` = le triplet d'ETA, déclaré UNE fois dans le module de tâches — `<app>_eta_key_size`, que la glu rend aussi à `record_run` —, `extra`, `progress_of` — même crochet que `batch_views` —, `pipeline_model` pour la bande des process, `domains` pour une barre par domaine ; utilisateur par défaut : connecté, sinon anonyme). Le générateur d'apps la consomme. Critère `progress_views_common` ; contrat générique `tests_item_lifecycle_contract` (clés d'une card et de la file, toutes les apps)
+Le suivi d'UNE card (`progress`) et la barre de FILE (`global_progress`) en une fabrique — `make_progress_views` (`ROUTE §11 #37`, 2026-10-03). Les dix apps les écrivaient à la main : trois formules de progression d'ensemble, quatre vocabulaires de clés que le JS commun absorbait. UNE formule, celle du contrat de la barre commune (réussi = 100, en cours = sa progression vivante, échec et attente = 0 : un échec n'est pas terminé), un vocabulaire COMPLET ; les spécificités en crochets (`eta_for` = le triplet d'ETA, déclaré UNE fois dans le module de tâches — `<app>_eta_key_size`, que la glu rend aussi à `record_run` — pour une app à un seul process ; une card à process est estimée par `process_runs.launch_eta`), `extra`, `progress_of` — même crochet que `batch_views` —, `pipeline_model` pour la bande des process, `domains` pour une barre par domaine ; utilisateur par défaut : connecté, sinon anonyme). Le générateur d'apps la consomme. Critère `progress_views_common` ; contrat générique `tests_item_lifecycle_contract` (clés d'une card et de la file, toutes les apps)
 
 - **Domicile** : `wama/common/utils/progress_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Les VUES DE PROGRESSION : fabrique commune (`make_progress_views`).
