@@ -191,6 +191,62 @@
     return bar;
   }
 
+  // ── Comparer : la SORTIE superposée à la RÉFÉRENCE, un curseur (2026-10-06) ──────────────
+  // Commun au volet et à la modale (la modale juxtaposait deux vidéos ; Fabien : « une
+  // superposition avec le slider comme dans le volet »). Images ou vidéos : le calque Sortie est
+  // rogné depuis la gauche, les deux médias ont la même géométrie ; deux vidéos jouent ensemble
+  // (la référence porte les contrôles) ; la référence porte sa surcouche (détections dessinées).
+  function compareView(inD, outD, baseLabel) {
+    var view = document.createElement('div');
+    view.className = 'wama-compare-view';
+    var wrap = document.createElement('div');
+    wrap.className = 'wama-compare';
+    // Les deux vidéos jouent ENSEMBLE : échappatoire de la lecture exclusive (wama-app-base).
+    wrap.setAttribute('data-wama-multiplay', '');
+    var isVideo = (inD.mime_type || '').indexOf('video/') === 0;
+    var label = escapeHtml(baseLabel || 'Entrée');
+    if (isVideo) {
+      wrap.innerHTML =
+        '<video class="wama-compare-base" src="' + escapeHtml(inD.url) + '" controls muted playsinline></video>' +
+        '<div class="wama-compare-top"><video src="' + escapeHtml(outD.url) + '" muted playsinline></video></div>' +
+        '<span class="wama-compare-badge in">' + label + '</span>' +
+        '<span class="wama-compare-badge out">Sortie</span>';
+    } else {
+      wrap.innerHTML =
+        '<img class="wama-compare-base" src="' + escapeHtml(inD.url) + '" alt="' + label + '">' +
+        '<div class="wama-compare-top"><img src="' + escapeHtml(outD.url) + '" alt="Sortie"></div>' +
+        '<span class="wama-compare-badge in">' + label + '</span>' +
+        '<span class="wama-compare-badge out">Sortie</span>';
+    }
+    view.appendChild(wrap);
+    var range = document.createElement('input');
+    range.type = 'range';
+    range.min = 0; range.max = 100; range.value = 50;
+    range.className = 'form-range wama-compare-range';
+    view.appendChild(range);
+    var base = wrap.querySelector('.wama-compare-base');
+    var top = wrap.querySelector('.wama-compare-top');
+    var topMedia = top.querySelector('img, video');
+    function sync() {
+      topMedia.style.width = base.clientWidth + 'px';
+      topMedia.style.height = base.clientHeight + 'px';
+      top.style.width = range.value + '%';
+    }
+    base.addEventListener(isVideo ? 'loadedmetadata' : 'load', sync);
+    range.addEventListener('input', sync);
+    // La taille de la référence change (plein écran, volet redimensionné) : le calque suit.
+    if (global.ResizeObserver) new global.ResizeObserver(sync).observe(base);
+    if (base.complete || (isVideo && base.readyState >= 1)) sync();
+    if (isVideo && global.WamaPreviewOverlay) WamaPreviewOverlay.syncVideos(base, topMedia);
+    if (inD.overlay && global.WamaPreviewOverlay) {
+      WamaPreviewOverlay.attach(base, inD.overlay);
+      var holder = base.parentNode;
+      holder.style.display = 'block';
+      wrap.insertBefore(holder, wrap.firstChild);
+    }
+    return view;
+  }
+
   // Une card est-elle EN COURS (son `data-status`) ? Le volet a la card ; la modale la retrouve
   // par l'adresse d'aperçu de l'élément (`data-preview-url` commence par elle).
   function isRunningCard(card) {
@@ -835,49 +891,7 @@
         var inD = both[0], outD = both[1];
         if (!inD || !outD || !inD.url || !outD.url) return;
         previewHost.innerHTML = '';
-        var wrap = document.createElement('div');
-        wrap.className = 'wama-compare';
-        // Les deux vidéos jouent ENSEMBLE : échappatoire de la lecture exclusive (wama-app-base).
-        wrap.setAttribute('data-wama-multiplay', '');
-        var isVideo = (inD.mime_type || '').indexOf('video/') === 0;
-        if (isVideo) {
-          // Deux VIDÉOS (2026-10-05) : la référence porte les contrôles, l'autre la suit.
-          wrap.innerHTML =
-            '<video class="wama-compare-base" src="' + escapeHtml(inD.url) + '" controls muted playsinline></video>' +
-            '<div class="wama-compare-top"><video src="' + escapeHtml(outD.url) + '" muted playsinline></video></div>' +
-            '<span class="wama-compare-badge in">' + escapeHtml(baseLabel) + '</span>' +
-            '<span class="wama-compare-badge out">Sortie</span>';
-        } else {
-          wrap.innerHTML =
-            '<img class="wama-compare-base" src="' + escapeHtml(inD.url) + '" alt="' + escapeHtml(baseLabel) + '">' +
-            '<div class="wama-compare-top"><img src="' + escapeHtml(outD.url) + '" alt="Sortie"></div>' +
-            '<span class="wama-compare-badge in">' + escapeHtml(baseLabel) + '</span>' +
-            '<span class="wama-compare-badge out">Sortie</span>';
-        }
-        previewHost.appendChild(wrap);
-        var range = document.createElement('input');
-        range.type = 'range';
-        range.min = 0; range.max = 100; range.value = 50;
-        range.className = 'form-range wama-compare-range';
-        previewHost.appendChild(range);
-        var base = wrap.querySelector('.wama-compare-base');
-        var top = wrap.querySelector('.wama-compare-top');
-        var topImg = top.querySelector('img, video');
-        function sync() {
-          topImg.style.width = base.clientWidth + 'px';
-          top.style.width = range.value + '%';
-        }
-        base.addEventListener(isVideo ? 'loadedmetadata' : 'load', sync);
-        range.addEventListener('input', sync);
-        if (base.complete || (isVideo && base.readyState >= 1)) sync();
-        if (isVideo && global.WamaPreviewOverlay) WamaPreviewOverlay.syncVideos(base, topImg);
-        // La référence porte sa surcouche (les détections dessinées), sous le côté « Sortie ».
-        if (inD.overlay && global.WamaPreviewOverlay) {
-          WamaPreviewOverlay.attach(base, inD.overlay);
-          var holder = base.parentNode;
-          holder.style.display = 'block';
-          wrap.insertBefore(holder, wrap.firstChild);
-        }
+        previewHost.appendChild(compareView(inD, outD, baseLabel));
         _renderSideToggle(baseUrl, { side: 'compare', sides: s }, title);
       });
     }
@@ -1640,6 +1654,7 @@
                            renderInlinePreview: renderInlinePreview,
                            duringUrl: duringUrl, variantToggle: variantToggle,
                            followDuring: followDuring, isRunningCard: isRunningCard,
+                           compareView: compareView,
                            cardOfPreview: cardOfPreview,
                            gearValues: gearValues, sharedGearValues: sharedGearValues,
                            hydrateCardPreviews: hydrateCardPreviews };
