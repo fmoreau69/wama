@@ -524,7 +524,7 @@ def _blur(media, ctx):
                  'progressive_blur': media.progressive_blur,
                  'roi_enlargement': media.roi_enlargement}
 
-    def paint(image, found):
+    def blur_frame(image, found):
         return blur_detections(image, found, **settings_)
 
     folder = get_app_media_path('anonymizer', user.id, 'output')
@@ -542,8 +542,8 @@ def _blur(media, ctx):
     _console(user.id, f"Floutage — média {media.id}…")
     ctx.progress(2)
     try:
-        written = detections.paint_media(
-            source, frames_map, paint, target, on_frame=on_frame,
+        written = detections.rewrite_media(
+            source, frames_map, blur_frame, target, on_frame=on_frame,
             progress=lambda done, total: ctx.progress(min(99, int(done * 100 / max(total, 1)))))
     finally:
         if preview is not None:

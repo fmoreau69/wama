@@ -3882,9 +3882,12 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >     `DetectionBackend.process` = `detect` (point d'entrée du contrat commun). Ils n'écrivent et
 >     ne floutent plus rien.
 >   - **Le floutage se joue SANS MODÈLE** depuis le document : `blur_utils.blur_detections`
->     (contour, sinon rectangle) et `detections.paint_media` (image par image, audio recollé ;
->     `render_media` jusqu'au 2026-10-05 — renommée : `check_redundancy` la rapprochait par le
->     nom de la colle `_render` du composer, sans rapport).
+>     (contour, sinon rectangle) et `detections.rewrite_media` (image par image, audio recollé ;
+>     `render_media` jusqu'au 2026-10-05 — `check_redundancy` la rapprochait par le nom de la
+>     colle `_render` du composer —, puis `paint_media` le même jour, abandonné à la question de
+>     Fabien : « paint » désigne dans WAMA la GÉNÉRATION par IA, l'inpainting de l'imager ;
+>     elle ne fait que réécrire le média en appliquant une fonction aux images qui ont des
+>     détections).
 >     L'interpolation des trous d'un objet se fait À LA LECTURE (`by_frame`) : la couper ou la
 >     régler ne redétecte pas. Réglages surveillés : détection = fichier, mode, classes, prompt,
 >     modèle, précision, segmentation, seuil ; floutage = intensité, bords, agrandissement,
@@ -3943,6 +3946,28 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       bornée à la vidéo (longueur inconnue : pas de borne, le rendu ne lit pas au-delà).
 >       Marquée `interpolated` (le floutage la ramène dans l'image) + `extrapolated`. Migration
 >       0035 additive (`db_default`), `stales=("blur",)` : le changer rejoue le floutage seul.
+>     - ✅ **Retours de Fabien sur SAM3, card #1034 (2026-10-05)** — « l'interpolation mélange
+>       les segmentations », « un visage segmenté devient un rectangle », « les finitions ne sont
+>       pas appliquées », « le floutage dure autant que la détection ». Tous MESURÉS, tous vrais :
+>       SAM3 ne donne aucune piste et ses objets « clignotent » (2 à 7 par image) ; la liaison par
+>       la place tolérait UNE TAILLE PAR IMAGE MANQUANTE sans borne → **394 trous reliant deux
+>       objets différents** (jusqu'à 26 tailles), **10 916 détections déduites, toutes
+>       rectangulaires** ; le floutage au contour ignorait agrandissement et bords, fondait VERS
+>       L'INTÉRIEUR — **0,2 % des pixels des formes entièrement floutés au flou progressif 100,
+>       des plaques LISIBLES** (vu sur l'image) —, et flouait l'image entière par détection
+>       (**656 ms/image** ; floutage 458 s contre 500 s de détection).
+>       Corrigé : liaison `_link_cost` (même classe, tailles comparables, position près de celle
+>       que PRÉDIT la vitesse de l'objet, ou près de sa dernière position avec une tolérance
+>       bornée à 3 images) ; une détection déduite garde la FORME de la plus proche relevée
+>       (`_moved_polygons`) ; floutage des formes `blur_utils.blur_shapes` — couvertures réunies,
+>       UN flou de la zone qui les contient, mêmes finitions qu'un rectangle, fondu VERS
+>       L'EXTÉRIEUR. Mesuré sur les 100 premières images de #1034, réglages de la card : formes
+>       entièrement floutées **0,2 % → 100 %**, **656 → 47 ms/image** ; déduites 10 916 → 4 067,
+>       aucune rectangulaire ; sauts de plus de 2 tailles 394 → 54 (dans la tolérance bornée) ;
+>       #1026 inchangée (1 trou sur 19). Identique au pixel près à l'ancien flou sans finitions
+>       (garde `BlurShapeTest`). ⚠ Le protocole du 19/08 prévoyait une bascule
+>       `feature_flags` : `Media` n'a pas de champ de configuration, le retour arrière est un
+>       `git revert` ; la comparaison chiffrée, elle, est faite. Retraits : `REMOVAL_LEDGER` R103.
 >     - **Curseur à 50 et rectangles** : la segmentation de visage du catalogue
 >       (`face_yolov8m-seg_60.pt`) n'est pas installée, la détection s'est faite en boîtes. Rien
 >       ne le disait ; la console le dit après la détection (`_segmentation_note`) et nomme le
