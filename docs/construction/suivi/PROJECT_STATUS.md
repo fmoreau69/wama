@@ -22068,3 +22068,80 @@ WAMA relancé par Fabien (gunicorn 15:38, workers et beat 15:39, après `43c52df
 
 Non vérifié : un vrai lancement par le worker (plan `PENDING` écrit par la tâche, apprentissage
 des clés neuves) — il rejoue le résultat d'une card réelle, il attend l'accord de Fabien.
+
+## §CLÔTURE — 2026-10-05, « CAM_ANALYZER : PASSES DU LAB SUR LES LIGNES COMMUNES (étape 3/3, CLOSE) + TRACKER : doublons fondus, recollement dans les deux sens, trous en courbe, biais de distance mesuré à chaque tracking » — session du 04→05/10 — ✅ `7cea5a30`…`1eecadbd` poussés ; `e6fe9d4c`, `04ca6887`, `627ec7c6`, `feb56cd2` NON poussés — 🔴 WAMA relancé par Fabien en fin de session : vérifier que gunicorn ET les workers tournent sur ce code — 🔚 pourquoi ⚑ range_correction raccourcit les suivis
+
+**Livré** (détail, chiffres et annulation : `CAM_ANALYZER_CHANGELOG.md`, entrées de tête ; retrait : `REMOVAL_LEDGER` R97–R99 ; moteur : `ROUTE §10.6` 4.1) :
+- **`AnalysisPass` → `common.ProcessRun`, étape 3/3 CLOSE** (`7cea5a30`, `8d66a4ab`) : les écrivains
+  `mark_*` écrivent directement la ligne commune ; libellés des 18 passes dans le registre
+  (`Pass.label`, repris mot pour mot) ; panneau, `run_passes`, péremption, ETA et calcul interrompu
+  au vocabulaire `JOB_*` ; JS du panneau sur `WamaApp.normalizeStatus`/`statusLabel` + point d'état
+  commun ; `process_runs.start` garde l'`eta_size_s` du résumé précédent. Table supprimée par la
+  migration `cam_analyzer 0032`, **lancée par Fabien** avant redémarrage (récit rectifié deux fois,
+  `73a6fd06`, `1eecadbd`) ; sauvegarde SQL de la table tirée du dump de 03:30 (dossier des
+  sauvegardes de base, gitignoré — à garder). Panneau vu en service : 21 lignes SUCCESS.
+- **⚑ duplicate_chain_merge** (« Doublons de détection fondus », `dde8ebc0`) : un suivi COURT
+  (≤ 12 observations) qui double un autre dans une même image (IoU ≥ 0,3, < 2 m) est fondu avant le
+  recollement. Règle G459 (fantôme de 525,1 s).
+- **⚑ stitch_bidirectional** (« Recollement dans les DEUX sens ») et **⚑ ghost_hermite** (« Trous
+  comblés en COURBE ») (`e6fe9d4c`) : raccord jugé aussi par la tête de B, seulement entre morceaux
+  roulant ≥ 3 m/s, sens opposés refusés — règle la Twingo G1588 (1780 s) ; fantômes des trous en
+  Hermite (cap au bord des trous p90 19,3° → 2,4°).
+- **Biais de distance par portée, MESURÉ AUTOMATIQUEMENT à chaque Tracking 360°** (`04ca6887`
+  mesure, `627ec7c6` brique) : demande de Fabien « le plus universel possible, par mesure
+  automatisée ». Brique PURE dans `wama_data/functions/geometry/placement_metrics.py`
+  (`static_range_ratios`, `range_bias_curve`, `correct_range`, `range_curve_is_usable` ≥ 2 tranches),
+  FunctionSpec `range_bias_curve` au catalogue ; résultat persisté dans `config['range_bias']` et le
+  résumé, affiché en console. Correction derrière **⚑ range_correction** (« Distances corrigées par la
+  portée ») : **à laisser OFF**.
+- **Délégation aux primitives communes** (`feb56cd2`, à la demande de la session -ae) :
+  `multicam_tracker.box_iou`, `placement_metrics._iou` et `hermite_ghost` délèguent à
+  `shapes.box_iou` / `gap_fill.hermite_gap` ; garde de délégation écrite par -ae (`62eb2cbf`).
+- Skill `commit-partiel` §0 : relire le fichier AU MOMENT du geste (`bed933d3`) — après que
+  `7cea5a30`, commité sur un index temporaire avec un HEAD qui avait bougé, a annulé deux commits
+  d'autres sessions (rétablis par `fce2f8d4` et `9779088c`).
+
+**Recommandation à Fabien** (bascules OFF par défaut, A/B par rejeu, écritures neutralisées) :
+activer ⚑ stitch_bidirectional et ⚑ ghost_hermite ; ⚑ duplicate_chain_merge au choix (G459 réglé,
+allers-retours 417 → 428 dont 7/8 sont l'alternance doublon ↔ chaîne d'origine) ; ⚑ range_correction
+OFF. Aucune bascule ne s'appelle « Twingo » : chacune porte le nom de ce qu'elle corrige.
+
+**Contrôles mesurés à la clôture** : **348 tests OK**, 0 skip, sous WSL2 (venv_linux, base de test
+isolée) — cam_analyzer complet, `tests_placement_metrics`, `tests_process_runs`, `tests_process_states`.
+Gardes prouvées PAR MUTATION (4/4 rouges, fichiers restaurés, `git status` propre) : courbe d'une
+seule tranche acceptée · sens opposés non refusés · morceaux lents recollés par l'arrière · suivis
+longs fondus. JS du panneau : parse V8 OK, source = servi, contre-épreuve en échec attendu.
+`check_redundancy` : seule trouvaille dans mes fichiers = `pass_tracking._queue` (30/09, faux
+positif par le nom, déjà déclaré le 04/10). `manifest_export --check` (WSL2) : corpus des fonctions à
+jour ; 17 périmés (10 apps, 7 modèles) = WIP d'autres instances, non régénérés. `check_docs` :
+5 cassées / 0 périmée, aucune de cette session. `check_skills` : 0 défaut franc.
+⚠ **Non gardés** : la persistance de `config['range_bias']` par `_run_global_tracking` (écriture en
+base, visible à l'usage dans la console et le résumé) ; le panneau des passes au navigateur (vu en
+service, pas de scénario rejouable).
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : comprendre pourquoi ⚑ range_correction raccourcit les suivis
+(rejets « vu moins de 4 s » 2046 → 2433, doublons 21 → 35, relais ratés 54 → 59, garés 698 → 661).
+Piste : l'avant, l'arrière et la gauche sont corrigés, pas la droite (une seule tranche mesurée) —
+désaccord de distance aux relais. Ajouter l'indicateur « écart de vitesse au relais » avant de
+toucher à la correction.
+
+**File des chantiers ouverts (cam_analyzer)** :
+1. 🔄 ⚑ range_correction : cause des suivis raccourcis NON établie (ci-dessus).
+2. ⏳ **G441** : avec ⚑ duplicate_chain_merge, la chaîne arrière 452 est recollée à G441 et un fantôme
+   comble 4,3 s dans la caméra arrière à 525,1 s — à juger sur la vidéo arrière 524-529 s (peut-être
+   une vraie voiture masquée par G366). Et 1 aller-retour sur 8 reste à voir.
+3. 🔄 Relais ratés 26 → 54 depuis la géométrie mesurée (héritage du 04/10) : l'état du track dérive au
+   changement de chaîne YOLO, pas la mesure.
+4. 🔄 Compression de la projection sol au-delà de ~15 m (rapport mesuré : avant ~0,78 dès 20 m, arrière 0,60 à 30-40 m) : la
+   calibration sol ne juge le tangage que sur 2-15 m ; ce n'est pas une simple erreur de tangage.
+   Hauteur de boîte à l'arrière : biais constant ~+12 %.
+5. 🔄 Extrapolation aux bouts d'une trajectoire : décision ouverte côté session -ae (`§PALIER
+   TRAJECTOIRES`).
+6. 🔄 La FunctionSpec `global_tracking` ne nomme pas la mesure du biais de portée (comme
+   `placement_spread`, un résumé de run, pas un port) — à déclarer si un port de qualité est ouvert.
+
+**Pendings système** : relancer gunicorn + workers si ce n'est pas fait (lecteurs `JOB_*`, mesure de
+portée dans la tâche de tracking) ; après la relance, la mesure tourne au prochain Tracking 360° et
+les quatre ⚑ apparaissent dans « Comparer » · push de 4 commits cam_analyzer/wama_data · ⚠ service
+IGN partiellement indisponible pendant les rejeux (mêmes conditions pour tous, garés non concluants
+à ±2) · scripts de rejeu et de mutation dans le scratchpad de session, jetables.
