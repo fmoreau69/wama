@@ -22424,3 +22424,15 @@ gardes `PreviewModalTest` prouvées par mutation.
 - Aucune relance serveur nécessaire : du JS et du CSS servis (recharger la page suffit).
 - ⚠ Un passage du smoke sur quatre a échoué sur une étape non identifiée (sortie tronquée),
   les trois autres sont verts de bout en bout : à surveiller si la modale se comporte mal.
+
+## §PALIER — 2026-10-06, « RIEN RÉINVENTÉ ? + AGRANDISSEMENT 0,75–1,25 » — livré (`1fdd4d15`, `0a077582`, non poussés) — 🔴 relancer gunicorn (schémas) puis recharger la page
+
+Relecture demandée par Fabien : trois réinventions de ma main dans la modale (suiveur de la face
+Pendant, barre de vues, adresse « pendant ») → un suiveur commun `WamaInspector.followDuring`,
+`variantToggle`, `duringUrl`. L'agrandissement de la zone réduit aussi (0,75–1,25) ; deux bornes
+concurrentes trouvées et alignées au passage (flou progressif, `bbox_shift` de l'avatarizer),
+garde générique `PanelBoundsFollowTheSchemaTest` sur toutes les apps. Aucune card hors des
+nouvelles bornes (mesuré). Détail : `ROUTE §10.6`, bloc anonymizer.
+- 🔴 ROUGE PRÉEXISTANT, pas à moi : `tests_settings_surfaces.SettingsSurfacesTest` — réglages du
+  composer (`lyrics`…) présents sur une seule surface (session composer du 04-05/10).
+- ⏳ Remède de fond des bornes : le « volet rendu du schéma » (reste du 2026-09-27).
