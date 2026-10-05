@@ -151,6 +151,30 @@
                 </div>
             </div>
 
+            {# Derniers accès au compte (journal des connexions, 2026-10-05) — refus compris. #}
+            {% if recent_access %}
+            <div class="card bg-dark border-secondary mb-4">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="fas fa-right-to-bracket me-2"></i>Derniers accès à mon compte</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-dark table-sm mb-2">
+                        <tbody>
+                        {% for row in recent_access %}
+                            <tr>
+                                <td class="text-nowrap">{{ row.timestamp|date:"d/m/Y H:i" }}</td>
+                                <td>{{ row.get_event_display }}{% if row.reason %} — {{ row.get_reason_display }}{% endif %}</td>
+                                <td>{% if row.kind != 'person' %}{{ row.get_kind_display }}{% endif %}</td>
+                                <td class="text-light">{{ row.ip|default:"" }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    <div class="small text-light">Une ligne qui n'est pas de vous ? Changez votre mot de passe et prévenez un administrateur. Le journal est conservé six mois.</div>
+                </div>
+            </div>
+            {% endif %}
+
             {% comment %}Rattachement institutionnel — remonté de l'annuaire (SUPANN) à CHAQUE
             connexion LDAP. Ces champs existaient depuis des mois sans être affichés nulle part.
             Les montrer explique à l'utilisateur pourquoi le partage « RAG du labo » lui est

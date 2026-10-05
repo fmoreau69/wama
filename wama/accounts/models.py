@@ -343,13 +343,30 @@ class AccessLog(models.Model):
     """Journal d'accès : trace les connexions (traçabilité recherche + responsabilité RGPD).
     Complète `User.date_joined` (inscription) et `User.last_login` déjà fournis par Django."""
     EVENT_CHOICES = [('login', 'Connexion'), ('logout', 'Déconnexion'),
-                     ('login_denied', 'Connexion refusée (compte inactif)')]
+                     ('login_denied', 'Connexion refusée')]
+    #: QUI s'est connecté, au sens de « est-ce une personne ? » (décision de Fabien, 2026-10-05 :
+    #: MARQUER plutôt qu'exclure). Mesuré ce jour-là : sur 1 087 lignes, 24 venaient de
+    #: personnes — le reste, de scripts et de tests, dont beaucoup sous des comptes réels. Un
+    #: journal d'accès sert à retrouver ce qu'on n'attendait pas : on garde tout, on le dit.
+    KIND_PERSON, KIND_VISITOR, KIND_SCRIPT, KIND_TEST = 'person', 'visitor', 'script', 'test'
+    KIND_CHOICES = [(KIND_PERSON, 'Personne'), (KIND_VISITOR, 'Visiteur sans compte'),
+                    (KIND_SCRIPT, 'Script (sans navigateur)'), (KIND_TEST, 'Compte de test')]
+    #: POURQUOI une connexion a été refusée — jamais le mot de passe tenté.
+    REASON_CHOICES = [('unknown_account', 'Compte inconnu de WAMA'),
+                      ('inactive', 'Compte en attente de validation ou désactivé'),
+                      ('bad_credentials', 'Identifiants refusés')]
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
                              related_name='access_logs')
     username = models.CharField(max_length=150, blank=True, default='')   # conservé si user supprimé
     event = models.CharField(max_length=16, choices=EVENT_CHOICES, default='login')
     ip = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.CharField(max_length=256, blank=True, default='')
+    kind = models.CharField(max_length=12, choices=KIND_CHOICES, default=KIND_PERSON,
+                            db_default=KIND_PERSON, db_index=True)
+    reason = models.CharField(max_length=24, choices=REASON_CHOICES, blank=True, default='',
+                              db_default='')
+    #: Par où l'identité a été vérifiée (annuaire, compte local) — vide pour un refus.
+    auth_backend = models.CharField(max_length=32, blank=True, default='', db_default='')
     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:

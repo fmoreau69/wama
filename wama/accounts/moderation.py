@@ -82,16 +82,76 @@ def _client_ip(request):
     return (xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')) or None
 
 
-def _log(user, event, request):
+def access_kind(user, request, username: str = '') -> str:
+    """Ce qu'une ligne du journal DIT de son auteur : compte de test, visiteur sans compte,
+    script (aucune adresse NI navigateur : `force_login`, session fabriquée, appel sans
+    requête), ou personne. L'ordre compte : un compte de test piloté par un navigateur reste
+    un compte de test."""
+    from wama.common.services.nightly_tests import TEST_USERNAMES
+
+    from .models import AccessLog
+    from .permissions import is_guest_account
+    name = getattr(user, 'username', '') or username or ''
+    if name in TEST_USERNAMES:
+        return AccessLog.KIND_TEST
+    if user is not None and is_guest_account(user):
+        return AccessLog.KIND_VISITOR
+    agent = request.META.get('HTTP_USER_AGENT', '') if request is not None else ''
+    if not _client_ip(request) and not agent:
+        return AccessLog.KIND_SCRIPT
+    return AccessLog.KIND_PERSON
+
+
+def _backend_name(user) -> str:
+    """`ldap` ou `local` — par où l'identité a été vérifiée (attribut posé par `authenticate`)."""
+    path = getattr(user, 'backend', '') or ''
+    if not path:
+        return ''
+    return 'ldap' if 'LDAP' in path else 'local'
+
+
+def denial_reason(username: str) -> str:
+    """Pourquoi `username` n'a pas pu se connecter, d'après ce que WAMA SAIT de ce compte.
+    Un compte de l'annuaire jamais venu est « inconnu de WAMA » : on ne peut pas distinguer
+    ici une faute de frappe d'un mot de passe faux, et on ne le prétend pas."""
+    account = User.objects.filter(username__iexact=username).only('is_active').first()
+    if account is None:
+        return 'unknown_account'
+    return 'bad_credentials' if account.is_active else 'inactive'
+
+
+def _log(user, event, request, *, username: str = '', reason: str = ''):
     try:
         from .models import AccessLog
         AccessLog.objects.create(
             user=user if getattr(user, 'pk', None) else None,
-            username=getattr(user, 'username', '') if user else '',
+            username=(getattr(user, 'username', '') if user else username)[:150],
             event=event, ip=_client_ip(request),
-            user_agent=(request.META.get('HTTP_USER_AGENT', '')[:256] if request else ''))
+            user_agent=(request.META.get('HTTP_USER_AGENT', '')[:256] if request else ''),
+            kind=access_kind(user, request, username), reason=reason,
+            auth_backend=_backend_name(user))
     except Exception:
         logger.debug('AccessLog échoué', exc_info=True)
+
+
+def purge_access_log(*, days: int = None, dry_run: bool = False) -> dict:
+    """Supprime les lignes du journal plus vieilles que la durée de conservation
+    (`WAMA_ACCESS_LOG_RETENTION_DAYS`, six mois — décision de Fabien, 2026-10-05). Le journal
+    porte des données personnelles (compte, adresse, navigateur, horaires) : il ne se garde
+    pas sans limite. Rend `{'cutoff', 'purged'}`."""
+    from datetime import timedelta
+
+    from django.conf import settings
+    from django.utils import timezone
+
+    from .models import AccessLog
+    days = int(days if days is not None else getattr(settings, 'WAMA_ACCESS_LOG_RETENTION_DAYS', 183))
+    cutoff = timezone.now() - timedelta(days=days)
+    stale = AccessLog.objects.filter(timestamp__lt=cutoff)
+    count = stale.count()
+    if count and not dry_run:
+        stale.delete()
+    return {'cutoff': cutoff.isoformat(), 'purged': count, 'dry_run': dry_run}
 
 
 @receiver(user_logged_in)
@@ -107,6 +167,8 @@ def _on_logout(sender, request, user, **kwargs):
 @receiver(user_login_failed)
 def _on_login_failed(sender, credentials, request=None, **kwargs):
     # Tentative sur un compte inactif (en attente de modération) ou identifiants faux.
+    # Le NOM tenté et le MOTIF sont gardés (jusqu'au 2026-10-05 la ligne s'écrivait sans nom :
+    # un refus ne disait ni qui ni pourquoi). Le mot de passe, lui, ne quitte jamais ce dict.
     uname = (credentials or {}).get('username', '')
     if uname:
-        _log(None, 'login_denied', request)
+        _log(None, 'login_denied', request, username=uname, reason=denial_reason(uname))
