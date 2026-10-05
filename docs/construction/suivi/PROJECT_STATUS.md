@@ -21833,7 +21833,7 @@ la bande montre Partition et Rendu périmés ; ▶ → rendu chanté avec les pa
 **Laissé de côté, nommément** (annoncé ou proposé, non fait) :
 1. Griser au sélecteur les modèles qui ne chantent pas quand « Chanson » est choisie (la console le
    dit au lancement seulement).
-2. ✨ de la card de l'imager : bouton écrit DANS l'app (`imager/index.js`), à porter sur l'option
+2. ✨ de la card de l'imager : bouton écrit DANS l'app (`wama/imager/static/imager/js/index.js`), à porter sur l'option
    `trigger` de la brique `WamaPromptEnrich` (le composer l'utilise depuis le 04/10).
 3. ACE-Step chante mais ne déclare pas `supports_vocals` : aucun moteur exécutable dans WAMA.
 4. Langue des paroles supposée = celle du profil (aucune détection de langue d'un texte dans WAMA).
