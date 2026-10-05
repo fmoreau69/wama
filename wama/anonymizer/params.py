@@ -159,7 +159,10 @@ PARAMS = derive_from_model(
         # flouter » comme au volet droit — le groupe explicite prime sur le repli Avancé.
         "roi_enlargement": dict(
             type="range", label="Agrandissement de la zone", icon="fa-up-right-and-down-left-from-center",
-            dom_id={"panel": "user_setting_roi_enlargement"}, min=1.0, max=2.0, step=0.05,
+            # RÉDUIRE ou agrandir (2026-10-06, Fabien) : 0,75–1,25. Le volet bornait 0,5–1,5
+            # (l'intention d'origine) pendant que ce schéma bornait 1,0–2,0 — agrandir seulement.
+            dom_id={"panel": "user_setting_roi_enlargement"}, min=0.75, max=1.25, step=0.05,
+            help="Aire floutée autour de l'objet : moins de 1 la réduit, plus de 1 l'agrandit.",
             advanced=True, group="comment", stales=("blur",),
         ),
         "progressive_blur": dict(
