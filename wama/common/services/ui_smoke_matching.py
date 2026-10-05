@@ -201,6 +201,144 @@ def register_voice_language_scenarios():
                  timeout_s=240)
 
 
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# VOIX D'UN MORCEAU (composer) : « Chanson » grise les modèles qui ne CHANTENT pas
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+def check_vocals_matching():
+    """La valeur « Chanson » du réglage Voix grise, au volet ET dans la modale ⚙, les modèles qui
+    ne déclarent pas `supports_vocals` — avec la raison, jamais cachés, « auto » jamais grisé ;
+    « Instrumental » ne grise rien (2026-10-05, `WamaInputMatch.capabilitySlot`). La modale porte
+    aussi le prompt à deux faces avec son ✨ et le champ Paroles. (ok, detail).
+    Un élément témoin du compte de test est créé hors du contexte Playwright, et retiré."""
+    from playwright.sync_api import sync_playwright
+    from wama.common.services.nightly_tests import SkipScenario, get_test_user
+    from wama.composer.models import ComposerGeneration
+    from wama.composer.utils.vocals import singing_models
+
+    jeton = _test_session_key('composer')
+    if not jeton:
+        raise SkipScenario('aucun compte de test disponible')
+    chanteurs = set(singing_models('text-to-music'))
+    if not chanteurs:
+        raise SkipScenario('aucun modèle ne déclare supports_vocals au catalogue')
+    # Prompt VIDE : l'enrichissement à l'ingestion ne part pas (`prompt_ingest._on_created`) —
+    # le témoin ne réveille aucun LLM, et sa modale montre le prompt de l'utilisateur (✨ offert).
+    element = ComposerGeneration.objects.create(user=get_test_user(), prompt='',
+                                                model='composer:musicgen-small')
+    verdicts = []
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                ctx = browser.new_context(viewport={'width': 1500, 'height': 1100})
+                ctx.add_cookies(_cookie(jeton))
+                page = ctx.new_page()
+                erreurs = []
+                page.on('console', lambda m: erreurs.append(m.text) if m.type == 'error' else None)
+                resp = page.goto(BASE_URL + '/composer/', wait_until='networkidle')
+                v = _verdict_d_arrivee(page.url, _messages_a_l_ecran(page),
+                                       resp.status if resp else None, '/composer/')
+                if v is not None:
+                    return v
+                page.wait_for_timeout(1800)
+
+                def mesurer(model_id, vocals_id, etape):
+                    page.evaluate(_JS_SET, [vocals_id, 'song'])
+                    page.wait_for_timeout(500)
+                    e = {m['v']: m for m in page.evaluate(_JS_ETAT_MODELES, model_id)}
+                    voix = [k for k, m in e.items() if m['disabled'] and 'Voix' in m['title']]
+                    autos = [k for k in e if k.startswith('auto')]
+                    verdicts.append((bool(voix) and not (set(voix) & chanteurs),
+                                     f'{etape} « Chanson » grise {len(voix)} non-chanteur(s), '
+                                     f'aucun chanteur'))
+                    verdicts.append((not (set(voix) & set(autos)), f'{etape} « auto » jamais grisé'))
+                    page.evaluate(_JS_SET, [vocals_id, 'instrumental'])
+                    page.wait_for_timeout(400)
+                    e = {m['v']: m for m in page.evaluate(_JS_ETAT_MODELES, model_id)}
+                    verdicts.append((not [k for k, m in e.items() if 'Voix' in m['title']],
+                                     f'{etape} « Instrumental » ne grise rien'))
+
+                if not page.query_selector('#vocalsSelect'):
+                    return False, 'réglage Voix (#vocalsSelect) absent du volet'
+                mesurer('modelSelect', 'vocalsSelect', 'Volet :')
+                gear = f'.settings-btn[data-id="{element.pk}"]'
+                if not page.query_selector(gear):
+                    return False, f'⚙ de l’élément témoin #{element.pk} absent de la file'
+                for tour in (1, 2):          # la SECONDE modale (recréée) est celle qu'on mesure
+                    page.locator(gear).first.click(timeout=15000)
+                    page.wait_for_selector('.modal.show', timeout=8000)
+                    page.wait_for_timeout(1800)
+                    if tour == 1:
+                        page.locator('.modal.show [data-bs-dismiss="modal"]').first.click()
+                        page.wait_for_selector('.modal.show', state='detached', timeout=8000)
+                        page.wait_for_timeout(500)
+                verdicts.append((bool(page.query_selector('.modal.show #settingsLyrics')),
+                                 'Modale : champ Paroles présent'))
+                bar = page.evaluate("() => { const b = document.querySelector("
+                                    "'.modal.show .wama-prompt-enrich'); return b ? b.textContent : ''; }")
+                verdicts.append(('Traduire et enrichir' in bar, 'Modale : ✨ de la brique sous le prompt'))
+                mesurer('settingsModel', 'settingsVocals', 'Modale :')
+                keep = [x for x in erreurs if not any(tok in x for tok in IGNORED_CONSOLE)]
+                verdicts.append((not keep, f'console : {len(keep)} erreur(s) {keep[:1]}'))
+            finally:
+                browser.close()
+    finally:
+        ComposerGeneration.objects.filter(pk=element.pk).delete()
+    return _bilan(verdicts)
+
+
+def check_imager_enrich_trigger():
+    """Le ✨ « Traduire et enrichir » de l'imager est celui de la BRIQUE (2026-10-05) : présent
+    sous le prompt des deux cards (image, vidéo), et plus aucun bouton écrit dans l'app. (ok, detail)."""
+    from playwright.sync_api import sync_playwright
+    from wama.common.services.nightly_tests import SkipScenario
+
+    jeton = _test_session_key('imager')
+    if not jeton:
+        raise SkipScenario('aucun compte de test disponible')
+    verdicts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        try:
+            ctx = browser.new_context(viewport={'width': 1500, 'height': 1100})
+            ctx.add_cookies(_cookie(jeton))
+            page = ctx.new_page()
+            erreurs = []
+            page.on('console', lambda m: erreurs.append(m.text) if m.type == 'error' else None)
+            resp = page.goto(BASE_URL + '/imager/', wait_until='networkidle')
+            v = _verdict_d_arrivee(page.url, _messages_a_l_ecran(page),
+                                   resp.status if resp else None, '/imager/')
+            if v is not None:
+                return v
+            page.wait_for_timeout(1500)
+            for prompt_id in ('imgPrompt', 'vidPrompt'):
+                bar = page.evaluate(
+                    "(id) => { const f = document.getElementById(id); if (!f) return null;"
+                    " let n = f.nextElementSibling; while (n && !n.classList.contains('wama-prompt-enrich'))"
+                    " n = n.nextElementSibling; return n ? n.textContent : ''; }", prompt_id)
+                verdicts.append((bool(bar) and 'Traduire et enrichir' in bar,
+                                 f'{prompt_id} : ✨ de la brique sous le prompt'))
+            verdicts.append((not page.query_selector('.enhance-prompt-btn'),
+                             'aucun bouton ✨ écrit dans l’app'))
+            keep = [x for x in erreurs if not any(tok in x for tok in IGNORED_CONSOLE)]
+            verdicts.append((not keep, f'console : {len(keep)} erreur(s) {keep[:1]}'))
+        finally:
+            browser.close()
+    return _bilan(verdicts)
+
+
+def register_vocals_scenarios():
+    from wama.common.services.nightly_tests import register
+    register(id='composer.vocals_matching', app='composer', stage='ui',
+             description='composer : « Chanson » grise les non-chanteurs (volet + modale ⚙), '
+                         '« auto » jamais ; Paroles et ✨ dans la modale',
+             run=lambda ctx: check_vocals_matching(), timeout_s=240)
+    register(id='imager.prompt_enrich_trigger', app='imager', stage='ui',
+             description='imager : le ✨ du prompt est celui de la brique WamaPromptEnrich',
+             run=lambda ctx: check_imager_enrich_trigger(), timeout_s=180)
+
+
 def check_voice_library_pick(app: str, url_path: str, ids: dict):
     """Un champ de VOIX ouvre la fenêtre commune de la médiathèque : AJOUTER (fichier nommé, puis
     micro) et CHOISIR, sans quitter l'app (2026-09-30). (ok, detail).
