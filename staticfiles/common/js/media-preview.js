@@ -429,35 +429,29 @@
         }));
     }
 
-    /** Comparaison côte-à-côte (entrée | sortie) dans le plein écran — réutilise buildPreviewContent. */
+    /** Comparer dans la modale et son plein écran : la SORTIE superposée à la référence, un
+     *  curseur — la fabrique COMMUNE du volet (`WamaInspector.compareView`). La modale juxtaposait
+     *  deux médias jusqu'au 2026-10-06 (Fabien : « une superposition avec le slider »). */
     function _modalCompare(modal, base, s) {
         const container = modal.querySelector('.preview-container');
+        const I = window.WamaInspector;
+        if (!I || !I.compareView) return;
+        const baseSide = s.compare_base || 'input';
+        const baseLabel = baseSide === 'input' ? 'Entrée'
+            : ((s.faces || []).filter(function (f) { return f.key === baseSide; })[0] || {}).label || baseSide;
         Promise.all([
             // La face de RÉFÉRENCE déclarée par l'app (sinon l'entrée) contre la sortie.
-            fetch(base + _sepQS(base) + 'side=' + (s.compare_base || 'input')).then(function (r) { return r.ok ? r.json() : null; }),
+            fetch(base + _sepQS(base) + 'side=' + baseSide).then(function (r) { return r.ok ? r.json() : null; }),
             fetch(base + _sepQS(base) + 'side=output').then(function (r) { return r.ok ? r.json() : null; }),
         ]).then(function (a) {
             const din = a[0], dout = a[1];
-            if (!din || !dout || !container) return;
+            if (!din || !dout || !din.url || !dout.url || !container) return;
+            _stopModalDuring();
             Array.prototype.forEach.call(container.querySelectorAll(':scope > :not(.wama-modal-sides):not(.wama-preview-nav-btn)'),
                 function (el) { el.remove(); });
-            const wrap = document.createElement('div');
-            wrap.style.cssText = 'display:flex;gap:10px;width:100%;height:100%;align-items:center;justify-content:center;';
-            // Les deux vidéos jouent ENSEMBLE : échappatoire de la lecture exclusive (wama-app-base).
-            wrap.setAttribute('data-wama-multiplay', '');
-            const shown = [din, dout].map(function (dd) {
-                const col = document.createElement('div');
-                col.style.cssText = 'flex:1;min-width:0;max-height:100%;text-align:center;overflow:auto;';
-                const el = buildPreviewContent(dd);
-                col.appendChild(el);
-                wrap.appendChild(col);
-                return el;
-            });
-            container.appendChild(wrap);
-            // Deux vidéos côte à côte : la seconde suit la première (lecture, pause, position).
-            if (shown[0].tagName === 'VIDEO' && shown[1].tagName === 'VIDEO' && window.WamaPreviewOverlay) {
-                WamaPreviewOverlay.syncVideos(shown[0], shown[1]);
-            }
+            const view = I.compareView(din, dout, baseLabel);
+            view.classList.add('wama-modal-compare');
+            container.appendChild(view);
             din._baseUrl = base; din.sides = s; din.side = 'compare';
             _renderModalSides(modal, din);
         });

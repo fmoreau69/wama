@@ -85,16 +85,28 @@ class DetectionFaceOfTheAnonymizerTest(TestCase):
 class CompareLetsBothVideosPlayTest(TestCase):
     """The common « exclusive playback » (`wama-app-base.js`) pauses every other media when one
     starts : the compared video started by the sync paused the reference at once (seen in the
-    browser on 2026-10-05). Both compare surfaces must carry its declared escape hatch."""
+    browser on 2026-10-05). Since 2026-10-06 the panel and the modal build Compare with ONE common
+    view (`WamaInspector.compareView` : the output laid OVER the reference, a slider — the modal
+    showed two videos side by side) : the escape hatch lives there, and both surfaces use it."""
 
-    def test_both_compare_surfaces_let_the_two_videos_play_together(self):
+    @staticmethod
+    def _body(name, function, indent='    '):
         from django.conf import settings
-        js = os.path.join(settings.BASE_DIR, 'wama', 'common', 'static', 'common', 'js')
-        for name, function in (('wama-inspector.js', 'function _renderCompare'),
-                               ('media-preview.js', 'function _modalCompare')):
-            with open(os.path.join(js, name), encoding='utf-8') as source:
-                text = source.read()
-            body = text[text.index(function):]
-            body = body[:body.index('\n    }\n')]
-            self.assertIn("setAttribute('data-wama-multiplay'", body, name)
-            self.assertIn('syncVideos', body, name)
+        path = os.path.join(settings.BASE_DIR, 'wama', 'common', 'static', 'common', 'js', name)
+        with open(path, encoding='utf-8') as source:
+            text = source.read()
+        body = text[text.index(function):]
+        return body[:body.index('\n' + indent + '}\n')]
+
+    def test_the_common_compare_view_lets_the_two_videos_play_together(self):
+        view = self._body('wama-inspector.js', 'function compareView', indent='  ')
+        self.assertIn("setAttribute('data-wama-multiplay'", view)
+        self.assertIn('syncVideos', view)
+        self.assertIn('wama-compare-top', view, 'the output laid over the reference')
+        self.assertIn('wama-compare-range', view, 'a slider')
+
+    def test_the_panel_and_the_modal_build_compare_with_the_common_view(self):
+        self.assertIn('compareView(', self._body('wama-inspector.js', 'function _renderCompare'))
+        modal = self._body('media-preview.js', 'function _modalCompare')
+        self.assertIn('I.compareView(', modal)
+        self.assertNotIn('buildPreviewContent', modal, 'no more side-by-side copies')

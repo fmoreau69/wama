@@ -4008,6 +4008,27 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       pas se passer de bornes (un curseur sans bornes arrondit 1,05 à 1 avant tout script) :
 >       garde générique `tests_settings_surfaces.PanelBoundsFollowTheSchemaTest`, toute app.
 >       ⏳ Le remède de fond reste le « volet rendu du schéma » (reste du 2026-09-27). `1fdd4d15`.
+>     - ✅ **Comparer dans la modale et son plein écran = la forme du volet** (Fabien,
+>       2026-10-06 : « une superposition avec le slider comme dans la preview de l'inspecteur ») :
+>       la modale juxtaposait deux médias. UNE fabrique `WamaInspector.compareView` (sortie
+>       superposée à la référence, rognée par un curseur, deux vidéos jouées ensemble, détections
+>       dessinées sur la référence, le calque suit les changements de taille) construit Comparer
+>       pour le volet ET la modale ; en grand dans la modale, la place du curseur réservée en
+>       plein écran. Vérifié au navigateur : superposition, curseur 50 % → 80 %, détections, curseur
+>       visible, 0 erreur JS. Gardes `tests_preview_faces.CompareLetsBothVideosPlayTest` (prouvée
+>       par mutation). ⚠ Un passage sur six du smoke a échoué sur l'apparition de la barre de vues
+>       du volet (card témoin « en cours » SANS tâche réelle) ; non reproduit ensuite, cause non
+>       établie.
+>     - ⏳ **Une vidéo source illisible dans WAMA depuis toujours (`SEQ08-01.mp4`, constat du
+>       2026-10-06, décision de Fabien attendue)** — mesuré à `ffprobe` : conteneur **AVI** sous
+>       une extension `.mp4`, H.264 profil **High 4:4:4 Predictive** (65 Mb/s, quasi sans perte).
+>       Deux obstacles indépendants : aucun navigateur ne lit l'AVI, Chrome ne décode pas ce
+>       profil — remuxer sans réencoder ne suffit pas. Les sorties de WAMA, elles, se lisent (H.264
+>       High, MP4). La brique `common/utils/video_compat.py` juge la compatibilité au SEUL nom du
+>       codec (`h264` réputé lisible) : elle laisse passer ce fichier — et son `ensure_h264`
+>       réencode EN PLACE (l'original disparaît). Piste proposée : une COPIE DE LECTURE (H.264
+>       High 4:2:0, MP4) servie par l'aperçu seulement, l'original intact pour les traitements ;
+>       et un verdict de lisibilité qui lise conteneur + profil + format de pixels.
 >     - **Curseur à 50 et rectangles** : la segmentation de visage du catalogue
 >       (`face_yolov8m-seg_60.pt`) n'est pas installée, la détection s'est faite en boîtes. Rien
 >       ne le disait ; la console le dit après la détection (`_segmentation_note`) et nomme le

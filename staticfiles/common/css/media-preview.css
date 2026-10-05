@@ -46,10 +46,27 @@
     max-width: 100%;
     object-fit: contain;
 }
-/* Comparer en plein écran : deux colonnes, chacune sa moitié. */
-#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .preview-container > div[style*="flex"] img,
-#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .preview-container > div[style*="flex"] video {
+/* Comparer dans la modale : la fabrique commune du volet (`compareView`), en GRAND — le volet
+   la borne à 220 px (`wama-inspector.css`). Le curseur sous le média, sur toute sa largeur. */
+#wamaMediaPreviewModal .wama-modal-compare {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 52px;          /* sous la barre des faces */
+}
+#wamaMediaPreviewModal .wama-modal-compare .wama-compare img,
+#wamaMediaPreviewModal .wama-modal-compare .wama-compare video {
+    max-height: 70vh;
+}
+#wamaMediaPreviewModal .wama-modal-compare .wama-compare-range {
     width: 100%;
+    max-width: 900px;
+}
+/* En plein écran, la comparaison laisse la place de la barre des faces et du curseur. */
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .wama-modal-compare .wama-compare img,
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .wama-modal-compare .wama-compare video {
+    height: calc(100vh - 230px) !important;
+    max-height: calc(100vh - 230px) !important;
 }
 /* Le bouton d'agrandissement de l'image : en bas, hors de la barre des faces ; inutile une fois
    la modale à tout l'écran. */
