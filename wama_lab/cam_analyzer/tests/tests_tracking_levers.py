@@ -218,6 +218,33 @@ class GhostHermiteTest(SimpleTestCase):
         self.assertIn("use_hermite=_feat.get('ghost_hermite', False)", src)
 
 
+class RangeCorrectionWiringTest(SimpleTestCase):
+    """⚑ range_correction (2026-10-05) : courbe de biais de distance mesurée AUTOMATIQUEMENT à chaque
+    tracking (garés), persistée, appliquée au calcul suivant — universel, rien à saisir par caméra."""
+    CURVE = [{'lo': 4.0, 'hi': 10.0, 'ratio': 1.0}, {'lo': 10.0, 'hi': 15.0, 'ratio': 0.95},
+             {'lo': 30.0, 'hi': 40.0, 'ratio': 0.6}]
+
+    def test_the_fix_stretches_the_distance_and_keeps_the_direction(self):
+        lat, lon = mt.range_fix((3.0, 20.0), self.CURVE)
+        self.assertGreater(lon, 20.0)
+        self.assertAlmostEqual(lat / lon, 3.0 / 20.0, places=9)
+        self.assertEqual(mt.range_fix((3.0, 20.0), None), (3.0, 20.0))
+
+    def test_declared_off_measured_every_run_and_persisted_by_the_task(self):
+        f = {x.key: x for x in FEATURES}['range_correction']
+        self.assertFalse(f.default)
+        self.assertEqual(f.scope, 'compute')
+        src = inspect.getsource(mt.annotate_global_tracks)
+        self.assertIn('measure_range_bias(', src)
+        self.assertIn("'range_bias': range_bias", src)
+        self.assertIn("range_fix(ego, _rb_applied.get((pos, 'ground')))", src)
+        self.assertIn("range_fix(ego, _rb_applied.get((pos, 'box')))", src)
+        from wama_lab.cam_analyzer import tasks
+        task_src = inspect.getsource(tasks._run_global_tracking)
+        self.assertIn("_cfg['range_bias']", task_src)
+        self.assertIn("'config'] if _config_changed", task_src)
+
+
 class ServerHeadingTest(SimpleTestCase):
     """Le cap d'un véhicule qui roule vient de la vitesse LISSÉE du serveur (2026-10-02) : la trace
     de la page, vidée à chaque saut, faisait dessiner un véhicule qui traverse dans l'axe de la route."""

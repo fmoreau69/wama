@@ -186,6 +186,16 @@ FEATURES = [
             "(~3 puis 6,5 m/s à l'arrière, 11 m/s à l'avant) — A prolongé la manquait de 9,4 m. "
             "Tracking à rejouer après bascule.",
             default=False, scope='compute'),
+    Feature('range_correction', 'Distances corrigées par la portée (mesure automatique)',
+            "À chaque calcul du tracking, la justesse des distances est MESURÉE automatiquement, par "
+            "caméra et par méthode (projection sol, hauteur de boîte), sur les voitures garées : une "
+            "garée ne bouge pas — sa position fixe vient de ses vues proches, et l'on compare la "
+            "distance mesurée de loin à la distance vraie, par tranche (4-10 … 30-40 m). La bascule "
+            "corrige les distances avec la courbe du calcul PRÉCÉDENT (plausibilité vérifiée) ; la "
+            "courbe d'après correction s'affiche en console (contrôle : ~1,00). Mesuré le 2026-10-05 : "
+            "projection sol arrière 0,60 à 30-40 m, avant 0,78 au-delà de 20 m. Universel : rien à "
+            "saisir pour une nouvelle vue caméra. Tracking à rejouer (deux fois la 1ʳᵉ fois).",
+            default=False, scope='compute'),
     Feature('ghost_hermite', 'Trous comblés en COURBE',
             "Un trou de suivi (≤ 6 s) était comblé par une ligne droite entre ses deux bords : le cap "
             "cassait à l'entrée et à la sortie, et la ligne pouvait couper une file de garés. La courbe "
