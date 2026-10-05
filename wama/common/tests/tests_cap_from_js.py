@@ -401,3 +401,28 @@ class PreviewOverlayTest(SimpleTestCase):
             return [wide.x, wide.y, wide.scale, tall.x, tall.y, tall.scale, O.contentRect(0, 0, 1, 1).scale];
         })()""")
         self.assertEqual([0, 75, 0.5, 125, 0, 0.5, 1], list(out))
+
+    def test_the_compared_video_follows_the_reference(self):
+        """Compare on two videos : seek, play, pause and speed of the reference drive the other
+        one, which is muted. Seen broken in the browser before (the other stayed at 0)."""
+        out = self.v8.eval("""(function () {
+            function video() {
+                var v = {currentTime: 0, playbackRate: 1, muted: false, plays: 0, pauses: 0, on: {}};
+                v.addEventListener = function (ev, fn) { (v.on[ev] = v.on[ev] || []).push(fn); };
+                v.fire = function (ev) { (v.on[ev] || []).forEach(function (fn) { fn(); }); };
+                v.play = function () { v.plays++; return {catch: function () {}}; };
+                v.pause = function () { v.pauses++; };
+                return v;
+            }
+            var master = video(), slave = video();
+            window.WamaPreviewOverlay.syncVideos(master, slave);
+            var trace = [slave.muted];
+            master.currentTime = 2; master.fire('seeked'); trace.push(slave.currentTime);
+            master.currentTime = 2.05; master.fire('timeupdate');
+            trace.push(slave.currentTime);                 // within 0.12 s : left alone
+            master.fire('play'); trace.push(slave.plays);
+            master.currentTime = 3; master.fire('pause'); trace.push(slave.pauses, slave.currentTime);
+            master.playbackRate = 1.5; master.fire('ratechange'); trace.push(slave.playbackRate);
+            return trace;
+        })()""")
+        self.assertEqual([True, 2, 2, 1, 1, 3, 1.5], list(out))
