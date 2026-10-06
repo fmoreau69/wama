@@ -74,10 +74,10 @@ par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
 - `common/utils/detail_registry.py` (miroir de `preview_registry`) — **DEUX voies
   d'enregistrement**, pas une :
 
-  | Voie | Signature | Adoption (mesurée 2026-10-03 ; c'était 9 / 3 le 22/08) |
+  | Voie | Signature | Adoption (mesurée 2026-10-05 ; 9 / 2 le 03/10, 9 / 3 le 22/08) |
   |---|---|---|
-  | **Spec** (déclarative) — LA voie | `register_app_detail_spec(app, model, spec)` → `detail_from_spec` | **9 apps** — anonymizer, avatarizer, composer, converter, describer, enhancer, reader, synthesizer, transcriber (+ les jumelles générées) |
-  | **Adapter** (fonction) — RESTE À PORTER | `register_app_detail(app, model, adapter)` | **2** — `imager` et `audio_enhancer` : trois formes manquent encore à la spec (collection de résultats, schéma choisi ou nommé, premier élément d'une liste — voir ⏳ ci-dessous). Liste tenue par `tests_detail_spec.CODE_ADAPTERS` : elle ne peut que descendre, et un adapter code NOUVEAU fait échouer la suite |
+  | **Spec** (déclarative) — LA voie | `register_app_detail_spec(app, model, spec)` → `detail_from_spec` | **les 11 surfaces** — anonymizer, audio_enhancer, avatarizer, composer, converter, describer, enhancer, imager, reader, synthesizer, transcriber (+ les jumelles générées) |
+  | **Adapter** (fonction) — plus aucun | `register_app_detail(app, model, adapter)` | **0** depuis le 2026-10-05 (`imager` et `audio_enhancer` portés, voir ✅ ci-dessous). La signature reste dans la brique ; `tests_detail_spec.CODE_ADAPTERS` est VIDE et un adapter code nouveau fait échouer la suite |
 
   > ⚠ La voie **spec** ne figurait pas dans ce document, alors que c'est la plus alignée sur la
   > philosophie (§3 : métadonnée-driven — l'app déclare `aliases` + champs au lieu d'écrire une
@@ -102,6 +102,9 @@ par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
   | `extra` | entrée SANS `label` *(2026-10-03)* | le libellé est celui du SCHÉMA (`params.py`) — principe 2 ci-dessus, enfin tenu par le code | transcriber |
   | — | `extra_from_params: True \| 'champ JSON'` | tous les réglages posés du schéma principal | converter, enhancer |
   | — | `aliases`, `result_tabs` | alias canoniques ; onglets de résultat texte (R18) | converter ; describer, transcriber |
+  | valeur | `['a', 'b']` sur une LISTE *(2026-10-05)* | dans « premier champ non vide », un champ qui porte une collection rend son PREMIER élément | imager (la vidéo, sinon la 1ʳᵉ image) |
+  | valeur | `result_files: 'champ'` *(2026-10-05)* | la COLLECTION de résultats (émise à partir de deux) | imager (`output_images`) |
+  | valeur | `params_schema: <valeur>` *(2026-10-05)* | le schéma des réglages, NOMMÉ ou CHOISI PAR ÉLÉMENT (`*PARAMS_JSON` du module de l'app PROPRIÉTAIRE du modèle) ; absent = le schéma principal | imager (image/vidéo), audio_enhancer (`AUDIO_PARAMS_JSON`) |
 
   **Un réglage vrai s'affiche « Oui »** — règle d'AFFICHAGE unique (`wama-inspector.js`,
   `_settingValue`), pour toutes les apps : la donnée reste `true`. Avant, le transcriber écrivait
@@ -116,6 +119,16 @@ par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
   2026-08-13 (converter : un paramètre absent du JSON porteur se lit sur le champ dédié) est
   gardé pour les OPTIONS ; il avait ajouté le format en réglage par effet de bord. Garde :
   `tests_detail_spec.AFactIsShownOnceTest` (les dix apps, les deux voies).
+
+  ✅ **SOLDÉ le 2026-10-05** — les trois formes ci-dessous sont au commun (table plus haut :
+  `spec_value`, `spec_schema`, `detail_from_spec`), l'imager et l'audio de l'enhancer sont sur
+  la spec. Mesure avant bascule, ancien adapter contre spec, sur TOUS les éléments réels (lecture
+  seule) : **31/31 générations de l'imager et 6/6 audios identiques clé pour clé** ; seul l'ORDRE
+  des réglages de l'imager change (le prompt en tête, comme au composer). La spec ne nomme un
+  schéma que par son nom d'attribut ; le module est celui de l'app Django qui possède le modèle
+  (`audio_enhancer` est une surface de l'app `enhancer`) — aucune table de correspondance.
+  Gardes : `tests_detail_spec` (formes, schéma nommé déclaré par son app, les deux apps), trois
+  mutations tuées. Le paragraphe suivant est le constat du 2026-10-03, gardé tel quel :
 
   ⏳ **Ce que la spec ne dit PAS ENCORE — à ajouter pour porter les deux derniers adapters**
   (Fabien, 2026-10-03 : « on uniformise et on porte tout », il n'y a pas de choix de ne pas

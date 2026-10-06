@@ -2392,6 +2392,10 @@ passera alors en projetable.
 > choisi ou nommé, premier élément d'une liste — `INSPECTOR_DETAIL_FIELDS §Le langage`, ⏳).
 > Critère `detail_spec` : 9/10 ; grille 912 → 917/939 ; facette `inspector` de cinq manifestes
 > d'app enrichie de leur `detail_spec` (fidélité de l'aller-retour inchangée, 10/10).
+> ✅ **2026-10-05 — les deux restes PORTÉS** : les trois formes sont au langage (`result_files`,
+> `params_schema` nommé ou choisi par élément, premier élément d'une liste) ; imager et
+> audio_enhancer sur la spec, mesurés identiques sur tous leurs éléments réels avant bascule.
+> Plus aucun adapter code (`tests_detail_spec.CODE_ADAPTERS` vide).
 
 - **A2b ✅ (même session) — gabarit `tasks_gen.py`** : la facette `processing` porte désormais
   `tasks` (AST de tasks.py/workers.py — {function, task_name, lifecycle} ; heuristique

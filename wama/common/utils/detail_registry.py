@@ -102,6 +102,16 @@ def register_app_detail_spec(app_name, model_class, spec):
        #     c'est l'inspecteur qui l'affiche « Oui » (`wama-inspector.js`, toutes apps).
        'extra_from_params': 'options' | True,   # labels du SCHÉMA (schema_for_app) ; str =
                                                 # champ JSON porteur, True = champs individuels
+       # FORMES ajoutées le 2026-10-05 — les deux derniers adapters code (imager, audio de
+       # l'enhancer) n'écrivaient rien d'autre :
+       #   • SCHÉMA NOMMÉ ou CHOISI PAR ÉLÉMENT — `params_schema` : une valeur de spec qui rend
+       #     le nom d'un `*PARAMS_JSON` du module de l'app (`{'const': 'AUDIO_PARAMS_JSON'}`,
+       #     ou `{'when_any': ['is_video_generation'], 'then': 'VIDEO_PARAMS_JSON',
+       #     'else': 'IMAGE_PARAMS_JSON'}`) ; absent = le schéma principal (`spec_schema`) ;
+       #   • COLLECTION de résultats — `result_files` : le champ qui porte la liste ;
+       #   • PREMIER ÉLÉMENT D'UNE LISTE — dans la forme « premier champ non vide » ci-dessus,
+       #     un champ qui porte une liste rend son premier élément (`['output_video',
+       #     'output_images']` : la vidéo, sinon la première image).
        'aliases': {'quality_preset': 'output_quality'},
 
        # FACETTES TEXTE du résultat (2026-09-07, R18). Une app à sortie texte peut en avoir
@@ -137,14 +147,17 @@ def register_app_detail_spec(app_name, model_class, spec):
 def spec_value(instance, form):
     """UNE valeur de spec résolue contre l'instance — le vocabulaire entier tient ici :
     nom de champ · `{'const': x}` · `{'field': f, 'map': table}` · LISTE de champs (le premier
-    non vide) · `{'when_any': [champs], 'then': x, 'else': y}` (selon la présence)."""
+    non vide — d'une COLLECTION, son premier élément) · `{'when_any': [champs], 'then': x,
+    'else': y}` (selon la présence)."""
     if not form:
         return None
     if isinstance(form, (list, tuple)):
         for name in form:
             value = getattr(instance, name, None)
             if value:
-                return value
+                # « Premier élément d'une liste » (2026-10-05) : la vidéo, sinon la PREMIÈRE des
+                # images de l'imager — le représentant d'une collection est son premier élément.
+                return value[0] if isinstance(value, (list, tuple)) else value
         return None
     if isinstance(form, dict):
         if 'when_any' in form:
@@ -159,23 +172,39 @@ def spec_value(instance, form):
     return getattr(instance, form, None)
 
 
+def spec_schema(instance, spec, app_name):
+    """Le schéma de réglages d'un ÉLÉMENT : celui que la spec NOMME (`params_schema`, une valeur
+    de spec qui rend un nom d'attribut `*PARAMS_JSON`), sinon le schéma principal de l'app.
+
+    Le nom se lit dans le module de l'app Django PROPRIÉTAIRE du modèle (`declared_param_schemas`
+    connaît tous ses schémas) — pas dans celui de la surface : `audio_enhancer` est une surface de
+    l'app `enhancer`, dont le module déclare `AUDIO_PARAMS_JSON`. 2026-10-05 : les deux derniers
+    adapters code n'écrivaient rien d'autre (imager : image OU vidéo selon l'élément ; audio de
+    l'enhancer : un schéma qui n'est pas le principal)."""
+    from .param_schema import declared_param_schemas, schema_for_app
+    name = spec_value(instance, spec.get('params_schema'))
+    if not name:
+        return schema_for_app(app_name) or []
+    meta = getattr(type(instance), '_meta', None)
+    declared = declared_param_schemas(getattr(meta, 'app_label', None) or app_name) or {}
+    return list((declared.get('schemas') or {}).get(name) or [])
+
+
 def detail_from_spec(instance, spec, app_name):
     """Adapter GÉNÉRIQUE : résout la spec déclarative contre l'instance puis délègue à
     `build_detail` (l'épine dorsale reste la source unique du schéma canonique)."""
     def _val(key):
         return spec_value(instance, spec.get(key))
 
-    schema_labels = None        # libellés de `params.py`, lus au premier besoin seulement
+    schema = None               # le schéma de l'élément (`spec_schema`), lu au premier besoin
     extra = {}
     for entry in (spec.get('extra') or []):
         name = entry.get('field')
         label = entry.get('label')
         if not label:
-            if schema_labels is None:
-                from .param_schema import schema_for_app
-                schema_labels = {p.get('name'): p.get('label')
-                                 for p in (schema_for_app(app_name) or [])}
-            label = schema_labels.get(name) or name
+            if schema is None:
+                schema = spec_schema(instance, spec, app_name)
+            label = next((p.get('label') for p in schema if p.get('name') == name), None) or name
         if entry.get('display'):
             fn = getattr(instance, f'get_{name}_display', None)
             v = fn() if callable(fn) and getattr(instance, name, None) else None
@@ -187,15 +216,22 @@ def detail_from_spec(instance, spec, app_name):
         extra[label] = v or None
     src_params = spec.get('extra_from_params')
     if src_params:
-        from .param_schema import schema_for_app
         carrier = (getattr(instance, src_params, None) or {}) if isinstance(src_params, str) \
             else None
         # Déjà rendus sous leur clé canonique : les alias, et le champ que `engine` /
         # `engine_effective` nomment (sinon « Moteur / Modèle » puis « Modèle TTS », deux fois).
         skip = set(spec.get('aliases') or {})
         skip |= {spec[k] for k in ('engine', 'engine_effective') if isinstance(spec.get(k), str)}
-        extra.update(settings_from_schema(instance, schema_for_app(app_name) or [],
-                                          skip=skip, carrier=carrier))
+        if schema is None:
+            schema = spec_schema(instance, spec, app_name)
+        extra.update(settings_from_schema(instance, schema, skip=skip, carrier=carrier))
+
+    # COLLECTION de résultats (2026-10-05) : le champ qui porte la liste (imager : les N images
+    # d'une génération, `output_images`). `result_file` reste le représentant ; `build_detail`
+    # n'émet la collection qu'à partir de deux éléments. Une valeur qui n'est pas une liste n'est
+    # pas une collection — une chaîne serait lue caractère par caractère.
+    files = spec_value(instance, spec.get('result_files'))
+    files = list(files) if isinstance(files, (list, tuple)) else None
 
     d = build_detail(
         instance,
@@ -204,6 +240,7 @@ def detail_from_spec(instance, spec, app_name):
         engine=_val('engine'),
         engine_effective=_val('engine_effective'),
         result_file=_val('result_file'),
+        result_files=files,
         result_role=_val('result_role'),
         result_text=_val('result_text') or None,
         source_text=_val('source_text'),

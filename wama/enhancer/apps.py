@@ -44,10 +44,8 @@ class EnhancerConfig(AppConfig):
 
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md) — audit 2026-07-11.
         # Réglages spécifiques → labels de params.py (source unique), jamais relabellisés.
-        from wama.common.utils.detail_registry import (MEDIA_CATEGORY_ROLE, build_detail,
-                                                       register_app_detail,
-                                                       register_app_detail_spec,
-                                                       settings_from_schema)
+        from wama.common.utils.detail_registry import (MEDIA_CATEGORY_ROLE,
+                                                       register_app_detail_spec)
 
         # Branche MÉDIA : SPEC déclarative (A3a, portage 2026-09-21) — projetable au manifeste.
         # `extra_from_params=True` = les champs individuels du schéma principal de l'app
@@ -62,24 +60,19 @@ class EnhancerConfig(AppConfig):
             'extra_from_params': True,
         })
 
-        # Branche AUDIO : adapter CODE, à dessein — la spec ne sait nommer qu'UN schéma par
-        # nom d'app (`schema_for_app`), et celui de l'audio (`AUDIO_PARAMS`) n'est pas le
-        # principal. Rien à déclarer : un audio amélioré peut être une voix, une musique ou
-        # un bruitage (pas de `result_role`).
-        def _audio_detail(ae):
-            from .params import AUDIO_PARAMS
-            return build_detail(
-                ae,
-                source_file=ae.input_file,
-                source_type='audio',
-                engine=ae.engine,
-                result_file=ae.output_file,
-                # Règle commune des réglages (le moteur et le format/qualité de sortie, déjà
-                # rendus sous leur clé canonique, ne sont pas relistés).
-                extra=settings_from_schema(ae, AUDIO_PARAMS, skip=('engine',)),
-            )
-
-        register_app_detail('audio_enhancer', AudioEnhancement, _audio_detail)
+        # Branche AUDIO : SPEC déclarative depuis le 2026-10-05 (adapter code avant : la spec ne
+        # savait lire que le schéma PRINCIPAL de l'app, et celui de l'audio ne l'est pas). Le
+        # schéma est NOMMÉ (`params_schema`), lu dans le module de l'app propriétaire du modèle.
+        # Mesuré identique sur les 6 éléments réels avant bascule. Pas de `result_role` : un
+        # audio amélioré peut être une voix, une musique ou un bruitage.
+        register_app_detail_spec('audio_enhancer', AudioEnhancement, {
+            'source_file': 'input_file',
+            'source_type': {'const': 'audio'},
+            'engine': 'engine',
+            'result_file': 'output_file',
+            'params_schema': {'const': 'AUDIO_PARAMS_JSON'},
+            'extra_from_params': True,
+        })
 
         # Enregistre les scénarios de test nocturne (AVANT le guard RUN_MAIN : doit aussi
         # s'enregistrer pour les management commands comme run_nightly_tests).

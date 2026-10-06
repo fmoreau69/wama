@@ -24,58 +24,37 @@ class ImagerConfig(AppConfig):
         # il ne manquait que l'enregistrement : sans lui `unified_preview` répond 404 et le volet
         # reste vide (mesuré à la passe smoke du 19/08 — seul écart des 10 apps).
         # file_field = reference_image : MÊME source que `source_file` du détail (img2img/édition).
-        from wama.common.utils.detail_registry import register_app_detail, build_detail
+        from wama.common.utils.detail_registry import register_app_detail_spec
         from wama.common.utils.preview_utils import register_app_preview
         from .models import ImageGeneration
 
-        def _imager_detail(g):
-            from .params import IMAGE_PARAMS, VIDEO_PARAMS
-            params = VIDEO_PARAMS if g.is_video_generation else IMAGE_PARAMS
-            # Réglages posés du schéma de l'élément (image ou vidéo) — la règle commune : le
-            # modèle (rendu « Moteur / Modèle ») et le format/qualité de sortie (section Sortie)
-            # ne sont pas relistés.
-            from wama.common.utils.detail_registry import settings_from_schema
-            extra = settings_from_schema(g, params, skip=('model',))
-            # Prompt en chip (même forme que composer/apps.py:41) : sans lui le volet d'une
-            # app PROMPT-PRIMAIRE n'affiche NULLE PART l'entrée que la card met en avant.
-            p_txt = (g.prompt or '').strip()
-            if p_txt:
-                extra['Prompt'] = (p_txt[:60] + '…') if len(p_txt) > 60 else p_txt
-            d = build_detail(
-                g,
-                source_file=g.reference_image or g.prompt_file or None,
-                source_type='video' if g.is_video_generation else 'image',
-                engine=g.model,
-                # result_file canonique COMPLÉTÉ (2026-07-13, contrat méta-app) : vidéo, ou
-                # PREMIÈRE image générée.
-                # ⚠ 2026-08-19 : `generated_images` contient des chemins ABSOLUS de disque
-                # (tasks.py:308 `os.path.join(output_dir, …)`) — les servir tels quels
-                # donnait un lien Sortie et une preview de sortie inexploitables. L'ACCESSEUR
-                # existe : `ImageGeneration.output_images` (models.py:377) convertit en URL
-                # MEDIA. On passe donc par lui (jamais de re-dérivation de chemin ici).
-                result_file=(g.output_video or (g.output_images[0] if g.output_images else None)),
-                # COLLECTION (2026-08-22) : une génération rend N images, pas une. `result_file`
-                # ci-dessus reste le REPRÉSENTANT (inchangé, tous ses consommateurs aussi) ;
-                # `result_files` ajoute la liste, d'où le rendu commun tire sa grille ET la
-                # navigation de la visionneuse. Toujours via l'ACCESSEUR `output_images` (URL
-                # MEDIA), jamais `generated_images` qui contient des chemins ABSOLUS de disque.
-                result_files=(g.output_images or None),
-                # Rôle d'asset de la sortie (2026-09-18) : une vidéo ou une IMAGE — jamais un
-                # « avatar », qui est une nature d'usage, pas une sortie générique. Dérivé de la
-                # MÊME source que `result_file` (la vidéo produite, sinon les images), pas du
-                # mode demandé : le rôle dit ce qui EST sorti.
-                result_role='video' if g.output_video else 'image',
-                # App PROMPT-PRIMAIRE : le prompt est l'ENTRÉE (anatomie card v3 §11) —
-                # clé CANONIQUE `source_text`, comme composer/synthesizer. Sans elle, la
-                # section Entrée du volet resterait vide quand il n'y a pas d'image source.
-                source_text=g.prompt,
-                extra=extra,
-            )
-            if g.output_quality:
-                d['output_quality'] = g.output_quality
-            return d
-
-        register_app_detail('imager', ImageGeneration, _imager_detail)
+        # SPEC déclarative (A3a, portage 2026-10-05 — dernier adapter code de l'app, mesuré
+        # identique sur les 31 générations réelles avant bascule ; seul l'ORDRE des réglages
+        # change : le prompt en tête, comme le composer). Ce que disait l'adapter :
+        #   • `result_file` : la vidéo, sinon la PREMIÈRE image (2026-07-13). Toujours par
+        #     l'ACCESSEUR `output_images` (URL MEDIA, 2026-08-19), jamais `generated_images`
+        #     qui porte des chemins ABSOLUS de disque ;
+        #   • `result_files` : la COLLECTION — une génération rend N images (2026-08-22) ; le
+        #     rendu commun en tire sa grille et la navigation de la visionneuse ;
+        #   • `result_role` : ce qui EST sorti (la vidéo produite, sinon des images), pas le
+        #     mode demandé — jamais « avatar », nature d'usage (2026-09-18) ;
+        #   • `source_text` : app PROMPT-PRIMAIRE, le prompt est l'ENTRÉE (anatomie card §11) ;
+        #     il est aussi rappelé en chip parmi les réglages, comme au composer ;
+        #   • les réglages posés du schéma DE L'ÉLÉMENT (image ou vidéo), sans le modèle (rendu
+        #     « Moteur / Modèle ») ni le format/qualité (section Sortie).
+        register_app_detail_spec('imager', ImageGeneration, {
+            'source_file': ['reference_image', 'prompt_file'],
+            'source_type': {'when_any': ['is_video_generation'], 'then': 'video', 'else': 'image'},
+            'engine': 'model',
+            'result_file': ['output_video', 'output_images'],
+            'result_files': 'output_images',
+            'result_role': {'when_any': ['output_video'], 'then': 'video', 'else': 'image'},
+            'source_text': 'prompt',
+            'extra': [{'label': 'Prompt', 'field': 'prompt', 'max_chars': 60}],
+            'params_schema': {'when_any': ['is_video_generation'],
+                              'then': 'VIDEO_PARAMS_JSON', 'else': 'IMAGE_PARAMS_JSON'},
+            'extra_from_params': True,
+        })
         register_app_preview(
             app_name='imager',
             model_class=ImageGeneration,
