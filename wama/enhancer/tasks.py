@@ -18,8 +18,6 @@ vues audio lisent depuis toujours.
 
 import logging
 import os
-from importlib import import_module
-
 from celery import shared_task
 
 from wama.common.utils.media_paths import app_media_dir
@@ -126,17 +124,6 @@ def _derive_media_type(inst, path, fname):
     return ['media_type'] if inst.media_type else []
 
 
-def _route(nature: str):
-    """Le callable déclaré par `backends.ROUTES` pour cette nature — import RELATIF AU PAQUET,
-    la même résolution que le corps composé par `tasks_gen`."""
-    from .backends import ROUTES
-    path = ROUTES.get(nature)
-    if not path:
-        raise ValueError(f"Type de média non supporté : {nature!r} (aucune route déclarée)")
-    mod, fn = path.rsplit('.', 1)
-    return getattr(import_module('.' + mod, __package__), fn)
-
-
 def _store_output(item, local_path: str, storage_name: str) -> str:
     """Range le fichier produit dans le stockage à un nom CONNU (écrasement forcé : l'ancien
     résultat de l'item et un éventuel orphelin homonyme sont supprimés d'abord). Rend le nom
@@ -166,8 +153,9 @@ def _enhance_media(enhancement, ctx):
 
     from wama.common.utils.auto_model import is_auto, quality_intent_of
 
+    from wama.common.backends.manager import route_for_nature
     nature = (enhancement.media_type or '').strip()
-    route = _route(nature)
+    route = route_for_nature(__package__, nature)
     input_path = enhancement.input_file.path
     model = _media_model(enhancement)
     output_filename = compose_output_name(app='enhancer', model=model, source_name=input_path)
@@ -244,9 +232,10 @@ def _enhance_audio(ae, ctx):
     from wama.common.utils.auto_model import is_auto, quality_intent_of
     from wama.common.utils.output_naming import compose_output_name
     from wama.common.utils.work_dir import work_dir
+    from wama.common.backends.manager import route_for_nature
     from .utils.auto_model import audio_nfe
 
-    route = _route('audio')
+    route = route_for_nature(__package__, 'audio')
     input_path = ae.input_file.path
     engine = _audio_engine(ae)
     nfe = audio_nfe(ae, engine)

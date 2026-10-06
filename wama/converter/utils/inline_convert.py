@@ -59,23 +59,15 @@ def apply_inline_conversion(src_path: str, output_format: str,
 
     opts = resolve_options(media_type, quality_preset, extra_options or {})
 
-    if media_type == 'image':
-        from ..backends.image_backend import convert_image
-        convert_image(src_path, dest, fmt, quality=int(opts.get('quality', 90)), options=opts)
-    elif media_type == 'video':
-        from ..backends.video_backend import convert_video
-        convert_video(src_path, dest, fmt, options=opts)
-    elif media_type == 'audio':
-        from ..backends.audio_backend import convert_audio
-        convert_audio(src_path, dest, fmt, options=opts)
-    elif media_type == 'document':
-        from ..backends.document_backend import convert_document
-        convert_document(src_path, dest, fmt, options=opts)
-    elif media_type == 'archive':
-        from ..backends.archive_backend import convert_archive
-        convert_archive(src_path, dest, fmt, options=opts)
-    else:
+    # Le backend de la nature, par les ROUTES de l'app (porte commune, 2026-10-05 — un `if/elif`
+    # écrit à la main ici, le même que dans la tâche). La qualité d'image voyage dans `options` :
+    # le preset la pose toujours (`apply_output_settings` retombe sur « balanced »).
+    from wama.common.backends.manager import route_for_nature
+    try:
+        convert = route_for_nature(__package__.rpartition('.')[0], media_type)
+    except ValueError:
         return src_path
+    convert(src_path, dest, fmt, options=opts)
 
     if not os.path.exists(dest):
         logger.error(f"[inline_convert] sortie introuvable {dest}, conserve l'original")

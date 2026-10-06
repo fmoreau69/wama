@@ -212,6 +212,34 @@ def backend_for_key(model_key: str, entries=None):
     return backend_for_model(ligne, entries) if ligne is not None else None
 
 
+def route_for_nature(package: str, nature: str, routes: dict = None):
+    """La porte par NATURE d'entrée : le callable que les `ROUTES` d'une app déclarent pour
+    `nature`, au contrat commun des routes (« fichier » ou « texte », marche B1).
+
+    L'AUTRE moitié du routage, et pas un second chemin vers un backend : les trois portes
+    ci-dessus vont du MODÈLE au backend (le catalogue) ; celle-ci suit la décision de routage
+    de l'APP (`backends/__init__.ROUTES`, « la frontière », 8c556100) — une nature mène à une
+    fonction de l'app, qui résout elle-même son modèle par les portes du catalogue.
+
+    `package` : le paquet de l'app appelante (`__package__`) — l'import est RELATIF À LUI, ce
+    qui laisse une jumelle du bac à sable résoudre SES copies de `backends/` sans citer un nom
+    d'app. `routes` : la table quand l'appelant la tient déjà (corps généré, depuis le
+    manifeste) ; sinon celle du paquet `backends` de l'app.
+
+    Une nature sans route LÈVE (`ValueError`) : la tâche échoue en le disant, elle ne tombe
+    jamais sur une route « par défaut ». Né le 2026-10-05 : la résolution était recopiée trois
+    fois (enhancer, describer, corps émis par `tasks_gen`) et le converter, qui déclare ses
+    ROUTES, les contournait par un `if/elif` écrit à la main."""
+    from importlib import import_module
+    if routes is None:
+        routes = getattr(import_module('.backends', package), 'ROUTES', None) or {}
+    path = routes.get((nature or '').strip())
+    if not path:
+        raise ValueError(f"Nature d'entrée non supportée : {nature!r} (aucune route déclarée)")
+    module, name = path.rsplit('.', 1)
+    return getattr(import_module('.' + module, package), name)
+
+
 # ── Clé CATALOGUE d'un modèle résident, résolue À LA LECTURE (2026-09-14) ───────────────
 #
 # Le contrat de backend publie au registre VRAM `<module>.<Classe>:<pid>#@<nom local>` : le

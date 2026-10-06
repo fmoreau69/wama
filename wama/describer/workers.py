@@ -43,11 +43,9 @@ def _describe(item, ctx):
     des COLONNES (modèle événementiel §23.2quater), backend au contrat commun « texte »,
     enrichissements optionnels. Une exception = FAILURE (le squelette gère statut/console/
     notification)."""
-    from importlib import import_module
-
     from wama.common.utils.param_schema import effective_settings
     from wama.common.utils.preview_utils import publish_partial_text
-    from .backends import NATURE_FIELD, ROUTES
+    from .backends import NATURE_FIELD
     from .params import PARAMS_JSON
 
     ctx.progress(5)
@@ -67,19 +65,15 @@ def _describe(item, ctx):
     ctx.console(f"Content type: {nature}")
     ctx.progress(10)
 
-    chemin = ROUTES.get(nature)
-    if not chemin:
-        raise ValueError(f"Type de contenu non supporté : {nature}")
+    # Backend au contrat commun « texte » — résolution par la nature (porte COMMUNE, import
+    # RELATIF AU PAQUET : la jumelle résout ses copies de backends/). Une nature sans route lève.
+    from wama.common.backends.manager import route_for_nature
+    backend = route_for_nature(__package__, nature)
 
     # Valeurs EFFECTIVES : défauts du schéma ← colonnes POSÉES (la tâche lit les colonnes).
     posees = {p['name']: getattr(item, p['name'])
               for p in PARAMS_JSON if hasattr(item, p.get('name', ''))}
     opts = effective_settings(PARAMS_JSON, posees=posees)
-
-    # Backend au contrat commun « texte » — résolution par la nature, import RELATIF AU
-    # PAQUET (même geste que le corps composé de la jumelle : backends/ se copie tel quel).
-    mod, fonc = chemin.rsplit('.', 1)
-    backend = getattr(import_module('.' + mod, __package__), fonc)
 
     result = backend(
         input_path,

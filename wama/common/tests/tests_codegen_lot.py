@@ -221,7 +221,9 @@ class CheminDeLotTest(SimpleTestCase):
         self.assertIn('CORPS COMPOSÉ', src)
         self.assertNotIn('NotImplementedError', src,
                          'le converter route : le stub doit avoir cédé la place')
-        self.assertIn("import_module('.' + mod, __package__)", src,
+        # Depuis le 2026-10-05 la résolution passe par la porte COMMUNE, toujours RELATIVE AU
+        # PAQUET de la tâche générée (`__package__`) — c'est l'intention, pas la graphie.
+        self.assertIn('route_for_nature(__package__, nature, routes=routes)', src,
                       'import relatif au paquet — la jumelle doit résoudre SES copies')
         self.assertIn('backends.image_backend.convert_image', src)
         self.assertIn('effective_settings', src, 'la tâche lit les colonnes (§23.2quater)')
