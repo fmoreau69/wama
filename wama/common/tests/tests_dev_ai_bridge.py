@@ -374,6 +374,90 @@ class SimpleModelAnatomyTest(SimpleTestCase):
         components, concerns = self._anatomy(['a.safetensors', 'b.safetensors'], components=declared)
         self.assertEqual((declared, []), (components, concerns))
 
+    #: Real file list of `onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX` (2026-10-06).
+    SWIN2SR_FILES = ['.gitattributes', 'README.md', 'config.json', 'onnx/model.onnx',
+                     'onnx/model_bnb4.onnx', 'onnx/model_fp16.onnx', 'onnx/model_int8.onnx',
+                     'onnx/model_q4.onnx', 'onnx/model_q4f16.onnx', 'onnx/model_quantized.onnx',
+                     'onnx/model_uint8.onnx', 'preprocessor_config.json', 'quantize_config.json']
+
+    def test_an_onnx_export_keeps_its_full_precision_variant(self):
+        """Without a component the install pulled all eight variants (210 MB for 51 useful)."""
+        components, concerns = self._anatomy(self.SWIN2SR_FILES)
+        self.assertEqual([{'role': 'model', 'pattern': 'onnx/model.onnx', 'format': 'onnx'}],
+                         components)
+        self.assertIn('model_q4.onnx', concerns[0], 'the variants left aside are said')
+
+    def test_root_weights_win_over_an_onnx_export(self):
+        components, _ = self._anatomy(['model.safetensors', 'onnx/model.onnx'])
+        self.assertEqual('model.safetensors', components[0]['pattern'])
+
+
+class TaskFactsTest(SimpleTestCase):
+    """Real case (2026-10-06, Swin2SR ONNX on Albert): the scout wrote `image-to-image` (an EDITING
+    model, offered to the imager), a `64x64` native resolution (the training window — the model
+    upscales 80×128, measured) and no engine. The config.json says otherwise."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role_utils = _charger('role_utils')
+
+    CONFIG = {'config.json': {'architectures': ['Swin2SRForImageSuperResolution'],
+                              'upscale': 4, 'image_size': 64}}
+
+    def _scout_manifest(self):
+        return {'body': {'identity': {'model_type': 'vision'},
+                         'capabilities': {'task': 'image-to-image', 'modalities': ['image'],
+                                          'inputs_required': ['work_image'],
+                                          'native_resolution': '64x64'}}}
+
+    def _facts(self, manifest, architectures, configs=None):
+        configs = self.CONFIG if configs is None else configs
+        concerns = []
+        kw = dict(lister=lambda _hf: list(configs), loader=lambda name: configs[name])
+        self.role_utils.enforce_task_facts(
+            manifest, 'org/repo', concerns, reader=lambda _hf: (architectures, ''), **kw)
+        self.role_utils.enforce_resolution_facts(manifest, 'org/repo', concerns, **kw)
+        return manifest['body'], concerns
+
+    def test_a_super_resolution_class_proves_the_upscale_task(self):
+        body, concerns = self._facts(self._scout_manifest(), ['Swin2SRForImageSuperResolution'])
+        caps = body['capabilities']
+        self.assertEqual(('upscale', 'upscaling', 4),
+                         (caps['task'], body['identity']['model_type'], caps['scale']))
+        self.assertEqual(['work_file'], caps['inputs_required'],
+                         "the inputs follow the corrected task, not the scout's")
+        self.assertIn('video', caps['modalities'])
+        self.assertTrue(any('CORRIGÉE' in c for c in concerns), concerns)
+
+    def test_an_upscaler_has_no_native_resolution(self):
+        body, concerns = self._facts(self._scout_manifest(), ['Swin2SRForImageSuperResolution'])
+        self.assertNotIn('native_resolution', body['capabilities'])
+        self.assertTrue(any('RETIRÉE' in c for c in concerns), concerns)
+
+    def test_an_unknown_class_changes_nothing(self):
+        """Counter-case: a generator keeps its task AND its config size (Supra2-IMG rule)."""
+        manifest = {'body': {'identity': {'model_type': 'diffusion'},
+                             'capabilities': {'task': 'text-to-image'}}}
+        configs = {'pipeline_config.json': {'image_size': 256}}
+        body, _ = self._facts(manifest, ['SomePipeline'], configs)
+        self.assertEqual('text-to-image', body['capabilities']['task'])
+        self.assertEqual('256x256', body['capabilities']['native_resolution'])
+
+    def test_both_manifest_roles_apply_the_task_before_the_resolution(self):
+        for name in ('run_scout.py', 'run_model_manifest.py'):
+            with self.subTest(role=name):
+                source = (DEV_AI / name).read_text(encoding='utf-8')
+                self.assertIn('enforce_task_facts(', source)
+                self.assertLess(source.index('enforce_task_facts('),
+                                source.index('enforce_resolution_facts('))
+
+    def test_an_onnx_graph_proves_the_onnxruntime_engine(self):
+        manifest, concerns = {'body': {}}, []
+        self.role_utils.enforce_engine_facts(manifest, 'org/repo', concerns,
+                                             lister=lambda _hf: ['config.json', 'onnx/model.onnx'])
+        self.assertEqual('onnxruntime', manifest['body']['composition']['runtime']['engine'])
+
 
 class IdentityIsTheRequestedOneTest(SimpleTestCase):
     """Real case (2026-10-01, gpt-oss-120b on Albert): asked for `kyutai/stt-1b-en_fr-trfs`, the

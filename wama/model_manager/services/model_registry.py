@@ -62,6 +62,16 @@ def _remote_only(config: dict) -> bool:
     return not any(hasattr(transformers, name) for name in names)
 
 
+def _engine_proven_by_format(snapshot: Path):
+    """Le moteur que PROUVE le format des poids du snapshot, quand ils sont TOUS d'un seul
+    format de `prospector.WEIGHT_FORMAT_ENGINES` (la table des rôles) ; sinon None."""
+    from wama.model_manager.services.prospector import _WEIGHT_EXTS, WEIGHT_FORMAT_ENGINES
+    exts = {next((e for e in _WEIGHT_EXTS if p.name.lower().endswith(e)), None)
+            for p in snapshot.rglob('*') if p.is_file() or p.is_symlink()}
+    exts.discard(None)
+    return WEIGHT_FORMAT_ENGINES.get(exts.pop()) if len(exts) == 1 else None
+
+
 def _type_ollama(task: str):
     """CATÉGORIE d'un modèle Ollama, DÉRIVÉE de sa tâche — membre `ModelType`, jamais une chaîne.
 
@@ -491,6 +501,16 @@ class ModelRegistry:
                 for rev in revisions:
                     index = rev / 'model_index.json'
                     config = rev / 'config.json'
+                    proven_engine = _engine_proven_by_format(rev)
+                    if proven_engine:
+                        # Le FORMAT des poids prouve le moteur (2026-10-06, Swin2SR d'Optimum : le
+                        # `config.json` recopié du modèle d'origine faisait dériver `transformers`,
+                        # qui n'ouvre pas un `.onnx`). Prime sur la signature des fichiers de config.
+                        moteur = proven_engine
+                        if config.is_file():
+                            classe = ','.join(_json.loads(config.read_text(encoding='utf-8'))
+                                              .get('architectures') or [])
+                        break
                     if index.is_file():
                         moteur = 'diffusers'
                         classe = (_json.loads(index.read_text(encoding='utf-8'))

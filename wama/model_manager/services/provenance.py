@@ -306,6 +306,10 @@ def record_after_install(spec: dict, appeared_keys) -> dict:
     declared = dict(card.get('capabilities') or {})
     if task:
         declared.update({'task': task, **default_inputs_for(task)})
+    # Les capacités JUGÉES sur le candidat (2026-10-06, Swin2SR : `scale: 4` perdu à
+    # l'installation) priment sur la carte et sur les défauts de la tâche — la tâche du spec,
+    # elle, reste celle qui vient d'être posée.
+    declared.update({k: v for k, v in (spec.get('capabilities') or {}).items() if k != 'task'})
     # Le moteur de la carte ne vaut qu'à défaut de celui qu'un rôle a JUGÉ sur le candidat.
     judged = spec.get('composition') or {}
     posed = [set_identity(c, identity, capabilities=declared,

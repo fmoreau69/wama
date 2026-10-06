@@ -246,17 +246,26 @@ def enforce_language_facts(manifest, languages, concerns):
     return manifest
 
 
-#: Formats de poids qui PROUVENT un moteur à eux seuls : l'archive ne s'ouvre que par lui.
-#: Vécu le 2026-10-01 (LinTO FastConformer) : le dépôt porte un `.nemo`, le moteur `transformers`
-#: proposé est retiré à juste titre, mais AUCUN moteur n'était proposé alors que le backend NeMo
-#: existe. Un format absent de cette table ne prouve rien (`.safetensors` se lit par dix libs).
-FORMAT_ENGINES = {'.nemo': 'nemo'}
+def format_engines() -> dict:
+    """Formats de poids qui PROUVENT un moteur — la table vit au substrat
+    (`prospector.WEIGHT_FORMAT_ENGINES`), partagée avec la dérivation du balayage.
+    Vécu le 2026-10-01 (LinTO FastConformer) : le dépôt porte un `.nemo`, le moteur `transformers`
+    proposé est retiré à juste titre, mais AUCUN moteur n'était proposé alors que le backend NeMo
+    existe. Le 2026-10-06 (Swin2SR) : le scout ne proposait aucun moteur pour un `.onnx`."""
+    from wama.model_manager.services.prospector import WEIGHT_FORMAT_ENGINES
+    return WEIGHT_FORMAT_ENGINES
+
+#: Dossier où les exports ONNX d'Optimum / transformers.js rangent leurs VARIANTES : `model.onnx`
+#: est la pleine précision, les suffixes (`_fp16`, `_q4`, `_int8`, `_quantized`…) des
+#: quantifications. Convention de ces deux outils, pas une devinette sur un nom de fichier.
+ONNX_EXPORT_DIR = 'onnx/'
+ONNX_REFERENCE_VARIANT = 'onnx/model.onnx'
 
 
 def _engine_from_format(manifest, by_ext, concerns):
     """Pose le moteur que le FORMAT des poids prouve, s'il n'y en a aucun et qu'un backend le sert."""
     from wama.common.backends.manager import known_engines
-    for ext, engine in FORMAT_ENGINES.items():
+    for ext, engine in format_engines().items():
         if ext in by_ext and engine in known_engines():
             composition = manifest.setdefault('body', {}).setdefault('composition', {})
             composition.setdefault('runtime', {})['engine'] = engine
@@ -274,19 +283,32 @@ def enforce_component_facts(manifest, hf_id, concerns, lister=repo_files):
     n'avait été pensée que pour les modèles COMPOSÉS. Le fait est mécanique : les poids du dépôt
     sont d'UN format → un composant `model` qui les désigne (le fichier, ou le motif des fichiers
     découpés `x-00001-of-0000N`). Plusieurs formats → celui du moteur prouvé par le format
-    (`FORMAT_ENGINES`), sinon RIEN : choisir serait deviner, et c'est dit."""
+    (`format_engines`), sinon RIEN : choisir serait deviner, et c'est dit."""
     from wama.model_manager.services.prospector import _WEIGHT_EXTS
     body = manifest.setdefault('body', {})
     composition = body.get('composition') or {}
     if composition.get('components'):
         return manifest
     by_ext = {}
-    for path in lister(hf_id):
+    paths = list(lister(hf_id))
+    for path in paths:
         ext = next((e for e in _WEIGHT_EXTS if path.lower().endswith(e)), None)
         if ext and '/' not in path:                      # les poids du modèle, à la racine
             by_ext.setdefault(ext, []).append(path)
+    if not by_ext and ONNX_REFERENCE_VARIANT in paths:
+        # Export Optimum / transformers.js (2026-10-06, Swin2SR) : aucun poids à la racine, les
+        # variantes sous `onnx/`. Sans composant, l'installation tirait les HUIT (210 Mo pour
+        # 51 utiles) ; la pleine précision est la référence, les autres restent un choix.
+        others = sorted(p for p in paths if p.startswith(ONNX_EXPORT_DIR) and p.endswith('.onnx')
+                        and p != ONNX_REFERENCE_VARIANT)
+        body.setdefault('composition', composition)['components'] = [
+            {'role': 'model', 'pattern': ONNX_REFERENCE_VARIANT, 'format': 'onnx'}]
+        concerns.append(f"anatomie POSÉE (fait mécanique, export ONNX) : un composant `model` = "
+                        f"{ONNX_REFERENCE_VARIANT}" + (f" ; variantes non retenues : {others}"
+                                                       if others else ''))
+        return manifest
     engine = (composition.get('runtime') or {}).get('engine')
-    proven = [ext for ext, eng in FORMAT_ENGINES.items() if eng == engine and ext in by_ext]
+    proven = [ext for ext, eng in format_engines().items() if eng == engine and ext in by_ext]
     if len(by_ext) == 1:
         ext = next(iter(by_ext))
     elif proven:
@@ -697,6 +719,62 @@ def root_config_values(hf_id, keys, lister=repo_files, loader=None) -> dict:
     return out
 
 
+#: Fragment d'une classe d'`architectures` (config.json) → (tâche, catégorie) qu'elle PROUVE.
+#: Vécu le 2026-10-06 (Swin2SR ONNX) : l'étiquette HF `image-to-image` mélange édition et
+#: agrandissement, le dépôt ne porte pas le tag `super-resolution` qui les sépare
+#: (`prospector.hf_task_to_wama`), et le scout a écrit `image-to-image` — un modèle d'ÉDITION,
+#: donc proposé à l'imager. La classe `Swin2SRForImageSuperResolution` le dit, elle.
+#: Liste DÉCLARÉE, à étendre au premier dépôt qui en porte une autre.
+ARCHITECTURE_TASKS = {'SuperResolution': ('upscale', 'upscaling')}
+#: Clé de config qui dit le FACTEUR d'un agrandisseur (`Swin2SRConfig.upscale`).
+SCALE_KEYS = ('upscale',)
+#: Tâches dont la sortie SUIT la taille de l'entrée : un `image_size` y est la taille des
+#: fenêtres d'entraînement, pas une taille de travail (Swin2SR : 64, et il agrandit du 80×128 —
+#: mesuré). La poser ferait réduire les entrées à 64 px par l'appariement.
+SIZE_FOLLOWS_INPUT_TASKS = ('upscale', 'denoise', 'face-restoration')
+
+
+def enforce_task_facts(manifest, hf_id, concerns, reader=None, lister=repo_files, loader=None):
+    """Pose la TÂCHE (et la catégorie, le facteur) que les classes du `config.json` PROUVENT.
+
+    Une tâche corrigée remet aussi les modalités et les entrées à celles que la tâche implique
+    (`default_inputs_for`) : celles du LLM décrivaient l'AUTRE tâche. Le facteur d'un
+    agrandisseur se lit dans la config (`SCALE_KEYS`). Rien n'est posé sans classe connue."""
+    from wama.model_manager.models import default_inputs_for
+    names, _reason = (reader or transformers_architectures)(hf_id)
+    names = [names] if isinstance(names, str) else list(names or [])
+    fact = next((ARCHITECTURE_TASKS[k] for n in names for k in ARCHITECTURE_TASKS if k in str(n)),
+                None)
+    if fact is None:
+        return manifest
+    task, model_type = fact
+    body = manifest.setdefault('body', {})
+    caps = body.setdefault('capabilities', {})
+    identity = body.setdefault('identity', {})
+    declared = caps.get('task')
+    if declared != task:
+        caps['task'] = task
+        for k in ('modalities', 'inputs_required', 'inputs_optional'):
+            caps.pop(k, None)
+        caps.update(default_inputs_for(task))
+        concerns.append(f"task {'CORRIGÉE ' + repr(declared) + ' → ' if declared else 'POSÉE à '}"
+                        f"{task!r} (fait mécanique : config.json nomme {names}) ; entrées "
+                        f"remises à celles de la tâche")
+    if identity.get('model_type') != model_type:
+        concerns.append(f"model_type {identity.get('model_type')!r} → {model_type!r} "
+                        f"(suit la tâche {task!r})")
+        identity['model_type'] = model_type
+    values = root_config_values(hf_id, SCALE_KEYS, lister=lister, loader=loader)
+    scales = {int(v) for found in values.values() for v in found.values()
+              if isinstance(v, int) and not isinstance(v, bool) and v > 0}
+    if len(scales) == 1:
+        scale = scales.pop()
+        if caps.get('scale') != scale:
+            caps['scale'] = scale
+            concerns.append(f"scale POSÉ à {scale} (fait mécanique : {', '.join(sorted(values))})")
+    return manifest
+
+
 def enforce_resolution_facts(manifest, hf_id, concerns, lister=repo_files, loader=None):
     """Pose `capabilities.native_resolution` quand un fichier de config du dépôt la DIT.
 
@@ -705,7 +783,15 @@ def enforce_resolution_facts(manifest, hf_id, concerns, lister=repo_files, loade
     backend, image de 256 px). Le fait mécanique prime sur le jugement du LLM, comme le moteur :
     une valeur absente est posée, une valeur contraire est CORRIGÉE — et c'est dit. Le caractère
     FIXE (`min_resolution` = `max_resolution`) reste à déclarer : un `image_size` dit la taille
-    de travail, pas qu'aucune autre n'est possible."""
+    de travail, pas qu'aucune autre n'est possible.
+    Sauf pour une tâche dont la sortie suit l'entrée (`SIZE_FOLLOWS_INPUT_TASKS`) : la valeur
+    y est RETIRÉE, d'où qu'elle vienne. À appeler APRÈS `enforce_task_facts`."""
+    caps = (manifest.get('body') or {}).get('capabilities') or {}
+    if caps.get('task') in SIZE_FOLLOWS_INPUT_TASKS:
+        if caps.pop('native_resolution', None):
+            concerns.append(f"native_resolution RETIRÉE : la sortie d'un modèle "
+                            f"{caps['task']!r} suit la taille de l'entrée")
+        return manifest
     values = root_config_values(hf_id, RESOLUTION_KEYS, lister=lister, loader=loader)
     sizes = {int(v) for found in values.values() for v in found.values()
              if isinstance(v, int) and not isinstance(v, bool) and v > 0}

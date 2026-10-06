@@ -59,7 +59,7 @@ from role_utils import (  # noqa: E402
     add_llm_arguments, call_llm, card_languages, enforce_adapter_parent, enforce_component_facts,
     enforce_engine_facts,
     enforce_identity,
-    enforce_language_facts, enforce_resolution_facts,
+    enforce_language_facts, enforce_resolution_facts, enforce_task_facts,
     enforce_vendor_engine, extract_json,
     fetch as _fetch,
     manifest_examples, model_vocabularies, resolve_model, write_output)
@@ -233,6 +233,9 @@ def main():
     snapshot = provenance.split('snapshot:', 1)[1] if provenance.startswith('snapshot:') else None
     enforce_language_facts(manifest, card_languages(hf_id, snapshot), concerns)
     if hf_id:
+        # La TÂCHE que la classe du config.json prouve (2026-10-06, Swin2SR) : AVANT la
+        # résolution, qui ne s'applique pas à une tâche dont la sortie suit l'entrée.
+        enforce_task_facts(manifest, hf_id, concerns)
         enforce_engine_facts(manifest, hf_id, concerns)
         enforce_resolution_facts(manifest, hf_id, concerns)
         # Moteur VENDORISÉ cité par les sources (2026-10-01, YuE2) : APRÈS le retrait d'un

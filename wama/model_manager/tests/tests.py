@@ -1195,6 +1195,40 @@ class FaitsDeLaCarteTest(TestCase):
         blank.refresh_from_db()
         self.assertEqual(established, blank.composition['components'])
 
+    def test_the_capabilities_judged_on_the_candidate_reach_the_installed_row(self):
+        """2026-10-06, Swin2SR: the scout judged `scale: 4`, the installed row only got the task —
+        and both the enhancer's « auto » and the common output upscale filter on `scale`."""
+        from ..services import provenance as pv
+        row = AIModel.objects.create(
+            model_key='huggingface:Org/Sr', name='Sr', model_type='upscaling',
+            source='huggingface', is_downloaded=True, hf_id='Org/Sr', capabilities={})
+        spec = {'kind': 'hf', 'ref': 'Org/Sr', 'task': 'upscale',
+                'capabilities': {'task': 'image-to-image', 'scale': 4}}
+        with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Sr'}), \
+                patch('django.core.management.call_command'):
+            pv.record_after_install(spec, ['huggingface:Org/Sr'])
+        row.refresh_from_db()
+        self.assertEqual(4, row.capabilities.get('scale'))
+        self.assertEqual('upscale', row.capabilities['task'], "the spec's task stays the task")
+        # Counter-case: an established capability is not overwritten by the judged one.
+        row.capabilities = {**row.capabilities, 'scale': 2}
+        row.save()
+        with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Sr'}), \
+                patch('django.core.management.call_command'):
+            pv.record_after_install(spec, ['huggingface:Org/Sr'])
+        row.refresh_from_db()
+        self.assertEqual(2, row.capabilities['scale'])
+
+    def test_the_scout_candidate_spec_carries_its_judged_capabilities(self):
+        from ..services.prospector import seed_candidate_from_manifest
+        manifest = {'manifest_kind': 'model', 'name': 'sr',
+                    'body': {'identity': {'hf_id': 'Org/Sr2', 'source': 'huggingface',
+                                          'model_type': 'upscaling'},
+                             'capabilities': {'task': 'upscale', 'scale': 4}}}
+        key = seed_candidate_from_manifest(manifest)['model_key']
+        spec = AIModel.objects.get(model_key=key).extra_info['prospect']['spec']
+        self.assertEqual(4, spec['capabilities']['scale'])
+
 
 class RestesTechniquesDuSoirTest(TestCase):
     """Trois restes du 02/09, chacun mesuré avant d'être corrigé."""

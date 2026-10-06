@@ -328,6 +328,15 @@ _NOISE_MARKERS = ('lora', 'gguf', 'comfyui', 'repackaged', 'fp8', 'bnb',
 #: 6,4 et 2,5 Go installés) — sans elle, le prédicat de complétude les aurait dits « sans poids ».
 _WEIGHT_EXTS = ('.gguf', '.safetensors', '.bin', '.pt', '.pth', '.onnx', '.nemo')
 
+#: Formats de poids qui PROUVENT un moteur à eux seuls : l'archive ne s'ouvre que par lui. UNE
+#: table, lue par les deux producteurs du moteur — les rôles wama-dev-ai (`role_utils`, où elle
+#: est née le 2026-10-01 pour le `.nemo` de LinTO) et la dérivation du balayage
+#: (`model_registry`). `.onnx` (2026-10-06, Swin2SR d'Optimum) : un graphe ONNX ne s'exécute que
+#: par un runtime ONNX, `onnxruntime` est le seul que WAMA sert ; le `config.json` recopié du
+#: modèle d'origine faisait dériver `transformers`, qui n'ouvre pas un `.onnx`. Un format absent
+#: ne prouve rien (`.safetensors` se lit par dix libs).
+WEIGHT_FORMAT_ENGINES = {'.nemo': 'nemo', '.onnx': 'onnxruntime'}
+
 
 def _siblings(hf_id: str):
     """`[(nom, taille_octets)]` de TOUS les fichiers d'un dépôt — la SEULE requête HTTP de
@@ -1041,10 +1050,13 @@ def seed_candidate_from_manifest(manifest: dict) -> dict:
                'reason': "manifeste produit par le rôle scout (wama-dev-ai)",
                # Le spec porte la COMPOSITION quand le manifeste en déclare une : c'est elle
                # qui fait tirer le jeu de poids COHÉRENT au lieu du dépôt entier.
+               # Et les CAPACITÉS jugées (2026-10-06, Swin2SR) : le candidat est supprimé à
+               # l'installation, la ligne installée ne recevait que la tâche — son facteur
+               # `scale: 4` se perdait, et le tirage « auto » de l'enhancer filtre dessus.
                'spec': {k: v for k, v in (
                    ('kind', 'hf'), ('ref', hf_id), ('category', model_type),
                    ('task', task), ('composition', body.get('composition')),
-                   ('note', 'manifeste scout')) if v}},
+                   ('capabilities', caps), ('note', 'manifeste scout')) if v}},
         capabilities=caps,
         hf_id=hf_id, license=str(identity.get('license') or '')[:64],
         platform_ref=identity.get('platform_ref') or f"huggingface:{hf_id}",
