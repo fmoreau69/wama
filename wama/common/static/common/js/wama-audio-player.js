@@ -16,6 +16,7 @@
  *   .destroy(id)                   → stoppe + supprime du DOM
  *   .play(id)                      → démarre EN EXCLUSIVITÉ (players + DOM + voix)
  *   .pauseAll()                    → met en pause tous les players
+ *   .isPlaying()                   → un player joue-t-il ? (son de notification, 2026-10-06)
  */
 (function(global) {
     'use strict';
@@ -392,6 +393,16 @@
             registry.forEach(function(state) {
                 if (state.audio && !state.audio.paused) state.audio.pause();
             });
+        },
+
+        /** Un player joue-t-il ? — la question inverse de `pauseAll` (2026-10-06) : nos Audio()
+         *  sont HORS DOM, `WamaApp.isAudioPlaying` ne les verrait pas sans elle. */
+        isPlaying: function() {
+            var playing = false;
+            registry.forEach(function(state) {
+                if (state.audio && !state.audio.paused && !state.audio.ended) playing = true;
+            });
+            return playing;
         },
 
         /** Force l'initialisation d'un player par id (sans lecture auto). */

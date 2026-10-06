@@ -22529,7 +22529,10 @@ notifications) ; pousser les 8 commits.
   l'usage ») ; la relève poste au plus une fois (un arrêt entre relève et envoi perd le message de
   fil, la cloche le garde) ; les runs du Studio notifient encore par `notify_job` seul ;
 - notifications SYSTÈME (bulle de l'OS) : attendent le HTTPS (`wama.univ-eiffel.fr`) ;
-- ⏳ piste : un seul contexte audio par page (TalkingHead accepte le sien en option) ;
+- ⏳ un seul contexte audio NAVIGATEUR par page — consigné dans le chantier « transport commun »
+  (`ROUTE §F3b`), avec ses risques (fréquence imposée par TalkingHead) ; sans rapport avec l'audio
+  des modèles, déjà centralisé côté serveur (`audio_decode`). Et, demandé à la clôture et LIVRÉ :
+  le son des notifications SE TAIT pendant une lecture, ici ou dans un autre onglet ;
 - les docs DÉRIVÉES des mécanismes (table de la carte, doc développeur des briques) sont en retard
   sur le registre (190 mécanismes contre 186) : ajouts d'autres sessions plus mes deux
   descriptions — régénérer depuis HEAD quand le registre, co-édité, sera commité.
