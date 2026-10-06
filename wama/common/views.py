@@ -1843,15 +1843,20 @@ def api_edit_lock(request):
 def api_notifications_recent(request):
     """GET `after` (id) — le nombre de non lues et les NOUVELLES non lues (id > `after`, 5 au plus) :
     ce que lit le JS commun pour tenir la cloche à jour et montrer chaque nouvelle notification en
-    bas à droite (2026-10-03). Sans `after`, rend seulement le compte et le dernier id."""
+    bas à droite (2026-10-03). Sans `after`, rend seulement le compte et le dernier id.
+
+    `sound` (2026-10-06) : le son que la page JOUE pour chaque nouvelle notification — décidé ICI
+    (type sonore + préférence du profil, `notifications.notification_sound`), jamais par le JS."""
     from wama.common.models import Notification
+    from wama.common.utils.notifications import notification_sound
     unread = Notification.objects.filter(recipient=request.user, read_at__isnull=True)
     last = Notification.objects.filter(recipient=request.user).order_by('-pk').values_list(
         'pk', flat=True).first() or 0
     after = request.GET.get('after')
     items = []
     if str(after or '').isdigit():
-        items = [{'id': n.pk, 'title': n.title, 'body': n.body, 'url': n.url}
+        items = [{'id': n.pk, 'title': n.title, 'body': n.body, 'url': n.url,
+                  'sound': notification_sound(n, request.user)}
                  for n in unread.filter(pk__gt=int(after)).order_by('pk')[:5]]
     return JsonResponse({'unread': unread.count(), 'last_id': last, 'items': items})
 

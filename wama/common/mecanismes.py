@@ -1497,8 +1497,9 @@ MECHANISMS = (
               "puis aux collaborateurs ; la notification DÉSIGNE son élément (app + type + id), "
               "ce que relève la passerelle pour poster la fin dans le fil d'origine (2026-10-06) ; "
               "notify_in_app() — DANS WAMA (badge de l'en-tête, page /common/notifications/, "
-              "lu / non lu) ; notify_admins() — les deux canaux vers les administrateurs (mort "
-              "d'un worker)",
+              "lu / non lu) ; SOUND_BY_KIND — les types qui SONNENT dans la page (fin de "
+              "traitement), selon le réglage « Son dans WAMA » du profil ; notify_admins() — "
+              "les deux canaux vers les administrateurs (mort d'un worker)",
               'wama/common/utils/notifications.py', 'docs/construction/exploitation/WAMA_COLLABORATION.md',
               annexes=('wama/common/context_processors.py',
                        'wama/common/templates/common/notifications.html')),
