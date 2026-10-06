@@ -27,13 +27,10 @@ from wama.common.utils.detail_registry import DetailRegistry, detail_from_spec, 
 #: tout »). Each names what the spec must still learn to say it; the list can only shrink. An app
 #: registering a code adapter without being listed here fails the test: the declarative way is
 #: the only way, and nothing new enters by the old door.
-CODE_ADAPTERS = {
-    'imager': 'needs three more forms: a COLLECTION of results (`result_files`), a schema chosen '
-              'per element (image or video) for `extra_from_params`, and « first element of a '
-              'list » in the first-non-empty form',
-    'audio_enhancer': 'needs the schema NAMED in `extra_from_params` (the spec reads one schema '
-                      'per app name; the audio one is not the main one)',
-}
+#: EMPTY since 2026-10-05: the last two (imager, audio_enhancer) were ported once the spec learnt
+#: a COLLECTION of results (`result_files`), a schema NAMED or chosen per element
+#: (`params_schema`) and « first element of a list » in the first-non-empty form.
+CODE_ADAPTERS = {}
 
 
 def _element(**fields):
@@ -66,6 +63,64 @@ class SpecValueFormsTest(SimpleTestCase):
     def test_nothing_declared_gives_nothing(self):
         for form in (None, '', [], {}):
             self.assertIsNone(spec_value(_element(), form))
+
+    def test_a_collection_in_the_first_non_empty_form_gives_its_first_element(self):
+        form = ['video', 'images']
+        self.assertEqual('a.png', spec_value(_element(video=None, images=['a.png', 'b.png']), form))
+        self.assertEqual('v.mp4', spec_value(_element(video='v.mp4', images=['a.png']), form))
+        self.assertIsNone(spec_value(_element(video=None, images=[]), form),
+                          'an empty collection is an empty field')
+
+    def test_a_single_field_naming_a_collection_gives_the_whole_list(self):
+        self.assertEqual(['a.png', 'b.png'], spec_value(_element(images=['a.png', 'b.png']), 'images'))
+
+
+class ResultCollectionTest(SimpleTestCase):
+
+    def _detail(self, element, spec):
+        return detail_from_spec(element, spec, 'witness')
+
+    def test_the_collection_is_carried_beside_its_representative(self):
+        d = self._detail(_element(images=['/m/a.png', '/m/b.png']),
+                         {'result_file': ['images'], 'result_files': 'images'})
+        self.assertEqual(('/m/a.png', ['/m/a.png', '/m/b.png']), (d['result_file'], d['result_files']))
+
+    def test_one_element_or_a_non_list_is_no_collection(self):
+        self.assertNotIn('result_files', self._detail(_element(images=['/m/a.png']), {'result_files': 'images'}))
+        self.assertNotIn('result_files', self._detail(_element(images='/m/ab.png'), {'result_files': 'images'}),
+                         'a string would be read character by character')
+
+
+class NamedSchemaTest(SimpleTestCase):
+    """`params_schema`: the settings of an element come from the schema the spec NAMES."""
+
+    DECLARED = {'primary': 'MAIN_PARAMS_JSON',
+                'schemas': {'MAIN_PARAMS_JSON': [{'name': 'a', 'label': 'Main A'}],
+                            'VIDEO_PARAMS_JSON': [{'name': 'fps', 'label': 'Images/s'}]}}
+
+    def _extra(self, element, spec):
+        with mock.patch('wama.common.utils.param_schema.declared_param_schemas', return_value=self.DECLARED), \
+             mock.patch('wama.common.utils.param_schema.schema_for_app',
+                        return_value=self.DECLARED['schemas']['MAIN_PARAMS_JSON']):
+            return detail_from_spec(element, dict(spec, extra_from_params=True), 'witness').get('extra') or {}
+
+    def test_without_a_name_the_main_schema_is_read(self):
+        self.assertEqual({'Main A': 'x'}, self._extra(_element(a='x', fps=24), {}))
+
+    def test_a_named_schema_replaces_the_main_one(self):
+        self.assertEqual({'Images/s': 24},
+                         self._extra(_element(a='x', fps=24), {'params_schema': {'const': 'VIDEO_PARAMS_JSON'}}))
+
+    def test_the_schema_can_be_chosen_per_element(self):
+        form = {'params_schema': {'when_any': ['video'], 'then': 'VIDEO_PARAMS_JSON', 'else': 'MAIN_PARAMS_JSON'}}
+        self.assertEqual({'Images/s': 24}, self._extra(_element(video=True, a='x', fps=24), form))
+        self.assertEqual({'Main A': 'x'}, self._extra(_element(video=False, a='x', fps=24), form))
+
+    def test_an_entry_without_a_label_takes_it_from_the_named_schema(self):
+        with mock.patch('wama.common.utils.param_schema.declared_param_schemas', return_value=self.DECLARED):
+            d = detail_from_spec(_element(fps=24), {'params_schema': {'const': 'VIDEO_PARAMS_JSON'},
+                                                    'extra': [{'field': 'fps'}]}, 'witness')
+        self.assertEqual({'Images/s': 24}, d['extra'])
 
 
 class ExtraSettingsTest(SimpleTestCase):
@@ -119,8 +174,19 @@ def _named_fields(form):
 
 
 VALUE_KEYS = ('source_file', 'source_type', 'engine', 'engine_effective', 'result_file',
-              'result_role', 'result_text', 'source_text')
+              'result_files', 'result_role', 'result_text', 'source_text', 'params_schema')
 KNOWN_KEYS = set(VALUE_KEYS) | {'extra', 'extra_from_params', 'aliases', 'result_tabs'}
+
+
+def _schema_names(form):
+    """The `*PARAMS_JSON` names a `params_schema` form can resolve to."""
+    if isinstance(form, dict):
+        if 'const' in form:
+            return [form['const']]
+        if 'when_any' in form:
+            return [n for n in (form.get('then'), form.get('else')) if n]
+        return list((form.get('map') or {}).values())
+    return []
 
 
 class EveryRegisteredSpecIsSoundTest(SimpleTestCase):
@@ -150,6 +216,17 @@ class EveryRegisteredSpecIsSoundTest(SimpleTestCase):
             missing = sorted(n for n in names if n and not hasattr(model, n))
             with self.subTest(app=app):
                 self.assertEqual([], missing, f'{model.__name__} has no such attribute')
+
+    def test_every_schema_a_spec_names_is_declared_by_its_app(self):
+        """A misnamed schema resolves to nothing — the « Réglages » section would vanish silently."""
+        from wama.common.utils.param_schema import declared_param_schemas
+        for app, model, spec in _declared_specs():
+            names = _schema_names(spec.get('params_schema'))
+            if not names:
+                continue
+            declared = set((declared_param_schemas(model._meta.app_label) or {}).get('schemas') or {})
+            with self.subTest(app=app):
+                self.assertEqual([], sorted(set(names) - declared), f'{model._meta.app_label}.params')
 
     def test_a_setting_without_a_label_is_a_setting_of_the_schema(self):
         """Its label comes from `params.py` — outside the schema it would show a raw field name."""
@@ -220,6 +297,41 @@ class PortedAppsSayWhatTheirAdaptersSaidTest(SimpleTestCase):
         self.assertEqual('image', image['result_role'])
         audio = self._detail('anonymizer', file='a/x.wav', media_type='audio', output_file='a/y.wav')
         self.assertNotIn('result_role', audio, 'an audio has no role derivable from its category')
+
+    def test_the_imager_reads_the_schema_of_its_element_and_its_collection(self):
+        """Ported 2026-10-05: video settings for a video, image settings for an image — and the
+        video, else the FIRST image, as representative of the collection."""
+        with mock.patch('wama.imager.models.ImageGeneration.output_images',
+                        new_callable=mock.PropertyMock, return_value=['/m/a.png', '/m/b.png']):
+            image = self._detail('imager', generation_mode='txt2img', model='sdxl', prompt='p' * 80,
+                                 num_images=3, video_fps=24)
+        self.assertEqual(('image', 'image', '/m/a.png', ['/m/a.png', '/m/b.png']),
+                         (image['source_type'], image['result_role'], image['result_file'], image['result_files']))
+        self.assertEqual('p' * 60 + '…', image['extra']['Prompt'])
+        from wama.imager.params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
+        image_label = {p['name']: p['label'] for p in IMAGE_PARAMS_JSON}
+        video_label = {p['name']: p['label'] for p in VIDEO_PARAMS_JSON}
+        self.assertEqual(3, image['extra'][image_label['num_images']])
+        self.assertNotIn(video_label['video_fps'], image['extra'], 'an image shows no VIDEO setting')
+        video = self._detail('imager', generation_mode='txt2vid', model='ltx', prompt='x',
+                             output_video='i/v.mp4', num_images=3, video_fps=24)
+        self.assertEqual(('video', 'video'), (video['source_type'], video['result_role']))
+        self.assertIn('v.mp4', video['result_file'])
+        self.assertEqual(24, video['extra'][video_label['video_fps']], 'a video shows its VIDEO settings')
+        self.assertNotIn(image_label['num_images'], video['extra'])
+
+    def test_the_audio_enhancer_reads_its_named_schema(self):
+        from wama.enhancer.params import AUDIO_PARAMS_JSON, MEDIA_PARAMS_JSON
+        audio_only = sorted({p['name'] for p in AUDIO_PARAMS_JSON} - {p['name'] for p in MEDIA_PARAMS_JSON}
+                            - {'engine', 'output_format', 'output_quality'})
+        self.assertTrue(audio_only, 'witness: a setting only the AUDIO schema declares')
+        name = audio_only[0]
+        field = __import__('wama.enhancer.models', fromlist=['AudioEnhancement']).AudioEnhancement._meta.get_field(name)
+        value = True if field.get_internal_type() == 'BooleanField' else 'w'
+        detail = self._detail('audio_enhancer', input_file='a/x.wav', engine='deepfilternet', **{name: value})
+        self.assertEqual(('audio', 'deepfilternet'), (detail['source_type'], detail['engine']))
+        labels = {p['name']: p['label'] for p in AUDIO_PARAMS_JSON}
+        self.assertEqual(value, (detail.get('extra') or {}).get(labels[name]))
 
     def test_the_transcriber_settings_carry_the_labels_of_its_schema(self):
         detail = self._detail('transcriber', audio='t/r.wav', backend='auto', used_backend='whisper',
