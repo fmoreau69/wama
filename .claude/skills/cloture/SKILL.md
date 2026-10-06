@@ -191,6 +191,16 @@ python manage.py check_redundancy          # compter AVANT/APRÈS ses propres co
   test `_model()` a été signalée contre `lang_routing.model_languages`. **Débruiter le sien**
   (renommer) plutôt que s'habituer au bruit — *un contrôle bruyant se contourne*. Compter :
   la trouvaille doit disparaître après le geste.
+- 🔴 **Et il produit des faux NÉGATIFS — « rien chez moi » ne clôt pas la question** (ajouté le
+  2026-10-06). Session anonymizer/aperçu : le gardien ne relevait RIEN dans mes fichiers, la
+  relecture a trouvé **quatre** recopies — une sonde `probe_video` homonyme de celle de
+  `media_probe`, l'écriture ffmpeg par temporaire déjà dans `ensure_h264` **du même module**, la
+  lecture d'URL média déjà dans `_local_media_path` **du même module**, boîte/échelle/masque de
+  `detections` et `Bounds` refaits dans `blur_utils`. Aucune ne portait le nom de son domicile.
+  ✅ **Le geste qui les a trouvées** : pour chaque fonction neuve de la session, lire les
+  fonctions VOISINES de son module, puis `ls` + `grep "^def "` des briques du même domaine
+  (vidéo : `media_probe`, `video_utils`, `ffmpeg_utils` ; géométrie : `detections`, `bounds`) —
+  le doublon le plus fréquent est à quelques lignes, pas dans un autre monde.
 
 ### 2b. Les autres — seulement ceux que la session a rendus nécessaires
 - Un REGISTRE a bougé (APP_CATALOG, params, capacités, tool_api, mecanismes.py…) →
