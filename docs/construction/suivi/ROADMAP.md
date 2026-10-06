@@ -2547,6 +2547,86 @@ tout de suite »*) :
   **`docs/construction/ia/WAMA_QUALITE.md`** (méthodes M1-M10, matrice tâche × méthode, chaîne
   en 12 chaînons, décisions Q1-Q9) ; la rubrique y survit comme UNE métrique objective (M3).
 
+#### LiveEdit — retouche VIDÉO par instruction dans l'Imager (2026-10-05, question de Fabien — consigné le 06/10)
+> *« Peut-on intégrer live editor dans l'Imager de wama via les mécanismes de wama en utilisant
+> albert ou qwen3.8 depuis l'assistant ? »* (`github.com/cp-cp/LiveEdit`, `live-edit.github.io`).
+> Puis : *« je préfère qu'on consigne bien tout ça et on s'en occupe plus tard »*.
+> **Aucune décision prise, rien d'installé, aucun code écrit.** Lu : README, `requirements.txt` et
+> `inference-mm.py` du dépôt, arXiv 2606.26740 (résumé + HTML v2). Le site du projet et la fiche
+> HF n'ont pas répondu (ECONNRESET, proxy probable) — **non lus**.
+
+**Ce qu'est LiveEdit (lu, pas mesuré chez nous)** : éditeur vidéo CAUSAL (morceau par morceau)
+distillé en 3 étapes depuis **Wan2.1-T2V-1.3B** ; 4 pas DMD (`[0, 250, 500, 750]`), morceaux de
+3 images latentes ; vidéo source concaténée par CANAL au latent bruité (préservation du fond) ;
+« Mask Cache » qui saute les zones inchangées. **12,66 i/s annoncés, GPU non précisé.** ECCV 2026,
+code et poids Apache-2.0 (`cp-cp/LiveEdit`, `ar-forcing_002000.pt`).
+- **Bornes** : 480×832 à 16 i/s, 81 images (~5 s) par défaut (`num_output_frames*4-3`) ; script
+  « long » à fenêtre glissante (3 puits + 9 récentes). Entraîné sur **20 000 paires filtrées de
+  Ditto-1M** : attributs, textures, remplacements d'objet ; consignes **en anglais**, forme
+  impérative (« Change the red currants to deep purple grapes… »).
+- ⚠ **« Temps réel » = un DÉBIT, pas un service** : le dépôt n'a que de l'inférence hors ligne
+  (`inference-mm.py` : un seul `pipeline.inference(...)` puis `write_video`), aucun serveur de flux
+  documenté (flask-socketio figure aux dépendances, `demo_utils/` non lu).
+- ⚠ **Licence de Ditto-1M NON vérifiée** — celle des poids peut en hériter (règle de la
+  prospection, licence HÉRITÉE).
+- **VRAM** : le pic sera l'encodeur umT5 de Wan (5,68 Md, ~11,4 Go bf16 — déjà mesuré pour FastWan,
+  `PROJECT_STATUS` §FastWan « Le modèle est-il le bon choix ? »), pas le DiT 1,3B. La consigne est
+  fixe sur toute la vidéo : encoder une fois, puis décharger.
+
+**Avis donné (à reprendre, pas tranché)** : pour une card de file qui attend son résultat, un
+éditeur NON causal (ex. Wan2.1-VACE) ferait probablement mieux à qualité égale ; l'atout PROPRE de
+LiveEdit est de produire **au fil de l'eau** — ce dont la face « pendant » et une future page
+d'édition ont besoin. D'où : lancer `scout` sur « édition vidéo guidée par texte » et confronter
+les candidats sur nos propres clips (`WAMA_QUALITE`) avant de choisir.
+
+**Route d'intégration repérée — dans l'ordre, chaque point cité au code le 2026-10-05 :**
+1. **Contrat de tâche AVANT le backend** (leçon YuE2) : `TASK_CONTRACTS`
+   (`wama/common/services/backend_inventory.py:655-671`) n'a pas de `video-to-video`, et
+   `GenerationParams` (`wama/common/backends/image_generation_base.py:55`) n'a aucun port vidéo
+   d'entrée — seulement `reference_image` (l. 73). → **D-c** ci-dessous.
+2. **Installation par les rôles, voie VENDOR** : `requirements.txt` épingle `torch==2.7.1` (nous :
+   2.9.1), `diffusers==0.31.0`, `numpy==1.24.4`, `pydantic==2.10.6`, tire
+   `git+https://github.com/openai/CLIP.git`, `pycuda`, `flash-attn` → route `library` refusée
+   (verrou voulu, §16.7) ; `librarian --repo cp-cp/LiveEdit` → `install.vendor` au SHA. LiveEdit
+   porte sa propre copie de Wan (`wan/`) : l'épingle diffusers ne le concerne probablement pas —
+   **à établir par import réel + `pip install --dry-run`**, jamais en appliquant les épingles
+   d'amont (leçon `setup_avatarizer.sh`, 07/09). Chemin de poids en dur
+   (`wan_models/Wan2.1-T2V-1.3B/`) → correctif vendor vers `MODEL_PATHS` + `cache_dir=`. Puis rôle
+   `model` (Wan2.1-1.3B + `cp-cp/LiveEdit`), rôle `backend`, **essai GPU réel avant « Valider »**
+   (leçon des trois ASR, 01-02/10).
+3. **Imager** : un 8ᵉ mode `vid2vid` (`GENERATION_MODE_CHOICES`, `wama/imager/models.py:123-131` —
+   7 modes aujourd'hui, aucun vidéo→vidéo) ; port de travail = la vidéo, prompt = la consigne ;
+   capacités DÉCLARÉES (480×832, 16 i/s, durée max) pour `INPUT_MODEL_MATCHING` ; `select_model`
+   avec l'intention rapide/qualité.
+4. **La consigne passe par la chaîne de prompts commune**, pas par l'app : `PROMPT_TARGETS['imager']`
+   aiguille déjà par domaine (`wama/common/utils/app_metadata.py:46-48`, `domain_field:
+   'output_type'` → skills `imager-image`/`imager-video`) → un skill **`imager-video-edit`**
+   (traduire en anglais, forme impérative, nommer l'objet visé).
+   **Le LLM** : **qwen3.8 local par défaut** — vision + outils déclarés
+   (`model_manager/tests/tests_taxonomie_ollama.py:26`), il peut regarder une image de la vidéo
+   par `look_at_image` (`wama/tool_api.py:1700`) pour ancrer la consigne ; **Albert en second
+   axe**, réécriture TEXTE seule (montrer une image de la vidéo d'un utilisateur à un service
+   distant relève du « verrou sensibilité », encore ouvert). Désigné par clé de catalogue, jamais
+   en dur.
+5. **L'assistant déclenche** : étendre `create_image` / `add_to_imager` (`wama/tool_api.py:319`,
+   `:2057`) au mode `vid2vid` avec une vidéo d'entrée.
+6. **Face « pendant »** : l'Imager n'émet rien aujourd'hui (`ROUTE §F3b`, « Aucune émission :
+   imager, avatarizer ») ; un éditeur causal publie naturellement chaque morceau décodé
+   (`publish_partial`), déjà lu par l'inspecteur (`_startDuring`).
+7. **Page d'édition vidéo de l'Imager** : **PAS avant le chantier SURFACES** (`ROUTE §F3b`,
+   élargissement du 2026-10-01) — candidate **second consommateur pilote** à côté de YuE2. Vues
+   qu'elle ajouterait : image courante abonnée à l'axe (pas image fps-aware, déjà au cam_analyzer),
+   avant/après, plus tard un masque de zone. Intention, rien d'établi : la causalité permettrait un
+   geste « ré-éditer depuis *t* » qui ne périme que la fin de la sortie.
+
+**🔚 TROIS DÉCISIONS, DIFFÉRÉES** (Fabien, 06/10 : *« on s'en occupe plus tard »*) :
+- **D-c — contrat `video-to-video`** : étendre `ImageGenerationBackend` d'un port vidéo d'entrée,
+  ou base dédiée.
+- **D-d — choix du moteur** : LiveEdit directement (pour son flux), ou confrontation préalable à un
+  éditeur non causal sur nos clips.
+- **D-e — archétype de surface** pour la page vidéo : relève de `ROUTE §13`, à trancher en
+  ouverture du chantier SURFACES.
+
 ### 16.3 Questions ouvertes — à trancher prochainement
 1. **Routeur local/cloud pour modèles NON-LLM** (le vrai besoin reformulé par Fabien) : LiteLLM reste le routeur du cerveau LLM ; pour les modèles non-LLM, choisir entre (a) exposition standardisée OpenAI-compatible via **LocalAI** (couvre Whisper/SD/Flux/Llava + désormais visages/détection), (b) garder les apps WAMA comme couche de service et n'ajouter qu'un routeur local/cloud par-dessus. → décider après le test LocalAI/Transcriber.
 2. **Privacy texte avant cloud** : **Presidio** (MS, NER + règles, masquage configurable) vs **openai/privacy-filter** (HF) — à comparer (couverture FR, perf, licence, intégration) comme pièce texte de la règle « anonymiser avant cloud », en complément de l'Anonymizer média.
