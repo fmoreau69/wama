@@ -232,6 +232,31 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     que l'existant) et **§5bis** (le magnéto pilote le CURSEUR, jamais les vues — la
     synchronisation est une conséquence de l'axe observé) ; mécanismes `audio_player`, `shuttle`
     et « Preview unifiée » (`WAMA_MECANISMES.md`).
+  - ⏳ **Contextes audio du NAVIGATEUR — à centraliser avec ce chantier, pas avant** (relevé le
+    2026-10-06 au son des notifications ; Fabien : *« si on peut uniformiser et centraliser encore
+    un peu plus, ça me va — mais attention aux échantillonnages, le consigner pour plus tard »*).
+    - **Ce que c'est** : l'`AudioContext` est l'objet du navigateur qui DÉCODE ou FABRIQUE du son
+      dans la page. Une page en compte jusqu'à quatre, chacun pour soi : TalkingHead (voix de
+      l'avatar, `talkinghead.mjs:936-941`), l'avatar pour décoder (`wama-avatar.js:31`), le lecteur
+      d'onde (un contexte JETABLE par décodage, `wama-audio-player.js:211`) et le son des
+      notifications (`wama-app-base.js`, `chimeContext`). Aucun effet audible : c'est de
+      l'intendance, rien n'est cassé aujourd'hui.
+    - **Ce que ce N'est PAS** : ni la lecture exclusive (« un seul son à la fois », déjà commune —
+      `pauseDomMedia`, `claimAudioChannel`, et depuis le 2026-10-06 sa question inverse
+      `isAudioPlaying`), ni l'audio des MODÈLES. Côté serveur, le décodage et la fréquence imposée
+      par chaque modèle SONT déjà centralisés (mécanisme `audio_decode`, `decode_audio_at`,
+      `resample`, cinq consommateurs) ; rien ici ne touche un fichier produit ou consommé.
+    - **La cible** : UN contexte par page (`WamaApp.audioContext()`), fourni à TalkingHead par son
+      option `audioCtx` (ligne 922) et réutilisé par l'avatar et le lecteur pour décoder.
+    - ⚠ **Le risque, et il rejoint la remarque de Fabien** : TalkingHead crée parfois SON contexte
+      à une fréquence IMPOSÉE (`new AudioContext({ sampleRate })`, ligne 938). Un contexte partagé
+      à la fréquence de l'appareil ne peut donc pas lui être imposé sans vérifier ce qu'il en fait
+      (synchronisation des lèvres) ; `decodeAudioData` ré-échantillonne à la fréquence du contexte,
+      ce qui est sans effet pour l'affichage d'une onde mais pas forcément pour un traitement. La
+      brique devra accepter une fréquence demandée et, sinon, laisser la brique créer le sien.
+    - **Charge** : petite (trois fichiers JS, un accesseur), mais la voix de l'avatar et l'éditeur
+      du transcriber sont en jeu — d'où le rattachement à CE chantier, sous sa contrainte « ne
+      rien casser », avec un smoke navigateur de la voix et de l'onde avant/après.
   - ⚠ **Contraintes posées par Fabien, toujours en vigueur** : « ne rien casser, ne pas lancer le
     portage tant qu'on n'est pas ok sur le transport commun » (19/08) ; le transport n'est pas un
     plugin parmi d'autres mais l'**AXE PARTAGÉ** auquel les vues s'abonnent — besoin média ET

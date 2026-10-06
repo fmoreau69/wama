@@ -485,12 +485,57 @@
     if (global.WamaAudioPlayer) WamaAudioPlayer.pauseAll();
     stopSpeech();
   }
+
+  // ── « Un son joue-t-il ? » — la question INVERSE de « faire taire » (2026-10-06) ──────────
+  // Les mêmes sources que `silenceLocal`, interrogées au lieu d'être coupées : médias du DOM
+  // (non muets), players hors DOM, voix de synthèse, et voix de l'assistant — avatar compris,
+  // qui parle par TalkingHead et non par `Speech`. Sert le son des notifications, qui SE TAIT
+  // pendant une lecture (décision de Fabien : ne rien couper, ne rien superposer).
+  function isAudioPlaying() {
+    let playing = false;
+    document.querySelectorAll('audio, video').forEach(function (m) {
+      if (!m.paused && !m.ended && !m.muted && m.volume > 0) playing = true;
+    });
+    if (playing) return true;
+    const player = global.WamaAudioPlayer;
+    if (player && player.isPlaying && player.isPlaying()) return true;
+    if (speechAudio && !speechAudio.paused) return true;
+    const voice = global.WamaAssistantVoice;
+    return !!(voice && voice.isSpeaking && voice.isSpeaking());
+  }
+
+  // La même question aux AUTRES onglets, par le même canal : on demande (`ask`), un onglet qui
+  // joue répond (`busy`) ; sans réponse dans le délai, personne ne joue. Toujours ni état
+  // partagé ni verrou — deux messages, et un onglet fermé ne bloque rien.
+  const ASK_WAIT_MS = 250;
+  const pendingAsks = {};
+
+  function askOthersPlaying(callback) {
+    if (!mediaChannel) { callback(false); return; }
+    const id = TAB_ID + ':' + Date.now();
+    let busy = false;
+    pendingAsks[id] = function () { busy = true; };
+    try { mediaChannel.postMessage({ t: 'ask', tab: TAB_ID, id: id }); } catch (_) {}
+    setTimeout(function () { delete pendingAsks[id]; callback(busy); }, ASK_WAIT_MS);
+  }
+
+  function onMediaMessage(d) {
+    if (!d || d.tab === TAB_ID) return;
+    if (d.t === 'ask') {
+      if (isAudioPlaying()) {
+        try { mediaChannel.postMessage({ t: 'busy', tab: TAB_ID, id: d.id }); } catch (_) {}
+      }
+      return;
+    }
+    if (d.t === 'busy') {
+      if (pendingAsks[d.id]) pendingAsks[d.id]();
+      return;
+    }
+    if (d.t === 'play') silenceLocal();
+  }
+
   if (mediaChannel) {
-    mediaChannel.onmessage = function (e) {
-      var d = e && e.data;
-      if (!d || d.t !== 'play' || d.tab === TAB_ID) return;
-      silenceLocal();
-    };
+    mediaChannel.onmessage = function (e) { onMediaMessage(e && e.data); };
   }
 
   document.addEventListener('play', function (e) {
@@ -1185,6 +1230,14 @@
     return true;
   }
 
+  // Le son SE TAIT pendant une lecture, ici ou dans un autre onglet (décision de Fabien,
+  // 2026-10-06) : il ne coupe rien et ne se superpose à rien — la pop-up, elle, s'affiche.
+  function ringUnlessPlaying(sound) {
+    if (isAudioPlaying()) return false;
+    askOthersPlaying(function (busy) { if (!busy) playChime(sound); });
+    return true;
+  }
+
   function unlockChime() {
     const ctx = chimeContext();
     if (ctx && ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(function () {});
@@ -1214,7 +1267,7 @@
         if (isFinite(seen)) {
           (d.items || []).forEach(notifPopup);
           const chime = chimeFor(d.items);
-          if (chime.sound && claimChime(chime.lastId)) playChime(chime.sound);
+          if (chime.sound && claimChime(chime.lastId)) ringUnlessPlaying(chime.sound);
         }
         writeLastSeen(Math.max(d.last_id || 0, isFinite(seen) ? seen : 0));
       })
@@ -1234,6 +1287,7 @@
   }
   global.WamaApp.checkNotifications = checkNotifications;
   global.WamaApp.playNotificationSound = playChime;   // « écouter » du profil
+  global.WamaApp.isAudioPlaying = isAudioPlaying;     // la question inverse de « faire taire »
   if (typeof document === 'undefined' || !document.addEventListener) {
     /* hors navigateur (V8 des tests) : rien à surveiller */
   } else if (document.readyState === 'loading') {
