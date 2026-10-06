@@ -2961,7 +2961,7 @@ pillow 11.3.0 (36), aiohttp (48), cryptography, pyjwt, python-multipart, urllib3
 | passe | objet | qui | état |
 |---|---|---|---|
 | 0 | inventaire structurel, périmètre retenu/écarté | moi | ✅ 2026-10-06 |
-| 1 | noyau des modèles : détection (`model_detection`, `supported_models`), base (`model_base`), chargement single-file / quantifié, gestion VRAM (`model_management`, `model_patcher`) | moi | ⏳ |
+| 1 | noyau des modèles : détection (`model_detection`, `supported_models`), base (`model_base`), chargement single-file / quantifié, gestion VRAM (`model_management`, `model_patcher`) | moi (lecture déléguée, 5 points revérifiés à la ligne) | ✅ 2026-10-06 |
 | 2 | noyau d'extension : contrat des nœuds (`comfy_api` v3), nœuds tiers, exécution (`comfy_execution`) — sécurité comprise | moi | ⏳ |
 | 3 | implémentations par famille (`comfy/ldm/<famille>`) recoupant le catalogue WAMA | wama-dev-ai (volume, lecture seule) | ⏳ — exige de la VRAM libre (WAMA arrêté : moment à choisir par Fabien) |
 | 4 | variantes / portages (nœuds `comfy_extras` par famille) | wama-dev-ai | ⏳ |
@@ -2983,6 +2983,51 @@ pillow 11.3.0 (36), aiohttp (48), cryptography, pyjwt, python-multipart, urllib3
 - À lire en passe 1 : le dépôt porte son propre aperçu des latents (`latent_preview.py`, racine,
   hors périmètre du corpus — le relire à part) et un `AGENTS.md` (veille des harnais :
   `WAMA_HARNESS.md`), ainsi qu'un `QUANTIZATION.md`.
+
+**Passe 1 — faits (2026-10-06)** — références `comfyui:<chemin>:<ligne>` au commit `7d9e5a04` ;
+lecture faite par un agent, **cinq points revérifiés à la ligne** (marqués ✓) :
+- **Détection par les POIDS, jamais par une config** : `model_detection.detect_unet_config`
+  (`comfy/model_detection.py:44`) lit des clés « signature » et des formes de tenseurs
+  (Wan : `head.modulation`, `:735-789` ; Flux : `double_blocks…key_norm`, `:263`), puis
+  `model_config_from_unet_config` prend la première classe de `supported_models.models` qui
+  correspond — l'ORDRE de la liste départage (`supported_models.py:2604-2631`). Une déclaration
+  de modèle (`supported_models_base.BASE`, `:31-124`) porte : clés de correspondance, réglages
+  d'échantillonnage, format de latents, dtypes, facteur mémoire, encodeurs de texte, préfixes
+  du VAE et des encodeurs dans le checkpoint unique.
+- ✓ **Les dossiers diffusers ne sont lus que partiellement, par un chargeur DÉPRÉCIÉ** :
+  `comfy/diffusers_load.py:12-19` ne connaît que `unet/`, `vae/`, `text_encoder/`,
+  `text_encoder_2/` — ni `transformer/`, ni fichiers fragmentés ; nœud `DiffusersLoader`
+  marqué `DEPRECATED` (`nodes.py:661`). Le format natif est le **checkpoint en un fichier**
+  (safetensors, `comfy/sd.py:2159-2326`).
+- **Quantification** native fp8 / nvfp4 / mxfp8 / int8 par le paquet externe `comfy-kitchen`
+  (`comfy/quant_ops.py:7-46, 201-265` ; `QUANTIZATION.md`) — ✓ **aucun chargeur GGUF dans le
+  cœur** (motif `gguf`, insensible à la casse, sur tout le dépôt : seulement `main.py`,
+  `utils/mime_types.py` et des tests ; GGUF = nœud tiers).
+- ✓ **VRAM mesurée sur tout le GPU**, autres processus compris (`model_management.py:1848`,
+  `mem_get_info`), ✓ réserve fixe de 400 à 700 Mo pour « les autres applications »
+  (`:877-885`, `--reserve-vram`), pression NVML par défaut, déchargement partiel puis complet
+  (`free_memory`, `:893-937`). Il ne suppose donc pas posséder le GPU — mais **aucun protocole
+  de coordination** au-delà de ces réserves.
+- ✓ **Aperçu des latents** : sur la PRÉDICTION de l'image propre (`denoised`, `samplers.py:1003`)
+  et la PREMIÈRE image d'une vidéo (`latent_preview.py:77-80`) ; TAESD si un petit décodeur est
+  installé, sinon la projection linéaire. WAMA projette les latents BRUITÉS (seuls exposés par
+  diffusers) — consigné comme reste en `ROUTE §F3b`.
+- **Sans interface** : `POST /prompt` (graphe au format « API »), suivi par `/ws`, résultats par
+  `/history/{id}` et `/view`, `POST /free` pour décharger, `POST /interrupt`
+  (`server.py:1138-1265`) ; écoute sur `127.0.0.1` par défaut (`cli_args.py:63`).
+
+**Ce que la passe 1 CORRIGE de nos hypothèses** :
+- « **Moteur externe = accès immédiat** à beaucoup de modèles » : faux pour NOS poids. WAMA range
+  ses modèles en dossiers HuggingFace au format diffusers (`AI-models/`), que ComfyUI ne lit que
+  pour les UNet de la famille SD, par un chargeur déprécié. Pour Flux, Wan, LTX, Qwen-Image…, il
+  faudrait des checkpoints en un fichier : **une seconde copie des poids** (plusieurs centaines
+  de Go au parc actuel), ou une conversion.
+- « Deux processus sur le GPU = conflit » : à nuancer. ComfyUI mesure la mémoire de tout le GPU
+  et garde une réserve ; la cohabitation est possible, mais elle échappe au gouverneur de WAMA
+  tant qu'elle n'y est pas déclarée (patron des réservations de MuseTalk/TalkingHead).
+- « S'inspirer » se confirme comme la voie sans coût : la détection par les poids et les
+  déclarations de `supported_models` sont exactement ce qu'un rôle `backend` (marche B2)
+  gagnerait à lire comme voisins.
 
 ---
 
