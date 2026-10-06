@@ -203,6 +203,15 @@ def generate_image_task(self, generation_id, process=None):
     return _run_generation(self, generation_id, _generate_image, process)
 
 
+def _partial_frames(generation):
+    """L'aperçu « pendant » d'une génération : brique commune `PartialFrames` (JPEG sous la sortie
+    de l'app, URL versionnée, retiré en fin de génération), au plus une image toutes les 2 s."""
+    from wama.common.utils.media_paths import get_app_media_path
+    from wama.common.utils.preview_utils import PartialFrames
+    folder = os.path.join(str(get_app_media_path('imager', generation.user_id, 'output')), 'partials')
+    return PartialFrames('imager', generation.id, folder)
+
+
 def _generate_image(generation, ctx):
     """La GLU de la génération d'IMAGES : tirage « auto », backend résolu par le catalogue,
     chargement, génération, enregistrement, réglages de sortie. Toute erreur LÈVE."""
@@ -341,7 +350,17 @@ def _generate_image(generation, ctx):
 
         import time
         gen_start = time.time()
-        result = backend.generate(params, progress_callback)
+        # Aperçu « PENDANT » (2026-10-06, décision de Fabien : aucune VRAM en plus) : à chaque
+        # pas, le backend projette ses latents en une image APPROCHÉE, publiée au plus toutes
+        # les 2 s (`ImageGenerationBackend.preview_step`, brique `latent_preview`). Le récepteur
+        # n'est posé que le temps de CETTE génération : le backend est un singleton.
+        frames = _partial_frames(generation)
+        backend.preview_sink = frames.sink('generate', 'Génération')
+        try:
+            result = backend.generate(params, progress_callback)
+        finally:
+            backend.preview_sink = None
+            frames.close()            # la face SORTIE prend le relais ; le JPEG partiel part
         gen_duration = time.time() - gen_start
 
         logger.info(f"[Imager] <<< backend.generate() completed in {gen_duration:.2f}s, success={result.success}")

@@ -158,6 +158,29 @@ class ImageGenerationBackend(BaseModelBackend):
         """Point d'entrée métier générique (contrat commun BaseModelBackend) → délègue à generate()."""
         return self.generate(**kwargs)
 
+    #: Aperçu « PENDANT » (2026-10-06) : récepteur posé par l'app le temps d'UNE génération
+    #: (`sink.due()`, `sink(image)` — `PartialFrames.sink`). None : aucun aperçu, aucun calcul.
+    preview_sink = None
+
+    def preview_step(self, pipe, callback_kwargs, *, height: int = None, width: int = None):
+        """À appeler depuis le rappel par pas d'un pipeline diffusers (`callback_on_step_end`) :
+        publie l'image APPROCHÉE des latents courants si la cadence le permet. Aucun décodage
+        VAE, aucune VRAM en plus (`common/utils/latent_preview`). Best-effort : un aperçu raté
+        n'interrompt jamais la génération."""
+        sink = self.preview_sink
+        if sink is None:
+            return
+        try:
+            if not sink.due():
+                return
+            from wama.common.utils.latent_preview import preview_from_pipe
+            image = preview_from_pipe(pipe, (callback_kwargs or {}).get('latents'),
+                                      height=height, width=width)
+            if image is not None:
+                sink(image)
+        except Exception as exc:
+            logger.debug(f"[{self.name}] aperçu des latents non publié : {exc}")
+
     def get_supported_models(self) -> dict:
         """
         Get the list of supported models for this backend.

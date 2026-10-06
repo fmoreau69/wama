@@ -195,7 +195,7 @@ def app_capabilities(app_id):
     """Capacités déclarées d'une app = les drapeaux `conventions` d'APP_CATALOG, retournés à plat.
 
     Accesseur UNIQUE des capacités (analogue de `studio_node_ports` pour les ports) — contrat de
-    jonction manifeste : le mécanisme de preview « pendant » lit `during_preview`/`streaming` ICI,
+    jonction manifeste : le mécanisme de preview « pendant » lit `during_preview` ICI,
     jamais en tapant dans les conventions ailleurs. Quand le manifeste deviendra autoritaire, ceci
     en sera la projection et les consommateurs (preview, etc.) hériteront sans changer.
     """
@@ -220,11 +220,14 @@ def app_capabilities(app_id):
 
 
 def app_supports_during_preview(app_id):
-    """True si l'app déclare la capacité de preview « pendant » (progressive/temporaire pendant le
-    traitement, streaming « à la Suno »). Lit `during_preview` OU `streaming` via `app_capabilities`.
-    """
-    caps = app_capabilities(app_id)
-    return bool(caps.get('during_preview') or caps.get('streaming'))
+    """True si l'app déclare la capacité de preview « pendant » : on OBSERVE le média de sortie
+    se construire (texte qui s'écrit, image courante, audio par segment, fichier lu pendant son
+    écriture — le « streaming à la Suno » en est un cas). Lit `during_preview` via `app_capabilities`.
+
+    ⚠ Un second drapeau, `streaming`, disait la MÊME chose (lu par un `or` ici, sans aucun autre
+    lecteur — « flag décoratif » relevé le 2026-08-17) : retiré le 2026-10-06 (décision de Fabien,
+    REMOVAL_LEDGER). La déclaration est tenue honnête par `tests_during_preview_declared`."""
+    return bool(app_capabilities(app_id).get('during_preview'))
 
 
 def studio_node_ports(app_id):
@@ -738,9 +741,9 @@ def _conv(
     processing_time=False,         # ProcessingTimeMixin + affichage du temps de traitement sur la card
     status_vocab=False,            # vocabulaire de statut SUCCESS/FAILURE en base (pas DONE/ERROR)
     toast=False,                   # notifications WamaApp.toast — zéro alert() bloquant restant
-    during_preview=False,          # §preview — aperçu « PENDANT » (partiel/progressif) : le mécanisme
-    streaming=False,               #   commun (preview_utils / app_capabilities) lit ce flag. streaming =
-                                   #   émission progressive de l'onde/média (effet « Suno »). Cf. WAMA_MANIFEST_SPEC.
+    during_preview=False,          # §preview — le média de sortie OBSERVÉ pendant qu'il se construit
+                                   #   (partiel/progressif, effet « Suno » compris) : le mécanisme commun
+                                   #   (preview_utils / app_capabilities) lit ce flag. Cf. WAMA_MANIFEST_SPEC.
 ):
     return {
         # Buttons & queue
@@ -781,7 +784,6 @@ def _conv(
         'status_vocab':           status_vocab,
         'toast':                  toast,
         'during_preview':         during_preview,
-        'streaming':              streaming,
     }
 
 
@@ -1190,12 +1192,9 @@ APP_CATALOG = {
             save_profile=True,       # Phase 1 (2026-05-16)
             filemanager_import=True, # quick-action + dispatch wama:fileimported (2026-05-16)
             tool_api=True,           # convert_file + get_converter_status (2026-06-02)
-            during_preview=True,     # audio hors in-place : la sortie ffmpeg s'écrit sous MEDIA
-                                     #   → URL partielle écoutable pendant la conversion (13/08)
-            streaming=True,          # émission PROGRESSIVE du média réel (pas un aperçu) : la sortie
-                                     #   ffmpeg est lisible PENDANT la conversion — audio intégral,
-                                     #   vidéo en conteneur streamable webm/mkv/ts (tasks.py:89-100 ;
-                                     #   mp4/mov partiel structurellement illisible, moov en fin)
+            during_preview=True,     # la sortie ffmpeg, écrite sous MEDIA, est lisible PENDANT la
+                                     #   conversion (13/08) — audio intégral, vidéo en conteneur
+                                     #   streamable webm/mkv/ts (mp4/mov partiel illisible, moov en fin)
             cross_app_options=True,  # Phase 2 CÂBLÉE (18/08) : schéma dérivé de CROSS_APP_OPTIONS
                                      #   (params.py), split options↔cross_app_options (views.update_settings),
                                      #   application inline enhancer (utils/cross_app.py — image
@@ -1376,6 +1375,9 @@ APP_CATALOG = {
             cross_app_options=True,    # output_format/quality (models.py:307) + apply_inline_conversion (tasks.py:284)
             multi_format_download=None,  # N/A — format choisi à la GÉNÉRATION (early binding)
             status_vocab=True,         # PENDING/RUNNING/SUCCESS/FAILURE (models.py:165)
+            during_preview=True,       # image APPROCHÉE des latents à chaque pas (~2 s), sans VAE
+                                       # (`latent_preview`, 2026-10-06) — génération d'IMAGES ;
+                                       # la vidéo suit au palier suivant
             # Passe conservatrice 2026-07-11 (suite audit §31) :
             anti_race=True,            # begin_processing sur start_generation (verrou + revoke)
             toast=True,                # showNotification délègue à WamaApp.toast (doublon Bootstrap

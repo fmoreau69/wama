@@ -904,6 +904,8 @@ class DiffusersBackend(ImageGenerationBackend):
                     current_step = len(generated_images) * params.steps + step_index
                     progress = int((current_step / total_steps) * 100)
                     progress_callback(progress)
+                # Aperçu « pendant » : image APPROCHÉE des latents, sans VAE (2026-10-06).
+                self.preview_step(pipe, callback_kwargs, height=params.height, width=params.width)
                 return callback_kwargs
 
             # FLUX: generate images ONE AT A TIME.
@@ -938,6 +940,8 @@ class DiffusersBackend(ImageGenerationBackend):
                         if progress_callback:
                             img_progress = (_idx * params.steps + step_index) / (params.num_images * params.steps)
                             progress_callback(int(img_progress * 95))
+                        # Latents EMBALLÉS chez Flux : la taille réelle reconstitue la grille.
+                        self.preview_step(pipe, callback_kwargs, height=height, width=width)
                         return callback_kwargs
 
                     logger.info(f"[Diffusers] Generating image {img_idx+1}/{params.num_images}")
@@ -1135,6 +1139,7 @@ class DiffusersBackend(ImageGenerationBackend):
                     if total_steps > 0:
                         progress = int((current_step / total_steps) * 100)
                         progress_callback(progress)
+                self.preview_step(pipe, callback_kwargs, height=params.height, width=params.width)
                 return callback_kwargs
 
             # Generate images

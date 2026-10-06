@@ -160,10 +160,13 @@ body:                                   # (sous l'enveloppe commune)
     # `studio_node_ports` devient une projection DU manifeste — la preview hérite sans changer sa logique.
     # ÉTANCHÉITÉ : preview ET extract passent par UN SEUL accesseur (`studio_node_ports`/`app_ports`),
     # jamais par app_modes/app_registry en direct → un seul point de bascule le jour de la projection.
-    # Le « PENDANT » (preview progressive/temporaire pendant le traitement, streaming « à la Suno ») =
-    # une CAPACITÉ DÉCLARÉE (`capabilities.during_preview`/`streaming`), pas un mécanisme codé en dur :
-    # le manifeste déclare QUELLES apps streament, la brique commune fournit le COMMENT. Même patron que
+    # Le « PENDANT » (le média de sortie OBSERVÉ pendant qu'il se construit — texte, image courante,
+    # audio par segment, fichier lu pendant son écriture ; le streaming « à la Suno » en est un cas) =
+    # une CAPACITÉ DÉCLARÉE (`capabilities.during_preview`), pas un mécanisme codé en dur : le
+    # manifeste déclare QUELLES apps le font, la brique commune fournit le COMMENT. Même patron que
     # has_realtime/instant_preview et que le bouton de cycle ▶/⏹/↻. Plan détaillé preview = doc dédié.
+    # ⚠ `capabilities.streaming` disait la MÊME chose sans aucun lecteur propre : RETIRÉ le 2026-10-06
+    # (REMOVAL_LEDGER) ; la déclaration est tenue par `tests_during_preview_declared` (déclaré ⇔ émis).
   capabilities: {has_realtime, has_edit_page, instant_preview, batch,
                  export_binding: late|early, supports_profiles, has_url_import, has_youtube}
   # SORTIE = 3 CONCERNS SÉPARÉS (jamais surchargés — corrigé 2026-07-22, détail WAMA_APP_GENERATION_ROUTE §F2) :

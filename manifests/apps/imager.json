@@ -11,15 +11,14 @@
       "accepts_url": true,
       "anti_race": true,
       "batch_type": "media_list",
-      "during_preview": false,
+      "during_preview": true,
       "has_batch": true,
       "has_url_import": false,
       "has_youtube": false,
       "inspector": false,
       "layout": false,
       "multi_format_download": null,
-      "settings_modal_item": true,
-      "streaming": false
+      "settings_modal_item": true
     },
     "data": {
       "models": [
@@ -1155,6 +1154,48 @@
     },
     "inspector": {
       "detail_registered": true,
+      "detail_spec": {
+        "engine": "model",
+        "extra": [
+          {
+            "field": "prompt",
+            "label": "Prompt",
+            "max_chars": 60
+          }
+        ],
+        "extra_from_params": true,
+        "params_schema": {
+          "else": "IMAGE_PARAMS_JSON",
+          "then": "VIDEO_PARAMS_JSON",
+          "when_any": [
+            "is_video_generation"
+          ]
+        },
+        "result_file": [
+          "output_video",
+          "output_images"
+        ],
+        "result_files": "output_images",
+        "result_role": {
+          "else": "image",
+          "then": "video",
+          "when_any": [
+            "output_video"
+          ]
+        },
+        "source_file": [
+          "reference_image",
+          "prompt_file"
+        ],
+        "source_text": "prompt",
+        "source_type": {
+          "else": "image",
+          "then": "video",
+          "when_any": [
+            "is_video_generation"
+          ]
+        }
+      },
       "preview": {
         "file_field": "reference_image",
         "user_field": "user"

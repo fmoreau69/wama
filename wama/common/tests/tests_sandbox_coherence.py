@@ -98,11 +98,15 @@ class CorpsComposeDesDeuxSaveursTest(SimpleTestCase):
 
     def test_aucune_accolade_doublee_dans_les_f_strings_des_deux_saveurs(self):
         # Le message d'erreur perdait sa valeur (« nature {nature!r} » rendu littéralement) —
-        # défaut hérité du pilote, latent chez converter_01 car jamais déclenché.
+        # défaut hérité du pilote, latent chez converter_01 car jamais déclenché. Depuis le
+        # 2026-10-05 ce message vit dans la porte commune (`route_for_nature`, gardée par
+        # `tests_route_for_nature`) ; les f-strings qui RESTENT dans le corps sont celles de la
+        # console, qui nomment la fonction et la nature.
         for result in ({'kind': 'text', 'field': 'result_text'}, None):
             src, _ = render_tasks(_manifeste(routes=self.ROUTES_TEXTE, nature='detected_type',
                                              result=result))
-            self.assertIn('{nature!r}', src)
+            self.assertIn('({fonc})', src)
+            self.assertNotIn('{{fonc', src)
             self.assertNotIn('{{nature', src)
 
     def test_sans_routes_le_TROU_reste_marque_plutot_qu_invente(self):
