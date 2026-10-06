@@ -476,7 +476,11 @@ port de TRAVAIL (`INPUT_TYPES`). Correction, à périmètre de JETONS :
 - Card : l'audio devient le port de TRAVAIL principal (ids historiques `melodyInput`/`melodySlot`/
   `melodyUrlInput` par `file_input_id`/`drop_zone_id`/`url_input_id`). Card « attache » sans voie
   d'import d'app : le gabarit gagne `primary_import_self` (déclaré par la page) pour que la brique
-  commune des ports câble la tuile principale. Plus de port de RÉFÉRENCE → la ligne d'appariement
+  commune des ports câble la tuile principale. ⚠ **Retiré le 2026-10-05** : c'était une seconde
+  voie pour un geste qui en avait déjà une — l'imager et l'avatarizer, cards « attache » eux
+  aussi, passent par `WamaImport({attach: […]})`, et le critère `import_front` est passé ROUGE.
+  Le composer y est revenu (ports d'attache lus de la card : un `.abc` déposé sur l'audio rejoint
+  la partition). Plus de port de RÉFÉRENCE → la ligne d'appariement
   est DÉCLARÉE (`match_status_id`), sinon elle aurait disparu. Les emplacements de `WamaInputMatch`
   sont lus des ports de la card (la partition n'y avait jamais été déclarée).
 - Studio : `compose_music(work_audio=, work_score=)` — la ligne `composer` du budget des ports non

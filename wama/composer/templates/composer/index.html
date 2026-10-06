@@ -74,10 +74,11 @@ Depuis le 2026-10-03 (décision de Fabien), le morceau à reprendre (COVER) est 
 YuE2) — ils étaient des références (`reference_melody`, `reference_score`).
 Le 1er port de travail garde les ids historiques (index.js, WamaInputMatch) : `melodyInput`,
 `melodySlot` et `melodyUrlInput` (son champ URL, lu dans le payload `source_url`). Card en mode
-ATTACHE sans voie d'import d'app : `primary_import_self` fait câbler sa tuile Importer par la
-brique commune des ports, comme celle d'un port secondaire.{% endcomment %}
+ATTACHE : sa tuile Importer est la voie d'import COMMUNE `WamaImport` en mode attache (plus bas),
+comme l'imager et l'avatarizer — le drapeau `primary_import_self` du 03/10 est retiré le
+2026-10-05 (une voie de plus pour le même geste).{% endcomment %}
 {% url 'composer:batch_template' as composer_batch_template_url %}
-{% include 'common/_new_item_card_v4.html' with app_id='composer' card_id='composerNewCard' depot_cree=False batch_format='sortie|prompt|modèle|durée' batch_hint='En-têtes de colonnes ou balises -p/-o/--option acceptés (détection auto)' batch_template_url=composer_batch_template_url show_batch_bar=True file_input_id='melodyInput' drop_zone_id='melodySlot' url_input_id='melodyUrlInput' url_placeholder='https://… (audio du morceau à reprendre)' url_hint='téléchargée au lancement — un fichier joint prime' primary_import_self=True match_status_id='inputMatchStatus' show_prompt=True prompt_input_id='promptInput' prompt_rows=3 prompt_placeholder='Ex : upbeat jazz piano with soft drums… — VIDE = génération aléatoire (le modèle improvise)' prompt_hint='Anglais recommandé (traduction automatique sinon)' primary_btn_id='generateBtn' primary_btn_label='Ajouter à la file d’attente' primary_btn_icon='fa-plus' collapsible=True %}
+{% include 'common/_new_item_card_v4.html' with app_id='composer' card_id='composerNewCard' depot_cree=False batch_format='sortie|prompt|modèle|durée' batch_hint='En-têtes de colonnes ou balises -p/-o/--option acceptés (détection auto)' batch_template_url=composer_batch_template_url show_batch_bar=True file_input_id='melodyInput' drop_zone_id='melodySlot' url_input_id='melodyUrlInput' url_placeholder='https://… (audio du morceau à reprendre)' url_hint='téléchargée au lancement — un fichier joint prime' match_status_id='inputMatchStatus' show_prompt=True prompt_input_id='promptInput' prompt_rows=3 prompt_placeholder='Ex : upbeat jazz piano with soft drums… — VIDE = génération aléatoire (le modèle improvise)' prompt_hint='Anglais recommandé (traduction automatique sinon)' primary_btn_id='generateBtn' primary_btn_label='Ajouter à la file d’attente' primary_btn_icon='fa-plus' collapsible=True %}
 
 {# ── Barre de progression globale : brique COMMUNE (_global_progress + wama-global-progress.js #}
 {# + endpoint composer:global_progress au contrat {total,done,running,failed,overall_progress}). #}
@@ -198,13 +199,28 @@ document.addEventListener('DOMContentLoaded', function () {
         },
     });
 
-    // ── Plus d'instance WamaImport ici (card v4, 2026-09-29) ──
-    // En v3, UNE zone (`composerBatchDrop`) recevait tout : lot si texte, mélodie si audio
-    // (attache), refus sinon. En v4 chaque entrée a son onglet et sa brique COMMUNE : le lot va
-    // à l'onglet « Lot » (`WamaBatchImport.previewFile`, intention déclarée), la mélodie à la
-    // tuile de son port (`wama-input-slots.js`, qui refuse avec la règle `WamaImport.accepts`),
-    // la médiathèque la DÉSIGNE. Une instance liée à une zone qui n'existe plus ne brancherait
-    // rien — du code mort.
+    // ── Voie d'import : brique commune WamaImport, mode ATTACHE (rétablie le 2026-10-05) ──
+    // Retirée le 2026-09-29 quand la card v4 n'avait plus de zone de travail ; le 03/10, le
+    // morceau à reprendre est devenu un port de TRAVAIL (`work_audio` principal, `work_score`
+    // second) — la zone est revenue, et sa voie d'import est celle de l'imager et de
+    // l'avatarizer : un fichier déposé ou choisi va au port dont l'`accept` l'admet (un `.abc`
+    // déposé sur l'audio rejoint la partition), un fichier de lot à la brique de lot, le reste
+    // est REFUSÉ à l'écran. Pas d'`uploadUrl` : rien n'est créé au dépôt, c'est « Ajouter à la
+    // file » qui crée. Les ports sont lus de la card, jamais écrits ici (même lecture que
+    // `WamaInputMatch` plus bas) ; leur `change` réveille l'appariement.
+    if (typeof WamaImport === 'function') {
+        window._import = WamaImport({
+            csrfToken:   '{{ csrf_token }}',
+            dropZoneId:  'melodySlot',
+            fileInputId: 'melodyInput',
+            batch:       window._batchImport,
+            batchScope:  'each',
+            attach:      Array.from(document.querySelectorAll(
+                             '#composerNewCard [data-port-pane][data-port-kind="file"]'))
+                             .map(function (p) { return p.dataset.portInput; })
+                             .filter(Boolean),
+        });
+    }
 });
 </script>
 <script>
