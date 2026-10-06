@@ -432,6 +432,9 @@ class LTXVideoBackend(ImageGenerationBackend):
                 if progress_callback:
                     progress = int((step_index + 1) / params.num_inference_steps * 100)
                     progress_callback(progress)
+                # Aperçu « pendant » : latents EMBALLÉS chez LTX — la taille alignée reconstitue
+                # la grille de la dernière image (2026-10-06).
+                self.preview_step(pipe, callback_kwargs, height=height, width=width)
                 return callback_kwargs
 
             # Build conditions : CONTINUATION (plusieurs images) sinon I2V (une image)

@@ -308,7 +308,8 @@ class VideoTaskOnSkeletonTest(_OnSkeleton):
         # Changing the format replays the output alone, from the kept MP4.
         ImageGeneration.objects.filter(pk=generation.pk).update(status='RUNNING', output_format='webm')
         played = []
-        self.Backend.generate_video = lambda self, params, progress: played.append(1)
+        self.enterContext(mock.patch.object(
+            self.Backend, 'generate_video', lambda self, params, progress: played.append(1)))
 
         def convert(path, fmt, preset='balanced', **_kw):
             converted = os.path.splitext(path)[0] + '.' + fmt
@@ -321,6 +322,43 @@ class VideoTaskOnSkeletonTest(_OnSkeleton):
         self.assertEqual([], played, 'the video was NOT generated again')
         self.assertTrue(generation.output_video.name.endswith('.webm'), generation.output_video.name)
         self.assertTrue(generation.native_outputs[0].endswith('.native.mp4'))
+
+    def test_a_video_is_seen_while_it_is_generated_then_the_partial_goes(self):
+        """Aperçu « pendant » (2026-10-06) : le même récepteur que l'image, le temps de la vidéo."""
+        import numpy as np
+        from django.core.cache import cache
+        from wama.common.utils import preview_utils
+        seen = {}
+
+        class PreviewingBackend(self.Backend):
+            preview_sink = None
+
+            def generate_video(self, params, progress):
+                sink = self.preview_sink
+                seen['sink'] = sink is not None
+                if sink is not None and sink.due():
+                    sink(np.zeros((8, 8, 3), dtype=np.uint8))
+                seen['during'] = cache.get(preview_utils._partial_variants_key('imager', generation.pk))
+                return super().generate_video(params, progress)
+
+        self.Backend.PARAMS = lambda **kw: SimpleNamespace(**kw)
+        generation = ImageGeneration.objects.create(
+            user=self.user, prompt='waves on a beach', model='imager:test-video-model',
+            generation_mode='txt2vid', video_duration=2, video_fps=16, video_resolution='480p',
+            status='RUNNING')
+        patches = self._patches() + (
+            mock.patch('wama.common.backends.manager.backend_for_key', return_value=PreviewingBackend),
+            mock.patch('wama.common.utils.model_declarations.declaration_for', return_value={}),
+            mock.patch.object(tasks, '_report_effective_video_settings'))
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        tasks.generate_video_task.run(generation.pk)
+        generation.refresh_from_db()
+        self.assertEqual('SUCCESS', generation.status, generation.error_message)
+        self.assertTrue(seen['sink'], 'no sink handed to the video backend')
+        self.assertEqual('Génération', (seen['during'] or {}).get('generate', {}).get('label'))
+        self.assertIsNone(cache.get(preview_utils._partial_variants_key('imager', generation.pk)))
 
     def test_an_unresolved_video_model_fails_and_says_which(self):
         generation = ImageGeneration.objects.create(

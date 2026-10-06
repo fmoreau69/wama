@@ -1376,8 +1376,8 @@ APP_CATALOG = {
             multi_format_download=None,  # N/A — format choisi à la GÉNÉRATION (early binding)
             status_vocab=True,         # PENDING/RUNNING/SUCCESS/FAILURE (models.py:165)
             during_preview=True,       # image APPROCHÉE des latents à chaque pas (~2 s), sans VAE
-                                       # (`latent_preview`, 2026-10-06) — génération d'IMAGES ;
-                                       # la vidéo suit au palier suivant
+                                       # (`latent_preview`, 2026-10-06) — images ET vidéos (la
+                                       # dernière image des latents)
             # Passe conservatrice 2026-07-11 (suite audit §31) :
             anti_race=True,            # begin_processing sur start_generation (verrou + revoke)
             toast=True,                # showNotification délègue à WamaApp.toast (doublon Bootstrap

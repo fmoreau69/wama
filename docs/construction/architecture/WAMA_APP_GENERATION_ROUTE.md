@@ -219,8 +219,14 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   config du VAE ; latents à plat, emballés, patchifiés ou vidéo ; sans coefficients — CogVideoX —
   repli sur les trois axes principaux). Point d'entrée commun des backends :
   `ImageGenerationBackend.preview_step`, appelé par SD 1.5/SDXL/Flux/HunyuanImage, Qwen-Image et
-  Flux2-klein ; les **cinq backends VIDÉO** restent à brancher (liste `STILL_TO_PREVIEW` de
-  `tests_latent_preview`, qui ne peut que descendre). Et **un seul concept** : le drapeau
+  Flux2-klein, et — le même jour — par les **cinq backends VIDÉO** (CogVideoX, LTX, Mochi,
+  HunyuanVideo, Wan/FastWan : la dernière image des latents, segments d'une vidéo longue compris) ;
+  `STILL_TO_PREVIEW` de `tests_latent_preview` est VIDE. ⏳ **Reste, relevé par la cartographie
+  de ComfyUI** (`ROADMAP §16.11`, passe 1 : `latent_preview.py:62-85`, `samplers.py:1003`) :
+  ComfyUI projette la PRÉDICTION de l'image propre (`denoised`, x0), WAMA les latents BRUITÉS du
+  pas courant — seuls exposés par le rappel de diffusers (`_callback_tensor_inputs` =
+  `latents`, `prompt_embeds`). Notre aperçu est donc plus bruité en début de génération ; il
+  s'éclaircit au fil des pas. Et **un seul concept** : le drapeau
   `streaming`, doublon sans lecteur, est retiré (`REMOVAL_LEDGER R107`) ; la déclaration
   `during_preview` est tenue par `tests_during_preview_declared` (déclaré ⇔ émis).
 - **Filemanager** : **unifié** (réutilise `media-preview.js`), mais endpoint de données distinct.
