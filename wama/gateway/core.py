@@ -24,7 +24,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from .services import PairingError, account_for, pairing_url, unlink, request_link
+from .services import (PairingError, account_for, linked_identity, pairing_url, unlink,
+                       request_link)
 
 logger = logging.getLogger(__name__)
 
@@ -234,8 +235,14 @@ def _handle(msg: IncomingMessage) -> Reply:
     # Les fichiers PRODUITS pendant le tour repartent avec la réponse : sans ça, le code
     # d'envoi des adaptateurs est mort et l'utilisateur reçoit un lien `/media/…` protégé
     # par session, inutilisable hors WAMA (défaut mesuré 2026-08-29, WAMA_LLM §Vérification).
-    sendable, oversized = _produced_files(resultat)
-    body = resultat.get('response') or '(réponse vide)'
+    return _reply_with_outputs(resultat.get('response') or '(réponse vide)',
+                               resultat.get('tool_steps'))
+
+
+def _reply_with_outputs(body: str, tool_steps) -> Reply:
+    """La réponse et les fichiers produits que portent ces étapes d'outils — UN geste pour la
+    réponse à un message et pour la fin de tâche postée dans le fil (2026-10-06)."""
+    sendable, oversized = _produced_files({'tool_steps': tool_steps or []})
     if oversized:
         # Le DIRE plutôt que de laisser l'utilisateur devant une réponse « c'est terminé »
         # sans pièce jointe. Le texte part avec la réponse, donc il vaut pour TOUT canal.
@@ -387,3 +394,162 @@ def _store_attachments(user, pieces) -> list:
         except Exception:
             logger.exception("[gateway] dépôt impossible : %s", piece.name)
     return deposes
+
+
+# ── Fin de tâche dans le fil d'origine (ROADMAP §19.2, 2026-10-06) ───────────────────────
+# Le moteur promettait « vous serez notifié dès la fin » ; rien ne partait vers un canal. La
+# passerelle relève désormais les notifications de fin de tâche (`notify_job_end`, qui désigne
+# l'élément) comme la cloche du web relève les siennes, et poste le résultat dans le fil d'où la
+# tâche a été demandée. Rien n'est inventé pour cela :
+#   • la FILE est `common.Notification` — un curseur par canal (`ChannelCursor`) en est le
+#     « dernier vu », comme celui du navigateur ;
+#   • l'ORIGINE est LUE dans le store de conversation : l'étape d'outil qui a créé ou lancé
+#     l'élément (`tool_api.items_of_step`, contrat méta-app) — aucune table de suivi de plus ;
+#   • le RÉSULTAT rejoue le geste « statut » (`get_<famille>_status` → `_produced_files`), celui
+#     qui joint le fichier quand l'utilisateur demande « quel est le statut ? ».
+# Une tâche lancée depuis le web n'a pas de fil d'origine : rien n'est posté (décision de Fabien,
+# la cloche de WAMA la signale déjà).
+
+#: Les notifications que la passerelle relaie : les deux issues d'un traitement.
+JOB_NOTICE_KINDS = ('job_done', 'job_failed')
+#: Intervalle de relève (s). Le web relève toutes les 60 s ; une conversation attend plus vite.
+FOLLOW_UP_INTERVAL_S = 15
+#: Bornes d'une relève : notifications traitées, tours remontés pour trouver l'origine.
+_MAX_NOTICES_PER_ROUND = 50
+_ORIGIN_SCAN_TURNS = 200
+
+
+@dataclass
+class FollowUp:
+    """Une fin de tâche à poster : où (`thread`), à qui (`external_id`), quoi (`reply`), et ce qui
+    s'enregistre au fil une fois posté (`notice`, l'étape d'outil RÉELLEMENT jouée)."""
+    channel: str
+    thread: str
+    external_id: str
+    reply: Reply
+    conversation_id: int
+    notice: str
+    step: dict
+
+
+def collect_job_follow_ups(channel: str) -> list:
+    """Les fins de tâche à poster sur ce canal depuis la dernière relève.
+
+    Le curseur avance AVANT l'envoi : au plus une fois — un arrêt entre la relève et l'envoi perd
+    un message de fil (la cloche de WAMA le garde), il n'en double jamais. À sa création, il se
+    pose sur la dernière notification existante : rien d'ancien n'est rejoué.
+    """
+    from django.db import transaction
+    from django.db.models import Max
+
+    from wama.common.models import Notification
+
+    from .models import ChannelCursor
+
+    with transaction.atomic():
+        cursor = ChannelCursor.objects.select_for_update().filter(channel=channel).first()
+        if cursor is None:
+            latest = Notification.objects.aggregate(m=Max('pk'))['m'] or 0
+            ChannelCursor.objects.create(channel=channel, last_notification_id=latest)
+            return []
+        notes = list(Notification.objects
+                     .filter(pk__gt=cursor.last_notification_id, kind__in=JOB_NOTICE_KINDS)
+                     .exclude(object_id='')
+                     .select_related('recipient')
+                     .order_by('pk')[:_MAX_NOTICES_PER_ROUND])
+        if not notes:
+            return []
+        cursor.last_notification_id = notes[-1].pk
+        cursor.save(update_fields=['last_notification_id', 'updated_at'])
+
+    follow_ups = []
+    for note in notes:
+        try:
+            follow_up = _follow_up(note, channel)
+        except Exception:
+            logger.exception("[gateway] fin de tâche non relayée (notification #%s)", note.pk)
+            continue
+        if follow_up is not None:
+            follow_ups.append(follow_up)
+    return follow_ups
+
+
+def _follow_up(note, channel: str):
+    """La fin de tâche d'UNE notification, ou None : personne reliée sur ce canal, ou tâche qui
+    n'a pas été demandée depuis l'un de ses fils."""
+    user = note.recipient
+    external_id = linked_identity(user, channel)
+    if not external_id:
+        return None
+    conversation = _origin_conversation(note, channel)
+    if conversation is None:
+        return None
+
+    from wama.tool_api import execute_tool
+    status_tool = f'get_{note.app}_status'
+    result = execute_tool(status_tool, {}, user)
+    jobs = (result.get('jobs') or []) if isinstance(result, dict) else []
+    job = next((j for j in jobs if str(j.get('id')) == note.object_id), None)
+
+    lines = [f"{'✅' if note.kind == 'job_done' else '⚠'} {note.title}"]
+    if note.body:
+        lines.append(note.body)
+    reply = _reply_with_outputs('\n'.join(lines),
+                                [{'result': {'jobs': [job]}}] if job else [])
+    return FollowUp(channel=channel, thread=conversation.thread_key, external_id=external_id,
+                    reply=reply, conversation_id=conversation.pk, notice=note.title,
+                    step={'tool': status_tool, 'args': {}, 'result': result})
+
+
+def _origin_conversation(note, channel: str):
+    """Le fil de CE canal où l'élément de la notification a été créé ou lancé — lu dans les
+    étapes d'outils persistées (`tool_api.items_of_step`), du plus récent au plus ancien.
+
+    L'élément est désigné par sa FAMILLE (clé du `DetailRegistry` : `audio_enhancer` et `enhancer`
+    sont deux modèles d'une même app) et son id ; la famille doit bien porter le modèle nommé par
+    la notification — sinon deux éléments de même numéro dans deux modèles se confondraient."""
+    from wama.common.models import ConversationTurn
+    from wama.common.utils.detail_registry import DetailRegistry
+    from wama.tool_api import items_of_step
+
+    entry = DetailRegistry.get(note.app)
+    if entry is None or entry['model'].__name__ != note.object_type:
+        return None
+    try:
+        wanted = (note.app, int(note.object_id))
+    except (TypeError, ValueError):
+        return None
+    turns = (ConversationTurn.objects
+             .filter(conversation__user_id=note.recipient_id, conversation__surface=channel,
+                     role='assistant', created_at__lte=note.created_at)
+             .exclude(tool_steps=[])
+             .select_related('conversation')
+             .order_by('-created_at', '-pk')[:_ORIGIN_SCAN_TURNS])
+    for turn in turns:
+        for step in turn.tool_steps or []:
+            if not isinstance(step, dict):
+                continue
+            if wanted in items_of_step(str(step.get('tool') or ''), step.get('args'),
+                                       step.get('result')):
+                return turn.conversation
+    return None
+
+
+def record_follow_up(follow_up: FollowUp) -> None:
+    """Enregistre au fil la fin de tâche POSTÉE — après l'envoi, par l'adaptateur.
+
+    Un échange comme un autre (`conversation_store.record_exchange`) : la notification côté
+    utilisateur, la réponse avec l'étape d'outil RÉELLEMENT jouée côté assistant. L'historique
+    resservi au modèle garde ainsi un « terminé » APPUYÉ sur un outil — un « terminé » sans outil
+    est précisément l'exemple qui lui faisait inventer des résultats (`WAMA_LLM.md` §2026-10-05).
+    """
+    from wama.common.models import Conversation
+    from wama.common.services import conversation_store
+
+    conversation = Conversation.objects.filter(pk=follow_up.conversation_id).first()
+    if conversation is None:
+        return
+    conversation_store.record_exchange(
+        conversation, f"[Notification WAMA] {follow_up.notice}",
+        {'response': follow_up.reply.text, 'tool_steps': [follow_up.step],
+         'model': 'notification WAMA'})

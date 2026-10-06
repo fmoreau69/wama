@@ -164,12 +164,12 @@ def _revision(model, item_id: int, app_id: str, outcome, res: dict) -> None:
         pass
 
 
-def _notify(item, label: str, nom: str, ok: bool, detail: str = None) -> None:
+def _notify(item, label: str, nom: str, ok: bool, detail: str = None, *, app_id: str = '') -> None:
+    # La fin de tâche COMMUNE (propriétaire : e-mail + dans WAMA ; collaborateurs, E3) — `app_id`
+    # fait désigner l'élément par la notification, que relève la passerelle de canaux.
     try:
-        from wama.common.utils.notifications import notify_job, notify_job_collaborators
-        notify_job(getattr(item, 'user', None), label, nom, ok, detail=detail)
-        # E3 (2026-10-03) : ceux qui collaborent sur la card sont prévenus aussi.
-        notify_job_collaborators(item, label, nom, ok, detail=detail or '')
+        from wama.common.utils.notifications import notify_job_end
+        notify_job_end(item, app_id, label, nom, ok, detail=detail or '')
     except Exception:
         pass
 
@@ -282,7 +282,7 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
         if write_line:
             process_runs.safely(process_runs.fail, item, message=msg, process_key=app_id)
         ctx.console(f"✗ {msg}", level='error')
-        _notify(item, app_id.title(), _item_label(item, item_id), False, detail=msg)
+        _notify(item, app_id.title(), _item_label(item, item_id), False, detail=msg, app_id=app_id)
         return True
 
     grant = gov.release_granted(app_id, item_id)
@@ -322,7 +322,7 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
         if write_line:
             process_runs.safely(process_runs.fail, item, message=msg, process_key=app_id)
         ctx.console(f"✗ {msg}", level='error')
-        _notify(item, app_id.title(), _item_label(item, item_id), False, detail=msg)
+        _notify(item, app_id.title(), _item_label(item, item_id), False, detail=msg, app_id=app_id)
         return True
 
 
@@ -679,7 +679,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         # RÉVISION (marche 8a) : l'état que ce résultat donne à l'élément, rattaché au fait
         # `produit` — posée ici, elle vaut pour toutes les apps du squelette sans une ligne par app.
         _revision(model, item_id, app_id, outcome, res)
-        _notify(item, label_app, nom, True)
+        _notify(item, label_app, nom, True, app_id=app_id)
     except TaskTimeLimitExceeded:
         # Arrêt PROPRE à la durée max : échec RELANÇABLE, dit avec la sortie possible (le plafond
         # se règle dans le profil), rien de classé comme une erreur du modèle.
@@ -696,7 +696,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         nom = _item_label(item, item_id)
         ctx.console(f"✗ {msg}", level='error')
         _signal(item, app_id, 'echec', None, {'erreur': 'duree_max'})
-        _notify(item, label_app, nom, False, detail=msg)
+        _notify(item, label_app, nom, False, detail=msg, app_id=app_id)
     except ServiceNotReady as wait:
         # Pas un échec : on rend le worker et on reviendra. La card reste « en cours » (le
         # lanceur l'y a mise) et son message dit l'attente ; la ligne du process, elle, attend.
@@ -723,7 +723,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                 process_runs.safely(process_runs.fail, item, node, msg, process_key=process_key)
             ctx.console(f"✗ {msg}", level='error')
             _signal(item, app_id, 'echec', None, {'erreur': 'service_indisponible'})
-            _notify(item, label_app, _item_label(item, item_id), False, detail=msg)
+            _notify(item, label_app, _item_label(item, item_id), False, detail=msg, app_id=app_id)
     except Exception as exc:
         msg = str(exc)[:500]
         logger.exception(f"{app_id} task ERROR | item={item_id}: {exc}")
@@ -738,6 +738,6 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         # Un échec est un fait aussi informatif qu'un succès : un modèle qui échoue souvent sur
         # un type d'entrée doit finir par se voir. On garde le message tel quel, sans le classer.
         _signal(item, app_id, 'echec', None, {'erreur': msg[:200]})
-        _notify(item, label_app, nom, False, detail=msg)
+        _notify(item, label_app, nom, False, detail=msg, app_id=app_id)
     finally:
         gov.task_finished(token)

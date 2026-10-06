@@ -39,7 +39,8 @@ from pathlib import Path
 
 from django.conf import settings
 
-from ..core import IncomingMessage, Attachment, handle_message
+from ..core import (FOLLOW_UP_INTERVAL_S, Attachment, IncomingMessage, collect_job_follow_ups,
+                    handle_message, record_follow_up)
 
 logger = logging.getLogger(__name__)
 
@@ -86,11 +87,15 @@ def build_client():
 
     client = discord.Client(intents=intents)
     salons_autorises = _allowed_channels()
+    relays = []
 
     @client.event
     async def on_ready():
         logger.info("[gateway/discord] connecté comme %s (%s salon(s) autorisé(s))",
                     client.user, len(salons_autorises) or 'tous')
+        # ⚠ `on_ready` revient à CHAQUE reconnexion : une seule relève, jamais deux en parallèle.
+        if not relays:
+            relays.append(asyncio.create_task(_relay_job_follow_ups(client)))
 
     @client.event
     async def on_message(message):
@@ -135,7 +140,7 @@ def build_client():
             # les utilisateurs pendant qu'une seule personne attend son résultat.
             reponse = await asyncio.to_thread(handle_message, entrant)
 
-        await _publier(message, reponse)
+        await _publish(message, reponse)
 
     return client
 
@@ -155,18 +160,62 @@ async def _recuperer_pieces_jointes(message) -> list:
     return pieces
 
 
-async def _publier(message, reponse):
-    """Publie la réponse : texte tronçonné, puis les fichiers demandés."""
+async def _relay_job_follow_ups(client):
+    """La relève des fins de tâche (`core.collect_job_follow_ups`) : toutes les
+    `FOLLOW_UP_INTERVAL_S` secondes, poster dans leur fil d'origine celles que le cœur a retenues.
+    Le cœur décide QUOI et OÙ ; l'adaptateur ne fait que publier. Une relève qui échoue est
+    journalisée et la suivante repart — un bot ne s'arrête pas sur une notification."""
+    while not client.is_closed():
+        try:
+            # ORM + outil de statut : dans un thread, comme un tour d'assistant (cf. on_message).
+            follow_ups = await asyncio.to_thread(collect_job_follow_ups, CANAL)
+            for follow_up in follow_ups:
+                await _deliver_follow_up(client, follow_up)
+        except Exception:
+            logger.exception("[gateway/discord] relève des fins de tâche en échec")
+        await asyncio.sleep(FOLLOW_UP_INTERVAL_S)
+
+
+async def _deliver_follow_up(client, follow_up):
+    """Poste UNE fin de tâche dans son fil, puis l'enregistre au fil de conversation."""
+    import dataclasses
+
+    import discord
+
+    try:
+        channel = client.get_channel(int(follow_up.thread)) or \
+            await client.fetch_channel(int(follow_up.thread))
+    except (ValueError, discord.DiscordException):
+        logger.warning("[gateway/discord] fil %s injoignable — fin de tâche non postée",
+                       follow_up.thread)
+        return
+    reply = follow_up.reply
+    if not isinstance(channel, discord.DMChannel):
+        # Dans un salon partagé, un message du bot ne prévient personne : on MENTIONNE la
+        # personne qui a demandé la tâche (en DM, la notification de Discord suffit).
+        reply = dataclasses.replace(reply, text=f"<@{follow_up.external_id}> {reply.text}")
+    await _publish_to(channel, reply)
+    await asyncio.to_thread(record_follow_up, follow_up)
+
+
+async def _publish(message, reply):
+    """Publie la réponse à un message reçu."""
+    await _publish_to(message.channel, reply, author=message.author)
+
+
+async def _publish_to(channel, reply, author=None):
+    """Publie une réponse dans un salon : texte tronçonné, puis les fichiers demandés — le geste
+    COMMUN à la réponse à un message et à la fin de tâche postée dans son fil (2026-10-06)."""
     import discord
 
     # Une réponse privée (code d'appariement) ne doit JAMAIS être publiée dans un salon.
-    cible = message.author if reponse.private else message.channel
+    target = author if (reply.private and author is not None) else channel
     try:
-        for morceau in _chunk_text(reponse.text):
-            await cible.send(morceau)
+        for chunk in _chunk_text(reply.text):
+            await target.send(chunk)
     except discord.Forbidden:
         # DM fermés : on ne re-publie pas un contenu privé dans le salon — on le dit.
-        await message.channel.send(
+        await channel.send(
             "⛔ Je ne peux pas vous écrire en privé (messages directs fermés), et ce "
             "contenu ne doit pas être publié ici. Ouvrez vos DM puis réessayez."
         )
@@ -174,22 +223,22 @@ async def _publier(message, reponse):
 
     # Pièces SORTANTES en mémoire (QR d'appariement…) : `discord.File` accepte un flux,
     # rien n'est écrit sur disque — un secret temporaire ne laisse pas de trace.
-    for piece in reponse.attachments:
+    for piece in reply.attachments:
         try:
-            await cible.send(file=discord.File(io.BytesIO(piece.content),
-                                               filename=piece.name))
+            await target.send(file=discord.File(io.BytesIO(piece.content),
+                                                filename=piece.name))
         except Exception:
             logger.exception("[gateway/discord] envoi de pièce impossible : %s", piece.name)
 
-    for chemin_relatif in reponse.files:
-        chemin = Path(settings.MEDIA_ROOT) / chemin_relatif
-        if not chemin.exists():
+    for relative_path in reply.files:
+        path = Path(settings.MEDIA_ROOT) / relative_path
+        if not path.exists():
             continue
         try:
-            sent = await cible.send(file=discord.File(str(chemin), filename=chemin.name))
-            await _caption_original(sent, chemin)
+            sent = await target.send(file=discord.File(str(path), filename=path.name))
+            await _caption_original(sent, path)
         except Exception:
-            logger.exception("[gateway/discord] envoi de fichier impossible : %s", chemin)
+            logger.exception("[gateway/discord] envoi de fichier impossible : %s", path)
 
 
 async def _caption_original(message, path):

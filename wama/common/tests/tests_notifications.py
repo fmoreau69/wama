@@ -32,7 +32,10 @@ class NotificationBrickTest(TestCase):
         self.assertIn(self.admin, admins)
         self.assertNotIn(self.member, admins)
 
-    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    # Sans alias déclarés : le test parle des adresses PERSONNELLES. Il lisait ceux du `.env` de la
+    # machine, et rougissait dès qu'on y déclarait `wama-admin@` (relevé le 2026-10-06).
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+                       WAMA_ADMIN_EMAILS=[], WAMA_DEV_EMAILS=[])
     def test_notify_admins_writes_in_wama_and_by_email(self):
         created, sent = notify_admins('worker_died', 'Worker gpu arrêté', 'détail')
         self.assertGreaterEqual(created, 1)
@@ -61,10 +64,15 @@ class NotificationBrickTest(TestCase):
         self.assertIsNone(other.read_at)
 
 
-@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+                   WAMA_ADMIN_EMAILS=[], WAMA_DEV_EMAILS=[], WAMA_SUPPORT_EMAIL='')
 class StaffAddressesTest(TestCase):
     """Functional staff addresses (2026-09-26, Fabien: aliases wama-admin@ / wama-dev@ /
-    wama-support@): mails go to the declared alias, else to each account of the tier."""
+    wama-support@): mails go to the declared alias, else to each account of the tier.
+
+    ⚠ HERMETIC since 2026-10-06 : without the class-level settings above, these tests read the
+    aliases of the machine's `.env` and turned red as soon as `wama-admin@` was declared there.
+    The tests that need an alias declare it themselves."""
 
     def setUp(self):
         User = get_user_model()
@@ -122,3 +130,90 @@ class WorkerDiedCommandTest(TestCase):
             call_command('worker_died', '--node', 'gpu@host', '--outcome', 'gave_up',
                          '--restarts', '3', stdout=mock.MagicMock())
         self.assertIn('SUSPENDUES', Notification.objects.get(kind='worker_died').body)
+
+
+class JobEndNotificationTest(TestCase):
+    """The end of a task — `notify_job_end`, the ONE end point of the tasks (2026-10-06).
+
+    Until then the OWNER only got the e-mail (and without SMTP, nothing): the in-app
+    notification went to collaborators alone. It now reaches the owner too, by `notify_on`
+    only (the e-mail is a channel, the notification in WAMA another — `WAMA_COLLABORATION
+    §5.2`), and it DESIGNATES its element: that is what the channel gateway reads to post the
+    result in the thread the task was asked from.
+    """
+
+    def setUp(self):
+        import shutil
+        import tempfile
+
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        from wama.describer.models import Description
+        root = tempfile.mkdtemp()
+        media_root = override_settings(MEDIA_ROOT=root)
+        media_root.enable()
+        self.addCleanup(media_root.disable)
+        self.addCleanup(shutil.rmtree, root, True)
+        self.owner = get_user_model().objects.create_user('job_end_owner', password='x')
+        _lot, (self.card,) = _lot_de(Description, self.owner, 1)
+
+    def _end(self, success=True, detail=''):
+        from wama.common.utils.notifications import notify_job_end
+        notify_job_end(self.card, 'describer', 'Describer', 'témoin', success, detail=detail)
+        return Notification.objects.filter(recipient=self.owner)
+
+    def _prefer(self, **prefs):
+        profile = self.owner.profile
+        for field, value in prefs.items():
+            setattr(profile, field, value)
+        profile.save()
+
+    def test_the_owner_is_notified_in_wama_and_the_notification_names_the_element(self):
+        from wama.common.services.journal import app_queue_url
+        note = self._end().get()
+        self.assertEqual('job_done', note.kind)
+        self.assertEqual('Describer — « témoin » terminé', note.title)
+        self.assertEqual(('describer', 'Description', str(self.card.pk)),
+                         (note.app, note.object_type, note.object_id))
+        self.assertEqual(app_queue_url('describer'), note.url)
+        self.assertTrue(note.url, 'the queue page of the app, from the common resolver')
+
+    def test_a_failure_is_notified_with_its_cause(self):
+        note = self._end(success=False, detail='modèle introuvable').get()
+        self.assertEqual(('job_failed', 'modèle introuvable'), (note.kind, note.body))
+        self.assertIn('a échoué', note.title)
+
+    def test_cutting_the_email_does_not_cut_the_notification_in_wama(self):
+        self._prefer(notify_email=False)
+        self.assertEqual(1, self._end().count())
+
+    def test_the_notification_in_wama_follows_notify_on(self):
+        self._prefer(notify_on='failure')
+        self.assertFalse(self._end(success=True).exists(), 'a success the user did not ask for')
+        self.assertEqual(1, self._end(success=False).count())
+        self._prefer(notify_on='none')
+        self.assertEqual(1, self._end(success=False).count(), 'nothing more once « Aucune »')
+
+    def test_the_email_keeps_its_two_preferences(self):
+        """Counter-check: `wants_notification` (e-mail) still needs `notify_email` AND
+        `notify_on` — only the in-app channel was freed from the e-mail switch."""
+        profile = self.owner.profile
+        self.assertTrue(profile.wants_notification(True))
+        profile.notify_email = False
+        self.assertFalse(profile.wants_notification(True))
+        self.assertTrue(profile.wants_in_app_notification(True))
+
+    def test_the_task_skeleton_end_designates_the_element(self):
+        """Wiring: the common skeleton passes its `app_id` — the family the gateway reads."""
+        from wama.common.utils.task_skeleton import _notify
+        _notify(self.card, 'Describer', 'témoin', True, app_id='describer')
+        note = Notification.objects.get(recipient=self.owner)
+        self.assertEqual(('describer', str(self.card.pk)), (note.app, note.object_id))
+
+    def test_a_collaborator_is_notified_with_the_element_too(self):
+        collaborator = get_user_model().objects.create_user('job_end_collab', password='x')
+        with mock.patch('wama.common.services.access_requests.collaborators_of',
+                        return_value=[collaborator]):
+            self._end()
+        note = Notification.objects.get(recipient=collaborator)
+        self.assertEqual(('describer', str(self.card.pk)), (note.app, note.object_id))
+        self.assertIn('collaboration', note.body)

@@ -3624,12 +3624,31 @@ scopé — donc rien à re-garder côté canal, il fonctionne dans le bot comme 
 > Trouvé en testant l'assistant de bout en bout. **Commité immédiatement** (protocole ③) ; diff
 > vérifié comme exclusivement mien avant commit, aucune édition de l'autre chantier écrasée.
 
-### 19.2 Notifications proactives — gain rapide, indépendant du bot ⏳
+### 19.2 Notifications proactives — gain rapide, indépendant du bot ✅ (2026-10-06)
 
 `notify_job()` (`common/utils/notifications.py`) est déjà LE point unique appelé par toutes
 les apps en fin de tâche. Y brancher un fan-out vers les canaux (en plus de l'email) donne
 « ✅ transcription terminée + fichier » en DM — **sans toucher une seule app**, et sans
 polling. À faire dès que l'appariement d'identité existe.
+
+✅ **LIVRÉ le 2026-10-06**, sous une forme qui suit l'intention mais pas la lettre — et la
+différence est mesurée (Discord, card #1047 : « vous serez notifié dès la fin », rien n'est venu) :
+- **Le point unique est `notify_job_end(item, app_id, …)`**, appelé par le squelette commun :
+  `notify_job` n'avait ni l'élément ni l'app, donc rien pour retrouver une conversation. Le
+  propriétaire reçoit désormais AUSSI la notification dans WAMA (`notify_on` seul) — seuls les
+  collaborateurs l'avaient —, et elle DÉSIGNE l'élément (`app` + `object_type` + `object_id`,
+  convention `RunOutcome`).
+- **Pas un fan-out en DM, le FIL D'ORIGINE** (décision de Fabien) : la passerelle poste dans la
+  conversation d'où la tâche a été créée ou lancée ; une tâche lancée du web n'y poste rien.
+- **Pas « sans polling »** : le worker Celery ne parle pas à Discord, seul le process de la
+  passerelle le fait. Elle RELÈVE donc `common.Notification` toutes les 15 s avec un curseur
+  par canal (`ChannelCursor`) — le geste même de la cloche du web, qui relève toutes les 60 s.
+- **L'origine est LUE, pas déclarée** : les étapes d'outils du store de conversation
+  (`tool_api.items_of_step` — création = clé uniforme `item_id`, lancement = argument principal),
+  la FAMILLE (clé du `DetailRegistry`) départageant les deux modèles de l'enhancer.
+- **Le résultat rejoue le geste « statut »** (`get_<famille>_status` → `_produced_files` →
+  légende de l'original), et l'échange s'enregistre au fil avec cette étape RÉELLE.
+Détail, contrôles et contre-épreuves : `WAMA_LLM.md §2026-10-06`.
 
 ### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) ⏳
 
