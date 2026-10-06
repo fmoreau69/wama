@@ -1343,6 +1343,24 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         # (les fantômes/stationnés/classe stable calculés ensuite héritent de la fusion).
         track_hist, cls_votes = remap_by_alias(track_hist, cls_votes, _root, dirty)
 
+    # ⚑ trajectory_twin_merge (Fabien, 2026-10-06 : « le meilleur levier pour les doublons est la comparaison
+    # de trajectoires proches ; j'observe des fantômes incohérents ») : deux identifiants restés proches,
+    # jamais vus ensemble comme deux boîtes d'une image, qui ROULENT dans le même sens, sont un même véhicule
+    # (`twin_tracks.trajectory_twins` — le geste de la métrique « paires proches entre caméras »). Réunis, ils
+    # n'ont plus qu'une trajectoire : leurs trous se comblent ensemble, sans fantômes divergents. Jamais une
+    # voiture et un deux-roues.
+    _twins = None
+    if _feat.get('trajectory_twin_merge', False):
+        from wama_data.functions.kinematics.twin_tracks import trajectory_twins
+        _tw, _twins = trajectory_twins([(o[0], o[1], _root(o[3]), o[4], o[5], o[6]) for o in _continuity_obs])
+        _fam_tw = {g: dominant_family(v) for g, v in cls_votes.items()}
+        _tw = {g: r for g, r in _tw.items() if not families_conflict(_fam_tw.get(g), _fam_tw.get(r))}
+        _twins['fusions_retenues'] = len(_tw)
+        if _tw:
+            alias.update(_tw)
+            track_hist, cls_votes = remap_by_alias(track_hist, cls_votes, _root, dirty)
+        logger.info('[trajectoires jumelles] %s', _twins)
+
     # ── Détection des véhicules STATIONNÉS (garés) ──────────────────────────────
     # Track à vitesse max ~nulle sur toute sa vie = garé, SAUF s'il passe près d'une
     # intersection (voiture arrêtée au carrefour = pertinente, on la garde).
@@ -1890,6 +1908,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             # garés comptés deux fois (ancres < 2 m) et bilan de ⚑ parked_long_exposure
             'parked_twins': parked_twins,
             'parked_long_exposure': _lexp,
+            'trajectory_twins': _twins,      # bilan de ⚑ trajectory_twin_merge (portes, fusions)
             'calibration_reference_gids': calibration_reference,
             'placement_spread': placement_spread,
             'placement_sources': dict(_src_counts),

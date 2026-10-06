@@ -5,3 +5,5 @@ from .collision import collision_detection  # noqa: F401
 from .rts_smoother import kalman_rts_cv  # noqa: F401
 from . import static_fusion  # noqa: F401  (auto-enregistre la FunctionSpec)
 from .static_fusion import long_exposure_groups  # noqa: F401
+from . import twin_tracks  # noqa: F401  (auto-enregistre la FunctionSpec)
+from .twin_tracks import trajectory_twins  # noqa: F401
