@@ -89,4 +89,8 @@ def backup_all_media(overwrite: bool = False, progress_cb=None) -> dict:
         return summary
 
     logger.info("[media_backup] miroir %s → %s (overwrite=%s)", root, remote, overwrite)
-    return mirror_tree(root, remote, overwrite=overwrite, progress_cb=progress_cb)
+    # Les copies de LECTURE (2026-10-06) ne se sauvegardent pas : elles dérivent de leur original,
+    # qui, lui, part au NAS, et se refont en quelques secondes.
+    from wama.common.utils.video_compat import PLAYBACK_DIR
+    return mirror_tree(root, remote, overwrite=overwrite, progress_cb=progress_cb,
+                       exclude=(PLAYBACK_DIR,))

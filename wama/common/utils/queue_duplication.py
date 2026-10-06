@@ -105,9 +105,19 @@ def safe_delete_file(instance, field_name: str) -> bool:
         return False
     try:
         field.delete(save=False)
+        _drop_playback_copy(file_name)
         return True
     except Exception:
         return False
+
+
+def _drop_playback_copy(file_name: str) -> None:
+    """L'original part : sa copie de LECTURE aussi (`video_compat`, 2026-10-06). Ne lève jamais."""
+    try:
+        from wama.common.utils.video_compat import drop_playback_copy
+        drop_playback_copy(file_name)
+    except Exception:
+        pass
 
 
 def release_card_file(instance, field_name: str) -> bool:
@@ -229,8 +239,10 @@ def delete_file_unless_shared(instance, field_name: str) -> bool:
         return False
     if is_shared_elsewhere(instance, field_name, field.name):
         return False
+    file_name = field.name
     try:
         field.delete(save=False)
+        _drop_playback_copy(file_name)
         return True
     except Exception:
         return False

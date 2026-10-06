@@ -49,7 +49,9 @@ from django.core.management.base import BaseCommand
 from django.db import models, transaction
 
 #: Apps dont les fichiers ne se jugent PAS sur les références de base (cf. en-tête).
-EXCLUS = ('cam_analyzer',)
+#: `.preview` : les copies de LECTURE (`video_compat.PLAYBACK_DIR`, 2026-10-06) — dérivées de
+#: leur original, jamais à « résorber ».
+EXCLUS = ('cam_analyzer', '.preview')
 
 #: Suffixe posé par un dédoublonneur : `_1`, `_01`, `_2`… ou l'aléatoire hexadécimal de Django.
 SUFFIXE = re.compile(r'^(?P<souche>.+?)_(?:\d{1,3}|[0-9a-f]{8})$')
