@@ -160,6 +160,15 @@ FEATURES = [
             "réunis avant de juger ; la position fixe et le cap se prennent sur l'ensemble. Exige ⚑ « Garés = "
             "hors des voies ». Mesure : « garés en double » (ancres à moins de 2 m). Tracking à rejouer.",
             default=False, scope='compute'),
+    Feature('trajectory_twin_merge', 'Trajectoires jumelles réunies (doublons)',
+            "Un même véhicule vu par deux caméras (recouvrement avant ↔ latérale, au bord des images) peut "
+            "recevoir deux identifiants qui roulent côte à côte : affiché deux fois, avec des fantômes qui ne "
+            "se rejoignent pas. Deux identifiants restés proches (médiane < 2 m, au moins 12 images), jamais "
+            "vus ensemble comme deux boîtes d'une même image, qui ROULENT dans le même sens (< 30°), sont "
+            "réunis — jugés contre tout le groupe, jamais une voiture avec un deux-roues. Les immobiles "
+            "relèvent de la « pose longue ». Mesure : les doublons (paires proches entre caméras). Tracking à "
+            "rejouer.",
+            default=False, scope='compute'),
     Feature('measured_lens_distortion', 'Distorsion des objectifs MESURÉE (lignes droites)',
             "La distorsion de CHAQUE caméra (les quatre) est mesurée sur ses propres images, sans mire : une "
             "arête droite du décor (bordure, marquage, façade) est droite dans une image sans distorsion ; "

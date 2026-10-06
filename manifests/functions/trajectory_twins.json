@@ -1,0 +1,80 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne par observation : image, caméra, identifiant de suivi, position (m).",
+        "group": "travail",
+        "key": "observations",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "frame",
+          "camera",
+          "track_id",
+          "x",
+          "y"
+        ]
+      }
+    ],
+    "key": "trajectory_twins",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Identifiants absorbés et leur racine ; le bilan par porte est dans meta.",
+        "key": "twins",
+        "optional": false,
+        "produced_fields": [
+          "track_id",
+          "root"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 2.0,
+        "description": "Distance médiane maximale entre deux jumeaux pendant leur fenêtre commune.",
+        "key": "max_median_m",
+        "max": 10.0,
+        "min": 0.2,
+        "type": "float",
+        "unit": "m"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "tracking",
+      "duplicates",
+      "multi-camera",
+      "fusion"
+    ],
+    "visibility": "public"
+  },
+  "description": "Trouve les identifiants de suivi qui décrivent le MÊME objet en mouvement : restés proches (médiane < 2 m) au moins 12 images, jamais vus ensemble comme deux boîtes d'une même image, et roulant dans le même sens. Jugée contre tout le groupe (aucun enchaînement). Le geste de la métrique « paires proches entre caméras » (doublons).",
+  "key": "trajectory_twins",
+  "manifest_kind": "function",
+  "name": "Trajectoires jumelles",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:trajectory_twins",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

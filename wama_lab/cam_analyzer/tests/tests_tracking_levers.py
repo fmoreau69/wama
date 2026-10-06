@@ -403,3 +403,17 @@ class ParkedLongExposureTest(SimpleTestCase):
         self.assertIn("if _feat.get('parked_long_exposure', False) and _footprint is not None:", src)
         self.assertLess(src.index('long_exposure_groups(_frag'), src.index('stationary_gids = []'))
         self.assertIn("'parked_twins': parked_twins", src)
+
+
+class TrajectoryTwinMergeTest(SimpleTestCase):
+    """⚑ trajectory_twin_merge (2026-10-06) : le geste de la métrique « doublons »."""
+
+    def test_declared_off_and_wired_after_the_stitch_never_across_families(self):
+        f = {x.key: x for x in FEATURES}['trajectory_twin_merge']
+        self.assertFalse(f.default)
+        self.assertEqual(f.scope, 'compute')
+        src = inspect.getsource(mt.annotate_global_tracks)
+        self.assertIn("if _feat.get('trajectory_twin_merge', False):", src)
+        self.assertLess(src.index('trajectory_twins(['), src.index('stationary_gids = []'))
+        self.assertIn('if not families_conflict(_fam_tw.get(g), _fam_tw.get(r))', src)
+        self.assertIn("'trajectory_twins': _twins", src)
