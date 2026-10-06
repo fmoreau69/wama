@@ -1387,6 +1387,27 @@ sur la même liste.
 > `tests_route_for_nature` (la porte ; aucune lecture de `ROUTES` à la main ; la glu du
 > converter suit sa TABLE, prouvé en la modifiant) — trois mutations tuées.
 
+> ✅ **CRITÈRE `backend_routes` RECALÉ (2026-10-06, décision de Fabien)** — il ne connaissait
+> que les `ROUTES` (nature → fonction) et rougissait sur les sept apps dont les process
+> choisissent leur backend par le MODÈLE. Or `8c556100` l'avait tranché : les `ROUTES` sont la
+> décision de routage d'APP, **pas** le lien modèle → backend, qui vit au catalogue. Leur
+> imposer des `ROUTES` aurait été une déclaration fictive. Mesuré avant : aucun process de ces
+> sept apps n'aiguille par nature d'entrée (relevé process par process, lignes revérifiées). Le
+> critère reconnaît désormais DEUX déclarations, chacune LUE par sa porte : `ROUTES` lues par
+> `route_for_nature`, ou le catalogue par `backend_for_key` / `backend_for_model`. Il dit
+> PARTIEL ce qui déclare sans lire (des `ROUTES` mortes — le converter jusqu'au 05/10) ou ce qui
+> contourne la porte. Deux restes, nommés par ce qui manque :
+> - **synthesizer** — la table `ENGINE_BACKENDS` (moteur → classe) redit le `ENGINE` que chaque
+>   backend TTS déclare : la classe ne se dérive pas de la porte `backend_for_model` (laissée en
+>   place par `8c556100` car consommée par le service TTS, sans Django) ;
+> - **anonymizer** — SAM3 passe par le catalogue, mais la voie YOLO instancie
+>   `anonymize.Anonymize` par son chemin de module (`anonymizer/tasks.py:621`). Angle mort de
+>   `tests_backend_adoption`, qui ne compte que les `from … import Classe` : le critère le voit
+>   désormais (`_backend_instantiated_by_path`).
+> La mesure est PAR APP : une porte présente suffit au vert, sauf contournement détecté.
+> Grille : **957/967**, aucun rouge sur les dix apps. Gardes :
+> `tests_conformity_backends.BackendRoutingIsDeclaredAndReadTest` (trois mutations tuées).
+
 **Palier `params` (soir, sur dev)** : extract MULTI-SCHÉMAS — tous les attributs `*PARAMS_JSON`
 (trou #10 résorbé : imager IMAGE+VIDEO, enhancer MEDIA+AUDIO étaient invisibles), facette
 `{primary, schemas}` (forme liste historique acceptée à l'ingest). Projecteur : un `params.py`

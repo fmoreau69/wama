@@ -1619,15 +1619,53 @@ def _backend_packages(f: _AppFiles):
 # les déclarations CÔTÉ APP qui rendent les facettes processing/inspector/tool_api
 # projetables — jamais le verdict du roundtrip lui-même.
 
-def _backend_routes(f: _AppFiles):
-    """`backends/__init__.ROUTES` : nature → callable au contrat commun (marche B1, 02/09).
+#: Où une app RÉSOUT son backend (ses tâches, ses workers, son paquet `backends`, ses utilitaires)
+#: — pas ses tests, qui citent les portes pour les éprouver.
+ROUTING_CODE = TASKS + ['backends/*.py', 'utils/*.py']
 
-    LA déclaration que `tasks_gen` compose en corps de tâche — une app sans ROUTES garde
-    son stub `NotImplementedError`. Applicable à TOUTES les apps : chaque app traite des
-    items ; la question n'est pas « a-t-elle des modèles IA ? » (ça, c'est F4/_f4) mais
-    « son moteur est-il ROUTABLE par nature d'entrée ? ». Le contrat exige des chemins en
-    CHAÎNES (la jumelle résout vers SES copies de paquet) : un ROUTES d'objets importés
-    est un demi-contrat → 'partial'.
+
+#: Modules du paquet `wama.common.backends` qui ne SONT PAS des backends (portes, bases, outils).
+NOT_BACKEND_MODULES = {'manager', 'base', 'tts_base', 'image_generation_base', 'detection_base',
+                       'speech_to_text_base', 'vendor'}
+
+
+def _backend_instantiated_by_path(f: _AppFiles):
+    """Preuve `fichier:ligne` d'un backend du substrat INSTANCIÉ par son module
+    (`from wama.common.backends import anonymize` puis `anonymize.Anonymize(…)`), ou None.
+
+    Angle mort de la garde d'adoption (`tests_backend_adoption`), qui ne compte que les
+    `from … import Classe` : l'anonymizer instanciait YOLO ainsi, à côté de SAM3 résolu par le
+    catalogue (relevé le 2026-10-06 en recalant ce critère)."""
+    text = _sans_commentaires(f.text(ROUTING_CODE), '.py')
+    modules = {m for m in re.findall(r'from\s+wama\.common\.backends\s+import\s+(\w+)', text)
+               if m not in NOT_BACKEND_MODULES}
+    for module in sorted(modules):
+        ev = f.find_code(ROUTING_CODE, rf'\b{module}\.[A-Z]\w*\(')
+        if ev:
+            return ev
+    return None
+
+
+def _backend_routes(f: _AppFiles):
+    """Le ROUTAGE vers le backend est-il DÉCLARÉ, et LU par une porte commune ?
+
+    Recalé le 2026-10-06 (décision de Fabien). Ce critère ne connaissait qu'une déclaration,
+    `backends/__init__.ROUTES` (nature → callable, marche B1) : il rougissait sur les sept apps
+    dont les process choisissent leur backend par le MODÈLE — ce qu'aucune `ROUTES` ne dit, et
+    ce que `8c556100` a tranché : « les ROUTES sont la décision de routage d'APP (nature →
+    fonction), PAS le lien modèle → backend », qui vit au catalogue (le modèle porte son moteur,
+    le backend s'en dérive). Leur imposer des `ROUTES` aurait été une déclaration fictive,
+    doublon du catalogue. Il connaissait encore moins la LECTURE : le converter était vert sur
+    des `ROUTES` que sa tâche contournait par un `if/elif` (déclaration morte, R106).
+
+    Deux déclarations légitimes, chacune lue par SA porte commune :
+      - par NATURE d'entrée : `ROUTES` (chemins en CHAÎNES, la jumelle résout ses copies), lues
+        par `backends.manager.route_for_nature` ;
+      - par MODÈLE : le catalogue, par `backend_for_key` / `backend_for_model`.
+    PARTIEL : des `ROUTES` que rien ne lit, des cibles en objets importés, ou une table
+    moteur → classe écrite dans l'app (elle redit le `ENGINE` que chaque backend déclare).
+    `tasks_gen` compose le corps d'un process routé par NATURE ; un process routé par MODÈLE
+    reste un trou de glu nommé (marche B, rôle `backend`) — ce critère mesure la DÉCLARATION.
     """
     ev = f.find_code(['backends/__init__.py'], r'(?m)^ROUTES\s*[:=]')
     if ev:
@@ -1636,18 +1674,33 @@ def _backend_routes(f: _AppFiles):
         # cible non-chaîne = « ': identifiant » (une clé-chaîne suivie d'un objet importé)
         if m and re.search(r"""['"]\s*:\s*[A-Za-z_]""", m.group(1)):
             return 'partial', f"{ev} — cibles en OBJETS importés, pas en chaînes (la jumelle ne peut pas résoudre ses copies)"
-        return True, ev
+        door = f.find_code(ROUTING_CODE, r'\broute_for_nature\(')
+        if not door:
+            return 'partial', (f"{ev} — ROUTES déclarées mais LUES par aucune porte "
+                               "(`route_for_nature`) : déclaration morte, aiguillage écrit à la main")
+        return True, f"{ev} lues par {door} (routage par NATURE)"
+    catalog = f.find_code(ROUTING_CODE, r'\bbackend_for_(?:key|model)\(')
+    if catalog:
+        by_path = _backend_instantiated_by_path(f)
+        if by_path:
+            return 'partial', (f"{catalog} passe par le catalogue, mais {by_path} instancie un "
+                               "backend par son CHEMIN de module : ce process-là ne passe par "
+                               "aucune porte")
+        return True, f"{catalog} (routage par MODÈLE : le catalogue)"
+    table = f.find_code(['backends/*.py'], r'(?m)^\w*BACKENDS\s*=\s*\{')
+    if table:
+        return 'partial', (f"{table} — table moteur → classe écrite dans l'app : le moteur vient "
+                           "bien du catalogue, mais la classe ne se DÉRIVE pas de la déclaration "
+                           "`ENGINE` des backends (porte `backend_for_model`)")
     if f.glob('backends/*.py'):
-        return False, "paquet backends/ présent mais sans ROUTES — tasks_gen laisse le stub NotImplementedError"
-    # ⚠ Depuis le 08/09 les CLASSES vivent au substrat ; seules les ROUTES restent une
-    # décision d'app (« ce n'est pas un reste, c'est la frontière », 8c556100). Une app sans
-    # paquet n'a donc plus « le moteur enfoui » : elle a des backends résolus et pas de
-    # routage déclaré — le rouge est le même, la raison dite est la vraie.
+        return False, "paquet backends/ présent sans routage déclaré (ni ROUTES, ni porte du catalogue)"
+    # ⚠ Depuis le 08/09 les CLASSES vivent au substrat (8c556100) : une app sans paquet n'a donc
+    # plus « le moteur enfoui » — elle a des backends résolus et pas de routage déclaré.
     resolus = f.backend_paths()
     if resolus:
-        return False, (f"{len(resolus)} backend(s) résolu(s) au substrat, aucune ROUTES déclarée "
-                       "dans l'app (backends/__init__.py) — tasks_gen laisse le stub NotImplementedError")
-    return False, "aucun paquet backends/ ni backend résolu — moteur enfoui dans tasks/utils, incomposable par nature"
+        return False, (f"{len(resolus)} backend(s) résolu(s) au substrat, aucun routage déclaré "
+                       "dans l'app (ni ROUTES, ni porte du catalogue)")
+    return False, "aucun paquet backends/ ni backend résolu — moteur enfoui dans tasks/utils"
 
 
 def _task_skeleton(f: _AppFiles):
@@ -2126,7 +2179,7 @@ CRITERIA: list[Criterion] = [
     # ── F5 cycle de vie ──
     # ⚠ backend_routes et task_skeleton ne sont PAS enveloppés _f4 : la composition du corps
     # de tâche vaut pour toute app (le converter — sans modèle IA — est le pilote des deux).
-    Criterion('backend_routes', 'F5', 'Routage nature → backend déclaré (backends/__init__.ROUTES, B1)',
+    Criterion('backend_routes', 'F5', 'Routage vers le backend déclaré et lu (ROUTES par nature, ou catalogue par modèle)',
               _backend_routes,
               mechanism='codegen'),
     Criterion('task_skeleton', 'F5', "Tâche d'item par la brique commune (run_item_task, A2a)",

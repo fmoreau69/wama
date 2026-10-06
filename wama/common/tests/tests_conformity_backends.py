@@ -225,6 +225,72 @@ class CriteresSurBackendsResolusTest(SimpleTestCase):
         self.assertIn('enfoui', cc._backend_routes(f)[1])
 
 
+class BackendRoutingIsDeclaredAndReadTest(SimpleTestCase):
+    """`backend_routes`, recalé le 2026-10-06 : deux déclarations légitimes (8c556100), chacune
+    LUE par sa porte — ROUTES par nature (`route_for_nature`), catalogue par modèle
+    (`backend_for_key` / `backend_for_model`). Partiel : ce qui déclare sans lire, ou ce qui
+    contourne la porte."""
+
+    ROUTES = "ROUTES = {'image': 'backends.image_backend.convert_image'}\n"
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name) / 'app'
+        self.addCleanup(self._tmp.cleanup)
+
+    def _app(self, files):
+        for name, text in files.items():
+            _ecrire(self.root, name, text)
+        return _Fichiers('app_jetable', [], root=self.root)
+
+    def test_routes_read_by_the_nature_door_are_green(self):
+        f = self._app({'backends/__init__.py': self.ROUTES,
+                       'tasks.py': 'convert = route_for_nature(__package__, job.media_type)\n'})
+        state, proof = cc._backend_routes(f)
+        self.assertIs(True, state, proof)
+        self.assertIn('NATURE', proof)
+
+    def test_routes_nobody_reads_are_a_dead_declaration(self):
+        """The converter until 2026-10-05: ROUTES declared, an `if/elif` in the task."""
+        f = self._app({'backends/__init__.py': self.ROUTES,
+                       'tasks.py': "if job.media_type == 'image':\n    convert_image()\n"})
+        state, proof = cc._backend_routes(f)
+        self.assertEqual('partial', state)
+        self.assertIn('morte', proof)
+
+    def test_the_catalogue_door_is_a_declaration_by_model(self):
+        f = self._app({'tasks.py': 'cls = backend_for_key(model_key)\n'})
+        state, proof = cc._backend_routes(f)
+        self.assertIs(True, state, proof)
+        self.assertIn('MODÈLE', proof)
+
+    def test_a_backend_instantiated_by_its_module_path_is_a_bypass(self):
+        """The anonymizer's YOLO path, beside SAM3 resolved by the catalogue."""
+        f = self._app({'tasks.py': 'from wama.common.backends import anonymize\n'
+                                   'cls = backend_for_key("anonymizer:sam3")\n'
+                                   'model = anonymize.Anonymize(source_dir=x)\n'})
+        state, proof = cc._backend_routes(f)
+        self.assertEqual('partial', state)
+        self.assertIn('CHEMIN', proof)
+
+    def test_a_base_module_is_not_a_backend(self):
+        f = self._app({'tasks.py': 'from wama.common.backends import manager\n'
+                                   'cls = manager.backend_for_key(k)\n'})
+        self.assertIs(True, cc._backend_routes(f)[0])
+
+    def test_an_engine_table_written_in_the_app_is_partial(self):
+        """The synthesizer: `ENGINE_BACKENDS = {…}` repeats the backends' own `ENGINE`."""
+        f = self._app({'backends/__init__.py': "ENGINE_BACKENDS = {'kokoro': KokoroBackend}\n"})
+        state, proof = cc._backend_routes(f)
+        self.assertEqual('partial', state)
+        self.assertIn('ENGINE', proof)
+
+    def test_a_comment_citing_a_door_is_no_proof(self):
+        f = self._app({'backends/__init__.py': self.ROUTES,
+                       'tasks.py': '# TODO: route_for_nature(__package__, nature)\n'})
+        self.assertEqual('partial', cc._backend_routes(f)[0])
+
+
 class ImportDeDossierTest(SimpleTestCase):
     """`recursive_import` : le CLIC et le DÉPÔT sont deux moitiés, pas un seul motif.
 
