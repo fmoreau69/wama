@@ -16,8 +16,7 @@
       "inspector": true,
       "layout": true,
       "multi_format_download": null,
-      "settings_modal_item": true,
-      "streaming": true
+      "settings_modal_item": true
     },
     "data": {
       "models": [

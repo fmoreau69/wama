@@ -11,15 +11,14 @@
       "accepts_url": true,
       "anti_race": true,
       "batch_type": "pipe",
-      "during_preview": false,
+      "during_preview": true,
       "has_batch": true,
       "has_url_import": true,
       "has_youtube": false,
       "inspector": true,
       "layout": false,
       "multi_format_download": null,
-      "settings_modal_item": true,
-      "streaming": false
+      "settings_modal_item": true
     },
     "data": {
       "models": [

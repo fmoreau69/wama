@@ -202,6 +202,11 @@ class Flux2KleinBackend(ImageGenerationBackend):
             except Exception as e:
                 logger.warning(f"[Flux2Klein] Could not load reference image: {e}")
 
+        # Aperçu « pendant » : image APPROCHÉE des latents à chaque pas, sans VAE (2026-10-06).
+        def step_callback(pipe, step_index, timestep, callback_kwargs):
+            self.preview_step(pipe, callback_kwargs, height=height, width=width)
+            return callback_kwargs
+
         call_kwargs = dict(
             prompt=params.prompt,
             height=height,
@@ -210,6 +215,7 @@ class Flux2KleinBackend(ImageGenerationBackend):
             guidance_scale=guidance_scale,
             num_images_per_prompt=num_images,
             generator=generator,
+            callback_on_step_end=step_callback,
         )
         if reference_image is not None:
             call_kwargs["image"] = reference_image

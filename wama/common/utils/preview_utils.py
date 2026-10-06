@@ -207,7 +207,7 @@ def _input_preview(app_name, instance, request):
 
 
 # ── Phase PENDANT (chantier 2) : preview progressive/temporaire pendant le traitement ──────────
-# Contrat de jonction : gâté par la capacité déclarée `during_preview`/`streaming`, lue via
+# Contrat de jonction : gâté par la capacité déclarée `during_preview`, lue via
 # l'accesseur UNIQUE `app_supports_during_preview` (comme la preview d'entrée lit les ports par
 # `studio_node_ports`). Le worker de l'app publie un aperçu partiel courant via `publish_partial`
 # (mécanisme = moi ; déclaration du flag + production du partiel = l'app). Dormant tant qu'aucune
@@ -288,6 +288,21 @@ class PartialFrames:
             self._written.add(path)
             url = settings.MEDIA_URL + os.path.relpath(path, settings.MEDIA_ROOT).replace('\\', '/')
             publish_partial(self.app_name, self.pk, f'{url}?v={stamp}', variant=variant, label=label)
+
+    def sink(self, variant: str, label: str):
+        """Récepteur d'UNE vue pour un producteur qui ne connaît pas Django (un backend) :
+        `sink.due()` avant de calculer l'image, `sink(image)` pour la publier (2026-10-06,
+        aperçu des latents de l'imager — `ImageGenerationBackend.preview_step`)."""
+        frames = self
+
+        class _Sink:
+            def due(self):
+                return frames.due()
+
+            def __call__(self, image):
+                frames.publish({variant: (label, image)})
+
+        return _Sink()
 
     def close(self) -> None:
         clear_partial(self.app_name, self.pk)
@@ -468,7 +483,8 @@ def unified_preview(request, app_name: str, pk: int):
             'faces': [{'key': key, 'label': face.get('label') or key,
                        'icon': face.get('icon') or 'fa-layer-group'}
                       for key, (face, _d) in faces.items()],
-            # PENDANT : l'app SAIT-elle streamer (capacité) vs a-t-elle un partiel MAINTENANT
+            # PENDANT : l'app sait-elle montrer sa sortie EN CONSTRUCTION (capacité) vs a-t-elle
+            # un partiel MAINTENANT
             'during_capable': app_supports_during_preview(app_name),
             'has_during': bool(during_data),
         }

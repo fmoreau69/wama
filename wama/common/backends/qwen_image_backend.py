@@ -351,6 +351,15 @@ class QwenImageBackend(ImageGenerationBackend):
             if progress_callback:
                 progress_callback(20)
 
+            # Aperçu « pendant » : image APPROCHÉE des latents à chaque pas, sans VAE (2026-10-06).
+            # En édition, la taille réelle vient de l'image de référence : la grille des latents
+            # se retrouve alors d'après leurs proportions (`latent_preview`).
+            preview_size = {'height': height, 'width': width}
+
+            def step_callback(pipe, step_index, timestep, callback_kwargs):
+                self.preview_step(pipe, callback_kwargs, **preview_size)
+                return callback_kwargs
+
             model_type = SUPPORTED_MODELS[model_name]["type"]
 
             if model_type == "t2i":
@@ -366,6 +375,7 @@ class QwenImageBackend(ImageGenerationBackend):
                     true_cfg_scale=true_cfg,
                     generator=generator,
                     num_images_per_prompt=num_images,
+                    callback_on_step_end=step_callback,
                 )
 
             else:
@@ -392,6 +402,7 @@ class QwenImageBackend(ImageGenerationBackend):
                     )
 
                 logger.info(f"[QwenImage] edit generation with {len(ref_images)} reference image(s)…")
+                preview_size.update(height=ref_images[0].height, width=ref_images[0].width)
                 output = self._pipe(
                     image=ref_images,
                     prompt=prompt,
@@ -401,6 +412,7 @@ class QwenImageBackend(ImageGenerationBackend):
                     guidance_scale=1.0,
                     generator=generator,
                     num_images_per_prompt=num_images,
+                    callback_on_step_end=step_callback,
                 )
 
             if progress_callback:

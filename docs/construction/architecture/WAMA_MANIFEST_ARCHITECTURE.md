@@ -132,7 +132,7 @@ flowchart LR
     f1 --> u1["Nav / catalogue / monde"]
     f2 --> u2["Nœud studio + PORTS"]
     f2 --> u2b["Preview d'entrée<br/>(bind travail/prompt, jamais reference)"]
-    f2c --> u2c["Preview PENDANT (streaming)"]
+    f2c --> u2c["Preview PENDANT<br/>(during_preview : la sortie qui se construit)"]
     f3 --> u3["Modales item/batch + inspecteur<br/>(WamaParams, 1 source)"]
     f3b --> u3b["Volet droit + preview modale"]
     f4 --> u4["Sélection VRAM-aware<br/>keep_loaded"]

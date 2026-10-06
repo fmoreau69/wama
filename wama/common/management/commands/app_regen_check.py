@@ -37,7 +37,7 @@ from django.core.management.base import BaseCommand, CommandError
 # L'entrée régénérée ne porte que le DÉCLARATIF, donc ces drapeaux bougent sans qu'aucun
 # comportement mesurable ne change (vérifié à la passe intégrée : grille et smoke identiques).
 _MESURE_CAP_FLAGS = ('settings_modal_item', 'settings_modal_batch', 'inspector', 'realtime',
-                     'edit_page', 'instant_preview', 'during_preview', 'streaming',
+                     'edit_page', 'instant_preview', 'during_preview',
                      'multi_format_download', 'layout', 'anti_race')
 _MESURE_PATHS = tuple(f'body.capabilities.{f}' for f in _MESURE_CAP_FLAGS) + (
     'body.processing.anti_race', 'body.processing.processing_time', 'body.processing.statuses')

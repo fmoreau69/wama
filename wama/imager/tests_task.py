@@ -76,9 +76,10 @@ class ImageTaskOnSkeletonTest(_OnSkeleton):
         values.update(kw)
         return ImageGeneration.objects.create(**values)
 
-    def _run(self, generation):
+    def _run(self, generation, backend=None):
         patches = self._patches() + (
-            mock.patch.object(tasks, '_image_backend_for', return_value=(_FakeImageBackend(), None)),
+            mock.patch.object(tasks, '_image_backend_for',
+                              return_value=(backend or _FakeImageBackend(), None)),
             mock.patch('wama.imager.backends.get_available_backends', return_value=['fake']),
             mock.patch(INLINE_CONVERSION,
                        side_effect=self._convert))
@@ -118,6 +119,33 @@ class ImageTaskOnSkeletonTest(_OnSkeleton):
         self.assertTrue(generation.generated_images[0].replace(os.sep, '/').endswith(rendered))
         self.assertEqual([], generation.native_outputs, 'nothing transformed : a single file per image')
         self.assertIsNone(process_runs.line(generation), 'a pipeline card has no « main » line')
+
+    def test_the_generation_is_seen_while_it_runs_then_the_partial_goes(self):
+        """Aperçu « pendant » (2026-10-06) : le backend reçoit un récepteur le temps de LA
+        génération, y publie l'image approchée de ses latents ; après, plus rien — le backend est
+        un singleton, et la face SORTIE prend le relais."""
+        import numpy as np
+        from django.core.cache import cache
+        from wama.common.utils import preview_utils
+        seen = {}
+
+        class PreviewingBackend(_FakeImageBackend):
+            def generate(self, params, progress):
+                sink = self.preview_sink
+                seen['sink'] = sink is not None
+                if sink is not None and sink.due():
+                    sink(np.zeros((8, 8, 3), dtype=np.uint8))
+                seen['during'] = cache.get(preview_utils._partial_variants_key('imager', generation.pk))
+                return super().generate(params, progress)
+
+        generation = self._generation()
+        backend = PreviewingBackend()
+        self._run(generation, backend)
+        self.assertEqual('SUCCESS', generation.status, generation.error_message)
+        self.assertTrue(seen['sink'], 'no sink handed to the backend')
+        self.assertEqual('Génération', (seen['during'] or {}).get('generate', {}).get('label'))
+        self.assertIsNone(backend.preview_sink, 'the sink must be detached from the singleton')
+        self.assertIsNone(cache.get(preview_utils._partial_variants_key('imager', generation.pk)))
 
     def test_the_end_is_notified_once_and_names_the_generation(self):
         """ONE end notifier: the common skeleton — and the notification designates the generation,

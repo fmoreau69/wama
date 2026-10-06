@@ -210,6 +210,19 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   corrigé dans `wama-audio-player.js`). Ce qui existe pour aller plus loin : les backends de
   diffusion image et vidéo ont déjà un `callback_on_step_end` (progression) qui voit les latents.
   Rien n'est tranché pour l'image ni la vidéo.
+  ✅ **Tranché et livré le 2026-10-06 (décisions de Fabien)** — **10/10 apps émettent** :
+  l'**avatarizer** montre l'image courante de son rendu 3D (TalkingHead, `PartialFrames`, qui
+  écrit désormais tel quel un JPEG déjà encodé ; MuseTalk, en sous-processus, ne montre rien
+  avant la fin) ; l'**imager** montre une image APPROCHÉE de ses latents à chaque pas, **sans
+  VAE ni VRAM en plus** (`common/utils/latent_preview` — option A : coefficients latent → RGB
+  par famille, extraits de ComfyUI GPL-3.0 et inventoriés `LICENSING §3` ; famille DÉDUITE de la
+  config du VAE ; latents à plat, emballés, patchifiés ou vidéo ; sans coefficients — CogVideoX —
+  repli sur les trois axes principaux). Point d'entrée commun des backends :
+  `ImageGenerationBackend.preview_step`, appelé par SD 1.5/SDXL/Flux/HunyuanImage, Qwen-Image et
+  Flux2-klein ; les **cinq backends VIDÉO** restent à brancher (liste `STILL_TO_PREVIEW` de
+  `tests_latent_preview`, qui ne peut que descendre). Et **un seul concept** : le drapeau
+  `streaming`, doublon sans lecteur, est retiré (`REMOVAL_LEDGER R107`) ; la déclaration
+  `during_preview` est tenue par `tests_during_preview_declared` (déclaré ⇔ émis).
 - **Filemanager** : **unifié** (réutilise `media-preview.js`), mais endpoint de données distinct.
 - 🔜 **CHANTIER « PREVIEW GLOBALE + TRANSPORT COMMUN » — brief de SESSION DÉDIÉE (Fabien, 2026-09-30)**.
   *« Une preview globale commune qui peut être tirée par capacités partout dans tout WAMA, et de
@@ -373,7 +386,8 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
   `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
 - **Manifeste** : inspector adapter (mapping champs→clés canoniques), preview binding sur port,
-  capacité `during_preview/streaming`, profil ETA (unit + a-priori load/per_unit).
+  capacité `during_preview` (`streaming`, son doublon sans lecteur, retiré le 2026-10-06),
+  profil ETA (unit + a-priori load/per_unit).
 
 ### F4 — Modèles IA  ⟷ `SPEC §F4`
 - 🔴 **AVANT DE TOUCHER AUX CAPACITÉS OU AU TIRAGE — lire [`INPUT_MODEL_MATCHING.md`](../ui/INPUT_MODEL_MATCHING.md)**

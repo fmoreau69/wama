@@ -48,7 +48,7 @@ class RouteForNatureTest(SimpleTestCase):
                     self.assertEqual(path.rsplit('.', 1)[1], target.__name__)
 
     def test_a_nature_without_a_route_is_refused(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "'hologram'"):        # the message keeps its value
             route_for_nature('wama.converter', 'hologram')
         with self.assertRaises(ValueError):
             route_for_nature('wama.converter', '')
