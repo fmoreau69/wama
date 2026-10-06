@@ -89,7 +89,9 @@ class PlaybackCopyOnDiskTest(SimpleTestCase):
         before = self._bytes(self.rel)
         copy = vc.make_playback_copy(self.rel)
         self.assertEqual('users/7/.preview/temp/rushes/clip.mp4.mp4', copy)
-        self.assertTrue(vc.playability(vc.probe_video(os.path.join(self.root, copy)))[0])
+        from wama.common.utils.media_probe import probe_video_format
+        self.assertFalse(vc.playability(probe_video_format(os.path.join(self.root, self.rel)))[0])
+        self.assertTrue(vc.playability(probe_video_format(os.path.join(self.root, copy)))[0])
         self.assertEqual(before, self._bytes(self.rel), 'the original keeps its bytes')
         self.assertEqual(['clip.mp4'], os.listdir(os.path.join(self.root, 'users/7/temp/rushes')),
                          'nothing written next to the original')
@@ -104,6 +106,46 @@ class PlaybackCopyOnDiskTest(SimpleTestCase):
                        check=True)
         self.assertEqual('', vc.make_playback_copy(good))
         self.assertFalse(os.path.exists(os.path.join(self.root, 'users/7/.preview/temp/good.mp4.mp4')))
+
+    def test_ensure_h264_still_reencodes_in_place_through_the_shared_writer(self):
+        """`ensure_h264` (cam_analyzer) and the copy share ONE writer since 2026-10-06 : the
+        in-place re-encode keeps its contract — an AVI is promoted to `.mp4`, the AVI removed."""
+        avi = os.path.join(self.root, 'users/7/cam/cam.avi')
+        _write_avi(avi)
+        promoted = vc.ensure_h264(avi)
+        self.assertEqual(os.path.join(self.root, 'users/7/cam/cam.mp4'), promoted)
+        self.assertFalse(os.path.exists(avi))
+        self.assertEqual(['cam.mp4'], sorted(os.listdir(os.path.dirname(avi))), 'no temporary left')
+
+    def test_a_failed_encode_leaves_neither_half_file_nor_harm(self):
+        target = os.path.join(self.root, 'users/7/out/out.mp4')
+        os.makedirs(os.path.dirname(target))
+        with open(target, 'wb') as fh:
+            fh.write(b'previous')
+        self.assertFalse(vc._transcode(os.path.join(self.root, self.rel), target,
+                                       ['-c:v', 'no-such-encoder'], timeout=60))
+
+        def half_written(command, **_kwargs):            # ffmpeg dies mid-file
+            with open(command[-1], 'wb') as fh:
+                fh.write(b'half')
+            return mock.Mock(returncode=1, stderr='killed')
+        with mock.patch.object(vc.subprocess, 'run', side_effect=half_written):
+            self.assertFalse(vc._transcode(os.path.join(self.root, self.rel), target, [], timeout=60))
+        with open(target, 'rb') as fh:
+            self.assertEqual(b'previous', fh.read(), 'the target is not touched')
+        self.assertEqual(['out.mp4'], os.listdir(os.path.dirname(target)))
+
+    def test_the_daily_purge_sweeps_the_orphan_copies(self):
+        """The daily purge (beat) is what gives the place back — the retention parts it also
+        runs are not under test here (dry run, their bricks stubbed)."""
+        copy = vc.make_playback_copy(self.rel)
+        os.remove(os.path.join(self.root, self.rel))
+        from wama.common import tasks
+        with mock.patch('wama.common.services.retention.purge_expired_media', return_value={}), \
+                mock.patch('wama.common.services.retention.purge_expired_temp', return_value={}):
+            result = tasks.purge_expired_media_task(dry_run=True)
+        self.assertEqual({'seen': 1, 'removed': 1}, result['playback_copies'])
+        self.assertTrue(os.path.exists(os.path.join(self.root, copy)), 'a dry run removes nothing')
 
     def test_a_stale_copy_is_not_served_and_an_orphan_is_swept(self):
         copy = vc.make_playback_copy(self.rel)
@@ -123,7 +165,9 @@ class PlaybackCopyOnDiskTest(SimpleTestCase):
         self.assertEqual(url, untouched['url'], 'no copy yet : the original, as before')
         copy = vc.make_playback_copy(self.rel)
         served = with_playback_copy({'url': url + '?v=3', 'mime_type': 'video/mp4'}, request)
-        self.assertEqual('http://testserver/media/' + copy, served['url'])
+        stamp = int(os.path.getmtime(os.path.join(self.root, copy)))
+        self.assertEqual(f'http://testserver/media/{copy}?v={stamp}', served['url'],
+                         'dated like any media URL of the preview : a REMADE copy keeps its name')
         self.assertTrue(served['playback_copy'])
         image = {'url': 'http://testserver/media/users/7/temp/a.png', 'mime_type': 'image/png'}
         self.assertEqual(image['url'], with_playback_copy(dict(image), request)['url'])
@@ -227,3 +271,16 @@ class DeletionDropsTheCopyTest(TestCase):
                 mock.patch('wama.common.utils.video_compat.drop_playback_copy') as drop:
             self.assertTrue(queue_duplication.safe_delete_file(instance, 'clip'))
         drop.assert_called_once_with('users/7/anonymizer/output/x.avi')
+
+    def test_delete_file_unless_shared_takes_it_too_and_a_shared_file_keeps_it(self):
+        """The twin road : a file deleted because no other card shares it — and the counter-proof,
+        a shared file stays, its copy with it."""
+        from wama.common.utils import queue_duplication
+        instance = mock.Mock()
+        instance.clip = mock.Mock()
+        instance.clip.name = 'users/7/anonymizer/input/y.avi'
+        for shared, expected in ((False, 1), (True, 0)):
+            with mock.patch.object(queue_duplication, 'is_shared_elsewhere', return_value=shared), \
+                    mock.patch('wama.common.utils.video_compat.drop_playback_copy') as drop:
+                queue_duplication.delete_file_unless_shared(instance, 'clip')
+            self.assertEqual(expected, drop.call_count, f'shared={shared}')

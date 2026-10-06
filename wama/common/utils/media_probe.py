@@ -142,6 +142,34 @@ def probe_video(path: str) -> dict:
         return {}
 
 
+def probe_video_format(path: str, *, timeout: int = 20) -> dict:
+    """Ce que le NAVIGATEUR regarde du premier flux vidéo : `{container, codec, profile,
+    pix_fmt}` (conteneur LU par ffprobe, pas l'extension), ou {} (pas de vidéo, ffprobe absent,
+    fichier illisible). La lisibilité se juge dessus (`video_compat.playability`) — mesure
+    technique, à côté de `probe_video` qui rédige les propriétés affichées. Fail-safe."""
+    from wama.common.utils.ffmpeg_utils import adapt_path_for_ffmpeg, get_ffprobe_exe
+    ffprobe = get_ffprobe_exe()
+    if not ffprobe:
+        return {}
+    try:
+        result = subprocess.run(
+            [ffprobe, "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "format=format_name:stream=codec_name,profile,pix_fmt",
+             "-of", "json", adapt_path_for_ffmpeg(path, ffprobe)],
+            capture_output=True, text=True, timeout=timeout)
+        data = json.loads(result.stdout or "{}")
+    except Exception:
+        return {}
+    streams = data.get("streams") or []
+    if not streams:
+        return {}
+    stream = streams[0]
+    return {'container': ((data.get("format") or {}).get("format_name") or '').lower(),
+            'codec': (stream.get("codec_name") or '').lower(),
+            'profile': (stream.get("profile") or '').lower(),
+            'pix_fmt': (stream.get("pix_fmt") or '').lower()}
+
+
 def _gltf_document(path: str):
     """Le document JSON d'un glTF — lu dans le chunk JSON d'un GLB (en-tête binaire 12 octets,
     chunk 0 = JSON, spécification glTF 2.0) ou directement pour un `.gltf`. `None` si illisible.

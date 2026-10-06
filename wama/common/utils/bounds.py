@@ -50,12 +50,11 @@ class Bounds:
     def scale(self: "Bounds", shape, multiplier) -> "Bounds":
         """
         Scales a bounding box by a size multiplier and while respecting image dimensions
-        :param shape: shape of the image
+        :param shape: shape of the image — None : not clipped to it (a SHAPE scaled with its box
+                      keeps its proportions at the edge of the image, `blur_utils.blur_shapes`)
         :param multiplier: multiplier to scale the detection with
         :return: scaled Boxs
         """
-        frame_height, frame_width = shape[:2]
-
         width = self.x_max - self.x_min
         height = self.y_max - self.y_min
 
@@ -64,6 +63,9 @@ class Bounds:
         x_max = self.x_max + ((sqrt(multiplier) - 1) * width) / 2
         y_min = self.y_min - ((sqrt(multiplier) - 1) * height) / 2
         y_max = self.y_max + ((sqrt(multiplier) - 1) * height) / 2
+        if shape is None:
+            return Bounds(floor(x_min), floor(y_min), floor(x_max), floor(y_max))
+        frame_height, frame_width = shape[:2]
         scaled_detection = Bounds(
             max(floor(x_min), 0),
             max(floor(y_min), 0),

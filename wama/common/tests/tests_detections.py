@@ -273,6 +273,20 @@ class BlurShapeTest(SimpleTestCase):
         less = (blur_detection(_stripes(), box, 'plate', 9, 0, 0, 0.75) != untouched).any(axis=2).sum()
         self.assertLess(less, whole, 'a box')
 
+    def test_a_shape_is_enlarged_like_a_box_around_its_centre_even_at_the_edge(self):
+        """2026-10-06 (revérification « rien réinventé ») : la forme s'agrandit par le geste du
+        rectangle (`Bounds.scale`), NON borné à l'image — la forme garde ses proportions, ce qui
+        déborde de l'image n'est simplement pas dessiné."""
+        from wama.common.utils.bounds import Bounds
+        scaled = Bounds(0, 20, 20, 40).scale(None, 4.0)
+        self.assertEqual((-10, 10, 30, 50), (scaled.x_min, scaled.y_min, scaled.x_max, scaled.y_max))
+        edge = [[[0, 20], [20, 20], [20, 40], [0, 40]]]
+        untouched = _stripes()
+        wide = (self._blur([edge], roi_enlargement=4.0) != untouched).any(axis=2)
+        columns, rows = np.where(wide.any(axis=0))[0], np.where(wide.any(axis=1))[0]
+        self.assertEqual((0, 30), (columns.min(), columns.max()), 'twice as wide, from its centre')
+        self.assertEqual((10, 50), (rows.min(), rows.max()), 'twice as tall, from its centre')
+
     def test_the_progressive_blur_fades_outward_and_keeps_the_shape_fully_blurred(self):
         image = _stripes()
         mask = dets.polygons_to_mask(self.SQUARE, image.shape) > 0

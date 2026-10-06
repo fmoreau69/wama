@@ -213,6 +213,17 @@ def _link_cost(a, b, min_iou: float, elapsed: int = 1, velocity=None):
     return min(costs) if costs else None
 
 
+def fit_polygons(polygons, from_box, to_box) -> list:
+    """Des polygones posés dans `from_box`, portés dans `to_box` (déplacés, mis à l'échelle, en
+    pixels entiers) — le SEUL geste qui transporte une forme d'un rectangle à un autre : une
+    détection déduite (`_moved_polygons`) comme une forme agrandie (`blur_utils.blur_shapes`)."""
+    sx0, sy0, sx1, sy1 = from_box[:4]
+    kx = (to_box[2] - to_box[0]) / max(sx1 - sx0, 1)
+    ky = (to_box[3] - to_box[1]) / max(sy1 - sy0, 1)
+    return [[[int(round(to_box[0] + (x - sx0) * kx)), int(round(to_box[1] + (y - sy0) * ky))]
+             for x, y in polygon] for polygon in polygons]
+
+
 def _moved_polygons(source, box):
     """Les contours de `source` portés sur le rectangle `box` (déplacés, mis à l'échelle) — une
     détection DÉDUITE garde la forme segmentée de la plus proche détection relevée, au lieu de
@@ -220,11 +231,7 @@ def _moved_polygons(source, box):
     polygons = source.get('polygons')
     if not polygons:
         return None
-    sx0, sy0, sx1, sy1 = source['box'][:4]
-    kx = (box[2] - box[0]) / max(sx1 - sx0, 1)
-    ky = (box[3] - box[1]) / max(sy1 - sy0, 1)
-    return [[[int(round(box[0] + (x - sx0) * kx)), int(round(box[1] + (y - sy0) * ky))]
-             for x, y in polygon] for polygon in polygons]
+    return fit_polygons(polygons, source['box'], box)
 
 
 def _deduced(det, box, source=None, **flags):
