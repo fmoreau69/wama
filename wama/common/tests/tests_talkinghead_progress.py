@@ -84,7 +84,7 @@ class ProgressOutsideTheEventLoopTest(TestCase):
         self.output = self.dir / 'out.mp4'
         self.output.write_bytes(b'mp4')                                       # ce que ffmpeg écrirait
 
-    def _render_under_a_running_loop(self, progress):
+    def _render_under_a_running_loop(self, progress, on_frame=None):
         from wama.common.backends import talkinghead_backend as th
 
         async def main():
@@ -92,7 +92,8 @@ class ProgressOutsideTheEventLoopTest(TestCase):
             # — la situation exacte que crée `sync_playwright` dans le worker.
             return th.TalkingHeadBackend().process(
                 avatar_path=str(self.avatar), audio_path=str(self.audio),
-                output_path=str(self.output), text='bonjour', progress=progress)
+                output_path=str(self.output), text='bonjour', progress=progress,
+                on_frame=on_frame)
 
         with mock.patch('playwright.sync_api.sync_playwright', _fake_playwright), \
                 mock.patch('wama.common.utils.html_render.launch_chromium',
@@ -117,6 +118,17 @@ class ProgressOutsideTheEventLoopTest(TestCase):
             _guarded([], 0.5)
         with self.assertRaises(SynchronousOnlyOperation):
             asyncio.run(main())
+
+    def test_the_rendered_frame_reaches_the_preview_outside_the_event_loop(self):
+        """Aperçu « pendant » (2026-10-06) : la dernière image de chaque tranche, en JPEG, sur le
+        MÊME fil que la progression — publier passe par le cache de Django."""
+        seen = []
+        self._render_under_a_running_loop(lambda f: None,
+                                          on_frame=lambda jpeg, index: _guarded(seen, (jpeg, index)))
+        self.assertTrue(seen, 'aucune image transmise')
+        self.assertEqual(b'jpeg', seen[-1][0])
+        indexes = [index for _jpeg, index in seen]
+        self.assertEqual(sorted(set(indexes)), indexes, 'une image par tranche, dans l’ordre')
 
     def test_a_failing_callback_is_not_swallowed(self):
         def broken(fraction):

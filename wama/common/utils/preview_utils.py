@@ -264,10 +264,12 @@ class PartialFrames:
         return time.time() - self._last >= self.every
 
     def publish(self, views: dict, index=None) -> None:
-        """`views` : {variante: (libellé, image BGR)} ; `index` versionne l'URL (cache navigateur)."""
+        """`views` : {variante: (libellé, image BGR)} ; `index` versionne l'URL (cache navigateur).
+        Une image déjà ENCODÉE en JPEG (`bytes`) est écrite telle quelle — le rendu 3D de
+        l'avatarizer (TalkingHead) produit ses images ainsi : les décoder pour les réencoder
+        coûterait deux passes pour rien (2026-10-06)."""
         import time
 
-        import cv2
         from django.conf import settings
         self._last = time.time()
         os.makedirs(self.folder, exist_ok=True)
@@ -275,7 +277,12 @@ class PartialFrames:
         for variant, (label, image) in views.items():
             path = os.path.join(self.folder, f'during_{self.pk}_{variant}.jpg')
             try:
-                cv2.imwrite(path, image)
+                if isinstance(image, (bytes, bytearray)):
+                    with open(path, 'wb') as out:
+                        out.write(image)
+                else:
+                    import cv2
+                    cv2.imwrite(path, image)
             except Exception:
                 continue
             self._written.add(path)

@@ -359,11 +359,19 @@ def _animate(job, ctx):
                     lang = heard.language or lang
                     _console(job.user_id, f"Transcription : {len(words)} mots ({lang}).", 'info')
                 _console(job.user_id, "Avatar 3D : rendu TalkingHead image par image…", 'info')
-                animated_video = _backend(model_key).process(
-                    avatar_path=image_path, audio_path=audio_path,
-                    output_path=str(travail / 'talkinghead.mp4'),
-                    text=job.text_content, words=words, language=lang,
-                    progress=lambda f: ctx.progress(25 + int(f * 55)))
+                # Aperçu « PENDANT » (2026-10-06) : la dernière image rendue, toutes les ~2 s, par
+                # la brique commune (`PartialFrames`, comme l'enhancer vidéo). MuseTalk, lancé
+                # d'un bloc en sous-processus, ne montre rien avant la fin.
+                frames = _partial_frames(job, sortie_app)
+                try:
+                    animated_video = _backend(model_key).process(
+                        avatar_path=image_path, audio_path=audio_path,
+                        output_path=str(travail / 'talkinghead.mp4'),
+                        text=job.text_content, words=words, language=lang,
+                        progress=lambda f: ctx.progress(25 + int(f * 55)),
+                        on_frame=lambda jpeg, index: _publish_frame(frames, jpeg, index))
+                finally:
+                    frames.close()         # la face SORTIE prend le relais ; le JPEG partiel part
                 _console(job.user_id, "Rendu TalkingHead terminé.", 'info')
             else:
                 _console(job.user_id, "MuseTalk : synchronisation labiale en cours…", 'info')
@@ -425,6 +433,23 @@ def _animate(job, ctx):
     except Exception:
         ctx.reset_progress()
         raise
+
+
+def _partial_frames(job, output_dir):
+    """L'aperçu « pendant » du rendu : brique commune `PartialFrames` (JPEG sous la sortie de
+    l'app, URL versionnée, retiré en fin de rendu), au plus une image toutes les 2 s."""
+    from wama.common.utils.preview_utils import PartialFrames
+    return PartialFrames('avatarizer', job.id, Path(output_dir) / 'partials')
+
+
+def _publish_frame(frames, jpeg, index):
+    """Publie l'image rendue si la cadence le permet. Un aperçu raté ne fait JAMAIS échouer le
+    rendu : il est best-effort (le rendu attend ce rappel, une exception le romprait)."""
+    try:
+        if frames.due():
+            frames.publish({'animation': ('Animation', jpeg)}, index=index)
+    except Exception as exc:
+        logger.debug('[avatarizer] aperçu pendant non publié : %s', exc)
 
 
 def _codeformer(job, animated_copy, ctx):
