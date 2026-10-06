@@ -71,16 +71,15 @@ SUPPORTED_MODELS = {  # wama:redondance-ok — même inventaire que enhancer/uti
         'file': 'IRCNN_Lx1_fp16.onnx'
     },
     # ── Modèles INSTALLÉS par la chaîne de prospection (2026-10-06) ──────────────────────
-    # Pas de `file` : leurs poids sont au catalogue, désignés par le composant `model` de leur
-    # manifeste et lus par `component_paths(catalog_key)` — le patron de Supra2-IMG et de
-    # FrWhisper. La clé de cette table est l'identifiant que `backend_for_model` compare (le
-    # dernier segment de la clé de catalogue). Swin2SR : banc CPU du 2026-10-06, le plus
-    # FIDÈLE des candidats (PSNR 31,5 contre 29,0 pour RealESRGANx4), au rendu doux.
+    # L'entrée NOMME le modèle (la clé de cette table est l'identifiant que `backend_for_model`
+    # compare) et désigne sa ligne de catalogue, `model_key` — le champ de `pyannote_diarizer`,
+    # qui sert de même un modèle déclaré et un modèle installé. RIEN d'autre : son facteur
+    # (`capabilities.scale`), sa VRAM et son fichier (composant `model`) sont au REGISTRE, lus au
+    # chargement. Les sept modèles ci-dessus portent leurs faits ici parce qu'ils tournent sans
+    # base (converter, repli d'aide de l'enhancer) ; un modèle installé, lui, n'existe que par
+    # sa ligne — les recopier ferait une seconde vérité.
     'onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX': {
-        'scale': 4,
-        'vram_usage': 1.0,
-        'description': 'Swin2SR real-world 4x upscaler (fidelity-oriented)',
-        'catalog_key': 'huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX',
+        'model_key': 'huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX',
     },
 }
 
@@ -97,6 +96,23 @@ def _default_models_dir() -> str:
         pass
     from wama.settings import BASE_DIR
     return os.path.join(BASE_DIR, 'AI-models', 'enhancer', 'onnx')
+
+
+def _catalogued_facts(model_key: str) -> dict:
+    """`{scale, vram_usage}` d'un agrandisseur INSTALLÉ, lus sur sa ligne de catalogue : le
+    facteur est sa capacité `scale` (posée par le manifeste — `role_utils.enforce_task_facts`),
+    la VRAM celle du registre. Un modèle sans ligne, ou sans facteur, LÈVE en le disant : le
+    tuilage en dépend, et un facteur deviné rendrait une image découpée faux."""
+    from wama.common.utils.model_components import ComponentsUnavailable
+    from wama.model_manager.models import AIModel
+    row = AIModel.objects.filter(model_key=model_key).only('capabilities', 'vram_gb').first()
+    if row is None:
+        raise ComponentsUnavailable(f"{model_key} : absent du catalogue")
+    scale = (row.capabilities or {}).get('scale')
+    if not scale:
+        raise ValueError(f"{model_key} : aucune capacité `scale` au catalogue — le manifeste du "
+                         f"modèle doit la porter (rôle `model`, puis Valider)")
+    return {'scale': int(scale), 'vram_usage': float(row.vram_gb or 0.0)}
 
 
 class AIUpscaler(BaseModelBackend):
@@ -128,7 +144,7 @@ class AIUpscaler(BaseModelBackend):
     #: d'erreur du module) : GPU sous Linux, DirectML sous Windows.
     PIP_PACKAGES = ['onnxruntime-gpu']
     description = ("Upscaling image/vidéo par modèles ONNX (RealESRGAN, BSRGAN, IRCNN, et les "
-                   "agrandisseurs installés par la prospection — Swin2SR)")
+                   "agrandisseurs installés par la prospection)")
 
     @property
     def is_loaded(self) -> bool:
@@ -173,6 +189,9 @@ class AIUpscaler(BaseModelBackend):
             raise ValueError(f"Unknown model: {model_name}")
 
         self.model_info = SUPPORTED_MODELS[model_name]
+        if not self.model_info.get('file'):
+            # Modèle INSTALLÉ : ses faits sont ceux de sa ligne de catalogue (cf. la table).
+            self.model_info = {**self.model_info, **_catalogued_facts(self.model_info['model_key'])}
         self.scale_factor = self.model_info['scale']
 
         # Find models directory
@@ -192,7 +211,7 @@ class AIUpscaler(BaseModelBackend):
             # Modèle du catalogue : son fichier est le composant DÉCLARÉ (un manque lève avec
             # son rôle — `ComponentsUnavailable`), jamais un chemin reconstruit ici.
             from wama.common.utils.model_components import component_paths
-            self.model_path = str(component_paths(self.model_info['catalog_key'])['model'])
+            self.model_path = str(component_paths(self.model_info['model_key'])['model'])
 
         # Check if model exists
         if not os.path.exists(self.model_path):

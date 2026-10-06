@@ -520,7 +520,7 @@ manifeste + filtre par capacité + source `catalog`) ; ② **synthesizer** (pilo
 `VoiceSynthesis.tts_model` porte `choices=`, donc *toute liste dans un champ de modèle exige une
 migration* : preuve par l'absurde que la liste ne doit pas y vivre) ; ③ **avatarizer** (valide le
 multi-surface) ; ④ composer + reader (déjà rendus par WamaParams : seule la source change) ;
-⑤ enhancer (7 modèles déclarés **4 fois**) ; ⑥ imager (aligner l'image sur la vidéo, replier les
+⑤ enhancer (7 modèles déclarés **4 fois**) — ✅ **livrée le 2026-10-06**, cf. ci-dessous ; ⑥ imager (aligner l'image sur la vidéo, replier les
 8 `SUPPORTED_MODELS` sur `composition.runtime`) — ✅ **livrée le 2026-09-29**, cf. ci-dessous ; ⑦ transcriber (pont backend↔catalogue) — ✅ **livrée le 2026-09-30**, cf. ci-dessous ;
 ⑧ anonymizer (scan disque conservé en repli jusqu'à preuve) ; ⑨ surfaces transverses (assistant,
 studio, Lab — `cam_analyzer` n'a **aucun** usage du catalogue : chantier à part).
@@ -726,6 +726,35 @@ le 2026-10-01) ; `describer:whisper` s'annonçait « whisper-base » alors que l
 large-v3 — ✅ **retiré le 2026-10-01** (`REMOVAL_LEDGER` R28) : le describer transcrit par
 `transcriber:whisper`, le menu n'a plus de doublon.
 
+##### ✅ Étape ⑤ LIVRÉE le 2026-10-06 — l'enhancer (image/vidéo), sur le patron de l'imager
+
+**Déclencheur** : un agrandisseur installé par la chaîne de prospection (Swin2SR,
+`huggingface:onnx-community/…`) était au catalogue, lançable, et absent du select — le domaine
+était `source='enhancer'` + `model_type` (2026-09-08). **Mesure d'entrée** : 8 `Enhancement`, une
+valeur (`RealESR_Gx4`) ; le domaine par tâche `upscale,denoise` rend exactement les 7 modèles
+d'avant plus Swin2SR, tous lançables.
+
+- **Options par TÂCHE, une déclaration** (`enhancer/utils/auto_model.MEDIA_SPEC`, que `params.py`
+  reprend et que le tirage lit) ; plus de `choices` ni de domaine de porte — comme l'imager, un
+  identifiant nu posté par une surface d'avant est normalisé par `Enhancement.save()`.
+- **Valeurs = clés** : migration `enhancer/0018` (champ 32 → 128, transformation PURE, à
+  appliquer AU REDÉMARRAGE — l'ancien code recomposerait `enhancer:enhancer:…`).
+- **Tirage** : `resolve_model_choice` sur le domaine par tâche (clé entière) ; le facteur filtre par
+  le domaine de l'agrandissement de sortie (`output_formats.UPSCALER_SPEC`) — un seul besoin.
+- **Lancement** : `media_backend._upscaler_for` lit la clé (`catalog_key` pour un identifiant nu,
+  dont la passe de débruitage `IRCNN_Mx1`) et passe `model_id` au backend ; le nom de fichier et la
+  clé ETA gardent l'identifiant (historique appris intact).
+- **Volet** : pré-rendu par `get_registry_models` (la brique de l'endpoint, même geste que
+  `tts_engine_choices`) ; préférence mémorisée lue en clé ; méta d'appariement par tâche
+  (`input_match_meta(task=…)`) pour le média, par source pour l'audio (inchangé).
+- **Backend** : `AIUpscaler.SUPPORTED_MODELS` nomme un modèle installé par son `model_key` et RIEN
+  d'autre ; facteur, VRAM et fichier se lisent au registre (`PROSPECTION_PIPELINE §2026-10-06`).
+- **Gardes** : `enhancer/tests.CatalogueKeysTest` + `CatalogueKeysMigrationTest`,
+  `common/tests/tests_ai_upscaler`, tests de mémoire du volet et de tâche réalignés.
+
+⚠ Le critère `model_options_catalog` était VERT avant ce portage (domaine par source) : il atteste
+que les options viennent du catalogue, pas que le domaine est une capacité. Reste l'audio
+(`AUDIO_SPEC`, encore par source) — hors de ce portage.
 
 **Ce qu'il ne faut PAS casser** : la lecture BIDIRECTIONNELLE des capacités dans la card
 (entrées⇄modèles, `WamaInputMatch` + `WamaModelCaps`, **8/8 câblées**, adoption SOLDÉE). Elle

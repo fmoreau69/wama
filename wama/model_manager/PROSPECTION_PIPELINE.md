@@ -2141,3 +2141,62 @@ partition ré-extraite du cover ressemble à celle de la source à 84 % (contre-
 `WAMA_QUALITE.md` (étage a priori). ⏳ **Pas encore** : la 1ʳᵉ reprise réelle sur GPU ;
 rechargement des workers pour importer le backend et le process. ⚠ Relevé au passage, hors de ce périmètre : `$HOME/.cache/huggingface/hub` porte 13 Go de
 dépôts déposés hors `AI-models` (Supra2-IMG, LinTO, MuseTalk, Higgs, Kokoro…).
+
+## Session du 2026-10-06 : un agrandisseur (Swin2SR) par les rôles, SANS GPU — cinq faits mécaniques, un backend qui lit le registre, et l'enhancer passé aux clés
+
+Demande de Fabien : *« intégrer [des agrandisseurs] via les mécanismes de WAMA pour éprouver et
+corriger d'éventuels problèmes, et lancer via Albert pour ne pas charger le GPU »* (alimentation
+du PC). Choix des modèles par un banc CPU (photo dégradée puis restaurée, PSNR/SSIM/LPIPS, et
+images réelles de l'enhancer) : **GaterV3 restore** (débruitage, LPIPS 0,105 contre 0,17 pour
+IRCNN), **SPAN NomosUni** (×4 rapide, meilleur que RealESR_Gx4 sur les trois mesures, 3× plus
+rapide), **Swin2SR realworld** (×4 FIDÈLE : PSNR 31,5 contre 29,0 pour RealESRGANx4) ; RealESRGANx4
+reste le meilleur ×4 perçu. Seul Swin2SR est en ONNX sur HuggingFace (`onnx-community/…`,
+Apache-2.0) : il ouvre la marche, SPAN et GaterV3 attendent une voie « poids depuis une version
+GitHub » (décision de Fabien : Swin2SR d'abord).
+
+Toute la chaîne a tourné sans GPU : scout et rôle `model` sur Albert (`gpt-oss-120b`), installation
+par `request_install` (file par défaut, téléchargement seul), « Valider » par `proposals.apply`
+(autorisé par Fabien), essais par les portes de WAMA avec les fournisseurs ONNX forcés sur CPU.
+
+| étape | trou rencontré → comblé (`eee0b6b`, `59f4b0b`, palier enhancer) |
+|---|---|
+| scout | tâche `image-to-image` (édition → l'imager) : l'étiquette HF mélange édition et agrandissement, et le dépôt ne porte pas le tag `super-resolution` → `role_utils.enforce_task_facts` : la classe `…SuperResolution` du `config.json` prouve `upscale`, la clé `upscale` donne `scale` ; scout ET rôle `model` |
+| scout | `native_resolution: 64x64` = la fenêtre d'entraînement (il agrandit du 80×128, mesuré) → pas de taille native pour une tâche dont la sortie suit l'entrée (`SIZE_FOLLOWS_INPUT_TASKS`) |
+| scout | aucun moteur, et l'installation tirait les 8 variantes d'un export Optimum (210 Mo pour 51) → `.onnx` prouve `onnxruntime` ; l'anatomie retient `onnx/model.onnx`. Table format → moteur à UN endroit : `prospector.WEIGHT_FORMAT_ENGINES` (lue par les rôles ET la dérivation) |
+| installation | moteur `transformers` DÉRIVÉ du `config.json` recopié du modèle d'origine → la dérivation du balayage lit d'abord le FORMAT des poids. Le moteur faux, persisté, a été VIDÉ à la source avant Valider (précédent SheetSage2) |
+| installation | `scale: 4` perdu : le `spec` du candidat portait tâche et anatomie, pas les capacités jugées → le `spec` les porte, `record_after_install` les reporte (vides seuls) |
+| rôle `model` | le LLM a écrit l'identité du modèle d'ORIGINE (`caidas/…`) → corrigée par `enforce_identity` (contrôle existant, il a joué) |
+| backend | `onnxruntime` est PARTAGÉ (Supra2-IMG) : sans entrée `SUPPORTED_MODELS`, résolution None — et l'agrandissement de SORTIE commun (`output_formats.upscale_output_image`, six apps) tire tout modèle `upscale` doté d'un `scale` → l'entrée NOMME le modèle et sa ligne (`model_key`, le champ de `pyannote_diarizer`) et RIEN d'autre : facteur, VRAM et fichier sont LUS au registre (`_catalogued_facts`, `component_paths`). Les 7 modèles embarqués gardent leurs faits dans le backend parce qu'ils tournent sans base (converter, repli d'aide) |
+| enhancer | `source='enhancer'` au domaine du select écartait tout agrandisseur installé → route F4b étape ⑤ (`WAMA_APP_GENERATION_ROUTE §F4b`) |
+
+⚠ **Deux chemins parallèles écrits puis RETIRÉS le jour même**, sur relecture demandée par Fabien
+(« tu as recréé un chemin parallèle ») : (1) l'entrée `SUPPORTED_MODELS` de Swin2SR recopiait
+`scale`, `vram_usage`, `description` — une seconde vérité du registre, sous un nom de champ neuf
+(`catalog_key`) quand `model_key` existait ; (2) deux fonctions communes (`catalog_choices`,
+`catalog_choice_values`) et un `options_domain` pour l'enhancer, avec adoption par le synthesizer
+et le transcriber — alors que le précédent le plus proche, l'imager, n'a ni liste ni domaine de
+porte : sans eux `invalid_choice_values` n'a rien à refuser (`param_schema.py:664`) et `save()`
+normalise. *Le patron le plus proche se lit AVANT d'écrire une brique, pas après.*
+
+**Mesuré sur CPU** : `backend_for_key` → AIUpscaler, 160×120 → 640×480 en 6 s ; route de l'enhancer
+en clé entière, en clé embarquée et en identifiant nu ; la porte commune de sortie voit 5 candidats
+×4 et le tirage auto (curseur par défaut) garde BSRGANx4. Enhancer 97/98 (inchangé, `triad_specs`
+partiel préexistant).
+
+🔚 **Restes nommés** :
+- **SPAN et GaterV3** : aucune voie pour des POIDS publiés dans une version GitHub (la prospection
+  ne lit que HF ; la voie `vendor` sert le CODE). À concevoir sur le modèle de la voie vendor
+  (dépôt, version, empreinte) — et la prospection ne voit pas OpenModelDB, où vivent la plupart
+  des agrandisseurs récents.
+- `prospector.APP_TASKS['enhancer'] = 'image-to-image'` seul : la vidéo n'est pas prospectée, et
+  `video-to-video` n'est pas découpé comme `image-to-image` (ROADMAP §16.2, contrat D-c).
+- La description du balayage générique (`model_registry.py:2044-2045`, « en attente
+  d'intégration », « backend à intégrer ») reste après l'intégration — FrWhisper, Supra2-IMG
+  et Swin2SR la portent.
+- Le rôle `backend` recopie `name`/`description`/`vram` dans `SUPPORTED_MODELS` (Supra2,
+  FrWhisper, SheetSage2, Kyutai, YuE2) : valeurs lues par PERSONNE — l'inventaire ne lit que les
+  clés. Seconde vérité à retirer à la source (consigne + contrôle du rôle).
+- Le critère `model_options_catalog` était VERT avec un domaine par SOURCE : il atteste que les
+  options viennent du catalogue, pas que le domaine est une capacité (la route le demande).
+- **GPU** : rien n'a tourné sur la carte. Premier agrandissement réel par une card à faire au
+  redémarrage (migration `enhancer/0018` appliquée par `start_wama_prod.sh`).

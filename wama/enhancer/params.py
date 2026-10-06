@@ -13,14 +13,21 @@ from wama.common.utils.output_formats import (
     get_output_formats, get_output_qualities, output_format_params,
 )
 from wama.common.utils.param_schema import Param, schema_to_dicts
-from wama.enhancer.models import AudioEnhancement, Enhancement
+from wama.enhancer.models import AudioEnhancement
+from wama.enhancer.utils.auto_model import MEDIA_SPEC
 from wama.common.backends.ai_upscaler import SUPPORTED_MODELS
 
 
 def _media_model_help():
-    """Aide modèle image/vidéo (courte + longue) dérivée de SUPPORTED_MODELS — source unique."""
+    """Aide modèle image/vidéo (courte + longue) des modèles EMBARQUÉS, dérivée de
+    SUPPORTED_MODELS — le REPLI quand le catalogue ne répond pas. Indexée par CLÉ de catalogue
+    (2026-10-06) : ce sont les valeurs d'option du select. Un modèle installé par la chaîne n'y
+    est pas (`model_key`, aucun fichier embarqué) : son aide est celle du catalogue."""
     out = {}
-    for key, info in SUPPORTED_MODELS.items():
+    for name, info in SUPPORTED_MODELS.items():
+        if not info.get('file'):
+            continue
+        key = f'enhancer:{name}'
         desc = info.get('description', '')
         scale, vram, file = info.get('scale'), info.get('vram_usage'), info.get('file', '')
         if scale and scale > 1:
@@ -63,29 +70,25 @@ AUDIO_ENGINE_HELP = {
 MEDIA_PARAMS = [
     Param(name='ai_model', type='select', label='Modèle AI', icon='fa-brain', chip=True,
           dom_id={'panel': 'defaultAiModel', 'item': 'settingsAiModel'}, contexts=('panel', 'item'),
-          # ── Route F4b (2026-09-08) — les OPTIONS viennent du catalogue ────────────────
-          # `choices` (les 7 valeurs d'`AI_MODEL_CHOICES`) restent le REPLI rendu avant que
-          # la requête réponde ; la liste servie, elle, est celle du catalogue : un modèle
-          # d'upscaling installé apparaît désormais sans toucher au code.
-          # Domaine = `source` + `model_type`, et les DEUX sont nécessaires :
-          #   • sans `model_type`, la source rendait les 9 modèles de l'enhancer, dont les
-          #     2 moteurs AUDIO (un select d'upscaling proposant un débruiteur de voix) ;
-          #   • une tâche unique ne convient pas — les 7 se partagent `upscale` (5) et
-          #     `denoise` (2, les IRCNN) ; `model_type='upscaling'` est la catégorie qui
-          #     les réunit, et c'est la taxonomie du catalogue, pas une invention d'ici.
-          # `source` maintient aussi l'ESPACE DE CLÉS : identifiants nus ('BSRGANx4'), ceux
-          # que `Enhancement.ai_model` porte et que `tasks.py` recompose en
-          # `enhancer:<id>` pour résoudre son backend.
+          # ── Route F4b, étape ⑤ (2026-10-06) — options par TÂCHE, clés ENTIÈRES ──────
+          # Le domaine était `source='enhancer'` + `model_type` (2026-09-08) : un agrandisseur
+          # installé depuis le model manager (Swin2SR, `huggingface:…`) n'y entrait pas, et les
+          # valeurs étaient des identifiants NUS que la tâche recomposait en `enhancer:<id>`.
+          # Comme l'imager (⑥) et le transcriber (⑦) : domaine par capacité, une seule
+          # déclaration (`utils/auto_model.MEDIA_SPEC`, que le tirage « auto » lit aussi) —
+          # `upscale` ET `denoise` (les IRCNN) ; valeurs = clés de catalogue (`enhancer:BSRGANx4`,
+          # migration `0018`). Plus de `choices` statiques, comme l'imager : le select se peuple
+          # par l'endpoint, et un identifiant nu posté par une surface d'avant (assistant, lot)
+          # est normalisé par `Enhancement.save`.
           options_source='catalog',
-          options_query={'source': 'enhancer', 'model_type': 'upscaling'},
+          options_query=MEDIA_SPEC,
           # « auto » en 1ʳᵉ option + PRÉVISION (curseur C, 2026-09-21 — décision de Fabien :
           # la ligne « l'enhancer ne RÉSOUT pas auto, l'utilisateur désigne son moteur » qui
           # vivait ici est LEVÉE). Le lancement résout dans `utils/auto_model.py` : domaine =
           # celui-ci, restreint au FACTEUR demandé, classé au poids du curseur.
           options_auto=True,
-          choices=list(Enhancement.AI_MODEL_CHOICES),
-          # Catalogue (desc + VRAM) branchable depuis l'ALIGNEMENT des model_key (18/08,
-          # artefact _fp16 retiré : clés = valeurs d'option) ; le repli statique reste.
+          # Catalogue (desc + VRAM) lu sur le DOMAINE du select (clés entières) ; le repli
+          # statique reste.
           help_source='enhancer',
           help_fallback=MEDIA_MODEL_HELP,
           # Ce que chaque réglage PÉRIME (`Param.stales`, 2026-10-05) : `ProcessSpec.watched`

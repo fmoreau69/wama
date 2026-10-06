@@ -129,9 +129,11 @@ class DomainesDeclaresParLesAppsTest(TestCase):
                         "le reader RÉSOUT « auto » au lancement — l'option doit être servie")
 
     def test_l_enhancer_separe_ses_deux_domaines(self):
+        """Route F4b ⑤ (2026-10-06) : le média passe à la TÂCHE et aux clés ENTIÈRES (ce que
+        `Enhancement.ai_model` stocke depuis `0018`) ; l'audio garde ses clés nues."""
         media = _champ('enhancer', 'ai_model')
         audio = _champ('enhancer', 'engine')
-        self.assertEqual(self._options(media), ['BSRGANx4'])
+        self.assertEqual(self._options(media), ['enhancer:BSRGANx4'])
         self.assertEqual(self._options(audio), ['deepfilternet', 'resemble'])
 
     def test_the_enhancer_serves_auto_for_media_and_for_audio(self):
@@ -143,10 +145,13 @@ class DomainesDeclaresParLesAppsTest(TestCase):
             self.assertTrue(_champ('enhancer', nom).get('options_auto'), nom)
 
     def test_les_valeurs_ECRITES_EN_DUR_restent_le_repli_rendu(self):
-        """Les `choices` ne sont pas retirés : ils s'affichent avant que la requête réponde,
-        et servent de repli si le catalogue est injoignable."""
-        self.assertTrue(_champ('enhancer', 'ai_model').get('choices'))
+        """Les `choices` ne sont pas retirés d'une app en clés NUES (le reader) : ils
+        s'affichent avant que la requête réponde, et servent de repli si le catalogue est
+        injoignable. ⚠ Une app passée aux clés ENTIÈRES les retire (enhancer, 2026-10-06, comme
+        le transcriber) : l'ancienne liste ramènerait l'ancien espace de clés — son pré-rendu
+        vient du catalogue (`auto_model.catalog_choices`)."""
         self.assertTrue(_champ('reader', 'backend').get('choices'))
+        self.assertFalse(_champ('enhancer', 'ai_model').get('choices'))
 
 
 class InvariantDesDeclarationsTest(TestCase):

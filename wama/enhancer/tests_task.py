@@ -63,8 +63,9 @@ class MediaQueueTest(_TwoProcesses):
     def _run(self, item, **settings):
         return self._play(tasks.enhance_media, item,
                           'wama.enhancer.backends.media_backend.enhance_image',
-                          'wama.enhancer.utils.auto_model.resolve_media_model', 'RealESRGANx4',
-                          **settings)
+                          # the draw returns a catalogue KEY since route F4b ⑤ (2026-10-06)
+                          'wama.enhancer.utils.auto_model.resolve_media_model',
+                          'enhancer:RealESRGANx4', **settings)
 
     def _item(self):
         item = Enhancement.objects.create(user=self.user, media_type='image', ai_model='auto',

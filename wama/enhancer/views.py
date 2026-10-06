@@ -190,10 +190,13 @@ def _decorate_audio_card(ae):
 
 
 def _input_match_meta_enhancer():
-    """Meta de la brique COMMUNE — clés catalogue = valeurs d'option DEPUIS l'alignement
-    18/08 (l'artefact _fp16 des model_key est retiré à la découverte) : plus de re-clé."""
+    """Meta de la brique COMMUNE, indexée par les VALEURS d'option des deux selects : le select
+    MÉDIA porte des clés entières, tirées par TÂCHE (route F4b ⑤, 2026-10-06 — le mode `task`
+    de la brique, qui sinon resterait muet sur un modèle d'une autre source, Swin2SR) ; le select
+    AUDIO garde ses identifiants nus de la source `enhancer`."""
     from wama.common.utils.input_match import input_match_meta
-    return input_match_meta('enhancer')
+    from wama.enhancer.utils.auto_model import MEDIA_SPEC
+    return {**input_match_meta('enhancer'), **input_match_meta(task=MEDIA_SPEC['task'])}
 
 
 class IndexView(View):
@@ -264,8 +267,20 @@ class IndexView(View):
         from wama.common.utils.user_settings import read_panel_settings
         from wama.enhancer.params import MEDIA_PARAMS
         panel = read_panel_settings(user, 'enhancer', MEDIA_PARAMS)
+        # Le volet parle en CLÉS de catalogue (route F4b ⑤, 2026-10-06) : une préférence
+        # mémorisée avant la bascule (identifiant nu) est lue dans l'espace de l'enhancer.
+        from wama.common.utils.model_keys import catalog_key
+        panel['ai_model'] = catalog_key(panel.get('ai_model') or 'auto', 'enhancer')
 
         import json as _json
+        from wama.common.utils.auto_model import AUTO, AUTO_LABEL
+        from wama.enhancer.utils.auto_model import MEDIA_SPEC
+        from wama.model_manager.services import get_registry_models
+        try:
+            media_models = list(get_registry_models(None, **MEDIA_SPEC)[0])
+        except Exception:       # repli `[]`, comme `tts_engine_choices` : l'endpoint repeuplera
+            logger.debug('[enhancer] catalogue illisible pour le pré-rendu', exc_info=True)
+            media_models = []
         from wama.enhancer.params import MEDIA_PARAMS_JSON, AUDIO_PARAMS_JSON
         queue_count = sum(len(b['items']) for b in batches_list) +                       sum(len(b['items']) for b in audio_batches_list)
 
@@ -281,7 +296,11 @@ class IndexView(View):
                                          if p.name == 'output_format'),
             'output_quality_choices': next(p.choices for p in MEDIA_PARAMS
                                            if p.name == 'output_quality'),
-            'ai_models': Enhancement.AI_MODEL_CHOICES,
+            # Pré-rendu du select « Modèle AI » : le DOMAINE du schéma, lu au catalogue par la
+            # brique que l'endpoint appelle (`get_registry_models`) — même vocabulaire que la
+            # liste qui le repeuple (`bindOptionSources`), sinon la valeur courante n'y serait pas
+            # retrouvée (cf. `common/tts/ui_meta.tts_engine_choices`, même geste).
+            'ai_models': [(AUTO, AUTO_LABEL)] + media_models,
             # Schémas déclaratifs par domaine → inspecteur contextuel (WamaInspector.initFromSchema).
             'media_params_json': _json.dumps(MEDIA_PARAMS_JSON),
             'audio_params_json': _json.dumps(AUDIO_PARAMS_JSON),

@@ -32,19 +32,9 @@ class Enhancement(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
 
     #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
     STATUS_CHOICES = JOB_STATUS_CHOICES
-    #: « auto » en tête (curseur C, 2026-09-21 — décision de Fabien : l'enhancer RÉSOUT
-    #: désormais un moteur ; la ligne « l'utilisateur désigne son moteur » de params.py est
-    #: levée). La liste reste le REPLI rendu avant le catalogue (`options_source='catalog'`).
-    AI_MODEL_CHOICES = [
-        ('auto', 'Automatique — choisi au lancement'),
-        ('RealESR_Gx4', 'RealESR-General x4 (Rapide)'),
-        ('RealESR_Animex4', 'RealESR-Anime x4 (Anime)'),
-        ('BSRGANx2', 'BSRGAN x2 (Qualité)'),
-        ('BSRGANx4', 'BSRGAN x4 (Qualité)'),
-        ('RealESRGANx4', 'RealESRGAN x4 (Haute qualité)'),
-        ('IRCNN_Mx1', 'IRCNN-M x1 (Débruitage)'),
-        ('IRCNN_Lx1', 'IRCNN-L x1 (Débruitage fort)'),
-    ]
+    # La LISTE des modèles ne vit plus ici depuis la route F4b étape ⑤ (2026-10-06) : elle vient
+    # du catalogue, par tâche (`utils/auto_model.MEDIA_SPEC`) — l'ancienne liste en dur rendait
+    # inchoisissable tout agrandisseur installé depuis le model manager.
 
     # Basic info
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='enhancements')
@@ -66,11 +56,12 @@ class Enhancement(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     file_size = models.BigIntegerField(default=0, help_text='File size in bytes')
 
     # Processing settings
+    # Clé de CATALOGUE du modèle (`enhancer:BSRGANx4`, `huggingface:org/depot`) ou « auto ».
+    # 128 : `huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX` fait 71.
     ai_model = models.CharField(
-        max_length=32,
-        choices=AI_MODEL_CHOICES,
+        max_length=128,
         default='auto',
-        help_text="AI model for upscaling ('auto' = résolu au lancement par le catalogue)"
+        help_text="Clé de catalogue du modèle d'agrandissement, ou « auto » (tirage au lancement)"
     )
     upscale_factor = models.IntegerField(
         default=4,
@@ -117,6 +108,15 @@ class Enhancement(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
 
     def __str__(self):
         return f"Enhancement {self.id} ({self.user.username}) - {self.get_status_display()}"
+
+    def save(self, *args, **kwargs):
+        # Valeur de modèle = CLÉ DE CATALOGUE (route F4b ⑤, 2026-10-06 — patron de l'imager).
+        # Normalisée ICI, point de passage de TOUS les écrivains (vues, modale, lots, assistant
+        # `add_to_enhancer`, duplication) : un identifiant nu (`RealESR_Gx4`) est lu dans
+        # l'espace de l'enhancer. `auto` et le vide restent (brique `model_keys`).
+        from wama.common.utils.model_keys import catalog_key
+        self.ai_model = catalog_key(self.ai_model, 'enhancer')
+        super().save(*args, **kwargs)
 
     @property
     def gear_data(self):
@@ -248,11 +248,8 @@ class UserSettings(models.Model):
     )
 
     # Default settings
-    default_ai_model = models.CharField(
-        max_length=32,
-        choices=Enhancement.AI_MODEL_CHOICES,
-        default='auto'
-    )
+    # `choices` retirés avec la liste (2026-10-06) : table plus lue, retrait R83.
+    default_ai_model = models.CharField(max_length=32, default='auto')
     default_denoise = models.BooleanField(default=False)
     default_blend_factor = models.FloatField(default=0.0)
 
