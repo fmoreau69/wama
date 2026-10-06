@@ -41,11 +41,13 @@ class MediaAutoResolutionTest(TestCase):
     def test_auto_draws_in_the_upscaler_domain_narrowed_to_the_factor_with_the_item_s_slider(self):
         e = Enhancement.objects.create(user=self.user, media_type='image', ai_model='auto',
                                        upscale_factor=4, quality_intent=90)
-        seen, fake = self._select('RealESRGANx4')
+        seen, fake = self._select('enhancer:RealESRGANx4')
         with mock.patch('wama.model_manager.services.select_model_id', fake):
-            self.assertEqual(am.resolve_media_model(e), 'RealESRGANx4')
-        self.assertEqual(seen['source'], 'enhancer')
-        self.assertEqual(seen['model_type'], 'upscaling')
+            self.assertEqual(am.resolve_media_model(e), 'enhancer:RealESRGANx4')
+        # Route F4b ⑤ (2026-10-06) : le domaine est la TÂCHE, jamais la source — d'où une clé
+        # entière en retour (règle `select_model_id`).
+        self.assertIsNone(seen['source'])
+        self.assertEqual(seen['task'], 'upscale,denoise')
         self.assertEqual(seen['quality_intent'], 90)
         self.assertEqual(set(seen['candidates']), {'enhancer:BSRGANx4', 'enhancer:RealESRGANx4'})
 
@@ -57,7 +59,7 @@ class MediaAutoResolutionTest(TestCase):
         e = Enhancement.objects.create(user=self.user, media_type='image', ai_model='BSRGANx2')
         seen, fake = self._select('never')
         with mock.patch('wama.model_manager.services.select_model_id', fake):
-            self.assertEqual(am.resolve_media_model(e), 'BSRGANx2')
+            self.assertEqual(am.resolve_media_model(e), 'enhancer:BSRGANx2')
         self.assertEqual(seen, {})
 
     def test_without_an_answer_the_fallback_is_the_app_s_historical_default(self):
@@ -65,6 +67,154 @@ class MediaAutoResolutionTest(TestCase):
         _seen, fake = self._select(None)
         with mock.patch('wama.model_manager.services.select_model_id', fake):
             self.assertEqual(am.resolve_media_model(e), am.MEDIA_FALLBACK)
+        self.assertEqual('enhancer:RealESR_Gx4', am.MEDIA_FALLBACK)
+
+
+#: The catalogue rows as production carries them: the 7 bundled upscalers declare
+#: `onnxruntime` (served by AIUpscaler), and an upscaler installed by the prospection chain.
+SWIN2SR_KEY = 'huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX'
+
+
+def _onnx_row(key, task, **caps):
+    from wama.model_manager.models import AIModel
+    source, _, _ = key.partition(':')
+    return AIModel.objects.create(
+        model_key=key, name=key.rsplit('/', 1)[-1].split(':')[-1], model_type='upscaling',
+        source=source, is_downloaded=True, capabilities={'task': task, **caps},
+        composition={'runtime': {'engine': 'onnxruntime'}})
+
+
+class CatalogueKeysTest(TestCase):
+    """Route F4b, step ⑤ (2026-10-06): the media model select lists by TASK and stores
+    catalogue KEYS — a model installed from the model manager (Swin2SR) becomes choosable,
+    every writer goes through one normalisation, and the bare ids of before still read."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('enh_keys', password='x')
+        _onnx_row('enhancer:BSRGANx4', 'upscale', scale=4)
+        _onnx_row('enhancer:IRCNN_Mx1', 'denoise')
+        _onnx_row(SWIN2SR_KEY, 'upscale', scale=4)
+
+    def test_every_writer_stores_a_catalogue_key(self):
+        for given, stored in (('RealESR_Gx4', 'enhancer:RealESR_Gx4'), ('auto', 'auto'),
+                              (SWIN2SR_KEY, SWIN2SR_KEY), ('', '')):
+            with self.subTest(given=given):
+                e = Enhancement.objects.create(user=self.user, media_type='image', ai_model=given)
+                self.assertEqual(stored, Enhancement.objects.get(pk=e.pk).ai_model)
+
+    def test_the_select_domain_is_the_task_and_carries_no_static_list(self):
+        from wama.enhancer.params import MEDIA_PARAMS
+        p = next(p for p in MEDIA_PARAMS if p.name == 'ai_model')
+        self.assertEqual('catalog', p.options_source)
+        self.assertEqual(am.MEDIA_SPEC, p.options_query)
+        self.assertNotIn('source', p.options_query, 'a domain by source hides installed models')
+        self.assertFalse(p.choices, 'a static list would bring the bare-id key space back')
+
+    def test_the_panel_pre_renders_the_installed_upscaler(self):
+        """The server pre-render of the panel select reads the schema's domain in the catalogue
+        (`get_registry_models`, the brick the options endpoint calls) — the installed upscaler
+        is there, under its key, beside the bundled ones."""
+        from django.contrib.auth.models import Group
+        from django.urls import reverse
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
+        for role in (DEFAULT_APP_ACCESS.get('enhancer') or {}).get('roles', []):
+            self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+        self.client.force_login(self.user)
+        page = self.client.get(reverse('enhancer:index')).content.decode()
+        for key in ('auto', 'enhancer:BSRGANx4', 'enhancer:IRCNN_Mx1', SWIN2SR_KEY):
+            self.assertIn(f'<option value="{key}"', page.replace('\n', ' '))
+
+    def test_the_tool_door_rejects_neither_a_key_nor_a_bare_id_of_before(self):
+        """Like the imager: no static list, no declared door domain — the door has nothing to
+        refuse, and `Enhancement.save` normalises a bare id into its key."""
+        from wama.common.utils.param_schema import invalid_choice_values, schema_for_app
+        schema = schema_for_app('enhancer')
+        for value in (SWIN2SR_KEY, 'enhancer:BSRGANx4', 'RealESR_Gx4', 'auto'):
+            with self.subTest(value=value):
+                self.assertEqual({}, invalid_choice_values(schema, {'ai_model': value}))
+
+    def test_auto_at_x4_may_draw_the_installed_upscaler(self):
+        self.assertEqual({'enhancer:BSRGANx4', SWIN2SR_KEY}, set(am.media_candidates(4)))
+
+    def test_the_route_resolves_a_key_or_a_bare_id_to_the_backend_with_its_identifier(self):
+        from wama.enhancer.backends import media_backend
+        made = []
+
+        class FakeUpscaler:
+            def __init__(self, model_name, tile_size=0):
+                made.append(model_name)
+
+        with mock.patch('wama.common.backends.manager.backend_for_key',
+                        side_effect=lambda key: FakeUpscaler if key in (
+                            'enhancer:IRCNN_Mx1', SWIN2SR_KEY) else None) as resolve:
+            media_backend._upscaler_for(SWIN2SR_KEY)
+            media_backend._upscaler_for('IRCNN_Mx1')         # denoise pass of upscale_image_file
+            with self.assertRaises(RuntimeError):
+                media_backend._upscaler_for('enhancer:unknown')
+        self.assertEqual([SWIN2SR_KEY, 'enhancer:IRCNN_Mx1', 'enhancer:unknown'],
+                         [c.args[0] for c in resolve.call_args_list])
+        self.assertEqual(['onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX',
+                          'IRCNN_Mx1'], made)
+
+    def test_the_eta_keeps_learning_under_the_identifier(self):
+        from wama.enhancer.tasks import enhancer_eta_key_size
+        e = Enhancement(media_type='image', ai_model='enhancer:RealESR_Gx4', upscale_factor=4)
+        self.assertEqual('enhancer:img:RealESR_Gx4:x4', enhancer_eta_key_size(e)[0])
+        self.assertEqual('enhancer:img:RealESR_Gx4:x4',
+                         enhancer_eta_key_size(e, model='RealESR_Gx4')[0], 'bare id, same key')
+
+    def test_the_input_match_meta_names_the_media_options_by_key(self):
+        from wama.enhancer.views import _input_match_meta_enhancer
+        self.assertIn(SWIN2SR_KEY, _input_match_meta_enhancer())
+
+
+class CatalogueKeysMigrationTest(SimpleTestCase):
+    """`0018_model_catalog_keys`: PURE prefixing (no catalogue lookup), reversible on our own
+    prefix only — the pattern of `imager/0023`."""
+
+    def _migration(self):
+        import importlib
+        return importlib.import_module('wama.enhancer.migrations.0018_model_catalog_keys')
+
+    def test_forward_prefixes_bare_ids_and_leaves_auto_and_keys(self):
+        rows = {1: 'RealESR_Gx4', 2: 'auto', 3: SWIN2SR_KEY, 4: ''}
+        self._run('to_catalog_keys', rows)
+        self.assertEqual({1: 'enhancer:RealESR_Gx4', 2: 'auto', 3: SWIN2SR_KEY, 4: ''}, rows)
+
+    def test_backward_strips_only_its_own_prefix(self):
+        rows = {1: 'enhancer:RealESR_Gx4', 2: SWIN2SR_KEY, 3: 'auto'}
+        self._run('to_bare_ids', rows)
+        self.assertEqual({1: 'RealESR_Gx4', 2: SWIN2SR_KEY, 3: 'auto'}, rows)
+
+    def _run(self, name, rows):
+        """Runs the migration function on an in-memory table (field `ai_model`)."""
+        class _QS:
+            def __init__(self, pks):
+                self.pks = list(pks)
+
+            def _keep(self, test):
+                return _QS(pk for pk in self.pks if test(rows[pk]))
+
+            def exclude(self, ai_model__in=None, ai_model__contains=None):
+                if ai_model__in is not None:
+                    return self._keep(lambda v: v not in ai_model__in)
+                return self._keep(lambda v: ai_model__contains not in v)
+
+            def filter(self, pk=None, ai_model__startswith=None):
+                if pk is not None:
+                    return _QS([pk])
+                return self._keep(lambda v: v.startswith(ai_model__startswith))
+
+            def values_list(self, *fields):
+                return [(pk, rows[pk]) for pk in self.pks]
+
+            def update(self, ai_model):
+                for pk in self.pks:
+                    rows[pk] = ai_model
+
+        model = type('Enhancement', (), {'objects': _QS(rows)})
+        apps = mock.Mock(get_model=lambda app, name: model)
+        getattr(self._migration(), name)(apps, None)
 
 
 class AudioAutoResolutionTest(TestCase):
@@ -203,16 +353,17 @@ class GlueTest(TestCase):
 
             def fake_route(input_path, output_path, output_format=None, options=None,
                            progress_callback=None):
-                self.assertEqual(options['ai_model'], 'RealESRGANx4')
+                self.assertEqual(options['ai_model'], 'enhancer:RealESRGANx4')
                 with open(output_path, 'wb') as f:
                     f.write(b'out')
                 progress_callback(100)
                 return {'width': 8, 'height': 6}
 
             ctx = _Ctx()
+            # Le tirage rend une CLÉ de catalogue depuis la route F4b ⑤ (2026-10-06).
             with mock.patch('wama.enhancer.backends.media_backend.enhance_image', fake_route), \
                     mock.patch('wama.enhancer.utils.auto_model.resolve_media_model',
-                               return_value='RealESRGANx4'):
+                               return_value='enhancer:RealESRGANx4'):
                 res = tasks._enhance_media(e, ctx)
         fields = res['fields']
         # ⚠ Attestait l'ANCIEN domicile jusqu'au 2026-09-22 — le test figeait le défaut. Le

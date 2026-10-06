@@ -22593,3 +22593,19 @@ autre instance (`AI_MODEL_CHOICES`), revenu sain quelques minutes plus tard.
 **Restes** : docs générées (carte des mécanismes, `docs/dev/briques.md`) à régénérer depuis HEAD
 quand le registre co-édité sera commité ; mode modification, conflit montré, « ses lots » (ouverts
 du 03/10, inchangés).
+
+## §PALIER — 2026-10-06 (nuit), « AGRANDISSEURS PAR LA CHAÎNE : SWIN2SR + ENHANCER EN CLÉS (F4b ⑤) » — livré (`eee0b6b`, `59f4b0b`, commit de ce palier, non poussés) — 🔴 REDÉMARRER WAMA (`start_wama_prod.sh` : migration `enhancer/0018` AVANT gunicorn — ne pas migrer à la main, l'ancien code lirait `enhancer:enhancer:…`) — 🔚 1ᵉʳ agrandissement Swin2SR par une card, sur GPU
+
+Demande de Fabien : de meilleurs agrandisseurs, intégrés PAR LES MÉCANISMES de WAMA, sans GPU
+(alimentation) — rôles sur Albert, essais sur CPU. Banc CPU : GaterV3 (débruitage), SPAN (×4
+rapide), Swin2SR (×4 fidèle) battent l'existant chacun sur leur rôle ; RealESRGANx4 reste le
+meilleur ×4 perçu. Swin2SR (seul en ONNX sur HF) intégré de bout en bout : scout → candidat →
+`request_install` → rôle `model` → Valider → AIUpscaler → enhancer (étape ⑤ de F4b). Cinq trous de
+la chaîne comblés par des faits mécaniques ; deux chemins parallèles écrits puis retirés sur
+relecture de Fabien. Détail : `PROSPECTION_PIPELINE §Session du 2026-10-06`, `ROUTE §F4b ⑤`.
+- Migrations : `enhancer/0018_model_catalog_keys` (non versionnée, `.gitignore`) — sur le disque,
+  NON appliquée à la base.
+- 🔚 Restes : voie « poids depuis une version GitHub » (SPAN, GaterV3) ; `video-to-video` et
+  `APP_TASKS['enhancer']` ; description périmée du balayage générique ; valeurs recopiées par le
+  rôle `backend` dans `SUPPORTED_MODELS` ; critère `model_options_catalog` aveugle au domaine par
+  source ; `AUDIO_SPEC` encore par source.

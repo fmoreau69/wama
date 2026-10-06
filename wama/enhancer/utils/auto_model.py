@@ -20,13 +20,18 @@ logger = logging.getLogger(__name__)
 
 APP_ID = 'enhancer'
 
-#: Domaines = ceux des selects (`params.py`, `options_query`) : une seule déclaration par branche.
-MEDIA_SPEC = {'source': 'enhancer', 'model_type': 'upscaling'}
+#: Domaines des selects — UNE déclaration par branche, que `params.py` reprend (`options_query`).
+#: MÉDIA par TÂCHE depuis la route F4b étape ⑤ (2026-10-06), jamais par source : `source='enhancer'`
+#: écartait tout agrandisseur installé depuis le model manager (Swin2SR, `huggingface:…`), et les
+#: valeurs deviennent des clés de catalogue ENTIÈRES. Mesuré avant de basculer : ce domaine rend
+#: les 7 modèles d'avant plus Swin2SR, tous lançables. AUDIO inchangé (clés nues, par source).
+MEDIA_SPEC = {'task': 'upscale,denoise'}
 AUDIO_SPEC = {'source': 'enhancer', 'task': 'audio-enhance'}
 
 #: Replis si le catalogue ne propose rien (première install, base injoignable) — le défaut
-#: historique de l'app (une seule déclaration, `model_config.DEFAULT_MODEL`).
-from wama.enhancer.utils.model_config import DEFAULT_MODEL as MEDIA_FALLBACK  # noqa: E402
+#: historique de l'app (une seule déclaration, `model_config.DEFAULT_MODEL`), en CLÉ de catalogue.
+from wama.enhancer.utils.model_config import DEFAULT_MODEL  # noqa: E402
+MEDIA_FALLBACK = f'{APP_ID}:{DEFAULT_MODEL}'
 AUDIO_FALLBACK = 'resemble'
 
 #: NFE de Resemble par POSITION nommée du curseur — positions lues chez le sélecteur commun
@@ -43,15 +48,19 @@ def media_candidates(factor) -> list:
         return []
     if factor <= 0:
         return []
-    # Filtre COMMUN (2026-09-30) : le même que le post-traitement de sortie des autres apps.
+    # Filtre COMMUN (2026-09-30) : le même que le post-traitement de sortie des autres apps — et
+    # le même DOMAINE (`UPSCALER_SPEC`, 2026-10-06) : « un agrandisseur qui rend ×N » est un seul
+    # besoin, qu'il vienne de l'enhancer ou du réglage « Agrandir la sortie ».
     from wama.common.utils.auto_model import candidates_with
-    return candidates_with('scale', factor, **MEDIA_SPEC)
+    from wama.common.utils.output_formats import UPSCALER_SPEC
+    return candidates_with('scale', factor, **UPSCALER_SPEC)
 
 
 def resolve_media_model(enhancement) -> str:
     """Modèle d'upscaling pour CE lancement : le choix explicite tel quel, sinon tirage dans
     le domaine des upscalers, restreint au facteur demandé, au poids du curseur de l'item."""
-    requested = (enhancement.ai_model or '').strip()
+    from wama.common.utils.model_keys import catalog_key
+    requested = catalog_key(enhancement.ai_model or '', APP_ID)
     if requested and not is_auto(requested):
         return requested
     overrides = {}

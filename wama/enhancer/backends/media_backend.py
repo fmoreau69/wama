@@ -18,17 +18,20 @@ logger = logging.getLogger(__name__)
 
 
 def _upscaler_for(model_name: str, tile_size: int = 0):
-    """La classe résolue par le CATALOGUE pour `enhancer:<model_name>` (2ᵉ adoptant de
-    `backend_for_key`, 2026-09-07) — les 7 modèles déclarent `onnxruntime` et résolvent tous
-    `AIUpscaler`. Une clé absente ou sans moteur déclaré est une erreur DITE, pas un repli."""
+    """La classe résolue par le CATALOGUE pour ce modèle (2ᵉ adoptant de `backend_for_key`,
+    2026-09-07). `model_name` est une CLÉ de catalogue depuis la route F4b ⑤ (2026-10-06) — un
+    identifiant nu (le débruitage `IRCNN_Mx1` d'`upscale_image_file`, une ligne d'avant la
+    migration) est lu dans l'espace de l'enhancer. Le backend reçoit l'identifiant qu'il connaît
+    (`model_id`). Une clé absente ou sans moteur déclaré est une erreur DITE, pas un repli."""
     from wama.common.backends.manager import backend_for_key
-    catalog_key = f'enhancer:{model_name}'
-    classe = backend_for_key(catalog_key)
+    from wama.common.utils.model_keys import catalog_key, model_id
+    key = catalog_key(model_name, 'enhancer')
+    classe = backend_for_key(key)
     if classe is None:
         raise RuntimeError(
             f"Modèle « {model_name} » : aucun backend résolu depuis le catalogue "
-            f"({catalog_key} absent, ou sans moteur déclaré)")
-    return classe(model_name=model_name, tile_size=tile_size)
+            f"({key} absent, ou sans moteur déclaré)")
+    return classe(model_name=model_id(key), tile_size=tile_size)
 
 
 def _model_of(options: dict) -> str:

@@ -4,11 +4,15 @@ Lived on 2026-10-06 (Swin2SR, `onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-
 model reached the catalogue with `task: upscale`, `scale: 4` and the `onnxruntime` engine — so the
 common output upscale (`output_formats.upscale_output_image`, six apps) could DRAW it — while
 `onnxruntime` is shared with Supra2-IMG: without a `SUPPORTED_MODELS` entry its backend resolved
-to None (« aucun backend résolu »). The entry names the model the way Supra2-IMG and FrWhisper do,
-and its weights are the declared component read by `component_paths` — never a rebuilt path.
+to None (« aucun backend résolu »).
+
+The entry NAMES the model and designates its catalogue row (`model_key`, the field of
+`pyannote_diarizer`) — nothing else: its factor, VRAM and file are read from the REGISTRY. The
+bundled seven keep their facts in the backend because they run without a database (converter,
+the enhancer's help fallback); an installed model only exists through its row.
 
 The weights are not versioned: the end-to-end test builds a tiny ×4 ONNX graph and goes through
-the real path (component → onnxruntime session on CPU → tiling).
+the real path (catalogue row → component → onnxruntime session on CPU → tiling).
 """
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -16,12 +20,13 @@ from types import SimpleNamespace
 from unittest import mock
 
 import numpy as np
-from django.test import SimpleTestCase
+from django.test import TestCase
 
 from wama.common.backends import ai_upscaler
 from wama.common.utils import onnx_utils
 
 SWIN2SR = 'onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX'
+SWIN2SR_KEY = f'huggingface:{SWIN2SR}'
 
 
 def _tiny_x4_graph(path: Path):
@@ -45,9 +50,19 @@ def _cpu_providers(device_id=0, cpu_only=False, _original=onnx_utils.onnx_provid
     return _original(device_id, cpu_only=True)
 
 
-class CatalogueUpscalerTest(SimpleTestCase):
+def _catalogue_row(**caps):
+    from wama.model_manager.models import AIModel
+    return AIModel.objects.create(
+        model_key=SWIN2SR_KEY, name='swin2SR', model_type='upscaling', source='huggingface',
+        is_downloaded=True, vram_gb=0.1, capabilities={'task': 'upscale', **caps},
+        composition={'runtime': {'engine': 'onnxruntime'},
+                     'components': [{'role': 'model', 'pattern': 'onnx/model.onnx'}]})
 
-    def test_a_catalogue_upscaler_runs_from_its_declared_component(self):
+
+class CatalogueUpscalerTest(TestCase):
+
+    def test_an_installed_upscaler_runs_from_its_catalogue_row(self):
+        _catalogue_row(scale=4)
         with TemporaryDirectory() as d:
             graph = Path(d) / 'model.onnx'
             _tiny_x4_graph(graph)
@@ -58,35 +73,46 @@ class CatalogueUpscalerTest(SimpleTestCase):
                 image = (np.arange(40 * 24 * 3) % 255).astype(np.uint8).reshape(24, 40, 3)
                 out = upscaler.upscale_image(image)
                 upscaler.close()
-        paths.assert_called_once_with(ai_upscaler.SUPPORTED_MODELS[SWIN2SR]['catalog_key'])
+        paths.assert_called_once_with(SWIN2SR_KEY)
+        self.assertEqual((4, 0.1), (upscaler.scale_factor, upscaler.model_info['vram_usage']),
+                         'factor and VRAM come from the registry row')
         self.assertEqual(str(graph), upscaler.model_path)
         self.assertEqual((96, 160, 3), out.shape, 'a non-square input comes out ×4 on both axes')
         self.assertTrue(np.array_equal(image[5, 7], out[5 * 4, 7 * 4]),
                         'colours and axes preserved (nearest neighbour)')
 
-    def test_a_missing_component_is_said_not_guessed(self):
+    def test_a_row_without_scale_is_said_not_guessed(self):
+        _catalogue_row()
+        with self.assertRaises(ValueError) as said:
+            ai_upscaler.AIUpscaler(model_name=SWIN2SR)
+        self.assertIn('scale', str(said.exception))
+
+    def test_a_missing_row_or_component_is_said(self):
         from wama.common.utils.model_components import ComponentsUnavailable
+        with self.assertRaises(ComponentsUnavailable):
+            ai_upscaler.AIUpscaler(model_name=SWIN2SR)        # no catalogue row
+        _catalogue_row(scale=4)
         with mock.patch('wama.common.utils.model_components.component_paths',
-                        side_effect=ComponentsUnavailable('absent du catalogue')):
+                        side_effect=ComponentsUnavailable('poids introuvables')):
             with self.assertRaises(ComponentsUnavailable):
                 ai_upscaler.AIUpscaler(model_name=SWIN2SR)
 
-    def test_every_entry_has_its_weights_either_bundled_or_catalogued(self):
-        """A catalogue entry names ITS OWN key: the entry key is the identifier that
-        `backend_for_model` compares, i.e. the last segment of that catalogue key."""
+    def test_an_installed_entry_carries_no_second_truth(self):
+        """Bundled: `file` + its facts (they run without a database). Installed: `model_key`
+        ONLY — its key is the identifier `backend_for_model` compares."""
         from wama.common.utils.model_keys import model_id
         for name, info in ai_upscaler.SUPPORTED_MODELS.items():
             with self.subTest(model=name):
-                self.assertTrue(bool(info.get('file')) != bool(info.get('catalog_key')),
-                                'exactly one of `file` (bundled) or `catalog_key` (installed)')
-                self.assertIn('scale', info)
-                if info.get('catalog_key'):
-                    self.assertEqual(name, model_id(info['catalog_key']))
+                if info.get('file'):
+                    self.assertIn('scale', info)
+                else:
+                    self.assertEqual({'model_key'}, set(info))
+                    self.assertEqual(name, model_id(info['model_key']))
 
     def test_the_installed_upscaler_resolves_aiupscaler_beside_supra2(self):
         """The catalogue row as « Valider » left it: engine `onnxruntime`, shared with Supra2-IMG."""
         from wama.common.backends.manager import backend_for_model
-        upscaler = SimpleNamespace(model_key=f'huggingface:{SWIN2SR}',
+        upscaler = SimpleNamespace(model_key=SWIN2SR_KEY,
                                    composition={'runtime': {'engine': 'onnxruntime'}},
                                    capabilities={'task': 'upscale', 'scale': 4})
         self.assertEqual('AIUpscaler', backend_for_model(upscaler).__name__)

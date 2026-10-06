@@ -105,6 +105,18 @@ AI-models/enhancer/onnx/
 
 **Note** : Vous pouvez commencer avec uniquement `RealESR_Gx4_fp16.onnx` pour tester.
 
+#### Agrandisseurs installés depuis le model manager (2026-10-06)
+
+Le select « Modèle AI » liste le CATALOGUE par tâche (`upscale`, `denoise`) et stocke des clés de
+catalogue (`enhancer:BSRGANx4`, `huggingface:org/depot`) — route F4b étape ⑤
+(`WAMA_APP_GENERATION_ROUTE.md §F4b`). Un agrandisseur ONNX installé par la chaîne de prospection
+y entre sans code : son manifeste porte `task: upscale`, `scale` et le moteur `onnxruntime`, et
+`AIUpscaler` le sert dès que son entrée `SUPPORTED_MODELS` le NOMME (`model_key` seul — facteur,
+VRAM et fichier sont lus au registre). Premier cas : **Swin2SR realworld ×4**
+(`onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX`, Apache-2.0), le plus FIDÈLE au banc
+du 2026-10-06 (rendu doux, peu d'invention). Détail, banc et restes (SPAN, GaterV3 : poids publiés
+hors HuggingFace) : `wama/model_manager/PROSPECTION_PIPELINE.md §Session du 2026-10-06`.
+
 ### Étape 3 : Migrations Django
 
 ```bash

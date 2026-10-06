@@ -51,8 +51,9 @@ def enhance_media(self, enhancement_id: int, process: str = None):
     run_item_task(self, app_id='enhancer', model=Enhancement, item_id=enhancement_id,
                   pipeline=PIPELINE, processes={'generate': _enhance_media, 'output': _output},
                   ingest_derive=_derive_media_type,
-                  vram_needed=lambda e: _vram_needed(f'enhancer:{_media_model(e)}'),
-                  model_key=lambda e: f'enhancer:{_media_model(e)}',
+                  # Le modèle résolu EST une clé de catalogue (route F4b ⑤, 2026-10-06).
+                  vram_needed=lambda e: _vram_needed(_media_model(e)),
+                  model_key=_media_model,
                   notify_label='Enhancer', only=process)
 
 
@@ -157,8 +158,11 @@ def _enhance_media(enhancement, ctx):
     nature = (enhancement.media_type or '').strip()
     route = route_for_nature(__package__, nature)
     input_path = enhancement.input_file.path
-    model = _media_model(enhancement)
-    output_filename = compose_output_name(app='enhancer', model=model, source_name=input_path)
+    from wama.common.utils.model_keys import model_id
+    model = _media_model(enhancement)              # clé de catalogue (route F4b ⑤)
+    # Le NOM porte l'identifiant (comme l'imager) : `RealESR_Gx4`, pas `enhancer-RealESR_Gx4`.
+    output_filename = compose_output_name(app='enhancer', model=model_id(model),
+                                          source_name=input_path)
     if is_auto(enhancement.ai_model):
         ctx.console(f"[Enhancer] 🧠 Auto → {model} (×{enhancement.upscale_factor}, VRAM libre au "
                     f"lancement, curseur qualité {quality_intent_of(enhancement, 'enhancer')}/100)")
@@ -209,7 +213,7 @@ def _enhance_media(enhancement, ctx):
         },
         eta=enhancer_eta_key_size(enhancement, model=model),
         label=output_filename,
-        models=[f'enhancer:{model}'])
+        models=[model])
 
 
 def _partial_frames(enhancement):
@@ -278,8 +282,11 @@ def enhancer_eta_key_size(enhancement, model: str = None) -> tuple[str, float, s
     Image → mégapixels d'entrée ; vidéo → durée. Clé par modèle + facteur d'upscale.
     Partagé entre la glu (record, qui passe le modèle RÉSOLU) et la vue progress (estimate,
     qui ne connaît que la colonne — « auto » y est sa propre famille d'estimation)."""
+    from wama.common.utils.model_keys import model_id
     mt = (getattr(enhancement, 'media_type', '') or '').lower()
-    model = model or getattr(enhancement, 'ai_model', '') or 'auto'
+    # L'ETA apprend sous l'IDENTIFIANT (2026-10-06) : la colonne et le modèle résolu sont des
+    # clés depuis la route F4b ⑤ — l'identifiant garde l'historique appris (`…:RealESR_Gx4:x4`).
+    model = model_id(model or getattr(enhancement, 'ai_model', '') or 'auto')
     factor = getattr(enhancement, 'upscale_factor', '') or ''
     if mt == 'video':
         return f'enhancer:vid:{model}:x{factor}', float(getattr(enhancement, 'duration', 0) or 0), 'video_sec'
