@@ -76,6 +76,11 @@ YAW_PITCH_PRIOR_DEG = 15.0
 YAW_PITCH_OFFSETS_DEG = (-12.0, -9.0, -6.0, -3.0, 0.0, 3.0, 6.0, 9.0, 12.0)
 #: Distorsion radiale explorée : les latérales prenaient le maximum (0,3) — grille étendue.
 YAW_K1_VALUES = (0.0, 0.15, 0.3, 0.45)
+#: Distorsion par les LIGNES DROITES (`measure_plumb_line`, 2026-10-06) : images lues, réparties sur la
+#: session ; un contour compte s'il a assez de points, s'étend assez, n'est pas collé à un axe de pixels
+#: (incrustation, bord d'image) ni au bord de l'image. 800 images : 120 ne donnaient que 6 à 38 contours
+#: droits par caméra — trop peu pour un verdict.
+PLUMB_FRAMES, PLUMB_MIN_POINTS, PLUMB_MIN_EXTENT_PX, PLUMB_EDGE_MARGIN_PX = 800, 45, 55, 3
 
 
 def turn_windows(sh_traj, *, window_s=WINDOW_S, turn_min_deg=TURN_MIN_DEG,
@@ -355,7 +360,68 @@ def measure_camera_intrinsics(session):
     out['straight_windows'] = len(yaw_windows) - len(windows)
     for pos, res in yaws.items():
         out.setdefault(pos, {})['mount_yaw'] = res
+    # Distorsion de chaque caméra par les lignes droites (⚑ measured_lens_distortion) — sa focale : la
+    # MESURÉE à l'instant pour l'avant/l'arrière, sinon celle de `camera_geometry`.
+    for pos in YAW_MEASURABLE:
+        cam = session.cameras.filter(position=pos).first()
+        if cam is None or pos not in geo:
+            continue
+        try:
+            res = measure_plumb_line(cam, fov_h_for(pos), (out.get(pos) or {}).get('fov_v') or geo[pos]['fov_v'])
+        except Exception:
+            logger.warning('measure_plumb_line %s échouée', pos, exc_info=True)
+            res = None
+        if res:
+            out.setdefault(pos, {})['plumb_line'] = res
     return out
+
+
+def plumb_line_chains(cam, *, n_frames=PLUMB_FRAMES):
+    """Contours longs des images d'une caméra (pixels), lus sur `n_frames` images réparties sur la vidéo :
+    Canny, contours, et seuls ceux qui peuvent être une arête du décor (assez longs, pas alignés sur un axe
+    de pixels — incrustation —, pas collés au bord de l'image). Rend (contours, (largeur, hauteur))."""
+    import cv2
+    cap = cv2.VideoCapture(cam.video_file.path)
+    try:
+        n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        W, H = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        chains = []
+        for idx in np.linspace(0, max(n - 1, 0), n_frames).astype(int):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(idx))
+            ok, im = cap.read()
+            if not ok:
+                continue
+            gray = cv2.GaussianBlur(cv2.cvtColor(im, cv2.COLOR_BGR2GRAY), (3, 3), 0)
+            contours, _ = cv2.findContours(cv2.Canny(gray, 60, 150), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+            for c in contours:
+                p = np.unique(c[:, 0, :], axis=0).astype(float)
+                if len(p) < PLUMB_MIN_POINTS:
+                    continue
+                ext = np.ptp(p, axis=0)
+                if max(ext) < PLUMB_MIN_EXTENT_PX or min(ext) < 2.0:
+                    continue
+                m = PLUMB_EDGE_MARGIN_PX
+                if p[:, 0].min() < m or p[:, 1].min() < m or p[:, 0].max() > W - 1 - m or p[:, 1].max() > H - 1 - m:
+                    continue
+                chains.append(p)
+    finally:
+        cap.release()
+    return chains, (W, H)
+
+
+def measure_plumb_line(cam, fov_h_deg, fov_v_deg, *, n_frames=PLUMB_FRAMES):
+    """Distorsion radiale d'UNE caméra par les lignes droites de ses images (sans mire) —
+    `wama_data.functions.geometry.lens_distortion.plumb_line_distortion`, focale tirée du champ."""
+    from wama_data.functions.geometry.lens_distortion import plumb_line_distortion
+    chains, (W, H) = plumb_line_chains(cam, n_frames=n_frames)
+    if not W or not H:
+        return None
+    fx = W / (2.0 * math.tan(math.radians(fov_h_deg) / 2.0))
+    fy = H / (2.0 * math.tan(math.radians(fov_v_deg) / 2.0))
+    res = plumb_line_distortion(chains, fx, fy, W / 2.0, H / 2.0)
+    if res:
+        res['frames'] = n_frames
+    return res
 
 
 def measured_fov(session, position):
@@ -363,6 +429,16 @@ def measured_fov(session, position):
     m = (((session.results_summary or {}).get('camera_intrinsics') or {}).get(position) or {})
     if m.get('fov_h') and m.get('fov_v'):
         return float(m['fov_h']), float(m['fov_v'])
+    return None
+
+
+def measured_distortion(session, position):
+    """Distorsion radiale MESURÉE par les lignes droites (minimum net), ou None — lue par
+    `camera_geometry` sous ⚑ measured_lens_distortion."""
+    m = ((((getattr(session, 'results_summary', None) or {}).get('camera_intrinsics') or {})
+          .get(position) or {}).get('plumb_line') or {})
+    if m.get('clear') and m.get('k') is not None:
+        return float(m['k'])
     return None
 
 

@@ -151,6 +151,15 @@ FEATURES = [
             "(droite) du trajet de la navette — elle semble la suivre ; les bords de l'image, là où se font "
             "les passages avant ↔ latérales, sont les plus faux. Calculs à rejouer après bascule.",
             default=False, scope='compute'),
+    Feature('measured_lens_distortion', 'Distorsion des objectifs MESURÉE (lignes droites)',
+            "La distorsion de CHAQUE caméra (les quatre) est mesurée sur ses propres images, sans mire : une "
+            "arête droite du décor (bordure, marquage, façade) est droite dans une image sans distorsion ; "
+            "la distorsion qui redresse le mieux les contours loin du centre est retenue (passe « Champ des "
+            "caméras »). Elle remplace la saisie quand la mesure est nette. Mesuré le 2026-10-06 sur ENA_CASA : "
+            "avant 0,69 et arrière 0,55 (saisies à 0), gauche 0,53 (saisie 0,5, mesurée aussi le 03/10 par "
+            "les garés), droite 0,62 (saisie 0,7). Rejouer la passe « Champ des caméras », puis la calibration "
+            "sol et le tracking.",
+            default=False, scope='compute'),
     Feature('vehicle_center_placement', 'Véhicules placés par leur CENTRE',
             "Une caméra place un véhicule par le bas de sa boîte : le contact au sol de la face qu'elle "
             "VOIT. Vu de profil il était placé une demi-largeur trop près (≈ 0,9 m), vu de dos une "

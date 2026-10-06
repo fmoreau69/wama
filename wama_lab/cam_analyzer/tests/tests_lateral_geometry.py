@@ -190,3 +190,29 @@ class LensDistortionTest(SimpleTestCase):
         self.assertEqual(camera_geometry(SimpleNamespace(config=cfg))['left']['k1'], 0.5)
         cfg['features']['lens_distortion'] = False
         self.assertEqual(camera_geometry(SimpleNamespace(config=cfg))['left']['k1'], 0.0)
+
+    def test_the_measured_distortion_replaces_the_entry_when_the_measure_is_clear(self):
+        """⚑ measured_lens_distortion (2026-10-06) : la distorsion des lignes droites, pour les QUATRE
+        caméras ; une mesure sans minimum net laisse la saisie en vigueur."""
+        from wama_lab.cam_analyzer.utils.features import FEATURES
+        from wama_lab.cam_analyzer.utils.prediction_adapter import camera_geometry
+        self.assertFalse({x.key: x for x in FEATURES}['measured_lens_distortion'].default)
+        rs = {'camera_intrinsics': {'front': {'plumb_line': {'k': 0.4, 'clear': True}},
+                                    'left': {'plumb_line': {'k': 0.9, 'clear': False}}}}
+        cfg = {'camera_distortion': {'left': 0.5}, 'features': {'lens_distortion': True,
+                                                                 'measured_lens_distortion': True}}
+        geo = camera_geometry(SimpleNamespace(config=cfg, results_summary=rs))
+        self.assertEqual(geo['front']['k1'], 0.4)     # mesurée, nette : appliquée (saisie : aucune)
+        self.assertEqual(geo['left']['k1'], 0.5)      # mesure sans verdict : la saisie reste
+        self.assertEqual(geo['rear']['k1'], 0.0)      # ni mesure ni saisie
+        cfg['features']['measured_lens_distortion'] = False
+        geo = camera_geometry(SimpleNamespace(config=cfg, results_summary=rs))
+        self.assertEqual(geo['front']['k1'], 0.0)
+
+    def test_the_camera_pass_measures_the_distortion_of_the_four_cameras(self):
+        import inspect
+        from wama_lab.cam_analyzer.utils import camera_intrinsics as ci
+        src = inspect.getsource(ci.measure_camera_intrinsics)
+        self.assertIn("['plumb_line'] = res", src)
+        self.assertIn('for pos in YAW_MEASURABLE:', src)
+        self.assertEqual(set(ci.YAW_MEASURABLE), {'front', 'rear', 'left', 'right'})

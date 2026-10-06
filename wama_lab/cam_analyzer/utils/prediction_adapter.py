@@ -171,6 +171,16 @@ def camera_geometry(session):
             mf = measured_fov(session, pos)
             if mf:
                 real_h, real_v = mf
+        # ⚑ measured_lens_distortion (2026-10-06) : la distorsion MESURÉE par les lignes droites des
+        # images (passe `camera_intrinsics`, minimum net) l'emporte sur la saisie — pour les QUATRE
+        # caméras ; sans mesure nette, la saisie (sous ⚑ lens_distortion) reste en vigueur.
+        k1 = (float((cfg.get('camera_distortion') or {}).get(pos) or 0.0)
+              if feat.get('lens_distortion', False) else 0.0)
+        if feat.get('measured_lens_distortion', False):
+            from .camera_intrinsics import measured_distortion
+            mk = measured_distortion(session, pos)
+            if mk is not None:
+                k1 = mk
         m = mounts.get(pos) or CAMERA_MOUNT[pos]
         try:
             height = float(height_over.get(pos, CAMERA_HEIGHT_M[pos]))
@@ -188,9 +198,9 @@ def camera_geometry(session):
             'mount': (float(m[0]), float(m[1])) if feat.get('mount_lever_arm', True) else (0.0, 0.0),
             # ⚑ lens_distortion (2026-10-03) : distorsion radiale (modèle INVERSE, k > 0 = barillet)
             # de la caméra, saisie par session (`config['camera_distortion']`) — appliquée à la
-            # projection sol, à la calibration et au placement pinhole. Nulle sans la bascule.
-            'k1': (float((cfg.get('camera_distortion') or {}).get(pos) or 0.0)
-                   if feat.get('lens_distortion', False) else 0.0),
+            # projection sol, à la calibration et au placement pinhole. Nulle sans la bascule ;
+            # MESURÉE sous ⚑ measured_lens_distortion (ci-dessus).
+            'k1': k1,
         }
     return geo
 
