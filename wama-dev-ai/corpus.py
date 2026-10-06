@@ -98,6 +98,26 @@ CORPORA: Dict[str, Corpus] = {
         description="pynd — portage Python du CŒUR de BIND (sans GUI). Dit ce que le portage a "
                     "retenu et ce qu'il a abandonné.",
     ),
+    # Passe 0 de ComfyUI (2026-10-06, ROADMAP §16.11) : clone en lecture seule HORS du dépôt
+    # (`git clone --depth 1`, commit 7d9e5a04 du 2026-10-06 — le reconsulter à ce commit ou
+    # relever le nouveau). Retenu : le moteur des modèles et ses nœuds. Écarté : le serveur web,
+    # les nœuds d'API de services payants, la base, les tests, les exemples.
+    "comfyui": Corpus(
+        name="comfyui",
+        root=Path(r"D:\tmp\corpora\ComfyUI"),
+        include=(
+            "comfy",               # modèles (ldm/<famille>), détection, chargement, VRAM, latents
+            "comfy_extras",        # nœuds par famille de modèle (dont vidéo, 3D, audio)
+            "comfy_api",           # contrat des nœuds (v3), ce qu'un nœud tiers peut faire
+            "comfy_execution",     # exécution du graphe, cache, progression
+        ),
+        exclude=(".git", "__pycache__", "tests", "tests-unit", "comfy_api_nodes", "app",
+                 "api_server", "alembic_db", "script_examples", "middleware", "blueprints"),
+        extensions=(".py", ".md", ".json", ".yaml"),
+        description="ComfyUI (GPL-3.0) — moteur de génération image/vidéo/audio/3D par graphe de "
+                    "nœuds ; implémentations natives de ~48 familles de modèles. Confronté au "
+                    "contrat de backend, aux routes d'intégration et au gouverneur VRAM de WAMA.",
+    ),
 }
 
 
