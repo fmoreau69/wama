@@ -127,10 +127,10 @@ class ProjectionTest(SimpleTestCase):
         self.assertIsNone(lp.latents_to_image(None, 'SD15'))
 
 
-#: Backends with a step callback that do NOT preview yet — the VIDEO ones, next step. The list
-#: can only shrink: a new diffusion backend previews from day one.
-STILL_TO_PREVIEW = {'cogvideox_backend.py', 'hunyuan_video_backend.py', 'ltx_video_backend.py',
-                    'mochi_backend.py', 'wan_video_backend.py'}
+#: Backends with a step callback that do NOT preview yet. EMPTY since 2026-10-06 (the five video
+#: backends were ported the same day as the image ones): a new diffusion backend previews from
+#: day one.
+STILL_TO_PREVIEW = set()
 
 
 class EveryDiffusionCallbackPreviewsTest(SimpleTestCase):

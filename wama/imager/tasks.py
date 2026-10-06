@@ -927,18 +927,26 @@ def _generate_video(generation, ctx):
         def _segment_progress(index):
             return lambda p: progress_callback(int((index * 100 + p) / n_segments))
 
-        result = _run(params, _segment_progress(0) if extend else progress_callback)
-        video_frames = result.video_frames
-        seed_used = result.seed_used
-        if result.success and extend:
-            def _on_segment(index):
-                how = (f"reprend les {overlap} dernières images" if overlap > 1
-                       else "repart de la dernière image — extrapolé")
-                _console(user_id, f"[Imager Video] ↪ Segment {index + 1}/{n_segments} ({how})")
-                return _segment_progress(index)
-            video_frames = _extend_by_segments(
-                _run, params, video_frames, wanted_frames, seed_used, output_dir,
-                on_segment=_on_segment, overlap=overlap)
+        # Aperçu « PENDANT » : la dernière image des latents, approchée sans VAE, au plus toutes
+        # les 2 s — segments d'une vidéo longue compris (même récepteur, même face).
+        frames = _partial_frames(generation)
+        backend.preview_sink = frames.sink('generate', 'Génération')
+        try:
+            result = _run(params, _segment_progress(0) if extend else progress_callback)
+            video_frames = result.video_frames
+            seed_used = result.seed_used
+            if result.success and extend:
+                def _on_segment(index):
+                    how = (f"reprend les {overlap} dernières images" if overlap > 1
+                           else "repart de la dernière image — extrapolé")
+                    _console(user_id, f"[Imager Video] ↪ Segment {index + 1}/{n_segments} ({how})")
+                    return _segment_progress(index)
+                video_frames = _extend_by_segments(
+                    _run, params, video_frames, wanted_frames, seed_used, output_dir,
+                    on_segment=_on_segment, overlap=overlap)
+        finally:
+            backend.preview_sink = None
+            frames.close()            # la face SORTIE prend le relais ; le JPEG partiel part
 
         generation_time = time.time() - generation_start
 

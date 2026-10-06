@@ -299,6 +299,8 @@ class CogVideoXBackend(ImageGenerationBackend):
                 if progress_callback:
                     progress = int((step_index + 1) / params.num_inference_steps * 100)
                     progress_callback(progress)
+                # Aperçu « pendant » : dernière image des latents, approchée, sans VAE (2026-10-06).
+                self.preview_step(pipe, callback_kwargs, height=params.height, width=params.width)
                 return callback_kwargs
 
             # Generate

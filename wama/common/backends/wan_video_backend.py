@@ -736,6 +736,8 @@ class WanVideoBackend(ImageGenerationBackend):
                     elapsed = current_time - start_time
                     logger.info(f"[Wan T2V] Step {step_index}/{num_steps} ({progress}%) - Elapsed: {elapsed:.1f}s")
                     last_log_time = current_time
+                # Aperçu « pendant » : dernière image des latents, approchée, sans VAE (2026-10-06).
+                self.preview_step(pipe, callback_kwargs, height=height, width=width)
                 return callback_kwargs
 
             # Clear CUDA cache before generation to avoid fragmentation issues
@@ -889,6 +891,7 @@ class WanVideoBackend(ImageGenerationBackend):
                     elapsed = current_time - start_time
                     logger.info(f"[Wan I2V] Step {step_index}/{num_steps} ({progress}%) - Elapsed: {elapsed:.1f}s")
                     last_log_time = current_time
+                self.preview_step(pipe, callback_kwargs, height=height, width=width)
                 return callback_kwargs
 
             # Generate video
