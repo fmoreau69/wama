@@ -107,3 +107,64 @@ class NodePortsReachTheAppTest(TestCase):
         runner = generic_runner.build_generic_runner('synthesizer')
         with self.assertRaisesMessage(ValueError, 'aucun prompt'):
             runner['create'](None, {}, {})
+
+
+class CatalogueSelectsReachTheNodeTest(TestCase):
+    """A model select drawn from the CATALOGUE (route F4b) fell into the « text » case of
+    `_node_params_spec`: a free text field instead of the list the app offers — 7 nodes out of 8
+    (measured 2026-10-07; only the reader, which kept static choices, had a select). The node now
+    inherits the app's DECLARED domain, resolved per request like the app's options endpoint."""
+
+    SWIN2SR = 'huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX'
+
+    def setUp(self):
+        from wama.model_manager.models import AIModel
+        for key in ('enhancer:BSRGANx4', self.SWIN2SR):
+            AIModel.objects.create(
+                model_key=key, name=key.rsplit('/', 1)[-1], model_type='upscaling',
+                source=key.split(':', 1)[0], is_downloaded=True,
+                capabilities={'task': 'upscale', 'scale': 4},
+                composition={'runtime': {'engine': 'onnxruntime'}})
+
+    def _node(self, app):
+        return generic_runner.with_catalog_options(
+            generic_runner._node_params_spec(app, generic_runner.GENERIC_APPS[app]))
+
+    def test_the_enhancer_node_offers_auto_and_the_catalogue_models(self):
+        entry = next(e for e in self._node('enhancer') if e['name'] == 'ai_model')
+        self.assertEqual('select', entry['type'])
+        values = [o['value'] for o in entry['options']]
+        self.assertEqual('auto', values[0])
+        self.assertTrue({'enhancer:BSRGANx4', self.SWIN2SR} <= set(values), values)
+
+    def test_every_catalogue_select_of_every_node_is_a_select(self):
+        from wama.common.utils.param_schema import schema_for_app
+        for app, conf in generic_runner.GENERIC_APPS.items():
+            catalog = {p['name'] for p in schema_for_app(app)
+                       if p.get('options_source') == 'catalog' and 'item' in (p.get('contexts') or [])}
+            for entry in generic_runner._node_params_spec(app, conf):
+                if entry['name'] in catalog:
+                    with self.subTest(app=app, param=entry['name']):
+                        self.assertEqual('select', entry['type'])
+
+    def test_the_cached_spec_only_names_the_domain(self):
+        """`runner_for` caches the spec: options resolved there would freeze the catalogue."""
+        from wama.studio.services.runners import runner_for
+        spec = runner_for('enhancer')['params_spec']
+        generic_runner.with_catalog_options(spec)
+        entry = next(e for e in spec if e['name'] == 'ai_model')
+        self.assertNotIn('options', entry)
+        self.assertEqual('catalog', entry['options_source'])
+
+    def test_the_run_options_view_serves_them(self):
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.models import Group
+        from django.urls import reverse
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
+        user = get_user_model().objects.create_user('studio_catalog', password='x')
+        for role in (DEFAULT_APP_ACCESS.get('studio') or {}).get('roles', []):
+            user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+        self.client.force_login(user)
+        specs = self.client.get(reverse('studio:api_run_options')).json()['params_specs']
+        entry = next(e for e in specs['enhancer'] if e['name'] == 'ai_model')
+        self.assertIn(self.SWIN2SR, [o['value'] for o in entry['options']])

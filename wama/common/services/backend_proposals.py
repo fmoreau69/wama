@@ -155,25 +155,44 @@ def _vendored_import_errors(tree, engine: str) -> list:
     return errors
 
 
-#: Ce qu'une entrée `SUPPORTED_MODELS` d'un modèle INSTALLÉ peut porter : le nom de sa ligne de
-#: catalogue, et rien d'autre (le champ de `pyannote_diarizer`). Vécu le 2026-10-06 : la consigne
-#: du rôle exigeait `{'name', 'description', 'vram'}`, recopiés dans cinq backends (Supra2-IMG,
-#: FrWhisper, SheetSage2, Kyutai, YuE2) et lus par PERSONNE — l'inventaire ne lit que les clés,
-#: les faits sont au registre. Une seconde vérité qui dérive en silence.
+#: Ce qu'une entrée `SUPPORTED_MODELS` d'un modèle INSTALLÉ porte toujours sans justification : le
+#: nom de sa ligne de catalogue (le champ de `pyannote_diarizer`). Toute AUTRE valeur doit être LUE
+#: par le module — un paramètre d'exécution (`multitask` de NeMo, `hf_id` de pyannote) se garde ;
+#: une valeur que personne ne lit est une seconde vérité. Vécu le 2026-10-06 : la consigne du rôle
+#: exigeait `{'name', 'description', 'vram'}`, recopiés dans cinq backends (Supra2-IMG, FrWhisper,
+#: SheetSage2, Kyutai, YuE2) et lus par PERSONNE — l'inventaire ne lit que les clés, les faits sont
+#: au registre. Première version (le même jour) : `model_key` SEUL — trop stricte, elle aurait
+#: refusé un vrai paramètre d'exécution ; la règle est « lue », pas « absente ».
 SUPPORTED_ENTRY_KEYS = frozenset({'model_key'})
 
 
-def supported_entry_errors(model_id: str, entry) -> list:
-    """Erreurs de l'entrée `SUPPORTED_MODELS[model_id]` d'un modèle installé : `{}` ou
-    `{'model_key': <clé de catalogue de CE modèle>}`."""
+def _unread_keys(entry: dict, code: str) -> list:
+    """Clés de l'entrée que le module ne LIT nulle part hors de la table elle-même — `code` est le
+    source du module, la table `SUPPORTED_MODELS` comprise (on l'en retire avant de chercher)."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
+    rest = code
+    for n in tree.body:
+        if (isinstance(n, ast.Assign) and len(n.targets) == 1
+                and getattr(n.targets[0], 'id', '') == 'SUPPORTED_MODELS'):
+            rest = code.replace(ast.get_source_segment(code, n) or '', '', 1)
+    return sorted(k for k in entry if k not in SUPPORTED_ENTRY_KEYS
+                  and f"'{k}'" not in rest and f'"{k}"' not in rest)
+
+
+def supported_entry_errors(model_id: str, entry, code: str = None) -> list:
+    """Erreurs de l'entrée `SUPPORTED_MODELS[model_id]` d'un modèle installé : `model_key` (s'il
+    est là) désigne CE modèle, et toute autre valeur est lue par le module (`code`)."""
     if not isinstance(entry, dict):
         return [f"SUPPORTED_MODELS[{model_id!r}] n'est pas un dict"]
     errors = []
-    extra = sorted(set(entry) - SUPPORTED_ENTRY_KEYS)
-    if extra:
-        errors.append(f"SUPPORTED_MODELS[{model_id!r}] recopie {extra} : ce sont des faits du "
-                      f"CATALOGUE (le registre les porte, l'inventaire ne lit que la clé) — "
-                      f"seul `model_key` désigne la ligne")
+    unread = _unread_keys(entry, code) if code is not None else []
+    if unread:
+        errors.append(f"SUPPORTED_MODELS[{model_id!r}] porte {unread}, que le module ne LIT pas : "
+                      f"une seconde vérité (nom, description, VRAM sont au CATALOGUE) — ne garder "
+                      f"que `model_key` et les paramètres d'exécution que le code emploie")
     key = entry.get('model_key')
     if key is not None and model_id_of(str(key)) != model_id:
         errors.append(f"SUPPORTED_MODELS[{model_id!r}]['model_key'] = {key!r} désigne un AUTRE "
@@ -201,7 +220,7 @@ def check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> d
         errors.append(f"SUPPORTED_MODELS ne déclare pas « {model_id} » : l'inventaire ne "
                       "choisirait pas ce backend face à un autre du même moteur")
     else:
-        errors += supported_entry_errors(model_id, supported[model_id])
+        errors += supported_entry_errors(model_id, supported[model_id], code)
 
     base_name = contract[1]
     classes = [n for n in tree.body if isinstance(n, ast.ClassDef)

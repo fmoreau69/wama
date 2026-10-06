@@ -270,7 +270,19 @@ class CheckSourceTest(SimpleTestCase):
                               '{"name": "Img", "description": "t", "vram": "1GB"}')
         res = self._check(copied)
         self.assertFalse(res['ok'])
-        self.assertTrue(any('recopie' in e and 'vram' in e for e in res['errors']), res['errors'])
+        self.assertTrue(any('LIT pas' in e and 'vram' in e for e in res['errors']), res['errors'])
+
+    def test_an_execution_parameter_the_code_reads_is_kept(self):
+        """Counter-case (the first, stricter version of the rule would have refused it): a value
+        the backend READS — like NeMo's `multitask` — is a parameter, not a second truth."""
+        read = GOOD.replace(
+            '{"model_key": "huggingface:Org/Img-ONNX"}',
+            '{"model_key": "huggingface:Org/Img-ONNX", "steps": 4}').replace(
+            'return True\n\n    def load',
+            'return bool(SUPPORTED_MODELS["Org/Img-ONNX"]["steps"])\n\n    def load', 1)
+        self.assertIn('["steps"]', read, 'the read was really inserted')
+        res = self._check(read)
+        self.assertTrue(res['ok'], res['errors'])
 
     def test_the_entry_may_be_empty_but_never_name_another_model(self):
         self.assertTrue(self._check(GOOD.replace('{"model_key": "huggingface:Org/Img-ONNX"}',
@@ -286,7 +298,8 @@ class CheckSourceTest(SimpleTestCase):
         backends = Path(settings.BASE_DIR) / 'wama' / 'common' / 'backends'
         checked = 0
         for path in sorted(backends.glob('*.py')):
-            tree = ast.parse(path.read_text(encoding='utf-8'))
+            code = path.read_text(encoding='utf-8')
+            tree = ast.parse(code)
             for n in tree.body:
                 if not (isinstance(n, ast.Assign) and len(n.targets) == 1
                         and getattr(n.targets[0], 'id', '') == 'SUPPORTED_MODELS'):
@@ -299,7 +312,7 @@ class CheckSourceTest(SimpleTestCase):
                     if '/' in str(model_id):
                         checked += 1
                         with self.subTest(backend=path.name, model=model_id):
-                            self.assertEqual([], bp.supported_entry_errors(model_id, entry))
+                            self.assertEqual([], bp.supported_entry_errors(model_id, entry, code))
         self.assertGreaterEqual(checked, 7, 'the six role-shaped backends + Swin2SR in AIUpscaler')
 
     def test_the_role_prompt_no_longer_asks_for_copied_facts(self):
