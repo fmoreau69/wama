@@ -264,9 +264,12 @@ async def _caption_original(message, path):
     if attached is None:
         return
     mb = path.stat().st_size / (1024 * 1024)
+    # ⚠ L'URL entre CHEVRONS (`[nom](<url>)`) : sans eux, Discord DÉPLIE le lien en aperçu, et
+    # comme il pointe sur la pièce jointe elle-même, l'image s'affichait DEUX fois sous le message
+    # (relevé par Fabien le 2026-10-06). Les chevrons ne retirent que l'aperçu de CE lien.
     try:
         await message.edit(content=(
-            f"📥 **[{path.name}]({attached.url})** — {mb:.1f} Mo, fichier ORIGINAL "
+            f"📥 **[{path.name}](<{attached.url}>)** — {mb:.1f} Mo, fichier ORIGINAL "
             f"(l'aperçu ci-dessous est une version compressée par Discord ; lien temporaire)"))
     except Exception:
         # Une légende manquante ne doit jamais faire perdre la pièce jointe, qui est partie.

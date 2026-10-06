@@ -580,6 +580,13 @@ class OriginalFileCaptionTests(TestCase):
         self.assertIn('0.4 Mo', sent_text)
         self.assertIn('compressée', sent_text, "l'utilisateur doit savoir que l'aperçu ment")
 
+    def test_the_link_to_the_original_is_not_unfolded_into_a_second_image(self):
+        """Le lien pointe sur la pièce jointe ELLE-MÊME : déplié par Discord, il affichait l'image
+        une seconde fois sous le message (relevé par Fabien, 2026-10-06). Les chevrons d'un lien
+        masqué (`[nom](<url>)`) retirent l'aperçu de ce lien, et lui seul."""
+        sent_text = self._legender(self._Message([self._Piece()]), self._file())
+        self.assertIn(f'(<{self._Piece.url}>)', sent_text)
+
     def test_a_message_without_attachment_is_left_alone(self):
         """Contre-épreuve : rien à légender ne doit pas produire une légende vide."""
         message = self._Message([])
