@@ -485,20 +485,43 @@ def _follow_up(note, channel: str):
     if conversation is None:
         return None
 
+    # Le geste « statut », RÉELLEMENT joué : c'est l'étape que l'échange enregistre au fil.
     from wama.tool_api import execute_tool
     status_tool = f'get_{note.app}_status'
     result = execute_tool(status_tool, {}, user)
-    jobs = (result.get('jobs') or []) if isinstance(result, dict) else []
-    job = next((j for j in jobs if str(j.get('id')) == note.object_id), None)
 
     lines = [f"{'✅' if note.kind == 'job_done' else '⚠'} {note.title}"]
     if note.body:
         lines.append(note.body)
-    reply = _reply_with_outputs('\n'.join(lines),
-                                [{'result': {'jobs': [job]}}] if job else [])
+    # Les fichiers : les sorties DÉCLARÉES de CET élément (`send_to.sorties_de`, l'adapter de
+    # détail — l'accesseur de « Envoyer vers », de l'inspecteur et du Studio). Pas le statut : il
+    # ne liste que les DIX derniers éléments, et le premier d'un lot de vingt n'y est plus.
+    reply = _reply_with_outputs('\n'.join(lines), _declared_outputs(note))
     return FollowUp(channel=channel, thread=conversation.thread_key, external_id=external_id,
                     reply=reply, conversation_id=conversation.pk, notice=note.title,
                     step={'tool': status_tool, 'args': {}, 'result': result})
+
+
+def _declared_outputs(note) -> list:
+    """Les sorties d'un élément TERMINÉ, sous la forme qu'attend `_reply_with_outputs` (une étape
+    portant des URL `/media/…`). `sorties_de` rend des chemins ENCODÉS (`FieldFile.url`) : décodés
+    ici, comme le font ses autres appelants — sans quoi un nom accentué ne se joindrait pas."""
+    from urllib.parse import unquote
+
+    from django.conf import settings
+
+    from wama.common.services.send_to import sorties_de
+    from wama.common.utils.detail_registry import DetailRegistry
+
+    if note.kind != 'job_done':
+        return []
+    entry = DetailRegistry.get(note.app)
+    instance = entry['model'].objects.filter(pk=note.object_id).first() if entry else None
+    if instance is None:
+        return []
+    media_url = settings.MEDIA_URL or '/media/'
+    urls = [media_url + unquote(rel) for rel in sorties_de(note.app, instance)]
+    return [{'result': {'output_urls': urls}}] if urls else []
 
 
 def _origin_conversation(note, channel: str):

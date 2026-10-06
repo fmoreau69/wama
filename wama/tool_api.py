@@ -4067,7 +4067,10 @@ def relay_next_step(tool_name: str, result: dict) -> dict:
     if not start_tool:
         return result
 
-    item_id = result.get('item_id') or result.get('media_id') or result.get('id')
+    # L'élément, lu au CONTRAT (`items_of_step` : la clé uniforme `item_id`, rendue à la source
+    # par chaque ajout et tenue par `tests_tool_item_contract`) — plus de liste de clés d'app.
+    items = items_of_step(tool_name, {}, result)
+    item_id = items[0][1] if items else None
     result['started'] = False
     result['next_step'] = start_tool
     result['next_step_hint'] = (

@@ -22,8 +22,10 @@ from wama.tool_api import TOOL_REGISTRY, relay_next_step
 class NextStepRelayTest(TestCase):
 
     def test_a_queued_add_says_what_to_call_next(self):
-        result = relay_next_step('add_to_anonymizer',
-                                 {'media_id': 647, 'status': 'queued', 'name': 'photo.jpg'})
+        # La forme RÉELLE de `add_to_anonymizer` (sa clé propre ET la clé uniforme du contrat) —
+        # le rappel lit `item_id` (`items_of_step`, 2026-10-06), plus une liste de clés d'app.
+        result = relay_next_step('add_to_anonymizer', {'media_id': 647, 'item_id': 647,
+                                                       'status': 'queued', 'name': 'photo.jpg'})
         self.assertIs(False, result['started'])
         self.assertEqual('start_anonymizer', result['next_step'])
         self.assertIn('647', result['next_step_hint'])

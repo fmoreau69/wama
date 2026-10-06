@@ -804,19 +804,36 @@ class JobFollowUpTests(TestCase):
         self.assertIn('jobs', follow_up.step['result'], follow_up.step['result'])
         self.assertIn(self.card.pk, [job['id'] for job in follow_up.step['result']['jobs']])
 
-    def test_the_produced_file_is_attached(self):
+    def test_the_declared_output_of_this_element_is_attached(self):
+        """Le fichier vient des sorties DÉCLARÉES de l'élément (`send_to.sorties_de`), pas du
+        statut : celui-ci ne liste que les dix derniers éléments — le premier d'un lot de vingt
+        n'y est plus (ici, le statut ne le cite pas du tout). `sorties_de` rend un chemin ENCODÉ
+        (`FieldFile.url`) : décodé, sinon un nom avec une espace ne se joindrait pas."""
         from pathlib import Path
-        rel = f'users/{self.user.pk}/describer/output/rendu.png'
+        rel = f'users/{self.user.pk}/describer/output/rendu final.png'
         produced = Path(self.root) / rel
         produced.parent.mkdir(parents=True)
         produced.write_bytes(b'png')
-        jobs = {'jobs': [{'id': self.card.pk + 1, 'output_url': '/media/autre.png'},
-                         {'id': self.card.pk, 'status': 'done', 'output_url': f'/media/{rel}'}]}
+        seen = []
+
+        def declared(surface, instance):
+            seen.append((surface, instance.pk))
+            return [rel.replace(' ', '%20')]
         self._created_here()
         self._end()
-        with patch('wama.tool_api.execute_tool', return_value=jobs):
+        with patch('wama.tool_api.execute_tool', return_value={'jobs': [{'id': 0}]}), \
+                patch('wama.common.services.send_to.sorties_de', side_effect=declared):
             (follow_up,) = core.collect_job_follow_ups(CANAL)
-        self.assertEqual([rel], follow_up.reply.files, "le fichier de CET élément, pas du plus récent")
+        self.assertEqual([('describer', self.card.pk)], seen)
+        self.assertEqual([rel], follow_up.reply.files)
+
+    def test_a_failure_attaches_nothing(self):
+        self._created_here()
+        self._end(success=False, detail='boum')
+        with patch('wama.common.services.send_to.sorties_de') as declared:
+            (follow_up,) = core.collect_job_follow_ups(CANAL)
+        declared.assert_not_called()
+        self.assertEqual([], follow_up.reply.files)
 
     def test_the_posted_end_is_recorded_with_its_real_tool_step(self):
         """L'historique resservi au modèle garde un « terminé » APPUYÉ sur un outil — un
@@ -862,6 +879,39 @@ class DiscordFollowUpDeliveryTests(TestCase):
         recorded = self._deliver(channel)
         self.assertTrue(channel.send.await_args.args[0].startswith(f'<@{EXT_ID}> ✅'))
         recorded.assert_called_once()
+
+    def _relay(self, rounds):
+        """Joue la boucle de relève sur des TOURS donnés : chaque tour rend des fins de tâche, ou
+        lève. Le faux client se ferme après le dernier tour ; l'attente entre deux tours est nulle."""
+        import asyncio
+        from unittest.mock import AsyncMock
+
+        from wama.gateway.adapters import discord_bot
+
+        pending = list(rounds)
+
+        def collect(channel):
+            outcome = pending.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+        client = type('Client', (), {'is_closed': lambda self: not pending})()
+        with patch.object(discord_bot, 'collect_job_follow_ups', side_effect=collect), \
+                patch.object(discord_bot, '_deliver_follow_up', new=AsyncMock()) as deliver, \
+                patch.object(discord_bot.asyncio, 'sleep', new=AsyncMock()):
+            asyncio.run(discord_bot._relay_job_follow_ups(client))
+        return deliver
+
+    def test_the_relay_posts_every_end_the_core_retained(self):
+        first, second = self._follow_up(), self._follow_up()
+        deliver = self._relay([[first, second]])
+        self.assertEqual([first, second], [c.args[1] for c in deliver.await_args_list])
+
+    def test_a_failed_round_does_not_stop_the_relay(self):
+        """Un bot qui s'arrête sur une notification cesse de servir TOUT le monde."""
+        later = self._follow_up()
+        deliver = self._relay([RuntimeError('base indisponible'), [later]])
+        self.assertEqual([later], [c.args[1] for c in deliver.await_args_list])
 
     def test_in_a_direct_message_nobody_is_mentioned(self):
         import discord

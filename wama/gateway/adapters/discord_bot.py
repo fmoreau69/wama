@@ -140,7 +140,7 @@ def build_client():
             # les utilisateurs pendant qu'une seule personne attend son résultat.
             reponse = await asyncio.to_thread(handle_message, entrant)
 
-        await _publish(message, reponse)
+        await _reply_to_message(message, reponse)
 
     return client
 
@@ -198,7 +198,7 @@ async def _deliver_follow_up(client, follow_up):
     await asyncio.to_thread(record_follow_up, follow_up)
 
 
-async def _publish(message, reply):
+async def _reply_to_message(message, reply):
     """Publie la réponse à un message reçu."""
     await _publish_to(message.channel, reply, author=message.author)
 

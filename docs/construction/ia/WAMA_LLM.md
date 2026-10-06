@@ -1333,6 +1333,27 @@ L'excédent restant sur les trois budgets ne vient d'aucun fichier de ce palier 
 relève arrêtée entre la lecture du curseur et l'envoi perd un message de fil (au plus une fois —
 la cloche le garde) ; les runs du Studio notifient encore par `notify_job` seul (pas d'élément).
 
+**Revérification de session (2026-10-06, demande de Fabien : « aligné, schéma-driven, rien
+réinventé ? »)** — trois écarts trouvés à la relecture, corrigés, chacun prouvé par mutation :
+1. **Le fichier joint venait du STATUT**, qui ne liste que les dix derniers éléments : le premier
+   d'un lot de vingt lancé depuis Discord serait parti sans son fichier. La brique existait —
+   `send_to.sorties_de(surface, instance)`, les sorties DÉCLARÉES d'un élément par l'adapter de
+   détail (celle d'« Envoyer vers », de l'inspecteur, du Studio) : adoptée, avec le décodage que
+   son contrat laisse à l'appelant (chemins encodés, `tests_send_to:399`). L'appel de statut reste,
+   comme étape RÉELLE enregistrée au fil.
+2. **`relay_next_step` lisait encore l'id d'un ajout par une liste de clés d'app**
+   (`item_id or media_id or id`) — une seconde lecture du contrat, devenue inutile dès que chaque
+   ajout rend `item_id` à la source : il passe par `items_of_step`. Son test portait une forme
+   SYNTHÉTIQUE (`media_id` seul) que l'outil réel ne rend plus : calé sur la forme réelle.
+3. **La boucle de relève de l'adaptateur n'avait aucune garde** (poster chaque fin retenue,
+   survivre à une relève en échec) : ajoutées.
+Vérifiés sans écart : aucune autre app ne RECONSTRUIT son chemin d'entrée (motifs `basename(<x>.file.name)`
+et `app_media_dir(…,'input')` relus un à un : libellés, nommage de sortie, listes de dossiers) ;
+pas de brique d'`AudioContext` commun — l'avatar en garde un PRIVÉ pour décoder, le lecteur crée
+des contextes jetables, TalkingHead a le sien (`talkinghead.mjs:938`) : le son des notifications
+n'en réinvente aucun. ⏳ Piste : UN contexte par page (`WamaApp.audioContext()`, passé à TalkingHead
+par `opt.audioCtx`, ligne 926) — utile si les contextes se multiplient, sans objet aujourd'hui.
+
 **Chaîne prouvée de bout en bout le 23/09 sur l'item réel 647** : `start_anonymizer` →
 `RUNNING` → `SUCCESS` (`users/1/anonymizer/output/IMG-…_blurred_sam3.jpg`) →
 `get_anonymizer_status` porte l'`output_url` → `_produced_files` ne rend QUE ce fichier-là
