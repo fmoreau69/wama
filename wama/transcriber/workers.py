@@ -408,8 +408,9 @@ def _run_transcription(task, transcript_id: int, process: str = None):
     La progression reste écrite par `_set_progress` (clé et champ que lit le front), déclarée au
     squelette par `progress_fn` : une seule main écrit la progression.
 
-    Depuis le 2026-10-03 la card porte un PIPELINE de quatre process (`function_specs.PIPELINE`,
-    glues `PROCESSES` plus bas) : le squelette joue ceux que le lancement retient — un résultat
+    Depuis le 2026-10-03 la card porte un PIPELINE de process (`function_specs.PIPELINE` — six
+    depuis l'import et l'alignement : transcription OU import, alignement, locuteurs, résumé,
+    cohérence ; glues `PROCESSES` plus bas) : le squelette joue ceux que le lancement retient — un résultat
     encore valable n'est pas rejoué. `process` borne le lancement à UN process et à ses amonts
     périmés (▶ de la bande de la card)."""
     from wama.common.utils.task_skeleton import run_item_task
