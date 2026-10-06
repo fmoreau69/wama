@@ -223,6 +223,16 @@ mais c'est défaire son geste dans son dos.
   commande — règle de `CLAUDE.md`), et lire le compte « hunks=… miens=… » avant d'appliquer :
   zéro sur un fichier qu'on sait avoir touché = mauvais répertoire, pas « rien à moi ».
 
+- ⚠ **2026-10-06 — une vérification d'index s'écrit contre la DIFFÉRENCE, jamais contre une
+  supposition sur HEAD.** Vécu : pour prouver que le WIP d'autrui restait hors de l'index sur
+  `imager/apps.py`, j'ai exigé dans le blob indexé une ligne que je CROYAIS dans HEAD
+  (`register_app_detail_spec('imager'`) — elle était justement dans le WIP de l'autre instance.
+  `set -e` a arrêté le script AVANT le commit (rien de cassé), mais la garde était fausse.
+  ✅ Ce qui se vérifie sans rien supposer : `git diff --cached -U0 -- <f>` ne porte QUE mes
+  lignes (ex. `grep -c '^-<ma ligne>'` = 1 et `--numstat` = mes compteurs), et une ligne d'autrui
+  compte autant dans `:<f>` que dans `HEAD:<f>`.
+  ⭐ *Une garde qui affirme le contenu d'un fichier suppose sa version ; une garde qui affirme
+  une différence n'en suppose aucune.*
 - 🔴 **2026-10-05 — une GARDE qui s'arrête ne protège que ce qui lui est enchaîné par `&&`.**
   Vécu : `python garde.py && git diff … ; git commit … -- <chemins>` — la garde a bien refusé
   (« fichier déjà modifié par autrui », le point d'étape venait d'être touché à l'instant), mais le
