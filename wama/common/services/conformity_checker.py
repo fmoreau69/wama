@@ -1226,17 +1226,18 @@ def _declaring_app(app: str) -> str:
     (`inject_sandbox_catalog`, `inject_sandbox_access`). La grille reprochait donc à la jumelle
     une déclaration qu'elle a. Montrer ça à un modérateur, c'est lui mentir.
 
-    ⚠ À N'EMPLOYER QUE pour les registres que le bac à sable injecte RÉELLEMENT :
-    `APP_CATALOG`, `DEFAULT_APP_ACCESS`, et `APP_MODES` (par son accesseur `get_app_modes`,
-    qui porte le même repli depuis le 04/09). Pour ceux qu'il n'injecte PAS — `TOOL_REGISTRY`,
-    `TRIAD_SPECS`, `GENERIC_APPS`, `model_registry._discover_<app>_models` — l'employer ferait
-    dire à la grille qu'une jumelle expose quelque chose qu'elle n'expose pas : ces rouges-là
-    sont MÉRITÉS, et c'est une décision (injecter ou non) qu'ils appellent, pas un correctif
-    de mesure. C'est pourquoi ce repli est posé APPEL PAR APPEL et non dans
-    `_registry_block`, que `_studio_params` emprunte aussi.
+    ⚠ À N'EMPLOYER QUE pour les déclarations que le bac à sable SERT RÉELLEMENT à la jumelle :
+    `APP_CATALOG`, `DEFAULT_APP_ACCESS`, `APP_MODES` (par `get_app_modes`), et depuis le
+    2026-10-06 (décision de Fabien : « oui, injecter ») la découverte des modèles — le catalogue
+    est lu par `sandbox.declaring_app` partout où une app demande SES modèles, la jumelle tire
+    donc dans ceux de sa source. Les registres à CHEMINS (`TRIAD_SPECS`, `GENERIC_APPS`) sont
+    injectés pour de vrai (`sandbox.inject_sandbox_registry`) : leurs critères lisent
+    l'EXÉCUTION, sans repli. Un registre qu'il ne sert pas (l'outil de création `add_to_<app>`,
+    glu écrite à la main) garde un rouge MÉRITÉ. C'est pourquoi ce repli reste posé APPEL PAR
+    APPEL et non dans `_registry_block`.
     """
-    from wama.common.sandbox import twin_source
-    return twin_source(app) or app
+    from wama.common.sandbox import declaring_app
+    return declaring_app(app)
 
 
 def _registry_keys(name: str, rel: str) -> set[str]:
@@ -1488,12 +1489,16 @@ def _params_modal_batch(f: _AppFiles):
 # ── F4 — modèles IA ──────────────────────────────────────────────────────────────
 
 def _model_discovery(f: _AppFiles):
-    fn = f'_discover_{f.app}_models'
+    # Une jumelle lit les modèles de sa SOURCE (`sandbox.declaring_app`, 2026-10-06) : c'est la
+    # découverte de la source qui la sert.
+    declaring = _declaring_app(f.app)
+    inherited = f" (hérité de {declaring})" if declaring != f.app else ''
+    fn = f'_discover_{declaring}_models'
     text = _wama_text(MODEL_REGISTRY_PY)
     if f'def {fn}' not in text:
         return False, f"{fn}() absent de {MODEL_REGISTRY_PY}"
     line = text.count('\n', 0, text.index(f'def {fn}')) + 1
-    return True, f"{MODEL_REGISTRY_PY}:{line}"
+    return True, f"{MODEL_REGISTRY_PY}:{line}{inherited}"
 
 
 def _model_options_from_catalog(f: _AppFiles):
@@ -1963,17 +1968,19 @@ def _model_caps_canonical(f: _AppFiles):
     l'appariement entrée↔modèle et le grisage des moteurs incompatibles.
     """
     text = _wama_text(MODEL_REGISTRY_PY)
-    m = re.search(rf"^    def _discover_{f.app}_models\b.*?(?=^    def |\Z)", text, re.S | re.M)
+    declaring = _declaring_app(f.app)       # une jumelle : la découverte de sa source la sert
+    m = re.search(rf"^    def _discover_{declaring}_models\b.*?(?=^    def |\Z)", text, re.S | re.M)
     if not m:
-        return False, f"_discover_{f.app}_models() absent de {MODEL_REGISTRY_PY}"
+        return False, f"_discover_{declaring}_models() absent de {MODEL_REGISTRY_PY}"
     body, line = m.group(0), text.count('\n', 0, m.start()) + 1
     missing = [k for k, rx in (('task', r"'task'"),
                                ('modalities', r"'modalities'"),
                                ('inputs_required/optional', r"inputs_required|inputs_optional"))
                if not re.search(rx, body)]
+    inherited = f" (hérité de {declaring})" if declaring != f.app else ''
     if missing:
-        return 'partial', f"{MODEL_REGISTRY_PY}:{line} — manquent {', '.join(missing)}"
-    return True, f"{MODEL_REGISTRY_PY}:{line} (task + modalities + inputs_*)"
+        return 'partial', f"{MODEL_REGISTRY_PY}:{line}{inherited} — manquent {', '.join(missing)}"
+    return True, f"{MODEL_REGISTRY_PY}:{line} (task + modalities + inputs_*){inherited}"
 
 
 def _vram_unloader(f: _AppFiles):
@@ -2023,21 +2030,41 @@ def _filemanager_import(f: _AppFiles):
     return True, 'brique commune wama-app-base.js (générique via WAMA_CURRENT_APP)'
 
 
+def _generic_apps_runtime() -> dict:
+    """`GENERIC_APPS` tel que l'EXÉCUTION l'expose — jumelles injectées comprises (2026-10-06,
+    `sandbox.inject_sandbox_registry`). Le texte du fichier ne dit plus la vérité pour elles."""
+    try:
+        from wama.studio.services.generic_runner import GENERIC_APPS
+        return GENERIC_APPS
+    except Exception:
+        return {}
+
+
+def _studio_runnable(f: _AppFiles):
+    if f.app in _generic_apps_runtime():
+        return True, f"{GENERIC_RUNNER_PY} GENERIC_APPS['{f.app}']"
+    if _declaring_app(f.app) != f.app:
+        # Jumelle non injectée : la règle d'injection l'écarte quand elle n'a pas d'outil de
+        # création — le nœud ne pourrait pas tourner (`generic_runner._twin_can_create`).
+        return False, (f"nœud non injecté : aucun outil de création add_to_{f.app} (la glu de "
+                       f"création n'est pas encore générée depuis le manifeste)")
+    return False, None
+
+
 def _studio_params(f: _AppFiles):
-    block = _registry_block(f.app, GENERIC_RUNNER_PY)
-    if block is None:
+    conf = _generic_apps_runtime().get(f.app)
+    if conf is None:
         return False, "absente de GENERIC_APPS (nœud studio non câblé)"
-    mod = re.search(r"'params_module'\s*:\s*'([\w.]+)'", block)
-    attr = re.search(r"'params_attr'\s*:\s*'(\w+)'", block)
-    if not (mod and attr):
+    module, attr = conf.get('params_module'), conf.get('params_attr')
+    if not (module and attr):
         return False, 'params_module / params_attr non déclarés'
-    rel = mod.group(1).replace('wama.', '', 1).replace('.', '/') + '.py'
+    rel = module.replace('wama.', '', 1).replace('.', '/') + '.py'
     text = _wama_text(rel)
     if not text:
-        return False, f"module {mod.group(1)} introuvable"
-    if not re.search(rf"^{attr.group(1)}\s*[:=]", text, re.M):
-        return False, f"{mod.group(1)}.{attr.group(1)} absent"
-    return True, f"{rel}::{attr.group(1)}"
+        return False, f"module {module} introuvable"
+    if not re.search(rf"^{attr}\s*[:=]", text, re.M):
+        return False, f"{module}.{attr} absent"
+    return True, f"{rel}::{attr}"
 
 
 CRITERIA: list[Criterion] = [
@@ -2398,9 +2425,7 @@ CRITERIA: list[Criterion] = [
               mechanism='scoping'),
     # ── F8 studio ──
     Criterion('studio_runnable', 'F8', 'Nœud studio câblé (GENERIC_APPS)',
-              lambda f: (f.app in _registry_keys('GENERIC_APPS', GENERIC_RUNNER_PY),
-                         f"{GENERIC_RUNNER_PY} GENERIC_APPS['{f.app}']"
-                         if f.app in _registry_keys('GENERIC_APPS', GENERIC_RUNNER_PY) else None),
+              _studio_runnable,
               mechanism='generic_runner'),
     Criterion('studio_params_module', 'F8', 'Params du nœud tirés du schéma de l’app', _studio_params,
               mechanism='param_schema'),

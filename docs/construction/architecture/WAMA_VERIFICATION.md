@@ -42,13 +42,37 @@ lit** :
 | famille | critères | verdict |
 |---|---|---|
 | le bac à sable **injecte au runtime**, le contrôle lit une source STATIQUE | `catalog_entry`, `filemanager_import` (texte d'`app_registry.py`), `access_policy` (le **seed** de `permissions.py`), `modes` (le dict brut `APP_MODES` au lieu de l'accesseur `get_app_modes`, qui porte le repli jumelle depuis le 04/09) | **rouge FAUX** — corrigé le 26/09 (`_declaring_app`) : 75 % → **80 %** |
-| le bac à sable **n'injecte pas** | `tool_api`, `tool_api_item_id`, `triad_specs` (`TOOL_REGISTRY`/`TRIAD_SPECS`) · `studio_runnable`, `studio_params_module` (`GENERIC_APPS`) · `model_discovery`, `model_caps_canonical` (`_discover_<app>_models`) | **rouge MÉRITÉ** — la jumelle n'expose réellement rien. ⏳ 3 décisions : faut-il injecter ? |
+| le bac à sable **n'injecte pas** | `tool_api`, `tool_api_item_id`, `triad_specs` (`TOOL_REGISTRY`/`TRIAD_SPECS`) · `studio_runnable`, `studio_params_module` (`GENERIC_APPS`) · `model_discovery`, `model_caps_canonical` (`_discover_<app>_models`) | **rouge MÉRITÉ** — la jumelle n'expose réellement rien. ~~⏳ 3 décisions : faut-il injecter ?~~ ✅ **TRANCHÉ le 2026-10-06 (Fabien : « oui »)** — voir ci-dessous |
 | le contrôle lit le **code de la jumelle** | `new_item_card`, `settings_modal_footer`, `select_model`, `quality_intent`, `hf_cache_isolation`, `reconcile_orphans`, `card_refresh_common`, `app_access_view`, `scoped_reads` | **mesure honnête du GÉNÉRATEUR** — c'est le sujet de `ROUTE §11` |
 
 ⚠⚠ **Le repli `_declaring_app` ne vaut QUE pour la première famille**, et une contre-épreuve de
 périmètre le tient (`tests_sandbox_coherence`) : l'étendre aux registres non injectés ferait dire
 à la grille qu'une jumelle expose ce qu'elle n'expose pas — exactement le mensonge qu'on vient de
 retirer, dans l'autre sens. *Un contrôle doit lire ce que le runtime expose, ni plus ni moins.*
+
+✅ **Les trois injections, tranchées le 2026-10-06** (Fabien : *« oui… il faut aller au bout du
+portage et de la régénération »*). Règle : **une jumelle expose ce que sa source expose — mais
+seulement ce que l'exécution peut réellement faire tourner.** Une brique,
+`sandbox.inject_sandbox_registry` : la déclaration de la source, chemins `wama.<source>.…`
+re-ciblés sur le paquet de la jumelle (`workers` → `tasks` quand le `tasks.py` généré l'a
+remplacé). Appliquée à :
+- la **triade** de l'assistant (`TRIAD_SPECS`, lancer/suivre) — réelle pour les jumelles dont la
+  source la déclare (converter, describer, reader ; vérifié à l'exécution : modèle et tâche se
+  résolvent dans le paquet de la jumelle). Les sept apps à triade écrite à la main n'ont rien à
+  transmettre : leur jumelle reste rouge tant que la triade n'est pas portée (`triad_specs`) ;
+- le **nœud studio** (`GENERIC_APPS`) — SEULEMENT si l'outil de création `add_to_<jumelle>`
+  existe : sans lui le nœud ne pourrait pas tourner. Aucune jumelle ne l'a aujourd'hui (la création
+  est de la glu écrite à la main, `tool_api.py`) : le manque est celui du GÉNÉRATEUR, il reste
+  rouge et le dit (`studio_runnable`) ;
+- le **catalogue des modèles** — une jumelle LIT les modèles de sa source
+  (`sandbox.declaring_app`, aux sept sites qui filtrent le catalogue par l'app qui demande), elle
+  n'en duplique aucune ligne ; la découverte est donc héritée (`model_discovery`,
+  `model_caps_canonical`, message « hérité de »).
+Les critères lisent l'EXÉCUTION (`TOOL_REGISTRY`, `TRIAD_SPECS`, `GENERIC_APPS` réels) ; le
+périmètre du repli est tenu par `tests_sandbox_coherence` (`SANS_REPLI`,
+`TwinRegistriesInjectedTest`, quatre mutations tuées). Mesure du jour : converter_01 −18,
+describer_01 −16, composer_01 −20, imager_01 −21 (jumelles régénérées en septembre — à
+régénérer avec le générateur du jour).
 
 **Réponse à la question du calendrier : maintenant pour la mesure, jamais pour la photo globale.**
 La grille sait déjà noter une jumelle par app ; ce qu'il fallait, c'était qu'elle ne mente pas. Le

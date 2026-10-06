@@ -493,7 +493,9 @@ def select_model(
     else:
         qs = qs.exclude(execution=EXECUTION_CLOUD)
     if source:
-        qs = qs.filter(source=source)
+        # Une jumelle du bac à sable tire dans les modèles de SA SOURCE (`declaring_app`).
+        from wama.common.sandbox import declaring_app
+        qs = qs.filter(source=declaring_app(source))
     else:
         qs = qs.filter(is_proposed=False)   # un candidat de prospection n'a pas de poids
     if downloaded_only:
@@ -587,7 +589,8 @@ def select_model(
 def list_models(source: str, downloaded_only: bool = True) -> List[dict]:
     """Liste des modèles d'une source (dicts to_dict — description courte/longue + vram)."""
     from ..models import AIModel
-    qs = AIModel.objects.filter(source=source, is_available=True)
+    from wama.common.sandbox import declaring_app
+    qs = AIModel.objects.filter(source=declaring_app(source), is_available=True)
     if downloaded_only:
         qs = qs.filter(is_downloaded=True)
     return [m.to_dict() for m in qs]
@@ -809,7 +812,8 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
     if model_type:
         qs = qs.filter(**_type_filter(model_type))
     if source:
-        qs = qs.filter(source=source)
+        from wama.common.sandbox import declaring_app
+        qs = qs.filter(source=declaring_app(source))   # une jumelle : les modèles de sa source
     else:
         # Une requête par capacité ne doit jamais rendre un CANDIDAT de prospection : il n'a
         # pas de poids sur le disque (`is_proposed` = proposé, pas installé).

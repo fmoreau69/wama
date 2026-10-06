@@ -379,7 +379,8 @@ def app_model_capabilities(app_id) -> list:
     catalogue est illisible)."""
     try:
         from wama.model_manager.models import AIModel
-        rows = list(AIModel.objects.filter(source=app_id)
+        from wama.common.sandbox import declaring_app   # une jumelle : modèles de sa source
+        rows = list(AIModel.objects.filter(source=declaring_app(app_id))
                     .values_list('capabilities', flat=True))
     except Exception:
         return []

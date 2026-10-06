@@ -303,15 +303,17 @@ class TwinGridReadsWhatIsInjectedTest(SimpleTestCase):
     RUNTIME (`inject_sandbox_catalog`, `inject_sandbox_access`, `get_app_modes`).
     *Une grille qui reproche une déclaration qu'on a ment au modérateur qui la lit.*
 
-    ⚠ ET LA CONTRE-ÉPREUVE COMPTE AUTANT : le repli ne doit PAS s'étendre aux registres que le
-    bac à sable n'injecte pas (`TOOL_REGISTRY`, `TRIAD_SPECS`, `GENERIC_APPS`, la découverte du
-    model_manager). Là, le rouge est MÉRITÉ : la jumelle n'expose réellement rien, et c'est une
-    décision (injecter ou non) qu'il appelle, pas un correctif de mesure.
+    ⚠ ET LA CONTRE-ÉPREUVE COMPTE AUTANT : le repli ne doit PAS s'étendre à ce que le bac à
+    sable ne sert pas. Décision de Fabien du 2026-10-06 (« oui, injecter ») : la découverte des
+    modèles est désormais servie (la jumelle lit le catalogue de sa source — repli légitime) ;
+    `TRIAD_SPECS` et `GENERIC_APPS` sont INJECTÉS pour de vrai, leurs critères lisent
+    l'EXÉCUTION, sans repli ; l'outil de création `add_to_<app>` (glu écrite à la main) ne
+    l'est pas — rouge MÉRITÉ.
     """
 
-    #: Les fonctions de contrôle qui lisent un registre NON injecté par le bac à sable.
-    SANS_REPLI = ('_tool_api_triad', '_tool_api_item_id', '_triad_specs',
-                  '_studio_params', '_model_discovery', '_model_caps_canonical')
+    #: Les fonctions de contrôle qui ne doivent PAS emprunter la déclaration de la source : elles
+    #: lisent l'exécution (registres injectés) ou un outil qui n'est pas servi à la jumelle.
+    SANS_REPLI = ('_tool_api_triad', '_tool_api_item_id', '_triad_specs', '_studio_params')
 
     def test_a_twin_inherits_the_declaration_of_its_source(self):
         from wama.common.services import conformity_checker as checker
@@ -344,7 +346,55 @@ class TwinGridReadsWhatIsInjectedTest(SimpleTestCase):
 
         from wama.common.services import conformity_checker as checker
         source = Path(checker.__file__).read_text(encoding='utf-8')
-        for name in ('_catalog_entry', '_access_policy'):
+        for name in ('_catalog_entry', '_access_policy', '_model_discovery', '_model_caps_canonical'):
             body = re.search(rf"^def {name}\b.*?(?=^def |\Z)", source, re.S | re.M).group(0)
             self.assertIn('_declaring_app', body, name)
             self.assertIn('hérité de', body, f'{name} : le message doit dire que c\'est hérité')
+
+
+class TwinRegistriesInjectedTest(SimpleTestCase):
+    """`sandbox.inject_sandbox_registry` (décision de Fabien, 2026-10-06) : une jumelle reçoit la
+    déclaration de sa source, chemins re-ciblés sur SON paquet — et seulement ce qui peut tourner."""
+
+    def _inject(self, registry, *, labels=('converter_01',), runnable=None, files=('tasks.py',)):
+        from wama.common import sandbox
+        entries = [{'label': 'converter_01', 'generated_from': 'converter'}]
+
+        def exists(path):
+            return Path(path).name in files and 'converter_01' in str(path)
+        with patch.object(sandbox, 'load_registry', return_value=entries), \
+                patch.object(sandbox, 'sandbox_labels', return_value=list(labels)), \
+                patch.object(sandbox.Path, 'exists', lambda self: exists(self)):
+            sandbox.inject_sandbox_registry(registry, runnable=runnable)
+        return registry
+
+    def test_a_twin_gets_its_source_declaration_retargeted_on_its_own_package(self):
+        reg = self._inject({'converter': {'model': 'wama.converter.models.Job',
+                                          'task': 'wama.converter.tasks.convert',
+                                          'status_fields': {'id': 'id'}}})
+        self.assertEqual('wama.converter_01.models.Job', reg['converter_01']['model'])
+        self.assertEqual('wama.converter_01.tasks.convert', reg['converter_01']['task'])
+        self.assertEqual({'id': 'id'}, reg['converter_01']['status_fields'], 'non-paths untouched')
+        self.assertEqual('wama.converter.models.Job', reg['converter']['model'], 'source untouched')
+
+    def test_a_workers_module_follows_the_generated_tasks(self):
+        """The generated `tasks.py` REPLACES `workers.py` in a twin (`app_sandbox substitute`)."""
+        reg = self._inject({'converter': {'task': 'wama.converter.workers.convert'}})
+        self.assertEqual('wama.converter_01.tasks.convert', reg['converter_01']['task'])
+        kept = self._inject({'converter': {'task': 'wama.converter.workers.convert'}},
+                            files=('workers.py', 'tasks.py'))
+        self.assertEqual('wama.converter_01.workers.convert', kept['converter_01']['task'])
+
+    def test_what_cannot_run_is_not_injected(self):
+        reg = self._inject({'converter': {'params_module': 'wama.converter.params'}},
+                           runnable=lambda label: False)
+        self.assertNotIn('converter_01', reg)
+
+    def test_a_twin_without_a_package_is_not_injected(self):
+        self.assertNotIn('converter_01', self._inject({'converter': {}}, labels=()))
+
+    def test_the_catalogue_of_a_twin_is_the_catalogue_of_its_source(self):
+        from wama.common import sandbox
+        with patch.object(sandbox, 'twin_source', return_value='describer'):
+            self.assertEqual('describer', sandbox.declaring_app('describer_01'))
+        self.assertEqual('describer', sandbox.declaring_app('describer'))

@@ -77,6 +77,49 @@ def twin_source(label: str) -> str:
     return ''
 
 
+def declaring_app(app: str) -> str:
+    """L'app dont la DÉCLARATION fait foi pour `app` : elle-même, ou sa SOURCE si c'est une
+    jumelle. Les registres indexés par app qui servent une jumelle passent par ici (le catalogue
+    des modèles : une jumelle LIT les modèles de sa source, elle n'en duplique aucune ligne)."""
+    return twin_source(app) or app
+
+
+def _retarget(value, src: str, label: str):
+    """Une déclaration de la source, ses chemins `wama.<src>.…` re-ciblés sur le paquet de la
+    jumelle. Un module `workers` devient `tasks` quand la jumelle a le sien généré : la
+    substitution `tasks` REMPLACE `workers.py` (Celery autodécouvre les deux noms, la même tâche
+    serait enregistrée deux fois — règle de `app_sandbox substitute`)."""
+    if isinstance(value, dict):
+        return {k: _retarget(v, src, label) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return type(value)(_retarget(v, src, label) for v in value)
+    if not isinstance(value, str) or not value.startswith(f'wama.{src}.'):
+        return value
+    moved = f'wama.{label}.' + value[len(f'wama.{src}.'):]
+    base = Path(__file__).resolve().parent.parent / label
+    if moved.startswith(f'wama.{label}.workers.') and not (base / 'workers.py').exists() \
+            and (base / 'tasks.py').exists():
+        moved = moved.replace(f'wama.{label}.workers.', f'wama.{label}.tasks.', 1)
+    return moved
+
+
+def inject_sandbox_registry(registry: dict, *, runnable=None) -> None:
+    """Entrées d'un registre INDEXÉ PAR APP pour les jumelles : la déclaration de la source,
+    chemins re-ciblés (`_retarget`). Décision de Fabien (2026-10-06) : une jumelle expose ce que
+    son app source expose — mais SEULEMENT ce que l'exécution peut réellement faire tourner :
+    `runnable(label)` écarte une entrée qui mènerait à un appel impossible (le nœud studio d'une
+    jumelle sans outil de création). Consommateurs : `TRIAD_SPECS` (tool_api), `GENERIC_APPS`
+    (studio). Une app née d'un manifeste (sans source) n'emprunte rien ici."""
+    import copy
+    for e in load_registry():
+        label, src = e.get('label'), e.get('generated_from')
+        if not label or not src or label in registry or src not in registry:
+            continue
+        if label not in sandbox_labels() or (runnable is not None and not runnable(label)):
+            continue
+        registry[label] = _retarget(copy.deepcopy(registry[src]), src, label)
+
+
 def born_declaration(label: str, facet: str):
     """Facette DÉCLARÉE d'une app créée DE ZÉRO (`app_sandbox create --from-manifest`), telle que
     son manifeste la portait, ou None.

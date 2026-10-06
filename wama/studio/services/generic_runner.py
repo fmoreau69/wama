@@ -95,6 +95,21 @@ GENERIC_APPS = {
 }
 
 
+def _twin_can_create(label: str) -> bool:
+    """Un nœud studio CRÉE l'élément par l'outil `add_to_<app>` : une jumelle sans cet outil
+    afficherait un nœud qui ne peut pas tourner. Elle n'entre donc au registre que s'il existe —
+    le manque est celui du GÉNÉRATEUR (l'outil de création n'est pas encore produit depuis le
+    manifeste), il ne se maquille pas ici."""
+    from wama.tool_api import TOOL_REGISTRY
+    return f'add_to_{label}' in TOOL_REGISTRY
+
+
+# Les JUMELLES du bac à sable : le nœud de leur source, module de params re-ciblé sur leur paquet
+# (décision de Fabien, 2026-10-06 — `sandbox.inject_sandbox_registry`), AVANT la dérivation des E/S.
+from wama.common.sandbox import inject_sandbox_registry  # noqa: E402
+inject_sandbox_registry(GENERIC_APPS, runnable=_twin_can_create)
+
+
 def _derive_io_from_ports(app_id):
     """E/S du nœud depuis l'accesseur UNIQUE de ports (route §10.1 — fin de la double saisie).
 
@@ -184,6 +199,16 @@ def _node_params_spec(app_id, conf):
         if ptype == 'select' and p.get('choices'):
             entry['type'] = 'select'
             entry['options'] = [{'value': c[0], 'label': c[1]} for c in p['choices']]
+        elif ptype == 'select' and p.get('options_source') == 'catalog':
+            # Select tiré du CATALOGUE (route F4b, 2026-10-07) : il tombait dans le cas texte —
+            # un champ libre au lieu de la liste que l'app propose (7 nœuds sur 8, mesuré :
+            # synthesizer, composer, imager, transcriber, enhancer, avatarizer ×2, anonymizer).
+            # Ici, la DÉCLARATION seule : ce spec est mis en cache par `runner_for` ; les options
+            # se résolvent à chaque requête (`with_catalog_options`), comme l'endpoint de l'app.
+            entry['type'] = 'select'
+            entry['options_source'] = 'catalog'
+            entry['options_query'] = dict(p.get('options_query') or {})
+            entry['options_auto'] = bool(p.get('options_auto'))
         elif ptype == 'toggle':
             entry['type'] = 'select'
             entry['options'] = [{'value': '', 'label': 'Non'}, {'value': '1', 'label': 'Oui'}]
@@ -196,6 +221,32 @@ def _node_params_spec(app_id, conf):
         spec.append(entry)
     spec.extend(conf.get('extra_params_spec') or [])
     return spec
+
+
+def with_catalog_options(spec) -> list:
+    """Copie de `spec` dont les selects de CATALOGUE reçoivent leurs options MAINTENANT — la
+    lecture de l'endpoint des selects d'app (`get_registry_models` sur le domaine déclaré, « auto »
+    en tête quand le schéma l'offre), donc les mêmes valeurs dans le même espace de clés. Le spec
+    d'entrée (en cache) n'est jamais modifié. Catalogue illisible : liste vide, sans lever."""
+    from wama.common.utils.auto_model import AUTO, AUTO_LABEL
+    out = []
+    for entry in spec:
+        if entry.get('options_source') != 'catalog':
+            out.append(entry)
+            continue
+        query = dict(entry.get('options_query') or {})
+        source = query.pop('source', None)
+        try:
+            from wama.model_manager.services import get_registry_models
+            choices, _info = get_registry_models(source, **query)
+        except Exception:
+            logger.debug('[studio] options du catalogue illisibles pour %s', entry.get('name'),
+                         exc_info=True)
+            choices = []
+        options = [{'value': AUTO, 'label': AUTO_LABEL}] if entry.get('options_auto') else []
+        options += [{'value': key, 'label': label} for key, label in choices]
+        out.append({**entry, 'options': options})
+    return out
 
 
 # ── Les PORTS du nœud → les arguments de l'outil (2026-09-30) ──────────────────────────────────
