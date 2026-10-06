@@ -208,7 +208,11 @@
     if (isVideo) {
       wrap.innerHTML =
         '<video class="wama-compare-base" src="' + escapeHtml(inD.url) + '" controls muted playsinline></video>' +
-        '<div class="wama-compare-top"><video src="' + escapeHtml(outD.url) + '" muted playsinline></video></div>' +
+        // Le calque porte AUSSI les contrôles (2026-10-06) : il couvrait ceux de la référence sur
+        // toute la partie rognée. Il ne capte aucun clic (`pointer-events: none`) et a la boîte
+        // de la référence : on voit ses contrôles, on clique ceux de la référence, juste dessous ;
+        // les deux vidéos étant synchronisées, l'état montré est le même.
+        '<div class="wama-compare-top"><video src="' + escapeHtml(outD.url) + '" controls muted playsinline></video></div>' +
         '<span class="wama-compare-badge in">' + label + '</span>' +
         '<span class="wama-compare-badge out">Sortie</span>';
     } else {

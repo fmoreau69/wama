@@ -105,6 +105,35 @@ class CompareLetsBothVideosPlayTest(TestCase):
         self.assertIn('wama-compare-top', view, 'the output laid over the reference')
         self.assertIn('wama-compare-range', view, 'a slider')
 
+    def test_compare_owns_its_geometry_whatever_the_host(self):
+        """2026-10-06 (Fabien : « l'image de sortie s'étire et s'agrandit au lieu de se
+        superposer ») : the modal's generic media rules (`max-width: 100%`, full-screen height)
+        reached the OUTPUT layer and squeezed it to the clipped width. The host may size the
+        REFERENCE only ; the layer keeps the reference's box (`contain`, no host bound)."""
+        import re
+        from django.conf import settings
+        css = os.path.join(settings.BASE_DIR, 'wama', 'common', 'static', 'common', 'css')
+        with open(os.path.join(css, 'media-preview.css'), encoding='utf-8') as fh:
+            modal = re.sub(r'/\*.*?\*/', '', fh.read(), flags=re.S)       # comments out
+        selectors = [s.strip() for group in re.findall(r'([^{}]+)\{', modal) for s in group.split(',')]
+        reaching = [s for s in selectors if re.search(r'\.preview-container (img|video)\b', s)]
+        self.assertTrue(reaching, 'the instrument sees the host media rules')
+        for selector in reaching:
+            self.assertIn(':not(.wama-compare', selector, f'host rule reaches Compare : {selector}')
+        self.assertNotRegex(modal, r'\.wama-compare-top[^{]*\{[^}]*(width|height)',
+                            'the host never sizes the output layer')
+        with open(os.path.join(css, 'wama-inspector.css'), encoding='utf-8') as fh:
+            component = fh.read()
+        rule = re.search(r'\.wama-compare \.wama-compare-top > img[^{]*\{([^}]*)\}', component)
+        self.assertIsNotNone(rule)
+        for declaration in ('max-width: none', 'max-height: none', 'object-fit: contain'):
+            self.assertIn(declaration, rule.group(1))
+
+    def test_the_output_video_shows_the_controls_it_covers(self):
+        view = self._body('wama-inspector.js', 'function compareView', indent='  ')
+        self.assertRegex(view, r'wama-compare-top"><video[^>]*\bcontrols\b',
+                         'the layer hid the reference controls over the clipped part')
+
     def test_the_panel_and_the_modal_build_compare_with_the_common_view(self):
         self.assertIn('compareView(', self._body('wama-inspector.js', 'function _renderCompare'))
         modal = self._body('media-preview.js', 'function _modalCompare')
