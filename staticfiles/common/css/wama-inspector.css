@@ -220,6 +220,12 @@ body.wama-simple .wama-settings-hint--simple { display: inline; }
 .wama-compare-top { position: absolute; inset: 0; width: 50%; overflow: hidden;
                     border-right: 2px solid #0dcaf0; }
 .wama-compare-top img, .wama-compare-top video { max-width: none; }
+/* La géométrie de Comparer appartient au COMPOSANT, où qu'il soit (volet, modale, plein écran) :
+   le média du calque a la BOÎTE de la référence (posée par `compareView`), jamais une borne de
+   l'hôte ; les deux en `contain`, ils se superposent pixel pour pixel (2026-10-06). */
+.wama-compare .wama-compare-base { object-fit: contain; }
+.wama-compare .wama-compare-top > img, .wama-compare .wama-compare-top > video {
+  max-width: none; max-height: none; object-fit: contain; }
 /* Comparer des VIDÉOS (2026-10-05) : les contrôles sont ceux de la référence, sous le calque. */
 .wama-compare-top { pointer-events: none; }
 .wama-compare-badge { position: absolute; top: 4px; font-size: .65rem; padding: 1px 6px;
