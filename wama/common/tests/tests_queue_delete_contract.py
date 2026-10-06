@@ -777,6 +777,42 @@ class ReceivedCardsAppearInTheQueueTest(TestCase):
                 checked += 1
         self.assertGreater(checked, 5, f'trop peu de fabriques de lot mesurées : {checked}')
 
+    def test_a_shared_child_arrives_alone_without_its_private_sisters(self):
+        # Trouvé par Fabien le 2026-10-07 : partager UNE fille rendait son lot visible, et le
+        # destinataire recevait TOUT le lot — file, état, ZIP —, sœurs privées comprises. Partager
+        # une card ne partage qu'elle (`batch_common.visible_members`) ; le lot réduit à elle
+        # s'affiche en card SEULE (`is_unitary`, total recompté en mémoire).
+        from wama.common.services.sharing import partager
+        from wama.common.utils.preview_registry import PreviewRegistry
+        owner = User.objects.create_user('received_child_owner', password='x')
+        seen, statuses = set(), 0
+        for surface, _delete, card_route in _surfaces():
+            model = PreviewRegistry.get_model(surface)
+            app = model._meta.app_label
+            with self.subTest(surface=surface):
+                self._account_for(surface)
+                lot, (shared, sister) = _lot_de(model, owner, 2)
+                partager(owner, shared, 'public')
+                try:
+                    status_url = reverse(card_route.replace('card_html', 'batch_status'),
+                                         args=[lot.pk])
+                except NoReverseMatch:
+                    status_url = None
+                if status_url:
+                    ids = [i['id'] for i in self.client.get(status_url).json()['items']]
+                    self.assertEqual([shared.pk], ids, 'l’état du lot reçu montre une sœur privée')
+                    statuses += 1
+                if app in seen:
+                    continue
+                seen.add(app)
+                html = self.client.get(f'/{app}/').content.decode()
+                self.assertIn(f'data-id="{shared.pk}"', html, 'la fille partagée n’est pas reçue')
+                self.assertNotIn(f'data-id="{sister.pk}"', html,
+                                 'la sœur PRIVÉE apparaît dans la file du destinataire')
+                self.assertNotIn(f'class="batch-group mb-2" data-batch-id="{lot.pk}"', html,
+                                 'une fille reçue seule s’affiche encore comme un lot')
+        self.assertGreater(statuses, 5, f'trop peu de fabriques de lot mesurées : {statuses}')
+
     def test_a_shared_card_without_a_batch_does_not_break_the_recipients_queue(self):
         # Mesuré le 2026-10-02 par le geste `common.received_card_visible`, joué SUR LE SERVEUR LIVE :
         # une card partagée que son propriétaire n'a pas encore rangée dans un lot (le rangement du

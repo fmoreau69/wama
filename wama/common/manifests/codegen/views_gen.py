@@ -509,6 +509,9 @@ def _reglages_du_depot(user, nature, poste=None):
             _arr = entry_arrangement(user, b or items[0], _lines)
             if _arr is None:
                 continue
+            if b and b.user_id != user.pk:
+                # Lot REÇU : compté sur ce qu'il voit, en mémoire (`build_batches_list`, 2026-10-07).
+                b.total = len(items)
             statuses = [normalize_status(j.status) for j in items]{ligne_commun}
             batches_list.append({{
                 **_arr,

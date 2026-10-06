@@ -22626,3 +22626,28 @@ améliorer les skills pour éviter la récidive.
   `/port-app` étape 14 (sélecteur F4b) + piège des migrations de données, `/conformite`
   (un vert peut mesurer la forme sans la route).
 Détail : `PROSPECTION_PIPELINE §Session du 2026-10-06` (restes soldés), `ROUTE §F4b ⑤`.
+
+## §PALIER — 2026-10-07, « UNE FILLE PARTAGÉE ARRIVE SEULE + OUVRIR MARQUE LU » — livré (commit de ce bloc, non poussé) — gunicorn relancé par Fabien — 🔚 conflit entre collaborateurs (marche 1, en cours)
+
+Constaté par Fabien en testant à deux comptes : *« j'ai bien reçu tout le lot »*. Domicile :
+`WAMA_COLLABORATION §3bis.2` (bloc « UNE FILLE PARTAGÉE ARRIVE SEULE ») et §2.3.
+
+- **Défaut** (depuis le premier partage par portée, 2026-09-08 ; hérité par le partage à une
+  personne) : partager UNE fille rend son lot visible, et la file, l'état et le ZIP du lot
+  montraient TOUTES ses cards, sœurs privées comprises. **Correction** : la règle des lectures
+  (`listable_by`) appliquée au contenu d'un lot reçu — `batch_common.visible_members`, branchée
+  dans `build_batches_list` et `make_batch_views` (état, ZIP, lancer / régler / promouvoir d'un
+  collaborateur) ; total compté sur ce qu'on voit (converter, index généré, jumelle `converter_01`
+  alignée sur disque). Un lot réduit à une card s'affiche en card seule (`is_unitary`, total
+  recompté en mémoire), aucun gabarit touché.
+- **« Ouvrir » marque la notification lue** (remarque de Fabien) : route
+  `/common/notifications/<id>/open/` (lien hors WAMA non suivi), employée par la fenêtre en bas à
+  droite et la page.
+- **Décision de Fabien** : dupliquer une card reçue en lecture seule reste libre (§9) ; un contrôle
+  de la réutilisation passerait par un futur mode « consultation seule ».
+
+**Mesures** : contrat de parc `test_a_shared_child_arrives_alone_without_its_private_sisters`
+(contre-épreuve : 13 surfaces rouges sans la règle) ; `OpeningANotificationMarksItReadTest` (4) ;
+220 tests files / lots / partage / notifications : un seul rouge, `ItemEditRouteAliasTest`,
+préexistant ; gestes sur 8011 : `person_share_cycle` 12/12, `collaboration_cycle` 9/9 (passe par
+« Ouvrir »), `received_card_visible` 7/7.

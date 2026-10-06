@@ -167,6 +167,7 @@ urlpatterns = [
     # Notifications DANS WAMA (WAMA_COLLABORATION.md §2.3, §5.3) — badge de l'en-tête.
     path('notifications/', views.notifications_view, name='notifications'),
     path('notifications/read/', views.notifications_mark_read, name='notifications_mark_read'),
+    path('notifications/<int:pk>/open/', views.notification_open, name='notification_open'),
 
     # RAG — SURFACES du geste (jalon 14, WAMA_MEMORY.md §7ter). `rag_ajouter` est la SEULE
     # porte d'écriture offerte à l'UI : il n'existe pas de route de balayage, par décision.

@@ -1155,8 +1155,9 @@
       'aria-label="Fermer"></button></div>' +
       (item.body ? '<div class="mt-1" style="color:#ddd6fe;white-space:pre-line;">' +
         escapeHtml(item.body) + '</div>' : '') +
-      '<div class="mt-2"><a href="' + escapeHtml(item.url || '/common/notifications/') +
-      '" class="btn btn-sm btn-outline-light py-0">Ouvrir</a></div>';
+      // « Ouvrir » passe par la route qui MARQUE LUE avant de mener au lien (2026-10-07).
+      '<div class="mt-2"><a href="/common/notifications/' + encodeURIComponent(item.id) +
+      '/open/" class="btn btn-sm btn-outline-light py-0">Ouvrir</a></div>';
     const close = function () { el.remove(); };
     el.querySelector('.btn-close').addEventListener('click', close);
     let timer = setTimeout(close, 20000);

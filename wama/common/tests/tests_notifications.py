@@ -267,3 +267,47 @@ class NotificationSoundTest(TestCase):
         page = self.client.get(reverse('accounts:profile'))
         self.assertContains(page, 'id="notifySound"')
         self.assertContains(page, "WamaApp.playNotificationSound('done')")
+
+
+class OpeningANotificationMarksItReadTest(TestCase):
+    """« Ouvrir » marque la notification lue, puis mène à son lien (2026-10-07, remarque de
+    Fabien : il fallait cliquer « Marquer comme lu » en plus)."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.member = User.objects.create_user('notif_open_member', 'open@test.local', 'x')
+        self.client.force_login(self.member)
+
+    def _note(self, url, recipient=None):
+        notify_in_app([recipient or self.member], 'test', 'Title', url=url)
+        return Notification.objects.filter(kind='test').latest('pk')
+
+    def test_opening_marks_read_and_follows_the_link(self):
+        note = self._note('/describer/')
+        rep = self.client.get(reverse('common:notification_open', args=[note.pk]))
+        self.assertRedirects(rep, '/describer/', fetch_redirect_response=False)
+        note.refresh_from_db()
+        self.assertIsNotNone(note.read_at)
+
+    def test_a_link_outside_wama_is_not_followed(self):
+        note = self._note('https://example.org/phishing')
+        rep = self.client.get(reverse('common:notification_open', args=[note.pk]))
+        self.assertRedirects(rep, reverse('common:notifications'), fetch_redirect_response=False)
+
+    def test_someone_elses_notification_cannot_be_opened(self):
+        other = get_user_model().objects.create_user('notif_open_other', 'o@test.local', 'x')
+        note = self._note('/describer/', recipient=other)
+        self.assertEqual(404, self.client.get(
+            reverse('common:notification_open', args=[note.pk])).status_code)
+        note.refresh_from_db()
+        self.assertIsNone(note.read_at)
+
+    def test_the_page_and_the_popup_open_through_this_route(self):
+        note = self._note('/describer/')
+        page = self.client.get(reverse('common:notifications')).content.decode()
+        self.assertIn(f'/common/notifications/{note.pk}/open/', page)
+        from pathlib import Path
+        from django.conf import settings
+        js = (Path(settings.BASE_DIR) / 'wama/common/static/common/js/wama-app-base.js').read_text(
+            encoding='utf-8')
+        self.assertIn("/common/notifications/' + encodeURIComponent(item.id) +", js)

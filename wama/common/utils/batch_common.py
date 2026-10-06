@@ -419,6 +419,15 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
         # la valeur vient du `prefetch_related` juste au-dessus.
         for _it in items:
             _it.elem = getattr(_it, work_attr, None)
+        if batch.user_id != getattr(user, 'pk', None):
+            # Lot REÇU : seulement les cards partagées avec lui (`visible_members`). Le total est
+            # recompté EN MÉMOIRE (jamais sauvé) — un lot réduit à une card s'affiche alors en card
+            # seule (`is_unitary`), sans toucher aux gabarits.
+            shown = {e.pk for e in visible_members(user, batch, [it.elem for it in items if it.elem])}
+            items = [it for it in items if it.elem and it.elem.pk in shown]
+            if not items:
+                continue
+            batch.total = len(items)
         works = [it.elem for it in items if it.elem]
         statuses = normalized_statuses(works)
         row = {'obj': batch, 'items': items, **status_counts(works),
@@ -632,6 +641,28 @@ def batch_elements(lot, element_model):
             e.batch_link = m
             elements.append(e)
     return elements
+
+
+def visible_members(user, lot, elements) -> list:
+    """Les éléments d'un lot que `user` peut VOIR — la règle des lectures (`scoping.listable_by`)
+    appliquée au CONTENU d'un lot qui n'est pas à lui.
+
+    Défaut trouvé par Fabien le 2026-10-07 : partager UNE fille rend son lot visible (la file se
+    construit à partir des lots), et la file, le ZIP et l'état du lot montraient alors TOUTES ses
+    cards au destinataire, sœurs privées comprises. Partager une card ne partage qu'elle
+    (`WAMA_COLLABORATION §3` règle 4 : c'est partager un LOT qui partage ses cards). Chez le
+    propriétaire, rien ne change ; un modèle sans visibilité garde le comportement d'avant."""
+    elements = list(elements)
+    if (lot is None or not elements
+            or getattr(lot, 'user_id', None) == getattr(user, 'pk', None)):
+        return elements
+    manager = type(elements[0])._default_manager
+    if not hasattr(manager, 'visible_to'):
+        return elements
+    from wama.common.utils.scoping import listable_by
+    seen = set(listable_by(manager.filter(pk__in=[e.pk for e in elements]), user)
+               .values_list('pk', flat=True))
+    return [e for e in elements if e.pk in seen]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

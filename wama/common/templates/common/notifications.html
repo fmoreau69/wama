@@ -55,7 +55,7 @@ Les préférences type × canal (§5.2) sont la marche 5, pas cette page.
     </div>
     {% if n.body %}<div class="notif-body">{{ n.body }}</div>{% endif %}
     <div class="d-flex gap-2 mt-2">
-      {% if n.url %}<a class="btn btn-sm btn-outline-light" href="{{ n.url }}">Ouvrir</a>{% endif %}
+      {% if n.url %}<a class="btn btn-sm btn-outline-light" href="/common/notifications/{{ n.pk }}/open/">Ouvrir</a>{% endif %}
       {% if not n.read_at %}
       <form method="post" action="{% url 'common:notifications_mark_read' %}">
         {% csrf_token %}<input type="hidden" name="id" value="{{ n.pk }}">

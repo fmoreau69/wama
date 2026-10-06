@@ -176,6 +176,10 @@ class IndexView(View):
                 continue
             for j in items_sorted:
                 _decorate_job(j)  # chips du SCHÉMA (card_chips) — même décoration que card_html
+            if batch and batch.user_id != user.pk:
+                # Lot REÇU : les jobs listés sont déjà ceux qu'il voit ; le total se compte sur
+                # eux, en mémoire (`batch_common.build_batches_list`, même règle, 2026-10-07).
+                batch.total = len(items_sorted)
             total = batch.total if batch else len(items_sorted)
             # Contrat de _batch_card.html (même forme que build_batches_list — converter groupe
             # en mémoire car FK directe job→batch, pas de modèle de liaison).

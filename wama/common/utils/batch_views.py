@@ -285,6 +285,13 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         from wama.common.utils.scoping import editable_or_404
         return editable_or_404(batch_model, get_user(request), trace=trace, pk=pk)
 
+    def _members(request, b):
+        """Les éléments du lot que CE compte peut voir — tous chez le propriétaire, seulement
+        ceux qui lui sont partagés pour un lot reçu (`batch_common.visible_members`, 2026-10-07).
+        Le chemin de lecture ET d'écriture des gestes ouverts à un destinataire."""
+        from wama.common.utils.batch_common import visible_members
+        return visible_members(get_user(request), b, batch_elements(b, work_model))
+
     def _batch_read(request, pk):
         if read_lookup is not None:
             return read_lookup(get_user(request), pk)
@@ -303,7 +310,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             return JsonResponse({'error': 'aucune tâche déclarée pour ce lot'}, status=400)
         reset = start_reset_for(request) if start_reset_for is not None else start_reset
         started = []
-        for item in batch_elements(b, work_model):
+        for item in _members(request, b):
             if start_only_pending and getattr(item, 'status', '') != 'PENDING':
                 continue
             if startable is not None and not startable(item):
@@ -324,14 +331,14 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                       if isinstance(p, dict) and p.get('name'))
         return read_settings_payload(request, item_schema, names, empty_is_value)
 
-    def _apply_to_elements(b, data_for, *, skip=()):
+    def _apply_to_elements(request, b, data_for, *, skip=()):
         """Pose `data_for(élément)` sur chaque élément du lot qui ne tourne pas (hors `skip`),
         en DEUX TEMPS — poser sur tous, PUIS sauver : un réglage refusé pour un élément n'en
         laisse aucun à moitié réglé. Rend `(nombre d'éléments écrits, None)`, ou
         `(None, réponse 400)` sur un refus. Le SEUL chemin d'écriture des trois gestes de la
         mère (⚙, ↑ promouvoir, ↓ réaligner) : ils ne peuvent pas diverger."""
         pending = []                              # (élément, champs touchés ; None = tous)
-        for item in batch_elements(b, work_model):
+        for item in _members(request, b):
             if item.pk in skip or getattr(item, 'status', '') == 'RUNNING':
                 continue
             data = data_for(item)
@@ -385,7 +392,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         shared = (None if callable(schema)
                   else read_settings_payload(request, schema, schema_names, empty_is_value))
         written, refusal = _apply_to_elements(
-            b, lambda item: shared if shared is not None else _posted_settings(request, item))
+            request, b, lambda item: shared if shared is not None else _posted_settings(request, item))
         if refusal is not None:
             return refusal
         # La mère RETIENT ce qu'elle vient de poser : c'est la référence que « ↓ réaligner »
@@ -402,7 +409,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             source_id = int(read_settings_payload(request).get('source') or 0)
         except (TypeError, ValueError):
             source_id = 0
-        source = next((i for i in batch_elements(b, work_model) if i.pk == source_id), None)
+        source = next((i for i in _members(request, b) if i.pk == source_id), None)
         if source is None:
             return JsonResponse({'error': "la card de référence n'appartient pas à ce lot"},
                                 status=400)
@@ -410,7 +417,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         if not payload:
             return JsonResponse({'error': "cette card ne porte aucun réglage à promouvoir"},
                                 status=400)
-        written, refusal = _apply_to_elements(b, lambda item: _typed(item, payload),
+        written, refusal = _apply_to_elements(request, b, lambda item: _typed(item, payload),
                                               skip={source.pk})
         if refusal is not None:
             return refusal
@@ -428,7 +435,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             return JsonResponse({'error': "ce lot n'a pas encore de réglages de référence — "
                                           "réglez-le (⚙) ou promouvez une de ses cards"},
                                 status=400)
-        written, refusal = _apply_to_elements(b, lambda item: _typed(item, reference))
+        written, refusal = _apply_to_elements(request, b, lambda item: _typed(item, reference))
         if refusal is not None:
             return refusal
         return JsonResponse({'success': True, 'updated': written, 'batch_id': pk,
@@ -498,7 +505,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         buf = io.BytesIO()
         # ZIP_DEFLATED : l'idiome des `batch_download` d'app (anonymizer, synthesizer, converter).
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
-            for item in batch_elements(b, work_model):
+            for item in _members(request, b):
                 if render is not None:
                     # Late-binding : le master est RENDU au format demandé, par le rendu déclaré.
                     built = render(item, fmt) if getattr(item, 'status', '') == 'SUCCESS' else None
@@ -536,7 +543,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         `status` global (SUCCESS si tout a réussi ; RUNNING si un tourne ; FAILURE si plus rien
         n'attend et qu'un a échoué ; PENDING sinon)."""
         b = _batch_read(request, pk)
-        items = batch_elements(b, work_model)
+        items = _members(request, b)
         counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
         rows = []
         for i in items:
@@ -547,7 +554,9 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                          'progress': _progress(i),
                          'error': (getattr(i, 'error_message', '') or None)
                                   if status == 'FAILURE' else None})
-        total = b.total or len(items)
+        # Un lot REÇU se compte sur ce que ce compte en voit (`_members`), jamais sur le total
+        # du propriétaire.
+        total = (b.total or len(items)) if b.user_id == get_user(request).pk else len(items)
         if total and counts['success'] == total:
             overall = 'SUCCESS'
         elif counts['running']:
