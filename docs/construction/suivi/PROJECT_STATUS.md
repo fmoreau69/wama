@@ -22498,3 +22498,58 @@ copies servies ≠ sources (`tests_designation_js`, `tests_toast`, `tests_notifi
 rendu du schéma · studio `STALE` et ETA de la sortie commune (chantier pipeline) · manifestes
 `model` périmés au corpus (pas de cette session) · 🔚 la copie de lecture n'a pas encore été vue
 créée À L'IMPORT sur le live (récepteur chargé à la relance).
+
+## §CLÔTURE — 2026-10-06, « ASSISTANT DISCORD : HISTORIQUE OUTILLÉ, FIN DE TÂCHE DANS LE FIL, SON DES NOTIFICATIONS » — livré (`c452e6ee` → `c928fd69`, 8 commits, non poussés) — 🔴 relancer passerelle + workers + gunicorn — 🔚 vérifier dans Discord qu'une fin de tâche revient seule dans son fil, avec son fichier, une seule image
+
+Parti d'un signalement de Fabien (« le lien ne marche plus, l'image n'arrive plus dans Discord »),
+déroulé par le skill `diagnostic-assistant` jusqu'aux causes, chacune mesurée :
+- **L'assistant inventait parce que l'historique servi ne montrait AUCUN outil** (`c452e6ee`) :
+  rejoué vers Albert, même modèle et même message — outil sans historique, fabrication avec
+  (0/8 → 8/8 une fois les étapes dépliées). Détail : `WAMA_LLM.md §2026-10-05`.
+- `!oublier` (`432ea89`) ; la card POINTÉE de l'anonymizer échouait (chemin d'entrée reconstruit,
+  R104, `87447ee8`) ; la limite d'outils rendait l'appel brut (`eb0565fe`).
+- **La fin d'une tâche revient dans le fil d'où elle a été demandée** (`ce64985d`, `ROADMAP §19.2`
+  ✅) : `notify_job_end`, notification qui désigne son élément, relève par curseur, origine lue dans
+  le store de conversation (`tool_api.items_of_step`), contrat `item_id` comblé à la source ;
+  signal de l'imager retiré (R105). Détail : `WAMA_LLM.md §2026-10-06`.
+- **Son des notifications dans WAMA** (`ee4428af`, `WAMA_COLLABORATION §5.2`) ; image en double
+  sous le message Discord (`dba97208`) ; revérification demandée par Fabien (`c928fd69`) : le fichier
+  joint vient des sorties déclarées (`send_to.sorties_de`), le rappel d'ajout lit le contrat.
+- Migrations APPLIQUÉES, non versionnées (règle du dépôt) : `common 0028` et `accounts 0027`
+  (`db_default`), `gateway 0002`.
+
+**Pendings système** : relancer `run_gateway` (rien de Discord n'est actif avant), les workers
+Celery (squelette, `tool_api`, tâche de l'anonymizer) et gunicorn (profil, route des
+notifications) ; pousser les 8 commits.
+
+**Restes, nommés** :
+- un « je lance » SANS outil et SANS mention de lien n'est attrapé par aucun contrôle de sortie
+  (seul l'historique outillé le rend improbable) ;
+- une tâche lancée depuis le WEB ne poste rien dans Discord (décision de Fabien, « à voir à
+  l'usage ») ; la relève poste au plus une fois (un arrêt entre relève et envoi perd le message de
+  fil, la cloche le garde) ; les runs du Studio notifient encore par `notify_job` seul ;
+- notifications SYSTÈME (bulle de l'OS) : attendent le HTTPS (`wama.univ-eiffel.fr`) ;
+- ⏳ piste : un seul contexte audio par page (TalkingHead accepte le sien en option) ;
+- les docs DÉRIVÉES des mécanismes (table de la carte, doc développeur des briques) sont en retard
+  sur le registre (190 mécanismes contre 186) : ajouts d'autres sessions plus mes deux
+  descriptions — régénérer depuis HEAD quand le registre, co-édité, sera commité.
+
+**Rouges préexistants, PAS à moi** (suite large, 3860 tests, 22 rouges, tous attribués) :
+`tests_doc_plans` + `tests_docs_catalog` (registre 190 / docs 186), `tests_port_designation`
+(composer, `melody_reference`), `tests_test_layout` (`wama/accounts` : 12 fichiers),
+`tests_codegen_lot` (glu imager), `tests_picker_list` (`audio/wav`), `tests_check_templates` (carte
+générique de la jumelle du Writer), `tests_import_contract` ×7 (WIP d'autrui sur la card d'entrée
+v4), `tests_process_pipeline` (manifeste anonymizer, WIP d'autrui), `tests_settings_surfaces`
+(composer, déjà déclaré), `tests_identifier_language` ×5 (excédent hors de mes fichiers),
+`tests_tool_api_lectures.AddItemToMediaLibraryTest` — rejoué ROUGE sur l'état d'avant la session.
+
+**Contrôles attendus au prochain /reprise** : tests de mon périmètre (passerelle, notifications,
+contrat d'outils, conversation, liens sans source, rappel d'ajout, anonymizer, tâche de l'imager)
+**193 OK** après la dernière écriture ; JS (V8, venv_win) **26 OK** ; `check_docs` **5 références
+cassées, 4 cibles distinctes**, aucune de cette session ; `check_redundancy` **81**, aucune dans les
+fichiers de la session ; 33 mutations jouées, 33 rouges.
+**Artefacts** : scripts de diagnostic, de mutation et de smoke dans le scratchpad de session
+(jetables) ; compte de test nocturne remis en état (notifications témoins supprimées, préférence de
+son rétablie) ; serveur de dev du port 8011 arrêté ; worktrees jetables supprimés (le worktree
+`wt_mine` détaché sur `dba97208` est d'une autre instance) ; cards réelles de Fabien : 1036
+(échouée avant le correctif R104, relançable), 1046 et 1047 réussies.
