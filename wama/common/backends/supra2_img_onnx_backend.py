@@ -31,12 +31,10 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------- #
 # Inventaire des modèles supportés (module‑level, tel que requis)
 # --------------------------------------------------------------------------- #
+# Le nom de sa ligne de catalogue, et RIEN d'autre : nom, description et VRAM sont au
+# REGISTRE (l'inventaire ne lit que la clé) — 2026-10-06, `backend_proposals`.
 SUPPORTED_MODELS = {
-    "Bartholomheow/Supra2-IMG-ONNX": {
-        "name": "Supra2‑IMG (ONNX)",
-        "description": "Supra2‑IMG exporté en ONNX – diffusion rectified‑flow DiT + VAE",
-        "vram": "1.3GB",
-    },
+    "Bartholomheow/Supra2-IMG-ONNX": {"model_key": "huggingface:Bartholomheow/Supra2-IMG-ONNX"},
 }
 
 

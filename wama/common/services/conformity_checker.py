@@ -1521,11 +1521,24 @@ def _model_options_from_catalog(f: _AppFiles):
     OBLIGATOIRE `<APP>_MODELS` de model_config (checklist AGENTS.md) comme « liste en
     dur » : le describer (cascade interne, zéro select) sortait ROUGE pour un composant
     qu'il n'a pas.
+
+    ⚠ Durci le 2026-10-06 : il était VERT avec un domaine borné par `source` (enhancer, depuis le
+    08/09). Une liste tirée du catalogue PAR SOURCE écarte tout modèle installé d'une autre source
+    — Swin2SR (`huggingface:…`), lançable, était absent du select de l'enhancer, et la grille ne
+    le voyait pas. La route le dit (`ROUTE §F4b` : « filtré par CAPACITÉ, jamais par source ») :
+    un domaine par source est désormais PARTIEL, avec le select nommé. Le domaine se lit dans le
+    SCHÉMA DÉCLARÉ (`declared_param_schemas`, tous les schémas de l'app) — un motif de texte ne
+    résout pas `options_query=MEDIA_SPEC`.
     """
     if not _has_engine_select(f):
         return None, None
     ev = f.find(PARAMS, r"options_source\s*[:=]\s*['\"]catalog['\"]")
     if ev:
+        by_source = [name for name, query in _catalog_domains(f.app) if query.get('source')]
+        if by_source:
+            return 'partial', (f"{ev} — domaine borné par SOURCE ({', '.join(by_source)}) : un "
+                               "modèle installé d'une autre source n'y entre pas ; cible = la "
+                               "capacité (`task`), jamais la source (ROUTE §F4b)")
         return True, ev
     ev = f.find(VIEWS + PY, r'get_registry_models')
     if ev:
@@ -1535,6 +1548,22 @@ def _model_options_from_catalog(f: _AppFiles):
                  r"MODEL_CHOICES|_MODELS\s*=\s*\{|choices\s*=\s*\[")
     return False, (f"liste écrite en dur ({dur}) — un modèle installé n'apparaîtra jamais"
                    if dur else "aucune source d'options tirée du catalogue")
+
+
+def _catalog_domains(app: str) -> list:
+    """[(nom, options_query)] des selects peuplés par le catalogue, sur TOUS les schémas déclarés
+    de l'app (`declared_param_schemas` — l'accesseur du trou #10 du manifeste : `schema_for_app`
+    n'expose que le principal, et une app bi-domaine y perd la moitié de ses champs). [] si
+    illisible : on ne conclut pas d'une absence."""
+    try:
+        from wama.common.utils.param_schema import declared_param_schemas, schema_for_app
+        declared = declared_param_schemas(app)
+        fields = ([p for s in declared['schemas'].values() for p in (s or [])]
+                  if declared and declared.get('schemas') else (schema_for_app(app) or []))
+    except Exception:
+        return []
+    return [(p.get('name'), dict(p.get('options_query') or {})) for p in fields
+            if isinstance(p, dict) and p.get('options_source') == 'catalog']
 
 
 def _hf_cache_routing(f: _AppFiles):

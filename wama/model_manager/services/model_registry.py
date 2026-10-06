@@ -2039,10 +2039,14 @@ class ModelRegistry:
             name=nom_court,
             model_type=mtype,
             source=ModelSource.HUGGINGFACE,
-            description=(f"Snapshot HuggingFace installé ({mtype.value}/{fam_dir.name}) — "
-                         "catalogué par le balayage générique ; aucune app ne le déclare "
-                         "encore : poids présents, backend à intégrer."),
-            description_short=f"Snapshot HF {nom_court} — installé, en attente d'intégration",
+            # Des FAITS qui ne vieillissent pas (2026-10-06) : le texte disait « aucune app ne le
+            # déclare encore : backend à intégrer » / « en attente d'intégration », réécrit à
+            # chaque balayage — donc FAUX dès l'intégration (FrWhisper, Supra2-IMG, Swin2SR le
+            # portaient servis par leur backend). Qu'un backend le serve se CALCULE
+            # (`backend_missing`, grisage des selects) ; un texte généré ne l'affirme pas.
+            description=(f"Snapshot HuggingFace installé ({mtype.value}/{fam_dir.name}), "
+                         "catalogué par le balayage générique des modèles installés."),
+            description_short=f"Snapshot HF {nom_court}",
             hf_id=hf_id,
             is_downloaded=not incomplets,
             format=fmt,

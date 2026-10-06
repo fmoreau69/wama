@@ -2190,13 +2190,21 @@ partiel préexistant).
   des agrandisseurs récents.
 - `prospector.APP_TASKS['enhancer'] = 'image-to-image'` seul : la vidéo n'est pas prospectée, et
   `video-to-video` n'est pas découpé comme `image-to-image` (ROADMAP §16.2, contrat D-c).
-- La description du balayage générique (`model_registry.py:2044-2045`, « en attente
-  d'intégration », « backend à intégrer ») reste après l'intégration — FrWhisper, Supra2-IMG
-  et Swin2SR la portent.
-- Le rôle `backend` recopie `name`/`description`/`vram` dans `SUPPORTED_MODELS` (Supra2,
-  FrWhisper, SheetSage2, Kyutai, YuE2) : valeurs lues par PERSONNE — l'inventaire ne lit que les
-  clés. Seconde vérité à retirer à la source (consigne + contrôle du rôle).
-- Le critère `model_options_catalog` était VERT avec un domaine par SOURCE : il atteste que les
-  options viennent du catalogue, pas que le domaine est une capacité (la route le demande).
+- ~~La description du balayage générique reste « en attente d'intégration » après
+  l'intégration~~ — ✅ **soldé le même soir** : la découverte n'écrit plus que des FAITS
+  (origine, catégorie, famille) ; qu'un backend serve le modèle se CALCULE (`backend_missing`).
+  Garde `SnapshotsInstallesTest.test_the_generated_description_states_no_integration_state`.
+  ⚠ Les 22 manifestes du corpus qui portent l'ancienne phrase se recaleront au prochain export.
+- ~~Le rôle `backend` recopie `name`/`description`/`vram` dans `SUPPORTED_MODELS`~~ — ✅ **soldé**
+  : la CAUSE était sa consigne (`prompts/backend.txt` règle 3 les EXIGEAIT) ; consigne corrigée,
+  et `backend_proposals.supported_entry_errors` REFUSE toute valeur hors `model_key` (contrôle de
+  forme, la consigne seule ne suffit pas). Les six backends concernés (Supra2-IMG, FrWhisper,
+  SheetSage2, Kyutai, YuE2, Audio8) ramenés à `{'model_key': …}` ; garde sur tout le vivier
+  (`CheckSourceTest.test_no_backend_of_the_pool_copies_catalogue_facts_for_an_installed_model`).
+- ~~Le critère `model_options_catalog` était VERT avec un domaine par SOURCE~~ — ✅ **soldé** :
+  il lit le domaine DÉCLARÉ (`declared_param_schemas`, tous les schémas) et passe PARTIEL un
+  select borné par source, en le nommant. Effet mesuré : anonymizer `model_to_use`, avatarizer
+  `animation_model`, enhancer `engine` (audio), reader `backend` — les quatre selects que la
+  route F4b n'a pas encore portés. Garde `TheCriterionSeesTheDomainTest` (apps réelles).
 - **GPU** : rien n'a tourné sur la carte. Premier agrandissement réel par une card à faire au
   redémarrage (migration `enhancer/0018` appliquée par `start_wama_prod.sh`).

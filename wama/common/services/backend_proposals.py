@@ -155,6 +155,32 @@ def _vendored_import_errors(tree, engine: str) -> list:
     return errors
 
 
+#: Ce qu'une entrée `SUPPORTED_MODELS` d'un modèle INSTALLÉ peut porter : le nom de sa ligne de
+#: catalogue, et rien d'autre (le champ de `pyannote_diarizer`). Vécu le 2026-10-06 : la consigne
+#: du rôle exigeait `{'name', 'description', 'vram'}`, recopiés dans cinq backends (Supra2-IMG,
+#: FrWhisper, SheetSage2, Kyutai, YuE2) et lus par PERSONNE — l'inventaire ne lit que les clés,
+#: les faits sont au registre. Une seconde vérité qui dérive en silence.
+SUPPORTED_ENTRY_KEYS = frozenset({'model_key'})
+
+
+def supported_entry_errors(model_id: str, entry) -> list:
+    """Erreurs de l'entrée `SUPPORTED_MODELS[model_id]` d'un modèle installé : `{}` ou
+    `{'model_key': <clé de catalogue de CE modèle>}`."""
+    if not isinstance(entry, dict):
+        return [f"SUPPORTED_MODELS[{model_id!r}] n'est pas un dict"]
+    errors = []
+    extra = sorted(set(entry) - SUPPORTED_ENTRY_KEYS)
+    if extra:
+        errors.append(f"SUPPORTED_MODELS[{model_id!r}] recopie {extra} : ce sont des faits du "
+                      f"CATALOGUE (le registre les porte, l'inventaire ne lit que la clé) — "
+                      f"seul `model_key` désigne la ligne")
+    key = entry.get('model_key')
+    if key is not None and model_id_of(str(key)) != model_id:
+        errors.append(f"SUPPORTED_MODELS[{model_id!r}]['model_key'] = {key!r} désigne un AUTRE "
+                      f"modèle")
+    return errors
+
+
 def check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> dict:
     """Contrôles de FORME d'un module de backend proposé. `ok` = aucune erreur."""
     errors, warnings = [], []
@@ -174,6 +200,8 @@ def check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> d
     elif model_id not in supported:
         errors.append(f"SUPPORTED_MODELS ne déclare pas « {model_id} » : l'inventaire ne "
                       "choisirait pas ce backend face à un autre du même moteur")
+    else:
+        errors += supported_entry_errors(model_id, supported[model_id])
 
     base_name = contract[1]
     classes = [n for n in tree.body if isinstance(n, ast.ClassDef)

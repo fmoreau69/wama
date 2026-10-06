@@ -34,12 +34,10 @@ MODEL_KEY = f"huggingface:{HF_ID}"
 
 # Clé LITTÉRALE : l'inventaire la lit par AST — c'est elle qui départage ce backend d'Audio8, qui
 # partage le moteur `transformers-remote-code`.
+# Le nom de sa ligne de catalogue, et RIEN d'autre : nom, description et VRAM sont au
+# REGISTRE (l'inventaire ne lit que la clé) — 2026-10-06, `backend_proposals`.
 SUPPORTED_MODELS = {
-    "m-a-p/SheetSage2": {
-        "name": "SheetSage2",
-        "description": "Audio → partition ABC (mélodie vocale et instrumentale, accords)",
-        "vram": 2.7,
-    }
+    "m-a-p/SheetSage2": {"model_key": "huggingface:m-a-p/SheetSage2"},
 }
 
 

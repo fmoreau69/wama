@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
+from django.conf import settings
 from django.test import SimpleTestCase, TestCase
 
 from wama.common.services import backend_proposals as bp
@@ -24,7 +25,7 @@ GOOD = '''
 """Backend de test."""
 from .image_generation_base import ImageGenerationBackend, GenerationResult
 
-SUPPORTED_MODELS = {"Org/Img-ONNX": {"name": "Img", "description": "t", "vram": "1GB"}}
+SUPPORTED_MODELS = {"Org/Img-ONNX": {"model_key": "huggingface:Org/Img-ONNX"}}
 
 
 class ImgOnnxBackend(ImageGenerationBackend):
@@ -261,6 +262,52 @@ class CheckSourceTest(SimpleTestCase):
     def test_the_model_id_must_be_declared(self):
         res = bp.check_source(GOOD, engine='onnxruntime', model_id='Org/Other', contract=IMAGE)
         self.assertIn('Org/Other', ' '.join(res['errors']))
+
+    def test_catalogue_facts_copied_into_the_entry_are_refused(self):
+        """2026-10-06: the role's prompt demanded {'name', 'description', 'vram'} — five backends
+        carried them, read by nobody (the inventory reads keys only)."""
+        copied = GOOD.replace('{"model_key": "huggingface:Org/Img-ONNX"}',
+                              '{"name": "Img", "description": "t", "vram": "1GB"}')
+        res = self._check(copied)
+        self.assertFalse(res['ok'])
+        self.assertTrue(any('recopie' in e and 'vram' in e for e in res['errors']), res['errors'])
+
+    def test_the_entry_may_be_empty_but_never_name_another_model(self):
+        self.assertTrue(self._check(GOOD.replace('{"model_key": "huggingface:Org/Img-ONNX"}',
+                                                 '{}'))['ok'])
+        res = self._check(GOOD.replace('huggingface:Org/Img-ONNX', 'huggingface:Org/Other'))
+        self.assertTrue(any('AUTRE' in e for e in res['errors']), res['errors'])
+
+    def test_no_backend_of_the_pool_copies_catalogue_facts_for_an_installed_model(self):
+        """Pool-wide, whoever wrote the backend (role or hand): a module-level entry that names
+        a HuggingFace repository (`org/name` — an installed model) designates its row and nothing
+        else. The bundled upscalers (`RealESR_Gx4`…) keep their facts: they run without a base."""
+        import ast
+        backends = Path(settings.BASE_DIR) / 'wama' / 'common' / 'backends'
+        checked = 0
+        for path in sorted(backends.glob('*.py')):
+            tree = ast.parse(path.read_text(encoding='utf-8'))
+            for n in tree.body:
+                if not (isinstance(n, ast.Assign) and len(n.targets) == 1
+                        and getattr(n.targets[0], 'id', '') == 'SUPPORTED_MODELS'):
+                    continue
+                try:
+                    entries = ast.literal_eval(n.value)
+                except ValueError:
+                    continue
+                for model_id, entry in (entries.items() if isinstance(entries, dict) else ()):
+                    if '/' in str(model_id):
+                        checked += 1
+                        with self.subTest(backend=path.name, model=model_id):
+                            self.assertEqual([], bp.supported_entry_errors(model_id, entry))
+        self.assertGreaterEqual(checked, 7, 'the six role-shaped backends + Swin2SR in AIUpscaler')
+
+    def test_the_role_prompt_no_longer_asks_for_copied_facts(self):
+        """A prompt is not a control — but a prompt that DEMANDS the defect makes every run fail."""
+        prompt = (Path(settings.BASE_DIR) / 'wama-dev-ai' / 'prompts' / 'backend.txt').read_text(
+            encoding='utf-8')
+        self.assertNotIn("{'name', 'description', 'vram'}", prompt)
+        self.assertIn("'model_key'", prompt)
 
 
 MUSIC = ('music_generation_base', 'MusicGenerationBackend')

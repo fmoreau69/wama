@@ -40,6 +40,13 @@ python -c "import json;c=json.load(open('logs/conformity_report.json'))['criteri
 >   SANS critère mesuré subsistent (d'où le total affiché sur `/apps/`, union des deux) ;
 > - **ne jamais conclure « portage terminé » sur le score seul** — il détecte surtout les
 >   régressions et les trous d'adoption.
+> - 🔴 **un critère VERT peut mesurer la FORME sans la ROUTE** (vécu le 2026-10-06) :
+>   `model_options_catalog` cherchait `options_source='catalog'` dans `params.py` et passait VERT
+>   avec un domaine borné par `source` — contraire à `ROUTE §F4b` (« par capacité, jamais par
+>   source ») ; Swin2SR, installé et lançable, manquait au select sans que rien ne rougisse. Avant
+>   de se fier à un vert, relire ce que la route EXIGE et vérifier que le critère le mesure ; un
+>   motif de texte ne résout pas une valeur importée (`options_query=MEDIA_SPEC`) — lire la
+>   DÉCLARATION (le schéma) plutôt que le fichier.
 >
 > Ajouter un critère = une entrée dans `CRITERIA` (`common/services/conformity_checker.py`) qui
 > retourne `(état, preuve)`, l'état `None` valant **non applicable**. Toujours fournir la preuve

@@ -41,12 +41,10 @@ def cot_for_score(abc: str) -> str:
 # ----------------------------------------------------------------------
 # Inventaire des modèles supportés (module‑level)
 # ----------------------------------------------------------------------
+# Le nom de sa ligne de catalogue, et RIEN d'autre : nom, description et VRAM sont au
+# REGISTRE (l'inventaire ne lit que la clé) — 2026-10-06, `backend_proposals`.
 SUPPORTED_MODELS = {
-    "m-a-p/YuE2-3B": {
-        "name": "YuE2‑3B",
-        "description": "Frontier music generation model (text‑to‑music) with editable scores.",
-        "vram": 8.8,
-    },
+    "m-a-p/YuE2-3B": {"model_key": "huggingface:m-a-p/YuE2-3B"},
 }
 
 
