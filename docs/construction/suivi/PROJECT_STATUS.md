@@ -22460,3 +22460,41 @@ nouvelles bornes (mesuré). Détail : `ROUTE §10.6`, bloc anonymizer.
   l'image. Domicile : `ROUTE §10.6` (puce « Comparer dans la modale »).
 - Mesuré au navigateur, image ET vidéo × volet, modale, plein écran (6 cas) : superposition au
   pixel à 20 % et 80 % du curseur, 0 erreur JS. 56 tests OK ; garde de géométrie prouvée par mutation.
+
+## §CLÔTURE — 2026-10-06, « ANONYMIZER / APERÇU COMMUN / COPIE DE LECTURE » (suite de la clôture du 05/10, `eb320b6b`) — CLOS (`29f97928`, `585406e1`, non poussés) — 🔴 relancer gunicorn, workers ET beat, puis `manage.py playback_copies` et rejouer le Floutage de #1034
+
+**Livré depuis la clôture du 05/10** (détail : `ROUTE §10.6`, `MEDIA_STORAGE_TIERING §COPIES DE LECTURE`) :
+retours SAM3 de #1034 (`5c105309` : formes floutées en un flou avec finitions, liaison bornée,
+déduites à la forme) ; face Pendant en plein écran, modale à faces d'où qu'on l'ouvre (`8816a106`) ;
+agrandissement 0,75–1,25 (`1fdd4d15`) ; un seul suiveur Pendant (`0a077582`) ; Comparer en
+superposition dans la modale et le plein écran (`9ae8d29a`, géométrie `ee2799c0`) ; copie de
+lecture des vidéos illisibles (`9229cc49`).
+
+**Revérification demandée par Fabien (« rien réinventé ? », tests nécessaires)** — `29f97928` :
+quatre recopies que `check_redundancy` ne voyait pas (il rapproche par le nom), trouvées en lisant
+les modules voisins : sonde `probe_video` homonyme → `media_probe.probe_video_format` ; écriture
+ffmpeg par temporaire déjà dans `ensure_h264` → `video_compat._transcode` ; URL média relue à la
+main → `preview_utils._media_rel` ; boîte, échelle et masque refaits dans `blur_shapes` →
+`Bounds.scale(shape=None)`, `detections.fit_polygons` (pris aussi par `_moved_polygons`),
+`polygons_to_mask`. Défaut corrigé : l'URL de la copie partait sans `?v=`. Six gardes ajoutées,
+chacune prouvée par mutation (purge, suppression sans partage + contre-épreuve, `ensure_h264`,
+écriture interrompue, URL datée, forme agrandie au bord). Alignement : l'aperçu reste UNE brique
+(`compareView`, `followDuring`, `variantToggle`, `PreviewRegistry`) ; les réglages viennent du
+schéma — le volet de l'anonymizer écrit encore ses bornes en gabarit, tenu égal au schéma par
+`PanelBoundsFollowTheSchemaTest` (remède de fond : « volet rendu du schéma », reste du 27/09).
+
+**Tests** (worktree HEAD + mes fichiers) : ciblés 118 + 51 OK ; large (`wama.common`,
+`anonymizer`, `media_library`, `filemanager`) 3366 tests, **27 échecs sur 16 tests, tous
+PRÉEXISTANTS** — rejoués à l'identique sur HEAD SANS mes fichiers : budgets de langue (×2),
+copies servies ≠ sources (`tests_designation_js`, `tests_toast`, `tests_notification_sound_js`,
+`filemanager` `le_fichier_servi`), `tests_import_contract` (×7 apps), `tests_check_docs.CarteTests`,
+`tests_doc_plans.PiloteTest`, `tests_codegen_lot.ItemEditRouteAliasTest`,
+`tests_port_designation`, `tests_score_input` (YuE2), `SettingsSurfacesTest`,
+`tests_test_layout`, `tests_tool_api_lectures`, `tests_picker_list`. Une partie tient au worktree
+(copies servies lues dans `staticfiles/` du dépôt principal) ; aucune n'est de cette session.
+`check_docs` : 7 références cassées, aucune de cette session.
+
+**Restes** : 🔴 relance + `playback_copies` (43 vidéos) + rejouer le Floutage de #1034 · ⏳ volet
+rendu du schéma · studio `STALE` et ETA de la sortie commune (chantier pipeline) · manifestes
+`model` périmés au corpus (pas de cette session) · 🔚 la copie de lecture n'a pas encore été vue
+créée À L'IMPORT sur le live (récepteur chargé à la relance).
