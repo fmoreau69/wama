@@ -131,6 +131,13 @@ le RENDU RÉEL, pas la structure du code.
   de brique globale (`MediaPicker`) sur 2 apps dès la 1re exécution (relevé du 19/08), sur des
   pages utilisées tous
   les jours. `node --check` ne voit que la syntaxe, jamais une erreur au chargement.
+- ⚠⚠ **Mesurer l'ÉLÉMENT que l'utilisateur regarde, pas son CONTENEUR** (2026-10-06). Smoke de
+  Comparer dans la modale : il mesurait le calque `.wama-compare-top` (bonne boîte, rognage
+  juste) et concluait « superposition OK » — pendant que l'`<img>` DANS ce calque était bornée par
+  une règle CSS de l'hôte et s'étirait. Fabien l'a vu à l'œil le jour même. ✅ Mesurer
+  `getBoundingClientRect()` du média lui-même contre celui de la référence, à DEUX positions du
+  curseur (20 % et 80 %) : un média qui suit le curseur au lieu de rester fixe est le défaut.
+  Et lire la capture : un chiffre juste sur le mauvais nœud est une preuve fausse.
 
 
 ## Fixtures de sonde — le NOM est le filet (leçon du 2026-09-02)
