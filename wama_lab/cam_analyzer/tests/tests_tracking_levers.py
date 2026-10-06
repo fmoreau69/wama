@@ -363,3 +363,43 @@ class OffsetPitchCalibTest(SimpleTestCase):
         self.assertIn('pitch_deg=_op_p', src)
         from wama_lab.cam_analyzer import tasks
         self.assertIn("_cfg['offset_pitch']", inspect.getsource(tasks._run_global_tracking))
+
+
+class ParkedLongExposureTest(SimpleTestCase):
+    """⚑ parked_long_exposure (2026-10-06) : les fragments d'un garé, hors voies et immobiles, réunis avant
+    de juger — la position fixe et le cap se prennent sur toutes ses observations. Emprise simulée : une
+    chaussée de 7 m le long de l'axe est (y ∈ [−3,5 ; 3,5])."""
+
+    def _road(self):
+        from shapely.geometry import box
+        fp = box(-100, -3.5, 300, 3.5)
+        return fp, fp.boundary
+
+    @staticmethod
+    def _hist(e, n, t0, k=12, step=0.0):
+        return [(i, t0 + i / 12.0, e + step * i, n, 'car') for i in range(k)]
+
+    def test_only_still_fragments_off_the_road_are_candidates(self):
+        fp, edge = self._road()
+        hist = {1: self._hist(10, 6.0, 0), 2: self._hist(10, 0.0, 0),          # garé ; arrêté SUR la voie
+                3: self._hist(10, 6.0, 0, k=40, step=0.5),                     # roule hors voie (20 m)
+                4: self._hist(30, 6.0, 0)}                                     # un vélo garé
+        votes = {1: {'car': 3.0}, 2: {'car': 3.0}, 3: {'car': 3.0}, 4: {'bicycle': 1.0}}
+        cands = mt.long_exposure_candidates(hist, votes, fp, edge)
+        self.assertEqual(sorted(c[0] for c in cands), [1, 4])
+        self.assertEqual(dict((c[0], c[4]) for c in cands)[4], 'two_wheel')
+
+    def test_two_boxes_of_one_image_are_two_objects(self):
+        obs = [(5, 'left', 1, 11, 0, 0, [0, 0, 40, 30]), (5, 'left', 2, 12, 0, 0, [100, 0, 140, 30]),
+               (6, 'left', 1, 11, 0, 0, [0, 0, 40, 30]), (6, 'front', 3, 13, 0, 0, [0, 0, 40, 30])]
+        conf = mt.distinct_box_conflicts(obs, {11, 12, 13}, lambda g: g)
+        self.assertEqual(conf, {frozenset((11, 12))})          # 13 vu par une AUTRE caméra : pas un conflit
+
+    def test_declared_off_measured_and_wired_before_the_parked_decision(self):
+        f = {x.key: x for x in FEATURES}['parked_long_exposure']
+        self.assertFalse(f.default)
+        self.assertEqual(f.scope, 'compute')
+        src = inspect.getsource(mt.annotate_global_tracks)
+        self.assertIn("if _feat.get('parked_long_exposure', False) and _footprint is not None:", src)
+        self.assertLess(src.index('long_exposure_groups(_frag'), src.index('stationary_gids = []'))
+        self.assertIn("'parked_twins': parked_twins", src)

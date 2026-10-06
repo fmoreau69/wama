@@ -151,6 +151,15 @@ FEATURES = [
             "(droite) du trajet de la navette — elle semble la suivre ; les bords de l'image, là où se font "
             "les passages avant ↔ latérales, sont les plus faux. Calculs à rejouer après bascule.",
             default=False, scope='compute'),
+    Feature('parked_long_exposure', 'Garés en « pose longue »',
+            "Un garé ne bouge pas : comme un temps de pose long en photographie, il se juge sur TOUTES ses "
+            "observations. Le suivi image par image coupe un objet immobile en fragments (sorties de champ, "
+            "relais entre caméras, détections manquées) — trop brefs, ils n'étaient pas reconnus garés, ou "
+            "devenaient plusieurs garés au même endroit. Les fragments HORS VOIES qui ne roulent pas et dont "
+            "les positions coïncident (moins de 1,5 m, même famille, jamais vus ensemble par une caméra) sont "
+            "réunis avant de juger ; la position fixe et le cap se prennent sur l'ensemble. Exige ⚑ « Garés = "
+            "hors des voies ». Mesure : « garés en double » (ancres à moins de 2 m). Tracking à rejouer.",
+            default=False, scope='compute'),
     Feature('measured_lens_distortion', 'Distorsion des objectifs MESURÉE (lignes droites)',
             "La distorsion de CHAQUE caméra (les quatre) est mesurée sur ses propres images, sans mire : une "
             "arête droite du décor (bordure, marquage, façade) est droite dans une image sans distorsion ; "
