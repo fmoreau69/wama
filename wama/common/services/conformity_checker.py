@@ -1753,6 +1753,16 @@ def _tool_api_item_id(f: _AppFiles):
     line = text.count('\n', 0, m.start()) + 1
     if re.search(r"""['"]item_id['"]""", m.group(0)):
         return True, f"tool_api.py:{line} (retourne 'item_id')"
+    # Un alias qui DÉLÈGUE (`@wraps(create_image)` puis `return create_image(…)`) : depuis le
+    # 2026-10-06 (`c928fd69`) les créateurs rendent la clé EUX-MÊMES et les alias ne la recopient
+    # plus. Le critère lisait le seul corps de l'alias — rouge ×4 sur un contrat tenu.
+    delegate = re.search(r"^\s*return\s+(\w+)\(", m.group(0), re.M)
+    if delegate:
+        target = re.search(rf"^def {delegate.group(1)}\b.*?(?=^def |\Z)", text, re.S | re.M)
+        if target and re.search(r"""['"]item_id['"]""", target.group(0)):
+            target_line = text.count('\n', 0, target.start()) + 1
+            return True, (f"tool_api.py:{line} → {delegate.group(1)} (tool_api.py:{target_line}, "
+                          f"retourne 'item_id')")
     return False, f"tool_api.py:{line} — add_to_{f.app} ne retourne pas 'item_id' (studio KO)"
 
 
