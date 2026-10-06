@@ -22450,3 +22450,13 @@ nouvelles bornes (mesuré). Détail : `ROUTE §10.6`, bloc anonymizer.
   par des cards ; `--dry-run` pour compter). Avant la relance, les workers ne connaissent pas la
   tâche `common.make_playback_copy`.
 - ⚠ Rouge PRÉEXISTANT, pas à moi : `SettingsSurfacesTest` (réglages du composer).
+
+## §PALIER — 2026-10-06, « COMPARER : SUPERPOSITION ET EFFACEMENT DANS LA MODALE ET LE PLEIN ÉCRAN » — livré (`ee2799c0`, non poussé) — 🔴 recharger la page (CSS/JS communs)
+
+- Retour de Fabien : dans la modale et le plein écran, la sortie s'étirait au lieu de se
+  superposer. Le palier précédent (`9ae8d29a`) n'avait PAS réglé ça : les règles média de la
+  modale descendaient dans le calque Sortie. Correctif : le composant possède sa géométrie (l'hôte ne
+  règle que la référence), le calque vidéo porte ses contrôles, la barre des faces ne mord plus sur
+  l'image. Domicile : `ROUTE §10.6` (puce « Comparer dans la modale »).
+- Mesuré au navigateur, image ET vidéo × volet, modale, plein écran (6 cas) : superposition au
+  pixel à 20 % et 80 % du curseur, 0 erreur JS. 56 tests OK ; garde de géométrie prouvée par mutation.

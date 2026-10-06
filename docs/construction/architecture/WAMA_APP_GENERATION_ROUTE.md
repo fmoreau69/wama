@@ -4019,6 +4019,19 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       par mutation). ⚠ Un passage sur six du smoke a échoué sur l'apparition de la barre de vues
 >       du volet (card témoin « en cours » SANS tâche réelle) ; non reproduit ensuite, cause non
 >       établie.
+>       ⚠ **Ce passage n'était PAS fini — corrigé le même jour** (Fabien : « l'image de sortie
+>       s'étire et s'agrandit au lieu de se superposer »). Les règles média génériques de la
+>       modale (`max-width: 100%`, hauteur du plein écran en `!important`) descendaient dans le
+>       calque Sortie et le bornaient à la largeur ROGNÉE : le curseur redimensionnait au lieu
+>       d'effacer. Le smoke mesurait le CONTENEUR du calque, jamais le média dedans. **Règle :
+>       le composant possède sa géométrie** — l'hôte (volet, modale, plein écran) ne règle que
+>       la RÉFÉRENCE, ses règles média excluent `.wama-compare` ; le calque garde la boîte de la
+>       référence (`contain`, aucune borne d'hôte) et, en vidéo, porte aussi les contrôles qu'il
+>       couvre. Mesuré au navigateur, image ET vidéo × volet, modale, plein écran : média du
+>       calque = boîte de la référence à 20 % et 80 % du curseur, détections à la taille de la
+>       référence, barre des faces dégagée, clic des contrôles atteignant la référence. Garde
+>       `test_compare_owns_its_geometry_whatever_the_host`, sélecteur par sélecteur (prouvée par
+>       mutation). `ee2799c0`.
 >     - ✅ **Une vidéo source illisible dans WAMA depuis toujours (`SEQ08-01.mp4`, 2026-10-06)** —
 >       RÉSOLU le jour même par la COPIE DE LECTURE, décision de Fabien (créée à l'import, dossier
 >       caché de l'utilisateur) : domicile `MEDIA_STORAGE_TIERING §Ce que media/ a le droit de
