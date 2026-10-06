@@ -10,3 +10,5 @@ from .ego_rotation import (estimate_ego_rotation, ego_rotation as ego_rotation_f
                            yaw_disagreement)
 from . import known_motion_yaw  # noqa: F401  (auto-enregistre la FunctionSpec)
 from .known_motion_yaw import fit_mount_yaw  # noqa: F401
+from . import lens_distortion  # noqa: F401  (auto-enregistre la FunctionSpec)
+from .lens_distortion import plumb_line_distortion  # noqa: F401

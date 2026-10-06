@@ -1,0 +1,112 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "indicator",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Points de contours d'images d'une caméra (pixels), groupés par contour.",
+        "group": "travail",
+        "key": "contours",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "chain",
+          "u",
+          "v"
+        ]
+      }
+    ],
+    "key": "plumb_line_distortion",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "scalar",
+        "description": "Distorsion radiale k et verdict (minimum net, assez de contours).",
+        "key": "distortion",
+        "optional": false,
+        "produced_fields": [
+          "k",
+          "clear",
+          "n_chains",
+          "n_central",
+          "n_far"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 300.0,
+        "description": "Focale horizontale.",
+        "key": "fx_px",
+        "max": 10000.0,
+        "min": 10.0,
+        "type": "float",
+        "unit": "px"
+      },
+      {
+        "choices": null,
+        "default": 300.0,
+        "description": "Focale verticale.",
+        "key": "fy_px",
+        "max": 10000.0,
+        "min": 10.0,
+        "type": "float",
+        "unit": "px"
+      },
+      {
+        "choices": null,
+        "default": 384,
+        "description": "Largeur de l'image.",
+        "key": "width",
+        "max": 16384,
+        "min": 16,
+        "type": "int",
+        "unit": "px"
+      },
+      {
+        "choices": null,
+        "default": 248,
+        "description": "Hauteur de l'image.",
+        "key": "height",
+        "max": 16384,
+        "min": 16,
+        "type": "int",
+        "unit": "px"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "geometry",
+      "calibration",
+      "lens",
+      "no-ground-truth",
+      "single-camera"
+    ],
+    "visibility": "public"
+  },
+  "description": "Mesure la distorsion radiale d'une caméra SANS MIRE : une arête droite du monde est droite dans une image sans distorsion. Les contours qu'une distorsion redresse, loin du centre, la désignent ; l'écart à la droite est pris dans l'image OBSERVÉE (sans biais d'échelle). Même modèle que la projection (radial inverse, k > 0 = barillet).",
+  "key": "plumb_line_distortion",
+  "manifest_kind": "function",
+  "name": "Distorsion par les lignes droites",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:plumb_line_distortion",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}
