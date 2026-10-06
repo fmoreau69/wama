@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**189 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**190 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1213,12 +1213,13 @@ Relie une identité Matrix/Discord à un compte WAMA par code prouvé hors canal
 
 - **Domicile** : `wama/gateway/services.py` · **doc** : [docs/construction/suivi/ROADMAP.md §19](../construction/suivi/ROADMAP.md)
 - **Module** : Passerelle de canaux — appariement d'identité et résolution du compte.
-- **API publique** (6) :
+- **API publique** (7) :
   - `class PairingError(Exception)` — Refus d'appariement — le message est destiné à l'utilisateur final.
   - `request_link(channel: str, external_id: str, external_label: str='') -> ChannelLink` — Enregistre (ou renouvelle) une demande de liaison et rend la ligne portant le code.
   - `pairing_url(code: str) -> str` — URL que le QR d'appariement encode : la page de profil, code prérempli.
   - `confirm_link(user, code: str) -> ChannelLink` — Scelle la liaison au profit de `user` — appelé DEPUIS WAMA, session authentifiée.
   - `account_for(channel: str, external_id: str)` — Compte WAMA d'une identité de canal, ou None.
+  - `linked_identity(user, channel: str)` — L'identité CONFIRMÉE de ce compte sur ce canal (`external_id`), ou None. L'inverse de
   - `unlink(user, channel: str, external_id: str) -> bool` — Supprime une liaison — uniquement une des SIENNES. Rend True si quelque chose a sauté.
 
 ### Claude Code sur abonnement
@@ -1384,7 +1385,7 @@ Un worker publie plusieurs vues du même instant (`publish_partial(variant=, lab
 
 - **Domicile** : `wama/common/utils/preview_utils.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common - Preview Utilities
-- **API publique** (14) :
+- **API publique** (15) :
   - `get_or_create_anonymous_user()` — Get or create the anonymous user.
   - `publish_partial(app_name, pk, url_or_path, variant=None, label=None)` — Worker : publie l'URL (média) d'un aperçu PARTIEL courant, servi par `?side=during`.
   - `class PartialFrames` — L'aperçu « pendant » en IMAGES d'une vidéo en cours de traitement : une frame (ou
@@ -1394,6 +1395,7 @@ Un worker publie plusieurs vues du même instant (`publish_partial(variant=, lab
   - `get_partial_text(app_name, pk)` — Lecture du texte partiel (endpoints de progression des apps + `?side=during`).
   - `clear_partial(app_name, pk)` — Worker : retire l'aperçu partiel (fin de traitement — la face SORTIE prend le relais).
   - `unified_preview(request, app_name: str, pk: int)` — Unified preview endpoint for any registered app.
+  - `with_playback_copy(data, request)` — Une vidéo que le navigateur ne lit pas est servie par sa COPIE DE LECTURE quand elle
   - `register_app_preview(app_name: str, model_class, file_field: str='input_file', user_field: str='user', duration_field: str=None, width_field: str=None, height_…` — Convenience function to register an app with common field patterns.
   - `anonymizer_preview_adapter(media, request)` — Custom adapter for Anonymizer Media model.
   - `anonymizer_detection_face(media, request)` — Face « Détection » de l'anonymizer (2026-10-05, demande de Fabien) : le média d'ENTRÉE et,
@@ -1814,18 +1816,19 @@ Une règle unique pour les 8 apps à liaison PRÉCOCE, en deux familles : entré
 
 ### Notifications
 
-notify_job() — fin de traitement par e-mail, succès comme échec ; notify_in_app() — DANS WAMA (badge de l'en-tête, page /common/notifications/, lu / non lu) ; notify_admins() — les deux canaux vers les administrateurs (mort d'un worker)
+notify_job_end() — LA fin d'un traitement (squelette de tâche) : e-mail (notify_job) et notification DANS WAMA au propriétaire selon ses préférences, puis aux collaborateurs ; la notification DÉSIGNE son élément (app + type + id), ce que relève la passerelle pour poster la fin dans le fil d'origine (2026-10-06) ; notify_in_app() — DANS WAMA (badge de l'en-tête, page /common/notifications/, lu / non lu) ; notify_admins() — les deux canaux vers les administrateurs (mort d'un worker)
 
 - **Domicile** : `wama/common/utils/notifications.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md](../construction/exploitation/WAMA_COLLABORATION.md)
 - **Module** : Notifications utilisateur (email) — brique commune, métadonnée/préférence-driven.
-- **API publique** (8) :
+- **API publique** (9) :
   - `notify_emails(recipients, subject, body, html=None)` — Envoie un email à une liste d'ADRESSES (pas forcément des Users) — ex. modérateurs.
   - `notify_user(user, subject, body, html=None)` — Envoie un email à l'utilisateur si une adresse est disponible. Fail-safe (jamais d'exception).
-  - `notify_in_app(users, kind, title, body='', url='')` — Crée une notification DANS WAMA pour chaque utilisateur (`common.Notification`, badge de
+  - `notify_in_app(users, kind, title, body='', url='', *, app='', item=None)` — Crée une notification DANS WAMA pour chaque utilisateur (`common.Notification`, badge de
   - `infrastructure_admins()` — Les comptes qui administrent l'infrastructure : ceux que la politique d'accès laisse
   - `staff_emails(audiences=('admin', 'dev'))` — Adresses d'envoi pour une ou plusieurs audiences du staff : l'adresse FONCTIONNELLE
   - `notify_admins(kind, subject, body, url='', audiences=('admin', 'dev'))` — Prévient le staff technique DANS WAMA (chaque compte qui administre l'infrastructure) et
-  - `notify_job_collaborators(item, app_label, item_name, success, detail='')` — La fin d'un traitement, aussi pour ceux qui COLLABORENT sur l'élément (E3, décision de
+  - `notify_job_collaborators(item, app_label, item_name, success, detail='', app_id='')` — La fin d'un traitement, aussi pour ceux qui COLLABORENT sur l'élément (E3, décision de
+  - `notify_job_end(item, app_id, app_label, item_name, success, detail='')` — LA fin d'un traitement — le point unique des tâches (squelette commun, signal de l'imager).
   - `notify_job(user, app_label, item_name, success, detail='', url='')` — Notifie la fin (ou l'échec) d'un traitement, en respectant les préférences du profil.
 
 ### Ordre MANUEL de la file
@@ -2060,7 +2063,7 @@ Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivi
 
 ### Preview unifiée
 
-Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement (2026-09-13, §17ter trou 2). Une app DÉCLARE ses faces d'aperçu entre Entrée et Sortie (`register(faces=)`, l'anonymizer : « Détection », le document `detections` dessiné sur l'entrée par `WamaPreviewOverlay`) ; une face `compare_base` est la référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05). La modale porte les mêmes faces d'où qu'on l'ouvre (volet, vignette de card), suit la face PENDANT en direct avec ses vues, et son PLEIN ÉCRAN est elle-même agrandie (la surcouche image seule ne sert plus qu'aux galeries sans élément)
+Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement (2026-09-13, §17ter trou 2). Une app DÉCLARE ses faces d'aperçu entre Entrée et Sortie (`register(faces=)`, l'anonymizer : « Détection », le document `detections` dessiné sur l'entrée par `WamaPreviewOverlay`) ; une face `compare_base` est la référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05). La modale porte les mêmes faces d'où qu'on l'ouvre (volet, vignette de card), suit la face PENDANT en direct avec ses vues — par le MÊME suiveur que le volet (`WamaInspector.followDuring`) —, et son PLEIN ÉCRAN est elle-même agrandie (la surcouche image seule ne sert plus qu'aux galeries sans élément)
 
 - **Domicile** : `wama/common/utils/preview_registry.py`
 - **Module** : WAMA Common - Preview Registry
@@ -2341,6 +2344,28 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_me
   - `upload_to_user_input(app_name: str)` — Convenience function to create an UploadToUserPath for input folder.
   - `upload_to_user_output(app_name: str)` — Convenience function to create an UploadToUserPath for output folder.
   - `migrate_file_to_user_path(old_path: Union[str, Path], app_name: str, user_id: Union[int, str], subfolder: str='input', move: bool=True) -> Optional[str]` — Migrate a file from old location to new user-specific location.
+
+### Copie de lecture des vidéos
+
+Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil H.264, pixels — pas le seul nom du codec) reçoit, DÈS SON IMPORT et quelle que soit la voie, une copie de lecture H.264 servie par l'aperçu SEULEMENT ; l'original reste intact pour les traitements (2026-10-06, décision de Fabien). Rangée dans le dossier CACHÉ de l'utilisateur (`users/<id>/.preview/`), jamais à côté de l'original ni dans un dossier connecté ; balayée quand l'original part ; ni orpheline pour l'intégrité, ni dédupliquée, ni sauvegardée. Récepteur générique sur les champs fichier, tâche `common.make_playback_copy` (CPU), rattrapage `manage.py playback_copies`
+
+- **Domicile** : `wama/common/utils/video_compat.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
+- **Module** : Browser-compatibility helpers for video files.
+- **API publique** (14) :
+  - `get_video_codec(file_path: str, *, timeout: int=10) -> Optional[str]` — Return the codec name of the first video stream, lowercased
+  - `is_browser_compatible_codec(codec: Optional[str]) -> bool` — True when the codec is one HTML5 ``<video>`` can play directly.
+  - `ensure_h264(file_path: str, *, timeout: int=1800) -> Union[bool, str]` — Ensure a video is browser-compatible. When the codec is already in
+  - `probe_video(file_path: str, *, timeout: int=20) -> Optional[dict]` — `{container, codec, profile, pix_fmt}` du premier flux vidéo, ou None (pas de vidéo,
+  - `playability(info: Optional[dict]) -> tuple` — `(lisible, raison)` d'une vidéo décrite par `probe_video` — pure. HEVC n'est pas compté
+  - `playback_copy_rel(rel: str) -> str` — Le chemin (relatif à MEDIA_ROOT) de la copie de lecture d'un média — pure. Sous
+  - `playback_copy_for(rel: str) -> str` — La copie de lecture À JOUR d'un média (chemin relatif), ou '' — plus ancienne que
+  - `make_playback_copy(rel: str, *, timeout: int=3600) -> str` — Crée la copie de lecture d'un média si le navigateur ne le lit pas — idempotent. Rend le
+  - `drop_playback_copy(rel: str) -> bool` — Retire la copie de lecture d'un média (l'original part). Ne lève jamais.
+  - `original_of_copy(copy_rel: str) -> str` — L'original (chemin relatif) d'une copie de lecture — l'inverse de `playback_copy_rel`.
+  - `sweep_orphan_playback_copies(dry_run: bool=False) -> dict` — Retire les copies de lecture dont l'original n'existe plus — quel que soit le geste qui
+  - `schedule_playback_copy(rel: str) -> bool` — Met en file la copie de lecture d'un média vidéo, UNE fois par version du fichier (chemin,
+  - `backfill_playback_copies(dry_run: bool=False) -> dict` — Le RATTRAPAGE : les vidéos que des cards portaient AVANT le récepteur (aucun import ne
+  - `register_playback_copy_receivers()` — Branche le récepteur sur tout modèle à champ fichier (le recensement COMMUN,
 
 ### Décodage audio robuste
 
@@ -2873,7 +2898,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (89) :
+- **API publique** (91) :
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
   - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
   - `start_anonymizer(user, media_id: int=None) -> dict` — Trigger Celery processing for a specific media item or all pending items.
@@ -2943,6 +2968,8 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `list_my_memories(user, kind: str='', limite: int=25) -> dict` — List what WAMA remembers for this user — facts, events and procedures it has kept.
   - `tool_role(tool_name)` — Rôle d'un outil dans la triade : 'add' | 'start' | 'status', sinon None.
   - `app_id_for_tool(tool_name)` — app_id gardé correspondant à un outil, ou None si l'outil est transverse.
+  - `tool_family(tool_name)` — La FAMILLE d'un outil : la clé d'adapter de détail (`DetailRegistry`) des éléments qu'il
+  - `items_of_step(tool_name, args, result) -> list` — Les éléments qu'un appel d'outil a CRÉÉS ou LANCÉS, en `(famille, id)` — lus au CONTRAT
   - `tool_descriptions()` — Descriptions de TOUS les outils du registre, dérivées à la volée.
   - `tool_input_schema(tool_name: str) -> dict` — Schéma JSON (`type: object`) des arguments d'un outil du registre — DÉRIVÉ, jamais écrit.
   - `input_schema_for(fn, index=None) -> dict` — Schéma JSON des arguments d'une FONCTION d'outil : signature, complétée par le schéma

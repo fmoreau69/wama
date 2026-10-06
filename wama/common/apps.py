@@ -112,6 +112,17 @@ class CommonConfig(AppConfig):
             logging.getLogger(__name__).debug(
                 'Récepteurs prompt_ingest non enregistrés', exc_info=True)
 
+        # COPIE DE LECTURE (2026-10-06, décision de Fabien) : toute vidéo qu'une card porte et
+        # que le navigateur ne lit pas en reçoit une dès son import, quelle que soit la voie.
+        # Même forme que ci-dessus : un récepteur générique, aucune app n'écrit rien.
+        try:
+            from wama.common.utils.video_compat import register_playback_copy_receivers
+            register_playback_copy_receivers()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).debug(
+                'Récepteurs de copie de lecture non enregistrés', exc_info=True)
+
         # Registres catalogués : l'import DÉCLARE, il n'actualise rien (voir `registries.py`).
         # C'est ce qui donne aux pages catalogue leur bouton sans une ligne d'UI par page.
         try:

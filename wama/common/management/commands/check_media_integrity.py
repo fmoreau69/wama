@@ -79,6 +79,10 @@ EMPLACEMENTS_LEGITIMES = (
     ("médiathèque COMMUNE — `SystemAsset` : asset générique partagé, géré par les admins, "
      "sans propriétaire (c'est ce qui le distingue d'un `UserAsset`, rangé chez l'utilisateur)",
      re.compile(r'^media_library/system/.*$')),
+    # COPIES DE LECTURE (2026-10-06, `video_compat`) : chez l'utilisateur elles relèvent du
+    # premier motif ; celle d'un asset système vit sous `.preview/` à la racine.
+    ("copie de lecture d'un média hors de l'arbre d'un utilisateur (asset système)",
+     re.compile(r'^\.preview/.*$')),
 )
 
 
@@ -114,9 +118,13 @@ BUDGET_TEST_RESIDUE = 0
 def measure(root: Path) -> dict:
     """Les comptes de l'audit, sans rien afficher — lus par la commande ET par le contrôle
     nocturne (une seule mesure, deux lecteurs)."""
+    from wama.common.utils.video_compat import original_of_copy
     refs = _references_vives()
-    sur_disque = [str(p.relative_to(root)).replace('\\', '/')
-                  for p in root.rglob('*') if p.is_file()]
+    # Une copie de LECTURE n'est désignée par aucune card : elle DÉRIVE de son original (servie
+    # par l'aperçu, refaite à la demande, balayée quand l'original part) — jamais un orphelin.
+    sur_disque = [rel for rel in (str(p.relative_to(root)).replace('\\', '/')
+                                  for p in root.rglob('*') if p.is_file())
+                  if not original_of_copy(rel)]
     references, orphelins, egares = [], [], []
     residus = defaultdict(list)
     for rel in sur_disque:

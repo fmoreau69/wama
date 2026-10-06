@@ -798,6 +798,9 @@ if ENABLE_CELERY:
         # générique, appelable pour n'importe quel registre présent ou futur, ne doit pas
         # dépendre d'un défaut pour rester hors de la file GPU.
         'common.refresh_registry': {'queue': 'default'},
+        # Copie de LECTURE d'une vidéo illisible par le navigateur (ffmpeg, CPU) : jamais la file
+        # GPU, où elle attendrait derrière un traitement (2026-10-06).
+        'common.make_playback_copy': {'queue': 'default'},
         # Passe LLM de la prospection : GPU (Ollama hôte = même carte) en --pool=solo →
         # SÉRIALISÉE derrière tout traitement utilisateur, jamais en concurrence (2026-08-19).
         'model_manager.assess_proposed': {'queue': 'gpu', 'priority': _prio('_prospect_assess')},

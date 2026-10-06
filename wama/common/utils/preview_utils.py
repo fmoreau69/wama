@@ -477,11 +477,38 @@ def unified_preview(request, app_name: str, pk: int):
         else:
             data = {'error': "Aucun aperçu disponible pour cet élément", 'side': side}
         _add_server_peaks(data)
+        with_playback_copy(data, request)
         data['sides'] = sides
         return JsonResponse(data)
     except Exception as e:
         logger.error(f"Error generating preview for {app_name}/{pk}: {e}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+def with_playback_copy(data, request):
+    """Une vidéo que le navigateur ne lit pas est servie par sa COPIE DE LECTURE quand elle
+    existe et est à jour (`video_compat`, 2026-10-06) — pour toute face, comparaison comprise.
+    L'original n'est ni lu ni touché ici ; le téléchargement le sert toujours. Sans copie : rien
+    ne change. Ne lève jamais : un aperçu ne casse pas pour une copie."""
+    try:
+        url = data.get('url') or ''
+        if not url or not str(data.get('mime_type') or '').startswith('video/'):
+            return data
+        from urllib.parse import quote, unquote, urlparse
+        from django.conf import settings
+        from wama.common.utils.video_compat import playback_copy_for
+        path = urlparse(url).path
+        media_url = settings.MEDIA_URL if settings.MEDIA_URL.startswith('/') else '/' + settings.MEDIA_URL
+        if not path.startswith(media_url):
+            return data
+        copy = playback_copy_for(unquote(path[len(media_url):]))
+        if copy:
+            data['url'] = request.build_absolute_uri(media_url + quote(copy))
+            data['mime_type'] = 'video/mp4'
+            data['playback_copy'] = True
+    except Exception as exc:
+        logger.debug(f"copie de lecture ignorée : {exc}")
+    return data
 
 
 def register_app_preview(app_name: str, model_class, file_field: str = 'input_file',

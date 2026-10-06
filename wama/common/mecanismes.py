@@ -2023,6 +2023,20 @@ MECHANISMS = (
     Mechanism('video_utils', 'Utilitaires vidéo',
               "Extraction audio des vidéos + téléchargement YouTube/yt-dlp",
               'wama/common/utils/video_utils.py', ''),
+    Mechanism('playback_copy', 'Copie de lecture des vidéos',
+              "Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil "
+              "H.264, pixels — pas le seul nom du codec) reçoit, DÈS SON IMPORT et quelle que soit "
+              "la voie, une copie de lecture H.264 servie par l'aperçu SEULEMENT ; l'original "
+              "reste intact pour les traitements (2026-10-06, décision de Fabien). Rangée dans le "
+              "dossier CACHÉ de l'utilisateur (`users/<id>/.preview/`), jamais à côté de "
+              "l'original ni dans un dossier connecté ; balayée quand l'original part ; ni "
+              "orpheline pour l'intégrité, ni dédupliquée, ni sauvegardée. Récepteur générique sur "
+              "les champs fichier, tâche `common.make_playback_copy` (CPU), rattrapage "
+              "`manage.py playback_copies`",
+              'wama/common/utils/video_compat.py',
+              'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
+              annexes=('wama/common/utils/preview_utils.py',
+                       'wama/common/management/commands/playback_copies.py')),
     Mechanism('media_paths', 'Chemins média',
               "Emplacements canoniques des entrées/sorties par app et par utilisateur "
               "(`app_media_dir` : `users/<uid>/<app>/input|output`). ⭐ Depuis le 2026-09-23 la "
@@ -2174,7 +2188,6 @@ ASSUMED_LOCAL = {
     # Triage du 2026-08-13 (les 3 dernières entrées du backlog) — aucun n'était mort, mes
     # « 0 apps » ne comptaient pas wama_lab :
     'wama/common/utils/intervals.py': "algèbre d'intervalles — cam_analyzer (coverage) seul consommateur",
-    'wama/common/utils/video_compat.py': "compat lecteur navigateur (ensure_h264) — cam_analyzer seul ; promouvoir si adoption",
     'wama/common/utils/whisper_utils.py': "adaptateur describer → backend Whisper du transcriber (UNIFIÉ 13/08 : plus de double chemin de chargement) ; consommé par le describer seul",
     # 2026-08-27 : la page du registre `skills`. Le service ne porte AUCUN mécanisme propre — il
     # dérive `prompt_skills/*.md` × PROMPT_TARGETS × DOMAINES pour un seul gabarit. Les mécanismes

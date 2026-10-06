@@ -4019,8 +4019,10 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       par mutation). ⚠ Un passage sur six du smoke a échoué sur l'apparition de la barre de vues
 >       du volet (card témoin « en cours » SANS tâche réelle) ; non reproduit ensuite, cause non
 >       établie.
->     - ⏳ **Une vidéo source illisible dans WAMA depuis toujours (`SEQ08-01.mp4`, constat du
->       2026-10-06, décision de Fabien attendue)** — mesuré à `ffprobe` : conteneur **AVI** sous
+>     - ✅ **Une vidéo source illisible dans WAMA depuis toujours (`SEQ08-01.mp4`, 2026-10-06)** —
+>       RÉSOLU le jour même par la COPIE DE LECTURE, décision de Fabien (créée à l'import, dossier
+>       caché de l'utilisateur) : domicile `MEDIA_STORAGE_TIERING §Ce que media/ a le droit de
+>       contenir`, mécanisme `playback_copy`. Le constat d'origine : conteneur **AVI** sous
 >       une extension `.mp4`, H.264 profil **High 4:4:4 Predictive** (65 Mb/s, quasi sans perte).
 >       Deux obstacles indépendants : aucun navigateur ne lit l'AVI, Chrome ne décode pas ce
 >       profil — remuxer sans réencoder ne suffit pas. Les sorties de WAMA, elles, se lisent (H.264

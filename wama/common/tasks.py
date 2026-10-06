@@ -98,6 +98,16 @@ def enrich_prompt_at_ingest_task(app_label, model_name, pk):
     return {'enriched': done}
 
 
+@shared_task(name='common.make_playback_copy')
+def make_playback_copy_task(rel):
+    """Copie de LECTURE d'une vidéo que le navigateur ne lit pas (`video_compat`, 2026-10-06) —
+    l'original reste intact pour les traitements. Mise en file par le récepteur générique à
+    l'import ; CPU seul (ffmpeg), jamais la file GPU. Idempotente : une copie à jour n'est pas
+    refaite, une vidéo lisible n'en reçoit pas."""
+    from wama.common.utils.video_compat import make_playback_copy
+    return make_playback_copy(rel)
+
+
 @shared_task(name='common.refresh_registry')
 def refresh_registry(key: str):
     """Actualise UN registre catalogué, hors du processus web.
@@ -217,6 +227,13 @@ def purge_expired_media_task(dry_run=False):
         res['temp'] = purge_expired_temp(dry_run=dry_run)
     except Exception as e:  # pragma: no cover
         logger.warning("purge du dossier temporaire a échoué : %s", e)
+    # COPIES DE LECTURE orphelines (2026-10-06) : l'original parti par n'importe quel geste, sa
+    # copie ne sert plus — elle n'était déjà plus servie, on rend la place.
+    try:
+        from wama.common.utils.video_compat import sweep_orphan_playback_copies
+        res['playback_copies'] = sweep_orphan_playback_copies(dry_run=dry_run)
+    except Exception as e:  # pragma: no cover
+        logger.warning("balayage des copies de lecture a échoué : %s", e)
     # Fichiers INUTILISÉS (2026-10-01, décisions de Fabien) : rétention FINIE → ceux qui ont passé
     # leur terme ET ont été annoncés sont supprimés (puis l'utilisateur reçoit la liste) ; ensuite
     # UNE notification par utilisateur pour les nouveaux (« bientôt supprimés » si rétention finie,
