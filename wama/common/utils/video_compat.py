@@ -69,6 +69,35 @@ def is_browser_compatible_codec(codec: Optional[str]) -> bool:
     return bool(codec) and codec.lower() in BROWSER_COMPATIBLE_CODECS
 
 
+def _transcode(source: str, target: str, args: list, *, timeout: int) -> bool:
+    """Réencode `source` vers `target` avec les options ffmpeg `args`, par un fichier temporaire
+    voisin qui ne remplace `target` qu'une fois complet — un échec ne laisse ni demi-fichier ni
+    `target` abîmé. Rend True si `target` est écrit. Partagé par `ensure_h264` et la copie de
+    lecture : chacun garde SA recette, le geste d'écriture n'existe qu'une fois."""
+    tmp = target + '.tmp.mp4'
+    try:
+        from wama.common.utils.ffmpeg_utils import adapt_path_for_ffmpeg, get_ffmpeg_exe
+        ffmpeg = get_ffmpeg_exe()
+        proc = subprocess.run(
+            [ffmpeg, '-y', '-v', 'error', '-i', adapt_path_for_ffmpeg(source, ffmpeg), *args,
+             adapt_path_for_ffmpeg(tmp, ffmpeg)],
+            capture_output=True, text=True, timeout=timeout)
+        ok = proc.returncode == 0 and os.path.isfile(tmp)
+        if not ok:
+            logger.error(f"ffmpeg re-encode failed for {source}: {(proc.stderr or '')[-500:]}")
+    except Exception as exc:
+        logger.warning(f"ffmpeg invocation failed for {source}: {exc}")
+        ok = False
+    if not ok:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return False
+    os.replace(tmp, target)
+    return True
+
+
 def ensure_h264(file_path: str, *, timeout: int = 1800) -> Union[bool, str]:
     """
     Ensure a video is browser-compatible. When the codec is already in
@@ -104,40 +133,11 @@ def ensure_h264(file_path: str, *, timeout: int = 1800) -> Union[bool, str]:
         f"{file_path} → {target_path}"
     )
 
-    tmp_path = target_path + '.h264.tmp.mp4'
-    try:
-        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
-        _ff = get_ffmpeg_exe()
-        proc = subprocess.run(
-            [_ff, '-i', adapt_path_for_ffmpeg(file_path, _ff),
-             '-c:v', 'libx264', '-preset', 'fast', '-crf', '18',
-             '-pix_fmt', 'yuv420p', '-c:a', 'copy',
-             '-movflags', '+faststart',
-             adapt_path_for_ffmpeg(tmp_path, _ff), '-y'],
-            capture_output=True, text=True, timeout=timeout,
-        )
-    except FileNotFoundError:
-        logger.warning("ffmpeg not found — skipping re-encode")
+    if not _transcode(file_path, target_path,
+                      ['-c:v', 'libx264', '-preset', 'fast', '-crf', '18',
+                       '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-movflags', '+faststart'],
+                      timeout=timeout):
         return False
-    except Exception as exc:
-        logger.warning(f"ffmpeg invocation failed: {exc}")
-        if os.path.exists(tmp_path):
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
-        return False
-
-    if proc.returncode != 0:
-        logger.error(f"ffmpeg re-encode failed: {(proc.stderr or '')[-500:]}")
-        if os.path.exists(tmp_path):
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
-        return False
-
-    os.replace(tmp_path, target_path)
 
     # If the extension changed, drop the legacy file.
     if target_path != file_path and os.path.exists(file_path):
@@ -174,34 +174,10 @@ BROWSER_PIX_FMTS: frozenset[str] = frozenset({'yuv420p', 'yuvj420p'})
 PLAYBACK_DIR = '.preview'
 
 
-def probe_video(file_path: str, *, timeout: int = 20) -> Optional[dict]:
-    """`{container, codec, profile, pix_fmt}` du premier flux vidéo, ou None (pas de vidéo,
-    ffprobe absent, fichier illisible). Le conteneur est celui que LIT ffprobe, pas l'extension."""
-    import json
-    try:
-        from wama.common.utils.ffmpeg_utils import adapt_path_for_ffmpeg, get_ffprobe_exe
-        probe = get_ffprobe_exe()
-        result = subprocess.run(
-            [probe, '-v', 'error', '-select_streams', 'v:0',
-             '-show_entries', 'format=format_name:stream=codec_name,profile,pix_fmt',
-             '-of', 'json', adapt_path_for_ffmpeg(file_path, probe)],
-            capture_output=True, text=True, timeout=timeout)
-        data = json.loads(result.stdout or '{}')
-    except Exception as exc:
-        logger.warning(f"probe_video failed for {file_path}: {exc}")
-        return None
-    streams = data.get('streams') or []
-    if not streams:
-        return None
-    stream = streams[0]
-    return {'container': (data.get('format') or {}).get('format_name', '').lower(),
-            'codec': (stream.get('codec_name') or '').lower(),
-            'profile': (stream.get('profile') or '').lower(),
-            'pix_fmt': (stream.get('pix_fmt') or '').lower()}
-
-
 def playability(info: Optional[dict]) -> tuple:
-    """`(lisible, raison)` d'une vidéo décrite par `probe_video` — pure. HEVC n'est pas compté
+    """`(lisible, raison)` d'une vidéo décrite par la sonde COMMUNE (`media_probe.
+    probe_video_format` — elle vivait ici sous le nom `probe_video` jusqu'au 2026-10-06, homonyme
+    de la sonde d'affichage : revérification « rien réinventé ») — pure. HEVC n'est pas compté
     lisible : Chrome ne le lit qu'avec un décodeur matériel, que le serveur ne peut pas savoir."""
     if not info:
         return False, 'aucun flux vidéo lisible'
@@ -254,33 +230,18 @@ def make_playback_copy(rel: str, *, timeout: int = 3600) -> str:
     source = _absolute(rel)
     if not os.path.isfile(source):
         return ''
-    playable, reason = playability(probe_video(source))
+    from wama.common.utils.media_probe import probe_video_format
+    playable, reason = playability(probe_video_format(source))
     if playable:
         return ''
     copy = playback_copy_rel(rel)
     target = _absolute(copy)
     os.makedirs(os.path.dirname(target), exist_ok=True)
-    tmp = target + '.tmp.mp4'
-    try:
-        from wama.common.utils.ffmpeg_utils import adapt_path_for_ffmpeg, get_ffmpeg_exe
-        ffmpeg = get_ffmpeg_exe()
-        proc = subprocess.run(
-            [ffmpeg, '-y', '-v', 'error', '-i', adapt_path_for_ffmpeg(source, ffmpeg),
-             '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast',
-             '-crf', '20', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-c:a', 'aac',
-             '-b:a', '160k', '-movflags', '+faststart', adapt_path_for_ffmpeg(tmp, ffmpeg)],
-            capture_output=True, text=True, timeout=timeout)
-    except Exception as exc:
-        logger.warning(f"[lecture] copie impossible pour {rel} : {exc}")
-        if os.path.exists(tmp):
-            os.remove(tmp)
+    if not _transcode(source, target,
+                      ['-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast',
+                       '-crf', '20', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-c:a', 'aac',
+                       '-b:a', '160k', '-movflags', '+faststart'], timeout=timeout):
         return ''
-    if proc.returncode != 0 or not os.path.isfile(tmp):
-        logger.error(f"[lecture] ffmpeg a échoué pour {rel} : {(proc.stderr or '')[-400:]}")
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        return ''
-    os.replace(tmp, target)
     logger.info(f"[lecture] copie de lecture de {rel} ({reason}) → {copy}")
     return copy
 

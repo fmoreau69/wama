@@ -3968,6 +3968,12 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       (garde `BlurShapeTest`). ⚠ Le protocole du 19/08 prévoyait une bascule
 >       `feature_flags` : `Media` n'a pas de champ de configuration, le retour arrière est un
 >       `git revert` ; la comparaison chiffrée, elle, est faite. Retraits : `REMOVAL_LEDGER` R103.
+>       ⚠ **Revérification du 2026-10-06 (« rien réinventé ? »)** : `blur_shapes` refaisait trois
+>       gestes des détections — rectangle englobant, mise à l'échelle autour du centre, dessin du
+>       masque. Il les PREND désormais : `Bounds.scale` (non borné à l'image, `shape=None` : la
+>       forme garde ses proportions), `detections.fit_polygons` (le SEUL transport d'une forme
+>       d'un rectangle à un autre, que `_moved_polygons` prend aussi), `polygons_to_mask`.
+>       Gardes `BlurShapeTest` (dont la forme agrandie au bord de l'image), mutations prouvées.
 >     - ✅ **La modale d'aperçu et son plein écran (2026-10-06, demande de Fabien : « mettre la
 >       during_preview en plein écran », puis « la modale et le plein écran avec entrée,
 >       détection, comparaison, sortie »)** — brique COMMUNE (`media-preview.js`), toute app.

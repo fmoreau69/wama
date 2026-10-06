@@ -106,15 +106,24 @@ def _versioned(url):
 CLIENT_DECODE_LIMIT_BYTES = 30 * 1024 * 1024
 
 
-def _local_media_path(url):
-    """Chemin disque d'une URL de MEDIA (absolue ou non, `?v=` toléré), ou None."""
+def _media_rel(url):
+    """Chemin RELATIF à MEDIA_ROOT d'une URL de MEDIA (absolue ou non, `?v=` toléré), ou None."""
     from urllib.parse import unquote, urlparse
     from django.conf import settings
     media_url = settings.MEDIA_URL or '/media/'
     path = urlparse(str(url or '')).path
     if not path.startswith(media_url):
         return None
-    local = os.path.join(str(settings.MEDIA_ROOT), unquote(path[len(media_url):]))
+    return unquote(path[len(media_url):])
+
+
+def _local_media_path(url):
+    """Chemin disque d'une URL de MEDIA (absolue ou non, `?v=` toléré), ou None."""
+    from django.conf import settings
+    rel = _media_rel(url)
+    if rel is None:
+        return None
+    local = os.path.join(str(settings.MEDIA_ROOT), rel)
     return local if os.path.isfile(local) else None
 
 
@@ -491,19 +500,21 @@ def with_playback_copy(data, request):
     L'original n'est ni lu ni touché ici ; le téléchargement le sert toujours. Sans copie : rien
     ne change. Ne lève jamais : un aperçu ne casse pas pour une copie."""
     try:
-        url = data.get('url') or ''
-        if not url or not str(data.get('mime_type') or '').startswith('video/'):
+        if not str(data.get('mime_type') or '').startswith('video/'):
             return data
-        from urllib.parse import quote, unquote, urlparse
+        rel = _media_rel(data.get('url'))
+        if not rel:
+            return data
+        from urllib.parse import quote
         from django.conf import settings
         from wama.common.utils.video_compat import playback_copy_for
-        path = urlparse(url).path
-        media_url = settings.MEDIA_URL if settings.MEDIA_URL.startswith('/') else '/' + settings.MEDIA_URL
-        if not path.startswith(media_url):
-            return data
-        copy = playback_copy_for(unquote(path[len(media_url):]))
+        copy = playback_copy_for(rel)
         if copy:
-            data['url'] = request.build_absolute_uri(media_url + quote(copy))
+            # Daté comme toute URL de média de l'aperçu (`_versioned`) : une copie REFAITE après
+            # le remplacement de l'original garde son nom, le navigateur ne doit pas resservir
+            # l'ancienne de son cache.
+            media_url = settings.MEDIA_URL or '/media/'
+            data['url'] = request.build_absolute_uri(_versioned(media_url + quote(copy)))
             data['mime_type'] = 'video/mp4'
             data['playback_copy'] = True
     except Exception as exc:

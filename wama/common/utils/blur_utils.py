@@ -12,33 +12,33 @@ Elles vivaient dans `wama/anonymizer/core/`, ce qui attachait deux backends à l
 bloquait leur passage au substrat transversal. Aucune dépendance Django, aucune dépendance
 d'app : `cv2`, `numpy`, et la géométrie de `bounds`.
 """
-from math import sqrt
-
 import cv2
 import numpy as np
 from .bounds import Bounds
 
 
-def _shape_alpha(polygons, shape, *, scale, grow, feather, margin):
+def _shape_alpha(polygons, shape, *, enlargement, grow, feather, margin):
     """(x0, y0, alpha) d'UNE forme : sa couverture (0 → 1) dans sa boîte élargie de `margin`,
-    agrandissement, élargissement et fondu extérieur compris ; None si elle est vide."""
-    parts = [np.asarray(p, dtype=np.float32).reshape(-1, 2) for p in polygons or [] if len(p) >= 3]
-    if not parts:
+    agrandissement, élargissement et fondu extérieur compris ; None si elle est vide.
+    L'agrandissement est celui d'un rectangle (`Bounds.scale`, non borné à l'image : la forme
+    garde ses proportions au bord), la forme y est portée par `detections.fit_polygons` et
+    dessinée par `detections.polygons_to_mask` — les gestes communs des détections."""
+    from .detections import box_of_polygons, fit_polygons, polygons_to_mask
+    polygons = [p for p in polygons or [] if len(p) >= 3]
+    if not polygons:
         return None
     height, width = shape[:2]
-    points = np.concatenate(parts)
-    centre = (points.min(axis=0) + points.max(axis=0)) / 2
-    parts = [(s - centre) * scale + centre for s in parts]
-    points = np.concatenate(parts)
-    x0 = max(0, int(np.floor(points[:, 0].min())) - margin)
-    y0 = max(0, int(np.floor(points[:, 1].min())) - margin)
-    x1 = min(width, int(np.ceil(points[:, 0].max())) + margin + 1)
-    y1 = min(height, int(np.ceil(points[:, 1].max())) + margin + 1)
+    box = box_of_polygons(polygons)
+    scaled = Bounds(*box).scale(None, enlargement)
+    polygons = fit_polygons(polygons, box, [scaled.x_min, scaled.y_min, scaled.x_max, scaled.y_max])
+    x0 = max(0, scaled.x_min - margin)
+    y0 = max(0, scaled.y_min - margin)
+    x1 = min(width, scaled.x_max + margin + 1)
+    y1 = min(height, scaled.y_max + margin + 1)
     if x1 <= x0 or y1 <= y0:
         return None
-    mask = np.zeros((y1 - y0, x1 - x0), dtype=np.uint8)
-    cv2.fillPoly(mask, [np.round(s - (x0, y0)).astype(np.int32).reshape(-1, 1, 2) for s in parts],
-                 255)
+    mask = polygons_to_mask([[[x - x0, y - y0] for x, y in polygon] for polygon in polygons],
+                            (y1 - y0, x1 - x0))
     if not mask.any():
         return None
     if grow:
@@ -73,7 +73,7 @@ def blur_shapes(im0, shapes, *, blur_ratio, rounded_edges=0, progressive_blur=0,
     feather = max(0, int(progressive_blur or 0))
     if feather and feather % 2 == 0:
         feather += 1
-    options = dict(scale=sqrt(max(float(roi_enlargement or 1.0), 1e-6)), grow=grow,
+    options = dict(enlargement=max(float(roi_enlargement or 1.0), 1e-6), grow=grow,
                    feather=feather, margin=blur_ratio // 2 + grow + feather + 2)
     pieces = [piece for piece in (_shape_alpha(polygons, im0.shape, **options)
                                   for polygons in shapes or []) if piece]

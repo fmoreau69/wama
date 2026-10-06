@@ -2033,10 +2033,12 @@ MECHANISMS = (
               "l'original ni dans un dossier connecté ; balayée quand l'original part ; ni "
               "orpheline pour l'intégrité, ni dédupliquée, ni sauvegardée. Récepteur générique sur "
               "les champs fichier, tâche `common.make_playback_copy` (CPU), rattrapage "
-              "`manage.py playback_copies`",
+              "`manage.py playback_copies`. Le verdict lit la sonde COMMUNE "
+              "(`media_probe.probe_video_format`) ; l'écriture partage le geste de `ensure_h264`",
               'wama/common/utils/video_compat.py',
               'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
               annexes=('wama/common/utils/preview_utils.py',
+                       'wama/common/utils/media_probe.py',
                        'wama/common/management/commands/playback_copies.py')),
     Mechanism('media_paths', 'Chemins média',
               "Emplacements canoniques des entrées/sorties par app et par utilisateur "
