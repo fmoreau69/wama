@@ -88,6 +88,34 @@ class DerivationDuMoteurTest(TestCase):
                 self.assertEqual('transformers',
                                  r._models[f'huggingface:o/{name}'].composition['runtime']['engine'])
 
+    def test_an_onnx_only_snapshot_derives_onnxruntime_despite_its_config(self):
+        """Swin2SR from Optimum (2026-10-06): `config.json` copied from the original model, the
+        only weights are `onnx/model.onnx` — transformers cannot open them."""
+        with TemporaryDirectory() as d:
+            p = _snapshot(Path(d) / 'models--onnx-community--sr', 'config.json',
+                          {'architectures': ['Swin2SRForImageSuperResolution']})
+            graph = p / 'snapshots' / 'abc123' / 'onnx' / 'model.onnx'
+            graph.parent.mkdir()
+            graph.write_bytes(b'\x08')
+            r = self._registre('huggingface:onnx-community/sr', p)
+            r._overlay_engines_derived_from_disk()
+            info = r._models['huggingface:onnx-community/sr']
+            self.assertEqual('onnxruntime', info.composition['runtime']['engine'])
+            self.assertEqual('Swin2SRForImageSuperResolution', info.extra_info['pipeline_class'])
+
+    def test_safetensors_next_to_an_onnx_export_keep_transformers(self):
+        """Counter-case: a transformers repo that ALSO ships an ONNX export stays transformers."""
+        with TemporaryDirectory() as d:
+            p = _snapshot(Path(d) / 'models--o--both', 'config.json', {'architectures': ['BertModel']})
+            rev = p / 'snapshots' / 'abc123'
+            (rev / 'model.safetensors').write_bytes(b'\x00')
+            (rev / 'onnx').mkdir()
+            (rev / 'onnx' / 'model.onnx').write_bytes(b'\x08')
+            r = self._registre('huggingface:o/both', p)
+            r._overlay_engines_derived_from_disk()
+            self.assertEqual('transformers',
+                             r._models['huggingface:o/both'].composition['runtime']['engine'])
+
     def test_une_composition_deja_posee_par_la_decouverte_est_INTOUCHEE(self):
         with TemporaryDirectory() as d:
             p = _snapshot(Path(d) / 'models--a--b', 'config.json', {'architectures': ['X']})
