@@ -254,9 +254,13 @@ class UserProfile(models.Model):
         return self._capped(self.temp_retention_days)
 
     def wants_notification(self, success):
-        """L'utilisateur veut-il être notifié pour cet événement (succès/échec) ?"""
-        if not self.notify_email or self.notify_on == 'none':
-            return False
+        """L'utilisateur veut-il être notifié PAR E-MAIL pour cet événement (succès/échec) ?"""
+        return bool(self.notify_email) and self.wants_in_app_notification(success)
+
+    def wants_in_app_notification(self, success):
+        """…et DANS WAMA (cloche, pop-up, fil d'un canal relié) ? `notify_on` seul : l'e-mail est
+        un canal, la notification dans WAMA en est un autre (`WAMA_COLLABORATION §5.2`, préférences
+        type × canal) — couper l'e-mail ne coupe pas la cloche (2026-10-06)."""
         if success:
             return self.notify_on in ('both', 'completion')
         return self.notify_on in ('both', 'failure')

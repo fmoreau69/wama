@@ -119,6 +119,19 @@ class ImageTaskOnSkeletonTest(_OnSkeleton):
         self.assertEqual([], generation.native_outputs, 'nothing transformed : a single file per image')
         self.assertIsNone(process_runs.line(generation), 'a pipeline card has no « main » line')
 
+    def test_the_end_is_notified_once_and_names_the_generation(self):
+        """ONE end notifier: the common skeleton — and the notification designates the generation,
+        which is what the channel gateway reads. A second notifier would post twice in a channel
+        thread. (The imager's own `post_save` signal, retired as R105, did NOT double the task
+        ends — the skeleton writes terminal statuses by `QuerySet.update()`, which fires no
+        signal — it only reacted to the synchronous gestures of the views.)"""
+        from wama.common.models import Notification
+        generation = self._generation(num_images=1)
+        self._run(generation)
+        note = Notification.objects.get(recipient=self.user, kind='job_done')   # exactly one
+        self.assertEqual(('imager', 'ImageGeneration', str(generation.pk)),
+                         (note.app, note.object_type, note.object_id))
+
     def test_changing_the_format_replays_the_output_alone_and_keeps_the_original(self):
         generation = self._generation(num_images=1)
         self._run(generation)

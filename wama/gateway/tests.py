@@ -614,9 +614,10 @@ class ForgetGestureTests(TestCase):
         return core.IncomingMessage(channel=CANAL, external_id=EXT_ID, text=text, thread=thread)
 
     def _record(self, user, thread_key, surface=CANAL):
-        fil = self.store.thread(user, surface=surface, thread_key=thread_key)
-        self.store.record_exchange(fil, 'statut ?', {'response': 'La tâche 649 est terminée.'})
-        return fil
+        conversation = self.store.thread(user, surface=surface, thread_key=thread_key)
+        self.store.record_exchange(conversation, 'statut ?',
+                                   {'response': 'La tâche 649 est terminée.'})
+        return conversation
 
     def test_the_gesture_is_announced_in_the_help(self):
         self.assertIn('!oublier', core.handle_message(self._msg('!aide')).text)
@@ -658,3 +659,205 @@ class ForgetGestureTests(TestCase):
             channel=CANAL, external_id='999', text='!oublier', thread='salon-1'))
         self.assertIn('!lier', reply.text)
         self.assertTrue(Conversation.objects.filter(pk=mine.pk).exists())
+
+
+class JobFollowUpTests(TestCase):
+    """La fin d'une tâche postée dans le fil d'où elle a été demandée (`ROADMAP §19.2`, 2026-10-06).
+
+    LE DÉFAUT MESURÉ (Discord, card #1047) : « vous serez notifié dès la fin », et rien n'est
+    jamais venu — aucune émission spontanée n'existait vers un canal. Rien n'est inventé pour la
+    combler : la FILE est `common.Notification` (posée par `notify_job_end`, qui désigne l'élément),
+    l'ORIGINE est lue dans le store de conversation (`tool_api.items_of_step`), le RÉSULTAT rejoue
+    le geste « statut ». Ces tests jouent la chaîne réelle : vraie card, vrai fil, vraie
+    notification, vrai outil de statut.
+    """
+
+    def setUp(self):
+        import shutil
+        import tempfile
+
+        from wama.common.services import conversation_store as store
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        from wama.describer.models import Description
+        self.root = tempfile.mkdtemp()
+        media_root = override_settings(MEDIA_ROOT=self.root)
+        media_root.enable()
+        self.addCleanup(media_root.disable)
+        self.addCleanup(shutil.rmtree, self.root, True)
+        self.store = store
+        self.user = User.objects.create_user('fabien_follow_up', password='x')
+        # Le rôle que le describer EXIGE (`DEFAULT_APP_ACCESS`), et rien de plus : l'outil de
+        # statut passe la porte de droits F7, comme pour l'assistant — un super-utilisateur la
+        # rendrait aveugle (motif de `tests_tool_api_lectures._utilisateur`).
+        from django.contrib.auth.models import Group
+
+        from wama.accounts.permissions import GROUP_PREFIX
+        self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}recherche')[0])
+        confirm_link(self.user, request_link(CANAL, EXT_ID).code)
+        _lot, (self.card,) = _lot_de(Description, self.user, 1)
+        core.collect_job_follow_ups(CANAL)        # 1ʳᵉ relève : pose le curseur
+
+    def _thread_with(self, tool, args, result, thread='salon-1'):
+        conversation = self.store.thread(self.user, surface=CANAL, thread_key=thread)
+        self.store.record_exchange(conversation, 'décris ce fichier', {
+            'response': 'Lancé.', 'tool_steps': [{'tool': tool, 'args': args, 'result': result}]})
+        return conversation
+
+    def _created_here(self, thread='salon-1'):
+        return self._thread_with('add_to_describer', {'file_path': 'x.png'},
+                                 {'item_id': self.card.pk, 'status': 'queued'}, thread)
+
+    def _end(self, success=True, detail=''):
+        from wama.common.utils.notifications import notify_job_end
+        notify_job_end(self.card, 'describer', 'Describer', 'témoin', success, detail=detail)
+
+    def test_a_task_asked_from_a_thread_ends_in_that_thread(self):
+        self._created_here('salon-1')
+        # Contre-épreuve : un fil PLUS RÉCENT, mais pour un autre élément, n'est pas l'origine.
+        self._thread_with('add_to_describer', {}, {'item_id': self.card.pk + 999}, 'salon-2')
+        self._end()
+        (follow_up,) = core.collect_job_follow_ups(CANAL)
+        self.assertEqual(('salon-1', EXT_ID), (follow_up.thread, follow_up.external_id))
+        self.assertTrue(follow_up.reply.text.startswith('✅ Describer — « témoin » terminé'))
+        self.assertFalse(follow_up.reply.private)
+
+    def test_each_end_is_posted_once(self):
+        self._created_here()
+        self._end()
+        self.assertEqual(1, len(core.collect_job_follow_ups(CANAL)))
+        self.assertEqual([], core.collect_job_follow_ups(CANAL), 'le curseur a avancé')
+
+    def test_the_first_relay_replays_nothing_from_before(self):
+        """Au premier démarrage, le curseur se pose sur la dernière notification : un historique
+        de fins de tâche ne se déverse pas dans les fils le jour où la passerelle est relancée."""
+        from wama.gateway.models import ChannelCursor
+        self._created_here()
+        self._end()
+        ChannelCursor.objects.all().delete()
+        self.assertEqual([], core.collect_job_follow_ups(CANAL))
+        self.assertEqual([], core.collect_job_follow_ups(CANAL))
+
+    def test_a_task_launched_from_the_web_posts_nothing(self):
+        """Aucun fil d'origine (décision de Fabien : la cloche de WAMA la signale déjà)."""
+        self._end()
+        self.assertEqual([], core.collect_job_follow_ups(CANAL))
+
+    def test_a_task_started_from_a_thread_ends_there_too(self):
+        """« Lance ma card » depuis Discord : l'élément est nommé par l'argument principal du
+        lancement — la convention par laquelle le Studio l'appelle."""
+        from wama.tool_api import primary_arg_name
+        argument = primary_arg_name('start_describer')
+        self._thread_with('start_describer', {argument: self.card.pk}, {'status': 'started'})
+        self._end()
+        self.assertEqual(1, len(core.collect_job_follow_ups(CANAL)))
+
+    def test_the_same_number_in_another_family_is_not_mistaken(self):
+        """Deux modèles, deux numérotations : l'élément n° N d'une autre famille n'est pas celui-ci."""
+        self._thread_with('add_to_audio_enhancer', {},
+                          {'audio_enhancement_id': self.card.pk, 'item_id': self.card.pk})
+        self._end()
+        self.assertEqual([], core.collect_job_follow_ups(CANAL))
+
+    def test_a_notification_whose_model_is_not_the_family_s_is_not_relayed(self):
+        """La famille de la notification doit porter le modèle qu'elle nomme (`DetailRegistry`) :
+        sinon un élément d'un autre modèle, de même numéro, serait pris pour celui-ci."""
+        from wama.common.models import Notification
+        self._created_here()
+        Notification.objects.create(recipient=self.user, kind='job_done', title='x',
+                                    app='describer', object_type='AudioEnhancement',
+                                    object_id=str(self.card.pk))
+        self.assertEqual([], core.collect_job_follow_ups(CANAL))
+
+    def test_someone_else_s_thread_is_never_the_origin(self):
+        other = User.objects.create_user('alice_follow_up', password='x')
+        conversation = self.store.thread(other, surface=CANAL, thread_key='salon-1')
+        self.store.record_exchange(conversation, 'x', {'response': 'Lancé.', 'tool_steps': [
+            {'tool': 'add_to_describer', 'args': {}, 'result': {'item_id': self.card.pk}}]})
+        self._end()
+        self.assertEqual([], core.collect_job_follow_ups(CANAL))
+
+    def test_an_unlinked_person_receives_nothing(self):
+        self._created_here()
+        unlink(self.user, CANAL, EXT_ID)
+        self._end()
+        self.assertEqual([], core.collect_job_follow_ups(CANAL))
+
+    def test_a_failure_is_posted_with_its_cause(self):
+        self._created_here()
+        self._end(success=False, detail='modèle introuvable')
+        (follow_up,) = core.collect_job_follow_ups(CANAL)
+        self.assertTrue(follow_up.reply.text.startswith('⚠'))
+        self.assertIn('modèle introuvable', follow_up.reply.text)
+
+    def test_the_status_step_is_the_real_tool_of_the_family(self):
+        self._created_here()
+        self._end()
+        (follow_up,) = core.collect_job_follow_ups(CANAL)
+        self.assertEqual('get_describer_status', follow_up.step['tool'])
+        self.assertIn('jobs', follow_up.step['result'], follow_up.step['result'])
+        self.assertIn(self.card.pk, [job['id'] for job in follow_up.step['result']['jobs']])
+
+    def test_the_produced_file_is_attached(self):
+        from pathlib import Path
+        rel = f'users/{self.user.pk}/describer/output/rendu.png'
+        produced = Path(self.root) / rel
+        produced.parent.mkdir(parents=True)
+        produced.write_bytes(b'png')
+        jobs = {'jobs': [{'id': self.card.pk + 1, 'output_url': '/media/autre.png'},
+                         {'id': self.card.pk, 'status': 'done', 'output_url': f'/media/{rel}'}]}
+        self._created_here()
+        self._end()
+        with patch('wama.tool_api.execute_tool', return_value=jobs):
+            (follow_up,) = core.collect_job_follow_ups(CANAL)
+        self.assertEqual([rel], follow_up.reply.files, "le fichier de CET élément, pas du plus récent")
+
+    def test_the_posted_end_is_recorded_with_its_real_tool_step(self):
+        """L'historique resservi au modèle garde un « terminé » APPUYÉ sur un outil — un
+        « terminé » sans outil est l'exemple qui lui faisait inventer (`WAMA_LLM.md` §2026-10-05)."""
+        from wama.common.services.assistant_engine import _sanitize_history
+        conversation = self._created_here()
+        self._end()
+        (follow_up,) = core.collect_job_follow_ups(CANAL)
+        core.record_follow_up(follow_up)
+        last = conversation.turns.filter(role='assistant').order_by('-created_at', '-pk').first()
+        self.assertEqual('get_describer_status', last.tool_steps[0]['tool'])
+        served = [m['content'] for m in _sanitize_history(self.store.history(conversation))]
+        self.assertIn('{"tool": "get_describer_status", "args": {}}', served)
+        self.assertIn('[Notification WAMA] Describer — « témoin » terminé', served)
+
+
+class DiscordFollowUpDeliveryTests(TestCase):
+    """L'adaptateur POSTE ce que le cœur a retenu — il ne décide rien (`discord_bot.py`)."""
+
+    def _follow_up(self):
+        return core.FollowUp(channel=CANAL, thread='42', external_id=EXT_ID,
+                             reply=core.Reply(text='✅ Describer — « témoin » terminé'),
+                             conversation_id=0, notice='n', step={})
+
+    def _deliver(self, channel):
+        import asyncio
+
+        from wama.gateway.adapters import discord_bot
+
+        client = type('Client', (), {'get_channel': lambda self, i: channel})()
+        with patch.object(discord_bot, 'record_follow_up') as recorded:
+            asyncio.run(discord_bot._deliver_follow_up(client, self._follow_up()))
+        return recorded
+
+    def _channel(self, spec=None):
+        from unittest.mock import AsyncMock, MagicMock
+        channel = MagicMock(spec=spec) if spec else MagicMock()
+        channel.send = AsyncMock()
+        return channel
+
+    def test_in_a_shared_channel_the_person_is_mentioned_and_the_end_recorded(self):
+        channel = self._channel()
+        recorded = self._deliver(channel)
+        self.assertTrue(channel.send.await_args.args[0].startswith(f'<@{EXT_ID}> ✅'))
+        recorded.assert_called_once()
+
+    def test_in_a_direct_message_nobody_is_mentioned(self):
+        import discord
+        channel = self._channel(spec=discord.DMChannel)
+        self._deliver(channel)
+        self.assertTrue(channel.send.await_args.args[0].startswith('✅'))

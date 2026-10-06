@@ -1270,6 +1270,69 @@ modèle se corrige seul) → `add_to_anonymizer` (#1036) → `start_anonymizer` 
    le 22/09, l'élément 647 avait été COPIÉ dans `input/`.* Levé : la tâche lit `media.file.path`
    (REMOVAL_LEDGER R104).
 
+#### 2026-10-06 — « vous serez notifié dès la fin » devient VRAI : la fin d'une tâche revient dans son fil
+
+> Fabien, depuis Discord, après un flou relancé plus fort (card #1047) : *« il ne me notifie pas
+> lorsque la tâche est terminée. À voir si c'est le même problème dans l'assistant. »* Puis, au
+> moment de construire : *« méticuleusement, en profondeur, aligné sur le fonctionnement de WAMA,
+> on ne réinvente rien »*.
+
+**Mesuré — la promesse était fausse sur TOUTES les surfaces** : le moteur faisait dire « vous serez
+notifié dès la fin » (prompt d'outils, consigne COMPLETION NOTIFICATION) ; or la fin d'une tâche
+n'envoyait au propriétaire qu'un e-mail (`notify_job`, compte SMTP incomplet dans `.env`), la cloche
+de WAMA n'allait qu'aux collaborateurs, et aucune émission spontanée n'existait vers un canal
+(`ROADMAP §19.2`, ⏳ depuis août).
+
+**Ce qui est RÉUTILISÉ** (quatre sources lues avant d'écrire, `AGENTS.md §route`) :
+| besoin | brique existante |
+|---|---|
+| une file persistée, relevée à intervalle | `common.Notification` + la cloche du web (dernier vu, 60 s) |
+| d'où vient une tâche | le store de conversation : les étapes d'outils persistées |
+| quel élément une étape a créé ou lancé | le contrat méta-app — création = clé uniforme `item_id` (`STUDIO_VISION §2`), lancement = argument principal (`primary_arg_name`, comme le Studio l'appelle) |
+| le modèle d'un élément | `DetailRegistry` — sa clé EST la famille d'outils (`audio_enhancer` ≠ `enhancer`) |
+| le résultat et son fichier | le geste « statut » : `get_<famille>_status` → `_produced_files` → légende de l'original |
+| la fin d'une tâche | le squelette commun (`_notify`) |
+
+**Ce qui est construit** :
+1. `notify_job_end(item, app_id, …)` (`common/utils/notifications.py`) — LE point de fin, appelé par
+   le squelette : e-mail + notification dans WAMA au propriétaire (`notify_on` seul,
+   `UserProfile.wants_in_app_notification`), collaborateurs (E3). La notification DÉSIGNE son
+   élément (`app` + `object_type` + `object_id`, migration `common 0028` en `db_default` : le code
+   en service crée encore les siennes).
+2. `tool_api.tool_family` / `items_of_step` — quel élément une étape a créé ou lancé, lu au contrat.
+3. La passerelle relève les fins de tâche (`gateway/core.collect_job_follow_ups`, curseur
+   `ChannelCursor`, migration `gateway 0002`), retrouve le fil d'origine, rejoue le statut, et
+   l'adaptateur Discord poste (mention de la personne dans un salon partagé) puis enregistre
+   l'échange AVEC son étape réelle — un « terminé » sans outil dans l'historique est l'exemple qui
+   faisait inventer (§2026-10-05).
+4. La promesse du prompt dit ce qui se passe : une notification dans WAMA ; sur un canal, « le
+   résultat sera posté ici dès la fin ».
+
+**Trois trous du contrat, trouvés en chemin** :
+- `add_to_audio_enhancer` ne rendait pas `item_id` ; les quatre créateurs historiques encore OFFERTS
+  au modèle (`create_image`, `synthesize_text`, `compose_music`, `convert_file`) ne l'avaient que
+  par leur alias `add_to_*`. Rendu À LA SOURCE, alias réduits à des délégations ; garde
+  `tests_tool_item_contract`, DÉRIVÉE du registre d'outils (le « 10/10 » de `STUDIO_VISION` était
+  une mesure sans garde : elle comptait les apps, pas la branche audio).
+- Le signal `post_save` de l'imager (R105) : depuis P6 il ne réagissait plus qu'aux gestes
+  synchrones des vues — ⚠ il ne DOUBLAIT pas les fins de tâche, comme je l'ai d'abord écrit : le
+  squelette pose les statuts par `QuerySet.update()`, qui ne déclenche aucun signal. *Écrit, puis
+  mesuré, puis corrigé : une explication plausible n'est pas une mesure.*
+- Trois tests de `tests_notifications` lisaient les alias d'administration du `.env` de la machine
+  et rougissaient dès qu'on y déclarait `wama-admin@` : rendus hermétiques.
+
+⚠ **Langue des identifiants** : trois `reponse` écrits dans l'adaptateur en IMITANT son idiome
+(la faute qu'`AGENTS.md` nomme), relevés par `check_identifier_language` et renommés, avec au
+passage quatre noms français du corps déplacé (`cible`, `chemin_relatif`…) : mesure code 2682 → 2675.
+L'excédent restant sur les trois budgets ne vient d'aucun fichier de ce palier (relevé `--detail`).
+
+**Gardes** (chacune prouvée par mutation — 20 mutations, 20 rouges) : `tests_notifications.JobEndNotificationTest`,
+`tests_tool_item_contract`, `gateway.tests.JobFollowUpTests` + `DiscordFollowUpDeliveryTests`,
+`imager.tests_task…test_the_end_is_notified_once_and_names_the_generation`.
+⚠ Restent : une tâche lancée depuis le WEB ne poste rien dans Discord (décision de Fabien) ; une
+relève arrêtée entre la lecture du curseur et l'envoi perd un message de fil (au plus une fois —
+la cloche le garde) ; les runs du Studio notifient encore par `notify_job` seul (pas d'élément).
+
 **Chaîne prouvée de bout en bout le 23/09 sur l'item réel 647** : `start_anonymizer` →
 `RUNNING` → `SUCCESS` (`users/1/anonymizer/output/IMG-…_blurred_sam3.jpg`) →
 `get_anonymizer_status` porte l'`output_url` → `_produced_files` ne rend QUE ce fichier-là

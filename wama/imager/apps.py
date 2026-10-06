@@ -7,8 +7,6 @@ class ImagerConfig(AppConfig):
     verbose_name = 'Imager - AI Image Generation'
 
     def ready(self):
-        from . import signals  # noqa: F401  (enregistre les receivers de notification)
-
         # Batch unifié : `total` auto-réparé + suppression des batchs vidés (brique commune).
         try:
             from wama.common.utils.batch_sync import register_batch_sync

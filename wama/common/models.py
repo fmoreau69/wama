@@ -519,6 +519,17 @@ class Notification(models.Model):
     title = models.CharField(max_length=255)
     body = models.TextField(blank=True, default='')
     url = models.CharField(max_length=500, blank=True, default='')
+    #: L'ÉLÉMENT dont elle parle — le « lien vers l'élément » de §2.3, que seule une URL de page
+    #: portait. Même convention que `RunOutcome` / `ScheduledAction` (app + type + id, pas de FK
+    #: générique) ; vide pour une notification sans élément (mort d'un worker). Posé par la fin
+    #: de tâche (`notify_job_end`, 2026-10-06) : c'est ce qui permet à une surface — la passerelle
+    #: de canaux — de retrouver l'élément, son fil d'origine et sa sortie.
+    #: `db_default` : la base remplit seule ces colonnes, donc le code EN SERVICE (pas encore
+    #: rechargé, qui les ignore) crée encore ses notifications — la mort d'un worker comprise.
+    app = models.CharField(max_length=32, blank=True, default='', db_default='', db_index=True)
+    object_type = models.CharField(max_length=64, blank=True, default='', db_default='')
+    object_id = models.CharField(max_length=64, blank=True, default='', db_default='',
+                                 db_index=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     read_at = models.DateTimeField(null=True, blank=True)
 

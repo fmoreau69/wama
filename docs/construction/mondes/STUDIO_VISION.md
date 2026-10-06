@@ -270,7 +270,7 @@ Une app est orchestrable quand ces 4 éléments viennent du CONTRAT COMMUN :
 | # | Élément | Source unique | État |
 |---|---|---|---|
 | 1 | **Entrées typées** (ports du nœud) | `APP_CATALOG` / `studio_node_ports()` | ✅ en place |
-| 2 | **Création** depuis les entrées | triade `wama/tool_api.py` **normalisée** : `add_to_<app>(user, <entrées typées>, **params)` → clé UNIFORME `item_id` (params filtrés par introspection de signature) | ✅ **10/10** (re-mesuré 2026-08-27 : `item_id` natif ou via wrappers `@wraps` sur toutes les triades) |
+| 2 | **Création** depuis les entrées | triade `wama/tool_api.py` **normalisée** : `add_to_<app>(user, <entrées typées>, **params)` → clé UNIFORME `item_id` (params filtrés par introspection de signature) | ✅ **10/10** (re-mesuré 2026-08-27 : `item_id` natif ou via wrappers `@wraps` sur toutes les triades) — ⚠ **rectifié le 2026-10-06** : la mesure comptait les dix APPS, pas la branche audio (`add_to_audio_enhancer` ne rendait que `audio_enhancement_id`), et les quatre créateurs historiques encore offerts au modèle (`create_image`…) n'avaient la clé que par leur alias. Désormais rendue À LA SOURCE par chaque créateur, et TENUE : `tests_tool_item_contract`, dérivé du registre d'outils |
 | 3 | **Suivi + résultat** | clés CANONIQUES de `unified_detail(app, pk)` : `status`/`progress`/`result_file`/`result_text` | ✅ **10/10** (la sortie multi-images de l'imager est entrée au mécanisme préview n°30) |
 | 4 | **Params de nœud** | `params.py` (PARAMS_JSON, filtrable par contexte `pipeline`) — JAMAIS de spec locale | ✅ runner générique (2026-07-13) : pointeur `params_module`/`params_attr`, mapping de FORME |
 

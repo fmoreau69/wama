@@ -1,10 +1,11 @@
 """
 Notifications utilisateur (email) — brique commune, métadonnée/préférence-driven.
 
-`notify_job(user, app_label, item_name, success, ...)` est le point d'entrée pour les apps :
-à appeler à la **fin/échec d'un traitement long** (dans la tâche Celery), il respecte les
-préférences du profil (`UserProfile.wants_notification`) et envoie un email **fail-safe**
-(n'interrompt jamais la tâche). Le transport email est piloté par `settings` (SMTP UGE / console).
+`notify_job_end(item, app_id, app_label, item_name, success, ...)` est LE point de fin d'un
+traitement (squelette de tâche commun, signal de l'imager) : e-mail et notification dans WAMA
+au propriétaire selon ses préférences, puis aux collaborateurs — **fail-safe** (n'interrompt
+jamais la tâche). `notify_job` n'en est que le canal e-mail. Le transport email est piloté par
+`settings` (SMTP UGE / console).
 """
 import logging
 
@@ -49,13 +50,19 @@ def notify_user(user, subject, body, html=None):
     return notify_emails([getattr(user, 'email', '') or ''], subject, body, html)
 
 
-def notify_in_app(users, kind, title, body='', url=''):
+def notify_in_app(users, kind, title, body='', url='', *, app='', item=None):
     """Crée une notification DANS WAMA pour chaque utilisateur (`common.Notification`, badge de
-    l'en-tête + page `/common/notifications/`). Fail-safe ; rend le nombre créé."""
+    l'en-tête + page `/common/notifications/`). Fail-safe ; rend le nombre créé.
+
+    `app` + `item` : l'ÉLÉMENT dont elle parle (convention `RunOutcome` — type = nom de classe).
+    """
     try:
         from wama.common.models import Notification
+        element = {'app': app or '',
+                   'object_type': type(item).__name__ if item is not None else '',
+                   'object_id': str(getattr(item, 'pk', '') or '') if item is not None else ''}
         rows = [Notification(recipient=u, kind=kind, title=title[:255], body=body or '',
-                             url=url or '')
+                             url=url or '', **element)
                 for u in (users or []) if getattr(u, 'pk', None)]
         Notification.objects.bulk_create(rows)
         return len(rows)
@@ -115,29 +122,68 @@ def notify_admins(kind, subject, body, url='', audiences=('admin', 'dev')):
     return created, sent
 
 
-def notify_job_collaborators(item, app_label, item_name, success, detail=''):
+def _job_title(app_label, item_name, success):
+    """Le titre d'une fin de traitement — UN libellé, pour le propriétaire comme pour ceux qui
+    collaborent (et pour le fil d'un canal, qui le relaie)."""
+    return f"{app_label} — « {item_name} » {'terminé' if success else 'a échoué'}"
+
+
+def _job_url(item, app_id=''):
+    """La page de file de l'élément : `journal.app_queue_url` (le domicile commun du journal et du
+    calendrier) quand l'app est connue ; à défaut, la racine de son paquet."""
+    if app_id:
+        from wama.common.services.journal import app_queue_url
+        url = app_queue_url(app_id)
+        if url:
+            return url
+    return f'/{item._meta.app_label}/'
+
+
+def notify_job_collaborators(item, app_label, item_name, success, detail='', app_id=''):
     """La fin d'un traitement, aussi pour ceux qui COLLABORENT sur l'élément (E3, décision de
     Fabien 2026-10-03 : *« la relance reste celle de la card, la fin est notifiée aux deux »*). Le
-    propriétaire l'est déjà par `notify_job` ; chaque collaborateur reçoit la notification dans
+    propriétaire l'est par `notify_job_end` ; chaque collaborateur reçoit la notification dans
     WAMA, et l'e-mail selon SES préférences. Fail-safe ; rend le nombre de collaborateurs prévenus."""
     try:
         from wama.common.services.access_requests import collaborators_of
         people = [u for u in collaborators_of(item) if u.pk != getattr(item, 'user_id', None)]
         if not people:
             return 0
-        state = 'terminé' if success else 'a échoué'
-        app = item._meta.app_label
         notify_in_app(people, 'job_done' if success else 'job_failed',
-                      f"{app_label} — « {item_name} » {state}",
+                      _job_title(app_label, item_name, success),
                       body=(detail or '') + ("\n" if detail else '') +
                            "Card en collaboration : le résultat est aussi celui de son propriétaire.",
-                      url=f'/{app}/')
+                      url=_job_url(item, app_id), app=app_id, item=item)
         for person in people:
             notify_job(person, app_label, item_name, success, detail=detail)
         return len(people)
     except Exception as e:  # pragma: no cover
         logger.warning("notify_job_collaborators a échoué : %s", e)
         return 0
+
+
+def notify_job_end(item, app_id, app_label, item_name, success, detail=''):
+    """LA fin d'un traitement — le point unique des tâches (squelette commun, signal de l'imager).
+
+    Pour le PROPRIÉTAIRE : l'e-mail (`notify_job`, préférences `notify_email` + `notify_on`) et,
+    depuis le 2026-10-06, la notification DANS WAMA (`notify_on` seul, `wants_in_app_notification`)
+    — jusque-là seuls les collaborateurs la recevaient : le propriétaire n'avait que l'e-mail, et
+    sans SMTP, rien. Elle DÉSIGNE l'élément (`app`, `item`) : c'est ce que relève la passerelle de
+    canaux pour poster la fin dans le fil d'où la tâche a été demandée (`ROADMAP §19.2`).
+    Puis ceux qui COLLABORENT (E3). Fail-safe : une notification ne fait jamais échouer une tâche.
+    """
+    try:
+        user = getattr(item, 'user', None)
+        notify_job(user, app_label, item_name, success, detail=detail)
+        profile = getattr(user, 'profile', None)
+        if profile is not None and profile.wants_in_app_notification(success):
+            notify_in_app([user], 'job_done' if success else 'job_failed',
+                          _job_title(app_label, item_name, success), body=detail or '',
+                          url=_job_url(item, app_id), app=app_id, item=item)
+        notify_job_collaborators(item, app_label, item_name, success, detail=detail or '',
+                                 app_id=app_id)
+    except Exception as e:  # pragma: no cover
+        logger.warning("notify_job_end a échoué : %s", e)
 
 
 def notify_job(user, app_label, item_name, success, detail='', url=''):

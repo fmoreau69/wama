@@ -378,6 +378,7 @@ def create_image(
 
     return {
         'generation_id': generation.id,
+        'item_id': generation.id,   # clé UNIFORME du contrat méta-app, À LA SOURCE (2026-10-06)
         'status': 'pending',
         'model': model,
         'prompt': prompt,
@@ -672,7 +673,7 @@ def add_to_audio_enhancer(
         quality:            NFE steps 32/64/128 (Resemble only, default 64)
 
     Returns:
-        {"audio_enhancement_id": int, "name": str, "status": "pending"}
+        {"audio_enhancement_id": int, "item_id": int, "name": str, "status": "pending"}
     """
     if engine not in _AUDIO_ENHANCER_ENGINES:
         return {'error': f"Moteur inconnu : '{engine}'. Disponibles : resemble, deepfilternet"}
@@ -711,6 +712,9 @@ def add_to_audio_enhancer(
 
     return {
         'audio_enhancement_id': ae.id,
+        # Clé UNIFORME du contrat méta-app (`STUDIO_VISION §2`) — la seule famille d'ajout qui ne
+        # la rendait pas (2026-10-06) : la passerelle retrouve par elle le fil d'où vient une tâche.
+        'item_id': ae.id,
         'name': received.name,
         'engine': engine,
         'mode': mode,
@@ -863,6 +867,7 @@ def synthesize_text(
 
     return {
         'synthesis_id': synthesis.id,
+        'item_id': synthesis.id,    # clé UNIFORME du contrat méta-app, À LA SOURCE (2026-10-06)
         'word_count': synthesis.word_count,
         'duration_display': synthesis.duration_display or '—',
         'status': 'pending',
@@ -1062,6 +1067,7 @@ def compose_music(
 
     return {
         'generation_id': gen.id,
+        'item_id': gen.id,          # clé UNIFORME du contrat méta-app, À LA SOURCE (2026-10-06)
         'model': gen.model,
         'generation_type': gen.generation_type,
         'duration': gen.duration,
@@ -1531,6 +1537,7 @@ def convert_file(
 
     return {
         'job_id':        job.id,
+        'item_id':       job.id,    # clé UNIFORME du contrat méta-app, À LA SOURCE (2026-10-06)
         'filename':      received.name,
         'media_type':    media_type,
         'output_format': out_fmt,
@@ -2020,34 +2027,28 @@ def translate_text(user, text, source_lang='fr', target_lang='en', glossary=None
 # ── Aliases NORMALISÉS du contrat méta-app (STUDIO_VISION 2026-07-12) ─────────────
 # La triade canonique est add_to_<app>/start_<app>/detail. Les créateurs historiques à
 # entrée PROMPT (synthesize_text, compose_music, create_image) restent la façade de
-# l'assistant ; ces wrappers @wraps exposent le nom normalisé + la clé UNIFORME item_id
-# (introspection de signature préservée pour le filtrage de params du runner générique).
+# l'assistant ; ces wrappers @wraps exposent le nom normalisé (introspection de signature
+# préservée pour le filtrage de params du runner générique).
+# ⚠ Ils RECOPIAIENT la clé UNIFORME `item_id` sur le résultat ; depuis le 2026-10-06 les
+# créateurs la rendent EUX-MÊMES — un appel à `create_image` était sinon une création sans
+# clé uniforme, que la passerelle ne pouvait rattacher à aucun fil. Les alias délèguent.
 import functools
 
 
 @functools.wraps(synthesize_text)
 def add_to_synthesizer(user, *args, **kwargs):
-    res = synthesize_text(user, *args, **kwargs)
-    if isinstance(res, dict) and 'synthesis_id' in res:
-        res['item_id'] = res['synthesis_id']
-    return res
+    return synthesize_text(user, *args, **kwargs)
 
 
 @functools.wraps(compose_music)
 def add_to_composer(user, *args, **kwargs):
-    res = compose_music(user, *args, **kwargs)
-    if isinstance(res, dict) and 'generation_id' in res:
-        res['item_id'] = res['generation_id']
-    return res
+    return compose_music(user, *args, **kwargs)
 
 
 @functools.wraps(convert_file)
 def add_to_converter(user, *args, **kwargs):
     # NB : convert_file DISPATCHE immédiatement (auto_start déclaré au manifeste studio).
-    res = convert_file(user, *args, **kwargs)
-    if isinstance(res, dict) and 'job_id' in res:
-        res['item_id'] = res['job_id']
-    return res
+    return convert_file(user, *args, **kwargs)
 
 
 # `start_converter` : construit depuis TRIAD_SPECS['converter'] (marche A4).
@@ -2055,10 +2056,7 @@ def add_to_converter(user, *args, **kwargs):
 
 @functools.wraps(create_image)
 def add_to_imager(user, *args, **kwargs):
-    res = create_image(user, *args, **kwargs)
-    if isinstance(res, dict) and 'generation_id' in res:
-        res['item_id'] = res['generation_id']
-    return res
+    return create_image(user, *args, **kwargs)
 
 
 # ── STUDIO (méta-app) — pipelines sauvegardés : lister, lancer, suivre ────────────
@@ -3644,6 +3642,49 @@ def app_id_for_tool(tool_name):
     if tool_name in TOOL_APP_OVERRIDE:
         return TOOL_APP_OVERRIDE[tool_name]
     return _split_triad(tool_name)[1]
+
+
+def tool_family(tool_name):
+    """La FAMILLE d'un outil : la clé d'adapter de détail (`DetailRegistry`) des éléments qu'il
+    crée, lance ou suit — `add_to_audio_enhancer` → `audio_enhancer` (son modèle propre), là où
+    `app_id_for_tool` rend l'app GARDÉE (`enhancer`, qui porte deux modèles). Les créateurs
+    historiques (`create_image`…) ont la famille de leur app. None pour un outil transverse.
+    C'est aussi la clé que le squelette de tâche reçoit (`run_item_task(app_id=…)`)."""
+    if tool_name in TOOL_APP_OVERRIDE:
+        return TOOL_APP_OVERRIDE[tool_name]
+    for _role, prefix, suffix in _TRIAD:
+        if tool_name.startswith(prefix) and tool_name.endswith(suffix) and \
+                len(tool_name) > len(prefix) + len(suffix):
+            return tool_name[len(prefix):len(tool_name) - len(suffix) or None]
+    return None
+
+
+def items_of_step(tool_name, args, result) -> list:
+    """Les éléments qu'un appel d'outil a CRÉÉS ou LANCÉS, en `(famille, id)` — lus au CONTRAT
+    méta-app, jamais à une clé propre à l'app :
+      - une création rend la clé UNIFORME `item_id` (`STUDIO_VISION §2`) ;
+      - un lancement nomme l'élément par son argument principal, dérivé de la signature
+        (`primary_arg_name` — la convention par laquelle le Studio l'appelle) ; un lancement de
+        toute la file rend ses `ids`.
+    Un suivi (`get_*_status`), une erreur, un outil transverse : aucun élément.
+    Sert à retrouver D'OÙ vient une tâche — le fil d'un canal où elle a été demandée (2026-10-06).
+    """
+    family = tool_family(tool_name)
+    role = tool_role(tool_name)
+    if not family or role == 'status' or not isinstance(result, dict) or 'error' in result:
+        return []
+    if role == 'start':
+        one = (args or {}).get(primary_arg_name(tool_name) or '')
+        ids = [one] if one not in (None, '') else list(result.get('ids') or [])
+    else:
+        ids = [result['item_id']] if result.get('item_id') not in (None, '') else []
+    found = []
+    for raw in ids:
+        try:
+            found.append((family, int(raw)))
+        except (TypeError, ValueError):
+            continue
+    return found
 
 
 # ── Descriptions d'outils — DÉRIVÉES, plus jamais tenues à la main ──────────────

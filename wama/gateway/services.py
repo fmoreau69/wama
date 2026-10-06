@@ -156,6 +156,16 @@ def account_for(channel: str, external_id: str):
     return lien.user
 
 
+def linked_identity(user, channel: str):
+    """L'identité CONFIRMÉE de ce compte sur ce canal (`external_id`), ou None. L'inverse de
+    `account_for`, mêmes filtres — c'est la garde d'un message que la passerelle ÉMET d'elle-même
+    (fin de tâche) : une personne qui s'est déliée ne reçoit plus rien, même dans un fil qu'elle
+    a ouvert."""
+    return (ChannelLink.objects.filter(channel=channel, user=user)
+            .exclude(user__isnull=True).exclude(confirmed_at__isnull=True)
+            .values_list('external_id', flat=True).first())
+
+
 def unlink(user, channel: str, external_id: str) -> bool:
     """Supprime une liaison — uniquement une des SIENNES. Rend True si quelque chose a sauté."""
     n, _ = ChannelLink.objects.filter(

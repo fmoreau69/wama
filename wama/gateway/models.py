@@ -134,3 +134,26 @@ class ChannelLink(models.Model):
         return (not self.is_confirmed
                 and not self.code_expired
                 and self.tentatives < MAX_TENTATIVES)
+
+
+class ChannelCursor(models.Model):
+    """Le « dernier vu » d'un canal : la notification la plus récente qu'il a déjà relevée.
+
+    Le MÊME geste que la cloche du web (`wama-app-base.js` garde le dernier vu : aucune
+    notification ne revient deux fois, une arrivée entre deux pages s'affiche à la suivante),
+    tenu ici côté SERVEUR parce que la passerelle est un process qui redémarre. Une ligne par
+    canal ; posée à la dernière notification existante à sa création — rien d'ancien n'est
+    rejoué au premier démarrage (2026-10-06, `ROADMAP §19.2`).
+    """
+    channel = models.CharField(max_length=16, choices=CHANNEL_CHOICES, unique=True,
+                               verbose_name='Canal')
+    last_notification_id = models.BigIntegerField(default=0,
+                                                  verbose_name='Dernière notification relevée')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Curseur de canal'
+        verbose_name_plural = 'Curseurs de canal'
+
+    def __str__(self):
+        return f'{self.get_channel_display()} → notification #{self.last_notification_id}'
