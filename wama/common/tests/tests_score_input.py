@@ -83,11 +83,13 @@ class SelectModelsOpenPortsTest(TestCase):
     def test_the_card_renders_both_reference_tabs_without_a_duplicate_id(self):
         html = render_to_string('common/_new_item_card_v4.html', {
             'app_id': 'composer', 'card_id': 'c', 'file_input_id': 'melodyInput',
-            'drop_zone_id': 'melodySlot', 'primary_import_self': True})
+            'drop_zone_id': 'melodySlot'})
         self.assertEqual(1, html.count('id="melodyInput"'))
         self.assertEqual(1, html.count('id="c-work_score-input"'))
-        self.assertIn('id="melodySlot" data-mod="import" data-port-import-self', html,
-                      'an ATTACH card without an import path declares its main tile wired by the ports brick')
+        # The main tile belongs to the app's import path (`WamaImport`, attach mode, 2026-10-05);
+        # only the SECOND work port is wired by the ports brick.
+        self.assertIn('id="melodySlot" data-mod="import">', html)
+        self.assertIn('id="c-work_score-drop" data-mod="import" data-port-import-self', html)
         self.assertIn('accept=".abc,.mid,.midi,.musicxml,.mxl"', html)
 
 

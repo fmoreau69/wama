@@ -308,12 +308,23 @@ class AdoptionDeLaBriqueTest(SimpleTestCase):
                 self.assertIs(etat, True, f'{app} : {preuve}')
 
     def test_wama_import_js_est_charge_avant_le_script_qui_l_instancie(self):
+        # Depuis le socle JS d'app (`09b557e8`, ROUTE §11 #25), la brique se charge par
+        # `common/_app_scripts.html` et plus par une balise écrite dans chaque gabarit : le test
+        # cherchait encore la balise et était ROUGE ×7 depuis (relevé « préexistant » par deux
+        # clôtures du 2026-10-06 sans sa cause). Les deux graphies valent ; le socle doit, lui,
+        # porter la brique.
+        socle = self.RACINE / 'common' / 'templates' / 'common' / '_app_scripts.html'
+        self.assertIn('wama-import.js', socle.read_text(encoding='utf-8'),
+                      'le socle JS d\'app ne charge plus la voie d\'import')
         for app, *_ in PORTEES:
             with self.subTest(app=app):
                 gabarit = self.RACINE / app / 'templates' / app / 'index.html'
                 texte = gabarit.read_text(encoding='utf-8')
-                pos_brique = texte.find('wama-import.js')
-                self.assertGreater(pos_brique, -1, f'{app} : wama-import.js absent du gabarit')
+                positions = [p for p in (texte.find('wama-import.js'),
+                                         texte.find('common/_app_scripts.html')) if p > -1]
+                pos_brique = min(positions) if positions else -1
+                self.assertGreater(pos_brique, -1, f'{app} : wama-import.js absent du gabarit '
+                                                   '(ni balise, ni socle `_app_scripts.html`)')
                 # Tout script d'app qui instancie WamaImport doit venir APRÈS la brique.
                 for m in re.finditer(rf"static_v\s+'{app}/js/([\w.-]+\.js)'", texte):
                     js = self.RACINE / app / 'static' / app / 'js' / m.group(1)
