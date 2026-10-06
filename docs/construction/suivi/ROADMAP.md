@@ -2939,6 +2939,51 @@ pillow 11.3.0 (36), aiohttp (48), cryptography, pyjwt, python-multipart, urllib3
    moment d'ingérer un manifeste `library` (LibreTranslate…) — s'ajoutera au pipeline
    d'ingest des manifestes, pas comme wrapper de pip.
 
+### 16.11 ComfyUI — cartographie de ses backends de modèles (ouverte le 2026-10-06)
+
+> Demande de Fabien (2026-10-06), à l'occasion de l'aperçu des latents de l'imager, dont les
+> coefficients viennent de ComfyUI (`common/utils/latent_rgb_factors.py`) : *« ComfyUI est
+> opensource et a des backends pour plein de modèles image/vidéo. Pour l'intégration/génération
+> de modèles présents dans ComfyUI, ne pourrait-on pas inspecter les backends ComfyUI, s'en
+> inspirer ou les intégrer selon ce qui est possible ? »* — méthode `/cartographie` : la
+> connaissance AVANT toute implémentation. **Rien n'est décidé ici ; rien n'est implémenté.**
+
+**Les trois voies à départager (hypothèses, pas des décisions)** :
+
+| voie | ce qu'elle apporterait | ce qu'elle coûterait |
+|---|---|---|
+| **S'inspirer** — lire ses implémentations quand on écrit un backend WAMA | précision (formats de latents, déjà adopté), astuces mémoire, « voisins » pour le rôle LLM `backend` (marche B2, vivier) | lecture ; aucune dépendance |
+| **Moteur externe** — serveur ComfyUI sans interface, piloté par son API, vu comme un moteur (patron Ollama / audio.cpp) | accès à beaucoup de modèles et de workflows | deux processus sur le GPU (gouverneur) ; autre rangement des poids (doublons) ; nœuds tiers = risque (« allowlist d'abord », §10.3 de la ROUTE) |
+| **Vendoriser** des morceaux | indépendance vis-à-vis de diffusers pour une famille | lourd ; code GPL-3.0 à entretenir (compatible AGPL) |
+
+**Tableau des passes** (ordre `/cartographie` §2) :
+
+| passe | objet | qui | état |
+|---|---|---|---|
+| 0 | inventaire structurel, périmètre retenu/écarté | moi | ✅ 2026-10-06 |
+| 1 | noyau des modèles : détection (`model_detection`, `supported_models`), base (`model_base`), chargement single-file / quantifié, gestion VRAM (`model_management`, `model_patcher`) | moi | ⏳ |
+| 2 | noyau d'extension : contrat des nœuds (`comfy_api` v3), nœuds tiers, exécution (`comfy_execution`) — sécurité comprise | moi | ⏳ |
+| 3 | implémentations par famille (`comfy/ldm/<famille>`) recoupant le catalogue WAMA | wama-dev-ai (volume, lecture seule) | ⏳ — exige de la VRAM libre (WAMA arrêté : moment à choisir par Fabien) |
+| 4 | variantes / portages (nœuds `comfy_extras` par famille) | wama-dev-ai | ⏳ |
+| 5 | confrontation à WAMA (contrat de backend, routes d'intégration, gouverneur, marche B2) + plan ordonné, décisions Dn | moi | ⏳ |
+
+**Passe 0 — faits (2026-10-06)** :
+- Corpus `comfyui` déclaré à `wama-dev-ai/corpus.py` : clone en lecture seule HORS du dépôt,
+  `D:\tmp\corpora\ComfyUI`, commit `7d9e5a045c13c563a5dcd18c617a985efa6332da` (2026-10-06) ;
+  `corpus.py` → **580 fichiers retenus**.
+- Volumes : 962 fichiers Python ; `comfy/` ≈ 125 000 lignes, `comfy_extras/` ≈ 63 000.
+- Retenu : `comfy` (modèles, détection, chargement, VRAM, latents), `comfy_extras` (nœuds par
+  famille), `comfy_api` (contrat des nœuds), `comfy_execution` (graphe, cache, progression).
+  Écarté : serveur web et frontal (`app`, `api_server`, `middleware`, `blueprints`), nœuds des
+  services d'API payants (`comfy_api_nodes`), base (`alembic_db`), tests, exemples.
+- **48 familles** sous `comfy/ldm`, dont beaucoup recoupent le catalogue WAMA : `flux`,
+  `qwen_image`/`qwen_image21`, `wan`, `lightricks` (LTX), `hunyuan_video`, `genmo` (Mochi),
+  `cogvideo`, `cosmos`, `hidream` ; `sam3` (anonymizer), `yue2` et `ace` (composer), `seedvr`
+  (agrandissement), `trellis2` / `hunyuan3d` / `triposplat` (studio 3D), `mmaudio`.
+- À lire en passe 1 : le dépôt porte son propre aperçu des latents (`latent_preview.py`, racine,
+  hors périmètre du corpus — le relire à part) et un `AGENTS.md` (veille des harnais :
+  `WAMA_HARNESS.md`), ainsi qu'un `QUANTIZATION.md`.
+
 ---
 
 ## 17. Capacité détection open-vocabulary — brique commune + LocateAnything (ouvert 2026-07-27)
