@@ -101,15 +101,19 @@ def entry_arrangement(user, entry, lines):
     👁 Lecture seule » chez le destinataire, « Partagée · LESCOT · 👁 Lecture seule » chez le
     propriétaire d'une entrée partagée ; absente d'une entrée privée."""
     from wama.common.services.access_requests import collaboration_grant, collaborators_of
-    from wama.common.services.sharing import CURRENT_SHARE_MODE, scope_label, share_mode
+    from wama.common.services.sharing import CURRENT_SHARE_MODE, persons_of, scope_label, share_mode
     read = f"{CURRENT_SHARE_MODE['icon']} {CURRENT_SHARE_MODE['label']}"
     if getattr(entry, 'user_id', None) == getattr(user, 'pk', None):
         scope = scope_label(entry)
-        if not scope:
-            return {}
-        label = f'Partagée · {scope} · {read}'
-        collab = share_mode('collaborate')
         n = len(collaborators_of(entry))
+        # Les personnes nommées en LECTURE (2026-10-06) ; celles qui collaborent sont comptées à part.
+        readers = sum(1 for p in persons_of(entry) if p['mode']['key'] != 'collaborate')
+        if not scope and not n and not readers:
+            return {}
+        label = f'Partagée · {scope} · {read}' if scope else 'Partagée'
+        if readers:
+            label += f" · {read} à {readers} personne{'s' if readers > 1 else ''}"
+        collab = share_mode('collaborate')
         if n:
             label += f" · {collab['icon']} {n} collaborateur{'s' if n > 1 else ''}"
         return {'share_label': css_safe(label), 'collaborators': n}

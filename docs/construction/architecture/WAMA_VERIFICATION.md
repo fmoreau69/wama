@@ -1118,6 +1118,18 @@ pastille « Collaboration », ⚙ s'ouvre EN ÉDITION, 🗑 garde l'encart « Su
 propriétaire : « Mes partages » → « retirer » ; destinataire : de nouveau « Lecture seule ». Les six
 gestes du partage, rejoués dans la même passe sur le live, restent verts. Domicile :
 `WAMA_COLLABORATION §3bis.2`.
+Rejoué **9/9** le 2026-10-06 (8011, code neuf) : « Mes partages » marque désormais chaque
+personne `data-person` (ex-`data-collaborator`), le geste suit.
+
+### PARTAGER À UNE PERSONNE de bout en bout (2026-10-06)
+
+Scénario **`common.person_share_cycle`** (`ui_smoke_menus.py`), **12/12** (8011, code neuf).
+Propriétaire (compte développeur) : clic droit sur une card PRIVÉE → « Partager… » → « Avec une
+personne » : identifiant, « Partager » — la personne s'inscrit dans la modale ; en base, une ligne
+accordée sur la card ET son lot. Destinataire : la notification `share_received` surgit en bas à
+droite (N1), la card est dans SA file, pastille « Reçue de … ». Propriétaire : « Mes partages »
+dit la personne et « depuis le … », « retirer » ; destinataire : la card a quitté sa file, lot
+compris. Domicile : `WAMA_COLLABORATION §3bis.2`.
 
 ### Card reçue en LECTURE SEULE, puis demande de PROPRIÉTÉ (2026-10-03)
 

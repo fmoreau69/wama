@@ -512,7 +512,13 @@ MECHANISMS = (
               "même ligne ; la propriété s'accorde, elle cède la card). Puis la COLLABORATION "
               "(E1-E5) : `scoping.editable_or_404` / `can_edit` (lancement, réglages, arrêt, "
               "correction — jamais la suppression), fin notifiée aux deux, verrou doux "
-              "(`edit_lock`), réglages tracés au journal, retrait depuis « Mes partages »",
+              "(`edit_lock`), réglages tracés au journal, retrait depuis « Mes partages ». "
+              "Depuis le 2026-10-06 : le partage À UNE PERSONNE (`share_with_person` — une ligne "
+              "`ObjectGrant` accordée, lue par `scoped_visible_q(…, model=)` en extension des "
+              "portées ; mode lecture ou collaboration) et le destinataire PRÉVENU (N1 : "
+              "`share_received` ; membres d'un projet aussi, unité et public non) ; chaque partage "
+              "par portée DATÉ par une ligne `ObjectGrant` sans bénéficiaire (mémoire, jamais "
+              "lue pour décider qui voit)",
               'wama/common/services/sharing.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
               annexes=('wama/common/static/common/js/wama-share.js',
                        'wama/common/services/card_transfer.py',

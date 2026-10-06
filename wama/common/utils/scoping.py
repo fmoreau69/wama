@@ -20,7 +20,8 @@ from django.shortcuts import get_object_or_404
 
 def visible_or_404(model, user, **kwargs):
     """
-    Objet que `user` a le droit de VOIR : le sien, ou partagé avec lui (unité/projet/public).
+    Objet que `user` a le droit de VOIR : le sien, ou partagé avec lui (unité/projet/public, ou
+    à lui en personne — `ObjectGrant`, 2026-10-06).
 
     À utiliser dans TOUS les chemins de lecture : détail, progression, téléchargement, aperçu.
     Le modèle doit hériter de `ScopedVisibility` et exposer `ScopedManager`.
