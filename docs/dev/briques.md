@@ -1472,7 +1472,7 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
 
 - **Domicile** : `wama/common/utils/detections.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Les DÉTECTIONS d'un média, sur disque — le type de donnée commun `detections` (`common/catalog/data_types.DataType.DETECTIONS` : objets détectés par frame — frame, bbox, classe, piste).
-- **API publique** (15) :
+- **API publique** (16) :
   - `new_document(*, media: str, width: int, height: int, fps: float=0.0, frame_count: int=1, engine: str='', models=(), classes=(), prompt: str='') -> dict` — Un document vide, prêt à recevoir ses frames (`add`).
   - `detection(*, box, label: str='', conf: float=1.0, track=None, polygons=None) -> dict` — Une détection au format du document : entiers pour les pixels, confiance arrondie.
   - `add(doc: dict, frame_index: int, detections) -> None` — Range les détections d'UNE frame (rien n'est écrit pour une frame vide). Deux appels
@@ -1484,6 +1484,7 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
   - `polygons_to_mask(polygons, shape) -> 'object'` — Le masque (uint8, 0/255) que dessinent des polygones sur une image de forme `shape`.
   - `box_of_polygons(polygons) -> list` — Le rectangle englobant de polygones (x1, y1, x2, y2).
   - `valid_box(box, shape, min_size: int=5)` — Le rectangle ramené dans l'image ; None s'il est vide ou plus petit que `min_size`.
+  - `fit_polygons(polygons, from_box, to_box) -> list` — Des polygones posés dans `from_box`, portés dans `to_box` (déplacés, mis à l'échelle, en
   - `by_frame(doc: dict, *, interpolate: bool=False, max_gap: int=0, max_extrapolation: int=0, min_iou: float=0.2) -> dict` — {indice de frame: [détections]} — détections RELEVÉES, plus, si `interpolate`, celles que
   - `max_gap_for(fps: float, wanted: int) -> int` — Le trou le plus long que l'on comble : le RÉGLAGE, tel quel.
   - `rewrite_media(source: str, frames: dict, apply, output_path: str, *, on_frame=None, progress=None) -> str` — Réécrit le média `source` en peignant chaque frame avec SES détections :
@@ -1816,13 +1817,14 @@ Une règle unique pour les 8 apps à liaison PRÉCOCE, en deux familles : entré
 
 ### Notifications
 
-notify_job_end() — LA fin d'un traitement (squelette de tâche) : e-mail (notify_job) et notification DANS WAMA au propriétaire selon ses préférences, puis aux collaborateurs ; la notification DÉSIGNE son élément (app + type + id), ce que relève la passerelle pour poster la fin dans le fil d'origine (2026-10-06) ; notify_in_app() — DANS WAMA (badge de l'en-tête, page /common/notifications/, lu / non lu) ; notify_admins() — les deux canaux vers les administrateurs (mort d'un worker)
+notify_job_end() — LA fin d'un traitement (squelette de tâche) : e-mail (notify_job) et notification DANS WAMA au propriétaire selon ses préférences, puis aux collaborateurs ; la notification DÉSIGNE son élément (app + type + id), ce que relève la passerelle pour poster la fin dans le fil d'origine (2026-10-06) ; notify_in_app() — DANS WAMA (badge de l'en-tête, page /common/notifications/, lu / non lu) ; SOUND_BY_KIND — les types qui SONNENT dans la page (fin de traitement), selon le réglage « Son dans WAMA » du profil ; notify_admins() — les deux canaux vers les administrateurs (mort d'un worker)
 
 - **Domicile** : `wama/common/utils/notifications.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md](../construction/exploitation/WAMA_COLLABORATION.md)
 - **Module** : Notifications utilisateur (email) — brique commune, métadonnée/préférence-driven.
-- **API publique** (9) :
+- **API publique** (10) :
   - `notify_emails(recipients, subject, body, html=None)` — Envoie un email à une liste d'ADRESSES (pas forcément des Users) — ex. modérateurs.
   - `notify_user(user, subject, body, html=None)` — Envoie un email à l'utilisateur si une adresse est disponible. Fail-safe (jamais d'exception).
+  - `notification_sound(notification, user) -> str` — Le son d'une notification pour cet utilisateur : `'done'`, `'failed'`, ou `''` (muette —
   - `notify_in_app(users, kind, title, body='', url='', *, app='', item=None)` — Crée une notification DANS WAMA pour chaque utilisateur (`common.Notification`, badge de
   - `infrastructure_admins()` — Les comptes qui administrent l'infrastructure : ceux que la politique d'accès laisse
   - `staff_emails(audiences=('admin', 'dev'))` — Adresses d'envoi pour une ou plusieurs audiences du staff : l'adresse FONCTIONNELLE
@@ -2347,16 +2349,15 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_me
 
 ### Copie de lecture des vidéos
 
-Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil H.264, pixels — pas le seul nom du codec) reçoit, DÈS SON IMPORT et quelle que soit la voie, une copie de lecture H.264 servie par l'aperçu SEULEMENT ; l'original reste intact pour les traitements (2026-10-06, décision de Fabien). Rangée dans le dossier CACHÉ de l'utilisateur (`users/<id>/.preview/`), jamais à côté de l'original ni dans un dossier connecté ; balayée quand l'original part ; ni orpheline pour l'intégrité, ni dédupliquée, ni sauvegardée. Récepteur générique sur les champs fichier, tâche `common.make_playback_copy` (CPU), rattrapage `manage.py playback_copies`
+Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil H.264, pixels — pas le seul nom du codec) reçoit, DÈS SON IMPORT et quelle que soit la voie, une copie de lecture H.264 servie par l'aperçu SEULEMENT ; l'original reste intact pour les traitements (2026-10-06, décision de Fabien). Rangée dans le dossier CACHÉ de l'utilisateur (`users/<id>/.preview/`), jamais à côté de l'original ni dans un dossier connecté ; balayée quand l'original part ; ni orpheline pour l'intégrité, ni dédupliquée, ni sauvegardée. Récepteur générique sur les champs fichier, tâche `common.make_playback_copy` (CPU), rattrapage `manage.py playback_copies`. Le verdict lit la sonde COMMUNE (`media_probe.probe_video_format`) ; l'écriture partage le geste de `ensure_h264`
 
 - **Domicile** : `wama/common/utils/video_compat.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Browser-compatibility helpers for video files.
-- **API publique** (14) :
+- **API publique** (13) :
   - `get_video_codec(file_path: str, *, timeout: int=10) -> Optional[str]` — Return the codec name of the first video stream, lowercased
   - `is_browser_compatible_codec(codec: Optional[str]) -> bool` — True when the codec is one HTML5 ``<video>`` can play directly.
   - `ensure_h264(file_path: str, *, timeout: int=1800) -> Union[bool, str]` — Ensure a video is browser-compatible. When the codec is already in
-  - `probe_video(file_path: str, *, timeout: int=20) -> Optional[dict]` — `{container, codec, profile, pix_fmt}` du premier flux vidéo, ou None (pas de vidéo,
-  - `playability(info: Optional[dict]) -> tuple` — `(lisible, raison)` d'une vidéo décrite par `probe_video` — pure. HEVC n'est pas compté
+  - `playability(info: Optional[dict]) -> tuple` — `(lisible, raison)` d'une vidéo décrite par la sonde COMMUNE (`media_probe.
   - `playback_copy_rel(rel: str) -> str` — Le chemin (relatif à MEDIA_ROOT) de la copie de lecture d'un média — pure. Sous
   - `playback_copy_for(rel: str) -> str` — La copie de lecture À JOUR d'un média (chemin relatif), ou '' — plus ancienne que
   - `make_playback_copy(rel: str, *, timeout: int=3600) -> str` — Crée la copie de lecture d'un média si le navigateur ne le lit pas — idempotent. Rend le
@@ -2642,10 +2643,11 @@ Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffm
 
 - **Domicile** : `wama/common/utils/media_probe.py` · **doc** : [docs/construction/suivi/ROADMAP.md §17ter](../construction/suivi/ROADMAP.md)
 - **Module** : WAMA Common — Sonde média (durée / codec / dimensions / pages / entrées).
-- **API publique** (6) :
+- **API publique** (7) :
   - `format_duration(seconds: float) -> str` — ``95.4 -> '1:35'``, ``3750 -> '1:02:30'`` — affichage court ('' si inconnu/zéro).
   - `probe_audio(path: str) -> dict` — Sonde le premier flux audio d'un fichier.
   - `probe_video(path: str) -> dict` — Sonde le premier flux vidéo : codec • L×H • fps, + durée (stream puis format).
+  - `probe_video_format(path: str, *, timeout: int=20) -> dict` — Ce que le NAVIGATEUR regarde du premier flux vidéo : `{container, codec, profile,
   - `probe_object3d(path: str) -> dict` — Sonde d'un OBJET 3D (ROADMAP §17ter, trou 2) — ce que le fichier DÉCLARE, sans le décoder.
   - `probe_media(path: str) -> dict` — Sonde générique TOUS types (dispatch par extension).
   - `probe_media_cached(path: str, ttl: int=86400) -> dict` — `probe_media` avec cache Django par (chemin, mtime) — pour les endpoints à la requête
