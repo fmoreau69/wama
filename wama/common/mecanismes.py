@@ -1063,12 +1063,17 @@ MECHANISMS = (
               "porteur du démon Ollama n'en est pas un). Depuis le 29/09 la TÂCHE voyage : un "
               "contrat LIANT (`backend_inventory.TASK_CONTRACTS`) écarte un backend qui n'en "
               "dérive pas — un upscaler n'exécute pas un modèle texte→image, même seul sur "
-              "`onnxruntime`",
+              "`onnxruntime`. L'AUTRE moitié du routage depuis le 05/10 : `route_for_nature` "
+              "suit la décision d'APP (`backends/__init__.ROUTES`, nature d'entrée → fonction "
+              "au contrat commun), import relatif au paquet appelant — recopiée quatre fois "
+              "avant (enhancer, describer, corps émis par tasks_gen, conversion inline) et "
+              "contournée par la tâche du converter (`if/elif` à la main)",
               'wama/common/backends/manager.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               symbol='backend_for_model',
               annexes=('wama/common/management/commands/check_backend_links.py',
                        'wama/common/tests/tests_backend_inventory.py',
-                       'wama/common/tests/tests_backend_contract_routing.py')),
+                       'wama/common/tests/tests_backend_contract_routing.py',
+                       'wama/common/tests/tests_route_for_nature.py')),
     Mechanism('backend_proposals', 'Backends PROPOSÉS par un rôle LLM (marche B2)',
               "Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle "
               "installé ; ce module le JUGE (forme : contrat, ENGINE, SUPPORTED_MODELS au niveau "

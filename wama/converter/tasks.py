@@ -123,62 +123,18 @@ def _convert(job, ctx):
         publish_partial('converter', job.pk, settings.MEDIA_URL + output_rel_dir + output_name)
 
     try:
-        media_type = job.media_type
-
-        if media_type == 'image':
-            from .backends.image_backend import convert_image
-            convert_image(
-                input_path=input_path,
-                output_path=output_path,
-                output_format=job.output_format,
-                quality=int(eff_opts.get('quality', 90)),
-                options=eff_opts,
-            )
-            ctx.progress(90)
-
-        elif media_type == 'video':
-            from .backends.video_backend import convert_video
-            convert_video(
-                input_path=input_path,
-                output_path=output_path,
-                output_format=job.output_format,
-                options=eff_opts,
-                progress_callback=ctx.progress,
-            )
-
-        elif media_type == 'audio':
-            from .backends.audio_backend import convert_audio
-            convert_audio(
-                input_path=input_path,
-                output_path=output_path,
-                output_format=job.output_format,
-                options=eff_opts,
-                progress_callback=ctx.progress,
-            )
-
-        elif media_type == 'document':
-            from .backends.document_backend import convert_document
-            ctx.progress(10)
-            convert_document(
-                input_path=input_path,
-                output_path=output_path,
-                output_format=job.output_format,
-                options=eff_opts,
-            )
-            ctx.progress(90)
-
-        elif media_type == 'archive':
-            from .backends.archive_backend import convert_archive
-            convert_archive(
-                input_path=input_path,
-                output_path=output_path,
-                output_format=job.output_format,
-                options=eff_opts,
-                progress_callback=ctx.progress,
-            )
-
-        else:
-            raise ValueError(f"Type de média non supporté : {media_type}")
+        # Le backend de la NATURE, par les ROUTES que l'app déclare (porte commune, contrat
+        # « fichier » des cinq backends, B1 02/09). Jusqu'au 2026-10-05 cette glu les CONTOURNAIT
+        # par un `if/elif` écrit à la main : les ROUTES ne servaient qu'au manifeste et à la
+        # jumelle. La qualité d'image voyage dans `options` (le schéma la pose toujours pour une
+        # image, défaut 85 — le repli `90` de l'ancien appel n'était jamais pris). La conversion
+        # occupe 0-90 % : le post-traitement IA qui suit parle de 90 à 98 (`cross_app`) — une
+        # vidéo montait à 100 puis redescendait.
+        from wama.common.backends.manager import route_for_nature
+        convert = route_for_nature(__package__, job.media_type)
+        convert(input_path, output_path, job.output_format, options=eff_opts,
+                progress_callback=lambda p: ctx.progress(int(p * 0.9)))
+        ctx.progress(90)
 
         # Options cross-app (Phase 2, wiring 18/08) : post-traitement IA inline (enhancer)
         # sur le fichier de sortie, AVANT le move in-place final — un échec suit le chemin

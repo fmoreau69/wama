@@ -1354,6 +1354,19 @@ sur la même liste.
 > Après : les 6 critères verts sur 9 apps applicables (converter N/A), 7 rouges
 > `backend_routes` = le vrai reste. Tenu par `wama/common/tests/tests_conformity_backends.py`.
 
+> ✅ **UNE PORTE PAR NATURE (2026-10-05)** — `backends/manager.route_for_nature(package, nature,
+> routes=None)`, à côté des portes du catalogue (`backend_for_model`/`backend_for_key`), dont elle
+> est l'autre moitié : celles-là vont du MODÈLE au backend, celle-ci suit la décision de ROUTAGE
+> de l'app. La résolution « `ROUTES[nature]` → import relatif au paquet → callable » était
+> recopiée quatre fois (enhancer `_route`, describer, corps émis par `tasks_gen`, conversion
+> inline du converter), et **la tâche du converter CONTOURNAIT ses propres `ROUTES`** par un
+> `if/elif` écrit à la main (`converter/tasks.py`, mesuré : ses ROUTES ne servaient qu'au
+> manifeste et à la jumelle — vert au critère `backend_routes` sur une déclaration morte). Les
+> quatre passent par la porte ; la conversion occupe 0-90 % (le post-traitement IA qui suit
+> parle de 90 à 98 : une vidéo montait à 100 puis redescendait). Gardes :
+> `tests_route_for_nature` (la porte ; aucune lecture de `ROUTES` à la main ; la glu du
+> converter suit sa TABLE, prouvé en la modifiant) — trois mutations tuées.
+
 **Palier `params` (soir, sur dev)** : extract MULTI-SCHÉMAS — tous les attributs `*PARAMS_JSON`
 (trou #10 résorbé : imager IMAGE+VIDEO, enhancer MEDIA+AUDIO étaient invisibles), facette
 `{primary, schemas}` (forme liste historique acceptée à l'ingest). Projecteur : un `params.py`
