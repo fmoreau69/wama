@@ -41,8 +41,10 @@ LANGUAGES = ['en', 'fr', 'de', 'es', 'it', 'nl', 'pl', 'ja', 'ko', 'zh-cn']
 
 #: Le moteur `transformers-remote-code` est PARTAGÉ depuis le 2026-10-03 (SheetSage2) : un
 #: moteur partagé se départage par le modèle nommé ici — littéral, l'inventaire le lit par AST.
+# Le nom de sa ligne de catalogue, et RIEN d'autre : nom, description et VRAM sont au
+# REGISTRE (l'inventaire ne lit que la clé) — 2026-10-06, `backend_proposals`.
 SUPPORTED_MODELS = {
-    'Audio8/Audio8-TTS-Preview-0.6b': {'name': 'Audio8 TTS Preview 0.6B'},
+    "Audio8/Audio8-TTS-Preview-0.6b": {"model_key": "huggingface:Audio8/Audio8-TTS-Preview-0.6b"},
 }
 
 

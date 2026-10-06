@@ -36,12 +36,10 @@ logger = logging.getLogger(__name__)
 # ----------------------------------------------------------------------
 # Inventaire des modèles supportés (module‑level)
 # ----------------------------------------------------------------------
+# Le nom de sa ligne de catalogue, et RIEN d'autre : nom, description et VRAM sont au
+# REGISTRE (l'inventaire ne lit que la clé) — 2026-10-06, `backend_proposals`.
 SUPPORTED_MODELS = {
-    "aihpi/FrWhisper": {
-        "name": "FrWhisper",
-        "description": "Whisper large‑v3 fine‑tuned for French conversational speech",
-        "vram": 7.4,
-    }
+    "aihpi/FrWhisper": {"model_key": "huggingface:aihpi/FrWhisper"},
 }
 
 #: Taux d'entrée de Whisper.

@@ -130,11 +130,31 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `docs/construction/a
     dans `tool_api.py` (A4, 2026-08-12 — fonctions CONSTRUITES à l'import par
     `_register_triads()`), pas de squelette recopié ; `add_to_<app>` reste de la glu. Une triade
     à VRAIE logique (routage, purge, clés spéciales — ex. transcriber) reste code main, assumée.
+14. **Sélecteur de modèle (route F4b, `ROUTE §F4b` étapes ⑤ ⑥ ⑦)** — COPIER le précédent
+    (imager ⑥, enhancer ⑤), ne rien ajouter :
+    - `options_source='catalog'`, `options_query` = une CAPACITÉ (`task`), **jamais `source`**
+      (un modèle installé d'une autre source n'y entrerait pas — le critère
+      `model_options_catalog` le mesure depuis le 2026-10-06) ; le domaine se déclare UNE fois
+      et le tirage « auto » le lit ;
+    - plus de `choices` statiques ni de domaine de porte (`options_domain`) : sans eux
+      `invalid_choice_values` n'a rien à refuser — c'est le `save()` du modèle qui normalise
+      (`model_keys.catalog_key`) ; le transcriber a un `options_domain` parce qu'il ANNONCE des
+      modèles distants, pas par défaut ;
+    - valeurs = clés : migration PURE de préfixage (`imager/0023`, `enhancer/0018`) ; nom de
+      fichier et clé ETA gardent l'identifiant (`model_id`) ;
+    - lancement : `backend_for_key(clé)`, le backend reçoit `model_id` ;
+    - pré-rendu serveur d'un volet HTML : `get_registry_models(None, **domaine)` dans la vue ;
+    - un modèle INSTALLÉ servi par un backend existant : `SUPPORTED_MODELS[<org/dépôt>] =
+      {'model_key': …}` et RIEN d'autre — ses faits sont au registre (`backend_proposals`
+      refuse une valeur recopiée, une garde balaie tout le vivier).
 
 ## 2. Pièges récurrents (chacun a déjà coûté une session)
 - `{# #}` multi-ligne Django PAS strippé → toujours `{% comment %}`.
 - JS/CSS modifiés → copier `wama/<app>/static/` → `staticfiles/<app>/`.
-- Migrations : `manage.py migrate` DES DEUX côtés (WSL2 live + Windows copie).
+- Migrations : `manage.py migrate` DES DEUX côtés (WSL2 live + Windows copie). ⚠ SAUF une
+  migration de DONNÉES que l'ancien code en service lirait mal (préfixage en clés : il
+  recomposerait `<app>:<app>:…`) — ne pas l'appliquer à la main, `start_wama_prod.sh` migre
+  AVANT de lancer gunicorn au redémarrage ; le DIRE à Fabien dans le message.
 - Python runtime modifié → restart process WSL2 requis (le signaler).
 - Capacités UI : le MODÈLE déclare (`capabilities`), jamais de `show_if` hardcodé.
 - Ne PAS adapter le studio à l'app : finir le port, pas écrire de colle (contrat uniforme).

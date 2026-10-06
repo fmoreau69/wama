@@ -154,6 +154,33 @@ class DomainesDeclaresParLesAppsTest(TestCase):
         self.assertFalse(_champ('enhancer', 'ai_model').get('choices'))
 
 
+class TheCriterionSeesTheDomainTest(TestCase):
+    """`model_options_catalog` was GREEN with a domain bounded by `source` (enhancer, 08/09 →
+    06/10): Swin2SR, installed and launchable, was absent from the select and the grid did not see
+    it. The criterion now reads the DECLARED domains (every schema of the app) — run on the real
+    apps, no fixture."""
+
+    def _measure(self, app):
+        from wama.common.services.conformity_checker import _AppFiles, _model_options_from_catalog
+        return _model_options_from_catalog(_AppFiles(app))
+
+    def test_a_domain_by_task_is_green(self):
+        self.assertIs(True, self._measure('transcriber')[0])
+
+    def test_a_domain_by_source_is_partial_and_names_the_select(self):
+        state, evidence = self._measure('reader')
+        self.assertEqual('partial', state)
+        self.assertIn('backend', evidence)
+
+    def test_one_select_by_source_among_two_is_enough_to_say_it(self):
+        """The enhancer's media select is by task since 06/10; its AUDIO select is still by source
+        — the second schema (`AUDIO_PARAMS_JSON`) would be invisible to `schema_for_app`."""
+        state, evidence = self._measure('enhancer')
+        self.assertEqual('partial', state)
+        self.assertIn('engine', evidence)
+        self.assertNotIn('ai_model', evidence)
+
+
 class InvariantDesDeclarationsTest(TestCase):
     """Vrai pour TOUTE app, aujourd'hui et demain — c'est la garde qui survit aux portages."""
 

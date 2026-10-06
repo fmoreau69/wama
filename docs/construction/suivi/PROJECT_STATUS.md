@@ -22609,3 +22609,20 @@ relecture de Fabien. Détail : `PROSPECTION_PIPELINE §Session du 2026-10-06`, `
   `APP_TASKS['enhancer']` ; description périmée du balayage générique ; valeurs recopiées par le
   rôle `backend` dans `SUPPORTED_MODELS` ; critère `model_options_catalog` aveugle au domaine par
   source ; `AUDIO_SPEC` encore par source.
+
+## §PALIER — 2026-10-06 (nuit, suite), « TROIS DÉFAUTS DE LA CHAÎNE SOLDÉS + SKILLS » — livré (commit de ce palier, non poussé) — 🔴 relancer gunicorn + workers (description du balayage, backends du rôle)
+
+Demande de Fabien : corriger les trois défauts relevés au palier précédent, avec tests, et
+améliorer les skills pour éviter la récidive.
+- Description du balayage générique : plus d'ÉTAT dans un texte généré (« en attente
+  d'intégration » restait faux après intégration) — des faits seuls ; l'état se calcule.
+- Rôle `backend` : sa consigne EXIGEAIT `{'name','description','vram'}` dans `SUPPORTED_MODELS`
+  (lus par personne) → consigne corrigée + contrôle `supported_entry_errors` + six backends
+  ramenés à `{'model_key': …}` + garde sur tout le vivier.
+- Critère `model_options_catalog` : lit le domaine DÉCLARÉ, PARTIEL quand un select est borné
+  par source — anonymizer, avatarizer, enhancer (audio) et reader passent PARTIELS : la mesure
+  qui manquait, pas une régression.
+- Skills : `/brique` §1bis (précédent le plus proche, nom existant, lecteur de la valeur),
+  `/port-app` étape 14 (sélecteur F4b) + piège des migrations de données, `/conformite`
+  (un vert peut mesurer la forme sans la route).
+Détail : `PROSPECTION_PIPELINE §Session du 2026-10-06` (restes soldés), `ROUTE §F4b ⑤`.

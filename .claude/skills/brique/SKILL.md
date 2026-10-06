@@ -41,6 +41,27 @@ grep -nE "^#{2,3} " docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md 
   normalize_types existaient déjà).
 - Ne pas réveiller le code DORMANT (`AI-models/manager.py`, registry.json).
 
+### 1bis. « 2ᵉ consommateur » n'est PAS une raison suffisante — le PRÉCÉDENT LE PLUS PROCHE d'abord
+
+> 🔴 Vécu le 2026-10-06 (portage F4b ⑤ de l'enhancer), relevé par Fabien : *« tu as recréé un
+> chemin parallèle »*. J'ai vu deux copies (le pré-rendu du synthesizer, la porte du
+> transcriber), écrit deux fonctions communes, fait adopter les deux apps… alors que l'app
+> portée de la MÊME façon juste avant (l'imager, ⑥) n'avait besoin ni de l'une ni de l'autre.
+> Tout a été retiré avant commit. Le « zéro duplication » a servi d'alibi à un chemin de plus.
+
+Trois questions, dans l'ordre, AVANT d'extraire :
+1. **Qui a déjà résolu EXACTEMENT ce besoin ?** Pour un portage, c'est l'étape précédente de la
+   route (`ROUTE §F4b` ⑥ imager, ⑦ transcriber…), pas l'app qui ressemble. Lire SON code. S'il
+   fait sans la brique, la brique est un chemin parallèle — suivre le précédent.
+2. **Le concept a-t-il déjà un NOM ?** Avant tout champ ou clé neuf, greper le concept dans le
+   substrat. Vécu le même jour : `catalog_key` dans `SUPPORTED_MODELS`, quand
+   `pyannote_diarizer` nomme déjà la ligne de catalogue `model_key`. Deux noms pour une chose,
+   c'est deux chemins.
+3. **Qui LIT la valeur que je m'apprête à recopier ?** Une valeur que seul un repli justifie
+   (fonctionner SANS base : les upscalers embarqués) se garde ; une valeur que personne ne lit
+   est une seconde vérité (vécu : `name`/`description`/`vram` recopiés du catalogue dans cinq
+   backends, lus par personne — l'inventaire ne lit que les clés). `grep` le lecteur, pas le nom.
+
 ## 2. Extraire (construction propre, pas de surcharge)
 - Partir de la MEILLEURE implémentation existante (souvent transcriber/reader), pas d'une moyenne.
 - La brique est déclarative/paramétrable (kwargs, hooks `reset=`/`derive=`/`extra=`) — jamais de

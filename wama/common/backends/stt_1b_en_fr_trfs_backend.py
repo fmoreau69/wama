@@ -34,12 +34,10 @@ logger = logging.getLogger(__name__)
 # ----------------------------------------------------------------------
 # Inventaire des modèles supportés par ce backend
 # ----------------------------------------------------------------------
+# Le nom de sa ligne de catalogue, et RIEN d'autre : nom, description et VRAM sont au
+# REGISTRE (l'inventaire ne lit que la clé) — 2026-10-06, `backend_proposals`.
 SUPPORTED_MODELS = {
-    "kyutai/stt-1b-en_fr-trfs": {
-        "name": "Kyutai STT 1B (en/fr)",
-        "description": "Modèle de transcription streaming (anglais / français) : 1 B paramètres, 0.5 s de latence.",
-        "vram": 3.2,
-    }
+    "kyutai/stt-1b-en_fr-trfs": {"model_key": "huggingface:kyutai/stt-1b-en_fr-trfs"},
 }
 
 #: Kyutai émet ses mots avec un retard VARIABLE (jusqu'à ~1,5 s mesuré le 2026-10-01) : l'écart

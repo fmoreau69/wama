@@ -753,8 +753,10 @@ d'avant plus Swin2SR, tous lançables.
   `common/tests/tests_ai_upscaler`, tests de mémoire du volet et de tâche réalignés.
 
 ⚠ Le critère `model_options_catalog` était VERT avant ce portage (domaine par source) : il atteste
-que les options viennent du catalogue, pas que le domaine est une capacité. Reste l'audio
-(`AUDIO_SPEC`, encore par source) — hors de ce portage.
+que les options viennent du catalogue, pas que le domaine est une capacité. ✅ **Durci le soir
+même** : il lit le domaine DÉCLARÉ (tous les schémas de l'app) et passe PARTIEL un select borné
+par source — anonymizer `model_to_use`, avatarizer `animation_model`, enhancer `engine` (audio,
+`AUDIO_SPEC`), reader `backend`, les restes de l'étape F4b.
 
 **Ce qu'il ne faut PAS casser** : la lecture BIDIRECTIONNELLE des capacités dans la card
 (entrées⇄modèles, `WamaInputMatch` + `WamaModelCaps`, **8/8 câblées**, adoption SOLDÉE). Elle

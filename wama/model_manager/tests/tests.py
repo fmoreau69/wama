@@ -216,6 +216,20 @@ class SnapshotsInstallesTest(TestCase):
         self.assertEqual(m.format, 'safetensors')
         self.assertFalse(m.backend_ref, "catalogué ≠ utilisable : pas de backend inventé")
 
+    def test_the_generated_description_states_no_integration_state(self):
+        """2026-10-06: « backend à intégrer » / « en attente d'intégration » was rewritten at every
+        scan, so it stayed FALSE once a backend served the model (FrWhisper, Supra2-IMG, Swin2SR).
+        Whether a backend serves it is COMPUTED (`backend_missing`); the text only states facts."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            racine = Path(tmp)
+            _faux_snapshot(racine, 'upscaling', 'sr-family', 'org', 'sr')
+            m = self._balayer(racine)['huggingface:org/sr']
+        text = f'{m.description} {m.description_short}'.lower()
+        for claim in ('attente', 'intégrer', 'intégration', 'aucune app', 'encore'):
+            self.assertNotIn(claim, text)
+        self.assertIn('upscaling/sr-family', m.description, 'the facts stay: category and family')
+
     def test_un_depot_deja_declare_par_une_app_n_est_pas_duplique(self):
         """L'entrée d'app (backend, VRAM, capacités) fait autorité — le balayage se tait."""
         import tempfile
