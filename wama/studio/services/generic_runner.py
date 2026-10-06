@@ -239,9 +239,7 @@ def with_catalog_options(spec) -> list:
         try:
             from wama.model_manager.services import get_registry_models
             choices, _info = get_registry_models(source, **query)
-        except Exception:
-            logger.debug('[studio] options du catalogue illisibles pour %s', entry.get('name'),
-                         exc_info=True)
+        except Exception:          # catalogue illisible : un select vide, jamais une levée
             choices = []
         options = [{'value': AUTO, 'label': AUTO_LABEL}] if entry.get('options_auto') else []
         options += [{'value': key, 'label': label} for key, label in choices]

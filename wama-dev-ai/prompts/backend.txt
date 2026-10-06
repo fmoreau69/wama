@@ -17,8 +17,9 @@ RÈGLES STRICTES :
    `REQUIRED_PACKAGES = [...]` (noms d'IMPORT), `name`, `display_name`, `recommended_vram_gb`.
 3. `SUPPORTED_MODELS` est un dict LITTÉRAL au NIVEAU MODULE (pas dans la classe), dont la clé
    est l'IDENTIFIANT DU MODÈLE fourni dans la demande — c'est ce qui fait choisir TON backend
-   quand un autre pilote déjà le même moteur. Valeur : {'model_key': '<CLÉ CATALOGUE fournie>'}
-   et RIEN d'autre — nom, description, VRAM sont au CATALOGUE ; les recopier est REFUSÉ.
+   quand un autre pilote déjà le même moteur. Valeur : {'model_key': '<CLÉ CATALOGUE fournie>'},
+   plus SEULEMENT les paramètres d'exécution que ton code LIT. Nom, description, VRAM sont au
+   CATALOGUE : une valeur que le module ne lit pas est REFUSÉE.
 4. LES POIDS SONT DÉJÀ INSTALLÉS. Tu les obtiens UNIQUEMENT par la brique commune :
        from wama.common.utils.model_components import component_paths
        paths = component_paths('<CLÉ CATALOGUE fournie>')   # {rôle: Path}

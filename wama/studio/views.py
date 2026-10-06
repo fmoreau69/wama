@@ -220,8 +220,10 @@ def api_run_options(request):
     """Options d'exécution métadonnée-driven : params_spec par app exécutable +
     listes dynamiques (galerie d'avatars)."""
     from .services.runners import runner_for
-    from .services.generic_runner import GENERIC_APPS
-    specs = {app: runner_for(app)['params_spec'] for app in GENERIC_APPS}   # source unique : params.py
+    from .services.generic_runner import GENERIC_APPS, with_catalog_options
+    # Source unique : params.py. Les selects tirés du CATALOGUE reçoivent leurs options À CHAQUE
+    # requête (le spec du runner est en cache) — un modèle installé y entre sans redémarrage.
+    specs = {app: with_catalog_options(runner_for(app)['params_spec']) for app in GENERIC_APPS}
     # Nœuds intégrés (cards d'entrée / de sortie) — configurables dans l'inspecteur
     specs['text_input'] = [
         {'name': 'text', 'label': 'Texte', 'type': 'textarea',
