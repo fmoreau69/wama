@@ -1548,6 +1548,7 @@ def api_partage(request, surface: str, nature: str, pk: int):
     lecture seule par construction ; l'escalade est le jalon S3 `AccessGrant`.
     """
     from django.shortcuts import get_object_or_404
+    from wama.common.services.access_requests import AccessRequestRefused
     from wama.common.services.sharing import (ConsentRequired, RefusDePartage, etat, partager,
                                               partager_lot, portees_offrables)
     from wama.common.utils.batch_common import batch_model_for_app
@@ -1587,17 +1588,38 @@ def api_partage(request, surface: str, nature: str, pk: int):
     projet = request.POST.get('project_id') or None
     # Le consentement VALIDÉ dans la modale (élément qui porte une personne, 2026-09-30).
     consent = request.POST.get('consent') == '1'
+    # PARTAGE À UNE PERSONNE (2026-10-06) — mêmes coordonnées : `person` (identifiant ou e-mail,
+    # résolu comme pour « Transférer à… ») + `mode` ; `revoke_person` (id) pour le retirer.
+    from django.contrib.auth import get_user_model
+    from wama.common.services.card_transfer import find_recipient
+    from wama.common.services.sharing import share_with_person, unshare_person
     try:
+        if request.POST.get('person'):
+            recipient = find_recipient(request.POST.get('person'), request.user)
+            report = share_with_person(request.user, cible, modele_element, recipient,
+                                       request.POST.get('mode') or 'read', nature=nature,
+                                       surface=surface, consent=consent)
+            return JsonResponse({'ok': True, **report, 'persons': etat(cible)['persons']})
+        if request.POST.get('revoke_person'):
+            who = get_object_or_404(get_user_model(), pk=request.POST.get('revoke_person'))
+            removed = unshare_person(request.user, cible, who)
+            return JsonResponse({'ok': True, 'removed': removed,
+                                 'persons': etat(cible)['persons']})
         if nature == 'lot':
             compte_rendu = partager_lot(request.user, cible, modele_element,
                                         visibility, unite, projet, consent=consent)
         else:
             compte_rendu = partager(request.user, cible, visibility, unite, projet, consent=consent)
+        # « Retirer le partage » de la page Partages : la portée ET les personnes.
+        if request.POST.get('unshare_persons') == '1':
+            for person in etat(cible)['persons']:
+                unshare_person(request.user, cible,
+                               get_user_model().objects.get(pk=person['user_id']))
     except ConsentRequired as refus:
         # 409 et le TEXTE à valider : la modale le montre au lieu d'un refus sec.
         return JsonResponse({'ok': False, 'consent_required': True, 'reason': str(refus),
                              'statement': refus.statement}, status=409)
-    except RefusDePartage as refus:
+    except (RefusDePartage, AccessRequestRefused) as refus:
         return JsonResponse({'ok': False, 'reason': str(refus)}, status=400)
     return JsonResponse({'ok': True, **compte_rendu})
 

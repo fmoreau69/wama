@@ -1265,7 +1265,7 @@ def check_collaboration_cycle():
                 try:
                     page.goto(BASE_URL + '/common/shares/', wait_until='networkidle', timeout=60000)
                     page.click(f'[data-revoke="{grant.pk}"]')
-                    page.wait_for_selector(f'[data-collaborator="{grant.pk}"]', state='detached',
+                    page.wait_for_selector(f'[data-person="{grant.pk}"]', state='detached',
                                            timeout=15000)
                 finally:
                     nav.close()
@@ -1287,6 +1287,140 @@ def check_collaboration_cycle():
                                     kind__in=['access_request', 'access_granted',
                                               'access_revoked']).delete()
         ReceivedEntry.objects.filter(recipient=requester, object_id=owner_batch.pk).delete()
+        Description.objects.filter(pk=item.pk).delete()
+        BatchDescription.objects.filter(pk=owner_batch.pk).delete()
+        source.unlink(missing_ok=True)
+    return _bilan(verdicts)
+
+
+def check_person_share_cycle():
+    """PARTAGER À UNE PERSONNE de bout en bout (2026-10-06, `WAMA_COLLABORATION §3bis.2`). (ok, detail)
+
+    Propriétaire (compte DÉVELOPPEUR, describer) : clic droit sur une card PRIVÉE → « Partager… »
+    → « Avec une personne » : identifiant du destinataire, « Partager » ; la personne s'inscrit dans
+    la modale. Destinataire (compte de test) : prévenu en bas à droite (N1), la card est dans SA
+    file, marquée « Reçue de ». Propriétaire : « Mes partages » dit la personne et depuis quand,
+    « retirer ». Destinataire : la card a quitté sa file (effet immédiat, lot compris).
+    """
+    from django.contrib.auth import get_user_model
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.models import Notification, ObjectGrant, ReceivedEntry
+    from wama.common.services.nightly_tests import SkipScenario, get_test_dev_user
+    from wama.common.utils.media_paths import app_media_dir
+    from wama.describer.models import BatchDescription, Description
+    from wama.describer.views import _wrap_description_in_batch
+
+    page_path = '/describer/'
+    recipient_token, uid = _test_session_key('describer'), _test_account_id('describer')
+    owner_token = _test_session_key('describer_01')
+    owner = get_test_dev_user()
+    if not (recipient_token and owner_token and uid and owner) or owner.pk == uid:
+        raise SkipScenario('deux comptes de test distincts sont nécessaires')
+    recipient = get_user_model().objects.get(pk=uid)
+    home = app_media_dir('describer', owner.pk, 'input')
+    folder = Path(settings.MEDIA_ROOT) / home
+    folder.mkdir(parents=True, exist_ok=True)
+    name = 'wama_temoin_partage_personne.txt'
+    source = _temoin(folder, name, '.txt')
+    item = Description.objects.create(user=owner, filename=name)
+    item.input_file.name = f'{home}/{name}'
+    item.save(update_fields=['input_file'])
+    owner_batch = _wrap_description_in_batch(item)
+    card = f".wama-card[data-id='{item.pk}']"
+    label_js = f"() => getComputedStyle(document.querySelector(\"{card}\"), '::before').content"
+    from django.utils import timezone
+    started = timezone.now()
+    before, verdicts = _session_keys(), []
+    try:
+        with sync_playwright() as p:
+            nav, page, errors = _ouvrir(p, recipient_token)
+            try:
+                page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                verdicts.append((page.locator(card).count() == 0,
+                                 'privée : absente de la file du destinataire'))
+            finally:
+                nav.close()
+        with sync_playwright() as p:
+            nav, page, errors = _ouvrir(p, owner_token)
+            try:
+                resp = page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                refused_page = _exiger_la_page(page, resp, page_path)
+                if refused_page:
+                    return refused_page
+                page.locator(card).first.click(button='right')
+                page.locator('.wama-card-menu .wama-cm-item:has-text("Partager…")').first.click()
+                modal = '.wama-share-modal.show'
+                page.wait_for_selector(f'{modal} [data-person-input]', timeout=15000)
+                page.fill(f'{modal} [data-person-input]', recipient.username)
+                page.select_option(f'{modal} [data-person-mode]', 'read')
+                page.click(f'{modal} [data-person-add]')
+                page.wait_for_selector(f'{modal} [data-person-row]', timeout=15000)
+                verdicts.append((recipient.username in page.inner_text(f'{modal} [data-person-list]'),
+                                 'la personne s’inscrit dans la modale'))
+                verdicts.append(_console(errors))
+            finally:
+                nav.close()
+        lines = ObjectGrant.objects.filter(beneficiary=recipient, state='granted', level='read')
+        verdicts.append((lines.filter(object_id=item.pk).exists()
+                         and lines.filter(object_id=owner_batch.pk).exists(),
+                         'une ligne accordée sur la card ET son lot'))
+        note = Notification.objects.filter(recipient=recipient, kind='share_received',
+                                           created_at__gte=started).order_by('-pk').first()
+        verdicts.append((note is not None, 'le destinataire est prévenu (share_received)'))
+        with sync_playwright() as p:
+            nav, page, errors = _ouvrir(p, recipient_token)
+            try:
+                if note is not None:
+                    page.add_init_script(
+                        f"localStorage.setItem('wama.notifications.lastSeen', '{note.pk - 1}')")
+                page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                if note is not None:
+                    popup = page.locator(f'.wama-notif-popup[data-notification-id="{note.pk}"]')
+                    try:
+                        popup.wait_for(timeout=15000)
+                        shown = 'partage' in popup.inner_text()
+                    except Exception:
+                        shown = False
+                    verdicts.append((shown, 'la notification surgit en bas à droite'))
+                verdicts.append((page.locator(card).count() == 1, 'la card est dans SA file'))
+                verdicts.append(('Reçue de' in (page.evaluate(label_js) or ''),
+                                 'la pastille dit « Reçue de … »'))
+                verdicts.append(_console(errors))
+            finally:
+                nav.close()
+        batch_line = lines.filter(object_id=owner_batch.pk).first()
+        if batch_line is not None:
+            with sync_playwright() as p:
+                nav, page, errors = _ouvrir(p, owner_token)
+                try:
+                    page.goto(BASE_URL + '/common/shares/', wait_until='networkidle', timeout=60000)
+                    pill = page.locator(f'[data-person="{batch_line.pk}"]')
+                    verdicts.append((pill.count() == 1 and 'depuis le' in pill.inner_text(),
+                                     '« Mes partages » : la personne, depuis quand'))
+                    page.click(f'[data-revoke="{batch_line.pk}"]')
+                    page.wait_for_selector(f'[data-person="{batch_line.pk}"]', state='detached',
+                                           timeout=15000)
+                finally:
+                    nav.close()
+            verdicts.append((not ObjectGrant.in_force().filter(beneficiary=recipient,
+                                                               object_id__in=[item.pk, owner_batch.pk])
+                             .exists(), 'retiré : la card et son lot, ensemble'))
+            with sync_playwright() as p:
+                nav, page, errors = _ouvrir(p, recipient_token)
+                try:
+                    page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                    verdicts.append((page.locator(card).count() == 0,
+                                     'retiré : la card quitte sa file (effet immédiat)'))
+                finally:
+                    nav.close()
+    finally:
+        _drop_new_sessions(before)
+        ObjectGrant.objects.filter(beneficiary=recipient,
+                                   object_id__in=[item.pk, owner_batch.pk]).delete()
+        Notification.objects.filter(recipient__in=[owner, recipient], created_at__gte=started,
+                                    kind__in=['share_received', 'access_revoked']).delete()
+        ReceivedEntry.objects.filter(recipient=recipient, object_id=owner_batch.pk).delete()
         Description.objects.filter(pk=item.pk).delete()
         BatchDescription.objects.filter(pk=owner_batch.pk).delete()
         source.unlink(missing_ok=True)
@@ -1509,6 +1643,11 @@ def register_menu_scenarios():
              description="Collaboration de bout en bout : demandée par « Mon accès », acceptée par "
                          "le propriétaire, ⚙ en édition, 🗑 réservée, retirée depuis « Mes partages »",
              run=lambda ctx: check_collaboration_cycle(), timeout_s=360)
+    register(id='common.person_share_cycle', app='common', stage='ui',
+             description="Partager à UNE PERSONNE depuis la card : le destinataire est prévenu, la "
+                         "voit dans sa file ; « Mes partages » dit depuis quand, et le retrait la "
+                         "lui retire (card et lot)",
+             run=lambda ctx: check_person_share_cycle(), timeout_s=300)
     register(id='common.card_transfer', app='common', stage='ui',
              description="« Transférer à… » depuis le menu de la card : elle quitte la file sans "
                          "rechargement, appartient au destinataire, son fichier déplacé chez lui",

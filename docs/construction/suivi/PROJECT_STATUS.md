@@ -22556,3 +22556,40 @@ fichiers de la session ; 33 mutations jouées, 33 rouges.
 son rétablie) ; serveur de dev du port 8011 arrêté ; worktrees jetables supprimés (le worktree
 `wt_mine` détaché sur `dba97208` est d'une autre instance) ; cards réelles de Fabien : 1036
 (échouée avant le correctif R104, relançable), 1046 et 1047 réussies.
+
+## §PALIER — 2026-10-06 (soir), « PARTAGE À UNE PERSONNE + N1 + DATE DES PARTAGES » — livré (commit de ce bloc, non poussé) — 🔴 RECHARGER gunicorn (la date de portée n'est pas en service) — 🔚 mode MODIFICATION (V2/V3/M3) · conflit montré
+
+Question de Fabien : *« on ne peut pas partager à un utilisateur seul »* — exact, `ScopedVisibility`
+n'a que quatre portées. Consigne : *« on reste aligné sur l'existant, on ne réinvente rien »*.
+Domicile : `WAMA_COLLABORATION §3bis.2` (bloc « PARTAGER À UNE PERSONNE »), §4.5, §4.7 (N1), §5.3.
+
+- **Partage à une personne** : une ligne `ObjectGrant` (le dessin du §2.1/§4.3), lue par
+  `scoped_visible_q(…, model=)` en extension des portées — aucune vue d'app touchée. Modale
+  « Partager… » → section « Avec une personne » (identifiant ou e-mail, mode lecture ou
+  collaboration). Retrait par `access_requests.revoke`, qui défait aussi les lignes couvertes
+  (card ↔ lot). « Mes partages » : une pastille par personne, mode, « depuis le … », « retirer ».
+- **N1 validée par Fabien** : `share_received` à la personne (+ e-mail selon son profil) et aux
+  membres d'un projet quand l'élément y ENTRE ; unité et public : personne.
+- **Date des partages par portée** (Fabien : *« autant rester homogène »*) : ligne `ObjectGrant`
+  sans bénéficiaire, mémoire jamais lue pour décider qui voit ; pas de date inventée pour un
+  partage antérieur. Affichée dans la modale et « Mes partages » — PAS sur la card ni dans
+  l'inspecteur (Fabien : ne pas les surcharger).
+- Migration `common.0029` (appliquée côté WSL ; `db_default` sur `visibility` pour le code en
+  service avant relance).
+- Revérification « rien réinventé ? » : lien vers l'app repris sur `notifications._job_url`
+  (au lieu d'un `_app_url` local) ; la portée de la modale passe par le même `postShare` que les
+  personnes ; `ObjectGrant.in_force` = domicile unique du « droit en vigueur » (deux recopies de
+  `access_requests` y sont branchées). `check_redundancy` : rien dans mes fichiers.
+
+**Mesures** : tests du périmètre (partage, demandes, notifications, files, médiathèque) verts —
+`tests_person_sharing` 26, contre-épreuve (branche `ObjectGrant` neutralisée → 7 rouges) ; JS
+parsé par V8 ; gestes navigateur sur 8011, code neuf : `common.person_share_cycle` **12/12**
+(nouveau), `common.collaboration_cycle` **9/9** (sélecteur `data-person`, ex-`data-collaborator`),
+`media_library.share_consent` **6/6**. Suite complète lancée en début de session (avant les
+écritures) : 5797 tests, 17 échecs + 1 erreur, aucun dans le partage ; rejoués après : mêmes noms.
+⚠ La suite échouait ce soir-là à l'import : `wama/enhancer/models.py` en cours d'édition par une
+autre instance (`AI_MODEL_CHOICES`), revenu sain quelques minutes plus tard.
+
+**Restes** : docs générées (carte des mécanismes, `docs/dev/briques.md`) à régénérer depuis HEAD
+quand le registre co-édité sera commité ; mode modification, conflit montré, « ses lots » (ouverts
+du 03/10, inchangés).

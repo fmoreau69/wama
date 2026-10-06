@@ -55,10 +55,7 @@ def _granted(user, objects, level):
     q = Q()
     for o in objects:
         q |= Q(object_type=o._meta.label, object_id=o.pk)
-    now = timezone.now()
-    return (ObjectGrant.objects.filter(q, beneficiary=user, level=level,
-                                       state=ObjectGrant.STATE_GRANTED)
-            .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now)).first())
+    return ObjectGrant.in_force().filter(q, beneficiary=user, level=level).first()
 
 
 def collaboration_grant(user, obj):
@@ -93,10 +90,7 @@ def collaborators_of(obj) -> list:
     q = Q(object_type=obj._meta.label, object_id=obj.pk)
     if entry is not obj:
         q |= Q(object_type=entry._meta.label, object_id=entry.pk)
-    now = timezone.now()
-    ids = (ObjectGrant.objects.filter(q, level=ObjectGrant.LEVEL_COLLABORATE,
-                                      state=ObjectGrant.STATE_GRANTED)
-           .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
+    ids = (ObjectGrant.in_force().filter(q, level=ObjectGrant.LEVEL_COLLABORATE)
            .values_list('beneficiary_id', flat=True))
     return list(get_user_model().objects.filter(pk__in=set(ids)))
 
@@ -220,25 +214,58 @@ def answer(owner, grant: ObjectGrant, accept: bool, consent: bool = False) -> di
     return {'state': grant.state, **report}
 
 
-def revoke(owner, grant: ObjectGrant) -> ObjectGrant:
+def _covered_lines(grant, obj):
+    """Les lignes que `grant` entraîne avec lui (même personne, même niveau, en vigueur) : sur un
+    LOT, celles de ses éléments ; sur un ÉLÉMENT, celle de son lot — si aucun autre élément du lot
+    ne reste partagé à cette personne. C'est le miroir du partage, qui écrit aux deux niveaux
+    (`sharing.share_with_person`) : retirer l'un sans l'autre laisserait un lot vide, ou une card
+    lisible par son adresse et absente de la file."""
+    from django.db.models import Q
+    from wama.common.utils.batch_common import batch_elements, batch_model_for
+    from wama.common.utils.preview_registry import PreviewRegistry
+    same = ObjectGrant.in_force().filter(beneficiary_id=grant.beneficiary_id, level=grant.level)
+    element_model = PreviewRegistry.get_model(grant.surface) if grant.surface else None
+    if element_model is not None and type(obj) is batch_model_for(element_model):
+        ids = [e.pk for e in batch_elements(obj, element_model)]
+        return list(same.filter(object_type=element_model._meta.label, object_id__in=ids))
+    lot = entry_of(obj)
+    if lot is obj:
+        return []
+    others = [e.pk for e in batch_elements(lot, type(obj)) if e.pk != obj.pk]
+    if others and same.filter(object_type=obj._meta.label, object_id__in=others).exists():
+        return []
+    return list(same.filter(Q(object_type=lot._meta.label, object_id=lot.pk)))
+
+
+def revoke(owner, grant: ObjectGrant, *, notify: bool = True) -> ObjectGrant:
     """Le PROPRIÉTAIRE retire un droit accordé (E5, décision de Fabien 2026-10-03) : effet
     IMMÉDIAT sur les gestes suivants (les contrôles lisent les droits à chaque geste), un
-    traitement déjà lancé va à son terme, le bénéficiaire est prévenu."""
+    traitement déjà lancé va à son terme, le bénéficiaire est prévenu (`notify`).
+    Les lignes que le droit couvrait au lot ou à ses éléments partent avec lui (`_covered_lines`)."""
     from wama.common.utils.notifications import notify_in_app
     obj = target(grant)
     if obj is None or getattr(obj, 'user_id', None) != owner.pk:
         raise AccessRequestRefused('seul le propriétaire retire un droit')
     if grant.state != ObjectGrant.STATE_GRANTED:
         raise AccessRequestRefused("ce droit n'est pas en vigueur")
-    grant.state = ObjectGrant.STATE_REVOKED
-    grant.answered_at = timezone.now()
-    grant.save(update_fields=['state', 'answered_at'])
-    notify_in_app([grant.beneficiary], 'access_revoked',
-                  f"{owner.username} a retiré votre droit de {grant.get_level_display().lower()}",
-                  body=(f"« {_label(obj)} » ({obj._meta.app_label}) : vous la voyez encore si elle "
-                        "vous est partagée, sans pouvoir la modifier. Un traitement déjà lancé va "
-                        "à son terme."),
-                  url=f'/{obj._meta.app_label}/')
+    now = timezone.now()
+    covered = _covered_lines(grant, obj)
+    with transaction.atomic():
+        grant.state = ObjectGrant.STATE_REVOKED
+        grant.answered_at = now
+        grant.save(update_fields=['state', 'answered_at'])
+        ObjectGrant.objects.filter(pk__in=[g.pk for g in covered]).update(
+            state=ObjectGrant.STATE_REVOKED, answered_at=now)
+    if notify:
+        still_sees = type(obj)._default_manager.visible_to(grant.beneficiary).filter(
+            pk=obj.pk).exists()
+        notify_in_app([grant.beneficiary], 'access_revoked',
+                      f"{owner.username} a retiré votre droit de {grant.get_level_display().lower()}",
+                      body=(f"« {_label(obj)} » ({obj._meta.app_label}) : "
+                            + ("vous la voyez encore, sans pouvoir la modifier. " if still_sees
+                               else "elle n'est plus partagée avec vous. ")
+                            + "Un traitement déjà lancé va à son terme."),
+                      url=f'/{obj._meta.app_label}/')
     return grant
 
 

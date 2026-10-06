@@ -56,11 +56,10 @@ sans lot), celle du partage lui-même. Données : `sharing.shares_overview`.
         <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
           <div>
             <span class="share-label">{{ s.label }}</span> <span class="text-white-50 small">({{ s.app }})</span>
-            <div class="share-meta mt-1"><span class="share-pill">{{ s.scope }}</span>
-              <span class="share-pill">👁 Lecture seule</span>
-              {% for c in s.collaborators %}<span class="share-pill" data-collaborator="{{ c.grant }}">👥 {{ c.name }}
+            <div class="share-meta mt-1">{% if s.scope %}<span class="share-pill">{{ s.scope }} · 👁 Lecture seule{% if s.scope_since %} · depuis le {{ s.scope_since|date:'d/m/Y' }}{% endif %}</span>{% endif %}
+              {% for p in s.persons %}<span class="share-pill" data-person="{{ p.grant }}" title="Depuis le {{ p.since|date:'d/m/Y H:i' }}">{{ p.mode.icon }} {{ p.name }} · {{ p.mode.label }} · depuis le {{ p.since|date:'d/m/Y' }}
                 <button type="button" class="btn btn-link btn-sm p-0 ms-1" style="color:#fca5a5;font-size:.72rem;"
-                        data-revoke="{{ c.grant }}" title="Retirer la collaboration">retirer</button></span>{% endfor %}
+                        data-revoke="{{ p.grant }}" title="Retirer le partage avec {{ p.name }}">retirer</button></span>{% endfor %}
             </div>
           </div>
           <div class="d-flex gap-2">
@@ -108,7 +107,7 @@ sans lot), celle du partage lui-même. Données : `sharing.shares_overview`.
   document.querySelectorAll('[data-revoke]').forEach(function (b) {
     b.addEventListener('click', function () {
       post('/common/api/grants/' + b.dataset.revoke + '/revoke/').then(function (res) {
-        if (res && res.done) { b.closest('[data-collaborator]').remove(); say('Collaboration retirée.', 'success'); }
+        if (res && res.done) { b.closest('[data-person]').remove(); say('Partage retiré pour cette personne.', 'success'); }
         else say('Impossible — ' + ((res && res.reason) || 'refusé'), 'error');
       });
     });
@@ -117,7 +116,7 @@ sans lot), celle du partage lui-même. Données : `sharing.shares_overview`.
     b.addEventListener('click', function () {
       const url = '/common/api/partage/' + encodeURIComponent(b.dataset.surface) + '/'
         + encodeURIComponent(b.dataset.nature) + '/' + encodeURIComponent(b.dataset.pk) + '/';
-      post(url, { visibility: 'private' }).then(function (res) {
+      post(url, { visibility: 'private', unshare_persons: '1' }).then(function (res) {
         if (res && res.ok) { b.closest('.share-row').remove(); say('Partage retiré.', 'success'); }
         else say('Impossible — ' + ((res && res.reason) || 'refusé'), 'error');
       });

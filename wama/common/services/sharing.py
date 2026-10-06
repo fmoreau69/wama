@@ -25,12 +25,13 @@ la seule card produirait un partage qui n'échoue pas et ne marche pas : le dest
 rien, et rien ne le lui dirait. C'est le pire des retours, et c'est pour ça que la propagation est
 dans le SERVICE et non à la charge de l'appelant.
 
-⚠ AUCUN DROIT D'ÉCRITURE n'est accordé. Le partage est en lecture seule **par construction**, pas
-par vigilance : `visibility` ne dit QUE qui voit. L'escalade « demande → acceptation » vit dans
-`ObjectGrant` (`WAMA_COLLABORATION §4.3` — droits sur une INSTANCE ; ~~S3 `AccessGrant`~~, cité ici
-jusqu'au 2026-10-03, porte les droits sur une APP : `PROFILES_PERMISSIONS:392`, « deux tables »).
-Depuis le 2026-10-03 on peut y DEMANDER la propriété (`access_requests`) ; l'écriture partagée
-reste à construire. L'UI doit donc DIRE « lecture seule », sans quoi elle promettrait l'écriture.
+⚠ UNE PORTÉE N'ACCORDE AUCUN DROIT D'ÉCRITURE. Elle est en lecture seule **par construction**, pas
+par vigilance : `visibility` ne dit QUE qui voit. Les droits sur une INSTANCE vivent dans
+`ObjectGrant` (`WAMA_COLLABORATION §4.3` ; ~~S3 `AccessGrant`~~, cité ici jusqu'au 2026-10-03,
+porte les droits sur une APP : `PROFILES_PERMISSIONS:392`, « deux tables ») : la demande de
+propriété et de collaboration (`access_requests`, 2026-10-03), et depuis le 2026-10-06 le PARTAGE
+À UNE PERSONNE (`share_with_person`, plus bas) — seul geste qui accorde la collaboration (E1).
+L'UI doit donc DIRE « lecture seule » pour une portée, sans quoi elle promettrait l'écriture.
 
 ⚠ Seul le PROPRIÉTAIRE partage. Ce n'est pas une politique inventée ici : `scoped_visible_q`
 donne déjà à un destinataire la seule LECTURE, donc lui laisser repartager reviendrait à créer un
@@ -72,9 +73,9 @@ def shares_overview(user, limit: int = 200) -> dict:
     L'unité est l'ENTRÉE de file (le lot, ou la card sans lot) — celle du partage, du rangement et
     de la collaboration. Les modèles se DÉRIVENT des surfaces enregistrées (`PreviewRegistry`) :
     aucune app n'est nommée ici."""
+    from django.db.models import Q
     from wama.common.models import ObjectGrant
-    from wama.common.services.access_requests import (_label, collaboration_grant,
-                                                       collaborators_of, entry_of, target)
+    from wama.common.services.access_requests import _label, collaboration_grant, entry_of, target
     from wama.common.services.reception import owner_label
     from wama.common.utils.batch_common import batch_model_for
     from wama.common.utils.preview_registry import PreviewRegistry
@@ -86,15 +87,12 @@ def shares_overview(user, limit: int = 200) -> dict:
                'nature': 'lot' if is_lot else 'element',
                'label': (f"Lot #{entry.pk} · {getattr(entry, 'total', '?')} card(s)" if is_lot
                          else _label(entry)),
-               'scope': scope_label(entry) or PORTEES.get(getattr(entry, 'visibility', ''), ''),
+               'scope': scope_label(entry), 'scope_since': scope_since(entry),
                'url': f'/{entry._meta.app_label}/'}
         if mine:
-            grants = ObjectGrant.objects.filter(
-                object_type=entry._meta.label, object_id=entry.pk,
-                level=ObjectGrant.LEVEL_COLLABORATE, state=ObjectGrant.STATE_GRANTED)
-            row['collaborators'] = [{'grant': g.pk, 'name': g.beneficiary.username}
-                                    for g in grants.select_related('beneficiary')]
-            row['has_collaborators'] = bool(collaborators_of(entry))
+            # Les PERSONNES (partage nominatif, ou collaboration accordée sur demande) : une
+            # par personne, son mode, depuis quand — et de quoi la retirer (E5).
+            row['persons'] = persons_of(entry)
         else:
             row['owner'] = owner_label(entry)
             row['mode'] = share_mode('collaborate' if collaboration_grant(user, entry) else 'read')
@@ -112,8 +110,13 @@ def shares_overview(user, limit: int = 200) -> dict:
         # mesuré le 2026-10-03 sur `writer_01`) ne doit pas faire tomber toute la page.
         try:
             with transaction.atomic():
+                # Partagé par une PORTÉE, ou à des PERSONNES seulement (élément resté privé).
+                named = (ObjectGrant.in_force().filter(object_type=model._meta.label,
+                                                       level__in=ObjectGrant.VISIBLE_LEVELS)
+                         .values('object_id'))
                 mine = list(manager.filter(user=user)
-                            .exclude(visibility=ScopedVisibility.VIS_PRIVATE)[:limit])
+                            .filter(~Q(visibility=ScopedVisibility.VIS_PRIVATE) | Q(pk__in=named))
+                            [:limit])
                 theirs = list(listable_by(manager.all(), user).exclude(user=user)[:limit])
         except DatabaseError as exc:
             logging.getLogger(__name__).warning('[partages] surface %s illisible : %s', surface, exc)
@@ -286,11 +289,52 @@ def _porte_la_visibilite(obj) -> bool:
     return isinstance(obj, ScopedVisibility) or hasattr(obj, 'visibility')
 
 
-def _poser(objet, visibility, unite, projet):
+def _poser(objet, visibility, unite, projet, user=None):
     objet.visibility = visibility
     objet.scope_org_unit_id = unite
     objet.scope_project_id = projet
     objet.save(update_fields=['visibility', 'scope_org_unit', 'scope_project'])
+    _record_scope_share(user, objet, visibility, unite, projet)
+
+
+def _record_scope_share(user, obj, visibility, unite, projet) -> None:
+    """La MÉMOIRE DATÉE d'un partage par portée (2026-10-06, Fabien : *« autant rester homogène »*
+    avec le partage à une personne) — une ligne `ObjectGrant` sans bénéficiaire
+    (`WAMA_COLLABORATION §2.1`). Réappliquer la même portée garde la date d'origine ; en changer, ou
+    revenir au privé, RETIRE la ligne en cours (la mémoire garde les deux). Jamais lue pour décider
+    qui voit : c'est la colonne `visibility` qui le dit."""
+    from django.utils import timezone
+    from wama.common.models import ObjectGrant
+    current = ObjectGrant.in_force().filter(object_type=obj._meta.label, object_id=obj.pk,
+                                            beneficiary__isnull=True)
+    shared = visibility != ScopedVisibility.VIS_PRIVATE
+    if shared and current.filter(visibility=visibility, scope_org_unit_id=unite,
+                                 scope_project_id=projet).exists():
+        return
+    now = timezone.now()
+    current.update(state=ObjectGrant.STATE_REVOKED, answered_at=now)
+    if shared:
+        ObjectGrant.objects.create(object_type=obj._meta.label, object_id=obj.pk,
+                                   visibility=visibility, scope_org_unit_id=unite,
+                                   scope_project_id=projet, level=ObjectGrant.LEVEL_READ,
+                                   state=ObjectGrant.STATE_GRANTED,
+                                   granted_by=user if getattr(user, 'pk', None) else None,
+                                   answered_at=now)
+
+
+def scope_since(obj):
+    """Depuis quand `obj` est partagé à sa portée COURANTE, ou None (privé, ou partagé avant que
+    la date ne soit tenue — le 2026-10-06 : on ne l'invente pas)."""
+    from wama.common.models import ObjectGrant
+    vis = getattr(obj, 'visibility', ScopedVisibility.VIS_PRIVATE)
+    if vis == ScopedVisibility.VIS_PRIVATE:
+        return None
+    line = (ObjectGrant.in_force()
+            .filter(object_type=obj._meta.label, object_id=obj.pk, beneficiary__isnull=True,
+                    visibility=vis, scope_org_unit_id=getattr(obj, 'scope_org_unit_id', None),
+                    scope_project_id=getattr(obj, 'scope_project_id', None))
+            .order_by('-created_at').first())
+    return (line.answered_at or line.created_at) if line is not None else None
 
 
 def partager(user, element, visibility, org_unit_id=None, project_id=None,
@@ -315,15 +359,18 @@ def partager(user, element, visibility, org_unit_id=None, project_id=None,
 
     unite, projet = _verifier_cible(user, visibility, org_unit_id, project_id)
     subject = _consent_gate([consent_subject(element)], visibility, consent)
-    _poser(element, visibility, unite, projet)
+    newly_in_project = _newly_in_project(element, visibility, projet)
+    _poser(element, visibility, unite, projet, user)
     if subject:
         _record_consent(user, element, visibility, unite, projet, subject)
 
     lot = batch_of(element)
     lot_touche = None
     if lot is not None and _porte_la_visibilite(lot):
-        _poser(lot, visibility, unite, projet)
+        _poser(lot, visibility, unite, projet, user)
         lot_touche = lot.id
+    if newly_in_project:
+        _notify_project_members(user, element, projet)
 
     return {'visibility': visibility, 'libelle': PORTEES[visibility],
             'org_unit_id': unite, 'project_id': projet,
@@ -361,17 +408,20 @@ def partager_lot(user, lot, modele_element, visibility,
     # qu'un élément personnel a refusé en cours de route serait un partage à trous.
     subjects = {e.pk: consent_subject(e) for e in elements}
     _consent_gate([consent_subject(lot), *subjects.values()], visibility, consent)
-    _poser(lot, visibility, unite, projet)
+    newly_in_project = _newly_in_project(lot, visibility, projet)
+    _poser(lot, visibility, unite, projet, user)
 
     touches, non_partageables = 0, 0
     for element in elements:
         if not _porte_la_visibilite(element):
             non_partageables += 1
             continue
-        _poser(element, visibility, unite, projet)
+        _poser(element, visibility, unite, projet, user)
         if subjects.get(element.pk):
             _record_consent(user, element, visibility, unite, projet, subjects[element.pk])
         touches += 1
+    if newly_in_project:
+        _notify_project_members(user, lot, projet)
 
     return {'visibility': visibility, 'libelle': PORTEES[visibility],
             'org_unit_id': unite, 'project_id': projet,
@@ -382,15 +432,177 @@ def partager_lot(user, lot, modele_element, visibility,
             'lot_non_partageable': False}
 
 
+# ── PARTAGE À UNE PERSONNE + PRÉVENIR LE DESTINATAIRE (2026-10-06, N1) ──────────────────────
+# Question de Fabien : « on ne peut pas partager à un utilisateur seul ». Exact — `ScopedVisibility`
+# n'a que quatre portées. La réponse était écrite (`WAMA_COLLABORATION §2.1`, §4.3, §4.5) : un
+# partage à une personne est une LIGNE `ObjectGrant` (bénéficiaire = la personne, niveau = le mode,
+# état accordé), lue par `scoped_visible_q` en extension de ses portées. Rien d'autre n'est créé :
+# la ligne est le droit ET sa mémoire (qui, à qui, quel mode, depuis quand) — et un changement de
+# mode RETIRE l'ancienne ligne au lieu de l'écraser.
+# Même propagation que la portée, pour la même raison (la file se construit à partir des lots) :
+# un élément partagé l'est avec son lot, un lot avec ses éléments.
+# Le mode suit E1 (2026-10-03) : l'écriture — la collaboration — ne s'accorde qu'à une personne
+# nommée ; c'est exactement ce geste-ci.
+
+#: Le mot qui désigne le partage à une personne dans la mémoire du consentement (`ShareConsent`).
+PERSON_SCOPE = 'person'
+
+
+def _person_objects(target, element_model, nature: str) -> list:
+    """Ce qu'un partage à une personne couvre : l'élément et son lot, ou le lot et ses éléments."""
+    from wama.common.utils.batch_common import batch_elements
+    if nature == 'lot':
+        return [target] + [e for e in batch_elements(target, element_model)
+                           if _porte_la_visibilite(e)]
+    lot = batch_of(target)
+    return [target] + ([lot] if lot is not None and _porte_la_visibilite(lot) else [])
+
+
+def _newly_in_project(obj, visibility, project_id) -> bool:
+    """Le geste fait-il ENTRER l'élément dans un projet (N1 : ses membres sont prévenus) ? Une
+    portée déjà posée qu'on réapplique ne prévient personne une seconde fois."""
+    return (visibility == ScopedVisibility.VIS_PROJECT and bool(project_id)
+            and (getattr(obj, 'visibility', '') != ScopedVisibility.VIS_PROJECT
+                 or getattr(obj, 'scope_project_id', None) != project_id))
+
+
+def _notify_project_members(owner, obj, project_id) -> int:
+    """N1 — les MEMBRES d'un projet reçoivent la notification dans WAMA. Une unité ou le public,
+    non (`WAMA_COLLABORATION §5.2` : une unité hérite à ses sous-unités, ce serait tout un labo ou
+    toute l'université)."""
+    from django.contrib.auth import get_user_model
+    from wama.common.models import Project, ProjectMembership
+    from wama.common.services.access_requests import _label
+    from wama.common.utils.notifications import _job_url, notify_in_app
+    members = get_user_model().objects.filter(
+        pk__in=ProjectMembership.objects.filter(project_id=project_id).values('user_id'),
+        is_active=True).exclude(pk=owner.pk)
+    project = Project.objects.filter(pk=project_id).first()
+    return notify_in_app(list(members), 'share_received',
+                         f"{owner.username} partage « {_label(obj)} » avec le projet {project}",
+                         body=f"{obj._meta.app_label} — 👁 Lecture seule. Vous le retrouvez dans "
+                              "votre file, et dans « Mes partages ».",
+                         url=_job_url(obj), app=obj._meta.app_label, item=obj)
+
+
+def share_with_person(user, target, element_model, recipient, level: str = 'read', *,
+                      nature: str = 'element', surface: str = '', consent: bool = False) -> dict:
+    """Partage `target` (un élément, ou un lot si `nature='lot'`) avec UNE personne, dans un mode
+    déclaré (`SHARE_MODES`, disponible). Le destinataire est prévenu (N1) : dans WAMA, et par
+    e-mail selon son profil — un partage à UNE personne est le seul qui envoie un e-mail
+    (`WAMA_COLLABORATION §5.2`). Rend un compte-rendu."""
+    from django.db import transaction
+    from django.utils import timezone
+    from wama.common.models import ObjectGrant
+    from wama.common.services.access_requests import _label
+    from wama.common.utils.notifications import _job_url, notify_in_app, notify_user
+
+    if not _porte_la_visibilite(target):
+        raise RefusDePartage("cet élément n'est pas partageable (app non portée)")
+    if getattr(target, 'user_id', None) != getattr(user, 'id', None):
+        raise RefusDePartage("seul le propriétaire peut partager")
+    if recipient is None or recipient.pk == user.pk:
+        raise RefusDePartage("choisissez une autre personne que vous")
+    mode = next((m for m in SHARE_MODES if m['key'] == level), None)
+    if mode is None:
+        raise RefusDePartage(f"mode inconnu : {level!r}")
+    if not mode['available']:
+        raise RefusDePartage(f"le mode « {mode['label']} » n'existe pas encore")
+
+    objects = _person_objects(target, element_model, nature)
+    subjects = {o.pk: consent_subject(o) for o in objects if o._meta.model is element_model}
+    _consent_gate([consent_subject(target), *subjects.values()], PERSON_SCOPE, consent)
+    now = timezone.now()
+    with transaction.atomic():
+        for obj in objects:
+            lines = ObjectGrant.objects.filter(object_type=obj._meta.label, object_id=obj.pk,
+                                               beneficiary=recipient)
+            current = ObjectGrant.in_force().filter(pk__in=lines.values('pk'),
+                                                    level__in=ObjectGrant.VISIBLE_LEVELS)
+            if current.filter(level=level).exists():
+                continue
+            # Changer de mode RETIRE l'ancienne ligne : la mémoire garde les deux.
+            current.update(state=ObjectGrant.STATE_REVOKED, answered_at=now)
+            # Une DEMANDE en attente de ce niveau devient le droit : la même ligne (§4.3).
+            pending = lines.filter(level=level, state=ObjectGrant.STATE_REQUESTED).first()
+            if pending is not None:
+                pending.state, pending.granted_by, pending.answered_at = (
+                    ObjectGrant.STATE_GRANTED, user, now)
+                pending.save(update_fields=['state', 'granted_by', 'answered_at'])
+            else:
+                ObjectGrant.objects.create(object_type=obj._meta.label, object_id=obj.pk,
+                                           surface=surface, beneficiary=recipient, level=level,
+                                           state=ObjectGrant.STATE_GRANTED, granted_by=user,
+                                           answered_at=now)
+        for obj in objects:
+            if subjects.get(obj.pk):
+                _record_consent(user, obj, PERSON_SCOPE, None, None, subjects[obj.pk])
+
+    what = ("vous pouvez en modifier les réglages et le relancer ; la suppression reste à son "
+            "propriétaire" if level == ObjectGrant.LEVEL_COLLABORATE else
+            "vous pouvez le voir, le télécharger et le dupliquer")
+    title = f"{user.username} vous partage « {_label(target)} »"
+    body = (f"{target._meta.app_label} — {mode['icon']} {mode['label']} : {what}. "
+            "Vous le retrouvez dans votre file, et dans « Mes partages ».")
+    notify_in_app([recipient], 'share_received', title, body=body, url=_job_url(target, surface),
+                  app=target._meta.app_label, item=target)
+    profile = getattr(recipient, 'profile', None)
+    if profile is None or getattr(profile, 'notify_email', True):
+        notify_user(recipient, f"[WAMA] {title}", body)
+    return {'person': recipient.username, 'mode': mode['key'], 'libelle': mode['label'],
+            'objects': len(objects)}
+
+
+def unshare_person(user, target, beneficiary) -> int:
+    """Retire à `beneficiary` tout partage EN PERSONNE sur `target` (et ce qu'il couvre, par
+    `access_requests.revoke`), quel qu'en soit le mode — effet immédiat, il est prévenu (E5). Un
+    lot reste couvert tant qu'un autre de ses éléments lui est encore partagé. Rend le nombre de
+    lignes retirées."""
+    from wama.common.models import ObjectGrant
+    from wama.common.services.access_requests import revoke
+    if getattr(target, 'user_id', None) != getattr(user, 'id', None):
+        raise RefusDePartage("seul le propriétaire retire un partage")
+    lines = list(ObjectGrant.in_force().filter(
+        object_type=target._meta.label, object_id=target.pk, beneficiary=beneficiary,
+        level__in=ObjectGrant.VISIBLE_LEVELS))
+    # Prévenir UNE fois, après le dernier retrait : la notification dit alors s'il voit encore
+    # l'élément (par une portée) ou plus du tout.
+    for i, line in enumerate(lines):
+        revoke(user, line, notify=(i == len(lines) - 1))
+    return len(lines)
+
+
+def persons_of(obj) -> list:
+    """Les personnes à qui `obj` est partagé EN PERSONNE : `[{grant, user_id, name, mode, since}]`,
+    une par personne (son mode le plus large) — ce que montrent la modale et « Mes partages »."""
+    from wama.common.models import ObjectGrant
+    rank = {k: i for i, k in enumerate(ObjectGrant.VISIBLE_LEVELS)}
+    best = {}
+    for g in (ObjectGrant.in_force()
+              .filter(object_type=obj._meta.label, object_id=obj.pk, beneficiary__isnull=False,
+                      level__in=ObjectGrant.VISIBLE_LEVELS)
+              .select_related('beneficiary').order_by('created_at')):
+        kept = best.get(g.beneficiary_id)
+        if kept is None or rank[g.level] > rank[kept.level]:
+            best[g.beneficiary_id] = g
+    return [{'grant': g.pk, 'user_id': g.beneficiary_id, 'name': g.beneficiary.username,
+             'mode': share_mode(g.level), 'since': g.answered_at or g.created_at}
+            for g in best.values()]
+
+
 def etat(element) -> dict:
     """La portée COURANTE d'un élément, telle que l'UI doit la pré-sélectionner — et, s'il porte
     une personne, le texte de consentement que la modale fera valider AVANT d'envoyer (prévenir
-    d'abord, plutôt que refuser puis expliquer)."""
+    d'abord, plutôt que refuser puis expliquer). `persons` : à qui il est partagé en personne."""
     subject = consent_subject(element)
+    since = scope_since(element)
     return {
         'visibility': getattr(element, 'visibility', ScopedVisibility.VIS_PRIVATE),
+        'scope_since': since.isoformat() if since else None,
         'org_unit_id': getattr(element, 'scope_org_unit_id', None),
         'project_id': getattr(element, 'scope_project_id', None),
         'consent': ({'subject': subject, 'statement': CONSENT_STATEMENT.format(subject=subject)}
                     if subject else None),
+        'persons': [{**p, 'since': p['since'].isoformat() if p['since'] else None}
+                    for p in persons_of(element)],
     }

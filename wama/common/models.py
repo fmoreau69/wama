@@ -564,10 +564,15 @@ class ScopedVisibility(models.Model):
         abstract = True
 
 
-def scoped_visible_q(user, owner_field='user'):
+def scoped_visible_q(user, owner_field='user', model=None):
     """`Q` filtrant les objets ScopedVisibility visibles pour `user` : les siens + les
     publics + ceux partagés à une unité qui le couvre + ceux partagés à un projet dont
-    il est membre (le scope PROJET traverse les orgs → partenaires externes)."""
+    il est membre (le scope PROJET traverse les orgs → partenaires externes).
+
+    `model` (2026-10-06) : + ceux partagés à `user` EN PERSONNE — une ligne `ObjectGrant`
+    accordée (`WAMA_COLLABORATION §2.1` : « les partages à une personne vivent dans les
+    lignes » ; §4.5 : en EXTENSION de ce filtre, jamais un second chemin). Sans `model` (appel
+    direct sur une table sans partage nominatif : mémoire, RAG, fonctions), rien ne change."""
     from django.db.models import Q
     q = Q(visibility=ScopedVisibility.VIS_PUBLIC)
     if getattr(user, 'is_authenticated', False):
@@ -578,6 +583,8 @@ def scoped_visible_q(user, owner_field='user'):
         pids = user_projects(user)
         if pids:
             q |= Q(visibility=ScopedVisibility.VIS_PROJECT, scope_project_id__in=pids)
+        if model is not None:
+            q |= Q(pk__in=ObjectGrant.visible_ids_for(user, model))
     return q
 
 
@@ -669,8 +676,14 @@ class ObjectGrant(models.Model):
     modification et collaboration sont affichées grisées tant que leur mode n'existe pas. Les
     niveaux suivent la proposition M4 (`read | fork | collaborate`), plus `own`.
     Cible par chaîne + pk, comme `ShareConsent` et `ReceivedEntry` (le §4.3 dessinait une clé
-    générique : la convention du code a prévalu). Bénéficiaire : une PERSONNE pour l'instance ; le
-    projet et l'unité du §4.3 viendront avec l'écriture partagée.
+    générique : la convention du code a prévalu).
+
+    Bénéficiaire (2026-10-06) : une PERSONNE (`beneficiary`) — demande, ou partage nominatif, que
+    `scoped_visible_q` lit —, OU une PORTÉE (`visibility` + son unité ou son projet, comme
+    `ShareConsent`), `beneficiary` vide. La ligne de portée est la MÉMOIRE DATÉE d'un partage par
+    portée (`WAMA_COLLABORATION §2.1` : *« chaque geste de partage écrit une ligne, qu'il vise une
+    branche ou une personne ; la colonne `visibility` reste le filtre rapide »*) : elle n'est
+    jamais lue pour décider qui voit — c'est la colonne de l'élément qui le dit.
     """
     LEVEL_READ, LEVEL_FORK, LEVEL_COLLABORATE, LEVEL_OWN = 'read', 'fork', 'collaborate', 'own'
     LEVEL_CHOICES = [(LEVEL_READ, 'Lecture seule'), (LEVEL_FORK, 'Modification'),
@@ -681,12 +694,22 @@ class ObjectGrant(models.Model):
     STATE_REVOKED = 'revoked'
     STATE_CHOICES = [(STATE_REQUESTED, 'Demandé'), (STATE_GRANTED, 'Accordé'),
                      (STATE_REFUSED, 'Refusé'), (STATE_REVOKED, 'Retiré')]
+    #: Les niveaux qui font VOIR l'élément à leur bénéficiaire (partage à une personne,
+    #: 2026-10-06). La propriété n'en est pas : accordée, elle cède l'élément (« Transférer à… »).
+    VISIBLE_LEVELS = (LEVEL_READ, LEVEL_FORK, LEVEL_COLLABORATE)
 
     object_type = models.CharField(max_length=64)            # `app_label.ModelName`
     object_id = models.PositiveBigIntegerField()
     surface = models.CharField(max_length=64, blank=True, default='')   # coordonnées du partage
-    beneficiary = models.ForeignKey('auth.User', on_delete=models.CASCADE,
+    beneficiary = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True,
                                     related_name='object_grants')
+    # La PORTÉE d'une ligne sans bénéficiaire (2026-10-06) — mêmes champs que `ShareConsent`.
+    # `db_default` : le code en service avant sa relance insère sans cette colonne.
+    visibility = models.CharField(max_length=12, blank=True, default='', db_default='')
+    scope_org_unit = models.ForeignKey('common.OrgUnit', null=True, blank=True,
+                                       on_delete=models.SET_NULL, related_name='+')
+    scope_project = models.ForeignKey('common.Project', null=True, blank=True,
+                                      on_delete=models.SET_NULL, related_name='+')
     level = models.CharField(max_length=16, choices=LEVEL_CHOICES)
     state = models.CharField(max_length=12, choices=STATE_CHOICES, default=STATE_REQUESTED,
                              db_index=True)
@@ -703,7 +726,24 @@ class ObjectGrant(models.Model):
         verbose_name_plural = "Droits sur des éléments (et demandes)"
 
     def __str__(self):
-        return f'{self.beneficiary} · {self.level} · {self.object_type}#{self.object_id} · {self.state}'
+        who = self.beneficiary if self.beneficiary_id else self.visibility
+        return f'{who} · {self.level} · {self.object_type}#{self.object_id} · {self.state}'
+
+    @classmethod
+    def in_force(cls):
+        """Les droits EN VIGUEUR : accordés et non expirés — la seule lecture qui vaille (E5)."""
+        from django.db.models import Q
+        from django.utils import timezone
+        return cls.objects.filter(state=cls.STATE_GRANTED).filter(
+            Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now()))
+
+    @classmethod
+    def visible_ids_for(cls, user, model):
+        """Les pk des `model` partagés à `user` en personne (sous-requête, pas de liste) — la
+        branche que `scoped_visible_q` ajoute à ses portées."""
+        return (cls.in_force().filter(object_type=model._meta.label, beneficiary=user,
+                                      level__in=cls.VISIBLE_LEVELS)
+                .values('object_id'))
 
 
 class ReleasedFile(models.Model):
@@ -761,8 +801,9 @@ class ScopedQuerySet(models.QuerySet):
     """QuerySet des modèles `ScopedVisibility` : expose `visible_to(user)`."""
 
     def visible_to(self, user, owner_field='user'):
-        """Objets que `user` a le droit de VOIR : les siens + publics + unité + projet."""
-        return self.filter(scoped_visible_q(user, owner_field=owner_field))
+        """Objets que `user` a le droit de VOIR : les siens + publics + unité + projet + ceux
+        qu'on lui a partagés en personne (`ObjectGrant`)."""
+        return self.filter(scoped_visible_q(user, owner_field=owner_field, model=self.model))
 
     def owned_by(self, user, owner_field='user'):
         """Objets que `user` a le droit de MODIFIER — aujourd'hui : les siens, point.

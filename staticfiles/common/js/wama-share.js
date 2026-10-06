@@ -11,10 +11,11 @@
  * vient du serveur (`/common/api/partage/<surface>/<pk>/`), donc un gabarit ne saurait de toute
  * façon pas quoi rendre : les unités et les projets offerts dépendent de l'utilisateur.
  *
- * ⚠ CE QUE CETTE MODALE NE PROMET PAS. Le partage est en LECTURE SEULE — `visibility` ne dit que
- * qui VOIT. L'escalade « demande → acceptation » est le jalon S3 `AccessGrant`
- * (`PROFILES_PERMISSIONS §8.7`), encore dû. La modale le DIT à l'écran : une UI qui laisse croire
- * qu'on donne l'écriture serait un mensonge sur un sujet de droits.
+ * ⚠ CE QUE CETTE MODALE NE PROMET PAS. Une PORTÉE (unité, projet, public) partage en LECTURE
+ * SEULE — `visibility` ne dit que qui VOIT. L'écriture (la collaboration) ne s'accorde qu'à une
+ * PERSONNE nommée (E1, 2026-10-03), dans la section « Avec une personne » (une ligne
+ * `ObjectGrant`, 2026-10-06). La modale le DIT à l'écran : une UI qui laisse croire qu'une
+ * portée donne l'écriture serait un mensonge sur un sujet de droits.
  *
  * ⚠ Les portées sont celles que le SERVEUR offre, jamais une liste écrite ici. Une portée sans
  * cible réelle (« Unité » pour un profil sans affiliation) n'est pas rendue — même règle que les
@@ -77,28 +78,41 @@
     }
 
     /**
-     * Les MODES de partage (2026-10-03, décision de Fabien — `WAMA_COLLABORATION §3bis.1`) : la
-     * lecture, cochée ; modification et collaboration GRISÉES « bientôt » tant qu'elles n'existent
-     * pas. La liste vient du serveur (`sharing.SHARE_MODES`), jamais recopiée ici.
+     * PARTAGE À UNE PERSONNE (2026-10-06, question de Fabien : « on ne peut pas partager à un
+     * utilisateur seul »). Une PORTÉE donne la lecture ; une PERSONNE nommée reçoit le MODE choisi
+     * — c'est là, et seulement là, que la collaboration s'accorde (E1, 2026-10-03). Les modes
+     * viennent du serveur (`sharing.SHARE_MODES`) : un mode non construit est montré grisé
+     * (« bientôt »), jamais retiré de la liste. Le destinataire est désigné comme pour
+     * « Transférer à… » (identifiant ou adresse e-mail) et il est PRÉVENU (N1).
      */
-    function modesBlock(modes) {
-        if (!modes || !modes.length) return '';
-        // Le partage d'une PORTÉE donne la lecture. La collaboration ne se coche pas ici : elle
-        // s'accorde à une PERSONNE nommée, sur sa demande (E1, 2026-10-03) — la cocher ne
-        // donnerait rien, ce serait un faux choix. On la montre donc comme l'information juste.
-        return '<div class="wama-share-modes mt-3"><div class="small text-white-50 mb-1">Mode</div>'
-            + modes.map(function (m) {
-                var lecture = m.key === 'read';
-                return '<label class="d-flex align-items-center gap-2 mb-1'
-                    + (lecture ? '' : ' text-white-50') + '">'
-                    + '<input type="radio" name="wama-share-mode" class="form-check-input mt-0" value="'
-                    + echapper(m.key) + '"' + (lecture ? ' checked' : ' disabled') + '>'
-                    + '<span>' + echapper(m.icon) + ' ' + echapper(m.label) + '</span>'
-                    + (!m.available ? '<span class="badge bg-secondary ms-1">bientôt</span>'
-                       : (lecture ? '' : '<span class="small ms-1">— accordée à une personne, sur sa '
-                          + 'demande (« Mes partages »)</span>'))
-                    + '</label>';
-            }).join('') + '</div>';
+    function personRows(persons) {
+        if (!persons || !persons.length) {
+            return '<div class="small text-white-50" data-person-empty>Partagé avec personne en particulier.</div>';
+        }
+        return persons.map(function (p) {
+            var since = p.since ? new Date(p.since).toLocaleDateString('fr-FR') : '';
+            return '<div class="d-flex justify-content-between align-items-center small mb-1" data-person-row>'
+                + '<span>' + echapper(p.mode.icon) + ' <b>' + echapper(p.name) + '</b> · '
+                + echapper(p.mode.label) + (since ? ' · depuis le ' + echapper(since) : '') + '</span>'
+                + '<button type="button" class="btn btn-link btn-sm p-0" style="color:#fca5a5;" '
+                + 'data-person-revoke="' + echapper(p.user_id) + '">retirer</button></div>';
+        }).join('');
+    }
+
+    function personsBlock(persons, modes) {
+        var options = (modes || []).map(function (m) {
+            return '<option value="' + echapper(m.key) + '"' + (m.available ? '' : ' disabled') + '>'
+                + echapper(m.icon) + ' ' + echapper(m.label) + (m.available ? '' : ' (bientôt)')
+                + '</option>';
+        }).join('');
+        return '<div class="wama-share-persons mt-3"><div class="small text-white-50 mb-1">'
+            + 'Avec une personne</div><div data-person-list>' + personRows(persons) + '</div>'
+            + '<div class="d-flex gap-2 mt-2">'
+            + '<input type="text" class="form-control form-control-sm" data-person-input '
+            + 'placeholder="identifiant ou adresse e-mail">'
+            + '<select class="form-select form-select-sm w-auto" data-person-mode>' + options + '</select>'
+            + '<button type="button" class="btn btn-sm btn-outline-info" data-person-add>Partager</button>'
+            + '</div></div>';
     }
 
     function corps(donnees, nom) {
@@ -121,7 +135,14 @@
                 + '<input type="radio" name="wama-share-portee" class="form-check-input mt-1" '
                 + 'value="' + echapper(p.valeur) + '"' + (choisi ? ' checked' : '') + '>'
                 + '<span class="flex-grow-1"><span class="wama-share-libelle">'
-                + echapper(p.libelle) + '</span>' + cibles + '</span></label></div>';
+                + echapper(p.libelle) + '</span>'
+                // Depuis quand la portée COURANTE est posée (2026-10-06) — absente d'un partage
+                // antérieur à la tenue de la date : on ne l'invente pas.
+                + (choisi && p.valeur !== 'private' && e.scope_since
+                   ? '<span class="small text-white-50 ms-2">depuis le '
+                     + echapper(new Date(e.scope_since).toLocaleDateString('fr-FR')) + '</span>'
+                   : '')
+                + cibles + '</span></label></div>';
         }).join('');
 
         // ⚠ CAS RÉEL, trouvé au smoke : la portée COURANTE peut ne plus être offrable — un
@@ -145,15 +166,16 @@
             + orpheline
             + lignes
             + (e.consent ? consentBlock(e.consent.statement) : '')
-            + modesBlock(donnees.modes)
             // Dire la portée du geste, à l'endroit où on le fait.
             + '<div class="wama-share-note mt-3"><i class="fas fa-eye me-1"></i>'
-            + 'Partage en <b>lecture seule</b>. Les destinataires voient l\'élément et son '
-            + 'résultat ; ils ne peuvent ni le relancer ni le modifier — ils peuvent le dupliquer, '
-            + 'ou vous demander d\'en devenir propriétaires.</div>'
+            + 'Une portée partage en <b>lecture seule</b> : on voit l\'élément et son résultat, on '
+            + 'peut le dupliquer ou vous demander d\'en devenir propriétaire, sans le relancer ni le '
+            + 'modifier.</div>'
+            + '<div class="text-end mt-2"><button type="button" class="btn btn-sm btn-info wama-share-ok">'
+            + 'Appliquer la portée</button></div>'
+            + personsBlock(e.persons, donnees.modes)
             + '</div><div class="modal-footer border-secondary">'
-            + '<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>'
-            + '<button type="button" class="btn btn-sm btn-info wama-share-ok">Appliquer</button>'
+            + '<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>'
             + '</div>';
     }
 
@@ -239,21 +261,15 @@
                         dire('Validez le consentement pour partager — ou annulez.', 'error');
                         return;
                     }
-                    var fd = new FormData();
-                    fd.append('visibility', choix.value);
+                    var fields = { visibility: choix.value };
                     if (consentBox && !consentBox.hidden && consentCheck && consentCheck.checked) {
-                        fd.append('consent', '1');
+                        fields.consent = '1';
                     }
                     var cible = enveloppe.querySelector('.wama-share-cible[data-pour="' + choix.value + '"]');
                     if (cible && !cible.disabled) {
-                        fd.append(choix.value === 'unit' ? 'org_unit_id' : 'project_id', cible.value);
+                        fields[choix.value === 'unit' ? 'org_unit_id' : 'project_id'] = cible.value;
                     }
-                    fetch(urlDe(surface, pk, nature), {
-                        method: 'POST', headers: { 'X-CSRFToken': csrf() },
-                        body: fd, credentials: 'same-origin',
-                    }).then(function (r) {
-                        return r.json().catch(function () { return { ok: r.ok }; });
-                    }).then(function (res) {
+                    postShare(surface, pk, nature, fields).then(function (res) {
                         if (res && res.consent_required) {
                             // Le serveur exige un consentement que la modale ne montrait pas : on
                             // l'ajoute et on attend la validation, au lieu d'un refus sec.
@@ -285,6 +301,7 @@
                         }
                     });
                 });
+                bindPersons(enveloppe, surface, pk, nature);
                 modale.show();
                 return enveloppe;
             })
@@ -292,6 +309,67 @@
                 dire("Partage indisponible pour cet élément", 'error');
                 console.warn('[WamaShare]', err);
             });
+    }
+
+    /** POST sur la route du partage ; rend la réponse JSON (ou `{ok:false}` illisible). */
+    function postShare(surface, pk, nature, fields) {
+        var fd = new FormData();
+        Object.keys(fields).forEach(function (k) { fd.append(k, fields[k]); });
+        return fetch(urlDe(surface, pk, nature), {
+            method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: fd, credentials: 'same-origin',
+        }).then(function (r) { return r.json().catch(function () { return { ok: r.ok }; }); });
+    }
+
+    /** Les gestes de la section « Avec une personne » : partager (consentement compris), retirer. */
+    function bindPersons(enveloppe, surface, pk, nature) {
+        var list = enveloppe.querySelector('[data-person-list]');
+        var input = enveloppe.querySelector('[data-person-input]');
+        var mode = enveloppe.querySelector('[data-person-mode]');
+        if (!list || !input || !mode) return;
+
+        function redraw(persons) { list.innerHTML = personRows(persons); }
+
+        function share(consent) {
+            var who = (input.value || '').trim();
+            if (!who) { dire('Indiquez l\'identifiant ou l\'adresse e-mail de la personne', 'error'); return; }
+            var fields = { person: who, mode: mode.value };
+            if (consent) fields.consent = '1';
+            postShare(surface, pk, nature, fields).then(function (res) {
+                if (res && res.consent_required && global.WamaApp && WamaApp.ask) {
+                    WamaApp.ask({ text: res.statement || res.reason, okLabel: 'Partager', danger: false,
+                                  option: { label: 'Je valide ce consentement', checked: false } })
+                        .then(function (a) {
+                            if (a.ok && a.option) share(true);
+                            else if (a.ok) dire('Partage annulé : consentement non validé', 'warning');
+                        });
+                    return;
+                }
+                if (!res || res.ok === false) {
+                    dire('Partage impossible — ' + ((res && res.reason) || 'refusé'), 'error');
+                    return;
+                }
+                input.value = '';
+                redraw(res.persons);
+                dire('Partagé avec ' + res.person + ' (' + res.libelle + ') — prévenu dans WAMA', 'success');
+            });
+        }
+
+        enveloppe.querySelector('[data-person-add]').addEventListener('click', function () { share(false); });
+        input.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') { ev.preventDefault(); share(false); }
+        });
+        list.addEventListener('click', function (ev) {
+            var b = ev.target.closest('[data-person-revoke]');
+            if (!b) return;
+            postShare(surface, pk, nature, { revoke_person: b.dataset.personRevoke }).then(function (res) {
+                if (!res || res.ok === false) {
+                    dire('Retrait impossible — ' + ((res && res.reason) || 'refusé'), 'error');
+                    return;
+                }
+                redraw(res.persons);
+                dire('Partage retiré pour cette personne', 'success');
+            });
+        });
     }
 
     /**
