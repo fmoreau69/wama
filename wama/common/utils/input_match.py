@@ -51,7 +51,8 @@ def input_match_meta(source: Optional[str] = None,
             _choices, _info = get_registry_models(None, task=task)
             cibles = AIModel.objects.filter(model_key__in=[c[0] for c in _choices])
         else:
-            cibles = AIModel.objects.filter(source=source, is_proposed=False)
+            from wama.common.sandbox import declaring_app   # une jumelle : modèles de sa source
+            cibles = AIModel.objects.filter(source=declaring_app(source), is_proposed=False)
         for m in cibles:
             caps = m.capabilities or {}
             entry: Dict[str, Any] = {

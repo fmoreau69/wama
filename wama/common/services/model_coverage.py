@@ -224,7 +224,8 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
     if model_type:
         qs = qs.filter(model_type=model_type)
     if source:
-        qs = qs.filter(source=source)
+        from wama.common.sandbox import declaring_app   # une jumelle : modèles de sa source
+        qs = qs.filter(source=declaring_app(source))
     if taches_admises:
         admises = set(taches_admises)
         qs = [m for m in qs if (m.capabilities or {}).get('task') in admises]

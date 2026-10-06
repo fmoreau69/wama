@@ -2169,7 +2169,8 @@ def list_ai_models(user, app: str = None, task: str = None, modality: str = None
     if not include_proposed:
         qs = qs.filter(is_proposed=False)
     if app:
-        qs = qs.filter(source=app)
+        from wama.common.sandbox import declaring_app   # une jumelle : modèles de sa source
+        qs = qs.filter(source=declaring_app(app))
     if task:
         qs = qs.filter(capabilities__task=task)
     if modality:
@@ -3613,6 +3614,10 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
 
 
 def _register_triads():
+    # Les JUMELLES du bac à sable reçoivent la triade déclarée de leur source, chemins re-ciblés
+    # sur leur paquet (décision de Fabien, 2026-10-06 — `sandbox.inject_sandbox_registry`).
+    from wama.common.sandbox import inject_sandbox_registry
+    inject_sandbox_registry(TRIAD_SPECS)
     for app_id, spec in TRIAD_SPECS.items():
         for fn in _triad_fns(app_id, spec):
             globals()[fn.__name__] = fn
