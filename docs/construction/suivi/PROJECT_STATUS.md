@@ -22436,3 +22436,17 @@ nouvelles bornes (mesuré). Détail : `ROUTE §10.6`, bloc anonymizer.
 - 🔴 ROUGE PRÉEXISTANT, pas à moi : `tests_settings_surfaces.SettingsSurfacesTest` — réglages du
   composer (`lyrics`…) présents sur une seule surface (session composer du 04-05/10).
 - ⏳ Remède de fond des bornes : le « volet rendu du schéma » (reste du 2026-09-27).
+
+## §PALIER — 2026-10-06, « COMPARER EN SUPERPOSITION + COPIE DE LECTURE » — livré (`9ae8d29a`, `9229cc49`, non poussés) — 🔴 relancer gunicorn, workers ET beat, puis `manage.py playback_copies`
+
+- Comparer dans la modale et son plein écran = la superposition à curseur du volet (fabrique
+  commune `WamaInspector.compareView`).
+- COPIE DE LECTURE (décision de Fabien) : une vidéo que le navigateur ne lit pas en reçoit une à
+  l'import, dans `users/<id>/.preview/`, servie par l'aperçu seulement ; l'original intact,
+  importé ou pointé ; rien n'est écrit dans un dossier connecté. Domicile :
+  `MEDIA_STORAGE_TIERING §Ce que media/ a le droit de contenir` ; mécanisme `playback_copy`.
+  `SEQ08-01` (AVI sous `.mp4`, H.264 High 4:4:4) : copie déjà faite (5 s, 20 Mo), Chromium la lit.
+- 🔴 Après la relance : `manage.py playback_copies` met en file le rattrapage (43 vidéos portées
+  par des cards ; `--dry-run` pour compter). Avant la relance, les workers ne connaissent pas la
+  tâche `common.make_playback_copy`.
+- ⚠ Rouge PRÉEXISTANT, pas à moi : `SettingsSurfacesTest` (réglages du composer).
