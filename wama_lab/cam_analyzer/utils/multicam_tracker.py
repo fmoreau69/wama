@@ -36,6 +36,8 @@ MAX_NET_OVER_PATH = 0.8
 #: terrain ; un critère « revu à un autre tour » s'est révélé non discriminant, 90 % partout).
 PARKED_MOVE_M = 5.0
 PARKED_MOVE_MPS = 0.5
+#: Deux ANCRES de garés plus proches que ceci sont un même objet compté deux fois (mesure `parked_twins`).
+PARKED_TWIN_M = 2.0
 
 from .artifact_filter import is_giant_reflection as _giant_reflection
 
@@ -119,19 +121,83 @@ def _cam_to_vehicle(lateral, longitudinal, yaw_deg):
     return (longitudinal * s + lateral * c, longitudinal * c - lateral * s)
 
 
+def remap_by_alias(track_hist, cls_votes, root, frames=()):
+    """Fusion d'identifiants (recollement, doublons, pose longue) appliquée PARTOUT : historiques et votes de
+    classe regroupés sous la racine, détections des images `frames` réannotées. Rend (historiques, votes)."""
+    hist = defaultdict(list)
+    for gid, h in track_hist.items():
+        hist[root(gid)].extend(h)
+    votes = defaultdict(lambda: defaultdict(float))
+    for gid, v in cls_votes.items():
+        for c, w in v.items():
+            votes[root(gid)][c] += w
+    for f in frames:
+        for d in (f.detections or []):
+            g = d.get('global_track_id')
+            if g is not None and root(g) != g:
+                d['global_track_id'] = root(g)
+    return hist, votes
+
+
+def road_side_m(e, n, footprint, edge):
+    """Distance SIGNÉE (m) d'un point au bord de l'emprise de chaussée : > 0 hors chaussée, < 0 dessus."""
+    from shapely.geometry import Point
+    pt = Point(e, n)
+    return (-1.0 if footprint.contains(pt) else 1.0) * edge.distance(pt)
+
+
+def long_exposure_candidates(track_hist, cls_votes, footprint, edge, *, margin_m=OFF_ROAD_MARGIN_M):
+    """⚑ parked_long_exposure — fragments qui PEUVENT être un morceau de garé : famille garable (vote
+    majoritaire, même faible : un fragment bref n'a pas encore de famille ÉTABLIE), position médiane hors
+    chaussée à plus de `margin_m`, et qui ne roule pas (`robust_displacement`). Rend [(gid, e, n, n_obs,
+    famille)] pour `wama_data.functions.kinematics.static_fusion.long_exposure_groups`."""
+    out = []
+    for gid, hist in track_hist.items():
+        fam = dominant_family(cls_votes.get(gid) or {}, min_weight=0.0, min_share=0.5)
+        if fam not in PARKABLE_FAMILIES:
+            continue
+        hs = sorted(hist, key=lambda h: h[1])
+        es = sorted(h[2] for h in hs)
+        ns = sorted(h[3] for h in hs)
+        me, mn = es[len(es) // 2], ns[len(ns) // 2]
+        if road_side_m(me, mn, footprint, edge) < margin_m:
+            continue
+        dist, speed = robust_displacement(hs)
+        if dist >= PARKED_MOVE_M and speed >= PARKED_MOVE_MPS:
+            continue
+        out.append((gid, me, mn, len(hs), fam))
+    return out
+
+
+def distinct_box_conflicts(observations, candidates, root):
+    """Paires de candidats qu'une même caméra a vus DANS LA MÊME IMAGE comme deux boîtes distinctes
+    (recouvrement < `DUPLICATE_BOX_IOU`) : deux objets, jamais réunis. `observations` = la trace de
+    continuité (image, caméra, chaîne, gid, e, n, boîte)."""
+    by_img = defaultdict(list)
+    for ob in observations:
+        g = root(ob[3])
+        if g in candidates and len(ob) > 6 and ob[6] is not None:
+            by_img[(ob[0], ob[1])].append((g, ob[6]))
+    out = set()
+    for rows in by_img.values():
+        for i in range(len(rows)):
+            for j in range(i + 1, len(rows)):
+                if rows[i][0] != rows[j][0] and box_iou(rows[i][1], rows[j][1]) < DUPLICATE_BOX_IOU:
+                    out.add(frozenset((rows[i][0], rows[j][0])))
+    return out
+
+
 def off_road_gate(hs, votes, footprint, edge, margin_m=OFF_ROAD_MARGIN_M):
     """Porte de sortie d'un track sous ⚑ parked_off_road : 'pas_un_vehicule', 'sur_voie',
     'bord_de_voie' ou 'retenu'. Médiane (composante par composante, comme les ancres) des positions
     `hs` = [(fn, t, e, n, classe)] confrontée à l'emprise de chaussée `footprint` (même repère) :
     dedans à plus de `margin_m` du bord → sur la voie (arrêté ou roulant, JAMAIS garé) ; dehors à
     plus de `margin_m` → garé ; entre les deux → doute, pas garé."""
-    from shapely.geometry import Point
     if dominant_family(votes) not in PARKABLE_FAMILIES:
         return 'pas_un_vehicule'
     es = sorted(h[2] for h in hs)
     ns = sorted(h[3] for h in hs)
-    pt = Point(es[len(es) // 2], ns[len(ns) // 2])
-    signed = (-1.0 if footprint.contains(pt) else 1.0) * edge.distance(pt)   # > 0 : hors chaussée
+    signed = road_side_m(es[len(es) // 2], ns[len(ns) // 2], footprint, edge)   # > 0 : hors chaussée
     if signed <= -margin_m:
         return 'sur_voie'
     if signed < margin_m:
@@ -1159,15 +1225,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         _dup_merges = duplicate_chain_merges(_continuity_obs)
         if _dup_merges:
             alias.update(_dup_merges)
-            _mh = defaultdict(list)
-            for gid, h in track_hist.items():
-                _mh[_root(gid)].extend(h)
-            track_hist = _mh
-            _mv = defaultdict(lambda: defaultdict(float))
-            for gid, votes in cls_votes.items():
-                for c, w in votes.items():
-                    _mv[_root(gid)][c] += w
-            cls_votes = _mv
+            track_hist, cls_votes = remap_by_alias(track_hist, cls_votes, _root)
 
     # État de FIN robuste par tracklet : ajustement linéaire (t → e, n) sur la queue
     # SAINE de l'historique — fenêtre 2,5 s finissant 0,5 s AVANT la vraie fin. Les
@@ -1283,20 +1341,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     if alias:
         # Remap gid → racine PARTOUT : historiques, votes de classe, détections annotées
         # (les fantômes/stationnés/classe stable calculés ensuite héritent de la fusion).
-        _mh = defaultdict(list)
-        for gid, h in track_hist.items():
-            _mh[_root(gid)].extend(h)
-        track_hist = _mh
-        _mv = defaultdict(lambda: defaultdict(float))
-        for gid, votes in cls_votes.items():
-            for c, w in votes.items():
-                _mv[_root(gid)][c] += w
-        cls_votes = _mv
-        for f in dirty:
-            for d in (f.detections or []):
-                g = d.get('global_track_id')
-                if g is not None and _root(g) != g:
-                    d['global_track_id'] = _root(g)
+        track_hist, cls_votes = remap_by_alias(track_hist, cls_votes, _root, dirty)
 
     # ── Détection des véhicules STATIONNÉS (garés) ──────────────────────────────
     # Track à vitesse max ~nulle sur toute sa vie = garé, SAUF s'il passe près d'une
@@ -1355,6 +1400,27 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         else:
             _edge = _footprint.boundary
             _stationary_rule = 'hors_voies'
+    # ⚑ parked_long_exposure (Fabien, 2026-10-06) : « POSE LONGUE » des garés — un suivi image par image
+    # COUPE un objet immobile en fragments (sorties de champ, relais, détections manquées) ; trop brefs, ils
+    # n'étaient pas reconnus garés, ou devenaient plusieurs garés au même endroit. Les fragments hors voies
+    # qui ne roulent pas et dont les positions coïncident sont RÉUNIS avant de juger : la qualification, la
+    # position fixe et le cap (ci-dessous) portent alors sur TOUTES les observations de l'objet. Exige
+    # l'emprise de chaussée (⚑ parked_off_road) : sans elle, rien n'est réuni.
+    _lexp = None
+    if _feat.get('parked_long_exposure', False) and _footprint is not None:
+        from wama_data.functions.kinematics.static_fusion import long_exposure_groups
+        _frag = long_exposure_candidates(track_hist, cls_votes, _footprint, _edge)
+        _cand = {f[0] for f in _frag}
+        _lx = long_exposure_groups(_frag, distinct_box_conflicts(_continuity_obs, _cand, _root))
+        _lexp = {'candidats': len(_frag), 'fragments_reunis': len(_lx), 'objets': len(set(_lx.values()))}
+        if _lx:
+            alias.update(_lx)
+            track_hist, cls_votes = remap_by_alias(track_hist, cls_votes, _root, dirty)
+            _ho = defaultdict(list)                      # le cap aussi se prend sur toutes les vues
+            for gid, obs in _head_obs.items():
+                _ho[_root(gid)].extend(obs)
+            _head_obs = _ho
+        logger.info('[pose longue des garés] %s', _lexp)
     stationary_gids = []
     _rejets = {'moins_de_5_obs': 0, 'vu_moins_de_4s': 0, 'trop_etale': 0,
                'trop_rapide': 0, 'pres_intersection': 0, 'retenu': 0}
@@ -1519,6 +1585,13 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         for gid, hd in _blended.items():
             me, mn, _ = _anchor_tmp[gid]
             _anchor_tmp[gid] = (me, mn, hd)
+
+    # GARÉS EN DOUBLE (2026-10-06) : deux ancres de garés à moins de 2 m sont un même objet compté deux fois
+    # (deux voitures garées sont à ≈ 2,3 m centre à centre de profil) — la mesure de ⚑ parked_long_exposure.
+    _anc = [(me, mn) for (me, mn, _hd) in _anchor_tmp.values()]
+    parked_twins = sum(1 for i in range(len(_anc)) for j in range(i + 1, len(_anc))
+                       if math.hypot(_anc[i][0] - _anc[j][0], _anc[i][1] - _anc[j][1]) < PARKED_TWIN_M)
+    logger.info('[garés] %s ancres, %s paires à moins de %s m', len(_anc), parked_twins, PARKED_TWIN_M)
 
     stationary_anchors = {}
     for gid, (me, mn, hd) in _anchor_tmp.items():
@@ -1814,6 +1887,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
 
     return {'tracks': next_id - 1, 'stationary_gids': stationary_gids,
             'stationary_anchors': stationary_anchors,
+            # garés comptés deux fois (ancres < 2 m) et bilan de ⚑ parked_long_exposure
+            'parked_twins': parked_twins,
+            'parked_long_exposure': _lexp,
             'calibration_reference_gids': calibration_reference,
             'placement_spread': placement_spread,
             'placement_sources': dict(_src_counts),

@@ -1,0 +1,80 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne par fragment immobile candidat : position médiane (m), nombre d'observations, famille.",
+        "group": "travail",
+        "key": "fragments",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "id",
+          "e",
+          "n",
+          "n_obs",
+          "family"
+        ]
+      }
+    ],
+    "key": "long_exposure_groups",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Fragments absorbés et leur racine (le plus observé du groupe).",
+        "key": "groups",
+        "optional": false,
+        "produced_fields": [
+          "id",
+          "root"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 1.5,
+        "description": "Distance maximale entre un fragment et la position de son groupe.",
+        "key": "link_m",
+        "max": 5.0,
+        "min": 0.2,
+        "type": "float",
+        "unit": "m"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "tracking",
+      "parked",
+      "static",
+      "fusion"
+    ],
+    "visibility": "public"
+  },
+  "description": "Réunit les fragments de suivi d'un même objet IMMOBILE (garé) : leurs positions coïncident à moins de 1,5 m, leur famille est la même, et aucune caméra ne les a vus ensemble comme deux objets. Chaque fragment est jugé contre le groupe entier — une file de garés ne s'enchaîne pas. La position et le cap d'un garé se prennent ensuite sur TOUTES ses observations.",
+  "key": "long_exposure_groups",
+  "manifest_kind": "function",
+  "name": "Pose longue des immobiles",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:long_exposure_groups",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}
