@@ -1,0 +1,75 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "scale": 4,
+      "task": "upscale"
+    },
+    "composition": {
+      "components": [
+        {
+          "format": "onnx",
+          "pattern": "onnx/model.onnx",
+          "role": "model"
+        }
+      ],
+      "runtime": {
+        "engine": "onnxruntime"
+      }
+    },
+    "extra_info": {
+      "category": "upscaling",
+      "family": "swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
+      "pipeline_class": "Swin2SRForImageSuperResolution",
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "onnx",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "onnx-community",
+      "description_short": "Snapshot HF swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX — installé, en attente d'intégration",
+      "hf_id": "onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
+      "license": "apache-2.0",
+      "model_type": "upscaling",
+      "platform_ref": "huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.050133464857935905,
+      "ram_gb": 0.0,
+      "vram_gb": 0.1
+    }
+  },
+  "description": "Snapshot HuggingFace installé (upscaling/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
+  "manifest_kind": "model",
+  "name": "swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
