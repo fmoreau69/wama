@@ -363,19 +363,31 @@
                 </div>
             </div>
 
-            <!-- ── Notifications email ──────────────────────────────────── -->
+            <!-- ── Notifications (WAMA_COLLABORATION §5.2 — absorbe l'ex-carte « Notifications email ») ── -->
             <div class="card bg-dark border-secondary mb-4">
                 <div class="card-header border-secondary">
-                    <h5 class="mb-0"><i class="fas fa-envelope me-2"></i>Notifications email</h5>
+                    <h5 class="mb-0"><i class="fas fa-bell me-2"></i>Notifications</h5>
                 </div>
                 <div class="card-body">
                     <p class="text-muted small mb-3">
-                        Recevez un email à la fin (ou en cas d'échec) de vos traitements longs.
+                        À la fin (ou en cas d'échec) de vos traitements : une notification dans WAMA
+                        (cloche et fenêtre en bas à droite), et, si vous le souhaitez, un e-mail.
                     </p>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="notifySound"
+                               {% if profile.notify_sound %}checked{% endif %}>
+                        <label class="form-check-label" for="notifySound">Son dans WAMA
+                            <span class="text-muted small">— un son pour « terminé », un autre pour « échoué », tant qu'un onglet WAMA est ouvert</span></label>
+                        <span class="small ms-1">écouter :
+                            <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                                    onclick="WamaApp.playNotificationSound('done')">terminé</button> ·
+                            <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                                    onclick="WamaApp.playNotificationSound('failed')">échoué</button></span>
+                    </div>
                     <div class="form-check form-switch mb-3">
                         <input class="form-check-input" type="checkbox" id="notifyEmail"
                                {% if profile.notify_email %}checked{% endif %}>
-                        <label class="form-check-label" for="notifyEmail">Activer les notifications</label>
+                        <label class="form-check-label" for="notifyEmail">Par e-mail</label>
                     </div>
                     <div class="d-flex gap-2 align-items-center">
                         <select id="notifyOn"
@@ -760,13 +772,14 @@ if (_autoplayToggle) {
     });
 }
 
-// ── Notifications email ───────────────────────────────────────────────────────
+// ── Notifications ─────────────────────────────────────────────────────────────
 document.getElementById('saveNotifyBtn').addEventListener('click', async () => {
     const notify_email = document.getElementById('notifyEmail').checked;
+    const notify_sound = document.getElementById('notifySound').checked;
     const notify_on    = document.getElementById('notifyOn').value;
     const msg          = document.getElementById('notifyMsg');
     try {
-        const data = await postJson(NOTIFICATIONS_URL, { notify_email, notify_on });
+        const data = await postJson(NOTIFICATIONS_URL, { notify_email, notify_sound, notify_on });
         if (data.success) showMsg(msg, '✓ Préférences enregistrées');
         else showMsg(msg, data.error || 'Erreur', true);
     } catch(e) {

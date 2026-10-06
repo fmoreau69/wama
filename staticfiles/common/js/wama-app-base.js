@@ -1120,6 +1120,76 @@
     stack.appendChild(el);
   }
 
+  // ── Son des notifications (2026-10-06, demande de Fabien) ─────────────────────────────────
+  // Le SERVEUR dit quel son jouer (`sound` de chaque notification : type sonore + préférence du
+  // profil, `notifications.notification_sound`) ; la page ne connaît aucun type. Un son BREF et
+  // GÉNÉRÉ (aucun fichier à servir), qui n'emprunte PAS le canal de la parole (`claimAudioChannel`) :
+  // il ne coupe ni la voix de l'assistant ni un média en lecture.
+  // ⚠ Un navigateur refuse tout son avant le premier geste de l'utilisateur dans la page : le
+  // contexte audio s'ouvre au premier clic ou à la première touche, et un son refusé se tait.
+  // Plusieurs onglets WAMA ouverts : UN seul sonne pour une notification (le dernier id sonné est
+  // partagé par localStorage, comme le dernier vu).
+  const CHIME_KEY = 'wama.notifications.lastChimed';
+  // Deux notes : montantes pour « terminé », descendantes pour « échoué ».
+  const CHIMES = { done: [660, 880], failed: [440, 330] };
+  let chimeAudio = null;
+
+  function chimeFor(items) {
+    let sound = '';
+    let lastId = 0;
+    (items || []).forEach(function (item) {
+      if (!item || !CHIMES[item.sound]) return;
+      if (item.sound === 'failed' || !sound) sound = item.sound;
+      lastId = Math.max(lastId, item.id || 0);
+    });
+    return { sound: sound, lastId: lastId };
+  }
+
+  function claimChime(lastId) {
+    try {
+      const rung = parseInt(localStorage.getItem(CHIME_KEY) || '', 10);
+      if (isFinite(rung) && rung >= lastId) return false;
+      localStorage.setItem(CHIME_KEY, String(lastId));
+    } catch (e) { /* stockage indisponible : on sonne */ }
+    return true;
+  }
+
+  function chimeContext() {
+    if (chimeAudio) return chimeAudio;
+    const Ctx = global.AudioContext || global.webkitAudioContext;
+    if (!Ctx) return null;
+    try { chimeAudio = new Ctx(); } catch (e) { return null; }
+    return chimeAudio;
+  }
+
+  function playChime(sound) {
+    const notes = CHIMES[sound];
+    const ctx = notes ? chimeContext() : null;
+    if (!ctx) return false;
+    if (ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(function () {});
+    const start = ctx.currentTime + 0.02;
+    notes.forEach(function (freq, i) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t = start + i * 0.16;
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.32);
+    });
+    return true;
+  }
+
+  function unlockChime() {
+    const ctx = chimeContext();
+    if (ctx && ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(function () {});
+  }
+
   function readLastSeen() {
     try { return parseInt(localStorage.getItem(NOTIF_KEY) || '', 10); } catch (e) { return NaN; }
   }
@@ -1141,7 +1211,11 @@
         setBellCount(d.unread);
         // Première visite (rien de mémorisé) : on prend le point de départ sans rien montrer —
         // l'historique est sur la page Notifications, pas en rafale à l'écran.
-        if (isFinite(seen)) (d.items || []).forEach(notifPopup);
+        if (isFinite(seen)) {
+          (d.items || []).forEach(notifPopup);
+          const chime = chimeFor(d.items);
+          if (chime.sound && claimChime(chime.lastId)) playChime(chime.sound);
+        }
         writeLastSeen(Math.max(d.last_id || 0, isFinite(seen) ? seen : 0));
       })
       .catch(function () { /* hors ligne, route absente : rien à dire */ });
@@ -1149,6 +1223,9 @@
 
   function startNotifications() {
     if (!notifBell()) return;
+    // Le premier geste dans la page ouvre le contexte audio : sans lui, aucun son ne passerait.
+    document.addEventListener('pointerdown', unlockChime, { once: true });
+    document.addEventListener('keydown', unlockChime, { once: true });
     checkNotifications();
     setInterval(checkNotifications, NOTIF_EVERY_MS);
     document.addEventListener('visibilitychange', function () {
@@ -1156,6 +1233,7 @@
     });
   }
   global.WamaApp.checkNotifications = checkNotifications;
+  global.WamaApp.playNotificationSound = playChime;   // « écouter » du profil
   if (typeof document === 'undefined' || !document.addEventListener) {
     /* hors navigateur (V8 des tests) : rien à surveiller */
   } else if (document.readyState === 'loading') {

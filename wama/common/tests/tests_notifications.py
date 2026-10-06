@@ -217,3 +217,53 @@ class JobEndNotificationTest(TestCase):
         note = Notification.objects.get(recipient=collaborator)
         self.assertEqual(('describer', str(self.card.pk)), (note.app, note.object_id))
         self.assertIn('collaboration', note.body)
+
+
+class NotificationSoundTest(TestCase):
+    """The sound of a notification in WAMA (2026-10-06, Fabien's request: the main benefit he
+    saw in a Discord ping was its SOUND). The SERVER decides — sounding kind + the profile's
+    switch — and the page only plays what it is told (`notifications.SOUND_BY_KIND`)."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('sound_owner', password='x')
+        self.client.force_login(self.user)
+
+    def _recent(self):
+        seen = Notification.objects.filter(recipient=self.user).order_by('pk').first()
+        after = (seen.pk - 1) if seen else 0
+        return self.client.get(reverse('common:api_notifications_recent'), {'after': after}).json()
+
+    def test_the_end_of_a_task_sounds_and_says_how_it_ended(self):
+        notify_in_app([self.user], 'job_done', 'Describer — « a » terminé')
+        notify_in_app([self.user], 'job_failed', 'Describer — « b » a échoué')
+        self.assertEqual(['done', 'failed'], [item['sound'] for item in self._recent()['items']])
+
+    def test_other_notifications_stay_silent(self):
+        notify_in_app([self.user], 'access_request', 'Demande d’accès')
+        notify_in_app([self.user], 'worker_died', 'Worker arrêté')
+        self.assertEqual(['', ''], [item['sound'] for item in self._recent()['items']])
+
+    def test_the_sound_is_on_by_default_and_can_be_cut(self):
+        self.assertTrue(self.user.profile.notify_sound, 'a sound on nowhere is never discovered')
+        profile = self.user.profile
+        profile.notify_sound = False
+        profile.save()
+        notify_in_app([self.user], 'job_done', 'x')
+        self.assertEqual([''], [item['sound'] for item in self._recent()['items']])
+
+    def test_the_profile_saves_the_switch_and_keeps_it_when_absent(self):
+        import json
+        url = reverse('accounts:profile-notifications')
+        body = {'notify_email': True, 'notify_on': 'both', 'notify_sound': False}
+        self.client.post(url, json.dumps(body), content_type='application/json')
+        self.user.profile.refresh_from_db()
+        self.assertFalse(self.user.profile.notify_sound)
+        del body['notify_sound']                     # an older page that does not send it
+        self.client.post(url, json.dumps(body), content_type='application/json')
+        self.user.profile.refresh_from_db()
+        self.assertFalse(self.user.profile.notify_sound, 'an absent preference keeps its value')
+
+    def test_the_profile_page_offers_the_switch(self):
+        page = self.client.get(reverse('accounts:profile'))
+        self.assertContains(page, 'id="notifySound"')
+        self.assertContains(page, "WamaApp.playNotificationSound('done')")

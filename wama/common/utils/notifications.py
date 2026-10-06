@@ -50,6 +50,23 @@ def notify_user(user, subject, body, html=None):
     return notify_emails([getattr(user, 'email', '') or ''], subject, body, html)
 
 
+#: Les types de notification qui SONNENT dans WAMA, et le son de chacun (2026-10-06, décision de
+#: Fabien : les fins de traitement seulement — ce sont celles qu'on attend ; une demande d'accès
+#: ou la mort d'un worker restent muettes). Lu par la route que relève la cloche du web
+#: (`common.views.api_notifications_recent`) : le navigateur JOUE ce que dit le serveur, il ne
+#: connaît aucun type. Un nouveau type sonore = une entrée ici.
+SOUND_BY_KIND = {'job_done': 'done', 'job_failed': 'failed'}
+
+
+def notification_sound(notification, user) -> str:
+    """Le son d'une notification pour cet utilisateur : `'done'`, `'failed'`, ou `''` (muette —
+    type non sonore, ou son coupé dans son profil)."""
+    profile = getattr(user, 'profile', None)
+    if profile is None or not getattr(profile, 'notify_sound', True):
+        return ''
+    return SOUND_BY_KIND.get(getattr(notification, 'kind', ''), '')
+
+
 def notify_in_app(users, kind, title, body='', url='', *, app='', item=None):
     """Crée une notification DANS WAMA pour chaque utilisateur (`common.Notification`, badge de
     l'en-tête + page `/common/notifications/`). Fail-safe ; rend le nombre créé.

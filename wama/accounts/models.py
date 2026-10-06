@@ -214,6 +214,12 @@ class UserProfile(models.Model):
         default='both',
         verbose_name='Quand notifier',
     )
+    #: Un son quand une notification sonore arrive dans WAMA (fin d'un traitement : un son pour
+    #: « terminé », un autre pour « échoué » — `notifications.SOUND_BY_KIND`). Actif par défaut
+    #: (décision de Fabien, 2026-10-06 : un son actif nulle part ne serait jamais découvert).
+    #: `db_default` : le code EN SERVICE crée encore des profils sans connaître la colonne.
+    notify_sound = models.BooleanField(default=True, db_default=True,
+                                       verbose_name='Son des notifications')
 
     # Rétention des médias (purge automatique). 0 = illimité ; bornée par WAMA_MAX_RETENTION_DAYS.
     media_retention_days = models.PositiveIntegerField(

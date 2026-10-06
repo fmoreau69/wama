@@ -505,7 +505,8 @@ def units_update(request):
 @login_required
 @require_POST
 def notifications_update(request):
-    """AJAX: enregistre les préférences de notification email."""
+    """AJAX: enregistre les préférences de notification — quand notifier, par e-mail, et le son
+    dans WAMA (2026-10-06). Une préférence absente de la requête garde sa valeur."""
     try:
         data = json.loads(request.body)
     except json.JSONDecodeError:
@@ -519,8 +520,10 @@ def notifications_update(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     profile.notify_email = bool(data.get('notify_email', True))
     profile.notify_on = notify_on
-    profile.save(update_fields=['notify_email', 'notify_on'])
-    return JsonResponse({'success': True, 'notify_email': profile.notify_email, 'notify_on': profile.notify_on})
+    profile.notify_sound = bool(data.get('notify_sound', profile.notify_sound))
+    profile.save(update_fields=['notify_email', 'notify_on', 'notify_sound'])
+    return JsonResponse({'success': True, 'notify_email': profile.notify_email,
+                         'notify_on': profile.notify_on, 'notify_sound': profile.notify_sound})
 
 
 @login_required
