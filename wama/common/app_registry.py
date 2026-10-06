@@ -1095,6 +1095,8 @@ APP_CATALOG = {
             tool_api=True,       # add_to/start/get_status au registre CENTRAL wama/tool_api.py
                                  # (flag False périmé, audit 2026-07-10)
             status_vocab=True,   # SUCCESS/FAILURE (models.py:19)
+            during_preview=True, # image COURANTE du rendu 3D (TalkingHead, ~2 s, PartialFrames —
+                                 # 2026-10-06) ; MuseTalk, en sous-processus, ne montre rien avant la fin
             multi_format_download=None,  # N/A — sortie vidéo MP4 unique (conversion = rôle converter)
             model_help=None,     # N/A — MuseTalk fixe (v1.5), aucun select de modèle exposé
             # Passe conservatrice 2026-07-11 (suite audit §31) :

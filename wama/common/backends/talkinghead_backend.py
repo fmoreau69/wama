@@ -138,12 +138,14 @@ class TalkingHeadBackend(BaseModelBackend):
     def process(self, avatar_path: str, audio_path: str, output_path: str, text: str = '',
                 language: str = 'fr', width: int = 1280, height: int = 720, fps: int = 25,
                 camera: Optional[dict] = None, background: str = '#f4f1ea', mood: str = 'neutral',
-                words=None, progress=None, **_ignored) -> str:
+                words=None, progress=None, on_frame=None, **_ignored) -> str:
         """Rend `output_path` (MP4) : l'avatar `avatar_path` (GLB) dit `audio_path`.
 
         Les LÈVRES viennent des MOTS : soit `words` (mots datés par une transcription — timings
         MESURÉS), soit `text` (réparti au prorata de la durée de l'audio). Sans l'un ni l'autre,
         refus : l'avatar resterait bouche fermée. `progress(fraction)` : 0 → 1 pendant le rendu.
+        `on_frame(jpeg, index)` : la DERNIÈRE image (JPEG encodé) de chaque tranche rendue, pour
+        l'aperçu « pendant » (2026-10-06) — l'appelant décide de la cadence de publication.
         """
         from django.template.loader import render_to_string
         from playwright.sync_api import sync_playwright
@@ -231,11 +233,17 @@ class TalkingHeadBackend(BaseModelBackend):
                     done = 0
                     while done < total:
                         n = min(FRAMES_PER_BATCH, total - done)
+                        jpeg = None
                         for frame in page.evaluate('n => window.WamaAvatarRender.step(n)', n):
-                            enc.stdin.write(base64.b64decode(frame))
+                            jpeg = base64.b64decode(frame)
+                            enc.stdin.write(jpeg)
                         done += n
                         if progress:
                             reporter.submit(progress, done / total).result()
+                        # Même fil que la progression, pour la même raison : l'aperçu publie
+                        # par le cache de Django, refusé dans la boucle de Playwright.
+                        if on_frame and jpeg:
+                            reporter.submit(on_frame, jpeg, done).result()
                     enc.stdin.close()
                     stderr = enc.stderr.read().decode('utf-8', 'replace')
                     if enc.wait(timeout=600) != 0:

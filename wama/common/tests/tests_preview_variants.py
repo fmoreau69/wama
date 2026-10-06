@@ -96,6 +96,16 @@ class PartialFramesTest(SimpleTestCase):
         self.assertEqual([], os.listdir(folder))
         self.assertIsNone(cache.get(preview_utils._partial_variants_key('anonymizer', 7)))
 
+    def test_an_already_encoded_jpeg_is_written_as_is(self):
+        """The 3D render of the avatarizer yields JPEG bytes: no decode/re-encode round trip."""
+        folder = os.path.join(self.root, 'avatarizer', 'partials')
+        frames = preview_utils.PartialFrames('avatarizer', 9, folder)
+        jpeg = b'\xff\xd8\xff\xe0witness-jpeg\xff\xd9'
+        frames.publish({'animation': ('Animation', jpeg)}, index=50)
+        with open(os.path.join(folder, 'during_9_animation.jpg'), 'rb') as written:
+            self.assertEqual(jpeg, written.read())
+        frames.close()
+
 
 class NoAppWritesItsOwnPartialFrameTest(SimpleTestCase):
     """Generic over the apps : a FRAME published to the « during » preview goes through

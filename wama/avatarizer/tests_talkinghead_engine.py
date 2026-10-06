@@ -109,6 +109,47 @@ class EngineFromAvatarNatureTest(TestCase):
         self.assertTrue(call['avatar_path'].endswith('scientist.glb'))
         self.assertIn('talkinghead', job.output_video.name)
 
+    def test_the_3d_render_shows_its_current_frame_while_it_runs(self):
+        """Aperçu « pendant » (2026-10-06) : publié PENDANT le rendu, retiré une fois fini."""
+        from django.core.cache import cache
+        from wama.common.utils import preview_utils
+        self._register_talkinghead()
+        key = None
+        during = []
+
+        class FramingRender(FakeRender):
+            def process(self, *args, **kwargs):
+                kwargs['on_frame'](b'\xff\xd8witness\xff\xd9', 25)
+                during.append(cache.get(preview_utils._partial_variants_key('avatarizer', key)))
+                return super().process(*args, **kwargs)
+
+        job = self._job(self._talking_glb())
+        key = job.id
+        with patch.object(workers, '_backend', return_value=FramingRender()):
+            workers.generate_avatar.apply(args=[job.id])
+        job.refresh_from_db()
+        self.assertEqual('SUCCESS', job.status, job.error_message)
+        self.assertEqual('Animation', (during[0] or {}).get('animation', {}).get('label'),
+                         'the frame was not published during the render')
+        self.assertIsNone(cache.get(preview_utils._partial_variants_key('avatarizer', job.id)),
+                          'the partial must be withdrawn once the render is over')
+
+    def test_a_failing_preview_never_fails_the_render(self):
+        self._register_talkinghead()
+
+        class FramingRender(FakeRender):
+            def process(self, *args, **kwargs):
+                kwargs['on_frame'](b'jpeg', 25)
+                return super().process(*args, **kwargs)
+
+        job = self._job(self._talking_glb())
+        with patch.object(workers, '_backend', return_value=FramingRender()), \
+                patch('wama.common.utils.preview_utils.PartialFrames.publish',
+                      side_effect=OSError('disk full')):
+            workers.generate_avatar.apply(args=[job.id])
+        job.refresh_from_db()
+        self.assertEqual('SUCCESS', job.status, job.error_message)
+
     def test_a_mesh_without_rig_or_face_is_refused_with_its_reason(self):
         """Le bon RÔLE (objet 3D) mais pas les ATTRIBUTS : un maillage TripoSR ne parlera pas."""
         self._register_talkinghead()
