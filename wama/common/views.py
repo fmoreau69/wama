@@ -1111,6 +1111,26 @@ def notifications_mark_read(request):
     return redirect('common:notifications')
 
 
+@login_required
+def notification_open(request, pk: int):
+    """« Ouvrir » une notification (2026-10-07, remarque de Fabien : *« quand je clique sur
+    Ouvrir, une notification devrait être marquée comme lue »*) — la marque lue, puis mène à son
+    lien. Un lien qui sortirait de WAMA n'est pas suivi : retour à la page des notifications."""
+    from django.shortcuts import get_object_or_404, redirect
+    from django.utils import timezone
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    from .models import Notification
+    note = get_object_or_404(Notification, pk=pk, recipient=request.user)
+    if note.read_at is None:
+        note.read_at = timezone.now()
+        note.save(update_fields=['read_at'])
+    if note.url and url_has_allowed_host_and_scheme(note.url, allowed_hosts={request.get_host()},
+                                                     require_https=request.is_secure()):
+        return redirect(note.url)
+    return redirect('common:notifications')
+
+
 # ── RAG : les SURFACES du geste (jalon 14, WAMA_MEMORY.md §7ter) ─────────────────
 # Rappel de la décision qui commande tout ce bloc (objection de Fabien, 2026-08-21) :
 # l'entrée au RAG est un GESTE EXPLICITE de l'utilisateur, jamais un balayage. Le premier
