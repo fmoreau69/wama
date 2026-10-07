@@ -75,6 +75,32 @@ class SymbolesPublicsDuParamsGenereTest(SimpleTestCase):
         self.assertNotIn('PARAMS = PARAMS', src)
 
 
+class ParamsRenderedAsLiteralsTest(SimpleTestCase):
+    """A live-extracted schema carries the model's own objects: a `TextChoices` member rendered
+    by its `repr` (`ReadingItem.Backend.AUTO`) — NameError on import, twin page 404
+    (reader_01, 2026-10-07)."""
+
+    def test_a_choices_member_is_written_as_its_value(self):
+        from django.db import models
+
+        class Backend(models.TextChoices):
+            AUTO = 'auto', 'Auto'
+
+        src, _ = render_params(_manifeste(schemas={'PARAMS_JSON': [
+            {'name': 'backend', 'default': Backend.AUTO, 'contexts': ('item', 'panel')}]}))
+        space = {}
+        exec(compile(src, '<params_gen>', 'exec'), space)     # noqa: S102 — c'est le sujet
+        param = space['PARAMS_JSON'][0]
+        self.assertEqual(param['default'], 'auto')
+        self.assertIs(type(param['default']), str)
+        self.assertEqual(param['contexts'], ('item', 'panel'), 'tuples stay tuples')
+
+    def test_a_value_that_is_no_literal_is_named_at_generation(self):
+        # Counter-check: an arbitrary object is refused HERE, not by a NameError at import.
+        with self.assertRaisesRegex(ValueError, 'non littérale'):
+            render_params(_manifeste(schemas={'PARAMS_JSON': [{'name': 'a', 'default': object()}]}))
+
+
 class CorpsComposeDesDeuxSaveursTest(SimpleTestCase):
     """Défaut n°3 : les deux saveurs (`RESULT.kind`) se composent, et compilent."""
 
