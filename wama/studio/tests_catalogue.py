@@ -47,7 +47,33 @@ class CatalogueContractTest(SimpleTestCase):
         self.assertIn("var PALETTE_MIME = 'text/wama-node';", js)
         self.assertIn("item.draggable = true;", js)
         self.assertIn("canvas.addEventListener('drop'", js)
-        self.assertRegex(js, r"addNode\(id, \{ x: Math\.max\(0, e\.clientX - c\.left")
+        # Drag-and-drop INSTEAD of the click (decision of 15/09; the click survived until 07/10).
+        # Only a pipeline (a document, not a node) still reacts to a click.
+        self.assertNotIn("(onPick || addNode)", js, 'a click on the catalogue no longer adds a node')
+        self.assertIn("item.addEventListener('click', function () { onPick(id); });", js)
+        # The global `.drag-over` is the FILE drop class ("Déposez le fichier ici"): not for a node.
+        self.assertNotIn("'drag-over'", js)
+        self.assertIn('.studio-canvas.is-drop-target', _src('static/studio/css/wama-studio.css'))
+        # Sous le curseur, en coordonnées du MONDE : la vue défile et zoome depuis le 2026-10-07.
+        self.assertIn("var p = toWorld(e.clientX, e.clientY);", js)
+        # Rounded: the position ends in the `layout` of a versioned pipeline manifest.
+        self.assertIn("addNode(id, { x: Math.round(p.x - 20), y: Math.round(p.y - 12) });", js)
+
+    def test_the_canvas_pans_and_zooms_and_the_graph_stays_in_world_coordinates(self):
+        js = _src('static/studio/js/wama-studio.js')
+        self.assertIn("canvas.addEventListener('wheel'", js, 'wheel zoom')
+        self.assertIn("{ passive: false }", js, 'the wheel must be able to stop the page scroll')
+        self.assertIn("world.appendChild(box);", js, 'nodes live in the world, not the viewport')
+        # Port measured in LAYOUT (offsets), not on screen: a 1 px screen rounding divided by
+        # the zoom froze a 4.5-unit gap into the link at 22 % (measured in the browser).
+        self.assertIn("x += e.offsetLeft; y += e.offsetTop;", js,
+                      'links are drawn in world coordinates, whatever the view')
+        self.assertNotIn("dot.getBoundingClientRect()", js)
+        self.assertIn("node.x = Math.round(ox + (ev.clientX - startX) / view.k);", js,
+                      'a node drag follows the zoom')
+        page = _src('templates/studio/index.html')
+        self.assertIn('id="studioWorld"', page)
+        self.assertIn('data-zoom="fit"', page)
 
     def test_the_canvas_speaks_the_six_common_states(self):
         js = _src('static/studio/js/wama-studio.js')

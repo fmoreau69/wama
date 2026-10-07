@@ -80,7 +80,19 @@
     border: 1px solid rgba(255, 255, 255, .12);
     border-radius: .6rem;
 }
-.studio-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.studio-canvas.is-panning { cursor: grabbing; }
+/* Un nœud du catalogue survole le canvas : même teinte que les zones de dépôt WAMA, mais pas la
+   classe `.drag-over` globale, qui est celle des FICHIERS (fond forcé + « Déposez le fichier »). */
+.studio-canvas.is-drop-target { border-color: #667eea; box-shadow: inset 0 0 0 1px #667eea, 0 0 15px rgba(102, 126, 234, .3); }
+/* Le MONDE : porte nœuds et liens en coordonnées du graphe ; défilement et zoom = sa transformation.
+   Taille nulle : un clic hors nœud tombe sur le canvas (le fond). Le calque SVG déborde
+   (overflow visible) pour couvrir un graphe de taille quelconque, coordonnées négatives comprises. */
+.studio-world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+.studio-links { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; z-index: 1; }
+/* En HAUT à droite : le bas du canvas peut passer sous le pied de page fixe (mesuré à 1000 px). */
+.studio-zoom { position: absolute; right: .6rem; top: .6rem; z-index: 5; }
+.studio-zoom .btn { background: rgba(13, 13, 26, .85); }
+.studio-zoom .studio-zoom-label { min-width: 3.6rem; font-variant-numeric: tabular-nums; }
 .studio-hint {
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;

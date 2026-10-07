@@ -5548,9 +5548,15 @@ def check_history_studio(url_path: str = '/studio/'):
                         redo: !document.querySelector('.studio-redo').disabled,
                     })""")
 
-            items = page.query_selector_all('.studio-pal-item')
-            for i in range(min(3, len(items))):
-                items[i].click(timeout=4000)
+            # Un nœud s'ajoute au GLISSER-DÉPOSER, plus au clic (2026-10-07, ROUTE §10.6 5.4) :
+            # un clic ne ferait plus rien, et le geste tomberait en SKIP « palette inopérante »
+            # sans que rien ne soit cassé. `[draggable]` exclut les pipelines, qui s'ouvrent au
+            # clic. Positions distinctes : des nœuds empilés ne se distinguent plus à l'œil.
+            items = page.locator('.studio-pal-item[draggable="true"]')
+            canvas = page.locator('#studioCanvas')
+            for i in range(min(3, items.count())):
+                items.nth(i).drag_to(canvas, target_position={'x': 120 + i * 220, 'y': 140},
+                                     timeout=4000)
                 page.wait_for_timeout(300)
             apres_ajouts = etat()
             if apres_ajouts['noeuds'] < 2:
