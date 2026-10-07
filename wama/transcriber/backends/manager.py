@@ -427,40 +427,9 @@ class TranscriberBackendManager:
 
 # Module-level convenience functions
 
-def backend_choice_values() -> List[str]:
-    """Domaine SERVEUR du select « Modèle de transcription » (`transcriber/params.py`, déclaré
-    `options_domain`) : ce que la porte des outils ACCEPTE et ce qu'elle ANNONCE à l'assistant.
-
-    = `auto` + les modèles LANÇABLES du domaine du select (tâche `transcription`, sources
-    confondues, grisés exclus) + les modèles DISTANTS de transcription (qui a le droit de les
-    appeler se juge au lancement : `_remote_backend`, garde `cloud_access`) + les anciens noms de
-    moteur, tolérés en entrée et normalisés à l'enregistrement.
-
-    POURQUOI un domaine serveur (essai de l'assistant du 2026-09-28) : le navigateur remplit le
-    select, et une porte qui ne connaît que ses choix statiques refuse tout modèle explicite."""
-    values = ['auto']
-    try:
-        from wama.model_manager.services.model_selector import get_registry_models
-        _choices, info = get_registry_models(None, task='transcription')
-        values += [d['id'] for d in info if not d.get('backend_missing')]
-        values += [row.model_key for row in remote_transcription_models()]
-    except Exception as e:
-        logger.debug(f"[TranscriberManager] catalogue unreadable for the choice domain: {e}")
-    values += [v for v in LEGACY_ENGINE_MODELS if v not in values]
-    return list(dict.fromkeys(values))
-
-
-def remote_transcription_models() -> list:
-    """Lignes DISTANTES du catalogue, de tâche transcription, qu'un backend sait appeler."""
-    from wama.common.backends.manager import backend_for_model
-    from wama.model_manager.models import AIModel, EXECUTION_CLOUD
-    kept = []
-    for row in AIModel.objects.filter(execution=EXECUTION_CLOUD, is_available=True,
-                                      capabilities__task='transcription').order_by('model_key'):
-        cls = backend_for_model(row)
-        if cls is not None and issubclass(cls, SpeechToTextBackend):
-            kept.append(row)
-    return kept
+# `backend_choice_values` et `remote_transcription_models` RETIRÉES le 2026-10-07 (REMOVAL_LEDGER) :
+# le domaine de porte (`options_domain`) du select n'existe plus — règle UNIQUE de toutes les
+# apps, sans annonce à l'outil ; l'assistant découvre les modèles par `list_ai_models`.
 
 
 _ENGINE_NAME_CACHE: Dict[str, tuple] = {}

@@ -52,15 +52,11 @@ class Param:
     max_label: str = ""                         #   — priment sur min/max bruts à l'affichage (P2-bis)
     contexts: Tuple[str, ...] = ALL_CONTEXTS
     options_source: Optional[str] = None        # clé d'options dynamiques (ex. "backends")
-    options_domain: Optional[str] = None        # chemin POINTÉ d'une fonction rendant les valeurs
-                                                # VALIDES côté serveur, quand `choices` n'est qu'un
-                                                # PRÉFIXE statique (« auto ») que le navigateur
-                                                # complète (`options_source`). Lu par `choice_values`
-                                                # — la porte des outils ET leur annonce aux
-                                                # assistants. ⚠ Sans lui, la porte prenait le
-                                                # préfixe pour le domaine entier : le transcriber
-                                                # refusait TOUT moteur explicite à l'assistant, Whisper
-                                                # compris (essai du 2026-09-28 : « valides : auto »).
+    # ⚠ `options_domain` (porte + annonce aux assistants d'un select de catalogue) RETIRÉ le
+    # 2026-10-07 (REMOVAL_LEDGER) : un seul utilisateur (le transcriber), une seule règle pour
+    # toutes les apps (décision de Fabien) — un select de catalogue n'annonce rien à l'outil
+    # et sa porte ne refuse rien (plus de `choices` préfixes) ; l'assistant découvre les modèles
+    # par `list_ai_models`, le `save()` du modèle normalise, le lancement refuse ce que rien ne sert.
     options_query: Optional[dict] = None        # DOMAINE d'une source d'options qui en demande un :
                                                 # {"task": "text-to-speech"} → querystring de l'endpoint.
                                                 # Requis par `options_source="catalog"` : une clé ne porte
@@ -629,23 +625,39 @@ def schema_arg_names(app_id: str) -> set:
 
 
 def choice_values(p) -> List[str]:
-    """Valeurs VALIDES d'un select/radio : ses `choices` statiques, puis — quand l'app DÉCLARE
-    le domaine serveur d'options arrivant par le navigateur (`options_domain`) — les valeurs de
-    ce domaine. UNE fonction pour la porte (`invalid_choice_values`), l'annonce aux assistants
-    (`tool_api` : enum JSON et ligne « choix ») et `schema_choice_values` : les trois ne peuvent
-    plus diverger (garde `tests_mcp_server` : un enum n'est jamais plus strict que la porte).
-    Un domaine illisible ne rend rien de plus — on retombe sur les choix statiques."""
-    values = [str(c[0]) if isinstance(c, (list, tuple)) else str(c)
-              for c in (_pget(p, 'choices') or [])]
-    domain = _pget(p, 'options_domain')
-    if domain:
-        try:
-            from django.utils.module_loading import import_string
-            extra = import_string(domain)() or []
-        except Exception:
-            extra = []
-        values += [str(v) for v in extra if str(v) not in values]
-    return values
+    """Valeurs VALIDES d'un select/radio : ses `choices` statiques. UNE fonction pour la porte
+    (`invalid_choice_values`), l'annonce aux assistants (`tool_api` : enum JSON et ligne
+    « choix ») et `schema_choice_values` : les trois ne peuvent plus diverger (garde
+    `tests_mcp_server` : un enum n'est jamais plus strict que la porte). Un select tiré du
+    CATALOGUE n'a pas de `choices` : rien à annoncer, rien à refuser (règle unique, 2026-10-07)."""
+    return [str(c[0]) if isinstance(c, (list, tuple)) else str(c)
+            for c in (_pget(p, 'choices') or [])]
+
+
+def catalog_options(p) -> List[Tuple[str, str]]:
+    """[(valeur, libellé)] d'un select tiré du CATALOGUE (`options_source='catalog'`), lus sur le
+    domaine qu'il DÉCLARE (`options_query`), « auto » en tête quand il l'offre (`options_auto`).
+
+    LA lecture côté serveur d'un select de catalogue (2026-10-07, demande de Fabien : « une route
+    unique ») — celle de l'endpoint des selects (`api_model_options` : `get_registry_models` sur
+    le même domaine), donc les mêmes valeurs dans le même espace de clés que le select, la modale
+    et le volet que le navigateur remplit. Elle remplace cinq lectures écrites à la main : le
+    pré-rendu des volets (`tts_engine_choices`, enhancer), le nœud du studio, la validation à la
+    création de l'avatarizer. Le select du navigateur garde l'endpoint (drapeaux d'UI : prévision,
+    groupes, distants de l'utilisateur, mode) ; ici, la liste seule. [] hors catalogue, ou
+    catalogue illisible — jamais une levée, jamais une vieille liste."""
+    if _pget(p, 'options_source') != 'catalog':
+        return []
+    query = dict(_pget(p, 'options_query') or {})
+    source = query.pop('source', None)
+    try:
+        from wama.model_manager.services import get_registry_models
+        choices, _info = get_registry_models(source, **query)
+    except Exception:
+        choices = []
+    from wama.common.utils.auto_model import AUTO, AUTO_LABEL
+    head = [(AUTO, AUTO_LABEL)] if _pget(p, 'options_auto') else []
+    return head + [(str(key), label) for key, label in choices]
 
 
 def invalid_choice_values(schema, data) -> dict:

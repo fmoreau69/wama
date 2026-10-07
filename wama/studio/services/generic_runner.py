@@ -224,27 +224,13 @@ def _node_params_spec(app_id, conf):
 
 
 def with_catalog_options(spec) -> list:
-    """Copie de `spec` dont les selects de CATALOGUE reçoivent leurs options MAINTENANT — la
-    lecture de l'endpoint des selects d'app (`get_registry_models` sur le domaine déclaré, « auto »
-    en tête quand le schéma l'offre), donc les mêmes valeurs dans le même espace de clés. Le spec
-    d'entrée (en cache) n'est jamais modifié. Catalogue illisible : liste vide, sans lever."""
-    from wama.common.utils.auto_model import AUTO, AUTO_LABEL
-    out = []
-    for entry in spec:
-        if entry.get('options_source') != 'catalog':
-            out.append(entry)
-            continue
-        query = dict(entry.get('options_query') or {})
-        source = query.pop('source', None)
-        try:
-            from wama.model_manager.services import get_registry_models
-            choices, _info = get_registry_models(source, **query)
-        except Exception:          # catalogue illisible : un select vide, jamais une levée
-            choices = []
-        options = [{'value': AUTO, 'label': AUTO_LABEL}] if entry.get('options_auto') else []
-        options += [{'value': key, 'label': label} for key, label in choices]
-        out.append({**entry, 'options': options})
-    return out
+    """Copie de `spec` dont les selects de CATALOGUE reçoivent leurs options MAINTENANT, par LA
+    lecture commune (`param_schema.catalog_options` — celle du volet, de l'endpoint, de la
+    validation à la création). Le spec d'entrée (en cache) n'est jamais modifié."""
+    from wama.common.utils.param_schema import catalog_options
+    return [{**entry, 'options': [{'value': v, 'label': l} for v, l in catalog_options(entry)]}
+            if entry.get('options_source') == 'catalog' else entry
+            for entry in spec]
 
 
 # ── Les PORTS du nœud → les arguments de l'outil (2026-09-30) ──────────────────────────────────

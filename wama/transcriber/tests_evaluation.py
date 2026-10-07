@@ -171,25 +171,33 @@ class ACatalogueModelNameSelectsItsEngineTest(TestCase):
 class TheToolDoorKnowsTheEnginesTest(TestCase):
     """Second finding of the same assistant test: the tool door answered « valides : auto » — the
     schema renders « auto » statically and the browser appends the engines, so the door took the
-    prefix for the whole domain and refused ANY explicit engine, Whisper included."""
+    prefix for the whole domain and refused ANY explicit engine, Whisper included.
+    Since 2026-10-07 (one rule for every app, REMOVAL_LEDGER R108): no prefix, no door domain —
+    the door refuses nothing, the LAUNCH refuses what nothing serves, the assistant discovers the
+    models through `list_ai_models` instead of an enum."""
 
     def setUp(self):
         from wama.transcriber.catalogue_fixtures import transcription_catalogue
         transcription_catalogue('transcriber:whisper', 'transcriber:qwen3-asr-1.7b',
                                 'transcriber:vibevoice-asr')
 
-    def test_engines_and_catalogue_keys_pass_the_door_nonsense_does_not(self):
+    def test_engines_and_keys_pass_the_door_nonsense_is_refused_at_launch(self):
         from wama.common.utils.param_schema import invalid_choice_values, schema_for_app
+        from wama.transcriber.backends.manager import TranscriberBackendManager
         schema = schema_for_app('transcriber')
-        for value in ('auto', 'whisper', 'qwen_asr', 'transcriber:qwen3-asr-1.7b'):
+        for value in ('auto', 'whisper', 'qwen_asr', 'transcriber:qwen3-asr-1.7b', 'qwen3-asr-9b'):
             with self.subTest(value=value):
                 self.assertEqual({}, invalid_choice_values(schema, {'backend': value}))
-        self.assertIn('backend', invalid_choice_values(schema, {'backend': 'qwen3-asr-9b'}))
+        with self.assertRaisesMessage(RuntimeError, 'aucun backend de transcription'):
+            TranscriberBackendManager.get_instance().get_backend('qwen3-asr-9b')
 
-    def test_the_assistant_is_told_the_same_values(self):
-        from wama.tool_api import tool_input_schema
-        enum = tool_input_schema('add_to_transcriber')['properties']['backend'].get('enum') or []
-        self.assertTrue({'auto', 'whisper', 'qwen_asr', 'transcriber:qwen3-asr-1.7b'} <= set(enum), enum)
+    def test_the_assistant_discovers_the_models_instead_of_an_enum(self):
+        from django.contrib.auth import get_user_model
+        from wama.tool_api import list_ai_models, tool_input_schema
+        self.assertNotIn('enum', tool_input_schema('add_to_transcriber')['properties']['backend'])
+        user = get_user_model().objects.create_user('asr_discovery', password='x')
+        keys = {m['key'] for m in list_ai_models(user, task='transcription')['models']}
+        self.assertTrue({'transcriber:whisper', 'transcriber:qwen3-asr-1.7b'} <= keys, keys)
 
 
 class TranscriberEvaluationTest(TestCase):

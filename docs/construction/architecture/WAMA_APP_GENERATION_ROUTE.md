@@ -690,8 +690,12 @@ d'annoncer un modèle que le lancement ne retiendrait pas (règle du 27/09).
 
 - **Schéma** : `options_source="catalog"`, `options_query={task: transcription}`, `options_auto`,
   `options_cloud` (Albert au menu pour qui a une clé), `help_source` ; plus de `choices` statiques ;
-  `options_domain` GARDÉ — la porte des outils valide et annonce (`backend_choice_values` : lançables
-  du domaine + distants + anciens noms tolérés).
+  ~~`options_domain` GARDÉ — la porte des outils valide et annonce (`backend_choice_values` : lançables
+  du domaine + distants + anciens noms tolérés).~~ ✅ **RETIRÉ le 2026-10-07** (décision de Fabien,
+  « une route unique ») : un seul utilisateur, une règle pour toutes les apps — sans `choices`, la
+  porte ne refuse rien et l'outil n'annonce rien (l'assistant passe par `list_ai_models`), `save()`
+  normalise, le lancement refuse ce que rien ne sert (REMOVAL_LEDGER R108). Les lectures serveur
+  du domaine déclaré passent par `param_schema.catalog_options`.
 - **Valeurs = clés** : `Transcript.save()` normalise (`catalogue_value`), migration `0027`
   (champ 32 → 128 : `huggingface:linagora/linto_stt_fr_fastconformer_pc` = 51 ; transformation
   PURE, correspondance recopiée). Un ancien nom de moteur devient le modèle que ce moteur chargeait

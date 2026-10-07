@@ -82,30 +82,49 @@ class SchemaArgumentsTest(SimpleTestCase):
         self.assertGreater(vus, 0, "aucun enum mesuré : la garde tournerait à vide")
 
 
-def _declared_domain():
-    """A server-side option domain, as an app declares it (`Param.options_domain`)."""
-    return ['engine_a', 'engine_b']
+class OneRuleForCatalogueSelectsTest(TestCase):
+    """2026-10-07 (Fabien: « une route unique ») — `options_domain` is gone. A select drawn from
+    the CATALOGUE has no `choices`: the door has nothing to refuse and the tool announces nothing
+    (the assistant uses `list_ai_models`); a select with a STATIC list keeps being guarded. Its
+    options are read server-side by ONE brick, `catalog_options` (panel pre-render, studio node,
+    creation check), the same reading as the browser's options endpoint."""
 
+    CATALOG = {'name': 'model', 'type': 'select', 'options_source': 'catalog',
+               'options_query': {'task': 'upscale'}, 'options_auto': True}
+    STATIC = {'name': 'engine', 'type': 'select', 'choices': [('a', 'A'), ('b', 'B')]}
 
-class DeclaredOptionDomainTest(SimpleTestCase):
-    """`choice_values` — ONE reading of a select's valid values for the door and the announcement.
-    A select whose options the browser appends renders a static PREFIX only (« auto »); its app
-    declares the rest (`options_domain`), or the door refuses every real option (2026-09-28)."""
-
-    PARAM = {'name': 'engine', 'type': 'select', 'choices': [('auto', 'Auto')],
-             'options_source': 'engines',
-             'options_domain': 'wama.common.tests.tests_mcp_server._declared_domain'}
-
-    def test_the_door_accepts_the_declared_domain_and_still_rejects_the_rest(self):
+    def test_a_catalog_select_neither_announces_nor_rejects(self):
         from wama.common.utils.param_schema import choice_values, invalid_choice_values
-        self.assertEqual(['auto', 'engine_a', 'engine_b'], choice_values(self.PARAM))
-        self.assertEqual({}, invalid_choice_values([self.PARAM], {'engine': 'engine_b'}))
-        self.assertIn('engine', invalid_choice_values([self.PARAM], {'engine': 'engine_z'}))
+        self.assertEqual([], choice_values(self.CATALOG))
+        self.assertEqual({}, invalid_choice_values([self.CATALOG], {'model': 'any:key'}))
 
-    def test_an_unreadable_domain_falls_back_to_the_static_choices(self):
-        from wama.common.utils.param_schema import choice_values
-        broken = dict(self.PARAM, options_domain='wama.common.does_not_exist.nothing')
-        self.assertEqual(['auto'], choice_values(broken))
+    def test_a_static_list_is_still_guarded(self):
+        from wama.common.utils.param_schema import invalid_choice_values
+        self.assertIn('engine', invalid_choice_values([self.STATIC], {'engine': 'z'}))
+
+    def test_catalog_options_reads_the_declared_domain_with_auto_first(self):
+        from wama.common.utils.param_schema import catalog_options
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key='enhancer:Up4', name='Up4', model_type='upscaling',
+                               source='enhancer', is_downloaded=True,
+                               capabilities={'task': 'upscale', 'scale': 4})
+        AIModel.objects.create(model_key='enhancer:Voice', name='Voice', model_type='speech',
+                               source='enhancer', is_downloaded=True,
+                               capabilities={'task': 'audio-enhance'})
+        values = [v for v, _ in catalog_options(self.CATALOG)]
+        self.assertEqual(['auto', 'enhancer:Up4'], values)
+        self.assertEqual([], catalog_options(self.STATIC), 'not a catalogue select')
+
+    def test_no_param_of_any_app_has_a_door_domain_anymore(self):
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.utils.param_schema import declared_param_schemas, schema_for_app
+        for app in APP_CATALOG:
+            declared = declared_param_schemas(app)
+            fields = ([p for s in declared['schemas'].values() for p in (s or [])]
+                      if declared and declared.get('schemas') else (schema_for_app(app) or []))
+            for p in fields:
+                with self.subTest(app=app, param=p.get('name')):
+                    self.assertFalse(p.get('options_domain'))
 
 
 class ProtocoleTest(TestCase):

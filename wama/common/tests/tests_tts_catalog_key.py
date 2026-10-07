@@ -56,6 +56,37 @@ class AssistantToolStoresTheCatalogKeyTest(TestCase):
             synthesis.text_file.delete(save=False)
 
 
+class TheEngineSelectReadsTheCatalogueTest(TestCase):
+    """Le select des moteurs TTS (synthesizer, avatarizer) est pré-rendu par LA lecture commune
+    d'un select de catalogue (`param_schema.catalog_options`, 2026-10-07) : son domaine est la
+    TÂCHE, donc un moteur installé hors de la source `synthesizer` y figure — et son libellé
+    suit. Sans ce test, neutraliser la brique laissait ce consommateur vert (contre-épreuve)."""
+
+    def test_an_engine_installed_from_the_model_manager_is_listed_and_labelled(self):
+        from wama.common.tts.ui_meta import TTS_TASK, tts_engine_choices, tts_engine_label
+        from wama.model_manager.models import AIModel
+        key = 'huggingface:org/tts-installed-elsewhere'
+        AIModel.objects.create(model_key=key, name='tts-installed-elsewhere', model_type='speech',
+                               source='huggingface', is_downloaded=True,
+                               capabilities={'task': TTS_TASK})
+        self.assertIn(key, dict(tts_engine_choices()))
+        self.assertNotEqual(key, tts_engine_label(key), 'the label comes from the catalogue')
+
+    def test_counter_proof_another_task_stays_out(self):
+        # A voice engine is present: with NOTHING matching the task, `get_registry_models`
+        # serves the whole category on purpose (degrade precision, never availability).
+        from wama.common.tts.ui_meta import TTS_TASK, tts_engine_choices
+        from wama.model_manager.models import AIModel
+        key = 'huggingface:org/not-a-voice'
+        AIModel.objects.create(model_key='huggingface:org/a-voice', name='a-voice',
+                               model_type='speech', source='huggingface', is_downloaded=True,
+                               capabilities={'task': TTS_TASK})
+        AIModel.objects.create(model_key=key, name='not-a-voice', model_type='speech',
+                               source='huggingface', is_downloaded=True,
+                               capabilities={'task': 'automatic-speech-recognition'})
+        self.assertNotIn(key, dict(tts_engine_choices()))
+
+
 class NoSecondDefaultInTheScriptTest(SimpleTestCase):
     """Le JS du synthesizer ne redéclare plus le défaut : vide → `DEFAULT_TTS_MODEL` côté serveur."""
 

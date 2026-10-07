@@ -25,7 +25,7 @@ from django.test import TestCase, override_settings
 from wama.common.backends.albert_asr_backend import AlbertTranscriptionBackend
 from wama.common.backends.manager import backend_for_model
 from wama.model_manager.models import AIModel
-from wama.transcriber.backends.manager import TranscriberBackendManager, backend_choice_values
+from wama.transcriber.backends.manager import TranscriberBackendManager
 
 SECRET = 'a' * 50
 ASR_KEY = 'albert:whisper-large-v3'
@@ -124,9 +124,13 @@ class RemoteBackendThroughTheManagerTest(TestCase):
         self.assertTrue(filters_speech('whisper'))
         self.assertFalse(filters_speech('qwen_asr'))
 
-    def test_the_choice_domain_offers_the_remote_model(self):
-        self.assertIn(ASR_KEY, backend_choice_values())
-        self.assertNotIn('albert:gpt-oss-120b', backend_choice_values())
+    def test_the_assistant_discovers_the_remote_model_by_the_catalogue(self):
+        """Since 2026-10-07 (one rule, no door domain), the assistant learns the transcription
+        models through `list_ai_models` — the remote ASR model is listed, the chat model is not."""
+        from wama.tool_api import list_ai_models
+        keys = {m['key'] for m in list_ai_models(self.user, task='transcription')['models']}
+        self.assertIn(ASR_KEY, keys)
+        self.assertNotIn('albert:gpt-oss-120b', keys)
 
 
 class AlbertProtocolTest(TestCase):

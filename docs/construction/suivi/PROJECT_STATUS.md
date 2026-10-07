@@ -22651,3 +22651,19 @@ Constaté par Fabien en testant à deux comptes : *« j'ai bien reçu tout le lo
 220 tests files / lots / partage / notifications : un seul rouge, `ItemEditRouteAliasTest`,
 préexistant ; gestes sur 8011 : `person_share_cycle` 12/12, `collaboration_cycle` 9/9 (passe par
 « Ouvrir »), `received_card_visible` 7/7.
+
+## §PALIER — 2026-10-07, « ROUTE UNIQUE DES SELECTS DE CATALOGUE + STUDIO + MODALE » — livré (`c08941a3` + commit de ce palier, non poussés) — 🔴 relancer gunicorn + workers (schémas, studio, porte des outils)
+
+Relecture de Fabien (« vérifie plus largement », « une route unique », « la modale se construit
+aussi sur les paramètres »).
+- `SUPPORTED_MODELS` : règle « valeur LUE par le backend » (la version « `model_key` seul » du
+  06/10 était trop stricte). Studio : les nœuds héritent des options du catalogue (7/8 étaient en
+  champ texte ; HEAD réparé après un commit d'autrui qui avait emporté la moitié du changement).
+- Route unique : `options_domain` retiré (R108), aucune annonce ni refus à la porte des outils,
+  `param_schema.catalog_options` = LA lecture serveur du domaine déclaré (volets enhancer /
+  synthesizer / avatarizer, studio, validation de l'avatarizer). Modale : contrat de la valeur
+  stockée gardé par un test.
+- ⚠ Comportement changé pour l'assistant : le transcriber n'annonce plus ses modèles dans l'outil
+  et sa porte ne refuse plus une valeur absurde — refus au LANCEMENT (« aucun backend de
+  transcription ne sert ce modèle »).
+- 🔚 Restes : 10 manifestes d'app portent encore la clé `options_domain` (inerte, export à venir).

@@ -84,7 +84,9 @@ chaque étape (diarisation, résumé, cohérence) se relance seule au lieu de to
   passé comme moteur retombait EN SILENCE sur Whisper (`get_backend` le traduit désormais) ;
   ③ la porte des outils ne connaissait que « auto » — les moteurs arrivent par le navigateur ;
   l'app DÉCLARE maintenant leur domaine serveur (`Param.options_domain`, lu par
-  `param_schema.choice_values` pour la porte ET l'annonce à l'assistant).
+  `param_schema.choice_values` pour la porte ET l'annonce à l'assistant). ⚠ **Retiré le
+  2026-10-07** (REMOVAL_LEDGER R108) : le select n'a plus de `choices` préfixe, la porte ne refuse
+  donc rien ; règle unique de toutes les apps, l'assistant découvre par `list_ai_models`.
 - **NVIDIA NeMo — Canary 1B v2 et Parakeet TDT 0.6B v3** : ✅ **en service depuis le 2026-09-28**,
   les deux meilleurs du banc FR ouvert (4,79 % / 5,38 %), poids installés depuis septembre sans
   moteur. Backend commun `NemoASRBackend` (`ENGINE='nemo'`, deux modèles déclarés dans
