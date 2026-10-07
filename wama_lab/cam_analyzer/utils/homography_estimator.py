@@ -39,6 +39,29 @@ def calibration_reference(results_summary) -> set:
     return set(ref if ref is not None else (rs.get('stationary_global_tracks') or []))
 
 
+def calibration_geometry(geo):
+    """La géométrie de caméra avec laquelle une calibration sol est faite — champ, orientation, montage,
+    distorsion : tout ce que `_eval_params` en lit. Retenue avec la calibration (`store_ground_calib`)."""
+    mount = geo.get('mount') or (0.0, 0.0)
+    return {'k1': round(float(geo.get('k1') or 0.0), 4), 'fov_h': round(float(geo.get('fov_h') or 0.0), 3),
+            'fov_v': round(float(geo.get('fov_v') or 0.0), 3), 'yaw': round(float(geo.get('yaw') or 0.0), 3),
+            'mount': [round(float(mount[0]), 3), round(float(mount[1]), 3)]}
+
+
+def stale_calibrations(session):
+    """Caméras dont la calibration sol a été faite avec une AUTRE géométrie que celle en service — ou ne dit
+    pas avec laquelle (calibration antérieure au 2026-10-07). Vécu : basculer ⚑ measured_lens_distortion
+    changeait la distorsion sans recalibrer — le tracking gardait des tangages estimés pour l'ancienne, sans
+    rien dire. Le tracking recalibre quand cette liste n'est pas vide."""
+    from .prediction_adapter import camera_geometry
+    geo = camera_geometry(session)
+    out = []
+    for pos, cal in (((session.config or {}).get('ground_calib')) or {}).items():
+        if isinstance(cal, dict) and pos in geo and cal.get('geometry') != calibration_geometry(geo[pos]):
+            out.append(pos)
+    return sorted(out)
+
+
 def _collect_static_obs(session, position, max_gids=40, max_per_gid=120):
     """Observations bas-de-bbox des immobiles de RÉFÉRENCE sur une caméra : (u, v, t_gps,
     dist_pinhole). La référence est `calibration_reference_gids` (immobiles compacts) et non les
@@ -187,6 +210,7 @@ def estimate_camera(session, position='front', with_k1=False, seed=None):
             'baseline_spread_m': round(base[1], 2) if base else None,
             'baseline_scale_err_m': round(base[2], 2) if base else None,
             'source': 'depth',
+            'geometry': calibration_geometry(geo),
         }
     # Hauteur FIXÉE au physique (rig ENA ~2.4 m) : la surface de coût est dégénérée
     # pitch⟷hauteur (l'optimum libre fuit vers des hauteurs absurdes). On résout donc
@@ -213,6 +237,7 @@ def estimate_camera(session, position='front', with_k1=False, seed=None):
         'scale_err_m': round(best[2], 2),
         'baseline_spread_m': round(base[1], 2) if base else None,
         'baseline_scale_err_m': round(base[2], 2) if base else None,
+        'geometry': calibration_geometry(geo),
     }
 
 
@@ -275,6 +300,8 @@ def store_ground_calib(session, positions=('front', 'rear', 'left', 'right'),
             # (recherche par grille). Permet au pipeline de RECALCULER quand la bascule
             # ⚑ depth_estimation change sans avoir à effacer la calib à la main.
             'source': r.get('source', 'homographie'),
+            # la géométrie de caméra de CE calcul : une autre en service la rend périmée (`stale_calibrations`)
+            'geometry': r.get('geometry'),
         }
         report[pos] = calib[pos]
     cfg['ground_calib'] = calib
