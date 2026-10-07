@@ -16,6 +16,27 @@ facette processing génèrera le modèle.
 from wama.common.manifests.builtin.app import _GEN_MARK
 
 
+def _literal(value):
+    """`value` réduite à ce qu'un LITTÉRAL Python peut écrire. Le manifeste extrait à chaud
+    porte les objets du schéma tels quels : un membre de `TextChoices` (`ReadingItem.Backend.AUTO`,
+    une sous-classe de `str`) se rendait par son `repr` — un NOM inconnu du fichier généré,
+    NameError à l'import, page de la jumelle en 404 (reader_01, 2026-10-07). Le corpus JSON,
+    lui, l'écrit déjà `"auto"` : on rend la même valeur."""
+    import enum
+    from django.utils.functional import Promise
+    if isinstance(value, enum.Enum):
+        return _literal(value.value)
+    if isinstance(value, Promise):              # chaîne traduite paresseuse
+        return str(value)
+    if isinstance(value, dict):
+        return {k: _literal(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return type(value)(_literal(v) for v in value)
+    if isinstance(value, str) and type(value) is not str:
+        return str(value)
+    return value
+
+
 def render_params_source(app_id: str, schemas: dict) -> str:
     """Texte complet d'un params.py au littéral (docstring marquée + un attribut par schéma)."""
     import pprint
@@ -39,8 +60,15 @@ def render_params_source(app_id: str, schemas: dict) -> str:
         '"""',
         '',
     ]
+    import ast
     for attr in sorted(schemas):
-        rendu = pprint.pformat(schemas[attr], width=96, sort_dicts=False).split('\n')
+        texte = pprint.pformat(_literal(schemas[attr]), width=96, sort_dicts=False)
+        try:
+            ast.literal_eval(texte)
+        except (ValueError, SyntaxError) as exc:
+            # Un objet qui n'est pas une valeur : le dire ICI, pas par un NameError à l'import.
+            raise ValueError(f'{app_id}.{attr} : valeur non littérale dans le schéma ({exc})')
+        rendu = texte.split('\n')
         lignes.append(f"{attr} = {rendu[0]}")
         pad = ' ' * (len(attr) + 3)
         lignes += [pad + l for l in rendu[1:]]
