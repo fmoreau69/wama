@@ -42,3 +42,35 @@ def release(user, obj) -> None:
     current = holder(obj)
     if current and current.get('user_id') == user.pk:
         cache.delete(_key(obj))
+
+
+# ── ENREGISTREMENT PRÉPARÉ SUR UN ÉTAT PÉRIMÉ (2026-10-07, marche 1 du conflit, GO de Fabien) ──
+# `WAMA_COLLABORATION §2.4` : *« un enregistrement dit sur quelle version il a été préparé ; si
+# quelqu'un a enregistré entre-temps, le conflit est montré, jamais écrasé »*. Cette marche-ci le
+# REFUSE (409) au lieu d'écraser en silence ; MONTRER la différence et laisser choisir attend les
+# révisions sur tout le parc (marche 8a). Cas vécu qui l'a déclenchée : deux personnes corrigent
+# la même transcription, l'enregistrement automatique de l'une renvoie TOUTE la liste des segments
+# et efface la correction de l'autre, sans que personne le sache.
+
+def state_token(value) -> str:
+    """L'empreinte d'un état ÉDITÉ (liste, dictionnaire, texte) — ce que la page reçoit à
+    l'ouverture et renvoie avec chaque enregistrement. L'empreinte de texte des révisions
+    (`revisions.text_fingerprint`), sur le JSON trié : deux états égaux ont la même."""
+    import json
+    from wama.common.services.revisions import text_fingerprint
+    return text_fingerprint(json.dumps(value, sort_keys=True, ensure_ascii=False, default=str))
+
+
+def stale_edit(user, obj, base, current_value):
+    """None si l'enregistrement part de l'état COURANT — ou ne dit pas de quel état il part (page
+    ouverte avant que la règle n'existe) ; sinon ce que la réponse 409 dit : qui l'édite en ce
+    moment s'il le sait (le verrou doux), et l'empreinte courante. À appeler sur l'élément
+    VERROUILLÉ en base (`select_for_update`), sans quoi deux enregistrements simultanés passent."""
+    if not base or base == state_token(current_value):
+        return None
+    other = holder(obj)
+    by = other.get('name', '') if other and other.get('user_id') != getattr(user, 'pk', None) else ''
+    return {'conflict': True, 'by': by, 'token': state_token(current_value),
+            'reason': (f"{by} a modifié cet élément depuis votre ouverture" if by
+                       else "cet élément a été modifié depuis votre ouverture")
+                      + " — rechargez pour reprendre la dernière version."}

@@ -22667,3 +22667,38 @@ aussi sur les paramètres »).
   et sa porte ne refuse plus une valeur absurde — refus au LANCEMENT (« aucun backend de
   transcription ne sert ce modèle »).
 - 🔚 Restes : 10 manifestes d'app portent encore la clé `options_domain` (inerte, export à venir).
+
+## §PALIER — 2026-10-07 (après-midi), « CONFLIT DE CORRECTION + COMPLÉTION DES PERSONNES + GESTES + TRANSFERT EN 500 » — livré (commit de ce bloc, non poussé) — 🔴 RECHARGER gunicorn (complétion, correction de `file_references`) — 🔚 conflit MONTRÉ (marche 2, attend 8a) · mode modification (V2/V3/M3)
+
+Domicile : `WAMA_COLLABORATION` §2.4 (conflit), §3bis.2 (complétion), §9 (duplication confirmée
+libre) ; gestes : `WAMA_VERIFICATION`.
+
+- **Conflit entre collaborateurs, marche 1** (GO de Fabien) : un enregistrement de la page de
+  correction préparé sur un état PÉRIMÉ est refusé (409, « Recharger ») au lieu d'écraser la
+  correction de l'autre — `edit_lock.state_token` / `stale_edit`, ligne verrouillée le temps de
+  comparer et d'écrire ; le verrou doux tient aussi la page (`WamaCardMenu.holdEditLock`, extrait
+  de la fenêtre des réglages).
+- **Complétion des personnes** (décision de Fabien : nom et identifiant, JAMAIS l'adresse e-mail) :
+  `card_transfer.suggest_recipients`, route `/common/api/people/`, `<datalist>` natif, servie à
+  « Avec une personne » et aux deux « Transférer à… » (point d'accroche `input.attach` de
+  `WamaApp.ask`) ; sans saisie, les personnes proches. `find_recipient` refuse désormais toute
+  identité de visiteur (`is_guest_account`).
+- **Gestes ajoutés** : `common.correction_conflict` 7/7, `common.received_child_alone` 6/6,
+  `common.notification_open_marks_read` 5/5, `common.people_completion` 4/4.
+- **Réparés** : `media_library.share_consent` (ROUGE chaque nuit depuis au moins le 05/10 — lisait la
+  base pendant Playwright) ; `console.js` (journalisait en erreur l'interrogation annulée en
+  quittant la page) ; ⭐ **« Transférer à… » en 500 sur le live** — `file_references` tolérait
+  l'échec d'une lecture (table d'une jumelle qui ne suit plus son modèle) DANS la transaction du
+  transfert, ce qui l'empoisonnait sous PostgreSQL : les six lectures tolérées passent par un point
+  de sauvegarde (`_tolerated`, garde + contre-épreuve) ; le ménage de `card_transfer` /
+  `batch_transfer` est passé dans leur `finally` (4 cards témoins restées en base, retirées).
+
+**Mesures** : sur le LIVE relancé, 10 gestes du partage verts du premier coup, les 3 de transfert
+rouges (le 500 ci-dessus) puis verts sur 8011 avec la correction (12/12, 5/5, 6/6) ; tests du
+périmètre verts (`tests_edit_conflict` 6, `tests_person_sharing` 33, `tests_file_references`,
+transfert, collaboration, transcriber : 187 + 62) ; suite complète rejouée sur une base NEUVE pour les
+modules en échec : 32 rouges restants, aucun de cette session (16 de la jumelle `converter_02` en
+construction par une autre instance, 14 préexistants listés le 06/10, 2 cam_analyzer). ⚠ La suite
+complète sur la base de test GARDÉE (`--keepdb`) en montrait 140 : la jumelle `converter_01` a été
+retirée par une autre instance PENDANT l'exécution — une base de test gardée ne suit pas les
+jumelles qui changent.

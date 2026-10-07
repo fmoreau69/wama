@@ -336,3 +336,58 @@ class PersonSharingSurfacesTest(TestCase):
         self.assertIn('1 personne', label)
         received = entry_arrangement(self.bob, batch, {})
         self.assertEqual('pv_owner', received['received_from'])
+
+
+class PeopleSuggestionTest(TestCase):
+    """La COMPLÉTION des personnes (2026-10-07) : nom et identifiant, JAMAIS l'adresse e-mail
+    (décision de Fabien) ; des personnes seulement ; sans saisie, les personnes proches."""
+
+    def setUp(self):
+        self.me = User.objects.create_user('ps_me', password='x', email='me@ex.org')
+        self.claire = User.objects.create_user('cdupont', password='x', email='claire.dupont@ex.org',
+                                               first_name='Claire', last_name='Dupont')
+        self.paul = User.objects.create_user('pmartin', password='x', email='paul@ex.org',
+                                             first_name='Paul', last_name='Martin')
+
+    def _names(self, query=''):
+        from wama.common.services.card_transfer import suggest_recipients
+        return [p['username'] for p in suggest_recipients(self.me, query)]
+
+    def test_a_person_is_found_by_name_or_identifier(self):
+        self.assertEqual(['cdupont'], self._names('dupo'))
+        self.assertEqual(['cdupont'], self._names('claire dup'))
+        self.assertEqual(['pmartin'], self._names('pmar'))
+
+    def test_the_email_is_never_searched(self):
+        self.assertEqual([], self._names('claire.dupont@'))
+        self.assertEqual([], self._names('ex.org'))
+
+    def test_only_active_persons_other_than_oneself_are_proposed(self):
+        User.objects.create_user('wama_test_dupont', password='x')                 # compte de test
+        User.objects.create_user('wama_visitor_dupont1', password='x')             # visiteur
+        User.objects.create_user('dupont_parti', password='x', is_active=False)    # inactif
+        User.objects.create_user('ps_me_dupont', password='x')
+        self.assertEqual(['cdupont', 'ps_me_dupont'], sorted(self._names('dupont')))
+        self.assertNotIn('ps_me', self._names('ps_me'))
+
+    def test_one_letter_proposes_nothing(self):
+        self.assertEqual([], self._names('d'))
+
+    def test_without_typing_the_close_people_come_first(self):
+        share_with_person(self.me, _job(self.me), _job_model(), self.paul)
+        project = Project.objects.create(code='PS_P', name='Projet PS')
+        for u in (self.me, self.claire):
+            ProjectMembership.objects.create(project=project, user=u)
+        self.assertEqual(['pmartin', 'cdupont'], self._names(''))
+
+    def test_a_visitor_identity_cannot_receive_anything(self):
+        from wama.common.services.card_transfer import find_recipient
+        User.objects.create_user('wama_visitor_abc', password='x')
+        with self.assertRaises(RefusDePartage):
+            find_recipient('wama_visitor_abc', self.me)
+
+    def test_the_route_answers_the_connected_user(self):
+        self.client.force_login(self.me)
+        rep = self.client.get(reverse('common:api_people'), {'q': 'mart'})
+        self.assertEqual(200, rep.status_code)
+        self.assertEqual([{'username': 'pmartin', 'name': 'Paul Martin'}], rep.json()['people'])

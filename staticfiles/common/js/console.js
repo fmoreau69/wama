@@ -148,6 +148,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ── Fetch & display ──────────────────────────────────────────────────────
 
+  // Quitter la page ANNULE l'interrogation en cours (« Failed to fetch ») : ce n'est pas une
+  // erreur, et la journaliser en était une — relevé le 2026-10-07 par un geste nocturne qui
+  // clique « Ouvrir » sur une notification pendant une interrogation.
+  var leaving = false;
+  window.addEventListener('pagehide', function () { leaving = true; });
+  window.addEventListener('beforeunload', function () { leaving = true; });
+
   function refreshConsole() {
     var url = buildUrl();
     fetch(url)
@@ -167,6 +174,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (parent) parent.scrollTop = parent.scrollHeight;
       })
       .catch(function (error) {
+        if (leaving) return;
         console.error('Console fetch error:', error);
         container.innerHTML = '<p class="text-danger mb-0">Erreur: ' + escapeHtml(error.message) + '</p>';
       });

@@ -1420,39 +1420,53 @@
     // le verrou ; si quelqu'un d'autre le tient, un bandeau le dit — rien n'est refusé, le dernier
     // enregistrement gagne (tracé au journal). Renouvelé tant que la modale est ouverte, rendu à
     // la fermeture ; il expire seul si la page disparaît.
+    /**
+     * TENIR le verrou doux d'un élément (`services/edit_lock`) tant qu'on l'édite : pris tout de
+     * suite, renouvelé chaque minute (il expire seul à 120 s), `onState(res)` reçoit à chaque fois
+     * `{held_by_other, name}`. Rend la fonction qui le RELÂCHE. Une seule écriture du geste pour
+     * la fenêtre des réglages et les pages d'édition longues (correction du Transcriber,
+     * 2026-10-07 — `WAMA_COLLABORATION §2.4`).
+     */
+    function holdEditLock(coords, onState) {
+        var champs = { surface: coords.surface, pk: coords.pk, nature: coords.nature || 'element' };
+        function prendre() {
+            return poster('/common/api/edit-lock/', Object.assign({ action: 'acquire' }, champs))
+                .then(function (res) { if (onState && res) onState(res); });
+        }
+        prendre();
+        var battement = setInterval(prendre, 60000);
+        return function release() {
+            clearInterval(battement);
+            poster('/common/api/edit-lock/', Object.assign({ action: 'release' }, champs));
+        };
+    }
+
     function armerVerrou(card) {
         var c = global.WamaShare && WamaShare.coordonnees(card);
         if (!c) return;
-        var champs = { surface: c.surface, pk: c.pk, nature: 'element' };
         var expire = setTimeout(desarmer, 6000);
         function desarmer() {
             clearTimeout(expire);
             document.removeEventListener('show.bs.modal', surOuverture, true);
         }
-        function prendre(modal) {
-            return poster('/common/api/edit-lock/', Object.assign({ action: 'acquire' }, champs))
-                .then(function (res) {
-                    var body = modal.querySelector('.modal-body');
-                    var deja = modal.querySelector('[data-wama-lock-banner]');
-                    if (res && res.held_by_other && body && !deja) {
-                        body.insertAdjacentHTML('afterbegin', '<div class="alert alert-warning small '
-                            + 'py-2 mb-3" data-wama-lock-banner><i class="fas fa-user-pen me-1"></i>'
-                            + '<b>' + echapperTexte(res.name) + '</b> modifie ces réglages en ce '
-                            + 'moment. Le dernier enregistrement l’emporte.</div>');
-                    } else if (res && !res.held_by_other && deja) {
-                        deja.remove();
-                    }
-                });
-        }
         function surOuverture(ev) {
             var modal = ev.target;
             desarmer();
-            prendre(modal);
-            var battement = setInterval(function () { prendre(modal); }, 60000);
+            var release = holdEditLock(c, function (res) {
+                var body = modal.querySelector('.modal-body');
+                var deja = modal.querySelector('[data-wama-lock-banner]');
+                if (res.held_by_other && body && !deja) {
+                    body.insertAdjacentHTML('afterbegin', '<div class="alert alert-warning small '
+                        + 'py-2 mb-3" data-wama-lock-banner><i class="fas fa-user-pen me-1"></i>'
+                        + '<b>' + echapperTexte(res.name) + '</b> modifie ces réglages en ce '
+                        + 'moment. Le dernier enregistrement l’emporte.</div>');
+                } else if (!res.held_by_other && deja) {
+                    deja.remove();
+                }
+            });
             modal.addEventListener('hidden.bs.modal', function () {
-                clearInterval(battement);
+                release();
                 modal.querySelectorAll('[data-wama-lock-banner]').forEach(function (b) { b.remove(); });
-                poster('/common/api/edit-lock/', Object.assign({ action: 'release' }, champs));
             }, { once: true });
         }
         document.addEventListener('show.bs.modal', surOuverture, true);
@@ -1489,6 +1503,8 @@
         // par coordonnées, ou par chemin de `media/` résolu au serveur (2026-09-18).
         entreesPourElement: entreesPourElement, entreesPourChemin: entreesPourChemin,
         NOMINAL: NOMINAL,
+        // Le verrou doux d'un élément édité (E4), pour les pages d'édition longues (2026-10-07).
+        holdEditLock: holdEditLock,
     };
 
     if (document.readyState === 'loading') {

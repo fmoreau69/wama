@@ -108,7 +108,7 @@
         return '<div class="wama-share-persons mt-3"><div class="small text-white-50 mb-1">'
             + 'Avec une personne</div><div data-person-list>' + personRows(persons) + '</div>'
             + '<div class="d-flex gap-2 mt-2">'
-            + '<input type="text" class="form-control form-control-sm" data-person-input '
+            + '<input type="text" class="form-control form-control-sm" data-person-input autocomplete="off" '
             + 'placeholder="identifiant ou adresse e-mail">'
             + '<select class="form-select form-select-sm w-auto" data-person-mode>' + options + '</select>'
             + '<button type="button" class="btn btn-sm btn-outline-info" data-person-add>Partager</button>'
@@ -311,6 +311,45 @@
             });
     }
 
+    /**
+     * COMPLÉTION des personnes (2026-10-07, demande de Fabien) sur un champ « identifiant ou
+     * adresse e-mail » — une liste native (`<datalist>`) remplie par `/common/api/people/` : les
+     * personnes proches dès qu'on entre dans le champ, puis celles dont le NOM ou l'IDENTIFIANT
+     * contient ce qu'on tape (jamais l'adresse e-mail, décision de Fabien). La liste propose ;
+     * le serveur décide à l'envoi (`card_transfer.find_recipient`). Servie à la section « Avec une
+     * personne » et aux deux « Transférer à… ».
+     */
+    var peopleSeq = 0;
+    function attachPeople(input) {
+        if (!input || input.getAttribute('list')) return;
+        var list = document.createElement('datalist');
+        list.id = 'wama-people-' + (++peopleSeq);
+        input.insertAdjacentElement('afterend', list);
+        input.setAttribute('list', list.id);
+        var timer = null, asked = null;
+        function fill(query) {
+            if (query === asked) return;
+            asked = query;
+            fetch('/common/api/people/?q=' + encodeURIComponent(query), { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : { people: [] }; })
+                .then(function (d) {
+                    if (query !== asked) return;              // une frappe plus récente l'emporte
+                    list.innerHTML = (d.people || []).map(function (p) {
+                        return '<option value="' + echapper(p.username) + '">'
+                            + echapper(p.name) + '</option>';
+                    }).join('');
+                })
+                .catch(function () { /* sans complétion, la saisie reste possible */ });
+        }
+        input.addEventListener('focus', function () { if (!input.value.trim()) fill(''); });
+        input.addEventListener('input', function () {
+            var q = input.value.trim();
+            if (q.indexOf('@') !== -1) { list.innerHTML = ''; asked = null; return; }
+            clearTimeout(timer);
+            timer = setTimeout(function () { fill(q.length >= 2 ? q : ''); }, 200);
+        });
+    }
+
     /** POST sur la route du partage ; rend la réponse JSON (ou `{ok:false}` illisible). */
     function postShare(surface, pk, nature, fields) {
         var fd = new FormData();
@@ -326,6 +365,7 @@
         var input = enveloppe.querySelector('[data-person-input]');
         var mode = enveloppe.querySelector('[data-person-mode]');
         if (!list || !input || !mode) return;
+        attachPeople(input);
 
         function redraw(persons) { list.innerHTML = personRows(persons); }
 
@@ -421,7 +461,8 @@
                 + 'plus à vous : ses fichiers partent avec elle (ceux qu’elle ne faisait que '
                 + 'désigner sont copiés, vous gardez les vôtres).',
             okLabel: 'Transférer', danger: false,
-            input: { label: 'Destinataire', placeholder: 'identifiant ou adresse e-mail' },
+            input: { label: 'Destinataire', placeholder: 'identifiant ou adresse e-mail',
+                     attach: attachPeople },
         }).then(function (answer) {
             if (answer.ok && answer.value) send(c, card, answer.value, false);
         });
@@ -436,7 +477,8 @@
                 + 'compte ? Ils ne seront plus à vous : leurs fichiers partent avec eux (ceux qu’ils '
                 + 'ne faisaient que désigner sont copiés, vous gardez les vôtres).',
             okLabel: 'Transférer le lot', danger: false,
-            input: { label: 'Destinataire', placeholder: 'identifiant ou adresse e-mail' },
+            input: { label: 'Destinataire', placeholder: 'identifiant ou adresse e-mail',
+                     attach: attachPeople },
         }).then(function (answer) {
             if (answer.ok && answer.value) send(c, el, answer.value, false);
         });

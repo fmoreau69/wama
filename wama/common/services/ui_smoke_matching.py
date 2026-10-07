@@ -485,8 +485,15 @@ def check_share_consent(nature: str = 'voice'):
     modal = '.wama-share-modal'
     verdicts = []
 
-    def visibility():
-        return UserAsset.objects.values_list('visibility', flat=True).get(pk=asset.pk)
+    # Lue DEPUIS LE NAVIGATEUR, par la route du partage (2026-10-07) : une lecture en base pendant
+    # que Playwright tourne lève `SynchronousOnlyOperation` — ce geste était rouge chaque nuit
+    # (rapports du 05 et du 06/10) pour cette seule raison. Les traces se comptent après.
+    state_url = f'/common/api/partage/media_library/element/{asset.pk}/'
+
+    def visibility(page):
+        return page.evaluate(
+            "(u) => fetch(u, {credentials: 'same-origin'}).then(r => r.json())"
+            ".then(d => d.etat.visibility)", state_url)
 
     try:
         with sync_playwright() as p:
@@ -513,23 +520,25 @@ def check_share_consent(nature: str = 'voice'):
                                  'consentement montré pour « Public »'))
                 page.click(f'{modal} .wama-share-ok')
                 page.wait_for_timeout(800)
-                verdicts.append((visibility() == 'private' and not trace.exists(),
+                verdicts.append((visibility(page) == 'private',
                                  'sans validation : rien n’est partagé'))
                 page.check(f'{modal} [data-consent-check]')
                 page.click(f'{modal} .wama-share-ok')
                 page.wait_for_selector(modal, state='hidden', timeout=8000)
-                verdicts.append((visibility() == 'public' and trace.count() == 1,
-                                 'validé : partagé et tracé'))
+                verdicts.append((visibility(page) == 'public', 'validé : partagé'))
                 page.wait_for_timeout(600)
                 open_share()
                 page.check(f'{modal} input[name="wama-share-portee"][value="private"]')
                 page.click(f'{modal} .wama-share-ok')
                 page.wait_for_selector(modal, state='hidden', timeout=8000)
-                verdicts.append((visibility() == 'private' and trace.count() == 2,
-                                 'retrait sans condition, tracé'))
+                verdicts.append((visibility(page) == 'private', 'retrait sans condition'))
                 verdicts.append((not errors, f'erreurs JS : {errors[:1]}'))
             finally:
                 browser.close()
+        kinds = ['retrait' if not t.statement else 'consentement'
+                 for t in trace.order_by('created_at')]
+        verdicts.append((kinds == ['consentement', 'retrait'],
+                         f'tracés : le consentement validé puis le retrait ({kinds})'))
     finally:
         trace.delete()
         _retirer(asset)

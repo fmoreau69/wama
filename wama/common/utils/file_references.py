@@ -177,9 +177,8 @@ def _rows_listing(paths, *, folder=False):
             for path in wanted:
                 condition |= Q(**{f'{name}__icontains': path.rsplit('/', 1)[-1]})
             rows = rows.filter(condition)
-        try:
-            rows = list(rows.values_list('pk', name))
-        except Exception:
+        rows = _tolerated(lambda: list(rows.values_list('pk', name)))
+        if rows is None:
             continue
         for pk, value in rows:
             if not isinstance(value, list):
@@ -188,6 +187,23 @@ def _rows_listing(paths, *, folder=False):
                     if _designates(_entry_rel(entry), wanted, folder)]
             if hits:
                 yield model, name, pk, value, hits
+
+
+def _tolerated(query, default=None):
+    """Une lecture dont l'ÉCHEC est toléré (la table d'une jumelle de bac à sable qui ne suit pas
+    son modèle, par exemple) — dans un POINT DE SAUVEGARDE.
+
+    ⚠ Défaut mesuré le 2026-10-07 (« Transférer à… » en 500 sur le live) : sous PostgreSQL, une
+    requête en échec EMPOISONNE toute la transaction en cours. Un `try/except: continue` qui
+    tolérait l'échec à l'intérieur d'un `transaction.atomic()` (transfert, repointage) laissait
+    donc passer la ligne fautive… et faisait tomber la requête SUIVANTE, sans rapport. Le point de
+    sauvegarde n'annule que la lecture qui échoue. `query` : un appelable qui MATÉRIALISE son
+    résultat (une liste, un booléen) — un itérable paresseux lirait hors du point de sauvegarde."""
+    try:
+        with transaction.atomic():
+            return query()
+    except Exception:
+        return default
 
 
 def _designates(rel: str, wanted, folder: bool) -> bool:
@@ -219,15 +235,12 @@ def direct_references(path, *, folder=False) -> list:
         if model._meta.label in EXCLUDED_MODELS:
             continue
         for field in fields:
-            try:
-                rows = model.objects.filter(**_lookup(field.name, path, folder)) \
-                    .values_list('pk', field.name)
-                for pk, name in rows:
-                    out.append({'label': model._meta.label, 'app': model._meta.app_label,
-                                'object_type': model.__name__, 'pk': pk,
-                                'field': field.name, 'name': name})
-            except Exception:
-                continue
+            rows = _tolerated(lambda: list(model.objects.filter(**_lookup(field.name, path, folder))
+                                           .values_list('pk', field.name)), default=[])
+            for pk, name in rows:
+                out.append({'label': model._meta.label, 'app': model._meta.app_label,
+                            'object_type': model.__name__, 'pk': pk,
+                            'field': field.name, 'name': name})
     for model, name, pk, value, hits in _rows_listing([path], folder=folder):
         for i in hits:
             out.append({'label': model._meta.label, 'app': model._meta.app_label,
@@ -256,14 +269,11 @@ def is_referenced_elsewhere(path, *, label='', pk=None, field='') -> bool:
         if model._meta.label in EXCLUDED_MODELS:
             continue
         for f in fields:
-            try:
-                qs = model.objects.filter(**{f.name: path})
-                if model._meta.label == label and f.name == field and pk is not None:
-                    qs = qs.exclude(pk=pk)
-                if qs.exists():
-                    return True
-            except Exception:
-                continue
+            qs = model.objects.filter(**{f.name: path})
+            if model._meta.label == label and f.name == field and pk is not None:
+                qs = qs.exclude(pk=pk)
+            if _tolerated(qs.exists, default=False):
+                return True
     # Les listes de chemins déclarées désignent au même titre (2026-10-02) — même exclusion :
     # la ligne pour laquelle on pose la question ne se compte pas elle-même.
     for model, name, row_pk, _value, _hits in _rows_listing([path]):
@@ -290,14 +300,11 @@ def referenced_outside(paths, inside) -> set:
         if label in EXCLUDED_MODELS:
             continue
         for field in fields:
-            try:
-                rows = model.objects.filter(**{f'{field.name}__in': list(wanted)}) \
-                    .values_list('pk', field.name)
-                for pk, name in rows:
-                    if (label, pk) not in inside:
-                        outside.add(_normalized(name))
-            except Exception:
-                continue
+            rows = _tolerated(lambda: list(model.objects.filter(**{f'{field.name}__in': list(wanted)})
+                                           .values_list('pk', field.name)), default=[])
+            for pk, name in rows:
+                if (label, pk) not in inside:
+                    outside.add(_normalized(name))
     for model, _name, pk, value, hits in _rows_listing(wanted):
         if (model._meta.label, pk) not in inside:
             outside.update(_entry_rel(value[i]) for i in hits)
@@ -309,13 +316,10 @@ def source_references(path, *, folder=False) -> list:
     path = _normalized(path)
     if not path:
         return []
-    try:
-        from wama.common.models import InputProvenance
-        qs = (InputProvenance.objects.filter(ref__startswith=path + '/') if folder
-              else InputProvenance.objects.filter(ref=path))
-        return list(qs.order_by('app', 'object_type', 'object_id'))
-    except Exception:
-        return []
+    from wama.common.models import InputProvenance
+    qs = (InputProvenance.objects.filter(ref__startswith=path + '/') if folder
+          else InputProvenance.objects.filter(ref=path))
+    return _tolerated(lambda: list(qs.order_by('app', 'object_type', 'object_id')), default=[])
 
 
 def usage(path, *, folder=False) -> dict:
@@ -356,11 +360,8 @@ def repoint(old_path, new_path, *, folder=False) -> dict:
     with transaction.atomic():
         for model, fields in file_field_models():
             for field in fields:
-                try:
-                    rows = list(model.objects.filter(**_lookup(field.name, old, folder))
-                                .values_list('pk', field.name))
-                except Exception:
-                    continue
+                rows = _tolerated(lambda: list(model.objects.filter(**_lookup(field.name, old, folder))
+                                               .values_list('pk', field.name)), default=[])
                 for pk, name in rows:
                     model.objects.filter(pk=pk).update(**{field.name: _moved(name)})
                     counts['direct'] += 1

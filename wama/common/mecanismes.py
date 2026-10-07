@@ -518,7 +518,10 @@ MECHANISMS = (
               "portées ; mode lecture ou collaboration) et le destinataire PRÉVENU (N1 : "
               "`share_received` ; membres d'un projet aussi, unité et public non) ; chaque partage "
               "par portée DATÉ par une ligne `ObjectGrant` sans bénéficiaire (mémoire, jamais "
-              "lue pour décider qui voit)",
+              "lue pour décider qui voit). Depuis le 2026-10-07 : une fille partagée arrive SEULE "
+              "(`batch_common.visible_members`) ; l'enregistrement préparé sur un état PÉRIMÉ est "
+              "refusé (`edit_lock.state_token` / `stale_edit`, 409) et le verrou doux tient aussi "
+              "la page de correction (`WamaCardMenu.holdEditLock`)",
               'wama/common/services/sharing.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
               annexes=('wama/common/static/common/js/wama-share.js',
                        'wama/common/services/card_transfer.py',

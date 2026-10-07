@@ -225,6 +225,8 @@
     csrfToken: "{{ csrf_token }}",
     correctionStatus: "{{ correction_status }}",
     speakerMap: {{ speaker_map_json|safe }},
+    {# L'état d'où partent les enregistrements : un enregistrement préparé sur un état périmé est REFUSÉ (2026-10-07) #}
+    stateToken: "{{ state_token|default:'' }}",
   };
 </script>
 {% endblock %}

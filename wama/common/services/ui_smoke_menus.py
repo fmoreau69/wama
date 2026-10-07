@@ -1427,6 +1427,294 @@ def check_person_share_cycle():
     return _bilan(verdicts)
 
 
+def check_correction_conflict():
+    """Deux personnes corrigent la MÊME transcription (2026-10-07, `WAMA_COLLABORATION §2.4`,
+    marche 1 du conflit). (ok, detail)
+
+    Propriétaire (compte DÉVELOPPEUR) et collaborateur (compte de test) ouvrent la page de
+    correction. Le second voit le bandeau « X corrige cette transcription » (verrou doux). Le
+    propriétaire corrige : enregistré. Le collaborateur, dont la page date d'AVANT, corrige à son
+    tour : son enregistrement est REFUSÉ (bandeau « Recharger »), la correction du propriétaire reste
+    en base. Avant ce jour, elle était effacée sans que personne le sache.
+    """
+    from django.contrib.auth import get_user_model
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.models import Notification, ObjectGrant, ReceivedEntry
+    from wama.common.services.nightly_tests import SkipScenario, get_test_dev_user
+    from wama.common.services.sharing import share_with_person
+    from wama.transcriber.models import BatchTranscript, Transcript
+    from wama.transcriber.views import _wrap_transcript_in_batch
+
+    collab_token, uid = _test_session_key('transcriber'), _test_account_id('transcriber')
+    owner_token = _test_session_key('describer_01')
+    owner = get_test_dev_user()
+    if not (collab_token and owner_token and uid and owner) or owner.pk == uid:
+        raise SkipScenario('deux comptes de test distincts sont nécessaires')
+    collaborator = get_user_model().objects.get(pk=uid)
+    item = Transcript.objects.create(
+        user=owner, audio='', status='SUCCESS',
+        segments_json=[{'start_time': 0, 'end_time': 2, 'text': 'bonjour', 'speaker_id': 'A'}])
+    owner_batch = _wrap_transcript_in_batch(item)
+    from django.utils import timezone
+    started = timezone.now()
+    share_with_person(owner, item, Transcript, collaborator, 'collaborate', surface='transcriber')
+    page_path = f'/transcriber/edit/{item.pk}/'
+    segment = '.seg-text[data-i="0"]'
+    before, verdicts = _session_keys(), []
+    try:
+        with sync_playwright() as p:
+            nav_o, owner_page, errors_o = _ouvrir(p, owner_token)
+            nav_c, collab_page, errors_c = _ouvrir(p, collab_token)
+            try:
+                resp = owner_page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                refused_page = _exiger_la_page(owner_page, resp, page_path)
+                if refused_page:
+                    return refused_page
+                owner_page.wait_for_timeout(800)            # le verrou est pris
+                collab_page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                banner = collab_page.locator('[data-edit-lock]')
+                try:
+                    banner.wait_for(timeout=10000)
+                    seen = 'corrige cette transcription' in banner.inner_text()
+                except Exception:
+                    seen = False
+                verdicts.append((seen, 'le collaborateur voit « X corrige cette transcription »'))
+                with owner_page.expect_response(lambda r: r.url.endswith('/save/'),
+                                                timeout=15000) as saved:
+                    owner_page.click(segment)
+                    owner_page.keyboard.press('End')
+                    owner_page.keyboard.type(' à tous')
+                verdicts.append((saved.value.status == 200,
+                                 f'le propriétaire enregistre (HTTP {saved.value.status})'))
+                with collab_page.expect_response(lambda r: r.url.endswith('/save/'),
+                                                 timeout=15000) as late:
+                    collab_page.click(segment)
+                    collab_page.keyboard.press('End')
+                    collab_page.keyboard.type(' le monde')
+                verdicts.append((late.value.status == 409,
+                                 f'l’enregistrement périmé est refusé (HTTP {late.value.status})'))
+                conflict = collab_page.locator('[data-edit-conflict]')
+                try:
+                    conflict.wait_for(timeout=10000)
+                    shown = 'Recharger' in conflict.inner_text()
+                except Exception:
+                    shown = False
+                verdicts.append((shown, 'le collaborateur voit « Recharger »'))
+                verdicts.append(_console(errors_o))
+                verdicts.append(_console([e for e in errors_c if '409' not in e]))
+            finally:
+                nav_o.close()
+                nav_c.close()
+        item.refresh_from_db()
+        verdicts.append(((item.corrected_segments_json or [{}])[0].get('text') == 'bonjour à tous',
+                         'en base : la correction du propriétaire n’est PAS écrasée'))
+    finally:
+        _drop_new_sessions(before)
+        ObjectGrant.objects.filter(beneficiary=collaborator,
+                                   object_id__in=[item.pk, owner_batch.pk]).delete()
+        Notification.objects.filter(recipient__in=[owner, collaborator], created_at__gte=started,
+                                    kind__in=['share_received', 'access_revoked']).delete()
+        ReceivedEntry.objects.filter(recipient=collaborator, object_id=owner_batch.pk).delete()
+        Transcript.objects.filter(pk=item.pk).delete()
+        BatchTranscript.objects.filter(pk=owner_batch.pk).delete()
+    return _bilan(verdicts)
+
+
+def check_received_child_alone():
+    """Une FILLE de lot partagée arrive SEULE (2026-10-07, constaté par Fabien : *« j'ai bien reçu
+    tout le lot »*). (ok, detail)
+
+    Propriétaire (compte DÉVELOPPEUR, describer) : un lot de DEUX cards, une seule partagée au
+    public. Destinataire (compte de test) : la card partagée est dans sa file en card SEULE, la
+    sœur privée n'y est pas, l'état du lot ne liste qu'elle. Propriétaire : « Mes partages » dit
+    depuis quand la portée est posée.
+    """
+    import json as _json
+
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.models import ObjectGrant, ReceivedEntry
+    from wama.common.services.nightly_tests import SkipScenario, get_test_dev_user
+    from wama.common.services.sharing import partager
+    from wama.describer.models import BatchDescription, BatchDescriptionItem, Description
+
+    page_path = '/describer/'
+    recipient_token, uid = _test_session_key('describer'), _test_account_id('describer')
+    owner_token = _test_session_key('describer_01')
+    owner = get_test_dev_user()
+    if not (recipient_token and owner_token and uid and owner) or owner.pk == uid:
+        raise SkipScenario('deux comptes de test distincts sont nécessaires')
+    batch = BatchDescription.objects.create(user=owner, total=2)
+    shared = Description.objects.create(user=owner, filename='wama_temoin_fille_partagee.txt')
+    sister = Description.objects.create(user=owner, filename='wama_temoin_soeur_privee.txt')
+    for row, el in enumerate((shared, sister)):
+        BatchDescriptionItem.objects.create(batch=batch, description=el, row_index=row)
+    partager(owner, shared, 'public')
+    before, verdicts = _session_keys(), []
+    try:
+        with sync_playwright() as p:
+            nav, page, errors = _ouvrir(p, recipient_token)
+            try:
+                resp = page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                refused_page = _exiger_la_page(page, resp, page_path)
+                if refused_page:
+                    return refused_page
+                verdicts.append((page.locator(f".wama-card[data-id='{shared.pk}']").count() == 1,
+                                 'la fille partagée est dans la file du destinataire'))
+                verdicts.append((page.locator(f".wama-card[data-id='{sister.pk}']").count() == 0,
+                                 'la sœur PRIVÉE n’y est pas'))
+                verdicts.append((page.locator(f".batch-group[data-batch-id='{batch.pk}']").count() == 0,
+                                 'elle arrive en card SEULE, pas dans le lot du propriétaire'))
+                body = page.evaluate(
+                    "(u) => fetch(u, {credentials: 'same-origin'}).then(r => r.text())",
+                    f'/describer/batch/{batch.pk}/status/')
+                try:
+                    ids = [i['id'] for i in _json.loads(body).get('items', [])]
+                except ValueError:
+                    ids = None
+                verdicts.append((ids == [shared.pk], f'l’état du lot ne liste qu’elle ({ids})'))
+                verdicts.append(_console(errors))
+            finally:
+                nav.close()
+        with sync_playwright() as p:
+            nav, page, errors = _ouvrir(p, owner_token)
+            try:
+                page.goto(BASE_URL + '/common/shares/', wait_until='networkidle', timeout=60000)
+                row = page.locator(f"[data-shared-entry='describer:lot:{batch.pk}']")
+                verdicts.append((row.count() == 1 and 'depuis le' in row.inner_text(),
+                                 '« Mes partages » : depuis quand la portée est posée'))
+            finally:
+                nav.close()
+    finally:
+        _drop_new_sessions(before)
+        ObjectGrant.objects.filter(object_id__in=[shared.pk, sister.pk, batch.pk],
+                                   beneficiary__isnull=True,
+                                   object_type__startswith='describer.').delete()
+        ReceivedEntry.objects.filter(recipient_id=uid, object_id=batch.pk).delete()
+        Description.objects.filter(pk__in=[shared.pk, sister.pk]).delete()
+        BatchDescription.objects.filter(pk=batch.pk).delete()
+    return _bilan(verdicts)
+
+
+def check_notification_open_marks_read():
+    """« Ouvrir » une notification la MARQUE LUE et mène à son élément (2026-10-07, remarque de
+    Fabien). (ok, detail)
+
+    Compte de test : une notification surgit en bas à droite ; « Ouvrir » mène à son lien, et elle
+    est lue — la cloche ne la compte plus. Même chose depuis la page des notifications.
+    """
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.models import Notification
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.common.utils.notifications import notify_in_app
+    from django.contrib.auth import get_user_model
+
+    token, uid = _test_session_key('describer'), _test_account_id('describer')
+    if not (token and uid):
+        raise SkipScenario('compte de test absent')
+    user = get_user_model().objects.get(pk=uid)
+    notify_in_app([user], 'smoke_open', 'Témoin : ouvrir marque lu', url='/describer/')
+    popup_note = Notification.objects.filter(recipient=user, kind='smoke_open').latest('pk')
+    notify_in_app([user], 'smoke_open', 'Témoin : ouvrir depuis la page', url='/describer/')
+    page_note = Notification.objects.filter(recipient=user, kind='smoke_open').latest('pk')
+    before, verdicts = _session_keys(), []
+    try:
+        with sync_playwright() as p:
+            nav, page, errors = _ouvrir(p, token)
+            try:
+                page.add_init_script(
+                    f"localStorage.setItem('wama.notifications.lastSeen', '{popup_note.pk - 1}')")
+                page.goto(BASE_URL + '/common/notifications/', wait_until='networkidle', timeout=60000)
+                popup = page.locator(f'.wama-notif-popup[data-notification-id="{popup_note.pk}"]')
+                popup.wait_for(timeout=15000)
+                popup.locator('a:has-text("Ouvrir")').click()
+                page.wait_for_url('**/describer/**', timeout=20000)
+                verdicts.append(('/describer/' in page.url, 'la fenêtre mène à l’élément'))
+                page.goto(BASE_URL + '/common/notifications/', wait_until='networkidle', timeout=60000)
+                # Le lien de la PAGE, pas celui de la fenêtre en bas à droite (la même notification
+                # peut y surgir) : l'ancêtre `.wama-notif-popup` les distingue.
+                page.locator(f'xpath=//a[@href="/common/notifications/{page_note.pk}/open/" and '
+                             'not(ancestor::*[contains(@class, "wama-notif-popup")])]').click()
+                page.wait_for_url('**/describer/**', timeout=20000)
+                verdicts.append(('/describer/' in page.url, 'la page mène à l’élément'))
+                verdicts.append(_console(errors))
+            finally:
+                nav.close()
+        popup_note.refresh_from_db()
+        page_note.refresh_from_db()
+        verdicts.append((popup_note.read_at is not None, '« Ouvrir » (fenêtre) : marquée lue'))
+        verdicts.append((page_note.read_at is not None, '« Ouvrir » (page) : marquée lue'))
+    finally:
+        _drop_new_sessions(before)
+        Notification.objects.filter(recipient=user, kind='smoke_open').delete()
+    return _bilan(verdicts)
+
+
+def check_people_completion():
+    """La COMPLÉTION des personnes dans « Partager… » (2026-10-07, demande de Fabien). (ok, detail)
+
+    Compte DÉVELOPPEUR, describer : clic droit sur une card → « Partager… » ; dans « Avec une
+    personne », l'identifiant d'une personne réelle la fait proposer ; un début
+    d'adresse e-mail ne propose RIEN (décision de Fabien). Lecture seule : rien n'est partagé.
+    """
+    from django.contrib.auth import get_user_model
+    from playwright.sync_api import sync_playwright
+
+    from wama.accounts.permissions import TEST_ACCOUNT_PREFIX, ANONYMOUS_USERNAME
+    from wama.common.services.nightly_tests import SkipScenario, get_test_dev_user
+    from wama.describer.models import BatchDescription, Description
+    from wama.describer.views import _wrap_description_in_batch
+
+    token = _test_session_key('describer_01')
+    owner = get_test_dev_user()
+    target = (get_user_model().objects.filter(is_active=True)
+              .exclude(username__startswith=TEST_ACCOUNT_PREFIX)
+              .exclude(username=ANONYMOUS_USERNAME).exclude(pk=getattr(owner, 'pk', None))
+              .order_by('pk').first())
+    if not (token and owner and target) or len(target.username) < 3:
+        raise SkipScenario('compte développeur ou personne à chercher absents')
+    item = Description.objects.create(user=owner, filename='wama_temoin_completion.txt')
+    batch = _wrap_description_in_batch(item)
+    card = f".wama-card[data-id='{item.pk}']"
+    options_js = "() => Array.from(document.querySelectorAll('.wama-share-modal datalist option')).map(o => o.value)"
+    before, verdicts = _session_keys(), []
+    try:
+        with sync_playwright() as p:
+            nav, page, errors = _ouvrir(p, token)
+            try:
+                resp = page.goto(BASE_URL + '/describer/', wait_until='networkidle', timeout=60000)
+                refused_page = _exiger_la_page(page, resp, '/describer/')
+                if refused_page:
+                    return refused_page
+                page.locator(card).first.click(button='right')
+                page.locator('.wama-card-menu .wama-cm-item:has-text("Partager…")').first.click()
+                field = '.wama-share-modal.show [data-person-input]'
+                page.wait_for_selector(field, timeout=15000)
+                verdicts.append((bool(page.get_attribute(field, 'list')), 'le champ porte une liste'))
+                # L'identifiant ENTIER : trois lettres peuvent désigner plus de personnes que la
+                # liste n'en montre (8), et le verdict dépendrait alors de l'annuaire.
+                with page.expect_response(lambda r: '/common/api/people/?q=' in r.url
+                                          and len(r.url.split('q=')[1]) >= 2, timeout=15000):
+                    page.fill(field, target.username)
+                page.wait_for_timeout(300)
+                verdicts.append((target.username in page.evaluate(options_js),
+                                 f'la saisie propose {target.username}'))
+                page.fill(field, (target.email or 'x@y').split('@')[0] + '@')
+                page.wait_for_timeout(600)
+                verdicts.append((page.evaluate(options_js) == [],
+                                 'un début d’adresse e-mail ne propose rien'))
+                verdicts.append(_console(errors))
+            finally:
+                nav.close()
+    finally:
+        _drop_new_sessions(before)
+        Description.objects.filter(pk=item.pk).delete()
+        BatchDescription.objects.filter(pk=batch.pk).delete()
+    return _bilan(verdicts)
+
+
 def check_card_transfer():
     """« Transférer à… » par le VRAI chemin : clic droit sur une card → entrée du menu → saisie du
     destinataire → la card QUITTE la file sans rechargement ; en base, elle est au destinataire,
@@ -1488,21 +1776,24 @@ def check_card_transfer():
                 verdicts.append(_console(errors))
             finally:
                 nav.close()
+        item.refresh_from_db()
+        moved = Path(settings.MEDIA_ROOT) / item.input_file.name if item.input_file else None
+        verdicts.append((item.user_id == recipient.pk and item.visibility == 'private',
+                         'la card est au destinataire, privée'))
+        verdicts.append((bool(moved) and moved.exists() and not source.exists()
+                         and item.input_file.name.startswith(app_media_dir('describer', recipient.pk, '')),
+                         f'son fichier a été DÉPLACÉ chez lui ({item.input_file.name})'))
     finally:
         _drop_new_sessions(before)
-    item.refresh_from_db()
-    moved = Path(settings.MEDIA_ROOT) / item.input_file.name if item.input_file else None
-    verdicts.append((item.user_id == recipient.pk and item.visibility == 'private',
-                     'la card est au destinataire, privée'))
-    verdicts.append((bool(moved) and moved.exists() and not source.exists()
-                     and item.input_file.name.startswith(app_media_dir('describer', recipient.pk, '')),
-                     f'son fichier a été DÉPLACÉ chez lui ({item.input_file.name})'))
-    # Ménage : la card (et son lot éventuel chez le destinataire), le fichier.
-    BatchDescription.objects.filter(items__description=item).delete()
-    Description.objects.filter(pk=item.pk).delete()
-    if moved:
-        moved.unlink(missing_ok=True)
-    source.unlink(missing_ok=True)
+        # Ménage MÊME sur une interruption (2026-10-07) : il vivait après ce bloc, et un geste
+        # interrompu laissait sa card en base — qui désignait encore le fichier témoin, si bien
+        # que le transfert suivant le COPIAIT au lieu de le déplacer (quatre restes mesurés).
+        fresh = Description.objects.filter(pk=item.pk).first()
+        if fresh is not None and fresh.input_file:
+            (Path(settings.MEDIA_ROOT) / fresh.input_file.name).unlink(missing_ok=True)
+        BatchDescription.objects.filter(items__description=item).delete()
+        Description.objects.filter(pk=item.pk).delete()
+        source.unlink(missing_ok=True)
     return _bilan(verdicts)
 
 
@@ -1568,24 +1859,27 @@ def check_batch_transfer():
                 verdicts.append(_console(errors))
             finally:
                 nav.close()
+        lot.refresh_from_db()
+        for el in items:
+            el.refresh_from_db()
+        moved = [Path(settings.MEDIA_ROOT) / el.input_file.name for el in items if el.input_file]
+        verdicts.append((lot.user_id == recipient.pk and all(el.user_id == recipient.pk for el in items),
+                         'le lot et ses deux cards sont au destinataire'))
+        verdicts.append((BatchDescriptionItem.objects.filter(batch=lot).count() == 2,
+                         'le lot garde ses deux cards'))
+        verdicts.append((len(moved) == 2 and all(m.exists() for m in moved)
+                         and not any(s.exists() for s in sources),
+                         'leurs fichiers ont été DÉPLACÉS chez lui'))
     finally:
         _drop_new_sessions(before)
-    lot.refresh_from_db()
-    for el in items:
-        el.refresh_from_db()
-    moved = [Path(settings.MEDIA_ROOT) / el.input_file.name for el in items if el.input_file]
-    verdicts.append((lot.user_id == recipient.pk and all(el.user_id == recipient.pk for el in items),
-                     'le lot et ses deux cards sont au destinataire'))
-    verdicts.append((BatchDescriptionItem.objects.filter(batch=lot).count() == 2,
-                     'le lot garde ses deux cards'))
-    verdicts.append((len(moved) == 2 and all(m.exists() for m in moved)
-                     and not any(s.exists() for s in sources),
-                     'leurs fichiers ont été DÉPLACÉS chez lui'))
-    # Ménage : le lot, ses cards, les fichiers.
-    Description.objects.filter(pk__in=[el.pk for el in items]).delete()
-    BatchDescription.objects.filter(pk=lot.pk).delete()
-    for path in moved + sources:
-        path.unlink(missing_ok=True)
+        # Ménage MÊME sur une interruption (2026-10-07, même défaut que `check_card_transfer`) :
+        # les fichiers là où la base les désigne À CET INSTANT, puis le lot et ses cards.
+        current = [Path(settings.MEDIA_ROOT) / el.input_file.name
+                   for el in Description.objects.filter(pk__in=[e.pk for e in items]) if el.input_file]
+        Description.objects.filter(pk__in=[el.pk for el in items]).delete()
+        BatchDescription.objects.filter(pk=lot.pk).delete()
+        for path in current + sources:
+            path.unlink(missing_ok=True)
     return _bilan(verdicts)
 
 
@@ -1648,6 +1942,23 @@ def register_menu_scenarios():
                          "voit dans sa file ; « Mes partages » dit depuis quand, et le retrait la "
                          "lui retire (card et lot)",
              run=lambda ctx: check_person_share_cycle(), timeout_s=300)
+    register(id='common.correction_conflict', app='common', stage='ui',
+             description="Deux personnes corrigent la même transcription : bandeau « X corrige », "
+                         "l'enregistrement préparé sur un état périmé est REFUSÉ, rien n'est écrasé",
+             run=lambda ctx: check_correction_conflict(), timeout_s=300)
+    register(id='common.received_child_alone', app='common', stage='ui',
+             description="Une fille de lot partagée arrive SEULE : en card seule chez le "
+                         "destinataire, sans sa sœur privée, l'état du lot ne liste qu'elle ; "
+                         "« Mes partages » dit depuis quand",
+             run=lambda ctx: check_received_child_alone(), timeout_s=240)
+    register(id='common.notification_open_marks_read', app='common', stage='ui',
+             description="« Ouvrir » une notification (fenêtre en bas à droite ou page) mène à "
+                         "l'élément et la marque lue",
+             run=lambda ctx: check_notification_open_marks_read(), timeout_s=180)
+    register(id='common.people_completion', app='common', stage='ui',
+             description="« Partager… » → « Avec une personne » : la saisie d'un identifiant propose "
+                         "la personne ; un début d'adresse e-mail ne propose rien",
+             run=lambda ctx: check_people_completion(), timeout_s=180)
     register(id='common.card_transfer', app='common', stage='ui',
              description="« Transférer à… » depuis le menu de la card : elle quitte la file sans "
                          "rechargement, appartient au destinataire, son fichier déplacé chez lui",
