@@ -271,12 +271,21 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
                 </div>
                 {% endif %}
 
-                <!-- Open link -->
-                <a href="{% url spec.url_name %}"
+                {% comment %}Open link — l'URL CALCULÉE par la vue (`item.url`, `NoReverseMatch` → vide),
+                jamais un `{% url %}` refait ici : une jumelle dont le routage n'a pas pu se monter
+                (`sandbox_urlpatterns` l'écarte, pour ne pas tuer le routage global) faisait tomber
+                la page entière, pour tout le monde (avatarizer_01, 2026-10-07).{% endcomment %}
+                {% if item.url %}
+                <a href="{{ item.url }}"
                    class="app-open-btn"
                    style="color:{{ spec.color }};border-color:{{ spec.color }}44;">
                     <i class="{{ spec.icon }} me-1"></i>Ouvrir {{ spec.label }}
                 </a>
+                {% else %}
+                <span class="app-open-btn text-muted" title="Cette app n'a pas pu monter ses adresses : voir le journal du serveur">
+                    <i class="fas fa-triangle-exclamation me-1"></i>{{ spec.label }} indisponible
+                </span>
+                {% endif %}
 
             </div>
         </div>

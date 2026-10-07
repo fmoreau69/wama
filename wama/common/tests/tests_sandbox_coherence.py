@@ -29,7 +29,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from django.core.management.base import CommandError
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.common.management.commands import app_sandbox as cmd_sandbox
 from wama.common.manifests.codegen.params_gen import render_params
@@ -410,6 +410,26 @@ class CopiedOriginalTestsMeasureConvergenceTest(SimpleTestCase):
                          {'ran': 5, 'failures': 0, 'errors': 0, 'skipped': 1})
         # `manage.py test` exits 0 having run NOTHING: no « Ran » line, no measure.
         self.assertIsNone(parse('Found 0 test(s).\nSystem check identified no issues')['ran'])
+
+
+class UnroutedTwinDoesNotTakeThePageDownTest(TestCase):
+    """A twin whose `urls.py` cannot import is left out of the routing (`sandbox_urlpatterns`, so
+    that it does not kill the GLOBAL routing) — but it stays in the catalogue. `/common/apps/`
+    reversed its `url_name` again in the template: `NoReverseMatch`, the page down for everyone
+    (avatarizer_01, half-written by an interrupted substitution, 2026-10-07)."""
+
+    def test_the_catalogue_page_renders_and_says_the_app_is_unavailable(self):
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+        from wama.common import app_registry
+        user = get_user_model().objects.create_user('unrouted_twin', password='x')
+        self.client.force_login(user)
+        ghost = {**next(iter(app_registry.APP_CATALOG.values())),
+                 'label': 'Ghost', 'url_name': 'ghost_01:index'}
+        with patch.dict(app_registry.APP_CATALOG, {'ghost_01': ghost}):
+            response = self.client.get(reverse('common:apps_catalog'))
+        self.assertEqual(200, response.status_code)
+        self.assertContains(response, 'Ghost indisponible')
 
 
 class JudgesAreSilentOnSoundPackagesTest(SimpleTestCase):
