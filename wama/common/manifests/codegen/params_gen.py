@@ -62,13 +62,13 @@ def render_params_source(app_id: str, schemas: dict) -> str:
     ]
     import ast
     for attr in sorted(schemas):
-        texte = pprint.pformat(_literal(schemas[attr]), width=96, sort_dicts=False)
+        literal = pprint.pformat(_literal(schemas[attr]), width=96, sort_dicts=False)
         try:
-            ast.literal_eval(texte)
+            ast.literal_eval(literal)
         except (ValueError, SyntaxError) as exc:
             # Un objet qui n'est pas une valeur : le dire ICI, pas par un NameError à l'import.
             raise ValueError(f'{app_id}.{attr} : valeur non littérale dans le schéma ({exc})')
-        rendu = texte.split('\n')
+        rendu = literal.split('\n')
         lignes.append(f"{attr} = {rendu[0]}")
         pad = ' ' * (len(attr) + 3)
         lignes += [pad + l for l in rendu[1:]]

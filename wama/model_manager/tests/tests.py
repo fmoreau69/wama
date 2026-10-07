@@ -949,7 +949,7 @@ class TaxonomieDeProspectionTest(TestCase):
         self.assertEqual(hf_task_to_wama('image-text-to-text', ['conversational']),
                          ('captioning', 'vlm'))
 
-    def test_la_mise_en_page_se_lit_sur_la_carte_quel_que_soit_le_pipeline(self):
+    def test_layout_is_read_on_the_card_whatever_the_pipeline(self):
         """Cartes RÉELLES relevées le 2026-10-07 : PP-DocLayoutV3 publie `object-detection`,
         PP-DocLayout-L `image-to-text` ; les deux portent le tag d'éditeur `layout_detection`.
         Table Transformer ne porte que son architecture (`table-transformer`)."""
