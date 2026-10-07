@@ -466,7 +466,8 @@ class CatalogueUpdateInTheBackgroundTest(TestCase):
     def test_the_count_is_immediate_and_the_catalogue_update_is_queued(self):
         (count, error), delay = self._refresh_in_background()
         self.assertEqual((4, ''), (count, error))
-        delay.assert_called_once_with(self.row.pk)
+        # Second argument (2026-10-07): the key is a USER key, not the instance one.
+        delay.assert_called_once_with(self.row.pk, False)
         self.assertFalse(AIModel.objects.filter(model_key='albert:gemma-4-31b-it').exists(),
                          'the catalogue is not touched inside the request')
 

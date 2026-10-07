@@ -249,36 +249,52 @@ def ollama_chat(
         return None, str(e)
 
 
-#: Modèle par défaut de chaque fournisseur cloud, quand l'appelant n'en impose aucun.
+#: Modèle par défaut des fournisseurs cloud SANS source déclarée, quand l'appelant n'en impose
+#: aucun. Un fournisseur DÉCLARÉ porte le sien au registre (`ExternalSource.default_model`,
+#: chantier 5 de `WAMA_HARNESS.md`, 2026-10-07) : cette table ne garde que les autres.
 #: ⚠ Ces noms vieillissent (un fournisseur retire ses modèles) : un réglage les surcharge
 #: quand il est déclaré (`_DEFAULT_MODEL_SETTINGS`), et `default_cloud_model` est leur SEUL
 #: lecteur.
 CLOUD_DEFAULT_MODELS = {
     'openai':    'gpt-4o',
-    'anthropic': 'claude-sonnet-4-6',
     'grok':      'grok-3',
     'xai':       'grok-3',
     'gemini':    'gemini-2.0-flash',
     'mistral':   'mistral-large-latest',
     'groq':      'llama-3.3-70b-versatile',
     'deepseek':  'deepseek-chat',
-    'albert':    'openai/gpt-oss-120b',
 }
 
-#: Fournisseurs qui parlent le protocole OpenAI depuis une AUTRE adresse que celle d'OpenAI.
-#: Valeur = clé du registre `external_sources`, qui porte l'adresse et la variable de clé.
-OPENAI_COMPATIBLE_PROVIDERS = {'albert': 'albert'}
+
+def openai_compatible_source(provider: str) -> str:
+    """La source `external_sources` d'un fournisseur qui parle le protocole OpenAI depuis une
+    AUTRE adresse que celle d'OpenAI (Albert, ILaaS), ou ''. Le nom du fournisseur EST celui
+    de la source.
+
+    DÉRIVÉ du registre (2026-10-07) : c'était une table à la main (`{'albert': 'albert'}`), qu'il
+    aurait fallu compléter à chaque fournisseur — un fournisseur déclaré `llm` + `openai` mais
+    oublié ici partait chez OpenAI avec sa clé."""
+    from wama.common import external_sources
+    source = external_sources.by_key().get(provider)
+    if source is not None and source.kind == 'llm' and source.protocol == 'openai':
+        return source.key
+    return ''
+
 
 #: Réglage Django qui surcharge le modèle par défaut d'un fournisseur.
 _DEFAULT_MODEL_SETTINGS = {'albert': 'ALBERT_MODEL'}
 
 
 def default_cloud_model(provider: str) -> str:
-    """Modèle par défaut d'un fournisseur cloud : réglage déclaré, sinon `CLOUD_DEFAULT_MODELS`."""
+    """Modèle par défaut d'un fournisseur cloud : réglage déclaré, sinon celui de sa source
+    (`ExternalSource.default_model`), sinon `CLOUD_DEFAULT_MODELS`."""
     from django.conf import settings
+    from wama.common import external_sources
     setting_name = _DEFAULT_MODEL_SETTINGS.get(provider)
     configured = getattr(settings, setting_name, '') if setting_name else ''
-    return configured or CLOUD_DEFAULT_MODELS.get(provider, 'gpt-4o')
+    source = external_sources.by_key().get(provider)
+    declared = source.default_model if source is not None else ''
+    return configured or declared or CLOUD_DEFAULT_MODELS.get(provider, 'gpt-4o')
 
 
 def llm_chat(
@@ -308,7 +324,7 @@ def llm_chat(
                     If None, falls back to provider-specific default.
         provider:   'ollama' (default) | 'albert' | 'openai' | 'anthropic' | 'grok' | 'mistral'.
                     If None, reads settings.LITELLM_PROVIDER (default: 'ollama').
-                    'albert' (and any key of OPENAI_COMPATIBLE_PROVIDERS) is routed as
+                    'albert' (and any `llm` source of protocol `openai`) is routed as
                     `openai/<model>` with the address and key of `external_sources`.
         num_predict: Max tokens to generate (Ollama) / max_tokens (cloud). None = no cap.
         temperature: Sampling temperature (cloud only; None = provider default).
@@ -358,7 +374,7 @@ def llm_chat(
     if model is None:
         model = default_cloud_model(provider)
 
-    source = OPENAI_COMPATIBLE_PROVIDERS.get(provider)
+    source = openai_compatible_source(provider)
     if source:
         # Fournisseur compatible OpenAI hébergé AILLEURS qu'OpenAI (Albert) : préfixe `openai/`
         # TOUJOURS posé — ses identifiants portent eux-mêmes un « / » (`mistralai/Mistral-…`),

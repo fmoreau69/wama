@@ -80,9 +80,12 @@ class AlbertRoutageTest(SimpleTestCase):
         self.assertEqual('openai/openai/gpt-oss-120b-test', fake.completion.call_args.kwargs['model'])
 
     @override_settings(ALBERT_MODEL='')
-    def test_sans_reglage_le_modele_par_defaut_est_celui_de_la_table(self):
-        self.assertEqual(llm_utils.CLOUD_DEFAULT_MODELS['albert'],
+    def test_without_setting_the_default_model_comes_from_the_registry(self):
+        # 2026-10-07 (chantier 5 de WAMA_HARNESS.md) : un fournisseur DÉCLARÉ porte son modèle
+        # par défaut au registre ; la table ne garde que les fournisseurs sans source.
+        self.assertEqual(external_sources.get('albert').default_model,
                          llm_utils.default_cloud_model('albert'))
+        self.assertNotIn('albert', llm_utils.CLOUD_DEFAULT_MODELS)
 
     def test_num_predict_None_ne_plafonne_pas_et_la_temperature_est_transmise(self):
         (_, _), fake = self._call(env={'ALBERT_API_KEY': 'k'}, provider='albert', model='x',
@@ -105,3 +108,34 @@ class AutresFournisseursInchangesTest(SimpleTestCase):
         self.assertNotIn('api_key', sent)
         self.assertEqual(2048, sent['max_tokens'], "le plafond par défaut d'avant est conservé")
         self.assertNotIn('temperature', sent)
+
+
+class OpenAICompatibleProvidersAreDerivedTest(SimpleTestCase):
+    """2026-10-07 (chantier 5 of WAMA_HARNESS.md, ILaaS): an `llm` source of protocol `openai`
+    is routed with its own address and key WITHOUT any table to complete — the hand-written
+    `OPENAI_COMPATIBLE_PROVIDERS` made a declared provider missing from it go to OpenAI."""
+
+    def test_every_declared_openai_source_is_routed_and_no_other(self):
+        for source in external_sources.SOURCES:
+            expected = source.key if (source.kind == 'llm' and source.protocol == 'openai') else ''
+            self.assertEqual(expected, llm_utils.openai_compatible_source(source.key), source.key)
+        self.assertEqual('', llm_utils.openai_compatible_source('openai'))
+
+    def test_ilaas_leaves_with_its_address_and_its_instance_key(self):
+        fake = _fake_litellm()
+        with patch.dict(sys.modules, {'litellm': fake}), \
+                patch.dict(os.environ, {'ILAAS_API_KEY': 'ilaas-key'}), \
+                patch.object(external_sources, 'stored_instance_key', return_value=''):
+            text, err = llm_utils.llm_chat(MESSAGES, provider='ilaas')
+        self.assertEqual(('OK', None), (text, err))
+        sent = fake.completion.call_args.kwargs
+        self.assertEqual('openai/' + external_sources.get('ilaas').default_model, sent['model'])
+        self.assertEqual(external_sources.base_url('ilaas'), sent['api_base'])
+        self.assertEqual('ilaas-key', sent['api_key'])
+
+    def test_a_catalogue_key_of_every_llm_source_routes_to_that_provider_not_local(self):
+        from ..services.assistant_engine import SOURCE_PROVIDERS
+        for source in external_sources.SOURCES:
+            if source.kind == 'llm':
+                self.assertNotEqual('wama-dev-ai', SOURCE_PROVIDERS.get(source.key, 'wama-dev-ai'),
+                                    f"un modèle `{source.key}:*` partirait sur le moteur LOCAL")

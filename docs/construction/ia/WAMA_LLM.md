@@ -778,6 +778,31 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   ⚠ **Choix EXPLICITE uniquement** : `select_model()` ignore toujours le cloud (ROADMAP §8d, 2ᵉ
   verrou) ; et Albert (SecNumCloud, sans conservation) compte-t-il comme local pour les données
   sensibles ? Non tranché (§8d ③).
+- **ILaaS (fédération d'inférence de l'ESR) — déclarée le 2026-10-07**, source `ilaas`
+  (`https://llm.ilaas.fr/v1`, protocole OpenAI, `hosting='sovereign'`). Elle délivre des clés
+  d'**APPLICATION** (une par service, validée par un admin ILaaS) : la source se déclare donc
+  `shareable`. ⚠ **Non mesurée** : aucune vraie clé à la date (demande en cours) — le format de
+  `/models` (porte-t-il la tâche ?), le modèle par défaut (`mistral-small-4-119b`, nom PUBLIÉ) et
+  la sortie restent à attester par `manage.py llm_gateway_check --provider ilaas`. Embeddings
+  (`rag-api.ilaas.fr`, jeton à part) et transcription : non branchés.
+- **Clés d'INSTANCE posées depuis WAMA — 2026-10-07** (décision de Fabien : *« c'est la page
+  Sources externes qui doit gérer les clés système »*). Un admin pose la clé d'une source dans
+  l'inspecteur de `/common/sources/` (`accounts.InstanceApiKey`, chiffrée comme les clés
+  personnelles) ; `external_sources.api_key` la lit **avant** le `.env`, qui reste le repli du
+  démarrage et de la ligne de commande. Une source `shareable` peut la **partager** : elle sert
+  alors à tout compte qui n'a pas posé la sienne (`api_keys.key_for`, `cloud_models.
+  allowed_cloud_keys`), la clé personnelle primant toujours ; Albert ne se déclare pas
+  partageable (quotas par compte, décision du 15/09). Le profil affiche « Fournie par
+  l'établissement ». Un seul geste d'enregistrement (`api_keys.store_key`) et un seul champ de
+  saisie (`WamaKeyField`, `wama-key-field.js`) pour les deux écrans ; la découverte, l'union des
+  modèles ouverts et la sonde nocturne lisent les deux natures de clé (`accounts.ProviderKey`).
+  ⚠ `HF_TOKEN` reste au `.env` : la bibliothèque HuggingFace lit l'environnement elle-même.
+  Au passage, **chantier 5 de `WAMA_HARNESS.md`** : ① `OPENAI_COMPATIBLE_PROVIDERS` est remplacé
+  par une dérivation (`llm_utils.openai_compatible_source`) ; ② le modèle par défaut d'un
+  fournisseur DÉCLARÉ vit au registre (`ExternalSource.default_model`) — `CLOUD_DEFAULT_MODELS`
+  ne garde que les fournisseurs sans source ; ③ (délais par fournisseur) reste à faire. Et
+  `assistant_engine.SOURCE_PROVIDERS` connaît toute source `llm` : un modèle `ilaas:*` choisi au
+  sélecteur serait sinon parti sur le moteur LOCAL.
 - **Apps** : `select_model()` (model_manager) — VRAM-aware, `prefer_loaded`, capacités requises ;
   les tiers de `llm_utils` s'appuient dessus.
 - **Cible non atteinte** (§15 + ROADMAP §8d) : croiser **intention + fichiers d'entrée +

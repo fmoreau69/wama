@@ -1785,11 +1785,18 @@ MECHANISMS = (
               "consommateur. La CLÉ peut être celle de l'instance (`api_key_env`) ou celle de "
               "CHACUN, posée au profil (`user_key`) : depuis le 2026-09-22 (décision de Fabien) "
               "les connecteurs de la médiathèque y sont déclarés (famille `media`) — adresse, "
-              "proxy et sonde d'ici, clé de chaque utilisateur",
+              "proxy et sonde d'ici, clé de chaque utilisateur. Depuis le 2026-10-07 (décision "
+              "de Fabien), la clé d'INSTANCE se pose par un admin sur la page « Sources "
+              "externes » (`accounts.InstanceApiKey`, chiffrée) et prime sur le `.env`, qui "
+              "reste le repli ; une source `shareable` (clés d'application : ILaaS) peut la "
+              "PARTAGER avec les comptes sans clé — la clé personnelle prime toujours. Le champ "
+              "de saisie est UNE brique (`WamaKeyField`) pour le profil et la page",
               'wama/common/external_sources.py', 'docs/construction/suivi/PROJECT_STATUS.md',
               annexes=('wama/common/utils/http_proxy.py',
                        'wama/common/utils/ollama_host.py',
-                       'wama/media_library/providers/base.py')),
+                       'wama/media_library/providers/base.py',
+                       'wama/accounts/api_keys.py',
+                       'wama/common/static/common/js/wama-key-field.js')),
     Mechanism('search_engines', 'Moteurs de recherche web',
               "Un adaptateur par moteur (Exa, Staan, SearXNG, DuckDuckGo) derrière UN contrat : "
               "l'inventaire vient des sources `kind='recherche'` du registre, jamais d'une liste "

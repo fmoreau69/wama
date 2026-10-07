@@ -210,20 +210,28 @@ def model_info_for(source: str, item: dict):
     )
 
 
+def _key_models() -> tuple:
+    """Les deux domiciles d'une clé posée : celle d'un utilisateur (profil) et celle de l'instance
+    (page Sources externes, 2026-10-07). Même forme (`accounts.ProviderKey`) : la découverte,
+    l'union des modèles ouverts et la sonde nocturne les lisent sans les distinguer."""
+    from wama.accounts.models import InstanceApiKey, UserApiKey
+    return UserApiKey, InstanceApiKey
+
+
 def cloud_model_infos() -> dict:
-    """`{model_key: ModelInfo}` de TOUS les modèles distants qu'une clé d'utilisateur ouvre —
-    la découverte CLOUD du registre (`ModelRegistry._discover_cloud_models`).
+    """`{model_key: ModelInfo}` de TOUS les modèles distants qu'une clé posée ouvre — la
+    découverte CLOUD du registre (`ModelRegistry._discover_cloud_models`).
 
-    Lecture de la base seule (`UserApiKey.remote_listing`), jamais du réseau : la liste est relue
-    chez le fournisseur par `refresh_key`, sur le geste du profil. L'union se fait sur toutes les
-    clés d'une source — une clé qui n'ouvre pas un modèle ne prouve pas que le fournisseur l'a
-    retiré.
+    Lecture de la base seule (`remote_listing` des clés), jamais du réseau : la liste est relue
+    chez le fournisseur par `refresh_key`, au geste d'enregistrement. L'union se fait sur toutes
+    les clés d'une source — une clé qui n'ouvre pas un modèle ne prouve pas que le fournisseur
+    l'a retiré.
     """
-    from wama.accounts.models import UserApiKey
-
+    rows = [row for model in _key_models()
+            for row in (model.objects.exclude(api_key='').exclude(remote_listing=[])
+                        .values_list('source', 'remote_listing'))]
     infos = {}
-    for source, listing in (UserApiKey.objects.exclude(api_key='').exclude(remote_listing=[])
-                            .values_list('source', 'remote_listing')):
+    for source, listing in rows:
         try:
             external_sources.get(source)
         except KeyError:
@@ -261,12 +269,12 @@ def retire_unlisted(source: str) -> int:
     supprimées — doctrine de `uninstall_model` : la ligne porte l'historique, et `select_model`
     l'ignore tant qu'elle est indisponible. Re-listée par le fournisseur, elle redevient disponible.
     """
-    from wama.accounts.models import UserApiKey
     from wama.model_manager.models import AIModel, EXECUTION_CLOUD
 
     opened = set()
-    for keys in UserApiKey.objects.filter(source=source).values_list('open_models', flat=True):
-        opened.update(keys or [])
+    for model in _key_models():
+        for keys in model.objects.filter(source=source).values_list('open_models', flat=True):
+            opened.update(keys or [])
     rows = AIModel.objects.filter(source=source, execution=EXECUTION_CLOUD, is_proposed=False)
     retired = rows.exclude(model_key__in=opened).filter(is_available=True).update(is_available=False)
     rows.filter(model_key__in=opened, is_available=False).update(is_available=True)
@@ -296,7 +304,8 @@ def refresh_key(row, background: bool = False) -> tuple:
         except CloudDiscoveryError as exc:
             row.discovery_error = str(exc)[:255]
             row.save(update_fields=['discovery_error'])
-            logger.warning("[cloud_models] découverte %s pour %s : %s", row.source, row.user_id, exc)
+            logger.warning("[cloud_models] découverte %s pour %s : %s", row.source,
+                           getattr(row, 'user_id', 'instance'), exc)
             return 0, row.discovery_error
     row.remote_listing = listing
     row.open_models = keys_for(row.source, listing)
@@ -306,9 +315,10 @@ def refresh_key(row, background: bool = False) -> tuple:
         # Après la validation de la transaction : la tâche relit la ligne ENREGISTRÉE — et un
         # test (TestCase, jamais validé) n'envoie rien au broker.
         from django.db import transaction
+        from wama.accounts.models import InstanceApiKey
         from wama.model_manager.tasks import register_cloud_key_task
-        pk = row.pk
-        transaction.on_commit(lambda: register_cloud_key_task.delay(pk))
+        pk, instance = row.pk, isinstance(row, InstanceApiKey)
+        transaction.on_commit(lambda: register_cloud_key_task.delay(pk, instance))
     else:
         register_open_models(row)
     return len(row.open_models), ''
@@ -332,11 +342,12 @@ def refresh_all_keys() -> dict:
 
     Rend {'keys', 'added': {source: [...]}, 'removed': {source: [...]}, 'errors': {source: msg}}.
     """
-    from wama.accounts.models import UserApiKey
-
     sources = {s.key: s for s in external_sources.SOURCES if s.kind == 'llm'}
     summary = {'keys': 0, 'added': {}, 'removed': {}, 'errors': {}}
-    for row in UserApiKey.objects.filter(source__in=list(sources)).exclude(api_key='').order_by('source', 'pk'):
+    rows = [row for model in _key_models()
+            for row in model.objects.filter(source__in=list(sources)).exclude(api_key='')
+            .order_by('source', 'pk')]
+    for row in rows:
         if (sources[row.source].protocol in UNLISTABLE_PROTOCOLS
                 and (row.remote_listing or []) == declared_listing(row.source)):
             continue                      # déclaration inchangée : rien à relire, aucun appel
@@ -454,7 +465,16 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
                 and not (automatic and s.cost_tier == 'metered' and not metered_auto)}
     keys = set()
     # `values_list` : les modèles seuls, sans déchiffrer la clé.
-    for opened in (UserApiKey.objects.filter(user=user, source__in=ouvertes).exclude(api_key='')
+    personal = dict(UserApiKey.objects.filter(user=user, source__in=ouvertes).exclude(api_key='')
+                    .values_list('source', 'open_models'))
+    for opened in personal.values():
+        keys.update(opened or [])
+    # La clé d'instance PARTAGÉE (2026-10-07) ouvre ses modèles à qui n'a pas posé la sienne —
+    # même règle que `api_keys.key_for` : la clé personnelle, posée, prime.
+    from wama.accounts.api_keys import shared_sources
+    from wama.accounts.models import InstanceApiKey
+    borrowed = (shared_sources() & ouvertes) - set(personal)
+    for opened in (InstanceApiKey.objects.filter(source__in=borrowed)
                    .values_list('open_models', flat=True)):
         keys.update(opened or [])
     return keys

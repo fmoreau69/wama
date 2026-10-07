@@ -256,3 +256,96 @@ class ProfileKeySaveStaysFastTest(TestCase):
                                  content_type='application/json')
         self.assertEqual(3, r.json()['models_count'])
         self.assertTrue(refresh.call_args.kwargs.get('background'))
+
+
+@override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
+class InstanceKeyTest(TestCase):
+    """2026-10-07 (decision of Fabien): the INSTANCE key of a source is set by an admin on the
+    « Sources externes » page. It beats the `.env` one, and — for a source declaring itself
+    `shareable` (application keys: ILaaS) — the admin may share it with every account that has
+    not set its own. A source whose quota is per person (Albert) never shares."""
+
+    URL = '/common/sources/{}/instance-key/'
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        User = get_user_model()
+        self.admin = User.objects.create_user('instance_key_admin', password='x')
+        self.admin.groups.add(Group.objects.get_or_create(name='admin')[0])
+        self.user = User.objects.create_user('instance_key_user', password='x')
+        refresh = mock.patch('wama.model_manager.services.cloud_models.refresh_key',
+                             return_value=(2, ''))
+        self.refresh = refresh.start()
+        self.addCleanup(refresh.stop)
+
+    def _post(self, source, body, user=None):
+        self.client.force_login(user or self.admin)
+        return self.client.post(self.URL.format(source), data=json.dumps(body),
+                                content_type='application/json')
+
+    def test_a_stored_instance_key_beats_the_env_one_which_stays_the_fallback(self):
+        from wama.common import external_sources
+        with mock.patch.dict(os.environ, {'ILAAS_API_KEY': 'from-env'}):
+            self.assertEqual('from-env', external_sources.api_key('ilaas'))
+            self.assertEqual('env', external_sources.api_key_origin('ilaas'))
+            self.assertEqual(200, self._post('ilaas', {'api_key': 'from-page'}).status_code)
+            self.assertEqual('from-page', external_sources.api_key('ilaas'))
+            self.assertEqual('stored', external_sources.api_key_origin('ilaas'))
+            self._post('ilaas', {'api_key': ''})
+            self.assertEqual('from-env', external_sources.api_key('ilaas'))
+
+    def test_the_key_is_encrypted_and_records_who_set_it(self):
+        from wama.accounts.models import InstanceApiKey
+        r = self._post('ilaas', {'api_key': CLAIR})
+        self.assertEqual(2, r.json()['models_count'])
+        row = InstanceApiKey.objects.get(source='ilaas')
+        self.assertNotIn(CLAIR, _colonne_brute(InstanceApiKey, row.pk))
+        self.assertEqual(self.admin, row.updated_by)
+        self.assertTrue(self.refresh.call_args.kwargs.get('background'))
+
+    def test_only_an_admin_sets_an_instance_key(self):
+        from wama.accounts.models import InstanceApiKey
+        self.assertEqual(403, self._post('ilaas', {'api_key': CLAIR}, user=self.user).status_code)
+        self.assertFalse(InstanceApiKey.objects.exists())
+
+    def test_a_shared_key_serves_accounts_without_their_own_and_a_personal_one_wins(self):
+        self._post('ilaas', {'api_key': 'shared-key'})
+        self.assertEqual('', api_keys.key_for(self.user, 'ilaas'), 'not shared yet')
+        self.assertTrue(self._post('ilaas', {'shared': True}).json()['shared'])
+        self.assertEqual('shared-key', api_keys.key_for(self.user, 'ilaas'))
+        ilaas = next(p for p in api_keys.listing(self.user) if p['slug'] == 'ilaas')
+        self.assertTrue(ilaas['shared_available'])
+        self.assertFalse(ilaas['has_key'])
+        UserApiKey.objects.create(user=self.user, source='ilaas', api_key='personal-key')
+        self.assertEqual('personal-key', api_keys.key_for(self.user, 'ilaas'))
+
+    def test_a_source_with_quotas_per_account_never_shares_its_instance_key(self):
+        from wama.accounts.models import InstanceApiKey
+        self._post('albert', {'api_key': 'instance-albert'})
+        self.assertEqual(400, self._post('albert', {'shared': True}).status_code)
+        # Even a row forced to `shared` lends nothing: the source does not declare it.
+        InstanceApiKey.objects.filter(source='albert').update(shared=True)
+        self.assertEqual('', api_keys.key_for(self.user, 'albert'))
+        self.assertEqual('instance-albert', api_keys.key_for(None, 'albert'))
+
+    def test_sharing_needs_a_stored_key(self):
+        self.assertEqual(400, self._post('ilaas', {'shared': True}).status_code)
+
+    def test_a_shared_key_opens_its_models_to_an_account_allowed_to_use_the_cloud(self):
+        from wama.accounts.models import InstanceApiKey
+        from wama.model_manager.services.cloud_models import allowed_cloud_keys
+        InstanceApiKey.objects.create(source='ilaas', api_key='k', shared=True,
+                                      open_models=['ilaas:mistral-small-4-119b'])
+        UserProfile.objects.filter(user=self.user).update(cloud_policy='cloud_allowed')
+        self.user.refresh_from_db()
+        self.assertIn('ilaas:mistral-small-4-119b', allowed_cloud_keys(self.user, automatic=False))
+        # « 100 % local » closes it, shared or not.
+        UserProfile.objects.filter(user=self.user).update(cloud_policy='local_only')
+        self.user.refresh_from_db()
+        self.assertEqual(set(), allowed_cloud_keys(self.user, automatic=False))
+
+    def test_the_sources_page_shows_the_key_panel_to_an_admin_only(self):
+        self.client.force_login(self.admin)
+        self.assertIn('wama-key-field.js', self.client.get('/common/sources/').content.decode())
+        self.client.force_login(self.user)
+        self.assertNotIn('wama-key-field.js', self.client.get('/common/sources/').content.decode())

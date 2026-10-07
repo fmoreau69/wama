@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load wama_static %}
 
 {% block title %}Profil — WAMA{% endblock %}
 
@@ -637,6 +638,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static_v 'common/js/wama-key-field.js' %}"></script>  {# WamaKeyField : champ de clé d'API commun (profil + page Sources externes) #}
 <script>
 const LANGUAGE_URL       = "{% url 'accounts:profile-language' %}";
 const UNITS_URL          = "{% url 'accounts:profile-units' %}";
@@ -907,46 +909,22 @@ async function loadKeys(group) {
         // pas de famille — la ligne saute alors, sans rien changer pour eux.
         let famille = null;
         container.innerHTML = providers.map(p => {
-            const id = `${group}-${p.slug}`;
-            const act = (action) => `data-key-action="${action}" data-group="${group}" data-slug="${p.slug}"`;
             let titre = '';
             if (p.kind_label && p.kind_label !== famille) {
                 famille = p.kind_label;
                 titre = `<div class="text-info small fw-bold mt-2 mb-1">${p.kind_label}</div>`;
             }
-            return titre + `
-            <div class="key-row">
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                    <span class="small text-light">
-                        ${p.name}
-                        <span class="ms-1 badge ${p.has_key ? 'bg-success' : 'bg-secondary'}">
-                            ${p.has_key ? '✓ Configuré' : 'Non configuré'}
-                        </span>
-                    </span>
-                    ${p.api_key_help_url ? `
-                    <a href="${p.api_key_help_url}" target="_blank" rel="noopener"
-                       class="btn btn-outline-secondary btn-sm py-0" title="Obtenir une clé">
-                        <i class="fas fa-external-link-alt"></i>
-                    </a>` : ''}
-                </div>
-                <div class="input-group input-group-sm">
-                    <input type="password" id="key-${id}"
-                           class="form-control bg-dark text-light border-secondary"
-                           placeholder="${p.has_key ? 'Clé enregistrée (jamais réaffichée) — saisir pour la remplacer' : (p.api_key_label || 'Clé API')}"
-                           autocomplete="off">
-                    <button class="btn btn-outline-secondary" type="button" ${act('toggle')} title="Afficher / masquer la saisie (une clé enregistrée n'est jamais renvoyée au navigateur)">
-                        <i class="fas fa-eye" id="eye-${id}"></i>
-                    </button>
-                    <button class="btn btn-outline-primary" type="button" ${act('save')} title="Enregistrer">
-                        <i class="fas fa-save"></i>
-                    </button>
-                    ${p.has_key ? `
-                    <button class="btn btn-outline-danger" type="button" ${act('delete')} title="Supprimer la clé">
-                        <i class="fas fa-times"></i>
-                    </button>` : ''}
-                </div>
-                <div id="msg-${id}" class="mt-1" style="display:none;"></div>
-            </div>`;
+            // Le champ vient de la brique COMMUNE (`WamaKeyField`, 2026-10-07) : la page
+            // « Sources externes » pose les clés de l'instance avec le même.
+            // Clé d'instance PARTAGÉE par l'admin : « fournie par l'établissement » plutôt que
+            // « non configuré » — la vôtre, posée, prime.
+            const status = p.has_key ? null
+                : (p.shared_available ? { text: "✓ Fournie par l'établissement", cls: 'bg-info' } : null);
+            return titre + WamaKeyField.render({
+                id: `${group}-${p.slug}`, name: p.name, hasKey: p.has_key, status: status,
+                label: p.api_key_label, helpUrl: p.api_key_help_url,
+                data: { group: group, slug: p.slug },
+            });
         }).join('');
     } catch(e) {
         container.innerHTML = '<div class="text-danger small">Erreur de chargement.</div>';
@@ -954,53 +932,22 @@ async function loadKeys(group) {
 }
 
 async function sendKey(group, slug, key, btn) {
-    const id = `${group}-${slug}`;
-    // Retour IMMÉDIAT (2026-10-02) : sans lui, un enregistrement lent semblait sans effet et se
-    // faisait cliquer deux fois. Le rendu à neuf qui suit un succès remet le bouton à l'état.
-    const original = btn ? btn.innerHTML : '';
-    const restore = () => { if (btn) { btn.disabled = false; btn.innerHTML = original; } };
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
-    }
-    showMsg(document.getElementById(`msg-${id}`), key ? 'Enregistrement et lecture des modèles ouverts…' : 'Suppression…');
-    try {
-        const data = await postJson(KEY_GROUPS[group].save.replace('SLUG', slug), { api_key: key });
-        if (!data.success) {
-            restore();
-            showMsg(document.getElementById(`msg-${id}`), data.error || 'Erreur', true);
-            return;
-        }
-        // Rendu à neuf : le badge et le bouton de suppression suivent l'état réel du serveur.
-        await loadKeys(group);
-        const msg = document.getElementById(`msg-${id}`);
-        if (!key) showMsg(msg, '✓ Clé supprimée');
-        else if (data.discovery_error) showMsg(msg, `Clé enregistrée, modèles non lus : ${data.discovery_error}`, true);
-        else if (data.models_count !== undefined) showMsg(msg, `✓ Clé enregistrée — ${data.models_count} modèle(s) ouvert(s) ; le catalogue se met à jour en arrière-plan`);
-        else showMsg(msg, '✓ Clé enregistrée');
-    } catch(e) {
-        restore();
-        showMsg(document.getElementById(`msg-${id}`), 'Erreur réseau', true);
-    }
+    const msgOf = () => document.getElementById(`msg-${group}-${slug}`);
+    const data = await WamaKeyField.send({
+        url: KEY_GROUPS[group].save.replace('SLUG', slug), body: { api_key: key }, btn: btn,
+        msgEl: msgOf(), csrfToken: CSRF_TOKEN,
+        pending: key ? 'Enregistrement et lecture des modèles ouverts…' : 'Suppression…',
+    });
+    if (!data.success) return;
+    // Rendu à neuf : le badge et le bouton de suppression suivent l'état réel du serveur.
+    await loadKeys(group);
+    const [text, isError] = WamaKeyField.savedMessage(data, key);
+    WamaKeyField.showMsg(msgOf(), text, isError);
 }
 
-document.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-key-action]');
-    if (!btn) return;
-    const { keyAction, group, slug } = btn.dataset;
-    const id = `${group}-${slug}`;
-    const input = document.getElementById(`key-${id}`);
-    if (keyAction === 'toggle') {
-        const show = input.type === 'password';
-        input.type = show ? 'text' : 'password';
-        document.getElementById(`eye-${id}`).className = show ? 'fas fa-eye-slash' : 'fas fa-eye';
-    } else if (keyAction === 'save') {
-        const key = input.value.trim();
-        if (!key) { showMsg(document.getElementById(`msg-${id}`), 'Saisissez une clé.', true); return; }
-        sendKey(group, slug, key, btn);
-    } else if (keyAction === 'delete') {
-        if (confirm('Supprimer la clé ?')) sendKey(group, slug, '', btn);
-    }
+WamaKeyField.bind(document, {
+    onSave: (btn, key) => sendKey(btn.dataset.group, btn.dataset.slug, key, btn),
+    onDelete: (btn) => sendKey(btn.dataset.group, btn.dataset.slug, '', btn),
 });
 
 loadKeys('llm');

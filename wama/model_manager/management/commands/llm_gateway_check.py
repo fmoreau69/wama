@@ -13,18 +13,35 @@ import os
 
 from django.core.management.base import BaseCommand
 
-# Fournisseurs cloud connus → variable d'env de clé (lue NATIVEMENT par LiteLLM).
+# Fournisseurs cloud SANS source déclarée → variable d'env de clé (lue NATIVEMENT par LiteLLM).
+# Les fournisseurs DÉCLARÉS (`external_sources`, famille `llm` : Albert, ILaaS, API Anthropic) ne
+# sont plus ici depuis le 2026-10-07 : leur clé d'instance se lit par `external_sources.api_key`,
+# qui voit aussi celle posée sur la page « Sources externes » — pas seulement le `.env`.
 _PROVIDER_ENV = {
     'openai':     'OPENAI_API_KEY',
-    'anthropic':  'ANTHROPIC_API_KEY',
     'xai':        'XAI_API_KEY',          # Grok
     'gemini':     'GEMINI_API_KEY',
     'mistral':    'MISTRAL_API_KEY',
     'groq':       'GROQ_API_KEY',
     'deepseek':   'DEEPSEEK_API_KEY',
     'openrouter': 'OPENROUTER_API_KEY',
-    'albert':     'ALBERT_API_KEY',       # DINUM — compatible OpenAI, adresse dans external_sources
 }
+
+
+def _instance_key(provider: str) -> str:
+    """Clé d'instance de `provider` : celle du registre s'il est déclaré, sinon son `.env`."""
+    from wama.common import external_sources
+    if provider in external_sources.by_key():
+        return external_sources.api_key(provider)
+    env = _PROVIDER_ENV.get(provider)
+    return os.environ.get(env, '') if env else ''
+
+
+def _cloud_providers() -> list:
+    from wama.common import external_sources
+    declared = [s.key for s in external_sources.SOURCES
+                if s.kind == 'llm' and s.protocol != 'claude_cli']
+    return declared + [p for p in _PROVIDER_ENV if p not in declared]
 
 
 class Command(BaseCommand):
@@ -32,7 +49,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--provider', default='ollama',
-                            help="ollama (défaut, LOCAL) ou un cloud : albert, xai, gemini, openai, mistral, groq, deepseek, openrouter.")
+                            help="ollama (défaut, LOCAL) ou un cloud : albert, ilaas, anthropic, xai, gemini, openai, mistral, groq, deepseek, openrouter.")
         parser.add_argument('--model', default='',
                             help="Nom du modèle (défaut : résolu par le catalogue, "
                                  "modele_par_defaut — plus de nom en dur, retrait qwen3.5:9b 26/08).")
@@ -53,7 +70,7 @@ class Command(BaseCommand):
             self.stdout.write(f"Modèle résolu par le catalogue : {model or '(aucun)'}")
 
         # 1) Détection des clés cloud configurées (AUCUN appel réseau).
-        configured = [p for p, env in _PROVIDER_ENV.items() if os.environ.get(env)]
+        configured = [p for p in _cloud_providers() if _instance_key(p)]
         self.stdout.write("Clés cloud détectées : " + (", ".join(configured) if configured else "(aucune)"))
 
         # 2) Construction de l'appel de validation.
@@ -76,10 +93,10 @@ class Command(BaseCommand):
                     f"✗ Échec passerelle : {type(e).__name__}: {str(e)[:200]}"))
             return
 
-        env = _PROVIDER_ENV.get(provider)
-        if env and not os.environ.get(env):
+        if provider in _cloud_providers() and not _instance_key(provider):
             self.stderr.write(self.style.ERROR(
-                f"Clé absente pour '{provider}' (définir {env}). Test cloud annulé."))
+                f"Clé absente pour '{provider}' (page « Sources externes » ou .env). "
+                "Test cloud annulé."))
             return
         # 3) Appel CLOUD par `llm_chat` — le chemin qu'emploient réellement l'assistant et les
         # rôles wama-dev-ai. Construire l'appel LiteLLM ici validerait une construction que

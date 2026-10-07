@@ -212,6 +212,10 @@ class ExternalSource:
     protocol: str = ''
     #: Type des modèles quand le fournisseur ne le dit pas (tag de tâche HuggingFace).
     default_remote_type: str = ''
+    #: Fournisseur LLM : modèle appelé quand l'appelant n'en nomme aucun (`llm_utils.
+    #: default_cloud_model`, 2026-10-07 — ex-entrée de `CLOUD_DEFAULT_MODELS`, chantier 5 de
+    #: `WAMA_HARNESS.md`). ⚠ Un nom de modèle vieillit : le fournisseur le retire.
+    default_model: str = ''
     #: Libellé du champ de saisie au profil ('' = « Clé d'API »).
     api_key_label: str = ''
     #: La clé est posée par CHAQUE UTILISATEUR, au profil (2026-09-22). Indépendant de
@@ -220,6 +224,11 @@ class ExternalSource:
     #: sienne. Sans ce champ, une source sans `api_key_env` passait pour ANONYME — donc
     #: « configurée » — alors qu'elle attend la clé de chacun.
     user_key: bool = False
+    #: La clé d'INSTANCE peut être PARTAGÉE avec tous les comptes (2026-10-07) : l'admin la pose
+    #: sur la page « Sources externes » et coche « partager » (`accounts.InstanceApiKey.shared`) ;
+    #: un compte qui a posé SA clé garde la sienne. Réservé aux fournisseurs qui délivrent des
+    #: clés d'APPLICATION (ILaaS) — jamais à ceux dont le quota est par personne (Albert, 15/09).
+    shareable: bool = False
     #: Réservé aux développeurs (abonnement Claude Code : accès au dépôt).
     developer_only: bool = False
     #: Fournisseur LLM SANS liste de modèles (protocole `claude_cli`) : les modèles qu'il sert,
@@ -278,7 +287,26 @@ SOURCES: tuple[ExternalSource, ...] = (
         api_key_env='ALBERT_API_KEY', user_key=True,
         api_key_help_url='https://ia.numerique.gouv.fr/outils-ia/albert-api/',
         hosting='sovereign', cost_tier='free', protocol='openai',
-        doc='docs/construction/ia/WAMA_LLM.md'),
+        default_model='openai/gpt-oss-120b', doc='docs/construction/ia/WAMA_LLM.md'),
+    # 2026-10-07 : ILaaS, fédération d'inférence de l'ESR (MESRE, CINES ; datacenters labellisés
+    # ESR), protocole OpenAI. Il délivre des clés d'APPLICATION (une par service, validée par
+    # un admin ILaaS) : d'où `shareable` — l'admin WAMA la pose sur la page Sources externes et
+    # la partage ; un compte qui a sa clé individuelle ILaaS la pose au profil, elle prime.
+    # ⚠ `default_remote_type` : leur `/models` n'a pas été lu avec une vraie clé (demande en
+    # cours) ; si la liste ne dit pas la tâche, `text-generation` sous-déclare la vision de
+    # certains modèles plutôt que de la prêter à ceux qui ne l'ont pas. À remesurer à la clé.
+    # Embeddings (`rag-api.ilaas.fr`, jeton à part) et transcription (adresse remise avec la
+    # clé) : non branchés — le RAG de WAMA a ses propres embeddings (`WAMA_MEMORY.md`).
+    ExternalSource(
+        'ilaas', 'ILaaS (ESR)', 'https://llm.ilaas.fr/v1',
+        "Inférence LLM mutualisée de l'enseignement supérieur et de la recherche, compatible "
+        "OpenAI — assistant, apps et rôles wama-dev-ai via llm_chat", kind='llm',
+        env='ILAAS_API_BASE', api_key_env='ILAAS_API_KEY', user_key=True, shareable=True,
+        api_key_help_url='https://www.ilaas.fr/demande-de-cles-ilaas/',
+        hosting='sovereign', cost_tier='free', protocol='openai',
+        default_remote_type='text-generation',
+        # ⚠ Non mesuré (clé en attente) : nom PUBLIÉ de leur liste des modèles.
+        default_model='mistral-small-4-119b', doc='docs/construction/ia/WAMA_LLM.md'),
     # 2026-09-15 : l'API Anthropic (fournisseur « claude » de l'assistant) et l'ABONNEMENT Claude
     # Code — deux canaux de facturation opposés vers les mêmes modèles (cf. `claude_code.py`).
     # Chacun porte la clé PERSONNELLE de l'utilisateur, au profil ; le `.env` ne sert qu'aux usages
@@ -290,7 +318,8 @@ SOURCES: tuple[ExternalSource, ...] = (
         kind='llm', api_key_env='ANTHROPIC_API_KEY', user_key=True,
         api_key_help_url='https://console.anthropic.com/settings/keys',
         hosting='third_party', cost_tier='metered', protocol='anthropic',
-        default_remote_type='image-text-to-text', doc='docs/construction/ia/WAMA_LLM.md'),
+        default_remote_type='image-text-to-text', default_model='claude-sonnet-4-6',
+        doc='docs/construction/ia/WAMA_LLM.md'),
     ExternalSource(
         'claude_code', 'Claude Code (abonnement)', 'https://api.anthropic.com/v1',
         "Abonnement Claude PERSONNEL — CLI headless (outil ask_claude_code, fournisseur "
@@ -607,10 +636,37 @@ def proxies_for(key: str):
 
 
 def api_key(key: str) -> str:
-    """Clé d'API lue dans l'environnement, ou '' — jamais une exception : une source sans clé
-    se SKIPPE avec un motif, elle ne fait pas tomber l'appelant."""
+    """Clé d'API de l'INSTANCE, ou '' — jamais une exception : une source sans clé se SKIPPE
+    avec un motif, elle ne fait pas tomber l'appelant.
+
+    Celle posée par un admin sur la page « Sources externes » d'abord (`accounts.InstanceApiKey`,
+    2026-10-07), la variable `.env` ensuite — repli du démarrage et de la ligne de commande."""
     src = get(key)
-    return os.environ.get(src.api_key_env, '') if src.api_key_env else ''
+    if not src.api_key_env:
+        return ''
+    return stored_instance_key(key) or os.environ.get(src.api_key_env, '')
+
+
+def stored_instance_key(key: str) -> str:
+    """La clé d'instance ENREGISTRÉE en base pour `key`, ou ''. Lue paresseusement : ce module
+    ne dépend pas de Django, et une base pas encore prête (démarrage, migration en attente)
+    ou une clé illisible (secret changé) se replient sur le `.env` au lieu de lever."""
+    try:
+        from wama.accounts.models import InstanceApiKey
+        row = InstanceApiKey.objects.filter(source=key).exclude(api_key='').first()
+        return row.api_key if row else ''
+    except Exception:
+        return ''
+
+
+def api_key_origin(key: str) -> str:
+    """D'où vient la clé d'instance : 'stored' (page Sources externes), 'env' (`.env`) ou ''."""
+    src = get(key)
+    if not src.api_key_env:
+        return ''
+    if stored_instance_key(key):
+        return 'stored'
+    return 'env' if os.environ.get(src.api_key_env, '') else ''
 
 
 def is_configured(key: str) -> bool:

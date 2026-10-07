@@ -196,9 +196,15 @@ _SUBSCRIPTION_PROVIDERS = ('claude-abo',)
 #: du catalogue.
 PROVIDER_SOURCES = {'albert': 'albert', 'claude': 'anthropic', 'claude-abo': 'claude_code'}
 
-#: Source du CATALOGUE → fournisseur du moteur. Inverse de la table ci-dessus, plus Ollama : c'est
-#: ce qui permet de ne choisir qu'un MODÈLE et d'en dériver le fournisseur.
+#: Source du CATALOGUE → fournisseur du moteur : c'est ce qui permet de ne choisir qu'un MODÈLE et
+#: d'en dériver le fournisseur. Toute source `llm` du registre y est, sous son propre nom
+#: (2026-10-07, ILaaS) — avant, seules les sources de la table ci-dessus l'étaient, et un modèle
+#: d'une source déclarée mais absente de la table (`ilaas:*`) retombait sur le moteur LOCAL
+#: (`.get(source, 'wama-dev-ai')`). La table ne garde que les noms HISTORIQUES de la surface.
+from wama.common import external_sources as _external_sources  # noqa: E402 (module feuille)
+
 SOURCE_PROVIDERS = {'ollama': 'ollama',
+                    **{s.key: s.key for s in _external_sources.SOURCES if s.kind == 'llm'},
                     **{source: provider for provider, source in PROVIDER_SOURCES.items()}}
 
 

@@ -15,6 +15,9 @@ brique qui lit le registre, jamais.*
 RÈGLE DE RÉSOLUTION (Fabien, 2026-09-15) : un utilisateur n'utilise QUE sa propre clé — pas de repli
 sur la clé d'instance du `.env`, sinon les quotas ne se répartissent plus. La clé d'instance ne sert
 qu'aux usages SANS utilisateur (rôles wama-dev-ai en ligne de commande, tâches planifiées).
+UNE exception, DÉCLARÉE (Fabien, 2026-10-07) : une source `shareable` (clés d'APPLICATION, ILaaS)
+dont l'admin a PARTAGÉ la clé d'instance (`InstanceApiKey.shared`, page « Sources externes ») —
+elle sert à qui n'a pas posé la sienne ; la clé personnelle, posée, prime toujours.
 """
 from __future__ import annotations
 
@@ -74,13 +77,79 @@ def configured_sources(user) -> set:
 
 
 def key_for(user, source: str) -> str:
-    """La clé à utiliser pour `source` : celle de l'utilisateur, ou celle de l'instance SANS
-    utilisateur. '' si aucune — jamais d'exception, l'appelant refuse avec un motif lisible."""
+    """La clé à utiliser pour `source` : celle de l'utilisateur, sinon la clé d'instance PARTAGÉE
+    (`shared_instance_key`), ou celle de l'instance SANS utilisateur. '' si aucune — jamais
+    d'exception, l'appelant refuse avec un motif lisible."""
     if user is None or not getattr(user, 'is_authenticated', False):
         return external_sources.api_key(source)
     from wama.accounts.models import UserApiKey
-    row = UserApiKey.objects.filter(user=user, source=source).first()
+    row = UserApiKey.objects.filter(user=user, source=source).exclude(api_key='').first()
+    return row.api_key if row else shared_instance_key(source)
+
+
+def shared_instance_row(source: str):
+    """La clé d'instance que l'admin a PARTAGÉE pour `source`, ou None — jamais pour une source
+    qui ne se déclare pas `shareable`, même si une ligne dit `shared` (déclaration retirée)."""
+    try:
+        if not external_sources.get(source).shareable:
+            return None
+    except KeyError:
+        return None
+    from wama.accounts.models import InstanceApiKey
+    return InstanceApiKey.objects.filter(source=source, shared=True).exclude(api_key='').first()
+
+
+def shared_instance_key(source: str) -> str:
+    row = shared_instance_row(source)
     return row.api_key if row else ''
+
+
+def shared_sources() -> set:
+    """Clés des sources dont une clé d'instance est partagée en ce moment."""
+    from wama.accounts.models import InstanceApiKey
+    shareable = {s.key for s in external_sources.SOURCES if s.shareable}
+    return set(InstanceApiKey.objects.filter(source__in=shareable, shared=True)
+               .exclude(api_key='').values_list('source', flat=True))
+
+
+#: Longueur maximale d'une clé saisie — un champ texte n'a pas à recevoir un document.
+MAX_KEY_LENGTH = 500
+
+
+def store_key(row, api_key: str) -> dict:
+    """Enregistre `api_key` (chiffrée) sur la ligne `row` — `UserApiKey` du profil ou
+    `InstanceApiKey` de la page Sources externes —, puis lit les modèles qu'elle ouvre si la
+    source est un fournisseur de modèles. Rend la réponse JSON du geste, `status` compris.
+
+    UN geste pour les deux écrans (2026-10-07) : celui du profil (`views.api_key_save`) n'avait
+    qu'une forme, l'écran des clés d'instance l'aurait recopié."""
+    from wama.common.utils.secret_crypto import SecretStorageUnavailable, storage_available
+
+    if len(api_key) > MAX_KEY_LENGTH:
+        return {'error': f'Clé trop longue ({MAX_KEY_LENGTH} caractères au plus)', 'status': 400}
+    # Refus AVANT toute écriture : levée pendant un `save()`, l'exception marquerait la
+    # transaction en cours comme cassée. Celle du champ reste le filet de sécurité.
+    if not storage_available():
+        return {'error': "Enregistrement des clés indisponible : DJANGO_SECRET_KEY "
+                         "n'est pas définie sur ce serveur.", 'status': 503}
+    row.api_key = api_key
+    try:
+        row.save()
+    except SecretStorageUnavailable as exc:
+        return {'error': str(exc), 'status': 503}
+    # Découverte des modèles ouverts à CETTE clé (ROADMAP §8d, 4b). Un échec ne défait pas
+    # l'enregistrement : il est rendu lisible, et la clé reste posée.
+    # ⚠ Réservée aux FOURNISSEURS DE MODÈLES (famille `llm`, 2026-09-27) : elle interroge
+    # `<adresse>/models`, qui n'existe pas chez un moteur de recherche (fausse erreur affichée)
+    # et répond une PAGE HTML chez HuggingFace (lecture JSON → 500 à l'enregistrement).
+    if external_sources.get(row.source).kind != 'llm':
+        return {'success': True, 'has_key': True, 'status': 200}
+    from wama.model_manager.services.cloud_models import refresh_key
+    # Le catalogue se met à jour EN TÂCHE DE FOND (2026-10-02) : dans la requête, la
+    # synchronisation complète prenait plus de deux minutes, page figée.
+    count, error = refresh_key(row, background=True)
+    return {'success': True, 'has_key': True, 'models_count': count, 'discovery_error': error,
+            'status': 200}
 
 
 def download_token(user, source: str):
@@ -106,6 +175,7 @@ def listing(user, kinds: tuple = ()) -> list:
     « Recherche web ») sans savoir laquelle existe : le libellé vient du registre.
     """
     configured = configured_sources(user)
+    shared = shared_sources()
     return [{
         'slug': s.key,
         'name': s.label,
@@ -114,4 +184,7 @@ def listing(user, kinds: tuple = ()) -> list:
         'api_key_label': s.api_key_label or "Clé d'API",
         'api_key_help_url': s.api_key_help_url,
         'has_key': s.key in configured,
+        # La clé d'instance PARTAGÉE (2026-10-07) : le profil dit « fournie par l'établissement »
+        # au lieu de « non configuré » — l'utilisateur peut quand même poser la sienne.
+        'shared_available': s.key in shared,
     } for s in keyed_sources(user, kinds)]

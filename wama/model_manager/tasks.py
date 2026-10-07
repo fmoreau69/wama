@@ -43,13 +43,14 @@ def sync_models_task(self, clean: bool = False):
 
 
 @shared_task(name='model_manager.register_cloud_key')
-def register_cloud_key_task(key_id: int):
+def register_cloud_key_task(key_id: int, instance: bool = False):
     """Le catalogue suit les modèles qu'une clé d'API vient d'ouvrir (`cloud_models.
     register_open_models`) — la partie longue de l'enregistrement d'une clé au profil, sortie de
-    la requête le 2026-10-02 (plus de deux minutes, page sans retour)."""
-    from wama.accounts.models import UserApiKey
+    la requête le 2026-10-02 (plus de deux minutes, page sans retour). `instance` : la clé est
+    celle de l'instance (page Sources externes, 2026-10-07), pas celle d'un utilisateur."""
+    from wama.accounts.models import InstanceApiKey, UserApiKey
     from .services.cloud_models import register_open_models
-    row = UserApiKey.objects.filter(pk=key_id).first()
+    row = (InstanceApiKey if instance else UserApiKey).objects.filter(pk=key_id).first()
     if row is None:                      # clé retirée entre-temps : rien à ranger
         return {'registered': False}
     register_open_models(row)

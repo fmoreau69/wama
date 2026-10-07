@@ -302,18 +302,13 @@ class AppAccessPolicy(models.Model):
         return f"AppAccessPolicy({self.app_id})"
 
 
-class UserApiKey(models.Model):
-    """Clé d'API PERSONNELLE d'un utilisateur pour une source externe (fournisseur LLM…).
+class ProviderKey(models.Model):
+    """Ce qu'une clé d'API porte, qu'elle soit d'un UTILISATEUR (`UserApiKey`) ou de l'INSTANCE
+    (`InstanceApiKey`) : la clé chiffrée et ce que le fournisseur a répondu quand on l'a lue.
 
-    `source` est une clé d'`external_sources` : adresse, variable d'instance et page d'aide vivent
-    là-bas, rien n'est recopié ici. Chiffrée au repos (`secret_crypto.EncryptedTextField`).
-
-    Pourquoi par utilisateur (Fabien, 2026-09-15) : les quotas se RÉPARTISSENT — une clé partagée
-    (10 requêtes/min chez Albert sur certains modèles) serait épuisée par quelques personnes d'un
-    même labo. La clé d'instance du `.env` ne sert qu'aux usages SANS utilisateur.
-    Forme reprise de `media_library.UserProviderConfig` (clés des connecteurs de la médiathèque).
+    Base ABSTRAITE (2026-10-07) : la découverte des modèles (`cloud_models.refresh_key`) lit
+    les mêmes champs sur les deux, sans savoir à qui la clé appartient.
     """
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='api_keys')
     source = models.CharField(max_length=64, verbose_name='Source externe')
     api_key = EncryptedTextField(blank=True, default='', verbose_name="Clé d'API")
     updated_at = models.DateTimeField(auto_now=True)
@@ -335,12 +330,54 @@ class UserApiKey(models.Model):
     discovery_error = models.CharField(max_length=255, blank=True, default='')
 
     class Meta:
+        abstract = True
+
+
+class UserApiKey(ProviderKey):
+    """Clé d'API PERSONNELLE d'un utilisateur pour une source externe (fournisseur LLM…).
+
+    `source` est une clé d'`external_sources` : adresse, variable d'instance et page d'aide vivent
+    là-bas, rien n'est recopié ici. Chiffrée au repos (`secret_crypto.EncryptedTextField`).
+
+    Pourquoi par utilisateur (Fabien, 2026-09-15) : les quotas se RÉPARTISSENT — une clé partagée
+    (10 requêtes/min chez Albert sur certains modèles) serait épuisée par quelques personnes d'un
+    même labo. La clé d'instance ne sert qu'aux usages SANS utilisateur — sauf chez une source
+    qui se déclare `shareable` et dont l'admin a partagé la clé (`InstanceApiKey.shared`).
+    Forme reprise de `media_library.UserProviderConfig` (clés des connecteurs de la médiathèque).
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='api_keys')
+
+    class Meta:
         verbose_name = "Clé d'API utilisateur"
         verbose_name_plural = "Clés d'API utilisateurs"
         unique_together = [['user', 'source']]
 
     def __str__(self):
         return f"{self.user.username} — {self.source}"
+
+
+class InstanceApiKey(ProviderKey):
+    """Clé d'API de l'INSTANCE pour une source externe — posée par un admin depuis la page
+    « Sources externes » (2026-10-07, décision de Fabien), au lieu du seul `.env`.
+
+    Résolution (`external_sources.api_key`) : cette ligne d'abord, la variable `.env` ensuite —
+    le `.env` reste le repli du démarrage et de la ligne de commande.
+
+    `shared` : la clé sert aussi à TOUT compte qui n'a pas posé la sienne (`api_keys.key_for`).
+    Refusé si la source ne se déclare pas `shareable` : c'est la source qui sait si ses clés
+    sont faites pour une application (ILaaS) ou pour une personne (Albert, quotas par compte).
+    """
+    source = models.CharField(max_length=64, unique=True, verbose_name='Source externe')
+    shared = models.BooleanField(default=False, verbose_name='Partagée avec tous les comptes')
+    updated_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+', verbose_name='Posée par')
+
+    class Meta:
+        verbose_name = "Clé d'API de l'instance"
+        verbose_name_plural = "Clés d'API de l'instance"
+
+    def __str__(self):
+        return f"instance — {self.source}"
 
 
 @receiver(post_save, sender=User)

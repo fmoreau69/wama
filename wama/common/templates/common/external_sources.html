@@ -78,15 +78,22 @@ smoke.{% endcomment %}
   <div class="wama-cat-grid" id="sourcesGrid" style="--cat-card-min: 360px;">
     {% for l in lignes %}
     <div class="wama-cat-card" data-id="{{ l.key }}" data-f-type="{{ l.kind }}"
-         data-f-portee="{% if l.locale %}locale{% else %}sortante{% endif %}">
+         data-f-portee="{% if l.locale %}locale{% else %}sortante{% endif %}"
+         data-f-cle="{{ l.key_state|default:'' }}">
       <h4>{{ l.label }}
         <span class="wama-cat-badge xs-type">{{ l.kind_label }}</span>
         {% if l.locale %}<span class="wama-cat-badge xs-locale">local</span>
         {% else %}<span class="wama-cat-badge xs-sortante">sortante</span>{% endif %}
+        {% comment %}Clé de l'INSTANCE (2026-10-07) : posée sur cette page par un admin, ou
+        lue dans `.env` ; « partagée » = elle sert aussi aux comptes qui n'ont pas la leur.
+        `xs-key-badges` est réécrit par le JS après un enregistrement.{% endcomment %}
+        <span class="xs-key-badges">
         {% if l.api_key_env %}
-          {% if l.cle_posee %}<span class="wama-cat-badge xs-cle-ok">clé posée</span>
+          {% if l.cle_posee %}<span class="wama-cat-badge xs-cle-ok">clé posée{% if l.key_origin == 'env' %} (.env){% endif %}</span>
           {% else %}<span class="wama-cat-badge xs-cle-ko">clé absente</span>{% endif %}
+          {% if l.shared %}<span class="wama-cat-badge xs-cle-ok">partagée</span>{% endif %}
         {% endif %}
+        </span>
         {% comment %}Clé de CHACUN (22/09) : jamais « configurée » ici — elle se pose au profil.{% endcomment %}
         {% if l.user_key %}<a class="wama-cat-badge xs-type" href="{{ profile_url }}" title="Chaque utilisateur pose sa propre clé, au profil">clé par utilisateur → profil</a>{% endif %}
       </h4>
@@ -137,6 +144,7 @@ smoke.{% endcomment %}
 
 {% block javascript %}
 {{ block.super }}
+{% if can_manage_keys %}<script src="{% static_v 'common/js/wama-key-field.js' %}"></script>{% endif %}  {# WamaKeyField : le champ de clé du profil, pour la clé de l'instance #}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -160,6 +168,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 : '<span class="badge bg-primary">Internet (proxy UGE)</span>'];
             if (s.api_key_env) b.push(s.cle_posee ? '<span class="badge bg-success">clé posée</span>'
                                                    : '<span class="badge bg-danger">clé absente</span>');
+            if (s.shared) b.push('<span class="badge bg-success">partagée avec tous les comptes</span>');
             if (s.user_key) b.push('<span class="badge bg-info">clé par utilisateur (profil)</span>');
             return b;
         } },
@@ -169,6 +178,8 @@ document.addEventListener('DOMContentLoaded', function () {
             { k: 'Réglage Django', field: 'setting', code: true },
             { k: "Variable d'environnement", field: 'env', code: true },
             { k: "Clé d'API (variable)", field: 'api_key_env', code: true },
+            { k: "Clé de l'instance", get: function (s) {
+                return s.api_key_env ? (KEY_ORIGINS[s.key_origin] || 'absente') : ''; } },
             { k: "Clé de chaque utilisateur", get: function (s) {
                 return s.user_key ? ((s.api_key_label || "Clé d'API") + ' — au profil') : ''; } },
         ] },
@@ -185,6 +196,112 @@ document.addEventListener('DOMContentLoaded', function () {
             { k: 'Document', field: 'doc', code: true },
         ] },
     ];
+    const KEY_ORIGINS = { stored: 'posée sur cette page', env: 'lue dans .env' };
+
+    // ── Clé de l'INSTANCE (2026-10-07) — réservée aux admins ───────────────────────────
+    // Le champ est celui du profil (`WamaKeyField`) ; la route est écrite en LITTÉRAL et non
+    // par `url` : un gabarit est relu à chaud en production, une route encore inconnue du
+    // processus y lèverait NoReverseMatch sur toute la page jusqu'à la relance.
+    const CAN_MANAGE_KEYS = {{ can_manage_keys|yesno:'true,false' }} && !!window.WamaKeyField;
+    const CURRENT_USER = "{{ user.get_username|escapejs }}";
+    const keyUrl = function (key) { return '/common/sources/' + encodeURIComponent(key) + '/instance-key/'; };
+
+    function keyPanel(s) {
+        if (!CAN_MANAGE_KEYS || !s.api_key_env) return '';
+        const ik = s.instance_key || null;
+        const status = ik ? { text: '✓ Posée sur cette page', cls: 'bg-success' }
+            : (s.key_origin === 'env' ? { text: 'Lue dans .env', cls: 'bg-info' }
+                                      : { text: 'Absente', cls: 'bg-secondary' });
+        const facts = [];
+        if (ik && ik.updated_by) facts.push('posée par ' + WamaApp.escapeHtml(ik.updated_by) + ' le ' + WamaApp.escapeHtml(ik.updated_at));
+        if (ik && s.kind === 'llm') facts.push(ik.models_count + ' modèle(s) ouvert(s)');
+        if (ik && ik.discovery_error) facts.push('<span class="text-warning">' + WamaApp.escapeHtml(ik.discovery_error) + '</span>');
+        let share = '';
+        if (s.shareable) {
+            share = '<div class="form-check form-switch mt-2">' +
+                '<input class="form-check-input" type="checkbox" id="share-' + s.key + '" data-share-key="' + s.key + '"' +
+                (s.shared ? ' checked' : '') + (ik ? '' : ' disabled') + '>' +
+                '<label class="form-check-label small" for="share-' + s.key + '">Partager avec tous les comptes' +
+                '<span class="text-white-50"> — elle sert à qui n\'a pas posé sa clé au profil</span></label></div>';
+        } else if (s.user_key) {
+            share = '<div class="small text-white-50 mt-2">Non partageable : chacun pose sa clé au profil ' +
+                    '(celle-ci ne sert qu\'aux tâches sans utilisateur).</div>';
+        }
+        return '<div class="mt-3"><div class="text-info small fw-bold mb-1">Clé de l\'instance</div>' +
+            WamaKeyField.render({ id: 'instance-' + s.key, name: s.label, hasKey: !!ik, status: status,
+                                  label: s.api_key_label, helpUrl: s.api_key_help_url,
+                                  data: { source: s.key },
+                                  extra: (facts.length ? '<div class="small text-white-50 mt-1">' + facts.join(' · ') + '</div>' : '') + share }) +
+            (s.key_origin === 'env' && !ik ? '<div class="small text-white-50 mt-1">Une clé posée ici prime sur celle de .env, qui reste le repli.</div>' : '') +
+            '</div>';
+    }
+
+    function cardBadges(s) {
+        if (!s.api_key_env) return '';
+        return (s.cle_posee ? '<span class="wama-cat-badge xs-cle-ok">clé posée' + (s.key_origin === 'env' ? ' (.env)' : '') + '</span>'
+                            : '<span class="wama-cat-badge xs-cle-ko">clé absente</span>') +
+               (s.shared ? ' <span class="wama-cat-badge xs-cle-ok">partagée</span>' : '');
+    }
+
+    // Après un enregistrement : l'état LOCAL suit la réponse (la clé ne revient jamais), la
+    // carte et l'inspecteur se redessinent — sans recharger la page ni perdre la sélection.
+    function refreshSource(s, msg) {
+        const card = grid.querySelector('.wama-cat-card[data-id="' + s.key + '"]');
+        if (card) {
+            const holder = card.querySelector('.xs-key-badges');
+            if (holder) holder.innerHTML = cardBadges(s);
+            card.dataset.fCle = s.shared ? 'shared' : (s.key_origin ? 'set' : 'missing');
+        }
+        if (host) host.innerHTML = WamaDetails.renderSections(s, SOURCE_DETAIL_SCHEMA) + keyPanel(s);
+        if (msg) WamaKeyField.showMsg(document.getElementById('msg-instance-' + s.key), msg[0], msg[1]);
+    }
+
+    function saveInstanceKey(s, key, btn) {
+        WamaKeyField.send({ url: keyUrl(s.key), body: { api_key: key }, btn: btn,
+                            msgEl: document.getElementById('msg-instance-' + s.key),
+                            pending: key ? (s.kind === 'llm' ? 'Enregistrement et lecture des modèles ouverts…' : 'Enregistrement…') : 'Suppression…' })
+            .then(function (data) {
+                if (!data.success) return;
+                if (key) {
+                    s.instance_key = Object.assign({ shared: false }, s.instance_key || {}, {
+                        updated_by: CURRENT_USER, updated_at: "à l'instant",
+                        models_count: data.models_count || 0, discovery_error: data.discovery_error || '' });
+                    s.key_origin = 'stored';
+                    s.cle_posee = true;
+                } else {
+                    // Retirée de la page : le `.env`, s'il en porte une, redevient la source —
+                    // connu au prochain affichage ; d'ici là, on ne prétend pas qu'il y en a une.
+                    s.instance_key = null;
+                    s.key_origin = '';
+                    s.cle_posee = false;
+                }
+                s.shared = !!(s.instance_key && s.instance_key.shared);
+                refreshSource(s, WamaKeyField.savedMessage(data, key));
+            });
+    }
+
+    if (CAN_MANAGE_KEYS && host) {
+        WamaKeyField.bind(host, {
+            onSave: function (btn, key) { saveInstanceKey(byId[btn.dataset.source], key, btn); },
+            onDelete: function (btn) { saveInstanceKey(byId[btn.dataset.source], '', btn); },
+        });
+        host.addEventListener('change', function (e) {
+            const box = e.target.closest('[data-share-key]');
+            if (!box) return;
+            const s = byId[box.dataset.shareKey];
+            box.disabled = true;
+            WamaKeyField.send({ url: keyUrl(s.key), body: { shared: box.checked },
+                                msgEl: document.getElementById('msg-instance-' + s.key) })
+                .then(function (data) {
+                    if (!data.success) { box.checked = !box.checked; box.disabled = false; return; }
+                    s.shared = !!data.shared;
+                    if (s.instance_key) s.instance_key.shared = s.shared;
+                    refreshSource(s, [s.shared ? '✓ Partagée avec tous les comptes'
+                                               : '✓ Réservée aux tâches sans utilisateur', false]);
+                });
+        });
+    }
+
     const SOURCE_ACTIONS_SCHEMA = [
         { label: "Ouvrir l'adresse", icon: 'fas fa-external-link-alt', cls: 'btn btn-sm btn-outline-info',
           when: function (s) { return !!s.url; },
@@ -200,7 +317,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const s = byId[card.dataset.id];
             const btnHost = document.getElementById('inspectorActionButtons');
             if (!s) { h.innerHTML = '<p class="text-muted">Source inconnue.</p>'; if (btnHost) btnHost.innerHTML = ''; return; }
-            h.innerHTML = WamaDetails.renderSections(s, SOURCE_DETAIL_SCHEMA);
+            h.innerHTML = WamaDetails.renderSections(s, SOURCE_DETAIL_SCHEMA) + keyPanel(s);
             if (btnHost) {
                 const r = WamaDetails.renderActions(s, SOURCE_ACTIONS_SCHEMA);
                 btnHost.innerHTML = r.html;

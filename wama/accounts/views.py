@@ -263,9 +263,8 @@ def api_key_save(request, slug):
     """POST {api_key} : enregistre (chiffrée) ou efface (vide) la clé personnelle d'un fournisseur."""
     # Toute source à clé personnelle, plus les seuls LLM (2026-09-26) : les moteurs de
     # recherche posent leur clé par le MÊME écran et la MÊME route.
-    from .api_keys import is_keyed_source
+    from .api_keys import is_keyed_source, store_key
     from .models import UserApiKey
-    from wama.common.utils.secret_crypto import SecretStorageUnavailable
 
     if not is_keyed_source(slug, request.user):
         return JsonResponse({'error': 'Fournisseur introuvable'}, status=404)
@@ -274,37 +273,16 @@ def api_key_save(request, slug):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'JSON invalide'}, status=400)
     api_key = (data.get('api_key') or '').strip()
-    if len(api_key) > 500:
-        return JsonResponse({'error': 'Clé trop longue (500 caractères au plus)'}, status=400)
 
     if not api_key:
         UserApiKey.objects.filter(user=request.user, source=slug).delete()
         return JsonResponse({'success': True, 'has_key': False})
-    # Refus AVANT toute écriture : levée pendant un `save()`, l'exception marquerait la
-    # transaction en cours comme cassée. Celle du champ reste le filet de sécurité.
-    if not storage_available():
-        return JsonResponse({'error': "Enregistrement des clés indisponible : DJANGO_SECRET_KEY "
-                                      "n'est pas définie sur ce serveur."}, status=503)
-    row, _ = UserApiKey.objects.get_or_create(user=request.user, source=slug)
-    row.api_key = api_key
-    try:
-        row.save(update_fields=['api_key', 'updated_at'])
-    except SecretStorageUnavailable as exc:
-        return JsonResponse({'error': str(exc)}, status=503)
-    # Découverte des modèles ouverts à CETTE clé (ROADMAP §8d, 4b). Un échec ne défait pas
-    # l'enregistrement : il est rendu lisible, et la clé reste posée.
-    # ⚠ Réservée aux FOURNISSEURS DE MODÈLES (famille `llm`, 2026-09-27) : elle interroge
-    # `<adresse>/models`, qui n'existe pas chez un moteur de recherche (fausse erreur affichée)
-    # et répond une PAGE HTML chez HuggingFace (lecture JSON → 500 à l'enregistrement).
-    from .api_keys import is_llm_source
-    if not is_llm_source(slug, request.user):
-        return JsonResponse({'success': True, 'has_key': True})
-    from wama.model_manager.services.cloud_models import refresh_key
-    # Le catalogue se met à jour EN TÂCHE DE FOND (2026-10-02) : dans la requête, la
-    # synchronisation complète prenait plus de deux minutes, page figée.
-    count, error = refresh_key(row, background=True)
-    return JsonResponse({'success': True, 'has_key': True, 'models_count': count,
-                         'discovery_error': error})
+    # Le geste COMMUN aux deux écrans de clés (profil, page Sources externes) : longueur,
+    # stockage chiffré disponible, enregistrement, lecture des modèles ouverts.
+    row = (UserApiKey.objects.filter(user=request.user, source=slug).first()
+           or UserApiKey(user=request.user, source=slug))
+    result = store_key(row, api_key)
+    return JsonResponse(result, status=result.pop('status'))
 
 
 @login_required

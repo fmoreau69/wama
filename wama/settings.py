@@ -1061,7 +1061,8 @@ LITELLM_PROVIDER = os.environ.get('LITELLM_PROVIDER', 'ollama')
 
 # Albert API (DINUM) — fournisseur compatible OpenAI, routé par `llm_chat(provider='albert')`.
 # Adresse et variable de clé déclarées dans `common/external_sources.py` (clé `albert`) ; la
-# clé vit dans `.env` (`ALBERT_API_KEY`). Vide = `llm_utils.CLOUD_DEFAULT_MODELS['albert']`.
+# clé d'instance vit sur la page « Sources externes » ou, en repli, dans `.env`
+# (`ALBERT_API_KEY`). Vide = le `default_model` de la source (2026-10-07).
 ALBERT_MODEL = os.environ.get('ALBERT_MODEL', '')
 
 # Enrichissement de prompt génératif (« upsampling ») — PromptPipeline hook A (ROADMAP §16.6).

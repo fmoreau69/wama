@@ -148,6 +148,9 @@ urlpatterns = [
     # La déclaration dérive du code ; la sonde (clé, joignabilité) est le rapport écrit par
     # le bouton hérité — en Celery, jamais dans le rendu.
     path('sources/', views.external_sources_view, name='sources_catalog'),
+    # Clé de l'INSTANCE d'une source, posée par un admin depuis la page (2026-10-07).
+    path('sources/<slug:key>/instance-key/', views.external_source_instance_key,
+         name='sources_instance_key'),
 
     # Journal transversal de l'utilisateur (WAMA_MEMORY.md §9bis) — dérive de detail_registry,
     # aucune ligne dans les apps.

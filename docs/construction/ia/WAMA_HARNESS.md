@@ -780,6 +780,7 @@ aucune migration, aucun changement de contrat de surface.
 | **contrat** | un fournisseur **existe** s'il est au registre, point. C'est ce qui referme au passage le trou nommé dans `WAMA_LLM.md:782` (un fournisseur non déclaré n'a **ni garde ni clé personnelle**, et reste atteignable par l'API v1) |
 | **atteste** | `tests_llm_providers` gagne une assertion : **tout** fournisseur accepté par `llm_chat` a une entrée `external_sources`. Le test échoue aujourd'hui — c'est le but |
 | **dépend de** | rien, mais **croise** `ROADMAP §8d Phase 3 étape 4` (registre des fournisseurs) : à faire **dans** ce chantier-là, pas à côté |
+| **état (2026-10-07)** | ① ✅ fait (`llm_utils.openai_compatible_source`, garde `tests_llm_providers.OpenAICompatibleProvidersAreDerivedTest`) · ② 🔄 pour les fournisseurs DÉCLARÉS (`ExternalSource.default_model` : Albert, ILaaS, API Anthropic) — les 7 sans source restent dans `CLOUD_DEFAULT_MODELS` · ③ ⏳. Fait à l'arrivée d'ILaaS, 2ᵉ fournisseur OpenAI-compatible (`WAMA_LLM.md`) |
 
 ### Ce qui n'est PAS un chantier — quatre questions et leur déclencheur
 

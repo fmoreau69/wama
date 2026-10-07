@@ -596,24 +596,37 @@ def external_sources_view(request):
     """
     from django.urls import reverse
 
-    from .external_sources import KINDS, SOURCES, LOCAL, api_key, base_url, last_report
+    from wama.accounts.views import is_admin
+
+    from .external_sources import (KINDS, SOURCES, LOCAL, api_key_origin, base_url,
+                                   last_report)
 
     rapport = last_report()
     sondes = {r['key']: r for r in (rapport or {}).get('results', [])}
+    admin = is_admin(request.user)
+    stored = _instance_key_rows()
     lignes = []
     for s in SOURCES:
+        origin = api_key_origin(s.key)
         lignes.append({
             'key': s.key, 'label': s.label, 'usage': s.usage, 'doc': s.doc,
             'kind': s.kind, 'kind_label': KINDS.get(s.kind, s.kind),
             'locale': s.scope == LOCAL, 'url': base_url(s.key),
             'setting': s.setting, 'env': s.env,
             'api_key_env': s.api_key_env,
-            'cle_posee': bool(api_key(s.key)) if s.api_key_env else None,
+            'cle_posee': bool(origin) if s.api_key_env else None,
             # Clé posée par CHAQUE utilisateur, au profil (22/09) — jamais « configurée » ici.
             'user_key': s.user_key,
             'api_key_label': s.api_key_label, 'api_key_help_url': s.api_key_help_url,
             'attribution': s.attribution,
             'sonde': sondes.get(s.key),
+            # Clé de l'INSTANCE (2026-10-07) : d'où elle vient ('stored' = posée sur cette page,
+            # 'env' = `.env`), si elle est partagée, et — pour un admin seulement — qui l'a posée
+            # et ce qu'elle ouvre. La clé elle-même ne quitte jamais le serveur.
+            'key_origin': origin,
+            'shareable': s.shareable,
+            'shared': bool(stored.get(s.key) and stored[s.key]['shared']),
+            'instance_key': stored.get(s.key) if admin else None,
         })
 
     # Facette « Type » (2026-09-02, remarque de Fabien : « je ne peux filtrer que par
@@ -626,6 +639,15 @@ def external_sources_view(request):
         {'cle': 'portee', 'label': 'Portée', 'tous': 'Toutes les portées',
          'options': {'locale': 'Service local', 'sortante': 'Internet (proxy UGE)'}},
     ]
+    # Facette « Clé de l'instance » (2026-10-07) : retrouver d'un coup ce qui attend une clé.
+    key_states = {'shared': 'Partagée avec tous les comptes', 'set': 'Posée',
+                  'missing': 'À poser'}
+    for l in lignes:
+        l['key_state'] = ('shared' if l['shared'] else 'set' if l['key_origin']
+                          else 'missing' if l['api_key_env'] else '')
+    present_states = {l['key_state'] for l in lignes}
+    facettes.append({'cle': 'cle', 'label': "Clé de l'instance", 'tous': 'Toutes',
+                     'options': {k: v for k, v in key_states.items() if k in present_states}})
 
     return render(request, 'common/external_sources.html', {
         'lignes': lignes,
@@ -636,11 +658,81 @@ def external_sources_view(request):
         'user_key_count': sum(1 for l in lignes if l['user_key']),
         'profile_url': reverse('accounts:profile'),
         'facettes_sources': facettes,
+        'can_manage_keys': admin,
         # Inspecteur au clic sur une carte (volet droit : Paramètres = fiche, Actions =
         # boutons) — même câblage que `/apps/` (`WamaInspector` + `WamaDetails`). Pas de
         # section Médias : une source n'a rien à prévisualiser.
         'volet': volet(medias=False),
     })
+
+
+def _instance_key_rows() -> dict:
+    """{source: état} des clés d'instance POSÉES sur la page — jamais la clé elle-même."""
+    from wama.accounts.models import InstanceApiKey
+    rows = {}
+    for row in InstanceApiKey.objects.exclude(api_key='').select_related('updated_by'):
+        rows[row.source] = {
+            'shared': row.shared,
+            'updated_by': row.updated_by.get_username() if row.updated_by else '',
+            'updated_at': row.updated_at.strftime('%d/%m/%Y %H:%M') if row.updated_at else '',
+            'models_count': len(row.open_models or []),
+            'discovery_error': row.discovery_error,
+        }
+    return rows
+
+
+@login_required
+@require_POST
+def external_source_instance_key(request, key):
+    """POST — la clé d'INSTANCE d'une source, posée par un admin (2026-10-07, décision de Fabien :
+    « c'est la page Sources externes qui doit gérer les clés système »).
+
+    `{api_key: "…"}` enregistre (chiffrée) ; `{api_key: ""}` retire ; `{shared: bool}` seul
+    partage ou non la clé posée avec tous les comptes — refusé si la source ne se déclare pas
+    `shareable`. Le geste d'enregistrement est CELUI du profil (`api_keys.store_key`).
+    """
+    import json
+
+    from django.http import Http404
+
+    from wama.accounts.api_keys import store_key
+    from wama.accounts.models import InstanceApiKey
+    from wama.accounts.views import is_admin
+
+    from .external_sources import by_key
+
+    if not is_admin(request.user):
+        return JsonResponse({'error': 'Réservé aux administrateurs'}, status=403)
+    source = by_key().get(key)
+    if source is None or not source.api_key_env:
+        raise Http404('Source sans clé d\'instance')
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+    row = InstanceApiKey.objects.filter(source=key).first()
+    if 'api_key' not in data:
+        if 'shared' not in data:
+            return JsonResponse({'error': 'Rien à enregistrer'}, status=400)
+        if not source.shareable:
+            return JsonResponse({'error': f"{source.label} ne délivre pas de clé partageable : "
+                                          "chacun pose la sienne au profil."}, status=400)
+        if row is None or not row.api_key:
+            return JsonResponse({'error': "Posez d'abord la clé de l'instance."}, status=400)
+        row.shared, row.updated_by = bool(data['shared']), request.user
+        row.save(update_fields=['shared', 'updated_by', 'updated_at'])
+        return JsonResponse({'success': True, 'shared': row.shared})
+
+    api_key = (data.get('api_key') or '').strip()
+    if not api_key:
+        if row is not None:
+            row.delete()
+        return JsonResponse({'success': True, 'has_key': False})
+    row = row or InstanceApiKey(source=key)
+    row.updated_by = request.user
+    result = store_key(row, api_key)
+    return JsonResponse(result, status=result.pop('status'))
 
 
 def backends_catalog_view(request):
