@@ -328,6 +328,21 @@ class LostModelMembersJudgeTest(SimpleTestCase):
         self.assertEqual(self._judge('x = 1\n', template='{{ elem.options }}\n'), [])
 
 
+class JudgesAreSilentOnSoundPackagesTest(SimpleTestCase):
+    """A judge must say NOTHING about a sound package — and the ten real apps are sound by
+    definition (they run). Two false positives of the import judge refused EVERY target of
+    anonymizer_01 on its intact copy (2026-10-07) ; measured on the real packages here, the
+    next one shows up in the suite instead of in the middle of a twin fleet."""
+
+    APPS = ('anonymizer', 'avatarizer', 'composer', 'converter', 'describer', 'enhancer',
+            'imager', 'reader', 'synthesizer', 'transcriber')
+
+    def test_the_import_judge_finds_nothing_in_a_real_app(self):
+        for app in self.APPS:
+            with self.subTest(app=app):
+                self.assertEqual(cmd_sandbox._imports_intra_paquet_non_resolus(app), [])
+
+
 class CoupleViewsTemplatesTest(SimpleTestCase):
     """Défaut n°2 : substituer les templates SANS les views produit une paire incohérente —
     page 200, boutons morts. Le refus est nommé, et il précède toute génération."""
