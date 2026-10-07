@@ -59,13 +59,14 @@ def tts_engine_choices() -> list[tuple[str, str]]:
     Repli `[]` assumé : sans catalogue, le select se peuple par l'endpoint. Rendre ici la
     vieille liste en dur ferait réapparaître l'ancien espace de clés — donc précisément la
     panne silencieuse qu'on vient de décrire.
+    La lecture est LA lecture commune d'un select de catalogue (`param_schema.catalog_options`,
+    2026-10-07), importée ici paresseusement : ce module sert aussi le service TTS sans Django.
     """
     try:
-        from wama.model_manager.services import get_registry_models
-        choices, _info = get_registry_models(None, task=TTS_TASK)
-        return [(mid, nom) for mid, nom in choices]
-    except Exception:                                    # catalogue indisponible / hors Django
+        from wama.common.utils.param_schema import catalog_options
+    except Exception:                                    # hors Django
         return []
+    return catalog_options({'options_source': 'catalog', 'options_query': {'task': TTS_TASK}})
 
 
 def tts_engine_declared(key: str) -> Optional[str]:

@@ -61,6 +61,13 @@ Trois questions, dans l'ordre, AVANT d'extraire :
    (fonctionner SANS base : les upscalers embarqués) se garde ; une valeur que personne ne lit
    est une seconde vérité (vécu : `name`/`description`/`vram` recopiés du catalogue dans cinq
    backends, lus par personne — l'inventaire ne lit que les clés). `grep` le lecteur, pas le nom.
+4. **La même DÉCLARATION est-elle relue à la main ailleurs ?** Vécu le 2026-10-07 : le domaine
+   d'un select de catalogue (`options_query`) était relu par SEPT chemins (endpoint, tirage,
+   deux pré-rendus, validation de l'avatarizer, studio, porte du transcriber) — Fabien : « une
+   route unique ». Inventorier TOUS les consommateurs d'une déclaration (volet, modale ⚙, studio,
+   outil de l'assistant, chips, aide), et lui donner UNE lecture (`param_schema.catalog_options`).
+   Un `grep` du nom de la fonction ne trouve pas un test qui passe par le schéma : chercher aussi
+   la DÉCLARATION et lancer les suites des apps concernées, pas seulement celles qu'on a touchées.
 
 ## 2. Extraire (construction propre, pas de surcharge)
 - Partir de la MEILLEURE implémentation existante (souvent transcriber/reader), pas d'une moyenne.

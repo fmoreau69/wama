@@ -20,7 +20,7 @@ from django.test import TestCase
 from django.urls import NoReverseMatch, reverse
 
 from wama.transcriber.backends.manager import (
-    LEGACY_ENGINE_MODELS, backend_choice_values, catalogue_value, engine_name_for,
+    LEGACY_ENGINE_MODELS, catalogue_value, engine_name_for,
     resolve_auto_key,
 )
 from wama.transcriber.catalogue_fixtures import transcription_catalogue, transcription_row
@@ -150,21 +150,29 @@ class ThePreviewSaysWhatTheLaunchDrawsTest(TestCase):
         self.assertEqual('transcriber:qwen3-asr-1.7b', self._preview(with_resolution=False))
 
 
-class TheToolDoorDomainTest(TestCase):
+class TheToolDoorFollowsTheSingleRuleTest(TestCase):
+    """2026-10-07, one rule for every app (Fabien): a catalogue select announces nothing to the
+    tool and its door rejects nothing — the transcriber's own domain (`options_domain`,
+    `backend_choice_values`) is gone. A key, an old engine name, even a greyed model pass the
+    door; `save()` normalises, the launch refuses what nothing serves."""
 
-    def test_launchable_keys_and_old_names_pass_a_greyed_model_does_not(self):
+    def test_the_door_rejects_nothing_and_save_normalises_an_old_name(self):
+        from wama.common.utils.param_schema import invalid_choice_values, schema_for_app
         transcription_catalogue('transcriber:whisper', 'transcriber:qwen3-asr-1.7b')
-        # FrWhisper servait d'exemple de poids SANS backend jusqu'au 2026-10-01, où il en a reçu un
-        # (`frwhisper_backend`) : il est désormais proposé, et l'exemple grisé est inventé.
-        transcription_row('huggingface:aihpi/FrWhisper', engine='transformers')
         transcription_row('huggingface:org/unlisted-asr', engine='transformers')
-        values = backend_choice_values()
-        for value in ('auto', 'transcriber:whisper', 'transcriber:qwen3-asr-1.7b', 'whisper',
-                      'qwen_asr', 'huggingface:aihpi/FrWhisper'):
+        schema = schema_for_app('transcriber')
+        for value in ('auto', 'transcriber:whisper', 'whisper', 'qwen_asr',
+                      'huggingface:org/unlisted-asr'):
             with self.subTest(value=value):
-                self.assertIn(value, values)
-        self.assertNotIn('huggingface:org/unlisted-asr', values,
-                         'weights installed without a backend are greyed, not offered')
+                self.assertEqual({}, invalid_choice_values(schema, {'backend': value}))
+        user = get_user_model().objects.create_user('asr_door', password='x')
+        self.assertEqual(LEGACY_ENGINE_MODELS['whisper'], _transcript(user, 'whisper').backend)
+
+    def test_the_select_has_no_door_domain(self):
+        from wama.common.utils.param_schema import schema_for_app
+        field = next(p for p in schema_for_app('transcriber') if p['name'] == 'backend')
+        self.assertNotIn('options_domain', field)
+        self.assertFalse(field.get('choices'), 'a static prefix would make the door refuse')
 
 
 class TheEstimateLearnsUnderTheEngineTest(TestCase):

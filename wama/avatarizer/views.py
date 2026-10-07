@@ -60,15 +60,10 @@ def _animation_model_or_auto(value) -> str:
     value = (value or '').strip()
     if not value or is_auto(value):
         return AUTO
+    from wama.common.utils.param_schema import catalog_options
     field = next((p for p in _AVATAR_PARAMS_JSON if p['name'] == 'animation_model'), {})
-    query = dict(field.get('options_query') or {})
-    try:
-        from wama.model_manager.services import get_registry_models
-        choices, _info = get_registry_models(query.pop('source', None), **query)
-        known = {c[0] for c in choices}
-    except Exception:
-        known = set()
-    return value if value in known else AUTO
+    # LA lecture commune du domaine déclaré (2026-10-07) — elle vivait ici, recopiée.
+    return value if value in {v for v, _ in catalog_options(field)} else AUTO
 
 
 def _gallery_images():

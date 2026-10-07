@@ -68,9 +68,10 @@ PARAMS = derive_from_model(
             # « cloud autorisé » (`auto_model.declared_cloud_keys`).
             options_cloud=True,
             default="auto",
-            # Domaine SERVEUR : ce que la porte des outils ACCEPTE et annonce à l'assistant — sans
-            # lui elle ne connaîtrait aucun modèle (le navigateur remplit le select).
-            options_domain="wama.transcriber.backends.manager.backend_choice_values",
+            # Pas de domaine de porte (`options_domain`, retiré le 2026-10-07 — règle UNIQUE de
+            # toutes les apps) : sans `choices`, la porte des outils ne refuse rien, `save()`
+            # normalise (`catalogue_value`, anciens noms compris), le lancement refuse un modèle
+            # que rien ne sert ; l'assistant découvre les modèles par `list_ai_models`.
             # Pas d'aide statique : le `help_text` du champ (« Clé de catalogue… ») est une note de
             # DONNÉE, pas un texte pour l'utilisateur — vu à l'écran le 2026-09-30. Le descriptif
             # du modèle choisi s'affiche sous le select (WamaModelHelp, méta lue sur le domaine).

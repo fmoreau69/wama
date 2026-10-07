@@ -273,14 +273,7 @@ class IndexView(View):
         panel['ai_model'] = catalog_key(panel.get('ai_model') or 'auto', 'enhancer')
 
         import json as _json
-        from wama.common.utils.auto_model import AUTO, AUTO_LABEL
-        from wama.enhancer.utils.auto_model import MEDIA_SPEC
-        from wama.model_manager.services import get_registry_models
-        try:
-            media_models = list(get_registry_models(None, **MEDIA_SPEC)[0])
-        except Exception:       # repli `[]`, comme `tts_engine_choices` : l'endpoint repeuplera
-            logger.debug('[enhancer] catalogue illisible pour le pré-rendu', exc_info=True)
-            media_models = []
+        from wama.common.utils.param_schema import catalog_options
         from wama.enhancer.params import MEDIA_PARAMS_JSON, AUDIO_PARAMS_JSON
         queue_count = sum(len(b['items']) for b in batches_list) +                       sum(len(b['items']) for b in audio_batches_list)
 
@@ -296,11 +289,10 @@ class IndexView(View):
                                          if p.name == 'output_format'),
             'output_quality_choices': next(p.choices for p in MEDIA_PARAMS
                                            if p.name == 'output_quality'),
-            # Pré-rendu du select « Modèle AI » : le DOMAINE du schéma, lu au catalogue par la
-            # brique que l'endpoint appelle (`get_registry_models`) — même vocabulaire que la
-            # liste qui le repeuple (`bindOptionSources`), sinon la valeur courante n'y serait pas
-            # retrouvée (cf. `common/tts/ui_meta.tts_engine_choices`, même geste).
-            'ai_models': [(AUTO, AUTO_LABEL)] + media_models,
+            # Pré-rendu du select « Modèle AI » : LA lecture commune du domaine déclaré
+            # (`catalog_options`, « auto » compris) — même vocabulaire que la liste qui le repeuple
+            # (`bindOptionSources`), sinon la valeur courante n'y serait pas retrouvée.
+            'ai_models': catalog_options(next(p for p in MEDIA_PARAMS if p.name == 'ai_model')),
             # Schémas déclaratifs par domaine → inspecteur contextuel (WamaInspector.initFromSchema).
             'media_params_json': _json.dumps(MEDIA_PARAMS_JSON),
             'audio_params_json': _json.dumps(AUDIO_PARAMS_JSON),

@@ -2208,3 +2208,22 @@ partiel préexistant).
   route F4b n'a pas encore portés. Garde `TheCriterionSeesTheDomainTest` (apps réelles).
 - **GPU** : rien n'a tourné sur la carte. Premier agrandissement réel par une card à faire au
   redémarrage (migration `enhancer/0018` appliquée par `start_wama_prod.sh`).
+
+**Suite du 2026-10-07 — relecture de Fabien, « vérifie plus largement » puis « une route unique ».**
+- `SUPPORTED_MODELS` : TROIS familles mesurées — paramètres d'EXÉCUTION lus par le backend
+  (imager, NeMo, pyannote : gardés), repli SANS base (upscalers embarqués : gardé), valeurs lues
+  par PERSONNE (six backends du rôle : retirées). La règle « `model_key` seul » du 06/10 était
+  trop stricte : elle devient « une valeur que le module ne LIT pas est refusée »
+  (`supported_entry_errors(…, code)`), contre-épreuve dans les deux sens.
+- Incidences cherchées hors des seuls lecteurs directs : Lab et Data — aucune ; STUDIO — un nœud
+  ne savait faire un select que depuis des `choices` : 7 nœuds sur 8 (dont l'enhancer depuis
+  `a68e7494`) avaient un champ TEXTE → ils héritent des options du catalogue (`c08941a3`) ;
+  ASSISTANT — `add_to_enhancer` n'annonçait plus de liste.
+- **Route UNIQUE** (décision de Fabien) : un select de catalogue n'annonce rien à l'outil et sa
+  porte ne refuse rien, dans TOUTES les apps — `options_domain` (transcriber seul) retiré
+  (REMOVAL_LEDGER R108), le lancement refuse ce que rien ne sert, l'assistant découvre par
+  `list_ai_models`. Les lectures SERVEUR du domaine déclaré (cinq, écrites à la main : volets,
+  studio, validation de l'avatarizer) passent par UNE brique, `param_schema.catalog_options`.
+- La MODALE ⚙ (relevé par Fabien) se remplit par l'endpoint et resélectionne la valeur stockée
+  seulement si elle est une option : contrat gardé (`CatalogueKeysTest.
+  test_the_item_modal_finds_the_stored_model_among_its_options`, contre-épreuve rouge).

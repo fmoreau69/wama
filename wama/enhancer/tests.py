@@ -163,6 +163,33 @@ class CatalogueKeysTest(TestCase):
         self.assertEqual('enhancer:img:RealESR_Gx4:x4',
                          enhancer_eta_key_size(e, model='RealESR_Gx4')[0], 'bare id, same key')
 
+    def test_the_item_modal_finds_the_stored_model_among_its_options(self):
+        """The ⚙ modal (WamaParams) is built on the SAME schema: it fetches the options endpoint
+        with the declared domain, then re-selects the item's stored value — ONLY if that value is
+        an option (`wama-params.js` `_bindOptionSources`, `wanted`); otherwise it falls back to
+        « auto » and a save would overwrite the chosen model. Stored value and options must share
+        one key space: measured here end to end, as the modal builds its request."""
+        from urllib.parse import urlencode
+        from django.contrib.auth.models import Group
+        from django.urls import reverse
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
+        from wama.enhancer.params import MEDIA_PARAMS
+        for role in (DEFAULT_APP_ACCESS.get('model_manager') or {}).get('roles', []):
+            self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+        self.client.force_login(self.user)
+        field = next(p for p in MEDIA_PARAMS if p.name == 'ai_model')
+        query = urlencode(sorted(field.options_query.items())) + '&auto=1'   # = `_optionQuery`
+        response = self.client.get(reverse('model_manager:api_model_options') + '?' + query)
+        self.assertEqual(200, response.status_code, response.content[:200])
+        offered = {o[0] if isinstance(o, list) else o['value']
+                   for g in response.json()['groups'] for o in g['options']}
+        # A bare id of before (`BSRGANx4`), an installed model, and « auto ».
+        for stored in ('BSRGANx4', SWIN2SR_KEY, 'auto'):
+            with self.subTest(stored=stored):
+                item = Enhancement.objects.create(user=self.user, media_type='image',
+                                                  ai_model=stored)
+                self.assertIn(item.gear_data['ai-model'], offered)
+
     def test_the_input_match_meta_names_the_media_options_by_key(self):
         from wama.enhancer.views import _input_match_meta_enhancer
         self.assertIn(SWIN2SR_KEY, _input_match_meta_enhancer())

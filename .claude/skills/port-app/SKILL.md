@@ -136,17 +136,26 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `docs/construction/a
       (un modèle installé d'une autre source n'y entrerait pas — le critère
       `model_options_catalog` le mesure depuis le 2026-10-06) ; le domaine se déclare UNE fois
       et le tirage « auto » le lit ;
-    - plus de `choices` statiques ni de domaine de porte (`options_domain`) : sans eux
-      `invalid_choice_values` n'a rien à refuser — c'est le `save()` du modèle qui normalise
-      (`model_keys.catalog_key`) ; le transcriber a un `options_domain` parce qu'il ANNONCE des
-      modèles distants, pas par défaut ;
+    - plus de `choices` statiques : UNE règle pour toutes les apps (2026-10-07) — la porte des
+      outils n'a rien à refuser, l'outil n'annonce rien (l'assistant passe par
+      `list_ai_models`), le `save()` du modèle normalise (`model_keys.catalog_key`), le lancement
+      refuse ce que rien ne sert. `options_domain` n'existe plus (REMOVAL_LEDGER R108) ;
     - valeurs = clés : migration PURE de préfixage (`imager/0023`, `enhancer/0018`) ; nom de
       fichier et clé ETA gardent l'identifiant (`model_id`) ;
     - lancement : `backend_for_key(clé)`, le backend reçoit `model_id` ;
-    - pré-rendu serveur d'un volet HTML : `get_registry_models(None, **domaine)` dans la vue ;
+    - TOUTE lecture serveur du domaine passe par `param_schema.catalog_options(<param déclaré>)`
+      — pré-rendu d'un volet HTML, nœud du studio, validation à la création ; jamais un
+      `get_registry_models` recopié ;
+    - la MODALE ⚙ (élément et lot) et le volet se remplissent par l'endpoint et resélectionnent
+      la valeur STOCKÉE seulement si elle est une option : valeur stockée et options dans le
+      MÊME espace de clés (garde `enhancer.tests.CatalogueKeysTest.
+      test_the_item_modal_finds_the_stored_model_among_its_options`) ;
     - un modèle INSTALLÉ servi par un backend existant : `SUPPORTED_MODELS[<org/dépôt>] =
-      {'model_key': …}` et RIEN d'autre — ses faits sont au registre (`backend_proposals`
-      refuse une valeur recopiée, une garde balaie tout le vivier).
+      {'model_key': …}` plus les seuls paramètres d'exécution que le code LIT — ses faits sont
+      au registre (`backend_proposals` refuse une valeur non lue, une garde balaie le vivier).
+    - Lister TOUS les consommateurs du schéma avant de conclure : select du volet, modale
+      d'élément et de lot, nœud du studio, outil de l'assistant (porte + annonce), chips de
+      card, aide du modèle, appariement entrée ↔ modèle.
 
 ## 2. Pièges récurrents (chacun a déjà coûté une session)
 - `{# #}` multi-ligne Django PAS strippé → toujours `{% comment %}`.
