@@ -1145,6 +1145,62 @@ gestes du partage, rejoués dans la même passe sur le live, restent verts. Domi
 Rejoué **9/9** le 2026-10-06 (8011, code neuf) : « Mes partages » marque désormais chaque
 personne `data-person` (ex-`data-collaborator`), le geste suit.
 
+### « Transférer à… » en 500 sur le LIVE : une lecture tolérée qui empoisonnait la transaction (2026-10-07)
+
+Rejoués sur le live après relance, `card_transfer`, `batch_transfer` et
+`received_card_readonly_request` (dont l'acceptation cède la card) tombaient : `/common/api/transfer/`
+répondait **500** (« current transaction is aborted »). Cause, trouvée par une sonde SQL sur la base
+réelle : `file_references.referenced_outside` lit TOUS les modèles qui portent des fichiers, jumelles
+de bac à sable comprises, et tolérait l'échec d'une lecture par `try/except` — or la table de
+`composer_01` ne suivait plus son modèle (travail en cours d'une autre instance), et sous PostgreSQL
+une requête en échec EMPOISONNE la transaction du transfert : la requête suivante, sans rapport,
+tombait. Corrigé dans la brique : les six lectures tolérées de `file_references` passent par un
+POINT DE SAUVEGARDE (`_tolerated`) ; garde `ToleratedReadInsideATransactionTest` (contre-épreuve :
+sans le point de sauvegarde, rouge). Les trois gestes : 12/12, 5/5, 6/6 (8011, code neuf).
+⚠ **Effet de bord des échecs** : un déplacement de fichier ne s'annule pas avec la transaction, et
+`card_transfer` / `batch_transfer` faisaient leur ménage APRÈS leur bloc `try` — interrompus, ils
+laissaient leur card témoin en base (4 restes, comptes de test 22 et 189), qui désignait encore le
+fichier témoin : le passage suivant le COPIAIT au lieu de le déplacer. Restes retirés ; le ménage des
+deux gestes est désormais dans leur `finally`.
+
+### La complétion des personnes dans « Partager… » (2026-10-07)
+
+Scénario **`common.people_completion`** (`ui_smoke_menus.py`), **4/4** (8011, code neuf) : compte
+développeur, clic droit → « Partager… » ; le champ « Avec une personne » porte une liste ; la saisie
+de l'identifiant d'une personne réelle la propose ; un début d'adresse e-mail ne propose rien.
+Lecture seule. Rejoués dans la même passe : `person_share_cycle` 12/12, `card_transfer` 5/5,
+`batch_transfer` 6/6 (« Transférer à… » passe désormais par le point d'accroche de `WamaApp.ask`).
+
+### Une fille de lot partagée arrive SEULE ; « Ouvrir » marque lu (2026-10-07)
+
+Scénario **`common.received_child_alone`** (`ui_smoke_menus.py`), **6/6 sur le LIVE** : un lot de
+deux cards du compte développeur, une seule partagée ; chez le destinataire, elle est en card
+SEULE, la sœur privée absente, l'état du lot ne liste qu'elle ; « Mes partages » dit « depuis le … »
+pour la portée. Scénario **`common.notification_open_marks_read`**, **5/5 sur le LIVE** : « Ouvrir »
+depuis la fenêtre en bas à droite et depuis la page mène à l'élément et marque lu. Il a relevé une
+vraie imperfection : le panneau console journalisait comme une ERREUR l'interrogation que le
+navigateur annule quand on quitte la page (`console.js`, corrigé). Domicile : `WAMA_COLLABORATION`
+§3bis.2 et §2.3.
+Même passe sur le LIVE (gunicorn relancé par Fabien), douze gestes du partage verts :
+`received_child_alone` 6/6, `notification_open_marks_read` 5/5, `correction_conflict` 7/7,
+`person_share_cycle` 12/12, `collaboration_cycle` 9/9, `received_card_visible` 7/7,
+`received_entry_arrangement` 8/8, `received_card_readonly_request` 12/12, `received_card_duplicate`
+6/6, `card_transfer` 5/5, `batch_transfer` 6/6, `media_library.share_consent` 7/7.
+⚠ **`media_library.share_consent` était ROUGE chaque nuit** (rapports du 05 et du 06/10, détail
+vide) : il lisait la base pendant que Playwright tournait (`SynchronousOnlyOperation`, que le
+lanceur nocturne, qui exécute dans le même fil, ne contourne pas). Il lit désormais la portée par la
+route du partage, depuis le navigateur, et compte les traces de consentement après.
+
+### Deux personnes corrigent la MÊME transcription (2026-10-07)
+
+Scénario **`common.correction_conflict`** (`ui_smoke_menus.py`), **7/7** (8011, code neuf), deux
+navigateurs ouverts en même temps. Propriétaire (compte développeur) et collaborateur (compte de
+test) ouvrent la page de correction ; le collaborateur voit « X corrige cette transcription ». Le
+propriétaire corrige : HTTP 200. Le collaborateur, dont la page date d'avant, corrige : HTTP 409,
+bandeau « Recharger » ; en base, la correction du propriétaire est intacte. Domicile :
+`WAMA_COLLABORATION §2.4`. `common.collaboration_cycle` rejoué 9/9 le même jour (le verrou de la
+fenêtre des réglages passe désormais par `WamaCardMenu.holdEditLock`).
+
 ### PARTAGER À UNE PERSONNE de bout en bout (2026-10-06)
 
 Scénario **`common.person_share_cycle`** (`ui_smoke_menus.py`), **12/12** (8011, code neuf).

@@ -668,7 +668,10 @@ def edit(request, pk: int):
     # correction si l'utilisateur a relancé la transcription depuis sa correction).
     latest = t.segments_json or []
     has_newer = bool(t.corrected_segments_json and latest)
+    from wama.common.services.edit_lock import state_token
     return render(request, 'transcriber/edit.html', {
+        # L'état sur lequel la page prépare ses enregistrements (`edit_lock.stale_edit`).
+        'state_token': state_token(t.corrected_segments_json),
         'transcript': t,
         'audio_url': t.audio.url if t.audio else '',
         'segments_json': _json.dumps(segments, ensure_ascii=False),
@@ -940,11 +943,21 @@ def save_correction(request, pk: int):
     status = data.get('status', 'draft')
     status = status if status in ('draft', 'done') else 'draft'
 
-    t.corrected_segments_json = segs
-    t.correction_status = status
-    # Le texte de travail (téléchargements TXT) reflète la correction.
-    t.text = ' '.join((s.get('text') or '').strip() for s in segs).strip()
-    t.save(update_fields=['corrected_segments_json', 'correction_status', 'text'])
+    # Préparé sur un état PÉRIMÉ (quelqu'un a enregistré depuis l'ouverture) : refusé, jamais
+    # écrasé — `edit_lock.stale_edit`, WAMA_COLLABORATION §2.4 (2026-10-07). La ligne est
+    # verrouillée le temps de comparer et d'écrire : deux enregistrements simultanés ne passent pas.
+    from django.db import transaction
+    from wama.common.services import edit_lock
+    with transaction.atomic():
+        t = Transcript.objects.select_for_update().get(pk=t.pk)
+        conflict = edit_lock.stale_edit(user, t, data.get('base'), t.corrected_segments_json)
+        if conflict:
+            return JsonResponse(conflict, status=409)
+        t.corrected_segments_json = segs
+        t.correction_status = status
+        # Le texte de travail (téléchargements TXT) reflète la correction.
+        t.text = ' '.join((s.get('text') or '').strip() for s in segs).strip()
+        t.save(update_fields=['corrected_segments_json', 'correction_status', 'text'])
 
     # À la finalisation, on reconstruit les lignes de segments (SRT/aperçus cohérents).
     if status == 'done':
@@ -978,7 +991,8 @@ def save_correction(request, pk: int):
         except Exception:
             pass
 
-    return JsonResponse({'status': 'saved', 'correction_status': t.correction_status})
+    return JsonResponse({'status': 'saved', 'correction_status': t.correction_status,
+                         'token': edit_lock.state_token(segs)})
 
 
 def _decorate_card(t, preloaded=False):

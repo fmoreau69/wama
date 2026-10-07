@@ -507,3 +507,27 @@ class SendToRecordsProvenanceTest(_TempMediaMixin, TestCase):
         self.assertEqual('temp', kind_of('users/7/temp/a.png'))
         self.assertEqual('mount', kind_of('mounts/3/photos/a.png'))
         self.assertEqual('app', kind_of('users/7/describer/output/a.txt'))
+
+
+class ToleratedReadInsideATransactionTest(TestCase):
+    """Une lecture TOLÉRÉE qui échoue n'empoisonne plus la transaction (2026-10-07).
+
+    Mesuré sur le live : « Transférer à… » répondait 500 parce que la table d'une jumelle de bac à
+    sable ne suivait plus son modèle — la lecture de cette table, tolérée par un `try/except`, avait
+    échoué à l'intérieur de la transaction du transfert, et sous PostgreSQL la requête SUIVANTE
+    (sans rapport) tombait alors en « current transaction is aborted »."""
+
+    def test_a_failed_tolerated_read_leaves_the_transaction_usable(self):
+        from django.contrib.auth import get_user_model
+        from django.db import connection, transaction
+        from wama.common.utils.file_references import _tolerated
+
+        def broken():
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT * FROM table_qui_n_existe_pas_wama')
+            return ['jamais']
+
+        with transaction.atomic():
+            self.assertEqual([], _tolerated(broken, default=[]))
+            # La requête suivante, sans rapport, doit passer : c'est elle qui tombait.
+            self.assertGreaterEqual(get_user_model().objects.count(), 0)

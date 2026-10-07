@@ -114,15 +114,41 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () { save('draft'); }, 800);
   }
+  // CONFLIT (2026-10-07, `WAMA_COLLABORATION §2.4`) : chaque enregistrement dit de quel état il
+  // part (`base`) ; si quelqu'un a enregistré depuis, le serveur REFUSE (409) au lieu d'écraser sa
+  // correction. La page cesse alors d'enregistrer et propose de recharger la dernière version.
+  let conflicted = false;
+  function showConflict(d) {
+    conflicted = true;
+    clearTimeout(saveTimer);
+    setSaveState('<i class="fas fa-triangle-exclamation text-danger"></i> Non enregistré');
+    const host = document.querySelector('.editor-wrap');
+    if (!host || host.querySelector('[data-edit-conflict]')) return;
+    host.insertAdjacentHTML('afterbegin', '<div class="alert alert-danger small py-2 mb-2" '
+      + 'data-edit-conflict><i class="fas fa-code-merge me-1"></i><span></span> '
+      + '<button type="button" class="btn btn-sm btn-light py-0 ms-2">Recharger</button></div>');
+    const box = host.querySelector('[data-edit-conflict]');
+    box.querySelector('span').textContent = (d && d.reason)
+      || 'Cette correction a été modifiée depuis votre ouverture — rechargez pour reprendre la dernière version.';
+    box.querySelector('button').addEventListener('click', function () { location.reload(); });
+  }
   function save(status) {
+    if (conflicted) return Promise.resolve();
     setSaveState('<i class="fas fa-spinner fa-spin"></i> Enregistrement…');
     return fetch(CFG.saveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
-      body: JSON.stringify({ segments: segments, status: status || 'draft' }),
+      body: JSON.stringify({ segments: segments, status: status || 'draft',
+                             base: CFG.stateToken || '' }),
     })
-      .then(function (r) { return r.json(); })
-      .then(function () {
+      .then(function (r) {
+        return r.json().catch(function () { return {}; })
+          .then(function (d) { return { code: r.status, ok: r.ok, d: d }; });
+      })
+      .then(function (res) {
+        if (res.code === 409) { showConflict(res.d); return; }
+        if (!res.ok) throw new Error('HTTP ' + res.code);
+        if (res.d && res.d.token) CFG.stateToken = res.d.token;
         dirty = false;
         setSaveState((status === 'done')
           ? '<i class="fas fa-check-double text-success"></i> Correction terminée'
@@ -131,6 +157,28 @@
       .catch(function () {
         setSaveState('<i class="fas fa-triangle-exclamation text-danger"></i> Erreur');
       });
+  }
+
+  // VERROU DOUX (E4) : la page le tient tant qu'elle est ouverte ; si quelqu'un d'autre corrige
+  // déjà, un bandeau le DIT (rien n'est refusé à l'ouverture — c'est l'enregistrement qui l'est,
+  // s'il part d'un état périmé). La brique commune, la même que la fenêtre des réglages.
+  if (window.WamaCardMenu && WamaCardMenu.holdEditLock) {
+    const releaseLock = WamaCardMenu.holdEditLock(
+      { surface: 'transcriber', pk: CFG.transcriptId },
+      function (res) {
+        const host = document.querySelector('.editor-wrap');
+        const shown = host && host.querySelector('[data-edit-lock]');
+        if (res.held_by_other && host && !shown) {
+          host.insertAdjacentHTML('afterbegin', '<div class="alert alert-warning small py-2 mb-2" '
+            + 'data-edit-lock><i class="fas fa-user-pen me-1"></i><b></b> corrige cette '
+            + 'transcription en ce moment. Si elle change avant votre enregistrement, il sera '
+            + 'refusé plutôt que d’effacer sa correction.</div>');
+          host.querySelector('[data-edit-lock] b').textContent = res.name || 'Quelqu’un';
+        } else if (!res.held_by_other && shown) {
+          shown.remove();
+        }
+      });
+    window.addEventListener('pagehide', releaseLock);
   }
 
   /* ── Événements d'édition ───────────────────────────────────────────── */

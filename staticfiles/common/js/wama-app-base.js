@@ -232,7 +232,8 @@
   //   opts = { text, okLabel='Confirmer', danger=true,
   //            option: {label, checked=false} | null,   // case proposée (absente si null)
   //            details: ['nom', …],                      // ce que l'option concerne (5 montrés)
-  //            input: {label, placeholder, value} | null } // champ texte (« Transférer à… »)
+  //            input: {label, placeholder, value,         // champ texte (« Transférer à… »)
+  //                    attach: fn(champ)} | null }       // ex. une complétion (2026-10-07)
   // Rend `{ok, option, value}` — `value` : le texte saisi (champ `input`), '' sinon.
   // Repli sur `window.confirm` si Bootstrap manque : la question reste posée, l'option tombe.
   // ⚠ Le harnais nocturne y répond par `ui_smoke.accept_dialogs` (comme il accepte un
@@ -285,6 +286,9 @@
       let answer = { ok: false, option: false, value: '' };
       const bs = global.bootstrap.Modal.getOrCreateInstance(modal);
       const field = modal.querySelector('[data-confirm-input]');
+      // Ce que l'appelant branche sur le champ (la complétion des personnes de `WamaShare`) : la
+      // boîte reste générique, elle ne connaît aucun usage.
+      if (field && opts.input && typeof opts.input.attach === 'function') opts.input.attach(field);
       modal.querySelector('[data-confirm-ok]').addEventListener('click', function () {
         const box = modal.querySelector('[data-confirm-option]');
         answer = { ok: true, option: !!(box && box.checked), value: field ? field.value.trim() : '' };

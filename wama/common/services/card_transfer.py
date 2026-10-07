@@ -52,17 +52,68 @@ def find_recipient(text: str, user):
     personne (pas le compte de service anonyme), et pas soi-même. Lève `RefusDePartage` sinon."""
     from django.contrib.auth import get_user_model
     from django.db.models import Q
-    from wama.accounts.views import ANONYMOUS_USERNAME
+    from wama.accounts.permissions import is_guest_account
     text = (text or '').strip()
     if not text:
         raise RefusDePartage("indiquez l'identifiant ou l'adresse e-mail du destinataire")
     matches = list(get_user_model().objects.filter(
         Q(username__iexact=text) | Q(email__iexact=text), is_active=True)[:2])
-    if len(matches) != 1 or matches[0].username == ANONYMOUS_USERNAME:
+    # Ni le compte anonyme ni une identité de VISITEUR (`is_guest_account`, 2026-10-07 : seul
+    # `anonymous` était écarté) — ce ne sont pas des personnes, rien ne se partage avec eux.
+    if len(matches) != 1 or is_guest_account(matches[0]):
         raise RefusDePartage(f"aucun compte unique ne correspond à « {text} »")
     if matches[0].pk == getattr(user, 'pk', None):
         raise RefusDePartage("c'est déjà votre card")
     return matches[0]
+
+
+#: Ce que la complétion rend au plus — assez pour choisir, trop peu pour dérouler l'annuaire.
+SUGGESTION_LIMIT = 8
+
+
+def suggest_recipients(user, query: str = '', limit: int = SUGGESTION_LIMIT) -> list:
+    """Les PERSONNES à proposer pour « Avec une personne » et « Transférer à… » (2026-10-07,
+    demande de Fabien) : `[{username, name}]`, au plus `limit`.
+
+    - `query` (2 lettres au moins) : cherchée dans le NOM et l'IDENTIFIANT, jamais dans l'adresse
+      e-mail (décision de Fabien : chercher sur le début d'une adresse permettrait d'en tester
+      l'existence ; une adresse COMPLÈTE reste acceptée à l'envoi, par `find_recipient`).
+      Plusieurs mots : chacun doit se trouver dans le prénom, le nom ou l'identifiant.
+    - sans `query` : les personnes PROCHES — celles avec qui `user` a déjà partagé, puis les
+      membres de ses projets (`WAMA_COLLABORATION §0` : la fenêtre propose d'emblée l'entité la
+      plus probable).
+    Seulement des personnes (`account_kind`) actives, jamais soi : ni le compte anonyme, ni les
+    visiteurs, ni les comptes de test — `find_recipient` accepte encore l'identifiant EXACT d'un
+    compte de test (les gestes nocturnes en dépendent), la liste ne le propose pas."""
+    from django.contrib.auth import get_user_model
+    from django.db.models import Q
+
+    from wama.accounts.permissions import (ANONYMOUS_USERNAME, TEST_ACCOUNT_PREFIX,
+                                           is_guest_account)
+    if not getattr(user, 'pk', None) or is_guest_account(user):
+        return []
+    people = (get_user_model().objects.filter(is_active=True)
+              .exclude(pk=user.pk).exclude(username=ANONYMOUS_USERNAME)
+              .exclude(username__startswith=TEST_ACCOUNT_PREFIX))
+    words = (query or '').split()
+    if words:
+        if len(''.join(words)) < 2:
+            return []
+        for word in words:
+            people = people.filter(Q(username__icontains=word) | Q(first_name__icontains=word)
+                                   | Q(last_name__icontains=word))
+        found = list(people.order_by('last_name', 'first_name', 'username')[:limit])
+    else:
+        from wama.common.models import ObjectGrant, ProjectMembership, user_projects
+        recent = list(dict.fromkeys(
+            ObjectGrant.objects.filter(granted_by=user, beneficiary__isnull=False)
+            .order_by('-created_at').values_list('beneficiary_id', flat=True)[:50]))
+        mates = list(ProjectMembership.objects.filter(project_id__in=user_projects(user))
+                     .values_list('user_id', flat=True))
+        order = list(dict.fromkeys(recent + mates))
+        by_id = people.in_bulk(order)
+        found = [by_id[i] for i in order if i in by_id][:limit]
+    return [{'username': p.username, 'name': p.get_full_name() or p.username} for p in found]
 
 
 def _moved_path(name: str, app: str, old_owner: int, new_owner: int) -> str:

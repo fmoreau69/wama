@@ -1711,6 +1711,15 @@ def api_transfer(request):
 
 
 @login_required
+def api_people(request):
+    """GET `q` — les PERSONNES à proposer pour un partage ou un transfert (complétion, 2026-10-07) :
+    nom et identifiant, jamais l'adresse e-mail ; sans `q`, les personnes proches
+    (`card_transfer.suggest_recipients`)."""
+    from wama.common.services.card_transfer import suggest_recipients
+    return JsonResponse({'people': suggest_recipients(request.user, request.GET.get('q') or '')})
+
+
+@login_required
 @require_POST
 def api_reception(request):
     """POST `surface`, `pk`, `nature` (element | lot), `action` (hide | show) — RANGER une entrée

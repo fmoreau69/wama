@@ -105,6 +105,7 @@ urlpatterns = [
     path('requests/<int:pk>/answer/', views.api_access_request_answer, name='access_request_answer'),
     # VERROU DOUX d'une card en collaboration (E4, 2026-10-03).
     path('api/edit-lock/', views.api_edit_lock, name='api_edit_lock'),
+    path('api/people/', views.api_people, name='api_people'),
     # La page « Partages » (§5.3) et le retrait d'un droit (E5), 2026-10-03.
     path('shares/', views.shares_page, name='shares'),
     path('api/grants/<int:pk>/revoke/', views.api_grant_revoke, name='api_grant_revoke'),

@@ -558,6 +558,12 @@ affiche « À jour » quand c'est fait, et le texte téléchargeable suit la cor
 fusionne les segments consécutifs d'un même locuteur. **Terminer la correction** marque la
 transcription comme corrigée et reconstruit ses sous-titres.
 
+**À plusieurs** (transcription partagée en collaboration, 2026-10-07) : si quelqu'un d'autre corrige
+la même transcription, un bandeau le dit dès l'ouverture (« X corrige cette transcription en ce
+moment »). Si elle a été modifiée entre votre ouverture et votre enregistrement, l'enregistrement
+est refusé plutôt que d'effacer la correction de l'autre : l'indicateur passe à « Non enregistré »
+et **Recharger** reprend la dernière version. Règle et brique : `WAMA_COLLABORATION §2.4`.
+
 ### 9.3bis Évaluer une transcription contre une référence
 
 Si vous disposez d'une transcription juste — corrigée à la main, par exemple un export Sonal —,
