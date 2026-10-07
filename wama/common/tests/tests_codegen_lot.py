@@ -227,6 +227,9 @@ class CheminDeLotTest(SimpleTestCase):
                       'import relatif au paquet — la jumelle doit résoudre SES copies')
         self.assertIn('backends.image_backend.convert_image', src)
         self.assertIn('effective_settings', src, 'la tâche lit les colonnes (§23.2quater)')
+        # The output NAME comes from the common naming brick, like the source's (2026-10-07).
+        self.assertIn('compose_output_name', src)
+        self.assertNotIn('.stem}_{item.id}', src, 'a second, hand-made naming format')
 
     def test_B1_sans_routes_declarees_le_stub_demeure(self):
         # Une app sans backends/__init__.ROUTES garde son trou MARQUÉ — un trou vaut
