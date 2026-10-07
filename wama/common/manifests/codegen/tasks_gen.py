@@ -257,7 +257,11 @@ def render_tasks(manifest: dict) -> tuple:
                 f"    rel_dir = _amd({app_id!r}, item.user_id, 'output') + '/'",
                 '    out_dir = _P(_s.MEDIA_ROOT) / rel_dir',
                 '    out_dir.mkdir(parents=True, exist_ok=True)',
-                '    nom = f"{_P(item.input_filename).stem}_{item.id}.{fmt}"',
+                # Le NOM aussi vient de la brique (`compose_output_name`, règle commune de
+                # nommage) : ce gabarit composait `<souche>_<id>.<fmt>` à la main, un second
+                # format de nom que la card et l'app source ne parlent pas (relevé 2026-10-07).
+                '    from wama.common.utils.output_naming import compose_output_name as _con',
+                f'    nom = _con(app={app_id!r}, source_name=item.input_filename, item_id=item.id, ext=fmt)',
                 '',
                 f'    ctx.console(f"Conversion : {{item.input_filename}} → .{{fmt}} ({{fonc}})")',
                 '    backend(item.input_file.path, str(out_dir / nom), fmt,',
