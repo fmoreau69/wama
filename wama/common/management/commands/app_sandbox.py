@@ -285,6 +285,130 @@ def _imports_intra_paquet_non_resolus(label: str) -> list:
     return manquants
 
 
+def _class_members(class_node) -> set:
+    """Noms qu'une classe de modèle DÉFINIT dans son corps : méthodes, properties, attributs
+    de classe et champs. `Meta` et les dunders n'en sont pas (aucun lecteur ne les cite)."""
+    import ast
+    names = set()
+    for n in class_node.body:
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            names.add(n.name)
+        elif isinstance(n, ast.Assign):
+            names.update(t.id for t in n.targets if isinstance(t, ast.Name))
+        elif isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name):
+            names.add(n.target.id)
+    return {x for x in names if not (x.startswith('__') and x.endswith('__'))}
+
+
+def _inherited_members(tree) -> set:
+    """Ce que les classes d'un `models.py` HÉRITENT : `models.Model` et chaque base importée
+    (les mixins de `wama.common.models`), résolues par leur import réel — un membre que le
+    généré tient de son mixin n'est pas perdu."""
+    import ast
+    import importlib
+    from django.db import models as dj_models
+    inherited = set(dir(dj_models.Model))
+    imported = {}
+    for n in tree.body:
+        if isinstance(n, ast.ImportFrom) and n.module and not n.level:
+            for a in n.names:
+                imported[a.asname or a.name] = (n.module, a.name)
+    for n in tree.body:
+        if not isinstance(n, ast.ClassDef):
+            continue
+        for b in n.bases:
+            if isinstance(b, ast.Name) and b.id in imported:
+                mod, name = imported[b.id]
+                try:
+                    inherited.update(dir(getattr(importlib.import_module(mod), name)))
+                except Exception:
+                    continue
+    return inherited
+
+
+def _lost_model_members_read(label: str) -> list:
+    """Juge GÉNÉRIQUE : un membre de modèle que le `models.py` COPIÉ portait, que le GÉNÉRÉ
+    n'a plus, et qu'un autre fichier de la jumelle LIT encore (2026-10-07).
+
+    Classe du défaut : la glu d'un modèle (properties, méthodes, constantes de classe) n'est
+    pas dans la facette `data` — le générateur ne l'émet pas, c'est le trou de la marche B.
+    Mesuré sur `converter_02` : `models` généré « tenait » (check, smokes de page et de card
+    verts) pendant que le `tasks.py` et le `utils/cross_app.py` copiés lisaient
+    `job.options`, `job.cross_app_options` et `job.CHAMPS_CROSS_APP` — AttributeError au
+    premier lancement, invisible de tout juge qui ne lance pas de tâche. Le juge des imports
+    ne le voit pas : un membre de modèle se LIT, il ne s'importe pas.
+
+    Le receveur d'un attribut n'est pas typé : on ne retient comme perdu qu'un nom absent de
+    TOUTES les classes générées, de leurs bases, et des attributs que les vues posent par
+    leur nom (`_set_unless_property(item, 'gear_data', …)`, `setattr`) — un nom encore
+    porté ailleurs ne lève pas. Les gabarits sont lus dans leurs balises `{{ }}`/`{% %}`
+    seulement (le JS inline a ses propres `.options`). Rend `fichier:ligne .nom`.
+    """
+    import ast
+    import re
+    base = WAMA_DIR / label
+    current, temoin = base / 'models.py', base / 'models.py.temoin'
+    if not (current.is_file() and temoin.is_file()):
+        return []
+    try:
+        gen_tree = ast.parse(current.read_text(encoding='utf-8'))
+        old_tree = ast.parse(temoin.read_text(encoding='utf-8'))
+    except SyntaxError:
+        return []                                         # un autre juge (compile) le dit
+    gen_classes = {n.name: _class_members(n) for n in gen_tree.body if isinstance(n, ast.ClassDef)}
+    still_held = set().union(*gen_classes.values()) if gen_classes else set()
+    still_held |= _inherited_members(gen_tree)
+    lost = set()
+    for n in old_tree.body:
+        if isinstance(n, ast.ClassDef) and n.name in gen_classes:
+            lost |= _class_members(n) - gen_classes[n.name]
+    lost -= still_held
+    if not lost:
+        return []
+
+    readers = [p for p in base.rglob('*.py')
+               if 'migrations' not in p.parts and p.name != 'models.py']
+    trees = {}
+    for p in readers:
+        try:
+            trees[p] = ast.parse(p.read_text(encoding='utf-8'))
+        except SyntaxError:
+            continue
+    # Attributs posés PAR LEUR NOM sur l'élément (vues générées : `_set_unless_property`).
+    for tree in trees.values():
+        for n in ast.walk(tree):
+            if (isinstance(n, ast.Call) and len(n.args) >= 2
+                    and isinstance(n.args[1], ast.Constant) and isinstance(n.args[1].value, str)
+                    and getattr(n.func, 'id', getattr(n.func, 'attr', '')) in
+                    ('setattr', '_set_unless_property')):
+                lost.discard(n.args[1].value)
+    if not lost:
+        return []
+
+    found = []
+    for p, tree in trees.items():
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Attribute) and n.attr in lost:
+                found.append(f'{p.relative_to(base).as_posix()}:{n.lineno} .{n.attr}')
+    tag = re.compile(r'\{\{(.*?)\}\}|\{%(.*?)%\}', re.S)
+    attr = re.compile(r'\.(' + '|'.join(sorted(map(re.escape, lost))) + r')\b')
+    templates = (sorted((base / 'templates').rglob('*.html'))
+                 if (base / 'templates').is_dir() else [])
+    # Un gabarit COPIÉ que plus rien ne rend (vues et index générés en citent d'autres) n'est
+    # pas un lecteur : on ne lit que ceux qu'un fichier VIVANT cite par `<label>/<nom>`.
+    living = '\n'.join(p.read_text(encoding='utf-8', errors='replace')
+                       for p in list(trees) + templates)
+    for p in templates:
+        if f'{label}/{p.name}' not in living:
+            continue
+        text = p.read_text(encoding='utf-8', errors='replace')
+        for m in tag.finditer(text):
+            for a in attr.finditer(m.group(1) or m.group(2) or ''):
+                line = text.count('\n', 0, m.start()) + 1
+                found.append(f'{p.relative_to(base).as_posix()}:{line} .{a.group(1)}')
+    return sorted(set(found))
+
+
 def _superseded_task_modules(manifest: dict, fname: str = 'tasks.py') -> list:
     """Modules de tâches COPIÉS que le `tasks.py` GÉNÉRÉ remplace.
 
@@ -849,6 +973,13 @@ class Command(BaseCommand):
             verdict = 'revert'
             details.append('symboles intra-paquet NON RÉSOLUS : '
                            + ' ; '.join(_non_resolus[:4]))
+        # Même juge pour la glu d'un modèle : un membre perdu par le `models` généré et encore
+        # LU ailleurs — AttributeError au premier lancement, sinon. Posé sur la substitution
+        # qui PERD le membre : il juge tout le paquet tel qu'il restera.
+        _perdus = _lost_model_members_read(label) if 'models' in targets else []
+        if _perdus:
+            verdict = 'revert'
+            details.append('membres de modèle PERDUS encore lus : ' + ' ; '.join(_perdus[:6]))
         r = _manage(['check'])
         if r.returncode != 0:
             verdict = 'revert'

@@ -967,3 +967,68 @@ class DeclaredResultDownloadTest(SimpleTestCase):
                               f'{app}: the batch ZIP must serve the same text result')
             checked.append(app)
         self.assertIn('describer', checked, 'the case that revealed the defect must be covered')
+
+    def test_the_card_names_the_declared_result_file(self):
+        # The generated card shows `elem.output_filename`; on the real model it is a @property
+        # (glue, lost by the generated `models`). The views derive it from the served field —
+        # found on `converter_02` (2026-10-07): output shown WITHOUT a name, silently.
+        src, why = _vues_generees(SOURCE)
+        self.assertTrue(src, why)
+        body = _fonction(src, '_decorer') or ''
+        self.assertIn("_set_unless_property(item, 'output_filename'", body)
+        self.assertIn('item.output_file.name', body)
+        # Counter-check: a TEXT result has no file name to derive.
+        src, why = _vues_generees(SOURCE_LINK)
+        self.assertTrue(src, why)
+        self.assertNotIn("'output_filename'", _fonction(src, '_decorer') or '')
+
+
+class GeneratedModelBasesTest(SimpleTestCase):
+    """The `data` facet carries the source model's COMMON bases (substrate mixins), and the
+    generated `models.py` inherits them (2026-10-07).
+
+    Found on `converter_02`: the generated batch lost `BatchMixin` — `is_unitary`, the queue
+    order, the scoped visibility — while its fields, re-serialised one by one, survived. A
+    mixin's fields are its own: emitting them again beside a base would duplicate them.
+    """
+
+    def _rendered(self):
+        from wama.common.manifests.codegen.models_gen import render_models
+        from wama.common.manifests.ingest import extract
+        manifest = extract('app', SOURCE)
+        if not manifest:
+            self.skipTest(f'{SOURCE} manifest not extractable')
+        src, why = render_models(manifest)
+        self.assertTrue(src, why)
+        return manifest, {n.name: n for n in ast.parse(src).body if isinstance(n, ast.ClassDef)}
+
+    def test_the_generated_models_inherit_the_declared_common_bases(self):
+        manifest, classes = self._rendered()
+        for m in manifest['body']['data']['models']:
+            with self.subTest(model=m['name']):
+                bases = [ast.unparse(b) for b in classes[m['name']].bases]
+                for path in m.get('bases') or []:
+                    self.assertIn(path.rsplit('.', 1)[1], bases)
+
+    def test_the_converter_batch_keeps_its_batch_behaviour(self):
+        from wama.converter.models import ConversionBatch
+        _manifest, classes = self._rendered()
+        bases = [ast.unparse(b) for b in classes[ConversionBatch.__name__].bases]
+        self.assertIn('BatchMixin', bases)
+        self.assertNotIn('models.Model', bases, 'a Django-model base already closes the list')
+
+    def test_a_mixin_field_is_not_emitted_again(self):
+        # Counter-check: `ScopedVisibility.visibility` comes with the base, never re-declared.
+        from wama.common.models import ScopedVisibility
+        manifest, _classes = self._rendered()
+        inherited = {f.name for f in ScopedVisibility._meta.get_fields()}
+        for m in manifest['body']['data']['models']:
+            if 'wama.common.models.ScopedVisibility' in (m.get('bases') or []):
+                own = {f['name'] for f in m.get('fields') or []}
+                self.assertFalse(own & inherited, f"{m['name']} re-declares {own & inherited}")
+
+    def test_a_model_without_common_base_closes_on_models_model(self):
+        from wama.converter.models import ConversionProfile
+        _manifest, classes = self._rendered()
+        self.assertEqual([ast.unparse(b) for b in classes[ConversionProfile.__name__].bases],
+                         ['models.Model'])

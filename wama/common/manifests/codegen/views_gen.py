@@ -876,6 +876,14 @@ def {nom}(request, pk):
             setattr(item, _k, _opts.get(_k, ''))
     except Exception:
         pass'''
+    # Nom du fichier de RÉSULTAT — la card générée l'affiche (`elem.output_filename`). Sur le
+    # modèle réel c'est une @property (converter, describer) : glu non sérialisée, perdue par
+    # le `models` généré — la card rendait une sortie SANS NOM, en silence (juge des membres
+    # perdus, `converter_02`, 2026-10-07). Dérivé du champ que le manifeste déclare servir.
+    out_file = d['out_file']
+    nom_sortie = '' if not out_file else f'''
+    _set_unless_property(item, 'output_filename',
+                         Path(item.{out_file}.name).name if item.{out_file} else '')'''
     decorateur = f'''def _set_unless_property(item, name, value):
     """Pose une valeur DÉCORATIVE sur l'instance — sauf si le modèle la calcule déjà.
 
@@ -920,7 +928,7 @@ def _decorer(item):
         _set_unless_property(item, 'input_props',
                              input_props_for(item, '{d['input_field']}', {nom_pour_props}))
     except Exception:
-        _set_unless_property(item, 'input_props', [])
+        _set_unless_property(item, 'input_props', []){nom_sortie}
     # Alias NORMALISÉ `elem` (2026-09-09) : `common/_queue_entry.html` atteint l'élément
     # métier par `item.elem` — alias que `build_batches_list` pose sur chaque LIAISON. Pour la
     # card SEULE (`card_html`) comme pour la forme directe, liaison et élément COÏNCIDENT :
