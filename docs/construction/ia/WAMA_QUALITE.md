@@ -103,6 +103,11 @@ mesure interne, PRIME dès qu'il existe.
 - l'API v2 d'Artificial Analysis (source `artificial_analysis`, déjà branchée) n'expose AUCUNE
   catégorie musique : elle documente cinq familles média (image, édition, image→vidéo, voix,
   vidéo) ; les chemins musicaux sondés rendent 404 ;
+  ⚠ **Corrigé le 2026-10-07** : vrai de l'ancien contrat `data/*`, faux du contrat V2 (lu dans
+  sa spécification OpenAPI, `artificialanalysis.ai/api/v2/openapi`, lors de la migration de
+  `benchmark_sync`) — il publie en accès GRATUIT `media/music/instrumental/models/free`,
+  `media/music/with-vocals/models/free` et `media/speech-to-text/models/free` (`aa_wer_index`).
+  Non branchés, non appelés : reste à voir si YuE2/MusicGen y figurent ;
 - ses classements musique n'existent que sur la PAGE web (votes humains) : en **instrumental**,
   MiniMax Music 3.0 = 1000 (ancre), **MusicGen = 881** (−119 Elo) ; en **chanté**, aucun modèle
   ouvert (ni YuE, ni ACE-Step, ni MusicGen) ;
