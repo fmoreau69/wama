@@ -22702,3 +22702,25 @@ construction par une autre instance, 14 préexistants listés le 06/10, 2 cam_an
 complète sur la base de test GARDÉE (`--keepdb`) en montrait 140 : la jumelle `converter_01` a été
 retirée par une autre instance PENDANT l'exécution — une base de test gardée ne suit pas les
 jumelles qui changent.
+
+## §PALIER — 2026-10-07 (soir), « POIDS D'UNE VERSION GITHUB » — livré (commit de ce palier, non poussé) — 🔴 relancer gunicorn + workers (migration `model_manager/0022`, choix seulement)
+
+Pilote `github` d'`install_from_spec` (reproduit `yolo`, verrou de la voie vendor, empreinte
+épinglée), `download_asset` commun (YOLO l'adopte), découverte calquée sur HF, scout `--github`,
+`model_keys.backend_model_id` (règle des backends, 4 écritures → 1), `enforce_category_facts`.
+SPAN installé par la chaîne et servi sur CPU (×4). Détail : `PROSPECTION_PIPELINE §Session du
+2026-10-07 (suite)`.
+- **Vérification inter-mondes (demande de Fabien, Cam Analyzer et YOLO nommés)** : le Lab
+  n'importe AUCUN des modules modifiés (le Cam Analyzer charge ses poids par chemin,
+  `ultralytics.YOLO(model_path)`, et télécharge YOLOPv2 par son propre outil) ; vrai
+  téléchargement de `yolo11n` par le pilote `yolo` (primitive commune) puis chargement
+  ultralytics ; sur le RÉEL : 17 snapshots HF identiques aux anciennes formules, 260 clés du
+  catalogue identiques sous l'accesseur commun. Suite COMPLÈTE (6059 tests, tous les mondes) :
+  21 F / 17 E, aucun imputable — apps jumelles en cours d'écriture (`avatarizer_01`,
+  `converter_01`, `transcriber_01`), budgets de langue et catalogues préexistants, MIME
+  d'environnement (`audio/x-wav`), garde `box_iou` de `wama_data` dépendante de l'ordre (verte
+  seule ET après mes modules).
+- 🔚 GaterV3 : tâche à trancher (Fabien) — candidat semé `image-to-image`, NON installé ; ligne
+  `github:…1xgaterv3_r_restore` désinstallée (rangée `vision` au premier passage).
+- 🔚 Adoptions à venir du pilote : téléchargeurs écrits par app (enhancer, anonymizer, Cam
+  Analyzer, avatarizer). `WAMA_MECANISMES.md` à régénérer.

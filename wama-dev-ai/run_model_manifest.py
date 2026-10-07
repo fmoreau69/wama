@@ -56,8 +56,8 @@ django.setup()
 
 from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
 from role_utils import (  # noqa: E402
-    add_llm_arguments, call_llm, card_languages, enforce_adapter_parent, enforce_component_facts,
-    enforce_engine_facts,
+    add_llm_arguments, call_llm, card_languages, enforce_adapter_parent, enforce_category_facts,
+    enforce_component_facts, enforce_engine_facts,
     enforce_identity,
     enforce_language_facts, enforce_resolution_facts, enforce_task_facts,
     enforce_vendor_engine, extract_json,
@@ -245,8 +245,11 @@ def main():
         enforce_component_facts(manifest, hf_id, concerns)
         # Le PARENT d'un adaptateur (2026-10-03, SheetSage2) : APRÈS l'anatomie, qu'il complète.
         enforce_adapter_parent(manifest, hf_id, concerns)
-        for c in concerns:
-            print(f'[model] {c}')
+    # La catégorie suit la tâche, quelle que soit la source (2026-10-07, garde partagée avec le
+    # scout) — APRÈS `enforce_task_facts`, qui peut avoir corrigé la tâche.
+    enforce_category_facts(manifest, concerns)
+    for c in concerns:
+        print(f'[model] {c}')
 
     from wama.common.manifests.ingest import validate
     erreurs = list(validate(manifest) or [])

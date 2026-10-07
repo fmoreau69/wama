@@ -181,7 +181,8 @@ def backend_for_model(model, entries=None):
     # La TÂCHE voyage (2026-09-29) : un moteur partagé entre tâches ne suffit pas à choisir —
     # cf. `backend_inventory.TASK_CONTRACTS`.
     task = (getattr(model, 'capabilities', None) or {}).get('task') or ''
-    return backend_for_engine(engine, cle.rsplit(':', 1)[-1] if cle else '', entries, task=task)
+    from wama.common.utils.model_keys import backend_model_id
+    return backend_for_engine(engine, backend_model_id(cle), entries, task=task)
 
 
 def backend_for_key(model_key: str, entries=None):
@@ -400,8 +401,8 @@ def _unserved_by_task_contract(model, engine: str) -> Optional[str]:
     contract = TASK_CONTRACTS.get(task)
     if not contract or not contract[2]:
         return None
-    key = getattr(model, 'model_key', '') or ''
-    model_id = key.rsplit(':', 1)[-1] if key else ''
+    from wama.common.utils.model_keys import backend_model_id
+    model_id = backend_model_id(getattr(model, 'model_key', '') or '')
     memo_key, now = (engine, model_id, task), time.monotonic()
     hit = _CONTRACT_VERDICT_CACHE.get(memo_key)
     if hit is not None and now - hit[0] < ENGINE_CACHE_TTL_S:
@@ -432,7 +433,9 @@ _CONTRACT_VERDICT_CACHE: dict = {}
 #: « catalogué ≠ utilisable ») : aucune app ne les déclare, seul un moteur DÉCLARÉ les rend
 #: exécutables. Les autres sources sont des apps (leur gestionnaire route) ou des plateformes
 #: qui exécutent elles-mêmes (Ollama, fournisseurs distants).
-GENERIC_SCAN_SOURCES = ('huggingface', 'custom')
+#: `github` (2026-10-07) : une version GitHub installée est cataloguée par la même passe que les
+#: snapshots HF (`_github_release_to_model`) — même statut, « catalogué ≠ utilisable ».
+GENERIC_SCAN_SOURCES = ('huggingface', 'github', 'custom')
 
 
 class BackendManager:

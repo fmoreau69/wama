@@ -206,6 +206,28 @@ class ModelInfo:
     cost_tier: str = ''
 
 
+def _estimated_vram(size_bytes: int, incomplete: bool) -> float:
+    """VRAM ESTIMÉE d'un modèle installé depuis ses poids sur disque (quick win acté Fabien,
+    02/09). Sans elle, `vram_gb=0` valait « inconnu » et le score du curseur de qualité traitait
+    ces modèles au PIRE coût (garde du même jour) : Audio8/Kokoro-ONNX/chatterbox, installés et
+    corrects, ne gagnaient jamais « rapide ». Les poids fp16/onnx sont un PLANCHER de VRAM ;
+    +20 % d'activations = l'ordre de grandeur honnête. C'est une ESTIMATION dérivée d'un fait
+    MESURÉ (la taille des poids), marquée `vram_estimated` — une vraie mesure (banc) la
+    remplacera. Plancher 0,1 : arrondir un petit modèle à 0.0 recréerait exactement
+    l'« inconnu » pénalisé. Commune aux balayages des snapshots HF et des versions GitHub."""
+    return max(0.1, round(size_bytes / 1e9 * 1.2, 1)) if (size_bytes and not incomplete) else 0
+
+
+def _dominant_format(files) -> str:
+    """Format dominant d'un jeu de fichiers installés (`Path`), ou ''. 'onnx' AVANT 'pt'/'bin'
+    (2026-08-31, doctrine inférence-first) : un dépôt d'export ONNX embarque souvent des
+    à-côtés .bin (les 40 voix de Kokoro-ONNX) qui faisaient étiqueter la card « bin » — le
+    format dominant d'un export ONNX est l'ONNX. Commun aux deux balayages génériques."""
+    extensions = {f.suffix.lstrip('.').lower() for f in files if f.suffix}
+    return next((f for f in ('gguf', 'safetensors', 'onnx', 'pt', 'pth', 'bin')
+                 if f in extensions), '')
+
+
 class ModelRegistry:
     """Central registry for all WAMA models."""
 
@@ -1971,6 +1993,20 @@ class ModelRegistry:
                             self._snapshot_to_model(snap, mtype, fam_dir, deja_declares)
                         except Exception as e:
                             logger.debug(f"[hf_snapshots] {snap.name} illisible : {e}")
+                    # Versions GITHUB (2026-10-07, pilote `github`) : la disposition est calquée
+                    # sur celle de HF (`github--owner--repo/<tag>/` ↔ `models--org--nom/
+                    # snapshots/<rév.>/`), le balayage aussi — même passe, mêmes règles
+                    # (familles déclarées exclues, catégorie `ModelType`, faits seuls).
+                    from wama.common.utils.model_locations import GITHUB_FOLDER_PREFIX
+                    for repo_dir in sorted(fam_dir.glob(f'{GITHUB_FOLDER_PREFIX}*')):
+                        if not repo_dir.is_dir():
+                            continue
+                        for release in sorted(d for d in repo_dir.iterdir() if d.is_dir()):
+                            try:
+                                self._github_release_to_model(release, repo_dir, mtype, fam_dir)
+                            except Exception as e:
+                                logger.debug(f"[hf_snapshots] {repo_dir.name}/{release.name} "
+                                             f"illisible : {e}")
         except Exception as e:
             # Un balayage entier en échec = découverte INCOMPLÈTE : la réconciliation doit
             # le savoir (même règle que SAM3, cf. `discovery_errors`).
@@ -2016,26 +2052,12 @@ class ModelRegistry:
         incomplets = not installed_weights_complete(snap)
         taille = sum(f.stat().st_size for f in blobs.iterdir() if f.is_file()) \
             if blobs.is_dir() else 0
-        # VRAM ESTIMÉE depuis les poids sur disque (quick win acté Fabien, 02/09). Sans
-        # elle, `vram_gb=0` valait « inconnu » et le score du curseur de qualité traitait
-        # ces modèles au PIRE coût (garde du même jour) : Audio8/Kokoro-ONNX/chatterbox,
-        # installés et corrects, ne gagnaient jamais « rapide ». Les poids fp16/onnx sont
-        # un PLANCHER de VRAM ; +20 % d'activations = l'ordre de grandeur honnête. C'est
-        # une ESTIMATION dérivée d'un fait MESURÉ (la taille des blobs), marquée
-        # `vram_estimated` — une vraie mesure (banc) la remplacera. Plancher 0,1 :
-        # arrondir un petit modèle à 0.0 recréerait exactement l'« inconnu » pénalisé.
-        vram_estimee = max(0.1, round(taille / 1e9 * 1.2, 1)) \
-            if (taille and not incomplets) else 0
+        # VRAM ESTIMÉE depuis la taille des blobs (règle et raisons : `_estimated_vram`).
+        vram_estimee = _estimated_vram(taille, incomplets)
 
         # Format dominant, lu sur les fichiers du snapshot (liens symboliques compris).
-        extensions = {f.suffix.lstrip('.').lower()
-                      for rev in snapshots.iterdir() if rev.is_dir()
-                      for f in rev.rglob('*') if f.suffix}
-        # 'onnx' AVANT 'pt'/'bin' (2026-08-31, doctrine inférence-first) : un dépôt d'export
-        # ONNX embarque souvent des à-côtés .bin (les 40 voix de Kokoro-ONNX) qui faisaient
-        # étiqueter la card « bin » — le format dominant d'un export ONNX est l'ONNX.
-        fmt = next((f for f in ('gguf', 'safetensors', 'onnx', 'pt', 'pth', 'bin')
-                    if f in extensions), '')
+        fmt = _dominant_format(f for rev in snapshots.iterdir() if rev.is_dir()
+                               for f in rev.rglob('*'))
 
         nom_court = hf_id.split('/')[-1]
         self._models[f"huggingface:{hf_id}"] = ModelInfo(
@@ -2064,6 +2086,53 @@ class ModelRegistry:
                 'family': fam_dir.name,
                 **({'vram_estimated': True} if vram_estimee else {}),
                 **({'incomplete': True} if incomplets else {}),
+            },
+        )
+
+    def _github_release_to_model(self, release, repo_dir, mtype, fam_dir):
+        """Fabrique l'entrée `ModelInfo` d'UNE version GitHub installée — `_snapshot_to_model`
+        reproduit et adapté (pilote `github`, 2026-10-07).
+
+        La VERSION est le modèle (un dépôt comme `Phhofm/models` en publie des centaines) :
+        clé `github:owner/repo:tag`. Les mêmes FAITS que pour un snapshot, rien de deviné — ni
+        tâche, ni échelle : elles arrivent par le spec d'installation et le manifeste
+        (`record_after_install`), qui ne comblent qu'un vide. Deviner ici les ferait perdre.
+        Un `.part` laissé par un téléchargement interrompu, ou aucun fichier, = incomplet (le
+        pendant du blob `.incomplete`).
+        """
+        from wama.common.utils.model_locations import github_repo_of_folder
+        repo = github_repo_of_folder(repo_dir.name)
+        if not repo:
+            return
+        tag = release.name
+        files = [f for f in release.iterdir() if f.is_file()]
+        weights = [f for f in files if not f.name.endswith('.part')]
+        incomplete = len(weights) < len(files) or not weights
+        size = sum(f.stat().st_size for f in weights)
+        vram = _estimated_vram(size, incomplete)
+        ident = f"{repo}:{tag}"
+        self._models[f"github:{ident}"] = ModelInfo(
+            id=ident,
+            name=tag,
+            model_type=mtype,
+            source=ModelSource.GITHUB,
+            description=(f"Version GitHub installée ({mtype.value}/{fam_dir.name}), "
+                         "cataloguée par le balayage générique des modèles installés."),
+            description_short=f"Version GitHub {tag}",
+            is_downloaded=not incomplete,
+            format=_dominant_format(weights),
+            vram_gb=vram,
+            vram_provenance='estimated',
+            extra_info={
+                # Le DOSSIER de la version (pas le fichier) : c'est ce que `weights_dir_of` sait
+                # désinstaller et ce que `component_paths` parcourt.
+                'path': str(release),
+                'size_bytes': size,
+                'github_release': True,
+                'category': mtype.value,
+                'family': fam_dir.name,
+                **({'vram_estimated': True} if vram else {}),
+                **({'incomplete': True} if incomplete else {}),
             },
         )
 

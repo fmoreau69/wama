@@ -226,11 +226,17 @@ _YOLO_ASSET_URL = "https://github.com/ultralytics/assets/releases/latest/downloa
 def _yolo_asset_gb(name: str):
     """Poids d'un asset YOLO officiel, par un HEAD sur son URL de release (None si injoignable).
     Branche YOLO de `weight_for_spec` — pas un point d'entrée."""
+    base = (name or '')[:-3] if (name or '').endswith('.pt') else (name or '')
+    return _asset_gb(_YOLO_ASSET_URL.format(base))
+
+
+def _asset_gb(url: str, proxies=None):
+    """Poids en Go d'un fichier publié, par un HEAD sur son URL (None si injoignable ou sans
+    taille). Corps commun des pilotes à asset (`yolo`, `github`) — extrait de `_yolo_asset_gb`."""
     import requests
 
-    base = (name or '')[:-3] if (name or '').endswith('.pt') else (name or '')
     try:
-        rep = requests.head(_YOLO_ASSET_URL.format(base), timeout=15, allow_redirects=True)
+        rep = requests.head(url, timeout=15, allow_redirects=True, proxies=proxies)
         size = int(rep.headers.get('Content-Length') or 0)
     except Exception:
         return None
@@ -267,6 +273,11 @@ def weight_for_spec(spec: dict):
         return size_gb(name, tag or 'latest')
     if kind == 'yolo':
         return _yolo_asset_gb(ref)
+    if kind == 'github':
+        if github_spec_error(spec):
+            return None
+        from wama.common.external_sources import proxies_for
+        return _asset_gb(github_asset_url(spec), proxies=proxies_for('github'))
     return None
 
 
@@ -619,7 +630,8 @@ def components_for_spec(spec: dict, *, files=None) -> dict:
             return _with_sibling_repos({'unreachable': ref}, restriction['composition'])
         return _with_sibling_repos(components_of_files(inventory, **restriction),
                                    restriction['composition'])
-    # Ollama et YOLO ne livrent PAS de composition : un blob GGUF, un `.pt` — un seul composant,
+    # Ollama, YOLO et un asset GitHub ne livrent PAS de composition : un blob GGUF, un `.pt`, un
+    # `.onnx` — un seul composant,
     # dont le poids est celui du tout. Le dire explicitement vaut mieux que rendre `{}` : le
     # lecteur a besoin de savoir que « somme » et « plus gros » se confondent ici, pas que
     # l'information manque.
@@ -652,7 +664,6 @@ def pull_yolo_weights(name: str, timeout: int = 600, dry_run: bool = False):
     """
     import os
     import re
-    import requests
     from django.conf import settings
 
     base = name[:-3] if name.endswith('.pt') else name
@@ -668,18 +679,183 @@ def pull_yolo_weights(name: str, timeout: int = 600, dry_run: bool = False):
         return {'ok': True, 'path': target, 'already': True}
 
     os.makedirs(target_dir, exist_ok=True)
-    url = _YOLO_ASSET_URL.format(base)
+    # Garde-fou : une page d'erreur HTML ferait un .pt de quelques Ko.
+    return download_asset(_YOLO_ASSET_URL.format(base), target, timeout=timeout,
+                          min_bytes=1_000_000)
+
+
+# ── Pilote `github` — des poids publiés dans une VERSION GitHub (2026-10-07) ─────────────────
+# Le pilote `yolo` ci-dessus EST déjà un asset de version GitHub, verrouillé sur
+# `ultralytics/assets` et sur « latest ». Celui-ci reproduit son comportement (dossier canonique,
+# idempotence, téléchargement contrôlé) et l'adapte à un dépôt quelconque, avec les verrous de la
+# voie VENDOR transposés (`library.vendor_spec_error`) : pas d'URL libre — le dépôt se dit
+# « owner/name » (la MÊME règle, importée), l'adresse se dérive de la source déclarée `github`.
+# Une différence assumée : la voie vendor exige un COMMIT parce qu'un tag bouge ; une version
+# GitHub, elle, s'ADRESSE par son tag. La garantie que donne le commit vient ici de l'EMPREINTE
+# épinglée (`sha256`, publiée par l'API GitHub) : un tag déplacé servirait un autre fichier, et
+# ce fichier serait refusé.
+#
+# Un dépôt n'est PAS un modèle : `Phhofm/models` en publie des centaines, une version chacun.
+# Le modèle est donc la VERSION (`ref` = « owner/repo:tag »), et `asset` choisit le fichier
+# (fp32/fp16…), comme `allow_patterns` choisit dans un dépôt HF.
+#
+# Disposition, calquée sur celle de HuggingFace (décision de Fabien, 2026-10-07) :
+#   HF     : <catégorie>/<famille ou nom court>/models--org--nom/snapshots/<rév.>/<fichiers>
+#   GitHub : <catégorie>/<famille ou tag>/github--owner--repo/<tag>/<asset>
+
+#: Le tag entre dans la CLÉ du modèle (`github:owner/repo:tag`) : il n'admet que ce qu'une clé de
+#: manifeste admet (`ingest`, « alphanumérique + -_:./ »), sans « / » ni « : » (séparateurs).
+_GITHUB_TAG_RE = re.compile(r'^[A-Za-z0-9_][A-Za-z0-9_.-]*$')
+_GITHUB_ASSET_RE = re.compile(r'^[A-Za-z0-9_][A-Za-z0-9_.+-]*$')
+_SHA256_RE = re.compile(r'^[0-9a-fA-F]{64}$')
+GITHUB_SPEC_FIELDS = ('ref', 'asset', 'sha256')
+
+
+def github_release_of(ref: str) -> tuple:
+    """`owner/repo:tag` → (`owner/repo`, `tag`) ; ('', '') si la forme n'y est pas."""
+    repo, sep, tag = str(ref or '').strip().partition(':')
+    return (repo, tag) if sep else ('', '')
+
+
+#: `platform_ref` d'une version : la page de la version, que le gabarit d'URL de la plateforme
+#: `github` (`AIModel._URL_PAR_PLATEFORME`) rend telle quelle.
+_GITHUB_RELEASE_PAGE = '{repo}/releases/tag/{tag}'
+
+
+def github_platform_ref(ref: str) -> str:
+    """`owner/repo:tag` → `github:owner/repo/releases/tag/<tag>` ('' si la forme n'y est pas)."""
+    repo, tag = github_release_of(ref)
+    return f"github:{_GITHUB_RELEASE_PAGE.format(repo=repo, tag=tag)}" if repo and tag else ''
+
+
+def github_ref_of_platform(platform_ref: str) -> str:
+    """L'inverse : `github:owner/repo/releases/tag/<tag>` → `owner/repo:tag`, sinon ''."""
+    platform, _, ident = str(platform_ref or '').partition(':')
+    repo, sep, tag = ident.partition('/releases/tag/')
+    return f"{repo}:{tag}" if platform == 'github' and sep and repo and tag else ''
+
+
+def github_spec_error(spec: dict):
+    """Motif de refus d'un descripteur `github`, ou None — pendant de `vendor_spec_error`.
+
+    Pur (aucune I/O) : l'installation, la pesée et la prospection appliquent le même verrou.
+    """
+    from wama.common.manifests.builtin.library import _VENDOR_REPO_RE
+
+    spec = spec or {}
+    repo, tag = github_release_of(spec.get('ref'))
+    if not _VENDOR_REPO_RE.match(repo) or '..' in repo:
+        return (f"ref refusé : {spec.get('ref')!r} — forme exigée « owner/name:tag » (GitHub, "
+                "sans URL : l'adresse se dérive de la source déclarée `github`)")
+    if not _GITHUB_TAG_RE.match(tag) or tag.lower() == 'latest':
+        return (f"tag refusé : {tag!r} — le tag EXACT de la version (jamais « latest », qui "
+                "désigne une version différente demain), sans « / »")
+    asset = str(spec.get('asset') or '')
+    if not _GITHUB_ASSET_RE.match(asset) or '..' in asset:
+        return f"asset refusé : {asset!r} — le NOM d'un fichier de la version, sans chemin"
+    if not _SHA256_RE.match(str(spec.get('sha256') or '')):
+        return ("sha256 manquant ou invalide — l'empreinte publiée de l'asset (64 caractères "
+                "hexadécimaux, `digest` de l'API GitHub) : sans elle, rien ne garantit qu'on "
+                "installe ce qui a été jugé")
+    if not spec.get('category'):
+        return "category requis — la catégorie WAMA du dossier (`model_locations`)"
+    return None
+
+
+def github_asset_url(spec: dict) -> str:
+    """Adresse de téléchargement de l'asset, dérivée de la source déclarée `github` (comme
+    `vendor_installer.repo_url`) — jamais écrite en dur, jamais fournie par l'appelant."""
+    from wama.common.external_sources import base_url
+    repo, tag = github_release_of(spec.get('ref'))
+    return f"{base_url('github')}/{repo}/releases/download/{tag}/{spec['asset']}"
+
+
+def github_release_dir(spec: dict) -> str:
+    """Dossier du modèle : `<catégorie>/<famille ou tag>/github--owner--repo/<tag>`."""
+    from wama.common.utils.model_locations import github_folder_name, model_dir
+    repo, tag = github_release_of(spec.get('ref'))
+    cache = model_dir(spec['category'], spec.get('family') or tag)
+    return os.path.join(str(cache), github_folder_name(repo), tag)
+
+
+def _file_sha256(path: str) -> str:
+    import hashlib
+    digest = hashlib.sha256()
+    with open(path, 'rb') as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def pull_github_asset(spec: dict, timeout: int = 600, dry_run: bool = False) -> dict:
+    """Télécharge l'asset d'une version GitHub DANS LE BON DOSSIER (cf. l'en-tête du pilote).
+
+    Le comportement de `pull_yolo_weights`, adapté : `dry_run` rend la cible ; un fichier déjà
+    présent est rendu `already` — mais seulement s'il porte l'empreinte épinglée : un fichier
+    DIFFÉRENT à cette place n'est ni repris ni écrasé, il est DIT (on ne remplace pas en silence
+    ce qu'on n'a pas installé). Retourne {'ok': bool, 'path'|'target'|'error': …}.
+    """
+    error = github_spec_error(spec)
+    if error:
+        return {'ok': False, 'error': error}
+    release = github_release_dir(spec)
+    target = os.path.join(release, spec['asset'])
+    if dry_run:
+        return {'ok': True, 'target': target, 'dry_run': True}
+    if os.path.exists(target):
+        if _file_sha256(target) == spec['sha256'].lower():
+            return {'ok': True, 'path': target, 'already': True}
+        return {'ok': False,
+                'error': f"{target} existe avec une AUTRE empreinte que celle épinglée — "
+                         "le retirer (désinstallation) avant de réinstaller"}
+    os.makedirs(release, exist_ok=True)
+    from wama.common.external_sources import proxies_for
+    return download_asset(github_asset_url(spec), target, timeout=timeout,
+                          sha256=spec['sha256'], proxies=proxies_for('github'))
+
+
+def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int = 0,
+                   sha256: str = '', proxies=None) -> dict:
+    """Télécharge UN fichier publié (asset de version GitHub…) vers `target`, sans jamais laisser
+    un fichier partiel à sa place : écriture dans `<target>.part`, contrôles, puis remplacement
+    atomique. Retourne {'ok': True, 'path', 'url'} ou {'ok': False, 'error'}, sans lever.
+
+    Extrait de `pull_yolo_weights` le 2026-10-07 (pilote `github` : deux pilotes, un corps) —
+    c'était le seul téléchargement de qualité installeur du dépôt ; les téléchargeurs écrits
+    par app (enhancer, anonymizer, cam_analyzer) n'ont ni partiel ni contrôle.
+
+    Contrôles, du plus faible au plus fort :
+      • `min_bytes` : une page d'erreur HTML servie à la place du fichier pèse quelques Ko ;
+      • `sha256` : l'empreinte ÉPINGLÉE (publiée par l'API GitHub, `digest`). Un écart refuse le
+        fichier : c'est la garantie qu'on installe ce qui a été jugé, pas ce que le serveur
+        sert aujourd'hui.
+    `proxies` : ceux de la source déclarée (`external_sources.proxies_for`) ; None = l'environnement.
+    """
+    import hashlib
+
+    import requests
+
     tmp = target + '.part'
     try:
-        with requests.get(url, stream=True, timeout=timeout, allow_redirects=True) as r:
+        digest = hashlib.sha256()
+        with requests.get(url, stream=True, timeout=timeout, allow_redirects=True,
+                          proxies=proxies) as r:
             r.raise_for_status()
             with open(tmp, 'wb') as fh:
                 for chunk in r.iter_content(chunk_size=1 << 20):
                     fh.write(chunk)
-        # Garde-fou : une page d'erreur HTML ferait un .pt de quelques Ko.
-        if os.path.getsize(tmp) < 1_000_000:
+                    digest.update(chunk)
+        size = os.path.getsize(tmp)
+        if size < min_bytes:
             os.remove(tmp)
-            return {'ok': False, 'error': f"téléchargement suspect (<1 Mo) — poids inexistant ? {url}"}
+            return {'ok': False,
+                    'error': f"téléchargement suspect (<{min_bytes / 1e6:g} Mo) — "
+                             f"poids inexistant ? {url}"}
+        if sha256 and digest.hexdigest() != sha256.lower():
+            os.remove(tmp)
+            return {'ok': False,
+                    'error': f"empreinte différente de celle épinglée ({sha256[:12]}… attendu, "
+                             f"{digest.hexdigest()[:12]}… reçu) — fichier refusé : {url}"}
         os.replace(tmp, target)
         return {'ok': True, 'path': target, 'url': url}
     except Exception as e:
@@ -977,7 +1153,8 @@ def install_candidate(cand, progress=None, token=None) -> dict:
     spec = (cand.extra_info or {}).get('prospect', {}).get('spec')
     if spec and spec.get('kind') and spec['kind'] != 'ollama':
         if progress:
-            progress(f"téléchargement {spec.get('ref')} (HuggingFace)…")
+            origin = {'github': 'GitHub', 'yolo': 'GitHub'}.get(spec['kind'], 'HuggingFace')
+            progress(f"téléchargement {spec.get('ref')} ({origin})…")
         res = install_from_spec(spec, token=token)
         if not res.get('ok'):
             return {'ok': False, 'error': res.get('error', 'installation échouée')}
@@ -1323,8 +1500,10 @@ def install_from_spec(spec: dict, token=None) -> dict:
     drivers derrière ce dispatcher.
 
     spec = {
-      'kind': 'ollama' | 'hf' | 'yolo',        # driver d'installation
-      'ref':  'bge-m3' | 'org/model' | 'yolo26s-seg',
+      'kind': 'ollama' | 'hf' | 'yolo' | 'github',   # driver d'installation
+      'ref':  'bge-m3' | 'org/model' | 'yolo26s-seg' | 'owner/repo:tag',
+      'asset': 'x.onnx', 'sha256': '…',        # github : fichier de la version + empreinte
+                                               #   épinglée (`github_spec_error`)
       'category': 'diffusion' | 'speech' | …,  # hf : catégorie de dossier (model_locations)
       'family': 'qwen-image',                  # hf : sous-dossier famille (optionnel)
       'allow_patterns': ['*.safetensors'],     # hf : restreindre les fichiers (optionnel)
@@ -1358,6 +1537,8 @@ def install_from_spec(spec: dict, token=None) -> dict:
         res = pull_ollama_model(ref)
     elif kind == 'yolo':
         res = pull_yolo_weights(ref)
+    elif kind == 'github':
+        res = pull_github_asset(spec)
     elif kind == 'hf':
         if not spec.get('category'):
             return {'ok': False, 'error': "spec.category requis pour kind='hf'"}
@@ -1366,7 +1547,7 @@ def install_from_spec(spec: dict, token=None) -> dict:
                                             or patterns_from_composition(spec.get('composition'))),
                             token=token)
     else:
-        return {'ok': False, 'error': f"spec.kind inconnu: {kind!r} (ollama|hf|yolo)"}
+        return {'ok': False, 'error': f"spec.kind inconnu: {kind!r} (ollama|hf|yolo|github)"}
 
     if res.get('ok') and deps:
         res['pip'] = pip_install_packages(deps)

@@ -155,6 +155,26 @@ def hf_id_of_folder(name: str):
     return f"{parts[0]}/{'--'.join(parts[1:])}" if len(parts) >= 2 else None
 
 
+#: Préfixe d'un dossier de dépôt GitHub — le pendant de `models--` (2026-10-07, pilote `github`).
+GITHUB_FOLDER_PREFIX = 'github--'
+
+
+def github_folder_name(repo: str) -> str:
+    """`owner/repo` → `github--owner--repo` : la convention de `hf_folder_name`, pour un dépôt
+    GitHub dont les VERSIONS publient des poids (`<cat>/<famille>/github--owner--repo/<tag>/`)."""
+    return GITHUB_FOLDER_PREFIX + str(repo or '').strip().replace('/', '--')
+
+
+def github_repo_of_folder(name: str):
+    """`github--owner--repo` → `owner/repo`, ou None. Même lecture que `hf_id_of_folder` : le
+    séparateur est le DOUBLE tiret (GitHub refuse deux tirets consécutifs dans un nom de compte ;
+    un nom de dépôt qui en porte les garde, comme un nom HF)."""
+    if not str(name).startswith(GITHUB_FOLDER_PREFIX):
+        return None
+    parts = str(name)[len(GITHUB_FOLDER_PREFIX):].split('--')
+    return f"{parts[0]}/{'--'.join(parts[1:])}" if len(parts) >= 2 else None
+
+
 def installed_snapshots() -> dict:
     """`hf_id` (minuscules) → racine `models--org--nom` INSTALLÉE, en UN parcours (2026-09-19).
 

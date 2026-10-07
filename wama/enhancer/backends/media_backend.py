@@ -24,14 +24,16 @@ def _upscaler_for(model_name: str, tile_size: int = 0):
     migration) est lu dans l'espace de l'enhancer. Le backend reçoit l'identifiant qu'il connaît
     (`model_id`). Une clé absente ou sans moteur déclaré est une erreur DITE, pas un repli."""
     from wama.common.backends.manager import backend_for_key
-    from wama.common.utils.model_keys import catalog_key, model_id
+    from wama.common.utils.model_keys import backend_model_id, catalog_key
     key = catalog_key(model_name, 'enhancer')
     classe = backend_for_key(key)
     if classe is None:
         raise RuntimeError(
             f"Modèle « {model_name} » : aucun backend résolu depuis le catalogue "
             f"({key} absent, ou sans moteur déclaré)")
-    return classe(model_name=model_id(key), tile_size=tile_size)
+    # L'identifiant de SON vocabulaire (`SUPPORTED_MODELS`), celui que la résolution vient de
+    # comparer — pas l'espace de clés de l'app (une version GitHub les sépare, 2026-10-07).
+    return classe(model_name=backend_model_id(key), tile_size=tile_size)
 
 
 def _model_of(options: dict) -> str:

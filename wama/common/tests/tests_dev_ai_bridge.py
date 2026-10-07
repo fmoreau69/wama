@@ -459,6 +459,45 @@ class TaskFactsTest(SimpleTestCase):
         self.assertEqual('onnxruntime', manifest['body']['composition']['runtime']['engine'])
 
 
+class CategoryFollowsTheTaskTest(SimpleTestCase):
+    """Real case (2026-10-07, GaterV3 — a GitHub release — on Albert): task `denoise` right,
+    category `vision` judged by the LLM. The weights were stored under `vision/`, the row was
+    born `vision`, and the enhancer select (anchored on `upscaling` by the task) lost it."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role_utils = _charger('role_utils')
+
+    def _manifest(self, task, model_type):
+        return {'body': {'identity': {'model_type': model_type},
+                         'capabilities': ({'task': task} if task else {})}}
+
+    def test_the_category_of_the_task_wins_and_is_said(self):
+        manifest, concerns = self._manifest('denoise', 'vision'), []
+        self.role_utils.enforce_category_facts(manifest, concerns)
+        self.assertEqual('upscaling', manifest['body']['identity']['model_type'])
+        self.assertIn('denoise', concerns[0])
+
+    def test_counter_proof_nothing_is_guessed(self):
+        for task, model_type in (('denoise', 'upscaling'),    # already right
+                                 ('not-a-task', 'vision'),    # unknown task: no table entry
+                                 ('', 'vision')):             # no task at all
+            with self.subTest(task=task):
+                manifest, concerns = self._manifest(task, model_type), []
+                self.role_utils.enforce_category_facts(manifest, concerns)
+                self.assertEqual(model_type, manifest['body']['identity']['model_type'])
+                self.assertEqual([], concerns)
+
+    def test_both_manifest_roles_apply_it_after_the_task(self):
+        for name in ('run_scout.py', 'run_model_manifest.py'):
+            with self.subTest(role=name):
+                source = (DEV_AI / name).read_text(encoding='utf-8')
+                self.assertIn('enforce_category_facts(manifest, concerns)', source)
+                self.assertLess(source.index('enforce_task_facts(manifest'),
+                                source.index('enforce_category_facts(manifest'))
+
+
 class IdentityIsTheRequestedOneTest(SimpleTestCase):
     """Real case (2026-10-01, gpt-oss-120b on Albert): asked for `kyutai/stt-1b-en_fr-trfs`, the
     LLM wrote the key of ANOTHER model (`kyutai/stt-2.6b-en`) — and the engine check then read

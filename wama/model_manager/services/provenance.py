@@ -127,6 +127,22 @@ def identity_for_spec(spec: dict) -> Optional[dict]:
         # construit), et la licence sera lue DANS le fichier par `weights_metadata` — on ne la
         # code pas en dur ici.
         return {'platform_ref': 'github:ultralytics/assets'}
+    if kind == 'github':
+        # La VERSION est le modèle (pilote `github`, 2026-10-07) : `platform_ref` désigne sa page,
+        # que le gabarit existant (`AIModel._URL_PAR_PLATEFORME['github']`) rend telle quelle.
+        # La licence vient du spec quand la prospection l'a relevée sur la version — jamais
+        # supposée ici.
+        from .model_installer import github_platform_ref, github_release_of
+        platform_ref = github_platform_ref(ref)
+        if not platform_ref:
+            return None
+        # L'éditeur est le propriétaire du dépôt qui publie la version — le pendant du slug
+        # d'organisation qu'une carte HF rend (`set_identity` ne l'écrit que sur un vide).
+        identity = {'platform_ref': platform_ref,
+                    'author': github_release_of(ref)[0].partition('/')[0]}
+        if spec.get('license'):
+            identity['license'] = spec['license']
+        return identity
     return None
 
 

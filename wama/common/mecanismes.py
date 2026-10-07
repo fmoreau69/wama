@@ -307,7 +307,10 @@ MECHANISMS = (
               "intact). Née au portage F4b de l'imager (2026-09-29) ; consommée par l'imager, "
               "l'ETA (`make_key`) et `declaration_for`. ⚠ Une douzaine de conversions à la main "
               "vivent encore dans le dépôt (relevé du 29/09) — elles s'y rallient au fil des "
-              "portages, pas en passe aveugle",
+              "portages, pas en passe aveugle. `backend_model_id` (2026-10-07) est l'AUTRE "
+              "lecture : l'identifiant qu'un backend déclare dans `SUPPORTED_MODELS` (dernier "
+              "segment, règle de `backend_for_model`, écrite quatre fois en ligne jusque-là) — "
+              "elle seule sépare de `model_id` une clé à trois segments (`github:owner/repo:tag`)",
               # Pas de `symbol` : `catalog_key` est aussi un nom de VARIABLE locale (composer,
               # enhancer, avatarizer) — compté par symbole, il leur attribuait une adoption fausse.
               # Le repli « feuille » compte l'import du module, qui est la vraie adoption.
@@ -347,7 +350,9 @@ MECHANISMS = (
               'wama/model_manager/services/provenance.py', '',
               annexes=('wama/model_manager/services/weights_metadata.py',)),
     Mechanism('prospection', 'Prospection de modèles',
-              "Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run)",
+              "Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; "
+              "versions GitHub lues sur `github_api` (fichiers, licence et facteur DÉCLARÉS, "
+              "empreinte lue ou MESURÉE) pour le scout (`--github owner/repo:tag`, 2026-10-07)",
               'wama/model_manager/services/prospector.py',
               'wama/model_manager/PROSPECTION_PIPELINE.md',
               annexes=('wama/model_manager/services/prospect_agents.py',
@@ -360,7 +365,11 @@ MECHANISMS = (
               annexes=('wama/model_manager/services/model_sync.py',
                        'wama/model_manager/services/file_watcher.py')),
     Mechanism('model_installer', 'Installation de modèles',
-              "Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue",
+              "Pipeline accept→download→register : télécharge au bon endroit puis enregistre au "
+              "catalogue. Un point d'entrée (`install_from_spec`), un pilote par source : ollama, "
+              "hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, "
+              "disposition calquée sur HF, 2026-10-07) ; `download_asset` = le téléchargement "
+              "contrôlé commun aux pilotes à fichier",
               'wama/model_manager/services/model_installer.py', '',
               # Route `library` (install_library) : voie pip ici, voie VENDOR (dépôt épinglé au
               # commit + correctif, ROADMAP D-a, 2026-09-30) dans son exécuteur délégué.

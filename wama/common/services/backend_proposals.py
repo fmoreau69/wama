@@ -80,8 +80,10 @@ def required_methods(contract: tuple) -> set:
 
 
 def model_id_of(model_key: str) -> str:
-    """Identifiant que `SUPPORTED_MODELS` doit déclarer — la règle de `backend_for_model`."""
-    return (model_key or '').rsplit(':', 1)[-1]
+    """Identifiant que `SUPPORTED_MODELS` doit déclarer — la règle de `backend_for_model`,
+    désormais commune (`model_keys.backend_model_id`, 2026-10-07)."""
+    from wama.common.utils.model_keys import backend_model_id
+    return backend_model_id(model_key)
 
 
 def _literal(node):

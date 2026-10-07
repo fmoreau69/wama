@@ -99,15 +99,17 @@ class CatalogueUpscalerTest(TestCase):
 
     def test_an_installed_entry_carries_no_second_truth(self):
         """Bundled: `file` + its facts (they run without a database). Installed: `model_key`
-        ONLY — its key is the identifier `backend_for_model` compares."""
-        from wama.common.utils.model_keys import model_id
+        ONLY — its key is the identifier `backend_for_model` compares (`backend_model_id`: the
+        last segment of the key — `model_id` agreed with it until a three-segment key, a GitHub
+        release `github:owner/repo:tag`, 2026-10-07)."""
+        from wama.common.utils.model_keys import backend_model_id
         for name, info in ai_upscaler.SUPPORTED_MODELS.items():
             with self.subTest(model=name):
                 if info.get('file'):
                     self.assertIn('scale', info)
                 else:
                     self.assertEqual({'model_key'}, set(info))
-                    self.assertEqual(name, model_id(info['model_key']))
+                    self.assertEqual(name, backend_model_id(info['model_key']))
 
     def test_the_installed_upscaler_resolves_aiupscaler_beside_supra2(self):
         """The catalogue row as « Valider » left it: engine `onnxruntime`, shared with Supra2-IMG."""
@@ -121,3 +123,12 @@ class CatalogueUpscalerTest(TestCase):
                                  composition={'runtime': {'engine': 'onnxruntime'}},
                                  capabilities={'task': 'text-to-image'})
         self.assertNotEqual('AIUpscaler', backend_for_model(supra2).__name__)
+
+    def test_an_installed_github_release_resolves_aiupscaler_too(self):
+        """A GitHub release key has three segments (`github:owner/repo:tag`) : the entry is named
+        by the tag, and the shared engine still resolves to AIUpscaler (2026-10-07, SPAN)."""
+        from wama.common.backends.manager import backend_for_model
+        span = SimpleNamespace(model_key='github:Phhofm/models:4xNomosUni_span_multijpg',
+                               composition={'runtime': {'engine': 'onnxruntime'}},
+                               capabilities={'task': 'upscale', 'scale': 4})
+        self.assertEqual('AIUpscaler', backend_for_model(span).__name__)

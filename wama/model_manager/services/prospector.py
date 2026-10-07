@@ -11,6 +11,8 @@ Mapping app WAMA → tâche HF dans `APP_TASKS`.
 from __future__ import annotations
 
 import logging
+import os
+import re
 from functools import lru_cache
 
 logger = logging.getLogger(__name__)
@@ -1037,10 +1039,14 @@ def seed_candidate_from_manifest(manifest: dict) -> dict:
     body = manifest.get('body') or {}
     identity = body.get('identity') or {}
     hf_id = (identity.get('hf_id') or '').strip()
-    if not hf_id or identity.get('source') != 'huggingface':
+    source = identity.get('source')
+    # Deux sources savent se proposer ainsi : un dépôt HuggingFace (`hf_id`) et une VERSION
+    # GitHub (`platform_ref` github:…/releases/tag/…, 2026-10-07 — pilote `github`).
+    if not ((source == 'huggingface' and hf_id) or source == 'github'):
         return {'ok': False,
-                'error': "seul un manifeste de modèle HuggingFace se propose ainsi "
-                         "(identity.hf_id + source='huggingface')"}
+                'error': "seul un manifeste de modèle HuggingFace (identity.hf_id + "
+                         "source='huggingface') ou d'une version GitHub (source='github') "
+                         "se propose ainsi"}
     model_type = (identity.get('model_type') or '').strip()
     if not model_type:
         return {'ok': False, 'error': "identity.model_type manquant : le candidat n'aurait ni "
@@ -1051,28 +1057,52 @@ def seed_candidate_from_manifest(manifest: dict) -> dict:
     if task:
         # Ce que la tâche IMPLIQUE, posé sans écraser ce que le manifeste déclare déjà.
         caps = {**default_inputs_for(task), **caps}
-    cand_key = PROPOSED_PREFIX + f"hf:{hf_id}"
+    disk_gb = float((body.get('resources') or {}).get('disk_gb') or 0.0)
+    if source == 'github':
+        # La version se lit dans `platform_ref`, le fichier dans le composant ; l'empreinte est
+        # lue sur l'API ou MESURÉE (`pinned_github_asset`) — jamais prise du manifeste.
+        driver = github_spec_from_manifest(manifest)
+        if driver.get('error'):
+            return {'ok': False, 'error': driver['error']}
+        ref = driver['ref']
+        cand_key = PROPOSED_PREFIX + f"github:{ref}"
+        spec_head = (('kind', 'github'), ('ref', ref), ('asset', driver['asset']),
+                     ('sha256', driver['sha256']))
+        platform_ref = identity.get('platform_ref')
+        disk_gb = disk_gb or round(driver['size'] / 1024 ** 3, 4)
+        name = ref.partition(':')[2]
+    else:
+        ref = hf_id
+        cand_key = PROPOSED_PREFIX + f"hf:{hf_id}"
+        spec_head = (('kind', 'hf'), ('ref', hf_id))
+        platform_ref = identity.get('platform_ref') or f"huggingface:{hf_id}"
+        name = hf_id.split('/')[-1]
+    license_ = str(identity.get('license') or '')[:64]
     created = write_candidate(
-        cand_key, nom=manifest.get('name') or hf_id.split('/')[-1], model_type=model_type,
-        source='huggingface',
+        cand_key, nom=manifest.get('name') or name, model_type=model_type,
+        source=source,
         description=(identity.get('description_short') or manifest.get('description')
                      or f"[{task or model_type}] Proposé par le rôle scout.")[:500],
         kind='new', confidence=None,
-        extra={'kind': 'new', 'role': f"scout:{task or model_type}", 'name': hf_id,
+        extra={'kind': 'new', 'role': f"scout:{task or model_type}", 'name': ref,
                'reason': "manifeste produit par le rôle scout (wama-dev-ai)",
                # Le spec porte la COMPOSITION quand le manifeste en déclare une : c'est elle
                # qui fait tirer le jeu de poids COHÉRENT au lieu du dépôt entier.
                # Et les CAPACITÉS jugées (2026-10-06, Swin2SR) : le candidat est supprimé à
                # l'installation, la ligne installée ne recevait que la tâche — son facteur
                # `scale: 4` se perdait, et le tirage « auto » de l'enhancer filtre dessus.
+               # La LICENCE voyage aussi pour une version GitHub : sa provenance n'a pas de
+               # carte à relire à l'installation (`identity_for_spec`).
                'spec': {k: v for k, v in (
-                   ('kind', 'hf'), ('ref', hf_id), ('category', model_type),
+                   *spec_head, ('category', model_type),
                    ('task', task), ('composition', body.get('composition')),
-                   ('capabilities', caps), ('note', 'manifeste scout')) if v}},
+                   ('capabilities', caps),
+                   ('license', license_ if source == 'github' else ''),
+                   ('note', 'manifeste scout')) if v}},
         capabilities=caps,
-        hf_id=hf_id, license=str(identity.get('license') or '')[:64],
-        platform_ref=identity.get('platform_ref') or f"huggingface:{hf_id}",
-        disk_gb=float((body.get('resources') or {}).get('disk_gb') or 0.0),
+        hf_id=hf_id, license=license_,
+        platform_ref=platform_ref,
+        disk_gb=disk_gb,
     )
     return {'ok': True, 'model_key': cand_key, 'created': created, 'task': task}
 
@@ -1124,6 +1154,126 @@ def seed_yolo_candidate(name: str) -> dict:
         disk_gb=weight_for_spec(spec) or 0.0,
     )
     return {'ok': True, 'model_key': cand_key, 'created': created, 'task': task}
+
+
+# ── Versions GitHub (pilote `github`, 2026-10-07) ─────────────────────────────────────────────
+# Le pendant de ce que `HfApi().model_info` donne au scout pour un dépôt HF : la version lue sur
+# l'API GitHub — c'est l'usage DÉCLARÉ de la source `github_api` (« Liste des releases —
+# résolution de la version d'un poids »), qui n'avait jusqu'ici aucun lecteur pour cela.
+# Même client que `benchmark_sync._mteb_index` (en-tête, jeton `GITHUB_TOKEN` facultatif : le
+# quota anonyme est de 60 appels/h).
+
+def github_release(ref: str):
+    """La version `owner/repo:tag` telle que l'API GitHub la publie (dict), `{}` si elle
+    n'existe pas (404), None si l'API n'a pas répondu — « l'un est une panne, l'autre un fait »
+    (la distinction de `_siblings`)."""
+    import requests
+
+    from wama.common.external_sources import base_url, proxies_for
+
+    from .model_installer import github_release_of
+    repo, tag = github_release_of(ref)
+    if not (repo and tag):
+        return {}
+    headers = {'Accept': 'application/vnd.github+json'}
+    token = os.environ.get('GITHUB_TOKEN', '').strip()
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    try:
+        r = requests.get(f"{base_url('github_api')}/repos/{repo}/releases/tags/{tag}",
+                         headers=headers, proxies=proxies_for('github_api'), timeout=30)
+        if r.status_code == 404:
+            return {}
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        logger.warning("[github] version %s illisible : %s", ref, e)
+        return None
+
+
+#: Ligne « License: … » du texte d'une version — la seule licence qu'une version GitHub porte
+#: (le dépôt peut en publier des centaines sous des licences différentes : `Phhofm/models`).
+_RELEASE_LICENSE_RE = re.compile(r'^\s*\**\s*licen[sc]e\s*\**\s*:\s*\**\s*(.+?)\s*$',
+                                 re.IGNORECASE | re.MULTILINE)
+
+
+def github_release_license(release: dict) -> str:
+    """Licence DITE par le texte de la version (« License: CC BY 4.0 »), sinon '' — jamais
+    supposée depuis la licence du dépôt, qui n'est pas celle du modèle."""
+    m = _RELEASE_LICENSE_RE.search((release or {}).get('body') or '')
+    return re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', m.group(1)).strip()[:64] if m else ''
+
+
+#: Ligne « Scale: 4 » du texte d'une version — le facteur DÉCLARÉ d'un agrandisseur. Le pendant,
+#: pour une version, des `SCALE_KEYS` qu'un `config.json` HF porte (`role_utils.enforce_task_facts`).
+_RELEASE_SCALE_RE = re.compile(r'^\s*\**\s*scale\s*\**\s*:\s*\**\s*(\d+)\s*[x×]?\s*$',
+                               re.IGNORECASE | re.MULTILINE)
+
+
+def github_release_scale(release: dict):
+    """Facteur que le texte de la version DÉCLARE (« Scale: 4 »), sinon None — jamais déduit du
+    nom (« 4x… ») : le silence vaut mieux qu'une convention supposée."""
+    m = _RELEASE_SCALE_RE.search((release or {}).get('body') or '')
+    return int(m.group(1)) if m and int(m.group(1)) > 0 else None
+
+
+def pinned_github_asset(ref: str, asset: str, release: dict = None) -> dict:
+    """{'asset', 'size', 'sha256', 'measured'} de l'asset d'une version, ou {'error'}.
+
+    L'empreinte vient de l'API (`digest`) quand elle la publie. Mesuré le 2026-10-07 : 7 versions
+    sur 100 de `Phhofm/models` seulement la portent (SPAN, avril 2024, non). Sinon elle se MESURE
+    — le fichier est téléchargé dans un dossier jetable par la primitive commune, puis haché
+    (`measured=True`). Une empreinte qu'on n'a ni lue ni mesurée n'est jamais écrite : c'est
+    elle que l'installation exigera.
+    """
+    import tempfile
+
+    from .model_installer import _file_sha256, download_asset, github_asset_url
+    release = github_release(ref) if release is None else release
+    if release is None:
+        return {'error': f"API GitHub injoignable pour {ref}"}
+    found = next((a for a in (release.get('assets') or []) if a.get('name') == asset), None)
+    if found is None:
+        names = sorted(a.get('name', '') for a in (release.get('assets') or []))
+        return {'error': f"asset {asset!r} absent de la version {ref} (fichiers : {names})"}
+    digest = str(found.get('digest') or '')
+    if digest.startswith('sha256:'):
+        return {'asset': asset, 'size': int(found.get('size') or 0),
+                'sha256': digest[len('sha256:'):].lower(), 'measured': False}
+    from wama.common.external_sources import proxies_for
+    with tempfile.TemporaryDirectory() as tmp:
+        target = os.path.join(tmp, asset)
+        res = download_asset(github_asset_url({'ref': ref, 'asset': asset}), target,
+                             proxies=proxies_for('github'))
+        if not res.get('ok'):
+            return {'error': f"empreinte non mesurable : {res.get('error')}"}
+        return {'asset': asset, 'size': os.path.getsize(target),
+                'sha256': _file_sha256(target), 'measured': True}
+
+
+def github_spec_from_manifest(manifest: dict) -> dict:
+    """Descripteur `github` d'un manifeste `model` de source `github`, empreinte ÉPINGLÉE —
+    ou {'error'}. La version se lit dans `identity.platform_ref`, le fichier dans le composant
+    `model` (un NOM, pas un motif : une version publie des variantes fp32/fp16, on en tire une)."""
+    from .model_installer import github_ref_of_platform, github_spec_error
+    body = (manifest or {}).get('body') or {}
+    identity = body.get('identity') or {}
+    ref = github_ref_of_platform(identity.get('platform_ref'))
+    if not ref:
+        return {'error': "identity.platform_ref n'est pas une version GitHub "
+                         "(github:owner/repo/releases/tag/<tag>)"}
+    comps = [c for c in ((body.get('composition') or {}).get('components') or [])
+             if isinstance(c, dict) and c.get('pattern')]
+    if len(comps) != 1 or any(ch in comps[0]['pattern'] for ch in '*?[/'):
+        return {'error': "composition.components doit nommer UN fichier de la version "
+                         "(le composant `model`)"}
+    pinned = pinned_github_asset(ref, comps[0]['pattern'])
+    if pinned.get('error'):
+        return pinned
+    spec = {'kind': 'github', 'ref': ref, 'asset': pinned['asset'], 'sha256': pinned['sha256'],
+            'category': identity.get('model_type') or '', 'size': pinned['size']}
+    error = github_spec_error(spec)
+    return {'error': error} if error else {**spec, 'sha256_measured': pinned['measured']}
 
 
 def named_repo(query: str):

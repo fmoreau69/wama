@@ -453,6 +453,10 @@ class ModelSource(models.TextChoices):
     CLAUDE_CODE = 'claude_code', 'Claude Code (abonnement)'
     OLLAMA = 'ollama', 'Ollama'
     HUGGINGFACE = 'huggingface', 'HuggingFace'
+    # Poids publiés dans une VERSION GitHub (2026-10-07, pilote `github` de `install_from_spec`) :
+    # le pendant de HUGGINGFACE pour le balayage générique — même valeur que la plateforme
+    # (`_URL_PAR_PLATEFORME['github']`) et que la source déclarée (`external_sources`).
+    GITHUB = 'github', 'GitHub'
     CUSTOM = 'custom', 'Custom'
 
 

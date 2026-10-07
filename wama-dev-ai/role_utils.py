@@ -775,6 +775,28 @@ def enforce_task_facts(manifest, hf_id, concerns, reader=None, lister=repo_files
     return manifest
 
 
+def enforce_category_facts(manifest, concerns):
+    """La CATÉGORIE suit la tâche déclarée — `models.model_type_for_task`, la table que le
+    catalogue lit déjà pour ancrer ses requêtes par capacité (`get_registry_models`).
+
+    Vécu le 2026-10-07 (GaterV3, version GitHub) : tâche `denoise` juste, catégorie `vision`
+    jugée par le LLM — le fichier s'est rangé sous `vision/`, la ligne est née `vision`, et le
+    select de l'enhancer (domaine `upscale,denoise`, ancré sur `upscaling`) ne la voyait plus.
+    `enforce_task_facts` alignait déjà la catégorie, mais seulement quand une ARCHITECTURE HF
+    prouve la tâche : pour tout le reste, rien ne confrontait la catégorie à la tâche.
+    Tâche inconnue de la table → rien n'est posé (on ne devine pas)."""
+    from wama.model_manager.models import model_type_for_task
+    body = manifest.setdefault('body', {})
+    task = (body.get('capabilities') or {}).get('task')
+    expected = model_type_for_task(task) if task else None
+    identity = body.setdefault('identity', {})
+    if expected and identity.get('model_type') != expected:
+        concerns.append(f"model_type {identity.get('model_type')!r} → {expected!r} "
+                        f"(suit la tâche {task!r}, `TASK_TO_MODEL_TYPE`)")
+        identity['model_type'] = expected
+    return manifest
+
+
 def enforce_resolution_facts(manifest, hf_id, concerns, lister=repo_files, loader=None):
     """Pose `capabilities.native_resolution` quand un fichier de config du dépôt la DIT.
 

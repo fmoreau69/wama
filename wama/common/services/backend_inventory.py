@@ -832,8 +832,9 @@ def app_backend_entries(app: str) -> List[BackendEntry]:
         return []
     entries = resolvable_entries()
     par_module = {}
+    from wama.common.utils.model_keys import backend_model_id
     for cle, _ref, engine in modeles:
-        e = resolve_entry(engine, cle.rsplit(':', 1)[-1] if cle else '', entries)
+        e = resolve_entry(engine, backend_model_id(cle), entries)
         if e is not None and e.module:
             par_module.setdefault(e.module, e)
     return [par_module[m] for m in sorted(par_module)]

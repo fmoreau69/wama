@@ -182,7 +182,7 @@ def upscale_output_image(path: str, factor, *, item=None, app_id=None, denoise: 
     from wama.common.backends.ai_upscaler import upscale_image_file
     from wama.common.backends.manager import backend_for_key
     from wama.common.utils.auto_model import AUTO, candidates_with, resolve_model_choice
-    from wama.common.utils.model_keys import model_id
+    from wama.common.utils.model_keys import backend_model_id
 
     n = upscale_factor(factor)
     candidates = candidates_with('scale', n, **UPSCALER_SPEC) if n > 1 else []
@@ -203,7 +203,8 @@ def upscale_output_image(path: str, factor, *, item=None, app_id=None, denoise: 
                                dir=os.path.dirname(os.path.abspath(path)))
     os.close(fd)
     try:
-        size = upscale_image_file(path, tmp, model_name=model_id(key), denoise=denoise,
+        # Le backend reçoit l'identifiant de SON vocabulaire, celui que la résolution a comparé.
+        size = upscale_image_file(path, tmp, model_name=backend_model_id(key), denoise=denoise,
                                   progress_callback=progress_callback,
                                   factory=lambda name: backend_class(model_name=name))
         os.replace(tmp, path)

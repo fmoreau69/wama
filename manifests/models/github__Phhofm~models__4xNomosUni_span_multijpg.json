@@ -1,0 +1,74 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_image"
+      ],
+      "modalities": [
+        "image"
+      ],
+      "scale": 4,
+      "task": "upscale"
+    },
+    "composition": {
+      "components": [
+        {
+          "format": "onnx",
+          "pattern": "4xNomosUni_span_multijpg_fp32_opset17.onnx",
+          "role": "model"
+        }
+      ],
+      "runtime": {
+        "engine": "onnxruntime"
+      }
+    },
+    "extra_info": {
+      "category": "upscaling",
+      "family": "4xNomosUni_span_multijpg",
+      "github_release": true,
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "onnx",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "Phhofm",
+      "description_short": "Version GitHub 4xNomosUni_span_multijpg",
+      "hf_id": null,
+      "license": "CC BY 4.0",
+      "model_type": "upscaling",
+      "platform_ref": "github:Phhofm/models/releases/tag/4xNomosUni_span_multijpg",
+      "source": "github"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0015994617715477943,
+      "ram_gb": 0.0,
+      "vram_gb": 0.1
+    }
+  },
+  "description": "Version GitHub installée (upscaling/4xNomosUni_span_multijpg), cataloguée par le balayage générique des modèles installés.",
+  "key": "github:Phhofm/models:4xNomosUni_span_multijpg",
+  "manifest_kind": "model",
+  "name": "4xNomosUni_span_multijpg",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:github:Phhofm/models:4xNomosUni_span_multijpg",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

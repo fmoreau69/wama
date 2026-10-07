@@ -81,6 +81,12 @@ SUPPORTED_MODELS = {  # wama:redondance-ok — même inventaire que enhancer/uti
     'onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX': {
         'model_key': 'huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX',
     },
+    # Poids publiés dans une VERSION GitHub (pilote `github`, 2026-10-07) : la clé de cette table
+    # est l'identifiant que compare `backend_for_model` — le DERNIER segment de la clé
+    # `github:owner/repo:tag`, donc le tag (`model_keys.backend_model_id`).
+    '4xNomosUni_span_multijpg': {
+        'model_key': 'github:Phhofm/models:4xNomosUni_span_multijpg',
+    },
 }
 
 

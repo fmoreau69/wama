@@ -58,6 +58,19 @@ def model_id(value: str) -> str:
     return split_key(value)[1]
 
 
+def backend_model_id(value: str) -> str:
+    """L'identifiant qu'un backend DÉCLARE dans son `SUPPORTED_MODELS` : le DERNIER segment de la
+    clé (`anonymizer:yolo:yolo11n.pt` → `yolo11n.pt`, `github:Phhofm/models:<tag>` → `<tag>`).
+
+    L'AUTRE question de l'en-tête (« le vocabulaire d'un backend, pas l'espace de clés d'une
+    app ») : c'est la règle de `backend_for_model`, écrite en ligne quatre fois jusqu'au
+    2026-10-07 (`manager.backend_for_model`, `manager._unserved_by_task_contract`,
+    `backend_inventory`, `backend_proposals.model_id_of`). Elle coïncide avec `model_id` pour
+    toute clé à DEUX segments ; une clé à trois (une version GitHub, `github:owner/repo:tag`)
+    les sépare — c'est alors celle-ci qu'un backend reçoit à sa construction."""
+    return (value or '').rsplit(':', 1)[-1]
+
+
 def catalog_key(value: str, default_source: str) -> str:
     """La clé de catalogue d'une valeur de modèle : une clé est rendue telle quelle, un
     identifiant nu reçoit `default_source` (l'app qui l'a écrit), `auto` et le vide restent.

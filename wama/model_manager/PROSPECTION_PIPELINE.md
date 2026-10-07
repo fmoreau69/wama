@@ -2227,3 +2227,44 @@ partiel préexistant).
 - La MODALE ⚙ (relevé par Fabien) se remplit par l'endpoint et resélectionne la valeur stockée
   seulement si elle est une option : contrat gardé (`CatalogueKeysTest.
   test_the_item_modal_finds_the_stored_model_among_its_options`, contre-épreuve rouge).
+
+**Session du 2026-10-07 (suite) — POIDS D'UNE VERSION GITHUB : SPAN intégré par la chaîne, sans GPU.**
+Demande de Fabien : « vérifier ce qui existe, ne rien réinventer, généraliser, rendre commun, faire
+adopter sans risque ». Ce qui existait : `install_from_spec` (un point d'entrée, un pilote par
+source) dont le pilote `yolo` téléchargeait DÉJÀ un fichier de version GitHub — verrouillé sur
+`ultralytics/assets` et « latest » ; la voie VENDOR (code, commit épinglé) ; les sources déclarées
+`github` / `github_api` (« Liste des releases — résolution de la version d'un poids », sans lecteur).
+- **Pilote `github`** (reproduit `yolo`, adapté) : spec `{ref 'owner/repo:tag', asset, sha256,
+  category, family?}`, verrou pur `github_spec_error` (règle `owner/name` de la voie vendor
+  importée ; tag EXACT, jamais `latest` ; fichier sans chemin ; empreinte OBLIGATOIRE — elle tient
+  le rôle du commit de la voie vendor : un tag déplacé servirait un autre fichier, refusé).
+  Jumelles `weight_for_spec` / `components_for_spec` / `identity_for_spec`
+  (`platform_ref github:owner/repo/releases/tag/<tag>`, page rendue par le gabarit existant).
+- **Rendu commun** : `download_asset` (partiel `.part`, plancher de taille, empreinte, remplacement
+  atomique) extrait de `pull_yolo_weights`, qui l'adopte (plancher 1 Mo inchangé — prouvé par un
+  vrai téléchargement de `yolo11n`, chargé par ultralytics) ; `_asset_gb` (pesée par HEAD) idem.
+- **Disposition calquée sur HF** (décision de Fabien) : `<catégorie>/<famille ou tag>/
+  github--owner--repo/<tag>/<fichier>` ; clé `github:owner/repo:tag` — `@` refusé par le
+  validateur des clés de manifeste, d'où le précédent Ollama `nom:tag`. Découverte = même passe
+  que les snapshots HF (`_github_release_to_model`, faits seuls) ; `ModelSource.GITHUB` (migration
+  de choix `model_manager/0022`, non versionnée, appliquée au redémarrage) ; `GENERIC_SCAN_SOURCES`.
+- **Prospection** : `prospector.github_release` (API, jeton `GITHUB_TOKEN` facultatif),
+  licence et facteur DÉCLARÉS par le texte de la version, empreinte lue (`digest`) ou MESURÉE —
+  mesuré : 7 versions sur 100 de `Phhofm/models` seulement publient un `digest`, SPAN non ; le
+  scout `--github owner/repo:tag --asset …` ; `seed_candidate_from_manifest` accepte la source.
+- **Deux défauts révélés par la clé à trois segments**, soldés à la source : (1) l'identifiant
+  transmis à un backend — `model_id` (espace de l'app) au lieu du dernier segment que compare
+  `backend_for_model` ; la règle, écrite quatre fois en ligne, devient `model_keys.backend_model_id`
+  (adoptée par la résolution, l'inventaire, `backend_proposals.model_id_of`, l'enhancer et
+  l'agrandissement de sortie ; mesuré : identique sur les 260 clés du catalogue) ; (2) la
+  catégorie jugée par le LLM n'était confrontée à la tâche que pour une architecture HF —
+  `role_utils.enforce_category_facts` (scout ET rôle `model`).
+- **Mesures, aucun GPU** : SPAN par la route de l'enhancer, 96×64 → 384×256 en 0,6 s (CPU) ;
+  proposé au select de l'enhancer et au tirage ×4, absent de l'imager. Balayage HF : 17 snapshots
+  sur 17 identiques aux anciennes formules.
+
+🔚 **Restes** : GaterV3 — sa TÂCHE est un jugement (Albert : `denoise` une fois,
+`image-to-image` deux fois ; `spandrel` 0.4.1 ne le connaît pas, et y figurer ne dirait pas la
+tâche) → décision de Fabien ; les téléchargeurs écrits par app (enhancer QualityScaler, 60 URL
+de l'anonymizer, YOLOPv2 du Cam Analyzer, CodeFormer de `setup_avatarizer.sh`) → adoptions à
+venir, une à une ; `WAMA_MECANISMES.md` à régénérer (registre complété, doc co-éditée).
