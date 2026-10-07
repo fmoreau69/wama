@@ -2585,17 +2585,21 @@ def _run_global_tracking(session):
             # Recalculer si AUCUNE calib OU si la source stockée diffère de la voulue : basculer
             # ⚑ depth_estimation sur une session déjà calibrée en homographie (ou l'inverse) doit
             # remplacer la calib, sinon la bascule reste INERTE (verrou identifié 2026-08-05).
+            # … ou si la GÉOMÉTRIE de caméra a changé depuis (distorsion, champ, orientation — 2026-10-07) :
+            # basculer ⚑ measured_lens_distortion gardait des tangages estimés pour l'ancienne distorsion.
+            from .utils.homography_estimator import stale_calibrations, store_ground_calib
+            _stale = stale_calibrations(session) if (_desired and _gc) else []
             _need_calib = bool(_desired) and (
-                not _gc or any((v or {}).get('source', 'homographie') != _desired
-                               for v in _gc.values() if isinstance(v, dict)))
+                not _gc or bool(_stale) or any((v or {}).get('source', 'homographie') != _desired
+                                               for v in _gc.values() if isinstance(v, dict)))
             if _need_calib:
-                from .utils.homography_estimator import store_ground_calib
                 _rep = store_ground_calib(session)
                 _ok = [p for p, v in _rep.items() if not v.get('skipped')]
                 _console(session.user_id,
                          f"Calibration sol auto ({_src}) : "
                          f"{', '.join(_ok) or 'aucune caméra fiable'} "
-                         f"(angle estimé — voir ⚑ Calibration sol auto / ⚑ Profondeur)")
+                         + (f"— refaite : géométrie changée ({', '.join(_stale)}) " if _stale else '')
+                         + "(angle estimé — voir ⚑ Calibration sol auto / ⚑ Profondeur)")
         except Exception:
             logger.warning('store_ground_calib failed (non-blocking)', exc_info=True)
         _gt = annotate_global_tracks(session)
@@ -2659,6 +2663,15 @@ def _run_global_tracking(session):
             _console(session.user_id, "Inclinaison qui annule l'écart d'écartement des garés : " + " · ".join(
                 f"{p} {v['from_deg']}° → {v['pitch_deg']}° (écart {v['gap_before_m']:+.2f} → "
                 f"{v['gap_after_m']:+.2f} m, {v['objects']} garés, réf. {v['anchor']})" for p, v in _op.items()))
+        # Garés comptés deux fois (ancres < 2 m) et bilans des leviers ⚑ parked_long_exposure / ⚑
+        # trajectory_twin_merge (2026-10-07) : calculés par le tracker, jusque-là ni au résumé ni en console.
+        rs['parked_twins'] = _gt.get('parked_twins')
+        rs['parked_long_exposure'] = _gt.get('parked_long_exposure')
+        rs['trajectory_twins'] = _gt.get('trajectory_twins')
+        _console(session.user_id, f"Garés : {len(_gt.get('stationary_gids') or [])} — "
+                 f"{_gt.get('parked_twins')} paires à moins de 2 m (comptés deux fois)"
+                 + (f" · pose longue : {_gt['parked_long_exposure']}" if _gt.get('parked_long_exposure') else '')
+                 + (f" · trajectoires jumelles : {_gt['trajectory_twins']}" if _gt.get('trajectory_twins') else ''))
         _po = (_ca.get('parked_offsets') or {}).get('gaps') or {}
         if _po:
             rs['camera_agreement'] = _ca

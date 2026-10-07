@@ -216,3 +216,37 @@ class LensDistortionTest(SimpleTestCase):
         self.assertIn("['plumb_line'] = res", src)
         self.assertIn('for pos in YAW_MEASURABLE:', src)
         self.assertEqual(set(ci.YAW_MEASURABLE), {'front', 'rear', 'left', 'right'})
+
+
+class CalibrationGeometryTest(SimpleTestCase):
+    """La calibration sol retient la géométrie de caméra avec laquelle elle est faite ; une autre en service la
+    rend PÉRIMÉE (2026-10-07 : basculer ⚑ measured_lens_distortion gardait des tangages de l'ancienne)."""
+
+    def _session(self, k_left):
+        from wama_lab.cam_analyzer.utils.homography_estimator import calibration_geometry
+        from wama_lab.cam_analyzer.utils.prediction_adapter import camera_geometry
+        cfg = {'camera_distortion': {'left': 0.5}, 'features': {'lens_distortion': True}}
+        geo = camera_geometry(SimpleNamespace(config=cfg))
+        cfg['ground_calib'] = {'left': {'pitch_deg': 15.5, 'height_m': 2.3,
+                                        'geometry': calibration_geometry(geo['left'])},
+                               'rear': {'pitch_deg': 19.0, 'height_m': 2.3}}       # ancienne : sans géométrie
+        cfg['camera_distortion']['left'] = k_left
+        return SimpleNamespace(config=cfg)
+
+    def test_a_calibration_made_with_the_geometry_in_service_is_current(self):
+        from wama_lab.cam_analyzer.utils.homography_estimator import stale_calibrations
+        self.assertEqual(stale_calibrations(self._session(0.5)), ['rear'])     # seule l'ancienne, sans géométrie
+
+    def test_a_changed_distortion_makes_the_calibration_stale(self):
+        from wama_lab.cam_analyzer.utils.homography_estimator import stale_calibrations
+        self.assertEqual(stale_calibrations(self._session(0.53)), ['left', 'rear'])
+
+    def test_the_tracking_recalibrates_a_stale_calibration(self):
+        import inspect
+        from wama_lab.cam_analyzer import tasks
+        src = inspect.getsource(tasks._run_global_tracking)
+        self.assertIn('_stale = stale_calibrations(session)', src)
+        self.assertIn('not _gc or bool(_stale) or', src)
+        from wama_lab.cam_analyzer.utils import homography_estimator as he
+        self.assertIn("'geometry': r.get('geometry')", inspect.getsource(he.store_ground_calib))
+        self.assertEqual(inspect.getsource(he.estimate_camera).count("'geometry': calibration_geometry(geo)"), 2)

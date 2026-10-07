@@ -417,3 +417,14 @@ class TrajectoryTwinMergeTest(SimpleTestCase):
         self.assertLess(src.index('trajectory_twins(['), src.index('stationary_gids = []'))
         self.assertIn('if not families_conflict(_fam_tw.get(g), _fam_tw.get(r))', src)
         self.assertIn("'trajectory_twins': _twins", src)
+
+
+class ParkedAndTwinsReportTest(SimpleTestCase):
+    """Les bilans des garés et des jumelles arrivent au RÉSUMÉ et en console (2026-10-07 : calculés par le
+    tracker, ils n'étaient ni l'un ni l'autre — un premier tracking réel ne les montrait pas)."""
+
+    def test_the_task_reports_the_parked_twins_and_the_levers(self):
+        from wama_lab.cam_analyzer import tasks
+        src = inspect.getsource(tasks._run_global_tracking)
+        for key in ("rs['parked_twins']", "rs['parked_long_exposure']", "rs['trajectory_twins']"):
+            self.assertIn(key, src)
