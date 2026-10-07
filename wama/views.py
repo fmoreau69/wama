@@ -206,6 +206,40 @@ def report(request, slug):
     return render(request, entry['template'])
 
 
+# Pages de l'accueil exportables en PDF (`<page>/pdf/`) : nom de route → gabarit, et si c'est une
+# présentation « canvas » (une page 16:9 par étape) plutôt qu'un document A4. Les rapports de
+# `REPORTS` le sont tous, en document. Les archives ne le sont pas : autre moteur de diaporama.
+PDF_PAGES = {
+    'presentation': {'template': 'includes/wama_presentation.html', 'slides': True},
+    'architecture': {'template': 'includes/wama_architecture.html', 'slides': True},
+    'fiches': {'template': 'includes/wama_fiches.html', 'slides': False},
+}
+
+
+def page_pdf(request, page, slug=None):
+    """Le PDF d'une page de `PDF_PAGES` (ou du rapport `slug`), rendu hors serveur par Chromium."""
+    from django.http import FileResponse, Http404, HttpResponse
+    from django.urls import reverse
+    from wama.common.services.page_pdf import page_pdf as build_pdf
+    if page == 'report':
+        entry = REPORTS.get(slug)
+        if entry is None:
+            raise Http404(f"Rapport inconnu : {slug}")
+        template, slides, page_path, name = entry['template'], False, reverse('report', args=[slug]), slug
+    elif page in PDF_PAGES:
+        entry = PDF_PAGES[page]
+        template, slides, page_path, name = entry['template'], entry['slides'], reverse(page), page
+    else:
+        raise Http404(f"Page sans export PDF : {page}")
+    pdf = build_pdf(request, template, page_path=page_path, slides=slides)
+    if pdf is None:
+        return HttpResponse("Export PDF indisponible : le navigateur de rendu (Chromium) n'a pas pu "
+                            "produire le document sur ce serveur.", status=503,
+                            content_type='text/plain; charset=utf-8')
+    return FileResponse(open(pdf, 'rb'), content_type='application/pdf', as_attachment=True,
+                        filename=f'wama-{name}.pdf')
+
+
 #: Ce que l'assistant répond pendant qu'une libération de la carte est en cours — un message
 #: d'attente automatique, jamais un silence ni une erreur nue (l'utilisateur doit savoir).
 _RELEASE_WAIT_MESSAGE = ("Un traitement lourd libère la carte graphique en ce moment : je reste "

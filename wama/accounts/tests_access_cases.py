@@ -111,3 +111,76 @@ class PresentationRoutesTests(TestCase):
         for slug in ARCHIVED_PRESENTATIONS:
             self.assertEqual(self.client.get(reverse('presentation_archive', args=[slug])).status_code, 200)
         self.assertEqual(self.client.get(reverse('presentation_archive', args=['unknown'])).status_code, 404)
+
+
+class PageExportTests(TestCase):
+    """PDF export of the home page's presentations and reports (2026-10-07): each page links `pdf/`,
+    relative, and the route under it is the export — the link is written without `{% url %}` so a
+    template read before the routes are reloaded gives a 404, never a 500."""
+
+    def _exportable(self):
+        from wama.views import PDF_PAGES, REPORTS
+        return ([(reverse(name), entry['slides']) for name, entry in PDF_PAGES.items()]
+                + [(reverse('report', args=[slug]), False) for slug in REPORTS])
+
+    def _render_into(self, written):
+        def fake(html, output_path, *, fetch, path='/', slides=False, origin=''):
+            written.append((path, slides, html))
+            with open(output_path, 'wb') as f:
+                f.write(b'%PDF-1.4 test')
+            return True
+        return fake
+
+    def setUp(self):
+        import tempfile
+        from unittest import mock
+
+        from wama.common.services import page_pdf
+        self.cache = tempfile.TemporaryDirectory()
+        patcher = mock.patch.object(page_pdf, 'CACHE_DIR', __import__('pathlib').Path(self.cache.name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(self.cache.cleanup)
+
+    def test_every_exportable_page_links_its_pdf_and_the_route_under_it_answers(self):
+        from unittest import mock
+
+        from django.urls import resolve
+        from wama import views
+        written = []
+        with mock.patch('wama.common.utils.html_render.render_page_to_pdf', self._render_into(written)):
+            for path, slides in self._exportable():
+                self.assertIn('href="pdf/"', self.client.get(path).content.decode(), path)
+                self.assertIs(views.page_pdf, resolve(path + 'pdf/').func, path)
+                r = self.client.get(path + 'pdf/')
+                self.assertEqual(200, r.status_code, path)
+                self.assertEqual('application/pdf', r['Content-Type'])
+                self.assertIn('attachment', r['Content-Disposition'])
+                self.assertEqual(b'%PDF-1.4 test', b''.join(r.streaming_content))
+                self.assertEqual((path, slides), written[-1][:2], 'rendered at its own address, in its own mode')
+        self.assertIn(True, [s for _p, s in self._exportable()], 'the canvas presentations export by step')
+
+    def test_an_export_the_renderer_cannot_produce_says_so(self):
+        from unittest import mock
+        with mock.patch('wama.common.utils.html_render.render_page_to_pdf', return_value=False):
+            r = self.client.get(reverse('report_pdf', args=['transcription']))
+        self.assertEqual(503, r.status_code)
+        self.assertEqual(404, self.client.get(reverse('report_pdf', args=['unknown'])).status_code)
+
+    def test_the_page_is_served_its_statics_and_views_in_process(self):
+        """The server never calls itself (a single worker would block): what the rendered page asks
+        its origin for comes from the disk and from the Django view behind the path."""
+        from django.contrib.auth.models import AnonymousUser
+        from django.test import RequestFactory
+        from wama.common.services.page_pdf import make_fetcher
+        request = RequestFactory().get('/')
+        request.user, request.session = AnonymousUser(), self.client.session
+        fetch = make_fetcher(request)
+        status, ctype, body = fetch('/static/presentation/wama-presentation.js?v=1')
+        self.assertEqual((200, True), (status, b'window.WamaPrez' in body))
+        self.assertIn('javascript', ctype)
+        status, ctype, body = fetch(reverse('presentation_access_cases'))
+        self.assertEqual(200, status)
+        self.assertIn(b'matrix', body)
+        self.assertEqual(404, fetch('/static/nothing-here.js')[0])
+        self.assertEqual(404, fetch('/no/such/page/')[0])

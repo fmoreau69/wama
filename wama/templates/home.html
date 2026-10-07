@@ -578,38 +578,42 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
                 <i class="fas fa-play-circle"></i> Présentations &amp; annexes
               </button>
               <ul class="dropdown-menu text-start" aria-labelledby="presentationsMenu">
-                <li>
-                  <a class="dropdown-item py-2" href="{% url 'presentation' %}">
+                <li class="d-flex align-items-center">
+                  <a class="dropdown-item py-2 flex-grow-1" href="{% url 'presentation' %}">
                     <i class="fas fa-play-circle fa-fw me-2 text-primary"></i>
                     <span class="fw-semibold">La présentation interactive</span>
                     <small class="d-block text-muted">Constat, quatre mondes, droits en 3D, fabrique</small>
                   </a>
+                  <a class="dropdown-item w-auto px-3 text-muted" href="{% url 'presentation' %}pdf/" title="Télécharger en PDF"><i class="fas fa-file-pdf"></i></a>
                 </li>
                 <li><hr class="dropdown-divider"></li>
-                <li>
-                  <a class="dropdown-item py-2" href="{% url 'architecture' %}">
+                <li class="d-flex align-items-center">
+                  <a class="dropdown-item py-2 flex-grow-1" href="{% url 'architecture' %}">
                     <i class="fas fa-sitemap fa-fw me-2 text-primary"></i>
                     <span class="fw-semibold">L'architecture technique</span>
                     <small class="d-block text-muted">Comment WAMA est construit, en clair</small>
                   </a>
+                  <a class="dropdown-item w-auto px-3 text-muted" href="{% url 'architecture' %}pdf/" title="Télécharger en PDF"><i class="fas fa-file-pdf"></i></a>
                 </li>
-                <li>
-                  <a class="dropdown-item py-2" href="{% url 'fiches' %}">
+                <li class="d-flex align-items-center">
+                  <a class="dropdown-item py-2 flex-grow-1" href="{% url 'fiches' %}">
                     <i class="fas fa-folder-open fa-fw me-2 text-primary"></i>
                     <span class="fw-semibold">Le système de fiches</span>
                     <small class="d-block text-muted">Une fiche décrit, la plateforme se construit</small>
                   </a>
+                  <a class="dropdown-item w-auto px-3 text-muted" href="{% url 'fiches' %}pdf/" title="Télécharger en PDF"><i class="fas fa-file-pdf"></i></a>
                 </li>
                 {% if reports %}
                 <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Rapports</h6></li>
                 {% for r in reports %}
-                <li>
-                  <a class="dropdown-item py-2" href="{% url 'report' r.slug %}">
+                <li class="d-flex align-items-center">
+                  <a class="dropdown-item py-2 flex-grow-1" href="{% url 'report' r.slug %}">
                     <i class="fas fa-chart-bar fa-fw me-2 text-primary"></i>
                     <span class="fw-semibold">{{ r.label }}</span>
                     <small class="d-block text-muted">{{ r.detail }}</small>
                   </a>
+                  <a class="dropdown-item w-auto px-3 text-muted" href="{% url 'report' r.slug %}pdf/" title="Télécharger en PDF"><i class="fas fa-file-pdf"></i></a>
                 </li>
                 {% endfor %}
                 {% endif %}

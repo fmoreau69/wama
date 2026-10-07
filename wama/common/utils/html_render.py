@@ -159,6 +159,92 @@ def _html_to_pdf_weasyprint(input_path: str, output_path: str) -> bool:
     return True
 
 
+#: Les commandes d'une présentation « canvas » (barre du haut, barre du bas, aide) : hors du PDF.
+_SLIDES_CHROME_CSS = '#hud-top,#hud-bottom,#progress,#help{display:none!important}'
+
+#: Un document en pages A4 : fond blanc (la marge d'impression ne prend pas le fond de la page), une
+#: figure, une image ou une ligne de tableau ne se coupe pas entre deux pages.
+_DOCUMENT_PRINT_CSS = ('html,body{background:#fff!important}'
+                       'figure,img,svg,tr,pre,blockquote{break-inside:avoid}h1,h2,h3{break-after:avoid}')
+
+#: Ce qui est FIXÉ à l'écran (bouton de retour, bouton d'export…) se répéterait sur chaque page.
+_HIDE_FIXED_JS = """() => document.querySelectorAll('body *').forEach(el => {
+  if (getComputedStyle(el).position === 'fixed') el.style.setProperty('display', 'none', 'important');
+})"""
+
+#: Une étape de présentation, posée SANS vol, et attendue jusqu'à `settled` (`wama-presentation.js`).
+_GO_STEP_JS = """i => new Promise(r => {
+  const h = e => { if (e.detail.settled) { document.removeEventListener('wama:step', h); r(); } };
+  document.addEventListener('wama:step', h);
+  window.WamaPrez.go(i, {instant: true});
+})"""
+
+
+def render_page_to_pdf(html: str, output_path: str, *, fetch, path: str = '/', slides: bool = False,
+                       origin: str = 'http://wama.page') -> bool:
+    """Une PAGE de WAMA (HTML déjà rendu) → PDF, par Chromium headless, sans passer par le serveur.
+
+    Tout ce que la page demande à son origine (statiques, JSON) passe par `fetch(path_et_requête)`, qui
+    rend `(statut, type, octets)` : l'appelant sert depuis le disque et ses vues, en processus. Le
+    serveur ne s'appelle donc jamais lui-même (un worker unique s'y bloquerait).
+
+    `slides=False` : document en A4, comme `render_html_to_pdf`. `slides=True` : présentation au moteur
+    « canvas » (`window.WamaPrez`) — une page 16:9 par étape, image de l'étape posée sans vol, commandes
+    masquées. WebGL sur le PROCESSEUR (SwiftShader) : jamais de carte graphique pour un export.
+    Retourne False si Chromium est indisponible.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return False
+
+    def serve(route):
+        url = route.request.url
+        if not url.startswith(origin):
+            return route.abort()          # aucune sortie réseau : la page est rendue hors ligne
+        if url.split('?')[0].split('#')[0] == origin + path:
+            return route.fulfill(status=200, content_type='text/html; charset=utf-8', body=html)
+        status, ctype, body = fetch(url[len(origin):])
+        return route.fulfill(status=status, content_type=ctype, body=body)
+
+    try:
+        with sync_playwright() as p:
+            browser = launch_chromium(p, gpu=False, extra_args=('--enable-unsafe-swiftshader',))
+            try:
+                size = {'width': 1600, 'height': 900} if slides else {'width': 820, 'height': 1123}
+                ctx = browser.new_context(viewport=size, color_scheme='light', reduced_motion='reduce')
+                ctx.route('**/*', serve)
+                page = ctx.new_page()
+                page.goto(origin + path, wait_until='networkidle', timeout=60000)
+                if not slides:
+                    page.add_style_tag(content=_REVEAL_SELECTORS_CSS + _DOCUMENT_PRINT_CSS)
+                    page.evaluate(_HIDE_FIXED_JS)
+                    page.emulate_media(media='screen')
+                    page.pdf(path=output_path, format='A4', print_background=True,
+                             margin={'top': '10mm', 'bottom': '10mm', 'left': '0', 'right': '0'})
+                else:
+                    import base64
+                    page.add_style_tag(content=_SLIDES_CHROME_CSS)
+                    shots = []
+                    for i in range(page.evaluate('window.WamaPrez.steps.length')):
+                        page.evaluate(_GO_STEP_JS, i)
+                        page.wait_for_timeout(700)      # une scène 3D s'accroche à `settled`, puis rend
+                        shots.append(base64.b64encode(page.screenshot(type='jpeg', quality=88)).decode())
+                    book = ctx.new_page()
+                    book.set_content(
+                        '<style>@page{size:1600px 900px;margin:0}body{margin:0}'
+                        'img{display:block;width:1600px;height:900px;break-after:page}</style>'
+                        + ''.join(f'<img src="data:image/jpeg;base64,{s}">' for s in shots))
+                    book.pdf(path=output_path, width='1600px', height='900px', print_background=True,
+                             margin={'top': '0', 'bottom': '0', 'left': '0', 'right': '0'})
+            finally:
+                browser.close()
+    except Exception as e:  # navigateur absent, libs OS manquantes, timeout…
+        logger.warning(f"Page → PDF indisponible ({e})")
+        return False
+    return os.path.exists(output_path) and os.path.getsize(output_path) > 0
+
+
 def render_html_to_pdf(input_path: str, output_path: str) -> bool:
     """HTML → PDF fidèle : Chromium headless (préféré) → WeasyPrint (fallback).
 

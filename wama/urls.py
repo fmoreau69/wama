@@ -17,6 +17,11 @@ urlpatterns = [
     path('architecture/', views.architecture, name='architecture'),
     path('fiches/', views.fiches, name='fiches'),
     path('reports/<slug:slug>/', views.report, name='report'),
+    # Export PDF (`views.PDF_PAGES`, `REPORTS`) : `pdf/` sous la page, lien relatif depuis la page.
+    path('presentation/pdf/', views.page_pdf, {'page': 'presentation'}, name='presentation_pdf'),
+    path('architecture/pdf/', views.page_pdf, {'page': 'architecture'}, name='architecture_pdf'),
+    path('fiches/pdf/', views.page_pdf, {'page': 'fiches'}, name='fiches_pdf'),
+    path('reports/<slug:slug>/pdf/', views.page_pdf, {'page': 'report'}, name='report_pdf'),
     path('api/ai-chat/', views.ai_chat, name='ai_chat'),
     path('api/ai-chat/clear/', views.ai_chat_clear, name='ai_chat_clear'),
     path('api/ai-chat/settings/', views.ai_chat_settings, name='ai_chat_settings'),

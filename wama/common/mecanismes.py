@@ -2188,7 +2188,10 @@ MECHANISMS = (
 ASSUMED_LOCAL = {
     'wama/common/utils/disk_utils.py': "plomberie disque (1 consommateur common)",
     'wama/common/utils/format_policy.py': "politique de formats de POIDS de modèle — chaîne modèles",
-    'wama/common/utils/html_render.py': "rendu HTML→PDF, consommé par le converter seul",
+    'wama/common/utils/html_render.py': ("rendu HTML→PDF par Chromium — converter, avatar 3D (lanceur), export "
+                                         "PDF des pages de l'accueil (2026-10-07)"),
+    'wama/common/services/page_pdf.py': ("export PDF des présentations et rapports de l'accueil, servis en "
+                                         "processus (2026-10-07) — substrat seul, aucune app"),
     # `http_proxy.py` et `ollama_host.py` ont QUITTÉ cette liste le 2026-09-01 : ils sont
     # devenus les annexes du mécanisme `external_sources`. Ils n'étaient pas mal classés — le
     # mécanisme qui les rassemble n'existait pas encore, et une plomberie sans mécanisme
