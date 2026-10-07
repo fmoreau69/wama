@@ -5,11 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WAMA — @@TITLE@@</title>
 {% comment %}
-  Rapport d'évaluation des moteurs de transcription — INSTANTANÉ du rapport Claude Docs (rev 31,
-  2 octobre 2026), rendu par `docs_catalog.render_markdown`, graphiques redessinés en HTML/CSS.
-  Généré, pas écrit à la main : pour le mettre à jour, réexporter le rapport et relancer
-  `scripts/reports/build_transcription_report.py` (mode d'emploi dans son en-tête). WAMA_QUALITE
-  §9bis porte les mesures et leur lecture. Même enveloppe que `wama_fiches.html`.
+@@COMMENT@@
 {% endcomment %}
 <style>
   :root{
@@ -126,16 +122,16 @@
 <a href="/" class="home-btn">← WAMA</a>
 <div class="wrap">
   <header class="hero">
-    <div class="kicker">Évaluation · transcription</div>
+    <div class="kicker">@@KICKER@@</div>
     <h1>@@TITLE@@</h1>
-    <p class="sub">Mesuré dans WAMA, contre des transcriptions de référence faites à la main · version du 2 octobre 2026</p>
+    <p class="sub">@@SUB@@</p>
   </header>
   <article>
 {% verbatim %}
 @@BODY@@
 {% endverbatim %}
   </article>
-  <p class="foot">Mesures du compte d'évaluation de WAMA, rangées par lot et par modèle. Le détail et sa lecture vivent dans la doc de construction (qualité des modèles).</p>
+  <p class="foot">@@FOOT@@</p>
 </div>
 </body>
 </html>

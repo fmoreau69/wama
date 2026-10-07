@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WAMA — Analyse vidéo d&#x27;une navette autonome aux intersections</title>
+{% comment %}
+  Rapport « pipeline du cam_analyzer » sur les données ENA — GÉNÉRÉ par
+  `scripts/reports/build_cam_analyzer_report.py` depuis les registres (passes, fonctions,
+  bascules) et la base (session, profil, indicateurs). Ne pas l'éditer à la main : relancer le
+  script. Même enveloppe que le rapport de transcription (`report_shell.html`).
+{% endcomment %}
+<style>
+  :root{
+    --paper:#eaeef4; --card:#ffffff; --card-2:#f4f7fb;
+    --ink:#141922; --ink-soft:#525c6b; --ink-faint:#8a94a3;
+    --line:#d5dce6; --line-soft:#e4e9f1;
+    --accent:#2f56d9; --accent-ink:#213fa3; --accent-soft:#e7edfd;
+    --muted-bar:#aab4c3;
+    --shadow:0 1px 2px rgba(20,25,34,.04), 0 8px 24px rgba(20,25,34,.06);
+    --shadow-lg:0 2px 4px rgba(20,25,34,.05), 0 20px 50px rgba(20,25,34,.12);
+    --r:14px; --r-sm:9px;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code","SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#0c0f16; --card:#161c27; --card-2:#1c2431;
+      --ink:#eef2f8; --ink-soft:#a6b0c0; --ink-faint:#6f7b8d;
+      --line:#28313f; --line-soft:#212936;
+      --accent:#7d97ff; --accent-ink:#a9bcff; --accent-soft:#1a2237;
+      --muted-bar:#4a5567;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+      --shadow-lg:0 2px 4px rgba(0,0,0,.35), 0 24px 60px rgba(0,0,0,.5);
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans);
+       line-height:1.6; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:980px; margin:0 auto; padding:0 24px 80px}
+
+  .home-btn{position:fixed; top:18px; left:18px; z-index:50; display:inline-flex; align-items:center;
+    gap:8px; text-decoration:none; font-family:var(--mono); font-size:.8rem; font-weight:600;
+    color:var(--ink); background:var(--card); border:1px solid var(--line); padding:9px 14px;
+    border-radius:999px; box-shadow:var(--shadow); transition:transform .16s ease, box-shadow .16s ease}
+  .home-btn:hover{transform:translateY(-1px); box-shadow:var(--shadow-lg)}
+
+  .hero{padding:96px 0 28px}
+  .kicker{font-family:var(--mono); font-size:.78rem; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--ink-faint); font-weight:600; margin-bottom:18px}
+  .hero h1{font-size:clamp(2rem,5vw,3.2rem); font-weight:780; letter-spacing:-.03em; line-height:1.1;
+    margin:0; text-wrap:balance}
+  .hero .sub{color:var(--ink-soft); margin-top:14px; font-size:1rem}
+
+  article{background:var(--card); border:1px solid var(--line); border-radius:var(--r);
+    box-shadow:var(--shadow); padding:36px 40px}
+  article h2{font-size:1.45rem; font-weight:720; letter-spacing:-.015em; margin:44px 0 12px;
+    padding-top:20px; border-top:1px solid var(--line-soft); text-wrap:balance}
+  article h2:first-of-type{margin-top:28px}
+  article p{margin:0 0 12px; color:var(--ink)}
+  article > p:first-child{font-size:1.1rem; line-height:1.65}
+  article ul, article ol{margin:0 0 14px; padding-left:22px}
+  article li{margin:4px 0}
+  article a{color:var(--accent-ink)}
+  article strong{font-weight:680}
+  .tbl{overflow-x:auto}
+  article table{border-collapse:collapse; width:100%; margin:8px 0 18px; font-size:.92rem}
+  article th, article td{border-bottom:1px solid var(--line-soft); padding:8px 10px; text-align:left;
+    vertical-align:top}
+  article th{background:var(--card-2); font-weight:650; border-bottom:1px solid var(--line)}
+
+  .chart{margin:16px 0 22px; padding:20px 22px; background:var(--card-2); border:1px solid var(--line-soft);
+    border-radius:var(--r-sm)}
+  .chart figcaption strong{display:block; font-size:1rem}
+  .chart figcaption span{display:block; color:var(--ink-soft); font-size:.86rem; margin:2px 0 14px}
+  .chart .note{color:var(--ink-faint); font-size:.8rem; margin:12px 0 0}
+  .lab{color:var(--ink); font-size:.86rem}
+  .best .lab, .best b{font-weight:680}
+
+  /* 1 — étendue + moyenne */
+  .rr{display:grid; grid-template-columns:minmax(150px,240px) 1fr; gap:12px; align-items:center;
+    min-height:28px}
+  .rr .lab{text-align:right}
+  .track{position:relative; height:24px; margin-right:64px}
+  .ticks{border-bottom:1px solid var(--line)}
+  .ticks span{position:absolute; bottom:4px; transform:translateX(-50%); font-size:.74rem; white-space:nowrap;
+    color:var(--ink-faint); font-family:var(--mono)}
+  .rng{position:absolute; top:11px; height:2px; background:var(--muted-bar)}
+  .dot{position:absolute; top:6px; width:12px; height:12px; margin-left:-6px; border-radius:50%;
+    background:var(--muted-bar)}
+  .val{position:absolute; top:2px; padding-left:10px; font-size:.82rem; color:var(--ink-soft);
+    white-space:nowrap}
+  .best .rng, .best .dot{background:var(--accent)}
+  .best .val{color:var(--ink); font-weight:680}
+
+  /* 2 et 3 — barres */
+  .br{display:grid; grid-template-columns:150px 1fr 1fr; gap:14px; align-items:center; min-height:24px}
+  .br.head span{font-size:.8rem; font-weight:650; color:var(--ink-soft)}
+  .br3{display:grid; grid-template-columns:190px repeat(3,1fr); gap:14px; align-items:center;
+    min-height:26px}
+  .br3.head span{font-size:.8rem; font-weight:650; color:var(--ink-soft)}
+  .grp{margin-top:10px}
+  .eng{font-weight:680; font-size:.9rem; margin-bottom:2px}
+  .bar{position:relative; display:flex; align-items:center; gap:6px; height:16px}
+  .bar i{display:block; height:12px; border-radius:2px; background:var(--muted-bar)}
+  .bar b{font-weight:500; font-size:.8rem; color:var(--ink-soft); white-space:nowrap}
+  .best .bar i{background:var(--accent)}
+  .best .bar b{color:var(--ink); font-weight:680}
+  .bar em{position:absolute; top:-3px; bottom:-3px; width:0; border-left:1px dashed var(--ink-faint)}
+  .cell{display:block}
+  .cnd{display:none; font-size:.74rem; color:var(--ink-faint); margin-top:4px}
+
+  .foot{color:var(--ink-faint); font-size:.82rem; margin-top:22px; text-align:center}
+
+  @media (max-width:720px){
+    article{padding:24px 18px}
+    .rr{grid-template-columns:1fr} .rr .lab{text-align:left}
+    .br{grid-template-columns:1fr} .br3{grid-template-columns:1fr} .br.head, .br3.head{display:none}
+    .cnd{display:block} .br, .br3{gap:2px; margin-bottom:10px}
+  }
+</style>
+</head>
+<body>
+<a href="/" class="home-btn">← WAMA</a>
+<div class="wrap">
+  <header class="hero">
+    <div class="kicker">Analyse · navette autonome · WAMA Lab</div>
+    <h1>Analyse vidéo d&#x27;une navette autonome aux intersections</h1>
+    <p class="sub">Pipeline du cam_analyzer appliqué aux données ENA · généré le 7 octobre 2026</p>
+  </header>
+  <article>
+{% verbatim %}
+
+<p>WAMA Lab Cam Analyzer analyse les vidéos d'une <strong>navette autonome</strong> (projet ENA) pour mesurer
+ses <strong>interactions avec les autres usagers de la route aux intersections</strong> : qui s'insère devant la
+navette, dans quelle voie, à quelle distance et à quelle vitesse, et avec quelle marge de temps (TTC, PET). Ce
+rapport présente la chaîne complète, de la vidéo aux indicateurs, sur la session <strong>ENA_CASA_P97_20220404_124000_seg</strong>.
+Il est généré depuis les registres de WAMA et la base : la liste des passes, leurs dépendances, les bascules
+et tous les chiffres viennent de leurs déclarations et des mesures, pas d'un texte recopié.</p>
+
+<h2>Les données</h2>
+<p>Quatre caméras montées sur la navette, filmées pendant <strong>2,3 h</strong>
+(8 382 s), avec la trace GPS du véhicule. Deux intersections sont déclarées dans le profil
+d'analyse « Intersections_yolo26s-segment » ; la navette les traverse plusieurs fois.</p>
+<div class="tbl"><table><thead><tr><th>Caméra</th><th>Image</th><th>Images/s</th><th>Images analysées</th></tr>
+</thead><tbody><tr><td>avant</td><td>384 × 248</td><td>12</td><td>100 517</td></tr><tr><td>gauche</td><td>408 × 244</td><td>12</td><td>100 516</td></tr><tr><td>arrière</td><td>408 × 248</td><td>12</td><td>100 516</td></tr><tr><td>droite</td><td>384 × 244</td><td>12</td><td>100 516</td></tr></tbody></table></div>
+<div class="tbl"><table><thead><tr><th>Intersection</th><th>Rayon d'analyse</th><th>Passages de la navette</th>
+</tr></thead><tbody><tr><td>Intersection_Roumanille-Poincaré</td><td>30 m</td><td>14</td></tr><tr><td>Intersection_Roumanille-ZA</td><td>30 m</td><td>14</td></tr></tbody></table></div>
+
+<h2>Le pipeline</h2>
+<p>La chaîne se lit en deux étages. L'étage <strong>analyse</strong> regarde les images, une fois, sur la
+carte graphique : détection et suivi des véhicules, chaussée et voies, marquages au sol, profondeur. L'étage
+<strong>calcul</strong> ne fait que dériver des données stockées, sur le processeur : il se rejoue à volonté
+quand une méthode change, sans repasser sur les images. Une passe dont une entrée a changé est marquée
+périmée, et seules les passes en aval sont à refaire.</p>
+<figure class="chart"><figcaption><strong>Le pipeline dans le Studio de WAMA</strong>
+<span>Le même pipeline, déclaré par l'application, ouvert dans le Studio : chaque nœud est une passe, chaque
+câble une donnée qui passe de l'une à l'autre.</span></figcaption>
+<img src="/static/presentation/rapports/cam_analyzer_studio.png" alt="Pipeline du cam_analyzer dans le Studio de WAMA" style="width:100%;height:auto;border-radius:8px"></figure>
+<figure class="chart"><figcaption><strong>Les passes, rangées par dépendance</strong>
+<span>Bleu : étage analyse (carte graphique). Gris : étage calcul (processeur). Tiré du registre des passes.</span>
+</figcaption><svg viewBox="0 0 1030 500" role="img" aria-label="Pipeline du cam_analyzer" style="width:100%;height:auto;font-family:var(--sans)"><path d="M515.0 58 C515.0 78.0 260.0 78.0 260.0 98" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M515.0 58 C515.0 78.0 430.0 78.0 430.0 98" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M515.0 58 C515.0 78.0 600.0 78.0 600.0 98" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M515.0 58 C515.0 78.0 90.0 164.0 90.0 184" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M260.0 144 C260.0 164.0 90.0 164.0 90.0 184" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M430.0 144 C430.0 164.0 260.0 164.0 260.0 184" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M90.0 230 C90.0 250.0 345.0 250.0 345.0 270" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M260.0 144 C260.0 164.0 345.0 250.0 345.0 270" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M430.0 144 C430.0 164.0 430.0 164.0 430.0 184" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M600.0 144 C600.0 164.0 430.0 164.0 430.0 184" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M430.0 144 C430.0 164.0 600.0 164.0 600.0 184" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M260.0 144 C260.0 164.0 600.0 164.0 600.0 184" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M430.0 230 C430.0 250.0 515.0 250.0 515.0 270" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M260.0 230 C260.0 250.0 685.0 250.0 685.0 270" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M600.0 144 C600.0 164.0 770.0 164.0 770.0 184" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M515.0 58 C515.0 78.0 770.0 78.0 770.0 98" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M770.0 144 C770.0 164.0 940.0 164.0 940.0 184" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M345.0 316 C345.0 336.0 345.0 336.0 345.0 356" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M430.0 144 C430.0 164.0 515.0 336.0 515.0 356" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M515.0 316 C515.0 336.0 515.0 336.0 515.0 356" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M515.0 402 C515.0 422.0 515.0 422.0 515.0 442" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M515.0 316 C515.0 336.0 515.0 422.0 515.0 442" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M430.0 230 C430.0 250.0 685.0 336.0 685.0 356" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><path d="M515.0 316 C515.0 336.0 685.0 336.0 685.0 356" style="fill:none;stroke:var(--muted-bar);stroke-width:1.4"/><g><title>Extraction RTMaps</title><rect x="437.0" y="12" width="156" height="46" rx="8" style="fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="515.0" y="40.0">Extraction RTMaps</tspan></text></g><g><title>Fenêtres d'intersection</title><rect x="182.0" y="98" width="156" height="46" rx="8" style="fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="260.0" y="118.0">Fenêtres</tspan><tspan x="260.0" y="134.0">d'intersection</tspan></text></g><g><title>Détection YOLO</title><rect x="352.0" y="98" width="156" height="46" rx="8" style="fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="430.0" y="126.0">Détection YOLO</tspan></text></g><g><title>Drivable + lanes (YOLOPv2)</title><rect x="522.0" y="98" width="156" height="46" rx="8" style="fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="600.0" y="118.0">Drivable + lanes</tspan><tspan x="600.0" y="134.0">(YOLOPv2)</tspan></text></g><g><title>Marquages SAM3</title><rect x="12.0" y="184" width="156" height="46" rx="8" style="fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="90.0" y="212.0">Marquages SAM3</tspan></text></g><g><title>Profondeur (monoculaire)</title><rect x="182.0" y="184" width="156" height="46" rx="8" style="fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="260.0" y="204.0">Profondeur</tspan><tspan x="260.0" y="220.0">(monoculaire)</tspan></text></g><g><title>Recalage ortho (passages piétons IGN, mesure)</title><rect x="267.0" y="270" width="156" height="46" rx="8" style="fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="345.0" y="290.0">Recalage ortho</tspan><tspan x="345.0" y="306.0">(passages piétons…</tspan></text></g><g><title>Évènements de voie</title><rect x="352.0" y="184" width="156" height="46" rx="8" style="fill:var(--card-2);stroke:var(--line);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="430.0" y="212.0">Évènements de voie</tspan></text></g><g><title>Segments temporels</title><rect x="522.0" y="184" width="156" height="46" rx="8" style="fill:var(--card-2);stroke:var(--line);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="600.0" y="212.0">Segments temporels</tspan></text></g><g><title>Distance / vitesse / TTC</title><rect x="437.0" y="270" width="156" height="46" rx="8" style="fill:var(--card-2);stroke:var(--line);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="515.0" y="290.0">Distance / vitesse /</tspan><tspan x="515.0" y="306.0">TTC</tspan></text></g><g><title>Calculs profondeur (plan de sol / distances)</title><rect x="607.0" y="270" width="156" height="46" rx="8" style="fill:var(--card-2);stroke:var(--line);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="685.0" y="290.0">Calculs profondeur</tspan><tspan x="685.0" y="306.0">(plan de sol /…</tspan></text></g><g><title>Recalage voie + carte (latéral + cap navette)</title><rect x="692.0" y="184" width="156" height="46" rx="8" style="fill:var(--card-2);stroke:var(--line);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="770.0" y="204.0">Recalage voie + carte</tspan><tspan x="770.0" y="220.0">(latéral + cap…</tspan></text></g><g><title>Champ et orientation des caméras (mesurés)</title><rect x="692.0" y="98" width="156" height="46" rx="8" style="fill:var(--card-2);stroke:var(--line);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="770.0" y="118.0">Champ et orientation</tspan><tspan x="770.0" y="134.0">des caméras (mesurés)</tspan></text></g><g><title>Cap visuel (rotation vue par la caméra avant)</title><rect x="862.0" y="184" width="156" height="46" rx="8" style="fill:var(--card-2);stroke:var(--line);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="940.0" y="204.0">Cap visuel (rotation</tspan><tspan x="940.0" y="220.0">vue par la caméra…</tspan></text></g><g><title>Correction de trajectoire ortho (ancres)</title><rect x="267.0" y="356" width="156" height="46" rx="8" style="fill:var(--card-2);stroke:var(--line);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="345.0" y="376.0">Correction de</tspan><tspan x="345.0" y="392.0">trajectoire ortho…</tspan></text></g><g><title>Tracking 360° (gids + trajectoires)</title><rect x="437.0" y="356" width="156" height="46" rx="8" style="fill:var(--card-2);stroke:var(--line);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="515.0" y="376.0">Tracking 360° (gids +</tspan><tspan x="515.0" y="392.0">trajectoires)</tspan></text></g><g><title>Indicateurs (TTC/PET + insertions)</title><rect x="437.0" y="442" width="156" height="46" rx="8" style="fill:var(--card-2);stroke:var(--line);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="515.0" y="462.0">Indicateurs (TTC/PET</tspan><tspan x="515.0" y="478.0">+ insertions)</tspan></text></g><g><title>Conflits</title><rect x="607.0" y="356" width="156" height="46" rx="8" style="fill:var(--card-2);stroke:var(--line);stroke-width:1.2"/><text text-anchor="middle" style="fill:var(--ink);font-size:13.5px"><tspan x="685.0" y="384.0">Conflits</tspan></text></g></svg></figure>
+<div class="tbl"><table><thead><tr><th>Passe</th><th>Ce qu'elle fait</th><th>Dépend de</th><th>Matériel</th></tr>
+</thead><tbody><tr><th colspan="4">Étage analyse</th></tr><tr><td><strong>Extraction RTMaps</strong></td><td>Lit l'enregistrement de la navette : une vidéo par caméra, la trace GPS (position, cap, vitesse) et l'accéléromètre, et synchronise le GPS avec les vidéos.</td><td>—</td><td>processeur</td></tr><tr><td><strong>Fenêtres d'intersection</strong></td><td>Découpe le trajet en fenêtres de temps autour de chaque intersection déclarée : c'est ce que regardent les passes suivantes.</td><td>Extraction RTMaps</td><td>processeur</td></tr><tr><td><strong>Détection YOLO</strong></td><td>Détecte et segmente les usagers (voitures, camions, deux-roues, piétons) sur chaque image de chaque caméra, et les suit d'une image à l'autre.</td><td>Extraction RTMaps</td><td>GPU</td></tr><tr><td><strong>Drivable + lanes (YOLOPv2)</strong></td><td>Segmente la chaussée praticable et les lignes de voie sur la caméra avant.</td><td>Extraction RTMaps</td><td>GPU</td></tr><tr><td><strong>Marquages SAM3</strong></td><td>Segmente les marquages au sol des intersections : passages piétons, lignes d'arrêt.</td><td>Extraction RTMaps, Fenêtres d'intersection</td><td>GPU</td></tr><tr><td><strong>Profondeur (monoculaire)</strong></td><td>Estime la profondeur de chaque pixel sur des images échantillonnées et la stocke : une mesure de distance indépendante de la géométrie des caméras.</td><td>Détection YOLO</td><td>GPU</td></tr><tr><td><strong>Recalage ortho (passages piétons IGN, mesure)</strong></td><td>Repère les passages piétons sur l'orthophoto IGN et mesure leur écart avec ceux que voit la caméra avant : de quoi corriger la position GPS.</td><td>Marquages SAM3, Fenêtres d'intersection</td><td>GPU</td></tr>
+<tr><th colspan="4">Étage calcul</th></tr><tr><td><strong>Évènements de voie</strong></td><td>Attribue une voie à chaque usager et relève ses changements de voie.</td><td>Détection YOLO, Drivable + lanes (YOLOPv2)</td><td>processeur</td></tr><tr><td><strong>Segments temporels</strong></td><td>Découpe le parcours de chaque usager en épisodes : approche, suivi, traversée, insertion devant la navette, attente à l'intersection.</td><td>Détection YOLO, Fenêtres d'intersection</td><td>processeur</td></tr><tr><td><strong>Distance / vitesse / TTC</strong></td><td>Calcule la distance de chaque usager à la navette, sa vitesse et un premier temps à collision (TTC).</td><td>Évènements de voie</td><td>processeur</td></tr><tr><td><strong>Calculs profondeur (plan de sol / distances)</strong></td><td>Tire de la profondeur stockée le plan du sol de la caméra avant et une distance de contrôle pour chaque usager.</td><td>Profondeur (monoculaire)</td><td>processeur</td></tr><tr><td><strong>Recalage voie + carte (latéral + cap navette)</strong></td><td>Cale la position latérale et le cap de la navette en superposant les lignes de voie vues à l'avant au réseau routier de l'IGN.</td><td>Drivable + lanes (YOLOPv2)</td><td>processeur</td></tr><tr><td><strong>Champ et orientation des caméras (mesurés)</strong></td><td>Mesure le champ de vue réel et l'orientation de montage de chaque caméra, à partir des virages de la navette et des lignes droites de la scène.</td><td>Extraction RTMaps</td><td>processeur</td></tr><tr><td><strong>Cap visuel (rotation vue par la caméra avant)</strong></td><td>Mesure la rotation de la navette dans la vidéo avant : une seconde source de cap, indépendante du GPS.</td><td>Champ et orientation des caméras (mesurés)</td><td>processeur</td></tr><tr><td><strong>Correction de trajectoire ortho (ancres)</strong></td><td>Transforme l'écart mesuré sur les passages piétons en corrections de la trace GPS, passage par passage.</td><td>Recalage ortho (passages piétons IGN, mesure)</td><td>processeur</td></tr><tr><td><strong>Tracking 360° (gids + trajectoires)</strong></td><td>Relie les identifiants d'une caméra à l'autre (un véhicule, un identifiant), place chaque usager au sol, reconnaît les véhicules garés et lisse les trajectoires.</td><td>Détection YOLO, Distance / vitesse / TTC</td><td>processeur</td></tr><tr><td><strong>Indicateurs (TTC/PET + insertions)</strong></td><td>Prédit la trajectoire de chaque usager et de la navette, et en tire le temps à collision (TTC) et le temps post-empiètement (PET).</td><td>Tracking 360° (gids + trajectoires), Distance / vitesse / TTC</td><td>processeur</td></tr><tr><td><strong>Conflits</strong></td><td>Repère les situations de conflit (approche frontale, suivi rapproché, dépassement) et leur donne une gravité.</td><td>Évènements de voie, Distance / vitesse / TTC</td><td>processeur</td></tr></tbody></table></div>
+
+<h2>Les outils</h2>
+<div class="tbl"><table><thead><tr><th>Outil</th><th>Rôle dans la chaîne</th></tr></thead><tbody>
+<tr><td>YOLO (yolo26s-seg.pt), suivi
+BOTSORT</td><td>détecter et suivre véhicules, deux-roues et
+piétons sur chaque caméra</td></tr>
+<tr><td>YOLOPv2</td><td>chaussée praticable et lignes de voie (caméra avant) : la voie de chaque usager</td></tr>
+<tr><td>SAM3</td><td>marquages au sol aux intersections (lignes d'arrêt, passages piétons, dents de requin)</td></tr>
+<tr><td>Profondeur monoculaire (ZoeDepth)</td><td>plan du sol de la caméra avant</td></tr>
+<tr><td>IGN : BD TOPO et orthophotos (Géoplateforme)</td><td>emprise des routes, bâtiments, recalage
+absolu sur les passages piétons vus du ciel</td></tr>
+<tr><td>OpenCV</td><td>lecture des vidéos, flux optique (champ et orientation des caméras mesurés), lignes
+droites (distorsion des objectifs mesurée)</td></tr>
+<tr><td>Fonctions de WAMA Data</td><td>géométrie (projection au sol, métriques de placement), cinématique
+(lissage de Kalman, trous comblés), indicateurs TTC/PET</td></tr>
+</tbody></table></div>
+
+<h2>La qualité, mesurée sans vérité terrain</h2>
+<p>Il n'y a pas de vérité terrain : la qualité se mesure par la <strong>cohérence</strong>. Un véhicule garé ne
+bouge pas ; un même véhicule vu par deux caméras doit être placé au même endroit ; un identifiant ne doit
+porter qu'un véhicule. Chaque calcul de suivi le mesure et l'affiche. Dernier calcul :</p>
+<div class="tbl"><table><thead><tr><th>Indicateur</th><th>Valeur</th><th>Ce qu'il compte</th></tr></thead>
+<tbody><tr><td>Véhicules garés reconnus</td><td>444</td><td>hors des voies de circulation, immobiles ; position et cap fixes</td></tr><tr><td>Doublons</td><td>27</td><td>deux identifiants restés proches que jamais une caméra n'a vus ensemble</td></tr><tr><td>Relais ratés</td><td>42</td><td>un véhicule qui change d'identifiant en passant d'une caméra à l'autre</td></tr><tr><td>Allers-retours</td><td>403</td><td>un identifiant qui passe d'un véhicule à un autre puis revient</td></tr><tr><td>Trajectoires coupées</td><td>596</td><td>un véhicule suivi par une caméra, porté par plusieurs identifiants</td></tr></tbody></table></div>
+<p>Chaque amélioration de méthode est une <strong>bascule</strong> qu'on active session par session, et qu'on
+ne garde qu'après une comparaison chiffrée. 38 des 40 bascules de calcul sont
+actives sur cette session. Désactivées : « Trajectoires jumelles réunies (doublons) », « Distorsion des objectifs MESURÉE (lignes droites) ». Actives :</p>
+<ul style="columns:2 260px;column-gap:32px"><li>Levier d'antenne GPS</li><li>Calibration sol auto (pitch)</li><li>Recalage GPS par marquages ortho</li><li>Passages piétons calés sur le corridor</li><li>Biais GPS lissé (Kalman)</li><li>Une boîte par véhicule et par image (tracking)</li><li>Tracking : les objets déjà suivis d'abord</li><li>Tracking : un véhicule déjà vu par la caméra ne s'absorbe pas</li><li>Porte de famille de classe (tracking)</li><li>Fantômes sur la trajectoire lissée</li><li>Cap visuel (rotation vue par la caméra avant)</li><li>Champ des caméras MESURÉ</li><li>Boîtes coupées par le bord INTÉRIEUR</li><li>Distorsion des objectifs</li><li>Garés en « pose longue »</li><li>Véhicules placés par leur CENTRE</li><li>Recollement un pour un</li><li>Doublons de détection fondus</li><li>Recollement dans les DEUX sens</li><li>Distances corrigées par la portée (mesure automatique)</li><li>Inclinaison des caméras par l'écartement des garés (mesure automatique)</li><li>Trous comblés en COURBE</li><li>Orientation des latérales MESURÉE</li><li>Garés = hors des voies</li><li>Garés : trajectoire immobile exigée</li><li>SAM3 : un marquage, un seul label</li><li>Filtre de trajectoire navette (Kalman+RTS)</li><li>Projection sol dans le TTC/PET</li><li>Lissage CAUSAL en entrée de la prédiction</li><li>Extrapolation Kalman pour le TTC/PET</li><li>Recalage voie + carte (latéral + cap navette)</li><li>Accéléromètre en commande du filtre navette</li><li>Homographie sol par passage piéton (DLT)</li><li>Marquages SAM3 en monde</li><li>Branches apprises du trafic</li><li>Prior de cluster (cap des garés)</li><li>Vitesse/distance unifiées par track</li><li>Profondeur monoculaire (1ère passe)</li></ul>
+
+<h2>Les intersections : où en est le rapport</h2>
+<p>Le profil vise les <strong>insertions aux intersections</strong>. La base contient aujourd'hui
+963 situations de conflit en voie de la navette pendant un passage d'intersection
+(critiques : 411, à surveiller : 204, informatives : 348),
+5 insertions devant la navette et
+539 attentes détectées par la caméra avant, et 3 191 présences
+de véhicules dans une voie pendant un passage.</p>
+<p>Le rapport centré sur les véhicules présents aux intersections — s'insèrent-ils avant la navette, dans
+quelle voie, avec quel niveau de criticité selon le TTC et le PET, à quelle distance et à quelle vitesse — est
+<strong>en préparation</strong>. Plusieurs pièces existent déjà mais ne sont pas encore reliées entre elles, et
+quatre points sont à corriger avant de s'y fier :</p>
+<ul>
+<li>le PET est calculé pour chaque véhicule suivi, mais n'entre encore dans aucune sortie ;</li>
+<li>l'information « la navette est passée en premier » est enregistrée avec le sens inversé ;</li>
+<li>la détection des insertions compare des instants qui ne sont pas sur la même base de temps (GPS et
+vidéo) — décalage à mesurer ;</li>
+<li>le rayon d'intérêt d'une intersection, distinct de son rayon d'analyse, n'est encore appliqué à aucun
+rapport.</li>
+</ul>
+
+{% endverbatim %}
+  </article>
+  <p class="foot">Généré depuis les registres de WAMA et la base de la session : passes et dépendances (pass_tracking), fonctions déclarées (catalogue), bascules (features). La chaîne est décrite dans CAM_ANALYZER_CHAINE_TRAITEMENT, ses changements dans CAM_ANALYZER_CHANGELOG.</p>
+</div>
+</body>
+</html>

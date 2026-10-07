@@ -136,7 +136,20 @@ assert '@@CHART' not in rendered and 'embedded content' not in rendered
 rendered = re.sub(r'<a href="(https?://[^"]+)"', r'<a href="\1" target="_blank" rel="noopener"', rendered)
 rendered = rendered.replace('<table>', '<div class="tbl"><table>').replace('</table>', '</table></div>')
 
-page = (HERE / 'report_shell.html').read_text(encoding='utf-8')
-page = page.replace('@@TITLE@@', html.escape(title)).replace('@@BODY@@', rendered)
+import sys  # noqa: E402
+sys.path.insert(0, str(HERE))
+from shell_page import fill_shell  # noqa: E402  (enveloppe commune des rapports de l'accueil)
+
+page = fill_shell(
+    title=title, kicker='Évaluation · transcription',
+    sub='Mesuré dans WAMA, contre des transcriptions de référence faites à la main · version du 2 octobre 2026',
+    comment=("  Rapport d'évaluation des moteurs de transcription — INSTANTANÉ du rapport Claude Docs (rev 31,\n"
+             "  2 octobre 2026), rendu par `docs_catalog.render_markdown`, graphiques redessinés en HTML/CSS.\n"
+             "  Généré, pas écrit à la main : pour le mettre à jour, réexporter le rapport et relancer\n"
+             "  `scripts/reports/build_transcription_report.py` (mode d'emploi dans son en-tête). WAMA_QUALITE\n"
+             "  §9bis porte les mesures et leur lecture. Même enveloppe que `wama_fiches.html`.\n"),
+    foot=("Mesures du compte d'évaluation de WAMA, rangées par lot et par modèle. Le détail et sa lecture "
+          "vivent dans la doc de construction (qualité des modèles)."),
+    body=rendered)
 OUT.write_text(page, encoding='utf-8')
 print('written', OUT, len(page), 'bytes')

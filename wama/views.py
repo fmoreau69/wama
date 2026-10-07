@@ -189,6 +189,11 @@ REPORTS = {
         'label': 'Évaluation des moteurs de transcription',
         'detail': 'Mesuré dans WAMA, octobre 2026',
     },
+    'cam-analyzer': {
+        'template': 'includes/wama_rapport_cam_analyzer.html',
+        'label': 'Analyse vidéo de la navette aux intersections',
+        'detail': 'Pipeline du cam_analyzer sur les données ENA, généré depuis les registres',
+    },
 }
 
 
