@@ -421,6 +421,39 @@ class SupersededTaskModuleTest(SimpleTestCase):
                 self.assertEqual((p / 'workers.py').read_text(encoding='utf-8'), 'COPIE = 1\n')
 
 
+def _render_stub_tasks(manifest):
+    return '"""[manifest-gen] tasks.py"""\n', 'stub'
+
+
+class NewFileSubstitutionTest(SimpleTestCase):
+    """A target with NO copied file (no witness) — `tasks.py` of an app that keeps its tasks in
+    `workers.py`. `temoin.exists()` on None raised AFTER writing: generated file in place,
+    copied module withdrawn, no verdict, no revert (describer_01, 2026-10-07). Nothing real
+    runs: extraction, renderer and sub-processes are neutralised, the package is temporary."""
+
+    def test_a_brand_new_file_gets_a_verdict(self):
+        import subprocess
+        saved = []
+        ok = subprocess.CompletedProcess([], 0, 'No changes detected', '')
+        with TemporaryDirectory() as d:
+            (Path(d) / 'jumelle_00' / 'migrations').mkdir(parents=True)
+            entry = {'label': 'jumelle_00', 'generated_from': 'appfictive', 'substituted': {}}
+            with patch.object(cmd_sandbox, 'WAMA_DIR', Path(d)), \
+                 patch.object(cmd_sandbox, 'load_registry', return_value=[entry]), \
+                 patch.object(cmd_sandbox, '_save_entry', side_effect=saved.append), \
+                 patch.object(cmd_sandbox, '_manage', return_value=ok), \
+                 patch.object(cmd_sandbox, '_smoke_page', return_value=ok), \
+                 patch.dict(cmd_sandbox._SUBSTITUTABLE,
+                            {'tasks': ('tasks.py', __name__, '_render_stub_tasks')}), \
+                 patch('wama.common.manifests.ingest.extract',
+                       return_value={'key': 'appfictive', 'body': {}}):
+                cmd = cmd_sandbox.Command()
+                cmd.stdout = cmd.stderr = __import__('io').StringIO()
+                cmd._substitute('jumelle_00', 'tasks')
+            self.assertTrue((Path(d) / 'jumelle_00' / 'tasks.py').exists())
+        self.assertEqual(saved[-1]['substituted']['tasks']['verdict'], 'ok')
+
+
 class TwinGridReadsWhatIsInjectedTest(SimpleTestCase):
     """La grille doit noter une jumelle sur ce qu'elle EST, pas sur ce que le contrôle lit.
 

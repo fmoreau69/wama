@@ -1036,7 +1036,11 @@ class Command(BaseCommand):
                 details.append('file habitée NON MESURÉE (témoin incréable — contraintes app)')
 
         # 4. Diff compact copie↔généré (le DÉTECTEUR : chaque écart est un fait).
-        if temoin.exists():
+        # Un fichier NEUF n'a pas de témoin (`tasks.py` d'une app qui loge ses tâches dans
+        # `workers.py` — describer_01, 2026-10-07) : rien à comparer, mais le verdict et le
+        # registre doivent suivre. `temoin.exists()` sur None levait APRÈS l'écriture : fichier
+        # généré en place, module copié retiré, aucun verdict ni retour au témoin.
+        if temoin is not None and temoin.exists():
             a = temoin.read_text(encoding='utf-8').splitlines()
             b = text.splitlines()
             import difflib
