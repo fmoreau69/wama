@@ -33,6 +33,20 @@ class TacheDeclareeTest(TestCase):
         self.assertEqual('ocr', caps['task'])
         self.assertEqual(ModelType.OCR, _type_ollama(caps['task']))
 
+    def test_a_declared_family_takes_the_inputs_of_its_task(self):
+        """The family's task was applied AFTER the inputs (2026-10-07): `glm-ocr` became `ocr`
+        while keeping the inputs of a CHAT model (`prompt`, modality `text`) — an OCR that takes
+        no page. And the setting its engine reads, declared once here for every app."""
+        caps = self._caps('glm-ocr:latest', {'completion', 'tools', 'vision'})
+        self.assertEqual(['work_file'], caps['inputs_required'])
+        self.assertEqual(['image', 'document'], caps['modalities'], 'no duplicate image')
+        self.assertEqual(['language'], caps['params'])
+        # Counter-check: a chat model keeps the inputs of a chat model, and declares no params.
+        chat = self._caps('qwen3.8:latest', {'completion', 'vision'})
+        self.assertEqual(['prompt'], chat['inputs_required'])
+        self.assertEqual(['text', 'image'], chat['modalities'])
+        self.assertNotIn('params', chat)
+
     def test_une_specialite_declaree_survit_a_la_decouverte(self):
         caps = self._caps('translategemma:12b', {'completion', 'vision'})
         self.assertEqual(('text-generation', 'translation'),

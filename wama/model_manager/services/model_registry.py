@@ -41,7 +41,11 @@ logger = logging.getLogger(__name__)
 #: posée à la main. `specialisation` : écarte du pool généraliste tant qu'on ne la demande pas.
 FAMILLES_OLLAMA = {
     'translategemma': {'task': 'text-generation', 'specialisation': 'translation'},
-    'glm-ocr':        {'task': 'ocr'},
+    # `params` : le seul réglage que GLM-OCR LIT est la langue (`glm_ocr_backend._ocr_image`,
+    # mesuré le 2026-09-29) — fait porté jusqu'au 2026-10-07 par la seule ligne en DOUBLE
+    # `reader:glm-ocr` (reste de portage, à retirer avec le select du reader) : un modèle Ollama
+    # se déclare UNE fois, ici, pour toutes les apps.
+    'glm-ocr':        {'task': 'ocr', 'params': ['language']},
 }
 
 
@@ -2241,15 +2245,27 @@ class ModelRegistry:
         from wama.model_manager.models import default_inputs_for
         embarque = 'embedding' in brutes
         task = 'feature-extraction' if embarque else 'text-generation'
+        # TÂCHE et SPÉCIALITÉ déclarées (humaines) : elles ne se découvrent pas — Ollama rend
+        # `completion, tools, vision` pour glm-ocr comme pour un généraliste. Déclarées ICI
+        # parce que la découverte réécrit `capabilities` EN ENTIER à chaque sync (une valeur
+        # posée en base serait effacée au passage suivant — leçon `audio_enhance`, 05/08).
+        # ⚠ Lue AVANT les entrées depuis le 2026-10-07 : elle était appliquée APRÈS, si bien que
+        # `glm-ocr` devenait `ocr` en gardant les entrées d'un modèle de CHAT
+        # (`inputs_required: ['prompt']`, modalité `text`) — un OCR qui ne prend pas de page.
+        declaration = next((d for prefix, d in FAMILLES_OLLAMA.items()
+                            if nom_modele and nom_modele.split(':')[0].lower().startswith(prefix)),
+                           {})
+        task = declaration.get('task') or task
         # Modalités et entrées : ce que la tâche IMPLIQUE (`TASK_DEFAULT_INPUTS`, la table
         # commune à toutes les découvertes depuis le 2026-09-19), puis ce que le modèle
         # déclare en plus. `audio` (ENTRÉE audio native) était JETÉ : absent de la liste
         # blanche et des modalités, alors que gemma4:12b et gemma4:e4b le déclarent (mesuré
         # 2026-08-19). Une capacité réelle du parc restait invisible à `select_model(requires=...)`.
         caps = {**default_inputs_for(task), 'task': task}
-        caps['modalities'] = (list(caps.get('modalities') or ['text'])
-                              + (['image'] if 'vision' in brutes else [])
-                              + (['audio'] if 'audio' in brutes else []))
+        modalities = list(caps.get('modalities') or ['text'])
+        caps['modalities'] = (modalities
+                              + (['image'] if 'vision' in brutes and 'image' not in modalities else [])
+                              + (['audio'] if 'audio' in brutes and 'audio' not in modalities else []))
         # Les SIX drapeaux sont écrits, vrais ou faux, dès qu'Ollama a répondu (2026-09-18) : la
         # synchronisation fusionne désormais `capabilities` clé par clé, et un drapeau absent
         # laisserait survivre une valeur d'un sync antérieur — un modèle qui perd `vision` à une
@@ -2257,16 +2273,11 @@ class ModelRegistry:
         if brutes:
             for drapeau in ('completion', 'vision', 'audio', 'tools', 'thinking', 'embedding'):
                 caps[drapeau] = drapeau in brutes
-        # TÂCHE et SPÉCIALITÉ déclarées (humaines) : elles ne se découvrent pas — Ollama rend
-        # `completion, tools, vision` pour glm-ocr comme pour un généraliste. Déclarées ICI
-        # parce que la découverte réécrit `capabilities` EN ENTIER à chaque sync (une valeur
-        # posée en base serait effacée au passage suivant — leçon `audio_enhance`, 05/08).
-        for prefixe, declaration in FAMILLES_OLLAMA.items():
-            if nom_modele and nom_modele.split(':')[0].lower().startswith(prefixe):
-                caps['task'] = declaration.get('task') or caps['task']
-                if declaration.get('specialisation'):
-                    caps['specialisation'] = declaration['specialisation']
-                break
+        if declaration.get('specialisation'):
+            caps['specialisation'] = declaration['specialisation']
+        # Réglages que le MOTEUR lit (`params`, capacité canonique — l'UI grise les autres).
+        if declaration.get('params') is not None:
+            caps['params'] = list(declaration['params'])
         # Un modèle sans capacité déclarée (Ollama ancien, ou API injoignable) est traité comme
         # un modèle de complétion : c'est le comportement d'avant, on ne régresse pas.
         if not brutes:
