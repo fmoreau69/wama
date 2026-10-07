@@ -485,6 +485,17 @@ def _save_entry(entry: dict) -> None:
     save_registry(out)
 
 
+def _drop_entry(label: str) -> None:
+    """Retire L'ENTRÉE `label` du registre RELU à l'instant — le pendant de `_save_entry`.
+
+    `remove` chargeait la liste à son début, passait des minutes dans `migrate zero`, puis la
+    réécrivait entière : les jumelles créées entre-temps par une autre chaîne disparaissaient
+    du registre, paquet et tables restant sur disque (2026-10-07 : `anonymizer_01` et
+    `reader_01`, effacées par le retrait concurrent de `describer_01`).
+    """
+    save_registry([e for e in load_registry() if e.get('label') != label])
+
+
 def _manage(args: list, env: dict = None) -> subprocess.CompletedProcess:
     """manage.py en SOUS-PROCESS FRAIS : le boot relit sandbox_apps.json — le process
     courant, lui, ne connaît pas (encore/plus) la jumelle (même principe que app_regen_check).
@@ -640,12 +651,10 @@ class Command(BaseCommand):
         written = _copy_package(src, label)
         self.stdout.write(f'  {len(written)} fichiers copiés/renommés.')
 
-        entries = load_registry()
-        entries.append({'label': label, 'generated_from': src,
-                        'created': datetime.now(timezone.utc).isoformat(timespec='seconds'),
-                        'created_by': owner,
-                        'stage': 'S1-temoin'})
-        save_registry(entries)
+        _save_entry({'label': label, 'generated_from': src,
+                     'created': datetime.now(timezone.utc).isoformat(timespec='seconds'),
+                     'created_by': owner,
+                     'stage': 'S1-temoin'})
 
         # Migrations FRAÎCHES en sous-process (boot avec la jumelle enregistrée).
         for step in (['makemigrations', label], ['migrate', label]):
@@ -1188,7 +1197,7 @@ class Command(BaseCommand):
 
         # 2. Registre puis package (l'ordre inverse laisserait une entrée orpheline,
         #    inoffensive grâce à la garde sandbox_labels(), mais sale).
-        save_registry([e for e in entries if e['label'] != label])
+        _drop_entry(label)
         target = WAMA_DIR / label
         if target.exists():
             shutil.rmtree(target)

@@ -178,6 +178,35 @@ class JugeDeCoherenceDuPaquetTest(SimpleTestCase):
                 self.assertEqual(cmd_sandbox._imports_intra_paquet_non_resolus('jumelle_00'), [])
 
 
+class RegistryWritesRereadTest(SimpleTestCase):
+    """Chaque écriture du registre relit ce qu'il contient À L'INSTANT (2026-10-07 : un
+    `remove` qui réécrivait la liste chargée à son début a effacé deux jumelles créées
+    pendant son `migrate zero` par une autre chaîne)."""
+
+    def _store(self, entries):
+        store = {'entries': [dict(e) for e in entries]}
+        return (store,
+                patch.object(cmd_sandbox, 'load_registry',
+                             side_effect=lambda: [dict(e) for e in store['entries']]),
+                patch.object(cmd_sandbox, 'save_registry',
+                             side_effect=lambda out: store.update(entries=list(out))))
+
+    def test_removing_a_twin_keeps_one_registered_meanwhile(self):
+        store, load, save = self._store([{'label': 'describer_01'}])
+        with load, save:
+            # Une autre chaîne enregistre sa jumelle PENDANT le retrait…
+            cmd_sandbox._save_entry({'label': 'reader_01'})
+            cmd_sandbox._drop_entry('describer_01')
+        self.assertEqual([e['label'] for e in store['entries']], ['reader_01'])
+
+    def test_saving_an_entry_replaces_only_that_entry(self):
+        # Contre-épreuve : la mise à jour d'une entrée ne touche pas les autres.
+        store, load, save = self._store([{'label': 'a_01', 'stage': 'x'}, {'label': 'b_01'}])
+        with load, save:
+            cmd_sandbox._save_entry({'label': 'a_01', 'stage': 'y'})
+        self.assertEqual(store['entries'], [{'label': 'a_01', 'stage': 'y'}, {'label': 'b_01'}])
+
+
 class LostModelMembersJudgeTest(SimpleTestCase):
     """La glu d'un modèle (properties, méthodes, constantes de classe) n'est pas dans la
     facette `data` : un `models` GÉNÉRÉ la perd. Mesuré sur `converter_02` le 2026-10-07 —
