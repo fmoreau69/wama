@@ -141,10 +141,10 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
         blank=True,
         null=True,
         verbose_name='YOLO model to use',
-        # Identifiant du CATALOGUE sans la source (`yolo:<fichier>`, `sam3`), ou « auto » — depuis
-        # le 2026-09-27 ; les chemins d'avant (`detect/…pt`) restent lisibles
-        # (`utils.model_selector.model_path_for`) jusqu'à leur conversion.
-        help_text='Catalogue id of the model for this media (empty or "auto" = automatic choice)'
+        # CLÉ de catalogue (`anonymizer:yolo:<fichier>`, `anonymizer:sam3`) ou « auto » — depuis
+        # la route F4b ⑤ (2026-10-07, migration 0036) ; avant, l'identifiant sans source (27/09),
+        # et avant encore un chemin (`detect/…pt`) : tous restent lisibles (`catalogue_key_for`).
+        help_text='Catalogue key of the model for this media (empty or "auto" = automatic choice)'
     )
 
     source_url = models.CharField(
@@ -164,6 +164,17 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
 
     def __str__(self):
         return self.title or f"Media {self.pk}"
+
+    def save(self, *args, **kwargs):
+        # Modèle = CLÉ DE CATALOGUE (route F4b ⑤, 2026-10-07 — patron de l'enhancer), normalisée
+        # au point de passage de tous les écrivains (modale, volet, lots, assistant, duplication) :
+        # un identifiant sans source (`yolo:x.pt`, `sam3`) est lu dans l'espace de l'anonymizer.
+        # Brique PURE (aucune requête) ; un chemin d'avant le 27/09 reste lisible à la lecture
+        # (`catalogue_key_for`).
+        if self.model_to_use:
+            from wama.common.utils.model_keys import catalog_key
+            self.model_to_use = catalog_key(self.model_to_use, 'anonymizer')
+        super().save(*args, **kwargs)
 
     def get_filename(self):
         return os.path.basename(self.file.name) if self.file else ''

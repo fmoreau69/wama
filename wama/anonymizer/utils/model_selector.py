@@ -757,10 +757,9 @@ def get_model_selection_info(classes_to_blur: List[str],
 # Supprimés avec ce portage (plus aucun appelant) : `SPECIALTY_CLASSES`,
 # `_find_combined_specialty_model`, `_find_specialty_model`, `_find_coco_model`.
 
-#: Tâches admises pour flouter. C'est le SEUL filtre de capacité, et il se déclare : un
-#: classifieur annonce des classes sans savoir les localiser (`yolo11l-cls` déclare `plate` —
-#: l'assiette d'ImageNet) et le retenir ne produirait aucune boîte à flouter.
-TACHES_DETECTION = ('detect', 'segment')
+#: Tâches admises pour flouter — déclarées UNE fois (`model_config.DETECTION_TASKS`, que le
+#: select lit aussi).
+from .model_config import DETECTION_TASKS  # noqa: E402
 
 
 def select_best_models_by_precision(classes_to_blur: List[str],
@@ -789,7 +788,7 @@ def select_best_models_by_precision(classes_to_blur: List[str],
         classes_to_blur,
         source='anonymizer',
         model_type='vision',
-        taches_admises=TACHES_DETECTION,
+        taches_admises=DETECTION_TASKS,
         # DEUX MODÈLES SPÉCIALISÉS PLUTÔT QU'UN 2-EN-1 (décision Fabien, 2026-08-12).
         # Anonymiser, c'est ne rien rater : un visage manqué est une fuite, une passe de
         # détection en plus n'est qu'un coût. Aucun modèle « visages+plaques » du catalogue

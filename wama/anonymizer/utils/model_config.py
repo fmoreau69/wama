@@ -27,6 +27,18 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+#: Tâches admises pour flouter. C'est le SEUL filtre de capacité, et il se déclare : un
+#: classifieur annonce des classes sans savoir les localiser (`yolo11l-cls` déclare `plate` —
+#: l'assiette d'ImageNet) et le retenir ne produirait aucune boîte à flouter. UNE déclaration
+#: (2026-10-07, déplacée de `model_selector`, qui importe `ultralytics` : `params.py` ne peut pas
+#: en dépendre au démarrage) — la couverture « auto », la vue et le select la lisent.
+DETECTION_TASKS = ('detect', 'segment')
+
+#: DOMAINE du select de modèle : par TÂCHE, jamais par source (route F4b ⑤, 2026-10-07). Mesuré
+#: avant de basculer, une fois la mise en page et la détection ouverte sorties de `detect` : les
+#: 32 mêmes modèles que l'ancien domaine `source='anonymizer'`, tous servis (`backend_for_key`).
+MODEL_SPEC = {'task': ','.join(DETECTION_TASKS)}
+
 # =============================================================================
 # DESCRIPTIONS (source unique par-app — le registre les LIT, ne les hardcode plus ;
 # cf. REMOVAL_LEDGER R9). DEUX champs SÉPARÉS (format de référence = transcriber) :

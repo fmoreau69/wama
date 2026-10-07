@@ -198,14 +198,15 @@ def _ingested_metadata(inst, save_path, fname):
 
 
 def _catalogue_key(value):
-    """La clé de catalogue (`anonymizer:<id>`) d'un modèle désigné par son identifiant, son
-    fichier ou son chemin — None s'il n'est pas au catalogue (on ne nomme pas ce qu'on ignore)."""
-    from .utils.yolo_utils import catalogue_id_for
+    """La clé de catalogue d'un modèle désigné par sa clé, son identifiant, son fichier ou son
+    chemin — None s'il n'est pas au catalogue (on ne nomme pas ce qu'on ignore). La lecture est
+    celle de la brique de l'app (`catalogue_key_for`) : elle recomposait `anonymizer:<id>` ici,
+    ce qui serait FAUX pour une clé d'une autre source depuis le select par tâche (2026-10-07)."""
+    from .utils.yolo_utils import catalogue_key_for
     try:
-        found = catalogue_id_for(os.path.basename(str(value))) or catalogue_id_for(value)
+        return catalogue_key_for(os.path.basename(str(value))) or catalogue_key_for(value) or None
     except Exception:
         return None
-    return f'anonymizer:{found}' if found else None
 
 
 def _detection_kwargs(media, user):
@@ -252,9 +253,20 @@ def _detection_kwargs(media, user):
     # PARALLEL DETECTION: Check if multiple models are needed
     # ======================================================================
     # Determine user's specified model (if any)
-    # Identifiant du catalogue, chemin d'avant, ou « auto » → '' (`catalogue_id_for`).
-    from .utils.yolo_utils import catalogue_id_for, model_path_for
-    user_specified_model = '' if use_sam3 else catalogue_id_for(media.model_to_use)
+    # Clé de catalogue, identifiant ou chemin d'avant, ou « auto » → '' (`catalogue_key_for`).
+    from wama.common.utils.model_keys import model_id
+    from .utils.yolo_utils import catalogue_key_for, model_path_for
+    user_specified_key = '' if use_sam3 else catalogue_key_for(media.model_to_use)
+    if user_specified_key:
+        # Le select liste par TÂCHE (route F4b ⑤, 2026-10-07) : un modèle de détection d'une
+        # autre source peut y entrer. Le lancement refuse ce que rien ne sert, avec la raison —
+        # jamais un repli silencieux sur un autre modèle que celui qui a été demandé.
+        from wama.common.backends.manager import backend_for_key
+        if backend_for_key(user_specified_key) is None:
+            raise ValueError(f"Aucun moteur ne sait lancer {user_specified_key} pour anonymiser. "
+                             "Choisissez « auto » ou un autre modèle dans les réglages.")
+    # L'IDENTIFIANT garde la console et les chemins historiques (`model_path_for` lit les deux).
+    user_specified_model = model_id(user_specified_key)
 
     # Check if specialty classes (face, plate) are requested
     # These often require dedicated models even if user has a default COCO model

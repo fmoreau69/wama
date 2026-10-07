@@ -42,7 +42,9 @@ def run_data_migration(function, field: str, rows: dict) -> dict:
             if key == f'{field}__in':
                 return self._keep(lambda v: v not in arg)
             if key == f'{field}__contains':
-                return self._keep(lambda v: arg not in v)
+                return self._keep(lambda v: arg not in (v or ''))
+            if key == f'{field}__startswith':
+                return self._keep(lambda v: not (v or '').startswith(arg))
             raise AssertionError(f'lookup non couvert par la doublure : {key}')
 
         def filter(self, **lookup):
@@ -50,7 +52,9 @@ def run_data_migration(function, field: str, rows: dict) -> dict:
             if key == 'pk':
                 return _Rows([arg])
             if key == f'{field}__startswith':
-                return self._keep(lambda v: v.startswith(arg))
+                return self._keep(lambda v: (v or '').startswith(arg))
+            if key == f'{field}__in':
+                return self._keep(lambda v: v in arg)
             raise AssertionError(f'lookup non couvert par la doublure : {key}')
 
         def values_list(self, *fields):

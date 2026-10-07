@@ -976,9 +976,10 @@ def get_context(request):
     gs_values = read_panel_settings(user, 'anonymizer', _PARAMS, **PANEL_SETTINGS)
     gs_values['sam3_prompt'] = gs_values.get('sam3_prompt') or ''
     # Le menu de modèle est rempli par le CATALOGUE (source `catalog`, `options_mode`) : sa
-    # valeur est un identifiant du catalogue ou « auto » (une ancienne valeur s'y traduit).
-    from .utils.yolo_utils import catalogue_id_for, get_all_class_choices
-    gs_values['model_to_use'] = catalogue_id_for(gs_values.get('model_to_use')) or 'auto'
+    # valeur est une CLÉ de catalogue ou « auto » (route F4b ⑤, 2026-10-07) — un réglage
+    # mémorisé avant la bascule (identifiant, ancien chemin) s'y traduit à la lecture.
+    from .utils.yolo_utils import catalogue_key_for, get_all_class_choices
+    gs_values['model_to_use'] = catalogue_key_for(gs_values.get('model_to_use')) or 'auto'
 
     return {
         'user': user,
@@ -1003,7 +1004,7 @@ def _class_coverage_meta():
         from wama.common.services.model_coverage import classes_couvertes
         from wama.model_manager.models import AIModel
         from .utils.yolo_utils import get_all_class_choices
-        from .utils.model_selector import TACHES_DETECTION
+        from .utils.model_config import DETECTION_TASKS
         voulues = [c[0] for c in get_all_class_choices()]
         meta = {}
         # Entrée « auto » (chantier C, 2026-09-20) : sur « auto » rien n'était grisé (caps = null),
@@ -1016,7 +1017,7 @@ def _class_coverage_meta():
             if (m.capabilities or {}).get('classes'):
                 covered = classes_couvertes(m, voulues)
                 meta[m.model_key] = {'covered_classes': sorted(covered)}
-                if m.is_downloaded and (m.capabilities or {}).get('task') in TACHES_DETECTION:
+                if m.is_downloaded and (m.capabilities or {}).get('task') in DETECTION_TASKS:
                     auto_covered |= covered
         meta['auto'] = {'covered_classes': sorted(auto_covered)}
         return _json.dumps(meta)
@@ -1190,8 +1191,9 @@ def get_media_settings(request, media_id):
             v = getattr(media, field['name'], None)
             if v is not None:
                 values[field['name']] = v
-        from .utils.yolo_utils import catalogue_id_for
-        values['model_to_use'] = catalogue_id_for(media.model_to_use) or 'auto'
+        # La modale resélectionne la valeur STOCKÉE parmi ses options : même espace de clés.
+        from .utils.yolo_utils import catalogue_key_for
+        values['model_to_use'] = catalogue_key_for(media.model_to_use) or 'auto'
         values['sam3_prompt'] = media.sam3_prompt or ''
 
         from .utils.yolo_utils import get_all_class_choices
@@ -1264,7 +1266,8 @@ def save_media_settings(request):
                     }, status=400)
             media.sam3_prompt = prompt if prompt else None
 
-        # Modèle : identifiant du catalogue, ou « auto » / vide = choix automatique au lancement.
+        # Modèle : clé de catalogue, ou « auto » / vide = choix automatique au lancement ; un
+        # identifiant d'avant est normalisé par `Media.save` (route F4b ⑤).
         model_to_use = request.POST.get('model_to_use')
         if model_to_use is not None:
             from wama.common.utils.auto_model import AUTO, is_auto

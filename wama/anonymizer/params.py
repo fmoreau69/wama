@@ -32,6 +32,7 @@ from wama.common.utils.param_schema import (
     ParamGroup, derive_from_model, groups_to_dicts, schema_to_dicts,
 )
 from wama.anonymizer.models import Media
+from wama.anonymizer.utils.model_config import MODEL_SPEC
 
 
 # Formats de sortie — BRIQUE COMMUNE (output_formats), en OPTGROUPS car l'app est BI-DOMAINE
@@ -105,8 +106,10 @@ PARAMS = derive_from_model(
         "model_to_use": dict(
             type="select", label="Modèle", icon="fa-microchip",
             dom_id={"panel": "user_setting_model_to_use"}, group="model",
+            # Domaine par TÂCHE, déclaré une fois (`utils/model_config.MODEL_SPEC`) ; valeurs =
+            # clés de catalogue (route F4b ⑤, 2026-10-07, migration 0036).
             options_source="catalog",
-            options_query={"source": "anonymizer", "task": "detect,segment"},
+            options_query=MODEL_SPEC,
             options_mode=options_mode_for("anonymizer", "image_video"),
             options_group="task", options_auto=True,
             help_source="anonymizer",

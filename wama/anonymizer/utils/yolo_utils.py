@@ -22,20 +22,30 @@ logger = logging.getLogger(__name__)
 _LEGACY_IDS = {'sam3_vit_h': 'sam3'}
 
 
-def catalogue_id_for(value) -> str:
-    """L'identifiant du CATALOGUE (sans la source) d'une valeur de `model_to_use`, ou '' si elle
-    est vide / « auto » / introuvable. Accepte l'identifiant lui-même (`yolo:x.pt`, `sam3`) et
-    les chemins d'avant le 2026-09-27 (`detect/faces/x.pt`, `x.pt`) : le fichier est unique au
-    catalogue (`anonymizer:yolo:<fichier>`)."""
+def catalogue_key_for(value) -> str:
+    """La CLÉ de catalogue d'une valeur de `model_to_use`, ou '' si elle est vide / « auto » /
+    introuvable. C'est l'espace du select depuis la route F4b ⑤ (2026-10-07 : domaine par TÂCHE,
+    clés entières — `anonymizer:yolo:x.pt`). Lit aussi tout ce qu'une surface d'avant a écrit :
+    l'identifiant sans source (`yolo:x.pt`, `sam3`, brique commune `catalog_key`), et les chemins
+    d'avant le 2026-09-27 (`detect/faces/x.pt`, `x.pt`) — le fichier est unique au catalogue."""
     from wama.common.utils.auto_model import is_auto
+    from wama.common.utils.model_keys import catalog_key
     from wama.model_manager.models import AIModel
-    if is_auto(value):
+    if not value or is_auto(value):
         return ''
     value = _LEGACY_IDS.get(str(value).strip(), str(value).strip())
-    if AIModel.objects.filter(model_key=f'anonymizer:{value}').exists():
-        return value
-    legacy = 'yolo:' + value.replace('\\', '/').rsplit('/', 1)[-1]
-    return legacy if AIModel.objects.filter(model_key=f'anonymizer:{legacy}').exists() else ''
+    key = catalog_key(value, 'anonymizer')
+    if AIModel.objects.filter(model_key=key).exists():
+        return key
+    legacy = 'anonymizer:yolo:' + value.replace('\\', '/').rsplit('/', 1)[-1]
+    return legacy if AIModel.objects.filter(model_key=legacy).exists() else ''
+
+
+def catalogue_id_for(value) -> str:
+    """L'identifiant (sans la source) de la même valeur — ce que gardent la clé d'ETA et la
+    console, comme l'identifiant garde le nom de fichier dans les autres apps (route F4b ⑤)."""
+    from wama.common.utils.model_keys import model_id
+    return model_id(catalogue_key_for(value))
 
 
 def model_path_for(value):
@@ -46,11 +56,15 @@ def model_path_for(value):
     from wama.model_manager.models import AIModel
     if is_auto(value):
         return None
-    key = catalogue_id_for(value)
-    m = AIModel.objects.filter(model_key=f'anonymizer:{key}').first() if key else None
+    key = catalogue_key_for(value)
+    m = AIModel.objects.filter(model_key=key).first() if key else None
     if m and m.local_path:
         return m.local_path
-    return get_model_path(str(value).strip())
+    # Repli historique par NOM DE FICHIER : une clé (`anonymizer:yolo:x.pt`) ou un identifiant
+    # (`yolo:x.pt`) n'en sont pas un — on lui passe le fichier, un chemin d'avant reste intact.
+    from wama.common.utils.model_keys import model_id
+    raw = model_id(str(value).strip())
+    return get_model_path(raw[len('yolo:'):] if raw.startswith('yolo:') else raw)
 
 
 def get_model_path(filename: str, auto_download: bool = True) -> str:
