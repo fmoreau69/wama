@@ -90,6 +90,11 @@ class WamaTestRunner(DiscoverRunner):
         if elagues and self.verbosity >= 1:
             print(f"Découverte : {len(elagues)} module(s) ignoré(s) hors périmètre "
                   f"({', '.join(sorted(elagues))}).")
+        labels = kwargs.get('test_labels', args[0] if args else None) or []
+        copies = prune_copied_twin_tests(suite, labels)
+        if copies and self.verbosity >= 1:
+            print(f"Découverte : {copies} test(s) COPIÉ(S) de jumelles écarté(s) — ils mesurent "
+                  "la convergence (`app_sandbox converge <jumelle>`), pas une régression.")
         return suite
 
     def setup_test_environment(self, **kwargs):
@@ -115,6 +120,53 @@ class WamaTestRunner(DiscoverRunner):
             else:
                 _supprimer_sans_risque(dossier)
         super().teardown_test_environment(**kwargs)
+
+
+def _test_module(test) -> str:
+    """Module d'origine d'un test de la suite (un échec d'import porte le sien dans son nom)."""
+    from unittest.loader import _FailedTest
+    if isinstance(test, _FailedTest):
+        return getattr(test, '_testMethodName', '')
+    return type(test).__module__
+
+
+def prune_copied_twin_tests(suite, labels=(), twins=None) -> int:
+    """Retire de `suite` (en place, récursivement) les tests COPIÉS des jumelles du bac à sable,
+    sauf ceux qu'un label de la commande VISE (`manage.py test wama.converter_02`, ce que lance
+    `app_sandbox converge`). Rend le nombre retiré.
+
+    Décision de Fabien (2026-10-07) : les tests propres de l'app originale, copiés dans sa
+    jumelle, mesurent la CONVERGENCE de la jumelle vers l'original ; dans la suite complète, une
+    jumelle en cours de convergence serait une DISTANCE comptée comme une régression. Les
+    contrats GÉNÉRIQUES, eux, bouclent sur les jumelles et restent dans la suite.
+    """
+    from unittest import TestSuite
+    from wama.common.sandbox import is_copied_twin_test, sandbox_labels
+    twins = sandbox_labels() if twins is None else twins
+    if not twins:
+        return 0
+    targeted = tuple(str(l).replace('/', '.').rstrip('.') for l in labels or ())
+
+    def aimed(module):
+        # Un label VISE un module s'il le contient (`wama.converter_02`) ou s'il est dedans
+        # (`wama.converter_02.tests.UneClasse.test_x`).
+        return any(module == t or module.startswith(t + '.') or t.startswith(module + '.')
+                   for t in targeted)
+
+    removed = 0
+    kept = []
+    for t in suite._tests:
+        if isinstance(t, TestSuite):
+            removed += prune_copied_twin_tests(t, labels, twins)
+            kept.append(t)
+            continue
+        module = _test_module(t)
+        if is_copied_twin_test(module, twins) and not aimed(module):
+            removed += 1
+            continue
+        kept.append(t)
+    suite._tests = kept
+    return removed
 
 
 def _racine_exclue(test) -> str:

@@ -328,6 +328,90 @@ class LostModelMembersJudgeTest(SimpleTestCase):
         self.assertEqual(self._judge('x = 1\n', template='{{ elem.options }}\n'), [])
 
 
+class TwinRelatedNamesTest(SimpleTestCase):
+    """A twin's relations to EXTERNAL models (User…) get suffixed accessors, or they clash with
+    the source's (E304/E305). `related_query_name` clashes like `related_name`: enhancer_01
+    failed its system check from creation on (2026-10-07)."""
+
+    SRC = ("class Batch(models.Model):\n    pass\n"
+           "class Settings(models.Model):\n"
+           "    user = models.OneToOneField(User, on_delete=models.CASCADE,\n"
+           "        related_name='app_settings', related_query_name='app_settings')\n"
+           "    batch = models.ForeignKey(Batch, on_delete=models.CASCADE, related_name='items')\n")
+
+    def test_both_reverse_names_of_an_external_relation_are_suffixed(self):
+        out = cmd_sandbox._patch_related_names(self.SRC, 'app_01')
+        self.assertIn("related_name='app_settings_app_01'", out)
+        self.assertIn("related_query_name='app_settings_app_01'", out)
+
+    def test_an_internal_relation_keeps_its_accessor(self):
+        # Counter-check: the app's own code reads `batch.items`.
+        self.assertIn("related_name='items'", cmd_sandbox._patch_related_names(self.SRC, 'app_01'))
+
+
+class CopiedOriginalTestsMeasureConvergenceTest(SimpleTestCase):
+    """The original app's own tests, copied into its twin, MEASURE convergence (decision of
+    2026-10-07): they do not judge a substitution, and the full suite leaves them out — only
+    `app_sandbox converge <twin>` runs them, against the twin."""
+
+    def test_what_a_test_module_is(self):
+        from wama.common.sandbox import is_test_module
+        for parts in (['tests.py'], ['tests_task.py'], ['test_x.py'], ['tests', 'a.py']):
+            self.assertTrue(is_test_module(parts), parts)
+        for parts in (['tasks.py'], ['testing.py'], ['utils', 'tests_helper.txt'], []):
+            self.assertFalse(is_test_module(parts), parts)
+
+    def test_a_copied_test_does_not_judge_a_substitution(self):
+        with TemporaryDirectory() as d:
+            p = Path(d) / 'jumelle_00'
+            p.mkdir()
+            (p / 'tasks.py').write_text('def run():\n    pass\n', encoding='utf-8')
+            (p / 'tests_task.py').write_text('from .tasks import _convert\n', encoding='utf-8')
+            with patch.object(cmd_sandbox, 'WAMA_DIR', Path(d)):
+                self.assertEqual(cmd_sandbox._imports_intra_paquet_non_resolus('jumelle_00'), [])
+                # Counter-check: the same import from RUNTIME code is still reported.
+                (p / 'views.py').write_text('from .tasks import _convert\n', encoding='utf-8')
+                self.assertEqual(len(cmd_sandbox._imports_intra_paquet_non_resolus('jumelle_00')), 1)
+
+    def _suite(self, *modules):
+        import unittest
+        cases = [type('T', (unittest.TestCase,), {'test_a': lambda self: None, '__module__': m})
+                 for m in modules]
+        return unittest.TestSuite(unittest.TestSuite([c('test_a')]) for c in cases)
+
+    def _modules(self, suite):
+        out = []
+        for t in suite:
+            out += self._modules(t) if hasattr(t, '_tests') else [type(t).__module__]
+        return out
+
+    def test_the_full_discovery_leaves_the_copied_tests_out(self):
+        from wama.common.runners import prune_copied_twin_tests
+        suite = self._suite('wama.reader_01.tests', 'wama.reader_01.tests_x',
+                            'wama.reader.tests', 'wama.common.tests.tests_queue_delete_contract')
+        self.assertEqual(prune_copied_twin_tests(suite, [], twins=['reader_01']), 2)
+        # The ORIGINAL's tests and the generic contracts (which loop on twins) stay.
+        self.assertEqual(self._modules(suite),
+                         ['wama.reader.tests', 'wama.common.tests.tests_queue_delete_contract'])
+
+    def test_aiming_at_the_twin_runs_its_copied_tests(self):
+        from wama.common.runners import prune_copied_twin_tests
+        for label in ('wama.reader_01', 'wama/reader_01', 'wama.reader_01.tests.T.test_a'):
+            with self.subTest(label=label):
+                suite = self._suite('wama.reader_01.tests')
+                self.assertEqual(prune_copied_twin_tests(suite, [label], twins=['reader_01']), 0)
+                self.assertEqual(self._modules(suite), ['wama.reader_01.tests'])
+
+    def test_the_test_run_is_read_from_its_ran_line(self):
+        parse = cmd_sandbox.parse_test_run
+        self.assertEqual(parse('Ran 12 tests in 3.4s\n\nFAILED (failures=1, errors=2, skipped=3)'),
+                         {'ran': 12, 'failures': 1, 'errors': 2, 'skipped': 3})
+        self.assertEqual(parse('Ran 5 tests in 1s\n\nOK (skipped=1)'),
+                         {'ran': 5, 'failures': 0, 'errors': 0, 'skipped': 1})
+        # `manage.py test` exits 0 having run NOTHING: no « Ran » line, no measure.
+        self.assertIsNone(parse('Found 0 test(s).\nSystem check identified no issues')['ran'])
+
+
 class JudgesAreSilentOnSoundPackagesTest(SimpleTestCase):
     """A judge must say NOTHING about a sound package — and the ten real apps are sound by
     definition (they run). Two false positives of the import judge refused EVERY target of

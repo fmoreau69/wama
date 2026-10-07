@@ -41,7 +41,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 
 from wama.common.sandbox import (
-    LABEL_RE, REGISTRY_PATH, load_registry, save_registry,
+    LABEL_RE, REGISTRY_PATH, is_test_module, load_registry, save_registry,
 )
 
 WAMA_DIR = Path(__file__).resolve().parents[3]          # …/wama
@@ -100,7 +100,10 @@ def _patch_related_names(text: str, label: str) -> str:
         return t == 'self' or t in internal or t.lower() in internal_lower
 
     out, pos = [], 0
-    for m in re.finditer(r"related_name\s*=\s*(['\"])(\w+)\1", text):
+    # `related_query_name` porte la même collision que `related_name` (E305 : nom de requête
+    # inverse) — enhancer.UserSettings déclare les deux ; seul le premier était suffixé, et la
+    # jumelle enhancer_01 échouait au check dès sa création (2026-10-07).
+    for m in re.finditer(r"(related_(?:query_)?name)\s*=\s*(['\"])(\w+)\2", text):
         # Le champ propriétaire = le dernier appel de relation AVANT ce related_name.
         calls = list(_FIELD_CALL_RE.finditer(text, 0, m.start()))
         # Cible RÉELLE : le `to=` DANS l'appel COMPLET prime (code généré = kwargs
@@ -122,8 +125,8 @@ def _patch_related_names(text: str, label: str) -> str:
         external = bool(target) and not _is_internal(target)
         out.append(text[pos:m.start()])
         if external:
-            q, name = m.group(1), m.group(2)
-            out.append(f'related_name={q}{name}_{label}{q}')
+            kw, q, name = m.group(1), m.group(2), m.group(3)
+            out.append(f'{kw}={q}{name}_{label}{q}')
         else:
             out.append(m.group(0))
         pos = m.end()
@@ -219,6 +222,23 @@ def _copy_package(src: str, dst: str) -> list:
     return written
 
 
+#: Les fichiers qu'une jumelle doit avoir GÉNÉRÉS pour être convergée (`converge`).
+CONVERGENCE_TARGETS = ('params', 'apps', 'urls', 'views', 'templates', 'tasks', 'models')
+
+
+def parse_test_run(output: str) -> dict:
+    """{ran, failures, errors, skipped} lus dans la sortie de `manage.py test`. `ran` vaut None
+    quand rien n'a tourné : le code de sortie de `manage.py test` ne le dit pas (il sort à 0
+    sans rien lancer), seule la ligne « Ran N tests » le dit."""
+    m = re.search(r'^Ran (\d+) tests? in ', output or '', re.M)
+    out = {'ran': int(m.group(1)) if m else None, 'failures': 0, 'errors': 0, 'skipped': 0}
+    status = re.search(r'^(?:OK|FAILED)(?: \((.*?)\))?\s*$', output or '', re.M)
+    if status and status.group(1):
+        for key, n in re.findall(r'(failures|errors|skipped)=(\d+)', status.group(1)):
+            out[key] = int(n)
+    return out
+
+
 def _module_level_statements(body):
     """Les instructions exécutées AU NIVEAU DU MODULE, blocs compris : un nom posé dans un
     `try:`/`if`/`with` de tête est exposé comme un autre (`MODELS_ROOT` de l'anonymizer, posé
@@ -275,6 +295,10 @@ def _imports_intra_paquet_non_resolus(label: str) -> list:
 
     manquants = []
     for p, arbre in arbres.items():
+        # Les tests COPIÉS de l'original ne sont pas du code d'exécution : ils visent la glu par
+        # ses noms privés, et ils mesurent la convergence (`converge`), pas une substitution.
+        if is_test_module(p.relative_to(base).parts):
+            continue
         for n in ast.walk(arbre):
             if not isinstance(n, ast.ImportFrom):
                 continue
@@ -389,7 +413,8 @@ def _lost_model_members_read(label: str) -> list:
         return []
 
     readers = [p for p in base.rglob('*.py')
-               if 'migrations' not in p.parts and p.name != 'models.py']
+               if 'migrations' not in p.parts and p.name != 'models.py'
+               and not is_test_module(p.relative_to(base).parts)]   # cf. `converge`
     trees = {}
     for p in readers:
         try:
@@ -607,7 +632,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('action', choices=['create', 'remove', 'list', 'substitute', 'revert',
-                                               'glue'])
+                                               'glue', 'converge'])
         parser.add_argument('app', nargs='?', help='app source (create) ou label jumeau (remove/substitute)')
         # Options et arguments en ANGLAIS (AGENTS.md, décision du 2026-09-14 : une option de ligne
         # de commande est du code). Renommés le 2026-10-01 : `cible` → `target`, `--proprietaire`
@@ -655,6 +680,8 @@ class Command(BaseCommand):
             self._substitute(app, opts.get('target'))
         elif action == 'revert':
             self._revert(app, opts.get('target'))
+        elif action == 'converge':
+            self._converge(app)
         else:
             self._remove(app)
 
@@ -1116,6 +1143,45 @@ class Command(BaseCommand):
                           if any(v.get('verdict') == 'ok'
                                  for v in entry['substituted'].values()) else entry['stage'])
         _save_entry(entry)
+
+    # ── converge : MESURER la distance jumelle ↔ original ──────────────────────
+    def _converge(self, label: str):
+        """La jumelle fait-elle ce que fait l'ORIGINAL ? (décision de Fabien, 2026-10-07)
+
+        Deux mesures, rien d'autre : (1) chaque fichier substituable est GÉNÉRÉ et tient (les
+        verdicts de `substitute`, relus au registre) ; (2) les tests PROPRES de l'original,
+        copiés dans la jumelle, passent CONTRE elle — l'oracle de son comportement spécifique
+        (sa glu), que les contrats génériques ne connaissent pas. Convergée = les deux.
+
+        Ces tests ne jugent PAS une substitution (ils visent la glu par ses noms privés) et la
+        suite complète les écarte (`runners`) : ils ne servent qu'ici. Une app NOUVELLE, sans
+        original, n'a pas cette mesure — elle a les contrats génériques, la batterie nocturne et
+        les tests d'usage écrits à sa génération.
+        """
+        entry = next((e for e in load_registry() if e.get('label') == label), None)
+        if not entry:
+            raise CommandError(f'{label} absent du registre.')
+        subs = entry.get('substituted') or {}
+        pending = [t for t in CONVERGENCE_TARGETS if (subs.get(t) or {}).get('verdict') != 'ok']
+        self.stdout.write(f'{label} ← {entry.get("generated_from") or "manifeste"} : '
+                          f'fichiers encore COPIÉS {pending or "aucun"}')
+        r = _manage(['test', f'wama.{label}', '--keepdb'])
+        run = parse_test_run((r.stdout or '') + '\n' + (r.stderr or ''))
+        if run['ran'] is None:
+            self.stdout.write(f'  tests de l\'original : NON MESURÉ ({_last_cause(r.stdout, r.stderr)})')
+        else:
+            self.stdout.write(f"  tests de l'original contre la jumelle : {run['ran']} lancés, "
+                              f"{run['failures']} échec(s), {run['errors']} erreur(s), "
+                              f"{run['skipped']} sauté(s)")
+        converged = (not pending and bool(run['ran'])
+                     and run['failures'] == 0 and run['errors'] == 0)
+        entry = next((e for e in load_registry() if e.get('label') == label), entry)
+        entry['convergence'] = {
+            'copied_targets': pending, 'tests': run, 'converged': converged,
+            'at': datetime.now(timezone.utc).isoformat(timespec='seconds')}
+        _save_entry(entry)
+        style = self.style.SUCCESS if converged else self.style.WARNING
+        self.stdout.write(style(f'{label} : {"CONVERGÉE" if converged else "pas encore convergée"}'))
 
     # ── revert (retour MANUEL au témoin) ─────────────────────────────────────
     def _revert(self, label: str, target: str):

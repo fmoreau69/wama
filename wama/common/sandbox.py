@@ -149,6 +149,33 @@ def sandbox_labels() -> list:
             if LABEL_RE.match(e.get('label', '')) and (base / e['label'] / 'apps.py').exists()]
 
 
+def is_test_module(rel_parts) -> bool:
+    """Le fichier (chemin RELATIF au paquet, en parties) est-il un module de TEST ?
+    `tests.py`, `tests_*.py`, `test_*.py`, ou tout fichier sous un dossier `tests/`.
+
+    Ce que portent les tests COPIÉS d'une jumelle (Fabien, 2026-10-07) : les tests propres de
+    l'app ORIGINALE sont l'oracle de son comportement spécifique — ils MESURENT la convergence
+    (`app_sandbox converge`), ils ne jugent pas une substitution (ils visent la glu par ses noms
+    PRIVÉS, qu'une régénération n'a pas à reproduire) et ne gardent pas la suite complète (une
+    jumelle en convergence y serait une distance, pas une régression)."""
+    parts = list(rel_parts)
+    if not parts:
+        return False
+    name = parts[-1]
+    return ('tests' in parts[:-1] or name == 'tests.py'
+            or (name.endswith('.py') and name.startswith(('tests_', 'test_'))))
+
+
+def is_copied_twin_test(module_name: str, labels=None) -> bool:
+    """Le module de test `module_name` (`wama.<jumelle>.tests_x`) est-il un test COPIÉ d'une
+    jumelle ? Consommé par le lanceur de tests : la découverte complète les écarte."""
+    parts = (module_name or '').split('.')
+    if len(parts) < 3 or parts[0] != 'wama':
+        return False
+    labels = sandbox_labels() if labels is None else labels
+    return parts[1] in labels and is_test_module([*parts[2:-1], parts[-1] + '.py'])
+
+
 def twins_with_copied_views() -> set:
     """Labels des jumelles dont les VUES sont une COPIE figée de l'app source (non régénérées).
 
