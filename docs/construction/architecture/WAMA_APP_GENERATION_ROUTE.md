@@ -4338,6 +4338,19 @@ qui DIT quelle fille manque de quoi (`WAMA_DATA_WORLD.md:2913-2916`).
 > Reste du 5.4 : les nœuds du canvas ne portent pas encore la bande des process d'une card
 > (un nœud-app = une card, `§10.6` 5.1) — c'est le même partial, à inclure quand le studio
 > rendra ses nœuds depuis le serveur.
+>
+> ✅ **Réaligné le 2026-10-07 (demande de Fabien)** — la ligne « le clic empile comme avant »
+> ci-dessus s'écartait de la décision du 15/09, qui disait glisser-déposer **au lieu** du clic
+> (`STUDIO_VISION.md:25`) : un nœud ne s'ajoute plus qu'en le glissant ; un pipeline du catalogue
+> s'ouvre toujours au clic (c'est un document, pas un nœud). Le geste nocturne
+> `common.history.studio`, qui ajoutait ses nœuds au clic, glisse désormais — sinon il serait
+> tombé en SKIP « palette inopérante » sans que rien ne soit cassé. Même jour : le canvas
+> **défile et zoome** (glisser le fond ou bouton du milieu, molette sous le curseur, barre
+> −/%/+/Ajuster) ; le graphe reste en coordonnées du monde (arrondies), donc le `layout` des
+> manifestes et les graphes sauvés sont inchangés de forme. Survol de dépôt : classe propre
+> `is-drop-target`, pas la `.drag-over` globale, qui est celle des FICHIERS. Gardes :
+> `studio/tests_catalogue.py`. ⚠ Le glisser HTML5 natif ne marche pas au doigt (tablette) :
+> le retrait du clic y laisse le catalogue sans geste d'ajout — non traité, à décider.
 
 #### 6. Les mondes
 

@@ -9,17 +9,16 @@
  * `studio/tasks.py`) livrées depuis le 2026-07-11 — l'ancienne mention « pas d'exécution »
  * et « la file = méta-app dégénérée à 1 app » sont PÉRIMÉES.
  *
- * Volontairement minimal et autonome (vanilla + SVG). Décidé le 2026-09-15, non implémenté
- * (vocabulaire process / pipeline / nœud / card → WAMA_APP_GENERATION_ROUTE.md §10.6) :
- *  - ajout d'un nœud au CLIC aujourd'hui (empilé) → glisser-déposer à l'endroit voulu,
- *  - palette « Apps » → « Catalogue » en sections repliables, pipelines sauvegardés inclus,
- *  - type de nœud `pipeline` (un pipeline enregistré réutilisé comme nœud),
- *  - états d'exécution alignés sur le vocabulaire commun (5 états JOB_* + STALE).
+ * Volontairement minimal et autonome (vanilla + SVG). Décidé le 2026-09-15 (vocabulaire
+ * process / pipeline / nœud / card → WAMA_APP_GENERATION_ROUTE.md §10.6) — ✅ livré le 03/10 :
+ * « Catalogue » en sections repliables avec les pipelines, ajout par glisser-déposer (le clic
+ * retiré le 2026-10-07), six états communs ; ⏳ reste le type de nœud `pipeline`.
+ * Navigation du canvas (2026-10-07) : glisser le fond = défiler, molette = zoomer.
  */
 (function (global) {
     'use strict';
 
-    var canvas, svg, hint, paletteList;
+    var canvas, world, svg, hint, paletteList, zoomLabel;
     var apps = {};
     var savedPipelines = [], declaredPipelines = [];   // la section « Pipelines » du catalogue
 
@@ -79,11 +78,80 @@
     function svgEl(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
     function inter(a, b) { return (a || []).some(function (t) { return (b || []).indexOf(t) !== -1; }); }
 
-    // Centre d'un point-port en coordonnées canvas.
-    function dotCenter(dot) {
+    // ── Vue : défilement et zoom du canvas (2026-10-07) ─────────────────────
+    // Le canvas est une FENÊTRE sur le monde (#studioWorld) : `view` = translation (x, y) en px
+    // écran + facteur k. Nœuds, liens et positions sérialisées restent en coordonnées du MONDE —
+    // un graphe sauvé avant ce jour s'ouvre tel quel. Gestes (ceux de ComfyUI) : glisser le fond
+    // ou bouton du milieu = défiler, molette = zoomer sous le curseur. La vue n'est PAS une
+    // mutation du graphe : elle n'entre ni dans l'historique ni dans le brouillon, et se retient
+    // à part, par navigateur.
+    var view = { x: 0, y: 0, k: 1 };
+    var VIEW_KEY = 'wama_studio_view';
+    var ZOOM_MIN = 0.2, ZOOM_MAX = 2.5, GRID = 22;
+
+    function applyView(remember) {
+        world.style.transform = 'translate(' + view.x + 'px, ' + view.y + 'px) scale(' + view.k + ')';
+        // La grille de points suit le monde, sinon le fond « glisse » sous le graphe.
+        canvas.style.backgroundSize = (GRID * view.k) + 'px ' + (GRID * view.k) + 'px';
+        canvas.style.backgroundPosition = view.x + 'px ' + view.y + 'px';
+        if (zoomLabel) zoomLabel.textContent = Math.round(view.k * 100) + ' %';
+        if (remember !== false) {
+            try { localStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch (e) { /* non bloquant */ }
+        }
+    }
+    function restoreView() {
+        try {
+            var v = JSON.parse(localStorage.getItem(VIEW_KEY) || 'null');
+            if (v && isFinite(v.x) && isFinite(v.y) && isFinite(v.k) && v.k > 0) {
+                view = { x: v.x, y: v.y, k: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, v.k)) };
+                applyView(false);
+                return true;
+            }
+        } catch (e) { /* idem */ }
+        return false;
+    }
+    // Point écran (clientX/Y) → coordonnées du monde.
+    function toWorld(clientX, clientY) {
         var c = canvas.getBoundingClientRect();
-        var r = dot.getBoundingClientRect();
-        return { x: r.left + r.width / 2 - c.left, y: r.top + r.height / 2 - c.top };
+        return { x: (clientX - c.left - view.x) / view.k, y: (clientY - c.top - view.y) / view.k };
+    }
+    // Zoome au facteur k en gardant FIXE le point (cx, cy) du canvas (le curseur, ou le centre).
+    function zoomAt(k, cx, cy) {
+        k = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, k));
+        if (cx == null) { cx = canvas.clientWidth / 2; cy = canvas.clientHeight / 2; }
+        var wx = (cx - view.x) / view.k, wy = (cy - view.y) / view.k;
+        view = { x: cx - wx * k, y: cy - wy * k, k: k };
+        applyView();
+    }
+    // Cadre tout le graphe dans la fenêtre (sans jamais grossir au-delà de 100 %).
+    function fitView() {
+        var cw = canvas.clientWidth, ch = canvas.clientHeight;
+        if (!cw || !ch) return;
+        if (!nodes.length) { view = { x: 0, y: 0, k: 1 }; applyView(); return; }
+        var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        nodes.forEach(function (n) {
+            x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y);
+            x1 = Math.max(x1, n.x + n.el.offsetWidth); y1 = Math.max(y1, n.y + n.el.offsetHeight);
+        });
+        var pad = 40;
+        var k = Math.min(1, (cw - 2 * pad) / Math.max(1, x1 - x0), (ch - 2 * pad) / Math.max(1, y1 - y0));
+        k = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, k));
+        view = { x: (cw - (x1 - x0) * k) / 2 - x0 * k, y: (ch - (y1 - y0) * k) / 2 - y0 * k, k: k };
+        applyView();
+    }
+
+    // Centre d'un point-port en coordonnées du monde, lu dans la MISE EN PAGE (offsets) et non à
+    // l'écran : un écart d'arrondi d'1 px écran, divisé par le zoom, valait 4,5 unités à 22 % et
+    // restait figé dans le tracé (mesuré au navigateur). Les offsets ignorent aussi les
+    // transformations — dont le `scale` d'un port survolé.
+    function dotCenter(dot) {
+        var x = dot.offsetWidth / 2, y = dot.offsetHeight / 2, e = dot;
+        while (e && e !== world) {
+            x += e.offsetLeft; y += e.offsetTop;
+            e = e.offsetParent;
+            if (e && e !== world) { x += e.clientLeft; y += e.clientTop; }   // bordure du parent
+        }
+        return { x: x, y: y };
     }
     function pathD(p1, p2) {
         var dx = Math.max(40, Math.abs(p2.x - p1.x) / 2);
@@ -95,9 +163,11 @@
     // « Catalogue », en SECTIONS repliables (ROUTE §10.6 5.4, 2026-10-03) : Entrées · Sorties ·
     // Pipelines (les miens + ceux DÉCLARÉS par les apps, qui n'y figuraient pas : ils passaient
     // par le seul sélecteur de la barre) · Apps · Fonctions par catégorie. Pas « Library » : le
-    // mot désigne déjà les paquets pip. Un nœud s'ajoute au CLIC (comme avant, empilé) ou se
-    // GLISSE à l'endroit voulu du canvas (drag natif HTML5, type MIME propre) ; un pipeline
-    // s'OUVRE — c'est un document, pas un nœud — par le même chemin que le sélecteur.
+    // mot désigne déjà les paquets pip. Un nœud se GLISSE à l'endroit voulu du canvas (drag
+    // natif HTML5, type MIME propre) — et SEULEMENT ainsi depuis le 2026-10-07 : la décision du
+    // 15/09 disait « glisser-déposer AU LIEU du clic » (STUDIO_VISION, ROUTE §10.6 5.4), le clic
+    // qui empilait avait survécu à la livraison du 03/10. Un pipeline, lui, s'OUVRE au clic —
+    // c'est un document, pas un nœud — par le même chemin que le sélecteur.
     // Le repli de chaque section est retenu par navigateur (localStorage, tolérant).
     var PALETTE_MIME = 'text/wama-node';
 
@@ -112,15 +182,19 @@
             item.appendChild(tag);
             item.dataset.fnApp = a.app;
         }
-        item.title = a.title || ('Ajouter ' + a.label + ' (clic, ou glisser sur le canvas)');
-        item.addEventListener('click', function () { (onPick || addNode)(id); });
-        if (!onPick) {
-            item.draggable = true;
-            item.addEventListener('dragstart', function (e) {
-                e.dataTransfer.setData(PALETTE_MIME, id);
-                e.dataTransfer.effectAllowed = 'copy';
-            });
+        if (onPick) {
+            item.title = a.title || a.label;
+            item.addEventListener('click', function () { onPick(id); });
+            return item;
         }
+        item.title = a.title || ('Glisser sur le canvas pour ajouter « ' + a.label + ' »');
+        item.draggable = true;
+        item.addEventListener('dragstart', function (e) {
+            e.dataTransfer.setData(PALETTE_MIME, id);
+            e.dataTransfer.effectAllowed = 'copy';
+        });
+        // Lâché hors du canvas : le canvas ne voit ni `drop` ni toujours `dragleave`.
+        item.addEventListener('dragend', function () { if (canvas) canvas.classList.remove('is-drop-target'); });
         return item;
     }
 
@@ -257,9 +331,12 @@
         var id = opts.id || ('n' + (++seq));
         var m = /^n(\d+)$/.exec(id);
         if (m) seq = Math.max(seq, parseInt(m[1], 10));
+        // Sans position (graphe qui n'en porte pas) : empilé dans le coin VISIBLE de la fenêtre,
+        // où qu'on ait défilé. Les graphes sauvés et `body_to_graph` en portent toujours une.
+        var stack = (nodes.length % 5) * 30;
         var node = { id: id, app: appId, params: opts.params || {},
-                     x: (opts.x != null) ? opts.x : 40 + (nodes.length % 5) * 30,
-                     y: (opts.y != null) ? opts.y : 40 + (nodes.length % 5) * 30 };
+                     x: (opts.x != null) ? opts.x : (40 - view.x) / view.k + stack,
+                     y: (opts.y != null) ? opts.y : (40 - view.y) / view.k + stack };
 
         var box = el('div', 'studio-node' + (a.planned ? ' is-planned' : ''));
         box.style.left = node.x + 'px';
@@ -289,7 +366,7 @@
         ports.appendChild(outCol);
         box.appendChild(ports);
 
-        canvas.appendChild(box);
+        world.appendChild(box);
         node.el = box;
         nodes.push(node);
 
@@ -663,6 +740,8 @@
                 else loadGraph(d.graph);
                 var nameEl = document.getElementById('studioPipelineName');
                 if (nameEl && d.name) nameEl.value = d.name;
+                // On retrouve la vue laissée ; à défaut (1re visite), tout le graphe.
+                if (!restoreView()) fitView();
             }
         } catch (e) {
             if (global.console && console.warn) console.warn('[WamaStudio] brouillon non restauré :', e && e.message ? e.message : e);
@@ -765,6 +844,7 @@
             // « annuler » jusqu'au graphe precedent, qui n'a plus rien a voir.
             if (history) { history.silence(function () { loadGraph(d.graph); }); history.reset(); }
             else loadGraph(d.graph);
+            fitView();   // un autre document : on le montre en entier
             var nameEl = document.getElementById('studioPipelineName');
             if (nameEl) nameEl.value = d.name;
             toast(d.declared
@@ -882,13 +962,18 @@
     function makeDraggable(node, handle) {
         handle.addEventListener('mousedown', function (e) {
             if (e.target.closest('.studio-node-del')) return;
+            if (e.button !== 0) return;   // le bouton du milieu défile la vue (init)
             e.preventDefault();
             // ── Drag d'abord (les listeners DOIVENT être posés quoi qu'il arrive) ──
             var startX = e.clientX, startY = e.clientY, ox = node.x, oy = node.y;
             handle.style.cursor = 'grabbing';
+            // Le déplacement écran se divise par le zoom ; plus de butée à 0 : le monde est
+            // sans bord depuis que la vue défile.
+            // Arrondi : la position finit dans le `layout` du manifeste pipeline, pas de
+            // décimales de zoom dans un fichier versionné.
             function move(ev) {
-                node.x = Math.max(0, ox + (ev.clientX - startX));
-                node.y = Math.max(0, oy + (ev.clientY - startY));
+                node.x = Math.round(ox + (ev.clientX - startX) / view.k);
+                node.y = Math.round(oy + (ev.clientY - startY) / view.k);
                 node.el.style.left = node.x + 'px';
                 node.el.style.top = node.y + 'px';
                 updateLinks();
@@ -907,22 +992,73 @@
     // ── Bootstrap ───────────────────────────────────────────────────────────
     function init() {
         canvas = document.getElementById('studioCanvas');
+        world = document.getElementById('studioWorld');
         svg = document.getElementById('studioLinks');
         hint = document.getElementById('studioHint');
         paletteList = document.getElementById('studioPaletteList');
-        if (!canvas) return;
+        zoomLabel = document.getElementById('studioZoomLabel');
+        if (!canvas || !world) return;
+        applyView(false);
 
         // Ligne pendante suit le curseur ; Échap annule.
         canvas.addEventListener('mousemove', function (e) {
             if (!pending) return;
-            var c = canvas.getBoundingClientRect();
-            pending.path.setAttribute('d', pathD(dotCenter(pending.dot),
-                { x: e.clientX - c.left, y: e.clientY - c.top }));
+            pending.path.setAttribute('d', pathD(dotCenter(pending.dot), toWorld(e.clientX, e.clientY)));
         });
+
+        // Défilement : glisser le FOND (bouton gauche), ou n'importe où au bouton du milieu.
+        // Un glisser qui a bougé n'est pas un clic : il ne désélectionne pas, n'annule pas un lien.
+        var panMoved = false;
+        canvas.addEventListener('mousedown', function (e) {
+            var onBackground = !e.target.closest('.studio-node, .studio-zoom')
+                && !e.target.classList.contains('studio-link');
+            if (!(e.button === 1 || (e.button === 0 && onBackground))) return;
+            e.preventDefault();   // bouton du milieu : pas d'auto-défilement du navigateur
+            var sx = e.clientX, sy = e.clientY, ox = view.x, oy = view.y, moved = false;
+            function move(ev) {
+                var dx = ev.clientX - sx, dy = ev.clientY - sy;
+                if (!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
+                if (!moved) { moved = true; canvas.classList.add('is-panning'); }
+                view.x = ox + dx; view.y = oy + dy;
+                applyView(false);
+            }
+            function up() {
+                document.removeEventListener('mousemove', move);
+                document.removeEventListener('mouseup', up);
+                canvas.classList.remove('is-panning');
+                if (moved) {
+                    applyView();   // retenue une fois, au lâcher
+                    panMoved = true;
+                    setTimeout(function () { panMoved = false; }, 0);   // le clic suit le mouseup
+                }
+            }
+            document.addEventListener('mousemove', move);
+            document.addEventListener('mouseup', up);
+        });
+        // Zoom à la molette (et au pincement d'un pavé tactile), centré sous le curseur.
+        canvas.addEventListener('wheel', function (e) {
+            e.preventDefault();
+            var c = canvas.getBoundingClientRect();
+            var step = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;   // lignes → px
+            zoomAt(view.k * Math.exp(-step * 0.0015), e.clientX - c.left, e.clientY - c.top);
+        }, { passive: false });
+        var zoomBar = document.getElementById('studioZoom');
+        if (zoomBar) zoomBar.addEventListener('click', function (e) {
+            var b = e.target.closest('[data-zoom]');
+            if (!b) return;
+            var action = b.dataset.zoom;
+            if (action === 'in') zoomAt(view.k * 1.2);
+            else if (action === 'out') zoomAt(view.k / 1.2);
+            else if (action === 'reset') zoomAt(1);
+            else if (action === 'fit') fitView();
+        });
+
         // Sélection par DÉLÉGATION (pattern commun des apps, 2026-07-15) : un clic
         // N'IMPORTE OÙ sur la card-nœud la sélectionne et remplit l'inspecteur ;
         // un clic sur le fond (canvas OU calque SVG des liens) désélectionne.
         canvas.addEventListener('click', function (e) {
+            if (panMoved) return;   // fin d'un défilement, pas un clic
+            if (e.target.closest('.studio-zoom')) return;
             if (pending && !e.target.classList.contains('dot')) { cancelPending(); return; }
             if (e.target.classList.contains('dot')) return;             // ports : gérés par onDot
             if (e.target.closest('.studio-node-del')) return;           // suppression : gérée à part
@@ -935,18 +1071,25 @@
 
         // Dépôt d'un élément du catalogue À L'ENDROIT voulu (5.4) : seul notre type MIME est
         // accepté — un fichier glissé depuis le bureau n'est pas un nœud.
+        // Survol : classe PROPRE au studio — la `.drag-over` globale (filemanager.css) est celle
+        // des FICHIERS (fond forcé + « Déposez le fichier ici »), fausse pour un nœud.
         canvas.addEventListener('dragover', function (e) {
             var types = (e.dataTransfer && e.dataTransfer.types) || [];
             if (Array.prototype.indexOf.call(types, PALETTE_MIME) === -1) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = 'copy';
+            canvas.classList.add('is-drop-target');
+        });
+        canvas.addEventListener('dragleave', function (e) {
+            if (!canvas.contains(e.relatedTarget)) canvas.classList.remove('is-drop-target');
         });
         canvas.addEventListener('drop', function (e) {
+            canvas.classList.remove('is-drop-target');
             var id = e.dataTransfer && e.dataTransfer.getData(PALETTE_MIME);
             if (!id) return;
             e.preventDefault();
-            var c = canvas.getBoundingClientRect();
-            addNode(id, { x: Math.max(0, e.clientX - c.left - 20), y: Math.max(0, e.clientY - c.top - 12) });
+            var p = toWorld(e.clientX, e.clientY);
+            addNode(id, { x: Math.round(p.x - 20), y: Math.round(p.y - 12) });
         });
 
         var clear = document.getElementById('studioClear');
