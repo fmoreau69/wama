@@ -219,6 +219,22 @@ def _copy_package(src: str, dst: str) -> list:
     return written
 
 
+def _module_level_statements(body):
+    """Les instructions exécutées AU NIVEAU DU MODULE, blocs compris : un nom posé dans un
+    `try:`/`if`/`with` de tête est exposé comme un autre (`MODELS_ROOT` de l'anonymizer, posé
+    dans un `try/except ImportError` — faux « absent » mesuré le 2026-10-07). On ne descend
+    jamais dans une fonction ni une classe : leurs noms sont locaux."""
+    import ast
+    for n in body:
+        yield n
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        for champ in ('body', 'orelse', 'finalbody'):
+            yield from _module_level_statements(getattr(n, champ, None) or [])
+        for h in getattr(n, 'handlers', None) or []:
+            yield from _module_level_statements(h.body)
+
+
 def _imports_intra_paquet_non_resolus(label: str) -> list:
     """Juge GÉNÉRIQUE de cohérence du paquet jumeau (2026-09-03, demande Fabien : « qu'une
     nouvelle génération ne redécouvre pas les mêmes problèmes »).
@@ -246,7 +262,7 @@ def _imports_intra_paquet_non_resolus(label: str) -> list:
         arbres[p] = arbre
         mod = '.'.join(p.relative_to(base).with_suffix('').parts)
         noms = set()
-        for n in arbre.body:
+        for n in _module_level_statements(arbre.body):
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 noms.add(n.name)
             elif isinstance(n, ast.Assign):
@@ -277,7 +293,13 @@ def _imports_intra_paquet_non_resolus(label: str) -> list:
             cle = mod if mod in exposes else f'{mod}.__init__'
             if cle not in exposes:
                 continue                                  # module absent → vu par check/compile
+            parent = '' if mod in ('__init__', '') else f'{mod}.'
             for a in n.names:
+                # `from wama.<jumelle> import tasks` importe un SOUS-MODULE, pas un symbole
+                # de `__init__` (faux positif mesuré sur anonymizer_01, 2026-10-07).
+                sous_module = f'{parent}{a.name}'
+                if sous_module in exposes or f'{sous_module}.__init__' in exposes:
+                    continue
                 if a.name != '*' and a.name not in exposes[cle]:
                     manquants.append(
                         f"{p.relative_to(base).as_posix()} : "

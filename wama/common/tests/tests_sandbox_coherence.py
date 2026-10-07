@@ -203,6 +203,28 @@ class JugeDeCoherenceDuPaquetTest(SimpleTestCase):
             with patch.object(cmd_sandbox, 'WAMA_DIR', Path(d)):
                 self.assertEqual(cmd_sandbox._imports_intra_paquet_non_resolus('jumelle_00'), [])
 
+    def test_a_name_set_inside_a_module_level_try_is_exposed(self):
+        # `MODELS_ROOT` of the anonymizer lives in a `try/except ImportError` (2026-10-07).
+        with TemporaryDirectory() as d:
+            p = self._paquet(d, 'try:\n    import x\n    ROOT = 1\nexcept ImportError:\n'
+                                '    ROOT = 2\n', 'from .params import ROOT\n')
+            with patch.object(cmd_sandbox, 'WAMA_DIR', Path(d)):
+                self.assertEqual(cmd_sandbox._imports_intra_paquet_non_resolus('jumelle_00'), [])
+            # Counter-check: a name local to a FUNCTION is not exposed by the module.
+            (p / 'params.py').write_text('def f():\n    ROOT = 1\n', encoding='utf-8')
+            with patch.object(cmd_sandbox, 'WAMA_DIR', Path(d)):
+                self.assertEqual(len(cmd_sandbox._imports_intra_paquet_non_resolus('jumelle_00')), 1)
+
+    def test_importing_a_submodule_of_the_package_is_resolved(self):
+        with TemporaryDirectory() as d:
+            p = self._paquet(d, 'PARAMS_JSON = [1]\n', 'from wama.jumelle_00 import params\n')
+            (p / 'tests.py').write_text('from . import models\n', encoding='utf-8')
+            with patch.object(cmd_sandbox, 'WAMA_DIR', Path(d)):
+                self.assertEqual(cmd_sandbox._imports_intra_paquet_non_resolus('jumelle_00'), [])
+                # Counter-check: an absent name is still reported.
+                (p / 'views.py').write_text('from wama.jumelle_00 import nothing\n', encoding='utf-8')
+                self.assertEqual(len(cmd_sandbox._imports_intra_paquet_non_resolus('jumelle_00')), 1)
+
 
 class RegistryWritesRereadTest(SimpleTestCase):
     """Chaque écriture du registre relit ce qu'il contient À L'INSTANT (2026-10-07 : un
