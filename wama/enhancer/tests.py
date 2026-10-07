@@ -231,20 +231,126 @@ class AudioAutoResolutionTest(TestCase):
         def fake(source, **kw):
             seen['source'] = source
             seen.update(kw)
-            return 'deepfilternet'
+            return 'enhancer:deepfilternet'
         with mock.patch('wama.model_manager.services.select_model_id', fake):
-            self.assertEqual(am.resolve_audio_engine(ae), 'deepfilternet')
+            self.assertEqual(am.resolve_audio_engine(ae), 'enhancer:deepfilternet')
+        # The draw reads the select's domain — by TASK, no source (route F4b ⑤, 2026-10-07).
         self.assertEqual((seen['source'], seen['task'], seen['quality_intent']),
-                         ('enhancer', 'audio-enhance', 12))
+                         (None, 'audio-enhance', 12))
 
     def test_a_designated_engine_is_kept_and_a_missing_answer_falls_back_to_resemble(self):
-        ae = AudioEnhancement.objects.create(user=self.user, engine='deepfilternet')
-        with mock.patch('wama.model_manager.services.select_model_id',
-                        lambda *a, **k: self.fail('no draw expected')):
-            self.assertEqual(am.resolve_audio_engine(ae), 'deepfilternet')
+        for designated in ('deepfilternet', 'enhancer:deepfilternet'):   # bare id of before, key
+            with self.subTest(designated=designated):
+                ae = AudioEnhancement.objects.create(user=self.user, engine=designated)
+                with mock.patch('wama.model_manager.services.select_model_id',
+                                lambda *a, **k: self.fail('no draw expected')):
+                    self.assertEqual(am.resolve_audio_engine(ae), 'enhancer:deepfilternet')
         ae2 = AudioEnhancement.objects.create(user=self.user, engine='auto')
         with mock.patch('wama.model_manager.services.select_model_id', lambda *a, **k: None):
-            self.assertEqual(am.resolve_audio_engine(ae2), 'resemble')
+            self.assertEqual(am.resolve_audio_engine(ae2), 'enhancer:resemble')
+
+
+class AudioCatalogueKeysTest(TestCase):
+    """Route F4b, step ⑤ for the AUDIO engine (2026-10-07): the select lists by TASK and stores
+    catalogue KEYS — the pattern of the media branch (`CatalogueKeysTest`)."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('enh_audio_keys', password='x')
+        _catalogue_row('enhancer:resemble', 'speech', task='audio-enhance',
+                       inputs_required=['work_audio'])
+        _catalogue_row('enhancer:deepfilternet', 'speech', task='audio-enhance',
+                       inputs_required=['work_audio'])
+        # A model installed WITHOUT a declared task (the case of `pyannote`, measured): it must
+        # not enter a select by task.
+        _catalogue_row('huggingface:org/diarizer', 'speech')
+
+    def _engine_param(self):
+        from wama.enhancer.params import AUDIO_PARAMS
+        return next(p for p in AUDIO_PARAMS if p.name == 'engine')
+
+    def test_every_writer_stores_a_catalogue_key(self):
+        for given, stored in (('resemble', 'enhancer:resemble'), ('auto', 'auto'),
+                              ('enhancer:deepfilternet', 'enhancer:deepfilternet')):
+            with self.subTest(given=given):
+                ae = AudioEnhancement.objects.create(user=self.user, engine=given)
+                self.assertEqual(stored, AudioEnhancement.objects.get(pk=ae.pk).engine)
+
+    def test_the_select_domain_is_the_task_and_carries_no_static_list(self):
+        p = self._engine_param()
+        self.assertEqual('catalog', p.options_source)
+        self.assertEqual(am.AUDIO_SPEC, p.options_query)
+        self.assertNotIn('source', p.options_query, 'a domain by source hides installed models')
+        self.assertFalse(p.choices, 'a static list would bring the bare-id key space back')
+
+    def test_the_domain_offers_the_two_engines_by_key_and_nothing_without_a_task(self):
+        from wama.common.utils.param_schema import catalog_options
+        self.assertEqual(['auto', 'enhancer:deepfilternet', 'enhancer:resemble'],
+                         sorted(v for v, _ in catalog_options(self._engine_param())))
+
+    def test_resemble_only_settings_show_for_the_resemble_key(self):
+        from wama.enhancer.params import AUDIO_PARAMS
+        for name in ('mode', 'strength', 'quality'):
+            p = next(p for p in AUDIO_PARAMS if p.name == name)
+            self.assertEqual({'field': 'engine', 'equals': 'enhancer:resemble'}, p.show_if, name)
+
+    def test_the_panel_pre_renders_the_engines_by_key(self):
+        from django.contrib.auth.models import Group
+        from django.urls import reverse
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
+        for role in (DEFAULT_APP_ACCESS.get('enhancer') or {}).get('roles', []):
+            self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+        self.client.force_login(self.user)
+        page = self.client.get(reverse('enhancer:index')).content.decode().replace('\n', ' ')
+        for key in ('enhancer:resemble', 'enhancer:deepfilternet'):
+            self.assertIn(f'<option value="{key}"', page)
+        # Counter-check: the bare ids the template used to hard-code are gone.
+        self.assertNotIn('<option value="resemble"', page)
+
+    def test_the_item_modal_finds_the_stored_engine_among_its_options(self):
+        from urllib.parse import urlencode
+        from django.contrib.auth.models import Group
+        from django.urls import reverse
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
+        for role in (DEFAULT_APP_ACCESS.get('model_manager') or {}).get('roles', []):
+            self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+        self.client.force_login(self.user)
+        query = urlencode(sorted(self._engine_param().options_query.items())) + '&auto=1'
+        response = self.client.get(reverse('model_manager:api_model_options') + '?' + query)
+        self.assertEqual(200, response.status_code, response.content[:200])
+        offered = {o[0] if isinstance(o, list) else o['value']
+                   for g in response.json()['groups'] for o in g['options']}
+        self.assertNotIn('huggingface:org/diarizer', offered)
+        for stored in ('resemble', 'enhancer:deepfilternet', 'auto'):
+            with self.subTest(stored=stored):
+                ae = AudioEnhancement.objects.create(user=self.user, engine=stored)
+                self.assertIn(ae.gear_data['engine'], offered)
+
+    def test_the_eta_keeps_learning_under_the_identifier(self):
+        from wama.enhancer.tasks import audio_enhancer_eta_key_size
+        ae = AudioEnhancement(engine='enhancer:resemble', duration=3.0)
+        self.assertEqual('enhancer:audio:resemble', audio_enhancer_eta_key_size(ae)[0])
+        self.assertEqual('enhancer:audio:resemble',
+                         audio_enhancer_eta_key_size(ae, engine='resemble')[0], 'bare id, same key')
+
+
+class AudioEngineKeysMigrationTest(SimpleTestCase):
+    """`0019_audio_engine_catalog_keys`: PURE prefixing, reversible on its own prefix only."""
+
+    def _run(self, name, rows):
+        import importlib
+        from wama.common.tests.helpers import run_data_migration
+        module = importlib.import_module('wama.enhancer.migrations.0019_audio_engine_catalog_keys')
+        return run_data_migration(getattr(module, name), 'engine', rows)
+
+    def test_forward_prefixes_bare_ids_and_leaves_auto_and_keys(self):
+        self.assertEqual({1: 'enhancer:resemble', 2: 'auto', 3: 'enhancer:deepfilternet', 4: ''},
+                         self._run('to_catalog_keys',
+                                   {1: 'resemble', 2: 'auto', 3: 'enhancer:deepfilternet', 4: ''}))
+
+    def test_backward_strips_only_its_own_prefix(self):
+        self.assertEqual({1: 'resemble', 2: 'huggingface:org/x', 3: 'auto'},
+                         self._run('to_bare_ids',
+                                   {1: 'enhancer:resemble', 2: 'huggingface:org/x', 3: 'auto'}))
 
 
 class NfeDeclinesFromTheSliderTest(SimpleTestCase):
@@ -264,7 +370,10 @@ class NfeDeclinesFromTheSliderTest(SimpleTestCase):
         auto = type('A', (), {'engine': 'auto', 'quality': 64, 'quality_intent': 95,
                               'user': None})()
         self.assertEqual(am.audio_nfe(auto, 'resemble'), 128)
+        # The draw returns a KEY since route F4b ⑤: the identifier still says the engine.
+        self.assertEqual(am.audio_nfe(auto, 'enhancer:resemble'), 128)
         self.assertEqual(am.audio_nfe(auto, 'deepfilternet'), 64)   # sans objet, colonne rendue
+        self.assertEqual(am.audio_nfe(auto, 'enhancer:deepfilternet'), 64)
 
 
 class VramNeedIsTheCommonFootprintTest(TestCase):
@@ -396,8 +505,9 @@ class GlueTest(TestCase):
 
             with mock.patch('wama.enhancer.backends.audio_backend.enhance_audio', fake_route), \
                     mock.patch('wama.enhancer.utils.auto_model.resolve_audio_engine',
-                               return_value='resemble'):
+                               return_value='enhancer:resemble'):   # a KEY since route F4b ⑤
                 res = tasks._enhance_audio(ae, _Ctx())
+        # The common engine receives the IDENTIFIER; the NFE still declines from the slider.
         self.assertEqual((seen['engine'], seen['quality']), ('resemble', 128))
         self.assertTrue(res['fields']['output_file'].endswith('_resemble.wav'))
         self.assertEqual(res['models'], ['enhancer:resemble'])

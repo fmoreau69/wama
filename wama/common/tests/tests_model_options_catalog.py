@@ -129,12 +129,12 @@ class DomainesDeclaresParLesAppsTest(TestCase):
                         "le reader RÉSOUT « auto » au lancement — l'option doit être servie")
 
     def test_l_enhancer_separe_ses_deux_domaines(self):
-        """Route F4b ⑤ (2026-10-06) : le média passe à la TÂCHE et aux clés ENTIÈRES (ce que
-        `Enhancement.ai_model` stocke depuis `0018`) ; l'audio garde ses clés nues."""
+        """Route F4b ⑤ : le média passe à la TÂCHE et aux clés ENTIÈRES (2026-10-06, `0018`),
+        l'audio le lendemain (`0019`) — deux domaines, séparés par leur TÂCHE, plus par la source."""
         media = _champ('enhancer', 'ai_model')
         audio = _champ('enhancer', 'engine')
         self.assertEqual(self._options(media), ['enhancer:BSRGANx4'])
-        self.assertEqual(self._options(audio), ['deepfilternet', 'resemble'])
+        self.assertEqual(self._options(audio), ['enhancer:deepfilternet', 'enhancer:resemble'])
 
     def test_the_enhancer_serves_auto_for_media_and_for_audio(self):
         """INVERSÉ le 2026-09-21 (curseur C, décision de Fabien) : ce test gardait « l'enhancer
@@ -173,12 +173,26 @@ class TheCriterionSeesTheDomainTest(TestCase):
         self.assertIn('backend', evidence)
 
     def test_one_select_by_source_among_two_is_enough_to_say_it(self):
-        """The enhancer's media select is by task since 06/10; its AUDIO select is still by source
-        — the second schema (`AUDIO_PARAMS_JSON`) would be invisible to `schema_for_app`."""
-        state, evidence = self._measure('enhancer')
+        """A select by source in the SECOND schema is seen — `schema_for_app` exposes only the
+        primary one. Measured on the real enhancer until its audio select went by task too
+        (2026-10-07); the same two schemas are now PRESENTED, the media one by task, the audio one
+        by source (its shape before that day)."""
+        from unittest.mock import patch
+        declared = {'primary': 'MEDIA_PARAMS_JSON', 'schemas': {
+            'MEDIA_PARAMS_JSON': [{'name': 'ai_model', 'options_source': 'catalog',
+                                   'options_query': {'task': 'upscale,denoise'}}],
+            'AUDIO_PARAMS_JSON': [{'name': 'engine', 'options_source': 'catalog',
+                                   'options_query': {'source': 'enhancer',
+                                                     'task': 'audio-enhance'}}]}}
+        with patch('wama.common.utils.param_schema.declared_param_schemas', return_value=declared):
+            state, evidence = self._measure('enhancer')
         self.assertEqual('partial', state)
         self.assertIn('engine', evidence)
         self.assertNotIn('ai_model', evidence)
+
+    def test_both_enhancer_selects_by_task_are_green(self):
+        # Counter-check, on the real app: both branches are by task since 2026-10-07.
+        self.assertIs(True, self._measure('enhancer')[0])
 
 
 class InvariantDesDeclarationsTest(TestCase):

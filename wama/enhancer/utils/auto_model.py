@@ -24,15 +24,18 @@ APP_ID = 'enhancer'
 #: MÉDIA par TÂCHE depuis la route F4b étape ⑤ (2026-10-06), jamais par source : `source='enhancer'`
 #: écartait tout agrandisseur installé depuis le model manager (Swin2SR, `huggingface:…`), et les
 #: valeurs deviennent des clés de catalogue ENTIÈRES. Mesuré avant de basculer : ce domaine rend
-#: les 7 modèles d'avant plus Swin2SR, tous lançables. AUDIO inchangé (clés nues, par source).
+#: les 7 modèles d'avant plus Swin2SR, tous lançables. AUDIO par TÂCHE aussi depuis le
+#: 2026-10-07 : le domaine rend les deux mêmes moteurs, en clés — après que l'appariement a
+#: cessé de laisser entrer un modèle SANS tâche déclarée (`matches_inputs`, un diariseur
+#: `pyannote` y figurait).
 MEDIA_SPEC = {'task': 'upscale,denoise'}
-AUDIO_SPEC = {'source': 'enhancer', 'task': 'audio-enhance'}
+AUDIO_SPEC = {'task': 'audio-enhance'}
 
 #: Replis si le catalogue ne propose rien (première install, base injoignable) — le défaut
 #: historique de l'app (une seule déclaration, `model_config.DEFAULT_MODEL`), en CLÉ de catalogue.
 from wama.enhancer.utils.model_config import DEFAULT_MODEL  # noqa: E402
 MEDIA_FALLBACK = f'{APP_ID}:{DEFAULT_MODEL}'
-AUDIO_FALLBACK = 'resemble'
+AUDIO_FALLBACK = f'{APP_ID}:resemble'
 
 #: NFE de Resemble par POSITION nommée du curseur — positions lues chez le sélecteur commun
 #: (`QUALITY_PRESETS`), jamais recopiées ; le NFE est la déclinaison locale.
@@ -74,8 +77,10 @@ def resolve_media_model(enhancement) -> str:
 
 def resolve_audio_engine(ae) -> str:
     """Moteur audio pour CE lancement : explicite tel quel, sinon tirage entre les moteurs de
-    restauration au poids du curseur (DeepFilterNet léger ↔ Resemble qualité)."""
-    requested = (ae.engine or '').strip()
+    restauration au poids du curseur (DeepFilterNet léger ↔ Resemble qualité). Rend une CLÉ de
+    catalogue ; un identifiant nu d'avant se lit dans l'espace de l'enhancer."""
+    from wama.common.utils.model_keys import catalog_key
+    requested = catalog_key(ae.engine or '', APP_ID)
     if requested and not is_auto(requested):
         return requested
     chosen = resolve_model_choice(AUTO, app_id=APP_ID, spec=AUDIO_SPEC,
@@ -93,8 +98,10 @@ def nfe_for_intent(intent) -> int:
 
 def audio_nfe(ae, engine: str) -> int:
     """Le NFE effectif : la colonne quand le moteur a été DÉSIGNÉ (le select NFE est alors
-    visible et posé), la déclinaison du curseur quand il a été résolu par « auto »."""
-    if is_auto(ae.engine) and engine == 'resemble':
+    visible et posé), la déclinaison du curseur quand il a été résolu par « auto ». `engine` :
+    clé ou identifiant, c'est l'identifiant qui dit le moteur."""
+    from wama.common.utils.model_keys import model_id
+    if is_auto(ae.engine) and model_id(engine) == 'resemble':
         return nfe_for_intent(quality_intent_of(ae, APP_ID))
     return int(ae.quality or 64)
 

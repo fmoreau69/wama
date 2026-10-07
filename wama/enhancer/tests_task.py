@@ -35,6 +35,7 @@ class _TwoProcesses(TestCase):
     def _route(self, input_path, output_path, output_format=None, options=None,
                progress_callback=None, **_kw):
         self.calls += 1
+        self.options = dict(options or {})
         with open(output_path, 'wb') as out:
             out.write(b'enhanced')
         return {'width': 8, 'height': 6}
@@ -110,8 +111,19 @@ class AudioQueueTest(_TwoProcesses):
     def _run(self, item, **settings):
         return self._play(tasks.enhance_audio, item,
                           'wama.enhancer.backends.audio_backend.enhance_audio',
-                          'wama.enhancer.utils.auto_model.resolve_audio_engine', 'deepfilternet',
-                          **settings)
+                          # the draw returns a catalogue KEY since route F4b ⑤ (2026-10-07)
+                          'wama.enhancer.utils.auto_model.resolve_audio_engine',
+                          'enhancer:deepfilternet', **settings)
+
+    def test_the_backend_receives_the_engine_identifier_and_the_file_name_carries_it(self):
+        item = AudioEnhancement.objects.create(user=self.user, engine='auto', status='RUNNING')
+        item.input_file.save('voice.wav', ContentFile(b'RIFF' + b'\0' * 16), save=True)
+        item = self._run(item)
+        self.assertEqual('SUCCESS', item.status, item.error_message)
+        # The common engine reads `deepfilternet`; a key would be an unknown engine to it.
+        self.assertEqual('deepfilternet', self.options['engine'])
+        self.assertIn('deepfilternet', os.path.basename(item.output_file.name))
+        self.assertNotIn('enhancer-deepfilternet', item.output_file.name)
 
     def test_the_audio_queue_has_the_same_two_processes(self):
         item = AudioEnhancement.objects.create(user=self.user, engine='auto', status='RUNNING')

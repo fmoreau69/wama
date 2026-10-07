@@ -265,7 +265,7 @@ class IndexView(View):
         # `ROADMAP §23.3bis`). La table `UserSettings` propre à l'enhancer n'était jamais ÉCRITE
         # (seulement `get_or_create`) : ses « défauts » étaient ceux du modèle, pour tout le monde.
         from wama.common.utils.user_settings import read_panel_settings
-        from wama.enhancer.params import MEDIA_PARAMS
+        from wama.enhancer.params import AUDIO_PARAMS, MEDIA_PARAMS
         panel = read_panel_settings(user, 'enhancer', MEDIA_PARAMS)
         # Le volet parle en CLÉS de catalogue (route F4b ⑤, 2026-10-06) : une préférence
         # mémorisée avant la bascule (identifiant nu) est lue dans l'espace de l'enhancer.
@@ -293,6 +293,9 @@ class IndexView(View):
             # (`catalog_options`, « auto » compris) — même vocabulaire que la liste qui le repeuple
             # (`bindOptionSources`), sinon la valeur courante n'y serait pas retrouvée.
             'ai_models': catalog_options(next(p for p in MEDIA_PARAMS if p.name == 'ai_model')),
+            # Idem pour le moteur AUDIO (route F4b ⑤, 2026-10-07) : il était pré-rendu en dur
+            # dans le gabarit (identifiants nus) — hors de l'espace de clés de son select.
+            'audio_engines': catalog_options(next(p for p in AUDIO_PARAMS if p.name == 'engine')),
             # Schémas déclaratifs par domaine → inspecteur contextuel (WamaInspector.initFromSchema).
             'media_params_json': _json.dumps(MEDIA_PARAMS_JSON),
             'audio_params_json': _json.dumps(AUDIO_PARAMS_JSON),

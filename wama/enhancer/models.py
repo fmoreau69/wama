@@ -153,11 +153,8 @@ class AudioEnhancement(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility
         'mode': 'audio',
     }
 
-    ENGINE_CHOICES = [
-        ('auto',          'Automatique — choisi au lancement'),
-        ('resemble',      'Resemble Enhance (Recommandé — 44.1kHz)'),
-        ('deepfilternet', 'DeepFilterNet 3 (Rapide — temps réel)'),
-    ]
+    # La LISTE des moteurs ne vit plus ici depuis la route F4b ⑤ (2026-10-07) : elle vient du
+    # catalogue, par tâche (`utils/auto_model.AUDIO_SPEC`), comme celle des agrandisseurs.
     MODE_CHOICES = [
         ('both',    'Débruitage + Amélioration (Recommandé)'),
         ('denoise', 'Débruitage seul (Rapide)'),
@@ -184,7 +181,9 @@ class AudioEnhancement(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility
     duration = models.FloatField(default=0, help_text='Duration in seconds')
 
     # Engine / processing settings
-    engine = models.CharField(max_length=20, choices=ENGINE_CHOICES, default='auto')
+    # Clé de CATALOGUE du moteur (`enhancer:resemble`) ou « auto » — 128 comme `ai_model` : une
+    # clé d'une autre source (`huggingface:org/dépôt`) dépasse vite 20 caractères.
+    engine = models.CharField(max_length=128, default='auto')
     mode = models.CharField(max_length=20, choices=MODE_CHOICES, default='both')
     denoising_strength = models.FloatField(
         default=0.5, help_text='Denoising strength 0.0–1.0 (Resemble only)'
@@ -213,6 +212,14 @@ class AudioEnhancement(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility
 
     def __str__(self):
         return f"AudioEnhancement {self.id} ({self.user.username}) - {self.get_status_display()}"
+
+    def save(self, *args, **kwargs):
+        # Moteur = CLÉ DE CATALOGUE (route F4b ⑤, 2026-10-07 — comme `Enhancement.ai_model`),
+        # normalisé au point de passage de tous les écrivains (vues, modale, lots, assistant,
+        # duplication) : un identifiant nu (`resemble`) est lu dans l'espace de l'enhancer.
+        from wama.common.utils.model_keys import catalog_key
+        self.engine = catalog_key(self.engine, 'enhancer')
+        super().save(*args, **kwargs)
 
     @property
     def gear_data(self):
