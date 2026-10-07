@@ -207,9 +207,11 @@ quelle voie, avec quel niveau de criticité selon le TTC et le PET, à quelle di
 quatre points sont à corriger avant de s'y fier :</p>
 <ul>
 <li>le PET est calculé pour chaque véhicule suivi, mais n'entre encore dans aucune sortie ;</li>
-<li>l'information « la navette est passée en premier » est enregistrée avec le sens inversé ;</li>
-<li>la détection des insertions compare des instants qui ne sont pas sur la même base de temps (GPS et
-vidéo) — décalage à mesurer ;</li>
+<li>l'écart de temps entre le passage de la navette et celui du véhicule est enregistré avec le signe
+opposé à sa définition (l'indication « la navette est passée en premier », elle, est juste) ;</li>
+<li>la détection des insertions et des attentes refait ses fenêtres d'intersection sur l'horloge du GPS et
+les compare à celle de la vidéo, alors que les deux horloges dérivent l'une de l'autre au fil de la
+session ;</li>
 <li>le rayon d'intérêt d'une intersection, distinct de son rayon d'analyse, n'est encore appliqué à aucun
 rapport.</li>
 </ul>
