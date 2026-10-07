@@ -8,7 +8,7 @@
         "image",
         "video"
       ],
-      "task": "detect"
+      "task": "layout-detection"
     },
     "composition": {
       "runtime": {
@@ -27,7 +27,7 @@
     },
     "identity": {
       "author": "microsoft",
-      "description_short": "Snapshot HF table-transformer-detection — installé, en attente d'intégration",
+      "description_short": "Snapshot HF table-transformer-detection",
       "gated": "no",
       "hf_id": "microsoft/table-transformer-detection",
       "license": "mit",
@@ -51,7 +51,7 @@
       "vram_gb": 0.3
     }
   },
-  "description": "Snapshot HuggingFace installé (vision/table-transformer-detection) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "description": "Snapshot HuggingFace installé (vision/table-transformer-detection), catalogué par le balayage générique des modèles installés.",
   "key": "huggingface:microsoft/table-transformer-detection",
   "manifest_kind": "model",
   "name": "table-transformer-detection",

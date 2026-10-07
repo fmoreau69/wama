@@ -47,6 +47,16 @@ class ModelTask(models.TextChoices):
     """
     # vision
     DETECT = 'detect', 'Détection'
+    # Deux détections que `detect` confondait avec celle des OBJETS d'une scène (2026-10-07,
+    # route F4b ⑤, décision de Fabien) : un select par TÂCHE proposait des détecteurs de PAGES
+    # pour flouter des visages. Termes STANDARD, jamais inventés :
+    #   • `layout-detection` — le tag que l'éditeur pose lui-même (`layout_detection`, PaddleX /
+    #     PP-DocLayout) : l'analyse de mise en page d'un document, tableaux compris ;
+    #   • `zero-shot-object-detection` — le tag HuggingFace de la détection en VOCABULAIRE OUVERT
+    #     (LocateAnything) ; il était listé « non porté » (`PLATFORM_TASKS_NOT_CARRIED`) faute de
+    #     décision, consignée ouverte dans PROSPECTION_PIPELINE.md.
+    LAYOUT_DETECTION = 'layout-detection', 'Analyse de mise en page'
+    ZERO_SHOT_OBJECT_DETECTION = 'zero-shot-object-detection', 'Détection en vocabulaire ouvert'
     SEGMENT = 'segment', 'Segmentation'
     CLASSIFY = 'classify', 'Classification'
     OBB = 'obb', 'Boîtes orientées'
@@ -134,6 +144,11 @@ class ModelTask(models.TextChoices):
 TASK_TO_PLATFORM_TAGS = {
     #                              huggingface                     ultralytics  ollama        roboflow
     ModelTask.DETECT:             ('object-detection',             'detect',    None,        'Object Detection'),
+    # HF range la mise en page sous `object-detection` (pas de tag de pipeline à elle) : c'est le
+    # tag de CARTE `layout_detection` qui départage (`prospector.hf_task_to_wama`), comme
+    # `super-resolution` départage `image-to-image`. Le tag principal reste celui de DETECT.
+    ModelTask.LAYOUT_DETECTION:   (None,                           None,        None,        None),
+    ModelTask.ZERO_SHOT_OBJECT_DETECTION: ('zero-shot-object-detection', None, None,         None),
     ModelTask.SEGMENT:            ('image-segmentation',           'segment',   None,        'Instance Segmentation'),
     ModelTask.CLASSIFY:           ('image-classification',         'classify',  None,        'Classification'),
     ModelTask.POSE:               ('keypoint-detection',           'pose',      None,        'Keypoint Detection'),
@@ -184,6 +199,8 @@ REFERENCE_PLATFORMS = ('huggingface', 'ultralytics', 'ollama', 'roboflow')
 # n'en manque — sans quoi une tâche ajoutée demain retomberait dans le même trou en silence.
 TASK_TO_MODEL_TYPE = {
     ModelTask.DETECT:             ModelType.VISION,
+    ModelTask.LAYOUT_DETECTION:   ModelType.VISION,
+    ModelTask.ZERO_SHOT_OBJECT_DETECTION: ModelType.VISION,
     ModelTask.SEGMENT:            ModelType.VISION,
     ModelTask.CLASSIFY:           ModelType.VISION,
     ModelTask.OBB:                ModelType.VISION,
@@ -244,6 +261,9 @@ def model_type_for_task(task: str):
 TASK_DEFAULT_INPUTS = {
     #                              modalities                      inputs_required            inputs_optional
     ModelTask.DETECT:             (('image', 'video'),             ('work_file',),            ()),
+    # Une PAGE (scan, image, PDF) — pas une vidéo ; et un détecteur ouvert lit ce qu'on cherche.
+    ModelTask.LAYOUT_DETECTION:   (('image', 'document'),          ('work_file',),            ()),
+    ModelTask.ZERO_SHOT_OBJECT_DETECTION: (('image', 'video'),     ('work_file', 'prompt'),   ()),
     ModelTask.SEGMENT:            (('image', 'video'),             ('work_file',),            ()),
     ModelTask.CLASSIFY:           (('image', 'video'),             ('work_file',),            ()),
     ModelTask.OBB:                (('image', 'video'),             ('work_file',),            ()),
@@ -383,7 +403,8 @@ PLATFORM_TASKS_NOT_CARRIED = {
     # c'est un cas ou la tache existe deja en production sans que le registre le sache.
     'Gaze Detection': 'roboflow — et wama_lab/face_analyzer, hors registre',
     'Semantic Segmentation': 'roboflow — cf. remarque ci-dessus sur `segment`',
-    'zero-shot-object-detection': 'huggingface — detection en vocabulaire ouvert',
+    # (`zero-shot-object-detection` en est SORTIE le 2026-10-07 : déclarée dans ModelTask,
+    #  LocateAnything la porte.)
 }
 
 

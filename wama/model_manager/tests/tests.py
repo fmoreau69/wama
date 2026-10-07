@@ -938,13 +938,32 @@ class TaxonomieDeProspectionTest(TestCase):
         `object-detection` : il LOCALISE des objets décrits en texte. Sans cette branche il
         entrait en `captioning`/`vlm`, donc mauvais métier, mauvais banc, mauvaise sélection."""
         from ..services.prospector import hf_task_to_wama
-        self.assertEqual(hf_task_to_wama('image-text-to-text', ['object-detection']),
-                         ('detect', 'vision'))
-        self.assertEqual(hf_task_to_wama('image-text-to-text', ['zero-shot-object-detection']),
-                         ('detect', 'vision'))
+        # Décision du 2026-10-07 : la détection en VOCABULAIRE OUVERT est sa propre tâche (le tag
+        # HuggingFace standard) — en `detect`, l'anonymizer le proposait sans savoir le lancer.
+        for tags in (['object-detection'], ['zero-shot-object-detection'],
+                     ['object-detection', 'grounding']):            # la carte réelle porte les deux
+            with self.subTest(tags=tags):
+                self.assertEqual(hf_task_to_wama('image-text-to-text', tags),
+                                 ('zero-shot-object-detection', 'vision'))
         # Un VLM conversationnel ordinaire ne tague pas la détection : il reste du légendage.
         self.assertEqual(hf_task_to_wama('image-text-to-text', ['conversational']),
                          ('captioning', 'vlm'))
+
+    def test_la_mise_en_page_se_lit_sur_la_carte_quel_que_soit_le_pipeline(self):
+        """Cartes RÉELLES relevées le 2026-10-07 : PP-DocLayoutV3 publie `object-detection`,
+        PP-DocLayout-L `image-to-text` ; les deux portent le tag d'éditeur `layout_detection`.
+        Table Transformer ne porte que son architecture (`table-transformer`)."""
+        from ..services.prospector import hf_task_to_wama
+        for pipeline, tags in (
+                ('object-detection', ['pp_doclayout_v3', 'object-detection', 'layout',
+                                      'layout_detection']),
+                ('image-to-text', ['PaddleOCR', 'OCR', 'layout_detection']),
+                ('object-detection', ['transformers', 'table-transformer', 'object-detection'])):
+            with self.subTest(pipeline=pipeline, tags=tags):
+                self.assertEqual(hf_task_to_wama(pipeline, tags), ('layout-detection', 'vision'))
+        # Contre-épreuve : un détecteur d'OBJETS ordinaire reste `detect`, un OCR reste `ocr`.
+        self.assertEqual(hf_task_to_wama('object-detection', ['ultralytics', 'yolo'])[0], 'detect')
+        self.assertEqual(hf_task_to_wama('image-to-text', ['PaddleOCR', 'OCR']), ('ocr', 'ocr'))
 
     def test_la_tache_ecrite_est_une_tache_du_catalogue(self):
         """Toute tâche rendue doit être une valeur `ModelTask` : sinon `check_model_taxonomy`

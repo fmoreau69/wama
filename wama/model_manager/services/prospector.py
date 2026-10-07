@@ -52,6 +52,16 @@ def hf_task_to_wama(pipeline_tag: str, tags=()):
 
     t = (pipeline_tag or '').strip().lower()
     bag = {str(x).lower() for x in (tags or [])}
+    # ANALYSE DE MISE EN PAGE (2026-10-07) — tranchée par la CARTE, quel que soit le pipeline :
+    # PP-DocLayoutV3 publie `object-detection`, PP-DocLayout-L `image-to-text`, et tous deux le
+    # tag d'éditeur `layout_detection` (mesuré sur les cartes). Table Transformer ne porte que son
+    # tag d'ARCHITECTURE (`table-transformer`, le même pour la détection de tableaux et pour la
+    # reconnaissance de leur structure) : c'est une donnée déclarée, pas une devinette sur le nom
+    # — et la détection de tableaux EST de l'analyse de mise en page. Sans cette règle, tous
+    # entraient en `detect`, avec les détecteurs d'objets d'une scène.
+    if bag & {'layout_detection', 'layout-detection', 'document-layout-analysis',
+              'table-transformer'}:
+        return 'layout-detection', 'vision'
     if t == 'image-to-image':
         if any(k in bag for k in ('super-resolution', 'upscaling', 'upscale', 'image-restoration')):
             return 'upscale', 'upscaling'
@@ -69,11 +79,13 @@ def hf_task_to_wama(pipeline_tag: str, tags=()):
         # texte. L'alias seul en faisait du `captioning`/`vlm` : faux métier, donc mauvais banc
         # et mauvaise sélection. Même règle que les branches ci-dessus : le TAG de la carte
         # départage ce que le pipeline_tag mélange.
-        # ⚠ La nuance « vocabulaire OUVERT » n'est PAS dite par `detect`
-        # (`zero-shot-object-detection` figure dans `PLATFORM_TASKS_NOT_CARRIED`) — la déclarer
-        # ou non est une décision de taxonomie, consignée dans PROSPECTION_PIPELINE.md.
-        if any(k in bag for k in ('object-detection', 'zero-shot-object-detection')):
-            return 'detect', 'vision'
+        # La nuance « vocabulaire OUVERT » est désormais une tâche (décision de Fabien,
+        # 2026-10-07) : un VLM qui localise ce qu'on lui DÉCRIT est la détection
+        # `zero-shot-object-detection` de HuggingFace — pas le `detect` d'un détecteur à classes
+        # fixes, avec qui il partageait les selects (l'anonymizer le proposait sans savoir le
+        # lancer).
+        if bag & {'object-detection', 'zero-shot-object-detection', 'grounding'}:
+            return 'zero-shot-object-detection', 'vision'
     if t == 'text-to-audio':
         # HF n'a qu'un tag pour la musique et l'ambiance ; les tags de la carte, eux, le disent
         # (mesuré le 2026-09-19 : ACE-Step 1.5 taggé `music`, `text2music`, catalogué en

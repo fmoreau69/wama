@@ -12,7 +12,7 @@
         "image",
         "video"
       ],
-      "task": "detect",
+      "task": "zero-shot-object-detection",
       "text_promptable": true
     },
     "composition": {

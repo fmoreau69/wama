@@ -11,7 +11,7 @@
         "image",
         "video"
       ],
-      "task": "detect"
+      "task": "layout-detection"
     },
     "composition": {
       "runtime": {
@@ -30,7 +30,7 @@
     },
     "identity": {
       "author": "PaddlePaddle",
-      "description_short": "Snapshot HF PP-DocLayoutV3_safetensors — installé, en attente d'intégration",
+      "description_short": "Snapshot HF PP-DocLayoutV3_safetensors",
       "gated": "no",
       "hf_id": "PaddlePaddle/PP-DocLayoutV3_safetensors",
       "license": "apache-2.0",
@@ -54,7 +54,7 @@
       "vram_gb": 0.2
     }
   },
-  "description": "Snapshot HuggingFace installé (vision/PP-DocLayoutV3_safetensors) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "description": "Snapshot HuggingFace installé (vision/PP-DocLayoutV3_safetensors), catalogué par le balayage générique des modèles installés.",
   "key": "huggingface:PaddlePaddle/PP-DocLayoutV3_safetensors",
   "manifest_kind": "model",
   "name": "PP-DocLayoutV3_safetensors",
