@@ -53,11 +53,14 @@ def _get_user(request):
 
 
 def _animation_model_or_auto(value) -> str:
-    """`value` s'il nomme un modèle d'animation du catalogue (id nu, comme le select le poste),
-    sinon « auto ». Le domaine est celui que DÉCLARE le schéma (`params.py`) : un seul inventaire
-    pour ce que le select propose et ce que la création accepte."""
+    """La CLÉ de `value` si elle nomme un modèle d'animation du catalogue, sinon « auto ». Le
+    domaine est celui que DÉCLARE le schéma (`params.py`) : un seul inventaire pour ce que le
+    select propose et ce que la création accepte. Le select poste une clé entière depuis la route
+    F4b ⑤ (2026-10-07) ; un identifiant nu d'avant (assistant, lot) est lu dans l'espace de
+    l'avatarizer, comme `AvatarJob.save` le normalise."""
     from wama.common.utils.auto_model import AUTO, is_auto
-    value = (value or '').strip()
+    from wama.common.utils.model_keys import catalog_key
+    value = catalog_key((value or '').strip(), 'avatarizer')
     if not value or is_auto(value):
         return AUTO
     from wama.common.utils.param_schema import catalog_options

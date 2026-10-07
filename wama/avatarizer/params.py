@@ -10,6 +10,7 @@ optgroups server-rendered pour l'instant). cardSettings (côté JS) lit les data
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
 from wama.avatarizer.models import AvatarJob
+from wama.avatarizer.utils.model_config import ANIMATION_SPEC
 
 PANEL = ("panel",)
 PANEL_ITEM = ("panel", "item")   # P1 : la MODALE est générée par WamaParams (IDs legacy via dom_id)
@@ -44,8 +45,10 @@ PARAMS = derive_from_model(
             help_source="avatarizer",
             help_fallback={"auto": "Choisi d'après l'avatar fourni : une photo est animée par "
                                    "MuseTalk, un avatar 3D (.glb) par TalkingHead."},
+            # Domaine par TÂCHE, déclaré UNE fois (`model_config.ANIMATION_SPEC`, que le tirage
+            # du worker lit aussi) ; valeurs = clés de catalogue (route F4b ⑤, 2026-10-07).
             options_source="catalog",
-            options_query={"source": "avatarizer", "task": "lip-sync"},
+            options_query=ANIMATION_SPEC,
             options_auto="silent",
             dom_id={"panel": "animation_model", "item": "settingsAnimationModel",
                     "batch": "batchSettingsAnimationModel"},

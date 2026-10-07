@@ -214,34 +214,9 @@ class CatalogueKeysMigrationTest(SimpleTestCase):
         self.assertEqual({1: 'RealESR_Gx4', 2: SWIN2SR_KEY, 3: 'auto'}, rows)
 
     def _run(self, name, rows):
-        """Runs the migration function on an in-memory table (field `ai_model`)."""
-        class _QS:
-            def __init__(self, pks):
-                self.pks = list(pks)
-
-            def _keep(self, test):
-                return _QS(pk for pk in self.pks if test(rows[pk]))
-
-            def exclude(self, ai_model__in=None, ai_model__contains=None):
-                if ai_model__in is not None:
-                    return self._keep(lambda v: v not in ai_model__in)
-                return self._keep(lambda v: ai_model__contains not in v)
-
-            def filter(self, pk=None, ai_model__startswith=None):
-                if pk is not None:
-                    return _QS([pk])
-                return self._keep(lambda v: v.startswith(ai_model__startswith))
-
-            def values_list(self, *fields):
-                return [(pk, rows[pk]) for pk in self.pks]
-
-            def update(self, ai_model):
-                for pk in self.pks:
-                    rows[pk] = ai_model
-
-        model = type('Enhancement', (), {'objects': _QS(rows)})
-        apps = mock.Mock(get_model=lambda app, name: model)
-        getattr(self._migration(), name)(apps, None)
+        """Runs the migration function on an in-memory table (shared double, field `ai_model`)."""
+        from wama.common.tests.helpers import run_data_migration
+        run_data_migration(getattr(self._migration(), name), 'ai_model', rows)
 
 
 class AudioAutoResolutionTest(TestCase):

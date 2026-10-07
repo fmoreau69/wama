@@ -267,7 +267,7 @@ def _animate(job, ctx):
         # laisse que MuseTalk, un GLB que TalkingHead — `available_inputs`/`consumes`), le
         # catalogue fait le reste (VRAM, backend présent). Plus d'aiguillage par extension ici :
         # un 3ᵉ modèle photo (SoulX-FlashHead…) entrera dans le même tirage sans toucher au worker.
-        from wama.avatarizer.utils.model_config import ANIMATION_FALLBACK
+        from wama.avatarizer.utils.model_config import ANIMATION_FALLBACK, ANIMATION_SPEC
         from wama.common.utils.auto_model import resolve_model_choice
         from wama.common.utils.input_match import input_attribute_verdict, work_token_for
         from wama.model_manager.models import AIModel
@@ -278,10 +278,12 @@ def _animate(job, ctx):
         # Le job porte son CHOIX depuis le 2026-10-03 (`animation_model`) : « auto » tire comme
         # avant, un modèle NOMMÉ est pris tel quel — `resolve_model_choice` le rend sans juger.
         from wama.common.utils.auto_model import is_auto
-        requested = (job.animation_model or '').strip()
+        from wama.common.utils.model_keys import catalog_key
+        # Clé de catalogue (route F4b ⑤) ; un identifiant nu d'avant se lit dans l'espace de l'app.
+        requested = catalog_key((job.animation_model or '').strip(), 'avatarizer')
         named = bool(requested) and not is_auto(requested)
         model_id = resolve_model_choice(
-            requested, spec={'source': 'avatarizer', 'task': 'lip-sync'},
+            requested, spec=ANIMATION_SPEC,
             available_inputs=available, consumes=[avatar_token],
             fallback=ANIMATION_FALLBACK[avatar_token])
         model_key = model_id if ':' in model_id else f'avatarizer:{model_id}'

@@ -46,7 +46,15 @@ CODEFORMER_VRAM_GB = 3.0
 #: photo ne laisse que MuseTalk, un GLB que TalkingHead ; entre deux modèles d'une même entrée,
 #: le tirage commun tranche (VRAM, curseur). Repli par NATURE d'avatar si le catalogue ne propose
 #: rien (première installation).
-ANIMATION_FALLBACK = {'work_object3d': 'talkinghead', 'work_image': 'musetalk-v1.5'}
+#: En CLÉS de catalogue depuis la route F4b ⑤ (2026-10-07) : c'est l'espace du select et du tirage.
+ANIMATION_FALLBACK = {'work_object3d': 'avatarizer:talkinghead',
+                      'work_image': 'avatarizer:musetalk-v1.5'}
+
+#: DOMAINE du modèle d'animation — UNE déclaration, que le select (`params.py`, `options_query`)
+#: et le tirage du worker lisent. Par TÂCHE (route F4b, étape ⑤ — 2026-10-07), jamais par source :
+#: un modèle `lip-sync` installé depuis le model manager doit y entrer. Mesuré avant de basculer :
+#: le domaine rend les deux mêmes modèles que l'ancien (`source='avatarizer'`), en clés entières.
+ANIMATION_SPEC = {'task': 'lip-sync'}
 
 AVATARIZER_MODELS = {
     'musetalk-v1.5': {

@@ -142,8 +142,9 @@ class AvatarJob(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
             return self.avatar_upload.name.rsplit('/', 1)[-1]
         return ''
 
-    # MODÈLE D'ANIMATION (2026-10-03) — « auto » ou l'id d'un modèle `lip-sync` de l'avatarizer
-    # (`musetalk-v1.5`, `talkinghead`…). Jusque-là le job ne portait AUCUN choix : le worker
+    # MODÈLE D'ANIMATION (2026-10-03) — « auto » ou la CLÉ de catalogue d'un modèle `lip-sync`
+    # (`avatarizer:musetalk-v1.5`… — clés entières depuis la route F4b ⑤, 2026-10-07, migration
+    # 0022 ; un identifiant nu est normalisé par `save`). Jusque-là le job ne portait AUCUN choix : le worker
     # tirait toujours d'après la nature de l'avatar, et l'utilisateur ne voyait que « MuseTalk »
     # (question de Fabien : « on a ajouté des modèles, mais je ne peux utiliser que MuseTalk »).
     # « auto » reste le défaut et garde ce comportement ; un modèle NOMMÉ doit accepter l'avatar
@@ -199,6 +200,14 @@ class AvatarJob(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
 
     def __str__(self):
         return f"AvatarJob #{self.id} - {self.user.username} - {self.get_mode_display()} - {self.status}"
+
+    def save(self, *args, **kwargs):
+        # Valeur de modèle = CLÉ DE CATALOGUE (route F4b ⑤, 2026-10-07 — patron de l'enhancer).
+        # Normalisée ICI, point de passage de TOUS les écrivains (création, modale, lot, assistant,
+        # duplication) : un identifiant nu (`musetalk-v1.5`) est lu dans l'espace de l'avatarizer.
+        from wama.common.utils.model_keys import catalog_key
+        self.animation_model = catalog_key(self.animation_model, 'avatarizer')
+        super().save(*args, **kwargs)
 
     @property
     def gear_data(self):

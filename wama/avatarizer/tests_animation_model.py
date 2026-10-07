@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.avatarizer import workers
 from wama.avatarizer.models import AvatarJob
@@ -78,9 +78,12 @@ class NamedAnimationModelTest(TestCase):
         self.assertEqual([workers.TALKINGHEAD_KEY], keys)
 
     def test_a_named_model_is_the_one_that_runs(self):
-        job, keys = self._run('face.png', 'musetalk-v1.5')
-        self.assertEqual('SUCCESS', job.status, job.error_message)
-        self.assertEqual([MUSETALK], keys)
+        # Its catalogue KEY (what the select posts since route F4b ⑤), and the bare id of before.
+        for named in (MUSETALK, 'musetalk-v1.5'):
+            with self.subTest(named=named):
+                job, keys = self._run('face.png', named)
+                self.assertEqual('SUCCESS', job.status, job.error_message)
+                self.assertEqual([MUSETALK], keys)
 
     def test_a_named_model_that_cannot_animate_the_avatar_is_refused_before_any_render(self):
         """Pas de repli silencieux : MuseTalk demandé sur un GLB n'est PAS remplacé par TalkingHead."""
@@ -109,11 +112,32 @@ class AnimationModelDeclarationTest(TestCase):
 
     def test_the_schema_states_the_select_from_the_catalog(self):
         from wama.avatarizer.params import PARAMS_JSON
+        from wama.avatarizer.utils.model_config import ANIMATION_SPEC
         field = next(p for p in PARAMS_JSON if p['name'] == 'animation_model')
         self.assertEqual('catalog', field['options_source'])
-        self.assertEqual({'source': 'avatarizer', 'task': 'lip-sync'}, field['options_query'])
+        # Route F4b ⑤ (2026-10-07): ONE declaration, by TASK — the worker's draw reads it too.
+        self.assertEqual(ANIMATION_SPEC, field['options_query'])
+        self.assertNotIn('source', field['options_query'], 'a domain by source hides installed models')
+        self.assertFalse(field.get('choices'), 'a static list would bring the bare-id key space back')
         self.assertEqual('silent', field['options_auto'])
         self.assertEqual({'panel', 'item', 'batch'}, set(field['contexts']))
+
+    def test_the_worker_draws_in_the_declared_domain(self):
+        """The select and the draw read ONE declaration — a second, written in the worker, would
+        drift (it said `source='avatarizer'` until 2026-10-07)."""
+        import inspect
+        src = inspect.getsource(workers)
+        self.assertIn('spec=ANIMATION_SPEC', src)
+        self.assertNotIn("'source': 'avatarizer', 'task': 'lip-sync'", src)
+
+    def test_every_writer_stores_a_catalogue_key(self):
+        for given, stored in (('musetalk-v1.5', MUSETALK), (MUSETALK, MUSETALK),
+                              ('auto', 'auto'), ('', '')):
+            with self.subTest(given=given):
+                job = AvatarJob.objects.create(user=self.user, mode='standalone',
+                                               avatar_source='upload', avatar_upload='x/face.png',
+                                               animation_model=given)
+                self.assertEqual(stored, AvatarJob.objects.get(pk=job.pk).animation_model)
 
     def test_the_tts_select_stays_the_first_catalog_field(self):
         """Le tirage du moteur TTS lit le domaine du PREMIER select `catalog` (`catalog_field`)."""
@@ -122,9 +146,11 @@ class AnimationModelDeclarationTest(TestCase):
 
     def test_creation_keeps_a_catalog_model_and_turns_anything_else_into_auto(self):
         from wama.avatarizer.views import _animation_model_or_auto
-        self.assertEqual('talkinghead', _animation_model_or_auto('talkinghead'))
-        self.assertEqual('musetalk-v1.5', _animation_model_or_auto(' musetalk-v1.5 '))
-        for value in ('', None, 'auto', 'ghost-model', 'codeformer'):
+        # The key the select posts, and the bare id an older surface (assistant, batch) still sends.
+        self.assertEqual(workers.TALKINGHEAD_KEY, _animation_model_or_auto(workers.TALKINGHEAD_KEY))
+        self.assertEqual(workers.TALKINGHEAD_KEY, _animation_model_or_auto('talkinghead'))
+        self.assertEqual(MUSETALK, _animation_model_or_auto(' musetalk-v1.5 '))
+        for value in ('', None, 'auto', 'ghost-model', 'codeformer', 'synthesizer:kokoro'):
             self.assertEqual('auto', _animation_model_or_auto(value), repr(value))
 
     def test_the_item_settings_route_saves_the_choice(self):
@@ -136,18 +162,68 @@ class AnimationModelDeclarationTest(TestCase):
         job = AvatarJob.objects.create(user=self.user, mode='standalone', avatar_source='upload',
                                        avatar_upload='x/face.png')
         self.client.force_login(self.user)
-        r = self.client.post(reverse('avatarizer:update_settings', args=[job.id]),
-                             {'animation_model': 'talkinghead'})
-        self.assertEqual(200, r.status_code, r.content)
-        job.refresh_from_db()
-        self.assertEqual('talkinghead', job.animation_model)
+        for posted in (workers.TALKINGHEAD_KEY, 'talkinghead'):
+            with self.subTest(posted=posted):
+                r = self.client.post(reverse('avatarizer:update_settings', args=[job.id]),
+                                     {'animation_model': posted})
+                self.assertEqual(200, r.status_code, r.content)
+                job.refresh_from_db()
+                self.assertEqual(workers.TALKINGHEAD_KEY, job.animation_model)
+
+    def test_the_item_modal_finds_the_stored_model_among_its_options(self):
+        """The ⚙ modal fetches the options endpoint with the DECLARED domain, then re-selects the
+        stored value only if it is an option — otherwise it falls back to « auto » and a save
+        overwrites the choice. Stored value and options share ONE key space, measured as the
+        modal builds its request (`_optionQuery`)."""
+        from urllib.parse import urlencode
+        from django.contrib.auth.models import Group
+        from django.urls import reverse
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
+        from wama.avatarizer.params import PARAMS_JSON
+        for role in (DEFAULT_APP_ACCESS.get('model_manager') or {}).get('roles', []):
+            self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+        self.client.force_login(self.user)
+        field = next(p for p in PARAMS_JSON if p['name'] == 'animation_model')
+        query = urlencode(sorted(field['options_query'].items())) + '&auto=silent'
+        response = self.client.get(reverse('model_manager:api_model_options') + '?' + query)
+        self.assertEqual(200, response.status_code, response.content[:200])
+        offered = {o[0] if isinstance(o, list) else o['value']
+                   for g in response.json()['groups'] for o in g['options']}
+        for stored in ('musetalk-v1.5', MUSETALK, 'auto'):
+            with self.subTest(stored=stored):
+                job = AvatarJob.objects.create(user=self.user, mode='standalone',
+                                               avatar_source='upload', avatar_upload='x/face.png',
+                                               animation_model=stored)
+                self.assertIn(job.gear_data['animation-model'], offered)
+
+
+class AnimationModelKeysMigrationTest(SimpleTestCase):
+    """`0022_animation_model_catalog_keys`: PURE prefixing (no catalogue lookup), reversible on
+    its own prefix only — the pattern of `enhancer/0018`."""
+
+    def _run(self, name, rows):
+        import importlib
+        from wama.common.tests.helpers import run_data_migration
+        module = importlib.import_module('wama.avatarizer.migrations.0022_animation_model_catalog_keys')
+        return run_data_migration(getattr(module, name), 'animation_model', rows)
+
+    def test_forward_prefixes_bare_ids_and_leaves_auto_and_keys(self):
+        self.assertEqual({1: MUSETALK, 2: 'auto', 3: 'huggingface:org/lips', 4: ''},
+                         self._run('to_catalog_keys',
+                                   {1: 'musetalk-v1.5', 2: 'auto', 3: 'huggingface:org/lips', 4: ''}))
+
+    def test_backward_strips_only_its_own_prefix(self):
+        self.assertEqual({1: 'musetalk-v1.5', 2: 'huggingface:org/lips', 3: 'auto'},
+                         self._run('to_bare_ids',
+                                   {1: MUSETALK, 2: 'huggingface:org/lips', 3: 'auto'}))
 
 
 class SilentAutoTest(TestCase):
     """`options_auto="silent"` : « auto » est proposé, la PRÉVISION se tait — elle ne connaît pas
     l'avatar de l'élément et annoncerait le modèle le plus léger à qui a posé une photo."""
 
-    URL = '/model-manager/api/models/options/?source=avatarizer&task=lip-sync'
+    #: The query the schema declares (by TASK since route F4b ⑤) — options come back as KEYS.
+    URL = '/model-manager/api/models/options/?task=lip-sync'
 
     def setUp(self):
         _register_models()
@@ -159,7 +235,7 @@ class SilentAutoTest(TestCase):
 
     def test_silent_auto_lists_auto_without_a_forecast(self):
         data = self.client.get(self.URL + '&auto=silent').json()
-        self.assertEqual(['auto', 'musetalk-v1.5', 'talkinghead'], sorted(self._values(data)))
+        self.assertEqual(['auto', MUSETALK, workers.TALKINGHEAD_KEY], sorted(self._values(data)))
         self.assertNotIn('auto_preview', data)
 
     def test_plain_auto_would_forecast_a_model_whatever_the_avatar(self):
