@@ -130,6 +130,17 @@ def declared_preview_field(body: dict) -> str:
     return ((body.get('inspector') or {}).get('preview') or {}).get('file_field') or ''
 
 
+def _is_django_model(path: str) -> bool:
+    """La base désignée par `path` (`module.Classe`) est-elle un modèle Django ? Une base
+    illisible est tenue pour un mixin pur : `models.Model` sera ajouté, jamais oublié."""
+    try:
+        from django.db import models as _m
+        from django.utils.module_loading import import_string
+        return issubclass(import_string(path), _m.Model)
+    except Exception:
+        return False
+
+
 def _render_from_data(app_id: str, data: dict, ingest: dict = None,
                       item_name: str = '') -> str:
     """Rendu FIDÈLE depuis la facette `data` (marche S2) : chaque modèle avec ses champs tels
@@ -192,7 +203,17 @@ def _render_from_data(app_id: str, data: dict, ingest: dict = None,
                 corps.append(f"        ordering = {meta['ordering']!r}")
             if meta.get('unique_together'):
                 corps.append(f"        unique_together = {meta['unique_together']!r}")
-        blocs.append(f"class {m['name']}(models.Model):\n" + '\n'.join(corps))
+        # Les BASES COMMUNES du modèle source (mixins du substrat, facette `data` depuis le
+        # 2026-10-07) : leur comportement est partagé, pas de la glu. `models.Model` ferme la
+        # liste quand aucune n'en dérive (un mixin pur : `BatchMixin`).
+        bases = []
+        for path in m.get('bases') or []:
+            mod, cls = path.rsplit('.', 1)
+            imports.add(f'from {mod} import {cls}')
+            bases.append(cls)
+        if not any(_is_django_model(p) for p in m.get('bases') or []):
+            bases.append('models.Model')
+        blocs.append(f"class {m['name']}({', '.join(bases)}):\n" + '\n'.join(corps or ['    pass']))
 
     tete = [
         '"""',

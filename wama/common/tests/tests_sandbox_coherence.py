@@ -178,6 +178,79 @@ class JugeDeCoherenceDuPaquetTest(SimpleTestCase):
                 self.assertEqual(cmd_sandbox._imports_intra_paquet_non_resolus('jumelle_00'), [])
 
 
+class LostModelMembersJudgeTest(SimpleTestCase):
+    """La glu d'un modèle (properties, méthodes, constantes de classe) n'est pas dans la
+    facette `data` : un `models` GÉNÉRÉ la perd. Mesuré sur `converter_02` le 2026-10-07 —
+    smokes verts, `tasks.py` copié lisant `job.options` : AttributeError au premier lancement.
+    Paquet FABRIQUÉ en temporaire, comme le juge des imports."""
+
+    COPIED = (
+        'from django.db import models\n'
+        'class Job(models.Model):\n'
+        '    quality = models.IntegerField(null=True)\n'
+        '    CROSS = ("upscale",)\n'
+        '    @property\n'
+        '    def options(self):\n'
+        '        return {"quality": self.quality}\n'
+        '    def __str__(self):\n'
+        '        return "job"\n'
+    )
+    GENERATED = (
+        'from django.db import models\n'
+        'class Job(models.Model):\n'
+        '    quality = models.IntegerField(null=True)\n'
+    )
+
+    def _package(self, root, reader_src, generated=GENERATED, template=''):
+        p = Path(root) / 'jumelle_00'
+        p.mkdir()
+        (p / 'models.py.temoin').write_text(self.COPIED, encoding='utf-8')
+        (p / 'models.py').write_text(generated, encoding='utf-8')
+        (p / 'tasks.py').write_text(reader_src, encoding='utf-8')
+        if template:
+            (p / 'templates').mkdir()
+            (p / 'templates' / 'card.html').write_text(template, encoding='utf-8')
+        return p
+
+    def _judge(self, *args, **kwargs):
+        with TemporaryDirectory() as d:
+            self._package(d, *args, **kwargs)
+            with patch.object(cmd_sandbox, 'WAMA_DIR', Path(d)):
+                return cmd_sandbox._lost_model_members_read('jumelle_00')
+
+    def test_a_lost_member_still_read_is_named_with_its_line(self):
+        found = self._judge('def run(job):\n    x = 1\n    return job.options, job.CROSS\n')
+        self.assertEqual(found, ['tasks.py:3 .CROSS', 'tasks.py:3 .options'])
+
+    def test_a_member_nobody_reads_is_not_reproached(self):
+        # Perdre une glu que plus rien ne lit est exactement ce qu'une régénération doit pouvoir faire.
+        self.assertEqual(self._judge('def run(job):\n    return job.quality\n'), [])
+
+    def test_a_member_the_views_set_by_name_is_not_lost(self):
+        # Les vues générées posent `options` sur l'élément (`_set_unless_property`) : il existe.
+        src = ('def ctx(item):\n    _set_unless_property(item, "options", {})\n'
+               '    return item.options\n')
+        self.assertEqual(self._judge(src), [])
+
+    def test_a_member_still_held_by_another_generated_class_is_not_reproached(self):
+        # Le receveur n'est pas typé : un nom encore porté ailleurs ne lève pas.
+        generated = self.GENERATED + ('class Profile(models.Model):\n'
+                                      '    options = models.JSONField(default=dict)\n')
+        self.assertEqual(self._judge('def run(p):\n    return p.options\n', generated=generated), [])
+
+    RENDERS_CARD = 'def card(r):\n    return render(r, "jumelle_00/card.html")\n'
+
+    def test_a_template_reads_it_inside_its_tags_only(self):
+        # Le JS inline (`select.options`) n'est pas une lecture de modèle.
+        tpl = '<script>s.options.length</script>\n{{ elem.options }}\n'
+        self.assertEqual(self._judge(self.RENDERS_CARD, template=tpl),
+                         ['templates/card.html:2 .options'])
+
+    def test_a_copied_template_nothing_renders_any_more_is_not_a_reader(self):
+        # Contre-épreuve : vues et index générés ne citent plus l'ancienne card copiée.
+        self.assertEqual(self._judge('x = 1\n', template='{{ elem.options }}\n'), [])
+
+
 class CoupleViewsTemplatesTest(SimpleTestCase):
     """Défaut n°2 : substituer les templates SANS les views produit une paire incohérente —
     page 200, boutons morts. Le refus est nommé, et il précède toute génération."""

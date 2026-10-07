@@ -164,10 +164,24 @@ def _data(app_id: str) -> Optional[dict]:
 
     models_out = []
     for model in cfg.get_models():
+        # Les BASES COMMUNES du modèle (mixins du substrat `wama.common` : BatchMixin,
+        # QueueOrderMixin, ProcessingTimeMixin, ScopedVisibility…), dans l'ordre déclaré. Ce
+        # n'est pas de la glu : c'est le comportement PARTAGÉ (`is_unitary`, nettoyage des
+        # fichiers d'un lot, visibilité). Avant le 2026-10-07 le rendu émettait
+        # `class X(models.Model)` — les champs de ces bases survivaient recopiés à plat, leur
+        # comportement disparaissait (la card de converter_02 levait sur `is_unitary`).
+        bases = [b for b in model.__bases__ if b.__module__.startswith('wama.common.')]
+        inherited = set()
+        for b in bases:
+            meta = getattr(b, '_meta', None)
+            if meta is not None:      # base abstraite : ses champs viennent AVEC elle
+                inherited |= {f.name for f in list(meta.fields) + list(meta.many_to_many)}
         fields = []
         for f in list(model._meta.local_fields) + list(model._meta.local_many_to_many):
             if getattr(f, 'auto_created', False):
                 continue   # pk implicite (id) / liens auto — recréés par Django
+            if f.name in inherited:
+                continue   # apporté par une base commune, rendue comme telle
             try:
                 name, path, args, kwargs = f.deconstruct()
                 fields.append({
@@ -185,6 +199,7 @@ def _data(app_id: str) -> Optional[dict]:
             meta['unique_together'] = [list(t) for t in model._meta.unique_together]
         models_out.append({
             'name': model.__name__,
+            'bases': [f'{b.__module__}.{b.__name__}' for b in bases],
             'fields': fields,
             'meta': meta,
             # Manager par défaut ≠ Manager standard (ex. ScopedManager — les vues appellent
