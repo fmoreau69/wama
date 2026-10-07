@@ -66,8 +66,9 @@ def enhance_audio(self, audio_enhancement_id: int, process: str = None):
     run_item_task(self, app_id='audio_enhancer', model=AudioEnhancement,
                   item_id=audio_enhancement_id,
                   pipeline=PIPELINE, processes={'generate': _enhance_audio, 'output': _output},
-                  vram_needed=lambda a: _vram_needed(f'enhancer:{_audio_engine(a)}'),
-                  model_key=lambda a: f'enhancer:{_audio_engine(a)}',
+                  # Le moteur résolu EST une clé de catalogue (route F4b ⑤, 2026-10-07).
+                  vram_needed=lambda a: _vram_needed(_audio_engine(a)),
+                  model_key=_audio_engine,
                   notify_label='Enhancer (audio)', only=process)
 
 
@@ -239,21 +240,25 @@ def _enhance_audio(ae, ctx):
     from wama.common.backends.manager import route_for_nature
     from .utils.auto_model import audio_nfe
 
+    from wama.common.utils.model_keys import model_id
     route = route_for_nature(__package__, 'audio')
     input_path = ae.input_file.path
-    engine = _audio_engine(ae)
+    engine = _audio_engine(ae)                     # clé de catalogue (route F4b ⑤)
+    name = model_id(engine)                        # l'identifiant : ce que le moteur commun lit
     nfe = audio_nfe(ae, engine)
-    output_filename = compose_output_name(app='enhancer', model=engine,
+    # Le NOM porte l'identifiant (comme la branche média) : `resemble`, pas `enhancer-resemble`.
+    output_filename = compose_output_name(app='enhancer', model=name,
                                           source_name=input_path, ext='.wav')
     if is_auto(ae.engine):
         ctx.console(f"[Enhancer] 🧠 Auto → {engine} (VRAM libre au lancement, curseur qualité "
                     f"{quality_intent_of(ae, 'enhancer')}/100"
-                    + (f", NFE {nfe}" if engine == 'resemble' else '') + ')')
+                    + (f", NFE {nfe}" if name == 'resemble' else '') + ')')
     ctx.console(f"Traitement audio: {ae.get_input_filename()} ({engine})")
     ctx.progress(5)
 
     options = {
-        'engine': engine,
+        # Le backend reçoit l'IDENTIFIANT du moteur (`run_audio_enhancement(engine='resemble')`).
+        'engine': name,
         'mode': ae.mode,
         'denoising_strength': float(ae.denoising_strength),
         'quality': nfe,
@@ -272,7 +277,7 @@ def _enhance_audio(ae, ctx):
         fields={'output_file': ae.output_file.name},
         eta=audio_enhancer_eta_key_size(ae, engine=engine),
         label=output_filename,
-        models=[f'enhancer:{engine}'])
+        models=[engine])
 
 
 # ── Partagé avec les vues (ETA) ─────────────────────────────────────────────────────────
@@ -296,7 +301,10 @@ def enhancer_eta_key_size(enhancement, model: str = None) -> tuple[str, float, s
 
 def audio_enhancer_eta_key_size(ae, engine: str = None) -> tuple[str, float, str]:
     """(model_key, size, unit) pour le seeding ETA d'une AudioEnhancement (durée audio)."""
-    engine = engine or getattr(ae, 'engine', '') or 'auto'
+    from wama.common.utils.model_keys import model_id
+    # Sous l'IDENTIFIANT (2026-10-07), comme la branche média : l'historique appris reste
+    # `enhancer:audio:resemble`, que la colonne porte une clé ou un identifiant d'avant.
+    engine = model_id(engine or getattr(ae, 'engine', '') or 'auto')
     return f'enhancer:audio:{engine}', float(getattr(ae, 'duration', 0) or 0), 'audio_sec'
 
 

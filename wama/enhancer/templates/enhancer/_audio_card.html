@@ -38,7 +38,7 @@ Contexte : elem (AudioEnhancement, décorée .chips), in_batch (bool).
       <span class="wcv3-lbl">Réglages</span>
       <div class="wcv3-out">
         {% include 'common/_card_chips.html' with chips=elem.chips.settings %}
-        <span class="wcv3-out-step">{% if elem.engine == 'resemble' %}Force {{ elem.denoising_strength }} / NFE {{ elem.quality }}{% else %}Rapide{% endif %}</span>
+        <span class="wcv3-out-step">{% if elem.engine == 'enhancer:resemble' %}Force {{ elem.denoising_strength }} / NFE {{ elem.quality }}{% else %}Rapide{% endif %}</span>
       </div>
     </div>
 

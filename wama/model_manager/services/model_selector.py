@@ -621,7 +621,13 @@ def matches_inputs(model, available_inputs=None, task: Optional[str] = None,
     logique en propre — c'est elle qui doit servir à TOUTES les apps.
     """
     caps = getattr(model, 'capabilities', None) or {}
-    if task and caps.get('task') and caps.get('task') != task:
+    # Une tâche DEMANDÉE exige une tâche DÉCLARÉE (2026-10-07). Jusque-là un modèle sans tâche
+    # passait ce filtre — toléré quand les capacités étaient peu peuplées (07/30) ; mesuré le
+    # 2026-10-07 : 255 modèles sur 259 déclarent leur tâche, et les 4 autres (installations du
+    # model manager aux capacités vides) entraient dans des selects par TÂCHE — un diariseur
+    # (`pyannote`) proposé comme moteur d'amélioration audio. Un modèle qui ne déclare rien
+    # n'est proposé pour rien : on ne devine pas ce qu'il sait faire.
+    if task and caps.get('task') != task:
         return False
     required = set(caps.get('inputs_required') or [])
     if consumes and not set(consumes).issubset(required | set(caps.get('inputs_optional') or [])):

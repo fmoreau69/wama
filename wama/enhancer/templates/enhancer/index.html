@@ -91,9 +91,9 @@
             <i class="fas fa-cogs"></i> Moteur
         </label>
         <select class="form-select form-select-sm bg-dark text-white border-secondary" id="audioEngine">
-            <option value="auto" selected>Automatique — choisi au lancement</option>
-            <option value="resemble">Resemble Enhance (Recommandé)</option>
-            <option value="deepfilternet">DeepFilterNet 3 (Rapide)</option>
+            {% for value, label in audio_engines %}
+            <option value="{{ value }}" {% if value == 'auto' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
         </select>
         {# Descriptif moteur — brique commune wama-model-help (fallback = AUDIO_ENGINE_HELP) #}
         <div id="audioEngineHelp" class="wama-model-help small text-muted mt-1"></div>

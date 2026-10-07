@@ -13,8 +13,7 @@ from wama.common.utils.output_formats import (
     get_output_formats, get_output_qualities, output_format_params,
 )
 from wama.common.utils.param_schema import Param, schema_to_dicts
-from wama.enhancer.models import AudioEnhancement
-from wama.enhancer.utils.auto_model import MEDIA_SPEC
+from wama.enhancer.utils.auto_model import AUDIO_SPEC, MEDIA_SPEC
 from wama.common.backends.ai_upscaler import SUPPORTED_MODELS
 
 
@@ -45,9 +44,14 @@ def _media_model_help():
 
 MEDIA_MODEL_HELP = _media_model_help()
 
-# Aide moteurs audio (hors catalogue) — courte + longue, curée.
+#: Clé du moteur Resemble — c'est elle que portent l'option du select et la colonne (route F4b ⑤) ;
+#: ses réglages propres (mode, force, NFE) ne s'affichent que pour elle.
+RESEMBLE_KEY = 'enhancer:resemble'
+
+# Aide moteurs audio — courte + longue, curée ; le REPLI quand le catalogue ne répond pas,
+# indexé par CLÉ de catalogue (2026-10-07) : ce sont les valeurs d'option du select.
 AUDIO_ENGINE_HELP = {
-    'resemble': {
+    RESEMBLE_KEY: {
         'description': 'Restauration par diffusion — débruitage + extension de bande, meilleure qualité',
         'description_long': (
             "Resemble Enhance : modèle génératif (diffusion) qui débruite ET restaure les hautes "
@@ -55,7 +59,7 @@ AUDIO_ENGINE_HELP = {
             "Mode / Force / Qualité (NFE) s'appliquent. Idéal pour des voix dégradées."),
         'recommended_vram_gb': 4,
     },
-    'deepfilternet': {
+    'enhancer:deepfilternet': {
         'description': 'Débruitage temps réel — rapide, faible empreinte',
         'description_long': (
             "DeepFilterNet 3 : débruitage discriminatif temps réel (48 kHz), très rapide et léger, "
@@ -122,19 +126,21 @@ MEDIA_PARAMS = [
 AUDIO_PARAMS = [
     Param(name='engine', type='select', label='Moteur', icon='fa-cogs', chip=True,
           dom_id={'panel': 'audioEngine', 'item': 'settingsAudioEngine'}, contexts=('panel', 'item'),
-          # Options du CATALOGUE (route F4b, 2026-09-08) — `enhancer:resemble` et
-          # `enhancer:deepfilternet` y sont, avec la tâche `audio-enhance` : le commentaire
-          # « moteurs audio HORS catalogue » qui vivait ici était PÉRIMÉ (mesuré). Domaine
-          # par `source` + `task` : c'est la tâche qui sépare les moteurs audio des 7
-          # modèles d'upscaling de la même source. Clés nues = valeurs d'`engine`.
+          # ── Route F4b, étape ⑤ (2026-10-07) — options par TÂCHE, clés ENTIÈRES ──────
+          # Le domaine était `source='enhancer'` + `task` (2026-09-08) : un moteur de
+          # restauration installé depuis le model manager n'y entrait pas, et les valeurs
+          # étaient des identifiants NUS. Comme la branche média (`MEDIA_SPEC`) : domaine par
+          # capacité, déclaré une fois (`utils/auto_model.AUDIO_SPEC`, que le tirage « auto »
+          # lit aussi) ; valeurs = clés (`enhancer:resemble`, migration `0019`) ; plus de
+          # `choices` statiques — un identifiant nu posté par une surface d'avant est normalisé
+          # par `AudioEnhancement.save`.
           options_source='catalog',
-          options_query={'source': 'enhancer', 'task': 'audio-enhance'},
+          options_query=AUDIO_SPEC,
           # « auto » (curseur C, 2026-09-21) : DeepFilterNet (léger, rapide) ↔ Resemble
           # (diffusion, qualité) arbitrés au poids du curseur ; le NFE de Resemble se décline
           # alors du curseur (`utils/auto_model.audio_nfe`).
           options_auto=True,
-          choices=list(AudioEnhancement.ENGINE_CHOICES),
-          help_source='enhancer',   # moteurs audio au catalogue (déjà alignés) ; repli statique
+          help_source='enhancer',   # aide du catalogue lue sur le DOMAINE ; repli statique
           help_fallback=AUDIO_ENGINE_HELP, stales=('generate',)),
     Param(name='quality_intent',
           dom_id={'panel': 'audioQualityIntent', 'item': 'settingsAudioQualityIntent'},
@@ -146,11 +152,11 @@ AUDIO_PARAMS = [
           choices=[('both', 'Débruitage + Amélioration (Recommandé)'),
                    ('denoise', 'Débruitage seul (Rapide)'),
                    ('enhance', 'Amélioration seule')],
-          show_if={'field': 'engine', 'equals': 'resemble'}, stales=('generate',)),
+          show_if={'field': 'engine', 'equals': RESEMBLE_KEY}, stales=('generate',)),
     Param(name='strength', type='range', label='Force débruitage', icon='fa-wind',
           dom_id={'panel': 'audioDenoisingStrength', 'item': 'settingsAudioStrength'},
           min=0, max=1, step=0.1, contexts=('panel', 'item'),
-          show_if={'field': 'engine', 'equals': 'resemble'},
+          show_if={'field': 'engine', 'equals': RESEMBLE_KEY},
           # Le champ est `denoising_strength` (mappé côté vue) : c'est LUI que la photo lit,
           # déclaré hors schéma dans function_specs.py — `strength`, absent de l'élément, y
           # reste constant (lu vide) et ne périme rien à lui seul.
@@ -160,7 +166,7 @@ AUDIO_PARAMS = [
           choices=[('32', 'Rapide (32 étapes)'),
                    ('64', 'Équilibré (64 étapes)'),
                    ('128', 'Meilleur (128 étapes)')],
-          show_if={'field': 'engine', 'equals': 'resemble'}, stales=('generate',)),
+          show_if={'field': 'engine', 'equals': RESEMBLE_KEY}, stales=('generate',)),
 ]
 
 # ── Format/qualité de SORTIE (la docstring le PROMETTAIT « via la brique commune » sans
