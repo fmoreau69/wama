@@ -24,8 +24,16 @@ class EngineParamsTest(SimpleTestCase):
     def test_the_measured_reading_of_each_backend(self):
         """Ce que les backends lisent, mesuré le 2026-09-29 : le changer exige de relire le
         backend concerné, pas de retoucher cette liste pour faire passer le test."""
-        self.assertEqual({'olmocr': ['mode', 'language'], 'glm-ocr': ['language'], 'doctr': []},
+        self.assertEqual({'olmocr': ['mode', 'language'], 'doctr': []},
                          {k: c['params'] for k, c in READER_MODELS.items()})
+
+    def test_glm_ocr_declares_its_reading_under_the_source_that_serves_it(self):
+        """GLM-OCR left `READER_MODELS` on 2026-10-07 (its row lives under `ollama:`, the
+        `reader:glm-ocr` row was a duplicate): what it reads — the language, measured in
+        `glm_ocr_backend._ocr_image` — is now declared with its Ollama family."""
+        from wama.model_manager.services.model_registry import FAMILLES_OLLAMA
+        self.assertEqual(['language'], FAMILLES_OLLAMA['glm-ocr']['params'])
+        self.assertNotIn('glm-ocr', READER_MODELS)
 
     def test_the_discovery_carries_params_into_the_capabilities(self):
         from wama.model_manager.services.model_registry import ModelRegistry

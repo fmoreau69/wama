@@ -514,6 +514,19 @@ class BaseModelBackend(ABC):
     #: lancement, en `RuntimeError`).
     VENDORED: bool = False
 
+    #: Clé de CATALOGUE du modèle pour lequel CETTE instance a été résolue (`<source>:<id>`) —
+    #: posée par la porte commune (`manager.backend_instance_for_key`). Un moteur LOCAL qui sert
+    #: plusieurs modèles la lit pour savoir lequel charger ; un moteur hors processus (Ollama, un
+    #: fournisseur) y lit l'identifiant qu'il nomme à son service. Remontée du contrat de la
+    #: parole le 2026-10-07 : TOUTE app doit pouvoir accueillir demain un modèle distant.
+    catalogue_key: str = ''
+
+    def authorize(self, api_key: str) -> None:
+        """Clé d'API de l'appel suivant, posée par la porte commune APRÈS la garde
+        `cloud_access` (modèle d'un fournisseur). No-op pour un moteur local ; un backend
+        de fournisseur la retient (patron `AlbertTranscriptionBackend`)."""
+        self._api_key = api_key or ''
+
     @classmethod
     def vendor_dir(cls) -> Path:
         """Dossier du code vendorisé du moteur — racine DÉCLARÉE (`BACKEND_VENDOR_DIR`) + ENGINE."""

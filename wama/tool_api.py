@@ -1391,7 +1391,8 @@ def add_to_reader(
     Args:
         user:          Django User instance
         file_path:     Path relative to MEDIA_ROOT (PDF or image file)
-        backend:       'auto' | 'olmocr' | 'doctr'
+        backend:       'auto' ou la clé de catalogue d'un modèle d'OCR (`list_ai_models`) ;
+                       un identifiant d'avant (`olmocr`) est normalisé par `ReadingItem.save`
         mode:          'auto' | 'printed' | 'handwritten'
         output_format: 'txt' | 'markdown'
         language:      Language code (fr, en…) or empty for auto-detection

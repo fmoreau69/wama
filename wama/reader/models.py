@@ -18,11 +18,9 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
     #: portage sans risque.
     STATUS_CHOICES = JOB_STATUS_CHOICES
 
-    class Backend(models.TextChoices):
-        AUTO    = 'auto',    'Auto (meilleur disponible)'
-        OLMOCR  = 'olmocr',  'olmOCR-2 7B'
-        DOCTR   = 'doctr',   'docTR (CPU-friendly)'
-        GLM_OCR = 'glm-ocr', 'GLM-OCR 0.9B (Ollama, léger)'
+    # La LISTE des moteurs ne vit plus ici depuis la route F4b ⑤ (2026-10-07) : elle vient du
+    # catalogue, par tâche (`utils/model_config.OCR_SPEC`) — l'énumération `Backend` figeait
+    # trois moteurs, dont un doublon de la ligne Ollama de GLM-OCR.
 
     class Mode(models.TextChoices):
         AUTO        = 'auto',        'Auto'
@@ -48,7 +46,9 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
                                      help_text='URL ou chemin à télécharger si input_file est vide')
 
     # Options
-    backend       = models.CharField(max_length=16, choices=Backend.choices, default=Backend.AUTO)
+    # Clé de CATALOGUE du moteur OCR (`reader:olmocr`, `ollama:glm-ocr:latest`) ou « auto » —
+    # migration 0012 ; un identifiant d'avant est normalisé par `save`.
+    backend       = models.CharField(max_length=128, default='auto')
     mode          = models.CharField(max_length=16, choices=Mode.choices, default=Mode.AUTO)
     output_format = models.CharField(max_length=16, choices=OutputFormat.choices, default=OutputFormat.TXT)
     language      = models.CharField(max_length=16, blank=True, default='',
@@ -67,7 +67,9 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
                                      help_text='Texte extrait nettoyé (natural_text si JSON)')
     raw_result    = models.TextField(blank=True, default='',
                                      help_text='Sortie brute du backend (JSON olmOCR, texte docTR…)')
-    used_backend  = models.CharField(max_length=32, blank=True, default='')
+    # Le modèle qui a RÉELLEMENT servi : sa clé de catalogue (2026-10-07 — la card en affiche le
+    # libellé par `card_chips`), ou `fitz_direct` quand le texte natif du PDF a suffi.
+    used_backend  = models.CharField(max_length=128, blank=True, default='')
     error_message = models.TextField(blank=True, default='')
 
     # LLM analysis (on-demand)
@@ -81,6 +83,17 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
 
     def __str__(self):
         return f"ReadingItem {self.id} ({self.filename})"
+
+    def save(self, *args, **kwargs):
+        # Moteur = CLÉ DE CATALOGUE (route F4b ⑤, 2026-10-07), normalisée au point de passage de
+        # tous les écrivains (volet, modales, lots, assistant, duplication) : un identifiant nu
+        # (`olmocr`) est lu dans l'espace du reader, un identifiant RETIRÉ (`glm-ocr`) sous la
+        # source qui sert désormais son modèle.
+        from wama.common.utils.model_keys import catalog_key
+        from wama.reader.utils.model_config import RETIRED_IDS
+        value = (self.backend or '').strip()
+        self.backend = catalog_key(RETIRED_IDS.get(value, value), 'reader')
+        super().save(*args, **kwargs)
 
     @property
     def gear_data(self):

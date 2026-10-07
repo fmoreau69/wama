@@ -96,7 +96,8 @@ class DomainesDeclaresParLesAppsTest(TestCase):
     def setUp(self):
         _modele('reader:olmocr', 'olmOCR-2 7B', model_type='ocr', task='ocr', vram=14)
         _modele('reader:doctr', 'docTR', model_type='ocr', task='ocr', vram=1)
-        _modele('reader:glm-ocr', 'GLM-OCR', model_type='ocr', task='ocr', vram=2.2)
+        # GLM-OCR vit sous la source qui le SERT (2026-10-07) : `reader:glm-ocr` était un doublon.
+        _modele('ollama:glm-ocr:latest', 'GLM-OCR', model_type='ocr', task='ocr', vram=2.2)
         _modele('enhancer:BSRGANx4', 'BSRGAN x4', model_type='upscaling', task='upscale')
         _modele('enhancer:resemble', 'Resemble', model_type='speech', task='audio-enhance')
         _modele('enhancer:deepfilternet', 'DeepFilterNet 3', model_type='speech',
@@ -107,22 +108,33 @@ class DomainesDeclaresParLesAppsTest(TestCase):
         choix, _ = get_registry_models(d.pop('source', None), **d)
         return sorted(c[0] for c in choix)
 
-    def test_le_reader_tire_ses_3_moteurs_OCR_en_cles_nues(self):
+    def test_the_reader_lists_its_ocr_engines_by_task_as_full_keys(self):
+        """Route F4b ⑤ (2026-10-07): by TASK, whatever the source — GLM-OCR served by Ollama is
+        there under its own key. The old domain (`source='reader'`) claimed the reader « owned »
+        its engines; it no longer did."""
         champ = _champ('reader', 'backend')
         self.assertEqual(champ.get('options_source'), 'catalog')
-        self.assertEqual(self._options(champ), ['doctr', 'glm-ocr', 'olmocr'])
+        self.assertEqual(self._options(champ),
+                         ['ollama:glm-ocr:latest', 'reader:doctr', 'reader:olmocr'])
 
-    def test_les_cles_du_reader_sont_celles_que_sa_colonne_porte(self):
-        """`ReadingItem.backend` stocke 'olmocr' ; `backend_for_key('reader:' + …)` recompose.
-        Une option en clé ENTIÈRE (`reader:olmocr`) serait un changement d'espace de clés."""
+    def test_what_the_reader_column_stores_is_one_of_its_options(self):
+        """`ReadingItem.save` normalises every writer — a bare id of before, and the RETIRED id
+        whose model now lives under Ollama — into the key space the select offers."""
+        from django.contrib.auth import get_user_model
         from wama.reader.models import ReadingItem
-        stockees = {v for v, _ in ReadingItem.Backend.choices} - {'auto'}
-        self.assertTrue(stockees <= set(self._options(_champ('reader', 'backend'))))
+        user = get_user_model().objects.create_user('reader_keys', password='x')
+        offered = set(self._options(_champ('reader', 'backend')))
+        for given in ('olmocr', 'doctr', 'glm-ocr', 'reader:olmocr'):
+            with self.subTest(given=given):
+                item = ReadingItem.objects.create(user=user, backend=given)
+                self.assertIn(ReadingItem.objects.get(pk=item.pk).backend, offered)
 
     def test_le_reader_declare_le_MEME_domaine_que_sa_resolution_auto(self):
-        """`_select_best_backend` interroge `select_model_id('reader', task='ocr')` : le
-        select PROPOSE et « auto » TIRE dans le même inventaire, par construction."""
-        self.assertEqual(catalog_domain('reader'), {'source': 'reader', 'task': 'ocr'})
+        """`_select_best_backend` tire par `resolve_model_choice(app_id='reader')`, qui lit ce
+        domaine : le select PROPOSE et « auto » TIRE dans le même inventaire, par construction."""
+        from wama.reader.utils.model_config import OCR_SPEC
+        self.assertEqual(catalog_domain('reader'), OCR_SPEC)
+        self.assertEqual({'task': 'ocr'}, OCR_SPEC)
 
     def test_le_reader_sert_auto_en_premiere_option(self):
         self.assertTrue(_champ('reader', 'backend').get('options_auto'),
@@ -144,14 +156,13 @@ class DomainesDeclaresParLesAppsTest(TestCase):
         for nom in ('ai_model', 'engine'):
             self.assertTrue(_champ('enhancer', nom).get('options_auto'), nom)
 
-    def test_les_valeurs_ECRITES_EN_DUR_restent_le_repli_rendu(self):
-        """Les `choices` ne sont pas retirés d'une app en clés NUES (le reader) : ils
-        s'affichent avant que la requête réponde, et servent de repli si le catalogue est
-        injoignable. ⚠ Une app passée aux clés ENTIÈRES les retire (enhancer, 2026-10-06, comme
-        le transcriber) : l'ancienne liste ramènerait l'ancien espace de clés — son pré-rendu
-        vient du catalogue (`auto_model.catalog_choices`)."""
-        self.assertTrue(_champ('reader', 'backend').get('choices'))
-        self.assertFalse(_champ('enhancer', 'ai_model').get('choices'))
+    def test_an_app_on_full_keys_carries_no_static_list(self):
+        """An app on full catalogue keys drops its static `choices` (enhancer 2026-10-06, reader
+        2026-10-07, like the transcriber): the old list would bring the old key space back — its
+        pre-render comes from the catalogue (`param_schema.catalog_options`)."""
+        for app, name in (('reader', 'backend'), ('enhancer', 'ai_model'), ('enhancer', 'engine')):
+            with self.subTest(app=app, name=name):
+                self.assertFalse(_champ(app, name).get('choices'))
 
 
 class TheCriterionSeesTheDomainTest(TestCase):
@@ -168,9 +179,20 @@ class TheCriterionSeesTheDomainTest(TestCase):
         self.assertIs(True, self._measure('transcriber')[0])
 
     def test_a_domain_by_source_is_partial_and_names_the_select(self):
-        state, evidence = self._measure('reader')
+        """Measured on the real reader until its OCR select went by task (2026-10-07): no app
+        is by source any more, so its schema of before is PRESENTED."""
+        from unittest.mock import patch
+        declared = {'primary': 'PARAMS_JSON', 'schemas': {
+            'PARAMS_JSON': [{'name': 'backend', 'type': 'select', 'options_source': 'catalog',
+                             'options_query': {'source': 'reader', 'task': 'ocr'}}]}}
+        with patch('wama.common.utils.param_schema.declared_param_schemas', return_value=declared):
+            state, evidence = self._measure('reader')
         self.assertEqual('partial', state)
         self.assertIn('backend', evidence)
+
+    def test_the_reader_select_by_task_is_green(self):
+        # Counter-check, on the real app: the reader lists its OCR engines by task.
+        self.assertIs(True, self._measure('reader')[0])
 
     def test_one_select_by_source_among_two_is_enough_to_say_it(self):
         """A select by source in the SECOND schema is seen — `schema_for_app` exposes only the
@@ -252,7 +274,8 @@ class ChipsDeCardTest(TestCase):
         card_chips._CATALOGUE_MEMO.clear()
 
         class _Item:
-            backend = 'un-ocr-installe-apres'
+            # The column stores the catalogue KEY since 2026-10-07 (`reader/0012`).
+            backend = 'reader:un-ocr-installe-apres'
 
         champ = dict(_champ('reader', 'backend'))
         libelles = [c['label'] for c in chips_for(_Item(), [champ])]

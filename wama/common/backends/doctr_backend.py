@@ -11,12 +11,12 @@ import logging
 from pathlib import Path
 from typing import Callable, Optional
 
-from wama.common.backends.base import BaseModelBackend
+from wama.common.backends.ocr_base import OCRBackend
 
 logger = logging.getLogger(__name__)
 
 
-class DocTRBackend(BaseModelBackend):
+class DocTRBackend(OCRBackend):
     """OCR docTR — SANS état persistant (le prédicteur se charge par appel dans run())."""
 
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
@@ -46,8 +46,7 @@ class DocTRBackend(BaseModelBackend):
     def unload(self) -> None:
         self._warm = False
 
-    def process(self, **kwargs):
-        return self.run(**kwargs)
+    # `process()` → `run()` : celui du contrat OCR (`ocr_base.OCRBackend`, 2026-10-07).
 
     def run(
         self,

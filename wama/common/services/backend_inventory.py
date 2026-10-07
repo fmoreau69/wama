@@ -667,6 +667,10 @@ TASK_CONTRACTS = {
     # pour que le rôle `backend` le reçoive. Non liant, comme `text-to-music`.
     'audio-to-score': ('score_extraction_base', 'ScoreExtractionBackend', False),
     'transcription': ('speech_to_text_base', 'SpeechToTextBackend', True),
+    # 2026-10-07 : la signature que les trois moteurs OCR partageaient sans la déclarer. LIANT :
+    # un modèle d'OCR n'est servi que par un backend OCR — c'est ce qui borne `GlmOcrBackend`
+    # (moteur `ollama`, qui sert aussi le chat) à sa tâche.
+    'ocr': ('ocr_base', 'OCRBackend', True),
     'detect': ('detection_base', 'DetectionBackend', False),
 }
 
@@ -719,10 +723,12 @@ def _liant_contracts(entry) -> set:
 
 
 def _is_remote_engine(engine: str) -> bool:
-    """Le moteur est-il un FOURNISSEUR distant (source `llm` d'`external_sources`) ?"""
+    """Le moteur est-il une source qui sert PLUSIEURS tâches hors du processus WAMA ? La
+    DÉCLARATION du registre des sources (`external_sources.serves_many_tasks`) : un fournisseur
+    LLM (Albert), et Ollama depuis le 2026-10-07 — qui héberge l'OCR (`glm-ocr`) à côté du chat.
+    Jamais un nom de moteur écrit ici."""
     from wama.common import external_sources
-    source = external_sources.by_key().get(engine)
-    return source is not None and source.kind == 'llm'
+    return external_sources.serves_many_tasks(engine)
 
 
 def resolve_entry(engine: str, model_id: str = '', entries=None,
@@ -764,7 +770,7 @@ def resolve_entry(engine: str, model_id: str = '', entries=None,
             logger.debug("[engines] %s / %s : %d backend(s) écarté(s), hors contrat %s", engine,
                          model_id, len(candidats) - len(kept), contract[1])
         candidats = kept
-    if candidats and task and _is_remote_engine(engine):
+    if candidats and _is_remote_engine(engine):
         # Le filtre INVERSE, réservé aux moteurs DISTANTS (2026-09-30) : un fournisseur sert
         # toutes ses tâches sous le même moteur (`albert` = chat, embeddings, OCR, parole), donc
         # un backend lié au contrat d'UNE tâche n'y exécute que celle-là. Sans lui, le premier
@@ -772,8 +778,12 @@ def resolve_entry(engine: str, model_id: str = '', entries=None,
         # modèles de chat du même fournisseur. Généralisé à tous les moteurs, il déplaçait
         # 8 routages mesurés sur le catalogue — dont `imager:qwen-image-edit`, qui perdait son
         # backend (`image-to-image` n'a pas de contrat) : on ne l'étend donc pas.
+        # ⚠ Il s'applique AUSSI sans tâche (2026-10-07) : le moteur d'une source multi-tâches ne
+        # désigne pas un backend à lui seul — `backend_for_engine('ollama')` rendait le seul
+        # backend du moteur (`GlmOcrBackend`) dès qu'il existait, alors que le démon sert d'abord
+        # le chat (garde `tests_backend_inventory`, « un porteur hors processus n'est jamais rendu »).
         candidats = [e for e in candidats
-                     if not _liant_contracts(e) or task in _liant_contracts(e)]
+                     if not _liant_contracts(e) or (task and task in _liant_contracts(e))]
     if not candidats:
         return None
     if len(candidats) == 1:

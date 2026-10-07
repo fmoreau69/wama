@@ -42,9 +42,9 @@ logger = logging.getLogger(__name__)
 FAMILLES_OLLAMA = {
     'translategemma': {'task': 'text-generation', 'specialisation': 'translation'},
     # `params` : le seul réglage que GLM-OCR LIT est la langue (`glm_ocr_backend._ocr_image`,
-    # mesuré le 2026-09-29) — fait porté jusqu'au 2026-10-07 par la seule ligne en DOUBLE
-    # `reader:glm-ocr` (reste de portage, à retirer avec le select du reader) : un modèle Ollama
-    # se déclare UNE fois, ici, pour toutes les apps.
+    # mesuré le 2026-09-29) — fait porté jusqu'au 2026-10-07 par une ligne en DOUBLE
+    # `reader:glm-ocr`, retirée avec le select du reader par source : un modèle Ollama se déclare
+    # UNE fois, ici, pour toutes les apps.
     'glm-ocr':        {'task': 'ocr', 'params': ['language']},
 }
 
@@ -271,8 +271,6 @@ class ModelRegistry:
         logger.info("[ModelRegistry] Starting model discovery...")
 
         # Ollama D'ABORD : c'est un listing EXTERNE, sans dépendance sur les autres.
-        # Les apps dont un moteur est SERVI par Ollama (reader/glm-ocr) s'appuient sur
-        # sa présence pour se dire téléchargées — l'inverse n'est jamais vrai.
         self._discover_ollama_models()
 
         self._discover_imager_models()
@@ -2147,16 +2145,11 @@ class ModelRegistry:
                 hf_id = config.get('hf_model_id', '')
                 cache_dir = cache_dirs.get(model_id)
 
+                # Un moteur SERVI par Ollama n'a pas de ligne ici : il est découvert sous sa
+                # source (`ollama:glm-ocr:latest`, `FAMILLES_OLLAMA`) — la branche qui en faisait
+                # une seconde ligne `reader:` est partie avec ce doublon (2026-10-07).
                 if hf_id:
                     is_downloaded = _check_hf_model_downloaded(str(cache_dir), hf_id)
-                elif config.get('ollama_id'):
-                    # Servi par Ollama : « téléchargé » = présent dans la liste Ollama.
-                    # Sa DISPONIBILITÉ réelle (serveur allumé) est une sonde runtime, pas
-                    # une propriété du catalogue — cf. `_backend_is_available` du reader.
-                    is_downloaded = any(
-                        k == f"ollama:{config['ollama_id']}" or
-                        k.startswith(f"ollama:{config['ollama_id'].split(':', 1)[0]}")
-                        for k in self._models)
                 else:
                     # docTR : les poids vivent dans DOCTR_DIR (DOCTR_CACHE_DIR, posé par le
                     # backend) — critère DISQUE d'abord ; l'import du paquet n'est qu'un

@@ -19,10 +19,13 @@ class ContratTest(TestCase):
 
     def test_ce_n_est_pas_un_moteur_du_select(self):
         # La doctrine du module : ENRICHISSEUR, jamais moteur OCR — le select Backend du
-        # reader ne doit PAS le proposer (il ne lit pas le texte).
-        from wama.reader.models import ReadingItem
-        self.assertNotIn('table-transformer',
-                         [c[0] for c in ReadingItem.Backend.choices])
+        # reader ne doit PAS le proposer (il ne lit pas le texte). Depuis le 2026-10-07 le select
+        # liste par TÂCHE (`ocr`) : c'est la tâche dérivée de la carte de Table Transformer
+        # (`layout-detection`) qui le tient dehors, plus une liste écrite à la main.
+        from wama.model_manager.services.prospector import hf_task_to_wama
+        from wama.reader.utils.model_config import OCR_SPEC
+        task, _ = hf_task_to_wama('object-detection', ['transformers', 'table-transformer'])
+        self.assertNotEqual(OCR_SPEC['task'], task)
 
 
 class GrilleVersMarkdownTest(TestCase):

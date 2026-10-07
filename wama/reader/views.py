@@ -215,9 +215,12 @@ def _decorate_card(reading):
 
 
 def _input_match_meta():
-    """Meta brique COMMUNE (clés catalogue = valeurs du select) + pseudo-choix 'auto'."""
+    """Meta brique COMMUNE (clés catalogue = valeurs du select) + pseudo-choix 'auto'. Par la
+    TÂCHE du select (route F4b ⑤, 2026-10-07) : ses options portent des clés ENTIÈRES, de toute
+    source — une meta ancrée sur `source='reader'` n'aurait rien apparié pour GLM-OCR (Ollama)."""
     from wama.common.utils.input_match import auto_entry, input_match_meta
-    meta = input_match_meta('reader')
+    from wama.reader.utils.model_config import OCR_SPEC
+    meta = input_match_meta(task=OCR_SPEC['task'])
     if meta:
         meta['auto'] = auto_entry(meta)
     return meta
@@ -275,19 +278,22 @@ class IndexView(View):
 
         queue_count = sum(len(b['items']) for b in batches_list)
 
-        from wama.reader.params import PARAMS_JSON
+        from wama.common.utils.param_schema import catalog_options
+        from wama.reader.params import PARAMS, PARAMS_JSON
         return render(request, 'reader/index.html', {
             'batches_list': batches_list,
             'queue_count': queue_count,
             'q_sort': q_sort,
             'q_filter': q_filter,
-            'backend_choices': ReadingItem.Backend.choices,
+            # Pré-rendu du select : LA lecture commune du domaine déclaré (clés de catalogue,
+            # « auto » compris) — l'énumération du modèle a disparu avec la route F4b ⑤.
+            'backend_choices': catalog_options(next(p for p in PARAMS if p.name == 'backend')),
             'mode_choices': ReadingItem.Mode.choices,
             'format_choices': ReadingItem.OutputFormat.choices,
             # Schéma params (source unique inspecteur + modale batch). Voir reader/params.py.
             'params_json': json.dumps(PARAMS_JSON),
             # Appariement entrée↔modèles (brique commune input_match) : clés catalogue =
-            # valeurs du select (doctr/glm-ocr/olmocr) ; 'auto' = auto_entry (brique).
+            # valeurs du select ; 'auto' = auto_entry (brique).
             'input_match_meta': json.dumps(_input_match_meta()),
             'input_labels': json.dumps(_input_labels()),
         })

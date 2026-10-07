@@ -231,6 +231,13 @@ class ExternalSource:
     shareable: bool = False
     #: Réservé aux développeurs (abonnement Claude Code : accès au dépôt).
     developer_only: bool = False
+    #: La source SERT des modèles de PLUSIEURS tâches sous un même moteur, hors du processus WAMA
+    #: (2026-10-07) : Ollama héberge chat, embeddings et OCR (`glm-ocr`) comme Albert héberge
+    #: chat, embeddings, OCR et parole. Lu par la résolution des backends
+    #: (`backend_inventory.resolve_entry`) : un backend lié au contrat d'UNE tâche n'y exécute
+    #: que celle-là — sans quoi il deviendrait « le seul backend du moteur » pour les modèles de
+    #: TOUTES ses tâches. Un fournisseur LLM (`kind='llm'`) l'est par nature (`serves_many_tasks`).
+    multi_task: bool = False
     #: Fournisseur LLM SANS liste de modèles (protocole `claude_cli`) : les modèles qu'il sert,
     #: DÉCLARÉS ici — `(id, nom, description)`. `cloud_models.declared_listing` en fait les
     #: lignes du catalogue (2026-09-16 : « l'abonnement = ligne DÉCLARÉE »). Vide = une seule
@@ -249,7 +256,7 @@ SOURCES: tuple[ExternalSource, ...] = (
     ExternalSource(
         'ollama', 'Ollama (hôte)', 'http://127.0.0.1:11434',
         "Moteur LLM local — assistant, describer, reader, prospection de modèles",
-        kind='service', scope=LOCAL, setting='OLLAMA_HOST', env='OLLAMA_HOST',
+        kind='service', scope=LOCAL, setting='OLLAMA_HOST', env='OLLAMA_HOST', multi_task=True,
         doc='docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md'),
     ExternalSource(
         'tts_service', 'Service TTS WAMA', 'http://localhost:8001',
@@ -583,6 +590,14 @@ class _RemoteEngine:
 
     def __repr__(self):
         return '<moteur distant>'
+
+
+def serves_many_tasks(key: str) -> bool:
+    """La source `key` sert-elle des modèles de plusieurs tâches sous un même moteur, hors du
+    processus WAMA ? Déclaré (`multi_task`), ou par nature pour un fournisseur LLM. False pour un
+    moteur qui n'est pas une source (une bibliothèque : `transformers`, `onnxruntime`…)."""
+    source = by_key().get(key or '')
+    return source is not None and (source.multi_task or source.kind == 'llm')
 
 
 def llm_engine_inventory() -> dict:

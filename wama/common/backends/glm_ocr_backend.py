@@ -17,6 +17,8 @@ import tempfile
 from pathlib import Path
 from typing import Callable, Optional
 
+from wama.common.backends.ocr_base import OCRBackend
+
 logger = logging.getLogger(__name__)
 
 # Ollama model name (first matching name wins)
@@ -37,7 +39,9 @@ def _find_glm_ocr_model() -> Optional[str]:
     try:
         import httpx
         host = _get_ollama_host()
-        with httpx.Client(timeout=10.0, trust_env=False) as client:
+        # 3 s, comme les autres sondes d'Ollama : c'est désormais l'exécutabilité que le sélecteur
+        # lit (mémorisée une minute) — un démon éteint ne doit pas figer une liste d'options.
+        with httpx.Client(timeout=3.0, trust_env=False) as client:
             resp = client.get(f"{host}/api/tags")
         if resp.status_code == 200:
             available = {m['name'] for m in resp.json().get('models', [])}
@@ -53,8 +57,8 @@ def _find_glm_ocr_model() -> Optional[str]:
     return None
 
 
-def is_available() -> bool:
-    """Return True if glm-ocr is available in the local Ollama instance."""
+def ollama_serves_glm_ocr() -> bool:
+    """Ollama répond-il, et sert-il un tag `glm-ocr` ? (téléchargé ≠ joignable : serveur éteint)"""
     return _find_glm_ocr_model() is not None
 
 
@@ -130,11 +134,10 @@ def _pdf_to_images(pdf_path: str, dpi: int = 200, dest_dir: str = None) -> list[
 
 
 def _ocr_image(model: str, image_path: str, language_hint: str = '') -> str:
-    """Send a single image to GLM-OCR via Ollama and return the extracted text."""
-    import httpx
-
-    host = _get_ollama_host()
-    b64 = _image_to_b64(image_path)
+    """Le texte d'UNE image, par le modèle Ollama `model` — appel par le client COMMUN
+    (`llm_utils.llm_chat`, fournisseur `ollama`), qui porte l'adresse de l'hôte et le proxy.
+    Jusqu'au 2026-10-07 ce module tenait son propre client HTTP vers `/api/chat`."""
+    from wama.common.utils.llm_utils import llm_chat
 
     lang_note = f" The document language is {language_hint}." if language_hint else ""
     prompt = (
@@ -143,36 +146,67 @@ def _ocr_image(model: str, image_path: str, language_hint: str = '') -> str:
         f"{lang_note} "
         "Output only the extracted text, nothing else."
     )
-
-    payload = {
-        "model": model,
-        "messages": [{
-            "role": "user",
-            "content": prompt,
-            "images": [b64],
-        }],
-        "stream": False,
-        "options": {"num_predict": 4096, "temperature": 0.0},
-    }
-
-    try:
-        with httpx.Client(timeout=180.0, trust_env=False) as client:
-            resp = client.post(f"{host}/api/chat", json=payload)
-        if resp.status_code == 200:
-            return resp.json().get("message", {}).get("content", "").strip()
-        logger.warning(f"[GlmOcr] Ollama HTTP {resp.status_code}: {resp.text[:200]}")
-    except Exception as e:
-        logger.error(f"[GlmOcr] Request failed: {e}")
-    return ""
+    text, error = llm_chat([{'role': 'user', 'content': prompt,
+                             'images': [_image_to_b64(image_path)]}],
+                           model=model, provider='ollama', num_predict=4096, think=False,
+                           timeout=180.0, temperature=0.0)
+    if error:
+        logger.warning(f"[GlmOcr] {error}")
+    return (text or '').strip()
 
 
-class GlmOcrBackend:
+class GlmOcrBackend(OCRBackend):
     """
-    OCR backend using GLM-OCR 0.9B via Ollama.
+    OCR par GLM-OCR 0.9B, servi par OLLAMA — au contrat OCR depuis le 2026-10-07.
+
+    Le patron d'`AlbertTranscriptionBackend` : un modèle hors processus qui fait une TÂCHE a un
+    backend au contrat de cette tâche, dont le moteur est la source qui le sert (`ollama`).
+    La résolution le lie aux modèles OCR d'Ollama (contrat LIANT) et à eux seuls — le chat
+    d'Ollama n'a pas de contrat, Ollama est déclaré multi-tâches au registre des sources.
+    Le modèle se REÇOIT (`catalogue_key`, posée par la porte commune), il ne se devine plus.
 
     Works on both images and PDFs (converts PDF pages to images first).
     Much lighter than olmOCR-7B: ~2.2 GB RAM/VRAM managed by Ollama.
     """
+
+    #: Moteur piloté : la SOURCE qui sert le modèle, comme le déclare sa ligne de catalogue.
+    ENGINE = 'ollama'
+    name = 'glm_ocr'
+    description = "GLM-OCR — OCR de documents, servi par Ollama."
+    REQUIRED_PACKAGES = ['httpx']
+    #: La mémoire est tenue par Ollama, hors du processus : rien à réserver ici.
+    recommended_vram_gb = 0
+
+    def __init__(self):
+        self._ready = False
+
+    @classmethod
+    def is_available(cls) -> bool:
+        """Exécutable = Ollama répond ET sert GLM-OCR. C'est ce que le sélecteur commun lit
+        (`backend_missing`, verdict mémorisé une minute) : un Ollama éteint écarte GLM-OCR du
+        tirage « auto » de TOUTE app — la sonde que le reader tenait seul jusqu'au 2026-10-07."""
+        return ollama_serves_glm_ocr()
+
+    def load(self, model: Optional[str] = None) -> bool:
+        """Rien à charger ici : Ollama tient le modèle."""
+        self._ready = True
+        return True
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._ready
+
+    def unload(self) -> None:
+        self._ready = False
+
+    def _model_tag(self) -> str:
+        """Le tag Ollama du modèle désigné (`ollama:glm-ocr:latest` → `glm-ocr:latest`)."""
+        from wama.common.utils.model_keys import model_id
+        tag = model_id(self.catalogue_key) if self.catalogue_key else ''
+        if not tag:
+            raise ValueError("GLM-OCR : aucun modèle désigné — la porte commune pose sa clé de "
+                             "catalogue (`backend_instance_for_key`).")
+        return tag
 
     def run(
         self,
@@ -196,14 +230,7 @@ class GlmOcrBackend:
         Returns:
             Extracted text as a string.
         """
-        import os
-
-        model = _find_glm_ocr_model()
-        if not model:
-            raise RuntimeError(
-                "GLM-OCR n'est pas disponible dans Ollama. "
-                "Exécutez : ollama pull glm-ocr"
-            )
+        model = self._model_tag()
 
         if progress_cb:
             progress_cb(5, "GLM-OCR : initialisation…")

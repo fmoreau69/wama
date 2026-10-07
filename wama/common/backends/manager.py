@@ -213,6 +213,86 @@ def backend_for_key(model_key: str, entries=None):
     return backend_for_model(ligne, entries) if ligne is not None else None
 
 
+class ModelNotServed(RuntimeError):
+    """Aucun backend ne sert la clé de catalogue demandée — le lancement s'arrête en le disant,
+    il ne retombe jamais sur un autre modèle que celui qui a été choisi."""
+
+
+#: Instances résolues PAR CLÉ DE CATALOGUE — le cache commun `BackendManager` (singletons
+#: keep_loaded) adressé par la clé : un moteur lourd (olmOCR, ~10 min de chargement) reste
+#: chargé d'un élément au suivant, comme le singleton que chaque app tenait à la main.
+_INSTANCES_BY_KEY = None
+
+
+def backend_instance_for_key(model_key: str, user=None):
+    """L'INSTANCE prête du backend qui sert `model_key` — LA porte de lancement d'un modèle
+    choisi, pour TOUTE app (2026-10-07, décision de Fabien : « que le code l'accepte déjà »).
+
+    Ce que chaque app réécrivait (imager `_image_backend_for`, transcriber `_remote_backend`,
+    enhancer `_upscaler_for`, reader `if/elif`) :
+      1. la classe par la clé (`backend_for_key` : moteur déclaré ↔ `ENGINE`, contrat de tâche) ;
+      2. l'instance, gardée chargée d'un appel à l'autre ;
+      3. la clé posée sur l'instance (`catalogue_key`) — un moteur qui sert plusieurs modèles,
+         ou une source hors processus, y lit QUEL modèle ;
+      4. pour un modèle d'un FOURNISSEUR (`execution='cloud'`), la clé d'API de `user` par la
+         garde commune (`cloud_access` : profil, modèle ouvert par sa clé) puis `authorize()`.
+    Un modèle distant arrive donc dans n'importe quelle app sans une ligne d'app : il ne lui
+    faut qu'un backend au contrat de sa tâche (glu du rôle `backend`, validée par un humain).
+
+    LÈVE `ModelNotServed` si rien ne sert la clé, `CloudAccessRefused` si la garde refuse.
+    """
+    global _INSTANCES_BY_KEY
+    cls = backend_for_key(model_key)
+    if cls is None:
+        raise ModelNotServed(f"« {model_key} » : aucun backend ne sert ce modèle (absent du "
+                             "catalogue, moteur non déclaré, ou aucun backend du contrat de sa "
+                             "tâche).")
+    if _INSTANCES_BY_KEY is None:
+        _INSTANCES_BY_KEY = BackendManager('catalogue')
+    if _INSTANCES_BY_KEY._backends.get(model_key) is not cls:
+        _INSTANCES_BY_KEY.unload(model_key)          # la clé a changé de backend : on repart
+        _INSTANCES_BY_KEY.register(model_key, cls)
+    instance = _INSTANCES_BY_KEY.get_backend(model_key)
+    instance.catalogue_key = model_key
+    from wama.model_manager.models import AIModel, EXECUTION_CLOUD
+    if AIModel.objects.filter(model_key=model_key, execution=EXECUTION_CLOUD).exists():
+        from wama.common.utils.model_keys import split_key
+        from wama.model_manager.services.cloud_models import cloud_access
+        source, model_id = split_key(model_key)
+        instance.authorize(cloud_access(user, source, model_id))
+    return instance
+
+
+def run_contract(instance, **values):
+    """Appelle la méthode de TRAVAIL du contrat de `instance` avec les valeurs qu'elle ACCEPTE,
+    retenues PAR LEUR NOM — les réglages d'un élément, nommés comme au schéma (`mode`,
+    `language`), arrivent tels quels sans glu d'app. La méthode se LIT sur le contrat de tâche
+    (`backend_inventory.TASK_CONTRACTS` : celle qu'il déclare abstraite, `run` pour l'OCR,
+    `transcribe` pour la parole) ; sans contrat, le point d'entrée commun `process`. Une valeur
+    que la méthode ne connaît pas est écartée — sauf si elle accepte `**kwargs`."""
+    import inspect
+    method = _work_method(type(instance))
+    target = getattr(instance, method)
+    params = inspect.signature(target).parameters.values()
+    if not any(p.kind is p.VAR_KEYWORD for p in params):
+        names = {p.name for p in params}
+        values = {k: v for k, v in values.items() if k in names}
+    return target(**values)
+
+
+def _work_method(cls) -> str:
+    """Nom de la méthode de travail que le contrat de tâche de `cls` déclare (`process` sinon)."""
+    from wama.common.services.backend_inventory import TASK_CONTRACTS
+    contract_names = {spec[1] for spec in TASK_CONTRACTS.values()}
+    common = set(getattr(BaseModelBackend, '__abstractmethods__', ()))
+    for klass in cls.__mro__:
+        if klass.__name__ in contract_names:
+            own = sorted(set(getattr(klass, '__abstractmethods__', ())) - common)
+            if own:
+                return own[0]
+    return 'process'
+
+
 def route_for_nature(package: str, nature: str, routes: dict = None):
     """La porte par NATURE d'entrée : le callable que les `ROUTES` d'une app déclarent pour
     `nature`, au contrat commun des routes (« fichier » ou « texte », marche B1).

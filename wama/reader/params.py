@@ -4,13 +4,14 @@ Schéma de paramètres Reader — SOURCE UNIQUE pour l'inspecteur (context "pane
 `WamaParams.settingsModal` depuis le 2026-09-24 ; « Reader n'a pas de modale item » était un
 constat périmé).
 
-Dérivé du modèle `ReadingItem` (backend/mode = TextChoices du modèle). Rendu par
+Dérivé du modèle `ReadingItem` (mode = TextChoices du modèle ; le moteur, du CATALOGUE). Rendu par
 `WamaParams.render(container, PARAMS_JSON, {context})`. Les `dom_id` reprennent les IDs LEGACY de
 chaque surface → JS existant + apparence préservés. Gabarit : transcriber/params.py.
 """
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
 from wama.reader.models import ReadingItem
+from wama.reader.utils.model_config import OCR_SPEC
 
 PARAMS = derive_from_model(
     ReadingItem,
@@ -30,33 +31,29 @@ PARAMS = derive_from_model(
         "backend": dict(
             type="select", label="Moteur OCR", icon="fa-microchip", chip=True,
             dom_id={"panel": "backendSelect", "batch": "batchSettingsBackend", "item": "rSettings_backend"},
-            # ── Route F4b (2026-09-08) — les options viennent du CATALOGUE ────────────────
-            # Les `choices` du modèle (TextChoices `Backend`) figeaient la liste : un moteur
-            # OCR installé n'apparaissait jamais sans édition de code. Le domaine déclaré ici
-            # est EXACTEMENT celui que `_select_best_backend` interroge déjà pour résoudre
-            # « auto » (`select_model_id('reader', task='ocr')`, tasks.py) — un seul domaine,
-            # deux usages : ce que le select PROPOSE et ce que « auto » TIRE ne peuvent plus
-            # diverger (c'est la propriété que la brique `auto_model` cherche par
-            # `catalog_domain`). `source` est légitime ICI, à l'inverse du parc TTS partagé :
-            # les 3 moteurs OCR (olmocr/doctr/glm-ocr) sont possédés par le reader, et c'est
-            # lui seul qui les exécute. Il maintient aussi l'ESPACE DE CLÉS de la colonne :
-            # domaine avec `source` → identifiants nus ('olmocr'), ceux que `ReadingItem.backend`
-            # porte déjà et que `backend_for_key('reader:' + …)` recompose.
+            # ── Route F4b, étape ⑤ (2026-10-07) — options par TÂCHE, clés ENTIÈRES ──────
+            # Le domaine était `source='reader'` + `task` (2026-09-08), au motif que le reader
+            # « possédait » ses moteurs OCR. Ce n'était plus vrai : GLM-OCR est servi par Ollama
+            # (sa ligne `ollama:glm-ocr:latest`), et `reader:glm-ocr` n'en était qu'un DOUBLON,
+            # retiré (« les modèles ne sont plus déclarés par application », Fabien). Domaine par
+            # capacité, déclaré UNE fois (`utils/model_config.OCR_SPEC`, que le tirage « auto »
+            # lit aussi) ; valeurs = clés de catalogue (migration 0012) ; lancement par la porte
+            # commune (`backend_instance_for_key`, contrat OCR).
             options_source="catalog",
-            options_query={"source": "reader", "task": "ocr"},
+            options_query=OCR_SPEC,
             # « auto » en 1ʳᵉ option + prévision sous le select : le reader RÉSOUT réellement
             # « auto » au lancement (`_select_best_backend`), donc l'option a un sens.
             options_auto=True,
             # Descriptif du moteur sous le select (WamaParams → WamaModelHelp ; le script
             # wama-model-help.js doit être CHARGÉ par la page, sinon déclaration inerte).
-            # help_source = catalogue (doctr/olmocr y sont : desc + VRAM) ; repli statique
-            # pour les valeurs hors catalogue (auto, glm-ocr).
+            # help_source = catalogue, lu sur le DOMAINE du select (desc + VRAM) ; repli statique
+            # indexé par CLÉ de catalogue (les valeurs d'option).
             help_source="reader",
             help_fallback={
                 "auto": "Choisit automatiquement le meilleur moteur disponible selon le document et le GPU.",
-                "olmocr": "olmOCR-2 7B — OCR vision haute qualité (mise en page, tableaux, manuscrit). ~16 Go VRAM.",
-                "doctr": "docTR — pipeline détection + reconnaissance, tourne sur CPU. Idéal documents imprimés simples.",
-                "glm-ocr": "GLM-OCR 0.9B (via Ollama) — léger et rapide, bon compromis pour texte imprimé courant.",
+                "reader:olmocr": "olmOCR-2 7B — OCR vision haute qualité (mise en page, tableaux, manuscrit). ~16 Go VRAM.",
+                "reader:doctr": "docTR — pipeline détection + reconnaissance, tourne sur CPU. Idéal documents imprimés simples.",
+                "ollama:glm-ocr:latest": "GLM-OCR 0.9B (via Ollama) — léger et rapide, bon compromis pour texte imprimé courant.",
             },
         ),
         "mode": dict(

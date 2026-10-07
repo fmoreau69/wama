@@ -12,12 +12,12 @@ import logging
 from pathlib import Path
 from typing import Callable, Optional
 
-from wama.common.backends.base import BaseModelBackend
+from wama.common.backends.ocr_base import OCRBackend
 
 logger = logging.getLogger(__name__)
 
 
-class OlmOCRBackend(BaseModelBackend):
+class OlmOCRBackend(OCRBackend):
 
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'transformers'
@@ -49,9 +49,7 @@ class OlmOCRBackend(BaseModelBackend):
     def is_loaded(self) -> bool:
         return self._model is not None
 
-    def process(self, **kwargs):
-        """Point d'entrée générique (contrat commun) → délègue à run()."""
-        return self.run(**kwargs)
+    # `process()` → `run()` : celui du contrat OCR (`ocr_base.OCRBackend`, 2026-10-07).
 
     def _free_vram_before_load(self):
         """Libère la VRAM avant le chargement du modèle :

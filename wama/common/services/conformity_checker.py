@@ -1660,7 +1660,7 @@ ROUTING_CODE = TASKS + ['backends/*.py', 'utils/*.py']
 
 #: Modules du paquet `wama.common.backends` qui ne SONT PAS des backends (portes, bases, outils).
 NOT_BACKEND_MODULES = {'manager', 'base', 'tts_base', 'image_generation_base', 'detection_base',
-                       'speech_to_text_base', 'vendor'}
+                       'speech_to_text_base', 'ocr_base', 'vendor'}
 
 
 def _backend_instantiated_by_path(f: _AppFiles):

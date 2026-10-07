@@ -136,7 +136,10 @@ class SurfaceLueParLaGrilleTest(TestCase):
             _ecrire(tmp, 'tasks.py', 'from wama.common.backends.doctr_backend import DoctrBackend\n')
             f = _Fichiers('app_jetable', [], root=tmp)
             f._backend_paths = None
-            self.assertEqual([p.stem for p in f.backend_paths()], ['doctr_backend'])
+            # The test file's whisper is NOT counted. `ocr_base` is: docTR derives from the OCR
+            # contract since 2026-10-07, and the grid reads a backend's business base (as
+            # `detection_base` for the anonymizer, above).
+            self.assertEqual([p.stem for p in f.backend_paths()], ['doctr_backend', 'ocr_base'])
 
     def test_le_catalogue_et_les_imports_s_unissent(self):
         from wama.model_manager.models import AIModel

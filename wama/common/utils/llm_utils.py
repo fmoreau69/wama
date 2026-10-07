@@ -173,6 +173,7 @@ def ollama_chat(
     think: bool = True,
     timeout: float = 180.0,
     keep_alive: Optional[str] = None,
+    temperature: Optional[float] = None,
 ) -> tuple[Optional[str], Optional[str]]:
     """
     Send a chat request to the local Ollama server.
@@ -215,7 +216,10 @@ def ollama_chat(
     # qui n'impose rien enverrait `"model": ""` à Ollama.
     model = model or modele_par_defaut()
 
-    options: dict = {"temperature": 0.3}
+    # `temperature` : 0.3 par défaut, comme avant pour tous les appelants ; un appel qui veut une
+    # sortie DÉTERMINISTE la pose (l'OCR à 0.0 — `glm_ocr_backend`, qui gardait son propre client
+    # Ollama pour cette seule raison jusqu'au 2026-10-07).
+    options: dict = {"temperature": 0.3 if temperature is None else temperature}
     # `None` = pas de plafond (défaut d'Ollama) — même contrat que la branche cloud de
     # `llm_chat`, où `None` n'envoie pas `max_tokens`.
     if num_predict is not None:
@@ -327,7 +331,7 @@ def llm_chat(
                     'albert' (and any `llm` source of protocol `openai`) is routed as
                     `openai/<model>` with the address and key of `external_sources`.
         num_predict: Max tokens to generate (Ollama) / max_tokens (cloud). None = no cap.
-        temperature: Sampling temperature (cloud only; None = provider default).
+        temperature: Sampling temperature (None = provider default; Ollama: 0.3).
         num_ctx:    KV cache size in tokens (Ollama only, ignored for cloud).
         think:      Qwen3 thinking mode (Ollama only, ignored for cloud).
         keep_alive: Résidence VRAM après réponse (Ollama only, ignoré pour le cloud).
@@ -361,6 +365,7 @@ def llm_chat(
             think=think,
             timeout=timeout,
             keep_alive=keep_alive,
+            temperature=temperature,
         )
 
     # ── Phase 2: cloud provider via LiteLLM ───────────────────────────────────

@@ -46,29 +46,12 @@ READER_MODELS = {
                             "qualité de référence. Gourmand en VRAM ; à réserver aux documents "
                             "complexes.",
     },
-    # GLM-OCR existait comme BACKEND (glm_ocr_backend.py) et était même préféré par
-    # l'ancienne cascade d'auto-sélection, mais n'était déclaré NULLE PART : ni au
-    # catalogue, ni dans le sélecteur de moteur de l'UI. Il n'était donc atteignable
-    # que par le code écrit en dur — un modèle utilisable et invisible. Le bascule du
-    # reader sur `select_model_id()` (source = catalogue) l'a mis au jour.
-    # Servi par Ollama : aucune VRAM réservée côté worker Django.
-    'glm-ocr': {
-        'model_id':    'glm-ocr',
-        'engine': 'ollama',
-        # ⚠ Le tag `glm-ocr:0.9b` N'EXISTE PLUS sur le registre Ollama (404 mesuré le
-        # 2026-09-02 ; restent `latest` 2,2 Go et `q8_0` 1,6 Go). Un `ollama pull` sur
-        # l'ancien tag échouait en silence — le modèle n'était plus installable d'ici.
-        'hf_model_id': '',   # servi par Ollama (`glm-ocr:latest`), pas de cache HF local
-        'ollama_id':   'glm-ocr:latest',
-        'type':        'ocr-vlm',
-        'vram_gb':     2.2,
-        'description': 'GLM-OCR 0.9B — via Ollama — léger, excellent sur documents courants',
-        'params':      ['language'],
-        'description_long': "GLM-OCR 0.9B servi par Ollama : très bon rapport qualité/coût sur "
-                            "les documents courants, avec une empreinte mémoire dix fois "
-                            "moindre qu'olmOCR. Nécessite qu'Ollama tourne ; sinon le moteur "
-                            "est écarté automatiquement de la sélection.",
-    },
+    # GLM-OCR n'est PLUS déclaré ici (2026-10-07, décision de Fabien : « les modèles ne sont plus
+    # déclarés par application, pour être réutilisables dans plusieurs »). Servi par Ollama, il a
+    # SA ligne, découverte une fois pour toutes les apps (`ollama:glm-ocr:latest`), sa tâche et
+    # ses réglages lus déclarés par famille (`model_registry.FAMILLES_OLLAMA`) — la ligne
+    # `reader:glm-ocr` en était un DOUBLON (même modèle, deux clés). Le reader le propose par la
+    # TÂCHE (`OCR_SPEC`) et le lance par la porte commune (`GlmOcrBackend`, contrat OCR).
     'doctr': {
         'model_id':    'doctr',
         'engine': 'doctr',
@@ -85,6 +68,19 @@ READER_MODELS = {
 }
 
 DEFAULT_MODEL = 'olmocr'
+
+#: DOMAINE du moteur OCR — UNE déclaration, que le select (`params.py`, `options_query`) et le
+#: tirage « auto » (`tasks._select_best_backend`) lisent. Par TÂCHE (route F4b ⑤, 2026-10-07),
+#: jamais par source : GLM-OCR est servi par Ollama, et un OCR installé demain d'une autre source
+#: (ou chez un fournisseur) y entre sans une ligne du reader.
+OCR_SPEC = {'task': 'ocr'}
+
+#: Repli du tirage quand le catalogue ne propose rien : docTR, sur CPU, toujours disponible.
+OCR_FALLBACK = 'reader:doctr'
+
+#: Valeurs d'avant qui ne sont plus une clé du reader : l'identifiant nu d'un modèle dont la
+#: ligne vit désormais sous sa vraie source (lu par `ReadingItem.save` et la migration 0012).
+RETIRED_IDS = {'glm-ocr': 'ollama:glm-ocr:latest'}
 
 
 def get_model_info(model_key: str = None) -> dict:

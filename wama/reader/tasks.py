@@ -13,26 +13,8 @@ logger = logging.getLogger(__name__)
 
 PROGRESS_CACHE_TTL = 3600  # 1 hour
 
-# ── Module-level singleton — persiste entre tasks dans le même worker ────────
-# Évite de recharger olmOCR-7B (~10 min) entre deux fichiers d'un même batch.
-_olmocr_singleton = None
-
-
-def _get_olmocr():
-    """Retourne le backend olmOCR partagé, le charge si nécessaire."""
-    global _olmocr_singleton
-    if _olmocr_singleton is None or _olmocr_singleton._model is None:
-        # Le MODÈLE porte son moteur ; le backend s'en dérive (4ᵉ adoptant de
-        # `backend_for_key`, 2026-09-07). La colonne `item.backend` du reader porte des
-        # identifiants qui SONT des clés de catalogue (`reader:olmocr`, `reader:doctr`).
-        from wama.common.backends.manager import backend_for_key
-        classe = backend_for_key('reader:olmocr')
-        if classe is None:
-            raise RuntimeError("reader:olmocr : aucun backend résolu depuis le catalogue "
-                               "(ligne absente, ou sans moteur déclaré)")
-        _olmocr_singleton = classe()
-        _olmocr_singleton.load()
-    return _olmocr_singleton
+# (Le singleton olmOCR écrit ici à la main est devenu le cache COMMUN de la porte de lancement
+#  — `manager.backend_instance_for_key`, 2026-10-07 : instance gardée PAR CLÉ de catalogue.)
 
 
 def _set_progress(item, pct: int, msg: str = ''):
@@ -80,31 +62,15 @@ def _count_pdf_pages(file_path: str) -> int:
     return 0
 
 
-def _olmocr_is_resident() -> bool:
-    """Le singleton olmOCR est-il déjà chargé ? (sonde `prefer_loaded` du sélecteur commun)"""
-    return _olmocr_singleton is not None and getattr(_olmocr_singleton, '_model', None) is not None
-
-
-def _glm_ocr_available() -> bool:
-    """GLM-OCR tourne dans Ollama : téléchargé ≠ joignable (serveur éteint)."""
-    try:
-        from wama.common.backends.glm_ocr_backend import is_available as glm_available
-        return bool(glm_available())
-    except Exception:
-        return False
-
-
-def _backend_is_available(model) -> bool:
-    """Sonde de disponibilité RUNTIME passée au sélecteur commun (reçoit un `AIModel`).
-
-    Le catalogue sait qu'un modèle est téléchargé ; il ne sait pas si le service qui le
-    sert répond.
-    """
-    return _glm_ocr_available() if getattr(model, 'model_id', '') == 'glm-ocr' else True
-
-
 def _select_best_backend(item=None) -> str:
-    """Choisit le moteur OCR via la brique COMMUNE `select_model_id()`.
+    """Choisit le moteur OCR — la CLÉ de catalogue — par la brique COMMUNE de tirage
+    (`resolve_model_choice`, celle des autres apps), sur le domaine que le schéma DÉCLARE
+    (`params.py`, `utils/model_config.OCR_SPEC`).
+
+    ⚠ La sonde de disponibilité propre au reader (`_backend_is_available` : « GLM-OCR répond-il
+    dans Ollama ? ») est retirée le 2026-10-07 : c'est le BACKEND qui dit s'il est exécutable
+    (`GlmOcrBackend.is_available`), et le sélecteur écarte déjà un modèle dont le backend ne
+    l'est pas (`backend_missing`) — pour toute app, pas pour le seul reader.
 
     `item` (chantier C, 2026-09-20) : d'où lire le curseur rapide/qualité —
     `quality_intent_of(item, 'reader')` : réglage d'app de l'utilisateur, sinon équilibré.
@@ -118,35 +84,17 @@ def _select_best_backend(item=None) -> str:
     avec le `vram_gb` déclaré par olmOCR au catalogue : les deux pouvaient diverger
     silencieusement.
 
-    Le REPLI reste intégral : catalogue vide, model_manager en erreur ou modèle inconnu →
-    on retombe sur la cascade statique ci-dessous. Une app ne doit jamais devenir
-    intraitable parce que le catalogue n'a pas été synchronisé.
+    Le REPLI reste intégral : catalogue vide ou injoignable → docTR, sur CPU, toujours
+    disponible (`OCR_FALLBACK`). Une app ne doit jamais devenir intraitable parce que le
+    catalogue n'a pas été synchronisé.
     """
-    try:
-        from wama.common.utils.auto_model import quality_intent_of
-        from wama.model_manager.services.model_selector import select_model_id
-        chosen = select_model_id(
-            'reader',
-            task='ocr',
-            quality_intent=quality_intent_of(item, 'reader'),
-            # `prefer_loaded` couvre le pas 1 de l'ancienne cascade (réutiliser olmOCR
-            # déjà résident) sans que l'app ait à inspecter son propre singleton.
-            prefer_loaded=True,
-            downloaded_only=True,
-            availability_probe=_backend_is_available,
-            fallback='doctr',   # CPU, toujours disponible
-        )
-        if chosen:
-            return chosen
-    except Exception as e:
-        logger.debug(f"[Reader] Sélection via model_manager indisponible ({e}) — repli statique.")
-
-    # ── Repli statique (ordre de préférence historique) ──────────────────────────
-    if _olmocr_is_resident():
-        return 'olmocr'
-    if _glm_ocr_available():
-        return 'glm-ocr'
-    return 'doctr'
+    from wama.common.utils.auto_model import AUTO, resolve_model_choice
+    from wama.reader.utils.model_config import OCR_FALLBACK
+    return resolve_model_choice(
+        AUTO, app_id='reader', item=item,
+        # `prefer_loaded` : réutiliser un moteur déjà RÉSIDENT (olmOCR, ~10 min de chargement).
+        prefer_loaded=True, downloaded_only=True,
+        fallback=OCR_FALLBACK) or OCR_FALLBACK
 
 
 def _try_direct_extraction(file_path: str) -> str:
@@ -237,8 +185,11 @@ def _format_as_markdown(text: str, language: str = '') -> str:
 def reader_eta_key_size(item, backend: str = None) -> tuple[str, float, str]:
     """(clé, taille, unité) de l'ETA d'une lecture — temps ∝ nombre de pages, clé par moteur. UN
     lieu, partagé par la glu (moteur RÉSOLU) et la vue de progression (le moteur employé, sinon
-    celui de la card : « auto » y est sa propre famille d'estimation) — ROUTE §11 #37."""
-    backend = backend or item.used_backend or item.backend
+    celui de la card : « auto » y est sa propre famille d'estimation) — ROUTE §11 #37.
+    Sous l'IDENTIFIANT (2026-10-07) : la colonne porte une clé de catalogue depuis la route F4b
+    ⑤ ; l'identifiant garde l'historique appris (`reader:olmocr`)."""
+    from wama.common.utils.model_keys import model_id
+    backend = model_id(backend or item.used_backend or item.backend)
     return f'reader:{backend}', max(int(item.page_count or 0), 1), 'page'
 
 
@@ -289,9 +240,10 @@ def _read(item, ctx):
                                        f"{len(direct_text)} caractères (PDF natif)",
                 }
 
-        # Select backend
+        # Le modèle : sa CLÉ de catalogue (route F4b ⑤, 2026-10-07), tirée si « auto ».
+        from wama.common.utils.auto_model import is_auto
         backend = item.backend
-        if backend == 'auto':
+        if not backend or is_auto(backend):
             backend = _select_best_backend(item)
             from wama.common.utils.auto_model import quality_intent_of
             ctx.console(f"[Reader] Backend auto-sélectionné : {backend} "
@@ -307,29 +259,15 @@ def _read(item, ctx):
         def _partial(txt):
             publish_partial_text('reader', item.pk, txt)
 
-        if backend == 'olmocr':
-            # Singleton : le modèle reste chargé entre les fichiers d'un même batch
-            raw_text = _get_olmocr().run(
-                item.input_file.path, item.mode, item.language, ctx.progress,
-                keep_loaded=True, on_partial=_partial,
-            )
-        elif backend == 'glm-ocr':
-            from wama.common.backends.glm_ocr_backend import GlmOcrBackend
-            raw_text = GlmOcrBackend().run(
-                item.input_file.path, item.mode, item.language, ctx.progress,
-                on_partial=_partial,
-            )
-        elif backend == 'doctr':
-            from wama.common.backends.manager import backend_for_key
-            classe = backend_for_key('reader:doctr')
-            if classe is None:
-                raise RuntimeError("reader:doctr : aucun backend résolu depuis le catalogue")
-            raw_text = classe().run(
-                item.input_file.path, item.mode, item.language, ctx.progress,
-                on_partial=_partial,
-            )
-        else:
-            raise ValueError(f"Backend inconnu : {backend}")
+        # La PORTE COMMUNE (2026-10-07) : la clé désigne le backend (contrat OCR), l'instance
+        # reste chargée d'un fichier au suivant (olmOCR ~10 min — l'ancien singleton du reader),
+        # et les réglages arrivent PAR LEUR NOM de schéma. Un `if/elif` par moteur vivait ici :
+        # un OCR installé demain — Ollama, un fournisseur — n'aurait pas eu sa branche.
+        from wama.common.backends.manager import backend_instance_for_key, run_contract
+        engine = backend_instance_for_key(backend, user=item.user)
+        raw_text = run_contract(engine, file_path=item.input_file.path, mode=item.mode,
+                                language=item.language, progress_cb=ctx.progress,
+                                on_partial=_partial, keep_loaded=True)
 
         result_text = _extract_natural_text(raw_text)
 
