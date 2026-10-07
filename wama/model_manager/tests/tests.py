@@ -2655,6 +2655,39 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
         self.assertEqual(len(urls), attendues)
         self.assertFalse(any('None' in u for u in urls))
 
+    def test_aa_calls_no_legacy_data_path(self):
+        """AA retires `/api/v2/data/*` on 2026-11-04 (410 Gone afterwards): no category may
+        point there again."""
+        from ..services import benchmark_sync as bs
+        legacy = [cat for cat, spec in bs.CATEGORIES.items()
+                  if (spec.get('aa') or '').startswith('data/')]
+        self.assertEqual([], legacy)
+
+    def test_aa_follows_every_page_of_a_paginated_endpoint(self):
+        """The V2 language endpoint is paginated: a model on page 2 must be read, and the
+        loop stops when `has_more` is false."""
+        from ..services import benchmark_sync as bs
+        pages = {
+            1: {'data': [{'slug': 'qwen3-8b', 'name': 'Qwen3 8B',
+                          'evaluations': {'artificial_analysis_intelligence_index': 30.0}}],
+                'pagination': {'page': 1, 'has_more': True}},
+            2: {'data': [{'slug': 'gemma-4-31b', 'name': 'Gemma 4 31B',
+                          'evaluations': {'artificial_analysis_intelligence_index': 43.0}}],
+                'pagination': {'page': 2, 'has_more': False}},
+        }
+        urls = []
+
+        def fake_http(url, headers=None, timeout=45):
+            urls.append(url)
+            if 'language/models' not in url:
+                return {'data': []}
+            return pages[int(url.split('page=')[1]) if 'page=' in url else 1]
+        with patch.object(bs, '_http_json', side_effect=fake_http), \
+                patch.dict('os.environ', {bs.AA_KEY_ENV: 'fake-key'}):
+            by_category, _ = bs.load_aa()
+        self.assertEqual(['Qwen3 8B', 'Gemma 4 31B'], [e['name'] for e in by_category['llm']])
+        self.assertEqual(2, sum('language/models' in u for u in urls))
+
     # ── (2) le sens de l'échelle ────────────────────────────────────────────────────────
 
     def test_un_taux_d_erreur_se_lit_a_l_envers(self):

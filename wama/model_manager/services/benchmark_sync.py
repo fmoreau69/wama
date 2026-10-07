@@ -72,6 +72,10 @@ AA_KEY_ENV = _source('artificial_analysis').api_key_env
 #: la catégorie n'y déclare rien (clé absente ou None) et son chargeur la SAUTE. Un endpoint
 #: AA absent/403 (tier) ou un parquet manquant SKIPPE la (source, catégorie) avec motif —
 #: jamais un rouge global.
+#: ⚠ Chemins du contrat V2 « Free » d'AA (2026-10-07) : les anciens `data/llms/models` et
+#: `data/media/*` sont RETIRÉS le 2026-11-04 (410 Gone ensuite — guide
+#: artificialanalysis.ai/data-api/migrate-v2-data). Les champs lus (`evaluations.*_index`,
+#: `elo`) sont les mêmes ; le banc LLM est désormais PAGINÉ (`load_aa` suit les pages).
 CATEGORIES = {
     # `strict_size` : la taille (milliards de paramètres) est EXIGÉE symétrique — cf.
     # `_compatible`. Vrai pour les bancs de la famille LLM, où les entrées tierces publient
@@ -80,27 +84,27 @@ CATEGORIES = {
     # `gemma4:12b` prenait l'Elo de `gemma-4-31b`. Faux pour les modalités média (les
     # modèles image/vidéo ne publient pas de taille) et l'ASR (`whisper-large-v3` non plus).
     'llm': {
-        'aa': 'data/llms/models', 'aa_field': 'artificial_analysis_intelligence_index',
+        'aa': 'language/models/free', 'aa_field': 'artificial_analysis_intelligence_index',
         'aa_scale': 'aa_intelligence_index', 'arena': 'text', 'strict_size': True,
     },
     'text-to-image': {
-        'aa': 'data/media/text-to-image', 'aa_field': 'elo',
+        'aa': 'media/text-to-image/models/free', 'aa_field': 'elo',
         'aa_scale': 'aa_elo_text_to_image', 'arena': 'text_to_image',
     },
     'image-editing': {
-        'aa': 'data/media/image-editing', 'aa_field': 'elo',
+        'aa': 'media/image-editing/models/free', 'aa_field': 'elo',
         'aa_scale': 'aa_elo_image_editing', 'arena': 'image_edit',
     },
     'text-to-speech': {
-        'aa': 'data/media/text-to-speech', 'aa_field': 'elo',
+        'aa': 'media/text-to-speech/models/free', 'aa_field': 'elo',
         'aa_scale': 'aa_elo_text_to_speech', 'arena': None,
     },
     'text-to-video': {
-        'aa': 'data/media/text-to-video', 'aa_field': 'elo',
+        'aa': 'media/text-to-video/models/free', 'aa_field': 'elo',
         'aa_scale': 'aa_elo_text_to_video', 'arena': 'text_to_video',
     },
     'image-to-video': {
-        'aa': 'data/media/image-to-video', 'aa_field': 'elo',
+        'aa': 'media/image-to-video/models/free', 'aa_field': 'elo',
         'aa_scale': 'aa_elo_image_to_video', 'arena': 'image_to_video',
     },
     # ── 2026-09-02 : les sous-ensembles Arena que le chargeur savait déjà lire ──────────
@@ -416,6 +420,24 @@ def _http_json(url: str, headers: dict | None = None, timeout: int = 45):
     return r.json()
 
 
+#: Garde-fou de la pagination AA : le quota gratuit est de 100 requêtes par 24 h, partagé
+#: par toutes les clés de l'organisation — une réponse qui annoncerait `has_more` sans fin
+#: ne doit pas le consommer.
+AA_MAX_PAGES = 20
+
+
+def _aa_entries(path: str, key: str) -> list:
+    """Toutes les entrées d'un endpoint AA, pages comprises (`pagination.has_more`)."""
+    entries = []
+    for page in range(1, AA_MAX_PAGES + 1):
+        url = f"{AA_BASE}/{path}" + (f"?page={page}" if page > 1 else '')
+        data = _http_json(url, headers={'x-api-key': key})
+        entries.extend(data.get('data') or [])
+        if not (data.get('pagination') or {}).get('has_more'):
+            break
+    return entries
+
+
 def load_aa():
     """{'categorie': [{'nom','slug','valeur','echelle','identite'}]} ; motifs par catégorie."""
     key = os.environ.get(AA_KEY_ENV, '').strip()
@@ -427,12 +449,12 @@ def load_aa():
         if not spec.get('aa'):
             continue        # AA ne couvre pas cette catégorie : ni requête, ni motif
         try:
-            data = _http_json(f"{AA_BASE}/{spec['aa']}", headers={'x-api-key': key})
+            entries = _aa_entries(spec['aa'], key)
         except Exception as e:
             reasons[cat] = f'endpoint AA indisponible : {e}'
             continue
         out = []
-        for m in (data.get('data') or []):
+        for m in entries:
             ev = m.get('evaluations') or {}
             v = ev.get(spec['aa_field'], m.get(spec['aa_field']))
             ident = _identity(m.get('slug') or m.get('name') or '')
