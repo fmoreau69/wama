@@ -23,107 +23,11 @@
     "data": {
       "models": [
         {
+          "bases": [
+            "wama.common.models.ProcessingTimeMixin",
+            "wama.common.models.ScopedVisibility"
+          ],
           "fields": [
-            {
-              "args": [],
-              "class": "django.db.models.FloatField",
-              "kwargs": {
-                "default": {
-                  "expr": "0",
-                  "imports": []
-                }
-              },
-              "name": "processing_seconds"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "choices": {
-                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
-                  "imports": []
-                },
-                "db_index": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "'private'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "12",
-                  "imports": []
-                }
-              },
-              "name": "visibility"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Unité de partage si visibility='unit'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.orgunit'",
-                  "imports": []
-                }
-              },
-              "name": "scope_org_unit"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Projet de partage si visibility='project'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.project'",
-                  "imports": []
-                }
-              },
-              "name": "scope_project"
-            },
             {
               "args": [],
               "class": "django.db.models.ForeignKey",
@@ -214,16 +118,12 @@
               "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
-                "choices": {
-                  "expr": "[('auto', 'Auto (meilleur disponible)'), ('olmocr', 'olmOCR-2 7B'), ('doctr', 'docTR (CPU-friendly)'), ('glm-ocr', 'GLM-OCR 0.9B (Ollama, léger)')]",
-                  "imports": []
-                },
                 "default": {
                   "expr": "'auto'",
                   "imports": []
                 },
                 "max_length": {
-                  "expr": "16",
+                  "expr": "128",
                   "imports": []
                 }
               },
@@ -405,7 +305,7 @@
                   "imports": []
                 },
                 "max_length": {
-                  "expr": "32",
+                  "expr": "128",
                   "imports": []
                 }
               },
@@ -466,111 +366,12 @@
           "name": "ReadingItem"
         },
         {
+          "bases": [
+            "wama.common.models.BatchMixin",
+            "wama.common.models.QueueOrderMixin",
+            "wama.common.models.ScopedVisibility"
+          ],
           "fields": [
-            {
-              "args": [],
-              "class": "django.db.models.IntegerField",
-              "kwargs": {
-                "db_index": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "0",
-                  "imports": []
-                }
-              },
-              "name": "queue_index"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "choices": {
-                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
-                  "imports": []
-                },
-                "db_index": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "'private'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "12",
-                  "imports": []
-                }
-              },
-              "name": "visibility"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Unité de partage si visibility='unit'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.orgunit'",
-                  "imports": []
-                }
-              },
-              "name": "scope_org_unit"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Projet de partage si visibility='project'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.project'",
-                  "imports": []
-                }
-              },
-              "name": "scope_project"
-            },
             {
               "args": [],
               "class": "django.db.models.ForeignKey",
@@ -647,6 +448,7 @@
           "name": "BatchReadingItem"
         },
         {
+          "bases": [],
           "fields": [
             {
               "args": [],
@@ -772,7 +574,6 @@
     "models": {
       "catalog_keys": [
         "reader:doctr",
-        "reader:glm-ocr",
         "reader:olmocr"
       ],
       "source_attr": "READER_MODELS"
@@ -803,24 +604,7 @@
             "cap_from": null,
             "chip": true,
             "chip_label": "",
-            "choices": [
-              [
-                "auto",
-                "Auto (meilleur disponible)"
-              ],
-              [
-                "olmocr",
-                "olmOCR-2 7B"
-              ],
-              [
-                "doctr",
-                "docTR (CPU-friendly)"
-              ],
-              [
-                "glm-ocr",
-                "GLM-OCR 0.9B (Ollama, léger)"
-              ]
-            ],
+            "choices": null,
             "contexts": [
               "item",
               "batch",
@@ -838,9 +622,9 @@
             "help": "",
             "help_fallback": {
               "auto": "Choisit automatiquement le meilleur moteur disponible selon le document et le GPU.",
-              "doctr": "docTR — pipeline détection + reconnaissance, tourne sur CPU. Idéal documents imprimés simples.",
-              "glm-ocr": "GLM-OCR 0.9B (via Ollama) — léger et rapide, bon compromis pour texte imprimé courant.",
-              "olmocr": "olmOCR-2 7B — OCR vision haute qualité (mise en page, tableaux, manuscrit). ~16 Go VRAM."
+              "ollama:glm-ocr:latest": "GLM-OCR 0.9B (via Ollama) — léger et rapide, bon compromis pour texte imprimé courant.",
+              "reader:doctr": "docTR — pipeline détection + reconnaissance, tourne sur CPU. Idéal documents imprimés simples.",
+              "reader:olmocr": "olmOCR-2 7B — OCR vision haute qualité (mise en page, tableaux, manuscrit). ~16 Go VRAM."
             },
             "help_html": "",
             "help_source": "reader",
@@ -856,12 +640,10 @@
             "options_abilities": false,
             "options_auto": true,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
             "options_query": {
-              "source": "reader",
               "task": "ocr"
             },
             "options_resolution": null,
@@ -907,7 +689,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -975,7 +756,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1027,7 +807,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1088,7 +867,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1317,7 +1095,7 @@
       "descriptions": {
         "add_to_reader": {
           "args": {
-            "backend": "select — Moteur OCR (choix : auto | olmocr | doctr | glm-ocr) (défaut : 'auto')",
+            "backend": "select — Moteur OCR (défaut : 'auto')",
             "file_path": "str (requis)",
             "language": "text — Optionnel (ex. fr, en). Auto-détection si vide.",
             "mode": "select — Mode de lecture (choix : auto | printed | handwritten) (défaut : 'auto')",
@@ -1379,10 +1157,6 @@
   "requires": [
     {
       "key": "reader:doctr",
-      "kind": "model"
-    },
-    {
-      "key": "reader:glm-ocr",
       "kind": "model"
     },
     {

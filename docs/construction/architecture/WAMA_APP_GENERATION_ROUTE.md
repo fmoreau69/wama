@@ -762,6 +762,44 @@ même** : il lit le domaine DÉCLARÉ (tous les schémas de l'app) et passe PART
 par source — anonymizer `model_to_use`, avatarizer `animation_model`, enhancer `engine` (audio,
 `AUDIO_SPEC`), reader `backend`, les restes de l'étape F4b.
 
+##### ✅ Étape ⑤ SOLDÉE le 2026-10-07 — plus aucun select par source, et une PORTE de lancement commune
+
+Les quatre restes ci-dessus listent par TÂCHE et stockent des clés de catalogue entières :
+avatarizer `lip-sync` (`576982ca`), enhancer audio `audio-enhance` (`e92dd3e5`), anonymizer
+`detect`/`segment` — la mise en page et la détection en vocabulaire ouvert sortant de `detect`
+sous les termes standard `layout-detection` et `zero-shot-object-detection` (`52919e35`,
+`46d40c74`) —, reader `ocr` (`67352282`). Chaque domaine est UNE déclaration que le select, le
+tirage `auto` et la méta d'appariement lisent ; `save()` normalise un identifiant nu ; une
+migration PURE par app (`avatarizer/0022`, `enhancer/0019`, `anonymizer/0036`, `reader/0012`).
+`matches_inputs` exige désormais une tâche DÉCLARÉE quand on en demande une.
+
+⭐ **La porte commune — une app ne connaît plus ses moteurs** (décision de Fabien : *« même si
+l'anonymizer n'utilise pas de modèle distant aujourd'hui, ça peut être le cas demain et il faut
+que le code l'accepte déjà, toujours avec un peu de glue par LLM pour le backend »*) :
+- `backends.manager.backend_instance_for_key(model_key, user)` : la classe par `backend_for_key`,
+  une instance par clé, `catalogue_key` posé ; une ligne `execution='cloud'` reçoit la clé
+  d'accès de l'utilisateur (`cloud_access`) par `BaseModelBackend.authorize()` — remonté du
+  contrat ASR à la base, donc vrai pour TOUTE tâche (précédent : `AlbertTranscriptionBackend`,
+  `ENGINE` = le fournisseur). Rien ne sert la clé → `ModelNotServed`, jamais un remplaçant.
+- `backends.manager.run_contract(instance, **réglages)` : appelle la méthode de TRAVAIL du contrat
+  de tâche (`TASK_CONTRACTS`, sa méthode abstraite propre ; sinon `process`) avec les seuls
+  réglages qu'elle nomme.
+- Contrat `ocr` (`ocr_base.OCRBackend.run`) adopté par olmOCR, docTR et GLM-OCR — ce dernier
+  devenu un backend de moteur `ollama`, appelé par le client commun `llm_chat`.
+- Un moteur HORS PROCESSUS qui sert plusieurs tâches (`external_sources.serves_many_tasks` :
+  `multi_task` déclaré, ou fournisseur LLM) ne donne son backend lié qu'aux modèles de SA tâche,
+  y compris quand aucune tâche n'est demandée — sinon `GlmOcrBackend` devenait le backend de
+  tout `ollama:`. Relevé avant/après sur tout le catalogue : seules les lignes glm-ocr changent.
+
+Ajouter un modèle distant à une app = écrire son backend sous le contrat de la tâche (la glu
+que le rôle `codegen` produit) ; ni le select, ni la tâche, ni la vue de l'app ne bougent.
+Gardes : `tests_backend_by_key`, `reader.tests_model_keys`, `tests_task_declared`.
+⏳ Restent : le corps de tâche GÉNÉRÉ sur cette porte (saveur « modèle » de `tasks_gen` : tirage
+sur le domaine déclaré puis `backend_instance_for_key` + `run_contract`, sans glu de lancement) ;
+le ralliement de l'imager, du transcriber et de l'enhancer, qui gardent leur aiguillage écrit à
+la main (sur la résolution commune, mais pas sur la porte) ; l'anonymizer, dont le lancement
+refuse déjà ce que rien ne sert, mais n'instancie pas encore par la porte.
+
 **Ce qu'il ne faut PAS casser** : la lecture BIDIRECTIONNELLE des capacités dans la card
 (entrées⇄modèles, `WamaInputMatch` + `WamaModelCaps`, **8/8 câblées**, adoption SOLDÉE). Elle
 n'est pas menacée — elle est *simplifiée* : mêmes clés partout, plus de traduction.
@@ -1594,15 +1632,52 @@ outillé avant d'ouvrir cette marche.
   > | ⚙ sans effet sur `describer_01` (24/09 — « aucune app n'a déclaré d'ouvreur », mesuré au navigateur ; la vue d'édition était un bouchon 501) | la route d'édition d'élément a QUATRE noms dans le parc (`update`, `update_options`, `update_settings`, `save_settings`), le générateur n'en connaissait que deux ; et `update_settings` est AUSSI la route GLOBALE de l'anonymizer, sans pk | alias ajoutés + `urls_gen.ITEM_ROUTES`/`alias_fits` : un alias de route d'élément n'est retenu que si son motif déclaré prend `<int:pk>` — lu par le gabarit (ouvreur) ET les vues (corps) ; `tests_codegen_lot.ItemEditRouteAliasTest` sur les 10 apps + contre-épreuve anonymizer ; geste `describer_01.settings` vert après régénération |
   > | « nature '' sans backend déclaré » (describer_01 24/09, geste `processing`) | DEUX gabarits DEVINAIENT le même fait : `tasks_gen` lisait la colonne déclarée (`backend_nature_field` = `detected_type`), `views_gen` supposait `media_type` — l'upload n'écrivait jamais ce que la tâche lisait | `views_gen` lit la MÊME déclaration ; le lot ne reçoit la nature que s'il porte la colonne ; `NatureFieldAgreementTest` (10 apps) |
   > | SUCCESS puis téléchargement 501 (describer_01 24/09) | le gabarit ne servait que `output_file` ; le résultat DÉCLARÉ était un texte (`backend_result` = `result_text`) | `download`/`download_all` servent le résultat déclaré (fichier → sa colonne, texte → `.txt` par `compose_output_name`) ; brique `make_batch_views(output_text=…)` ; `DeclaredResultDownloadTest`, `TextResultBatchDownloadTest` |
+  > | Deux jumelles effacées du registre (anonymizer_01, reader_01, 07/10) | `remove` réécrivait la liste chargée AVANT son `migrate zero` (minutes) ; `create` idem — le trou que `_save_entry` laissait (22/09) | `_drop_entry` + `create` par `_save_entry` : toute écriture relit à l'instant (`RegistryWritesRereadTest`). ⚠ Et la règle de la ligne du 22/09 tient toujours : **une flotte de jumelles se régénère en UNE voie** — chaque juge lance `manage.py check` sur tout le projet, une jumelle à moitié écrite par une autre voie fausserait son verdict |
+  > | `params` généré en NameError à l'import, page en 404 (reader_01 07/10) | le manifeste extrait à chaud porte les objets du schéma : un membre de `TextChoices` sortait par son `repr` (`ReadingItem.Backend.AUTO`) | `params_gen._literal` (valeur de l'énumération, chaîne paresseuse → `str`) + chaque schéma rendu doit passer `ast.literal_eval` — `ParamsRenderedAsLiteralsTest` ; les 10 `params` générés s'importent |
+  > | Substitution `tasks` plantée APRÈS l'écriture, jumelle sans verdict (describer_01 07/10) | un fichier NEUF n'a pas de témoin : `temoin.exists()` sur None | garde `temoin is not None` — `NewFileSubstitutionTest` (contre-épreuve rouge) |
+  > | TOUTES les cibles d'anonymizer_01 refusées (07/10) | deux faux positifs du juge des imports, présents sur la copie INTACTE : nom posé dans un `try:` de tête (`MODELS_ROOT`), import d'un sous-module (`from wama.<jumelle> import tasks`) | le juge lit les blocs de tête et reconnaît les sous-modules ; **invariant `JudgesAreSilentOnSoundPackagesTest`** : le juge se tait sur les 10 apps réelles — un paquet sain ne se dénonce pas |
   > | Toute substitution revertée après un RENOMMAGE de route à la source (converter_01 24/09, `update_job` → `update_settings`) | `urls` généré importe une vue que les vues de la jumelle n'ont pas, `views` généré retire le nom que ses urls importent, les templates générés citent l'ancien nom ; et le revert ramène au TÉMOIN d'ORIGINE, pas à l'état généré précédent | `app_sandbox substitute <jumelle> urls+views+templates` : plusieurs cibles, UNE substitution (générées, mesurées, revertées ensemble) ; `CoupleViewsTemplatesTest` (+2) |
   >
-  > **Ordre de substitution recommandé** : `params` → `apps` → `urls` → `models` → `tasks` →
-  > `views` → `templates` (les deux derniers en COUPLE ; une app dont `views_gen` refuse — file
-  > à modèle de LIAISON — garde SES templates copiés, c'est cohérent et déclaré). Quand la
-  > SOURCE a renommé une route, les passer ENSEMBLE : `urls+views+templates`.
+  > **Ordre de substitution recommandé** (recalé le 2026-10-07) : `params` → `apps` →
+  > `urls+views+templates` → `tasks` → `models`. Les vues en COUPLE avec leurs gabarits, et avec
+  > `urls` quand la SOURCE a renommé une route ; une app dont `views_gen` refuse — file à
+  > modèle de LIAISON — garde SES templates copiés, c'est cohérent et déclaré. `models` passe
+  > EN DERNIER : les vues et les tâches COPIÉES lisent la glu du modèle réel (`job.options`,
+  > `item.filename`…), que le juge des membres perdus refuse tant qu'un lecteur reste copié —
+  > mesuré sur `reader_01` : `models` refusé pour six `.filename` du `tasks.py` copié, que le
+  > `tasks` généré, accepté juste après, ne lisait plus. L'ancien ordre (`models` avant
+  > `views`) datait d'avant ce juge, et le défaut qu'il laissait passer était celui-là.
   > **Gate d'acceptation** : la batterie UI auto-dérivée `run_nightly_tests --id <label>.`
   > (11 scénarios) — `converter_01` 11/11, `describer_01` 11/11. Un scénario qui SKIPPE n'est
   > pas un scénario qui passe : lire le motif, il nomme la cause côté app.
+  >
+  > **Les tests propres de l'ORIGINAL mesurent la CONVERGENCE (décision de Fabien, 2026-10-07).**
+  > Copiés dans la jumelle, ils sont le seul oracle du comportement SPÉCIFIQUE de l'app (sa
+  > glu) — les retirer aurait masqué une vraie perte (le `tasks` généré du converter tient pour
+  > la conversion simple, mais perd la conversion en place, le post-traitement IA, l'aperçu
+  > pendant et la clé d'ETA). Ils ont donc un rôle, et un seul :
+  > - ils **ne jugent pas une substitution** : ils visent la glu par ses noms PRIVÉS
+  >   (`_convert`, `workers`), qu'une régénération n'a pas à reproduire — mesuré sur la flotte du
+  >   07/10, ils bloquaient la majorité des substitutions sur un NOM, pas sur un comportement ;
+  > - la **suite complète les écarte** (`runners.prune_copied_twin_tests`, 455 tests le 07/10) :
+  >   une jumelle en convergence y serait une DISTANCE comptée comme une régression ; les
+  >   contrats génériques, qui bouclent sur les jumelles, restent ;
+  > - **`app_sandbox converge <jumelle>`** les lance CONTRE la jumelle et relève les fichiers
+  >   encore copiés. *Convergée* = tout fichier substituable généré ET tests de l'original verts.
+  >
+  > Une app **NOUVELLE** (créée par WAMA ou par l'assistant) n'a pas d'original : elle est jugée
+  > par les contrats génériques, la batterie nocturne et les juges de substitution, et son
+  > spécifique par des **tests d'usage écrits à sa génération** (avec la glu que le rôle
+  > `codegen` écrit et qu'un humain valide), par ses ENTRÉES PUBLIQUES (routes, tâche, outils de
+  > l'assistant) — jamais en projetant les tests d'une app existante. ⏳ Réécrire en tests
+  > d'usage les tests d'originaux qui visent des noms privés améliorerait les deux cas
+  > (chantier app par app, non lancé).
+  >
+  > **Avenir de la jumelle (Fabien, 2026-10-07).** La convergence des apps HISTORIQUES est un
+  > palier : une fois portées et régénérées, leurs jumelles n'auront plus d'usage. Le MÉCANISME
+  > reste — une personne qui veut sa propre version d'une app existante, ou essayer une page
+  > d'édition dans une app, a besoin de la même chose : une copie isolée, jugée, retirable, et
+  > mesurée contre l'original par `converge`.
   > **Tests de ces gardes** : `wama/common/tests/tests_sandbox_coherence.py` (14) +
   > `wama/filemanager/tests.py` (invariant importeurs).
 
