@@ -22724,3 +22724,63 @@ SPAN installé par la chaîne et servi sur CPU (×4). Détail : `PROSPECTION_PIP
   `github:…1xgaterv3_r_restore` désinstallée (rangée `vision` au premier passage).
 - 🔚 Adoptions à venir du pilote : téléchargeurs écrits par app (enhancer, anonymizer, Cam
   Analyzer, avatarizer). `WAMA_MECANISMES.md` à régénérer.
+
+## §CLÔTURE — 2026-10-06 → 10-08, « PARTAGE : À UNE PERSONNE, DATÉ, FILLE SEULE, COMPLÉTION, CONFLIT DE CORRECTION » — clos (`7cfb2d16`, `cf7ca9cb`, `d38e722c` + commit de ce bloc, non poussés) — 🔴 WSL a redémarré : PostgreSQL ARRÊTÉ, WAMA hors service — 🔚 relancer, puis rejouer les gestes du partage sur le live
+
+Session ouverte par `/reprise` sur le partage (cards, médias : lecture, modification, collaboration).
+Domicile unique : `WAMA_COLLABORATION` (§2.3, §2.4, §3bis.2, §4.5, §4.7, §5.3, §9) ; gestes :
+`WAMA_VERIFICATION` ; détail par palier : les trois blocs §PALIER du 06/10 soir et du 07/10.
+
+**Livré** (décisions de Fabien entre parenthèses) :
+- partage à UNE PERSONNE (`ObjectGrant` lu par `scoped_visible_q`), mode lecture ou collaboration ;
+- N1 — prévenir celui qui reçoit (validée) : la personne, les membres d'un projet ; unité et public non ;
+- « depuis quand » pour chaque partage, par personne ET par portée (« autant rester homogène ») ;
+  affiché dans la modale « Partager… » et « Mes partages », ni sur la card ni dans l'inspecteur ;
+- une FILLE de lot partagée arrive SEULE (défaut constaté par Fabien : sœurs privées visibles et
+  téléchargeables dans le ZIP depuis le 08/09) — `batch_common.visible_members` ;
+- « Ouvrir » marque la notification lue ;
+- duplication en lecture seule : reste LIBRE (confirmé) ; un contrôle passerait par un futur mode
+  « consultation seule » ;
+- conflit de correction, marche 1 (GO) : enregistrement préparé sur un état périmé REFUSÉ,
+  verrou doux sur la page de correction ;
+- complétion des personnes (nom et identifiant, jamais l'adresse e-mail — « on verra plus tard ») ;
+- réparés en route : `media_library.share_consent` (rouge chaque nuit), `console.js`, et
+  « Transférer à… » en 500 (lecture tolérée de `file_references` qui empoisonnait la transaction).
+
+**Mesures** (dernière mesure APRÈS la dernière écriture de code) : `tests_file_references` +
+transfert + `tests_person_sharing` 62 OK, contre-épreuves faites pour chaque garde neuve (filtre
+nominatif 7 rouges, fille seule 13, état périmé 2, point de sauvegarde 1) ; gestes : 12 du partage
+verts sur le live le 07/10, puis les 3 de transfert verts sur 8011 avec la correction (12/12, 5/5,
+6/6). ⚠ La suite élargie du périmètre n'a PAS pu être rejouée à la clôture : PostgreSQL arrêté
+(redémarrage de WSL) — à rejouer au prochain `/reprise`. Suite complète rejouée sur base NEUVE le
+07/10 : 32 rouges, aucun de la session (16 `converter_02`, 14 préexistants, 2 cam_analyzer).
+`check_redundancy` : rien dans les fichiers de la session (la trouvaille `transcriber/views.py:83`
+date du 29/09). `check_docs` : 20 cassées sur 16 cibles distinctes, aucune de la session
+(cartographie ComfyUI, jumelle `converter_01` retirée, 4 anciennes). `doc_facts` : ma doc dérivée
+(`docs/utilisateur/transcriber-correction.md`) régénérée seule ; `briques.md` et la carte des
+mécanismes restent périmées, régénération à faire depuis HEAD par l'instance qui a le registre en cours.
+
+**🔴 Pendings système** :
+- WSL a redémarré : PostgreSQL arrêté, WAMA hors service — à relancer (Fabien) ;
+- puis relancer gunicorn sur le code de `d38e722c` (correction de `file_references` : sans elle,
+  « Transférer à… » et l'acceptation d'une demande de propriété tombent en 500 tant que la table
+  d'une jumelle ne suit pas son modèle) ;
+- trois bases de test laissées sur PostgreSQL par la session (`test_wama_db_person_sharing`, `_b`,
+  `_c`), à supprimer une fois le serveur relancé (aucune autre instance ne les emploie) ;
+- les scripts de smoke et de sonde de la session vivent dans le scratchpad (jetables) ;
+- push : décision de Fabien.
+
+**🔚 Ouverts, dans l'ordre proposé** :
+1. rejouer les gestes du partage sur le live relancé (`common.person_share_cycle`,
+   `received_child_alone`, `notification_open_marks_read`, `correction_conflict`,
+   `people_completion`, `card_transfer`, `batch_transfer`, `received_card_readonly_request`) ;
+2. conflit MONTRÉ (marche 2) — attend les révisions sur tout le parc (8a : résultat en champ texte
+   gardé, auteur réel de la révision, sorties immuables) ;
+3. mode MODIFICATION (marche 8b) — décisions V2 (⧉ garde sa parenté ?), V3 (rétention des
+   révisions), M3 (promouvoir la variante d'un autre), M2 première moitié ;
+4. ranger une card reçue dans SES lots — option C « Copier dans un de mes lots… » ou attendre la
+   variante (non tranché) ;
+5. la cloche reste un lien, pas un panneau ; l'anonymizer enregistre ses réglages hors de la route
+   de convention (trace des réglages d'un collaborateur à vérifier) ;
+6. complétion : recherche sur l'adresse e-mail (écartée pour l'instant) ; e-mail d'un partage reçu
+   en attente du compte SMTP `wama-noreply@`.

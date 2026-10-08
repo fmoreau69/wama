@@ -107,6 +107,14 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 >    12:47→13:26 — l'import voyait l'ancien chemin, l'exécution non) ;
 > 4. **`git log -1 -- <fichier du test>`** : qui l'a écrit, et dans quel chantier.
 >
+> 5. **rejouer les modules rouges sur une base de test NEUVE** (un nom de base jamais utilisé, cf.
+>    le module de settings jetable ci-dessus) quand les rouges touchent des JUMELLES de bac à sable.
+>    Vécu le 2026-10-07 : la suite sur une base GARDÉE (`--keepdb`) rendait **140** rouges ; une
+>    autre instance avait retiré une jumelle et en avait créé une autre PENDANT l'exécution, et la
+>    base gardée n'avait plus leurs tables. Sur une base neuve : **32**, aucun de la session. *Une
+>    base de test gardée ne suit pas les jumelles qui naissent et meurent* — `ProgrammingError
+>    … column … of relation "<jumelle>_…" does not exist` en est la signature.
+>
 > ⚠⚠ **Un test qui SKIPPE après une migration est plus grave qu'un rouge.** Même session :
 > `CorpusReelTest` ne cherche plus son corpus au bon endroit, donc il passe en `skipped` — *un
 > vert qui a cessé de tester quelque chose*. Un rouge se voit ; un skip nouveau, non. Après toute

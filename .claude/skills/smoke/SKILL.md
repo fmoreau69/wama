@@ -152,6 +152,15 @@ le RENDU RÉEL, pas la structure du code.
   `wama_temoin_`) d'anciens harnais échappent aussi au motif — déclaré, pas nettoyé (pas
   les miens) ; le jour où on élargit le motif, vérifier sur échantillon qu'aucun fichier
   utilisateur ne matche (même prudence que la note du §3quater de WAMA_VERIFICATION).
+- 🔴 **Le MÉNAGE d'un geste vit dans son `finally`, jamais après** (leçon du 2026-10-07).
+  `card_transfer` et `batch_transfer` supprimaient leur card témoin APRÈS leur bloc `try` : un
+  geste interrompu par une exception (ou sorti par un `return` de page refusée) la laissait en
+  base. Quatre restes se sont accumulés en une après-midi, et comme ils DÉSIGNAIENT encore le
+  fichier témoin, le passage suivant le COPIAIT au lieu de le déplacer — un faux rouge sur du
+  code sain, fabriqué par les passages d'avant. ✅ Dans le `finally` : relire en base où sont
+  les fichiers À CET INSTANT (ils ont pu bouger), les supprimer, puis les lignes. Et, avant de
+  lire un rouge sur un geste qui a déjà échoué dans la journée, compter les témoins restés
+  (`wama_temoin_*` en base ET sur disque, comptes de test seulement).
 
 ## Jouer un scénario sur du code Python NEUF sans toucher au gunicorn (recette du 2026-09-18)
 
