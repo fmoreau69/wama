@@ -1467,12 +1467,18 @@ def check_correction_conflict():
             nav_o, owner_page, errors_o = _ouvrir(p, owner_token)
             nav_c, collab_page, errors_c = _ouvrir(p, collab_token)
             try:
-                resp = owner_page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                # L'ÉDITEUR prêt (son segment rendu), pas le réseau au repos : la page charge aussi
+                # l'avatar 3D de l'assistant, et après un geste qui vient d'en tirer les fichiers,
+                # `networkidle` dépassait 60 s sur le live (2026-10-09) sans rien dire de l'éditeur.
+                resp = owner_page.goto(BASE_URL + page_path, wait_until='domcontentloaded',
+                                       timeout=60000)
                 refused_page = _exiger_la_page(owner_page, resp, page_path)
                 if refused_page:
                     return refused_page
+                owner_page.wait_for_selector(segment, timeout=30000)
                 owner_page.wait_for_timeout(800)            # le verrou est pris
-                collab_page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                collab_page.goto(BASE_URL + page_path, wait_until='domcontentloaded', timeout=60000)
+                collab_page.wait_for_selector(segment, timeout=30000)
                 banner = collab_page.locator('[data-edit-lock]')
                 try:
                     banner.wait_for(timeout=10000)
@@ -1480,13 +1486,27 @@ def check_correction_conflict():
                 except Exception:
                     seen = False
                 verdicts.append((seen, 'le collaborateur voit « X corrige cette transcription »'))
-                with owner_page.expect_response(lambda r: r.url.endswith('/save/'),
-                                                timeout=15000) as saved:
-                    owner_page.click(segment)
-                    owner_page.keyboard.press('End')
-                    owner_page.keyboard.type(' à tous')
-                verdicts.append((saved.value.status == 200,
-                                 f'le propriétaire enregistre (HTTP {saved.value.status})'))
+                # Deux enregistrements du MÊME propriétaire, le second demandé pendant que le premier
+                # est EN VOL (envoi retardé de 1,5 s) : la page ne doit pas se refuser à elle-même
+                # (défaut relevé sur le live le 2026-10-09 — le second portait l'ancienne empreinte).
+                owner_page.evaluate(
+                    "() => { const f = window.fetch; window.fetch = (u, o) => "
+                    "String(u).endsWith('/save/') ? new Promise(r => setTimeout(r, 1500))"
+                    ".then(() => f(u, o)) : f(u, o); }")
+                owner_saves = []
+                owner_page.on('response', lambda r: owner_saves.append(r.status)
+                              if r.url.endswith('/save/') else None)
+                owner_page.click(segment)
+                owner_page.keyboard.press('End')
+                owner_page.keyboard.type(' à')
+                owner_page.wait_for_timeout(1000)          # le 1er enregistrement est parti, en vol
+                owner_page.keyboard.type(' tous')
+                for _ in range(40):
+                    if len(owner_saves) >= 2:
+                        break
+                    owner_page.wait_for_timeout(250)
+                verdicts.append((len(owner_saves) >= 2 and all(s == 200 for s in owner_saves),
+                                 f'le propriétaire enregistre deux fois, sans se refuser ({owner_saves})'))
                 with collab_page.expect_response(lambda r: r.url.endswith('/save/'),
                                                  timeout=15000) as late:
                     collab_page.click(segment)

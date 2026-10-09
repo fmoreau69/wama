@@ -1145,6 +1145,18 @@ gestes du partage, rejoués dans la même passe sur le live, restent verts. Domi
 Rejoué **9/9** le 2026-10-06 (8011, code neuf) : « Mes partages » marque désormais chaque
 personne `data-person` (ex-`data-collaborator`), le geste suit.
 
+### Les treize gestes du partage rejoués sur le LIVE relancé (2026-10-09)
+
+Après redémarrage de WSL et relance de WAMA : onze verts du premier coup, deux rouges, tous deux
+compris puis verts. ① `correction_conflict` a trouvé un VRAI défaut de la marche 1 du conflit : la
+page de correction ne sérialisait pas ses enregistrements, le second partait avant la réponse du
+premier avec l'ancienne empreinte et la page se refusait elle-même (409) — corrigé (un seul
+enregistrement en vol) ; le geste retarde désormais l'envoi pour provoquer ce cas à coup sûr, et
+attend l'ÉDITEUR prêt plutôt que le réseau au repos (après un geste qui charge l'avatar 3D de
+l'assistant, `networkidle` dépassait 60 s). ② `notification_open_marks_read` : le panneau avatar
+journalisait en erreur le chargement annulé en quittant la page — même défaut que `console.js`,
+corrigé. Rejoués sur le live, à la suite : 5/5 et 7/7 ; les onze autres verts dans la même passe.
+
 ### « Transférer à… » en 500 sur le LIVE : une lecture tolérée qui empoisonnait la transaction (2026-10-07)
 
 Rejoués sur le live après relance, `card_transfer`, `batch_transfer` et

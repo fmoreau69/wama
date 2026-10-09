@@ -55,6 +55,13 @@
     return document.body.classList.contains('wama-simple');
   }
 
+  // Quitter la page ANNULE le chargement en cours (« Failed to fetch ») : ce n'est pas une erreur,
+  // et le journaliser en était une (2026-10-09, relevé par un geste nocturne qui change de page —
+  // même défaut que `console.js`, corrigé le 2026-10-07).
+  var leaving = false;
+  global.addEventListener('pagehide', function () { leaving = true; });
+  global.addEventListener('beforeunload', function () { leaving = true; });
+
   function ensureLoaded() {
     if (loading) return loading;
     status.textContent = 'Chargement de l’avatar…';
@@ -64,6 +71,7 @@
       })
       .then(function () { status.textContent = ''; })
       .catch(function (e) {
+        if (leaving) return;
         console.error('[WamaAvatarPanel] chargement impossible — la voix reste disponible', e);
         loading = null;                       // permet une nouvelle tentative au prochain dépli
         status.textContent = 'L’avatar n’a pas pu être chargé — la voix reste disponible.';

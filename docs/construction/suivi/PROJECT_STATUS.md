@@ -22784,3 +22784,21 @@ mécanismes restent périmées, régénération à faire depuis HEAD par l'insta
    de convention (trace des réglages d'un collaborateur à vérifier) ;
 6. complétion : recherche sur l'adresse e-mail (écartée pour l'instant) ; e-mail d'un partage reçu
    en attente du compte SMTP `wama-noreply@`.
+
+## §CLÔTURE (complément) — 2026-10-09, « PARTAGE : vérifié sur le LIVE relancé » — clos (commit de ce bloc, non poussé) — 🔚 conflit MONTRÉ (8a) · mode modification (V2/V3/M3) · « ses lots »
+
+Suite de `§CLÔTURE — 2026-10-06 → 10-08` : WSL redémarré et WAMA relancé par Fabien (alimentation
+remplacée), les restes de la clôture sont faits.
+- **Tests du périmètre** (partage, conflit, fichiers, files et lots, demandes d'accès,
+  notifications, transcriber, médiathèque) : **413 OK**, mesurés sur le code de `55e69db0`.
+- **Gestes sur le live** : 11 sur 13 verts du premier coup ; les 2 rouges compris et corrigés :
+  ① `correction_conflict` — un VRAI défaut de la marche 1 : la page de correction ne sérialisait pas
+  ses enregistrements (le second, parti avant la réponse du premier, portait l'ancienne empreinte :
+  409 contre soi-même, dernière correction perdue) ; un seul enregistrement en vol désormais, le
+  geste provoque le cas à coup sûr (contre-épreuve `[200, 409]`) et attend l'éditeur prêt plutôt
+  que `networkidle` ; ② `notification_open_marks_read` — le panneau avatar journalisait en erreur
+  un chargement annulé en quittant la page (même correctif que `console.js`). Rejoués à la suite
+  sur le live : 5/5 et 7/7.
+- **Bases de test de la session supprimées** (les trois) ; aucun témoin restant en base.
+- ⚠ Le live sert déjà les deux JS corrigés (copiés dans `staticfiles/`) ; aucune relance requise
+  pour ce complément (pas de Python modifié hors des gestes).

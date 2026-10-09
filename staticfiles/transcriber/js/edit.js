@@ -132,8 +132,30 @@
       || 'Cette correction a été modifiée depuis votre ouverture — rechargez pour reprendre la dernière version.';
     box.querySelector('button').addEventListener('click', function () { location.reload(); });
   }
+  // UN SEUL enregistrement EN VOL à la fois (2026-10-09, défaut relevé sur le live par le geste
+  // `common.correction_conflict`) : un second enregistrement parti AVANT la réponse du premier
+  // portait l'ancienne empreinte — la page se faisait refuser par elle-même (409) et perdait sa
+  // dernière correction. Demandé pendant le vol, il ATTEND la réponse et part avec l'empreinte
+  // qu'elle rend ; « Terminer » demandé entre-temps n'est jamais perdu.
+  let inFlight = null;
+  let queued = null;
   function save(status) {
     if (conflicted) return Promise.resolve();
+    if (inFlight) {
+      queued = (queued === 'done' || status === 'done') ? 'done' : 'draft';
+      return inFlight;
+    }
+    inFlight = send(status).then(function () {
+      inFlight = null;
+      if (queued && !conflicted) {
+        const next = queued;
+        queued = null;
+        return save(next);
+      }
+    });
+    return inFlight;
+  }
+  function send(status) {
     setSaveState('<i class="fas fa-spinner fa-spin"></i> Enregistrement…');
     return fetch(CFG.saveUrl, {
       method: 'POST',
