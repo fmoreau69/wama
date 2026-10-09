@@ -24,6 +24,10 @@ from wama.common.backends.base import BaseModelBackend
 class OCRBackend(BaseModelBackend):
     """Un moteur d'OCR : un document (PDF ou image) → son texte."""
 
+    #: Le paramètre de `run` qui reçoit le fichier d'entrée — `run_contract(input_path=…)` le
+    #: passe sous ce nom (un corps de tâche généré ne connaît aucun contrat).
+    INPUT_PARAM = 'file_path'
+
     @abstractmethod
     def run(
         self,

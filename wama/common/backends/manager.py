@@ -263,34 +263,74 @@ def backend_instance_for_key(model_key: str, user=None):
     return instance
 
 
-def run_contract(instance, **values):
+#: Noms qu'un contrat donne au rappel de progression — `run_contract(progress=…)` le passe sous
+#: celui que la méthode de travail déclare (l'OCR dit `progress_cb`, les autres `progress_callback`).
+PROGRESS_NAMES = ('progress_cb', 'progress_callback')
+
+
+def run_contract(instance, *, input_path=None, progress=None, **values):
     """Appelle la méthode de TRAVAIL du contrat de `instance` avec les valeurs qu'elle ACCEPTE,
     retenues PAR LEUR NOM — les réglages d'un élément, nommés comme au schéma (`mode`,
     `language`), arrivent tels quels sans glu d'app. La méthode se LIT sur le contrat de tâche
     (`backend_inventory.TASK_CONTRACTS` : celle qu'il déclare abstraite, `run` pour l'OCR,
     `transcribe` pour la parole) ; sans contrat, le point d'entrée commun `process`. Une valeur
-    que la méthode ne connaît pas est écartée — sauf si elle accepte `**kwargs`."""
+    que la méthode ne connaît pas est écartée — sauf si elle accepte `**kwargs`.
+
+    Trois valeurs passent par leur RÔLE, pas par leur nom, pour qu'un appelant générique (le corps
+    de tâche que `tasks_gen` compose) n'ait à connaître aucun contrat :
+      - `input_path` : le fichier d'entrée, sous le nom que le contrat DÉCLARE (`INPUT_PARAM` :
+        `file_path` pour l'OCR, `audio_path` pour la parole) — un contrat qui n'en déclare pas
+        refuse (`TypeError`) plutôt que de deviner ;
+      - `progress` : le rappel de progression, sous le nom que la méthode porte (`PROGRESS_NAMES`) ;
+      - `model_id` : l'identifiant du modèle, tiré de `catalogue_key` quand la méthode le demande
+        et que l'appelant ne l'a pas donné (la musique, la partition)."""
     import inspect
-    method = _work_method(type(instance))
-    target = getattr(instance, method)
-    params = inspect.signature(target).parameters.values()
-    if not any(p.kind is p.VAR_KEYWORD for p in params):
-        names = {p.name for p in params}
+    cls = type(instance)
+    target = getattr(instance, _work_method(cls))
+    params = list(inspect.signature(target).parameters.values())
+    names = {p.name for p in params}
+    open_kwargs = any(p.kind is p.VAR_KEYWORD for p in params)
+    if input_path is not None:
+        input_param = getattr(_contract_class(cls), 'INPUT_PARAM', '')
+        if not input_param:
+            raise TypeError(f"{cls.__name__} : son contrat ne déclare pas son entrée (`INPUT_PARAM`)")
+        values[input_param] = input_path
+    if progress is not None:
+        name = next((n for n in PROGRESS_NAMES if n in names),
+                    PROGRESS_NAMES[-1] if open_kwargs else None)
+        if name:
+            values[name] = progress
+    if 'model_id' in names and 'model_id' not in values and getattr(instance, 'catalogue_key', ''):
+        from wama.common.utils.model_keys import model_id
+        values['model_id'] = model_id(instance.catalogue_key)
+    if not open_kwargs:
         values = {k: v for k, v in values.items() if k in names}
     return target(**values)
 
 
-def _work_method(cls) -> str:
-    """Nom de la méthode de travail que le contrat de tâche de `cls` déclare (`process` sinon)."""
+def _contract_class(cls):
+    """La classe de CONTRAT de tâche (`TASK_CONTRACTS`) dont `cls` dérive, ou None."""
     from wama.common.services.backend_inventory import TASK_CONTRACTS
     contract_names = {spec[1] for spec in TASK_CONTRACTS.values()}
+    return next((k for k in cls.__mro__ if k.__name__ in contract_names), None)
+
+
+def _work_method(cls) -> str:
+    """Nom de la méthode de travail que le contrat de tâche de `cls` déclare (`process` sinon) :
+    sa méthode d'INSTANCE abstraite propre. Une méthode de classe abstraite n'en est pas une
+    (`ImageGenerationBackend.is_available`, une sonde) ; deux candidates lèvent — un contrat
+    ambigu se corrige à sa déclaration, il ne se tranche pas par l'ordre alphabétique."""
+    import inspect
+    klass = _contract_class(cls)
+    if klass is None:
+        return 'process'
     common = set(getattr(BaseModelBackend, '__abstractmethods__', ()))
-    for klass in cls.__mro__:
-        if klass.__name__ in contract_names:
-            own = sorted(set(getattr(klass, '__abstractmethods__', ())) - common)
-            if own:
-                return own[0]
-    return 'process'
+    own = sorted(name for name in set(getattr(klass, '__abstractmethods__', ())) - common
+                 if not isinstance(inspect.getattr_static(klass, name, None),
+                                   (classmethod, staticmethod)))
+    if len(own) > 1:
+        raise TypeError(f"{klass.__name__} : contrat ambigu, plusieurs méthodes de travail {own}")
+    return own[0] if own else 'process'
 
 
 def route_for_nature(package: str, nature: str, routes: dict = None):

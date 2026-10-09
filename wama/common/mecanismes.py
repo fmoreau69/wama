@@ -1085,13 +1085,20 @@ MECHANISMS = (
               "suit la décision d'APP (`backends/__init__.ROUTES`, nature d'entrée → fonction "
               "au contrat commun), import relatif au paquet appelant — recopiée quatre fois "
               "avant (enhancer, describer, corps émis par tasks_gen, conversion inline) et "
-              "contournée par la tâche du converter (`if/elif` à la main)",
+              "contournée par la tâche du converter (`if/elif` à la main). LA PORTE DE "
+              "LANCEMENT depuis le 07/10 : `backend_instance_for_key` (instance par clé, clé "
+              "posée, clé d'accès d'un modèle DISTANT par `authorize()`) + `run_contract` "
+              "(méthode de travail du contrat de tâche, réglages par leur nom, entrée et "
+              "progression par leur RÔLE) — une app ne connaît plus ses moteurs, et `tasks_gen` "
+              "compose sur elle le corps d'une app qui choisit son modèle par tâche (08/10)",
               'wama/common/backends/manager.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               symbol='backend_for_model',
               annexes=('wama/common/management/commands/check_backend_links.py',
                        'wama/common/tests/tests_backend_inventory.py',
                        'wama/common/tests/tests_backend_contract_routing.py',
-                       'wama/common/tests/tests_route_for_nature.py')),
+                       'wama/common/tests/tests_route_for_nature.py',
+                       'wama/common/tests/tests_backend_by_key.py',
+                       'wama/common/tests/tests_tasks_gen_model_route.py')),
     Mechanism('backend_proposals', 'Backends PROPOSÉS par un rôle LLM (marche B2)',
               "Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle "
               "installé ; ce module le JUGE (forme : contrat, ENGINE, SUPPORTED_MODELS au niveau "

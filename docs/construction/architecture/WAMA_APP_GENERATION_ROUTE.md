@@ -794,9 +794,16 @@ que le code l'accepte déjà, toujours avec un peu de glue par LLM pour le backe
 Ajouter un modèle distant à une app = écrire son backend sous le contrat de la tâche (la glu
 que le rôle `codegen` produit) ; ni le select, ni la tâche, ni la vue de l'app ne bougent.
 Gardes : `tests_backend_by_key`, `reader.tests_model_keys`, `tests_task_declared`.
-⏳ Restent : le corps de tâche GÉNÉRÉ sur cette porte (saveur « modèle » de `tasks_gen` : tirage
-sur le domaine déclaré puis `backend_instance_for_key` + `run_contract`, sans glu de lancement) ;
-le ralliement de l'imager, du transcriber et de l'enhancer, qui gardent leur aiguillage écrit à
+✅ **Le corps de tâche GÉNÉRÉ sur cette porte (2026-10-08)** — saveur « modèle » de `tasks_gen`
+(`model_route`) : quand le schéma choisit un modèle du catalogue pour UNE tâche dont le contrat
+déclare son entrée (`INPUT_PARAM`), et qu'un résultat TEXTE est déclaré, le corps tire « auto »
+dans le domaine (`resolve_model_choice`), passe par la porte et range le texte — aucune glu de
+lancement. `run_contract` reçoit l'entrée et la progression par leur RÔLE (`input_path`,
+`progress`) et les passe sous le nom que le contrat déclare ; `_work_method` écarte une sonde de
+classe (`is_available`) et refuse un contrat ambigu au lieu de trancher par l'ordre alphabétique.
+Joué sur le manifeste RÉEL du reader contre une card (`tests_tasks_gen_model_route`, deux
+contre-épreuves). ⏳ Un résultat FICHIER (le contrat écrit une sortie) reste un trou de glu nommé.
+⏳ Restent : le ralliement de l'imager, du transcriber et de l'enhancer, qui gardent leur aiguillage écrit à
 la main (sur la résolution commune, mais pas sur la porte) ; l'anonymizer, dont le lancement
 refuse déjà ce que rien ne sert, mais n'instancie pas encore par la porte.
 

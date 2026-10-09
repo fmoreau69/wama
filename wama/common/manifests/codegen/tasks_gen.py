@@ -60,6 +60,47 @@ def app_tasks(app_id: str) -> list:
     return out
 
 
+def model_route(manifest: dict):
+    """Ce qu'il faut pour composer un corps routé par MODÈLE (saveur « modèle », 2026-10-08), ou
+    None : le select de catalogue du schéma principal et sa TÂCHE, le contrat de cette tâche, son
+    entrée déclarée (`INPUT_PARAM`), le champ fichier d'entrée de l'élément et un champ de
+    résultat TEXTE déclaré. Tout se lit dans le manifeste et dans `TASK_CONTRACTS` — rien
+    d'écrit pour une app."""
+    body = manifest.get('body') or {}
+    params = body.get('params') or {}
+    primary = params.get('primary') or ''
+    schema = (params.get('schemas') or {}).get(primary) or []
+    select = next((p for p in schema if isinstance(p, dict) and p.get('options_source') == 'catalog'
+                   and ((p.get('options_query') or {}).get('task'))), None)
+    if select is None:
+        return None
+    tasks = [t.strip() for t in str(select['options_query']['task']).split(',') if t.strip()]
+    if len(tasks) != 1:
+        return None                     # plusieurs tâches = plusieurs contrats : pas un corps unique
+    import importlib
+    from wama.common.services.backend_inventory import TASK_CONTRACTS
+    spec = TASK_CONTRACTS.get(tasks[0])
+    if not spec:
+        return None
+    try:
+        contract = getattr(importlib.import_module(f'wama.common.backends.{spec[0]}'), spec[1])
+    except Exception:
+        return None
+    if not getattr(contract, 'INPUT_PARAM', ''):
+        return None
+    proc = body.get('processing') or {}
+    item = ((proc.get('model_spec') or {}).get('item') or {})
+    input_field = item.get('input_field') or ''
+    from .models_gen import declared_result_fields
+    text_field = next((n for n, kind in declared_result_fields(body, input_field)
+                       if kind == 'text'), '')
+    if not (input_field and text_field and primary):
+        return None
+    return {'param': select['name'], 'task': tasks[0], 'schema': primary,
+            'input_field': input_field, 'result_field': text_field,
+            'params_fields': list(item.get('params_fields') or [])}
+
+
 def render_tasks(manifest: dict) -> tuple:
     """(source, raison) — fichier mince complet, ou (None, raison) si la facette ne porte pas
     de quoi le rendre (tasks lifecycle + item_model). Jamais de fichier partiel."""
@@ -115,6 +156,12 @@ def render_tasks(manifest: dict) -> tuple:
                     or ('media_type' if 'media_type' in params_fields else ''))
     compose = bool(routes and schema_symbole and nature_champ
                    and (result_kind == 'file' or result_field))
+    # Saveur « MODÈLE » (2026-10-08) : sans ROUTES, une app dont le schéma choisit un modèle du
+    # catalogue PAR TÂCHE (`options_query.task`) se compose sur la porte commune — tirage « auto »
+    # dans le domaine déclaré, backend dérivé de la clé (`backend_instance_for_key`, modèles
+    # distants compris), méthode de travail du contrat (`run_contract`). Sa glu n'est plus que
+    # le backend lui-même.
+    by_model = None if routes else model_route(manifest)
 
     # ── App à PLUSIEURS process (2026-10-05, patron composer — décision n°11, ROUTE §10.6) ──
     # Le pipeline se lit par la CLÉ de l'app (`pipeline_decl`, jamais une facette du manifeste
@@ -220,6 +267,42 @@ def render_tasks(manifest: dict) -> tuple:
                 f"                    partial_callback=lambda t: publish_partial_text('{app_id}', item.pk, t),",
                 '                    console=ctx.console)',
                 f"    return {{'fields': {{'{result_field}': texte}}}}",
+            ]
+        elif by_model:
+            r = by_model
+            lignes += [
+                f'def _process_{fn}(item, ctx):',
+                f'    """CORPS COMPOSÉ {mark} — marche B1, saveur MODÈLE : le select `{r["param"]}`',
+                f'    choisit un modèle du catalogue pour la tâche `{r["task"]}` ; « auto » tire dans ce',
+                '    domaine déclaré, la porte commune dérive le backend de la clé (modèles distants',
+                '    compris) et appelle la méthode de travail de son CONTRAT avec les réglages de',
+                '    l\'élément, par leur nom. La tâche lit les COLONNES (modèle événementiel §23.2quater)."""',
+                '    from wama.common.backends.manager import backend_instance_for_key, run_contract',
+                '    from wama.common.utils.auto_model import resolve_model_choice',
+                '    from wama.common.utils.param_schema import effective_settings',
+                '    from wama.common.utils.preview_utils import publish_partial_text',
+                f'    from .params import {r["schema"]} as _SCH',
+                '',
+                '    given = {}',
+                f'    for _n in {r["params_fields"]!r}:',
+                '        _v = getattr(item, _n, None)',
+                "        if _v not in (None, '', False):",
+                '            given[_n] = _v',
+                '    opts = effective_settings(_SCH, posees=given)',
+                f"    key = resolve_model_choice(opts.pop('{r['param']}', ''), app_id={app_id!r}, item=item)",
+                '    if not key:',
+                f'        raise ValueError("aucun modèle de la tâche « {r["task"]} » au catalogue")',
+                '',
+                '    ctx.console(f"Modèle : {key}")',
+                '    engine = backend_instance_for_key(key, user=item.user)',
+                f'    result = run_contract(engine, input_path=item.{r["input_field"]}.path,',
+                '                          progress=ctx.progress,',
+                f"                          on_partial=lambda t: publish_partial_text('{app_id}', item.pk, t),",
+                '                          **opts)',
+                "    text = result if isinstance(result, str) else getattr(result, 'text', None)",
+                '    if text is None:',
+                '        raise TypeError(f"{type(engine).__name__} ne rend pas de texte")',
+                f"    return {{'fields': {{'{r['result_field']}': text}}, 'models': [key]}}",
             ]
         elif compose:
             lignes += [

@@ -54,6 +54,104 @@ class WorkMethodTest(SimpleTestCase):
         self.assertEqual({'file_path': '/doc.pdf', 'mode': 'printed', 'language': 'fr'},
                          backend.seen)
 
+    def test_a_class_probe_is_not_the_work_method(self):
+        """`ImageGenerationBackend` declares two abstract members: `generate` (the work) and
+        `is_available` (a CLASS probe). Picking the first in alphabetical order happened to be
+        right; the probe is now set aside by its nature."""
+        from wama.common.backends.image_generation_base import ImageGenerationBackend
+        self.assertEqual('generate', manager._work_method(ImageGenerationBackend))
+
+    def test_an_ambiguous_contract_is_refused_not_guessed(self):
+        from abc import abstractmethod
+        with mock.patch.dict('wama.common.services.backend_inventory.TASK_CONTRACTS',
+                             {'probe-task': ('ocr_base', '_TwoWorks', False)}):
+            class _TwoWorks(manager.BaseModelBackend):
+                @abstractmethod
+                def first(self): ...
+
+                @abstractmethod
+                def second(self): ...
+            with self.assertRaises(TypeError):
+                manager._work_method(_TwoWorks)
+
+
+class ValuesByRoleTest(SimpleTestCase):
+    """What a GENERATED task body passes without knowing any contract: the input file, the
+    progress callback, the model id — each under the name the contract declares."""
+
+    def test_the_input_goes_under_the_name_the_contract_declares(self):
+        backend = _FakeOCR()
+        manager.run_contract(backend, input_path='/scan.png', mode='printed')
+        self.assertEqual('/scan.png', backend.seen['file_path'])
+
+    def test_speech_takes_its_input_as_audio(self):
+        from wama.common.backends.speech_to_text_base import SpeechToTextBackend
+
+        class _Speech(SpeechToTextBackend):
+            def load(self, model_name=None):
+                return True
+
+            def unload(self):
+                pass
+
+            def transcribe(self, audio_path, language=None, hotwords=None, **kwargs):
+                self.seen = dict(kwargs, audio_path=audio_path, language=language)
+                return 'words'
+        backend = _Speech()
+        progress = object()
+        manager.run_contract(backend, input_path='/talk.wav', progress=progress, language='fr')
+        self.assertEqual('/talk.wav', backend.seen['audio_path'])
+        # An open signature (`**kwargs`) gets the common callback name.
+        self.assertIs(progress, backend.seen['progress_callback'])
+
+    def test_progress_goes_under_the_name_the_method_carries(self):
+        seen = {}
+
+        class _Probe(_FakeOCR):
+            def run(self, file_path, mode='auto', language='', progress_cb=None, on_partial=None):
+                seen['progress_cb'] = progress_cb
+                return ''
+        progress = object()
+        manager.run_contract(_Probe(), input_path='/a.pdf', progress=progress)
+        self.assertIs(progress, seen['progress_cb'])
+
+    def test_the_model_id_comes_from_the_key_when_the_method_asks_for_it(self):
+        from wama.common.backends.score_extraction_base import ScoreExtractionBackend
+
+        class _Score(ScoreExtractionBackend):
+            ENGINE = 'fake-score-engine'
+
+            def load(self, model_name=None):
+                return True
+
+            def unload(self):
+                pass
+
+            def extract_score(self, model_id, audio_path, output_dir=None, melody_only=True,
+                              progress_callback=None):
+                return f'{model_id}|{audio_path}'
+        backend = _Score()
+        backend.catalogue_key = 'composer:sheetsage2'
+        self.assertEqual('sheetsage2|/song.wav',
+                         manager.run_contract(backend, input_path='/song.wav'))
+
+    def test_a_contract_without_a_declared_input_refuses(self):
+        class _NoInput(manager.BaseModelBackend):
+            def load(self, model=None):
+                return True
+
+            @property
+            def is_loaded(self):
+                return True
+
+            def unload(self):
+                pass
+
+            def process(self, **kwargs):
+                return kwargs
+        with self.assertRaises(TypeError):
+            manager.run_contract(_NoInput(), input_path='/x')
+
 
 class DoorByKeyTest(TestCase):
 

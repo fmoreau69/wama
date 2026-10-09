@@ -1698,8 +1698,10 @@ def _backend_routes(f: _AppFiles):
       - par MODÈLE : le catalogue, par `backend_for_key` / `backend_for_model`.
     PARTIEL : des `ROUTES` que rien ne lit, des cibles en objets importés, ou une table
     moteur → classe écrite dans l'app (elle redit le `ENGINE` que chaque backend déclare).
-    `tasks_gen` compose le corps d'un process routé par NATURE ; un process routé par MODÈLE
-    reste un trou de glu nommé (marche B, rôle `backend`) — ce critère mesure la DÉCLARATION.
+    `tasks_gen` compose le corps d'un process routé par NATURE, et depuis le 2026-10-08 celui
+    d'un process routé par MODÈLE quand le schéma choisit par TÂCHE et que le résultat est un
+    texte déclaré (porte `backend_instance_for_key` + `run_contract`) ; un autre reste un trou de
+    glu nommé (marche B, rôle `backend`) — ce critère mesure la DÉCLARATION.
     """
     ev = f.find_code(['backends/__init__.py'], r'(?m)^ROUTES\s*[:=]')
     if ev:
