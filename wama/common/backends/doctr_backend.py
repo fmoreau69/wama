@@ -99,25 +99,17 @@ class DocTRBackend(OCRBackend):
         if progress_cb:
             progress_cb(40, "Initialisation du modèle OCR…")
 
-        # det_arch and reco_arch can be customised; defaults work well
+        # det_arch and reco_arch can be customised; defaults work well.
+        # ⚠ docTR ≥ 1.1 (2026-10-09) : en 0.11, la détection rendait UNE boîte couvrant toute la
+        # page (texte vide, ou « Output size is too small » sur une petite page) — mesuré sur une
+        # A4 de 12 lignes nettes ; 1.1.0 y trouve 96 boîtes. La relance « assume_straight_pages=True »
+        # qui vivait ici refaisait l'appel par défaut depuis la 0.11 : retirée.
         model = ocr_predictor(pretrained=True)
 
         if progress_cb:
             progress_cb(55, "Reconnaissance du texte…")
 
-        try:
-            result = model(doc)
-        except RuntimeError as e:
-            if 'Output size is too small' not in str(e):
-                raise
-            # Thin bbox detected (rule, underline, artifact) → retry with
-            # assume_straight_pages=True which skips rotation crops likely to produce
-            # degenerate heights.
-            logger.warning("[DocTR] Crop trop petit détecté — relance avec assume_straight_pages=True")
-            if progress_cb:
-                progress_cb(60, "Réessai (bbox trop fin)…")
-            model2 = ocr_predictor(pretrained=True, assume_straight_pages=True)
-            result = model2(doc)
+        result = model(doc)
 
         if progress_cb:
             progress_cb(85, "Assemblage du texte…")
