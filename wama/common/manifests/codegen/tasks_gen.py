@@ -62,10 +62,11 @@ def app_tasks(app_id: str) -> list:
 
 def model_route(manifest: dict):
     """Ce qu'il faut pour composer un corps routé par MODÈLE (saveur « modèle », 2026-10-08), ou
-    None : le select de catalogue du schéma principal et sa TÂCHE, le contrat de cette tâche, son
-    entrée déclarée (`INPUT_PARAM`), le champ fichier d'entrée de l'élément et un champ de
-    résultat TEXTE déclaré. Tout se lit dans le manifeste et dans `TASK_CONTRACTS` — rien
-    d'écrit pour une app."""
+    None : le select de catalogue du schéma principal et sa TÂCHE, le contrat de cette tâche, le
+    PORT de travail de l'app (`body.ports.inputs`, groupe `travail`) que la méthode du contrat
+    reçoit sous son nom, le champ fichier d'entrée de l'élément et un champ de résultat TEXTE
+    déclaré. Tout se lit dans le manifeste, dans `TASK_CONTRACTS` et sur la signature du contrat
+    — rien d'écrit pour une app, rien de déclaré à côté."""
     body = manifest.get('body') or {}
     params = body.get('params') or {}
     primary = params.get('primary') or ''
@@ -86,7 +87,10 @@ def model_route(manifest: dict):
         contract = getattr(importlib.import_module(f'wama.common.backends.{spec[0]}'), spec[1])
     except Exception:
         return None
-    if not getattr(contract, 'INPUT_PARAM', ''):
+    port = next((p.get('id') for p in ((body.get('ports') or {}).get('inputs') or [])
+                 if isinstance(p, dict) and p.get('group') == 'travail' and p.get('id')), '')
+    from wama.common.backends.manager import work_method_accepts
+    if not port or not work_method_accepts(contract, port):
         return None
     proc = body.get('processing') or {}
     item = ((proc.get('model_spec') or {}).get('item') or {})
@@ -97,6 +101,7 @@ def model_route(manifest: dict):
     if not (input_field and text_field and primary):
         return None
     return {'param': select['name'], 'task': tasks[0], 'schema': primary,
+            'domain': dict(select['options_query']), 'port': port,
             'input_field': input_field, 'result_field': text_field,
             'params_fields': list(item.get('params_fields') or [])}
 
@@ -276,7 +281,8 @@ def render_tasks(manifest: dict) -> tuple:
                 f'    choisit un modèle du catalogue pour la tâche `{r["task"]}` ; « auto » tire dans ce',
                 '    domaine déclaré, la porte commune dérive le backend de la clé (modèles distants',
                 '    compris) et appelle la méthode de travail de son CONTRAT avec les réglages de',
-                '    l\'élément, par leur nom. La tâche lit les COLONNES (modèle événementiel §23.2quater)."""',
+                f'    l\'élément par leur nom, et son fichier par celui de son PORT (`{r["port"]}`). La',
+                '    tâche lit les COLONNES (modèle événementiel §23.2quater)."""',
                 '    from wama.common.backends.manager import backend_instance_for_key, run_contract',
                 '    from wama.common.utils.auto_model import resolve_model_choice',
                 '    from wama.common.utils.param_schema import effective_settings',
@@ -289,18 +295,20 @@ def render_tasks(manifest: dict) -> tuple:
                 "        if _v not in (None, '', False):",
                 '            given[_n] = _v',
                 '    opts = effective_settings(_SCH, posees=given)',
-                f"    key = resolve_model_choice(opts.pop('{r['param']}', ''), app_id={app_id!r}, item=item)",
+                # Le DOMAINE du select utilisé (`spec=`), comme l'enhancer et le composer : une app
+                # à deux selects n'en tire jamais un dans le domaine de l'autre.
+                f"    key = resolve_model_choice(opts.pop('{r['param']}', ''), app_id={app_id!r},",
+                f"                               spec={r['domain']!r}, item=item)",
                 '    if not key:',
                 f'        raise ValueError("aucun modèle de la tâche « {r["task"]} » au catalogue")',
                 '',
                 '    ctx.console(f"Modèle : {key}")',
                 '    engine = backend_instance_for_key(key, user=item.user)',
-                f'    result = run_contract(engine, input_path=item.{r["input_field"]}.path,',
-                '                          progress=ctx.progress,',
-                f"                          on_partial=lambda t: publish_partial_text('{app_id}', item.pk, t),",
-                '                          **opts)',
-                "    text = result if isinstance(result, str) else getattr(result, 'text', None)",
-                '    if text is None:',
+                f'    text = run_contract(engine, {r["port"]}=item.{r["input_field"]}.path,',
+                '                        progress_callback=ctx.progress,',
+                f"                        on_partial=lambda t: publish_partial_text('{app_id}', item.pk, t),",
+                '                        **opts)',
+                '    if not isinstance(text, str):',
                 '        raise TypeError(f"{type(engine).__name__} ne rend pas de texte")',
                 f"    return {{'fields': {{'{r['result_field']}': text}}, 'models': [key]}}",
             ]

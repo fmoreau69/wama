@@ -261,13 +261,14 @@ def _read(item, ctx):
 
         # La PORTE COMMUNE (2026-10-07) : la clé désigne le backend (contrat OCR), l'instance
         # reste chargée d'un fichier au suivant (olmOCR ~10 min — l'ancien singleton du reader),
-        # et les réglages arrivent PAR LEUR NOM de schéma. Un `if/elif` par moteur vivait ici :
-        # un OCR installé demain — Ollama, un fournisseur — n'aurait pas eu sa branche.
+        # et les réglages arrivent PAR LEUR NOM de schéma, le fichier par celui de son PORT. Un
+        # `if/elif` par moteur vivait ici : un OCR installé demain — Ollama, un fournisseur — n'aurait
+        # pas eu sa branche.
         from wama.common.backends.manager import backend_instance_for_key, run_contract
         engine = backend_instance_for_key(backend, user=item.user)
-        raw_text = run_contract(engine, file_path=item.input_file.path, mode=item.mode,
-                                language=item.language, progress_cb=ctx.progress,
-                                on_partial=_partial, keep_loaded=True)
+        raw_text = run_contract(engine, work_file=item.input_file.path, mode=item.mode,
+                                language=item.language, progress_callback=ctx.progress,
+                                on_partial=_partial)
 
         result_text = _extract_natural_text(raw_text)
 

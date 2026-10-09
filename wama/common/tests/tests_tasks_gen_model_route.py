@@ -13,9 +13,22 @@ from wama.common.backends.ocr_base import OCRBackend
 from wama.common.manifests.codegen.tasks_gen import model_route, render_tasks
 
 
+def _seed_ocr_models():
+    """The reader's OCR models as the catalogue declares them: their task, and the PORT they read
+    (`inputs_required`). The card's ports DERIVE from them — an empty test catalogue gives the
+    app only the generic fallback port `work`, which no contract takes (measured)."""
+    from wama.model_manager.models import AIModel
+    for key in ('reader:olmocr', 'reader:doctr', 'ollama:glm-ocr:latest'):
+        AIModel.objects.create(model_key=key, name=key, model_type='ocr', source=key.split(':')[0],
+                               vram_gb=1.0, is_available=True, is_downloaded=True,
+                               is_proposed=False,
+                               capabilities={'task': 'ocr', 'inputs_required': ['work_file']})
+
+
 def _reader_manifest():
-    """A COPY: the extraction is memoised, and the cases below mutate what they get — the first
-    one poisoned the next ones before this copy (measured)."""
+    """A COPY: the manifest holds the very objects of the app's schema (`PARAMS_JSON`), and the
+    cases below mutate what they get — the first one poisoned the next ones before this copy
+    (measured)."""
     import copy
     from wama.common.manifests.ingest import extract
     return copy.deepcopy(extract('app', 'reader'))
@@ -34,8 +47,8 @@ class _FakeOCR(OCRBackend):
     def unload(self) -> None:
         pass
 
-    def run(self, file_path, mode='auto', language='', progress_cb=None, on_partial=None):
-        self.seen = {'file_path': file_path, 'mode': mode, 'language': language}
+    def run(self, work_file, mode='auto', language='', progress_callback=None, on_partial=None):
+        self.seen = {'work_file': work_file, 'mode': mode, 'language': language}
         if on_partial:
             on_partial('partial')
         return 'extracted text'
@@ -67,14 +80,25 @@ class TheRouteIsReadFromTheManifestTest(TestCase):
     partial manifest — and the negative cases below would then pass VACUOUSLY. Hence `setUp`."""
 
     def setUp(self):
+        _seed_ocr_models()
         self.assertIsNotNone(model_route(_reader_manifest()),
                              'the intact manifest must yield the route, or the cases prove nothing')
 
     def test_the_reader_declares_everything_the_flavour_needs(self):
         route = model_route(_reader_manifest())
-        self.assertEqual({'param': 'backend', 'task': 'ocr', 'input_field': 'input_file',
+        self.assertEqual({'param': 'backend', 'task': 'ocr', 'domain': {'task': 'ocr'},
+                          'port': 'work_file', 'input_field': 'input_file',
                           'result_field': 'result_text'},
-                         {k: route[k] for k in ('param', 'task', 'input_field', 'result_field')})
+                         {k: route[k] for k in ('param', 'task', 'domain', 'port', 'input_field',
+                                                'result_field')})
+
+    def test_a_work_port_the_contract_does_not_take_stays_a_hole(self):
+        # The file reaches the contract under its PORT name: a port the OCR method does not name
+        # would be swallowed or refused — no body rather than a body that loses its input.
+        manifest = _reader_manifest()
+        next(p for p in manifest['body']['ports']['inputs']
+             if p.get('group') == 'travail')['id'] = 'work_audio'
+        self.assertIsNone(model_route(manifest))
 
     def test_a_domain_over_several_tasks_is_not_one_body(self):
         manifest = _reader_manifest()
@@ -83,7 +107,8 @@ class TheRouteIsReadFromTheManifestTest(TestCase):
         select['options_query'] = {'task': 'upscale,denoise'}
         self.assertIsNone(model_route(manifest))
 
-    def test_a_task_whose_contract_declares_no_input_stays_a_hole(self):
+    def test_a_task_whose_contract_does_not_take_the_port_stays_a_hole(self):
+        # `text-to-image` : `generate(params, …)` — no `work_file` in its signature.
         manifest = _reader_manifest()
         schema = manifest['body']['params']['schemas'][manifest['body']['params']['primary']]
         next(p for p in schema if p.get('options_source') == 'catalog')['options_query'] = {
@@ -101,6 +126,7 @@ class TheComposedBodyRunsTest(TestCase):
 
     def setUp(self):
         self.user = get_user_model().objects.create_user('gen_model_route', password='x')
+        _seed_ocr_models()
         source, reason = render_tasks(_reader_manifest())
         self.assertIsNone(reason)
         self.source = source
@@ -125,7 +151,7 @@ class TheComposedBodyRunsTest(TestCase):
             result = self.module._process_read_document_task(item, _Ctx())
         self.assertEqual('ollama:glm-ocr:latest', door.call_args.args[0])
         self.assertEqual(self.user, door.call_args.kwargs['user'])
-        self.assertTrue(engine.seen['file_path'].endswith('scan.png'))
+        self.assertTrue(engine.seen['work_file'].endswith('scan.png'))
         self.assertEqual(('printed', 'fr'), (engine.seen['mode'], engine.seen['language']))
         self.assertEqual({'fields': {'result_text': 'extracted text'},
                           'models': ['ollama:glm-ocr:latest']}, result)
@@ -136,14 +162,15 @@ class TheComposedBodyRunsTest(TestCase):
         seen = {}
 
         def fake(requested, **kw):
-            seen.update(requested=requested, app_id=kw.get('app_id'))
+            seen.update(requested=requested, app_id=kw.get('app_id'), spec=kw.get('spec'))
             return 'reader:doctr'
         with mock.patch('wama.common.backends.manager.backend_instance_for_key',
                         return_value=engine) as door, \
                 mock.patch('wama.common.utils.auto_model.resolve_model_choice', fake), \
                 mock.patch('wama.common.utils.preview_utils.publish_partial_text'):
             result = self.module._process_read_document_task(self._item('auto'), _Ctx())
-        self.assertEqual({'requested': 'auto', 'app_id': 'reader'}, seen)
+        # The domain of the select the body uses, not the app's first select (`catalog_domain`).
+        self.assertEqual({'requested': 'auto', 'app_id': 'reader', 'spec': {'task': 'ocr'}}, seen)
         self.assertEqual('reader:doctr', door.call_args.args[0])
         self.assertEqual(['reader:doctr'], result['models'])
 

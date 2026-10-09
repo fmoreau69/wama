@@ -210,20 +210,20 @@ class GlmOcrBackend(OCRBackend):
 
     def run(
         self,
-        file_path: str,
+        work_file: str,
         mode: str = 'auto',
         language: str = '',
-        progress_cb: Optional[Callable[[int, str], None]] = None,
+        progress_callback: Optional[Callable[[int, str], None]] = None,
         on_partial: Optional[Callable[[str], None]] = None,
     ) -> str:
         """
         Extract text from a document or image.
 
         Args:
-            file_path:   Path to the input file (PDF, PNG, JPG, …)
+            work_file:   Path to the input file (PDF, PNG, JPG, …)
             mode:        'auto' | 'printed' | 'handwritten' (hint only — GLM-OCR handles both)
             language:    ISO language code hint (e.g. 'fr', 'en')
-            progress_cb: Optional callable(pct: int, msg: str)
+            progress_callback: Optional callable(pct: int, msg: str)
             on_partial:  callback(texte_cumulé) après chaque page — aperçu « PENDANT »
                          (contrat commun preview_utils).
 
@@ -232,10 +232,10 @@ class GlmOcrBackend(OCRBackend):
         """
         model = self._model_tag()
 
-        if progress_cb:
-            progress_cb(5, "GLM-OCR : initialisation…")
+        if progress_callback:
+            progress_callback(5, "GLM-OCR : initialisation…")
 
-        path = Path(file_path)
+        path = Path(work_file)
         ext  = path.suffix.lower()
         tmp_images: list[str] = []
 
@@ -244,14 +244,14 @@ class GlmOcrBackend(OCRBackend):
         from wama.common.utils.work_dir import work_dir
         with work_dir('glmocr') as travail:
             if ext == '.pdf':
-                if progress_cb:
-                    progress_cb(10, "Conversion PDF → images…")
-                tmp_images = _pdf_to_images(file_path, dpi=200, dest_dir=str(travail))
+                if progress_callback:
+                    progress_callback(10, "Conversion PDF → images…")
+                tmp_images = _pdf_to_images(work_file, dpi=200, dest_dir=str(travail))
                 if not tmp_images:
                     raise RuntimeError("Impossible de convertir le PDF en images")
             else:
                 # Single image file — use directly
-                tmp_images = [file_path]
+                tmp_images = [work_file]
 
             n_pages  = len(tmp_images)
             texts    = []
@@ -259,8 +259,8 @@ class GlmOcrBackend(OCRBackend):
             for i, img_path in enumerate(tmp_images):
                 pct_start = 15 + int(i / n_pages * 75)
                 msg = f"GLM-OCR : page {i + 1}/{n_pages}…" if n_pages > 1 else "GLM-OCR : extraction…"
-                if progress_cb:
-                    progress_cb(pct_start, msg)
+                if progress_callback:
+                    progress_callback(pct_start, msg)
 
                 text = _ocr_image(model, img_path, language)
                 texts.append(text)
@@ -270,11 +270,11 @@ class GlmOcrBackend(OCRBackend):
                     except Exception:
                         pass  # best-effort : un tick d'aperçu raté n'arrête pas l'OCR
 
-                if progress_cb:
-                    progress_cb(pct_start + int(75 / n_pages), f"Page {i + 1}/{n_pages} terminée")
+                if progress_callback:
+                    progress_callback(pct_start + int(75 / n_pages), f"Page {i + 1}/{n_pages} terminée")
 
-            if progress_cb:
-                progress_cb(92, "Assemblage des pages…")
+            if progress_callback:
+                progress_callback(92, "Assemblage des pages…")
 
             # Join pages with a clear separator
             full_text = '\n\n---\n\n'.join(t for t in texts if t).strip()

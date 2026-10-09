@@ -26,9 +26,6 @@ class ScoreExtractionBackend(BaseModelBackend):
     L'état de chargement vient d'ici, comme pour les contrats de parole et d'image : un backend
     pose `self._loaded` dans `load()`/`unload()` et n'a rien d'autre à écrire."""
 
-    #: Le paramètre d'`extract_score` qui reçoit le fichier d'entrée (`manager.run_contract`).
-    INPUT_PARAM = 'audio_path'
-
     def __init__(self):
         self._loaded = False
         self._current_model = None

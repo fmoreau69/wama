@@ -32,9 +32,10 @@ class _FakeOCR(OCRBackend):
     def unload(self) -> None:
         pass
 
-    def run(self, file_path, mode='auto', language='', progress_cb=None, on_partial=None):
-        self.seen = {'file_path': file_path, 'mode': mode, 'language': language}
-        return f'text of {file_path}'
+    def run(self, work_file, mode='auto', language='', progress_callback=None, on_partial=None):
+        self.seen = {'work_file': work_file, 'mode': mode, 'language': language,
+                     'progress_callback': progress_callback}
+        return f'text of {work_file}'
 
 
 class WorkMethodTest(SimpleTestCase):
@@ -46,13 +47,17 @@ class WorkMethodTest(SimpleTestCase):
         # Without a task contract: the common entry point.
         self.assertEqual('process', manager._work_method(manager.BaseModelBackend))
 
-    def test_values_reach_the_method_by_their_schema_name_and_the_rest_is_left_out(self):
+    def test_values_reach_the_method_by_their_name_and_the_rest_is_left_out(self):
+        """The file by its PORT name (`work_file`), the settings by their schema name — the rule
+        of the `add_to_<app>` tool (`generic_runner.port_arguments`), one level down."""
         backend = _FakeOCR()
-        text = manager.run_contract(backend, file_path='/doc.pdf', mode='printed',
-                                    language='fr', backend='reader:olmocr', output_format='txt')
+        progress = object()
+        text = manager.run_contract(backend, work_file='/doc.pdf', mode='printed',
+                                    language='fr', progress_callback=progress,
+                                    backend='reader:olmocr', output_format='txt')
         self.assertEqual('text of /doc.pdf', text)
-        self.assertEqual({'file_path': '/doc.pdf', 'mode': 'printed', 'language': 'fr'},
-                         backend.seen)
+        self.assertEqual({'work_file': '/doc.pdf', 'mode': 'printed', 'language': 'fr',
+                          'progress_callback': progress}, backend.seen)
 
     def test_a_class_probe_is_not_the_work_method(self):
         """`ImageGenerationBackend` declares two abstract members: `generate` (the work) and
@@ -75,82 +80,28 @@ class WorkMethodTest(SimpleTestCase):
                 manager._work_method(_TwoWorks)
 
 
-class ValuesByRoleTest(SimpleTestCase):
-    """What a GENERATED task body passes without knowing any contract: the input file, the
-    progress callback, the model id — each under the name the contract declares."""
+class TheContractTakesItsPortTest(SimpleTestCase):
+    """Read on the SIGNATURE, nothing declared beside it: does the work method take the file of a
+    port under the port's name?"""
 
-    def test_the_input_goes_under_the_name_the_contract_declares(self):
-        backend = _FakeOCR()
-        manager.run_contract(backend, input_path='/scan.png', mode='printed')
-        self.assertEqual('/scan.png', backend.seen['file_path'])
+    def test_the_ocr_contract_takes_the_work_file_port(self):
+        self.assertTrue(manager.work_method_accepts(OCRBackend, 'work_file'))
 
-    def test_speech_takes_its_input_as_audio(self):
+    def test_an_open_signature_does_not_count_as_taking_the_port(self):
+        # `transcribe(audio_path, …, **kwargs)` would swallow `work_audio` without reading it.
         from wama.common.backends.speech_to_text_base import SpeechToTextBackend
+        self.assertFalse(manager.work_method_accepts(SpeechToTextBackend, 'work_audio'))
 
-        class _Speech(SpeechToTextBackend):
-            def load(self, model_name=None):
-                return True
-
-            def unload(self):
-                pass
-
-            def transcribe(self, audio_path, language=None, hotwords=None, **kwargs):
-                self.seen = dict(kwargs, audio_path=audio_path, language=language)
-                return 'words'
-        backend = _Speech()
-        progress = object()
-        manager.run_contract(backend, input_path='/talk.wav', progress=progress, language='fr')
-        self.assertEqual('/talk.wav', backend.seen['audio_path'])
-        # An open signature (`**kwargs`) gets the common callback name.
-        self.assertIs(progress, backend.seen['progress_callback'])
-
-    def test_progress_goes_under_the_name_the_method_carries(self):
-        seen = {}
-
-        class _Probe(_FakeOCR):
-            def run(self, file_path, mode='auto', language='', progress_cb=None, on_partial=None):
-                seen['progress_cb'] = progress_cb
-                return ''
-        progress = object()
-        manager.run_contract(_Probe(), input_path='/a.pdf', progress=progress)
-        self.assertIs(progress, seen['progress_cb'])
-
-    def test_the_model_id_comes_from_the_key_when_the_method_asks_for_it(self):
-        from wama.common.backends.score_extraction_base import ScoreExtractionBackend
-
-        class _Score(ScoreExtractionBackend):
-            ENGINE = 'fake-score-engine'
-
-            def load(self, model_name=None):
-                return True
-
-            def unload(self):
-                pass
-
-            def extract_score(self, model_id, audio_path, output_dir=None, melody_only=True,
-                              progress_callback=None):
-                return f'{model_id}|{audio_path}'
-        backend = _Score()
-        backend.catalogue_key = 'composer:sheetsage2'
-        self.assertEqual('sheetsage2|/song.wav',
-                         manager.run_contract(backend, input_path='/song.wav'))
-
-    def test_a_contract_without_a_declared_input_refuses(self):
-        class _NoInput(manager.BaseModelBackend):
-            def load(self, model=None):
-                return True
-
-            @property
-            def is_loaded(self):
-                return True
-
-            def unload(self):
-                pass
-
-            def process(self, **kwargs):
-                return kwargs
-        with self.assertRaises(TypeError):
-            manager.run_contract(_NoInput(), input_path='/x')
+    def test_every_ocr_engine_names_its_input_like_the_port_its_models_declare(self):
+        """The OCR models declare `inputs_required: ['work_file']` (catalogue discovery): each
+        engine of the contract takes that name — a rename of one would break the generated body
+        and the reader's launch without a word."""
+        from wama.common.backends.doctr_backend import DocTRBackend
+        from wama.common.backends.glm_ocr_backend import GlmOcrBackend
+        from wama.common.backends.olmocr_backend import OlmOCRBackend
+        for cls in (DocTRBackend, GlmOcrBackend, OlmOCRBackend):
+            with self.subTest(engine=cls.__name__):
+                self.assertTrue(manager.work_method_accepts(cls, 'work_file'))
 
 
 class DoorByKeyTest(TestCase):

@@ -50,10 +50,10 @@ class DocTRBackend(OCRBackend):
 
     def run(
         self,
-        file_path: str,
+        work_file: str,
         mode: str = 'auto',
         language: str = '',
-        progress_cb: Optional[Callable[[int, str], None]] = None,
+        progress_callback: Optional[Callable[[int, str], None]] = None,
         on_partial: Optional[Callable[[str], None]] = None,
     ) -> str:
         """
@@ -73,8 +73,8 @@ class DocTRBackend(OCRBackend):
         # Redirect docTR model cache to our managed directory
         os.environ['DOCTR_CACHE_DIR'] = str(DOCTR_DIR)
 
-        if progress_cb:
-            progress_cb(10, "Chargement docTR…")
+        if progress_callback:
+            progress_callback(10, "Chargement docTR…")
 
         try:
             from doctr.io import DocumentFile
@@ -85,19 +85,19 @@ class DocTRBackend(OCRBackend):
                 "Exécutez : pip install \"python-doctr[torch]\""
             )
 
-        path = Path(file_path)
+        path = Path(work_file)
         ext = path.suffix.lower()
 
-        if progress_cb:
-            progress_cb(20, "Lecture du document…")
+        if progress_callback:
+            progress_callback(20, "Lecture du document…")
 
         if ext == '.pdf':
             doc = DocumentFile.from_pdf(str(path))
         else:
             doc = DocumentFile.from_images([self._ensure_min_size(str(path))])
 
-        if progress_cb:
-            progress_cb(40, "Initialisation du modèle OCR…")
+        if progress_callback:
+            progress_callback(40, "Initialisation du modèle OCR…")
 
         # det_arch and reco_arch can be customised; defaults work well.
         # ⚠ docTR ≥ 1.1 (2026-10-09) : en 0.11, la détection rendait UNE boîte couvrant toute la
@@ -106,13 +106,13 @@ class DocTRBackend(OCRBackend):
         # qui vivait ici refaisait l'appel par défaut depuis la 0.11 : retirée.
         model = ocr_predictor(pretrained=True)
 
-        if progress_cb:
-            progress_cb(55, "Reconnaissance du texte…")
+        if progress_callback:
+            progress_callback(55, "Reconnaissance du texte…")
 
         result = model(doc)
 
-        if progress_cb:
-            progress_cb(85, "Assemblage du texte…")
+        if progress_callback:
+            progress_callback(85, "Assemblage du texte…")
 
         text = self._extract_text(result)
         if on_partial:

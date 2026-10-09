@@ -1088,8 +1088,9 @@ MECHANISMS = (
               "contournée par la tâche du converter (`if/elif` à la main). LA PORTE DE "
               "LANCEMENT depuis le 07/10 : `backend_instance_for_key` (instance par clé, clé "
               "posée, clé d'accès d'un modèle DISTANT par `authorize()`) + `run_contract` "
-              "(méthode de travail du contrat de tâche, réglages par leur nom, entrée et "
-              "progression par leur RÔLE) — une app ne connaît plus ses moteurs, et `tasks_gen` "
+              "(méthode de travail du contrat de tâche, réglages par leur nom de schéma, "
+              "fichiers par le nom de leur PORT — la règle de `generic_runner.port_arguments` "
+              "un cran plus bas) — une app ne connaît plus ses moteurs, et `tasks_gen` "
               "compose sur elle le corps d'une app qui choisit son modèle par tâche (08/10)",
               'wama/common/backends/manager.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               symbol='backend_for_model',

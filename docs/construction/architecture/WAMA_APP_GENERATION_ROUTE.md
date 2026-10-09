@@ -795,14 +795,26 @@ Ajouter un modèle distant à une app = écrire son backend sous le contrat de l
 que le rôle `codegen` produit) ; ni le select, ni la tâche, ni la vue de l'app ne bougent.
 Gardes : `tests_backend_by_key`, `reader.tests_model_keys`, `tests_task_declared`.
 ✅ **Le corps de tâche GÉNÉRÉ sur cette porte (2026-10-08)** — saveur « modèle » de `tasks_gen`
-(`model_route`) : quand le schéma choisit un modèle du catalogue pour UNE tâche dont le contrat
-déclare son entrée (`INPUT_PARAM`), et qu'un résultat TEXTE est déclaré, le corps tire « auto »
-dans le domaine (`resolve_model_choice`), passe par la porte et range le texte — aucune glu de
-lancement. `run_contract` reçoit l'entrée et la progression par leur RÔLE (`input_path`,
-`progress`) et les passe sous le nom que le contrat déclare ; `_work_method` écarte une sonde de
-classe (`is_available`) et refuse un contrat ambigu au lieu de trancher par l'ordre alphabétique.
+(`model_route`) : quand le schéma choisit un modèle du catalogue pour UNE tâche, que la méthode
+du contrat de cette tâche reçoit le PORT de travail de l'app sous son nom (lu sur sa signature,
+`work_method_accepts`) et qu'un résultat TEXTE est déclaré, le corps tire « auto » dans le domaine
+DE CE SELECT (`resolve_model_choice(spec=…)`, comme l'enhancer et le composer), passe par la porte
+et range le texte — aucune glu de lancement. `_work_method` écarte une sonde de classe
+(`is_available`) et refuse un contrat ambigu au lieu de trancher par l'ordre alphabétique.
 Joué sur le manifeste RÉEL du reader contre une card (`tests_tasks_gen_model_route`, deux
 contre-épreuves). ⏳ Un résultat FICHIER (le contrat écrit une sortie) reste un trou de glu nommé.
+⚠ **Corrigé le 2026-10-09 (Fabien : « aligner le fonctionnement, ne rien réinventer »)** : la
+première version (08/10) faisait déclarer à chaque contrat le nom de son argument d'entrée
+(`INPUT_PARAM`) et traduisait des « rôles » (`input_path`, `progress`) dans `run_contract` — un
+second vocabulaire des entrées, à côté des PORTS que la card v4, le catalogue
+(`inputs_required`) et le studio parlent déjà. Retiré : le fichier arrive sous le nom de son
+port, la règle « un port arrive dans l'argument du MÊME NOM » de l'outil `add_to_<app>`
+(`generic_runner.port_arguments`) appliquée un cran plus bas ; le contrat OCR (le seul né avec
+ses noms propres, le 07/10) reçoit `work_file` — le port que ses modèles déclarent — et
+`progress_callback`, le nom de tous les autres contrats et des routes par nature. La parole
+(`audio_path`) et la partition rejoindront le nom de leur port quand leur app passera par la
+porte ; d'ici là le générateur ne compose pas leur corps (garde
+`TheContractTakesItsPortTest`).
 ⏳ Restent : le ralliement de l'imager, du transcriber et de l'enhancer, qui gardent leur aiguillage écrit à
 la main (sur la résolution commune, mais pas sur la porte) ; l'anonymizer, dont le lancement
 refuse déjà ce que rien ne sert, mais n'instancie pas encore par la porte.

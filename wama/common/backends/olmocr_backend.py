@@ -178,10 +178,10 @@ class OlmOCRBackend(OCRBackend):
 
     def run(
         self,
-        file_path: str,
+        work_file: str,
         mode: str = 'auto',
         language: str = '',
-        progress_cb: Optional[Callable[[int, str], None]] = None,
+        progress_callback: Optional[Callable[[int, str], None]] = None,
         keep_loaded: bool = False,
         on_partial: Optional[Callable[[str], None]] = None,
     ) -> str:
@@ -195,12 +195,12 @@ class OlmOCRBackend(OCRBackend):
         on_partial:  callback(texte_cumulé) appelé après CHAQUE page — aperçu « PENDANT »
                      (contrat commun preview_utils, même patron que l'on_audio du composer).
         """
-        path = Path(file_path)
+        path = Path(work_file)
         ext = path.suffix.lower()
 
         if self._model is None:
-            if progress_cb:
-                progress_cb(5, "Chargement olmOCR-2…")
+            if progress_callback:
+                progress_callback(5, "Chargement olmOCR-2…")
             self.load()
 
         pages = self._get_pages(path, ext)
@@ -208,9 +208,9 @@ class OlmOCRBackend(OCRBackend):
         texts = []
 
         for i, page_image in enumerate(pages):
-            if progress_cb:
+            if progress_callback:
                 pct = 10 + int((i / total) * 85)
-                progress_cb(pct, f"Page {i + 1}/{total}…")
+                progress_callback(pct, f"Page {i + 1}/{total}…")
 
             text = self._process_image(page_image, mode, language)
             texts.append(text)
@@ -223,8 +223,8 @@ class OlmOCRBackend(OCRBackend):
         if not keep_loaded:
             self.unload()
 
-        if progress_cb:
-            progress_cb(98, "Assemblage du texte…")
+        if progress_callback:
+            progress_callback(98, "Assemblage du texte…")
 
         return '\n\n'.join(texts)
 

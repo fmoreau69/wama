@@ -263,49 +263,31 @@ def backend_instance_for_key(model_key: str, user=None):
     return instance
 
 
-#: Noms qu'un contrat donne au rappel de progression — `run_contract(progress=…)` le passe sous
-#: celui que la méthode de travail déclare (l'OCR dit `progress_cb`, les autres `progress_callback`).
-PROGRESS_NAMES = ('progress_cb', 'progress_callback')
-
-
-def run_contract(instance, *, input_path=None, progress=None, **values):
+def run_contract(instance, **values):
     """Appelle la méthode de TRAVAIL du contrat de `instance` avec les valeurs qu'elle ACCEPTE,
     retenues PAR LEUR NOM — les réglages d'un élément, nommés comme au schéma (`mode`,
-    `language`), arrivent tels quels sans glu d'app. La méthode se LIT sur le contrat de tâche
+    `language`), et ses fichiers, nommés comme leur PORT (`work_file`), arrivent tels quels sans
+    glu d'app : la règle « un port arrive dans l'argument du même nom » de l'outil `add_to_<app>`
+    (`generic_runner.port_arguments`), un cran plus bas. La méthode se LIT sur le contrat de tâche
     (`backend_inventory.TASK_CONTRACTS` : celle qu'il déclare abstraite, `run` pour l'OCR,
     `transcribe` pour la parole) ; sans contrat, le point d'entrée commun `process`. Une valeur
-    que la méthode ne connaît pas est écartée — sauf si elle accepte `**kwargs`.
-
-    Trois valeurs passent par leur RÔLE, pas par leur nom, pour qu'un appelant générique (le corps
-    de tâche que `tasks_gen` compose) n'ait à connaître aucun contrat :
-      - `input_path` : le fichier d'entrée, sous le nom que le contrat DÉCLARE (`INPUT_PARAM` :
-        `file_path` pour l'OCR, `audio_path` pour la parole) — un contrat qui n'en déclare pas
-        refuse (`TypeError`) plutôt que de deviner ;
-      - `progress` : le rappel de progression, sous le nom que la méthode porte (`PROGRESS_NAMES`) ;
-      - `model_id` : l'identifiant du modèle, tiré de `catalogue_key` quand la méthode le demande
-        et que l'appelant ne l'a pas donné (la musique, la partition)."""
+    que la méthode ne connaît pas est écartée — sauf si elle accepte `**kwargs`."""
     import inspect
-    cls = type(instance)
-    target = getattr(instance, _work_method(cls))
-    params = list(inspect.signature(target).parameters.values())
-    names = {p.name for p in params}
-    open_kwargs = any(p.kind is p.VAR_KEYWORD for p in params)
-    if input_path is not None:
-        input_param = getattr(_contract_class(cls), 'INPUT_PARAM', '')
-        if not input_param:
-            raise TypeError(f"{cls.__name__} : son contrat ne déclare pas son entrée (`INPUT_PARAM`)")
-        values[input_param] = input_path
-    if progress is not None:
-        name = next((n for n in PROGRESS_NAMES if n in names),
-                    PROGRESS_NAMES[-1] if open_kwargs else None)
-        if name:
-            values[name] = progress
-    if 'model_id' in names and 'model_id' not in values and getattr(instance, 'catalogue_key', ''):
-        from wama.common.utils.model_keys import model_id
-        values['model_id'] = model_id(instance.catalogue_key)
-    if not open_kwargs:
+    target = getattr(instance, _work_method(type(instance)))
+    params = inspect.signature(target).parameters.values()
+    if not any(p.kind is p.VAR_KEYWORD for p in params):
+        names = {p.name for p in params}
         values = {k: v for k, v in values.items() if k in names}
     return target(**values)
+
+
+def work_method_accepts(cls, name: str) -> bool:
+    """La méthode de travail du contrat de `cls` reçoit-elle une valeur nommée `name` ? — lu sur
+    sa SIGNATURE (aucune déclaration à tenir à côté) : `tasks_gen` ne compose un corps que si le
+    contrat reçoit le port d'entrée de l'app sous son nom. Un `**kwargs` ne compte pas : il
+    avalerait le port sans que la méthode le lise (`transcribe(audio_path, …, **kwargs)`)."""
+    import inspect
+    return name in inspect.signature(getattr(cls, _work_method(cls))).parameters
 
 
 def _contract_class(cls):

@@ -121,9 +121,6 @@ class SpeechToTextBackend(BaseModelBackend):
     au gouverneur automatiquement par le contrat commun.
     """
 
-    #: Le paramètre de `transcribe` qui reçoit le fichier d'entrée (`manager.run_contract`).
-    INPUT_PARAM = 'audio_path'
-
     # Class-level attributes to be overridden by subclasses
     name: str = "base"
     display_name: str = "Base Backend"

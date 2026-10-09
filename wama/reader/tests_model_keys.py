@@ -26,7 +26,7 @@ class _FakeOCR(OCRBackend):
     def unload(self) -> None:
         pass
 
-    def run(self, file_path, mode='auto', language='', progress_cb=None, on_partial=None):
+    def run(self, work_file, mode='auto', language='', progress_callback=None, on_partial=None):
         self.seen = {'mode': mode, 'language': language}
         if on_partial:
             on_partial('partial')
