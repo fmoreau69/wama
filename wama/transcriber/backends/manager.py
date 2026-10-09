@@ -85,7 +85,8 @@ class TranscriberBackendManager:
     ]
 
     _backends: Dict[str, Type[SpeechToTextBackend]] = {}
-    _instances: Dict[str, SpeechToTextBackend] = {}
+    # Les INSTANCES ne vivent plus ici (2026-10-09) : la porte commune les garde, une par classe
+    # (`backends.manager.backend_instance`) — le cache propre au transcriber en était un double.
     _availability_cache: Dict[str, bool] = {}
     # True si un check a échoué sur EXCEPTION (vs False propre) → cache « incomplet »,
     # à ré-évaluer au prochain appel. Couvre les indispos transitoires au démarrage
@@ -204,11 +205,14 @@ class TranscriberBackendManager:
             raise RuntimeError(
                 f"« {key} » : aucun backend de transcription ne sert ce modèle (absent du "
                 "catalogue, moteur non déclaré, ou poids installés sans backend).")
-        return self._engine_instance(engine, user=user)
+        return self._engine_instance(engine, user=user, model_key=key)
 
-    def _engine_instance(self, engine: str, user=None, fallback: bool = True) -> SpeechToTextBackend:
+    def _engine_instance(self, engine: str, user=None, fallback: bool = True,
+                         model_key: str = '') -> SpeechToTextBackend:
         """L'instance du moteur `engine`, s'il est disponible — sinon, `fallback`, le meilleur
-        disponible (repli TRANSPARENT : le worker le dit, `honours`)."""
+        disponible (repli TRANSPARENT : le worker le dit, `honours`). L'instance est celle de la
+        porte commune (une par classe), préparée pour `model_key` — la clé du catalogue demandée,
+        vide pour un nom de moteur."""
         availability = self.check_availability()
         if not availability.get(engine, False):
             # Demandé explicitement : avant de replier, forcer un re-test (l'indispo peut être une
@@ -220,41 +224,37 @@ class TranscriberBackendManager:
                 return None
             logger.warning(f"[TranscriberManager] Backend not available: {engine}")
             return self._get_best_backend(user=user)
-        if engine not in self._instances:
-            self._instances[engine] = self._backends[engine]()
-        return self._instances[engine]
+        from wama.common.backends.manager import backend_instance
+        return backend_instance(self._backends[engine], model_key, user)
 
     def _remote_backend(self, name: str, user) -> Optional[SpeechToTextBackend]:
         """Le backend d'un modèle DISTANT du catalogue, autorisé pour `user` — None si `name`
         n'en désigne pas un.
 
-        Le moteur se résout par le lien COMMUN (`backend_for_model` : `composition.runtime.engine`
-        du modèle ↔ `ENGINE` du backend), jamais par le nom ; la clé passe par la garde commune
-        (`cloud_access`). Un refus ou un moteur introuvable LÈVE : on ne remplace pas un modèle
-        distant demandé par un local — la mesure et la confidentialité en dépendraient.
+        Par la PORTE COMMUNE (`backend_instance_for_key`, 2026-10-09) : le moteur se résout par
+        le lien commun modèle ↔ moteur, la clé d'accès passe par la garde commune (`cloud_access`)
+        — ce que cette méthode refaisait à la main. Ce qui reste propre au transcriber : un modèle
+        retiré par son fournisseur est refusé, et un refus ou un moteur introuvable LÈVE — on ne
+        remplace pas un modèle distant demandé par un local, la mesure et la confidentialité en
+        dépendraient.
         """
         if not self._is_remote_key(name):
             return None
-        from wama.common.backends.manager import backend_for_model
+        from wama.common.backends.manager import ModelNotServed, backend_instance_for_key
         from wama.model_manager.models import AIModel, EXECUTION_CLOUD
-        from wama.model_manager.services.cloud_models import CloudAccessRefused, cloud_access
-        row = AIModel.objects.filter(model_key=name, execution=EXECUTION_CLOUD,
-                                     is_available=True).first()
-        if row is None:
+        from wama.model_manager.services.cloud_models import CloudAccessRefused
+        if not AIModel.objects.filter(model_key=name, execution=EXECUTION_CLOUD,
+                                      is_available=True).exists():
             raise RuntimeError(f"Modèle distant « {name} » absent du catalogue ou retiré par "
                                "son fournisseur.")
-        cls = backend_for_model(row)
-        if cls is None or not issubclass(cls, SpeechToTextBackend):
-            raise RuntimeError(f"Aucun backend de transcription ne sait appeler « {name} ».")
-        source, model_id = name.split(':', 1)
         try:
-            api_key = cloud_access(user, source, model_id)
+            instance = backend_instance_for_key(name, user=user)
+        except ModelNotServed as e:
+            raise RuntimeError(f"Aucun backend de transcription ne sait appeler « {name} ».") from e
         except CloudAccessRefused as e:
             raise RuntimeError(str(e)) from e
-        instance = self._instances.get(name) or cls()
-        instance.catalogue_key = name
-        instance.authorize(api_key)
-        self._instances[name] = instance
+        if not isinstance(instance, SpeechToTextBackend):
+            raise RuntimeError(f"Aucun backend de transcription ne sait appeler « {name} ».")
         return instance
 
     @staticmethod
@@ -308,8 +308,12 @@ class TranscriberBackendManager:
         donc toujours son défaut — demander le 0.6B donnait le 1.7B, sans un mot."""
         if not requested:
             return None
-        # Un modèle distant : le backend a été résolu POUR lui, il n'a pas de liste à consulter.
-        if getattr(backend, 'catalogue_key', '') == requested:
+        # Un modèle DISTANT : le backend a été résolu pour lui, il n'a pas de liste à consulter.
+        # ⚠ Distant SEULEMENT : depuis le 2026-10-09 toute instance de la porte commune porte sa
+        # clé (`catalogue_key`), locale comprise — `transcriber:whisper` aurait fait `load('whisper')`
+        # au lieu du modèle par défaut du moteur.
+        if (getattr(backend, 'catalogue_key', '') == requested
+                and TranscriberBackendManager._is_remote_key(requested)):
             return requested.split(':', 1)[-1]
         model_id = requested.split(':', 1)[-1].strip().lower()
         owner = backend if isinstance(backend, type) else type(backend)
@@ -383,46 +387,32 @@ class TranscriberBackendManager:
             if self._is_remote_key(key):
                 return self._remote_backend(key, user)
             engine = self._backend_for_model_key(key)
-            instance = self._engine_instance(engine, fallback=False) if engine else None
+            instance = (self._engine_instance(engine, fallback=False, model_key=key)
+                        if engine else None)
             if instance is not None:
                 logger.info(f"[TranscriberManager] auto → {key} → backend '{engine}'")
                 return instance
         except Exception as e:
             logger.debug(f"[TranscriberManager] tirage commun indisponible ({e}) → priorité statique")
 
+        from wama.common.backends.manager import backend_instance
         availability = self.check_availability()
         for backend_name in self.BACKEND_PRIORITY:
             if backend_name in self._backends and availability.get(backend_name, False):
-                if backend_name not in self._instances:
-                    self._instances[backend_name] = self._backends[backend_name]()
                 logger.info(f"[TranscriberManager] Auto-selected: {backend_name}")
-                return self._instances[backend_name]
+                return backend_instance(self._backends[backend_name])
 
         # Try any available backend not in priority list
         for name, available in availability.items():
             if available:
-                if name not in self._instances:
-                    self._instances[name] = self._backends[name]()
                 logger.info(f"[TranscriberManager] Fallback to: {name}")
-                return self._instances[name]
+                return backend_instance(self._backends[name])
 
         raise RuntimeError(
             "No transcription backend available. "
             "Install faster-whisper (pip install faster-whisper) "
             "or transformers+soundfile for Qwen3-ASR."
         )
-
-    def unload_all(self) -> None:
-        """Unload all loaded backend instances."""
-        for name, instance in self._instances.items():
-            try:
-                if instance.is_loaded:
-                    instance.unload()
-                    logger.info(f"[TranscriberManager] Unloaded: {name}")
-            except Exception as e:
-                logger.warning(f"[TranscriberManager] Error unloading {name}: {e}")
-
-        self._instances.clear()
 
 
 # Module-level convenience functions

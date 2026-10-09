@@ -815,9 +815,31 @@ ses noms propres, le 07/10) reçoit `work_file` — le port que ses modèles dé
 (`audio_path`) et la partition rejoindront le nom de leur port quand leur app passera par la
 porte ; d'ici là le générateur ne compose pas leur corps (garde
 `TheContractTakesItsPortTest`).
-⏳ Restent : le ralliement de l'imager, du transcriber et de l'enhancer, qui gardent leur aiguillage écrit à
-la main (sur la résolution commune, mais pas sur la porte) ; l'anonymizer, dont le lancement
-refuse déjà ce que rien ne sert, mais n'instancie pas encore par la porte.
+✅ **Transcriber rallié (2026-10-09)** — ses instances vivent dans la porte, et ses modèles
+distants passent par elle (R110). ⚠ La porte garde **une instance par CLASSE** (corrigé le jour
+même, la première version en gardait une par clé) : c'est l'usage établi — moteur par instance au
+transcriber, singleton olmOCR du reader, instance partagée des backends génériques de l'imager —
+et un moteur à plusieurs modèles change de modèle à son `load(model)` (mesuré : Qwen3-ASR 0,6B puis
+1,7B, même instance, 3,81 Go, pas d'empilement). Restent PROPRES au transcriber, parce que c'est sa
+politique : le repli transparent d'un moteur indisponible (`honours`), les anciens noms de moteur,
+la clé exacte d'après le modèle CHARGÉ. Vérifié le 2026-10-09 par instantanés avant/après sur la
+même base (options des selects, grisage, appariement entrées ↔ modèles, langues/voix, tirage
+« auto » à trois curseurs, décisions du gestionnaire pour les 15 clés de transcription) : seuls
+écarts, le reader (voulu, sauf le tirage — ci-dessous) et la sortie du modèle de diarisation sans
+tâche des listes TTS/ASR (voulue, `matches_inputs` strict).
+⚠ **Tirage « auto » du reader** : depuis le domaine par tâche, il retient GLM-OCR à TOUT curseur
+(qualité max comprise) — `ollama:glm-ocr:latest` est le seul du lot à porter un indice a priori
+(structurel, calculé pour les modèles Ollama), et un modèle sans signal passe dernier. Remède prévu
+par l'existant : `model_quality.DECLARED_PRIORS` pour la tâche `ocr` ENTIÈRE, valeurs SOURCÉES —
+décision de Fabien, en attente.
+⚠ **Limite antérieure, constatée au passage** : le tirage commun rend `None` pour un domaine à
+tâches COMPOSÉES (`detect,segment`, `text-to-image,image-to-image`, `upscale,denoise`,
+`text-to-music,text-to-audio`) — `model_type_for_task('a,b')` ne rend pas de catégorie, et
+`select_model` refuse un tirage sans borne. Mesuré identique avant le chantier ; ces apps lancent par
+leur propre chemin (domaine par mode, filtre d'agrandissement, auto par groupe, curseur de précision).
+⏳ Restent : le ralliement de l'imager et de l'enhancer, qui gardent leur aiguillage écrit à la main
+(sur la résolution commune, mais pas sur la porte) ; l'anonymizer, dont le lancement refuse déjà ce
+que rien ne sert, mais n'instancie pas encore par la porte.
 
 **Ce qu'il ne faut PAS casser** : la lecture BIDIRECTIONNELLE des capacités dans la card
 (entrées⇄modèles, `WamaInputMatch` + `WamaModelCaps`, **8/8 câblées**, adoption SOLDÉE). Elle

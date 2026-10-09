@@ -792,9 +792,13 @@ def _transcribe_step(t, ctx):
         # autre tâche) efface le modèle chargé. ⚠ Cette tâche-ci ne DÉCHARGE PAS en fin de card : le
         # modèle reste résident pour la suivante — d'où des modèles de moteurs différents qui
         # cohabitent sur le GPU (cause du « illegal memory access » NeMo du 2026-10-02).
-        # Un backend résolu POUR un modèle du catalogue (distant) connaît déjà sa clé exacte.
+        # Un backend résolu POUR un modèle DISTANT connaît déjà sa clé exacte. ⚠ Distant seulement :
+        # depuis le 2026-10-09 une instance LOCALE porte aussi la clé demandée (porte commune), mais
+        # c'est le modèle CHARGÉ qui tranche pour elle (un moteur peut avoir chargé son défaut).
         resolved_for = getattr(backend, 'catalogue_key', '')
-        t.model_key = (resolved_for if isinstance(resolved_for, str) and resolved_for
+        resolved_for = (resolved_for if isinstance(resolved_for, str)
+                        and TranscriberBackendManager._is_remote_key(resolved_for) else '')
+        t.model_key = (resolved_for if resolved_for
                        else TranscriberBackendManager.catalogue_key_for(
                            backend.name, getattr(backend, '_current_model', '') or '',
                            requested=backend_name))

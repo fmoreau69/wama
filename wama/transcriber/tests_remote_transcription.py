@@ -88,7 +88,9 @@ class RemoteBackendThroughTheManagerTest(TestCase):
         UserApiKey.objects.create(user=self.user, source='albert', api_key='personal-key',
                                   open_models=[ASR_KEY])
         self.manager = TranscriberBackendManager.get_instance()
-        self.addCleanup(self.manager._instances.pop, ASR_KEY, None)
+        # Les instances vivent dans la porte commune depuis le 2026-10-09 (une par classe).
+        from wama.common.backends import manager as door
+        self.addCleanup(setattr, door, '_INSTANCES_BY_CLASS', None)
 
     def test_a_remote_key_is_never_translated_to_a_local_engine(self):
         self.assertIsNone(TranscriberBackendManager._backend_for_model_key(ASR_KEY))
@@ -103,6 +105,15 @@ class RemoteBackendThroughTheManagerTest(TestCase):
         self.assertTrue(TranscriberBackendManager.honours(backend, ASR_KEY))
         self.assertEqual('whisper-large-v3',
                          TranscriberBackendManager.model_for_request(backend, ASR_KEY))
+
+    def test_a_local_model_never_sends_its_key_as_a_model_to_load(self):
+        """The shared instance of a LOCAL engine carries the requested key since the common door
+        (2026-10-09) — the shortcut « resolved for this key » stays for REMOTE models: for
+        `transcriber:whisper` it would have loaded `whisper` instead of the engine's default."""
+        from wama.common.backends.whisper_backend import WhisperBackend
+        from wama.common.backends.manager import backend_instance
+        backend = backend_instance(WhisperBackend, 'transcriber:whisper')
+        self.assertIsNone(TranscriberBackendManager.model_for_request(backend, 'transcriber:whisper'))
 
     def test_a_local_only_profile_is_refused_not_replaced_by_a_local_engine(self):
         self.user.profile.cloud_policy = 'local_only'

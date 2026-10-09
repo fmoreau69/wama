@@ -218,10 +218,40 @@ class ModelNotServed(RuntimeError):
     il ne retombe jamais sur un autre modèle que celui qui a été choisi."""
 
 
-#: Instances résolues PAR CLÉ DE CATALOGUE — le cache commun `BackendManager` (singletons
-#: keep_loaded) adressé par la clé : un moteur lourd (olmOCR, ~10 min de chargement) reste
-#: chargé d'un élément au suivant, comme le singleton que chaque app tenait à la main.
-_INSTANCES_BY_KEY = None
+#: Instances UNE PAR CLASSE de backend — le cache commun `BackendManager` (singletons
+#: keep_loaded) : un moteur lourd (olmOCR, ~10 min de chargement) reste chargé d'un élément au
+#: suivant. ⚠ Par CLASSE, pas par clé (corrigé le 2026-10-09, première version par clé) : c'est
+#: l'usage établi (un moteur par instance au transcriber, le singleton olmOCR du reader, l'instance
+#: partagée des backends génériques de l'imager), et un moteur qui sert PLUSIEURS modèles (Qwen3-ASR
+#: 0,6B / 1,7B, NeMo) change de modèle à son `load(model)` — une instance par clé en aurait chargé
+#: deux côte à côte sur le GPU (cohabitation déjà mesurée en incident, `transcriber/workers.py`).
+_INSTANCES_BY_CLASS = None
+
+
+def backend_instance(cls, model_key: str = '', user=None):
+    """L'instance gardée chargée de la CLASSE `cls`, préparée pour `model_key` : la clé posée
+    (`catalogue_key`, vide quand l'appelant n'en a pas — jamais celle de l'appel précédent) et,
+    pour un modèle d'un FOURNISSEUR (`execution='cloud'`), la clé d'accès de `user` par la garde
+    commune (`cloud_access`) puis `authorize()`, À CHAQUE appel — l'instance est partagée.
+    L'entrée des apps qui tiennent déjà la classe ; les autres passent par la clé
+    (`backend_instance_for_key`). LÈVE `CloudAccessRefused` si la garde refuse."""
+    global _INSTANCES_BY_CLASS
+    if _INSTANCES_BY_CLASS is None:
+        _INSTANCES_BY_CLASS = BackendManager('catalogue')
+    name = f'{cls.__module__}.{cls.__qualname__}'
+    if _INSTANCES_BY_CLASS._backends.get(name) is not cls:
+        _INSTANCES_BY_CLASS.unload(name)              # classe rechargée : on repart
+        _INSTANCES_BY_CLASS.register(name, cls)
+    instance = _INSTANCES_BY_CLASS.get_backend(name)
+    instance.catalogue_key = model_key or ''
+    if model_key:
+        from wama.model_manager.models import AIModel, EXECUTION_CLOUD
+        if AIModel.objects.filter(model_key=model_key, execution=EXECUTION_CLOUD).exists():
+            from wama.common.utils.model_keys import split_key
+            from wama.model_manager.services.cloud_models import cloud_access
+            source, model_id = split_key(model_key)
+            instance.authorize(cloud_access(user, source, model_id))
+    return instance
 
 
 def backend_instance_for_key(model_key: str, user=None):
@@ -231,7 +261,7 @@ def backend_instance_for_key(model_key: str, user=None):
     Ce que chaque app réécrivait (imager `_image_backend_for`, transcriber `_remote_backend`,
     enhancer `_upscaler_for`, reader `if/elif`) :
       1. la classe par la clé (`backend_for_key` : moteur déclaré ↔ `ENGINE`, contrat de tâche) ;
-      2. l'instance, gardée chargée d'un appel à l'autre ;
+      2. l'instance, gardée chargée d'un appel à l'autre (UNE par classe, `backend_instance`) ;
       3. la clé posée sur l'instance (`catalogue_key`) — un moteur qui sert plusieurs modèles,
          ou une source hors processus, y lit QUEL modèle ;
       4. pour un modèle d'un FOURNISSEUR (`execution='cloud'`), la clé d'API de `user` par la
@@ -241,26 +271,12 @@ def backend_instance_for_key(model_key: str, user=None):
 
     LÈVE `ModelNotServed` si rien ne sert la clé, `CloudAccessRefused` si la garde refuse.
     """
-    global _INSTANCES_BY_KEY
     cls = backend_for_key(model_key)
     if cls is None:
         raise ModelNotServed(f"« {model_key} » : aucun backend ne sert ce modèle (absent du "
                              "catalogue, moteur non déclaré, ou aucun backend du contrat de sa "
                              "tâche).")
-    if _INSTANCES_BY_KEY is None:
-        _INSTANCES_BY_KEY = BackendManager('catalogue')
-    if _INSTANCES_BY_KEY._backends.get(model_key) is not cls:
-        _INSTANCES_BY_KEY.unload(model_key)          # la clé a changé de backend : on repart
-        _INSTANCES_BY_KEY.register(model_key, cls)
-    instance = _INSTANCES_BY_KEY.get_backend(model_key)
-    instance.catalogue_key = model_key
-    from wama.model_manager.models import AIModel, EXECUTION_CLOUD
-    if AIModel.objects.filter(model_key=model_key, execution=EXECUTION_CLOUD).exists():
-        from wama.common.utils.model_keys import split_key
-        from wama.model_manager.services.cloud_models import cloud_access
-        source, model_id = split_key(model_key)
-        instance.authorize(cloud_access(user, source, model_id))
-    return instance
+    return backend_instance(cls, model_key, user)
 
 
 def run_contract(instance, **values):

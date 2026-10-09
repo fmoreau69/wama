@@ -107,7 +107,7 @@ class TheContractTakesItsPortTest(SimpleTestCase):
 class DoorByKeyTest(TestCase):
 
     def setUp(self):
-        manager._INSTANCES_BY_KEY = None
+        manager._INSTANCES_BY_CLASS = None
         _FakeOCR.loads = 0
 
     def _row(self, key, execution='local'):
@@ -128,6 +128,26 @@ class DoorByKeyTest(TestCase):
         self.assertIs(first, again, 'a heavy engine stays loaded from one item to the next')
         self.assertEqual(1, _FakeOCR.loads)
         self.assertEqual('reader:fake', first.catalogue_key)
+
+    def test_two_models_of_one_engine_share_its_instance(self):
+        """One instance per CLASS — the established use (the transcriber's engine instance, the
+        reader's olmOCR singleton): an engine serving several models switches at `load(model)`;
+        one instance per key would have loaded both side by side on the GPU."""
+        self._row('transcriber:small')
+        self._row('transcriber:large')
+        with mock.patch.object(manager, 'backend_for_key', return_value=_FakeOCR):
+            small = manager.backend_instance_for_key('transcriber:small')
+            large = manager.backend_instance_for_key('transcriber:large')
+        self.assertIs(small, large)
+        self.assertEqual(1, _FakeOCR.loads)
+        self.assertEqual('transcriber:large', large.catalogue_key)
+
+    def test_an_instance_taken_without_a_key_never_keeps_the_previous_one(self):
+        # The shared instance must not report the model of the call before it.
+        self._row('reader:fake')
+        with mock.patch.object(manager, 'backend_for_key', return_value=_FakeOCR):
+            manager.backend_instance_for_key('reader:fake')
+        self.assertEqual('', manager.backend_instance(_FakeOCR).catalogue_key)
 
     def test_a_provider_model_is_authorized_by_the_common_guard(self):
         self._row('albert:ocr-model', execution='cloud')
