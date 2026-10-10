@@ -2348,8 +2348,11 @@ def get_install_options(user, model_key: str) -> dict:
 
     cand = AIModel.objects.filter(model_key=(model_key or '').strip(), is_proposed=True).first()
     if cand is None:
+        from wama.model_manager.services.model_installer import similar_model_keys
+        near = similar_model_keys(model_key)
         return {'error': f"Aucune proposition « {model_key} » (les clés se lisent par "
-                         "list_ai_models(include_proposed=True))."}
+                         "list_ai_models(include_proposed=True)).",
+                **({'similar_keys': near} if near else {})}
     res = install_options(cand)
     return {'choice': res.get('choice', False),
             'options': [{k: o.get(k) for k in ('kind', 'ref', 'file', 'disk_gb', 'driver', 'label')}
@@ -2395,7 +2398,8 @@ def install_model(user, model_key: str, force: bool = False,
                 **{k: v for k, v in blocked.items()
                    if k in ('needed_gb', 'free_gb', 'after_gb', 'margin_gb', 'replaces')},
                 'force_possible': bool(blocked.get('force_possible'))}
-    return {'error': res.get('error', 'installation refusée'), 'reason': res.get('reason')}
+    return {'error': res.get('error', 'installation refusée'), 'reason': res.get('reason'),
+            **({'similar_keys': res['similar_keys']} if res.get('similar_keys') else {})}
 
 
 # ── Intégration : les 3 routes, en PLAN (jamais en exécution) ────────────────────────

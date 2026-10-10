@@ -172,3 +172,26 @@ class InstallOptionsToolTest(TestCase):
             out = tool_api.get_ai_model(user, 'proposed:hf:PaddlePaddle/PaddleOCR-VL-1.6')
         options.assert_not_called()
         self.assertNotIn('install_options', out)
+
+
+class SimilarKeysOnRefusalTest(TestCase):
+    """Rejeu du 2026-10-10 : Albert a recomposé `reader:hf:org/dépôt` au lieu de la clé
+    `proposed:hf:org/dépôt` écrite par l'utilisateur ; le refus ne disait pas laquelle existait."""
+
+    def test_the_refusal_names_the_proposal_of_the_same_repository(self):
+        from django.contrib.auth import get_user_model
+        from wama import tool_api
+        _candidate('ocr')
+        user = get_user_model().objects.create_user('similar_keys', password='x')
+        for out in (tool_api.install_model(user, 'reader:hf:PaddlePaddle/PaddleOCR-VL-1.6'),
+                    tool_api.get_install_options(user, 'reader:hf:PaddlePaddle/PaddleOCR-VL-1.6')):
+            self.assertEqual(['proposed:hf:PaddlePaddle/PaddleOCR-VL-1.6'], out['similar_keys'])
+
+    def test_nothing_alike_adds_nothing(self):
+        """Contre-épreuve : pas de voisin, pas de champ."""
+        from django.contrib.auth import get_user_model
+        from wama import tool_api
+        user = get_user_model().objects.create_user('no_similar_keys', password='x')
+        out = tool_api.install_model(user, 'reader:hf:nobody/nothing')
+        self.assertEqual('not_found', out['reason'])
+        self.assertNotIn('similar_keys', out)

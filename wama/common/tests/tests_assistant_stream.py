@@ -398,3 +398,53 @@ class HomeUsesTheCommonBrickTest(TestCase):
         html = self.client.get(reverse('home')).content.decode()
         self.assertIn('data-assistant-greeting', html)
         self.assertIn(str(greeting(self.user)['attente_apres_ms']), html)
+
+
+class CloudRateLimitTest(SimpleTestCase):
+    """Une limite de débit (HTTP 429) d'un fournisseur LLM ATTEND puis recommence (2026-10-10).
+
+    Mesuré au rejeu du fil web n° 37 : Albert accorde 10 requêtes par minute et par clé, un tour
+    d'assistant à huit outils en fait neuf — le 429 finissait le tour par son message brut.
+    """
+
+    class RateLimitError(Exception):
+        status_code = 429
+
+        def __init__(self):
+            super().__init__('10 requests per minute exceeded')
+            self.response = mock.Mock(headers={'retry-after': '3'})
+
+    def _llm(self, outcomes):
+        import sys
+        from wama.common.utils import llm_utils
+        outcomes = iter(outcomes)
+
+        def completion(**kwargs):
+            outcome = next(outcomes)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return mock.Mock(choices=[mock.Mock(message=mock.Mock(content=outcome))])
+        with mock.patch.dict(sys.modules, {'litellm': mock.Mock(completion=completion)}), \
+                mock.patch('time.sleep') as sleep:
+            result = llm_utils.llm_chat([{'role': 'user', 'content': 'x'}], model='m',
+                                        provider='anthropic', api_key='k')
+        return result, sleep
+
+    def test_the_call_waits_what_the_provider_asks_then_answers(self):
+        (text, error), sleep = self._llm([self.RateLimitError(), 'Bonjour'])
+        self.assertEqual(('Bonjour', None), (text, error))
+        sleep.assert_called_once_with(3.0)
+
+    def test_the_wait_is_capped_and_a_lasting_refusal_is_said(self):
+        from wama.common.utils import llm_utils
+        refusals = [self.RateLimitError() for _ in range(llm_utils.RATE_LIMIT_RETRIES + 1)]
+        (text, error), sleep = self._llm(refusals)
+        self.assertIsNone(text)
+        self.assertIn('10 requests per minute', error)
+        self.assertEqual(llm_utils.RATE_LIMIT_RETRIES, sleep.call_count)
+
+    def test_another_error_is_not_retried(self):
+        """Contre-épreuve : seule la limite de débit attend."""
+        (text, error), sleep = self._llm([ValueError('clé refusée')])
+        self.assertEqual((None, 'clé refusée'), (text, error))
+        sleep.assert_not_called()

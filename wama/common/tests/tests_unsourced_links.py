@@ -203,3 +203,77 @@ class ToolLimitTest(TestCase):
         self.assertNotIn('{"tool"', result['response'])
         self.assertIn('get_anonymizer_status', result['response'])   # la trace, dite
         self.assertIn('limite', result['response'])
+
+
+class EmptyAnswerTest(TestCase):
+    """Une réponse finale VIDE ne sort pas de la boucle comme un succès muet (2026-10-10).
+
+    LE DÉFAUT MESURÉ (fil web n° 37) : « Relance la prospection… donne-moi les trois meilleurs » —
+    `prospect_models` a tourné, puis le modèle local (réflexion demandée) a rendu '' ; le tour est
+    parti en succès avec une réponse vide. L'utilisateur ne savait même pas que la prospection
+    avait été lancée.
+    """
+
+    CALL = '{"tool": "get_anonymizer_status", "args": {}}'
+
+    def _turn(self, llm):
+        from unittest import mock
+
+        from django.contrib.auth.models import User
+
+        from wama.common.services import assistant_engine
+        user = User.objects.create(username='empty_answer')
+        with mock.patch.object(assistant_engine, '_llm_call', side_effect=llm) as call:
+            result = assistant_engine.run_assistant_turn(user, 'où en est le floutage ?',
+                                                         provider='ollama', model='m')
+        return result, call.call_args_list
+
+    def test_an_empty_answer_is_asked_again_without_thinking(self):
+        answers = iter([(self.CALL, {}), ('', {}), ('Le floutage est terminé.', {})])
+        result, calls = self._turn(lambda *a, **k: next(answers))
+        self.assertEqual('Le floutage est terminé.', result['response'])
+        self.assertEqual(3, len(calls))
+        self.assertIs(False, calls[2].kwargs['think'])
+
+    def test_empty_twice_says_what_was_executed(self):
+        answers = iter([(self.CALL, {}), ('', {}), ('<think>…</think>', {})])
+        result, _ = self._turn(lambda *a, **k: next(answers))
+        self.assertTrue(result['success'])
+        self.assertIn('aucune réponse', result['response'])
+        self.assertIn('get_anonymizer_status', result['response'])
+
+    def test_a_non_empty_answer_is_not_asked_again(self):
+        """Contre-épreuve : un seul appel quand le modèle répond."""
+        result, calls = self._turn(lambda *a, **k: ('Rien en cours.', {}))
+        self.assertEqual('Rien en cours.', result['response'])
+        self.assertEqual(1, len(calls))
+
+    def test_a_declared_provider_answering_without_text_is_an_empty_answer_not_a_failure(self):
+        """gpt-oss sur Albert (fil web n° 37) : l'appel d'outil NATIF part dans le raisonnement,
+        `content` vide — `llm_chat` le dit par son motif nommé, et c'était un 502 qui finissait
+        le tour. C'est désormais une réponse vide : un nouvel essai, avec le rappel du format."""
+        from unittest import mock
+
+        from django.contrib.auth.models import User
+
+        from wama.common.services import assistant_engine
+        from wama.common.utils import llm_utils
+        answers = iter([(None, llm_utils.EMPTY_RESPONSE_ERROR), ('Rien en cours.', None)])
+        user = User.objects.create(username='empty_cloud')
+        with mock.patch.object(llm_utils, 'chat_with_source',
+                               side_effect=lambda *a, **k: next(answers)) as call:
+            result = assistant_engine.run_assistant_turn(user, 'statut ?', provider='albert',
+                                                         model='gpt-oss-120b')
+        self.assertEqual('Rien en cours.', result['response'])
+        retried = call.call_args_list[1].args[2]
+        self.assertEqual(assistant_engine._EMPTY_ANSWER_RETRY_PROMPT, retried[-1]['content'])
+
+    def test_an_empty_past_answer_is_noted_in_the_history(self):
+        """Resservi vide, le tour laissait croire que la demande attendait encore sa réponse."""
+        from wama.common.services import assistant_engine
+        history = [{'role': 'user', 'content': 'relance la prospection'},
+                   {'role': 'assistant', 'content': '',
+                    'tool_steps': [{'tool': 'prospect_models', 'args': {}, 'result': {'total': 38}}]}]
+        clean = assistant_engine._sanitize_history(history)
+        self.assertEqual(assistant_engine._HISTORY_EMPTY_PLACEHOLDER, clean[-1]['content'])
+        self.assertIn('prospect_models', clean[1]['content'])     # l'outil joué reste visible

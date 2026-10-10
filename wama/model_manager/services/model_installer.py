@@ -1108,6 +1108,21 @@ def _persist_variant_choice(cand, variant_ref: str, variant_file: str):
     return cand.disk_gb or None
 
 
+def similar_model_keys(key: str, limit: int = 3) -> list[str]:
+    """Les clés du catalogue (propositions comprises) qui désignent le MÊME dépôt ou le même nom
+    qu'une clé introuvable : la partie après le dernier `:` (`org/dépôt`, ou un nom), comparée au
+    `hf_id`, à la fin de la clé et au nom. Vide quand rien ne correspond."""
+    from ..models import AIModel
+    tail = (key or '').rsplit(':', 1)[-1].strip()
+    if not tail:
+        return []
+    from django.db.models import Q
+    match = Q(hf_id__iexact=tail) | Q(model_key__iendswith=f':{tail}') | Q(name__iexact=tail)
+    return list(AIModel.objects.filter(match).exclude(model_key=key)
+                .order_by('-is_proposed', 'model_key')
+                .values_list('model_key', flat=True)[:limit])
+
+
 def request_install(model_key: str, *, force: bool = False, variant_ref: str = '',
                     variant_file: str = '', user=None, via: str = '') -> dict:
     """
@@ -1140,8 +1155,14 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
     cand = AIModel.objects.filter(model_key=key, is_proposed=True).first()
     row = None if cand else AIModel.objects.filter(model_key=key, is_proposed=False).first()
     if cand is None and row is None:
+        # Les clés VOISINES voyagent avec le refus : un modèle de l'assistant qui recompose la clé
+        # (`reader:hf:org/dépôt` au lieu de `proposed:hf:org/dépôt`, rejeu du 2026-10-10) n'avait
+        # aucun moyen de retrouver la bonne — le refus seul le laissait inventer la suivante.
+        near = similar_model_keys(key)
         return {'ok': False, 'reason': 'not_found',
-                'error': f"Ni candidat de prospection ni modèle de catalogue : « {key} »."}
+                'error': f"Ni candidat de prospection ni modèle de catalogue : « {key} »."
+                         + (f" Clés existantes proches : {', '.join(near)}." if near else ''),
+                **({'similar_keys': near} if near else {})}
 
     replaces, reclaim_gb = None, 0.0
     if cand is not None:

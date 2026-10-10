@@ -512,6 +512,44 @@ n'y en avait **aucune** — le défaut ne se voit qu'à l'oreille, le serveur r�
    de `qwen-tts` n'est qu'un avertissement de `pip check`) ; Kyutai TTS 1.6B (EN/FR, entrée
    texte en flux) et Voxtral TTS (CC BY-NC) sont hors catalogue.
 
+**L'ÉCOUTE — conversation vocale avec l'assistant (2026-10-10, demande de Fabien).** Le HTTPS
+venait de rendre le micro utilisable (`INFRA_WSL_VS_WINDOWS §HTTPS`) ; Fabien voulait « une
+conversation naturelle avec l'assistant, en brique commune utilisable partout ». Constat de
+départ : le micro de l'accueil était une DICTÉE par `webkitSpeechRecognition` — l'audio partait
+chez Google, il fallait envoyer soi-même, et elle n'existait que sur l'accueil.
+- **Brique** `common/static/common/js/wama-assistant-listen.js` (pendant de la voix : celle-là
+  parle, celle-ci entend), montée par `base.html` sur les boutons que chaque chat DÉCLARE —
+  `data-assistant-mic` (dictée : une phrase écrite dans la zone de saisie) et
+  `data-assistant-talk` (conversation : chaque phrase part seule, la réponse est dite, l'écoute
+  continue ; reprise d'une page à l'autre pendant la session). Accueil ET volet droit.
+- **Découpage de la parole dans le navigateur, par l'énergie** : bruit de fond suivi en continu,
+  début à +10 dB pendant 120 ms, fin après 900 ms de silence (1,3 s en dictée), 400 ms d'avance
+  gardées. Envoi en WAV 16 kHz mono.
+- **Transcription LOCALE** : `views.speech_to_text` (`/api/stt/`) → `service_client.stt_via_service`
+  → `/stt` du service vocal (`tts_service.py`, Whisper `ASSISTANT_STT_MODEL` = `large-v3`, filtre
+  de parole actif). Pas une tâche Celery (elle attendrait derrière le traitement GPU en cours),
+  pas un chargement dans gunicorn (un Whisper par worker). **Mesuré** sur la pile réelle : phrase
+  dite par la voix de l'assistant, rendue mot pour mot ; **1,2 s** à chaud pour 5 s de parole,
+  **37 à 50 s** au premier appel (chargement, poids sur `/mnt/d`) — d'où un PRÉCHAUFFAGE dès
+  que l'écoute s'ouvre, et `read_timeout` 90 s (sous les 120 s de gunicorn et d'Apache).
+- **Reprendre la parole** : pendant que l'assistant réfléchit ou parle, une voix plus forte
+  (+18 dB) et plus longue (350 ms) coupe sa voix ET interrompt son tour (`chat.abort()`, nouveau
+  dans la brique de chat avec `isBusy()` ; `send()` rend désormais la promesse du tour).
+  ⚠ **Seulement si le navigateur confirme l'annulation d'écho** (`getSettings().echoCancellation`) :
+  sans elle l'assistant s'entendrait et s'interromprait — l'écoute est alors SOURDE pendant qu'il
+  répond (chacun son tour), et le bouton le dit. Le serveur, lui, finit le tour interrompu et
+  l'enregistre au fil.
+- **VRAM, mesurée** : large-v3 occupe **4,1 Go** réels, mais le gouverneur en RÉSERVE **10**
+  (`WhisperBackend.recommended_vram_gb`, valeur de repli — CTranslate2 alloue hors de PyTorch).
+  Le service le DÉCHARGE donc après 10 min sans phrase (`WAMA_STT_IDLE_UNLOAD_S`). ⏳ Ramener la
+  déclaration à la mesure est une décision à part : elle vaut aussi pour le transcriber.
+- ⏳ **Restes** : le modèle d'écoute n'est pas TIRÉ (même constat que la voix, point 3 ci-dessus ;
+  `large-v3-turbo` ou Kyutai STT 1B — conçu pour le temps réel, déjà au catalogue — seraient
+  plus vifs) ; le mode « Speak » du transcriber utilise encore la reconnaissance du navigateur ;
+  validation à l'oreille et au micro par Fabien (aucun test ne remplace un vrai micro).
+- Gardes : `common/tests/tests_assistant_listen.py` (23 — vue, client, brique exécutée dans V8 ;
+  contre-épreuve faite : sans `chat.abort()`, la reprise de parole passe au rouge).
+
 **Remesuré le 2026-10-04 — « encore lent, même par Albert » (Fabien). RIEN de câblé, cinq
 constats.** Mesures faites dans un processus neuf (script de mesure du scratchpad de session :
 tour instrumenté, appels directs en flux, service de voix), jamais dans gunicorn.
@@ -1516,6 +1554,59 @@ dans sa tâche (l'autre instance câblée du même mécanisme ; son `list_item_f
 RACCOURCIRAIT serait silencieusement rejeté. Jamais mesuré. Et la pipeline traduit selon la
 langue du PROFIL sans regarder le texte : un prompt déjà anglais paie un appel de traduction
 inutile.
+
+### ⭐ 2026-10-10 — trois défauts sous un tour d'installation (fil web n° 37, rejoué)
+
+Le fil a été éprouvé par l'assistant : prospecter, puis installer trois OCR. Trois symptômes ont
+été relevés, et chaque tour a été rejoué avec et sans son historique (skill
+`/diagnostic-assistant`). Les outils d'écriture étaient bouchonnés ; aucune installation réelle.
+
+1. **Réponse vide rendue comme un succès.** `prospect_models` avait tourné, puis le modèle local
+   a rendu `''`, et le tour est parti en succès : l'utilisateur ne voyait rien.
+   - Non reproduit au rejeu, avec la réflexion activée (`done_reason=stop`, 907 jetons).
+   - **Contrôle** : une réponse finale vide est rejouée UNE fois. En local, c'est sans réflexion,
+     qui peut avoir pris tout le budget. Le rappel du format d'appel est joint à cet essai seul
+     (`_EMPTY_ANSWER_RETRY_PROMPT`). Vide encore, la réponse DIT les actions exécutées
+     (`_EMPTY_ANSWER_NOTICE`), comme la limite d'outils.
+   - Un tour passé resté vide est noté dans l'historique (`_HISTORY_EMPTY_PLACEHOLDER`) : resservi
+     vide, il faisait croire au modèle que la demande précédente attendait encore sa réponse.
+2. **gpt-oss sur Albert range son appel d'outil NATIF dans le raisonnement.**
+   - Mesuré : `content` vide, `finish=stop`, `reasoning_content` terminé par les seuls arguments
+     (`{"query": …, "k": 5}`), **sans le nom de l'outil**. `llm_chat` rendait « LLM returned empty
+     response » et le tour finissait en 502. Le « Waiting for the result of the model search… »
+     d'origine est la même famille.
+   - Le motif est désormais nommé (`llm_utils.EMPTY_RESPONSE_ERROR`), et `_llm_call` en fait une
+     réponse vide : le contrôle ① s'applique.
+   - Taux du jour, sans historique : le 1ᵉʳ appel part vide environ 2 fois sur 3, et le nouvel
+     essai rattrape environ une fois sur deux.
+   - ⏳ **Prochaine marche, à décider** : déclarer les outils NATIVEMENT aux fournisseurs qui les
+     portent (`tools=` OpenAI, schémas déjà produits par `tool_input_schema` /
+     `tool_descriptions` pour le serveur MCP), et convertir `message.tool_calls` en
+     `{"tool": …, "args": …}` pour que la boucle reste inchangée. C'est du câblage, mais il change
+     le protocole de l'assistant pour ce fournisseur, sur toutes les surfaces. À déclarer par
+     source (`external_sources`).
+3. **Limite de débit d'Albert : 10 requêtes par minute et par clé.** Un tour à huit outils en
+   fait neuf, et le 429 finissait le tour par son message brut.
+   - **`llm_utils._completion`** : attente sur 429, reconnue par le statut ou le type LiteLLM.
+     C'est une seule attente d'une fenêtre entière (60 s, ou `Retry-After`) : trois essais à 20 s
+     d'écart ont tous été refusés.
+   - C'est la brique commune : assistant et apps.
+   - Les copies locales (ASR d'Albert, Hub dans le prospecteur) restent à rallier.
+
+**Et la donnée porte la correction des clés** : le modèle recomposait `reader:hf:org/dépôt` au
+lieu de la clé `proposed:hf:org/dépôt` écrite par l'utilisateur. Le refus `not_found` de
+`request_install` (bouton, outil, ligne de commande) et celui de `get_install_options` nomment
+désormais les clés voisines (`model_installer.similar_model_keys` : même dépôt, même fin de clé,
+même nom).
+
+⚠ Le délai de qwen3.8 (~187 s au rechargement à 65 536 jetons de contexte) n'est pas reproduit :
+chargement mesuré à 15 s au rejeu.
+
+Tests :
+- `tests_unsourced_links.EmptyAnswerTest` (5) ;
+- `tests_assistant_stream.CloudRateLimitTest` (3) ;
+- `tests_ollama_hub_gguf.SimilarKeysOnRefusalTest` (2).
+Les contre-épreuves ont été jouées.
 
 ## Intake universel de fichiers par l'assistant — inventaire MESURÉ 2026-08-29, plan PROPOSÉ (⏳ validation Fabien)
 

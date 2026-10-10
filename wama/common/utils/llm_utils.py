@@ -10,6 +10,12 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+#: Le fournisseur a répondu, mais sans texte. Un motif NOMMÉ, parce qu'un appelant le distingue
+#: d'une panne : l'assistant le traite comme une réponse vide (un nouvel essai), pas comme une
+#: erreur — gpt-oss sur Albert range parfois son appel d'outil NATIF dans le raisonnement et
+#: rend un `content` vide (mesuré le 2026-10-10).
+EMPTY_RESPONSE_ERROR = "LLM returned empty response"
+
 
 def get_describer_model(content_type: str, output_style: str) -> str:
     """
@@ -301,6 +307,39 @@ def default_cloud_model(provider: str) -> str:
     return configured or declared or CLOUD_DEFAULT_MODELS.get(provider, 'gpt-4o')
 
 
+#: Limite de débit (HTTP 429) d'un fournisseur LLM : attendre et recommencer, plafonné. Albert
+#: accorde 10 requêtes par minute et par clé ; un tour d'assistant à huit outils en fait neuf, et
+#: le 429 finissait le tour par son message brut (mesuré le 2026-10-10, rejeu du fil web n° 37).
+#: UNE attente d'une fenêtre ENTIÈRE, sans `Retry-After` : trois essais à 20 s d'écart ont tous été
+#: refusés (une requête refusée compte, semble-t-il, dans la fenêtre).
+RATE_LIMIT_RETRIES = 1
+RATE_LIMIT_WAIT_S = 60.0
+RATE_LIMIT_MAX_WAIT_S = 60.0
+
+
+def _completion(litellm, **kwargs):
+    """`litellm.completion`, avec l'attente sur 429 (`Retry-After` s'il est donné, plafonné).
+    Reconnu par le statut ou le type LiteLLM, jamais par le texte du message."""
+    import time
+    for attempt in range(RATE_LIMIT_RETRIES + 1):
+        try:
+            return litellm.completion(**kwargs)
+        except Exception as e:
+            limited = (getattr(e, 'status_code', None) == 429
+                       or type(e).__name__ == 'RateLimitError')
+            if not limited or attempt >= RATE_LIMIT_RETRIES:
+                raise
+            headers = getattr(getattr(e, 'response', None), 'headers', None) or {}
+            try:
+                wait = float(headers.get('retry-after'))
+            except (TypeError, ValueError):
+                wait = RATE_LIMIT_WAIT_S
+            wait = min(max(wait, 1.0), RATE_LIMIT_MAX_WAIT_S)
+            logger.warning(f"[llm_utils] limite de débit ({kwargs.get('model')}) — "
+                           f"nouvel essai dans {wait:.0f} s")
+            time.sleep(wait)
+
+
 def llm_chat(
     messages: list,
     model: str = None,
@@ -432,7 +471,7 @@ def llm_chat(
             # FLUX (2026-10-04) : le fournisseur rend son premier texte en ~0,5 s et sa fin en
             # 1 à 2 s (mesuré sur Albert) — sans flux, l'écran et la voix attendaient la fin.
             pieces = []
-            for chunk in litellm.completion(stream=True, **kwargs):
+            for chunk in _completion(litellm, stream=True, **kwargs):
                 choices = getattr(chunk, 'choices', None) or []
                 fragment = getattr(getattr(choices[0], 'delta', None), 'content', None) \
                     if choices else None
@@ -441,12 +480,12 @@ def llm_chat(
                     on_delta(fragment)
             text = ''.join(pieces)
             if not text.strip():
-                return None, "LLM returned empty response"
+                return None, EMPTY_RESPONSE_ERROR
             return text.strip(), None
-        response = litellm.completion(**kwargs)
+        response = _completion(litellm, **kwargs)
         text = response.choices[0].message.content or ''
         if not text.strip():
-            return None, "LLM returned empty response"
+            return None, EMPTY_RESPONSE_ERROR
         return text.strip(), None
     except Exception as e:
         logger.error(f"[llm_utils] LiteLLM error ({provider}/{model}): {e}")

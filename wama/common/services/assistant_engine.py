@@ -767,6 +767,11 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
         text, err = llm_chat(messages, model=llm_model, provider=llm_provider,
                              num_predict=4096, timeout=180.0)
     if text is None:
+        from wama.common.utils.llm_utils import EMPTY_RESPONSE_ERROR
+        if err == EMPTY_RESPONSE_ERROR:
+            # Répondu SANS texte n'est pas une panne : la boucle le traite comme une réponse vide
+            # (un nouvel essai). Jusqu'au 2026-10-10, un 502 terminait le tour.
+            return '', {'input_tokens': 0, 'output_tokens': 0}
         return None, {'error': err or 'LLM error', 'status': 502}
     return text, {'input_tokens': 0, 'output_tokens': 0}
 
@@ -1022,6 +1027,16 @@ _TOOL_LIMIT_PROMPT = (
 _TOOL_LIMIT_NOTICE = (
     "⚠ J'ai atteint la limite d'actions pour ce tour sans pouvoir conclure. Actions exécutées : "
     "{done}. Demandez-moi « quel est le statut ? » pour la suite.")
+#: Ce qui remplace, dans l'historique, une réponse passée restée vide.
+_HISTORY_EMPTY_PLACEHOLDER = "(Ce tour s'est terminé sans réponse rédigée.)"
+#: Joint au nouvel essai d'une réponse VIDE : répondre, ou appeler l'outil par le format lu ici.
+_EMPTY_ANSWER_RETRY_PROMPT = (
+    "Ta réponse précédente était vide. Réponds maintenant à l'utilisateur, ou, pour appeler un "
+    "outil, écris son appel JSON dans ta réponse : {\"tool\": \"<nom>\", \"args\": {…}}.")
+#: Réponse finale VIDE, deux fois de suite : la trace de ce qui a été exécuté, jamais un vide.
+_EMPTY_ANSWER_NOTICE = (
+    "⚠ Le modèle n'a rédigé aucune réponse pour ce tour.{done} Reposez la question, ou "
+    "demandez-moi « quel est le statut ? ».")
 #: Longueur d'un résultat d'outil d'un tour PASSÉ dans l'historique resservi : assez pour que le
 #: modèle voie que la réponse venait d'un outil, pas assez pour noyer la fenêtre.
 _HISTORY_RESULT_CHARS = 600
@@ -1079,6 +1094,10 @@ def _sanitize_history(history, limit: int = 20) -> list:
                                                   limit=_HISTORY_RESULT_CHARS))
             if not steps and _UNSOURCED_MARK in content:
                 content = _HISTORY_INVENTED_PLACEHOLDER
+            if not content.strip():
+                # Un tour resté VIDE (avant le contrôle du 2026-10-10) : resservi tel quel, il
+                # laissait croire au modèle que la demande précédente attendait encore sa réponse.
+                content = _HISTORY_EMPTY_PLACEHOLDER
         clean.append({'role': turn['role'], 'content': content})
     return clean
 
@@ -1351,6 +1370,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # `_claude_code_call` promettait de le remonter, aucune surface ne pouvait l'afficher.
     # Reste à 0 pour les autres fournisseurs, qui ne rapportent pas de coût.
     total_usage = {'input_tokens': 0, 'output_tokens': 0, 'cost_usd': 0.0}
+    empty_retried = False
 
     for _ in range(MAX_TOOL_ITERATIONS):
         # FLUX (levier 5) : un portier par itération — il ne laisse passer ni la réflexion du
@@ -1390,6 +1410,24 @@ def run_assistant_turn(user, message: str, provider: str = None,
                                       local=local, etiquette=etiquette, total_usage=total_usage,
                                       history=history, domain=domain, surface=surface,
                                       on_event=on_event, escalated_from=escalated_from)
+            if not clean_text.strip():
+                # RÉPONSE VIDE (2026-10-10, fil web n° 37) : la prospection avait tourné, et le tour
+                # rendait '' comme un succès — l'utilisateur ne voyait rien, pas même ce qui avait
+                # été fait. Un seul nouvel essai, sans réflexion en local (elle peut avoir pris tout
+                # le budget de jetons) ; vide encore, la trace des actions est DITE.
+                # Même geste pour un fournisseur distant : gpt-oss (Albert) range parfois son appel
+                # d'outil NATIF dans le raisonnement, sans nom d'outil — le rappel du format, joint
+                # à l'essai seulement, le ramène au JSON que la boucle lit (2026-10-10).
+                if not empty_retried:
+                    empty_retried = True
+                    logger.warning("[ai_chat] réponse vide de %s — nouvel essai", etiquette)
+                    if local:
+                        think = False
+                    messages.append({"role": "user", "content": _EMPTY_ANSWER_RETRY_PROMPT})
+                    continue
+                done = ', '.join(dict.fromkeys(step['tool'] for step in tool_steps))
+                clean_text = _EMPTY_ANSWER_NOTICE.format(
+                    done=f" Actions exécutées : {done}." if done else '')
             return {
                 'success': True,
                 'response': clean_text,
