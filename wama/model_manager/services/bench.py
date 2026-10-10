@@ -376,6 +376,171 @@ def _bench_recall(entry: AIModel, sample: str, *, conf: float = 0.25, record: bo
     }
 
 
+# ── Rappel et precision sur VRAIES boites (2026-10-10) — un jeu annote, lu dans son format natif ─
+# La reference ne recopie pas les boites : elle DESIGNE le fichier d'annotation publie et son
+# format (`dataset_formats.READERS`), en chemins RELATIFS a elle-meme — elle survit au deplacement
+# de l'arborescence des jeux (`WAMA_APPRENTISSAGE §8bis`). Premier jeu : WIDER FACE val.
+# Appariement glouton par confiance decroissante a IoU >= `iou` : un objet trouve = vrai positif ;
+# une detection sans objet = fausse alerte, SAUF si elle tombe sur un objet que le jeu marque
+# lui-meme inexploitable (`ignore`). Le rappel se lit aussi par TAILLE d'objet (hauteur en
+# pixels) : c'est la ou un detecteur de visages lache dans une foule.
+BOXES_PROTOCOL = 'boxes_iou50_v1'
+BOXES_OBJECT = 'DetectionBenchBoxes'
+SIZE_BUCKETS = ((16, 'tiny'), (32, 'small'), (96, 'medium'), (10 ** 9, 'large'))
+
+
+def benchmark_reference(name: str) -> str:
+    """Le fichier de reference du banc `name`, sous la racine des jeux de donnees — resolue par la
+    brique commune des espaces distants (`mirror_sync.resolve_remote_root`, surchargeable par
+    `WAMA_DATASETS_ROOT`) : aucun chemin du partage n'est ecrit dans WAMA."""
+    from wama.common.services.mirror_sync import resolve_remote_root
+    return os.path.join(resolve_remote_root('DATASETS', 'WAMA_DATASETS_ROOT'), 'benchmarks', name,
+                        'reference.json')
+
+
+def read_boxes_reference(sample: str) -> dict:
+    """Une reference « vraies boites » : `class`, `format`, `images` (dossier), `annotations`
+    (fichier), `iou` — chemins relatifs au fichier de reference ou absolus."""
+    import json
+    from wama.common.utils.dataset_formats import READERS
+    with open(sample, encoding='utf-8') as f:
+        ref = json.load(f)
+    base = os.path.dirname(os.path.abspath(sample))
+    for key in ('images', 'annotations'):
+        if ref.get(key) and not os.path.isabs(ref[key]):
+            ref[key] = os.path.normpath(os.path.join(base, ref[key]))
+    if ref.get('format') not in READERS:
+        raise ValueError(f"{sample} : format inconnu {ref.get('format')!r} ({', '.join(READERS)})")
+    if not (ref.get('class') and os.path.isdir(ref.get('images') or '')
+            and os.path.isfile(ref.get('annotations') or '')):
+        raise ValueError(f"{sample} : reference incomplete (class, images, annotations)")
+    ref.setdefault('iou', 0.5)
+    ref['entries'] = READERS[ref['format']](ref['annotations'])
+    return ref
+
+
+def _iou(a, b) -> float:
+    from wama.common.utils.detections import _iou as iou
+    return iou(a, b)
+
+
+def _bucket(box) -> str:
+    h = box[3] - box[1]
+    return next(name for ceiling, name in SIZE_BUCKETS if h < ceiling)
+
+
+def merged(found, iou: float = 0.5) -> list:
+    """Les detections d'UNE image sans leurs DOUBLONS : un meme objet vu a deux echelles (une
+    image passe native ET agrandie) ou par deux modeles d'un ensemble donne deux boites. Pour
+    flouter c'est sans effet — les zones se reunissent —, pour une PRECISION c'est une fausse
+    alerte fictive (mesure le 2026-10-10 : 44 % de precision « perdue » sur WIDER par ce seul
+    doublon). Suppression glouton par confiance, comme la NMS d'un detecteur."""
+    kept = []
+    for box, conf in sorted(found, key=lambda x: -x[1]):
+        if all(_iou(box, k[0]) < iou for k in kept):
+            kept.append((box, conf))
+    return kept
+
+
+def match_boxes(found, truth, ignore, iou: float = 0.5) -> dict:
+    """Comptes d'UNE image : `found` = [(box, conf)], `truth`/`ignore` = [box]. Les doublons de
+    `found` sont fusionnes d'abord (`merged`)."""
+    found = merged(found, iou)
+    taken, tp, fp = set(), 0, 0
+    hit_buckets = {}
+    for box, _conf in sorted(found, key=lambda x: -x[1]):
+        best, best_iou = None, iou
+        for k, gt in enumerate(truth):
+            if k in taken:
+                continue
+            value = _iou(box, gt)
+            if value >= best_iou:
+                best, best_iou = k, value
+        if best is not None:
+            taken.add(best)
+            tp += 1
+            name = _bucket(truth[best])
+            hit_buckets[name] = hit_buckets.get(name, 0) + 1
+        elif not any(_iou(box, g) >= iou for g in ignore):
+            fp += 1
+    totals = {}
+    for gt in truth:
+        name = _bucket(gt)
+        totals[name] = totals.get(name, 0) + 1
+    return {'truth': len(truth), 'tp': tp, 'fp': fp, 'hit_buckets': hit_buckets,
+            'truth_buckets': totals}
+
+
+def _bench_boxes(entry: AIModel, sample: str, *, conf: float = 0.25, record: bool = False,
+                 limit: int = 0, **_) -> dict:
+    """Rappel et precision d'UN modele sur un jeu annote (par le chemin de l'anonymizer)."""
+    import hashlib
+
+    from wama.common.services.detection_ensemble import DetectorSet
+    from wama.common.services.model_coverage import miss_metric
+
+    ref = read_boxes_reference(sample)
+    entries = ref['entries']
+    if limit and limit < len(entries):
+        step = len(entries) / limit          # echantillon REGULIER, reproductible
+        entries = [entries[int(k * step)] for k in range(limit)]
+    detectors = DetectorSet([{'model_key': entry.model_key, 'path': entry.local_path,
+                              'name': entry.name, 'classes': [ref['class']]}])
+    totals = {'truth': 0, 'tp': 0, 'fp': 0}
+    buckets = {}
+    start = time.perf_counter()
+    for item in entries:
+        doc = detectors.detect(media_path=os.path.join(ref['images'], item['path']),
+                               classes2blur=[ref['class']], detection_threshold=conf)
+        found = [(d['box'], d.get('conf', 1.0)) for f in doc.get('frames') or [] for d in f['d']]
+        counts = match_boxes(found, item['boxes'], item['ignore'], ref['iou'])
+        for k in totals:
+            totals[k] += counts[k]
+        for name, n in counts['truth_buckets'].items():
+            b = buckets.setdefault(name, [0, 0])
+            b[1] += n
+            b[0] += counts['hit_buckets'].get(name, 0)
+    elapsed = time.perf_counter() - start
+    missed = totals['truth'] - totals['tp']
+    miss = round(missed / totals['truth'], 4) if totals['truth'] else None
+    detections = totals['tp'] + totals['fp']
+    precision = round(totals['tp'] / detections, 4) if detections else None
+    by_size = {name: {'found': f, 'truth': t, 'recall': round(f / t, 3) if t else None}
+               for name, (f, t) in buckets.items()}
+    if record and miss is not None:
+        from wama.common.models import ResultEvaluation
+        with open(ref['annotations'], 'rb') as f:
+            digest = hashlib.sha256(f.read()).hexdigest()
+        ResultEvaluation.objects.update_or_create(
+            app=RECALL_APP, object_type=BOXES_OBJECT, object_id=entry.pk,
+            metric=miss_metric(ref['class']),
+            defaults={'model_key': entry.model_key, 'value': miss, 'direction': 'lower',
+                      'protocol': BOXES_PROTOCOL, 'reference_sha256': digest,
+                      'reference_name': ref.get('name') or os.path.basename(sample),
+                      'detail': {'errors': missed, 'reference_length': totals['truth'],
+                                 'unit': 'object', 'images': len(entries),
+                                 'false_positives': totals['fp'], 'precision': precision,
+                                 'by_size': by_size, 'threshold': conf,
+                                 'ms_per_image': round(1000 * elapsed / max(len(entries), 1), 1)}})
+    return {
+        'outputs': detections, 'mean_confidence': None, 'load_s': None,
+        'inference_s': round(elapsed, 2), 'saturated': False,
+        'recall': round(1 - miss, 3) if miss is not None else None,
+        'precision': precision, 'by_size': by_size,
+        'ms_per_frame': round(1000 * elapsed / max(len(entries), 1), 1),
+    }
+
+
+def boxes_candidates(sample: str) -> list:
+    """Detecteurs installes qui couvrent la classe d'une reference « vraies boites »."""
+    import json
+    from wama.common.services.model_coverage import classes_couvertes
+    with open(sample, encoding='utf-8') as f:
+        cls = json.load(f)['class']
+    return [m for t in (ModelTask.DETECT.value, ModelTask.SEGMENT.value)
+            for m in models_for_task(t) if classes_couvertes(m, [cls])]
+
+
 def recall_candidates(sample: str) -> list:
     """Les modeles a mesurer pour une reference : detecteurs installes qui couvrent sa classe."""
     from wama.common.services.model_coverage import classes_couvertes
@@ -398,10 +563,12 @@ PROTOCOLS: dict[str, Callable] = {
     # Pas une tache de modele : un protocole de QUALITE sur les detecteurs (`detect`/`segment`)
     # qui couvrent la classe de la reference — cf. `_bench_recall`.
     'detect-recall': _bench_recall,
+    # Rappel + precision sur un jeu ANNOTE (WIDER FACE val…) — cf. `_bench_boxes`.
+    'detect-boxes': _bench_boxes,
 }
 
 #: Protocoles dont les candidats ne se lisent pas par `models_for_task(tache)`.
-CANDIDATES = {'detect-recall': recall_candidates}
+CANDIDATES = {'detect-recall': recall_candidates, 'detect-boxes': boxes_candidates}
 
 
 def available_tasks() -> list:

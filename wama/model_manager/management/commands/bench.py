@@ -10,6 +10,7 @@ aurait fait deux.
     python manage.py bench --task captioning --media une_image.jpg --models gemma4:12b,gemma4:e4b
     python manage.py bench --task text-generation --media prompt.txt --models qwen3.5:4b --runs 3
     python manage.py bench --task detect-recall --media reference.json --record
+    python manage.py bench --task detect-boxes --benchmark faces_wider_val_v1 --record
 
 `detect-recall` (2026-10-10) : le RAPPEL des detecteurs d'une classe contre une reference de
 contenants (JSON : media, classe, boites des vehicules par image — `bench.read_recall_reference`).
@@ -34,7 +35,10 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--task', required=True,
                             help=f"Tache a mesurer. Disponibles : {', '.join(available_tasks())}")
-        parser.add_argument('--media', required=True, help="Chemin de l'echantillon.")
+        parser.add_argument('--media', default='', help="Chemin de l'echantillon.")
+        parser.add_argument('--benchmark', default='',
+                            help="Nom d'un banc fige sous la racine des jeux de donnees "
+                                 "(`<DATASETS>/benchmarks/<nom>/reference.json`), a la place de --media.")
         parser.add_argument('--models', default='',
                             help="Restreint a ces modeles (noms ou cles, separes par des virgules).")
         parser.add_argument('--conf', type=float, default=0.25,
@@ -43,10 +47,15 @@ class Command(BaseCommand):
                             help="Generation de texte : passes mesurees par modele (defaut 3, "
                                  "apres une passe de chauffe non comptee).")
         parser.add_argument('--record', action='store_true',
-                            help="detect-recall : range chaque mesure (ResultEvaluation).")
+                            help="detect-recall / detect-boxes : range chaque mesure (ResultEvaluation).")
+        parser.add_argument('--limit', type=int, default=0,
+                            help="detect-boxes : echantillon regulier de N images (0 = tout le jeu).")
 
     def handle(self, *args, **options):
         task, media = options['task'], options['media']
+        if options['benchmark']:
+            from wama.model_manager.services.bench import benchmark_reference
+            media = benchmark_reference(options['benchmark'])
         if not os.path.isfile(media):
             raise CommandError(f"Echantillon introuvable : {media}")
 
@@ -65,6 +74,8 @@ class Command(BaseCommand):
             protocol_options['conf'] = options['conf']
         if task in CANDIDATES:
             protocol_options['record'] = options['record']
+        if task == 'detect-boxes':
+            protocol_options['limit'] = options['limit']
 
         try:
             measures = run_bench(task, media,
@@ -102,7 +113,11 @@ class Command(BaseCommand):
                 line += (f" {str(m.get('tokens_per_s') or '—'):>9s} "
                           f"{str(m.get('prefill_ms')) + ' ms':>9s} "
                           f"{(str(load) + ' s') if load else 'résid.':>7s}")
-            if recall:
+            if recall and 'precision' in m:
+                sizes = ' '.join(f"{k}:{v['recall']}" for k, v in sorted((m.get('by_size') or {}).items()))
+                line += (f"  rappel {m.get('recall')}  precision {m.get('precision')}"
+                         f"  [{sizes}]  {m.get('ms_per_frame')} ms/img")
+            elif recall:
                 line += (f"  rappel {m.get('recall')}  dans-contenant {m.get('inside_rate')}"
                          f"  {m.get('ms_per_frame')} ms/img")
             self.stdout.write(self.style.WARNING(line + "  ⚠ saturé") if m['saturated'] else line)

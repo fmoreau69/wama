@@ -47,43 +47,59 @@ def _scaled(progress, rank: int, count: int):
     return lambda done, total: progress(rank * max(total, 1) + done, count * max(total, 1))
 
 
-def detect_with_models(models, *, user=None, source_dir=None, destination_dir=None,
-                       **kwargs) -> dict:
-    """Le document `detections` de l'ENSEMBLE `models` sur le média de `kwargs['media_path']`.
+class DetectorSet:
+    """Les détecteurs d'un ensemble, CHARGÉS UNE FOIS puis appliqués média par média
+    (2026-10-10) : un banc de 3 226 images ne recharge pas ses modèles 3 226 fois.
 
     `models` : descripteurs `{'model_key', 'path', 'name', 'classes', 'engine'?}` (forme de la
     couverture de classes) ; `engine` absent se lit au catalogue, et un modèle sans moteur
-    déclaré est réputé ultralytics (les poids YOLO historiques). `kwargs` : ceux du process de
-    détection (`classes2blur`, `detection_threshold`, `on_frame`, `progress`…), transmis à chaque
-    détecteur — avec, pour un détecteur hors ultralytics, SES classes à la place de la demande.
-    """
-    from wama.common.backends.anonymize import Anonymize
-    from wama.common.backends.manager import backend_instance_for_key
-    from wama.common.utils import detections as dets
+    déclaré est réputé ultralytics (les poids YOLO historiques)."""
 
-    models = [dict(m) for m in models or []]
-    for m in models:
-        m.setdefault('engine', engine_of(m.get('model_key')) or ULTRALYTICS)
-    yolo = [m for m in models if m['engine'] == ULTRALYTICS]
-    others = [m for m in models if m['engine'] != ULTRALYTICS]
-    passes = (1 if yolo else 0) + len(others)
-    progress = kwargs.pop('progress', None)
+    def __init__(self, models, *, user=None, source_dir=None, destination_dir=None):
+        from wama.common.backends.anonymize import Anonymize
+        from wama.common.backends.manager import backend_instance_for_key
+        models = [dict(m) for m in models or []]
+        for m in models:
+            m.setdefault('engine', engine_of(m.get('model_key')) or ULTRALYTICS)
+        yolo = [m for m in models if m['engine'] == ULTRALYTICS]
+        self.engine = None
+        if yolo:
+            self.engine = Anonymize(source_dir=source_dir, destination_dir=destination_dir)
+            with_path = [m for m in yolo if m.get('path')]
+            # Aucun chemin désigné : le modèle par défaut d'`Anonymize`, comme avant l'ensemble.
+            self.engine.load_model(**({'models': with_path} if with_path else {}))
+        self.others = [(m, backend_instance_for_key(m['model_key'], user))
+                       for m in models if m['engine'] != ULTRALYTICS]
 
-    docs, rank = [], 0
-    if yolo:
-        engine = Anonymize(source_dir=source_dir, destination_dir=destination_dir)
-        with_path = [m for m in yolo if m.get('path')]
-        # Aucun chemin désigné : le modèle par défaut d'`Anonymize`, comme avant l'ensemble.
-        engine.load_model(**({'models': with_path} if with_path else {}))
-        docs.append(engine.detect(**kwargs, progress=_scaled(progress, rank, passes)))
-        rank += 1
-    for m in others:
-        detector = backend_instance_for_key(m['model_key'], user)
-        wanted = m.get('classes') or kwargs.get('classes2blur')
-        logger.info("[ensemble] %s (%s) : %s", m['model_key'], m['engine'], wanted)
-        docs.append(detector.detect(**{**kwargs, 'classes2blur': wanted},
-                                    progress=_scaled(progress, rank, passes)))
-        rank += 1
-    doc = dets.merge(docs)
-    logger.info("[ensemble] %d détecteur(s), %d détection(s)", passes, dets.count(doc))
-    return doc
+    @property
+    def passes(self) -> int:
+        return (1 if self.engine else 0) + len(self.others)
+
+    def detect(self, **kwargs) -> dict:
+        """Le document `detections` de l'ensemble sur `kwargs['media_path']`. `kwargs` : ceux du
+        process de détection (`classes2blur`, `detection_threshold`, `on_frame`, `progress`…),
+        transmis à chaque détecteur — avec, pour un détecteur hors ultralytics, SES classes à
+        la place de la demande."""
+        from wama.common.utils import detections as dets
+        progress = kwargs.pop('progress', None)
+        docs, rank = [], 0
+        if self.engine:
+            docs.append(self.engine.detect(**kwargs, progress=_scaled(progress, rank, self.passes)))
+            rank += 1
+        for m, detector in self.others:
+            wanted = m.get('classes') or kwargs.get('classes2blur')
+            logger.debug("[ensemble] %s (%s) : %s", m['model_key'], m['engine'], wanted)
+            docs.append(detector.detect(**{**kwargs, 'classes2blur': wanted},
+                                        progress=_scaled(progress, rank, self.passes)))
+            rank += 1
+        doc = dets.merge(docs)
+        logger.debug("[ensemble] %d détecteur(s), %d détection(s)", self.passes, dets.count(doc))
+        return doc
+
+
+def detect_with_models(models, *, user=None, source_dir=None, destination_dir=None,
+                       **kwargs) -> dict:
+    """Le document `detections` de l'ENSEMBLE `models` sur UN média — `DetectorSet` à usage
+    unique (le process « Détection » d'une card)."""
+    return DetectorSet(models, user=user, source_dir=source_dir,
+                       destination_dir=destination_dir).detect(**kwargs)
