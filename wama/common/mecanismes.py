@@ -367,13 +367,19 @@ MECHANISMS = (
                          "(`manage.py bench`), déclarée en annexe — un banc se LANCE, il ne "
                          "s'importe pas. 0 consommateur est donc le compte JUSTE"),
     Mechanism('provenance', 'Provenance de modèle',
-              "Identité chez l'éditeur (licence, auteur, plateforme), posée VIA le manifeste",
+              "Identité chez l'éditeur (licence, auteur, plateforme, publications arXiv de la "
+              "carte), posée VIA le manifeste ; les publications s'affichent dans l'onglet "
+              "« À propos » de chaque app (modèles de ses selects de catalogue, 2026-10-10)",
               'wama/model_manager/services/provenance.py', '',
-              annexes=('wama/model_manager/services/weights_metadata.py',)),
+              annexes=('wama/model_manager/services/weights_metadata.py',
+                       'wama/common/services/model_publications.py')),
     Mechanism('prospection', 'Prospection de modèles',
               "Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; "
               "versions GitHub lues sur `github_api` (fichiers, licence et facteur DÉCLARÉS, "
-              "empreinte lue ou MESURÉE) pour le scout (`--github owner/repo:tag`, 2026-10-07)",
+              "empreinte lue ou MESURÉE) pour le scout (`--github owner/repo:tag`, 2026-10-07) ; "
+              "les CLASSEMENTS des bancs (tâche et rang, `seed_benchmark_candidates`) et les "
+              "SUCCESSEURS déclarés par l'auteur (`new_version`, `seed_hf_successors`) sont des "
+              "sources de candidats (2026-10-10)",
               'wama/model_manager/services/prospector.py',
               'wama/model_manager/PROSPECTION_PIPELINE.md',
               annexes=('wama/model_manager/services/prospect_agents.py',

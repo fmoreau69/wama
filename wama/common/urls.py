@@ -143,6 +143,10 @@ urlpatterns = [
     # aucune URL par laquelle demander un fichier non déclaré.
     path('docs/', views.docs_catalog_view, name='docs_catalog'),
     path('docs/<slug:key>/', views.doc_read_view, name='doc_read'),
+    # Onglet « À propos » d'une app : ses modèles et leurs publications (2026-10-10), chargés à
+    # l'ouverture de l'onglet. ⚠ Le gabarit commun cite cette adresse en LITTÉRAL, jamais par
+    # `{% url %}` : il est relu à chaud par la prod, la route ne l'est qu'au rechargement.
+    path('about/models/<slug:app_id>/', views.app_about_models, name='app_about_models'),
 
     # Sources externes : la PAGE du registre `sources_externes` (8ᵉ registre, 2026-09-01).
     # La déclaration dérive du code ; la sonde (clé, joignabilité) est le rapport écrit par

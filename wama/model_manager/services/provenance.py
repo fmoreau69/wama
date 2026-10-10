@@ -26,6 +26,7 @@ reste vide. Voir la doctrine de `backfill_platform_refs`.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -85,8 +86,32 @@ def huggingface_identity(hf_id: str) -> Optional[dict]:
         'platform_ref': f"huggingface:{hf_id}",
         'hf_id': hf_id,
         'gated': gated,
+        # Les PUBLICATIONS que l'auteur rattache à son modèle (2026-10-10) — même requête.
+        'publications': arxiv_ids(getattr(info, 'tags', None) or ()),
         'declared': {'capabilities': facts['capabilities'], 'engine': facts['engine']},
     }
+
+
+#: Identifiant arXiv (forme moderne `AAMM.NNNNN`, version facultative) — ce que le Hub écrit dans
+#: les étiquettes `arxiv:<id>` d'un dépôt.
+_ARXIV_ID = re.compile(r'^\d{4}\.\d{4,5}(v\d+)?$')
+
+
+def arxiv_ids(tags) -> list:
+    """Les identifiants arXiv qu'une carte Hugging Face rattache au modèle, dans son ordre.
+
+    Le Hub pose une étiquette `arxiv:<id>` pour chaque article cité par la carte : c'est la
+    déclaration de l'AUTEUR (mesuré le 2026-10-10 : LightOnOCR-3 en porte 2, DeepSeek-OCR-2 2,
+    Falcon-OCR 1). Rien n'est cherché ailleurs, rien n'est déduit d'un nom.
+    """
+    out = []
+    for tag in tags or ():
+        tag = str(tag)
+        if tag.startswith('arxiv:'):
+            ident = tag[len('arxiv:'):].strip()
+            if _ARXIV_ID.match(ident) and ident not in out:
+                out.append(ident)
+    return out
 
 
 def ollama_identity(name: str) -> Optional[dict]:
@@ -202,6 +227,12 @@ def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
         if value and ident.get(field) != value:
             ident[field] = value
             posed.append(field)
+    # Publications de la carte (2026-10-10) : même règle que la licence — l'éditeur fait foi
+    # quand il dit quelque chose, une liste vide n'efface rien.
+    publications = [str(p) for p in (identity.get('publications') or []) if p]
+    if publications and ident.get('publications') != publications:
+        ident['publications'] = publications
+        posed.append('publications')
     # Capacités déclarées : on ne comble qu'un VIDE (une tâche établie par la découverte, ou
     # par un manifeste antérieur, prime sur celle du spec — règle inchangée depuis le 02/09).
     caps = manifest['body'].setdefault('capabilities', {})

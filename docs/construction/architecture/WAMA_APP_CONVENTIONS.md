@@ -480,6 +480,16 @@ La base fournit 4 onglets automatiquement. Chaque app **doit** remplir les 4 :
 | À propos | `about_content` | Description, modèles utilisés, technologie |
 | Aide | `help_content` | Guide d'utilisation, conseils, FAQ |
 
+> **Modèles et publications — GÉNÉRÉS, jamais écrits par app (2026-10-10, demande de Fabien).**
+> Sous le bloc `about_content` (donc aussi dans les apps qui le réécrivent), la base charge à
+> l'ouverture de l'onglet le fragment `common/_about_models.html` (`/common/about/models/<app>/`,
+> `services/model_publications.app_models`) : les modèles proposés par les selects de catalogue de
+> l'app (même déclaration et même lecture que le select), chacun avec sa fiche et les publications
+> que l'AUTEUR rattache à sa carte Hugging Face (étiquettes `arxiv:<id>`, posées par la provenance
+> dans le manifeste `identity.publications` → `extra_info['publications']`). Une liste de moteurs
+> écrite à la main dans un `about_content` vieillit (celle du describer cite des modèles retirés) :
+> ne plus en écrire. Rattrapage des installés : `backfill_platform_refs --licenses --ecrire`.
+
 ---
 
 ## 5. File d'attente — Format des Cards

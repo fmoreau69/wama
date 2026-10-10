@@ -1632,6 +1632,22 @@ class AppAboutView(AppTabRedirectView):
 class AppHelpView(AppTabRedirectView):
     tab_anchor = 'help-pane'
 
+
+@login_required
+def app_about_models(request, app_id: str):
+    """Fragment de l'onglet « À propos » : les modèles des selects de catalogue de l'app et les
+    publications que leurs auteurs y rattachent (`services/model_publications`). Chargé par le
+    gabarit commun à l'ouverture de l'onglet — pas au rendu de chaque page d'app."""
+    from django.http import Http404
+    from django.shortcuts import render
+
+    from .app_registry import APP_CATALOG
+    from .services.model_publications import app_models
+
+    if app_id not in APP_CATALOG:
+        raise Http404
+    return render(request, 'common/_about_models.html', {'groups': app_models(app_id)})
+
 @login_required
 def api_partage(request, surface: str, nature: str, pk: int):
     """PARTAGE d'un élément ou d'un LOT de file — l'interface du mécanisme de visibilité (§7).

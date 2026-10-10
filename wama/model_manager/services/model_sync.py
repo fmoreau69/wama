@@ -389,7 +389,10 @@ class ModelSyncService:
         # et la mesure redeviendrait l'information « produite à chaque chargement puis jetée ».
         # `weights` (2026-09-19, décision A) : le POIDS PAR COMPOSANT lu dans les fichiers installés,
         # rendu par `persist_weights` — même nature que la mesure : produit hors découverte.
-        _sticky = ('update_check', 'recommended', 'exclusion', 'vram_measured', 'weights')
+        # `publications` (2026-10-10) : les articles que la carte de l'éditeur rattache au modèle,
+        # projetés par le manifeste — la découverte ne les connaît pas.
+        _sticky = ('update_check', 'recommended', 'exclusion', 'vram_measured', 'weights',
+                   'publications')
         _existing = AIModel.objects.filter(model_key=model_key).values_list('extra_info', flat=True).first()
         if _existing:
             _merged = dict(defaults.get('extra_info') or {})

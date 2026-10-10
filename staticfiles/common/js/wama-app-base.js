@@ -633,6 +633,25 @@
     if (btn && global.bootstrap && bootstrap.Tab) bootstrap.Tab.getOrCreateInstance(btn).show();
   });
 
+  // ── À propos : modèles de l'app et leurs publications (2026-10-10) ──────────────
+  // Le fragment (`common/_about_models.html`) se charge UNE fois, à la première ouverture de
+  // l'onglet : le rendu de chaque page d'app n'interroge pas le catalogue pour un onglet caché.
+  // Une réponse en erreur (route pas encore chargée par le serveur) laisse l'onglet tel quel.
+  function loadAboutModels(holder) {
+    if (!holder || holder.dataset.loaded) return;
+    holder.dataset.loaded = '1';
+    fetch(holder.dataset.aboutModels, { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.text() : ''; })
+      .then(function (html) { if (html) holder.innerHTML = html; })
+      .catch(function () {});
+  }
+  document.addEventListener('shown.bs.tab', function (event) {
+    const target = event.target && event.target.getAttribute('data-bs-target');
+    if (!target) return;
+    const pane = document.querySelector(target);
+    if (pane) loadAboutModels(pane.querySelector('[data-about-models]'));
+  });
+
   // ── Fichiers SERVEUR → File(s) du formulaire ──────────────────────────────────
   // Le geste commun de MediaPicker, du drag depuis l'explorateur et de tout canal à venir :
   // matérialiser un chemin serveur (temp utilisateur, MONTAGE) en `File`, puis le poser dans

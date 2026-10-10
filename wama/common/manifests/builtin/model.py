@@ -59,6 +59,11 @@ def validate_model_body(body: dict) -> list[str]:
         # Regime d'acces : vocabulaire FERME, et surtout PAS de booleen. HF rend `False`, WAMA
         # ecrit 'no' — accepter les deux ferait deux ecritures du meme fait, dont une seule se
         # projetterait. Absent = inconnu, ce qui est une reponse legitime (et differente de 'no').
+        pubs = ident.get('publications')
+        if pubs is not None and (not isinstance(pubs, list)
+                                 or not all(isinstance(p, str) and p for p in pubs)):
+            errs.append("identity.publications doit être une liste d'identifiants arXiv "
+                        "(chaînes, ex. « 2601.14251 »)")
         gated = ident.get('gated')
         if gated is not None and gated not in ('no', 'auto', 'manual'):
             errs.append(f"identity.gated {gated!r} invalide — 'no' (verifie libre), 'auto' "
@@ -204,6 +209,10 @@ def extract_model(key: str) -> Optional[dict]:
             # INCONNU — un manifeste muet dit « je ne sais pas », alors qu'un `false` ecrit
             # affirmerait « libre » sur un depot jamais interroge.
             **({'gated': m.gated} if m.gated else {}),
+            # Publications rattachées par l'auteur (identifiants arXiv, 2026-10-10) — fait
+            # DÉCLARÉ comme la licence, absent tant qu'aucune carte ne l'a dit.
+            **({_PUBLICATIONS_KEY: list((m.extra_info or {})[_PUBLICATIONS_KEY])}
+               if (m.extra_info or {}).get(_PUBLICATIONS_KEY) else {}),
             'description_short': m.description_short or None,
         },
         # besoins (pilotent select_model VRAM-aware)
@@ -236,7 +245,8 @@ def extract_model(key: str) -> Optional[dict]:
             'confidence': getattr(m, 'confidence', None),
             'update_complexity': getattr(m, 'update_complexity', '') or None,
         },
-        'extra_info': m.extra_info or {},
+        # Les publications sont portées par `identity` : pas une seconde fois ici.
+        'extra_info': {k: v for k, v in (m.extra_info or {}).items() if k != _PUBLICATIONS_KEY},
     }
 
     return {
@@ -336,6 +346,11 @@ _GATED_FIELD = ('gated', lambda m, b: (b.get('identity') or {}).get('gated') or 
 #: DÉCLARÉ* — et la révocation délibérée reste la voie pour effacer (`un_write_back_model`).
 _COMPOSITION_FIELD = ('composition', lambda m, b: b.get('composition') or {})
 
+#: Publications (2026-10-10) : projetées dans `extra_info` (clé collante de `model_sync`), et
+#: seulement si le manifeste les DÉCLARE — même règle que `gated` et `composition`. Pas de colonne
+#: dédiée : un champ ajouté au modèle est servi par gunicorn avant que sa migration passe.
+_PUBLICATIONS_KEY = 'publications'
+
 
 def merged_capabilities(target, declared: dict) -> dict:
     """`capabilities` de la ligne APRÈS projection du manifeste — fusion CLÉ PAR CLÉ.
@@ -413,6 +428,11 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     if body.get('composition'):
         champs.append(_COMPOSITION_FIELD[0])
         voulu[_COMPOSITION_FIELD[0]] = _COMPOSITION_FIELD[1](manifest, body)
+    # Publications : au déclaré seulement, fusionnées dans `extra_info` sans toucher au reste.
+    pubs = (body.get('identity') or {}).get(_PUBLICATIONS_KEY)
+    if pubs:
+        champs.append('extra_info')
+        voulu['extra_info'] = {**(cible.extra_info or {}), _PUBLICATIONS_KEY: list(pubs)}
 
     actuel = {champ: getattr(cible, champ) for champ in champs}
     deltas = {c: {'de': actuel.get(c), 'vers': v} for c, v in voulu.items() if actuel.get(c) != v}
