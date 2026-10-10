@@ -651,3 +651,63 @@ class OriginLabelTest(TestCase):
 
     def test_the_catalogue_api_carries_the_origin(self):
         self.assertEqual('WAMA local · Ollama', self._row('ollama:x').to_dict()['origin'])
+
+
+class OpenRouterListingTest(TestCase):
+    """OpenRouter (2026-10-10): its list publishes no `type` but the MODALITIES of each model, and
+    the repository it serves for open models. Shape fixed from the real `GET /api/v1/models`."""
+
+    LISTING = [
+        {'id': 'meta-llama/llama-3.3-70b-instruct:free', 'name': 'Llama 3.3 70B (free)',
+         'architecture': {'input_modalities': ['text'], 'output_modalities': ['text']},
+         'pricing': {'prompt': '0', 'completion': '0'},
+         'hugging_face_id': 'meta-llama/Llama-3.3-70B-Instruct'},
+        {'id': 'google/gemini-x', 'name': 'Gemini X',
+         'architecture': {'input_modalities': ['text', 'image', 'file'],
+                          'output_modalities': ['text']},
+         'pricing': {'prompt': '0.0000003', 'completion': '0.0000025'}, 'hugging_face_id': ''},
+        {'id': 'google/gemini-x-image', 'name': 'Gemini X Image',
+         'architecture': {'input_modalities': ['image', 'text'],
+                          'output_modalities': ['image', 'text']},
+         'pricing': {'prompt': '0.0000003', 'completion': '0.0000025'}},
+    ]
+
+    def _list(self):
+        response = mock.Mock(status_code=200, ok=True,
+                             json=mock.Mock(return_value={'data': self.LISTING}))
+        with mock.patch('requests.get', return_value=response) as get:
+            models = cloud_models.list_remote_models('openrouter', 'secret')
+        return get, {m['id']: m for m in models}
+
+    def test_the_modalities_give_the_type(self):
+        get, models = self._list()
+        self.assertEqual('Bearer secret', get.call_args.kwargs['headers']['Authorization'])
+        self.assertEqual('text-generation', models['meta-llama/llama-3.3-70b-instruct:free']['type'])
+        self.assertEqual('image-text-to-text', models['google/gemini-x']['type'])
+
+    def test_a_model_that_answers_with_an_image_does_not_enter_the_catalogue(self):
+        # No engine runs it through `llm_chat`: filed as `text-to-image`, the imager would offer it.
+        _, models = self._list()
+        self.assertEqual('', models['google/gemini-x-image']['type'])
+        self.assertIsNone(cloud_models.model_info_for('openrouter', models['google/gemini-x-image']))
+
+    def test_the_served_repository_and_the_free_price_are_kept(self):
+        _, models = self._list()
+        free = models['meta-llama/llama-3.3-70b-instruct:free']
+        self.assertEqual(['meta-llama/Llama-3.3-70B-Instruct'], free['aliases'])
+        info = cloud_models.model_info_for('openrouter', free)
+        self.assertEqual(('free', 'meta-llama/Llama-3.3-70B-Instruct'), (info.cost_tier, info.hf_id))
+        paid = cloud_models.model_info_for('openrouter', models['google/gemini-x'])
+        # Counter-check: an id with a « / » is not a repository, and a paid model keeps the
+        # source's tier.
+        self.assertEqual(('metered', None), (paid.cost_tier, paid.hf_id))
+
+    def test_a_listing_without_modalities_still_reads_its_type(self):
+        # Counter-check: Albert's shape (a `type`, no `architecture`) is unchanged.
+        response = mock.Mock(status_code=200, ok=True, json=mock.Mock(return_value={'data': [
+            {'id': 'bge-m3', 'type': 'text-embeddings-inference', 'aliases': ['BAAI/bge-m3']}]}))
+        with mock.patch('requests.get', return_value=response):
+            model, = cloud_models.list_remote_models('albert', 'secret')
+        self.assertEqual(('text-embeddings-inference', ['BAAI/bge-m3']),
+                         (model['type'], model['aliases']))
+        self.assertNotIn('cost_tier', model)

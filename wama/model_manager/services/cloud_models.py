@@ -114,8 +114,34 @@ def task_and_type(remote_type: str):
     return (task, model_type) if task else (None, None)
 
 
+def type_from_modalities(architecture: dict) -> str:
+    """Type (tag HuggingFace) d'un modèle décrit par ses MODALITÉS — la forme d'OpenRouter
+    (`architecture.input_modalities` / `output_modalities`), qui ne publie pas de `type`.
+
+    Seuls entrent les modèles qui RÉPONDENT EN TEXTE : un modèle qui produit une image ou du son
+    par la même interface ne s'appelle pas par `llm_chat`, et le ranger en `text-to-image`
+    l'aurait fait proposer par l'imager sans aucun moteur pour l'exécuter. '' = hors catalogue
+    (`task_and_type` rend alors None, comme pour tout type inconnu).
+    """
+    outputs = {str(x) for x in (architecture.get('output_modalities') or [])}
+    inputs = {str(x) for x in (architecture.get('input_modalities') or [])}
+    if outputs != {'text'}:
+        return ''
+    return 'image-text-to-text' if 'image' in inputs else 'text-generation'
+
+
+def _is_free(pricing) -> bool:
+    """Prix publié nul en entrée ET en sortie (les modèles `:free` d'OpenRouter)."""
+    if not isinstance(pricing, dict):
+        return False
+    try:
+        return float(pricing.get('prompt')) == 0 and float(pricing.get('completion')) == 0
+    except (TypeError, ValueError):
+        return False
+
+
 def list_remote_models(source: str, api_key: str, timeout: float = 20.0) -> list:
-    """Modèles ouverts à `api_key` chez `source` : [{id, name, type, aliases}]."""
+    """Modèles ouverts à `api_key` chez `source` : [{id, name, type, aliases[, cost_tier]}]."""
     import requests
 
     src = external_sources.get(source)
@@ -137,9 +163,25 @@ def list_remote_models(source: str, api_key: str, timeout: float = 20.0) -> list
             continue
         # Protocole OpenAI (Albert) : `type` est une tâche. Chez Anthropic, `type` vaut « model »
         # (la nature de l'objet), pas une tâche : on prend alors le type DÉCLARÉ par la source.
-        remote_type = (m.get('type') if src.protocol == 'openai' else '') or src.default_remote_type
-        out.append({'id': m['id'], 'name': m.get('display_name') or m['id'],
-                    'type': remote_type or '', 'aliases': m.get('aliases') or []})
+        # Une liste qui décrit ses MODALITÉS (OpenRouter, 2026-10-10) dit elle-même ce qu'est le
+        # modèle : le type par défaut de la source ne la complète pas.
+        arch = m.get('architecture')
+        if src.protocol == 'openai' and m.get('type'):
+            remote_type = m['type']
+        elif isinstance(arch, dict):
+            remote_type = type_from_modalities(arch)
+        else:
+            remote_type = src.default_remote_type
+        # Le dépôt SERVI, quand le fournisseur le nomme : alias `org/nom` chez Albert,
+        # `hugging_face_id` chez OpenRouter — même forme pour la provenance (`cloud_identity`).
+        aliases = list(m.get('aliases') or [])
+        if m.get('hugging_face_id') and m['hugging_face_id'] not in aliases:
+            aliases.append(m['hugging_face_id'])
+        item = {'id': m['id'], 'name': m.get('display_name') or m.get('name') or m['id'],
+                'type': remote_type or '', 'aliases': aliases}
+        if _is_free(m.get('pricing')):
+            item['cost_tier'] = 'free'      # un modèle gratuit chez un fournisseur facturé
+        out.append(item)
     return out
 
 
@@ -201,7 +243,8 @@ def model_info_for(source: str, item: dict):
                      or (f"{src.label} — le modèle est choisi par le fournisseur" if declared
                          else f"{src.label} — modèle distant ({remote_type})")),
         hf_id=hf_id or None, vram_gb=0, ram_gb=0, is_downloaded=False,
-        backend_ref=source, execution=EXECUTION_CLOUD, cost_tier=src.cost_tier,
+        backend_ref=source, execution=EXECUTION_CLOUD,
+        cost_tier=item.get('cost_tier') or src.cost_tier,
         # Le MOTEUR est le fournisseur (inventaire `external_sources.llm_engine_inventory`).
         composition={'runtime': {'engine': source}},
         capabilities=caps,

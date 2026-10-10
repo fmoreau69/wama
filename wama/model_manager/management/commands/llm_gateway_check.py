@@ -24,7 +24,7 @@ _PROVIDER_ENV = {
     'mistral':    'MISTRAL_API_KEY',
     'groq':       'GROQ_API_KEY',
     'deepseek':   'DEEPSEEK_API_KEY',
-    'openrouter': 'OPENROUTER_API_KEY',
+    # `openrouter` est DÉCLARÉ depuis le 2026-10-10 : sa clé se lit par le registre.
 }
 
 

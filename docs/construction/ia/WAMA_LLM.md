@@ -785,6 +785,21 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   `/models` (porte-t-il la tâche ?), le modèle par défaut (`mistral-small-4-119b`, nom PUBLIÉ) et
   la sortie restent à attester par `manage.py llm_gateway_check --provider ilaas`. Embeddings
   (`rag-api.ilaas.fr`, jeton à part) et transcription : non branchés.
+- **OpenRouter (agrégateur) — déclaré le 2026-10-10** (décision de Fabien), source `openrouter`
+  (`https://openrouter.ai/api/v1`, protocole OpenAI, `hosting='third_party'`, `metered`, clé
+  PERSONNELLE non partageable — crédits par compte). Ajout par le registre SEUL, sur la route
+  tracée par ILaaS : routage `llm_chat`, fournisseur de l'assistant, contrôle de passerelle et
+  sonde nocturne en dérivent. Ce qui lui est propre est dans la DÉCOUVERTE
+  (`cloud_models.list_remote_models`) : sa liste ne porte pas de `type` mais les MODALITÉS
+  (`architecture`) — seuls entrent les modèles qui répondent en TEXTE (`type_from_modalities` :
+  chat, ou chat qui voit) ; le dépôt servi (`hugging_face_id`) devient un alias, donc l'identité ;
+  un modèle à prix nul garde `cost_tier='free'` sur sa ligne. Mesuré sur la liste publique :
+  **458 modèles**, 19 gratuits, 170 qui nomment leur dépôt, 7 qui produisent des images (exclus).
+  Modèle par défaut : `openrouter/auto` (routeur d'OpenRouter). ⚠ **Non mesuré avec une clé** :
+  `manage.py llm_gateway_check --provider openrouter` à jouer à la pose. ⚠ Le tirage AUTOMATIQUE
+  n'ouvre ses modèles — gratuits compris, le coût s'arbitrant par source — qu'avec
+  `cloud_metered_auto`. ⚠ À la pose d'une clé, ~450 lignes entrent au catalogue et ~170
+  manifestes au corpus (provenance) : à décider s'il faut une liste restreinte.
 - **Clés d'INSTANCE posées depuis WAMA — 2026-10-07** (décision de Fabien : *« c'est la page
   Sources externes qui doit gérer les clés système »*). Un admin pose la clé d'une source dans
   l'inspecteur de `/common/sources/` (`accounts.InstanceApiKey`, chiffrée comme les clés

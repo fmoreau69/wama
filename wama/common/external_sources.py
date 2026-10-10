@@ -314,6 +314,22 @@ SOURCES: tuple[ExternalSource, ...] = (
         default_remote_type='text-generation',
         # ⚠ Non mesuré (clé en attente) : nom PUBLIÉ de leur liste des modèles.
         default_model='mistral-small-4-119b', doc='docs/construction/ia/WAMA_LLM.md'),
+    # 2026-10-10 (décision de Fabien) : OpenRouter, AGRÉGATEUR — une clé, plusieurs centaines de
+    # modèles de nombreux éditeurs, protocole OpenAI. Sa liste (`GET /models`, lisible sans clé)
+    # ne porte pas de `type` mais les MODALITÉS d'entrée et de sortie (`architecture`) et, pour
+    # les modèles ouverts, le dépôt servi (`hugging_face_id`) — lus par
+    # `cloud_models.list_remote_models`. Mesuré ce jour : 458 modèles, dont 19 gratuits et 170 qui
+    # nomment leur dépôt. Hébergement TIERS (l'éditeur du modèle ou son hébergeur) : le plafond
+    # d'hébergement du profil s'applique comme pour Anthropic. Clé PERSONNELLE (crédits par
+    # compte), donc non partageable. Modèle par défaut : le routeur automatique d'OpenRouter.
+    ExternalSource(
+        'openrouter', 'OpenRouter', 'https://openrouter.ai/api/v1',
+        "Agrégateur de modèles distants (nombreux éditeurs), compatible OpenAI — assistant, apps "
+        "et rôles wama-dev-ai via llm_chat", kind='llm', env='OPENROUTER_API_BASE',
+        api_key_env='OPENROUTER_API_KEY', user_key=True,
+        api_key_help_url='https://openrouter.ai/settings/keys',
+        hosting='third_party', cost_tier='metered', protocol='openai',
+        default_model='openrouter/auto', doc='docs/construction/ia/WAMA_LLM.md'),
     # 2026-09-15 : l'API Anthropic (fournisseur « claude » de l'assistant) et l'ABONNEMENT Claude
     # Code — deux canaux de facturation opposés vers les mêmes modèles (cf. `claude_code.py`).
     # Chacun porte la clé PERSONNELLE de l'utilisateur, au profil ; le `.env` ne sert qu'aux usages
@@ -455,6 +471,16 @@ SOURCES: tuple[ExternalSource, ...] = (
         "nDCG@10 par tâche de recherche (jeu FRANÇAIS déclaré) — JSON CC0 lus sur GitHub",
         kind='banc', attribution='MTEB results (embeddings-benchmark/results, CC0-1.0)',
         doc='wama/model_manager/PROSPECTION_PIPELINE.md'),
+    # 2026-10-10 : 5ᵉ banc — les CLASSEMENTS des jeux de référence OFFICIELS du Hub
+    # (`/api/datasets/<jeu>/leaderboard`), lus par `benchmark_sync.load_hf_benchmarks` à l'adresse
+    # de `huggingface`. Valeurs DÉCLARÉES par les auteurs (rarement vérifiées) : dernière priorité,
+    # jamais de rang centile. Ils nourrissent aussi la DÉCOUVERTE (`seed_benchmark_candidates`).
+    ExternalSource(
+        'hf_bench', 'Classements officiels (Hugging Face)', 'https://huggingface.co',
+        "Classements des jeux de référence officiels du Hub (OCR documentaire…) — dépôt exact, "
+        "valeur et provenance par modèle", kind='banc',
+        attribution='Hugging Face — classements des jeux de référence officiels',
+        doc='docs/construction/ia/WAMA_QUALITE.md'),
 
     # ── Outillage et poids ──────────────────────────────────────────────────────────────
     ExternalSource(

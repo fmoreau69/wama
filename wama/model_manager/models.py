@@ -449,6 +449,7 @@ class ModelSource(models.TextChoices):
     # dans `composition.runtime.engine`, comme pour tout modèle : le fournisseur se DÉRIVE.
     ALBERT = 'albert', 'Albert API (DINUM)'
     ILAAS = 'ilaas', 'ILaaS (ESR)'
+    OPENROUTER = 'openrouter', 'OpenRouter'
     ANTHROPIC = 'anthropic', 'API Anthropic (Claude)'
     CLAUDE_CODE = 'claude_code', 'Claude Code (abonnement)'
     OLLAMA = 'ollama', 'Ollama'
