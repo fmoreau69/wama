@@ -100,6 +100,12 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 
 ---
 
+## 2026-10-10
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| *(ce commit — le téléchargement de YOLOPv2 passe par celui, COMMUN, de l'installeur de modèles)* | `utils/road_model_downloader.ensure_bdd100k_seg` réécrivait un téléchargement (fichier partiel, contrôle de longueur) SANS empreinte. Il appelle désormais `model_installer.download_asset` (partiel, empreinte ÉPINGLÉE, remplacement atomique), l'adresse dérivée de la source déclarée `github` (`YOLOPV2_SPEC`, descripteur du pilote `github`). **Rien d'autre ne bouge** : même dossier `vision/yolo/segment/`, même nom `yolopv2.pt` (le menu des profils liste ce dossier), même contrat `(ok, chemin, message)` pour `views.download_road_model`, idempotence inchangée. Empreinte mesurée de deux façons indépendantes le 10/10 (téléchargement neuf ET fichier déjà installé : 156 380 200 octets, `f2a8c837…`) — la version n'en publie pas. Demande de Fabien : adopter le pilote commun « sans prendre de risque », un téléchargeur après l'autre. | `tests_road_model_download` (5 : adresse = l'historique, fichier présent sans téléchargement, empreinte transmise, `force`, échec dit) ; contre-épreuve (empreinte retirée → rouge) ; vrai téléchargement forcé dans un dossier jetable → 156 380 200 octets, chargé en TorchScript sur CPU, 2ᵉ appel « Déjà présent ». Aucun traitement touché (pas de GPU). Annulation : revert. |
+
 ## 2026-09-28
 
 | Commit | Quoi | Pourquoi | Validation/annulation |
