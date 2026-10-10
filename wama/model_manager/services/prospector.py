@@ -1377,15 +1377,19 @@ def enqueue_after_prospection() -> dict:
     from ..tasks import ASSESS_CACHE_KEY, assess_proposed_task, sync_benchmarks_task
     assess = (getattr(_settings, 'PROSPECT_ASSESS_AUTO', False) and not gpu_safe_mode()
               and not progression_en_cours(ASSESS_CACHE_KEY))
+    # `cache='read'` (2026-10-10) : la prospection vient de lire les classements (même cache) ; tout
+    # RELIRE ici réinterrogeait chaque source juste après les centaines d'appels de la prospection
+    # — mesuré : le Hub (500 requêtes / 5 min) et Artificial Analysis (100 / jour) répondaient 429,
+    # et les candidats OCR restaient sans note. La relecture complète reste celle de la nuit.
     try:
         if assess:
             # L'état TERMINÉ d'une passe précédente survit dans le cache (TTL) : le suivi
             # d'écran le lirait comme la fin de CELLE-CI avant même que le jury démarre.
             from django.core.cache import cache
             cache.delete(ASSESS_CACHE_KEY)
-            (sync_benchmarks_task.si() | assess_proposed_task.si()).apply_async()
+            (sync_benchmarks_task.si(cache='read') | assess_proposed_task.si()).apply_async()
         else:
-            sync_benchmarks_task.delay()
+            sync_benchmarks_task.delay(cache='read')
         return {'benchmarks_enqueued': True, 'assess_enqueued': bool(assess)}
     except Exception:
         # Broker indisponible : la prospection reste valable, les deux signaux attendront.

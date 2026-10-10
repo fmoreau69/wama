@@ -3228,11 +3228,14 @@ class ProspectChainTest(TestCase):
         bench.si.return_value.__or__.assert_called_once_with(assess.si.return_value)
         bench.si.return_value.__or__.return_value.apply_async.assert_called_once()
         bench.delay.assert_not_called()
+        # The prospection has just read the sources: the bench reads the cache (2026-10-10 —
+        # re-reading everything got 429 from the Hub and Artificial Analysis).
+        bench.si.assert_called_once_with(cache='read')
 
     def test_safe_mode_keeps_the_bench_only(self):
         out, bench, assess = self._run(safe=True)
         self.assertEqual(out, {'benchmarks_enqueued': True, 'assess_enqueued': False})
-        bench.delay.assert_called_once()
+        bench.delay.assert_called_once_with(cache='read')
         assess.si.assert_not_called()
 
     def test_a_live_jury_pass_is_not_doubled(self):
