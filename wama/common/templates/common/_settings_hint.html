@@ -9,6 +9,10 @@ Deux textes, un seul affiché — choisi par CSS (`wama-inspector.css`) : en mod
 droit est masqué (`body.wama-simple #wama-right-panel`, base.html), les réglages se font alors par
 le ⚙ de l'élément, une fois ajouté à la file.
 
+Un troisième texte quand le volet droit est REPLIÉ par sa frontière (`WamaPanels`, 2026-10-10) :
+le volet n'est qu'à un clic, et c'est lui qui porte les réglages AVANT l'ajout — la phrase le
+rouvre (`data-wama-panel-open`) au lieu d'envoyer vers un ⚙ qui n'existe pas encore.
+
 Rien n'est affiché sur une page qui DÉCLARE n'avoir pas de section Paramètres (`volet`,
 `common/utils/volet.py` — la médiathèque, 2026-09-29) : la phrase y renverrait à un volet absent.
 `is not False` et non `if volet.parametres` : une page qui ne déclare rien (ou un rendu sans
@@ -19,5 +23,6 @@ contexte de requête) garde l'indication — c'est le défaut des 10 apps.
     <i class="fas fa-sliders-h"></i>
     <span class="wama-settings-hint--panel">Réglages : volet de droite</span>
     <span class="wama-settings-hint--simple">Réglages : ⚙ de l'élément ajouté</span>
+    <span class="wama-settings-hint--collapsed">Réglages : <a href="#" data-wama-panel-open="right">afficher le volet</a></span>
 </span>
 {% endif %}

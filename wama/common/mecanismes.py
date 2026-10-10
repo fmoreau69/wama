@@ -497,6 +497,19 @@ MECHANISMS = (
               'wama/common/static/common/js/wama-filter-bar.js', 'docs/construction/ui/CARD_DESIGN.md',
               annexes=('wama/common/templates/common/_filter_bar.html',),
               symbol='WamaFilterBar'),      # global de base.html : compté par son symbole
+    Mechanism('panel_toggle', "Repli des volets latéraux par leur frontière",
+              "Un clic sur la FRONTIÈRE d'un volet (explorateur, panneau) le replie ou le rouvre, "
+              "sur toute page : au repos rien de plus que le liseré, au survol une ligne et une "
+              "pastille à chevron qui suit le pointeur ; volet replié, une trace fine au bord de la "
+              "fenêtre. État par NAVIGATEUR (localStorage), appliqué avant le premier rendu. La "
+              "place des volets a une SOURCE UNIQUE : les marges `--wama-left-gutter` / "
+              "`--wama-right-gutter` (0 replié, sans volet ou en mode simplifié) que lisent le "
+              "corps, l'en-tête et les barres fixes des pages ; une règle qui se calerait sur la "
+              "largeur brute d'un volet est refusée par `tests_panel_toggle`. Au doigt (tablette), "
+              "la pastille reste visible. Après chaque bascule : `resize` + `wama:panels`",
+              'wama/common/static/common/js/wama-panel-toggle.js', 'docs/construction/ui/WAMA_VOLETS.md',
+              annexes=('wama/common/static/common/css/wama-panel-toggle.css',),
+              symbol='WamaPanels'),         # global de base.html : compté par son symbole
     Mechanism('card_menu', "Menu contextuel de card/lot + débordement « … »",
               "Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; "
               "le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales "

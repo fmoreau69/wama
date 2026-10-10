@@ -72,6 +72,11 @@
 .wama-settings-hint--simple { display: none; }
 body.wama-simple .wama-settings-hint--panel { display: none; }
 body.wama-simple .wama-settings-hint--simple { display: inline; }
+/* Volet droit REPLIÉ par sa frontière (WamaPanels) : la phrase le rouvre. Le mode simplifié prime. */
+.wama-settings-hint--collapsed { display: none; }
+body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--panel { display: none; }
+body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--collapsed { display: inline; }
+.wama-settings-hint--collapsed a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 
 /* ── Solitaire 🃏 : batch REPLIÉ = pile de cartes (deck) ; clic = désempile ──────────────
    Globalisé du pilote transcriber (2026-07-05, audit A1-3) — ne cible QUE le contrat commun

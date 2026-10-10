@@ -1,0 +1,124 @@
+/* WamaPanels — replier un volet latéral d'un clic sur sa FRONTIÈRE (2026-10-10).
+ *
+ * POURQUOI ICI. `WAMA_VOLETS §9.2` demandait un « repli élégant des volets à la volée — sans le
+ * gros bouton déjà essayé puis retiré parce qu'il polluait l'UI ». La frontière entre un volet et
+ * la zone centrale existe déjà à l'écran : c'est elle qui devient le geste. Au repos, rien de
+ * plus que le liseré d'aujourd'hui ; au survol, une ligne et une pastille à chevron, là où est le
+ * pointeur. Volet replié : une trace fine reste au bord de la fenêtre pour le rouvrir.
+ *
+ * LA SOURCE UNIQUE : deux marges dérivées. `--wama-left-gutter` / `--wama-right-gutter` valent la
+ * largeur du volet quand il occupe sa place, 0 sinon (replié, page sans volet, mode simplifié).
+ * Le corps, l'en-tête et toute barre fixe calée sur les volets (éditeur du transcriber,
+ * cam_analyzer) lisent CES marges — jamais plus la largeur du volet elle-même, qui ne dit pas
+ * s'il est là. `filemanager.css` porte encore la structure (WAMA_VOLETS §1) et lit ces marges.
+ */
+:root {
+    --wama-left-gutter: var(--fm-sidebar-width, 280px);
+    --wama-right-gutter: var(--fm-right-panel-width, 360px);
+    --wama-panel-anim: .22s cubic-bezier(.2, .7, .2, 1);
+}
+body.wama-left-collapsed { --wama-left-gutter: 0px; }
+body.wama-right-collapsed,
+body.wama-sans-volet { --wama-right-gutter: 0px; }
+body.wama-simple { --wama-left-gutter: 0px; --wama-right-gutter: 0px; }
+
+/* ── Le volet glisse hors de la fenêtre ; il devient invisible APRÈS l'animation (ni focus
+      clavier ni lecteur d'écran dans un volet replié), et visible AVANT celle d'ouverture. */
+#filemanager-sidebar,
+#wama-right-panel { transition: transform var(--wama-panel-anim), visibility 0s linear 0s; }
+body.wama-left-collapsed #filemanager-sidebar {
+    transform: translateX(-100%); visibility: hidden;
+    transition: transform var(--wama-panel-anim), visibility 0s linear .22s;
+}
+body.wama-right-collapsed #wama-right-panel {
+    transform: translateX(100%); visibility: hidden;
+    transition: transform var(--wama-panel-anim), visibility 0s linear .22s;
+}
+/* La zone centrale et l'en-tête suivent, au même rythme. */
+body > .container,
+body > .container-fluid { transition: margin var(--wama-panel-anim), width var(--wama-panel-anim), max-width var(--wama-panel-anim); }
+.top_nav { transition: left var(--wama-panel-anim), right var(--wama-panel-anim); }
+
+/* ── La frontière cliquable ───────────────────────────────────────────────────────────────
+   Posée À CÔTÉ du volet, côté zone centrale (1 px sur le liseré) : la barre de défilement de
+   l'explorateur longe son bord droit, la frontière ne doit pas la recouvrir. */
+.wama-panel-edge {
+    --y: 50%;
+    position: fixed;
+    top: var(--fm-header-height, 50px);
+    bottom: var(--fm-footer-height, 40px);
+    width: 10px;
+    padding: 0; margin: 0; border: 0;
+    background: transparent;
+    cursor: pointer;
+    z-index: 1026;                       /* au-dessus des volets (1025), sous le pied (1030) */
+    transition: left var(--wama-panel-anim), right var(--wama-panel-anim);
+    -webkit-tap-highlight-color: transparent;
+}
+.wama-panel-edge[data-side="left"]  { left: calc(var(--wama-left-gutter) - 1px); }
+.wama-panel-edge[data-side="right"] { right: calc(var(--wama-right-gutter) - 1px); }
+.wama-panel-edge:focus { outline: none; }
+
+/* La ligne : le liseré qui s'allume. */
+.wama-panel-edge::before {
+    content: '';
+    position: absolute; top: 0; bottom: 0; width: 2px;
+    background: var(--wama-app-color, #6ea8fe);
+    opacity: 0;
+    transition: opacity .15s ease;
+}
+.wama-panel-edge[data-side="left"]::before  { left: 0; }
+.wama-panel-edge[data-side="right"]::before { right: 0; }
+
+/* La pastille : suit le pointeur le long de la frontière (--y posé par le script). */
+.wama-panel-edge-pill {
+    position: absolute;
+    top: var(--y);
+    width: 18px; height: 34px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    background: #1f2437;
+    border: 1px solid rgba(255, 255, 255, .2);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
+    color: #e6e9f0;
+    font-size: .62rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s ease;
+}
+.wama-panel-edge[data-side="left"]  .wama-panel-edge-pill { left: 0;  transform: translate(-50%, -50%); }
+.wama-panel-edge[data-side="right"] .wama-panel-edge-pill { right: 0; transform: translate(50%, -50%); }
+
+/* Survol : un court délai — un pointeur qui ne fait que PASSER ne fait rien clignoter. */
+.wama-panel-edge:hover::before,
+.wama-panel-edge:focus-visible::before { opacity: .75; transition-delay: .12s; }
+.wama-panel-edge:hover .wama-panel-edge-pill,
+.wama-panel-edge:focus-visible .wama-panel-edge-pill { opacity: 1; transition-delay: .12s; }
+
+/* Volet REPLIÉ : la frontière se colle au bord de la fenêtre et garde une trace discrète —
+   on sait qu'un volet est là sans qu'il prenne de place. La pastille rentre dans la fenêtre. */
+body.wama-left-collapsed  .wama-panel-edge[data-side="left"]  { left: 0; }
+body.wama-right-collapsed .wama-panel-edge[data-side="right"] { right: 0; }
+body.wama-left-collapsed  .wama-panel-edge[data-side="left"]::before,
+body.wama-right-collapsed .wama-panel-edge[data-side="right"]::before { opacity: .3; }
+body.wama-left-collapsed  .wama-panel-edge[data-side="left"]:hover::before,
+body.wama-right-collapsed .wama-panel-edge[data-side="right"]:hover::before { opacity: .75; }
+body.wama-left-collapsed  .wama-panel-edge[data-side="left"]  .wama-panel-edge-pill { transform: translate(2px, -50%); }
+body.wama-right-collapsed .wama-panel-edge[data-side="right"] .wama-panel-edge-pill { transform: translate(-2px, -50%); }
+
+/* Au DOIGT (tablette) : pas de survol — la pastille reste visible, la zone est plus large.
+   Mesure tablette du 2026-10-10 : un geste qui n'existe qu'au survol n'existe pas au doigt. */
+@media (pointer: coarse) {
+    .wama-panel-edge { width: 22px; }
+    .wama-panel-edge-pill { opacity: .8; width: 22px; height: 40px; border-radius: 11px; font-size: .75rem; }
+    .wama-panel-edge::before { opacity: .25; }
+}
+
+/* Mode simplifié : les volets n'y sont pas, leur frontière non plus. */
+body.wama-simple .wama-panel-edge { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    #filemanager-sidebar, #wama-right-panel, .top_nav, .wama-panel-edge,
+    body > .container, body > .container-fluid { transition: none !important; }
+}
+@media print { .wama-panel-edge { display: none; } }

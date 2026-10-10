@@ -217,11 +217,14 @@
          (position:fixed pinned above the wama footer; constrained between the
           FileManager sidebar (left) and the wama right panel — uses the same CSS
           variables defined in filemanager.css so the bar stays aligned with the
-          central content area) -->
+          central content area). Depuis le 2026-10-10 : les MARGES de volet
+          (--wama-*-gutter, wama-panel-toggle.css), qui valent 0 quand un volet est
+          replié par sa frontière — la barre suit. -->
     <div id="stickyBottomBar" class="sticky-bottom-bar"
          style="position: fixed;
-                left: var(--fm-sidebar-width, 280px);
-                right: var(--fm-right-panel-width, 360px);
+                left: var(--wama-left-gutter, var(--fm-sidebar-width, 280px));
+                right: var(--wama-right-gutter, var(--fm-right-panel-width, 360px));
+                transition: left var(--wama-panel-anim, 0s), right var(--wama-panel-anim, 0s);
                 bottom: var(--fm-footer-height, 40px);
                 z-index: 1020;
                 background: #1a1d20; border-top: 1px solid #343a40;

@@ -36,6 +36,8 @@
 | `#actions-section` | `:189-198` | Corps **vide** — mais titre et cadre rendus quand même |
 | Pont apps | `common/app_modern_base.html:264-286` | Redéclare les blocs et ouvre `app_right_panel_*` |
 | Masquage global | `base.html:22` | `body.wama-simple #wama-right-panel { display:none }` — **les deux volets disparaissent en mode simplifié** |
+| **Repli par la frontière** (2026-10-10) | `common/js/wama-panel-toggle.js` + `common/css/wama-panel-toggle.css` | `WamaPanels` : un clic sur la frontière d'un volet le replie / le rouvre, sur toute page — voir §9 ② |
+| **Place des volets** (2026-10-10) | `wama-panel-toggle.css` | marges dérivées `--wama-left-gutter` / `--wama-right-gutter` (largeur du volet, ou 0 replié / sans volet / mode simplifié) : SEULE source que lisent le corps, l'en-tête et les barres fixes — jamais plus `--fm-*-width` (`tests_panel_toggle`) |
 | Scripts inspecteur | `base.html:309-310` | `wama-inspector.js` + `-autofill.js` chargés **globalement** depuis le 2026-08-20 |
 
 ⚠ **Le CSS de structure du volet droit vit chez le filemanager** (`filemanager.css:199-254` :
@@ -301,6 +303,14 @@ commentaire (`base.html:156`) **n'est câblé nulle part** : il utilise sa propr
 
 ## 7. Le mode simplifié — la tension non résolue
 
+> ✅ **2026-10-10 (décision de Fabien) — le mode s'applique SUR PLACE.** Il renvoyait à l'accueil
+> depuis toute autre page (`wamaToggleMode`, sans raison consignée — introduit dans un commit de
+> mars sur un autre sujet), comportement implicite. Il masque désormais les volets là où l'on est
+> (l'éditeur du transcriber s'en servait déjà comme « plein écran ») ; l'accueil simplifié reste
+> à un clic par le logo WAMA, ce que dit l'infobulle du bouton. Les deux gestes coexistent sans
+> se recouvrir : le **repli par la frontière** (§9 ②) est local à un volet et à un navigateur ;
+> le **mode simplifié** est une préférence du profil qui change aussi l'accueil (chatbot).
+
 `body.wama-simple` **masque les deux volets**. Or l'intention d'origine était d'obtenir un
 **chatbot** — donc précisément le mode où l'assistant devrait être au centre. Contradiction à
 résoudre avant de câbler un assistant persistant.
@@ -348,11 +358,33 @@ dépôt (14 pages), toute modification y est transverse par construction.
    Piste de Fabien : n'y garder que **l'avatar en tête** (discussion naturelle + guidage),
    avec une capacité nouvelle — **amener l'utilisateur sur la page qui convient** à sa
    demande. À réfléchir.
-2. **Repli élégant des volets à la volée** — souhaité, sans le « gros bouton » déjà essayé
-   puis retiré parce qu'il polluait l'UI.
+2. ~~**Repli élégant des volets à la volée** — souhaité, sans le « gros bouton » déjà essayé
+   puis retiré parce qu'il polluait l'UI.~~ ✅ **LIVRÉ le 2026-10-10 (demande de Fabien)** —
+   brique `WamaPanels`, montée par `base.html`, aucune app ne l'appelle. **Le geste est la
+   frontière elle-même** : au repos rien de plus que le liseré ; au survol (après 0,12 s, pour
+   qu'un pointeur qui passe ne fasse rien clignoter) une ligne et une pastille à chevron qui
+   suit le pointeur ; clic = repli animé (0,22 s), la zone centrale et l'en-tête prennent la
+   place. Volet replié : une trace fine au bord de la fenêtre le rouvre. Bouton accessible
+   (clavier, `aria-expanded`). Au **doigt**, la pastille reste visible (mesure tablette du
+   même jour : un geste qui n'existe qu'au survol n'existe pas au doigt). État par
+   **navigateur** (localStorage — replier sur la tablette ne replie pas le poste de bureau),
+   appliqué avant le premier rendu. Après chaque bascule, `resize` + `wama:panels` : cards v3,
+   liens du studio et carte Leaflet se recalent sans rien connaître de la brique. Volet droit
+   replié : l'avatar ne se charge pas, et l'indication « Réglages » de la card d'entrée devient
+   « Réglages : afficher le volet », qui le rouvre. **Mesuré au navigateur** : zone centrale
+   860 → 1500 px (1500 × 1000), canvas du studio 624 → 1264 px, liens à 0,08 px de leurs ports,
+   tablette portrait 394 → 834 px. Gardes : `wama/common/tests/tests_panel_toggle.py`.
 3. **Mode simplifié** — cf. §7.
 4. **Trois états plutôt que deux** pour l'assistant (toujours visible / replié quand le
    contexte prime / jamais) — évite de choisir entre « perdu partout » et « encombrant ».
+5. **Les volets à largeur de tablette** — partie mise en page du chantier tablette
+   (`ROADMAP §27`, relevé du 2026-10-10, iPad Pro 11 émulé). **Mesuré, volets ouverts** : zone
+   centrale 346 à 394 px sur 834 en portrait selon la page, 626 sur 1194 en paysage ; canvas du
+   studio 158 px en portrait (438 en paysage), inutilisable. En portrait, la barre du haut se
+   chevauche (« WAMA » sur « Simplifié », « Panneau » sur le nom du compte).
+   ✅ Le **repli manuel** (question 2) rend 834 px au centre. ⏳ Reste : **replier d'office
+   sous une largeur** (volets en tiroir, rouverts par leur frontière) — sans écraser un choix
+   explicite de l'utilisateur —, et la **barre du haut** à largeur de tablette.
 
 ## Voir aussi
 - `WAMA_DATA_WORLD.md §11.8` — l'UI du monde Data hérite de la file Médias ; les évolutions ⑦ du

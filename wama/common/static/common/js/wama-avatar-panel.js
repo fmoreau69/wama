@@ -51,8 +51,11 @@
     }).catch(function () {});
   }
 
-  function simpleMode() {
-    return document.body.classList.contains('wama-simple');
+  // Volet absent de l'écran : mode simplifié, ou volet droit replié par sa frontière
+  // (`WamaPanels`, 2026-10-10) — dans les deux cas rien n'est chargé tant qu'on ne le rouvre pas.
+  function panelHidden() {
+    var c = document.body.classList;
+    return c.contains('wama-simple') || c.contains('wama-right-collapsed');
   }
 
   // Quitter la page ANNULE le chargement en cours (« Failed to fetch ») : ce n'est pas une erreur,
@@ -81,7 +84,7 @@
 
   /** Charge après le rendu de la page, jamais pendant : l'avatar est optionnel, la page non. */
   function loadWhenIdle() {
-    var run = function () { if (state.enabled && !state.collapsed && !simpleMode()) ensureLoaded(); };
+    var run = function () { if (state.enabled && !state.collapsed && !panelHidden()) ensureLoaded(); };
     if (global.requestIdleCallback) global.requestIdleCallback(run, { timeout: 2000 });
     else setTimeout(run, 300);
   }

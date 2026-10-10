@@ -67,6 +67,8 @@
     <link href="{% static_v 'vendors/jstree-3.3.16/themes/default-dark/style.min.css' %}" rel="stylesheet">
     <!-- FileManager CSS -->
     <link href="{% static_v 'filemanager/css/filemanager.css' %}" rel="stylesheet">
+    {# Repli des volets par leur FRONTIÈRE + marges dérivées --wama-*-gutter (wama-panel-toggle.js) #}
+    <link href="{% static_v 'common/css/wama-panel-toggle.css' %}" rel="stylesheet">
 
     {% comment %}Importmap three.js — GLOBALE depuis le 2026-09-22 : l'avatar de l'assistant vit
     dans le volet droit de TOUTE page (`_assistant_avatar.html`), et une importmap doit précéder
@@ -78,10 +80,11 @@
 
   </head>
   {% comment %}`wama-sans-volet` : posée par le SERVEUR (donc sans clignotement) quand la page
-  ne déclare aucun volet. Elle rend au corps les 360 px que le CSS réservait au panneau —
-  `body > .container-fluid` porte `margin-right: var(--fm-right-panel-width) !important`.
-  Sans elle, retirer les cadres laisserait une bande vide : on aurait déplacé le décor, pas
-  supprimé. Même geste que `body.wama-simple`, qui libère déjà les deux marges.{% endcomment %}
+  ne déclare aucun volet. Elle rend au corps les 360 px que le CSS réservait au panneau : elle
+  met à 0 la marge droite `--wama-right-gutter` que lit `body > .container-fluid`
+  (wama-panel-toggle.css, 2026-10-10). Sans elle, retirer les cadres laisserait une bande
+  vide : on aurait déplacé le décor, pas supprimé. Même geste que `body.wama-simple` et qu'un
+  volet replié par sa frontière (`wama-left/right-collapsed`).{% endcomment %}
   <body{% if not volet.actif %} class="wama-sans-volet"{% endif %}>
     {# Anti-flash: apply wama-simple class before any render if stored in localStorage #}
     <script>
@@ -90,6 +93,11 @@
         window.WAMA_UI_MODE_KEY = k;
         var m = localStorage.getItem(k) || '{{ ui_mode }}';
         if (m === 'simple') document.body.classList.add('wama-simple');
+        // Volets repliés par leur frontière (WamaPanels) : même geste, avant le premier rendu.
+        try {
+          if (localStorage.getItem('wama_panel_left') === 'collapsed') document.body.classList.add('wama-left-collapsed');
+          if (localStorage.getItem('wama_panel_right') === 'collapsed') document.body.classList.add('wama-right-collapsed');
+        } catch (e) { /* stockage indisponible : volets ouverts */ }
       })();
     </script>
     {% block top_navigation %}
@@ -382,6 +390,8 @@
     <script src="{% static_v 'common/js/wama-assistant-voice.js' %}"></script>
     {# WamaAvatarPanel global : accordéon Assistant du volet (préférence durable, chargement à la demande, repli) — APRÈS wama-app-base (csrfToken) #}
     <script src="{% static_v 'common/js/wama-avatar-panel.js' %}"></script>
+    {# WamaPanels global : un clic sur la FRONTIÈRE d'un volet le replie / le rouvre — APRÈS l'avatar, qu'il prévient #}
+    <script src="{% static_v 'common/js/wama-panel-toggle.js' %}"></script>
     {# WamaAssistantChat : mini-chat du volet, auto-monté sur #assistant-chat (absent de l'accueil) #}
     <script src="{% static_v 'common/js/wama-assistant-chat.js' %}"></script>
     <script src="{% static_v 'common/js/wama-catalog-refresh.js' %}"></script>  {# actualisation des catalogues : la page ne declare que la CLE de son registre (common/registries.py) #}
@@ -488,11 +498,9 @@
           var k = window.WAMA_UI_MODE_KEY || 'wama_ui_mode';
           var cur = localStorage.getItem(k) || '{{ ui_mode }}';
           var next = cur === 'advanced' ? 'simple' : 'advanced';
-          if (next === 'simple' && !window.WAMA_IS_HOME) {
-            window.wamaSetMode('simple');
-            window.location.href = '/';
-            return;
-          }
+          // Le mode s'applique SUR PLACE (2026-10-10, décision de Fabien) : il renvoyait à
+          // l'accueil depuis toute autre page, sans le dire. L'accueil simplifié reste à un
+          // clic — le logo WAMA, qui l'affiche dès que ce mode est actif.
           window.wamaSetMode(next);
         };
 
@@ -504,11 +512,11 @@
           if (mode === 'simple') {
             if (lbl) lbl.textContent = 'Avancé';
             if (ico) { ico.className = 'fas fa-compress-alt me-1'; }
-            btn.title = 'Passer en Mode Avancé';
+            btn.title = 'Passer en Mode Avancé — les volets reviennent';
           } else {
             if (lbl) lbl.textContent = 'Simplifié';
             if (ico) { ico.className = 'fas fa-expand-alt me-1'; }
-            btn.title = 'Passer en Mode Simplifié';
+            btn.title = 'Passer en Mode Simplifié — masque les volets ; le logo WAMA ouvre l’accueil simplifié';
           }
         }
 

@@ -5104,3 +5104,38 @@ registre (⑤), la confrontation dans les deux sens.
 | licences | licence du MOTEUR héritée par la sortie (XTTS `cpml-1.0` = non commercial) — l'afficher sur le résultat ? | catalogue (`AIModel.license`), `LICENSING.md` |
 | retrait | que deviennent les sorties produites avec une voix/un visage dont le consentement est retiré ? | aujourd'hui : elles restent, seules les FUTURES échouent (`VoiceUnavailable`) |
 | registre RGPD | fiche de traitement « clonage de voix », AIPD | côté université : WAMA RÉFÉRENCE, n'absorbe pas (`WAMA_DATA_WORLD §13.16`) |
+
+## 27. WAMA sur TABLETTE — relevé du 2026-10-10, chantier ouvert
+
+> Question de Fabien, le 10/10 : *« Ce serait bien de pouvoir utiliser WAMA sur tablette
+> aussi. Est-ce faisable rapidement ou un chantier à part ? »* Réponse mesurée : **un chantier à
+> part, qui se découpe bien et commence par des corrections peu coûteuses.** Aucune doc n'en
+> parlait avant ce relevé (seule trace : « mobile-friendly », `MODES_QUEUE_UX.md`).
+
+**Le relevé** — profil iPad Pro 11 émulé par Chromium (tactile, portrait et paysage), 18 pages,
+lecture seule sur le live, compte `wama_ui_smoke_v3`. Toutes en 200, **zéro erreur console,
+aucun débordement horizontal**. Les défauts sont ailleurs :
+
+| axe | mesuré | domicile |
+|---|---|---|
+| mise en page | trois colonnes fixes : centre 346 à 394 px sur 834 en portrait, 626 sur 1194 en paysage ; canvas du studio 158 px en portrait ; barre du haut qui se chevauche en portrait | `WAMA_VOLETS §9.5` |
+| glisser au doigt | ✅ explorateur → app (jsTree : toucher pour sélectionner puis glisser, `filemanager.js:261`) · ✅ studio : relier deux ports (toucher, toucher) · ❌ studio : ajouter un nœud, défiler, déplacer, pincer · ❌ file `wama-queue-dnd` (fusionner, réordonner, sortir d'un lot) : le glisser ne démarre jamais, testé sur transcriber, imager, converter · ❌ éditeur du transcriber (lu dans le code, non joué) : onde, frontières et ordre des segments | brique de gestes à créer (étape 3) |
+| cibles | presque toutes sous 44 px (59 sur 66 au transcriber) ; sous 24 px : 16 au transcriber, 12 à l'anonymizer, ports du studio à 11 px | étape 1 |
+| survol | boutons-icônes expliqués par la seule infobulle : 16 à 24 par app, 45 à la médiathèque ; 14 règles CSS qui ne montrent une action qu'au survol (actions des cartes de la médiathèque, import d'un résultat de recherche, plein écran de l'aperçu) | étape 1 |
+
+**L'ordre proposé** :
+1. ⏳ **Une règle commune pour les écrans tactiles** (`@media (pointer: coarse)`) : cibles
+   agrandies, actions de survol montrées en permanence. Toutes les pages d'un coup.
+2. 🔄 **Les volets** : ✅ repli manuel par la frontière, livré le 2026-10-10 (`WamaPanels`,
+   pastille visible au doigt ; centre 394 → 834 px en portrait) ; ⏳ repli d'office sous une
+   largeur et barre du haut — `WAMA_VOLETS §9.5`.
+3. ⏳ **Une brique commune de gestes au pointeur** dans `wama/common/` (glisser, défiler,
+   pincer) : le studio l'adopte d'abord, puis la file — le plus gros morceau, elle touche toutes
+   les apps — et l'éditeur du transcriber. Pas cinq versions du même geste : le glisser HTML5
+   porte aujourd'hui des gestes centraux à cinq endroits (explorateur, file, studio, éditeur,
+   cam_analyzer).
+
+**Ce que le relevé ne dit pas** : c'est Chromium qui émule, pas Safari sur un vrai iPad — Safari
+gère peut-être le glisser HTML5 natif par appui long ; un essai sur une vraie tablette tranche ce
+seul point. Les pages du Lab n'ont pas été passées (adresses non résolues par la sonde) ;
+l'éditeur du transcriber a été lu, pas joué.

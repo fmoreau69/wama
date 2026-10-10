@@ -60,7 +60,8 @@
      bottom: 40px → posé AU-DESSUS du footer WAMA fixe (body>footer height:40px, z-index:1030). */
   /* Alignée sur la zone de contenu : entre la sidebar gauche et le volet droit (vars filemanager).
      z-index 1031 > panneaux (1025) ; bottom 40px = au-dessus du footer. */
-  .editor-audiobar { position: fixed; left: var(--fm-sidebar-width, 0); right: var(--fm-right-panel-width, 0);
+  .editor-audiobar { position: fixed; left: var(--wama-left-gutter, var(--fm-sidebar-width, 0)); right: var(--wama-right-gutter, var(--fm-right-panel-width, 0));
+    transition: left var(--wama-panel-anim, 0s), right var(--wama-panel-anim, 0s);  /* suit un volet replié (WamaPanels) */
     bottom: 40px; z-index: 1031;
     background: #0b0b0d; border-top: 1px solid #2a2a30; box-shadow: 0 -4px 14px rgba(0,0,0,0.45); }
   body.wama-simple .editor-audiobar { left: 0; right: 0; }   /* mode plein écran : panneaux masqués */

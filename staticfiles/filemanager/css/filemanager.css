@@ -129,12 +129,15 @@
     margin-top: 2px !important;
 }
 
-/* Top nav wrapper - matches header height */
+/* Top nav wrapper - matches header height.
+   Les bords lisent les MARGES de volet (`--wama-*-gutter`, wama-panel-toggle.css) et non la
+   largeur des volets : un volet replié rend sa place (2026-10-10). Repli sur la largeur si la
+   feuille commune manquait. */
 .top_nav {
     position: fixed !important;
     top: 0 !important;
-    left: var(--fm-sidebar-width) !important;
-    right: var(--fm-right-panel-width) !important;
+    left: var(--wama-left-gutter, var(--fm-sidebar-width)) !important;
+    right: var(--wama-right-gutter, var(--fm-right-panel-width)) !important;
     width: auto !important;
     height: var(--fm-header-height) !important;
     z-index: 2000 !important;
@@ -169,8 +172,8 @@ body.wama-sans-volet .top_nav {
 body.wama-sans-volet > .container,
 body.wama-sans-volet > .container-fluid {
     margin-right: 0 !important;
-    width: calc(100% - var(--fm-sidebar-width)) !important;
-    max-width: calc(100% - var(--fm-sidebar-width)) !important;
+    width: calc(100% - var(--wama-left-gutter, var(--fm-sidebar-width))) !important;
+    max-width: calc(100% - var(--wama-left-gutter, var(--fm-sidebar-width))) !important;
 }
 
 /* === TREE SECTION HEADERS === */
@@ -501,14 +504,15 @@ body.wama-sans-volet > .container-fluid {
 
 /* === CONTENT LAYOUT WITH BOTH PANELS === */
 /* Le contenu est positionné entre les deux panneaux latéraux */
+/* Marges = `--wama-*-gutter` (largeur du volet s'il occupe sa place, 0 s'il est replié). */
 body > .container,
 body > .container-fluid {
     margin-top: var(--fm-header-height) !important;
-    margin-left: var(--fm-sidebar-width) !important;
-    margin-right: var(--fm-right-panel-width) !important;
+    margin-left: var(--wama-left-gutter, var(--fm-sidebar-width)) !important;
+    margin-right: var(--wama-right-gutter, var(--fm-right-panel-width)) !important;
     margin-bottom: var(--fm-footer-height) !important;
-    width: calc(100% - var(--fm-sidebar-width) - var(--fm-right-panel-width)) !important;
-    max-width: calc(100% - var(--fm-sidebar-width) - var(--fm-right-panel-width)) !important;
+    width: calc(100% - var(--wama-left-gutter, var(--fm-sidebar-width)) - var(--wama-right-gutter, var(--fm-right-panel-width))) !important;
+    max-width: calc(100% - var(--wama-left-gutter, var(--fm-sidebar-width)) - var(--wama-right-gutter, var(--fm-right-panel-width))) !important;
 }
 
 body > footer {
