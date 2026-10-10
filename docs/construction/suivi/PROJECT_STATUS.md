@@ -22856,3 +22856,12 @@ test_les_bancs_de_performance_sont_ceux_de_benchmark_sync` — `benchmark_sync` 
   budget) ; la session y retire un nom français.
 
 Skill corrigé : `/commit-partiel` (le patch de `pick_hunks.py` est un fichier de SORTIE).
+
+## §PALIER — 2026-10-10, « GaterV3 + 1ʳᵉ ADOPTION DU TÉLÉCHARGEMENT COMMUN » — livré (commits de ce palier, non poussés) — 🔴 relancer le worker `gpu` (lancé le 09/10 16:11, il n'a pas les commits du 09 au soir et du 10) et gunicorn (entrée GaterV3 de l'agrandisseur)
+
+GaterV3 installé par Celery (tâche `denoise` = décision de Fabien), servi sur CPU ; YOLOPv2 du Cam
+Analyzer sur `download_asset` (CHANGELOG de l'app) ; table des mécanismes régénérée (`7f153382`).
+Détail : `PROSPECTION_PIPELINE §Suite du 2026-10-10`.
+- 🔚 Adoptions restantes : anonymizer (après l'autre instance), QualityScaler de l'enhancer ;
+  CodeFormer ÉCARTÉ (ensemble de poids, disposition vendorisée) — seul défaut à corriger : la
+  branche de repli de `setup_avatarizer.sh` écrit `codeformer.pth` à plat.

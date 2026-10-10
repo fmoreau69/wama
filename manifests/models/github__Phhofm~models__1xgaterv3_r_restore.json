@@ -1,0 +1,74 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_image"
+      ],
+      "modalities": [
+        "image"
+      ],
+      "scale": 1,
+      "task": "denoise"
+    },
+    "composition": {
+      "components": [
+        {
+          "format": "onnx",
+          "pattern": "1xgaterv3_r_restore_fp32_op17_onnxslim.onnx",
+          "role": "model"
+        }
+      ],
+      "runtime": {
+        "engine": "onnxruntime"
+      }
+    },
+    "extra_info": {
+      "category": "upscaling",
+      "family": "1xgaterv3_r_restore",
+      "github_release": true,
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "onnx",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "Phhofm",
+      "description_short": "Version GitHub 1xgaterv3_r_restore",
+      "hf_id": null,
+      "license": "CC BY 4.0",
+      "model_type": "upscaling",
+      "platform_ref": "github:Phhofm/models/releases/tag/1xgaterv3_r_restore",
+      "source": "github"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.08040471002459526,
+      "ram_gb": 0.0,
+      "vram_gb": 0.1
+    }
+  },
+  "description": "Version GitHub installée (upscaling/1xgaterv3_r_restore), cataloguée par le balayage générique des modèles installés.",
+  "key": "github:Phhofm/models:1xgaterv3_r_restore",
+  "manifest_kind": "model",
+  "name": "1xgaterv3_r_restore",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:github:Phhofm/models:1xgaterv3_r_restore",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

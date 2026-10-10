@@ -2362,3 +2362,22 @@ Tests : `tests_prospection_sources` (18, deux contre-épreuves jouées).
 du bouton ne lui est pas exposé ; un successeur installé n'est pas branché dans l'app de l'ancien
 (intégration par les rôles) ; deux versions d'une même famille peuvent être proposées ensemble
 (PaddleOCR-VL 1.5 et 1.6).
+
+**Suite du 2026-10-10 — GaterV3, première installation GitHub par Celery, première adoption.**
+- **GaterV3** : tâche `denoise` par DÉCISION de Fabien (restauration 1×, comme IRCNN 1×) — le
+  jugement d'Albert variait d'un passage à l'autre. Appliquée au manifeste du scout (écrit en
+  attente de validation humaine pour cela), puis la garde de catégorie (`upscaling`) et le semis
+  existant. Installé par `request_install` → worker `default` : **1ʳᵉ installation d'une version
+  GitHub de bout en bout par Celery** (246 s, synchronisation comprise). Entrée `AIUpscaler`
+  (`model_key` seule). CPU : sur une image bruitée de synthèse, erreur à l'image propre
+  15,3 → 3,7 ; proposé au select de l'enhancer, ni au tirage ×4 ni à l'imager.
+- **Adoption, un téléchargeur après l'autre** : YOLOPv2 du Cam Analyzer passe par
+  `download_asset` (empreinte épinglée, mesurée de deux façons : téléchargement neuf et fichier
+  installé concordent) — même dossier, même nom, même contrat ; la PRIMITIVE, pas le pilote de
+  catalogue (le menu des profils liste son dossier). **CodeFormer écarté après mesure** (l'avais
+  proposé à tort comme le moins risqué) : ses poids sont un ENSEMBLE de quatre dépôts dans une
+  disposition fixe lue par le code vendorisé, la voie normale est son propre téléchargeur, et la
+  branche de repli du script écrit `codeformer.pth` À PLAT là où la découverte le cherche sous
+  `CodeFormer/`. **Anonymizer** reporté (édité par une autre instance), **QualityScaler** de
+  l'enhancer reporté (ses modèles embarqués vivent dans un dossier que l'app balaie elle-même).
+- `WAMA_MECANISMES.md` régénéré depuis un worktree de HEAD (`7f153382`).

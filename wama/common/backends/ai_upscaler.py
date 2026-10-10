@@ -87,6 +87,11 @@ SUPPORTED_MODELS = {  # wama:redondance-ok — même inventaire que enhancer/uti
     '4xNomosUni_span_multijpg': {
         'model_key': 'github:Phhofm/models:4xNomosUni_span_multijpg',
     },
+    # Restauration 1x (bruit, compression, flou léger) — tâche `denoise` par décision de Fabien
+    # (2026-10-10) : le jugement du LLM variait d'un passage à l'autre.
+    '1xgaterv3_r_restore': {
+        'model_key': 'github:Phhofm/models:1xgaterv3_r_restore',
+    },
 }
 
 
