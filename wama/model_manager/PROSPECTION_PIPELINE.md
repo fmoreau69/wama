@@ -2381,3 +2381,16 @@ du bouton ne lui est pas exposé ; un successeur installé n'est pas branché da
   `CodeFormer/`. **Anonymizer** reporté (édité par une autre instance), **QualityScaler** de
   l'enhancer reporté (ses modèles embarqués vivent dans un dossier que l'app balaie elle-même).
 - `WAMA_MECANISMES.md` régénéré depuis un worktree de HEAD (`7f153382`).
+
+**Complément du même jour — les VISAGES, sur deux images de Fabien** (`Faces_01` : passants
+masqués, 6 visages dont 2 flous au fond ; `faces_02` : « le plus grand selfie du monde », Dhaka
+2014, annoncé à au moins 1 151 participants, mais l'image est en 580×326 — le chiffre est un
+plafond, pas la vérité du cliché). Deux défauts de l'anonymizer, aucun de modèle :
+- **plafond de 300 détections** (`max_det` d'ultralytics jamais réglé) : le détecteur de visages
+  s'arrêtait net à 300 boîtes sur la foule — les autres visages restaient nets, en silence ;
+  EgoBlur visages plafonne lui aussi (100, figé dans son export) → non retenu ;
+- **une image analysée à sa seule taille native** : 307 visages à 580 px, 517 agrandie à 1280 ;
+  mais l'agrandissement PERD les deux visages flous du fond de `Faces_01`. Correctif : une image
+  passe à ses DEUX échelles, réunies (`anonymize.IMAGE_MIN_INFERENCE_SIZE`, `MAX_DETECTIONS`).
+Résultat par `detect_media`, sélection automatique au cran 50 : `Faces_01` 6/6 visages
+distincts (4 avant) ; selfie 559 visages distincts (307 avant), foule couverte jusqu'au fond.

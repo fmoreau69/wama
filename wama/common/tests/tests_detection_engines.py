@@ -69,10 +69,15 @@ class YoloDetectorTest(SimpleTestCase):
         self.addCleanup(shutil.rmtree, folder, True)
         source = os.path.join(folder, 'street.png')
         cv2.imwrite(source, np.zeros((48, 64, 3), np.uint8))
+        def seen_upscaled(result):
+            """Only the upscaled pass sees the object (a tiny face in a crowd)."""
+            return lambda **kw: [result] if kw['imgsz'] == 1280 else []
         faces = mock.Mock()
-        faces.predict.return_value = [_result([_box([1, 1, 20, 20], 0, 0.9)], {0: 'face'})]
+        faces.predict.side_effect = seen_upscaled(
+            _result([_box([1, 1, 20, 20], 0, 0.9)], {0: 'face'}))
         plates = mock.Mock()
-        plates.predict.return_value = [_result([_box([30, 30, 60, 40], 0, 0.8)], {0: 'plate'})]
+        plates.predict.side_effect = seen_upscaled(
+            _result([_box([30, 30, 60, 40], 0, 0.8)], {0: 'plate'}))
         engine = self._engine([
             {'yolo': faces, 'name': 'faces.pt', 'classes': ['face'], 'seg': False,
              'class_list': ['face']},
@@ -88,6 +93,11 @@ class YoloDetectorTest(SimpleTestCase):
         self.assertEqual([0], [f['i'] for f in doc['frames']])
         self.assertEqual(['face', 'plate'], [d['label'] for d in doc['frames'][0]['d']])
         self.assertEqual([1, 2], shown, 'the preview of the 2nd pass shows both models')
+        calls = faces.predict.call_args_list
+        self.assertEqual([64, 1280], [c.kwargs['imgsz'] for c in calls],
+                         'an image goes at its native size AND upscaled (2026-10-10)')
+        self.assertTrue(all(c.kwargs['max_det'] >= 1000 for c in calls),
+                        'a crowd is not cut at the 300 boxes of the ultralytics default')
 
     def test_a_model_that_covers_none_of_the_asked_classes_is_not_run(self):
         folder = tempfile.mkdtemp()

@@ -12,6 +12,17 @@ from ultralytics.utils import MACOS, WINDOWS
 from .detection_base import DetectionBackend
 from wama.settings import MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
 
+#: Détections gardées par image. Le défaut d'ultralytics (300) TRONQUAIT une foule en silence :
+#: sur « le plus grand selfie du monde » (2026-10-10), le détecteur de visages s'arrêtait net à
+#: 300 boîtes et les autres visages restaient nets. Anonymiser ne plafonne pas.
+MAX_DETECTIONS = 5000
+#: Côté minimal où une IMAGE est AUSSI analysée : une petite image (580 px) noie les visages
+#: lointains sous la résolution du détecteur. Mesuré sur le même selfie : 307 visages à 580 px,
+#: 517 à 1280, 531 à 1920. Mais l'agrandissement PERD des visages flous (Faces_01 : les deux
+#: passants du fond, trouvés à 640, perdus à 1280) — d'où les deux échelles réunies, jamais une
+#: seule. Une image coûte peu ; la vidéo garde sa taille (une passe par frame).
+IMAGE_MIN_INFERENCE_SIZE = 1280
+
 
 class Anonymize(DetectionBackend):
     def __init__(self, source_dir=None, destination_dir=None):
@@ -341,18 +352,26 @@ class Anonymize(DetectionBackend):
         for n, (rang, entree, indices) in enumerate(passes):
             def _results(dev, _e=entree, _idx=indices):
                 if image_mode:
-                    return _e['yolo'].predict(
-                        source=image, task=self.task, device=dev, retina_masks=self.ret_mask,
-                        imgsz=max(image.shape[:2]), conf=threshold, classes=_idx, verbose=False)
+                    # Une image passe à ses DEUX échelles, réunies (frame 0 pour chacune) : la
+                    # taille native garde les visages flous que l'agrandissement perd, l'échelle
+                    # agrandie trouve les visages minuscules d'une foule (cf. `IMAGE_MIN_…`).
+                    native = max(image.shape[:2])
+                    return [r for size in sorted({native, max(native, IMAGE_MIN_INFERENCE_SIZE)})
+                            for r in _e['yolo'].predict(
+                                source=image, task=self.task, device=dev,
+                                retina_masks=self.ret_mask, imgsz=size, conf=threshold,
+                                classes=_idx, max_det=MAX_DETECTIONS, verbose=False)]
                 return _e['yolo'].track(
                     source=source, task=self.task, device=dev, retina_masks=self.ret_mask,
-                    imgsz=width, classes=_idx, conf=threshold, stream=True, verbose=False)
+                    imgsz=width, classes=_idx, conf=threshold, max_det=MAX_DETECTIONS,
+                    stream=True, verbose=False)
 
             def _pass(dev, _rang=rang, _e=entree, _n=n):
                 # Collectées À PART puis réunies au document : une passe REJOUÉE après une
                 # erreur CUDA (`_reessayer`) n'ajoute pas deux fois ses détections.
                 local = []
                 for index, result in enumerate(_results(dev)):
+                    index = 0 if image_mode else index        # une image : ses échelles, frame 0
                     found = list(self._frame_detections(_rang, _e, result, wanted, threshold))
                     if found:
                         local.append((index, found))
