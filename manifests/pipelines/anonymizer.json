@@ -58,7 +58,8 @@
             "progressive_blur",
             "interpolate_detections",
             "max_interpolation_frames",
-            "max_extrapolation_frames"
+            "max_extrapolation_frames",
+            "detection_corrections"
           ]
         }
       },

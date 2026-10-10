@@ -535,6 +535,9 @@ def _blur(media, ctx):
     except (OSError, ValueError) as exc:
         raise RuntimeError(f"Floutage : détections illisibles ({exc}) — relancer la "
                            "détection.") from exc
+    # Les corrections humaines (page de correction, chantier SURFACES) : une couche à part,
+    # réappliquée ici à chaque floutage — une détection relancée ne les perd pas.
+    doc = detections.apply_corrections(doc, media.detection_corrections)
     user = media.user
     source = media.file.path   # le fichier de la card, pointé ou non (cf. `_detect`, R104)
     video = doc.get('media') == 'video'

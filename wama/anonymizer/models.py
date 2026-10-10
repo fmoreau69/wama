@@ -65,6 +65,11 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # (même précaution que `target_mode`).
     detections_file = models.FileField(upload_to=upload_to_user_output('anonymizer'),
                                        max_length=500, blank=True, default='', db_default='')
+    # Les CORRECTIONS humaines de ces détections (2026-10-10, chantier SURFACES, décision de
+    # Fabien : une couche À PART) — ajouts et retraits, réappliqués à chaque floutage
+    # (`detections.apply_corrections`) : une détection relancée ne les efface pas, et ils sont
+    # la vérité terrain du banc. Surveillé par le Floutage : corriger le périme.
+    detection_corrections = models.JSONField(blank=True, default=dict, db_default={})
 
     @property
     def processed(self):

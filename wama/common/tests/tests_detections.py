@@ -403,3 +403,34 @@ class RewriteVideoTest(SimpleTestCase):
         capture = cv2.VideoCapture(written)
         self.assertGreaterEqual(int(capture.get(cv2.CAP_PROP_FRAME_COUNT)), 9)
         capture.release()
+
+
+class CorrectionsTest(SimpleTestCase):
+    """Human corrections live APART from the detector's document (2026-10-10) and are re-applied
+    at every blur : a removal takes the detection it overlaps, even moved a few pixels by a new
+    detection run ; an addition enters as manual ; the detector's document is left untouched."""
+
+    def _doc(self):
+        doc = dets.new_document(media='image', width=100, height=100)
+        dets.add(doc, 0, [dets.detection(box=[10, 10, 30, 30], label='face', conf=0.9),
+                          dets.detection(box=[60, 60, 80, 80], label='face', conf=0.4)])
+        return doc
+
+    def test_a_removal_survives_a_box_moved_by_a_new_detection(self):
+        doc = self._doc()
+        fixed = dets.apply_corrections(doc, {'removed': [{'i': 0, 'box': [62, 61, 81, 82]}]})
+        self.assertEqual([[10, 10, 30, 30]], [d['box'] for d in fixed['frames'][0]['d']])
+        self.assertEqual(2, len(doc['frames'][0]['d']), "the detector's document is untouched")
+
+    def test_an_addition_enters_as_manual_and_a_neighbour_is_not_removed(self):
+        fixed = dets.apply_corrections(self._doc(), {
+            'added': [{'i': 0, 'box': [40, 5, 50, 15], 'label': 'face'}],
+            'removed': [{'i': 0, 'box': [0, 0, 12, 12]}]})       # barely touches the first face
+        boxes = {tuple(d['box']): d.get('manual', False) for d in fixed['frames'][0]['d']}
+        self.assertEqual({(10, 10, 30, 30): False, (60, 60, 80, 80): False,
+                          (40, 5, 50, 15): True}, boxes)
+        self.assertEqual({'added': 1, 'removed': 1}, fixed['corrected'])
+
+    def test_no_correction_returns_the_document_itself(self):
+        doc = self._doc()
+        self.assertIs(doc, dets.apply_corrections(doc, {}))

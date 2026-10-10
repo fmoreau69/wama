@@ -94,6 +94,53 @@ def merge(docs) -> dict:
     return union
 
 
+#: Recouvrement à partir duquel un RETRAIT humain désigne une détection : assez haut pour ne pas
+#: emporter un voisin dans une foule, assez bas pour survivre à une détection relancée dont la
+#: boîte a bougé de quelques pixels.
+CORRECTION_MIN_IOU = 0.5
+
+
+def _iou(a, b) -> float:
+    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    inter = ix * iy
+    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+    return inter / union if union > 0 else 0.0
+
+
+def apply_corrections(doc: dict, corrections) -> dict:
+    """Le document CORRIGÉ par l'humain (2026-10-10, chantier SURFACES) — une copie, l'original
+    reste celui du détecteur. Les corrections vivent À PART (décision de Fabien) pour survivre à
+    une détection relancée et servir de vérité terrain :
+
+        {"added":   [{"i": frame, "box": [x1, y1, x2, y2], "label": "face"}],
+         "removed": [{"i": frame, "box": [x1, y1, x2, y2]}]}
+
+    Un retrait ôte, sur sa frame, les détections qui le recouvrent à `CORRECTION_MIN_IOU` ; un
+    ajout entre avec `manual: True` et une confiance de 1. Déplacer une boîte = la retirer et
+    l'ajouter ailleurs."""
+    corrections = corrections or {}
+    removed, added = corrections.get('removed') or [], corrections.get('added') or []
+    if not removed and not added:
+        return doc
+    fixed = {k: v for k, v in doc.items() if not k.startswith('_') and k != 'frames'}
+    fixed['frames'] = []
+    gone = {}
+    for r in removed:
+        gone.setdefault(int(r['i']), []).append(r['box'])
+    for frame in doc.get('frames') or []:
+        kept = [d for d in frame.get('d') or []
+                if not any(_iou(d['box'], box) >= CORRECTION_MIN_IOU
+                           for box in gone.get(int(frame['i']), ()))]
+        add(fixed, frame['i'], [dict(d) for d in kept])
+    for a in added:
+        entry = detection(box=a['box'], label=a.get('label') or 'face', conf=1.0)
+        entry['manual'] = True
+        add(fixed, int(a['i']), [entry])
+    fixed['corrected'] = {'added': len(added), 'removed': len(removed)}
+    return fixed
+
+
 def write(path: str, doc: dict) -> str:
     """Écrit le document (frames ordonnées) ; rend le chemin."""
     clean = {k: v for k, v in doc.items() if not k.startswith('_')}

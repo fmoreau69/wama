@@ -63,7 +63,9 @@ register(FunctionSpec(
 #: zone, flou progressif, interpolation. `PIPELINE.watched_of(spec)` réunit les deux. Les réglages
 #: d'AFFICHAGE (`show_*`) ne périment rien : ils ne changent que l'aperçu (`stales=()`).
 DETECT_WATCHED = ('file', 'classes2blur')
-BLUR_WATCHED = ()
+#: Les corrections humaines (2026-10-10) : les modifier rend le floutage périmé, jamais la
+#: détection — corriger ne redétecte rien.
+BLUR_WATCHED = ('detection_corrections',)
 
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('detect', label='Détection', watched=DETECT_WATCHED, gpu=True, share=7,
