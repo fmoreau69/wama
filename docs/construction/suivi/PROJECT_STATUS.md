@@ -22865,3 +22865,21 @@ Détail : `PROSPECTION_PIPELINE §Suite du 2026-10-10`.
 - 🔚 Adoptions restantes : anonymizer (après l'autre instance), QualityScaler de l'enhancer ;
   CodeFormer ÉCARTÉ (ensemble de poids, disposition vendorisée) — seul défaut à corriger : la
   branche de repli de `setup_avatarizer.sh` écrit `codeformer.pth` à plat.
+
+
+## §CLÔTURE (complément) — 2026-10-10, « CLÉS D'INSTANCE : smoke navigateur sur le LIVE » — clos (commit de ce bloc, non poussé) — 🔚 poser la vraie clé ILaaS
+
+Le smoke navigateur déclaré en attente au bloc précédent est joué sur le live (Playwright, WSL) :
+- **page Sources en admin** (compte de test `wama_pw_smoke` muni du groupe `admin` le temps de la
+  sonde, retiré ensuite) : badges `clé posée (.env)` / `clé absente`, facette « Clé de
+  l'instance » (valeurs `set`/`missing`), inspecteur ILaaS (champ, interrupteur de partage grisé
+  sans clé), inspecteur Albert (« Non partageable », pas d'interrupteur) ;
+- **clé FACTICE sur ILaaS** : enregistrée (200), et ILaaS a répondu **401** à la lecture des
+  modèles — l'adresse est joignable et l'authentification par jeton est reconnue ; partage (200,
+  badge « partagée ») ; profil d'un compte non admin : « ✓ Fournie par l'établissement » ;
+  retrait (200, badge « clé absente ») ; profil : « Non configuré ». Aucune ligne restée en base ;
+- **compte non admin sur la page Sources** : ni la brique de clé ni le champ ;
+- **profil** : les deux listes de clés (fournisseurs d'IA, connecteurs de la médiathèque), portées
+  sur `WamaKeyField`, s'affichent comme avant ; zéro erreur de page côté admin.
+⚠ Une capture d'ÉLÉMENT du volet droit, hors de la zone visible d'un conteneur qui défile, sort
+DÉFORMÉE (lignes superposées) : faire défiler l'élément avant de le capturer.
