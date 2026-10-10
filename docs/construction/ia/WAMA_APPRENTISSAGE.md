@@ -413,6 +413,17 @@ déplacement est prévu** — trois règles, pour qu'il ne casse rien :
 - **les scripts maison qui écrivent un chemin en dur** (`utils/`, ex. la normalisation des
   classes qui pointe un ancien disque) sont recensés dans le plan et réécrits contre la racine.
 
+✅ **Et les SOURCES des jeux entrent au registre des sources externes** (Fabien, 2026-10-10 :
+*« on pourra aussi ajouter les sources de datasets dans sources »*) — la page `/common/sources/`,
+famille **« Corpus de données »** (`external_sources.KINDS['corpus']`, déjà ouverte pour Mozilla
+Data Collective). Une ligne par source d'où viennent les jeux du labo : Hugging Face Datasets,
+Roboflow Universe, Kaggle, Zenodo, data.gouv.fr, et les sites officiels des jeux de référence
+(WIDER FACE, CelebA…) — avec la clé d'API de chacun quand elle en demande une (règle des clés
+personnelles). Deux usages, une déclaration : la PROVENANCE du manifeste `dataset` cite la clé de
+sa source (fini les jeux « Kaggle, identification probable ») ; la DATATHÈQUE y cherche des jeux
+ouverts comme la médiathèque cherche dans les sources `media` du même registre. Rien n'est
+déclaré tant qu'aucun lecteur ne s'en sert — les lignes entrent avec le premier.
+
 ---
 
 ## 9. Ce qu'il ne faut PAS faire maintenant
