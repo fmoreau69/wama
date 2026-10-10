@@ -215,6 +215,17 @@ ALIAS: dict[str, str] = {
     # cite comme origine). `_identity` rejette « m3 » (famille d'une lettre — garde du
     # 19/08 contre les parasites), donc sans alias le modèle du RAG n'aurait jamais de banc.
     'ollama:bge-m3:latest': 'BAAI/bge-m3',
+    # 2026-10-10, MESURÉ : le GGUF Ollama ne nomme pas son origine (`general.*` sans
+    # `base_model` ni `source`) mais ses paramètres sont ceux de `zai-org/GLM-OCR` à l'unité
+    # près : 673 285 632 (texte) + 434 120 192 (vision) = 1 325 258 240 (total HF) moins la
+    # couche MTP (`num_nextn_predict_layers: 1`, que llama.cpp n'embarque pas) — couche
+    # décodeur + `eh_proj` + normes + copies d'embedding et de tête = 217 852 416 exactement.
+    'ollama:glm-ocr:latest': 'zai-org/GLM-OCR',
+    # 2026-10-10, confirmé par Fabien : notre dépôt GGUF (`audio-cpp/MiniMax-Music3-GGUF`)
+    # déclare `base_model: MiniMaxAI/MiniMax-Music3`, dont la carte nomme le modèle
+    # « MiniMax Music 3 » (schéma d'architecture `music3.0`) — l'entrée d'AA « MiniMax Music
+    # 3.0 ». AA mesure le service de l'éditeur ; le nôtre est quantifié Q8 (borne haute).
+    'composer:minimax-music3': 'MiniMax Music 3.0',
 }
 
 
