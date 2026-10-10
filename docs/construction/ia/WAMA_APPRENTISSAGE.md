@@ -398,6 +398,21 @@ VGGFace2) ; noms avec `&`, `~`, statuts (`_OK`, `_NOK`, ` - Copie`).
 au fil de l'eau, jeu par jeu ; (1) et le ménage (archives, doublons) en une passe décidée par
 Fabien, le partage étant aussi le sien hors WAMA.
 
+✅ **Décidé le 2026-10-10 (Fabien)** : il regroupe d'abord dans ce dossier les jeux dispersés
+ailleurs, puis demandera la RÉORGANISATION complète selon cette proposition. **D'ici là, le
+déplacement est prévu** — trois règles, pour qu'il ne casse rien :
+- **aucun chemin absolu du partage dans WAMA** : une seule racine déclarée (`DATASETS_ROOT`,
+  posée dans `settings.py` le jour où un jeu y est branché — rien ne la lit aujourd'hui), et des
+  chemins RELATIFS à elle dans les manifestes `dataset` et les références de banc ; un jeu
+  désigné par son identité (nom + version), jamais par son emplacement ;
+- **la réorganisation se fait en deux temps** : un PLAN écrit (inventaire avec empreintes,
+  table ancien → nouveau chemin, doublons et archives repérés), relu par Fabien, PUIS
+  l'exécution, qui vérifie chaque empreinte après déplacement et garde la table de
+  correspondance à la racine (`MOVES.csv`) — aucune suppression sans son accord, doublons
+  compris ;
+- **les scripts maison qui écrivent un chemin en dur** (`utils/`, ex. la normalisation des
+  classes qui pointe un ancien disque) sont recensés dans le plan et réécrits contre la racine.
+
 ---
 
 ## 9. Ce qu'il ne faut PAS faire maintenant
