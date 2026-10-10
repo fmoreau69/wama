@@ -2993,7 +2993,13 @@ class ModelRegistry:
                     is_downloaded=poids.exists(),
                     extra_info={'path': str(CODEFORMER_MODELS_DIR),
                                 'pipeline': 'codeformer',
-                                'model_id': 'codeformer'},
+                                'model_id': 'codeformer',
+                                # OÙ et QUOI installer (2026-10-10) : le dossier de l'app et les
+                                # fichiers d'une version GitHub qu'elle DÉCLARE — c'est ce qui
+                                # rend la ligne installable (`spec_for_catalog_row`).
+                                **({'install_dir': str(CODEFORMER_MODELS_DIR),
+                                    'release_files': cf['release']}
+                                   if cf.get('release') else {})},
                     # `pipeline_stage` (2026-09-29) : il restaure les images que MuseTalk produit —
                     # une étape de la chaîne, pas une porte d'entrée de l'avatarizer. Son entrée
                     # reste déclarée (elle est vraie pour le modèle), elle n'ouvre plus de port.

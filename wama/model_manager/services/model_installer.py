@@ -276,6 +276,11 @@ def weight_for_spec(spec: dict):
     if kind == 'github':
         if github_spec_error(spec):
             return None
+        files = spec.get('files')
+        if files is not None:
+            # Fichiers déclarés : leur taille l'est aussi (mesurée) — sinon on ne suppose rien.
+            sizes = [f.get('size') for f in files]
+            return round(sum(sizes) / 1024 ** 3, 3) if all(sizes) else None
         from wama.common.external_sources import proxies_for
         return _asset_gb(github_asset_url(spec), proxies=proxies_for('github'))
     return None
@@ -750,6 +755,24 @@ def github_spec_error(spec: dict):
     if not _GITHUB_TAG_RE.match(tag) or tag.lower() == 'latest':
         return (f"tag refusé : {tag!r} — le tag EXACT de la version (jamais « latest », qui "
                 "désigne une version différente demain), sans « / »")
+    if spec.get('files') is not None:
+        # Variante FICHIERS DÉCLARÉS (2026-10-10) : une app déclare les fichiers d'une version
+        # et leur place SOUS son dossier (`target_dir`, posé par sa découverte) — CodeFormer,
+        # dont le code vendorisé lit une disposition fixe. Mêmes verrous, fichier par fichier.
+        files = spec.get('files')
+        if not isinstance(files, list) or not files:
+            return "files : une liste non vide de {path, sha256}"
+        for f in files:
+            path = str((f or {}).get('path') or '')
+            parts = path.split('/')
+            if not path or any(not _GITHUB_ASSET_RE.match(p) or '..' in p for p in parts):
+                return (f"fichier refusé : {path!r} — un chemin RELATIF sous le dossier de "
+                        "l'app, sans « .. » ; son dernier segment est le nom de l'asset")
+            if not _SHA256_RE.match(str(f.get('sha256') or '')):
+                return f"sha256 manquant ou invalide pour {path!r} — l'empreinte épinglée"
+        if not spec.get('target_dir'):
+            return "target_dir requis — le dossier de l'app (`install_dir` de sa découverte)"
+        return None
     asset = str(spec.get('asset') or '')
     if not _GITHUB_ASSET_RE.match(asset) or '..' in asset:
         return f"asset refusé : {asset!r} — le NOM d'un fichier de la version, sans chemin"
@@ -812,6 +835,55 @@ def pull_github_asset(spec: dict, timeout: int = 600, dry_run: bool = False) -> 
     from wama.common.external_sources import proxies_for
     return download_asset(github_asset_url(spec), target, timeout=timeout,
                           sha256=spec['sha256'], proxies=proxies_for('github'))
+
+
+def pull_github_files(spec: dict, timeout: int = 600, dry_run: bool = False) -> dict:
+    """Les fichiers d'une version GitHub qu'une app DÉCLARE, posés SOUS son dossier
+    (`target_dir`) — la variante de `pull_github_asset` pour un modèle d'app dont le code lit une
+    disposition fixe (CodeFormer : `CodeFormer/`, `facelib/`, `realesrgan/`, 2026-10-10).
+
+    Même comportement, fichier par fichier : adresse dérivée de la source `github`, empreinte
+    épinglée, téléchargement commun. Un fichier présent à la bonne empreinte est gardé ; un
+    fichier présent à une AUTRE empreinte arrête tout AVANT le moindre téléchargement (on ne
+    remplace pas en silence ce qu'on n'a pas installé, et on ne laisse pas une installation à
+    moitié). Le dossier doit être sous la racine canonique des modèles.
+    """
+    from wama.common.utils.model_locations import models_root
+
+    error = github_spec_error(spec)
+    if error:
+        return {'ok': False, 'error': error}
+    root = Path(spec['target_dir'])
+    try:
+        root.resolve().relative_to(models_root().resolve())
+    except (ValueError, OSError):
+        return {'ok': False, 'error': f"{root} hors de la racine des modèles — refusé"}
+    targets = [(f, root / f['path']) for f in spec['files']]
+    if dry_run:
+        return {'ok': True, 'target': str(root), 'files': [str(t) for _, t in targets],
+                'dry_run': True}
+    kept, missing = [], []
+    for f, target in targets:
+        if target.exists():
+            if _file_sha256(str(target)) != f['sha256'].lower():
+                return {'ok': False,
+                        'error': f"{target} existe avec une AUTRE empreinte que celle épinglée "
+                                 "— le retirer avant de réinstaller"}
+            kept.append(str(target))
+        else:
+            missing.append((f, target))
+    from wama.common.external_sources import proxies_for
+    downloaded = []
+    for f, target in missing:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        res = download_asset(github_asset_url({'ref': spec['ref'], 'asset': target.name}),
+                             str(target), timeout=timeout, sha256=f['sha256'],
+                             proxies=proxies_for('github'))
+        if not res.get('ok'):
+            return {'ok': False, 'error': res.get('error'), 'downloaded': downloaded}
+        downloaded.append(str(target))
+    return {'ok': True, 'path': str(root), 'downloaded': downloaded, 'kept': kept,
+            'already': not downloaded}
 
 
 def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int = 0,
@@ -1459,6 +1531,17 @@ def spec_for_catalog_row(model) -> dict | None:
 
     hf_id = (model.hf_id or '').strip()
     install_dir = ((model.extra_info or {}).get('install_dir') or '').strip()
+    # Les fichiers d'une VERSION GitHub que l'app DÉCLARE (2026-10-10, CodeFormer) : ils priment
+    # sur le `hf_id`, qui peut nommer un dépôt sans rapport avec les poids réellement lus.
+    release = (model.extra_info or {}).get('release_files')
+    if release and install_dir:
+        try:
+            Path(install_dir).resolve().relative_to(models_root().resolve())
+        except (ValueError, OSError):
+            return None                  # hors racine canonique : pas installable d'ici
+        return {'kind': 'github', 'ref': release.get('ref', ''),
+                'files': list(release.get('files') or []), 'target_dir': install_dir,
+                'note': f"installation explicite depuis le catalogue ({model.model_key})"}
     if not hf_id or not install_dir:
         return None
     try:
@@ -1543,7 +1626,7 @@ def install_from_spec(spec: dict, token=None) -> dict:
     elif kind == 'yolo':
         res = pull_yolo_weights(ref)
     elif kind == 'github':
-        res = pull_github_asset(spec)
+        res = pull_github_files(spec) if spec.get('files') is not None else pull_github_asset(spec)
     elif kind == 'hf':
         if not spec.get('category'):
             return {'ok': False, 'error': "spec.category requis pour kind='hf'"}

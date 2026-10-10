@@ -13,7 +13,7 @@
 #        déclaré dans manifests/libraries/{musetalk,codeformer}.json + correctif de patches/
 #   3. Vérifie les dépendances pip du venv courant
 #   4. Télécharge les checkpoints MuseTalk vers AI-models/models/lipsync/musetalk/
-#   5. Télécharge les checkpoints CodeFormer vers AI-models/models/lipsync/codeformer/
+#   5. Installe les poids CodeFormer par le catalogue (`pull_model avatarizer:codeformer`)
 #
 # ⚠ Lancer ce script EST la décision humaine qu'exige la route (`--allow`, allowlist
 # `Library.is_allowed`, ROADMAP §16.7) : il autorise les deux moteurs qu'il installe, rien d'autre.
@@ -144,31 +144,23 @@ fi
 # =============================================================================
 echo "--- [5/5] Téléchargement checkpoints CodeFormer ---"
 
-if [ -f "$VENDOR_DIR/codeformer/scripts/download_pretrained_models.py" ]; then
-    python "$VENDOR_DIR/codeformer/scripts/download_pretrained_models.py" all || \
-    echo "Script CodeFormer non disponible — téléchargement manuel requis."
-else
-    echo "Téléchargement checkpoints CodeFormer..."
-    python -c "
-from basicsr.utils.download_util import load_file_from_url
-import os
-
-save_dir = '$MODELS_DIR/codeformer'
-os.makedirs(save_dir, exist_ok=True)
-
-# CodeFormer weights
-load_file_from_url(
-    url='https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth',
-    model_dir=save_dir, progress=True, file_name='codeformer.pth'
-)
-# GFPGAN weights (used by CodeFormer for alignment)
-load_file_from_url(
-    url='https://github.com/xinntao/facexlib/releases/download/v0.1.0/detection_Resnet50_Final.pth',
-    model_dir=save_dir, progress=True
-)
-print('CodeFormer checkpoints téléchargés.')
-" || echo "ATTENTION : Téléchargement CodeFormer échoué. Téléchargez manuellement depuis : https://github.com/sczhou/CodeFormer"
-fi
+# ⚠⚠ RÉÉCRIT LE 2026-10-10. Les deux branches d'ici étaient fausses, chacune à sa manière :
+#   • le script de CodeFormer (`download_pretrained_models.py all`) écrit dans `./weights/`
+#     relatif au RÉPERTOIRE COURANT — ici la racine du dépôt (`cd` de l'étape 1-2) — et tire
+#     aussi les poids d'ENTRAÎNEMENT et dlib, que rien ne lit ;
+#   • le repli `basicsr` posait `codeformer.pth` À PLAT (la découverte le cherche sous
+#     `CodeFormer/`), prenait la détection chez facexlib, et omettait `parsing_parsenet.pth`
+#     et `RealESRGAN_x2plus.pth`.
+# Les poids passent désormais par la route du CATALOGUE, comme le bouton « Installer » : l'app
+# DÉCLARE les quatre fichiers que le code vendorisé lit (`AVATARIZER_MODELS['codeformer']
+# ['release']`, version sczhou/CodeFormer v0.1.0, empreintes épinglées), sa découverte pose le
+# dossier (`MODEL_PATHS['lipsync']['codeformer']`), `pull_model` installe (pilote `github`,
+# téléchargement commun, journal, re-synchronisation). Idempotent : un fichier en place à la
+# bonne empreinte est gardé.
+cd "$PROJECT_DIR"
+python manage.py sync_models >/dev/null      # la ligne `avatarizer:codeformer` existe ensuite
+python manage.py pull_model avatarizer:codeformer || \
+    echo "ATTENTION : poids CodeFormer non installés — relancer : python manage.py pull_model avatarizer:codeformer"
 
 # (La galerie d'avatars n'est plus un dossier media/avatarizer/gallery/ : les avatars — photos
 #  et objets 3D — se cherchent et s'importent par la médiathèque, source « Avatars 3D » comprise.)

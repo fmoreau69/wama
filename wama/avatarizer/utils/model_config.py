@@ -32,8 +32,32 @@ APP_DIR = Path(__file__).resolve().parent.parent
 MUSETALK_DIR = APP_DIR / 'musetalk'
 CODEFORMER_DIR = APP_DIR / 'codeformer'
 
-# Sous-dossiers weights/ de CodeFormer redirigés vers AI-models/ via symlinks
-CODEFORMER_WEIGHTS_SUBDIRS = ['CodeFormer', 'facelib', 'realesrgan']
+#: Les POIDS de CodeFormer — DÉCLARÉS (2026-10-10) : les quatre fichiers que le code vendorisé lit
+#: (`inference_codeformer.py`, `facelib/detection`, `facelib/parsing`), tous publiés par UNE
+#: version GitHub, rangés sous `CODEFORMER_MODELS_DIR/<sous-dossier>/` — la disposition que le
+#: backend relie par symlinks depuis `codeformer/weights/`. Taille et empreinte MESURÉES le 10/10
+#: sur les fichiers installés (qui ont servi aux traitements réussis) ; les tailles égalent celles
+#: de la version, qui ne publie pas d'empreinte. Lue par la découverte (installation par le
+#: catalogue : bouton « Installer » ou `pull_model avatarizer:codeformer`).
+CODEFORMER_RELEASE = {
+    'ref': 'sczhou/CodeFormer:v0.1.0',
+    'files': [
+        {'path': 'CodeFormer/codeformer.pth', 'size': 376637898,
+         'sha256': '1009e537e0c2a07d4cabce6355f53cb66767cd4b4297ec7a4a64ca4b8a5684b7'},
+        {'path': 'facelib/detection_Resnet50_Final.pth', 'size': 109497761,
+         'sha256': '6d1de9c2944f2ccddca5f5e010ea5ae64a39845a86311af6fdf30841b0a5a16d'},
+        {'path': 'facelib/parsing_parsenet.pth', 'size': 85331193,
+         'sha256': '3d558d8d0e42c20224f13cf5a29c79eba2d59913419f945545d8cf7b72920de2'},
+        {'path': 'realesrgan/RealESRGAN_x2plus.pth', 'size': 67061725,
+         'sha256': '49fafd45f8fd7aa8d31ab2a22d14d91b536c34494a5cfe31eb5d89c2fa266abb'},
+    ],
+}
+
+# Sous-dossiers weights/ de CodeFormer redirigés vers AI-models/ via symlinks — DÉRIVÉS de la
+# déclaration des poids (le backend en garde une copie : il n'importe pas l'app ; une garde
+# tient l'égalité, `avatarizer/tests_codeformer_weights`).
+CODEFORMER_WEIGHTS_SUBDIRS = list(dict.fromkeys(
+    f['path'].split('/', 1)[0] for f in CODEFORMER_RELEASE['files']))
 
 # Empreintes VRAM des SOUS-PROCESSUS GPU, déclarées au gouverneur le temps de leur exécution.
 # ⚠️ ESTIMATIONS NON MESURÉES (cf. ancien workers.py) — à confronter au réel ; le catalogue
@@ -88,5 +112,6 @@ AVATARIZER_MODELS = {
         'type': 'face-restoration',
         'vram_gb': CODEFORMER_VRAM_GB,
         'description': "CodeFormer — restauration de visage (option qualité supérieure, use_enhancer).",
+        'release': CODEFORMER_RELEASE,
     },
 }

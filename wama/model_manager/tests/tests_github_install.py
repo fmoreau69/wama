@@ -590,6 +590,132 @@ class TheBackendReceivesItsOwnIdentifierTest(SimpleTestCase):
         self.assertEqual('4xNomosUni_span_multijpg', seen['model_name'])
 
 
+#: Fichiers déclarés par une app (variante du pilote, 2026-10-10) — la forme de CodeFormer.
+DECLARED = {'ref': 'sczhou/CodeFormer:v0.1.0', 'files': [
+    {'path': 'CodeFormer/codeformer.pth', 'size': 1000, 'sha256': hashlib.sha256(PAYLOAD).hexdigest()},
+    {'path': 'facelib/parsing_parsenet.pth', 'size': 2000, 'sha256': 'd' * 64}]}
+
+
+class DeclaredReleaseFilesTest(TestCase):
+    """Une ligne d'app qui DÉCLARE les fichiers d'une version : installable par le catalogue,
+    posée sous SON dossier, mêmes verrous et même téléchargement que le pilote `github`."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.settings_cm = self.settings(AI_MODELS_DIR=self.root)
+        self.settings_cm.enable()
+        self.addCleanup(self.settings_cm.disable)
+        self.app_dir = os.path.join(self.root, 'models', 'lipsync', 'codeformer')
+
+    def _row(self, **extra):
+        from wama.model_manager.models import AIModel
+        return AIModel(model_key='avatarizer:codeformer', name='CodeFormer', source='avatarizer',
+                       hf_id='sczhou/CodeFormer', extra_info=extra)
+
+    def _spec(self, **over):
+        return {'kind': 'github', **DECLARED, 'target_dir': self.app_dir, **over}
+
+    def test_the_catalogue_row_derives_a_files_spec_before_its_hf_id(self):
+        spec = mi.spec_for_catalog_row(self._row(install_dir=self.app_dir, release_files=DECLARED))
+        self.assertEqual('github', spec['kind'], 'the declared files win over the hf_id')
+        self.assertEqual(DECLARED['files'], spec['files'])
+        self.assertEqual(self.app_dir, spec['target_dir'])
+        self.assertIsNone(mi.github_spec_error(spec))
+
+    def test_counter_proof_outside_the_models_root_is_not_installable(self):
+        self.assertIsNone(mi.spec_for_catalog_row(
+            self._row(install_dir='/elsewhere', release_files=DECLARED)))
+
+    def test_counter_proof_a_hf_app_row_keeps_its_hf_spec(self):
+        spec = mi.spec_for_catalog_row(self._row(install_dir=self.app_dir))
+        self.assertEqual(('hf', 'sczhou/CodeFormer'), (spec['kind'], spec['ref']))
+
+    def test_the_lock_refuses_a_path_that_climbs_or_a_missing_digest(self):
+        for files, motive in (([{'path': '../x.pth', 'sha256': 'a' * 64}], 'fichier refusé'),
+                              ([{'path': '/abs.pth', 'sha256': 'a' * 64}], 'fichier refusé'),
+                              ([{'path': 'a/x.pth', 'sha256': ''}], 'sha256'),
+                              ([], 'liste non vide')):
+            with self.subTest(files=files):
+                self.assertIn(motive, mi.github_spec_error(self._spec(files=files)) or '')
+        self.assertIn('target_dir', mi.github_spec_error(self._spec(target_dir='')))
+
+    def test_files_land_under_the_app_folder_through_the_common_download(self):
+        from wama.common.external_sources import base_url
+        with patch.object(mi, 'download_asset', return_value={'ok': True}) as dl:
+            res = mi.pull_github_files(self._spec())
+        self.assertTrue(res['ok'], res)
+        calls = {c.args[1]: c for c in dl.call_args_list}
+        target = os.path.join(self.app_dir, 'facelib', 'parsing_parsenet.pth')
+        self.assertEqual(f"{base_url('github')}/sczhou/CodeFormer/releases/download/v0.1.0/"
+                         "parsing_parsenet.pth", calls[target].args[0])
+        self.assertEqual('d' * 64, calls[target].kwargs['sha256'])
+
+    def test_a_file_in_place_is_kept_and_a_different_one_stops_everything(self):
+        good = os.path.join(self.app_dir, 'CodeFormer', 'codeformer.pth')
+        os.makedirs(os.path.dirname(good))
+        with open(good, 'wb') as fh:
+            fh.write(PAYLOAD)
+        with patch.object(mi, 'download_asset', return_value={'ok': True}) as dl:
+            res = mi.pull_github_files(self._spec())
+        self.assertEqual([good], res['kept'])
+        self.assertEqual(1, dl.call_count, 'only the missing file is downloaded')
+        with open(good, 'wb') as fh:
+            fh.write(b'other')
+        with patch.object(mi, 'download_asset') as dl:
+            res = mi.pull_github_files(self._spec())
+        self.assertFalse(res['ok'])
+        self.assertIn('AUTRE empreinte', res['error'])
+        dl.assert_not_called()
+
+    def test_a_target_outside_the_models_root_is_refused(self):
+        with patch.object(mi, 'download_asset') as dl:
+            res = mi.pull_github_files(self._spec(target_dir=tempfile.mkdtemp()))
+        self.assertFalse(res['ok'])
+        dl.assert_not_called()
+
+    def test_the_weight_is_the_declared_sizes(self):
+        self.assertEqual(round(3000 / 1024 ** 3, 3), mi.weight_for_spec(self._spec()))
+        self.assertIsNone(mi.weight_for_spec(self._spec(files=[
+            {'path': 'a/x.pth', 'sha256': 'a' * 64}])), 'an undeclared size is never assumed')
+
+    def test_install_from_spec_dispatches_the_files_variant(self):
+        with patch.object(mi, 'pull_github_files', return_value={'ok': True}) as files, \
+                patch.object(mi, 'pull_github_asset') as single, \
+                patch.object(mi, 'record_provenance', side_effect=lambda s, r: r):
+            mi.install_from_spec(self._spec())
+        files.assert_called_once()
+        single.assert_not_called()
+
+
+class PullModelInstallsACatalogueRowTest(TestCase):
+    """`pull_model <clé>` : le jumeau en ligne de commande du bouton « Installer »."""
+
+    def test_a_catalogue_key_goes_through_its_spec_in_a_journal_event(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from wama.model_manager.models import AIModel, InstallEvent
+        with tempfile.TemporaryDirectory() as root, self.settings(AI_MODELS_DIR=root):
+            app_dir = os.path.join(root, 'models', 'lipsync', 'codeformer')
+            AIModel.objects.create(model_key='avatarizer:codeformer', name='CodeFormer',
+                                   source='avatarizer', model_type='vision',
+                                   extra_info={'install_dir': app_dir, 'release_files': DECLARED})
+            with patch.object(mi, 'install_from_spec',
+                              return_value={'ok': True, 'downloaded': ['x'], 'kept': []}) as inst:
+                call_command('pull_model', 'avatarizer:codeformer', stdout=StringIO())
+        self.assertEqual('github', inst.call_args.args[0]['kind'])
+        event = InstallEvent.objects.filter(key='avatarizer:codeformer').latest('started_at')
+        self.assertEqual('cli', event.via)
+
+    def test_an_absent_key_is_said_not_pulled_from_ollama(self):
+        from django.core.management import CommandError, call_command
+        with patch.object(mi, 'pull_ollama_model') as ollama, \
+                self.assertRaisesMessage(CommandError, 'sync_models'):
+            call_command('pull_model', 'avatarizer:nothing-here')
+        ollama.assert_not_called()
+
+
 class YoloAdoptsTheCommonDownloadTest(SimpleTestCase):
     """Le pilote `yolo` passe par la primitive commune, son garde-fou de 1 Mo inchangé."""
 

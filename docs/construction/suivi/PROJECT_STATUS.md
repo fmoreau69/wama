@@ -22883,3 +22883,14 @@ Le smoke navigateur déclaré en attente au bloc précédent est joué sur le li
   sur `WamaKeyField`, s'affichent comme avant ; zéro erreur de page côté admin.
 ⚠ Une capture d'ÉLÉMENT du volet droit, hors de la zone visible d'un conteneur qui défile, sort
 DÉFORMÉE (lignes superposées) : faire défiler l'élément avant de le capturer.
+
+## §PALIER — 2026-10-10 (soir), « CodeFormer : poids par le CATALOGUE » — livré (commit de ce palier, non poussé) — 🔴 relancer TOUS les workers (une synchro planifiée sur l'ancien code efface la déclaration de la ligne `avatarizer:codeformer`), puis `python manage.py pull_model avatarizer:codeformer` (rien à télécharger : vérifie et journalise)
+
+Repli de `setup_avatarizer.sh` corrigé en passant par la route du catalogue : l'app déclare les
+quatre fichiers (version, empreintes), la découverte rend la ligne installable, le pilote `github`
+pose les fichiers sous le dossier de l'app, `pull_model <clé>` = jumeau CLI du bouton
+« Installer ». Détail : `PROSPECTION_PIPELINE §Suite du 2026-10-10 (soir)`.
+- Smoke live (10/10) : select « Modèle AI » de l'enhancer → SPAN + GaterV3 proposés, non grisés,
+  0 erreur JS ; model manager (compte de test dev déclaré) → CodeFormer, SPAN, GaterV3 « Ready ».
+- 🔚 Les cartes `github` du model manager n'affichent pas le lien de leur version (les cartes HF
+  ont le leur) — `platform_url` le sait, le gabarit ne le montre pas.

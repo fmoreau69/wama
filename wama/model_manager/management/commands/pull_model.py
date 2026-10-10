@@ -10,6 +10,10 @@ HuggingFace (repo avec '/') — telecharge dans le dossier de la categorie (mode
   python manage.py pull_model black-forest-labs/FLUX.1-dev --category diffusion
   python manage.py pull_model <org/repo> --dry-run        # valide juste le dossier cible
   (si une entree 'recommended' existe pour ce hf_id, la categorie est deduite automatiquement)
+
+Ligne du CATALOGUE declaree par une app (cle) — le jumeau du bouton « Installer » (2026-10-10) :
+  python manage.py pull_model avatarizer:codeformer
+  (spec derive par `spec_for_catalog_row`, installe par `install_from_spec`, journalise)
 """
 from django.core.management.base import BaseCommand, CommandError
 
@@ -32,6 +36,19 @@ class Command(BaseCommand):
         name = options['name']
         is_hf = '/' in name
         prog = lambda s: self.stdout.write(f"  … {s}")
+
+        # Une CLE de catalogue installable : la route du bouton « Installer » (meme spec, meme
+        # pilote, meme journal) — un script d'installation d'app n'a plus a telecharger lui-meme.
+        from wama.common.utils.model_keys import split_key
+        from wama.model_manager.models import AIModel
+        row = AIModel.objects.filter(model_key=name, is_proposed=False).first()
+        if row is not None:
+            return self._install_catalog_row(row, options)
+        if split_key(name)[0]:
+            # Une clé (`<source WAMA>:…`) absente du catalogue n'est PAS un nom Ollama : on le dit
+            # au lieu de demander `ollama pull avatarizer:…`.
+            raise CommandError(f"« {name} » : clé absente du catalogue — `manage.py sync_models` "
+                               "d'abord (la découverte de l'app la crée)")
 
         if is_hf:
             category = options.get('category')
@@ -72,3 +89,30 @@ class Command(BaseCommand):
             f"✓ Catalogue re-synchronise (+{sync.added} ajoute(s), {sync.updated} maj)."))
         if sync.errors:
             self.stderr.write(self.style.WARNING(f"  {len(sync.errors)} erreur(s) de sync."))
+
+    def _install_catalog_row(self, row, options):
+        """Installe une ligne du catalogue par SA spec (`spec_for_catalog_row`) — le corps de
+        `install_catalog_task`, joue en synchrone : `install_from_spec` puis provenance et
+        re-synchronisation (`record_provenance`), dans un evenement date du journal."""
+        from wama.model_manager.services.install_history import opened
+        from wama.model_manager.services.model_installer import (
+            install_from_spec, pull_github_files, spec_for_catalog_row)
+
+        spec = spec_for_catalog_row(row)
+        if spec is None:
+            raise CommandError(f"« {row.model_key} » ne declare pas d'emplacement d'installation "
+                               "(install_dir + hf_id ou fichiers de version)")
+        if options['dry_run']:
+            res = (pull_github_files(spec, dry_run=True) if spec.get('files') is not None
+                   else {'ok': True, 'target': spec.get('ref')})
+            self.stdout.write(self.style.SUCCESS(f"✓ (dry-run) {res}"))
+            return
+        self.stdout.write(f"Installation depuis le catalogue : {row.model_key} ({spec['ref']}) …")
+        with opened('model', row.model_key, name=row.name, via='cli') as outcome:
+            res = install_from_spec(spec)
+            outcome.update(res)
+        if not res.get('ok'):
+            raise CommandError(f"✗ Echec : {res.get('error')}")
+        self.stdout.write(self.style.SUCCESS(
+            f"✓ {row.model_key} : {len(res.get('downloaded') or [])} telecharge(s), "
+            f"{len(res.get('kept') or [])} deja en place — catalogue re-synchronise"))

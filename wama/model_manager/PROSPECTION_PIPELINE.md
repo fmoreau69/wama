@@ -2394,3 +2394,29 @@ plafond, pas la vérité du cliché). Deux défauts de l'anonymizer, aucun de mo
   passe à ses DEUX échelles, réunies (`anonymize.IMAGE_MIN_INFERENCE_SIZE`, `MAX_DETECTIONS`).
 Résultat par `detect_media`, sélection automatique au cran 50 : `Faces_01` 6/6 visages
 distincts (4 avant) ; selfie 559 visages distincts (307 avant), foule couverte jusqu'au fond.
+
+**Suite du 2026-10-10 (soir) — CodeFormer : ses poids passent par la route du CATALOGUE.**
+Demande de Fabien : corriger le repli de `setup_avatarizer.sh` en respectant tout le
+fonctionnement de WAMA pour les poids (docs relues : AGENTS « ajout d'un modèle », poids hors
+HuggingFace, ROADMAP §5b, README du vendor). Mesuré : les DEUX branches de l'étape 5 étaient
+fausses — le script de CodeFormer écrit dans `./weights/` relatif au répertoire courant (la racine
+du dépôt) et tire les poids d'entraînement ; le repli `basicsr` posait `codeformer.pth` à plat,
+prenait la détection chez facexlib, omettait deux fichiers.
+- **L'app DÉCLARE** les quatre fichiers que le code vendorisé lit (`CODEFORMER_RELEASE` : version
+  `sczhou/CodeFormer:v0.1.0`, chemin, taille, empreinte — mesurées sur les fichiers installés,
+  tailles égales à celles de la version) ; `CODEFORMER_WEIGHTS_SUBDIRS` en dérive (copie du
+  backend tenue égale par un test).
+- **La découverte** pose `install_dir` (`MODEL_PATHS`) et cette déclaration sur la ligne ;
+  **`spec_for_catalog_row`** en dérive un descripteur `github` à fichiers déclarés, AVANT le
+  `hf_id` (qui aurait tiré le dépôt HF) ; **le pilote `github`** gagne cette variante (mêmes
+  verrous fichier par fichier, dossier sous la racine, fichier en place à une autre empreinte =
+  arrêt AVANT tout téléchargement) ; **`pull_model <clé>`** = le jumeau CLI du bouton
+  « Installer » (journal `cli`), une clé absente n'est plus prise pour un nom Ollama.
+- `setup_avatarizer.sh` étape 5 : `sync_models` puis `pull_model avatarizer:codeformer`.
+- Réel : variante éprouvée par un vrai téléchargement (`RealESRGAN_x2plus`, 67 Mo, dossier jetable
+  sous la racine) ; en un processus, découverte neuve → `pull_model` : 4 fichiers GARDÉS, 0
+  téléchargé, journal `cli SUCCESS`.
+- ⚠ **Constaté** : une synchronisation lancée par un worker resté sur l'ancien code (relancé à
+  17 h 08, déclaration modifiée à 18 h 47) a RÉÉCRIT la ligne sans `install_dir` — chaque
+  `manage.py` déclenche une réconciliation au démarrage (`apps.ready()`). Tant que les workers ne
+  sont pas relancés, la ligne perd sa déclaration au prochain passage.

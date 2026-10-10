@@ -34,4 +34,8 @@ d'un sous-processus, c'est tout.
   `install.vendor.patch`. C'est ce qui était arrivé à MuseTalk (7 fichiers corrigés le 07/09,
   réappliqués par rien jusqu'au 30/09).
 - Les POIDS ne vivent pas ici : `AI-models/models/lipsync/{musetalk,codeformer}/` (CodeFormer y
-  pointe par symlinks absolus depuis `codeformer/weights/`).
+  pointe par symlinks absolus depuis `codeformer/weights/`). Ceux de CodeFormer sont DÉCLARÉS par
+  l'app (`avatarizer/utils/model_config.CODEFORMER_RELEASE` : les quatre fichiers que ce code lit,
+  version épinglée et empreintes) et s'installent par le catalogue — bouton « Installer » ou
+  `python manage.py pull_model avatarizer:codeformer` (2026-10-10) ; jamais par le script de
+  téléchargement du dépôt cloné, qui écrit dans le répertoire COURANT.
