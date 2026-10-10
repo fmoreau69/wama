@@ -278,3 +278,87 @@ class ProspectVerbTest(TestCase):
             out = p.run_prospection()
         self.assertEqual({'error': 'indisponible'}, out['hf_successors'])
         self.assertEqual(5, out['total'])
+
+
+class _RateLimited(Exception):
+    """What `huggingface_hub` raises on a 429: an HTTP error carrying its response."""
+
+    def __init__(self):
+        super().__init__('429 Client Error: Too Many Requests')
+        self.response = SimpleNamespace(status_code=429, headers={'Retry-After': '2'})
+
+
+class _RateLimitedApi(_FakeApi):
+    """Answers from the table until `fail_after` calls, then refuses everything with a 429."""
+
+    def __init__(self, infos, fail_after=0):
+        super().__init__(infos)
+        self.fail_after = fail_after
+
+    def model_info(self, repo):
+        if len(self.calls) >= self.fail_after:
+            self.calls.append(repo)
+            raise _RateLimited()
+        return super().model_info(repo)
+
+
+@patch('time.sleep')
+class HubRateLimitTest(TestCase):
+    """Measured 2026-10-10: the full prospection run by the assistant got 429 on EVERY leaderboard
+    repository, right after the task sweep — skipped silently, and the board counted as read, so
+    its purge would have emptied the candidates of a previous pass."""
+
+    def test_one_retry_after_the_wait_the_hub_asks_for(self, sleep):
+        class Once(_FakeApi):
+            def model_info(self, repo):
+                self.calls.append(repo)
+                if len(self.calls) == 1:
+                    raise _RateLimited()
+                return _info(repo)
+        self.assertEqual('a/b', p._hub_model_info(Once({}), 'a/b').id)
+        sleep.assert_called_once_with(2.0)
+
+    def test_a_persistent_refusal_stops_the_pass(self, sleep):
+        with self.assertRaises(p.HubRateLimited):
+            p._hub_model_info(_RateLimitedApi({}), 'a/b')
+
+    @patch.object(p, 'analyze_license', return_value=None)
+    @patch.object(p, '_repo_weight_gb', return_value=2.0)
+    @patch.object(p, '_gpu_total_gb', return_value=24.0)
+    def test_an_interrupted_board_purges_nothing(self, *_):
+        board = {'ocr-olmocr-bench': {'task': 'ocr', 'entries': [_entry('org/kept', 1, 80.0)]}}
+        with patch.object(bs, 'leaderboard_repos', return_value=(board, {})), \
+                patch('huggingface_hub.HfApi', return_value=_FakeApi({'org/kept': _info('org/kept')})):
+            p.seed_benchmark_candidates()
+        other = {'ocr-olmocr-bench': {'task': 'ocr', 'entries': [_entry('org/new', 1, 81.0)]}}
+        with patch.object(bs, 'leaderboard_repos', return_value=(other, {})), \
+                patch('huggingface_hub.HfApi', return_value=_RateLimitedApi({})):
+            out = p.seed_benchmark_candidates()
+        self.assertTrue(out['rate_limited'])
+        self.assertEqual([], out['boards_ok'])
+        self.assertTrue(AIModel.objects.filter(model_key='proposed:hf:org/kept').exists())
+
+    @patch.object(p, 'analyze_license', return_value=None)
+    @patch.object(p, '_repo_weight_gb', return_value=16.0)
+    def test_a_successor_that_could_not_be_read_again_keeps_its_candidate(self, *_):
+        AIModel.objects.create(model_key='reader:olmocr', name='olmOCR', model_type='ocr',
+                               source='reader', is_downloaded=True,
+                               hf_id='allenai/olmOCR-7B-0225-preview', capabilities={'task': 'ocr'})
+        AIModel.objects.create(model_key='transcriber:other', name='other', model_type='speech',
+                               source='transcriber', is_downloaded=True, hf_id='org/other')
+        infos = {'allenai/olmocr-7b-0225-preview': _info('allenai/olmOCR-7B-0225-preview',
+                                                         new_version='allenai/olmOCR-2-7B-1025'),
+                 'allenai/olmocr-2-7b-1025': _info('allenai/olmOCR-2-7B-1025'),
+                 'org/other': _info('org/other')}
+        with patch('huggingface_hub.HfApi', return_value=_FakeApi(infos)):
+            p.seed_hf_successors(workers=1)
+        # Second pass: `org/other` is read (so the source counts as reached), olmOCR is refused.
+        class Partial(_FakeApi):
+            def model_info(self, repo):
+                if 'olmocr' in repo.lower():
+                    raise _RateLimited()
+                return super().model_info(repo)
+        with patch('huggingface_hub.HfApi', return_value=Partial(infos)):
+            out = p.seed_hf_successors(workers=1)
+        self.assertTrue(out['rate_limited'])
+        self.assertTrue(AIModel.objects.filter(model_key='proposed:reader:olmocr').exists())

@@ -2305,8 +2305,11 @@ def prospect_models(user) -> dict:
     one with install_model. To look for a model you can NAME, use search_models instead.
 
     Returns:
-        {"total", "sources": {source: {"created","updated","removed","total"} | {"error"}},
-         "benchmarks_enqueued", "assess_enqueued"}
+        {"total", "sources": {source: {"created","updated","removed","total","rate_limited"?}
+                              | {"error"}},
+         "benchmarks_enqueued", "assess_enqueued"} — `rate_limited: true` means Hugging Face
+        refused further requests (429): that source stopped early and removed nothing; tell the
+        user and offer to run it again later.
     """
     from wama.model_manager.services.prospector import run_prospection
 
@@ -2315,7 +2318,8 @@ def prospect_models(user) -> dict:
     for label in ('hf_successors', 'hf', 'benchmarks'):
         part = summary.get(label) or {}
         sources[label] = ({'error': part['error']} if part.get('error') else
-                          {k: part.get(k) for k in ('created', 'updated', 'removed', 'total')})
+                          {k: part.get(k) for k in ('created', 'updated', 'removed', 'total',
+                                                    'rate_limited') if k in part})
     sources['ollama'] = {k: summary.get(k) for k in ('created', 'updated', 'removed')}
     return {'total': summary.get('total', 0), 'sources': sources,
             'benchmarks_enqueued': summary.get('benchmarks_enqueued'),

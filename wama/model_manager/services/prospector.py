@@ -1089,6 +1089,39 @@ def _gpu_total_gb() -> float:
         return 24.0
 
 
+class HubRateLimited(Exception):
+    """Le Hub refuse encore (429) après l'attente qu'il demande : la passe s'arrête, et ce qu'elle
+    n'a pas lu ne compte pas comme lu — rien n'est purgé sur une lecture interrompue."""
+
+
+#: Attente maximale (s) après un 429 du Hub avant l'UNIQUE nouvelle tentative. Mesuré le
+#: 2026-10-10 : la prospection complète lancée par l'assistant a reçu 429 sur CHAQUE dépôt des
+#: classements, juste après les dizaines d'appels du balayage par tâche — sautés en silence, et le
+#: classement passait pour lu (donc sa purge aurait vidé les candidats d'une passe précédente).
+HUB_RETRY_MAX_WAIT_S = 30
+
+
+def _hub_model_info(api, repo: str):
+    """`api.model_info(repo)`, avec UNE nouvelle tentative après l'attente qu'un 429 demande
+    (`Retry-After`, plafonnée) ; lève `HubRateLimited` si le refus persiste. Toute autre erreur
+    (dépôt absent, privé) remonte telle quelle."""
+    import time
+    for attempt in (1, 2):
+        try:
+            return api.model_info(repo)
+        except Exception as exc:
+            response = getattr(exc, 'response', None)
+            if getattr(response, 'status_code', None) != 429:
+                raise
+            if attempt == 2:
+                raise HubRateLimited(repo) from exc
+            try:
+                wait = float((response.headers or {}).get('Retry-After') or 10)
+            except (TypeError, ValueError, AttributeError):
+                wait = 10.0
+            time.sleep(min(max(wait, 1.0), HUB_RETRY_MAX_WAIT_S))
+
+
 def _board_label(entry: dict) -> str:
     """Nom lisible d'un classement : le jeu pour un classement du Hub, sinon la source."""
     scale = entry.get('scale') or ''
@@ -1131,11 +1164,11 @@ def seed_benchmark_candidates(per_category: int = BENCH_CANDIDATES_PER_CATEGORY,
     seen: set = set()
     boards_ok: list = []
     refs_type: dict = {}
+    rate_limited = False
     for cat, board in boards.items():
         task = board['task']
         if tasks and task not in tasks:
             continue
-        boards_ok.append(cat)
         kept = 0
         for e in board['entries']:
             if kept >= per_category:
@@ -1146,7 +1179,12 @@ def seed_benchmark_candidates(per_category: int = BENCH_CANDIDATES_PER_CATEGORY,
             if any(marker in repo for marker in _NOISE_MARKERS):
                 continue    # dérivé (quantif, repack) : on propose le modèle canonique
             try:
-                info = api.model_info(repo)      # casse canonique, carte, étiquettes
+                info = _hub_model_info(api, repo)    # casse canonique, carte, étiquettes
+            except HubRateLimited:
+                rate_limited = True
+                logger.warning("[seed_benchmark] Hub en limite de débit (429) : passe arrêtée "
+                               "au classement %s, rien n'est purgé au-delà", cat)
+                break
             except Exception as exc:
                 logger.info("[seed_benchmark] %s injoignable : %s", repo, exc)
                 continue
@@ -1184,11 +1222,14 @@ def seed_benchmark_candidates(per_category: int = BENCH_CANDIDATES_PER_CATEGORY,
                     'provenance')} | {'category': cat, 'label': label}})
             created += int(created_now)
             updated += int(not created_now)
+        if rate_limited:
+            break           # ce classement n'a pas été lu jusqu'au bout : ni lui ni les suivants
+        boards_ok.append(cat)
 
     removed, preserved = _purge_hf_candidates({f"bench:{c}" for c in boards_ok}, seen)
     summary = {'created': created, 'updated': updated, 'removed': removed,
                'preserved': preserved, 'total': len(seen), 'boards_ok': boards_ok,
-               'unavailable': reasons}
+               'rate_limited': rate_limited, 'unavailable': reasons}
     logger.info("[seed_benchmark] %s", summary)
     return summary
 
@@ -1208,7 +1249,7 @@ def hf_successor(repo: str, max_depth: int = 5, api=None):
     chain, info, current = [], None, repo
     visited = {repo.lower()}
     for _ in range(max_depth):
-        info = api.model_info(current)
+        info = _hub_model_info(api, current)
         nxt = _card_dict(getattr(info, 'card_data', None)).get('new_version')
         if isinstance(nxt, (list, tuple)):
             nxt = nxt[0] if nxt else None
@@ -1222,7 +1263,7 @@ def hf_successor(repo: str, max_depth: int = 5, api=None):
         return [], None
     # Sorti par la profondeur, le dernier maillon n'a pas encore été lu.
     if info is None or info.id.lower() != chain[-1].lower():
-        info = api.model_info(chain[-1])
+        info = _hub_model_info(api, chain[-1])
     chain[-1] = info.id          # casse canonique
     return chain, info
 
@@ -1299,12 +1340,16 @@ def seed_hf_successors(workers: int = 8) -> dict:
         created += int(created_now)
         updated += int(not created_now)
 
-    # Aucun dépôt joint (réseau coupé) : on ne purge rien — même règle que les autres sources.
+    # Un modèle dont la lecture a ÉCHOUÉ (429, réseau) garde le candidat qu'il avait : ne pas
+    # l'avoir relu ne prouve pas que son successeur a disparu (2026-10-10, même leçon que les
+    # classements). Aucun dépôt joint : rien n'est purgé du tout.
+    seen |= {PROPOSED_PREFIX + m.model_key for (m, _repo), _r, exc in results if exc is not None}
     roles_ok = {SUCCESSOR_ROLE} if (reached or not rows) else set()
     removed, preserved = _purge_hf_candidates(roles_ok, seen, kind='update')
     summary = {'created': created, 'updated': updated, 'removed': removed,
-               'preserved': preserved, 'total': len(seen), 'checked': len(rows),
-               'reached': reached}
+               'preserved': preserved, 'total': created + updated, 'checked': len(rows),
+               'reached': reached,
+               'rate_limited': any(isinstance(exc, HubRateLimited) for *_x, exc in results)}
     logger.info("[seed_hf_successors] %s", summary)
     return summary
 
@@ -1355,15 +1400,19 @@ def run_prospection() -> dict:
 
     Une source par périmètre : une panne de l'une ne fait échouer ni Ollama ni les autres. Dans
     CET ordre : Ollama, puis les successeurs (un dépôt visé par une MAJ n'est pas reproposé en
-    « nouveau »), le balayage par tâche (`HF_TASKS`), les classements, qui reprennent un candidat
-    du balayage avec son rang. Puis la suite en file (bancs tiers → jury).
+    « nouveau »), les CLASSEMENTS, puis le balayage par tâche (`HF_TASKS`). Les classements
+    passent AVANT le balayage depuis le 2026-10-10 : c'est la source la plus utile, et les
+    dizaines d'appels du balayage épuisaient le quota du Hub juste avant eux (429 sur chaque
+    dépôt, mesuré). Le balayage saute un dépôt déjà au catalogue, propositions comprises
+    (`prospect_hf`, « déjà chez nous ») : il ne réécrit pas un candidat de classement. Puis la
+    suite en file (bancs tiers → jury).
     """
     from .prospect_ollama import prospect_ollama
 
     summary = prospect_ollama()
     for label, seed in (('hf_successors', seed_hf_successors),
-                        ('hf', seed_hf_candidates),
-                        ('benchmarks', seed_benchmark_candidates)):
+                        ('benchmarks', seed_benchmark_candidates),
+                        ('hf', seed_hf_candidates)):
         try:
             summary[label] = seed()
             summary['total'] = (summary.get('total') or 0) + summary[label]['total']
@@ -1590,7 +1639,7 @@ def pinned_github_asset(ref: str, asset: str, release: dict = None) -> dict:
     """
     import tempfile
 
-    from .model_installer import _file_sha256, download_asset, github_asset_url
+    from .model_installer import download_asset, github_asset_url
     release = github_release(ref) if release is None else release
     if release is None:
         return {'error': f"API GitHub injoignable pour {ref}"}
@@ -1610,7 +1659,7 @@ def pinned_github_asset(ref: str, asset: str, release: dict = None) -> dict:
         if not res.get('ok'):
             return {'error': f"empreinte non mesurable : {res.get('error')}"}
         return {'asset': asset, 'size': os.path.getsize(target),
-                'sha256': _file_sha256(target), 'measured': True}
+                'sha256': res['sha256'], 'measured': True}
 
 
 def github_spec_from_manifest(manifest: dict) -> dict:
