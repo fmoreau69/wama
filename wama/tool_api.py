@@ -2216,7 +2216,8 @@ def get_ai_model(user, model_key: str) -> dict:
     (e.g. 'synthesizer:kokoro') — use list_ai_models to discover keys.
 
     Returns the complete metadata: descriptions, capabilities, footprints
-    (vram/ram/disk), license + author, platform_ref, quality_index, states.
+    (vram/ram/disk), license + author, platform_ref, quality_index, `benchmark` (third-party
+    score, or null), states. For the install choices of a proposal, see get_install_options.
     """
     from wama.model_manager.models import AIModel
 
@@ -2235,6 +2236,7 @@ def get_ai_model(user, model_key: str) -> dict:
         'downloaded': m.is_downloaded, 'loaded': m.is_loaded,
         'available': m.is_available, 'proposed': m.is_proposed,
         'last_used_at': m.last_used_at.isoformat() if m.last_used_at else None,
+        'benchmark': _benchmark_summary(m),
     }
 
 
@@ -2326,6 +2328,34 @@ def prospect_models(user) -> dict:
             'assess_enqueued': summary.get('assess_enqueued')}
 
 
+def get_install_options(user, model_key: str) -> dict:
+    """
+    INSTALL CHOICES of a proposal — same verb as the options the page shows before « Installer »
+    (one body, `prospector.install_options`): full weights, quantised variant repositories, and
+    single GGUF files. `driver: 'ollama'` means Ollama pulls the GGUF from the Hub and runs it (the
+    task of the model is executed by an Ollama backend, e.g. OCR); `driver: 'hf'` downloads the
+    file into WAMA's model folders.
+
+    Then call install_model(model_key, variant_ref=<ref>, variant_file=<file>) with the chosen
+    option (or no variant for full weights). The first call reads the Hub (a few requests), the
+    result is kept on the proposal.
+
+    Returns:
+        {"choice": bool, "options": [{"kind","ref","file","disk_gb","driver","label"}]}
+    """
+    from wama.model_manager.models import AIModel
+    from wama.model_manager.services.prospector import install_options
+
+    cand = AIModel.objects.filter(model_key=(model_key or '').strip(), is_proposed=True).first()
+    if cand is None:
+        return {'error': f"Aucune proposition « {model_key} » (les clés se lisent par "
+                         "list_ai_models(include_proposed=True))."}
+    res = install_options(cand)
+    return {'choice': res.get('choice', False),
+            'options': [{k: o.get(k) for k in ('kind', 'ref', 'file', 'disk_gb', 'driver', 'label')}
+                        for o in (res.get('options') or [])]}
+
+
 def install_model(user, model_key: str, force: bool = False,
                   variant_ref: str = '', variant_file: str = '') -> dict:
     """
@@ -2341,7 +2371,8 @@ def install_model(user, model_key: str, force: bool = False,
         model_key: candidate key ('proposed:hf:org/name') or catalogue key — both are shown
             by list_ai_models (use include_proposed=True for candidates).
         force: install despite the disk-space refusal (last resort, says so to the user).
-        variant_ref: install a QUANTISED variant repository instead of full weights.
+        variant_ref: install a QUANTISED variant repository instead of full weights — read the
+            choices with get_install_options.
         variant_file: single weight file inside `variant_ref` (GGUF repositories hold
             several quantisation levels — installing the repository would pull them all).
 
@@ -3350,6 +3381,9 @@ TOOL_REGISTRY = {
     'install_model':  install_model,
     # …et le troisième geste de la page (2026-10-10) : « Prospecter », même corps que le bouton.
     'prospect_models': prospect_models,
+    # …et les options qu'elle montre AVANT « Installer » (variantes, fichiers GGUF) — sans elles,
+    # les paramètres `variant_ref`/`variant_file` d'install_model étaient impossibles à remplir.
+    'get_install_options': get_install_options,
     # Les 3 ROUTES D'INTÉGRATION en PLAN (2026-09-03, trou #2 de l'audit) — librairie pip,
     # modèle, projet GitHub→app. LECTURE SEULE : elles disent l'ÉTAT et le PROCHAIN GESTE
     # HUMAIN, elles n'installent ni n'ingèrent rien (SPEC §2.1 : le write-back est un geste
@@ -3457,6 +3491,8 @@ TOOL_APP_OVERRIDE = {
     'search_models':       'model_manager',
     'install_model':       'model_manager',
     'prospect_models':     'model_manager',
+    # Écrit les relevés de variantes sur la proposition et appelle le Hub : gardé comme la page.
+    'get_install_options': 'model_manager',
     # Médiathèque : RANGER un fichier À SOI y est un geste TRANSVERSE, pas l'usage de l'app
     # `media_library` (décision Fabien, 2026-09-11 : « on rend commun et on porte sur les apps
     # de façon universelle »). Il était gaté sur `media_library` du seul FAIT DE SON NOM — le

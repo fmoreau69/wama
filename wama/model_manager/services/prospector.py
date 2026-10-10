@@ -810,17 +810,23 @@ def install_options(cand) -> dict:
                      if (cand.disk_gb or 0) > 24 else "",
         'downloads': None, 'kind': 'full',
     }]
+    by_ollama = _ollama_runs_task(_candidate_task(cand))
     for v in enrichies:
-        ggufs = [f for f in (v.get('files') or []) if f['file'].lower().endswith('.gguf')]
+        # Le PROJECTEUR de vision (`mmproj`) d'un dépôt GGUF n'est pas une variante du modèle :
+        # le proposer comme fichier à installer seul était faux (relevé le 2026-10-10 sur
+        # PaddleOCR-VL-1.6 : trois `mmproj` listés comme des niveaux de quantification).
+        ggufs = [f for f in (v.get('files') or [])
+                 if f['file'].lower().endswith('.gguf') and 'mmproj' not in f['file'].lower()]
         if ggufs:
             # Une ligne PAR fichier gguf : c'est le fichier qu'on installe, pas le dépôt.
             for f in sorted(ggufs, key=lambda x: x['gb'], reverse=True):
                 options.append({
                     'ref': v['hf_id'], 'file': f['file'],
-                    'label': f"{v['hf_id']} — {f['file']}",
+                    'label': f"{v['hf_id']} — {f['file']}" + (" (par Ollama)" if by_ollama else ""),
                     'disk_gb': f['gb'],
                     'vram_note': f"VRAM ≈ {f['gb']:.1f} Go (+ marge de contexte)",
                     'downloads': v.get('downloads'), 'kind': 'variant_file',
+                    'driver': 'ollama' if by_ollama else 'hf',
                 })
         else:
             options.append({
@@ -854,6 +860,20 @@ def spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | 
         return None
     if variant_file and variant_file not in {f['file'] for f in (v.get('files') or [])}:
         return None
+    if variant_file and variant_file.lower().endswith('.gguf') \
+            and _ollama_runs_task(_candidate_task(cand)):
+        # Un GGUF dont la TÂCHE est exécutée par le moteur Ollama (un backend la sert,
+        # `backend_for_engine('ollama', task)` — l'OCR par `GlmOcrBackend`) s'installe PAR OLLAMA :
+        # `ollama pull hf.co/<dépôt>[:<quantification>]`, la branche Ollama d'`install_candidate`.
+        # Ollama tire lui-même le projecteur de vision et l'exécute ; téléchargé seul par le Hub,
+        # le fichier n'aurait été lu par rien (2026-10-10, PaddleOCR-VL, Chandra, LightOnOCR-3 —
+        # architectures absentes de notre transformers, servies par Ollama comme Qwen 3.5/3.6).
+        quant = _gguf_quant(variant_file)
+        return {'kind': 'ollama', 'ref': f"hf.co/{variant_ref}" + (f":{quant}" if quant else ''),
+                'task': base.get('task') or _candidate_task(cand),
+                'base_hf_id': cand.hf_id or '',
+                'note': f"variante GGUF par Ollama, choisie par l'utilisateur : {variant_ref} / "
+                        f"{variant_file}"}
     spec = dict(base)
     spec['ref'] = variant_ref
     spec['family'] = cand.name
@@ -864,6 +884,33 @@ def spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | 
     spec['note'] = (f"variante quantisée choisie par l'utilisateur : {variant_ref}"
                     + (f" / {variant_file}" if variant_file else ""))
     return spec
+
+
+def _candidate_task(cand) -> str:
+    """La tâche d'un candidat : celle de son descripteur, sinon celle de sa ligne."""
+    spec = ((cand.extra_info or {}).get('prospect') or {}).get('spec') or {}
+    return spec.get('task') or (cand.capabilities or {}).get('task') or ''
+
+
+def _ollama_runs_task(task: str) -> bool:
+    """Un backend au moteur Ollama sert-il cette TÂCHE ? — la résolution commune
+    (`backend_for_engine`), jamais une liste de tâches tenue ici."""
+    if not task:
+        return False
+    from wama.common.backends.manager import backend_for_engine
+    return backend_for_engine('ollama', '', task=task) is not None
+
+
+#: Étiquette de quantification dans un nom de fichier GGUF (convention llama.cpp) : celle
+#: qu'Ollama attend après `hf.co/<dépôt>:` pour choisir le fichier.
+_GGUF_QUANT = re.compile(r'(?i)(?:^|[-_.])((?:I?Q\d+(?:_[0-9A-Z]+)*)|BF16|F16|F32)(?=\.gguf$)')
+
+
+def _gguf_quant(filename: str) -> str:
+    """`PaddleOCR-VL-1.6-q4_k_m.gguf` → `Q4_K_M` ; '' quand le nom n'en porte pas (dépôt à fichier
+    unique : Ollama prend alors le fichier par défaut du dépôt)."""
+    m = _GGUF_QUANT.search(filename or '')
+    return m.group(1).upper() if m else ''
 
 
 def _card_dict(card) -> dict:

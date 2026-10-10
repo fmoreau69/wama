@@ -3343,6 +3343,26 @@ Supra2-IMG et comblés : recherche par URL / dépôt nommé (`prospector.named_r
 en bout par gpt-oss-120b le 29/09. ⏳ Le dernier maillon est côté APP : l'imager ne lit pas le
 catalogue (route F4b non portée), un modèle texte→image validé n'y apparaît donc pas encore.
 
+**Variante de cette chaîne : l'architecture absente de notre transformers, publiée en GGUF
+(2026-10-10).** Une architecture que notre transformers ne connaît pas (PaddleOCR-VL-1.6,
+Chandra-OCR-2, LightOnOCR-3 : 4.57 sans backport, `patches/` n'en porte aucun) **ne demande ni venv
+ni backend écrit à la main** quand Ollama l'exécute — c'était déjà le cas de Qwen 3.5/3.6 MoE.
+La route ne change pas. Seul le CHOIX DE VARIANTE a été étendu :
+- `prospector.spec_for_choice` : un fichier `.gguf` dont la TÂCHE est servie par un backend au
+  moteur `ollama` (`backend_for_engine('ollama', task=…)`, jamais une liste tenue à part) devient
+  le descripteur `{'kind': 'ollama', 'ref': 'hf.co/<dépôt>:<quant>'}` ;
+- `install_candidate`, dans sa branche Ollama existante, tire ce nom (`pull_ollama_model`) ;
+- la ligne de catalogue tient sa tâche de `FAMILLES_OLLAMA`, lue sur le NOM DU DÉPÔT
+  (`model_registry._ollama_family`) ;
+- `GlmOcrBackend` sert tout OCR tenu par Ollama : le modèle arrive par sa clé, et l'exécutabilité
+  est la sonde commune du démon.
+
+Les options sont lisibles par l'assistant (`get_install_options` → `install_model`), comme sur la
+page. Les projecteurs de vision (`mmproj`) ne sont plus proposés comme variantes. Une tâche
+qu'Ollama n'exécute pas, par exemple le GGUF de MiniMax-Music3 lu par audio.cpp, reste un
+téléchargement du Hub. Tenu par `tests_ollama_hub_gguf`. Détail :
+`PROSPECTION_PIPELINE.md §Session du 2026-10-10`.
+
 ### §10.6 — LE PIPELINE, PORTEUR UNIVERSEL DES PROCESS : une card = une instance de pipeline, dans TOUS les mondes (ACTÉ 2026-09-15)
 
 > **Statut : ACTÉ avec Fabien le 2026-09-15 — modèle de CONCEPTION, aucun code écrit.** Cette

@@ -2010,7 +2010,7 @@ class RouteUniqueDInstallationTest(TestCase):
         """Ce sont les seuls outils qui écrivent côté modèles : ils suivent le gating de la
         page (développeurs/admins), pas celui des lectures transverses."""
         from wama.tool_api import TOOL_APP_OVERRIDE, TOOL_REGISTRY
-        for nom in ('search_models', 'install_model', 'prospect_models'):
+        for nom in ('search_models', 'install_model', 'prospect_models', 'get_install_options'):
             self.assertIn(nom, TOOL_REGISTRY)
             self.assertEqual(TOOL_APP_OVERRIDE.get(nom), 'model_manager', nom)
 

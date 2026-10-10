@@ -146,6 +146,14 @@ def identity_for_spec(spec: dict) -> Optional[dict]:
     if kind == 'hf':
         return huggingface_identity(ref)
     if kind == 'ollama':
+        if ref.lower().startswith('hf.co/'):
+            # Un GGUF du Hub tiré par Ollama (`spec_for_choice`, 2026-10-10) : il VIENT du dépôt
+            # GGUF (`platform_ref`) et il EST, quantifié, le modèle canonique du candidat
+            # (`hf_id`, porté par le descripteur) — c'est par lui que le banc l'apparie, en borne
+            # haute comme tout GGUF (`benchmark_sync`, garde « local souvent Q4 »).
+            repo = ref[len('hf.co/'):].split(':', 1)[0]
+            return {'platform_ref': f'huggingface:{repo}',
+                    'hf_id': (spec.get('base_hf_id') or repo)}
         return ollama_identity(ref)
     if kind == 'yolo':
         # Poids officiels ultralytics : le dépôt est connu (c'est l'URL que `pull_yolo_weights`

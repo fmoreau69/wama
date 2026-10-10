@@ -6,7 +6,7 @@ It ranked #1 on OmniDocBench V1.5 (score 94.62) while being dramatically
 smaller than olmOCR-7B (~2.2 GB vs ~14 GB).
 
 Requirements:
-    ollama pull glm-ocr    (or glm-ocr:0.9b)
+    any OCR model held by Ollama (`ollama pull glm-ocr`, or a Hub GGUF `hf.co/<org>/<repo>`)
 
 No local model files or VRAM management required — Ollama handles everything.
 """
@@ -20,47 +20,6 @@ from typing import Callable, Optional
 from wama.common.backends.ocr_base import OCRBackend
 
 logger = logging.getLogger(__name__)
-
-# Ollama model name (first matching name wins)
-# `glm-ocr:0.9b` a disparu du registre Ollama (2026-09-02) : `latest` (bf16, 2,2 Go) et
-# `q8_0` (1,6 Go) sont les tags vivants ; le préfixe nu attrape n'importe lequel des deux.
-_MODEL_NAMES = ['glm-ocr:latest', 'glm-ocr:q8_0', 'glm-ocr']
-
-
-def _get_ollama_host() -> str:
-    # Brique commune : porte la réécriture WSL2 → passerelle Windows, que la lecture brute du
-    # réglage n'a jamais faite (Ollama tourne sur l'hôte ; `127.0.0.1` y désigne la VM Linux).
-    from wama.common.utils.ollama_host import ollama_base
-    return ollama_base()
-
-
-def _find_glm_ocr_model() -> Optional[str]:
-    """Return the exact Ollama model tag for glm-ocr, or None if not pulled."""
-    try:
-        import httpx
-        host = _get_ollama_host()
-        # 3 s, comme les autres sondes d'Ollama : c'est désormais l'exécutabilité que le sélecteur
-        # lit (mémorisée une minute) — un démon éteint ne doit pas figer une liste d'options.
-        with httpx.Client(timeout=3.0, trust_env=False) as client:
-            resp = client.get(f"{host}/api/tags")
-        if resp.status_code == 200:
-            available = {m['name'] for m in resp.json().get('models', [])}
-            for name in _MODEL_NAMES:
-                if name in available:
-                    return name
-                # Also accept prefix match (e.g. 'glm-ocr' matches 'glm-ocr:latest')
-                for avail in available:
-                    if avail == name or avail.startswith(name + ':'):
-                        return avail
-    except Exception as e:
-        logger.debug(f"[GlmOcr] Ollama unavailable: {e}")
-    return None
-
-
-def ollama_serves_glm_ocr() -> bool:
-    """Ollama répond-il, et sert-il un tag `glm-ocr` ? (téléchargé ≠ joignable : serveur éteint)"""
-    return _find_glm_ocr_model() is not None
-
 
 def _image_to_b64(image_path: str) -> str:
     """Read an image file and return its base64-encoded content."""
@@ -182,10 +141,18 @@ class GlmOcrBackend(OCRBackend):
 
     @classmethod
     def is_available(cls) -> bool:
-        """Exécutable = Ollama répond ET sert GLM-OCR. C'est ce que le sélecteur commun lit
-        (`backend_missing`, verdict mémorisé une minute) : un Ollama éteint écarte GLM-OCR du
-        tirage « auto » de TOUTE app — la sonde que le reader tenait seul jusqu'au 2026-10-07."""
-        return ollama_serves_glm_ocr()
+        """Exécutable = le démon Ollama répond. C'est ce que le sélecteur commun lit
+        (`backend_missing`, verdict mémorisé une minute) : un Ollama éteint écarte ses modèles OCR
+        du tirage « auto » de TOUTE app.
+
+        ⚠ Jusqu'au 2026-10-10 : « Ollama répond ET sert GLM-OCR ». Ce backend sert TOUT modèle
+        OCR tenu par Ollama (le modèle arrive par sa clé, la consigne est commune) — PaddleOCR-VL,
+        Chandra, LightOnOCR… tirés du Hub en GGUF : sans GLM-OCR, tous auraient été grisés. La
+        présence d'UN modèle est son `is_downloaded`, pas une propriété du backend. Sonde commune
+        du démon : `ollama_host._MoteurOllama` (refus de connexion = éteint ; tout autre échec ne
+        condamne pas)."""
+        from wama.common.utils.ollama_host import _MoteurOllama
+        return not _MoteurOllama.missing_packages()
 
     def load(self, model: Optional[str] = None) -> bool:
         """Rien à charger ici : Ollama tient le modèle."""
