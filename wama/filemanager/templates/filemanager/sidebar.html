@@ -75,15 +75,16 @@
                     <label class="form-label small text-light fw-bold mb-1">Chemin du dossier</label>
                     <input type="text" id="mountPathInput"
                            class="form-control form-control-sm bg-dark text-light border-secondary"
-                           placeholder="\\serveur\partage\dossier  ou  D:\dossier"
+                           placeholder="\\serveur\partage  ·  D:\dossier  ·  https://nuage…"
                            autocomplete="off" spellcheck="false">
                     <div id="mountPathStatus" class="mt-1" style="font-size:0.72rem; min-height:1.1rem;"></div>
+                    <div id="mountCloudSuggestions" class="d-flex flex-wrap gap-1 mt-1"></div>
                 </div>
                 <!-- Credentials AD (affiché uniquement pour les partages réseau SMB) -->
                 <div id="mountSmbSection" class="mb-2 p-2 rounded border border-secondary" style="display:none; font-size:0.8rem;">
                     <div class="mb-2" style="color:#4dd0e1;">
-                        <i class="fas fa-network-wired me-1"></i>
-                        Partage réseau — identifiants AD (laisser vide pour accès invité)
+                        <i id="mountCredIcon" class="fas fa-network-wired me-1"></i>
+                        <span id="mountCredTitle">Partage réseau — identifiants AD (laisser vide pour accès invité)</span>
                     </div>
                     <input type="text" id="mountSmbUser"
                            class="form-control form-control-sm border-secondary mb-1"

@@ -222,6 +222,11 @@ KINDS = {
     #: Collective : y ranger un corpus de voix sous « Catalogue de modèles » aurait fait mentir
     #: la facette de la page des sources, que cette table remplit.
     'corpus':    'Corpus de données',
+    #: Nuages de FICHIERS montés au filemanager comme un dossier (Nextcloud, WebDAV — rclone,
+    #: 2026-10-10, `filemanager/remote_mounts.py`). L'adresse et les identifiants sont ceux que
+    #: l'utilisateur saisit en connectant le dossier, et le secret vit sur le MONTAGE (chiffré),
+    #: pas au profil : un même compte peut connecter plusieurs nuages.
+    'stockage':  'Stockage de fichiers',
 }
 
 
@@ -276,6 +281,17 @@ class ExternalSource:
     #: un compte qui a posé SA clé garde la sienne. Réservé aux fournisseurs qui délivrent des
     #: clés d'APPLICATION (ILaaS) — jamais à ceux dont le quota est par personne (Albert, 15/09).
     shareable: bool = False
+    #: L'ADRESSE se pose sur la page « Sources externes » par un admin (2026-10-10, demande de
+    #: Fabien), et y prime sur le réglage et le `.env` (`accounts.InstanceApiKey.base_url`).
+    #: ⚠ Ne le déclarer que pour une source dont TOUS les consommateurs passent par `base_url()`
+    #: et dont l'adresse est un CHOIX (quel fournisseur, quelle instance) : relevé du jour —
+    #: Ollama est lu par l'environnement d'abord (`assistant_engine`) et réécrit pour WSL2
+    #: (`ollama_host`), et l'adresse d'un service local (TTS, MCP) est celle où le script de
+    #: démarrage le LANCE. La page y afficherait une adresse que rien n'emploierait.
+    address_editable: bool = False
+    #: Le défaut déclaré n'est qu'un EXEMPLE (adresse propre à chaque établissement, absente d'un
+    #: dépôt public) : tant qu'aucune adresse n'est posée, la source n'est pas configurée.
+    address_required: bool = False
     #: Réservé aux développeurs (abonnement Claude Code : accès au dépôt).
     developer_only: bool = False
     #: La source SERT des modèles de PLUSIEURS tâches sous un même moteur, hors du processus WAMA
@@ -342,7 +358,7 @@ SOURCES: tuple[ExternalSource, ...] = (
     ExternalSource(
         'albert', 'Albert API (DINUM)', 'https://albert.api.etalab.gouv.fr/v1',
         "LLM de l'État compatible OpenAI — assistant et rôles wama-dev-ai (manifestes, "
-        "codegen) via llm_chat", kind='llm', env='ALBERT_API_BASE',
+        "codegen) via llm_chat", kind='llm', env='ALBERT_API_BASE', address_editable=True,
         api_key_env='ALBERT_API_KEY', user_key=True,
         api_key_help_url='https://ia.numerique.gouv.fr/outils-ia/albert-api/',
         hosting='sovereign', cost_tier='free', protocol='openai',
@@ -361,6 +377,7 @@ SOURCES: tuple[ExternalSource, ...] = (
         "Inférence LLM mutualisée de l'enseignement supérieur et de la recherche, compatible "
         "OpenAI — assistant, apps et rôles wama-dev-ai via llm_chat", kind='llm',
         env='ILAAS_API_BASE', api_key_env='ILAAS_API_KEY', user_key=True, shareable=True,
+        address_editable=True,
         api_key_help_url='https://www.ilaas.fr/demande-de-cles-ilaas/',
         hosting='sovereign', cost_tier='free', protocol='openai',
         default_remote_type='text-generation',
@@ -378,6 +395,7 @@ SOURCES: tuple[ExternalSource, ...] = (
         'openrouter', 'OpenRouter', 'https://openrouter.ai/api/v1',
         "Agrégateur de modèles distants (nombreux éditeurs), compatible OpenAI — assistant, apps "
         "et rôles wama-dev-ai via llm_chat", kind='llm', env='OPENROUTER_API_BASE',
+        address_editable=True,
         api_key_env='OPENROUTER_API_KEY', user_key=True,
         api_key_help_url='https://openrouter.ai/settings/keys',
         hosting='third_party', cost_tier='metered', protocol='openai',
@@ -591,7 +609,8 @@ SOURCES: tuple[ExternalSource, ...] = (
         "Méta-moteur AUTO-HÉBERGÉ, sans clé — n'a PAS d'index propre : il interroge les mêmes "
         "moteurs, depuis l'IP du labo (mesuré en juillet 2026 : Google et Brave y opposent un "
         "défi, seul DuckDuckGo répond). Vie privée, pas fiabilité",
-        kind='recherche', scope=LOCAL, setting='SEARXNG_URL', env='SEARXNG_URL'),
+        kind='recherche', scope=LOCAL, setting='SEARXNG_URL', env='SEARXNG_URL',
+        address_editable=True),
 
     # ── Banques de médias — les connecteurs de la médiathèque (décision de Fabien, 22/09) ────
     # Sources COMMUNES, clé de CHACUN (`user_key`) : aucune clé d'instance, donc pas
@@ -637,6 +656,23 @@ SOURCES: tuple[ExternalSource, ...] = (
         "Avatars GLB riggés publiés dans des dépôts déclarés (TalkingHead…) — recherche de la "
         "médiathèque, pour le moteur d'avatar 3D de l'avatarizer ; sans clé",
         kind='media'),
+
+    # ── Stockage de fichiers (décision de Fabien, 2026-10-10) ─────────────────────────────────
+    # Le Nextcloud de l'ÉTABLISSEMENT, monté au filemanager par rclone : la PREMIÈRE source
+    # d'hébergement `private` (la donnée quitte le poste, pas l'institution). Son adresse se POSE
+    # sur la page « Sources externes » par un admin (repli : `WAMA_NEXTCLOUD_URL` de `.env`) : le
+    # dépôt est public, l'adresse d'un établissement n'y a pas sa place ; le défaut ci-dessous
+    # n'est qu'un exemple, que la sonde dira injoignable. Posée, le filemanager la PROPOSE dans
+    # la fenêtre « Connecter un dossier » (`filemanager.views.api_mounts`).
+    # Joint par l'EXTÉRIEUR : portée sortante, donc le proxy sortant passé à rclone
+    # (`remote_mounts._env`). Ni `api_key_env` ni `user_key` : le mot de passe d'application
+    # est saisi en connectant le dossier et gardé chiffré sur le montage.
+    ExternalSource(
+        'nextcloud', "Nextcloud de l'établissement", 'https://nextcloud.example.org',
+        "Nuage de fichiers monté comme un dossier connecté du filemanager (rclone, WebDAV) — "
+        "parcourir, prévisualiser, envoyer vers une app", kind='stockage',
+        env='WAMA_NEXTCLOUD_URL', hosting='private', address_editable=True, address_required=True,
+        doc='docs/construction/suivi/ROADMAP.md'),
 )
 
 #: Le dataset Arena, nommé une fois (ce n'est pas une URL : un identifiant de dataset du Hub).
@@ -705,7 +741,9 @@ def get(key: str) -> ExternalSource:
 
 
 def base_url(key: str) -> str:
-    """Adresse EFFECTIVE : réglage Django, puis variable d'environnement, puis défaut déclaré.
+    """Adresse EFFECTIVE : celle posée sur la page « Sources externes » (source déclarée
+    `address_editable`, 2026-10-10), puis réglage Django, puis variable d'environnement, puis
+    défaut déclaré.
 
     Sans barre finale — les appelants concatènent leur chemin.
 
@@ -713,17 +751,57 @@ def base_url(key: str) -> str:
     'OLLAMA_HOST', 'http://127.0.0.1:11434')` recopié chez huit appelants promet un repli qui
     ne se déclenche jamais, et qui divergerait le jour où il se déclencherait.
     """
+    return (_address_override(key)[1] or get(key).base).rstrip('/')
+
+
+def _address_override(key: str) -> tuple[str, str]:
+    """`(origine, adresse)` qui surcharge le défaut déclaré : 'stored' (page), 'setting',
+    'env', ou `('', '')` quand seul le défaut déclaré vaut."""
     src = get(key)
-    val = ''
+    if src.address_editable:
+        stored = stored_instance_address(key)
+        if stored:
+            return 'stored', stored
     if src.setting:
         try:
             from django.conf import settings
             val = getattr(settings, src.setting, '') or ''
         except Exception:
             val = ''
-    if not val and src.env:
-        val = os.environ.get(src.env, '') or ''
-    return (val or src.base).rstrip('/')
+        if val:
+            return 'setting', val
+    if src.env and os.environ.get(src.env, ''):
+        return 'env', os.environ[src.env]
+    return '', ''
+
+
+def address_origin(key: str) -> str:
+    """D'où vient l'adresse : 'stored', 'setting', 'env', ou '' (défaut déclaré)."""
+    return _address_override(key)[0]
+
+
+def stored_instance_address(key: str) -> str:
+    """L'adresse posée en base pour `key` (`InstanceApiKey.base_url`), ou ''. Même lecture
+    paresseuse et même repli silencieux que `stored_instance_key`."""
+    try:
+        from wama.accounts.models import InstanceApiKey
+        row = InstanceApiKey.objects.filter(source=key).exclude(base_url='').first()
+        return row.base_url if row else ''
+    except Exception:
+        return ''
+
+
+def valid_address(text: str) -> str:
+    """L'adresse saisie, normalisée (sans barre finale), ou '' si ce n'en est pas une :
+    schéma http(s), hôte présent, aucun espace — elle part telle quelle dans des requêtes."""
+    from urllib.parse import urlsplit
+    text = (text or '').strip()
+    if not text or any(c.isspace() for c in text):
+        return ''
+    parts = urlsplit(text)
+    if parts.scheme not in ('http', 'https') or not parts.hostname:
+        return ''
+    return text.rstrip('/')
 
 
 def proxies_for(key: str):
@@ -779,8 +857,12 @@ def is_configured(key: str) -> bool:
     l'INSTANCE. Un connecteur de la médiathèque n'a rien à configurer ici — sa clé se pose au
     profil de chacun, et c'est son connecteur qui refuse, avec un motif, quand elle manque. La
     page le dit en toutes lettres (« clé par utilisateur ») au lieu d'un « configurée » trompeur.
+    Une source dont l'adresse est EXIGÉE (`address_required`) ne l'est pas tant qu'aucune
+    adresse n'est posée : son défaut déclaré n'est qu'un exemple.
     """
     src = get(key)
+    if src.address_required and not address_origin(key):
+        return False
     return bool(api_key(key)) if src.api_key_env else True
 
 
@@ -828,6 +910,11 @@ def probe(key: str, timeout: float = PROBE_TIMEOUT_S) -> dict:
 
     out = {'key': key, 'url': _probe_url(key), 'configured': is_configured(key),
            'reachable': None, 'status': None, 'latency_ms': None, 'error': ''}
+    if get(key).address_required and not address_origin(key):
+        # Le défaut déclaré n'est qu'un exemple : le sonder dirait « en panne » une source
+        # simplement pas encore configurée.
+        out['error'] = 'adresse à poser (page Sources externes)'
+        return out
     t0 = _time.monotonic()
     try:
         r = requests.get(out['url'], timeout=timeout, proxies=proxies_for(key),

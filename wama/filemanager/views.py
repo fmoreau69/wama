@@ -371,6 +371,12 @@ def api_children(request):
         except OSError as e:
             logger.warning(f"[Filemanager] Mount path check failed for '{abs_path}': {e}")
             path_ok = False
+        # Un dossier DISTANT tombé (WSL redémarré) se remonte de lui-même : son secret est gardé.
+        if not path_ok and mount.remote_config:
+            from wama.filemanager.remote_mounts import ensure_mounted
+            if ensure_mounted(mount):
+                abs_path, mount = resolve_mount_path(rel_path, user)
+                path_ok = abs_path is not None and os.path.isdir(str(abs_path))
         logger.warning(f"[Filemanager] api_children mount: path='{abs_path}' ok={path_ok}")
         if not path_ok:
             import sys
@@ -2046,33 +2052,9 @@ def _try_cifs_mount(server, share, subpath='', username=None, password=None, dom
     # Sanitise mount point name
     safe = re.sub(r'[^\w_-]', '_', f'{server}_{share}')
 
-    # Base des points de montage : /mnt/ exige root pour mkdir — repli sur un dossier
-    # utilisateur si indisponible (le point de montage peut être n'importe où, seul
-    # `mount` exige root). Ordre : réglage explicite → convention /mnt → home.
-    candidates = []
-    override = getattr(settings, 'WAMA_MOUNT_BASE', '') or os.environ.get('WAMA_MOUNT_BASE', '')
-    if override:
-        candidates.append(Path(override))
-    candidates += [Path('/mnt/wama_mounts'), Path.home() / '.wama' / 'mounts']
-
-    mount_point, mkdir_errors = None, []
-    for base in candidates:
-        mp = base / safe
-        try:
-            mp.mkdir(parents=True, exist_ok=True)
-            mount_point = mp
-            break
-        except OSError as e:
-            # Tentative non bloquante via sudo (puis chown pour les prochains mkdir sans root)
-            r = subprocess.run(['sudo', '-n', 'mkdir', '-p', str(mp)],
-                               capture_output=True, text=True)
-            if r.returncode == 0:
-                subprocess.run(['sudo', '-n', 'chown', '-R',
-                                f'{os.getuid()}:{os.getgid()}', str(base)],
-                               capture_output=True, text=True)
-                mount_point = mp
-                break
-            mkdir_errors.append(f'{base} : {e}')
+    # Point de montage : brique partagée avec le montage rclone (`remote_mounts`).
+    from wama.filemanager.remote_mounts import make_mount_point
+    mount_point, mkdir_errors = make_mount_point(safe)
     if mount_point is None:
         return False, None, ('Impossible de créer le point de montage — '
                              + ' ; '.join(mkdir_errors) + '\n' + sudoers_hint)
@@ -2304,6 +2286,18 @@ def api_validate_path(request):
     if not path_str:
         return JsonResponse({'resolved': '', 'accessible': False, 'name': ''})
 
+    # Une ADRESSE web (Nextcloud, WebDAV) : dossier distant monté par rclone (2026-10-10).
+    from wama.filemanager import remote_mounts
+    if remote_mounts.is_remote_url(path_str):
+        config = remote_mounts.webdav_config(path_str)
+        return JsonResponse({
+            'resolved': config['url'], 'accessible': False,
+            'name': remote_mounts.display_name(config),
+            'is_remote': True, 'remote_vendor': config['vendor'],
+            'remote_hint': ("Nuage de fichiers (WebDAV). Identifiant et MOT DE PASSE "
+                            "D'APPLICATION (Paramètres → Sécurité → Appareils & sessions)."),
+        })
+
     resolved = _resolve_path(path_str)
     try:
         accessible = os.path.isdir(resolved)
@@ -2404,7 +2398,12 @@ def api_mounts(request):
         mounts = list(
             MountedFolder.objects.filter(user=user).values('id', 'name', 'local_path', 'created_at')
         )
-        return JsonResponse({'mounts': mounts})
+        # Les nuages DÉCLARÉS par l'instance (type `stockage`, adresse posée par un admin sur la
+        # page Sources externes) : proposés dans la fenêtre de connexion (2026-10-10).
+        from wama.common import external_sources as es
+        clouds = [{'key': s.key, 'label': s.label, 'url': es.base_url(s.key)}
+                  for s in es.SOURCES if s.kind == 'stockage' and es.address_origin(s.key)]
+        return JsonResponse({'mounts': mounts, 'clouds': clouds})
 
     # POST — add a new mount
     try:
@@ -2416,6 +2415,10 @@ def api_mounts(request):
 
     if not name or not local_path:
         return JsonResponse({'error': 'Nom et chemin requis'}, status=400)
+
+    from wama.filemanager import remote_mounts
+    if remote_mounts.is_remote_url(local_path):
+        return _add_remote_mount(user, name, local_path, data)
 
     smb_username = data.get('smb_username', '').strip()
     smb_password = data.get('smb_password', '').strip()
@@ -2472,6 +2475,40 @@ def api_mounts(request):
     return JsonResponse({'success': True, 'id': mount.id, 'name': mount.name})
 
 
+def _add_remote_mount(user, name, url, data):
+    """Connecte un dossier DISTANT (Nextcloud, WebDAV) par rclone — `remote_mounts.py`.
+
+    Les identifiants sont vérifiés AVANT tout enregistrement ; le mot de passe d'application est
+    gardé CHIFFRÉ, ce qui permet de remonter le dossier au redémarrage.
+    """
+    from wama.common.utils import secret_crypto
+    from wama.filemanager import remote_mounts
+
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
+    if not username or not password:
+        return JsonResponse({'error': "Identifiant et mot de passe d'application requis.",
+                             'needs_auth': True}, status=401)
+    # Refuser AVANT d'écrire : une exception levée pendant `save()` casse la transaction.
+    if not secret_crypto.storage_available():
+        return JsonResponse({'error': "Enregistrement des identifiants indisponible sur ce "
+                                      "serveur (DJANGO_SECRET_KEY absente de .env)."}, status=400)
+
+    config = remote_mounts.webdav_config(url, username)
+    ok, linux_path, error = remote_mounts.mount(config, password)
+    if not ok:
+        if error == 'AUTH_REFUSED':
+            return JsonResponse(
+                {'error': f"Identifiants refusés par le serveur pour « {username} » — utilisez un "
+                          "mot de passe d'APPLICATION, pas celui de votre compte.",
+                 'needs_auth': True, 'auth_refused': True}, status=401)
+        return JsonResponse({'error': error or 'Impossible de monter le dossier.'}, status=400)
+
+    mount = MountedFolder.objects.create(user=user, name=name, local_path=linux_path,
+                                         remote_config=config, remote_secret=password)
+    return JsonResponse({'success': True, 'id': mount.id, 'name': mount.name})
+
+
 @require_GET
 def api_remount_shares(request):
     """
@@ -2511,6 +2548,15 @@ def api_remount_shares(request):
             skipped += 1
             errors.append({'mount': mount.name, 'error': error})
 
+    # Dossiers DISTANTS (rclone) : leur secret est gardé chiffré, ils se remontent tous.
+    from wama.filemanager.remote_mounts import ensure_mounted
+    for mount in MountedFolder.objects.exclude(remote_config=None):
+        if ensure_mounted(mount):
+            remounted += 1
+        else:
+            skipped += 1
+            errors.append({'mount': mount.name, 'error': 'remontage rclone impossible (journal)'})
+
     logger.warning(f'[Filemanager] api_remount_shares: remounted={remounted} skipped={skipped}')
     return JsonResponse({'remounted': remounted, 'skipped': skipped, 'errors': errors})
 
@@ -2522,6 +2568,11 @@ def api_mount_delete(request, pk):
     try:
         mount = MountedFolder.objects.get(pk=pk, user=user)
         mount.delete()
+        # Un dossier distant n'est démonté que si plus aucun montage n'emploie ce chemin.
+        if mount.remote_config and not MountedFolder.objects.filter(
+                local_path=mount.local_path).exists():
+            from wama.filemanager.remote_mounts import unmount
+            unmount(mount.local_path)
         return JsonResponse({'success': True})
     except MountedFolder.DoesNotExist:
         return JsonResponse({'error': 'Non trouvé'}, status=404)

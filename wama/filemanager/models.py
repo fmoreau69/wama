@@ -5,6 +5,8 @@ import os
 from django.db import models
 from django.contrib.auth.models import User
 
+from wama.common.utils.secret_crypto import EncryptedTextField
+
 
 def user_directory_path(instance, filename):
     """Generate upload path: users/{user_id}/temp/{filename}"""
@@ -64,6 +66,15 @@ class MountedFolder(models.Model):
         null=True, blank=True,
         help_text='Config SMB pour remontage automatique : {server, share, subpath, username, domain, guest}'
     )
+    # Dossier DISTANT monté par rclone (Nextcloud, WebDAV… — `remote_mounts.py`, 2026-10-10) :
+    # {type, url, vendor, user}. Nullable : la ligne écrite par le code en service reste valide.
+    remote_config = models.JSONField(
+        null=True, blank=True,
+        help_text='Stockage distant monté par rclone : {type, url, vendor, user}'
+    )
+    # Le mot de passe d'application, CHIFFRÉ au repos — c'est lui qui permet le remontage au
+    # redémarrage, que le SMB n'a pas (mot de passe jamais gardé).
+    remote_secret = EncryptedTextField(blank=True, default='', db_default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

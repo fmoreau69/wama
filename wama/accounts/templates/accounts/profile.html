@@ -367,9 +367,9 @@
             <!-- ── Notifications (WAMA_COLLABORATION §5.2 — absorbe l'ex-carte « Notifications email ») ── -->
             <div class="card bg-dark border-secondary mb-4">
                 <div class="card-header border-secondary">
-                    <h5 class="mb-0"><i class="fas fa-bell me-2"></i>Notifications</h5>
+                    <h5 class="mb-0 text-light"><i class="fas fa-bell me-2"></i>Notifications</h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body text-light">
                     <p class="text-muted small mb-3">
                         À la fin (ou en cas d'échec) de vos traitements : une notification dans WAMA
                         (cloche et fenêtre en bas à droite), et, si vous le souhaitez, un e-mail.
@@ -377,13 +377,15 @@
                     <div class="form-check form-switch mb-2">
                         <input class="form-check-input" type="checkbox" id="notifySound"
                                {% if profile.notify_sound %}checked{% endif %}>
-                        <label class="form-check-label" for="notifySound">Son dans WAMA
-                            <span class="text-muted small">— un son pour « terminé », un autre pour « échoué », tant qu'un onglet WAMA est ouvert</span></label>
-                        <span class="small ms-1">écouter :
+                        <label class="form-check-label" for="notifySound">Son dans WAMA</label>
+                        <div class="text-muted small">
+                            Un son pour « terminé », un autre pour « échoué », tant qu'un onglet WAMA est ouvert —
+                            écouter :
                             <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
                                     onclick="WamaApp.playNotificationSound('done')">terminé</button> ·
                             <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
-                                    onclick="WamaApp.playNotificationSound('failed')">échoué</button></span>
+                                    onclick="WamaApp.playNotificationSound('failed')">échoué</button>
+                        </div>
                     </div>
                     <div class="form-check form-switch mb-3">
                         <input class="form-check-input" type="checkbox" id="notifyEmail"

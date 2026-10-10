@@ -1280,6 +1280,9 @@
         if (mountSmbPassword) mountSmbPassword.value = '';
         if (mountSmbDomain)   mountSmbDomain.value = '';
         _mountIsSMB = false;
+        _mountIsRemote = false;
+        _setCredentialMode('smb');
+        _showDeclaredClouds();
         _mountModal = _mountModal || new bootstrap.Modal(mountModalEl);
         _mountModal.show();
         setTimeout(() => mountPathInput?.focus(), 300);
@@ -1289,7 +1292,61 @@
     const mountSmbUser     = document.getElementById('mountSmbUser');
     const mountSmbPassword = document.getElementById('mountSmbPassword');
     const mountSmbDomain   = document.getElementById('mountSmbDomain');
+    const mountCredTitle   = document.getElementById('mountCredTitle');
+    const mountCredIcon    = document.getElementById('mountCredIcon');
     let _mountIsSMB = false;
+    // Dossier DISTANT (Nextcloud, WebDAV) monté par rclone : même section d'identifiants, autres
+    // libellés, sans domaine d'annuaire (2026-10-10).
+    let _mountIsRemote = false;
+    const CRED_LABELS = {
+        smb: {
+            icon: 'fas fa-network-wired me-1',
+            title: 'Partage réseau — identifiants AD (laisser vide pour accès invité)',
+            user: 'Nom d’utilisateur AD', password: 'Mot de passe AD', domain: true,
+        },
+        remote: {
+            icon: 'fas fa-cloud me-1',
+            title: 'Nuage de fichiers — identifiant et mot de passe d’APPLICATION',
+            user: 'Identifiant du compte', password: 'Mot de passe d’application', domain: false,
+        },
+    };
+
+    // Les nuages DÉCLARÉS par l'instance (adresse posée par un admin, page Sources externes) :
+    // un bouton par nuage remplit l'adresse — l'utilisateur n'a plus qu'à s'identifier.
+    function _showDeclaredClouds() {
+        const holder = document.getElementById('mountCloudSuggestions');
+        if (!holder) return;
+        holder.replaceChildren();
+        fetch(config.apiMountsUrl || '/filemanager/api/mounts/', { headers: { 'X-CSRFToken': csrfToken } })
+            .then(r => r.json())
+            .then(data => {
+                (data.clouds || []).forEach(cloud => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'btn btn-sm btn-outline-info py-0';
+                    btn.style.fontSize = '0.75rem';
+                    btn.innerHTML = '<i class="fas fa-cloud me-1"></i>';
+                    btn.appendChild(document.createTextNode(cloud.label));
+                    btn.addEventListener('click', () => {
+                        mountPathInput.value = cloud.url + '/';
+                        clearTimeout(_mountValidateTimer);
+                        _checkMountPath(mountPathInput.value);
+                        mountSmbUser?.focus();
+                    });
+                    holder.appendChild(btn);
+                });
+            })
+            .catch(() => {});
+    }
+
+    function _setCredentialMode(mode) {
+        const labels = CRED_LABELS[mode];
+        if (mountCredIcon)    mountCredIcon.className = labels.icon;
+        if (mountCredTitle)   mountCredTitle.textContent = labels.title;
+        if (mountSmbUser)     mountSmbUser.placeholder = labels.user;
+        if (mountSmbPassword) mountSmbPassword.placeholder = labels.password;
+        if (mountSmbDomain)   mountSmbDomain.style.display = labels.domain ? '' : 'none';
+    }
 
     function _checkMountPath(raw) {
         if (!raw.trim()) {
@@ -1307,9 +1364,20 @@
                 const last = raw.replace(/\\/g,'/').replace(/\/+$/,'').split('/').pop() || raw;
                 if (!mountNameInput.value.trim()) mountNameInput.value = data.name || last;
 
-                // Show/hide SMB credentials section
+                // Show/hide credentials section (SMB share or remote cloud folder)
                 _mountIsSMB = !!data.is_smb;
-                if (mountSmbSection) mountSmbSection.style.display = _mountIsSMB ? '' : 'none';
+                _mountIsRemote = !!data.is_remote;
+                _setCredentialMode(_mountIsRemote ? 'remote' : 'smb');
+                if (mountSmbSection) mountSmbSection.style.display = (_mountIsSMB || _mountIsRemote) ? '' : 'none';
+                if (_mountIsRemote) {
+                    const hint = document.createElement('span');
+                    hint.className = 'text-info';
+                    hint.innerHTML = '<i class="fas fa-cloud me-1"></i>';
+                    hint.appendChild(document.createTextNode(data.remote_hint || ''));
+                    mountPathStatus.replaceChildren(hint);
+                    mountSaveBtn.disabled = false;
+                    return;
+                }
                 // Domaine d'annuaire DÉCLARÉ par le site : prérempli, jamais imposé.
                 if (_mountIsSMB && mountSmbDomain && !mountSmbDomain.value.trim() && data.smb_default_domain) {
                     mountSmbDomain.value = data.smb_default_domain;
@@ -1346,7 +1414,10 @@
         mountPathStatus.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Connexion en cours\u2026</span>';
 
         const body = { name, local_path: rawPath };
-        if (_mountIsSMB) {
+        if (_mountIsRemote) {
+            body.username = mountSmbUser?.value.trim() || '';
+            body.password = mountSmbPassword?.value || '';
+        } else if (_mountIsSMB) {
             body.smb_username = mountSmbUser?.value.trim()     || '';
             body.smb_password = mountSmbPassword?.value.trim() || '';
             body.smb_domain   = mountSmbDomain?.value.trim()   || '';
@@ -1367,10 +1438,12 @@
                 } else if (data.needs_auth) {
                     // Show credentials section and ask user to fill in
                     if (mountSmbSection) mountSmbSection.style.display = '';
-                    _mountIsSMB = true;
+                    if (!_mountIsRemote) _mountIsSMB = true;
                     // Deux refus DIFFÉRENTS : rien n'a été envoyé (accès invité refusé), ou
                     // les identifiants envoyés ont été rejetés — le serveur dit lequel.
-                    const authText = data.auth_refused
+                    const authText = (_mountIsRemote && !data.auth_refused)
+                        ? (data.error || 'Renseignez l’identifiant et le mot de passe d’application')
+                        : data.auth_refused
                         ? (data.error || 'Identifiants refusés par le serveur')
                         : 'Ce partage n\u2019accepte pas l\u2019accès invité — renseignez vos identifiants';
                     const authSpan = document.createElement('span');

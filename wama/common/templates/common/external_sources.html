@@ -98,7 +98,7 @@ smoke.{% endcomment %}
         {% if l.user_key %}<a class="wama-cat-badge xs-type" href="{{ profile_url }}" title="Chaque utilisateur pose sa propre clé, au profil">clé par utilisateur → profil</a>{% endif %}
       </h4>
       <div class="wama-cat-desc">{{ l.usage }}</div>
-      <div class="xs-url">{{ l.url }}</div>
+      <div class="xs-url">{{ l.url }}{% if l.address_origin == 'stored' %} <span class="wama-cat-badge xs-cle-ok">adresse posée ici</span>{% elif l.address_required and not l.address_origin %} <span class="wama-cat-badge xs-cle-ko">adresse à poser</span>{% endif %}</div>
       <div class="wama-cat-meta">
         {% if l.setting %}réglage <code>{{ l.setting }}</code>{% endif %}
         {% if l.env %}{% if l.setting %} · {% endif %}env <code>{{ l.env }}</code>{% endif %}
@@ -175,6 +175,8 @@ document.addEventListener('DOMContentLoaded', function () {
         { description: 'usage' },
         { section: 'Adresse', rows: [
             { k: 'Adresse effective', field: 'url', code: true },
+            { k: "Origine de l'adresse", get: function (s) {
+                return ADDRESS_ORIGINS[s.address_origin || ''] || ''; } },
             { k: 'Réglage Django', field: 'setting', code: true },
             { k: "Variable d'environnement", field: 'env', code: true },
             { k: "Clé d'API (variable)", field: 'api_key_env', code: true },
@@ -197,6 +199,8 @@ document.addEventListener('DOMContentLoaded', function () {
         ] },
     ];
     const KEY_ORIGINS = { stored: 'posée sur cette page', env: 'lue dans .env' };
+    const ADDRESS_ORIGINS = { stored: 'posée sur cette page', setting: 'réglage Django',
+                              env: 'lue dans .env', '': 'défaut déclaré' };
 
     // ── Clé de l'INSTANCE (2026-10-07) — réservée aux admins ───────────────────────────
     // Le champ est celui du profil (`WamaKeyField`) ; la route est écrite en LITTÉRAL et non
@@ -236,6 +240,45 @@ document.addEventListener('DOMContentLoaded', function () {
             '</div>';
     }
 
+    // ── ADRESSE de l'instance (2026-10-10) — réservée aux admins, pour une source qui déclare
+    // `address_editable`. Même route en littéral que la clé (gabarit relu à chaud).
+    const addressUrl = function (key) { return '/common/sources/' + encodeURIComponent(key) + '/instance-address/'; };
+
+    function addressPanel(s) {
+        if (!CAN_MANAGE_KEYS || !s.address_editable) return '';
+        const stored = s.address_origin === 'stored';
+        return '<div class="mt-3"><div class="text-info small fw-bold mb-1">Adresse de l\'instance</div>' +
+            '<div class="input-group input-group-sm">' +
+            '<input type="url" class="form-control" id="address-' + s.key + '" placeholder="https://serveur.exemple.fr"' +
+            ' value="' + WamaApp.escapeHtml(stored ? s.url : '') + '" autocomplete="off" spellcheck="false">' +
+            '<button class="btn btn-outline-info" type="button" data-address-save="' + s.key + '">Enregistrer</button>' +
+            (stored ? '<button class="btn btn-outline-danger" type="button" data-address-clear="' + s.key + '" title="Retirer">' +
+                      '<i class="fas fa-trash"></i></button>' : '') +
+            '</div><div class="small mt-1" id="msg-address-' + s.key + '"></div>' +
+            '<div class="small text-white-50 mt-1">' + (stored
+                ? 'Posée sur cette page : elle prime sur le réglage et sur .env.'
+                : 'Actuellement : ' + WamaApp.escapeHtml(ADDRESS_ORIGINS[s.address_origin || ''] || '') +
+                  '. Une adresse posée ici primera.') + '</div></div>';
+    }
+
+    function saveAddress(s, address, btn) {
+        WamaKeyField.send({ url: addressUrl(s.key), body: { base_url: address }, btn: btn,
+                            msgEl: document.getElementById('msg-address-' + s.key),
+                            pending: address ? 'Enregistrement…' : 'Suppression…' })
+            .then(function (data) {
+                if (!data.success) return;
+                s.url = data.url;
+                s.address_origin = data.address_origin || '';
+                const card = grid.querySelector('.wama-cat-card[data-id="' + s.key + '"] .xs-url');
+                if (card) card.innerHTML = WamaApp.escapeHtml(s.url) + (s.address_origin === 'stored'
+                    ? ' <span class="wama-cat-badge xs-cle-ok">adresse posée ici</span>'
+                    : (s.address_required && !s.address_origin ? ' <span class="wama-cat-badge xs-cle-ko">adresse à poser</span>' : ''));
+                refreshSource(s);
+                WamaKeyField.showMsg(document.getElementById('msg-address-' + s.key),
+                                     address ? '✓ Adresse enregistrée' : '✓ Adresse retirée', false);
+            });
+    }
+
     function cardBadges(s) {
         if (!s.api_key_env) return '';
         return (s.cle_posee ? '<span class="wama-cat-badge xs-cle-ok">clé posée' + (s.key_origin === 'env' ? ' (.env)' : '') + '</span>'
@@ -252,7 +295,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (holder) holder.innerHTML = cardBadges(s);
             card.dataset.fCle = s.shared ? 'shared' : (s.key_origin ? 'set' : 'missing');
         }
-        if (host) host.innerHTML = WamaDetails.renderSections(s, SOURCE_DETAIL_SCHEMA) + keyPanel(s);
+        if (host) host.innerHTML = WamaDetails.renderSections(s, SOURCE_DETAIL_SCHEMA) + addressPanel(s) + keyPanel(s);
         if (msg) WamaKeyField.showMsg(document.getElementById('msg-instance-' + s.key), msg[0], msg[1]);
     }
 
@@ -284,6 +327,17 @@ document.addEventListener('DOMContentLoaded', function () {
         WamaKeyField.bind(host, {
             onSave: function (btn, key) { saveInstanceKey(byId[btn.dataset.source], key, btn); },
             onDelete: function (btn) { saveInstanceKey(byId[btn.dataset.source], '', btn); },
+        });
+        host.addEventListener('click', function (e) {
+            const save = e.target.closest('[data-address-save]');
+            const clear = e.target.closest('[data-address-clear]');
+            if (save) {
+                const s = byId[save.dataset.addressSave];
+                const input = document.getElementById('address-' + s.key);
+                saveAddress(s, input ? input.value.trim() : '', save);
+            } else if (clear) {
+                saveAddress(byId[clear.dataset.addressClear], '', clear);
+            }
         });
         host.addEventListener('change', function (e) {
             const box = e.target.closest('[data-share-key]');
@@ -317,7 +371,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const s = byId[card.dataset.id];
             const btnHost = document.getElementById('inspectorActionButtons');
             if (!s) { h.innerHTML = '<p class="text-muted">Source inconnue.</p>'; if (btnHost) btnHost.innerHTML = ''; return; }
-            h.innerHTML = WamaDetails.renderSections(s, SOURCE_DETAIL_SCHEMA) + keyPanel(s);
+            h.innerHTML = WamaDetails.renderSections(s, SOURCE_DETAIL_SCHEMA) + addressPanel(s) + keyPanel(s);
             if (btnHost) {
                 const r = WamaDetails.renderActions(s, SOURCE_ACTIONS_SCHEMA);
                 btnHost.innerHTML = r.html;

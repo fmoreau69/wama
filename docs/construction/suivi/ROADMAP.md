@@ -4207,6 +4207,56 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
 5. Nuages de fichiers (Nextcloud, WebDAV) : nouveau type au registre des sources externes
    (`common/external_sources.py:88-102`, aucun type « stockage » aujourd'hui) + identifiants par
    utilisateur dans le profil ; lecture ET écriture.
+   🔄 **Approche DÉCIDÉE le 2026-10-10 (Fabien) : rclone sous le « dossier connecté » du
+   filemanager**, pas un serveur MCP. Le raisonnement, pour ne pas le refaire :
+   - **Où** : la connexion se fait au FILEMANAGER, comme un partage réseau (décision de Fabien).
+     Un `MountedFolder` n'est qu'un CHEMIN (`filemanager/models.py:55-66`) : l'arbre, l'aperçu et
+     « Envoyer vers » le lisent comme un dossier (`filemanager/views.py:289-345`, `:2531-2557`).
+     Tout ce qui fournit un chemin s'y branche donc sans toucher l'aval.
+   - **Pourquoi rclone** (MIT) : plus de 70 stockages (WebDAV avec réglage Nextcloud, SMB, SFTP,
+     S3, OneDrive…) sous UNE commande ; `rclone mount` (FUSE, présent dans WSL : `/dev/fuse`,
+     `fusermount3` setuid, vérifié ce jour) rend le chemin qu'attend le montage. C'est la couche
+     universelle et ouverte demandée ; `davfs2` ne ferait que WebDAV. Les options de chaque
+     stockage sont publiées en JSON (`rclone config providers`) : la fenêtre de connexion pourra
+     s'en GÉNÉRER pour les types suivants, au lieu d'un formulaire par type.
+   - **Pourquoi pas MCP pour CET usage** : MCP donne des OUTILS à un LLM (décision du 15/09) ; le
+     filemanager, les workers et l'aperçu d'une vidéo de 2 Go veulent un flux d'octets, pas un appel
+     d'outil rendant du JSON. **L'un n'empêche pas l'autre** (Fabien, 10/10) : un serveur MCP
+     Nextcloud (fichiers, Deck, agenda, Talk — plusieurs existent, tiers) servira l'ASSISTANT le
+     jour où WAMA sera client de serveurs MCP externes (§8d Phase 3 étape 5, « rien encore »).
+   - **Authentification** : Nextcloud derrière SSO / FIDO2 → un **mot de passe d'application**
+     (Paramètres → Sécurité → Appareils & sessions), révocable à part, saisi dans la fenêtre de
+     connexion avec l'URL WebDAV (`…/remote.php/dav/files/<identifiant>/`). FIDO2 ne vaut que pour
+     la connexion du navigateur. Le secret est stocké CHIFFRÉ (`secret_crypto.EncryptedTextField`)
+     — ce qui permet aussi le remontage au redémarrage, que le SMB n'a pas (mot de passe jamais
+     gardé, `filemanager/views.py:2498-2502`).
+   - **Réseau** : Nextcloud de l'établissement joint PAR L'EXTÉRIEUR, donc par le proxy sortant
+     (`http_proxy.outbound_proxies`) passé à rclone. Source déclarée au registre en type
+     `stockage`, hébergement `private` — la PREMIÈRE source de ce niveau (`external_sources.py:81-86`).
+   - ✅ **L'ADRESSE se pose sur la page « Sources externes »** (Fabien, 10/10 : « pourquoi pas
+     les champs à compléter directement dans l'interface du registre des sources, modifiable
+     uniquement par l'admin ? ») — même ligne d'instance que la clé (`InstanceApiKey.base_url`),
+     même résolution (page → réglage → `.env` → défaut). Ouvert aux sources qui le DÉCLARENT
+     (`address_editable`) : Nextcloud, Albert, ILaaS, OpenRouter, SearXNG. Le Nextcloud déclare
+     aussi `address_required` (son défaut n'est qu'un exemple) ; posé, le filemanager le PROPOSE
+     dans « Connecter un dossier ».
+     **Relevé du même jour, ce que la page ne tient PAS encore** (Fabien : « à vérifier si
+     d'autres sources ne l'ont pas non plus ») :
+     - adresses exclues À DESSEIN : Ollama (`assistant_engine.py:492` lit l'environnement
+       d'abord, `ollama_host` réécrit pour WSL2), services locaux TTS/MCP/WAMA (l'adresse est
+       celle où `start_wama_prod.sh` les LANCE) ;
+     - jetons lus HORS du registre, donc ni visibles ni posables sur la page : `GITHUB_TOKEN`
+       (`prospector.py:1601`, `benchmark_sync.py:827` — les sources `github` n'ont pas
+       d'`api_key_env`) ; le REPLI du jeton HF de `pyannote_diarizer.py:154`
+       (`settings.HUGGINGFACE_TOKEN` quand l'appelant n'en passe pas — la clé d'instance posée
+       sur la page n'y est pas vue) ; le repli SANS utilisateur de `claude_code.py:168`, qui lit
+       l'environnement et non `external_sources.api_key` ; `WAMA_DISCORD_TOKEN` (Discord n'est
+       pas une source déclarée) ;
+     - réglages d'INSTANCE qui ne sont pas des sources (SMTP, liaison LDAP, domaine SMB, proxy
+       sortant, `WAMA_PUBLIC_URL`) : question à part — une page de réglages d'instance ?
+   - ⏳ Ensuite : écriture des RÉSULTATS vers le nuage (bute sur `-o`, jamais une destination —
+     `MEDIA_STORAGE_TIERING §8.1` cas 5) ; SMB par rclone (sans `sudo`) ; types suivants générés
+     de `rclone config providers` ; serveur MCP Nextcloud pour l'assistant.
 6. Pages statiques + API WAMA.
 
 #### Décisions ouvertes

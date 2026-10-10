@@ -544,3 +544,144 @@ class NetworkShareScreenTests(TestCase):
         body = r.json()
         self.assertTrue(body['needs_auth'])
         self.assertNotIn('auth_refused', body)
+
+
+class RemoteMountTests(TestCase):
+    """Un nuage de fichiers (Nextcloud, WebDAV) connecté comme un dossier, par rclone
+    (2026-10-10, `remote_mounts.py`).
+
+    ⚠ Aucun montage réel : `subprocess.run` est simulé — il enregistre la commande ET
+    l'environnement, puisque c'est par l'environnement que passent les identifiants.
+    """
+
+    def setUp(self):
+        import tempfile
+
+        from django.test import override_settings
+
+        self.base = tempfile.TemporaryDirectory()
+        self.addCleanup(self.base.cleanup)
+        tuned = override_settings(WAMA_MOUNT_BASE=self.base.name,
+                                  WAMA_OUTBOUND_PROXY='http://proxy.example.org:3128')
+        tuned.enable()
+        self.addCleanup(tuned.disable)
+
+        self.calls, self.server_says = [], ''
+
+        def run(cmd, **kwargs):
+            from types import SimpleNamespace
+            self.calls.append((cmd, kwargs.get('env') or {}))
+            if cmd[0] == 'mountpoint':
+                return SimpleNamespace(returncode=1, stdout='', stderr='')
+            if cmd[1:2] == ['obscure']:
+                return SimpleNamespace(returncode=0, stdout='OBSCURED\n', stderr='')
+            if cmd[1:2] == ['lsjson'] and self.server_says:
+                return SimpleNamespace(returncode=1, stdout='', stderr=self.server_says)
+            return SimpleNamespace(returncode=0, stdout='[]', stderr='')
+
+        for target, kwargs in (('subprocess.run', {'side_effect': run}),
+                               ('wama.filemanager.remote_mounts.rclone_binary',
+                                {'return_value': '/opt/rclone'})):
+            patcher = patch(target, **kwargs)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+        self.user = get_user_model().objects.create_user('wama_cloud_user', password='x')
+        self.client.force_login(self.user)
+
+    def _commands(self, verb):
+        return [(cmd, env) for cmd, env in self.calls if cmd[1:2] == [verb]]
+
+    def _post(self, **body):
+        import json
+        payload = {'name': 'Nuage', 'local_path': 'https://cloud.example.org/', **body}
+        return self.client.post('/filemanager/api/mounts/', json.dumps(payload),
+                                content_type='application/json')
+
+    def test_a_server_address_is_completed_with_the_nextcloud_webdav_path(self):
+        from wama.filemanager.remote_mounts import webdav_config
+        config = webdav_config('https://cloud.example.org/', 'jane.doe')
+        self.assertEqual(config['url'], 'https://cloud.example.org/remote.php/dav/files/jane.doe/')
+        self.assertEqual(config['vendor'], 'nextcloud')
+
+    def test_an_address_copied_from_the_browser_opens_the_same_folder_over_webdav(self):
+        # Vécu le 2026-10-10 : une page web gardée telle quelle rendait « 405 Method Not Allowed ».
+        from wama.filemanager.remote_mounts import webdav_config
+        config = webdav_config('https://cloud.example.org/apps/files/files?dir=/Projets/2026', 'jane')
+        self.assertEqual(config['url'], 'https://cloud.example.org/remote.php/dav/files/jane/Projets/2026/')
+        self.assertEqual(config['vendor'], 'nextcloud')
+
+    def test_any_page_of_the_declared_cloud_is_completed_and_a_405_is_explained(self):
+        from wama.accounts.models import InstanceApiKey
+        from wama.filemanager.remote_mounts import _explain, webdav_config
+        InstanceApiKey.objects.create(source='nextcloud', base_url='https://cloud.example.org')
+        self.assertEqual(webdav_config('https://cloud.example.org/settings/user', 'jane')['url'],
+                         'https://cloud.example.org/remote.php/dav/files/jane/')
+        self.assertIn('page web', _explain("couldn't list files: 405 Method Not Allowed"))
+
+    def test_a_full_webdav_address_is_kept_as_typed(self):
+        from wama.filemanager.remote_mounts import webdav_config
+        typed = 'https://cloud.example.org/remote.php/dav/files/jane.doe/Projets'
+        self.assertEqual(webdav_config(typed, 'jane.doe')['url'], typed)
+        other = webdav_config('https://dav.example.org/share/', 'jane')
+        self.assertEqual((other['url'], other['vendor']), ('https://dav.example.org/share/', 'other'))
+
+    def test_the_path_check_recognises_a_web_address(self):
+        r = self.client.get('/filemanager/api/validate-path/',
+                            {'path': 'https://cloud.example.org/remote.php/dav/files/jane/'})
+        body = r.json()
+        self.assertTrue(body['is_remote'])
+        self.assertEqual(body['remote_vendor'], 'nextcloud')
+        self.assertNotIn('is_smb', body)
+
+    def test_the_password_never_reaches_a_command_line_and_the_proxy_is_passed(self):
+        r = self._post(username='jane', password='s3cret')
+        self.assertTrue(r.json().get('success'), r.json())
+        for cmd, env in self.calls:
+            self.assertNotIn('s3cret', ' '.join(cmd))
+        mount_cmd, env = self._commands('mount')[0]
+        self.assertIn('--daemon', mount_cmd)
+        self.assertEqual(env['RCLONE_WEBDAV_PASS'], 'OBSCURED')
+        self.assertEqual(env['RCLONE_WEBDAV_USER'], 'jane')
+        self.assertEqual(env['HTTPS_PROXY'], 'http://proxy.example.org:3128')
+
+    def test_the_secret_is_kept_encrypted_and_the_folder_remembered(self):
+        from django.db import connection
+
+        from wama.filemanager.models import MountedFolder
+        self._post(username='jane', password='s3cret')
+        mount = MountedFolder.objects.get(user=self.user)
+        self.assertEqual(mount.remote_secret, 's3cret')
+        self.assertEqual(mount.remote_config['user'], 'jane')
+        with connection.cursor() as cur:
+            cur.execute('SELECT remote_secret FROM filemanager_mountedfolder WHERE id = %s',
+                        [mount.id])
+            self.assertNotIn('s3cret', cur.fetchone()[0])
+
+    def test_refused_credentials_say_so_and_nothing_is_mounted_or_saved(self):
+        from wama.filemanager.models import MountedFolder
+        self.server_says = 'Failed to lsjson: 401 Unauthorized'
+        r = self._post(username='jane', password='wrong')
+        self.assertEqual(r.status_code, 401)
+        self.assertTrue(r.json()['auth_refused'])
+        self.assertIn("mot de passe d'APPLICATION", r.json()['error'])
+        self.assertFalse(self._commands('mount'))
+        self.assertFalse(MountedFolder.objects.filter(user=self.user).exists())
+
+    def test_missing_credentials_are_asked_before_any_network_call(self):
+        r = self._post(username='jane')
+        self.assertEqual(r.status_code, 401)
+        self.assertTrue(r.json()['needs_auth'])
+        self.assertFalse(self.calls)
+
+    def test_a_fallen_remote_folder_is_remounted_with_its_stored_secret(self):
+        from wama.filemanager.models import MountedFolder
+        from wama.filemanager.remote_mounts import ensure_mounted, webdav_config
+        mount = MountedFolder.objects.create(
+            user=self.user, name='Nuage', local_path='/nowhere/dav',
+            remote_config=webdav_config('https://cloud.example.org/', 'jane'),
+            remote_secret='s3cret')
+        self.assertTrue(ensure_mounted(mount))
+        self.assertEqual(self._commands('mount')[0][1]['RCLONE_WEBDAV_PASS'], 'OBSCURED')
+        mount.refresh_from_db()
+        self.assertTrue(mount.local_path.startswith(self.base.name), mount.local_path)

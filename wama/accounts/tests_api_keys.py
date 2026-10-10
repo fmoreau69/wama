@@ -367,6 +367,84 @@ class InstanceKeyTest(TestCase):
         self.assertIn(row, [call.args[0] for call in refresh.call_args_list])
 
 
+class InstanceAddressTest(TestCase):
+    """2026-10-10 (request of Fabien): the ADDRESS of a source declaring `address_editable` is set
+    by an admin on the « Sources externes » page, in the same instance row as its key, and beats
+    the Django setting and the `.env` — which stay the fallback."""
+
+    URL = '/common/sources/{}/instance-address/'
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        User = get_user_model()
+        self.admin = User.objects.create_user('instance_address_admin', password='x')
+        self.admin.groups.add(Group.objects.get_or_create(name='admin')[0])
+        self.user = User.objects.create_user('instance_address_user', password='x')
+
+    def _post(self, source, address, user=None):
+        self.client.force_login(user or self.admin)
+        return self.client.post(self.URL.format(source), data=json.dumps({'base_url': address}),
+                                content_type='application/json')
+
+    def test_a_stored_address_beats_the_env_one_which_stays_the_fallback(self):
+        from wama.common import external_sources as es
+        with mock.patch.dict(os.environ, {'ILAAS_API_BASE': 'https://from-env.example.org/v1'}):
+            self.assertEqual(('env', 'https://from-env.example.org/v1'),
+                             (es.address_origin('ilaas'), es.base_url('ilaas')))
+            r = self._post('ilaas', 'https://from-page.example.org/v1/')
+            self.assertEqual('https://from-page.example.org/v1', r.json()['url'])
+            self.assertEqual('stored', es.address_origin('ilaas'))
+            self._post('ilaas', '')
+            self.assertEqual('https://from-env.example.org/v1', es.base_url('ilaas'))
+
+    def test_a_source_not_declaring_it_never_takes_an_address_from_the_page(self):
+        from wama.accounts.models import InstanceApiKey
+        from wama.common import external_sources as es
+        self.assertEqual(404, self._post('ollama', 'http://elsewhere:11434').status_code)
+        # Even a row forced in base is ignored: Ollama is read by its own resolver.
+        InstanceApiKey.objects.create(source='ollama', base_url='http://elsewhere:11434')
+        self.assertNotEqual('http://elsewhere:11434', es.base_url('ollama'))
+
+    def test_only_an_admin_sets_an_address_and_it_must_be_one(self):
+        from wama.accounts.models import InstanceApiKey
+        self.assertEqual(403, self._post('nextcloud', 'https://cloud.example.org',
+                                         user=self.user).status_code)
+        for wrong in ('cloud.example.org', 'ftp://cloud.example.org', 'https://a b.org'):
+            self.assertEqual(400, self._post('nextcloud', wrong).status_code, wrong)
+        self.assertFalse(InstanceApiKey.objects.exists())
+
+    def test_a_required_address_leaves_the_source_unconfigured_and_unprobed_until_set(self):
+        from wama.common import external_sources as es
+        with mock.patch.dict(os.environ, {'WAMA_NEXTCLOUD_URL': ''}):
+            self.assertFalse(es.is_configured('nextcloud'))
+            with mock.patch('requests.get') as get:
+                self.assertIn('adresse à poser', es.probe('nextcloud')['error'])
+            get.assert_not_called()
+            self._post('nextcloud', 'https://cloud.example.org')
+            self.assertTrue(es.is_configured('nextcloud'))
+
+    def test_removing_the_key_keeps_the_address_and_removing_both_drops_the_row(self):
+        from wama.accounts.models import InstanceApiKey
+        self._post('ilaas', 'https://from-page.example.org/v1')
+        InstanceApiKey.objects.filter(source='ilaas').update(open_models=['ilaas:m'])
+        self.client.post('/common/sources/ilaas/instance-key/', data=json.dumps({'api_key': ''}),
+                         content_type='application/json')
+        row = InstanceApiKey.objects.get(source='ilaas')
+        self.assertEqual(('https://from-page.example.org/v1', []), (row.base_url, row.open_models))
+        self._post('ilaas', '')
+        self.assertFalse(InstanceApiKey.objects.exists())
+
+    def test_the_filemanager_offers_a_declared_cloud_once_its_address_is_set(self):
+        with mock.patch.dict(os.environ, {'WAMA_NEXTCLOUD_URL': ''}):
+            self.client.force_login(self.user)
+            self.assertEqual([], self.client.get('/filemanager/api/mounts/').json()['clouds'])
+            self._post('nextcloud', 'https://cloud.example.org')
+            self.client.force_login(self.user)
+            clouds = self.client.get('/filemanager/api/mounts/').json()['clouds']
+        self.assertEqual([('nextcloud', 'https://cloud.example.org')],
+                         [(c['key'], c['url']) for c in clouds])
+
+
 class ProviderOriginInTheProfileTest(TestCase):
     """2026-10-10: the profile says, under each provider, where the data goes and what it costs —
     the same computation as the model selectors (`external_sources.remote_origin_label`)."""

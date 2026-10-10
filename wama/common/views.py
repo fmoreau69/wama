@@ -598,8 +598,8 @@ def external_sources_view(request):
 
     from wama.accounts.views import is_admin
 
-    from .external_sources import (KINDS, SOURCES, LOCAL, api_key_origin, base_url,
-                                   last_report)
+    from .external_sources import (KINDS, SOURCES, LOCAL, address_origin, api_key_origin,
+                                   base_url, last_report)
 
     rapport = last_report()
     sondes = {r['key']: r for r in (rapport or {}).get('results', [])}
@@ -613,6 +613,11 @@ def external_sources_view(request):
             'kind': s.kind, 'kind_label': KINDS.get(s.kind, s.kind),
             'locale': s.scope == LOCAL, 'url': base_url(s.key),
             'setting': s.setting, 'env': s.env,
+            # Adresse posée sur cette page par un admin (2026-10-10), pour une source qui le
+            # déclare ; l'origine dit laquelle des surcharges vaut ('' = défaut déclaré).
+            'address_editable': s.address_editable,
+            'address_required': s.address_required,
+            'address_origin': address_origin(s.key),
             'api_key_env': s.api_key_env,
             'cle_posee': bool(origin) if s.api_key_env else None,
             # Clé posée par CHAQUE utilisateur, au profil (22/09) — jamais « configurée » ici.
@@ -727,12 +732,68 @@ def external_source_instance_key(request, key):
     api_key = (data.get('api_key') or '').strip()
     if not api_key:
         if row is not None:
-            row.delete()
+            # La même ligne peut porter l'ADRESSE posée sur la page (2026-10-10) : on ne la
+            # retire pas avec la clé — mais tout ce que la clé avait OUVERT part avec elle
+            # (`cloud_models` lit `open_models` sur toutes les lignes d'une source).
+            if row.base_url:
+                row.api_key, row.shared, row.updated_by = '', False, request.user
+                row.open_models, row.remote_listing = [], []
+                row.discovered_at, row.discovery_error = None, ''
+                row.save()
+            else:
+                row.delete()
         return JsonResponse({'success': True, 'has_key': False})
     row = row or InstanceApiKey(source=key)
     row.updated_by = request.user
     result = store_key(row, api_key)
     return JsonResponse(result, status=result.pop('status'))
+
+
+@login_required
+@require_POST
+def external_source_instance_address(request, key):
+    """POST `{base_url: "…"}` — l'ADRESSE d'une source, posée par un admin (2026-10-10, demande de
+    Fabien : « les champs à compléter directement dans l'interface du registre des sources »).
+
+    Seulement pour une source déclarée `address_editable`. Vide = retirée : le réglage, le `.env`
+    puis le défaut déclaré reprennent la main. Même ligne d'instance que la clé.
+    """
+    import json
+
+    from django.http import Http404
+
+    from wama.accounts.models import InstanceApiKey
+    from wama.accounts.views import is_admin
+
+    from .external_sources import address_origin, base_url, by_key, valid_address
+
+    if not is_admin(request.user):
+        return JsonResponse({'error': 'Réservé aux administrateurs'}, status=403)
+    source = by_key().get(key)
+    if source is None or not source.address_editable:
+        raise Http404("Source dont l'adresse ne se pose pas ici")
+    try:
+        raw = (json.loads(request.body).get('base_url') or '').strip()
+    except (json.JSONDecodeError, ValueError, AttributeError):
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+    address = valid_address(raw)
+    if raw and not address:
+        return JsonResponse({'error': "Adresse invalide : attendue sous la forme "
+                                      "https://serveur.exemple.fr"}, status=400)
+    row = InstanceApiKey.objects.filter(source=key).first()
+    if not address:
+        if row is not None:
+            if row.api_key:
+                row.base_url, row.updated_by = '', request.user
+                row.save(update_fields=['base_url', 'updated_by', 'updated_at'])
+            else:
+                row.delete()
+    else:
+        row = row or InstanceApiKey(source=key)
+        row.base_url, row.updated_by = address, request.user
+        row.save()
+    return JsonResponse({'success': True, 'url': base_url(key), 'address_origin': address_origin(key)})
 
 
 def backends_catalog_view(request):

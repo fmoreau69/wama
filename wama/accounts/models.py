@@ -366,9 +366,16 @@ class InstanceApiKey(ProviderKey):
     `shared` : la clé sert aussi à TOUT compte qui n'a pas posé la sienne (`api_keys.key_for`).
     Refusé si la source ne se déclare pas `shareable` : c'est la source qui sait si ses clés
     sont faites pour une application (ILaaS) ou pour une personne (Albert, quotas par compte).
+
+    `base_url` (2026-10-10, demande de Fabien) : l'ADRESSE de la source, posée sur la même page
+    par un admin, pour une source qui se déclare `address_editable` — même ligne d'instance que
+    sa clé, même résolution (`external_sources.base_url` : cette ligne, puis réglage, puis
+    `.env`, puis défaut déclaré). Une ligne peut ne porter que l'adresse (clé vide).
     """
     source = models.CharField(max_length=64, unique=True, verbose_name='Source externe')
     shared = models.BooleanField(default=False, verbose_name='Partagée avec tous les comptes')
+    base_url = models.CharField(max_length=500, blank=True, default='', db_default='',
+                                verbose_name='Adresse posée sur la page')
     updated_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
                                    related_name='+', verbose_name='Posée par')
 
