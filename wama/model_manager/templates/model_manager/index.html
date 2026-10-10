@@ -1000,6 +1000,22 @@ document.addEventListener('DOMContentLoaded', function() {
         return Number.isFinite(n) ? n.toFixed(1) : String(v);
     }
 
+    // FIABILITÉ d'une valeur de banc (2026-10-10) : QUI l'a produite (`provenance`) et COMMENT
+    // elle a été rattachée au modèle (`matched_by`) — écrits par `benchmark_sync`. Une valeur
+    // ancienne, synchronisée avant ces champs, vient d'un banc indépendant (les seuls d'alors).
+    const BENCH_PROVENANCE = {
+        independent: 'banc indépendant (même protocole pour tous les modèles)',
+        verified: "déclarée par l'auteur, vérifiée par la plateforme",
+        self_declared: "déclarée par l'auteur ou un relais, non vérifiée",
+    };
+    const BENCH_MATCHED_BY = {
+        repo: 'dépôt exact', identity: 'famille + version', alias: 'équivalence confirmée',
+    };
+    function benchProvenance(meta) {
+        const who = BENCH_PROVENANCE[meta.provenance || 'independent'] || meta.provenance;
+        return meta.hf_bench_source ? `${who} — ${meta.hf_bench_source}` : who;
+    }
+
     function benchBadge(model, extraClass) {
         if (model.benchmark_index == null) return '';
         const meta = model.benchmark_meta || {};
@@ -1014,8 +1030,9 @@ document.addEventListener('DOMContentLoaded', function() {
               + `du banc. C'est la seule lecture comparable D'UN BANC A L'AUTRE — un rang, `
               + `pas une note, et calculé sur une population qui contient des modeles fermés.`
             : '';
-        const titre = `Performance MESURÉE par un banc tiers (Artificial Analysis / Arena), `
-            + `distincte de la confiance de prospection.\nÉchelle : ${echelle} — une valeur `
+        const titre = `Performance d'un banc tiers (${meta.source || 'source non nommée'}), `
+            + `distincte de la confiance de prospection.\nProvenance : ${benchProvenance(meta)}.`
+            + `\nÉchelle : ${echelle} — une valeur `
             + `n'est comparable qu'à une valeur de la MÊME échelle (un Intelligence Index `
             + `~0-70 et un Elo ~1000-1500 ne se classent pas ensemble, et deux Elo de bancs `
             + `différents non plus).${rang}${autres}`;
@@ -1481,7 +1498,13 @@ document.addEventListener('DOMContentLoaded', function() {
             conservateur, mais pas infaillible). {% endcomment %}
             { k: 'Apparié à', get: function (m) {
                 const meta = m.benchmark_meta || {};
-                return meta.aa_name || meta.arena_name || meta.open_asr_name || '';
+                const name = meta.aa_name || meta.arena_name || meta.open_asr_name
+                    || meta.mteb_name || meta.hf_bench_name || '';
+                const how = BENCH_MATCHED_BY[meta.matched_by];
+                return name && how ? name + ' (' + how + ')' : name;
+            } },
+            { k: 'Provenance', get: function (m) {
+                return m.benchmark_index == null ? '' : benchProvenance(m.benchmark_meta || {});
             } },
             { k: 'Échelle', get: function (m) {
                 const meta = m.benchmark_meta || {};

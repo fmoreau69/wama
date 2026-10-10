@@ -846,6 +846,15 @@ if ENABLE_CELERY:
             'schedule': crontab(hour=1, minute=10),
             'options': {'queue': 'default'},
         },
+        # Bancs TIERS (2026-10-10) : la note a priori d'un modèle ne se relisait qu'au bouton ou
+        # après une prospection — les leaderboards bougent, les modèles distants aussi (relus
+        # juste avant). Purement réseau, aucun modèle chargé ; une passe par nuit tient dans le
+        # quota gratuit d'AA, et rafraîchit le cache que lit la synchro d'une installation.
+        'benchmarks-refresh': {
+            'task': 'model_manager.sync_benchmarks',
+            'schedule': crontab(hour=1, minute=25),
+            'options': {'queue': 'default'},
+        },
         # Résidence de l'Ollama HÔTE au gouverneur (2026-09-14) : la synchro ci-dessus tourne
         # toutes les 2 h, une ligne du registre VRAM expire en 1 h. `/api/ps` seul, aucun modèle.
         'ollama-residency-refresh': {

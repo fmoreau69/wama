@@ -47,9 +47,11 @@ GARDE-FOUS :
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
+import time
 from pathlib import Path
 
 from .ollama_registry import decompose, _milliards
@@ -118,6 +120,26 @@ CATEGORIES = {
     # sorte de « hors catégorie » et dise « sans banc » : c'est une information, pas un
     # score. Null plutôt que plausible.
     'document': {'arena': 'document', 'strict_size': True},
+    # ── 2026-10-10 : les bancs de LECTURE DE DOCUMENTS qui classent nos moteurs ──────────────
+    # Jeux de référence OFFICIELS du Hub (`/api/datasets?filter=benchmark:official`), lus par
+    # leur classement (`load_hf_benchmarks`) : (jeu, sous-tâche). Un jeu = une catégorie = une
+    # ÉCHELLE (`hf_bench:<jeu>:<tâche>`) — deux bancs ne se mélangent jamais, ils s'ajoutent.
+    # Ordre (celui de `TASK_TO_BENCH_CATEGORY['ocr']`) : le plus repris d'abord. Population au
+    # 2026-10-10 : olmOCR-Bench 21, MDPBench 15, Real5-OmniDocBench 17, ParseBench 33.
+    'ocr-olmocr-bench': {'hf_bench': ('allenai/olmOCR-bench', 'overall')},
+    'ocr-mdpbench': {'hf_bench': ('Delores-Lin/MDPBench', 'overall')},
+    'ocr-real5-omnidocbench': {'hf_bench': ('PaddlePaddle/Real5-OmniDocBench', 'overall')},
+    'ocr-parsebench': {'hf_bench': ('llamaindex/ParseBench', 'overall')},
+    # ── 2026-10-10 : la MUSIQUE, contrat V2 gratuit d'AA (Elo de préférence humaine, IC 95 %) ─
+    # Deux bancs, deux métiers : chansons et instrumental (un même modèle peut être dans les
+    # deux, à deux valeurs). ⚠ `media/speech-to-text/models/free` n'est PAS branché, mesuré le
+    # même jour : `aa_wer_index` n'y prend que 4 valeurs (0, 0,1, vide…) — Whisper Large v2 et
+    # v3 y valent tous deux 0, Qwen3-ASR n'en a pas. Une note qui ne distingue rien n'est pas une
+    # note ; Open ASR reste le banc de la transcription.
+    'music-with-vocals': {'aa': 'media/music/with-vocals/models/free', 'aa_field': 'elo',
+                          'aa_scale': 'aa_elo_music_with_vocals'},
+    'music-instrumental': {'aa': 'media/music/instrumental/models/free', 'aa_field': 'elo',
+                           'aa_scale': 'aa_elo_music_instrumental'},
     # ── 2026-09-02 : la transcription, première catégorie HORS génération ───────────────
     # Deux bancs pour un métier : le FRANÇAIS d'abord (macro-moyenne des WER FLEURS / MCV /
     # MLS du fichier par langue — c'est ce que le transcriber fait ici), l'anglais ensuite
@@ -157,7 +179,11 @@ TASK_TO_BENCH_CATEGORY = {
     'text-to-video': 'text-to-video',
     'image-to-video': 'image-to-video',
     'captioning': 'vision',
-    'ocr': 'document',
+    # 2026-10-10 : l'arène `document` ne classe que des LLM ; les bancs documentaires officiels
+    # du Hub classent nos moteurs (LightOnOCR, GLM-OCR, PaddleOCR-VL, dots.ocr, Chandra…).
+    'ocr': ('document', 'ocr-olmocr-bench', 'ocr-mdpbench', 'ocr-real5-omnidocbench',
+            'ocr-parsebench'),
+    'text-to-music': ('music-with-vocals', 'music-instrumental'),
     'transcription': ('speech-to-text-fr', 'speech-to-text'),
     'feature-extraction': 'embedding',
 }
@@ -204,6 +230,55 @@ ADD_ONS = ('lora', 'adapter', 'controlnet')
 
 class SourceUnavailable(Exception):
     """Réseau/clé/format absents — la source est SKIPPÉE, jamais un score partiel inventé."""
+
+
+#: Durée de vie du cache disque d'une SOURCE (2026-10-10). Le banc d'un modèle se synchronise
+#: désormais à son INSTALLATION : sans cache, chaque installation relirait toutes les sources — le
+#: quota gratuit d'AA (cf. `AA_MAX_PAGES`) n'y survivrait pas, et un leaderboard ne bouge pas à
+#: l'heure. Même dossier que le cache MTEB (`logs/benchmarks/`). Le cache n'est lu que sur
+#: demande (`synchronize(cache='read')`) : par défaut rien ne change, tests compris.
+SOURCE_CACHE_HOURS = 24
+CACHE_MODES = ('off', 'read', 'refresh')
+
+
+def _source_cache_path(key: str) -> Path:
+    from django.conf import settings
+    p = Path(settings.BASE_DIR) / 'logs' / 'benchmarks' / f'source_{key}.json'
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _with_tuples(by_category: dict) -> dict:
+    """Le JSON rend les identités en LISTES ; `_compatible` compare des TUPLES (`(3, 6) != [3, 6]`)."""
+    for entries in by_category.values():
+        for e in entries:
+            ident = e.get('identity')
+            if ident is not None:
+                e['identity'] = (ident[0], tuple(ident[1]), ident[2])
+    return by_category
+
+
+def _load_source(source: dict, cache: str = 'off'):
+    """`(par_catégorie, motifs)` d'une source. `cache` : `off` = le chargeur, rien d'écrit (le
+    comportement d'avant) ; `read` = le cache s'il a moins de `SOURCE_CACHE_HOURS`, sinon le
+    chargeur puis l'écriture ; `refresh` = le chargeur puis l'écriture (synchro planifiée, bouton).
+    Une source INDISPONIBLE lève comme avant : un cache périmé n'est jamais servi à sa place."""
+    path = _source_cache_path(source['key']) if cache != 'off' else None
+    if cache == 'read':
+        try:
+            data = json.loads(path.read_text(encoding='utf-8'))
+            if time.time() - float(data['at']) < SOURCE_CACHE_HOURS * 3600:
+                return _with_tuples(data['by_category']), data.get('reasons') or {}
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+    by_category, reasons = source['loader']()
+    if path is not None:
+        try:
+            path.write_text(json.dumps({'at': time.time(), 'by_category': by_category,
+                                        'reasons': reasons}, default=str), encoding='utf-8')
+        except OSError:
+            pass
+    return by_category, reasons
 
 
 # ── Identité (les sources parlent des noms différents) ───────────────────────────────────
@@ -411,6 +486,41 @@ def _match_alias(target: str, entries):
     return [e for e in entries if normalize(e.get('slug')) == c or normalize(e.get('name')) == c]
 
 
+# ── Identité par DÉPÔT (2026-10-10) ───────────────────────────────────────────────────────
+# L'identité « famille + version » (`_identity`) est née pour les LLM (`qwen3.6`, `gemma4`) : un
+# modèle média nommé sans version (`kokoro`, `doctr`, `vibevoice-asr`, `canary-1b-v2`…) n'en a
+# pas, et ne s'appariait JAMAIS — 20 modèles installés sur ~160 le 2026-10-10 — alors que des
+# sources publient l'identifiant EXACT de son dépôt (Open ASR : `nvidia/canary-1b-v2` ; MTEB :
+# `BAAI/bge-m3`) et que nos modèles portent leur `hf_id`. Une ÉGALITÉ d'identifiant n'est pas une
+# heuristique : c'est le même artefact, comme un `ALIAS` confirmé. Elle passe donc AVANT la
+# famille + version, source par source ; celle-ci reste intacte pour les sources sans dépôt.
+
+def _repo_id(text: str) -> str:
+    """`org/modèle` en minuscules, ou '' — l'identifiant exact d'un dépôt, rien d'approché."""
+    t = (text or '').strip().lower()
+    return t if re.fullmatch(r'[a-z0-9][\w.-]*/[\w.-]+', t) else ''
+
+
+def _local_repos(m) -> set:
+    """Dépôts que la ligne du catalogue DÉCLARE : `hf_id`, `platform_ref` Hugging Face, clé
+    d'une ligne découverte ou proposée sur le Hub. Jamais déduits d'un nom."""
+    out = {_repo_id(getattr(m, 'hf_id', '') or '')}
+    ref = getattr(m, 'platform_ref', '') or ''
+    if ref.startswith('huggingface:'):
+        out.add(_repo_id(ref.split(':', 1)[1]))
+    key = m.model_key or ''
+    for prefix in ('huggingface:', 'proposed:hf:'):
+        if key.startswith(prefix):
+            out.add(_repo_id(key[len(prefix):]))
+    out.discard('')
+    return out
+
+
+def _match_repo(repos: set, entries):
+    """Entrées dont le dépôt publié est EXACTEMENT l'un des nôtres."""
+    return [e for e in entries if e.get('repo') and e['repo'] in repos] if repos else []
+
+
 # ── Sources ──────────────────────────────────────────────────────────────────────────────
 
 def _http_json(url: str, headers: dict | None = None, timeout: int = 45):
@@ -572,12 +682,16 @@ def load_open_asr():
                 vals = [float(r[c]) for c in wer_cols if pd.notna(r.get(c))]
                 v = sum(vals) / len(vals) if vals else None
             ident = _identity(name.rsplit('/', 1)[-1])
-            if name == '' or v is None or pd.isna(v) or ident is None:
+            # Une entrée sans identité famille + version reste lisible par son DÉPÔT (2026-10-10 :
+            # `nvidia/canary-1b-v2`, `nvidia/parakeet-tdt-0.6b-v3` étaient jetés ici).
+            repo = _repo_id(name)
+            if name == '' or v is None or pd.isna(v) or (ident is None and not repo):
                 continue
             datasets = {c[:-len(' WER')]: float(r[c]) for c in wer_cols if pd.notna(r.get(c))}
             size = r.get('Size (B)')
             rtfx = r.get('RTFx')
-            out.append({'name': name, 'slug': name, 'wer': round(float(v), 3), 'identity': ident,
+            out.append({'name': name, 'slug': name, 'repo': repo,
+                        'wer': round(float(v), 3), 'identity': ident,
                         'rtfx': float(rtfx) if pd.notna(rtfx) and float(rtfx) > 0 else None,
                         'license': str(r['License']) if 'License' in df.columns and pd.notna(r.get('License')) else '',
                         'size_b': float(size) if pd.notna(size) else None,
@@ -588,6 +702,66 @@ def load_open_asr():
             reasons[cat] = f'{dataset} : aucune entrée identifiable'
     if not by_category:
         raise SourceUnavailable('Open ASR : ' + ' ; '.join(f'{c}: {m}' for c, m in reasons.items()))
+    return by_category, reasons
+
+
+def load_hf_benchmarks():
+    """
+    {'catégorie': [entrées]} depuis le CLASSEMENT des jeux de référence OFFICIELS du Hub
+    (2026-10-10) — `/api/datasets/<jeu>/leaderboard?task_id=<tâche>`, un appel par jeu déclaré
+    (`CATEGORIES[…]['hf_bench']`).
+
+    Pourquoi cette source : Hugging Face standardise les résultats d'évaluation dans les dépôts
+    de modèles (`.eval_results/*.yaml` : jeu, sous-tâche, valeur, source, notes de protocole) et
+    les agrège par jeu de référence. La liste des jeux officiels se lit par
+    `/api/datasets?filter=benchmark:official` (49 le 2026-10-10 : olmOCR-Bench, MDPBench,
+    ParseBench, Real5-OmniDocBench, Open ASR, MMLU-Pro, GPQA…). Le classement d'un jeu rend, pour
+    chaque modèle, son DÉPÔT exact (`modelId`), la valeur, le SENS (`lower_is_better`), le
+    drapeau `verified` et la source de la valeur — une population entière, pas un relevé.
+
+    ⚠ Les valeurs sont DÉCLARÉES par les auteurs ou leurs relais (rapport technique, page de
+    l'auteur), presque jamais vérifiées : `provenance` le dit par entrée (`verified` →
+    'verified', sinon 'self_declared'), et le rang centile n'en est pas tiré (cf.
+    `_benchmark_for_category`). Appariement par DÉPÔT seul : `identity` reste None, aucune
+    famille + version n'est devinée sur un classement auto-déclaré.
+    """
+    import requests
+    base = _base_url_of('huggingface')
+    proxies = _proxies_for('huggingface')
+    by_category, reasons = {}, {}
+    for cat, spec in CATEGORIES.items():
+        bench = spec.get('hf_bench')
+        if not bench:
+            continue
+        dataset, task_id = bench
+        try:
+            r = requests.get(f'{base}/api/datasets/{dataset}/leaderboard',
+                             params={'task_id': task_id}, proxies=proxies, timeout=45)
+            r.raise_for_status()
+            rows = r.json()
+        except Exception as e:
+            reasons[cat] = f'classement {dataset} indisponible : {e}'
+            continue
+        out = []
+        for row in rows if isinstance(rows, list) else []:
+            name = str(row.get('modelId') or '').strip()
+            value = row.get('value')
+            repo = _repo_id(name)
+            if not repo or not isinstance(value, (int, float)):
+                continue
+            source = row.get('source') or {}
+            out.append({'name': name, 'slug': name, 'repo': repo, 'identity': None,
+                        'value': float(value), 'lower_is_better': bool(row.get('lower_is_better')),
+                        'provenance': (PROVENANCE_VERIFIED if row.get('verified')
+                                       else PROVENANCE_SELF_DECLARED),
+                        'source_name': source.get('name') or '',
+                        'source_url': source.get('url') or ''})
+        if out:
+            by_category[cat] = out
+        else:
+            reasons[cat] = f'{dataset} : classement vide ou sans dépôt lisible'
+    if not by_category:
+        raise SourceUnavailable('classements HF : ' + ' ; '.join(f'{c}: {m}' for c, m in reasons.items()))
     return by_category, reasons
 
 
@@ -761,7 +935,8 @@ def load_mteb():
             continue
         name = folder.replace('__', '/', 1)
         ident = _identity(name.rsplit('/', 1)[-1])
-        out.append({'name': name, 'slug': name, 'identity': ident, 'revision': rev,
+        out.append({'name': name, 'slug': name, 'repo': _repo_id(name),
+                    'identity': ident, 'revision': rev,
                     'score': round(100.0 * sum(scores.values()) / len(scores), 2),
                     'tasks': {t: round(100.0 * v, 2) for t, v in scores.items()}})
     try:
@@ -950,6 +1125,24 @@ def _meta_mteb(chosen, candidates):
             'mteb_tasks': chosen.get('tasks') or {}, 'mteb_revision': chosen.get('revision', '')}
 
 
+def _meta_hf_bench(chosen, candidates):
+    return {'hf_bench_name': chosen['name'], 'hf_bench_value': chosen['value'],
+            'hf_bench_source': chosen.get('source_name') or '',
+            'hf_bench_source_url': chosen.get('source_url') or ''}
+
+
+def _hf_bench_scale(cat: str) -> str:
+    dataset, task_id = CATEGORIES[cat]['hf_bench']
+    return f'hf_bench:{dataset}:{task_id}'
+
+
+def _direction(source: dict, entry: dict) -> str:
+    """Sens de l'échelle d'une source : déclaré une fois (`'lower'` pour un taux d'erreur), ou lu
+    sur l'entrée quand la source le publie (classements HF : `lower_is_better`)."""
+    d = source.get('direction', 'higher')
+    return d(entry) if callable(d) else d
+
+
 def _meta_open_asr(chosen, candidates):
     d = {'open_asr_name': chosen['name'], 'open_asr_wer': chosen['wer'],
          'open_asr_datasets': chosen.get('datasets') or {}}
@@ -978,27 +1171,52 @@ def _meta_open_asr(chosen, candidates):
 #: `sens` (défaut 'haut') : 'bas' quand une valeur plus PETITE est meilleure (taux d'erreur).
 #: Écrit dans le banc (`benchmark_meta['direction']`) et lu par `percentile_rank`, `_choose_variant`
 #: et `orderable_value` — nulle part ailleurs un consommateur n'a à connaître le sens.
+#: `provenance` (2026-10-10) — QUI a produit la valeur, ce qui dit sa fiabilité :
+#:   'independent'   un tiers fait tourner TOUS les modèles par le même protocole (AA, Arena,
+#:                   Open ASR, MTEB) ;
+#:   'verified'      résultat déclaré par l'auteur mais contrôlé par la plateforme ;
+#:   'self_declared' ce que l'auteur publie sur son propre modèle.
+#: Deux valeurs ne se comparent que sur la MÊME échelle (même jeu, même métrique) — règle
+#: existante ; à défaut d'échelle commune, le tri passe à l'étage suivant, jamais au mélange.
+PROVENANCE_INDEPENDENT = 'independent'
+PROVENANCE_VERIFIED = 'verified'
+PROVENANCE_SELF_DECLARED = 'self_declared'
+PROVENANCES = (PROVENANCE_INDEPENDENT, PROVENANCE_VERIFIED, PROVENANCE_SELF_DECLARED)
+
 SOURCES = (
     {'key': 'aa', 'label': 'Artificial Analysis', 'priority': 1,
+     'provenance': PROVENANCE_INDEPENDENT,
      'source_name': 'artificial-analysis', 'loader': lambda: load_aa(),
      'value': lambda e: e.get('value'),
      'scale': lambda e, cat: e.get('scale'),
      'meta': _meta_aa},
     {'key': 'arena', 'label': 'Arena (leaderboard-dataset, CC-BY-4.0)', 'priority': 2,
+     'provenance': PROVENANCE_INDEPENDENT,
      'source_name': 'arena', 'loader': lambda: load_arena(),
      'value': lambda e: e.get('elo'),
      'scale': lambda e, cat: f'arena_elo_{CATEGORIES[cat]["arena"]}',
      'meta': _meta_arena},
     {'key': 'open_asr', 'label': 'Open ASR Leaderboard (Hugging Face, hf-audio)', 'priority': 3,
+     'provenance': PROVENANCE_INDEPENDENT,
      'source_name': 'open-asr', 'loader': lambda: load_open_asr(),
      'value': lambda e: e.get('wer'), 'direction': 'lower',
      'scale': lambda e, cat: f'open_asr_wer_{CATEGORIES[cat]["open_asr"]}',
      'meta': _meta_open_asr},
     {'key': 'mteb', 'label': 'MTEB results (embeddings-benchmark/results, CC0-1.0)', 'priority': 4,
+     'provenance': PROVENANCE_INDEPENDENT,
      'source_name': 'mteb', 'loader': lambda: load_mteb(),
      'value': lambda e: e.get('score'),
      'scale': lambda e, cat: 'mteb_fr_retrieval',
      'meta': _meta_mteb},
+    # 2026-10-10 : DERNIÈRE priorité — une valeur auto-déclarée ne porte l'index que si aucun
+    # banc indépendant n'a apparié le modèle. Sa provenance se lit PAR ENTRÉE (`verified`).
+    {'key': 'hf_bench', 'label': 'Classements des jeux de référence officiels (Hugging Face)',
+     'priority': 5, 'provenance': PROVENANCE_SELF_DECLARED,
+     'source_name': 'hf-benchmarks', 'loader': lambda: load_hf_benchmarks(),
+     'value': lambda e: e.get('value'),
+     'direction': lambda e: 'lower' if e.get('lower_is_better') else 'higher',
+     'scale': lambda e, cat: _hf_bench_scale(cat),
+     'meta': _meta_hf_bench},
 )
 
 #: Ordre de consultation — figé une fois, pas retrié à chaque modèle.
@@ -1052,66 +1270,96 @@ def _benchmark_for_category(m, cat, alias, sources):
     local_name = m.name or m.model_key
     idents = []
     cands = {}
+    how = {}        # source → comment elle a apparié : 'alias' | 'repo' | 'identity'
     if alias:       # confirmation humaine : égalité de slug, aucune heuristique
         cands = {s['key']: _match_alias(alias, sources.get(s['key'], {}).get(cat, []))
                  for s in SOURCES_BY_PRIORITY}
+        how = {k: 'alias' for k, c in cands.items() if c}
     else:
         idents = _local_identities(m)
         # cf. `_compatible` : jamais une variante frontière sans taille. DÉCLARÉ par la
         # catégorie (`strict_size`), plus écrit `cat == 'llm'` : l'arène `vision` est
         # peuplée des mêmes LLM et exige la même règle (faux appariement mesuré le 02/09).
         strict = bool(CATEGORIES.get(cat, {}).get('strict_size'))
+        by_identity = {}
         for ident in idents:
-            cands = {s['key']: _match(ident, sources.get(s['key'], {}).get(cat, []),
-                                         strict, local_name)
-                     for s in SOURCES_BY_PRIORITY}
-            if any(cands.values()):
+            by_identity = {s['key']: _match(ident, sources.get(s['key'], {}).get(cat, []),
+                                            strict, local_name)
+                           for s in SOURCES_BY_PRIORITY}
+            if any(by_identity.values()):
                 break
+        # Le DÉPÔT exact d'abord, source par source (cf. `_local_repos`) ; à défaut, ce que la
+        # famille + version a trouvé — inchangé, pour ne déplacer aucun appariement existant.
+        repos = _local_repos(m)
+        for s in SOURCES_BY_PRIORITY:
+            by_repo = _match_repo(repos, sources.get(s['key'], {}).get(cat, []))
+            cands[s['key']] = by_repo or by_identity.get(s['key']) or []
+            if cands[s['key']]:
+                how[s['key']] = 'repo' if by_repo else 'identity'
+        # Un modèle nommable par son dépôt n'est pas « sans identité » : absent des bancs.
+        idents = idents or sorted(repos)
     if not any(cands.values()):
         return None, idents
 
     benchmark = {'category': cat}
     value = scale = None
-    carrier = None
+    carrier = carried = None
     for s in SOURCES_BY_PRIORITY:
         candidates = cands.get(s['key']) or []
         if not candidates:
             continue
         # La variante qui CORRESPOND, pas la mieux notée (cf. `_choose_variant`).
-        chosen = _choose_variant(local_name, candidates, s['value'], s.get('direction', 'higher'))
+        chosen = _choose_variant(local_name, candidates, s['value'], _direction(s, candidates[0]))
         benchmark.update(s['meta'](chosen, candidates))
         if value is None:      # la PREMIÈRE source appariée porte l'index ; les autres non
             value, scale = s['value'](chosen), s['scale'](chosen, cat)
             benchmark['source'] = s['source_name']
-            carrier = s
+            carrier, carried = s, chosen
     benchmark['value'], benchmark['scale'] = value, scale
+    # FIABILITÉ, déclarée et tracée (2026-10-10) : COMMENT la valeur a été rattachée au modèle
+    # (égalité confirmée, dépôt exact, ou famille + version) et QUI l'a produite — la source le
+    # déclare, une entrée peut le préciser (classements HF : `verified` ou auto-déclaré).
+    benchmark['matched_by'] = how.get(carrier['key']) if carrier else None
+    benchmark['provenance'] = ((carried.get('provenance')
+                                or carrier.get('provenance', PROVENANCE_INDEPENDENT))
+                               if carrier else None)
     # Le SENS de l'échelle voyage avec la valeur : sans lui, un consommateur trierait un WER
     # comme un Elo. Toujours écrit, même 'haut' — un lecteur ne teste pas sa présence.
-    benchmark['direction'] = carrier.get('direction', 'higher') if carrier else 'higher'
+    benchmark['direction'] = _direction(carrier, carried) if carrier else 'higher'
     # Rang dans la population du banc QUI PORTE la valeur — jamais dans un autre : un centile
     # se lit sur une seule population, sinon il redevient la comparaison inter-échelles qu'il
-    # est censé remplacer.
+    # est censé remplacer. ⚠ Et seulement d'un banc INDÉPENDANT (2026-10-10) : le rang sert à
+    # comparer des échelles différentes (étage inter-échelles de la sélection) ; tiré d'un
+    # classement auto-déclaré, il mettrait la parole d'un auteur au niveau d'une mesure tierce.
     population = sources.get(carrier['key'], {}).get(cat, []) if carrier else []
-    benchmark['percentile_rank'] = (percentile_rank(value, population, carrier['value'], benchmark['direction'])
-                            if carrier else None)
+    benchmark['percentile_rank'] = (
+        percentile_rank(value, population, carrier['value'], benchmark['direction'])
+        if carrier and benchmark['provenance'] == PROVENANCE_INDEPENDENT else None)
     benchmark['population'] = len(population)
     return benchmark, idents
 
 
-def synchronize(dry_run: bool = False, include_proposed: bool = True):
+def synchronize(dry_run: bool = False, include_proposed: bool = True, keys=None,
+                cache: str = 'off'):
     """
     Apparie le catalogue (téléchargés + candidats de prospection `proposed:`) aux deux
     sources, par CATÉGORIE. Écrit `benchmark_index` (AA prioritaire, sinon Elo Arena —
     échelle TOUJOURS nommée en meta) + `benchmark_meta`. SourceUnavailable si AUCUNE source.
+
+    `keys` : borne la synchro à ces lignes — le modèle qu'on vient d'INSTALLER (2026-10-10,
+    `model_installer.record_provenance`), qui n'avait pas de banc tant qu'une synchro complète
+    ne repassait pas. `cache` : `off` | `read` | `refresh` (cf. `_load_source`).
     """
     from django.db.models import Q
     from django.utils import timezone
     from wama.model_manager.models import AIModel
 
+    if cache not in CACHE_MODES:
+        raise ValueError(f'cache={cache!r} : attendu {CACHE_MODES}')
     sources, unavailable, reasons_by_category = {}, {}, {}
     for s in SOURCES_BY_PRIORITY:
         try:
-            sources[s['key']], reasons_by_category[s['key']] = s['loader']()
+            sources[s['key']], reasons_by_category[s['key']] = _load_source(s, cache)
         except SourceUnavailable as e:
             unavailable[s['key']] = str(e)
     if not sources:
@@ -1139,6 +1387,8 @@ def synchronize(dry_run: bool = False, include_proposed: bool = True):
     servi_sans_poids = Q(execution='cloud', is_available=True)
     qs = AIModel.objects.filter(Q(is_downloaded=True) | servi_sans_poids | Q(is_proposed=True)) \
         if include_proposed else AIModel.objects.filter(Q(is_downloaded=True) | servi_sans_poids)
+    if keys is not None:
+        qs = qs.filter(model_key__in=list(keys))
     by_scale = {}    # échelle → [(model, valeur, elo)] pour la confrontation
 
     for m in qs:

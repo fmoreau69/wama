@@ -57,6 +57,52 @@ classement, il ne la fait plus perdre aux autres. La règle des deux échelles e
 l'étage banc tiers exige toujours une échelle UNIQUE sur le sous-ensemble mesuré.
 ⭐ *Un lot ne se juge pas au modèle qu'on n'a pas mesuré.*
 
+⭐⭐ **BANCS FIABLES DÈS LA SOURCE (2026-10-10, demande de Fabien : « compléter les sources de
+benchmark et régler les problèmes dès la prospection/installation, de façon universelle et
+centralisée — ensuite l'évaluation interne »).** Mesuré ce jour-là par une synchronisation à
+blanc du catalogue : **27 modèles sur ~160 installés ou distants avaient un banc**. Trois trous
+STRUCTURELS, tous dans `benchmark_sync` (aucun chiffre ne manquait d'abord) :
+1. **la chaîne** — la synchro ne tournait qu'au bouton ou après une prospection : un modèle
+   installé n'avait pas de banc. ✅ Mis en file à l'INSTALLATION (`model_installer.queue_benchmarks`,
+   dans le corps unique des deux chemins d'installation), synchro chaque nuit (`benchmarks-refresh`),
+   cache disque des sources (`logs/benchmarks/source_*.json`, 24 h — le quota gratuit d'AA est de
+   100 requêtes par jour) ;
+2. **l'identité** — l'appariement exigeait « famille + version », règle née pour les LLM : 21
+   modèles média (`kokoro`, `canary-1b-v2`, `vibevoice-asr`…) étaient innommables alors que des
+   sources publient le dépôt exact. ✅ Appariement par **DÉPÔT exact** (`hf_id`, `platform_ref`,
+   clé `huggingface:` / `proposed:hf:`) avant la famille + version, source par source — inchangée
+   par ailleurs. Mesuré avant/après : **0 appariement déplacé ou perdu**, 3 gagnés (Canary,
+   Parakeet sur Open ASR français ; bge-m3 d'Albert sur MTEB), innommables 21 → 8 ;
+3. **les sources** — ✅ les **classements des jeux de référence OFFICIELS du Hub**
+   (`/api/datasets?filter=benchmark:official`, 49 jeux ; `/api/datasets/<jeu>/leaderboard` rend
+   dépôt, valeur, sens, `verified`, source) : olmOCR-Bench, MDPBench, Real5-OmniDocBench,
+   ParseBench pour l'OCR ; ✅ la musique d'AA (chansons, instrumental). Total mesuré : **31**
+   installés appariés (LightOnOCR-2 d'Albert, 83,2 sur olmOCR-Bench), et parmi les candidats
+   GLM-OCR (75,2).
+4. **la fiabilité** — ✅ chaque banc porte `provenance` (`independent` : même protocole pour tous —
+   AA, Arena, Open ASR, MTEB ; `verified` ; `self_declared` : ce qu'un auteur publie) et
+   `matched_by` (`alias` / `repo` / `identity`), affichés au détail du model manager. Une valeur
+   auto-déclarée porte l'index seulement si aucun banc indépendant n'apparie le modèle (dernière
+   priorité), et **n'a pas de rang centile** : le rang est l'étage qui compare des échelles
+   différentes, il ne met pas la parole d'un auteur au niveau d'une mesure tierce.
+
+Ce qui reste, et pourquoi :
+- **aucune source tierce neutre** pour la détection, la segmentation, l'agrandissement, le
+  débruitage, la synchronisation labiale, la voix (hors Elo AA) — c'est l'évaluation INTERNE
+  (§3, matrice), qui reprendra le patron du transcriber (lot d'évaluation avec référence) ;
+- ⚠ AA `speech-to-text` (gratuit) **non branché, mesuré** : `aa_wer_index` n'y prend que 4
+  valeurs (Whisper Large v2 et v3 y valent tous deux 0) — une note qui ne distingue rien ;
+- des **équivalences à confirmer par un humain** (`ALIAS`) : `ollama:glm-ocr:latest` ↔
+  `zai-org/GLM-OCR` (la page Ollama ne nomme pas le dépôt d'origine), `composer:minimax-music3`
+  ↔ « MiniMax Music 3.0 » ; « MusicGen » chez AA ne dit pas sa taille — jamais apparié ;
+- ⚠ **identité fausse à la source** : `reader:olmocr` déclare `allenai/olmOCR-7B-0225-preview`
+  (olmOCR v1, février 2025) sous le nom « olmOCR-2 7B » — le 82,4 d'olmOCR-Bench est celui de
+  `allenai/olmOCR-2-7B-1025`. La mise à niveau passe par l'assistant (prospection, installation).
+- ⚠ **couverture partielle d'un lot** : un étage se juge sur le sous-ensemble couvert (règle du
+  26/09), donc un SEUL modèle noté passe devant les autres à tout curseur — c'est ce qui fait
+  tirer GLM-OCR (seul porteur d'un a priori structurel) au reader, qualité max comprise.
+  Compléter les sources réduit ce cas ; il ne l'annule pas.
+
 ⚠ **Et LOCAL ≠ DISTANT sur l'axe de la VRAM** (même demande). Un modèle distant a
 `vram_gb = 0` : le repli en faisait mécaniquement le **pire** du lot, et le terme de coût du
 curseur le pénalisait comme s'il était le plus lourd. Ce sont deux absences différentes —
@@ -108,6 +154,10 @@ mesure interne, PRIME dès qu'il existe.
   `benchmark_sync`) — il publie en accès GRATUIT `media/music/instrumental/models/free`,
   `media/music/with-vocals/models/free` et `media/speech-to-text/models/free` (`aa_wer_index`).
   Non branchés, non appelés : reste à voir si YuE2/MusicGen y figurent ;
+  ✅ **Branchés le 2026-10-10** (musique seulement — `speech-to-text` mesuré non discriminant,
+  cf. §0) : 13 modèles en chanté, 19 en instrumental ; YuE2 et ACE-Step n'y sont pas,
+  « MusicGen » sans taille ne s'apparie à aucune variante, MiniMax Music 3.0 attend un `ALIAS`
+  confirmé — les valeurs déclarées ci-dessous restent donc l'étage qui classe la musique ;
 - ses classements musique n'existent que sur la PAGE web (votes humains) : en **instrumental**,
   MiniMax Music 3.0 = 1000 (ancre), **MusicGen = 881** (−119 Elo) ; en **chanté**, aucun modèle
   ouvert (ni YuE, ni ACE-Step, ni MusicGen) ;
@@ -383,7 +433,7 @@ l'état de la mesure interne aujourd'hui.
 |---|---|---|---|---|---|---|
 | `transcription` — transcriber | **humaine** : corrections finalisées (`corrected_segments_json`) ; corpus externe de Fabien (audio + auto + manuel, hors WAMA) | **M1** deux ASR (ou M9 deux réglages), heatmap 1ʳᵉ priorité | M5 cohérence LLM, **cantonnée** (bascule de langue, boucle de jeton, segment tronqué — jamais « incohérence sémantique ») | Open ASR **fr** (WER, sens bas) | profils de correction (`§8.4`), paramètres d'écoute, glossaire ; **finetuning ASR** sur les paires corrigées (§4.3) | M1 ✅ · M3 WER ⏳ · corpus ⏳ (chaînon ⑤) |
 | `captioning` — describer, banc, triage smoke | rare ; corrections de description (non captées : le describer n'appelle pas `corrige`) | M6 accord entre VLM (M1 non horodaté), **M10** légende ↔ éléments attendus | M5 VLM d'une autre famille | Arena **vision** (Elo) | consigne au modèle multilingue (langue de sortie), skill de domaine (aucun `PROMPT_TARGET` describer aujourd'hui), contenu RAG (vocabulaire du labo), traduction de sortie (`WAMA_LLM.md §2bis`, non branchée) | ⏳ |
-| `ocr` — reader | **humaine** : texte corrigé ; par construction : rendu d'un document numérique → image → OCR (référence exacte, gratuite) | M1 non horodaté entre moteurs (docTR / olmOCR / glm-ocr) | M5 LLM (correction post-OCR — même risque de réécriture qu'en §8.2) | Arena **document** (LLM frontière ; nos moteurs n'y sont pas) | prétraitement, moteur par type de document, correction LLM bornée | ⏳ |
+| `ocr` — reader | **humaine** : texte corrigé ; par construction : rendu d'un document numérique → image → OCR (référence exacte, gratuite) | M1 non horodaté entre moteurs (docTR / olmOCR / glm-ocr) | M5 LLM (correction post-OCR — même risque de réécriture qu'en §8.2) | Arena **document** (LLM frontière ; nos moteurs n'y sont pas) ; **classements officiels du Hub** (olmOCR-Bench, MDPBench, Real5-OmniDocBench, ParseBench — valeurs DÉCLARÉES, 2026-10-10) | prétraitement, moteur par type de document, correction LLM bornée | ⏳ |
 | `text-generation` — assistant, enrichissement, résumé/cohérence du transcriber, rôles wama-dev-ai | **par construction** : consignes à réponse vérifiable (rubrique M3, anglais, versionnée) ; humaine : corrections de résumé (non captées) | M6 entre LLM ; **M9** (température) ; M7 (relance, correction) | M5 LLM d'une autre famille (`qc.py`) | AA Intelligence Index, scores par famille d'épreuves (`benchmark_meta['family_scores']`, lus par `select_model(benchmark_family=…)`), Arena text | **skills** de rôle (`assistant-*.md`) et d'enrichissement (`<app>-<domaine>.md`), `prompt_contract` par modèle, contenu RAG, tier de modèle | ⏳ (débit ✅ depuis le 14/09, coût seulement) |
 | `feature-extraction` — embeddings du RAG | **tierce** : jeu français déclaré (MTEB, 4 tâches) ; **interne** : paires question → passage attendues sur le corpus du labo | rappel croisé (deux modèles, mêmes requêtes : recouvrement des k premiers) | — | MTEB `mteb_fr_retrieval` | découpage (`chunking`), niveau de rappel, modèle | banc tiers ✅ · interne ⏳ |
 | spécialisation `translation` — translategemma, `TranslatorService` | humaine (rare) | **M10** aller-retour ; M6 entre modèles multilingues | M5 LLM d'une autre famille | — (AA n'expose pas la traduction) | **glossaire** ne-pas-traduire, découpage, modèle | ⏳ |

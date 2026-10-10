@@ -2038,10 +2038,13 @@ class _SourcesFactices:
         def mteb():
             raise bs.SourceUnavailable('mteb non sollicité par ce test')
 
+        def hf_benchmarks():
+            raise bs.SourceUnavailable('classements HF non sollicités par ce test')
+
         # ⚠ TOUTE source du registre se patche ici : une source ajoutée à `SOURCES` sans
         # ligne ici irait au RÉSEAU depuis la suite (c'est ce que le 3ᵉ banc a failli faire).
         return patch.multiple(bs, load_aa=aa, load_arena=arena, load_open_asr=open_asr,
-                              load_mteb=mteb)
+                              load_mteb=mteb, load_hf_benchmarks=hf_benchmarks)
 
     def _entree(self, nom, identite, valeur=42.0, echelle='aa_elo_text_to_image'):
         return {'name': nom, 'slug': nom.lower().replace(' ', '-'), 'identity': identite,
@@ -2311,13 +2314,16 @@ class RangCentileTest(TestCase):
                 {'name': 'Autre 1', 'slug': 'autre-1', 'identity': ('autre', (1,), None),
                  'value': 100.0, 'scale': 'aa_elo_text_to_image'}]}, {}
 
-        def arena():
+        def unavailable():
             raise bs.SourceUnavailable('non sollicitée')
 
         m = AIModel.objects.create(
             model_key='imager:widget-2', name='Widget 2', model_type='diffusion',
             source='imager', is_downloaded=True, capabilities={'task': 'text-to-image'})
-        with patch.multiple(bs, load_aa=aa, load_arena=arena):
+        # Toutes les sources remplacées : ce test interrogeait Open ASR et MTEB EN LIGNE
+        # (relevé le 2026-10-10 en ajoutant la 5ᵉ source).
+        with patch.multiple(bs, load_aa=aa, load_arena=unavailable, load_open_asr=unavailable,
+                            load_mteb=unavailable, load_hf_benchmarks=unavailable):
             bs.synchronize(dry_run=False)
         m.refresh_from_db()
         self.assertEqual(m.benchmark_index, 900.0)
@@ -2757,7 +2763,8 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
 
     def test_charger_open_asr_lit_la_forme_reelle_des_csv(self):
         """Forme sondée le 02/09 : l'anglais publie `avg`, le français NON (moyenne calculée
-        des `* WER`) ; `RTFx=-1` = non mesuré ; une entrée sans identité est sautée."""
+        des `* WER`) ; `RTFx=-1` = non mesuré ; une entrée sans identité famille + version
+        reste lue par son DÉPÔT depuis le 2026-10-10 (elle était sautée)."""
         import tempfile
         from pathlib import Path
         from ..services import benchmark_sync as bs
@@ -2783,8 +2790,12 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
         self.assertEqual(motifs, {})
         en_entrees = {e['name']: e for e in par_cat['speech-to-text']}
         fr_entrees = {e['name']: e for e in par_cat['speech-to-text-fr']}
-        # parakeet : version APRÈS la taille → pas d'identité lisible → sauté (null > plausible)
-        self.assertEqual(set(en_entrees), {'openai/whisper-large-v3', 'Qwen/Qwen3-ASR-1.7B-hf'})
+        # parakeet : version APRÈS la taille → pas d'identité famille + version ; GARDÉ par son
+        # dépôt exact (2026-10-10) — seul un modèle qui DÉCLARE ce dépôt pourra s'y apparier.
+        self.assertEqual(set(en_entrees), {'openai/whisper-large-v3', 'Qwen/Qwen3-ASR-1.7B-hf',
+                                           'nvidia/parakeet-tdt-0.6b-v2'})
+        p = en_entrees['nvidia/parakeet-tdt-0.6b-v2']
+        self.assertEqual((None, 'nvidia/parakeet-tdt-0.6b-v2'), (p['identity'], p['repo']))
         w = en_entrees['openai/whisper-large-v3']
         self.assertEqual(w['wer'], 5.78)                       # colonne `avg` telle quelle
         self.assertEqual(w['identity'], ('whisperlarge', (3,), None))

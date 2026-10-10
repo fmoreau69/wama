@@ -24,7 +24,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **opts):
         try:
-            r = synchronize(dry_run=opts['dry_run'])
+            # Une synchro qui ÉCRIT rafraîchit aussi le cache des sources, que lit la synchro
+            # d'une installation (`queue_benchmarks`) ; à blanc, rien n'est écrit, cache compris.
+            r = synchronize(dry_run=opts['dry_run'],
+                            cache='off' if opts['dry_run'] else 'refresh')
         except SourceUnavailable as e:
             self.stdout.write(f"SKIP : aucune source de benchmark joignable — {e}")
             sys.exit(3)

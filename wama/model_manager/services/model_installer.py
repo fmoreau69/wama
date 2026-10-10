@@ -1587,7 +1587,31 @@ def record_provenance(spec: dict, res: dict) -> dict:
     except Exception as e:
         logger.warning("provenance non enregistrée après installation : %s", e, exc_info=True)
         res['provenance'] = {'erreur': f"{type(e).__name__}: {e}"}
+    queue_benchmarks(res, getattr(sync, 'added_keys', None) or [])
     return res
+
+
+def queue_benchmarks(res: dict, appeared_keys) -> None:
+    """Met en file le BANC TIERS des modèles qu'on vient d'installer (2026-10-10).
+
+    Avant, un modèle installé n'avait de banc qu'à la synchro COMPLÈTE suivante — au bouton
+    « Mesurer la performance », ou après une prospection —, donc souvent jamais : son a priori
+    restait vide et le tirage le classait mal. Les lignes visées sont celles qui ont reçu leur
+    identité (c'est d'elle que dépend l'appariement : `hf_id`, `platform_ref`), sinon ce que le
+    sync a créé. Asynchrone (file `default`, purement réseau) et lu sur le cache des sources
+    (`cache='read'`) : une installation n'attend pas les leaderboards, et ne vide pas un quota.
+    Best-effort, comme la provenance : un banc manqué ne fait jamais échouer une installation."""
+    provenance = res.get('provenance') if isinstance(res.get('provenance'), dict) else {}
+    keys = [p['model'] for p in (provenance.get('models') or [])
+            if isinstance(p, dict) and p.get('model')] or list(appeared_keys or ())
+    if not keys:
+        return
+    try:
+        from ..tasks import sync_benchmarks_task
+        sync_benchmarks_task.delay(keys=keys, cache='read')
+        res['benchmarks_queued'] = keys
+    except Exception as e:
+        logger.warning("banc tiers non mis en file après installation : %s", e, exc_info=True)
 
 
 #: Verrous d'installation pip (ROADMAP §16.7, transposés d'Hermes — câblés le 2026-08-31,

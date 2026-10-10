@@ -322,9 +322,17 @@ MECHANISMS = (
               "Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.)",
               'wama/model_manager/services/model_quality.py', ''),
     Mechanism('benchmark_sync', 'Benchmark tiers confronté',
-              "Étage 2 qualité (a priori < benchmark < mesure) : AA + Elo Arena (texte, image, vidéo, VISION, document) + Open ASR (WER, sens 'bas') + MTEB (embeddings, jeu FRANÇAIS déclaré) appariés au catalogue, prospection incluse",
-              'wama/model_manager/services/benchmark_sync.py', 'docs/construction/suivi/PROJECT_STATUS.md §REPRISE 2026-08-18',
-              annexes=('wama/model_manager/management/commands/sync_benchmarks.py',)),
+              "Étage 2 qualité (a priori < benchmark < mesure) : AA + Elo Arena (texte, image, vidéo, VISION, document) + Open ASR (WER, sens 'bas') + MTEB (embeddings, jeu FRANÇAIS déclaré) appariés au catalogue, prospection incluse. "
+              "Depuis le 10/10 : la MUSIQUE d'AA (chansons, instrumental) et les CLASSEMENTS des "
+              "jeux de référence officiels du Hub (olmOCR-Bench, MDPBench, Real5-OmniDocBench, "
+              "ParseBench — valeurs déclarées, `provenance` par entrée) ; appariement par DÉPÔT "
+              "exact avant la famille + version ; `provenance` (indépendant / vérifié / "
+              "auto-déclaré) et `matched_by` écrits avec chaque banc, rang centile réservé aux "
+              "bancs indépendants ; banc mis en file À L'INSTALLATION (`queue_benchmarks`), "
+              "synchro chaque nuit, cache disque des sources",
+              'wama/model_manager/services/benchmark_sync.py', 'docs/construction/ia/WAMA_QUALITE.md',
+              annexes=('wama/model_manager/management/commands/sync_benchmarks.py',
+                       'wama/model_manager/tests/tests_benchmark_chain.py')),
     Mechanism('internal_quality', 'Mesure interne des modèles',
               "Étage 3 qualité : ce que WAMA a MESURÉ elle-même contre une référence humaine "
               "(`ResultEvaluation`), agrégé par modèle — taux de CORPUS, échelle nommée "

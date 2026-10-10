@@ -366,9 +366,14 @@ BENCH_TTL = 6 * 3600
 
 
 @shared_task(bind=True, name='model_manager.sync_benchmarks')
-def sync_benchmarks_task(self):
+def sync_benchmarks_task(self, keys=None, cache: str = 'refresh'):
     """
     Mesure de PERFORMANCE du catalogue par bancs TIERS (Artificial Analysis + Arena).
+
+    `keys` (2026-10-10) : les seuls modèles qu'on vient d'INSTALLER (`queue_benchmarks`), lus
+    sur le cache des sources (`cache='read'`) ; sans `keys`, tout le catalogue, sources relues et
+    cache rafraîchi (bouton, prospection, synchro planifiée). Seule une synchro COMPLÈTE publie
+    son avancement à l'écran : celle d'une installation n'écrase pas celle du bouton.
 
     ⚠ À NE PAS CONFONDRE avec `assess_proposed_task` — c'est la confusion qui a coûté à
     Fabien des semaines de blocage (2026-08-31) : le seul bouton de l'écran, « Évaluer la
@@ -386,11 +391,12 @@ def sync_benchmarks_task(self):
     from .services.benchmark_sync import SourceUnavailable, synchronize
 
     def publier(state: str, payload: dict):
-        publier_progression(BENCH_CACHE_KEY, self.request.id, state, payload, BENCH_TTL)
+        if keys is None:
+            publier_progression(BENCH_CACHE_KEY, self.request.id, state, payload, BENCH_TTL)
 
     publier('RUNNING', {'status': 'interrogation des bancs tiers…'})
     try:
-        r = synchronize(dry_run=False)
+        r = synchronize(dry_run=False, keys=keys, cache=cache)
     except SourceUnavailable as exc:
         # Pas un échec : aucune source joignable (clé absente / réseau) — même sémantique
         # que le code retour 3 de la commande, qui vaut SKIP côté nocturne.
