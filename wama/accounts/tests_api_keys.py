@@ -365,3 +365,16 @@ class InstanceKeyTest(TestCase):
         with mock.patch.object(cloud_models, 'refresh_key', return_value=(0, '')) as refresh:
             cloud_models.refresh_all_keys()
         self.assertIn(row, [call.args[0] for call in refresh.call_args_list])
+
+
+class ProviderOriginInTheProfileTest(TestCase):
+    """2026-10-10: the profile says, under each provider, where the data goes and what it costs —
+    the same computation as the model selectors (`external_sources.remote_origin_label`)."""
+
+    def test_each_remote_provider_says_its_hosting_and_cost(self):
+        user = get_user_model().objects.create_user('origin_profile', password='x')
+        rows = {row['slug']: row['origin'] for row in api_keys.listing(user)}
+        self.assertEqual('Cloud souverain · gratuit (quota)', rows['albert'])
+        self.assertEqual("Cloud commercial · facturé à l'usage", rows['openrouter'])
+        # Counter-check: a key that is not a remote model provider says nothing.
+        self.assertEqual('', rows['huggingface'])

@@ -646,8 +646,17 @@ class OriginLabelTest(TestCase):
                          self._row('albert:x', execution='cloud', cost_tier='free').origin_label)
         self.assertEqual("Cloud commercial · API Anthropic (Claude) · facturé à l'usage",
                          self._row('anthropic:x', execution='cloud', cost_tier='metered').origin_label)
-        self.assertEqual('Cloud commercial · Claude Code (abonnement) · abonnement',
+        # « (abonnement) » n'est plus dans le NOM de la source (2026-10-10) : dit une seule fois.
+        self.assertEqual('Cloud commercial · Claude Code · abonnement',
                          self._row('claude_code:x', execution='cloud', cost_tier='subscription').origin_label)
+
+    def test_a_row_without_its_own_cost_says_the_cost_of_its_source(self):
+        # 2026-10-10: the cost is always said — the model's if it declares one, else the source's.
+        self.assertEqual('Cloud souverain · Albert API (DINUM) · gratuit (quota)',
+                         self._row('albert:x', execution='cloud').origin_label)
+        self.assertEqual('Cloud commercial · OpenRouter · gratuit (quota)',
+                         self._row('openrouter:m:free', execution='cloud',
+                                   cost_tier='free').origin_label)
 
     def test_the_catalogue_api_carries_the_origin(self):
         self.assertEqual('WAMA local · Ollama', self._row('ollama:x').to_dict()['origin'])

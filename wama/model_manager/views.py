@@ -1226,8 +1226,10 @@ def api_models_db(request):
 
 
 def _groups_by_origin(groups: list, info: list) -> list:
-    """Range les options sous l'ORIGINE de leur modèle — « WAMA local », « Albert API (DINUM) »,
-    « API Anthropic (Claude) », « Claude Code (abonnement) ».
+    """Range les options sous l'ORIGINE de leur modèle — « WAMA local », « Cloud souverain ·
+    Albert API (DINUM) · gratuit (quota) », « Cloud commercial · Claude Code · abonnement ».
+    Depuis le 2026-10-10 l'origine dit aussi le COÛT, celui du modèle : un fournisseur qui mêle
+    modèles gratuits et facturés (OpenRouter) donne deux groupes.
 
     POURQUOI (Fabien, 2026-10-05) : « dans les sélecteurs de modèles, il manque l'information de
     localité d'inférence… on ne sait pas si on choisit un modèle local ou distant ». L'origine
@@ -1243,12 +1245,14 @@ def _groups_by_origin(groups: list, info: list) -> list:
     """
     from wama.common.external_sources import model_origin
     execution_of = {d['id']: d.get('execution') or '' for d in info}
+    cost_of = {d['id']: d.get('cost_tier') or '' for d in info}
     out = []
     for group in groups:
         by_origin = {}
         for option in group.get('options') or []:
             value = option['value'] if isinstance(option, dict) else option[0]
-            key, label, rank = model_origin(value, execution_of.get(value, ''))
+            key, label, rank = model_origin(value, execution_of.get(value, ''),
+                                            cost_of.get(value, ''))
             by_origin.setdefault((rank, label, key), []).append(option)
         first = True
         for (rank, label, key), options in sorted(by_origin.items()):

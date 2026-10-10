@@ -920,10 +920,14 @@ async function loadKeys(group) {
             // « non configuré » — la vôtre, posée, prime.
             const status = p.has_key ? null
                 : (p.shared_available ? { text: "✓ Fournie par l'établissement", cls: 'bg-info' } : null);
+            // Où partent les données et ce que coûte le fournisseur (`origin`, calculé par le
+            // serveur comme l'intitulé des sélecteurs) — sous le nom, avant de poser une clé.
+            const origin = p.origin
+                ? `<div class="small text-white-50 mt-1">${WamaApp.escapeHtml(p.origin)}</div>` : '';
             return titre + WamaKeyField.render({
                 id: `${group}-${p.slug}`, name: p.name, hasKey: p.has_key, status: status,
                 label: p.api_key_label, helpUrl: p.api_key_help_url,
-                data: { group: group, slug: p.slug },
+                data: { group: group, slug: p.slug }, extra: origin,
             });
         }).join('');
     } catch(e) {

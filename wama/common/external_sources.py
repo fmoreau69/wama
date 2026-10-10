@@ -103,16 +103,63 @@ LOCAL_ORIGIN_LABEL = 'WAMA local'
 #: Clé de l'origine locale dans un regroupement d'options (les distantes portent leur source).
 LOCAL_ORIGIN_KEY = 'local'
 
+#: Ce que COÛTE un modèle distant — vocabulaire UNIQUE (2026-10-10) : les choix du champ
+#: `AIModel.cost_tier` en dérivent (`model_manager.models.COST_TIER_CHOICES`), et les libellés
+#: d'origine ci-dessous le lisent. Une source déclare son coût (`ExternalSource.cost_tier`) ; un
+#: modèle peut s'en écarter (les modèles gratuits d'OpenRouter, fournisseur facturé).
+COST_TIERS = (('free', 'Gratuit (quota)'), ('metered', "Facturé à l'usage"),
+              ('subscription', 'Abonnement'))
 
-def model_origin(model_key: str, execution: str = '') -> tuple:
+
+def cost_label(tier: str) -> str:
+    """« gratuit (quota) », « facturé à l'usage », « abonnement » — '' pour un coût inconnu."""
+    label = dict(COST_TIERS).get(tier or '', '')
+    return label[:1].lower() + label[1:]
+
+
+def remote_origin_label(source: str, cost_tier: str = '') -> str:
+    """LE libellé d'un modèle distant, calculé de ce qui est DÉCLARÉ : hébergement · fournisseur ·
+    coût — « Cloud souverain · Albert API (DINUM) · gratuit (quota) ».
+
+    Demande de Fabien (2026-10-10) : on distinguait local / distant / souverain, jamais gratuit /
+    payant, sauf par accident (« Claude Code (abonnement) » le disait dans son NOM). Un mot écrit à
+    la main dans un nom vieillit ; ici chaque partie vient d'un champ — `hosting` et `label` de la
+    source, le coût du MODÈLE s'il en déclare un, sinon celui de la source. Lu par les intitulés de
+    groupe des sélecteurs (`model_origin`), l'aide sous le sélecteur (`AIModel.origin_label`) et le
+    profil (`source_origin_label`).
+    """
+    declared = by_key().get(source)
+    if declared is None:
+        return 'Cloud'
+    parts = [CLOUD_ORIGIN_LABELS.get(declared.hosting, 'Cloud'), declared.label]
+    cost = cost_label(cost_tier or declared.cost_tier)
+    if cost:
+        parts.append(cost)
+    return ' · '.join(parts)
+
+
+def source_origin_label(source: str) -> str:
+    """Où partent les données d'un FOURNISSEUR et ce qu'il coûte, sans son nom (que l'écran
+    affiche déjà) — « Cloud souverain · gratuit (quota) ». '' pour une source qui n'est pas un
+    fournisseur distant."""
+    declared = by_key().get(source)
+    if declared is None or declared.kind != 'llm':
+        return ''
+    parts = [CLOUD_ORIGIN_LABELS.get(declared.hosting, 'Cloud'), cost_label(declared.cost_tier)]
+    return ' · '.join(p for p in parts if p)
+
+
+def model_origin(model_key: str, execution: str = '', cost_tier: str = '') -> tuple:
     """`(clé, libellé, rang)` de l'ORIGINE d'un modèle — où son inférence a lieu.
 
     Un modèle exécuté sur site rend `('local', 'WAMA local', 0)`. Un modèle distant rend la
-    clé et le libellé de sa SOURCE déclarée (« Albert API (DINUM) », « API Anthropic (Claude) »,
-    « Claude Code (abonnement) ») ; son rang suit l'échelle des hébergements — privé,
+    clé de sa SOURCE déclarée et le libellé calculé `remote_origin_label` — « Cloud souverain ·
+    Albert API (DINUM) · gratuit (quota) » ; `cost_tier` est celui du MODÈLE (un fournisseur
+    facturé peut servir des modèles gratuits). Son rang suit l'échelle des hébergements — privé,
     souverain, commercial — pour que le plus proche soit proposé d'abord.
     C'est ce que les sélecteurs de modèle affichent en INTITULÉ de groupe (demande de Fabien,
-    2026-10-05 : « on ne sait pas si on choisit un modèle local ou distant »).
+    2026-10-05 : « on ne sait pas si on choisit un modèle local ou distant » ; le coût s'y ajoute
+    le 2026-10-10).
     """
     if execution != 'cloud':
         return LOCAL_ORIGIN_KEY, LOCAL_ORIGIN_LABEL, 0
@@ -122,7 +169,7 @@ def model_origin(model_key: str, execution: str = '') -> tuple:
         return source or 'cloud', 'Cloud', len(HOSTING_SCALE) + 1
     rank = (HOSTING_SCALE.index(declared.hosting) + 1 if declared.hosting in HOSTING_SCALE
             else len(HOSTING_SCALE) + 1)
-    return declared.key, declared.label, rank
+    return declared.key, remote_origin_label(source, cost_tier), rank
 
 
 #: Plafond par défaut d'un profil : les clouds commerciaux « seulement si on les choisit,
@@ -344,7 +391,9 @@ SOURCES: tuple[ExternalSource, ...] = (
         default_remote_type='image-text-to-text', default_model='claude-sonnet-4-6',
         doc='docs/construction/ia/WAMA_LLM.md'),
     ExternalSource(
-        'claude_code', 'Claude Code (abonnement)', 'https://api.anthropic.com/v1',
+        # Libellé SANS « (abonnement) » depuis le 2026-10-10 : le coût se lit dans `cost_tier`
+        # et se dit par `remote_origin_label` — l'écrire aussi dans le nom le doublait.
+        'claude_code', 'Claude Code', 'https://api.anthropic.com/v1',
         "Abonnement Claude PERSONNEL — CLI headless (outil ask_claude_code, fournisseur "
         "« claude-abo », geste !code) ; réservé aux développeurs", kind='llm',
         api_key_env='CLAUDE_CODE_OAUTH_TOKEN', api_key_label='Jeton « claude setup-token »',

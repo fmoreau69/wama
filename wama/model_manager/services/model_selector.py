@@ -897,6 +897,8 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
             'abilities': abilities_of(m),
             # DISTANT ou LOCAL : « à télécharger » n'a de sens que pour des poids locaux.
             'execution': m.execution,
+            # Coût du MODÈLE (2026-10-10) : l'intitulé de groupe du sélecteur le dit.
+            'cost_tier': m.cost_tier,
             'description': m.description_short or m.description or '',
             'vram': f"{int(m.vram_gb)}GB" if m.vram_gb else '',
             'capabilities': m.capabilities or {},

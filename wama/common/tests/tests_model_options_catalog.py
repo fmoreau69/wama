@@ -554,9 +554,10 @@ class OriginGroupsTest(TestCase):
     si on choisit un modèle local ou distant »). La règle vit dans la route commune des options,
     donc elle vaut pour l'assistant et pour toutes les apps sans une ligne de plus."""
 
-    def _groups(self, groups, executions):
+    def _groups(self, groups, executions, costs=None):
         from wama.model_manager.views import _groups_by_origin
-        info = [{'id': key, 'execution': execution} for key, execution in executions.items()]
+        info = [{'id': key, 'execution': execution, 'cost_tier': (costs or {}).get(key, '')}
+                for key, execution in executions.items()]
         return [(g['group'], g.get('key'), [o[0] if isinstance(o, list) else o['value']
                                            for o in g['options']], g.get('task'))
                 for g in _groups_by_origin(groups, info)]
@@ -565,17 +566,32 @@ class OriginGroupsTest(TestCase):
         executions = {'anthropic:claude-x': 'cloud', 'ollama:qwen': 'local',
                       'claude_code:opus': 'cloud', 'albert:mistral': 'cloud'}
         groups = self._groups([{'options': [[k, k] for k in executions]}], executions)
+        # Depuis le 2026-10-10 l'intitulé dit aussi l'HÉBERGEMENT et le COÛT, calculés.
         self.assertEqual(
             [('WAMA local', 'local', ['ollama:qwen'], None),
-             ('Albert API (DINUM)', 'albert', ['albert:mistral'], None),
-             ('API Anthropic (Claude)', 'anthropic', ['anthropic:claude-x'], None),
-             ('Claude Code (abonnement)', 'claude_code', ['claude_code:opus'], None)], groups)
+             ('Cloud souverain · Albert API (DINUM) · gratuit (quota)', 'albert',
+              ['albert:mistral'], None),
+             ("Cloud commercial · API Anthropic (Claude) · facturé à l'usage", 'anthropic',
+              ['anthropic:claude-x'], None),
+             ('Cloud commercial · Claude Code · abonnement', 'claude_code',
+              ['claude_code:opus'], None)], groups)
+
+    def test_a_provider_mixing_free_and_paid_models_gives_two_groups(self):
+        # OpenRouter is metered, but serves free models (`:free`): the MODEL's cost is said.
+        executions = {'openrouter:a/paid': 'cloud', 'openrouter:a/free:free': 'cloud'}
+        groups = self._groups([{'options': [[k, k] for k in executions]}], executions,
+                              costs={'openrouter:a/free:free': 'free'})
+        self.assertEqual(
+            {'Cloud commercial · OpenRouter · gratuit (quota)': ['openrouter:a/free:free'],
+             "Cloud commercial · OpenRouter · facturé à l'usage": ['openrouter:a/paid']},
+            {name: options for name, _key, options, _task in groups})
 
     def test_a_named_group_keeps_its_name_and_says_the_origin(self):
         executions = {'composer:a': 'local', 'albert:b': 'cloud'}
         groups = self._groups([{'group': 'Chansons', 'task': 'text-to-song',
                                 'options': [['composer:a', 'A'], ['albert:b', 'B']]}], executions)
-        self.assertEqual(['Chansons — WAMA local', 'Chansons — Albert API (DINUM)'],
+        self.assertEqual(['Chansons — WAMA local',
+                          'Chansons — Cloud souverain · Albert API (DINUM) · gratuit (quota)'],
                          [name for name, *_ in groups])
         # Un seul groupe par tâche porte `task` : c'est lui que l'« auto » de groupe nomme.
         self.assertEqual(['text-to-song', None], [task for *_, task in groups])

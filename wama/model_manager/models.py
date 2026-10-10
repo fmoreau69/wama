@@ -464,8 +464,10 @@ class ModelSource(models.TextChoices):
 EXECUTION_LOCAL = 'local'
 EXECUTION_CLOUD = 'cloud'
 EXECUTION_CHOICES = [(EXECUTION_LOCAL, 'Local'), (EXECUTION_CLOUD, 'Distant')]
-COST_TIER_CHOICES = [('free', 'Gratuit (quota)'), ('metered', "Facturé à l'usage"),
-                     ('subscription', 'Abonnement')]
+#: Vocabulaire des coûts — UN domicile, `external_sources.COST_TIERS` (2026-10-10), que les
+#: libellés d'origine lisent aussi. Mêmes valeurs et libellés qu'avant : aucune migration.
+from wama.common.external_sources import COST_TIERS as _COST_TIERS  # noqa: E402 (module feuille)
+COST_TIER_CHOICES = list(_COST_TIERS)
 
 
 class AIModel(models.Model):
@@ -883,15 +885,9 @@ class AIModel(models.Model):
             # Le MÊME mot que l'intitulé de groupe des sélecteurs (`model_origin`).
             local = external_sources.LOCAL_ORIGIN_LABEL
             return f'{local} · Ollama' if self.source == 'ollama' else local
-        try:
-            src = external_sources.get(self.source)
-        except Exception:
-            return 'Cloud'
-        parts = [external_sources.CLOUD_ORIGIN_LABELS.get(src.hosting, 'Cloud'), src.label]
-        cost = dict(COST_TIER_CHOICES).get(self.cost_tier or '')
-        if cost:
-            parts.append(cost[0].lower() + cost[1:])
-        return ' · '.join(parts)
+        # Le MÊME calcul que l'intitulé de groupe des sélecteurs (2026-10-10) : une seule phrase
+        # pour dire d'où vient un modèle distant et ce qu'il coûte.
+        return external_sources.remote_origin_label(self.source, self.cost_tier)
 
     def to_dict(self):
         """Convert to dictionary for API responses."""

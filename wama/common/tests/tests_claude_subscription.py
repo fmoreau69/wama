@@ -309,4 +309,4 @@ class SubscriptionModelsTests(TestCase):
         opus = AIModel.objects.get(model_key='claude_code:opus')
         self.assertEqual('Claude Code — Opus', opus.name)
         self.assertIn('alias « opus »', opus.description)
-        self.assertEqual('Cloud commercial · Claude Code (abonnement) · abonnement', opus.origin_label)
+        self.assertEqual('Cloud commercial · Claude Code · abonnement', opus.origin_label)

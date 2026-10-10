@@ -800,6 +800,17 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   n'ouvre ses modèles — gratuits compris, le coût s'arbitrant par source — qu'avec
   `cloud_metered_auto`. ⚠ À la pose d'une clé, ~450 lignes entrent au catalogue et ~170
   manifestes au corpus (provenance) : à décider s'il faut une liste restreinte.
+- **Le coût se dit, calculé — 2026-10-10** (demande de Fabien : on distinguait local / distant /
+  souverain, jamais gratuit / payant, sauf par accident dans le nom « Claude Code
+  (abonnement) »). UN libellé, `external_sources.remote_origin_label` : *hébergement · fournisseur
+  · coût* (« Cloud souverain · Albert API (DINUM) · gratuit (quota) »), le coût du MODÈLE s'il en
+  déclare un, sinon celui de la source. Lu par l'intitulé de groupe des sélecteurs
+  (`model_origin` — un fournisseur qui mêle gratuits et payants, OpenRouter, donne deux groupes),
+  l'aide sous le sélecteur (`AIModel.origin_label`) et le profil sous chaque fournisseur
+  (`source_origin_label`). Vocabulaire des coûts : `external_sources.COST_TIERS`, dont
+  `COST_TIER_CHOICES` dérive. Le nom de la source Claude Code perd « (abonnement) » ; ⚠ le
+  libellé de l'énumération `ModelSource.CLAUDE_CODE` (admin seulement) le garde : le changer
+  demande une migration.
 - **Clés d'INSTANCE posées depuis WAMA — 2026-10-07** (décision de Fabien : *« c'est la page
   Sources externes qui doit gérer les clés système »*). Un admin pose la clé d'une source dans
   l'inspecteur de `/common/sources/` (`accounts.InstanceApiKey`, chiffrée comme les clés

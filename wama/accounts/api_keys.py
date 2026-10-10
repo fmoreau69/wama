@@ -187,4 +187,7 @@ def listing(user, kinds: tuple = ()) -> list:
         # La clé d'instance PARTAGÉE (2026-10-07) : le profil dit « fournie par l'établissement »
         # au lieu de « non configuré » — l'utilisateur peut quand même poser la sienne.
         'shared_available': s.key in shared,
+        # Où partent les données et ce que coûte le fournisseur (2026-10-10) — « Cloud souverain ·
+        # gratuit (quota) » ; '' hors fournisseurs distants. Même calcul que les sélecteurs.
+        'origin': external_sources.source_origin_label(s.key),
     } for s in keyed_sources(user, kinds)]
