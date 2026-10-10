@@ -107,16 +107,47 @@ def configure_cuda_process() -> bool:
         return False
 
 
+#: VRAM de la carte une fois MESURÉE (elle ne change pas pendant la vie du processus).
+_CARD_GB = 0.0
+
+
 def total_vram_gb() -> float:
-    """VRAM physique de la carte, 0.0 si pas de GPU."""
+    """VRAM physique de la carte, 0.0 si pas de GPU — la SEULE mesure de WAMA (2026-10-10).
+
+    Elle existait en trois copies : celle-ci, le jury de la prospection
+    (`prospect_agents._vram_totale_gb`, par `mem_get_info`) et le filtre des classements
+    (`prospector`, par nvidia-smi). Les deux autres délèguent désormais ici.
+    Sans contexte CUDA déjà ouvert dans le processus, la carte se lit par nvidia-smi
+    (`SystemMonitor`) : `get_device_properties` OUVRIRAIT ce contexte — quelques centaines de Mo
+    tenus par un processus web pour connaître un nombre. Même valeur, seul le chemin change.
+    """
+    global _CARD_GB
+    if _CARD_GB:
+        return _CARD_GB
+    value = 0.0
     try:
         import torch
-
-        if not torch.cuda.is_available():
-            return 0.0
-        return torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+        if torch.cuda.is_available() and torch.cuda.is_initialized():
+            value = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
     except Exception:
-        return 0.0
+        value = 0.0
+    if not value:
+        try:
+            from wama.common.services.system_monitor import SystemMonitor
+            gpus = SystemMonitor.get_gpu_info() or []
+            value = max((float(g.get('memory_total_gb') or 0) for g in gpus), default=0.0)
+        except Exception:
+            value = 0.0
+    if not value:
+        try:
+            import torch
+            if torch.cuda.is_available():
+                value = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+        except Exception:
+            value = 0.0
+    if value:
+        _CARD_GB = value
+    return value
 
 
 # ---------------------------------------------------------------------------

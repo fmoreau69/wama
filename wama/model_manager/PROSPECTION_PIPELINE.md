@@ -2332,8 +2332,10 @@ n'avait été proposé ; GLM-OCR n'était passé que parce qu'il porte `image-to
    rang et la valeur sont écrits sur le candidat (`prospect.leaderboard`). Seules les sources qui
    publient le DÉPÔT entrent (classements officiels du Hub, Open ASR, MTEB) : un nom commercial (AA,
    Arena) ne désigne aucun artefact installable. Un modèle dont même le Q4 dépasse la VRAM totale
-   n'est pas proposé (`Q4_WEIGHT_RATIO`, VRAM lue par nvidia-smi — mesuré : MDPBench place un modèle
-   de 180 milliards de paramètres dans son trio de tête). Une entrée Open ASR qui nomme un SERVICE
+   n'est pas proposé (`_q4_size_gb` : paramètres publiés × octets Q4 de `memory_manager.dtype_bytes`
+   ; VRAM par `resource_governor.total_vram_gb` — corrigé à la revérification du même jour, la
+   1ʳᵉ version recopiait les deux ; mesuré : MDPBench place un modèle de 180 milliards de
+   paramètres dans son trio de tête). Une entrée Open ASR qui nomme un SERVICE
    (`microsoft/azure-speech-…`) n'a pas de dépôt : sautée.
 2. **Les SUCCESSEURS déclarés par l'auteur** — `prospector.seed_hf_successors`, sur le champ
    standard `new_version` des cartes (`hf_successor` suit la chaîne). Exemple réel :

@@ -158,6 +158,6 @@ class DeclaredRequestBodyTest(SimpleTestCase):
         self.assertEqual({'provider': {'data_collection': 'deny'}}, sent['extra_body'])
         self.assertEqual('openai/openrouter/auto', sent['model'])
 
-    def test_a_source_that_declares_nothing_sends_nothing_more(self):
+    def test_a_source_without_a_rule_sends_nothing_more(self):
         # Counter-check: Albert's requests are unchanged.
         self.assertNotIn('extra_body', self._sent('albert', {'ALBERT_API_KEY': 'k'}))

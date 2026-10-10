@@ -94,10 +94,11 @@ class AppModelsTest(TestCase):
         groups = self._groups([self.FIELD, dict(self.FIELD, name='second', label='Second')])
         self.assertEqual(1, len(groups))
 
-    def test_without_a_catalogue_select_the_app_lists_the_models_it_declares(self):
-        # Since 2026-10-10 (Lab apps): no catalogue select → the rows whose source is the app.
+    def test_without_a_catalogue_select_the_app_lists_its_own_models(self):
+        # Since 2026-10-10 (Lab apps): no catalogue select → the rows whose source is the app,
+        # read from the app manifest's `models` facet (sorted by catalogue key).
         group, = self._groups([{'name': 'lang', 'options_source': 'static'}])
-        self.assertEqual(('Modèles', ['LightOnOCR', 'docTR']),
+        self.assertEqual(('Modèles', ['docTR', 'LightOnOCR']),
                          (group['label'], [m['name'] for m in group['models']]))
 
 
@@ -146,12 +147,12 @@ class LabAppAndDoiTest(TestCase):
         self.assertEqual('https://arxiv.org/abs/2601.14251', mp.publication_links(
             AIModel(extra_info={'publications': ['2601.14251']}))[0]['url'])
 
-    def test_an_app_without_catalogue_select_lists_the_models_it_declares(self):
+    def test_an_app_without_catalogue_select_lists_its_own_models(self):
         with patch('wama.common.utils.param_schema.schema_for_app', return_value=[]):
             group, = mp.app_models('face_analyzer')
         self.assertEqual(['deepface-age'], [m['name'] for m in group['models']])
 
-    def test_the_fragment_answers_for_a_lab_app_that_declares_models(self):
+    def test_the_fragment_answers_for_a_lab_app_with_its_own_models(self):
         self.client.force_login(get_user_model().objects.create_user('about_lab', password='x'))
         with patch('wama.common.utils.param_schema.schema_for_app', return_value=[]):
             r = self.client.get('/common/about/models/face_analyzer/')

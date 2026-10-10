@@ -1069,24 +1069,30 @@ BENCH_CANDIDATES_PER_CATEGORY = 3
 SUCCESSOR_ROLE = 'hf:successor'
 
 
-#: Ratio poids pleins / poids quantifiés 4 bits : un modèle publié en 16 bits pèse ~4× sa
-#: version Q4. Un candidat de classement dont même le Q4 dépasse la VRAM TOTALE n'est pas
-#: proposé — mesuré le 2026-10-10 : MDPBench place un modèle de 180 milliards de paramètres et un
-#: LLM frontière dans ses trois premiers, qui auraient pris les places de modèles exécutables.
-#: Le jury tranche ensuite la faisabilité fine (variantes quantisées, `prospect_agents`).
+#: Ratio poids publiés / poids quantifiés 4 bits pour un dépôt en 16 bits — le REPLI de
+#: `_q4_size_gb` quand le Hub ne dit pas le nombre de paramètres. Un candidat de classement dont
+#: même le Q4 dépasse la VRAM TOTALE n'est pas proposé — mesuré le 2026-10-10 : MDPBench place un
+#: modèle de 180 milliards de paramètres et un LLM frontière dans ses trois premiers, qui auraient
+#: pris les places de modèles exécutables. Le jury tranche ensuite la faisabilité fine.
 Q4_WEIGHT_RATIO = 4.0
 
 
-@lru_cache(maxsize=1)
+def _q4_size_gb(info, weight_gb):
+    """Taille du modèle quantifié 4 bits (Go) : nombre de paramètres publié par le Hub ×
+    octets d'un paramètre Q4 — `memory_manager.dtype_bytes`, la brique des précisions (pas un
+    second barème) ; à défaut, le poids publié ÷ `Q4_WEIGHT_RATIO`. None si rien n'est connu."""
+    from .memory_manager import dtype_bytes
+    params = getattr(getattr(info, 'safetensors', None), 'total', None)
+    if params:
+        return params * dtype_bytes('Q4') / 1e9
+    return weight_gb / Q4_WEIGHT_RATIO if weight_gb else None
+
+
 def _gpu_total_gb() -> float:
-    """VRAM TOTALE du plus grand GPU (nvidia-smi, `SystemMonitor`), repli 24 Go — jamais par
-    torch : la prospection tourne dans le processus web, qui n'ouvre pas de contexte CUDA."""
-    from wama.common.services.system_monitor import SystemMonitor
-    try:
-        gpus = SystemMonitor.get_gpu_info() or []
-        return max(float(g.get('memory_total_gb') or 0) for g in gpus) or 24.0
-    except Exception:
-        return 24.0
+    """VRAM de la carte : la mesure UNIQUE (`resource_governor.total_vram_gb`, qui n'ouvre pas de
+    contexte CUDA dans le processus web), repli 24 Go sans GPU — le même que le jury."""
+    from wama.common.services.resource_governor import total_vram_gb
+    return total_vram_gb() or 24.0
 
 
 class HubRateLimited(Exception):
@@ -1194,7 +1200,8 @@ def seed_benchmark_candidates(per_category: int = BENCH_CANDIDATES_PER_CATEGORY,
                 kept += 1
                 continue    # déjà proposé par un autre banc de la même tâche ce passage
             weight = _repo_weight_gb(hf_id)
-            if weight and weight / Q4_WEIGHT_RATIO > _gpu_total_gb():
+            q4_gb = _q4_size_gb(info, weight)
+            if q4_gb and q4_gb > _gpu_total_gb():
                 continue    # même quantifié, ne tient pas sur le GPU de l'hôte
             kept += 1
             seen.add(key)

@@ -78,6 +78,53 @@ Le `lm_head` appliqué à la séquence complète fait déborder l'indexation int
 les audios longs (`cudaErrorUnknown`) ; le patch calcule les logits sur le **dernier token
 seulement**. Détail : `apply_patches.py` PATCH 6.
 
+### 7. `qwen-asr` — import `nagisa` rendu paresseux (2026-09-28)
+
+**Fichier** : `venv_linux/.../site-packages/qwen_asr/inference/qwen3_forced_aligner.py`.
+`qwen-asr==0.0.6` s'installe en `--no-deps` (ses pins rétrograderaient le venv) : son chemin
+`transformers` tourne avec NOTRE 4.57.6. Le seul blocage est `import nagisa` (tokenizer japonais,
+qui tire DyNet en C++) en tête de l'aligneur, chargé par `import qwen_asr` alors qu'il ne sert qu'au
+japonais. Le patch l'enveloppe d'un `try/except`. Sans lui : `ModuleNotFoundError: nagisa`.
+
+### 8. NeMo — `nv-one-logger` face à notre Lightning 2.6.1 (2026-09-28)
+
+**Fichier** : `venv_linux/.../site-packages/nv_one_logger/training_telemetry/integration/pytorch_lightning.py`.
+`nemo_toolkit[asr]==3.0.0` s'installe en `--no-deps` (ses pins rétrograderaient lightning,
+protobuf et fsspec). La télémétrie déclare `save_checkpoint(weights_only: bool = False)` là où
+Lightning 2.6 déclare `Optional[bool]` : le décorateur `overrides` vérifie la signature À L'IMPORT
+et refuse, ce qui empêche `import nemo.collections.asr` (canary, parakeet). Le patch aligne la
+signature.
+
+### 9. `diffusers` — table module → distribution construite à la demande (2026-09-30)
+
+**Fichier** : `venv_linux/.../site-packages/diffusers/utils/import_utils.py` (3 remplacements).
+`packages_distributions()` était appelé À L'IMPORT : 68,5 s sur ce venv (lecture des `RECORD` de
+182 distributions à travers `/mnt/d`), payées par chaque processus qui importe diffusers. La table
+ne sert qu'à `get_dist_name` : elle est construite à la demande, depuis les `top_level.txt`
+(0,9 s), les `RECORD` n'étant lus que pour un module introuvable. Même résultat, sans le coût.
+
+### 10. `onnxruntime` — processeur contre GPU (vérification seulement, 2026-10-04)
+
+Installées ensemble, la distribution processeur `onnxruntime` masque `onnxruntime-gpu` (même
+module) : tout moteur ONNX (voix Kokoro, agrandisseur de l'Enhancer) retombe sur le processeur en
+silence (1,3 s par phrase au lieu de 0,18 s). pip la réinstalle à chaque librairie qui dépend du
+nom `onnxruntime`. Le script ne répare pas (des services en marche ont chargé ces paquets) : il
+**dit** la commande. Garde côté tests : `wama/common/tests/tests_onnx_runtime.py`.
+
+---
+
+## Diffs appliqués à du code tiers recopié (hors `site-packages`)
+
+`musetalk_local_2026-09-07.diff` et `triposr_pymcubes_lazy_rembg.diff` ne passent pas par
+`apply_patches.py` : ils s'appliquent au code tiers VENDORISÉ (`wama/common/backends/vendor/`).
+Leur domicile — dépôt d'origine, commit épinglé, backend consommateur — est
+**`wama/common/backends/vendor/README.md`** ; il ne se recopie pas ici. ⚠ Le diff MuseTalk
+(7 fichiers) n'est réappliqué par aucun script : « à outiller » (`PROJECT_STATUS`, 2026-09-07).
+
+> ⚠ Ce README décrivait les patchs 1 à 6 seulement jusqu'au 2026-10-10 : 7 à 10 et les deux
+> diffs y manquaient. La liste qui fait foi reste `apply_patches.py` (et la table de `AGENTS.md
+> §Patches de compatibilité venv`).
+
 ---
 
 ## Installation deepfilternet

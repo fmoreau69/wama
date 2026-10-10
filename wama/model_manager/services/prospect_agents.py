@@ -33,14 +33,11 @@ def _vram_totale_gb() -> float:
     2026-08-26 : « le rejet des gros modèles dépend de l'infrastructure derrière ») — le
     passage à un autre hôte changera le budget sans retoucher les prompts.
     `lru_cache` : UNE lecture par process — la valeur ne varie pas, et chaque appel
-    toucherait le driver GPU (2× par jugement sinon), un geste à minimiser sur cet hôte."""
-    try:
-        import torch
-        if torch.cuda.is_available():
-            return round(torch.cuda.mem_get_info()[1] / 1024 ** 3, 1)
-    except Exception:
-        pass
-    return 24.0
+    toucherait le driver GPU (2× par jugement sinon), un geste à minimiser sur cet hôte.
+    Délègue à la mesure UNIQUE (`resource_governor.total_vram_gb`, 2026-10-10) — elle vivait ici
+    en copie, par `mem_get_info`."""
+    from wama.common.services.resource_governor import total_vram_gb
+    return round(total_vram_gb(), 1) or 24.0
 
 
 def _system_agent() -> str:

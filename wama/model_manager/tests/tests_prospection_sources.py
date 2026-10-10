@@ -362,3 +362,17 @@ class HubRateLimitTest(TestCase):
             out = p.seed_hf_successors(workers=1)
         self.assertTrue(out['rate_limited'])
         self.assertTrue(AIModel.objects.filter(model_key='proposed:reader:olmocr').exists())
+
+
+class QuantizedSizeTest(TestCase):
+    """Revérification du 2026-10-10: the « too large even quantized » filter reads the Q4 bytes per
+    parameter from the precision brick (`memory_manager.dtype_bytes`), not a second scale."""
+
+    def test_the_parameter_count_gives_the_q4_size(self):
+        info = SimpleNamespace(safetensors=SimpleNamespace(total=180_000_000_000))
+        self.assertAlmostEqual(90.0, p._q4_size_gb(info, weight_gb=999.0))
+
+    def test_without_a_parameter_count_the_published_weight_is_divided(self):
+        # Counter-check: the fallback only applies when the Hub says nothing.
+        self.assertAlmostEqual(2.0, p._q4_size_gb(SimpleNamespace(), weight_gb=8.0))
+        self.assertIsNone(p._q4_size_gb(SimpleNamespace(), weight_gb=None))
