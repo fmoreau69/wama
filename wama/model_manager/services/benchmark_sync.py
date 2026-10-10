@@ -1234,6 +1234,66 @@ SOURCES = (
 SOURCES_BY_PRIORITY = tuple(sorted(SOURCES, key=lambda s: s['priority']))
 
 
+def category_task(cat: str):
+    """La tâche du catalogue qu'un banc mesure — lecture INVERSE de `TASK_TO_BENCH_CATEGORY`,
+    aucune seconde table. None pour une catégorie qu'aucune tâche ne déclare."""
+    for task, cats in TASK_TO_BENCH_CATEGORY.items():
+        if cat == cats or (isinstance(cats, tuple) and cat in cats):
+            return task
+    return None
+
+
+def leaderboard_repos(cache: str = 'read'):
+    """
+    Les CLASSEMENTS comme source de DÉCOUVERTE (2026-10-10, demande de Fabien) :
+    `({catégorie: {'task', 'entries': [...]}}, motifs)`, chaque entrée nommant un DÉPÔT exact,
+    rangée du meilleur au moins bon selon le SENS de son échelle.
+
+    Pourquoi : la prospection Hugging Face cherchait par ÉTIQUETTE et triait par POPULARITÉ.
+    Mesuré ce jour sur olmOCR-Bench : 6 des 7 meilleurs OCR sont étiquetés `image-text-to-text`
+    (l'étiquette des VLM, que la prospection OCR ne balaie pas) et le 3ᵉ n'a que 386
+    téléchargements. Un classement dit à la fois la TÂCHE (celle du banc) et la QUALITÉ.
+
+    Seules les sources qui publient le dépôt entrent (classements officiels du Hub, Open ASR,
+    MTEB) : une source qui ne donne qu'un nom commercial (AA, Arena) ne désigne aucun artefact
+    installable — en déduire un dépôt serait l'heuristique que les bancs s'interdisent. Les
+    sources se lisent par `_load_source`, donc par le MÊME cache que la synchro des bancs.
+    Une source indisponible ne rend rien et le dit dans les motifs.
+    """
+    out, reasons = {}, {}
+    for source in SOURCES_BY_PRIORITY:
+        try:
+            by_category, _ = _load_source(source, cache=cache)
+        except Exception as e:
+            reasons[source['key']] = f'{type(e).__name__}: {e}'
+            continue
+        for cat, entries in by_category.items():
+            task = category_task(cat)
+            if not task:
+                continue
+            rows = []
+            for e in entries:
+                value = source['value'](e)
+                if not e.get('repo') or not isinstance(value, (int, float)):
+                    continue
+                rows.append({'repo': e['repo'], 'name': e.get('name') or e['repo'],
+                             'value': float(value), 'direction': _direction(source, e),
+                             'scale': source['scale'](e, cat), 'source': source['key'],
+                             'source_label': source['label'],
+                             'provenance': e.get('provenance') or source.get('provenance')})
+            if not rows:
+                continue
+            # Une échelle porte un sens UNIQUE (même jeu, même métrique) : le premier le dit.
+            lower = rows[0]['direction'] == 'lower'
+            rows.sort(key=lambda r: r['value'], reverse=not lower)
+            for rank, r in enumerate(rows, 1):
+                r.update(rank=rank, population=len(rows))
+            # Deux sources ne se mélangent jamais dans un classement (échelles différentes) :
+            # la plus prioritaire — donc la plus indépendante — le tient.
+            out.setdefault(cat, {'task': task, 'entries': rows})
+    return out, reasons
+
+
 # ── Synchronisation ──────────────────────────────────────────────────────────────────────
 
 def percentile_rank(value, population, key, direction: str = 'higher'):

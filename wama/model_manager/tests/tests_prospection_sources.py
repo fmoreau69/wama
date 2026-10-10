@@ -1,0 +1,233 @@
+"""Prospection sources that name a model by QUALITY or by its AUTHOR (2026-10-10).
+
+Measured that day: the Hugging Face prospection searched by TAG and sorted by POPULARITY. On
+olmOCR-Bench, 6 of the 7 best OCR models publish `image-text-to-text` — a tag the OCR sweep never
+reads — and the third had 386 downloads. Two sources answer it, each guarded here:
+  • the LEADERBOARDS (`seed_benchmark_candidates`): the bench gives the task and the rank;
+  • the SUCCESSORS (`seed_hf_successors`): the author names the next version on the card
+    (`new_version`), as `allenai/olmOCR-7B-0225-preview` → `…-0825` → `olmOCR-2-7B-1025`.
+"""
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from django.test import TestCase
+
+from wama.model_manager.models import AIModel
+from wama.model_manager.services import benchmark_sync as bs
+from wama.model_manager.services import prospector as p
+
+
+def _info(repo, tags=('image-text-to-text', 'ocr'), pipeline='image-text-to-text',
+          new_version=None, license='mit'):
+    card = {'license': license}
+    if new_version:
+        card['new_version'] = new_version
+    return SimpleNamespace(id=repo, card_data=card, tags=list(tags), pipeline_tag=pipeline,
+                           downloads=10, likes=1)
+
+
+class _FakeApi:
+    """`HfApi` stand-in: `model_info` answers from a table, raises for an unknown repository."""
+
+    def __init__(self, infos):
+        self.infos = {k.lower(): v for k, v in infos.items()}
+        self.calls = []
+
+    def model_info(self, repo):
+        self.calls.append(repo)
+        try:
+            return self.infos[repo.lower()]
+        except KeyError:
+            raise RuntimeError(f'{repo}: not found') from None
+
+
+def _entry(repo, rank, value, population=4):
+    return {'repo': repo.lower(), 'name': repo, 'value': value, 'direction': 'higher',
+            'scale': 'hf_bench:allenai/olmOCR-bench:overall', 'source': 'hf_bench',
+            'source_label': 'Hub', 'provenance': 'self_declared', 'rank': rank,
+            'population': population}
+
+
+class OcrVisionLanguageModelTaskTest(TestCase):
+
+    def test_a_vlm_that_tags_ocr_is_an_ocr_model(self):
+        self.assertEqual(('ocr', 'ocr'), p.hf_task_to_wama('image-text-to-text', ['ocr']))
+
+    def test_a_conversational_vlm_stays_captioning(self):
+        # Counter-check: without the author's `ocr` tag nothing changes.
+        self.assertEqual(('captioning', 'vlm'),
+                         p.hf_task_to_wama('image-text-to-text', ['conversational']))
+
+
+class LeaderboardReposTest(TestCase):
+
+    def _load(self, source, cache='off'):
+        if source['key'] == 'hf_bench':
+            return {'ocr-olmocr-bench': [
+                {'name': 'Org/Worse', 'repo': 'org/worse', 'value': 10.0, 'lower_is_better': True},
+                {'name': 'Org/Better', 'repo': 'org/better', 'value': 3.0, 'lower_is_better': True},
+            ]}, {}
+        if source['key'] == 'aa':
+            # A source that names no repository designates nothing installable.
+            return {'text-to-image': [{'name': 'Some Model', 'value': 1200.0}]}, {}
+        raise bs.SourceUnavailable('offline')
+
+    def test_a_board_is_ranked_in_the_direction_of_its_scale_and_carries_its_task(self):
+        with patch.object(bs, '_load_source', side_effect=self._load):
+            boards, reasons = bs.leaderboard_repos()
+        board = boards['ocr-olmocr-bench']
+        self.assertEqual('ocr', board['task'])
+        self.assertEqual([('org/better', 1, 2), ('org/worse', 2, 2)],
+                         [(e['repo'], e['rank'], e['population']) for e in board['entries']])
+        self.assertNotIn('text-to-image', boards)
+        self.assertIn('open_asr', reasons)
+
+    def test_the_task_of_a_category_is_read_back_from_the_task_table(self):
+        self.assertEqual('transcription', bs.category_task('speech-to-text-fr'))
+        self.assertEqual('feature-extraction', bs.category_task('embedding'))
+        self.assertIsNone(bs.category_task('no-such-bench'))
+
+
+@patch.object(p, 'analyze_license', return_value=None)
+@patch.object(p, '_repo_weight_gb', return_value=2.0)
+@patch.object(p, '_gpu_total_gb', return_value=24.0)
+class LeaderboardCandidatesTest(TestCase):
+    CAT = 'ocr-olmocr-bench'
+
+    def _seed(self, entries, infos, **kw):
+        board = {self.CAT: {'task': 'ocr', 'entries': entries}}
+        with patch.object(bs, 'leaderboard_repos', return_value=(board, {})), \
+                patch('huggingface_hub.HfApi', return_value=_FakeApi(infos)):
+            return p.seed_benchmark_candidates(**kw)
+
+    def test_the_bench_gives_the_task_and_the_rank(self, *_):
+        self._seed([_entry('lightonai/LightOnOCR-3-1B', 1, 85.5)],
+                   {'lightonai/lightonocr-3-1b': _info('lightonai/LightOnOCR-3-1B',
+                                                       tags=('conversational',))})
+        cand = AIModel.objects.get(model_key='proposed:hf:lightonai/LightOnOCR-3-1B')
+        # The tag alone would say `captioning`: the leaderboard says what was measured.
+        self.assertEqual(('ocr', 'ocr'), (cand.capabilities['task'], cand.model_type))
+        prospect = cand.extra_info['prospect']
+        self.assertEqual(f'bench:{self.CAT}', prospect['role'])
+        self.assertEqual((1, 4), (prospect['leaderboard']['rank'],
+                                  prospect['leaderboard']['population']))
+        self.assertEqual('ocr', prospect['spec']['task'])
+
+    def test_an_installed_repository_is_skipped_and_the_next_one_taken(self, *_):
+        AIModel.objects.create(model_key='albert:lightonocr', name='LightOnOCR', model_type='ocr',
+                               source='albert', is_downloaded=True,
+                               hf_id='lightonai/LightOnOCR-2-1B')
+        r = self._seed([_entry('lightonai/LightOnOCR-2-1B', 1, 90.0),
+                        _entry('datalab-to/chandra-ocr-2', 2, 85.8)],
+                       {'datalab-to/chandra-ocr-2': _info('datalab-to/chandra-ocr-2')},
+                       per_category=1)
+        self.assertEqual(1, r['total'])
+        self.assertTrue(AIModel.objects.filter(
+            model_key='proposed:hf:datalab-to/chandra-ocr-2').exists())
+
+    def test_a_model_too_large_even_quantized_is_not_proposed(self, *_):
+        with patch.object(p, '_repo_weight_gb', return_value=360.0):
+            r = self._seed([_entry('final-bench/Darwin-180B', 1, 83.6)],
+                           {'final-bench/darwin-180b': _info('final-bench/Darwin-180B')})
+        self.assertEqual(0, r['total'])
+
+    def test_an_unreachable_repository_is_skipped(self, *_):
+        # Open ASR names API services the same way (`microsoft/azure-speech-…`): no repository.
+        r = self._seed([_entry('microsoft/azure-speech', 1, 3.1)], {})
+        self.assertEqual(0, r['total'])
+
+    def test_a_board_not_read_this_pass_purges_nothing(self, *_):
+        self._seed([_entry('org/kept', 1, 80.0)], {'org/kept': _info('org/kept')})
+        with patch.object(bs, 'leaderboard_repos', return_value=({}, {'hf_bench': 'offline'})), \
+                patch('huggingface_hub.HfApi', return_value=_FakeApi({})):
+            p.seed_benchmark_candidates()
+        self.assertTrue(AIModel.objects.filter(model_key='proposed:hf:org/kept').exists())
+
+    def test_a_board_read_again_purges_what_left_its_top(self, *_):
+        # Counter-check of the previous test: the same board, read, drops the candidate.
+        self._seed([_entry('org/old', 1, 80.0)], {'org/old': _info('org/old')})
+        self._seed([_entry('org/new', 1, 81.0)], {'org/new': _info('org/new')})
+        self.assertFalse(AIModel.objects.filter(model_key='proposed:hf:org/old').exists())
+        self.assertTrue(AIModel.objects.filter(model_key='proposed:hf:org/new').exists())
+
+
+class SuccessorChainTest(TestCase):
+
+    def test_the_chain_follows_the_author_to_the_latest_version(self):
+        api = _FakeApi({
+            'allenai/olmocr-7b-0225-preview': _info('allenai/olmOCR-7B-0225-preview',
+                                                    new_version='allenai/olmOCR-7B-0825'),
+            'allenai/olmocr-7b-0825': _info('allenai/olmOCR-7B-0825',
+                                            new_version='allenai/olmocr-2-7b-1025'),
+            'allenai/olmocr-2-7b-1025': _info('allenai/olmOCR-2-7B-1025')})
+        chain, info = p.hf_successor('allenai/olmOCR-7B-0225-preview', api=api)
+        # The canonical spelling of the last link is the one the Hub returns.
+        self.assertEqual(['allenai/olmOCR-7B-0825', 'allenai/olmOCR-2-7B-1025'], chain)
+        self.assertEqual('allenai/olmOCR-2-7B-1025', info.id)
+
+    def test_a_loop_stops_the_chain(self):
+        api = _FakeApi({'a/one': _info('a/one', new_version='a/two'),
+                        'a/two': _info('a/two', new_version='a/one')})
+        self.assertEqual(['a/two'], p.hf_successor('a/one', api=api)[0])
+
+    def test_a_card_without_new_version_has_no_successor(self):
+        self.assertEqual(([], None), p.hf_successor('a/one', api=_FakeApi({'a/one': _info('a/one')})))
+
+
+@patch.object(p, 'analyze_license', return_value=None)
+@patch.object(p, '_repo_weight_gb', return_value=16.0)
+class SuccessorCandidatesTest(TestCase):
+
+    def setUp(self):
+        self.src = AIModel.objects.create(
+            model_key='reader:olmocr', name='olmOCR', model_type='ocr', source='reader',
+            is_downloaded=True, hf_id='allenai/olmOCR-7B-0225-preview',
+            capabilities={'task': 'ocr'})
+        self.api = _FakeApi({
+            'allenai/olmocr-7b-0225-preview': _info('allenai/olmOCR-7B-0225-preview',
+                                                    new_version='allenai/olmOCR-2-7B-1025'),
+            'allenai/olmocr-2-7b-1025': _info('allenai/olmOCR-2-7B-1025', tags=('conversational',))})
+
+    def _seed(self, api=None):
+        with patch('huggingface_hub.HfApi', return_value=api or self.api):
+            return p.seed_hf_successors(workers=1)
+
+    def test_the_successor_is_proposed_as_an_update_of_the_installed_row(self, *_):
+        self._seed()
+        cand = AIModel.objects.get(model_key='proposed:reader:olmocr')
+        prospect = cand.extra_info['prospect']
+        self.assertEqual(('update', 0.9), (cand.proposal_kind, cand.confidence))
+        self.assertEqual(('reader:olmocr', 'allenai/olmOCR-2-7B-1025', 'successeur'),
+                         (prospect['origin_key'], prospect['cible'], prospect['maj']))
+        # Same job as the row it replaces, whatever the successor's tag says.
+        self.assertEqual(('ocr', 'ocr'), (cand.capabilities['task'], cand.model_type))
+        self.assertEqual({'kind': 'hf', 'ref': 'allenai/olmOCR-2-7B-1025'},
+                         {k: prospect['spec'][k] for k in ('kind', 'ref')})
+
+    def test_an_installed_successor_is_not_proposed(self, *_):
+        AIModel.objects.create(model_key='huggingface:allenai/olmOCR-2-7B-1025', name='olmOCR-2',
+                               model_type='ocr', source='huggingface', is_downloaded=True,
+                               hf_id='allenai/olmOCR-2-7B-1025')
+        self.assertEqual(0, self._seed()['total'])
+
+    def test_an_unreachable_hub_purges_nothing(self, *_):
+        self._seed()
+        self._seed(api=_FakeApi({}))
+        self.assertTrue(AIModel.objects.filter(model_key='proposed:reader:olmocr').exists())
+
+    def test_installing_a_successor_frees_no_space(self, *_):
+        from wama.model_manager.services.model_installer import replaced_model
+        self._seed()
+        cand = AIModel.objects.get(model_key='proposed:reader:olmocr')
+        self.assertEqual((None, 0.0), replaced_model(cand))
+
+    def test_an_ollama_successor_still_frees_the_old_model(self, *_):
+        # Counter-check: the guard reads the descriptor; Ollama replacements are unchanged.
+        from wama.model_manager.services.model_installer import replaced_model
+        AIModel.objects.create(model_key='ollama:qwen3.5:9b', name='qwen3.5:9b', model_type='llm',
+                               source='ollama', is_downloaded=True, disk_gb=6.6)
+        cand = AIModel.objects.create(
+            model_key='proposed:ollama:qwen3.5:9b', name='qwen3.6:27b', model_type='llm',
+            source='ollama', is_proposed=True, proposal_kind='update',
+            extra_info={'prospect': {'origin_key': 'ollama:qwen3.5:9b', 'cible': 'qwen3.6:27b'}})
+        self.assertEqual(('qwen3.5:9b', 6.6), replaced_model(cand))

@@ -892,7 +892,12 @@ def replaced_model(cand):
     origine, cible = prospect.get('origin_key'), prospect.get('cible')
     if not origine or not cible or cand.proposal_kind != 'update':
         return None, 0.0
-    ancien = AIModel.objects.filter(model_key=origine, is_proposed=False).first()
+    # Un successeur HUGGING FACE (`prospector.seed_hf_successors`, 2026-10-10) n'entraîne aucun
+    # retrait : `install_candidate` l'installe par son spec, l'ancien reste en place. Compter son
+    # espace comme rendu ferait passer la garde de disque sur un espace qui ne se libère pas.
+    if ((prospect.get('spec') or {}).get('kind') or 'ollama') != 'ollama':
+        return None, 0.0
+    ancien =AIModel.objects.filter(model_key=origine, is_proposed=False).first()
     if ancien is None:
         return None, 0.0
     nom = origine.split(':', 1)[1] if ':' in origine else ancien.name
@@ -1148,8 +1153,8 @@ def install_candidate(cand, progress=None, token=None) -> dict:
 
     # ── Candidat porteur d'un SPEC non-Ollama (génération HF…) : le driver est
     # `install_from_spec` (pull au bon dossier + sync + provenance — RÉUTILISÉ, pas
-    # réécrit). Pas de séquence de remplacement ici : un candidat HF est toujours
-    # `kind='new'` (la MAJ des installés HF relève d'update_checker).
+    # réécrit). Pas de séquence de remplacement ici : un SUCCESSEUR HF (`kind='update'`,
+    # `seed_hf_successors`, 2026-10-10) s'installe à côté de l'ancien, qui reste en place.
     spec = (cand.extra_info or {}).get('prospect', {}).get('spec')
     if spec and spec.get('kind') and spec['kind'] != 'ollama':
         if progress:

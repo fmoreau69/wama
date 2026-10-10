@@ -1860,16 +1860,21 @@ def api_prospect_ollama(request):
                                  'summary': {'search': res, 'total': res.get('total', 0),
                                              'assess_enqueued': False}})
         summary = prospect_ollama()
-        # ── Balayage HuggingFace (génération, parole, détection, upscaling, musique,
-        # OCR — table déclarative HF_TASKS) — même clic, périmètre séparé : une panne HF
-        # ne doit pas faire échouer la prospection Ollama (et inversement).
-        try:
-            from .services.prospector import seed_hf_candidates
-            summary['hf'] = seed_hf_candidates()
-            summary['total'] = (summary.get('total') or 0) + summary['hf']['total']
-        except Exception:
-            logger.warning("balayage HuggingFace en échec", exc_info=True)
-            summary['hf'] = {'error': 'indisponible'}
+        # ── Hugging Face — même clic, une source par périmètre : une panne de l'une ne doit
+        # faire échouer ni la prospection Ollama ni les autres. Dans CET ordre : les
+        # successeurs d'abord (un dépôt visé par une MAJ n'est pas reproposé en « nouveau »),
+        # puis le balayage par tâche (HF_TASKS), puis les classements (2026-10-10), qui
+        # reprennent un candidat du balayage avec son rang.
+        from .services import prospector
+        for label, seed in (('hf_successors', prospector.seed_hf_successors),
+                            ('hf', prospector.seed_hf_candidates),
+                            ('benchmarks', prospector.seed_benchmark_candidates)):
+            try:
+                summary[label] = seed()
+                summary['total'] = (summary.get('total') or 0) + summary[label]['total']
+            except Exception:
+                logger.warning("prospection %s en échec", label, exc_info=True)
+                summary[label] = {'error': 'indisponible'}
         summary.update(_enqueue_after_prospect())
         return JsonResponse({'success': True, 'summary': summary})
     except Exception as e:

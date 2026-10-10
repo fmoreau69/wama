@@ -75,6 +75,12 @@ def hf_task_to_wama(pipeline_tag: str, tags=()):
             return 'captioning', 'vlm'
         return 'ocr', 'ocr'
     if t == 'image-text-to-text':
+        # Les OCR DOCUMENTAIRES récents sont des VLM par leur architecture : mesuré le
+        # 2026-10-10 sur olmOCR-Bench, 6 des 7 premiers (LightOnOCR-3, Chandra-2,
+        # Infinity-Parser2, dots.mocr, DeepSeek-OCR-2, jina-ocr) publient ce pipeline — et tous
+        # taguent `ocr`. Sans cette branche ils entraient en `captioning`, chez le describer.
+        if 'ocr' in bag:
+            return 'ocr', 'ocr'
         # 4ᵉ tag plus GROSSIER que nous, mesuré le 2026-09-19 sur une ligne RÉELLE du catalogue :
         # `nvidia/LocateAnything-3B` publie `pipeline_tag: image-text-to-text` (c'est un VLM par
         # son architecture) et tague `object-detection` — il LOCALISE des objets décrits en
@@ -284,7 +290,9 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
 # Déclaratif : élargir la prospection = ajouter une entrée, pas du code.
 #
 # Volontairement ABSENTS : `image-text-to-text` (VLM — doublon du rôle Ollama `vlm`, qui
-# couvre déjà describer/reader avec des modèles réellement branchés) ; `lipsync` (aucun
+# couvre déjà describer/reader avec des modèles réellement branchés — et, depuis le
+# 2026-10-10, les OCR documentaires de ce pipeline arrivent par les CLASSEMENTS,
+# `seed_benchmark_candidates`, qui disent la tâche mieux que l'étiquette) ; `lipsync` (aucun
 # pipeline_tag HF ; la prospection avatars est un chantier séparé — PROSPECTION_AVATARS).
 HF_TASKS = {
     # Génération (imager / vidéo) — étendu le 2026-08-18
@@ -858,6 +866,118 @@ def spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | 
     return spec
 
 
+def _card_dict(card) -> dict:
+    """La carte d'un dépôt (`ModelCardData` ou dict) en dict — {} si absente ou illisible."""
+    if card is None:
+        return {}
+    try:
+        return card.to_dict() if hasattr(card, 'to_dict') else dict(card)
+    except Exception:
+        return {}
+
+
+def _installed_repos() -> set:
+    """Dépôts Hugging Face des lignes INSTALLÉES (non proposées), en minuscules — par les DEUX
+    identités de plateforme (`hf_id`, `platform_ref`) : un modèle découvert par scan disque n'a
+    pas de `hf_id` mais peut porter un `platform_ref` posé par la provenance vérifiée."""
+    from wama.model_manager.models import AIModel
+    have = {(m.hf_id or '').lower()
+            for m in AIModel.objects.filter(is_proposed=False).exclude(hf_id='')}
+    have |= {ref.partition(':')[2].lower()
+             for ref in AIModel.objects.filter(is_proposed=False,
+                                               platform_ref__startswith='huggingface:')
+                                       .values_list('platform_ref', flat=True)}
+    have.discard('')
+    return have
+
+
+def _write_hf_candidate(hf_id, *, facts, refs_type, role, reason, description, note,
+                        weight_gb=None, license=None, base_model=None, downloads=0, likes=0,
+                        metric=None, kind='new', confidence=None, key=None, name=None,
+                        extra=None) -> bool:
+    """
+    Écrit UN candidat Hugging Face — corps commun des balayages par tâche, de la recherche
+    nommée, des classements et des successeurs (2026-10-10). Il vivait en deux copies
+    (`seed_hf_candidates`, `seed_hf_search`) ; une troisième source l'aurait recopié.
+
+    `facts` : ce que la carte dit (`card_facts`), éventuellement corrigé par l'appelant — un
+    classement connaît la TÂCHE mieux que l'étiquette. `refs_type` : mémo du référentiel
+    `concurrence`, partagé par un même passage. Rend True si le candidat est créé.
+    """
+    from wama.model_manager.models import AIModel
+
+    from .prospect_ollama import PROPOSED_PREFIX, write_candidate
+
+    task, model_type = facts['task'], facts['model_type']
+    # Référentiel par MÉTIER, pas par catégorie : un texte→vidéo ne concourt pas contre SDXL
+    # (2026-09-23). Identité courte : `name` porte parfois « — … ».
+    if (model_type, task) not in refs_type:
+        refs_type[(model_type, task)] = [
+            (m.name or '').split('—')[0].strip()
+            for m in AIModel.best_installed(model_type, task=task)]
+    prospect = {'kind': kind, 'role': role, 'name': hf_id, 'reason': reason,
+                'concurrence': refs_type[(model_type, task)],
+                'downloads': downloads, 'likes': likes, 'metrique': metric,
+                # Verdict de licence AFFICHÉ, jamais éliminatoire (Fabien 29/08) — None pour un
+                # SPDX permissif ; mémoïsé, licences non standard seules. Hérité du
+                # `base_model` déclaré quand le dérivé se dit permissif.
+                'license_flag': analyze_license(hf_id, str(license or ''), base_model),
+                # `task` dans le spec : la ligne INSTALLÉE en hérite (provenance) — la
+                # découverte générique d'un snapshot HF ne sait pas la dire.
+                'spec': {'kind': 'hf', 'ref': hf_id, 'category': model_type,
+                         'task': task, 'note': note},
+                **(extra or {})}
+    return write_candidate(
+        key or PROPOSED_PREFIX + f"hf:{hf_id}", nom=name or hf_id.split('/')[-1],
+        model_type=model_type, source='huggingface', description=description,
+        kind=kind, confidence=confidence, extra=prospect,
+        hf_id=hf_id, license=str(license or '')[:64], platform_ref=f"huggingface:{hf_id}",
+        disk_gb=weight_gb or 0.0,      # 0.0 = inconnu → la garde d'espace refusera (forçable)
+        # La TÂCHE écrite sur la ligne : c'est elle qui donne un banc à un candidat
+        # (`benchmark_sync._local_categories`) — sans elle, « hors catégorie ». Et les LANGUES
+        # de la carte (2026-09-19) : le candidat porte les mêmes faits que la ligne installée.
+        capabilities=facts['capabilities'],
+    )
+
+
+def _purge_hf_candidates(roles_ok, seen, kind: str = 'new'):
+    """
+    Purge CIBLÉE des candidats Hugging Face d'un passage : seuls ceux des RÔLES qui ont abouti
+    (une source en échec réseau n'efface rien) et absents de `seen`. Rend (retirés, préservés).
+    """
+    from wama.model_manager.models import AIModel
+
+    removed = preserved = 0
+    if not roles_ok:
+        return removed, preserved
+    installed = _installed_repos()
+    perimeter = AIModel.objects.filter(is_proposed=True, source='huggingface',
+                                       proposal_kind=kind).exclude(model_key__in=seen)
+    for m in perimeter:
+        pr = (m.extra_info or {}).get('prospect', {})
+        if (pr.get('role') or '') not in roles_ok:
+            continue
+        # Candidat dont le dépôt a été INSTALLÉ entre-temps : résolu par l'installation, on
+        # purge MÊME évalué — la garde d'évaluation protège un travail encore utile, jamais une
+        # proposition devenue sans objet (vécu Qwen3-ASR-1.7B, 2026-08-31 : installé côté
+        # transcriber, la card « Nouveau » préservée continuait de proposer l'existant).
+        if (m.hf_id or '').lower() in installed:
+            m.delete()
+            removed += 1
+            continue
+        # ⚠ NE JAMAIS PURGER UN CANDIDAT ÉVALUÉ (2026-08-19). Le tri « tendance » de HF bouge
+        # en continu : d'un run à l'autre la liste retenue change presque entièrement (mesuré :
+        # 32 créés / 32 purgés). Sans cette garde, chaque clic « Prospecter » DÉTRUISAIT les
+        # évaluations LLM déjà payées (13 perdues au test). Un candidat évalué reste jusqu'à ce
+        # qu'un humain le rejette — même règle que `write_candidate` à l'écriture.
+        if pr.get('assess'):
+            preserved += 1
+            continue
+        m.delete()
+        removed += 1
+    return removed, preserved
+
+
 def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -> dict:
     """
     Candidats `is_proposed` depuis la bibliothèque HuggingFace — pendant HF de la découverte
@@ -874,8 +994,7 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
     Purge CIBLÉE comme dans prospect_ollama : uniquement le périmètre des tâches dont le
     balayage a ABOUTI (une panne réseau HF ne vide pas la liste).
     """
-    from wama.model_manager.models import AIModel
-    from .prospect_ollama import PROPOSED_PREFIX, write_candidate
+    from .prospect_ollama import PROPOSED_PREFIX
 
     crees = maj = 0
     vus: set = set()
@@ -919,97 +1038,275 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
             # un balayage `image-to-image` rend surtout des modèles d'ÉDITION.
             facts = card_facts(c.get('pipeline_tag') or tache, c.get('tags'),
                                {'language': c.get('language')})
-            tache_w, model_type = facts['task'], facts['model_type']
-            # Référentiel par MÉTIER, pas par catégorie : un texte→vidéo ne concourt pas
-            # contre SDXL (2026-09-23). Identité courte : `name` porte parfois « — … ».
-            if (model_type, tache_w) not in refs_type:
-                refs_type[(model_type, tache_w)] = [
-                    (m.name or '').split('—')[0].strip()
-                    for m in AIModel.best_installed(model_type, task=tache_w)]
-            cree = write_candidate(
-                cand_key, nom=hf_id.split('/')[-1], model_type=model_type,
-                source='huggingface',
+            cree = _write_hf_candidate(
+                hf_id, facts=facts, refs_type=refs_type, role=f"hf:{tache}",
+                reason=f"tâche {tache} — non installé",
                 description=(f"[{tache}] {c['downloads']} téléchargements, "
                              f"{c['likes']} ♥ — proposé par la bibliothèque HuggingFace."),
-                kind='new', confidence=None,
-                extra={'kind': 'new', 'role': f"hf:{tache}", 'name': hf_id,
-                       'reason': f"tâche {tache} — non installé",
-                       'concurrence': refs_type[(model_type, tache_w)],
-                       'downloads': c['downloads'], 'likes': c['likes'],
-                       'metrique': c.get('metrique'),
-                       # Verdict de licence AFFICHÉ, jamais éliminatoire (Fabien 29/08) —
-                       # None pour un SPDX permissif ; mémoïsé, licences non standard seules.
-                       # Hérité du `base_model` déclaré quand le dérivé se dit permissif.
-                       'license_flag': analyze_license(hf_id, str(c.get('license') or ''),
-                                                       c.get('base_model')),
-                       # `task` dans le spec : la ligne INSTALLÉE en hérite (provenance) —
-                       # la découverte générique d'un snapshot HF ne sait pas la dire.
-                       'spec': {'kind': 'hf', 'ref': hf_id, 'category': model_type,
-                                'task': tache_w, 'note': f"prospection HF {tache}"}},
-                hf_id=hf_id, license=str(c.get('license') or '')[:64],
-                platform_ref=f"huggingface:{hf_id}",
-                disk_gb=poids or 0.0,     # 0.0 = inconnu → la garde d'espace refusera (forçable)
-                # La TÂCHE écrite sur la ligne : c'est elle qui donne un banc à un candidat
-                # (`benchmark_sync._local_categories`) — sans elle, « hors catégorie ».
-                # Et les LANGUES de la carte (2026-09-19) : le candidat porte les mêmes facts
-                # que la ligne installée le portera.
-                capabilities=facts['capabilities'],
-            )
+                note=f"prospection HF {tache}", weight_gb=poids,
+                license=c.get('license'), base_model=c.get('base_model'),
+                downloads=c['downloads'], likes=c['likes'], metric=c.get('metrique'))
             crees += int(cree)
             maj += int(not cree)
 
-    supprimes = preserves = 0
     # Transition : les candidats du 18/08 portaient `generation:<t>` avant le passage au
     # préfixe générique `hf:<t>` — on purge les deux graphies du même périmètre.
     roles_ok = {f"hf:{t}" for t in taches_ok} | {f"generation:{t}" for t in taches_ok}
-    if roles_ok:
-        perimetre = AIModel.objects.filter(
-            is_proposed=True, source='huggingface', proposal_kind='new',
-            model_key__startswith=PROPOSED_PREFIX + 'hf:',
-        ).exclude(model_key__in=vus)
-        # Dépôts DÉSORMAIS INSTALLÉS (lignes non proposées, hf_id ou platform_ref) : un
-        # candidat qui les propose encore est un résidu — une card « Nouveau » qui pointe
-        # l'existant.
-        installes_hf = {(x.hf_id or '').lower()
-                        for x in AIModel.objects.filter(is_proposed=False).exclude(hf_id='')}
-        installes_hf |= {ref.partition(':')[2].lower()
-                         for ref in AIModel.objects.filter(
-                             is_proposed=False, platform_ref__startswith='huggingface:')
-                         .values_list('platform_ref', flat=True)}
-        installes_hf.discard('')
-        for m in perimetre:
-            # Ne purger que le périmètre des tâches qui ont réellement abouti : un candidat
-            # d'une tâche en échec réseau reste en place (même règle que prospect_ollama).
-            pr = m.extra_info.get('prospect', {})
-            if (pr.get('role') or '') not in roles_ok:
-                continue
-            # Candidat dont le dépôt a été INSTALLÉ entre-temps : résolu par l'installation,
-            # on purge MÊME évalué — la garde d'évaluation protège un travail encore utile,
-            # jamais une proposition devenue sans objet (vécu Qwen3-ASR-1.7B, 2026-08-31 :
-            # installé côté transcriber, la card « Nouveau » préservée continuait de
-            # proposer l'existant).
-            if (m.hf_id or '').lower() in installes_hf:
-                m.delete()
-                supprimes += 1
-                continue
-            # ⚠ NE JAMAIS PURGER UN CANDIDAT ÉVALUÉ (2026-08-19). Le tri « tendance » de HF
-            # bouge en continu : d'un run à l'autre la liste retenue change presque
-            # entièrement (mesuré : 32 créés / 32 purgés). Sans cette garde, chaque clic
-            # « Prospecter » DÉTRUISAIT les évaluations LLM déjà payées (13 perdues au test)
-            # et le badge de confiance disparaissait. Un candidat évalué reste jusqu'à ce
-            # qu'un humain le rejette — c'est la même règle que `write_candidate`, qui
-            # préserve déjà l'évaluation à l'écriture.
-            if pr.get('assess'):
-                preserves += 1
-                continue
-            m.delete()
-            supprimes += 1
+    supprimes, preserves = _purge_hf_candidates(roles_ok, vus)
 
     resume = {'created': crees, 'updated': maj, 'removed': supprimes,
               'preserved': preserves,      # évalués, sortis de la tendance : conservés
               'total': len(vus), 'tasks_ok': taches_ok}
     logger.info("[prospect_hf_seed] %s", resume)
     return resume
+
+
+#: Candidats retenus par CLASSEMENT : les premiers non installés. Même règle que `HF_TASKS`
+#: (`max`) et `MAX_PAR_ROLE` : une liste que personne ne lit ne vaut pas mieux qu'une vide.
+BENCH_CANDIDATES_PER_CATEGORY = 3
+
+#: Le rôle des candidats SUCCESSEURS — un seul périmètre de purge, toutes tâches confondues.
+SUCCESSOR_ROLE = 'hf:successor'
+
+
+#: Ratio poids pleins / poids quantifiés 4 bits : un modèle publié en 16 bits pèse ~4× sa
+#: version Q4. Un candidat de classement dont même le Q4 dépasse la VRAM TOTALE n'est pas
+#: proposé — mesuré le 2026-10-10 : MDPBench place un modèle de 180 milliards de paramètres et un
+#: LLM frontière dans ses trois premiers, qui auraient pris les places de modèles exécutables.
+#: Le jury tranche ensuite la faisabilité fine (variantes quantisées, `prospect_agents`).
+Q4_WEIGHT_RATIO = 4.0
+
+
+@lru_cache(maxsize=1)
+def _gpu_total_gb() -> float:
+    """VRAM TOTALE du plus grand GPU (nvidia-smi, `SystemMonitor`), repli 24 Go — jamais par
+    torch : la prospection tourne dans le processus web, qui n'ouvre pas de contexte CUDA."""
+    from wama.common.services.system_monitor import SystemMonitor
+    try:
+        gpus = SystemMonitor.get_gpu_info() or []
+        return max(float(g.get('memory_total_gb') or 0) for g in gpus) or 24.0
+    except Exception:
+        return 24.0
+
+
+def _board_label(entry: dict) -> str:
+    """Nom lisible d'un classement : le jeu pour un classement du Hub, sinon la source."""
+    scale = entry.get('scale') or ''
+    if scale.startswith('hf_bench:'):
+        return scale.split(':')[1].rsplit('/', 1)[-1]
+    return entry.get('source_label') or entry.get('source') or ''
+
+
+def seed_benchmark_candidates(per_category: int = BENCH_CANDIDATES_PER_CATEGORY, tasks=None,
+                              cache: str = 'read') -> dict:
+    """
+    Candidats `is_proposed` tirés des CLASSEMENTS (2026-10-10, demande de Fabien) : pour chaque
+    banc rattaché à une tâche du catalogue, les premiers dépôts non installés.
+
+    Ce que le balayage par étiquette ne peut pas faire, mesuré ce jour sur la tâche `ocr` : la
+    prospection ne regardait que `image-to-text`, triée par popularité, et ne proposait aucun des
+    sept premiers d'olmOCR-Bench — six sont des VLM étiquetés `image-text-to-text`. Ici la TÂCHE
+    vient du banc (pas de l'étiquette) et le rang vient de la QUALITÉ mesurée ; la note a priori
+    est donc connue dès la proposition (la synchro des bancs l'écrit sur la ligne proposée).
+
+    Lit les classements par `benchmark_sync.leaderboard_repos` — mêmes sources, même cache que la
+    synchro. Un dépôt déjà installé, déjà visé par un SUCCESSEUR ou de la même famille datée
+    qu'un installé est sauté (`_sans_suffixe_date`, comme le balayage). Purge ciblée : les seuls
+    classements LUS ce passage.
+    """
+    from huggingface_hub import HfApi
+
+    from wama.model_manager.models import AIModel, model_type_for_task
+
+    from .benchmark_sync import leaderboard_repos
+    from .prospect_ollama import PROPOSED_PREFIX
+
+    boards, reasons = leaderboard_repos(cache=cache)
+    have = _installed_repos() | {
+        (m.hf_id or '').lower() for m in AIModel.objects.filter(
+            is_proposed=True, source='huggingface', proposal_kind='update').exclude(hf_id='')}
+    have_family = {_sans_suffixe_date(h) for h in have}
+    api = HfApi()
+    created = updated = 0
+    seen: set = set()
+    boards_ok: list = []
+    refs_type: dict = {}
+    for cat, board in boards.items():
+        task = board['task']
+        if tasks and task not in tasks:
+            continue
+        boards_ok.append(cat)
+        kept = 0
+        for e in board['entries']:
+            if kept >= per_category:
+                break
+            repo = e['repo']
+            if repo in have or _sans_suffixe_date(repo) in have_family:
+                continue
+            if any(marker in repo for marker in _NOISE_MARKERS):
+                continue    # dérivé (quantif, repack) : on propose le modèle canonique
+            try:
+                info = api.model_info(repo)      # casse canonique, carte, étiquettes
+            except Exception as exc:
+                logger.info("[seed_benchmark] %s injoignable : %s", repo, exc)
+                continue
+            hf_id = info.id
+            key = PROPOSED_PREFIX + f"hf:{hf_id}"
+            if key in seen:
+                kept += 1
+                continue    # déjà proposé par un autre banc de la même tâche ce passage
+            weight = _repo_weight_gb(hf_id)
+            if weight and weight / Q4_WEIGHT_RATIO > _gpu_total_gb():
+                continue    # même quantifié, ne tient pas sur le GPU de l'hôte
+            kept += 1
+            seen.add(key)
+            card = getattr(info, 'card_data', None)
+            cd = _card_dict(card)
+            facts = card_facts(getattr(info, 'pipeline_tag', None),
+                               getattr(info, 'tags', None) or (), card)
+            # Le BANC dit le métier : un VLM classé sur olmOCR-Bench est proposé comme OCR, quoi
+            # que dise son étiquette.
+            facts = dict(facts, task=task,
+                         model_type=model_type_for_task(task) or facts['model_type'],
+                         capabilities=dict(facts['capabilities'], task=task))
+            label = _board_label(e)
+            created_now = _write_hf_candidate(
+                hf_id, facts=facts, refs_type=refs_type, role=f"bench:{cat}",
+                reason=f"{e['rank']}ᵉ sur {e['population']} au classement {label} — non installé",
+                description=(f"[{label}] {e['rank']}ᵉ sur {e['population']} "
+                             f"({e['value']:g}) — proposé par le classement."),
+                note=f"classement {label}", weight_gb=weight,
+                license=cd.get('license'), base_model=cd.get('base_model'),
+                downloads=getattr(info, 'downloads', 0) or 0,
+                likes=getattr(info, 'likes', 0) or 0, metric=_metrique_declaree(card),
+                extra={'leaderboard': {k: e.get(k) for k in (
+                    'source', 'scale', 'rank', 'population', 'value', 'direction',
+                    'provenance')} | {'category': cat, 'label': label}})
+            created += int(created_now)
+            updated += int(not created_now)
+
+    removed, preserved = _purge_hf_candidates({f"bench:{c}" for c in boards_ok}, seen)
+    summary = {'created': created, 'updated': updated, 'removed': removed,
+               'preserved': preserved, 'total': len(seen), 'boards_ok': boards_ok,
+               'unavailable': reasons}
+    logger.info("[seed_benchmark] %s", summary)
+    return summary
+
+
+def hf_successor(repo: str, max_depth: int = 5, api=None):
+    """
+    `(chaîne, info du dernier)` des NOUVELLES VERSIONS qu'un auteur déclare sur la carte de son
+    modèle (`new_version`, champ standard des cartes Hugging Face), ou `([], None)`.
+
+    Exemple mesuré le 2026-10-10 : `allenai/olmOCR-7B-0225-preview` → `allenai/olmOCR-7B-0825`
+    → `allenai/olmOCR-2-7B-1025`. C'est l'AUTEUR qui désigne le successeur : rien n'est déduit
+    d'un nom. La chaîne s'arrête à une boucle, à `max_depth`, ou à un dépôt injoignable.
+    """
+    if api is None:
+        from huggingface_hub import HfApi
+        api = HfApi()
+    chain, info, current = [], None, repo
+    visited = {repo.lower()}
+    for _ in range(max_depth):
+        info = api.model_info(current)
+        nxt = _card_dict(getattr(info, 'card_data', None)).get('new_version')
+        if isinstance(nxt, (list, tuple)):
+            nxt = nxt[0] if nxt else None
+        nxt = str(nxt or '').strip()
+        if not nxt or nxt.lower() in visited:
+            break
+        visited.add(nxt.lower())
+        chain.append(nxt)
+        current = nxt
+    if not chain:
+        return [], None
+    # Sorti par la profondeur, le dernier maillon n'a pas encore été lu.
+    if info is None or info.id.lower() != chain[-1].lower():
+        info = api.model_info(chain[-1])
+    chain[-1] = info.id          # casse canonique
+    return chain, info
+
+
+def seed_hf_successors(workers: int = 8) -> dict:
+    """
+    Candidats de MISE À JOUR des modèles Hugging Face installés, désignés par leur auteur
+    (`new_version`) — le pendant Hugging Face du « successeur de famille » d'Ollama
+    (`prospect_ollama`), sur PREUVE comme lui (confiance 0,9).
+
+    Jusqu'au 2026-10-10 un modèle Hugging Face n'avait AUCUNE mise à jour proposée
+    (`install_candidate` : « un candidat HF est toujours `kind='new'` ») ; `update_checker` ne
+    compare que des dates, ce qui dit « republié », jamais « remplacé par ». Le candidat porte
+    `origin_key` (la ligne installée) et `cible` (le successeur) comme une MAJ Ollama, mais il
+    n'entraîne AUCUN retrait : l'ancien reste installé (`replaced_model` ne vaut que pour Ollama).
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from huggingface_hub import HfApi
+
+    from wama.model_manager.models import AIModel
+
+    from .prospect_ollama import PROPOSED_PREFIX
+
+    rows = []
+    for m in AIModel.objects.filter(is_proposed=False, is_downloaded=True).exclude(source='ollama'):
+        ref = m.platform_ref or ''
+        repo = m.hf_id or (ref.split(':', 1)[1] if ref.startswith('huggingface:') else '')
+        if repo and '/' in repo:
+            rows.append((m, repo))
+
+    api = HfApi()
+
+    def lookup(row):
+        try:
+            return row, hf_successor(row[1], api=api), None
+        except Exception as exc:
+            return row, ([], None), exc
+
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        results = list(pool.map(lookup, rows))
+    reached = sum(1 for _, _, exc in results if exc is None)
+
+    installed = _installed_repos()
+    created = updated = 0
+    seen: set = set()
+    refs_type: dict = {}
+    for (m, repo), (chain, info), _exc in results:
+        if not chain or info is None or chain[-1].lower() in installed:
+            continue
+        successor = chain[-1]
+        key = PROPOSED_PREFIX + m.model_key
+        seen.add(key)
+        card = getattr(info, 'card_data', None)
+        cd = _card_dict(card)
+        facts = card_facts(getattr(info, 'pipeline_tag', None),
+                           getattr(info, 'tags', None) or (), card)
+        # Un successeur exerce le MÊME métier que l'installé qu'il vise (règle d'Ollama).
+        task = (m.capabilities or {}).get('task') or facts['task']
+        facts = dict(facts, task=task, model_type=m.model_type,
+                     capabilities=dict(facts['capabilities'], **({'task': task} if task else {})))
+        created_now = _write_hf_candidate(
+            successor, facts=facts, refs_type=refs_type, role=SUCCESSOR_ROLE,
+            reason=f"la carte de {repo} désigne {chain[0]} comme nouvelle version",
+            description=(f"Nouvelle version désignée par l'auteur : {successor} "
+                         f"(remplace {repo})."),
+            note=f"successeur de {repo}", weight_gb=_repo_weight_gb(successor),
+            license=cd.get('license'), base_model=cd.get('base_model'),
+            downloads=getattr(info, 'downloads', 0) or 0,
+            likes=getattr(info, 'likes', 0) or 0, metric=_metrique_declaree(card),
+            kind='update', confidence=0.9, key=key,
+            extra={'origin_key': m.model_key, 'cible': successor, 'maj': 'successeur',
+                   'chain': chain})
+        created += int(created_now)
+        updated += int(not created_now)
+
+    # Aucun dépôt joint (réseau coupé) : on ne purge rien — même règle que les autres sources.
+    roles_ok = {SUCCESSOR_ROLE} if (reached or not rows) else set()
+    removed, preserved = _purge_hf_candidates(roles_ok, seen, kind='update')
+    summary = {'created': created, 'updated': updated, 'removed': removed,
+               'preserved': preserved, 'total': len(seen), 'checked': len(rows),
+               'reached': reached}
+    logger.info("[seed_hf_successors] %s", summary)
+    return summary
 
 
 def seed_candidate_from_manifest(manifest: dict) -> dict:
@@ -1311,10 +1608,6 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
       • un dépôt DÉSIGNÉ échappe au plancher de poids de sa tâche (2026-09-29) — cf. `named`
         ci-dessous.
     """
-    from wama.model_manager.models import AIModel
-
-    from .prospect_ollama import PROPOSED_PREFIX, write_candidate
-
     query = (query or '').strip()
     if not query:
         return {'ok': False, 'error': 'requête vide'}
@@ -1346,13 +1639,7 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
     # « Déjà chez nous » — mêmes deux identités que prospect_hf, mais lignes INSTALLÉES
     # seulement : un candidat déjà proposé doit pouvoir être RAFRAÎCHI par une nouvelle
     # recherche, pas compté comme possédé par sa propre ligne.
-    have = {(m.hf_id or '').lower()
-            for m in AIModel.objects.filter(is_proposed=False).exclude(hf_id='')}
-    have |= {ref.partition(':')[2].lower()
-             for ref in AIModel.objects.filter(is_proposed=False,
-                                               platform_ref__startswith='huggingface:')
-                                       .values_list('platform_ref', flat=True)}
-    have.discard('')
+    have = _installed_repos()
 
     crees = maj = deja = ignores = 0
     retenus: list = []
@@ -1377,41 +1664,19 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
             ignores += 1                 # sous le plancher : LoRA/config, pas un modèle
             continue
         dl = getattr(m, 'downloads', 0) or 0
+        likes = getattr(m, 'likes', 0) or 0
         carte = getattr(m, 'card_data', None)
-        licence, base_model = None, None
-        if carte is not None:
-            try:
-                cd = carte.to_dict() if hasattr(carte, 'to_dict') else dict(carte)
-                licence, base_model = cd.get('license'), cd.get('base_model')
-            except Exception:
-                licence = None
-        facts = card_facts(getattr(m, 'pipeline_tag', None) or tache,
-                           getattr(m, 'tags', None) or (), carte)
-        tache_w, model_type = facts['task'], facts['model_type']
-        if (model_type, tache_w) not in refs_type:
-            refs_type[(model_type, tache_w)] = [
-                (x.name or '').split('—')[0].strip()
-                for x in AIModel.best_installed(model_type, task=tache_w)]
-        cand_key = PROPOSED_PREFIX + f"hf:{m.id}"
-        cree = write_candidate(
-            cand_key, nom=m.id.split('/')[-1], model_type=model_type,
-            source='huggingface',
+        cd = _card_dict(carte)
+        cree = _write_hf_candidate(
+            m.id, facts=card_facts(getattr(m, 'pipeline_tag', None) or tache,
+                                   getattr(m, 'tags', None) or (), carte),
+            refs_type=refs_type, role=f"hf:{tache}",
+            reason=f"recherche ciblée « {query} »",
             description=(f"[{tache}] {dl} téléchargements, "
-                         f"{getattr(m, 'likes', 0) or 0} ♥ — recherche ciblée « {query} »."),
-            kind='new', confidence=None,
-            extra={'kind': 'new', 'role': f"hf:{tache}", 'name': m.id,
-                   'reason': f"recherche ciblée « {query} »",
-                   'concurrence': refs_type[(model_type, tache_w)],
-                   'downloads': dl, 'likes': getattr(m, 'likes', 0) or 0,
-                   'metrique': _metrique_declaree(carte),
-                   'license_flag': analyze_license(m.id, str(licence or ''), base_model),
-                   'spec': {'kind': 'hf', 'ref': m.id, 'category': model_type,
-                            'task': tache_w, 'note': f"recherche ciblée « {query} » ({tache})"}},
-            hf_id=m.id, license=str(licence or '')[:64],
-            platform_ref=f"huggingface:{m.id}",
-            disk_gb=poids or 0.0,
-            capabilities=facts['capabilities'],
-        )
+                         f"{likes} ♥ — recherche ciblée « {query} »."),
+            note=f"recherche ciblée « {query} » ({tache})", weight_gb=poids,
+            license=cd.get('license'), base_model=cd.get('base_model'),
+            downloads=dl, likes=likes, metric=_metrique_declaree(carte))
         crees += int(cree)
         maj += int(not cree)
         retenus.append(m.id)
