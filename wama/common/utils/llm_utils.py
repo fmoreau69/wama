@@ -393,7 +393,12 @@ def llm_chat(
         if not api_key:
             variable = external_sources.get(source).api_key_env
             return None, f"clé absente pour « {provider} » : définir {variable} dans .env"
+        # Règle d'usage DÉCLARÉE par la source, ajoutée à chaque requête (2026-10-10 — OpenRouter :
+        # aucun hébergeur qui garde ou entraîne sur les données).
+        declared_body = external_sources.get(source).request_body
+        extra_body = json.loads(declared_body) if declared_body else None
     else:
+        extra_body = None
         # Map du nom de fournisseur WAMA → préfixe attendu par LiteLLM (ex. grok → xai/).
         _LITELLM_PREFIX = {'grok': 'xai', 'google': 'gemini'}
         prefix = _LITELLM_PREFIX.get(provider, provider)
@@ -419,6 +424,8 @@ def llm_chat(
         kwargs['api_key'] = api_key
     if api_base:
         kwargs['api_base'] = api_base
+    if extra_body:
+        kwargs['extra_body'] = extra_body
 
     try:
         if on_delta is not None:

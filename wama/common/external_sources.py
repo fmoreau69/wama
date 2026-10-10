@@ -291,6 +291,11 @@ class ExternalSource:
     #: ligne `default`. ⚠ N'y écrire que des identifiants que le fournisseur ACCEPTE, vérifiés
     #: sur lui : ils partent tels quels dans son appel.
     declared_models: tuple = ()
+    #: Fournisseur LLM : champs AJOUTÉS au corps de chaque requête de conversation (2026-10-10) —
+    #: une règle d'usage que la source impose à chaque appel, lue par `llm_utils.llm_chat`.
+    #: OpenRouter : n'aller que chez des hébergeurs qui ne gardent ni n'entraînent sur les données.
+    #: Chaîne JSON (et non dict) : la source est figée, donc hachable.
+    request_body: str = ''
     #: Attribution EXIGÉE par la licence de la source. Une obligation, pas une politesse.
     attribution: str = ''
     #: Document portant l'intention, quand elle est écrite quelque part.
@@ -376,7 +381,13 @@ SOURCES: tuple[ExternalSource, ...] = (
         api_key_env='OPENROUTER_API_KEY', user_key=True,
         api_key_help_url='https://openrouter.ai/settings/keys',
         hosting='third_party', cost_tier='metered', protocol='openai',
-        default_model='openrouter/auto', doc='docs/construction/ia/WAMA_LLM.md'),
+        default_model='openrouter/auto',
+        # Décision de Fabien (2026-10-10) : chaque requête n'est routée que vers des hébergeurs
+        # qui ne conservent pas les données et n'entraînent pas dessus (`data_collection: deny`,
+        # doc « provider routing » ; défaut d'OpenRouter : `allow`). `zdr` (aucune conservation,
+        # plus strict) n'est pas imposé : il réduit fortement les hébergeurs possibles.
+        request_body='{"provider": {"data_collection": "deny"}}',
+        doc='docs/construction/ia/WAMA_LLM.md'),
     # 2026-09-15 : l'API Anthropic (fournisseur « claude » de l'assistant) et l'ABONNEMENT Claude
     # Code — deux canaux de facturation opposés vers les mêmes modèles (cf. `claude_code.py`).
     # Chacun porte la clé PERSONNELLE de l'utilisateur, au profil ; le `.env` ne sert qu'aux usages

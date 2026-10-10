@@ -795,7 +795,15 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   chat, ou chat qui voit) ; le dépôt servi (`hugging_face_id`) devient un alias, donc l'identité ;
   un modèle à prix nul garde `cost_tier='free'` sur sa ligne. Mesuré sur la liste publique :
   **458 modèles**, 19 gratuits, 170 qui nomment leur dépôt, 7 qui produisent des images (exclus).
-  Modèle par défaut : `openrouter/auto` (routeur d'OpenRouter). ⚠ **Non mesuré avec une clé** :
+  Modèle par défaut : `openrouter/auto` (routeur d'OpenRouter). **Données (décision de Fabien,
+  même jour)** : chaque requête porte `provider.data_collection = "deny"` — OpenRouter ne la
+  route que vers des hébergeurs qui ne conservent pas les données et n'entraînent pas dessus (son
+  défaut est `allow`) ; règle DÉCLARÉE sur la source (`ExternalSource.request_body`), transmise
+  par `llm_chat` (`extra_body`). `zdr` (aucune conservation) n'est pas imposé. Faits vérifiés le
+  10/10 : un modèle est servi par un ou plusieurs hébergeurs (13 pour Gemma 4 31B, en partie
+  quantifiés fp4), majoritairement américains, région UE réservée aux offres Business/Enterprise ;
+  modèles gratuits limités à 20 req/min et 50 req/jour (1 000 au-delà de 10 crédits achetés).
+  ⚠ **Non mesuré avec une clé** :
   `manage.py llm_gateway_check --provider openrouter` à jouer à la pose. ⚠ Le tirage AUTOMATIQUE
   n'ouvre ses modèles — gratuits compris, le coût s'arbitrant par source — qu'avec
   `cloud_metered_auto`. ⚠ À la pose d'une clé, ~450 lignes entrent au catalogue et ~170

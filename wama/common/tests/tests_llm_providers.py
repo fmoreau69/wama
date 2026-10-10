@@ -139,3 +139,25 @@ class OpenAICompatibleProvidersAreDerivedTest(SimpleTestCase):
             if source.kind == 'llm':
                 self.assertNotEqual('wama-dev-ai', SOURCE_PROVIDERS.get(source.key, 'wama-dev-ai'),
                                     f"un modèle `{source.key}:*` partirait sur le moteur LOCAL")
+
+
+class DeclaredRequestBodyTest(SimpleTestCase):
+    """2026-10-10 (Fabien's decision): OpenRouter routes every request only to providers that
+    neither keep nor train on the data — a rule DECLARED by the source (`request_body`)."""
+
+    def _sent(self, provider, env):
+        fake = _fake_litellm()
+        with patch.dict(sys.modules, {'litellm': fake}), patch.dict(os.environ, env), \
+                patch.object(external_sources, 'stored_instance_key', return_value=''):
+            text, err = llm_utils.llm_chat(MESSAGES, provider=provider)
+        self.assertEqual(('OK', None), (text, err))
+        return fake.completion.call_args.kwargs
+
+    def test_openrouter_requests_deny_data_collection(self):
+        sent = self._sent('openrouter', {'OPENROUTER_API_KEY': 'or-key'})
+        self.assertEqual({'provider': {'data_collection': 'deny'}}, sent['extra_body'])
+        self.assertEqual('openai/openrouter/auto', sent['model'])
+
+    def test_a_source_that_declares_nothing_sends_nothing_more(self):
+        # Counter-check: Albert's requests are unchanged.
+        self.assertNotIn('extra_body', self._sent('albert', {'ALBERT_API_KEY': 'k'}))
