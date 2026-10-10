@@ -65,7 +65,8 @@ def depth_model_spec(model_key=None) -> dict:
 
 
 def is_available(model_key=None) -> bool:
-    """Vrai si les poids du modèle sont présents sur disque (téléchargés via `pull_model`)."""
+    """Vrai si les poids du modèle sont présents sur disque (installés par la route du catalogue,
+    ligne `huggingface:<clé>`)."""
     try:
         from pathlib import Path
         root = Path(depth_model_spec(model_key)['dir'])

@@ -407,8 +407,9 @@ MECHANISMS = (
     Mechanism('model_installer', 'Installation de modèles',
               "Pipeline accept→download→register : télécharge au bon endroit puis enregistre au "
               "catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, "
-              "`pull_model <clé>` ; garde d'espace disque, tâche Celery, journal) ; le marcheur "
-              "d'app `install_requirements` pour tous les requis d'une app. Un pilote INTERNE "
+              "`pull_model <clé|org/dépôt>`, marcheur d'app `install_requirements` ; garde "
+              "d'espace disque, tâche Celery, journal — seule à appeler `dispatch_install`) ; "
+              "`AIModel.is_installable` en dit la règle à la page. Un pilote INTERNE "
               "(`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une "
               "VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, "
               "2026-10-07) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à "

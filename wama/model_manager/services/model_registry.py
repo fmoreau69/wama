@@ -46,7 +46,24 @@ FAMILLES_OLLAMA = {
     # `reader:glm-ocr`, retirée avec le select du reader par source : un modèle Ollama se déclare
     # UNE fois, ici, pour toutes les apps.
     'glm-ocr':        {'task': 'ocr', 'params': ['language']},
+    # 2026-10-10 (décision de Fabien : « ajouter les meilleurs ») — OCR documentaires servis par
+    # Ollama depuis leur GGUF du Hub (`hf.co/<org>/<dépôt>`, `prospector.spec_for_choice`) : la
+    # famille se lit sur le NOM DU DÉPÔT (`_ollama_family`), quel que soit le publieur du GGUF.
+    # Le seul réglage lu est la langue (consigne commune de `GlmOcrBackend`).
+    'paddleocr-vl':   {'task': 'ocr', 'params': ['language']},
+    'chandra-ocr':    {'task': 'ocr', 'params': ['language']},
+    'lightonocr':     {'task': 'ocr', 'params': ['language']},
+    'dots.mocr':      {'task': 'ocr', 'params': ['language']},
 }
+
+
+def _ollama_family(name: str) -> str:
+    """Nom de FAMILLE d'un modèle Ollama pour `FAMILLES_OLLAMA` : le tag sans sa variante
+    (`glm-ocr:latest` → `glm-ocr`) ; pour un GGUF tiré du Hub, le nom du DÉPÔT
+    (`hf.co/PaddlePaddle/PaddleOCR-VL-1.6-GGUF:Q4_K_M` → `paddleocr-vl-1.6-gguf`) — le publieur
+    d'une quantification ne dit rien du modèle, son nom de dépôt si."""
+    base = (name or '').split(':')[0].lower()
+    return base.rsplit('/', 1)[-1] if base.startswith('hf.co/') else base
 
 
 def _remote_only(config: dict) -> bool:
@@ -1223,8 +1240,8 @@ class ModelRegistry:
                 self.discovery_errors.append(f'face_analyzer:{model_id}: {e}')
 
     def _discover_depth_models(self):
-        """Modèles de profondeur monoculaire (task=depth-estimation) déposés par `pull_model`
-        dans `models/vision/depth-pro/`.
+        """Modèles de profondeur monoculaire (task=depth-estimation) installés par la route du
+        catalogue (`install_dir` déclaré) dans `models/vision/depth-pro/` et `…/zoedepth/`.
 
         Scan FILESYSTEM volontaire : la découverte reste dans la couche model_manager et n'importe
         AUCUNE app. Le consommateur est le lab cam_analyzer (re-calage plan de sol, §[E]) — importer
@@ -1256,6 +1273,10 @@ class ModelRegistry:
                 composition={'runtime': {'engine': 'transformers'}},
                 vram_gb=8.0,
                 is_downloaded=cached,
+                # `install_dir` (2026-10-10) : le dossier que le moteur lit (`depth_engine`,
+                # `cache_dir=`) — ce qui rend la ligne installable par la route (bouton,
+                # `pull_model <clé>`). Sans lui, le Lab renvoyait à un `pull_model <org/dépôt>` nu.
+                extra_info={'install_dir': str(depth_root)},
                 # Vocabulaire canonique (model_capabilities) : tâche + entrées + modalités, comme
                 # SAM3/YOLO — pas de flag ad hoc, pour que select_model/matches_inputs filtrent.
                 capabilities={'task': 'depth-estimation', 'modalities': ['image', 'video'],
@@ -1278,6 +1299,7 @@ class ModelRegistry:
                     composition={'runtime': {'engine': 'transformers'}},
                     vram_gb=2.0,
                     is_downloaded=zoe_root.exists() and any(zoe_root.rglob('*.safetensors')),
+                    extra_info={'install_dir': str(zoe_root)},     # cf. Depth Pro ci-dessus
                     capabilities={'task': 'depth-estimation', 'modalities': ['image', 'video'],
                                   'inputs_required': ['work_file']},
                 )
@@ -2365,7 +2387,7 @@ class ModelRegistry:
         # `glm-ocr` devenait `ocr` en gardant les entrées d'un modèle de CHAT
         # (`inputs_required: ['prompt']`, modalité `text`) — un OCR qui ne prend pas de page.
         declaration = next((d for prefix, d in FAMILLES_OLLAMA.items()
-                            if nom_modele and nom_modele.split(':')[0].lower().startswith(prefix)),
+                            if nom_modele and _ollama_family(nom_modele).startswith(prefix)),
                            {})
         task = declaration.get('task') or task
         # Modalités et entrées : ce que la tâche IMPLIQUE (`TASK_DEFAULT_INPUTS`, la table

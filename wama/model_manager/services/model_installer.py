@@ -1264,7 +1264,11 @@ def install_candidate(cand, progress=None, token=None) -> dict:
                              f"Installation annulée (l'espace n'aurait pas suffi)."}
         rollback = remplace      # à re-tirer si l'installation échoue
 
-    res = pull_ollama_model(cand.name, progress=progress)
+    # Le NOM tiré : celui du descripteur quand il en porte un (variante GGUF du Hub choisie sur un
+    # candidat Hugging Face, `hf.co/<dépôt>:<quantification>` — `prospector.spec_for_choice`,
+    # 2026-10-10), sinon celui du candidat Ollama, comme avant.
+    pull_name = ((spec or {}).get('ref') if (spec or {}).get('kind') == 'ollama' else '') or cand.name
+    res = pull_ollama_model(pull_name, progress=progress)
     if not res.get('ok') and rollback:
         # L'ancien a été retiré et le nouveau n'est pas venu : on restaure. C'est possible
         # sans sauvegarde précisément parce que `ollama pull` EST le chemin de restauration
@@ -1289,8 +1293,13 @@ def install_candidate(cand, progress=None, token=None) -> dict:
     # la porte depuis sa découverte par RÔLE (`prospect_ollama`, `capabilities={'task': …}`) ;
     # sans ce transport, seule la branche HF (`spec.task`) en bénéficiait, et un modèle Ollama
     # installé repartait de ce que la découverte générique sait deviner de son nom.
-    record_provenance({'kind': 'ollama', 'ref': cand.name,
-                       'task': (cand.capabilities or {}).get('task') or ''}, {})
+    # `base_hf_id` (le modèle canonique d'un GGUF du Hub) n'entre que s'il est connu : un
+    # candidat de la bibliothèque Ollama garde exactement son descripteur d'avant.
+    base_hf_id = (spec or {}).get('base_hf_id') or ''
+    record_provenance({'kind': 'ollama', 'ref': pull_name,
+                       **({'base_hf_id': base_hf_id} if base_hf_id else {}),
+                       'task': ((spec or {}).get('task')
+                                or (cand.capabilities or {}).get('task') or '')}, {})
 
     # RÉCONCILIER LE REMPLACÉ. `register_after_install()` → `full_sync()` n'enlève rien :
     # c'est voulu (une indisponibilité passagère ne doit pas purger le catalogue), mais ici
@@ -1307,7 +1316,7 @@ def install_candidate(cand, progress=None, token=None) -> dict:
         logger.info("[prospect_install] %s remplacé par %s — %d ligne(s) recalée(s)",
                     origine_key, cand.name, maj)
 
-    installed_name = cand.name
+    installed_name = pull_name
     cand.delete()
     return {'ok': True, 'installed': installed_name}
 
@@ -2053,12 +2062,17 @@ def install_requirements(app_key: str, apply: bool = False) -> dict:
     `library` semées) et DISPATCHE chaque référence vers son driver EXISTANT :
 
       • kind=library → `install_library` (plan/apply — allowlist `is_allowed` par lib) ;
-      • kind=model   → état du catalogue + `install_catalog_task` (Celery) si un spec est
-        dérivable (`spec_for_catalog_row`) ; sans spec dérivable, le modèle reste au
-        « téléchargement au premier usage » — signalé, jamais silencieux.
+      • kind=model   → état du catalogue (plan) ; à l'exécution, la DEMANDE du bouton
+        (`request_install`, voie `app_requirements`) : garde d'espace disque, idempotence,
+        tâche Celery. Sans spec dérivable, le modèle reste au « téléchargement au premier
+        usage » — signalé, jamais silencieux.
 
     Le marcheur n'invente RIEN : il n'installe que ce que les drivers savent installer,
     sous leurs propres gardes. `apply=False` (défaut) = plan complet sans effet.
+
+    ⚠ Jusqu'au 2026-10-10, l'exécution enfilait la tâche ELLE-MÊME (`install_catalog_task`,
+    puis `dispatch_install`) : la garde d'espace disque, qui vivait alors dans la vue du bouton
+    puis dans `request_install` (route unique du 19/09), ne l'a jamais couverte.
     """
     from wama.model_manager.models import AIModel
 
@@ -2094,14 +2108,21 @@ def install_requirements(app_key: str, apply: bool = False) -> dict:
                     models.append({'key': key, 'state': 'non téléchargé',
                                    'would_install': spec.get('ref')})
                 else:
-                    from ..tasks import install_catalog_task
-                    started = dispatch_install(install_catalog_task, row, via='app_requirements')
-                    models.append({'key': key, 'state': 'installation enfilée (Celery)',
-                                   'task_id': started.id})
+                    res = request_install(key, via='app_requirements')
+                    if res.get('started'):
+                        models.append({'key': key, 'state': 'installation enfilée (Celery)',
+                                       'task_id': res['task_id']})
+                    elif res.get('already_running'):
+                        models.append({'key': key, 'state': 'installation déjà en cours'})
+                    else:
+                        blocked = res.get('blocked') or {}
+                        models.append({'key': key, 'ok': False,
+                                       'state': f"REFUSÉ ({res.get('reason')})",
+                                       'error': blocked.get('error') or res.get('error')})
         else:
             autres.append(ref)   # function/dataset… : hors périmètre du marcheur, signalés
 
-    ok = all(r.get('ok', True) for r in libraries)
+    ok = all(r.get('ok', True) for r in libraries + models)
     return {'ok': ok, 'app': app_key, 'apply': apply,
             'libraries': libraries, 'models': models,
             **({'ignored': autres} if autres else {})}

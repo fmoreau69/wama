@@ -24,6 +24,33 @@ from wama.model_manager.models import AIModel, InstallEvent
 from wama.model_manager.services import install_history
 
 
+def _innermost_callers(names) -> set:
+    """`'<fichier> (<fonction>)'` de chaque appel hors tests d'une fonction de `names`, attribué à
+    la fonction qui le CONTIENT au plus près (`<module>` hors de toute fonction)."""
+    found = set()
+    base = Path(settings.BASE_DIR)
+    for root in ('wama', 'wama_lab', 'wama_data'):
+        for path in (base / root).rglob('*.py'):
+            rel = path.relative_to(base).as_posix()
+            if '/tests/' in rel or path.name.startswith('tests') or '/migrations/' in rel:
+                continue
+            text = path.read_text(encoding='utf-8', errors='replace')
+            if not any(n in text for n in names):
+                continue
+
+            def visit(node, where):
+                for child in ast.iter_child_nodes(node):
+                    inner = (child.name if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                             else where)
+                    if isinstance(child, ast.Call):
+                        name = getattr(child.func, 'id', None) or getattr(child.func, 'attr', None)
+                        if name in names:
+                            found.add(f'{rel} ({where})')
+                    visit(child, inner)
+            visit(ast.parse(text), '<module>')
+    return found
+
+
 def _catalog_row(key='test:history-row'):
     return AIModel.objects.create(model_key=key, name='Modèle témoin', model_type='llm',
                                   source='huggingface', is_downloaded=False)
@@ -148,6 +175,175 @@ class EveryEntryPointNamesItsRouteTest(SimpleTestCase):
                 outside.add(f'{rel}:{node.lineno} ({where})')
         self.assertEqual(sorted(outside), [], 'une tâche d’installation dispatchée hors de '
                                               '`dispatch_install` échappe au journal')
+
+    def test_only_the_request_dispatches(self):
+        """`dispatch_install` n'est appelé que par `request_install` : la garde d'espace disque,
+        l'idempotence et le refus « déjà téléchargé » vivent là. Le marcheur d'app l'appelait
+        directement depuis sa création (31/08) et n'a jamais eu la garde (2026-10-10)."""
+        self.assertEqual(
+            ['wama/model_manager/services/model_installer.py (request_install)'],
+            sorted(_innermost_callers({'dispatch_install'})))
+
+
+class TheDriversStayInsideTheRouteTest(SimpleTestCase):
+    """Les pilotes INTERNES (téléchargement réel) ne s'appellent que DANS la route : par
+    `install_from_spec` et `install_candidate` (eux-mêmes appelés par les deux tâches), plus la
+    validation de nom à blanc de la proposition YOLO. Tout autre appelant est une entrée parallèle
+    — sans garde d'espace disque, sans journal (2026-10-10 : `pull_model` en avait deux)."""
+
+    DRIVERS = {'install_from_spec', 'install_candidate', 'pull_hf_model', 'pull_ollama_model',
+               'pull_yolo_weights', 'pull_github_asset', 'pull_github_files'}
+    INSIDE = {
+        'wama/model_manager/services/model_installer.py (install_from_spec)',
+        'wama/model_manager/services/model_installer.py (install_candidate)',
+        'wama/model_manager/tasks.py (install_proposed_task)',
+        'wama/model_manager/tasks.py (install_catalog_task)',
+        'wama/model_manager/services/prospector.py (seed_yolo_candidate)',     # dry_run=True
+        # ⏳ Le SEUL écart restant, nommé : un nom Ollama tapé en ligne de commande n'a pas de
+        # proposition nommée (décision attendue de Fabien, PROSPECTION_PIPELINE §2026-10-10 nuit).
+        'wama/model_manager/management/commands/pull_model.py (_ollama)',
+    }
+
+    def test_no_driver_is_called_from_outside_the_route(self):
+        self.assertEqual(sorted(self.INSIDE), sorted(_innermost_callers(self.DRIVERS)))
+
+
+class PullModelTakesTheRouteTest(TestCase):
+    """`pull_model <org/dépôt>` : la ligne du catalogue, sinon la proposition, puis la DEMANDE."""
+
+    def _run(self, name):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from wama.model_manager.services import model_installer as mi
+        from wama.model_manager.services import prospector
+        with mock.patch.object(mi, 'request_install',
+                               return_value={'ok': True, 'started': True, 'task_id': 't'}) as req, \
+                mock.patch.object(mi, 'pull_hf_model') as driver, \
+                mock.patch.object(prospector, 'seed_hf_search',
+                                  side_effect=self._seed) as seed:
+            call_command('pull_model', name, stdout=StringIO())
+        driver.assert_not_called()
+        return req, seed
+
+    def _seed(self, repo, **kw):
+        if repo == 'org/proposable':
+            AIModel.objects.create(model_key='proposed:hf:org/proposable', name='p', hf_id=repo,
+                                   model_type='vision', source='huggingface', is_proposed=True)
+        return {'ok': True, 'refs': [repo]}
+
+    def test_a_catalogue_repo_is_requested_by_its_key(self):
+        AIModel.objects.create(model_key='huggingface:depthpro', name='d', hf_id='apple/DepthPro-hf',
+                               model_type='vision', source='huggingface')
+        req, seed = self._run('https://huggingface.co/apple/DepthPro-hf')
+        req.assert_called_once_with('huggingface:depthpro', via='cli')
+        seed.assert_not_called()
+
+    def test_an_unknown_repo_is_proposed_then_requested(self):
+        req, seed = self._run('org/proposable')
+        seed.assert_called_once()
+        req.assert_called_once_with('proposed:hf:org/proposable', via='cli')
+
+    def test_a_repo_the_prospection_refuses_is_never_downloaded(self):
+        from django.core.management import CommandError
+        with self.assertRaisesMessage(CommandError, 'HF_TASKS'):
+            self._run('org/out-of-scope')
+
+
+class DepthModelsAreInstallableByTheRouteTest(SimpleTestCase):
+    """Les lignes de profondeur déclarent leur `install_dir` (2026-10-10) : la route en dérive
+    EXACTEMENT le dossier que le moteur lit (`depth_engine`, `cache_dir=`). Avant, rien ne les
+    installait et le Lab renvoyait à un `pull_model <org/dépôt>` hors route."""
+
+    def test_the_derived_folder_is_the_one_the_engine_reads(self):
+        from wama.common.backends.depth_engine import DEPTH_MODELS
+        from wama.common.utils.model_locations import model_dir
+        from wama.model_manager.services.model_installer import spec_for_catalog_row
+        from wama.model_manager.services.model_registry import ModelRegistry
+
+        registry = ModelRegistry()
+        registry._models = {}
+        registry._discover_depth_models()
+        for key, declared in DEPTH_MODELS.items():
+            with self.subTest(key=key):
+                info = registry._models[f'huggingface:{key}']
+                spec = spec_for_catalog_row(AIModel(model_key=f'huggingface:{key}',
+                                                    hf_id=info.hf_id, extra_info=info.extra_info))
+                self.assertIsNotNone(spec, 'la ligne doit être installable par la route')
+                self.assertEqual(declared['hf_id'], spec['ref'])
+                self.assertEqual(Path(declared['dir']).resolve(),
+                                 Path(model_dir(spec['category'], spec['family'])).resolve())
+
+
+class ThePageReadsTheServerRulesTest(SimpleTestCase):
+    """La page du model manager LIT les règles du serveur au lieu de les recopier : `installable`
+    (`spec_for_catalog_row`) pour le bouton « Installer », `platform_url` pour le lien."""
+
+    def _row(self, **kw):
+        return AIModel(model_key='app:m', name='M', model_type='vision', **kw)
+
+    def test_installable_is_the_route_rule(self):
+        root = Path(settings.AI_MODELS_DIR) / 'models'
+        hf_row = self._row(hf_id='o/x', extra_info={'install_dir': str(root / 'vision' / 'x')})
+        release_row = self._row(extra_info={'install_dir': str(root / 'lipsync' / 'cf'),
+                                            'release_files': {'ref': 'o/r:v1', 'files': []}})
+        self.assertTrue(hf_row.to_dict()['installable'])
+        self.assertTrue(release_row.to_dict()['installable'],
+                        'a row with DECLARED release files has no hf_id — and is installable')
+        self.assertFalse(self._row(hf_id='o/x').to_dict()['installable'], 'no install_dir')
+        downloaded = self._row(hf_id='o/x', is_downloaded=True,
+                               extra_info={'install_dir': str(root / 'vision' / 'x')})
+        self.assertFalse(downloaded.to_dict()['installable'])
+
+    def test_the_template_copies_neither_rule(self):
+        page = (Path(settings.BASE_DIR) / 'wama' / 'model_manager' / 'templates' /
+                'model_manager' / 'index.html').read_text(encoding='utf-8')
+        self.assertIn('return !!m.installable;', page)
+        self.assertNotIn('install_dir); }', page)
+        self.assertNotIn('https://huggingface.co/${', page)
+        self.assertIn('model.platform_url ?', page)
+
+    def test_a_github_release_links_to_its_release_page(self):
+        row = self._row(platform_ref='github:Phhofm/models/releases/tag/4xNomosUni_span_multijpg')
+        self.assertEqual('https://github.com/Phhofm/models/releases/tag/4xNomosUni_span_multijpg',
+                         row.to_dict()['platform_url'])
+
+
+class TheAppWalkerTakesTheRouteTest(TestCase):
+    """`install_requirements(apply=True)` : chaque modèle requis passe par `request_install`."""
+
+    def _walk(self, request_result):
+        import json
+        import tempfile
+
+        from wama.model_manager.services import model_installer as mi
+        row = _catalog_row('test:walker-model')
+        manifest = {'requires': [{'kind': 'model', 'key': row.model_key}]}
+        with tempfile.TemporaryDirectory() as root:
+            apps = Path(root) / 'manifests' / 'apps'
+            apps.mkdir(parents=True)
+            (apps / 'walkertest.json').write_text(json.dumps(manifest), encoding='utf-8')
+            fake_module = Path(root) / 'a' / 'b' / 'c' / 'model_installer.py'
+            with mock.patch.object(mi, '__file__', str(fake_module)), \
+                    mock.patch.object(mi, 'spec_for_catalog_row',
+                                      return_value={'kind': 'hf', 'ref': 'o/x'}), \
+                    mock.patch.object(mi, 'request_install',
+                                      return_value=request_result) as req:
+                res = mi.install_requirements('walkertest', apply=True)
+        return row, res, req
+
+    def test_each_model_is_requested_on_the_walker_way(self):
+        row, res, req = self._walk({'ok': True, 'started': True, 'task_id': 't-9'})
+        req.assert_called_once_with(row.model_key, via='app_requirements')
+        self.assertTrue(res['ok'])
+        self.assertEqual('t-9', res['models'][0]['task_id'])
+
+    def test_a_disk_refusal_is_said_and_fails_the_walk(self):
+        _row, res, _req = self._walk({'ok': False, 'reason': 'insufficient_storage',
+                                      'blocked': {'error': 'Espace insuffisant'}})
+        self.assertFalse(res['ok'])
+        self.assertEqual('Espace insuffisant', res['models'][0]['error'])
 
 
 class CalendarLayerTest(TestCase):

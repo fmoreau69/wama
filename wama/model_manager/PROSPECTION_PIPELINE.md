@@ -2457,3 +2457,113 @@ Fabien) sur les commits `afd9524d` → `b76841e9`.** Chaque ajout confronté à 
   model manager écrit son lien vers HuggingFace depuis `hf_id` (gabarit), alors que
   `platform_url` sert déjà l'action « Voir sur la plateforme » ; l'étape 4 de
   `setup_avatarizer.sh` (MuseTalk) télécharge encore elle-même.
+
+**Suite du 2026-10-10 (nuit, 2) — UNE route d'installation, tenue par des tests (Fabien : « 1 seule
+route, universelle » ; « la garde d'espace disque existe… il faut la remettre »).**
+- **La garde d'espace disque n'a jamais été retirée** (`git log -G` : aucun commit de la session
+  ne touche un appel ; elle est dans `request_install` depuis le 19/09, avant dans la vue). Elle
+  manquait aux entrées LATÉRALES : le marcheur `install_requirements` enfilait la tâche lui-même
+  depuis sa création (31/08) et l'unification du 19/09 ne l'a pas vu ; `pull_model <org/dépôt>`
+  téléchargeait en direct (`pull_hf_model`). Le marcheur demande désormais par `request_install`
+  (voie `app_requirements` ; un refus d'espace fait échouer la marche et se dit).
+- `pull_model <org/dépôt>` : la ligne du catalogue qui porte ce `hf_id`, sinon sa proposition
+  (recherche nommée `seed_hf_search`, celle de l'assistant), puis `request_install`.
+  `--category`/`--family`/`--dry-run` retirés (ils ne servaient que le téléchargement nu).
+- Profondeur (Lab) : `huggingface:depthpro` et `huggingface:zoedepth-kitti` déclarent leur
+  `install_dir` — le dossier dérivé est celui que lit `depth_engine` ; Cam Analyzer renvoie au
+  bouton / `pull_model huggingface:<clé>` au lieu d'un `pull_model apple/DepthPro-hf` nu.
+- Page du model manager : le bouton « Installer » lit `installable` (= `spec_for_catalog_row`,
+  propriété `AIModel.is_installable`) au lieu de recopier `hf_id` + `install_dir` en JavaScript ;
+  le lien de la carte est `platform_url` (même règle que « Voir sur la plateforme » ; repli
+  `hf_id` : les cartes HF inchangées) — les versions GitHub et les 10 modèles Ollama gagnent leur
+  lien. Smoke sur serveur jetable : 131 liens, 0 erreur JS.
+- **Tests qui tiennent la route** (`tests_install_history`) : seul `request_install` appelle
+  `dispatch_install` ; les pilotes internes (`install_from_spec`, `install_candidate`, `pull_*`)
+  n'ont pour appelants que la route — liste EXACTE, un appelant de plus fait échouer la suite ;
+  le marcheur et `pull_model` passent par la demande ; les lignes de profondeur sont installables
+  au bon dossier ; la page lit les règles du serveur. Contre-épreuve sur HEAD : les gardes
+  relèvent `dispatch_install <- install_requirements` et les appels nus de `pull_model`.
+- ⏳ **Décisions attendues (formulées pour Fabien)** :
+  1. `pull_model <nom Ollama>` télécharge encore en direct (`pull_ollama_model`) — seul écart
+     nommé dans la garde : aucune « proposition nommée » Ollama n'existe (la recherche nommée est
+     HF). Soit on écrit ce semis (pendant de `seed_yolo_candidate`), soit on retire la branche.
+  2. Jeton GitHub : `GITHUB_TOKEN` lu dans l'environnement par deux lecteurs, hors de
+     `external_sources` (qui gère les clés de toutes les autres sources) ; le déclarer ferait
+     passer la source pour « non configurée » sans jeton (`is_configured`), alors qu'il est
+     facultatif. Il faut un drapeau « clé facultative » — fichier en cours chez une autre instance.
+  3. Téléchargeurs d'app hors route, sans garde : enhancer (QualityScaler, au démarrage de
+     `runserver`), anonymizer (`.pt` YOLO au traitement — autre instance), face_analyzer
+     (MediaPipe, dans le dossier de l'app, hors `AI-models`).
+  4. MuseTalk (`setup_avatarizer.sh` étape 4) : le script du dépôt tire plusieurs dépôts ;
+     à déclarer comme CodeFormer après MESURE de ce que le code lit.
+
+**Suite du 2026-10-10 (nuit, 3) — un GGUF du Hub installé PAR OLLAMA : la route existante, un
+seul geste étendu.** Décision de Fabien : « ajouter les meilleurs » OCR des classements. Les
+notes sont en base (olmOCR-Bench) :
+
+| modèle | note |
+|---|---|
+| Infinity-Parser2-Pro | 87,6 — attend le disque de 4 To |
+| LightOnOCR-3-4B | 86,3 |
+| Chandra-2 | 85,8 |
+| dots.mocr | 83,9 |
+| LightOnOCR-2 (Albert) | 83,2 |
+| GLM-OCR | 75,2 |
+
+PaddleOCR-VL-1.6 a 78,9, mais sur MDPBench, un autre banc.
+
+**Mesuré : leurs architectures manquent à notre transformers.** On est en 4.57 et `patches/` ne
+porte aucun backport transformers 5. Mais ces modèles sont publiés en GGUF, et Ollama les exécute
+sans venv, comme il exécutait Qwen 3.5/3.6 MoE.
+
+Deux propositions de la session étaient des chemins parallèles, corrigées par Fabien :
+- un backend Hugging Face générique écrit à la main ;
+- une « installation hf.co » neuve.
+
+**Ce qui manquait, relu au code :** la route avait toutes les pièces sauf une. Choisir une
+variante GGUF d'une proposition Hugging Face téléchargeait le fichier seul (`allow_patterns`), et
+rien ne le lisait.
+
+- **`prospector.spec_for_choice`.** Un fichier `.gguf` dont la tâche est servie par un backend au
+  moteur `ollama` devient `{'kind': 'ollama', 'ref': 'hf.co/<dépôt>:<quant>', 'task', 'base_hf_id'}`.
+  - La tâche se résout par `backend_for_engine('ollama', '', task=…)`, la résolution commune, et non
+    par une liste tenue dans le prospecteur.
+  - La quantification est lue dans le nom du fichier (`_gguf_quant`, convention llama.cpp). Un dépôt
+    à fichier unique n'a pas d'étiquette : Ollama prend alors le fichier par défaut.
+- **`install_options`** marque ces lignes `driver: 'ollama'` (libellé « (par Ollama) »). Il ne
+  propose plus les projecteurs de vision `mmproj` : trois apparaissaient comme des niveaux de
+  quantification de PaddleOCR-VL. Ollama tire le projecteur lui-même.
+- **`install_candidate`**, dans sa branche Ollama existante (garde de disque, remplacement,
+  provenance), tire le nom du descripteur s'il en porte un, sinon celui du candidat, comme avant.
+  La provenance transporte la tâche et le modèle canonique.
+- **`provenance.identity_for_spec`**, pour une référence `hf.co/…`, rend :
+  - `platform_ref` = le dépôt GGUF, d'où le modèle vient ;
+  - `hf_id` = le modèle canonique, c'est-à-dire ce qu'il est, par lequel le banc l'apparie.
+- **`FAMILLES_OLLAMA`** déclare `paddleocr-vl`, `chandra-ocr`, `lightonocr` et `dots.mocr` (tâche
+  `ocr`, réglage langue). La famille se lit sur le **nom du dépôt** (`_ollama_family`), parce que le
+  publieur d'une quantification ne dit rien du modèle. Un GGUF non déclaré reste un modèle de chat,
+  sans deviner.
+- **`GlmOcrBackend`** était exécutable seulement si Ollama servait GLM-OCR. Il l'est désormais dès
+  que le démon répond (`_MoteurOllama.missing_packages`, sonde commune) : il sert tout OCR tenu par
+  Ollama, et le modèle arrive par sa clé. Retirés, sans appelant : `_MODEL_NAMES`,
+  `_find_glm_ocr_model`, `ollama_serves_glm_ocr` et une copie de l'adresse de l'hôte.
+- **L'assistant** : outil `get_install_options`. C'est le même corps que les options de la page, et
+  il est gardé `model_manager` parce qu'il écrit le relevé des variantes et appelle le Hub. Sans
+  lui, les paramètres `variant_ref` et `variant_file` d'`install_model` étaient impossibles à
+  remplir. Une première version mettait ces options dans `get_ai_model` : c'est un outil de lecture
+  ouvert à tous, qui aurait écrit en base. Retirée ; `get_ai_model` rend la note de banc.
+
+Contre-épreuve : un GGUF d'une tâche qu'Ollama n'exécute pas reste un téléchargement du Hub, par
+exemple MiniMax-Music3, lu par audio.cpp.
+
+Tests : `tests_ollama_hub_gguf` (14), plus la garde des outils d'écriture de
+`RouteUniqueDInstallationTest`.
+
+Restes :
+- ⏳ Éprouver par l'assistant `get_install_options` → `install_model` sur PaddleOCR-VL-1.6,
+  Chandra-OCR-2 et LightOnOCR-3-1B, puis vérifier en base la tâche `ocr`, le select du reader et
+  une exécution.
+- ⏳ L'OCR d'Albert (LightOnOCR-2) n'a pas de backend : le rôle `backend` refuse un modèle distant,
+  faute de snapshot à lire. Le patron existe (`AlbertTranscriptionBackend`).
+- ⏳ Évaluation interne par profil d'entrée (manuscrit d'abord), sortie structurée du reader vers
+  le Writer.

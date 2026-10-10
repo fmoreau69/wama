@@ -1,90 +1,93 @@
 """
-Telecharge un modele (Ollama ou HuggingFace) et l'enregistre dans le catalogue WAMA.
-Etape 2 du systeme d'auto-maintenance : accept->download->register.
+Installe un modele par la ROUTE d'installation — la demande du bouton « Installer » et de
+l'assistant (`request_install` : garde d'espace disque, idempotence, tache Celery suivie au model
+manager, journal voie `cli`). Les workers Celery doivent tourner.
 
-Ollama (nom sans '/') :
-  python manage.py pull_model bge-m3
-  python manage.py pull_model qwen3.6:35b-a3b
-
-HuggingFace (repo avec '/') — telecharge dans le dossier de la categorie (model_dir) :
-  python manage.py pull_model black-forest-labs/FLUX.1-dev --category diffusion
-  python manage.py pull_model <org/repo> --dry-run        # valide juste le dossier cible
-  (si une entree 'recommended' existe pour ce hf_id, la categorie est deduite automatiquement)
-
-Une CLE (ligne du catalogue ou candidat de prospection) — la DEMANDE du bouton « Installer » :
+Une CLE (ligne du catalogue ou candidat de prospection) :
   python manage.py pull_model avatarizer:codeformer
-  (`request_install`, la route unique depuis l'exterieur : garde d'espace disque, idempotence,
-  tache Celery suivie au model manager, journal voie `cli`. Les workers doivent tourner.)
-  Pour TOUS les modeles et librairies d'une app : `install_requires <app> --apply`.
+  python manage.py pull_model huggingface:depthpro
+
+Un depot HuggingFace (`org/repo` ou son adresse) — la ligne du catalogue qui le porte, sinon sa
+PROPOSITION (recherche nommee `seed_hf_search`, celle de l'assistant), puis la demande :
+  python manage.py pull_model black-forest-labs/FLUX.1-dev
+
+Pour TOUS les modeles et librairies d'une app : `install_requires <app> --apply`.
+
+⚠ 2026-10-10 : la branche depot HF telechargeait elle-meme (`pull_hf_model`, `--category`) — sans
+garde d'espace, sans candidat, sans journal : une entree parallele a la route unique du 19/09.
+Elle passe par la route ; `--category`/`--family`/`--dry-run` n'avaient pas d'autre usage.
+
+Ollama (nom sans '/') — ⏳ ENCORE en direct (`pull_ollama_model`), faute de proposition nommee
+pour un modele Ollama (decision attendue, PROSPECTION_PIPELINE §Suite du 2026-10-10, nuit) :
+  python manage.py pull_model bge-m3
 """
 from django.core.management.base import BaseCommand, CommandError
 
 
 class Command(BaseCommand):
-    help = "Telecharge un modele (Ollama ou HF) via API officielle puis re-synchronise le catalogue."
+    help = ("Installe un modele par la route du bouton « Installer » (cle, ou depot HF propose "
+            "puis demande) ; nom Ollama : en direct.")
 
     def add_arguments(self, parser):
-        parser.add_argument('name', help="Nom Ollama (ex: bge-m3) ou repo HF (ex: org/repo).")
-        parser.add_argument('--category', help="HF : categorie de dossier = valeur ModelType (diffusion/speech/vlm/vision/upscaling/ocr/music/llm/embedding/lipsync).")
-        parser.add_argument('--family', help="HF : sous-dossier famille (defaut = nom du repo).")
-        parser.add_argument('--dry-run', action='store_true', help="HF : ne pas telecharger, montrer le dossier cible.")
-        parser.add_argument('--no-sync', action='store_true', help="Ne pas re-synchroniser le catalogue apres.")
-        parser.add_argument('--timeout', type=int, default=1800)
+        parser.add_argument('name', help="Cle du catalogue, depot HF (org/repo) ou nom Ollama.")
+        parser.add_argument('--no-sync', action='store_true',
+                            help="Ollama : ne pas re-synchroniser le catalogue apres.")
+        parser.add_argument('--timeout', type=int, default=1800, help="Ollama : delai du pull.")
 
     def handle(self, *args, **options):
-        from wama.model_manager.services.model_installer import (
-            pull_ollama_model, pull_hf_model, register_after_install, _TYPE_CATEGORY)
-
-        name = options['name']
-        is_hf = '/' in name
-        prog = lambda s: self.stdout.write(f"  … {s}")
-
-        # Une CLE (ligne du catalogue, candidat) : la DEMANDE du bouton « Installer » et de
-        # l'assistant — un script d'installation d'app n'a plus a telecharger lui-meme.
         from wama.common.utils.model_keys import split_key
         from wama.model_manager.models import AIModel
+        from wama.model_manager.services.prospector import named_repo
+
+        name = options['name'].strip()
         if split_key(name)[0] or AIModel.objects.filter(model_key=name).exists():
             return self._request_install(name)
+        repo = named_repo(name)
+        if repo:
+            return self._hf_repo(repo)
+        return self._ollama(name, options)
 
-        if is_hf:
-            category = options.get('category')
-            if not category:
-                from wama.model_manager.models import AIModel
-                m = AIModel.objects.filter(hf_id=name).first()
-                if m:
-                    category = _TYPE_CATEGORY.get(m.model_type)
-            if not category:
+    def _hf_repo(self, repo):
+        """Le depot designe : sa ligne du catalogue, sinon sa proposition — ecrite au besoin par
+        la recherche nommee —, puis la demande. Jamais de telechargement hors de la route."""
+        from wama.model_manager.models import AIModel
+        from wama.model_manager.services.prospect_ollama import PROPOSED_PREFIX
+        from wama.model_manager.services.prospector import seed_hf_search
+
+        row = (AIModel.objects.filter(hf_id__iexact=repo, is_proposed=False)
+               .order_by('-is_downloaded').first())
+        if row is not None:
+            return self._request_install(row.model_key)
+        cand = AIModel.objects.filter(hf_id__iexact=repo, is_proposed=True).first()
+        if cand is None:
+            self.stdout.write(f"Proposition du depot {repo} (recherche nommee) …")
+            res = seed_hf_search(repo, max_retenus=1)
+            if not res.get('ok'):
+                raise CommandError(f"✗ {repo} : {res.get('error')}")
+            cand = AIModel.objects.filter(hf_id__iexact=repo, is_proposed=True).first()
+            if cand is None:
                 raise CommandError(
-                    "Modele HF : preciser --category (valeur ModelType : diffusion/speech/vlm/"
-                    "vision/upscaling/ocr/music/llm/embedding/lipsync).")
-            tag = ' (dry-run)' if options['dry_run'] else ''
-            self.stdout.write(f"Telechargement HF : {name} → categorie '{category}'{tag} …")
-            res = pull_hf_model(name, category, family=options.get('family'),
-                                dry_run=options['dry_run'], progress=prog)
-            if not res.get('ok'):
-                self.stderr.write(self.style.ERROR(f"✗ Echec : {res.get('error')}"))
-                return
-            if res.get('dry_run'):
-                self.stdout.write(self.style.SUCCESS(f"✓ (dry-run) dossier cible : {res['target']}"))
-                return
-            self.stdout.write(self.style.SUCCESS(f"✓ Telecharge dans {res['target']}"))
-        else:
-            self.stdout.write(f"Telechargement Ollama : {name} …")
-            res = pull_ollama_model(name, timeout=options['timeout'], progress=prog)
-            if not res.get('ok'):
-                self.stderr.write(self.style.ERROR(f"✗ Echec : {res.get('error')}"))
-                return
-            self.stdout.write(self.style.SUCCESS(f"✓ Telecharge ({res.get('status')})"))
+                    f"« {repo} » n'a pas ete propose ({res}) : sa tache n'entre pas dans le "
+                    "perimetre de la prospection (HF_TASKS) — rien n'est installe hors de la route")
+            self.stdout.write(f"  → proposition {cand.model_key}")
+        return self._request_install(cand.model_key)
 
+    def _ollama(self, name, options):
+        from wama.model_manager.services.model_installer import (
+            pull_ollama_model, register_after_install)
+
+        self.stdout.write(f"Telechargement Ollama : {name} …")
+        res = pull_ollama_model(name, timeout=options['timeout'],
+                                progress=lambda s: self.stdout.write(f"  … {s}"))
+        if not res.get('ok'):
+            raise CommandError(f"✗ Echec : {res.get('error')}")
+        self.stdout.write(self.style.SUCCESS(f"✓ Telecharge ({res.get('status')})"))
         if options['no_sync']:
             self.stdout.write("(catalogue non re-synchronise : --no-sync)")
             return
-        self.stdout.write("Re-synchronisation du catalogue …")
         sync = register_after_install()
         self.stdout.write(self.style.SUCCESS(
             f"✓ Catalogue re-synchronise (+{sync.added} ajoute(s), {sync.updated} maj)."))
-        if sync.errors:
-            self.stderr.write(self.style.WARNING(f"  {len(sync.errors)} erreur(s) de sync."))
 
     def _request_install(self, key):
         """`request_install` tel quel — le corps unique du geste « Installer » (2026-10-10 : une

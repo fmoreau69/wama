@@ -22904,3 +22904,14 @@ retirée. Signalés : jeton GitHub hors `external_sources`, marcheur sans garde 
 dur dans la carte, MuseTalk. Détail : `PROSPECTION_PIPELINE §Suite du 2026-10-10 (nuit)`.
 - 🔴 Relancer les workers reste nécessaire ; `pull_model avatarizer:codeformer` répond désormais
   « déjà installé » quand les fichiers sont là (refus `already_downloaded` du bouton).
+
+## §PALIER — 2026-10-10 (nuit, 2), « UNE route d'installation, tenue par des tests » — livré (commit de ce palier, non poussé)
+
+La garde d'espace disque était en place sur la route (bouton, assistant) — jamais retirée — mais
+deux entrées latérales l'évitaient : le marcheur `install_requires` (depuis le 31/08) et
+`pull_model <org/dépôt>`. Les deux passent par `request_install`. Profondeur du Lab installable
+par la route ; page du model manager : bouton « Installer » = règle du serveur, lien de carte =
+`platform_url`. Des tests figent la liste EXACTE des appelants des pilotes. Détail et 4 décisions
+attendues : `PROSPECTION_PIPELINE §Suite du 2026-10-10 (nuit, 2)`.
+- 🔴 Relancer gunicorn + workers : la page lit `installable` (nouveau Python) ; les lignes de
+  profondeur prennent leur `install_dir` à la prochaine synchronisation.

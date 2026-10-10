@@ -797,6 +797,17 @@ class AIModel(models.Model):
             return f"{BASE_SITE}/library/{famille}" if famille else None
         return None
 
+    @property
+    def is_installable(self):
+        """La ROUTE sait-elle installer cette ligne de catalogue ? — `spec_for_catalog_row`, la
+        regle meme de `request_install`. La page la LIT au lieu de la recopier (2026-10-10 : le
+        bouton « Installer » testait `hf_id` + `install_dir` en JavaScript, si bien qu'une ligne a
+        fichiers de version declares n'aurait pas eu de bouton). Un candidat a son propre geste."""
+        if self.is_proposed or self.is_downloaded:
+            return False
+        from .services.model_installer import spec_for_catalog_row
+        return spec_for_catalog_row(self) is not None
+
     # Un seul endroit a etendre pour brancher une plateforme de plus (Roboflow…).
     _URL_PAR_PLATEFORME = {
         'huggingface': 'https://huggingface.co/{id}',
@@ -906,6 +917,7 @@ class AIModel(models.Model):
             'platform_ref': self.platform_ref,
             'platform_url': self.platform_url,
             'platform_label': self.platform_label,
+            'installable': self.is_installable,
             'vram_gb': self.vram_gb,
             'ram_gb': self.ram_gb,
             'disk_gb': self.disk_gb,

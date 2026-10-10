@@ -31,6 +31,7 @@ class Command(BaseCommand):
         self.stdout.write(json.dumps(res, ensure_ascii=False, indent=2, default=str))
         if not res.get('ok'):
             self.stderr.write(self.style.ERROR(res.get('error') or
-                                               'au moins une librairie en échec/refus'))
+                                               'au moins une librairie ou un modèle en '
+                                               'échec/refus'))
         elif not o['apply']:
             self.stdout.write(self.style.NOTICE("Plan seul — rien n'a été installé."))

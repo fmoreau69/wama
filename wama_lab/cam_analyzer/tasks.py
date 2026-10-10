@@ -1836,8 +1836,9 @@ def compute_depth_task(self, session_id: str):
         session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
         model_key = depth_estimator.depth_model_for(session)
         if not depth_estimator.is_available(model_key):
-            from wama.common.backends.depth_engine import depth_model_spec
-            msg = f"Poids absents pour {model_key} (pull_model {depth_model_spec(model_key)['hf_id']})"
+            # La route du catalogue (2026-10-10) : la ligne déclare son `install_dir`.
+            msg = (f"Poids absents pour {model_key} — bouton « Installer » du model manager "
+                   f"(ligne huggingface:{model_key}) ou `pull_model huggingface:{model_key}`")
             mark_failed(session, 'depth', msg)
             _console(session.user_id, f"Profondeur : {msg}")
             return {'error': 'depth weights missing', 'session_id': session_id}

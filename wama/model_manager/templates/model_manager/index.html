@@ -1215,11 +1215,18 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     </div>
 
-                    ${model.hf_id ? `
+                    {% comment %} Le lien de la carte = `platform_url`, la page du modèle sur SA
+                    plateforme (HuggingFace, GitHub, Ollama…), repli `hf_id` compris — la même
+                    que l'action « Voir sur la plateforme ». Il était écrit vers HuggingFace
+                    depuis `hf_id` seul (2026-10-10). {% endcomment %}
+                    ${model.platform_url ? `
                         <div class="model-meta mt-2">
                             <i class="fas fa-link me-1"></i>
-                            <a href="https://huggingface.co/${model.hf_id}" target="_blank" class="text-info text-decoration-none">
-                                ${truncate(model.hf_id, 35)}
+                            <a href="${WamaApp.escapeHtml(model.platform_url)}" target="_blank" rel="noopener" class="text-info text-decoration-none"
+                               style="overflow-wrap: anywhere;" title="${WamaApp.escapeHtml(model.platform_label || '')}">
+                                ${WamaApp.escapeHtml(truncate(model.hf_id
+                                    || (model.platform_ref || '').split(':').slice(1).join(':')
+                                    || model.name, 35))}
                             </a>
                         </div>
                     ` : ''}`}
@@ -1638,12 +1645,12 @@ document.addEventListener('DOMContentLoaded', function() {
           when: function (m) { return !m.is_proposed && !!m.is_downloaded && !m.is_loaded; },
           onClick: function (m) { mmUninstallModel(m); } },
         {% comment %} Install EXPLICITE d'un modèle d'app non téléchargé (2026-08-27, cas
-        musicgen-melody) : spec dérivé serveur (hf_id + install_dir déclaré par la découverte),
-        tâche Celery, même suivi que les candidats. Le téléchargement au 1er usage reste le
-        filet pour les modèles sans install_dir. {% endcomment %}
+        musicgen-melody) : spec dérivé serveur, tâche Celery, même suivi que les candidats. Le
+        téléchargement au 1er usage reste le filet des lignes sans emplacement déclaré.
+        `installable` est la règle du SERVEUR (`spec_for_catalog_row`), lue telle quelle
+        (2026-10-10 : la page recopiait `hf_id` + `install_dir`). {% endcomment %}
         { label: 'Installer', icon: 'fas fa-download', cls: 'btn btn-sm btn-primary',
-          when: function (m) { return !m.is_proposed && !m.is_downloaded && !!m.hf_id
-                                      && !!((m.extra_info || {}).install_dir); },
+          when: function (m) { return !!m.installable; },
           onClick: function (m) { mmCatalogInstall(m); } },
         { expand: function (m) {
             return (Array.isArray(m.can_convert_to) ? m.can_convert_to : []).map(function (fmt) {
