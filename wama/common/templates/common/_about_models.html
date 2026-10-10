@@ -21,14 +21,14 @@ sont ceux des selects de l'app, les publications celles que l'auteur rattache à
                 pour Canary) : la première publication est celle du modèle, le reste se replie.{% endcomment %}
                 {% for p in m.publications|slice:":3" %}
                 <a href="{{ p.url }}" target="_blank" rel="noopener" class="text-warning me-3"
-                   title="Page Hugging Face de l'article : {{ p.hub_url }}">
-                    <i class="fas fa-file-alt me-1"></i>arXiv {{ p.id }}</a>
+                   {% if p.hub_url %}title="Page Hugging Face de l'article : {{ p.hub_url }}"{% endif %}>
+                    <i class="fas fa-file-alt me-1"></i>{{ p.label }}</a>
                 {% endfor %}
                 {% if m.publications|length > 3 %}
                 <details class="d-inline-block">
                     <summary class="text-warning">+{{ m.publications|length|add:"-3" }} autres</summary>
                     {% for p in m.publications|slice:"3:" %}
-                    <a href="{{ p.url }}" target="_blank" rel="noopener" class="text-warning me-3">arXiv {{ p.id }}</a>
+                    <a href="{{ p.url }}" target="_blank" rel="noopener" class="text-warning me-3">{{ p.label }}</a>
                     {% endfor %}
                 </details>
                 {% endif %}
@@ -37,7 +37,7 @@ sont ceux des selects de l'app, les publications celles que l'auteur rattache à
         {% endfor %}
     </ul>
     {% endfor %}
-    <p class="small text-light opacity-75 mt-3 mb-0">Publications déclarées par les auteurs sur la
-        fiche de leur modèle.</p>
+    <p class="small text-light opacity-75 mt-3 mb-0">Publications déclarées par les auteurs de
+        chaque modèle.</p>
 </div>
 {% endif %}

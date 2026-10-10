@@ -247,6 +247,11 @@
 </div>
 {% endblock %}
 
+{% comment %}Les MODÈLES de l'app (poids DeepFace au catalogue) et leurs publications, tirés du
+catalogue comme dans toutes les apps (2026-10-10). Servie sous /lab/, l'app n'a pas de
+current_app : elle se nomme. Ci-dessus, les LIBRAIRIES et méthodes, qui ne sont pas des modèles.{% endcomment %}
+{% block about_models %}<div data-about-models="/common/about/models/face_analyzer/"></div>{% endblock %}
+
 {% block help_content %}
 <div class="info-card">
     <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>

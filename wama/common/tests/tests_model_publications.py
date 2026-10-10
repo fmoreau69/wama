@@ -94,8 +94,11 @@ class AppModelsTest(TestCase):
         groups = self._groups([self.FIELD, dict(self.FIELD, name='second', label='Second')])
         self.assertEqual(1, len(groups))
 
-    def test_a_field_that_is_not_a_catalogue_select_lists_nothing(self):
-        self.assertEqual([], self._groups([{'name': 'lang', 'options_source': 'static'}]))
+    def test_without_a_catalogue_select_the_app_lists_the_models_it_declares(self):
+        # Since 2026-10-10 (Lab apps): no catalogue select → the rows whose source is the app.
+        group, = self._groups([{'name': 'lang', 'options_source': 'static'}])
+        self.assertEqual(('Modèles', ['LightOnOCR', 'docTR']),
+                         (group['label'], [m['name'] for m in group['models']]))
 
 
 class AboutFragmentTest(TestCase):
@@ -124,3 +127,33 @@ class AboutFragmentTest(TestCase):
                / 'app_modern_base.html').read_text(encoding='utf-8')
         self.assertIn('data-about-models="/common/about/models/{{ current_app }}/"', tpl)
         self.assertNotIn("common:app_about_models", tpl)
+
+
+class LabAppAndDoiTest(TestCase):
+    """2026-10-10: Face Analyzer (Lab world, no catalogue select, served under /lab/) shows the
+    models it declares; an author who cites a journal article is named by its DOI."""
+
+    def setUp(self):
+        AIModel.objects.create(model_key='face_analyzer:deepface-age', name='deepface-age',
+                               model_type='vision', source='face_analyzer',
+                               extra_info={'publications': ['10.35378/gujs.1794891']})
+
+    def test_a_doi_links_to_doi_org(self):
+        link, = mp.publication_links(AIModel(extra_info={'publications': ['10.35378/gujs.1794891']}))
+        self.assertEqual(('doi', 'DOI 10.35378/gujs.1794891', 'https://doi.org/10.35378/gujs.1794891'),
+                         (link['kind'], link['label'], link['url']))
+        # Counter-check: an arXiv identifier keeps its arXiv link.
+        self.assertEqual('https://arxiv.org/abs/2601.14251', mp.publication_links(
+            AIModel(extra_info={'publications': ['2601.14251']}))[0]['url'])
+
+    def test_an_app_without_catalogue_select_lists_the_models_it_declares(self):
+        with patch('wama.common.utils.param_schema.schema_for_app', return_value=[]):
+            group, = mp.app_models('face_analyzer')
+        self.assertEqual(['deepface-age'], [m['name'] for m in group['models']])
+
+    def test_the_fragment_answers_for_a_lab_app_that_declares_models(self):
+        self.client.force_login(get_user_model().objects.create_user('about_lab', password='x'))
+        with patch('wama.common.utils.param_schema.schema_for_app', return_value=[]):
+            r = self.client.get('/common/about/models/face_analyzer/')
+        self.assertEqual(200, r.status_code)
+        self.assertContains(r, 'https://doi.org/10.35378/gujs.1794891')

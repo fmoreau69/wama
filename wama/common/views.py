@@ -1641,10 +1641,13 @@ def app_about_models(request, app_id: str):
     from django.http import Http404
     from django.shortcuts import render
 
+    from wama.model_manager.models import ModelSource
+
     from .app_registry import APP_CATALOG
     from .services.model_publications import app_models
 
-    if app_id not in APP_CATALOG:
+    # Une app du catalogue, ou une app qui DÉCLARE des modèles sans y figurer (monde Lab).
+    if app_id not in APP_CATALOG and app_id not in ModelSource.values:
         raise Http404
     return render(request, 'common/_about_models.html', {'groups': app_models(app_id)})
 

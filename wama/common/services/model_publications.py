@@ -23,11 +23,25 @@ ARXIV_URL = 'https://arxiv.org/abs/{}'
 HUB_PAPER_URL = 'https://huggingface.co/papers/{}'
 
 
+DOI_URL = 'https://doi.org/{}'
+
+
 def publication_links(model) -> list:
-    """`[{id, url, hub_url}]` des publications d'une ligne du catalogue, dans l'ordre de la carte."""
+    """`[{id, kind, label, url, hub_url}]` des publications d'une ligne du catalogue, dans l'ordre
+    déclaré. Un identifiant est arXiv (celui des cartes Hugging Face) ou un DOI (`10.…`, ce que
+    citent les auteurs hors arXiv — DeepFace, revue, 2026-10-10)."""
     ids = (getattr(model, 'extra_info', None) or {}).get('publications') or []
-    return [{'id': i, 'url': ARXIV_URL.format(i), 'hub_url': HUB_PAPER_URL.format(i)}
-            for i in ids if isinstance(i, str) and i]
+    out = []
+    for i in ids:
+        if not isinstance(i, str) or not i:
+            continue
+        if i.startswith('10.'):
+            out.append({'id': i, 'kind': 'doi', 'label': f'DOI {i}', 'url': DOI_URL.format(i),
+                        'hub_url': ''})
+        else:
+            out.append({'id': i, 'kind': 'arxiv', 'label': f'arXiv {i}',
+                        'url': ARXIV_URL.format(i), 'hub_url': HUB_PAPER_URL.format(i)})
+    return out
 
 
 def app_models(app_id: str) -> list:
@@ -67,4 +81,15 @@ def app_models(app_id: str) -> list:
                            'publications': publication_links(m)})
         if models:
             groups.append({'label': field.get('label') or field.get('name') or '', 'models': models})
+    if not groups:
+        # Une app SANS select de catalogue (Face Analyzer, monde Lab, 2026-10-10) : ses modèles
+        # sont ceux qu'elle DÉCLARE elle-même (`AIModel.source`), découverts depuis son
+        # `model_config` — la même déclaration, lue autrement.
+        rows = AIModel.objects.filter(source=app_id, is_proposed=False).order_by('name')
+        models = [{'key': m.model_key, 'name': m.name or m.model_key,
+                   'description': m.description_short or m.description or '',
+                   'platform_url': getattr(m, 'platform_url', '') or '',
+                   'publications': publication_links(m)} for m in rows]
+        if models:
+            groups.append({'label': 'Modèles', 'models': models})
     return groups

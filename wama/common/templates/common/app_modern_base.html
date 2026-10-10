@@ -225,9 +225,11 @@
             dans les apps qui réécrivent leur À-propos. Chargés à l'ouverture de l'onglet
             (`wama-app-base.js`). Adresse LITTÉRALE : ce gabarit est relu à chaud par la prod, la
             route ne l'est qu'au rechargement — une balise url casserait toutes les apps d'ici là.{% endcomment %}
-            {% if current_app %}
+            {% comment %}Bloc surchargeable : une app hors du catalogue des apps (monde Lab, servie
+            sous /lab/) n'a pas de current_app — elle nomme son identifiant elle-même.{% endcomment %}
+            {% block about_models %}{% if current_app %}
             <div data-about-models="/common/about/models/{{ current_app }}/"></div>
-            {% endif %}
+            {% endif %}{% endblock %}
         </div>
 
         <!-- Onglet Aide -->

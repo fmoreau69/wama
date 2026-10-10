@@ -32,12 +32,15 @@
       "preferred_format": "h5"
     },
     "identity": {
-      "author": null,
+      "author": "Sefik Ilkin Serengil",
       "description_short": "Estimation d'âge — chargé seulement si « Âge & Genre » est activé",
       "hf_id": null,
-      "license": null,
+      "license": "mit",
       "model_type": "vision",
-      "platform_ref": null,
+      "platform_ref": "github:serengil/deepface_models",
+      "publications": [
+        "10.35378/gujs.1794891"
+      ],
       "source": "face_analyzer"
     },
     "prompts": {

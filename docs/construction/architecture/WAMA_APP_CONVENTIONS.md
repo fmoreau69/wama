@@ -489,6 +489,10 @@ La base fournit 4 onglets automatiquement. Chaque app **doit** remplir les 4 :
 > dans le manifeste `identity.publications` → `extra_info['publications']`). Une liste de moteurs
 > écrite à la main dans un `about_content` vieillit (celle du describer cite des modèles retirés) :
 > ne plus en écrire. Rattrapage des installés : `backfill_platform_refs --licenses --ecrire`.
+> Une app SANS select de catalogue (monde Lab : Face Analyzer, servie sous `/lab/`, donc sans
+> `current_app`) liste les modèles qu'elle DÉCLARE (`AIModel.source`) et se nomme en surchargeant
+> le bloc `about_models`. Une publication hors arXiv se déclare par son DOI (`10.…` →
+> doi.org) — cas des poids DeepFace, dont l'auteur cite un article de revue.
 
 ---
 
