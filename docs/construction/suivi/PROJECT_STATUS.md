@@ -22802,3 +22802,57 @@ remplacée), les restes de la clôture sont faits.
 - **Bases de test de la session supprimées** (les trois) ; aucun témoin restant en base.
 - ⚠ Le live sert déjà les deux JS corrigés (copiés dans `staticfiles/`) ; aucune relance requise
   pour ce complément (pas de Python modifié hors des gestes).
+
+
+## §CLÔTURE — 2026-10-07 → 10-10, « CLÉS D'INSTANCE SUR LA PAGE SOURCES + ILaaS + ARTIFICIAL ANALYSIS V2 » — clos (`df52f4d`, `aafff173` + commit de ce bloc, non poussés) — WAMA relancé par Fabien, migrations appliquées — 🔚 poser la clé ILaaS à réception et la mesurer
+
+Trois livrables, une décision de Fabien (07/10 : *« c'est la page Sources externes qui doit gérer
+les clés système »*). Détail : `WAMA_LLM.md` (blocs ILaaS et clés d'instance), `WAMA_HARNESS.md`
+chantier 5 (état), `WAMA_QUALITE.md` (constat musique corrigé).
+- **Artificial Analysis → contrat V2 gratuit** (`df52f4d`) : les `/api/v2/data/*` meurent le
+  2026-11-04 (410 Gone). Chemins `language/models/free` et `media/<famille>/models/free` ; banc LLM
+  PAGINÉ (sans la pagination, 3 pages sur 4 perdues en silence). Mesuré avec la vraie clé :
+  9 requêtes, 554 LLM, quota gratuit 100 / 24 h.
+- **Clés d'instance** (`aafff173`) : `accounts.InstanceApiKey` (base abstraite `ProviderKey`
+  commune avec `UserApiKey`), posée par un admin dans l'inspecteur de `/common/sources/` ;
+  `external_sources.api_key` = page puis `.env`. `ExternalSource.shareable` : ILaaS oui (clés
+  d'application), Albert non (quotas par compte). Un geste `api_keys.store_key`, un champ JS
+  `WamaKeyField` pour le profil et la page.
+- **ILaaS** déclarée (`ilaas`, `llm.ilaas.fr/v1`) — ⚠ **NON MESURÉE** : clé d'application demandée,
+  pas reçue. Chantier 5 du harnais : ① dérivation des fournisseurs OpenAI-compatibles faite,
+  ② `default_model` au registre pour les fournisseurs déclarés ; `SOURCE_PROVIDERS` connaît toute
+  source `llm` (un modèle `ilaas:*` partait sinon sur le moteur LOCAL).
+
+**Vérifié après la relance (10/10)** : `accounts/0028` et `model_manager/0023` appliquées ; la route
+de la clé d'instance répond (403 en anonyme, pas 404) ; `wama-key-field.js` servi ; la carte ILaaS
+affichée. Tests du périmètre sur HEAD `d1769f09` : **250 lancés, 1 rouge qui n'est pas de la
+session** (ci-dessous), puis **10/10** sur `InstanceKeyTest` après les deux gardes ajoutées à la
+clôture. Contre-épreuves faites (partage neutralisé ; clé d'instance retirée de `_key_models`) :
+rouge les deux fois. `check_redundancy` : 105, **0 dans les fichiers de la session**.
+
+**Rouge déclaré, pas de cette session** : `tests_external_sources.RegistreTest.
+test_les_bancs_de_performance_sont_ceux_de_benchmark_sync` — `benchmark_sync` lit une source
+`hf_bench` que `external_sources` ne déclare pas ; introduite par `d1769f09` (bancs fiables, 10/10).
+
+**Pendings** :
+- 🔚 **à la clé ILaaS** : la poser sur la page Sources, cocher « Partager », puis
+  `manage.py llm_gateway_check --provider ilaas` ; mesurer si `/models` porte la tâche (sinon la
+  vision est sous-déclarée par `default_remote_type='text-generation'`) et l'id réel du modèle par
+  défaut (`mistral-small-4-119b` = nom PUBLIÉ).
+- **Smoke navigateur jamais joué** (page Sources en admin, profil) : JS attesté par V8 seulement.
+- **`WAMA_MECANISMES.md` non régénéré** : `mecanismes.py` porte du WIP d'une autre instance ;
+  la régénération revient à qui le commitera (ou worktree de HEAD).
+- Chantier 5 ③ (délais et reprises par fournisseur) ⏳ ; les 7 fournisseurs sans source gardent
+  `CLOUD_DEFAULT_MODELS`.
+- Supprimer une clé (profil comme instance) ne retire pas ses modèles du catalogue : ni sur le
+  coup, ni à la sonde nocturne, qui ne relit que les clés posées. Préexistant côté profil, même
+  comportement côté instance — à trancher avec `retire_unlisted`.
+- AA V2 publie en GRATUIT musique (instrumental, chanté) et transcription (`aa_wer_index`) :
+  non branchés ; reste à voir si YuE2/MusicGen y figurent (`WAMA_QUALITE.md`).
+- ILaaS embeddings (`rag-api.ilaas.fr`, jeton à part) et transcription : non branchés (la voie
+  tracée pour la transcription : une sous-classe d'`albert_asr_backend`).
+- `HF_TOKEN` reste au `.env` (la bibliothèque HuggingFace lit l'environnement elle-même).
+- Budget de langue des noms de tests DÉPASSÉ par d'autres sessions (déjà dit par le fichier du
+  budget) ; la session y retire un nom français.
+
+Skill corrigé : `/commit-partiel` (le patch de `pick_hunks.py` est un fichier de SORTIE).

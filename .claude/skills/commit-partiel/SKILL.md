@@ -76,6 +76,10 @@ jusqu'à l'attraper aurait pris des hunks d'autrui. ✅ Sélectionner par **NUM�
 les avoir LUS un par un : `pick_hunks.py <fichier> <patch> <n1> <n2> …` (les numéros sont ceux de
 la ligne ANCIENNE, tels que `git diff -U0 | grep '^@@'` les affiche). Le script échoue si le
 compte retenu ne correspond pas aux numéros demandés — on ne peut pas en rater un en silence.
+⚠ **`<patch>` est le fichier de SORTIE** (vécu le 2026-10-07) : le script fait lui-même le
+`git diff -U0` du fichier — lui donner un diff pré-calculé en entrée et rediriger sa sortie
+écrase ce diff par les lignes « RETENU/laisse » qu'il imprime. Le patch se pose ensuite par
+`stage_by_oldlines.py <fichier> <patch>`, jamais par `git apply` (piège du 2026-09-26 ci-dessous).
 ⭐ *Le mot-clé est une heuristique ; la lecture des hunks est la mesure. Quand les deux
 divergent, c'est la lecture qui décide.*
 

@@ -349,3 +349,19 @@ class InstanceKeyTest(TestCase):
         self.assertIn('wama-key-field.js', self.client.get('/common/sources/').content.decode())
         self.client.force_login(self.user)
         self.assertNotIn('wama-key-field.js', self.client.get('/common/sources/').content.decode())
+
+    def test_the_models_an_instance_key_opens_enter_the_catalogue_discovery(self):
+        """Silent if broken: the catalogue would simply miss the models of the shared key."""
+        from wama.accounts.models import InstanceApiKey
+        from wama.model_manager.services.cloud_models import cloud_model_infos
+        InstanceApiKey.objects.create(source='ilaas', api_key='k', remote_listing=[
+            {'id': 'gemma-4-31b', 'name': 'gemma-4-31b', 'type': 'text-generation', 'aliases': []}])
+        self.assertIn('ilaas:gemma-4-31b', cloud_model_infos())
+
+    def test_the_nightly_refresh_rereads_the_instance_key_too(self):
+        from wama.accounts.models import InstanceApiKey
+        from wama.model_manager.services import cloud_models
+        row = InstanceApiKey.objects.create(source='ilaas', api_key='k')
+        with mock.patch.object(cloud_models, 'refresh_key', return_value=(0, '')) as refresh:
+            cloud_models.refresh_all_keys()
+        self.assertIn(row, [call.args[0] for call in refresh.call_args_list])
