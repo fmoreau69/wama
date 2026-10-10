@@ -131,6 +131,16 @@ le RENDU RÉEL, pas la structure du code.
   de brique globale (`MediaPicker`) sur 2 apps dès la 1re exécution (relevé du 19/08), sur des
   pages utilisées tous
   les jours. `node --check` ne voit que la syntaxe, jamais une erreur au chargement.
+- ⚠ **Une capture d'ÉLÉMENT hors de la zone visible d'un conteneur qui DÉFILE sort déformée**
+  (2026-10-10) : `locator('#llmKeysList').screenshot()` dans le volet droit, liste à y=941 dans une
+  fenêtre de 1000, rendait des lignes superposées et une police à empattements — on aurait conclu
+  au portage cassé. Les styles calculés étaient justes (`input-group` en flex, police système).
+  ✅ `scrollIntoView` de l'élément, puis capture de la PAGE ; et vérifier `getComputedStyle`
+  avant de déclarer un rendu cassé sur la foi d'une capture d'élément.
+- ⚠ **Une page réservée aux ADMINS se mesure sans forger de compte** (2026-10-10) : aucun compte
+  de test n'est admin. Donner le groupe `admin` à `wama_pw_smoke` le temps de la sonde, le retirer
+  dans le `finally` (avec ce que la sonde a écrit), et vérifier en sortie qu'il ne l'a plus —
+  jamais une session forgée sur un compte réel.
 - ⚠⚠ **Mesurer l'ÉLÉMENT que l'utilisateur regarde, pas son CONTENEUR** (2026-10-06). Smoke de
   Comparer dans la modale : il mesurait le calque `.wama-compare-top` (bonne boîte, rognage
   juste) et concluait « superposition OK » — pendant que l'`<img>` DANS ce calque était bornée par
