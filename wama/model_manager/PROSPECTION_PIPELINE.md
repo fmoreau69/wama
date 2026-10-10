@@ -2358,10 +2358,16 @@ PaddleOCR-VL-1.5/1.6, TeleOCR ; transcription : Hojo-ASR, Cohere Transcribe, Gra
 Phi-4-multimodal, Voxtral-Small ; embeddings : Qwen3-Embedding 4B/8B, EmbeddingGemma.
 Tests : `tests_prospection_sources` (18, deux contre-épreuves jouées).
 
-🔚 **Restes** : l'assistant n'a que la recherche NOMMÉE (`search_models`) — le verbe « Prospecter »
-du bouton ne lui est pas exposé ; un successeur installé n'est pas branché dans l'app de l'ancien
-(intégration par les rôles) ; deux versions d'une même famille peuvent être proposées ensemble
-(PaddleOCR-VL 1.5 et 1.6).
+✅ **Le verbe « Prospecter » pour l'assistant (même jour, GO de Fabien)** : outil
+`prospect_models` (gardé `model_manager`, comme `search_models` / `install_model`). Le corps du
+bouton est devenu un service, `prospector.run_prospection` (et `enqueue_after_prospection`, ex-
+`views._enqueue_after_prospect`) : la vue et l'outil appellent le MÊME — câblage seul. Et
+`list_ai_models` rend désormais la note de banc (`benchmark` : valeur, échelle, sens, source,
+provenance) : sans elle, l'assistant ne pouvait comparer des candidats que par leur popularité.
+
+🔚 **Restes** : un successeur installé n'est pas branché dans l'app de l'ancien (intégration par
+les rôles) ; deux versions d'une même famille peuvent être proposées ensemble (PaddleOCR-VL 1.5
+et 1.6).
 
 **Suite du 2026-10-10 — GaterV3, première installation GitHub par Celery, première adoption.**
 - **GaterV3** : tâche `denoise` par DÉCISION de Fabien (restauration 1×, comme IRCNN 1×) — le

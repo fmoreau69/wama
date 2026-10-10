@@ -2161,8 +2161,9 @@ def list_ai_models(user, app: str = None, task: str = None, modality: str = None
 
     Returns:
         {"models": [{"key","name","app","type","vram_gb","task","modalities",
-                     "downloaded","loaded","quality_index","description"}],
-         "count", "truncated"}
+                     "downloaded","loaded","quality_index","benchmark","description"}],
+         "count", "truncated"} — `benchmark` = third-party score {value, scale, direction,
+         source, provenance} or null; compare two models only on the SAME scale.
     """
     from wama.model_manager.models import AIModel
 
@@ -2191,9 +2192,22 @@ def list_ai_models(user, app: str = None, task: str = None, modality: str = None
         'downloaded': m.is_downloaded,
         'loaded': m.is_loaded,
         'quality_index': m.quality_index,
+        'benchmark': _benchmark_summary(m),
         'description': m.description_short or '',
     } for m in qs[:max(1, min(int(limit or 50), 200))]]
     return {'models': models, 'count': total, 'truncated': total > len(models)}
+
+
+def _benchmark_summary(m):
+    """La note de banc TIERS d'une ligne (`benchmark_sync`), ou None — ce qui permet à
+    l'assistant de comparer des candidats par la qualité mesurée, pas par leur popularité.
+    Deux valeurs ne se comparent que sur la même `scale` ; `direction` dit le sens."""
+    if m.benchmark_index is None:
+        return None
+    meta = m.benchmark_meta or {}
+    return {'value': m.benchmark_index, 'scale': meta.get('scale'),
+            'direction': meta.get('direction', 'higher'), 'source': meta.get('source'),
+            'provenance': meta.get('provenance')}
 
 
 def get_ai_model(user, model_key: str) -> dict:
@@ -2224,7 +2238,9 @@ def get_ai_model(user, model_key: str) -> dict:
     }
 
 
-# ── model_manager : les DEUX gestes du bouton, pour l'assistant ──────────────────────
+# ── model_manager : les gestes de la page, pour l'assistant ──────────────────────────
+# (deux le 2026-09-19 ; « Prospecter » les rejoint le 2026-10-10 — `prospect_models`, même
+# frontière que `search_models` : il n'écrit que des PROPOSITIONS rejetables d'un clic.)
 #
 # Alignement des routes (2026-09-19, décision validée par Fabien) : « l'assistant prend les
 # mêmes verbes que le bouton ». `search_models` = ce que fait le champ « Rechercher un
@@ -2271,6 +2287,39 @@ def search_models(user, query: str, limit: int = 10, max_results: int = 5) -> di
     if not res.get('ok'):
         return {'error': res.get('error', 'recherche HuggingFace indisponible')}
     return {k: v for k, v in res.items() if k != 'ok'}
+
+
+def prospect_models(user) -> dict:
+    """
+    PROSPECT for new models and record them as PROPOSALS — same verb as the page's
+    "Prospecter" button (one body, `prospector.run_prospection`). Nothing is downloaded.
+
+    Sources, each in its own scope: the Ollama library (new models per role, named successors),
+    Hugging Face (successors DECLARED by the author on the card, top models per task), and the
+    benchmark LEADERBOARDS — the best-ranked repositories of each benchmark tied to a task
+    (OCR, transcription, embeddings…), proposed with their rank. Third-party benchmarks, then
+    the confidence jury, follow in the background.
+
+    Takes a few minutes. Then read the proposals with
+    list_ai_models(include_proposed=True, task=...) — compare them by `benchmark` — and install
+    one with install_model. To look for a model you can NAME, use search_models instead.
+
+    Returns:
+        {"total", "sources": {source: {"created","updated","removed","total"} | {"error"}},
+         "benchmarks_enqueued", "assess_enqueued"}
+    """
+    from wama.model_manager.services.prospector import run_prospection
+
+    summary = run_prospection()
+    sources = {}
+    for label in ('hf_successors', 'hf', 'benchmarks'):
+        part = summary.get(label) or {}
+        sources[label] = ({'error': part['error']} if part.get('error') else
+                          {k: part.get(k) for k in ('created', 'updated', 'removed', 'total')})
+    sources['ollama'] = {k: summary.get(k) for k in ('created', 'updated', 'removed')}
+    return {'total': summary.get('total', 0), 'sources': sources,
+            'benchmarks_enqueued': summary.get('benchmarks_enqueued'),
+            'assess_enqueued': summary.get('assess_enqueued')}
 
 
 def install_model(user, model_key: str, force: bool = False,
@@ -3295,6 +3344,8 @@ TOOL_REGISTRY = {
     # le bloc de commentaire au-dessus de `search_models` pour la frontière exacte.
     'search_models':  search_models,
     'install_model':  install_model,
+    # …et le troisième geste de la page (2026-10-10) : « Prospecter », même corps que le bouton.
+    'prospect_models': prospect_models,
     # Les 3 ROUTES D'INTÉGRATION en PLAN (2026-09-03, trou #2 de l'audit) — librairie pip,
     # modèle, projet GitHub→app. LECTURE SEULE : elles disent l'ÉTAT et le PROCHAIN GESTE
     # HUMAIN, elles n'installent ni n'ingèrent rien (SPEC §2.1 : le write-back est un geste
@@ -3401,6 +3452,7 @@ TOOL_APP_OVERRIDE = {
     # réservée aux développeurs/admins comme la page elle-même (2026-09-19).
     'search_models':       'model_manager',
     'install_model':       'model_manager',
+    'prospect_models':     'model_manager',
     # Médiathèque : RANGER un fichier À SOI y est un geste TRANSVERSE, pas l'usage de l'app
     # `media_library` (décision Fabien, 2026-09-11 : « on rend commun et on porte sur les apps
     # de façon universelle »). Il était gaté sur `media_library` du seul FAIT DE SON NOM — le

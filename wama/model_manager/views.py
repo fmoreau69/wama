@@ -1795,53 +1795,14 @@ def api_check_disk_space(request):
 # et l'outil de l'AI-Assistant, et une garde qui vit dans une vue ne protège que cette vue.
 
 
-def _enqueue_after_prospect() -> dict:
-    """La suite de « Prospecter » : bancs tiers PUIS jury LLM, dans cet ordre.
-
-    • Les bancs s'enchaînent depuis le 2026-09-01 (décision Fabien) : purement réseau, et c'est
-      le moment UTILE — les lignes `proposed:` qui viennent de naître n'ont pas encore de banc.
-    • Le jury avait été DÉTACHÉ le 2026-08-19 : enchaîné sur l'Ollama hôte, il faisait tomber
-      Windows à chaque prospection. Cause retenue : l'alimentation, remplacée le 21/09
-      (`PROJECT_STATUS §NOTE 2026-09-21`) ; rebranché le 2026-09-23 à la demande de Fabien,
-      derrière `PROSPECT_ASSESS_AUTO` et jamais sous `WAMA_GPU_SAFE_MODE`.
-    • CHAÎNE et non deux `.delay()` : le jury LIT le banc dans son contexte
-      (`prospect_agents._benchmark_line`). Lancés côte à côte, il jugeait des candidats encore
-      sans banc. Chaque maillon garde sa route (bancs : `default` ; jury : `gpu`, palier basse).
-    • Une passe de jury déjà vivante n'est pas doublée (même garde que le bouton).
-    """
-    from django.conf import settings as _settings
-
-    from wama.common.services.resource_governor import gpu_safe_mode
-    from wama.common.utils.task_progress import progression_en_cours
-
-    from .tasks import ASSESS_CACHE_KEY, assess_proposed_task, sync_benchmarks_task
-    assess = (getattr(_settings, 'PROSPECT_ASSESS_AUTO', False) and not gpu_safe_mode()
-              and not progression_en_cours(ASSESS_CACHE_KEY))
-    try:
-        if assess:
-            # L'état TERMINÉ d'une passe précédente survit dans le cache (TTL) : le suivi
-            # d'écran le lirait comme la fin de CELLE-CI avant même que le jury démarre.
-            from django.core.cache import cache
-            cache.delete(ASSESS_CACHE_KEY)
-            (sync_benchmarks_task.si() | assess_proposed_task.si()).apply_async()
-        else:
-            sync_benchmarks_task.delay()
-        return {'benchmarks_enqueued': True, 'assess_enqueued': bool(assess)}
-    except Exception:
-        # Broker indisponible : la prospection reste valable, les deux signaux attendront.
-        logger.warning("suite de la prospection non enfilée", exc_info=True)
-        return {'benchmarks_enqueued': False, 'assess_enqueued': False}
-
-
 @login_required
 @user_passes_test(is_admin_or_dev)
 @require_POST
 def api_prospect_ollama(request):
-    """On-demand : lance la prospection Ollama + HuggingFace et écrit les candidats proposés,
-    puis enfile la suite de la chaîne (`_enqueue_after_prospect` : bancs tiers → jury LLM).
-    Les candidats `new` naissent sans confiance (`confidence=None` — l'heuristique d'âge ne
-    vaut que pour les `update`) ; le jury la remplit au fil de l'eau."""
-    from .services.prospect_ollama import prospect_ollama
+    """On-demand : la prospection complète (`prospector.run_prospection` — Ollama, Hugging Face,
+    classements, puis bancs tiers → jury LLM en file), ou la recherche NOMMÉE (`seed_hf_search`).
+    Le corps est un service depuis le 2026-10-10 : l'outil `prospect_models` de l'assistant
+    appelle le MÊME (« l'assistant prend les mêmes verbes que le bouton »)."""
     try:
         try:
             corps = json.loads(request.body or b'{}') or {}
@@ -1859,24 +1820,8 @@ def api_prospect_ollama(request):
             return JsonResponse({'success': True,
                                  'summary': {'search': res, 'total': res.get('total', 0),
                                              'assess_enqueued': False}})
-        summary = prospect_ollama()
-        # ── Hugging Face — même clic, une source par périmètre : une panne de l'une ne doit
-        # faire échouer ni la prospection Ollama ni les autres. Dans CET ordre : les
-        # successeurs d'abord (un dépôt visé par une MAJ n'est pas reproposé en « nouveau »),
-        # puis le balayage par tâche (HF_TASKS), puis les classements (2026-10-10), qui
-        # reprennent un candidat du balayage avec son rang.
-        from .services import prospector
-        for label, seed in (('hf_successors', prospector.seed_hf_successors),
-                            ('hf', prospector.seed_hf_candidates),
-                            ('benchmarks', prospector.seed_benchmark_candidates)):
-            try:
-                summary[label] = seed()
-                summary['total'] = (summary.get('total') or 0) + summary[label]['total']
-            except Exception:
-                logger.warning("prospection %s en échec", label, exc_info=True)
-                summary[label] = {'error': 'indisponible'}
-        summary.update(_enqueue_after_prospect())
-        return JsonResponse({'success': True, 'summary': summary})
+        from .services.prospector import run_prospection
+        return JsonResponse({'success': True, 'summary': run_prospection()})
     except Exception as e:
         logger.exception("api_prospect_ollama failed")
         return JsonResponse({'success': False, 'error': str(e)}, status=500)

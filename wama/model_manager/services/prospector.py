@@ -1309,6 +1309,71 @@ def seed_hf_successors(workers: int = 8) -> dict:
     return summary
 
 
+def enqueue_after_prospection() -> dict:
+    """La suite de « Prospecter » : bancs tiers PUIS jury LLM, dans cet ordre (ex-
+    `views._enqueue_after_prospect`, déplacée le 2026-10-10 pour être partagée avec l'assistant).
+
+    • Les bancs s'enchaînent depuis le 2026-09-01 (décision Fabien) : purement réseau, et c'est
+      le moment UTILE — les lignes `proposed:` qui viennent de naître n'ont pas encore de banc.
+    • Le jury avait été DÉTACHÉ le 2026-08-19 : enchaîné sur l'Ollama hôte, il faisait tomber
+      Windows à chaque prospection. Cause retenue : l'alimentation, remplacée le 21/09
+      (`PROJECT_STATUS §NOTE 2026-09-21`) ; rebranché le 2026-09-23 à la demande de Fabien,
+      derrière `PROSPECT_ASSESS_AUTO` et jamais sous `WAMA_GPU_SAFE_MODE`.
+    • CHAÎNE et non deux `.delay()` : le jury LIT le banc dans son contexte
+      (`prospect_agents._benchmark_line`). Lancés côte à côte, il jugeait des candidats encore
+      sans banc. Chaque maillon garde sa route (bancs : `default` ; jury : `gpu`, palier basse).
+    • Une passe de jury déjà vivante n'est pas doublée (même garde que le bouton).
+    """
+    from django.conf import settings as _settings
+
+    from wama.common.services.resource_governor import gpu_safe_mode
+    from wama.common.utils.task_progress import progression_en_cours
+
+    from ..tasks import ASSESS_CACHE_KEY, assess_proposed_task, sync_benchmarks_task
+    assess = (getattr(_settings, 'PROSPECT_ASSESS_AUTO', False) and not gpu_safe_mode()
+              and not progression_en_cours(ASSESS_CACHE_KEY))
+    try:
+        if assess:
+            # L'état TERMINÉ d'une passe précédente survit dans le cache (TTL) : le suivi
+            # d'écran le lirait comme la fin de CELLE-CI avant même que le jury démarre.
+            from django.core.cache import cache
+            cache.delete(ASSESS_CACHE_KEY)
+            (sync_benchmarks_task.si() | assess_proposed_task.si()).apply_async()
+        else:
+            sync_benchmarks_task.delay()
+        return {'benchmarks_enqueued': True, 'assess_enqueued': bool(assess)}
+    except Exception:
+        # Broker indisponible : la prospection reste valable, les deux signaux attendront.
+        logger.warning("suite de la prospection non enfilée", exc_info=True)
+        return {'benchmarks_enqueued': False, 'assess_enqueued': False}
+
+
+def run_prospection() -> dict:
+    """
+    Le verbe « Prospecter » — corps UNIQUE du bouton du model manager et de l'outil
+    `prospect_models` de l'assistant (2026-10-10). Rend le résumé, ne lève pas pour une source.
+
+    Une source par périmètre : une panne de l'une ne fait échouer ni Ollama ni les autres. Dans
+    CET ordre : Ollama, puis les successeurs (un dépôt visé par une MAJ n'est pas reproposé en
+    « nouveau »), le balayage par tâche (`HF_TASKS`), les classements, qui reprennent un candidat
+    du balayage avec son rang. Puis la suite en file (bancs tiers → jury).
+    """
+    from .prospect_ollama import prospect_ollama
+
+    summary = prospect_ollama()
+    for label, seed in (('hf_successors', seed_hf_successors),
+                        ('hf', seed_hf_candidates),
+                        ('benchmarks', seed_benchmark_candidates)):
+        try:
+            summary[label] = seed()
+            summary['total'] = (summary.get('total') or 0) + summary[label]['total']
+        except Exception:
+            logger.warning("prospection %s en échec", label, exc_info=True)
+            summary[label] = {'error': 'indisponible'}
+    summary.update(enqueue_after_prospection())
+    return summary
+
+
 def seed_candidate_from_manifest(manifest: dict) -> dict:
     """
     Écrit/rafraîchit un CANDIDAT de prospection depuis un manifeste `model` — le chemin du

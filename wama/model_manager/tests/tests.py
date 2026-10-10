@@ -2010,7 +2010,7 @@ class RouteUniqueDInstallationTest(TestCase):
         """Ce sont les seuls outils qui écrivent côté modèles : ils suivent le gating de la
         page (développeurs/admins), pas celui des lectures transverses."""
         from wama.tool_api import TOOL_APP_OVERRIDE, TOOL_REGISTRY
-        for nom in ('search_models', 'install_model'):
+        for nom in ('search_models', 'install_model', 'prospect_models'):
             self.assertIn(nom, TOOL_REGISTRY)
             self.assertEqual(TOOL_APP_OVERRIDE.get(nom), 'model_manager', nom)
 
@@ -3212,13 +3212,14 @@ class ProspectChainTest(TestCase):
     """
 
     def _run(self, *, auto=True, safe=False, running=None):
-        from .. import tasks, views
+        from .. import tasks
+        from ..services import prospector
         with override_settings(PROSPECT_ASSESS_AUTO=auto, WAMA_GPU_SAFE_MODE=safe), \
                 patch.object(tasks, 'sync_benchmarks_task') as bench, \
                 patch.object(tasks, 'assess_proposed_task') as assess, \
                 patch('wama.common.utils.task_progress.progression_en_cours',
                       return_value=running):
-            out = views._enqueue_after_prospect()
+            out = prospector.enqueue_after_prospection()
         return out, bench, assess
 
     def test_bench_then_jury_in_one_chain(self):

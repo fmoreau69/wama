@@ -231,3 +231,50 @@ class SuccessorCandidatesTest(TestCase):
             source='ollama', is_proposed=True, proposal_kind='update',
             extra_info={'prospect': {'origin_key': 'ollama:qwen3.5:9b', 'cible': 'qwen3.6:27b'}})
         self.assertEqual(('qwen3.5:9b', 6.6), replaced_model(cand))
+
+
+class ProspectVerbTest(TestCase):
+    """« Prospecter » (2026-10-10): the assistant's `prospect_models` and the page's button share
+    ONE body (`run_prospection`) — the assistant takes the same verbs as the page."""
+
+    SUMMARY = {'created': 1, 'updated': 2, 'removed': 0, 'total': 9,
+               'hf_successors': {'created': 1, 'updated': 0, 'removed': 0, 'total': 1},
+               'hf': {'error': 'indisponible'},
+               'benchmarks': {'created': 5, 'updated': 0, 'removed': 1, 'total': 5,
+                              'boards_ok': ['ocr-olmocr-bench']},
+               'benchmarks_enqueued': True, 'assess_enqueued': False}
+
+    def test_the_tool_runs_the_shared_body_and_reports_each_source(self):
+        from django.contrib.auth import get_user_model
+        from wama import tool_api
+        user = get_user_model().objects.create_user('prospect_verb', password='x')
+        with patch.object(p, 'run_prospection', return_value=dict(self.SUMMARY)) as run:
+            out = tool_api.prospect_models(user)
+        run.assert_called_once_with()
+        self.assertEqual(9, out['total'])
+        self.assertEqual({'error': 'indisponible'}, out['sources']['hf'])
+        self.assertEqual(5, out['sources']['benchmarks']['created'])
+        self.assertEqual({'created': 1, 'updated': 2, 'removed': 0}, out['sources']['ollama'])
+
+    def test_the_button_runs_the_same_body(self):
+        from django.contrib.auth import get_user_model
+        user = get_user_model().objects.create_superuser('prospect_button', password='x')
+        self.client.force_login(user)
+        with patch.object(p, 'run_prospection', return_value=dict(self.SUMMARY)) as run:
+            r = self.client.post('/model-manager/api/prospect/ollama/', '{}',
+                                 content_type='application/json')
+        self.assertEqual(200, r.status_code, r.content[:200])
+        run.assert_called_once_with()
+        self.assertEqual(9, r.json()['summary']['total'])
+
+    def test_one_failing_source_does_not_stop_the_others(self):
+        with patch('wama.model_manager.services.prospect_ollama.prospect_ollama',
+                   return_value={'created': 0, 'updated': 0, 'removed': 0, 'total': 0}), \
+                patch.object(p, 'seed_hf_successors', side_effect=RuntimeError('offline')), \
+                patch.object(p, 'seed_hf_candidates', return_value={'total': 2}), \
+                patch.object(p, 'seed_benchmark_candidates', return_value={'total': 3}), \
+                patch.object(p, 'enqueue_after_prospection',
+                             return_value={'benchmarks_enqueued': True, 'assess_enqueued': False}):
+            out = p.run_prospection()
+        self.assertEqual({'error': 'indisponible'}, out['hf_successors'])
+        self.assertEqual(5, out['total'])
