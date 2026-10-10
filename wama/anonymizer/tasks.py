@@ -9,6 +9,7 @@ from wama.common.backends import anonymize
 from .utils.yolo_utils import get_model_path
 from wama.common.app_registry import normalize_types
 from wama.common.utils.media_paths import get_app_media_path
+from .utils.media_utils import sane_classes
 from .utils.sam3_manager import check_sam3_installed, validate_sam3_prompt
 from wama.common.utils.console_utils import push_console_line
 
@@ -239,7 +240,7 @@ def _detection_kwargs(media, user):
         # Assaini : un vieux chemin de sauvegarde a injecté le BOOLÉEN sérialisé 'false'
         # dans des listes de classes (médias 220/221/225 constatés le 2026-08-17) — une
         # classe est un nom, jamais true/false/none/vide.
-        'classes2blur': _classes_saines(media.classes2blur),
+        'classes2blur': sane_classes(media.classes2blur),
         'detection_threshold': media.detection_threshold,
         'precision_level': precision_level,
         'use_segmentation': use_segmentation,
@@ -717,13 +718,6 @@ def process_user_media_batch(self, user_id):
 # ----------------------------------------------------------------------
 # Helpers
 # ----------------------------------------------------------------------
-def _classes_saines(classes) -> list:
-    """Filtre les intrus non-classe d'une liste classes2blur ('false' booléen sérialisé par
-    un ancien chemin de sauvegarde — constat 2026-08-17). Une classe est un NOM."""
-    return [c for c in (classes or [])
-            if isinstance(c, str) and c.strip().lower() not in ('true', 'false', 'none', '')]
-
-
 def set_media_progress(media_id: int, percent: int) -> None:
     """Persist media progress in cache and DB (clamped 0..100)."""
     try:

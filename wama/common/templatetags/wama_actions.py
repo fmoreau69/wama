@@ -373,3 +373,25 @@ def lot_slot(app):
         return None
     return {'accept': ','.join('.' + e for e in SUPPORTED_BATCH_EXTENSIONS),
             'formats': ' · '.join(e.upper() for e in SUPPORTED_BATCH_EXTENSIONS)}
+
+
+@register.inclusion_tag('common/_surface_button.html')
+def surface_button(app, key, item):
+    """Le bouton ÉDITER (`edit-btn`, nom canonique du 2026-08-23) qui ouvre la SURFACE `key` de
+    l'élément (chantier SURFACES, 2026-10-10). Il se DÉDUIT de la déclaration (`<app>/surfaces.py`) :
+    rendu seulement si la surface existe, ACTIF seulement si elle s'ouvre sur cet élément — sinon
+    grisé, avec la raison en info-bulle (une action qui n'a pas lieu reste visible, comme ⬇)."""
+    from django.urls import reverse
+    from wama.common.surfaces import surface
+    found = surface(app, key)
+    if found is None:
+        return {'shown': False}
+    ok, reason = found.can_open(item)
+    corrections = getattr(item, found.edits, None) or {}
+    return {
+        'shown': True, 'ok': ok,
+        'url': reverse('common:surface', args=[app, key, item.pk]),
+        'title': found.label if ok else reason,
+        # État du geste, rendu par le CSS commun de `edit-btn` (contour plein = corrigé).
+        'state': 'done' if corrections else 'none',
+    }

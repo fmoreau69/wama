@@ -389,6 +389,44 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       Elle apporterait au chantier les vues VIDÉO (image courante abonnée à l'axe, avant/après,
       masque de zone). Moteur pressenti, contrat de tâche manquant et route d'intégration :
       `ROADMAP §16.2 « LiveEdit »` (décisions D-c/D-d/D-e).
+  - ✅ **OUVERTURE DU CHANTIER — 2026-10-10, 1ʳᵉ surface : la correction des détections de
+    l'anonymizer** (décisions de Fabien le jour même ; elles répondent à `§13`) :
+    - **`§13` tranché** : pas d'archétype figé ni d'UI générée — une page d'édition se COMPOSE de
+      BRIQUES déclarées, **universelles** (Médias, Data, Lab, Studio : jamais une brique « d'app »),
+      chacune **déplaçable et redimensionnable** sur la page ; les briques s'ajouteront dans le
+      **Studio sous forme de diagramme** (palette = le même registre) ; un **catalogue des
+      briques** les rend consultables (registre `ui_bricks`) — pas la médiathèque ;
+    - **construit** : registre `common/surfaces.py` (`UIBrick` : ce qu'elle consomme dans les
+      vocabulaires EXISTANTS, ce qu'elle émet, son script ; `Surface` : emplacements, champs lus
+      par rôle, champ ÉCRIT + validation, process que l'écriture périme) ; vues communes
+      `common/surface_views.py` (`/common/surface/<app>/<clé>/<pk>/` page, `data/`, `save/`,
+      droits = lire la card / `editable_or_404`) ; gabarit `common/surface.html` ; noyau JS
+      `common/js/surfaces/wama-surface.js` (grille **gridstack 13.3.0** vendorisée, disposition
+      gardée par utilisateur et réinitialisable, contexte et sélection partagés, **historique
+      commun `wama-history.js`** — 3ᵉ consommateur après le transcriber et le studio) ; trois
+      briques : `image_boxes` (canvas : zoom, déplacement, tracé, sélection, retrait,
+      redimensionnement — 500 boîtes sans 500 éléments DOM), `object_list`, `surface_actions` ;
+      tag `{% surface_button %}` = le bouton canonique `edit-btn`, grisé avec sa raison ;
+    - **la donnée** : une couche de CORRECTIONS à part du document du détecteur
+      (`Media.detection_corrections`, `detections.apply_corrections`, miroir JS
+      `wama-detections.js` tenu par un test de PARITÉ exécuté sous V8), SURVEILLÉE par le Floutage
+      (`BLUR_WATCHED`) : enregistrer le périme, « Appliquer » le rejoue par la route commune
+      `<app>:start_process` ;
+    - **images d'abord** (décision) : la vidéo attend l'AXE commun de ce chantier — la surface le
+      dit (« La correction s'ouvre sur une image ; la vidéo viendra avec le lecteur commun ») ;
+    - **éprouvé** : 10 tests (`tests_surfaces`, dont la contre-épreuve de parité) ; smoke
+      navigateur (serveur éphémère WSL) : tracé, annuler/rétablir, déplacement d'un panneau,
+      disposition gardée, 0 erreur console — il a révélé que le focus clavier ne tient pas dans
+      une grille gridstack (raccourcis écoutés sur le document) ; live : file 200, 3 boutons
+      actifs (images détectées), 27 grisés.
+    - ⚠ **Vocabulaire** : le paramètre `<surface>` des routes `api/partage/<surface>/…` désigne la
+      clé du registre d'aperçu (une app), PAS une surface au sens de `§10.6` — les routes neuves
+      disent `<app>`.
+    - ⏳ **Restes** : l'éditeur de diagramme du Studio (palette `ui_bricks`) ; la page catalogue
+      des briques ; la disposition côté serveur (aujourd'hui stockage local du navigateur) ; la
+      vidéo (axe commun) ; l'évaluation dans l'anonymizer (corrections = vérité terrain, WIDER
+      FACE val, `WAMA_APPRENTISSAGE §8bis`) ; porter vers ces briques les pilotes en attente
+      (YuE2, retouche Imager).
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
   `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
 - **Manifeste** : inspector adapter (mapping champs→clés canoniques), preview binding sur port,

@@ -320,6 +320,19 @@ MECHANISMS = (
               "depuis le 10/10, `models_per_class` en ajoute plusieurs par classe (rappel d'abord) "
               "et les départage par leur taux manqué MESURÉ quand le lot entier l'est",
               'wama/common/services/model_coverage.py', ''),
+    Mechanism('surfaces', 'Surfaces — pages d\'édition composées de briques',
+              "Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit et "
+              "sa validation, process que l'écriture périme), servie par des vues COMMUNES et "
+              "composée de briques UI universelles — déplaçables, redimensionnables (gridstack), "
+              "historique commun. 1ʳᵉ surface : la correction des détections de l'anonymizer "
+              "(2026-10-10). Registre `ui_bricks` = le catalogue des briques",
+              'wama/common/surfaces.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
+              annexes=('wama/common/surface_views.py',
+                       'wama/common/templates/common/surface.html',
+                       'wama/common/static/common/js/surfaces/wama-surface.js',
+                       'wama/common/static/common/js/wama-detections.js',
+                       'wama/common/tests/tests_surfaces.py')),
     Mechanism('detection_ensemble', 'Détection par un ensemble de modèles',
               "L'UNION des documents `detections` de plusieurs détecteurs, quelle que soit leur "
               "famille (2026-10-10) : les modèles ultralytics ensemble par `Anonymize`, chacun des "

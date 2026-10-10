@@ -346,6 +346,30 @@ register(Registry(
 ))
 
 
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# BRIQUES UI (2026-10-10, ouverture du chantier SURFACES) — décision de Fabien : un CATALOGUE des
+# briques (« consulter ce qui existe »), pas une ressource de la médiathèque. Universelles :
+# Médias, Data, Lab, Studio. Le Studio lira la même liste pour sa palette de diagramme.
+
+def _ui_bricks():
+    from wama.common.surfaces import BRICKS, load_all
+    load_all()
+    return BRICKS
+
+
+register(Registry(
+    key='ui_bricks', label='Briques UI', nature=DERIVED,
+    source="`common/surfaces.py` — briques déclarées (ce qu'elles consomment, émettent, leur "
+           "script) ; les surfaces des apps les composent",
+    count=lambda: len(_ui_bricks()),
+    entries=lambda: {key: brick.to_dict() for key, brick in _ui_bricks().items()},
+    doc='docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
+    description="Les briques dont une page d'édition se COMPOSE — déplaçables, redimensionnables, "
+                "communes à tous les mondes. Déclarées par le code : la liste ne peut pas être "
+                "périmée, il n'y a rien à actualiser.",
+))
+
+
 register(Registry(
     key='licenses', label='Licences', nature=DERIVED,
     source="Agrégation de `AIModel`, `Library`, médias et des `requires` des manifestes d'app",

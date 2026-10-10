@@ -98,6 +98,10 @@ Contexte : elem (décoré par _decorate_card → elem.chips), in_batch, user.
           <i class="fas fa-cog"></i>
         </button>
         {% include 'common/_cycle_button.html' with id=elem.id status=elem.shown_state|default:elem.status %}
+        {% comment %}✎ ÉDITER (2026-10-10, chantier SURFACES) : ouvre la surface DÉCLARÉE
+        `anonymizer.review` (`anonymizer/surfaces.py`) — corriger les zones d'une image. Grisé, avec
+        sa raison, quand elle ne s'ouvre pas (vidéo, aucune détection).{% endcomment %}
+        {% surface_button 'anonymizer' 'review' elem %}
         {% comment %}⬇ : brique commune (2026-08-23). Remplace un `<form method="post">` — la
         seule app dont le téléchargement n'était pas un lien. Un POST n'est pas une navigation :
         ni clic-droit « Enregistrer sous », ni nouvel onglet, et un rechargement redemandait la

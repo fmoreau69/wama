@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**190 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**193 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -101,7 +101,7 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une li
 - **Module** : Gouvernance des ressources WAMA (GPU / CPU / RAM) — POINT D'ENTRÉE UNIQUE.
 - **API publique** (52) :
   - `configure_cuda_process() -> bool` — Plafonne l'allocateur CUDA de CE process à `ALLOCATOR_CAP_FRACTION` de la
-  - `total_vram_gb() -> float` — VRAM physique de la carte, 0.0 si pas de GPU.
+  - `total_vram_gb() -> float` — VRAM physique de la carte, 0.0 si pas de GPU — la SEULE mesure de WAMA (2026-10-10).
   - `owner_pid(owner: str) -> int | None` — Pid porté par une clé d'owner (`<module>.<Classe>:<pid>#…`, `composer.audiocpp:<pid>`),
   - `reserve_vram(owner: str, gb: float, *, allocated: bool=False, expires_in_s: float | None=None) -> bool` — Déclare que `owner` détient `gb` de VRAM. Écrase la ligne existante du même
   - `release_reservation(owner: str) -> bool` — Libère la RÉSERVATION de `owner` dans le registre Redis. Sans effet s'il n'en avait pas.
@@ -364,27 +364,33 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
 
 - **Domicile** : `wama/model_manager/services/bench.py` · **doc** : [docs/construction/suivi/ROADMAP.md §16.2](../construction/suivi/ROADMAP.md)
 - **Module** : Banc de comparaison de modeles, indexe sur la TACHE et non sur l'app.
-- **API publique** (3) :
+- **API publique** (6) :
   - `models_for_task(task: str, *, installed_only: bool=True)` — Modeles du catalogue qui declarent cette tache. Le catalogue est la seule source.
+  - `read_recall_reference(sample: str) -> dict` — La reference d'un banc de rappel (JSON) : `media` (chemin, relatif au fichier ou
+  - `containment_counts(doc: dict, ref: dict) -> dict` — Les comptes du rappel par contenant — sans interpretation (cf. en-tete du protocole).
+  - `recall_candidates(sample: str) -> list` — Les modeles a mesurer pour une reference : detecteurs installes qui couvrent sa classe.
   - `available_tasks() -> list` — Taches pour lesquelles un protocole existe — les autres restent a ecrire.
   - `run_bench(task: str, sample: str, *, models: Optional[list]=None, **options) -> list` — Passe chaque modele de `tache` sur `echantillon` et rend des mesures comparables.
 
 ### Benchmark tiers confronté
 
-Étage 2 qualité (a priori < benchmark < mesure) : AA + Elo Arena (texte, image, vidéo, VISION, document) + Open ASR (WER, sens 'bas') + MTEB (embeddings, jeu FRANÇAIS déclaré) appariés au catalogue, prospection incluse
+Étage 2 qualité (a priori < benchmark < mesure) : AA + Elo Arena (texte, image, vidéo, VISION, document) + Open ASR (WER, sens 'bas') + MTEB (embeddings, jeu FRANÇAIS déclaré) appariés au catalogue, prospection incluse. Depuis le 10/10 : la MUSIQUE d'AA (chansons, instrumental) et les CLASSEMENTS des jeux de référence officiels du Hub (olmOCR-Bench, MDPBench, Real5-OmniDocBench, ParseBench — valeurs déclarées, `provenance` par entrée) ; appariement par DÉPÔT exact avant la famille + version ; `provenance` (indépendant / vérifié / auto-déclaré) et `matched_by` écrits avec chaque banc, rang centile réservé aux bancs indépendants ; banc mis en file À L'INSTALLATION (`queue_benchmarks`), synchro chaque nuit, cache disque des sources
 
-- **Domicile** : `wama/model_manager/services/benchmark_sync.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §REPRISE 2026-08-18](../construction/suivi/PROJECT_STATUS.md)
+- **Domicile** : `wama/model_manager/services/benchmark_sync.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
 - **Module** : Signal qualité « BENCHMARK TIERS CONFRONTÉ » — 2e étage de l'échelle des signaux.
-- **API publique** (9) :
+- **API publique** (12) :
   - `class SourceUnavailable(Exception)` — Réseau/clé/format absents — la source est SKIPPÉE, jamais un score partiel inventé.
   - `load_aa()` — {'categorie': [{'nom','slug','valeur','echelle','identite'}]} ; motifs par catégorie.
   - `load_arena()` — {'categorie': [{'nom','elo','votes','identite'}]} depuis le dataset HF officiel
   - `load_open_asr()` — {'categorie': [{'nom','slug','wer','identite','rtfx','licence','taille_b','jeux'}]}
+  - `load_hf_benchmarks()` — {'catégorie': [entrées]} depuis le CLASSEMENT des jeux de référence OFFICIELS du Hub
   - `load_mteb()` — {'embedding': [{'nom','slug','score','identite','taches','revision'}]} depuis le dépôt
   - `benchmarks_comparable(pool) -> bool` — Vrai si les `benchmark_index` du lot peuvent être ORDONNÉS entre eux.
   - `orderable_value(m)` — La valeur d'un `benchmark_index` telle qu'on peut la TRIER (plus grand = meilleur), ou
+  - `category_task(cat: str)` — La tâche du catalogue qu'un banc mesure — lecture INVERSE de `TASK_TO_BENCH_CATEGORY`,
+  - `leaderboard_repos(cache: str='read')` — Les CLASSEMENTS comme source de DÉCOUVERTE (2026-10-10, demande de Fabien) :
   - `percentile_rank(value, population, key, direction: str='higher')` — Position de `valeur` dans la population de SON banc, en centiles (0-100), ou None.
-  - `synchronize(dry_run: bool=False, include_proposed: bool=True)` — Apparie le catalogue (téléchargés + candidats de prospection `proposed:`) aux deux
+  - `synchronize(dry_run: bool=False, include_proposed: bool=True, keys=None, cache: str='off')` — Apparie le catalogue (téléchargés + candidats de prospection `proposed:`) aux deux
 
 ### Cache HF scopé — dernier recours
 
@@ -397,29 +403,32 @@ Bascule TEMPORAIRE du cache HuggingFace, restaurée en sortie : le levier D de `
 
 ### Clé de catalogue ↔ identifiant
 
-UNE lecture de `<source>:<identifiant>` pour tout WAMA : seul le PREMIER segment est la source, reconnue au vocabulaire `ModelSource` (`ollama:qwen3:4b` → `qwen3:4b`, là où un `rsplit` rendait `4b`). `catalog_key` est la tolérance d'ENTRÉE d'une app passée aux clés entières (valeur nue → sa source, `auto` intact). Née au portage F4b de l'imager (2026-09-29) ; consommée par l'imager, l'ETA (`make_key`) et `declaration_for`. ⚠ Une douzaine de conversions à la main vivent encore dans le dépôt (relevé du 29/09) — elles s'y rallient au fil des portages, pas en passe aveugle
+UNE lecture de `<source>:<identifiant>` pour tout WAMA : seul le PREMIER segment est la source, reconnue au vocabulaire `ModelSource` (`ollama:qwen3:4b` → `qwen3:4b`, là où un `rsplit` rendait `4b`). `catalog_key` est la tolérance d'ENTRÉE d'une app passée aux clés entières (valeur nue → sa source, `auto` intact). Née au portage F4b de l'imager (2026-09-29) ; consommée par l'imager, l'ETA (`make_key`) et `declaration_for`. ⚠ Une douzaine de conversions à la main vivent encore dans le dépôt (relevé du 29/09) — elles s'y rallient au fil des portages, pas en passe aveugle. `backend_model_id` (2026-10-07) est l'AUTRE lecture : l'identifiant qu'un backend déclare dans `SUPPORTED_MODELS` (dernier segment, règle de `backend_for_model`, écrite quatre fois en ligne jusque-là) — elle seule sépare de `model_id` une clé à trois segments (`github:owner/repo:tag`)
 
 - **Domicile** : `wama/common/utils/model_keys.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F4b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Clé de CATALOGUE d'un modèle ↔ identifiant dans sa source — UNE sémantique pour tout WAMA.
-- **API publique** (4) :
+- **API publique** (5) :
   - `auto_task(value) -> str` — La tâche d'un « auto » borné (`auto:text-to-music` → `text-to-music`), sinon ''.
   - `split_key(value: str) -> tuple` — `(source, identifiant)` — source vide quand la valeur n'est pas une clé de catalogue.
   - `model_id(value: str) -> str` — L'identifiant DANS sa source : `imager:hunyuan-image-2.1` → `hunyuan-image-2.1`. Une
+  - `backend_model_id(value: str) -> str` — L'identifiant qu'un backend DÉCLARE dans son `SUPPORTED_MODELS` : le DERNIER segment de la
   - `catalog_key(value: str, default_source: str) -> str` — La clé de catalogue d'une valeur de modèle : une clé est rendue telle quelle, un
 
 ### Couverture multi-modèles
 
-Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisation)
+Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisation) ; depuis le 10/10, `models_per_class` en ajoute plusieurs par classe (rappel d'abord) et les départage par leur taux manqué MESURÉ quand le lot entier l'est
 
 - **Domicile** : `wama/common/services/model_coverage.py`
 - **Module** : Couverture multi-modèles : quelle COMBINAISON de modèles couvre un ensemble de classes.
-- **API publique** (7) :
+- **API publique** (9) :
   - `normaliser_classe(nom: str) -> str` — 'License_Plate' → 'license plate' · 'FACE' → 'face'.
   - `formes_equivalentes(nom: str) -> set` — Toutes les écritures normalisées équivalentes à `nom` (lui-même si aucun alias connu).
   - `classes_couvertes(m, voulues) -> set` — Accès PUBLIC à l'appariement d'alias : sous-ensemble de `voulues` (vocabulaire de
   - `size_of_name(name: str) -> str` — Accès PUBLIC à la lecture de taille (chantier C, 2026-09-20) : un appelant qui affiche ou
   - `size_for_intent(intent) -> str` — Curseur 0-100 → taille préférée ('n' ≤ 20, 's' ≤ 40, 'm' ≤ 60, 'l' ≤ 80, sinon 'x').
   - `segmentation_for_intent(intent) -> bool` — Curseur 0-100 → préférer la segmentation (≥ `SEGMENTATION_THRESHOLD`).
+  - `miss_metric(cls: str) -> str` — La métrique de taux manqué pour `cls` — `plate` et `license_plate` en partagent une.
+  - `measured_miss_rates(model_keys, cls: str) -> dict` — `{model_key: taux manqué}` des modèles MESURÉS pour `cls` sur une même référence — les
   - `couvrir_classes(classes, *, source: str='', model_type: str='vision', budget_vram_gb: float | None=None, taches_admises=(), preferer_segmentation: bool=False,…` — Ensemble MINIMAL de modèles couvrant `classes`, par recouvrement glouton.
 
 ### Découverte de modèles
@@ -431,6 +440,16 @@ Découverte unifiée des modèles (apps + sources externes), synchronisée vers 
 - **API publique** (2) :
   - `class ModelInfo` — Unified model information structure.
   - `class ModelRegistry` — Central registry for all WAMA models.
+
+### Détection par un ensemble de modèles
+
+L'UNION des documents `detections` de plusieurs détecteurs, quelle que soit leur famille (2026-10-10) : les modèles ultralytics ensemble par `Anonymize`, chacun des autres par SON backend (porte `backend_instance_for_key`). Un détecteur image par image n'écrit que `detect_frames` : la boucle sur le média est commune (`FrameDetectionBackend` — SAM3, EgoBlur, RT-DETR). Consommé par l'anonymizer et par le banc de rappel (`bench --task detect-recall`), qui mesure par le MÊME chemin
+
+- **Domicile** : `wama/common/services/detection_ensemble.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
+- **Module** : Détection par un ENSEMBLE de modèles — l'union de leurs documents `detections` (2026-10-10).
+- **API publique** (2) :
+  - `engine_of(model_key: str) -> str` — Le moteur DÉCLARÉ au catalogue (`composition.runtime.engine`) — '' si inconnu.
+  - `detect_with_models(models, *, user=None, source_dir=None, destination_dir=None, **kwargs) -> dict` — Le document `detections` de l'ENSEMBLE `models` sur le média de `kwargs['media_path']`.
 
 ### Indice de qualité a priori
 
@@ -446,11 +465,11 @@ Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×a
 
 ### Installation de modèles
 
-Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue
+Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, `pull_model <clé>` ; garde d'espace disque, tâche Celery, journal) ; le marcheur d'app `install_requirements` pour tous les requis d'une app. Un pilote INTERNE (`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, 2026-10-07) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à fichier (empreinte d'un fichier en place : `provenance.sha256_of`)
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (30) :
+- **API publique** (40) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(hf_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -461,6 +480,15 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `components_for_spec(spec: dict, *, files=None) -> dict` — Poids par composant de ce qu'un descripteur désigne — `{}` si indéterminable.
   - `yolo_task_of(name: str) -> str` — Tâche (`ModelTask`) d'un poids YOLO, déduite du suffixe de son nom — `detect` par défaut.
   - `pull_yolo_weights(name: str, timeout: int=600, dry_run: bool=False)` — Télécharge des poids YOLO OFFICIELS (assets GitHub Ultralytics, URL stable
+  - `github_release_of(ref: str) -> tuple` — `owner/repo:tag` → (`owner/repo`, `tag`) ; ('', '') si la forme n'y est pas.
+  - `github_platform_ref(ref: str) -> str` — `owner/repo:tag` → `github:owner/repo/releases/tag/<tag>` ('' si la forme n'y est pas).
+  - `github_ref_of_platform(platform_ref: str) -> str` — L'inverse : `github:owner/repo/releases/tag/<tag>` → `owner/repo:tag`, sinon ''.
+  - `github_spec_error(spec: dict)` — Motif de refus d'un descripteur `github`, ou None — pendant de `vendor_spec_error`.
+  - `github_asset_url(spec: dict) -> str` — Adresse de téléchargement de l'asset, dérivée de la source déclarée `github` (comme
+  - `github_release_dir(spec: dict) -> str` — Dossier du modèle : `<catégorie>/<famille ou tag>/github--owner--repo/<tag>`.
+  - `pull_github_asset(spec: dict, timeout: int=600, dry_run: bool=False) -> dict` — Télécharge l'asset d'une version GitHub DANS LE BON DOSSIER (cf. l'en-tête du pilote).
+  - `pull_github_files(spec: dict, timeout: int=600, dry_run: bool=False) -> dict` — Les fichiers d'une version GitHub qu'une app DÉCLARE, posés SOUS son dossier
+  - `download_asset(url: str, target: str, *, timeout: int=600, min_bytes: int=0, sha256: str='', proxies=None) -> dict` — Télécharge UN fichier publié (asset de version GitHub…) vers `target`, sans jamais laisser
   - `register_after_install()` — Re-synchronise le catalogue `AIModel` pour que le modèle fraîchement installé apparaisse.
   - `replaced_model(cand)` — (nom Ollama de l'ancien modèle, espace qu'il rendra en Go) pour un candidat successeur,
   - `disk_space_guard(ref: str, *, reclaim_gb: float=0.0, force: bool=False, needed_gb: float | None=None)` — Refuse une installation qui saturerait le volume. Retourne None si l'installation peut
@@ -474,6 +502,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `patterns_from_composition(composition) -> list | None` — `allow_patterns` DÉRIVÉS d'une `composition` déclarée (manifeste `model`,
   - `install_from_spec(spec: dict, token=None) -> dict` — Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
   - `record_provenance(spec: dict, res: dict) -> dict` — Après un téléchargement réussi : sync du catalogue, puis provenance des lignes apparues.
+  - `queue_benchmarks(res: dict, appeared_keys) -> None` — Met en file le BANC TIERS des modèles qu'on vient d'installer (2026-10-10).
   - `pip_spec_error(spec: str)` — Motif de refus d'un spécificateur pip, ou None s'il passe les verrous syntaxiques.
   - `pip_constraint_errors(constraints) -> list` — Motifs de refus des contraintes pip — mêmes verrous qu'un spécificateur.
   - `pip_install_packages(packages, timeout: int=1800, no_deps: bool=False, constraints=None) -> dict` — Installe des paquets pip dans le venv courant — pour rendre un backend disponible quand un
@@ -507,11 +536,11 @@ Date chaque installation et désinstallation (modèle, librairie) avec son issue
 
 ### Prospection de modèles
 
-Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run)
+Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; versions GitHub lues sur `github_api` (fichiers, licence et facteur DÉCLARÉS, empreinte lue ou MESURÉE) pour le scout (`--github owner/repo:tag`, 2026-10-07) ; les CLASSEMENTS des bancs (tâche et rang, `seed_benchmark_candidates`) et les SUCCESSEURS déclarés par l'auteur (`new_version`, `seed_hf_successors`) sont des sources de candidats (2026-10-10)
 
 - **Domicile** : `wama/model_manager/services/prospector.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Prospection de modèles — version DÉTERMINISTE (sans LLM, sans scraping).
-- **API publique** (19) :
+- **API publique** (30) :
   - `hf_task_to_wama(pipeline_tag: str, tags=())` — (tâche NÔTRE, model_type) d'un dépôt HF, d'après son tag de pipeline ET les tags de sa
   - `card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str='') -> dict` — Ce que la CARTE HuggingFace dit d'un modèle, traduit en faits WAMA — MÉCANIQUEMENT, jamais
   - `prospect_hf(task: str, limit: int=15, library: str | None=None, min_downloads: int=0, search: str | None=None, sort: str='downloads')` — Top modèles HF d'une `task` (par téléchargements), avec flag « déjà dans WAMA ».
@@ -526,20 +555,32 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run)
   - `install_options(cand) -> dict` — Options d'installation EXPLICITES d'un candidat HF : poids pleins + variantes quantisées,
   - `spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | None` — Le SPEC d'installation qui respecte le choix validé par l'utilisateur, ou None si le choix
   - `seed_hf_candidates(limit: int=12, min_downloads: int=1000, tasks=None) -> dict` — Candidats `is_proposed` depuis la bibliothèque HuggingFace — pendant HF de la découverte
+  - `class HubRateLimited(Exception)` — Le Hub refuse encore (429) après l'attente qu'il demande : la passe s'arrête, et ce qu'elle
+  - `seed_benchmark_candidates(per_category: int=BENCH_CANDIDATES_PER_CATEGORY, tasks=None, cache: str='read') -> dict` — Candidats `is_proposed` tirés des CLASSEMENTS (2026-10-10, demande de Fabien) : pour chaque
+  - `hf_successor(repo: str, max_depth: int=5, api=None)` — `(chaîne, info du dernier)` des NOUVELLES VERSIONS qu'un auteur déclare sur la carte de son
+  - `seed_hf_successors(workers: int=8) -> dict` — Candidats de MISE À JOUR des modèles Hugging Face installés, désignés par leur auteur
+  - `enqueue_after_prospection() -> dict` — La suite de « Prospecter » : bancs tiers PUIS jury LLM, dans cet ordre (ex-
+  - `run_prospection() -> dict` — Le verbe « Prospecter » — corps UNIQUE du bouton du model manager et de l'outil
   - `seed_candidate_from_manifest(manifest: dict) -> dict` — Écrit/rafraîchit un CANDIDAT de prospection depuis un manifeste `model` — le chemin du
   - `seed_yolo_candidate(name: str) -> dict` — Candidat de prospection pour des poids YOLO OFFICIELS demandés PAR LEUR NOM.
+  - `github_release(ref: str)` — La version `owner/repo:tag` telle que l'API GitHub la publie (dict), `{}` si elle
+  - `github_release_license(release: dict) -> str` — Licence DITE par le texte de la version (« License: CC BY 4.0 »), sinon '' — jamais
+  - `github_release_scale(release: dict)` — Facteur que le texte de la version DÉCLARE (« Scale: 4 »), sinon None — jamais déduit du
+  - `pinned_github_asset(ref: str, asset: str, release: dict=None) -> dict` — {'asset', 'size', 'sha256', 'measured'} de l'asset d'une version, ou {'error'}.
+  - `github_spec_from_manifest(manifest: dict) -> dict` — Descripteur `github` d'un manifeste `model` de source `github`, empreinte ÉPINGLÉE —
   - `named_repo(query: str)` — Le dépôt HF qu'une requête DÉSIGNE — URL de page (`https://huggingface.co/org/nom`, avec ou
   - `seed_hf_search(query: str, limit: int=10, max_retenus: int=5) -> dict` — Prospection CIBLÉE : cherche `query` dans les noms de dépôts HF (toutes tâches de
   - `apply_recommendations(candidates, source: str, task: str)` — Crée/maj des entrées `recommended` dans le catalogue pour les candidats NOUVEAUX (pas déjà
 
 ### Provenance de modèle
 
-Identité chez l'éditeur (licence, auteur, plateforme), posée VIA le manifeste
+Identité chez l'éditeur (licence, auteur, plateforme, publications arXiv de la carte), posée VIA le manifeste ; les publications s'affichent dans l'onglet « À propos » de chaque app (modèles de ses selects de catalogue, 2026-10-10)
 
 - **Domicile** : `wama/model_manager/services/provenance.py`
 - **Module** : Identité d'un modèle chez son éditeur — et pose de cette identité PAR LE MANIFESTE.
-- **API publique** (6) :
+- **API publique** (7) :
   - `huggingface_identity(hf_id: str) -> Optional[dict]` — `{license, author, platform_ref, hf_id, gated}` lu sur la carte du dépôt, ou None si injoignable.
+  - `arxiv_ids(tags) -> list` — Les identifiants arXiv qu'une carte Hugging Face rattache au modèle, dans son ordre.
   - `ollama_identity(name: str) -> Optional[dict]` — Identité d'un modèle Ollama. La plateforme n'expose ni licence ni auteur exploitables par
   - `cloud_identity(item: dict) -> Optional[dict]` — Identité d'un modèle DISTANT : le dépôt HuggingFace que le fournisseur sert, quand il le
   - `identity_for_spec(spec: dict) -> Optional[dict]` — Identité déductible du descripteur d'installation (`install_from_spec`).
@@ -554,6 +595,22 @@ Décrit une image via un modèle multimodal Ollama local (bench, smoke UI, fichi
 - **Module** : Sonde vision via Ollama — décrire une image avec un modèle multimodal local (gemma4:12b, e4b…). Sert au bench (d) : comparer des modèles candidats sur de vraies images WAMA, en français.
 - **API publique** (1) :
   - `describe_image_ollama(image_path: str, model: str='', prompt: str | None=None, timeout: int=180, keep_alive: str | None=None)` — Décrit une image via un modèle vision Ollama LOCAL. Retourne {'ok', 'description'|'error'}.
+
+### Surfaces — pages d'édition composées de briques
+
+Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit et sa validation, process que l'écriture périme), servie par des vues COMMUNES et composée de briques UI universelles — déplaçables, redimensionnables (gridstack), historique commun. 1ʳᵉ surface : la correction des détections de l'anonymizer (2026-10-10). Registre `ui_bricks` = le catalogue des briques
+
+- **Domicile** : `wama/common/surfaces.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : SURFACES et BRIQUES UI — le registre (2026-10-10, ouverture du chantier SURFACES).
+- **API publique** (8) :
+  - `class UIBrick`
+  - `class BrickSlot` — Une brique placée sur une surface : position et taille PAR DÉFAUT (l'utilisateur les
+  - `class Surface`
+  - `register_brick(brick: UIBrick) -> UIBrick`
+  - `register_surface(surface: Surface) -> Surface`
+  - `surface(app: str, key: str) -> Optional[Surface]`
+  - `surfaces_of(app: str) -> list`
+  - `load_all() -> dict` — Importe les déclarations de surfaces des apps installées (idempotent).
 
 ### Sélection de modèle
 
@@ -917,14 +974,15 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
 
 - **Domicile** : `wama/model_manager/services/cloud_models.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Modèles DISTANTS au catalogue — découverte par la clé d'un UTILISATEUR (ROADMAP §8d Phase 3, 4b).
-- **API publique** (17) :
+- **API publique** (18) :
   - `abilities_for(task: str, remote_type: str='') -> dict` — Drapeaux `ModelAbility` qu'une TÂCHE distante garantit — ceux que `select_model(requires=…)`
   - `class CloudDiscoveryError(RuntimeError)` — Découverte impossible — message lisible par l'utilisateur, jamais la clé.
   - `task_and_type(remote_type: str)` — (tâche NÔTRE, model_type) d'un type annoncé par le fournisseur, ou (None, None).
-  - `list_remote_models(source: str, api_key: str, timeout: float=20.0) -> list` — Modèles ouverts à `api_key` chez `source` : [{id, name, type, aliases}].
+  - `type_from_modalities(architecture: dict) -> str` — Type (tag HuggingFace) d'un modèle décrit par ses MODALITÉS — la forme d'OpenRouter
+  - `list_remote_models(source: str, api_key: str, timeout: float=20.0) -> list` — Modèles ouverts à `api_key` chez `source` : [{id, name, type, aliases[, cost_tier]}].
   - `declared_listing(source: str) -> list` — Liste DÉCLARÉE d'un fournisseur sans liste de modèles (abonnement Claude Code : le CLI
   - `model_info_for(source: str, item: dict)` — `ModelInfo` d'un modèle distant rangeable, ou None si aucun vocabulaire ne sait le ranger.
-  - `cloud_model_infos() -> dict` — `{model_key: ModelInfo}` de TOUS les modèles distants qu'une clé d'utilisateur ouvre —
+  - `cloud_model_infos() -> dict` — `{model_key: ModelInfo}` de TOUS les modèles distants qu'une clé posée ouvre — la
   - `keys_for(source: str, listing: list) -> list` — Clés de catalogue des modèles rangeables d'une liste — ce que `UserApiKey.open_models` garde.
   - `retire_unlisted(source: str) -> int` — Marque indisponibles les lignes distantes de `source` qu'AUCUNE clé n'ouvre plus, et remet
   - `refresh_key(row, background: bool=False) -> tuple` — Relit chez le fournisseur les modèles ouverts à la clé `row` (`accounts.UserApiKey`), puis
@@ -1008,11 +1066,11 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
 
 ### Partage d'un élément ou d'un lot (1ʳᵉ interface)
 
-LE GESTE qui manquait au mécanisme de visibilité : `PROFILES_PERMISSIONS §7.5` disait « il n'existe AUCUNE interface de partage » (il fallait l'admin Django). Écrit `visibility` + son scope sur l'élément ET son lot — ou sur le lot ET ses éléments : les DEUX sens sont exigés, le filtre de lecture s'appliquant aux deux niveaux (un lot partagé aux éléments privés s'affiche VIDE chez le destinataire). Portées OFFRABLES dérivées de l'utilisateur (unités qui le couvrent, projets dont il est membre) : une portée sans cible réelle n'est pas proposée. Lecture seule par construction — l'écriture est le jalon S3 `AccessGrant`, et la modale le DIT. Depuis le 2026-10-01 : « Dupliquer » une card reçue (`scoping.duplicable_or_404`) et « Transférer à… » (`card_transfer` : possédés déplacés, désignés copiés). Depuis le 2026-10-02 : le RANGEMENT chez le destinataire (`reception`, §3bis.2) — « Retirer de ma file » ≠ supprimer, « Réafficher », SON ordre manuel ; une ligne par destinataire et par ENTRÉE de file (`ReceivedEntry`), qui ne porte aucun droit. Depuis le 2026-10-03 : la card reçue en LECTURE SEULE (pastille des deux côtés, ▶ 🗑 → encart, ⚙ en consultation), les MODES déclarés (`SHARE_MODES`, deux grisés) et les DEMANDES d'accès (`ObjectGrant` : la demande et le droit sont la même ligne ; la propriété s'accorde, elle cède la card). Puis la COLLABORATION (E1-E5) : `scoping.editable_or_404` / `can_edit` (lancement, réglages, arrêt, correction — jamais la suppression), fin notifiée aux deux, verrou doux (`edit_lock`), réglages tracés au journal, retrait depuis « Mes partages »
+LE GESTE qui manquait au mécanisme de visibilité : `PROFILES_PERMISSIONS §7.5` disait « il n'existe AUCUNE interface de partage » (il fallait l'admin Django). Écrit `visibility` + son scope sur l'élément ET son lot — ou sur le lot ET ses éléments : les DEUX sens sont exigés, le filtre de lecture s'appliquant aux deux niveaux (un lot partagé aux éléments privés s'affiche VIDE chez le destinataire). Portées OFFRABLES dérivées de l'utilisateur (unités qui le couvrent, projets dont il est membre) : une portée sans cible réelle n'est pas proposée. Lecture seule par construction — l'écriture est le jalon S3 `AccessGrant`, et la modale le DIT. Depuis le 2026-10-01 : « Dupliquer » une card reçue (`scoping.duplicable_or_404`) et « Transférer à… » (`card_transfer` : possédés déplacés, désignés copiés). Depuis le 2026-10-02 : le RANGEMENT chez le destinataire (`reception`, §3bis.2) — « Retirer de ma file » ≠ supprimer, « Réafficher », SON ordre manuel ; une ligne par destinataire et par ENTRÉE de file (`ReceivedEntry`), qui ne porte aucun droit. Depuis le 2026-10-03 : la card reçue en LECTURE SEULE (pastille des deux côtés, ▶ 🗑 → encart, ⚙ en consultation), les MODES déclarés (`SHARE_MODES`, deux grisés) et les DEMANDES d'accès (`ObjectGrant` : la demande et le droit sont la même ligne ; la propriété s'accorde, elle cède la card). Puis la COLLABORATION (E1-E5) : `scoping.editable_or_404` / `can_edit` (lancement, réglages, arrêt, correction — jamais la suppression), fin notifiée aux deux, verrou doux (`edit_lock`), réglages tracés au journal, retrait depuis « Mes partages ». Depuis le 2026-10-06 : le partage À UNE PERSONNE (`share_with_person` — une ligne `ObjectGrant` accordée, lue par `scoped_visible_q(…, model=)` en extension des portées ; mode lecture ou collaboration) et le destinataire PRÉVENU (N1 : `share_received` ; membres d'un projet aussi, unité et public non) ; chaque partage par portée DATÉ par une ligne `ObjectGrant` sans bénéficiaire (mémoire, jamais lue pour décider qui voit). Depuis le 2026-10-07 : une fille partagée arrive SEULE (`batch_common.visible_members`) ; l'enregistrement préparé sur un état PÉRIMÉ est refusé (`edit_lock.state_token` / `stale_edit`, 409) et le verrou doux tient aussi la page de correction (`WamaCardMenu.holdEditLock`)
 
 - **Domicile** : `wama/common/services/sharing.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : PARTAGE d'un élément de file — la première INTERFACE du mécanisme de visibilité.
-- **API publique** (10) :
+- **API publique** (14) :
   - `share_mode(key: str) -> dict` — La déclaration d'un mode (`SHARE_MODES`), ou celle de la lecture si la clé est inconnue.
   - `shares_overview(user, limit: int=200) -> dict` — Ce que montre la page « Partages » (`WAMA_COLLABORATION §5.3`, 2026-10-03) : ce que `user` a
   - `scope_label(element) -> str` — La portée d'un élément partagé, dite par sa CIBLE (« LESCOT », « Projet X », « Public ») —
@@ -1020,8 +1078,12 @@ LE GESTE qui manquait au mécanisme de visibilité : `PROFILES_PERMISSIONS §7.5
   - `class ConsentRequired(RefusDePartage)` — Le partage d'un élément personnel attend le consentement de celui qui partage.
   - `consent_subject(element) -> str` — Ce que l'élément porte d'une personne (« la voix d'une personne »), ou '' — DÉCLARÉ par
   - `portees_offrables(user) -> list` — Ce que CET utilisateur peut offrir, avec les cibles réelles de chaque portée.
+  - `scope_since(obj)` — Depuis quand `obj` est partagé à sa portée COURANTE, ou None (privé, ou partagé avant que
   - `partager(user, element, visibility, org_unit_id=None, project_id=None, consent: bool=False) -> dict` — Applique la portée à l'élément ET à son lot. Rend un compte-rendu.
   - `partager_lot(user, lot, modele_element, visibility, org_unit_id=None, project_id=None, consent: bool=False) -> dict` — Partage un LOT ENTIER : le lot et TOUS ses éléments.
+  - `share_with_person(user, target, element_model, recipient, level: str='read', *, nature: str='element', surface: str='', consent: bool=False) -> dict` — Partage `target` (un élément, ou un lot si `nature='lot'`) avec UNE personne, dans un mode
+  - `unshare_person(user, target, beneficiary) -> int` — Retire à `beneficiary` tout partage EN PERSONNE sur `target` (et ce qu'il couvre, par
+  - `persons_of(obj) -> list` — Les personnes à qui `obj` est partagé EN PERSONNE : `[{grant, user_id, name, mode, since}]`,
   - `etat(element) -> dict` — La portée COURANTE d'un élément, telle que l'UI doit la pré-sélectionner — et, s'il porte
 
 ### Projection des faits en souvenirs
@@ -1069,6 +1131,12 @@ L'index des cards qui DÉSIGNENT un chemin, et les deux gestes qui le tiennent �
   - `usage(path, *, folder=False) -> dict` — Ce que le gestionnaire de fichiers doit savoir AVANT de supprimer.
   - `repoint(old_path, new_path, *, folder=False) -> dict` — Le fichier (ou le dossier) a bougé : chaque lien suit, directs et sources.
   - `detach(path, *, folder=False) -> int` — Le fichier a été supprimé (après confirmation) : les cards qui le désignaient restent,
+
+### Repli des volets latéraux par leur frontière
+
+Un clic sur la FRONTIÈRE d'un volet (explorateur, panneau) le replie ou le rouvre, sur toute page : au repos rien de plus que le liseré, au survol une ligne et une pastille à chevron qui suit le pointeur ; volet replié, une trace fine au bord de la fenêtre. État par NAVIGATEUR (localStorage), appliqué avant le premier rendu. La place des volets a une SOURCE UNIQUE : les marges `--wama-left-gutter` / `--wama-right-gutter` (0 replié, sans volet ou en mode simplifié) que lisent le corps, l'en-tête et les barres fixes des pages ; une règle qui se calerait sur la largeur brute d'un volet est refusée par `tests_panel_toggle`. Au doigt (tablette), la pastille reste visible. Après chaque bascule : `resize` + `wama:panels`
+
+- **Domicile** : `wama/common/static/common/js/wama-panel-toggle.js` · **doc** : [docs/construction/ui/WAMA_VOLETS.md](../construction/ui/WAMA_VOLETS.md)
 
 ### Révisions d'un élément (historique DANS la card)
 
@@ -1191,12 +1259,13 @@ Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama loca
 
 - **Domicile** : `wama/common/utils/llm_utils.py`
 - **Module** : WAMA Common — LLM utilities Shared Ollama client for use in Celery workers (transcriber, describer, ...).
-- **API publique** (14) :
+- **API publique** (15) :
   - `get_describer_model(content_type: str, output_style: str) -> str` — Return the Ollama model name to use for a given (content_type, output_style) pair.
   - `modele_par_defaut() -> str` — Modèle LLM à utiliser quand l'appelant n'en impose aucun — résolu, jamais figé.
   - `modele_par_tier(tier: str='default', exige=None, priority=None, prefer_loaded: bool=True) -> str` — Résolution PUBLIQUE d'un tier (`heavy`/`default`/`fast`) — même mécanique que
   - `ollama_chat(messages: list, model: str='', num_predict: int=2048, num_ctx: Optional[int]=None, think: bool=True, timeout: float=180.0, keep_alive: Optional[str…` — Send a chat request to the local Ollama server.
-  - `default_cloud_model(provider: str) -> str` — Modèle par défaut d'un fournisseur cloud : réglage déclaré, sinon `CLOUD_DEFAULT_MODELS`.
+  - `openai_compatible_source(provider: str) -> str` — La source `external_sources` d'un fournisseur qui parle le protocole OpenAI depuis une
+  - `default_cloud_model(provider: str) -> str` — Modèle par défaut d'un fournisseur cloud : réglage déclaré, sinon celui de sa source
   - `llm_chat(messages: list, model: str=None, provider: str=None, num_predict: int=2048, num_ctx: Optional[int]=None, think: bool=True, timeout: float=180.0, api_k…` — Unified LLM chat function — provider-agnostic entry point.
   - `chat_with_catalog_model(catalog_key: str, messages: list, *, user=None, num_predict: Optional[int]=None, think: bool=False, timeout: Optional[float]=None, temp…` — Un appel LLM désigné par une CLÉ DE CATALOGUE (`ollama:qwen3.8:latest`,
   - `chat_with_source(source: str, model_id: Optional[str], messages: list, *, user=None, num_predict: Optional[int]=None, think: bool=False, timeout: Optional[floa…` — Un appel à un fournisseur LLM DÉCLARÉ (`external_sources`, type `llm` : Albert, API
@@ -1430,13 +1499,17 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
 
 - **Domicile** : `wama/common/sandbox.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Bac à sable d'apps — jumelles EXÉCUTABLES (route §10.3, marche S, actée Fabien 2026-08-18).
-- **API publique** (12) :
+- **API publique** (16) :
   - `load_registry() -> list` — Liste des jumelles [{label, generated_from, created, created_by?}] — [] si registre
   - `twin_owner(label: str) -> str` — Username du créateur d'une jumelle ('' si CLI/inconnu) — consommé par la dérogation
   - `twin_source(label: str) -> str` — App SOURCE d'une jumelle ('' si ce label n'en est pas une).
+  - `declaring_app(app: str) -> str` — L'app dont la DÉCLARATION fait foi pour `app` : elle-même, ou sa SOURCE si c'est une
+  - `inject_sandbox_registry(registry: dict, *, runnable=None) -> None` — Entrées d'un registre INDEXÉ PAR APP pour les jumelles : la déclaration de la source,
   - `born_declaration(label: str, facet: str)` — Facette DÉCLARÉE d'une app créée DE ZÉRO (`app_sandbox create --from-manifest`), telle que
   - `save_registry(entries: list) -> None`
   - `sandbox_labels() -> list` — Labels des jumelles dont le PACKAGE existe réellement (garde anti-registre orphelin :
+  - `is_test_module(rel_parts) -> bool` — Le fichier (chemin RELATIF au paquet, en parties) est-il un module de TEST ?
+  - `is_copied_twin_test(module_name: str, labels=None) -> bool` — Le module de test `module_name` (`wama.<jumelle>.tests_x`) est-il un test COPIÉ d'une
   - `twins_with_copied_views() -> set` — Labels des jumelles dont les VUES sont une COPIE figée de l'app source (non régénérées).
   - `sandbox_installed_apps() -> list` — Entrées INSTALLED_APPS des jumelles (consommé par settings.py).
   - `sandbox_urlpatterns()` — URLconfs des jumelles — préfixe = label (underscore assumé : `/converter_01/` — le
@@ -1450,12 +1523,13 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
 
 - **Domicile** : `wama/common/services/backend_proposals.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : BACKENDS PROPOSÉS par le rôle `backend` (marche B2) — contrôles, résolution simulée, smoke, puis le geste « Valider » qui ÉCRIT le module dans `wama/common/backends/`.
-- **API publique** (14) :
+- **API publique** (15) :
   - `backends_dir() -> Path`
   - `outputs_dir() -> Path`
   - `contract_for_task(task: str) -> tuple` — (module, classe) du contrat qu'un backend écrit pour `task` doit implémenter.
   - `required_methods(contract: tuple) -> set` — Méthodes abstraites que le contrat laisse à implémenter — lues par AST, jamais importées
-  - `model_id_of(model_key: str) -> str` — Identifiant que `SUPPORTED_MODELS` doit déclarer — la règle de `backend_for_model`.
+  - `model_id_of(model_key: str) -> str` — Identifiant que `SUPPORTED_MODELS` doit déclarer — la règle de `backend_for_model`,
+  - `supported_entry_errors(model_id: str, entry, code: str=None) -> list` — Erreurs de l'entrée `SUPPORTED_MODELS[model_id]` d'un modèle installé : `model_key` (s'il
   - `check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> dict` — Contrôles de FORME d'un module de backend proposé. `ok` = aucune erreur.
   - `simulate_resolution(code: str, *, module: str, engine: str, model_id: str, task: str='') -> dict` — La résolution que l'inventaire fera APRÈS écriture : le vivier réel + cette entrée.
   - `smoke(code: str, *, module: str, model_key: str, contract: tuple, out_dir: Path) -> dict` — Exécute le backend proposé SUR CPU, sans l'écrire dans le paquet — un essai par CONTRAT
@@ -1472,10 +1546,12 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
 
 - **Domicile** : `wama/common/utils/detections.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Les DÉTECTIONS d'un média, sur disque — le type de donnée commun `detections` (`common/catalog/data_types.DataType.DETECTIONS` : objets détectés par frame — frame, bbox, classe, piste).
-- **API publique** (16) :
+- **API publique** (18) :
   - `new_document(*, media: str, width: int, height: int, fps: float=0.0, frame_count: int=1, engine: str='', models=(), classes=(), prompt: str='') -> dict` — Un document vide, prêt à recevoir ses frames (`add`).
   - `detection(*, box, label: str='', conf: float=1.0, track=None, polygons=None) -> dict` — Une détection au format du document : entiers pour les pixels, confiance arrondie.
   - `add(doc: dict, frame_index: int, detections) -> None` — Range les détections d'UNE frame (rien n'est écrit pour une frame vide). Deux appels
+  - `merge(docs) -> dict` — L'UNION de documents du même média (2026-10-10) — un par détecteur d'un ensemble : leurs
+  - `apply_corrections(doc: dict, corrections) -> dict` — Le document CORRIGÉ par l'humain (2026-10-10, chantier SURFACES) — une copie, l'original
   - `write(path: str, doc: dict) -> str` — Écrit le document (frames ordonnées) ; rend le chemin.
   - `read(path: str) -> dict` — Lit un document ; lève `ValueError` si ce n'en est pas un.
   - `count(doc: dict) -> int` — Le nombre de détections du document (toutes frames).
@@ -1646,11 +1722,11 @@ Source commune des formats+qualités de fichier par domaine (réutilise le vocab
 
 ### Résolution de backend par DÉCLARATION
 
-Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter ce modèle » : `backend_for_model()` va de `composition.runtime.engine` (moitié modèle) à `BaseModelBackend.ENGINE` (moitié backend), départagé par `SUPPORTED_MODELS` quand le moteur est PARTAGÉ — `diffusers` est piloté par 8 backends, `transformers` par 4. L'import de la classe est CIBLÉ et TARDIF : le registre reste statique. C'est ce qui rend l'EMPLACEMENT PHYSIQUE des backends indifférent, préalable à leur passage au substrat transversal. ⚠ Rend None plutôt qu'un tirage quand rien ne tranche — une erreur silencieuse coûte plus cher qu'un refus ; et ne rend QUE des sous-classes du contrat (le porteur du démon Ollama n'en est pas un). Depuis le 29/09 la TÂCHE voyage : un contrat LIANT (`backend_inventory.TASK_CONTRACTS`) écarte un backend qui n'en dérive pas — un upscaler n'exécute pas un modèle texte→image, même seul sur `onnxruntime`
+Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter ce modèle » : `backend_for_model()` va de `composition.runtime.engine` (moitié modèle) à `BaseModelBackend.ENGINE` (moitié backend), départagé par `SUPPORTED_MODELS` quand le moteur est PARTAGÉ — `diffusers` est piloté par 8 backends, `transformers` par 4. L'import de la classe est CIBLÉ et TARDIF : le registre reste statique. C'est ce qui rend l'EMPLACEMENT PHYSIQUE des backends indifférent, préalable à leur passage au substrat transversal. ⚠ Rend None plutôt qu'un tirage quand rien ne tranche — une erreur silencieuse coûte plus cher qu'un refus ; et ne rend QUE des sous-classes du contrat (le porteur du démon Ollama n'en est pas un). Depuis le 29/09 la TÂCHE voyage : un contrat LIANT (`backend_inventory.TASK_CONTRACTS`) écarte un backend qui n'en dérive pas — un upscaler n'exécute pas un modèle texte→image, même seul sur `onnxruntime`. L'AUTRE moitié du routage depuis le 05/10 : `route_for_nature` suit la décision d'APP (`backends/__init__.ROUTES`, nature d'entrée → fonction au contrat commun), import relatif au paquet appelant — recopiée quatre fois avant (enhancer, describer, corps émis par tasks_gen, conversion inline) et contournée par la tâche du converter (`if/elif` à la main). LA PORTE DE LANCEMENT depuis le 07/10 : `backend_instance_for_key` (instance par clé, clé posée, clé d'accès d'un modèle DISTANT par `authorize()`) + `run_contract` (méthode de travail du contrat de tâche, réglages par leur nom de schéma, fichiers par le nom de leur PORT — la règle de `generic_runner.port_arguments` un cran plus bas) — une app ne connaît plus ses moteurs, et `tasks_gen` compose sur elle le corps d'une app qui choisit son modèle par tâche (08/10)
 
 - **Domicile** : `wama/common/backends/manager.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Manager de backends COMMUN — extrait du pattern Transcriber/Imager.
-- **API publique** (13) :
+- **API publique** (19) :
   - `register_engine_inventory(fn) -> None` — Enregistre un inventaire de moteurs. Le callable rend soit un MAPPING
   - `engine_backends() -> dict` — {moteur: classe de backend} pour tous les inventaires qui exposent leurs classes.
   - `invalidate_engine_cache() -> None` — À appeler après une installation de librairie : le prochain `known_engines()`
@@ -1658,6 +1734,12 @@ Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter
   - `backend_for_engine(engine: str, model_id: str='', entries=None, task: str='')` — Classe de backend qui pilote `engine` (et sert `model_id` si le moteur est partagé).
   - `backend_for_model(model, entries=None)` — Classe de backend qui sait exécuter `model`, ou None.
   - `backend_for_key(model_key: str, entries=None)` — La MÊME porte que `backend_for_model`, adressée par la CLÉ de catalogue (`<source>:<id>`).
+  - `class ModelNotServed(RuntimeError)` — Aucun backend ne sert la clé de catalogue demandée — le lancement s'arrête en le disant,
+  - `backend_instance(cls, model_key: str='', user=None)` — L'instance gardée chargée de la CLASSE `cls`, préparée pour `model_key` : la clé posée
+  - `backend_instance_for_key(model_key: str, user=None)` — L'INSTANCE prête du backend qui sert `model_key` — LA porte de lancement d'un modèle
+  - `run_contract(instance, **values)` — Appelle la méthode de TRAVAIL du contrat de `instance` avec les valeurs qu'elle ACCEPTE,
+  - `work_method_accepts(cls, name: str) -> bool` — La méthode de travail du contrat de `cls` reçoit-elle une valeur nommée `name` ? — lu sur
+  - `route_for_nature(package: str, nature: str, routes: dict=None)` — La porte par NATURE d'entrée : le callable que les `ROUTES` d'une app déclarent pour
   - `invalidate_catalog_index() -> None` — Le prochain `catalog_keys_for_owner` relit le catalogue (après une synchro, un test).
   - `prime_catalog_index() -> int` — Remplit l'index du catalogue (et, par lui, importe les modules de backends) — rend le
   - `match_local_name(rows, name: str) -> list` — Clés, parmi les lignes `(clé, hf_id)` d'une classe, que désigne le nom local `name`.
@@ -1855,7 +1937,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class UserAppSetting(models.Model)` — RÉGLAGE GLOBAL d'un utilisateur pour une app — DURABLE (brique `utils/user_settings.py`).
   - `class Notification(models.Model)` — Notification DANS WAMA — la brique de `WAMA_COLLABORATION.md §2.3` : destinataire, type
   - `class ScopedVisibility(models.Model)` — Mixin ABSTRAIT : visibilité par scope (privé / PROJET / unité org / public).
-  - `scoped_visible_q(user, owner_field='user')` — `Q` filtrant les objets ScopedVisibility visibles pour `user` : les siens + les
+  - `scoped_visible_q(user, owner_field='user', model=None)` — `Q` filtrant les objets ScopedVisibility visibles pour `user` : les siens + les
   - `class ShareConsent(models.Model)` — Le CONSENTEMENT donné en partageant un élément qui porte une PERSONNE — et son retrait.
   - `class ReceivedEntry(models.Model)` — Le RANGEMENT, chez le destinataire, d'une entrée de file qu'on lui a partagée (2026-10-02).
   - `class ObjectGrant(models.Model)` — Un DROIT sur une instance — et la DEMANDE de ce droit : la même ligne (2026-10-03).
@@ -2044,13 +2126,14 @@ Schéma canonique des infos d'item affichées au volet droit
 
 - **Domicile** : `wama/common/utils/detail_registry.py` · **doc** : [docs/construction/ui/INSPECTOR_DETAIL_FIELDS.md](../construction/ui/INSPECTOR_DETAIL_FIELDS.md)
 - **Module** : WAMA Common — Registre des DÉTAILS d'item pour l'inspecteur (miroir de preview_registry).
-- **API publique** (11) :
+- **API publique** (12) :
   - `props_icon_for(media_type: str) -> str`
   - `normalize_status(status: str) -> str` — Un statut d'app → le vocabulaire commun. Délègue au domicile (`common/models.py`).
   - `class DetailRegistry`
   - `register_app_detail(app_name, model_class, adapter)` — Enregistre l'adapter de détail d'une app. `adapter(instance) -> dict canonique`.
   - `register_app_detail_spec(app_name, model_class, spec)` — Variante DÉCLARATIVE (A3a) : la registration est une SPEC-donnée, pas un callable.
   - `spec_value(instance, form)` — UNE valeur de spec résolue contre l'instance — le vocabulaire entier tient ici :
+  - `spec_schema(instance, spec, app_name)` — Le schéma de réglages d'un ÉLÉMENT : celui que la spec NOMME (`params_schema`, une valeur
   - `detail_from_spec(instance, spec, app_name)` — Adapter GÉNÉRIQUE : résout la spec déclarative contre l'instance puis délègue à
   - `settings_from_schema(instance, schema, *, skip=(), carrier=None)` — {libellé: valeur} des réglages POSÉS du schéma — la liste « Réglages » du volet, pour les
   - `build_detail(instance, *, source_file=None, source_type=None, engine=None, engine_effective=None, result_file=None, result_files=None, result_role=None, result…` — Assemble le dict canonique d'un item (épine dorsale). Les valeurs vides sont OMISES
@@ -2095,7 +2178,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
-- **API publique** (24) :
+- **API publique** (25) :
   - `class Param` — Description d'UN paramètre, indépendante de la surface de rendu.
   - `format_display(value, display_format: str) -> Optional[str]` — La valeur dans le FORMAT déclaré (`Param.display_format`), None si le format est inconnu
   - `derive_from_model(model_class, include: List[str], overrides: dict=None) -> List[Param]` — Construit la liste de `Param` d'une app à partir des champs d'un modèle Django.
@@ -2115,7 +2198,8 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `schema_model_kwargs(app_id: str, params: dict) -> dict` — Sous-ensemble de `params` qui est À LA FOIS déclaré au schéma de l'app ET un champ
   - `schema_extra_params(app_id: str, params: dict) -> dict` — Symétrique de `schema_model_kwargs` : les params DÉCLARÉS au schéma qui ne sont PAS des
   - `schema_arg_names(app_id: str) -> set` — Noms de params qu'une app DÉCLARE — surface d'arguments acceptable d'un outil `**params`.
-  - `choice_values(p) -> List[str]` — Valeurs VALIDES d'un select/radio : ses `choices` statiques, puis — quand l'app DÉCLARE
+  - `choice_values(p) -> List[str]` — Valeurs VALIDES d'un select/radio : ses `choices` statiques. UNE fonction pour la porte
+  - `catalog_options(p) -> List[Tuple[str, str]]` — [(valeur, libellé)] d'un select tiré du CATALOGUE (`options_source='catalog'`), lus sur le
   - `invalid_choice_values(schema, data) -> dict` — {nom: (valeurs_refusées, choices_valides_triés)} pour chaque valeur PRÉSENTE hors
   - `unapplicable_numeric_values(schema, data) -> dict` — {nom: (valeur_refusée, explication)} pour chaque nombre PRÉSENT que le schéma ne peut
   - `schema_choice_values(app_id, name) -> set` — Valeurs valides d'un param à `choices`, DÉRIVÉES du schéma — jamais recopiées.
@@ -2249,7 +2333,7 @@ Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / 
 - **Domicile** : `wama/common/utils/scoping.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Accès à un objet partageable depuis une vue — DEUX chemins nommés, et deux seulement.
 - **API publique** (6) :
-  - `visible_or_404(model, user, **kwargs)` — Objet que `user` a le droit de VOIR : le sien, ou partagé avec lui (unité/projet/public).
+  - `visible_or_404(model, user, **kwargs)` — Objet que `user` a le droit de VOIR : le sien, ou partagé avec lui (unité/projet/public, ou
   - `listable_by(queryset, user)` — Ce que `user` a le droit de LISTER : `visible_to`, sauf pour un compte de visiteur (le
   - `owned_or_404(model, user, **kwargs)` — Objet que `user` a le droit de MODIFIER — aujourd'hui : le sien, point.
   - `editable_or_404(model, user, *, trace: str='', **kwargs)` — Objet que `user` peut ÉDITER : le sien, ou un élément sur lequel il COLLABORE.
@@ -2466,7 +2550,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) : dans son entr�
   - `normalize_types(types)` — ['wav','image','srt'] → ['audio','image','document'] (catégories média + jetons de rôle,
   - `known_port_types()` — Vocabulaire ADMIS pour le type d'un port — natures média + jetons de rôle + types de DONNÉE.
   - `app_capabilities(app_id)` — Capacités déclarées d'une app = les drapeaux `conventions` d'APP_CATALOG, retournés à plat.
-  - `app_supports_during_preview(app_id)` — True si l'app déclare la capacité de preview « pendant » (progressive/temporaire pendant le
+  - `app_supports_during_preview(app_id)` — True si l'app déclare la capacité de preview « pendant » : on OBSERVE le média de sortie
   - `studio_node_ports(app_id)` — Dérive les PORTS d'un nœud studio pour une app, métadonnée-driven :
   - `app_model_capabilities(app_id) -> list` — Les capacités des modèles DE l'app — l'inventaire UNIQUE dont dérivent ses ports
   - `app_input_ports(app_id, domain=None)` — Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
@@ -2515,8 +2599,9 @@ Le runner de tests redirige `MEDIA_ROOT` vers `media_tests/run-<id>/` — dossie
 
 - **Domicile** : `wama/common/runners.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §①bis](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Runner de tests WAMA — isole le média des tests du média de PRODUCTION.
-- **API publique** (2) :
+- **API publique** (3) :
   - `class WamaTestRunner(DiscoverRunner)` — `DiscoverRunner` + `MEDIA_ROOT` redirigé vers un dossier jetable.
+  - `prune_copied_twin_tests(suite, labels=(), twins=None) -> int` — Retire de `suite` (en place, récursivement) les tests COPIÉS des jumelles du bac à sable,
   - `balayer_runs_orphelins(racine: Path, maintenant: float | None=None) -> int` — Retire de `media_tests/` les exécutions ORPHELINES : dossiers `run-*` vides, ou plus
 
 ### Natures d'assets de la médiathèque (A′)
@@ -2654,20 +2739,29 @@ Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffm
 
 ### Sources externes
 
-Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la surcharge, variable portant la clé d'API, attribution exigée par la licence, et surtout la PORTÉE (service local ou Internet) — d'où le traitement du proxy est DÉRIVÉ au lieu d'être choisi à la main par chaque appelant. Ajouter une plateforme = une entrée. ⚠ Ne déclare JAMAIS le client : chaque source a sa forme (JSON authentifié, parquet, HTML scrapé), le parseur reste chez le consommateur. La CLÉ peut être celle de l'instance (`api_key_env`) ou celle de CHACUN, posée au profil (`user_key`) : depuis le 2026-09-22 (décision de Fabien) les connecteurs de la médiathèque y sont déclarés (famille `media`) — adresse, proxy et sonde d'ici, clé de chaque utilisateur
+Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la surcharge, variable portant la clé d'API, attribution exigée par la licence, et surtout la PORTÉE (service local ou Internet) — d'où le traitement du proxy est DÉRIVÉ au lieu d'être choisi à la main par chaque appelant. Ajouter une plateforme = une entrée. ⚠ Ne déclare JAMAIS le client : chaque source a sa forme (JSON authentifié, parquet, HTML scrapé), le parseur reste chez le consommateur. La CLÉ peut être celle de l'instance (`api_key_env`) ou celle de CHACUN, posée au profil (`user_key`) : depuis le 2026-09-22 (décision de Fabien) les connecteurs de la médiathèque y sont déclarés (famille `media`) — adresse, proxy et sonde d'ici, clé de chaque utilisateur. Depuis le 2026-10-07 (décision de Fabien), la clé d'INSTANCE se pose par un admin sur la page « Sources externes » (`accounts.InstanceApiKey`, chiffrée) et prime sur le `.env`, qui reste le repli ; une source `shareable` (clés d'application : ILaaS) peut la PARTAGER avec les comptes sans clé — la clé personnelle prime toujours. Le champ de saisie est UNE brique (`WamaKeyField`) pour le profil et la page
 
 - **Domicile** : `wama/common/external_sources.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : external_sources — registre DÉCLARATIF des sources externes joignables par WAMA.
-- **API publique** (15) :
-  - `model_origin(model_key: str, execution: str='') -> tuple` — `(clé, libellé, rang)` de l'ORIGINE d'un modèle — où son inférence a lieu.
+- **API publique** (24) :
+  - `cost_label(tier: str) -> str` — « gratuit (quota) », « facturé à l'usage », « abonnement » — '' pour un coût inconnu.
+  - `remote_origin_label(source: str, cost_tier: str='') -> str` — LE libellé d'un modèle distant, calculé de ce qui est DÉCLARÉ : hébergement · fournisseur ·
+  - `source_origin_label(source: str) -> str` — Où partent les données d'un FOURNISSEUR et ce qu'il coûte, sans son nom (que l'écran
+  - `model_origin(model_key: str, execution: str='', cost_tier: str='') -> tuple` — `(clé, libellé, rang)` de l'ORIGINE d'un modèle — où son inférence a lieu.
   - `hosting_within(hosting: str, ceiling: str) -> bool` — `hosting` est-il admis par un profil plafonné à `ceiling` ?
   - `class ExternalSource` — Une source externe : ce qu'elle est et comment on l'adresse — jamais comment on la lit.
   - `by_key() -> dict[str, ExternalSource]`
+  - `serves_many_tasks(key: str) -> bool` — La source `key` sert-elle des modèles de plusieurs tâches sous un même moteur, hors du
   - `llm_engine_inventory() -> dict` — {moteur: porteur} des fournisseurs LLM distants — un par source `llm` (2026-09-15).
   - `get(key: str) -> ExternalSource` — La source déclarée. `KeyError` explicite : une clé inconnue est un défaut de code.
-  - `base_url(key: str) -> str` — Adresse EFFECTIVE : réglage Django, puis variable d'environnement, puis défaut déclaré.
+  - `base_url(key: str) -> str` — Adresse EFFECTIVE : celle posée sur la page « Sources externes » (source déclarée
+  - `address_origin(key: str) -> str` — D'où vient l'adresse : 'stored', 'setting', 'env', ou '' (défaut déclaré).
+  - `stored_instance_address(key: str) -> str` — L'adresse posée en base pour `key` (`InstanceApiKey.base_url`), ou ''. Même lecture
+  - `valid_address(text: str) -> str` — L'adresse saisie, normalisée (sans barre finale), ou '' si ce n'en est pas une :
   - `proxies_for(key: str)` — `proxies` à passer à `requests`, choisis d'après la PORTÉE déclarée.
-  - `api_key(key: str) -> str` — Clé d'API lue dans l'environnement, ou '' — jamais une exception : une source sans clé
+  - `api_key(key: str) -> str` — Clé d'API de l'INSTANCE, ou '' — jamais une exception : une source sans clé se SKIPPE
+  - `stored_instance_key(key: str) -> str` — La clé d'instance ENREGISTRÉE en base pour `key`, ou ''. Lue paresseusement : ce module
+  - `api_key_origin(key: str) -> str` — D'où vient la clé d'instance : 'stored' (page Sources externes), 'env' (`.env`) ou ''.
   - `is_configured(key: str) -> bool` — La source est-elle utilisable en l'état ? (clé posée si elle en exige une)
   - `attributions() -> tuple[str, ...]` — Attributions exigées par les licences des sources qui en portent une.
   - `probe(key: str, timeout: float=PROBE_TIMEOUT_S) -> dict` — Sonde UNE source : clé posée ? adresse joignable ? en combien de temps ?
@@ -2688,7 +2782,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `normalize_types(types)` — ['wav','image','srt'] → ['audio','image','document'] (catégories média + jetons de rôle,
   - `known_port_types()` — Vocabulaire ADMIS pour le type d'un port — natures média + jetons de rôle + types de DONNÉE.
   - `app_capabilities(app_id)` — Capacités déclarées d'une app = les drapeaux `conventions` d'APP_CATALOG, retournés à plat.
-  - `app_supports_during_preview(app_id)` — True si l'app déclare la capacité de preview « pendant » (progressive/temporaire pendant le
+  - `app_supports_during_preview(app_id)` — True si l'app déclare la capacité de preview « pendant » : on OBSERVE le média de sortie
   - `studio_node_ports(app_id)` — Dérive les PORTS d'un nœud studio pour une app, métadonnée-driven :
   - `app_model_capabilities(app_id) -> list` — Les capacités des modèles DE l'app — l'inventaire UNIQUE dont dérivent ses ports
   - `app_input_ports(app_id, domain=None)` — Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
@@ -2799,7 +2893,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
   - `class UserAppSetting(models.Model)` — RÉGLAGE GLOBAL d'un utilisateur pour une app — DURABLE (brique `utils/user_settings.py`).
   - `class Notification(models.Model)` — Notification DANS WAMA — la brique de `WAMA_COLLABORATION.md §2.3` : destinataire, type
   - `class ScopedVisibility(models.Model)` — Mixin ABSTRAIT : visibilité par scope (privé / PROJET / unité org / public).
-  - `scoped_visible_q(user, owner_field='user')` — `Q` filtrant les objets ScopedVisibility visibles pour `user` : les siens + les
+  - `scoped_visible_q(user, owner_field='user', model=None)` — `Q` filtrant les objets ScopedVisibility visibles pour `user` : les siens + les
   - `class ShareConsent(models.Model)` — Le CONSENTEMENT donné en partageant un élément qui porte une PERSONNE — et son retrait.
   - `class ReceivedEntry(models.Model)` — Le RANGEMENT, chez le destinataire, d'une entrée de file qu'on lui a partagée (2026-10-02).
   - `class ObjectGrant(models.Model)` — Un DROIT sur une instance — et la DEMANDE de ce droit : la même ligne (2026-10-03).
@@ -2887,7 +2981,8 @@ Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique
 
 - **Domicile** : `wama/studio/services/generic_runner.py` · **doc** : [docs/construction/mondes/STUDIO_VISION.md](../construction/mondes/STUDIO_VISION.md)
 - **Module** : Studio — runner GÉNÉRIQUE piloté par le CONTRAT d'app (STUDIO_VISION « principe directeur », 2026-07-12). Zéro logique par app : tout vient des sources uniques.
-- **API publique** (5) :
+- **API publique** (6) :
+  - `with_catalog_options(spec) -> list` — Copie de `spec` dont les selects de CATALOGUE reçoivent leurs options MAINTENANT, par LA
   - `primary_ports(app_id) -> set` — Les ports par lesquels arrive l'ENTRÉE PRINCIPALE du nœud (transmise par `create`).
   - `unwired_ports(app_id) -> list` — Les ports du nœud que l'outil de l'app ne LIT pas encore — le portage qui reste.
   - `unwired_ports_report(measure=None)` — (ok, détail) — la liste MESURÉE des ports non lus confrontée au budget, dans les deux
@@ -2900,7 +2995,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (91) :
+- **API publique** (92) :
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
   - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
   - `start_anonymizer(user, media_id: int=None) -> dict` — Trigger Celery processing for a specific media item or all pending items.
@@ -2949,6 +3044,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `list_ai_models(user, app: str=None, task: str=None, modality: str=None, downloaded_only: bool=False, include_proposed: bool=False, limit: int=50) -> dict` — List the AI model CATALOGUE (read-only — trou #18 ROUTE §11, lecture utile à l'assistant).
   - `get_ai_model(user, model_key: str) -> dict` — Full catalogue record of ONE model (read-only). `model_key` = '<app>:<id>'
   - `search_models(user, query: str, limit: int=10, max_results: int=5) -> dict` — SEARCH HuggingFace for models matching `query` and record them as prospection
+  - `prospect_models(user) -> dict` — PROSPECT for new models and record them as PROPOSALS — same verb as the page's
   - `install_model(user, model_key: str, force: bool=False, variant_ref: str='', variant_file: str='') -> dict` — INSTALL a model that is already PROPOSED (prospection candidate) or already in the
   - `plan_library_integration(user, dist: str) -> dict` — PLAN for integrating a Python library (pip distribution) — read-only, executes nothing.
   - `plan_model_integration(user, model: str) -> dict` — PLAN for integrating an AI model — read-only, executes nothing.

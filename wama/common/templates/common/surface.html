@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load wama_static %}
+{% comment %}
+SURFACE — page d'édition COMPOSÉE de briques (chantier SURFACES, 2026-10-10). Commune à toutes
+les apps : la surface est DÉCLARÉE (`common/surfaces.py` + `<app>/surfaces.py`), ce gabarit ne
+connaît aucune app. Chaque brique est un élément de grille gridstack — déplaçable par son titre,
+redimensionnable par ses coins ; la disposition se garde par utilisateur et se réinitialise.
+{% endcomment %}
+
+{% block title %}{{ surface.label }} — #{{ item.pk }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'vendors/gridstack-13.3.0/gridstack.min.css' %}">
+<link rel="stylesheet" href="{% static_v 'common/css/wama-surface.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="wama-surface-page">
+  <div class="wama-surface-head">
+    {% if config.back_url %}<a class="btn btn-sm btn-outline-secondary" href="{{ config.back_url }}" title="Retour à la file"><i class="fas fa-arrow-left"></i></a>{% endif %}
+    <h1 class="wama-surface-title">{{ surface.label }} <span class="text-secondary">#{{ item.pk }}</span></h1>
+    <span class="wama-surface-status" aria-live="polite"></span>
+  </div>
+  {% if available %}
+    <div class="grid-stack wama-surface-grid"></div>
+  {% else %}
+    <div class="alert alert-secondary">{{ reason }}</div>
+  {% endif %}
+</div>
+{{ config|json_script:"wama-surface-config" }}
+{% endblock %}
+
+{% block extra_js %}
+{% if available %}
+<script src="{% static 'vendors/gridstack-13.3.0/gridstack-all.js' %}"></script>
+<script src="{% static_v 'common/js/wama-history.js' %}"></script>
+<script src="{% static_v 'common/js/surfaces/wama-surface.js' %}"></script>
+{% for script in scripts %}<script src="{% static_v script %}"></script>
+{% endfor %}
+<script>
+  WamaSurface.mount(document.querySelector('.wama-surface-grid'),
+                    JSON.parse(document.getElementById('wama-surface-config').textContent));
+</script>
+{% endif %}
+{% endblock %}

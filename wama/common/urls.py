@@ -9,6 +9,7 @@ from django.views.generic import RedirectView
 
 from .utils import preview_utils
 from .utils import detail_registry
+from . import surface_views
 from . import views
 
 app_name = 'common'
@@ -18,6 +19,13 @@ urlpatterns = [
     path('preview/<str:app_name>/<int:pk>/', preview_utils.unified_preview, name='unified_preview'),
     # Unified detail (infos inspecteur) : /common/detail/<app_name>/<pk>/
     path('detail/<str:app_name>/<int:pk>/', detail_registry.unified_detail, name='unified_detail'),
+    # SURFACES (2026-10-10) : page d'édition COMPOSÉE de briques, déclarée par l'app
+    # (`common/surfaces.py`) — page, lecture des données, enregistrement du champ édité.
+    path('surface/<str:app>/<str:key>/<int:pk>/', surface_views.surface_page, name='surface'),
+    path('surface/<str:app>/<str:key>/<int:pk>/data/', surface_views.surface_data,
+         name='surface_data'),
+    path('surface/<str:app>/<str:key>/<int:pk>/save/', surface_views.surface_save,
+         name='surface_save'),
 
     # Enrichissement de prompt à la demande (✨) — générique {prompt, app, domain}, cf. WAMA_LLM.md §Skills
     path('api/enrich-prompt/', views.api_enrich_prompt, name='enrich_prompt'),
@@ -155,6 +163,8 @@ urlpatterns = [
     # Clé de l'INSTANCE d'une source, posée par un admin depuis la page (2026-10-07).
     path('sources/<slug:key>/instance-key/', views.external_source_instance_key,
          name='sources_instance_key'),
+    path('sources/<slug:key>/instance-address/', views.external_source_instance_address,
+         name='sources_instance_address'),
 
     # Journal transversal de l'utilisateur (WAMA_MEMORY.md §9bis) — dérive de detail_registry,
     # aucune ligne dans les apps.

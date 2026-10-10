@@ -352,6 +352,54 @@ se retrouve pas limité par des capacités qu'il ne pourrait plus ingérer dans 
 
 ---
 
+## 8bis. Les JEUX D'ENTRAÎNEMENT du labo — inventaire mesuré et proposition (2026-10-10) ⏳
+
+> Demande de Fabien : *« investiguer tous les datasets que j'ai déjà récupérés pour de futurs
+> entraînements […] il faudra peut-être revoir l'arborescence et l'organisation […] on pourra
+> le consigner même si on ne l'attaque pas encore »*. **Rien n'a été déplacé ni modifié** :
+> inventaire en lecture seule du dossier `DATASETS` du partage réseau du labo.
+
+**Ce qu'il contient (mesuré)** : ≈ 255 Go, 2,74 M fichiers. Visages ≈ 242 Go (VGGFace2-HQ 178 Go,
+DigiFace-1M 23 Go, CelebA 22 Go en archives non extraites, **WIDER FACE complet et officiel**
+3,5 Go, FDDB, UFDD non extrait, une douzaine d'exports Roboflow et trois fusions maison) ; plaques
+0,8 Go (Roboflow « License Plate Recognition v11 » : 7 057 / 2 048 / 1 020 images annotées, plus
+des jeux plus petits, deux en Pascal VOC) ; émotions 10,8 Go (CK/CK+, JAFFE, KDEF, PICS…) ;
+coco128 ; des scripts de conversion. La liste de téléchargement de SA-1B (liens expirés), sans
+image.
+
+**Ce qui rend le dossier difficile à réutiliser (constats, détail au rapport de session)** :
+rangé par USAGE et non par SOURCE (les jeux officiels sous `~Autres`) ; dérivés et fusions SANS
+trace de provenance ; étiquettes renumérotées à la main sans mise à jour de `data.yaml` (les
+copies `_CarLP_` : la classe `vehicle` s'y confond désormais avec les plaques) ; formats
+hétérogènes ; splits de validation absents pour plusieurs jeux ; licences souvent introuvables
+(CelebA et UFDD sont NON COMMERCIAUX) ; archives ET extractions côte à côte (≈ 96 Go de trop pour
+VGGFace2) ; noms avec `&`, `~`, statuts (`_OK`, `_NOK`, ` - Copie`).
+
+**Proposition — dans la règle du §2 (WAMA déclare, déclenche, réingère)** :
+1. **Trois étages, jamais mélangés** : `sources/<jeu>/<version>/` IMMUABLES (tel que publié, avec
+   sa licence et sa provenance) ; `derived/<nom>/` PRODUITS par une recette rejouable (script et
+   commit, sources et versions, table de classes, splits) — jamais retouchés à la main ;
+   `archives/` une seule fois, l'extraction vérifiée remplaçant le doublon.
+2. **Un manifeste `dataset` par jeu** (le kind existe, `WAMA_MANIFEST_SPEC`) : identité, licence
+   (obligatoire — `non commercial` filtré pour tout livrable), tâche, classes, splits, comptes,
+   format, provenance. C'est lui que la DATATHÈQUE (décision du 2026-10-10, `WAMA_DATA_WORLD`
+   point G) listera sous « mes données » — le dossier reste où il est, WAMA le désigne.
+3. **Les annotations natives sont la vérité** (txt WIDER, VOC, COCO) ; les exports YOLO/COCO sont
+   des DÉRIVÉS régénérables, pas des copies éditées.
+4. **Des jeux d'ÉVALUATION figés, branchés sur le banc** (`bench --task detect-recall`, qui ne
+   sait aujourd'hui mesurer que par contenant) : WIDER FACE val (3 226 images, 39 708 visages,
+   sous-ensembles easy/medium/hard officiels) pour les visages ; la validation de « License Plate
+   Recognition v11 » (2 048 images) pour les plaques — des boîtes vraies, donc un rappel ET une
+   précision, à côté du banc par contenant des caméras de véhicule.
+5. Nommage : anglais, minuscules, sans `&` ni `~` ; l'état d'un jeu (validé, rejeté) vit dans son
+   manifeste, pas dans son nom.
+
+⚠ Ordre proposé : (4) d'abord — c'est ce qui sert dès maintenant l'anonymizer (WIDER val) ; (2)
+au fil de l'eau, jeu par jeu ; (1) et le ménage (archives, doublons) en une passe décidée par
+Fabien, le partage étant aussi le sien hors WAMA.
+
+---
+
 ## 9. Ce qu'il ne faut PAS faire maintenant
 
 - écrire un Trainer ;

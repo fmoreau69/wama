@@ -4605,3 +4605,15 @@ casseraient en silence… sauf le premier, que l'instrument attraperait) :
 - **E** : émetteur card→manifeste de ~~process~~ **pipeline** (vocabulaire précisé le 2026-09-15, `WAMA_APP_GENERATION_ROUTE.md §10.6`) (2ᵉ source d'`extract_pipeline`) + importeur = la PORTE d'ingestion que `intake._sniff_manifest` attend déjà (« `ingest()` sans appelant ») + `-i` batch pointant un manifeste (réutiliser `_UNIFIED_FLAG_MAP`, pas de 2ᵉ format) ;
 - **F** : les DEUX files manquantes — surface Django `wama_data` née SUR les briques communes (le Lab montre le coût inverse : 6356 lignes à reprendre) ; ~~🔴 **arbitrage Fabien préalable**~~ : comment Data entre au catalogue — (a) `APP_CATALOG` avec conventions largement N/A, ou (b) un CONTRAT Data distinct mesuré par la grille. ✅ **TRANCHÉ le 2026-09-15 (Fabien) : voie (a)** — le Data Analyzer entre dans `APP_CATALOG` sous le monde `data` ; chaque app déclare son monde (`WAMA_APP_GENERATION_ROUTE.md §10.6` point 6.1, marches P1 et P7). Le contrat mesuré par la grille reste à adapter aux spécificités Data déclarées ;
 - **G** : la bibliothèque des fichiers Data (3 options : médiathèque étendue / bibliothèque propre scopée / assumer file-modèle) — G7 n'en tranche aucune.
+  ✅ **TRANCHÉ le 2026-10-10 (Fabien) — une 4ᵉ voie : un SOCLE commun, deux ENTRÉES.** Une
+  DATATHÈQUE distincte de la médiathèque pour l'usage — chercher des données OUVERTES (portails
+  open data, Zenodo, jeux Hugging Face…) comme la médiathèque cherche des médias Creative
+  Commons, et gérer SES jeux (« mes données » : indexation, métadonnées) — mais le même socle de
+  code : stockage et pointeurs, portée et partage, dédoublonnage, voies d'import, recherche chez
+  des fournisseurs. Ce qui diffère est DÉCLARÉ : les fournisseurs, et le schéma de métadonnées
+  (colonnes, unités, licence, DOI, provenance). C'est la marche B (nature `dataset` dans
+  `MEDIA_CATEGORIES`) avec une entrée à part — « une brique, deux présentations ». Les jeux
+  personnels vivent dans la datathèque, comme « mes médias » dans la médiathèque. *« Ça évite
+  d'ajouter encore une page pour gérer des ressources. »* Les BRIQUES UI, elles, n'y entrent pas :
+  ce sont du code déclaré, consultable par un catalogue (registre `ui_bricks`, chantier SURFACES).
+  Rien n'est construit ; jeux d'entraînement du labo : `WAMA_APPRENTISSAGE.md §8bis`.

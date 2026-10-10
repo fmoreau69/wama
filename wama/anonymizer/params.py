@@ -249,8 +249,8 @@ USER_SETTINGS_EXTRA = {CLASSES_SETTING: default_classes2blur()}
 
 def clean_classes(classes):
     """Une liste postée de classes à flouter, assainie (mêmes règles que la tâche)."""
-    from wama.anonymizer.tasks import _classes_saines
-    return _classes_saines(classes) if isinstance(classes, list) else default_classes2blur()
+    from wama.anonymizer.utils.media_utils import sane_classes
+    return sane_classes(classes) if isinstance(classes, list) else default_classes2blur()
 
 
 #: Tout ce que la brique commune doit savoir des réglages du volet de l'anonymizer.

@@ -29,3 +29,12 @@ def get_unique_filename(folder: str, filename: str) -> str:
         full_path = os.path.join(folder, candidate)
 
     return candidate
+
+
+def sane_classes(classes) -> list:
+    """Les classes d'une liste `classes2blur` qui sont des NOMS : un ancien chemin de sauvegarde y
+    a injecté le booléen sérialisé 'false' (médias 220/221/225, constat 2026-08-17). Une classe
+    est un nom, jamais true/false/none/vide. Lu par la détection ET par la surface de correction
+    (déplacé de `tasks._classes_saines` le 2026-10-10, second lecteur)."""
+    return [c for c in (classes or [])
+            if isinstance(c, str) and c.strip().lower() not in ('true', 'false', 'none', '')]

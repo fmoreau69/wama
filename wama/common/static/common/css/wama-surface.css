@@ -1,0 +1,56 @@
+/* SURFACE — page d'édition composée de briques (chantier SURFACES, 2026-10-10).
+   Commune à toutes les apps : aucune règle ne nomme une app ni une brique d'app. */
+
+.wama-surface-page { max-width: none; margin: 0 auto; padding: .5rem 0 2rem; }
+.wama-surface-head { display: flex; align-items: center; gap: .75rem; margin-bottom: .5rem; }
+.wama-surface-title { font-size: 1.1rem; margin: 0; color: #e6edf3; }
+.wama-surface-status { margin-left: auto; font-size: .8rem; color: #8a8f98; }
+.wama-surface-status[data-kind="dirty"] { color: #ffc107; }
+.wama-surface-status[data-kind="ok"] { color: #20c997; }
+.wama-surface-status[data-kind="error"] { color: #ff6b6b; }
+
+/* Grille gridstack : chaque brique = un panneau à titre (poignée de déplacement). */
+.wama-surface-grid .grid-stack-item-content {
+  display: flex; flex-direction: column; background: #121216; border: 1px solid #2a2a30;
+  border-radius: .45rem; overflow: hidden; inset: 3px;
+}
+.wama-brick-head {
+  display: flex; align-items: center; gap: .35rem; padding: .25rem .5rem;
+  background: #19191f; border-bottom: 1px solid #2a2a30; cursor: move; user-select: none;
+  min-height: 2rem;
+}
+.wama-brick-title { font-size: .78rem; font-weight: 600; color: #c9d1d9; margin-right: auto; }
+.wama-brick-body { flex: 1 1 auto; min-height: 0; position: relative; overflow: auto; color: #c9d1d9; }
+
+.wama-brick-tools { display: flex; align-items: center; gap: .25rem; cursor: default; }
+.wama-brick-tools .btn-xs, .wama-surface-grid .btn-xs {
+  padding: .1rem .35rem; font-size: .75rem; line-height: 1.2; color: #c9d1d9;
+  border: 1px solid #3a3a42; background: transparent;
+}
+.wama-brick-tools .btn-xs.active { background: #0dcaf0; color: #000; border-color: #0dcaf0; }
+.wama-brick-tools .wama-brick-class { width: auto; padding: .05rem 1.6rem .05rem .4rem; font-size: .75rem;
+  background-color: #16161a; color: #c9d1d9; border-color: #3a3a42; }
+.wama-brick-zoom { font-size: .72rem; color: #8a8f98; min-width: 3.2rem; text-align: right; }
+
+/* Image et zones */
+.wama-brick-image { overflow: hidden; background: #0b0b0d; }
+.wama-brick-image canvas { display: block; outline: none; }
+
+/* Liste des objets */
+.wama-brick-objects { display: flex; flex-direction: column; }
+.wama-objects-summary { padding: .4rem .55rem; font-size: .78rem; border-bottom: 1px solid #2a2a30; color: #e6edf3; }
+.wama-objects-list { flex: 1 1 auto; overflow: auto; }
+.wama-object-row { display: flex; align-items: center; gap: .4rem; padding: .2rem .55rem; font-size: .75rem;
+  cursor: pointer; border-left: 3px solid transparent; }
+.wama-object-row:hover { background: rgba(255,255,255,.04); }
+.wama-object-row.is-selected { background: rgba(13,202,240,.12); border-left-color: #0dcaf0; }
+.wama-object-row.is-manual .wama-object-label { color: #20c997; }
+.wama-object-row.is-removed .wama-object-label { color: #ff6b6b; text-decoration: line-through; }
+.wama-object-label { font-weight: 600; min-width: 4rem; }
+.wama-object-meta { color: #8a8f98; margin-right: auto; font-variant-numeric: tabular-nums; }
+
+/* Actions */
+.wama-brick-actions { display: flex; flex-direction: column; gap: .45rem; padding: .55rem; }
+.wama-actions-row { display: flex; gap: .35rem; }
+.wama-actions-row .btn-outline-primary { margin-left: auto; }
+.wama-actions-help { font-size: .7rem; color: #8a8f98; line-height: 1.35; }

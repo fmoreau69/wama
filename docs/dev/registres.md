@@ -65,7 +65,7 @@ la réponse n'est pas « tout en registre ».
 
 ## Les registres, un par un
 
-**16 registres**, par ordre alphabétique de libellé.
+**17 registres**, par ordre alphabétique de libellé.
 
 ### Applications
 
@@ -86,6 +86,15 @@ Le catalogue lui-même est déclaré en code — rien à y actualiser. Ce qui s'
 - **Doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 
 Le VIVIER des BACKENDS — la méthode qui appelle un moteur, jamais le moteur lui-même : le MODÈLE porte son moteur, le backend s'en DÉRIVE, et un moteur est une LIBRAIRIE. On y lit ce que chaque app sait exécuter, la nature d'entrée qui y mène, la SAVEUR de sortie (fichier/texte), les paquets requis, la VRAM et les modèles servis. Dit aussi l'ENVIRONNEMENT d'exécution : le défaut est un venv unique, et un backend qui tourne ailleurs le déclare (`ISOLATION`) — sans quoi le verdict de disponibilité confondrait « paquet absent » et « backend qui vit ailleurs ». Deux usages : la vision d'ensemble, et le voisinage dont le LLM de la marche B a besoin pour s'inspirer du backend le plus approchant. Dérivé à chaque affichage — un backend ajouté y apparaît sans qu'on déclare rien ici.
+
+### Briques UI
+
+- **Clé** : `ui_bricks` — Dérivé à chaque affichage — toujours à jour
+- **Source** : `common/surfaces.py` — briques déclarées (ce qu'elles consomment, émettent, leur script) ; les surfaces des apps les composent
+- **Doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Citable dans une doc** : `WAMA:FAIT(ui_bricks/<clé>/<champ>)`
+
+Les briques dont une page d'édition se COMPOSE — déplaçables, redimensionnables, communes à tous les mondes. Déclarées par le code : la liste ne peut pas être périmée, il n'y a rien à actualiser.
 
 ### Documentation
 
