@@ -1054,6 +1054,10 @@ class ModelRegistry:
                                       'inputs_required': ['work_file']},
                     )
 
+            # Détecteurs image par image HORS ultralytics (2026-10-10) : déclarés par l'app
+            # (`FRAME_DETECTORS`), servis par leur backend commun (`FrameDetectionBackend`).
+            self._discover_anonymizer_frame_detectors()
+
             # Add SAM3 if available
             try:
                 from wama.anonymizer.utils.sam3_manager import SAM3_HF_REPO, get_sam3_status
@@ -1110,6 +1114,52 @@ class ModelRegistry:
 
         except ImportError as e:
             logger.debug(f"Could not import Anonymizer models: {e}")
+
+    def _discover_anonymizer_frame_detectors(self):
+        """Les détecteurs `FRAME_DETECTORS` de l'anonymizer (EgoBlur, RT-DETR…) : une ligne par
+        déclaration, TÉLÉCHARGÉE quand ses poids sont sur le disque. Un poids posé à la main
+        (EgoBlur) est un fichier ; un dépôt HF est un snapshot sous son dossier de famille, et
+        `install_dir` rend la ligne installable d'un geste (`spec_for_catalog_row`)."""
+        try:
+            from wama.anonymizer.utils.model_config import FRAME_DETECTORS, frame_detector_dir
+            from .prospector import installed_weights_complete
+            for key, spec in FRAME_DETECTORS.items():
+                folder = frame_detector_dir(spec)
+                hf_id = spec.get('hf_id')
+                if hf_id:
+                    path = folder / f"models--{hf_id.replace('/', '--')}"
+                    downloaded = path.is_dir() and installed_weights_complete(path)
+                else:
+                    path = folder / spec['file']
+                    downloaded = path.is_file()
+                self._models[f"anonymizer:{key}"] = ModelInfo(
+                    id=f"anonymizer:{key}",
+                    name=spec['name'],
+                    model_type=ModelType.VISION,
+                    source=ModelSource.WAMA_ANONYMIZER,
+                    description=spec.get('long', ''),
+                    description_short=spec.get('short', ''),
+                    hf_id=hf_id or None,
+                    vram_gb=spec.get('vram_gb', 0),
+                    is_downloaded=downloaded,
+                    backend_ref='anonymizer',
+                    extra_info={
+                        'path': str(path), 'model_id': key,
+                        **({'install_dir': str(folder)} if hf_id else {}),
+                        **({'repo': spec['repo']} if spec.get('repo') else {}),
+                        **({'license': spec['license']} if spec.get('license') else {}),
+                    },
+                    composition={'runtime': {'engine': spec['engine']}},
+                    capabilities={'task': 'detect', 'classes': list(spec['classes']),
+                                  'modalities': ['image', 'video'],
+                                  'inputs_required': ['work_file']},
+                )
+        except Exception as e:
+            # Même règle que SAM3 : une découverte en échec se DIT (la réconciliation ne doit
+            # pas prendre une absence de déclaration pour un modèle disparu).
+            self.discovery_errors.append(f"anonymizer frame detectors : {type(e).__name__}: {e}")
+            logger.warning("[ModelRegistry] détecteurs hors ultralytics non déclarés (%s: %s)",
+                           type(e).__name__, e)
 
     def _discover_face_analyzer_models(self):
         """Poids DeepFace du Face Analyzer (WAMA Lab) — des fichiers `.h5`, pas des snapshots HF.

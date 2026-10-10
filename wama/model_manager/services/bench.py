@@ -281,6 +281,109 @@ def _bench_generation(entry: AIModel, sample: str, *, runs: int = GENERATION_RUN
     }
 
 
+# ── Rappel par CONTENANT (2026-10-10) — la premiere MESURE DE QUALITE de ce banc ─────────────
+# Sans verite terrain des plaques, on mesure contre des CONTENANTS deja connus : une plaque
+# appartient a un vehicule. La reference donne, image par image, les boites des vehicules (sorties
+# d'un suivi deja valide) ; un vehicule PROCHE (boite d'au moins `min_height` px) est « trouve »
+# si le centre d'une detection tombe dedans. Le taux MANQUE (1 - rappel) est une borne : un
+# vehicule de profil n'a pas de plaque visible — il compte comme manque pour TOUS les modeles,
+# donc l'ordre reste juste. La part des detections tombant dans un vehicule dit les fausses
+# alertes (capot, logo, panneaux).
+# Chaque modele passe par le MEME chemin que l'anonymizer (`detection_ensemble`), avec ses propres
+# reglages (seuil mesure d'EgoBlur, agrandissement…) : on mesure ce qui floutera.
+RECALL_PROTOCOL = 'containment_v1'
+RECALL_APP, RECALL_OBJECT = 'model_manager', 'DetectionBench'
+
+
+def read_recall_reference(sample: str) -> dict:
+    """La reference d'un banc de rappel (JSON) : `media` (chemin, relatif au fichier ou
+    absolu), `class`, `min_height`, `containers` (une liste de boites [x1,y1,x2,y2] par image,
+    dans l'ordre des images du media)."""
+    import json
+    with open(sample, encoding='utf-8') as f:
+        ref = json.load(f)
+    media = ref.get('media') or ''
+    if media and not os.path.isabs(media):
+        media = os.path.join(os.path.dirname(os.path.abspath(sample)), media)
+    if not (media and os.path.isfile(media) and ref.get('class') and ref.get('containers')):
+        raise ValueError(f"{sample} : reference de rappel incomplete (media, class, containers)")
+    ref['media'] = media
+    ref.setdefault('min_height', 45)
+    return ref
+
+
+def containment_counts(doc: dict, ref: dict) -> dict:
+    """Les comptes du rappel par contenant — sans interpretation (cf. en-tete du protocole)."""
+    by_index = {f['i']: f.get('d') or [] for f in doc.get('frames') or []}
+    near = found = detections = inside = 0
+    for index, containers in enumerate(ref['containers']):
+        centres = [((d['box'][0] + d['box'][2]) / 2, (d['box'][1] + d['box'][3]) / 2)
+                   for d in by_index.get(index, [])]
+        detections += len(centres)
+        inside += sum(any(c[0] - 4 <= x <= c[2] + 4 and c[1] - 4 <= y <= c[3] + 4
+                          for c in containers) for x, y in centres)
+        for c in containers:
+            if c[3] - c[1] >= ref['min_height']:
+                near += 1
+                found += any(c[0] <= x <= c[2] and c[1] <= y <= c[3] for x, y in centres)
+    return {'near': near, 'found': found, 'missed': near - found, 'detections': detections,
+            'inside': inside}
+
+
+def _bench_recall(entry: AIModel, sample: str, *, conf: float = 0.25, record: bool = False,
+                  **_) -> dict:
+    """Le rappel d'UN modele sur une reference de contenants ; `record` range la mesure
+    (`ResultEvaluation`, une ligne par modele — l'etage 3 de l'echelle des signaux)."""
+    import hashlib
+
+    from wama.common.services.detection_ensemble import detect_with_models
+    from wama.common.services.model_coverage import miss_metric
+
+    ref = read_recall_reference(sample)
+    start = time.perf_counter()
+    doc = detect_with_models(
+        [{'model_key': entry.model_key, 'path': entry.local_path, 'name': entry.name,
+          'classes': [ref['class']]}],
+        media_path=ref['media'], classes2blur=[ref['class']], detection_threshold=conf)
+    elapsed = time.perf_counter() - start
+    counts = containment_counts(doc, ref)
+    frames = max(len(ref['containers']), 1)
+    miss = round(counts['missed'] / counts['near'], 4) if counts['near'] else None
+    if record and miss is not None:
+        from wama.common.models import ResultEvaluation
+        with open(sample, 'rb') as f:
+            digest = hashlib.sha256(f.read()).hexdigest()
+        ResultEvaluation.objects.update_or_create(
+            app=RECALL_APP, object_type=RECALL_OBJECT, object_id=entry.pk,
+            metric=miss_metric(ref['class']),
+            defaults={'model_key': entry.model_key, 'value': miss, 'direction': 'lower',
+                      'protocol': RECALL_PROTOCOL, 'reference_sha256': digest,
+                      'reference_name': os.path.basename(sample),
+                      'detail': {'errors': counts['missed'], 'reference_length': counts['near'],
+                                 'unit': 'object', 'detections': counts['detections'],
+                                 'inside': counts['inside'], 'threshold': conf,
+                                 'ms_per_frame': round(1000 * elapsed / frames, 1)}})
+    return {
+        'outputs': counts['detections'],
+        'mean_confidence': None,
+        'load_s': None,
+        'inference_s': round(elapsed, 2),
+        'saturated': False,
+        'recall': round(1 - miss, 3) if miss is not None else None,
+        'inside_rate': round(counts['inside'] / counts['detections'], 3)
+        if counts['detections'] else None,
+        'ms_per_frame': round(1000 * elapsed / frames, 1),
+    }
+
+
+def recall_candidates(sample: str) -> list:
+    """Les modeles a mesurer pour une reference : detecteurs installes qui couvrent sa classe."""
+    from wama.common.services.model_coverage import classes_couvertes
+    cls = read_recall_reference(sample)['class']
+    return [m for t in (ModelTask.DETECT.value, ModelTask.SEGMENT.value)
+            for m in models_for_task(t) if classes_couvertes(m, [cls])]
+
+
 # Un protocole par FAMILLE de tache. Ajouter une tache = ajouter une entree ici, jamais une
 # commande de plus.
 PROTOCOLS: dict[str, Callable] = {
@@ -292,7 +395,13 @@ PROTOCOLS: dict[str, Callable] = {
     ModelTask.CAPTIONING.value: _bench_description,
     ModelTask.DEPTH_ESTIMATION.value: _bench_depth,
     ModelTask.TEXT_GENERATION.value: _bench_generation,
+    # Pas une tache de modele : un protocole de QUALITE sur les detecteurs (`detect`/`segment`)
+    # qui couvrent la classe de la reference — cf. `_bench_recall`.
+    'detect-recall': _bench_recall,
 }
+
+#: Protocoles dont les candidats ne se lisent pas par `models_for_task(tache)`.
+CANDIDATES = {'detect-recall': recall_candidates}
 
 
 def available_tasks() -> list:
@@ -313,7 +422,7 @@ def run_bench(task: str, sample: str, *, models: Optional[list] = None, **option
         raise ValueError(
             f"Aucun protocole pour la tache '{task}'. Disponibles : {', '.join(available_tasks())}")
 
-    candidates = models_for_task(task)
+    candidates = CANDIDATES[task](sample) if task in CANDIDATES else models_for_task(task)
     if models:
         wanted = {m.strip() for m in models}
         candidates = [m for m in candidates if m.name in wanted or m.model_key in wanted]

@@ -9,6 +9,11 @@ aurait fait deux.
     python manage.py bench --task detect --media media/anonymizer/1/input/Faces_01.jpg
     python manage.py bench --task captioning --media une_image.jpg --models gemma4:12b,gemma4:e4b
     python manage.py bench --task text-generation --media prompt.txt --models qwen3.5:4b --runs 3
+    python manage.py bench --task detect-recall --media reference.json --record
+
+`detect-recall` (2026-10-10) : le RAPPEL des detecteurs d'une classe contre une reference de
+contenants (JSON : media, classe, boites des vehicules par image — `bench.read_recall_reference`).
+`--record` range chaque mesure (`ResultEvaluation`), lue ensuite comme note interne du modele.
 
 Pour `text-generation`, l'echantillon est un fichier TEXTE : le prompt. Le protocole CHARGE
 chaque modele sur l'Ollama hote (rampe VRAM — cf. INFRA §crashs) : lancer un modele a la fois,
@@ -18,7 +23,9 @@ import os
 
 from django.core.management.base import BaseCommand, CommandError
 
-from wama.model_manager.services.bench import run_bench, available_tasks, models_for_task
+from wama.model_manager.services.bench import (
+    CANDIDATES, available_tasks, models_for_task, run_bench,
+)
 
 
 class Command(BaseCommand):
@@ -35,13 +42,15 @@ class Command(BaseCommand):
         parser.add_argument('--runs', type=int, default=3,
                             help="Generation de texte : passes mesurees par modele (defaut 3, "
                                  "apres une passe de chauffe non comptee).")
+        parser.add_argument('--record', action='store_true',
+                            help="detect-recall : range chaque mesure (ResultEvaluation).")
 
     def handle(self, *args, **options):
         task, media = options['task'], options['media']
         if not os.path.isfile(media):
             raise CommandError(f"Echantillon introuvable : {media}")
 
-        candidates = models_for_task(task)
+        candidates = CANDIDATES[task](media) if task in CANDIDATES else models_for_task(task)
         if not candidates:
             raise CommandError(
                 f"Aucun modele installe ne declare la tache '{task}'. "
@@ -54,6 +63,8 @@ class Command(BaseCommand):
             protocol_options['runs'] = options['runs']
         elif task != 'captioning':
             protocol_options['conf'] = options['conf']
+        if task in CANDIDATES:
+            protocol_options['record'] = options['record']
 
         try:
             measures = run_bench(task, media,
@@ -64,6 +75,7 @@ class Command(BaseCommand):
 
         # Generation : le debit est la colonne qui compare, et c'est lui qui ordonne.
         generation = task == 'text-generation'
+        recall = task in CANDIDATES
         header = f"  {'model':46s} {'outputs':>8s} {'conf.moy':>9s} {'inference':>10s} {'VRAM':>6s}"
         if generation:
             header += f" {'jetons/s':>9s} {'prefill':>9s} {'charg.':>7s}"
@@ -73,6 +85,8 @@ class Command(BaseCommand):
         def _order(x):
             if generation:
                 return (x['error'] is not None, -(x.get('tokens_per_s') or 0))
+            if recall:
+                return (x['error'] is not None, -(x.get('recall') or 0))
             return (x['error'] is not None, -(x['outputs'] or 0))
 
         for m in sorted(measures, key=_order):
@@ -88,6 +102,9 @@ class Command(BaseCommand):
                 line += (f" {str(m.get('tokens_per_s') or '—'):>9s} "
                           f"{str(m.get('prefill_ms')) + ' ms':>9s} "
                           f"{(str(load) + ' s') if load else 'résid.':>7s}")
+            if recall:
+                line += (f"  rappel {m.get('recall')}  dans-contenant {m.get('inside_rate')}"
+                         f"  {m.get('ms_per_frame')} ms/img")
             self.stdout.write(self.style.WARNING(line + "  ⚠ saturé") if m['saturated'] else line)
 
         self.stdout.write(self.style.NOTICE(

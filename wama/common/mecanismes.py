@@ -316,8 +316,21 @@ MECHANISMS = (
               # Le repli « feuille » compte l'import du module, qui est la vraie adoption.
               'wama/common/utils/model_keys.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F4b'),
     Mechanism('model_coverage', 'Couverture multi-modèles',
-              "Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisation)",
+              "Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisation) ; "
+              "depuis le 10/10, `models_per_class` en ajoute plusieurs par classe (rappel d'abord) "
+              "et les départage par leur taux manqué MESURÉ quand le lot entier l'est",
               'wama/common/services/model_coverage.py', ''),
+    Mechanism('detection_ensemble', 'Détection par un ensemble de modèles',
+              "L'UNION des documents `detections` de plusieurs détecteurs, quelle que soit leur "
+              "famille (2026-10-10) : les modèles ultralytics ensemble par `Anonymize`, chacun des "
+              "autres par SON backend (porte `backend_instance_for_key`). Un détecteur image par "
+              "image n'écrit que `detect_frames` : la boucle sur le média est commune "
+              "(`FrameDetectionBackend` — SAM3, EgoBlur, RT-DETR). Consommé par l'anonymizer et "
+              "par le banc de rappel (`bench --task detect-recall`), qui mesure par le MÊME chemin",
+              'wama/common/services/detection_ensemble.py', 'docs/construction/ia/WAMA_QUALITE.md',
+              annexes=('wama/common/backends/detection_base.py',
+                       'wama/common/utils/detections.py',
+                       'wama/common/tests/tests_detection_ensemble.py')),
     Mechanism('model_quality', 'Indice de qualité a priori',
               "Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.)",
               'wama/model_manager/services/model_quality.py', ''),

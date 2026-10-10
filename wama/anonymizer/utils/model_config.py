@@ -34,6 +34,26 @@ logger = logging.getLogger(__name__)
 #: en dépendre au démarrage) — la couverture « auto », la vue et le select la lisent.
 DETECTION_TASKS = ('detect', 'segment')
 
+#: Taille de l'ENSEMBLE par classe selon le curseur de précision (2026-10-10) — arbitrage de
+#: l'app, déclaré : anonymiser, c'est ne rien rater ; chaque modèle de plus sur une classe
+#: rattrape des objets que les autres ratent (plaques : un détecteur seul ≤ 59,5 %, deux 64,6 %)
+#: au prix d'une passe. Paliers inclusifs du curseur 0-100 ; au-delà du dernier, `MODELS_PER_CLASS_MAX`.
+MODELS_PER_CLASS_STEPS = ((33, 1), (66, 2))
+MODELS_PER_CLASS_MAX = 3
+
+
+def models_per_class_for(precision_level) -> int:
+    """Modèles par classe pour ce cran de précision (« Rapide » : un seul, comme avant)."""
+    try:
+        value = int(precision_level)
+    except (TypeError, ValueError):
+        value = 50
+    for ceiling, size in MODELS_PER_CLASS_STEPS:
+        if value <= ceiling:
+            return size
+    return MODELS_PER_CLASS_MAX
+
+
 #: DOMAINE du select de modèle : par TÂCHE, jamais par source (route F4b ⑤, 2026-10-07). Mesuré
 #: avant de basculer, une fois la mise en page et la détection ouverte sorties de `detect` : les
 #: 32 mêmes modèles que l'ancien domaine `source='anonymizer'`, tous servis (`backend_for_key`).
@@ -130,6 +150,57 @@ YOLO_WEIGHTS_HF_ID = {
     'face_yolov8m-seg_60': 'jags/yolov8_model_segmentation-set',
     'yolo11l_face_plate_signs': 'Panoramax/detect_face_plate_sign',
 }
+
+
+# =============================================================================
+# DÉTECTEURS HORS ULTRALYTICS (2026-10-10) — déclarés ICI, catalogués par la découverte
+# =============================================================================
+
+#: Détecteurs IMAGE PAR IMAGE servis par un backend commun (`FrameDetectionBackend`) — la clé
+#: est l'identifiant de catalogue (`anonymizer:<clé>`) et celui que le backend déclare servir.
+#: Entrés après le banc des plaques en caméra embarquée basse résolution (2026-10-10, détail
+#: `wama/common/backends/egoblur_backend.py`) : les YOLO plaques installés y plafonnaient à 20 %
+#: de rappel, EgoBlur atteint 59,5 %, RT-DETR 40 %, et leur union 64,6 %.
+#:   `dir_key` : dossier de `MODEL_PATHS['vision']` ; `file` : poids posé à la main (EgoBlur,
+#:   distribué par formulaire) ; `hf_id` : dépôt tiré par le geste « Installer » du catalogue.
+FRAME_DETECTORS = {
+    'egoblur-lp-gen1': {
+        'name': 'EgoBlur plaques (gen1)',
+        'engine': 'torchscript',
+        'classes': ['license_plate'],
+        'dir_key': 'egoblur', 'file': 'ego_blur_lp_gen1.jit',
+        'repo': 'https://github.com/facebookresearch/EgoBlur', 'license': 'Apache-2.0',
+        'vram_gb': 2.0,
+        'short': "EgoBlur (Meta) — plaques d'immatriculation, vidéo embarquée.",
+        'long': "EgoBlur (Meta, Apache-2.0) : détecteur de plaques entraîné pour ANONYMISER la "
+                "vidéo embarquée, réglé pour ne rien rater. Meilleur rappel mesuré sur des "
+                "caméras de véhicule basse résolution (59,5 % des plaques des véhicules proches, "
+                "contre 20 % aux YOLO plaques), 42 ms par image. Poids distribués par Meta sur "
+                "formulaire : à déposer dans le dossier `vision/egoblur`.",
+    },
+    'rtdetr-v2-license-plate': {
+        'name': 'RT-DETR v2 plaques',
+        'engine': 'transformers',
+        'classes': ['license_plate'],
+        'dir_key': 'object_detection', 'hf_id': 'justjuu/rtdetr-v2-license-plate-detection',
+        'vram_gb': 1.0,
+        'short': "RT-DETR v2 — plaques d'immatriculation (transformers).",
+        'long': "RT-DETR v2 affiné sur les plaques (Apache-2.0) : 40 % de rappel sur des caméras "
+                "de véhicule basse résolution, 69 ms par image. Ses erreurs diffèrent de celles "
+                "d'EgoBlur : réunis, ils trouvent 64,6 % des plaques — c'est un complément "
+                "d'ensemble pour l'anonymisation.",
+    },
+}
+
+
+def frame_detector_dir(spec: dict) -> Path:
+    """Dossier des poids d'un détecteur de `FRAME_DETECTORS` (déclaré dans `MODEL_PATHS`)."""
+    return Path(MODEL_PATHS.get('vision', {}).get(spec['dir_key'])
+                or Path(VISION_ROOT) / spec['dir_key'])
+
+
+for _spec in FRAME_DETECTORS.values():
+    frame_detector_dir(_spec).mkdir(parents=True, exist_ok=True)
 
 
 def hf_id_for_yolo_weight(filename: str) -> str:

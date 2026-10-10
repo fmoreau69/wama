@@ -17,8 +17,7 @@ import logging
 
 from PIL import Image
 
-from .detection_base import DetectionBackend
-from wama.common.utils.video_utils import is_image
+from .detection_base import FrameDetectionBackend
 from wama.settings import MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT, MODEL_PATHS, AI_MODELS_DIR
 
 logger = logging.getLogger(__name__)
@@ -78,7 +77,7 @@ def load_sam3_image_model():
                                   load_from_HF=False)
 
 
-class SAM3Processor(DetectionBackend):
+class SAM3Processor(FrameDetectionBackend):
     """
     SAM3-based processor for prompt-driven object segmentation and blurring.
 
@@ -280,106 +279,65 @@ class SAM3Processor(DetectionBackend):
                 labels.append(concept)
         return masks, scores, labels
 
-    def detect(self, **kwargs) -> dict:
-        """Le process « DÉTECTION » par SAM3 (2026-10-04) : les contours de ce que le prompt
-        nomme, frame par frame, en document `detections` (`common/utils/detections`) — que le
-        process « Floutage » relit. Rien n'est flouté, rien n'est écrit ici.
+    # ── Détection image par image (boucle commune : `FrameDetectionBackend`, 2026-10-10) ──
+    # Le process « DÉTECTION » par SAM3 (2026-10-04) : les contours de ce que le prompt nomme,
+    # frame par frame, en document `detections` — que le process « Floutage » relit. Rien n'est
+    # flouté ici. SAM3 segmente image par image (le prédicteur vidéo exige triton) : les
+    # détections n'ont pas de PISTE ; l'interpolation les relie par leur position.
+    # La boucle sur le média vivait ICI jusqu'au 2026-10-10 ; elle est montée dans la base pour
+    # que RT-DETR, EgoBlur… ne la recopient pas. Ne restent que ce qui est propre à SAM3.
 
-        SAM3 segmente image par image (le prédicteur vidéo exige triton) : les détections n'ont
-        donc pas de PISTE, et le floutage ne les interpole pas.
-
-        kwargs : `media_path`, `sam3_prompt`, `on_frame(i, image, détections)`,
-        `progress(faites, total)` ; `progress_callback(pourcentage)` (console) reste lu.
-        """
-        from wama.common.utils import detections as dets
+    def prepare(self, **kwargs) -> None:
+        """Le prompt de la card (`sam3_prompt`), puis le modèle image."""
         self.text_prompt = kwargs.get('sam3_prompt', self.text_prompt)
         if not self.text_prompt or not self.text_prompt.strip():
             raise ValueError("SAM3 requires a text prompt. Please provide 'sam3_prompt' parameter.")
         self.input_path = kwargs.get('media_path', self.input_path)
-        if not self.input_path or not os.path.exists(self.input_path):
-            raise FileNotFoundError(f"Input file not found: {self.input_path}")
-        on_frame, progress = kwargs.get('on_frame'), kwargs.get('progress')
-        console_progress = kwargs.get('progress_callback')
         self._ensure_image_model()
-        concepts = self.concepts()
-        logger.info(f"[SAM3] Detecting with concept(s): {concepts}")
+        logger.info(f"[SAM3] Detecting with concept(s): {self.concepts()}")
 
-        def _frame(index, bgr):
-            """Les détections d'UNE frame (BGR OpenCV) au format du document."""
-            masks, scores, labels = self._segment(Image.fromarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)))
+    def threshold_for(self, **kwargs) -> float:
+        """SAM3 garde SON seuil (`confidence_threshold`) : le seuil de la card est celui des
+        détecteurs à classes, ses scores n'ont pas la même échelle."""
+        return self.confidence_threshold
+
+    def requested_classes(self, **kwargs) -> list:
+        """Aucun filtre : les CONCEPTS du prompt sont la demande (et le libellé des détections)."""
+        return []
+
+    def output_tag(self) -> str:
+        return 'sam3'
+
+    def document_meta(self, **kwargs) -> dict:
+        return {'engine': 'sam3', 'models': ['sam3'], 'prompt': self.text_prompt}
+
+    def detect_frames(self, images, threshold: float) -> list:
+        """Les contours de chaque concept du prompt, image par image (BGR OpenCV)."""
+        from wama.common.utils import detections as dets
+        results = []
+        for bgr in images:
+            masks, scores, labels = self._segment(
+                Image.fromarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)))
             found = []
             for i, mask in enumerate(masks):
                 score = float(scores[i]) if i < len(scores) else 1.0
-                if score < self.confidence_threshold:
+                if score < threshold:
                     continue
                 polygons = dets.mask_to_polygons(self._convert_mask_to_numpy(mask, bgr.shape[:2]))
                 if not polygons:
                     continue
                 found.append(dets.detection(box=dets.box_of_polygons(polygons), label=labels[i],
                                             conf=score, polygons=polygons))
-            return found
+            results.append(found)
+        return results
 
-        try:
-            if is_image(self.input_path):
-                image = cv2.imread(self.input_path)
-                if image is None:
-                    raise RuntimeError(f"Could not load image: {self.input_path}")
-                height, width = image.shape[:2]
-                doc = dets.new_document(media='image', width=width, height=height, engine='sam3',
-                                        models=['sam3'], prompt=self.text_prompt)
-                found = _frame(0, image)
-                dets.add(doc, 0, found)
-                if on_frame:
-                    on_frame(0, image, found)
-                if progress:
-                    progress(1, 1)
-            else:
-                capture = cv2.VideoCapture(self.input_path)
-                if not capture.isOpened():
-                    raise RuntimeError(f"Could not open video: {self.input_path}")
-                total = int(capture.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
-                doc = dets.new_document(
-                    media='video', width=int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                    height=int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-                    fps=capture.get(cv2.CAP_PROP_FPS) or 25.0, frame_count=total,
-                    engine='sam3', models=['sam3'], prompt=self.text_prompt)
-                index = 0
-                try:
-                    while True:
-                        ok, frame = capture.read()
-                        if not ok:
-                            break
-                        try:
-                            found = _frame(index, frame)
-                        except Exception as frame_error:
-                            # Une frame ratée n'arrête pas le média : elle reste sans détection,
-                            # et la console le dit (comme le floutage d'avant l'écrivait telle quelle).
-                            logger.warning(f"[SAM3] Frame {index} error: {frame_error}")
-                            found = []
-                        dets.add(doc, index, found)
-                        if on_frame:
-                            on_frame(index, frame, found)
-                        index += 1
-                        if progress:
-                            progress(index, total or index)
-                        if console_progress and total:
-                            console_progress(int(index / total * 100))
-                        if index % 100 == 0:
-                            gc.collect()
-                            if torch.cuda.is_available():
-                                torch.cuda.empty_cache()
-                finally:
-                    capture.release()
-            doc['tag'] = 'sam3'
-            if not doc['frames']:
-                # Un prompt que SAM3 n'ancre pas rend 0 masque SANS erreur : le dire, sinon
-                # l'échec est invisible (le floutage rendrait le média tel quel).
-                logger.warning(f"[SAM3] AUCUN masque — rien ne sera flouté. Concepts: {concepts}")
-            return doc
-        finally:
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+    def detect(self, **kwargs) -> dict:
+        doc = super().detect(**kwargs)
+        if not doc['frames']:
+            # Un prompt que SAM3 n'ancre pas rend 0 masque SANS erreur : le dire, sinon
+            # l'échec est invisible (le floutage rendrait le média tel quel).
+            logger.warning(f"[SAM3] AUCUN masque — rien ne sera flouté. Concepts: {self.concepts()}")
+        return doc
 
     def _convert_mask_to_numpy(self, mask, target_shape):
         """

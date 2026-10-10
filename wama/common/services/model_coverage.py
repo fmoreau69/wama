@@ -174,6 +174,39 @@ def segmentation_for_intent(intent) -> bool:
 STRATEGIES = ('couverture', 'specialisation')
 
 
+# ── Mesure INTERNE par classe (2026-10-10) ─────────────────────────────────────────────────
+# Le banc de rappel (`model_manager/services/bench.py`, protocole `detect-recall`) range une
+# ligne `ResultEvaluation` par modèle mesuré : le TAUX D'OBJETS MANQUÉS d'une classe, plus bas
+# est mieux. L'agrégation est celle de toute mesure interne (`internal_quality.internal_scores`)
+# — une seule définition, lue ici sans rien écrire au catalogue.
+
+#: Préfixe de la métrique ; la classe suit, sous sa forme de groupe d'alias.
+MISS_METRIC_PREFIX = 'miss_'
+
+
+def miss_metric(cls: str) -> str:
+    """La métrique de taux manqué pour `cls` — `plate` et `license_plate` en partagent une."""
+    forms = sorted(formes_equivalentes(cls))
+    return MISS_METRIC_PREFIX + (forms[0] if forms else normaliser_classe(cls)).replace(' ', '_')
+
+
+def measured_miss_rates(model_keys, cls: str) -> dict:
+    """`{model_key: taux manqué}` des modèles MESURÉS pour `cls` sur une même référence — les
+    autres absents. Deux références différentes ne se comparent pas : on garde le groupe le plus
+    peuplé (le banc de référence courant), comme le rang de `internal_scores`."""
+    try:
+        from wama.model_manager.services.internal_quality import internal_scores
+        scores = internal_scores(list(model_keys))
+    except Exception:
+        return {}
+    metric, groups = miss_metric(cls), {}
+    for key, entries in scores.items():
+        for e in entries:
+            if e['metric'] == metric:
+                groups.setdefault((e['protocol'], e['references']), {})[key] = e['value']
+    return max(groups.values(), key=len) if groups else {}
+
+
 def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
                     budget_vram_gb: float | None = None,
                     taches_admises=(),
@@ -181,9 +214,17 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
                     taille_preferee: str = '',
                     quality_intent=None,
                     strategie: str = 'couverture',
-                    max_modeles: int = 4) -> dict:
+                    max_modeles: int = 4,
+                    models_per_class: int = 1) -> dict:
     """
     Ensemble MINIMAL de modèles couvrant `classes`, par recouvrement glouton.
+
+    `models_per_class` (2026-10-10) : au-delà de la couverture, AJOUTER des modèles jusqu'à ce
+    que chaque classe couverte le soit par ce nombre de modèles (dans la limite `max_modeles`) —
+    un ENSEMBLE, pour un appelant qui veut le rappel avant le coût (anonymiser : une plaque
+    oubliée est une fuite). Les modèles d'une classe se départagent d'abord par leur rappel
+    MESURÉ (`measured_miss_rates`) quand TOUS les candidats de cette classe en ont un — la règle de
+    lot de l'échelle des signaux (`WAMA_QUALITE §4.1`) ; sinon comme avant.
 
     `quality_intent` (chantier C, 2026-09-20) : le curseur commun 0-100 — la brique en DÉRIVE
     elle-même ses préférences vision (`size_for_intent`, `segmentation_for_intent`) quand
@@ -253,33 +294,70 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
             m.quality_index if tous_qualifies else (m.vram_gb or 0),
         )
 
-    retenus, restantes = [], set(voulues)
-    while restantes and candidats and len(retenus) < max_modeles:
+    # Rappel MESURÉ par classe — seulement pour une classe dont TOUS les candidats sont mesurés :
+    # comparer un modèle mesuré à un modèle qui ne l'est pas n'a pas de sens (règle de lot).
+    # ⚠ C'est la PROJECTION de la mesure interne dans un tri (décision Q3 de `WAMA_QUALITE`,
+    # « lecture d'abord, tri quand le jeu est commun ») — bornée à la couverture de classes, et
+    # au seul cas où le lot ENTIER d'une classe a été mesuré sur la même référence.
+    measured = {}
+    for v in voulues:
+        pool = [m.model_key for m in candidats if _couvertes(m, {v})]
+        rates = measured_miss_rates(pool, v) if pool else {}
+        if pool and all(k in rates for k in pool):
+            measured[v] = rates
+
+    def _measured_recall(m, couvre) -> float:
+        """Rappel mesuré (1 − taux manqué) sur les classes couvertes dont le lot est mesuré."""
+        values = [1.0 - measured[v][m.model_key] for v in couvre if v in measured]
+        return max(values) if values else 0.0
+
+    def gain_for(targets):
         def gain(m):
-            couvre = _couvertes(m, restantes)
+            couvre = _couvertes(m, targets)
             if strategie == 'specialisation':
                 # On maximise la SPÉCIALISATION, pas le recouvrement : le modèle qui déclare le
                 # MOINS de classes au total (d'où le signe négatif) l'emporte, même s'il couvre
                 # moins de classes demandées — c'est le prix assumé d'une meilleure détection.
                 # `min(couvre, 1)` garde la garantie de progression : un modèle qui ne couvre
                 # rien reste dernier et la boucle s'arrête proprement.
-                return (min(len(couvre), 1), -len(_classes_du_modele(m))) + _departage(m)
-            return (len(couvre),) + _departage(m)
+                # Le rappel MESURÉ passe AVANT ce proxy : il est la vérité que le proxy attendait.
+                return (min(len(couvre), 1), _measured_recall(m, couvre),
+                        -len(_classes_du_modele(m))) + _departage(m)
+            return (len(couvre), _measured_recall(m, couvre)) + _departage(m)
+        return gain
 
-        meilleur = max(candidats, key=gain)
-        couvertes = _couvertes(meilleur, restantes)
+    retenus, restantes = [], set(voulues)
+
+    def _retain(targets) -> set:
+        """Retient le meilleur candidat pour `targets` ; rend les classes qu'il y prend
+        (vide : plus aucun progrès possible)."""
+        meilleur = max(candidats, key=gain_for(targets))
+        taken = _couvertes(meilleur, targets)
+        if taken:
+            retenus.append({
+                'model_key': meilleur.model_key,
+                'name': meilleur.name,
+                'path': meilleur.local_path or '',
+                'classes': sorted(taken),
+                'quality_index': meilleur.quality_index,
+                'vram_gb': meilleur.vram_gb or 0,
+            })
+            candidats.remove(meilleur)
+        return taken
+
+    # 1. La COUVERTURE : chaque classe par au moins un modèle.
+    while restantes and candidats and len(retenus) < max_modeles:
+        couvertes = _retain(restantes)
         if not couvertes:
             break                      # plus aucun progrès possible : on s'arrête net
-        retenus.append({
-            'model_key': meilleur.model_key,
-            'name': meilleur.name,
-            'path': meilleur.local_path or '',
-            'classes': sorted(couvertes),
-            'quality_index': meilleur.quality_index,
-            'vram_gb': meilleur.vram_gb or 0,
-        })
         restantes -= couvertes
-        candidats.remove(meilleur)
+
+    # 2. L'ENSEMBLE : des modèles de plus pour les classes couvertes trop peu de fois.
+    while models_per_class > 1 and candidats and len(retenus) < max_modeles:
+        short = {v for v in voulues - restantes
+                      if sum(1 for r in retenus if v in r['classes']) < models_per_class}
+        if not short or not _retain(short):
+            break
 
     couverture = round((len(voulues) - len(restantes)) / len(voulues), 3)
     if restantes:

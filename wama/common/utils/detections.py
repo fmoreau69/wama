@@ -69,6 +69,31 @@ def add(doc: dict, frame_index: int, detections) -> None:
         doc['frames'][at]['d'].extend(found)
 
 
+def merge(docs) -> dict:
+    """L'UNION de documents du même média (2026-10-10) — un par détecteur d'un ensemble : leurs
+    frames réunies, leurs modèles et moteurs listés. Rien n'est dédoublonné : deux détecteurs
+    qui voient la même plaque la floutent deux fois au même endroit, ce qui ne coûte rien, alors
+    qu'une fusion approximative pourrait rogner une zone. Un seul document : rendu tel quel."""
+    docs = [d for d in docs if d]
+    if len(docs) == 1:
+        return docs[0]
+    if not docs:
+        raise ValueError("merge : aucun document à réunir")
+    first = docs[0]
+    union = new_document(
+        media=first['media'], width=first['width'], height=first['height'], fps=first['fps'],
+        frame_count=max(d.get('frame_count') or 0 for d in docs),
+        engine='+'.join(dict.fromkeys(d.get('engine') or '' for d in docs if d.get('engine'))),
+        models=[m for d in docs for m in d.get('models') or []],
+        classes=list(dict.fromkeys(c for d in docs for c in d.get('classes') or [])),
+        prompt=next((d['prompt'] for d in docs if d.get('prompt')), ''))
+    union['tag'] = 'multi-model'
+    for d in docs:
+        for frame in d.get('frames') or []:
+            add(union, frame['i'], [dict(det) for det in frame.get('d') or []])
+    return union
+
+
 def write(path: str, doc: dict) -> str:
     """Écrit le document (frames ordonnées) ; rend le chemin."""
     clean = {k: v for k, v in doc.items() if not k.startswith('_')}

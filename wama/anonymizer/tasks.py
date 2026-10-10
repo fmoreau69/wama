@@ -311,7 +311,8 @@ def _detection_kwargs(media, user):
             for m in parallel_info['models']:
                 _console(user.id, f"  - {m['id']} : {m['classes']}")
             kwargs['models'] = [
-                {'path': m['path'], 'name': m.get('name'), 'classes': m.get('classes')}
+                {'path': m['path'], 'name': m.get('name'), 'classes': m.get('classes'),
+                 'model_key': m.get('model_key')}
                 for m in parallel_info['models']
             ]
 
@@ -339,6 +340,7 @@ def _detection_kwargs(media, user):
 
             if keep_user_model:
                 kwargs['model_path'] = model_path_for(user_specified_model)
+                kwargs['model_key'] = user_specified_key
                 _console(user.id, f"Respecting user-specified model: {user_specified_model}")
                 logger.info(f"[ModelSelection] Keeping user-specified model {user_specified_model} "
                             f"(already covers {kwargs['classes2blur']}) — no override")
@@ -347,6 +349,7 @@ def _detection_kwargs(media, user):
                 # depuis l'identifiant rouvrirait une seconde route (et échouerait pour un
                 # modèle rangé hors de l'arborescence historique). `_gmp` reste le repli.
                 kwargs['model_path'] = selected.get('path') or _gmp(selected['id'])
+                kwargs['model_key'] = selected.get('model_key')
                 _console(user.id, f"Auto-selected model: {selected['id']} for classes {selected['classes']}")
                 logger.info(f"[ModelSelection] Using ModelSelector result: {selected['id']} (overriding user default)")
 
@@ -368,6 +371,7 @@ def _detection_kwargs(media, user):
 
             if model_to_use:
                 kwargs['model_path'] = model_path_for(model_to_use)
+                kwargs['model_key'] = user_specified_key
             else:
                 # Auto-select model based on precision level and classes
                 selected_model = select_model_by_precision(
@@ -391,8 +395,11 @@ def _detection_kwargs(media, user):
     # replier sur YOLO sans le rendre, et une ligne ne nomme pas un modèle qui n'a pas tourné.
     used_models = []
     if not use_sam3:
-        paths = [m['path'] for m in kwargs.get('models') or []] or [kwargs.get('model_path')]
-        used_models = [key for key in (_catalogue_key(p) for p in paths if p) if key]
+        chosen = kwargs.get('models') or [{'path': kwargs.get('model_path'),
+                                           'model_key': kwargs.get('model_key')}]
+        used_models = [key for key in (m.get('model_key') or _catalogue_key(m.get('path'))
+                                       for m in chosen if m.get('model_key') or m.get('path'))
+                       if key]
     return kwargs, used_models
 
 
@@ -629,10 +636,14 @@ def detect_media(**kwargs):
             _console(user_id, f"Warning: {reason}. Falling back to YOLO.")
 
     if user_id:
-        _console(user_id, f"Using YOLO with classes: {kwargs.get('classes2blur', [])}")
-    model = anonymize.Anonymize(source_dir=source_dir, destination_dir=dest_dir)
-    model.load_model(**kwargs)
-    return model.detect(**kwargs)
+        _console(user_id, f"Détecteurs pour les classes : {kwargs.get('classes2blur', [])}")
+    # L'ENSEMBLE (2026-10-10) : les modèles ultralytics passent ensemble par `Anonymize`, chaque
+    # autre modèle (EgoBlur, RT-DETR…) par SON backend, et les documents se réunissent.
+    from wama.common.services.detection_ensemble import detect_with_models
+    models = kwargs.pop('models', None) or [{'path': kwargs.get('model_path'),
+                                             'model_key': kwargs.get('model_key'),
+                                             'classes': None}]
+    return detect_with_models(models, source_dir=source_dir, destination_dir=dest_dir, **kwargs)
 
 
 # ----------------------------------------------------------------------

@@ -86,6 +86,12 @@ MODEL_PATHS = {
         # reconstruire (règle : un CHEMIN vient de `MODEL_PATHS`, jamais d'une convention
         # recopiée dans un backend).
         'locate_anything': AI_MODELS_DIR / "models" / "vision" / "locate-anything",
+        # EgoBlur (Meta, Apache-2.0) — détecteurs de plaques et de visages faits pour anonymiser
+        # la vidéo embarquée (2026-10-10). Poids TorchScript remis à la main : Meta les distribue
+        # derrière un formulaire, aucun dépôt ne les sert. `ego_blur_<lp|face>_gen<N>.jit` ici.
+        'egoblur': AI_MODELS_DIR / "models" / "vision" / "egoblur",
+        # Détecteurs d'objets `transformers` (RT-DETR…) — dossier de famille, `cache_dir=`.
+        'object_detection': AI_MODELS_DIR / "models" / "vision" / "object-detection",
     },
     # Upscaling/Enhancement models (ONNX)
     'upscaling': {

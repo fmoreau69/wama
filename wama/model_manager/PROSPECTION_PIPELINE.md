@@ -2268,3 +2268,97 @@ source) dont le pilote `yolo` téléchargeait DÉJÀ un fichier de version GitHu
 tâche) → décision de Fabien ; les téléchargeurs écrits par app (enhancer QualityScaler, 60 URL
 de l'anonymizer, YOLOPv2 du Cam Analyzer, CodeFormer de `setup_avatarizer.sh`) → adoptions à
 venir, une à une ; `WAMA_MECANISMES.md` à régénérer (registre complété, doc co-éditée).
+
+## Session du 2026-10-10 : les PLAQUES d'immatriculation — une recherche hors chaîne, deux détecteurs entrés, et le premier banc de QUALITÉ des détecteurs
+
+**Le constat** (demande de Fabien) : l'anonymizer laissait passer la plupart des plaques sur des
+caméras de véhicule basse résolution (~400×248) — or *une plaque oubliée casse l'anonymisation*.
+Le constat de 2026-08-14 (« le modèle PLAQUES est insuffisant ») n'avait jamais été chiffré.
+
+**Le banc** (rappel par CONTENANT, sans vérité terrain des plaques) : 320 images de 4 caméras,
+contenants = boîtes des véhicules suivis ; un véhicule PROCHE (≥ 45 px) est « trouvé » si le
+centre d'une détection y tombe. Borne basse : un véhicule de profil n'a pas de plaque visible —
+une planche des véhicules ratés par l'union le montre (≈ 9 plaques VISIBLES sur 10 trouvées,
+estimation à l'œil). Entré dans WAMA : `bench --task detect-recall --record` (`WAMA_QUALITE §5 ⑥`).
+
+| détecteur | licence | rappel | remarque |
+|---|---|---|---|
+| **EgoBlur gen1 plaques** (Meta) | Apache-2.0 | **59,7 %** | image agrandie à 600 px de côté court, seuil 0,1 ; gen2 ≤ 52 % (fait pour Aria Gen2) |
+| SAM3 « license plate » | (au catalogue) | 41,7 % | 490 ms/image — trop lent pour une vidéo entière |
+| **RT-DETR v2 plaques** (`justjuu/rtdetr-v2-license-plate-detection`) | Apache-2.0 | **40,1 %** | fausses alertes fixes (capot, logo) ; erreurs DIFFÉRENTES d'EgoBlur |
+| open-image-models `yolo-v9-s-608` (end2end ONNX) | MIT | 31 % | non retenu : n'ajoute presque rien à l'union |
+| les 14 YOLO plaques installés | — | 9,8–17,7 % | quelle que soit la taille d'entrée ou un recadrage agrandi |
+| autres YOLOv8 du Hub | MIT/Apache | ≤ 12 % | écartés |
+| **union EgoBlur + RT-DETR** (+ visages) | — | **65,0 %** | mesuré par `detect_media`, sélection auto au cran 50 |
+
+**Ce qui est entré** — par la checklist d'ajout de modèle, pas par la prospection : les deux
+sont DÉCLARÉS par l'app (`anonymizer/utils/model_config.FRAME_DETECTORS`, dossiers
+`MODEL_PATHS['vision']['egoblur'|'object_detection']`, découverte
+`model_registry._discover_anonymizer_frame_detectors`). RT-DETR s'installe par le geste commun
+« Installer » (`install_dir` + `hf_id`, `spec_for_catalog_row`) — fait le 10/10 par
+`request_install`. ⚠ **EgoBlur ne passe par AUCUNE route** : Meta distribue ses poids derrière un
+formulaire (projectaria.com) — Fabien les a téléchargés ; ils se DÉPOSENT dans le dossier déclaré
+et la découverte les voit. Une voie « poids remis à la main » n'existe pas ailleurs que par ce
+dépôt ; ce n'est pas un trou à combler tant qu'un seul modèle est dans ce cas.
+Backends : `egoblur_backend.EgoBlurBackend` (moteur `torchscript`, réglages MESURÉS dans
+`SUPPORTED_MODELS`) et `hf_object_detection_backend.HFObjectDetectionBackend` (tout
+`AutoModelForObjectDetection`, servi par déclaration), au contrat `FrameDetectionBackend`.
+
+**Leçons** : (1) l'ONNX passe bien sur le GPU par `onnx_utils.onnx_providers()` — un script qui
+ouvre une session sans lui retombe sur le processeur et fait croire à tort que l'ONNX GPU est
+cassé ; (2) les `.pt` d'open-image-models sont au format YOLOv9 ORIGINAL, qu'ultralytics ne sait
+pas charger — seule leur exportation end2end ONNX se lit ; (3) un modèle TorchScript tracé se
+charge sur le processeur PUIS se déplace (`map_location='cpu'`, `.to('cuda')`), sinon des
+constantes restent sur le processeur ; (4) un banc d'exploration hors WAMA a été REJOUÉ par le
+chemin de l'app : mêmes chiffres à 0,2 point près — c'est ce qui autorise à ranger la mesure.
+
+🔚 **Restes** : visages EgoBlur (poids fournis, non mesurés — aucune référence de visages) ;
+RT-DETR à 390 ms/image dans le banc (chargement compris, prétraitement processeur) à mesurer seul ;
+fausses alertes fixes du véhicule porteur (masque statique à étudier) ; page de correction
+manuelle (chantier SURFACES) ; projection de la mesure dans le tri = **Q3 à confirmer**.
+
+## Session du 2026-10-10 (suite) : deux sources qui nomment un modèle par sa QUALITÉ ou par son AUTEUR
+
+**Le constat, mesuré** (question de Fabien : « faut-il s'appuyer sur les benchmarks pour identifier
+des modèles ? »). La prospection Hugging Face cherchait par ÉTIQUETTE et triait par POPULARITÉ.
+Sur olmOCR-Bench, **6 des 7 premiers** OCR publient `image-text-to-text` — l'étiquette des VLM, que
+le balayage OCR (`HF_TASKS['image-to-text']`) ne lit jamais — et le 3ᵉ a 386 téléchargements. Aucun
+n'avait été proposé ; GLM-OCR n'était passé que parce qu'il porte `image-to-text`.
+
+1. **Les CLASSEMENTS comme source de découverte** — `prospector.seed_benchmark_candidates`, sur
+   `benchmark_sync.leaderboard_repos` (mêmes sources et même cache que la synchro des bancs). Pour
+   chaque banc rattaché à une tâche (`category_task`, lecture inverse de `TASK_TO_BENCH_CATEGORY`),
+   les 3 premiers dépôts non installés. **Le banc donne la tâche**, l'étiquette ne compte plus ; le
+   rang et la valeur sont écrits sur le candidat (`prospect.leaderboard`). Seules les sources qui
+   publient le DÉPÔT entrent (classements officiels du Hub, Open ASR, MTEB) : un nom commercial (AA,
+   Arena) ne désigne aucun artefact installable. Un modèle dont même le Q4 dépasse la VRAM totale
+   n'est pas proposé (`Q4_WEIGHT_RATIO`, VRAM lue par nvidia-smi — mesuré : MDPBench place un modèle
+   de 180 milliards de paramètres dans son trio de tête). Une entrée Open ASR qui nomme un SERVICE
+   (`microsoft/azure-speech-…`) n'a pas de dépôt : sautée.
+2. **Les SUCCESSEURS déclarés par l'auteur** — `prospector.seed_hf_successors`, sur le champ
+   standard `new_version` des cartes (`hf_successor` suit la chaîne). Exemple réel :
+   `allenai/olmOCR-7B-0225-preview` → `…-0825` → `olmOCR-2-7B-1025`. Jusque-là un modèle Hugging
+   Face n'avait AUCUNE mise à jour proposée (`update_checker` compare des dates : « republié »,
+   jamais « remplacé par »). Le candidat est un `update` comme ceux d'Ollama (`origin_key`, `cible`,
+   `maj: successeur`, confiance 0,9 sur preuve) mais **n'entraîne aucun retrait** : `replaced_model`
+   ne vaut plus que pour un descripteur Ollama (sinon la garde de disque comptait un espace rendu
+   qui ne l'est pas).
+3. **L'étiquette elle-même** : `hf_task_to_wama('image-text-to-text', [… 'ocr' …])` rend
+   désormais `ocr` (même règle que la détection ouverte : le tag de la carte départage).
+4. **Une seule écriture des candidats Hugging Face** : `_write_hf_candidate` et
+   `_purge_hf_candidates` remplacent les deux copies de `seed_hf_candidates` / `seed_hf_search`.
+
+Câblage : le bouton « Prospecter » (`api_prospect_ollama`) enchaîne successeurs → balayage par
+tâche → classements, chaque source dans son périmètre (une panne n'efface rien chez les autres).
+
+**Mesure sur le catalogue réel** (transaction annulée, rien d'écrit) : 56 modèles Hugging Face
+installés vérifiés, 1 successeur (olmOCR) ; 16 candidats de classement sur 6 bancs, tous à la
+bonne tâche — OCR : Infinity-Parser2-Pro, LightOnOCR-3-4B, Chandra-OCR-2, dots.mocr,
+PaddleOCR-VL-1.5/1.6, TeleOCR ; transcription : Hojo-ASR, Cohere Transcribe, Granite Speech,
+Phi-4-multimodal, Voxtral-Small ; embeddings : Qwen3-Embedding 4B/8B, EmbeddingGemma.
+Tests : `tests_prospection_sources` (18, deux contre-épreuves jouées).
+
+🔚 **Restes** : l'assistant n'a que la recherche NOMMÉE (`search_models`) — le verbe « Prospecter »
+du bouton ne lui est pas exposé ; un successeur installé n'est pas branché dans l'app de l'ancien
+(intégration par les rôles) ; deux versions d'une même famille peuvent être proposées ensemble
+(PaddleOCR-VL 1.5 et 1.6).

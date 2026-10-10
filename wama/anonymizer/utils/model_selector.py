@@ -759,7 +759,7 @@ def get_model_selection_info(classes_to_blur: List[str],
 
 #: Tâches admises pour flouter — déclarées UNE fois (`model_config.DETECTION_TASKS`, que le
 #: select lit aussi).
-from .model_config import DETECTION_TASKS  # noqa: E402
+from .model_config import DETECTION_TASKS, models_per_class_for  # noqa: E402
 
 
 def select_best_models_by_precision(classes_to_blur: List[str],
@@ -800,6 +800,10 @@ def select_best_models_by_precision(classes_to_blur: List[str],
         # Préférences, pas filtres — DÉRIVÉES par la brique du curseur commun (chantier C) :
         # la déclinaison n/s/m/l/x + segmentation ≥ 50 vit désormais dans `model_coverage`.
         quality_intent=precision_level,
+        # ENSEMBLE PAR CLASSE (2026-10-10) : rappel d'abord — plusieurs détecteurs par classe
+        # selon le curseur (`model_config.models_per_class_for`), départagés par leur rappel MESURÉ.
+        models_per_class=models_per_class_for(precision_level),
+        max_modeles=max(4, models_per_class_for(precision_level) * len(classes_to_blur)),
     )
 
     # La brique rend des `model_key` de catalogue ; l'anonymizer manipule ses identifiants
@@ -820,6 +824,9 @@ def select_best_models_by_precision(classes_to_blur: List[str],
             chemin = get_model_path(identifiant)
         models_to_use.append({
             'id': identifiant,
+            # La CLÉ de catalogue voyage (2026-10-10) : c'est elle qui dit le moteur d'un modèle
+            # hors ultralytics, que l'ensemble exécute par son backend (`detection_ensemble`).
+            'model_key': m['model_key'],
             'path': chemin,
             'name': m['name'],
             'type': (am.capabilities or {}).get('task', 'detect') if am else 'detect',
