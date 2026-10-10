@@ -2426,3 +2426,32 @@ prenait la détection chez facexlib, omettait deux fichiers.
   17 h 08, déclaration modifiée à 18 h 47) a RÉÉCRIT la ligne sans `install_dir` — chaque
   `manage.py` déclenche une réconciliation au démarrage (`apps.ready()`). Tant que les workers ne
   sont pas relancés, la ligne perd sa déclaration au prochain passage.
+
+**Suite du 2026-10-10 (nuit) — audit « rien de réinventé, aucun chemin parallèle » (demande de
+Fabien) sur les commits `afd9524d` → `b76841e9`.** Chaque ajout confronté à l'existant ; trois
+écarts de mon fait, soldés :
+- **`pull_model <clé>` appelait `install_from_spec`** — le pilote INTERNE. Or `request_install`
+  est « UNE SEULE ROUTE d'installation depuis l'extérieur » (sa docstring, 2026-09-19) : la clé
+  sautait la garde d'espace disque, le refus « déjà téléchargé », la reprise d'une installation en
+  cours et le suivi de la tâche. La commande fait désormais `request_install(clé, via='cli')`,
+  comme la vue et l'assistant. Et le marcheur d'app `install_requires <app> --apply` existait
+  déjà (2026-08-31) : il enfile `avatarizer:codeformer`, requis par le manifeste de l'app.
+- **`_file_sha256`** recopiait `wama/common/utils/provenance.sha256_of`, la brique commune
+  d'empreinte (voix, révisions, pipeline) : elle est appelée, sans son plafond de 512 Mo ; et
+  `download_asset` rend l'empreinte calculée au fil du flux — la prospection ne relit plus le
+  fichier qu'elle mesure.
+- **Le pilote `yolo` écrivait `https://github.com/…` en dur** à côté du pilote `github`, qui
+  dérive son adresse et son proxy de la source déclarée : les deux passent par `github`.
+- Retiré : `avatarizer/model_config.CODEFORMER_WEIGHTS_SUBDIRS`, sans consommateur (le backend
+  porte la sienne) ; la garde compare le backend à la déclaration des fichiers.
+- Vérifié sans écart : `download_asset` (seul téléchargement contrôlé ; les autres sont propres
+  aux apps), pas de poids dans la voie vendor, `github_folder_name` frère de `hf_folder_name`,
+  `_estimated_vram`/`_dominant_format` EXTRAITS (aucun autre calcul), `enforce_category_facts`
+  sur `models.model_type_for_task`, `backend_model_id` adopté (egoblur compris).
+- ⏳ Signalés, non tranchés : le jeton `GITHUB_TOKEN` lu en direct par `benchmark_sync` et par
+  `prospector.github_release` (copié du premier) — la source `github_api` ne déclare pas de clé
+  (`external_sources.api_key`), et la déclarer change `is_configured` ; le marcheur
+  `install_requirements` appelle `dispatch_install` sans la garde d'espace disque ; la carte du
+  model manager écrit son lien vers HuggingFace depuis `hf_id` (gabarit), alors que
+  `platform_url` sert déjà l'action « Voir sur la plateforme » ; l'étape 4 de
+  `setup_avatarizer.sh` (MuseTalk) télécharge encore elle-même.

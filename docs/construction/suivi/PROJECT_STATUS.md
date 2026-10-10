@@ -22894,3 +22894,13 @@ pose les fichiers sous le dossier de l'app, `pull_model <clé>` = jumeau CLI du 
   0 erreur JS ; model manager (compte de test dev déclaré) → CodeFormer, SPAN, GaterV3 « Ready ».
 - 🔚 Les cartes `github` du model manager n'affichent pas le lien de leur version (les cartes HF
   ont le leur) — `platform_url` le sait, le gabarit ne le montre pas.
+
+## §PALIER — 2026-10-10 (nuit), « audit : rien de réinventé, aucun chemin parallèle » — livré (commit de ce palier, non poussé)
+
+Audit des commits `afd9524d` → `b76841e9` demandé par Fabien. Soldés : `pull_model <clé>` =
+`request_install` (la route unique, plus le pilote interne) ; empreinte par
+`provenance.sha256_of` ; adresse du pilote `yolo` dérivée de la source `github` ; constante morte
+retirée. Signalés : jeton GitHub hors `external_sources`, marcheur sans garde d'espace, lien HF en
+dur dans la carte, MuseTalk. Détail : `PROSPECTION_PIPELINE §Suite du 2026-10-10 (nuit)`.
+- 🔴 Relancer les workers reste nécessaire ; `pull_model avatarizer:codeformer` répond désormais
+  « déjà installé » quand les fichiers sont là (refus `already_downloaded` du bouton).

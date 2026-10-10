@@ -151,16 +151,17 @@ echo "--- [5/5] Téléchargement checkpoints CodeFormer ---"
 #   • le repli `basicsr` posait `codeformer.pth` À PLAT (la découverte le cherche sous
 #     `CodeFormer/`), prenait la détection chez facexlib, et omettait `parsing_parsenet.pth`
 #     et `RealESRGAN_x2plus.pth`.
-# Les poids passent désormais par la route du CATALOGUE, comme le bouton « Installer » : l'app
-# DÉCLARE les quatre fichiers que le code vendorisé lit (`AVATARIZER_MODELS['codeformer']
-# ['release']`, version sczhou/CodeFormer v0.1.0, empreintes épinglées), sa découverte pose le
-# dossier (`MODEL_PATHS['lipsync']['codeformer']`), `pull_model` installe (pilote `github`,
-# téléchargement commun, journal, re-synchronisation). Idempotent : un fichier en place à la
-# bonne empreinte est gardé.
+# Les poids passent désormais par la route du CATALOGUE : l'app DÉCLARE les quatre fichiers
+# que le code vendorisé lit (`AVATARIZER_MODELS['codeformer']['release']`, version
+# sczhou/CodeFormer v0.1.0, empreintes épinglées), sa découverte pose le dossier
+# (`MODEL_PATHS['lipsync']['codeformer']`), et `pull_model <clé>` fait la DEMANDE du bouton
+# « Installer » (`request_install` : garde d'espace disque, tâche Celery suivie au model
+# manager, journal ; pilote `github`). Déjà installé → rien à faire. ⚠ La tâche s'exécute dans
+# un worker Celery : il doit tourner (sinon elle attend en file).
 cd "$PROJECT_DIR"
 python manage.py sync_models >/dev/null      # la ligne `avatarizer:codeformer` existe ensuite
 python manage.py pull_model avatarizer:codeformer || \
-    echo "ATTENTION : poids CodeFormer non installés — relancer : python manage.py pull_model avatarizer:codeformer"
+    echo "ATTENTION : poids CodeFormer non demandés — bouton « Installer » du model manager, ou : python manage.py pull_model avatarizer:codeformer"
 
 # (La galerie d'avatars n'est plus un dossier media/avatarizer/gallery/ : les avatars — photos
 #  et objets 3D — se cherchent et s'importent par la médiathèque, source « Avatars 3D » comprise.)

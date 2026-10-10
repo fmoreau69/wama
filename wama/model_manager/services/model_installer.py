@@ -218,16 +218,24 @@ def format_duplicates(hf_id: str) -> list:
 _YOLO_TASK_DIRS = {'-seg': 'segment', '-obb': 'obb', '-pose': 'pose', '-cls': 'classify'}
 
 
-#: URL STABLE des poids YOLO officiels (assets GitHub Ultralytics) — un seul domicile : le
-#: téléchargement et le relevé de taille la lisent ici.
-_YOLO_ASSET_URL = "https://github.com/ultralytics/assets/releases/latest/download/{}.pt"
+#: Chemin STABLE des poids YOLO officiels (assets GitHub Ultralytics) sur la source déclarée
+#: `github` — un seul domicile : le téléchargement et le relevé de taille le lisent ici.
+#: (2026-10-10 : l'adresse était écrite en dur, `https://github.com/…`, à côté du pilote `github`
+#: qui dérive la sienne de la source — deux pilotes, deux règles d'adressage et de proxy.)
+_YOLO_ASSET_PATH = "ultralytics/assets/releases/latest/download/{}.pt"
+
+
+def _yolo_asset_url(base: str) -> str:
+    from wama.common.external_sources import base_url
+    return f"{base_url('github')}/{_YOLO_ASSET_PATH.format(base)}"
 
 
 def _yolo_asset_gb(name: str):
     """Poids d'un asset YOLO officiel, par un HEAD sur son URL de release (None si injoignable).
     Branche YOLO de `weight_for_spec` — pas un point d'entrée."""
+    from wama.common.external_sources import proxies_for
     base = (name or '')[:-3] if (name or '').endswith('.pt') else (name or '')
-    return _asset_gb(_YOLO_ASSET_URL.format(base))
+    return _asset_gb(_yolo_asset_url(base), proxies=proxies_for('github'))
 
 
 def _asset_gb(url: str, proxies=None):
@@ -684,9 +692,10 @@ def pull_yolo_weights(name: str, timeout: int = 600, dry_run: bool = False):
         return {'ok': True, 'path': target, 'already': True}
 
     os.makedirs(target_dir, exist_ok=True)
+    from wama.common.external_sources import proxies_for
     # Garde-fou : une page d'erreur HTML ferait un .pt de quelques Ko.
-    return download_asset(_YOLO_ASSET_URL.format(base), target, timeout=timeout,
-                          min_bytes=1_000_000)
+    return download_asset(_yolo_asset_url(base), target, timeout=timeout,
+                          min_bytes=1_000_000, proxies=proxies_for('github'))
 
 
 # ── Pilote `github` — des poids publiés dans une VERSION GitHub (2026-10-07) ─────────────────
@@ -801,13 +810,10 @@ def github_release_dir(spec: dict) -> str:
     return os.path.join(str(cache), github_folder_name(repo), tag)
 
 
-def _file_sha256(path: str) -> str:
-    import hashlib
-    digest = hashlib.sha256()
-    with open(path, 'rb') as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b''):
-            digest.update(chunk)
-    return digest.hexdigest()
+#: L'empreinte d'un fichier en place est celle de la brique commune (`provenance.sha256_of`),
+#: SANS son plafond de 512 Mo — un poids se vérifie quelle que soit sa taille ; '' (illisible) ne
+#: vaut jamais une empreinte épinglée. (2026-10-10 : une copie locale du calcul vivait ici.)
+_NO_SIZE_CAP = float('inf')
 
 
 def pull_github_asset(spec: dict, timeout: int = 600, dry_run: bool = False) -> dict:
@@ -826,7 +832,8 @@ def pull_github_asset(spec: dict, timeout: int = 600, dry_run: bool = False) -> 
     if dry_run:
         return {'ok': True, 'target': target, 'dry_run': True}
     if os.path.exists(target):
-        if _file_sha256(target) == spec['sha256'].lower():
+        from wama.common.utils.provenance import sha256_of
+        if sha256_of(target, limite=_NO_SIZE_CAP) == spec['sha256'].lower():
             return {'ok': True, 'path': target, 'already': True}
         return {'ok': False,
                 'error': f"{target} existe avec une AUTRE empreinte que celle épinglée — "
@@ -862,10 +869,11 @@ def pull_github_files(spec: dict, timeout: int = 600, dry_run: bool = False) -> 
     if dry_run:
         return {'ok': True, 'target': str(root), 'files': [str(t) for _, t in targets],
                 'dry_run': True}
+    from wama.common.utils.provenance import sha256_of
     kept, missing = [], []
     for f, target in targets:
         if target.exists():
-            if _file_sha256(str(target)) != f['sha256'].lower():
+            if sha256_of(target, limite=_NO_SIZE_CAP) != f['sha256'].lower():
                 return {'ok': False,
                         'error': f"{target} existe avec une AUTRE empreinte que celle épinglée "
                                  "— le retirer avant de réinstaller"}
@@ -890,7 +898,9 @@ def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int 
                    sha256: str = '', proxies=None) -> dict:
     """Télécharge UN fichier publié (asset de version GitHub…) vers `target`, sans jamais laisser
     un fichier partiel à sa place : écriture dans `<target>.part`, contrôles, puis remplacement
-    atomique. Retourne {'ok': True, 'path', 'url'} ou {'ok': False, 'error'}, sans lever.
+    atomique. Retourne {'ok': True, 'path', 'url', 'sha256'} (l'empreinte calculée au fil du
+    flux — un appelant qui la MESURE n'a pas à relire le fichier) ou {'ok': False, 'error'},
+    sans lever.
 
     Extrait de `pull_yolo_weights` le 2026-10-07 (pilote `github` : deux pilotes, un corps) —
     c'était le seul téléchargement de qualité installeur du dépôt ; les téléchargeurs écrits
@@ -929,7 +939,7 @@ def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int 
                     'error': f"empreinte différente de celle épinglée ({sha256[:12]}… attendu, "
                              f"{digest.hexdigest()[:12]}… reçu) — fichier refusé : {url}"}
         os.replace(tmp, target)
-        return {'ok': True, 'path': target, 'url': url}
+        return {'ok': True, 'path': target, 'url': url, 'sha256': digest.hexdigest()}
     except Exception as e:
         try:
             if os.path.exists(tmp):

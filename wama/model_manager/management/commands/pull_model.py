@@ -11,9 +11,11 @@ HuggingFace (repo avec '/') — telecharge dans le dossier de la categorie (mode
   python manage.py pull_model <org/repo> --dry-run        # valide juste le dossier cible
   (si une entree 'recommended' existe pour ce hf_id, la categorie est deduite automatiquement)
 
-Ligne du CATALOGUE declaree par une app (cle) — le jumeau du bouton « Installer » (2026-10-10) :
+Une CLE (ligne du catalogue ou candidat de prospection) — la DEMANDE du bouton « Installer » :
   python manage.py pull_model avatarizer:codeformer
-  (spec derive par `spec_for_catalog_row`, installe par `install_from_spec`, journalise)
+  (`request_install`, la route unique depuis l'exterieur : garde d'espace disque, idempotence,
+  tache Celery suivie au model manager, journal voie `cli`. Les workers doivent tourner.)
+  Pour TOUS les modeles et librairies d'une app : `install_requires <app> --apply`.
 """
 from django.core.management.base import BaseCommand, CommandError
 
@@ -37,18 +39,12 @@ class Command(BaseCommand):
         is_hf = '/' in name
         prog = lambda s: self.stdout.write(f"  … {s}")
 
-        # Une CLE de catalogue installable : la route du bouton « Installer » (meme spec, meme
-        # pilote, meme journal) — un script d'installation d'app n'a plus a telecharger lui-meme.
+        # Une CLE (ligne du catalogue, candidat) : la DEMANDE du bouton « Installer » et de
+        # l'assistant — un script d'installation d'app n'a plus a telecharger lui-meme.
         from wama.common.utils.model_keys import split_key
         from wama.model_manager.models import AIModel
-        row = AIModel.objects.filter(model_key=name, is_proposed=False).first()
-        if row is not None:
-            return self._install_catalog_row(row, options)
-        if split_key(name)[0]:
-            # Une clé (`<source WAMA>:…`) absente du catalogue n'est PAS un nom Ollama : on le dit
-            # au lieu de demander `ollama pull avatarizer:…`.
-            raise CommandError(f"« {name} » : clé absente du catalogue — `manage.py sync_models` "
-                               "d'abord (la découverte de l'app la crée)")
+        if split_key(name)[0] or AIModel.objects.filter(model_key=name).exists():
+            return self._request_install(name)
 
         if is_hf:
             category = options.get('category')
@@ -90,29 +86,26 @@ class Command(BaseCommand):
         if sync.errors:
             self.stderr.write(self.style.WARNING(f"  {len(sync.errors)} erreur(s) de sync."))
 
-    def _install_catalog_row(self, row, options):
-        """Installe une ligne du catalogue par SA spec (`spec_for_catalog_row`) — le corps de
-        `install_catalog_task`, joue en synchrone : `install_from_spec` puis provenance et
-        re-synchronisation (`record_provenance`), dans un evenement date du journal."""
-        from wama.model_manager.services.install_history import opened
-        from wama.model_manager.services.model_installer import (
-            install_from_spec, pull_github_files, spec_for_catalog_row)
+    def _request_install(self, key):
+        """`request_install` tel quel — le corps unique du geste « Installer » (2026-10-10 : une
+        premiere version appelait ici `install_from_spec`, le pilote INTERNE, et sautait la garde
+        d'espace disque, l'idempotence et le suivi de la tache — un chemin parallele)."""
+        from wama.model_manager.services.model_installer import request_install
 
-        spec = spec_for_catalog_row(row)
-        if spec is None:
-            raise CommandError(f"« {row.model_key} » ne declare pas d'emplacement d'installation "
-                               "(install_dir + hf_id ou fichiers de version)")
-        if options['dry_run']:
-            res = (pull_github_files(spec, dry_run=True) if spec.get('files') is not None
-                   else {'ok': True, 'target': spec.get('ref')})
-            self.stdout.write(self.style.SUCCESS(f"✓ (dry-run) {res}"))
+        res = request_install(key, via='cli')
+        if res.get('ok'):
+            if res.get('already_running'):
+                self.stdout.write(f"… {key} : installation deja en cours — suivie au model manager")
+            else:
+                self.stdout.write(self.style.SUCCESS(
+                    f"✓ {key} : installation enfilee (tache {res['task_id']}) — suivie au model "
+                    "manager ; un worker Celery doit tourner"))
             return
-        self.stdout.write(f"Installation depuis le catalogue : {row.model_key} ({spec['ref']}) …")
-        with opened('model', row.model_key, name=row.name, via='cli') as outcome:
-            res = install_from_spec(spec)
-            outcome.update(res)
-        if not res.get('ok'):
-            raise CommandError(f"✗ Echec : {res.get('error')}")
-        self.stdout.write(self.style.SUCCESS(
-            f"✓ {row.model_key} : {len(res.get('downloaded') or [])} telecharge(s), "
-            f"{len(res.get('kept') or [])} deja en place — catalogue re-synchronise"))
+        if res.get('reason') == 'already_downloaded':
+            self.stdout.write(self.style.SUCCESS(f"✓ {key} : deja installe"))
+            return
+        if res.get('reason') == 'not_found':
+            raise CommandError(f"« {key} » : absent du catalogue — `manage.py sync_models` "
+                               "d'abord (la decouverte de l'app cree la ligne)")
+        raise CommandError((res.get('blocked') or {}).get('error') or res.get('error')
+                           or res.get('reason'))

@@ -38,7 +38,9 @@ CODEFORMER_DIR = APP_DIR / 'codeformer'
 #: backend relie par symlinks depuis `codeformer/weights/`. Taille et empreinte MESURÉES le 10/10
 #: sur les fichiers installés (qui ont servi aux traitements réussis) ; les tailles égalent celles
 #: de la version, qui ne publie pas d'empreinte. Lue par la découverte (installation par le
-#: catalogue : bouton « Installer » ou `pull_model avatarizer:codeformer`).
+#: catalogue : bouton « Installer », `pull_model avatarizer:codeformer`, `install_requires
+#: avatarizer`). Les sous-dossiers que le backend relie en dérivent (garde :
+#: `avatarizer/tests_codeformer_weights`).
 CODEFORMER_RELEASE = {
     'ref': 'sczhou/CodeFormer:v0.1.0',
     'files': [
@@ -52,12 +54,6 @@ CODEFORMER_RELEASE = {
          'sha256': '49fafd45f8fd7aa8d31ab2a22d14d91b536c34494a5cfe31eb5d89c2fa266abb'},
     ],
 }
-
-# Sous-dossiers weights/ de CodeFormer redirigés vers AI-models/ via symlinks — DÉRIVÉS de la
-# déclaration des poids (le backend en garde une copie : il n'importe pas l'app ; une garde
-# tient l'égalité, `avatarizer/tests_codeformer_weights`).
-CODEFORMER_WEIGHTS_SUBDIRS = list(dict.fromkeys(
-    f['path'].split('/', 1)[0] for f in CODEFORMER_RELEASE['files']))
 
 # Empreintes VRAM des SOUS-PROCESSUS GPU, déclarées au gouverneur le temps de leur exécution.
 # ⚠️ ESTIMATIONS NON MESURÉES (cf. ancien workers.py) — à confronter au réel ; le catalogue

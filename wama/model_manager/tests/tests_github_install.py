@@ -57,6 +57,8 @@ class DownloadAssetTest(SimpleTestCase):
         self.assertEqual(['model.onnx'], self._leftovers())
         with open(self.target, 'rb') as fh:
             self.assertEqual(PAYLOAD, fh.read())
+        # The digest computed along the stream is returned — a caller who MEASURES reads it here.
+        self.assertEqual(hashlib.sha256(PAYLOAD).hexdigest(), res['sha256'])
 
     def test_the_pinned_digest_is_checked_and_accepted(self):
         with self._get():
@@ -425,7 +427,7 @@ class ReadingAReleaseTest(SimpleTestCase):
         def fake_download(url, target, **kw):
             with open(target, 'wb') as fh:
                 fh.write(PAYLOAD)
-            return {'ok': True}
+            return {'ok': True, 'sha256': hashlib.sha256(PAYLOAD).hexdigest()}
 
         with patch.object(mi, 'download_asset', side_effect=fake_download):
             pinned = p.pinned_github_asset(SPAN['ref'], SPAN['asset'], SPAN_RELEASE)
@@ -687,24 +689,41 @@ class DeclaredReleaseFilesTest(TestCase):
         single.assert_not_called()
 
 
-class PullModelInstallsACatalogueRowTest(TestCase):
-    """`pull_model <clé>` : le jumeau en ligne de commande du bouton « Installer »."""
+class PullModelRequestsTheInstallTest(TestCase):
+    """`pull_model <clé>` : la DEMANDE du bouton « Installer » (`request_install`), jamais le
+    pilote interne — une première version appelait `install_from_spec` et sautait la garde
+    d'espace disque, l'idempotence et le suivi de la tâche (2026-10-10)."""
 
-    def test_a_catalogue_key_goes_through_its_spec_in_a_journal_event(self):
+    def test_a_catalogue_key_is_the_buttons_request_on_the_cli_way(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+        with patch.object(mi, 'request_install',
+                          return_value={'ok': True, 'started': True, 'task_id': 't1',
+                                        'model_key': 'avatarizer:codeformer'}) as req, \
+                patch.object(mi, 'install_from_spec') as driver:
+            call_command('pull_model', 'avatarizer:codeformer', stdout=StringIO())
+        req.assert_called_once_with('avatarizer:codeformer', via='cli')
+        driver.assert_not_called()
+
+    def test_the_request_is_dispatched_with_its_journal_event(self):
+        """Bout à bout sur la vraie demande : garde passée, tâche enfilée, événement `cli`."""
         from io import StringIO
 
         from django.core.management import call_command
 
         from wama.model_manager.models import AIModel, InstallEvent
+        from wama.model_manager.tasks import install_catalog_task
         with tempfile.TemporaryDirectory() as root, self.settings(AI_MODELS_DIR=root):
             app_dir = os.path.join(root, 'models', 'lipsync', 'codeformer')
             AIModel.objects.create(model_key='avatarizer:codeformer', name='CodeFormer',
                                    source='avatarizer', model_type='vision',
                                    extra_info={'install_dir': app_dir, 'release_files': DECLARED})
-            with patch.object(mi, 'install_from_spec',
-                              return_value={'ok': True, 'downloaded': ['x'], 'kept': []}) as inst:
+            with patch.object(mi, 'disk_space_guard', return_value=None), \
+                    patch.object(install_catalog_task, 'delay') as delay:
+                delay.return_value.id = 't1'
                 call_command('pull_model', 'avatarizer:codeformer', stdout=StringIO())
-        self.assertEqual('github', inst.call_args.args[0]['kind'])
+        delay.assert_called_once()
         event = InstallEvent.objects.filter(key='avatarizer:codeformer').latest('started_at')
         self.assertEqual('cli', event.via)
 
@@ -724,8 +743,12 @@ class YoloAdoptsTheCommonDownloadTest(SimpleTestCase):
                 self.settings(AI_MODELS_DIR=root), \
                 patch.object(mi, 'download_asset', return_value={'ok': True}) as dl:
             mi.pull_yolo_weights('yolo11n-seg')
+        from wama.common.external_sources import base_url, proxies_for
         url, target = dl.call_args.args
-        self.assertEqual(mi._YOLO_ASSET_URL.format('yolo11n-seg'), url)
+        # The address derives from the declared `github` source, like the `github` driver's.
+        self.assertEqual(f"{base_url('github')}/ultralytics/assets/releases/latest/download/"
+                         "yolo11n-seg.pt", url)
+        self.assertEqual(proxies_for('github'), dl.call_args.kwargs['proxies'])
         self.assertEqual(os.path.join(root, 'models', 'vision', 'yolo', 'segment',
                                       'yolo11n-seg.pt'), target)
         self.assertEqual(1_000_000, dl.call_args.kwargs['min_bytes'])

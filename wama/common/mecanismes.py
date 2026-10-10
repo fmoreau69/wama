@@ -393,10 +393,13 @@ MECHANISMS = (
                        'wama/model_manager/services/file_watcher.py')),
     Mechanism('model_installer', 'Installation de modèles',
               "Pipeline accept→download→register : télécharge au bon endroit puis enregistre au "
-              "catalogue. Un point d'entrée (`install_from_spec`), un pilote par source : ollama, "
-              "hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, "
-              "disposition calquée sur HF, 2026-10-07) ; `download_asset` = le téléchargement "
-              "contrôlé commun aux pilotes à fichier",
+              "catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, "
+              "`pull_model <clé>` ; garde d'espace disque, tâche Celery, journal) ; le marcheur "
+              "d'app `install_requirements` pour tous les requis d'une app. Un pilote INTERNE "
+              "(`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une "
+              "VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, "
+              "2026-10-07) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à "
+              "fichier (empreinte d'un fichier en place : `provenance.sha256_of`)",
               'wama/model_manager/services/model_installer.py', '',
               # Route `library` (install_library) : voie pip ici, voie VENDOR (dépôt épinglé au
               # commit + correctif, ROADMAP D-a, 2026-09-30) dans son exécuteur délégué.

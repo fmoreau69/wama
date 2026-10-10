@@ -4,7 +4,8 @@ CodeFormer's weights are DECLARED by the app and installed by the catalogue rout
 `setup_avatarizer.sh` downloaded them itself, wrongly both ways: the vendored script wrote into
 `./weights/` relative to the current directory (and pulled training weights), the `basicsr`
 fallback put `codeformer.pth` FLAT and missed two files. The app now declares the four files the
-vendored code reads; the discovery makes the row installable; `pull_model` installs.
+vendored code reads; the discovery makes the row installable; `pull_model <key>` REQUESTS the
+install like the button (`request_install`).
 """
 from pathlib import Path
 
@@ -23,10 +24,13 @@ class CodeFormerWeightsDeclarationTest(SimpleTestCase):
         self.assertIsNone(github_spec_error(spec))
         self.assertTrue(all(f.get('size') for f in spec['files']), 'sizes are measured facts')
 
-    def test_the_subfolders_are_the_backends_own(self):
-        """The backend keeps a copy (it cannot import the app) — one truth, held here."""
+    def test_the_subfolders_the_backend_links_are_the_declared_ones(self):
+        """The backend names the folders it links (it cannot import the app) — they must be the
+        ones the declared files live in."""
         from wama.common.backends.codeformer_backend import CODEFORMER_WEIGHTS_SUBDIRS
-        self.assertEqual(CODEFORMER_WEIGHTS_SUBDIRS, model_config.CODEFORMER_WEIGHTS_SUBDIRS)
+        declared = list(dict.fromkeys(f['path'].split('/', 1)[0]
+                                      for f in model_config.CODEFORMER_RELEASE['files']))
+        self.assertEqual(CODEFORMER_WEIGHTS_SUBDIRS, declared)
 
     def test_the_main_weight_is_where_the_discovery_looks(self):
         paths = [f['path'] for f in model_config.CODEFORMER_RELEASE['files']]
