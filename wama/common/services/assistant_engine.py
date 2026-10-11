@@ -711,7 +711,7 @@ def _claude_code_call(messages: list, user=None, model: str = '') -> tuple:
 
 
 def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
-              think: bool = None, on_delta=None) -> tuple:
+              think: bool = None, on_delta=None, tools: list | None = None) -> tuple:
     """
     Un tour de LLM, quel que soit le fournisseur.
 
@@ -726,6 +726,9 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
     répartis) ; l'abonnement suit la même règle (jeton personnel, `claude_code.demander`). Sans
     utilisateur (`user=None`), la clé d'instance sert. Les fournisseurs sans source déclarée
     (OpenAI…) lisent encore l'environnement.
+
+    `tools` : la déclaration NATIVE des outils (`_native_tool_specs`), pour un fournisseur déclaré
+    qui l'accepte — son appel revient dans la forme texte que la boucle lit déjà.
 
     Returns:
         (text, usage_dict) on success · (None, error_dict) on failure
@@ -759,7 +762,8 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
         from wama.model_manager.services.cloud_models import CloudAccessRefused
         try:
             text, err = chat_with_source(source.key, llm_model, messages, user=user,
-                                         num_predict=4096, timeout=180.0, on_delta=on_delta)
+                                         num_predict=4096, timeout=180.0, on_delta=on_delta,
+                                         tools=tools)
         except CloudAccessRefused as e:
             return None, {'error': str(e), 'status': e.status}
     else:
@@ -774,6 +778,31 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
             return '', {'input_tokens': 0, 'output_tokens': 0}
         return None, {'error': err or 'LLM error', 'status': 502}
     return text, {'input_tokens': 0, 'output_tokens': 0}
+
+
+def _native_tool_specs(user, provider: str, dev_tools: list) -> list | None:
+    """Les outils de l'assistant au format standard (`tools=`), pour un fournisseur DÉCLARÉ qui
+    les accepte (`ExternalSource.native_tools`) — None sinon, et rien ne change pour lui.
+
+    POURQUOI (2026-10-11) : gpt-oss (Albert) appelle ses outils par un canal à part. Non déclarés,
+    le serveur rangeait l'appel dans le raisonnement, sans son nom : réponse vide environ 2 fois
+    sur 3 au premier appel (rejeu du fil n° 37). Déclarés, l'appel revient nommé.
+    La liste est CELLE du serveur MCP (`mcp_server.tools_for` : le registre filtré par les droits
+    du compte, schémas dérivés des signatures) ; les outils de développement relayés n'y portent
+    que leurs noms d'arguments. La liste texte du prompt reste en place, pour tout fournisseur."""
+    from wama.common import external_sources
+    source = external_sources.by_key().get(_PROVIDER_ALIAS.get(provider, provider))
+    if user is None or source is None or not source.native_tools:
+        return None
+    from wama.common.services.mcp_server import tools_for
+    specs = [{'type': 'function', 'function': {'name': t.name, 'description': t.description,
+                                               'parameters': t.inputSchema}}
+             for t in tools_for(user)]
+    specs += [{'type': 'function', 'function': {
+        'name': t['name'], 'description': t.get('description') or '',
+        'parameters': {'type': 'object', 'properties': {a: {} for a in t.get('args') or []}}}}
+        for t in dev_tools]
+    return specs
 
 
 # ---------------------------------------------------------------------------
@@ -1037,9 +1066,36 @@ _EMPTY_ANSWER_RETRY_PROMPT = (
 _EMPTY_ANSWER_NOTICE = (
     "⚠ Le modèle n'a rédigé aucune réponse pour ce tour.{done} Reposez la question, ou "
     "demandez-moi « quel est le statut ? ».")
+#: Joint à la réponse quand un outil appelé n'a JAMAIS réussi pendant le tour : le refus de WAMA,
+#: dit par la trace et non par le modèle.
+_REFUSALS_NOTICE = "⚠ Refusé par WAMA pendant ce tour — rien n'a été fait pour : {refusals}."
 #: Longueur d'un résultat d'outil d'un tour PASSÉ dans l'historique resservi : assez pour que le
 #: modèle voie que la réponse venait d'un outil, pas assez pour noyer la fenêtre.
 _HISTORY_RESULT_CHARS = 600
+
+
+def _refusals_notice(tool_steps: list) -> str:
+    """Le refus de WAMA, par la TRACE du tour : les outils dont AUCUN appel n'a réussi et dont le
+    dernier a rendu une erreur — '' sinon. Un outil qui a échoué puis réussi n'y figure pas.
+
+    POURQUOI (2026-10-11, fil web n° 41) : deux fois de suite, gpt-oss (Albert) a répondu « a bien
+    été installé » alors que chaque `install_model` du tour avait été refusé. Rien ne confrontait
+    la réponse à la trace ; et un récit faux entre dans l'historique, qui le resservira. Contrôle
+    sur la DONNÉE (le résultat des outils), jamais sur le sens du texte."""
+    last_error, succeeded = {}, set()
+    for step in tool_steps or []:
+        result = step.get('result')
+        error = result.get('error') if isinstance(result, dict) else None
+        if error:
+            last_error[step['tool']] = str(error)
+        else:
+            succeeded.add(step['tool'])
+            last_error.pop(step['tool'], None)
+    refused = {tool: error for tool, error in last_error.items() if tool not in succeeded}
+    if not refused:
+        return ''
+    return _REFUSALS_NOTICE.format(refusals=' ; '.join(
+        f"{tool} (« {error[:160]} »)" for tool, error in refused.items()))
 #: Ce qui remplace, dans l'historique, une réponse passée SANS outil qui citait un résultat.
 _HISTORY_INVENTED_PLACEHOLDER = (
     "(Réponse retirée de l'historique : elle annonçait un résultat alors qu'aucun outil "
@@ -1265,6 +1321,9 @@ def run_assistant_turn(user, message: str, provider: str = None,
     tools_prompt = (WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list()
                                               + mcp_client.tools_block(dev_tools))
                     if user else "")
+    # Déclaration NATIVE en plus, pour le seul fournisseur qui l'accepte (`native_tools`, 2026-10-11).
+    native_tools = _native_tool_specs(user, provider, dev_tools)
+    native_kwargs = {'tools': native_tools} if native_tools else {}
     # Langue de réponse = profil utilisateur (plus de « in French » en dur).
     # ⚠ La consigne est posée sur les DEUX prompts : ils sont concaténés, et le prompt d'outils
     # portait lui aussi un « Respond in French » en dur — un profil `en` recevait donc deux
@@ -1381,7 +1440,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
         if on_event is not None:
             gate = _TokenGate(lambda fragment: on_event({'type': 'delta', 'text': fragment}))
         text, result = _llm_call(messages, llm_model, provider, user=user, think=think,
-                                 on_delta=(gate.feed if gate else None))
+                                 on_delta=(gate.feed if gate else None), **native_kwargs)
         if gate is not None:
             gate.close()
         if text is None:
@@ -1428,6 +1487,9 @@ def run_assistant_turn(user, message: str, provider: str = None,
                 done = ', '.join(dict.fromkeys(step['tool'] for step in tool_steps))
                 clean_text = _EMPTY_ANSWER_NOTICE.format(
                     done=f" Actions exécutées : {done}." if done else '')
+            refusals = _refusals_notice(tool_steps)
+            if refusals:
+                clean_text = f"{clean_text}\n\n{refusals}"
             return {
                 'success': True,
                 'response': clean_text,
@@ -1477,6 +1539,9 @@ def run_assistant_turn(user, message: str, provider: str = None,
                 development = True
                 think = thinking_wanted(DEV_QUALITY_INTENT) if local else None
                 etiquette = _label(provider, llm_model, local)
+                # La déclaration native suit le NOUVEAU fournisseur (il peut ne pas l'accepter).
+                native_tools = _native_tool_specs(user, provider, dev_tools)
+                native_kwargs = {'tools': native_tools} if native_tools else {}
                 logger.info("[ai_chat] passage au niveau développement : %s", etiquette)
             elif isinstance(tool_result, dict):
                 tool_result = dict(tool_result, warning=development_refusal(user))
@@ -1514,9 +1579,11 @@ def run_assistant_turn(user, message: str, provider: str = None,
         # la trace, pas un récit, et jamais l'appel brut.
         done = ', '.join(dict.fromkeys(step['tool'] for step in tool_steps))
         final = _TOOL_LIMIT_NOTICE.format(done=done)
+    refusals = _refusals_notice(tool_steps)
     return {
         'success': True,
-        'response': _strip_unsourced_urls(final, tool_steps, message),
+        'response': _strip_unsourced_urls(final, tool_steps, message)
+                    + (f"\n\n{refusals}" if refusals else ''),
         'model': etiquette,
         'usage': total_usage,
         'tool_steps': tool_steps,

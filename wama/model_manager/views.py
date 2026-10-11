@@ -1851,7 +1851,7 @@ def api_prospect_install(request):
     """
     #: Pourquoi l'installation est refusée → code HTTP. Le 507 porte le dialogue de forçage.
     CODES = {'not_found': 404, 'already_downloaded': 400, 'not_installable': 400,
-             'unknown_variant': 400, 'no_install_location': 400,
+             'unknown_variant': 400, 'variant_required': 400, 'no_install_location': 400,
              'insufficient_storage': 507}
     from .services.model_installer import request_install
 

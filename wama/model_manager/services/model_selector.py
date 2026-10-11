@@ -330,6 +330,32 @@ def _type_filter(model_type) -> dict:
     return {'model_type__in': types} if len(types) > 1 else {'model_type': types[0]}
 
 
+def domain_q(domain: dict):
+    """Le filtre (`Q`) d'un DOMAINE déclaré au schéma d'une app (`options_query` : `task`, une ou
+    plusieurs séparées par des virgules, `model_type`, `modality`, `source`), ou None s'il ne
+    borne rien. Même vocabulaire que `get_registry_models`, tâches traduites en canonique.
+
+    POURQUOI (2026-10-11) : `list_ai_models(app='reader')` de l'assistant filtrait sur
+    `source='reader'` et ne voyait donc aucune PROPOSITION (`source='huggingface'`) ni aucun
+    modèle Ollama de l'OCR — le select du Reader, lui, lit son domaine `{'task': 'ocr'}`."""
+    from django.db.models import Q
+
+    from ..models import canonical_task
+    domain = dict(domain or {})
+    q = Q()
+    tasks = [canonical_task(t.strip()) for t in str(domain.get('task') or '').split(',')
+             if t.strip()]
+    if tasks:
+        q &= Q(capabilities__task__in=tasks)
+    if domain.get('model_type'):
+        q &= Q(**_type_filter(domain['model_type']))
+    if domain.get('modality'):
+        q &= Q(capabilities__modalities__contains=[domain['modality']])
+    if domain.get('source'):
+        q &= Q(source=domain['source'])
+    return q if q.children else None
+
+
 def _best_by_vram(models, budget_gb: Optional[float], family=None, quality_intent=None):
     """
     Parmi `models`, le meilleur compromis QUALITÉ/COÛT au poids du CURSEUR (0-100) :

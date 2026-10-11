@@ -353,6 +353,7 @@ def llm_chat(
     keep_alive: Optional[str] = None,
     temperature: Optional[float] = None,
     on_delta=None,
+    tools: Optional[list] = None,
 ) -> tuple[Optional[str], Optional[str]]:
     """
     Unified LLM chat function — provider-agnostic entry point.
@@ -383,6 +384,11 @@ def llm_chat(
                     texte entier. La réflexion d'un modèle de raisonnement arrive par un
                     autre champ et n'est jamais transmise. Ignoré sur le chemin Ollama, qui
                     a son propre flux côté assistant (`assistant_engine._ollama_stream`).
+        tools:      Cloud only. Outils DÉCLARÉS au format standard OpenAI (`[{type: function,
+                    function: {name, description, parameters}}]`). Un appel rendu par le
+                    fournisseur revient comme TEXTE `{"tool": nom, "args": {…}}` — la forme que la
+                    boucle de l'assistant lit déjà (`_parse_tool_call`) ; le premier seul s'il y en
+                    a plusieurs, la boucle en exécute un par tour (2026-10-11, gpt-oss d'Albert).
 
     Returns:
         (text, None) on success · (None, error_string) on failure
@@ -465,31 +471,61 @@ def llm_chat(
         kwargs['api_base'] = api_base
     if extra_body:
         kwargs['extra_body'] = extra_body
+    if tools:
+        kwargs['tools'] = tools
 
     try:
         if on_delta is not None:
             # FLUX (2026-10-04) : le fournisseur rend son premier texte en ~0,5 s et sa fin en
             # 1 à 2 s (mesuré sur Albert) — sans flux, l'écran et la voix attendaient la fin.
             pieces = []
+            calls: dict = {}                 # appel d'outil reçu par morceaux, par `index`
             for chunk in _completion(litellm, stream=True, **kwargs):
                 choices = getattr(chunk, 'choices', None) or []
-                fragment = getattr(getattr(choices[0], 'delta', None), 'content', None) \
-                    if choices else None
+                delta = getattr(choices[0], 'delta', None) if choices else None
+                fragment = getattr(delta, 'content', None)
                 if fragment:
                     pieces.append(fragment)
                     on_delta(fragment)
+                for part in _listed(getattr(delta, 'tool_calls', None)):
+                    slot = calls.setdefault(getattr(part, 'index', 0) or 0, ['', ''])
+                    fn = getattr(part, 'function', None)
+                    slot[0] += getattr(fn, 'name', None) or ''
+                    slot[1] += getattr(fn, 'arguments', None) or ''
+            if calls:
+                return tool_call_text(*calls[min(calls)]), None
             text = ''.join(pieces)
             if not text.strip():
                 return None, EMPTY_RESPONSE_ERROR
             return text.strip(), None
         response = _completion(litellm, **kwargs)
-        text = response.choices[0].message.content or ''
+        message = response.choices[0].message
+        for call in _listed(getattr(message, 'tool_calls', None))[:1]:
+            return tool_call_text(call.function.name, call.function.arguments), None
+        text = message.content or ''
         if not text.strip():
             return None, EMPTY_RESPONSE_ERROR
         return text.strip(), None
     except Exception as e:
         logger.error(f"[llm_utils] LiteLLM error ({provider}/{model}): {e}")
         return None, str(e)
+
+
+def _listed(value) -> list:
+    """`tool_calls` d'une réponse LiteLLM : une liste, ou rien (None, ou tout autre objet)."""
+    return list(value) if isinstance(value, (list, tuple)) else []
+
+
+def tool_call_text(name: str, arguments) -> str:
+    """Un appel d'outil NATIF (nom + arguments JSON du fournisseur) rendu dans la forme texte de
+    l'assistant, `{"tool": nom, "args": {…}}`. Des arguments illisibles restent visibles dans
+    `args` sous `_raw` : l'outil les refusera avec son message, plutôt qu'un appel muet."""
+    try:
+        args = json.loads(arguments) if isinstance(arguments, str) else dict(arguments or {})
+    except (TypeError, ValueError):
+        args = {'_raw': arguments}
+    return json.dumps({'tool': name or '', 'args': args if isinstance(args, dict) else {}},
+                      ensure_ascii=False)
 
 
 def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
@@ -569,7 +605,8 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
 def chat_with_source(source: str, model_id: Optional[str], messages: list, *, user=None,
                      num_predict: Optional[int] = None, think: bool = False,
                      timeout: Optional[float] = None, temperature: Optional[float] = None,
-                     on_delta=None) -> tuple[Optional[str], Optional[str]]:
+                     on_delta=None, tools: Optional[list] = None,
+                     ) -> tuple[Optional[str], Optional[str]]:
     """Un appel à un fournisseur LLM DÉCLARÉ (`external_sources`, type `llm` : Albert, API
     Anthropic…), avec la clé de l'UTILISATEUR quand il est connecté — `(texte, None)` ou
     `(None, erreur)` de `llm_chat`. Le nom du fournisseur EST le nom de la source.
@@ -589,7 +626,7 @@ def chat_with_source(source: str, model_id: Optional[str], messages: list, *, us
         api_key = cloud_access(user, source, model_id or '')
     return llm_chat(messages, model=model_id or None, provider=source, api_key=api_key,
                     num_predict=num_predict, think=think, timeout=timeout,
-                    temperature=temperature, on_delta=on_delta)
+                    temperature=temperature, on_delta=on_delta, tools=tools)
 
 
 def extract_json_from_llm(text: str) -> Optional[dict]:

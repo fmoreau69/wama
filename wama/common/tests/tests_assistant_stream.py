@@ -216,8 +216,11 @@ class TurnEventsTest(TestCase):
     def test_a_remote_turn_streams_through_the_same_gate(self):
         """Le portier n'est plus réservé au local : un fournisseur distant qui diffuse voit son
         appel d'outil filtré de la même façon."""
-        def fake_llm(messages, llm_model, provider, user=None, think=None, on_delta=None):
+        def fake_llm(messages, llm_model, provider, user=None, think=None, on_delta=None,
+                     tools=None):
             self.assertIsNotNone(on_delta)
+            # Albert déclare `native_tools` : la déclaration native accompagne l'appel (2026-10-11).
+            self.assertTrue(tools)
             on_delta('Réponse ')
             on_delta('distante.')
             return 'Réponse distante.', dict(USAGE)
@@ -448,3 +451,75 @@ class CloudRateLimitTest(SimpleTestCase):
         (text, error), sleep = self._llm([ValueError('clé refusée')])
         self.assertEqual((None, 'clé refusée'), (text, error))
         sleep.assert_not_called()
+
+
+class NativeToolCallTest(SimpleTestCase):
+    """Les outils DÉCLARÉS au fournisseur (`tools=`, 2026-10-11) : gpt-oss (Albert) appelle par un
+    canal à part ; non déclarés, l'appel arrivait sans nom dans le raisonnement (réponse vide ~2
+    fois sur 3). L'appel natif revient dans la forme texte que la boucle lit déjà."""
+
+    TOOLS = [{'type': 'function', 'function': {'name': 'get_install_options',
+                                               'parameters': {'type': 'object'}}}]
+
+    @staticmethod
+    def _function(name, arguments):
+        fn = mock.Mock(arguments=arguments)
+        fn.name = name                  # `Mock(name=…)` nommerait le double, pas l'attribut
+        return fn
+
+    def _call(self, name, arguments):
+        return mock.Mock(function=self._function(name, arguments))
+
+    def _chat(self, completion, **kwargs):
+        import sys
+        from wama.common.utils import llm_utils
+        with mock.patch.dict(sys.modules, {'litellm': mock.Mock(completion=completion)}):
+            return llm_utils.llm_chat([{'role': 'user', 'content': 'x'}], model='m',
+                                      provider='anthropic', api_key='k', **kwargs)
+
+    def test_a_named_call_comes_back_as_the_loop_reads_it(self):
+        sent = {}
+
+        def completion(**kwargs):
+            sent.update(kwargs)
+            call = self._call('get_install_options', '{"model_key": "proposed:hf:a/b"}')
+            return mock.Mock(choices=[mock.Mock(message=mock.Mock(content='', tool_calls=[call]))])
+        text, error = self._chat(completion, tools=self.TOOLS)
+        self.assertIsNone(error)
+        self.assertEqual({'tool': 'get_install_options', 'args': {'model_key': 'proposed:hf:a/b'}},
+                         assistant_engine._parse_tool_call(text))
+        self.assertEqual(self.TOOLS, sent['tools'])
+
+    def test_a_streamed_call_is_reassembled_and_never_shown(self):
+        shown = []
+        parts = [mock.Mock(index=0, function=self._function('get_install_options', '{"model_key": ')),
+                 mock.Mock(index=0, function=self._function(None, '"k"}'))]
+        chunks = [mock.Mock(choices=[mock.Mock(delta=mock.Mock(content=None, tool_calls=[p]))])
+                  for p in parts]
+        text, _ = self._chat(lambda **kw: iter(chunks), tools=self.TOOLS, on_delta=shown.append)
+        self.assertEqual({'tool': 'get_install_options', 'args': {'model_key': 'k'}},
+                         json.loads(text))
+        self.assertEqual([], shown)
+
+    def test_without_tools_nothing_is_sent_and_text_is_unchanged(self):
+        """Contre-épreuve : un appelant qui ne déclare rien garde l'appel d'avant."""
+        sent = {}
+
+        def completion(**kwargs):
+            sent.update(kwargs)
+            return mock.Mock(choices=[mock.Mock(message=mock.Mock(content='Bonjour'))])
+        self.assertEqual(('Bonjour', None), self._chat(completion))
+        self.assertNotIn('tools', sent)
+
+    def test_only_a_source_that_declares_it_receives_the_tools(self):
+        user = mock.Mock(pk=1, is_authenticated=True)
+        tool = mock.Mock(description='d', inputSchema={'type': 'object', 'properties': {}})
+        tool.name = 'get_install_options'
+        with mock.patch('wama.common.services.mcp_server.tools_for', return_value=[tool]):
+            specs = assistant_engine._native_tool_specs(user, 'albert',
+                                                        [{'name': 'dev_x', 'args': ['action']}])
+            self.assertEqual(['get_install_options', 'dev_x'],
+                             [s['function']['name'] for s in specs])
+            self.assertIsNone(assistant_engine._native_tool_specs(user, 'ilaas', []))
+            self.assertIsNone(assistant_engine._native_tool_specs(user, 'wama-dev-ai', []))
+            self.assertIsNone(assistant_engine._native_tool_specs(None, 'albert', []))

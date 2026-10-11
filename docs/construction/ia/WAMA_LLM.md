@@ -1579,12 +1579,31 @@ Le fil a été éprouvé par l'assistant : prospecter, puis installer trois OCR.
      réponse vide : le contrôle ① s'applique.
    - Taux du jour, sans historique : le 1ᵉʳ appel part vide environ 2 fois sur 3, et le nouvel
      essai rattrape environ une fois sur deux.
-   - ⏳ **Prochaine marche, à décider** : déclarer les outils NATIVEMENT aux fournisseurs qui les
-     portent (`tools=` OpenAI, schémas déjà produits par `tool_input_schema` /
-     `tool_descriptions` pour le serveur MCP), et convertir `message.tool_calls` en
-     `{"tool": …, "args": …}` pour que la boucle reste inchangée. C'est du câblage, mais il change
-     le protocole de l'assistant pour ce fournisseur, sur toutes les surfaces. À déclarer par
-     source (`external_sources`).
+   - ✅ **Outils déclarés NATIVEMENT (2026-10-11)**, au fournisseur qui le déclare
+     (`ExternalSource.native_tools` — Albert seul, MESURÉ) :
+     - sonde d'abord : 2 outils puis les 81 du registre (56 Ko par requête) acceptés, appel
+       rendu NOMMÉ (`finish=tool_calls`) ; ⚠ Albert rend une requête identique depuis un cache
+       (0,5 s, mêmes jetons) — seul le 1ᵉʳ essai d'une sonde compte ;
+     - la liste est CELLE du serveur MCP (`mcp_server.tools_for` : registre filtré par les droits,
+       schémas dérivés des signatures), outils dev relayés compris (noms d'arguments seuls) ;
+       la liste texte du prompt reste, pour tout fournisseur ;
+     - `llm_chat(tools=…)` rend l'appel natif (flux compris, réassemblé par `index`) sous la forme
+       texte `{"tool", "args"}` (`llm_utils.tool_call_text`) : la boucle est inchangée ;
+     - mesuré en boucle réelle (fil n° 41) : **7 appels nommés sur 8, aucune réponse vide** (avant :
+       ~2 sur 3 vides au 1ᵉʳ appel) ;
+     - ⚠ effet de bord vu au même fil : les outils DEV, désormais saillants, ont été appelés hors
+       propos (`dev_job_status` sur le `task_id` d'une installation) — l'appel d'un outil dev
+       BASCULE le tour au niveau développement (local), qui a expiré sous charge. Contrôle posé :
+       le résultat d'`install_model` porte son `next_step` (comment suivre). À surveiller : si le
+       motif revient, ne déclarer les outils dev qu'en domaine dev.
+   - ✅ **Un succès RACONTÉ sur un refus (fil n° 41, deux fois de suite)** : « a bien été
+     installé » alors que chaque `install_model` du tour avait été refusé — le récit entre dans
+     l'historique, qui le resservira. **Contrôle sur la DONNÉE** (`_refusals_notice`) : un outil dont
+     AUCUN appel n'a réussi pendant le tour, et dont le dernier a rendu une erreur, voit son refus
+     joint à la réponse (« ⚠ Refusé par WAMA pendant ce tour — rien n'a été fait pour : … ») ; un
+     outil échoué puis réussi n'y figure pas. Aucune lecture du sens du texte. Deux tests
+     existants faisaient d'ailleurs répondre « le floutage est lancé » sur un outil REFUSÉ (compte
+     sans accès) : ils éprouvaient la boucle, leur outil réussit désormais.
 3. **Limite de débit d'Albert : 10 requêtes par minute et par clé.** Un tour à huit outils en
    fait neuf, et le 429 finissait le tour par son message brut.
    - **`llm_utils._completion`** : attente sur 429, reconnue par le statut ou le type LiteLLM.

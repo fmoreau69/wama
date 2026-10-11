@@ -2587,9 +2587,9 @@ Tests : `tests_ollama_hub_gguf` (14), plus la garde des outils d'écriture de
 `RouteUniqueDInstallationTest`.
 
 Restes :
-- ⏳ Éprouver par l'assistant `get_install_options` → `install_model` sur PaddleOCR-VL-1.6,
+- 🔄 Éprouver par l'assistant `get_install_options` → `install_model` sur PaddleOCR-VL-1.6,
   Chandra-OCR-2 et LightOnOCR-3-1B, puis vérifier en base la tâche `ocr`, le select du reader et
-  une exécution.
+  une exécution — installations LANCÉES par l'assistant le 11/10, cf. « Suite du 2026-10-11 (2) ».
 - ⏳ L'OCR d'Albert (LightOnOCR-2) n'a pas de backend : le rôle `backend` refuse un modèle distant,
   faute de snapshot à lire. Le patron existe (`AlbertTranscriptionBackend`).
 - ⏳ Évaluation interne par profil d'entrée (manuscrit d'abord), sortie structurée du reader vers
@@ -2630,3 +2630,42 @@ app, puis la clé facultative »).**
   nomme SA source déclarée (`huggingface` à un commit, `github` à un tag, adresse fixe d'une
   source du registre), mêmes verrous (empreinte + taille, `download_asset`, refus d'un fichier
   différent en place, sous la racine des modèles).
+
+**Suite du 2026-10-11 (2) — l'installation OCR éprouvée PAR L'ASSISTANT : sept défauts de la
+chaîne, lus dans `tool_steps`.** Quatre tours réels sur Albert (fils web n° 38, 40, 41), outils
+non bouchonnés, compte réel. Les deux premiers n'ont rien installé ; le quatrième a lancé les
+quatre installations. Chaque défaut est corrigé à sa SOURCE, avec contre-épreuve
+(`tests_ollama_hub_gguf`, `tests.FaitsDeLaCarteTest`) :
+
+| fil | défaut mesuré | correctif |
+|---|---|---|
+| 38 | `list_ai_models(app='reader', include_proposed=True)` filtrait sur `source='reader'` : 2 lignes rendues, aucune des 16 propositions OCR (`source='huggingface'`) ni l'OCR d'Ollama | le filtre `app` = sa source **OU** le domaine que ses selects de modèle déclarent (`options_query`, `model_selector.domain_q`) — le domaine qui peuple déjà le select |
+| 38 | `search_models` ne rendait que les dépôts qu'il ÉCRIT : Chandra-OCR-2, déjà proposé par un classement mais étiqueté hors périmètre par le Hub, comptait « skipped » sans clé | le résultat porte `catalog` (les clés du catalogue qui répondent), y compris quand le Hub refuse (429) ; un mot absent du catalogue (« … Ollama ») ne les éteint plus |
+| 38 | une proposition qui EST un dépôt GGUF (`mradermacher/PaddleOCR-VL-1.6-GGUF`, écrite par la recherche) offrait ses « poids pleins » : le dépôt ENTIER par le Hub (4,1 Go, toutes quantifications) vers un dossier que rien ne lit — ses propres fichiers n'étaient pas proposés | si sa tâche est servie par Ollama : ses fichiers GGUF sont les options (`own_gguf`, relevé une fois), sans poids pleins ; sans variante, `request_install` refuse (`variant_required`) — ou prend le fichier unique |
+| 40 | aucune proposition ne portait de modalités (`card_facts` ne posait que la tâche) : `modality='image'` les écartait toutes | `_task_capabilities` : modalités et entrées impliquées par la tâche (`default_inputs_for`, la dérivation de la découverte Ollama et des distants), redérivées quand un banc change la tâche ; la lecture déduit celles d'une ligne qui n'en déclare pas |
+| 41 | une VARIANTE demandée comme clé (`proposed:hf:<dépôt variante>`) : refus muet | le refus nomme la proposition qui la porte et dit `variant_ref` (`variant_owner_keys`) |
+| 41 | suivre l'installation : la proposition disparaît à l'installation, `get_ai_model` (renvoyé par la docstring) ne la lit plus ; le modèle a pris le `task_id` pour un job de dev | le résultat d'`install_model` porte `next_step` (rappeler `install_model` rend l'avancement) |
+| 37→41 | gpt-oss : appel natif sans nom | outils déclarés nativement — `WAMA_LLM.md §2026-10-10` |
+| 41 | le canonique d'un dépôt GGUF : la ligne installée portait le dépôt du publieur (`hf_id`), le banc (dépôt exact) ne l'appariait pas | la proposition garde le `base_model` de sa carte ; `spec_for_choice` en fait le `base_hf_id` (un seul : une fusion n'est le canonique d'aucune) |
+| essai | **PaddleOCR-VL-1.6 et LightOnOCR-3-4B installés AVEUGLES** : leurs dépôts de quantification (mradermacher) n'ont pas de projecteur `mmproj` — Ollama : « image input is not supported », texte vide ; et le « auto » du Reader avait tiré LightOnOCR-3-4B | une tâche servie par Ollama qui LIT des images (`default_inputs_for`) n'offre et n'accepte un GGUF que d'un dépôt qui porte son `mmproj` (`_needs_projector`, `own_projector`) ; sinon refus `not_installable` qui le dit |
+
+**Essai réel** (image typographiée générée, porte commune `backend_instance_for_key`, après
+installation) : le select du Reader liste les 5 OCR d'Ollama ; **Chandra-OCR-2 lit** (HTML à
+boîtes, son format natif), **GLM-OCR lit** (en se répétant) ; PaddleOCR-VL et LightOnOCR-3-4B
+aveugles (ci-dessus) ; `lm-kit/lightonocr-3-1b-lmk` voit mais BOUCLE (« token repeat limit
+reached »). Les trois ont été **désinstallés** par le corps du bouton (`uninstall_model`, voie
+`claude-code` — l'assistant n'a pas d'outil de désinstallation) : 6 Go rendus, « auto » revenu à
+`glm-ocr`.
+
+⚠ **La ligne `huggingface:Mungert/PaddleOCR-VL-1.6-GGUF`** (0,36 Go, 2026-10-10 20:51) n'a AUCUN
+événement d'installation (`InstallEvent`) : elle est arrivée HORS de la route (téléchargement à
+la main), puis rangée par le balayage des installés. Rien ne la lit. Retrait à décider (Fabien).
+
+⚠ **Le dépôt OFFICIEL `lightonai/lightonocr-3-1b` existe** : la prospection par classement l'a vu
+le 10/10 mais le Hub l'a refusé (429). L'assistant a donc installé un reconditionnement tiers
+(`lm-kit/lightonocr-3-1b-lmk`, F16). À reproposer l'officiel quand le Hub répond.
+
+⚠ **Lenteur mesurée, pas un défaut de la route** : `sync_models` 1 555 s et 1 098 s, en
+chevauchement (prospection lancée par l'assistant + une synchro par installation) — les
+installations attendent leur enregistrement ; l'import d'un processus neuf a pris 3 min 54
+(14 s de calcul).

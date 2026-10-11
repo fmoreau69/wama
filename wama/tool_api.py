@@ -2152,7 +2152,9 @@ def list_ai_models(user, app: str = None, task: str = None, modality: str = None
     List the AI model CATALOGUE (read-only — trou #18 ROUTE §11, lecture utile à l'assistant).
 
     Args:
-        app: filter by owning app/source (e.g. 'imager', 'transcriber').
+        app: models an app can use (e.g. 'reader', 'imager'): its own models plus every model
+             of the task(s) its model selector covers — proposals and other producers
+             (Ollama, Hugging Face) included when include_proposed is true.
         task: filter by canonical capability task (e.g. 'detect', 'tts', 'asr').
         modality: filter by capability modality (e.g. 'image', 'audio', 'video').
         downloaded_only: only models whose weights are present on disk.
@@ -2171,12 +2173,32 @@ def list_ai_models(user, app: str = None, task: str = None, modality: str = None
     if not include_proposed:
         qs = qs.filter(is_proposed=False)
     if app:
+        # Les modèles de sa source, OU ceux du DOMAINE que ses selects de modèle déclarent
+        # (`options_query`) — propositions et modèles d'autres producteurs compris : les OCR
+        # d'Ollama et les propositions du Hub servent le Reader (2026-10-11 ; la source seule
+        # rendait deux lignes à l'assistant, qui ne trouvait pas les clés à installer).
+        from django.db.models import Q
         from wama.common.sandbox import declaring_app   # une jumelle : modèles de sa source
-        qs = qs.filter(source=declaring_app(app))
+        from wama.common.utils.param_schema import schema_for_app
+        from wama.model_manager.services.model_selector import domain_q
+        cond = Q(source=declaring_app(app))
+        for field in schema_for_app(app) or []:
+            if field.get('options_source') == 'catalog':
+                q = domain_q(field.get('options_query'))
+                if q is not None:
+                    cond |= q
+        qs = qs.filter(cond)
     if task:
         qs = qs.filter(capabilities__task=task)
     if modality:
-        qs = qs.filter(capabilities__modalities__contains=[modality])
+        # Une ligne SANS modalités déclarées (une proposition écrite avant le 2026-10-11) se lit
+        # par celles que sa TÂCHE implique — la table de l'installation, `TASK_DEFAULT_INPUTS`.
+        from django.db.models import Q
+        from wama.model_manager.models import TASK_DEFAULT_INPUTS
+        implied = [t.value for t, (mods, _, _) in TASK_DEFAULT_INPUTS.items() if modality in mods]
+        qs = qs.filter(Q(capabilities__modalities__contains=[modality])
+                       | (Q(capabilities__modalities__isnull=True)
+                          & Q(capabilities__task__in=implied)))
     if downloaded_only:
         qs = qs.filter(is_downloaded=True)
 
@@ -2277,7 +2299,12 @@ def search_models(user, query: str, limit: int = 10, max_results: int = 5) -> di
         max_results: how many proposals to keep at most (default 5).
 
     Returns:
-        {"query", "created", "updated", "already", "skipped", "total", "refs": [hf_id]}
+        {"query", "created", "updated", "already", "skipped", "total", "refs": [hf_id],
+         "catalog": [{"key","name","task","proposed","downloaded"}]} — `catalog` = the rows
+        ALREADY in the catalogue that match the query (proposals and installed models, the ones
+        just written included): use their `key` with get_install_options / install_model.
+        When Hugging Face refuses (rate limit, outage), {"error", "catalog"}: the catalogue
+        still answers.
     """
     from wama.model_manager.services.prospector import seed_hf_search
 
@@ -2287,8 +2314,47 @@ def search_models(user, query: str, limit: int = 10, max_results: int = 5) -> di
     res = seed_hf_search(q, limit=max(1, min(int(limit or 10), 30)),
                          max_retenus=max(1, min(int(max_results or 5), 10)))
     if not res.get('ok'):
-        return {'error': res.get('error', 'recherche HuggingFace indisponible')}
-    return {k: v for k, v in res.items() if k != 'ok'}
+        # Le Hub refuse (429, panne) : le CATALOGUE, lui, répond encore (fil n° 40 — deux
+        # recherches perdues sur une limite de débit, alors que les clés étaient en base).
+        return {'error': res.get('error', 'recherche HuggingFace indisponible'),
+                'catalog': _catalog_matches(q, [])}
+    out = {k: v for k, v in res.items() if k != 'ok'}
+    out['catalog'] = _catalog_matches(q, res.get('refs') or [])
+    return out
+
+
+def _catalog_matches(query: str, refs: list, limit: int = 15) -> list:
+    """Les lignes du catalogue qui répondent à une recherche : les dépôts qu'elle vient d'écrire
+    ET celles dont le dépôt ou le nom contient chaque mot de la requête.
+
+    POURQUOI (2026-10-11, fil n° 38) : la recherche ne rendait que les dépôts qu'elle ÉCRIT. Un
+    dépôt déjà proposé (Chandra-OCR-2, par le classement d'un banc) mais étiqueté hors périmètre
+    par le Hub était compté « skipped », sans sa clé : l'assistant recomposait des clés fausses
+    (`reader:mradermacher/…`) puis renonçait."""
+    from django.db.models import Q
+
+    from wama.model_manager.models import AIModel
+    def has(w):
+        return Q(hf_id__icontains=w) | Q(name__icontains=w) | Q(model_key__icontains=w)
+
+    words = [w for w in query.lower().replace('/', ' ').split() if w]
+    written = Q(hf_id__in=refs) if refs else Q(pk__in=[])
+    by_words = Q(pk__in=[])
+    if words:
+        by_words = Q()
+        for w in words:
+            by_words &= has(w)
+        # Un mot que le catalogue ne porte pas (« PaddleOCR-VL-1.6 Ollama », fil n° 40) ne doit
+        # pas tout éteindre : rien pour TOUS les mots → le plus long, le plus spécifique.
+        if not AIModel.objects.filter(by_words).exists():
+            by_words = has(max(words, key=len))
+    # Ce qui s'INSTALLE d'abord (les propositions), puis l'installé ; une ligne retirée en dernier —
+    # en tête, Albert l'a prise pour un modèle à installer (fil n° 41).
+    rows = AIModel.objects.filter(written | by_words).order_by(
+        '-is_proposed', '-is_downloaded', 'model_key')
+    return [{'key': m.model_key, 'name': m.name, 'task': (m.capabilities or {}).get('task'),
+             'proposed': m.is_proposed, 'downloaded': m.is_downloaded}
+            for m in rows[:limit]]
 
 
 def prospect_models(user) -> dict:
@@ -2380,8 +2446,11 @@ def install_model(user, model_key: str, force: bool = False,
             several quantisation levels — installing the repository would pull them all).
 
     Returns:
-        {"started": true, "model_key", "task_id"}  — follow it with get_ai_model
-        {"already_running": true, "model_key", "progress"}
+        {"started": true, "model_key", "task_id", "next_step"}  — to follow it, call
+            install_model again with the same key (it answers `already_running` + `progress`);
+            once installed the proposal is gone and the model is listed by
+            list_ai_models(downloaded_only=True)
+        {"already_running": true, "model_key", "progress", "next_step"}
         {"error", "reason"}  — 'insufficient_storage' carries `needed_gb`/`free_gb`/`after_gb`
     """
     from wama.model_manager.services.model_installer import request_install
@@ -2391,7 +2460,14 @@ def install_model(user, model_key: str, force: bool = False,
                           variant_ref=variant_ref or '', variant_file=variant_file or '',
                           user=user, via='assistant')
     if res.get('ok'):
-        return {k: v for k, v in res.items() if k != 'ok'}
+        # Le SUIVI voyage avec le résultat (fil n° 41, 2026-10-11) : sans lui, Albert a pris le
+        # `task_id` pour un job de développement (`dev_job_status`), ce qui a basculé le tour au
+        # niveau dev — et la proposition, retirée à l'installation, n'est plus lisible par sa clé.
+        return {**{k: v for k, v in res.items() if k != 'ok'},
+                'next_step': ("téléchargement en tâche de fond (task_id = tâche d'installation, "
+                              "pas un job de développement) : rappeler install_model avec la même "
+                              "clé rend l'avancement (`already_running`, `progress`) ; installé, "
+                              "le modèle apparaît dans list_ai_models(downloaded_only=True).")}
     if res.get('reason') == 'insufficient_storage':
         blocked = res['blocked']
         return {'error': blocked.get('error'), 'reason': 'insufficient_storage',

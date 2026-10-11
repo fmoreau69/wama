@@ -1100,8 +1100,10 @@ def _persist_variant_choice(cand, variant_ref: str, variant_file: str):
     # La garde d'espace se calcule sur le POIDS DU CHOIX, pas sur les poids pleins.
     variantes = {v['hf_id']: v for v in (prospect.get('quant_variants') or [])}
     if variant_file:
-        tailles = {f['file']: f['gb']
-                   for f in (variantes.get(variant_ref, {}).get('files') or [])}
+        # Un fichier du dépôt du candidat lui-même (dépôt GGUF) ou d'une variante.
+        chosen_files = (prospect.get('own_gguf') if variant_ref == cand.hf_id
+                        else variantes.get(variant_ref, {}).get('files'))
+        tailles = {f['file']: f['gb'] for f in (chosen_files or [])}
         return tailles.get(variant_file) or None
     if variant_ref != cand.hf_id:
         return (variantes.get(variant_ref) or {}).get('disk_gb') or None
@@ -1118,9 +1120,23 @@ def similar_model_keys(key: str, limit: int = 3) -> list[str]:
         return []
     from django.db.models import Q
     match = Q(hf_id__iexact=tail) | Q(model_key__iendswith=f':{tail}') | Q(name__iexact=tail)
-    return list(AIModel.objects.filter(match).exclude(model_key=key)
+    near = list(AIModel.objects.filter(match).exclude(model_key=key)
                 .order_by('-is_proposed', 'model_key')
                 .values_list('model_key', flat=True)[:limit])
+    return near or variant_owner_keys(tail)[:limit]
+
+
+def variant_owner_keys(repo: str) -> list[str]:
+    """Les propositions dont `repo` est une VARIANTE quantisée (`prospect.quant_variants`) — la clé
+    à installer, `repo` passant en `variant_ref`. Fil n° 41 (2026-10-11) : Albert a lu une variante
+    dans les options, puis l'a demandée comme une clé (`proposed:hf:<variante>`), refusée sans
+    dire laquelle la portait."""
+    from ..models import AIModel
+    if '/' not in (repo or ''):
+        return []
+    rows = AIModel.objects.filter(is_proposed=True,
+                                  extra_info__prospect__quant_variants__contains=[{'hf_id': repo}])
+    return list(rows.order_by('model_key').values_list('model_key', flat=True))
 
 
 def request_install(model_key: str, *, force: bool = False, variant_ref: str = '',
@@ -1142,7 +1158,8 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
       {'ok': True,  'already_running': True,'model_key', 'progress'}   # un re-clic REJOINT
       {'ok': False, 'reason': 'insufficient_storage', 'blocked': {…, 'replaces': …}}
       {'ok': False, 'reason': 'not_found'|'already_downloaded'|'not_installable'
-                              |'unknown_variant'|'no_install_location', 'error': …}
+                              |'unknown_variant'|'variant_required'|'no_install_location',
+       'error': …}   # variant_required : aucun choix par défaut (dépôt GGUF servi par Ollama)
     """
     from wama.common.utils.task_progress import progression_en_cours
 
@@ -1159,9 +1176,13 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
         # (`reader:hf:org/dépôt` au lieu de `proposed:hf:org/dépôt`, rejeu du 2026-10-10) n'avait
         # aucun moyen de retrouver la bonne — le refus seul le laissait inventer la suivante.
         near = similar_model_keys(key)
+        repo = key.rsplit(':', 1)[-1]
+        owners = set(variant_owner_keys(repo)) & set(near)
+        hint = (f" « {repo} » est une variante de {', '.join(sorted(owners))} : passer cette clé "
+                f"en model_key, avec variant_ref={repo} et variant_file=<fichier>." if owners
+                else f" Clés existantes proches : {', '.join(near)}." if near else '')
         return {'ok': False, 'reason': 'not_found',
-                'error': f"Ni candidat de prospection ni modèle de catalogue : « {key} »."
-                         + (f" Clés existantes proches : {', '.join(near)}." if near else ''),
+                'error': f"Ni candidat de prospection ni modèle de catalogue : « {key} »." + hint,
                 **({'similar_keys': near} if near else {})}
 
     replaces, reclaim_gb = None, 0.0
@@ -1172,6 +1193,25 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
                     'error': f"Candidat sans spec d'installation (source {cand.source}) "
                              "— non installable."}
         needed_gb = cand.disk_gb or None
+        if not variant_ref and cand.source != 'ollama':
+            # Un candidat SANS choix par défaut (dépôt GGUF servi par Ollama, 2026-10-11) : une
+            # seule option la prend d'office, plusieurs se choisissent — installer « tel quel »
+            # tirait le dépôt entier par le Hub, vers un dossier que rien ne lit.
+            from .prospector import install_options, needs_variant_choice
+            if needs_variant_choice(cand):
+                options = install_options(cand)['options']
+                if not options:
+                    return {'ok': False, 'reason': 'not_installable',
+                            'error': f"« {cand.name} » n'a aucun fichier exécutable par Ollama : "
+                                     "son dépôt ne porte pas le projecteur de vision (mmproj) "
+                                     "qu'exige sa tâche — installer une autre proposition."}
+                if len(options) > 1:
+                    return {'ok': False, 'reason': 'variant_required',
+                            'error': f"« {cand.name} » se choisit ({len(options)} options : "
+                                     "poids pleins par le Hub, ou fichiers exécutés par Ollama) : "
+                                     "lire les options (get_install_options) et passer "
+                                     "variant_ref (+ variant_file pour un fichier)."}
+                variant_ref, variant_file = options[0]['ref'], options[0]['file']
         if variant_ref and cand.source != 'ollama':
             choisi = _persist_variant_choice(cand, variant_ref, variant_file)
             if choisi is False:
@@ -1200,6 +1240,15 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
         if row.is_downloaded:
             return {'ok': False, 'reason': 'already_downloaded',
                     'error': f"« {row.name} » est déjà téléchargé."}
+        if spec_for_catalog_row(row) is None and row.source == 'ollama':
+            # Une ligne Ollama DÉSINSTALLÉE ne se télécharge pas « au premier usage » : ce refus le
+            # disait, et l'assistant l'a répété comme une installation faite (fil n° 41, 2026-10-11).
+            # Un modèle Ollama revient par sa PROPOSITION (`pull_model` y passe aussi, 1A du 11/10).
+            return {'ok': False, 'reason': 'no_install_location',
+                    'error': f"« {row.name} » est un modèle Ollama retiré : il ne se réinstalle "
+                             "pas tel quel ni au premier usage. Le réinstaller par une "
+                             "PROPOSITION (search_models, puis install_model sur sa clé "
+                             "proposed:…)."}
         if spec_for_catalog_row(row) is None:
             return {'ok': False, 'reason': 'no_install_location',
                     'error': "Ce modèle ne déclare pas d'emplacement d'installation "

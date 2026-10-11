@@ -123,7 +123,7 @@ def card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str = '
     from wama.common.backends.manager import engine_backends
 
     task, model_type = hf_task_to_wama(pipeline_tag, tags)
-    caps = {'task': task} if task else {}
+    caps = _task_capabilities({}, task)
     data = {}
     if card_data:
         try:
@@ -145,6 +145,26 @@ def card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str = '
     engine = (library_name or '').strip().lower()
     engine = engine if engine and engine in engine_backends() else None
     return {'task': task, 'model_type': model_type, 'capabilities': caps, 'engine': engine}
+
+
+#: Ce qu'une TÂCHE implique dans les capacités (`default_inputs_for`) — à redériver quand la
+#: tâche change, jamais à hériter de l'ancienne.
+_TASK_DERIVED = ('modalities', 'inputs_required', 'inputs_optional')
+
+
+def _task_capabilities(caps: dict, task: str) -> dict:
+    """Les capacités d'une proposition pour CETTE tâche : ce qu'elle implique (modalités, entrées —
+    `default_inputs_for`, la dérivation de la découverte Ollama et des modèles distants) par-dessus
+    les faits propres à la carte (langues).
+
+    POURQUOI (2026-10-11, fil n° 38) : une proposition ne portait que `{'task'}` — aucune des 17
+    propositions OCR n'avait de modalités, et `list_ai_models(task='ocr', modality='image')` de
+    l'assistant les écartait toutes. Une ligne ne les recevait qu'à son INSTALLATION."""
+    if not task:
+        return dict(caps)
+    from ..models import default_inputs_for
+    kept = {k: v for k, v in caps.items() if k not in _TASK_DERIVED}
+    return {**kept, **default_inputs_for(task), 'task': task}
 
 
 def _metrique_declaree(card_data):
@@ -774,9 +794,29 @@ def install_options(cand) -> dict:
     if (prospect.get('spec') or {}).get('kind') != 'hf':
         return {'choice': False, 'options': []}
 
+    by_ollama = _ollama_runs_task(_candidate_task(cand))
+    # Le dépôt du candidat EST un dépôt GGUF (une recherche ciblée en propose : « PaddleOCR-VL-1.6 »
+    # a écrit `mradermacher/PaddleOCR-VL-1.6-GGUF`, 2026-10-11) et sa tâche est servie par Ollama :
+    # ses PROPRES fichiers sont les choix, par Ollama. Ses « poids pleins » par le Hub tiraient le
+    # dépôt ENTIER (4,1 Go, toutes les quantifications) vers un dossier que rien ne lit.
+    own_gguf = prospect.get('own_gguf') if by_ollama else []
+    a_persister = False
+    if by_ollama and (own_gguf is None or (own_gguf and 'own_projector' not in prospect)):
+        repo_files = _siblings(cand.hf_id)
+        own_gguf = _gguf_files(repo_files)
+        if repo_files is not None:          # injoignable : on réessaiera, rien n'est figé
+            prospect['own_gguf'] = own_gguf
+            prospect['own_projector'] = _has_projector(name for name, _ in repo_files)
+            a_persister = True
+    # Une tâche qui LIT des images (ses modalités, `default_inputs_for`) exige le projecteur de
+    # vision dans le dépôt : Ollama le tire avec le modèle, et sans lui il installe un modèle AVEUGLE
+    # (« image input is not supported »). Mesuré le 2026-10-11 : PaddleOCR-VL-1.6 et LightOnOCR-3-4B
+    # installés depuis des dépôts de quantification sans `mmproj` ont rendu un texte vide.
+    needs_projector = _needs_projector(cand)
+
     variants = prospect.get('quant_variants')
-    a_persister = variants is None
     if variants is None:
+        a_persister = True
         variants = quantized_variants(cand.hf_id)
     enrichies = []
     for v in variants:
@@ -802,32 +842,29 @@ def install_options(cand) -> dict:
         cand.extra_info = info
         cand.save(update_fields=['extra_info'])
 
-    options = [{
-        'ref': cand.hf_id, 'file': None,
-        'label': f"Poids pleins — {cand.hf_id}",
-        'disk_gb': cand.disk_gb or None,
-        'vram_note': "ne tient pas en VRAM sans quantisation/offload"
-                     if (cand.disk_gb or 0) > 24 else "",
-        'downloads': None, 'kind': 'full',
-    }]
-    by_ollama = _ollama_runs_task(_candidate_task(cand))
+    if own_gguf:
+        # Un dépôt GGUF n'a jamais de « poids pleins » ; sans projecteur exigé, aucune option.
+        own_ok = prospect.get('own_projector') or not needs_projector
+        options = [_gguf_option(cand.hf_id, f, by_ollama, None)
+                   for f in sorted(own_gguf, key=lambda x: x['gb'], reverse=True)] if own_ok else []
+    else:
+        options = [{
+            'ref': cand.hf_id, 'file': None,
+            'label': f"Poids pleins — {cand.hf_id}",
+            'disk_gb': cand.disk_gb or None,
+            'vram_note': "ne tient pas en VRAM sans quantisation/offload"
+                         if (cand.disk_gb or 0) > 24 else "",
+            'downloads': None, 'kind': 'full',
+        }]
     for v in enrichies:
-        # Le PROJECTEUR de vision (`mmproj`) d'un dépôt GGUF n'est pas une variante du modèle :
-        # le proposer comme fichier à installer seul était faux (relevé le 2026-10-10 sur
-        # PaddleOCR-VL-1.6 : trois `mmproj` listés comme des niveaux de quantification).
-        ggufs = [f for f in (v.get('files') or [])
-                 if f['file'].lower().endswith('.gguf') and 'mmproj' not in f['file'].lower()]
+        ggufs = [f for f in (v.get('files') or []) if _is_model_gguf(f['file'])]
+        if ggufs and needs_projector \
+                and not _has_projector(f['file'] for f in (v.get('files') or [])):
+            continue                         # dépôt sans projecteur : un modèle aveugle
         if ggufs:
             # Une ligne PAR fichier gguf : c'est le fichier qu'on installe, pas le dépôt.
             for f in sorted(ggufs, key=lambda x: x['gb'], reverse=True):
-                options.append({
-                    'ref': v['hf_id'], 'file': f['file'],
-                    'label': f"{v['hf_id']} — {f['file']}" + (" (par Ollama)" if by_ollama else ""),
-                    'disk_gb': f['gb'],
-                    'vram_note': f"VRAM ≈ {f['gb']:.1f} Go (+ marge de contexte)",
-                    'downloads': v.get('downloads'), 'kind': 'variant_file',
-                    'driver': 'ollama' if by_ollama else 'hf',
-                })
+                options.append(_gguf_option(v['hf_id'], f, by_ollama, v.get('downloads')))
         else:
             options.append({
                 'ref': v['hf_id'], 'file': None,
@@ -837,6 +874,61 @@ def install_options(cand) -> dict:
                 'downloads': v.get('downloads'), 'kind': 'variant',
             })
     return {'choice': len(options) > 1, 'options': options}
+
+
+def needs_variant_choice(cand) -> bool:
+    """Le candidat n'a-t-il AUCUN choix par défaut ? — vrai quand ses options ne portent pas de
+    « poids pleins » (un dépôt GGUF servi par Ollama), ou quand des fichiers exécutés par Ollama
+    leur font concurrence : installer sans variante tirerait alors, en silence, ce que rien ne lit
+    peut-être. `request_install` refuse ce cas et renvoie aux options."""
+    options = install_options(cand).get('options') or []
+    own_gguf = ((cand.extra_info or {}).get('prospect') or {}).get('own_gguf')
+    # Des fichiers EXÉCUTÉS PAR OLLAMA existent à côté des poids pleins : le défaut n'est plus
+    # évident, on choisit (fil n° 42, 2026-10-11 — « installe PaddleOCR-VL-1.6 » sans variante a
+    # tiré 1,8 Go de poids pleins, une architecture que notre transformers ne sait pas lire, alors
+    # que le GGUF officiel par Ollama était proposé). La page ouvre déjà ce choix (`choice`).
+    by_ollama_offered = any(o.get('driver') == 'ollama' for o in options)
+    return bool(own_gguf) or by_ollama_offered \
+        or (bool(options) and not any(o.get('kind') == 'full' for o in options))
+
+
+def _needs_projector(cand) -> bool:
+    """La tâche du candidat est servie par Ollama ET lit des images : un GGUF ne s'installe que
+    depuis un dépôt qui porte son projecteur de vision."""
+    from ..models import default_inputs_for
+    task = _candidate_task(cand)
+    return _ollama_runs_task(task) and 'image' in (default_inputs_for(task).get('modalities') or [])
+
+
+def _has_projector(names) -> bool:
+    """Le dépôt porte-t-il un projecteur de vision (`mmproj`) ?"""
+    return any('mmproj' in str(n).lower() and str(n).lower().endswith('.gguf') for n in names)
+
+
+def _is_model_gguf(name: str) -> bool:
+    """Un fichier GGUF de MODÈLE. Le projecteur de vision (`mmproj`) n'est pas une variante :
+    le proposer comme fichier à installer seul était faux (relevé le 2026-10-10 sur
+    PaddleOCR-VL-1.6 : trois `mmproj` listés comme des niveaux de quantification)."""
+    low = name.lower()
+    return low.endswith('.gguf') and 'mmproj' not in low
+
+
+def _gguf_files(repo_files) -> list:
+    """`[{file, gb}]` des GGUF de modèle d'un inventaire `_siblings` — dérivation pure."""
+    return [{'file': name, 'gb': round(size / 1024 ** 3, 1)}
+            for name, size in (repo_files or []) if _is_model_gguf(name)]
+
+
+def _gguf_option(repo: str, f: dict, by_ollama: bool, downloads) -> dict:
+    """UNE option d'installation par fichier GGUF : c'est le fichier qu'on installe, pas le dépôt."""
+    return {
+        'ref': repo, 'file': f['file'],
+        'label': f"{repo} — {f['file']}" + (" (par Ollama)" if by_ollama else ""),
+        'disk_gb': f['gb'],
+        'vram_note': f"VRAM ≈ {f['gb']:.1f} Go (+ marge de contexte)",
+        'downloads': downloads, 'kind': 'variant_file',
+        'driver': 'ollama' if by_ollama else 'hf',
+    }
 
 
 def spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | None:
@@ -852,14 +944,25 @@ def spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | 
     base = prospect.get('spec') or {}
     if base.get('kind') != 'hf' or not variant_ref:
         return None
+    own_gguf = {f['file'] for f in (prospect.get('own_gguf') or [])}
     if variant_ref == cand.hf_id and not variant_file:
-        return dict(base)                      # poids pleins : le spec d'origine, inchangé
-    variantes = {v['hf_id']: v for v in (prospect.get('quant_variants') or [])}
-    v = variantes.get(variant_ref)
-    if v is None:
+        # Poids pleins : le spec d'origine, inchangé — sauf pour un dépôt GGUF servi par Ollama,
+        # qui n'en a pas (`install_options` ne les propose pas).
+        return None if own_gguf else dict(base)
+    if variant_ref == cand.hf_id:
+        files = own_gguf                       # un fichier du dépôt du candidat lui-même
+        projector = bool(prospect.get('own_projector'))
+    else:
+        v = {x['hf_id']: x for x in (prospect.get('quant_variants') or [])}.get(variant_ref)
+        if v is None:
+            return None
+        files = {f['file'] for f in (v.get('files') or [])}
+        projector = _has_projector(files)
+    if variant_file and variant_file not in files:
         return None
-    if variant_file and variant_file not in {f['file'] for f in (v.get('files') or [])}:
-        return None
+    if variant_file and variant_file.lower().endswith('.gguf') and not projector \
+            and _needs_projector(cand):
+        return None                            # un modèle aveugle : jamais installé
     if variant_file and variant_file.lower().endswith('.gguf') \
             and _ollama_runs_task(_candidate_task(cand)):
         # Un GGUF dont la TÂCHE est exécutée par le moteur Ollama (un backend la sert,
@@ -871,7 +974,7 @@ def spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | 
         quant = _gguf_quant(variant_file)
         return {'kind': 'ollama', 'ref': f"hf.co/{variant_ref}" + (f":{quant}" if quant else ''),
                 'task': base.get('task') or _candidate_task(cand),
-                'base_hf_id': cand.hf_id or '',
+                'base_hf_id': _canonical_repo(cand),
                 'note': f"variante GGUF par Ollama, choisie par l'utilisateur : {variant_ref} / "
                         f"{variant_file}"}
     spec = dict(base)
@@ -884,6 +987,20 @@ def spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | 
     spec['note'] = (f"variante quantisée choisie par l'utilisateur : {variant_ref}"
                     + (f" / {variant_file}" if variant_file else ""))
     return spec
+
+
+def _canonical_repo(cand) -> str:
+    """Le modèle CANONIQUE d'un candidat : son propre dépôt, sauf pour un dépôt GGUF (ses fichiers
+    sont ses options, `own_gguf`) dont la carte déclare un `base_model` — un seul : une fusion de
+    plusieurs bases n'est le canonique d'aucune. Fil n° 41 : PaddleOCR et Chandra installés depuis
+    leurs dépôts GGUF portaient le dépôt du publieur, et le banc ne pouvait pas les apparier."""
+    prospect = (cand.extra_info or {}).get('prospect') or {}
+    base = prospect.get('base_model')
+    if isinstance(base, (list, tuple)):
+        base = base[0] if len(base) == 1 else None
+    if prospect.get('own_gguf') and isinstance(base, str) and '/' in base:
+        return base
+    return cand.hf_id or ''
 
 
 def _candidate_task(cand) -> str:
@@ -973,6 +1090,10 @@ def _write_hf_candidate(hf_id, *, facts, refs_type, role, reason, description, n
                 # découverte générique d'un snapshot HF ne sait pas la dire.
                 'spec': {'kind': 'hf', 'ref': hf_id, 'category': model_type,
                          'task': task, 'note': note},
+                # Le modèle CANONIQUE que la carte déclare (2026-10-11) : pour un dépôt de
+                # quantification, c'est par lui que le banc apparie la ligne installée
+                # (`spec_for_choice` → `base_hf_id`), pas par le dépôt du publieur.
+                **({'base_model': base_model} if base_model else {}),
                 **(extra or {})}
     return write_candidate(
         key or PROPOSED_PREFIX + f"hf:{hf_id}", nom=name or hf_id.split('/')[-1],
@@ -1260,7 +1381,7 @@ def seed_benchmark_candidates(per_category: int = BENCH_CANDIDATES_PER_CATEGORY,
             # que dise son étiquette.
             facts = dict(facts, task=task,
                          model_type=model_type_for_task(task) or facts['model_type'],
-                         capabilities=dict(facts['capabilities'], task=task))
+                         capabilities=_task_capabilities(facts['capabilities'], task))
             label = _board_label(e)
             created_now = _write_hf_candidate(
                 hf_id, facts=facts, refs_type=refs_type, role=f"bench:{cat}",
@@ -1378,7 +1499,7 @@ def seed_hf_successors(workers: int = 8) -> dict:
         # Un successeur exerce le MÊME métier que l'installé qu'il vise (règle d'Ollama).
         task = (m.capabilities or {}).get('task') or facts['task']
         facts = dict(facts, task=task, model_type=m.model_type,
-                     capabilities=dict(facts['capabilities'], **({'task': task} if task else {})))
+                     capabilities=_task_capabilities(facts['capabilities'], task))
         created_now = _write_hf_candidate(
             successor, facts=facts, refs_type=refs_type, role=SUCCESSOR_ROLE,
             reason=f"la carte de {repo} désigne {chain[0]} comme nouvelle version",

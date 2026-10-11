@@ -181,7 +181,10 @@ class ToolLimitTest(TestCase):
 
         from wama.common.services import assistant_engine
         user = User.objects.create(username='tool_limit')
-        with mock.patch.object(assistant_engine, '_llm_call', side_effect=llm) as call:
+        # L'outil RÉUSSIT : ces tests éprouvent la boucle, pas un refus (un refus ajoute le
+        # rappel de `_refusals_notice`, éprouvé par `RefusalsNoticeTest`).
+        with mock.patch.object(assistant_engine, '_llm_call', side_effect=llm) as call, \
+                mock.patch('wama.tool_api.execute_tool', return_value={'items': []}):
             result = assistant_engine.run_assistant_turn(user, 'floute la plaque',
                                                          provider='ollama', model='m')
         return result, call.call_count
@@ -223,7 +226,8 @@ class EmptyAnswerTest(TestCase):
 
         from wama.common.services import assistant_engine
         user = User.objects.create(username='empty_answer')
-        with mock.patch.object(assistant_engine, '_llm_call', side_effect=llm) as call:
+        with mock.patch.object(assistant_engine, '_llm_call', side_effect=llm) as call, \
+                mock.patch('wama.tool_api.execute_tool', return_value={'items': []}):
             result = assistant_engine.run_assistant_turn(user, 'où en est le floutage ?',
                                                          provider='ollama', model='m')
         return result, call.call_args_list
@@ -277,3 +281,41 @@ class EmptyAnswerTest(TestCase):
         clean = assistant_engine._sanitize_history(history)
         self.assertEqual(assistant_engine._HISTORY_EMPTY_PLACEHOLDER, clean[-1]['content'])
         self.assertIn('prospect_models', clean[1]['content'])     # l'outil joué reste visible
+
+
+class RefusalsNoticeTest(TestCase):
+    """Fil web n° 41 (2026-10-11) : deux fois de suite, « a bien été installé » alors que chaque
+    `install_model` du tour avait été refusé. La trace dit le refus, pas le modèle."""
+
+    def test_a_tool_that_never_succeeded_is_said_with_its_refusal(self):
+        from wama.common.services.assistant_engine import _refusals_notice
+        steps = [{'tool': 'install_model', 'result': {'error': 'not_found : clé inconnue'}},
+                 {'tool': 'install_model', 'result': {'error': 'modèle Ollama retiré'}},
+                 {'tool': 'get_install_options', 'result': {'error': 'aucune proposition'}},
+                 {'tool': 'get_install_options', 'result': {'options': []}}]
+        notice = _refusals_notice(steps)
+        self.assertIn('install_model', notice)
+        self.assertIn('modèle Ollama retiré', notice)          # le DERNIER refus
+        self.assertNotIn('get_install_options', notice)        # échoué puis réussi : rien à dire
+
+    def test_the_turn_answer_carries_it(self):
+        from unittest import mock
+
+        from django.contrib.auth.models import User
+
+        from wama.common.services import assistant_engine
+        user = User.objects.create(username='refusals_notice')
+        answers = iter([('{"tool": "install_model", "args": {"model_key": "x"}}', {}),
+                        ('Le modèle a bien été installé.', {})])
+        with mock.patch.object(assistant_engine, '_llm_call', side_effect=lambda *a, **k: next(answers)), \
+                mock.patch('wama.tool_api.execute_tool', return_value={'error': 'refusé : clé inconnue'}):
+            result = assistant_engine.run_assistant_turn(user, 'installe x', provider='ollama',
+                                                         model='m')
+        self.assertIn('Refusé par WAMA', result['response'])
+        self.assertIn('refusé : clé inconnue', result['response'])
+
+    def test_a_turn_without_refusal_is_unchanged(self):
+        """Contre-épreuve : rien n'est ajouté quand tout a réussi."""
+        from wama.common.services.assistant_engine import _refusals_notice
+        self.assertEqual('', _refusals_notice([{'tool': 'install_model',
+                                                'result': {'started': True}}]))

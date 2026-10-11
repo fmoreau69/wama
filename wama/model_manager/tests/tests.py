@@ -1123,7 +1123,11 @@ class FaitsDeLaCarteTest(TestCase):
         from ..services.prospector import card_facts
         facts = card_facts('automatic-speech-recognition', ['audio', 'bg', 'cs'],
                            {'language': ['bg', 'cs', 'da'], 'license': 'cc-by-4.0'}, 'espnet')
-        self.assertEqual({'task': 'transcription', 'languages': ['bg', 'cs', 'da']},
+        # Les modalités et entrées sont celles que la TÂCHE implique (`default_inputs_for`,
+        # 2026-10-11) : une dérivation, pas une invention de la carte.
+        from ..models import default_inputs_for
+        self.assertEqual({**default_inputs_for('transcription'), 'task': 'transcription',
+                          'languages': ['bg', 'cs', 'da']},
                          facts['capabilities'])
         self.assertIsNone(facts['engine'], "`espnet` n'est servi par aucun backend : rien de posé")
         # `nemo` servait d'exemple de moteur NON servi jusqu'au 2026-09-28 — `NemoASRBackend` le sert.
@@ -1162,7 +1166,9 @@ class FaitsDeLaCarteTest(TestCase):
             api.return_value.model_info.return_value = info
             ident = pv.huggingface_identity('Org/Musique')
         self.assertEqual(('mit', 'huggingface:Org/Musique'), (ident['license'], ident['platform_ref']))
-        self.assertEqual({'capabilities': {'task': 'text-to-music', 'languages': ['en']},
+        from ..models import default_inputs_for
+        self.assertEqual({'capabilities': {**default_inputs_for('text-to-music'),
+                                           'task': 'text-to-music', 'languages': ['en']},
                           'engine': 'transformers'}, ident['declared'])
 
     def test_l_installation_pose_les_faits_de_la_carte_sans_ecraser_ni_le_spec_ni_l_existant(self):
@@ -1919,6 +1925,8 @@ class RouteUniqueDInstallationTest(TestCase):
                    return_value={'ok': True, 'started': True, 'model_key': 'proposed:hf:Org/P',
                                  'task_id': 'tid-2'}) as req:
             out = tool_api.install_model(user, 'proposed:hf:Org/P')
+        # `next_step` (2026-10-11) : comment SUIVRE l'installation, ajouté par l'outil seul.
+        self.assertIn('install_model', out.pop('next_step'))
         self.assertEqual(out, {'started': True, 'model_key': 'proposed:hf:Org/P',
                                'task_id': 'tid-2'})
         req.assert_called_once_with('proposed:hf:Org/P', force=False, variant_ref='',

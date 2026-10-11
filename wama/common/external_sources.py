@@ -312,6 +312,12 @@ class ExternalSource:
     #: OpenRouter : n'aller que chez des hébergeurs qui ne gardent ni n'entraînent sur les données.
     #: Chaîne JSON (et non dict) : la source est figée, donc hachable.
     request_body: str = ''
+    #: Fournisseur LLM : les outils de l'assistant lui sont DÉCLARÉS au format standard
+    #: (`tools=`, appels rendus nommés dans `tool_calls`) en plus de la liste du prompt
+    #: (2026-10-11). Mesuré sur Albert/gpt-oss : sans déclaration, son appel d'outil natif
+    #: arrivait sans nom, rangé dans le raisonnement — réponse vide environ 2 fois sur 3 ; déclarés,
+    #: 81 outils acceptés et l'appel rendu nommé. Ne le poser que MESURÉ sur le fournisseur.
+    native_tools: bool = False
     #: Attribution EXIGÉE par la licence de la source. Une obligation, pas une politesse.
     attribution: str = ''
     #: Document portant l'intention, quand elle est écrite quelque part.
@@ -362,7 +368,8 @@ SOURCES: tuple[ExternalSource, ...] = (
         api_key_env='ALBERT_API_KEY', user_key=True,
         api_key_help_url='https://ia.numerique.gouv.fr/outils-ia/albert-api/',
         hosting='sovereign', cost_tier='free', protocol='openai',
-        default_model='openai/gpt-oss-120b', doc='docs/construction/ia/WAMA_LLM.md'),
+        default_model='openai/gpt-oss-120b', native_tools=True,
+        doc='docs/construction/ia/WAMA_LLM.md'),
     # 2026-10-07 : ILaaS, fédération d'inférence de l'ESR (MESRE, CINES ; datacenters labellisés
     # ESR), protocole OpenAI. Il délivre des clés d'APPLICATION (une par service, validée par
     # un admin ILaaS) : d'où `shareable` — l'admin WAMA la pose sur la page Sources externes et
