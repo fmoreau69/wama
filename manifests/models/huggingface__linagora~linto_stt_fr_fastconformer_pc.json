@@ -28,10 +28,10 @@
       "category": "speech",
       "family": "linto_stt_fr_fastconformer_pc",
       "vram_measured": {
-        "at": "2026-10-01T13:27:14+00:00",
-        "last_gb": 0.88,
+        "at": "2026-10-02T19:46:19+00:00",
+        "last_gb": 0.45,
         "max_gb": 0.88,
-        "n": 3
+        "n": 16
       },
       "vram_provenance": "estimated"
     },
@@ -42,11 +42,15 @@
     },
     "identity": {
       "author": "linagora",
-      "description_short": "Snapshot HF linto_stt_fr_fastconformer_pc — installé, en attente d'intégration",
+      "description_short": "Snapshot HF linto_stt_fr_fastconformer_pc",
       "hf_id": "linagora/linto_stt_fr_fastconformer_pc",
       "license": "cc-by-4.0",
       "model_type": "speech",
       "platform_ref": "huggingface:linagora/linto_stt_fr_fastconformer_pc",
+      "publications": [
+        "2207.08292",
+        "2305.05084"
+      ],
       "source": "huggingface"
     },
     "prompts": {
@@ -65,7 +69,7 @@
       "vram_gb": 1.1
     }
   },
-  "description": "Snapshot HuggingFace installé (speech/linto_stt_fr_fastconformer_pc) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "description": "Snapshot HuggingFace installé (speech/linto_stt_fr_fastconformer_pc), catalogué par le balayage générique des modèles installés.",
   "key": "huggingface:linagora/linto_stt_fr_fastconformer_pc",
   "manifest_kind": "model",
   "name": "linto_stt_fr_fastconformer_pc",

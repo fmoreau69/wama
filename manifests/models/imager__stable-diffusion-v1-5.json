@@ -7,9 +7,12 @@
       "inputs_required": [
         "prompt"
       ],
+      "max_resolution": 768,
+      "min_resolution": 256,
       "modalities": [
         "image"
       ],
+      "native_resolution": "512x512",
       "task": "text-to-image",
       "tasks": [
         "text-to-image"
@@ -35,6 +38,12 @@
       }
     },
     "extra_info": {
+      "vram_measured": {
+        "at": "2026-10-04T09:54:04+00:00",
+        "last_gb": 2.02,
+        "max_gb": 2.02,
+        "n": 1
+      },
       "vram_provenance": "declared"
     },
     "formats": {
@@ -50,6 +59,13 @@
       "license": "creativeml-openrail-m",
       "model_type": "diffusion",
       "platform_ref": "huggingface:stable-diffusion-v1-5/stable-diffusion-v1-5",
+      "publications": [
+        "2207.12598",
+        "2112.10752",
+        "2103.00020",
+        "2205.11487",
+        "1910.09700"
+      ],
       "source": "imager"
     },
     "prompts": {

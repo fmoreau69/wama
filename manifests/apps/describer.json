@@ -23,107 +23,11 @@
     "data": {
       "models": [
         {
+          "bases": [
+            "wama.common.models.ProcessingTimeMixin",
+            "wama.common.models.ScopedVisibility"
+          ],
           "fields": [
-            {
-              "args": [],
-              "class": "django.db.models.FloatField",
-              "kwargs": {
-                "default": {
-                  "expr": "0",
-                  "imports": []
-                }
-              },
-              "name": "processing_seconds"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "choices": {
-                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
-                  "imports": []
-                },
-                "db_index": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "'private'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "12",
-                  "imports": []
-                }
-              },
-              "name": "visibility"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Unité de partage si visibility='unit'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.orgunit'",
-                  "imports": []
-                }
-              },
-              "name": "scope_org_unit"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Projet de partage si visibility='project'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.project'",
-                  "imports": []
-                }
-              },
-              "name": "scope_project"
-            },
             {
               "args": [],
               "class": "django.db.models.ForeignKey",
@@ -529,111 +433,12 @@
           "name": "Description"
         },
         {
+          "bases": [
+            "wama.common.models.BatchMixin",
+            "wama.common.models.QueueOrderMixin",
+            "wama.common.models.ScopedVisibility"
+          ],
           "fields": [
-            {
-              "args": [],
-              "class": "django.db.models.IntegerField",
-              "kwargs": {
-                "db_index": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "0",
-                  "imports": []
-                }
-              },
-              "name": "queue_index"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "choices": {
-                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
-                  "imports": []
-                },
-                "db_index": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "'private'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "12",
-                  "imports": []
-                }
-              },
-              "name": "visibility"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Unité de partage si visibility='unit'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.orgunit'",
-                  "imports": []
-                }
-              },
-              "name": "scope_org_unit"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Projet de partage si visibility='project'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.project'",
-                  "imports": []
-                }
-              },
-              "name": "scope_project"
-            },
             {
               "args": [],
               "class": "django.db.models.ForeignKey",
@@ -714,6 +519,7 @@
           "name": "BatchDescription"
         },
         {
+          "bases": [],
           "fields": [
             {
               "args": [],
@@ -979,7 +785,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1044,7 +849,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1096,7 +900,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1148,7 +951,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1200,7 +1002,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,

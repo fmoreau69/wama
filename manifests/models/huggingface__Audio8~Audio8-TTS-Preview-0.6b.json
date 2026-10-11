@@ -52,7 +52,7 @@
     },
     "identity": {
       "author": "Audio8",
-      "description_short": "Snapshot HF Audio8-TTS-Preview-0.6b — installé, en attente d'intégration",
+      "description_short": "Snapshot HF Audio8-TTS-Preview-0.6b",
       "gated": "no",
       "hf_id": "Audio8/Audio8-TTS-Preview-0.6b",
       "license": "apache-2.0",
@@ -76,7 +76,7 @@
       "vram_gb": 3.1
     }
   },
-  "description": "Snapshot HuggingFace installé (speech/Audio8-TTS-Preview-0.6b) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "description": "Snapshot HuggingFace installé (speech/Audio8-TTS-Preview-0.6b), catalogué par le balayage générique des modèles installés.",
   "key": "huggingface:Audio8/Audio8-TTS-Preview-0.6b",
   "manifest_kind": "model",
   "name": "Audio8-TTS-Preview-0.6b",

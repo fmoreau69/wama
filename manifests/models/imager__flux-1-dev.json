@@ -8,9 +8,12 @@
       "languages": [
         "en"
       ],
+      "max_resolution": 1024,
+      "min_resolution": 256,
       "modalities": [
         "image"
       ],
+      "native_resolution": "1024x1024",
       "recommended_guidance": 3.5,
       "recommended_steps": 28,
       "task": "text-to-image",

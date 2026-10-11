@@ -75,6 +75,10 @@
       "license": "apache-2.0",
       "model_type": "speech",
       "platform_ref": "huggingface:hexgrad/Kokoro-82M",
+      "publications": [
+        "2306.07691",
+        "2203.02395"
+      ],
       "source": "synthesizer"
     },
     "prompts": {

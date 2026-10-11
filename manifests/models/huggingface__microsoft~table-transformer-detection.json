@@ -33,6 +33,9 @@
       "license": "mit",
       "model_type": "vision",
       "platform_ref": "huggingface:microsoft/table-transformer-detection",
+      "publications": [
+        "2110.00061"
+      ],
       "source": "huggingface"
     },
     "prompts": {

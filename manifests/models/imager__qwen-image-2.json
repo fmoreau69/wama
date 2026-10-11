@@ -9,9 +9,12 @@
         "en",
         "zh"
       ],
+      "max_resolution": 2048,
+      "min_resolution": 512,
       "modalities": [
         "image"
       ],
+      "native_resolution": "1024x1024",
       "recommended_guidance": 4.0,
       "recommended_steps": 50,
       "task": "text-to-image",
@@ -54,6 +57,9 @@
       "license": "apache-2.0",
       "model_type": "diffusion",
       "platform_ref": "huggingface:Qwen/Qwen-Image-2512",
+      "publications": [
+        "2508.02324"
+      ],
       "source": "imager"
     },
     "prompts": {

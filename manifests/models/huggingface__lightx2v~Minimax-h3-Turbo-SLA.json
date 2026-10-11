@@ -26,11 +26,14 @@
     },
     "identity": {
       "author": "lightx2v",
-      "description_short": "Snapshot HF Minimax-h3-Turbo-SLA — installé, en attente d'intégration",
+      "description_short": "Snapshot HF Minimax-h3-Turbo-SLA",
       "hf_id": "lightx2v/Minimax-h3-Turbo-SLA",
       "license": "apache-2.0",
       "model_type": "diffusion",
       "platform_ref": "huggingface:lightx2v/Minimax-h3-Turbo-SLA",
+      "publications": [
+        "2509.24006"
+      ],
       "source": "huggingface"
     },
     "prompts": {
@@ -49,7 +52,7 @@
       "vram_gb": 4.0
     }
   },
-  "description": "Snapshot HuggingFace installé (diffusion/Minimax-h3-Turbo-SLA) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "description": "Snapshot HuggingFace installé (diffusion/Minimax-h3-Turbo-SLA), catalogué par le balayage générique des modèles installés.",
   "key": "huggingface:lightx2v/Minimax-h3-Turbo-SLA",
   "manifest_kind": "model",
   "name": "Minimax-h3-Turbo-SLA",

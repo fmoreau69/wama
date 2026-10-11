@@ -44,11 +44,16 @@
     },
     "identity": {
       "author": "m-a-p",
-      "description_short": "Snapshot HF YuE2-3B — installé, en attente d'intégration",
+      "description_short": "Snapshot HF YuE2-3B",
       "hf_id": "m-a-p/YuE2-3B",
       "license": "cc-by-nc-4.0",
       "model_type": "music",
       "platform_ref": "huggingface:m-a-p/YuE2-3B",
+      "publications": [
+        "2610.05336",
+        "2609.33757",
+        "2503.08638"
+      ],
       "source": "huggingface"
     },
     "prompts": {
@@ -67,7 +72,7 @@
       "vram_gb": 8.8
     }
   },
-  "description": "Snapshot HuggingFace installé (music/YuE2-3B) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "description": "Snapshot HuggingFace installé (music/YuE2-3B), catalogué par le balayage générique des modèles installés.",
   "key": "huggingface:m-a-p/YuE2-3B",
   "manifest_kind": "model",
   "name": "YuE2-3B",

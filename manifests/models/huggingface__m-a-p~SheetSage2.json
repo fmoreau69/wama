@@ -32,10 +32,10 @@
       "category": "music",
       "family": "SheetSage2",
       "vram_measured": {
-        "at": "2026-10-03T18:21:21+00:00",
+        "at": "2026-10-04T18:27:21+00:00",
         "last_gb": 2.52,
         "max_gb": 2.52,
-        "n": 1
+        "n": 7
       },
       "vram_provenance": "estimated"
     },
@@ -46,11 +46,19 @@
     },
     "identity": {
       "author": "m-a-p",
-      "description_short": "Snapshot HF SheetSage2 — installé, en attente d'intégration",
+      "description_short": "Snapshot HF SheetSage2",
       "hf_id": "m-a-p/SheetSage2",
       "license": "cc-by-nc-4.0",
       "model_type": "music",
       "platform_ref": "huggingface:m-a-p/SheetSage2",
+      "publications": [
+        "2610.05336",
+        "2609.33757",
+        "2502.11840",
+        "2510.02797",
+        "2212.01884",
+        "2503.08638"
+      ],
       "source": "huggingface"
     },
     "prompts": {
@@ -69,7 +77,7 @@
       "vram_gb": 0.3
     }
   },
-  "description": "Snapshot HuggingFace installé (music/SheetSage2) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "description": "Snapshot HuggingFace installé (music/SheetSage2), catalogué par le balayage générique des modèles installés.",
   "key": "huggingface:m-a-p/SheetSage2",
   "manifest_kind": "model",
   "name": "SheetSage2",

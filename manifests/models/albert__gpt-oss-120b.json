@@ -35,6 +35,9 @@
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:openai/gpt-oss-120b",
+      "publications": [
+        "2508.10925"
+      ],
       "source": "albert"
     },
     "prompts": {

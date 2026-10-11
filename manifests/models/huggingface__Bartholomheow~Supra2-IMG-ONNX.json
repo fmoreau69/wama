@@ -4,9 +4,13 @@
       "inputs_required": [
         "prompt"
       ],
+      "languages": [
+        "en"
+      ],
       "modalities": [
         "image"
       ],
+      "native_resolution": "256x256",
       "task": "text-to-image"
     },
     "composition": {
@@ -43,7 +47,7 @@
     },
     "identity": {
       "author": "Bartholomheow",
-      "description_short": "Snapshot HF Supra2-IMG-ONNX — installé, en attente d'intégration",
+      "description_short": "Snapshot HF Supra2-IMG-ONNX",
       "hf_id": "Bartholomheow/Supra2-IMG-ONNX",
       "license": "apache-2.0",
       "model_type": "diffusion",
@@ -66,7 +70,7 @@
       "vram_gb": 1.3
     }
   },
-  "description": "Snapshot HuggingFace installé (diffusion/Supra2-IMG-ONNX) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "description": "Snapshot HuggingFace installé (diffusion/Supra2-IMG-ONNX), catalogué par le balayage générique des modèles installés.",
   "key": "huggingface:Bartholomheow/Supra2-IMG-ONNX",
   "manifest_kind": "model",
   "name": "Supra2-IMG-ONNX",

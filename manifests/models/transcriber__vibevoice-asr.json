@@ -37,6 +37,9 @@
       "license": "mit",
       "model_type": "speech",
       "platform_ref": "huggingface:microsoft/VibeVoice-ASR",
+      "publications": [
+        "2601.18184"
+      ],
       "source": "transcriber"
     },
     "prompts": {

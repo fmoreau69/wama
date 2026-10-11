@@ -1,0 +1,70 @@
+{
+  "body": {
+    "capabilities": {
+      "classes": [
+        "license_plate"
+      ],
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "detect"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "torchscript"
+      }
+    },
+    "extra_info": {
+      "license": "Apache-2.0",
+      "model_id": "egoblur-lp-gen1",
+      "repo": "https://github.com/facebookresearch/EgoBlur",
+      "vram_provenance": "declared"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "EgoBlur (Meta) — plaques d'immatriculation, vidéo embarquée.",
+      "hf_id": null,
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": null,
+      "source": "anonymizer"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "anonymizer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 2.0
+    }
+  },
+  "description": "EgoBlur (Meta, Apache-2.0) : détecteur de plaques entraîné pour ANONYMISER la vidéo embarquée, réglé pour ne rien rater. Meilleur rappel mesuré sur des caméras de véhicule basse résolution (59,5 % des plaques des véhicules proches, contre 20 % aux YOLO plaques), 42 ms par image. Poids distribués par Meta sur formulaire : à déposer dans le dossier `vision/egoblur`.",
+  "key": "anonymizer:egoblur-lp-gen1",
+  "manifest_kind": "model",
+  "name": "EgoBlur plaques (gen1)",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:anonymizer:egoblur-lp-gen1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

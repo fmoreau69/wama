@@ -37,6 +37,16 @@
       "license": "other",
       "model_type": "vision",
       "platform_ref": "huggingface:nvidia/LocateAnything-3B",
+      "publications": [
+        "2605.27365",
+        "2504.07491",
+        "2109.10852",
+        "2510.12798",
+        "2303.05499",
+        "1405.0312",
+        "1908.03195",
+        "2504.07981"
+      ],
       "source": "huggingface"
     },
     "prompts": {

@@ -36,6 +36,9 @@
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:google/gemma-4-31B-it",
+      "publications": [
+        "2607.02770"
+      ],
       "source": "albert"
     },
     "prompts": {

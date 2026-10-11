@@ -27,6 +27,12 @@
     "extra_info": {
       "category": "speech",
       "family": "FrWhisper",
+      "vram_measured": {
+        "at": "2026-10-02T20:26:40+00:00",
+        "last_gb": 2.88,
+        "max_gb": 2.88,
+        "n": 9
+      },
       "vram_provenance": "estimated"
     },
     "formats": {
@@ -36,7 +42,7 @@
     },
     "identity": {
       "author": "aihpi",
-      "description_short": "Snapshot HF FrWhisper — installé, en attente d'intégration",
+      "description_short": "Snapshot HF FrWhisper",
       "hf_id": "aihpi/FrWhisper",
       "license": "cc-by-nc-sa-4.0",
       "model_type": "speech",
@@ -59,7 +65,7 @@
       "vram_gb": 7.4
     }
   },
-  "description": "Snapshot HuggingFace installé (speech/FrWhisper) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "description": "Snapshot HuggingFace installé (speech/FrWhisper), catalogué par le balayage générique des modèles installés.",
   "key": "huggingface:aihpi/FrWhisper",
   "manifest_kind": "model",
   "name": "FrWhisper",

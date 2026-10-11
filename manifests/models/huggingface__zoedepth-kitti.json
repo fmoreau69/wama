@@ -30,6 +30,9 @@
       "license": null,
       "model_type": "vision",
       "platform_ref": null,
+      "publications": [
+        "2302.12288"
+      ],
       "source": "huggingface"
     },
     "prompts": {

@@ -35,6 +35,13 @@
       "license": null,
       "model_type": "embedding",
       "platform_ref": "huggingface:BAAI/bge-m3",
+      "publications": [
+        "2402.03216",
+        "2004.04906",
+        "2106.14807",
+        "2107.05720",
+        "2004.12832"
+      ],
       "source": "albert"
     },
     "prompts": {

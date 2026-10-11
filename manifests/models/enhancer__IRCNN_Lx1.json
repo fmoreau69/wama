@@ -15,7 +15,21 @@
         "engine": "onnxruntime"
       }
     },
-    "extra_info": {},
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "IRCNN_Lx1_fp16.onnx",
+            "repo": "svjack/AI-onnx",
+            "revision": "be603874bb76213dbae5387b5655b327787c3faa",
+            "source": "huggingface"
+          },
+          "path": "IRCNN_Lx1_fp16.onnx",
+          "sha256": "614528d84916c3b8f0941c163843bf155dc42ebabbf893b2474477f53f736678",
+          "size": 380171
+        }
+      ]
+    },
     "formats": {
       "can_convert_to": [],
       "format": "onnx",

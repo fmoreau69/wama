@@ -37,6 +37,10 @@
       "license": null,
       "model_type": "vision",
       "platform_ref": null,
+      "publications": [
+        "2311.04400",
+        "2403.02151"
+      ],
       "source": "huggingface"
     },
     "prompts": {

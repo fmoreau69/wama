@@ -47,6 +47,9 @@
       "license": "cc-by-nc-4.0",
       "model_type": "music",
       "platform_ref": "huggingface:facebook/musicgen-medium",
+      "publications": [
+        "2306.05284"
+      ],
       "source": "composer"
     },
     "prompts": {

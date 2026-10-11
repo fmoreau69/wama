@@ -50,6 +50,9 @@
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:mistralai/Ministral-3-8B-Instruct-2512",
+      "publications": [
+        "2601.08584"
+      ],
       "source": "albert"
     },
     "prompts": {

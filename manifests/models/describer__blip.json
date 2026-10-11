@@ -30,6 +30,9 @@
       "license": "bsd-3-clause",
       "model_type": "vlm",
       "platform_ref": "huggingface:Salesforce/blip-image-captioning-large",
+      "publications": [
+        "2201.12086"
+      ],
       "source": "describer"
     },
     "prompts": {

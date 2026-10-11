@@ -1,0 +1,68 @@
+{
+  "body": {
+    "capabilities": {
+      "classes": [
+        "license_plate"
+      ],
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "detect"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "transformers"
+      }
+    },
+    "extra_info": {
+      "model_id": "rtdetr-v2-license-plate",
+      "vram_provenance": "declared"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "RT-DETR v2 — plaques d'immatriculation (transformers).",
+      "hf_id": "justjuu/rtdetr-v2-license-plate-detection",
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": null,
+      "source": "anonymizer"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "anonymizer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 1.0
+    }
+  },
+  "description": "RT-DETR v2 affiné sur les plaques (Apache-2.0) : 40 % de rappel sur des caméras de véhicule basse résolution, 69 ms par image. Ses erreurs diffèrent de celles d'EgoBlur : réunis, ils trouvent 64,6 % des plaques — c'est un complément d'ensemble pour l'anonymisation.",
+  "key": "anonymizer:rtdetr-v2-license-plate",
+  "manifest_kind": "model",
+  "name": "RT-DETR v2 plaques",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:anonymizer:rtdetr-v2-license-plate",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

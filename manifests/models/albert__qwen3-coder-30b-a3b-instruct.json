@@ -35,6 +35,9 @@
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Qwen/Qwen3-Coder-30B-A3B-Instruct",
+      "publications": [
+        "2505.09388"
+      ],
       "source": "albert"
     },
     "prompts": {

@@ -17,6 +17,19 @@
       }
     },
     "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "BSRGANx4_fp16.onnx",
+            "repo": "svjack/AI-onnx",
+            "revision": "be603874bb76213dbae5387b5655b327787c3faa",
+            "source": "huggingface"
+          },
+          "path": "BSRGANx4_fp16.onnx",
+          "sha256": "185f9dd875de96726fbf8de9bc91945df0e7c81caae6415633167d54d6518483",
+          "size": 33822821
+        }
+      ],
       "vram_provenance": "heuristic"
     },
     "formats": {

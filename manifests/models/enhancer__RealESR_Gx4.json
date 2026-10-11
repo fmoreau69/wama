@@ -16,7 +16,21 @@
         "engine": "onnxruntime"
       }
     },
-    "extra_info": {},
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "RealESR_Gx4_fp16.onnx",
+            "repo": "svjack/AI-onnx",
+            "revision": "be603874bb76213dbae5387b5655b327787c3faa",
+            "source": "huggingface"
+          },
+          "path": "RealESR_Gx4_fp16.onnx",
+          "sha256": "fcbba7804f57ea68c1fde65911df095a6e8a6a46bd2d9c9fb3c477b3be3cfeb2",
+          "size": 2445042
+        }
+      ]
+    },
     "formats": {
       "can_convert_to": [],
       "format": "onnx",

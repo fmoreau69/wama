@@ -23,126 +23,12 @@
     "data": {
       "models": [
         {
+          "bases": [
+            "wama.common.models.ProcessingTimeMixin",
+            "wama.common.models.NativeOutputsMixin",
+            "wama.common.models.ScopedVisibility"
+          ],
           "fields": [
-            {
-              "args": [],
-              "class": "django.db.models.FloatField",
-              "kwargs": {
-                "default": {
-                  "expr": "0",
-                  "imports": []
-                }
-              },
-              "name": "processing_seconds"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.JSONField",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "list",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                }
-              },
-              "name": "native_outputs"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "choices": {
-                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
-                  "imports": []
-                },
-                "db_index": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "'private'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "12",
-                  "imports": []
-                }
-              },
-              "name": "visibility"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Unité de partage si visibility='unit'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.orgunit'",
-                  "imports": []
-                }
-              },
-              "name": "scope_org_unit"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Projet de partage si visibility='project'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.project'",
-                  "imports": []
-                }
-              },
-              "name": "scope_project"
-            },
             {
               "args": [],
               "class": "django.db.models.ForeignKey",
@@ -640,111 +526,12 @@
           "name": "VoiceSynthesis"
         },
         {
+          "bases": [
+            "wama.common.models.BatchMixin",
+            "wama.common.models.QueueOrderMixin",
+            "wama.common.models.ScopedVisibility"
+          ],
           "fields": [
-            {
-              "args": [],
-              "class": "django.db.models.IntegerField",
-              "kwargs": {
-                "db_index": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "0",
-                  "imports": []
-                }
-              },
-              "name": "queue_index"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "choices": {
-                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
-                  "imports": []
-                },
-                "db_index": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "'private'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "12",
-                  "imports": []
-                }
-              },
-              "name": "visibility"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Unité de partage si visibility='unit'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.orgunit'",
-                  "imports": []
-                }
-              },
-              "name": "scope_org_unit"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Projet de partage si visibility='project'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.project'",
-                  "imports": []
-                }
-              },
-              "name": "scope_project"
-            },
             {
               "args": [],
               "class": "django.db.models.ForeignKey",
@@ -825,6 +612,7 @@
           "name": "BatchSynthesis"
         },
         {
+          "bases": [],
           "fields": [
             {
               "args": [],
@@ -1019,7 +807,6 @@
             "options_abilities": false,
             "options_auto": true,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1075,7 +862,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1193,7 +979,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1247,7 +1032,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1301,7 +1085,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1355,7 +1138,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1416,7 +1198,7 @@
               "item",
               "panel"
             ],
-            "default": null,
+            "default": "original",
             "default_from": null,
             "display_format": "",
             "dom_id": {
@@ -1440,7 +1222,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1479,7 +1260,7 @@
               "item",
               "panel"
             ],
-            "default": null,
+            "default": "balanced",
             "default_from": null,
             "display_format": "",
             "dom_id": {
@@ -1503,7 +1284,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1776,8 +1556,8 @@
           "args": {
             "emotion_intensity": "float (défaut : 1.0)",
             "language": "select — Langue de synthèse (choix : fr | en | es | de | it | pt | pl | tr …) (défaut : 'fr')",
-            "output_format": "select — Format de sortie (choix : original | mp3 | wav | flac | ogg | m4a | aac | opus)",
-            "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max)",
+            "output_format": "select — Format de sortie (choix : original | mp3 | wav | flac | ogg | m4a | aac | opus) (défaut : 'original')",
+            "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max) (défaut : 'balanced')",
             "pitch": "range — Hauteur de la voix (0.5 = grave, 2.0 = aigu) [0.5–2.0] (défaut : 1.0)",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "reference_voice": "str",

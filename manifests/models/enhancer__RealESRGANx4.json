@@ -17,6 +17,19 @@
       }
     },
     "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "RealESRGANx4_fp16.onnx",
+            "repo": "svjack/AI-onnx",
+            "revision": "be603874bb76213dbae5387b5655b327787c3faa",
+            "source": "huggingface"
+          },
+          "path": "RealESRGANx4_fp16.onnx",
+          "sha256": "1c3aea7e3f40418a606c2025aea6eeb724a8c831fe3059095d82c97a839fa86c",
+          "size": 33748852
+        }
+      ],
       "vram_provenance": "heuristic"
     },
     "formats": {

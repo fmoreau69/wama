@@ -6,9 +6,12 @@
       "inputs_required": [
         "prompt"
       ],
+      "max_resolution": 768,
+      "min_resolution": 512,
       "modalities": [
         "image"
       ],
+      "native_resolution": "768x768",
       "recommended_guidance": 3.5,
       "recommended_steps": 24,
       "task": "text-to-image",

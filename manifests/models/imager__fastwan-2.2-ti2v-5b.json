@@ -57,6 +57,10 @@
       "license": null,
       "model_type": "diffusion",
       "platform_ref": null,
+      "publications": [
+        "2505.13389",
+        "2502.04507"
+      ],
       "source": "imager"
     },
     "prompts": {

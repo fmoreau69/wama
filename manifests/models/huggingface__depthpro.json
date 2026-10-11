@@ -31,6 +31,9 @@
       "license": "apple-amlr",
       "model_type": "vision",
       "platform_ref": "huggingface:apple/DepthPro-hf",
+      "publications": [
+        "2410.02073"
+      ],
       "source": "huggingface"
     },
     "prompts": {

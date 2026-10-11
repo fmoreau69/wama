@@ -56,6 +56,9 @@
       "license": "higgs-community",
       "model_type": "speech",
       "platform_ref": "huggingface:bosonai/higgs-audio-v2-generation-3B-base",
+      "publications": [
+        "2505.23009"
+      ],
       "source": "synthesizer"
     },
     "prompts": {

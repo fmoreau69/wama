@@ -9,9 +9,12 @@
         "en",
         "zh"
       ],
+      "max_resolution": 2048,
+      "min_resolution": 1024,
       "modalities": [
         "image"
       ],
+      "native_resolution": "2048x2048",
       "task": "text-to-image",
       "tasks": [
         "text-to-image"

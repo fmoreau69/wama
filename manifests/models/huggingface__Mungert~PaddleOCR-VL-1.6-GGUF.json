@@ -1,0 +1,54 @@
+{
+  "body": {
+    "capabilities": {},
+    "composition": {},
+    "extra_info": {
+      "category": "ocr",
+      "family": "PaddleOCR-VL-1.6",
+      "uninstalled_at": "2026-10-11T11:48:32.536718+00:00",
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "gguf",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Snapshot HF PaddleOCR-VL-1.6-GGUF",
+      "hf_id": "Mungert/PaddleOCR-VL-1.6-GGUF",
+      "license": null,
+      "model_type": "ocr",
+      "platform_ref": null,
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.3558436334133148,
+      "ram_gb": 0.0,
+      "vram_gb": 0.5
+    }
+  },
+  "description": "Snapshot HuggingFace installé (ocr/PaddleOCR-VL-1.6), catalogué par le balayage générique des modèles installés.",
+  "key": "huggingface:Mungert/PaddleOCR-VL-1.6-GGUF",
+  "manifest_kind": "model",
+  "name": "PaddleOCR-VL-1.6-GGUF",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:Mungert/PaddleOCR-VL-1.6-GGUF",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

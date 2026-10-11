@@ -11,11 +11,14 @@
       "context_length": 131072,
       "embedding": false,
       "inputs_required": [
-        "prompt"
+        "work_file"
       ],
       "modalities": [
-        "text",
-        "image"
+        "image",
+        "document"
+      ],
+      "params": [
+        "language"
       ],
       "params_active_b": 1.1,
       "params_total_b": 1.1,

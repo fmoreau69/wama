@@ -7,9 +7,12 @@
       "inputs_required": [
         "prompt"
       ],
+      "max_resolution": 1536,
+      "min_resolution": 512,
       "modalities": [
         "image"
       ],
+      "native_resolution": "1024x1024",
       "task": "text-to-image",
       "tasks": [
         "text-to-image"
@@ -39,6 +42,12 @@
       }
     },
     "extra_info": {
+      "vram_measured": {
+        "at": "2026-10-04T11:02:26+00:00",
+        "last_gb": 6.57,
+        "max_gb": 6.57,
+        "n": 4
+      },
       "vram_provenance": "declared"
     },
     "formats": {
@@ -54,6 +63,12 @@
       "license": "openrail++",
       "model_type": "diffusion",
       "platform_ref": "huggingface:stabilityai/stable-diffusion-xl-base-1.0",
+      "publications": [
+        "2307.01952",
+        "2211.01324",
+        "2108.01073",
+        "2112.10752"
+      ],
       "source": "imager"
     },
     "prompts": {

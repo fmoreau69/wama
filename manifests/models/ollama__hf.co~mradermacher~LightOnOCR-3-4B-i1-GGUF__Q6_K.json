@@ -1,0 +1,82 @@
+{
+  "body": {
+    "capabilities": {
+      "abilities": [
+        "completion",
+        "thinking",
+        "tools"
+      ],
+      "audio": false,
+      "completion": true,
+      "context_length": 262144,
+      "embedding": false,
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "document"
+      ],
+      "params": [
+        "language"
+      ],
+      "params_active_b": 4.21,
+      "params_total_b": 4.21,
+      "task": "ocr",
+      "thinking": true,
+      "tools": true,
+      "vision": false
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ollama"
+      }
+    },
+    "extra_info": {
+      "uninstalled_at": "2026-10-11T01:40:46.910270+00:00",
+      "vram_provenance": "heuristic"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "gguf",
+      "preferred_format": "gguf"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Ollama LLM (3.5 GB)",
+      "hf_id": "lightonai/LightOnOCR-3-4B",
+      "license": null,
+      "model_type": "ocr",
+      "platform_ref": "huggingface:mradermacher/LightOnOCR-3-4B-i1-GGUF",
+      "source": "ollama"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "ollama",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 3.5,
+      "ram_gb": 3.5,
+      "vram_gb": 3.5
+    }
+  },
+  "description": "Ollama LLM (3.5 GB)",
+  "key": "ollama:hf.co/mradermacher/LightOnOCR-3-4B-i1-GGUF:Q6_K",
+  "manifest_kind": "model",
+  "name": "hf.co/mradermacher/LightOnOCR-3-4B-i1-GGUF:Q6_K",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:ollama:hf.co/mradermacher/LightOnOCR-3-4B-i1-GGUF:Q6_K",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -49,6 +49,10 @@
       "license": "mit",
       "model_type": "speech",
       "platform_ref": "huggingface:pyannote/speaker-diarization-3.1",
+      "publications": [
+        "2111.14448",
+        "2012.01477"
+      ],
       "source": "transcriber"
     },
     "prompts": {

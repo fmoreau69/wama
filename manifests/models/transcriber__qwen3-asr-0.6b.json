@@ -22,6 +22,12 @@
     },
     "extra_info": {
       "hf_id": "Qwen/Qwen3-ASR-0.6B",
+      "vram_measured": {
+        "at": "2026-10-09T22:40:57+00:00",
+        "last_gb": 1.46,
+        "max_gb": 1.46,
+        "n": 1
+      },
       "vram_provenance": "declared"
     },
     "formats": {
@@ -31,12 +37,15 @@
     },
     "identity": {
       "author": "Qwen",
-      "description_short": "Qwen3-ASR 0.6B — rapide, context biasing, 52 langues",
+      "description_short": "Qwen3-ASR 0.6B — rapide, context biasing, 30 langues",
       "gated": "no",
       "hf_id": "Qwen/Qwen3-ASR-0.6B",
       "license": "apache-2.0",
       "model_type": "speech",
       "platform_ref": "huggingface:Qwen/Qwen3-ASR-0.6B",
+      "publications": [
+        "2601.21337"
+      ],
       "source": "transcriber"
     },
     "prompts": {

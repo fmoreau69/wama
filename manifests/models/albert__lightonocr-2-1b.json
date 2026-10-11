@@ -49,6 +49,10 @@
       "license": null,
       "model_type": "ocr",
       "platform_ref": "huggingface:lightonai/LightOnOCR-2-1B",
+      "publications": [
+        "2601.14251",
+        "2412.13663"
+      ],
       "source": "albert"
     },
     "prompts": {

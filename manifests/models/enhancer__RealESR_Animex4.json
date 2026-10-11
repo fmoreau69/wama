@@ -16,7 +16,21 @@
         "engine": "onnxruntime"
       }
     },
-    "extra_info": {},
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "RealSRx4_Anime_fp16.onnx",
+            "repo": "svjack/AI-onnx",
+            "revision": "be603874bb76213dbae5387b5655b327787c3faa",
+            "source": "huggingface"
+          },
+          "path": "RealESR_Animex4_fp16.onnx",
+          "sha256": "814933bdf1adcd79dd30571c639982ec093028c355744882cbe2e6b604e5b42b",
+          "size": 1253201
+        }
+      ]
+    },
     "formats": {
       "can_convert_to": [],
       "format": "onnx",

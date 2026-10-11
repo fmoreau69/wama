@@ -37,6 +37,9 @@
       "license": "apache-2.0",
       "model_type": "speech",
       "platform_ref": "huggingface:openai/whisper-large-v3",
+      "publications": [
+        "2212.04356"
+      ],
       "source": "transcriber"
     },
     "prompts": {

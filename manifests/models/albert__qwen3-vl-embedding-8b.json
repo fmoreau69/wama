@@ -34,6 +34,9 @@
       "license": null,
       "model_type": "embedding",
       "platform_ref": "huggingface:Qwen/Qwen3-VL-Embedding-8B",
+      "publications": [
+        "2601.04720"
+      ],
       "source": "albert"
     },
     "prompts": {

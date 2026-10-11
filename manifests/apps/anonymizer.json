@@ -25,126 +25,12 @@
     "data": {
       "models": [
         {
+          "bases": [
+            "wama.common.models.ProcessingTimeMixin",
+            "wama.common.models.NativeOutputsMixin",
+            "wama.common.models.ScopedVisibility"
+          ],
           "fields": [
-            {
-              "args": [],
-              "class": "django.db.models.FloatField",
-              "kwargs": {
-                "default": {
-                  "expr": "0",
-                  "imports": []
-                }
-              },
-              "name": "processing_seconds"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.JSONField",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "list",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                }
-              },
-              "name": "native_outputs"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "choices": {
-                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
-                  "imports": []
-                },
-                "db_index": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "'private'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "12",
-                  "imports": []
-                }
-              },
-              "name": "visibility"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Unité de partage si visibility='unit'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.orgunit'",
-                  "imports": []
-                }
-              },
-              "name": "scope_org_unit"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Projet de partage si visibility='project'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.project'",
-                  "imports": []
-                }
-              },
-              "name": "scope_project"
-            },
             {
               "args": [],
               "class": "django.db.models.ForeignKey",
@@ -343,6 +229,25 @@
                 }
               },
               "name": "detections_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "{}",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "dict",
+                  "imports": []
+                }
+              },
+              "name": "detection_corrections"
             },
             {
               "args": [],
@@ -714,7 +619,7 @@
                   "imports": []
                 },
                 "help_text": {
-                  "expr": "'Catalogue id of the model for this media (empty or \"auto\" = automatic choice)'",
+                  "expr": "'Catalogue key of the model for this media (empty or \"auto\" = automatic choice)'",
                   "imports": []
                 },
                 "max_length": {
@@ -795,111 +700,12 @@
           "name": "Media"
         },
         {
+          "bases": [
+            "wama.common.models.BatchMixin",
+            "wama.common.models.QueueOrderMixin",
+            "wama.common.models.ScopedVisibility"
+          ],
           "fields": [
-            {
-              "args": [],
-              "class": "django.db.models.IntegerField",
-              "kwargs": {
-                "db_index": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "0",
-                  "imports": []
-                }
-              },
-              "name": "queue_index"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "choices": {
-                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
-                  "imports": []
-                },
-                "db_index": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "'private'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "12",
-                  "imports": []
-                }
-              },
-              "name": "visibility"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Unité de partage si visibility='unit'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.orgunit'",
-                  "imports": []
-                }
-              },
-              "name": "scope_org_unit"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "\"Projet de partage si visibility='project'.\"",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "on_delete": {
-                  "expr": "django.db.models.deletion.SET_NULL",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'+'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "'common.project'",
-                  "imports": []
-                }
-              },
-              "name": "scope_project"
-            },
             {
               "args": [],
               "class": "django.db.models.ForeignKey",
@@ -976,6 +782,7 @@
           "name": "BatchAnonymizer"
         },
         {
+          "bases": [],
           "fields": [
             {
               "args": [],
@@ -1107,6 +914,9 @@
     },
     "models": {
       "catalog_keys": [
+        "anonymizer:egoblur-face-gen1",
+        "anonymizer:egoblur-lp-gen1",
+        "anonymizer:rtdetr-v2-license-plate",
         "anonymizer:sam3",
         "anonymizer:yolo:face_yolov8m-seg_60.pt",
         "anonymizer:yolo:license-plate-finetune-v1l.onnx",
@@ -1140,9 +950,13 @@
         "anonymizer:yolo:yolo11x-pose.pt",
         "anonymizer:yolo:yolo11x-seg.pt",
         "anonymizer:yolo:yolo11x.pt",
+        "anonymizer:yolo:yolo26n-face.pt",
         "anonymizer:yolo:yolo26n-seg.pt",
+        "anonymizer:yolo:yolo26s-face.pt",
         "anonymizer:yolo:yolo26s-seg.pt",
         "anonymizer:yolo:yolopv2.pt",
+        "anonymizer:yolo:yolov11l-face.pt",
+        "anonymizer:yolo:yolov12l-face.pt",
         "anonymizer:yolo:yolov12n-seg.pt",
         "anonymizer:yolo:yolov8m_face_plate_1080p.pt",
         "anonymizer:yolo:yolov8m_face_plate_720p.pt",
@@ -1153,6 +967,9 @@
         "anonymizer:yolo:yolov8s_face_plate_1080p.pt",
         "anonymizer:yolo:yolov8s_face_plate_360p.pt",
         "anonymizer:yolo:yolov8s_face_plate_720p.pt",
+        "anonymizer:yolo:yolov9c-face-lindevs.pt",
+        "anonymizer:yolo:yolov9e-face-lindevs.pt",
+        "anonymizer:yolo:yolov9m-face-lindevs.pt",
         "anonymizer:yolo:yolov9s-face-lindevs.pt",
         "anonymizer:yolo:yolov9t-face-lindevs.pt"
       ]
@@ -1237,7 +1054,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1289,7 +1105,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1344,7 +1159,6 @@
             "options_abilities": false,
             "options_auto": true,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "task",
             "options_mode": {
               "app": "anonymizer",
@@ -1353,7 +1167,6 @@
             },
             "options_ports": false,
             "options_query": {
-              "source": "anonymizer",
               "task": "detect,segment"
             },
             "options_resolution": null,
@@ -1403,7 +1216,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1455,7 +1267,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1507,7 +1318,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1557,7 +1367,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1609,7 +1418,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1661,7 +1469,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1711,7 +1518,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1761,7 +1567,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1814,7 +1619,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1864,7 +1668,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1914,7 +1717,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1962,7 +1764,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2010,7 +1811,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2058,7 +1858,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2186,7 +1985,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2247,7 +2045,6 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
-            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2644,6 +2441,18 @@
   "projects": [],
   "requires": [
     {
+      "key": "anonymizer:egoblur-face-gen1",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:egoblur-lp-gen1",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:rtdetr-v2-license-plate",
+      "kind": "model"
+    },
+    {
       "key": "anonymizer:sam3",
       "kind": "model"
     },
@@ -2776,7 +2585,15 @@
       "kind": "model"
     },
     {
+      "key": "anonymizer:yolo:yolo26n-face.pt",
+      "kind": "model"
+    },
+    {
       "key": "anonymizer:yolo:yolo26n-seg.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo26s-face.pt",
       "kind": "model"
     },
     {
@@ -2785,6 +2602,14 @@
     },
     {
       "key": "anonymizer:yolo:yolopv2.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov11l-face.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov12l-face.pt",
       "kind": "model"
     },
     {
@@ -2828,6 +2653,18 @@
       "kind": "model"
     },
     {
+      "key": "anonymizer:yolo:yolov9c-face-lindevs.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov9e-face-lindevs.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov9m-face-lindevs.pt",
+      "kind": "model"
+    },
+    {
       "key": "anonymizer:yolo:yolov9s-face-lindevs.pt",
       "kind": "model"
     },
@@ -2841,6 +2678,10 @@
     },
     {
       "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
       "kind": "library"
     },
     {

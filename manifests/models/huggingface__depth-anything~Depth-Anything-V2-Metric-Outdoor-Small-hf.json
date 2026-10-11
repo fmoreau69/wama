@@ -17,11 +17,15 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Snapshot HF Depth-Anything-V2-Metric-Outdoor-Small-hf — installé, en attente d'intégration",
+      "description_short": "Snapshot HF Depth-Anything-V2-Metric-Outdoor-Small-hf",
       "hf_id": "depth-anything/Depth-Anything-V2-Metric-Outdoor-Small-hf",
       "license": null,
       "model_type": "vision",
       "platform_ref": null,
+      "publications": [
+        "2406.09414",
+        "2401.10891"
+      ],
       "source": "huggingface"
     },
     "prompts": {
@@ -40,7 +44,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Snapshot HuggingFace installé (vision/depth-anything) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "description": "Snapshot HuggingFace installé (vision/depth-anything), catalogué par le balayage générique des modèles installés.",
   "key": "huggingface:depth-anything/Depth-Anything-V2-Metric-Outdoor-Small-hf",
   "manifest_kind": "model",
   "name": "Depth-Anything-V2-Metric-Outdoor-Small-hf",

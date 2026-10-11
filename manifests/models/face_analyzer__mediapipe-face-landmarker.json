@@ -1,0 +1,74 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "face-analysis"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "mediapipe"
+      }
+    },
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+            "source": "mediapipe_models"
+          },
+          "path": "face_landmarker.task",
+          "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+          "size": 3758596
+        }
+      ]
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "task",
+      "preferred_format": "task"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Repères du visage (478 points) — API « tasks » de MediaPipe, sur le processeur ; la géométrie que le Face Analyzer mesure image par image.",
+      "hf_id": null,
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": null,
+      "source": "face_analyzer"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "face_analyzer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.003500465303659439,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Repères du visage (478 points) — API « tasks » de MediaPipe, sur le processeur ; la géométrie que le Face Analyzer mesure image par image.",
+  "key": "face_analyzer:mediapipe-face-landmarker",
+  "manifest_kind": "model",
+  "name": "MediaPipe Face Landmarker",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:face_analyzer:mediapipe-face-landmarker",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

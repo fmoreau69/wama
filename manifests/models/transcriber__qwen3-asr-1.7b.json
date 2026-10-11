@@ -23,10 +23,10 @@
     "extra_info": {
       "hf_id": "Qwen/Qwen3-ASR-1.7B",
       "vram_measured": {
-        "at": "2026-09-28T17:35:43+00:00",
-        "last_gb": 3.8,
+        "at": "2026-10-09T22:41:55+00:00",
+        "last_gb": 2.34,
         "max_gb": 3.8,
-        "n": 1
+        "n": 8
       },
       "vram_provenance": "declared"
     },
@@ -37,12 +37,15 @@
     },
     "identity": {
       "author": "Qwen",
-      "description_short": "Qwen3-ASR 1.7B — précis, context biasing, 52 langues",
+      "description_short": "Qwen3-ASR 1.7B — précis, context biasing, 30 langues",
       "gated": "no",
       "hf_id": "Qwen/Qwen3-ASR-1.7B",
       "license": "apache-2.0",
       "model_type": "speech",
       "platform_ref": "huggingface:Qwen/Qwen3-ASR-1.7B",
+      "publications": [
+        "2601.21337"
+      ],
       "source": "transcriber"
     },
     "prompts": {

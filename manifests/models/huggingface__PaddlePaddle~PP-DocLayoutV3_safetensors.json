@@ -36,6 +36,9 @@
       "license": "apache-2.0",
       "model_type": "vision",
       "platform_ref": "huggingface:PaddlePaddle/PP-DocLayoutV3_safetensors",
+      "publications": [
+        "2606.23344"
+      ],
       "source": "huggingface"
     },
     "prompts": {

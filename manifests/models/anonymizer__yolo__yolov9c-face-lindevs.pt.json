@@ -1,0 +1,76 @@
+{
+  "body": {
+    "capabilities": {
+      "classes": [
+        "face"
+      ],
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "detect"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ultralytics"
+      }
+    },
+    "extra_info": {
+      "class_list": [
+        "face"
+      ],
+      "model_id": "detect/faces/yolov9c-face-lindevs.pt",
+      "specialty": "faces",
+      "vram_provenance": "heuristic",
+      "yolo_type": "detect"
+    },
+    "formats": {
+      "can_convert_to": [
+        "safetensors",
+        "onnx"
+      ],
+      "format": "pt",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "author": "lindevs",
+      "description_short": "YOLO detect (faces)",
+      "hf_id": null,
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": "github:lindevs/yolov9-face/releases/tag/1.0.0",
+      "source": "anonymizer"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "anonymizer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.04028786811977625,
+      "ram_gb": 0.0,
+      "vram_gb": 0.1
+    }
+  },
+  "description": "YOLO detect (faces)",
+  "key": "anonymizer:yolo:yolov9c-face-lindevs.pt",
+  "manifest_kind": "model",
+  "name": "yolov9c-face-lindevs.pt",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:anonymizer:yolo:yolov9c-face-lindevs.pt",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -30,6 +30,12 @@
     "extra_info": {
       "category": "speech",
       "family": "Qwen3-TTS-12Hz-1.7B-CustomVoice",
+      "vram_measured": {
+        "at": "2026-10-03T07:50:16+00:00",
+        "last_gb": 3.89,
+        "max_gb": 3.89,
+        "n": 1
+      },
       "vram_provenance": "estimated"
     },
     "formats": {
@@ -39,12 +45,15 @@
     },
     "identity": {
       "author": "Qwen",
-      "description_short": "Snapshot HF Qwen3-TTS-12Hz-1.7B-CustomVoice — installé, en attente d'intégration",
+      "description_short": "Snapshot HF Qwen3-TTS-12Hz-1.7B-CustomVoice",
       "gated": "no",
       "hf_id": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
       "license": "apache-2.0",
       "model_type": "speech",
       "platform_ref": "huggingface:Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+      "publications": [
+        "2601.15621"
+      ],
       "source": "huggingface"
     },
     "prompts": {
@@ -63,7 +72,7 @@
       "vram_gb": 5.4
     }
   },
-  "description": "Snapshot HuggingFace installé (speech/Qwen3-TTS-12Hz-1.7B-CustomVoice) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "description": "Snapshot HuggingFace installé (speech/Qwen3-TTS-12Hz-1.7B-CustomVoice), catalogué par le balayage générique des modèles installés.",
   "key": "huggingface:Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
   "manifest_kind": "model",
   "name": "Qwen3-TTS-12Hz-1.7B-CustomVoice",

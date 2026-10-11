@@ -26,7 +26,6 @@
     "extra_info": {
       "category": "upscaling",
       "family": "swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
-      "pipeline_class": "Swin2SRForImageSuperResolution",
       "vram_provenance": "estimated"
     },
     "formats": {
@@ -36,11 +35,14 @@
     },
     "identity": {
       "author": "onnx-community",
-      "description_short": "Snapshot HF swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX — installé, en attente d'intégration",
+      "description_short": "Snapshot HF swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
       "hf_id": "onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
       "license": "apache-2.0",
       "model_type": "upscaling",
       "platform_ref": "huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
+      "publications": [
+        "2209.11345"
+      ],
       "source": "huggingface"
     },
     "prompts": {
@@ -59,7 +61,7 @@
       "vram_gb": 0.1
     }
   },
-  "description": "Snapshot HuggingFace installé (upscaling/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "description": "Snapshot HuggingFace installé (upscaling/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX), catalogué par le balayage générique des modèles installés.",
   "key": "huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
   "manifest_kind": "model",
   "name": "swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",

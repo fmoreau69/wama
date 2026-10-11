@@ -30,6 +30,12 @@
     "extra_info": {
       "category": "speech",
       "family": "stt-1b-en_fr-trfs",
+      "vram_measured": {
+        "at": "2026-10-02T19:48:11+00:00",
+        "last_gb": 2.2,
+        "max_gb": 2.2,
+        "n": 16
+      },
       "vram_provenance": "estimated"
     },
     "formats": {
@@ -39,11 +45,14 @@
     },
     "identity": {
       "author": "Kyutai",
-      "description_short": "Snapshot HF stt-1b-en_fr-trfs — installé, en attente d'intégration",
+      "description_short": "Snapshot HF stt-1b-en_fr-trfs",
       "hf_id": "kyutai/stt-1b-en_fr-trfs",
       "license": "cc-by-4.0",
       "model_type": "speech",
       "platform_ref": "huggingface:kyutai/stt-1b-en_fr-trfs",
+      "publications": [
+        "2410.00037"
+      ],
       "source": "huggingface"
     },
     "prompts": {
@@ -62,7 +71,7 @@
       "vram_gb": 3.2
     }
   },
-  "description": "Snapshot HuggingFace installé (speech/stt-1b-en_fr-trfs) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "description": "Snapshot HuggingFace installé (speech/stt-1b-en_fr-trfs), catalogué par le balayage générique des modèles installés.",
   "key": "huggingface:kyutai/stt-1b-en_fr-trfs",
   "manifest_kind": "model",
   "name": "stt-1b-en_fr-trfs",

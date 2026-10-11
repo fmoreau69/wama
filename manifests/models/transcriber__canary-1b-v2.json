@@ -47,10 +47,10 @@
     "extra_info": {
       "hf_id": "nvidia/canary-1b-v2",
       "vram_measured": {
-        "at": "2026-09-28T18:38:01+00:00",
+        "at": "2026-09-29T19:26:32+00:00",
         "last_gb": 9.59,
         "max_gb": 9.59,
-        "n": 2
+        "n": 14
       },
       "vram_provenance": "declared"
     },
@@ -66,6 +66,19 @@
       "license": null,
       "model_type": "speech",
       "platform_ref": null,
+      "publications": [
+        "2509.14128",
+        "2505.13404",
+        "2305.05084",
+        "1706.03762",
+        "2410.01036",
+        "2406.00899",
+        "2205.12446",
+        "2012.03411",
+        "2007.10310",
+        "2005.08072",
+        "1510.08484"
+      ],
       "source": "transcriber"
     },
     "prompts": {
