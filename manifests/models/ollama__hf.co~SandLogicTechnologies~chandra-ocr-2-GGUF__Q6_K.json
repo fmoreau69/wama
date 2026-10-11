@@ -1,0 +1,82 @@
+{
+  "body": {
+    "capabilities": {
+      "abilities": [
+        "completion",
+        "thinking",
+        "tools",
+        "vision"
+      ],
+      "audio": false,
+      "completion": true,
+      "context_length": 262144,
+      "embedding": false,
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "document"
+      ],
+      "params": [
+        "language"
+      ],
+      "params_active_b": 4.96,
+      "params_total_b": 4.96,
+      "task": "ocr",
+      "thinking": true,
+      "tools": true,
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ollama"
+      }
+    },
+    "extra_info": {
+      "vram_provenance": "heuristic"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "gguf",
+      "preferred_format": "gguf"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Ollama LLM (4.8 GB)",
+      "hf_id": "SandLogicTechnologies/chandra-ocr-2-GGUF",
+      "license": null,
+      "model_type": "ocr",
+      "platform_ref": "huggingface:SandLogicTechnologies/chandra-ocr-2-GGUF",
+      "source": "ollama"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "ollama",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 4.8,
+      "ram_gb": 4.8,
+      "vram_gb": 4.8
+    }
+  },
+  "description": "Ollama LLM (4.8 GB)",
+  "key": "ollama:hf.co/SandLogicTechnologies/chandra-ocr-2-GGUF:Q6_K",
+  "manifest_kind": "model",
+  "name": "hf.co/SandLogicTechnologies/chandra-ocr-2-GGUF:Q6_K",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:ollama:hf.co/SandLogicTechnologies/chandra-ocr-2-GGUF:Q6_K",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
