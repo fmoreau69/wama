@@ -4407,7 +4407,11 @@ casseraient en silence… sauf le premier, que l'instrument attraperait) :
     défaut prenait le dossier du premier fichier trouvé (`P01/`) — le lot garde désormais la racine
     de sa connexion (`ConnectedLot.home`).
   - 🔚 **Reste de P7** : pont `ParamSpec` → `WamaParams` (les réglages d'un process Data rendus comme
-    ceux d'un process Médias) ; pipeline porté PAR LA CARD (composition exploratoire) ; choix du flux
+    ceux d'un process Médias) — ⭐ élargi le même jour à la demande de Fabien en une route TOUS
+    MONDES (Médias, Data, Lab, Studio : une forme `Param`, un rendu, une coercition, une déclaration
+    de nœud intégré), tracée au `WAMA_APP_GENERATION_ROUTE §10.6` point 3.3bis, marche P7a ; ⚠ elle
+    nomme un défaut de la marche livrée ici : `studio/views.py` et `studio/tasks.py` importent
+    `wama_data` (le substrat cite un monde), à retirer par sa marche R2 ; pipeline porté PAR LA CARD (composition exploratoire) ; choix du flux
     d'une base pour une fonction ; empreinte des entrées connectées (`STALE`) ; éditeur des
     déclarations d'export ; l'app-file elle-même.
 
