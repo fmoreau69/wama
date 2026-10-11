@@ -73,6 +73,28 @@ Deux pièges de mesure : `C:\Users\fmoreau\.ollama` est un **SymbolicLink → `D
 (66 Go comptés à tort sur C: si on le scanne directement — toujours vérifier `LinkType` avant
 de conclure) ; et le swap VIVANT regrossit vers ses 8 Go configurés — ce n'est pas une fuite.
 
+## 3bis. Si C: reste bas : le disque de la distro WSL (`ext4.vhdx`)
+
+Le scan ne le regarde pas, et c'était le plus gros résidu le 12/10 (59 Go pour 51 occupés ; détail
+et chiffres : `INFRA_WSL_VS_WINDOWS.md §2026-10-12`). Il **ne rétrécit jamais seul** : effacer
+dans WSL ne rend rien à C: sans les trois temps, dans cet ordre.
+1. **Inventaire** (`wsl.exe -u root -e bash -c "du -xh -d 3 / | sort -rh | head -30"`) — suspects
+   habituels : `~/.cache/pip` (purgeable), `~/.cache/huggingface/hub` (**doublons d'`AI-models`
+   seulement si chaque snapshot y existe — le vérifier**, sinon c'est un poids hors rangement à
+   signaler), `/var/cache/apt` (`apt-get clean`), vieux `/tmp` nommés et datés (jamais en bloc :
+   les autres instances y travaillent).
+2. **`fstrim -v /`** après la purge — sans lui, le compactage rend ~4 Go au lieu de ~30.
+3. **Compactage, par Fabien en console admin** (arrête WAMA) : `wsl --shutdown`,
+   `wsl --list --running` = aucune distribution (**une autre instance peut relancer WSL dans la
+   minute** → « fichier utilisé par un autre processus »), copie du `.vhdx` sur D: (la base
+   Postgres est dedans), puis `diskpart` : `select vdisk file="…ext4.vhdx"` ·
+   `attach vdisk readonly` · `compact vdisk` · `detach vdisk`.
+4. **Contrôle avant de jeter la copie** : `service postgresql start`, `pg_isready`, puis
+   `pg_dump -d wama_db -f /dev/null` (relit toutes les tables).
+
+⚠ La purge est bloquée en mode auto : la proposer en `! MSYS_NO_PATHCONV=1 wsl.exe -u root -e bash
+/mnt/c/…/script.sh` — sans la variable, Git Bash réécrit `/mnt/c/…` en `C:/Program Files/Git/mnt/…`.
+
 ## 4. Ce qui demande une session ÉLEVÉE ou un arbitrage (ne pas forcer)
 
 - **VSS C: et D:** — mesurer : `vssadmin list shadowstorage` (admin ; `/for=C:` ou `/for=D:`).
