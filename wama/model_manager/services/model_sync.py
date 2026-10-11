@@ -143,6 +143,10 @@ class ModelSyncService:
                 # (manifeste interne du démon Ollama) : ce n'est pas une disparition, la retirer ne
                 # dépend donc pas d'une découverte complète.
                 result.removed += self._drop_ollama_runner_aliases()
+                # Le relevé du DÉMON Ollama (et lui seul) prouve un retrait fait hors de WAMA.
+                listed = getattr(registry, 'ollama_listed', None)
+                if listed is not None:
+                    self._mark_ollama_removed_outside(listed, discovery_started)
 
                 # Handle models no longer in sources
                 if delete_missing:
@@ -272,6 +276,40 @@ class ModelSyncService:
             logger.info("Manifestes internes d'Ollama pris pour des modèles, retirés : %s", keys)
             AIModel.objects.filter(model_key__in=keys).delete()
         return len(keys)
+
+    @staticmethod
+    def _mark_ollama_removed_outside(listed, seen_at) -> list:
+        """Marque DÉSINSTALLÉES les lignes `ollama:` « téléchargées » que le démon ne liste plus :
+        un `ollama rm` fait hors de WAMA. Sans cela la ligne restait « téléchargée », donc tirable,
+        tant qu'une synchro `--clean` ne passait pas — et `--clean` marque indisponible TOUT ce
+        qu'une découverte n'a pas vu, bien au-delà d'Ollama.
+
+        Même marque que `uninstall_model` (ligne gardée, `uninstalled_at`) : le modèle se
+        repropose, son manifeste quitte le corpus, et une réinstallation la retire (la découverte
+        réécrit `extra_info`). `listed` n'est fourni que si le DÉMON a répondu ; une ligne touchée
+        depuis le relevé (`updated_at >= seen_at`, une installation qui vient de finir) est
+        laissée. Rend les clés marquées."""
+        from ..models import AIModel
+        from .install_history import record
+        rows = (AIModel.objects.filter(model_key__startswith='ollama:', is_proposed=False,
+                                       is_downloaded=True, updated_at__lt=seen_at)
+                .exclude(execution='cloud'))
+        gone = [r for r in rows if r.model_key.partition(':')[2] not in listed]
+        if not gone:
+            return []
+        stamp = timezone.now().isoformat()
+        for row in gone:
+            info = dict(row.extra_info or {})
+            info['uninstalled_at'] = stamp
+            AIModel.objects.filter(pk=row.pk).update(is_downloaded=False, is_loaded=False,
+                                                     extra_info=info)
+            record('model', row.model_key, name=row.name, action='uninstall', via='ollama rm',
+                   result={'ok': True, 'kind': 'ollama', 'outside_wama': True})
+        keys = [r.model_key for r in gone]
+        logger.info("Modèles retirés d'Ollama hors de WAMA, marqués désinstallés : %s", keys)
+        from .model_installer import forget_in_corpus
+        forget_in_corpus(keys)
+        return keys
 
     def _sync_model(self, model_key: str, model_info, seen_at=None) -> Tuple[bool, bool]:
         """

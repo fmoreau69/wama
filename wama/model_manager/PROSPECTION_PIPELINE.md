@@ -2862,6 +2862,15 @@ défauts que leur exécution a trouvés.**
   complète (ce n'est pas une disparition). Son manifeste de corpus sort au prochain export
   (plus de ligne → `_gone_model_keys`).
 - Tests : `tests_ollama_runner_alias` (4).
-- 🔚 Reste général, non traité : un modèle retiré par `ollama rm` HORS de WAMA garde sa ligne
-  « téléchargée » tant qu'une synchro `--clean` ne passe pas.
+- ✅ (même jour, demande de Fabien) **Un modèle retiré par `ollama rm` HORS de WAMA** gardait sa
+  ligne « téléchargée », donc tirable, tant qu'une synchro `--clean` ne passait pas — et `--clean`
+  marque indisponible TOUT ce qu'une découverte n'a pas vu, bien au-delà d'Ollama. Désormais :
+  `ModelRegistry.ollama_listed` = les noms que le DÉMON a listés (`ollama list` sorti en 0, liste
+  vide comprise), None s'il n'a pas répondu — délai, erreur et repli par dossier ne prouvent
+  aucun retrait ; quand le démon a répondu « aucun modèle », le repli par dossier ne le contredit
+  plus. `ModelSyncService._mark_ollama_removed_outside` marque alors désinstallée (même marque
+  que `uninstall_model` : `uninstalled_at`, ligne gardée) toute ligne `ollama:` « téléchargée »
+  absente du relevé — sauf une ligne touchée depuis le relevé (installation qui vient de finir) ;
+  le retrait entre au journal des installations (`via='ollama rm'`) et le manifeste quitte le
+  corpus (`forget_in_corpus`). Tests : `tests_ollama_removed_outside` (7).
 

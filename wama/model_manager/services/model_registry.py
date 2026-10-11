@@ -284,6 +284,11 @@ class ModelRegistry:
     #: Déclaré au niveau CLASSE parce que `__init__` sort tôt sur le singleton déjà initialisé :
     #: un attribut posé après ce garde n'existerait jamais sur l'instance vivante.
     discovery_errors: List[str] = []
+    #: Noms que le DÉMON Ollama a listés à cette passe (`ollama list` sorti en 0), ou None s'il
+    #: n'a pas répondu (absent, délai, erreur) — repli par dossier compris, qui n'est pas une
+    #: autorité. Seule une réponse du démon prouve qu'un modèle a été retiré (`ollama rm` hors
+    #: de WAMA) : `ModelSyncService._mark_ollama_removed_outside` ne lit que ce relevé.
+    ollama_listed: Optional[set] = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -303,6 +308,7 @@ class ModelRegistry:
         # Liste NEUVE (jamais une mutation du défaut de classe) : une passe ne doit pas hériter
         # des échecs de la précédente, sinon la première panne gèlerait les suppressions à jamais.
         self.discovery_errors = []
+        self.ollama_listed = None
 
         logger.info("[ModelRegistry] Starting model discovery...")
 
@@ -358,6 +364,7 @@ class ModelRegistry:
         changement qui ne touche QUE des modèles distants."""
         self._models.clear()
         self.discovery_errors = []
+        self.ollama_listed = None
         self._discover_cloud_models()
         return self._models
 
@@ -2531,6 +2538,11 @@ class ModelRegistry:
 
                 if result.returncode == 0:
                     lines = result.stdout.strip().split('\n')[1:]  # Skip header
+                    # Le démon a RÉPONDU : son relevé fait foi, liste vide comprise (`ollama rm`
+                    # du dernier modèle). Posé AVANT la boucle — une ligne illisible n'en fait pas
+                    # une absence de réponse.
+                    self.ollama_listed = {ln.split()[0] for ln in lines
+                                          if ln.split() and not is_ollama_runner_alias(ln.split()[0])}
                     for line in lines:
                         if not line.strip():
                             continue
@@ -2663,8 +2675,10 @@ class ModelRegistry:
             except Exception as e:
                 logger.debug(f"Ollama command '{cmd}' failed: {e}")
 
-        # Method 2: If command failed, scan Ollama models directory directly
-        if not models_found:
+        # Method 2: If command failed, scan Ollama models directory directly.
+        # Pas quand le démon a répondu « aucun modèle » : des manifestes restés sur disque ne
+        # contredisent pas son relevé (ils feraient revenir un modèle retiré par `ollama rm`).
+        if not models_found and self.ollama_listed is None:
             self._discover_ollama_from_directory()
 
     def _discover_ollama_from_directory(self):
