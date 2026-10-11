@@ -33,7 +33,7 @@ def weights_dir() -> Path:
 
 
 class EgoBlurBackend(FrameDetectionBackend):
-    """Plaques (et demain visages) d'EgoBlur, image par image."""
+    """Plaques et visages d'EgoBlur, image par image."""
 
     ENGINE = 'torchscript'
     #: Poids servis : identifiant (dernier segment de la clé de catalogue) → fichier et réglages
@@ -44,6 +44,11 @@ class EgoBlurBackend(FrameDetectionBackend):
     SUPPORTED_MODELS = {
         'egoblur-lp-gen1': {'file': 'ego_blur_lp_gen1.jit', 'label': 'license_plate',
                             'short_side': 600, 'threshold': 0.1},
+        # Visages (2026-10-11) : réglés sur 200 images de WIDER FACE val — rappel 39,9 % à 600 px,
+        # 44,4 % à 1000, 45,4 % à 1400 (plus lent) ; seuil 0,1 : précision 85 %. ⚠ Le modèle
+        # exporté rend au plus 100 boîtes par image — une foule dense le sature.
+        'egoblur-face-gen1': {'file': 'ego_blur_face_gen1.jit', 'label': 'face',
+                              'short_side': 1000, 'threshold': 0.1},
     }
     REQUIRED_PACKAGES = ['torch', 'torchvision', 'cv2']
     name = 'egoblur'

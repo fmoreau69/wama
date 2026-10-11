@@ -18,6 +18,17 @@ from wama.common.utils.model_capabilities import normalize_capabilities
 logger = logging.getLogger(__name__)
 
 
+def _uninstalled_after(stamp, seen_at) -> bool:
+    """La marque `uninstalled_at` (ISO, posée par `uninstall_model`) est-elle postérieure au relevé ?"""
+    from datetime import datetime
+    if not stamp:
+        return False
+    try:
+        return datetime.fromisoformat(str(stamp)) >= seen_at
+    except (TypeError, ValueError):
+        return False
+
+
 @dataclass
 class SyncResult:
     """Result of a sync operation."""
@@ -72,6 +83,7 @@ class ModelSyncService:
 
         try:
             # Discover all models from sources
+            discovery_started = timezone.now()
             registry = self._get_registry()
             registry._models.clear()  # Force fresh discovery
             discovered_models = registry.discover_all_models()
@@ -85,7 +97,8 @@ class ModelSyncService:
                     seen_keys.add(model_key)
 
                     try:
-                        created, updated = self._sync_model(model_key, model_info)
+                        created, updated = self._sync_model(model_key, model_info,
+                                                            seen_at=discovery_started)
                         if created:
                             result.added += 1
                             result.added_keys.append(model_key)
@@ -240,9 +253,14 @@ class ModelSyncService:
             stale.delete()
         return len(keys)
 
-    def _sync_model(self, model_key: str, model_info) -> Tuple[bool, bool]:
+    def _sync_model(self, model_key: str, model_info, seen_at=None) -> Tuple[bool, bool]:
         """
         Sync a single model to the database.
+
+        `seen_at` : l'instant où la découverte a relevé le disque. Une ligne DÉSINSTALLÉE après
+        cet instant n'est pas réécrite — le relevé est plus vieux que le retrait (2026-10-11 :
+        une synchro partie avant la désinstallation de PaddleOCR-VL l'a remise « téléchargée »
+        sept minutes après, fichiers absents, marque `uninstalled_at` effacée).
 
         Returns:
             Tuple of (created, updated)
@@ -394,6 +412,9 @@ class ModelSyncService:
         _sticky = ('update_check', 'recommended', 'exclusion', 'vram_measured', 'weights',
                    'publications')
         _existing = AIModel.objects.filter(model_key=model_key).values_list('extra_info', flat=True).first()
+        if seen_at and _uninstalled_after((_existing or {}).get('uninstalled_at'), seen_at):
+            logger.info(f"[ModelSync] {model_key}: désinstallé après le relevé — ligne laissée")
+            return False, False
         if _existing:
             _merged = dict(defaults.get('extra_info') or {})
             for _k in _sticky:

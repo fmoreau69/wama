@@ -7,7 +7,7 @@ Le graphe brut = {"nodes":[{id,app,x,y,params}], "links":[{from,to,to_port}]}. D
 (comme `model`) : on sépare le FONCTIONNEL (nodes id/kind/app/params + links) de la PRÉSENTATION (x/y du
 canvas) rangée sous `layout` — cosmétique, préservée pour régénérer le canvas mais hors du cœur du graphe.
 
-Un nœud dont `app` ∈ {text_input, media_import, dataset_input, studio_output} n'est pas une app
+Un nœud dont `app` ∈ `SOURCE_NODES` ∪ `SINK_NODES` (ci-dessous) n'est pas une app
 mais une SOURCE/SINK (cf. studio_node_ports / GENERIC_APPS) → classé `kind` = source|sink|app|function
 (corrigé le 2026-09-15 : `function` existe depuis le 2026-09-09, cf. D13 ci-dessous).
 
@@ -28,8 +28,13 @@ from typing import Optional
 
 from ..kinds import ManifestKind, register_kind
 
-SOURCE_NODES = {'text_input', 'media_import', 'dataset_input'}
-SINK_NODES = {'studio_output'}
+#: `data_connector` / `data_export` (2026-10-11) : l'ENTRÉE Connector et la SORTIE Exporter du monde
+#: Data (`WAMA_DATA_WORLD §11.8 ⑨`, `WAMA_APP_GENERATION_ROUTE §10.6` 3.6) — une base déjà
+#: constituée (`.wdat`, `.trip`…) branchée sans copie, et un nœud de sortie qui porte ses
+#: `Declaration`s d'export. Ni l'un ni l'autre n'est un process : un pipeline qui ne contient
+#: qu'eux (« je connecte une base et j'en extrais les tables ») est valide.
+SOURCE_NODES = {'text_input', 'media_import', 'dataset_input', 'data_connector'}
+SINK_NODES = {'studio_output', 'data_export'}
 # ⏳ Type de nœud `pipeline` (un pipeline enregistré réutilisé comme nœud, sous-graphe) décidé le
 # 2026-09-15, NON implémenté — WAMA_APP_GENERATION_ROUTE.md §10.6 3.1.
 NODE_KINDS = ('source', 'sink', 'app', 'function')
