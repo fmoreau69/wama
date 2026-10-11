@@ -145,3 +145,50 @@ class LocalAndCloudAreDistinctTest(TestCase):
                _row('local', vram=6.0, quality_index=20.0)]
         best = _best_by_vram(batch, budget_gb=None, family=None, quality_intent=100)
         self.assertEqual('distant', best.model_key)
+
+
+class LearnedSpeedCostTest(TestCase):
+    """La VITESSE apprise est le coût du curseur quand TOUT le lot en a une (2026-10-11, demande
+    de Fabien : « intégrer la vitesse dans la sélection », pour toutes les apps). Elle vient de la
+    boucle d'ETA commune (`ModelRuntimeStat`, clé de catalogue, ce matériel) ; sinon la VRAM."""
+
+    def _time(self, key, seconds, unit='image'):
+        from wama.model_manager.models import ModelRuntimeStat
+        from wama.model_manager.services.eta_estimator import hardware_fingerprint
+        ModelRuntimeStat.objects.create(model_key=key, hardware_fingerprint=hardware_fingerprint(),
+                                        unit=unit, per_unit_ema_seconds=seconds, samples=3)
+
+    def _batch(self):
+        # Le plus LÉGER en VRAM est le plus LENT : c'est le cas que la VRAM classait mal.
+        return [_row('small_slow', vram=1.0, quality_index=40.0),
+                _row('big_fast', vram=8.0, quality_index=40.0)]
+
+    def test_fast_takes_the_fastest_model_once_the_lot_is_timed(self):
+        self._time('small_slow', 0.09)
+        self._time('big_fast', 0.01)
+        self.assertEqual('big_fast', _best_by_vram(self._batch(), None, quality_intent=0).model_key)
+
+    def test_without_timings_the_vram_stays_the_cost(self):
+        self.assertEqual('small_slow',
+                         _best_by_vram(self._batch(), None, quality_intent=0).model_key)
+
+    def test_a_lot_timed_in_part_keeps_the_vram(self):
+        """Règle de lot : on ne compare pas un modèle chronométré à un autre qui ne l'est pas."""
+        self._time('big_fast', 0.01)
+        self.assertEqual('small_slow',
+                         _best_by_vram(self._batch(), None, quality_intent=0).model_key)
+
+    def test_two_units_do_not_compare(self):
+        from wama.model_manager.services.eta_estimator import comparable_speeds
+        self._time('small_slow', 0.09, unit='image')
+        self._time('big_fast', 0.01, unit='token')
+        self.assertEqual({}, comparable_speeds(['small_slow', 'big_fast']))
+        self.assertEqual('small_slow',
+                         _best_by_vram(self._batch(), None, quality_intent=0).model_key)
+
+    def test_the_budget_still_filters_before_speed(self):
+        """La VRAM reste le BUDGET : un modèle rapide qui ne tient pas n'est pas candidat."""
+        self._time('small_slow', 0.09)
+        self._time('big_fast', 0.01)
+        self.assertEqual('small_slow',
+                         _best_by_vram(self._batch(), 4.0, quality_intent=0).model_key)

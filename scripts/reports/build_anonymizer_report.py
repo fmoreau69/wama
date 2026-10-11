@@ -18,6 +18,7 @@ from wama.anonymizer.utils.model_selector import select_best_models_by_precision
 from wama.common.models import ResultEvaluation
 from wama.model_manager.models import AIModel
 from wama.model_manager.services import bench
+from wama.model_manager.services.eta_estimator import learned_speed
 
 HERE = Path('scripts/reports')
 sys.path.insert(0, str(HERE))
@@ -95,6 +96,21 @@ ref_path = bench.benchmark_reference(FACES)
 with open(ref_path, encoding='utf-8') as f:
     faces_ref = json.load(f)
 last = max(r.measured_at for r in faces + plates)
+
+
+def speed(r):
+    """Temps par image (ms) APPRIS pour ce détecteur sur cette carte — la boucle d'ETA commune, que le
+    banc calibre et que le curseur lit (`eta_estimator.comparable_speeds`) ; None s'il n'y est pas, ou
+    dans une autre unité. Le temps « mur » des campagnes de rappel mesurait surtout le partage réseau."""
+    learned = learned_speed(r.model_key)
+    return 1000 * learned[1] if learned and learned[0] == bench.IMAGE_UNIT else None
+
+
+face_speeds = {r.model_key: speed(r) for r in faces}
+plate_speeds = {r.model_key: speed(r) for r in plates}
+untimed = [label_of(r.model_key, models) for r in faces + plates if speed(r) is None]
+if untimed:
+    print('⚠ sans temps propre :', ', '.join(untimed))
 f0 = faces[0]
 p0 = plates[0]
 truth_faces = f0.detail['reference_length']
@@ -128,6 +144,10 @@ TINY = bench.SIZE_BUCKETS[0][0]
 SIZES = [('large', 'grands'), ('medium', 'moyens'), ('small', 'petits'), ('tiny', f'&lt; {TINY} px')]
 
 
+def ms(v):
+    return '—' if v is None else nb(round(v))
+
+
 def faces_table():
     head = ''.join(f'<th>{lab}</th>' for _, lab in SIZES)
     rows = []
@@ -135,7 +155,7 @@ def faces_table():
         d = r.detail
         sizes = ''.join(f'<td>{pct((d["by_size"].get(k) or {}).get("recall"), 0)}</td>' for k, _ in SIZES)
         rows.append(f'<tr><td><strong>{esc(label_of(r.model_key, models))}</strong></td><td>{pct(1 - r.value)}</td>'
-                    f'<td>{pct(d.get("precision"))}</td>{sizes}<td>{nb(round(d["ms_per_image"]))}</td></tr>')
+                    f'<td>{pct(d.get("precision"))}</td>{sizes}<td>{ms(speed(r))}</td></tr>')
     return (f'<div class="tbl"><table><thead><tr><th>Modèle</th><th>Rappel</th><th>Précision</th>{head}'
             f'<th>ms / image</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
 
@@ -163,7 +183,7 @@ def plates_table():
         d = r.detail
         inside = d['inside'] / d['detections'] if d.get('detections') else None
         rows.append(f'<tr><td><strong>{esc(label_of(r.model_key, models))}</strong></td><td>{pct(1 - r.value)}</td>'
-                    f'<td>{pct(inside)}</td><td>{nb(round(d["ms_per_frame"]))}</td></tr>')
+                    f'<td>{pct(inside)}</td><td>{ms(speed(r))}</td></tr>')
     return ('<div class="tbl"><table><thead><tr><th>Modèle</th><th>Plaques trouvées</th><th>Détections sur un '
             'véhicule</th><th>ms / image</th></tr></thead>'
             f'<tbody>{"".join(rows)}</tbody></table></div>')
@@ -174,13 +194,20 @@ CRANS = [(20, 'Rapide'), (50, 'Équilibré'), (90, 'Précis')]
 
 
 def selection_rows():
+    """Une ligne par cran : les détecteurs retenus et le temps de traitement d'une image — la SOMME de leurs
+    temps propres, l'Anonymizer les passant l'un après l'autre."""
     out = []
     for level, name in CRANS:
         cells = []
-        for classes in (['face'], ['license_plate']):
+        for classes, speeds, unit in ((['face'], face_speeds, 'photo'),
+                                      (['license_plate'], plate_speeds, 'image de vidéo')):
             chosen = select_best_models_by_precision(classes, precision_level=level)['models_to_use']
-            cells.append(', '.join(esc(m['name'][:-3] if m['name'].endswith('.pt') else m['name'])
-                                   for m in chosen) or '—')
+            names = ', '.join(esc(m['name'][:-3] if m['name'].endswith('.pt') else m['name'])
+                              for m in chosen) or '—'
+            times = [speeds.get(m['model_key']) for m in chosen]
+            total = (f'<br><small>≈ {ms(sum(times))} ms par {unit}</small>'
+                     if chosen and None not in times else '')
+            cells.append(names + total)
         out.append(f'<tr><td><strong>{name}</strong> ({level})</td><td>{cells[0]}</td><td>{cells[1]}</td></tr>')
     return ''.join(out)
 
@@ -204,8 +231,13 @@ sur {nb(images_faces)} photos annotées à la main pour les visages et {nb(p0.de
 pour les plaques. Dernière mesure le {date_fr(last)}.</p>
 
 <h2>Quel réglage choisir</h2>
-<p>Le curseur de précision de l'Anonymizer choisit les détecteurs tout seul, dans l'ordre des mesures de ce
-rapport : un détecteur mieux classé passe devant. Voici ce qu'il retient aujourd'hui.</p>
+<p>Le curseur Rapide ↔ Qualité de l'Anonymizer choisit les détecteurs tout seul, à partir des mesures de ce
+rapport : il pèse ce que chaque détecteur trouve contre le temps qu'il prend par image. Tout à gauche il
+prend le plus rapide, tout à droite celui qui trouve le plus, et entre les deux un compromis — c'est la
+même règle que le curseur de toutes les applications de WAMA, et le temps est celui que WAMA apprend pour
+estimer la durée d'un traitement. Plus haut sur le curseur, il ajoute d'autres détecteurs, rangés par ce
+qu'ils trouvent, pour rattraper ce que le premier manque. Voici ce qu'il retient aujourd'hui, avec le
+temps de traitement d'une image.</p>
 <div class="tbl"><table><thead><tr><th>Réglage</th><th>Visages</th><th>Plaques</th></tr></thead>
 <tbody>{selection_rows()}</tbody></table></div>
 <p>Pour une photo de foule ou une scène où l'on ne veut rien laisser passer, choisir <strong>Précis</strong>
@@ -229,11 +261,11 @@ tous les détecteurs — le meilleur sur eux, {esc(label_of(tiny_best.model_key,
 {pct((tiny_best.detail["by_size"].get("tiny") or {}).get("recall"))}. {ego_text}</p>
 {faces_table()}
 <p>Tailles, en hauteur du visage : petits de {bench.SIZE_BUCKETS[0][0]} à {bench.SIZE_BUCKETS[1][0]} pixels,
-moyens de {bench.SIZE_BUCKETS[1][0]} à {bench.SIZE_BUCKETS[2][0]}, grands au-delà. Le temps par image
-compte la lecture de l'image sur le partage réseau des jeux de données et les deux passes de l'Anonymizer.
-⚠ Il ne classe pas les détecteurs entre eux : les mesures ont été prises à des moments différents, et le
-premier modèle d'une campagne lit des images que les suivants retrouvent en cache (le plus gros modèle
-lindevs affiche ainsi un temps plus court que le plus petit). Mesuré à part, le modèle seul (lindevs s) prend environ 50 ms par image.</p>
+moyens de {bench.SIZE_BUCKETS[1][0]} à {bench.SIZE_BUCKETS[2][0]}, grands au-delà. Le temps par image est
+le temps de traitement d'une photo par l'Anonymizer — la lire, l'analyser à ses deux tailles, rendre les
+cadres —, mesuré sur une copie locale de l'image, le modèle déjà chargé et une première image de chauffe
+écartée, sur un échantillon régulier de {nb(bench.SPEED_SAMPLE)} photos du banc et sur la carte graphique
+du serveur WAMA.</p>
 <p>D'où viennent ces détecteurs :</p>
 {provenance_table(faces)}
 
@@ -274,7 +306,12 @@ détecteurs entre eux, il ne promet pas un taux sur d'autres images.</li>
 <p>Chaque détecteur passe par le chemin de détection de l'Anonymizer, chargé une seule fois pour tout le
 banc. Les cadres trouvés deux fois (une photo est analysée à deux tailles) sont fusionnés avant de compter.
 Chaque mesure est rangée en base avec le modèle, la version du protocole et l'empreinte de la référence ;
-le choix automatique des détecteurs la lit, et ce rapport se régénère depuis elle.</p>
+le choix automatique des détecteurs la lit, et ce rapport se régénère depuis elle. Le temps par image se
+mesure à part du rappel (il dépend de la machine, pas des images annotées) : chaque image est d'abord copiée
+sur le disque local, hors chronomètre, pour que la lecture du partage réseau des jeux de données n'entre pas
+dans la mesure ; pour les plaques, la vidéo entière est traitée et le temps divisé par son nombre
+d'images. Ce temps est rangé là où WAMA apprend la durée de ses traitements, par modèle et par carte
+graphique : le curseur le lit, et un changement de carte le fait réapprendre.</p>
 <div class="tbl"><table><thead><tr><th>Banc</th><th>Données</th><th>Ce qui compte comme trouvé</th>
 <th>Protocole</th></tr></thead><tbody>
 <tr><td>Visages</td><td>WIDER FACE, validation : {nb(images_faces)} images, {nb(truth_faces)} visages</td>
@@ -285,8 +322,8 @@ le choix automatique des détecteurs la lit, et ce rapport se régénère depuis
 
 <h2>À venir</h2>
 <ul>
-<li><strong>Vitesse</strong> : la conversion des détecteurs en ONNX ou TensorRT est à mesurer, mais le temps
-par image du banc est dominé par la lecture des images et les deux passes, pas par le modèle.</li>
+<li><strong>Vitesse</strong> : la conversion des détecteurs en TensorRT est à mesurer ; elle entrera dans ce
+banc comme un détecteur de plus, avec son temps et son rappel.</li>
 <li><strong>Nouveaux détecteurs</strong> : Ultralytics annonce YOLO-Face (détection et analyse de visages,
 attendu en 2027) ; il entrera dans ce banc à sa sortie.</li>
 <li><strong>Un banc sur nos images</strong>, à partir des corrections saisies dans l'Anonymizer, et des cadres

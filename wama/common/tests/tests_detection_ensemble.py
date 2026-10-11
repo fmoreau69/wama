@@ -161,7 +161,9 @@ class EnsembleCoverageTest(TestCase):
                 source='anonymizer', is_downloaded=True, is_available=True, vram_gb=vram,
                 capabilities={'task': 'detect', 'classes': classes})
 
-    def _measure(self, key, miss):
+    def _measure(self, key, miss, ms=None):
+        """A measured miss rate ; `ms` also times the model in the COMMON ETA loop (seconds per
+        image, catalogue key, this hardware) — where the bench puts it."""
         from wama.common.models import ResultEvaluation
         from wama.common.services.model_coverage import miss_metric
         ResultEvaluation.objects.create(
@@ -169,6 +171,34 @@ class EnsembleCoverageTest(TestCase):
             model_key=key, metric=miss_metric('plate'), value=miss, direction='lower',
             protocol='containment_v1', reference_sha256='ref',
             detail={'errors': round(miss * 100), 'reference_length': 100, 'unit': 'object'})
+        if ms is not None:
+            from wama.model_manager.models import ModelRuntimeStat
+            from wama.model_manager.services.eta_estimator import hardware_fingerprint
+            ModelRuntimeStat.objects.create(model_key=key, hardware_fingerprint=hardware_fingerprint(),
+                                            unit='image', per_unit_ema_seconds=ms / 1000,
+                                            samples=1)
+
+    def test_with_learned_speeds_the_intent_trades_recall_for_speed(self):
+        self._measure('anonymizer:yolo:yolov8m-plates.pt', 0.87, ms=10)
+        self._measure('anonymizer:egoblur-lp-gen1', 0.40, ms=90)
+        self._measure('anonymizer:rtdetr-v2-license-plate', 0.60, ms=40)
+        self.assertEqual('anonymizer:yolo:yolov8m-plates.pt', self._plates(quality_intent=0)[0],
+                         'fast : the fastest model')
+        self.assertEqual('anonymizer:rtdetr-v2-license-plate', self._plates(quality_intent=50)[0],
+                         'balanced : the common rule of every app (model_selector.intent_choice)')
+        self.assertEqual('anonymizer:egoblur-lp-gen1', self._plates(quality_intent=100)[0],
+                         'quality : the model that finds the most')
+        self.assertEqual(['anonymizer:yolo:yolov8m-plates.pt', 'anonymizer:egoblur-lp-gen1'],
+                         self._plates(quality_intent=0, models_per_class=2),
+                         'the next ensemble models still come by recall')
+        self.assertEqual('anonymizer:egoblur-lp-gen1', self._plates()[0],
+                         'no intent given : recall alone, as before')
+
+    def test_a_lot_timed_in_part_keeps_the_recall_order(self):
+        self._measure('anonymizer:yolo:yolov8m-plates.pt', 0.87, ms=10)
+        self._measure('anonymizer:egoblur-lp-gen1', 0.40)
+        self._measure('anonymizer:rtdetr-v2-license-plate', 0.60, ms=40)
+        self.assertEqual('anonymizer:egoblur-lp-gen1', self._plates(quality_intent=0)[0])
 
     def _plates(self, **options):
         from wama.common.services.model_coverage import couvrir_classes

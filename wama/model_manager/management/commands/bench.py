@@ -16,6 +16,12 @@ aurait fait deux.
 contenants (JSON : media, classe, boites des vehicules par image — `bench.read_recall_reference`).
 `--record` range chaque mesure (`ResultEvaluation`), lue ensuite comme note interne du modele.
 
+`detect-speed` (2026-10-11) : le temps PROPRE seul (image copiee en local, modele charge, chauffe
+ecartee) sur un echantillon regulier d'un banc « vraies boites ». Comme `detect-boxes` et
+`detect-recall`, il va dans la boucle d'ETA commune (secondes par image, cle de catalogue, ce
+materiel) — le curseur rapide/qualite de toutes les apps le lit (`eta_estimator.comparable_speeds`).
+    python manage.py bench --task detect-speed --benchmark faces_wider_val_v1
+
 Pour `text-generation`, l'echantillon est un fichier TEXTE : le prompt. Le protocole CHARGE
 chaque modele sur l'Ollama hote (rampe VRAM — cf. INFRA §crashs) : lancer un modele a la fois,
 machine sous les yeux ; refuse sous WAMA_GPU_SAFE_MODE.
@@ -49,7 +55,8 @@ class Command(BaseCommand):
         parser.add_argument('--record', action='store_true',
                             help="detect-recall / detect-boxes : range chaque mesure (ResultEvaluation).")
         parser.add_argument('--limit', type=int, default=0,
-                            help="detect-boxes : echantillon regulier de N images (0 = tout le jeu).")
+                            help="detect-boxes : echantillon regulier de N images (0 = tout le jeu) ; "
+                                 "detect-speed : idem, 0 = SPEED_SAMPLE images.")
 
     def handle(self, *args, **options):
         task, media = options['task'], options['media']
@@ -74,7 +81,7 @@ class Command(BaseCommand):
             protocol_options['conf'] = options['conf']
         if task in CANDIDATES:
             protocol_options['record'] = options['record']
-        if task == 'detect-boxes':
+        if task in ('detect-boxes', 'detect-speed'):
             protocol_options['limit'] = options['limit']
 
         try:
@@ -113,7 +120,9 @@ class Command(BaseCommand):
                 line += (f" {str(m.get('tokens_per_s') or '—'):>9s} "
                           f"{str(m.get('prefill_ms')) + ' ms':>9s} "
                           f"{(str(load) + ' s') if load else 'résid.':>7s}")
-            if recall and 'precision' in m:
+            if task == 'detect-speed':
+                line += f"  {m.get('ms_per_frame')} ms/img (temps propre)"
+            elif recall and 'precision' in m:
                 sizes = ' '.join(f"{k}:{v['recall']}" for k, v in sorted((m.get('by_size') or {}).items()))
                 line += (f"  rappel {m.get('recall')}  precision {m.get('precision')}"
                          f"  [{sizes}]  {m.get('ms_per_frame')} ms/img")

@@ -43,11 +43,14 @@ _DEFAULT_PER_UNIT = {
     'char':       0.03,   # TTS au caractère (~30 s / 1000 car.) ; calibrer par modèle si besoin
     'page':       3.0,    # OCR : ~3 s par page (extraction native ~0 → l'EMA l'apprend par backend)
     'mb':         1.5,    # conversion ffmpeg : ~1.5 s/Mo d'entrée (transcode vidéo ≫ image → EMA par type)
+    'image':      0.05,   # analyse d'UNE image (photo ou image de vidéo) : un détecteur à taille
+                          # d'entrée fixe coûte par image, pas par mégapixel (YOLO ramène à 640 px)
     'item':       25.0,   # générique « par élément »
 }
 _DEFAULT_LOAD = {
     'audio_sec':  8.0,  'video_sec': 30.0, 'megapixel': 20.0,
-    'step':      20.0,  'token':      6.0, 'char':       6.0, 'page': 20.0, 'mb': 1.0, 'item': 15.0,
+    'step':      20.0,  'token':      6.0, 'char':       6.0, 'page': 20.0, 'mb': 1.0, 'image': 5.0,
+    'item': 15.0,
 }
 
 
@@ -116,6 +119,49 @@ def _learned(model_key: str, unit: str) -> Optional[Tuple[Optional[float], float
     except Exception:
         pass
     return None
+
+
+# ── Vitesse d'inférence d'un modèle (2026-10-11) ─────────────────────────────
+# La vitesse d'un modèle n'a pas de magasin à elle : c'est son ETA APPRISE sous sa clé de
+# CATALOGUE (`AIModel.model_key`, la convention de `make_key`), sur ce matériel. Le banc la
+# calibre (`bench.py` : jetons d'un LLM, images d'un détecteur), les exécutions réelles l'affinent.
+# Le curseur rapide/qualité la lit (`model_selector.intent_choice`) — pour TOUTES les apps : une
+# app dont les modèles ne sont pas chronométrés garde le coût de repli (la VRAM).
+# ⚠ Une clé d'OPÉRATION d'app (`anonymizer:blur:img`, `converter:video:gif`…) n'est pas une
+# vitesse de modèle : elle mesure une tâche entière, et n'est lue par aucune comparaison.
+
+def learned_speed(model_key: str) -> Optional[Tuple[str, float, int]]:
+    """(unité, secondes par unité, échantillons) APPRIS pour ce modèle sur ce matériel, ou None."""
+    try:
+        from wama.model_manager.models import ModelRuntimeStat
+        stat = ModelRuntimeStat.objects.filter(
+            model_key=model_key, hardware_fingerprint=hardware_fingerprint(), samples__gte=1
+        ).first()
+        if stat:
+            return stat.unit, stat.per_unit_ema_seconds, stat.samples
+    except Exception:
+        pass
+    return None
+
+
+def comparable_speeds(model_keys) -> dict:
+    """`{model_key: secondes par unité}` APPRISES sur ce matériel pour TOUT le lot, ou {} s'il
+    n'est pas comparable : un modèle sans mesure, ou deux unités différentes (des secondes par
+    jeton et par image ne se rangent pas ensemble). Règle de lot de l'échelle des signaux : on
+    ne compare pas un modèle chronométré à un modèle qui ne l'est pas."""
+    keys = list(dict.fromkeys(k for k in model_keys if k))
+    if not keys:
+        return {}
+    try:
+        from wama.model_manager.models import ModelRuntimeStat
+        rows = ModelRuntimeStat.objects.filter(
+            model_key__in=keys, hardware_fingerprint=hardware_fingerprint(), samples__gte=1)
+        found = {r.model_key: (r.unit, r.per_unit_ema_seconds) for r in rows}
+    except Exception:
+        return {}
+    if set(found) != set(keys) or len({unit for unit, _ in found.values()}) != 1:
+        return {}
+    return {key: seconds for key, (_, seconds) in found.items()}
 
 
 # ── API publique ─────────────────────────────────────────────────────────────

@@ -336,18 +336,26 @@ def _bench_recall(entry: AIModel, sample: str, *, conf: float = 0.25, record: bo
     (`ResultEvaluation`, une ligne par modele — l'etage 3 de l'echelle des signaux)."""
     import hashlib
 
-    from wama.common.services.detection_ensemble import detect_with_models
+    from wama.common.services.detection_ensemble import DetectorSet
     from wama.common.services.model_coverage import miss_metric
 
     ref = read_recall_reference(sample)
-    start = time.perf_counter()
-    doc = detect_with_models(
-        [{'model_key': entry.model_key, 'path': entry.local_path, 'name': entry.name,
-          'classes': [ref['class']]}],
-        media_path=ref['media'], classes2blur=[ref['class']], detection_threshold=conf)
-    elapsed = time.perf_counter() - start
-    counts = containment_counts(doc, ref)
     frames = max(len(ref['containers']), 1)
+    # Le chargement du modèle HORS du temps (2026-10-11 : il y était compté, d'où des ms par image
+    # qui mesuraient aussi le chargement) ; le média copié en local par le chronomètre. Pas de
+    # passe de chauffe : sur une vidéo elle doublerait le banc — la première image porte donc
+    # l'initialisation du GPU, une part négligeable sur des centaines d'images.
+    detectors = DetectorSet([{'model_key': entry.model_key, 'path': entry.local_path,
+                              'name': entry.name, 'classes': [ref['class']]}])
+    clock = _SpeedClock(warm_up=False)
+    try:
+        doc = clock.detect(detectors, ref['media'], classes2blur=[ref['class']],
+                           detection_threshold=conf)
+    finally:
+        clock.close()
+    elapsed = clock.total
+    clock.record(entry.model_key, frames)
+    counts = containment_counts(doc, ref)
     miss = round(counts['missed'] / counts['near'], 4) if counts['near'] else None
     if record and miss is not None:
         from wama.common.models import ResultEvaluation
@@ -387,6 +395,71 @@ def _bench_recall(entry: AIModel, sample: str, *, conf: float = 0.25, record: bo
 BOXES_PROTOCOL = 'boxes_iou50_v1'
 BOXES_OBJECT = 'DetectionBenchBoxes'
 SIZE_BUCKETS = ((16, 'tiny'), (32, 'small'), (96, 'medium'), (10 ** 9, 'large'))
+
+# ── Temps PROPRE de traitement (2026-10-11) — ce que le curseur rapide/qualité peut comparer ──
+# Le temps « mur » d'un banc sur le partage réseau des jeux mesure surtout le partage : le premier
+# modèle d'une campagne lit des images que les suivants retrouvent en cache (mesuré : 537 ms pour
+# le plus petit lindevs, 133 pour le plus gros). Le temps propre lit l'image depuis une copie
+# LOCALE faite hors chronomètre, sur un modèle déjà chargé et une première passe de chauffe
+# écartée : c'est ce que coûte une image à l'anonymizer (décodage + ses passes + le modèle).
+# Il va dans la boucle d'ETA COMMUNE, comme les jetons d'un LLM (`_bench_generation`) : secondes
+# par image sous la clé de catalogue du modèle, sur ce matériel (`_SpeedClock.record`). C'est là
+# que le curseur de toutes les apps lit la vitesse (`eta_estimator.comparable_speeds`).
+#: Taille de l'échantillon régulier d'une mesure de vitesse seule (`detect-speed`).
+SPEED_SAMPLE = 200
+#: Unité de la vitesse d'un détecteur : une image analysée, photo ou image de vidéo.
+IMAGE_UNIT = 'image'
+
+
+class _SpeedClock:
+    """Chronomètre du temps propre : `detect` copie le média dans un dossier local (hors temps),
+    chauffe le modèle sur le premier, puis ne compte que l'appel de détection."""
+
+    def __init__(self, warm_up: bool = True):
+        import tempfile
+        self.folder = tempfile.mkdtemp(prefix='wama-bench-')
+        self.warm_up, self.total, self.count = warm_up, 0.0, 0
+
+    def detect(self, detectors, path: str, **kwargs) -> dict:
+        import shutil
+        local = os.path.join(self.folder, 'item' + os.path.splitext(path)[1].lower())
+        shutil.copyfile(path, local)
+        if self.warm_up:
+            detectors.detect(media_path=local, **kwargs)
+            self.warm_up = False
+        start = time.perf_counter()
+        doc = detectors.detect(media_path=local, **kwargs)
+        self.total += time.perf_counter() - start
+        self.count += 1
+        return doc
+
+    def ms_per_item(self, items: int = 0) -> Optional[float]:
+        """Moyenne par image ; `items` = nombre d'images d'une vidéo (sinon un appel = une image)."""
+        n = items or self.count
+        return round(1000 * self.total / n, 1) if n else None
+
+    def record(self, model_key: str, items: int = 0) -> Optional[float]:
+        """Range le temps propre dans la boucle d'ETA commune (`eta_estimator.record_run`) : une
+        exécution réelle de `items` images (sinon une par appel), hors chargement. Rend les ms par
+        image, None sans mesure."""
+        from wama.model_manager.services.eta_estimator import record_run
+        n = items or self.count
+        if not n:
+            return None
+        record_run(model_key, size=n, unit=IMAGE_UNIT, process_seconds=self.total)
+        return self.ms_per_item(n)
+
+    def close(self):
+        import shutil
+        shutil.rmtree(self.folder, ignore_errors=True)
+
+
+def _sampled(entries: list, limit: int) -> list:
+    """Échantillon RÉGULIER, reproductible, de `limit` éléments (0 = tous)."""
+    if limit and limit < len(entries):
+        step = len(entries) / limit
+        return [entries[int(k * step)] for k in range(limit)]
+    return entries
 
 
 def benchmark_reference(name: str) -> str:
@@ -480,27 +553,29 @@ def _bench_boxes(entry: AIModel, sample: str, *, conf: float = 0.25, record: boo
     from wama.common.services.model_coverage import miss_metric
 
     ref = read_boxes_reference(sample)
-    entries = ref['entries']
-    if limit and limit < len(entries):
-        step = len(entries) / limit          # echantillon REGULIER, reproductible
-        entries = [entries[int(k * step)] for k in range(limit)]
+    entries = _sampled(ref['entries'], limit)
     detectors = DetectorSet([{'model_key': entry.model_key, 'path': entry.local_path,
                               'name': entry.name, 'classes': [ref['class']]}])
     totals = {'truth': 0, 'tp': 0, 'fp': 0}
     buckets = {}
+    clock = _SpeedClock()
     start = time.perf_counter()
-    for item in entries:
-        doc = detectors.detect(media_path=os.path.join(ref['images'], item['path']),
+    try:
+        for item in entries:
+            doc = clock.detect(detectors, os.path.join(ref['images'], item['path']),
                                classes2blur=[ref['class']], detection_threshold=conf)
-        found = [(d['box'], d.get('conf', 1.0)) for f in doc.get('frames') or [] for d in f['d']]
-        counts = match_boxes(found, item['boxes'], item['ignore'], ref['iou'])
-        for k in totals:
-            totals[k] += counts[k]
-        for name, n in counts['truth_buckets'].items():
-            b = buckets.setdefault(name, [0, 0])
-            b[1] += n
-            b[0] += counts['hit_buckets'].get(name, 0)
+            found =[(d['box'], d.get('conf', 1.0)) for f in doc.get('frames') or [] for d in f['d']]
+            counts = match_boxes(found, item['boxes'], item['ignore'], ref['iou'])
+            for k in totals:
+                totals[k] += counts[k]
+            for name, n in counts['truth_buckets'].items():
+                b = buckets.setdefault(name, [0, 0])
+                b[1] += n
+                b[0] += counts['hit_buckets'].get(name, 0)
+    finally:
+        clock.close()
     elapsed = time.perf_counter() - start
+    ms_per_item = clock.record(entry.model_key)
     missed = totals['truth'] - totals['tp']
     miss = round(missed / totals['truth'], 4) if totals['truth'] else None
     detections = totals['tp'] + totals['fp']
@@ -527,8 +602,33 @@ def _bench_boxes(entry: AIModel, sample: str, *, conf: float = 0.25, record: boo
         'inference_s': round(elapsed, 2), 'saturated': False,
         'recall': round(1 - miss, 3) if miss is not None else None,
         'precision': precision, 'by_size': by_size,
-        'ms_per_frame': round(1000 * elapsed / max(len(entries), 1), 1),
+        'ms_per_frame': ms_per_item,
     }
+
+
+def _bench_speed(entry: AIModel, sample: str, *, conf: float = 0.25, record: bool = False,
+                 limit: int = 0, **_) -> dict:
+    """Le temps PROPRE seul d'un détecteur, sur un échantillon régulier d'un jeu annoté
+    (`SPEED_SAMPLE` images par défaut) — sans refaire le rappel, qui ne dépend pas de la machine.
+    Comme tout passage de détecteur du banc, il va dans la boucle d'ETA commune
+    (`_SpeedClock.record`) : c'est le geste à rejouer après un changement de carte ou de
+    librairie."""
+    from wama.common.services.detection_ensemble import DetectorSet
+
+    ref = read_boxes_reference(sample)
+    entries = _sampled(ref['entries'], limit or SPEED_SAMPLE)
+    detectors = DetectorSet([{'model_key': entry.model_key, 'path': entry.local_path,
+                              'name': entry.name, 'classes': [ref['class']]}])
+    clock = _SpeedClock()
+    try:
+        for item in entries:
+            clock.detect(detectors, os.path.join(ref['images'], item['path']),
+                         classes2blur=[ref['class']], detection_threshold=conf)
+    finally:
+        clock.close()
+    return {'outputs': None, 'mean_confidence': None, 'load_s': None,
+            'inference_s': round(clock.total, 2), 'saturated': False,
+            'ms_per_frame': clock.record(entry.model_key)}
 
 
 def boxes_candidates(sample: str) -> list:
@@ -565,10 +665,13 @@ PROTOCOLS: dict[str, Callable] = {
     'detect-recall': _bench_recall,
     # Rappel + precision sur un jeu ANNOTE (WIDER FACE val…) — cf. `_bench_boxes`.
     'detect-boxes': _bench_boxes,
+    # Le temps propre seul, sur la référence d'un banc « vraies boîtes » — cf. `_bench_speed`.
+    'detect-speed': _bench_speed,
 }
 
 #: Protocoles dont les candidats ne se lisent pas par `models_for_task(tache)`.
-CANDIDATES = {'detect-recall': recall_candidates, 'detect-boxes': boxes_candidates}
+CANDIDATES = {'detect-recall': recall_candidates, 'detect-boxes': boxes_candidates,
+              'detect-speed': boxes_candidates}
 
 
 def available_tasks() -> list:

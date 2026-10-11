@@ -1014,7 +1014,10 @@ class ModelRuntimeStat(models.Model):
     Modèle d'estimation :  ETA ≈ (chargement à froid) + per_unit × taille
       - `load_ema_seconds`     : temps de chargement à froid (size-indépendant) ; None tant qu'inconnu.
       - `per_unit_ema_seconds` : secondes de traitement par unité de `unit` (ex. s de calcul / s d'audio).
-      - `unit`                 : grandeur du domaine (audio_sec|video_sec|megapixel|step|token|item).
+      - `unit`                 : grandeur du domaine (audio_sec|video_sec|megapixel|step|token|
+                                 char|page|mb|image|item — `eta_estimator._DEFAULT_PER_UNIT`).
+    Sous la clé de CATALOGUE d'un modèle, c'est aussi sa VITESSE D'INFÉRENCE sur ce matériel, que
+    le curseur rapide/qualité compare (`eta_estimator.comparable_speeds`, 2026-10-11).
 
     Bucketisé par **empreinte hardware** : un changement de GPU repart de l'a-priori et réapprend
     (les stats de l'ancien matériel ne polluent pas le nouveau). L'a-priori (1ʳᵉ utilisation) vit

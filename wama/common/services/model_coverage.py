@@ -224,7 +224,11 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
     un ENSEMBLE, pour un appelant qui veut le rappel avant le coût (anonymiser : une plaque
     oubliée est une fuite). Les modèles d'une classe se départagent d'abord par leur rappel
     MESURÉ (`measured_miss_rates`) quand TOUS les candidats de cette classe en ont un — la règle de
-    lot de l'échelle des signaux (`WAMA_QUALITE §4.1`) ; sinon comme avant.
+    lot de l'échelle des signaux (`WAMA_QUALITE §4.1`) ; sinon comme avant. Quand ce lot a AUSSI
+    une vitesse apprise sur cette carte (`eta_estimator.comparable_speeds`) et que le curseur est
+    donné, le premier modèle de la classe est celui que le curseur désigne entre rappel et vitesse
+    — l'arbitrage de toutes les apps (`model_selector.intent_choice`, 2026-10-11) : « Rapide » ne
+    prend plus le plus gros.
 
     `quality_intent` (chantier C, 2026-09-20) : le curseur commun 0-100 — la brique en DÉRIVE
     elle-même ses préférences vision (`size_for_intent`, `segmentation_for_intent`) quand
@@ -251,6 +255,8 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
     de proposer une installation (cf. la prospection).
     """
     from wama.model_manager.models import AIModel
+    from wama.model_manager.services.eta_estimator import comparable_speeds
+    from wama.model_manager.services.model_selector import intent_choice
 
     prefer_seg, preferred_size = bool(preferer_segmentation), (taille_preferee or '')
     if quality_intent is not None:
@@ -299,17 +305,26 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
     # ⚠ C'est la PROJECTION de la mesure interne dans un tri (décision Q3 de `WAMA_QUALITE`,
     # « lecture d'abord, tri quand le jeu est commun ») — bornée à la couverture de classes, et
     # au seul cas où le lot ENTIER d'une classe a été mesuré sur la même référence.
-    measured = {}
+    measured, picked = {}, {}
     for v in voulues:
         pool = [m.model_key for m in candidats if _couvertes(m, {v})]
         rates = measured_miss_rates(pool, v) if pool else {}
         if pool and all(k in rates for k in pool):
             measured[v] = rates
+            # La VITESSE n'entre que si le curseur est donné et que tout le lot a une vitesse
+            # apprise (même règle de lot) : le curseur désigne alors son modèle entre rappel et
+            # vitesse ; les modèles d'ensemble suivants restent rangés par rappel.
+            speeds = comparable_speeds(pool) if quality_intent is not None else {}
+            if speeds:
+                picked[v] = intent_choice(pool, {k: 1.0 - rates[k] for k in pool}, speeds,
+                                          quality_intent, key=lambda k: k)
 
-    def _measured_recall(m, couvre) -> float:
-        """Rappel mesuré (1 − taux manqué) sur les classes couvertes dont le lot est mesuré."""
-        values = [1.0 - measured[v][m.model_key] for v in couvre if v in measured]
-        return max(values) if values else 0.0
+    def _measured_recall(m, couvre) -> tuple:
+        """(désigné par le curseur, rappel mesuré) sur les classes couvertes dont le lot est
+        mesuré — le modèle que le curseur désigne passe devant, les autres par rappel."""
+        values = [(picked.get(v) == m.model_key, 1.0 - measured[v][m.model_key])
+                  for v in couvre if v in measured]
+        return max(values) if values else (False, 0.0)
 
     def gain_for(targets):
         def gain(m):

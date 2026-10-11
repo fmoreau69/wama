@@ -371,7 +371,8 @@ def _best_by_vram(models, budget_gb: Optional[float], family=None, quality_inten
     ⚠ Le nom `_best_by_vram` est conservé mais il ne dit plus la vérité depuis longtemps :
     « le plus gros qui tient » assimilait volume et qualité, ce qu'un MoE dément
     frontalement (`qwen3.6:35b` : la qualité d'un 36B au coût de calcul d'un 3B). La VRAM
-    reste une CONTRAINTE (budget) et un COÛT (le terme légèreté), plus un critère seule.
+    reste une CONTRAINTE (budget) et un COÛT (le terme légèreté), plus un critère seule —
+    et depuis le 2026-10-11 la légèreté est la VITESSE apprise quand tout le lot en a une.
 
     Deux gardes MESURÉES (02/09) :
     - une VRAM inconnue (None/0) n'est pas « gratuite » : coût = PIRE du lot — Audio8
@@ -395,9 +396,8 @@ def _best_by_vram(models, budget_gb: Optional[float], family=None, quality_inten
     # défaut — et il ne fait plus tomber les autres d'un étage.
     values, _ = _quality_scalars(pool, family)
     rankable = [m for m in pool if id(m) in values] or pool
-    q = _minmax(values)
 
-    # Coût = VRAM. Trois cas, et on ne les confond plus (Fabien, 26/09) :
+    # Coût = VRAM (à défaut de vitesse apprise, cf. plus bas). Trois cas, et on ne les confond plus (Fabien, 26/09) :
     #   • LOCAL mesuré        → sa VRAM ;
     #   • LOCAL jamais mesuré → PIRE coût du lot (garde du 02/09 : Audio8, `vram_gb=0` faute
     #     de mesure, battait Kokoro (0,5 mesuré) sur « rapide » par accident) ;
@@ -420,15 +420,40 @@ def _best_by_vram(models, budget_gb: Optional[float], family=None, quality_inten
     # l'ADMISSION, pas au classement : `cloud_policy` (l'utilisateur) et `hosting == sovereign`
     # (`dev_cloud_keys`) décident QUI entre dans le lot. C'est là qu'un arbitrage de coût a son
     # domicile — pas dans un second lieu qui divergerait du premier.
-    costs = {id(m): (0.0 if is_cloud(m) else m.vram_gb)
-             for m in pool if is_cloud(m) or m.vram_gb}
-    c = _minmax(costs)
+    #
+    # ⭐ Et quand TOUT le lot a une vitesse APPRISE sur cette carte (2026-10-11, demande de
+    # Fabien : « intégrer la vitesse dans la sélection »), c'est elle le coût : la VRAM n'était
+    # que le proxy de « chargement + inférence rapides » que cette docstring nomme. Elle reste
+    # le BUDGET (le filtre ci-dessus) ; la vitesse est lue dans la boucle d'ETA commune
+    # (`eta_estimator.comparable_speeds`), jamais dans un magasin à part.
+    from .eta_estimator import comparable_speeds
+    speeds = comparable_speeds([m.model_key for m in pool])
+    if speeds:
+        costs = {id(m): speeds[m.model_key] for m in pool}
+    else:
+        costs = {id(m): (0.0 if is_cloud(m) else m.vram_gb)
+                 for m in pool if is_cloud(m) or m.vram_gb}
+    return intent_choice(rankable, values, costs, quality_intent)
+
+
+def intent_choice(candidates, quality: dict, cost: dict, quality_intent, key=id):
+    """Le candidat que le CURSEUR rapide/qualité désigne — la règle de TOUTES les apps :
+
+        score = w·qualité + (1−w)·(1 − coût)      (w = curseur/100, valeurs min-max)
+
+    `quality` et `cost` sont des valeurs BRUTES par `key(candidat)` (plus haut = meilleur, plus
+    bas = moins cher), normalisées sur tout ce qu'elles contiennent. Un candidat sans coût vaut
+    le PIRE coût (« pas mesuré » n'est pas « gratuit », garde du 02/09) ; à score égal, la
+    qualité départage. Lue par `_best_by_vram` (un modèle) et par `model_coverage` (le premier
+    modèle d'une classe, rappel × vitesse) : un seul arbitrage, une seule définition."""
+    w = _quality_weight(quality_intent)
+    q, c = _minmax(quality), _minmax(cost)
 
     def score(m):
-        cout = c.get(id(m), 1.0)
-        return w * q.get(id(m), 0.0) + (1.0 - w) * (1.0 - cout) + 1e-6 * q.get(id(m), 0.0)
+        k = key(m)
+        return w * q.get(k, 0.0) + (1.0 - w) * (1.0 - c.get(k, 1.0)) + 1e-6 * q.get(k, 0.0)
 
-    return max(rankable, key=score)
+    return max(candidates, key=score)
 
 
 def select_model(

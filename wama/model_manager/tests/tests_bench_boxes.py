@@ -82,6 +82,52 @@ class ReferenceTest(SimpleTestCase):
         self.assertTrue(ref['images'].startswith(moved))
 
 
+class SpeedClockTest(SimpleTestCase):
+    """The CLEAN processing time : the medium is read from a local copy made off the clock, the
+    first pass warms the model up and is not counted."""
+
+    def test_only_the_detection_calls_after_the_warm_up_are_counted(self):
+        from wama.model_manager.services import bench
+        source = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, source, True)
+        path = os.path.join(source, 'a.JPG')
+        with open(path, 'wb') as f:
+            f.write(b'jpeg')
+        seen = []
+        detectors = mock.Mock()
+        detectors.detect.side_effect = lambda **kw: seen.append(kw['media_path']) or {}
+        clock = bench._SpeedClock()
+        ticks = iter([0.0, 0.25, 1.0, 1.5])            # two counted calls : 0.25 s then 0.5 s
+        with mock.patch.object(bench.time, 'perf_counter', side_effect=lambda: next(ticks)):
+            for _ in range(2):
+                clock.detect(detectors, path, classes2blur=['face'])
+        folder = clock.folder
+        clock.close()
+        self.assertEqual(3, len(seen), 'one warm-up pass, then one pass per image')
+        self.assertTrue(all(p.startswith(folder) and p.endswith('.jpg') for p in seen),
+                        'the detector reads the LOCAL copy, never the share')
+        self.assertEqual((2, 375.0), (clock.count, clock.ms_per_item()))
+        self.assertEqual(250.0, clock.ms_per_item(3), 'a video : divided by its images')
+        self.assertFalse(os.path.exists(folder))
+
+    def test_the_clean_time_goes_to_the_common_eta_loop(self):
+        """No speed store of its own : seconds per image under the CATALOGUE key, like the
+        tokens of an LLM bench — where the slider of every app reads it."""
+        from wama.model_manager.services import bench
+        clock = bench._SpeedClock()
+        clock.total, clock.count = 0.75, 2
+        with mock.patch('wama.model_manager.services.eta_estimator.record_run') as record:
+            self.assertEqual(375.0, clock.record('anonymizer:yolo:f.pt'))
+        record.assert_called_once_with('anonymizer:yolo:f.pt', size=2, unit='image',
+                                       process_seconds=0.75)
+        clock.close()
+        empty = bench._SpeedClock()
+        with mock.patch('wama.model_manager.services.eta_estimator.record_run') as record:
+            self.assertIsNone(empty.record('anonymizer:yolo:f.pt'))
+        record.assert_not_called()
+        empty.close()
+
+
 class DetectorSetTest(SimpleTestCase):
 
     def test_the_models_are_loaded_once_for_many_media(self):
