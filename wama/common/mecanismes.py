@@ -427,7 +427,11 @@ MECHANISMS = (
                        'wama/model_manager/services/ollama_registry.py',
                        'wama/model_manager/services/update_checker.py')),
     Mechanism('model_registry_discovery', 'Découverte de modèles',
-              "Découverte unifiée des modèles (apps + sources externes), synchronisée vers le catalogue AIModel",
+              "Découverte unifiée des modèles (apps + sources externes), synchronisée vers le "
+              "catalogue AIModel. Ollama (2026-10-12) : un manifeste INTERNE du démon (étiquette = "
+              "empreinte sha256, `is_ollama_runner_alias`) n'est pas un modèle ; seul un relevé "
+              "du DÉMON (`ollama_listed`) prouve un retrait fait hors de WAMA — la ligne reçoit "
+              "alors la marque d'une désinstallation (`uninstalled_q`)",
               'wama/model_manager/services/model_registry.py', '',
               annexes=('wama/model_manager/services/model_sync.py',
                        'wama/model_manager/services/file_watcher.py')),
@@ -2164,7 +2168,10 @@ MECHANISMS = (
               "orphelines (vides ou > 24 h, teardown jamais joué) se balaient à l'entrée de la "
               "suivante. Le nocturne, lui, écrit chez les COMPTES DE TEST dans `media/` (serveur "
               "vivant) et se balaie par NOM (`wama_temoin_*`, dossier temporaire compris). "
-              "Question Fabien 2026-09-13 : « on ne change rien pour ça »",
+              "Question Fabien 2026-09-13 : « on ne change rien pour ça ». Même raison pour le "
+              "CORPUS de manifestes, versionné (2026-10-12) : le runner pose "
+              "`MANIFEST_CORPUS_SYNC = False`, une désinstallation jouée en base de test ne "
+              "retire donc jamais un fichier réel (`model_installer.forget_in_corpus`)",
               'wama/common/runners.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §①bis',
               annexes=('wama/common/tests/tests_media_tests_hygiene.py',)),
     Mechanism('video_utils', 'Utilitaires vidéo',

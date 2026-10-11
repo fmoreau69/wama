@@ -498,11 +498,12 @@ Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisat
 
 ### Découverte de modèles
 
-Découverte unifiée des modèles (apps + sources externes), synchronisée vers le catalogue AIModel
+Découverte unifiée des modèles (apps + sources externes), synchronisée vers le catalogue AIModel. Ollama (2026-10-12) : un manifeste INTERNE du démon (étiquette = empreinte sha256, `is_ollama_runner_alias`) n'est pas un modèle ; seul un relevé du DÉMON (`ollama_listed`) prouve un retrait fait hors de WAMA — la ligne reçoit alors la marque d'une désinstallation (`uninstalled_q`)
 
 - **Domicile** : `wama/model_manager/services/model_registry.py`
 - **Module** : Model Registry - Unified model discovery across all WAMA apps and external sources.
-- **API publique** (2) :
+- **API publique** (3) :
+  - `is_ollama_runner_alias(name: str) -> bool` — Ce nom Ollama désigne-t-il un manifeste INTERNE du démon plutôt qu'un modèle ?
   - `class ModelInfo` — Unified model information structure.
   - `class ModelRegistry` — Central registry for all WAMA models.
 
@@ -535,7 +536,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (47) :
+- **API publique** (48) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(hf_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -571,6 +572,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `weights_dir_of(model, index: dict | None=None) -> Path | None` — Dossier des POIDS d'une ligne de catalogue installée, ou None s'il ne se désigne pas.
   - `rows_depending_on(model, target: Path, index: dict | None=None) -> tuple[list, list]` — Les AUTRES lignes installées que retirer `target` toucherait — `(sharing, dependents)`.
   - `uninstall_model(model_key: str, include_shared: bool=False, via: str='') -> dict` — DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
+  - `forget_in_corpus(model_keys) -> None` — Le corpus de manifestes SUIT la désinstallation, comme il suit l'installation
   - `spec_for_catalog_row(model) -> dict | None` — Spec d'installation DÉRIVÉ d'une ligne de catalogue non téléchargée — le geste « Installer »
   - `patterns_from_composition(composition) -> list | None` — `allow_patterns` DÉRIVÉS d'une `composition` déclarée (manifeste `model`,
   - `install_from_spec(spec: dict, token=None) -> dict` — Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
@@ -2685,7 +2687,7 @@ Un adaptateur par moteur (Exa, Staan, SearXNG, DuckDuckGo) derrière UN contrat 
 
 ### Médias de test isolés
 
-Le runner de tests redirige `MEDIA_ROOT` vers `media_tests/run-<id>/` — dossier SŒUR de `media/`, jamais dedans (servi, sauvegardé, miré) ; les exécutions orphelines (vides ou > 24 h, teardown jamais joué) se balaient à l'entrée de la suivante. Le nocturne, lui, écrit chez les COMPTES DE TEST dans `media/` (serveur vivant) et se balaie par NOM (`wama_temoin_*`, dossier temporaire compris). Question Fabien 2026-09-13 : « on ne change rien pour ça »
+Le runner de tests redirige `MEDIA_ROOT` vers `media_tests/run-<id>/` — dossier SŒUR de `media/`, jamais dedans (servi, sauvegardé, miré) ; les exécutions orphelines (vides ou > 24 h, teardown jamais joué) se balaient à l'entrée de la suivante. Le nocturne, lui, écrit chez les COMPTES DE TEST dans `media/` (serveur vivant) et se balaie par NOM (`wama_temoin_*`, dossier temporaire compris). Question Fabien 2026-09-13 : « on ne change rien pour ça ». Même raison pour le CORPUS de manifestes, versionné (2026-10-12) : le runner pose `MANIFEST_CORPUS_SYNC = False`, une désinstallation jouée en base de test ne retire donc jamais un fichier réel (`model_installer.forget_in_corpus`)
 
 - **Domicile** : `wama/common/runners.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §①bis](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Runner de tests WAMA — isole le média des tests du média de PRODUCTION.

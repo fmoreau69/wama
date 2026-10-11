@@ -108,6 +108,12 @@ class FullSyncReadsOnlyTheDaemonTest(TestCase):
         row.refresh_from_db()
         self.assertFalse(row.is_downloaded)
 
+    def test_a_runner_manifest_row_goes_even_without_a_daemon_answer(self):
+        """Refused by rule, it never was a model: no proof of removal is needed."""
+        _ollama_row(f"llamacpp:{'b' * 64}")
+        self._full_sync(None)
+        self.assertFalse(AIModel.objects.filter(model_key=f"ollama:llamacpp:{'b' * 64}").exists())
+
     def test_without_a_daemon_answer_nothing_is_marked(self):
         row = _ollama_row('gemma4:12b')
         AIModel.objects.filter(pk=row.pk).update(updated_at=timezone.now() - timedelta(hours=1))
