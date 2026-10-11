@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**193 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**196 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -28,15 +28,17 @@ Garde une valeur calculée depuis un fichier (lecture AST, rendu markdown, compt
 
 ### Client du service TTS
 
-L'appel POST /tts UNIQUE vers le microservice TTS (payload contractuel, 503 « loading » → TTSServiceLoadingError, WAV temporaire ou bytes) ; les POLITIQUES (retry Celery, chunking, replis) restent aux appelants — extrait 2026-08-28 : 4 exemplaires vivaient dans le dépôt, un seul détectait le 503
+L'appel POST /tts UNIQUE vers le microservice TTS (payload contractuel, 503 « loading » → TTSServiceLoadingError, WAV temporaire ou bytes) ; les POLITIQUES (retry Celery, chunking, replis) restent aux appelants — extrait 2026-08-28 : 4 exemplaires vivaient dans le dépôt, un seul détectait le 503. Depuis le 2026-10-10 le service ÉCOUTE aussi : `stt_via_service` (POST /stt, Whisper chaud, conversation vocale de l'assistant) partage le même appel et la même traduction d'erreurs (`_post`)
 
 - **Domicile** : `wama/common/tts/service_client.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md §2bis](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Client COMMUN du microservice TTS (`tts_service.py`, FastAPI, uvicorn :8001).
-- **API publique** (4) :
+- **API publique** (6) :
   - `class TTSServiceLoadingError(Exception)` — Le service TTS répond 503 « loading » (démarrage/chargement d'un moteur) —
   - `service_url() -> str` — URL du service TTS : settings Django si disponibles, sinon env, sinon défaut.
   - `tts_eta_key_size(text, model)` — (clé, taille, unité) de l'ETA d'une synthèse par le service : durée ∝ longueur du texte,
   - `tts_via_service(text, model, *, language='fr', voice_preset='default', speaker_wav=None, multi_speaker=False, scene_description='', options=None, read_timeout=…` — Synthétise `text` via le microservice TTS et renvoie le chemin d'un WAV TEMPORAIRE
+  - `stt_via_service(audio, *, content_type='audio/wav', language='', model=None, read_timeout=90)` — Transcrit un extrait COURT (octets audio) par le même service — la conversation vocale de
+  - `speech_only_via_service(audio, *, content_type='audio/wav', read_timeout=90)` — Les seuls passages PARLÉS d'un extrait (WAV 16 kHz mono), b'' s'il n'y en a aucun — le
 
 ### Contrat de backend
 
@@ -60,15 +62,57 @@ Tout passe côté WSL, rien côté Windows, sauf les tests à la demande (règle
   - `running_tests(argv=None) -> bool` — Le processus est-il une suite de tests (`manage.py test …`) ?
   - `tasks_dispatched(argv=None, os_name=None) -> bool` — Ce processus met-il ses tâches dans le VRAI broker ? Seulement côté WSL, hors tests.
 
+### Dossiers connectés distants (rclone)
+
+Monte un stockage distant comme un dossier du filemanager : nuage WebDAV, partage réseau SMB, Google Drive, OneDrive — chacun DÉCLARÉ comme type de stockage (champs saisis, connexion par le navigateur), la nature de ses options lue dans rclone. Secret chiffré passé par l'environnement, proxy de la source, accès vérifié avant montage, remontage au redémarrage, révocation au retrait (2026-10-10/11). Le montage du noyau (cifs) ne reste que le repli sans rclone
+
+- **Domicile** : `wama/filemanager/remote_mounts.py` · **doc** : [docs/construction/suivi/ROADMAP.md](../construction/suivi/ROADMAP.md)
+- **Module** : remote_mounts — dossiers DISTANTS montés par rclone sous le « dossier connecté » du filemanager : nuage de fichiers (WebDAV, Nextcloud), partage réseau (SMB), Google Drive, OneDrive.
+- **API publique** (32) :
+  - `class Field` — Un champ de la fenêtre « Connecter un dossier ».
+  - `class OAuth` — Connexion OAuth 2 (code d'autorisation + PKCE) : l'utilisateur accorde l'accès dans un
+  - `class StorageType`
+  - `storage_type(key: str) -> StorageType | None`
+  - `rclone_binary() -> str | None` — Le binaire rclone : réglage `WAMA_RCLONE_BIN`, puis le PATH, puis `~/.local/bin` (où il
+  - `rclone_providers() -> dict` — {stockage: {option: métadonnée}} décrits par le rclone INSTALLÉ, ou {} sans rclone.
+  - `backend_available(backend: str) -> bool` — Le rclone installé connaît-il ce stockage ?
+  - `storage_form(key: str, values: dict | None=None) -> dict` — Ce que la fenêtre « Connecter un dossier » affiche pour un type : ses champs (libellé
+  - `oauth_client(key: str) -> tuple[str, str]` — `(identifiant, secret)` du client OAuth que l'instance a déclaré pour un type, ou
+  - `oauth_types_offered() -> list[dict]` — Les stockages à connexion OAuth que l'instance PROPOSE : client OAuth posé, stockage
+  - `is_remote_url(text: str) -> bool` — Le chemin saisi désigne-t-il un dossier DISTANT (adresse web) plutôt qu'un chemin ?
+  - `webdav_config(url: str, username: str='') -> dict` — La configuration d'un montage WebDAV, tirée de l'adresse SAISIE.
+  - `smb_config(server: str, host: str, share: str, subpath: str='', username: str='', domain: str='') -> dict` — La configuration d'un partage réseau. `server` est le nom SAISI (il nomme le point de
+  - `display_name(config: dict) -> str` — Nom d'affichage proposé : le dernier dossier de l'adresse, sinon le serveur.
+  - `mount_point_name(config: dict) -> str` — Nom du point de montage : stable pour un même compte sur un même serveur et chemin.
+  - `make_mount_point(name: str)` — `(Path | None, erreurs)` — crée le point de montage `name`.
+  - `rclone_target(config: dict) -> str` — Le chemin rclone du dossier : un stockage « à la volée » (`:smb:`), configuré par
+  - `check_access(config: dict, password: str)` — `(ok, erreur)` — les identifiants ouvrent-ils le dossier ? Liste un niveau, sans monter.
+  - `unmount(path) -> bool` — Démonte un montage FUSE (paresseusement s'il est occupé ou mort).
+  - `mount(config: dict, password: str)` — `(ok, chemin, erreur)` — monte le dossier distant et rend son chemin local.
+  - `ensure_mounted(mounted_folder) -> bool` — Remonte un dossier distant dont le montage est tombé (redémarrage de WSL). Vrai si le
+  - `release_credentials(config: dict, secret: str) -> bool` — Un dossier retiré (ou un montage qui a échoué) ne laisse pas d'accès ouvert : le mot de
+  - `server_root(url: str) -> str` — La racine du serveur Nextcloud d'une adresse saisie (`https://nuage.fr`, ou
+  - `login_flow_start(url: str)` — `(flux | None, erreur)` — ouvre un flux ; `flux['login']` est la page à ouvrir dans le
+  - `login_flow_poll(flow: dict)` — `('pending' | 'granted' | 'error', données)` — l'utilisateur a-t-il accordé l'accès ?
+  - `nextcloud_user_id(server: str, login: str, password: str) -> str` — L'identifiant qui figure dans l'adresse WebDAV. Il peut différer du nom de connexion
+  - `revoke_app_password(config: dict, password: str) -> bool` — Révoque le mot de passe d'application que WAMA a obtenu par le navigateur : un dossier
+  - `oauth_start(key: str, redirect_uri: str)` — `(flux | None, erreur)` — la page où l'utilisateur accorde l'accès (`flux['login']`) ;
+  - `oauth_exchange(flow: dict, code: str)` — `(jeton rclone | None, erreur)` — échange le code reçu au retour contre un jeton.
+  - `oauth_account(key: str, token: str) -> dict` — Ce que la configuration doit savoir du compte connecté : son nom (le point de montage et
+  - `refresh_oauth_token(config: dict, secret: str) -> str | None` — Un jeton renouvelé (au format rclone), ou None. Appelé avant un remontage : le jeton
+  - `revoke_oauth_token(config: dict, secret: str) -> bool` — Révoque le jeton chez le fournisseur qui le permet (Google). Microsoft n'a pas de
+
 ### ETA auto-apprenante
 
 Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel
 
 - **Domicile** : `wama/model_manager/services/eta_estimator.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §10](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Estimateur d'ETA WAMA — *seeding* auto-apprenant et hardware-aware. ================================================================================
-- **API publique** (4) :
+- **API publique** (6) :
   - `hardware_fingerprint() -> str` — Identifiant court du matériel de calcul (GPU + VRAM) ; 'cpu' à défaut.
   - `make_key(source: str, model_id: str) -> str` — Construit le model_key du registre : '{source}:{model_id}'.
+  - `learned_speed(model_key: str) -> Optional[Tuple[str, float, int]]` — (unité, secondes par unité, échantillons) APPRIS pour ce modèle sur ce matériel, ou None.
+  - `comparable_speeds(model_keys) -> dict` — `{model_key: secondes par unité}` APPRISES sur ce matériel pour TOUT le lot, ou {} s'il
   - `estimate(model_key: str, size: float=1.0, unit: str='item', model_loaded: bool=False, fallback_seconds: Optional[float]=None) -> float` — Estimation (secondes) du temps TOTAL de traitement d'un item.
   - `record_run(model_key: str, size: float, unit: str='item', process_seconds: float=0.0, load_seconds: Optional[float]=None, user=None) -> None` — Enregistre une exécution RÉELLE pour affiner l'estimation (EMA, par hardware).
 
@@ -159,7 +203,7 @@ Le registre `IMPORTERS` EST le dispatch ET la source du résolveur SERVEUR « En
 
 - **Domicile** : `wama/filemanager/views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §S2bis](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : FileManager views - API for file browsing and management.
-- **API publique** (42) :
+- **API publique** (46) :
   - `get_user(request)` — Get current user or anonymous user.
   - `get_user_media_root(user)` — Get the media root path for a specific user.
   - `build_file_tree(user)` — Build a file tree structure for jstree with two collapsible sections:
@@ -199,6 +243,10 @@ Le registre `IMPORTERS` EST le dispatch ET la source du résolveur SERVEUR « En
   - `api_validate_path(request)` — Validate and resolve a user-provided path (Windows/UNC/Linux).
   - `api_browse_fs(request)` — Return subdirectories of a server path for the in-browser folder picker.
   - `api_mounts(request)` — GET: list user's mounted folders. POST: add a new mount.
+  - `api_mount_login_flow(request)` — Démarre la connexion à un nuage PAR LE NAVIGATEUR (Nextcloud Login Flow v2) et rend la
+  - `api_mount_oauth(request)` — Démarre la connexion à un stockage OAuth (Google Drive, OneDrive) : rend la page du
+  - `api_mount_oauth_callback(request)` — Le RETOUR du fournisseur, dans l'onglet ouvert pour l'accord : le code reçu est échangé
+  - `api_mount_login_flow_poll(request, flow_id)` — Interroge une connexion par le navigateur : `pending` tant que l'accès n'est pas accordé ;
   - `api_remount_shares(request)` — Re-mount all WAMA-managed CIFS shares (called from start_wama_prod.sh via localhost).
   - `api_mount_delete(request, pk)` — Remove a mounted folder.
   - `api_mount_serve(request, pk, path)` — Serve a file from a mounted folder inline (for preview).
@@ -289,6 +337,18 @@ Avancement d'une tâche Celery HORS file d'items publié dans le cache (F5-proof
   - `publier_progression(cache_key: str, task_id, state: str, payload: dict, ttl: int=TTL_DEFAUT) -> None` — Publie l'avancement d'une tâche dans le cache. `state`/`task_id` en DERNIER :
   - `progression_en_cours(cache_key: str)` — La progression publiée SI la tâche est encore vivante, sinon None.
 
+### Retrouver un fichier de l'utilisateur, dossiers connectés compris
+
+Recherche PAR NOM (casse et accents ignorés) dans ce que l'arbre du gestionnaire montre — temporaires, entrées et sorties de chaque app LUES à `_app_folders_config`, dossiers connectés résolus par `resolve_mount_path` : aucune liste de dossiers. Bornée par racine (temps, entrées) et une racine tronquée est DITE (`incomplete`). Porte aussi `mounted_file` : `designate` et les outils acceptent `mounts/…`, COPIÉ à l'entrée d'une app, jamais déplacé (2026-10-11, outil `find_user_files`). ⚠ La recherche du gestionnaire (`api_search`, 25 dossiers écrits à la main, sans les dossiers connectés) reste à rallier
+
+- **Domicile** : `wama/common/services/user_files.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
+- **Module** : Retrouver un fichier de l'utilisateur PAR SON NOM, partout où le gestionnaire de fichiers le montre — dossier temporaire, entrées et sorties de chaque app, dossiers CONNECTÉS (locaux, réseau, nuage).
+- **API publique** (4) :
+  - `is_mount_path(path) -> bool` — Ce chemin désigne-t-il un dossier CONNECTÉ (`mounts/<id>/…`) ?
+  - `mounted_file(path, user)` — Le chemin DISQUE d'un fichier `mounts/<id>/…` de CET utilisateur, ou None.
+  - `search_roots(user) -> list` — Les racines de recherche de cet utilisateur, dans l'ordre de l'arbre du gestionnaire :
+  - `find_user_files(user, query: str, *, limit: int=20) -> dict` — Les fichiers de `user` dont le NOM contient tous les mots de `query` (casse et accents
+
 ### Squelette de tâche
 
 Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA
@@ -364,10 +424,15 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
 
 - **Domicile** : `wama/model_manager/services/bench.py` · **doc** : [docs/construction/suivi/ROADMAP.md §16.2](../construction/suivi/ROADMAP.md)
 - **Module** : Banc de comparaison de modeles, indexe sur la TACHE et non sur l'app.
-- **API publique** (6) :
+- **API publique** (11) :
   - `models_for_task(task: str, *, installed_only: bool=True)` — Modeles du catalogue qui declarent cette tache. Le catalogue est la seule source.
   - `read_recall_reference(sample: str) -> dict` — La reference d'un banc de rappel (JSON) : `media` (chemin, relatif au fichier ou
   - `containment_counts(doc: dict, ref: dict) -> dict` — Les comptes du rappel par contenant — sans interpretation (cf. en-tete du protocole).
+  - `benchmark_reference(name: str) -> str` — Le fichier de reference du banc `name`, sous la racine des jeux de donnees — resolue par la
+  - `read_boxes_reference(sample: str) -> dict` — Une reference « vraies boites » : `class`, `format`, `images` (dossier), `annotations`
+  - `merged(found, iou: float=0.5) -> list` — Les detections d'UNE image sans leurs DOUBLONS : un meme objet vu a deux echelles (une
+  - `match_boxes(found, truth, ignore, iou: float=0.5) -> dict` — Comptes d'UNE image : `found` = [(box, conf)], `truth`/`ignore` = [box]. Les doublons de
+  - `boxes_candidates(sample: str) -> list` — Detecteurs installes qui couvrent la classe d'une reference « vraies boites ».
   - `recall_candidates(sample: str) -> list` — Les modeles a mesurer pour une reference : detecteurs installes qui couvrent sa classe.
   - `available_tasks() -> list` — Taches pour lesquelles un protocole existe — les autres restent a ecrire.
   - `run_bench(task: str, sample: str, *, models: Optional[list]=None, **options) -> list` — Passe chaque modele de `tache` sur `echantillon` et rend des mesures comparables.
@@ -447,9 +512,10 @@ L'UNION des documents `detections` de plusieurs détecteurs, quelle que soit leu
 
 - **Domicile** : `wama/common/services/detection_ensemble.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
 - **Module** : Détection par un ENSEMBLE de modèles — l'union de leurs documents `detections` (2026-10-10).
-- **API publique** (2) :
+- **API publique** (3) :
   - `engine_of(model_key: str) -> str` — Le moteur DÉCLARÉ au catalogue (`composition.runtime.engine`) — '' si inconnu.
-  - `detect_with_models(models, *, user=None, source_dir=None, destination_dir=None, **kwargs) -> dict` — Le document `detections` de l'ENSEMBLE `models` sur le média de `kwargs['media_path']`.
+  - `class DetectorSet` — Les détecteurs d'un ensemble, CHARGÉS UNE FOIS puis appliqués média par média
+  - `detect_with_models(models, *, user=None, source_dir=None, destination_dir=None, **kwargs) -> dict` — Le document `detections` de l'ENSEMBLE `models` sur UN média — `DetectorSet` à usage
 
 ### Indice de qualité a priori
 
@@ -465,11 +531,11 @@ Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×a
 
 ### Installation de modèles
 
-Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, `pull_model <clé>` ; garde d'espace disque, tâche Celery, journal) ; le marcheur d'app `install_requirements` pour tous les requis d'une app. Un pilote INTERNE (`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, 2026-10-07) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à fichier (empreinte d'un fichier en place : `provenance.sha256_of`)
+Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, `pull_model <clé|org/dépôt|nom Ollama>` — un nom se PROPOSE d'abord (`seed_hf_search`, `seed_ollama_candidate`) —, marcheur d'app `install_requirements` ; garde d'espace disque, tâche Celery, journal — seule à appeler `dispatch_install`) ; `AIModel.is_installable` en dit la règle à la page. Un pilote INTERNE (`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, 2026-10-07), files (les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE parmi les sources déclarées — dépôt du Hub figé au commit, version GitHub, adresse fixe d'une source « poids » — taille et empreinte épinglées, 2026-10-11 : CodeFormer, MuseTalk, enhancer, Face Analyzer) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à fichier (empreinte d'un fichier en place : `provenance.sha256_of`)
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (40) :
+- **API publique** (47) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(hf_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -483,15 +549,22 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `github_release_of(ref: str) -> tuple` — `owner/repo:tag` → (`owner/repo`, `tag`) ; ('', '') si la forme n'y est pas.
   - `github_platform_ref(ref: str) -> str` — `owner/repo:tag` → `github:owner/repo/releases/tag/<tag>` ('' si la forme n'y est pas).
   - `github_ref_of_platform(platform_ref: str) -> str` — L'inverse : `github:owner/repo/releases/tag/<tag>` → `owner/repo:tag`, sinon ''.
+  - `github_release_error(ref) -> str | None` — Motif de refus d'une version désignée `owner/repo:tag`, ou None (pur, aucune I/O).
   - `github_spec_error(spec: dict)` — Motif de refus d'un descripteur `github`, ou None — pendant de `vendor_spec_error`.
   - `github_asset_url(spec: dict) -> str` — Adresse de téléchargement de l'asset, dérivée de la source déclarée `github` (comme
   - `github_release_dir(spec: dict) -> str` — Dossier du modèle : `<catégorie>/<famille ou tag>/github--owner--repo/<tag>`.
   - `pull_github_asset(spec: dict, timeout: int=600, dry_run: bool=False) -> dict` — Télécharge l'asset d'une version GitHub DANS LE BON DOSSIER (cf. l'en-tête du pilote).
-  - `pull_github_files(spec: dict, timeout: int=600, dry_run: bool=False) -> dict` — Les fichiers d'une version GitHub qu'une app DÉCLARE, posés SOUS son dossier
+  - `declared_origin_error(origin) -> str | None` — Motif de refus de l'ORIGINE d'un fichier déclaré, ou None (pur, aucune I/O).
+  - `declared_files_error(spec: dict) -> str | None` — Motif de refus d'un descripteur `files`, ou None — pur : l'installation et la pesée
+  - `declared_file_url(origin: dict) -> str` — Adresse d'un fichier déclaré, DÉRIVÉE de sa source déclarée — jamais écrite en dur.
+  - `declared_files_present(install_dir, files) -> bool` — Tous les fichiers déclarés sont-ils à leur place ? (présence, sans relire l'empreinte —
+  - `pull_declared_files(spec: dict, timeout: int=600, dry_run: bool=False) -> dict` — Les fichiers qu'une app DÉCLARE, posés SOUS son dossier (`target_dir`), chacun tiré de
   - `download_asset(url: str, target: str, *, timeout: int=600, min_bytes: int=0, sha256: str='', proxies=None) -> dict` — Télécharge UN fichier publié (asset de version GitHub…) vers `target`, sans jamais laisser
   - `register_after_install()` — Re-synchronise le catalogue `AIModel` pour que le modèle fraîchement installé apparaisse.
   - `replaced_model(cand)` — (nom Ollama de l'ancien modèle, espace qu'il rendra en Go) pour un candidat successeur,
   - `disk_space_guard(ref: str, *, reclaim_gb: float=0.0, force: bool=False, needed_gb: float | None=None)` — Refuse une installation qui saturerait le volume. Retourne None si l'installation peut
+  - `similar_model_keys(key: str, limit: int=3) -> list[str]` — Les clés du catalogue (propositions comprises) qui désignent le MÊME dépôt ou le même nom
+  - `variant_owner_keys(repo: str) -> list[str]` — Les propositions dont `repo` est une VARIANTE quantisée (`prospect.quant_variants`) — la clé
   - `request_install(model_key: str, *, force: bool=False, variant_ref: str='', variant_file: str='', user=None, via: str='') -> dict` — DEMANDE d'installation par CLÉ — corps unique du geste « Installer » : choix de variante,
   - `dispatch_install(task, row, *, user_id=None, via='')` — SEUL point de dispatch des deux tâches d'installation : ouvre l'événement DATÉ du journal,
   - `install_candidate(cand, progress=None, token=None) -> dict` — Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
@@ -540,7 +613,7 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; v
 
 - **Domicile** : `wama/model_manager/services/prospector.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Prospection de modèles — version DÉTERMINISTE (sans LLM, sans scraping).
-- **API publique** (30) :
+- **API publique** (32) :
   - `hf_task_to_wama(pipeline_tag: str, tags=())` — (tâche NÔTRE, model_type) d'un dépôt HF, d'après son tag de pipeline ET les tags de sa
   - `card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str='') -> dict` — Ce que la CARTE HuggingFace dit d'un modèle, traduit en faits WAMA — MÉCANIQUEMENT, jamais
   - `prospect_hf(task: str, limit: int=15, library: str | None=None, min_downloads: int=0, search: str | None=None, sort: str='downloads')` — Top modèles HF d'une `task` (par téléchargements), avec flag « déjà dans WAMA ».
@@ -553,6 +626,7 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; v
   - `quantized_variants(hf_id: str, limit: int=5) -> list[dict]` — Dépôts HF dérivés QUANTISÉS d'un modèle (GGUF/FP8/4-8bit/AWQ…), triés par téléchargements.
   - `analyze_license(hf_id: str, license_id: str='', base_model=None, _profondeur: int=0)` — Verdict de COMPATIBILITÉ de licence d'un candidat, pour AFFICHAGE sur la card —
   - `install_options(cand) -> dict` — Options d'installation EXPLICITES d'un candidat HF : poids pleins + variantes quantisées,
+  - `needs_variant_choice(cand) -> bool` — Le candidat n'a-t-il AUCUN choix par défaut ? — vrai quand ses options ne portent pas de
   - `spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | None` — Le SPEC d'installation qui respecte le choix validé par l'utilisateur, ou None si le choix
   - `seed_hf_candidates(limit: int=12, min_downloads: int=1000, tasks=None) -> dict` — Candidats `is_proposed` depuis la bibliothèque HuggingFace — pendant HF de la découverte
   - `class HubRateLimited(Exception)` — Le Hub refuse encore (429) après l'attente qu'il demande : la passe s'arrête, et ce qu'elle
@@ -565,6 +639,7 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; v
   - `seed_yolo_candidate(name: str) -> dict` — Candidat de prospection pour des poids YOLO OFFICIELS demandés PAR LEUR NOM.
   - `github_release(ref: str)` — La version `owner/repo:tag` telle que l'API GitHub la publie (dict), `{}` si elle
   - `github_release_license(release: dict) -> str` — Licence DITE par le texte de la version (« License: CC BY 4.0 »), sinon '' — jamais
+  - `seed_ollama_candidate(name: str) -> dict` — Candidat de prospection pour un modèle Ollama demandé PAR SON NOM — le pendant de
   - `github_release_scale(release: dict)` — Facteur que le texte de la version DÉCLARE (« Scale: 4 »), sinon None — jamais déduit du
   - `pinned_github_asset(ref: str, asset: str, release: dict=None) -> dict` — {'asset', 'size', 'sha256', 'measured'} de l'asset d'une version, ou {'error'}.
   - `github_spec_from_manifest(manifest: dict) -> dict` — Descripteur `github` d'un manifeste `model` de source `github`, empreinte ÉPINGLÉE —
@@ -618,10 +693,12 @@ Choisit UN modèle : capacités, entrées, priorités, budget VRAM, qualité
 
 - **Domicile** : `wama/model_manager/services/model_selector.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : Sélection intelligente de modèles — centralisée pour toutes les apps WAMA.
-- **API publique** (10) :
+- **API publique** (12) :
   - `get_free_vram_gb() -> Optional[float]` — VRAM libre (Go) du GPU le plus libre, MOINS ce que d'autres process ont réservé.
   - `is_cloud(model) -> bool` — Ce modèle s'exécute-t-il CHEZ UN TIERS ? Lit le champ DÉCLARÉ (`AIModel.execution`),
   - `abilities_of(model) -> list` — Libellés des aptitudes déclarées par `model`, lus dans `ModelAbility` (+ sa spécialité).
+  - `domain_q(domain: dict)` — Le filtre (`Q`) d'un DOMAINE déclaré au schéma d'une app (`options_query` : `task`, une ou
+  - `intent_choice(candidates, quality: dict, cost: dict, quality_intent, key=id)` — Le candidat que le CURSEUR rapide/qualité désigne — la règle de TOUTES les apps :
   - `select_model(source: Optional[str]=None, *, model_type: Optional[str]=None, requires: Optional[List[str]]=None, classes: Optional[List[str]]=None, prefer_loade…` — Choisit le meilleur `AIModel` pour `source` (valeur ModelSource), ou None.
   - `list_models(source: str, downloaded_only: bool=True) -> List[dict]` — Liste des modèles d'une source (dicts to_dict — description courte/longue + vram).
   - `matches_inputs(model, available_inputs=None, task: Optional[str]=None, consumes=None) -> bool` — Ce modèle est-il utilisable avec les entrées dont on dispose ? (appariement entrée↔modèle)
@@ -1259,14 +1336,16 @@ Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama loca
 
 - **Domicile** : `wama/common/utils/llm_utils.py`
 - **Module** : WAMA Common — LLM utilities Shared Ollama client for use in Celery workers (transcriber, describer, ...).
-- **API publique** (15) :
+- **API publique** (17) :
   - `get_describer_model(content_type: str, output_style: str) -> str` — Return the Ollama model name to use for a given (content_type, output_style) pair.
   - `modele_par_defaut() -> str` — Modèle LLM à utiliser quand l'appelant n'en impose aucun — résolu, jamais figé.
   - `modele_par_tier(tier: str='default', exige=None, priority=None, prefer_loaded: bool=True) -> str` — Résolution PUBLIQUE d'un tier (`heavy`/`default`/`fast`) — même mécanique que
   - `ollama_chat(messages: list, model: str='', num_predict: int=2048, num_ctx: Optional[int]=None, think: bool=True, timeout: float=180.0, keep_alive: Optional[str…` — Send a chat request to the local Ollama server.
+  - `declared_llm_source(provider: str)` — La source `external_sources` d'un fournisseur DISTANT que `llm_chat` sait appeler, ou None.
   - `openai_compatible_source(provider: str) -> str` — La source `external_sources` d'un fournisseur qui parle le protocole OpenAI depuis une
   - `default_cloud_model(provider: str) -> str` — Modèle par défaut d'un fournisseur cloud : réglage déclaré, sinon celui de sa source
   - `llm_chat(messages: list, model: str=None, provider: str=None, num_predict: int=2048, num_ctx: Optional[int]=None, think: bool=True, timeout: float=180.0, api_k…` — Unified LLM chat function — provider-agnostic entry point.
+  - `tool_call_text(name: str, arguments) -> str` — Un appel d'outil NATIF (nom + arguments JSON du fournisseur) rendu dans la forme texte de
   - `chat_with_catalog_model(catalog_key: str, messages: list, *, user=None, num_predict: Optional[int]=None, think: bool=False, timeout: Optional[float]=None, temp…` — Un appel LLM désigné par une CLÉ DE CATALOGUE (`ollama:qwen3.8:latest`,
   - `chat_with_source(source: str, model_id: Optional[str], messages: list, *, user=None, num_predict: Optional[int]=None, think: bool=False, timeout: Optional[floa…` — Un appel à un fournisseur LLM DÉCLARÉ (`external_sources`, type `llm` : Albert, API
   - `extract_json_from_llm(text: str) -> Optional[dict]` — Extract the first valid JSON object from an LLM response.
@@ -1392,6 +1471,17 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
   - `warm_up() -> dict` — Remplit les caches de processus du tour d'assistant — `{étape: secondes | 'erreur : …'}`.
   - `conversation_turn(user, message: str, *, surface: str='web', thread_key: str='', provider: str=None, model: str=None, domain: str=None, on_event=None) -> dict` — UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
   - `run_assistant_turn(user, message: str, provider: str=None, model: str=None, history: list=None, domain: str=None, surface: str='web', on_event=None, escalated_…` — UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
+
+### Pages qu'un utilisateur peut ouvrir (« emmène-moi sur… »)
+
+Les pages du menu Applications — apps du catalogue et surfaces déclarées, lues par `get_app_groups` — filtrées par le DROIT du menu (`accessible_apps`) mais pas par la préférence d'affichage, qui ne retire aucun droit. Sert l'outil `open_page` ; le chat web suit la page une fois la réponse dite (`applyActions`, 2026-10-11). ⚠ Le gestionnaire de fichiers, le journal, le calendrier et les catalogues ne sont déclarés nulle part comme pages : les ouvrir demande de les DÉCLARER
+
+- **Domicile** : `wama/common/services/navigation.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
+- **Module** : Les PAGES qu'un utilisateur peut ouvrir — ce que l'assistant propose quand on lui demande « emmène-moi sur… » (outil `open_page`, 2026-10-11).
+- **API publique** (3) :
+  - `navigable_pages(user) -> list` — Les pages que `user` a le DROIT d'ouvrir : `[{'key', 'label', 'url', 'world',
+  - `find_page(user, page: str)` — La page que `page` désigne (clé ou libellé, casse et accents ignorés) parmi celles que
+  - `absolute_url(path: str) -> str` — L'adresse COMPLÈTE d'une page, pour une surface hors navigateur (un canal) — '' si
 
 ### Pipeline de prompts
 
@@ -2995,8 +3085,9 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (92) :
+- **API publique** (96) :
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
+  - `find_user_files(user, query: str, limit: int=20) -> dict` — Find the user's files BY NAME everywhere the File Manager shows them: the temporary folder,
   - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
   - `start_anonymizer(user, media_id: int=None) -> dict` — Trigger Celery processing for a specific media item or all pending items.
   - `get_anonymizer_status(user) -> dict` — Return status of the user's current anonymizer jobs (last 10).
@@ -3024,6 +3115,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `convert_file(user, file_path: str, output_format: str, quality_preset: str='balanced', **params) -> dict` — Queue a file conversion and start it immediately.
   - `list_media_assets(user, asset_type: str='', q: str='') -> dict` — List the user's personal media library assets.
   - `switch_ui_mode(user, mode: str='simple') -> dict` — Switch the WAMA interface mode for the current user.
+  - `open_page(user, page: str) -> dict` — Take the user to a WAMA application page — "emmène-moi sur l'Anonymizer", "ouvre la
   - `get_media_asset_url(user, asset_id: int) -> dict` — Get the file URL of a specific media library asset.
   - `inspect_user_file(user, file_path: str) -> dict` — Ask WAMA what it can do with one of the user's files: which app PORT can take it
   - `look_at_image(user, file_path: str, question: str='') -> dict` — Look at ONE of the user's images with a vision model and return what it shows.
@@ -3045,6 +3137,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `get_ai_model(user, model_key: str) -> dict` — Full catalogue record of ONE model (read-only). `model_key` = '<app>:<id>'
   - `search_models(user, query: str, limit: int=10, max_results: int=5) -> dict` — SEARCH HuggingFace for models matching `query` and record them as prospection
   - `prospect_models(user) -> dict` — PROSPECT for new models and record them as PROPOSALS — same verb as the page's
+  - `get_install_options(user, model_key: str) -> dict` — INSTALL CHOICES of a proposal — same verb as the options the page shows before « Installer »
   - `install_model(user, model_key: str, force: bool=False, variant_ref: str='', variant_file: str='') -> dict` — INSTALL a model that is already PROPOSED (prospection candidate) or already in the
   - `plan_library_integration(user, dist: str) -> dict` — PLAN for integrating a Python library (pip distribution) — read-only, executes nothing.
   - `plan_model_integration(user, model: str) -> dict` — PLAN for integrating an AI model — read-only, executes nothing.
@@ -3064,6 +3157,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `list_registries(user) -> dict` — List what WAMA knows how to NAME: its registries (apps, models, backends, functions,
   - `get_my_access(user) -> dict` — What the current user is allowed to do: account tier, business roles, and which apps they
   - `list_my_memories(user, kind: str='', limite: int=25) -> dict` — List what WAMA remembers for this user — facts, events and procedures it has kept.
+  - `remember_fact(user, content: str, kind: str='semantic', subject: str='') -> dict` — Save something the user wants WAMA to remember — a fact, a correction, a preference, the
   - `tool_role(tool_name)` — Rôle d'un outil dans la triade : 'add' | 'start' | 'status', sinon None.
   - `app_id_for_tool(tool_name)` — app_id gardé correspondant à un outil, ou None si l'outil est transverse.
   - `tool_family(tool_name)` — La FAMILLE d'un outil : la clé d'adapter de détail (`DetailRegistry`) des éléments qu'il
