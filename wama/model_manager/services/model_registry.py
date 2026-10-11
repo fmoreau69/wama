@@ -1239,6 +1239,38 @@ class ModelRegistry:
             except Exception as e:
                 self.discovery_errors.append(f'face_analyzer:{model_id}: {e}')
 
+        # MediaPipe Tasks : `face_landmarker.task`, DÉCLARÉ par l'app (2026-10-11) — publié à part
+        # par Google, contrairement aux `.tflite` de l'API legacy embarqués dans la roue. La ligne
+        # existe même absente : elle est installable (pilote `files`, origine officielle).
+        try:
+            from wama.model_manager.services.model_installer import declared_files_present
+            from wama_lab.face_analyzer.utils.model_config import (
+                FACE_LANDMARKER_FILES, FACE_LANDMARKER_KEY, MEDIAPIPE_DIR, face_landmarker_path,
+            )
+            self._models[FACE_LANDMARKER_KEY] = ModelInfo(
+                id=FACE_LANDMARKER_KEY,
+                name='MediaPipe Face Landmarker',
+                model_type=ModelType.VISION,
+                source=ModelSource.WAMA_FACE_ANALYZER,
+                description="Repères du visage (478 points) — API « tasks » de MediaPipe, sur "
+                            "le processeur ; la géométrie que le Face Analyzer mesure image par "
+                            "image.",
+                vram_gb=0.0,
+                is_downloaded=declared_files_present(MEDIAPIPE_DIR, FACE_LANDMARKER_FILES),
+                backend_ref='face_analyzer',
+                format='task',
+                preferred_format='task',
+                extra_info={'path': str(face_landmarker_path()),
+                            'size_bytes': sum(f['size'] for f in FACE_LANDMARKER_FILES),
+                            'install_dir': str(MEDIAPIPE_DIR),
+                            'declared_files': FACE_LANDMARKER_FILES},
+                capabilities={'task': 'face-analysis', 'modalities': ['image', 'video'],
+                              'inputs_required': ['work_file']},
+                composition={'runtime': {'engine': 'mediapipe'}},
+            )
+        except Exception as e:
+            self.discovery_errors.append(f'face_analyzer:mediapipe-face-landmarker: {e}')
+
     def _discover_depth_models(self):
         """Modèles de profondeur monoculaire (task=depth-estimation) installés par la route du
         catalogue (`install_dir` déclaré) dans `models/vision/depth-pro/` et `…/zoedepth/`.
@@ -1838,49 +1870,70 @@ class ModelRegistry:
             _stem_to_id = {Path(cfg.get('file', '')).stem: mid
                            for mid, cfg in _ENH_MODELS.items() if cfg.get('file')}
 
+            from wama.model_manager.services.model_installer import declared_files_present
+
+            def _onnx_row(model_name, onnx_file, size_mb, is_downloaded, install=None):
+                # Capacités : tâche (débruitage IRCNN vs upscaling) + facteur d'échelle.
+                _n = model_name.lower()
+                _caps = {
+                    'task': 'denoise' if 'ircnn' in _n else 'upscale',
+                    'modalities': ['image', 'video'],
+                    # Appariement entrée↔modèle (INPUT_MODEL_MATCHING.md) : un upscaler
+                    # exige le fichier de travail. Sans cette clé, WamaInputMatch n'a rien
+                    # à comparer et ne peut pas griser les moteurs incompatibles.
+                    'inputs_required': ['work_file'],
+                }
+                if 'x4' in _n:
+                    _caps['scale'] = 4
+                elif 'x2' in _n:
+                    _caps['scale'] = 2
+
+                # These models are already in ONNX format
+                self._models[f"enhancer:{model_name}"] = ModelInfo(
+                    id=f"enhancer:{model_name}",
+                    name=model_name,
+                    model_type=ModelType.UPSCALING,
+                    source=ModelSource.WAMA_ENHANCER,
+                    # Descriptions déclarées dans enhancer/utils/model_config.py (R9,
+                    # court/long séparés) ; repli générique si fichier ONNX inconnu.
+                    description=_ENH_DESC.get(model_name, {}).get(
+                        'long', f"ONNX upscaling model ({size_mb:.1f}MB)"),
+                    description_short=_ENH_DESC.get(model_name, {}).get(
+                        'short', f"ONNX upscaling model ({size_mb:.1f}MB)"),
+                    vram_gb=round(size_mb / 500, 1),  # Estimate
+                    vram_provenance='heuristic',
+                    is_downloaded=is_downloaded,
+                    extra_info={'path': str(onnx_file), 'size_mb': size_mb, **(install or {})},
+                    backend_ref='enhancer',
+                    format='onnx',
+                    preferred_format=preferred,
+                    can_convert_to=[],  # Already optimal format
+                    capabilities=_caps,
+                )
+
             onnx_dir = settings.MODEL_PATHS.get('upscaling', {}).get('onnx')
-            if onnx_dir and Path(onnx_dir).exists():
-                for onnx_file in Path(onnx_dir).glob('*.onnx'):
-                    model_name = _stem_to_id.get(onnx_file.stem, onnx_file.stem)
-                    size_mb = onnx_file.stat().st_size / (1024 * 1024)
-
-                    # Capacités : tâche (débruitage IRCNN vs upscaling) + facteur d'échelle.
-                    _n = model_name.lower()
-                    _caps = {
-                        'task': 'denoise' if 'ircnn' in _n else 'upscale',
-                        'modalities': ['image', 'video'],
-                        # Appariement entrée↔modèle (INPUT_MODEL_MATCHING.md) : un upscaler
-                        # exige le fichier de travail. Sans cette clé, WamaInputMatch n'a rien
-                        # à comparer et ne peut pas griser les moteurs incompatibles.
-                        'inputs_required': ['work_file'],
-                    }
-                    if 'x4' in _n:
-                        _caps['scale'] = 4
-                    elif 'x2' in _n:
-                        _caps['scale'] = 2
-
-                    # These models are already in ONNX format
-                    self._models[f"enhancer:{model_name}"] = ModelInfo(
-                        id=f"enhancer:{model_name}",
-                        name=model_name,
-                        model_type=ModelType.UPSCALING,
-                        source=ModelSource.WAMA_ENHANCER,
-                        # Descriptions déclarées dans enhancer/utils/model_config.py (R9,
-                        # court/long séparés) ; repli générique si fichier ONNX inconnu.
-                        description=_ENH_DESC.get(model_name, {}).get(
-                            'long', f"ONNX upscaling model ({size_mb:.1f}MB)"),
-                        description_short=_ENH_DESC.get(model_name, {}).get(
-                            'short', f"ONNX upscaling model ({size_mb:.1f}MB)"),
-                        vram_gb=round(size_mb / 500, 1),  # Estimate
-                        vram_provenance='heuristic',
-                        is_downloaded=True,
-                        extra_info={'path': str(onnx_file), 'size_mb': size_mb},
-                        backend_ref='enhancer',
-                        format='onnx',
-                        preferred_format=preferred,
-                        can_convert_to=[],  # Already optimal format
-                        capabilities=_caps,
-                    )
+            if onnx_dir:
+                # Les modèles DÉCLARÉS par l'app, présents OU NON (2026-10-11) : un absent est une
+                # ligne INSTALLABLE (ses fichiers et leur origine sont déclarés — pilote `files`),
+                # plus un téléchargement au démarrage de `runserver`. Avant, un fichier absent
+                # n'avait pas de ligne : rien à installer, rien à dire.
+                declared_names = set()
+                for model_id, cfg in _ENH_MODELS.items():
+                    files = cfg.get('files') or []
+                    if not cfg.get('file') or not files:
+                        continue
+                    declared_names.add(cfg['file'])
+                    _onnx_row(model_id, Path(onnx_dir) / cfg['file'],
+                              sum(f['size'] for f in files) / (1024 * 1024),
+                              declared_files_present(onnx_dir, files),
+                              {'install_dir': str(onnx_dir), 'declared_files': files})
+                # Un ONNX posé à la main, que l'app ne déclare pas : catalogué tel qu'il est.
+                if Path(onnx_dir).exists():
+                    for onnx_file in Path(onnx_dir).glob('*.onnx'):
+                        if onnx_file.name in declared_names:
+                            continue
+                        _onnx_row(_stem_to_id.get(onnx_file.stem, onnx_file.stem), onnx_file,
+                                  onnx_file.stat().st_size / (1024 * 1024), True)
         except Exception as e:
             logger.debug(f"Could not discover Enhancer models: {e}")
 
@@ -2949,31 +3002,34 @@ class ModelRegistry:
         try:
             from django.conf import settings
 
-            lipsync_dir = Path(settings.BASE_DIR) / 'AI-models' / 'models' / 'lipsync'
-            if not lipsync_dir.exists():
-                return
+            from wama.avatarizer.utils.model_config import (
+                AVATARIZER_MODELS, CODEFORMER_MODELS_DIR, MUSETALK_MODELS_DIR,
+            )
+            from wama.model_manager.services.model_installer import declared_files_present
 
-            # MuseTalk V1.5 (main model used by the avatarizer pipeline)
-            musetalk_v15 = lipsync_dir / 'musetalk' / 'musetalkV15' / 'unet.pth'
-
+            # MuseTalk V1.5 — lu dans la DÉCLARATION de l'app (2026-10-11) : ses fichiers, leur
+            # origine et son dossier. Présent = TOUS les fichiers que l'inférence lit : l'unet seul
+            # ne l'attestait pas (le détecteur S3FD n'était pas dans AI-models), et un dossier
+            # `lipsync` absent masquait la ligne au lieu de la rendre installable.
             # La v1.0 est RETIRÉE (2026-09-30, REMOVAL_LEDGER) : son moteur exécutait toujours la
             # v1.5 (`--version v15`) — une ligne que rien n'exécutait, et 3,2 Go de poids.
-            for model_id, unet_path, name, description in [
-                ('musetalk-v1.5', musetalk_v15, 'MuseTalk v1.5', 'Lip-sync pipeline v1.5 (UNet + DWPose + Whisper + SD-VAE + SyncNet)'),
-            ]:
-                is_downloaded = unet_path.exists()
+            mt = AVATARIZER_MODELS.get('musetalk-v1.5') or {}
+            for model_id, files in ([('musetalk-v1.5', mt.get('files') or [])] if mt else []):
                 self._models[f"avatarizer:{model_id}"] = ModelInfo(
                     id=f"avatarizer:{model_id}",
-                    name=name,
+                    name='MuseTalk v1.5',
                     model_type=ModelType.LIPSYNC,
                     source=ModelSource.WAMA_AVATARIZER,
-                    description=description,
-                    hf_id='TMElyralab/MuseTalk',
+                    description='Lip-sync pipeline v1.5 (UNet + Whisper + SD-VAE + DWPose + '
+                                'S3FD + BiSeNet)',
+                    hf_id=mt.get('hf_id') or None,
                     vram_gb=4.0,
-                    is_downloaded=is_downloaded,
+                    is_downloaded=declared_files_present(MUSETALK_MODELS_DIR, files),
                     extra_info={
-                        'path': str(unet_path.parent),
+                        'path': str(MUSETALK_MODELS_DIR / 'musetalkV15'),
                         'pipeline': 'musetalk',
+                        'install_dir': str(MUSETALK_MODELS_DIR),
+                        'declared_files': files,
                     },
                     # Capacités CANONIQUES : lip-sync = image (avatar) + audio (voix) → vidéo.
                     # DEUX entrées requises : c'est le seul modèle du catalogue dans ce cas,
@@ -2996,14 +3052,8 @@ class ModelRegistry:
             # déclaration de l'app. Une déclaration que personne ne lit ne vaut rien — c'est
             # le même défaut de famille que les poids DeepFace hors catalogue (05/09).
             # On lit donc la DÉCLARATION plutôt que de re-coder ses valeurs ici.
-            from wama.avatarizer.utils.model_config import (
-                AVATARIZER_MODELS, CODEFORMER_MODELS_DIR,
-            )
             cf = AVATARIZER_MODELS.get('codeformer') or {}
             if cf:
-                # Le poids PRINCIPAL atteste la présence ; `facelib`/`realesrgan` sont ses
-                # composants et sont déclarés comme tels, pas comme des modèles à part.
-                poids = Path(CODEFORMER_MODELS_DIR) / 'CodeFormer' / 'codeformer.pth'
                 self._models['avatarizer:codeformer'] = ModelInfo(
                     id='avatarizer:codeformer',
                     name='CodeFormer',
@@ -3012,16 +3062,19 @@ class ModelRegistry:
                     description=cf.get('description', ''),
                     hf_id=cf.get('hf_id') or None,
                     vram_gb=cf.get('vram_gb'),
-                    is_downloaded=poids.exists(),
+                    # Présent = ses QUATRE fichiers déclarés (`facelib`/`realesrgan` sont ses
+                    # composants, déclarés comme tels, pas des modèles à part).
+                    is_downloaded=declared_files_present(CODEFORMER_MODELS_DIR,
+                                                         cf.get('files') or []),
                     extra_info={'path': str(CODEFORMER_MODELS_DIR),
                                 'pipeline': 'codeformer',
                                 'model_id': 'codeformer',
                                 # OÙ et QUOI installer (2026-10-10) : le dossier de l'app et les
-                                # fichiers d'une version GitHub qu'elle DÉCLARE — c'est ce qui
-                                # rend la ligne installable (`spec_for_catalog_row`).
+                                # fichiers qu'elle DÉCLARE, chacun avec son origine — c'est ce
+                                # qui rend la ligne installable (`spec_for_catalog_row`).
                                 **({'install_dir': str(CODEFORMER_MODELS_DIR),
-                                    'release_files': cf['release']}
-                                   if cf.get('release') else {})},
+                                    'declared_files': cf['files']}
+                                   if cf.get('files') else {})},
                     # `pipeline_stage` (2026-09-29) : il restaure les images que MuseTalk produit —
                     # une étape de la chaîne, pas une porte d'entrée de l'avatarizer. Son entrée
                     # reste déclarée (elle est vraie pour le modèle), elle n'ouvre plus de port.

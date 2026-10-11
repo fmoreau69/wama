@@ -42,6 +42,11 @@ from django.conf import settings
 MUSETALK_MODELS_DIR = _Path(settings.MODEL_PATHS.get('lipsync', {}).get(
     'musetalk', settings.AI_MODELS_DIR / 'models' / 'lipsync' / 'musetalk'))
 MUSETALK_HF_CACHE = MUSETALK_MODELS_DIR / 'hf_cache'
+#: Où `torch.hub` du sous-processus range ses poids (`TORCH_HOME`, 2026-10-11) : le détecteur de
+#: visages S3FD que `face_detection` tire par `load_url` atterrissait dans `$HOME/.cache/torch`,
+#: hors d'`AI-models`. Le fichier est DÉCLARÉ par l'app sous ce sous-dossier (garde :
+#: `avatarizer/tests_musetalk_weights`).
+MUSETALK_TORCH_HOME = MUSETALK_MODELS_DIR / 'torch'
 MUSETALK_VRAM_GB = 8.0
 #: Le MOTEUR vendorisé se trouve sous la racine DÉCLARÉE (`settings.BACKEND_VENDOR_DIR`),
 #: dans le dossier qui porte son nom — celui d'`ENGINE`. Plus aucun paquet Python n'est
@@ -64,10 +69,32 @@ def _build_musetalk_env() -> dict:
     # jamais de telechargement dans le cache global par defaut.
     env['HF_HUB_CACHE'] = str(MUSETALK_HF_CACHE)
     env['HUGGINGFACE_HUB_CACHE'] = str(MUSETALK_HF_CACHE)
+    # Même idiome (l'environnement du SOUS-PROCESSUS, jamais celui de WAMA) pour torch.hub.
+    env['TORCH_HOME'] = str(MUSETALK_TORCH_HOME)
     # MuseTalk tourne sur torch : sans ceci, `transformers` importe TensorFlow (et keras) parce
     # qu'il est installé — ~30 s MESURÉES à chaque job (2026-09-30, `-X importtime`), pour rien.
     env['USE_TF'] = '0'
     return env
+
+
+def _ensure_models_link() -> None:
+    """Le code vendorisé lit ses poids sous `./models/…` (lancé `cwd=MUSETALK_DIR`) : un lien
+    `MUSETALK_DIR/models` → `MUSETALK_MODELS_DIR` les y montre.
+
+    Jusqu'au 2026-10-11, RIEN ne le créait : posé à la main en février, absent d'une installation
+    neuve (la route `library` ignore `models`, `ignore: ["models"]` du manifeste) — MuseTalk n'y
+    aurait trouvé aucun poids. Pendant de `_ensure_codeformer_weights_in_ai_models`. Idempotent ;
+    un DOSSIER réel à cette place n'est ni déplacé ni écrasé : il est signalé.
+    """
+    link = MUSETALK_DIR / 'models'
+    if link.is_symlink() or link.exists():
+        if not link.is_symlink():
+            logger.warning(f"[avatarizer] {link} est un dossier réel, pas le lien vers "
+                           f"{MUSETALK_MODELS_DIR} : les poids d'AI-models n'y sont pas lus.")
+        return
+    MUSETALK_MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(MUSETALK_MODELS_DIR.resolve(), target_is_directory=True)
+    logger.info(f"[avatarizer] MuseTalk : lien créé {link} → {MUSETALK_MODELS_DIR}")
 
 
 #: Délai du sous-processus : une part FIXE (démarrage à froid — imports ~165 s et poids ~35 s lus
@@ -101,6 +128,7 @@ def _run_musetalk(image_path: str, audio_path: str, output_dir: str, bbox_shift:
             "Installez-le par la route library : python manage.py install_library musetalk"
         )
 
+    _ensure_models_link()
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 

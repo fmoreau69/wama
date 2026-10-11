@@ -2671,3 +2671,48 @@ le 10/10 mais le Hub l'a refusé (429). L'assistant a donc installé un recondit
 chevauchement (prospection lancée par l'assistant + une synchro par installation) — les
 installations attendent leur enregistrement ; l'import d'un processus neuf a pris 3 min 54
 (14 s de calcul).
+
+**Suite du 2026-10-11 (après-midi) — extension de la route et téléchargeurs d'app, décisions de
+Fabien** (« option A : si tu trouves une version officielle, autant passer par là ; ok pour le
+miroir ; il faut aligner l'intégration des modèles d'où qu'ils viennent et garder toujours
+l'info de leur provenance »).
+- ✅ **Pilote `files`** (`model_installer.pull_declared_files`, remplace la variante
+  `pull_github_files` du 10/10) : une app DÉCLARE ses fichiers, chacun avec son ORIGINE parmi les
+  sources déclarées — `huggingface` figé à un COMMIT (une branche est refusée), `github` à un tag
+  exact, ou une adresse fixe sous une source de la famille « Outillage et poids »
+  (`external_sources`) ; taille ET empreinte épinglées ; chemin relatif sous le dossier de l'app,
+  lui-même sous la racine des modèles ; `download_asset` commun ; proxy de la source du fichier.
+  La provenance voyage : déclaration de l'app → `extra_info['declared_files']` de la ligne →
+  résultat de l'installation fichier par fichier (adresse, empreinte, `kept`/`downloaded`), donc le
+  journal. Aucune identité n'est déduite d'une origine : un miroir n'est pas un auteur. Deux
+  sources ajoutées : `mediapipe_models` (Google), `face_alignment` (site de l'auteur de la lib).
+- ✅ **Enhancer** : les sept ONNX déclarés (origine : miroir `svjack/AI-onnx` figé à `be603874`,
+  empreintes identiques aux fichiers en service, sans licence déclarée — accepté) ; la découverte
+  liste un modèle déclaré même ABSENT (installable) ; téléchargement au démarrage,
+  `model_downloader.py` et `download_enhancer_models` RETIRÉS (`REMOVAL_LEDGER R111`) ; les
+  `size_mb` faux remplacés par les tailles mesurées.
+- ✅ **Face Analyzer** : `face_landmarker.task` (versionné dans le dossier de l'app, retéléchargé
+  là sans contrôle) déplacé sous `MODEL_PATHS['vision']['mediapipe']`, déclaré à son adresse
+  OFFICIELLE (`float16/1`, mêmes octets que la copie versionnée), ligne
+  `face_analyzer:mediapipe-face-landmarker` ; l'app ne télécharge plus — un absent dit
+  « Installer ». ⚠ La docstring de `model_config` disait MediaPipe « embarqué dans la roue » : vrai
+  pour l'API legacy seule.
+- ✅ **MuseTalk** : onze fichiers déclarés (quatre dépôts du Hub figés, `resnet18` sur
+  download.pytorch.org, S3FD sur le site de l'auteur de face-alignment — pour ces deux-là le début
+  de l'empreinte est DANS le nom, convention torch.hub, et concorde — et BiSeNet `79999_iter.pth`
+  par un miroir du Hub, l'officiel n'étant que sur Google Drive) ; chaque origine téléchargée à
+  blanc et vérifiée à l'empreinte le 11/10. Le backend crée le lien `vendor/musetalk/models`
+  (`_ensure_models_link`) et pose `TORCH_HOME` dans l'environnement du SOUS-PROCESSUS : S3FD
+  (89,8 Mo) déplacé de `$HOME/.cache/torch` vers `lipsync/musetalk/torch/hub/checkpoints/`.
+  Présent = les onze fichiers. `setup_avatarizer.sh` étape 4 → `pull_model
+  avatarizer:musetalk-v1.5`. Les `MUSETALK_DIR`/`CODEFORMER_DIR` périmés de `model_config`
+  retirés (aucun lecteur).
+- 🔎 **SyncNet** (`syncnet/latentsync_syncnet.pt`, 1,4 Go, ByteDance/LatentSync) : lu par
+  l'entraînement SEUL (`train.py`, perte de synchronisation lèvres/audio) ; hors de la
+  déclaration. Le garder ou le retirer : décision de Fabien (re-téléchargeable depuis le dépôt
+  officiel).
+- ⏳ Restent : l'anonymizer (voie `yolo` existante — autre instance sur l'app) ; la désinstallation
+  d'une ligne à fichiers déclarés (le retrait ne sait viser qu'un dossier) ; les poids DeepFace
+  (tirés par la lib à l'usage, dans `AI-models` grâce à `DEEPFACE_HOME`, mais non installables par
+  la route) ; la clé facultative `GITHUB_TOKEN` (proposition faite).
+

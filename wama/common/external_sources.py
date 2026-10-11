@@ -585,7 +585,23 @@ SOURCES: tuple[ExternalSource, ...] = (
         kind='poids'),
     ExternalSource(
         'pytorch_download', 'download.pytorch.org', 'https://download.pytorch.org',
-        "Roues PyTorch/CUDA — installation de dépendances de modèles", kind='poids'),
+        "Roues PyTorch/CUDA — installation de dépendances de modèles ; poids officiels de "
+        "torchvision (`/models/…`, fichiers DÉCLARÉS : la dorsale resnet18 de MuseTalk)",
+        kind='poids'),
+    # 2026-10-11 (décision de Fabien : « une version officielle quand elle existe ») — deux
+    # serveurs de poids OFFICIELS, chacun pour des fichiers qu'une app DÉCLARE (pilote `files` de
+    # la route d'installation, empreinte épinglée). Ils n'ont pas d'autre usage.
+    ExternalSource(
+        'mediapipe_models', 'Modèles MediaPipe (Google)',
+        'https://storage.googleapis.com/mediapipe-models',
+        "Modèles des tâches MediaPipe publiés par Google — `face_landmarker.task` du Face Analyzer",
+        kind='poids'),
+    ExternalSource(
+        'face_alignment', 'face-alignment (site de son auteur)',
+        'https://www.adrianbulat.com/downloads/python-fan',
+        "Poids publiés par l'auteur de la librairie face-alignment — le détecteur de visages S3FD "
+        "que MuseTalk charge (l'empreinte du fichier est dans son nom, convention torch.hub)",
+        kind='poids'),
     ExternalSource(
         'osv', 'OSV (Open Source Vulnerabilities)', 'https://api.osv.dev/v1',
         "Audit de vulnérabilités des dépendances (contrôle nocturne)",

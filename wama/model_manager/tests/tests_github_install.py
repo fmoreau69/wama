@@ -592,15 +592,25 @@ class TheBackendReceivesItsOwnIdentifierTest(SimpleTestCase):
         self.assertEqual('4xNomosUni_span_multijpg', seen['model_name'])
 
 
-#: Fichiers déclarés par une app (variante du pilote, 2026-10-10) — la forme de CodeFormer.
-DECLARED = {'ref': 'sczhou/CodeFormer:v0.1.0', 'files': [
-    {'path': 'CodeFormer/codeformer.pth', 'size': 1000, 'sha256': hashlib.sha256(PAYLOAD).hexdigest()},
-    {'path': 'facelib/parsing_parsenet.pth', 'size': 2000, 'sha256': 'd' * 64}]}
+#: Fichiers déclarés par une app (pilote `files`, 2026-10-11) — chacun nomme son origine. Les
+#: trois formes : une version GitHub (CodeFormer), un dépôt du Hub figé à un commit, une adresse
+#: fixe sous une source déclarée « Outillage et poids » (MuseTalk lit les trois).
+COMMIT = '2bcb936e2fddb4d86db4c62fd45b387d0c061571'
+DECLARED = [
+    {'path': 'CodeFormer/codeformer.pth', 'size': 1000, 'sha256': hashlib.sha256(PAYLOAD).hexdigest(),
+     'origin': {'source': 'github', 'release': 'sczhou/CodeFormer:v0.1.0',
+                'file': 'codeformer.pth'}},
+    {'path': 'facelib/parsing_parsenet.pth', 'size': 2000, 'sha256': 'd' * 64,
+     'origin': {'source': 'huggingface', 'repo': 'TMElyralab/MuseTalk', 'revision': COMMIT,
+                'file': 'musetalkV15/unet.pth'}},
+    {'path': 'face-parse/resnet18.pth', 'size': 3000, 'sha256': 'e' * 64,
+     'origin': {'source': 'pytorch_download', 'file': 'models/resnet18-5c106cde.pth'}},
+]
 
 
-class DeclaredReleaseFilesTest(TestCase):
-    """Une ligne d'app qui DÉCLARE les fichiers d'une version : installable par le catalogue,
-    posée sous SON dossier, mêmes verrous et même téléchargement que le pilote `github`."""
+class DeclaredFilesTest(TestCase):
+    """Une ligne d'app qui DÉCLARE ses fichiers : installable par le catalogue, posée sous SON
+    dossier, chaque fichier tiré de SON origine déclarée, mêmes verrous et même téléchargement."""
 
     def setUp(self):
         self.root = tempfile.mkdtemp()
@@ -615,42 +625,93 @@ class DeclaredReleaseFilesTest(TestCase):
                        hf_id='sczhou/CodeFormer', extra_info=extra)
 
     def _spec(self, **over):
-        return {'kind': 'github', **DECLARED, 'target_dir': self.app_dir, **over}
+        return {'kind': 'files', 'ref': 'avatarizer:codeformer', 'files': DECLARED,
+                'target_dir': self.app_dir, **over}
+
+    def _with_origin(self, **origin):
+        return [{**DECLARED[0], 'origin': origin}]
 
     def test_the_catalogue_row_derives_a_files_spec_before_its_hf_id(self):
-        spec = mi.spec_for_catalog_row(self._row(install_dir=self.app_dir, release_files=DECLARED))
-        self.assertEqual('github', spec['kind'], 'the declared files win over the hf_id')
-        self.assertEqual(DECLARED['files'], spec['files'])
-        self.assertEqual(self.app_dir, spec['target_dir'])
-        self.assertIsNone(mi.github_spec_error(spec))
+        spec = mi.spec_for_catalog_row(self._row(install_dir=self.app_dir,
+                                                 declared_files=DECLARED))
+        self.assertEqual('files', spec['kind'], 'the declared files win over the hf_id')
+        self.assertEqual(('avatarizer:codeformer', DECLARED, self.app_dir),
+                         (spec['ref'], spec['files'], spec['target_dir']))
+        self.assertIsNone(mi.declared_files_error(spec))
 
     def test_counter_proof_outside_the_models_root_is_not_installable(self):
         self.assertIsNone(mi.spec_for_catalog_row(
-            self._row(install_dir='/elsewhere', release_files=DECLARED)))
+            self._row(install_dir='/elsewhere', declared_files=DECLARED)))
 
     def test_counter_proof_a_hf_app_row_keeps_its_hf_spec(self):
         spec = mi.spec_for_catalog_row(self._row(install_dir=self.app_dir))
         self.assertEqual(('hf', 'sczhou/CodeFormer'), (spec['kind'], spec['ref']))
 
-    def test_the_lock_refuses_a_path_that_climbs_or_a_missing_digest(self):
-        for files, motive in (([{'path': '../x.pth', 'sha256': 'a' * 64}], 'fichier refusé'),
-                              ([{'path': '/abs.pth', 'sha256': 'a' * 64}], 'fichier refusé'),
-                              ([{'path': 'a/x.pth', 'sha256': ''}], 'sha256'),
+    def test_the_lock_refuses_a_path_that_climbs_a_missing_digest_or_size(self):
+        good = DECLARED[0]
+        for files, motive in (([{**good, 'path': '../x.pth'}], 'fichier refusé'),
+                              ([{**good, 'path': '/abs.pth'}], 'fichier refusé'),
+                              ([{**good, 'sha256': ''}], 'sha256'),
+                              ([{**good, 'size': None}], 'size manquante'),
+                              ([{**good, 'size': 0}], 'size manquante'),
                               ([], 'liste non vide')):
             with self.subTest(files=files):
-                self.assertIn(motive, mi.github_spec_error(self._spec(files=files)) or '')
-        self.assertIn('target_dir', mi.github_spec_error(self._spec(target_dir='')))
+                self.assertIn(motive, mi.declared_files_error(self._spec(files=files)) or '')
+        self.assertIn('target_dir', mi.declared_files_error(self._spec(target_dir='')))
 
-    def test_files_land_under_the_app_folder_through_the_common_download(self):
+    def test_an_origin_is_frozen_and_comes_from_a_declared_source(self):
+        hf = {'source': 'huggingface', 'repo': 'TMElyralab/MuseTalk', 'revision': COMMIT,
+              'file': 'musetalkV15/unet.pth'}
+        cases = (
+            ({**hf, 'revision': 'main'}, 'COMMIT exact'),
+            ({**hf, 'revision': COMMIT[:12]}, 'COMMIT exact'),
+            ({**hf, 'repo': 'https://evil/x'}, 'dépôt refusé'),
+            ({**hf, 'file': '../escape'}, 'file refusé'),
+            ({'source': 'github', 'release': 'sczhou/CodeFormer:latest', 'file': 'a.pth'},
+             'tag refusé'),
+            ({'source': 'github', 'release': 'sczhou/CodeFormer:v0.1.0', 'file': 'a/b.pth'},
+             'asset refusé'),
+            ({'source': 'nowhere', 'file': 'a.pth'}, 'source refusée'),
+            # Une source déclarée, mais pas un hébergeur de poids : une API de LLM n'en sert pas.
+            ({'source': 'albert', 'file': 'a.pth'}, 'source refusée'),
+            ({'source': 'pytorch_download', 'file': '../../etc/passwd'}, 'file refusé'),
+            (None, 'source refusée'),
+        )
+        for origin, motive in cases:
+            with self.subTest(origin=origin):
+                self.assertIn(motive, mi.declared_files_error(
+                    self._spec(files=[{**DECLARED[0], 'origin': origin}])) or '')
+        for origin in (hf, DECLARED[0]['origin'], DECLARED[2]['origin']):
+            with self.subTest(accepted=origin):
+                self.assertIsNone(mi.declared_files_error(self._spec(files=self._with_origin(
+                    **origin))))
+
+    def test_each_address_derives_from_its_declared_source(self):
         from wama.common.external_sources import base_url
-        with patch.object(mi, 'download_asset', return_value={'ok': True}) as dl:
-            res = mi.pull_github_files(self._spec())
+        self.assertEqual(
+            [f"{base_url('github')}/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth",
+             f"{base_url('huggingface')}/TMElyralab/MuseTalk/resolve/{COMMIT}/"
+             "musetalkV15/unet.pth",
+             f"{base_url('pytorch_download')}/models/resnet18-5c106cde.pth"],
+            [mi.declared_file_url(f['origin']) for f in DECLARED])
+
+    def test_files_land_under_the_app_folder_each_through_its_source(self):
+        with patch.object(mi, 'download_asset', return_value={'ok': True}) as dl, \
+                patch('wama.common.external_sources.proxies_for',
+                      side_effect=lambda key: {'via': key}):
+            res = mi.pull_declared_files(self._spec())
         self.assertTrue(res['ok'], res)
         calls = {c.args[1]: c for c in dl.call_args_list}
-        target = os.path.join(self.app_dir, 'facelib', 'parsing_parsenet.pth')
-        self.assertEqual(f"{base_url('github')}/sczhou/CodeFormer/releases/download/v0.1.0/"
-                         "parsing_parsenet.pth", calls[target].args[0])
-        self.assertEqual('d' * 64, calls[target].kwargs['sha256'])
+        target = os.path.join(self.app_dir, 'face-parse', 'resnet18.pth')
+        self.assertTrue(calls[target].args[0].endswith('/models/resnet18-5c106cde.pth'))
+        self.assertEqual('e' * 64, calls[target].kwargs['sha256'])
+        self.assertEqual({'via': 'pytorch_download'}, calls[target].kwargs['proxies'],
+                         "the proxy follows the file's own source")
+        # La provenance de CHAQUE fichier est rendue (donc journalisée).
+        self.assertEqual({(d['path'], d['action']) for d in res['files']},
+                         {(os.path.join(self.app_dir, *f['path'].split('/')), 'downloaded')
+                          for f in DECLARED})
+        self.assertTrue(all(d['url'] and d['sha256'] for d in res['files']))
 
     def test_a_file_in_place_is_kept_and_a_different_one_stops_everything(self):
         good = os.path.join(self.app_dir, 'CodeFormer', 'codeformer.pth')
@@ -658,35 +719,59 @@ class DeclaredReleaseFilesTest(TestCase):
         with open(good, 'wb') as fh:
             fh.write(PAYLOAD)
         with patch.object(mi, 'download_asset', return_value={'ok': True}) as dl:
-            res = mi.pull_github_files(self._spec())
+            res = mi.pull_declared_files(self._spec())
         self.assertEqual([good], res['kept'])
-        self.assertEqual(1, dl.call_count, 'only the missing file is downloaded')
+        self.assertEqual(2, dl.call_count, 'only the missing files are downloaded')
         with open(good, 'wb') as fh:
             fh.write(b'other')
         with patch.object(mi, 'download_asset') as dl:
-            res = mi.pull_github_files(self._spec())
+            res = mi.pull_declared_files(self._spec())
         self.assertFalse(res['ok'])
         self.assertIn('AUTRE empreinte', res['error'])
         dl.assert_not_called()
 
+    def test_a_failed_file_stops_the_install_and_says_what_was_done(self):
+        with patch.object(mi, 'download_asset',
+                          side_effect=[{'ok': True}, {'ok': False, 'error': 'empreinte'}]) as dl:
+            res = mi.pull_declared_files(self._spec())
+        self.assertFalse(res['ok'])
+        self.assertEqual(2, dl.call_count, 'nothing is tried after the failing file')
+        self.assertEqual(1, len(res['files']))
+
     def test_a_target_outside_the_models_root_is_refused(self):
         with patch.object(mi, 'download_asset') as dl:
-            res = mi.pull_github_files(self._spec(target_dir=tempfile.mkdtemp()))
+            res = mi.pull_declared_files(self._spec(target_dir=tempfile.mkdtemp()))
         self.assertFalse(res['ok'])
         dl.assert_not_called()
 
     def test_the_weight_is_the_declared_sizes(self):
-        self.assertEqual(round(3000 / 1024 ** 3, 3), mi.weight_for_spec(self._spec()))
+        self.assertEqual(round(6000 / 1024 ** 3, 3), mi.weight_for_spec(self._spec()))
         self.assertIsNone(mi.weight_for_spec(self._spec(files=[
-            {'path': 'a/x.pth', 'sha256': 'a' * 64}])), 'an undeclared size is never assumed')
+            {**DECLARED[0], 'size': None}])), 'an undeclared size is never assumed')
 
-    def test_install_from_spec_dispatches_the_files_variant(self):
-        with patch.object(mi, 'pull_github_files', return_value={'ok': True}) as files, \
+    def test_presence_needs_every_declared_file(self):
+        self.assertFalse(mi.declared_files_present(self.app_dir, DECLARED))
+        for f in DECLARED:
+            path = os.path.join(self.app_dir, *f['path'].split('/'))
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            open(path, 'wb').close()
+        self.assertTrue(mi.declared_files_present(self.app_dir, DECLARED))
+        os.remove(os.path.join(self.app_dir, 'face-parse', 'resnet18.pth'))
+        self.assertFalse(mi.declared_files_present(self.app_dir, DECLARED))
+        self.assertFalse(mi.declared_files_present(self.app_dir, []))
+
+    def test_install_from_spec_dispatches_the_files_driver(self):
+        with patch.object(mi, 'pull_declared_files', return_value={'ok': True}) as files, \
                 patch.object(mi, 'pull_github_asset') as single, \
                 patch.object(mi, 'record_provenance', side_effect=lambda s, r: r):
             mi.install_from_spec(self._spec())
         files.assert_called_once()
         single.assert_not_called()
+
+    def test_no_identity_is_drawn_from_a_files_origin(self):
+        """A mirror is not an author: the model's identity is the one its discovery declares."""
+        from wama.model_manager.services.provenance import identity_for_spec
+        self.assertIsNone(identity_for_spec(self._spec()))
 
 
 class PullModelRequestsTheInstallTest(TestCase):
@@ -718,7 +803,7 @@ class PullModelRequestsTheInstallTest(TestCase):
             app_dir = os.path.join(root, 'models', 'lipsync', 'codeformer')
             AIModel.objects.create(model_key='avatarizer:codeformer', name='CodeFormer',
                                    source='avatarizer', model_type='vision',
-                                   extra_info={'install_dir': app_dir, 'release_files': DECLARED})
+                                   extra_info={'install_dir': app_dir, 'declared_files': DECLARED})
             with patch.object(mi, 'disk_space_guard', return_value=None), \
                     patch.object(install_catalog_task, 'delay') as delay:
                 delay.return_value.id = 't1'

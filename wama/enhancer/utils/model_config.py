@@ -85,6 +85,23 @@ REGISTRY_MODEL_DESCRIPTIONS = {
 # MODEL DEFINITIONS
 # =============================================================================
 
+#: D'OÙ viennent les poids — déclaré (pilote `files` de la route d'installation, 2026-10-11).
+#: Le téléchargeur d'origine tirait des versions GitHub de QualityScaler (Djdefrag) : elles ne
+#: publient plus AUCUN fichier (mesuré sur les 10 dernières). Son repli, le miroir du Hub
+#: `svjack/AI-onnx`, sert les sept fichiers aux empreintes IDENTIQUES à ceux en service (mesuré
+#: le 11/10, l'Anime y porte un autre nom). Il ne déclare aucune licence : accepté par Fabien, parce
+#: que l'empreinte épinglée garantit qu'on installe les octets déjà en service, pas ce que le
+#: miroir servira demain. Figé à son commit. Taille et empreinte MESURÉES sur les fichiers installés
+#: (les `size_mb` d'avant annonçaient 22 Mo pour 2,4 Mo, 4 Mo pour 33 Mo, 30 Mo pour 0,4 Mo).
+ONNX_MIRROR = {'source': 'huggingface', 'repo': 'svjack/AI-onnx',
+               'revision': 'be603874bb76213dbae5387b5655b327787c3faa'}
+
+
+def _mirror_file(file, size, sha256, mirror_name=None):
+    return {'path': file, 'size': size, 'sha256': sha256,
+            'origin': {**ONNX_MIRROR, 'file': mirror_name or file}}
+
+
 ENHANCER_MODELS = {
     'RealESR_Gx4': {
         'model_id': 'RealESR_Gx4',
@@ -93,7 +110,8 @@ ENHANCER_MODELS = {
         'type': 'upscaling',
         'scale': 4,
         'vram_usage': 2.5,
-        'size_mb': 22,
+        'files': [_mirror_file('RealESR_Gx4_fp16.onnx', 2445042,
+                               'fcbba7804f57ea68c1fde65911df095a6e8a6a46bd2d9c9fb3c477b3be3cfeb2')],
         'description': 'Fast general-purpose 4x upscaler',
         'priority': 1,
     },
@@ -104,7 +122,9 @@ ENHANCER_MODELS = {
         'type': 'upscaling',
         'scale': 4,
         'vram_usage': 2.5,
-        'size_mb': 22,
+        'files': [_mirror_file('RealESR_Animex4_fp16.onnx', 1253201,
+                               '814933bdf1adcd79dd30571c639982ec093028c355744882cbe2e6b604e5b42b',
+                               mirror_name='RealSRx4_Anime_fp16.onnx')],
         'description': 'Fast anime-oriented 4x upscaler',
         'priority': 3,
     },
@@ -115,7 +135,8 @@ ENHANCER_MODELS = {
         'type': 'upscaling',
         'scale': 2,
         'vram_usage': 0.75,
-        'size_mb': 4,
+        'files': [_mirror_file('BSRGANx2_fp16.onnx', 33747643,
+                               '62a806086d56de5233e5bf05403367a629bb1310835ed1dfce997384a3219d38')],
         'description': 'High-quality 2x upscaler',
         'priority': 2,
     },
@@ -126,7 +147,8 @@ ENHANCER_MODELS = {
         'type': 'upscaling',
         'scale': 4,
         'vram_usage': 0.75,
-        'size_mb': 4,
+        'files': [_mirror_file('BSRGANx4_fp16.onnx', 33822821,
+                               '185f9dd875de96726fbf8de9bc91945df0e7c81caae6415633167d54d6518483')],
         'description': 'High-quality 4x upscaler',
         'priority': 2,
     },
@@ -137,7 +159,8 @@ ENHANCER_MODELS = {
         'type': 'upscaling',
         'scale': 4,
         'vram_usage': 2.5,
-        'size_mb': 22,
+        'files': [_mirror_file('RealESRGANx4_fp16.onnx', 33748852,
+                               '1c3aea7e3f40418a606c2025aea6eeb724a8c831fe3059095d82c97a839fa86c')],
         'description': 'Highest quality 4x upscaler (slow)',
         'priority': 3,
     },
@@ -148,7 +171,8 @@ ENHANCER_MODELS = {
         'type': 'denoising',
         'scale': 1,
         'vram_usage': 4.0,
-        'size_mb': 30,
+        'files': [_mirror_file('IRCNN_Mx1_fp16.onnx', 380171,
+                               '67d78879e7cb801c7a02eb502e0e24fc939b0d1c3aa8b08b84a160b8e6047b0f')],
         'description': 'Medium denoising (no upscaling)',
         'priority': 4,
     },
@@ -159,7 +183,8 @@ ENHANCER_MODELS = {
         'type': 'denoising',
         'scale': 1,
         'vram_usage': 4.0,
-        'size_mb': 30,
+        'files': [_mirror_file('IRCNN_Lx1_fp16.onnx', 380171,
+                               '614528d84916c3b8f0941c163843bf155dc42ebabbf893b2474477f53f736678')],
         'description': 'Strong denoising (no upscaling)',
         'priority': 4,
     },

@@ -27,6 +27,7 @@ class MuseTalkLaunchTest(SimpleTestCase):
         (self.out / 'v15').mkdir(parents=True)
         (self.out / 'v15' / 'avatar_audio.mp4').write_bytes(b'mp4')
         patchers = [mock.patch.object(mb, 'MUSETALK_DIR', self.root / 'engine'),
+                    mock.patch.object(mb, 'MUSETALK_MODELS_DIR', self.root / 'weights'),
                     mock.patch.object(mb, 'vram_reservation', lambda *a, **k: nullcontext())]
         for patcher in patchers:
             patcher.start()
@@ -60,3 +61,26 @@ class MuseTalkLaunchTest(SimpleTestCase):
         self.assertEqual('0', kwargs['env']['USE_TF'])
         self.assertEqual(str(mb.MUSETALK_HF_CACHE), kwargs['env']['HF_HUB_CACHE'],
                          "le cache HF du sous-processus reste le sien")
+
+    def test_torch_hub_weights_land_in_the_model_folder_not_home(self):
+        """S3FD (`load_url`) allait dans `$HOME/.cache/torch` (2026-10-11)."""
+        _, kwargs = self._launch(3.0)
+        self.assertEqual(str(mb.MUSETALK_TORCH_HOME), kwargs['env']['TORCH_HOME'])
+
+    def test_the_models_link_is_created_when_missing(self):
+        """Rien ne créait `vendor/musetalk/models` : une installation neuve n'avait aucun poids."""
+        self._launch(3.0)
+        link = self.root / 'engine' / 'models'
+        self.assertTrue(link.is_symlink())
+        self.assertEqual((self.root / 'weights').resolve(), link.resolve())
+        self._launch(3.0)                     # idempotent : un second lancement ne casse rien
+        self.assertTrue(link.is_symlink())
+
+    def test_a_real_folder_in_place_is_left_alone(self):
+        """Contre-épreuve : on ne déplace ni n'écrase ce qu'on n'a pas posé."""
+        real = self.root / 'engine' / 'models'
+        real.mkdir()
+        (real / 'mine.pth').write_bytes(b'x')
+        self._launch(3.0)
+        self.assertFalse(real.is_symlink())
+        self.assertTrue((real / 'mine.pth').exists())

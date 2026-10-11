@@ -17,28 +17,33 @@ from wama.avatarizer.utils import model_config
 
 class CodeFormerWeightsDeclarationTest(SimpleTestCase):
 
-    def test_the_declared_files_pass_the_github_driver_lock(self):
-        from wama.model_manager.services.model_installer import github_spec_error
-        spec = {'kind': 'github', **model_config.CODEFORMER_RELEASE,
+    def test_the_declared_files_pass_the_files_driver_lock(self):
+        from wama.model_manager.services.model_installer import declared_files_error
+        spec = {'kind': 'files', 'ref': 'avatarizer:codeformer',
+                'files': model_config.CODEFORMER_FILES,
                 'target_dir': str(model_config.CODEFORMER_MODELS_DIR)}
-        self.assertIsNone(github_spec_error(spec))
-        self.assertTrue(all(f.get('size') for f in spec['files']), 'sizes are measured facts')
+        self.assertIsNone(declared_files_error(spec))
+
+    def test_every_file_comes_from_the_same_release(self):
+        origins = {(f['origin']['source'], f['origin']['release'])
+                   for f in model_config.CODEFORMER_FILES}
+        self.assertEqual({('github', 'sczhou/CodeFormer:v0.1.0')}, origins)
 
     def test_the_subfolders_the_backend_links_are_the_declared_ones(self):
         """The backend names the folders it links (it cannot import the app) — they must be the
         ones the declared files live in."""
         from wama.common.backends.codeformer_backend import CODEFORMER_WEIGHTS_SUBDIRS
         declared = list(dict.fromkeys(f['path'].split('/', 1)[0]
-                                      for f in model_config.CODEFORMER_RELEASE['files']))
+                                      for f in model_config.CODEFORMER_FILES))
         self.assertEqual(CODEFORMER_WEIGHTS_SUBDIRS, declared)
 
     def test_the_main_weight_is_where_the_discovery_looks(self):
-        paths = [f['path'] for f in model_config.CODEFORMER_RELEASE['files']]
+        paths = [f['path'] for f in model_config.CODEFORMER_FILES]
         self.assertIn('CodeFormer/codeformer.pth', paths)   # model_registry: is_downloaded
 
     def test_the_app_declares_it_on_its_model(self):
-        self.assertIs(model_config.CODEFORMER_RELEASE,
-                      model_config.AVATARIZER_MODELS['codeformer']['release'])
+        self.assertIs(model_config.CODEFORMER_FILES,
+                      model_config.AVATARIZER_MODELS['codeformer']['files'])
 
 
 class SetupScriptGoesThroughTheCatalogueTest(SimpleTestCase):

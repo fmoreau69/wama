@@ -10,7 +10,7 @@ class EnhancerConfig(AppConfig):
     verbose_name = 'Enhancer - AI Image/Video Upscaling'
 
     def ready(self):
-        """Called when Django starts - check and download models if needed."""
+        """Called when Django starts — registrations only (no model download)."""
         # Batch unifié : total auto-réparé + suppression des batches vidés (cf. BATCH_MODEL_AUDIT.md)
         try:
             from wama.common.utils.batch_sync import register_batch_sync
@@ -82,15 +82,7 @@ class EnhancerConfig(AppConfig):
         except Exception:
             pass
 
-        # Only run model download in main process (not in reloader or other subprocesses)
-        import os
-        if os.environ.get('RUN_MAIN') != 'true':
-            return
-
-        try:
-            from .utils.model_downloader import check_and_download_essential_models
-            logger.info("Checking AI models for Enhancer app...")
-            check_and_download_essential_models()
-        except Exception as e:
-            logger.warning(f"Could not auto-download models: {e}")
-            logger.info("Models can be downloaded manually from: https://github.com/Djdefrag/QualityScaler/releases")
+        # ⚠ Plus de téléchargement de poids au démarrage (retiré le 2026-10-11, REMOVAL_LEDGER) :
+        # les modèles ONNX sont DÉCLARÉS (`utils/model_config.ENHANCER_MODELS`, fichiers et
+        # origine) et s'installent par la route — bouton « Installer » du model manager,
+        # `pull_model enhancer:<id>` ou `install_requires enhancer`.

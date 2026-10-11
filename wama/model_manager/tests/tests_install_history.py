@@ -192,7 +192,7 @@ class TheDriversStayInsideTheRouteTest(SimpleTestCase):
     — sans garde d'espace disque, sans journal (2026-10-10 : `pull_model` en avait deux)."""
 
     DRIVERS = {'install_from_spec', 'install_candidate', 'pull_hf_model', 'pull_ollama_model',
-               'pull_yolo_weights', 'pull_github_asset', 'pull_github_files'}
+               'pull_yolo_weights', 'pull_github_asset', 'pull_declared_files'}
     INSIDE = {
         'wama/model_manager/services/model_installer.py (install_from_spec)',
         'wama/model_manager/services/model_installer.py (install_candidate)',
@@ -360,11 +360,13 @@ class ThePageReadsTheServerRulesTest(SimpleTestCase):
     def test_installable_is_the_route_rule(self):
         root = Path(settings.AI_MODELS_DIR) / 'models'
         hf_row = self._row(hf_id='o/x', extra_info={'install_dir': str(root / 'vision' / 'x')})
-        release_row = self._row(extra_info={'install_dir': str(root / 'lipsync' / 'cf'),
-                                            'release_files': {'ref': 'o/r:v1', 'files': []}})
+        declared = [{'path': 'a.pth', 'size': 1, 'sha256': 'a' * 64,
+                     'origin': {'source': 'github', 'release': 'o/r:v1', 'file': 'a.pth'}}]
+        files_row = self._row(extra_info={'install_dir': str(root / 'lipsync' / 'cf'),
+                                          'declared_files': declared})
         self.assertTrue(hf_row.to_dict()['installable'])
-        self.assertTrue(release_row.to_dict()['installable'],
-                        'a row with DECLARED release files has no hf_id — and is installable')
+        self.assertTrue(files_row.to_dict()['installable'],
+                        'a row with DECLARED files has no hf_id — and is installable')
         self.assertFalse(self._row(hf_id='o/x').to_dict()['installable'], 'no install_dir')
         downloaded = self._row(hf_id='o/x', is_downloaded=True,
                                extra_info={'install_dir': str(root / 'vision' / 'x')})

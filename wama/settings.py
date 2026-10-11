@@ -80,6 +80,10 @@ MODEL_PATHS = {
         # 2026-09-05). La lib ajoute elle-même `.deepface/weights` sous ce dossier : c'est sa
         # convention, on la subit plutôt que de patcher — `DEEPFACE_HOME` pointe donc ICI.
         'deepface': AI_MODELS_DIR / "models" / "vision" / "deepface",
+        # MediaPipe Tasks (face_analyzer) — `face_landmarker.task`, publié par Google sur son
+        # serveur de modèles (source `mediapipe_models`), installé par la route (2026-10-11). Il
+        # était VERSIONNÉ dans le dossier de l'app et retéléchargé là sans contrôle s'il manquait.
+        'mediapipe': AI_MODELS_DIR / "models" / "vision" / "mediapipe",
         # LocateAnything-3B (NVIDIA) — détection open-vocabulary par prompt texte (ROADMAP §17).
         # Le dossier existait depuis le PoC du 2026-07-27 ; il est DÉCLARÉ ici le 2026-09-08,
         # à l'écriture du backend, pour que celui-ci le lise à sa source au lieu de le

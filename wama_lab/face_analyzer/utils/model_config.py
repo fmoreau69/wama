@@ -8,10 +8,13 @@
 Une librairie n'a pas de VRAM ni de poids ; un modèle n'a pas de version pip. Les mélanger
 rendrait les deux registres faux d'un coup.
 
-**Pourquoi FER et MediaPipe n'ont AUCUNE entrée ici** : leurs poids sont **embarqués dans la
-roue pip** (2,3 Mo pour `fer`, `.tflite` internes pour `mediapipe`). Il n'y a rien à télécharger,
-rien à ranger, rien à mettre au catalogue — la librairie EST le modèle. Les cataloguer
-inventerait un objet que personne ne peut installer ni supprimer séparément.
+**Pourquoi FER n'a AUCUNE entrée ici** : ses poids sont **embarqués dans la roue pip** (2,3 Mo).
+Il n'y a rien à télécharger, rien à ranger, rien à mettre au catalogue — la librairie EST le
+modèle. Le cataloguer inventerait un objet que personne ne peut installer ni supprimer séparément.
+⚠ **MediaPipe, si** (corrigé le 2026-10-11) : l'API LEGACY (`solutions`) embarque ses `.tflite`,
+mais l'API `tasks`, celle que l'app emploie dès qu'elle existe, lit un `face_landmarker.task`
+publié À PART par Google. Il était versionné dans le dossier de l'app et retéléchargé là sans
+contrôle s'il manquait ; il est désormais DÉCLARÉ ci-dessous et installé par la route.
 
 **Source des poids DeepFace** : GitHub Releases de `serengil/deepface_models` (source `github`
 du registre des sources externes, famille « poids »). La lib n'expose **aucun** chemin
@@ -81,6 +84,30 @@ FACE_ANALYZER_MODELS = {
         'description': "Estimation de genre — chargé seulement si « Âge & Genre » est activé",
     },
 }
+
+
+#: Dossier des modèles des tâches MediaPipe (`MODEL_PATHS['vision']['mediapipe']`).
+MEDIAPIPE_DIR = Path(settings.MODEL_PATHS['vision']['mediapipe'])
+
+#: `face_landmarker.task` — DÉCLARÉ (pilote `files` de la route d'installation, 2026-10-11) : la
+#: version `float16/1` que l'app tirait, à son adresse OFFICIELLE (source `mediapipe_models`).
+#: Taille et empreinte MESURÉES le 11/10 : le fichier versionné jusque-là et celui que sert Google
+#: aujourd'hui sont identiques.
+FACE_LANDMARKER_FILES = [
+    {'path': 'face_landmarker.task', 'size': 3758596,
+     'sha256': '64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff',
+     'origin': {'source': 'mediapipe_models',
+                'file': 'face_landmarker/face_landmarker/float16/1/face_landmarker.task'}},
+]
+
+
+#: Clé de sa ligne au catalogue (`model_registry._discover_face_analyzer_models`).
+FACE_LANDMARKER_KEY = 'face_analyzer:mediapipe-face-landmarker'
+
+
+def face_landmarker_path() -> Path:
+    """Chemin du modèle de repères du visage — existe ou non, c'est l'appelant qui mesure."""
+    return MEDIAPIPE_DIR / FACE_LANDMARKER_FILES[0]['path']
 
 
 def chemin_local(model_id: str) -> Path:

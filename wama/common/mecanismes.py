@@ -414,7 +414,11 @@ MECHANISMS = (
               "`AIModel.is_installable` en dit la règle à la page. Un pilote INTERNE "
               "(`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une "
               "VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, "
-              "2026-10-07) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à "
+              "2026-10-07), files (les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE "
+              "parmi les sources déclarées — dépôt du Hub figé au commit, version GitHub, adresse "
+              "fixe d'une source « poids » — taille et empreinte épinglées, 2026-10-11 : "
+              "CodeFormer, MuseTalk, enhancer, Face Analyzer) ; `download_asset` = le "
+              "téléchargement contrôlé commun aux pilotes à "
               "fichier (empreinte d'un fichier en place : `provenance.sha256_of`)",
               'wama/model_manager/services/model_installer.py', '',
               # Route `library` (install_library) : voie pip ici, voie VENDOR (dépôt épinglé au

@@ -35,8 +35,8 @@ d'un sous-processus, c'est tout.
   réappliqués par rien jusqu'au 30/09).
 - Les POIDS ne vivent pas ici : `AI-models/models/lipsync/{musetalk,codeformer}/` (CodeFormer y
   pointe par symlinks absolus depuis `codeformer/weights/`). Ceux de CodeFormer sont DÉCLARÉS par
-  l'app (`avatarizer/utils/model_config.CODEFORMER_RELEASE` : les quatre fichiers que ce code lit,
-  version épinglée et empreintes) et s'installent par le catalogue — bouton « Installer »,
+  l'app (`avatarizer/utils/model_config.CODEFORMER_FILES` : les quatre fichiers que ce code lit,
+  chacun avec son origine — version épinglée — et son empreinte) et s'installent par le catalogue — bouton « Installer »,
   `python manage.py pull_model avatarizer:codeformer` (la même demande, `request_install`) ou le
   marcheur `install_requires avatarizer --apply` (2026-10-10) ; jamais par le script de
   téléchargement du dépôt cloné, qui écrit dans le répertoire COURANT.

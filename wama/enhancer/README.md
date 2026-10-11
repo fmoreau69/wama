@@ -68,42 +68,36 @@ pip install Pillow
 
 Les modèles ONNX ne sont **pas inclus** dans le repository (trop volumineux).
 
-#### Option A : Téléchargement automatique (par défaut)
+#### Par la route d'installation (depuis le 2026-10-11)
 
-Les modèles essentiels se téléchargent **tout seuls au démarrage de l'app**
-(`apps.py::ready()` → `check_and_download_essential_models()`, gardé par `RUN_MAIN` pour ne pas
-doubler sous l'autoreloader). Source : **Hugging Face `svjack/AI-onnx`**
-(`utils/model_downloader.py`), destination `AI-models/enhancer/onnx/`.
+Les sept modèles sont DÉCLARÉS par l'app (`utils/model_config.ENHANCER_MODELS`, champ `files` :
+chemin, taille, empreinte et ORIGINE de chaque fichier). Leur ligne existe au catalogue même
+absente, et s'installe comme tout modèle : bouton « Installer » du model manager,
+`python manage.py pull_model enhancer:<id>`, ou `python manage.py install_requires enhancer` (la
+même demande, `request_install` : garde d'espace disque, tâche suivie, journal ; pilote `files`).
 
-Commande manuelle (état, ou tout tirer) :
+**Origine** : le miroir du Hub `svjack/AI-onnx`, figé à son commit. Les versions GitHub de
+QualityScaler (source « principale » de l'ancien téléchargeur) ne publient plus aucun fichier
+(mesuré le 2026-10-11) ; le miroir sert des fichiers aux empreintes IDENTIQUES à ceux qui tournaient
+ici. Il ne déclare pas de licence — accepté (décision de Fabien, 11/10) parce que l'empreinte
+épinglée garantit les octets. L'Anime y porte un autre nom (`RealSRx4_Anime_fp16.onnx`) : la
+déclaration le dit.
 
-```bash
-python manage.py download_enhancer_models --status   # état des modèles
-python manage.py download_enhancer_models --all      # tout télécharger
-```
-
-#### Option B : Téléchargement manuel (repli)
-
-Récupérer les `.onnx` depuis https://huggingface.co/svjack/AI-onnx/tree/main et les poser dans
-`AI-models/enhancer/onnx/` (le downloader renomme certains fichiers — voir
-`utils/model_downloader.py` pour la correspondance exacte).
-
-#### Modèles Requis
-
-Les fichiers suivants doivent être présents dans `AI-models/enhancer/onnx/` :
+⚠ **Retirés le 2026-10-11** (`docs/construction/suivi/REMOVAL_LEDGER.md`) : le téléchargement au
+démarrage de `runserver` (`apps.py`), `utils/model_downloader.py` et la commande
+`download_enhancer_models` — un second chemin d'installation, sans garde d'espace disque, sans
+empreinte, sans journal.
 
 ```
-AI-models/enhancer/onnx/
-├── RealESR_Gx4_fp16.onnx          (22 MB)  - Recommandé pour débuter
-├── RealESR_Animex4_fp16.onnx      (22 MB)
-├── BSRGANx2_fp16.onnx             (4 MB)
-├── BSRGANx4_fp16.onnx             (4 MB)
-├── RealESRGANx4_fp16.onnx         (22 MB)
-├── IRCNN_Mx1_fp16.onnx            (30 MB)
-└── IRCNN_Lx1_fp16.onnx            (30 MB)
+AI-models/models/upscaling/onnx/      (MODEL_PATHS['upscaling']['onnx'])
+├── RealESR_Gx4_fp16.onnx          (2,4 Mo)
+├── RealESR_Animex4_fp16.onnx      (1,3 Mo)
+├── BSRGANx2_fp16.onnx             (33,7 Mo)
+├── BSRGANx4_fp16.onnx             (33,8 Mo)
+├── RealESRGANx4_fp16.onnx         (33,7 Mo)
+├── IRCNN_Mx1_fp16.onnx            (0,4 Mo)
+└── IRCNN_Lx1_fp16.onnx            (0,4 Mo)
 ```
-
-**Note** : Vous pouvez commencer avec uniquement `RealESR_Gx4_fp16.onnx` pour tester.
 
 #### Agrandisseurs installés depuis le model manager (2026-10-06)
 
@@ -256,8 +250,9 @@ Model file not found: /path/to/RealESR_Gx4_fp16.onnx
 ```
 
 **Solution** :
-1. Vérifier que `AI-models/enhancer/onnx/` existe
-2. Télécharger les modèles depuis QualityScaler
+1. Le model manager dit-il le modèle installé ? Sinon : « Installer » (ou
+   `python manage.py pull_model enhancer:<id>`)
+2. Le dossier est `MODEL_PATHS['upscaling']['onnx']` (`AI-models/models/upscaling/onnx/`)
 3. Vérifier les permissions de lecture
 
 ### Problème : ONNX Runtime Error
@@ -329,8 +324,7 @@ wama/enhancer/
 │   └── audio_backend.py    # enhance_audio (moteur : common/backends/audio_enhancer)
 ├── utils/
 │   ├── auto_model.py       # Déclarations du tirage « auto » (domaines, facteur, NFE)
-│   ├── model_config.py     # ENHANCER_MODELS (source unique des descriptions)
-│   └── model_downloader.py # Téléchargement automatique
+│   └── model_config.py     # ENHANCER_MODELS (descriptions, fichiers déclarés + origine)
 ├── tests.py            # Résolution auto, NFE, contrat des routes, glu, vues
 ├── templates/
 │   └── enhancer/

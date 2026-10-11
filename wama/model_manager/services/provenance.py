@@ -176,6 +176,12 @@ def identity_for_spec(spec: dict) -> Optional[dict]:
         if spec.get('license'):
             identity['license'] = spec['license']
         return identity
+    if kind == 'files':
+        # Les fichiers qu'une app déclare (pilote `files`, 2026-10-11) : l'identité du MODÈLE est
+        # celle que sa découverte pose (dépôt, moteur) ; la provenance de chaque FICHIER voyage
+        # avec lui (`extra_info['declared_files']`, résultat de l'installation). On n'en déduit
+        # rien ici : l'origine d'un fichier peut être un miroir, et un miroir n'est pas un auteur.
+        return None
     return None
 
 

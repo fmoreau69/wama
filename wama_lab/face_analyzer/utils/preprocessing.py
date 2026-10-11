@@ -161,27 +161,20 @@ class FaceDetector:
             raise
 
     def _get_model_path(self) -> str:
-        """Get or download the face landmarker model."""
-        import os
-        import urllib.request
+        """The face landmarker model, installed by the route (2026-10-11).
 
-        # Model directory
-        model_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
-        os.makedirs(model_dir, exist_ok=True)
+        It is DECLARED (`model_config.FACE_LANDMARKER_FILES`) and installed like any model —
+        never downloaded here any more: this used to fetch it unchecked into the app folder.
+        """
+        from .model_config import FACE_LANDMARKER_KEY, face_landmarker_path
 
-        model_path = os.path.join(model_dir, 'face_landmarker.task')
-
-        if not os.path.exists(model_path):
-            logger.info("Downloading MediaPipe face landmarker model...")
-            url = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
-            try:
-                urllib.request.urlretrieve(url, model_path)
-                logger.info(f"Model downloaded to {model_path}")
-            except Exception as e:
-                logger.error(f"Failed to download model: {e}")
-                raise
-
-        return model_path
+        model_path = face_landmarker_path()
+        if not model_path.exists():
+            raise RuntimeError(
+                "Modèle MediaPipe « face_landmarker.task » absent — installez-le depuis le model "
+                "manager (« Installer ») ou : python manage.py pull_model "
+                f"{FACE_LANDMARKER_KEY}")
+        return str(model_path)
 
     def detect(self, frame: np.ndarray) -> Optional[FaceLandmarks]:
         """

@@ -284,13 +284,13 @@ def weight_for_spec(spec: dict):
     if kind == 'github':
         if github_spec_error(spec):
             return None
-        files = spec.get('files')
-        if files is not None:
-            # Fichiers déclarés : leur taille l'est aussi (mesurée) — sinon on ne suppose rien.
-            sizes = [f.get('size') for f in files]
-            return round(sum(sizes) / 1024 ** 3, 3) if all(sizes) else None
         from wama.common.external_sources import proxies_for
         return _asset_gb(github_asset_url(spec), proxies=proxies_for('github'))
+    if kind == 'files':
+        # Fichiers déclarés : leur taille l'est aussi (mesurée, exigée par le verrou).
+        if declared_files_error(spec):
+            return None
+        return round(sum(f['size'] for f in spec['files']) / 1024 ** 3, 3)
     return None
 
 
@@ -749,39 +749,29 @@ def github_ref_of_platform(platform_ref: str) -> str:
     return f"{repo}:{tag}" if platform == 'github' and sep and repo and tag else ''
 
 
+def github_release_error(ref) -> str | None:
+    """Motif de refus d'une version désignée `owner/repo:tag`, ou None (pur, aucune I/O)."""
+    from wama.common.manifests.builtin.library import _VENDOR_REPO_RE
+
+    repo, tag = github_release_of(ref)
+    if not _VENDOR_REPO_RE.match(repo) or '..' in repo:
+        return (f"ref refusé : {ref!r} — forme exigée « owner/name:tag » (GitHub, "
+                "sans URL : l'adresse se dérive de la source déclarée `github`)")
+    if not _GITHUB_TAG_RE.match(tag) or tag.lower() == 'latest':
+        return (f"tag refusé : {tag!r} — le tag EXACT de la version (jamais « latest », qui "
+                "désigne une version différente demain), sans « / »")
+    return None
+
+
 def github_spec_error(spec: dict):
     """Motif de refus d'un descripteur `github`, ou None — pendant de `vendor_spec_error`.
 
     Pur (aucune I/O) : l'installation, la pesée et la prospection appliquent le même verrou.
     """
-    from wama.common.manifests.builtin.library import _VENDOR_REPO_RE
-
     spec = spec or {}
-    repo, tag = github_release_of(spec.get('ref'))
-    if not _VENDOR_REPO_RE.match(repo) or '..' in repo:
-        return (f"ref refusé : {spec.get('ref')!r} — forme exigée « owner/name:tag » (GitHub, "
-                "sans URL : l'adresse se dérive de la source déclarée `github`)")
-    if not _GITHUB_TAG_RE.match(tag) or tag.lower() == 'latest':
-        return (f"tag refusé : {tag!r} — le tag EXACT de la version (jamais « latest », qui "
-                "désigne une version différente demain), sans « / »")
-    if spec.get('files') is not None:
-        # Variante FICHIERS DÉCLARÉS (2026-10-10) : une app déclare les fichiers d'une version
-        # et leur place SOUS son dossier (`target_dir`, posé par sa découverte) — CodeFormer,
-        # dont le code vendorisé lit une disposition fixe. Mêmes verrous, fichier par fichier.
-        files = spec.get('files')
-        if not isinstance(files, list) or not files:
-            return "files : une liste non vide de {path, sha256}"
-        for f in files:
-            path = str((f or {}).get('path') or '')
-            parts = path.split('/')
-            if not path or any(not _GITHUB_ASSET_RE.match(p) or '..' in p for p in parts):
-                return (f"fichier refusé : {path!r} — un chemin RELATIF sous le dossier de "
-                        "l'app, sans « .. » ; son dernier segment est le nom de l'asset")
-            if not _SHA256_RE.match(str(f.get('sha256') or '')):
-                return f"sha256 manquant ou invalide pour {path!r} — l'empreinte épinglée"
-        if not spec.get('target_dir'):
-            return "target_dir requis — le dossier de l'app (`install_dir` de sa découverte)"
-        return None
+    error = github_release_error(spec.get('ref'))
+    if error:
+        return error
     asset = str(spec.get('asset') or '')
     if not _GITHUB_ASSET_RE.match(asset) or '..' in asset:
         return f"asset refusé : {asset!r} — le NOM d'un fichier de la version, sans chemin"
@@ -844,20 +834,120 @@ def pull_github_asset(spec: dict, timeout: int = 600, dry_run: bool = False) -> 
                           sha256=spec['sha256'], proxies=proxies_for('github'))
 
 
-def pull_github_files(spec: dict, timeout: int = 600, dry_run: bool = False) -> dict:
-    """Les fichiers d'une version GitHub qu'une app DÉCLARE, posés SOUS son dossier
-    (`target_dir`) — la variante de `pull_github_asset` pour un modèle d'app dont le code lit une
-    disposition fixe (CodeFormer : `CodeFormer/`, `facelib/`, `realesrgan/`, 2026-10-10).
+# ── Pilote `files` — les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE (2026-10-11) ────
+# Né le 2026-10-10 comme variante du pilote `github` (CodeFormer : son code vendorisé lit une
+# disposition FIXE, l'app déclare les fichiers et leur place sous son dossier). Mais les poids
+# d'un même moteur viennent souvent de PLUSIEURS sources — mesuré le 11/10 : MuseTalk lit quatre
+# dépôts du Hub, un poids de torchvision et un détecteur publié par l'auteur de sa librairie ;
+# l'enhancer, un miroir du Hub ; Face Analyzer, le serveur de modèles de MediaPipe.
+# Décision de Fabien (11/10) : chaque fichier NOMME son origine, parmi les sources DÉCLARÉES
+# (`external_sources`) — la version officielle quand elle existe, sinon un miroir, accepté
+# seulement aux octets déjà jugés (l'empreinte épinglée). La provenance voyage avec le fichier :
+# déclarée par l'app, posée sur la ligne du catalogue (`extra_info['declared_files']`), rendue
+# fichier par fichier dans le résultat (donc dans le journal des installations).
+#
+# Trois formes d'origine, toutes FIGÉES — pas d'URL libre, jamais « latest » ni une branche :
+#   {'source': 'huggingface', 'repo': 'org/nom', 'revision': '<commit, 40 hex>', 'file': 'a/b'}
+#   {'source': 'github', 'release': 'owner/repo:tag', 'file': '<nom de l'asset>'}
+#   {'source': '<source déclarée « Outillage et poids »>', 'file': '<chemin sous son adresse>'}
+# Verrous communs : empreinte ET taille épinglées (la taille nourrit la garde d'espace disque),
+# chemin RELATIF sous le dossier de l'app, lui-même sous la racine des modèles, téléchargement
+# commun (`download_asset`), un fichier DIFFÉRENT en place arrête tout avant le moindre octet.
 
-    Même comportement, fichier par fichier : adresse dérivée de la source `github`, empreinte
-    épinglée, téléchargement commun. Un fichier présent à la bonne empreinte est gardé ; un
-    fichier présent à une AUTRE empreinte arrête tout AVANT le moindre téléchargement (on ne
-    remplace pas en silence ce qu'on n'a pas installé, et on ne laisse pas une installation à
-    moitié). Le dossier doit être sous la racine canonique des modèles.
+#: Une révision du Hub se fige par son COMMIT : une branche (`main`) sert d'autres octets demain.
+_HF_COMMIT_RE = re.compile(r'^[0-9a-f]{40}$')
+
+#: Famille des sources dont un fichier peut être tiré à adresse fixe (`external_sources.KINDS`).
+_FILE_HOST_KIND = 'poids'
+
+
+def _relative_path_error(path) -> bool:
+    parts = str(path or '').split('/')
+    return not path or any(not _GITHUB_ASSET_RE.match(p) or '..' in p for p in parts)
+
+
+def declared_origin_error(origin) -> str | None:
+    """Motif de refus de l'ORIGINE d'un fichier déclaré, ou None (pur, aucune I/O)."""
+    from wama.common.external_sources import by_key
+    from wama.common.manifests.builtin.library import _VENDOR_REPO_RE
+
+    origin = origin if isinstance(origin, dict) else {}
+    source, file = origin.get('source') or '', str(origin.get('file') or '')
+    if source == 'huggingface':
+        repo = str(origin.get('repo') or '')
+        if not _VENDOR_REPO_RE.match(repo) or '..' in repo:
+            return f"dépôt refusé : {repo!r} — forme exigée « org/nom »"
+        if not _HF_COMMIT_RE.match(str(origin.get('revision') or '')):
+            return ("revision : le COMMIT exact du dépôt (40 hex), jamais une branche — « main » "
+                    "sert d'autres octets demain")
+        return f"file refusé : {file!r}" if _relative_path_error(file) else None
+    if source == 'github':
+        error = github_release_error(origin.get('release'))
+        if error:
+            return error
+        return None if _GITHUB_ASSET_RE.match(file) else f"asset refusé : {file!r}"
+    declared = by_key().get(source)
+    if declared is None or declared.kind != _FILE_HOST_KIND:
+        return (f"source refusée : {source!r} — `huggingface`, `github` ou une source DÉCLARÉE "
+                "de la famille « Outillage et poids » (`external_sources`)")
+    return f"file refusé : {file!r}" if _relative_path_error(file) else None
+
+
+def declared_files_error(spec: dict) -> str | None:
+    """Motif de refus d'un descripteur `files`, ou None — pur : l'installation et la pesée
+    appliquent le même verrou."""
+    spec = spec or {}
+    files = spec.get('files')
+    if not isinstance(files, list) or not files:
+        return "files : une liste non vide de {path, size, sha256, origin}"
+    for f in files:
+        f = f if isinstance(f, dict) else {}
+        path = str(f.get('path') or '')
+        if _relative_path_error(path):
+            return (f"fichier refusé : {path!r} — un chemin RELATIF sous le dossier de l'app, "
+                    "sans « .. »")
+        if not _SHA256_RE.match(str(f.get('sha256') or '')):
+            return f"sha256 manquant ou invalide pour {path!r} — l'empreinte épinglée"
+        if not isinstance(f.get('size'), int) or f['size'] <= 0:
+            return (f"size manquante pour {path!r} — la taille MESURÉE (la garde d'espace "
+                    "disque la somme, elle ne suppose rien)")
+        error = declared_origin_error(f.get('origin'))
+        if error:
+            return f"{path} : {error}"
+    if not spec.get('target_dir'):
+        return "target_dir requis — le dossier de l'app (`install_dir` de sa découverte)"
+    return None
+
+
+def declared_file_url(origin: dict) -> str:
+    """Adresse d'un fichier déclaré, DÉRIVÉE de sa source déclarée — jamais écrite en dur."""
+    from wama.common.external_sources import base_url
+    source, file = origin['source'], origin['file']
+    if source == 'huggingface':
+        return f"{base_url('huggingface')}/{origin['repo']}/resolve/{origin['revision']}/{file}"
+    if source == 'github':
+        return github_asset_url({'ref': origin['release'], 'asset': file})
+    return f"{base_url(source)}/{file}"
+
+
+def declared_files_present(install_dir, files) -> bool:
+    """Tous les fichiers déclarés sont-ils à leur place ? (présence, sans relire l'empreinte —
+    c'est la découverte qui demande, à chaque synchro ; l'installation, elle, vérifie)."""
+    return bool(files) and all((Path(install_dir) / f['path']).exists() for f in files)
+
+
+def pull_declared_files(spec: dict, timeout: int = 600, dry_run: bool = False) -> dict:
+    """Les fichiers qu'une app DÉCLARE, posés SOUS son dossier (`target_dir`), chacun tiré de
+    son ORIGINE déclarée (cf. l'en-tête du pilote).
+
+    Un fichier présent à la bonne empreinte est gardé ; un fichier présent à une AUTRE empreinte
+    arrête tout AVANT le moindre téléchargement (on ne remplace pas en silence ce qu'on n'a pas
+    installé, et on ne laisse pas une installation à moitié). Le résultat rend la provenance de
+    chaque fichier (`files` : chemin, adresse, empreinte, `kept`|`downloaded`).
     """
     from wama.common.utils.model_locations import models_root
 
-    error = github_spec_error(spec)
+    error = declared_files_error(spec)
     if error:
         return {'ok': False, 'error': error}
     root = Path(spec['target_dir'])
@@ -877,21 +967,26 @@ def pull_github_files(spec: dict, timeout: int = 600, dry_run: bool = False) -> 
                 return {'ok': False,
                         'error': f"{target} existe avec une AUTRE empreinte que celle épinglée "
                                  "— le retirer avant de réinstaller"}
-            kept.append(str(target))
+            kept.append((f, target))
         else:
             missing.append((f, target))
     from wama.common.external_sources import proxies_for
-    downloaded = []
+
+    def provenance(f, target, action):
+        return {'path': str(target), 'url': declared_file_url(f['origin']),
+                'sha256': f['sha256'].lower(), 'action': action}
+
+    done = [provenance(f, t, 'kept') for f, t in kept]
     for f, target in missing:
         target.parent.mkdir(parents=True, exist_ok=True)
-        res = download_asset(github_asset_url({'ref': spec['ref'], 'asset': target.name}),
-                             str(target), timeout=timeout, sha256=f['sha256'],
-                             proxies=proxies_for('github'))
+        res = download_asset(declared_file_url(f['origin']), str(target), timeout=timeout,
+                             sha256=f['sha256'], proxies=proxies_for(f['origin']['source']))
         if not res.get('ok'):
-            return {'ok': False, 'error': res.get('error'), 'downloaded': downloaded}
-        downloaded.append(str(target))
-    return {'ok': True, 'path': str(root), 'downloaded': downloaded, 'kept': kept,
-            'already': not downloaded}
+            return {'ok': False, 'error': res.get('error'), 'files': done}
+        done.append(provenance(f, target, 'downloaded'))
+    downloaded = [d['path'] for d in done if d['action'] == 'downloaded']
+    return {'ok': True, 'path': str(root), 'files': done, 'downloaded': downloaded,
+            'kept': [str(t) for _, t in kept], 'already': not downloaded}
 
 
 def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int = 0,
@@ -1310,7 +1405,8 @@ def install_candidate(cand, progress=None, token=None) -> dict:
     spec = (cand.extra_info or {}).get('prospect', {}).get('spec')
     if spec and spec.get('kind') and spec['kind'] != 'ollama':
         if progress:
-            origin = {'github': 'GitHub', 'yolo': 'GitHub'}.get(spec['kind'], 'HuggingFace')
+            origin = {'github': 'GitHub', 'yolo': 'GitHub',
+                      'files': 'sources déclarées'}.get(spec['kind'], 'HuggingFace')
             progress(f"téléchargement {spec.get('ref')} ({origin})…")
         res = install_from_spec(spec, token=token)
         if not res.get('ok'):
@@ -1620,16 +1716,17 @@ def spec_for_catalog_row(model) -> dict | None:
 
     hf_id = (model.hf_id or '').strip()
     install_dir = ((model.extra_info or {}).get('install_dir') or '').strip()
-    # Les fichiers d'une VERSION GitHub que l'app DÉCLARE (2026-10-10, CodeFormer) : ils priment
-    # sur le `hf_id`, qui peut nommer un dépôt sans rapport avec les poids réellement lus.
-    release = (model.extra_info or {}).get('release_files')
-    if release and install_dir:
+    # Les fichiers que l'app DÉCLARE, chacun avec son origine (pilote `files`, 2026-10-11 ;
+    # CodeFormer depuis le 10/10) : ils priment sur le `hf_id`, qui peut nommer un dépôt sans
+    # rapport avec les poids réellement lus — ou n'en nommer qu'un parmi plusieurs (MuseTalk).
+    declared = (model.extra_info or {}).get('declared_files')
+    if declared and install_dir:
         try:
             Path(install_dir).resolve().relative_to(models_root().resolve())
         except (ValueError, OSError):
             return None                  # hors racine canonique : pas installable d'ici
-        return {'kind': 'github', 'ref': release.get('ref', ''),
-                'files': list(release.get('files') or []), 'target_dir': install_dir,
+        return {'kind': 'files', 'ref': model.model_key, 'files': list(declared),
+                'target_dir': install_dir,
                 'note': f"installation explicite depuis le catalogue ({model.model_key})"}
     if not hf_id or not install_dir:
         return None
@@ -1677,10 +1774,12 @@ def install_from_spec(spec: dict, token=None) -> dict:
     drivers derrière ce dispatcher.
 
     spec = {
-      'kind': 'ollama' | 'hf' | 'yolo' | 'github',   # driver d'installation
-      'ref':  'bge-m3' | 'org/model' | 'yolo26s-seg' | 'owner/repo:tag',
+      'kind': 'ollama' | 'hf' | 'yolo' | 'github' | 'files',   # driver d'installation
+      'ref':  'bge-m3' | 'org/model' | 'yolo26s-seg' | 'owner/repo:tag' | '<clé d'app>',
       'asset': 'x.onnx', 'sha256': '…',        # github : fichier de la version + empreinte
                                                #   épinglée (`github_spec_error`)
+      'files': [{path, size, sha256, origin}],  # files : fichiers déclarés par l'app, chacun
+      'target_dir': '…',                       #   avec son origine (`declared_files_error`)
       'category': 'diffusion' | 'speech' | …,  # hf : catégorie de dossier (model_locations)
       'family': 'qwen-image',                  # hf : sous-dossier famille (optionnel)
       'allow_patterns': ['*.safetensors'],     # hf : restreindre les fichiers (optionnel)
@@ -1715,7 +1814,9 @@ def install_from_spec(spec: dict, token=None) -> dict:
     elif kind == 'yolo':
         res = pull_yolo_weights(ref)
     elif kind == 'github':
-        res = pull_github_files(spec) if spec.get('files') is not None else pull_github_asset(spec)
+        res = pull_github_asset(spec)
+    elif kind == 'files':
+        res = pull_declared_files(spec)
     elif kind == 'hf':
         if not spec.get('category'):
             return {'ok': False, 'error': "spec.category requis pour kind='hf'"}
@@ -1724,7 +1825,8 @@ def install_from_spec(spec: dict, token=None) -> dict:
                                             or patterns_from_composition(spec.get('composition'))),
                             token=token)
     else:
-        return {'ok': False, 'error': f"spec.kind inconnu: {kind!r} (ollama|hf|yolo|github)"}
+        return {'ok': False,
+                'error': f"spec.kind inconnu: {kind!r} (ollama|hf|yolo|github|files)"}
 
     if res.get('ok') and deps:
         res['pip'] = pip_install_packages(deps)

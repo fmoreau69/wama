@@ -112,32 +112,19 @@ fi
 # =============================================================================
 echo "--- [4/5] Téléchargement checkpoints MuseTalk ---"
 
-# MuseTalk utilise huggingface_hub pour télécharger ses modèles au premier lancement.
-# On peut pré-télécharger en utilisant huggingface-cli ou le script fourni par MuseTalk.
-
-if [ -f "$VENDOR_DIR/musetalk/scripts/download_weights.py" ]; then
-    echo "Téléchargement via script MuseTalk..."
-    python "$VENDOR_DIR/musetalk/scripts/download_weights.py" \
-        --save_dir "$MODELS_DIR/musetalk" || \
-    echo "Script MuseTalk non disponible — les modèles se téléchargeront au premier lancement."
-elif python -c "import huggingface_hub" 2>/dev/null; then
-    echo "Téléchargement MuseTalk v1.5 depuis HuggingFace..."
-    python -c "
-from huggingface_hub import snapshot_download
-import os
-os.makedirs('$MODELS_DIR/musetalk', exist_ok=True)
-snapshot_download(
-    repo_id='TMElyralab/MuseTalk',
-    local_dir='$MODELS_DIR/musetalk',
-    ignore_patterns=['*.md', '*.gitattributes'],
-)
-print('MuseTalk checkpoints téléchargés.')
-" || echo "Téléchargement HF échoué — les modèles se téléchargeront au premier lancement."
-else
-    echo "ATTENTION : huggingface_hub non disponible."
-    echo "Les checkpoints MuseTalk se téléchargeront automatiquement au premier lancement."
-    echo "Ou téléchargez manuellement depuis : https://huggingface.co/TMElyralab/MuseTalk"
-fi
+# ⚠⚠ RÉÉCRIT LE 2026-10-11. Cette étape appelait un `scripts/download_weights.py` qui n'existe pas
+# (le dépôt vendorisé a `download_weights.sh`) ; son repli tirait le dépôt `TMElyralab/MuseTalk`
+# ENTIER (v1.0 comprise) et rien des six autres sources que l'inférence lit — et « les modèles se
+# téléchargeront au premier lancement » était faux : rien ne les télécharge.
+# Les poids passent par la route du CATALOGUE, comme CodeFormer : l'app DÉCLARE les onze fichiers
+# que l'inférence lit, chacun avec son origine et son empreinte (`AVATARIZER_MODELS
+# ['musetalk-v1.5']['files']` : quatre dépôts du Hub figés à leur commit, pytorch.org, le site de
+# face-alignment, un miroir du Hub pour BiSeNet). Le lien `vendor/musetalk/models` est créé par
+# le backend au premier lancement.
+cd "$PROJECT_DIR"
+python manage.py sync_models >/dev/null      # la ligne `avatarizer:musetalk-v1.5` existe ensuite
+python manage.py pull_model avatarizer:musetalk-v1.5 || \
+    echo "ATTENTION : poids MuseTalk non demandés — bouton « Installer » du model manager, ou : python manage.py pull_model avatarizer:musetalk-v1.5"
 
 # =============================================================================
 # 5. Checkpoints CodeFormer
@@ -152,11 +139,11 @@ echo "--- [5/5] Téléchargement checkpoints CodeFormer ---"
 #     `CodeFormer/`), prenait la détection chez facexlib, et omettait `parsing_parsenet.pth`
 #     et `RealESRGAN_x2plus.pth`.
 # Les poids passent désormais par la route du CATALOGUE : l'app DÉCLARE les quatre fichiers
-# que le code vendorisé lit (`AVATARIZER_MODELS['codeformer']['release']`, version
+# que le code vendorisé lit (`AVATARIZER_MODELS['codeformer']['files']`, version
 # sczhou/CodeFormer v0.1.0, empreintes épinglées), sa découverte pose le dossier
 # (`MODEL_PATHS['lipsync']['codeformer']`), et `pull_model <clé>` fait la DEMANDE du bouton
 # « Installer » (`request_install` : garde d'espace disque, tâche Celery suivie au model
-# manager, journal ; pilote `github`). Déjà installé → rien à faire. ⚠ La tâche s'exécute dans
+# manager, journal ; pilote `files`). Déjà installé → rien à faire. ⚠ La tâche s'exécute dans
 # un worker Celery : il doit tourner (sinon elle attend en file).
 cd "$PROJECT_DIR"
 python manage.py sync_models >/dev/null      # la ligne `avatarizer:codeformer` existe ensuite
