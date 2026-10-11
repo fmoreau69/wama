@@ -245,6 +245,19 @@ def model_type_for_task(task: str):
     return None
 
 
+def uninstalled_q():
+    """Le filtre (`Q`) des lignes DÉSINSTALLÉES : poids retirés par `uninstall_model`, ligne
+    gardée pour son historique et marquée `uninstalled_at`.
+
+    Une ligne ÉCARTÉE n'en est pas une (`is_available=False` + `exclusion`, décision humaine
+    motivée) : elle garde ses poids ou non, mais sa raison reste une connaissance. Une ligne
+    qu'une app DÉCLARE perd la marque au sync suivant (la découverte réécrit `extra_info`) et
+    redevient « non téléchargée » — installable, donc plus désinstallée.
+    Lu par la prospection (un dépôt désinstallé se repropose) et par le corpus de manifestes
+    (un modèle désinstallé en sort, 2026-10-11)."""
+    return models.Q(is_downloaded=False, extra_info__has_key='uninstalled_at')
+
+
 # NOTRE tâche → MODALITÉS et ENTRÉES par défaut (vocabulaire de `INPUT_TYPES`, `app_modes.py`).
 #
 # Pourquoi (2026-09-19, chantier « source unique des capacités ») : `modalities`,

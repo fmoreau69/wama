@@ -110,10 +110,16 @@ class WamaTestRunner(DiscoverRunner):
         self._media_de_test = Path(tempfile.mkdtemp(prefix='run-', dir=str(racine)))
         self._media_reel = settings.MEDIA_ROOT
         settings.MEDIA_ROOT = str(self._media_de_test)
+        # Même raison pour le CORPUS de manifestes (versionné) : une désinstallation jouée
+        # dans une base de test le ferait suivre, et ses clés existent au vrai corpus
+        # (`model_installer.forget_in_corpus`, 2026-10-11).
+        self._corpus_sync = getattr(settings, 'MANIFEST_CORPUS_SYNC', True)
+        settings.MANIFEST_CORPUS_SYNC = False
 
     def teardown_test_environment(self, **kwargs):
         dossier = getattr(self, '_media_de_test', None)
         settings.MEDIA_ROOT = getattr(self, '_media_reel', settings.MEDIA_ROOT)
+        settings.MANIFEST_CORPUS_SYNC = getattr(self, '_corpus_sync', True)
         if dossier is not None:
             if _GARDER:
                 print(f"\nMédias de test conservés (WAMA_GARDER_MEDIA_TESTS) : {dossier}")

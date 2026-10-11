@@ -2821,3 +2821,28 @@ défauts que leur exécution a trouvés.**
   Tests : `tests_sync_concurrency` (6), `DesinstallationTest`, `tests_named_search` (+4).
   🔴 Relancer gunicorn ET les workers pour que la tempête cesse.
 
+**Suite du 2026-10-11 (4) — le corpus de manifestes SUIT la désinstallation (décision de Fabien).**
+- Constat : la régénération du corpus (`0748f766`) y a fait entrer les cinq OCR désinstallés le
+  jour même, dont deux GGUF sans projecteur — une composition fausse pour le few-shot, qui pioche
+  dans `manifests/models/` (`role_utils.manifest_examples`). Le refresh des « déjà semés »
+  réécrivait le manifeste d'une ligne désinstallée ; une clé sans ligne restait sur disque,
+  signalée « extraction impossible » à chaque export (`reader:glm-ocr`, sorti par `08d73a90`, y
+  était revenu).
+- Question de Fabien : garder les manifestes et backends retirés dans un dossier d'ARCHIVE, comme
+  exemples ? **Non retenu** : l'archive existe déjà — l'historique git garde chaque manifeste
+  commité, daté et motivé ; la désinstallation ne touche jamais au backend (poids seuls) ; la ligne
+  de catalogue reste avec son identité. Un dossier d'archive se FIGERAIT dans une forme que
+  l'export ne régénère plus (la facette `data` a changé de forme le 07/10), et un modèle retiré
+  est souvent un mauvais exemple par construction (hors route, aveugle).
+- ✅ Règle : **le corpus des modèles reflète ce qui est installé**. `uninstalled_q()` (models.py)
+  est LE prédicat, lu par la prospection et par l'export ; `manifest_export` retire le fichier
+  d'une ligne désinstallée ou sans ligne (`_gone_model_keys`, y compris à la clé explicite ;
+  `--check` le compte périmé) ; `uninstall_model` appelle `forget_in_corpus`, symétrique de
+  l'écriture par `provenance` à l'installation. ⚠ Une ligne ÉCARTÉE (`is_available=False` +
+  `exclusion`, le YOLO adetailer du 12/08) garde son manifeste : sa raison est une connaissance.
+- Harnais : `WamaTestRunner` pose `MANIFEST_CORPUS_SYNC = False` — une base de test désinstalle
+  des clés présentes au vrai corpus (`synthesizer:bark`), le fichier versionné aurait été effacé.
+- Tests : `tests_corpus_follows_uninstall` (11).
+- 🔚 `ollama:llamacpp:96f38c…` au catalogue : empreinte de `qwen3.5:4b`, ligne fantôme de la
+  découverte Ollama (son manifeste n'est pas commité).
+

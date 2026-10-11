@@ -104,9 +104,30 @@ def _model_keys() -> list:
     fichier ne différait que par la casse. *Exporter une ligne morte ne crée pas un fichier de
     plus, il peut en détruire un vivant.*
     """
-    from wama.model_manager.models import AIModel
+    from wama.model_manager.models import AIModel, uninstalled_q
     return sorted(AIModel.objects.filter(is_proposed=False, is_available=True)
-                  .values_list('model_key', flat=True))
+                  .exclude(uninstalled_q()).values_list('model_key', flat=True))
+
+
+def _gone_model_keys(keys) -> set:
+    """Celles de `keys` dont le modèle a QUITTÉ le catalogue : ligne désinstallée
+    (`uninstalled_q`) ou plus de ligne du tout. Leur manifeste sort du corpus.
+
+    Pourquoi (2026-10-11, décision de Fabien) : le refresh des « déjà semés » réécrivait le
+    manifeste d'une ligne désinstallée — cinq OCR retirés le 11/10 y sont entrés le jour même,
+    dont deux GGUF sans projecteur d'image, qui enseigneraient au few-shot une composition
+    fausse (`role_utils.manifest_examples` pioche dans ce dossier). Et une clé sans ligne
+    restait sur disque, signalée « extraction impossible » à chaque export, jamais retirée
+    (`reader:glm-ocr`, sorti du corpus par décision, y était revenu).
+    L'archive, c'est l'historique git : le manifeste retiré s'y relit avec sa date et sa raison.
+    ⚠ Une ligne ÉCARTÉE (`is_available=False` + `exclusion`) n'est PAS concernée : elle existe,
+    sa raison est une connaissance, son manifeste reste."""
+    from wama.model_manager.models import AIModel, uninstalled_q
+    keys = set(keys)
+    present = set(AIModel.objects.filter(model_key__in=keys).values_list('model_key', flat=True))
+    uninstalled = set(AIModel.objects.filter(uninstalled_q(), model_key__in=keys)
+                      .values_list('model_key', flat=True))
+    return (keys - present) | uninstalled
 
 
 def _nom_fichier(cle: str, connues=()) -> str:
@@ -241,8 +262,9 @@ class Command(BaseCommand):
             # des déjà exportés ∪ ÉNUMÉRATION du catalogue (2026-09-19). La dérivation seule
             # laissait dehors tout modèle qu'aucune app ne déclare — mesuré : 12 lignes cloud
             # (11 `anthropic:*` + `claude_code:default`), celles que la découverte cloud
-            # apporte sans app propriétaire. Le refresh des semés reste utile : il rattrape un
-            # modèle retiré du catalogue dont le manifeste, lui, doit être relu et signalé.
+            # apporte sans app propriétaire. Le refresh des semés reste utile : une ligne ÉCARTÉE
+            # (hors `_model_keys`) garde un manifeste relu ; une ligne désinstallée ou disparue
+            # voit le sien RETIRÉ (`_gone_model_keys`, 2026-10-11).
             cites = {r['key'] for genre, a in cibles if genre == 'app'
                      for r in ((_extract('app', a) or {}).get('requires') or [])
                      if isinstance(r, dict) and r.get('kind') == 'model' and r.get('key')}
@@ -255,7 +277,24 @@ class Command(BaseCommand):
             cibles += [('pipeline', k) for k in _pipeline_keys()]
 
         w, s, e, warn = self.stdout.write, self.style.SUCCESS, self.style.ERROR, self.style.WARNING
-        ecrits, perimes, refuses, inchanges = [], [], [], []
+        ecrits, perimes, refuses, inchanges, removed = [], [], [], [], []
+
+        # Modèles SORTIS du catalogue (désinstallés, ou sans ligne) : leur manifeste est RETIRÉ,
+        # jamais ré-extrait — y compris à la clé explicite, que `uninstall_model` appelle.
+        gone = _gone_model_keys(k for kind, k in cibles if kind == 'model')
+        cibles[:] = [(kind, k) for kind, k in cibles if not (kind == 'model' and k in gone)]
+        for key in sorted(gone):
+            path = base / (o['out'] or DOSSIERS['model']) / f"{_nom_fichier(key)}.json"
+            if not path.exists():
+                continue
+            if o['check']:
+                perimes.append(key)
+                w(warn(f"  {key:14s} PÉRIMÉ (à retirer : modèle désinstallé ou hors catalogue)"))
+                continue
+            path.unlink()
+            removed.append(key)
+            w(s(f"  {key:14s} retiré — modèle désinstallé ou hors catalogue"))
+
         #: Les clés du lot, par kind : `_nom_fichier` y voit une collision de CASSE avant
         #: d'écrire (deux clés → un seul fichier sous Windows, vécu le 2026-09-18).
         lot = {}
@@ -359,7 +398,8 @@ class Command(BaseCommand):
                 f"+ {len(autores)} autoré(s) valide(s))."))
             return
 
-        w(f"{len(ecrits)} écrit(s), {len(inchanges)} inchangé(s), {len(refuses)} refusé(s) "
+        w(f"{len(ecrits)} écrit(s), {len(inchanges)} inchangé(s), {len(refuses)} refusé(s), "
+          f"{len(removed)} retiré(s) "
           f"→ {', '.join(sorted({DOSSIERS[k] for k, _ in cibles}))}")
         if refuses:
             w(warn("Les manifestes refusés ne sont PAS des exemples utilisables : corriger "

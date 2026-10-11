@@ -1049,9 +1049,8 @@ def _installed_repos() -> set:
     historique, marquée `uninstalled_at` — comptée ici, elle interdisait de reproposer le dépôt
     (`lightonai/LightOnOCR-3-4B`, `PaddlePaddle/PaddleOCR-VL-1.6` : « already » au lendemain de
     leur retrait)."""
-    from wama.model_manager.models import AIModel
-    rows = AIModel.objects.filter(is_proposed=False).exclude(
-        is_downloaded=False, extra_info__has_key='uninstalled_at')
+    from wama.model_manager.models import AIModel, uninstalled_q
+    rows = AIModel.objects.filter(is_proposed=False).exclude(uninstalled_q())
     have = {(h or '').lower() for h in rows.exclude(hf_id='').values_list('hf_id', flat=True)}
     have |= {ref.partition(':')[2].lower()
              for ref in rows.filter(platform_ref__startswith='huggingface:')

@@ -1589,6 +1589,8 @@ def uninstall_model(model_key: str, include_shared: bool = False, via: str = '')
     l'historique (statistiques de runtime, ETA appris, identité/licence) — même doctrine que
     le remplacement de `install_candidate`. Un modèle déclaré par une app revient d'ailleurs
     au prochain sync (non téléchargé) ; un snapshot générique reste en mémoire de catalogue.
+    Son MANIFESTE, lui, quitte le corpus (`forget_in_corpus`, 2026-10-11) : l'archive est
+    l'historique git, pas un dossier qui se figerait dans une forme périmée.
 
     Retourne {'ok': True, 'freed_gb': X, 'kind': …, 'also_marked': […], 'affected': […]}
     ou {'ok': False, 'error': …} (+ `needs_confirmation`, `sharing`, `dependents`).
@@ -1701,7 +1703,28 @@ def uninstall_model(model_key: str, include_shared: bool = False, via: str = '')
     # Journal DATÉ (calendrier, couche « Installations ») — seul un retrait EFFECTUÉ s'y inscrit.
     from .install_history import record
     record('model', model_key, name=model.name, action='uninstall', via=via, result=result)
+    forget_in_corpus([m.model_key for m in marked])
     return result
+
+
+def forget_in_corpus(model_keys) -> None:
+    """Le corpus de manifestes SUIT la désinstallation, comme il suit l'installation
+    (`provenance` y écrit le manifeste) : le même `manifest_export` à la clé retire le fichier
+    d'un modèle désinstallé (`_gone_model_keys`, 2026-10-11). Jamais bloquant : le retrait des
+    poids est fait, un corpus en retard se rattrape au prochain export complet.
+
+    `settings.MANIFEST_CORPUS_SYNC` à False le coupe — le runner de tests le pose : une base de
+    test désinstalle des clés qui existent au vrai corpus (`synthesizer:bark`), et ce geste
+    effacerait un fichier versionné."""
+    from django.conf import settings
+    if not getattr(settings, 'MANIFEST_CORPUS_SYNC', True):
+        return
+    from django.core.management import call_command
+    for key in model_keys:
+        try:
+            call_command('manifest_export', key, kind='model', verbosity=0)
+        except Exception as e:
+            logger.warning("[uninstall] corpus non suivi pour %s : %s", key, e)
 
 
 def spec_for_catalog_row(model) -> dict | None:
