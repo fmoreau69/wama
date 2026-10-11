@@ -2667,7 +2667,7 @@ Restes :
 
 **Suite du 2026-10-11 — décisions de Fabien sur les quatre restes (« 1A, puis 4, puis 3 app par
 app, puis la clé facultative »).**
-- ✅ **1A** (`fcaf7d2`) : `pull_model <nom Ollama>` passe par sa PROPOSITION
+- ✅ **1A** (`ec74081`) : `pull_model <nom Ollama>` passe par sa PROPOSITION
   (`prospector.seed_ollama_candidate`, pendant de `seed_yolo_candidate` : existence au manifeste
   du registre, poids par `weight_for_spec`) puis par `request_install`. La purge de
   `prospect_ollama` épargne une demande nommée (rôle `named`). La garde des appelants des pilotes
@@ -2790,7 +2790,7 @@ l'info de leur provenance »).
 défauts que leur exécution a trouvés.**
 - ✅ Retirés par le corps du bouton (`uninstall_model`) : les poids pleins
   `PaddlePaddle/PaddleOCR-VL-1.6` (1,8 Go, tirés par l'assistant avant la règle du projecteur) et
-  la ligne hors route `Mungert/PaddleOCR-VL-1.6-GGUF` (0,4 Go). Fils d'épreuve effacés (`b2e8b18d`).
+  la ligne hors route `Mungert/PaddleOCR-VL-1.6-GGUF` (0,4 Go). Fils d'épreuve effacés (`8272284a`).
 - ✅ **Recherche nommée** (`seed_hf_search`) : un dépôt DÉSIGNÉ dont l'étiquette est hors balayage
   est jugé sur la tâche que SA carte déclare (`_rule_for_task`) — `lightonai/lightonocr-3-1b`
   (`image-text-to-text` + tag `ocr`) rendait 0 résultat. Le balayage subi, lui, ignore toujours
