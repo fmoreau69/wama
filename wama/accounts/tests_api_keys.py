@@ -367,6 +367,59 @@ class InstanceKeyTest(TestCase):
         self.assertIn(row, [call.args[0] for call in refresh.call_args_list])
 
 
+class RemovedKeyRetiresItsModelsTest(TestCase):
+    """2026-10-11: removing a key (profile or « Sources externes » page) marks unavailable the
+    remote models NO remaining key opens. Silent if broken: the nightly refresh only rereads the
+    keys that are left, so once the last key of a source was gone its models stayed offered to
+    every selector, and no one could call them."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+
+        from wama.model_manager.models import AIModel
+        User = get_user_model()
+        self.admin = User.objects.create_user('removed_key_admin', password='x')
+        self.admin.groups.add(Group.objects.get_or_create(name='admin')[0])
+        self.user = User.objects.create_user('removed_key_user', password='x')
+        for model_key in ('albert:only-mine', 'albert:also-elsewhere', 'ilaas:instance-only'):
+            source, name = model_key.split(':')
+            AIModel.objects.create(model_key=model_key, name=name, model_type='llm',
+                                   source=source, execution='cloud', is_available=True,
+                                   capabilities={'completion': True})
+
+    def _available(self, model_key):
+        from wama.model_manager.models import AIModel
+        return AIModel.objects.get(model_key=model_key).is_available
+
+    def test_removing_a_personal_key_retires_only_what_no_other_key_opens(self):
+        other = get_user_model().objects.create_user('removed_key_other', password='x')
+        UserApiKey.objects.create(user=self.user, source='albert', api_key='k1',
+                                  open_models=['albert:only-mine', 'albert:also-elsewhere'])
+        UserApiKey.objects.create(user=other, source='albert', api_key='k2',
+                                  open_models=['albert:also-elsewhere'])
+        self.client.force_login(self.user)
+        r = self.client.post(reverse('accounts:profile-api-key-save', args=['albert']),
+                             data=json.dumps({'api_key': ''}), content_type='application/json')
+        self.assertEqual(200, r.status_code)
+        self.assertFalse(self._available('albert:only-mine'))
+        self.assertTrue(self._available('albert:also-elsewhere'), 'still opened by another key')
+
+    def test_removing_the_instance_key_retires_its_models(self):
+        from wama.accounts.models import InstanceApiKey
+        InstanceApiKey.objects.create(source='ilaas', api_key='k',
+                                      open_models=['ilaas:instance-only'])
+        self.client.force_login(self.admin)
+        r = self.client.post('/common/sources/ilaas/instance-key/',
+                             data=json.dumps({'api_key': ''}), content_type='application/json')
+        self.assertEqual(200, r.status_code)
+        self.assertFalse(self._available('ilaas:instance-only'))
+        self.assertTrue(self._available('albert:only-mine'), 'another source is left alone')
+
+    def test_a_key_of_a_source_that_is_not_a_model_provider_touches_no_model(self):
+        self.assertEqual(0, api_keys.forget_opened_models('huggingface'))
+        self.assertEqual(0, api_keys.forget_opened_models('no-such-source'))
+
+
 class InstanceAddressTest(TestCase):
     """2026-10-10 (request of Fabien): the ADDRESS of a source declaring `address_editable` is set
     by an admin on the « Sources externes » page, in the same instance row as its key, and beats

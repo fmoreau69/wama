@@ -263,7 +263,7 @@ def api_key_save(request, slug):
     """POST {api_key} : enregistre (chiffrée) ou efface (vide) la clé personnelle d'un fournisseur."""
     # Toute source à clé personnelle, plus les seuls LLM (2026-09-26) : les moteurs de
     # recherche posent leur clé par le MÊME écran et la MÊME route.
-    from .api_keys import is_keyed_source, store_key
+    from .api_keys import forget_opened_models, is_keyed_source, store_key
     from .models import UserApiKey
 
     if not is_keyed_source(slug, request.user):
@@ -276,6 +276,7 @@ def api_key_save(request, slug):
 
     if not api_key:
         UserApiKey.objects.filter(user=request.user, source=slug).delete()
+        forget_opened_models(slug)
         return JsonResponse({'success': True, 'has_key': False})
     # Le geste COMMUN aux deux écrans de clés (profil, page Sources externes) : longueur,
     # stockage chiffré disponible, enregistrement, lecture des modèles ouverts.

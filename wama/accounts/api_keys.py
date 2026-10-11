@@ -152,6 +152,26 @@ def store_key(row, api_key: str) -> dict:
             'status': 200}
 
 
+def forget_opened_models(source: str) -> int:
+    """Une clé de `source` vient d'être RETIRÉE (profil ou page Sources externes) : les modèles
+    distants qu'aucune clé restante n'ouvre plus sont marqués indisponibles au catalogue. Rend
+    le nombre de lignes retirées ; 0 hors fournisseurs de modèles.
+
+    POURQUOI (2026-10-11) : le retrait d'une clé ne touchait pas au catalogue, et la sonde
+    nocturne ne le rattrape que s'il RESTE une clé de la source à relire. La dernière clé
+    d'Albert retirée, ses modèles restaient proposés sans que personne puisse les appeler.
+    C'est l'ACTEUR qui sait qu'un retrait a eu lieu qui marque les lignes (`retire_unlisted`,
+    même idiome qu'un identifiant renommé par le fournisseur) — marquées, jamais supprimées :
+    une clé reposée les rend de nouveau disponibles."""
+    try:
+        if external_sources.get(source).kind != 'llm':
+            return 0
+    except KeyError:
+        return 0
+    from wama.model_manager.services.cloud_models import retire_unlisted
+    return retire_unlisted(source)
+
+
 def download_token(user, source: str):
     """Le jeton d'un TÉLÉCHARGEMENT chez `source` (2026-09-27, HuggingFace) — même règle que
     `key_for`, dite dans la forme que les bibliothèques de téléchargement comprennent :

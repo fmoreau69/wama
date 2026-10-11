@@ -700,7 +700,7 @@ def external_source_instance_key(request, key):
 
     from django.http import Http404
 
-    from wama.accounts.api_keys import store_key
+    from wama.accounts.api_keys import forget_opened_models, store_key
     from wama.accounts.models import InstanceApiKey
     from wama.accounts.views import is_admin
 
@@ -742,6 +742,7 @@ def external_source_instance_key(request, key):
                 row.save()
             else:
                 row.delete()
+            forget_opened_models(key)
         return JsonResponse({'success': True, 'has_key': False})
     row = row or InstanceApiKey(source=key)
     row.updated_by = request.user

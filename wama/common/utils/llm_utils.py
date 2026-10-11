@@ -259,21 +259,21 @@ def ollama_chat(
         return None, str(e)
 
 
-#: Modèle par défaut des fournisseurs cloud SANS source déclarée, quand l'appelant n'en impose
-#: aucun. Un fournisseur DÉCLARÉ porte le sien au registre (`ExternalSource.default_model`,
-#: chantier 5 de `WAMA_HARNESS.md`, 2026-10-07) : cette table ne garde que les autres.
-#: ⚠ Ces noms vieillissent (un fournisseur retire ses modèles) : un réglage les surcharge
-#: quand il est déclaré (`_DEFAULT_MODEL_SETTINGS`), et `default_cloud_model` est leur SEUL
-#: lecteur.
-CLOUD_DEFAULT_MODELS = {
-    'openai':    'gpt-4o',
-    'grok':      'grok-3',
-    'xai':       'grok-3',
-    'gemini':    'gemini-2.0-flash',
-    'mistral':   'mistral-large-latest',
-    'groq':      'llama-3.3-70b-versatile',
-    'deepseek':  'deepseek-chat',
-}
+def declared_llm_source(provider: str):
+    """La source `external_sources` d'un fournisseur DISTANT que `llm_chat` sait appeler, ou None.
+
+    UN FOURNISSEUR EXISTE S'IL EST AU REGISTRE, POINT (chantier 5 de `WAMA_HARNESS.md`, soldé le
+    2026-10-11). Jusque-là, `llm_chat` acceptait n'importe quel nom que LiteLLM connaît, avec sa
+    table de modèles par défaut (`openai`, `mistral`, `groq`, `gemini`, `grok`, `deepseek`) :
+    aucune n'avait de source, donc ni garde « 100 % local », ni clé personnelle, ni clé posée
+    sur la page « Sources externes » — et aucune clé n'était configurée nulle part. Un fournisseur
+    de plus se DÉCLARE (`ExternalSource`, famille `llm`) : il gagne tout cela d'un coup.
+    L'abonnement Claude Code (`claude_cli`) est déclaré mais ne passe pas par LiteLLM."""
+    from wama.common import external_sources
+    source = external_sources.by_key().get(provider)
+    if source is None or source.kind != 'llm' or source.protocol == 'claude_cli':
+        return None
+    return source
 
 
 def openai_compatible_source(provider: str) -> str:
@@ -297,29 +297,29 @@ _DEFAULT_MODEL_SETTINGS = {'albert': 'ALBERT_MODEL'}
 
 def default_cloud_model(provider: str) -> str:
     """Modèle par défaut d'un fournisseur cloud : réglage déclaré, sinon celui de sa source
-    (`ExternalSource.default_model`), sinon `CLOUD_DEFAULT_MODELS`."""
+    (`ExternalSource.default_model`) ; '' pour un fournisseur non déclaré."""
     from django.conf import settings
     from wama.common import external_sources
     setting_name = _DEFAULT_MODEL_SETTINGS.get(provider)
     configured = getattr(settings, setting_name, '') if setting_name else ''
     source = external_sources.by_key().get(provider)
-    declared = source.default_model if source is not None else ''
-    return configured or declared or CLOUD_DEFAULT_MODELS.get(provider, 'gpt-4o')
+    return configured or (source.default_model if source is not None else '')
 
 
 #: Limite de débit (HTTP 429) d'un fournisseur LLM : attendre et recommencer, plafonné. Albert
 #: accorde 10 requêtes par minute et par clé ; un tour d'assistant à huit outils en fait neuf, et
 #: le 429 finissait le tour par son message brut (mesuré le 2026-10-10, rejeu du fil web n° 37).
-#: UNE attente d'une fenêtre ENTIÈRE, sans `Retry-After` : trois essais à 20 s d'écart ont tous été
-#: refusés (une requête refusée compte, semble-t-il, dans la fenêtre).
+#: L'attente sans `Retry-After` est DÉCLARÉE par la source quand elle est mesurée
+#: (`ExternalSource.rate_limit_wait_s`, Albert : une fenêtre entière) ; `RATE_LIMIT_WAIT_S` est
+#: celle des autres — une minute, la fenêtre la plus courante d'une limite de débit.
 RATE_LIMIT_RETRIES = 1
 RATE_LIMIT_WAIT_S = 60.0
 RATE_LIMIT_MAX_WAIT_S = 60.0
 
 
-def _completion(litellm, **kwargs):
-    """`litellm.completion`, avec l'attente sur 429 (`Retry-After` s'il est donné, plafonné).
-    Reconnu par le statut ou le type LiteLLM, jamais par le texte du message."""
+def _completion(litellm, wait_s: float = RATE_LIMIT_WAIT_S, **kwargs):
+    """`litellm.completion`, avec l'attente sur 429 (`Retry-After` s'il est donné, sinon `wait_s`,
+    plafonné). Reconnu par le statut ou le type LiteLLM, jamais par le texte du message."""
     import time
     for attempt in range(RATE_LIMIT_RETRIES + 1):
         try:
@@ -333,7 +333,7 @@ def _completion(litellm, **kwargs):
             try:
                 wait = float(headers.get('retry-after'))
             except (TypeError, ValueError):
-                wait = RATE_LIMIT_WAIT_S
+                wait = wait_s
             wait = min(max(wait, 1.0), RATE_LIMIT_MAX_WAIT_S)
             logger.warning(f"[llm_utils] limite de débit ({kwargs.get('model')}) — "
                            f"nouvel essai dans {wait:.0f} s")
@@ -359,17 +359,19 @@ def llm_chat(
     Unified LLM chat function — provider-agnostic entry point.
 
     Phase 1 (local only): provider defaults to 'ollama' → delegates to ollama_chat().
-    Phase 2 (hybrid): provider can be 'openai', 'anthropic', 'grok', 'mistral', etc.
-      Routes via LiteLLM; the caller passes the key (per-user keys: `accounts.api_keys.key_for`).
+    Phase 2 (hybrid): provider is a source DECLARED in `external_sources` (kind `llm`: albert,
+      ilaas, openrouter, anthropic) — any other name is refused (`declared_llm_source`).
+      Routes via LiteLLM; the caller passes the key (per-user keys: `accounts.api_keys.key_for`),
+      otherwise the instance key of the source is used.
 
     Args:
         messages:   List of {"role": ..., "content": ...} dicts.
-        model:      Model name without provider prefix (e.g. 'qwen3.5:9b', 'gpt-4o').
-                    If None, falls back to provider-specific default.
-        provider:   'ollama' (default) | 'albert' | 'openai' | 'anthropic' | 'grok' | 'mistral'.
+        model:      Model name without provider prefix (e.g. 'qwen3.5:9b', 'gpt-oss-120b').
+                    If None, falls back to the default declared by the source.
+        provider:   'ollama' (default) | a declared `llm` source.
                     If None, reads settings.LITELLM_PROVIDER (default: 'ollama').
-                    'albert' (and any `llm` source of protocol `openai`) is routed as
-                    `openai/<model>` with the address and key of `external_sources`.
+                    A source of protocol `openai` is routed as `openai/<model>` with the address
+                    and key of `external_sources`.
         num_predict: Max tokens to generate (Ollama) / max_tokens (cloud). None = no cap.
         temperature: Sampling temperature (None = provider default; Ollama: 0.3).
         num_ctx:    KV cache size in tokens (Ollama only, ignored for cloud).
@@ -420,39 +422,39 @@ def llm_chat(
         logger.error("[llm_utils] litellm not installed — pip install litellm")
         return None, "litellm not installed (pip install litellm)"
 
-    # Build the LiteLLM model string: "provider/model_name"
-    if model is None:
-        model = default_cloud_model(provider)
+    from wama.common import external_sources
+    declared = declared_llm_source(provider)
+    if declared is None:
+        return None, (f"fournisseur « {provider} » non déclaré dans WAMA : un fournisseur distant "
+                      "se déclare au registre des sources externes (famille llm)")
+    model = model or default_cloud_model(provider)
+    if not model:
+        # Sans ce refus, LiteLLM recevrait `openai/` seul : une erreur DISTANTE qui accuse le
+        # fournisseur au lieu du code.
+        return None, f"aucun modèle demandé, et « {provider} » n'en déclare pas par défaut"
+    # Sans clé de l'appelant (usage SANS utilisateur), celle de l'INSTANCE — posée sur la page
+    # « Sources externes », sinon le `.env`. Pour TOUTE source déclarée : jusqu'au 2026-10-11 la
+    # seule branche OpenAI-compatible la lisait, et l'API Anthropic ignorait la clé de la page.
+    api_key = api_key or external_sources.api_key(provider)
 
-    source = openai_compatible_source(provider)
-    if source:
+    if openai_compatible_source(provider):
         # Fournisseur compatible OpenAI hébergé AILLEURS qu'OpenAI (Albert) : préfixe `openai/`
         # TOUJOURS posé — ses identifiants portent eux-mêmes un « / » (`mistralai/Mistral-…`),
         # que la règle `'/' in model` ci-dessous prendrait pour un préfixe de fournisseur.
         # Adresse et clé viennent du registre, jamais de `OPENAI_API_BASE` : global au
         # processus, il détournerait aussi les appels destinés à OpenAI.
-        from wama.common import external_sources
         litellm_model = f"openai/{model}"
-        api_base = api_base or external_sources.base_url(source)
-        api_key = api_key or external_sources.api_key(source)
+        api_base = api_base or external_sources.base_url(provider)
         if not api_key:
-            variable = external_sources.get(source).api_key_env
-            return None, f"clé absente pour « {provider} » : définir {variable} dans .env"
+            return None, (f"clé absente pour « {provider} » : la poser sur la page « Sources "
+                          f"externes » ou définir {declared.api_key_env} dans .env")
         # Règle d'usage DÉCLARÉE par la source, ajoutée à chaque requête (2026-10-10 — OpenRouter :
         # aucun hébergeur qui garde ou entraîne sur les données).
-        declared_body = external_sources.get(source).request_body
-        extra_body = json.loads(declared_body) if declared_body else None
+        extra_body = json.loads(declared.request_body) if declared.request_body else None
     else:
+        # Source au protocole natif de LiteLLM (API Anthropic) : son nom EST le préfixe.
         extra_body = None
-        # Map du nom de fournisseur WAMA → préfixe attendu par LiteLLM (ex. grok → xai/).
-        _LITELLM_PREFIX = {'grok': 'xai', 'google': 'gemini'}
-        prefix = _LITELLM_PREFIX.get(provider, provider)
-        litellm_model = model if '/' in model else f"{prefix}/{model}"
-
-        # Ollama routé via LiteLLM (cas rare : provider='ollama' explicite) → api_base local par défaut.
-        if prefix == 'ollama' and not api_base:
-            from wama.common.utils.ollama_host import ollama_base
-            api_base = ollama_base()
+        litellm_model = model if '/' in model else f"{provider}/{model}"
 
     kwargs: dict = {
         'model':      litellm_model,
@@ -473,6 +475,8 @@ def llm_chat(
         kwargs['extra_body'] = extra_body
     if tools:
         kwargs['tools'] = tools
+    # Attente sur 429 sans `Retry-After` : celle que la source a MESURÉE, sinon la commune.
+    wait_s = declared.rate_limit_wait_s or RATE_LIMIT_WAIT_S
 
     try:
         if on_delta is not None:
@@ -480,7 +484,7 @@ def llm_chat(
             # 1 à 2 s (mesuré sur Albert) — sans flux, l'écran et la voix attendaient la fin.
             pieces = []
             calls: dict = {}                 # appel d'outil reçu par morceaux, par `index`
-            for chunk in _completion(litellm, stream=True, **kwargs):
+            for chunk in _completion(litellm, wait_s, stream=True, **kwargs):
                 choices = getattr(chunk, 'choices', None) or []
                 delta = getattr(choices[0], 'delta', None) if choices else None
                 fragment = getattr(delta, 'content', None)
@@ -498,7 +502,7 @@ def llm_chat(
             if not text.strip():
                 return None, EMPTY_RESPONSE_ERROR
             return text.strip(), None
-        response = _completion(litellm, **kwargs)
+        response = _completion(litellm, wait_s, **kwargs)
         message = response.choices[0].message
         for call in _listed(getattr(message, 'tool_calls', None))[:1]:
             return tool_call_text(call.function.name, call.function.arguments), None

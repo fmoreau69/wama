@@ -7,41 +7,24 @@ fonctionne) + liste les fournisseurs cloud dont la clé est présente dans l'env
 
   python manage.py llm_gateway_check                              # Ollama local via LiteLLM
   python manage.py llm_gateway_check --model qwen3.5:9b
-  python manage.py llm_gateway_check --provider xai --model grok-3   # appel CLOUD réel (clé requise)
+  python manage.py llm_gateway_check --provider albert              # appel CLOUD réel (clé requise)
 """
-import os
-
 from django.core.management.base import BaseCommand
-
-# Fournisseurs cloud SANS source déclarée → variable d'env de clé (lue NATIVEMENT par LiteLLM).
-# Les fournisseurs DÉCLARÉS (`external_sources`, famille `llm` : Albert, ILaaS, API Anthropic) ne
-# sont plus ici depuis le 2026-10-07 : leur clé d'instance se lit par `external_sources.api_key`,
-# qui voit aussi celle posée sur la page « Sources externes » — pas seulement le `.env`.
-_PROVIDER_ENV = {
-    'openai':     'OPENAI_API_KEY',
-    'xai':        'XAI_API_KEY',          # Grok
-    'gemini':     'GEMINI_API_KEY',
-    'mistral':    'MISTRAL_API_KEY',
-    'groq':       'GROQ_API_KEY',
-    'deepseek':   'DEEPSEEK_API_KEY',
-    # `openrouter` est DÉCLARÉ depuis le 2026-10-10 : sa clé se lit par le registre.
-}
 
 
 def _instance_key(provider: str) -> str:
-    """Clé d'instance de `provider` : celle du registre s'il est déclaré, sinon son `.env`."""
+    """Clé d'instance de `provider` : page « Sources externes », sinon `.env`."""
     from wama.common import external_sources
-    if provider in external_sources.by_key():
-        return external_sources.api_key(provider)
-    env = _PROVIDER_ENV.get(provider)
-    return os.environ.get(env, '') if env else ''
+    return external_sources.api_key(provider)
 
 
 def _cloud_providers() -> list:
+    """Les fournisseurs distants que `llm_chat` sait appeler : les sources DÉCLARÉES, et elles
+    seules (2026-10-11, chantier 5 de `WAMA_HARNESS.md`). La table des fournisseurs sans source
+    (`openai`, `xai`, `gemini`, `mistral`, `groq`, `deepseek`) est retirée avec eux."""
     from wama.common import external_sources
-    declared = [s.key for s in external_sources.SOURCES
-                if s.kind == 'llm' and s.protocol != 'claude_cli']
-    return declared + [p for p in _PROVIDER_ENV if p not in declared]
+    from wama.common.utils.llm_utils import declared_llm_source
+    return [s.key for s in external_sources.SOURCES if declared_llm_source(s.key)]
 
 
 class Command(BaseCommand):
@@ -49,7 +32,8 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--provider', default='ollama',
-                            help="ollama (défaut, LOCAL) ou un cloud : albert, ilaas, anthropic, xai, gemini, openai, mistral, groq, deepseek, openrouter.")
+                            help="ollama (défaut, LOCAL) ou un fournisseur déclaré au registre des "
+                                 "sources externes : albert, ilaas, openrouter, anthropic.")
         parser.add_argument('--model', default='',
                             help="Nom du modèle (défaut : résolu par le catalogue, "
                                  "modele_par_defaut — plus de nom en dur, retrait qwen3.5:9b 26/08).")
@@ -93,7 +77,12 @@ class Command(BaseCommand):
                     f"✗ Échec passerelle : {type(e).__name__}: {str(e)[:200]}"))
             return
 
-        if provider in _cloud_providers() and not _instance_key(provider):
+        if provider not in _cloud_providers():
+            self.stderr.write(self.style.ERROR(
+                f"'{provider}' n'est pas un fournisseur déclaré : "
+                + ", ".join(['ollama'] + _cloud_providers()) + "."))
+            return
+        if not _instance_key(provider):
             self.stderr.write(self.style.ERROR(
                 f"Clé absente pour '{provider}' (page « Sources externes » ou .env). "
                 "Test cloud annulé."))

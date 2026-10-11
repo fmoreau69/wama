@@ -312,6 +312,12 @@ class ExternalSource:
     #: OpenRouter : n'aller que chez des hébergeurs qui ne gardent ni n'entraînent sur les données.
     #: Chaîne JSON (et non dict) : la source est figée, donc hachable.
     request_body: str = ''
+    #: Fournisseur LLM : attente, en secondes, après un refus de débit (HTTP 429) qui ne dit pas
+    #: quand recommencer (`Retry-After`) — MESURÉE sur le fournisseur ; 0 = l'attente commune
+    #: (`llm_utils.RATE_LIMIT_WAIT_S`). Chantier 5 ③ de `WAMA_HARNESS.md` (2026-10-11) : la
+    #: reprise est le seul profil qui diffère d'un fournisseur à l'autre ; le DÉLAI, lui, reste
+    #: celui de l'appelant (un tour interactif n'attend pas comme une tâche).
+    rate_limit_wait_s: float = 0.0
     #: Fournisseur LLM : les outils de l'assistant lui sont DÉCLARÉS au format standard
     #: (`tools=`, appels rendus nommés dans `tool_calls`) en plus de la liste du prompt
     #: (2026-10-11). Mesuré sur Albert/gpt-oss : sans déclaration, son appel d'outil natif
@@ -369,6 +375,9 @@ SOURCES: tuple[ExternalSource, ...] = (
         api_key_help_url='https://ia.numerique.gouv.fr/outils-ia/albert-api/',
         hosting='sovereign', cost_tier='free', protocol='openai',
         default_model='openai/gpt-oss-120b', native_tools=True,
+        # 10 requêtes par minute et par clé, sans `Retry-After` : une fenêtre ENTIÈRE (mesuré le
+        # 2026-10-10 — trois essais à 20 s d'écart tous refusés).
+        rate_limit_wait_s=60.0,
         doc='docs/construction/ia/WAMA_LLM.md'),
     # 2026-10-07 : ILaaS, fédération d'inférence de l'ESR (MESRE, CINES ; datacenters labellisés
     # ESR), protocole OpenAI. Il délivre des clés d'APPLICATION (une par service, validée par

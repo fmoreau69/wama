@@ -85,7 +85,6 @@ class AlbertRoutageTest(SimpleTestCase):
         # par défaut au registre ; la table ne garde que les fournisseurs sans source.
         self.assertEqual(external_sources.get('albert').default_model,
                          llm_utils.default_cloud_model('albert'))
-        self.assertNotIn('albert', llm_utils.CLOUD_DEFAULT_MODELS)
 
     def test_num_predict_None_ne_plafonne_pas_et_la_temperature_est_transmise(self):
         (_, _), fake = self._call(env={'ALBERT_API_KEY': 'k'}, provider='albert', model='x',
@@ -100,7 +99,9 @@ class AutresFournisseursInchangesTest(SimpleTestCase):
 
     def test_anthropic_garde_son_prefixe_et_ne_recoit_ni_adresse_ni_cle(self):
         fake = _fake_litellm()
-        with patch.dict(sys.modules, {'litellm': fake}):
+        with patch.dict(sys.modules, {'litellm': fake}), patch.dict(os.environ), \
+                patch.object(external_sources, 'stored_instance_key', return_value=''):
+            os.environ.pop('ANTHROPIC_API_KEY', None)
             llm_utils.llm_chat(MESSAGES, provider='anthropic', model='claude-x')
         sent = fake.completion.call_args.kwargs
         self.assertEqual('anthropic/claude-x', sent['model'])
@@ -139,6 +140,81 @@ class OpenAICompatibleProvidersAreDerivedTest(SimpleTestCase):
             if source.kind == 'llm':
                 self.assertNotEqual('wama-dev-ai', SOURCE_PROVIDERS.get(source.key, 'wama-dev-ai'),
                                     f"un modèle `{source.key}:*` partirait sur le moteur LOCAL")
+
+
+class ProvidersMustBeDeclaredTest(SimpleTestCase):
+    """2026-10-11 (chantier 5 of WAMA_HARNESS.md): a remote provider EXISTS if it is in the
+    registry, full stop. The six names `llm_chat` used to accept without a source (`openai`,
+    `mistral`…) had no « 100 % local » guard, no personal key and no key on the Sources page."""
+
+    def _call(self, provider, env=None, stored='', **kwargs):
+        fake = _fake_litellm()
+        with patch.dict(sys.modules, {'litellm': fake}), patch.dict(os.environ, env or {}), \
+                patch.object(external_sources, 'stored_instance_key', return_value=stored):
+            result = llm_utils.llm_chat(MESSAGES, provider=provider, **kwargs)
+        return result, fake
+
+    def test_a_provider_without_a_source_is_refused_before_any_call(self):
+        for name in ('openai', 'mistral', 'groq', 'gemini', 'grok', 'xai', 'deepseek'):
+            (text, err), fake = self._call(name, env={'OPENAI_API_KEY': 'k'}, model='m')
+            self.assertIsNone(text, name)
+            self.assertIn('non déclaré', err)
+            self.assertFalse(fake.completion.called, name)
+
+    def test_every_declared_provider_but_the_subscription_is_accepted(self):
+        for source in external_sources.SOURCES:
+            if source.kind != 'llm':
+                continue
+            expected = source.protocol != 'claude_cli'
+            self.assertEqual(expected, llm_utils.declared_llm_source(source.key) is not None,
+                             source.key)
+
+    def test_the_gateway_check_offers_the_declared_providers_and_no_other(self):
+        from wama.model_manager.management.commands.llm_gateway_check import _cloud_providers
+        self.assertEqual([s.key for s in external_sources.SOURCES
+                          if llm_utils.declared_llm_source(s.key)], _cloud_providers())
+        self.assertNotIn('openai', _cloud_providers())
+
+    def test_no_model_and_none_declared_is_refused_instead_of_sending_a_bare_prefix(self):
+        with patch.object(llm_utils, 'default_cloud_model', return_value=''):
+            (text, err), fake = self._call('albert', env={'ALBERT_API_KEY': 'k'})
+        self.assertIsNone(text)
+        self.assertFalse(fake.completion.called, "LiteLLM would have received `openai/` alone")
+
+    def test_the_instance_key_set_on_the_sources_page_serves_every_declared_protocol(self):
+        # Until 2026-10-11 only the OpenAI-compatible branch read it: the Anthropic API
+        # ignored a key set on the page.
+        (_, _), fake = self._call('anthropic', stored='page-key', model='claude-x')
+        self.assertEqual('page-key', fake.completion.call_args.kwargs['api_key'])
+
+
+class DeclaredRateLimitWaitTest(SimpleTestCase):
+    """2026-10-11 (chantier 5 ③): the wait after a 429 WITHOUT `Retry-After` is the one the
+    source MEASURED (`rate_limit_wait_s`, Albert: a whole window), otherwise the common one."""
+
+    class RateLimitError(Exception):
+        status_code = 429
+
+    def _wait(self, provider, env):
+        outcomes = iter([self.RateLimitError(), 'OK'])
+
+        def completion(**kwargs):
+            outcome = next(outcomes)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return MagicMock(choices=[MagicMock(message=MagicMock(content=outcome))])
+        with patch.dict(sys.modules, {'litellm': MagicMock(completion=completion)}), \
+                patch.dict(os.environ, env), patch('time.sleep') as sleep, \
+                patch.object(llm_utils, 'RATE_LIMIT_WAIT_S', 5.0), \
+                patch.object(external_sources, 'stored_instance_key', return_value=''):
+            self.assertEqual(('OK', None), llm_utils.llm_chat(MESSAGES, provider=provider,
+                                                              model='m'))
+        return sleep.call_args.args[0]
+
+    def test_albert_waits_its_measured_window_and_another_provider_the_common_wait(self):
+        self.assertEqual(external_sources.get('albert').rate_limit_wait_s,
+                         self._wait('albert', {'ALBERT_API_KEY': 'k'}))
+        self.assertEqual(5.0, self._wait('anthropic', {'ANTHROPIC_API_KEY': 'k'}))
 
 
 class DeclaredRequestBodyTest(SimpleTestCase):

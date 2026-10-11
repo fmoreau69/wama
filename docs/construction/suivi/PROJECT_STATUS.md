@@ -22884,6 +22884,37 @@ Le smoke navigateur déclaré en attente au bloc précédent est joué sur le li
 ⚠ Une capture d'ÉLÉMENT du volet droit, hors de la zone visible d'un conteneur qui défile, sort
 DÉFORMÉE (lignes superposées) : faire défiler l'élément avant de le capturer.
 
+## §CLÔTURE (suite) — 2026-10-11, « CLÉS D'INSTANCE : les restes soldés sans la clé ILaaS » — clos (commit de ce bloc, non poussé) — 🔴 relancer gunicorn + workers · 🔚 poser la vraie clé ILaaS
+
+Demande de Fabien : solder ce qui ne dépend pas de la clé ILaaS (toujours en attente d'acceptation).
+- **Retirer une clé retire ce qu'elle ouvrait** (pending du bloc du 07→10/10, tranché dans
+  l'idiome existant) : profil et page Sources appellent `api_keys.forget_opened_models` →
+  `cloud_models.retire_unlisted` ; les modèles qu'AUCUNE clé restante n'ouvre sont marqués
+  indisponibles, jamais supprimés. Garde `tests_api_keys.RemovedKeyRetiresItsModelsTest`
+  (mutation jouée : 2 rouges).
+- **Chantier 5 de `WAMA_HARNESS.md` SOLDÉ** : ② les six fournisseurs sans source et
+  `CLOUD_DEFAULT_MODELS` retirés (`REMOVAL_LEDGER` R113) — `llm_chat` refuse tout fournisseur hors
+  registre (`declared_llm_source`) ; la clé d'instance de la page sert aussi à l'API Anthropic sans
+  utilisateur (elle l'ignorait). ③ l'attente après un 429 se déclare par source mesurée
+  (`ExternalSource.rate_limit_wait_s`, Albert 60 s) ; le délai reste celui de l'appelant, par
+  décision écrite au chantier. Gardes `tests_llm_providers.ProvidersMustBeDeclaredTest`,
+  `DeclaredRateLimitWaitTest`.
+- **Constats périmés corrigés** : le « trou » de `WAMA_LLM.md` (fournisseur non déclaré atteignable
+  par un utilisateur) était déjà fermé par `_llm_call` ; la MUSIQUE d'Artificial Analysis est
+  branchée depuis le 10/10 (autre instance) et sa transcription écartée sur mesure (`aa_wer_index`
+  ne distingue pas les modèles) — le pending du bloc précédent est caduc.
+
+**Tests** : `tests_api_keys` (39), `tests_llm_providers`, `tests_external_sources`,
+`tests_cloud_models`, `tests_assistant_stream` verts. **Rouges, pas de cette session** : 6 dans `tests_dev_ai_bridge` (`DiffusersEngineMustBeProvenTest`
+×5 lit `known_engines`, que change le WIP MuseTalk d'une autre instance du 11/10 12:46 ;
+`InstallChannelFromRepoFactsTest` : `pywin32` du venv Windows) ; budget de langue (code, classes
+et méthodes de test) dépassé par d'autres sessions — aucun identifiant relevé dans les lignes de
+celle-ci. `check_redundancy` : rien sur les symboles neufs.
+
+**Restent** : 🔚 la clé ILaaS (la poser, partager, `llm_gateway_check --provider ilaas`, mesurer
+`/models` et son attente sur 429) ; `WAMA_MECANISMES.md` (`mecanismes.py` toujours co-édité) ;
+embeddings et transcription d'ILaaS (exigent la clé).
+
 ## §PALIER — 2026-10-10 (soir), « CodeFormer : poids par le CATALOGUE » — livré (commit de ce palier, non poussé) — 🔴 relancer TOUS les workers (une synchro planifiée sur l'ancien code efface la déclaration de la ligne `avatarizer:codeformer`), puis `python manage.py pull_model avatarizer:codeformer` (rien à télécharger : vérifie et journalise)
 
 Repli de `setup_avatarizer.sh` corrigé en passant par la route du catalogue : l'app déclare les

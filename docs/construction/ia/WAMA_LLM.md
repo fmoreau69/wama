@@ -875,6 +875,19 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   ne garde que les fournisseurs sans source ; ③ (délais par fournisseur) reste à faire. Et
   `assistant_engine.SOURCE_PROVIDERS` connaît toute source `llm` : un modèle `ilaas:*` choisi au
   sélecteur serait sinon parti sur le moteur LOCAL.
+- **Un fournisseur existe s'il est au registre — 2026-10-11** (chantier 5 de `WAMA_HARNESS.md`
+  soldé). `llm_chat` refuse tout fournisseur hors registre avant l'appel
+  (`llm_utils.declared_llm_source`) ; les six noms sans source (`openai`, `mistral`, `groq`,
+  `gemini`, `grok`, `deepseek`) et `CLOUD_DEFAULT_MODELS` sont retirés (`REMOVAL_LEDGER` R113).
+  Aucune clé n'était posée pour eux. La clé d'instance de la page sert désormais à TOUTE source
+  déclarée appelée sans utilisateur (l'API Anthropic l'ignorait). ③ : l'attente après un 429 sans
+  `Retry-After` se déclare par source quand elle est mesurée (`rate_limit_wait_s`, Albert 60 s) ;
+  le DÉLAI reste celui de l'appelant, par décision (raisons au chantier 5).
+- **Retirer une clé retire ce qu'elle ouvrait — 2026-10-11.** Au profil comme sur la page
+  « Sources externes », les modèles distants qu'AUCUNE clé restante n'ouvre sont marqués
+  indisponibles (`api_keys.forget_opened_models` → `cloud_models.retire_unlisted`) — marqués,
+  jamais supprimés : une clé reposée les rend. Avant, la sonde nocturne ne rattrapait que les
+  sources qui gardaient une clé, et les modèles de la dernière clé retirée restaient proposés.
 - **Apps** : `select_model()` (model_manager) — VRAM-aware, `prefer_loaded`, capacités requises ;
   les tiers de `llm_utils` s'appuient dessus.
 - **Cible non atteinte** (§15 + ROADMAP §8d) : croiser **intention + fichiers d'entrée +
@@ -1801,7 +1814,7 @@ Chantier à ouvrir quand Fabien le décide — pas avant la stabilisation hôte 
 |---|---|---|
 | tour sans état `run_assistant_turn` (garde abonnement, résolution du modèle, prompt, boucle d'outils ≤ 5) | `common/services/assistant_engine.py:562-743` | complet |
 | tour avec historique SERVEUR `conversation_turn` (best-effort sur le stockage, jamais sur la réponse) | `assistant_engine.py:522-559` ; store `conversation_store.py`, `Conversation`/`ConversationTurn` `common/models.py:950-1026` | ⚠ **périmé au 15/09, corrigé le 2026-09-20 sur MESURE** : adopté par les **trois** surfaces — `views.py:166` (web), `api/v1/views.py:132` (api), `gateway/core.py:208` (canaux). Restent `conversations_of`/`clear` sans vue, et `matrix` sans producteur |
-| routage `_llm_call` (local / abonnement / distant), clé personnelle + `cloud_refusal` + modèle ouvert par la clé | `assistant_engine.py:418-474` | ⚠ **trou** : un fournisseur SANS source déclarée (`openai`, `mistral`…) n'a ni garde ni clé personnelle (`:447`) — atteignable par l'API v1 et un POST forgé |
+| routage `_llm_call` (local / abonnement / distant), clé personnelle + `cloud_refusal` + modèle ouvert par la clé | `assistant_engine.py:418-474` | ~~⚠ **trou** : un fournisseur SANS source déclarée (`openai`, `mistral`…) n'a ni garde ni clé personnelle (`:447`) — atteignable par l'API v1 et un POST forgé~~ — **constat périmé, corrigé le 2026-10-11 sur mesure** : `_llm_call` refusait déjà un fournisseur non déclaré pour un utilisateur connecté ; depuis ce jour `llm_chat` le refuse aussi sans utilisateur (`declared_llm_source`, R113) |
 | rôles `_ROLE_TIER` → tier → `llm_utils.modele_par_tier` ; bascule de contexte long `_route_model_by_context` | `assistant_engine.py:102-109`, `:177-188`, `:261-287` | complet ; `debug` absent de l'UI (`views.py:52-58`) |
 | appel Ollama `_ollama_call` | `assistant_engine.py:294-360` | complet, mais **4ᵉ implémentation** d'un chat Ollama (cf. §C) |
 | prompt d'outils `WAMA_TOOLS_PROMPT`, contexte `_build_wama_context` | `assistant_engine.py:66-89`, `:222-258` | partiel : phrases FR et liste de 8 apps en dur |
