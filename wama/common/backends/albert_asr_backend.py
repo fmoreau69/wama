@@ -146,18 +146,20 @@ class AlbertTranscriptionBackend(SpeechToTextBackend):
                     f"{len(chunks[0]) / max(len(wave), 1):.0%} de l'audio envoyé")
         return out, SpeechTimestampsMap(spans, sr)
 
-    def _post(self, path: str, data: dict) -> dict:
-        """Un envoi ; attend et recommence sur la limite de débit (HTTP 429). Lève `_Refused`."""
+    def _post(self, path: str, data: dict, retries: int = None) -> dict:
+        """Un envoi ; attend et recommence sur la limite de débit (HTTP 429). Lève `_Refused`.
+        `retries=0` : un appelant qui a un repli (la conversation vocale) ne veut pas attendre."""
         import requests
         from wama.common import external_sources
-        for attempt in range(self.RATE_LIMIT_RETRIES + 1):
+        retries = self.RATE_LIMIT_RETRIES if retries is None else retries
+        for attempt in range(retries + 1):
             with open(path, 'rb') as fh:
                 response = requests.post(
                     f"{external_sources.base_url(self.ENGINE)}/audio/transcriptions",
                     headers={'Authorization': f'Bearer {self._api_key}'},
                     files={'file': (os.path.basename(path), fh, 'audio/wav')},
                     data=data, timeout=self.REQUEST_TIMEOUT_S)
-            if response.status_code == 429 and attempt < self.RATE_LIMIT_RETRIES:
+            if response.status_code == 429 and attempt < retries:
                 wait = response.headers.get('Retry-After') if response.headers else None
                 time.sleep(float(wait) if wait and str(wait).replace('.', '', 1).isdigit()
                            else self.RATE_LIMIT_WAIT_S)
@@ -196,7 +198,8 @@ class AlbertTranscriptionBackend(SpeechToTextBackend):
                 if upload is None:
                     return TranscriptionResult(success=True, text='', language=language or '',
                                                segments=[])
-            payload = self._post(upload, data)
+            payload = self._post(upload, data,
+                                 retries=None if kwargs.get('wait_on_rate_limit', True) else 0)
         except _Refused as e:
             return TranscriptionResult(success=False, text='', error=str(e))
         except requests.RequestException as e:

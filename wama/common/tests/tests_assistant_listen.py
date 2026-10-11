@@ -1,0 +1,524 @@
+"""L'ÉCOUTE de l'assistant — dictée et conversation vocale, transcription LOCALE (2026-10-10).
+
+Trois étages, chacun gardé ici :
+  1. la vue `/api/stt/` (droits, garde de taille, langue du profil, erreurs du service) ;
+  2. le client commun du service vocal (`stt_via_service`), qui partage la traduction d'erreurs
+     de la voix ;
+  3. la brique `wama-assistant-listen.js`, exécutée dans V8 (`py_mini_racer`) : découpage de la
+     parole, en-tête WAV, et l'enchaînement de la conversation (reprendre la parole coupe la
+     voix ET interrompt le tour ; sans annulation d'écho, l'écoute est sourde pendant que
+     l'assistant parle).
+Aucun micro, aucun GPU, aucun service réel : tout ce qui sort de WAMA est simulé.
+"""
+import io
+import json
+import wave
+from pathlib import Path
+from unittest import mock
+
+from django.conf import settings
+from django.contrib.auth.models import User
+from django.test import SimpleTestCase, TestCase
+from django.urls import reverse
+
+
+class SpeechToTextViewTest(TestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user('listen_tester', password='x')
+        self.client.force_login(self.user)
+        self.url = reverse('speech_to_text')
+        patcher = mock.patch('wama.common.services.resource_governor.release_in_progress',
+                             return_value=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _post(self, body=b'RIFF....WAVE', content_type='audio/wav'):
+        return self.client.post(self.url, data=body, content_type=content_type)
+
+    def test_an_anonymous_visitor_is_refused(self):
+        self.client.logout()
+        self.assertEqual(401, self._post().status_code)
+
+    def test_an_empty_body_is_refused(self):
+        self.assertEqual(400, self._post(b'').status_code)
+
+    def test_a_clip_too_long_for_a_reply_is_refused_before_the_service(self):
+        with mock.patch('wama.common.tts.service_client.stt_via_service') as stt:
+            self.assertEqual(413, self._post(b'x' * (2 * 1024 * 1024 + 1)).status_code)
+        stt.assert_not_called()
+
+    def test_the_transcript_comes_back_with_the_profile_language_reduced_for_whisper(self):
+        self.user.profile.preferred_language = 'zh-cn'
+        self.user.profile.save()
+        with mock.patch('wama.common.tts.service_client.stt_via_service',
+                        return_value={'text': '  你好  ', 'language': 'zh'}) as stt:
+            response = self._post()
+        self.assertEqual(200, response.status_code)
+        self.assertEqual({'text': '你好', 'language': 'zh', 'engine': 'local'}, response.json())
+        self.assertEqual('zh', stt.call_args.kwargs['language'])
+        self.assertEqual('audio/wav', stt.call_args.kwargs['content_type'])
+
+    def test_a_service_still_loading_says_so_instead_of_failing(self):
+        from wama.common.tts.service_client import TTSServiceLoadingError
+        with mock.patch('wama.common.tts.service_client.stt_via_service',
+                        side_effect=TTSServiceLoadingError('loading')):
+            response = self._post()
+        self.assertEqual(503, response.status_code)
+        self.assertTrue(response.json()['busy'])
+
+    def test_an_unreachable_service_is_explained(self):
+        with mock.patch('wama.common.tts.service_client.stt_via_service',
+                        side_effect=RuntimeError('Service TTS inaccessible')):
+            response = self._post()
+        self.assertEqual(502, response.status_code)
+        self.assertIn('inaccessible', response.json()['error'])
+
+    def test_nothing_is_heard_while_the_card_is_being_released(self):
+        with mock.patch('wama.common.services.resource_governor.release_in_progress',
+                        return_value=True), \
+             mock.patch('wama.common.tts.service_client.stt_via_service') as stt:
+            self.assertEqual(503, self._post().status_code)
+        stt.assert_not_called()
+
+
+    def test_a_subtitle_credit_invented_on_noise_never_becomes_a_reply(self):
+        """Vécu le 2026-10-11 : trois « Sous-titrage ST' 501 » envoyés à l'assistant."""
+        with mock.patch('wama.common.tts.service_client.stt_via_service',
+                        return_value={'text': "Sous-titrage ST' 501", 'language': 'fr'}):
+            response = self._post()
+        self.assertEqual('', response.json()['text'])
+
+
+class SpeechInputEngineTest(TestCase):
+    """Quel moteur écoute : le profil décide, le local reprend toute phrase que le distant lâche."""
+
+    REMOTE = 'albert:whisper-large-v3'
+
+    def setUp(self):
+        from wama.model_manager.models import AIModel
+        self.user = User.objects.create_user('listen_engine', password='x')
+        AIModel.objects.update_or_create(
+            model_key=self.REMOTE,
+            defaults=dict(name='whisper-large-v3', model_type='speech', source='albert',
+                          execution='cloud', is_available=True,
+                          composition={'runtime': {'engine': 'albert'}},
+                          capabilities={'task': 'transcription'}))
+        AIModel.objects.update_or_create(
+            model_key='albert:gpt-oss-120b',
+            defaults=dict(name='gpt-oss-120b', model_type='llm', source='albert',
+                          execution='cloud', is_available=True,
+                          composition={'runtime': {'engine': 'albert'}},
+                          capabilities={'task': 'text-generation'}))
+
+    def _opened(self, keys):
+        return mock.patch('wama.model_manager.services.cloud_models.allowed_cloud_keys',
+                          return_value=set(keys))
+
+    def _local(self, text='bonjour'):
+        return mock.patch('wama.common.tts.service_client.stt_via_service',
+                          return_value={'text': text, 'language': 'fr'})
+
+    def test_a_local_only_profile_is_heard_locally(self):
+        from wama.common.tts import speech_input
+        with self._opened([]), self._local() as local, \
+             mock.patch.object(speech_input, '_transcribe_remote') as remote:
+            result = speech_input.transcribe_utterance(self.user, b'WAV', language='fr')
+        remote.assert_not_called()
+        local.assert_called_once()
+        self.assertEqual('local', result['engine'])
+
+    def test_the_remote_model_is_the_transcription_one_the_profile_opens(self):
+        from wama.common.tts.speech_input import remote_stt_key
+        with self._opened([self.REMOTE, 'albert:gpt-oss-120b']):
+            self.assertEqual(self.REMOTE, remote_stt_key(self.user))
+        with self._opened(['albert:gpt-oss-120b']):
+            self.assertEqual('', remote_stt_key(self.user), 'un modèle de chat n\'écoute pas')
+
+    def test_a_cloud_profile_is_heard_remotely_without_the_local_service(self):
+        from wama.common.tts import speech_input
+        with self._opened([self.REMOTE]), self._local() as local, \
+             mock.patch.object(speech_input, '_transcribe_remote',
+                               return_value={'text': 'Liste mes fichiers.', 'language': 'fr'}):
+            result = speech_input.transcribe_utterance(self.user, b'WAV', language='fr')
+        local.assert_not_called()
+        self.assertEqual({'text': 'Liste mes fichiers.', 'language': 'fr', 'engine': self.REMOTE},
+                         result)
+
+    def test_a_remote_failure_falls_back_to_the_local_listener(self):
+        from wama.common.tts import speech_input
+        with self._opened([self.REMOTE]), self._local('bonjour') as local, \
+             mock.patch.object(speech_input, '_transcribe_remote',
+                               side_effect=RuntimeError('HTTP 429')):
+            result = speech_input.transcribe_utterance(self.user, b'WAV', language='fr')
+        local.assert_called_once()
+        self.assertEqual(('bonjour', 'local'), (result['text'], result['engine']))
+
+    def test_warming_up_a_remote_listener_sends_nothing_anywhere(self):
+        from wama.common.tts import speech_input
+        with self._opened([self.REMOTE]), self._local() as local, \
+             mock.patch.object(speech_input, '_transcribe_remote') as remote:
+            result = speech_input.transcribe_utterance(self.user, b'WAV', warm_up=True)
+        remote.assert_not_called()
+        local.assert_not_called()
+        self.assertEqual(self.REMOTE, result['engine'])
+
+    def test_the_remote_call_goes_through_the_common_launch_door(self):
+        """La garde `cloud_access` et la clé passent par `backend_instance_for_key`."""
+        from wama.common.backends.speech_to_text_base import TranscriptionResult
+        from wama.common.tts import speech_input
+        backend = mock.Mock()
+        backend.load.return_value = True
+        backend.transcribe.return_value = TranscriptionResult(success=True, text='Oui.',
+                                                              language='fr')
+        with mock.patch('wama.common.backends.manager.backend_instance_for_key',
+                        return_value=backend) as door, \
+             mock.patch('wama.common.tts.service_client.speech_only_via_service',
+                        return_value=b'SPEECH') as vad:
+            result = speech_input._transcribe_remote(self.user, self.REMOTE, b'WAV', 'audio/wav')
+        door.assert_called_once_with(self.REMOTE, self.user)
+        backend.load.assert_called_once_with('whisper-large-v3')
+        vad.assert_called_once()
+        kwargs = backend.transcribe.call_args.kwargs
+        # Le filtre a tourné dans le SERVICE : le backend ne le refait pas (import de 52 à 66 s).
+        self.assertEqual((False, False), (kwargs['vad_filter'], kwargs['wait_on_rate_limit']))
+        self.assertNotIn('language', kwargs, 'chez Albert, `language` TRADUIT la sortie')
+        self.assertEqual('Oui.', result['text'])
+
+    def test_a_clip_without_speech_never_leaves_wama(self):
+        from wama.common.tts import speech_input
+        backend = mock.Mock()
+        backend.load.return_value = True
+        with mock.patch('wama.common.backends.manager.backend_instance_for_key',
+                        return_value=backend), \
+             mock.patch('wama.common.tts.service_client.speech_only_via_service',
+                        return_value=b''):
+            result = speech_input._transcribe_remote(self.user, self.REMOTE, b'WAV', 'audio/wav')
+        backend.transcribe.assert_not_called()
+        self.assertEqual('', result['text'])
+
+    def test_without_the_voice_service_the_clip_is_sent_unfiltered(self):
+        """Contre-épreuve : le filtre est un plus, son absence ne coupe pas le micro."""
+        from wama.common.backends.speech_to_text_base import TranscriptionResult
+        from wama.common.tts import speech_input
+        backend = mock.Mock()
+        backend.load.return_value = True
+        backend.transcribe.return_value = TranscriptionResult(success=True, text='Oui.')
+        with mock.patch('wama.common.backends.manager.backend_instance_for_key',
+                        return_value=backend), \
+             mock.patch('wama.common.tts.service_client.speech_only_via_service',
+                        side_effect=RuntimeError('Service TTS inaccessible')):
+            result = speech_input._transcribe_remote(self.user, self.REMOTE, b'WAV', 'audio/wav')
+        self.assertEqual('Oui.', result['text'])
+
+
+class PhantomPhraseTest(SimpleTestCase):
+
+    def test_known_subtitle_credits_are_removed(self):
+        from wama.common.tts.speech_input import drop_phantom_phrases as drop
+        for phantom in ("Sous-titrage ST' 501", "Sous-titrage ST’ 501.",
+                        "Sous-titres réalisés par la communauté d'Amara.org",
+                        "Sous-titrage Société Radio-Canada", "Merci d'avoir regardé cette vidéo !",
+                        "Thank you for watching!"):
+            self.assertEqual('', drop(phantom), phantom)
+
+    def test_a_real_sentence_keeps_its_words_and_loses_the_credit(self):
+        from wama.common.tts.speech_input import drop_phantom_phrases as drop
+        self.assertEqual("Wama, est-ce que tu m'entends ?",
+                         drop("Wama, est-ce que tu m'entends ? Sous-titrage ST' 501"))
+
+    def test_what_a_user_really_says_is_never_filtered(self):
+        """Contre-épreuve : des phrases voisines des génériques restent des répliques."""
+        from wama.common.tts.speech_input import drop_phantom_phrases as drop
+        for said in ('Merci.', 'Sous-titre cette vidéo.', 'Lance le sous-titrage du fichier 501.'):
+            self.assertEqual(said, drop(said))
+
+
+class AlbertRateLimitTest(SimpleTestCase):
+
+    def test_a_caller_with_a_fallback_does_not_wait_on_the_rate_limit(self):
+        import tempfile
+
+        import requests
+
+        from wama.common.backends.albert_asr_backend import AlbertTranscriptionBackend
+        limited = requests.Response()
+        limited.status_code = 429
+        limited._content = b'{"detail": "rate limit"}'
+        with tempfile.NamedTemporaryFile(suffix='.wav') as f:
+            with wave.open(f.name, 'wb') as w:
+                w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000)
+                w.writeframes(b'\x00\x00' * 1600)
+            backend = AlbertTranscriptionBackend()
+            backend.authorize('key')
+            backend.load('whisper-large-v3')
+            with mock.patch('requests.post', return_value=limited) as post, \
+                 mock.patch('time.sleep') as sleep, \
+                 mock.patch('wama.common.external_sources.base_url', return_value='https://x'):
+                result = backend.transcribe(f.name, wait_on_rate_limit=False)
+        self.assertFalse(result.success)
+        self.assertEqual(1, post.call_count)
+        sleep.assert_not_called()
+
+
+class SpeechOnlyRouteTest(SimpleTestCase):
+    """`/speech-only` du service vocal : le filtre de parole de l'écoute distante."""
+
+    def setUp(self):
+        import tts_service
+        from fastapi.testclient import TestClient
+        self.service = tts_service
+        self.client = TestClient(tts_service.app)      # hors `with` : pas de démarrage réel
+
+    def test_speech_comes_back_as_a_wav_and_silence_as_no_content(self):
+        with mock.patch.object(self.service, '_speech_only_clip', return_value=b'RIFFSPEECH'):
+            response = self.client.post('/speech-only', content=b'WAV',
+                                        headers={'Content-Type': 'audio/wav'})
+        self.assertEqual((200, b'RIFFSPEECH'), (response.status_code, response.content))
+        with mock.patch.object(self.service, '_speech_only_clip', return_value=b''):
+            response = self.client.post('/speech-only', content=b'WAV')
+        self.assertEqual(204, response.status_code)
+
+    def test_the_client_reads_no_content_as_no_speech(self):
+        import requests
+
+        from wama.common.tts import service_client
+        empty = requests.Response()
+        empty.status_code = 204
+        empty._content = b''
+        with mock.patch('requests.post', return_value=empty) as post:
+            self.assertEqual(b'', service_client.speech_only_via_service(b'WAV'))
+        self.assertTrue(post.call_args.args[0].endswith('/speech-only'))
+
+
+class SttServiceClientTest(SimpleTestCase):
+
+    def _response(self, status, payload):
+        import requests
+        resp = requests.Response()
+        resp.status_code = status
+        resp._content = json.dumps(payload).encode()
+        return resp
+
+    def test_the_audio_goes_raw_to_the_stt_route_with_the_assistant_model(self):
+        from wama.common.tts import service_client
+        from wama.common.tts.constants import ASSISTANT_STT_MODEL
+        with mock.patch('requests.post', return_value=self._response(
+                200, {'text': 'bonjour', 'language': 'fr'})) as post:
+            result = service_client.stt_via_service(b'AUDIO', language='fr')
+        self.assertEqual({'text': 'bonjour', 'language': 'fr'}, result)
+        url = post.call_args.args[0]
+        self.assertTrue(url.endswith('/stt'), url)
+        self.assertEqual(b'AUDIO', post.call_args.kwargs['data'])
+        self.assertEqual({'language': 'fr', 'model': ASSISTANT_STT_MODEL},
+                         post.call_args.kwargs['params'])
+        self.assertEqual('audio/wav', post.call_args.kwargs['headers']['Content-Type'])
+
+    def test_a_loading_service_raises_the_same_error_as_for_the_voice(self):
+        from wama.common.tts import service_client
+        loading = self._response(503, {'detail': {'status': 'loading', 'message': 'wait'}})
+        with mock.patch('requests.post', return_value=loading):
+            with self.assertRaises(service_client.TTSServiceLoadingError):
+                service_client.stt_via_service(b'AUDIO')
+
+    def test_the_voice_still_posts_its_payload_to_the_tts_route(self):
+        """Contre-épreuve de l'extraction de `_post` : la voix garde son contrat."""
+        from wama.common.tts import service_client
+        ok = self._response(200, {})
+        ok._content = b'RIFFWAV'
+        with mock.patch('requests.post', return_value=ok) as post, \
+             mock.patch('wama.common.tts.ui_meta.tts_engine_declared', return_value=None):
+            audio = service_client.tts_via_service('Bonjour', 'kokoro-onnx', raw=True)
+        self.assertEqual(b'RIFFWAV', audio)
+        self.assertTrue(post.call_args.args[0].endswith('/tts'))
+        self.assertEqual('Bonjour', post.call_args.kwargs['json']['text'])
+
+
+FAKE_BROWSER = r"""
+var window = this;
+window.addEventListener = function () {};
+window.sessionStorage = null;
+var document = { readyState: 'complete', cookie: '',
+                 querySelectorAll: function () { return []; },
+                 addEventListener: function () {}, removeEventListener: function () {} };
+var navigator = {};
+var console = { warn: function () {}, error: function () {} };
+function Event(name) { this.type = name; }
+function fakeButton() {
+  return { disabled: false, title: '', classList: { toggle: function () {} },
+           querySelector: function () { return { className: '' }; },
+           addEventListener: function () {} };
+}
+var calls = [];
+var voice = { speaking: false, isSpeaking: function () { return this.speaking; },
+              stop: function () { calls.push('voice.stop'); }, onChange: function () {} };
+window.WamaAssistantVoice = voice;
+var chat = { busy: false, sent: [],
+             input: { value: '', dispatchEvent: function () {}, focus: function () {} },
+             isBusy: function () { return this.busy; },
+             abort: function () { calls.push('chat.abort'); },
+             send: function () { this.sent.push(this.input.value); this.input.value = '';
+                                 return Promise.resolve(true); } };
+var root = { querySelector: function () { return fakeButton(); } };
+"""
+
+
+class ListenBrickTest(SimpleTestCase):
+    """La brique servie (`staticfiles/`), exécutée par V8 avec un faux navigateur minimal."""
+
+    def _ctx(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8')
+        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+                  / 'wama-assistant-listen.js').read_text(encoding='utf-8')
+        ctx = MiniRacer()
+        ctx.eval(FAKE_BROWSER + source)
+        return ctx
+
+    def _segment(self, ctx, pattern, mode='normal'):
+        """Rend les événements du découpage pour [(amplitude, durée ms), …] à 48 kHz."""
+        return json.loads(ctx.eval("""
+            JSON.stringify((function () {
+              var events = [], rate = 48000, len = 2048, k = 0;
+              var seg = new WamaAssistantListen._Segmenter(rate, 900, function (evt, samples) {
+                events.push(evt);
+              });
+              %s.forEach(function (p) {
+                var n = Math.round(p[1] / (len / rate * 1000));
+                for (var i = 0; i < n; i++, k++) {
+                  var f = new Float32Array(len);
+                  for (var j = 0; j < len; j++) {
+                    f[j] = 0.001 * Math.sin(j * 7.3 + k)
+                         + p[0] * Math.sin(2 * Math.PI * 220 * (j + k * len) / rate);
+                  }
+                  seg.feed(f, %r);
+                }
+              });
+              return events;
+            })())
+        """ % (json.dumps(pattern), mode)))
+
+    def test_a_spoken_phrase_between_two_silences_makes_one_utterance(self):
+        ctx = self._ctx()
+        self.assertEqual(['start', 'end'], self._segment(ctx, [[0, 1000], [0.1, 1500], [0, 1500]]))
+
+    def test_a_short_click_is_not_a_phrase(self):
+        ctx = self._ctx()
+        self.assertNotIn('end', self._segment(ctx, [[0, 1000], [0.1, 130], [0, 1500]]))
+
+    def test_interrupting_the_assistant_needs_a_sustained_voice(self):
+        ctx = self._ctx()
+        self.assertEqual([], self._segment(ctx, [[0, 1000], [0.1, 200], [0, 1500]], 'interrupt'))
+        self.assertEqual(['start', 'end'],
+                         self._segment(ctx, [[0, 1000], [0.1, 800], [0, 1500]], 'interrupt'))
+
+    def test_a_deaf_listener_hears_nothing(self):
+        ctx = self._ctx()
+        self.assertEqual([], self._segment(ctx, [[0, 1000], [0.1, 1500], [0, 1500]], 'deaf'))
+
+    def test_the_clip_is_a_standard_16_khz_mono_wav(self):
+        ctx = self._ctx()
+        data = json.loads(ctx.eval("""
+            JSON.stringify(Array.from(new Uint8Array(WamaAssistantListen._wavBytes(
+              WamaAssistantListen._downsample(new Float32Array(24000), 48000)))))
+        """))
+        with wave.open(io.BytesIO(bytes(data))) as w:
+            self.assertEqual((1, 16000, 2, 8000),
+                             (w.getnchannels(), w.getframerate(), w.getsampwidth(), w.getnframes()))
+
+    def _controller(self, ctx, echo_cancelled):
+        ctx.eval("""
+            var c = new WamaAssistantListen._Controller(chat, root);
+            c.mode = 'conversation';
+            c.mic = { echoCancelled: %s, rate: 16000 };
+        """ % ('true' if echo_cancelled else 'false'))
+
+    def test_the_listener_only_interrupts_when_the_browser_cancels_the_echo(self):
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=True)
+        self.assertEqual('normal', ctx.eval("c.frameMode()"))
+        ctx.eval("voice.speaking = true;")
+        self.assertEqual('interrupt', ctx.eval("c.frameMode()"))
+        ctx.eval("c.mic.echoCancelled = false;")
+        self.assertEqual('deaf', ctx.eval("c.frameMode()"),
+                         "sans annulation d'écho, l'assistant s'interromprait lui-même")
+        ctx.eval("voice.speaking = false; chat.busy = true;")
+        self.assertEqual('deaf', ctx.eval("c.frameMode()"), 'pendant la réflexion aussi')
+
+    def test_speaking_over_the_assistant_stops_its_voice_and_its_turn(self):
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=True)
+        ctx.eval("c.onSegment('start', null, 'interrupt');")
+        self.assertEqual(['voice.stop', 'chat.abort'], json.loads(ctx.eval("JSON.stringify(calls)")))
+        self.assertEqual('hearing', ctx.eval("c.phase"))
+
+    def test_a_voice_heard_while_the_assistant_is_silent_interrupts_nothing(self):
+        """Contre-épreuve : une phrase ordinaire ne coupe rien."""
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=True)
+        ctx.eval("c.onSegment('start', null, 'normal');")
+        self.assertEqual([], json.loads(ctx.eval("JSON.stringify(calls)")))
+
+    def test_a_transcribed_phrase_is_sent_as_the_next_turn(self):
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=True)
+        ctx.eval("c.sendTurn('Liste mes fichiers');")
+        self.assertEqual(['Liste mes fichiers'], json.loads(ctx.eval("JSON.stringify(chat.sent)")))
+
+    def test_a_stopped_conversation_sends_nothing_left_over(self):
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=True)
+        ctx.eval("c.mode = 'off'; c.sendTurn('trop tard');")
+        self.assertEqual([], json.loads(ctx.eval("JSON.stringify(chat.sent)")))
+
+    def test_the_warm_up_announces_itself_and_the_label_names_who_listens(self):
+        ctx = self._ctx()
+        ctx.eval("""
+            var fetched = [];
+            var Blob = function (parts, opts) { this.parts = parts; };
+            var fetch = function (url) {
+              fetched.push(url);
+              return Promise.resolve({ json: function () {
+                return Promise.resolve({ text: '', engine: 'albert:whisper-large-v3' }); } });
+            };
+        """)
+        self.assertIn('rien ne sort de WAMA', ctx.eval("WamaAssistantListen._listenerLabel()"))
+        ctx.eval("WamaAssistantListen._warmUp();")
+        self.assertEqual(['/api/stt/?warmup=1'], json.loads(ctx.eval("JSON.stringify(fetched)")))
+        label = ctx.eval("WamaAssistantListen._listenerLabel()")
+        self.assertIn('albert', label)
+        self.assertNotIn('rien ne sort', label, "l'info-bulle ne dit plus « local » à tort")
+
+    def test_the_chat_brick_exposes_what_the_conversation_needs(self):
+        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+                  / 'wama-assistant-chat.js').read_text(encoding='utf-8')
+        for needed in ('Chat.prototype.abort', 'Chat.prototype.isBusy', 'signal: this.signal()'):
+            self.assertIn(needed, source)
+
+
+class ListenBrickIsMountedEverywhereTest(TestCase):
+    """Les deux surfaces de l'assistant DÉCLARENT les boutons ; la brique est chargée par
+    `base.html`. L'ancienne dictée par le navigateur (audio envoyé à Google) a disparu."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('listen_mount', password='x', is_staff=True,
+                                             is_superuser=True)
+        self.client.force_login(self.user)
+
+    def test_the_home_chat_offers_dictation_and_conversation(self):
+        html = self.client.get(reverse('home')).content.decode()
+        self.assertIn('wama-assistant-listen.js', html)
+        self.assertIn('data-assistant-talk', html)
+        self.assertIn('data-assistant-mic', html)
+        # Le CODE de l'ancienne dictée, pas le mot (un commentaire le nomme pour dire qu'il est parti).
+        self.assertNotIn('window.webkitSpeechRecognition', html)
+        self.assertNotIn('new SR()', html)
+
+    def test_the_panel_chat_template_offers_the_same_buttons(self):
+        source = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'templates' / 'common'
+                  / '_assistant_avatar.html').read_text(encoding='utf-8')
+        self.assertIn('data-assistant-talk', source)
+        self.assertIn('data-assistant-mic', source)
+        self.assertIn("{% url 'speech_to_text' %}", source)

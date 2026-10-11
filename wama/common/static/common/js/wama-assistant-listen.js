@@ -1,0 +1,562 @@
+/*
+ * WamaAssistantListen — l'ÉCOUTE de l'assistant, brique commune (accueil + volet droit).
+ * Pendant de `wama-assistant-voice.js` : celle-là le fait PARLER, celle-ci l'ENTEND.
+ *
+ * POURQUOI (2026-10-10, demande de Fabien : « une conversation naturelle avec l'assistant »,
+ * « en brique commune utilisable dans l'assistant partout dans WAMA »). Jusque-là le micro de
+ * l'accueil était une DICTÉE par la reconnaissance du navigateur (`webkitSpeechRecognition`) :
+ *   • elle envoie l'audio à Google — contraire à « aucun traitement externe par défaut » ;
+ *   • elle ne faisait que remplir la zone de saisie : il fallait envoyer, attendre, recliquer ;
+ *   • elle n'existait que sur l'accueil.
+ *
+ * CE QUE FAIT LA BRIQUE.
+ *   1. Capte le micro (getUserMedia, annulation d'écho du navigateur demandée), découpe la
+ *      parole par l'ÉNERGIE du signal (début : la voix dépasse le bruit de fond ; fin : un
+ *      silence qui dure), garde une avance de 400 ms pour ne pas couper la première syllabe.
+ *   2. Transcrit : la phrase part en WAV 16 kHz à `/api/stt/`. LOCALEMENT par défaut (Whisper
+ *      dans le service vocal, `tts_service.py`) — rien ne sort de WAMA ; chez Albert quand le
+ *      profil autorise le cloud (`common/tts/speech_input.py`, 2026-10-11). Le serveur dit
+ *      quel moteur a écouté (`engine`) et l'info-bulle de la dictée le répète.
+ *   3. Deux gestes, deux boutons déclarés dans le chat :
+ *        [data-assistant-mic]  DICTÉE — une phrase, écrite dans la zone de saisie (on relit,
+ *                              on envoie soi-même) ;
+ *        [data-assistant-talk] CONVERSATION — chaque phrase part toute seule, l'assistant
+ *                              répond à voix haute, l'écoute continue. Reste actif d'une page
+ *                              à l'autre pendant la session (sessionStorage).
+ *   4. REPRENDRE LA PAROLE : pendant que l'assistant réfléchit ou parle, une voix nette et
+ *      soutenue (seuils plus hauts) coupe sa voix et interrompt son tour (`chat.abort()`), et
+ *      ce qu'on dit devient la réplique suivante. ⚠ Seulement si le navigateur confirme
+ *      l'annulation d'écho (`getSettings().echoCancellation`) : sans elle, l'assistant
+ *      s'entendrait lui-même et s'interromprait. L'écoute est alors SOURDE pendant qu'il parle
+ *      (chacun son tour), et le bouton le dit.
+ *
+ * CONTRAT.
+ *   mount()                : câble les boutons de chaque `[data-wama-chat]` (automatique).
+ *   configure({sttUrl})    : route de transcription (défaut : `data-stt-url` du chat, sinon
+ *                            `/api/stt/`).
+ *   stop()                 : coupe tout (micro rendu, conversation arrêtée).
+ *   state()                : {mode: 'off'|'dictation'|'conversation', phase, echoCancelled}.
+ *
+ * Dépend de : `WamaAssistantChat` (send/abort/isBusy/input), `WamaAssistantVoice`
+ * (isSpeaking/stop/onChange), `WamaApp.toast` et `WamaApp.csrfToken` si présents.
+ */
+(function (global) {
+  'use strict';
+
+  var TARGET_RATE = 16000;               // ce qu'attend Whisper ; on rééchantillonne ici
+  var SESSION_KEY = 'wama.assistant.talk';
+
+  //: Seuils du découpage, en dB AU-DESSUS du bruit de fond mesuré (et en ms). Deux jeux :
+  //: `normal` quand l'assistant se tait, `interrupt` quand il réfléchit ou parle — il faut
+  //: alors une voix plus forte et plus longue pour lui couper la parole.
+  var PARAMS = {
+    normal:    { startDb: 10, floorDb: -55, startMs: 120 },
+    interrupt: { startDb: 18, floorDb: -42, startMs: 350 },
+  };
+  var KEEP_DB = 6;                        // au-dessus : la parole continue
+  var END_MS = { conversation: 900, dictation: 1300 };
+  var MIN_SPEECH_MS = 250;                // en dessous : un bruit, pas une phrase
+  var MAX_UTTERANCE_MS = 30000;
+  var PREROLL_MS = 400;
+
+  var cfg = { sttUrl: '' };
+  var ctl = null;                         // le contrôleur ACTIF (un seul micro par page)
+
+  function csrfToken() {
+    if (global.WamaApp && global.WamaApp.csrfToken) return global.WamaApp.csrfToken();
+    var m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+
+  function say(message, type) {
+    if (global.WamaApp && global.WamaApp.toast) global.WamaApp.toast(message, type || 'warning');
+    else console.warn('[WamaAssistantListen]', message);
+  }
+
+  function remember(on) {
+    try {
+      if (on) global.sessionStorage.setItem(SESSION_KEY, '1');
+      else global.sessionStorage.removeItem(SESSION_KEY);
+    } catch (_) {}
+  }
+
+  function remembered() {
+    try { return global.sessionStorage.getItem(SESSION_KEY) === '1'; } catch (_) { return false; }
+  }
+
+  // ── Signal ───────────────────────────────────────────────────────────────────
+  function levelDb(frame) {
+    var sum = 0;
+    for (var i = 0; i < frame.length; i++) sum += frame[i] * frame[i];
+    var rms = Math.sqrt(sum / (frame.length || 1));
+    return rms > 1e-9 ? 20 * Math.log10(rms) : -120;
+  }
+
+  // Moyenne par paquets : suffisant pour la parole (≤ 8 kHz utiles), et sans dépendance.
+  function downsample(samples, rate) {
+    if (rate === TARGET_RATE) return samples;
+    var ratio = rate / TARGET_RATE;
+    var out = new Float32Array(Math.floor(samples.length / ratio));
+    for (var i = 0; i < out.length; i++) {
+      var start = Math.floor(i * ratio), end = Math.min(samples.length, Math.floor((i + 1) * ratio));
+      var sum = 0;
+      for (var j = start; j < end; j++) sum += samples[j];
+      out[i] = sum / Math.max(1, end - start);
+    }
+    return out;
+  }
+
+  function toWav(samples) { return new Blob([wavBytes(samples)], { type: 'audio/wav' }); }
+
+  // WAV PCM 16 bits mono à 16 kHz — l'en-tête de 44 octets, puis les échantillons.
+  function wavBytes(samples) {
+    var buffer = new ArrayBuffer(44 + samples.length * 2);
+    var view = new DataView(buffer);
+    function text(offset, s) { for (var i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)); }
+    text(0, 'RIFF'); view.setUint32(4, 36 + samples.length * 2, true); text(8, 'WAVE');
+    text(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true); view.setUint32(24, TARGET_RATE, true);
+    view.setUint32(28, TARGET_RATE * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    text(36, 'data'); view.setUint32(40, samples.length * 2, true);
+    for (var i = 0; i < samples.length; i++) {
+      var s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    return buffer;
+  }
+
+  function concat(frames) {
+    var n = 0;
+    frames.forEach(function (f) { n += f.length; });
+    var out = new Float32Array(n), at = 0;
+    frames.forEach(function (f) { out.set(f, at); at += f.length; });
+    return out;
+  }
+
+  /**
+   * Découpe un flux de trames en PHRASES. `onEvent('start')` quand une voix commence,
+   * `onEvent('end', samples)` quand elle s'arrête (avance comprise), `onEvent('discard')`
+   * pour un bruit trop court. `mode(frame)` rend 'normal', 'interrupt' ou 'deaf'.
+   */
+  function Segmenter(rate, endMs, onEvent) {
+    this.rate = rate;
+    this.endMs = endMs;
+    this.onEvent = onEvent;
+    this.floor = null;                    // bruit de fond, mesuré en continu hors parole
+    this.reset();
+  }
+
+  Segmenter.prototype.reset = function () {
+    this.preroll = [];
+    this.prerollMs = 0;
+    this.frames = null;
+    this.loudMs = 0;
+    this.quietMs = 0;
+    this.speechMs = 0;
+    this.totalMs = 0;
+  };
+
+  Segmenter.prototype.feed = function (frame, mode) {
+    var db = levelDb(frame);
+    var ms = frame.length / this.rate * 1000;
+    if (this.floor === null) this.floor = db;
+    if (mode === 'deaf') { this.reset(); return; }
+    var p = PARAMS[mode] || PARAMS.normal;
+
+    if (!this.frames) {
+      this.preroll.push(frame);
+      this.prerollMs += ms;
+      while (this.prerollMs > PREROLL_MS && this.preroll.length > 1) {
+        this.prerollMs -= this.preroll.shift().length / this.rate * 1000;
+      }
+      if (db > Math.max(this.floor + p.startDb, p.floorDb)) {
+        this.loudMs += ms;
+      } else {
+        this.loudMs = 0;
+        // Le fond suit lentement le bruit ambiant (ventilation, clim), borné.
+        this.floor = Math.min(-30, Math.max(-90, this.floor * 0.95 + db * 0.05));
+      }
+      if (this.loudMs >= p.startMs) {
+        this.frames = this.preroll;
+        this.preroll = [];
+        this.prerollMs = 0;
+        this.speechMs = this.loudMs;
+        this.totalMs = this.loudMs;
+        this.quietMs = 0;
+        this.onEvent('start', null, mode);
+      }
+      return;
+    }
+
+    this.frames.push(frame);
+    this.totalMs += ms;
+    if (db > this.floor + KEEP_DB) { this.quietMs = 0; this.speechMs += ms; }
+    else this.quietMs += ms;
+    if (this.quietMs >= this.endMs || this.totalMs >= MAX_UTTERANCE_MS) this.finish();
+  };
+
+  Segmenter.prototype.finish = function () {
+    if (!this.frames) return;
+    var frames = this.frames, speechMs = this.speechMs;
+    this.reset();
+    if (speechMs < MIN_SPEECH_MS) { this.onEvent('discard'); return; }
+    this.onEvent('end', concat(frames));
+  };
+
+  // ── Micro ────────────────────────────────────────────────────────────────────
+  // Un AudioWorklet transmet le signal BRUT par paquets de 2048 échantillons (~43 ms à 48 kHz).
+  // Le module est écrit ici et chargé par une URL de Blob : aucun fichier de plus à servir.
+  var TAP_SOURCE = [
+    'class WamaTap extends AudioWorkletProcessor {',
+    '  constructor() { super(); this.buf = new Float32Array(2048); this.n = 0; }',
+    '  process(inputs) {',
+    '    var ch = inputs[0] && inputs[0][0];',
+    '    if (ch) for (var i = 0; i < ch.length; i++) {',
+    '      this.buf[this.n++] = ch[i];',
+    '      if (this.n === this.buf.length) { this.port.postMessage(this.buf.slice(0)); this.n = 0; }',
+    '    }',
+    '    return true;',
+    '  }',
+    '}',
+    "registerProcessor('wama-tap', WamaTap);",
+  ].join('\n');
+
+  function openMic(onFrame) {
+    if (!global.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return Promise.reject(new Error('insecure'));
+    }
+    var mic = { stream: null, ctx: null, node: null };
+    return navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+    }).then(function (stream) {
+      mic.stream = stream;
+      var Ctx = global.AudioContext || global.webkitAudioContext;
+      mic.ctx = new Ctx();
+      var url = URL.createObjectURL(new Blob([TAP_SOURCE], { type: 'application/javascript' }));
+      return mic.ctx.audioWorklet.addModule(url).then(function () {
+        URL.revokeObjectURL(url);
+        var source = mic.ctx.createMediaStreamSource(stream);
+        mic.node = new AudioWorkletNode(mic.ctx, 'wama-tap');
+        mic.node.port.onmessage = function (e) { onFrame(e.data); };
+        // Relié à la sortie par un gain NUL : un nœud hors du graphe n'est pas tiré.
+        var mute = mic.ctx.createGain();
+        mute.gain.value = 0;
+        source.connect(mic.node);
+        mic.node.connect(mute);
+        mute.connect(mic.ctx.destination);
+        var track = stream.getAudioTracks()[0];
+        var settings = (track && track.getSettings) ? track.getSettings() : {};
+        mic.echoCancelled = settings.echoCancellation === true;
+        mic.rate = mic.ctx.sampleRate;
+        return mic;
+      });
+    }).catch(function (e) { closeMic(mic); throw e; });
+  }
+
+  function closeMic(mic) {
+    if (!mic) return;
+    if (mic.node) { try { mic.node.port.onmessage = null; mic.node.disconnect(); } catch (_) {} }
+    if (mic.stream) mic.stream.getTracks().forEach(function (t) { t.stop(); });
+    if (mic.ctx) { try { mic.ctx.close(); } catch (_) {} }
+  }
+
+  function explainMicError(e) {
+    var name = e && e.name;
+    if (e && e.message === 'insecure') {
+      return "Le micro n'est disponible qu'en HTTPS (https://wama.univ-eiffel.fr).";
+    }
+    if (name === 'NotAllowedError' || name === 'SecurityError') {
+      return 'Micro refusé : autorisez-le pour ce site (cadenas de la barre d\'adresse › Micro).';
+    }
+    if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+      return "Aucun micro détecté sur ce poste (en bureau à distance : activer l'enregistrement audio à distance).";
+    }
+    if (name === 'NotReadableError') return 'Le micro est utilisé par une autre application.';
+    return 'Micro indisponible : ' + ((e && e.message) || name || 'erreur inconnue');
+  }
+
+  function transcribe(samples, rate) {
+    var wav = toWav(downsample(samples, rate));
+    return fetch(cfg.sttUrl || '/api/stt/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'audio/wav', 'X-CSRFToken': csrfToken() },
+      body: wav,
+    }).then(function (r) {
+      return r.json().catch(function () { return { error: 'réponse illisible (' + r.status + ')' }; });
+    }).then(function (data) {
+      if (data.error) throw new Error(data.error);
+      if (data.engine) heardBy = data.engine;
+      return (data.text || '').trim();
+    });
+  }
+
+  // Le moteur qui a écouté la dernière fois, dit par le serveur ('' tant qu'il n'a rien dit).
+  var heardBy = '';
+  function listenerLabel() {
+    if (!heardBy || heardBy === 'local') return 'transcription locale, rien ne sort de WAMA';
+    return 'transcription par ' + heardBy.split(':')[0] + ', autorisé par votre profil';
+  }
+
+  // PRÉCHAUFFAGE : le premier appel charge Whisper dans le service (37 à 50 s mesurés). On le
+  // déclenche dès que l'écoute s'ouvre, avec un quart de seconde de silence — le filtre de
+  // parole le réduit à rien —, pour que la première vraie phrase ne paie pas ce chargement.
+  // `warmup=1` : quand le profil écoute par un modèle DISTANT, le serveur n'envoie rien.
+  var warmedAt = 0;
+  function warmUp() {
+    if (Date.now() - warmedAt < 5 * 60 * 1000) return;
+    warmedAt = Date.now();
+    var url = cfg.sttUrl || '/api/stt/';
+    fetch(url + (url.indexOf('?') < 0 ? '?' : '&') + 'warmup=1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'audio/wav', 'X-CSRFToken': csrfToken() },
+      body: new Blob([wavBytes(new Float32Array(TARGET_RATE / 4))], { type: 'audio/wav' }),
+    }).then(function (r) { return r.json(); })
+      .then(function (data) { if (data && data.engine) heardBy = data.engine; })
+      .catch(function () {});
+  }
+
+  // ── Contrôleur : un chat, ses deux boutons ───────────────────────────────────
+  function Controller(chat, root) {
+    this.chat = chat;
+    this.root = root;
+    this.micBtn = root.querySelector('[data-assistant-mic]');
+    this.talkBtn = root.querySelector('[data-assistant-talk]');
+    this.mode = 'off';                    // off | dictation | conversation
+    this.phase = 'idle';                  // idle | listening | hearing | transcribing
+    this.mic = null;
+    this.segmenter = null;
+    this.lastTurn = Promise.resolve();
+    this.pending = 0;                     // transcriptions en vol
+    this.bind();
+    this.render();
+  }
+
+  Controller.prototype.bind = function () {
+    var self = this;
+    if (this.micBtn) this.micBtn.addEventListener('click', function () { self.toggleDictation(); });
+    if (this.talkBtn) this.talkBtn.addEventListener('click', function () { self.toggleConversation(); });
+    if (global.WamaAssistantVoice && global.WamaAssistantVoice.onChange) {
+      global.WamaAssistantVoice.onChange(function () { self.render(); });
+    }
+  };
+
+  /** L'assistant est-il en train de répondre (réflexion OU voix) ? */
+  Controller.prototype.assistantActive = function () {
+    var voice = global.WamaAssistantVoice;
+    return !!((this.chat.isBusy && this.chat.isBusy()) || (voice && voice.isSpeaking()));
+  };
+
+  Controller.prototype.frameMode = function () {
+    if (this.phase === 'transcribing' && this.mode === 'dictation') return 'deaf';
+    if (this.mode !== 'conversation' || !this.assistantActive()) return 'normal';
+    return (this.mic && this.mic.echoCancelled) ? 'interrupt' : 'deaf';
+  };
+
+  Controller.prototype.start = function (mode) {
+    var self = this;
+    if (ctl && ctl !== this) ctl.stop();
+    ctl = this;
+    this.mode = mode;
+    this.phase = 'listening';
+    this.render();
+    warmUp();
+    return openMic(function (frame) { self.onFrame(frame); }).then(function (mic) {
+      if (self.mode !== mode) { closeMic(mic); return; }    // arrêté pendant l'ouverture
+      self.mic = mic;
+      self.segmenter = new Segmenter(mic.rate, END_MS[mode], function (evt, samples, how) {
+        self.onSegment(evt, samples, how);
+      });
+      // Contexte audio créé hors d'un geste (reprise d'une conversation au changement de page) :
+      // le navigateur le laisse suspendu jusqu'au premier clic ou à la première touche.
+      if (mic.ctx.state === 'suspended') {
+        var resume = function () {
+          document.removeEventListener('pointerdown', resume, true);
+          document.removeEventListener('keydown', resume, true);
+          if (self.mic === mic) mic.ctx.resume().then(function () { self.render(); });
+        };
+        document.addEventListener('pointerdown', resume, true);
+        document.addEventListener('keydown', resume, true);
+      }
+      self.render();
+    }).catch(function (e) {
+      self.mode = 'off';
+      self.phase = 'idle';
+      if (ctl === self) ctl = null;
+      remember(false);
+      self.render();
+      say(explainMicError(e));
+    });
+  };
+
+  Controller.prototype.stop = function () {
+    closeMic(this.mic);
+    this.mic = null;
+    this.segmenter = null;
+    this.mode = 'off';
+    this.phase = 'idle';
+    if (ctl === this) ctl = null;
+    this.render();
+  };
+
+  Controller.prototype.toggleDictation = function () {
+    if (this.mode === 'conversation') return;             // le bouton est grisé dans ce cas
+    if (this.mode === 'dictation') {
+      // Second clic : « j'ai fini » — la phrase en cours part tout de suite, sinon on arrête.
+      if (this.phase === 'hearing' && this.segmenter) this.segmenter.finish();
+      else this.stop();
+      return;
+    }
+    this.start('dictation');
+  };
+
+  Controller.prototype.toggleConversation = function () {
+    if (this.mode === 'conversation') { remember(false); this.stop(); return; }
+    remember(true);
+    this.start('conversation');
+  };
+
+  Controller.prototype.onFrame = function (frame) {
+    if (!this.segmenter) return;
+    this.segmenter.feed(frame, this.frameMode());
+  };
+
+  Controller.prototype.onSegment = function (evt, samples, how) {
+    var self = this;
+    if (evt === 'start') {
+      // Reprendre la parole : la voix se tait, le tour en cours s'interrompt.
+      if (how === 'interrupt') {
+        if (global.WamaAssistantVoice) global.WamaAssistantVoice.stop();
+        if (this.chat.abort) this.chat.abort();
+      }
+      this.phase = 'hearing';
+      this.render();
+      return;
+    }
+    if (evt === 'discard') { this.phase = 'listening'; this.render(); return; }
+
+    // 'end' : une phrase complète.
+    var mode = this.mode, rate = this.mic ? this.mic.rate : TARGET_RATE;
+    if (mode === 'dictation') { closeMic(this.mic); this.mic = null; this.segmenter = null; }
+    this.phase = 'transcribing';
+    this.pending++;
+    this.render();
+    transcribe(samples, rate).then(function (text) {
+      if (mode === 'dictation') { self.writeDraft(text); return; }
+      if (text && self.mode === 'conversation') self.sendTurn(text);
+    }).catch(function (e) {
+      say(e.message || String(e));
+    }).then(function () {
+      self.pending = Math.max(0, self.pending - 1);
+      if (mode === 'dictation') { self.mode = 'off'; self.phase = 'idle'; if (ctl === self) ctl = null; }
+      else if (self.mode === 'conversation' && self.phase === 'transcribing') self.phase = 'listening';
+      self.render();
+    });
+  };
+
+  Controller.prototype.writeDraft = function (text) {
+    if (!text) { say('Je n’ai rien compris — réessayez en parlant plus près du micro.', 'info'); return; }
+    var input = this.chat.input;
+    input.value = input.value.trim() ? input.value.trim() + ' ' + text : text;
+    input.dispatchEvent(new Event('input'));               // la brique de chat ajuste sa hauteur
+    input.focus();
+  };
+
+  // Le tour précédent peut encore se dénouer (interruption) : on l'attend avant d'envoyer,
+  // sinon la zone de saisie est encore désactivée et `send()` ne ferait rien.
+  Controller.prototype.sendTurn = function (text) {
+    var self = this;
+    this.lastTurn = this.lastTurn.then(function () {
+      if (self.mode !== 'conversation') return;
+      self.chat.input.value = text;
+      return self.chat.send();
+    }).catch(function () {}).then(function () { self.render(); });
+  };
+
+  // ── Rendu des boutons ────────────────────────────────────────────────────────
+  function paint(btn, icon, cls, title, pulse) {
+    if (!btn) return;
+    var i = btn.querySelector('i') || btn;
+    i.className = 'fas ' + icon;
+    ['btn-outline-secondary', 'btn-success', 'btn-danger', 'btn-outline-success']
+      .forEach(function (c) { btn.classList.toggle(c, c === cls); });
+    btn.classList.toggle('wama-listen-pulse', !!pulse);
+    btn.title = title;
+  }
+
+  Controller.prototype.render = function () {
+    var phase = this.phase, mode = this.mode;
+    var suspended = !!(this.mic && this.mic.ctx && this.mic.ctx.state === 'suspended');
+    // Dictée
+    if (mode === 'dictation') {
+      if (phase === 'transcribing') paint(this.micBtn, 'fa-circle-notch fa-spin', 'btn-danger', 'Transcription…');
+      else paint(this.micBtn, 'fa-microphone', 'btn-danger', 'J’écoute — cliquez quand vous avez fini', phase === 'hearing');
+    } else {
+      paint(this.micBtn, 'fa-microphone', 'btn-outline-secondary',
+            'Dicter un message (' + listenerLabel() + ')');
+    }
+    if (this.micBtn) this.micBtn.disabled = mode === 'conversation';
+    // Conversation
+    if (mode !== 'conversation') {
+      paint(this.talkBtn, 'fa-headset', 'btn-outline-secondary',
+            'Conversation vocale : parlez, l’assistant répond à voix haute');
+      return;
+    }
+    if (suspended) {
+      paint(this.talkBtn, 'fa-headset', 'btn-outline-success', 'Conversation en pause — cliquez dans la page pour reprendre l’écoute');
+    } else if (phase === 'hearing') {
+      paint(this.talkBtn, 'fa-headset', 'btn-danger', 'Je vous écoute…', true);
+    } else if (phase === 'transcribing') {
+      paint(this.talkBtn, 'fa-circle-notch fa-spin', 'btn-success', 'Transcription…');
+    } else if (this.assistantActive()) {
+      paint(this.talkBtn, 'fa-headset', 'btn-outline-success',
+            (this.mic && this.mic.echoCancelled)
+              ? 'L’assistant répond — parlez pour l’interrompre (clic : arrêter la conversation)'
+              : 'L’assistant répond — l’écoute reprend quand il a fini (clic : arrêter la conversation)');
+    } else {
+      paint(this.talkBtn, 'fa-headset', 'btn-success', 'À vous — je vous écoute (clic : arrêter la conversation)');
+    }
+  };
+
+  // ── Montage ──────────────────────────────────────────────────────────────────
+  var controllers = [];
+
+  function mount() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-wama-chat]'), function (root) {
+      if (root._wamaListen || !root._wamaChat) return;
+      if (!root.querySelector('[data-assistant-mic], [data-assistant-talk]')) return;
+      if (!cfg.sttUrl && root.dataset.sttUrl) cfg.sttUrl = root.dataset.sttUrl;
+      root._wamaListen = new Controller(root._wamaChat, root);
+      controllers.push(root._wamaListen);
+    });
+    // Conversation ouverte sur la page précédente : elle reprend, si le micro est déjà permis
+    // (sinon on n'ouvre pas de demande d'autorisation sans geste de l'utilisateur).
+    var first = controllers.filter(function (c) { return c.talkBtn; })[0];
+    if (first && remembered() && navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'microphone' }).then(function (status) {
+        if (status.state === 'granted' && first.mode === 'off') first.start('conversation');
+      }).catch(function () {});
+    }
+  }
+
+  global.addEventListener('pagehide', function () { if (ctl) { closeMic(ctl.mic); ctl.mic = null; } });
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
+  else mount();
+
+  global.WamaAssistantListen = {
+    mount: mount,
+    configure: function (opts) { if (opts && opts.sttUrl) cfg.sttUrl = opts.sttUrl; },
+    stop: function () { remember(false); if (ctl) ctl.stop(); },
+    state: function () {
+      return ctl ? { mode: ctl.mode, phase: ctl.phase, echoCancelled: !!(ctl.mic && ctl.mic.echoCancelled) }
+                 : { mode: 'off', phase: 'idle', echoCancelled: false };
+    },
+    // Exposés pour les tests (découpage, encodage, enchaînement — sans micro ni DOM réel).
+    _Controller: Controller,
+    _Segmenter: Segmenter,
+    _downsample: downsample,
+    _wavBytes: wavBytes,
+    _warmUp: warmUp,
+    _listenerLabel: listenerLabel,
+  };
+})(window);

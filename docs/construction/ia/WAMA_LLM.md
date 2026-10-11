@@ -550,6 +550,39 @@ chez Google, il fallait envoyer soi-même, et elle n'existait que sur l'accueil.
 - Gardes : `common/tests/tests_assistant_listen.py` (23 — vue, client, brique exécutée dans V8 ;
   contre-épreuve faite : sans `chat.abort()`, la reprise de parole passe au rouge).
 
+**Premier essai au vrai micro (2026-10-11) → l'écoute par ALBERT, et les phrases fantômes.**
+Fabien a parlé à l'assistant depuis le bureau à distance (le micro passe, dans le navigateur de
+l'hôte comme dans celui du poste) : « c'est long », et l'assistant a reçu trois « Sous-titrage
+ST' 501 » et un « Merci. » qu'il n'avait pas dits. **Relevé des journaux** : la carte était prise
+par d'autres traitements (un banc et des essais d'interface en cours) ; la première phrase a
+attendu **90 s** la place que réserve le gouverneur (10 Go) et a échoué en 502, Whisper a mis
+34 s à charger, les phrases suivantes 4 à 5 s au lieu de 1,2. Le tour de l'assistant lui-même
+avait tiré `ollama:gemma4:12b` (résident, donc préféré par `prefer_loaded`) avec 1,5 Go de marge.
+- **Le moteur se décide au PROFIL, pas par un réglage de plus** — `common/tts/speech_input.py` :
+  le modèle de transcription DISTANT que le profil ouvre au tirage AUTOMATIQUE
+  (`allowed_cloud_keys(automatic=True)` : seul « cloud autorisé » l'ouvre ; « 100 % local » et
+  « cloud si saturé » restent en local), appelé par la porte commune `backend_instance_for_key`
+  (garde `cloud_access`, clé posée). Le distant refuse, plafonne (Albert : 10 requêtes/min, ici
+  SANS attente — `wait_on_rate_limit=False`) ou ne répond pas → le Whisper local prend la phrase.
+  La vue rend `engine` ; l'info-bulle de la dictée dit qui écoute (« rien ne sort de WAMA » n'est
+  plus affiché à tort). Le préchauffage n'envoie rien quand le distant écoute.
+- **Le filtre de parole tourne dans le SERVICE VOCAL** (`/speech-only`, Silero, processeur), pas
+  dans gunicorn : importer `faster_whisper` y coûte **52 à 66 s** (mesuré : `ctranslate2` importe
+  `transformers`, lu depuis `/mnt/d`), une fois par worker — le service le paie une fois, en fond,
+  à son démarrage. Service absent → l'extrait part tel quel.
+- **Mesuré** (phrase de la voix locale, clé de Fabien) : silence et bruit → **rien n'est
+  envoyé** ; une phrase → Albert **0,65 s** + filtre 0,5 s (dont un transcodage que l'audio du
+  navigateur, déjà en 16 kHz, n'a pas). Sans filtre, Albert rend « Bye. » sur un simple son.
+- **Phrases fantômes** : les génériques de sous-titres que Whisper invente sur du bruit
+  (`Sous-titrage ST' 501`, Amara.org, Radio-Canada, « merci d'avoir regardé »…) sont retirés
+  (`drop_phantom_phrases`), quel que soit le moteur — motifs ENTIERS et spécifiques : un
+  « Merci. » réellement dit reste une réplique (contre-épreuve au test).
+- ⏳ « Wama » est entendu « Ouame » (nom propre ; l'API accepte peut-être une amorce — non
+  essayé) ; le tirage du modèle de l'ASSISTANT sous saturation (résident préféré malgré 1,5 Go
+  libres) relève du curseur, pas de l'écoute — signalé, pas touché.
+- Gardes : 39 tests au même fichier (moteur par profil, repli, préchauffage muet, porte commune,
+  route `/speech-only`, filtre des fantômes et sa contre-épreuve, 429 sans attente).
+
 **Remesuré le 2026-10-04 — « encore lent, même par Albert » (Fabien). RIEN de câblé, cinq
 constats.** Mesures faites dans un processus neuf (script de mesure du scratchpad de session :
 tour instrumenté, appels directs en flux, service de voix), jamais dans gunicorn.

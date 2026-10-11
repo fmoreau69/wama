@@ -637,6 +637,68 @@ def kokoro_tts(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+#: Plafond d'un extrait de parole : ~65 s de WAV 16 kHz mono 16 bits. La brique d'écoute coupe
+#: une phrase à 30 s ; au-delà, ce n'est plus une réplique de conversation. Sous le plafond de
+#: Django (`DATA_UPLOAD_MAX_MEMORY_SIZE`, 2,5 Mo), qui sinon répondrait un 400 sans raison.
+_STT_MAX_BYTES = 2 * 1024 * 1024
+
+
+@require_http_methods(["POST"])
+@csrf_protect
+def speech_to_text(request):
+    """
+    Transcrit ce que l'utilisateur vient de DIRE à l'assistant (corps : l'audio, WAV de
+    préférence) → `{"text": "...", "language": "fr"}`. Conversation vocale, 2026-10-10.
+
+    Le MOTEUR se décide dans `common/tts/speech_input.py` : le modèle distant que le profil
+    ouvre au tirage automatique (Albert, 2026-10-11), sinon le service vocal LOCAL (Whisper,
+    `constants.ASSISTANT_STT_MODEL`). La dictée passait jusqu'au 10/10 par la reconnaissance du
+    navigateur, qui envoie l'audio à Google. Aucun repli en-process pour le local, à la
+    différence de la voix : charger Whisper dans gunicorn coûterait des Go par worker web, et
+    un micro qui échoue se DIT (l'utilisateur peut toujours écrire).
+    `?warmup=1` : la brique d'écoute s'ouvre et fait charger le local d'avance.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentification requise'}, status=401)
+    # La taille ANNONCÉE d'abord : lire `request.body` au-delà du plafond de Django lève avant
+    # qu'on puisse répondre la vraie raison.
+    try:
+        announced = int(request.META.get('CONTENT_LENGTH') or 0)
+    except ValueError:
+        announced = 0
+    if announced > _STT_MAX_BYTES:
+        return JsonResponse({'error': 'extrait trop long pour une réplique'}, status=413)
+    audio = request.body
+    if not audio:
+        return JsonResponse({'error': 'audio vide'}, status=400)
+    if len(audio) > _STT_MAX_BYTES:
+        return JsonResponse({'error': 'extrait trop long pour une réplique'}, status=413)
+
+    from wama.common.services.resource_governor import release_in_progress
+    if release_in_progress():
+        return JsonResponse({'error': _RELEASE_WAIT_MESSAGE, 'busy': True}, status=503)
+
+    # Langue du profil, réduite au code que Whisper connaît (`zh-cn` → `zh`). Vide = détection.
+    language = (getattr(getattr(request.user, 'profile', None), 'preferred_language', '') or '')
+    language = language.split('-')[0].lower()
+    from wama.common.tts.service_client import TTSServiceLoadingError
+    from wama.common.tts.speech_input import transcribe_utterance
+    try:
+        result = transcribe_utterance(request.user, audio,
+                                      content_type=request.content_type or 'audio/wav',
+                                      language=language,
+                                      warm_up=request.GET.get('warmup') == '1')
+    except TTSServiceLoadingError:
+        return JsonResponse({'error': "Le service vocal démarre — réessayez dans un instant.",
+                             'busy': True}, status=503)
+    except RuntimeError as e:
+        logger.warning(f"[speech_to_text] {e}")
+        return JsonResponse({'error': "Reconnaissance vocale indisponible : " + str(e)}, status=502)
+    return JsonResponse({'text': (result.get('text') or '').strip(),
+                         'language': result.get('language') or language,
+                         'engine': result.get('engine', 'local')})
+
+
 @require_http_methods(["POST"])
 @csrf_protect
 def switch_ui_mode(request):

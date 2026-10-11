@@ -394,6 +394,8 @@
     <script src="{% static_v 'common/js/wama-panel-toggle.js' %}"></script>
     {# WamaAssistantChat : mini-chat du volet, auto-monté sur #assistant-chat (absent de l'accueil) #}
     <script src="{% static_v 'common/js/wama-assistant-chat.js' %}"></script>
+    {# WamaAssistantListen : l'ÉCOUTE de l'assistant (dictée + conversation, transcription locale) — APRÈS le chat, qu'elle pilote #}
+    <script src="{% static_v 'common/js/wama-assistant-listen.js' %}"></script>
     <script src="{% static_v 'common/js/wama-catalog-refresh.js' %}"></script>  {# actualisation des catalogues : la page ne declare que la CLE de son registre (common/registries.py) #}
     <script src="{% static_v 'common/js/wama-cycle-button.js' %}"></script>  {# WamaCycleButton global : bouton de cycle ▶/⏹/↻ (toujours vert, icône selon statut) #}
     <!-- WAMA Audio Waveform Player (Canvas + Web Audio — aucun CDN) -->

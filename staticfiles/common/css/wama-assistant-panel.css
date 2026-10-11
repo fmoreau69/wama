@@ -64,3 +64,14 @@ body.wama-simple [data-wama-chat][data-density="full"] .wama-assistant-feed { ma
 [data-wama-chat] .wama-assistant-status {
   font-size: .7rem; color: #6c757d; margin-top: 4px; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; }
+
+/* Écoute (`wama-assistant-listen.js`) : le bouton BAT tant qu'une voix est entendue — c'est
+   le seul retour qui dise « je vous entends » sans rien écrire dans le fil. */
+@keyframes wama-listen-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, .6); }
+  50%      { box-shadow: 0 0 0 6px rgba(220, 53, 69, 0); }
+}
+[data-wama-chat] .wama-listen-pulse { animation: wama-listen-pulse 1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  [data-wama-chat] .wama-listen-pulse { animation: none; outline: 2px solid #dc3545; }
+}

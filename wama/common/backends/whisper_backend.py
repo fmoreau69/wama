@@ -102,7 +102,11 @@ class WhisperBackend(SpeechToTextBackend):
             from django.conf import settings
             return str(settings.MODEL_PATHS.get('speech', {}).get('whisper') or '')
         except Exception:
-            return None
+            # Hors Django (service vocal, uvicorn :8001 — conversation de l'assistant, 2026-10-10) :
+            # le MÊME dossier, par le repli repo-relatif des moteurs de parole. Rendre None ici
+            # laissait faster-whisper télécharger dans le `$HOME` (cache HF par défaut).
+            from wama.common.backends.tts_base import ai_models_dir
+            return str(ai_models_dir() / 'models' / 'speech' / 'whisper')
 
     # ------------------------------------------------------------------
     # Lifecycle

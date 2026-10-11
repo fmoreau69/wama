@@ -66,9 +66,6 @@ def tts_via_service(text, model, *, language='fr', voice_preset='default',
     Lève `TTSServiceLoadingError` sur 503 « loading » (service pas encore chaud) et
     `RuntimeError` pour toute autre indisponibilité (connexion, délai, erreur moteur).
     """
-    import requests
-
-    url = service_url()
     # Moteur DÉCLARÉ du modèle, résolu au catalogue et PASSÉ au service (route F4b ②,
     # 2026-09-01) : le service n'a pas Django et ne peut pas aller le chercher. Sans lui, un
     # modèle installé par la prospection est proposable mais pas exécutable — son nom ne dit
@@ -86,6 +83,50 @@ def tts_via_service(text, model, *, language='fr', voice_preset='default',
         'scene_description': scene_description,
         'options': options or {},
     }
+    resp = _post('/tts', read_timeout, json=payload)
+    if raw:
+        return resp.content
+    tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+    tmp.write(resp.content)
+    tmp.close()
+    return tmp.name
+
+
+def stt_via_service(audio, *, content_type='audio/wav', language='', model=None,
+                    read_timeout=90):
+    """
+    Transcrit un extrait COURT (octets audio) par le même service — la conversation vocale de
+    l'assistant (2026-10-10). Rend `{'text', 'language'}`.
+
+    `read_timeout` 90 s : la PREMIÈRE phrase attend le chargement de Whisper (37 à 50 s mesurés
+    le 2026-10-10, poids sur /mnt/d) ; à chaud, 1,2 s pour une phrase de 5 s. Sous les 120 s de
+    gunicorn et d'Apache, qui couperaient sinon la requête sans réponse lisible.
+
+    Mêmes erreurs que `tts_via_service` : `TTSServiceLoadingError` sur 503 « loading »,
+    `RuntimeError` pour toute autre indisponibilité. `model` absent = celui de l'assistant
+    (`constants.ASSISTANT_STT_MODEL`).
+    """
+    from .constants import ASSISTANT_STT_MODEL
+    params = {'language': language or '', 'model': model or ASSISTANT_STT_MODEL}
+    resp = _post('/stt', read_timeout, data=audio, params=params,
+                 headers={'Content-Type': content_type or 'audio/wav'})
+    return resp.json()
+
+
+def speech_only_via_service(audio, *, content_type='audio/wav', read_timeout=90):
+    """Les seuls passages PARLÉS d'un extrait (WAV 16 kHz mono), b'' s'il n'y en a aucun — le
+    filtre de parole de l'écoute DISTANTE (2026-10-11), exécuté par le service, où son import
+    (52 à 66 s) n'est payé qu'une fois. Mêmes erreurs que `stt_via_service`."""
+    resp = _post('/speech-only', read_timeout, data=audio,
+                 headers={'Content-Type': content_type or 'audio/wav'})
+    return b'' if resp.status_code == 204 else resp.content
+
+
+def _post(path, read_timeout, **kwargs):
+    """UN appel au service et sa traduction d'erreurs — partagée par la voix et l'écoute."""
+    import requests
+
+    url = service_url()
     try:
         # ⚠ `proxies` OBLIGATOIRE : `.env` pose `HTTP_PROXY` (proxy UGE) sans `NO_PROXY`, et
         # `settings.load_dotenv()` l'injecte dans os.environ → sans neutralisation, `requests`
@@ -96,9 +137,8 @@ def tts_via_service(text, model, *, language='fr', voice_preset='default',
         # prochaine source locale héritera de la neutralisation sans que personne ait à se
         # souvenir de cet incident.
         from wama.common.external_sources import proxies_for
-        resp = requests.post(f"{url}/tts", json=payload,
-                             proxies=proxies_for('tts_service'),
-                             timeout=(5, read_timeout))  # (connexion, lecture)
+        resp = requests.post(f"{url}{path}", proxies=proxies_for('tts_service'),
+                             timeout=(5, read_timeout), **kwargs)  # (connexion, lecture)
         resp.raise_for_status()
     except requests.ConnectionError:
         raise RuntimeError(
@@ -126,10 +166,4 @@ def tts_via_service(text, model, *, language='fr', voice_preset='default',
         except Exception:
             detail = e.response.text[:200] if e.response is not None else ""
         raise RuntimeError(f"Erreur service TTS : {detail or str(e)}")
-
-    if raw:
-        return resp.content
-    tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-    tmp.write(resp.content)
-    tmp.close()
-    return tmp.name
+    return resp

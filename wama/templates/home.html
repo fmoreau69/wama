@@ -99,7 +99,6 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
       try { localStorage.removeItem('wama_ai_voice_{{ request.user.username }}'); } catch(e) {}
       const voiceToggleBtn = document.getElementById('ai-voice-toggle');
       const voiceSelect = document.getElementById('ai-voice-select');
-      const micBtn = document.getElementById('ai-mic-btn');
 
       {% comment %}« Effacer » est un geste de la BRIQUE (`data-clear-url`) : elle supprime le
       fil côté serveur puis réaffiche l'accueil déclaré. Ce gabarit ne fait que lui câbler son
@@ -172,54 +171,11 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
         refreshAvatarBtn();
       }
 
-      // ── Microphone (Web Speech API) ───────────────────────────────────────
-      let recognition = null;
-      let isRecording = false;
-
-      function toggleMicRecording() {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) {
-          alert("La reconnaissance vocale n'est pas supportée par ce navigateur.");
-          return;
-        }
-        if (isRecording) {
-          if (recognition) recognition.stop();
-          return;
-        }
-        recognition = new SR();
-        // Langue d'écoute = celle du profil, plus 'fr-FR' en dur : un utilisateur anglophone
-        // dictait à un moteur réglé sur le français. `preferred_language` vient du context
-        // processor global. Normalisation BCP-47 : la Web Speech API attend la région en
-        // MAJUSCULES ('zh-cn' du profil → 'zh-CN'), une langue nue ('fr', 'en') restant valide.
-        recognition.lang = ('{{ preferred_language|default:"fr" }}')
-            .replace(/-(\w+)$/, function (_, region) { return '-' + region.toUpperCase(); });
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-        isRecording = true;
-        micBtn.classList.add('btn-danger');
-        micBtn.classList.remove('btn-outline-secondary');
-        micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
-        recognition.onresult = function(event) {
-          // La zone de saisie appartient désormais à la BRIQUE : on la vise par le conteneur
-          // plutôt que par un id disparu avec l'ancien formulaire.
-          const champ = chatRoot.querySelector('textarea');
-          if (!champ) return;
-          champ.value = event.results[0][0].transcript;
-          champ.dispatchEvent(new Event('input'));   // la brique ajuste sa hauteur
-          champ.focus();
-        };
-        recognition.onerror = function(event) {
-          console.error('Speech recognition error:', event.error);
-        };
-        recognition.onend = function() {
-          isRecording = false;
-          micBtn.classList.remove('btn-danger');
-          micBtn.classList.add('btn-outline-secondary');
-          micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-        };
-        recognition.start();
-      }
-      micBtn.addEventListener('click', toggleMicRecording);
+      // ── Micro : brique COMMUNE `WamaAssistantListen` (base.html) depuis le 2026-10-10 ──
+      // La dictée par `webkitSpeechRecognition` qui vivait ici (≈ 50 lignes) envoyait l'audio
+      // à Google et n'existait que sur cette page. Dictée ET conversation vocale sont câblées
+      // par la brique sur les boutons `data-assistant-mic` / `data-assistant-talk` du chat,
+      // avec une transcription LOCALE (Whisper, service vocal) — rien à faire ici.
 
     }
 
@@ -430,6 +386,7 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
             <div id="ai-chat" data-wama-chat data-density="full"
                  data-chat-url="{% url 'ai_chat' %}"
                  data-stream-url="{% url 'ai_chat_stream' %}"
+                 data-stt-url="{% url 'speech_to_text' %}"
                  data-clear-url="{% url 'ai_chat_clear' %}"
                  data-thread-el="ai-chat-thread"
                  data-waiting="{{ accueil_assistant.attente }}"
@@ -448,9 +405,13 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
               </template>
               <div class="wama-assistant-feed" data-assistant-feed></div>
               <div class="wama-assistant-row">
-                <button type="button" id="ai-mic-btn" class="btn btn-outline-secondary" title="Parler à l'assistant">
-                  <i class="fas fa-microphone"></i>
-                </button>
+                {% comment %}Micro et conversation : brique commune `wama-assistant-listen.js`
+                (2026-10-10), transcription LOCALE — elle remplace la reconnaissance du navigateur,
+                qui envoyait l'audio à Google.{% endcomment %}
+                <button type="button" class="btn btn-outline-secondary" data-assistant-mic
+                        title="Dicter un message"><i class="fas fa-microphone"></i></button>
+                <button type="button" class="btn btn-outline-secondary" data-assistant-talk
+                        title="Conversation vocale"><i class="fas fa-headset"></i></button>
                 <textarea rows="1" placeholder="Votre message…" aria-label="Message à l'assistant"></textarea>
                 <button type="button" class="btn btn-primary" data-assistant-send style="min-width: 100px;">
                   <i class="fas fa-paper-plane"></i> Envoyer

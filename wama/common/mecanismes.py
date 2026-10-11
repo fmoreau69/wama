@@ -272,7 +272,10 @@ MECHANISMS = (
               "L'appel POST /tts UNIQUE vers le microservice TTS (payload contractuel, 503 "
               "« loading » → TTSServiceLoadingError, WAV temporaire ou bytes) ; les POLITIQUES "
               "(retry Celery, chunking, replis) restent aux appelants — extrait 2026-08-28 : "
-              "4 exemplaires vivaient dans le dépôt, un seul détectait le 503",
+              "4 exemplaires vivaient dans le dépôt, un seul détectait le 503. Depuis le "
+              "2026-10-10 le service ÉCOUTE aussi : `stt_via_service` (POST /stt, Whisper "
+              "chaud, conversation vocale de l'assistant) partage le même appel et la même "
+              "traduction d'erreurs (`_post`)",
               'wama/common/tts/service_client.py', 'docs/construction/ui/MODES_QUEUE_UX.md §2bis'),
     Mechanism('tts_vocabulary', 'Vocabulaire TTS partagé',
               "Le JEU DE CHOIX unique de la parole synthétique — moteurs, langues, presets de "
@@ -998,10 +1001,20 @@ MECHANISMS = (
               # full / compact). Et le FLUX (levier 5, `WAMA_LLM §1bis`) : `ai_chat_stream` (SSE)
               # + le portier `_TokenGate` du moteur — la réflexion et les appels d'outils arrivent
               # par le même canal que la réponse, il faut trancher sans attendre la fin.
-              annexes=('wama/common/static/common/js/wama-avatar.js',
+              # + le 2026-10-10 : l'ÉCOUTE (`wama-assistant-listen.js`) — dictée et CONVERSATION
+              # vocale sur les deux densités du chat, transcription LOCALE (`views.speech_to_text`
+              # → `/stt` du service vocal, Whisper), reprise de parole si le navigateur annule
+              # l'écho. Remplace la dictée du navigateur, qui envoyait l'audio à Google.
+              # + le 2026-10-11 : le MOTEUR d'écoute (`common/tts/speech_input.py`) — Albert
+              # quand le profil ouvre un modèle de transcription distant au tirage automatique,
+              # le local sinon et en repli ; filtre de parole au service vocal (`/speech-only`) ;
+              # génériques de sous-titres inventés retirés.
+              annexes=('wama/common/tts/speech_input.py',
+                       'wama/common/static/common/js/wama-avatar.js',
                        'wama/common/static/common/js/wama-avatar-panel.js',
                        'wama/common/static/common/js/wama-assistant-voice.js',
                        'wama/common/static/common/js/wama-assistant-chat.js',
+                       'wama/common/static/common/js/wama-assistant-listen.js',
                        'wama/common/static/common/css/wama-assistant-panel.css',
                        'wama/common/templates/common/_assistant_avatar.html'),
               symbol='run_assistant_turn'),

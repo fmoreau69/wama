@@ -53,9 +53,15 @@
          data-chat-url="{% url 'ai_chat' %}"
          data-stream-url="{% url 'ai_chat_stream' %}"
          data-thread-url="{% url 'ai_chat_thread' %}"
+         data-stt-url="{% url 'speech_to_text' %}"
          data-greeting="Posez une question ou demandez une tâche — même fil que l'accueil.">
       <div class="wama-assistant-feed" data-assistant-feed></div>
       <div class="wama-assistant-row">
+        {% comment %}Dictée et conversation vocale : brique `wama-assistant-listen.js` (2026-10-10), mêmes boutons que l'accueil.{% endcomment %}
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-assistant-mic
+                title="Dicter un message"><i class="fas fa-microphone"></i></button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-assistant-talk
+                title="Conversation vocale"><i class="fas fa-headset"></i></button>
         <textarea rows="1" placeholder="Votre message…" aria-label="Message à l'assistant"></textarea>
         <button type="button" class="btn btn-outline-info btn-sm" data-assistant-voice
                 title="Couper la voix (muet)"><i class="fas fa-volume-up"></i></button>

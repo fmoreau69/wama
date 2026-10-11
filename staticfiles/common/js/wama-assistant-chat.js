@@ -30,6 +30,16 @@
   'use strict';
 
   var INPUT_MAX_HEIGHT_PX = 96;
+  //: Sans lecture vocale (voix coupée), délai avant d'ouvrir la page demandée (`open_page`) :
+  //: le temps de lire la réponse — elle reste dans le fil, rechargé sur la page suivante.
+  var NAVIGATE_DELAY_MS = 1500;
+
+  /** Un chemin de CETTE instance (`/anonymizer/`) — jamais une adresse externe ni `//hôte` :
+   *  une page ouverte par un résultat d'outil ne doit pas pouvoir quitter WAMA. */
+  function isLocalPath(url) {
+    return typeof url === 'string' && url.charAt(0) === '/' && url.charAt(1) !== '/'
+      && url.charAt(1) !== '\\';
+  }
 
   //: Icône par outil — confort de lecture des étapes. Un outil absent prend l'icône générique :
   //: la table n'a donc jamais besoin d'être exhaustive, et un outil neuf ne casse rien.
@@ -44,6 +54,7 @@
     start_transcriber: '▶️', get_transcriber_status: '📊', add_to_reader: '📄',
     start_reader: '▶️', get_reader_status: '📊', list_media_assets: '🗃️',
     get_media_asset_url: '🔗', charger_competence: '🎓', ask_claude_code: '🧑‍💻',
+    find_user_files: '🔎', remember_fact: '🧠', open_page: '🧭',
   };
 
   function csrfToken() {
@@ -297,9 +308,12 @@
   };
 
   // ── Envoi ────────────────────────────────────────────────────────────────────
+  // Rend la PROMESSE du tour (résolue quand la réponse est écrite — pas quand elle est dite) :
+  // la conversation vocale (`wama-assistant-listen.js`) enchaîne dessus. Rien à envoyer →
+  // promesse résolue tout de suite.
   Chat.prototype.send = function () {
     var message = (this.input.value || '').trim();
-    if (!message || this.input.disabled) return;
+    if (!message || this.input.disabled) return Promise.resolve(false);
     this.dropGreeting();
     this.feed.appendChild(this.bubble(message, 'user'));
     this.input.value = '';
@@ -307,16 +321,36 @@
     this.busy(true);
     this.startWaiting();
     if (global.WamaAssistantVoice) global.WamaAssistantVoice.stop();
+    this.controller = global.AbortController ? new AbortController() : null;
+    this.pendingPage = null;          // une page retenue par un tour précédent ne se suit plus
     var self = this;
     var tour = this.cfg.streamUrl ? this.sendStreaming(message) : this.sendBlocking(message);
-    tour.catch(function (e) {
+    return tour.catch(function (e) {
       self.stopWaiting();
+      self.pendingPage = null;        // tour interrompu ou en échec : on ne quitte pas la page
+      // Interrompu par l'utilisateur (`abort`, il a repris la parole) : pas une panne.
+      if (e && e.name === 'AbortError') return;
       self.feed.appendChild(self.bubble('Erreur réseau : ' + e.message, 'error'));
     }).then(function () {
+      self.controller = null;
       self.busy(false);
       self.scrollToEnd();
       self.input.focus();
+      return true;
     });
+  };
+
+  /** Interrompt le tour EN COURS (requête et lecture du flux) — l'utilisateur reprend la
+   *  parole. Ce qui est déjà écrit reste affiché ; le serveur, lui, peut finir son tour et
+   *  l'enregistrer au fil. */
+  Chat.prototype.abort = function () {
+    if (this.controller) { try { this.controller.abort(); } catch (_) {} }
+  };
+
+  Chat.prototype.isBusy = function () { return !!this.controller; };
+
+  Chat.prototype.signal = function () {
+    return this.controller ? this.controller.signal : undefined;
   };
 
   Chat.prototype.busy = function (on) {
@@ -324,20 +358,37 @@
     this.sendBtn.disabled = on;
   };
 
-  /** Un résultat d'outil peut demander à la SURFACE de faire quelque chose — aujourd'hui
-   *  basculer le mode d'UI (`switch_ui_mode`). Le pont existe depuis l'accueil ; il vaut
-   *  désormais pour les deux densités, puisque c'est la même brique. */
+  /** Un résultat d'outil peut demander à la SURFACE de faire quelque chose — basculer le mode
+   *  d'UI (`switch_ui_mode`), ou OUVRIR UNE PAGE (`open_page`, 2026-10-11). Le pont existe
+   *  depuis l'accueil ; il vaut pour les deux densités, puisque c'est la même brique.
+   *  ⚠ La page n'est pas ouverte ici : quitter la page couperait la réponse et sa voix. Elle
+   *  est RETENUE, puis suivie quand le tour est écrit et dit (`followPendingPage`). */
   Chat.prototype.applyActions = function (steps) {
+    var self = this;
     (steps || []).forEach(function (step) {
       var r = step && step.result;
-      if (r && r.action === 'switch_mode' && global.wamaSetMode) global.wamaSetMode(r.mode, false);
+      if (!r) return;
+      if (r.action === 'switch_mode' && global.wamaSetMode) global.wamaSetMode(r.mode, false);
+      if (r.action === 'navigate' && isLocalPath(r.url)) self.pendingPage = r.url;
+    });
+  };
+
+  /** Suit la page retenue par `applyActions` une fois `spoken` résolue (la lecture vocale
+   *  finie) ; sans voix, après un court délai pour laisser lire la réponse. Le fil serveur
+   *  suit : le chat de la nouvelle page le recharge (`threadUrl`). */
+  Chat.prototype.followPendingPage = function (spoken) {
+    var url = this.pendingPage;
+    this.pendingPage = null;
+    if (!url) return;
+    Promise.resolve(spoken).then(function (said) {
+      setTimeout(function () { global.location.assign(url); }, said ? 0 : NAVIGATE_DELAY_MS);
     });
   };
 
   Chat.prototype.sendBlocking = function (message) {
     var self = this;
     return fetch(this.cfg.chatUrl, {
-      method: 'POST',
+      method: 'POST', signal: this.signal(),
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
       body: JSON.stringify({ message: message }),
     }).then(function (r) {
@@ -357,7 +408,8 @@
       }
       self.feed.appendChild(self.bubble(data.response, 'assistant', data.model));
       if (data.model) self.setStatus(data.model);
-      if (global.WamaAssistantVoice) global.WamaAssistantVoice.speak(data.response);
+      var spoken = global.WamaAssistantVoice ? global.WamaAssistantVoice.speak(data.response) : null;
+      self.followPendingPage(spoken);
     });
   };
 
@@ -389,7 +441,7 @@
     }
 
     return fetch(this.cfg.streamUrl, {
-      method: 'POST',
+      method: 'POST', signal: this.signal(),
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
       body: JSON.stringify({ message: message }),
     }).then(function (resp) {
@@ -449,7 +501,7 @@
           return pomper();
         });
       }
-      return pomper().then(function () { if (voix) voix.end(); });
+      return pomper().then(function () { self.followPendingPage(voix ? voix.end() : null); });
     });
   };
 
@@ -471,5 +523,7 @@
     mount: mount,
     instances: instances,
     first: function () { return instances[0] || null; },
+    // Pour les tests V8 (`tests_assistant_reach`) : les gestes du prototype s'éprouvent sans DOM.
+    _Chat: Chat,
   };
 })(window);

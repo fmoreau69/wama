@@ -24,6 +24,14 @@ import os
 #: c'est un chemin de secours qui ne dépend d'aucun service.
 ASSISTANT_TTS_ENGINE = os.environ.get('WAMA_ASSISTANT_TTS_ENGINE', 'kokoro-onnx')
 
+#: Modèle de RECONNAISSANCE DE LA PAROLE de l'assistant (conversation vocale, 2026-10-10) :
+#: transcrit, dans le même service que la voix, ce que l'utilisateur vient de dire. Local par
+#: défaut — la dictée passait jusque-là par la reconnaissance du NAVIGATEUR, qui envoie l'audio
+#: à Google. `large-v3` est le Whisper déjà installé pour le transcriber (aucun téléchargement).
+#: ⏳ Comme la voix ci-dessus, ce choix devrait être TIRÉ du catalogue (auto + curseur + manuel)
+#: plutôt que déclaré ici ; l'interrupteur d'environnement n'est qu'un point d'accroche.
+ASSISTANT_STT_MODEL = os.environ.get('WAMA_ASSISTANT_STT_MODEL', 'large-v3')
+
 # ---------------------------------------------------------------------------
 # Modèles TTS
 # ---------------------------------------------------------------------------

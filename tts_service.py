@@ -61,8 +61,9 @@ torch.load = _patched_torch_load
 # ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from typing import Optional
 
@@ -320,6 +321,8 @@ def health():
         # peuvent être chauds (kokoro, kokoro-onnx…). Champ conservé pour ne rien
         # casser, complété par la vue générale.
         "resident_engines": _resident_engines(),
+        # Reconnaissance de la parole (conversation de l'assistant) : chargée à la 1re phrase.
+        "stt_model": _stt._current_model if (_stt is not None and _stt.is_loaded) else None,
         "gpu_memory_gb": round(gpu_mem, 2),
     }
 
@@ -395,6 +398,150 @@ def tts_endpoint(req: TTSRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ---------------------------------------------------------------------------
+# Reconnaissance de la parole — la CONVERSATION VOCALE de l'assistant (2026-10-10)
+# ---------------------------------------------------------------------------
+# Le service fait parler l'assistant ; il l'ÉCOUTE aussi, pour la même raison : un modèle
+# chaud dans un process dédié, joint en quelques dixièmes de seconde. Une tâche Celery
+# attendrait derrière le traitement GPU en cours (minutes), et un chargement dans gunicorn
+# mettrait un Whisper par worker web. Whisper est chargé à la PREMIÈRE phrase entendue puis
+# reste chaud ; une demande de libération du gouverneur le décharge comme les voix
+# (`unload_live_backends` : c'est un backend sous contrat), et il revient à la phrase suivante.
+_stt = None
+#: Une transcription à la fois : CTranslate2 sur un seul modèle, et l'ordre des phrases compte.
+_stt_lock = threading.Lock()
+#: Inactivité après laquelle Whisper rend la carte. ⚠ MESURÉ le 2026-10-10 : large-v3 occupe
+#: 4,1 Go réels, mais le gouverneur en RÉSERVE 10 (`WhisperBackend.recommended_vram_gb`, valeur
+#: de repli : CTranslate2 alloue hors de PyTorch). Resté chargé, il ferait croire 10 Go pris aux
+#: traitements lourds. Une conversation vient par rafales : on le garde chaud pendant, pas après.
+STT_IDLE_UNLOAD_S = int(os.environ.get("WAMA_STT_IDLE_UNLOAD_S", "600"))
+_stt_last_use = 0.0
+
+
+def _stt_backend():
+    global _stt
+    if _stt is None:
+        from wama.common.backends.whisper_backend import WhisperBackend
+        _stt = WhisperBackend()
+    return _stt
+
+
+def _stt_idle_watch():
+    """Décharge Whisper après `STT_IDLE_UNLOAD_S` sans transcription (thread de fond)."""
+    import time
+    while True:
+        time.sleep(60)
+        if _stt is None or not _stt.is_loaded or STT_IDLE_UNLOAD_S <= 0:
+            continue
+        if time.time() - _stt_last_use < STT_IDLE_UNLOAD_S:
+            continue
+        with _stt_lock:
+            if _stt.is_loaded and time.time() - _stt_last_use >= STT_IDLE_UNLOAD_S:
+                logger.info("Whisper inactif — déchargé (rend la carte)")
+                _stt.unload()       # l'enveloppe du contrat rend la ligne de réservation VRAM
+
+
+def _transcribe_clip(audio: bytes, suffix: str, language: str, model: str) -> dict:
+    import tempfile
+    import time
+    global _stt_last_use
+    _stt_last_use = time.time()
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    try:
+        tmp.write(audio)
+        tmp.close()
+        _synth_begin()                    # occupé, déclaré au gouverneur (même sens que /tts)
+        try:
+            with _stt_lock:
+                be = _stt_backend()
+                if not be.load(model):
+                    raise RuntimeError(f"Whisper « {model} » ne se charge pas")
+                # Filtre de parole ACTIF : sur un extrait sans voix, Whisper invente des phrases
+                # (« Sous-titres réalisés par… ») ; le filtre les retire avant le décodage.
+                result = be.transcribe(tmp.name, language=language or None,
+                                       vad_filter=True, enable_timestamps=False)
+        finally:
+            _synth_end()
+        _stt_last_use = time.time()
+        if not result.success:
+            raise RuntimeError(result.error or "transcription échouée")
+        return {"text": result.text, "language": result.language}
+    finally:
+        try:
+            os.remove(tmp.name)
+        except OSError:
+            pass
+
+
+@app.post("/stt")
+async def stt_endpoint(request: Request, language: str = "", model: str = "large-v3"):
+    """Transcrit un extrait court (le CORPS de la requête : WAV, WebM…) → {text, language}.
+    Corps brut plutôt qu'un formulaire : aucune dépendance de plus au service."""
+    audio = await request.body()
+    if not audio:
+        raise HTTPException(status_code=400, detail="audio vide")
+    content_type = (request.headers.get("content-type") or "").lower()
+    suffix = ".webm" if "webm" in content_type else ".ogg" if "ogg" in content_type else ".wav"
+    try:
+        return await run_in_threadpool(_transcribe_clip, audio, suffix, language, model)
+    except Exception as e:
+        logger.error(f"STT error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _speech_only_clip(audio: bytes, suffix: str) -> bytes:
+    """Les seuls passages PARLÉS de l'extrait (WAV 16 kHz mono), b'' s'il n'y en a aucun.
+
+    Pour l'écoute par un modèle DISTANT (2026-10-11) : Silero tourne ici, sur le processeur,
+    parce qu'importer `faster_whisper` coûte 52 à 66 s (mesuré : `ctranslate2` importe
+    `transformers`, lu depuis /mnt/d), payées une fois par ce service au lieu d'une fois par
+    worker gunicorn. Même détecteur, mêmes réglages que le filtre d'Albert : c'est SA méthode.
+    """
+    import shutil
+    import tempfile
+    from wama.common.backends.albert_asr_backend import AlbertTranscriptionBackend
+    tmp_dir = tempfile.mkdtemp(prefix="wama_vad_")
+    try:
+        src = os.path.join(tmp_dir, "clip" + suffix)
+        with open(src, "wb") as fh:
+            fh.write(audio)
+        backend = AlbertTranscriptionBackend()
+        speech, _ = backend._speech_only(backend._upload_path(src, tmp_dir), tmp_dir)
+        if speech is None:
+            return b""
+        with open(speech, "rb") as fh:
+            return fh.read()
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def _vad_warm_up():
+    """Importe le filtre de parole au démarrage (fond) : la 1ʳᵉ phrase distante n'attend pas."""
+    try:
+        import faster_whisper.vad  # noqa: F401
+        logger.info("Filtre de parole (Silero) prêt")
+    except Exception as exc:
+        logger.warning(f"Filtre de parole indisponible : {exc}")
+
+
+@app.post("/speech-only")
+async def speech_only_endpoint(request: Request):
+    """Corps : un extrait audio → corps : ses passages parlés en WAV ; 204 s'il n'y en a pas."""
+    audio = await request.body()
+    if not audio:
+        raise HTTPException(status_code=400, detail="audio vide")
+    content_type = (request.headers.get("content-type") or "").lower()
+    suffix = ".webm" if "webm" in content_type else ".ogg" if "ogg" in content_type else ".wav"
+    try:
+        speech = await run_in_threadpool(_speech_only_clip, audio, suffix)
+    except Exception as e:
+        logger.error(f"VAD error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    if not speech:
+        return Response(status_code=204)
+    return Response(content=speech, media_type="audio/wav")
+
+
 @app.post("/load-model")
 def load_model_endpoint(req: LoadModelRequest):
     """Pre-load a model (for warming up)."""
@@ -443,6 +590,11 @@ async def startup():
                                       restore=_restore_residents, is_busy=_is_busy))
     except Exception as exc:
         logger.warning(f"[TTS] gouverneur de ressources non initialisé : {exc}")
+
+    # Whisper de la conversation vocale : rendu à la carte après inactivité (voir `/stt`).
+    threading.Thread(target=_stt_idle_watch, daemon=True, name="stt-idle").start()
+    # Filtre de parole de l'écoute distante (`/speech-only`) : son import est long, on le paie ici.
+    threading.Thread(target=_vad_warm_up, daemon=True, name="vad-warm-up").start()
 
     # ── Préchargement SÉLECTIF ────────────────────────────────────────────────
     # TTS_PRELOAD = liste d'engines séparés par des virgules (défaut : "kokoro").
