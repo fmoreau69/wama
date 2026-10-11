@@ -4265,7 +4265,7 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
      connexion ; le mot de passe est RÉVOQUÉ si le montage échoue et quand le dossier est retiré.
      Le mot de passe du COMPTE n'est jamais stocké par ce chemin. La saisie identifiant + mot de
      passe reste possible (tout mot de passe que le nuage accepte en WebDAV). Le premier essai
-     avait rendu un 405 : adresse non complétée (page web) — corrigé dans `ba81cba6`.
+     avait rendu un 405 : adresse non complétée (page web) — corrigé dans `dd0adffa`.
      **Essai réel par le navigateur RÉUSSI le 11/10** (Fabien : « ça marche »). Tenu par
      `filemanager/tests.py::RemoteMountTests` (15 tests, dont 5 du flux : montage avec le mot de
      passe accordé, adresse d'interrogation étrangère refusée, révocation à l'échec et au retrait,

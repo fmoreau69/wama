@@ -4393,7 +4393,7 @@ casseraient en silence… sauf le premier, que l'instrument attraperait) :
     présentaient comme ouvertes deux choses DÉCIDÉES — la distinction Importer / Connector (§7, §11.5 :
     l'Importer rassemble des fichiers volants dans un nouveau `.wdat`, le Connector connecte une base
     déjà constituée) et la forme de l'export (§11.8 ⑨). Les quatre endroits sont corrigés
-    (`c56aa7dd`). Ce qui restait n'était pas une décision mais une MESURE : une base connectée qui
+    (`628bcbdc`). Ce qui restait n'était pas une décision mais une MESURE : une base connectée qui
     change relève de `STALE`, dont la photo ne garde aujourd'hui que le CHEMIN des entrées.
   - ✅ **Livré** : l'entrée `data_connector` (`functions/io/connector.py` — une base ou un dossier de
     bases, inventaire seul à la connexion, flux lus à la demande par le consommateur) et la sortie

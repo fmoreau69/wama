@@ -248,7 +248,7 @@ mais c'est défaire son geste dans son dos.
   jamais un `;` entre une vérification et le geste qu'elle autorise. Et un fichier « propre il y a
   une minute » ne l'est plus : c'est l'état AU MOMENT du commit qui compte.
 - 🔴🔴 **2026-10-11 — RÉCIDIVE du piège du 28/09 (HEAD qui bouge), cette fois sur TROIS commits.**
-  `2550bd9a` a pour parent `b4da4134`, mais son arbre avait été lu sur `5ab17542` : il a DÉFAIT
+  `9ef1ee68` a pour parent `11604afe`, mais son arbre avait été lu sur `c28db2d4` : il a DÉFAIT
   dans HEAD trois commits d'autres sessions (29 fichiers, dont 6 supprimés). Rien ne l'a signalé à
   son auteur ; vu par une autre session parce que `git diff --cached` montrait comme « à ajouter »
   des fichiers qu'elle savait commités. ⇒ le `[ HEAD = BASE ]` + `update-ref … $BASE` du §1 n'est
@@ -258,7 +258,7 @@ mais c'est défaire son geste dans son dos.
   <parent réel> <commit fautif> | head -1)` (une seule ligne = sans conflit). Trouver la base :
   `git diff --stat <candidat> <fautif>` ne doit montrer QUE le travail propre du fautif. Vérifier
   avant de poser : `git diff --stat <parent réel> $TREE` = ce travail exactement ; puis
-  `commit-tree $TREE -p <fautif>` + `update-ref … <fautif>` (`c88e003e`). Ici l'arbre fusionné
+  `commit-tree $TREE -p <fautif>` + `update-ref … <fautif>` (`9973ad92`). Ici l'arbre fusionné
   était IDENTIQUE à l'index partagé, qui portait encore le bon contenu — l'index réaligné sur HEAD
   est revenu vide de lui-même.
 

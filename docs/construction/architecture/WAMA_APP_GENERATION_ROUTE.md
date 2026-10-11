@@ -3497,7 +3497,7 @@ formes** (`Param`, `ParamSpec`, le `params_spec` du Studio, du HTML écrit à la
 Et un nœud intégré se déclare à **quatre endroits** : la palette (`wama-studio.js:27-74`,
 `BUILTINS`), son rôle (`manifests/builtin/pipeline.py:36-37`), ses réglages (`studio/views.py:227-270`),
 son exécution (`studio/tasks.py` : `SOURCE_HANDLERS` et branches par nom de nœud). ⚠ Les deux nœuds
-Data de la 1ʳᵉ marche de P7 (`ab5902ea`) y ont ajouté une **citation du monde Data dans le
+Data de la 1ʳᵉ marche de P7 (`75146d7d`) y ont ajouté une **citation du monde Data dans le
 substrat** — `studio/views.py` et `studio/tasks.py` importent `wama_data` —, le défaut que
 `AGENTS.md` nomme (« le registre ne connaît jamais ses producteurs ») : introduit le 2026-10-11,
 retiré par R2 ci-dessous.
@@ -5055,7 +5055,7 @@ possible **sans aucun process**.
 | **P5** ✅ 03/10 | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) — livré en six pièces le 03/10 (point 5 : bande des process, état montré, ▶ / ⚙ / case à cocher par process, gabarit généré, promotion fille ↔ mère, catalogue du studio) | P3 (le renommage et le glisser-déposer : à tout moment) |
 | **P6** ✅ 03/10 | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les apps qui ne l'ont pas. ✅ Les dix apps passent par `run_item_task` ; SEPT déclarent un pipeline et le montrent sur leur card : transcriber (6 process dont `import` et `align`), avatarizer, et les cinq apps du process « Sortie » commun (imager, composer, synthesizer, anonymizer, enhancer) — point 4, bloc « P6 ENGAGÉE ». Restent à un seul process : describer, reader, converter (rien à ne pas rejouer) | P4 |
 | **P7a** | une forme de réglages, un rendu, une coercition et une déclaration de nœud dans tous les mondes (point 3.3bis) : R1 pont `ParamSpec → Param` + inspecteur du Studio par `WamaParams` ; R2 déclaration unique des nœuds intégrés ; R3 profil Lab au schéma ; R4 ⚙ des process de la card Data | R1 : — ; R2-R4 : les arbitrages (a)-(c) du point 3.3bis |
-| **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script. 1ʳᵉ marche ✅ 2026-10-11 (`ab5902ea` : entrée `data_connector`, sortie `data_export`, pipeline sans process) | P3, P5, P7a (R1, R2 ; R4 pour le ⚙ des process) ; décision n°7 pour le seul process « script » (les n°5 et 6 n'étaient pas ouvertes — corrigé le 2026-10-11) |
+| **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script. 1ʳᵉ marche ✅ 2026-10-11 (`75146d7d` : entrée `data_connector`, sortie `data_export`, pipeline sans process) | P3, P5, P7a (R1, R2 ; R4 pour le ⚙ des process) ; décision n°7 pour le seul process « script » (les n°5 et 6 n'étaient pas ouvertes — corrigé le 2026-10-11) |
 | **P8** | rôle assistant → manifeste `pipeline` / `dataset` | P3 |
 
 > 📍 **BRIEF DE SESSION DÉDIÉE — état MESURÉ le 2026-10-01** (demande de Fabien : *« l'idée du
