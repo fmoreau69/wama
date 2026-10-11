@@ -104,7 +104,7 @@ Monte un stockage distant comme un dossier du filemanager : nuage WebDAV, partag
 
 ### ETA auto-apprenante
 
-Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel
+Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel ; sous la clé de catalogue d'un modèle, c'est aussi sa VITESSE D'INFÉRENCE, que le banc calibre et que le curseur rapide/qualité de toutes les apps compare (`comparable_speeds` → `model_selector.intent_choice`, 2026-10-11)
 
 - **Domicile** : `wama/model_manager/services/eta_estimator.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §10](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Estimateur d'ETA WAMA — *seeding* auto-apprenant et hardware-aware. ================================================================================
@@ -637,9 +637,9 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; v
   - `run_prospection() -> dict` — Le verbe « Prospecter » — corps UNIQUE du bouton du model manager et de l'outil
   - `seed_candidate_from_manifest(manifest: dict) -> dict` — Écrit/rafraîchit un CANDIDAT de prospection depuis un manifeste `model` — le chemin du
   - `seed_yolo_candidate(name: str) -> dict` — Candidat de prospection pour des poids YOLO OFFICIELS demandés PAR LEUR NOM.
+  - `seed_ollama_candidate(name: str) -> dict` — Candidat de prospection pour un modèle Ollama demandé PAR SON NOM — le pendant de
   - `github_release(ref: str)` — La version `owner/repo:tag` telle que l'API GitHub la publie (dict), `{}` si elle
   - `github_release_license(release: dict) -> str` — Licence DITE par le texte de la version (« License: CC BY 4.0 »), sinon '' — jamais
-  - `seed_ollama_candidate(name: str) -> dict` — Candidat de prospection pour un modèle Ollama demandé PAR SON NOM — le pendant de
   - `github_release_scale(release: dict)` — Facteur que le texte de la version DÉCLARE (« Scale: 4 »), sinon None — jamais déduit du
   - `pinned_github_asset(ref: str, asset: str, release: dict=None) -> dict` — {'asset', 'size', 'sha256', 'measured'} de l'asset d'une version, ou {'error'}.
   - `github_spec_from_manifest(manifest: dict) -> dict` — Descripteur `github` d'un manifeste `model` de source `github`, empreinte ÉPINGLÉE —
