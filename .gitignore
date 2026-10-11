@@ -151,3 +151,8 @@ staticfiles/vendors/avatars/
 # 603 Ko, un seul fichier, non minifie par revision : versionnable sans debat.
 !wama/static/vendors/**/build/
 !staticfiles/vendors/**/build/
+
+# Jeux de donnees locaux a la racine (2026-10-11, decision de Fabien) -- ex. un extrait parquet
+# de 100 Mo d'enregistrements de reunions : du tiers, volumineux, et des voix de personnes, dans
+# un depot PUBLIC. Ancre a la racine : un dossier `data/` de code ailleurs reste suivi.
+/data/
