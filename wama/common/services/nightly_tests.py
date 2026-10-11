@@ -438,6 +438,7 @@ try:
                                                         register_voice_library_scenarios)
     from wama.common.services.ui_smoke_menus import register_menu_scenarios
     from wama.common.services.ui_smoke_states import register_state_color_scenarios
+    from wama.common.services.ui_smoke_panel import register_panel_reflect_scenarios
     register_ui_scenarios()
     # Les briques d'APPARIEMENT s'exécutent SERVIES : aucun test Python ne voit un bloc gardé
     # par `if (window.WamaModelCaps)` qui se tait parce que la brique n'est pas chargée
@@ -525,6 +526,10 @@ try:
     # (spécificité, `!important` de Bootstrap) ne lève AUCUNE erreur : c'est exactement ainsi
     # que le bord d'état était resté GRIS jusqu'au 02/09, trouvé au `getComputedStyle` seul.
     register_state_color_scenarios()
+    # 2026-10-11 — le VOLET de réglages : la card sélectionnée y montre ses réglages, le ✕ y remet
+    # ceux de la file. Né du portage des volets générés (avatarizer, synthesizer, enhancer) : une
+    # liste du catalogue liée deux fois y retombait sur « auto » sans la moindre erreur.
+    register_panel_reflect_scenarios()
     # 2026-09-06 — gestes 8/9/10/12 : DÉMARRER → PROGRESSER → RÉUSSIR → TÉLÉCHARGER. Le
     # premier scénario du harnais qui va jusqu'au RÉSULTAT sur une app de file. Sa VRAM est
     # DÉRIVÉE du catalogue (`AIModel.source`), donc le mode sans GPU l'écarte partout où l'app

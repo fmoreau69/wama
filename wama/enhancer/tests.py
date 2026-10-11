@@ -570,3 +570,30 @@ class ViewsCarryTheSliderTest(TestCase):
         self.assertEqual(r.status_code, 200, r.content)
         ae.refresh_from_db()
         self.assertEqual((ae.engine, ae.quality_intent, ae.output_format), ('auto', 12, 'mp3'))
+
+
+class PanelDefaultsAreTheColumnDefaultsTest(TestCase):
+    """The schema declares the defaults of its columns (2026-10-11, generated panel).
+
+    A setting rendered from the schema starts from its declared default, and « Réinitialiser »
+    (`WamaParams.applyDefaults`) puts it back: without one, the generated panel offered the first
+    option (NFE 32 instead of 64) and the reset emptied the model select. Measured in the browser
+    on the enhancer's generated panel."""
+
+    def test_every_setting_with_a_column_declares_that_column_default(self):
+        from wama.enhancer.models import AudioEnhancement
+        from wama.enhancer.params import AUDIO_PARAMS, MEDIA_PARAMS
+        for model, params in ((Enhancement, MEDIA_PARAMS), (AudioEnhancement, AUDIO_PARAMS)):
+            fields = {f.name: f for f in model._meta.concrete_fields}
+            checked = 0
+            for p in params:
+                if p.name not in fields or 'panel' not in (p.contexts or ()):
+                    continue
+                # The quality slider's column is NULLABLE by design: null = inherit the cascade
+                # (`auto_model.quality_intent_of`), the slider shows its 50 meanwhile.
+                if p.type == 'intent':
+                    continue
+                checked += 1
+                with self.subTest(model=model.__name__, setting=p.name):
+                    self.assertEqual(str(fields[p.name].get_default()), str(p.default))
+            self.assertGreaterEqual(checked, 3, model.__name__)   # nothing silently skipped

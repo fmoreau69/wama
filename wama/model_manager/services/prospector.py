@@ -1043,19 +1043,14 @@ def _card_dict(card) -> dict:
 def _installed_repos() -> set:
     """Dépôts Hugging Face des lignes INSTALLÉES (non proposées), en minuscules — par les DEUX
     identités de plateforme (`hf_id`, `platform_ref`) : un modèle découvert par scan disque n'a
-    pas de `hf_id` mais peut porter un `platform_ref` posé par la provenance vérifiée.
-
-    Une ligne DÉSINSTALLÉE n'en est plus (2026-10-11) : `uninstall_model` la garde pour son
-    historique, marquée `uninstalled_at` — comptée ici, elle interdisait de reproposer le dépôt
-    (`lightonai/LightOnOCR-3-4B`, `PaddlePaddle/PaddleOCR-VL-1.6` : « already » au lendemain de
-    leur retrait)."""
+    pas de `hf_id` mais peut porter un `platform_ref` posé par la provenance vérifiée."""
     from wama.model_manager.models import AIModel
-    rows = AIModel.objects.filter(is_proposed=False).exclude(
-        is_downloaded=False, extra_info__has_key='uninstalled_at')
-    have = {(h or '').lower() for h in rows.exclude(hf_id='').values_list('hf_id', flat=True)}
+    have = {(m.hf_id or '').lower()
+            for m in AIModel.objects.filter(is_proposed=False).exclude(hf_id='')}
     have |= {ref.partition(':')[2].lower()
-             for ref in rows.filter(platform_ref__startswith='huggingface:')
-                            .values_list('platform_ref', flat=True)}
+             for ref in AIModel.objects.filter(is_proposed=False,
+                                               platform_ref__startswith='huggingface:')
+                                       .values_list('platform_ref', flat=True)}
     have.discard('')
     return have
 
@@ -1928,17 +1923,6 @@ def github_spec_from_manifest(manifest: dict) -> dict:
     return {'error': error} if error else {**spec, 'sha256_measured': pinned['measured']}
 
 
-def _rule_for_task(task):
-    """La règle du balayage (`HF_TASKS`) dont la catégorie d'installation est celle de `task`, ou
-    None — une tâche qu'aucune entrée ne couvre n'invente pas de catégorie (le captioning d'un VLM
-    reste chez le describer)."""
-    from wama.model_manager.models import model_type_for_task
-
-    category = model_type_for_task(task) if task else None
-    return next((r for r in HF_TASKS.values() if r['category'] == category), None) \
-        if category else None
-
-
 def named_repo(query: str):
     """Le dépôt HF qu'une requête DÉSIGNE — URL de page (`https://huggingface.co/org/nom`, avec ou
     sans schéma, sous-chemins `/tree/main`… tolérés) ou identifiant `org/nom` —, sinon None.
@@ -1967,8 +1951,7 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
     Différences ASSUMÉES avec le balayage `seed_hf_candidates` :
       • une seule requête `search=` SANS filtre de tâche — l'utilisateur ne connaît pas le
         `pipeline_tag` ; la tâche est lue sur chaque résultat et doit figurer dans
-        `HF_TASKS` (un tag hors périmètre n'invente pas de catégorie d'installation) — sauf
-        pour un dépôt DÉSIGNÉ, jugé sur la tâche que SA carte déclare (`_rule_for_task`) ;
+        `HF_TASKS` (un tag hors périmètre n'invente pas de catégorie d'installation) ;
       • `_NOISE_MARKERS` non appliqués : chercher « kokoro onnx » est un choix EXPLICITE —
         la garde anti-dérivés protège un listing subi, pas une demande nommée ;
       • AUCUNE purge : une recherche AJOUTE des candidats, elle ne redessine pas la liste ;
@@ -2016,12 +1999,6 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
             break
         tache = getattr(m, 'pipeline_tag', None)
         regle = HF_TASKS.get(tache or '')
-        if regle is None and _designated(m.id):
-            # Un dépôt NOMMÉ dont l'étiquette est hors balayage entre si SA carte dit une tâche
-            # que le balayage sait installer (2026-10-11) : `lightonai/lightonocr-3-1b` publie
-            # `image-text-to-text` et tague `ocr` — `card_facts` en fait un OCR, comme pour un
-            # candidat de classement ; « lightonai/lightonocr-3-1b » rendait pourtant 0 résultat.
-            regle = _rule_for_task(card_facts(tache, getattr(m, 'tags', None) or ())['task'])
         if regle is None:
             ignores += 1
             continue

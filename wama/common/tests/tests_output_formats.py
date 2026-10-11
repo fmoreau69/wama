@@ -242,3 +242,27 @@ class KeepTheOriginalTest(SimpleTestCase):
             of.upscale_output_image(self.engine_file, 'x2')
         self.assertEqual(os.path.abspath(self.folder), os.path.abspath(seen['folder']))
         self.assertEqual(['gen7_model.png'], self._names())
+
+
+class OutputParamDefaultsTest(SimpleTestCase):
+    """Les réglages de sortie de la brique déclarent le défaut de leurs colonnes (2026-10-11).
+
+    Sans défaut déclaré, une surface GÉNÉRÉE (volet, modale) proposait la PREMIÈRE option —
+    « web » pour la qualité — et « Réinitialiser » (`WamaParams.applyDefaults`) vidait le format.
+    Mesuré sur le volet généré du synthesizer, quand le volet écrit à la main proposait
+    « Équilibré » : le défaut de toutes les colonnes, et le repli de `apply_output_settings`."""
+
+    def test_the_brick_declares_the_column_defaults(self):
+        params = {p.name: p for p in of.output_format_params('audio')}
+        self.assertEqual('original', params['output_format'].default)
+        self.assertEqual('balanced', params['output_quality'].default)
+
+    def test_they_are_the_defaults_of_the_columns_of_the_apps_using_it(self):
+        from django.apps import apps
+        for label, model in (('synthesizer', 'VoiceSynthesis'), ('composer', 'ComposerGeneration'),
+                             ('imager', 'ImageGeneration')):
+            fields = {f.name: f for f in apps.get_model(label, model)._meta.concrete_fields}
+            for name, expected in (('output_format', 'original'), ('output_quality', 'balanced')):
+                if name in fields:
+                    with self.subTest(model=model, field=name):
+                        self.assertEqual(expected, fields[name].get_default())

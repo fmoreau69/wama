@@ -27,13 +27,8 @@ Trois options, et pourquoi celle-ci :
     genre particulier ? » — est exactement la question qui tranchera où vit ce nœud-là. La
     trancher ici en passant, dans un fichier d'adaptateur, serait la trancher au mauvais endroit.
 
-~~Conséquence assumée : l'Exporter n'est pas chaînable dans le canvas tant que D13 n'est pas tranchée.~~
-✅ 2026-10-11 — D13 est tranchée (un seul kind `pipeline`, `§9undecies.2`) et la forme de l'export
-précisée par Fabien (`§11.8 ⑨`) : l'Exporter est un NŒUD DE SORTIE du kind `pipeline`
-(`data_export`, `manifests/builtin/pipeline.SINK_NODES`) qui porte ses `Declaration`s. Le
-raisonnement ci-dessus RESTE VRAI : ce n'est toujours pas une `FunctionSpec` (aucune catégorie
-honnête pour un puits), et la garde `PasDeDeclarationAuCatalogueTest` le tient toujours. Ce qui a
-changé, c'est qu'il a désormais un lieu : `export_lots()` ci-dessous est ce que le nœud appelle.
+Conséquence assumée : l'Exporter n'est pas chaînable dans le canvas tant que D13 n'est pas tranchée.
+Il est utilisable par code et par l'app qui le pilotera. C'est un manque NOMMÉ, pas un oubli.
 """
 from __future__ import annotations
 
@@ -44,8 +39,7 @@ from wama.common.catalog.data_types import TypedFrame
 from ...core.export import (FORMATS, Column, Declaration, ExportFile, Identity, Grouping,
                             preview, export, render)
 
-__all__ = ['lot_depuis_frames', 'exporter_frames', 'apercu_frames', 'write', 'export_lots',
-           'grouping_from_dict']
+__all__ = ['lot_depuis_frames', 'exporter_frames', 'apercu_frames', 'ecrire']
 
 
 def lot_depuis_frames(frames: Mapping[str, TypedFrame]) -> Dict[str, List[Dict[str, Any]]]:
@@ -78,60 +72,18 @@ def apercu_frames(declarations: Sequence[Declaration],
                   metas, regroupement, lignes_max=lignes_max)
 
 
-def write(fichiers: Sequence[ExportFile], dossier, *, overwrite: bool = True) -> List[Path]:
+def write(fichiers: Sequence[ExportFile], dossier) -> List[Path]:
     """Écrit les fichiers produits et rend leurs chemins.
 
     Les formats non séparés par un caractère (`xlsx`, `mat`) sont refusés par `render()` du cœur —
     ils demandent une bibliothèque, et l'endroit où la brancher est ici, pas dans le cœur pur.
     Ils ne sont PAS encore implémentés : le refus est explicite plutôt que silencieux.
-
-    `overwrite=False` (2026-10-11, le nœud de sortie l'emploie) : un fichier déjà présent arrête
-    TOUT avant la moindre écriture — un export écrit dans le dossier des données de l'utilisateur
-    (`§11.1`) n'y remplace rien sans qu'on le lui ait demandé, et un export à moitié écrit ne
-    mélange pas l'ancien et le nouveau.
     """
     dossier = Path(dossier)
-    rendered = [(dossier / f"{f.name}.{f.format}", render(f)) for f in fichiers]
-    if not overwrite:
-        present = [p.name for p, _ in rendered if p.exists()]
-        if present:
-            raise FileExistsError(f"déjà présent(s) dans « {dossier} » : {', '.join(present)} — "
-                                  "autoriser le remplacement, ou changer la destination")
     dossier.mkdir(parents=True, exist_ok=True)
     ecrits: List[Path] = []
-    for path, text in rendered:
-        path.write_text(text, encoding='utf-8')
+    for f in fichiers:
+        path = dossier / f"{f.name}.{f.format}"
+        path.write_text(render(f), encoding='utf-8')
         ecrits.append(path)
     return ecrits
-
-
-def grouping_from_dict(raw: Optional[Mapping[str, Any]]) -> Grouping:
-    """Le regroupement d'un nœud de sortie (JSON) — les deux axes de `Grouping`, rien d'autre."""
-    raw = raw or {}
-    return Grouping(lots=bool(raw.get('lots')), declarations=bool(raw.get('declarations')))
-
-
-def export_lots(declarations: Sequence[Any], lots: Sequence[Any], folder, *,
-                grouping: Optional[Grouping] = None, overwrite: bool = False) -> List[Path]:
-    """L'export d'un NŒUD DE SORTIE : des déclarations appliquées à des bases connectées.
-
-    `declarations` : des `Declaration` ou leur forme sérialisée (`declaration_from_dict`, validée
-    comme à la construction) ; `lots` : des `ConnectedLot` (`connector.connect`). Chaque base ne lit
-    QUE les flux que les déclarations citent. Deux bases de même nom (deux `essai_01` dans deux
-    sous-dossiers) sont refusées : leurs lignes deviendraient indiscernables dans un export
-    concaténé, et leurs fichiers s'écraseraient l'un l'autre."""
-    from ...core.export import declaration_from_dict
-    decls = [d if isinstance(d, Declaration) else declaration_from_dict(d) for d in declarations]
-    if not decls:
-        raise ValueError("aucune déclaration d'export")
-    if not lots:
-        raise ValueError("aucune base connectée en entrée")
-    names = [lot.name for lot in lots]
-    duplicates = sorted({n for n in names if names.count(n) > 1})
-    if duplicates:
-        raise ValueError(f"bases de même nom : {', '.join(duplicates)} — impossible de dire de "
-                         "laquelle vient une ligne")
-    streams = list(dict.fromkeys(s for d in decls for s in d.stream))
-    frames = {lot.name: lot.frames(streams) for lot in lots}
-    metas = {lot.name: lot.meta for lot in lots}
-    return write(exporter_frames(decls, frames, metas, grouping), folder, overwrite=overwrite)

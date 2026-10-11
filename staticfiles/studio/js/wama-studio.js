@@ -46,20 +46,6 @@
             inputs: [{ label: 'Média final', types: ['image', 'video', 'audio', 'document', 'dataset', '3d'], group: 'travail' }],
             output: false, builtin: true,
         },
-        // Monde Data (2026-10-11) : le CONNECTOR branche une base déjà constituée (.wdat, .trip…)
-        // sans la copier ; l'EXPORTER est un nœud de sortie qui porte ses déclarations. Un
-        // pipeline qui ne contient qu'eux est valide (export sans traitement).
-        data_connector: {
-            label: 'Base connectée', icon: 'fas fa-database', color: '#9ad0ec',
-            description: "Source : une base déjà constituée (.wdat, .trip…) ou un dossier de bases, branché SANS copie.",
-            inputs: [], output: { label: 'Bases', types: ['dataset'] }, builtin: true,
-        },
-        data_export: {
-            label: 'Export de données', icon: 'fas fa-file-export', color: '#e78fb3',
-            description: "Écrit les tables déclarées (colonnes ordonnées, identité, format) dans le dossier choisi, ou à côté des données.",
-            inputs: [{ label: 'Bases', types: ['dataset'], group: 'travail' }],
-            output: false, builtin: true,
-        },
     };
     // Nœud-source « Jeu de données » (D13) : ses types de sortie sont LA taxonomie Data servie
     // par /studio/api/nodes/ (`data_types`) — jamais recopiée ici. Posé à la réception.

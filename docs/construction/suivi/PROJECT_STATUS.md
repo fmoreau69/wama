@@ -22946,3 +22946,28 @@ par la route ; page du model manager : bouton « Installer » = règle du serveu
 attendues : `PROSPECTION_PIPELINE §Suite du 2026-10-10 (nuit, 2)`.
 - 🔴 Relancer gunicorn + workers : la page lit `installable` (nouveau Python) ; les lignes de
   profondeur prennent leur `install_dir` à la prochaine synchronisation.
+
+## §PALIER — 2026-10-11, « VOLETS GÉNÉRÉS : avatarizer, synthesizer, enhancer » — livré (`5de85e26` + commit des gardes, non poussés) — 🔴 relancer gunicorn (fait par Fabien le 11/10 avant les gardes)
+
+Les trois volets écrits à la main sont rendus du schéma (`WamaParams.render(context:'panel')`),
+comme les six autres : 9 apps sur 10. Les `dom_id` gardent les ids d'avant ; ce qui n'est pas au
+schéma (options Higgs, aperçu de voix, lignes d'appariement) est GREFFÉ sous son champ. Valeurs =
+préférences mémorisées (`read_panel_settings`) ; « Réinitialiser » = `applyDefaults`.
+Défauts corrigés à la source : un select `catalog` généré lié DEUX fois (render puis
+`initFromSchema`) retombait sur « auto » (`wama-params.js`, garde V8
+`tests_wama_params_options.OneBindingPerSelectTest`) ; `output_format`/`output_quality` de la
+brique commune sans défaut (« web » proposé — `tests_output_formats.OutputParamDefaultsTest`) ;
+schéma de l'enhancer sans les défauts de ses colonnes (NFE 32 au lieu de 64 —
+`enhancer.tests.PanelDefaultsAreTheColumnDefaultsTest`) ; critère `model_help` qui ne lisait
+qu'un schéma. Nouveau geste nocturne `<app>.panel_reflect` (`ui_smoke_panel.py`) : card
+sélectionnée → ses réglages au volet, ✕ → ceux de la file. Retraits : `REMOVAL_LEDGER` R112.
+- 🔚 **Anonymizer non porté** — deux décisions : son mode (`WamaModes`) vit HORS du conteneur que
+  lisent les `show_if` des groupes Classes/Description (brique à adapter, ou autre forme de
+  sélecteur) ; six réglages mémorisés mais invisibles (bords arrondis, interpolation,
+  segmentation…) apparaîtraient sous « Avancé ».
+- 🔚 `ROUTE §F3` l.177 (« 1/10 ») à porter à 9/10 — fichier en cours d'édition par une autre
+  instance le 11/10, non touché.
+- 🔚 `tts_model_help_meta` sans appelant (gardée, retrait à décider) ; aide technique « Clé
+  catalogue du moteur TTS (AIModel.model_key) » sous le modèle TTS (volet et modale) ; même
+  `resolveKey` recomposé (`anonymizer:` + clé entière) dans `WamaModelCaps` de l'anonymizer — déduit,
+  non rejoué.

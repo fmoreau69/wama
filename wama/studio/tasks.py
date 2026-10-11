@@ -141,81 +141,11 @@ def _source_dataset(user, params):
     return dtype, TypedFrame(df, dtype, meta={'source': rel})
 
 
-def _readable_path(user, params, key, label):
-    """Un chemin du gestionnaire de fichiers (relatif à MEDIA_ROOT, ou `mounts/<id>/…` pour un
-    dossier connecté), LISIBLE par cet utilisateur — par la garde commune, jamais une seconde."""
-    from wama.filemanager.services import resoudre_chemin_lisible
-    raw = (params.get(key) or '').strip()
-    if not raw:
-        raise ValueError(f"Nœud « {label} » : renseignez le chemin dans les paramètres du nœud.")
-    path, error = resoudre_chemin_lisible(user, raw)
-    if error:
-        raise ValueError(f"Nœud « {label} » : {error[0]} ({raw}).")
-    return path
-
-
-def _source_connector(user, params):
-    """Nœud « Base connectée » (Connector, `WAMA_DATA_WORLD §11.5`) : une base déjà constituée
-    (`.wdat`, `.trip`…) ou un dossier de bases, branché SANS copie. Rend des LOTS
-    (`wama_data/functions/io/connector.ConnectedLot`) dont rien n'est encore lu : c'est le
-    consommateur qui demande ses flux."""
-    from wama_data.functions.io.connector import connect
-    path = _readable_path(user, params, 'path', 'Base connectée')
-    try:
-        return 'dataset', connect(path)
-    except ValueError as exc:
-        raise ValueError(f"Nœud « Base connectée » : {exc}")
-
-
 SOURCE_HANDLERS = {
     'text_input': _source_text,
     'media_import': _source_media,
     'dataset_input': _source_dataset,
-    'data_connector': _source_connector,
 }
-
-
-def _is_lot_list(value) -> bool:
-    """La valeur d'un nœud Connector : une liste de bases connectées (`ConnectedLot`)."""
-    return isinstance(value, list) and bool(value) and all(hasattr(v, 'frames') and
-                                                           hasattr(v, 'streams') for v in value)
-
-
-def _lots_summary(lots) -> str:
-    return f"{len(lots)} base(s) connectée(s) : " + ', '.join(lot.summary() for lot in lots[:5]) \
-        + (' …' if len(lots) > 5 else '')
-
-
-def _sink_data_export(user, lots, params):
-    """Nœud « Export de données » (Exporter en NŒUD DE SORTIE, `WAMA_DATA_WORLD §11.8 ⑨`) : ses
-    `Declaration`s appliquées aux bases reçues. Destination : le dossier CHOISI, sinon celui d'où
-    viennent les données (règle de Fabien, §11.1) — jamais le dépôt."""
-    import json
-    from pathlib import Path
-    from wama_data.functions.io.export import export_lots, grouping_from_dict
-    label = 'Export de données'
-    raw = params.get('declarations') or []
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw) if raw.strip() else []
-        except ValueError as exc:
-            raise ValueError(f"Nœud « {label} » : déclarations illisibles (JSON attendu) — {exc}")
-    if isinstance(raw, dict):
-        raw = [raw]
-    if params.get('destination'):
-        folder = _readable_path(user, params, 'destination', label)
-        if not Path(folder).is_dir():
-            raise ValueError(f"Nœud « {label} » : la destination doit être un dossier ({folder}).")
-    else:
-        folder = lots[0].home
-    grouping = grouping_from_dict({'lots': params.get('concat_lots'),
-                                   'declarations': params.get('concat_declarations')})
-    try:
-        written = export_lots(raw, lots, folder, grouping=grouping,
-                              overwrite=str(params.get('overwrite') or '') in ('1', 'true', 'True'))
-    except (ValueError, FileExistsError) as exc:
-        raise ValueError(f"Nœud « {label} » : {exc}")
-    return f"{len(written)} fichier(s) dans « {folder} » : " + ', '.join(p.name for p in written)
 
 
 # ── Nœud FONCTION (D13) ──────────────────────────────────────────────────────
@@ -470,26 +400,9 @@ def run_pipeline_task(self, run_id):
                 _save_state(nid, status=JOB_RUNNING)
                 out_type, value = SOURCE_HANDLERS[app](user, node.get('params') or {})
                 is_frame = hasattr(value, 'df') and hasattr(value, 'data_type')
-                is_lots = _is_lot_list(value)
-                outputs[nid] = {'type': out_type, 'value': value, 'is_frame': is_frame,
-                                'is_lots': is_lots}
+                outputs[nid] = {'type': out_type, 'value': value, 'is_frame': is_frame}
                 _save_state(nid, status=JOB_SUCCESS,
-                            output=(_frame_summary(value) if is_frame
-                                    else _lots_summary(value) if is_lots else value))
-                continue
-
-            # Nœud de SORTIE DATA (Exporter) : ses déclarations appliquées aux bases reçues.
-            if app == 'data_export':
-                _save_state(nid, status=JOB_RUNNING)
-                incoming = [outputs[l['from']] for l in links
-                            if l['to'] == nid and l['from'] in outputs]
-                lots = [lot for up in incoming if up.get('is_lots') for lot in up['value']]
-                if not lots:
-                    raise ValueError("Nœud « Export de données » : aucune base reçue (connectez "
-                                     "un nœud « Base connectée »).")
-                note = _sink_data_export(user, lots, node.get('params') or {})
-                _save_state(nid, status=JOB_SUCCESS, output=note)
-                _console(user.id, f"Studio run #{run.pk} : export écrit — {note}")
+                            output=_frame_summary(value) if is_frame else value)
                 continue
 
             # Nœud de SORTIE (card de sortie) : range la valeur reçue de l'amont.
@@ -499,9 +412,6 @@ def run_pipeline_task(self, run_id):
                             if l['to'] == nid and l['from'] in outputs]
                 if not incoming:
                     raise ValueError("Nœud « Sortie » : aucune entrée reçue (connectez un nœud amont).")
-                if incoming[0].get('is_lots'):
-                    raise ValueError("Nœud « Sortie » : une base connectée ne se range pas en "
-                                     "médiathèque — passez par un nœud « Export de données ».")
                 if incoming[0].get('is_frame'):
                     note = _sink_frame_to_media_library(user, incoming[0]['value'],
                                                         node.get('params') or {}, run.pk)
@@ -534,12 +444,6 @@ def run_pipeline_task(self, run_id):
                         if l['to'] != nid or l['from'] not in outputs:
                             continue
                         up = outputs[l['from']]
-                        if up.get('is_lots'):
-                            # ⏳ Choisir le flux d'une base qui entre dans une fonction : c'est le
-                            # geste de la card du Data Analyzer (P7), pas encore écrit.
-                            raise ValueError(
-                                f"Nœud fonction « {key} » : une base connectée n'entre pas encore "
-                                f"directement dans une fonction (choix du flux à venir).")
                         if not up.get('is_frame'):
                             raise ValueError(
                                 f"Nœud fonction « {key} » : l'amont « {l['from']} » ne produit pas "
@@ -581,7 +485,7 @@ def run_pipeline_task(self, run_id):
                         if l['to'] != nid or l['from'] not in outputs:
                             continue
                         up = outputs[l['from']]
-                        if up.get('is_frame') or up.get('is_text') or up.get('is_lots'):
+                        if up.get('is_frame') or up.get('is_text'):
                             continue
                         port = l.get('to_port')
                         if port not in ports_connus:

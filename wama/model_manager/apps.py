@@ -104,16 +104,7 @@ class ModelManagerConfig(AppConfig):
             logger.debug(f"Journal dédié model-sync non attaché : {exc}")
 
     def _dispatch_startup_sync(self):
-        """Dispatch (une seule fois, tous process confondus) une réconciliation au démarrage.
-
-        ⚠ Un worker gunicorn RECYCLÉ (`max_requests`, ou remplacé après un délai dépassé) n'est
-        pas un démarrage (`WAMA_RECYCLED_WORKER`, posé par `gunicorn_conf.post_fork`). Mesuré le
-        2026-10-11 : le verrou de 5 min expirait entre deux recyclages, une synchro partait toutes
-        les 5 à 10 min (depuis le 09/10 au moins) et chacune durait 7 à 36 min — jusqu'à quatre
-        en même temps, et l'une d'elles a remis « téléchargés » deux modèles qu'on venait de
-        désinstaller."""
-        if os.environ.get('WAMA_RECYCLED_WORKER'):
-            return
+        """Dispatch (une seule fois, tous process confondus) une réconciliation au démarrage."""
         try:
             from django.core.cache import cache
             # Verrou court partagé (Redis) : seul le 1er process au démarrage dispatche.

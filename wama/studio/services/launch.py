@@ -131,10 +131,9 @@ def launch_graph(user, graph, *, pipeline_id=None):
       - graphe non vide et ACYCLIQUE (`topo_order`) ;
       - tout nœud CONNECTÉ doit être exécutable (app du runner générique, fonction du
         catalogue, source Texte/Médiathèque/Jeu de données, ou sortie `studio_output`) ;
-      - au moins un nœud app OU fonction exécutable dans le graphe — OU une entrée reliée à une
-        sortie : ✅ depuis le 2026-10-11, un pipeline SANS process (entrée → sortie, export seul)
-        est accepté, comme le modèle du 2026-09-15 le veut (WAMA_APP_GENERATION_ROUTE.md §10.6
-        3.6, §11 #35).
+      - au moins un nœud app OU fonction exécutable dans le graphe.
+    ⚠ Un pipeline SANS process (entrée → sortie, export seul) est donc refusé ici, alors qu'il
+    est valide dans le modèle du 2026-09-15 (WAMA_APP_GENERATION_ROUTE.md §10.6 3.6, §11 #35).
     """
     from wama.studio.models import StudioRun
     from wama.studio.services.runners import runner_for
@@ -161,7 +160,7 @@ def launch_graph(user, graph, *, pipeline_id=None):
     def _executable(n):
         app = n['app']
         return (runner_for(app) is not None or app in SOURCE_HANDLERS
-                or node_kind(n) == 'sink' or _is_function(n))
+                or app == 'studio_output' or _is_function(n))
 
     runnable = ', '.join(sorted(GENERIC_APPS.keys()))
     for n in nodes:
@@ -171,17 +170,10 @@ def launch_graph(user, graph, *, pipeline_id=None):
                 l['to'] == n['id'] or l['from'] == n['id'] for l in links):
             return None, (f"Nœud « {n['app']} » : non exécutable dans un pipeline "
                           f"(apps : {runnable} + fonctions du catalogue + nœuds "
-                          f"Texte/Médiathèque/Jeu de données/Base connectée/Sortie/"
-                          f"Export de données).")
-    # Un pipeline SANS process est valide s'il relie une ENTRÉE à une SORTIE — l'export sans
-    # traitement (« je connecte une base et j'en extrais les tables », ROUTE §10.6 3.6, §11 #35 ;
-    # forme précisée par Fabien le 2026-09-15). Ce qui reste refusé : un graphe qui ne ferait RIEN.
-    by_id = {n['id']: n for n in nodes}
-    feeds_a_sink = any(node_kind(by_id.get(l['to'], {})) == 'sink'
-                       and by_id.get(l['from'], {}).get('app') in SOURCE_HANDLERS for l in links)
-    if not (any(runner_for(n['app']) or _is_function(n) for n in nodes) or feeds_a_sink):
-        return None, (f'Rien à exécuter : aucun nœud-app ni nœud fonction, et aucune entrée '
-                      f'reliée à une sortie (apps : {runnable}).')
+                          f"Texte/Médiathèque/Jeu de données/Sortie).")
+    if not any(runner_for(n['app']) or _is_function(n) for n in nodes):
+        return None, (f'Aucun nœud-app ni nœud fonction exécutable dans le graphe '
+                      f'(apps : {runnable}).')
 
     run = StudioRun.objects.create(user=user, graph=graph, pipeline_id=pipeline_id)
     task = run_pipeline_task.delay(run.pk)

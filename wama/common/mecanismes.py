@@ -246,6 +246,7 @@ MECHANISMS = (
                        'wama/common/services/ui_smoke_matching.py',
                        'wama/common/services/ui_smoke_menus.py',
                        'wama/common/services/ui_smoke_states.py',
+                       'wama/common/services/ui_smoke_panel.py',
                        'wama/common/services/rights_matrix.py',
                        'wama/common/nightly_scenarios.py',
                        'wama/common/nightly_suite.py')),

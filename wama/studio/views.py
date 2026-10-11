@@ -239,27 +239,6 @@ def api_run_options(request):
          'options': sorted(known_types()),
          'default': DataType.TABLE},
     ]
-    # Monde Data (2026-10-11) : l'ENTRÉE Connector et la SORTIE Exporter. ⏳ Les déclarations
-    # d'export se saisissent ici en JSON (forme `Declaration.to_dict`) : leur éditeur — famille,
-    # tables, colonnes ordonnées, aperçu (§11.1) — est une surface de la card du Data Analyzer.
-    specs['data_connector'] = [
-        {'name': 'path', 'label': 'Base ou dossier de bases', 'type': 'text',
-         'placeholder': 'chemin du gestionnaire de fichiers (mounts/<id>/… pour un dossier connecté)'},
-    ]
-    from wama_data.core.export import writable_formats
-    specs['data_export'] = [
-        {'name': 'declarations', 'label': "Déclarations d'export (JSON)", 'type': 'textarea',
-         'placeholder': '[{"name": "situations", "colonnes": [{"stream": "…", "field": "…"}], '
-                        '"identite": ["trip_id"], "format": "' + '|'.join(writable_formats()) + '"}]'},
-        {'name': 'destination', 'label': 'Dossier de destination', 'type': 'text',
-         'placeholder': "(défaut : le dossier d'où viennent les données)"},
-        {'name': 'concat_lots', 'label': 'Concaténer les bases', 'type': 'select',
-         'options': [{'value': '', 'label': 'Non'}, {'value': '1', 'label': 'Oui'}]},
-        {'name': 'concat_declarations', 'label': 'Concaténer les déclarations', 'type': 'select',
-         'options': [{'value': '', 'label': 'Non'}, {'value': '1', 'label': 'Oui'}]},
-        {'name': 'overwrite', 'label': 'Remplacer un fichier existant', 'type': 'select',
-         'options': [{'value': '', 'label': 'Non'}, {'value': '1', 'label': 'Oui'}]},
-    ]
     specs.update(function_node_params_specs())   # D13 : nœuds fonction
     specs['studio_output'] = [
         {'name': 'asset_name', 'label': 'Nom dans la médiathèque', 'type': 'text',

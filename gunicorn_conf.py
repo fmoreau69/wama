@@ -41,16 +41,6 @@ max_requests_jitter = 50
 
 
 # Worker lifecycle hooks
-def post_fork(server, worker):
-    """Un worker né APRÈS la première fournée (recyclage `max_requests`, remplacement après un
-    délai dépassé) le dit à Django avant que l'application se charge : sa réconciliation « de
-    démarrage » n'a pas lieu d'être (`model_manager.apps._dispatch_startup_sync`, 2026-10-11).
-    `worker.age` numérote les workers dans l'ordre de leur création : 1 à `workers` au lancement."""
-    import os
-    if worker.age > server.num_workers:
-        os.environ['WAMA_RECYCLED_WORKER'] = '1'
-
-
 def post_worker_init(worker):
     """Called just after a worker has been initialized."""
     logger = logging.getLogger('gunicorn.error')

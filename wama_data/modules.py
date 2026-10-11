@@ -98,8 +98,7 @@ MODULES: Tuple[ModuleData, ...] = (
         "base SQLite (`.trip` externe, `.wdat` natif) → référentiel",
         briques=('wama_data/sources/_sqlite.py',
                  'wama_data/sources/trip.py',
-                 'wama_data/sources/wdat.py',
-                 'wama_data/functions/io/connector.py'),
+                 'wama_data/sources/wdat.py'),
         doc='§6.2, §9quater.2, §9terdecies',
         bloque_par="Les DEUX bases se lisent depuis le 2026-08-24 (`.trip` externe et `.wdat` "
                    "natif, socle SQLite partagé). Ce qui le sépare de l'Importer n'est PAS une "
@@ -109,11 +108,7 @@ MODULES: Tuple[ModuleData, ...] = (
                    "sans la copier. ~~« décision ouverte 5 »~~ corrigé le 2026-10-11 : une base "
                    "connectée qui change relève de `STALE` ; reste à lui donner une EMPREINTE — la "
                    "photo des entrées surveillées ne garde que leur chemin "
-                   "(`WAMA_APP_GENERATION_ROUTE §10.6` point 9, n°5). ✅ 2026-10-11 : le GESTE "
-                   "existe — entrée `data_connector` du kind `pipeline` (`functions/io/connector.py` : "
-                   "une base ou un dossier de bases, inventaire seul, flux lus à la demande), "
-                   "consommée par la sortie `data_export` ; reste le choix d'un flux pour une "
-                   "fonction (card du Data Analyzer)",
+                   "(`WAMA_APP_GENERATION_ROUTE §10.6` point 9, n°5)",
     ),
     ModuleData(
         'explorer', 'Explorer', "Explore un dataset en table et en graphe — c'est aussi "
@@ -218,11 +213,8 @@ MODULES: Tuple[ModuleData, ...] = (
                    "ouverte 6 »~~ corrigé le 2026-10-11) : l'export est un NŒUD DE SORTIE qui "
                    "porte sa `Declaration` — N exports (tables, événements, situations) = N "
                    "nœuds de sortie — et un pipeline SANS process (entrée → sortie) doit être "
-                   "accepté. ✅ LIVRÉ le 2026-10-11 : nœud de sortie `data_export` "
-                   "(`functions/io/export.export_lots`), pipeline sans process accepté par "
-                   "`studio/services/launch.py` (`WAMA_APP_GENERATION_ROUTE §10.6` point 3.6). "
-                   "Restent : l'ÉDITEUR des déclarations (famille → tables → colonnes ordonnées → "
-                   "aperçu, §11.1 — saisie JSON en attendant), "
+                   "accepté, ce que `studio/services/launch.py` refuse encore "
+                   "(`WAMA_APP_GENERATION_ROUTE §10.6` point 3.6). Restent : "
                    "les formats `xlsx`/`mat` (refusés explicitement, pas écrits), et l'app qui le "
                    "pilote (l'Analyzer)",
     ),
@@ -253,8 +245,8 @@ MODULES: Tuple[ModuleData, ...] = (
                    "`ParamSpec` rendus par `WamaParams` comme ceux d'un process Médias (seul le "
                    "Studio les affiche, par son propre formulaire) ; un pipeline porté PAR LA "
                    "CARD (composition exploratoire — aujourd'hui un pipeline est déclaré par app, "
-                   "en code) ; ~~l'export en nœuds de sortie et le pipeline sans process~~ "
-                   "(✅ 2026-10-11) ; l'empreinte des entrées connectées ; la porte d'ingestion d'un manifeste de "
+                   "en code) ; l'export en nœuds de sortie et le pipeline sans process ; "
+                   "l'empreinte des entrées connectées ; la porte d'ingestion d'un manifeste de "
                    "pipeline (marche E) — séquence : `WAMA_APP_GENERATION_ROUTE §10.6` marche P7",
     ),
 )

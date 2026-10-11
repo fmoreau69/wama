@@ -203,3 +203,72 @@ class ModeBoundMenuTest(SimpleTestCase):
         self.ctx.eval("answer(0, [{ options: [['sam3', 'SAM3']] }]);")     # the stale one, late
         self.assertIn('yolo:a.pt', self.ctx.eval('modelSelect.innerHTML'))
         self.assertNotIn('sam3', self.ctx.eval('modelSelect.innerHTML'))
+
+
+BIND_DOM = """
+var window = this; var global = this; var urls = [];
+function CustomEvent(t) { this.type = t; } function Event(t) { this.type = t; }
+// Un <select> qui se comporte comme le vrai : ses options viennent de son `innerHTML`, une valeur
+// absente des options le laisse sans sélection (`selectedIndex` -1, valeur '').
+var modelSelect = (function () {
+  var html = '', opts = [], index = -1;
+  var s = { parentNode: null, addEventListener: function () {}, dispatchEvent: function () {} };
+  Object.defineProperty(s, 'innerHTML', { get: function () { return html; }, set: function (v) {
+    html = v; opts = (v.match(/<option value="[^"]*"/g) || []).map(function (o) {
+      return { value: o.slice(15, -1) }; }); index = -1; } });
+  Object.defineProperty(s, 'options', { get: function () { return opts; } });
+  Object.defineProperty(s, 'selectedIndex', { get: function () { return index; },
+    set: function (i) { index = i; } });
+  Object.defineProperty(s, 'value', {
+    get: function () { return index >= 0 ? opts[index].value : ''; },
+    set: function (v) { index = opts.map(function (o) { return o.value; }).indexOf(String(v)); } });
+  return s;
+})();
+var container = { querySelectorAll: function () { return []; }, querySelector: function () { return null; },
+                  addEventListener: function () {} };
+var document = { getElementById: function (id) { return id === 'model_menu' ? modelSelect : null; },
+                 querySelectorAll: function () { return []; }, addEventListener: function () {} };
+var pending = [];
+function fetch(u) { urls.push(u); return new Promise(function (res) { pending.push({ u: u, res: res }); }); }
+function answer(i, groups) { pending[i].res({ json: function () { return Promise.resolve({ groups: groups }); } }); }
+"""
+BIND_PARAM = {"name": "model", "type": "select", "dom_id": "model_menu", "contexts": ["panel"],
+              "options_source": "catalog", "options_query": {"task": "upscale"}, "options_auto": True}
+BIND_OPTIONS = [{"options": [["auto", "Auto"], ["app:a", "A"], ["app:b", "B"]]}]
+
+
+class OneBindingPerSelectTest(SimpleTestCase):
+    """Un select de catalogue n'est lié qu'UNE fois (2026-10-11).
+
+    Un volet GÉNÉRÉ lie ses selects à son `render`, avec la valeur à reprendre (préférence de
+    l'utilisateur) ; puis l'inspecteur (`initFromSchema`) relie les selects `catalog` du volet —
+    pensé pour les volets rendus serveur. La seconde liaison relançait la requête, et sa réponse,
+    seule retenue, remplissait SANS cette valeur : le select retombait sur « auto ». Mesuré au
+    navigateur sur le volet généré du synthesizer (« auto » 2 fois sur 2 sans la garde, la valeur
+    mémorisée avec)."""
+
+    def setUp(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+        self.ctx = MiniRacer()
+        self.ctx.eval(BIND_DOM)
+        self.ctx.eval((JS_DIR / 'wama-params.js').read_text(encoding='utf-8'))
+
+    def _bind(self, values=None, only=None):
+        self.ctx.eval("WamaParams.bindOptionSources(container, [%s], 'panel', %s, %s);"
+                      % (json.dumps(BIND_PARAM), only or 'null', json.dumps(values)))
+
+    def test_the_inspector_binding_after_the_render_keeps_the_value_asked(self):
+        self._bind(values={'model': 'app:b'})                       # le render du volet
+        self._bind(only="function (p) { return p.options_source === 'catalog'; }")   # l'inspecteur
+        self.ctx.eval('for (var i = 0; i < pending.length; i++) answer(i, %s);' % json.dumps(BIND_OPTIONS))
+        self.assertEqual(1, self.ctx.eval('urls.length'), 'un select lié deux fois refait sa requête')
+        self.assertEqual('app:b', self.ctx.eval('modelSelect.value'))
+
+    def test_a_single_binding_still_fills_and_selects(self):
+        """Contre-épreuve : une seule liaison, la valeur demandée est reprise."""
+        self._bind(values={'model': 'app:a'})
+        self.ctx.eval('answer(0, %s);' % json.dumps(BIND_OPTIONS))
+        self.assertEqual('app:a', self.ctx.eval('modelSelect.value'))
