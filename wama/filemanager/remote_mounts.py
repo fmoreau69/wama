@@ -170,7 +170,9 @@ def _env(rclone: str, config: dict, password: str) -> dict:
     env.update({
         'RCLONE_WEBDAV_URL': config['url'],
         'RCLONE_WEBDAV_VENDOR': config.get('vendor') or 'other',
-        'RCLONE_WEBDAV_USER': config.get('user') or '',
+        # Le NOM DE CONNEXION authentifie, l'identifiant (`user`) nomme le dossier WebDAV : ils
+        # diffèrent quand le nuage connecte par e-mail ou par la connexion de l'établissement.
+        'RCLONE_WEBDAV_USER': config.get('login') or config.get('user') or '',
         'RCLONE_WEBDAV_PASS': _obscure(rclone, password) if password else '',
     })
     proxies = external_sources.proxies_for(SOURCE_KEY) or {}
@@ -292,3 +294,102 @@ def ensure_mounted(mounted_folder) -> bool:
         mounted_folder.local_path = linux_path
         mounted_folder.save(update_fields=['local_path'])
     return True
+
+
+# ── Connexion PAR LE NAVIGATEUR (Nextcloud « Login Flow v2 ») ─────────────────────────────
+# Demande de Fabien, 2026-10-11 : recopier un mot de passe d'application est malcommode. Ici,
+# l'utilisateur accorde l'accès DANS un onglet de son nuage — où marchent la connexion de
+# l'établissement et FIDO2 — et le serveur rend un mot de passe d'application créé pour WAMA.
+# Aucun mot de passe ne transite par WAMA, et celui du compte n'y est jamais stocké.
+# Protocole : https://docs.nextcloud.com/server/latest/developer_manual/client_apis/LoginFlow/
+
+#: Nom sous lequel WAMA apparaît dans « Appareils & sessions » du nuage.
+LOGIN_FLOW_CLIENT = 'WAMA'
+#: Durée de vie d'un flux côté Nextcloud (20 min) : au-delà, l'interrogation rend 404 à jamais.
+LOGIN_FLOW_LIFETIME_S = 20 * 60
+HTTP_TIMEOUT_S = 20
+
+LOGIN_FLOW_UNAVAILABLE = ("Ce serveur ne propose pas la connexion par le navigateur — "
+                          "saisissez l'identifiant et le mot de passe.")
+
+
+def server_root(url: str) -> str:
+    """La racine du serveur Nextcloud d'une adresse saisie (`https://nuage.fr`, ou
+    `https://hote/nextcloud` pour une installation dans un sous-dossier)."""
+    parts = urlsplit((url or '').strip())
+    match = re.match(r'^(.*?)(/(remote|index|status)\.php\b|/apps/|/settings\b|/login\b|/[sf]/)',
+                     parts.path)
+    prefix = match.group(1) if match else parts.path
+    return f"{parts.scheme}://{parts.netloc}{prefix.rstrip('/')}"
+
+
+def _http(method: str, url: str, **kwargs):
+    import requests
+    from wama.common import external_sources
+    kwargs.setdefault('timeout', HTTP_TIMEOUT_S)
+    kwargs.setdefault('headers', {}).setdefault('User-Agent', LOGIN_FLOW_CLIENT)
+    return requests.request(method, url, proxies=external_sources.proxies_for(SOURCE_KEY), **kwargs)
+
+
+def login_flow_start(url: str):
+    """`(flux | None, erreur)` — ouvre un flux ; `flux['login']` est la page à ouvrir dans le
+    navigateur, `endpoint`/`token` restent côté serveur (session) pour l'interrogation."""
+    root = server_root(url)
+    try:
+        r = _http('POST', root + '/index.php/login/v2')
+        data = r.json() if r.status_code == 200 else {}
+        login, poll = data.get('login', ''), data.get('poll') or {}
+    except Exception as e:   # réseau, proxy, réponse qui n'est pas du JSON
+        logger.info('[remote_mounts] login flow indisponible sur %s : %s', root, e)
+        return None, LOGIN_FLOW_UNAVAILABLE
+    host = urlsplit(root).hostname
+    # Le serveur DÉSIGNE l'adresse d'interrogation : elle doit rester sur son propre hôte.
+    if not (login and poll.get('token') and urlsplit(login).hostname == host
+            and urlsplit(poll.get('endpoint', '')).hostname == host):
+        return None, LOGIN_FLOW_UNAVAILABLE
+    return {'server': root, 'login': login, 'endpoint': poll['endpoint'],
+            'token': poll['token']}, None
+
+
+def login_flow_poll(flow: dict):
+    """`('pending' | 'granted' | 'error', données)` — l'utilisateur a-t-il accordé l'accès ?
+    Accordé : `{server, loginName, appPassword}` (rendu UNE seule fois par Nextcloud)."""
+    try:
+        r = _http('POST', flow['endpoint'], data={'token': flow['token']})
+    except Exception as e:
+        return 'error', f'Le nuage ne répond pas : {e}'
+    if r.status_code == 404:
+        return 'pending', None
+    try:
+        data = r.json()
+    except ValueError:
+        data = {}
+    if r.status_code == 200 and data.get('loginName') and data.get('appPassword'):
+        return 'granted', data
+    return 'error', f'Réponse inattendue du nuage ({r.status_code}).'
+
+
+def nextcloud_user_id(server: str, login: str, password: str) -> str:
+    """L'identifiant qui figure dans l'adresse WebDAV. Il peut différer du nom de connexion
+    (adresse e-mail, connexion de l'établissement) : on le demande au serveur, repli sur le nom."""
+    try:
+        r = _http('GET', server_root(server) + '/ocs/v2.php/cloud/user?format=json',
+                  auth=(login, password), headers={'OCS-APIRequest': 'true'})
+        return (r.json().get('ocs', {}).get('data', {}).get('id') or login) if r.ok else login
+    except Exception:
+        return login
+
+
+def revoke_app_password(config: dict, password: str) -> bool:
+    """Révoque le mot de passe d'application que WAMA a obtenu par le navigateur : un dossier
+    retiré ne laisse pas d'accès ouvert dans « Appareils & sessions »."""
+    if not (config.get('login_flow') and config.get('server') and password):
+        return False
+    try:
+        r = _http('DELETE', config['server'] + '/ocs/v2.php/core/apppassword',
+                  auth=(config.get('login') or config.get('user', ''), password),
+                  headers={'OCS-APIRequest': 'true'})
+        return r.ok
+    except Exception as e:
+        logger.warning('[remote_mounts] révocation impossible : %s', e)
+        return False

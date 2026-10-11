@@ -31,6 +31,9 @@ urlpatterns = [
     path('api/browse-fs/', views.api_browse_fs, name='api_browse_fs'),
     path('api/mounts/', views.api_mounts, name='api_mounts'),
     path('api/mounts/remount/', views.api_remount_shares, name='api_remount_shares'),
+    path('api/mounts/login-flow/', views.api_mount_login_flow, name='api_mount_login_flow'),
+    path('api/mounts/login-flow/<str:flow_id>/', views.api_mount_login_flow_poll,
+         name='api_mount_login_flow_poll'),
     path('api/mounts/<int:pk>/delete/', views.api_mount_delete, name='api_mount_delete'),
     re_path(r'^api/mounts/(?P<pk>\d+)/serve/(?P<path>.*)$', views.api_mount_serve, name='api_mount_serve'),
 ]

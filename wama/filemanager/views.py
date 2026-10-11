@@ -2294,8 +2294,8 @@ def api_validate_path(request):
             'resolved': config['url'], 'accessible': False,
             'name': remote_mounts.display_name(config),
             'is_remote': True, 'remote_vendor': config['vendor'],
-            'remote_hint': ("Nuage de fichiers (WebDAV). Identifiant et MOT DE PASSE "
-                            "D'APPLICATION (Paramètres → Sécurité → Appareils & sessions)."),
+            'remote_hint': ("Nuage de fichiers (WebDAV) : connectez-vous par le navigateur, ou "
+                            "par identifiant et mot de passe."),
         })
 
     resolved = _resolve_path(path_str)
@@ -2487,26 +2487,108 @@ def _add_remote_mount(user, name, url, data):
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
     if not username or not password:
-        return JsonResponse({'error': "Identifiant et mot de passe d'application requis.",
-                             'needs_auth': True}, status=401)
-    # Refuser AVANT d'écrire : une exception levée pendant `save()` casse la transaction.
+        return JsonResponse({'error': "Identifiant et mot de passe requis — ou « Se connecter "
+                                      "par le navigateur ».", 'needs_auth': True}, status=401)
     if not secret_crypto.storage_available():
-        return JsonResponse({'error': "Enregistrement des identifiants indisponible sur ce "
-                                      "serveur (DJANGO_SECRET_KEY absente de .env)."}, status=400)
+        return _secret_storage_missing()
+    return _save_remote_mount(user, name, remote_mounts.webdav_config(url, username), password)
 
-    config = remote_mounts.webdav_config(url, username)
+
+def _secret_storage_missing():
+    # Refuser AVANT d'écrire : une exception levée pendant `save()` casse la transaction.
+    return JsonResponse({'error': "Enregistrement des identifiants indisponible sur ce "
+                                  "serveur (DJANGO_SECRET_KEY absente de .env)."}, status=400)
+
+
+def _save_remote_mount(user, name, config, password):
+    """Monte le dossier distant (identifiants vérifiés d'abord) et ne l'enregistre qu'ensuite."""
+    from wama.filemanager import remote_mounts
+
     ok, linux_path, error = remote_mounts.mount(config, password)
     if not ok:
         if error == 'AUTH_REFUSED':
             return JsonResponse(
-                {'error': f"Identifiants refusés par le serveur pour « {username} » — utilisez un "
-                          "mot de passe d'APPLICATION, pas celui de votre compte.",
+                {'error': f"Identifiants refusés par le serveur pour « {config.get('user')} ». "
+                          "Si le nuage n'accepte pas le mot de passe du compte, utilisez « Se "
+                          "connecter par le navigateur ».",
                  'needs_auth': True, 'auth_refused': True}, status=401)
         return JsonResponse({'error': error or 'Impossible de monter le dossier.'}, status=400)
 
     mount = MountedFolder.objects.create(user=user, name=name, local_path=linux_path,
                                          remote_config=config, remote_secret=password)
     return JsonResponse({'success': True, 'id': mount.id, 'name': mount.name})
+
+
+#: Flux de connexion en cours, gardés dans la SESSION : le jeton d'interrogation ne quitte
+#: jamais le serveur, et un utilisateur ne peut interroger que les siens.
+_LOGIN_FLOWS_KEY = 'filemanager_login_flows'
+
+
+@require_POST
+def api_mount_login_flow(request):
+    """Démarre la connexion à un nuage PAR LE NAVIGATEUR (Nextcloud Login Flow v2) et rend la
+    page où l'utilisateur accorde l'accès. `remote_mounts.login_flow_start`."""
+    import secrets
+    import time
+    from wama.common.utils import secret_crypto
+    from wama.filemanager import remote_mounts
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    name = (data.get('name') or '').strip()
+    url = (data.get('local_path') or '').strip()
+    if not name or not remote_mounts.is_remote_url(url):
+        return JsonResponse({'error': 'Nom et adresse du nuage requis.'}, status=400)
+    if not secret_crypto.storage_available():
+        return _secret_storage_missing()
+
+    flow, error = remote_mounts.login_flow_start(url)
+    if not flow:
+        return JsonResponse({'error': error}, status=400)
+    now = time.time()
+    flows = {k: v for k, v in request.session.get(_LOGIN_FLOWS_KEY, {}).items()
+             if now - v['started'] < remote_mounts.LOGIN_FLOW_LIFETIME_S}
+    flow_id = secrets.token_urlsafe(12)
+    flows[flow_id] = {'server': flow['server'], 'endpoint': flow['endpoint'],
+                      'token': flow['token'], 'url': url, 'name': name, 'started': now}
+    request.session[_LOGIN_FLOWS_KEY] = flows
+    return JsonResponse({'flow_id': flow_id, 'login_url': flow['login']})
+
+
+@require_POST
+def api_mount_login_flow_poll(request, flow_id):
+    """Interroge le nuage : `pending` tant que l'accès n'est pas accordé ; une fois accordé,
+    le dossier est monté et enregistré avec le mot de passe d'application reçu."""
+    import time
+    from wama.filemanager import remote_mounts
+
+    flows = request.session.get(_LOGIN_FLOWS_KEY, {})
+    flow = flows.get(flow_id)
+    if not flow:
+        return JsonResponse({'error': 'Connexion inconnue ou terminée.'}, status=404)
+    if time.time() - flow['started'] > remote_mounts.LOGIN_FLOW_LIFETIME_S:
+        flows.pop(flow_id)
+        request.session[_LOGIN_FLOWS_KEY] = flows
+        return JsonResponse({'error': 'Délai dépassé — recommencez la connexion.'}, status=410)
+
+    status, payload = remote_mounts.login_flow_poll(flow)
+    if status == 'pending':
+        return JsonResponse({'status': 'pending'})
+    flows.pop(flow_id)
+    request.session[_LOGIN_FLOWS_KEY] = flows
+    if status != 'granted':
+        return JsonResponse({'error': payload}, status=400)
+
+    login, password = payload['loginName'], payload['appPassword']
+    user_id = remote_mounts.nextcloud_user_id(flow['server'], login, password)
+    config = remote_mounts.webdav_config(flow['url'], user_id)
+    config.update({'login_flow': True, 'server': flow['server'], 'login': login})
+    response = _save_remote_mount(get_user(request), flow['name'], config, password)
+    if response.status_code != 200:
+        remote_mounts.revoke_app_password(config, password)   # pas d'accès orphelin au nuage
+    return response
 
 
 @require_GET
@@ -2568,11 +2650,13 @@ def api_mount_delete(request, pk):
     try:
         mount = MountedFolder.objects.get(pk=pk, user=user)
         mount.delete()
-        # Un dossier distant n'est démonté que si plus aucun montage n'emploie ce chemin.
+        # Un dossier distant n'est démonté que si plus aucun montage n'emploie ce chemin. Le
+        # mot de passe obtenu par le navigateur est alors révoqué : rclone ne s'en sert plus.
         if mount.remote_config and not MountedFolder.objects.filter(
                 local_path=mount.local_path).exists():
-            from wama.filemanager.remote_mounts import unmount
+            from wama.filemanager.remote_mounts import revoke_app_password, unmount
             unmount(mount.local_path)
+            revoke_app_password(mount.remote_config, mount.remote_secret)
         return JsonResponse({'success': True})
     except MountedFolder.DoesNotExist:
         return JsonResponse({'error': 'Non trouvé'}, status=404)

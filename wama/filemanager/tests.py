@@ -664,7 +664,7 @@ class RemoteMountTests(TestCase):
         r = self._post(username='jane', password='wrong')
         self.assertEqual(r.status_code, 401)
         self.assertTrue(r.json()['auth_refused'])
-        self.assertIn("mot de passe d'APPLICATION", r.json()['error'])
+        self.assertIn('par le navigateur', r.json()['error'])
         self.assertFalse(self._commands('mount'))
         self.assertFalse(MountedFolder.objects.filter(user=self.user).exists())
 
@@ -685,3 +685,111 @@ class RemoteMountTests(TestCase):
         self.assertEqual(self._commands('mount')[0][1]['RCLONE_WEBDAV_PASS'], 'OBSCURED')
         mount.refresh_from_db()
         self.assertTrue(mount.local_path.startswith(self.base.name), mount.local_path)
+
+    # ── Connexion par le navigateur (Nextcloud Login Flow v2, 2026-10-11) ──────────────────
+
+    def _fake_cloud(self, poll_endpoint='https://cloud.example.org/login/v2/poll'):
+        """Simule le nuage : le flux s'ouvre, reste en attente une fois, puis est accordé."""
+        from types import SimpleNamespace
+        self.http, self.granted = [], False
+
+        def reply(status, data=None):
+            return SimpleNamespace(status_code=status, ok=status < 400, json=lambda: data or {})
+
+        def http(method, url, **kwargs):
+            self.http.append((method, url, kwargs))
+            if url.endswith('/index.php/login/v2'):
+                return reply(200, {'login': 'https://cloud.example.org/login/v2/flow/abc',
+                                   'poll': {'token': 'poll-token', 'endpoint': poll_endpoint}})
+            if url == poll_endpoint:
+                if not self.granted:
+                    self.granted = True
+                    return reply(404)
+                return reply(200, {'server': 'https://cloud.example.org',
+                                   'loginName': 'jane@example.org', 'appPassword': 'app-pw'})
+            if '/ocs/v2.php/cloud/user' in url:
+                return reply(200, {'ocs': {'data': {'id': 'jane'}}})
+            return reply(200)
+
+        patcher = patch('wama.filemanager.remote_mounts._http', side_effect=http)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _start_flow(self):
+        import json
+        return self.client.post('/filemanager/api/mounts/login-flow/', json.dumps(
+            {'name': 'Nuage', 'local_path': 'https://cloud.example.org/apps/files/'}),
+            content_type='application/json')
+
+    def test_the_browser_login_mounts_the_folder_with_the_granted_app_password(self):
+        from wama.filemanager.models import MountedFolder
+        self._fake_cloud()
+        started = self._start_flow().json()
+        self.assertEqual(started['login_url'], 'https://cloud.example.org/login/v2/flow/abc')
+        self.assertNotIn('poll-token', str(started))      # le jeton reste côté serveur
+        poll_url = f"/filemanager/api/mounts/login-flow/{started['flow_id']}/"
+
+        self.assertEqual(self.client.post(poll_url).json(), {'status': 'pending'})
+        self.assertFalse(self._commands('mount'))
+        self.assertTrue(self.client.post(poll_url).json().get('success'))
+
+        mount = MountedFolder.objects.get(user=self.user)
+        self.assertEqual(mount.remote_secret, 'app-pw')
+        # L'identifiant DU SERVEUR nomme le dossier, le nom de connexion authentifie.
+        self.assertEqual(mount.remote_config['url'],
+                         'https://cloud.example.org/remote.php/dav/files/jane/')
+        self.assertEqual(self._commands('mount')[0][1]['RCLONE_WEBDAV_USER'], 'jane@example.org')
+        self.assertEqual(self.client.post(poll_url).status_code, 404)   # flux consommé
+
+    def test_a_poll_address_on_another_host_is_refused(self):
+        self._fake_cloud(poll_endpoint='https://elsewhere.example.net/poll')
+        r = self._start_flow()
+        self.assertEqual(r.status_code, 400)
+        self.assertNotIn('flow_id', r.json())
+
+    def test_an_app_password_granted_but_unusable_or_released_is_revoked(self):
+        from wama.filemanager.models import MountedFolder
+        self._fake_cloud()
+        self.server_says = 'Failed to lsjson: 401 Unauthorized'
+        poll_url = f"/filemanager/api/mounts/login-flow/{self._start_flow().json()['flow_id']}/"
+        self.client.post(poll_url)
+        self.assertEqual(self.client.post(poll_url).status_code, 401)
+        revoked = [kw for method, url, kw in self.http if method == 'DELETE']
+        self.assertEqual(revoked[0]['auth'], ('jane@example.org', 'app-pw'))
+        self.assertFalse(MountedFolder.objects.filter(user=self.user).exists())
+
+        # Un dossier retiré révoque aussi le mot de passe qu'il tenait du navigateur.
+        self.server_says, self.http = '', []
+        mount = MountedFolder.objects.create(
+            user=self.user, name='Nuage', local_path='/nowhere/dav', remote_secret='app-pw',
+            remote_config={'type': 'webdav', 'url': 'https://cloud.example.org/remote.php/dav/files/jane/',
+                           'user': 'jane', 'login': 'jane@example.org', 'login_flow': True,
+                           'server': 'https://cloud.example.org'})
+        self.client.post(f'/filemanager/api/mounts/{mount.id}/delete/')
+        self.assertEqual([(m, u) for m, u, _ in self.http],
+                         [('DELETE', 'https://cloud.example.org/ocs/v2.php/core/apppassword')])
+
+    def test_a_folder_added_with_a_typed_password_is_never_revoked_on_removal(self):
+        # Le mot de passe saisi peut être celui du COMPTE : WAMA ne le révoque jamais.
+        from wama.filemanager.models import MountedFolder
+        self._fake_cloud()
+        self._post(username='jane', password='s3cret')
+        mount = MountedFolder.objects.get(user=self.user)
+        self.client.post(f'/filemanager/api/mounts/{mount.id}/delete/')
+        self.assertFalse(MountedFolder.objects.filter(user=self.user).exists())
+        self.assertEqual(self.http, [])
+
+    def test_an_expired_browser_login_is_dropped_without_asking_the_cloud(self):
+        from wama.filemanager import remote_mounts, views
+        self._fake_cloud()
+        flow_id = self._start_flow().json()['flow_id']
+        session = self.client.session
+        flows = session[views._LOGIN_FLOWS_KEY]
+        flows[flow_id]['started'] -= remote_mounts.LOGIN_FLOW_LIFETIME_S + 1
+        session[views._LOGIN_FLOWS_KEY] = flows
+        session.save()
+        self.http = []
+        poll_url = f'/filemanager/api/mounts/login-flow/{flow_id}/'
+        self.assertEqual(self.client.post(poll_url).status_code, 410)
+        self.assertEqual(self.http, [])
+        self.assertEqual(self.client.post(poll_url).status_code, 404)

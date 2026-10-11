@@ -86,6 +86,16 @@
                         <i id="mountCredIcon" class="fas fa-network-wired me-1"></i>
                         <span id="mountCredTitle">Partage réseau — identifiants AD (laisser vide pour accès invité)</span>
                     </div>
+                    {# Nuage : l'accès s'accorde dans un onglet du nuage (Nextcloud Login Flow v2) #}
+                    <div id="mountBrowserLogin" class="mb-2" style="display:none;">
+                        <button type="button" id="mountBrowserLoginBtn" class="btn btn-sm btn-info w-100">
+                            <i class="fas fa-right-to-bracket me-1"></i>Se connecter par le navigateur
+                        </button>
+                        <div class="text-muted mt-1" style="font-size:0.72rem;">
+                            Un onglet du nuage s'ouvre : connectez-vous comme d'habitude, puis accordez
+                            l'accès à WAMA. Sinon, identifiant et mot de passe ci-dessous.
+                        </div>
+                    </div>
                     <input type="text" id="mountSmbUser"
                            class="form-control form-control-sm border-secondary mb-1"
                            style="background:#1e2228; color:#dee2e6;"

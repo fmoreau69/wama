@@ -1306,10 +1306,83 @@
         },
         remote: {
             icon: 'fas fa-cloud me-1',
-            title: 'Nuage de fichiers — identifiant et mot de passe d’APPLICATION',
-            user: 'Identifiant du compte', password: 'Mot de passe d’application', domain: false,
+            title: 'Nuage de fichiers',
+            user: 'Identifiant du compte', password: 'Mot de passe', domain: false,
         },
     };
+    const mountBrowserLogin    = document.getElementById('mountBrowserLogin');
+    const mountBrowserLoginBtn = document.getElementById('mountBrowserLoginBtn');
+    let _loginPollTimer = null;
+
+    function _mountStatus(cls, icon, text) {
+        const span = document.createElement('span');
+        span.className = cls;
+        span.innerHTML = `<i class="fas ${icon} me-1"></i>`;
+        span.appendChild(document.createTextNode(text));
+        mountPathStatus.replaceChildren(span);
+    }
+
+    // Connexion PAR LE NAVIGATEUR (Nextcloud Login Flow v2, 2026-10-11) : l'utilisateur accorde
+    // l'accès dans un onglet du nuage, WAMA reçoit un mot de passe d'application — rien à copier.
+    mountBrowserLoginBtn?.addEventListener('click', () => {
+        const rawPath = mountPathInput?.value.trim();
+        const name    = mountNameInput?.value.trim();
+        if (!name || !rawPath) { showToast('Adresse et nom requis', 'warning'); return; }
+        // L'onglet s'ouvre DANS le clic : ouvert après une requête, le navigateur le bloquerait.
+        const tab = window.open('', '_blank');
+        if (tab) tab.opener = null;
+        mountBrowserLoginBtn.disabled = true;
+        _mountStatus('text-muted', 'fa-spinner fa-spin', 'Ouverture du nuage…');
+        const base = (config.apiMountsUrl || '/filemanager/api/mounts/') + 'login-flow/';
+        fetch(base, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ name, local_path: rawPath }),
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.login_url) {
+                    tab?.close();
+                    mountBrowserLoginBtn.disabled = false;
+                    _mountStatus('text-danger', 'fa-times', data.error || 'Erreur');
+                    return;
+                }
+                if (tab) tab.location.href = data.login_url;
+                else window.open(data.login_url, '_blank', 'noopener');
+                _mountStatus('text-info', 'fa-spinner fa-spin',
+                    'En attente de votre accord dans l’onglet du nuage…');
+                _pollBrowserLogin(base + encodeURIComponent(data.flow_id) + '/', tab);
+            })
+            .catch(err => {
+                tab?.close();
+                mountBrowserLoginBtn.disabled = false;
+                showToast('Erreur : ' + err.message, 'danger');
+            });
+    });
+
+    function _pollBrowserLogin(url, tab) {
+        const tick = () => fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'pending') { _loginPollTimer = setTimeout(tick, 2000); return; }
+                mountBrowserLoginBtn.disabled = false;
+                try { tab?.close(); } catch (e) { /* onglet déjà fermé */ }
+                if (data.success) {
+                    _mountModal?.hide();
+                    showToast(`"${data.name}" connecté`, 'success');
+                    refreshTree();
+                } else {
+                    _mountStatus('text-danger', 'fa-times', data.error || 'Connexion refusée');
+                }
+            })
+            .catch(() => { _loginPollTimer = setTimeout(tick, 4000); });
+        _loginPollTimer = setTimeout(tick, 2000);
+    }
+    // Fenêtre fermée : on cesse d'interroger (le flux expire seul côté nuage).
+    mountModalEl?.addEventListener('hidden.bs.modal', () => {
+        clearTimeout(_loginPollTimer);
+        if (mountBrowserLoginBtn) mountBrowserLoginBtn.disabled = false;
+    });
 
     // Les nuages DÉCLARÉS par l'instance (adresse posée par un admin, page Sources externes) :
     // un bouton par nuage remplit l'adresse — l'utilisateur n'a plus qu'à s'identifier.
@@ -1346,6 +1419,7 @@
         if (mountSmbUser)     mountSmbUser.placeholder = labels.user;
         if (mountSmbPassword) mountSmbPassword.placeholder = labels.password;
         if (mountSmbDomain)   mountSmbDomain.style.display = labels.domain ? '' : 'none';
+        if (mountBrowserLogin) mountBrowserLogin.style.display = mode === 'remote' ? '' : 'none';
     }
 
     function _checkMountPath(raw) {
@@ -1442,7 +1516,7 @@
                     // Deux refus DIFFÉRENTS : rien n'a été envoyé (accès invité refusé), ou
                     // les identifiants envoyés ont été rejetés — le serveur dit lequel.
                     const authText = (_mountIsRemote && !data.auth_refused)
-                        ? (data.error || 'Renseignez l’identifiant et le mot de passe d’application')
+                        ? (data.error || 'Renseignez l’identifiant et le mot de passe')
                         : data.auth_refused
                         ? (data.error || 'Identifiants refusés par le serveur')
                         : 'Ce partage n\u2019accepte pas l\u2019accès invité — renseignez vos identifiants';

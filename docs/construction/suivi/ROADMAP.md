@@ -4254,9 +4254,28 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
        pas une source déclarée) ;
      - réglages d'INSTANCE qui ne sont pas des sources (SMTP, liaison LDAP, domaine SMB, proxy
        sortant, `WAMA_PUBLIC_URL`) : question à part — une page de réglages d'instance ?
+   - ✅ **Premier essai réel réussi (10/10, Fabien) ; puis CONNEXION PAR LE NAVIGATEUR (11/10)** —
+     Fabien : *« la clé est longue, ce n'est pas très pratique […] Login Flow v2 si c'est encore
+     plus pratique »*. Nextcloud Login Flow v2 (`remote_mounts.login_flow_*`, vérifié sur le nuage
+     de l'établissement par le proxy) : « Se connecter par le navigateur » ouvre un onglet du nuage
+     — connexion de l'établissement et FIDO2 y marchent —, l'utilisateur ACCORDE l'accès, WAMA
+     reçoit un mot de passe d'application nommé « WAMA » dans *Appareils & sessions*. Le jeton
+     d'interrogation reste dans la SESSION ; l'adresse d'interrogation doit être sur l'hôte du
+     nuage ; l'identifiant WebDAV est demandé au serveur (OCS `cloud/user`), distinct du nom de
+     connexion ; le mot de passe est RÉVOQUÉ si le montage échoue et quand le dossier est retiré.
+     Le mot de passe du COMPTE n'est jamais stocké par ce chemin. La saisie identifiant + mot de
+     passe reste possible (tout mot de passe que le nuage accepte en WebDAV). Le premier essai
+     avait rendu un 405 : adresse non complétée (page web) — corrigé dans `ba81cba6`.
+     **Essai réel par le navigateur RÉUSSI le 11/10** (Fabien : « ça marche »). Tenu par
+     `filemanager/tests.py::RemoteMountTests` (15 tests, dont 5 du flux : montage avec le mot de
+     passe accordé, adresse d'interrogation étrangère refusée, révocation à l'échec et au retrait,
+     mot de passe SAISI jamais révoqué, flux expiré abandonné sans interroger le nuage).
    - ⏳ Ensuite : écriture des RÉSULTATS vers le nuage (bute sur `-o`, jamais une destination —
      `MEDIA_STORAGE_TIERING §8.1` cas 5) ; SMB par rclone (sans `sudo`) ; types suivants générés
-     de `rclone config providers` ; serveur MCP Nextcloud pour l'assistant.
+     de `rclone config providers` ; serveur MCP Nextcloud pour l'assistant ; **déclarer les
+     DOSSIERS CONNECTÉS au registre des mécanismes** — ni le montage SMB ni `remote_mounts.py`
+     n'ont d'entrée dans `wama/common/mecanismes.py` (relevé le 11/10 : aucune occurrence de
+     `MountedFolder`, `rclone` ni `remote_mount`).
 6. Pages statiques + API WAMA.
 
 #### Décisions ouvertes
