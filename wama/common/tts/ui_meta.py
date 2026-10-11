@@ -169,8 +169,10 @@ def tts_model_help_meta(catalog_keys: Optional[Mapping[str, str]] = None
 
     ⚠ Une app dont le select est GÉNÉRÉ par `WamaParams` n'a pas besoin d'appeler ceci :
     `_bindModelHelp` auto-câble la brique et va chercher la meta via
-    `WamaModelHelp.fetchCatalogMeta(help_source)`. Cette fonction sert aux selects écrits
-    à la main (synthesizer), où la meta transite par le contexte de gabarit.
+    `WamaModelHelp.fetchCatalogMeta(help_source)`. Cette fonction servait aux selects écrits
+    à la main, où la meta transite par le contexte de gabarit — le dernier, celui du volet du
+    synthesizer, est GÉNÉRÉ depuis le 2026-10-11 : elle n'a plus d'appelant (retrait à décider,
+    `REMOVAL_LEDGER`).
 
     ⚠ Les clés rendues sont les clés catalogue ENTIÈRES depuis le 2026-09-01 — comme les
     valeurs d'option. L'ancienne version RECOMPOSAIT une clé (`f"{source}:{suffixe}"`) à

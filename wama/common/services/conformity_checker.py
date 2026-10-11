@@ -581,9 +581,15 @@ def _model_help(f: _AppFiles):
         return True, ev
     rend = f.find(TEMPLATES + JS, r'WamaParams\s*\.\s*(?:render|settingsModal)\s*\(')
     if rend:
+        # TOUS les schémas déclarés (`declared_param_schemas`, le domicile que lit déjà
+        # `_has_engine_select`) — 2026-10-11 : ne lire que `PARAMS_JSON` rendait ROUGE l'enhancer,
+        # dont les deux schémas (`MEDIA_PARAMS_JSON`, `AUDIO_PARAMS_JSON`) câblent l'aide sur ses
+        # volets générés, mesurée vivante au navigateur.
         try:
-            import importlib
-            schema = getattr(importlib.import_module(f'wama.{f.app}.params'), 'PARAMS_JSON', [])
+            from wama.common.utils.param_schema import declared_param_schemas
+            declared = declared_param_schemas(f.app) or {}
+            schema = [p for params in (declared.get('schemas') or {}).values()
+                      for p in params if isinstance(p, dict)]
         except Exception:
             schema = []
         types = _modelhelp_capable_types()

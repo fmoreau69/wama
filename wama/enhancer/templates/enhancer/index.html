@@ -14,64 +14,23 @@
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
+{% comment %}VOLET GÉNÉRÉ DU SCHÉMA depuis le 2026-10-11 (`WamaParams.render(context:'panel')`, script du
+bas, AVANT index.js et audio-enhancer.js) — un hôte PAR DOMAINE, le schéma du domaine
+(`MEDIA_PARAMS` / `AUDIO_PARAMS`) au contexte `panel`. Les champs écrits ici à la main redisaient
+le schéma : modèle (pré-rendu serveur), facteur et curseur du tirage « auto » (basculés par le
+JS), débruitage, blend, format et qualité de sortie ; côté audio, moteur, curseur, mode, force,
+NFE. Les `dom_id` reprennent les ids d'avant (`#defaultAiModel`, `#mediaUpscaleFactor`,
+`#audioEngine`, `#audioQuality`…) : le JS d'app les lit inchangé. Les `show_if` du schéma
+montrent le facteur et le curseur sur « auto », les réglages Resemble sur Resemble — comme la
+modale. Le format et la qualité de sortie ne valent qu'au domaine image/vidéo (le schéma audio
+les déclare à la modale seule) : ils vivent désormais dans son hôte.
+Reste écrit ici ce qui n'est pas au schéma : les lignes d'appariement (greffées sous le
+modèle) et les encadrés d'information.{% endcomment %}
 <!-- === Image/Video settings === -->
 <div id="imgSettings" data-domain-settings="image_video">
-    <div class="mb-3">
-        <label for="defaultAiModel" class="form-label small fw-bold text-light">
-            <i class="fas fa-brain"></i> Modèle AI
-        </label>
-        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="defaultAiModel">
-            {% for value, label in ai_models %}
-            <option value="{{ value }}" {% if panel.ai_model|default:'auto' == value %}selected{% endif %}>
-                {{ label }}
-            </option>
-            {% endfor %}
-        </select>
-        {# Descriptif moteur — brique commune wama-model-help (fallback = MEDIA_MODEL_HELP) #}
-        <div id="mediaModelHelp" class="wama-model-help small text-muted mt-1"></div>
-        {# Ligne d'état de l'appariement entrée↔modèles (WamaInputMatch) #}
-        <small id="mediaMatchStatus" class="text-info d-block mt-1" style="display:none"></small>
-        {% comment %}Réglages du tirage « auto » (curseur C, 21/09) — visibles seulement quand le
-           select est sur « auto » (bascule dans index.js) : le FACTEUR = le besoin que le
-           tirage filtre avant de classer ; le curseur = son poids. Markup du curseur = partial
-           COMMUN, liaison déléguée (wama-params.js) ; son changement rafraîchit la PRÉVISION
-           sous le select. Ids = `dom_id.panel` du schéma (l'inspecteur les reflète).{% endcomment %}
-        <div id="mediaAutoOptions" class="mt-2" hidden>
-            <label for="mediaUpscaleFactor" class="form-label small fw-bold text-light mb-0">
-                <i class="fas fa-expand"></i> Facteur d'agrandissement
-            </label>
-            <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" id="mediaUpscaleFactor">
-                <option value="2" {% if panel.upscale_factor|stringformat:'s' == '2' %}selected{% endif %}>×2</option>
-                <option value="4" {% if panel.upscale_factor|stringformat:'s' != '2' %}selected{% endif %}>×4</option>
-            </select>
-            <label class="form-label small fw-bold text-light mb-0">
-                <i class="fas fa-gauge-high"></i> Rapide ↔ Qualité
-            </label>
-            {% include 'common/_intent_slider.html' with dom_id='mediaQualityIntent' name='quality_intent' value=panel.quality_intent|default:50 %}
-        </div>
-    </div>
-    <div class="mb-3">
-        <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" id="defaultDenoise"
-                   {% if panel.denoise %}checked{% endif %}>
-            <label class="form-check-label small text-light" for="defaultDenoise">
-                <i class="fas fa-broom"></i> Débruitage
-            </label>
-        </div>
-        <small class="d-block">Appliquer avant upscaling</small>
-    </div>
-    <div class="mb-3">
-        <label for="defaultBlendFactor" class="form-label small fw-bold text-light">
-            <i class="fas fa-sliders-h"></i> Blend: <span id="blendValue">{{ panel.blend_factor|default:0.0 }}</span>
-        </label>
-        <input type="range" class="form-range" id="defaultBlendFactor"
-               min="0" max="1" step="0.1" value="{{ panel.blend_factor|default:0.0 }}"
-               oninput="document.getElementById('blendValue').textContent = this.value">
-        <div class="d-flex justify-content-between">
-            <small>100% AI</small>
-            <small>100% Original</small>
-        </div>
-    </div>
+    <div id="mediaPanelFields"></div>
+    {# Ligne d'état de l'appariement entrée↔modèles (WamaInputMatch) — greffée sous le modèle #}
+    <small id="mediaMatchStatus" class="text-info d-block mt-1" style="display:none"></small>
     <div class="alert alert-info py-2 small" role="alert">
         <i class="fas fa-info-circle"></i> <strong>Modèles:</strong><br>
         <small>
@@ -86,66 +45,9 @@
 
 <!-- === Audio settings === -->
 <div id="audioSettings" data-domain-settings="audio" style="display:none;">
-    <div class="mb-3">
-        <label for="audioEngine" class="form-label small fw-bold text-light">
-            <i class="fas fa-cogs"></i> Moteur
-        </label>
-        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="audioEngine">
-            {% for value, label in audio_engines %}
-            <option value="{{ value }}" {% if value == 'auto' %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-        </select>
-        {# Descriptif moteur — brique commune wama-model-help (fallback = AUDIO_ENGINE_HELP) #}
-        <div id="audioEngineHelp" class="wama-model-help small text-muted mt-1"></div>
-        {# Ligne d'état de l'appariement entrée↔modèles (WamaInputMatch) #}
-        <small id="audioMatchStatus" class="text-info d-block mt-1" style="display:none"></small>
-        {% comment %}Curseur du tirage « auto » (curseur C, 21/09) — visible sur « auto » seulement
-           (bascule dans audio-enhancer.js) : DeepFilterNet ↔ Resemble à son poids, NFE de
-           Resemble décliné. Partial COMMUN, liaison déléguée.{% endcomment %}
-        <div id="audioAutoOptions" class="mt-2" hidden>
-            <label class="form-label small fw-bold text-light mb-0">
-                <i class="fas fa-gauge-high"></i> Rapide ↔ Qualité
-            </label>
-            {% include 'common/_intent_slider.html' with dom_id='audioQualityIntent' name='quality_intent' value=50 %}
-        </div>
-    </div>
-
-    <div class="resemble-only">
-        <div class="mb-3">
-            <label for="audioMode" class="form-label small fw-bold text-light">
-                <i class="fas fa-sliders-h"></i> Mode
-            </label>
-            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="audioMode">
-                <option value="both">Débruitage + Amélioration</option>
-                <option value="denoise">Débruitage seul (Rapide)</option>
-                <option value="enhance">Amélioration seule</option>
-            </select>
-        </div>
-
-        <div class="mb-3">
-            <label for="audioDenoisingStrength" class="form-label small fw-bold text-light">
-                <i class="fas fa-wind"></i> Force: <span id="audioStrengthValue">0.5</span>
-            </label>
-            <input type="range" class="form-range" id="audioDenoisingStrength"
-                   min="0" max="1" step="0.1" value="0.5">
-            <div class="d-flex justify-content-between">
-                <small>Doux</small>
-                <small>Fort</small>
-            </div>
-        </div>
-
-        <div class="mb-3">
-            <label for="audioQuality" class="form-label small fw-bold text-light">
-                <i class="fas fa-star"></i> Qualité (NFE)
-            </label>
-            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="audioQuality">
-                <option value="32">Rapide (32 étapes)</option>
-                <option value="64" selected>Équilibré (64 étapes)</option>
-                <option value="128">Meilleur (128 étapes)</option>
-            </select>
-        </div>
-    </div>
-
+    <div id="audioPanelFields"></div>
+    {# Ligne d'état de l'appariement entrée↔modèles (WamaInputMatch) — greffée sous le moteur #}
+    <small id="audioMatchStatus" class="text-info d-block mt-1" style="display:none"></small>
     <div class="alert alert-success py-2 small" role="alert">
         <i class="fas fa-info-circle"></i> <strong>Moteurs:</strong><br>
         <small>
@@ -153,38 +55,6 @@
             • <strong>DeepFilterNet 3</strong>: ultra-rapide, &lt;1GB VRAM
         </small>
     </div>
-</div>
-
-<!-- Output format + quality (Phase 3) -->
-<hr class="border-secondary my-2">
-<div class="mb-2">
-    <label for="output_format" class="form-label small fw-bold text-light">
-        <i class="fas fa-file-export"></i> Format de sortie
-    </label>
-    {% comment %}Options rendues du SCHÉMA (`MEDIA_PARAMS.output_format.option_groups`, brique commune
-    des formats) — les mêmes que la modale ⚙ ; la valeur MÉMORISÉE du volet est pré-sélectionnée
-    (2026-09-29, `read_panel_settings`). La liste écrite ici à la main en était une copie plus
-    courte.{% endcomment %}
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_format" name="output_format">
-        {% for group_label, options in output_format_groups %}
-        <optgroup label="{{ group_label }}">
-            {% for value, label in options %}
-            <option value="{{ value }}" {% if value == panel.output_format|default:'original' %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-        </optgroup>
-        {% endfor %}
-    </select>
-    <small class="text-muted">Le format doit correspondre au type du média (image ou vidéo).</small>
-</div>
-<div class="mb-2">
-    <label for="output_quality" class="form-label small fw-bold text-light">
-        <i class="fas fa-sliders-h"></i> Qualité
-    </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_quality" name="output_quality">
-        {% for value, label in output_quality_choices %}
-        <option value="{{ value }}" {% if value == panel.output_quality|default:'balanced' %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-    </select>
 </div>
 
 <!-- Reset Button -->
@@ -375,6 +245,27 @@
 // comme l'app de référence Transcriber. Une seule source pour volet + modale.
 window.ENHANCER_MEDIA_SCHEMA = {{ media_params_json|safe }};
 window.ENHANCER_AUDIO_SCHEMA = {{ audio_params_json|safe }};
+
+// ── VOLET : GÉNÉRÉ du schéma, un hôte par domaine (2026-10-11) ────────────────────────────────
+// Script EN LIGNE, donc exécuté à l'analyse : les champs existent avant index.js et
+// audio-enhancer.js (tous deux dans un DOMContentLoaded), qui les lisent par leurs ids.
+// Valeurs du domaine image/vidéo = les réglages MÉMORISÉS de l'utilisateur (`read_panel_settings`,
+// la mémoire que le dépôt écrit) ; le domaine audio n'en mémorise pas : défauts du schéma.
+(function renderPanels() {
+    if (!window.WamaParams) { console.warn('[enhancer] WamaParams absent — volet non généré'); return; }
+    [['mediaPanelFields', window.ENHANCER_MEDIA_SCHEMA, {{ panel_values_json|default:"{}"|safe }},
+      'ai_model', 'mediaMatchStatus'],
+     ['audioPanelFields', window.ENHANCER_AUDIO_SCHEMA, {}, 'engine', 'audioMatchStatus']
+    ].forEach(function (spec) {
+        var host = document.getElementById(spec[0]);
+        if (!host) return;
+        WamaParams.render(host, spec[1], { context: 'panel', values: spec[2] });
+        // GREFFE de la ligne d'appariement sous le select de modèle (hors schéma).
+        var row = host.querySelector('[data-param-row="' + spec[3] + '"]');
+        var status = document.getElementById(spec[4]);
+        if (row && status) row.appendChild(status);
+    });
+})();
 </script>
 {% comment %}Pieds de modale COMMUNS (_settings_modal_footer) — gabarits greffés par le cycle
 commun `WamaParams.settingsModal` (un par domaine). Les classes sont CELLES que le cycle
@@ -408,22 +299,9 @@ WamaParams.render(context:'batch') dans #enhancerBatchParams, appliqués aux ite
         </div>
     </div>
 </div>
-<script>
-// Descriptif moteur sous les selects du volet — brique COMMUNE WamaModelHelp,
-// fallback = help_fallback des schémas déclaratifs (params.py, métadonnée-driven).
-document.addEventListener('DOMContentLoaded', function () {
-  if (!window.WamaModelHelp) return;
-  function helpOf(schema, name) {
-    const p = (schema || []).find(function (x) { return x.name === name; });
-    return (p && p.help_fallback) || null;
-  }
-  // Les help_fallback des schémas enhancer sont des OBJETS {description,…} → param meta.
-  const mediaHelp = helpOf(window.ENHANCER_MEDIA_SCHEMA, 'ai_model');
-  if (mediaHelp) WamaModelHelp.init({ selectId: 'defaultAiModel', helpId: 'mediaModelHelp', meta: mediaHelp });
-  const audioHelp = helpOf(window.ENHANCER_AUDIO_SCHEMA, 'engine');
-  if (audioHelp) WamaModelHelp.init({ selectId: 'audioEngine', helpId: 'audioEngineHelp', meta: audioHelp });
-});
-</script>
+{% comment %}Le descriptif moteur sous les selects du volet n'est plus câblé ici (2026-10-11) : les
+champs GÉNÉRÉS le portent (`help_source` + `help_fallback` de params.py, `WamaParams._bindModelHelp`),
+comme la modale — l'initialisation manuelle l'aurait affiché deux fois.{% endcomment %}
 <script>
 // Appariement entrée↔modèles (brique commune wama-input-match, INPUT_MODEL_MATCHING.md) :
 // meta lue du CATALOGUE (vue → input_match_meta, clés sans _fp16). Un init PAR domaine
@@ -445,23 +323,11 @@ document.addEventListener('DOMContentLoaded', function () {
         statusId: 'audioMatchStatus',
     });
 
-    // UI DEPUIS les capacités-modèle (brique commune wama-model-caps) : les réglages
-    // spécifiques Resemble (.resemble-only) s'affichent si le moteur déclare des `params`
-    // au CATALOGUE (caps.params = ['mode','strength','quality'] pour resemble, rien pour
-    // deepfilternet). REMPLACE le test hardcodé engine==='resemble' d'audio-enhancer.js.
-    if (window.WamaModelCaps) {
-        WamaModelCaps.init({
-            source: 'enhancer',
-            modelSelectId: 'audioEngine',
-            resolveKey: function (v) { return 'enhancer:' + v; },
-            sections: [
-                { selector: '.resemble-only',
-                  showWhen: function (caps) {
-                      return Array.isArray(caps.params) && caps.params.length > 0;
-                  } },
-            ],
-        });
-    }
+    {% comment %}La bascule des réglages Resemble par `WamaModelCaps` (sections `.resemble-only`) est
+    RETIRÉE le 2026-10-11 : le volet généré n'a plus ces sections, et le schéma porte la règle
+    (`show_if` engine = Resemble, la même que la modale). ⚠ Déduit, non rejoué : son `resolveKey`
+    (`'enhancer:' + v`) recomposait `enhancer:enhancer:resemble` sur les clés entières que sert le
+    select depuis la route F4b ⑤ (2026-10-07) — le défaut déjà relevé au synthesizer.{% endcomment %}
 });
 </script>
 <script>
@@ -512,8 +378,11 @@ document.addEventListener('DOMContentLoaded', function () {
     function postPanel(url, fd) {
         return fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd });
     }
+    // Les deux inspecteurs sont gardés (`_enhancerPanels`) : « Réinitialiser » (index.js) pose
+    // les défauts du schéma par leur applicateur, qui émet `change` (show_if, appariement).
+    window._enhancerPanels = {};
     // ── Domaine MEDIA (image/vidéo) : data-* sur la card, endpoint update_settings ──
-    WamaInspector.initFromSchema({
+    window._enhancerPanels.image_video = WamaInspector.initFromSchema({
         schema: JSON.parse('{{ media_params_json|escapejs }}'),
         panelContainer: document.getElementById('imgSettings'),
         queueContainer: document.getElementById('enhancer-queue'),
@@ -536,7 +405,7 @@ document.addEventListener('DOMContentLoaded', function () {
         },
     });
     // ── Domaine AUDIO : data-* sur le bouton ⚙, endpoint audio/update ──
-    WamaInspector.initFromSchema({
+    window._enhancerPanels.audio = WamaInspector.initFromSchema({
         schema: JSON.parse('{{ audio_params_json|escapejs }}'),
         panelContainer: document.getElementById('audioSettings'),
         queueContainer: document.getElementById('audio-enhancer-queue'),

@@ -688,6 +688,14 @@
       var sid = perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name);
       var sel = document.getElementById(sid);
       if (!sel) return;
+      // UNE liaison par select (2026-10-11). Un champ de volet GÉNÉRÉ est lié par son `render`,
+      // puis l'inspecteur (`initFromSchema`) relie les selects `catalog` du volet — pensé pour les
+      // volets rendus serveur. La seconde liaison relançait la requête : sa réponse, seule
+      // retenue (`_wpOptionsSeq`), remplissait SANS la valeur demandée au rendu (`wanted`) — le
+      // select retombait sur « auto ». Un `render` crée des éléments neufs : rien n'est sauté
+      // à tort.
+      if (sel._wpOptionsBound) return;
+      sel._wpOptionsBound = true;
       // The value ASKED FOR at render (2026-09-24). When the options arrive asynchronously, the
       // asked value is usually not an option yet at render time: the select falls back to its
       // first option, and restoring only the CURRENT value (below) then lost the stored one.

@@ -110,19 +110,23 @@ class CatalogueKeysTest(TestCase):
         self.assertNotIn('source', p.options_query, 'a domain by source hides installed models')
         self.assertFalse(p.choices, 'a static list would bring the bare-id key space back')
 
-    def test_the_panel_pre_renders_the_installed_upscaler(self):
-        """The server pre-render of the panel select reads the schema's domain in the catalogue
-        (`get_registry_models`, the brick the options endpoint calls) — the installed upscaler
-        is there, under its key, beside the bundled ones."""
+    def test_the_panel_is_generated_from_the_schema_the_modal_uses(self):
+        """Since 2026-10-11 the panel is GENERATED (`WamaParams.render`, context 'panel') from
+        `MEDIA_PARAMS`: its model select is filled by the options endpoint with the declared
+        domain — the request `test_the_item_modal_finds_the_stored_model_among_its_options`
+        measures, installed upscaler included. Nothing is pre-rendered any more: a server list
+        here would be a second inventory beside the endpoint's."""
         from django.contrib.auth.models import Group
         from django.urls import reverse
         from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
         for role in (DEFAULT_APP_ACCESS.get('enhancer') or {}).get('roles', []):
             self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
         self.client.force_login(self.user)
-        page = self.client.get(reverse('enhancer:index')).content.decode()
-        for key in ('auto', 'enhancer:BSRGANx4', 'enhancer:IRCNN_Mx1', SWIN2SR_KEY):
-            self.assertIn(f'<option value="{key}"', page.replace('\n', ' '))
+        page = self.client.get(reverse('enhancer:index')).content.decode().replace('\n', ' ')
+        self.assertIn('id="mediaPanelFields"', page)
+        self.assertIn("'mediaPanelFields', window.ENHANCER_MEDIA_SCHEMA", page)
+        for key in ('enhancer:BSRGANx4', SWIN2SR_KEY):
+            self.assertNotIn(f'<option value="{key}"', page, 'pre-rendered list is back')
 
     def test_the_tool_door_rejects_neither_a_key_nor_a_bare_id_of_before(self):
         """Like the imager: no static list, no declared door domain — the door has nothing to
@@ -293,7 +297,9 @@ class AudioCatalogueKeysTest(TestCase):
             p = next(p for p in AUDIO_PARAMS if p.name == name)
             self.assertEqual({'field': 'engine', 'equals': 'enhancer:resemble'}, p.show_if, name)
 
-    def test_the_panel_pre_renders_the_engines_by_key(self):
+    def test_the_audio_panel_is_generated_from_the_schema(self):
+        """The audio panel is GENERATED too (2026-10-11): its engine select is filled by the
+        options endpoint with `AUDIO_SPEC`, in keys (measured by the item-modal test below)."""
         from django.contrib.auth.models import Group
         from django.urls import reverse
         from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
@@ -301,10 +307,11 @@ class AudioCatalogueKeysTest(TestCase):
             self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
         self.client.force_login(self.user)
         page = self.client.get(reverse('enhancer:index')).content.decode().replace('\n', ' ')
-        for key in ('enhancer:resemble', 'enhancer:deepfilternet'):
-            self.assertIn(f'<option value="{key}"', page)
-        # Counter-check: the bare ids the template used to hard-code are gone.
+        self.assertIn('id="audioPanelFields"', page)
+        self.assertIn("'audioPanelFields', window.ENHANCER_AUDIO_SCHEMA", page)
+        # Counter-check: neither the bare ids the template used to hard-code, nor a pre-render.
         self.assertNotIn('<option value="resemble"', page)
+        self.assertNotIn('<option value="enhancer:resemble"', page)
 
     def test_the_item_modal_finds_the_stored_engine_among_its_options(self):
         from urllib.parse import urlencode

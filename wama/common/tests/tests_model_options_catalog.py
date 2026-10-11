@@ -200,10 +200,13 @@ class TheCriterionSeesTheDomainTest(TestCase):
         (2026-10-07); the same two schemas are now PRESENTED, the media one by task, the audio one
         by source (its shape before that day)."""
         from unittest.mock import patch
+        # `type: 'select'` comme dans les vrais schémas : c'est par lui que le critère reconnaît un
+        # sélecteur de moteur. Sans lui, la maquette ne passait que par l'id du select écrit dans
+        # le gabarit — disparu quand le volet de l'enhancer est devenu GÉNÉRÉ (2026-10-11).
         declared = {'primary': 'MEDIA_PARAMS_JSON', 'schemas': {
-            'MEDIA_PARAMS_JSON': [{'name': 'ai_model', 'options_source': 'catalog',
+            'MEDIA_PARAMS_JSON': [{'name': 'ai_model', 'type': 'select', 'options_source': 'catalog',
                                    'options_query': {'task': 'upscale,denoise'}}],
-            'AUDIO_PARAMS_JSON': [{'name': 'engine', 'options_source': 'catalog',
+            'AUDIO_PARAMS_JSON': [{'name': 'engine', 'type': 'select', 'options_source': 'catalog',
                                    'options_query': {'source': 'enhancer',
                                                      'task': 'audio-enhance'}}]}}
         with patch('wama.common.utils.param_schema.declared_param_schemas', return_value=declared):

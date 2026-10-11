@@ -18,33 +18,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ── Right-panel settings visibility ──────────────────────────────────────
 
-  // getEngine + updateResembleVisibility PURGÉES (2026-08-17) : la visibilité des réglages Resemble
-  // (.resemble-only) est pilotée par les CAPACITÉS du catalogue (caps.params) via la brique
-  // commune WamaModelCaps (init dans index.html) — plus de test d'id de moteur en dur.
-
-  // Denoising strength display
-  const strengthSlider = document.getElementById('audioDenoisingStrength');
-  const strengthVal = document.getElementById('audioStrengthValue');
-  if (strengthSlider && strengthVal) {
-    strengthSlider.addEventListener('input', () => {
-      strengthVal.textContent = parseFloat(strengthSlider.value).toFixed(1);
-    });
-  }
-
-  // ── Volet : le curseur du tirage « auto » n'est visible que sur « auto » (curseur C, 21/09) ──
-  // Le volet est rendu serveur (pas de show_if de schéma dessus) : bascule d'une ligne, même
-  // mécanique que le synthesizer. Les réglages Resemble (.resemble-only), eux, sont tenus par
-  // WamaModelCaps (capacités du catalogue — « auto » n'en a pas, donc masqués).
-  function syncAudioAutoOptions() {
-    const sel = document.getElementById('audioEngine');
-    const box = document.getElementById('audioAutoOptions');
-    if (sel && box) box.hidden = (sel.value || 'auto') !== 'auto';
-  }
-  (function initAudioAutoOptions() {
-    const sel = document.getElementById('audioEngine');
-    if (sel) sel.addEventListener('change', syncAudioAutoOptions);
-    syncAudioAutoOptions();
-  })();
+  // Le volet AUDIO est GÉNÉRÉ du schéma (2026-10-11) : la force affiche elle-même sa valeur
+  // (renderer `range` commun), et les `show_if` du schéma montrent le curseur sur « auto » et les
+  // réglages Resemble sur Resemble — les bascules écrites ici (`#audioAutoOptions`,
+  // `#audioStrengthValue`) sont parties avec le markup.
 
   // Ce que le VOLET dit — la surface de réglage vivante de cette file, appliquée à CHAQUE
   // lancement depuis le volet (▶ de card, « tout démarrer », lot). Un seul lecteur.

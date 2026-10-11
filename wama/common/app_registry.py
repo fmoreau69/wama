@@ -1469,7 +1469,7 @@ APP_CATALOG = {
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema (volet = zone compose, à séparer)
                                  # register_app_detail FAIT 2026-07-11 (labels params.py) +
                                  # data-preview-url posé sur la card ; reste _inspector_actions
-            model_help=True,     # WamaModelHelp (select #tts_model, meta catalogue via _tts_model_help_meta)
+            model_help=True,     # WamaModelHelp auto-câblé sur le select GÉNÉRÉ #tts_model (help_source, 2026-10-11)
             # Audit empirique 2026-07-10 :
             eta_individual=True,       # .wama-eta card (_synthesis_card.html:57) + eta_estimator (views.py:623)
             eta_batch=True,            # data-eta-ids entête batch (index.html:346)

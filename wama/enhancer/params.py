@@ -72,7 +72,11 @@ AUDIO_ENGINE_HELP = {
 # ── Domaine MEDIA (image / vidéo) — modèle Enhancement ────────────────────────
 # name = clé POST (update_settings) ET data-attr de la card ; dom_id.panel/item = ids des champs volet/modale.
 MEDIA_PARAMS = [
+    # `default` (2026-10-11, volet GÉNÉRÉ) : ceux des colonnes du modèle — sans eux, un champ rendu
+    # du schéma partait d'une autre valeur que l'élément qui naîtrait (« auto » ici, « both »,
+    # 0,5 et 64 côté audio), et « Réinitialiser » vidait le select.
     Param(name='ai_model', type='select', label='Modèle AI', icon='fa-brain', chip=True,
+          default='auto',
           dom_id={'panel': 'defaultAiModel', 'item': 'settingsAiModel'}, contexts=('panel', 'item'),
           # ── Route F4b, étape ⑤ (2026-10-06) — options par TÂCHE, clés ENTIÈRES ──────
           # Le domaine était `source='enhancer'` + `model_type` (2026-09-08) : un agrandisseur
@@ -113,18 +117,19 @@ MEDIA_PARAMS = [
           contexts=('panel', 'item'), stales=('generate',),
           **intent_param(show_if={'field': 'ai_model', 'equals': 'auto'})),
     Param(name='denoise', type='toggle', label='Débruitage', icon='fa-broom',
-          chip=True, chip_label='Débruitage',
+          chip=True, chip_label='Débruitage', default=False, help='Appliqué avant l’agrandissement',
           dom_id={'panel': 'defaultDenoise', 'item': 'settingsDenoise'}, contexts=('panel', 'item'),
           stales=('generate',)),
     Param(name='blend_factor', type='range', label='Blend', icon='fa-sliders-h', chip=True,
           dom_id={'panel': 'defaultBlendFactor', 'item': 'settingsBlendFactor'},
-          min=0, max=1, step=0.1, contexts=('panel', 'item'), stales=('generate',)),
+          min=0, max=1, step=0.1, default=0.0, min_label='100 % IA', max_label='100 % original',
+          contexts=('panel', 'item'), stales=('generate',)),
 ]
 
 # ── Domaine AUDIO — modèle AudioEnhancement ───────────────────────────────────
 # 'strength' colle à la card data-strength (le champ modèle est denoising_strength, mappé côté vue).
 AUDIO_PARAMS = [
-    Param(name='engine', type='select', label='Moteur', icon='fa-cogs', chip=True,
+    Param(name='engine', type='select', label='Moteur', icon='fa-cogs', chip=True, default='auto',
           dom_id={'panel': 'audioEngine', 'item': 'settingsAudioEngine'}, contexts=('panel', 'item'),
           # ── Route F4b, étape ⑤ (2026-10-07) — options par TÂCHE, clés ENTIÈRES ──────
           # Le domaine était `source='enhancer'` + `task` (2026-09-08) : un moteur de
@@ -147,7 +152,7 @@ AUDIO_PARAMS = [
           contexts=('panel', 'item'), stales=('generate',),
           **intent_param(show_if={'field': 'engine', 'equals': 'auto'})),
     # mode/force/qualité = spécifiques Resemble → affichés seulement si engine=resemble (show_if).
-    Param(name='mode', type='select', label='Mode', icon='fa-sliders-h', chip=True,
+    Param(name='mode', type='select', label='Mode', icon='fa-sliders-h', chip=True, default='both',
           dom_id={'panel': 'audioMode', 'item': 'settingsAudioMode'}, contexts=('panel', 'item'),
           choices=[('both', 'Débruitage + Amélioration (Recommandé)'),
                    ('denoise', 'Débruitage seul (Rapide)'),
@@ -155,13 +160,14 @@ AUDIO_PARAMS = [
           show_if={'field': 'engine', 'equals': RESEMBLE_KEY}, stales=('generate',)),
     Param(name='strength', type='range', label='Force débruitage', icon='fa-wind',
           dom_id={'panel': 'audioDenoisingStrength', 'item': 'settingsAudioStrength'},
-          min=0, max=1, step=0.1, contexts=('panel', 'item'),
+          min=0, max=1, step=0.1, default=0.5, min_label='Doux', max_label='Fort',
+          contexts=('panel', 'item'),
           show_if={'field': 'engine', 'equals': RESEMBLE_KEY},
           # Le champ est `denoising_strength` (mappé côté vue) : c'est LUI que la photo lit,
           # déclaré hors schéma dans function_specs.py — `strength`, absent de l'élément, y
           # reste constant (lu vide) et ne périme rien à lui seul.
           stales=('generate',)),
-    Param(name='quality', type='select', label='Qualité (NFE)', icon='fa-star',
+    Param(name='quality', type='select', label='Qualité (NFE)', icon='fa-star', default='64',
           dom_id={'panel': 'audioQuality', 'item': 'settingsAudioQuality'}, contexts=('panel', 'item'),
           choices=[('32', 'Rapide (32 étapes)'),
                    ('64', 'Équilibré (64 étapes)'),
@@ -183,12 +189,12 @@ def _media_format_groups():
 
 MEDIA_PARAMS += [
     Param(name='output_format', type='select', label='Format de sortie', icon='fa-file-export',
-          chip=True, option_groups=_media_format_groups(),
+          chip=True, option_groups=_media_format_groups(), default='original',
           dom_id={'panel': 'output_format', 'item': 'settingsOutputFormat'},
           contexts=('panel', 'item'),
           help='Doit correspondre au type du média (image ou vidéo).'),
     Param(name='output_quality', type='select', label='Qualité', icon='fa-sliders',
-          choices=get_output_qualities('image'),
+          choices=get_output_qualities('image'), default='balanced',
           dom_id={'panel': 'output_quality', 'item': 'settingsOutputQuality'},
           contexts=('panel', 'item')),
 ]

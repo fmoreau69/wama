@@ -114,6 +114,17 @@ def _auto_wrap_orphans(user):
             pass
 
 
+#: Réglages du volet MÉMORISÉS à la création d'une synthèse, sous leurs clés historiques
+#: (`preferred_*`, frontière des données) — `read_panel_settings(key=…)` les relit par NOM de param.
+#: Les autres réglages du volet ne sont pas mémorisés : ils partent de leur défaut du schéma.
+_PANEL_PREF_KEYS = {'tts_model': 'preferred_tts_model', 'language': 'preferred_language',
+                    'voice_preset': 'preferred_voice_preset'}
+
+
+def _panel_pref_key(param):
+    return _PANEL_PREF_KEYS.get(param.get('name'))
+
+
 class IndexView(View):
     """Page principale du synthesizer."""
 
@@ -196,21 +207,21 @@ class IndexView(View):
                 except Exception as exc:
                     logger.warning(f"[Synthesizer] Impossible de lancer le téléchargement des voix : {exc}")
 
-        from wama.common.tts.ui_meta import tts_engine_choices
+        from wama.common.utils.user_settings import read_panel_settings
 
         context = {
             'batches_list': batches_list,
             'queue_count': queue_count,
             # Groupes de voix du champ généré (brique commune) — `optionsResolver` du gabarit.
             'voice_groups_json': voice_groups_json(user),
-            # Inventaire des moteurs = le CATALOGUE, plus la liste en dur (route F4b, ②).
-            # Ce pré-rendu serveur et le peuplement JS (`options_source="catalog"`) parlent
-            # le MÊME vocabulaire de clés — c'est ce qui évite que `sel.value = cur` ne
-            # retrouve rien et fasse retomber le select sur sa première option en silence.
-            'tts_models': tts_engine_choices(),
-            'languages': VoiceSynthesis.LANGUAGE_CHOICES,
+            # Le VOLET est GÉNÉRÉ du schéma (2026-10-11) : plus de pré-rendu des moteurs ni des
+            # langues ici — le select de modèle se peuple par le CATALOGUE (`options_source`),
+            # la langue par ses `choices`. Ses VALEURS sont les derniers choix mémorisés, lus par
+            # la brique commune sous leurs clés historiques (`preferred_*`, écrites à la création
+            # d'une synthèse), les défauts du schéma pour le reste.
             'params_json': json.dumps(_SYNTH_PARAMS_JSON),
-            'tts_model_help_meta': json.dumps(self._tts_model_help_meta()),
+            'panel_values_json': json.dumps(read_panel_settings(
+                user, 'synthesizer', _SYNTH_PARAMS_JSON, key=_panel_pref_key)),
             # Appariement entrée↔modèles (brique commune input_match) : une voix CLONÉE
             # choisie grise les moteurs sans clonage — cf. INPUT_MODEL_MATCHING.md.
             'input_match_meta': json.dumps(self._input_match_meta()),
@@ -218,16 +229,6 @@ class IndexView(View):
             'q_sort': q_sort,
             'q_filter': q_filter,
         }
-
-        # Réglages persistés (brique COMMUNE user_settings) : derniers choix du
-        # volet compose, re-proposés au chargement (dont preferred_language que le
-        # template référençait sans être alimenté).
-        from wama.common.utils.user_settings import get_user_app_settings
-        context.update(get_user_app_settings(user, 'synthesizer', {
-            'preferred_language': '',
-            'preferred_tts_model': '',
-            'preferred_voice_preset': '',
-        }))
         return render(request, 'synthesizer/index.html', context)
 
     #: Les deux metas d'UI des moteurs TTS ont DÉMÉNAGÉ dans `common/tts/ui_meta.py` au 2ᵉ
@@ -244,12 +245,6 @@ class IndexView(View):
         from wama.common.tts.ui_meta import tts_input_match_meta
         from .utils.model_config import ENGINE_CATALOG_KEYS
         return tts_input_match_meta(ENGINE_CATALOG_KEYS)
-
-    @staticmethod
-    def _tts_model_help_meta():
-        from wama.common.tts.ui_meta import tts_model_help_meta
-        from .utils.model_config import ENGINE_CATALOG_KEYS
-        return tts_model_help_meta(ENGINE_CATALOG_KEYS)
 
 
 def _card_created_response(synthesis, **extra):

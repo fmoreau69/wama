@@ -35,10 +35,17 @@ class PanelMemoryTest(TestCase):
                 **panel}
         return self.client.post(reverse('enhancer:upload'), data)
 
+    def _shown(self):
+        """What the page gives its GENERATED panel (2026-10-11): the values handed to
+        `WamaParams.render`, by param name — no pre-rendered `selected` any more."""
+        import json
+        response = self.client.get(reverse('enhancer:index'))
+        return json.loads(response.context['panel_values_json'])
+
     def setUp(self):
         self.me = self._user('enhancer_panel_me')
         self.client.force_login(self.me)
-        # The select's pre-render comes from the catalogue (route F4b ⑤, 2026-10-06).
+        # A catalogued upscaler for the deposits (route F4b ⑤, 2026-10-06).
         from wama.model_manager.models import AIModel
         AIModel.objects.create(model_key='enhancer:BSRGANx2', name='BSRGANx2',
                                model_type='upscaling', source='enhancer', is_downloaded=True,
@@ -58,22 +65,18 @@ class PanelMemoryTest(TestCase):
         memory = read_panel_settings(self.me, 'enhancer', MEDIA_PARAMS)
         self.assertEqual(('enhancer:BSRGANx2', True, 0.3),
                          (memory['ai_model'], memory['denoise'], memory['blend_factor']))
-        page = self.client.get(reverse('enhancer:index')).content.decode()
-        self.assertIn('value="enhancer:BSRGANx2" selected', page)
+        self.assertEqual('enhancer:BSRGANx2', self._shown()['ai_model'])
 
     def test_a_choice_remembered_before_the_switch_is_shown_under_its_key(self):
         """Memory written before route F4b ⑤ holds the bare id: the page selects its key."""
         self._deposit(ai_model='BSRGANx2')
-        page = self.client.get(reverse('enhancer:index')).content.decode()
-        self.assertIn('value="enhancer:BSRGANx2" selected', page)
+        self.assertEqual('enhancer:BSRGANx2', self._shown()['ai_model'])
 
     def test_the_output_format_and_quality_come_back_too(self):
         """Format et qualité de sortie : mémorisés ET ré-affichés (rendus du schéma)."""
         self._deposit(output_format='png', output_quality='max')
-        page = self.client.get(reverse('enhancer:index')).content.decode()
-        self.assertIn('value="png" selected', page)
-        self.assertIn('value="max" selected', page)
-        self.assertNotIn('value="original" selected', page)
+        shown = self._shown()
+        self.assertEqual(('png', 'max'), (shown['output_format'], shown['output_quality']))
 
     def test_another_user_does_not_inherit_it(self):
         """Contre-épreuve : la mémoire est celle de l'auteur, un autre repart des défauts."""

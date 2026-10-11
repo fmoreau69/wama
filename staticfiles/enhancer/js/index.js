@@ -308,14 +308,9 @@ document.addEventListener('DOMContentLoaded', function () {
     updateDownloadAllState();
   });
 
-  // ── Volet : réglages du tirage « auto » (facteur + curseur) visibles sur « auto » seulement ──
-  // Le volet est rendu serveur (pas de show_if de schéma dessus) : une bascule d'une ligne,
-  // même mécanique que le synthesizer (`intentSliderGroup`).
-  function syncMediaAutoOptions() {
-    const sel = document.getElementById('defaultAiModel');
-    const box = document.getElementById('mediaAutoOptions');
-    if (sel && box) box.hidden = (sel.value || 'auto') !== 'auto';
-  }
+  // ── Volet : réglages du tirage « auto » (facteur + curseur) ──
+  // Visibles sur « auto » seulement : depuis que le volet est GÉNÉRÉ (2026-10-11), c'est le
+  // `show_if` du schéma qui les montre — la bascule écrite ici (`#mediaAutoOptions`) est partie.
   function panelAutoValues() {
     // Ce que le volet dit du tirage auto — posté avec les autres défauts du volet.
     return {
@@ -323,11 +318,6 @@ document.addEventListener('DOMContentLoaded', function () {
       quality_intent: document.getElementById('mediaQualityIntent')?.value || '',
     };
   }
-  (function initMediaAutoOptions() {
-    const sel = document.getElementById('defaultAiModel');
-    if (sel) sel.addEventListener('change', syncMediaAutoOptions);
-    syncMediaAutoOptions();
-  })();
 
   function initExistingRows() {
     if (!queueTable) return;
@@ -516,66 +506,21 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // Curseur commun remis à l'équilibre : `input` réveille le listener délégué de wama-params.js
-  // (valeur + tricolore), comme un geste de l'utilisateur.
-  function resetIntent(id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.value = '50';
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-
-  // Reset button
+  // « Réinitialiser » : les défauts du SCHÉMA du domaine affiché (brique commune applyDefaults,
+  // comme le transcriber et le synthesizer), posés par l'applicateur de son inspecteur — il émet
+  // `change`, donc les `show_if`, la prévision « auto » et l'appariement suivent. Chaque domaine
+  // remettait ses champs un à un, ids et valeurs écrits ici.
   const resetBtn = document.getElementById('resetOptions');
-  if (resetBtn) {
+  if (resetBtn && window.WamaParams) {
     resetBtn.addEventListener('click', () => {
-      // Detect active tab
       const audioSettings = document.getElementById('audioSettings');
       const audioActive = audioSettings && audioSettings.style.display !== 'none';
-
-      if (audioActive) {
-        // Reset audio settings (défaut « auto » depuis le curseur C ; `change` réveille la
-        // bascule du curseur et WamaModelCaps).
-        const audioEngineEl = document.getElementById('audioEngine');
-        if (audioEngineEl) {
-          audioEngineEl.value = 'auto';
-          audioEngineEl.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-
-        const audioModeEl = document.getElementById('audioMode');
-        if (audioModeEl) audioModeEl.value = 'both';
-
-        const audioStrengthEl = document.getElementById('audioDenoisingStrength');
-        if (audioStrengthEl) {
-          audioStrengthEl.value = '0.5';
-          const display = document.getElementById('audioStrengthValue');
-          if (display) display.textContent = '0.5';
-        }
-
-        const audioQualityEl = document.getElementById('audioQuality');
-        if (audioQualityEl) audioQualityEl.value = '64';
-        resetIntent('audioQualityIntent');
-      } else {
-        // Reset image/video settings
-        const defaultAiModelEl = document.getElementById('defaultAiModel');
-        if (defaultAiModelEl && defaultAiModelEl.options.length > 0) {
-          defaultAiModelEl.selectedIndex = 0;
-          syncMediaAutoOptions();
-        }
-        const factorEl = document.getElementById('mediaUpscaleFactor');
-        if (factorEl) factorEl.value = '4';
-        resetIntent('mediaQualityIntent');
-
-        const defaultDenoiseEl = document.getElementById('defaultDenoise');
-        if (defaultDenoiseEl) defaultDenoiseEl.checked = false;
-
-        const defaultBlendEl = document.getElementById('defaultBlendFactor');
-        if (defaultBlendEl) {
-          defaultBlendEl.value = '0';
-          const display = document.getElementById('blendValue');
-          if (display) display.textContent = '0';
-        }
-      }
+      const host = document.getElementById(audioActive ? 'audioPanelFields' : 'mediaPanelFields');
+      const schema = audioActive ? window.ENHANCER_AUDIO_SCHEMA : window.ENHANCER_MEDIA_SCHEMA;
+      const vals = WamaParams.applyDefaults(host, schema || [], 'panel');
+      const panels = window._enhancerPanels || {};
+      const insp = panels[audioActive ? 'audio' : 'image_video'];
+      if (insp && insp.apply) insp.apply(vals);
     });
   }
 

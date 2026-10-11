@@ -280,10 +280,12 @@ class PanelVoiceFieldIsGeneratedTest(TestCase):
                 / 'index.html').read_text(encoding='utf-8')
 
     def test_the_panel_carries_a_host_instead_of_hand_written_voice_options(self):
+        # Depuis le 2026-10-11 le VOLET ENTIER est généré dans `#synthPanelFields` ; la ligne de
+        # la voix y reçoit l'id de son ancienne enveloppe, que Higgs masque et que voiceSlot désigne.
         page = self._page()
-        self.assertIn('id="voicePresetHost"', page)
-        self.assertIn('id="voicePresetGroup"', page,
-                      'la zone enveloppe reste : Higgs la masque, voiceSlot la désigne')
+        self.assertIn('id="synthPanelFields"', page)
+        self.assertIn("voice.id = 'voicePresetGroup'", page,
+                      'la zone de la voix reste nommée : Higgs la masque, voiceSlot la désigne')
         # Une seule des dix options Bark suffit à signer la liste écrite à la main.
         self.assertNotIn('<option value="bark_v2_en_0"', page)
         self.assertNotIn('id="customVoicesGroup"', page)
@@ -340,11 +342,12 @@ class PanelVoiceFieldIsGeneratedTest(TestCase):
         ligne de TOUTES les pages se parsent est tenu par le contrat générique
         `common/tests_served_assets_contract` (2026-09-26) ; reste ici ce qui est propre au
         synthesizer — le rendu du champ de voix est bien DANS un de ces blocs, sans quoi le
-        contrat attesterait d'autres blocs pendant que celui-ci manquerait."""
+        contrat attesterait d'autres blocs pendant que celui-ci manquerait. Depuis le
+        2026-10-11 ce bloc rend le volet ENTIER (`renderPanel`), voix comprise."""
         import re
         blocks = re.findall(r'<script>(.*?)</script>', self._page(), re.S)
-        self.assertTrue(any('renderPanelVoiceField' in b for b in blocks),
-                        'le rendu du champ de voix n\'est plus dans un script en ligne')
+        self.assertTrue(any('renderPanel' in b and 'voiceGroups' in b for b in blocks),
+                        'le rendu du volet (voix comprise) n\'est plus dans un script en ligne')
 
 
 class VoicePreviewSharesTheSynthesisChainTest(TestCase):
@@ -517,9 +520,14 @@ class TheEntryCardKeepsOneHomePerSettingTest(TestCase):
     def test_what_the_card_removed_the_panel_still_offers(self):
         """Contre-épreuve : la voix et la vitesse n'ont pas disparu de la page, elles n'ont
         plus qu'UN domicile — le volet."""
+        # Le volet est GÉNÉRÉ (2026-10-11) : il offre ce que le schéma déclare au contexte panel.
+        from wama.synthesizer.params import PARAMS_JSON
         page = self._page()
-        self.assertIn('id="voicePresetHost"', page)     # champ de voix GÉNÉRÉ du schéma
-        self.assertIn('id="speed"', page)               # curseur de vitesse du volet
+        self.assertIn('id="synthPanelFields"', page)
+        # Sans `contexts` déclaré, un param vaut pour toutes les surfaces (`WamaParams.render`).
+        in_panel = {p['name'] for p in PARAMS_JSON
+                    if not p.get('contexts') or 'panel' in p['contexts']}
+        self.assertTrue({'voice_preset', 'speed'} <= in_panel, in_panel)
 
     def test_no_dead_reference_to_the_removed_mirror(self):
         """Un JS qui lirait encore les ids retirés serait muet, jamais en erreur."""

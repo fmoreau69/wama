@@ -31,7 +31,8 @@ from wama.common.utils.input_match import input_labels
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views
 from wama.common.tts.ui_meta import tts_engine_choices, tts_input_match_meta
 from wama.common.utils.scoping import visible_or_404
-from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
+from wama.common.utils.user_settings import (get_user_app_settings, read_panel_settings,
+                                              save_user_app_settings)
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +140,10 @@ class IndexView(View):
             'languages': AvatarJob.LANGUAGE_CHOICES,
             'media_url': settings.MEDIA_URL,
             'params_json': json.dumps(_AVATAR_PARAMS_JSON),
+            # Valeurs du VOLET généré (contexte 'panel') : les réglages que l'utilisateur a
+            # employés en dernier (mémorisés au dépôt, `create`), sous les défauts du schéma.
+            'panel_values_json': json.dumps(
+                read_panel_settings(user, 'avatarizer', _AVATAR_PARAMS_JSON)),
             # Groupes de voix (brique commune, per-user) pour le select GÉNÉRÉ de la modale
             # (options_source='voices') — remplace les optgroups hardcodés du template.
             # Le repli fail-safe vit DANS la brique depuis le 2026-09-23 (l'aide locale qui

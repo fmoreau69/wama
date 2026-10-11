@@ -16,34 +16,21 @@
 {% block app_right_panel_settings %}
 {% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (inspecteur contextuel) #}
 <div id="synthPanelParams">
-<!-- TTS Model -->
-<div class="mb-3">
-    <label for="tts_model" class="form-label small fw-bold text-light">
-        <i class="fas fa-robot"></i> Modèle TTS
-    </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="tts_model" name="tts_model">
-        {% for value, label in tts_models %}
-        {# Clés catalogue entières depuis la route F4b ② (2026-09-01) — cf. tts_engine_choices() #}
-        <option value="{{ value }}" {% if value == 'synthesizer:coqui-xtts' %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-    </select>
-    {# Descriptif modèle (courte + ⓘ longue) lu du CATALOGUE (vue) via WamaModelHelp — cf. transcriber #}
-    <small id="ttsModelHelp" class="text-muted d-block mt-1"></small>
-    {# Ligne d'état de l'appariement entrée↔modèles (WamaInputMatch) : causalité + réversibilité #}
-    <small id="inputMatchStatus" class="text-info d-block mt-1" style="display:none"></small>
-    {% comment %}Curseur d'INTENTION rapide↔qualité (décision Fabien 01/09) : module le
-       tirage « auto » — visible seulement quand le select est sur « auto » (toggle dans
-       index.js, même mécanique que higgsOptions). Markup = partial COMMUN, liaison
-       déléguée (wama-params.js) ; le changement rafraîchit la PRÉVISION sous le select.
-       ⚠ {% templatetag opencomment %} multiligne = TEXTE RENDU, pas un commentaire —
-       attrapé au smoke (le pavé s'affichait dans le volet).{% endcomment %}
-    <div id="intentSliderGroup" class="mt-2" hidden>
-        <label class="form-label small fw-bold text-light mb-0">
-            <i class="fas fa-gauge-high"></i> Rapide ↔ Qualité
-        </label>
-        {% include 'common/_intent_slider.html' with dom_id='quality_intent' name='quality_intent' value=50 %}
-    </div>
-</div>
+{% comment %}VOLET GÉNÉRÉ DU SCHÉMA depuis le 2026-10-11 (`WamaParams.render(context:'panel')`, script du
+bas) — modèle, curseur, langue, voix, vitesse, hauteur, format et qualité de sortie : les champs
+que `params.py` déclare au contexte `panel`. Seule la voix l'était depuis le 2026-09-23 ; les autres
+redisaient le schéma à la main (une liste de formats écrite ici, un curseur au partial, des
+valeurs affichées par des `<span>` que le JS tenait à jour). Les `dom_id` reprennent les ids
+d'avant (`#tts_model`, `#language`, `#voice_preset`, `#speed`, `#pitch`, `#output_format`…) : le
+JS d'app, la modale d'élément et la modale de lot les lisent inchangés.
+Ce qui n'est PAS au schéma reste écrit ici, et le script de rendu le GREFFE à sa place (même
+échappatoire que la zone de résolution de l'imager) : la ligne d'appariement sous le modèle, les
+options Higgs, la puce de la voix, l'aperçu. Sans `WamaParams`, ces zones restent visibles en
+bas du volet — jamais masquées.{% endcomment %}
+<div id="synthPanelFields"></div>
+
+{# Ligne d'état de l'appariement entrée↔modèles (WamaInputMatch) — greffée sous le modèle #}
+<small id="inputMatchStatus" class="text-info d-block mt-1" style="display:none"></small>
 
 <!-- Higgs Audio options (hidden by default, shown when higgs_audio selected) -->
 <div id="higgsOptions" style="display: none;">
@@ -64,100 +51,20 @@
     </div>
 </div>
 
-<!-- Language -->
-<div id="languageGroup" class="mb-3">
-    <label for="language" class="form-label small fw-bold text-light">
-        <i class="fas fa-language"></i> Langue
-    </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="language" name="language">
-        {% for value, label in languages %}
-        <option value="{{ value }}" {% if value == preferred_language %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-    </select>
-    {% comment %}Le bandeau « ce modèle ne supporte que l'anglais » a été retiré le 2026-08-28
-    avec les trois moteurs EN-only qu'il visait (REMOVAL_LEDGER R32) : son jeu déclencheur,
-    écrit en dur, était devenu VIDE. ⚠ Le BESOIN, lui, reste entier et il est GÉNÉRAL : tout
-    moteur peut ne pas couvrir une langue du select. Mesuré le 28/08 sur les 4 survivants —
-    bark ne gère pas 3 des 15 langues proposées, higgs-audio 6, kokoro 8 ; seul coqui-xtts les
-    couvre toutes. La précédente se trompait donc deux fois : elle citait 3 moteurs et en
-    ignorait 3 autres réellement lacunaires. ✅ REPRIS le 29/08 — mais PAS en bandeau : le
-    besoin est porté par le select lui-même, via `WamaModelCaps.langFilter` (options non
-    gérées désactivées, options d'emprunt marquées ⚠ avec leur raison), DÉRIVÉ des
-    `languages`/`fallback_languages` déclarées au catalogue. Un bandeau aurait redit à côté du
-    champ ce que le champ peut dire lui-même. Cf. `REMOVAL_LEDGER` R32 / §REPRISE.{% endcomment %}
-</div>
-
-<!-- Voice Preset -->
-<div id="voicePresetGroup" class="mb-3">
-    {% comment %}Champ GÉNÉRÉ du schéma depuis le 2026-09-23 (params.py, contexte 'panel' →
-    `<select id="voice_preset">`), rendu dans le script du bas. Les quatre optgroups écrits ici
-    à la main redisaient en gabarit ce que `get_voice_groups` rend déjà pour la modale d'item,
-    pour l'avatarizer et pour l'endpoint commun — et cette copie-là ne savait pas dire les voix
-    PARTAGÉES (décision du 21/09) : elle ne listait que `UserAsset.filter(user=user)`.
-    ⚠ Le div ENVELOPPE reste : `voicePresetGroup` est la zone que Higgs masque (index.js) et
-    celle que l'appariement entrée↔modèle désigne (`voiceSlot(zoneId)`).{% endcomment %}
-    <div id="voicePresetHost"></div>
-    {% comment %}Chip de l'appariement (WamaInputMatch) : visible quand une voix CLONÉE est
-    choisie — le ✕ revient à la voix par défaut et réactive les moteurs grisés.{% endcomment %}
-    <span id="voiceChip" class="d-block mt-1" style="display:none"></span>
-    {% comment %}« Ajouter » (modale propre à l'app) et le lien dossier vers la page médiathèque sont
-    RETIRÉS le 2026-09-30 : le champ voix GÉNÉRÉ porte d'office le bouton de la fenêtre commune de
-    la médiathèque (`WamaParams`, `options_source: 'voices'`) — écouter, ajouter un fichier ou
-    s'enregistrer, choisir, sans quitter la page.{% endcomment %}
-</div>
-
-<!-- Speed -->
-<div class="mb-3">
-    <label for="speed" class="form-label small fw-bold text-light">
-        <i class="fas fa-tachometer-alt"></i> Vitesse: <span id="speed_value">1.0</span>x
-    </label>
-    <input type="range" class="form-range" id="speed" name="speed" min="0.5" max="2.0" step="0.1" value="1.0">
-</div>
-
-<!-- Pitch -->
-<div class="mb-3">
-    <label for="pitch" class="form-label small fw-bold text-light">
-        <i class="fas fa-wave-square"></i> Hauteur: <span id="pitch_value">1.0</span>x
-    </label>
-    <input type="range" class="form-range" id="pitch" name="pitch" min="0.5" max="2.0" step="0.1" value="1.0">
-</div>
+{% comment %}Chip de l'appariement (WamaInputMatch) : visible quand une voix CLONÉE est choisie — le ✕
+revient à la voix par défaut et réactive les moteurs grisés. Greffée sous la voix.{% endcomment %}
+<span id="voiceChip" class="d-block mt-1" style="display:none"></span>
 
 {% comment %}APERÇU DE LA VOIX — venu de la card d'entrée le 2026-09-28 (CARD_DESIGN §11.11 Étape 3 (b)) :
 il fait entendre les RÉGLAGES au-dessus (voix, vitesse, hauteur) sur le texte de la card. Hors de
 `#voicePresetGroup`, que Higgs masque : l'aperçu vaut pour tous les moteurs.
 Rendu COMMUN depuis le même jour : `previewAudioContainer` est l'hôte de `renderInlinePreview`
 (lecteur `WamaAudioPlayer` + onde des pics serveur) — plus de barre ni d'`<audio>` maison.{% endcomment %}
-<div class="mb-3">
+<div id="voicePreviewZone" class="mb-3">
     <button type="button" class="btn btn-outline-info btn-sm w-100" id="previewTextBtn">
         <i class="fas fa-headphones"></i> Aperçu de la voix
     </button>
     <div id="previewAudioContainer" style="display:none;" class="mt-2"></div>
-</div>
-
-<!-- Format + qualité de sortie (early-binding : réglés avant génération, per-item ; modale + inspecteur) -->
-<div class="mb-2">
-    <label for="output_format" class="form-label small fw-bold text-light">
-        <i class="fas fa-file-export"></i> Format de sortie
-    </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_format" name="output_format">
-        <option value="original" selected>Original (WAV)</option>
-        <option value="mp3">MP3</option>
-        <option value="ogg">OGG</option>
-        <option value="flac">FLAC</option>
-        <option value="m4a">M4A</option>
-        <option value="aac">AAC</option>
-        <option value="opus">Opus</option>
-    </select>
-</div>
-<div class="mb-3">
-    <label for="output_quality" class="form-label small fw-bold text-light">
-        <i class="fas fa-sliders-h"></i> Qualité
-    </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_quality" name="output_quality">
-        <option value="web">Web (léger)</option>
-        <option value="balanced" selected>Équilibré</option>
-        <option value="max">Maximum</option>
-    </select>
 </div>
 
 <!-- Reset Button -->
@@ -340,34 +247,52 @@ greffe, avec les classes qu'il délègue (`save-settings-btn` / `save-and-restar
 // Schéma de paramètres = UNE déclaration pour toute la page (volet, modale d'item, modale de lot).
 window.SYNTH_PARAMS_SCHEMA = {{ params_json|safe }};
 
-// ── Champ VOIX du volet : GÉNÉRÉ du schéma (2026-09-23) ────────────────────────────────────
-// Rendu ICI, et non dans le DOMContentLoaded qui suit : le select doit exister AVANT que le JS
-// d'app (index.js, tout entier dans un DOMContentLoaded) ne le mette en cache, et avant
-// WamaModelCaps / WamaInputMatch qui l'annotent — un script en ligne s'exécute à l'analyse,
-// donc avant l'événement. C'est le seul champ du volet porté pour l'instant : les autres
-// gardent leur markup et leur `name=` (l'inspecteur lit les deux formes).
-(function renderPanelVoiceField() {
-    var host = document.getElementById('voicePresetHost');
+// ── VOLET : GÉNÉRÉ du schéma (voix depuis le 2026-09-23, tout le volet depuis le 2026-10-11) ──
+// Rendu ICI, et non dans le DOMContentLoaded qui suit : les champs doivent exister AVANT que le
+// JS d'app (index.js, tout entier dans un DOMContentLoaded) ne les mette en cache, et avant
+// WamaModelCaps / WamaInputMatch qui les annotent — un script en ligne s'exécute à l'analyse,
+// donc avant l'événement.
+(function renderPanel() {
+    var host = document.getElementById('synthPanelFields');
     if (!host || !window.WamaParams) return;
     {# |default:"[]" : un gabarit ne doit jamais recevoir un JSON invalide — il perdrait TOUT #}
     {# le script qui suit (même précaution que l'avatarizer). #}
     var voiceGroups = {{ voice_groups_json|default:"[]"|safe }};
-    // Groupes servis par la vue (brique commune `get_voice_groups`) : le champ est peuplé dès
-    // le PREMIER rendu. `options_source='voices'` le rechargera ensuite depuis
+    // Valeurs = les derniers choix mémorisés (modèle, langue, voix — `read_panel_settings`, sous
+    // leurs clés historiques `preferred_*`), les défauts du schéma pour le reste.
+    var values = {{ panel_values_json|default:"{}"|safe }};
+    // Groupes servis par la vue (brique commune `get_voice_groups`) : la voix est peuplée dès
+    // le PREMIER rendu. `options_source='voices'` la rechargera ensuite depuis
     // /common/api/voices/ — même inventaire, et la recharge annonce `wama:options-filled`
-    // (les filtres se rejouent, le miroir de la card d'entrée se recopie).
-    WamaParams.render(host, window.SYNTH_PARAMS_SCHEMA.filter(function (p) {
-        return p.name === 'voice_preset';
-    }), {
+    // (les filtres se rejouent). Toute autre source passe par le registre COMMUN.
+    WamaParams.render(host, window.SYNTH_PARAMS_SCHEMA, {
         context: 'panel',
-        optionsResolver: function (p) { return p.options_source === 'voices' ? voiceGroups : null; },
+        values: values,
+        optionsResolver: function (p) {
+            return p.options_source === 'voices' ? voiceGroups : WamaParams.resolvePageOptions(p, values);
+        },
     });
+    // GREFFES des zones hors schéma, chacune sous le champ qu'elle accompagne. Les lignes de la
+    // langue et de la voix reçoivent les ids de leurs anciennes enveloppes : Higgs les masque
+    // (index.js) et l'appariement désigne la zone de la voix (`voiceSlot(zoneId)`) — c'est le
+    // pont de MIGRATION du `dom_id`, appliqué à une ligne.
+    function row(name) { return host.querySelector('[data-param-row="' + name + '"]'); }
+    function graft(id, ref, where) {
+        var el = document.getElementById(id);
+        if (el && ref) ref.insertAdjacentElement(where, el);
+    }
+    var lang = row('language'), voice = row('voice_preset');
+    if (lang) lang.id = 'languageGroup';
+    if (voice) voice.id = 'voicePresetGroup';
+    graft('inputMatchStatus', row('tts_model'), 'beforeend');
+    graft('higgsOptions', row('quality_intent') || row('tts_model'), 'afterend');
+    graft('voiceChip', voice, 'beforeend');
+    graft('voicePreviewZone', row('pitch'), 'afterend');
 })();
 
 // Inspecteur CONTEXTUEL (volet droit) : la section params (#synthPanelParams) devient « Réglages de
 // l'élément #N » selon la card sélectionnée, pilotée par le schéma (params.py). Média + boutons de
-// file restent en place. On GARDE les champs existants (warning langue, options Higgs) — on câble
-// juste l'inspecteur dessus (ne rien perdre).
+// file restent en place, les options Higgs (hors schéma) aussi.
 document.addEventListener('DOMContentLoaded', function () {
     var q = document.getElementById('synthesisQueue');
     var ph = document.getElementById('synthPanelParams');
@@ -395,6 +320,9 @@ document.addEventListener('DOMContentLoaded', function () {
         cardSelector: '.synthesis-card',
         panelContainer: ph,
         schema: schema,
+        // « Réinitialiser » remet les réglages de FILE : il n'a pas de sens sur une card inspectée
+        // (même règle que le transcriber, le composer et les apps générées).
+        hideOnInspect: ['resetOptions'],
         itemLabel: function (id) { return "l'élément #" + id; },
         // cardSettings DÉFAUT (dérivé du schéma) : lit les data-* du gear .settings-btn —
         // émis par la brique card_gear (le custom listait 5 params à la main et avait
@@ -424,15 +352,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // Filtrage dynamique voix/langues selon les capacités du modèle TTS (AIModel.capabilities).
     // Voix de clonage (« Mes voix » ua_/cv_) masquées si le modèle ne clone pas ; langues
     // restreintes à celles du modèle. Dégradation douce si le catalogue est indisponible.
-    // Descriptif modèle (courte + ⓘ longue) sous le select — meta lue du CATALOGUE (vue),
-    // rendue par le composant commun (chargé globalement dans base.html).
-    if (window.WamaModelHelp) {
-        WamaModelHelp.init({
-            selectId: 'tts_model',
-            helpId: 'ttsModelHelp',
-            meta: {{ tts_model_help_meta|safe }},
-        });
-    }
+    // Le descriptif du modèle (courte + ⓘ longue) n'est plus câblé ici (2026-10-11) : le champ
+    // GÉNÉRÉ le porte (`help_source="synthesizer"`, `WamaParams._bindModelHelp`), comme la modale.
 
     // Retour CAPTURÉ (2026-09-12) : son cache de capacités (`.caps`) alimente l'appariement
     // entrée→modèle ci-dessous — c'est le MÊME catalogue dans les deux directions.

@@ -28,29 +28,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Range sliders
-    const speedSlider = document.getElementById('speed');
-    const pitchSlider = document.getElementById('pitch');
+    // Le volet est GÉNÉRÉ du schéma (2026-10-11) : les curseurs vitesse/hauteur affichent eux-mêmes
+    // leur valeur (renderer `range` commun) — plus de `#speed_value` / `#pitch_value` tenus ici.
 
-    if (speedSlider) {
-        speedSlider.addEventListener('input', (e) => {
-            document.getElementById('speed_value').textContent = e.target.value;
-        });
-    }
-
-    if (pitchSlider) {
-        pitchSlider.addEventListener('input', (e) => {
-            document.getElementById('pitch_value').textContent = e.target.value;
-        });
-    }
-
+    // « Réinitialiser » : les défauts du SCHÉMA (brique commune applyDefaults, comme le
+    // transcriber), posés par l'applicateur de l'inspecteur — il émet `change`, donc les options
+    // Higgs, les filtres voix/langue et l'appariement suivent. Remettait vitesse et hauteur seules.
     const resetBtn = document.getElementById('resetOptions');
-    if (resetBtn) {
+    if (resetBtn && window.WamaParams) {
         resetBtn.addEventListener('click', () => {
-            document.getElementById('speed').value = 1.0;
-            document.getElementById('pitch').value = 1.0;
-            document.getElementById('speed_value').textContent = '1.0';
-            document.getElementById('pitch_value').textContent = '1.0';
+            const vals = WamaParams.applyDefaults(document.getElementById('synthPanelFields'),
+                                                  window.SYNTH_PARAMS_SCHEMA || [], 'panel');
+            if (window._synthInspector && window._synthInspector.apply) window._synthInspector.apply(vals);
         });
     }
 
@@ -82,22 +71,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (voicePresetGroup) voicePresetGroup.style.display = isHiggs ? 'none' : '';
     }
 
-    // Curseur d'INTENTION (brique auto_model) : visible seulement quand le modèle est
-    // « auto » — il module ce tirage-là et rien d'autre (même mécanique que higgsOptions).
-    function toggleIntentSlider(modelValue) {
-        const grp = document.getElementById('intentSliderGroup');
-        if (grp) grp.hidden = (modelValue !== 'auto');
-    }
+    // Le curseur d'INTENTION n'est plus basculé ici (2026-10-11) : son `show_if` (tts_model = auto),
+    // déclaré au schéma, le montre et le cache dans le volet généré comme dans les modales.
 
     const ttsModelSelect = document.getElementById('tts_model');
     if (ttsModelSelect) {
         ttsModelSelect.addEventListener('change', (e) => {
             toggleHiggsOptions(e.target.value);
-            toggleIntentSlider(e.target.value);
         });
         // Initialize on page load
         toggleHiggsOptions(ttsModelSelect.value);
-        toggleIntentSlider(ttsModelSelect.value);
     }
 
     const multiSpeakerCheckbox = document.getElementById('multi_speaker');

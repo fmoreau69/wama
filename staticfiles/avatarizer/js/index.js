@@ -41,15 +41,10 @@
     }
 
     // -----------------------------------------------------------------------
-    // bbox_shift slider
+    // bbox_shift slider — champ GÉNÉRÉ du schéma (volet rendu avant ce script, 2026-10-11) :
+    // le renderer `range` commun affiche lui-même sa valeur, plus de `#bbox_shift_val`.
     // -----------------------------------------------------------------------
     const bboxSlider = $('#bbox_shift');
-    const bboxVal    = $('#bbox_shift_val');
-    if (bboxSlider) {
-        bboxSlider.addEventListener('input', () => {
-            bboxVal.textContent = bboxSlider.value;
-        });
-    }
 
     // Le couple de modes rapide/qualité est MORT (2026-08-03) : l'Amélioration
     // CodeFormer (#use_enhancer) est le SEUL contrôle de qualité, toujours visible.

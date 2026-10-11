@@ -265,7 +265,7 @@ class IndexView(View):
         # `ROADMAP §23.3bis`). La table `UserSettings` propre à l'enhancer n'était jamais ÉCRITE
         # (seulement `get_or_create`) : ses « défauts » étaient ceux du modèle, pour tout le monde.
         from wama.common.utils.user_settings import read_panel_settings
-        from wama.enhancer.params import AUDIO_PARAMS, MEDIA_PARAMS
+        from wama.enhancer.params import MEDIA_PARAMS
         panel = read_panel_settings(user, 'enhancer', MEDIA_PARAMS)
         # Le volet parle en CLÉS de catalogue (route F4b ⑤, 2026-10-06) : une préférence
         # mémorisée avant la bascule (identifiant nu) est lue dans l'espace de l'enhancer.
@@ -273,7 +273,6 @@ class IndexView(View):
         panel['ai_model'] = catalog_key(panel.get('ai_model') or 'auto', 'enhancer')
 
         import json as _json
-        from wama.common.utils.param_schema import catalog_options
         from wama.enhancer.params import MEDIA_PARAMS_JSON, AUDIO_PARAMS_JSON
         queue_count = sum(len(b['items']) for b in batches_list) +                       sum(len(b['items']) for b in audio_batches_list)
 
@@ -283,19 +282,10 @@ class IndexView(View):
             'queue_count': queue_count,
             'q_sort': q_sort,
             'q_filter': q_filter,
-            'panel': panel,
-            # Format et qualité de sortie du volet : options du SCHÉMA (comme la modale ⚙).
-            'output_format_groups': next(p.option_groups for p in MEDIA_PARAMS
-                                         if p.name == 'output_format'),
-            'output_quality_choices': next(p.choices for p in MEDIA_PARAMS
-                                           if p.name == 'output_quality'),
-            # Pré-rendu du select « Modèle AI » : LA lecture commune du domaine déclaré
-            # (`catalog_options`, « auto » compris) — même vocabulaire que la liste qui le repeuple
-            # (`bindOptionSources`), sinon la valeur courante n'y serait pas retrouvée.
-            'ai_models': catalog_options(next(p for p in MEDIA_PARAMS if p.name == 'ai_model')),
-            # Idem pour le moteur AUDIO (route F4b ⑤, 2026-10-07) : il était pré-rendu en dur
-            # dans le gabarit (identifiants nus) — hors de l'espace de clés de son select.
-            'audio_engines': catalog_options(next(p for p in AUDIO_PARAMS if p.name == 'engine')),
+            # Valeurs du VOLET GÉNÉRÉ (domaine image/vidéo, 2026-10-11) — par NOM de param, ce
+            # qu'attend `WamaParams.render`. Plus de pré-rendu des options (modèle, moteur audio,
+            # formats) : le volet les reçoit du schéma et du catalogue, comme la modale.
+            'panel_values_json': _json.dumps(panel),
             # Schémas déclaratifs par domaine → inspecteur contextuel (WamaInspector.initFromSchema).
             'media_params_json': _json.dumps(MEDIA_PARAMS_JSON),
             'audio_params_json': _json.dumps(AUDIO_PARAMS_JSON),

@@ -26,11 +26,15 @@ Avatar) ; la section Médias redevient l'aperçu commun de l'élément sélectio
 {# ===================================================================== #}
 {% block app_right_panel_settings %}
 {% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (inspecteur contextuel) #}
-<div id="avatarPanelParams">
-
 {% comment %}Avatarizer : audio (fourni, ou produit en amont par le Synthesizer via le Studio)
-+ avatar → MuseTalk. Ce VOLET reste celui des réglages MuseTalk — les champs TTS vivent dans
-la MODALE générée par WamaParams (contexte 'item'), sous `show_if="text_content"`.
++ avatar → modèle d'animation. Ce VOLET porte les réglages d'animation — les champs TTS vivent
+dans la MODALE générée par WamaParams (contexte 'item'), sous `show_if="text_content"`.
+
+VOLET GÉNÉRÉ DU SCHÉMA depuis le 2026-10-11 (`WamaParams.render(context:'panel')`, script du bas,
+AVANT index.js) : les trois champs écrits ici à la main (modèle d'animation, décalage visage,
+CodeFormer) sont ceux que `params.py` déclare au contexte `panel`. Les `dom_id` reprennent les ids
+d'avant (`#animation_model`, `#bbox_shift`, `#use_enhancer`) : le dépôt (index.js) les lit
+inchangé. Un réglage ajouté au schéma apparaît ici sans gabarit à retoucher.
 
 ⚠ Ce bloc a affirmé de 2026-07-15 au 2026-08-28 que « le TTS ne fait plus partie de l'app :
 params.py ne déclare plus mode/tts_model/language/voice_preset ». C'est FAUX depuis le retour
@@ -39,42 +43,7 @@ un dégât MESURABLE — le critère `_has_engine_select` cherchait un nom de mo
 gabarits, l'a trouvé ICI, dans une phrase qui NIAIT son existence, et a rendu un faux positif
 le 17/08 (gate durci depuis : un nom doit être en position d'ATTRIBUT, pas dans de la prose).
 *Un commentaire périmé n'est pas neutre : il se fait lire par les instruments.*{% endcomment %}
-<!-- Paramètres d'animation -->
-<div class="mb-2">
-    <label class="form-label small fw-bold text-light"><i class="fas fa-sliders-h"></i> Paramètres d'animation</label>
-</div>
-
-{% comment %}MODÈLE D'ANIMATION (2026-10-03). Le select est rendu ici avec « auto » seul : ses options viennent du CATALOGUE, posées par l'inspecteur (`WamaParams.bindOptionSources`, champ `animation_model` de params.py — `options_source='catalog'`). Aucun nom de modèle n'est écrit dans ce gabarit.{% endcomment %}
-<div class="mb-2">
-    <label for="animation_model" class="form-label small text-light">Modèle d'animation</label>
-    <select id="animation_model" class="form-select form-select-sm bg-dark text-light border-secondary">
-        <option value="auto" selected>Auto</option>
-    </select>
-    <div class="wama-model-help small text-muted mt-1" id="animation_model-help"></div>
-    <small class="text-muted">« Auto » choisit d'après l'avatar : une photo, ou un avatar 3D (.glb).</small>
-</div>
-
-<!-- Décalage bbox (photo animée) -->
-<div class="mb-2">
-    <label for="bbox_shift" class="form-label small text-light">
-        Décalage visage : <span id="bbox_shift_val">0</span>
-    </label>
-    <input type="range" class="form-range" id="bbox_shift" min="-10" max="10" step="1" value="0">
-    <small class="text-muted">Photo animée : ajustez si la zone détectée est mal positionnée</small>
-</div>
-
-{% comment %} Amélioration CodeFormer — SEUL contrôle de qualité (2026-08-03) : l'ancien
-couple de modes rapide/qualité n'était qu'un alias de ce toggle (décision route F2). {% endcomment %}
-<div id="enhancer_section">
-    <div class="form-check form-switch mb-2">
-        <input class="form-check-input" type="checkbox" id="use_enhancer">
-        <label class="form-check-label text-light small" for="use_enhancer">
-            Amélioration CodeFormer
-        </label>
-    </div>
-    <small class="text-muted d-block">Photo animée : restauration faciale haute qualité — légèrement plus lent</small>
-</div>
-</div>{# /avatarPanelParams (inspecteur contextuel) #}
+<div id="avatarPanelParams"></div>{# hôte du volet GÉNÉRÉ (WamaParams, contexte panel) — inspecteur contextuel #}
 
 {% endblock %}
 
@@ -314,7 +283,12 @@ window.AVATARIZER_MATCH = {
     labels: {{ input_labels|default:"{}"|safe }},
 };
 (function () {
-    if (!window.WamaParams) { console.warn('[avatarizer] WamaParams absent — modale de lot non générée'); return; }
+    if (!window.WamaParams) { console.warn('[avatarizer] WamaParams absent — volet et modale de lot non générés'); return; }
+    // VOLET (context 'panel') : rendu AVANT index.js, qui lit ses champs au dépôt. Valeurs = les
+    // réglages mémorisés de l'utilisateur (`read_panel_settings`, la cascade que le dépôt applique).
+    var phost = document.getElementById('avatarPanelParams');
+    if (phost) WamaParams.render(phost, window.AVATARIZER_PARAMS_SCHEMA,
+                                 { context: 'panel', values: {{ panel_values_json|default:"{}"|safe }} });
     // Modale de LOT (context 'batch') : rendue ici, inchangée.
     var bhost = document.getElementById('avatarizerBatchParams');
     if (bhost) WamaParams.render(bhost, window.AVATARIZER_PARAMS_SCHEMA, { context: 'batch', values: {} });

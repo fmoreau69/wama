@@ -93,8 +93,11 @@ def output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_
                   help="Agrandissement par un modèle d'upscaling IA, appliqué après la génération.")
         )
     params.append(
+        # Défaut « original » (2026-10-11) : celui des colonnes `output_format` des apps qui
+        # emploient cette brique, et la 1ʳᵉ option de toute liste (`get_output_formats`). Sans
+        # lui, « Réinitialiser » (`WamaParams.applyDefaults`) vidait le select d'un volet généré.
         Param(name="output_format", type="select", label="Format de sortie", icon="fa-file-export",
-              choices=get_output_formats(domain), contexts=ctx,
+              choices=get_output_formats(domain), default="original", contexts=ctx,
               dom_id=dom_id_format or "output_format", group=group),
     )
     if include_quality:
@@ -103,8 +106,12 @@ def output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_
         # promettait un réglage sans effet. Elle n'apparaît donc qu'avec un format choisi.
         converted = [v for v, _ in get_output_formats(domain) if v != "original"]
         params.append(
+            # Défaut « balanced » (2026-10-11) : celui de TOUTES les colonnes `output_quality` et
+            # du repli de la conversion (`apply_output_settings`). Sans défaut déclaré, une surface
+            # générée (volet, modale) proposait la PREMIÈRE option, « web » — mesuré sur le volet
+            # généré du synthesizer, quand l'ancien volet écrit à la main proposait « Équilibré ».
             Param(name="output_quality", type="select", label="Qualité", icon="fa-sliders",
-                  choices=get_output_qualities(domain), contexts=ctx,
+                  choices=get_output_qualities(domain), default="balanced", contexts=ctx,
                   dom_id=dom_id_quality or "output_quality", group=group,
                   show_if={"field": "output_format", "in": converted},
                   help="Appliquée à la conversion vers le format choisi.")
