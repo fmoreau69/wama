@@ -2843,6 +2843,25 @@ défauts que leur exécution a trouvés.**
 - Harnais : `WamaTestRunner` pose `MANIFEST_CORPUS_SYNC = False` — une base de test désinstalle
   des clés présentes au vrai corpus (`synthesizer:bark`), le fichier versionné aurait été effacé.
 - Tests : `tests_corpus_follows_uninstall` (11).
-- 🔚 `ollama:llamacpp:96f38c…` au catalogue : empreinte de `qwen3.5:4b`, ligne fantôme de la
-  découverte Ollama (son manifeste n'est pas commité).
+- ✅ `ollama:llamacpp:96f38c…` au catalogue : empreinte de `qwen3.5:4b`, ligne fantôme de la
+  découverte Ollama — corrigée le 2026-10-12, ci-dessous.
+
+**Suite du 2026-10-12 — un manifeste INTERNE d'Ollama pris pour un modèle, et tiré.**
+- Mesuré : Ollama 0.40 écrit, à côté d'un modèle tiré, `manifests/…/library/llamacpp/<sha256>`
+  (`"runner": "llamacpp"`, couches `"from": "qwen3.5:4b"`), à la même seconde que le modèle
+  (07/10 11:22:11). Ce jour-là `ollama list` l'a montré ; la découverte a créé
+  `ollama:llamacpp:96f38c…` (même ID, même taille que qwen3.5:4b) — et le sélecteur l'a TIRÉ
+  (`wama.log`, 11/10 22:34, `None → ollama:llamacpp:…`). Aujourd'hui `ollama list` ne le montre
+  plus, donc la ligne n'était plus relue — et sans `--clean`, rien ne la recalait.
+- ✅ `model_registry.is_ollama_runner_alias` : une étiquette qui est une empreinte sha256 complète
+  n'est pas un modèle (le nom du moteur n'est pas lu) — appliquée aux DEUX découvertes
+  (`ollama list` et le repli par dossier). ⚠ La clé `runner` ne distingue rien : le vrai
+  manifeste de qwen3.5 porte `"runner": "ggml"`.
+- ✅ `ModelSyncService._drop_ollama_runner_aliases`, à chaque synchro complète : une ligne que la
+  découverte refuse par règle n'a jamais été un modèle — retirée sans attendre une découverte
+  complète (ce n'est pas une disparition). Son manifeste de corpus sort au prochain export
+  (plus de ligne → `_gone_model_keys`).
+- Tests : `tests_ollama_runner_alias` (4).
+- 🔚 Reste général, non traité : un modèle retiré par `ollama rm` HORS de WAMA garde sa ligne
+  « téléchargée » tant qu'une synchro `--clean` ne passe pas.
 

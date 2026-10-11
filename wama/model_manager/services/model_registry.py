@@ -110,6 +110,25 @@ def _type_ollama(task: str):
         return ModelType.LLM
 
 
+#: Étiquette d'Ollama qui est une EMPREINTE sha256 complète, pas un tag tiré par quelqu'un.
+_DIGEST_TAG_RE = re.compile(r'^[0-9a-f]{64}$')
+
+
+def is_ollama_runner_alias(name: str) -> bool:
+    """Ce nom Ollama désigne-t-il un manifeste INTERNE du démon plutôt qu'un modèle ?
+
+    Ollama 0.40 écrit, à côté d'un modèle tiré, un manifeste propre à son moteur :
+    `library/llamacpp/<empreinte>`, `"runner": "llamacpp"`, couches marquées `"from":
+    "qwen3.5:4b"` — écrit à la même seconde que le modèle dont il dérive. Le 2026-10-07,
+    `ollama list` l'a montré comme un modèle ; WAMA en a fait la ligne
+    `ollama:llamacpp:96f38c…`, doublon de qwen3.5:4b, TIRÉE par le sélecteur (journal du
+    11/10). Personne ne tire un tag de 64 caractères hexadécimaux : c'est une référence de
+    contenu, jamais un nom de modèle. Le nom du moteur (`llamacpp`, `ggml`…) n'est pas lu —
+    une autre exécution rendrait le même motif sous un autre nom."""
+    _, sep, tag = (name or '').rpartition(':')
+    return bool(sep) and bool(_DIGEST_TAG_RE.match(tag))
+
+
 def _check_hf_model_downloaded(cache_dir: Path, hf_id: str, *, weights_required: bool = True) -> bool:
     """
     Check if a HuggingFace model is downloaded in the cache directory.
@@ -2516,6 +2535,8 @@ class ModelRegistry:
                         if not line.strip():
                             continue
                         parts = line.split()
+                        if len(parts) >= 2 and is_ollama_runner_alias(parts[0]):
+                            continue
                         if len(parts) >= 2:
                             model_name = parts[0]
                             model_id_hash = parts[1]  # colonne ID d'`ollama list` (≠ taille)
@@ -2695,6 +2716,8 @@ class ModelRegistry:
                                 if tag_file.is_file():
                                     tag = tag_file.name
                                     full_name = f"{model_name}:{tag}" if tag != "latest" else model_name
+                                    if is_ollama_runner_alias(full_name):
+                                        continue      # manifeste interne du démon (même règle)
 
                                     # Try to get size from blob
                                     size_gb = 0

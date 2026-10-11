@@ -139,6 +139,10 @@ class ModelSyncService:
                 if not echecs:
                     result.removed += self._drop_superseded_snapshots(discovered_models,
                                                                       seen_keys)
+                # Une ligne que la découverte REFUSE désormais par règle n'a jamais été un modèle
+                # (manifeste interne du démon Ollama) : ce n'est pas une disparition, la retirer ne
+                # dépend donc pas d'une découverte complète.
+                result.removed += self._drop_ollama_runner_aliases()
 
                 # Handle models no longer in sources
                 if delete_missing:
@@ -251,6 +255,22 @@ class ModelSyncService:
         if keys:
             logger.info("Snapshots génériques relevés par une app, retirés : %s", keys)
             stale.delete()
+        return len(keys)
+
+    @staticmethod
+    def _drop_ollama_runner_aliases() -> int:
+        """Supprime les lignes `ollama:` dont le nom est un manifeste INTERNE du démon
+        (`is_ollama_runner_alias`) — entrées avant le filtre de la découverte, elles ne sont
+        plus jamais relues, donc plus jamais recalées : `ollama:llamacpp:96f38c…`, doublon de
+        qwen3.5:4b, est resté « téléchargé » et tirable du 07/10 au 12/10. Rend le compte."""
+        from ..models import AIModel
+        from .model_registry import is_ollama_runner_alias
+        keys = [k for k in AIModel.objects.filter(model_key__startswith='ollama:', is_proposed=False)
+                                          .values_list('model_key', flat=True)
+                if is_ollama_runner_alias(k.partition(':')[2])]
+        if keys:
+            logger.info("Manifestes internes d'Ollama pris pour des modèles, retirés : %s", keys)
+            AIModel.objects.filter(model_key__in=keys).delete()
         return len(keys)
 
     def _sync_model(self, model_key: str, model_info, seen_at=None) -> Tuple[bool, bool]:
