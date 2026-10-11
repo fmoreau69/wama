@@ -2403,6 +2403,33 @@ plafond, pas la vérité du cliché). Deux défauts de l'anonymizer, aucun de mo
 Résultat par `detect_media`, sélection automatique au cran 50 : `Faces_01` 6/6 visages
 distincts (4 avant) ; selfie 559 visages distincts (307 avant), foule couverte jusqu'au fond.
 
+**Complément du 2026-10-11 — WIDER FACE val, le premier banc de visages sur VRAIES boîtes**
+(`bench --task detect-boxes --benchmark faces_wider_val_v1 --record`, 3 226 images, 39 708 visages,
+IoU 0,5, visages `invalid` ignorés, seuil 0,25, deux échelles comme l'anonymizer). Les 11
+détecteurs de visages installés, rangés en `ResultEvaluation` (protocole `boxes_iou50_v1`) :
+
+| modèle | rappel | précision | grands | moyens | petits | < 16 px | ms/image |
+|---|---|---|---|---|---|---|---|
+| `yolov9s-face-lindevs` | **77,5 %** | 85,7 % | 95,6 % | 92,5 % | 84,1 % | 59,6 % | 537 |
+| `yolov9t-face-lindevs` | 74,2 % | 85,4 % | 94,8 % | 91,0 % | 80,7 % | 54,8 % | 427 |
+| `yolo11l_face_plate_signs` | 7,1 % | 16,6 % | 33,2 % | 15,8 % | 2,2 % | 0,1 % | 225 |
+| 8 × `yolov8*_face_plate_*` | 2,6 – 3,9 % | 7 – 10 % | ≤ 11 % | ≤ 8 % | ≤ 4 % | ≤ 1 % | 250 – 425 |
+
+⚠ **Ce que ces chiffres ne disent PAS, mesuré sur un échantillon régulier de 200 images** :
+- les modèles `face_plate` encadrent la TÊTE, WIDER le visage serré — à IoU 0,5 une boîte qui
+  couvrirait le visage au floutage compte comme un oubli ET une fausse alerte. Au critère du
+  floutage (une détection recouvre ≥ 80 % du visage sans dépasser 16 fois son aire),
+  `yolo11l_face_plate_signs` couvre **31 %** des visages et **90 %** de ses détections tombent sur un
+  visage : sa précision réelle est bonne, son rappel est réellement faible (il rate les foules et
+  les petits visages). Les huit `yolov8*_face_plate_*` couvrent 18 – 29 %, utiles à 68 – 79 % ;
+- ce critère seul est trop strict pour une boîte SERRÉE (lindevs : 57 % couverts contre 65 % à
+  IoU 0,5 sur le même échantillon) — un critère de floutage juste serait l'UNION des deux ;
+- les deux lindevs sont probablement entraînés sur WIDER train (non vérifié : ni le catalogue ni
+  une recherche ne le disent) — leur score sur WIDER val serait alors optimiste.
+Le classement ne change sous aucun des trois critères. **Sélection automatique qui en découle**
+(Q3, toujours provisoire) : cran 20 → lindevs-s ; cran 50 → + lindevs-t ; cran 90 →
++ `yolo11l_face_plate_signs`.
+
 **Suite du 2026-10-10 (soir) — CodeFormer : ses poids passent par la route du CATALOGUE.**
 Demande de Fabien : corriger le repli de `setup_avatarizer.sh` en respectant tout le
 fonctionnement de WAMA pour les poids (docs relues : AGENTS « ajout d'un modèle », poids hors
