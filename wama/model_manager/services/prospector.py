@@ -1751,52 +1751,6 @@ def seed_yolo_candidate(name: str) -> dict:
     return {'ok': True, 'model_key': cand_key, 'created': created, 'task': task}
 
 
-# ── Versions GitHub (pilote `github`, 2026-10-07) ─────────────────────────────────────────────
-# Le pendant de ce que `HfApi().model_info` donne au scout pour un dépôt HF : la version lue sur
-# l'API GitHub — c'est l'usage DÉCLARÉ de la source `github_api` (« Liste des releases —
-# résolution de la version d'un poids »), qui n'avait jusqu'ici aucun lecteur pour cela.
-# Même client que `benchmark_sync._mteb_index` (en-tête, jeton `GITHUB_TOKEN` facultatif : le
-# quota anonyme est de 60 appels/h).
-
-def github_release(ref: str):
-    """La version `owner/repo:tag` telle que l'API GitHub la publie (dict), `{}` si elle
-    n'existe pas (404), None si l'API n'a pas répondu — « l'un est une panne, l'autre un fait »
-    (la distinction de `_siblings`)."""
-    import requests
-
-    from wama.common.external_sources import base_url, proxies_for
-
-    from .model_installer import github_release_of
-    repo, tag = github_release_of(ref)
-    if not (repo and tag):
-        return {}
-    headers = {'Accept': 'application/vnd.github+json'}
-    token = os.environ.get('GITHUB_TOKEN', '').strip()
-    if token:
-        headers['Authorization'] = f'Bearer {token}'
-    try:
-        r = requests.get(f"{base_url('github_api')}/repos/{repo}/releases/tags/{tag}",
-                         headers=headers, proxies=proxies_for('github_api'), timeout=30)
-        if r.status_code == 404:
-            return {}
-        r.raise_for_status()
-        return r.json()
-    except Exception as e:
-        logger.warning("[github] version %s illisible : %s", ref, e)
-        return None
-
-
-#: Ligne « License: … » du texte d'une version — la seule licence qu'une version GitHub porte
-#: (le dépôt peut en publier des centaines sous des licences différentes : `Phhofm/models`).
-_RELEASE_LICENSE_RE = re.compile(r'^\s*\**\s*licen[sc]e\s*\**\s*:\s*\**\s*(.+?)\s*$',
-                                 re.IGNORECASE | re.MULTILINE)
-
-
-def github_release_license(release: dict) -> str:
-    """Licence DITE par le texte de la version (« License: CC BY 4.0 »), sinon '' — jamais
-    supposée depuis la licence du dépôt, qui n'est pas celle du modèle."""
-    m = _RELEASE_LICENSE_RE.search((release or {}).get('body') or '')
-    return re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', m.group(1)).strip()[:64] if m else ''
 #: Rôle d'un candidat Ollama écrit sur DEMANDE NOMMÉE (`seed_ollama_candidate`) : la purge de
 #: `prospect_ollama` ne le retire pas — il n'appartient au périmètre d'aucun balayage.
 NAMED_OLLAMA_ROLE = 'named'
@@ -1854,6 +1808,52 @@ def seed_ollama_candidate(name: str) -> dict:
     return {'ok': True, 'model_key': cand_key, 'created': created}
 
 
+# ── Versions GitHub (pilote `github`, 2026-10-07) ─────────────────────────────────────────────
+# Le pendant de ce que `HfApi().model_info` donne au scout pour un dépôt HF : la version lue sur
+# l'API GitHub — c'est l'usage DÉCLARÉ de la source `github_api` (« Liste des releases —
+# résolution de la version d'un poids »), qui n'avait jusqu'ici aucun lecteur pour cela.
+# Même client que `benchmark_sync._mteb_index` (en-tête, jeton `GITHUB_TOKEN` facultatif : le
+# quota anonyme est de 60 appels/h).
+
+def github_release(ref: str):
+    """La version `owner/repo:tag` telle que l'API GitHub la publie (dict), `{}` si elle
+    n'existe pas (404), None si l'API n'a pas répondu — « l'un est une panne, l'autre un fait »
+    (la distinction de `_siblings`)."""
+    import requests
+
+    from wama.common.external_sources import base_url, proxies_for
+
+    from .model_installer import github_release_of
+    repo, tag = github_release_of(ref)
+    if not (repo and tag):
+        return {}
+    headers = {'Accept': 'application/vnd.github+json'}
+    token = os.environ.get('GITHUB_TOKEN', '').strip()
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    try:
+        r = requests.get(f"{base_url('github_api')}/repos/{repo}/releases/tags/{tag}",
+                         headers=headers, proxies=proxies_for('github_api'), timeout=30)
+        if r.status_code == 404:
+            return {}
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        logger.warning("[github] version %s illisible : %s", ref, e)
+        return None
+
+
+#: Ligne « License: … » du texte d'une version — la seule licence qu'une version GitHub porte
+#: (le dépôt peut en publier des centaines sous des licences différentes : `Phhofm/models`).
+_RELEASE_LICENSE_RE = re.compile(r'^\s*\**\s*licen[sc]e\s*\**\s*:\s*\**\s*(.+?)\s*$',
+                                 re.IGNORECASE | re.MULTILINE)
+
+
+def github_release_license(release: dict) -> str:
+    """Licence DITE par le texte de la version (« License: CC BY 4.0 »), sinon '' — jamais
+    supposée depuis la licence du dépôt, qui n'est pas celle du modèle."""
+    m = _RELEASE_LICENSE_RE.search((release or {}).get('body') or '')
+    return re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', m.group(1)).strip()[:64] if m else ''
 
 
 #: Ligne « Scale: 4 » du texte d'une version — le facteur DÉCLARÉ d'un agrandisseur. Le pendant,
