@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WAMA — Évaluation des détecteurs de l&#x27;Anonymizer</title>
+{% comment %}
+  Rapport d'évaluation des détecteurs de l'Anonymizer — GÉNÉRÉ par
+  `scripts/reports/build_anonymizer_report.py` depuis les mesures du banc (`ResultEvaluation`),
+  le catalogue (`AIModel`) et le choix automatique de l'Anonymizer. Ne pas l'éditer à la main :
+  relancer le script après une campagne de banc. Même enveloppe que les autres rapports.
+{% endcomment %}
+<style>
+  :root{
+    --paper:#eaeef4; --card:#ffffff; --card-2:#f4f7fb;
+    --ink:#141922; --ink-soft:#525c6b; --ink-faint:#8a94a3;
+    --line:#d5dce6; --line-soft:#e4e9f1;
+    --accent:#2f56d9; --accent-ink:#213fa3; --accent-soft:#e7edfd;
+    --muted-bar:#aab4c3;
+    --shadow:0 1px 2px rgba(20,25,34,.04), 0 8px 24px rgba(20,25,34,.06);
+    --shadow-lg:0 2px 4px rgba(20,25,34,.05), 0 20px 50px rgba(20,25,34,.12);
+    --r:14px; --r-sm:9px;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code","SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#0c0f16; --card:#161c27; --card-2:#1c2431;
+      --ink:#eef2f8; --ink-soft:#a6b0c0; --ink-faint:#6f7b8d;
+      --line:#28313f; --line-soft:#212936;
+      --accent:#7d97ff; --accent-ink:#a9bcff; --accent-soft:#1a2237;
+      --muted-bar:#4a5567;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+      --shadow-lg:0 2px 4px rgba(0,0,0,.35), 0 24px 60px rgba(0,0,0,.5);
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans);
+       line-height:1.6; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:980px; margin:0 auto; padding:0 24px 80px}
+
+  .home-btn{position:fixed; top:18px; left:18px; z-index:50; display:inline-flex; align-items:center;
+    gap:8px; text-decoration:none; font-family:var(--mono); font-size:.8rem; font-weight:600;
+    color:var(--ink); background:var(--card); border:1px solid var(--line); padding:9px 14px;
+    border-radius:999px; box-shadow:var(--shadow); transition:transform .16s ease, box-shadow .16s ease}
+  .home-btn:hover{transform:translateY(-1px); box-shadow:var(--shadow-lg)}
+  .pdf-btn{left:auto; right:18px}
+
+  .hero{padding:96px 0 28px}
+  .kicker{font-family:var(--mono); font-size:.78rem; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--ink-faint); font-weight:600; margin-bottom:18px}
+  .hero h1{font-size:clamp(2rem,5vw,3.2rem); font-weight:780; letter-spacing:-.03em; line-height:1.1;
+    margin:0; text-wrap:balance}
+  .hero .sub{color:var(--ink-soft); margin-top:14px; font-size:1rem}
+
+  article{background:var(--card); border:1px solid var(--line); border-radius:var(--r);
+    box-shadow:var(--shadow); padding:36px 40px}
+  article h2{font-size:1.45rem; font-weight:720; letter-spacing:-.015em; margin:44px 0 12px;
+    padding-top:20px; border-top:1px solid var(--line-soft); text-wrap:balance}
+  article h2:first-of-type{margin-top:28px}
+  article p{margin:0 0 12px; color:var(--ink)}
+  article > p:first-child{font-size:1.1rem; line-height:1.65}
+  article ul, article ol{margin:0 0 14px; padding-left:22px}
+  article li{margin:4px 0}
+  article a{color:var(--accent-ink)}
+  article strong{font-weight:680}
+  .tbl{overflow-x:auto}
+  article table{border-collapse:collapse; width:100%; margin:8px 0 18px; font-size:.92rem}
+  article th, article td{border-bottom:1px solid var(--line-soft); padding:8px 10px; text-align:left;
+    vertical-align:top}
+  article th{background:var(--card-2); font-weight:650; border-bottom:1px solid var(--line)}
+
+  .chart{margin:16px 0 22px; padding:20px 22px; background:var(--card-2); border:1px solid var(--line-soft);
+    border-radius:var(--r-sm)}
+  .chart figcaption strong{display:block; font-size:1rem}
+  .chart figcaption span{display:block; color:var(--ink-soft); font-size:.86rem; margin:2px 0 14px}
+  .chart .note{color:var(--ink-faint); font-size:.8rem; margin:12px 0 0}
+  .lab{color:var(--ink); font-size:.86rem}
+  .best .lab, .best b{font-weight:680}
+
+  /* 1 — étendue + moyenne */
+  .rr{display:grid; grid-template-columns:minmax(150px,240px) 1fr; gap:12px; align-items:center;
+    min-height:28px}
+  .rr .lab{text-align:right}
+  .track{position:relative; height:24px; margin-right:64px}
+  .ticks{border-bottom:1px solid var(--line)}
+  .ticks span{position:absolute; bottom:4px; transform:translateX(-50%); font-size:.74rem; white-space:nowrap;
+    color:var(--ink-faint); font-family:var(--mono)}
+  .rng{position:absolute; top:11px; height:2px; background:var(--muted-bar)}
+  .dot{position:absolute; top:6px; width:12px; height:12px; margin-left:-6px; border-radius:50%;
+    background:var(--muted-bar)}
+  .val{position:absolute; top:2px; padding-left:10px; font-size:.82rem; color:var(--ink-soft);
+    white-space:nowrap}
+  .best .rng, .best .dot{background:var(--accent)}
+  .best .val{color:var(--ink); font-weight:680}
+
+  /* 2 et 3 — barres */
+  .br{display:grid; grid-template-columns:150px 1fr 1fr; gap:14px; align-items:center; min-height:24px}
+  .br.head span{font-size:.8rem; font-weight:650; color:var(--ink-soft)}
+  .br3{display:grid; grid-template-columns:190px repeat(3,1fr); gap:14px; align-items:center;
+    min-height:26px}
+  .br3.head span{font-size:.8rem; font-weight:650; color:var(--ink-soft)}
+  .grp{margin-top:10px}
+  .eng{font-weight:680; font-size:.9rem; margin-bottom:2px}
+  .bar{position:relative; display:flex; align-items:center; gap:6px; height:16px}
+  .bar i{display:block; height:12px; border-radius:2px; background:var(--muted-bar)}
+  .bar b{font-weight:500; font-size:.8rem; color:var(--ink-soft); white-space:nowrap}
+  .best .bar i{background:var(--accent)}
+  .best .bar b{color:var(--ink); font-weight:680}
+  .bar em{position:absolute; top:-3px; bottom:-3px; width:0; border-left:1px dashed var(--ink-faint)}
+  .cell{display:block}
+  .cnd{display:none; font-size:.74rem; color:var(--ink-faint); margin-top:4px}
+
+  .foot{color:var(--ink-faint); font-size:.82rem; margin-top:22px; text-align:center}
+
+  @media (max-width:720px){
+    article{padding:24px 18px}
+    .rr{grid-template-columns:1fr} .rr .lab{text-align:left}
+    .br{grid-template-columns:1fr} .br3{grid-template-columns:1fr} .br.head, .br3.head{display:none}
+    .cnd{display:block} .br, .br3{gap:2px; margin-bottom:10px}
+  }
+</style>
+</head>
+<body>
+<a href="/" class="home-btn">← WAMA</a>
+<a href="pdf/" class="home-btn pdf-btn" title="Télécharger ce document en PDF">⤓ PDF</a>
+<div class="wrap">
+  <header class="hero">
+    <div class="kicker">Évaluation · anonymisation</div>
+    <h1>Évaluation des détecteurs de l&#x27;Anonymizer</h1>
+    <p class="sub">Visages et plaques, mesurés dans WAMA contre une vérité tracée à la main · généré le 11 octobre 2026</p>
+  </header>
+  <article>
+{% verbatim %}
+<style>.wide .br{grid-template-columns:minmax(150px,230px) 1fr 1fr}@media (max-width:720px){.wide .br{grid-template-columns:1fr}}</style>
+<p>Pour les <strong>visages</strong>, le meilleur détecteur installé est
+<strong>yolov9e-face-lindevs</strong> : il retrouve <strong>82,4 %</strong> des
+39 112 visages du banc WIDER FACE, et 79,8 % de ses détections sont de vrais
+visages. Pour les <strong>plaques d'immatriculation</strong> filmées par une caméra embarquée, c'est
+<strong>EgoBlur plaques (gen1)</strong> : 59,7 % des plaques des véhicules proches.
+Aucun détecteur ne voit tout : l'Anonymizer en combine plusieurs par classe, d'autant plus que le réglage de
+précision est haut, et une page de correction permet d'ajouter à la main ce qui a été manqué.</p>
+<p>Mesuré dans WAMA, par le même chemin de détection que l'Anonymizer (deux tailles d'image pour une photo),
+sur 3 226 photos annotées à la main pour les visages et 509 plaques
+pour les plaques. Dernière mesure le 11 octobre 2026.</p>
+
+<h2>Quel réglage choisir</h2>
+<p>Le curseur de précision de l'Anonymizer choisit les détecteurs tout seul, dans l'ordre des mesures de ce
+rapport : un détecteur mieux classé passe devant. Voici ce qu'il retient aujourd'hui.</p>
+<div class="tbl"><table><thead><tr><th>Réglage</th><th>Visages</th><th>Plaques</th></tr></thead>
+<tbody><tr><td><strong>Rapide</strong> (20)</td><td>yolov9e-face-lindevs</td><td>EgoBlur plaques (gen1)</td></tr><tr><td><strong>Équilibré</strong> (50)</td><td>yolov9e-face-lindevs, yolov9c-face-lindevs</td><td>EgoBlur plaques (gen1), RT-DETR v2 plaques</td></tr><tr><td><strong>Précis</strong> (90)</td><td>yolov9e-face-lindevs, yolov9c-face-lindevs, yolov11l-face</td><td>EgoBlur plaques (gen1), RT-DETR v2 plaques, yolov8s_face_plate_720p</td></tr></tbody></table></div>
+<p>Pour une photo de foule ou une scène où l'on ne veut rien laisser passer, choisir <strong>Précis</strong>
+puis relire le résultat sur la page de correction (bouton ✎ de la carte) : un visage manqué s'y ajoute d'un
+cadre, et le floutage se refait seul.</p>
+
+<h2>Visages : le banc WIDER FACE</h2>
+<p>WIDER FACE est le banc de référence de la détection de visages : des photos de la vie courante (défilés,
+manifestations, sport, réunions…) où chaque visage a été encadré à la main. WAMA utilise sa partie
+<strong>validation</strong> : 3 226 images, 39 112 visages à trouver. Un visage compte
+comme trouvé quand un cadre du détecteur le recouvre à au moins 50 %. Les visages que
+le jeu marque lui-même comme inexploitables ne comptent ni comme oubli ni comme fausse alerte.</p>
+<figure class="chart wide"><figcaption><strong>yolov9e-face-lindevs trouve 82,4 % des visages</strong><span>3 226 photos, 39 112 visages · rappel : part des visages trouvés · précision : part des détections qui sont des visages</span></figcaption><div class="br head"><span></span><span>Rappel</span><span>Précision</span></div><div class="br best" title="yolov9e-face-lindevs"><span class="lab">yolov9e-face-lindevs</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:82.4%"></i><b>82,4 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:79.8%"></i><b>79,8 %</b></span></span></div><div class="br" title="yolov9c-face-lindevs"><span class="lab">yolov9c-face-lindevs</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:82.0%"></i><b>82,0 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:79.2%"></i><b>79,2 %</b></span></span></div><div class="br" title="yolov11l-face"><span class="lab">yolov11l-face</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:81.5%"></i><b>81,5 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:82.2%"></i><b>82,2 %</b></span></span></div><div class="br" title="yolov12l-face"><span class="lab">yolov12l-face</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:81.5%"></i><b>81,5 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:82.5%"></i><b>82,5 %</b></span></span></div><div class="br" title="yolov9m-face-lindevs"><span class="lab">yolov9m-face-lindevs</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:80.8%"></i><b>80,8 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:82.9%"></i><b>82,9 %</b></span></span></div><div class="br" title="yolov9s-face-lindevs"><span class="lab">yolov9s-face-lindevs</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:77.5%"></i><b>77,5 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:85.7%"></i><b>85,7 %</b></span></span></div><div class="br" title="yolo26s-face"><span class="lab">yolo26s-face</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:76.6%"></i><b>76,6 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:84.4%"></i><b>84,4 %</b></span></span></div><div class="br" title="yolov9t-face-lindevs"><span class="lab">yolov9t-face-lindevs</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:74.2%"></i><b>74,2 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:85.4%"></i><b>85,4 %</b></span></span></div><div class="br" title="yolo26n-face"><span class="lab">yolo26n-face</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:72.6%"></i><b>72,6 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:83.1%"></i><b>83,1 %</b></span></span></div><div class="br" title="EgoBlur visages (gen1)"><span class="lab">EgoBlur visages (gen1)</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:56.7%"></i><b>56,7 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:87.0%"></i><b>87,0 %</b></span></span></div><div class="br" title="yolo11l_face_plate_signs"><span class="lab">yolo11l_face_plate_signs</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:7.1%"></i><b>7,1 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:16.6%"></i><b>16,6 %</b></span></span></div><div class="br" title="yolov8m_face_plate_1080p"><span class="lab">yolov8m_face_plate_1080p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:3.9%"></i><b>3,9 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:10.4%"></i><b>10,4 %</b></span></span></div><div class="br" title="yolov8s_face_plate_1080p"><span class="lab">yolov8s_face_plate_1080p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:3.5%"></i><b>3,5 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:8.8%"></i><b>8,8 %</b></span></span></div><div class="br" title="yolov8s_face_plate_720p"><span class="lab">yolov8s_face_plate_720p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:3.3%"></i><b>3,3 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:8.7%"></i><b>8,7 %</b></span></span></div><div class="br" title="yolov8n_face_plate_1080p"><span class="lab">yolov8n_face_plate_1080p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:3.2%"></i><b>3,2 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:8.2%"></i><b>8,2 %</b></span></span></div><div class="br" title="yolov8m_face_plate_720p"><span class="lab">yolov8m_face_plate_720p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:3.0%"></i><b>3,0 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:8.7%"></i><b>8,7 %</b></span></span></div><div class="br" title="yolov8n_face_plate_720p"><span class="lab">yolov8n_face_plate_720p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:2.8%"></i><b>2,8 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:7.4%"></i><b>7,4 %</b></span></span></div><div class="br" title="yolov8n_face_plate_360p"><span class="lab">yolov8n_face_plate_360p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:2.6%"></i><b>2,6 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:7.8%"></i><b>7,8 %</b></span></span></div><div class="br" title="yolov8s_face_plate_360p"><span class="lab">yolov8s_face_plate_360p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:2.6%"></i><b>2,6 %</b></span></span><span class="cell"><span class="cnd">Précision</span><span class="bar"><i style="width:10.1%"></i><b>10,1 %</b></span></span></div><p class="note">Plus long = mieux. Seuil de confiance 0,25.</p></figure>
+<p>Le rappel dépend surtout de la <strong>taille</strong> du visage. Les grands visages sont presque tous
+trouvés ; les visages de moins de 16 pixels de haut, nombreux dans les foules, restent le point faible de
+tous les détecteurs — le meilleur sur eux, yolov9e-face-lindevs, en trouve
+68,3 %. EgoBlur visages, conçu par Meta pour anonymiser, trouve 56,7 % des visages : il est pénalisé par les foules (il rend au plus 100 visages par image) et par les très petits visages. </p>
+<div class="tbl"><table><thead><tr><th>Modèle</th><th>Rappel</th><th>Précision</th><th>grands</th><th>moyens</th><th>petits</th><th>&lt; 16 px</th><th>ms / image</th></tr></thead><tbody><tr><td><strong>yolov9e-face-lindevs</strong></td><td>82,4 %</td><td>79,8 %</td><td>97 %</td><td>94 %</td><td>88 %</td><td>68 %</td><td>133</td></tr><tr><td><strong>yolov9c-face-lindevs</strong></td><td>82,0 %</td><td>79,2 %</td><td>97 %</td><td>94 %</td><td>87 %</td><td>67 %</td><td>133</td></tr><tr><td><strong>yolov11l-face</strong></td><td>81,5 %</td><td>82,2 %</td><td>97 %</td><td>94 %</td><td>87 %</td><td>66 %</td><td>145</td></tr><tr><td><strong>yolov12l-face</strong></td><td>81,5 %</td><td>82,5 %</td><td>96 %</td><td>94 %</td><td>87 %</td><td>67 %</td><td>144</td></tr><tr><td><strong>yolov9m-face-lindevs</strong></td><td>80,8 %</td><td>82,9 %</td><td>96 %</td><td>94 %</td><td>87 %</td><td>65 %</td><td>216</td></tr><tr><td><strong>yolov9s-face-lindevs</strong></td><td>77,5 %</td><td>85,7 %</td><td>96 %</td><td>92 %</td><td>84 %</td><td>60 %</td><td>537</td></tr><tr><td><strong>yolo26s-face</strong></td><td>76,6 %</td><td>84,4 %</td><td>95 %</td><td>91 %</td><td>82 %</td><td>60 %</td><td>199</td></tr><tr><td><strong>yolov9t-face-lindevs</strong></td><td>74,2 %</td><td>85,4 %</td><td>95 %</td><td>91 %</td><td>81 %</td><td>55 %</td><td>427</td></tr><tr><td><strong>yolo26n-face</strong></td><td>72,6 %</td><td>83,1 %</td><td>94 %</td><td>90 %</td><td>79 %</td><td>53 %</td><td>317</td></tr><tr><td><strong>EgoBlur visages (gen1)</strong></td><td>56,7 %</td><td>87,0 %</td><td>97 %</td><td>87 %</td><td>65 %</td><td>24 %</td><td>685</td></tr><tr><td><strong>yolo11l_face_plate_signs</strong></td><td>7,1 %</td><td>16,6 %</td><td>33 %</td><td>16 %</td><td>2 %</td><td>0 %</td><td>225</td></tr><tr><td><strong>yolov8m_face_plate_1080p</strong></td><td>3,9 %</td><td>10,4 %</td><td>9 %</td><td>7 %</td><td>4 %</td><td>0 %</td><td>253</td></tr><tr><td><strong>yolov8s_face_plate_1080p</strong></td><td>3,5 %</td><td>8,8 %</td><td>9 %</td><td>7 %</td><td>4 %</td><td>0 %</td><td>354</td></tr><tr><td><strong>yolov8s_face_plate_720p</strong></td><td>3,3 %</td><td>8,7 %</td><td>9 %</td><td>6 %</td><td>4 %</td><td>1 %</td><td>387</td></tr><tr><td><strong>yolov8n_face_plate_1080p</strong></td><td>3,2 %</td><td>8,2 %</td><td>11 %</td><td>5 %</td><td>3 %</td><td>0 %</td><td>266</td></tr><tr><td><strong>yolov8m_face_plate_720p</strong></td><td>3,0 %</td><td>8,7 %</td><td>8 %</td><td>5 %</td><td>3 %</td><td>1 %</td><td>300</td></tr><tr><td><strong>yolov8n_face_plate_720p</strong></td><td>2,8 %</td><td>7,4 %</td><td>6 %</td><td>5 %</td><td>3 %</td><td>1 %</td><td>286</td></tr><tr><td><strong>yolov8n_face_plate_360p</strong></td><td>2,6 %</td><td>7,8 %</td><td>3 %</td><td>7 %</td><td>1 %</td><td>1 %</td><td>261</td></tr><tr><td><strong>yolov8s_face_plate_360p</strong></td><td>2,6 %</td><td>10,1 %</td><td>4 %</td><td>8 %</td><td>1 %</td><td>0 %</td><td>425</td></tr></tbody></table></div>
+<p>Tailles, en hauteur du visage : petits de 16 à 32 pixels,
+moyens de 32 à 96, grands au-delà. Le temps par image
+compte la lecture de l'image sur le partage réseau des jeux de données et les deux passes de l'Anonymizer.
+⚠ Il ne classe pas les détecteurs entre eux : les mesures ont été prises à des moments différents, et le
+premier modèle d'une campagne lit des images que les suivants retrouvent en cache (le plus gros modèle
+lindevs affiche ainsi un temps plus court que le plus petit). Mesuré à part, le modèle seul (lindevs s) prend environ 50 ms par image.</p>
+<p>D'où viennent ces détecteurs :</p>
+<div class="tbl"><table><thead><tr><th>Auteur</th><th>Modèles</th><th>Entraînés sur</th><th>Licence</th></tr></thead><tbody><tr><td>lindevs/yolov9-face</td><td>yolov9e-face-lindevs, yolov9c-face-lindevs, yolov9m-face-lindevs, yolov9s-face-lindevs, yolov9t-face-lindevs</td><td>WIDER FACE (partie entraînement)</td><td>MIT / agpl-3.0</td></tr><tr><td>akanametov/yolo-face</td><td>yolov11l-face, yolo26s-face, yolo26n-face</td><td>WIDER FACE (partie entraînement)</td><td>—</td></tr><tr><td>akanametov/yolo-face</td><td>yolov12l-face</td><td>non dit par l'auteur (WIDER FACE probable)</td><td>—</td></tr><tr><td>Meta (EgoBlur)</td><td>EgoBlur visages (gen1)</td><td>données propres à Meta, vidéo à la première personne</td><td>Apache-2.0</td></tr><tr><td>Panoramax</td><td>yolo11l_face_plate_signs</td><td>images de rue (visages, plaques, panneaux)</td><td>etalab-2.0</td></tr><tr><td>non renseigné</td><td>yolov8m_face_plate_1080p, yolov8s_face_plate_1080p, yolov8s_face_plate_720p, yolov8n_face_plate_1080p, yolov8m_face_plate_720p, yolov8n_face_plate_720p, yolov8n_face_plate_360p, yolov8s_face_plate_360p</td><td>non renseigné</td><td>—</td></tr></tbody></table></div>
+
+<h2>Plaques : caméra embarquée</h2>
+<p>Les plaques ont été mesurées sur une vidéo de caméra embarquée en basse résolution, le cas le plus
+difficile. Il n'existe pas encore de cadres de plaques tracés à la main pour ces images : le banc compte
+comme trouvée une plaque détectée <strong>sur un véhicule proche</strong> suivi par WAMA, et comme manquée un
+véhicule proche sans plaque détectée. C'est une mesure de rappel ; la colonne « détections sur un véhicule »
+dit quelle part des détections tombe bien sur un véhicule.</p>
+<figure class="chart wide"><figcaption><strong>EgoBlur plaques (gen1) trouve 59,7 % des plaques</strong><span>509 véhicules proches · rappel : véhicules dont la plaque est détectée · seconde barre : détections tombées sur un véhicule</span></figcaption><div class="br head"><span></span><span>Rappel</span><span>Sur un véhicule</span></div><div class="br best" title="EgoBlur plaques (gen1)"><span class="lab">EgoBlur plaques (gen1)</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:59.7%"></i><b>59,7 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:89.4%"></i><b>89,4 %</b></span></span></div><div class="br" title="RT-DETR v2 plaques"><span class="lab">RT-DETR v2 plaques</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:40.1%"></i><b>40,1 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:81.2%"></i><b>81,2 %</b></span></span></div><div class="br" title="yolov8s_face_plate_720p"><span class="lab">yolov8s_face_plate_720p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:17.7%"></i><b>17,7 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:100.0%"></i><b>100,0 %</b></span></span></div><div class="br" title="yolov8n_face_plate_360p"><span class="lab">yolov8n_face_plate_360p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:17.1%"></i><b>17,1 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:100.0%"></i><b>100,0 %</b></span></span></div><div class="br" title="yolov8m_face_plate_720p"><span class="lab">yolov8m_face_plate_720p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:17.1%"></i><b>17,1 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:100.0%"></i><b>100,0 %</b></span></span></div><div class="br" title="yolov8s_face_plate_360p"><span class="lab">yolov8s_face_plate_360p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:15.1%"></i><b>15,1 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:100.0%"></i><b>100,0 %</b></span></span></div><div class="br" title="license-plate-finetune-v1s.onnx"><span class="lab">license-plate-finetune-v1s.onnx</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:13.2%"></i><b>13,2 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:93.8%"></i><b>93,8 %</b></span></span></div><div class="br" title="license-plate-finetune-v1l.onnx"><span class="lab">license-plate-finetune-v1l.onnx</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:13.0%"></i><b>13,0 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:96.7%"></i><b>96,7 %</b></span></span></div><div class="br" title="yolov8s_face_plate_1080p"><span class="lab">yolov8s_face_plate_1080p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:12.6%"></i><b>12,6 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:100.0%"></i><b>100,0 %</b></span></span></div><div class="br" title="license-plate-finetune-v1m.onnx"><span class="lab">license-plate-finetune-v1m.onnx</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:12.6%"></i><b>12,6 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:98.2%"></i><b>98,2 %</b></span></span></div><div class="br" title="yolov8n_face_plate_720p"><span class="lab">yolov8n_face_plate_720p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:12.4%"></i><b>12,4 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:100.0%"></i><b>100,0 %</b></span></span></div><div class="br" title="yolov8m_face_plate_1080p"><span class="lab">yolov8m_face_plate_1080p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:12.0%"></i><b>12,0 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:100.0%"></i><b>100,0 %</b></span></span></div><div class="br" title="license-plate-finetune-v1n.onnx"><span class="lab">license-plate-finetune-v1n.onnx</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:11.8%"></i><b>11,8 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:95.0%"></i><b>95,0 %</b></span></span></div><div class="br" title="yolov8n_face_plate_1080p"><span class="lab">yolov8n_face_plate_1080p</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:11.4%"></i><b>11,4 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:100.0%"></i><b>100,0 %</b></span></span></div><div class="br" title="license-plate-finetune-v1x.onnx"><span class="lab">license-plate-finetune-v1x.onnx</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:10.6%"></i><b>10,6 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:97.9%"></i><b>97,9 %</b></span></span></div><div class="br" title="yolo11l_face_plate_signs"><span class="lab">yolo11l_face_plate_signs</span><span class="cell"><span class="cnd">Rappel</span><span class="bar"><i style="width:9.8%"></i><b>9,8 %</b></span></span><span class="cell"><span class="cnd">Sur un véhicule</span><span class="bar"><i style="width:100.0%"></i><b>100,0 %</b></span></span></div><p class="note">Plus long = mieux.</p></figure>
+<div class="tbl"><table><thead><tr><th>Modèle</th><th>Plaques trouvées</th><th>Détections sur un véhicule</th><th>ms / image</th></tr></thead><tbody><tr><td><strong>EgoBlur plaques (gen1)</strong></td><td>59,7 %</td><td>89,4 %</td><td>58</td></tr><tr><td><strong>RT-DETR v2 plaques</strong></td><td>40,1 %</td><td>81,2 %</td><td>389</td></tr><tr><td><strong>yolov8s_face_plate_720p</strong></td><td>17,7 %</td><td>100,0 %</td><td>37</td></tr><tr><td><strong>yolov8n_face_plate_360p</strong></td><td>17,1 %</td><td>100,0 %</td><td>32</td></tr><tr><td><strong>yolov8m_face_plate_720p</strong></td><td>17,1 %</td><td>100,0 %</td><td>35</td></tr><tr><td><strong>yolov8s_face_plate_360p</strong></td><td>15,1 %</td><td>100,0 %</td><td>37</td></tr><tr><td><strong>license-plate-finetune-v1s.onnx</strong></td><td>13,2 %</td><td>93,8 %</td><td>41</td></tr><tr><td><strong>license-plate-finetune-v1l.onnx</strong></td><td>13,0 %</td><td>96,7 %</td><td>68</td></tr><tr><td><strong>yolov8s_face_plate_1080p</strong></td><td>12,6 %</td><td>100,0 %</td><td>40</td></tr><tr><td><strong>license-plate-finetune-v1m.onnx</strong></td><td>12,6 %</td><td>98,2 %</td><td>56</td></tr><tr><td><strong>yolov8n_face_plate_720p</strong></td><td>12,4 %</td><td>100,0 %</td><td>35</td></tr><tr><td><strong>yolov8m_face_plate_1080p</strong></td><td>12,0 %</td><td>100,0 %</td><td>44</td></tr><tr><td><strong>license-plate-finetune-v1n.onnx</strong></td><td>11,8 %</td><td>95,0 %</td><td>55</td></tr><tr><td><strong>yolov8n_face_plate_1080p</strong></td><td>11,4 %</td><td>100,0 %</td><td>35</td></tr><tr><td><strong>license-plate-finetune-v1x.onnx</strong></td><td>10,6 %</td><td>97,9 %</td><td>64</td></tr><tr><td><strong>yolo11l_face_plate_signs</strong></td><td>9,8 %</td><td>100,0 %</td><td>50</td></tr></tbody></table></div>
+<div class="tbl"><table><thead><tr><th>Auteur</th><th>Modèles</th><th>Entraînés sur</th><th>Licence</th></tr></thead><tbody><tr><td>Meta (EgoBlur)</td><td>EgoBlur plaques (gen1)</td><td>données propres à Meta, vidéo à la première personne</td><td>Apache-2.0</td></tr><tr><td>justjuu (Hugging Face)</td><td>RT-DETR v2 plaques</td><td>plaques d'immatriculation</td><td>Apache-2.0</td></tr><tr><td>non renseigné</td><td>yolov8s_face_plate_720p, yolov8n_face_plate_360p, yolov8m_face_plate_720p, yolov8s_face_plate_360p, yolov8s_face_plate_1080p, yolov8n_face_plate_720p, yolov8m_face_plate_1080p, yolov8n_face_plate_1080p</td><td>non renseigné</td><td>—</td></tr><tr><td>non renseigné</td><td>license-plate-finetune-v1s.onnx, license-plate-finetune-v1l.onnx, license-plate-finetune-v1m.onnx, license-plate-finetune-v1n.onnx, license-plate-finetune-v1x.onnx</td><td>plaques d'immatriculation</td><td>agpl-3.0</td></tr><tr><td>Panoramax</td><td>yolo11l_face_plate_signs</td><td>images de rue (visages, plaques, panneaux)</td><td>etalab-2.0</td></tr></tbody></table></div>
+<p>EgoBlur et RT-DETR ne se trompent pas sur les mêmes plaques : réunis par l'Anonymizer, ils en trouvent
+plus que chacun seul — c'est ce que fait le choix automatique dès qu'il garde plus d'un détecteur par
+classe.</p>
+
+<h2>Ce que ces chiffres ne disent pas</h2>
+<ul>
+<li><strong>Un détecteur qui encadre la tête</strong> plutôt que le visage (les modèles « visages et plaques »)
+est pénalisé par la règle de recouvrement : son cadre couvrirait le visage au floutage, mais il compte comme
+un oubli et une fausse alerte. Ces modèles restent loin derrière même quand on corrige cet effet : ils
+manquent réellement la plupart des visages de foule.</li>
+<li><strong>Plusieurs détecteurs ont appris sur la partie entraînement de WIDER FACE</strong> (colonne
+« Entraîné sur ») : ils jouent à domicile. Le banc utilise la partie validation, jamais vue à
+l'entraînement, comme le font leurs auteurs ; mais sur des images très différentes (caméra embarquée,
+vidéo de surveillance), l'écart avec EgoBlur peut se réduire. Un banc sur nos propres images, à partir des
+corrections faites dans l'Anonymizer, le dira.</li>
+<li>Le rappel des plaques est mesuré sur <strong>une</strong> vidéo, en basse résolution : il classe les
+détecteurs entre eux, il ne promet pas un taux sur d'autres images.</li>
+</ul>
+
+<h2>Méthode</h2>
+<p>Chaque détecteur passe par le chemin de détection de l'Anonymizer, chargé une seule fois pour tout le
+banc. Les cadres trouvés deux fois (une photo est analysée à deux tailles) sont fusionnés avant de compter.
+Chaque mesure est rangée en base avec le modèle, la version du protocole et l'empreinte de la référence ;
+le choix automatique des détecteurs la lit, et ce rapport se régénère depuis elle.</p>
+<div class="tbl"><table><thead><tr><th>Banc</th><th>Données</th><th>Ce qui compte comme trouvé</th>
+<th>Protocole</th></tr></thead><tbody>
+<tr><td>Visages</td><td>WIDER FACE, validation : 3 226 images, 39 112 visages</td>
+<td>cadre recouvrant le visage à 50 % ou plus</td><td>boxes_iou50_v1</td></tr>
+<tr><td>Plaques</td><td>vidéo de caméra embarquée, 509 véhicules proches</td>
+<td>plaque détectée sur le véhicule</td><td>containment_v1</td></tr>
+</tbody></table></div>
+
+<h2>À venir</h2>
+<ul>
+<li><strong>Vitesse</strong> : la conversion des détecteurs en ONNX ou TensorRT est à mesurer, mais le temps
+par image du banc est dominé par la lecture des images et les deux passes, pas par le modèle.</li>
+<li><strong>Nouveaux détecteurs</strong> : Ultralytics annonce YOLO-Face (détection et analyse de visages,
+attendu en 2027) ; il entrera dans ce banc à sa sortie.</li>
+<li><strong>Un banc sur nos images</strong>, à partir des corrections saisies dans l'Anonymizer, et des cadres
+de plaques tracés à la main pour remplacer la mesure par véhicule.</li>
+</ul>
+
+{% endverbatim %}
+  </article>
+  <p class="foot">Généré depuis les mesures du banc de WAMA (bench --task detect-boxes / detect-recall --record) et le catalogue des modèles. Méthode et lecture des mesures : WAMA_QUALITE ; campagnes : PROSPECTION_PIPELINE.</p>
+</div>
+</body>
+</html>

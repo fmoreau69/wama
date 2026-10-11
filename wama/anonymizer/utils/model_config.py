@@ -178,6 +178,19 @@ FRAME_DETECTORS = {
                 "contre 20 % aux YOLO plaques), 42 ms par image. Poids distribués par Meta sur "
                 "formulaire : à déposer dans le dossier `vision/egoblur`.",
     },
+    'egoblur-face-gen1': {
+        'name': 'EgoBlur visages (gen1)',
+        'engine': 'torchscript',
+        'classes': ['face'],
+        'dir_key': 'egoblur', 'file': 'ego_blur_face_gen1.jit',
+        'repo': 'https://github.com/facebookresearch/EgoBlur', 'license': 'Apache-2.0',
+        'vram_gb': 2.0,
+        'short': "EgoBlur (Meta) — visages, vidéo embarquée.",
+        'long': "EgoBlur (Meta, Apache-2.0) : détecteur de visages entraîné pour ANONYMISER, "
+                "réglé pour ne rien rater. Rend au plus 100 visages par image : une foule dense "
+                "le sature. Poids distribués par Meta sur formulaire : à déposer dans le dossier "
+                "`vision/egoblur`.",
+    },
     'rtdetr-v2-license-plate': {
         'name': 'RT-DETR v2 plaques',
         'engine': 'transformers',

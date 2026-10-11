@@ -194,6 +194,11 @@ REPORTS = {
         'label': 'Analyse vidéo de la navette aux intersections',
         'detail': 'Pipeline du cam_analyzer sur les données ENA, généré depuis les registres',
     },
+    'anonymizer': {
+        'template': 'includes/wama_rapport_anonymizer.html',
+        'label': "Évaluation des détecteurs de l'Anonymizer",
+        'detail': 'Visages (WIDER FACE) et plaques, généré depuis les mesures du banc',
+    },
 }
 
 

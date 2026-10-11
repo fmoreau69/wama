@@ -2426,9 +2426,79 @@ détecteurs de visages installés, rangés en `ResultEvaluation` (protocole `box
   IoU 0,5 sur le même échantillon) — un critère de floutage juste serait l'UNION des deux ;
 - les deux lindevs sont probablement entraînés sur WIDER train (non vérifié : ni le catalogue ni
   une recherche ne le disent) — leur score sur WIDER val serait alors optimiste.
+  → **Vérifié le jour même** (relevé de Fabien : la ligne `platform_ref` du catalogue nommait le
+  dépôt, il suffisait de l'ouvrir) : `github.com/lindevs/yolov9-face`, entraînés sur **WIDERFace**,
+  licence **MIT** déclarée par l'auteur (le catalogue porte `agpl-3.0` pour s et t, hérité
+  d'Ultralytics à la découverte — les deux se montrent, rien n'est tranché).
 Le classement ne change sous aucun des trois critères. **Sélection automatique qui en découle**
 (Q3, toujours provisoire) : cran 20 → lindevs-s ; cran 50 → + lindevs-t ; cran 90 →
-+ `yolo11l_face_plate_signs`.
++ `yolo11l_face_plate_signs`. *(Périmée le soir même, cf. le bloc suivant.)*
+
+**Suite du 2026-10-11 — de meilleurs détecteurs de visages, mesurés sur le banc complet.**
+Recadrage de Fabien : on n'avait que les PLUS PETITS lindevs (s, t), et EgoBlur avait été récupéré
+justement pour mieux faire — compléter la collection, comparer, vérifier les données
+d'entraînement, chercher les entraînements YOLO26.
+- **Installés par la route commune** (candidat `github` à fichiers déclarés → `request_install` →
+  `install_from_spec`), empreinte SHA-256 épinglée par fichier. Les versions GitHub ne publient pas
+  de `digest` : téléchargées une fois à part, empreinte mesurée, taille égale à celle de l'API.
+  | fichier | version | SHA-256 (début) | entraîné sur | licence |
+  |---|---|---|---|---|
+  | `yolov9m-face-lindevs.pt` | `lindevs/yolov9-face:1.0.0` | `bda08ea1…` | WIDERFace | MIT |
+  | `yolov9c-face-lindevs.pt` | idem | `b97c52c4…` | WIDERFace | MIT |
+  | `yolov9e-face-lindevs.pt` | idem | `8f3410c7…` | WIDERFace | MIT |
+  | `yolo26n-face.pt`, `yolo26s-face.pt` | `akanametov/yolo-face:1.0.0` | `c6a54051…`, `6f1485ac…` | WIDERFace | GPL-3.0 |
+  | `yolov11l-face.pt`, `yolov12l-face.pt` | idem | `ba0000a5…`, `e6c2424d…` | non dit (WIDER probable) | GPL-3.0 |
+  Empreintes complètes : le `spec` des candidats et le journal d'installation.
+- ⚠ **Constaté** : quatre installations interrompues APRÈS le téléchargement par un redémarrage
+  des workers (~11 h 44), candidats restés `proposed`. Redemandées par `request_install`, qui est
+  idempotent (fichier déjà à la bonne empreinte = gardé) ; les sept candidats sont soldés.
+- ⚠ **Constaté** : la ligne de catalogue créée par la synchronisation après installation PERD la
+  licence et le `platform_ref` du candidat pour les poids akanametov (`license` vide). Le rapport
+  retombe sur une table de licences par famille ; la cause dans la synchro reste à chercher.
+- **Autres YOLO26 visages repérés, non installés** : ammirosoh `yolo26n/s-face`,
+  `theminji/yolo26n-face-detection`, poptoz. **YOLO-Face d'Ultralytics** (`yolo-face.ai`,
+  détection + analyse de visages) est annoncé — Fabien : prévu pour **2027** ; il entrera au banc
+  à sa sortie.
+- **EgoBlur visages (gen1)** : poids distribués par Meta sur formulaire, déposés par Fabien puis
+  rangés dans `MODEL_PATHS['vision']['egoblur']` ; déclaré dans `egoblur_backend.SUPPORTED_MODELS`
+  et `FRAME_DETECTORS`. Réglé sur 200 images : rappel 39,9 % à 600 px de petit côté, 44,4 % à
+  1000 (retenu), 45,4 % à 1400 ; seuil 0,1 (précision 85 %). Le modèle exporté rend **au plus 100
+  boîtes par image** : une foule le sature. La gen2 (exige detectron2) n'est pas intégrée.
+- **Banc complet** (même protocole que le bloc précédent, 3 226 images, 39 708 visages) :
+  | modèle | rappel | précision | grands | moyens | petits | < 16 px |
+  |---|---|---|---|---|---|---|
+  | `yolov9e-face-lindevs` | **82,4 %** | 79,8 % | 96,6 % | 94,0 % | 87,7 % | **68,3 %** |
+  | `yolov9c-face-lindevs` | 82,0 % | 79,2 % | 96,9 % | 94,1 % | 87,4 % | 67,4 % |
+  | `yolov11l-face` | 81,5 % | 82,2 % | 96,9 % | 94,0 % | 87,4 % | 66,2 % |
+  | `yolov12l-face` | 81,5 % | 82,5 % | 95,9 % | 93,6 % | 87,4 % | 66,6 % |
+  | `yolov9m-face-lindevs` | 80,8 % | 82,9 % | 96,4 % | 93,7 % | 87,0 % | 65,0 % |
+  | `yolov9s-face-lindevs` | 77,5 % | 85,7 % | 95,6 % | 92,5 % | 84,1 % | 59,6 % |
+  | `yolo26s-face` | 76,6 % | 84,4 % | 95,4 % | 91,3 % | 81,8 % | 59,8 % |
+  | `yolov9t-face-lindevs` | 74,2 % | 85,4 % | 94,8 % | 91,0 % | 80,7 % | 54,8 % |
+  | `yolo26n-face` | 72,6 % | 83,1 % | 94,4 % | 90,0 % | 78,6 % | 53,0 % |
+  | `egoblur-face-gen1` | 56,7 % | 87,0 % | 96,6 % | 87,2 % | 65,0 % | 23,6 % |
+  Lecture : les gros modèles gagnent **5 points** sur lindevs-s, presque tout sur les petits
+  visages, au prix de 6 points de précision. Les YOLO26 d'akanametov ne battent pas les YOLOv9 de
+  même taille. EgoBlur trouve les grands visages aussi bien que les meilleurs mais s'effondre sous
+  32 px (et sur les foules, plafond de 100 boîtes) : sur WIDER il ne remplace pas les YOLO ; son
+  terrain (caméra embarquée) n'est pas celui de WIDER — c'est le banc sur nos images qui tranchera.
+- ⚠ **Le temps par image du banc ne classe PAS les modèles** : 685 ms pour EgoBlur, premier de la
+  campagne, puis 133 ms pour `yolov9e` contre 537 pour `yolov9s` mesuré la veille. Mesuré à part
+  (`lindevs-s`) : lecture de l'image sur le partage ~168 ms, modèle seul 45 – 53 ms, le reste = les
+  deux passes. Le cache du partage décide de l'ordre.
+- **Sélection automatique, désormais sur la mesure** (toute la classe `face` est mesurée sur la
+  même référence) : cran 20 → `yolov9e` ; cran 50 → + `yolov9c` ; cran 90 → + `yolov11l-face`.
+  ⚠ Le cran **Rapide** prend ainsi le plus GROS modèle : la sélection classe sur le seul taux
+  d'oubli. Faire entrer la vitesse dans ce cran est une question ouverte (non tranchée, non codée).
+- **ONNX** (demande de Fabien) : l'ONNX publié par lindevs pour `s` est à taille FIXE (échec à
+  1280 : « invalid dimensions ») et plus lent que le `.pt` (70 ms contre ~50) ; le chemin de
+  l'Anonymizer ne lit d'ailleurs jamais de `.onnx` pour un détecteur `yolo`, et
+  `onnx_utils.convert_anonymizer_models_to_onnx` pointe encore sur l'ancien dossier
+  `AI-models/anonymizer/models--ultralytics--yolo`. TensorRT reste à mesurer ; le premier gain
+  est ailleurs (lecture des images, deux passes).
+- **Rapport généré** : `/reports/anonymizer/` (`scripts/reports/build_anonymizer_report.py` →
+  `wama_rapport_anonymizer.html`), même enveloppe que le rapport du Transcriber, chiffres lus en
+  base, sélection recalculée par `select_best_models_by_precision`.
 
 **Suite du 2026-10-10 (soir) — CodeFormer : ses poids passent par la route du CATALOGUE.**
 Demande de Fabien : corriger le repli de `setup_avatarizer.sh` en respectant tout le
