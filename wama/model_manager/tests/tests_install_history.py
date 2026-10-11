@@ -199,9 +199,8 @@ class TheDriversStayInsideTheRouteTest(SimpleTestCase):
         'wama/model_manager/tasks.py (install_proposed_task)',
         'wama/model_manager/tasks.py (install_catalog_task)',
         'wama/model_manager/services/prospector.py (seed_yolo_candidate)',     # dry_run=True
-        # ⏳ Le SEUL écart restant, nommé : un nom Ollama tapé en ligne de commande n'a pas de
-        # proposition nommée (décision attendue de Fabien, PROSPECTION_PIPELINE §2026-10-10 nuit).
-        'wama/model_manager/management/commands/pull_model.py (_ollama)',
+        # Plus d'exception : `pull_model <nom Ollama>` passe par sa proposition nommée depuis le
+        # 2026-10-11 (`seed_ollama_candidate`, décision de Fabien).
     }
 
     def test_no_driver_is_called_from_outside_the_route(self):
@@ -249,6 +248,81 @@ class PullModelTakesTheRouteTest(TestCase):
         from django.core.management import CommandError
         with self.assertRaisesMessage(CommandError, 'HF_TASKS'):
             self._run('org/out-of-scope')
+
+
+class PullModelOllamaTakesTheRouteTest(TestCase):
+    """`pull_model <nom Ollama>` : sa proposition nommée (vérifiée au registre), puis la DEMANDE —
+    jamais `pull_ollama_model` en direct (dernier écart de la route, soldé le 2026-10-11)."""
+
+    def _run(self, name, *, exists=True, size=4.2):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from wama.model_manager.services import model_installer as mi
+        from wama.model_manager.services import ollama_registry as reg
+        with mock.patch.object(mi, 'request_install',
+                               return_value={'ok': True, 'started': True, 'task_id': 't'}) as req, \
+                mock.patch.object(mi, 'pull_ollama_model') as driver, \
+                mock.patch.object(reg, 'existe', return_value=exists), \
+                mock.patch.object(reg, 'size_gb', return_value=size):
+            call_command('pull_model', name, stdout=StringIO())
+        driver.assert_not_called()
+        return req
+
+    def test_a_name_is_proposed_then_requested(self):
+        req = self._run('bge-m3')
+        req.assert_called_once_with('proposed:ollama:bge-m3:latest', via='cli')
+        cand = AIModel.objects.get(model_key='proposed:ollama:bge-m3:latest')
+        self.assertTrue(cand.is_proposed)
+        self.assertEqual(cand.source, 'ollama')
+        self.assertEqual(cand.name, 'bge-m3:latest')
+        self.assertEqual(cand.disk_gb, 4.2)        # la garde d'espace pèse ce qu'on tirera
+
+    def test_an_explicit_tag_is_kept(self):
+        req = self._run('qwen3:8b')
+        req.assert_called_once_with('proposed:ollama:qwen3:8b', via='cli')
+
+    def test_an_existing_proposal_is_requested_without_being_rewritten(self):
+        AIModel.objects.create(model_key='proposed:ollama:gemma4:latest', name='gemma4:latest',
+                               model_type='vlm', source='ollama', is_proposed=True,
+                               capabilities={'task': 'captioning'},
+                               extra_info={'prospect': {'role': 'vlm'}})
+        req = self._run('gemma4')
+        req.assert_called_once_with('proposed:ollama:gemma4:latest', via='cli')
+        cand = AIModel.objects.get(model_key='proposed:ollama:gemma4:latest')
+        self.assertEqual(cand.capabilities, {'task': 'captioning'})
+        self.assertEqual(cand.extra_info['prospect']['role'], 'vlm')
+
+    def test_an_installed_model_is_requested_by_its_row(self):
+        AIModel.objects.create(model_key='ollama:bge-m3:latest', name='bge-m3:latest',
+                               model_type='embedding', source='ollama', is_downloaded=True)
+        req = self._run('bge-m3')
+        req.assert_called_once_with('ollama:bge-m3:latest', via='cli')
+        self.assertFalse(AIModel.objects.filter(is_proposed=True).exists())
+
+    def test_a_name_the_registry_does_not_serve_is_refused_and_nothing_is_written(self):
+        from django.core.management import CommandError
+        with self.assertRaisesMessage(CommandError, 'registre Ollama'):
+            self._run('no-such-model', exists=False)
+        self.assertFalse(AIModel.objects.filter(is_proposed=True).exists())
+
+    def test_the_role_prospection_never_purges_a_named_request(self):
+        from wama.model_manager.services import ollama_registry as reg
+        from wama.model_manager.services import prospect_ollama
+        self._run('bge-m3')
+        AIModel.objects.create(model_key='proposed:ollama:old:latest', name='old:latest',
+                               model_type='llm', source='ollama', is_proposed=True,
+                               proposal_kind='new', extra_info={'prospect': {'role': 'llm'}})
+        with mock.patch.object(reg, 'search', return_value=()), \
+                mock.patch('wama.model_manager.services.update_checker.check_updates',
+                           return_value={'ollama_review': []}), \
+                mock.patch('wama.model_manager.services.update_checker.local_digests',
+                           return_value={}):
+            prospect_ollama.prospect_ollama()
+        keys = set(AIModel.objects.filter(is_proposed=True).values_list('model_key', flat=True))
+        # Contre-épreuve : le candidat de rôle hors périmètre, lui, est purgé.
+        self.assertEqual(keys, {'proposed:ollama:bge-m3:latest'})
 
 
 class DepthModelsAreInstallableByTheRouteTest(SimpleTestCase):

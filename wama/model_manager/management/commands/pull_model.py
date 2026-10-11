@@ -17,22 +17,22 @@ Pour TOUS les modeles et librairies d'une app : `install_requires <app> --apply`
 garde d'espace, sans candidat, sans journal : une entree parallele a la route unique du 19/09.
 Elle passe par la route ; `--category`/`--family`/`--dry-run` n'avaient pas d'autre usage.
 
-Ollama (nom sans '/') — ⏳ ENCORE en direct (`pull_ollama_model`), faute de proposition nommee
-pour un modele Ollama (decision attendue, PROSPECTION_PIPELINE §Suite du 2026-10-10, nuit) :
+Un nom Ollama (sans '/') — sa PROPOSITION (`seed_ollama_candidate`, verifiee au registre),
+puis la demande :
   python manage.py pull_model bge-m3
+
+⚠ 2026-10-11 (decision de Fabien) : la branche Ollama tirait elle-meme (`pull_ollama_model`),
+dernier ecart nomme de la route ; `--no-sync`/`--timeout` ne servaient que ce tirage.
 """
 from django.core.management.base import BaseCommand, CommandError
 
 
 class Command(BaseCommand):
-    help = ("Installe un modele par la route du bouton « Installer » (cle, ou depot HF propose "
-            "puis demande) ; nom Ollama : en direct.")
+    help = ("Installe un modele par la route du bouton « Installer » : une cle, ou un depot HF / "
+            "un nom Ollama proposes puis demandes.")
 
     def add_arguments(self, parser):
         parser.add_argument('name', help="Cle du catalogue, depot HF (org/repo) ou nom Ollama.")
-        parser.add_argument('--no-sync', action='store_true',
-                            help="Ollama : ne pas re-synchroniser le catalogue apres.")
-        parser.add_argument('--timeout', type=int, default=1800, help="Ollama : delai du pull.")
 
     def handle(self, *args, **options):
         from wama.common.utils.model_keys import split_key
@@ -45,7 +45,7 @@ class Command(BaseCommand):
         repo = named_repo(name)
         if repo:
             return self._hf_repo(repo)
-        return self._ollama(name, options)
+        return self._ollama(name)
 
     def _hf_repo(self, repo):
         """Le depot designe : sa ligne du catalogue, sinon sa proposition — ecrite au besoin par
@@ -72,22 +72,16 @@ class Command(BaseCommand):
             self.stdout.write(f"  → proposition {cand.model_key}")
         return self._request_install(cand.model_key)
 
-    def _ollama(self, name, options):
-        from wama.model_manager.services.model_installer import (
-            pull_ollama_model, register_after_install)
+    def _ollama(self, name):
+        """Le nom demande : sa proposition (ou sa ligne s'il est installe), puis la demande."""
+        from wama.model_manager.services.prospector import seed_ollama_candidate
 
-        self.stdout.write(f"Telechargement Ollama : {name} …")
-        res = pull_ollama_model(name, timeout=options['timeout'],
-                                progress=lambda s: self.stdout.write(f"  … {s}"))
+        res = seed_ollama_candidate(name)
         if not res.get('ok'):
-            raise CommandError(f"✗ Echec : {res.get('error')}")
-        self.stdout.write(self.style.SUCCESS(f"✓ Telecharge ({res.get('status')})"))
-        if options['no_sync']:
-            self.stdout.write("(catalogue non re-synchronise : --no-sync)")
-            return
-        sync = register_after_install()
-        self.stdout.write(self.style.SUCCESS(
-            f"✓ Catalogue re-synchronise (+{sync.added} ajoute(s), {sync.updated} maj)."))
+            raise CommandError(f"✗ {name} : {res.get('error')}")
+        if res.get('created'):
+            self.stdout.write(f"  → proposition {res['model_key']}")
+        return self._request_install(res['model_key'])
 
     def _request_install(self, key):
         """`request_install` tel quel — le corps unique du geste « Installer » (2026-10-10 : une

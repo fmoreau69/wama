@@ -1671,6 +1671,63 @@ def github_release_license(release: dict) -> str:
     supposée depuis la licence du dépôt, qui n'est pas celle du modèle."""
     m = _RELEASE_LICENSE_RE.search((release or {}).get('body') or '')
     return re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', m.group(1)).strip()[:64] if m else ''
+#: Rôle d'un candidat Ollama écrit sur DEMANDE NOMMÉE (`seed_ollama_candidate`) : la purge de
+#: `prospect_ollama` ne le retire pas — il n'appartient au périmètre d'aucun balayage.
+NAMED_OLLAMA_ROLE = 'named'
+
+
+def seed_ollama_candidate(name: str) -> dict:
+    """
+    Candidat de prospection pour un modèle Ollama demandé PAR SON NOM — le pendant de
+    `seed_yolo_candidate` (décision de Fabien, 2026-10-11). `pull_model <nom>` tirait le modèle
+    en direct (`pull_ollama_model`) : sans garde d'espace disque, sans tâche suivie, sans journal
+    — le dernier écart nommé par `TheDriversStayInsideTheRouteTest`. Un nom demandé devient un
+    CANDIDAT, que `request_install` installe comme ceux de la prospection par rôle.
+
+    Rien n'est réinventé : l'existence vient du manifeste du registre (`ollama_registry.existe`,
+    la vérification qui fait qu'on ne propose jamais un tag non tirable), le poids de
+    `weight_for_spec` (kind `ollama`), la catégorie de `_type_ollama` (tâche inconnue → LLM, la
+    règle de la découverte). La TÂCHE n'est pas supposée : la découverte la lit après
+    installation, exactement comme après le tirage direct d'avant.
+
+    Retourne {'ok': True, 'model_key', 'created'} — la clé de la LIGNE installée quand le modèle
+    l'est déjà (`request_install` dit alors « déjà téléchargé ») —, ou {'ok': False, 'error'}.
+    """
+    from . import ollama_registry as reg
+    from .model_installer import weight_for_spec
+    from .model_registry import _type_ollama
+    from .prospect_ollama import PROPOSED_PREFIX, _installes, write_candidate
+
+    base, _, tag = (name or '').strip().partition(':')
+    ref = f"{base}:{tag or 'latest'}"
+    if not base:
+        return {'ok': False, 'error': 'nom Ollama vide'}
+    if ref in _installes():
+        return {'ok': True, 'model_key': f"ollama:{ref}", 'created': False}
+    cand_key = PROPOSED_PREFIX + f"ollama:{ref}"
+    from wama.model_manager.models import AIModel
+    if AIModel.objects.filter(model_key=cand_key, is_proposed=True).exists():
+        # Déjà proposé (par un rôle, ou une demande précédente) : on le demande tel quel —
+        # le réécrire effacerait son rôle et sa tâche.
+        return {'ok': True, 'model_key': cand_key, 'created': False}
+    if not reg.existe(base, tag or 'latest'):
+        return {'ok': False,
+                'error': f"« {ref} » n'est pas tirable du registre Ollama (manifeste absent, ou "
+                         "registre injoignable)"
+                         + (" — un GGUF du Hub se choisit par sa proposition Hugging Face, au "
+                            "model manager" if base.startswith('hf.co/') else '')}
+    spec = {'kind': 'ollama', 'ref': ref}
+    created = write_candidate(
+        cand_key, nom=ref, model_type=_type_ollama('').value,
+        description="Modèle Ollama demandé par son nom.",
+        kind='new', confidence=None,
+        extra={'kind': 'new', 'role': NAMED_OLLAMA_ROLE, 'name': ref,
+               'reason': "modèle Ollama — demande explicite"},
+        disk_gb=weight_for_spec(spec) or 0.0,
+    )
+    return {'ok': True, 'model_key': cand_key, 'created': created}
+
+
 
 
 #: Ligne « Scale: 4 » du texte d'une version — le facteur DÉCLARÉ d'un agrandisseur. Le pendant,

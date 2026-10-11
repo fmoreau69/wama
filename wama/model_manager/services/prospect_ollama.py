@@ -286,12 +286,19 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
     # ⚠ Un candidat porteur d'une ÉVALUATION LLM n'est jamais purgé : elle a coûté des
     # appels d'agents (et du GPU). Il reste jusqu'à ce qu'un humain le rejette — même règle
     # que `write_candidate`, qui préserve déjà l'évaluation à l'écriture (2026-08-19).
+    # Un candidat écrit sur DEMANDE NOMMÉE (`prospector.seed_ollama_candidate`, `pull_model
+    # <nom>`) n'appartient au périmètre d'aucun balayage : le purger le retirerait sous une
+    # installation enfilée.
+    from .prospector import NAMED_OLLAMA_ROLE
     supprimes = preserves = 0
 
     def _purge(qs):
         nonlocal supprimes, preserves
         for m in qs:
-            if ((m.extra_info or {}).get('prospect') or {}).get('assess'):
+            prospect = (m.extra_info or {}).get('prospect') or {}
+            if prospect.get('role') == NAMED_OLLAMA_ROLE:
+                continue
+            if prospect.get('assess'):
                 preserves += 1
                 continue
             m.delete()
