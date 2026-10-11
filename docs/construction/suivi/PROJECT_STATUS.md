@@ -22884,7 +22884,7 @@ Le smoke navigateur déclaré en attente au bloc précédent est joué sur le li
 ⚠ Une capture d'ÉLÉMENT du volet droit, hors de la zone visible d'un conteneur qui défile, sort
 DÉFORMÉE (lignes superposées) : faire défiler l'élément avant de le capturer.
 
-## §CLÔTURE (suite) — 2026-10-11, « CLÉS D'INSTANCE : les restes soldés sans la clé ILaaS » — clos (commit de ce bloc, non poussé) — 🔴 relancer gunicorn + workers · 🔚 poser la vraie clé ILaaS
+## §CLÔTURE (suite) — 2026-10-11, « CLÉS D'INSTANCE : les restes soldés sans la clé ILaaS » — clos (`c28db2d4`, non poussé) — ✅ servi (gunicorn + workers relancés le 2026-10-12 à 01:11, après le commit) · 🔚 poser la vraie clé ILaaS
 
 Demande de Fabien : solder ce qui ne dépend pas de la clé ILaaS (toujours en attente d'acceptation).
 - **Retirer une clé retire ce qu'elle ouvrait** (pending du bloc du 07→10/10, tranché dans
