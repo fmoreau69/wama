@@ -2716,3 +2716,38 @@ l'info de leur provenance »).
   (tirés par la lib à l'usage, dans `AI-models` grâce à `DEEPFACE_HOME`, mais non installables par
   la route) ; la clé facultative `GITHUB_TOKEN` (proposition faite).
 
+**Suite du 2026-10-11 (3) — les quatre décisions OCR de Fabien (« ok pour les 4 »), et trois
+défauts que leur exécution a trouvés.**
+- ✅ Retirés par le corps du bouton (`uninstall_model`) : les poids pleins
+  `PaddlePaddle/PaddleOCR-VL-1.6` (1,8 Go, tirés par l'assistant avant la règle du projecteur) et
+  la ligne hors route `Mungert/PaddleOCR-VL-1.6-GGUF` (0,4 Go). Fils d'épreuve effacés (`8272284a`).
+- ✅ **Recherche nommée** (`seed_hf_search`) : un dépôt DÉSIGNÉ dont l'étiquette est hors balayage
+  est jugé sur la tâche que SA carte déclare (`_rule_for_task`) — `lightonai/lightonocr-3-1b`
+  (`image-text-to-text` + tag `ocr`) rendait 0 résultat. Le balayage subi, lui, ignore toujours
+  `image-text-to-text` (contre-épreuves dans `tests_named_search`).
+- ✅ **Un modèle désinstallé peut être reproposé** (`_installed_repos`) : sa ligne, gardée pour
+  l'historique et marquée `uninstalled_at`, comptait comme « déjà chez nous » — LightOnOCR-3-4B
+  et PaddleOCR-VL-1.6 rendaient « already » au lendemain de leur retrait.
+- ✅ Proposés : `lightonai/LightOnOCR-3-1B` (options par Ollama : `prithivMLmods/…-GGUF`, avec
+  projecteur) et `lightonai/LightOnOCR-3-4B` (`prithivMLmods` et `mradermacher` non-i1, avec
+  projecteur). **Rien installé** — le choix de variante reste à faire.
+- 🔚 **`PaddlePaddle/PaddleOCR-VL-1.6-GGUF` (l'officiel) ne se propose PAS mécaniquement** : sa
+  carte ne déclare ni tâche, ni `base_model`, ni étiquette `ocr` — seul son NOM le relie à
+  PaddleOCR-VL. Pas d'identité tirée d'un nom ; décision à prendre (Fabien).
+- ✅ **Tempête de synchros** — mesurée dans `celery-default.log` / `wama.log` / `gunicorn-error.log`.
+  La synchro « de démarrage » (`apps._dispatch_startup_sync`) repartait à CHAQUE worker gunicorn
+  recyclé (`max_requests = 1000`) dès que son verrou de 5 min avait expiré : une synchro toutes
+  les 5 à 10 min depuis le 09/10 au moins, chacune de 7 à 36 min, jusqu'à quatre simultanées sur
+  le worker default. Corrigé : `gunicorn_conf.post_fork` marque un worker né après la première
+  fournée (`worker.age > num_workers`, `WAMA_RECYCLED_WORKER`) et il ne dispatche plus ; la tâche
+  `sync_models` est à exemplaire unique (verrou `model_manager_sync_running`, 1 h). ⚠ La ligne
+  « Lenteur mesurée, pas un défaut de la route » de la section (2) était donc fausse en partie :
+  le chevauchement venait de là.
+- ✅ **Écriture périmée sur une désinstallation** : une synchro dont le relevé précédait le retrait a
+  remis les deux lignes « téléchargées » sept minutes après, fichiers absents, `uninstalled_at`
+  effacé — et le retrait refusait ensuite (« dossier de poids introuvable »). `_sync_model` ne
+  réécrit plus une ligne désinstallée après son relevé (`seen_at`) ; `uninstall_model` recale une
+  ligne dont les poids sont déjà partis (`kind: already_absent`, 0 Go annoncé).
+  Tests : `tests_sync_concurrency` (6), `DesinstallationTest`, `tests_named_search` (+4).
+  🔴 Relancer gunicorn ET les workers pour que la tempête cesse.
+

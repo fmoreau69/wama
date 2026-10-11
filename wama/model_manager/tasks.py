@@ -9,6 +9,10 @@ from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
+#: Verrou de la synchro complète du catalogue (une seule à la fois) et sa durée de vie maximale.
+SYNC_RUNNING_KEY = 'model_manager_sync_running'
+SYNC_RUNNING_TTL = 3600
+
 
 @shared_task(bind=True, name='model_manager.sync_models')
 def sync_models_task(self, clean: bool = False):
@@ -21,13 +25,25 @@ def sync_models_task(self, clean: bool = False):
 
     Returns:
         Dict with sync results
+
+    UNE SEULE À LA FOIS (2026-10-11) : mesuré ce jour, jusqu'à quatre synchros simultanées sur le
+    worker default (7 à 36 min chacune, disque saturé). Une synchro qui en trouve une autre en
+    cours s'arrête — celle qui tourne rendra le même catalogue. Le verrou expire seul (1 h) si un
+    worker meurt en pleine synchro.
     """
+    from django.core.cache import cache
+
     from .services.model_sync import get_sync_service
 
-    logger.info("Starting background model sync")
-
-    sync_service = get_sync_service()
-    result = sync_service.full_sync(remove_missing=clean)
+    if not cache.add(SYNC_RUNNING_KEY, self.request.id or 'running', timeout=SYNC_RUNNING_TTL):
+        logger.info("Model sync skipped: another sync is running")
+        return {'success': True, 'skipped': 'running', 'added': 0, 'updated': 0, 'removed': 0,
+                'errors': []}
+    try:
+        logger.info("Starting background model sync")
+        result = get_sync_service().full_sync(remove_missing=clean)
+    finally:
+        cache.delete(SYNC_RUNNING_KEY)
 
     logger.info(
         f"Model sync complete: +{result.added}, ~{result.updated}, -{result.removed}"

@@ -1644,42 +1644,46 @@ def uninstall_model(model_key: str, include_shared: bool = False, via: str = '')
         except (ValueError, OSError):
             return {'ok': False, 'error': f"chemin hors de la racine des modèles : {declared}"}
         if not target.is_dir():
-            return {'ok': False, 'error': f"dossier de poids introuvable : {target}"}
+            # Les poids sont DÉJÀ partis : seule la ligne dit encore « téléchargé ». On la recale
+            # sans rien supprimer ni annoncer d'espace rendu (2026-10-11 : deux lignes remises
+            # « téléchargées » par une synchro périmée, fichiers absents, refusaient le retrait
+            # par « dossier de poids introuvable » — plus rien ne pouvait les corriger).
+            freed_gb, kind = 0.0, 'already_absent'
+        else:
+            sharing, dependents = rows_depending_on(model, target, index)
+            if (sharing or dependents) and not include_shared:
+                names = [m.name for m in sharing]
+                users = [m.name for m in dependents]
+                parts = []
+                if names:
+                    parts.append("ces poids sont AUSSI ceux de : " + ', '.join(names)
+                                 + " — ils seront désinstallés ensemble")
+                if users:
+                    parts.append("s'en servent comme modèle de base : " + ', '.join(users)
+                                 + " — ils resteront installés mais ne pourront plus tourner")
+                return {'ok': False, 'needs_confirmation': True, 'sharing': names,
+                        'dependents': users, 'error': ' ; '.join(parts) + '.'}
+            loaded = [m.name for m in sharing if m.is_loaded]
+            if loaded:
+                return {'ok': False, 'error': f"« {', '.join(loaded)} » partage ces poids et est "
+                                              "chargé en mémoire — le décharger d'abord."}
+            marked += sharing
 
-        sharing, dependents = rows_depending_on(model, target, index)
-        if (sharing or dependents) and not include_shared:
-            names = [m.name for m in sharing]
-            users = [m.name for m in dependents]
-            parts = []
-            if names:
-                parts.append("ces poids sont AUSSI ceux de : " + ', '.join(names)
-                             + " — ils seront désinstallés ensemble")
-            if users:
-                parts.append("s'en servent comme modèle de base : " + ', '.join(users)
-                             + " — ils resteront installés mais ne pourront plus tourner")
-            return {'ok': False, 'needs_confirmation': True, 'sharing': names,
-                    'dependents': users, 'error': ' ; '.join(parts) + '.'}
-        loaded = [m.name for m in sharing if m.is_loaded]
-        if loaded:
-            return {'ok': False, 'error': f"« {', '.join(loaded)} » partage ces poids et est "
-                                          "chargé en mémoire — le décharger d'abord."}
-        marked += sharing
-
-        # ⚠ `not f.is_symlink()` — sans lui, l'espace annoncé est le DOUBLE du réel
-        # (2026-09-04) : dans un cache HF, chaque poids existe une fois dans `blobs/` et une
-        # fois comme LIEN dans `snapshots/`, et `rglob` + `is_file()` suit les liens. Mesuré
-        # sur le dossier plutôt que lu dans `disk_gb`, que les modèles d'app laissent à 0.
-        try:
-            measured = sum(f.stat().st_size for f in target.rglob('*')
-                           if f.is_file() and not f.is_symlink()) / (1024 ** 3)
-            freed_gb = measured or freed_gb
-        except OSError:
-            pass
-        shutil.rmtree(target)
-        locks = target.parent / '.locks' / target.name
-        if locks.is_dir():
-            shutil.rmtree(locks, ignore_errors=True)
-        kind = 'hf_snapshot' if target.name.startswith('models--') else 'weights_dir'
+            # ⚠ `not f.is_symlink()` — sans lui, l'espace annoncé est le DOUBLE du réel
+            # (2026-09-04) : dans un cache HF, chaque poids existe une fois dans `blobs/` et une
+            # fois comme LIEN dans `snapshots/`, et `rglob` + `is_file()` suit les liens. Mesuré
+            # sur le dossier plutôt que lu dans `disk_gb`, que les modèles d'app laissent à 0.
+            try:
+                measured = sum(f.stat().st_size for f in target.rglob('*')
+                               if f.is_file() and not f.is_symlink()) / (1024 ** 3)
+                freed_gb = measured or freed_gb
+            except OSError:
+                pass
+            shutil.rmtree(target)
+            locks = target.parent / '.locks' / target.name
+            if locks.is_dir():
+                shutil.rmtree(locks, ignore_errors=True)
+            kind = 'hf_snapshot' if target.name.startswith('models--') else 'weights_dir'
 
     # Recalage IMMÉDIAT du catalogue (le sync ne re-mesure ces lignes qu'à sa prochaine
     # passe, et un snapshot générique disparu n'est simplement plus re-découvert).

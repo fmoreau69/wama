@@ -615,6 +615,28 @@ class DesinstallationTest(TestCase):
             self.assertFalse(weights.exists())
             self.assertTrue(weights.parent.exists(), "only the declared folder goes")
 
+    def test_weights_already_gone_only_realign_the_row(self):
+        """2026-10-11 : une synchro périmée a remis « téléchargées » deux lignes désinstallées,
+        fichiers absents, et le retrait refusait (« dossier de poids introuvable ») — plus rien ne
+        pouvait les corriger. La ligne est recalée, rien n'est supprimé, aucun espace annoncé."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            family = root / 'models' / 'ocr' / 'PaddleOCR-VL-1.6'
+            family.mkdir(parents=True)
+            row = AIModel.objects.create(
+                model_key='huggingface:Org/Gone', name='Gone', model_type='ocr',
+                source='huggingface', hf_id='Org/Gone', is_downloaded=True,
+                local_path=str(family / 'models--Org--Gone'))
+            res = self._uninstall(root, 'huggingface:Org/Gone')
+            self.assertTrue(res['ok'], res)
+            self.assertEqual('already_absent', res['kind'])
+            self.assertEqual(0.0, res['freed_gb'])
+            self.assertTrue(family.exists(), "the family folder is not touched")
+        row.refresh_from_db()
+        self.assertFalse(row.is_downloaded)
+        self.assertIn('uninstalled_at', row.extra_info)
+
     def test_a_family_root_is_never_removed(self):
         """`speech/qwen_asr` is declared by BOTH Qwen3-ASR sizes: a family root holds other
         models and must never be the target of a rm, whatever the catalogue says."""
