@@ -2633,7 +2633,9 @@ app, puis la clé facultative »).**
 
 **Suite du 2026-10-11 (2) — l'installation OCR éprouvée PAR L'ASSISTANT : sept défauts de la
 chaîne, lus dans `tool_steps`.** Quatre tours réels sur Albert (fils web n° 38, 40, 41), outils
-non bouchonnés, compte réel. Les deux premiers n'ont rien installé ; le quatrième a lancé les
+non bouchonnés, compte réel. *(Ces fils, et le n° 42, ont été effacés le jour même à la demande de
+Fabien : créés sur son compte, invisibles de son chat, deux réponses fausses dedans. Ce bloc en
+est la seule trace.)* Les deux premiers n'ont rien installé ; le quatrième a lancé les
 quatre installations. Chaque défaut est corrigé à sa SOURCE, avec contre-épreuve
 (`tests_ollama_hub_gguf`, `tests.FaitsDeLaCarteTest`) :
 
