@@ -2567,3 +2567,39 @@ Restes :
   faute de snapshot à lire. Le patron existe (`AlbertTranscriptionBackend`).
 - ⏳ Évaluation interne par profil d'entrée (manuscrit d'abord), sortie structurée du reader vers
   le Writer.
+
+**Suite du 2026-10-11 — décisions de Fabien sur les quatre restes (« 1A, puis 4, puis 3 app par
+app, puis la clé facultative »).**
+- ✅ **1A** (`ec74081`) : `pull_model <nom Ollama>` passe par sa PROPOSITION
+  (`prospector.seed_ollama_candidate`, pendant de `seed_yolo_candidate` : existence au manifeste
+  du registre, poids par `weight_for_spec`) puis par `request_install`. La purge de
+  `prospect_ollama` épargne une demande nommée (rôle `named`). La garde des appelants des pilotes
+  n'a plus d'exception.
+- 🔎 **4 — MuseTalk, MESURÉ** (code vendorisé au commit `0a89dec`, lancé `cwd=vendor/musetalk`) :
+  l'inférence v1.5 lit `./models/…` — un lien `vendor/musetalk/models → AI-models/models/lipsync/
+  musetalk` que RIEN ne crée (posé à la main en février ; la voie vendor l'ignore, `ignore:
+  models`). Fichiers lus : `musetalkV15/{unet.pth,musetalk.json}` (TMElyralab/MuseTalk),
+  `sd-vae/{config.json,diffusion_pytorch_model.bin}` (stabilityai/sd-vae-ft-mse),
+  `whisper/{config.json,preprocessor_config.json,pytorch_model.bin}` (openai/whisper-tiny),
+  `dwpose/dw-ll_ucoco_384.pth` (yzd-v/DWPose) — tailles du Hub = tailles sur disque ; hors Hub :
+  `face-parse-bisent/79999_iter.pth` (Google Drive), `resnet18-5c106cde.pth`
+  (download.pytorch.org), et `s3fd-619a316812.pth` (adrianbulat.com) tiré par `load_url` dans
+  **`$HOME/.cache/torch`** — hors `AI-models`, ce que la règle « poids hors $HOME » interdit.
+  `syncnet/latentsync_syncnet.pt` (1,5 Go) n'est lu que par l'ENTRAÎNEMENT. L'étape 4 de
+  `setup_avatarizer.sh` appelle un `scripts/download_weights.py` qui n'existe pas (le dépôt a
+  `download_weights.sh`), et son repli ne tire que `TMElyralab/MuseTalk`.
+- 🔎 **3 — téléchargeurs d'app, MESURÉS** :
+  - enhancer : la source « principale » (versions GitHub de QualityScaler) ne publie PLUS aucun
+    fichier (10 dernières versions, 0 fichier) ; le repli `svjack/AI-onnx` (miroir tiers, sans
+    licence déclarée, commit `be603874`) sert des fichiers aux empreintes IDENTIQUES aux 7 ONNX
+    installés. Tailles déclarées fausses (22 Mo annoncés pour 2,4 Mo, 4 Mo pour 33 Mo, 30 Mo
+    pour 0,4 Mo). La découverte ne crée de ligne que pour un fichier présent.
+  - face_analyzer : `face_landmarker.task` (3,7 Mo) tiré de storage.googleapis.com (adresse
+    versionnée `float16/1`), posé dans le dossier de l'APP ; aucune ligne de catalogue.
+  - anonymizer : `.pt` YOLO v8/v11 d'`ultralytics/assets` — la voie `yolo` de la route les sert
+    déjà (`seed_yolo_candidate`) ; autre instance sur l'app.
+- ⏳ **Décision attendue (extension de route)** : la variante « fichiers déclarés » ne sait tirer
+  que d'une version GitHub. Enhancer, Face Analyzer et MuseTalk demandent qu'un fichier déclaré
+  nomme SA source déclarée (`huggingface` à un commit, `github` à un tag, adresse fixe d'une
+  source du registre), mêmes verrous (empreinte + taille, `download_asset`, refus d'un fichier
+  différent en place, sous la racine des modèles).
