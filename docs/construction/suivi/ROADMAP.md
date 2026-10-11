@@ -4270,12 +4270,45 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
      `filemanager/tests.py::RemoteMountTests` (15 tests, dont 5 du flux : montage avec le mot de
      passe accordé, adresse d'interrogation étrangère refusée, révocation à l'échec et au retrait,
      mot de passe SAISI jamais révoqué, flux expiré abandonné sans interroger le nuage).
+   - ✅ **TOUTES LES CONNEXIONS DISTANTES PAR rclone, en TYPES DÉCLARÉS (11/10)** — Fabien :
+     *« si ça permet d'aligner et de centraliser tous les types de connexions distantes, c'est
+     exactement ce qu'il nous faut. Par exemple, si on veut ajouter google drive »*. Avant :
+     `remote_mounts.py` passait bien par rclone, mais pour le seul WebDAV (`:webdav:` et
+     `RCLONE_WEBDAV_*` en dur), et le SMB restait au montage du noyau (`sudo mount -t cifs`,
+     mot de passe jamais gardé, donc jamais remonté au redémarrage).
+     - `remote_mounts.STORAGE_TYPES` : `webdav`, `smb`, `drive` (Google Drive), `onedrive`
+       (OneDrive / SharePoint). Un type DÉCLARE ce que l'utilisateur saisit (champs, libellés)
+       et sa connexion (invité, Login Flow, OAuth) ; rclone dit le reste (`rclone config
+       providers` : stockage présent dans le binaire installé, options-mots de passe à
+       obscurcir, aide). Chaque option part en `RCLONE_<STOCKAGE>_<OPTION>` ; montage, secret
+       chiffré, proxy, vérification avant montage, refus expliqués, remontage, révocation :
+       communs. La fenêtre « Connecter un dossier » GÉNÈRE ses champs depuis le type
+       (`storage_form`) au lieu de trois champs écrits à la main.
+     - **SMB par rclone** : sans `sudo` ni `cifs-utils`, mot de passe gardé chiffré → remonté au
+       redémarrage ; même résolution des noms courts, même domaine du site, mêmes textes de refus
+       (`views._mount_refusal`, partagé avec le repli). Le montage du noyau ne reste que le REPLI
+       d'une installation sans rclone. Les deux partages existants (montés par le noyau) ne
+       changent pas ; un partage RE-connecté passe par rclone.
+     - **Google Drive, OneDrive** (OAuth 2, code + PKCE) : l'utilisateur accorde l'accès dans un
+       onglet du fournisseur, le retour (`api/mounts/oauth/callback/`) échange le code, monte et
+       enregistre ; la fenêtre de WAMA interroge la même route que le Login Flow. Le jeton est
+       gardé chiffré, renouvelé avant chaque remontage, révoqué au retrait (Google ; Microsoft
+       n'a pas de révocation par jeton). Le CLIENT OAuth est celui de l'établissement, posé par
+       un admin sur la page Sources externes (sources `google_drive`, `onedrive`, clé
+       `identifiant:secret` ; adresse de retour `<WAMA>/filemanager/api/mounts/oauth/callback/`,
+       `WAMA_PUBLIC_URL` d'abord) ; sans client posé, le stockage n'est pas proposé. OneDrive :
+       l'adresse de la source porte le tenant de l'établissement.
+     - Tests : `StorageTypeTests` (3, dont « chaque option passée à rclone existe dans le rclone
+       installé »), `SmbByRcloneTests` (5), `OAuthStorageTests` (7) ; mécanisme déclaré au
+       registre (`mecanismes.py`, `remote_mounts`).
+     - ⚠ **Non éprouvé en réel** : le SMB par rclone (invité, domaine, sous-dossier) attend un
+       essai sur un VRAI partage de l'établissement — un serveur SMB de test (impacket) a
+       déclenché l'EDR du poste et a été retiré ; Google Drive et OneDrive attendent un client
+       OAuth déclaré chez le fournisseur (décision de l'établissement : des données de recherche
+       y transiteraient).
    - ⏳ Ensuite : écriture des RÉSULTATS vers le nuage (bute sur `-o`, jamais une destination —
-     `MEDIA_STORAGE_TIERING §8.1` cas 5) ; SMB par rclone (sans `sudo`) ; types suivants générés
-     de `rclone config providers` ; serveur MCP Nextcloud pour l'assistant ; **déclarer les
-     DOSSIERS CONNECTÉS au registre des mécanismes** — ni le montage SMB ni `remote_mounts.py`
-     n'ont d'entrée dans `wama/common/mecanismes.py` (relevé le 11/10 : aucune occurrence de
-     `MountedFolder`, `rclone` ni `remote_mount`).
+     `MEDIA_STORAGE_TIERING §8.1` cas 5) ; serveur MCP Nextcloud pour l'assistant ; un type de
+     plus = une entrée de `STORAGE_TYPES` (SFTP, S3, Dropbox… tous connus de rclone).
 6. Pages statiques + API WAMA.
 
 #### Décisions ouvertes

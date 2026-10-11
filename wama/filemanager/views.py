@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from django.conf import settings
-from django.http import JsonResponse, FileResponse, HttpResponseBadRequest
+from django.http import JsonResponse, FileResponse, HttpResponse, HttpResponseBadRequest
 from django.views.decorators.http import require_POST, require_GET, require_http_methods
 from django.core.files.storage import default_storage
 from django.utils.http import content_disposition_header
@@ -2296,6 +2296,8 @@ def api_validate_path(request):
             'is_remote': True, 'remote_vendor': config['vendor'],
             'remote_hint': ("Nuage de fichiers (WebDAV) : connectez-vous par le navigateur, ou "
                             "par identifiant et mot de passe."),
+            # Les champs à saisir, DÉCLARÉS par le type de stockage (`remote_mounts`).
+            'storage': remote_mounts.storage_form('webdav'),
         })
 
     resolved = _resolve_path(path_str)
@@ -2310,14 +2312,16 @@ def api_validate_path(request):
     # Detect SMB/UNC network path
     unc = _parse_unc_path(path_str)
     if unc:
+        # Le domaine d'annuaire du site, pour PRÉREMPLIR le champ : un utilisateur n'a pas à le
+        # connaître. Vide tant que le site ne le déclare pas.
+        default_domain = getattr(settings, 'WAMA_SMB_DEFAULT_DOMAIN', '') or ''
         response.update({
             'is_smb':      True,
             'smb_server':  unc['server'],
             'smb_share':   unc['share'],
             'smb_subpath': unc['subpath'],
-            # Le domaine d'annuaire du site, pour PRÉREMPLIR le champ : un utilisateur n'a
-            # pas à le connaître. Vide tant que le site ne le déclare pas.
-            'smb_default_domain': getattr(settings, 'WAMA_SMB_DEFAULT_DOMAIN', '') or '',
+            'smb_default_domain': default_domain,
+            'storage': remote_mounts.storage_form('smb', {'smb_domain': default_domain}),
         })
         if not accessible and sys.platform.startswith('linux'):
             response['smb_hint'] = (
@@ -2401,9 +2405,14 @@ def api_mounts(request):
         # Les nuages DÉCLARÉS par l'instance (type `stockage`, adresse posée par un admin sur la
         # page Sources externes) : proposés dans la fenêtre de connexion (2026-10-10).
         from wama.common import external_sources as es
+        from wama.filemanager import remote_mounts
+        webdav = {t.source for t in remote_mounts.STORAGE_TYPES if t.key == 'webdav'}
         clouds = [{'key': s.key, 'label': s.label, 'url': es.base_url(s.key)}
-                  for s in es.SOURCES if s.kind == 'stockage' and es.address_origin(s.key)]
-        return JsonResponse({'mounts': mounts, 'clouds': clouds})
+                  for s in es.SOURCES if s.key in webdav and es.address_origin(s.key)]
+        # Les stockages à connexion OAuth (Google Drive, OneDrive) dont l'instance a posé le
+        # client : rien à saisir, l'accès s'accorde dans le navigateur (2026-10-11).
+        return JsonResponse({'mounts': mounts, 'clouds': clouds,
+                             'storages': remote_mounts.oauth_types_offered()})
 
     # POST — add a new mount
     try:
@@ -2429,8 +2438,18 @@ def api_mounts(request):
     unc = _parse_unc_path(local_path)
     smb_config = None
 
+    if unc and sys.platform.startswith('linux') and _smb_by_rclone(smb_password):
+        # Partage réseau monté par rclone (2026-10-11) : sans `sudo`, et le mot de passe gardé
+        # CHIFFRÉ permet le remontage au redémarrage, que le montage du noyau n'a jamais eu.
+        host, host_error = _resolve_smb_host(unc['server'])
+        if host is None:
+            return JsonResponse({'error': host_error}, status=400)
+        config = remote_mounts.smb_config(unc['server'], host, unc['share'], unc['subpath'],
+                                          smb_username, smb_domain)
+        return _save_remote_mount(user, name, config, smb_password)
+
     if unc and sys.platform.startswith('linux'):
-        # Auto-mount the CIFS share, then store the Linux path
+        # Repli : le montage du noyau (cifs), sur une installation sans rclone.
         success, linux_path, error = _try_cifs_mount(
             unc['server'], unc['share'], unc['subpath'],
             username=smb_username or None,
@@ -2438,20 +2457,8 @@ def api_mounts(request):
             domain=smb_domain or None,
         )
         if not success:
-            if error == 'AUTH_REFUSED':
-                tried = (f"{smb_domain}\\{smb_username}" if smb_domain else smb_username)
-                return JsonResponse(
-                    {'error': f"Identifiants refusés par le serveur pour « {tried} » — "
-                              "vérifiez le nom d'utilisateur, le mot de passe et le domaine.",
-                     'needs_auth': True, 'auth_refused': True},
-                    status=401,
-                )
-            if error == 'AUTH_REQUIRED':
-                return JsonResponse(
-                    {'error': 'Authentification requise pour ce partage.', 'needs_auth': True},
-                    status=401,
-                )
-            return JsonResponse({'error': error or 'Impossible de monter le partage.'}, status=400)
+            return _mount_refusal({'type': 'smb', 'user': smb_username, 'domain': smb_domain},
+                                  error)
 
         resolved = linux_path
         smb_config = {
@@ -2500,28 +2507,63 @@ def _secret_storage_missing():
                                   "serveur (DJANGO_SECRET_KEY absente de .env)."}, status=400)
 
 
+def _smb_by_rclone(password):
+    """Le partage réseau passe-t-il par rclone ? Oui dès que rclone le sait monter — sauf quand
+    un mot de passe devrait être gardé et que le stockage chiffré manque. Le montage du noyau
+    (`_try_cifs_mount`) reste alors le repli : une installation sans rclone ne perd rien."""
+    from wama.common.utils import secret_crypto
+    from wama.filemanager import remote_mounts
+    return (bool(remote_mounts.rclone_binary()) and remote_mounts.backend_available('smb')
+            and (not password or secret_crypto.storage_available()))
+
+
+def _mount_refusal(config, error):
+    """Ce que l'écran dit d'un montage refusé — un seul texte par cas, quel que soit le chemin
+    de montage (rclone ou noyau)."""
+    smb = config.get('type') == 'smb'
+    if error == 'AUTH_REFUSED':
+        if smb:
+            user, domain = config.get('user') or '', config.get('domain') or ''
+            tried = f"{domain}\\{user}" if domain else user
+            text = (f"Identifiants refusés par le serveur pour « {tried} » — vérifiez le nom "
+                    "d'utilisateur, le mot de passe et le domaine.")
+        else:
+            text = (f"Identifiants refusés par le serveur pour « {config.get('user')} ». Si le "
+                    "nuage n'accepte pas le mot de passe du compte, utilisez « Se connecter par "
+                    "le navigateur ».")
+        return JsonResponse({'error': text, 'needs_auth': True, 'auth_refused': True}, status=401)
+    if error == 'AUTH_REQUIRED':
+        return JsonResponse({'error': 'Authentification requise pour ce partage.',
+                             'needs_auth': True}, status=401)
+    fallback = 'Impossible de monter le partage.' if smb else 'Impossible de monter le dossier.'
+    return JsonResponse({'error': error or fallback}, status=400)
+
+
 def _save_remote_mount(user, name, config, password):
     """Monte le dossier distant (identifiants vérifiés d'abord) et ne l'enregistre qu'ensuite."""
     from wama.filemanager import remote_mounts
 
     ok, linux_path, error = remote_mounts.mount(config, password)
     if not ok:
-        if error == 'AUTH_REFUSED':
-            return JsonResponse(
-                {'error': f"Identifiants refusés par le serveur pour « {config.get('user')} ». "
-                          "Si le nuage n'accepte pas le mot de passe du compte, utilisez « Se "
-                          "connecter par le navigateur ».",
-                 'needs_auth': True, 'auth_refused': True}, status=401)
-        return JsonResponse({'error': error or 'Impossible de monter le dossier.'}, status=400)
+        return _mount_refusal(config, error)
 
     mount = MountedFolder.objects.create(user=user, name=name, local_path=linux_path,
-                                         remote_config=config, remote_secret=password)
+                                         remote_config=config, remote_secret=password or '')
     return JsonResponse({'success': True, 'id': mount.id, 'name': mount.name})
 
 
-#: Flux de connexion en cours, gardés dans la SESSION : le jeton d'interrogation ne quitte
-#: jamais le serveur, et un utilisateur ne peut interroger que les siens.
+#: Connexions PAR LE NAVIGATEUR en cours (Login Flow de Nextcloud, OAuth), gardées dans la
+#: SESSION : leurs jetons ne quittent jamais le serveur, et un utilisateur ne voit que les siennes.
 _LOGIN_FLOWS_KEY = 'filemanager_login_flows'
+
+
+def _live_flows(request):
+    """Les connexions en cours de cette session, les expirées retirées."""
+    import time
+    from wama.filemanager import remote_mounts
+    now = time.time()
+    return {k: v for k, v in request.session.get(_LOGIN_FLOWS_KEY, {}).items()
+            if now - v['started'] < remote_mounts.LOGIN_FLOW_LIFETIME_S}
 
 
 @require_POST
@@ -2547,20 +2589,107 @@ def api_mount_login_flow(request):
     flow, error = remote_mounts.login_flow_start(url)
     if not flow:
         return JsonResponse({'error': error}, status=400)
-    now = time.time()
-    flows = {k: v for k, v in request.session.get(_LOGIN_FLOWS_KEY, {}).items()
-             if now - v['started'] < remote_mounts.LOGIN_FLOW_LIFETIME_S}
+    flows = _live_flows(request)
     flow_id = secrets.token_urlsafe(12)
     flows[flow_id] = {'server': flow['server'], 'endpoint': flow['endpoint'],
-                      'token': flow['token'], 'url': url, 'name': name, 'started': now}
+                      'token': flow['token'], 'url': url, 'name': name, 'started': time.time()}
     request.session[_LOGIN_FLOWS_KEY] = flows
     return JsonResponse({'flow_id': flow_id, 'login_url': flow['login']})
 
 
+def _oauth_redirect_uri(request):
+    """L'adresse de RETOUR déclarée chez le fournisseur : celle de l'instance quand elle est
+    posée (`WAMA_PUBLIC_URL` — derrière un relais, l'adresse vue par Django peut différer),
+    sinon celle de la requête."""
+    from django.urls import reverse
+    path = reverse('filemanager:api_mount_oauth_callback')
+    base = (getattr(settings, 'WAMA_PUBLIC_URL', '') or '').strip().rstrip('/')
+    return f'{base}{path}' if base else request.build_absolute_uri(path)
+
+
+@require_POST
+def api_mount_oauth(request):
+    """Démarre la connexion à un stockage OAuth (Google Drive, OneDrive) : rend la page du
+    fournisseur où l'utilisateur accorde l'accès. `remote_mounts.oauth_start`."""
+    import time
+    from wama.common.utils import secret_crypto
+    from wama.filemanager import remote_mounts
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    key = (data.get('type') or '').strip()
+    st = remote_mounts.storage_type(key)
+    if not st or not st.oauth:
+        return JsonResponse({'error': 'Stockage inconnu.'}, status=400)
+    if not secret_crypto.storage_available():
+        return _secret_storage_missing()
+
+    flow, error = remote_mounts.oauth_start(key, _oauth_redirect_uri(request))
+    if not flow:
+        return JsonResponse({'error': error}, status=400)
+    flows = _live_flows(request)
+    flows[flow['state']] = {'kind': 'oauth', 'type': key, 'verifier': flow['verifier'],
+                            'redirect_uri': flow['redirect_uri'], 'started': time.time(),
+                            'name': (data.get('name') or '').strip()}
+    request.session[_LOGIN_FLOWS_KEY] = flows
+    return JsonResponse({'flow_id': flow['state'], 'login_url': flow['login']})
+
+
+@require_GET
+def api_mount_oauth_callback(request):
+    """Le RETOUR du fournisseur, dans l'onglet ouvert pour l'accord : le code reçu est échangé
+    contre un jeton, le dossier monté puis enregistré. L'issue est rangée dans la connexion en
+    cours, que la fenêtre de WAMA interroge (`api_mount_login_flow_poll`) ; l'onglet ne montre
+    qu'une ligne et peut se fermer.
+
+    ⚠ `state` doit désigner une connexion ouverte PAR CETTE SESSION : c'est ce qui empêche un
+    tiers de faire monter son propre stockage dans le compte d'un autre.
+    """
+    from django.utils.html import format_html
+    from wama.filemanager import remote_mounts
+
+    flows = _live_flows(request)
+    state = request.GET.get('state', '')
+    flow = flows.get(state)
+    if not flow or flow.get('kind') != 'oauth' or 'result' in flow:
+        return HttpResponse(format_html('<p>{}</p>', 'Connexion inconnue ou expirée — '
+                                        'recommencez depuis WAMA.'), status=400)
+
+    def finish(body, status):
+        flow['result'] = {'body': body, 'status': status}
+        request.session[_LOGIN_FLOWS_KEY] = flows
+        text = (f"« {body.get('name')} » est connecté : vous pouvez fermer cet onglet."
+                if status == 200 else body.get('error') or 'Connexion refusée.')
+        return HttpResponse(format_html('<p style="font-family:sans-serif">{}</p>', text),
+                            status=200 if status == 200 else 400)
+
+    if request.GET.get('error') or not request.GET.get('code'):
+        return finish({'error': "L'accès n'a pas été accordé."}, 400)
+    token, error = remote_mounts.oauth_exchange(flow, request.GET['code'])
+    if not token:
+        return finish({'error': error}, 400)
+
+    user = get_user(request)
+    st = remote_mounts.storage_type(flow['type'])
+    config = {'type': st.key, 'owner': user.id if user else '',
+              **remote_mounts.oauth_account(st.key, token)}
+    if st.key == 'onedrive' and not config.get('drive_id'):
+        remote_mounts.release_credentials(config, token)
+        return finish({'error': 'Aucun espace OneDrive trouvé pour ce compte.'}, 400)
+    name = flow.get('name') or remote_mounts.display_name(config)
+    response = _save_remote_mount(user, name, config, token)
+    if response.status_code != 200:
+        remote_mounts.release_credentials(config, token)   # pas d'accès orphelin
+    return finish(json.loads(response.content), response.status_code)
+
+
 @require_POST
 def api_mount_login_flow_poll(request, flow_id):
-    """Interroge le nuage : `pending` tant que l'accès n'est pas accordé ; une fois accordé,
-    le dossier est monté et enregistré avec le mot de passe d'application reçu."""
+    """Interroge une connexion par le navigateur : `pending` tant que l'accès n'est pas accordé ;
+    une fois accordé, le dossier est monté et enregistré avec le secret reçu (mot de passe
+    d'application de Nextcloud, jeton OAuth)."""
     import time
     from wama.filemanager import remote_mounts
 
@@ -2572,6 +2701,14 @@ def api_mount_login_flow_poll(request, flow_id):
         flows.pop(flow_id)
         request.session[_LOGIN_FLOWS_KEY] = flows
         return JsonResponse({'error': 'Délai dépassé — recommencez la connexion.'}, status=410)
+
+    if flow.get('kind') == 'oauth':
+        # Le montage s'est fait au RETOUR du fournisseur (`api_mount_oauth_callback`).
+        if 'result' not in flow:
+            return JsonResponse({'status': 'pending'})
+        flows.pop(flow_id)
+        request.session[_LOGIN_FLOWS_KEY] = flows
+        return JsonResponse(flow['result']['body'], status=flow['result']['status'])
 
     status, payload = remote_mounts.login_flow_poll(flow)
     if status == 'pending':
@@ -2587,7 +2724,7 @@ def api_mount_login_flow_poll(request, flow_id):
     config.update({'login_flow': True, 'server': flow['server'], 'login': login})
     response = _save_remote_mount(get_user(request), flow['name'], config, password)
     if response.status_code != 200:
-        remote_mounts.revoke_app_password(config, password)   # pas d'accès orphelin au nuage
+        remote_mounts.release_credentials(config, password)   # pas d'accès orphelin au nuage
     return response
 
 
@@ -2651,12 +2788,13 @@ def api_mount_delete(request, pk):
         mount = MountedFolder.objects.get(pk=pk, user=user)
         mount.delete()
         # Un dossier distant n'est démonté que si plus aucun montage n'emploie ce chemin. Le
-        # mot de passe obtenu par le navigateur est alors révoqué : rclone ne s'en sert plus.
+        # secret obtenu par le navigateur (mot de passe d'application, jeton OAuth) est alors
+        # révoqué : rclone ne s'en sert plus.
         if mount.remote_config and not MountedFolder.objects.filter(
                 local_path=mount.local_path).exists():
-            from wama.filemanager.remote_mounts import revoke_app_password, unmount
+            from wama.filemanager.remote_mounts import release_credentials, unmount
             unmount(mount.local_path)
-            revoke_app_password(mount.remote_config, mount.remote_secret)
+            release_credentials(mount.remote_config, mount.remote_secret)
         return JsonResponse({'success': True})
     except MountedFolder.DoesNotExist:
         return JsonResponse({'error': 'Non trouvé'}, status=404)

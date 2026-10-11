@@ -705,6 +705,30 @@ SOURCES: tuple[ExternalSource, ...] = (
         "parcourir, prévisualiser, envoyer vers une app", kind='stockage',
         env='WAMA_NEXTCLOUD_URL', hosting='private', address_editable=True, address_required=True,
         doc='docs/construction/suivi/ROADMAP.md'),
+    # Stockages à connexion OAUTH (2026-10-11, demande de Fabien : « si on veut ajouter Google
+    # Drive, etc. ») — montés par rclone comme le nuage (`remote_mounts.STORAGE_TYPES`). La clé
+    # d'instance est le CLIENT OAuth que l'établissement déclare chez le fournisseur, posé sur la
+    # page sous la forme `identifiant:secret` ; l'adresse de retour à y déclarer est
+    # `<adresse de WAMA>/filemanager/api/mounts/oauth/callback/`. Le jeton de CHAQUE utilisateur
+    # est gardé chiffré sur son montage. Sans client posé, le stockage n'est pas proposé.
+    ExternalSource(
+        'google_drive', 'Google Drive', 'https://www.googleapis.com',
+        "Stockage Google monté comme un dossier connecté du filemanager (rclone, OAuth) — "
+        "l'utilisateur accorde l'accès dans son navigateur", kind='stockage',
+        api_key_env='WAMA_GOOGLE_DRIVE_OAUTH_CLIENT', hosting='third_party',
+        api_key_label='Client OAuth (identifiant:secret)',
+        api_key_help_url='https://console.cloud.google.com/apis/credentials',
+        doc='docs/construction/suivi/ROADMAP.md'),
+    # L'adresse est celle de l'ANNUAIRE Microsoft : `common` (tout compte) par défaut ; un
+    # établissement y pose la sienne (`https://login.microsoftonline.com/<tenant>`).
+    ExternalSource(
+        'onedrive', 'OneDrive / SharePoint', 'https://login.microsoftonline.com/common',
+        "Stockage Microsoft monté comme un dossier connecté du filemanager (rclone, OAuth) — "
+        "l'utilisateur accorde l'accès dans son navigateur", kind='stockage',
+        api_key_env='WAMA_ONEDRIVE_OAUTH_CLIENT', hosting='third_party', address_editable=True,
+        api_key_label='Client OAuth (identifiant:secret)',
+        api_key_help_url='https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps',
+        doc='docs/construction/suivi/ROADMAP.md'),
 )
 
 #: Le dataset Arena, nommé une fois (ce n'est pas une URL : un identifiant de dataset du Hub).

@@ -1275,13 +1275,7 @@
         if (mountNameInput)  mountNameInput.value = '';
         if (mountPathStatus) mountPathStatus.innerHTML = '';
         if (mountSaveBtn)    mountSaveBtn.disabled = true;
-        if (mountSmbSection) mountSmbSection.style.display = 'none';
-        if (mountSmbUser)     mountSmbUser.value = '';
-        if (mountSmbPassword) mountSmbPassword.value = '';
-        if (mountSmbDomain)   mountSmbDomain.value = '';
-        _mountIsSMB = false;
-        _mountIsRemote = false;
-        _setCredentialMode('smb');
+        _renderStorage(null);
         _showDeclaredClouds();
         _mountModal = _mountModal || new bootstrap.Modal(mountModalEl);
         _mountModal.show();
@@ -1289,30 +1283,53 @@
     });
 
     const mountSmbSection  = document.getElementById('mountSmbSection');
-    const mountSmbUser     = document.getElementById('mountSmbUser');
-    const mountSmbPassword = document.getElementById('mountSmbPassword');
-    const mountSmbDomain   = document.getElementById('mountSmbDomain');
+    const mountCredFields  = document.getElementById('mountCredFields');
     const mountCredTitle   = document.getElementById('mountCredTitle');
     const mountCredIcon    = document.getElementById('mountCredIcon');
-    let _mountIsSMB = false;
-    // Dossier DISTANT (Nextcloud, WebDAV) monté par rclone : même section d'identifiants, autres
-    // libellés, sans domaine d'annuaire (2026-10-10).
-    let _mountIsRemote = false;
-    const CRED_LABELS = {
-        smb: {
-            icon: 'fas fa-network-wired me-1',
-            title: 'Partage réseau — identifiants AD (laisser vide pour accès invité)',
-            user: 'Nom d’utilisateur AD', password: 'Mot de passe AD', domain: true,
-        },
-        remote: {
-            icon: 'fas fa-cloud me-1',
-            title: 'Nuage de fichiers',
-            user: 'Identifiant du compte', password: 'Mot de passe', domain: false,
-        },
-    };
+    // Le TYPE de stockage du dossier saisi, tel que le serveur le décrit (`remote_mounts.
+    // storage_form`) : ses champs, l'accès invité, la connexion par le navigateur. Les champs
+    // ne sont plus écrits ici : partage réseau, nuage, Google Drive… se déclarent côté serveur
+    // (2026-10-11).
+    let _mountStorage = null;
     const mountBrowserLogin    = document.getElementById('mountBrowserLogin');
     const mountBrowserLoginBtn = document.getElementById('mountBrowserLoginBtn');
     let _loginPollTimer = null;
+
+    function _credInputs() {
+        return Array.from(mountCredFields?.querySelectorAll('input[data-field]') || []);
+    }
+
+    function _renderStorage(storage) {
+        // Une valeur déjà saisie survit à une nouvelle vérification du même type de dossier.
+        const previous = {};
+        if (storage && _mountStorage && storage.type === _mountStorage.type) {
+            _credInputs().forEach(input => { previous[input.dataset.field] = input.value; });
+        }
+        _mountStorage = storage;
+        if (!storage) {
+            if (mountSmbSection) mountSmbSection.style.display = 'none';
+            mountCredFields?.replaceChildren();
+            return;
+        }
+        if (mountCredIcon)  mountCredIcon.className = storage.icon + ' me-1';
+        if (mountCredTitle) mountCredTitle.textContent = storage.label;
+        mountCredFields?.replaceChildren(...(storage.fields || []).map(field => {
+            const input = document.createElement('input');
+            input.type = field.secret ? 'password' : 'text';
+            input.className = 'form-control form-control-sm border-secondary mb-1';
+            input.style.cssText = 'background:#1e2228; color:#dee2e6;';
+            input.placeholder = field.label;
+            if (field.help) input.title = field.help;
+            input.autocomplete = field.secret ? 'current-password'
+                : (/user/.test(field.name) ? 'username' : 'off');
+            input.dataset.field = field.name;
+            input.dataset.secret = field.secret ? '1' : '';
+            input.value = previous[field.name] || field.value || '';
+            return input;
+        }));
+        if (mountBrowserLogin) mountBrowserLogin.style.display = storage.browser_login ? '' : 'none';
+        if (mountSmbSection) mountSmbSection.style.display = '';
+    }
 
     function _mountStatus(cls, icon, text) {
         const span = document.createElement('span');
@@ -1322,22 +1339,27 @@
         mountPathStatus.replaceChildren(span);
     }
 
-    // Connexion PAR LE NAVIGATEUR (Nextcloud Login Flow v2, 2026-10-11) : l'utilisateur accorde
-    // l'accès dans un onglet du nuage, WAMA reçoit un mot de passe d'application — rien à copier.
+    // Connexion PAR LE NAVIGATEUR : Nextcloud (Login Flow v2, 2026-10-11) ou OAuth (Google
+    // Drive, OneDrive). L'utilisateur accorde l'accès dans un onglet du fournisseur, WAMA reçoit
+    // un secret qu'il garde chiffré — rien à copier.
     mountBrowserLoginBtn?.addEventListener('click', () => {
         const rawPath = mountPathInput?.value.trim();
         const name    = mountNameInput?.value.trim();
-        if (!name || !rawPath) { showToast('Adresse et nom requis', 'warning'); return; }
+        const oauth   = _mountStorage?.browser_login === 'oauth';
+        if (!name || (!oauth && !rawPath)) { showToast('Adresse et nom requis', 'warning'); return; }
         // L'onglet s'ouvre DANS le clic : ouvert après une requête, le navigateur le bloquerait.
         const tab = window.open('', '_blank');
         if (tab) tab.opener = null;
         mountBrowserLoginBtn.disabled = true;
-        _mountStatus('text-muted', 'fa-spinner fa-spin', 'Ouverture du nuage…');
-        const base = (config.apiMountsUrl || '/filemanager/api/mounts/') + 'login-flow/';
-        fetch(base, {
+        _mountStatus('text-muted', 'fa-spinner fa-spin', 'Ouverture de la page de connexion…');
+        const mountsUrl = config.apiMountsUrl || '/filemanager/api/mounts/';
+        const start = oauth
+            ? { url: mountsUrl + 'oauth/', body: { name, type: _mountStorage.type } }
+            : { url: mountsUrl + 'login-flow/', body: { name, local_path: rawPath } };
+        fetch(start.url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify({ name, local_path: rawPath }),
+            body: JSON.stringify(start.body),
         })
             .then(r => r.json())
             .then(data => {
@@ -1350,8 +1372,8 @@
                 if (tab) tab.location.href = data.login_url;
                 else window.open(data.login_url, '_blank', 'noopener');
                 _mountStatus('text-info', 'fa-spinner fa-spin',
-                    'En attente de votre accord dans l’onglet du nuage…');
-                _pollBrowserLogin(base + encodeURIComponent(data.flow_id) + '/', tab);
+                    'En attente de votre accord dans l’onglet ouvert…');
+                _pollBrowserLogin(mountsUrl + 'login-flow/' + encodeURIComponent(data.flow_id) + '/', tab);
             })
             .catch(err => {
                 tab?.close();
@@ -1378,56 +1400,56 @@
             .catch(() => { _loginPollTimer = setTimeout(tick, 4000); });
         _loginPollTimer = setTimeout(tick, 2000);
     }
-    // Fenêtre fermée : on cesse d'interroger (le flux expire seul côté nuage).
+    // Fenêtre fermée : on cesse d'interroger (la connexion expire seule côté serveur).
     mountModalEl?.addEventListener('hidden.bs.modal', () => {
         clearTimeout(_loginPollTimer);
         if (mountBrowserLoginBtn) mountBrowserLoginBtn.disabled = false;
     });
 
     // Les nuages DÉCLARÉS par l'instance (adresse posée par un admin, page Sources externes) :
-    // un bouton par nuage remplit l'adresse — l'utilisateur n'a plus qu'à s'identifier.
+    // un bouton par nuage remplit l'adresse — l'utilisateur n'a plus qu'à s'identifier. Les
+    // stockages à connexion OAuth (client posé par un admin) : un bouton, et rien à saisir.
     function _showDeclaredClouds() {
         const holder = document.getElementById('mountCloudSuggestions');
         if (!holder) return;
         holder.replaceChildren();
+        const button = (icon, label, onClick) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm btn-outline-info py-0';
+            btn.style.fontSize = '0.75rem';
+            btn.innerHTML = `<i class="${icon} me-1"></i>`;
+            btn.appendChild(document.createTextNode(label));
+            btn.addEventListener('click', onClick);
+            holder.appendChild(btn);
+        };
         fetch(config.apiMountsUrl || '/filemanager/api/mounts/', { headers: { 'X-CSRFToken': csrfToken } })
             .then(r => r.json())
             .then(data => {
-                (data.clouds || []).forEach(cloud => {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'btn btn-sm btn-outline-info py-0';
-                    btn.style.fontSize = '0.75rem';
-                    btn.innerHTML = '<i class="fas fa-cloud me-1"></i>';
-                    btn.appendChild(document.createTextNode(cloud.label));
-                    btn.addEventListener('click', () => {
-                        mountPathInput.value = cloud.url + '/';
-                        clearTimeout(_mountValidateTimer);
-                        _checkMountPath(mountPathInput.value);
-                        mountSmbUser?.focus();
-                    });
-                    holder.appendChild(btn);
-                });
+                (data.clouds || []).forEach(cloud => button('fas fa-cloud', cloud.label, () => {
+                    mountPathInput.value = cloud.url + '/';
+                    clearTimeout(_mountValidateTimer);
+                    _checkMountPath(mountPathInput.value);
+                }));
+                (data.storages || []).forEach(storage => button(storage.icon, storage.label, () => {
+                    clearTimeout(_mountValidateTimer);
+                    mountPathInput.value = '';
+                    mountSaveBtn.disabled = true;
+                    if (!mountNameInput.value.trim()) mountNameInput.value = storage.label;
+                    _renderStorage({ type: storage.key, label: storage.label, icon: storage.icon,
+                                     fields: [], guest: false, browser_login: 'oauth' });
+                    _mountStatus('text-info', 'fa-right-to-bracket',
+                        `${storage.label} : connectez-vous par le navigateur.`);
+                }));
             })
             .catch(() => {});
-    }
-
-    function _setCredentialMode(mode) {
-        const labels = CRED_LABELS[mode];
-        if (mountCredIcon)    mountCredIcon.className = labels.icon;
-        if (mountCredTitle)   mountCredTitle.textContent = labels.title;
-        if (mountSmbUser)     mountSmbUser.placeholder = labels.user;
-        if (mountSmbPassword) mountSmbPassword.placeholder = labels.password;
-        if (mountSmbDomain)   mountSmbDomain.style.display = labels.domain ? '' : 'none';
-        if (mountBrowserLogin) mountBrowserLogin.style.display = mode === 'remote' ? '' : 'none';
     }
 
     function _checkMountPath(raw) {
         if (!raw.trim()) {
             mountPathStatus.innerHTML = '';
             mountSaveBtn.disabled = true;
-            if (mountSmbSection) mountSmbSection.style.display = 'none';
-            _mountIsSMB = false;
+            _renderStorage(null);
             return;
         }
         mountPathStatus.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i></span>';
@@ -1438,31 +1460,20 @@
                 const last = raw.replace(/\\/g,'/').replace(/\/+$/,'').split('/').pop() || raw;
                 if (!mountNameInput.value.trim()) mountNameInput.value = data.name || last;
 
-                // Show/hide credentials section (SMB share or remote cloud folder)
-                _mountIsSMB = !!data.is_smb;
-                _mountIsRemote = !!data.is_remote;
-                _setCredentialMode(_mountIsRemote ? 'remote' : 'smb');
-                if (mountSmbSection) mountSmbSection.style.display = (_mountIsSMB || _mountIsRemote) ? '' : 'none';
-                if (_mountIsRemote) {
-                    const hint = document.createElement('span');
-                    hint.className = 'text-info';
-                    hint.innerHTML = '<i class="fas fa-cloud me-1"></i>';
-                    hint.appendChild(document.createTextNode(data.remote_hint || ''));
-                    mountPathStatus.replaceChildren(hint);
+                // Partage réseau ou nuage : les champs du type de stockage (déclarés au serveur).
+                _renderStorage(data.storage || null);
+                if (data.is_remote) {
+                    _mountStatus('text-info', 'fa-cloud', data.remote_hint || '');
                     mountSaveBtn.disabled = false;
                     return;
-                }
-                // Domaine d'annuaire DÉCLARÉ par le site : prérempli, jamais imposé.
-                if (_mountIsSMB && mountSmbDomain && !mountSmbDomain.value.trim() && data.smb_default_domain) {
-                    mountSmbDomain.value = data.smb_default_domain;
                 }
 
                 if (data.accessible) {
                     mountPathStatus.innerHTML = `<span class="text-success"><i class="fas fa-check-circle me-1"></i>Accessible</span>`;
-                } else if (_mountIsSMB && data.smb_hint) {
-                    mountPathStatus.innerHTML = `<span class="text-info"><i class="fas fa-network-wired me-1"></i>${data.smb_hint}</span>`;
+                } else if (data.is_smb && data.smb_hint) {
+                    _mountStatus('text-info', 'fa-network-wired', data.smb_hint);
                 } else {
-                    mountPathStatus.innerHTML = `<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Non accessible — sera disponible quand le partage sera connect\u00e9</span>`;
+                    mountPathStatus.innerHTML = `<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Non accessible — sera disponible quand le partage sera connecté</span>`;
                 }
                 mountSaveBtn.disabled = false;
             })
@@ -1485,17 +1496,13 @@
         const name    = mountNameInput?.value.trim();
         if (!name || !rawPath) { showToast('Chemin et nom requis', 'warning'); return; }
         mountSaveBtn.disabled = true;
-        mountPathStatus.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Connexion en cours\u2026</span>';
+        mountPathStatus.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Connexion en cours…</span>';
 
+        // Chaque champ part sous le nom que son type de stockage déclare.
         const body = { name, local_path: rawPath };
-        if (_mountIsRemote) {
-            body.username = mountSmbUser?.value.trim() || '';
-            body.password = mountSmbPassword?.value || '';
-        } else if (_mountIsSMB) {
-            body.smb_username = mountSmbUser?.value.trim()     || '';
-            body.smb_password = mountSmbPassword?.value.trim() || '';
-            body.smb_domain   = mountSmbDomain?.value.trim()   || '';
-        }
+        _credInputs().forEach(input => {
+            body[input.dataset.field] = input.dataset.secret ? input.value : input.value.trim();
+        });
 
         fetch(config.apiMountsUrl || '/filemanager/api/mounts/', {
             method: 'POST',
@@ -1507,27 +1514,21 @@
                 mountSaveBtn.disabled = false;
                 if (data.success) {
                     _mountModal?.hide();
-                    showToast(`"${data.name}" connect\u00e9`, 'success');
+                    showToast(`"${data.name}" connecté`, 'success');
                     refreshTree();
                 } else if (data.needs_auth) {
-                    // Show credentials section and ask user to fill in
                     if (mountSmbSection) mountSmbSection.style.display = '';
-                    if (!_mountIsRemote) _mountIsSMB = true;
                     // Deux refus DIFFÉRENTS : rien n'a été envoyé (accès invité refusé), ou
                     // les identifiants envoyés ont été rejetés — le serveur dit lequel.
-                    const authText = (_mountIsRemote && !data.auth_refused)
-                        ? (data.error || 'Renseignez l’identifiant et le mot de passe')
-                        : data.auth_refused
-                        ? (data.error || 'Identifiants refusés par le serveur')
-                        : 'Ce partage n\u2019accepte pas l\u2019accès invité — renseignez vos identifiants';
-                    const authSpan = document.createElement('span');
-                    authSpan.className = 'text-danger';
-                    authSpan.innerHTML = '<i class="fas fa-lock me-1"></i>';
-                    authSpan.appendChild(document.createTextNode(authText));
-                    mountPathStatus.replaceChildren(authSpan);
-                    (data.auth_refused ? mountSmbPassword : mountSmbUser)?.focus();
+                    const guestRefused = _mountStorage?.guest && !data.auth_refused;
+                    const authText = guestRefused
+                        ? 'Ce partage n’accepte pas l’accès invité — renseignez vos identifiants'
+                        : (data.error || 'Renseignez l’identifiant et le mot de passe');
+                    _mountStatus('text-danger', 'fa-lock', authText);
+                    const inputs = _credInputs();
+                    (data.auth_refused ? inputs.find(i => i.dataset.secret) : inputs[0])?.focus();
                 } else {
-                    mountPathStatus.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${data.error || 'Erreur'}</span>`;
+                    _mountStatus('text-danger', 'fa-times', data.error || 'Erreur');
                     showToast(data.error || 'Erreur', 'danger');
                 }
             })

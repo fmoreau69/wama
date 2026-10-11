@@ -264,6 +264,14 @@ MECHANISMS = (
               'wama/filemanager/views.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §S2bis',
               symbol='importer_for',
               annexes=('wama/filemanager/tests.py',)),
+    Mechanism('remote_mounts', 'Dossiers connectés distants (rclone)',
+              "Monte un stockage distant comme un dossier du filemanager : nuage WebDAV, partage "
+              "réseau SMB, Google Drive, OneDrive — chacun DÉCLARÉ comme type de stockage "
+              "(champs saisis, connexion par le navigateur), la nature de ses options lue dans "
+              "rclone. Secret chiffré passé par l'environnement, proxy de la source, accès "
+              "vérifié avant montage, remontage au redémarrage, révocation au retrait "
+              "(2026-10-10/11). Le montage du noyau (cifs) ne reste que le repli sans rclone",
+              'wama/filemanager/remote_mounts.py', 'docs/construction/suivi/ROADMAP.md'),
     Mechanism('system_monitor', 'Moniteur système',
               "Mesure unifiée CPU/RAM/GPU/disque (WSL + hôte Windows) — barre de ressources, model manager",
               'wama/common/services/system_monitor.py', '',
