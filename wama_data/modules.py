@@ -101,12 +101,14 @@ MODULES: Tuple[ModuleData, ...] = (
                  'wama_data/sources/wdat.py'),
         doc='§6.2, §9quater.2, §9terdecies',
         bloque_par="Les DEUX bases se lisent depuis le 2026-08-24 (`.trip` externe et `.wdat` "
-                   "natif, socle SQLite partagé). ⚠ Ce qui le sépare encore de l'Importer n'est "
-                   "PAS une capacité de lecture mais un GESTE : brancher une base sans la copier "
-                   "suppose de décider ce qu'on fait d'une source qui bouge sous les pieds — "
-                   "question jamais posée, et c'est elle le vrai reste (consignée le 2026-09-15 "
-                   "comme décision ouverte 5 de `WAMA_APP_GENERATION_ROUTE §10.6` : connecter, "
-                   "importer dans un nouveau `.wdat` ou ouvrir un `.wdat` existant)",
+                   "natif, socle SQLite partagé). Ce qui le sépare de l'Importer n'est PAS une "
+                   "capacité de lecture mais un GESTE, et il est DÉCIDÉ (Fabien, "
+                   "§7 et §11.5) : l'Importer rassemble des fichiers volants dans un nouveau "
+                   "`.wdat`, le Connector connecte une base déjà constituée (`.wdat`, `.trip`…) "
+                   "sans la copier. ~~« décision ouverte 5 »~~ corrigé le 2026-10-11 : une base "
+                   "connectée qui change relève de `STALE` ; reste à lui donner une EMPREINTE — la "
+                   "photo des entrées surveillées ne garde que leur chemin "
+                   "(`WAMA_APP_GENERATION_ROUTE §10.6` point 9, n°5)",
     ),
     ModuleData(
         'explorer', 'Explorer', "Explore un dataset en table et en graphe — c'est aussi "
@@ -207,11 +209,12 @@ MODULES: Tuple[ModuleData, ...] = (
                    "IMPLÉMENTATION qui manque, et l'abstention de `functions/io/export.py` — "
                    "écrite « tant que D13 n'est pas tranchée » — doit être relue à cette lumière. "
                    "Le nœud `function` du kind est CODÉ depuis le 2026-09-09 (corrigé le "
-                   "2026-09-15). Forme PROPOSÉE le 2026-09-15 : l'export est un NŒUD DE SORTIE "
-                   "qui porte sa `Declaration` — N exports (tables, événements, situations) = N "
+                   "2026-09-15). Forme PRÉCISÉE par Fabien le 2026-09-15 (§11.8 ⑨ ; ~~« décision "
+                   "ouverte 6 »~~ corrigé le 2026-10-11) : l'export est un NŒUD DE SORTIE qui "
+                   "porte sa `Declaration` — N exports (tables, événements, situations) = N "
                    "nœuds de sortie — et un pipeline SANS process (entrée → sortie) doit être "
                    "accepté, ce que `studio/services/launch.py` refuse encore "
-                   "(`WAMA_APP_GENERATION_ROUTE §10.6` point 3.6, décision ouverte 6). Restent : "
+                   "(`WAMA_APP_GENERATION_ROUTE §10.6` point 3.6). Restent : "
                    "les formats `xlsx`/`mat` (refusés explicitement, pas écrits), et l'app qui le "
                    "pilote (l'Analyzer)",
     ),
@@ -234,11 +237,17 @@ MODULES: Tuple[ModuleData, ...] = (
                    "(`studio/tasks.py`) dispatche sur le kind — app = job de file asynchrone, "
                    "fonction pure = transformation typée synchrone, fonction app-bound = `impl` "
                    "pollée — et le registre `cam_analyzer.PASSES` s'exporte en manifeste "
-                   "`pipeline` (`manifests/pipelines/`). Ce qui manque à l'Analyzer : l'APP-FILE "
-                   "elle-même (entrée au catalogue sous le monde `data`, décidée le 2026-09-15), "
-                   "le moteur commun d'exécution de pipeline dont le Studio n'a qu'une pièce, et "
-                   "la porte d'ingestion d'un manifeste de pipeline (marche E) — séquence : "
-                   "`WAMA_APP_GENERATION_ROUTE §10.6` marche P7",
+                   "`pipeline` (`manifests/pipelines/`). Depuis, le moteur commun est LIVRÉ "
+                   "(P3, P5, P6 : `ProcessRun`, états communs dont `STALE`, bande des process de "
+                   "la card, promotion fille ↔ mère, dix apps Médias dessus). Ce qui manque à "
+                   "l'Analyzer (relevé le 2026-10-11) : l'APP-FILE elle-même (entrée au catalogue "
+                   "sous le monde `data`, décidée le 2026-09-15) ; les réglages d'un nœud "
+                   "`ParamSpec` rendus par `WamaParams` comme ceux d'un process Médias (seul le "
+                   "Studio les affiche, par son propre formulaire) ; un pipeline porté PAR LA "
+                   "CARD (composition exploratoire — aujourd'hui un pipeline est déclaré par app, "
+                   "en code) ; l'export en nœuds de sortie et le pipeline sans process ; "
+                   "l'empreinte des entrées connectées ; la porte d'ingestion d'un manifeste de "
+                   "pipeline (marche E) — séquence : `WAMA_APP_GENERATION_ROUTE §10.6` marche P7",
     ),
 )
 

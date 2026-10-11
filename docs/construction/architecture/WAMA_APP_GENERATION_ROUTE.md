@@ -3493,10 +3493,14 @@ n°11, tranchée le 2026-10-02 (point 9) ; 1ᵉʳ cas hors Lab : `manifests/pipe
 **3.6 Entrées et sorties.**
 - **Entrées** — Médias : les modalités de la card d'entrée (dépôt, URL, médiathèque, lot, dossier,
   live, manifeste). Data : le **registre des lecteurs** (`wama_data/sources/__init__.py:181-236` :
-  `tabular`, `trip`, `rtmaps`, `wdat`), selon trois gestes — **connecter** une source sans la copier,
-  **importer** dans un nouveau `.wdat`, **ouvrir** un `.wdat` existant. ⚠ La différence entre
-  connecter et importer n'est pas une capacité de lecture mais un GESTE non encore décidé
-  (`wama_data/modules.py:103-107`) — décision ouverte n°5.
+  `tabular`, `trip`, `rtmaps`, `wdat`), selon deux modules **déjà décidés par Fabien** — l'**Importer**
+  rassemble des fichiers volants (`.xdf`, `.rec`, `.ros`, `.xlsx/.csv/.txt`) dans un **nouveau
+  `.wdat`** ; le **Connector** connecte une base déjà constituée (`.wdat`, `.trip`…), sans la copier,
+  récursivement sur un dossier de fichiers de travail (`WAMA_DATA_WORLD §7` du 19/08, `§11.5` du
+  24/08). ~~La différence entre connecter et importer est un GESTE non encore décidé — décision
+  ouverte n°5.~~ Corrigé le 2026-10-11 : cette phrase du 15/09 présentait comme ouverte une
+  distinction consignée depuis août. Une base connectée qui change sous la card relève de `STALE`
+  (point 4.3) ; reste à lui donner l'empreinte des entrées connectées (point 9, n°5).
 - **Sorties** — un pipeline peut avoir **plusieurs nœuds de sortie**, chacun avec SA déclaration.
   Médias : fichier(s) + formats de téléchargement (`export_binding`). Data : **l'Exporter est un nœud
   de sortie qui porte une `Declaration`** (`wama_data/core/export.py:198-211` : nom, colonnes
@@ -4783,12 +4787,23 @@ possible **sans aucun process**.
    périmé ») ; la **règle d'agrégation de 4.4 est validée telle quelle**. L'AFFICHAGE est livré le
    jour même (8 surfaces, gardes dans `common/tests/tests_status_ui.py`) ; la brique d'agrégation reste
    à écrire — c'est le dernier morceau de P2.
-5. Data : « connecter » ou « importer » — que fait-on d'une source qui change sous la card
-   (`wama_data/modules.py:103-107`) ?
-6. Forme du nœud d'export : nœud de sortie à déclaration (proposé ici) — l'abstention actuelle de
-   l'Exporter au catalogue de fonctions (`wama_data/functions/io/export.py:8-31`, verrouillée par
-   `functions/io/tests_export.py:112-126`) a été écrite « tant que D13 n'est pas tranchée » et doit
-   être relue.
+5. ~~Data : « connecter » ou « importer » — que fait-on d'une source qui change sous la card ?~~
+   ✅ **N'ÉTAIT PAS OUVERTE — corrigé le 2026-10-11 (relevé de Fabien).** La distinction est
+   consignée depuis août : l'Importer rassemble des fichiers volants dans un nouveau `.wdat`, le
+   Connector connecte une base déjà constituée (`WAMA_DATA_WORLD §7`, `§11.5`). Une source connectée
+   qui change sous la card est un cas de `STALE` (4.3), pas une décision. ⚠ Ce qui manque est
+   MESURÉ : la photo des entrées surveillées ne garde que leur VALEUR, donc le chemin d'un fichier
+   (`process_runs.snapshot`) ; seules les sorties d'amont ont une empreinte
+   (`process_pipeline.output_fingerprint`). Une entrée DÉPOSÉE est une copie — nouveau fichier,
+   nouveau chemin —, mais une base CONNECTÉE est référencée : modifiée sur place, elle ne périme
+   rien. À écrire : l'empreinte des entrées connectées (la même brique, `provenance.sha256_of`).
+6. ~~Forme du nœud d'export : nœud de sortie à déclaration (proposé ici).~~ ✅ **DÉJÀ PRÉCISÉE par
+   Fabien le 2026-09-15** (`WAMA_DATA_WORLD §11.8 ⑨`) — corrigé le 2026-10-11 : l'Exporter est un
+   nœud de sortie qui porte sa `Declaration`, N exports = N nœuds, et un pipeline sans process est
+   valide. Reste l'IMPLÉMENTATION : lever l'abstention de l'Exporter au catalogue
+   (`wama_data/functions/io/export.py:8-31`, verrouillée par `functions/io/tests_export.py:112-126`,
+   écrite « tant que D13 n'est pas tranchée ») et accepter le pipeline sans process
+   (`studio/services/launch.py`, §11 #35).
 7. **Exécution du code d'une fonction utilisateur** (`binding: user`, `impl` = le code) : bac à sable
    Python, runtime MATLAB, droits, quotas, dépendances autorisées. Prérequis mécaniques, sans
    décision : `Binding.USER` au catalogue, fusion des `UserFunction` visibles dans le
@@ -4948,7 +4963,7 @@ possible **sans aucun process**.
 | **P4** | pilote Médias — ✅ **arbitré le 2026-10-02 (Fabien) : le COMPOSER**, YuE2 en deux process (`plan` consigne → partition, `render` partition → audio ; éditer la partition rend le rendu `STALE`). 🔄 **Code livré le 02/10** (point 4, « paliers B et C ») ; génération réelle JOUÉE le soir même sur le moteur (plan → render, puis render seul) — rejouée par le worker en service le 03/10 (dont ▶ du rendu seul). ✅ Le **transcriber** en 4 process livré le 03/10, A/B objectif fait (point 4, bloc « P4, 2ᵉ pilote ») | P3 |
 | **P5** ✅ 03/10 | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) — livré en six pièces le 03/10 (point 5 : bande des process, état montré, ▶ / ⚙ / case à cocher par process, gabarit généré, promotion fille ↔ mère, catalogue du studio) | P3 (le renommage et le glisser-déposer : à tout moment) |
 | **P6** ✅ 03/10 | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les apps qui ne l'ont pas. ✅ Les dix apps passent par `run_item_task` ; SEPT déclarent un pipeline et le montrent sur leur card : transcriber (6 process dont `import` et `align`), avatarizer, et les cinq apps du process « Sortie » commun (imager, composer, synthesizer, anonymizer, enhancer) — point 4, bloc « P6 ENGAGÉE ». Restent à un seul process : describer, reader, converter (rien à ne pas rejouer) | P4 |
-| **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script | P3, P5, décisions 5-7 |
+| **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script | P3, P5 ; décision n°7 pour le seul process « script » (les n°5 et 6 n'étaient pas ouvertes — corrigé le 2026-10-11) |
 | **P8** | rôle assistant → manifeste `pipeline` / `dataset` | P3 |
 
 > 📍 **BRIEF DE SESSION DÉDIÉE — état MESURÉ le 2026-10-01** (demande de Fabien : *« l'idée du
