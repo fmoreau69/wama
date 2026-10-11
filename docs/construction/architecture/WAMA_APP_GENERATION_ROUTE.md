@@ -3540,7 +3540,7 @@ avec les mêmes bornes, depuis la même déclaration ; le générateur n'a qu'un
   `Param`. N'arbitre rien de neuf : applique 3.3, F3 et §10.2.
 - **R2** — la déclaration unique des nœuds intégrés (règle 6) ; les deux nœuds Data s'enregistrent
   depuis `wama_data` ; la palette lit le registre.
-- **R3** — Lab : `cam_analyzer/params.py` dérivé d'`AnalysisProfile` (`derive_from_model`, `stales`
+- **R3** — Lab : un module `params` du cam_analyzer (à créer), dérivé d'`AnalysisProfile` (`derive_from_model`, `stales`
   par passe) ; `Pass.watched` ne garde que le hors-schéma ; la modale du profil passe au cycle commun
   (`settingsModal`). Puis le face_analyzer (réglages écrits à la main dans `video.html` et
   `realtime.html`, aucun schéma).
