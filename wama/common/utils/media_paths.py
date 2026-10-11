@@ -515,7 +515,22 @@ def designate(path, user, app_name: str, subfolder: str = 'input') -> ReceivedIn
     Trois gardes : confinement (`resolve_under_media_root`, `..` compris), existence, lisibilité
     pour CET utilisateur (`readable_by`) ; puis `reference_or_copy` décide pointer ou copier.
     Lève `InputRefused` avec un motif lisible.
+
+    Un DOSSIER CONNECTÉ (`mounts/<id>/…`, depuis le 2026-10-11) est résolu par la règle du
+    gestionnaire (`user_files.mounted_file` → `resolve_mount_path` : SON montage, `..` refusé),
+    puis COPIÉ par `reference_or_copy` — la règle de toujours (un traitement ne lit pas un disque
+    réseau ; une card ne désigne jamais `mounts/…`, cf. `tests_playback_copy`). La désignation
+    garde l'adresse du montage : `record()` en tire la provenance `mount`. Avant, seul « Envoyer
+    vers » savait le faire ; un glisser depuis l'arbre et l'assistant étaient refusés.
     """
+    from wama.common.services.user_files import is_mount_path, mounted_file
+    if is_mount_path(path):
+        rel = str(path).replace('\\', '/').lstrip('/')
+        source = mounted_file(rel, user)
+        if source is None:
+            raise InputRefused(f"Fichier non accessible : {os.path.basename(rel)}")
+        local, value = reference_or_copy(source, app_name, user.id, subfolder, user=user)
+        return ReceivedInput(source.name, value, local_path=str(local), designation=rel)
     try:
         abs_path, rel = resolve_under_media_root(path)
     except (OutsideMediaRoot, FileNotFoundError) as exc:

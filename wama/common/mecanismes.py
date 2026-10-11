@@ -272,6 +272,18 @@ MECHANISMS = (
               "vérifié avant montage, remontage au redémarrage, révocation au retrait "
               "(2026-10-10/11). Le montage du noyau (cifs) ne reste que le repli sans rclone",
               'wama/filemanager/remote_mounts.py', 'docs/construction/suivi/ROADMAP.md'),
+    Mechanism('user_file_search', "Retrouver un fichier de l'utilisateur, dossiers connectés compris",
+              "Recherche PAR NOM (casse et accents ignorés) dans ce que l'arbre du gestionnaire "
+              "montre — temporaires, entrées et sorties de chaque app LUES à `_app_folders_config`, "
+              "dossiers connectés résolus par `resolve_mount_path` : aucune liste de dossiers. "
+              "Bornée par racine (temps, entrées) et une racine tronquée est DITE (`incomplete`). "
+              "Porte aussi `mounted_file` : `designate` et les outils acceptent `mounts/…`, COPIÉ "
+              "à l'entrée d'une app, jamais déplacé (2026-10-11, outil `find_user_files`). ⚠ La "
+              "recherche du gestionnaire (`api_search`, 25 dossiers écrits à la main, sans les "
+              "dossiers connectés) reste à rallier",
+              'wama/common/services/user_files.py',
+              'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
+              annexes=('wama/common/tests/tests_assistant_reach.py',)),
     Mechanism('system_monitor', 'Moniteur système',
               "Mesure unifiée CPU/RAM/GPU/disque (WSL + hôte Windows) — barre de ressources, model manager",
               'wama/common/services/system_monitor.py', '',
@@ -1026,6 +1038,14 @@ MECHANISMS = (
                        'wama/common/static/common/css/wama-assistant-panel.css',
                        'wama/common/templates/common/_assistant_avatar.html'),
               symbol='run_assistant_turn'),
+    Mechanism('page_navigation', "Pages qu'un utilisateur peut ouvrir (« emmène-moi sur… »)",
+              "Les pages du menu Applications — apps du catalogue et surfaces déclarées, lues par "
+              "`get_app_groups` — filtrées par le DROIT du menu (`accessible_apps`) mais pas par la "
+              "préférence d'affichage, qui ne retire aucun droit. Sert l'outil `open_page` ; le chat "
+              "web suit la page une fois la réponse dite (`applyActions`, 2026-10-11). ⚠ Le "
+              "gestionnaire de fichiers, le journal, le calendrier et les catalogues ne sont "
+              "déclarés nulle part comme pages : les ouvrir demande de les DÉCLARER",
+              'wama/common/services/navigation.py', 'docs/construction/ia/WAMA_LLM.md'),
     Mechanism('conversation_store', "Historique de conversation (serveur)",
               "L'historique de l'assistant côté SERVEUR — remplace le localStorage web et le "
               "dict en mémoire de la passerelle (perdus au changement de navigateur / au "

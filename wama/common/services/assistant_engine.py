@@ -63,6 +63,11 @@ def _language_instruction(user) -> str:
     langue = getattr(getattr(user, 'profile', None), 'preferred_language', None) or 'fr'
     return LANGUAGE_NAMES_EN.get(langue, 'French')
 
+#: ⚠ « Les faits viennent des outils » (2026-10-11, fil web n° 32). Une règle disait ici « question
+#: ou information → répondre directement, sans outil » : elle contredisait `search_docs` (« à
+#: appeler AVANT de répondre ») et le skill de rôle. Mesuré : invité à se présenter, l'assistant a
+#: affirmé l'anonymisation « en toute conformité avec la protection des données » — écrit nulle
+#: part, inventé. Et deux tours « je vais chercher le fichier » sans aucun appel ont fini le tour.
 WAMA_TOOLS_PROMPT = """
 You can interact with WAMA applications by calling tools.
 When you need to perform an action, output ONLY the JSON tool call on a single line, with NO surrounding text:
@@ -73,7 +78,9 @@ When you need to perform an action, output ONLY the JSON tool call on a single l
 Rules:
 - Make ONE tool call per turn. Wait for the result before calling another tool.
 - When the user asks you to perform an action (add a file, launch processing, etc.), use the tools.
-- When the user asks a question or wants information, answer directly without tools.
+- FACTS COME FROM TOOLS. When the user asks about WAMA itself — what it can do, how an app works, what is finished or not yet, or asks you to present WAMA — call `search_docs` first and answer from what it returns, naming the document. For what the user told you before, or about their own work, call `memory_recall`. Answer without tools only when the reply needs no fact about WAMA or about the user's work (greetings, rephrasing, general knowledge).
+- Never state that a feature is finished, certified or compliant (GDPR, security, accessibility…) unless a tool result says so.
+- NEVER ANNOUNCE AN ACTION YOU DO NOT TAKE. If your reply says you will search, check, save, open or launch something, the matching tool call must be IN that same reply — a sentence such as « je vais chercher le fichier » without the call ends your turn and nothing happens.
 - Always confirm what you did after tool calls.
 - Respond in {LANGUE}.
 - AN add_* TOOL QUEUES, IT DOES NOT RUN. Its result carries `status: queued` and `next_step`: you MUST then call that start_* tool in the same turn. Until you do, nothing is processing — never say « la tâche a été lancée », and never report a result you have not read in a get_*_status result.
@@ -84,12 +91,10 @@ Rules:
 - NEVER CLAIM YOU CANNOT DO SOMETHING THAT A TOOL IN THE LIST ABOVE DOES. Check the list first. If a tool exists and fails, report WHAT FAILED, quoting the error message returned by the tool — do not turn a failure into « je ne peux pas » or « cela dépasse mes capacités ». A wrong refusal costs the user more than an error message.
 
 File search strategy:
-- When the user asks to anonymize a file: check "anon_input" first, then "temp".
-- When the user asks to transcribe a file: check "transcriber_input" first, then "temp".
-- When the user asks to describe a file: check "describer_input" first, then "temp".
-- For any other request, search "temp" first.
+- When the user names a file, call find_user_files with words of its name: it searches the temporary folder, every app's inputs and outputs and the user's connected folders (local, network, cloud). Use the returned `path` as-is.
+- Use list_user_files only to show the content of one folder the user points at.
 - When the user references an asset from the médiathèque (e.g. "ma voix X", "l'image Y"), use list_media_assets to find it.
-- If the file is not found in any folder, tell the user to upload it via the WAMA File Manager at /filemanager/ or the corresponding application page.
+- If several files match, list them and ask which one. If none matches, say where you searched; if `incomplete` names folders, say they could not be searched to the end. Then tell the user they can deposit the file through the File Manager (/filemanager/) or the application page.
 """
 
 #: Consigne ajoutée SUR LES SURFACES DE CANAL seulement (Discord, Matrix…). Sans elle, le
@@ -124,6 +129,7 @@ Web surface:
 - Current state for this user: voice {VOICE}, avatar {AVATAR}. The user switches the voice with the speaker button of the chat (🔊 on / 🔇 muted), and the avatar with the avatar button next to it.
 - So NEVER answer that you only communicate in writing or that you have no voice or no avatar. If the user cannot hear you, give them the state above and point to the speaker button.
 - The Synthesizer and the Avatarizer are NOT your voice: they produce FILES (an audio file, a talking-avatar video) from a text the user provides. Offer them only when the user wants such a file.
+- To take the user to an application page, call `open_page`: the browser opens it by itself once your answer has been written and read aloud, and this conversation follows on the new page. Never just give a link here.
 """
 
 #: Surfaces où la réponse est vocalisée par le navigateur (`wama-assistant-voice.js`). Les canaux
@@ -780,9 +786,17 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
     return text, {'input_tokens': 0, 'output_tokens': 0}
 
 
-def _native_tool_specs(user, provider: str, dev_tools: list) -> list | None:
-    """Les outils de l'assistant au format standard (`tools=`), pour un fournisseur DÉCLARÉ qui
-    les accepte (`ExternalSource.native_tools`) — None sinon, et rien ne change pour lui.
+def _accepts_native_tools(source, model: str | None) -> bool:
+    """Ce MODÈLE de la source a-t-il été mesuré avec les outils déclarés nativement ? Sans
+    modèle nommé, c'est le modèle par défaut de la source qui répond (préfixe de protocole ôté)."""
+    model_id = (model or source.default_model or '').rsplit('/', 1)[-1]
+    return bool(model_id) and model_id in (source.native_tools or ())
+
+
+def _native_tool_specs(user, provider: str, dev_tools: list, model: str | None = None) -> list | None:
+    """Les outils de l'assistant au format standard (`tools=`), pour un modèle d'un fournisseur
+    DÉCLARÉ qui les accepte (`ExternalSource.native_tools`, liste de modèles MESURÉS) — None
+    sinon, et le modèle lit la liste du prompt seule, comme avant.
 
     POURQUOI (2026-10-11) : gpt-oss (Albert) appelle ses outils par un canal à part. Non déclarés,
     le serveur rangeait l'appel dans le raisonnement, sans son nom : réponse vide environ 2 fois
@@ -792,7 +806,7 @@ def _native_tool_specs(user, provider: str, dev_tools: list) -> list | None:
     que leurs noms d'arguments. La liste texte du prompt reste en place, pour tout fournisseur."""
     from wama.common import external_sources
     source = external_sources.by_key().get(_PROVIDER_ALIAS.get(provider, provider))
-    if user is None or source is None or not source.native_tools:
+    if user is None or source is None or not _accepts_native_tools(source, model):
         return None
     from wama.common.services.mcp_server import tools_for
     specs = [{'type': 'function', 'function': {'name': t.name, 'description': t.description,
@@ -1321,8 +1335,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
     tools_prompt = (WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list()
                                               + mcp_client.tools_block(dev_tools))
                     if user else "")
-    # Déclaration NATIVE en plus, pour le seul fournisseur qui l'accepte (`native_tools`, 2026-10-11).
-    native_tools = _native_tool_specs(user, provider, dev_tools)
+    # Déclaration NATIVE en plus, pour les seuls modèles mesurés qui l'acceptent (`native_tools`).
+    native_tools = _native_tool_specs(user, provider, dev_tools, llm_model)
     native_kwargs = {'tools': native_tools} if native_tools else {}
     # Langue de réponse = profil utilisateur (plus de « in French » en dur).
     # ⚠ La consigne est posée sur les DEUX prompts : ils sont concaténés, et le prompt d'outils
@@ -1540,7 +1554,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
                 think = thinking_wanted(DEV_QUALITY_INTENT) if local else None
                 etiquette = _label(provider, llm_model, local)
                 # La déclaration native suit le NOUVEAU fournisseur (il peut ne pas l'accepter).
-                native_tools = _native_tool_specs(user, provider, dev_tools)
+                native_tools = _native_tool_specs(user, provider, dev_tools, llm_model)
                 native_kwargs = {'tools': native_tools} if native_tools else {}
                 logger.info("[ai_chat] passage au niveau développement : %s", etiquette)
             elif isinstance(tool_result, dict):

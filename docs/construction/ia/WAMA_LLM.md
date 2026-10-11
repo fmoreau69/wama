@@ -1642,6 +1642,20 @@ Le fil a été éprouvé par l'assistant : prospecter, puis installer trois OCR.
        BASCULE le tour au niveau développement (local), qui a expiré sous charge. Contrôle posé :
        le résultat d'`install_model` porte son `next_step` (comment suivre). À surveiller : si le
        motif revient, ne déclarer les outils dev qu'en domaine dev.
+     - 🔴 **RÉGRESSION LE SOIR MÊME — la déclaration vaut PAR MODÈLE, pas pour la source.** Posée
+       pour Albert entier, elle a rendu l'assistant MUET : le tirage « auto » (curseur 80) prend
+       `deepseek-v4-flash`, qui écrivait « je vais chercher le fichier » puis `finish=stop` sans
+       `tool_calls` (fil web n° 32 : **zéro outil sur tout le fil**, alors que `DSC05016.JPG`
+       était au sas). Matrice mesurée, même demande, 3 essais par case :
+       | modèle Albert | outils natifs | liste du prompt |
+       |---|---|---|
+       | deepseek-v4-flash-0731 | **0/3** (annonce sans appel, ou vide) | 3/3 |
+       | gemma-4-31b-it | **0/3** (vide) | 3/3 |
+       | gpt-oss-120b | 3/3 | 3/3 |
+       `ExternalSource.native_tools` devient le tuple des modèles MESURÉS (`('gpt-oss-120b',)`),
+       lu par `assistant_engine._accepts_native_tools` ; rejeu par `run_assistant_turn`
+       (écritures bouchonnées) : `list_user_files` → `add_to_anonymizer` → `start_anonymizer` →
+       statut. ⭐ *Une mesure faite sur UN modèle ne se pose pas sur sa source.*
    - ✅ **Un succès RACONTÉ sur un refus (fil n° 41, deux fois de suite)** : « a bien été
      installé » alors que chaque `install_model` du tour avait été refusé — le récit entre dans
      l'historique, qui le resservira. **Contrôle sur la DONNÉE** (`_refusals_notice`) : un outil dont
@@ -1672,6 +1686,63 @@ Tests :
 - `tests_assistant_stream.CloudRateLimitTest` (3) ;
 - `tests_ollama_hub_gguf.SimilarKeysOnRefusalTest` (2).
 Les contre-épreuves ont été jouées.
+
+### ⭐ 2026-10-11 — ce que l'assistant ATTEINT : quatre trous du fil web n° 32
+
+Le fil n° 32 ne contient AUCUN appel d'outil. La cause première était la déclaration native posée
+pour toute la source Albert (régression, §2026-10-10 ci-dessus). Mais la lecture du fil a montré
+quatre trous de PORTÉE, indépendants du modèle. Fabien a demandé de les traiter tous, « en restant
+parfaitement aligné avec le fonctionnement de WAMA ; on ne réinvente rien ».
+
+1. **Les faits viennent des outils.** `WAMA_TOOLS_PROMPT` disait : « question → répondre sans
+   outil ». Cette règle contredisait `search_docs` et le skill de rôle. Invité à se présenter,
+   l'assistant a affirmé l'anonymisation « en toute conformité avec la protection des données »,
+   ce qui n'est écrit nulle part.
+   - Remplacée par « FACTS COME FROM TOOLS » : `search_docs` pour WAMA, `memory_recall` pour ce
+     que l'utilisateur a dit.
+   - Ajout : aucune conformité affirmée sans résultat d'outil.
+   - Ajout : « NEVER ANNOUNCE AN ACTION YOU DO NOT TAKE ».
+   - Garde : tout outil nommé par une consigne existe au registre.
+2. **`remember_fact`** — le premier producteur de `PROV_ASSISTANT` (`WAMA_MEMORY §6`, encadré du
+   2026-10-11). Le souvenir est PROPOSÉ et validé sur « Mes souvenirs ». ⚠ La validation par le
+   propriétaire non staff est une décision ouverte.
+3. **`find_user_files`** — brique `common/services/user_files.py`.
+   - Recherche par nom dans ce que montre l'arbre du gestionnaire, lu à sa déclaration
+     (`_app_folders_config`, montages par `resolve_mount_path`).
+   - Bornée par racine ; une racine tronquée est dite.
+   - `designate` et `_resolve_user_path` acceptent `mounts/…`, copié à l'entrée
+     (`MEDIA_STORAGE_TIERING §8`, encadré du 2026-10-11).
+   - La « stratégie de recherche de fichiers » du prompt cherche par nom au lieu de parcourir
+     des dossiers fixes.
+   - ⚠ `filemanager.api_search` (25 dossiers à la main, sans montages) reste à rallier : le
+     fichier est tenu par une autre instance.
+4. **`open_page`** — brique `common/services/navigation.py`.
+   - Pages du menu (apps du catalogue + surfaces), avec le droit du menu (`accessible_apps`) et
+     sans la préférence d'affichage.
+   - Le chat retient la page (`applyActions`) et la suit quand la réponse est dite
+     (`followPendingPage`). Il ne suit jamais une adresse externe.
+   - Le fil suit, puisque chaque chat le recharge.
+   - ⚠ Le gestionnaire de fichiers, le journal, le calendrier et les catalogues ne sont déclarés
+     nulle part comme pages. La `permission` d'un registre garde l'actualisation, pas la lecture.
+
+Tests : `tests_assistant_reach` — consignes, mémoire, fichiers et montages, pages, et le chat en
+V8 sur le fichier servi.
+
+**Rejeu réel** : `run_assistant_turn`, deepseek-v4-flash tiré en auto, sans historique, lectures
+réelles, écritures bouchonnées.
+- « mets à jour ta mémoire » → `remember_fact`, et la réponse dit « en attente de validation ».
+- « flouter dsc05016.jpg » → `find_user_files` → `inspect_user_file` → `add_to_anonymizer`
+  (« license plate ») → `start_anonymizer` → statut.
+- « emmène-moi sur l'Anonymizer » → `open_page`. La réponse ajoute le lien malgré la consigne,
+  sans gravité.
+- ⚠ « présente-toi à une assemblée » : **0 appel de `search_docs` sur 4** (un seul
+  `charger_competence`). Plus aucune conformité RGPD affirmée, mais un essai dit « tout se fait
+  en local, sans rien quitter du labo », alors que le tour passe par Albert.
+- **La consigne ne suffit pas pour ce modèle.** Le souvenir que l'utilisateur fait valider ne
+  pèsera que si le modèle appelle `memory_recall`, puisque le domaine `general` ne rappelle rien
+  (`rag=False`, voulu : pas de recherche à chaque tour). Le levier — injecter les souvenirs
+  APPROUVÉS de l'utilisateur, en lexical, dans le prompt du domaine général — est une DÉCISION,
+  signalée et pas prise.
 
 ## Intake universel de fichiers par l'assistant — inventaire MESURÉ 2026-08-29, plan PROPOSÉ (⏳ validation Fabien)
 

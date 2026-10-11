@@ -108,6 +108,39 @@ def list_user_files(user, folder: str = 'temp') -> dict:
     return {'files': files, 'folder': folder, 'count': len(files)}
 
 
+def find_user_files(user, query: str, limit: int = 20) -> dict:
+    """
+    Find the user's files BY NAME everywhere the File Manager shows them: the temporary folder,
+    the inputs and outputs of every app, and the user's CONNECTED folders (local, network share,
+    cloud such as Nextcloud).
+
+    Call it FIRST whenever the user names a file ("dsc05016", "my interview of Tuesday.mp3"):
+    case and accents are ignored, and every word must appear in the name. Pass the returned
+    `path` as-is to add_to_*, inspect_user_file or look_at_image — a connected-folder file is
+    copied into the app when it is added. For media-library assets, use list_media_assets.
+
+    Args:
+        query: words of the file name (an extension is optional).
+        limit: maximum number of files returned (1-100, default 20).
+
+    Returns:
+        {"results": [{"name", "path", "location", "connected", "size_mb", "modified"}],
+         "count", "roots_searched", "incomplete": [{"location", "error"?}]}
+        `incomplete` names the folders that could not be searched to the end (too large, cloud
+        unreachable): a file absent from the results may still be there — say so.
+    """
+    # La brique COMMUNE (`common/services/user_files.py`) : le périmètre est celui de l'arbre du
+    # gestionnaire, lu à sa déclaration — pas une troisième liste de dossiers.
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Recherche réservée aux utilisateurs identifiés."}
+    from wama.common.services.user_files import find_user_files as _find
+    try:
+        return _find(user, query, limit=limit)
+    except Exception as e:
+        logger.exception('[tool_api] find_user_files')
+        return {'error': f'Recherche impossible : {e}'}
+
+
 def add_to_anonymizer(
     user,
     file_path: str,
@@ -121,7 +154,7 @@ def add_to_anonymizer(
 
     Args:
         user:            Django User instance
-        file_path:       Path relative to MEDIA_ROOT  (e.g. "users/1/temp/biovam.mp4")
+        file_path:       Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder)  (e.g. "users/1/temp/biovam.mp4")
         sam3_prompt:     describe what to blur in text (e.g. "all human faces") — given alone,
                          it selects the DESCRIPTION mode (`target_mode`, a schema setting that
                          can also be passed explicitly: 'classes' | 'description')
@@ -494,7 +527,7 @@ def add_to_enhancer(
 
     Args:
         user:         Django User instance
-        file_path:    Path relative to MEDIA_ROOT (from list_user_files)
+        file_path:    Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (from list_user_files)
         ai_model:     Upscaling model (default: 'RealESR_Gx4')
         denoise:      Apply denoising before upscaling (default: False)
         blend_factor: 0.0 = full AI, 1.0 = original (default: 0.0)
@@ -666,7 +699,7 @@ def add_to_audio_enhancer(
 
     Args:
         user:               Django User instance
-        file_path:          Path relative to MEDIA_ROOT (from list_user_files)
+        file_path:          Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (from list_user_files)
         engine:             'resemble' (quality) | 'deepfilternet' (speed)
         mode:               'both' | 'denoise' | 'enhance'  (Resemble only)
         denoising_strength: 0.0–1.0 denoising amount (Resemble only, default 0.5)
@@ -828,9 +861,9 @@ def synthesize_text(
     Args:
         user:              Django User instance
         text:              Text to synthesize (port `prompt`) — or give `work_file`
-        work_file:         Path (relative to MEDIA_ROOT) of a TXT/MD/PDF/DOCX/CSV file to read aloud
+        work_file:         Path (from find_user_files) of a TXT/MD/PDF/DOCX/CSV file to read aloud
                            (port `work_file`)
-        reference_voice:   Path (relative to MEDIA_ROOT) of a voice sample to clone
+        reference_voice:   Path (from find_user_files) of a voice sample to clone
                            (port `reference_voice`)
         language:          Language code (e.g. 'fr', 'en', 'es')
         tts_model:         TTS model catalog key ('synthesizer:coqui-xtts', 'auto'…)
@@ -992,9 +1025,9 @@ def compose_music(
                   composer id ('musicgen-small'), or a group auto
                   ('auto:text-to-music', 'auto:text-to-audio')
         duration: Duration in seconds (1–30, default 10)
-        work_score: Path (relative to MEDIA_ROOT) of the SCORE of a song to cover — ABC, MIDI
+        work_score: Path (from find_user_files) of the SCORE of a song to cover — ABC, MIDI
                   or MusicXML (port `work_score`); only for a model that declares it (YuE2)
-        work_audio: Path (relative to MEDIA_ROOT) of the AUDIO of a song to cover — its melody
+        work_audio: Path (from find_user_files) of the AUDIO of a song to cover — its melody
                   is replayed in the prompt's style (port `work_audio`, MusicGen Melody)
 
     Returns:
@@ -1142,7 +1175,7 @@ def add_to_describer(
 
     Args:
         user:            Django User instance
-        file_path:       Path relative to MEDIA_ROOT (from list_user_files)
+        file_path:       Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (from list_user_files)
         output_style:    STYLE de description (résumé, détaillée, compte-rendu…), PAS un format
                          de fichier — le format d'export est choisi par l'utilisateur APRÈS le
                          traitement. Valeurs : celles déclarées au schéma `describer/params.py`.
@@ -1226,7 +1259,7 @@ def add_to_transcriber(
 
     Args:
         user:               Django User instance
-        file_path:          Path relative to MEDIA_ROOT (audio or video file)
+        file_path:          Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (audio or video file)
         backend:            the transcription MODEL — 'auto' (drawn at launch) or a catalogue key
                             ('transcriber:qwen3-asr-1.7b', 'transcriber:canary-1b-v2', or a remote
                             one such as 'albert:whisper-large-v3', called with the user's key);
@@ -1390,7 +1423,7 @@ def add_to_reader(
 
     Args:
         user:          Django User instance
-        file_path:     Path relative to MEDIA_ROOT (PDF or image file)
+        file_path:     Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (PDF or image file)
         backend:       'auto' ou la clé de catalogue d'un modèle d'OCR (`list_ai_models`) ;
                        un identifiant d'avant (`olmocr`) est normalisé par `ReadingItem.save`
         mode:          'auto' | 'printed' | 'handwritten'
@@ -1471,7 +1504,7 @@ def convert_file(
 
     Args:
         user:           Django User instance
-        file_path:      Path relative to MEDIA_ROOT (image/video/audio/document/archive)
+        file_path:      Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (image/video/audio/document/archive)
         output_format:  Target format key (e.g. 'mp4', 'webp', 'pdf', 'mp3', 'zip')
         quality_preset: 'web' | 'balanced' | 'max'  (default 'balanced')
 
@@ -1616,6 +1649,37 @@ def switch_ui_mode(user, mode: str = 'simple') -> dict:
     return {'action': 'switch_mode', 'mode': mode, 'message': f"Interface passée en mode {label}."}
 
 
+def open_page(user, page: str) -> dict:
+    """
+    Take the user to a WAMA application page — "emmène-moi sur l'Anonymizer", "ouvre la
+    médiathèque".
+
+    In the web chat the page opens by itself in the user's browser once your answer has been
+    written and read aloud: just say where you are taking them. On another surface (a channel),
+    give the returned `link` instead. Only pages this user is allowed to open are offered.
+
+    Args:
+        page: the application's key or its name as shown in the Applications menu
+              (e.g. 'anonymizer', 'Transcriber', 'Médiathèque', 'Studio').
+
+    Returns:
+        {"action": "navigate", "url", "link", "label", "message"} or
+        {"error", "pages": [{"key", "label"}]} — the pages that CAN be opened.
+    """
+    # La brique COMMUNE (`common/services/navigation.py`) : les pages du MENU, avec le droit du
+    # menu — aucune liste ici. Le résultat `action: navigate` est exécuté par le chat web
+    # (`wama-assistant-chat.js::applyActions`), le pont qui servait déjà `switch_ui_mode`.
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Navigation réservée aux utilisateurs identifiés."}
+    from wama.common.services.navigation import absolute_url, find_page
+    entry, pages = find_page(user, page)
+    if entry is None:
+        return {'error': f"Page inconnue ou non accessible : « {page} ».",
+                'pages': [{'key': p['key'], 'label': p['label']} for p in pages]}
+    return {'action': 'navigate', 'url': entry['url'], 'link': absolute_url(entry['url']),
+            'label': entry['label'], 'message': f"Ouverture de la page {entry['label']}."}
+
+
 def get_media_asset_url(user, asset_id: int) -> dict:
     """
     Get the file URL of a specific media library asset.
@@ -1662,8 +1726,16 @@ def _resolve_user_path(user, file_path: str):
     règle est celle de toute désignation, `media_paths.readable_by` : son arbre, ou un asset
     système actif.
     """
+    from wama.common.services.user_files import is_mount_path, mounted_file
     from wama.common.utils.media_paths import (OutsideMediaRoot, readable_by,
                                                resolve_under_media_root)
+    # Dossier CONNECTÉ (`mounts/<id>/…`, 2026-10-11) : la règle du gestionnaire, LUE en place —
+    # le montage doit être celui de l'appelant. Même porte que `designate`.
+    if is_mount_path(file_path):
+        src = mounted_file(file_path, user)
+        if src is None:
+            return None, {'error': f"Fichier introuvable ou non accessible : {file_path}"}
+        return src, None
     try:
         src, rel = resolve_under_media_root(file_path)
     except OutsideMediaRoot:
@@ -1685,7 +1757,7 @@ def inspect_user_file(user, file_path: str) -> dict:
     the user, offering the returned targets. Never invent targets beyond this answer.
 
     Args:
-        file_path: MEDIA_ROOT-relative path (as returned by list_user_files).
+        file_path: the `path` returned by find_user_files or list_user_files.
 
     Returns:
         {"category", "ports": [{"app","port","group","label"}], "batch", "manifest",
@@ -1715,7 +1787,7 @@ def look_at_image(user, file_path: str, question: str = '') -> dict:
     `add_to_describer` instead (asynchronous, full pipeline).
 
     Args:
-        file_path: MEDIA_ROOT-relative path of the image (from list_user_files).
+        file_path: the image's `path` (from find_user_files or list_user_files).
         question:  What to look for, in the user's language (optional).
 
     Returns:
@@ -1763,6 +1835,14 @@ def add_to_media_library(user, file_path: str, asset_type: str,
     """
     if user is None or not getattr(user, 'is_authenticated', False):
         return {'error': "Médiathèque réservée aux utilisateurs identifiés."}
+    # ⚠ Le geste DÉPLACE (D24) un fichier de l'ARBRE de l'utilisateur (`add_file_to_library`).
+    # Un dossier CONNECTÉ n'en fait pas partie : le déplacer retirerait le fichier du NAS ou du
+    # nuage. `_resolve_user_path` l'accepte en LECTURE depuis le 2026-10-11 — d'où ce refus.
+    from wama.common.services.user_files import is_mount_path
+    if is_mount_path(file_path):
+        return {'error': "Un fichier de dossier connecté ne se range pas directement en "
+                         "médiathèque : ce geste DÉPLACE le fichier, il quitterait le dossier "
+                         "connecté. Il peut en revanche être envoyé vers une app (copié à l'entrée)."}
     src, err = _resolve_user_path(user, file_path)
     if err:
         return err
@@ -3378,7 +3458,8 @@ def list_my_memories(user, kind: str = '', limite: int = 25) -> dict:
     stating something as remembered.
 
     Args:
-        kind:   restrict to one memory kind (e.g. 'fact'); empty = every kind.
+        kind:   restrict to one memory kind ('semantic', 'episodic' or 'procedural');
+                empty = every kind.
         limite: how many rows (1-100, default 25).
 
     Returns:
@@ -3420,6 +3501,77 @@ def list_my_memories(user, kind: str = '', limite: int = 25) -> dict:
     return {'memories': out, 'total': total, 'returned': len(out)}
 
 
+def _memory_kinds() -> tuple:
+    """Natures qu'un souvenir PROPOSÉ peut prendre — celles du modèle, pas une liste de plus
+    (`MemoryItem.KIND_CHOICES` : fait, événement, procédure)."""
+    from wama.common.models import MemoryItem
+    return tuple(k for k, _ in MemoryItem.KIND_CHOICES)
+
+
+def remember_fact(user, content: str, kind: str = 'semantic', subject: str = '') -> dict:
+    """
+    Save something the user wants WAMA to remember — a fact, a correction, a preference, the
+    state of something ("the anonymizer is not GDPR-compliant yet").
+
+    Call it whenever the user asks you to remember, note or update your memory, and ONLY then
+    say it is saved. Write ONE self-contained sentence in the user's language, with the names it
+    needs (it will be read later without this conversation).
+
+    The memory is PROPOSED, not active: a reviewer validates it on the "Mes souvenirs" page
+    before `memory_recall` can return it. Tell the user so.
+
+    Args:
+        content: the sentence to remember.
+        kind:    'semantic' (a stable fact), 'episodic' (a dated event) or 'procedural'
+                 (a way of doing something). Default 'semantic'.
+        subject: what it is about, in one or two words (an app name, a project…) — optional.
+
+    Returns:
+        {"id", "status": "pending_review"|"already_active", "kind", "content", "review_url",
+         "message"} or {"error"}
+    """
+    # ⚠ L'ÉCRITURE est la brique (`store.remember`), et la GOUVERNANCE reste la sienne
+    # (`WAMA_MEMORY §6`) : provenance `assistant`, NON approuvé, donc invisible au rappel tant
+    # qu'un humain ne l'a pas validé sur la page « Mes souvenirs » (`memories_approve`). Aucun
+    # contournement ici — c'est un écrit de LLM, même quand il reformule l'utilisateur.
+    # `embed=False` : écrire n'est pas vectoriser (§5bis) — le rappel lexical le retrouve, le
+    # vecteur vient de `sync_memory --reindex`, geste explicite.
+    # POURQUOI (2026-10-11, fil web n° 32) : à « mets à jour ta mémoire », l'assistant a répondu
+    # « je vais enregistrer ce fait » — aucun outil d'écriture n'existait, rien n'a été écrit.
+    # `PROV_ASSISTANT` était déclaré au modèle depuis août, sans aucun producteur.
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Écriture réservée aux utilisateurs identifiés."}
+    content = ' '.join((content or '').split())
+    if not content:
+        return {'error': "content vide : rien à retenir."}
+    kinds = _memory_kinds()
+    if kind not in kinds:
+        return {'error': f"kind inconnu : {kind!r}. Valeurs : {', '.join(kinds)}."}
+
+    from django.urls import reverse
+
+    from wama.common.memory.store import remember
+    from wama.common.models import MemoryItem
+    item = remember(content, kind=kind, provenance=MemoryItem.PROV_ASSISTANT, user=user,
+                    subject=(subject or '').strip()[:128], source_app='assistant', embed=False)
+    if item is None:
+        return {'error': "Écriture impossible (journal du serveur)."}
+    active = item.approved_at is not None
+    # La file de revue est réservée au staff (`memories_view`) : à un autre compte, on dit qui
+    # valide, plutôt que de l'envoyer sur une page où il ne verra rien.
+    reviewer = ("vous (page « Mes souvenirs »)" if getattr(user, 'is_staff', False)
+                else "un administrateur de WAMA")
+    return {
+        'id': item.pk,
+        'status': 'already_active' if active else 'pending_review',
+        'kind': item.kind,
+        'content': item.content,
+        'review_url': reverse('common:memories'),
+        'message': ("Ce souvenir existait déjà et il est actif." if active else
+                    f"Souvenir proposé : il sera utilisé une fois validé par {reviewer}."),
+    }
+
+
 TOOL_REGISTRY = {
     'translate_text': translate_text,
     # Lectures TRANSVERSALES (WAMA_MEMORY §9ter jalon 12 + registre des registres) — LECTURE
@@ -3447,6 +3599,9 @@ TOOL_REGISTRY = {
     # Mémoire & RAG — LECTURE SEULE et scopée (jalon 8, WAMA_MEMORY.md). Transverse : ce que
     # l'assistant retrouve, c'est ce que SON utilisateur possède, dans n'importe quelle app.
     'memory_recall':  memory_recall,
+    # …et la seule ÉCRITURE (2026-10-11) : un souvenir PROPOSÉ, non approuvé, que la page « Mes
+    # souvenirs » valide (`WAMA_MEMORY §6`). Transverse, sur SON compte.
+    'remember_fact':  remember_fact,
     # La doc de WAMA elle-même (corpus SYSTÈME, WAMA_MEMORY §7quinquies) — LECTURE SEULE,
     # gardée par le prédicat du lecteur de docs. Jamais les fichiers de l'utilisateur.
     'search_docs':    search_docs,
@@ -3492,6 +3647,9 @@ TOOL_REGISTRY = {
     # user-déclenchée, keep_alive='0' sous WAMA_GPU_SAFE_MODE. Images seulement.
     'look_at_image':        look_at_image,
     'list_user_files':       list_user_files,
+    # Chercher PAR NOM dans tout ce que l'arbre du gestionnaire montre, dossiers connectés
+    # compris (2026-10-11, brique `common/services/user_files.py`).
+    'find_user_files':       find_user_files,
     'add_to_avatarizer':     add_to_avatarizer,
     'start_avatarizer':      start_avatarizer,
     'get_avatarizer_status': get_avatarizer_status,
@@ -3529,6 +3687,7 @@ TOOL_REGISTRY = {
     'list_media_assets':      list_media_assets,
     'get_media_asset_url':    get_media_asset_url,
     'switch_ui_mode':         switch_ui_mode,
+    'open_page':              open_page,
     'list_studio_pipelines':  list_studio_pipelines,
     'run_studio_pipeline':    run_studio_pipeline,
     'get_studio_run_status':  get_studio_run_status,
@@ -3551,11 +3710,18 @@ TOOL_APP_OVERRIDE = {
     'list_media_assets':   'media_library',
     'get_media_asset_url': 'media_library',
     'list_user_files':     None,
+    'find_user_files':     None,
     'translate_text':      None,
     'switch_ui_mode':      None,
+    # Ouvrir une page : transverse — le droit est celui de la PAGE, décidé dans le corps par la
+    # brique de navigation (même décision que le menu).
+    'open_page':           None,
     # Mémoire : transverse par nature (elle agrège les 12 apps) et LECTURE SEULE, scopée par
     # `scoped_visible_q`. La garder derrière une app la rendrait inutile depuis les autres.
     'memory_recall':       None,
+    # Proposer un souvenir : transverse comme le rappel, écrit sur le compte de l'appelant, et
+    # INVISIBLE au rappel tant qu'un humain ne l'a pas validé (`remember_fact`).
+    'remember_fact':       None,
     # Doc de WAMA : transverse et LECTURE SEULE. `None` = autorisé à tous par le registre ; le
     # refus des non-identifiés et la garde par audience sont dans les CORPS (`visible_keys`).
     'search_docs':         None,

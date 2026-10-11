@@ -323,7 +323,12 @@ class ExternalSource:
     #: (2026-10-11). Mesuré sur Albert/gpt-oss : sans déclaration, son appel d'outil natif
     #: arrivait sans nom, rangé dans le raisonnement — réponse vide environ 2 fois sur 3 ; déclarés,
     #: 81 outils acceptés et l'appel rendu nommé. Ne le poser que MESURÉ sur le fournisseur.
-    native_tools: bool = False
+    #: ⚠ PAR MODÈLE, jamais pour toute la source (2026-10-11, le soir même) : posé pour Albert
+    #: entier, il a rendu l'assistant MUET sur les deux autres modèles mesurés — deepseek-v4-flash
+    #: (tiré en « auto ») annonçait « je vais chercher le fichier » puis s'arrêtait sans appel,
+    #: gemma-4-31b rendait vide ; 0 appel sur 3 chacun, contre 3 sur 3 par la liste du prompt.
+    #: D'où un tuple d'identifiants de modèles MESURÉS (sans préfixe de protocole).
+    native_tools: tuple = ()
     #: Attribution EXIGÉE par la licence de la source. Une obligation, pas une politesse.
     attribution: str = ''
     #: Document portant l'intention, quand elle est écrite quelque part.
@@ -374,7 +379,7 @@ SOURCES: tuple[ExternalSource, ...] = (
         api_key_env='ALBERT_API_KEY', user_key=True,
         api_key_help_url='https://ia.numerique.gouv.fr/outils-ia/albert-api/',
         hosting='sovereign', cost_tier='free', protocol='openai',
-        default_model='openai/gpt-oss-120b', native_tools=True,
+        default_model='openai/gpt-oss-120b', native_tools=('gpt-oss-120b',),
         # 10 requêtes par minute et par clé, sans `Retry-After` : une fenêtre ENTIÈRE (mesuré le
         # 2026-10-10 — trois essais à 20 s d'écart tous refusés).
         rate_limit_wait_s=60.0,

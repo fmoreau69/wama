@@ -176,6 +176,18 @@ il rattrape les identifiants exacts (`model_key`, nom de fichier, code projet) q
    travaille que sur du non-approuvé et du `RagChunk`.
 5. **`merge()` propose, l'humain valide** — doctrine « propose-cite-tu-valides » (ROADMAP §16.1).
 
+> ✅ **2026-10-11 — premier producteur de la provenance `assistant` : l'outil `remember_fact`.**
+> `PROV_ASSISTANT` était déclaré au modèle depuis août, sans aucun appelant : à « mets à jour ta
+> mémoire » (fil web n° 32), l'assistant répondait « je vais enregistrer ce fait » sans rien
+> écrire. L'outil passe par `store.remember` et suit les règles ci-dessus SANS exception : non
+> approuvé (invisible au rappel), `provenance='assistant'`, `source_app='assistant'`, privé,
+> `embed=False` (§5bis — le rappel lexical le retrouvera, le vecteur vient de `sync_memory
+> --reindex`). Il est validé sur la page « Mes souvenirs » (`memories_approve`), et le résultat de
+> l'outil dit QUI valide. ⚠ **Décision ouverte** : la file de revue est réservée au staff (non
+> scopée, `list_memories`) — un compte non staff ne peut donc pas valider le souvenir qu'il a
+> lui-même demandé. Laisser le PROPRIÉTAIRE approuver son souvenir PRIVÉ est une décision de
+> gouvernance, pas un correctif.
+
 ## 7. Producteurs, consommateurs, substrat
 
 ```

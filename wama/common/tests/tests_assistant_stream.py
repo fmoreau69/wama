@@ -219,7 +219,8 @@ class TurnEventsTest(TestCase):
         def fake_llm(messages, llm_model, provider, user=None, think=None, on_delta=None,
                      tools=None):
             self.assertIsNotNone(on_delta)
-            # Albert déclare `native_tools` : la déclaration native accompagne l'appel (2026-10-11).
+            # gpt-oss est déclaré `native_tools` chez Albert : la déclaration native accompagne
+            # l'appel (2026-10-11) — elle vaut pour ce modèle mesuré, pas pour toute la source.
             self.assertTrue(tools)
             on_delta('Réponse ')
             on_delta('distante.')
@@ -227,8 +228,9 @@ class TurnEventsTest(TestCase):
 
         events = []
         with mock.patch.object(assistant_engine, '_llm_call', side_effect=fake_llm):
-            assistant_engine.run_assistant_turn(self.user, 'x', provider='albert', model='m',
-                                                history=[], on_event=events.append)
+            assistant_engine.run_assistant_turn(self.user, 'x', provider='albert',
+                                                model='gpt-oss-120b', history=[],
+                                                on_event=events.append)
         self.assertEqual('Réponse distante.',
                          ''.join(e['text'] for e in events if e['type'] == 'delta'))
 
@@ -523,3 +525,16 @@ class NativeToolCallTest(SimpleTestCase):
             self.assertIsNone(assistant_engine._native_tool_specs(user, 'ilaas', []))
             self.assertIsNone(assistant_engine._native_tool_specs(user, 'wama-dev-ai', []))
             self.assertIsNone(assistant_engine._native_tool_specs(None, 'albert', []))
+
+    def test_only_a_measured_model_of_the_source_receives_the_tools(self):
+        """PAR MODÈLE (2026-10-11, le soir) : déclarés à toute la source Albert, les outils natifs
+        ont rendu deepseek-v4-flash et gemma-4-31b muets — 0 appel sur 3 chacun, contre 3 sur 3
+        par la liste du prompt. Seul gpt-oss, mesuré, les reçoit."""
+        user = mock.Mock(pk=1, is_authenticated=True)
+        tool = mock.Mock(description='d', inputSchema={'type': 'object', 'properties': {}})
+        tool.name = 'list_user_files'
+        with mock.patch('wama.common.services.mcp_server.tools_for', return_value=[tool]):
+            self.assertTrue(assistant_engine._native_tool_specs(user, 'albert', [], 'gpt-oss-120b'))
+            for model in ('deepseek-v4-flash-0731', 'gemma-4-31b-it'):
+                self.assertIsNone(assistant_engine._native_tool_specs(user, 'albert', [], model),
+                                  model)
