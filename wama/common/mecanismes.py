@@ -223,7 +223,10 @@ MECHANISMS = (
                        'wama/model_manager/services/memory_cleaner.py',
                        'wama/model_manager/services/memory_diagnostics.py')),
     Mechanism('eta', 'ETA auto-apprenante',
-              "Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel",
+              "Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel ; "
+              "sous la clé de catalogue d'un modèle, c'est aussi sa VITESSE D'INFÉRENCE, que le "
+              "banc calibre et que le curseur rapide/qualité de toutes les apps compare "
+              "(`comparable_speeds` → `model_selector.intent_choice`, 2026-10-11)",
               'wama/model_manager/services/eta_estimator.py', 'docs/construction/suivi/PROJECT_STATUS.md §10'),
     Mechanism('nightly_tests', 'Tests nocturnes',
               "Registre déclaratif de scénarios + runner sérialisé VRAM-aware "

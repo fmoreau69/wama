@@ -194,6 +194,17 @@ class EnsembleCoverageTest(TestCase):
         self.assertEqual('anonymizer:egoblur-lp-gen1', self._plates()[0],
                          'no intent given : recall alone, as before')
 
+    def test_the_declared_recall_floor_keeps_a_fast_model_that_finds_nothing_out(self):
+        """The fastest plate model finds 13 % : with a floor at 60 % of the best (60 %), speed
+        only arbitrates between the two that clear 36 %."""
+        self._measure('anonymizer:yolo:yolov8m-plates.pt', 0.87, ms=10)
+        self._measure('anonymizer:egoblur-lp-gen1', 0.40, ms=90)
+        self._measure('anonymizer:rtdetr-v2-license-plate', 0.60, ms=40)
+        self.assertEqual('anonymizer:rtdetr-v2-license-plate',
+                         self._plates(quality_intent=0, min_relative_recall=0.6)[0])
+        self.assertEqual('anonymizer:egoblur-lp-gen1',
+                         self._plates(quality_intent=100, min_relative_recall=0.6)[0])
+
     def test_a_lot_timed_in_part_keeps_the_recall_order(self):
         self._measure('anonymizer:yolo:yolov8m-plates.pt', 0.87, ms=10)
         self._measure('anonymizer:egoblur-lp-gen1', 0.40)

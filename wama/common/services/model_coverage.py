@@ -215,7 +215,8 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
                     quality_intent=None,
                     strategie: str = 'couverture',
                     max_modeles: int = 4,
-                    models_per_class: int = 1) -> dict:
+                    models_per_class: int = 1,
+                    min_relative_recall: float | None = None) -> dict:
     """
     Ensemble MINIMAL de modèles couvrant `classes`, par recouvrement glouton.
 
@@ -228,7 +229,10 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
     une vitesse apprise sur cette carte (`eta_estimator.comparable_speeds`) et que le curseur est
     donné, le premier modèle de la classe est celui que le curseur désigne entre rappel et vitesse
     — l'arbitrage de toutes les apps (`model_selector.intent_choice`, 2026-10-11) : « Rapide » ne
-    prend plus le plus gros.
+    prend plus le plus gros. `min_relative_recall` est le PLANCHER que l'appelant déclare : la
+    vitesse ne départage que les modèles qui trouvent au moins cette part de ce que trouve le
+    meilleur de la classe (l'anonymizer : `RECALL_FLOOR`) — un modèle rapide qui ne trouve rien
+    n'est pas un choix « rapide ».
 
     `quality_intent` (chantier C, 2026-09-20) : le curseur commun 0-100 — la brique en DÉRIVE
     elle-même ses préférences vision (`size_for_intent`, `segmentation_for_intent`) quand
@@ -316,8 +320,12 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
             # vitesse ; les modèles d'ensemble suivants restent rangés par rappel.
             speeds = comparable_speeds(pool) if quality_intent is not None else {}
             if speeds:
-                picked[v] = intent_choice(pool, {k: 1.0 - rates[k] for k in pool}, speeds,
-                                          quality_intent, key=lambda k: k)
+                recalls = {k: 1.0 - rates[k] for k in pool}
+                floor = (min_relative_recall or 0.0) * max(recalls.values())
+                eligible = [k for k in pool if recalls[k] >= floor]
+                picked[v] = intent_choice(eligible, {k: recalls[k] for k in eligible},
+                                          {k: speeds[k] for k in eligible}, quality_intent,
+                                          key=lambda k: k)
 
     def _measured_recall(m, couvre) -> tuple:
         """(désigné par le curseur, rappel mesuré) sur les classes couvertes dont le lot est

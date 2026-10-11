@@ -759,7 +759,7 @@ def get_model_selection_info(classes_to_blur: List[str],
 
 #: Tâches admises pour flouter — déclarées UNE fois (`model_config.DETECTION_TASKS`, que le
 #: select lit aussi).
-from .model_config import DETECTION_TASKS, models_per_class_for  # noqa: E402
+from .model_config import DETECTION_TASKS, RECALL_FLOOR, models_per_class_for  # noqa: E402
 
 
 def select_best_models_by_precision(classes_to_blur: List[str],
@@ -804,6 +804,8 @@ def select_best_models_by_precision(classes_to_blur: List[str],
         # selon le curseur (`model_config.models_per_class_for`), départagés par leur rappel MESURÉ.
         models_per_class=models_per_class_for(precision_level),
         max_modeles=max(4, models_per_class_for(precision_level) * len(classes_to_blur)),
+        # La vitesse ne départage que les détecteurs qui trouvent assez (`RECALL_FLOOR`).
+        min_relative_recall=RECALL_FLOOR,
     )
 
     # La brique rend des `model_key` de catalogue ; l'anonymizer manipule ses identifiants

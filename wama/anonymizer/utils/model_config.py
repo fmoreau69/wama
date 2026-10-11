@@ -41,6 +41,12 @@ DETECTION_TASKS = ('detect', 'segment')
 MODELS_PER_CLASS_STEPS = ((33, 1), (66, 2))
 MODELS_PER_CLASS_MAX = 3
 
+#: PLANCHER DE RAPPEL du curseur (2026-10-11) — arbitrage de l'app, déclaré : la vitesse ne
+#: départage que les détecteurs qui trouvent au moins cette part de ce que trouve le meilleur de
+#: la classe. Sans lui, « Rapide » retenait pour les visages un modèle 2-en-1 qui en trouve 2,6 %
+#: (le plus rapide du lot) : pour anonymiser, ce n'est pas un réglage rapide, c'est une fuite.
+RECALL_FLOOR = 0.9
+
 
 def models_per_class_for(precision_level) -> int:
     """Modèles par classe pour ce cran de précision (« Rapide » : un seul, comme avant)."""

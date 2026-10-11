@@ -14,6 +14,7 @@ import json
 import sys
 from pathlib import Path
 
+from wama.anonymizer.utils.model_config import RECALL_FLOOR
 from wama.anonymizer.utils.model_selector import select_best_models_by_precision
 from wama.common.models import ResultEvaluation
 from wama.model_manager.models import AIModel
@@ -235,7 +236,9 @@ pour les plaques. Dernière mesure le {date_fr(last)}.</p>
 rapport : il pèse ce que chaque détecteur trouve contre le temps qu'il prend par image. Tout à gauche il
 prend le plus rapide, tout à droite celui qui trouve le plus, et entre les deux un compromis — c'est la
 même règle que le curseur de toutes les applications de WAMA, et le temps est celui que WAMA apprend pour
-estimer la durée d'un traitement. Plus haut sur le curseur, il ajoute d'autres détecteurs, rangés par ce
+estimer la durée d'un traitement. La vitesse ne départage que les détecteurs qui trouvent au moins
+{nb(round(100 * RECALL_FLOOR))} % de ce que trouve le meilleur : un détecteur rapide qui laisse passer les
+visages n'est pas un réglage rapide, c'est une fuite. Plus haut sur le curseur, il ajoute d'autres détecteurs, rangés par ce
 qu'ils trouvent, pour rattraper ce que le premier manque. Voici ce qu'il retient aujourd'hui, avec le
 temps de traitement d'une image.</p>
 <div class="tbl"><table><thead><tr><th>Réglage</th><th>Visages</th><th>Plaques</th></tr></thead>
@@ -311,7 +314,9 @@ mesure à part du rappel (il dépend de la machine, pas des images annotées) : 
 sur le disque local, hors chronomètre, pour que la lecture du partage réseau des jeux de données n'entre pas
 dans la mesure ; pour les plaques, la vidéo entière est traitée et le temps divisé par son nombre
 d'images. Ce temps est rangé là où WAMA apprend la durée de ses traitements, par modèle et par carte
-graphique : le curseur le lit, et un changement de carte le fait réapprendre.</p>
+graphique : le curseur le lit, et un changement de carte le fait réapprendre. Un détecteur passé sur les
+deux bancs (les modèles visages + plaques) garde un seul temps par image, moyenne glissante de ses
+mesures.</p>
 <div class="tbl"><table><thead><tr><th>Banc</th><th>Données</th><th>Ce qui compte comme trouvé</th>
 <th>Protocole</th></tr></thead><tbody>
 <tr><td>Visages</td><td>WIDER FACE, validation : {nb(images_faces)} images, {nb(truth_faces)} visages</td>
