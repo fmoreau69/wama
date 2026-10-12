@@ -510,13 +510,6 @@ _pv = make_progress_views(work_model=ReadingItem, app_id='reader',
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 
-def text_view(request, pk: int):
-    """Return the full extracted text as JSON (used by the in-page full-text modal)."""
-    from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
-    item = visible_or_404(ReadingItem, _get_user(request), pk=pk)
-    return JsonResponse({'text': _extract_natural_text(item.result_text) or '', 'filename': item.filename})
-
-
 def download(request, pk: int):
     """Download the OCR result. Supported formats: txt (default), md, pdf, docx, json."""
     from wama.common.utils.scoping import visible_or_404  # lecture → partage F7

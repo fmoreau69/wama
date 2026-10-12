@@ -13,8 +13,10 @@ CE QU'IL FAIT, sans GPU et sans connaître aucune app :
      que l'app déclare produire (`APP_CATALOG.output_types`) ;
   3. clique le NOM d'entrée de la card (`.preview-media-link`) → la visionneuse doit MONTRER
      quelque chose, puis passer sur sa face Sortie par sa propre bascule ;
-  4. double-clique l'aperçu de la card (`.wama-card-preview`) → idem, ou la modale propre à l'app
-     quand elle intercepte `wama:card-expand` (reader, transcriber : issue légitime du contrat).
+  4. double-clique l'aperçu de la card (`.wama-card-preview`) → la visionneuse commune, avec la
+     face Entrée dans sa bascule quand la spec en déclare une. Une app qui intercepte
+     `wama:card-expand` (transcriber) ouvre sa propre modale : dit en ⚠, elle n'a pas les faces.
+     Une card FILLE de lot a son aperçu comme une card seule (enhancer aligné le 2026-10-12).
 Une erreur d'aperçu (le toast que lève `media-preview.js`) est un ÉCHEC, jamais un constat.
 
 Module à part d'`ui_smoke.py` (même raison qu'`ui_smoke_panel`) ; il en réutilise les briques et
@@ -216,6 +218,10 @@ def check_app_preview(app: str, url_path: str):
                 page.evaluate("() => document.querySelectorAll('.batch-group .collapse')"
                               ".forEach(c => c.classList.add('show'))")
                 findings, faults = [posed], []
+                if page.evaluate("(sel) => !!document.querySelector(sel + '.wcv3--batch-child')",
+                                 card.format(ident)):
+                    findings.append('card fille de lot')
+                entry_opened = False
 
                 # ── ENTRÉE : le nom d'entrée de la card ─────────────────────────────────
                 link = page.locator(card.format(ident) + ' .preview-media-link[data-preview-url]').first
@@ -226,6 +232,7 @@ def check_app_preview(app: str, url_path: str):
                     if fault:
                         faults.append(fault)
                     else:
+                        entry_opened = not shown.get('own')
                         findings.append(f"entrée → {_seen(shown)}")
                         # La bascule de la VISIONNEUSE vers la face Sortie (ses propres faces).
                         if 'Sortie' in (shown or {}).get('sides', []):
@@ -252,14 +259,8 @@ def check_app_preview(app: str, url_path: str):
                 # pour l'overlay commun — une app qui intercepte `wama:card-expand` ouvre sa
                 # propre modale sans lui (transcriber, contrat de `media-preview.js`).
                 preview = page.locator(card.format(ident) + ' .wama-card-preview').first
-                batch_child = page.evaluate(
-                    "(sel) => !!document.querySelector(sel + '.wcv3--batch-child')", card.format(ident))
-                if not preview.count() and batch_child:
-                    # Choix DÉCLARÉ par certaines cards (enhancer : une fille de lot est une ligne
-                    # compacte) — dit, jamais compté comme une sortie ouverte.
-                    findings.append("⚠ card FILLE DE LOT sans aperçu (choix de la card) — sortie "
-                                    "non ouverte depuis la file")
-                elif not preview.count():
+                if not preview.count():
+                    # Fille de lot comprise : l'enhancer l'en privait jusqu'au 2026-10-12.
                     faults.append("résultat posé, mais la card n'a aucun aperçu `.wama-card-preview`")
                 else:
                     try:
@@ -273,8 +274,16 @@ def check_app_preview(app: str, url_path: str):
                         preview.scroll_into_view_if_needed(timeout=3000)
                         shown, errors = _open_and_read(page, lambda: preview.dblclick(timeout=6000))
                         fault = _verdict('sortie', shown, errors)
+                        if not fault and not shown.get('own') and entry_opened \
+                                and 'Entrée' not in shown.get('sides', []):
+                            # L'entrée s'ouvre (ci-dessus), la visionneuse de l'élément doit donc
+                            # porter sa face Entrée : sans elle, on ne voit que la sortie.
+                            fault = "sortie : la visionneuse s'ouvre SANS sa face Entrée"
                         if fault:
                             faults.append(fault)
+                        elif shown.get('own'):
+                            findings.append("⚠ sortie → modale propre à l'app (sans les faces "
+                                            "Entrée | Sortie de la visionneuse commune)")
                         else:
                             findings.append(f"sortie → {_seen(shown)}")
                         _close(page)

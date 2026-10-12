@@ -5938,7 +5938,7 @@ def check_app_processing(app: str, url_path: str):
                     loc.dblclick(timeout=6000)      # le geste déclaré (media-preview.js)
                     # ⚠ DEUX issues LÉGITIMES au contrat, et n'en exiger qu'une accusait le
                     # converter à tort : l'overlay commun, OU la modale propre à l'app quand
-                    # elle intercepte `wama:card-expand` (transcriber, reader). On mesure le
+                    # elle intercepte `wama:card-expand` (transcriber). On mesure le
                     # GESTE — « une visionneuse s'ouvre » — pas une implémentation.
                     # ⚠ 20 s, et ce n'est pas de la marge gratuite. À 6 s, l'attente expirait
                     # alors que la visionneuse s'ouvrait BEL ET BIEN : la sonde posée dans la

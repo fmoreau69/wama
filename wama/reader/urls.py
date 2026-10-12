@@ -15,7 +15,6 @@ urlpatterns = [
     path('settings/<int:pk>/',      views.update_settings,     name='update_settings'),
     path('progress/<int:pk>/',      views.progress,            name='progress'),
     path('card/<int:pk>/html/',     views.card_html,           name='card_html'),
-    path('text/<int:pk>/',          views.text_view,           name='text'),
     path('download/<int:pk>/',      views.download,            name='download'),
     path('delete/<int:pk>/',        views.delete,              name='delete'),
     path('duplicate/<int:pk>/',     views.duplicate,           name='duplicate'),

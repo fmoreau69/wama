@@ -113,8 +113,7 @@
                 if (action === 'expand') expandPreview(item.id);
             });
         });
-        // (double-clic → texte intégral : plus de listener PAR CARD depuis le 2026-09-01 —
-        // écoute DÉLÉGUÉE de `wama:card-expand` en bas de ce fichier, contrat commun.)
+        // (double-clic → visionneuse commune, délégation de `media-preview.js` — rien par card.)
         if (typeof window.initMediaPreview === 'function') window.initMediaPreview();
     }
 
@@ -276,31 +275,10 @@
         });
     }
 
-    // Double-clic sur une preview de card → TEXTE INTÉGRAL (geste propre au reader), branché
-    // sur le contrat commun (2026-09-01) : `media-preview.js` émet `wama:card-expand`
-    // ANNULABLE avant d'ouvrir son overlay ; on l'annule et on ouvre le nôtre. Une seule
-    // écoute déléguée remplace les deux listeners par card d'avant — et deux gestes ne
-    // peuvent plus tirer ensemble sur le même double-clic (c'est ce que la classe commune
-    // aurait produit sans ce branchement). Même geste que transcriber.
-    document.addEventListener('wama:card-expand', e => {
-        const el = e.detail && e.detail.el;
-        if (!el || !el.classList.contains('reader-preview')) return;
-        e.preventDefault();
-        const id = (e.detail.id) || (el.closest('[data-id]') || {}).dataset?.id;
-        if (id) openFullTextModal(id);
-    });
-
-    async function openFullTextModal(id) {
-        try {
-            const r = await fetch(urlFor('text', id));
-            const data = await r.json();
-            if (typeof window.showTextModal === 'function') {
-                window.showTextModal(data.text || '', data.filename || 'Texte OCR');
-            }
-        } catch (e) {
-            console.error('[Reader] openFullTextModal error:', e);
-        }
-    }
+    // Double-clic sur une preview de card → la visionneuse COMMUNE (`media-preview.js`), sur
+    // la face Sortie avec sa bascule Entrée | Sortie. Le reader l'interceptait (`wama:card-expand`
+    // + `openFullTextModal` sur `reader:text`) pour ouvrir le seul texte OCR, sans faces ;
+    // retiré le 2026-10-12 (REMOVAL_LEDGER R116) : la face Sortie sert déjà le texte intégral.
 
     function expandPreview(id) {
         const preview = document.querySelector(
@@ -689,9 +667,8 @@
                 });
             });
         });
-        // Cards (re)rendues : la brique commune doit lier les nouvelles previews, sinon
-        // `wama:card-expand` n'est jamais émis sur elles (motif du parc — anonymizer,
-        // enhancer font pareil). Le double-clic lui-même est écouté en délégation.
+        // Cards (re)rendues : la brique commune décore les nouvelles previews (motif du parc —
+        // anonymizer, enhancer font pareil). Le double-clic lui-même est écouté en délégation.
         if (typeof window.initMediaPreview === 'function') window.initMediaPreview();
     }
 

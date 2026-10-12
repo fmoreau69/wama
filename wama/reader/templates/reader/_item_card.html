@@ -21,7 +21,7 @@ Contexte : elem = ReadingItem décoré par _decorate_card() (.chips, .input_prop
 
 ⚠ Contrats JS à ne pas casser (relevés dans reader.js) : .reader-card[data-id][data-status],
   .wama-eta (l.90), .btn-group-actions (cloné par l'inspecteur l.618), .reader-preview
-  (dblclick l.121/715 + data-action=expand → maxHeight 80px l.342), .preview-media-link
+  (data-action=expand → maxHeight 80px, expandPreview), .preview-media-link
   (geste commun d'aperçu de l'entrée), data-action settings|delete, data-backend/mode/language sur ⚙ (duplication = brique
   commune queue-actions.js via [data-duplicate-url], plus de branche locale).
 {% endcomment %}
@@ -160,26 +160,23 @@ Contexte : elem = ReadingItem décoré par _decorate_card() (.chips, .input_prop
   </div>{# /.wcv3 #}
 
   {% comment %}Preview PERMANENTE (§11 : jamais retirée) — récap avant, réel après.
-  Clic = développer · double-clic = texte complet (contrats reader.js).{% endcomment %}
+  Clic = développer (reader.js) · double-clic = visionneuse commune, faces Entrée | Sortie.{% endcomment %}
   {% comment %}L'extrait vient du mécanisme COMMUN n°30 (portage 2026-08-22) : le rendu texte
   du commun applique le compactage markdown (wama-inspector.js::_compacteTexte — le filtre
   `compact_preview` de reader, sans usage depuis ce portage, est RETIRÉ le 31/08,
   REMOVAL_LEDGER ; la copie serveur `views._compact_preview` reste, elle sert l'API)
   et pose lui-même l'ellipsis.
-  Les DEUX gestes de reader sont préservés parce qu'ils portent sur l'ÉLÉMENT et non sur son
-  contenu : `data-action="expand"` (clic → expandPreview bascule max-height, reader.js:332) et
-  le double-clic → texte intégral, lié à `.reader-preview` (reader.js:120 et :706). Le span
-  `.preview-text` disparaît : aucune CSS ni aucun JS ne le lisait (vérifié avant portage).
+  Le clic `data-action="expand"` (expandPreview bascule max-height) porte sur l'ÉLÉMENT et
+  reste au reader. Le span `.preview-text` disparaît : aucune CSS ni aucun JS ne le lisait.
   ⚠ Garde obligatoire — cf. describer : sans elle, `?side=output` replie sur l'ENTRÉE.{% endcomment %}
   {% if elem.result_text %}
   {% url 'common:unified_preview' 'reader' elem.id as pv_out %}
-  {% comment %}`wama-card-preview` = le GESTE commun (media-preview.js) — posé le
-  2026-09-01. Reader garde son comportement PROPRE (double-clic → texte intégral) : il
-  écoute l'événement annulable `wama:card-expand` que la brique émet AVANT son overlay,
-  au lieu de poser un second `dblclick` qui tirerait en même temps (contrat prévu, déjà
-  suivi par transcriber). Le clic simple (`data-action="expand"`) reste inchangé.{% endcomment %}
+  {% comment %}`wama-card-preview` = le GESTE commun (media-preview.js) : le double-clic ouvre la
+  visionneuse commune sur la face Sortie (texte intégral) avec sa bascule Entrée | Sortie. Le
+  reader l'interceptait par `wama:card-expand` pour ouvrir une modale de texte seul, sans faces
+  — retiré le 2026-10-12 (REMOVAL_LEDGER R116).{% endcomment %}
   <div class="wcv3-preview reader-preview wama-card-preview" data-action="expand"
-       title="{% trans "Clic : développer · Double-clic : texte complet" %}"
+       title="{% trans "Clic : développer · Double-clic : agrandir" %}"
        data-card-preview="{{ pv_out }}?side=output"
        data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
        data-preview-mode="excerpt" data-preview-max-chars="400"></div>

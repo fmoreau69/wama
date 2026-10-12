@@ -290,3 +290,38 @@ class CardsOpenTheirEntryByTheCommonGestureTest(SimpleTestCase):
         source = Path(templates_gen.__file__).read_text(encoding='utf-8')
         self.assertNotIn('/filemanager/api/preview/', source)
         self.assertIn("preview-media-link", source)
+
+
+class CardPreviewsOpenTheCommonViewerTest(SimpleTestCase):
+    """The preview of a card, single or batch child, opens the common viewer — the one that
+    carries the Entry | Output faces (2026-10-12, Fabien : the enhancer's batch children had no
+    preview ; the Reader's double-click showed its output text alone)."""
+
+    #: Apps whose JS takes over `wama:card-expand` to open their OWN modal, with the reason.
+    #: An entry that no longer intercepts fails the test : the exemption must go with it.
+    OWN_RESULT_MODAL = {
+        'transcriber': "its result modal carries the summary, coherence and diarization tabs",
+    }
+
+    def test_a_batch_child_keeps_the_preview_of_a_single_card(self):
+        guard = re.compile(r'\{%\s*if\b[^%]*\bnot\s+in_batch\b')
+        guarded = [card.parent.name + '/' + card.name
+                   for card in CardsOpenTheirEntryByTheCommonGestureTest._cards()
+                   if guard.search(card.read_text(encoding='utf-8'))]
+        self.assertEqual([], guarded)
+
+    def test_only_a_declared_app_takes_over_the_double_click(self):
+        # Hors jumelles : aucune substitution ne régénère leur `static/` (facettes du registre :
+        # params, apps, urls, views, templates, models, tasks) — leur JS est TOUJOURS la copie
+        # de la source à la création, il suit la source quand la jumelle est recréée.
+        from wama.common.sandbox import sandbox_labels
+        twins = set(sandbox_labels())
+        listen = re.compile(r"addEventListener\(\s*['\"]wama:card-expand['\"]")
+        takers = set()
+        for script in Path(settings.BASE_DIR, 'wama').glob('*/static/**/*.js'):
+            app = script.relative_to(Path(settings.BASE_DIR, 'wama')).parts[0]
+            if app == 'common' or app in twins:
+                continue
+            if listen.search(script.read_text(encoding='utf-8', errors='replace')):
+                takers.add(app)
+        self.assertEqual(set(self.OWN_RESULT_MODAL), takers)

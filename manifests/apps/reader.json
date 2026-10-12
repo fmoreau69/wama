@@ -947,7 +947,6 @@
         "start",
         "start_all",
         "stop",
-        "text",
         "update_settings",
         "upload"
       ],
@@ -976,11 +975,6 @@
           "name": "progress",
           "pattern": "progress/<int:pk>/",
           "view": "views.progress"
-        },
-        {
-          "name": "text",
-          "pattern": "text/<int:pk>/",
-          "view": "views.text_view"
         },
         {
           "name": "download",

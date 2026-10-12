@@ -127,8 +127,9 @@ Contexte : elem (AudioEnhancement, décorée .chips), in_batch (bool).
   inchangées). ⚠ Le nom d'app est `audio_enhancer` et NON `enhancer` : l'app enregistre DEUX
   previews (apps.py:27 et :37, modèles Enhancement et AudioEnhancement). Vérifié au registre
   runtime avant portage — result_file présent sur AudioEnhancement #3.
-  La garde `not in_batch` est CONSERVÉE : un enfant de batch n'affiche pas de player.{% endcomment %}
-  {% if elem.output_file and not in_batch %}
+  Une FILLE de lot a son player comme une card seule : la garde `not in_batch` est retirée le
+  2026-10-12 (décision de Fabien, alignement sur les autres apps).{% endcomment %}
+  {% if elem.output_file %}
   {% url 'common:unified_preview' 'audio_enhancer' elem.id as pv_out %}
   <div class="wcv3-preview wama-card-preview" id="preview-row-{{ elem.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
        data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>

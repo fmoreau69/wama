@@ -134,9 +134,9 @@ Contexte : elem (Enhancement, décorée .chips), in_batch (bool).
   se contentait d'une ligne « fichier produit » (:57-61), alors que l'app produit précisément un
   média à regarder, et que sa card audio sœur affichait son résultat depuis la v3. Le rendu vient
   du commun (mime-driven) : image ET vidéo sans markup par app.
-  Garde `not in_batch` alignée sur la card audio de la MÊME app (:124) : un enfant de batch est
-  une ligne compacte (wcv3--batch-child), un aperçu par enfant la ferait exploser.{% endcomment %}
-  {% if elem.output_file and not in_batch %}
+  Une FILLE de lot a son aperçu comme une card seule — comme describer, reader, anonymizer :
+  la garde `not in_batch` qui l'en privait est retirée le 2026-10-12 (décision de Fabien).{% endcomment %}
+  {% if elem.output_file %}
   {% url 'common:unified_preview' 'enhancer' elem.id as pv_out %}
   <div class="wcv3-preview wama-card-preview" id="preview-row-{{ elem.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
        data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>

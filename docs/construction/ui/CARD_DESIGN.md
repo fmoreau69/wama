@@ -93,8 +93,12 @@ input/textarea/select déjà posée pour l'éditeur transcriber).
   `unified_preview` — l'`APP_SPEC.output_preview` du doc d'origine n'a jamais existé).
 - **Composant commun (implémenté)** : classe `.wama-card-preview` → `media-preview.js` binde le
   **double-clic** et émet `wama:card-expand` (`detail: {id, url, el}`, *cancelable*). Style dans
-  `media-preview.css`. Deux façons d'ouvrir le détail : l'app gère le sien (transcriber/reader :
-  le RÉSULTAT — l'événement est alors annulé), sinon comportement par défaut = overlay du média.
+  `media-preview.css`. Deux façons d'ouvrir le détail : l'app gère le sien (transcriber : sa
+  modale de résultat à onglets — l'événement est alors annulé), sinon comportement par défaut =
+  la visionneuse commune, avec ses faces Entrée | Sortie. Le reader interceptait aussi, pour un
+  texte seul sans faces : retiré le 2026-10-12 (`REMOVAL_LEDGER R118`). Une app qui intercepte
+  est DÉCLARÉE avec sa raison (`tests_preview_entry.CardPreviewsOpenTheCommonViewerTest`).
+  Une card FILLE de lot a son aperçu comme une card seule (enhancer aligné le même jour).
 - S'articule avec le **cycle avant/pendant/après** de la preview (`preview_utils`, faces
   Entrée/Comparer/Sortie) — c'est CE mécanisme qui remplace la drop zone du volet droit
   (décision 2026-07-25).
