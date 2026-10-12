@@ -147,7 +147,7 @@ class TheCardsShowTheirProcessesTest(TestCase):
             self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
         self.client.force_login(self.user)
 
-    def test_both_cards_show_the_strip_and_the_bounded_route_refuses_an_unknown_process(self):
+    def test_both_cards_show_the_strip_and_the_bounded_route_rejects_an_unknown_process(self):
         from django.urls import reverse
         media = Enhancement.objects.create(user=self.user, media_type='image',
                                            input_file='x/photo.png')

@@ -435,7 +435,7 @@ class WhatTheCardShowsTest(TestCase):
             process_pipeline.pipeline_of(item)
         self.assertEqual(1, loaded.call_count, 'loaded once per process, not at every card')
 
-    def test_the_common_decoration_poses_the_view_only_for_an_app_with_a_pipeline(self):
+    def test_the_common_decoration_sets_the_view_only_for_an_app_with_a_pipeline(self):
         """`decorate` is the single attachment point of the GENERATED apps (5.2) : nothing
         without a declared pipeline (the card reads `status`), the three attributes with one."""
         from wama.common.services.process_pipeline import card_view, decorate

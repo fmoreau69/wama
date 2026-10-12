@@ -92,7 +92,7 @@ class TheContractTakesItsPortTest(SimpleTestCase):
         from wama.common.backends.speech_to_text_base import SpeechToTextBackend
         self.assertFalse(manager.work_method_accepts(SpeechToTextBackend, 'work_audio'))
 
-    def test_every_ocr_engine_names_its_input_like_the_port_its_models_declare(self):
+    def test_every_ocr_engine_names_its_input_like_the_port_its_models_state(self):
         """The OCR models declare `inputs_required: ['work_file']` (catalogue discovery): each
         engine of the contract takes that name — a rename of one would break the generated body
         and the reader's launch without a word."""

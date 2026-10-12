@@ -102,7 +102,7 @@ class WritersAndReadersTest(TestCase):
         data = self.client.get(reverse('anonymizer:get_media_settings', args=[media.pk])).json()
         self.assertEqual(YOLO_KEY, data['values']['model_to_use'])
 
-    def test_the_launch_refuses_a_model_nothing_serves_with_the_reason(self):
+    def test_the_launch_rejects_a_model_nothing_serves_with_the_reason(self):
         from wama.anonymizer import tasks
         media = self._media(OTHER_SOURCE_KEY)
         with mock.patch('wama.common.backends.manager.backend_for_key', return_value=None), \

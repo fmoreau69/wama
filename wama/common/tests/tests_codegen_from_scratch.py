@@ -193,7 +193,7 @@ class AnAppWithSeveralProcessesIsGeneratedTest(SimpleTestCase):
         self.assertEqual(['draft_file'], specs[0]['outputs'])
         self.assertEqual({'writer.write', 'writer.layout'}, set(functions))
 
-    def test_function_specs_declares_one_function_and_one_process_per_node(self):
+    def test_function_specs_states_one_function_and_one_process_per_node(self):
         from wama.common.manifests.codegen.function_specs_gen import render_function_specs
         src, reason = render_function_specs(self.manifest)
         self.assertIsNotNone(src, reason)

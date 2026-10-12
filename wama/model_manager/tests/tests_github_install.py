@@ -66,7 +66,7 @@ class DownloadAssetTest(SimpleTestCase):
                                     sha256=hashlib.sha256(PAYLOAD).hexdigest().upper())
         self.assertTrue(res['ok'], res)
 
-    def test_a_different_digest_refuses_the_file_and_leaves_nothing(self):
+    def test_a_different_digest_rejects_the_file_and_leaves_nothing(self):
         with self._get():
             res = mi.download_asset('https://example/x.onnx', self.target, sha256='0' * 64)
         self.assertFalse(res['ok'])
@@ -402,7 +402,7 @@ class ReadingAReleaseTest(SimpleTestCase):
             {'body': '**License:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)'}))
         self.assertEqual('', github_release_license({'body': 'Scale: 4'}))
 
-    def test_the_scale_is_the_one_the_release_declares_never_the_name(self):
+    def test_the_scale_is_the_one_the_release_states_never_the_name(self):
         from wama.model_manager.services.prospector import github_release_scale
         self.assertEqual(4, github_release_scale(SPAN_RELEASE))
         self.assertEqual(2, github_release_scale({'body': '**Scale:** 2x'}))
@@ -647,7 +647,7 @@ class DeclaredFilesTest(TestCase):
         spec = mi.spec_for_catalog_row(self._row(install_dir=self.app_dir))
         self.assertEqual(('hf', 'sczhou/CodeFormer'), (spec['kind'], spec['ref']))
 
-    def test_the_lock_refuses_a_path_that_climbs_a_missing_digest_or_size(self):
+    def test_the_lock_rejects_a_path_that_climbs_a_missing_digest_or_size(self):
         good = DECLARED[0]
         for files, motive in (([{**good, 'path': '../x.pth'}], 'fichier refusé'),
                               ([{**good, 'path': '/abs.pth'}], 'fichier refusé'),
@@ -791,7 +791,7 @@ class PullModelRequestsTheInstallTest(TestCase):
         req.assert_called_once_with('avatarizer:codeformer', via='cli')
         driver.assert_not_called()
 
-    def test_the_request_is_dispatched_with_its_journal_event(self):
+    def test_the_request_is_dispatched_with_its_history_event(self):
         """Bout à bout sur la vraie demande : garde passée, tâche enfilée, événement `cli`."""
         from io import StringIO
 

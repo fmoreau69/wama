@@ -367,7 +367,7 @@ class InstanceKeyTest(TestCase):
         self.assertIn(row, [call.args[0] for call in refresh.call_args_list])
 
 
-class RemovedKeyRetiresItsModelsTest(TestCase):
+class RemovedKeyWithdrawsItsModelsTest(TestCase):
     """2026-10-11: removing a key (profile or « Sources externes » page) marks unavailable the
     remote models NO remaining key opens. Silent if broken: the nightly refresh only rereads the
     keys that are left, so once the last key of a source was gone its models stayed offered to
@@ -391,7 +391,7 @@ class RemovedKeyRetiresItsModelsTest(TestCase):
         from wama.model_manager.models import AIModel
         return AIModel.objects.get(model_key=model_key).is_available
 
-    def test_removing_a_personal_key_retires_only_what_no_other_key_opens(self):
+    def test_removing_a_personal_key_removes_only_what_no_other_key_opens(self):
         other = get_user_model().objects.create_user('removed_key_other', password='x')
         UserApiKey.objects.create(user=self.user, source='albert', api_key='k1',
                                   open_models=['albert:only-mine', 'albert:also-elsewhere'])
@@ -404,7 +404,7 @@ class RemovedKeyRetiresItsModelsTest(TestCase):
         self.assertFalse(self._available('albert:only-mine'))
         self.assertTrue(self._available('albert:also-elsewhere'), 'still opened by another key')
 
-    def test_removing_the_instance_key_retires_its_models(self):
+    def test_removing_the_instance_key_removes_its_models(self):
         from wama.accounts.models import InstanceApiKey
         InstanceApiKey.objects.create(source='ilaas', api_key='k',
                                       open_models=['ilaas:instance-only'])

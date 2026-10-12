@@ -244,7 +244,7 @@ class PullModelTakesTheRouteTest(TestCase):
         seed.assert_called_once()
         req.assert_called_once_with('proposed:hf:org/proposable', via='cli')
 
-    def test_a_repo_the_prospection_refuses_is_never_downloaded(self):
+    def test_a_repo_the_prospection_rejects_is_never_downloaded(self):
         from django.core.management import CommandError
         with self.assertRaisesMessage(CommandError, 'HF_TASKS'):
             self._run('org/out-of-scope')

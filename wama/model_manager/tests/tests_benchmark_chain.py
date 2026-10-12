@@ -75,7 +75,7 @@ class RepositoryIdentityTest(_SourcesFactices, TestCase):
         self.assertEqual('identity',
                          AIModel.objects.get(model_key='imager:hunyuan').benchmark_meta['matched_by'])
 
-    def test_the_repositories_a_row_declares(self):
+    def test_the_repositories_a_row_states(self):
         row = AIModel(model_key='proposed:hf:zai-org/GLM-OCR', hf_id='',
                       platform_ref='huggingface:Org/Other')
         self.assertEqual({'zai-org/glm-ocr', 'org/other'}, bs._local_repos(row))
@@ -164,7 +164,7 @@ class HubBenchmarkLeaderboardsTest(TestCase):
         self.assertEqual('lower', bs._direction(source, {'lower_is_better': True}))
         self.assertEqual('higher', bs._direction(source, {'lower_is_better': False}))
 
-    def test_the_declared_categories(self):
+    def test_the_declared_bench_kinds(self):
         self.assertEqual(('document', 'ocr-olmocr-bench', 'ocr-mdpbench',
                           'ocr-real5-omnidocbench', 'ocr-parsebench'),
                          bs.TASK_TO_BENCH_CATEGORY['ocr'])

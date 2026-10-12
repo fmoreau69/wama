@@ -21,7 +21,7 @@ def session(windows=(), cams=(('front', 8000.0), ('rear', 8000.0)), ranges=None)
 
 
 class PassSizeTest(SimpleTestCase):
-    def test_every_pass_declares_a_known_size(self):
+    def test_every_pass_states_a_known_size(self):
         for p in pt.PASSES:
             self.assertIn(p.eta_size, ('analysed', 'windows', 'video'), p.key)
 

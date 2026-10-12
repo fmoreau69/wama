@@ -513,7 +513,7 @@ class NativeToolCallTest(SimpleTestCase):
         self.assertEqual(('Bonjour', None), self._chat(completion))
         self.assertNotIn('tools', sent)
 
-    def test_only_a_source_that_declares_it_receives_the_tools(self):
+    def test_only_a_source_that_states_it_receives_the_tools(self):
         user = mock.Mock(pk=1, is_authenticated=True)
         tool = mock.Mock(description='d', inputSchema={'type': 'object', 'properties': {}})
         tool.name = 'get_install_options'

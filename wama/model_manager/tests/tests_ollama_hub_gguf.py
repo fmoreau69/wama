@@ -246,7 +246,7 @@ class GgufRepositoryCandidateTest(TestCase):
         self.assertIsNone(p.spec_for_choice(cand, cand.hf_id, None))
         self.assertIsNone(p.spec_for_choice(cand, cand.hf_id, 'not-listed.Q2_K.gguf'))
 
-    def test_the_installed_row_is_the_canonical_model_its_card_declares(self):
+    def test_the_installed_row_is_the_canonical_model_its_card_states(self):
         # Thread n° 41: installed from the GGUF repository, the row carried the publisher's repo —
         # the benchmark (exact repository) could not match it.
         cand = _gguf_repo_candidate(TWO_FILES)

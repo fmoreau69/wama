@@ -290,7 +290,7 @@ class PersonSharingSurfacesTest(TestCase):
         self.assertEqual([], rep.json()['persons'])
         self.assertFalse(_sees(self.bob, job))
 
-    def test_the_route_refuses_an_unknown_person_with_a_reason(self):
+    def test_the_route_rejects_an_unknown_person_with_a_reason(self):
         job = _job(self.owner)
         url = reverse('common:api_partage', args=['converter', 'element', job.id])
         rep = self.client.post(url, {'person': 'nobody-here'})

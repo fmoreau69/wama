@@ -727,7 +727,7 @@ class DeclaredWorldsTest(TestCase):
                          "une route du Lab écrite dans le substrat : la surface se déclare "
                          "depuis le `ready()` de l'app")
 
-    def test_a_journal_source_takes_the_world_stated_by_its_app(self):
+    def test_a_log_source_takes_the_world_stated_by_its_app(self):
         from wama.common.services.journal import enregistrer_source, sources
         found = {s.app: s for s in sources()}
         self.assertEqual(found['studio'].monde, 'transverse')

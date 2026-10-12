@@ -83,7 +83,7 @@ class EstimateProposalsTest(TestCase):
         self.user = get_user_model().objects.create_user('estimate_user', password='x')
         self.client.force_login(self.user)
 
-    def test_the_voice_declares_what_can_be_estimated_and_age_is_not(self):
+    def test_the_voice_states_what_can_be_estimated_and_age_is_not(self):
         voice = ASSET_NATURES['voice'].attributes
         self.assertEqual('spoken_language', voice['language'].estimate)
         self.assertEqual('voice_gender', voice['gender'].estimate)

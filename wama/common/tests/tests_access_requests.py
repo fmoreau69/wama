@@ -281,7 +281,7 @@ class CollaborationAcrossTheFleetTest(TestCase):
         self.assertGreaterEqual(checked, 6, f'trop peu d’apps mesurées : {checked}')
 
 
-class GestureJournalAppNameTest(TestCase):
+class GestureLogAppNameTest(TestCase):
     """Le journal des gestes (`RunOutcome`, middleware) reconnaît une app dont `app_name` est POINTÉ.
 
     Sonde du 2026-10-03 : reader, composer et transcriber déclarent `app_name = 'wama.reader'` ; le

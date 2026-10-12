@@ -49,12 +49,12 @@ class LotFileFormatTest(SimpleTestCase):
         self.assertEqual('', batch_file_refusal('lot.txt'))
         self.assertEqual('', batch_file_refusal('LOT.CSV'))
 
-    def test_an_app_can_declare_its_own_lot_formats(self):
+    def test_an_app_can_state_its_own_lot_formats(self):
         from wama.common.utils.batch_parsers import batch_file_refusal
         self.assertTrue(batch_file_refusal('prompts.json'))
         self.assertEqual('', batch_file_refusal('prompts.json', extra=('json', 'yaml', 'yml')))
 
-    def test_the_imager_preview_refuses_an_image_posted_as_a_lot(self):
+    def test_the_imager_preview_rejects_an_image_posted_as_a_lot(self):
         from django.contrib.auth import get_user_model
         from django.core.files.uploadedfile import SimpleUploadedFile
         from django.test import RequestFactory

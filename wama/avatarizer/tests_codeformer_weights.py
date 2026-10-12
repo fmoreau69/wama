@@ -41,7 +41,7 @@ class CodeFormerWeightsDeclarationTest(SimpleTestCase):
         paths = [f['path'] for f in model_config.CODEFORMER_FILES]
         self.assertIn('CodeFormer/codeformer.pth', paths)   # model_registry: is_downloaded
 
-    def test_the_app_declares_it_on_its_model(self):
+    def test_the_app_states_it_on_its_model(self):
         self.assertIs(model_config.CODEFORMER_FILES,
                       model_config.AVATARIZER_MODELS['codeformer']['files'])
 

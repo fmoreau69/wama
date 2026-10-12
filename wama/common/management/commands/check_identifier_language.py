@@ -126,8 +126,8 @@ BUDGET_CODE = 2670          # 2678 le 02/10 : `LIBELLES_MONDES` retiré de `jour
 #: `SIZE_MENTION_THRESHOLD_GB`, `cle_catalogue` -> `catalog_key` : 39 occurrences) ; -3 par la
 #: regle des jumeaux ; -30 le soir meme, quand les jumelles bac a sable (code GENERE, gitignore)
 #: sont sorties du perimetre — le compte doit etre le MEME sur un clone que sur ce disque.
-BUDGET_TEST_CLASSES = 132   # noms de classes `*Test` (133 avant la 1re bascule ; 132 le 27/09 : deux classes françaises du jour renommées, une anglaise « …Declares… » renommée hors du radical `declar`)
-BUDGET_TEST_NAMES = 1310    # noms de methodes `test_*` — sur 2872 (44 %) ; 1294 avec les jumelles ; 1314 avant le 22/09 ; 1311 le 27/09 (calé à la MESURE) ; 1310 le 29/09 (`test_l_absence_de_moteur_declare_reste_NON_condamnee` réécrit en anglais avec la règle qu'il gardait)
+BUDGET_TEST_CLASSES = 132   # noms de classes `*Test` (133 avant la 1re bascule ; 132 le 27/09 : deux classes françaises du jour renommées, une anglaise « …Declares… » renommée hors du radical `declar` ; le 12/10, le dépassement à 138 soldé de la même façon : six classes anglaises sur `declares`, `retires`, `journal`, `ensemble`)
+BUDGET_TEST_NAMES = 1301    # noms de methodes `test_*` — sur 2872 (44 %) ; 1294 avec les jumelles ; 1314 avant le 22/09 ; 1311 le 27/09 (calé à la MESURE) ; 1310 le 29/09 (`test_l_absence_de_moteur_declare_reste_NON_condamnee` réécrit en anglais avec la règle qu'il gardait) ; 1301 le 12/10 (le dépassement à 1336 soldé : 35 phrases ANGLAISES nées depuis le 29/09 heurtaient un homographe de la liste noire — `declares`, `refuses`, `retires`, `journal`, `poses`, `categories` — renommées hors du radical ; 9 de mieux que le budget, d'autres sessions en avaient soldé)
 #: -1 le 2026-09-20, cale a la MESURE. ⚠ Je n'attribue pas ce -1 : plusieurs instances renomment
 #: en parallele ce soir, et mes propres tests neufs sont nommes en anglais (donc ils n'ajoutent
 #: rien). Le budget se cale sur ce qu'on MESURE, pas sur ce qu'on croit avoir fait.

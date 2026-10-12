@@ -84,7 +84,7 @@ class TheRouteIsReadFromTheManifestTest(TestCase):
         self.assertIsNotNone(model_route(_reader_manifest()),
                              'the intact manifest must yield the route, or the cases prove nothing')
 
-    def test_the_reader_declares_everything_the_flavour_needs(self):
+    def test_the_reader_states_everything_the_flavour_needs(self):
         route = model_route(_reader_manifest())
         self.assertEqual({'param': 'backend', 'task': 'ocr', 'domain': {'task': 'ocr'},
                           'port': 'work_file', 'input_field': 'input_file',

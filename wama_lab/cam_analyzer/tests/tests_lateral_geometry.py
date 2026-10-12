@@ -172,7 +172,7 @@ class LensDistortionTest(SimpleTestCase):
         u = undistort_radial_inverse(408.0, 122.0, 0.5, fx, fx, 204.0, 122.0)[0]
         self.assertAlmostEqual(2 * math.degrees(math.atan((u - 204.0) / fx)), 97.0, delta=2.0)
 
-    def test_the_ground_calibration_refuses_to_explain_a_minority(self):
+    def test_the_ground_calibration_declines_to_explain_a_minority(self):
         """Le coût moyennait sur les seuls immobiles restés à portée : écarter les autres le faisait baisser
         (4 voitures sur 24 retenues, étalement 0,09 m)."""
         from pathlib import Path

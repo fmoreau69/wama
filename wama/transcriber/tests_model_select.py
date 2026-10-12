@@ -32,7 +32,7 @@ def _transcript(user, backend='auto', **fields):
                                      **fields)
 
 
-class TheSchemaDeclaresTheCatalogueTest(TestCase):
+class TheSchemaStatesTheCatalogueTest(TestCase):
 
     def test_the_model_select_is_a_catalogue_source_by_task_with_auto_and_remote(self):
         from wama.transcriber.params import PARAMS_JSON

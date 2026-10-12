@@ -19039,7 +19039,7 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
   (lancés à 14:25 avec l'ancien code ; retrait commité à 15:21). Après relance : la supprimer
   (clé seule), puis `manifest_export --check` — elle rend aussi `avatarizer` « périmé ».
 - ⚠ Rouges NON à moi, relevés en passant : budgets de langue des NOMS DE TESTS (1312/1310 —
-  `ef1abe08`, `966cba17` ; 133/132 — `TheSchemaDeclaresTheCatalogueTest`, transcriber) ;
+  `ef1abe08`, `966cba17` ; 133/132 — `TheSchemaStatesTheCatalogueTest`, transcriber) ;
   `tests_backend_adoption` (`wama/transcriber/apps.py:146`, `PyannoteDiarizerBackend`) ; 2 réfs
   cassées + 1 périmée de `check_docs` (PROJECT_STATUS 17217/17277, ROUTE:224). `35b7d96f` ne porte
   que la dérive d'autres commits (la carte n'affiche pas les annexes).
@@ -21018,7 +21018,7 @@ générées depuis un worktree de HEAD). NON POUSSÉS.
   écriture. `check_redundancy` / `check_identifier_language` : rien dans mes fichiers.
 - **Trouvé au bilan, corrigé** : le statut et le ZIP d'un lot REÇU répondaient 404 dans 8 apps
   (`batch_views._batch_read`) ; le journal des gestes ne captait rien pour reader / composer /
-  transcriber (`middleware.app_of`, garde `GestureJournalAppNameTest`).
+  transcriber (`middleware.app_of`, garde `GestureLogAppNameTest`).
 - **Rouges rencontrés, pas à moi** : `writer_01.quality_intent` absente de la base de test
   (calendrier, journal, file globale, `tests_endpoints`) ; `ItemEditRouteAliasTest` (imager) ;
   `check_docs` 5 cassées (ROUTE:327, ROUTE:3486, PROJECT_STATUS:17217/17277/20474 — blocs d'autrui) ;
@@ -22890,7 +22890,7 @@ Demande de Fabien : solder ce qui ne dépend pas de la clé ILaaS (toujours en a
 - **Retirer une clé retire ce qu'elle ouvrait** (pending du bloc du 07→10/10, tranché dans
   l'idiome existant) : profil et page Sources appellent `api_keys.forget_opened_models` →
   `cloud_models.retire_unlisted` ; les modèles qu'AUCUNE clé restante n'ouvre sont marqués
-  indisponibles, jamais supprimés. Garde `tests_api_keys.RemovedKeyRetiresItsModelsTest`
+  indisponibles, jamais supprimés. Garde `tests_api_keys.RemovedKeyWithdrawsItsModelsTest`
   (mutation jouée : 2 rouges).
 - **Chantier 5 de `WAMA_HARNESS.md` SOLDÉ** : ② les six fournisseurs sans source et
   `CLOUD_DEFAULT_MODELS` retirés (`REMOVAL_LEDGER` R113) — `llm_chat` refuse tout fournisseur hors

@@ -335,7 +335,7 @@ class TheImagerUsesTheBrickTriggerTest(SimpleTestCase):
     """The imager's ✨ was a button written in the app plus a delegated handler that re-did the
     brick's call WITHOUT the target model (so without its prompt contract) — retired 2026-10-05."""
 
-    def test_the_card_and_the_modal_declare_the_trigger_with_their_model(self):
+    def test_the_card_and_the_modal_state_the_trigger_with_their_model(self):
         root = Path(settings.BASE_DIR) / 'staticfiles/imager/js'
         card = (root / 'input_card.js').read_text(encoding='utf-8')
         modal = (root / 'settings_modal.js').read_text(encoding='utf-8')

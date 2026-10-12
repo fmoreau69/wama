@@ -114,7 +114,7 @@ class FrameDetectionLoopTest(SimpleTestCase):
         self.assertEqual([0, 1, 4], [f['i'] for f in doc['frames']])
 
 
-class EnsembleRoutingTest(SimpleTestCase):
+class CombinedDetectorsRoutingTest(SimpleTestCase):
     """Ultralytics models go TOGETHER through `Anonymize` ; every other model through ITS
     backend, with its own classes ; the documents are joined."""
 
@@ -145,7 +145,7 @@ class EnsembleRoutingTest(SimpleTestCase):
         self.assertEqual([0, 1], [f['i'] for f in doc['frames']])
 
 
-class EnsembleCoverageTest(TestCase):
+class CombinedDetectorsCoverageTest(TestCase):
     """`models_per_class` adds models for the covered classes ; within a class whose whole lot
     is measured, the lowest MEASURED miss rate wins — before the specialisation proxy."""
 

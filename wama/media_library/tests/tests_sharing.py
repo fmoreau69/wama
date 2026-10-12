@@ -204,7 +204,7 @@ class SharingAPersonRequiresConsentTest(TestCase):
         return ShareConsent.objects.filter(object_type='media_library.UserAsset',
                                            object_id=self.voice.id)
 
-    def test_the_voice_nature_declares_it_carries_a_person_and_an_image_does_not(self):
+    def test_the_voice_nature_states_it_carries_a_person_and_an_image_does_not(self):
         self.assertTrue(self.voice.share_consent_subject())
         image = _asset(self.owner, 'landscape')
         self.assertEqual('', image.share_consent_subject())

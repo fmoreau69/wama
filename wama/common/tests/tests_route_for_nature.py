@@ -101,7 +101,7 @@ class NoAppResolvesItsRoutesByHandTest(SimpleTestCase):
 class ConverterFollowsItsRoutesTest(SimpleTestCase):
     """The converter task used to branch by hand: a route changed in ROUTES was ignored by it."""
 
-    def test_the_task_glue_calls_the_route_its_table_declares(self):
+    def test_the_task_glue_calls_the_route_its_table_states(self):
         import tempfile
         from types import SimpleNamespace
         from django.test import override_settings

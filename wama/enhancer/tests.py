@@ -580,7 +580,7 @@ class PanelDefaultsAreTheColumnDefaultsTest(TestCase):
     option (NFE 32 instead of 64) and the reset emptied the model select. Measured in the browser
     on the enhancer's generated panel."""
 
-    def test_every_setting_with_a_column_declares_that_column_default(self):
+    def test_every_setting_with_a_column_states_that_column_default(self):
         from wama.enhancer.models import AudioEnhancement
         from wama.enhancer.params import AUDIO_PARAMS, MEDIA_PARAMS
         for model, params in ((Enhancement, MEDIA_PARAMS), (AudioEnhancement, AUDIO_PARAMS)):

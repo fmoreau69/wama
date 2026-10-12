@@ -252,7 +252,7 @@ class OutputParamDefaultsTest(SimpleTestCase):
     Mesuré sur le volet généré du synthesizer, quand le volet écrit à la main proposait
     « Équilibré » : le défaut de toutes les colonnes, et le repli de `apply_output_settings`."""
 
-    def test_the_brick_declares_the_column_defaults(self):
+    def test_the_brick_states_the_column_defaults(self):
         params = {p.name: p for p in of.output_format_params('audio')}
         self.assertEqual('original', params['output_format'].default)
         self.assertEqual('balanced', params['output_quality'].default)

@@ -113,11 +113,11 @@ class TheAutoRuleIsTheServerOneTest(SimpleTestCase):
                                  ctx.eval(f"WamaInputMatch.isAutoValue({json.dumps(value)})"))
 
 
-class TheComposerDeclaresTheSlotTest(SimpleTestCase):
+class TheComposerStatesTheSlotTest(SimpleTestCase):
     """The page only DECLARES (INPUT_MODEL_MATCHING §6.7): the slot, the catalogue domain read
     from the schema, and the capabilities' readiness — on the panel and in the ⚙ modal."""
 
-    def test_panel_and_modal_declare_the_vocals_slot_and_wait_for_the_capabilities(self):
+    def test_panel_and_modal_state_the_vocals_slot_and_wait_for_the_capabilities(self):
         root = Path(settings.BASE_DIR)
         page = (root / 'wama/composer/templates/composer/index.html').read_text(encoding='utf-8')
         modal = (root / 'staticfiles/composer/js/index.js').read_text(encoding='utf-8')

@@ -143,7 +143,7 @@ class NoDepsConstraintTest(ContraintesPipTest):
         _, seen = self._plan_and_install({})
         self.assertFalse([c for c in seen if '--no-deps' in c])
 
-    def test_the_manifest_refuses_a_non_boolean_no_deps(self):
+    def test_the_manifest_rejects_a_non_boolean_no_deps(self):
         from wama.common.manifests.builtin.library import validate_library_body
         corps = {'identity': {'version': '1.0'}, 'install': {'pip': 'x==1.0'}}
         self.assertEqual([], validate_library_body(dict(corps, constraints={'no_deps': True})))

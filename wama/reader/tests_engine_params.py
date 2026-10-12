@@ -27,7 +27,7 @@ class EngineParamsTest(SimpleTestCase):
         self.assertEqual({'olmocr': ['mode', 'language'], 'doctr': []},
                          {k: c['params'] for k, c in READER_MODELS.items()})
 
-    def test_glm_ocr_declares_its_reading_under_the_source_that_serves_it(self):
+    def test_glm_ocr_states_its_reading_under_the_source_that_serves_it(self):
         """GLM-OCR left `READER_MODELS` on 2026-10-07 (its row lives under `ollama:`, the
         `reader:glm-ocr` row was a duplicate): what it reads — the language, measured in
         `glm_ocr_backend._ocr_image` — is now declared with its Ollama family."""

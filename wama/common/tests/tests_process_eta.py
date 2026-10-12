@@ -298,7 +298,7 @@ class ProcessKeysAreLearnedOnlyTest(TestCase):
     def _eta(self, path, item):
         return process_runs.process_eta(ProcessSpec('x', eta=path), item)
 
-    def test_every_process_key_declares_no_a_priori(self):
+    def test_every_process_key_states_no_a_priori(self):
         from types import SimpleNamespace as NS
         media = NS(media_type='video', file_ext='mp4', duration_inSec=10.0, width=0, height=0)
         gen = NS(model='composer:musicgen-small', duration=30.0)
@@ -345,7 +345,7 @@ class OneTripletPerFamilyTest(TestCase):
         self.assertTrue(generate_eta_key_size(AudioEnhancement())[0].startswith('enhancer:audio:'))
         self.assertTrue(generate_eta_key_size(Enhancement())[0].startswith('enhancer:img:'))
 
-    def test_a_glue_that_learns_the_load_apart_declares_its_model_not_loaded(self):
+    def test_a_glue_that_learns_the_load_apart_states_its_model_not_loaded(self):
         """The imager and the transcriber measure the cold load apart and learn it : their
         declaration says « model not loaded », the load counts at the start (the old views did)."""
         from types import SimpleNamespace as NS
