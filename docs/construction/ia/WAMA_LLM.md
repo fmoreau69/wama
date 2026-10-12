@@ -545,10 +545,36 @@ chez Google, il fallait envoyer soi-même, et elle n'existait que sur l'accueil.
   déclaration à la mesure est une décision à part : elle vaut aussi pour le transcriber.
 - ⏳ **Restes** : le modèle d'écoute n'est pas TIRÉ (même constat que la voix, point 3 ci-dessus ;
   `large-v3-turbo` ou Kyutai STT 1B — conçu pour le temps réel, déjà au catalogue — seraient
-  plus vifs) ; le mode « Speak » du transcriber utilise encore la reconnaissance du navigateur ;
-  validation à l'oreille et au micro par Fabien (aucun test ne remplace un vrai micro).
+  plus vifs) ; ~~le mode « Speak » du transcriber utilise encore la reconnaissance du
+  navigateur~~ (rallié le 2026-10-12, bloc suivant) ; validation à l'oreille et au micro par
+  Fabien (aucun test ne remplace un vrai micro).
 - Gardes : `common/tests/tests_assistant_listen.py` (23 — vue, client, brique exécutée dans V8 ;
   contre-épreuve faite : sans `chat.abort()`, la reprise de parole passe au rouge).
+- **Le « Speak » du transcriber écoute par la MÊME brique (2026-10-12, demande de Fabien :
+  « aligner sur le commun, réutiliser »).** Le port « en direct » passait encore par
+  `webkitSpeechRecognition` (audio chez Google, français imposé) et ouvrait le micro une seconde
+  fois pour l'enregistrement. La brique gagne `capture(opts)` — l'écoute SANS chat : même micro,
+  même découpage, même route `/api/stt/`, donc même moteur au profil et mêmes phrases fantômes
+  retirées. Les phrases partent UNE PAR UNE (texte dans l'ordre de la parole, pas de rafale chez
+  Albert) ; `record: true` garde l'enregistrement complet sur le MÊME flux, qui devient la card ;
+  `onEnd` est appelé une fois, y compris quand une autre écoute (le chat) prend le micro.
+  `transcriber.save_realtime` inscrit le moteur qui a écouté dans `used_backend` (`albert`,
+  `whisper`) ; `model_key` reste vide — un texte découpé phrase à phrase n'est pas une mesure du
+  modèle. ⚠ Différence assumée : le texte arrive phrase par phrase (après chaque silence), plus
+  mot à mot comme avec Google. Gardes : même fichier de tests (capture dans V8, script servi,
+  moteur inscrit sur la card).
+  **Les réglages du transcriber (même jour, décision de Fabien)** : le texte en direct reste
+  PROVISOIRE et le plus rapide possible — l'écoute de l'assistant, au profil, sans le modèle,
+  le curseur, les mots-clés, le filtre de parole ni les langues du transcriber. La qualité vient
+  de la RELANCE (↻) de la card sur l'audio enregistré, c'est-à-dire la transcription complète
+  ordinaire : un seul chemin vers la qualité, aucun second chemin « avec réglages » phrase à
+  phrase (B1, écarté : les réglages qui comptent — diarisation, langues multiples, découpage,
+  nivellement — ont besoin de l'audio ENTIER, et un modèle lourd chargé au début d'une réunion
+  ferait attendre). Pour que la relance suive l'auteur, `save_realtime` passe désormais par la
+  cascade COMMUNE des dépôts (`_deposit_settings` → `user_settings.new_element_settings`) au lieu
+  de construire la card à la main : elle avait les défauts du modèle et une diarisation FORCÉE.
+  Gardes : préférences portées par la card, défauts sans préférence (diarisation active), le
+  POST de Speak ne réécrit pas les préférences, la relance part dans la tâche ordinaire.
 
 **Premier essai au vrai micro (2026-10-11) → l'écoute par ALBERT, et les phrases fantômes.**
 Fabien a parlé à l'assistant depuis le bureau à distance (le micro passe, dans le navigateur de

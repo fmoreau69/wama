@@ -717,24 +717,42 @@ def save_realtime(request):
     L'audio enregistré au micro est sauvé dans input/, et le texte live devient le
     résultat provisoire (status SUCCESS). La card est re-transcriptible via le pipeline
     complet (bouton Démarrer/Re-transcrire). Homogène avec une transcription par fichier.
+
+    `engine` (2026-10-12) : le texte live vient de la brique d'écoute commune, qui dit quel
+    moteur a écouté — 'local' (Whisper du service vocal) ou la clé distante du profil
+    (`albert:whisper-large-v3`). La card nomme ce moteur, comme une transcription par fichier ;
+    `model_key` reste vide : un texte découpé phrase à phrase n'est pas une mesure du modèle.
+
+    Réglages (2026-10-12, décision de Fabien) : la card naît par la cascade COMMUNE des dépôts
+    (`_deposit_settings`), comme un fichier déposé — sa relance (↻) tourne donc avec les
+    préférences de l'auteur (modèle, mots-clés, filtre de parole, langues, diarisation). Le
+    texte live reste PROVISOIRE et rapide, par l'écoute de l'assistant : la qualité vient de
+    cette relance sur l'audio enregistré, jamais d'un second chemin de transcription.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     audio = request.FILES.get('audio')
     text = (request.POST.get('text') or '').strip()
     language = request.POST.get('language', 'fr') or 'fr'
+    engine = (request.POST.get('engine') or '').strip()
     if not audio:
         return JsonResponse({'error': 'Aucun audio reçu'}, status=400)
+    if engine == 'local':
+        used_backend = 'whisper'
+    elif engine:
+        used_backend = engine.split(':')[0][:32]
+    else:
+        used_backend = 'temps réel'
 
     import time as _time
     from django.utils import timezone
     t = Transcript(
+        **_deposit_settings(user, request.POST),
         user=user,
         status='SUCCESS',
         is_realtime=True,
-        used_backend='temps réel',
+        used_backend=used_backend,
         text=text,
         language=language,
-        enable_diarization=True,
         finished_at=timezone.now(),
     )
     ext = '.webm'

@@ -491,6 +491,68 @@ class ListenBrickTest(SimpleTestCase):
         self.assertIn('albert', label)
         self.assertNotIn('rien ne sort', label, "l'info-bulle ne dit plus « local » à tort")
 
+    def _capture(self, ctx):
+        """Une capture sans chat, micro simulé ; `answer(i, corps)` répond au i-ème envoi."""
+        ctx.eval("""
+            var posted = [], pending = [], heard = [], ended = [], errors = [];
+            var Blob = function (parts, opts) { this.parts = parts; this.type = (opts || {}).type; };
+            var fetch = function (url) {
+              posted.push(url);
+              return new Promise(function (resolve) { pending.push(resolve); });
+            };
+            function answer(i, body) {
+              pending[i]({ json: function () { return Promise.resolve(body); } });
+            }
+            var cap = new WamaAssistantListen._Capture({
+              onText: function (text) { heard.push(text); },
+              onError: function (message) { errors.push(message); },
+              onEnd: function (result) { ended.push(result); } });
+            cap.mic = { rate: 16000 };
+        """)
+
+    def _js(self, ctx, expr):
+        return json.loads(ctx.eval('JSON.stringify(%s)' % expr))
+
+    def test_a_capture_transcribes_one_phrase_at_a_time_in_the_order_of_speech(self):
+        ctx = self._ctx()
+        self._capture(ctx)
+        ctx.eval("cap.onSegment('end', new Float32Array(1600));"
+                 "cap.onSegment('end', new Float32Array(1600));")
+        self.assertEqual(1, self._js(ctx, 'posted.length'),
+                         "la seconde phrase attend la première : pas de rafale chez le fournisseur")
+        ctx.eval("answer(0, { text: 'Bonjour', language: 'fr', engine: 'albert:whisper-large-v3' });")
+        self.assertEqual(2, self._js(ctx, 'posted.length'))
+        ctx.eval("answer(1, { text: 'tout le monde', language: 'fr' });")
+        self.assertEqual(['Bonjour', 'tout le monde'], self._js(ctx, 'heard'))
+
+    def test_stopping_a_capture_waits_for_the_last_phrase_and_ends_once(self):
+        ctx = self._ctx()
+        self._capture(ctx)
+        ctx.eval("""
+            cap.onSegment('end', new Float32Array(1600));
+            var result = null;
+            cap.stop().then(function (r) { result = r; });
+            cap.stop();
+        """)
+        self.assertEqual([], self._js(ctx, 'ended'), 'la phrase en vol arrive avant la fin')
+        ctx.eval("answer(0, { text: 'Fin de la réunion', language: 'fr', engine: 'local' });")
+        self.assertEqual(1, self._js(ctx, 'ended.length'), 'un second stop() ne rejoue pas la fin')
+        result = self._js(ctx, 'result')
+        self.assertEqual(('Fin de la réunion', 'fr', 'local', None),
+                         (result['text'], result['language'], result['engine'], result['recording']))
+        self.assertEqual('off', ctx.eval('cap.mode'))
+
+    def test_a_refused_phrase_is_reported_and_the_next_one_still_goes(self):
+        ctx = self._ctx()
+        self._capture(ctx)
+        # L'envoi part dans une micro-tâche : il existe à l'évaluation SUIVANTE.
+        ctx.eval("cap.onSegment('end', new Float32Array(1600));"
+                 "cap.onSegment('end', new Float32Array(1600));")
+        ctx.eval("answer(0, { error: 'service vocal indisponible' });")
+        self.assertEqual(['service vocal indisponible'], self._js(ctx, 'errors'))
+        ctx.eval("answer(1, { text: 'encore là' });")
+        self.assertEqual(['encore là'], self._js(ctx, 'heard'))
+
     def test_the_chat_brick_exposes_what_the_conversation_needs(self):
         source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
                   / 'wama-assistant-chat.js').read_text(encoding='utf-8')
@@ -522,3 +584,88 @@ class ListenBrickIsMountedEverywhereTest(TestCase):
         self.assertIn('data-assistant-talk', source)
         self.assertIn('data-assistant-mic', source)
         self.assertIn("{% url 'speech_to_text' %}", source)
+
+
+class TranscriberSpeakListensThroughTheCommonBrickTest(TestCase):
+    """Le port « en direct » du transcriber (Speak, 2026-10-12) écoute par la même brique que
+    l'assistant : plus de reconnaissance du navigateur, et la card dit quel moteur a écouté."""
+
+    def setUp(self):
+        # Superutilisateur : l'accès à l'app (profil) n'est pas l'objet de ces tests.
+        self.user = User.objects.create_user('speak_tester', password='x', is_staff=True,
+                                             is_superuser=True)
+        self.client.force_login(self.user)
+
+    def test_the_served_speak_script_uses_the_common_capture(self):
+        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'transcriber' / 'js'
+                  / 'index.js').read_text(encoding='utf-8')
+        self.assertIn('listen.capture(', source)
+        self.assertIn('record: true', source)
+        self.assertNotIn('webkitSpeechRecognition', source, "l'audio partait chez Google")
+
+    def _save(self, engine):
+        import shutil
+        import tempfile
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.test import override_settings
+        from wama.transcriber.models import Transcript
+        media = tempfile.mkdtemp(prefix='wama_speak_')
+        self.addCleanup(shutil.rmtree, media, ignore_errors=True)
+        with override_settings(MEDIA_ROOT=media):
+            response = self.client.post(reverse('transcriber:save_realtime'), {
+                'audio': SimpleUploadedFile('realtime.webm', b'\x1aE\xdf\xa3', 'audio/webm'),
+                'text': 'Bonjour', 'language': 'fr', 'engine': engine})
+        self.assertEqual(200, response.status_code, response.content)
+        return Transcript.objects.get(pk=response.json()['id'])
+
+    def test_a_realtime_card_names_the_engine_that_listened(self):
+        self.assertEqual('albert', self._save('albert:whisper-large-v3').used_backend)
+        self.assertEqual('whisper', self._save('local').used_backend)
+
+    def test_a_realtime_card_is_not_a_measure_of_the_model(self):
+        """Contre-épreuve : un texte découpé phrase à phrase n'est attribué à aucun modèle."""
+        t = self._save('albert:whisper-large-v3')
+        self.assertEqual('', t.model_key)
+        self.assertTrue(t.is_realtime)
+
+    def test_a_realtime_card_is_born_with_the_author_preferences(self):
+        """La card naît par la cascade commune des dépôts : sa relance suit les préférences de
+        l'auteur. Avant, la diarisation était FORCÉE et le reste prenait les défauts du modèle."""
+        import json
+        self.client.post(reverse('transcriber:save_user_settings'),
+                         json.dumps({'enable_diarization': False, 'hotwords': 'Eiffel, WAMA',
+                                     'vad_mode': 'off'}), content_type='application/json')
+        t = self._save('local')
+        self.assertEqual((False, 'Eiffel, WAMA', 'off'),
+                         (t.enable_diarization, t.hotwords, t.vad_mode))
+
+    def test_without_preferences_a_realtime_card_keeps_the_defaults(self):
+        """Contre-épreuve : sans préférence, la diarisation reste active par défaut — un
+        lancement rapide la garde, comme pour un fichier déposé."""
+        self.assertTrue(self._save('local').enable_diarization)
+
+    def test_the_speak_post_does_not_rewrite_the_author_preferences(self):
+        """Speak ne poste aucun réglage du volet : enregistrer une card ne touche pas aux
+        préférences, qui restent celles que l'auteur a posées."""
+        import json
+        self.client.post(reverse('transcriber:save_user_settings'),
+                         json.dumps({'enable_diarization': False}),
+                         content_type='application/json')
+        self._save('local')
+        served = self.client.get(reverse('transcriber:get_user_settings')).json()
+        self.assertFalse(served['enable_diarization'])
+
+    def test_relaunching_a_realtime_card_goes_through_the_normal_transcription(self):
+        """La qualité vient de la relance (↻) sur l'audio enregistré : la card temps réel part
+        dans la tâche de transcription ordinaire, rien de propre au temps réel."""
+        from unittest import mock
+        t = self._save('local')
+        task = mock.Mock()
+        task.delay.return_value = mock.Mock(id='speak-relaunch')
+        with mock.patch('wama.transcriber.views._task_for', return_value=task) as task_for:
+            response = self.client.post(reverse('transcriber:start', args=[t.pk]))
+        self.assertEqual(200, response.status_code, response.content)
+        task.delay.assert_called_once_with(t.pk)
+        self.assertTrue(task_for.call_args.args[0].is_realtime)
+        t.refresh_from_db()
+        self.assertEqual('RUNNING', t.status)

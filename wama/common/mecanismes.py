@@ -1066,6 +1066,9 @@ MECHANISMS = (
               # quand le profil ouvre un modèle de transcription distant au tirage automatique,
               # le local sinon et en repli ; filtre de parole au service vocal (`/speech-only`) ;
               # génériques de sous-titres inventés retirés.
+              # + le 2026-10-12 : l'écoute SANS chat (`capture()` de la même brique) — le port
+              # « en direct » (Speak) du transcriber s'y rallie et quitte la reconnaissance du
+              # navigateur (Google).
               annexes=('wama/common/tts/speech_input.py',
                        'wama/common/static/common/js/wama-avatar.js',
                        'wama/common/static/common/js/wama-avatar-panel.js',

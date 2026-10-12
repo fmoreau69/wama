@@ -29,13 +29,25 @@
  *      l'annulation d'écho (`getSettings().echoCancellation`) : sans elle, l'assistant
  *      s'entendrait lui-même et s'interromprait. L'écoute est alors SOURDE pendant qu'il parle
  *      (chacun son tour), et le bouton le dit.
+ *   5. ÉCOUTER SANS CHAT (2026-10-12, demande de Fabien : « appliquer les améliorations au
+ *      bouton Speak, aligner sur le commun ») : `capture()` rend le même micro, le même
+ *      découpage et la même route à une page qui veut seulement du TEXTE dit au micro — le
+ *      port « en direct » du transcriber, qui passait encore par la reconnaissance du
+ *      navigateur (Google). Les phrases arrivent dans l'ordre de la parole ; `record: true`
+ *      garde en plus l'enregistrement complet, pris sur le MÊME flux.
  *
  * CONTRAT.
  *   mount()                : câble les boutons de chaque `[data-wama-chat]` (automatique).
  *   configure({sttUrl})    : route de transcription (défaut : `data-stt-url` du chat, sinon
  *                            `/api/stt/`).
+ *   capture(opts)          : Promise<{stop()}> — écoute continue hors chat. `opts` :
+ *                            onText(phrase, engine), onPhase('listening'|'hearing'|
+ *                            'transcribing'|'idle'), onError(message), record (bool),
+ *                            onEnd({text, language, engine, recording}) — appelé une fois, que
+ *                            l'arrêt vienne de `stop()` ou d'une autre écoute qui prend le micro.
+ *                            Rejette avec le message lisible si le micro ne s'ouvre pas.
  *   stop()                 : coupe tout (micro rendu, conversation arrêtée).
- *   state()                : {mode: 'off'|'dictation'|'conversation', phase, echoCancelled}.
+ *   state()                : {mode: 'off'|'dictation'|'conversation'|'capture', phase, echoCancelled}.
  *
  * Dépend de : `WamaAssistantChat` (send/abort/isBusy/input), `WamaAssistantVoice`
  * (isSpeaking/stop/onChange), `WamaApp.toast` et `WamaApp.csrfToken` si présents.
@@ -54,7 +66,7 @@
     interrupt: { startDb: 18, floorDb: -42, startMs: 350 },
   };
   var KEEP_DB = 6;                        // au-dessus : la parole continue
-  var END_MS = { conversation: 900, dictation: 1300 };
+  var END_MS = { conversation: 900, dictation: 1300, capture: 900 };
   var MIN_SPEECH_MS = 250;                // en dessous : un bruit, pas une phrase
   var MAX_UTTERANCE_MS = 30000;
   var PREROLL_MS = 400;
@@ -275,7 +287,8 @@
     return 'Micro indisponible : ' + ((e && e.message) || name || 'erreur inconnue');
   }
 
-  function transcribe(samples, rate) {
+  // La réponse ENTIÈRE du serveur ({text, language, engine}) ; `transcribe` n'en garde que le texte.
+  function transcribeClip(samples, rate) {
     var wav = toWav(downsample(samples, rate));
     return fetch(cfg.sttUrl || '/api/stt/', {
       method: 'POST',
@@ -286,8 +299,12 @@
     }).then(function (data) {
       if (data.error) throw new Error(data.error);
       if (data.engine) heardBy = data.engine;
-      return (data.text || '').trim();
+      return data;
     });
+  }
+
+  function transcribe(samples, rate) {
+    return transcribeClip(samples, rate).then(function (data) { return (data.text || '').trim(); });
   }
 
   // Le moteur qui a écouté la dernière fois, dit par le serveur ('' tant qu'il n'a rien dit).
@@ -517,6 +534,117 @@
     }
   };
 
+  // ── Écoute sans chat : `capture()` ───────────────────────────────────────────
+  // Même micro, même découpage, même route que le chat. Les transcriptions partent UNE PAR UNE :
+  // le texte arrive dans l'ordre de la parole, et un profil qui écoute chez Albert ne lui envoie
+  // pas une rafale (limite de débit — au-delà, `speech_input` rend la phrase au local).
+  function Capture(opts) {
+    this.opts = opts || {};
+    this.mode = 'capture';
+    this.phase = 'idle';
+    this.mic = null;
+    this.segmenter = null;
+    this.recorder = null;
+    this.chunks = [];
+    this.texts = [];
+    this.language = '';
+    this.pending = 0;
+    this.queue = Promise.resolve();
+    this.ended = null;                    // la promesse de fin, une seule même si stop() est rappelé
+  }
+
+  Capture.prototype.setPhase = function (phase) {
+    this.phase = phase;
+    if (this.opts.onPhase) { try { this.opts.onPhase(phase); } catch (_) {} }
+  };
+
+  Capture.prototype.start = function () {
+    var self = this;
+    if (ctl && ctl !== this) {
+      if (ctl.mode === 'conversation') remember(false);   // elle ne reprendra pas à la page suivante
+      ctl.stop();
+    }
+    ctl = this;
+    warmUp();
+    return openMic(function (frame) {
+      if (self.segmenter) self.segmenter.feed(frame, 'normal');
+    }).then(function (mic) {
+      if (self.mode !== 'capture') { closeMic(mic); return self; }   // arrêté pendant l'ouverture
+      self.mic = mic;
+      self.segmenter = new Segmenter(mic.rate, END_MS.capture, function (evt, samples) {
+        self.onSegment(evt, samples);
+      });
+      if (self.opts.record && global.MediaRecorder) {
+        try {
+          self.recorder = new global.MediaRecorder(mic.stream);
+          self.recorder.ondataavailable = function (e) { if (e.data && e.data.size) self.chunks.push(e.data); };
+          self.recorder.start();
+        } catch (_) { self.recorder = null; }              // le texte reste, sans enregistrement
+      }
+      self.setPhase('listening');
+      return self;
+    }).catch(function (e) {
+      self.mode = 'off';
+      if (ctl === self) ctl = null;
+      self.setPhase('idle');
+      throw new Error(explainMicError(e));
+    });
+  };
+
+  Capture.prototype.onSegment = function (evt, samples) {
+    var self = this;
+    if (evt === 'start') { this.setPhase('hearing'); return; }
+    if (evt === 'discard') { this.setPhase('listening'); return; }
+    var rate = this.mic ? this.mic.rate : TARGET_RATE;
+    this.pending++;
+    this.setPhase('transcribing');
+    this.queue = this.queue.then(function () {
+      return transcribeClip(samples, rate);
+    }).then(function (data) {
+      var text = (data.text || '').trim();
+      if (data.language) self.language = data.language;
+      if (!text) return;
+      self.texts.push(text);
+      if (self.opts.onText) self.opts.onText(text, heardBy);
+    }).catch(function (e) {
+      var message = (e && e.message) || String(e);
+      if (self.opts.onError) self.opts.onError(message); else say(message);
+    }).then(function () {
+      self.pending = Math.max(0, self.pending - 1);
+      if (self.mode === 'capture' && !self.pending && self.phase === 'transcribing') self.setPhase('listening');
+    });
+  };
+
+  /** Arrête l'écoute ; la phrase en cours part encore. Rend (et passe à `onEnd`) le résultat. */
+  Capture.prototype.stop = function () {
+    if (this.ended) return this.ended;
+    var self = this;
+    if (this.segmenter) this.segmenter.finish();
+    this.mode = 'off';
+    if (ctl === this) ctl = null;
+    var recorded = new Promise(function (resolve) {
+      var r = self.recorder;
+      if (!r || r.state === 'inactive') { resolve(null); return; }
+      r.onstop = function () { resolve(new Blob(self.chunks, { type: r.mimeType || 'audio/webm' })); };
+      r.stop();
+    });
+    this.ended = recorded.then(function (recording) {
+      closeMic(self.mic);
+      self.mic = null;
+      self.segmenter = null;
+      return self.queue.then(function () {
+        var result = { text: self.texts.join('\n'), language: self.language,
+                       engine: heardBy, recording: recording };
+        self.setPhase('idle');
+        if (self.opts.onEnd) self.opts.onEnd(result);
+        return result;
+      });
+    });
+    return this.ended;
+  };
+
+  function capture(opts) { return new Capture(opts).start(); }
+
   // ── Montage ──────────────────────────────────────────────────────────────────
   var controllers = [];
 
@@ -546,6 +674,7 @@
   global.WamaAssistantListen = {
     mount: mount,
     configure: function (opts) { if (opts && opts.sttUrl) cfg.sttUrl = opts.sttUrl; },
+    capture: capture,
     stop: function () { remember(false); if (ctl) ctl.stop(); },
     state: function () {
       return ctl ? { mode: ctl.mode, phase: ctl.phase, echoCancelled: !!(ctl.mic && ctl.mic.echoCancelled) }
@@ -553,6 +682,7 @@
     },
     // Exposés pour les tests (découpage, encodage, enchaînement — sans micro ni DOM réel).
     _Controller: Controller,
+    _Capture: Capture,
     _Segmenter: Segmenter,
     _downsample: downsample,
     _wavBytes: wavBytes,

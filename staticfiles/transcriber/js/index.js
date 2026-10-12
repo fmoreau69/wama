@@ -929,92 +929,82 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Speech recognition
+  // Speak — le port « en direct » écoute par la brique COMMUNE de l'assistant
+  // (`WamaAssistantListen.capture`, 2026-10-12). Jusque-là : la reconnaissance du navigateur,
+  // qui envoie l'audio à Google, en français imposé. Désormais le même micro, le même découpage
+  // et la même route (`/api/stt/`) que la conversation avec l'assistant : moteur choisi au
+  // PROFIL (Albert ou Whisper local), phrases fantômes retirées côté serveur.
   // ======================================================================
   function initSpeech() {
     if (!speakButton || !liveOutput || !liveStatus) return;
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
-    if (!SpeechRecognition && !canRecord) {
+    const listen = window.WamaAssistantListen;
+    if (!listen || !listen.capture) {
       speakButton.disabled = true;
-      liveStatus.textContent = 'Non supporté par ce navigateur';
+      liveStatus.textContent = 'Écoute indisponible sur cette page';
       return;
     }
 
-    let listening = false;
-    let finalTranscript = '';
-    let mediaRecorder = null, mediaStream = null, chunks = [];
-
-    let recognition = null;
-    if (SpeechRecognition) {
-      recognition = new SpeechRecognition();
-      recognition.lang = 'fr-FR';
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.onerror = (event) => { liveStatus.textContent = `Erreur: ${event.error}`; };
-      recognition.onresult = (event) => {
-        let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const tr = event.results[i][0].transcript;
-          if (event.results[i].isFinal) finalTranscript += tr + '\n';
-          else interim += tr;
-        }
-        const full = (finalTranscript + interim).trim();
-        if (full && full !== '...') displayTextWithHighlight(full);
-        else liveOutput.textContent = '...';
-      };
-    }
+    const PHASES = { listening: 'Écoute en cours…', hearing: 'Je vous écoute…', transcribing: 'Transcription…' };
+    let session = null;           // la capture en cours
+    let starting = false;
+    let text = '';
 
     function setIdle(msg) {
-      listening = false;
+      session = null;
       speakButton.classList.remove('active');
       speakButton.innerHTML = '<i class="fas fa-microphone"></i> Speak';
       if (msg) liveStatus.textContent = msg;
     }
 
+    function showText() {
+      if (text) displayTextWithHighlight(text);
+      else liveOutput.textContent = '...';
+    }
+
     async function startAll() {
-      finalTranscript = ''; chunks = [];
+      text = '';
+      starting = true;
       // Révèle la zone de transcription live (masquée par défaut depuis sa fusion dans la card d'entrée)
       var liveBox = document.getElementById('transcriberLive');
       if (liveBox) { liveBox.style.display = ''; liveBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
-      // Capture l'audio du micro (pour sauver la card). Sans micro → texte live seulement.
-      if (canRecord) {
-        try {
-          mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          mediaRecorder = new MediaRecorder(mediaStream);
-          mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-          mediaRecorder.onstop = uploadRealtime;
-          mediaRecorder.start();
-        } catch (err) { mediaRecorder = null; liveStatus.textContent = 'Micro refusé — texte live seulement'; }
-      }
-      listening = true;
       speakButton.classList.add('active');
       speakButton.innerHTML = '<i class="fas fa-stop"></i> Stop';
-      liveStatus.textContent = 'Écoute en cours…';
-      if (recognition) { try { recognition.start(); } catch (_) {} }
+      liveStatus.textContent = 'Ouverture du micro…';
+      try {
+        session = await listen.capture({
+          record: true,                               // l'audio complet devient la card
+          onPhase: (phase) => { if (PHASES[phase]) liveStatus.textContent = PHASES[phase]; },
+          onText: (phrase) => { text = text ? text + '\n' + phrase : phrase; showText(); },
+          onError: (message) => { liveStatus.textContent = message; },
+          onEnd: uploadRealtime,
+        });
+        showText();
+      } catch (err) {
+        setIdle(err.message);
+      }
+      starting = false;
     }
 
     function stopAll() {
-      if (recognition) { try { recognition.stop(); } catch (_) {} }
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();                 // → onstop → uploadRealtime (sauve la card)
-      } else {
-        setIdle(finalTranscript ? 'Session terminée' : 'En attente...');
-      }
-      if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+      if (!session) return;
+      liveStatus.textContent = 'Fin de la transcription…';
+      session.stop();                             // → onEnd → uploadRealtime (sauve la card)
     }
 
-    // À l'arrêt : envoie l'audio + le texte live → crée une card « temps réel » dans la file.
-    function uploadRealtime() {
-      const blob = new Blob(chunks, { type: (mediaRecorder && mediaRecorder.mimeType) || 'audio/webm' });
-      chunks = [];
-      if (!blob.size || !config.saveRealtimeUrl) { setIdle('En attente...'); return; }
+    // À l'arrêt : l'audio + le texte entendu → une card « temps réel » dans la file.
+    function uploadRealtime(result) {
+      const blob = result && result.recording;
+      if (!blob || !blob.size || !config.saveRealtimeUrl) {
+        setIdle(result && result.text ? 'Session terminée' : 'En attente...');
+        return;
+      }
       setIdle('Enregistrement dans la file…');
       const fd = new FormData();
       const ext = (blob.type.indexOf('ogg') >= 0) ? 'ogg' : 'webm';
       fd.append('audio', blob, 'realtime.' + ext);
-      fd.append('text', finalTranscript.trim());
-      fd.append('language', ((recognition && recognition.lang) || 'fr').slice(0, 2));
+      fd.append('text', result.text || '');
+      fd.append('language', (result.language || 'fr').slice(0, 2));
+      fd.append('engine', result.engine || '');
       fetch(config.saveRealtimeUrl, { method: 'POST', headers: { 'X-CSRFToken': csrfToken }, body: fd })
         .then(r => r.json())
         .then(d => {
@@ -1024,7 +1014,10 @@ document.addEventListener('DOMContentLoaded', function () {
         .catch(() => { liveStatus.textContent = 'Erreur réseau'; });
     }
 
-    speakButton.addEventListener('click', () => { if (listening) stopAll(); else startAll(); });
+    speakButton.addEventListener('click', () => {
+      if (starting) return;
+      if (session) stopAll(); else startAll();
+    });
   }
 
   // ======================================================================
