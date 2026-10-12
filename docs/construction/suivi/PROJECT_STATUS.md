@@ -23153,3 +23153,55 @@ brique ».
   (co-édités).
 - Artefacts : scripts de commit et sauvegarde de mutation dans le scratchpad de session
   (jetables). Aucun compte ni élément semé hors base de test.
+
+## §PALIER — 2026-10-12, « PORTAGE 10/10 + BAC À SABLE + REVÉRIFICATION » — ✅ LIVRÉ — 🔚 jumelles et triade ↔ spec de détail
+
+**Demandes de Fabien** : terminer le portage des apps à 96-99 % ; comprendre « 10 jumelles au menu
+au lieu de 11 » ; régénérer `writer_01` et le static des jumelles ; nettoyer les cards copiées mortes ;
+revérification complète de la session ; s'occuper des 21 références cassées ; automatiser la
+revérification.
+
+**Livré (local, non poussé)** :
+- `ac46fb72` + rattrapage `91513a99` — triades de l'assistant par `TRIAD_SPECS` pour les DIX apps
+  (+ audio de l'enhancer), lancement = le ▶ de la card (`begin_processing` + `reset`/`task_for` que
+  l'app déclare pour son lot) ; trois défauts corrigés au passage (imager vidéo lancé par la tâche
+  image, synthesizer qui effaçait l'audio, progression anonymizer sous une clé morte) ; table TTS
+  dérivée des `ENGINE` (`manager.engine_classes`) ; critère `backend_routes` rattrapé
+  (`backend_instance_for_key`) ; injection des jumelles bornée à ce qui se RÉSOUT (`sandbox.resolves`) ;
+  `avatarizer_01` (mi-substitution du 07/10, absente du menu) revenue au témoin ; omission de routage
+  journalisée ; `{# #}` multi-ligne du générateur corrigé. `ROUTE` palier A4 et §1544.
+- `b12d81cd` — anonymizer : ancien sélecteur mono-modèle, repli en dur et endpoint mort retirés
+  (`REMOVAL_LEDGER R117`, décision « retirer et arrêter net ») ; rien ne couvre → échec qui NOMME les
+  classes. **Grille : 10/10 à 100 %.**
+- `b3f6b07d` — `substitute <jumelle> static` (le static SUIT la source, `collectstatic`), joué sur les
+  10 jumelles à source ; `substitute` d'une app NÉE d'un manifeste — `writer_01` régénéré.
+- `159a5775` — cards copiées mortes mises en témoin par la substitution `templates` (5 : converter_01,
+  enhancer_01, reader_01 — réversibles) ; revérification : trois réinventions de ma main ramenées à
+  leur domicile (`sandbox.exposed_names`, `_class_lineage`, `_app_manifest_file`) ; `/palier §3` ne
+  prescrit plus le patch `-U0`.
+- `9fcdec40` — skill `/reverif` (CANDIDAT) : la revérification de session, à la demande, qui orchestre
+  `/cloture`, `/contre-epreuve`, `/commit-partiel` ; `/cloture §2` y renvoie.
+- `addc0bf2` — `check_docs` : 21 cassées + 2 périmées → **0 / 0** ; les références `<corpus>:<chemin>`
+  d'un corpus externe déclaré (`wama-dev-ai/corpus.py::CORPORA`) sortent du contrôle ; chaque référence
+  redressée dans son contexte (ComfyUI préfixé, bibliothèques du venv situées, chemins WAMA réels).
+
+**Contrôles attendus au prochain /reprise** (mesurés le 2026-10-12) : `check_docs` 0 cassée / 0 périmée,
+zéro cible distincte ; `check_app_conformity` 10/10 à 100 % ; suite complète (common, gateway, studio,
+dix apps, model_manager) **5007 tests, 16 F + 1 E, aucun de cette session** — connus :
+`tests_tool_api_lectures` (ne_DEVINE…), `tests_codegen_lot` (ItemEditRouteAlias) ; d'autres sessions :
+`tests_port_designation` (composer), `tests_result_evaluation` ×2, `tests_calendar`,
+`tests_settings_surfaces`, `tests_port_types`, `tests_test_layout` (accounts), `tests_identifier_language`
+×5 (budgets dépassés par des commits du jour, dont deux noms en `declares` de `6dc83c7c`),
+`tests_preview_entry.EntryFaceTest`, `tests_hf_cache_routing`, `tests_taxonomie_ollama` (fichiers
+qu'elles exercent modifiés non commités par d'autres). Contre-épreuves des gardes neuves : 7/7 rouges.
+
+**⚠ Relevé en fin de session** : l'arbre ne démarre plus Django — `anonymizer_01/apps.py` (copie)
+importe `anonymizer_detection_face`, retiré de `preview_utils.py` par un WIP non commité d'une autre
+instance (signalé à l'instance « aperçu »). Remède côté bac à sable : `app_sandbox substitute
+anonymizer_01 apps` une fois ce WIP commité.
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : une session NEUVE pour (1) dériver les lignes de statut de la
+triade de la spec de détail (`detail_registry`, `build_detail`) au lieu d'un second langage de champs
+(écart d'alignement relevé par `/reverif`, non corrigé : il change ce que reçoit l'assistant) ;
+(2) faire converger les jumelles (écart −4 à −18 pt, `app_sandbox converge`, `ROUTE §11`).
+**Pendings système** : relancer gunicorn + workers + service TTS ; rien de poussé.
