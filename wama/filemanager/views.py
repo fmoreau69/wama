@@ -2540,16 +2540,40 @@ def _mount_refusal(config, error):
 
 
 def _save_remote_mount(user, name, config, password):
-    """Monte le dossier distant (identifiants vérifiés d'abord) et ne l'enregistre qu'ensuite."""
+    """Monte le dossier distant (identifiants vérifiés d'abord) et ne l'enregistre qu'ensuite.
+
+    Un dossier que l'utilisateur a DÉJÀ connecté (même point de montage) n'est pas enregistré
+    une seconde fois : le retrait du premier enregistrement laissait le second, et le dossier
+    « réapparaissait » (vécu le 2026-10-12 — la connexion par identifiants lancée pendant que
+    celle par le navigateur montait). La réponse le dit (`already`) ; le secret en trop est
+    libéré, sauf un jeton OAuth, qui REMPLACE l'ancien : le révoquer retirerait l'accès entier,
+    celui du dossier déjà connecté compris (même autorisation chez le fournisseur).
+    """
+    from django.contrib.auth import get_user_model
+    from django.db import transaction
     from wama.filemanager import remote_mounts
 
     ok, linux_path, error = remote_mounts.mount(config, password)
     if not ok:
         return _mount_refusal(config, error)
 
-    mount = MountedFolder.objects.create(user=user, name=name, local_path=linux_path,
-                                         remote_config=config, remote_secret=password or '')
-    return JsonResponse({'success': True, 'id': mount.id, 'name': mount.name})
+    with transaction.atomic():
+        # Verrou PAR UTILISATEUR : deux connexions simultanées ne créent pas deux enregistrements.
+        get_user_model().objects.select_for_update().filter(pk=user.pk).first()
+        existing = MountedFolder.objects.filter(user=user, local_path=linux_path).first()
+        if existing is None:
+            mount = MountedFolder.objects.create(user=user, name=name, local_path=linux_path,
+                                                 remote_config=config,
+                                                 remote_secret=password or '')
+            return JsonResponse({'success': True, 'id': mount.id, 'name': mount.name})
+        st = remote_mounts.storage_type(config.get('type'))
+        if st and st.oauth and password:
+            existing.remote_secret = password
+            existing.save(update_fields=['remote_secret'])
+    if not (st and st.oauth) and password and password != existing.remote_secret:
+        remote_mounts.release_credentials(config, password)
+    return JsonResponse({'success': True, 'id': existing.id, 'name': existing.name,
+                         'already': True})
 
 
 #: Connexions PAR LE NAVIGATEUR en cours (Login Flow de Nextcloud, OAuth), gardées dans la

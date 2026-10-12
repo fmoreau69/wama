@@ -579,12 +579,22 @@ class FakeRcloneMixin:
         self.addCleanup(tuned.disable)
 
         self.calls, self.server_says, self.providers = [], '', {}
+        # Vrai : chaque point de montage est déjà monté (le vivant se règle par `_is_live`).
+        self.already_mounted = False
+        # Les arguments du lancement de `rclone mount` ; `mount_says` : son erreur, s'il échoue.
+        self.mount_kwargs, self.mount_says = [], ''
 
         def run(cmd, **kwargs):
             from types import SimpleNamespace
             self.calls.append((cmd, kwargs.get('env') or {}))
+            if cmd[1:2] == ['mount']:
+                self.mount_kwargs.append(kwargs)
+                if self.mount_says:
+                    kwargs['stderr'].write(self.mount_says)
+                    return SimpleNamespace(returncode=1, stdout=None, stderr=None)
             if cmd[0] == 'mountpoint':
-                return SimpleNamespace(returncode=1, stdout='', stderr='')
+                return SimpleNamespace(returncode=0 if self.already_mounted else 1,
+                                       stdout='', stderr='')
             if cmd[1:2] == ['obscure']:
                 return SimpleNamespace(returncode=0, stdout='OBSCURED\n', stderr='')
             if cmd[1:2] == ['lsjson'] and self.server_says:
@@ -695,6 +705,55 @@ class RemoteMountTests(FakeRcloneMixin, TestCase):
         self.assertFalse(self._commands('mount'))
         self.assertFalse(MountedFolder.objects.filter(user=self.user).exists())
 
+    def test_a_live_mount_is_never_lent_without_its_credentials(self):
+        # Le point de montage est nommé par le serveur, l'identifiant et le chemin — pas par le
+        # compte WAMA : un autre compte qui tape la même adresse et le même identifiant tombe
+        # sur le même montage. Il ne l'obtient qu'avec le bon mot de passe (2026-10-12).
+        from wama.filemanager.models import MountedFolder
+        self.already_mounted = True
+        self.server_says = 'Failed to lsjson: 401 Unauthorized'
+        with patch('wama.filemanager.remote_mounts._is_live', return_value=True):
+            r = self._post(username='jane', password='guess')
+            self.assertEqual(r.status_code, 401)
+            self.assertFalse(MountedFolder.objects.exists())
+
+            # Contre-épreuve : avec le bon mot de passe, le montage vivant est réutilisé tel quel.
+            self.server_says = ''
+            r = self._post(username='jane', password='s3cret')
+        self.assertTrue(r.json().get('success'), r.json())
+        self.assertFalse(self._commands('mount'))
+
+    def test_the_mount_never_waits_on_output_pipes_the_daemon_keeps_open(self):
+        # Mesuré le 2026-10-12 : nuage monté en 2 s, réponse « échec » au bout de 90 s, parce
+        # que la lecture des tubes de `rclone mount --daemon` ne finissait jamais.
+        import subprocess
+        self.assertTrue(self._post(username='jane', password='s3cret').json().get('success'))
+        kwargs = self.mount_kwargs[0]
+        self.assertNotIn('capture_output', kwargs)
+        self.assertEqual(kwargs['stdout'], subprocess.DEVNULL)
+        self.assertNotIn(kwargs['stderr'], (subprocess.PIPE, None))
+
+    def test_an_error_of_the_mount_itself_is_still_read_and_explained(self):
+        from wama.filemanager.models import MountedFolder
+        self.mount_says = 'Failed to mount: 401 Unauthorized'
+        r = self._post(username='jane', password='s3cret')
+        self.assertEqual(r.status_code, 401)
+        self.assertTrue(r.json()['auth_refused'])
+        self.assertFalse(MountedFolder.objects.exists())
+
+    def test_connecting_the_same_folder_twice_keeps_a_single_record(self):
+        # Vécu le 2026-10-12 : deux enregistrements d'un même montage, et le dossier
+        # « réapparaissait » au premier retrait.
+        from wama.filemanager.models import MountedFolder
+        first = self._post(username='jane', password='s3cret').json()
+        again = self._post(username='jane', password='s3cret').json()
+        self.assertTrue(again['success'])
+        self.assertTrue(again['already'])
+        self.assertEqual(again['id'], first['id'])
+        self.assertEqual(MountedFolder.objects.filter(user=self.user).count(), 1)
+        self.client.post(f"/filemanager/api/mounts/{first['id']}/delete/")
+        self.assertFalse(MountedFolder.objects.filter(user=self.user).exists())
+
     def test_missing_credentials_are_asked_before_any_network_call(self):
         r = self._post(username='jane')
         self.assertEqual(r.status_code, 401)
@@ -795,6 +854,23 @@ class RemoteMountTests(FakeRcloneMixin, TestCase):
         self.client.post(f'/filemanager/api/mounts/{mount.id}/delete/')
         self.assertEqual([(m, u) for m, u, _ in self.http],
                          [('DELETE', 'https://cloud.example.org/ocs/v2.php/core/apppassword')])
+
+    def test_a_browser_login_ending_after_a_typed_connection_adds_nothing_and_revokes_its_password(self):
+        # Le scénario du 2026-10-12 : l'accès accordé dans le navigateur, le montage en cours,
+        # et « Connecter » cliqué entre-temps avec les identifiants remplis par le navigateur.
+        from wama.filemanager.models import MountedFolder
+        self._fake_cloud()
+        poll_url = f"/filemanager/api/mounts/login-flow/{self._start_flow().json()['flow_id']}/"
+        self.client.post(poll_url)                                         # en attente
+        typed = self._post_mount({'name': 'Nuage', 'username': 'jane', 'password': 's3cret',
+                                  'local_path': 'https://cloud.example.org/apps/files/'}).json()
+        self.http = []
+        granted = self.client.post(poll_url).json()
+        self.assertTrue(granted['already'], granted)
+        self.assertEqual(granted['id'], typed['id'])
+        self.assertEqual(MountedFolder.objects.get(user=self.user).remote_secret, 's3cret')
+        revoked = [(m, kw['auth']) for m, u, kw in self.http if m == 'DELETE']
+        self.assertEqual(revoked, [('DELETE', ('jane@example.org', 'app-pw'))])
 
     def test_a_folder_added_with_a_typed_password_is_never_revoked_on_removal(self):
         # Le mot de passe saisi peut être celui du COMPTE : WAMA ne le révoque jamais.
@@ -1046,6 +1122,23 @@ class OAuthStorageTests(FakeRcloneMixin, TestCase):
         self.client.post(f'/filemanager/api/mounts/{mount.id}/delete/')
         revoked = [(u, kw['data']) for m, u, kw in self.http if u.endswith('/revoke')]
         self.assertEqual(revoked, [('https://oauth2.googleapis.com/revoke', {'token': 'refresh-xyz'})])
+
+    def test_granting_the_same_drive_again_keeps_one_folder_with_the_new_token(self):
+        # Révoquer le jeton en trop retirerait l'accès entier chez Google (même autorisation),
+        # celui du dossier déjà connecté compris : le neuf remplace l'ancien, rien n'est révoqué.
+        from wama.filemanager.models import MountedFolder
+        self._grant('drive')
+        mount = MountedFolder.objects.get(user=self.user)
+        mount.remote_secret = 'older-token'
+        mount.save(update_fields=['remote_secret'])
+        self.http = []
+        started, _, _ = self._grant('drive')
+        poll = self.client.post(f"/filemanager/api/mounts/login-flow/{started['flow_id']}/").json()
+        self.assertTrue(poll['already'], poll)
+        mount.refresh_from_db()
+        self.assertIn('refresh-xyz', mount.remote_secret)
+        self.assertEqual(MountedFolder.objects.filter(user=self.user).count(), 1)
+        self.assertFalse([u for m, u, kw in self.http if u.endswith('/revoke')])
 
     def test_the_token_is_renewed_and_kept_before_a_remount(self):
         import json

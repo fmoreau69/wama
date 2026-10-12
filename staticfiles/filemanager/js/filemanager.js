@@ -1268,13 +1268,18 @@
     const mountSaveBtn   = document.getElementById('mountSaveBtn');
     let _mountModal      = null;
     let _mountValidateTimer = null;
+    // Le bouton « Connecter » : chemin vérifié, aucune connexion par le navigateur en cours, et
+    // — quand le stockage en offre une — la voie « identifiants » choisie (dépliée). Les deux
+    // voies lancées ensemble enregistraient deux fois le même dossier (vécu le 2026-10-12).
+    let _pathReady = false;
+    let _browserFlowActive = false;
 
     btnAddMount?.addEventListener('click', () => {
         if (!mountModalEl) return;
         if (mountPathInput)  { mountPathInput.value = ''; mountPathInput.classList.remove('is-valid','is-invalid'); }
         if (mountNameInput)  mountNameInput.value = '';
         if (mountPathStatus) mountPathStatus.innerHTML = '';
-        if (mountSaveBtn)    mountSaveBtn.disabled = true;
+        _pathReady = false;
         _renderStorage(null);
         _showDeclaredClouds();
         _mountModal = _mountModal || new bootstrap.Modal(mountModalEl);
@@ -1294,23 +1299,55 @@
     const mountBrowserLogin    = document.getElementById('mountBrowserLogin');
     const mountBrowserLoginBtn = document.getElementById('mountBrowserLoginBtn');
     let _loginPollTimer = null;
+    const mountCredDetails = document.getElementById('mountCredDetails');
+    const mountCredSummary = document.getElementById('mountCredSummary');
 
     function _credInputs() {
         return Array.from(mountCredFields?.querySelectorAll('input[data-field]') || []);
     }
 
+    function _refreshSaveBtn() {
+        if (!mountSaveBtn) return;
+        const typedChosen = !_mountStorage?.browser_login || !!mountCredDetails?.open;
+        mountSaveBtn.disabled = !_pathReady || _browserFlowActive || !typedChosen;
+    }
+
+    function _setBrowserFlowActive(active) {
+        _browserFlowActive = active;
+        if (mountBrowserLoginBtn) mountBrowserLoginBtn.disabled = active;
+        if (active && mountCredDetails) mountCredDetails.open = false;
+        _refreshSaveBtn();
+    }
+
+    mountCredDetails?.addEventListener('toggle', () => {
+        // Pendant une connexion par le navigateur, l'autre voie reste fermée.
+        if (_browserFlowActive && mountCredDetails.open) mountCredDetails.open = false;
+        _refreshSaveBtn();
+    });
+
     function _renderStorage(storage) {
         // Une valeur déjà saisie survit à une nouvelle vérification du même type de dossier.
         const previous = {};
-        if (storage && _mountStorage && storage.type === _mountStorage.type) {
+        const sameType = !!(storage && _mountStorage && storage.type === _mountStorage.type);
+        if (sameType) {
             _credInputs().forEach(input => { previous[input.dataset.field] = input.value; });
         }
         _mountStorage = storage;
         if (!storage) {
             if (mountSmbSection) mountSmbSection.style.display = 'none';
             mountCredFields?.replaceChildren();
+            _refreshSaveBtn();
             return;
         }
+        // Deux voies quand le navigateur en offre une : elle d'abord, les identifiants repliés
+        // dessous. Sans elle (partage réseau), les champs sont la seule voie, toujours ouverts.
+        const hasFields = (storage.fields || []).length > 0;
+        if (mountCredDetails) {
+            mountCredDetails.style.display = hasFields ? '' : 'none';
+            if (!storage.browser_login) mountCredDetails.open = true;
+            else if (!sameType) mountCredDetails.open = false;
+        }
+        if (mountCredSummary) mountCredSummary.style.display = storage.browser_login ? '' : 'none';
         if (mountCredIcon)  mountCredIcon.className = storage.icon + ' me-1';
         if (mountCredTitle) mountCredTitle.textContent = storage.label;
         mountCredFields?.replaceChildren(...(storage.fields || []).map(field => {
@@ -1329,6 +1366,7 @@
         }));
         if (mountBrowserLogin) mountBrowserLogin.style.display = storage.browser_login ? '' : 'none';
         if (mountSmbSection) mountSmbSection.style.display = '';
+        _refreshSaveBtn();
     }
 
     function _mountStatus(cls, icon, text) {
@@ -1350,7 +1388,7 @@
         // L'onglet s'ouvre DANS le clic : ouvert après une requête, le navigateur le bloquerait.
         const tab = window.open('', '_blank');
         if (tab) tab.opener = null;
-        mountBrowserLoginBtn.disabled = true;
+        _setBrowserFlowActive(true);
         _mountStatus('text-muted', 'fa-spinner fa-spin', 'Ouverture de la page de connexion…');
         const mountsUrl = config.apiMountsUrl || '/filemanager/api/mounts/';
         const start = oauth
@@ -1365,45 +1403,57 @@
             .then(data => {
                 if (!data.login_url) {
                     tab?.close();
-                    mountBrowserLoginBtn.disabled = false;
+                    _setBrowserFlowActive(false);
                     _mountStatus('text-danger', 'fa-times', data.error || 'Erreur');
                     return;
                 }
                 if (tab) tab.location.href = data.login_url;
                 else window.open(data.login_url, '_blank', 'noopener');
+                // L'accès accordé, le montage prend encore quelques secondes (vérification des
+                // identifiants, puis rclone) : le dire, pour qu'on n'aille pas « revalider ».
                 _mountStatus('text-info', 'fa-spinner fa-spin',
-                    'En attente de votre accord dans l’onglet ouvert…');
+                    'En attente de votre accord dans l’onglet ouvert. Le dossier est ensuite monté '
+                    + '(quelques secondes) : cette fenêtre se fermera seule.');
                 _pollBrowserLogin(mountsUrl + 'login-flow/' + encodeURIComponent(data.flow_id) + '/', tab);
             })
             .catch(err => {
                 tab?.close();
-                mountBrowserLoginBtn.disabled = false;
+                _setBrowserFlowActive(false);
                 showToast('Erreur : ' + err.message, 'danger');
             });
     });
+
+    function _connectedToast(data) {
+        showToast(data.already ? `"${data.name}" est déjà connecté` : `"${data.name}" connecté`,
+                  data.already ? 'info' : 'success');
+    }
 
     function _pollBrowserLogin(url, tab) {
         const tick = () => fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
             .then(r => r.json())
             .then(data => {
-                if (data.status === 'pending') { _loginPollTimer = setTimeout(tick, 2000); return; }
-                mountBrowserLoginBtn.disabled = false;
+                if (data.status === 'pending') {
+                    // Fenêtre fermée entre-temps : une requête déjà partie ne relance plus rien.
+                    if (_browserFlowActive) _loginPollTimer = setTimeout(tick, 2000);
+                    return;
+                }
+                _setBrowserFlowActive(false);
                 try { tab?.close(); } catch (e) { /* onglet déjà fermé */ }
                 if (data.success) {
                     _mountModal?.hide();
-                    showToast(`"${data.name}" connecté`, 'success');
+                    _connectedToast(data);
                     refreshTree();
                 } else {
                     _mountStatus('text-danger', 'fa-times', data.error || 'Connexion refusée');
                 }
             })
-            .catch(() => { _loginPollTimer = setTimeout(tick, 4000); });
+            .catch(() => { if (_browserFlowActive) _loginPollTimer = setTimeout(tick, 4000); });
         _loginPollTimer = setTimeout(tick, 2000);
     }
     // Fenêtre fermée : on cesse d'interroger (la connexion expire seule côté serveur).
     mountModalEl?.addEventListener('hidden.bs.modal', () => {
         clearTimeout(_loginPollTimer);
-        if (mountBrowserLoginBtn) mountBrowserLoginBtn.disabled = false;
+        _setBrowserFlowActive(false);
     });
 
     // Les nuages DÉCLARÉS par l'instance (adresse posée par un admin, page Sources externes) :
@@ -1434,7 +1484,7 @@
                 (data.storages || []).forEach(storage => button(storage.icon, storage.label, () => {
                     clearTimeout(_mountValidateTimer);
                     mountPathInput.value = '';
-                    mountSaveBtn.disabled = true;
+                    _pathReady = false;
                     if (!mountNameInput.value.trim()) mountNameInput.value = storage.label;
                     _renderStorage({ type: storage.key, label: storage.label, icon: storage.icon,
                                      fields: [], guest: false, browser_login: 'oauth' });
@@ -1448,7 +1498,7 @@
     function _checkMountPath(raw) {
         if (!raw.trim()) {
             mountPathStatus.innerHTML = '';
-            mountSaveBtn.disabled = true;
+            _pathReady = false;
             _renderStorage(null);
             return;
         }
@@ -1461,10 +1511,10 @@
                 if (!mountNameInput.value.trim()) mountNameInput.value = data.name || last;
 
                 // Partage réseau ou nuage : les champs du type de stockage (déclarés au serveur).
+                _pathReady = true;
                 _renderStorage(data.storage || null);
                 if (data.is_remote) {
                     _mountStatus('text-info', 'fa-cloud', data.remote_hint || '');
-                    mountSaveBtn.disabled = false;
                     return;
                 }
 
@@ -1475,16 +1525,17 @@
                 } else {
                     mountPathStatus.innerHTML = `<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Non accessible — sera disponible quand le partage sera connecté</span>`;
                 }
-                mountSaveBtn.disabled = false;
             })
             .catch(() => {
-                mountSaveBtn.disabled = false;
+                _pathReady = true;
+                _refreshSaveBtn();
             });
     }
 
     mountPathInput?.addEventListener('input', () => {
         clearTimeout(_mountValidateTimer);
-        mountSaveBtn.disabled = true;
+        _pathReady = false;
+        _refreshSaveBtn();
         _mountValidateTimer = setTimeout(() => _checkMountPath(mountPathInput.value), 500);
     });
     mountPathInput?.addEventListener('keydown', e => {
@@ -1495,7 +1546,13 @@
         const rawPath = mountPathInput?.value.trim();
         const name    = mountNameInput?.value.trim();
         if (!name || !rawPath) { showToast('Chemin et nom requis', 'warning'); return; }
+        if (_browserFlowActive) return;
         mountSaveBtn.disabled = true;
+        if (mountBrowserLoginBtn) mountBrowserLoginBtn.disabled = true;
+        const saved = () => {
+            if (mountBrowserLoginBtn) mountBrowserLoginBtn.disabled = false;
+            _refreshSaveBtn();
+        };
         mountPathStatus.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Connexion en cours…</span>';
 
         // Chaque champ part sous le nom que son type de stockage déclare.
@@ -1511,10 +1568,10 @@
         })
             .then(r => r.json())
             .then(data => {
-                mountSaveBtn.disabled = false;
+                saved();
                 if (data.success) {
                     _mountModal?.hide();
-                    showToast(`"${data.name}" connecté`, 'success');
+                    _connectedToast(data);
                     refreshTree();
                 } else if (data.needs_auth) {
                     if (mountSmbSection) mountSmbSection.style.display = '';
@@ -1533,7 +1590,7 @@
                 }
             })
             .catch(err => {
-                mountSaveBtn.disabled = false;
+                saved();
                 showToast('Erreur : ' + err.message, 'danger');
             });
     });

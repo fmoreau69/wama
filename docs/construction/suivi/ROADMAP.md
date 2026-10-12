@@ -4306,6 +4306,27 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
        déclenché l'EDR du poste et a été retiré ; Google Drive et OneDrive attendent un client
        OAuth déclaré chez le fournisseur (décision de l'établissement : des données de recherche
        y transiteraient).
+     - **12/10, premier essai réel après relance** : un dossier retiré « réapparaissait » et
+       demandait un second retrait. Mesuré aux journaux : l'accès accordé dans le navigateur, le
+       montage a pris 18 s, pendant lesquelles la fenêtre disait encore « en attente » — Fabien a
+       cliqué « Connecter » avec les identifiants remplis par le navigateur : DEUX
+       enregistrements du même montage. Corrigé : `views._save_remote_mount` n'enregistre jamais
+       deux fois le même point de montage pour un utilisateur (réponse `already`, mot de passe
+       d'application en trop révoqué, jeton OAuth neuf GARDÉ à la place de l'ancien — le révoquer
+       retirerait l'autorisation entière) ; la fenêtre rend les deux voies EXCLUSIVES
+       (identifiants repliés sous le bouton du navigateur, « Connecter » inactif pendant une
+       connexion par le navigateur). ⚠ Et un défaut de SÉCURITÉ vu au passage :
+       `remote_mounts.mount` prêtait un montage déjà vivant SANS revérifier les identifiants —
+       or son nom vient du serveur, de l'identifiant et du chemin, pas du compte WAMA ; un autre
+       compte tapant la même adresse et le même identifiant l'obtenait avec n'importe quel mot de
+       passe. Les identifiants sont désormais vérifiés avant tout prêt. +4 tests.
+       Puis la VRAIE cause de la lenteur, mesurée le même soir sur le nuage réel : monté en 2 s,
+       mais `subprocess.run(rclone mount --daemon, capture_output=True)` attendait la fin des
+       TUBES jusqu'au délai (90 s) — WAMA répondait « échec », révoquait le mot de passe
+       d'application que le démon employait, et laissait un montage fantôme ; la connexion par
+       identifiants « marchait » parce qu'elle tombait sur ce montage vivant. Sortie vers
+       `DEVNULL`, erreurs vers un fichier temporaire : 1,7 s, monté au retour ; un délai dépassé
+       démonte. +2 tests (aucun tube ; une erreur de montage reste lue et expliquée).
    - ⏳ Ensuite : écriture des RÉSULTATS vers le nuage (bute sur `-o`, jamais une destination —
      `MEDIA_STORAGE_TIERING §8.1` cas 5) ; serveur MCP Nextcloud pour l'assistant ; un type de
      plus = une entrée de `STORAGE_TYPES` (SFTP, S3, Dropbox… tous connus de rclone).

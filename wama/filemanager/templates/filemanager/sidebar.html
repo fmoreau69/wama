@@ -91,11 +91,19 @@
                         </button>
                         <div class="text-muted mt-1" style="font-size:0.72rem;">
                             Un onglet s'ouvre : connectez-vous comme d'habitude, puis accordez
-                            l'accès à WAMA.
+                            l'accès à WAMA. Le dossier apparaît ensuite tout seul.
                         </div>
                     </div>
-                    {# Champs générés depuis le type de stockage (`remote_mounts.storage_form`) #}
-                    <div id="mountCredFields"></div>
+                    {% comment %}Champs générés depuis le type de stockage (`remote_mounts.storage_form`).
+                       Quand la connexion par le navigateur existe, ils sont l'AUTRE voie, repliée :
+                       les deux ne se lancent jamais ensemble (2026-10-12).{% endcomment %}
+                    <details id="mountCredDetails" open>
+                        <summary id="mountCredSummary" class="text-muted mb-1"
+                                 style="font-size:0.72rem; cursor:pointer;">
+                            Ou avec un identifiant et un mot de passe d'application
+                        </summary>
+                        <div id="mountCredFields"></div>
+                    </details>
                 </div>
                 <div class="mb-1">
                     <label class="form-label small text-light fw-bold mb-1">Nom d'affichage</label>

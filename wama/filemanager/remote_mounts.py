@@ -516,9 +516,12 @@ def unmount(path) -> bool:
 def mount(config: dict, password: str):
     """`(ok, chemin, erreur)` — monte le dossier distant et rend son chemin local.
 
-    Déjà monté et vivant → réutilisé. Monté mais MORT (rclone arrêté avec WSL : « Transport
-    endpoint is not connected ») → démonté puis remonté. Erreurs spéciales : 'AUTH_REFUSED',
-    'AUTH_REQUIRED' (`_explain`).
+    Déjà monté et vivant → réutilisé, mais seulement une fois les identifiants VÉRIFIÉS : le
+    nom du point de montage vient du serveur, de l'identifiant et du chemin, pas du compte WAMA,
+    et un montage vivant ne se prête jamais à qui n'en présente pas les identifiants (corrigé le
+    2026-10-12). Monté mais MORT (rclone arrêté avec WSL : « Transport endpoint is not
+    connected ») → démonté puis remonté. Erreurs spéciales : 'AUTH_REFUSED', 'AUTH_REQUIRED'
+    (`_explain`).
     """
     import sys
     if not sys.platform.startswith('linux'):
@@ -533,27 +536,40 @@ def mount(config: dict, password: str):
     if mount_point is None:
         return False, None, 'Impossible de créer le point de montage — ' + ' ; '.join(errors)
 
+    live = False
     if subprocess.run(['mountpoint', '-q', str(mount_point)], capture_output=True).returncode == 0:
-        if _is_live(mount_point):
-            return True, str(mount_point), None
-        unmount(mount_point)
+        live = _is_live(mount_point)
+        if not live:
+            unmount(mount_point)
 
     ok, error = check_access(config, password)
     if not ok:
         return False, None, error
+    if live:
+        return True, str(mount_point), None
 
     log_file = Path(settings.BASE_DIR) / 'logs' / 'rclone_mounts.log'
     cmd = [rclone, 'mount', rclone_target(config), str(mount_point), '--daemon',
            '--log-file', str(log_file), *MOUNT_OPTIONS, *_cache_options()]
-    try:
-        r = subprocess.run(cmd, env=_env(rclone, config, password), capture_output=True,
-                           text=True, timeout=MOUNT_TIMEOUT_S)
-    except subprocess.TimeoutExpired:
-        return False, None, f'Montage trop long ({MOUNT_TIMEOUT_S} s).'
-    except (OSError, RuntimeError) as e:
-        return False, None, str(e)
+    # ⚠ JAMAIS `capture_output` ici (mesuré le 2026-10-12) : le nuage était monté en 2 s, mais
+    # la lecture des TUBES attendait jusqu'au délai — le démon garde de quoi les tenir ouverts.
+    # WAMA répondait alors « échec » et révoquait le mot de passe que rclone employait. On
+    # n'attend que la fin du processus lanceur ; ses erreurs passent par un fichier.
+    import tempfile
+    with tempfile.TemporaryFile(mode='w+') as errors:
+        try:
+            r = subprocess.run(cmd, env=_env(rclone, config, password),
+                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                               stderr=errors, timeout=MOUNT_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            unmount(mount_point)          # pas de montage fantôme derrière un « échec »
+            return False, None, f'Montage trop long ({MOUNT_TIMEOUT_S} s).'
+        except (OSError, RuntimeError) as e:
+            return False, None, str(e)
+        errors.seek(0)
+        stderr = errors.read()
     if r.returncode != 0:
-        return False, None, _explain(r.stderr, config)
+        return False, None, _explain(stderr, config)
     return True, str(mount_point), None
 
 
