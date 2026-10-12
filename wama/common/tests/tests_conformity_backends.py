@@ -288,6 +288,21 @@ class BackendRoutingIsDeclaredAndReadTest(SimpleTestCase):
         self.assertEqual('partial', state)
         self.assertIn('ENGINE', proof)
 
+    def test_the_launch_door_is_a_declaration_by_model(self):
+        """The reader since 2026-10-07 (`backend_instance_for_key` + `run_contract`) — red until
+        2026-10-12 because the criterion only knew the class doors."""
+        f = self._app({'tasks.py': 'engine = backend_instance_for_key(item.backend, user=u)\n'})
+        state, proof = cc._backend_routes(f)
+        self.assertIs(True, state, proof)
+        self.assertIn('MODÈLE', proof)
+
+    def test_an_engine_table_derived_from_the_declarations_is_green(self):
+        """The synthesizer since 2026-10-12 : the table is `engine_classes(task)`, no longer
+        written — the class derives from each backend's `ENGINE`."""
+        f = self._app({'backends/__init__.py':
+                       "ENGINE_BACKENDS = engine_classes('text-to-speech')\n"})
+        self.assertIs(True, cc._backend_routes(f)[0])
+
     def test_a_comment_citing_a_door_is_no_proof(self):
         f = self._app({'backends/__init__.py': self.ROUTES,
                        'tasks.py': '# TODO: route_for_nature(__package__, nature)\n'})

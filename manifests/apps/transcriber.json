@@ -2216,7 +2216,39 @@
         }
       },
       "start": "start_transcriber",
-      "status": "get_transcriber_status"
+      "status": "get_transcriber_status",
+      "triad_spec": {
+        "empty_msg": "Aucune transcription en attente.",
+        "id_kwarg": "transcript_id",
+        "model": "wama.transcriber.models.Transcript",
+        "reset": "wama.transcriber.views._reset_and_clear_progress",
+        "status_fields": {
+          "backend": "backend",
+          "duration_display": {
+            "attr": "duration_display",
+            "default": "—"
+          },
+          "filename": "filename",
+          "id": "id",
+          "language": {
+            "attr": "language",
+            "or_none": true
+          },
+          "progress": "progress",
+          "status": "status",
+          "text_preview": {
+            "attr": "text",
+            "partial_fallback": true,
+            "preview": 300
+          },
+          "used_backend": {
+            "attr": "used_backend",
+            "or_none": true
+          }
+        },
+        "status_order": "-id",
+        "task_for": "wama.transcriber.views._task_for"
+      }
     }
   },
   "description": "Transcription audio/vidéo en texte (Whisper).",

@@ -2667,7 +2667,40 @@
         }
       },
       "start": "start_imager",
-      "status": "get_imager_status"
+      "status": "get_imager_status",
+      "triad_spec": {
+        "empty_msg": "Aucune génération en attente.",
+        "id_kwarg": "generation_id",
+        "model": "wama.imager.models.ImageGeneration",
+        "reset": "wama.imager.views._reset_and_forget_progress",
+        "status_fields": {
+          "id": "id",
+          "model": "model",
+          "num_images": "num_images",
+          "output_urls": {
+            "attr": "output_images",
+            "else": [],
+            "when": {
+              "status": "SUCCESS"
+            }
+          },
+          "progress": "progress",
+          "prompt": {
+            "attr": "prompt",
+            "preview": 80
+          },
+          "status": "status",
+          "video_url": {
+            "attr": "output_video",
+            "url": true,
+            "when": {
+              "status": "SUCCESS"
+            }
+          }
+        },
+        "status_order": "-id",
+        "task_for": "wama.imager.views._task_for"
+      }
     }
   },
   "description": "Génération d'images et vidéos par IA (Stable Diffusion, Hunyuan, Mochi…).",

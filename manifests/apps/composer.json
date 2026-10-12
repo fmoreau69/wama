@@ -644,7 +644,7 @@
         "source_text": "prompt"
       },
       "preview": {
-        "file_field": "audio_output",
+        "file_field": null,
         "user_field": "user"
       },
       "preview_registered": true
@@ -1443,13 +1443,37 @@
         },
         "start_composer": {
           "args": {
-            "generation_id": "int (requis)"
+            "generation_id": "int"
           },
           "description": "Lance le traitement Composer : l'item indiqué, ou tous ceux en attente si aucun id."
         }
       },
       "start": "start_composer",
-      "status": "get_composer_status"
+      "status": "get_composer_status",
+      "triad_spec": {
+        "empty_msg": "Aucune composition en attente.",
+        "id_kwarg": "generation_id",
+        "model": "wama.composer.models.ComposerGeneration",
+        "reset": "wama.composer.views._reset_for_relaunch",
+        "status_fields": {
+          "audio_url": {
+            "attr": "audio_output",
+            "url": true
+          },
+          "duration": "duration",
+          "generation_type": "generation_type",
+          "id": "id",
+          "model": "model",
+          "progress": "progress",
+          "prompt": {
+            "attr": "prompt",
+            "preview": 80
+          },
+          "status": "status"
+        },
+        "status_order": "-id",
+        "task_for": "wama.composer.views._task_for"
+      }
     }
   },
   "description": "Génération de musique et effets sonores par IA.",

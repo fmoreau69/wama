@@ -736,7 +736,7 @@
         }
       },
       "preview": {
-        "file_field": "audio_output",
+        "file_field": "text_file",
         "user_field": "user"
       },
       "preview_registered": true
@@ -1396,7 +1396,6 @@
         "start_all",
         "start_process",
         "stop",
-        "text_preview",
         "update_settings",
         "upload",
         "upload_text",
@@ -1407,11 +1406,6 @@
           "name": "upload_text",
           "pattern": "upload-text/",
           "view": "views.upload_text"
-        },
-        {
-          "name": "text_preview",
-          "pattern": "text-preview/<int:pk>/",
-          "view": "views.text_preview"
         },
         {
           "name": "voice_preview",
@@ -1581,7 +1575,33 @@
         }
       },
       "start": "start_synthesizer",
-      "status": "get_synthesizer_status"
+      "status": "get_synthesizer_status",
+      "triad_spec": {
+        "empty_msg": "Aucune synthèse en attente.",
+        "id_kwarg": "synthesis_id",
+        "model": "wama.synthesizer.models.VoiceSynthesis",
+        "reset": "wama.synthesizer.views._reset_and_seed_progress",
+        "status_fields": {
+          "audio_url": {
+            "attr": "audio_output",
+            "url": true
+          },
+          "duration_display": {
+            "attr": "duration_display",
+            "default": "—"
+          },
+          "filename": "filename",
+          "id": "id",
+          "language": "language",
+          "model": "tts_model",
+          "progress": "progress",
+          "status": "status",
+          "voice_preset": "voice_preset",
+          "word_count": "word_count"
+        },
+        "status_order": "-id",
+        "task_for": "wama.synthesizer.views._task_for"
+      }
     }
   },
   "description": "Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…).",

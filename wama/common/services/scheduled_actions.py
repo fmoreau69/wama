@@ -312,8 +312,9 @@ def _quiet_slot(moment, seconds, hours):
 def start_tool_for(app, prefix=''):
     """Outil `start_*` d'une FILE, ou None. La file d'un domaine a le sien
     (`start_audio_enhancer`), sinon celui de l'app (`start_imager` pour ses deux files, un seul
-    modèle) ; une jumelle de bac à sable n'en a pas. Lu par la file (`queue_dnd_attrs`) ET par le
-    fichier batch (`schedule_from_batch`) — une seule dérivation."""
+    modèle) ; une jumelle de bac à sable a celui que l'exécution lui injecte, ou aucun
+    (`sandbox.inject_sandbox_registry`). Lu par la file (`queue_dnd_attrs`) ET par le fichier
+    batch (`schedule_from_batch`) — une seule dérivation."""
     try:
         from wama import tool_api
     except Exception:

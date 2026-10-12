@@ -103,13 +103,60 @@ def _retarget(value, src: str, label: str):
     return moved
 
 
+def _paths_in(value, prefix: str) -> list:
+    """Les chemins pointés `prefix…` que porte une déclaration (dicts et listes imbriqués)."""
+    if isinstance(value, dict):
+        return [p for v in value.values() for p in _paths_in(v, prefix)]
+    if isinstance(value, (list, tuple)):
+        return [p for v in value for p in _paths_in(v, prefix)]
+    return [value] if isinstance(value, str) and value.startswith(prefix) else []
+
+
+def resolves(dotted: str) -> bool:
+    """Le chemin pointé `wama.<…>` désigne-t-il un module, ou un nom DÉFINI au niveau d'un module,
+    lu sur le disque SANS RIEN IMPORTER (le module reste pur : il est lu par settings) ?
+
+    Ce qu'une jumelle peut réellement faire tourner (2026-10-12) : la triade de l'assistant
+    nomme les fonctions de lancement des VUES de l'app (`_task_for`, la remise à zéro du ▶) ;
+    une jumelle aux vues RÉGÉNÉRÉES peut ne pas les avoir — l'injecter quand même ferait un outil
+    qui lève au premier appel, et une grille qui le compte vert."""
+    import ast
+    parts = dotted.split('.')
+    root = Path(__file__).resolve().parent.parent.parent      # le dossier qui contient wama/
+    for cut in range(len(parts), 0, -1):
+        base = root.joinpath(*parts[:cut])
+        module = base / '__init__.py' if (base / '__init__.py').is_file() else base.with_suffix('.py')
+        if not module.is_file():
+            continue
+        rest = parts[cut:]
+        if not rest:
+            return True
+        try:
+            tree = ast.parse(module.read_text(encoding='utf-8'))
+        except (OSError, SyntaxError, ValueError):
+            return False
+        names = set()
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                names.add(node.name)
+            elif isinstance(node, ast.Assign):
+                names |= {t.id for t in node.targets if isinstance(t, ast.Name)}
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                names.add(node.target.id)
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                names |= {(a.asname or a.name).split('.')[0] for a in node.names}
+        return rest[0] in names
+    return False
+
+
 def inject_sandbox_registry(registry: dict, *, runnable=None) -> None:
     """Entrées d'un registre INDEXÉ PAR APP pour les jumelles : la déclaration de la source,
     chemins re-ciblés (`_retarget`). Décision de Fabien (2026-10-06) : une jumelle expose ce que
     son app source expose — mais SEULEMENT ce que l'exécution peut réellement faire tourner :
-    `runnable(label)` écarte une entrée qui mènerait à un appel impossible (le nœud studio d'une
-    jumelle sans outil de création). Consommateurs : `TRIAD_SPECS` (tool_api), `GENERIC_APPS`
-    (studio). Une app née d'un manifeste (sans source) n'emprunte rien ici."""
+    chaque chemin re-ciblé doit se RÉSOUDRE dans le paquet de la jumelle (`resolves`), et
+    `runnable(label)` écarte en plus une entrée qui mènerait à un appel impossible (le nœud studio
+    d'une jumelle sans outil de création). Consommateurs : `TRIAD_SPECS` (tool_api),
+    `GENERIC_APPS` (studio). Une app née d'un manifeste (sans source) n'emprunte rien ici."""
     import copy
     for e in load_registry():
         label, src = e.get('label'), e.get('generated_from')
@@ -117,7 +164,9 @@ def inject_sandbox_registry(registry: dict, *, runnable=None) -> None:
             continue
         if label not in sandbox_labels() or (runnable is not None and not runnable(label)):
             continue
-        registry[label] = _retarget(copy.deepcopy(registry[src]), src, label)
+        entry = _retarget(copy.deepcopy(registry[src]), src, label)
+        if all(resolves(p) for p in _paths_in(entry, f'wama.{label}.')):
+            registry[label] = entry
 
 
 def born_declaration(label: str, facet: str):
@@ -207,7 +256,12 @@ def sandbox_urlpatterns():
             pats.append(path(f'{label}/', include((f'wama.{label}.urls', label),
                                                   namespace=label)))
         except Exception:
-            # Une jumelle au urls.py cassé ne doit pas tuer le routing GLOBAL.
+            # Une jumelle au urls.py cassé ne doit pas tuer le routing GLOBAL — mais jamais en
+            # silence (2026-10-12) : `avatarizer_01`, laissée à mi-substitution le 07/10, a
+            # disparu du menu cinq jours sans une ligne de journal.
+            import logging
+            logging.getLogger('wama.sandbox').warning(
+                "Jumelle '%s' non routée — son urls.py ne s'importe pas", label, exc_info=True)
             continue
     return pats
 

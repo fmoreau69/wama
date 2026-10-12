@@ -55,8 +55,9 @@ class StartAnonymizerTest(TestCase):
         media.refresh_from_db()
         self.assertEqual('RUNNING', media.status)
         self.assertEqual('fake-task-id', media.task_id)
-        # Comme le bouton ▶ : à l'unité, les réglages de l'item font foi.
-        self.assertEqual({'force_individual': True}, delay.call_args.kwargs)
+        # La tâche de la card, sur l'élément seul (`force_individual` n'a plus d'effet,
+        # `anonymizer/tasks.py:137` — la triade déclarée ne le passe pas).
+        delay.assert_called_once_with(media.pk)
 
     def test_an_item_already_running_is_refused_not_relaunched(self):
         media = self._media(status='RUNNING')
@@ -81,13 +82,16 @@ class StartAnonymizerTest(TestCase):
         self.assertIn('error', result)
 
     def test_the_batch_branch_launches_what_has_not_succeeded(self):
-        self._media()
-        self._media(status='ERROR')
-        self._media(status='SUCCESS')          # abouti : hors lot
-        with mock.patch('wama.anonymizer.tasks.process_user_media_batch.delay',
+        waiting, failed = self._media(), self._media(status='FAILURE')
+        done = self._media(status='SUCCESS')          # abouti : hors lot
+        with mock.patch('wama.anonymizer.tasks.process_single_media.delay',
                         return_value=_FakeTask()):
             result = T.start_anonymizer(self.user)
         self.assertEqual(2, result['count'])
+        self.assertEqual({waiting.pk, failed.pk}, set(result['ids']))
+        # Chacun par le lanceur du ▶ (« en cours » posé sous verrou), l'abouti intact.
+        statuses = {m.pk: m.status for m in type(done).objects.filter(user=self.user)}
+        self.assertEqual({waiting.pk: 'RUNNING', failed.pk: 'RUNNING', done.pk: 'SUCCESS'}, statuses)
 
 
 class StartTranscriberTest(TestCase):
@@ -126,6 +130,86 @@ class StartTranscriberTest(TestCase):
             result = T.start_transcriber(self.user, transcript_id=self.t.pk)
         self.assertIn('déjà en cours', result['error'])
         task.delay.assert_not_called()
+
+
+class StartImagerTest(TestCase):
+    """The hand-written `start_imager` sent the IMAGE task to every generation, video included —
+    its card ▶ picks the task by `_task_for` (2026-10-12). The declared triad names that function."""
+
+    def test_a_video_generation_is_started_with_the_video_task(self):
+        from wama.imager.models import ImageGeneration
+        user = get_user_model().objects.create_user('video-starter', password='x')
+        gen = ImageGeneration.objects.create(user=user, prompt='a cat', generation_mode='txt2vid')
+        with mock.patch('wama.imager.tasks.generate_video_task.delay',
+                        return_value=_FakeTask()) as video, \
+                mock.patch('wama.imager.tasks.generate_image_task.delay') as image:
+            result = T.start_imager(user, generation_id=gen.pk)
+        self.assertEqual('started', result['status'])
+        video.assert_called_once_with(gen.pk)
+        image.assert_not_called()
+
+
+class EveryTriadIsDeclaredTest(TestCase):
+    """The ten apps (and the audio of the enhancer) start and report through TRIAD_SPECS — the
+    launch of their card ▶, named by path (2026-10-12). A path that no longer resolves (a renamed
+    `_task_for`) would only break at the first call of the assistant : it breaks here."""
+
+    APPS = ('anonymizer', 'audio_enhancer', 'avatarizer', 'composer', 'converter', 'describer',
+            'enhancer', 'imager', 'reader', 'synthesizer', 'transcriber')
+
+    def test_every_app_triad_is_built_from_its_declaration(self):
+        for app in self.APPS:
+            with self.subTest(app=app):
+                self.assertIn(app, T.TRIAD_SPECS)
+                self.assertIn(f"TRIAD_SPECS['{app}']", T.TOOL_REGISTRY[f'start_{app}'].__doc__)
+                self.assertIn(f"TRIAD_SPECS['{app}']", T.TOOL_REGISTRY[f'get_{app}_status'].__doc__)
+
+    def test_every_declared_path_resolves(self):
+        from django.utils.module_loading import import_string
+        for app in self.APPS:
+            spec = T.TRIAD_SPECS[app]
+            for key in ('model', 'task', 'task_for', 'reset'):
+                if isinstance(spec.get(key), str):
+                    with self.subTest(app=app, key=key):
+                        self.assertTrue(callable(import_string(spec[key])))
+
+    def test_every_entry_passes_the_manifest_ingest(self):
+        """The `tool_api` facet carries the entry (`triad_spec`) and the ingest validates it :
+        an entry the manifest refuses could not be regenerated (`write_back_app`)."""
+        from wama.common.manifests.builtin.app import validate_app_body
+        for app, spec in T.TRIAD_SPECS.items():
+            with self.subTest(app=app):
+                self.assertEqual([], validate_app_body({'tool_api': {'triad_spec': spec}}))
+        bad = {**T.TRIAD_SPECS['imager'], 'reset': 42}
+        self.assertTrue(validate_app_body({'tool_api': {'triad_spec': bad}}))
+
+    def test_every_status_tool_reads_an_empty_queue(self):
+        user = get_user_model().objects.create_user('empty-status', password='x')
+        for app in self.APPS:
+            with self.subTest(app=app):
+                self.assertEqual({'jobs': []}, T.TOOL_REGISTRY[f'get_{app}_status'](user))
+
+
+class TriadStatusFormsTest(TestCase):
+    """The status line forms of the declaration, read on a real card (the anonymizer uses four)."""
+
+    def test_the_declared_forms_are_read_on_the_card(self):
+        from wama.anonymizer.models import Media
+        from django.core.cache import cache
+        user = get_user_model().objects.create_user('status-forms', password='x')
+        media = Media.objects.create(user=user, status='RUNNING', file_ext='.jpg', media_type='image',
+                                     file=SimpleUploadedFile('photo.jpg', b'x'),
+                                     target_mode='classes', sam3_prompt='a face')
+        cache.set(f'media_progress_{media.pk}', 42)     # the key the task writes
+        try:
+            row = T.get_anonymizer_status(user)['jobs'][0]
+        finally:
+            cache.delete(f'media_progress_{media.pk}')
+        self.assertEqual(42, row['progress'])
+        self.assertEqual('RUNNING', row['status'])
+        self.assertTrue(row['name'].startswith('photo') and row['name'].endswith('.jpg'))
+        self.assertIsNone(row['sam3_prompt'], 'when : only for a description target')
+        self.assertIsNone(row['output_url'], 'when : only once it succeeded')
 
 
 class EveryStartToolAnswersTest(TestCase):

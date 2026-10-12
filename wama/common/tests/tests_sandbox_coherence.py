@@ -431,6 +431,15 @@ class UnroutedTwinDoesNotTakeThePageDownTest(TestCase):
         self.assertEqual(200, response.status_code)
         self.assertContains(response, 'Ghost indisponible')
 
+    def test_leaving_a_twin_out_of_the_routing_is_logged(self):
+        # avatarizer_01 vanished from the menu for five days without a single log line
+        # (2026-10-12) : the routing may skip a broken twin, never silently.
+        from wama.common import sandbox
+        with patch.object(sandbox, 'sandbox_labels', return_value=['ghost_01']), \
+                self.assertLogs('wama.sandbox', level='WARNING') as logs:
+            self.assertEqual([], sandbox.sandbox_urlpatterns())
+        self.assertIn('ghost_01', logs.output[0])
+
 
 class JudgesAreSilentOnSoundPackagesTest(SimpleTestCase):
     """A judge must say NOTHING about a sound package — and the ten real apps are sound by
@@ -658,7 +667,8 @@ class TwinRegistriesInjectedTest(SimpleTestCase):
     """`sandbox.inject_sandbox_registry` (décision de Fabien, 2026-10-06) : une jumelle reçoit la
     déclaration de sa source, chemins re-ciblés sur SON paquet — et seulement ce qui peut tourner."""
 
-    def _inject(self, registry, *, labels=('converter_01',), runnable=None, files=('tasks.py',)):
+    def _inject(self, registry, *, labels=('converter_01',), runnable=None, files=('tasks.py',),
+                resolves=lambda dotted: True):
         from wama.common import sandbox
         entries = [{'label': 'converter_01', 'generated_from': 'converter'}]
 
@@ -666,9 +676,28 @@ class TwinRegistriesInjectedTest(SimpleTestCase):
             return Path(path).name in files and 'converter_01' in str(path)
         with patch.object(sandbox, 'load_registry', return_value=entries), \
                 patch.object(sandbox, 'sandbox_labels', return_value=list(labels)), \
+                patch.object(sandbox, 'resolves', resolves), \
                 patch.object(sandbox.Path, 'exists', lambda self: exists(self)):
             sandbox.inject_sandbox_registry(registry, runnable=runnable)
         return registry
+
+    def test_a_path_the_twin_does_not_define_keeps_the_declaration_out(self):
+        """The triad names launch functions of the app's VIEWS (2026-10-12) : a twin whose views
+        were regenerated may lack them — injected anyway, the tool would raise on its first call
+        and the grid would count it green."""
+        reg = self._inject({'converter': {'model': 'wama.converter.models.Job',
+                                          'task_for': 'wama.converter.views._task_for'}},
+                           resolves=lambda dotted: not dotted.endswith('._task_for'))
+        self.assertNotIn('converter_01', reg)
+
+    def test_resolves_reads_the_disk_without_importing(self):
+        from wama.common import sandbox
+        self.assertTrue(sandbox.resolves('wama.common.sandbox'))                 # a module
+        self.assertTrue(sandbox.resolves('wama.common.sandbox.resolves'))        # a function
+        self.assertTrue(sandbox.resolves('wama.common.sandbox.REGISTRY_PATH'))   # an assignment
+        self.assertTrue(sandbox.resolves('wama.common.sandbox.Path'))            # an import
+        self.assertFalse(sandbox.resolves('wama.common.sandbox.no_such_name'))
+        self.assertFalse(sandbox.resolves('wama.no_such_package.views._task_for'))
 
     def test_a_twin_gets_its_source_declaration_retargeted_on_its_own_package(self):
         reg = self._inject({'converter': {'model': 'wama.converter.models.Job',

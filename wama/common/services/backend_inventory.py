@@ -682,6 +682,50 @@ TASK_CONTRACTS = {
 _LINEAGE_CACHE: dict = {}
 
 
+def contract_engines(task: str) -> dict:
+    """Moteur → `(module, classe)` des backends CONCRETS du contrat de `task`, lus par AST dans
+    le paquet commun des backends — SANS Django et SANS import.
+
+    Pour un DISPATCH PAR MOTEUR hors Django (2026-10-12) : le service TTS ne lit pas le catalogue
+    (son appelant Django lui passe le moteur déclaré, `engine_for_model`) ; il lui faut seulement
+    la classe qui pilote ce moteur. Le synthesizer l'écrivait dans une table (`ENGINE_BACKENDS`)
+    qui redisait le `ENGINE` de chaque backend (`ROUTE §1554`) : elle se DÉRIVE ici de cette
+    déclaration et du contrat de la tâche. Un moteur que deux backends du contrat déclarent est
+    ÉCARTÉ, jamais départagé au hasard (règle 3 de `resolve_entry`) — et dit au journal."""
+    contract = TASK_CONTRACTS.get(task)
+    if not contract:
+        return {}
+    package = Path(__file__).resolve().parents[1] / 'backends'
+    found, _unreadable = _class_backends(package, 'wama.common.backends')
+    bases = {}
+    for f in sorted(package.glob('*.py')):
+        for name, info in _FICHIERS_BACKENDS.get(f, _file_classes)[0].items():
+            bases.setdefault(name, set()).update(info['bases'])
+
+    def _lineage(name):
+        seen, todo = set(), [name]
+        while todo:
+            for b in bases.get(todo.pop(), ()):
+                if b not in seen:
+                    seen.add(b)
+                    todo.append(b)
+        return seen
+
+    out, ambiguous = {}, set()
+    for name, info in found:
+        engine = (info.get('attrs') or {}).get('ENGINE')
+        if not engine or (contract[1] not in _lineage(name) and name != contract[1]):
+            continue
+        if engine in out:
+            ambiguous.add(engine)
+        out[engine] = (info['module'], name)
+    for engine in ambiguous:
+        logger.warning('[backends] contrat %s : moteur %r déclaré par plusieurs backends — écarté',
+                       task, engine)
+        out.pop(engine, None)
+    return out
+
+
 def _class_lineage(entry) -> Optional[set]:
     """Ancêtres (noms) de la classe d'une entrée, lus par AST dans le paquet de son module —
     None si la classe n'y est pas trouvée (on ne conclut pas d'une absence)."""

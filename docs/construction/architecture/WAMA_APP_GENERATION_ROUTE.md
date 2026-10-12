@@ -1302,9 +1302,9 @@ le passé.*
   **Surface outils courante** (couche factuelle auto-générée, ROADMAP §16.9 ①) :
 
   <!-- WAMA:FAITS(outils) — généré par « python manage.py doc_facts », ne pas éditer -->
-- Outils au registre (`TOOL_REGISTRY`) : **84**
-- Outils décrits (`tool_descriptions()`, dérivé) : **84/84**
-- Arguments documentés (types/choix/bornes/défauts) : **279**
+- Outils au registre (`TOOL_REGISTRY`) : **78**
+- Outils décrits (`tool_descriptions()`, dérivé) : **78/78**
+- Arguments documentés (types/choix/bornes/défauts) : **276**
 <!-- /WAMA:FAITS(outils) -->
 - 🔴 **PANNE TROUVÉE ET CORRIGÉE au passage — `describer.output_format`** (signalée par Fabien) :
   `output_style` est un **STYLE de description** (résumé / détaillée / synthèse scientifique / points
@@ -1580,6 +1580,19 @@ sur la même liste.
 > La mesure est PAR APP : une porte présente suffit au vert, sauf contournement détecté.
 > Grille : **957/967**, aucun rouge sur les dix apps. Gardes :
 > `tests_conformity_backends.BackendRoutingIsDeclaredAndReadTest` (trois mutations tuées).
+>
+> ✅ **Soldé le 2026-10-12 — `backend_routes` VRAI 10/10.** ① **synthesizer** : la table n'est
+> plus écrite, elle se DÉRIVE — `ENGINE_BACKENDS = engine_classes('text-to-speech')`
+> (`backends/manager.py`), lue par AST sur le paquet commun (`backend_inventory.contract_engines` :
+> les backends CONCRETS du contrat de la tâche et leur `ENGINE`), sans Django, donc servie au
+> service TTS tel quel. Mesuré avant d'écrire : les sept moteurs de la table étaient exactement les
+> sept sous-classes de `TTSBackend`, chacune déclarant le même `ENGINE` — dispatch inchangé. Un
+> moteur que deux backends du contrat déclareraient est ÉCARTÉ et dit (règle 3 de `resolve_entry`).
+> ② **reader** : FAUX rouge — il lance par la porte `backend_instance_for_key` depuis le 07/10
+> (`reader/tasks.py:267`) ; le critère ne connaissait que les portes de CLASSE. *Un critère en
+> retard d'un mécanisme fait porter une app vers l'ancienne forme pour le verdir* (même leçon que
+> `model_caps_ui`, 02/10). Gardes : `tests_conformity_backends` (+2),
+> `tests_backend_inventory.EngineTableDerivedFromDeclarationsTest`.
 
 **Palier `params` (soir, sur dev)** : extract MULTI-SCHÉMAS — tous les attributs `*PARAMS_JSON`
 (trou #10 résorbé : imager IMAGE+VIDEO, enhancer MEDIA+AUDIO étaient invisibles), facette
@@ -2606,6 +2619,23 @@ que PROMPT_TARGETS, `_write_value_entry` généralisé `champ`/`main_reason`) ; 
 skip motivé, précédent inspector). **Harnais : converter CONFORME 7 cibles strippées
 (triad_entry compris), reader CONFORME 6 cibles** ; roundtrip 10/10 OK, converter **9/10
 projetable** (ne reste que `processing` partiel) ; grille 10/10 identique ; corpus régénéré.
+
+> ✅ **Soldé le 2026-10-12 (« on termine le portage », Fabien) — les DIX apps et l'audio de
+> l'enhancer lancent et suivent par `TRIAD_SPECS`** ; critère `triad_specs` VRAI 10/10, plus aucune
+> triade écrite main. Le lancement est devenu celui du ▶ de la card : `begin_processing` (la
+> brique générique n'en avait pas — ni verrou, ni révocation), puis la remise à zéro et la tâche
+> que l'app déclare DÉJÀ pour son ▶ de lot (`make_batch_views(reset_on_start=…, task_for=…)`),
+> nommées par chemin (`reset`, `task_for`). Le langage de la ligne de statut gagne quatre formes
+> (`url`, `when`/`else`, `default`, `call` ; `basename`) et `progress_key` / `pending` /
+> `pending_exclude` — en-tête de `TRIAD_SPECS`. **Ce que le portage a corrigé** (les sept triades
+> main avaient DÉRIVÉ de leur ▶) : l'imager envoyait la tâche IMAGE à une génération VIDÉO ; le
+> synthesizer effaçait encore l'audio au lancement (son ▶ ne le fait plus depuis le 03/10) ;
+> l'anonymizer lisait sa progression sous `anon_progress:` que plus rien n'écrit (la tâche écrit
+> `media_progress_`) et rendait des statuts inventés (`done`/`queued`) ; quatre lançaient sans
+> verrou. Jumelles : une déclaration n'est injectée que si chacun de ses chemins se RÉSOUT dans
+> le paquet de la jumelle (`sandbox.resolves`, lu sur disque sans import) — une jumelle aux vues
+> régénérées sans `_task_for` n'a pas de triade, au lieu d'en avoir une qui lève. Gardes :
+> `tests_tool_api_start` (`EveryTriadIsDeclaredTest`, `StartImagerTest`, `TriadStatusFormsTest`).
 
 **Palier A3b ✅ LIVRÉ (2026-08-12) — gabarit `apps_gen`, facette `inspector` PROJETABLE ;
 A3 CLOS** : `codegen/apps_gen.render_apps` rend le `ready()` complet depuis les déclarations

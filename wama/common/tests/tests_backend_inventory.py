@@ -792,3 +792,38 @@ class AvailabilityProbeStaysLightTest(SimpleTestCase):
         self.assertLess(duration, self.BUDGET_S,
                         f'la sonde a pris {duration:.1f}s (budget {self.BUDGET_S}s) : '
                         f'quelque chose de lourd est chargé')
+
+
+class EngineTableDerivedFromDeclarationsTest(SimpleTestCase):
+    """The synthesizer's engine → class table, DERIVED from each backend's `ENGINE` and the task
+    contract (`contract_engines` / `engine_classes`, 2026-10-12) instead of written by hand — it
+    feeds the TTS service, which runs without Django."""
+
+    def test_every_engine_is_declared_by_its_class_under_the_contract(self):
+        from wama.common.backends.manager import engine_classes
+        from wama.common.backends.tts_base import TTSBackend
+        table = engine_classes('text-to-speech')
+        self.assertGreaterEqual(len(table), 7, sorted(table))
+        for engine, cls in table.items():
+            with self.subTest(engine=engine):
+                self.assertTrue(issubclass(cls, TTSBackend))
+                self.assertEqual(engine, cls.ENGINE)
+
+    def test_the_synthesizer_dispatches_through_the_derived_table(self):
+        from wama.common.backends.manager import engine_classes
+        from wama.synthesizer.backends import ENGINE_BACKENDS
+        self.assertEqual(engine_classes('text-to-speech'), ENGINE_BACKENDS)
+
+    def test_an_engine_claimed_by_two_backends_is_left_out(self):
+        """Never settled by chance (rule 3 of `resolve_entry`) : said, and left out."""
+        found = [('A', {'attrs': {'ENGINE': 'same'}, 'module': 'm.a'}),
+                 ('B', {'attrs': {'ENGINE': 'same'}, 'module': 'm.b'}),
+                 ('C', {'attrs': {'ENGINE': 'own'}, 'module': 'm.c'})]
+        files = {'A': {'bases': {'TTSBackend'}}, 'B': {'bases': {'TTSBackend'}},
+                 'C': {'bases': {'TTSBackend'}}}
+        from unittest.mock import patch
+        with patch.object(bi, '_class_backends', return_value=(found, [])), \
+                patch.object(bi.Path, 'glob', return_value=[Path('x.py')]), \
+                patch.object(bi._FICHIERS_BACKENDS, 'get', return_value=(files, '')), \
+                self.assertLogs(bi.logger, level='WARNING'):
+            self.assertEqual({'own': ('m.c', 'C')}, bi.contract_engines('text-to-speech'))

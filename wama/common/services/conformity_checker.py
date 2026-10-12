@@ -1721,7 +1721,12 @@ def _backend_routes(f: _AppFiles):
             return 'partial', (f"{ev} — ROUTES déclarées mais LUES par aucune porte "
                                "(`route_for_nature`) : déclaration morte, aiguillage écrit à la main")
         return True, f"{ev} lues par {door} (routage par NATURE)"
-    catalog = f.find_code(ROUTING_CODE, r'\bbackend_for_(?:key|model)\(')
+    # Les portes du catalogue : la classe (`backend_for_key` / `_model`), l'instance prête de la
+    # porte de LANCEMENT (`backend_instance_for_key`, 07/10 — le reader y passait depuis, et
+    # restait rouge : un critère en retard d'un mécanisme), et la table moteur → classe DÉRIVÉE
+    # des `ENGINE` pour un dispatch hors Django (`engine_classes`, synthesizer, 2026-10-12).
+    catalog = f.find_code(ROUTING_CODE, r'\b(?:backend_for_(?:key|model)|backend_instance_for_key'
+                                        r'|engine_classes)\(')
     if catalog:
         by_path = _backend_instantiated_by_path(f)
         if by_path:

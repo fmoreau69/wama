@@ -162,6 +162,27 @@ def backend_for_engine(engine: str, model_id: str = '', entries=None, task: str 
     return None
 
 
+def engine_classes(task: str) -> dict:
+    """Moteur → CLASSE de backend, pour les backends du contrat de `task` — DÉRIVÉ de la
+    déclaration `ENGINE` de chacun (`backend_inventory.contract_engines`, lu sans Django).
+
+    La porte d'un DISPATCH PAR MOTEUR qui tourne hors Django (le service TTS) : le moteur vient
+    du catalogue par l'appelant, la classe se dérive ici — la même moitié backend que
+    `backend_for_model`, sans la ligne de catalogue. Remplace la table qu'une app écrivait à la
+    main (`ENGINE_BACKENDS` du synthesizer, 2026-10-12). Import CIBLÉ des seuls modules du
+    contrat ; un module qui ne s'importe pas est laissé de côté et dit au journal."""
+    import importlib
+    from wama.common.services.backend_inventory import contract_engines
+    out = {}
+    for engine, (module, name) in sorted(contract_engines(task).items()):
+        try:
+            out[engine] = getattr(importlib.import_module(module), name)
+        except Exception as e:
+            logger.warning('[engines] %s.%s (moteur %s) ne s\'importe pas : %s', module, name,
+                           engine, e)
+    return out
+
+
 def backend_for_model(model, entries=None):
     """Classe de backend qui sait exécuter `model`, ou None.
 

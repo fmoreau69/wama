@@ -240,8 +240,10 @@ class QueueAttributesTest(SimpleTestCase):
         self.assertIn('data-schedule-tool="start_describer"', queue_dnd_attrs('describer'))
         self.assertIn('data-schedule-tool="start_audio_enhancer"', queue_dnd_attrs('enhancer', 'audio'))
         self.assertIn('data-schedule-tool="start_imager"', queue_dnd_attrs('imager', 'video'))
-        self.assertNotIn('data-schedule-tool', queue_dnd_attrs('converter_01'),
-                         'une jumelle de bac à sable n’a pas d’outil : rien à programmer')
+        # Une file sans outil de lancement n'a rien à programmer. Une JUMELLE en a un exactement
+        # quand l'exécution le lui donne (`inject_sandbox_registry`, décision du 2026-10-06) —
+        # cette ligne disait « une jumelle n'a pas d'outil », ce qui est faux depuis ce jour-là.
+        self.assertNotIn('data-schedule-tool', queue_dnd_attrs('ghost_01'))
 
 
 class CalendarFeedTest(TestCase):

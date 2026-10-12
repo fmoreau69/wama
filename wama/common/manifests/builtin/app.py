@@ -121,11 +121,19 @@ def validate_app_body(body: dict) -> list[str]:
         if not isinstance(spec, dict):
             errs.append('tool_api.triad_spec doit être un dict')
         else:
-            for req in ('model', 'task'):
+            # La tâche se déclare seule (`task`) ou par élément (`task_for`, la fonction que le
+            # ▶ de la card consomme — 2026-10-12) : l'une des deux, chemin pointé.
+            task_key = 'task_for' if 'task_for' in spec else 'task'
+            for req in ('model', task_key):
                 v = spec.get(req)
                 if not isinstance(v, str) or '.' not in v:
                     errs.append(f"tool_api.triad_spec.{req} : chemin pointé requis "
                                 f"(module.Attr) : {v!r}")
+            reset = spec.get('reset')
+            if reset is not None and not (isinstance(reset, dict)
+                                          or (isinstance(reset, str) and '.' in reset)):
+                errs.append("tool_api.triad_spec.reset : dict de champs ou chemin pointé "
+                            f"d'une fonction(élément) : {reset!r}")
             sf = spec.get('status_fields')
             if sf is not None and (not isinstance(sf, dict) or any(
                     not (isinstance(v, str)

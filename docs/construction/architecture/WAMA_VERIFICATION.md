@@ -60,6 +60,10 @@ remplacé). Appliquée à :
   source la déclare (converter, describer, reader ; vérifié à l'exécution : modèle et tâche se
   résolvent dans le paquet de la jumelle). Les sept apps à triade écrite à la main n'ont rien à
   transmettre : leur jumelle reste rouge tant que la triade n'est pas portée (`triad_specs`) ;
+  ✅ **portées le 2026-10-12** (`ROUTE` palier A4) — et l'injection vérifie désormais que chaque
+  chemin RE-CIBLÉ se résout dans le paquet de la jumelle (`sandbox.resolves`, sur disque) : la
+  triade nomme des fonctions des VUES (`_task_for`, la remise à zéro du ▶), qu'une jumelle aux
+  vues régénérées peut ne pas avoir ;
 - le **nœud studio** (`GENERIC_APPS`) — SEULEMENT si l'outil de création `add_to_<jumelle>`
   existe : sans lui le nœud ne pourrait pas tourner. Aucune jumelle ne l'a aujourd'hui (la création
   est de la glu écrite à la main, `tool_api.py`) : le manque est celui du GÉNÉRATEUR, il reste

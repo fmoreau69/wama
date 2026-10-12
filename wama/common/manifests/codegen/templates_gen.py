@@ -750,8 +750,9 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
       {{# PROCESS : une ligne par process, générée des lignes d'exécution (P5, 5.2) — rien sous deux process #}}
       {{% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id %}}
 
-      {{# Barre TOUJOURS rendue, masquée en attente par la CSS commune (2026-10-04) : une card
-      rendue en attente puis lancée n'avait pas de barre à remplir. #}}
+      {{% comment %}}Barre TOUJOURS rendue, masquée en attente par la CSS commune (2026-10-04) : une
+      card rendue en attente puis lancée n'avait pas de barre à remplir. (`{{# #}}` ne vaut que sur
+      UNE ligne — sur deux, Django l'affiche : relevé à la régénération des jumelles, 2026-10-12.){{% endcomment %}}
       <div class="wcv3-bar" style="grid-column:1/-1;">
         <div class="wama-progress-track">
           <div class="wama-progress-fill{{% if elem.status == 'RUNNING' %}} active{{% elif elem.status == 'FAILURE' %}} is-frozen{{% endif %}}" style="width:{{% if elem.status == 'SUCCESS' %}}100{{% else %}}{{{{ elem.progress }}}}{{% endif %}}%"></div>

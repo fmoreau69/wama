@@ -1444,7 +1444,32 @@
         }
       },
       "start": "start_avatarizer",
-      "status": "get_avatarizer_status"
+      "status": "get_avatarizer_status",
+      "triad_spec": {
+        "empty_msg": "Aucun job avatar en attente.",
+        "id_kwarg": "job_id",
+        "model": "wama.avatarizer.models.AvatarJob",
+        "reset": {
+          "error_message": ""
+        },
+        "status_fields": {
+          "duration_seconds": "duration_seconds",
+          "error": {
+            "attr": "error_message",
+            "or_none": true
+          },
+          "id": "id",
+          "mode": "mode",
+          "output_url": {
+            "attr": "output_video",
+            "url": true
+          },
+          "progress": "progress",
+          "status": "status"
+        },
+        "status_order": "-id",
+        "task_for": "wama.avatarizer.views._task_for"
+      }
     }
   },
   "description": "Génération de vidéos d'avatars parlants : une photo animée par IA (MuseTalk + CodeFormer) ou un avatar 3D riggé rendu par TalkingHead.",

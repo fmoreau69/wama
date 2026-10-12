@@ -2431,7 +2431,43 @@
         }
       },
       "start": "start_anonymizer",
-      "status": "get_anonymizer_status"
+      "status": "get_anonymizer_status",
+      "triad_spec": {
+        "empty_msg": "Aucun média en attente de traitement.",
+        "id_kwarg": "media_id",
+        "model": "wama.anonymizer.models.Media",
+        "pending": {},
+        "pending_exclude": {
+          "status": "SUCCESS"
+        },
+        "progress_key": "media_progress_{pk}",
+        "reset": "wama.anonymizer.views._reset_and_forget_progress",
+        "status_fields": {
+          "id": "id",
+          "name": {
+            "attr": "file",
+            "basename": true
+          },
+          "output_url": {
+            "attr": "output_file",
+            "url": true,
+            "when": {
+              "status": "SUCCESS"
+            }
+          },
+          "progress": "blur_progress",
+          "sam3_prompt": {
+            "attr": "sam3_prompt",
+            "when": {
+              "target_mode": "description"
+            }
+          },
+          "status": "status",
+          "target_mode": "target_mode"
+        },
+        "status_order": "-id",
+        "task": "wama.anonymizer.tasks.process_single_media"
+      }
     }
   },
   "description": "Floutage automatique de visages et plaques sur images et vidéos.",

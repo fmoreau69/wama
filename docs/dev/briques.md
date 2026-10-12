@@ -1554,13 +1554,13 @@ Un worker publie plusieurs vues du même instant (`publish_partial(variant=, lab
   - `emit_streaming_peaks(app_name, pk, pcm, sr, buckets=800)` — Worker de streaming (COMMUN, toute app) : calcule les pics uint8 d'une fenêtre PCM courante
   - `publish_partial_text(app_name, pk, text)` — Worker : publie le TEXTE partiel courant (transcription/description qui se construit),
   - `get_partial_text(app_name, pk)` — Lecture du texte partiel (endpoints de progression des apps + `?side=during`).
+  - `file_face(url, path=None, name=None)` — Payload d'aperçu d'UN fichier : `{name, url, mime_type}`, plus `content` (le texte
   - `clear_partial(app_name, pk)` — Worker : retire l'aperçu partiel (fin de traitement — la face SORTIE prend le relais).
   - `unified_preview(request, app_name: str, pk: int)` — Unified preview endpoint for any registered app.
   - `with_playback_copy(data, request)` — Une vidéo que le navigateur ne lit pas est servie par sa COPIE DE LECTURE quand elle
   - `register_app_preview(app_name: str, model_class, file_field: str='input_file', user_field: str='user', duration_field: str=None, width_field: str=None, height_…` — Convenience function to register an app with common field patterns.
-  - `anonymizer_preview_adapter(media, request)` — Custom adapter for Anonymizer Media model.
+  - `anonymizer_preview_adapter(media, request)` — Custom adapter for Anonymizer Media model. None once the input file is RELEASED (the
   - `anonymizer_detection_face(media, request)` — Face « Détection » de l'anonymizer (2026-10-05, demande de Fabien) : le média d'ENTRÉE et,
-  - `synthesizer_preview_adapter(synthesis, request)` — Custom adapter for Synthesizer VoiceSynthesis model - previews audio output.
   - `transcriber_preview_adapter(transcript, request)` — Custom adapter for Transcriber Transcript model.
 
 ### Application du corpus de manifestes
@@ -1591,7 +1591,7 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
 
 - **Domicile** : `wama/common/sandbox.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Bac à sable d'apps — jumelles EXÉCUTABLES (route §10.3, marche S, actée Fabien 2026-08-18).
-- **API publique** (16) :
+- **API publique** (17) :
   - `load_registry() -> list` — Liste des jumelles [{label, generated_from, created, created_by?}] — [] si registre
   - `twin_owner(label: str) -> str` — Username du créateur d'une jumelle ('' si CLI/inconnu) — consommé par la dérogation
   - `twin_source(label: str) -> str` — App SOURCE d'une jumelle ('' si ce label n'en est pas une).
@@ -1602,6 +1602,7 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
   - `sandbox_labels() -> list` — Labels des jumelles dont le PACKAGE existe réellement (garde anti-registre orphelin :
   - `is_test_module(rel_parts) -> bool` — Le fichier (chemin RELATIF au paquet, en parties) est-il un module de TEST ?
   - `is_copied_twin_test(module_name: str, labels=None) -> bool` — Le module de test `module_name` (`wama.<jumelle>.tests_x`) est-il un test COPIÉ d'une
+  - `resolves(dotted: str) -> bool` — Le chemin pointé `wama.<…>` désigne-t-il un module, ou un nom DÉFINI au niveau d'un module,
   - `twins_with_copied_views() -> set` — Labels des jumelles dont les VUES sont une COPIE figée de l'app source (non régénérées).
   - `sandbox_installed_apps() -> list` — Entrées INSTALLED_APPS des jumelles (consommé par settings.py).
   - `sandbox_urlpatterns()` — URLconfs des jumelles — préfixe = label (underscore assumé : `/converter_01/` — le
@@ -1818,7 +1819,7 @@ Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter
 
 - **Domicile** : `wama/common/backends/manager.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Manager de backends COMMUN — extrait du pattern Transcriber/Imager.
-- **API publique** (19) :
+- **API publique** (20) :
   - `register_engine_inventory(fn) -> None` — Enregistre un inventaire de moteurs. Le callable rend soit un MAPPING
   - `engine_backends() -> dict` — {moteur: classe de backend} pour tous les inventaires qui exposent leurs classes.
   - `invalidate_engine_cache() -> None` — À appeler après une installation de librairie : le prochain `known_engines()`
@@ -1830,6 +1831,7 @@ Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter
   - `backend_instance(cls, model_key: str='', user=None)` — L'instance gardée chargée de la CLASSE `cls`, préparée pour `model_key` : la clé posée
   - `backend_instance_for_key(model_key: str, user=None)` — L'INSTANCE prête du backend qui sert `model_key` — LA porte de lancement d'un modèle
   - `run_contract(instance, **values)` — Appelle la méthode de TRAVAIL du contrat de `instance` avec les valeurs qu'elle ACCEPTE,
+  - `engine_classes(task: str) -> dict` — Moteur → CLASSE de backend, pour les backends du contrat de `task` — DÉRIVÉ de la
   - `work_method_accepts(cls, name: str) -> bool` — La méthode de travail du contrat de `cls` reçoit-elle une valeur nommée `name` ? — lu sur
   - `route_for_nature(package: str, nature: str, routes: dict=None)` — La porte par NATURE d'entrée : le callable que les `ROUTES` d'une app déclarent pour
   - `invalidate_catalog_index() -> None` — Le prochain `catalog_keys_for_owner` relit le catalogue (après une synchro, un test).
@@ -1845,7 +1847,7 @@ Inventaire des moteurs de WAMA, dérivé À CHAQUE AFFICHAGE des déclarations `
 
 - **Domicile** : `wama/common/services/backend_inventory.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Registre des BACKENDS — vue DÉRIVÉE du vivier de moteurs de WAMA (demande Fabien 2026-09-03).
-- **API publique** (12) :
+- **API publique** (13) :
   - `class BackendEntry` — UN backend exécutable — la maille que le LLM compare pour trouver « le plus approchant ».
   - `class AppBackends`
   - `inventory() -> List[AppBackends]` — Le vivier, DÉRIVÉ à l'appel. Une app = une entrée ; jamais de nom d'app en dur ici.
@@ -1860,6 +1862,7 @@ Inventaire des moteurs de WAMA, dérivé À CHAQUE AFFICHAGE des déclarations `
   - `app_backend_paths(app: str) -> List[Path]` — Fichiers source des backends résolus par `app` (cf. `app_backend_entries`), n'existant
 
 ### ▶ d'un process (fabrique commune)
+  - `contract_engines(task: str) -> dict` — Moteur → `(module, classe)` des backends CONCRETS du contrat de `task`, lus par AST dans
 
 La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_view` (2026-10-04) : process connu, ayant lieu pour cette card (`AppPipeline.applicable`), anti-course (`begin_processing`), tâche lancée bornée à ce process. Écrite à la main dans six apps avec trois formes de refus ; mêmes crochets que `make_batch_views` (`task_for`, `reset_on_start`). Le pipeline se lit de l'app de l'élément (`pipeline_of`), il n'est pas un argument
 
@@ -2240,7 +2243,7 @@ Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivi
 
 ### Preview unifiée
 
-Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement (2026-09-13, §17ter trou 2). Une app DÉCLARE ses faces d'aperçu entre Entrée et Sortie (`register(faces=)`, l'anonymizer : « Détection », le document `detections` dessiné sur l'entrée par `WamaPreviewOverlay`) ; une face `compare_base` est la référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05). La modale porte les mêmes faces d'où qu'on l'ouvre (volet, vignette de card), suit la face PENDANT en direct avec ses vues — par le MÊME suiveur que le volet (`WamaInspector.followDuring`) —, et son PLEIN ÉCRAN est elle-même agrandie (la surcouche image seule ne sert plus qu'aux galeries sans élément)
+Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement (2026-09-13, §17ter trou 2). Une app DÉCLARE ses faces d'aperçu entre Entrée et Sortie (`register(faces=)`, l'anonymizer : « Détection », le document `detections` dessiné sur l'entrée par `WamaPreviewOverlay`) ; une face `compare_base` est la référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05). La modale porte les mêmes faces d'où qu'on l'ouvre (volet, vignette de card), suit la face PENDANT en direct avec ses vues — par le MÊME suiveur que le volet (`WamaInspector.followDuring`) —, et son PLEIN ÉCRAN est elle-même agrandie (la surcouche image seule ne sert plus qu'aux galeries sans élément). Depuis le 2026-10-12 : la face Entrée se lit, comme la Sortie, dans les clés canoniques du detail (`source_file`, sinon `source_text`) sous la règle des ports (travail, sinon prompt, jamais référence) ; UNE fabrique de face fichier (`file_face`, texte d'un .docx extrait) sert les cards ET le filemanager ; un texte inline voyage sous la seule clé `content` ; une card ouvre son entrée par le geste commun `.preview-media-link` (geste nocturne `<app>.preview`)
 
 - **Domicile** : `wama/common/utils/preview_registry.py`
 - **Module** : WAMA Common - Preview Registry
@@ -3087,32 +3090,18 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (96) :
+- **API publique** (80) :
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
   - `find_user_files(user, query: str, limit: int=20) -> dict` — Find the user's files BY NAME everywhere the File Manager shows them: the temporary folder,
   - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
-  - `start_anonymizer(user, media_id: int=None) -> dict` — Trigger Celery processing for a specific media item or all pending items.
-  - `get_anonymizer_status(user) -> dict` — Return status of the user's current anonymizer jobs (last 10).
   - `sam3_examples() -> dict` — Return recommended SAM3 text prompt examples.
   - `create_image(user, prompt: str, model: str='hunyuan-image-2.1', width: int=512, height: int=512, steps: int=30, guidance_scale: float=7.5, negative_prompt: str…` — Create a txt2img generation job (status: PENDING).
-  - `start_imager(user, generation_id: int=None) -> dict` — Launch Celery image generation task(s).
-  - `get_imager_status(user) -> dict` — Return status of the user's recent image generation jobs (last 10).
   - `add_to_enhancer(user, file_path: str, ai_model: str='RealESR_Gx4', denoise: bool=False, blend_factor: float=0.0) -> dict` — Register a file for enhancement and create the Enhancement DB entry.
-  - `start_enhancer(user, enhancement_id: int=None) -> dict` — Launch Celery enhancement task(s).
-  - `get_enhancer_status(user) -> dict` — Return status of the user's recent enhancement jobs (last 10).
   - `add_to_audio_enhancer(user, file_path: str, engine: str='resemble', mode: str='both', denoising_strength: float=0.5, quality: int=64) -> dict` — Register an audio file for speech enhancement.
-  - `start_audio_enhancer(user, audio_enhancement_id: int=None) -> dict` — Launch Celery audio enhancement task(s).
-  - `get_audio_enhancer_status(user) -> dict` — Return status of the user's recent audio enhancement jobs (last 10).
   - `synthesize_text(user, text: str='', work_file: str='', reference_voice: str='', language: str='fr', tts_model: str=DEFAULT_TTS_MODEL, voice_preset: str='defaul…` — Create a VoiceSynthesis job — from raw text OR from a work file, with an optional
-  - `start_synthesizer(user, synthesis_id: int=None) -> dict` — Launch Celery synthesis task(s).
-  - `get_synthesizer_status(user) -> dict` — Return status of the user's recent synthesis jobs (last 10).
   - `compose_music(user, prompt: str, model: str='musicgen-small', duration: float=10.0, work_score: str=None, work_audio: str=None, **params) -> dict` — Create a Composer generation job (music or SFX) and start it immediately.
-  - `start_composer(user, generation_id: int) -> dict` — Lance (ou relance) la génération d'une composition créée via compose_music().
-  - `get_composer_status(user) -> dict` — Return status of the user's recent Composer jobs (last 10).
   - `add_to_describer(user, file_path: str, output_style: str='detailed', output_language: str='fr', max_length: int=500, **params) -> dict` — Copy a file into the describer queue and create a Description DB entry.
   - `add_to_transcriber(user, file_path: str, backend: str='auto', preprocess_audio: bool=False, hotwords: str='', enable_diarization: bool=True, **params) -> dict` — Copy a file into the transcriber queue and create a Transcript DB entry.
-  - `start_transcriber(user, transcript_id: int=None) -> dict` — Launch Celery transcription task(s).
-  - `get_transcriber_status(user) -> dict` — Return status of the user's recent transcription jobs (last 10).
   - `add_to_reader(user, file_path: str, backend: str='auto', mode: str='auto', output_format: str='txt', language: str='') -> dict` — Copy a file into the reader queue and create a ReadingItem DB entry.
   - `convert_file(user, file_path: str, output_format: str, quality_preset: str='balanced', **params) -> dict` — Queue a file conversion and start it immediately.
   - `list_media_assets(user, asset_type: str='', q: str='') -> dict` — List the user's personal media library assets.
@@ -3125,8 +3114,6 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `search_web(user, query: str, max_results: int=5) -> dict` — Search the public web (no API key) and return result links with snippets.
   - `read_web_page(user, url: str, max_chars: int=8000) -> dict` — Fetch ONE public web page and return its readable text (SSRF-guarded, size-capped).
   - `add_to_avatarizer(user, mode: str='pipeline', text_content: str='', tts_model: str=DEFAULT_TTS_MODEL, language: str='fr', voice_preset: str='default', audio_pa…` — Crée un job de génération d'avatar parlant (vidéo) en attente.
-  - `start_avatarizer(user, job_id: int=None) -> dict` — Lance la génération Celery d'un avatar (ou de tous les jobs en attente).
-  - `get_avatarizer_status(user) -> dict` — Retourne l'état des 10 derniers jobs avatar de l'utilisateur connecté.
   - `translate_text(user, text, source_lang='fr', target_lang='en', glossary=None)` — Traduit un texte via translategemma (TranslatorService). Passthrough si source==target.
   - `add_to_synthesizer(user, *args, **kwargs)`
   - `add_to_composer(user, *args, **kwargs)`

@@ -37,12 +37,19 @@ from django.core.management.base import BaseCommand
 
 def _fait_outils():
     """Surface outils : registre, descriptions dérivées, arguments documentés."""
-    from wama.tool_api import TOOL_REGISTRY, tool_descriptions
-    desc = tool_descriptions()
+    from wama.common.sandbox import sandbox_labels
+    from wama.tool_api import TOOL_REGISTRY, app_id_for_tool, tool_descriptions
+    # Les outils des JUMELLES (triade injectée, `inject_sandbox_registry`) sont hors du compte : le
+    # bac à sable est gitignoré, et un fait écrit dans une doc versionnée doit valoir sur un clone
+    # comme sur ce disque (2026-10-12 — la triade portée des sept apps faisait passer 84 à 96
+    # sans un outil réel de plus ; même règle que le budget de langue).
+    twins = set(sandbox_labels())
+    real = {name for name in TOOL_REGISTRY if app_id_for_tool(name) not in twins}
+    desc = {name: d for name, d in tool_descriptions().items() if name in real}
     decrits = sum(1 for d in desc.values() if (d.get('description') or '').strip())
     args = sum(len(d.get('args') or {}) for d in desc.values())
     return (
-        f"- Outils au registre (`TOOL_REGISTRY`) : **{len(TOOL_REGISTRY)}**\n"
+        f"- Outils au registre (`TOOL_REGISTRY`) : **{len(real)}**\n"
         f"- Outils décrits (`tool_descriptions()`, dérivé) : **{decrits}/{len(desc)}**\n"
         f"- Arguments documentés (types/choix/bornes/défauts) : **{args}**"
     )

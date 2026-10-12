@@ -1231,7 +1231,7 @@ class Command(BaseCommand):
              f"r=Client().get('/{label}/',follow=True);print(r.status_code);"
              "raise SystemExit(0 if r.status_code==200 else 1)"],
             capture_output=True, text=True, cwd=str(BASE_DIR))
-        state = 'OK' if smoke.returncode == 0 else f'KO ({(smoke.stdout or smoke.stderr).strip()[:80]})'
+        state = 'OK' if smoke.returncode == 0 else f'KO ({_last_cause(smoke.stdout, smoke.stderr)})'
 
         entry.setdefault('substituted', {})[target] = {
             'verdict': 'reverted-manuel',

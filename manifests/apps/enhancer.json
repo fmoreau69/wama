@@ -2648,7 +2648,30 @@
         }
       },
       "start": "start_enhancer",
-      "status": "get_enhancer_status"
+      "status": "get_enhancer_status",
+      "triad_spec": {
+        "empty_msg": "Aucun enhancement en attente.",
+        "id_kwarg": "enhancement_id",
+        "model": "wama.enhancer.models.Enhancement",
+        "reset": "wama.enhancer.views._reset_media_and_clear_progress",
+        "status_fields": {
+          "ai_model": "ai_model",
+          "id": "id",
+          "media_type": "media_type",
+          "name": {
+            "attr": "get_input_filename",
+            "call": true
+          },
+          "output_url": {
+            "attr": "output_file",
+            "url": true
+          },
+          "progress": "progress",
+          "status": "status"
+        },
+        "status_order": "-id",
+        "task_for": "wama.enhancer.views._media_task"
+      }
     }
   },
   "description": "Upscaling IA d'images/vidéos et amélioration audio (Resemble, DeepFilterNet).",

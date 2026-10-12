@@ -236,94 +236,7 @@ def add_to_anonymizer(
     }
 
 
-def start_anonymizer(user, media_id: int = None) -> dict:
-    """
-    Trigger Celery processing for a specific media item or all pending items.
-
-    Args:
-        user:     Django User instance
-        media_id: Process only this job (None = process all pending)
-
-    Returns:
-        {"task_id": str, "status": "started", "media_id": int|None}
-    """
-    from wama.anonymizer.tasks import process_single_media, process_user_media_batch
-    from django.core.cache import cache
-
-    from wama.anonymizer.models import Media
-
-    if media_id is not None:
-        # ⭐ MÊME BRIQUE QUE LE BOUTON ▶ de l'app (`anonymizer/views.py::start`) :
-        # `begin_processing` est le pattern anti-race obligatoire (transaction +
-        # `select_for_update`, révocation de l'ancienne tâche, passage à RUNNING). Le verrou
-        # `anon_lock:media:` n'est PAS posé ici — c'est `process_single_media` qui le pose
-        # (tasks.py:143), comme pour la vue. Et `force_individual=True` : un lancement à
-        # l'unité applique les réglages de l'item, comme un clic sur sa card.
-        from wama.common.utils.process_control import begin_processing
-        media, err = begin_processing(Media, media_id, user=user,
-                                      reset={'blur_progress': 0, 'error_message': ''})
-        if err == 'not_found':
-            return {'error': f'Media #{media_id} introuvable ou non autorisé.'}
-        if err:
-            return {'error': f'Media #{media_id} est déjà en cours.'}
-
-        cache.delete(f'media_progress_{media.id}')
-        task = process_single_media.delay(media.id, force_individual=True)
-        media.task_id = task.id
-        media.save(update_fields=['task_id'])
-        return {'task_id': task.id, 'status': 'started', 'media_id': media.id}
-
-    # Lot : tout ce qui n'a pas ABOUTI, exactement le critère de la tâche elle-même
-    # (`process_user_media_batch` : `.exclude(status='SUCCESS')`) — c'est elle qui enfile et
-    # qui pose les verrous individuels. Le verrou de LOT est pris ici, atomiquement, comme
-    # `ProcessView` : sans lui, deux « lance tout » se doublent.
-    pending = Media.objects.filter(user=user).exclude(status='SUCCESS')
-    if not pending.exists():
-        return {'error': 'Aucun média en attente de traitement.'}
-    if not cache.add(f'anon_lock:batch:{user.id}', True, timeout=7200):
-        return {'error': 'Un traitement de lot est déjà en cours.'}
-
-    count = pending.count()
-    pending.update(status='PENDING', blur_progress=0)
-    task = process_user_media_batch.delay(user.id)
-    return {'task_id': task.id, 'status': 'started', 'media_id': None, 'count': count}
-
-
-def get_anonymizer_status(user) -> dict:
-    """
-    Return status of the user's current anonymizer jobs (last 10).
-
-    Returns:
-        {"jobs": [{"id", "name", "progress", "status", "target_mode", "output_url"}]}
-    """
-    from wama.anonymizer.models import Media
-    from django.core.cache import cache
-
-    media_qs = Media.objects.filter(user=user).order_by('-id')[:10]
-    jobs = []
-    for m in media_qs:
-        progress = cache.get(f'anon_progress:{m.id}', m.blur_progress)
-        if m.processed:
-            status = 'done'
-        elif progress > 0:
-            status = 'running'
-        else:
-            status = 'queued'
-
-        # La sortie DE CETTE CARD (champ fichier depuis le 2026-09-27) — plus un `glob` sur le
-        # nom de l'entrée, qui rendait à des cards dupliquées la sortie de l'une d'elles.
-        output_url = m.output_file.url if (m.processed and m.output_file) else None
-
-        jobs.append({
-            'id': m.id,
-            'name': os.path.basename(m.file.name) if m.file else f'Media #{m.id}',
-            'progress': progress,
-            'status': status,
-            'target_mode': m.target_mode,
-            'sam3_prompt': m.sam3_prompt if m.target_mode == 'description' else None,
-            'output_url': output_url,
-        })
-    return {'jobs': jobs}
+# `start_anonymizer` / `get_anonymizer_status` : construits depuis TRIAD_SPECS['anonymizer'] (marche A4).
 
 
 def sam3_examples() -> dict:
@@ -422,93 +335,7 @@ def create_image(
     }
 
 
-def start_imager(user, generation_id: int = None) -> dict:
-    """
-    Launch Celery image generation task(s).
-
-    Args:
-        user:          Django User instance
-        generation_id: Specific job to start (None = all PENDING jobs)
-
-    Returns:
-        {"task_id": str, "status": "started", ...}
-    """
-    from wama.imager.models import ImageGeneration
-    from wama.imager.tasks import generate_image_task
-    from django.core.cache import cache
-
-    if generation_id is not None:
-        try:
-            generation = ImageGeneration.objects.get(pk=generation_id, user=user)
-        except ImageGeneration.DoesNotExist:
-            return {'error': f'Generation #{generation_id} introuvable ou non autorisée.'}
-
-        if generation.status == 'RUNNING':
-            return {'error': f'Generation #{generation_id} est déjà en cours.'}
-
-        generation.status = 'PENDING'
-        generation.progress = 0
-        generation.error_message = ''
-        generation.save(update_fields=['status', 'progress', 'error_message'])
-        cache.delete(f'imager_progress_{generation_id}')
-
-        task = generate_image_task.delay(generation.id)
-        generation.status = 'RUNNING'
-        generation.task_id = task.id
-        generation.save(update_fields=['status', 'task_id'])
-
-        return {'task_id': task.id, 'status': 'started', 'generation_id': generation_id}
-
-    else:
-        pending = ImageGeneration.objects.filter(user=user, status='PENDING')
-        if not pending.exists():
-            return {'error': 'Aucune génération en attente.'}
-
-        started = []
-        for gen in pending:
-            cache.delete(f'imager_progress_{gen.id}')
-            task = generate_image_task.delay(gen.id)
-            gen.status = 'RUNNING'
-            gen.task_id = task.id
-            gen.save(update_fields=['status', 'task_id'])
-            started.append(gen.id)
-
-        return {'status': 'started', 'generation_id': None, 'count': len(started), 'ids': started}
-
-
-def get_imager_status(user) -> dict:
-    """
-    Return status of the user's recent image generation jobs (last 10).
-
-    Returns:
-        {"jobs": [{"id", "prompt", "model", "status", "progress", "num_images", "images"}]}
-    """
-    from wama.imager.models import ImageGeneration
-    from django.core.cache import cache
-
-    # Le filtre `parent_generation__isnull=True` (« top-level ») est RETIRÉ : le self-FK
-    # n'existe plus depuis le 2026-08-07 (migration imager 0014, regroupement porté par
-    # GenerationBatch) — il faisait lever un FieldError sur TOUT appel de statut assistant.
-    # Détecté par le banc d'épreuve tool_api du 2026-08-18.
-    jobs_qs = ImageGeneration.objects.filter(user=user).order_by('-id')[:10]
-
-    jobs = []
-    for gen in jobs_qs:
-        cached_progress = cache.get(f'imager_progress_{gen.id}')
-        progress = cached_progress if cached_progress is not None else gen.progress
-        output_urls = gen.output_images if gen.status == 'SUCCESS' else []
-        video_url = gen.output_video.url if (gen.status == 'SUCCESS' and gen.output_video) else None
-        jobs.append({
-            'id': gen.id,
-            'prompt': gen.prompt[:80] + ('…' if len(gen.prompt) > 80 else ''),
-            'model': gen.model,
-            'status': gen.status,
-            'progress': progress,
-            'num_images': gen.num_images,
-            'output_urls': output_urls,
-            'video_url': video_url,
-        })
-    return {'jobs': jobs}
+# `start_imager` / `get_imager_status` : construits depuis TRIAD_SPECS['imager'] (marche A4).
 
 
 # ===========================================================================
@@ -596,86 +423,7 @@ def add_to_enhancer(
     }
 
 
-def start_enhancer(user, enhancement_id: int = None) -> dict:
-    """
-    Launch Celery enhancement task(s).
-
-    Args:
-        user:            Django User instance
-        enhancement_id:  Specific job to start (None = all PENDING jobs)
-
-    Returns:
-        {"task_id": str, "status": "started", ...}
-    """
-    from wama.enhancer.models import Enhancement
-    from wama.enhancer.tasks import enhance_media
-    from django.core.cache import cache
-
-    if enhancement_id is not None:
-        try:
-            enh = Enhancement.objects.get(pk=enhancement_id, user=user)
-        except Enhancement.DoesNotExist:
-            return {'error': f'Enhancement #{enhancement_id} introuvable ou non autorisé.'}
-
-        if enh.status == 'RUNNING':
-            return {'error': f'Enhancement #{enhancement_id} est déjà en cours.'}
-
-        enh.status = 'PENDING'
-        enh.progress = 0
-        enh.error_message = ''
-        enh.save(update_fields=['status', 'progress', 'error_message'])
-        cache.delete(f'enhancer_progress_{enhancement_id}')
-
-        task = enhance_media.delay(enh.id)
-        enh.status = 'RUNNING'
-        enh.task_id = task.id
-        enh.save(update_fields=['status', 'task_id'])
-
-        return {'task_id': task.id, 'status': 'started', 'enhancement_id': enhancement_id}
-
-    else:
-        pending = Enhancement.objects.filter(user=user, status='PENDING')
-        if not pending.exists():
-            return {'error': 'Aucun enhancement en attente.'}
-
-        started = []
-        for enh in pending:
-            cache.delete(f'enhancer_progress_{enh.id}')
-            task = enhance_media.delay(enh.id)
-            enh.status = 'RUNNING'
-            enh.task_id = task.id
-            enh.save(update_fields=['status', 'task_id'])
-            started.append(enh.id)
-
-        return {'status': 'started', 'enhancement_id': None, 'count': len(started), 'ids': started}
-
-
-def get_enhancer_status(user) -> dict:
-    """
-    Return status of the user's recent enhancement jobs (last 10).
-
-    Returns:
-        {"jobs": [{"id", "name", "media_type", "ai_model", "status", "progress"}]}
-    """
-    from wama.enhancer.models import Enhancement
-    from django.core.cache import cache
-
-    jobs_qs = Enhancement.objects.filter(user=user).order_by('-id')[:10]
-    jobs = []
-    for enh in jobs_qs:
-        cached = cache.get(f'enhancer_progress_{enh.id}')
-        progress = cached if cached is not None else enh.progress
-        output_url = enh.output_file.url if enh.output_file else None
-        jobs.append({
-            'id': enh.id,
-            'name': enh.get_input_filename(),
-            'media_type': enh.media_type,
-            'ai_model': enh.ai_model,
-            'status': enh.status,
-            'progress': progress,
-            'output_url': output_url,
-        })
-    return {'jobs': jobs}
+# `start_enhancer` / `get_enhancer_status` : construits depuis TRIAD_SPECS['enhancer'] (marche A4).
 
 
 # ===========================================================================
@@ -755,86 +503,7 @@ def add_to_audio_enhancer(
     }
 
 
-def start_audio_enhancer(user, audio_enhancement_id: int = None) -> dict:
-    """
-    Launch Celery audio enhancement task(s).
-
-    Args:
-        user:                  Django User instance
-        audio_enhancement_id:  Specific job to start (None = all PENDING jobs)
-
-    Returns:
-        {"task_id": str, "status": "started", ...}
-    """
-    from wama.enhancer.models import AudioEnhancement
-    from wama.enhancer.tasks import enhance_audio
-    from django.core.cache import cache
-
-    if audio_enhancement_id is not None:
-        try:
-            ae = AudioEnhancement.objects.get(pk=audio_enhancement_id, user=user)
-        except AudioEnhancement.DoesNotExist:
-            return {'error': f'AudioEnhancement #{audio_enhancement_id} introuvable ou non autorisé.'}
-
-        if ae.status == 'RUNNING':
-            return {'error': f'AudioEnhancement #{audio_enhancement_id} est déjà en cours.'}
-
-        ae.status = 'PENDING'
-        ae.progress = 0
-        ae.error_message = ''
-        ae.save(update_fields=['status', 'progress', 'error_message'])
-        cache.delete(f'audio_enhancer_progress_{audio_enhancement_id}')
-
-        task = enhance_audio.delay(ae.id)
-        ae.status = 'RUNNING'
-        ae.task_id = task.id
-        ae.save(update_fields=['status', 'task_id'])
-
-        return {'task_id': task.id, 'status': 'started', 'audio_enhancement_id': audio_enhancement_id}
-
-    else:
-        pending = AudioEnhancement.objects.filter(user=user, status='PENDING')
-        if not pending.exists():
-            return {'error': 'Aucun audio enhancement en attente.'}
-
-        started = []
-        for ae in pending:
-            cache.delete(f'audio_enhancer_progress_{ae.id}')
-            task = enhance_audio.delay(ae.id)
-            ae.status = 'RUNNING'
-            ae.task_id = task.id
-            ae.save(update_fields=['status', 'task_id'])
-            started.append(ae.id)
-
-        return {'status': 'started', 'audio_enhancement_id': None, 'count': len(started), 'ids': started}
-
-
-def get_audio_enhancer_status(user) -> dict:
-    """
-    Return status of the user's recent audio enhancement jobs (last 10).
-
-    Returns:
-        {"jobs": [{"id", "name", "engine", "mode", "status", "progress"}]}
-    """
-    from wama.enhancer.models import AudioEnhancement
-    from django.core.cache import cache
-
-    jobs_qs = AudioEnhancement.objects.filter(user=user).order_by('-id')[:10]
-    jobs = []
-    for ae in jobs_qs:
-        cached = cache.get(f'audio_enhancer_progress_{ae.id}')
-        progress = cached if cached is not None else ae.progress
-        output_url = ae.output_file.url if ae.output_file else None
-        jobs.append({
-            'id': ae.id,
-            'name': ae.get_input_filename(),
-            'engine': ae.engine,
-            'mode': ae.mode,
-            'status': ae.status,
-            'progress': progress,
-            'output_url': output_url,
-        })
-    return {'jobs': jobs}
+# `start_audio_enhancer` / `get_audio_enhancer_status` : construits depuis TRIAD_SPECS['audio_enhancer'] (marche A4).
 
 
 # ===========================================================================
@@ -910,95 +579,7 @@ def synthesize_text(
     }
 
 
-def start_synthesizer(user, synthesis_id: int = None) -> dict:
-    """
-    Launch Celery synthesis task(s).
-
-    Args:
-        user:          Django User instance
-        synthesis_id:  Specific job to start (None = all PENDING jobs)
-
-    Returns:
-        {"task_id": str, "status": "started", ...}
-    """
-    from wama.synthesizer.models import VoiceSynthesis
-    from wama.synthesizer.workers import synthesize_voice
-    from django.core.cache import cache
-
-    if synthesis_id is not None:
-        try:
-            synthesis = VoiceSynthesis.objects.get(pk=synthesis_id, user=user)
-        except VoiceSynthesis.DoesNotExist:
-            return {'error': f'Synthesis #{synthesis_id} introuvable ou non autorisée.'}
-
-        if synthesis.status == 'RUNNING':
-            return {'error': f'Synthesis #{synthesis_id} est déjà en cours.'}
-
-        synthesis.status = 'PENDING'
-        synthesis.progress = 0
-        synthesis.error_message = ''
-        if synthesis.audio_output:
-            # Relance : l'ancienne sortie part par la BRIQUE (propriété + partage, tous modèles) —
-            # elle peut avoir été rangée dans la médiathèque ou désignée par une autre card.
-            from wama.common.utils.queue_duplication import safe_delete_file
-            safe_delete_file(synthesis, 'audio_output')
-            synthesis.audio_output = None
-        synthesis.save(update_fields=['status', 'progress', 'error_message', 'audio_output'])
-        cache.set(f'synthesizer_progress_{synthesis.id}', 0, timeout=3600)
-
-        task = synthesize_voice.delay(synthesis.id)
-        synthesis.task_id = task.id
-        synthesis.status = 'RUNNING'
-        synthesis.save(update_fields=['task_id', 'status'])
-
-        return {'task_id': task.id, 'status': 'started', 'synthesis_id': synthesis_id}
-
-    else:
-        pending = VoiceSynthesis.objects.filter(user=user, status='PENDING')
-        if not pending.exists():
-            return {'error': 'Aucune synthèse en attente.'}
-
-        started = []
-        for synth in pending:
-            cache.set(f'synthesizer_progress_{synth.id}', 0, timeout=3600)
-            task = synthesize_voice.delay(synth.id)
-            synth.task_id = task.id
-            synth.status = 'RUNNING'
-            synth.save(update_fields=['task_id', 'status'])
-            started.append(synth.id)
-
-        return {'status': 'started', 'synthesis_id': None, 'count': len(started), 'ids': started}
-
-
-def get_synthesizer_status(user) -> dict:
-    """
-    Return status of the user's recent synthesis jobs (last 10).
-
-    Returns:
-        {"jobs": [{"id", "filename", "word_count", "duration_display", "model",
-                   "language", "voice_preset", "status", "progress", "audio_url"}]}
-    """
-    from wama.synthesizer.models import VoiceSynthesis
-    from django.core.cache import cache
-
-    jobs_qs = VoiceSynthesis.objects.filter(user=user).order_by('-id')[:10]
-    jobs = []
-    for synth in jobs_qs:
-        cached = cache.get(f'synthesizer_progress_{synth.id}')
-        progress = cached if cached is not None else (synth.progress or 0)
-        jobs.append({
-            'id': synth.id,
-            'filename': synth.filename,
-            'word_count': synth.word_count,
-            'duration_display': synth.duration_display or '—',
-            'model': synth.tts_model,
-            'language': synth.language,
-            'voice_preset': synth.voice_preset,
-            'status': synth.status,
-            'progress': progress,
-            'audio_url': synth.audio_output.url if synth.audio_output else None,
-        })
-    return {'jobs': jobs}
+# `start_synthesizer` / `get_synthesizer_status` : construits depuis TRIAD_SPECS['synthesizer'] (marche A4).
 
 
 # ===========================================================================
@@ -1108,54 +689,7 @@ def compose_music(
     }
 
 
-def start_composer(user, generation_id: int) -> dict:
-    """
-    Lance (ou relance) la génération d'une composition créée via compose_music().
-    Complète la triade create/start/status pour la méta-app studio (2026-07-12).
-
-    Returns:
-        {"generation_id": int, "status": "RUNNING"} ou {"error": str}
-    """
-    from wama.common.utils.process_control import begin_processing
-    from wama.composer.models import ComposerGeneration
-    gen, err = begin_processing(ComposerGeneration, generation_id, user=user,
-                                reset={'progress': 0, 'error_message': ''})
-    if err:
-        return {'error': 'Génération introuvable' if err == 'not_found' else 'Déjà en cours'}
-    from wama.composer.tasks import compose_task
-    task = compose_task.apply_async(args=(gen.id,))
-    gen.task_id = task.id
-    gen.save(update_fields=['task_id'])
-    return {'generation_id': gen.id, 'status': 'RUNNING'}
-
-
-def get_composer_status(user) -> dict:
-    """
-    Return status of the user's recent Composer jobs (last 10).
-
-    Returns:
-        {"jobs": [{"id", "prompt", "model", "generation_type", "duration",
-                   "status", "progress", "audio_url"}]}
-    """
-    from wama.composer.models import ComposerGeneration
-    from django.core.cache import cache as _cache
-
-    gens = ComposerGeneration.objects.filter(user=user).order_by('-id')[:10]
-    jobs = []
-    for gen in gens:
-        cached = _cache.get(f'composer_progress_{gen.id}')
-        progress = cached if cached is not None else (gen.progress or 0)
-        jobs.append({
-            'id': gen.id,
-            'prompt': gen.prompt[:80],
-            'model': gen.model,
-            'generation_type': gen.generation_type,
-            'duration': gen.duration,
-            'status': gen.status,
-            'progress': progress,
-            'audio_url': gen.audio_output.url if gen.audio_output else None,
-        })
-    return {'jobs': jobs}
+# `start_composer` / `get_composer_status` : construits depuis TRIAD_SPECS['composer'] (marche A4).
 
 
 # ===========================================================================
@@ -1322,88 +856,7 @@ def add_to_transcriber(
     }
 
 
-def start_transcriber(user, transcript_id: int = None) -> dict:
-    """
-    Launch Celery transcription task(s).
-
-    Args:
-        user:          Django User instance
-        transcript_id: Specific job to start (None = all PENDING jobs)
-
-    Returns:
-        {"task_id": str, "status": "started", ...}
-    """
-    # Le MÊME lanceur que le bouton ▶ de la card (`transcriber/views.py::start`) : verrou et
-    # remise à zéro par `begin_processing` + `_reset_for_relaunch`, tâche par `_task_for`.
-    # Jusqu'au 2026-10-03 l'outil gardait sa propre remise à zéro, qui VIDAIT le texte et les
-    # segments au clic : depuis que la card porte un pipeline (seul le périmé est rejoué), un
-    # lancement qui ne rejouait que le résumé le faisait tourner sur un texte vide.
-    from wama.common.utils.process_control import begin_processing
-    from wama.transcriber.models import Transcript
-    from wama.transcriber.views import _reset_for_relaunch, _task_for
-    from django.core.cache import cache
-
-    def _launch(pk):
-        t, err = begin_processing(Transcript, pk, user=user, reset=_reset_for_relaunch)
-        if err:
-            return None, err
-        cache.set(f'transcriber_progress_{t.id}', 0, timeout=3600)
-        task = _task_for(t).delay(t.id)
-        t.task_id = task.id
-        t.save(update_fields=['task_id'])
-        return task, None
-
-    if transcript_id is not None:
-        task, err = _launch(transcript_id)
-        if err == 'not_found':
-            return {'error': f'Transcript #{transcript_id} introuvable ou non autorisé.'}
-        if err:
-            return {'error': f'Transcript #{transcript_id} est déjà en cours.'}
-        return {'task_id': task.id, 'status': 'started', 'transcript_id': transcript_id}
-
-    pending = list(Transcript.objects.filter(user=user, status='PENDING').values_list('pk', flat=True))
-    if not pending:
-        return {'error': 'Aucune transcription en attente.'}
-    started = [pk for pk in pending if _launch(pk)[1] is None]
-    return {'status': 'started', 'transcript_id': None, 'count': len(started), 'ids': started}
-
-
-def get_transcriber_status(user) -> dict:
-    """
-    Return status of the user's recent transcription jobs (last 10).
-
-    Returns:
-        {"jobs": [{"id", "filename", "duration_display", "backend", "used_backend",
-                   "language", "status", "progress", "text_preview"}]}
-    """
-    from wama.transcriber.models import Transcript
-    from django.core.cache import cache
-
-    jobs_qs = Transcript.objects.filter(user=user).order_by('-id')[:10]
-    jobs = []
-    for t in jobs_qs:
-        cached = cache.get(f'transcriber_progress_{t.id}')
-        progress = cached if cached is not None else t.progress
-        from wama.common.utils.preview_utils import get_partial_text
-        partial = get_partial_text('transcriber', t.id)
-        text_preview = None
-        if t.text:
-            text_preview = (t.text[:300] + '…') if len(t.text) > 300 else t.text
-        elif partial:
-            text_preview = (partial[:300] + '…') if len(partial) > 300 else partial
-
-        jobs.append({
-            'id': t.id,
-            'filename': t.filename,
-            'duration_display': t.duration_display or '—',
-            'backend': t.backend,
-            'used_backend': t.used_backend or None,
-            'language': t.language or None,
-            'status': t.status,
-            'progress': progress,
-            'text_preview': text_preview,
-        })
-    return {'jobs': jobs}
+# `start_transcriber` / `get_transcriber_status` : construits depuis TRIAD_SPECS['transcriber'] (marche A4).
 
 
 # ===========================================================================
@@ -2030,65 +1483,7 @@ def add_to_avatarizer(
     return {'job_id': job.id, 'item_id': job.id, 'mode': job.mode, 'status': 'pending'}
 
 
-def start_avatarizer(user, job_id: int = None) -> dict:
-    """
-    Lance la génération Celery d'un avatar (ou de tous les jobs en attente).
-
-    Args:
-        job_id: ID du job à lancer (None = tous les jobs PENDING de l'utilisateur)
-
-    Returns:
-        {"task_id": str, "status": "started", "job_id": int} ou agrégat si job_id=None
-    """
-    from wama.avatarizer.models import AvatarJob
-    from wama.avatarizer.workers import generate_avatar
-
-    def _launch(job):
-        task = generate_avatar.delay(job.id)
-        job.status = 'PENDING'
-        job.task_id = task.id
-        job.progress = 0
-        job.error_message = ''
-        job.save(update_fields=['status', 'task_id', 'progress', 'error_message'])
-        return task.id
-
-    if job_id is not None:
-        try:
-            job = AvatarJob.objects.get(pk=job_id, user=user)
-        except AvatarJob.DoesNotExist:
-            return {'error': f'AvatarJob #{job_id} introuvable ou non autorisé.'}
-        if job.status == 'RUNNING':
-            return {'error': f'AvatarJob #{job_id} est déjà en cours.'}
-        return {'task_id': _launch(job), 'status': 'started', 'job_id': job_id}
-
-    pending = AvatarJob.objects.filter(user=user, status='PENDING')
-    if not pending.exists():
-        return {'error': 'Aucun job avatar en attente.'}
-    ids = [job.id for job in pending if _launch(job)]
-    return {'status': 'started', 'job_id': None, 'count': len(ids), 'ids': ids}
-
-
-def get_avatarizer_status(user) -> dict:
-    """
-    Retourne l'état des 10 derniers jobs avatar de l'utilisateur connecté.
-
-    Returns:
-        {"jobs": [{"id", "mode", "status", "progress", "output_url", "duration_seconds"}]}
-    """
-    from wama.avatarizer.models import AvatarJob
-
-    jobs = []
-    for job in AvatarJob.objects.filter(user=user).order_by('-id')[:10]:
-        jobs.append({
-            'id': job.id,
-            'mode': job.mode,
-            'status': job.status,
-            'progress': job.progress,
-            'output_url': job.output_video.url if job.output_video else None,
-            'duration_seconds': job.duration_seconds,
-            'error': job.error_message or None,
-        })
-    return {'jobs': jobs}
+# `start_avatarizer` / `get_avatarizer_status` : construits depuis TRIAD_SPECS['avatarizer'] (marche A4).
 
 
 # ===========================================================================
@@ -3651,39 +3046,23 @@ TOOL_REGISTRY = {
     # compris (2026-10-11, brique `common/services/user_files.py`).
     'find_user_files':       find_user_files,
     'add_to_avatarizer':     add_to_avatarizer,
-    'start_avatarizer':      start_avatarizer,
-    'get_avatarizer_status': get_avatarizer_status,
     'add_to_anonymizer':     add_to_anonymizer,
-    'start_anonymizer':      start_anonymizer,
-    'get_anonymizer_status': get_anonymizer_status,
     'sam3_examples':         sam3_examples,
     'create_image':          create_image,
     'add_to_imager':         add_to_imager,   # alias canonique §17.2 (runner générique)
-    'start_imager':          start_imager,
-    'get_imager_status':     get_imager_status,
     'add_to_enhancer':           add_to_enhancer,
-    'start_enhancer':            start_enhancer,
-    'get_enhancer_status':       get_enhancer_status,
     'add_to_audio_enhancer':     add_to_audio_enhancer,
-    'start_audio_enhancer':      start_audio_enhancer,
-    'get_audio_enhancer_status': get_audio_enhancer_status,
     'synthesize_text':        synthesize_text,
     'add_to_synthesizer':     add_to_synthesizer,  # alias canonique §17.2 (runner générique)
-    'start_synthesizer':      start_synthesizer,
-    'get_synthesizer_status': get_synthesizer_status,
     'compose_music':          compose_music,
     'add_to_composer':        add_to_composer,   # alias canonique §17.2 (runner générique)
-    'start_composer': start_composer,
-    'get_composer_status':    get_composer_status,
     'add_to_describer':       add_to_describer,
     'add_to_transcriber':     add_to_transcriber,
-    'start_transcriber':      start_transcriber,
-    'get_transcriber_status': get_transcriber_status,
     'add_to_reader':          add_to_reader,
     'convert_file':           convert_file,
     'add_to_converter':       add_to_converter,   # alias canonique §17.2 (runner générique)
-    # start_reader / get_reader_status / start_converter / get_converter_status :
-    # enregistrés par _register_triads() depuis TRIAD_SPECS (marche A4).
+    # `start_<app>` / `get_<app>_status` de TOUTES les apps (et de l'audio de l'enhancer) :
+    # enregistrés par _register_triads() depuis TRIAD_SPECS (marche A4, soldée le 2026-10-12).
     'list_media_assets':      list_media_assets,
     'get_media_asset_url':    get_media_asset_url,
     'switch_ui_mode':         switch_ui_mode,
@@ -3778,7 +3157,23 @@ TOOL_APP_ALIAS = {'audio_enhancer': 'enhancer'}
 # voient exactement ce que voyait le corps main (parité prouvée converter + reader,
 # baseline 2026-08-12). `add_to_<app>` reste de la GLU propre à l'app (marche B).
 # Entrée régénérable par write_back_app (facette tool_api) ; le champ `progress` du statut
-# est conventionnel : cache `<app>_progress_<pk>` (int, ou dict portant 'pct'), repli DB.
+# est conventionnel : cache `<app>_progress_<pk>` (int, ou dict portant 'pct'), repli DB —
+# `progress_key` le redéclare quand l'app écrit ailleurs (anonymizer).
+#
+# LANCER = le ▶ de la card (soldé le 2026-10-12 pour les dix apps) : `begin_processing` (verrou,
+# révocation, collaborateur), puis la REMISE À ZÉRO et la TÂCHE que l'app déclare déjà pour son
+# ▶ de lot (`make_batch_views(reset_on_start=…, task_for=…)`) — nommées ici par leur chemin,
+# jamais recopiées. Les sept triades écrites main qu'elles remplacent avaient dérivé : l'imager
+# envoyait la tâche IMAGE à une génération vidéo, le synthesizer effaçait encore l'audio au
+# lancement (ce que son ▶ ne fait plus depuis le 03/10), l'anonymizer lisait sa progression sous
+# une clé que plus rien n'écrit (`anon_progress:`), quatre lançaient sans verrou.
+#   task | task_for  : tâche Celery, ou fonction(élément) → tâche (chemin pointé)
+#   reset            : dict (+ progression à 0) OU chemin d'une fonction(élément) de l'app
+#   pending / pending_exclude : ce que lance « tout » (défaut : statut PENDING)
+# STATUT — une valeur de `status_fields` est un champ, ou un dict :
+#   attr · call (méthode à appeler) · url (fichier → son URL) · basename (fichier → son nom)
+#   · when {champ: valeur} + else (valeur hors condition, défaut None) · preview N
+#   (+ partial_fallback : texte partiel pendant le run) · or_none · default (valeur si vide)
 TRIAD_SPECS = {
     'converter': {
         'model': 'wama.converter.models.ConversionJob',
@@ -3837,24 +3232,184 @@ TRIAD_SPECS = {
             'error_message': {'attr': 'error_message', 'or_none': True},
         },
     },
+    'anonymizer': {
+        'model': 'wama.anonymizer.models.Media',
+        'task': 'wama.anonymizer.tasks.process_single_media',
+        'id_kwarg': 'media_id',
+        'reset': 'wama.anonymizer.views._reset_and_forget_progress',
+        # « Lance tout » = ce que lance le bouton de l'app : tout ce qui n'a pas ABOUTI.
+        'pending': {},
+        'pending_exclude': {'status': 'SUCCESS'},
+        'progress_key': 'media_progress_{pk}',
+        'empty_msg': 'Aucun média en attente de traitement.',
+        'status_order': '-id',
+        'status_fields': {
+            'id': 'id',
+            'name': {'attr': 'file', 'basename': True},
+            'progress': 'blur_progress',
+            'status': 'status',
+            'target_mode': 'target_mode',
+            'sam3_prompt': {'attr': 'sam3_prompt', 'when': {'target_mode': 'description'}},
+            'output_url': {'attr': 'output_file', 'url': True, 'when': {'status': 'SUCCESS'}},
+        },
+    },
+    'avatarizer': {
+        'model': 'wama.avatarizer.models.AvatarJob',
+        'task_for': 'wama.avatarizer.views._task_for',
+        'id_kwarg': 'job_id',
+        'reset': {'error_message': ''},
+        'empty_msg': 'Aucun job avatar en attente.',
+        'status_order': '-id',
+        'status_fields': {
+            'id': 'id',
+            'mode': 'mode',
+            'status': 'status',
+            'progress': 'progress',
+            'output_url': {'attr': 'output_video', 'url': True},
+            'duration_seconds': 'duration_seconds',
+            'error': {'attr': 'error_message', 'or_none': True},
+        },
+    },
+    'composer': {
+        'model': 'wama.composer.models.ComposerGeneration',
+        'task_for': 'wama.composer.views._task_for',
+        'id_kwarg': 'generation_id',
+        'reset': 'wama.composer.views._reset_for_relaunch',
+        'empty_msg': 'Aucune composition en attente.',
+        'status_order': '-id',
+        'status_fields': {
+            'id': 'id',
+            'prompt': {'attr': 'prompt', 'preview': 80},
+            'model': 'model',
+            'generation_type': 'generation_type',
+            'duration': 'duration',
+            'status': 'status',
+            'progress': 'progress',
+            'audio_url': {'attr': 'audio_output', 'url': True},
+        },
+    },
+    'enhancer': {
+        'model': 'wama.enhancer.models.Enhancement',
+        'task_for': 'wama.enhancer.views._media_task',
+        'id_kwarg': 'enhancement_id',
+        'reset': 'wama.enhancer.views._reset_media_and_clear_progress',
+        'empty_msg': 'Aucun enhancement en attente.',
+        'status_order': '-id',
+        'status_fields': {
+            'id': 'id',
+            'name': {'attr': 'get_input_filename', 'call': True},
+            'media_type': 'media_type',
+            'ai_model': 'ai_model',
+            'status': 'status',
+            'progress': 'progress',
+            'output_url': {'attr': 'output_file', 'url': True},
+        },
+    },
+    # Sous-domaine audio de l'enhancer (`TOOL_APP_ALIAS`) : sa propre file, ses propres outils.
+    'audio_enhancer': {
+        'model': 'wama.enhancer.models.AudioEnhancement',
+        'task_for': 'wama.enhancer.views._audio_task',
+        'id_kwarg': 'audio_enhancement_id',
+        'reset': {'error_message': ''},
+        'empty_msg': 'Aucun audio enhancement en attente.',
+        'status_order': '-id',
+        'status_fields': {
+            'id': 'id',
+            'name': {'attr': 'get_input_filename', 'call': True},
+            'engine': 'engine',
+            'mode': 'mode',
+            'status': 'status',
+            'progress': 'progress',
+            'output_url': {'attr': 'output_file', 'url': True},
+        },
+    },
+    'imager': {
+        'model': 'wama.imager.models.ImageGeneration',
+        'task_for': 'wama.imager.views._task_for',
+        'id_kwarg': 'generation_id',
+        'reset': 'wama.imager.views._reset_and_forget_progress',
+        'empty_msg': 'Aucune génération en attente.',
+        'status_order': '-id',
+        'status_fields': {
+            'id': 'id',
+            'prompt': {'attr': 'prompt', 'preview': 80},
+            'model': 'model',
+            'status': 'status',
+            'progress': 'progress',
+            'num_images': 'num_images',
+            'output_urls': {'attr': 'output_images', 'when': {'status': 'SUCCESS'}, 'else': []},
+            'video_url': {'attr': 'output_video', 'url': True, 'when': {'status': 'SUCCESS'}},
+        },
+    },
+    'synthesizer': {
+        'model': 'wama.synthesizer.models.VoiceSynthesis',
+        'task_for': 'wama.synthesizer.views._task_for',
+        'id_kwarg': 'synthesis_id',
+        'reset': 'wama.synthesizer.views._reset_and_seed_progress',
+        'empty_msg': 'Aucune synthèse en attente.',
+        'status_order': '-id',
+        'status_fields': {
+            'id': 'id',
+            'filename': 'filename',
+            'word_count': 'word_count',
+            'duration_display': {'attr': 'duration_display', 'default': '—'},
+            'model': 'tts_model',
+            'language': 'language',
+            'voice_preset': 'voice_preset',
+            'status': 'status',
+            'progress': 'progress',
+            'audio_url': {'attr': 'audio_output', 'url': True},
+        },
+    },
+    'transcriber': {
+        'model': 'wama.transcriber.models.Transcript',
+        'task_for': 'wama.transcriber.views._task_for',
+        'id_kwarg': 'transcript_id',
+        'reset': 'wama.transcriber.views._reset_and_clear_progress',
+        'empty_msg': 'Aucune transcription en attente.',
+        'status_order': '-id',
+        'status_fields': {
+            'id': 'id',
+            'filename': 'filename',
+            'duration_display': {'attr': 'duration_display', 'default': '—'},
+            'backend': 'backend',
+            'used_backend': {'attr': 'used_backend', 'or_none': True},
+            'language': {'attr': 'language', 'or_none': True},
+            'status': 'status',
+            'progress': 'progress',
+            'text_preview': {'attr': 'text', 'preview': 300, 'partial_fallback': True},
+        },
+    },
 }
 
 
 def _triad_fns(app_id: str, spec: dict) -> tuple:
     """(start, status) construits depuis une entrée TRIAD_SPECS.
 
-    Modèle et tâche sont résolus À L'APPEL (`import_string`) : même paresse que les imports
-    locaux des corps main remplacés — charger tool_api ne tire aucune app.
+    Modèle, tâche et remise à zéro sont résolus À L'APPEL (`import_string`) : même paresse que
+    les imports locaux des corps main remplacés — charger tool_api ne tire aucune app.
     """
     import inspect
     from django.utils.module_loading import import_string
 
     id_kwarg = spec.get('id_kwarg', 'item_id')
+    progress_key = spec.get('progress_key') or f'{app_id}_progress_{{pk}}'
+
+    def _reset():
+        """La remise à zéro du ▶ : la fonction de l'app, ou un dict (+ progression à 0)."""
+        reset = spec.get('reset')
+        if isinstance(reset, str):
+            return import_string(reset)
+        field = (spec.get('status_fields') or {}).get('progress', 'progress')
+        return {field if isinstance(field, str) else 'progress': 0, **(reset or {})}
 
     def _start(user, *args, **kwargs):
+        from wama.common.utils.process_control import begin_processing
         item_id = args[0] if args else kwargs.get(id_kwarg)
         model = import_string(spec['model'])
-        task = import_string(spec['task'])
+        task_for = (import_string(spec['task_for']) if spec.get('task_for')
+                    else (lambda _item, _task=import_string(spec['task']): _task))
+        reset = _reset()
         label = model.__name__
 
         def _purge_traces(pk):
@@ -3863,53 +3418,81 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
             # run PRÉCÉDENT jusqu'à la première écriture de la tâche. Extraite de la triade
             # main du describer à sa migration en spec (2026-09-03).
             from django.core.cache import cache
-            cache.delete(f'{app_id}_progress_{pk}')
+            cache.delete(progress_key.format(pk=pk))
             try:
                 from wama.common.utils.preview_utils import clear_partial
                 clear_partial(app_id, pk)
             except Exception:
                 pass
 
-        if item_id is not None:
-            try:
-                item = model.objects.get(pk=item_id, user=user)
-            except model.DoesNotExist:
-                return {'error': f'{label} #{item_id} introuvable ou non autorisé.'}
-            if item.status == 'RUNNING':
-                return {'error': f'{label} #{item_id} est déjà en cours.'}
-            item.status = 'RUNNING'
-            item.progress = 0
-            for champ, valeur in (spec.get('reset') or {}).items():
-                setattr(item, champ, valeur)
-            item.save()
+        def _launch(pk):
+            # Le ▶ de la card : verrou, révocation de l'ancienne tâche, remise à zéro de l'app,
+            # « en cours » posé par le LANCEUR — puis la tâche que l'app déclare pour l'élément.
+            item, err = begin_processing(model, pk, user=user, reset=reset)
+            if err:
+                return None, err
             _purge_traces(item.pk)
-            t = task.delay(item.id)
+            t = task_for(item).delay(item.id)
             item.task_id = t.id
             item.save(update_fields=['task_id'])
+            return t, None
+
+        if item_id is not None:
+            t, err = _launch(item_id)
+            if err == 'not_found':
+                return {'error': f'{label} #{item_id} introuvable ou non autorisé.'}
+            if err:
+                return {'error': f'{label} #{item_id} est déjà en cours.'}
             return {'task_id': t.id, 'status': 'started', 'item_id': item_id}
 
-        pending = model.objects.filter(user=user, status='PENDING',
-                                       **(spec.get('queue_filter') or {}))
-        if not pending.exists():
+        lookups = spec.get('pending', {'status': 'PENDING'})
+        pending = (model.objects.filter(user=user, **lookups, **(spec.get('queue_filter') or {}))
+                   .exclude(**(spec.get('pending_exclude') or {}))
+                   .order_by('pk').values_list('pk', flat=True))
+        if not pending:
             return {'error': spec.get('empty_msg', 'Aucun élément en attente.')}
-        started = []
-        for item in pending:
-            _purge_traces(item.pk)
-            t = task.delay(item.id)
-            item.task_id = t.id
-            item.status = 'RUNNING'
-            item.save(update_fields=['task_id', 'status'])
-            started.append(item.id)
+        started = [pk for pk in pending if _launch(pk)[1] is None]
         return {'status': 'started', 'item_id': None, 'count': len(started), 'ids': started}
 
     _start.__name__ = _start.__qualname__ = f'start_{app_id}'
-    _start.__doc__ = (f"Lance le traitement {app_id} : l'item indiqué, ou tous les PENDING "
+    _start.__doc__ = (f"Lance le traitement {app_id} : l'item indiqué, ou tous ceux en attente "
                       f"si aucun id. (Construit depuis TRIAD_SPECS['{app_id}'].)")
     _start.__signature__ = inspect.Signature(
         [inspect.Parameter('user', inspect.Parameter.POSITIONAL_OR_KEYWORD),
          inspect.Parameter(id_kwarg, inspect.Parameter.POSITIONAL_OR_KEYWORD,
                            default=None, annotation=int)],
         return_annotation=dict)
+
+    def _value(item, field):
+        """Une valeur de ligne de statut, lue selon sa déclaration (cf. l'en-tête de TRIAD_SPECS)."""
+        if isinstance(field, str):
+            return getattr(item, field, None)
+        if any(getattr(item, name, None) != expected
+               for name, expected in (field.get('when') or {}).items()):
+            return field.get('else')
+        value = getattr(item, field['attr'], None)
+        if field.get('call') and callable(value):
+            value = value()
+        if field.get('url'):
+            return value.url if value else None
+        if field.get('basename'):
+            return os.path.basename(value.name) if value else None
+        if field.get('preview'):
+            size = field['preview']
+            if not value and field.get('partial_fallback'):
+                # Aperçu du texte PARTIEL pendant le run (during_preview) — extrait de la
+                # triade main du describer à sa migration (2026-09-03).
+                try:
+                    from wama.common.utils.preview_utils import get_partial_text
+                    value = get_partial_text(app_id, item.pk)
+                except Exception:
+                    value = None
+            return ((value[:size] + '…') if len(value) > size else value) if value else None
+        if field.get('or_none'):
+            return value or None
+        if 'default' in field:
+            return value or field['default']
+        return value
 
     def _status(user) -> dict:
         from django.core.cache import cache
@@ -3919,30 +3502,14 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
         jobs = []
         for item in qs:
             row = {}
-            for cle, champ in (spec.get('status_fields') or {}).items():
-                if cle == 'progress':
-                    db = getattr(item, champ if isinstance(champ, str) else 'progress', 0)
-                    v = cache.get(f'{app_id}_progress_{item.pk}')
-                    row[cle] = v.get('pct', db) if isinstance(v, dict) else (db if v is None else v)
-                elif isinstance(champ, dict):
-                    v = getattr(item, champ['attr'], None)
-                    if champ.get('preview'):
-                        n = champ['preview']
-                        if not v and champ.get('partial_fallback'):
-                            # Aperçu du texte PARTIEL pendant le run (during_preview) —
-                            # extrait de la triade main du describer à sa migration (2026-09-03).
-                            try:
-                                from wama.common.utils.preview_utils import get_partial_text
-                                v = get_partial_text(app_id, item.pk)
-                            except Exception:
-                                v = None
-                        row[cle] = ((v[:n] + '…') if len(v) > n else v) if v else None
-                    elif champ.get('or_none'):
-                        row[cle] = v or None
-                    else:
-                        row[cle] = v
+            for key, field in (spec.get('status_fields') or {}).items():
+                if key == 'progress':
+                    stored = getattr(item, field if isinstance(field, str) else 'progress', 0) or 0
+                    live = cache.get(progress_key.format(pk=item.pk))
+                    row[key] = (live.get('pct', stored) if isinstance(live, dict)
+                                else (stored if live is None else live))
                 else:
-                    row[cle] = getattr(item, champ, None)
+                    row[key] = _value(item, field)
             jobs.append(row)
         return {'jobs': jobs}
 

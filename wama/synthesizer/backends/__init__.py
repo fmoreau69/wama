@@ -9,35 +9,18 @@ from __future__ import annotations
 
 from wama.common.tts.constants import COQUI_MODEL_MAPPING
 
-from wama.common.backends.bark_backend import BarkBackend
+from wama.common.backends.manager import engine_classes
 from wama.common.backends.tts_base import CATALOG_KEYS, TTSBackend
-from wama.common.backends.audio8_backend import Audio8Backend
-from wama.common.backends.coqui_backend import CoquiBackend
-from wama.common.backends.qwen3_tts_backend import Qwen3TTSBackend
-from wama.common.backends.higgs_backend import HiggsAudioBackend
-from wama.common.backends.kokoro_backend import KokoroBackend
-from wama.common.backends.kokoro_onnx_backend import KokoroOnnxBackend
 
-#: Moteur → classe de backend (vocabulaire `SYNTHESIZER_MODELS[*]['engine']`).
-#: Cette table est AUSSI l'inventaire du grisage automatique (apps.ready → un moteur
-#: ajouté ici se RÉ-AUTORISE partout : select dégrisé, tirage auto rouvert — 02/09).
-ENGINE_BACKENDS = {
-    'coqui': CoquiBackend,
-    'bark': BarkBackend,
-    'higgs': HiggsAudioBackend,
-    'kokoro': KokoroBackend,
-    'kokoro-onnx': KokoroOnnxBackend,
-    # 1er consommateur du moteur générique « code de modèle fourni par le dépôt » —
-    # Audio8 par défaut ; un 2ᵉ modèle remote-code fera passer le backend au `model`
-    # transmis par le contrat d'appel (généralisation au 2ᵉ, jamais avant).
-    'transformers-remote-code': Audio8Backend,
-    # Backend ÉCRIT, runtime PAS ENCORE installé (qwen-tts==0.1.1 épingle
-    # transformers 4.57.3 — venv partagé : installation sur GO humain,
-    # ensure_backend_deps). L'inventaire du grisage ne sert que les moteurs
-    # EXÉCUTABLES : celui-ci reste grisé jusqu'à l'installation, puis se
-    # dé-grise tout seul.
-    'qwen3-tts': Qwen3TTSBackend,
-}
+#: Moteur → classe de backend (vocabulaire `SYNTHESIZER_MODELS[*]['engine']`), DÉRIVÉ du
+#: `ENGINE` que déclare chaque backend du contrat `text-to-speech` (`manager.engine_classes`,
+#: lu sans Django : le service TTS n'en a pas). Jusqu'au 2026-10-12 une table écrite ici
+#: redisait ces sept déclarations (`ROUTE §1554`) ; un backend TTS ajouté au paquet commun y
+#: entre désormais seul. Cette table est AUSSI l'inventaire du grisage automatique (apps.ready :
+#: un moteur qui y entre se RÉ-AUTORISE partout — select dégrisé, tirage auto rouvert, 02/09) ;
+#: un backend écrit dont le runtime manque (`qwen3-tts`, qwen-tts non installé) y figure et
+#: reste grisé par `missing_packages` jusqu'à l'installation.
+ENGINE_BACKENDS = engine_classes('text-to-speech')
 
 
 #: Moteur d'un nom de modèle UI quand il diffère du nom de moteur (table d'EXCEPTIONS).
@@ -113,7 +96,5 @@ def _candidats(model_name: str):
 
 
 __all__ = [
-    'BarkBackend', 'CoquiBackend', 'HiggsAudioBackend', 'KokoroBackend',
-    'KokoroOnnxBackend', 'TTSBackend', 'ENGINE_BACKENDS', 'CATALOG_KEYS',
-    'engine_for_model', 'local_model_name',
+    'TTSBackend', 'ENGINE_BACKENDS', 'CATALOG_KEYS', 'engine_for_model', 'local_model_name',
 ]
