@@ -729,3 +729,51 @@ class TwinRegistriesInjectedTest(SimpleTestCase):
         with patch.object(sandbox, 'twin_source', return_value='describer'):
             self.assertEqual('describer', sandbox.declaring_app('describer_01'))
         self.assertEqual('describer', sandbox.declaring_app('describer'))
+
+
+class TwinStaticFollowsItsSourceTest(SimpleTestCase):
+    """No `substitute` target covered `static/` (no JS template) : a twin's JS stayed the copy of
+    its creation day — `reader_01` still intercepted the double-click its source had handed to the
+    common viewer (2026-10-12). `substitute static` copies it again, the creation's gesture."""
+
+    def test_only_the_static_folder_is_copied_again_with_the_twin_renaming(self):
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            (root / 'app' / 'static' / 'app' / 'js').mkdir(parents=True)
+            (root / 'app' / 'static' / 'app' / 'js' / 'index.js').write_text(
+                "fetch('/app/text/' + id);", encoding='utf-8')
+            (root / 'app' / 'views.py').write_text("x = 'app'\n", encoding='utf-8')
+            with patch.object(cmd_sandbox, 'WAMA_DIR', root):
+                written = cmd_sandbox._copy_package('app', 'app_01', only='static')
+            self.assertEqual([root / 'app_01' / 'static' / 'app_01' / 'js' / 'index.js'], written)
+            self.assertIn("'/app/text/'", written[0].read_text(encoding='utf-8'),
+                          'the URL path is not a quoted app path : left as written')
+            self.assertFalse((root / 'app_01' / 'views.py').exists(), 'nothing outside static/')
+            self.assertFalse((root / 'app_01' / 'migrations').exists(), 'no package scaffolding')
+
+    def test_a_twin_born_from_a_manifest_has_no_static_to_follow(self):
+        registry = [{'label': 'writer_01', 'generated_from': '', 'from_manifest': 'x.json'}]
+        with patch.object(cmd_sandbox, 'load_registry', return_value=registry):
+            with self.assertRaisesRegex(CommandError, 'manifeste'):
+                cmd_sandbox.Command()._resync_static('writer_01')
+
+
+class BornAppSubstitutionTest(SimpleTestCase):
+    """An app born from a manifest is substituted from THAT manifest (2026-10-12 : writer_01 kept
+    a card the generator had fixed, and only `remove` + `create` — data lost — regenerated it)."""
+
+    def test_without_its_origin_manifest_it_is_refused(self):
+        registry = [{'label': 'ghost_01', 'generated_from': ''}]
+        with patch.object(cmd_sandbox, 'load_registry', return_value=registry):
+            with self.assertRaisesRegex(CommandError, 'manifeste'):
+                cmd_sandbox.Command()._substitute('ghost_01', 'templates')
+
+    def test_its_templates_need_no_views_substitution_first(self):
+        """Its views were generated at birth : the views↔templates couple already holds."""
+        registry = [{'label': 'ghost_01', 'generated_from': '', 'from_manifest': 'x.json'}]
+        with patch.object(cmd_sandbox, 'load_registry', return_value=registry), \
+                patch.object(cmd_sandbox, '_born_manifest',
+                             side_effect=CommandError('manifest read')) as born:
+            with self.assertRaisesRegex(CommandError, 'manifest read'):
+                cmd_sandbox.Command()._substitute('ghost_01', 'templates')
+        born.assert_called_once()

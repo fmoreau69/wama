@@ -186,13 +186,17 @@ def _rename_text(text: str, src: str, dst: str) -> str:
     return frozen
 
 
-def _copy_package(src: str, dst: str) -> list:
-    """Copie wama/<src> → wama/<dst> avec renommages ; retourne la liste des fichiers écrits."""
+def _copy_package(src: str, dst: str, only: str = '') -> list:
+    """Copie wama/<src> → wama/<dst> avec renommages ; retourne la liste des fichiers écrits.
+    `only` borne la copie à UN dossier de premier niveau (`static`, resynchronisation d'une
+    jumelle : le même geste que sa création, rien d'autre — 2026-10-12)."""
     src_dir, dst_dir = WAMA_DIR / src, WAMA_DIR / dst
     written = []
     for path in sorted(src_dir.rglob('*')):
         rel = path.relative_to(src_dir)
         if any(part in SKIP_DIRS for part in rel.parts):
+            continue
+        if only and rel.parts[0] != only:
             continue
         # Dossiers d'app dans templates/ et static/ : renommés vers le label jumeau.
         parts = list(rel.parts)
@@ -215,6 +219,8 @@ def _copy_package(src: str, dst: str) -> list:
         else:
             shutil.copy2(path, target)
         written.append(target)
+    if only:
+        return written
     # Dossier migrations FRAIS (package sans migrations = app non migrable).
     mig = dst_dir / 'migrations'
     mig.mkdir(exist_ok=True)
@@ -477,6 +483,26 @@ def _superseded_task_modules(manifest: dict, fname: str = 'tasks.py') -> list:
     return out
 
 
+def _born_manifest(label: str, entry: dict) -> tuple:
+    """`(manifeste, clé)` d'une app NÉE D'UN MANIFESTE : le fichier d'où elle est née, plus la
+    facette `data` introspectée de ses modèles — le second temps de `_create_from_manifest`, que
+    `views_gen` et `templates_gen` exigent. Ici l'app est installée : l'introspection se fait dans
+    le processus, sans le sous-processus qu'il fallait à la création."""
+    import json
+
+    from wama.common.manifests.builtin.app import _data
+    path = BASE_DIR / entry['from_manifest']
+    try:
+        manifest = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError) as exc:
+        raise CommandError(f'Manifeste d\'origine illisible : {path} ({exc})')
+    data = _data(label)
+    if not (data or {}).get('models'):
+        raise CommandError(f'Introspection des modèles de {label} vide.')
+    manifest.setdefault('body', {})['data'] = data
+    return manifest, manifest.get('key') or ''
+
+
 def _withdraw_modules(label: str, files: list) -> list:
     """Retire de la jumelle les modules `files` (copies remplacées), témoin `.temoin`
     préservé une fois — le geste inverse est `_restore_retired_modules`. Rend les retirés."""
@@ -639,7 +665,8 @@ class Command(BaseCommand):
         # → `--owner` (relevé par Fabien sur la page du Writer).
         parser.add_argument('target', nargs='?',
                             help=f"substitute/revert : {sorted(_SUBSTITUTABLE)} — fichier à passer "
-                                 "en GÉNÉRÉ ; glue : sortie du rôle codegen à appliquer")
+                                 "en GÉNÉRÉ ; substitute static : recopier le static/ de la "
+                                 "source ; glue : sortie du rôle codegen à appliquer")
         parser.add_argument('--from-manifest', default='',
                             help="create : crée l'app DE ZÉRO depuis un manifeste `app` FICHIER "
                                  "(ex. manifests/app_drafts/writer.json) — sans app source "
@@ -676,6 +703,8 @@ class Command(BaseCommand):
             self._apply_glue(app, opts.get('target'), applied_by=opts.get('owner') or '')
         elif action == 'create':
             self._create(app, owner=opts.get('owner') or '')
+        elif action == 'substitute' and opts.get('target') == 'static':
+            self._resync_static(app)
         elif action == 'substitute':
             self._substitute(app, opts.get('target'))
         elif action == 'revert':
@@ -957,6 +986,13 @@ class Command(BaseCommand):
         if not entry:
             raise CommandError(f'{label} absent du registre.')
         src = entry['generated_from']
+        # Une app NÉE D'UN MANIFESTE (`create --from-manifest`) n'a pas de source à extraire : son
+        # manifeste est le FICHIER d'où elle est née, complété de l'introspection de ses modèles —
+        # exactement le second temps de sa création (2026-10-12 : writer_01 gardait la card d'un
+        # gabarit corrigé depuis, et aucune voie ne la régénérait sans la retirer, données comprises).
+        born = not src
+        if born and not entry.get('from_manifest'):
+            raise CommandError(f"{label} n'a ni source ni manifeste d'origine au registre.")
 
         # ⚠ COUPLE views↔templates (mesuré par Fabien sur describer_01, 2026-09-03) : l'index
         # GÉNÉRÉ inclut la card générique et attend le contexte des vues GÉNÉRÉES ; des vues
@@ -964,7 +1000,8 @@ class Command(BaseCommand):
         # boutons de card MORTS. Le smoke de l'étape 3 (HTTP 200) ne voit rien : la paire
         # incohérente REND. On refuse donc templates sans views:ok — l'inverse (views générées,
         # templates copiés) est refusé par l'ORDRE recommandé et le même argument.
-        if 'templates' in targets and 'views' not in targets:
+        # Une app née d'un manifeste a ses vues GÉNÉRÉES dès sa naissance : le couple tient.
+        if 'templates' in targets and 'views' not in targets and not born:
             v = ((entry.get('substituted') or {}).get('views') or {}).get('verdict')
             if v != 'ok':
                 raise CommandError(
@@ -972,9 +1009,13 @@ class Command(BaseCommand):
                     f"(état actuel : {v or 'jamais substitué'}). Une app dont views_gen refuse "
                     "(ex. file à modèle de liaison) garde SES templates copiés — cohérents.")
 
-        # 1. GÉNÉRATION depuis le manifeste LIVE de la source (l'app d'origine n'est que LUE).
-        from wama.common.manifests.ingest import extract
-        manifest = extract('app', src)
+        # 1. GÉNÉRATION depuis le manifeste LIVE de la source (l'app d'origine n'est que LUE) —
+        #    ou, pour une app née d'un manifeste, depuis ce manifeste.
+        if born:
+            manifest, src = _born_manifest(label, entry)
+        else:
+            from wama.common.manifests.ingest import extract
+            manifest = extract('app', src)
         if not manifest:
             raise CommandError(f"Extraction du manifeste de {src} impossible.")
         renders = []
@@ -1139,9 +1180,10 @@ class Command(BaseCommand):
             entry.setdefault('substituted', {})[c] = {
                 'verdict': verdict, 'details': details,
                 'at': datetime.now(timezone.utc).isoformat(timespec='seconds')}
-        entry['stage'] = ('S2-partiel'
-                          if any(v.get('verdict') == 'ok'
-                                 for v in entry['substituted'].values()) else entry['stage'])
+        if not born:    # une app née d'un manifeste garde son stade de naissance (`S2-de-zero`)
+            entry['stage'] = ('S2-partiel'
+                              if any(v.get('verdict') == 'ok'
+                                     for v in entry['substituted'].values()) else entry['stage'])
         _save_entry(entry)
 
     # ── converge : MESURER la distance jumelle ↔ original ──────────────────────
@@ -1184,6 +1226,45 @@ class Command(BaseCommand):
         self.stdout.write(style(f'{label} : {"CONVERGÉE" if converged else "pas encore convergée"}'))
 
     # ── revert (retour MANUEL au témoin) ─────────────────────────────────────
+    def _resync_static(self, label: str):
+        """Le `static/` d'une jumelle SUIT sa source : recopié avec le renommage de sa création
+        (`_copy_package(only='static')`), copies orphelines retirées, puis servi par
+        `collectstatic` — le mécanisme du démarrage, pas une copie à la main de `staticfiles/`.
+
+        Pourquoi (2026-10-12, relevé par l'instance « aperçu ») : aucune cible de `substitute` ne
+        couvre `static/`, il n'y a pas de gabarit JS. Le JS d'une jumelle restait la copie du jour
+        de sa création — `reader_01` interceptait encore le double-clic que le reader avait rendu
+        à la visionneuse commune. Une jumelle née d'un manifeste n'a pas de source à suivre."""
+        entry = next((e for e in load_registry() if e['label'] == label), None)
+        if not entry:
+            raise CommandError(f'{label} absent du registre.')
+        src = entry.get('generated_from')
+        if not src:
+            raise CommandError(f"{label} est née d'un manifeste : son static/ n'a pas de source "
+                               "à suivre.")
+        twin_static = WAMA_DIR / label / 'static'
+        before = {p for p in twin_static.rglob('*') if p.is_file()} if twin_static.is_dir() else set()
+        written = set(_copy_package(src, label, only='static'))
+        orphans = sorted(before - written)
+        for path in orphans:
+            path.unlink()
+        # L'écho servi (`staticfiles/<label>/`) est retiré puis recollecté : `collectstatic` copie
+        # sans retirer, un fichier disparu de la source y resterait servi.
+        echo = BASE_DIR / 'staticfiles' / label
+        if echo.exists():
+            shutil.rmtree(echo, ignore_errors=True)
+        r = _manage(['collectstatic', '--noinput'])
+        details = [f'{len(written)} fichier(s) recopié(s) de {src}',
+                   f'{len(orphans)} copie(s) orpheline(s) retirée(s)',
+                   'collectstatic ' + ('OK' if r.returncode == 0
+                                       else f'KO ({_last_cause(r.stdout, r.stderr)})')]
+        entry.setdefault('substituted', {})['static'] = {
+            'verdict': 'ok' if r.returncode == 0 else 'collectstatic-ko', 'details': details,
+            'at': datetime.now(timezone.utc).isoformat(timespec='seconds')}
+        _save_entry(entry)
+        style = self.style.SUCCESS if r.returncode == 0 else self.style.ERROR
+        self.stdout.write(style(f'static : ' + ' ; '.join(details)))
+
     def _revert(self, label: str, target: str):
         """Ramène UNE cible substituée à sa copie témoin (`.temoin`) — le geste qu'aucun
         outil n'offrait quand la substitution avait « tenu » au smoke mais cassait à

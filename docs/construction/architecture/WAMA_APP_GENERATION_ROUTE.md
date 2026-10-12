@@ -1771,6 +1771,19 @@ outillé avant d'ouvrir cette marche.
   > mesuré sur `reader_01` : `models` refusé pour six `.filename` du `tasks.py` copié, que le
   > `tasks` généré, accepté juste après, ne lisait plus. L'ancien ordre (`models` avant
   > `views`) datait d'avant ce juge, et le défaut qu'il laissait passer était celui-là.
+  > **Deux gestes ajoutés le 2026-10-12** (Fabien : « régénère writer_01 et les static des
+  > jumelles »). ① **`substitute <jumelle> static`** — aucune cible ne couvrait `static/` (pas de
+  > gabarit JS) : le JS d'une jumelle restait la copie de sa création (`reader_01` interceptait
+  > encore le double-clic que le reader avait rendu à la visionneuse commune). Le `static/` SUIT
+  > désormais sa source : recopié par le geste de la création (`_copy_package(only='static')`,
+  > même renommage), copies orphelines retirées, servi par `collectstatic`. Une jumelle née d'un
+  > manifeste n'a pas de source à suivre. ② **`substitute` d'une app NÉE D'UN MANIFESTE** — son
+  > manifeste est le fichier d'origine plus l'introspection de ses modèles (le second temps de
+  > `create --from-manifest`, `_born_manifest`) ; ses vues générées à la naissance tiennent le
+  > couple views↔templates. Avant, seule la paire `remove` + `create` la régénérait — données de la
+  > jumelle perdues. Vécu : `writer_01` portait la card au `{# #}` multi-ligne corrigé le jour même
+  > dans `templates_gen`. Gardes : `tests_sandbox_coherence` (`TwinStaticFollowsItsSourceTest`,
+  > `BornAppSubstitutionTest`).
   > **Gate d'acceptation** : la batterie UI auto-dérivée `run_nightly_tests --id <label>.`
   > (11 scénarios) — `converter_01` 11/11, `describer_01` 11/11. Un scénario qui SKIPPE n'est
   > pas un scénario qui passe : lire le motif, il nomme la cause côté app.
