@@ -1548,13 +1548,13 @@ Un worker publie plusieurs vues du même instant (`publish_partial(variant=, lab
 - **Module** : WAMA Common - Preview Utilities
 - **API publique** (15) :
   - `get_or_create_anonymous_user()` — Get or create the anonymous user.
+  - `file_face(url, path=None, name=None)` — Payload d'aperçu d'UN fichier : `{name, url, mime_type}`, plus `content` (le texte
   - `publish_partial(app_name, pk, url_or_path, variant=None, label=None)` — Worker : publie l'URL (média) d'un aperçu PARTIEL courant, servi par `?side=during`.
   - `class PartialFrames` — L'aperçu « pendant » en IMAGES d'une vidéo en cours de traitement : une frame (ou
   - `publish_partial_peaks(app_name, pk, peaks, duration=None)` — Worker : publie des PICS d'onde partiels (« waveform par parties », cf. `waveform.compute_peaks`)
   - `emit_streaming_peaks(app_name, pk, pcm, sr, buckets=800)` — Worker de streaming (COMMUN, toute app) : calcule les pics uint8 d'une fenêtre PCM courante
   - `publish_partial_text(app_name, pk, text)` — Worker : publie le TEXTE partiel courant (transcription/description qui se construit),
   - `get_partial_text(app_name, pk)` — Lecture du texte partiel (endpoints de progression des apps + `?side=during`).
-  - `file_face(url, path=None, name=None)` — Payload d'aperçu d'UN fichier : `{name, url, mime_type}`, plus `content` (le texte
   - `clear_partial(app_name, pk)` — Worker : retire l'aperçu partiel (fin de traitement — la face SORTIE prend le relais).
   - `unified_preview(request, app_name: str, pk: int)` — Unified preview endpoint for any registered app.
   - `with_playback_copy(data, request)` — Une vidéo que le navigateur ne lit pas est servie par sa COPIE DE LECTURE quand elle
@@ -1596,13 +1596,13 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
   - `twin_owner(label: str) -> str` — Username du créateur d'une jumelle ('' si CLI/inconnu) — consommé par la dérogation
   - `twin_source(label: str) -> str` — App SOURCE d'une jumelle ('' si ce label n'en est pas une).
   - `declaring_app(app: str) -> str` — L'app dont la DÉCLARATION fait foi pour `app` : elle-même, ou sa SOURCE si c'est une
+  - `resolves(dotted: str) -> bool` — Le chemin pointé `wama.<…>` désigne-t-il un module, ou un nom DÉFINI au niveau d'un module,
   - `inject_sandbox_registry(registry: dict, *, runnable=None) -> None` — Entrées d'un registre INDEXÉ PAR APP pour les jumelles : la déclaration de la source,
   - `born_declaration(label: str, facet: str)` — Facette DÉCLARÉE d'une app créée DE ZÉRO (`app_sandbox create --from-manifest`), telle que
   - `save_registry(entries: list) -> None`
   - `sandbox_labels() -> list` — Labels des jumelles dont le PACKAGE existe réellement (garde anti-registre orphelin :
   - `is_test_module(rel_parts) -> bool` — Le fichier (chemin RELATIF au paquet, en parties) est-il un module de TEST ?
   - `is_copied_twin_test(module_name: str, labels=None) -> bool` — Le module de test `module_name` (`wama.<jumelle>.tests_x`) est-il un test COPIÉ d'une
-  - `resolves(dotted: str) -> bool` — Le chemin pointé `wama.<…>` désigne-t-il un module, ou un nom DÉFINI au niveau d'un module,
   - `twins_with_copied_views() -> set` — Labels des jumelles dont les VUES sont une COPIE figée de l'app source (non régénérées).
   - `sandbox_installed_apps() -> list` — Entrées INSTALLED_APPS des jumelles (consommé par settings.py).
   - `sandbox_urlpatterns()` — URLconfs des jumelles — préfixe = label (underscore assumé : `/converter_01/` — le
@@ -1825,13 +1825,13 @@ Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter
   - `invalidate_engine_cache() -> None` — À appeler après une installation de librairie : le prochain `known_engines()`
   - `known_engines() -> set` — Moteurs réellement EXÉCUTABLES — inventaires relus à CHAQUE appel (ré-autorisation
   - `backend_for_engine(engine: str, model_id: str='', entries=None, task: str='')` — Classe de backend qui pilote `engine` (et sert `model_id` si le moteur est partagé).
+  - `engine_classes(task: str) -> dict` — Moteur → CLASSE de backend, pour les backends du contrat de `task` — DÉRIVÉ de la
   - `backend_for_model(model, entries=None)` — Classe de backend qui sait exécuter `model`, ou None.
   - `backend_for_key(model_key: str, entries=None)` — La MÊME porte que `backend_for_model`, adressée par la CLÉ de catalogue (`<source>:<id>`).
   - `class ModelNotServed(RuntimeError)` — Aucun backend ne sert la clé de catalogue demandée — le lancement s'arrête en le disant,
   - `backend_instance(cls, model_key: str='', user=None)` — L'instance gardée chargée de la CLASSE `cls`, préparée pour `model_key` : la clé posée
   - `backend_instance_for_key(model_key: str, user=None)` — L'INSTANCE prête du backend qui sert `model_key` — LA porte de lancement d'un modèle
   - `run_contract(instance, **values)` — Appelle la méthode de TRAVAIL du contrat de `instance` avec les valeurs qu'elle ACCEPTE,
-  - `engine_classes(task: str) -> dict` — Moteur → CLASSE de backend, pour les backends du contrat de `task` — DÉRIVÉ de la
   - `work_method_accepts(cls, name: str) -> bool` — La méthode de travail du contrat de `cls` reçoit-elle une valeur nommée `name` ? — lu sur
   - `route_for_nature(package: str, nature: str, routes: dict=None)` — La porte par NATURE d'entrée : le callable que les `ROUTES` d'une app déclarent pour
   - `invalidate_catalog_index() -> None` — Le prochain `catalog_keys_for_owner` relit le catalogue (après une synchro, un test).
@@ -1856,13 +1856,13 @@ Inventaire des moteurs de WAMA, dérivé À CHAQUE AFFICHAGE des déclarations `
   - `count() -> int` — Total de backends du vivier (apps réelles) — pour le registre des registres.
   - `orphelins(entrees, servis) -> tuple` — (muets, expliqués) — backends qu'AUCUN modèle ne désigne, séparés par la RAISON.
   - `resolvable_entries() -> List[BackendEntry]` — Le vivier que la résolution consulte — jumelles de bac à sable exclues. Un appelant qui
+  - `contract_engines(task: str) -> dict` — Moteur → `(module, classe)` des backends CONCRETS du contrat de `task`, lus par AST dans
   - `resolve_entry(engine: str, model_id: str='', entries=None, task: str='') -> Optional[BackendEntry]` — ENTRÉE du vivier qui sait exécuter `model_id` avec `engine` — ou None. STATIQUE :
   - `resolve_backend(engine: str, model_id: str='', entries=None, task: str='')` — Classe de backend qui sait exécuter `model_id` avec `engine` — ou None.
   - `app_backend_entries(app: str) -> List[BackendEntry]` — Backends que `app` RÉSOUT réellement, par le lien du catalogue — STATIQUE, dédoublonnés
   - `app_backend_paths(app: str) -> List[Path]` — Fichiers source des backends résolus par `app` (cf. `app_backend_entries`), n'existant
 
 ### ▶ d'un process (fabrique commune)
-  - `contract_engines(task: str) -> dict` — Moteur → `(module, classe)` des backends CONCRETS du contrat de `task`, lus par AST dans
 
 La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_view` (2026-10-04) : process connu, ayant lieu pour cette card (`AppPipeline.applicable`), anti-course (`begin_processing`), tâche lancée bornée à ce process. Écrite à la main dans six apps avec trois formes de refus ; mêmes crochets que `make_batch_views` (`task_for`, `reset_on_start`). Le pipeline se lit de l'app de l'élément (`pipeline_of`), il n'est pas un argument
 
