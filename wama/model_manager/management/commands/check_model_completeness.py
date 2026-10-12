@@ -23,7 +23,7 @@ second contrôle de la même chose finirait par en contredire un autre. Ce repor
 rappelle en une ligne et renvoie.
 
 ⚠⚠ LE VERDICT DE BACKEND EST VENV-DÉPENDANT — mesuré le 2026-09-03. Depuis le raffinement
-`missing_packages()` de l'inventaire (commit 02001d2d : « l'inventaire n'annonce que
+`missing_packages()` de l'inventaire (commit be6085da : « l'inventaire n'annonce que
 l'EXÉCUTABLE »), `known_engines()` ne rend que les engines dont le runtime pip est présent
 DANS LE VENV COURANT. Le même appel a rendu `kokoro-onnx` MANQUANT depuis venv_win et
 PRÉSENT depuis venv_linux — sur le même catalogue, à la même seconde. Le runtime qui fait

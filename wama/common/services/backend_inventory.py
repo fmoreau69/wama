@@ -832,7 +832,7 @@ def app_backend_entries(app: str) -> List[BackendEntry]:
 
     Le sens du lien (rappelé trois fois au handoff du 07/09) : un backend est lié au MODÈLE,
     l'app appelle SON modèle. Depuis que les classes vivent sous `wama/common/backends/`
-    (8c556100), « les backends de l'app » ne se lisent plus dans son dossier : ils se
+    (397cbe25), « les backends de l'app » ne se lisent plus dans son dossier : ils se
     DÉRIVENT — `AIModel.source = app` → `composition.runtime.engine` → `ENGINE` /
     `SUPPORTED_MODELS` du backend. C'est la même dérivation que `backend_for_model`, sans
     l'import. Hors Django ou catalogue vide : liste vide (l'appelant a un repli à lui).

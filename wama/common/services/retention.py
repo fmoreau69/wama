@@ -11,7 +11,7 @@ l'enregistrement est supprimé. Fail-safe, idempotent.
 période de rétention qui n'est pas nulle, c'est qu'il souhaite la suppression des fichiers au bout
 de la durée qu'il indique. Il n'est pas question de retirer ce fonctionnement. »* La durée choisie
 EST le consentement, et le pré-avis (J-N) prévient. Du 2026-09-30 au 2026-10-01 la purge LIBÉRAIT
-au lieu d'effacer (`4e441a80`) — une lecture trop large de la décision D34, qui ne visait que le
+au lieu d'effacer (`78479ed9`) — une lecture trop large de la décision D34, qui ne visait que le
 retrait d'une card par l'utilisateur. Une rétention INFINIE (aucune durée) ne purge rien : c'est
 là que `released_files` prévient des fichiers inutilisés.
 

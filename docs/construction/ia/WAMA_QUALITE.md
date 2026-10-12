@@ -370,7 +370,7 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
   les apps (`studio/tasks.py::run_pipeline_task`, ordre topologique ; `generic_runner`, triade
   create/start/poll), et `texte → synthesizer (audio) → transcriber (audio)` s'y câble — joué en
   réel ce jour-là, il a révélé un défaut du runner commun (chemin passé en URL encodée, un nom
-  accentué perdu entre deux nœuds — corrigé `26fd7191`). ⏳ Manquent : la RÉFÉRENCE propagée
+  accentué perdu entre deux nœuds — corrigé `822d991f`). ⏳ Manquent : la RÉFÉRENCE propagée
   (l'entrée du nœud amont devient le `reference_result` du nœud aval, que `result_evaluation`
   mesure déjà), et les jeux déclarés (chaînon ①).
 
@@ -892,7 +892,7 @@ DEUX réunions valides (`007a_ECRH` 20 min, `012c_EBPZ` 19 min) :
   (`is_masked_transcript`) et prend la suivante (`013c_EAPD`).
 - ⚠ **Card #741** marquée « crash machine » à tort : un message RE-LIVRÉ périmé (1ʳᵉ exécution
   tombée pendant une relance de WAMA) a écrasé la relance réussie. Corrigé dans
-  `process_control.refuse_crash_redelivery` (`73d33b56`), card rétablie.
+  `process_control.refuse_crash_redelivery` (`d5a5e471`), card rétablie.
 
 **Premières mesures (2026-09-29, réunion `007a_ECRH`, 20 min, 4 locuteurs, `text_v2`)** — partielles,
 une réunion, sans prétraitement : Whisper **28,5 %** · Qwen3-ASR 1.7B **30,2 %** · Canary 1B v2
@@ -964,7 +964,7 @@ prétraitement rendait le DÉBUT plus fidèle, couper le VAD améliorerait-il ?
 - **Mesure corrigée le même jour** : 4 extraits Sonal sur 21 étaient VIDES dans la référence
   (~8 min) ; ce que Whisper y entendait comptait en ajouts (1 128 mots). La lecture déclare
   désormais les plages transcrites (`covered_spans`) et l'évaluation commune ne compare que
-  celles-là (`result_evaluation._restricted`, commit `04bc371d`) — #724 : 51,3 → 44,5 %.
+  celles-là (`result_evaluation._restricted`, commit `17eea90b`) — #724 : 51,3 → 44,5 %.
 - ⚠ #1048 a été interrompue par une relance de WAMA (14:25) : tâche perdue, card restée
   « en cours » jusqu'à sa relance à la main. Ce qui a relancé WAMA n'est pas identifié.
 
@@ -989,8 +989,8 @@ confié à des cards du même lot (mêmes réglages, même référence).
   Sur l'audio d'origine il rejette nettement (0,354 contre 0,697 × 0,6). **La décision « auto »
   dépend de l'endroit où tombent 3 fenêtres** — et elle n'est écrite dans la console que quand
   elle COUPE le VAD (`workers._vad_filter_for`), jamais quand elle le garde.
-- ✅ **Fait le même jour** : sonde échantillonnée selon la durée (`bd81913e`), décision « auto »
-  écrite dans les deux cas (`05732b53`). Corpus du banc tranché par Fabien : **les deux**.
+- ✅ **Fait le même jour** : sonde échantillonnée selon la durée (`782fcb48`), décision « auto »
+  écrite dans les deux cas (`da7a9a0b`). Corpus du banc tranché par Fabien : **les deux**.
 - Ordre dans le worker (`workers.py:486-498`) aujourd'hui : débruitage → nivellement → VAD (dans
   le moteur). Ne pas l'inverser avant le banc : sur cet entretien, c'est le VAD, pas l'ordre, qui
   décide du résultat. → voir le banc ci-dessous.
@@ -1114,13 +1114,13 @@ langue « Auto », VAD auto, sans débruitage ; WER moyen par enregistrement :
   le nivellement l'aide là comme il aide Qwen3-ASR ; sur les réunions il le dessert (45 → 50 %).
 - **LinTO** : mesuré d'abord à 61 % (passes de 600 s recopiées de Parakeet le 01/10) ; il est
   entraîné sur des énoncés ≤ 30 s et OMETTAIT la moitié des mots en passe longue. Passes de 30 s
-  coupées dans une pause (`8f2243e`) → 43,7 %. Score SUMM-RE seul valable (CFPP/FLEURS vus).
+  coupées dans une pause (`39203f4`) → 43,7 %. Score SUMM-RE seul valable (CFPP/FLEURS vus).
 - **Trois défauts d'INTÉGRATION trouvés par la campagne, pas par les essais** — une card isolée
   passait, la FILE tombait : (1) Kyutai après LinTO dans le même worker, « Inplace update to
-  inference tensor » → génération en `inference_mode` (`341af61`) ; (2) LinTO réutilisé après
+  inference tensor » → génération en `inference_mode` (`8d86ae0`) ; (2) LinTO réutilisé après
   Kyutai, « illegal memory access » qui corrompt le contexte CUDA et fait tomber TOUTE la file —
   passait avec `CUDA_LAUNCH_BLOCKING=1` (course entre flux) → décodage NeMo sans graphes CUDA
-  (`8ef3557`) ; (3) le worker ne décharge pas en fin de card : les modèles de moteurs différents
+  (`345ca40`) ; (3) le worker ne décharge pas en fin de card : les modèles de moteurs différents
   COHABITENT, ce que ni un smoke ni une card seule ne montrent — et FrWhisper comme Kyutai
   RECHARGEAIENT leur modèle à chaque card sans libérer le précédent : la mémoire s'empilait
   jusqu'au manque (19:53 et 20:18, ~19 Go alloués par PyTorch ; relevé par une autre instance,

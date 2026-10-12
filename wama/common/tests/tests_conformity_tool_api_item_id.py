@@ -1,6 +1,6 @@
 """Criterion `tool_api_item_id`: `add_to_<app>` hands back the uniform `item_id` key.
 
-Since 2026-10-06 (`c928fd69`) the creators return the key THEMSELVES and the normalised aliases
+Since 2026-10-06 (`1ffa1431`) the creators return the key THEMSELVES and the normalised aliases
 (`add_to_synthesizer`, `add_to_imager`…) only delegate. The criterion read the alias body alone
 and turned red on four apps that keep the contract. It follows the delegation now — and still
 refuses an alias whose delegate does not return the key.

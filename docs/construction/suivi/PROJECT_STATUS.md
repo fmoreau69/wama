@@ -2750,7 +2750,7 @@ Corrigés : la section pip du setup **vérifie** au lieu d'imposer (et n'install
   est gitignoré. Les deux sont reconstruits par le setup, donc rien n'est cassé ; déclarer
   l'URL rendrait le clone récursif complet. Engage la façon dont le dépôt se clone → Fabien.
 - Deux entrées **R43** au ledger (formulaire de composition / option de voix `custom`), venues
-  des commits `2e19ef61` et `f81e55a9`. **Aucune n'est de moi** — les renuméroter casserait les
+  des commits `b302f7c0` et `6fdd31ce`. **Aucune n'est de moi** — les renuméroter casserait les
   références de leurs auteurs. À trancher par ceux qui les ont ouvertes.
 - `describer:whisper` : sa déclaration annonce `whisper-base` et 0,3 Go, son code charge
   **faster-whisper large-v3** via la brique commune. Signalé dans le fichier, non corrigé —
@@ -2799,7 +2799,7 @@ Corrigés : la section pip du setup **vérifie** au lieu d'imposer (et n'install
 > coup)** : plus AUCUNE app ne porte une classe de backend, 35 classes sous `common/backends/`.
 > Ce qui reste, dans l'ordre : ① **`vendor/`** (MuseTalk, CodeFormer — décision prise, non
 > exécutée, cf. « Laissé » n°2) ; ② **19 moteurs → registre des librairies** par manifeste ;
-> ③ ~~faire DESCENDRE le budget d'adoption~~ ✅ **FAIT (nuit du 07/09, `7494a61f`) : budget 0**, 18 sites convertis (imager vidéo ×5 avec `PARAMS` déclaré par le backend, `model_registry` ×8 par le moteur déclaré, avatarizer ×2 paresseux, SAM3, DeepFilterNet, défauts imager par déclaration ; describer BLIP résolu au 1ᵉʳ appel). ⚠ **Test de vie fait AVANT** : sur les 18, 2 étaient du CODE MORT EN PARALLÈLE — les branches Wan et HunyuanVideo (aucune surface ne les offrait ; poids partis en janvier, `diffusion/wan` = 22 Ko, les 50 Go de `hunyuan` sont l'image 2.1 ; jobs de janvier SUCCESS). Un budget compte des lignes, pas des chemins vivants. ⚠ Wan : le backend charge `Wan-AI/Wan2.2-*` depuis `diffusion/wan` — le FastWan 2.2 (23 Go) présent à la racine `diffusion/` et au catalogue (`huggingface:FastVideo/…`, SANS moteur déclaré) n'est PAS ce qu'il charge : à harmoniser par DÉCLARATION si Wan doit resservir. (ancien texte : **18** sites, `tests_backend_adoption` les nomme :
+> ③ ~~faire DESCENDRE le budget d'adoption~~ ✅ **FAIT (nuit du 07/09, `c25e075b`) : budget 0**, 18 sites convertis (imager vidéo ×5 avec `PARAMS` déclaré par le backend, `model_registry` ×8 par le moteur déclaré, avatarizer ×2 paresseux, SAM3, DeepFilterNet, défauts imager par déclaration ; describer BLIP résolu au 1ᵉʳ appel). ⚠ **Test de vie fait AVANT** : sur les 18, 2 étaient du CODE MORT EN PARALLÈLE — les branches Wan et HunyuanVideo (aucune surface ne les offrait ; poids partis en janvier, `diffusion/wan` = 22 Ko, les 50 Go de `hunyuan` sont l'image 2.1 ; jobs de janvier SUCCESS). Un budget compte des lignes, pas des chemins vivants. ⚠ Wan : le backend charge `Wan-AI/Wan2.2-*` depuis `diffusion/wan` — le FastWan 2.2 (23 Go) présent à la racine `diffusion/` et au catalogue (`huggingface:FastVideo/…`, SANS moteur déclaré) n'est PAS ce qu'il charge : à harmoniser par DÉCLARATION si Wan doit resservir. (ancien texte : **18** sites, `tests_backend_adoption` les nomme :
 > imager vidéo ×5, `model_registry` ×8, avatarizer ×2, anonymizer ×1, transcriber ×1) ; ④ la
 > dérivation des `requires` d'app par modèle→backend (corpus **8 périmés voulus**) ; ⑤ le
 > retrait de `backend_ref`. Protocole ÉPROUVÉ : smoke de résolution AVANT la substitution,
@@ -2822,18 +2822,18 @@ backend**. Le backend n'a AUCUN lien avec une app. Les modèles sont hors des ap
 les backends le deviennent (`common/backends/`) ; les moteurs sont des LIBRAIRIES.
 
 **Fait (7 commits)** :
-- `bbf7f867` + `b5d15464` — 5 apps sans backends chez elles (face_analyzer, composer, enhancer,
+- `33f708c2` + `94377eda` — 5 apps sans backends chez elles (face_analyzer, composer, enhancer,
   cam_analyzer, anonymizer) ; 11 modules au substrat ; `anonymizer/backends/base.py` renommé
   `detection_base.py` (collision avec le contrat). **Trois imports inter-apps guéris d'un coup**,
   dont l'inversion Lab→Médias (`cam_analyzer` → `anonymizer`) : la cause était l'EMPLACEMENT.
-- `000a5e69` — **`backend_for_key()`** (même porte que `backend_for_model`, adressée par la clé de
+- `1ffba08f` — **`backend_for_key()`** (même porte que `backend_for_model`, adressée par la clé de
   catalogue que l'app tient réellement), **2 premiers adoptants** (composer : le discriminateur
   `backend` de `COMPOSER_MODELS` disparaît ; enhancer vidéo), et la **garde-budget**
   `tests_backend_adoption` : **22 imports de classe par chemin**, ne peut que descendre.
-- `b4492acf` — **dernier site mutant un jeton HF retiré** (`setup_sam3_hf_environment` : second
+- `97e965c7` — **dernier site mutant un jeton HF retiré** (`setup_sam3_hf_environment` : second
   exemplaire du jeton + écriture dans le `$HOME`) ; la garde HF couvre désormais le JETON, socle
   exclu explicitement (c'est LE domicile).
-- `1454c691` — règle `AGENTS.md` « vérifier la route AVANT de PROPOSER » (4 sources d'autorité,
+- `10a0eb59` — règle `AGENTS.md` « vérifier la route AVANT de PROPOSER » (4 sources d'autorité,
   test d'acceptation : citer ce qu'on a lu).
 
 **Décisions de Fabien (prises, pas encore toutes exécutées)** :
@@ -2853,10 +2853,10 @@ les backends le deviennent (`common/backends/`) ; les moteurs sont des LIBRAIRIE
 **Laissé, nommément** :
 1. ~~les 6 apps restantes~~ ✅ FAIT le 07/09 (3ᵉ tranche, 30 modules, 66 recalages) — restent les
    27 copies des jumelles `_01`, qui disparaîtront à leur régénération (GO Fabien déjà acquis) ;
-2. ~~**`vendor/`**~~ ✅ **FAIT (`52cb194e`)** : MuseTalk + CodeFormer sous `wama/common/backends/vendor/<moteur>/`, racine DÉCLARÉE `settings.BACKEND_VENDOR_DIR` (le sous-dossier porte le nom d'`ENGINE`), `VENDOR_PACKAGE`/`_vendor_dir` disparus des 2 backends, gitlink `codeformer` (sans URL) retiré de l'index, sous-dossiers gitignorés, README versionné, setup recalé (12 cibles, `bash -n` OK — ⚠ 205 CRLF retirés après réécriture Python), symlinks de poids ABSOLUS vérifiés depuis WSL2. Exclusion du balayage : RIEN à coder (les gardes parcouraient déjà ces arbres sous l'app ; pas de `__init__.py` dans `vendor/`).
+2. ~~**`vendor/`**~~ ✅ **FAIT (`b9acce9f`)** : MuseTalk + CodeFormer sous `wama/common/backends/vendor/<moteur>/`, racine DÉCLARÉE `settings.BACKEND_VENDOR_DIR` (le sous-dossier porte le nom d'`ENGINE`), `VENDOR_PACKAGE`/`_vendor_dir` disparus des 2 backends, gitlink `codeformer` (sans URL) retiré de l'index, sous-dossiers gitignorés, README versionné, setup recalé (12 cibles, `bash -n` OK — ⚠ 205 CRLF retirés après réécriture Python), symlinks de poids ABSOLUS vérifiés depuis WSL2. Exclusion du balayage : RIEN à coder (les gardes parcouraient déjà ces arbres sous l'app ; pas de `__init__.py` dans `vendor/`).
    ⚠⚠ **TROUVÉ EN BOUGEANT : MuseTalk porte 7 fichiers de correctifs LOCAUX** (20+/9−, `unet.py`, `sfd_detector.py`, `face_parsing/*`, `preprocessing.py`, `whisper/__init__.py`, `scripts/inference.py`) appliqués à la main dans le clone et captés NULLE PART — une installation fraîche les perdait en silence. Exportés dans `patches/musetalk_local_2026-09-07.diff`. 🔚 **À outiller** : les réappliquer à l'installation (`apply_patches.py`, même règle que les patches de venv) — décision : sont-ils encore nécessaires avec le venv actuel ? (les mesurer AVANT de les figer).
    ⚠ `engine_installed` du vivier n'interroge toujours que pip : un moteur vendorisé ABSENT grise par `is_available()` à l'exécution, pas dans la page. Se règle avec le chantier 3 (le moteur = une librairie dont `repository` dit la source).
-3. ~~**19 moteurs sans ligne au registre des librairies**~~ ✅ **FAIT (`e3ff6526`) — registre 16 → 28.** Mesuré depuis les `REQUIRED_PACKAGES` des backends résolus en distributions : le « 19 » mélangeait moteurs et dépendances ; **12 distributions SONT le moteur** (audiocraft, suno-bark, DeepFilterNet, diffusers, python-doctr, boson_multimodal, imaginAIry, kokoro, onnxruntime, resemble-enhance, sam3, ultralytics), semées par `manifest_export <clé> --kind library` depuis venv_linux puis projetées (créations seules ; `is_allowed`/`is_installed` jamais posés par la projection).
+3. ~~**19 moteurs sans ligne au registre des librairies**~~ ✅ **FAIT (`e92e8507`) — registre 16 → 28.** Mesuré depuis les `REQUIRED_PACKAGES` des backends résolus en distributions : le « 19 » mélangeait moteurs et dépendances ; **12 distributions SONT le moteur** (audiocraft, suno-bark, DeepFilterNet, diffusers, python-doctr, boson_multimodal, imaginAIry, kokoro, onnxruntime, resemble-enhance, sam3, ultralytics), semées par `manifest_export <clé> --kind library` depuis venv_linux puis projetées (créations seules ; `is_allowed`/`is_installed` jamais posés par la projection).
    ⚠⚠ **Défaut révélé et corrigé à la source** : 4 paquets mettent le TEXTE de leur licence (1–11 Ko) dans les métadonnées ; l'extracteur le recopiait dans un champ de 128 caractères → `DataError` au 6ᵉ manifeste. `licence_courte()` (expression → champ court → classifieur → None) + validateur qui refuse un texte + `tests_manifest_library.py` (11 tests, invariant de corpus).
    🔚 **Décision** : 4 lignes existantes (`kokoro-onnx`, `pyannote-audio`, `torchaudio`, `vibevoice`) sont PLUS RICHES que leur manifeste mécanique (licence, dépôt, contrainte GPU posés à la main) — NON projetées, sinon vidées. Le corpus doit rattraper le registre : rôle `librarian` (LLM) ou manifeste AUTORÉ. Et les 2 moteurs vendorisés (musetalk, codeformer) = 1ʳᵉ librairie autorée (SPEC §6bis.1 : à acter explicitement) — la route `library` refuse `git+`, le mode d'installation « clone » est une décision.
    ⚠ **Piège de commande** : `manifest_export --kind library` SANS clé exporte TOUT (apps, models compris) — 10 fichiers réécrits puis remis à HEAD. Toujours une clé explicite pour semer.
@@ -2943,7 +2943,7 @@ VRAM et ATTEND qu'elle se libère. *Un moteur BINAIRE n'est pas un moteur sans b
    aucune charge GPU lancée). Le fichier le dit lui-même.
 8. **`get_free_vram_gb` est plus CONSERVATEUR** depuis qu'il déduit les réservations : le jour où
    un reclaim cross-process existera, ce choix sera à revoir (écrit dans le code).
-9. **Table des mécanismes PÉRIMÉE** : laissée telle par l'instance parallèle (leur `92a85910`), et
+9. **Table des mécanismes PÉRIMÉE** : laissée telle par l'instance parallèle (leur `038637d6`), et
    ma nouvelle entrée `model_readiness` s'y ajoute — la régénérer figerait leur WIP.
 
 ### Contrôles attendus au prochain `/reprise` — MESURÉS le 2026-09-09
@@ -9664,7 +9664,7 @@ sans skip** (le compte dev `wama_nightly_dev` existe en base).
 
 > Reprise du 🔚 du 02/09 (« porter une 2ᵉ app à modèle IA ») + 2 demandes Fabien en session :
 > la grille doit mesurer la chaîne de génération (« il y a encore des trous ») ; menu
-> « Bac à sable » + visibilité par créateur. Commits `62a501b9` ← 7 commits.
+> « Bac à sable » + visibilité par créateur. Commits `7e3a0600` ← 7 commits.
 
 1. **⭐ GRILLE : la chaîne de génération MESURÉE** — 4 critères (`backend_routes` F5,
    `task_skeleton` F5, `detail_spec` F3, `triad_specs` F6) : **87 critères**, la carte de la
@@ -9676,7 +9676,7 @@ sans skip** (le compte dev `wama_nightly_dev` existe en base).
    (`RESULT`/`NATURE_FIELD` → manifeste → `tasks_gen` 2 saveurs) ; source TRADUITE
    (4 describers utils/ → backends/ ORM-free au contrat texte, workers = squelette+glu,
    triade → TRIAD_SPECS avec ses 2 richesses MONTÉES DANS LA BRIQUE, detail en SPEC,
-   garde `WAMA_GPU_SAFE_MODE` sur la cascade Ollama AUTOMATIQUE — jumelle de 27898e4b).
+   garde `WAMA_GPU_SAFE_MODE` sur la cascade Ollama AUTOMATIQUE — jumelle de af378453).
    **DESCRIBER 100 % (78/78), 2ᵉ plein score.** Route §10.3 recalée.
 3. **⭐ PREUVE : `describer_01` (5/7 substitués, `--proprietaire fmoreau69`) a DÉCRIT une
    photo réelle par le corps COMPOSÉ** (BLIP poids réels, CPU forcé, garde GPU active
@@ -9758,7 +9758,7 @@ jumelle CONVERTIT). Le rituel : `/port-app` + la route §10.3 (marche B1 documen
 pour une app à modèle IA, le corps composé devra appeler `select_model`/backends au contrat
 commun — c'est LA nouveauté vs converter (backends sans modèle).
 
-### Livré ce 02/09 (chaque pièce MESURÉE — commits 0f499be1 → 046af1be)
+### Livré ce 02/09 (chaque pièce MESURÉE — commits e69d94e2 → 0fcd6f3d)
 1. **Constats écran Fabien** : infos de file au chargement (course de poller, fix commun) ;
    modale de LOT pré-remplie des valeurs PARTAGÉES des filles (sémantique de la carte mère,
    lecteur de gear UNIQUE `WamaInspector.gearValues/sharedGearValues`) ; graphie des data de
@@ -9767,7 +9767,7 @@ commun — c'est LA nouveauté vs converter (backends sans modèle).
 2. **Réglages de la NATURE en modale de lot** (le regroupement par nature : vérifié commun
    et fonctionnel — dépôt mixte → un batch par nature) + cross-app GPU au lot (garde levée,
    décision Fabien ; fait mesuré consigné : la session ONNX se recharge encore PAR item).
-3. **⚠ GARDE GPU sur le triage VLM du smoke** (27898e4b) — le chemin qui a crashé l'hôte
+3. **⚠ GARDE GPU sur le triage VLM du smoke** (af378453) — le chemin qui a crashé l'hôte
    2× le 02/09 consulte enfin `WAMA_GPU_SAFE_MODE` (flag déjà à 1 dans .env → effectif).
    RÈGLE PERSONNELLE : plus aucune batterie UI sans garde active.
 4. **MODÈLE ÉVÉNEMENTIEL des réglages** (arbitrage Fabien, `ROADMAP §23.2quater` qui
@@ -9829,7 +9829,7 @@ commun — c'est LA nouveauté vs converter (backends sans modèle).
 > https://claude.ai/code/artifact/116dacca-e144-43fc-b014-870218b190c5 (les 2 URLs
 > antérieures = v1 périmée du 31/08, à supprimer — le service refusait la republication).
 
-**Livré, chaque pièce MESURÉE (commits `ad85aeb3` → `8788e3be` + grille/mécanismes) :**
+**Livré, chaque pièce MESURÉE (commits `b5b4767a` → `4fb51a36` + grille/mécanismes) :**
 1. **Réparation reader** (casse VUE PAR FABIEN — mon retrait de `reader_tags` avait laissé
    son `{% load %}`) + **garde pérenne** : `check_templates` signale tout `{% load %}` vers
    une bibliothèque absente, contre-éprouvée sur le défaut exact. *Un retrait se vérifie sur
@@ -9843,12 +9843,12 @@ commun — c'est LA nouveauté vs converter (backends sans modèle).
    §23.2bis` = le RETOURNEMENT (le converter était le seul CONFORME : il ne stocke que
    l'explicite — c'est ce qui rend un preset possible) ; §23.2ter = conflit à trancher
    avant marche B (la cascade GÉNÉRÉE stocke les défauts → preset inopérant sur ces jobs).
-4. **Converter en COLONNES** (17, nullables, SANS défaut en base — commit `e42a2f71`) :
+4. **Converter en COLONNES** (17, nullables, SANS défaut en base — commit `e04976f0`) :
    migration Rename+recopie ÉCRITE À LA MAIN (⚠ makemigrations proposait Remove+Add = PERTE
    des réglages ; 13 jobs recopiés, 0 perdu, 4 témoins identiques). ⚠ migration 0010 NON
    versionnée (gitignore) — décision Fabien : versionnement des migrations À LA MISE EN PROD
    (base neuve) ; copie de sûreté au scratchpad. `poser_reglages()` = écriture UNIQUE.
-5. **Zone de composition = le SCHÉMA** (commit `30312119`, R43) : les 136 l. de formulaire
+5. **Zone de composition = le SCHÉMA** (commit `c2623984`, R43) : les 136 l. de formulaire
    manuscrit retirées, hôte unique à 3 moments, affordances gardées (type/profil/reset).
    ⚠ La batterie jumelle a RÉVÉLÉ un défaut masqué : la cascade générée posait des CHAÎNES
    (`'false'`) sur colonnes typées — 2 POST « acceptés », 0 créé, invisible aux tests unit,
@@ -10368,13 +10368,13 @@ serveur.
 
 | commit | objet |
 |---|---|
-| `e24e8e73` | comptage exhaustif du rapport (4ᵉ issue `sans_identite`) + `idents` fuyant + règle des échelles à domicile unique |
-| `c6592ecb` | appariement par les QUALIFICATIFS quand aucune taille n'est publiée — 10 → 15 appariés, **zéro alias ajouté** |
-| `e0a64b13` | rang centile + `deepseek-coder-v2` désambigué par le DIGEST Ollama |
-| `ff049aee` | la découverte ne perd plus les métiers SECONDAIRES (`capabilities['tasks']`) |
-| `0060105d` | la mesure de performance s'enchaîne à la prospection (réseau seul, aucun GPU) |
-| `4347021f` | registre de SOURCES déclaratif — ajouter une plateforme coûte une entrée |
-| `af71150b` + `e689be9f` | `model_config['mode']` → `'tasks'` + resync des 12 manifestes imager |
+| `7b0ba9cb` | comptage exhaustif du rapport (4ᵉ issue `sans_identite`) + `idents` fuyant + règle des échelles à domicile unique |
+| `a8811953` | appariement par les QUALIFICATIFS quand aucune taille n'est publiée — 10 → 15 appariés, **zéro alias ajouté** |
+| `17347081` | rang centile + `deepseek-coder-v2` désambigué par le DIGEST Ollama |
+| `e95d9839` | la découverte ne perd plus les métiers SECONDAIRES (`capabilities['tasks']`) |
+| `31977357` | la mesure de performance s'enchaîne à la prospection (réseau seul, aucun GPU) |
+| `62c31323` | registre de SOURCES déclaratif — ajouter une plateforme coûte une entrée |
+| `93bfdbb2` + `b2cbe208` | `model_config['mode']` → `'tasks'` + resync des 12 manifestes imager |
 
 **Chiffre d'entrée → de sortie** : le bouton « Performance » rendait *10 appariés, 17 sans
 banc* pour **159 lignes examinées** — 15 modèles ne tombaient dans AUCUN compteur. Il rend
@@ -10497,7 +10497,7 @@ ce qu'ils ont mesuré est consigné ci-dessus ou dans les messages de commit.
 **affichage du modèle retenu en PRÉVISION** sous le select (décision Fabien), réévaluation au
 lancement avec message si les ressources ont changé. Prérequis TOUS livrés cette session.
 
-**Livré** (13 commits, `999dd373` → `eeeaa24c`) :
+**Livré** (13 commits, `4e342c24` → `f2bdb7c4`) :
 1. **Portage F4b ② + ③** — synthesizer ET avatarizer tirent leurs options du catalogue par
    CAPACITÉ (7 moteurs servis dont Kokoro-ONNX, 4 avant) ; espace de clés unifié (clé
    catalogue entière, 103 lignes réelles migrées, résolveur tolérant) ; dispatch
@@ -10543,7 +10543,7 @@ lancement avec message si les ressources ont changé. Prérequis TOUS livrés ce
 - **divergence d'AUTORITÉ manifeste↔découverte** : pour un modèle déclaré par une app, la
   découverte fait autorité sur `capabilities`/`composition.runtime` (partage
   `_capabilities_projectable`) — mais la route §F4b écrit le sens inverse. Les deux ne
-  peuvent pas rester écrits (signalé dans le message de `84dd08a1`).
+  peuvent pas rester écrits (signalé dans le message de `f5bffc9c`).
 - **2 moteurs TTS proposés sans backend** (`chatterbox-tts`, `transformers-remote-code`) :
   refus explicite au lancement ; leur grisage = l'arbitrage « défaut constaté » du 31/08,
   toujours ouvert.
@@ -10661,7 +10661,7 @@ posée et testée, menu restructuré, `main` = `dev` poussés. Au choix :
 - le **hero** des pages catalogues, dernier candidat de généralisation nommé — à prendre si
   un 9ᵉ registre arrive, pas avant (toujours 8 registres : rien à faire) ;
 - ~~**10 manifestes d'apps + anonymizer:sam3 modifiés NON COMMITÉS**~~ → **COMMITÉS** dans
-  `901e86b9` (palier auto-sélection : `options_auto` entrait au littéral des schémas, d'où
+  `e6d1ab0d` (palier auto-sélection : `options_auto` entrait au littéral des schémas, d'où
   leur régénération — sam3 y est aussi) ; arbre propre, corpus à jour (113) ;
 - ~~la référence de ligne du handoff du 01/09 vers le gabarit converter raccourci~~ →
   **CORRIGÉE le 02/09** (`:447` → `:362`, le littéral ayant été remplacé par
@@ -10857,7 +10857,7 @@ seul) — les deux NeMo entrés comme CANDIDATS par le writer unique avec un spe
   de concordance de la provenance, probable). *Un `llen` à 0 ne dit pas « rien ne tourne » :
   il dit « tout a été pris ». La question se pose à `inspect active`, jamais à la file.*
   Rattrapage à la main (task, licence, platform_ref) + manifestes régénérés.
-- **Jeton HF** : commit `c2e2efb1` (`.env HF_TOKEN` = domicile, fichier historique promu,
+- **Jeton HF** : commit `c6bf8a67` (`.env HF_TOKEN` = domicile, fichier historique promu,
   source `huggingface` déclare sa clé — page Sources : « clé posée »). `.env` reçoit la ligne
   vide ; Fabien y copie la valeur du fichier `AI-models/cache/huggingface/token` puis le supprime.
 - **Emplacements audités** : le réel suit `model_locations` (catégorie = ModelType) et
@@ -10962,7 +10962,7 @@ options et exports ; le prochain `start_wama_prod.sh` le verra par son garde) ·
 file `default` PURGÉE par moi (1026 messages indélivrables), files `gpu` (131) et `celery` (27)
 + réservation VRAM laissées telles quelles · base de test partagée : une collision mesurée ce
 soir (143 erreurs identiques, 1117 tests), résolue en relançant seul · HWiNFO relancé par Fabien
-après les deux crashs · triage VLM du smoke : garde posée par l'autre instance (`27898e4b`).
+après les deux crashs · triage VLM du smoke : garde posée par l'autre instance (`af378453`).
 
 **Artefacts de session** (jetables, dans le scratchpad de session — jamais en chemin) : les
 sondes des flux (forme des CSV Open ASR, parquets Arena, index MTEB), les pilotes d'installation
@@ -10984,15 +10984,15 @@ catégorie + fabrique de tests). **`/skill-forge` NON déroulé** (clôture tard
 **Complément de clôture (balayage de TOUTE la session, question Fabien « rien oublié ? ») —
 quatre trous trouvés et comblés ici** :
 - ⚠⚠ **Les workers tournent le code d'AVANT MTEB** : le relancement de WAMA (~21:00) précède les
-  commits `c65df898` (MTEB), `36b2bfff` (tâche Ollama, dédoublonnage daté, un seul format de
-  poids) et `2406a649`. Conséquence mesurée : **0 banc MTEB écrit en base** — seuls mes dry-runs
+  commits `d32a6157` (MTEB), `e5094609` (tâche Ollama, dédoublonnage daté, un seul format de
+  poids) et `c61591e9`. Conséquence mesurée : **0 banc MTEB écrit en base** — seuls mes dry-runs
   l'ont vu. → **Relancer WAMA, puis « Mesurer la performance » depuis la page** pour que
   bge-m3 / qwen3-embedding:4b portent leur banc ; sans le redémarrage, une prospection depuis
   la page rejouera l'ancien code (pas de `task` sur les nouveaux candidats Ollama).
 - Résidu : `proposed:ollama:qwen3-embedding:latest` subsiste alors que `qwen3-embedding:4b` est
   installé — la purge ciblée du seeding l'enlèvera à la prochaine passe (famille installée
   exclue des « nouveaux ») ; rien à faire à la main.
-- Le correctif du badge « bench » des cards (`0cdeb8dd` : tronqué par « … », valeur à une
+- Le correctif du badge « bench » des cards (`2f6150d0` : tronqué par « … », valeur à une
   décimale, « plus bas = mieux » à l'inspecteur) n'était consigné que dans son commit.
 - Décision restante non listée : **whisper-large-v3-turbo** (MIT, 1,5 Go, 6,73 % WER FR — moins
   bon que large-v3 mais 1,7× plus rapide) comme remplaçant de `whisper-base` du DESCRIBER,
@@ -11039,7 +11039,7 @@ avec succès (crash hôte, alimentation suspectée — matériel commandé).
 après relance Fabien : 31 / 23 / 28 / 79 — une ligne installée de plus) ; `check_docs` 8 cassées
 / 0 périmée (1 cible) ; `wama.model_manager` 85 OK, `tests_external_sources` OK ; **suite
 complète 1437 tests, `OK (skipped=5)`** — dernier état, après MTEB + restes techniques
-(commits jusqu'à `2406a649`). ⚠ Le run précédent avait rendu **143 erreurs** (`relation
+(commits jusqu'à `c61591e9`). ⚠ Le run précédent avait rendu **143 erreurs** (`relation
 model_manager_aimodel does not exist`, transaction avortée) sur 8 modules et **1117 tests
 seulement** : une COLLISION de base de test partagée avec l'autre instance, pas une régression
 — la même signature partout et un compte de tests tronqué en sont les marques. *Avant de lire un
@@ -11050,9 +11050,9 @@ rouge de la suite, compter les tests et lire UNE erreur : 143 fois la même n'en
 
 > Les deux chantiers validés par Fabien le 01/09 et laissés « rien d'écrit ». Détail dans les
 > docs de référence (`WAMA_APP_GENERATION_ROUTE §F4b §brique d'auto-sélection` pour le curseur ;
-> ce bloc ne recopie pas leur prose). Commits : card orange = `028a1aae` ; curseur = ce commit.
+> ce bloc ne recopie pas leur prose). Commits : card orange = `5dead198` ; curseur = ce commit.
 
-**Palier 1 — card ORANGE `AWAITING_RESOURCES`** (`028a1aae`, validé À L'ÉCRAN — item de test
+**Palier 1 — card ORANGE `AWAITING_RESOURCES`** (`5dead198`, validé À L'ÉCRAN — item de test
 créé/supprimé, capture `logs/ui_smoke/synthesizer_awaiting_card.png`) : classe `awaiting` sur
 les 11 gabarits de card + point d'état orange à pulsation lente + libellés CENTRALISÉS
 (`get_status_display` remplace la chaîne en dur ×10 — tout état inconnu s'affichait BRUT).
@@ -11246,7 +11246,7 @@ clôturé sans le committer — le laisser hors HEAD aurait cassé la cohérence
 Ses consommateurs (gabarits converter) restent dans SON périmètre non commité.
 
 **Les 12 manifestes de modèles** du commit = régénération mécanique après l'estimation
-VRAM (`0d0709e9`) — `vram_gb` estimé + `vram_estimated` entrent au corpus.
+VRAM (`854469a9`) — `vram_gb` estimé + `vram_estimated` entrent au corpus.
 
 
 ## §PALIER — 2026-09-03 (matin), instance « AUDIT DES MODÈLES INSTALLÉS » — ✅ LIVRÉ
@@ -11269,7 +11269,7 @@ estimée · **2 backend ROUGE** (Qwen3-TTS, chatterbox — états LÉGITIMES) ·
 1. **L'angle mort du grisage n'avait jamais été compté** : `backend_missing()` est permissif
    (pas de moteur déclaré = pas de verdict), donc 16 modèles installés ne sont signalés NULLE
    PART. Le cas qui le prouve : **`table-transformer` ×2 porte `backend_ref=''` et
-   `composition={}`** alors que son backend venait d'être livré et TESTÉ (B2 n°1, `046af1be`).
+   `composition={}`** alors que son backend venait d'être livré et TESTÉ (B2 n°1, `0fcd6f3d`).
    Le chantier ⑤ annonçait « `backend_ref` posé EN BASE — une réinstallation le perdrait » :
    **il n'y est déjà plus.** La voie déclarative n'est pas un confort.
 2. **« VRAM déclarée vs mesurée » ne peut pas se comparer — boucle OUVERTE.** La mesure existe
@@ -11282,7 +11282,7 @@ estimée · **2 backend ROUGE** (Qwen3-TTS, chatterbox — états LÉGITIMES) ·
    `check_model_taxonomy`, dont l'attendu du 02/09 n'en annonçait qu'un.)
 
 **⚠⚠ Le verdict de backend est VENV-DÉPENDANT** (leçon de session) : depuis le raffinement
-`missing_packages()` (`02001d2d`), `known_engines()` ne rend que les moteurs dont le runtime pip
+`missing_packages()` (`be6085da`), `known_engines()` ne rend que les moteurs dont le runtime pip
 est dans le venv COURANT. Même appel, même catalogue, même seconde : `kokoro-onnx` MANQUANT
 depuis venv_win, PRÉSENT depuis venv_linux. **venv_linux fait foi** ; le rapport nomme son venv.
 *J'ai conclu à un défaut réel avant de contre-vérifier l'instrument.*
@@ -11591,7 +11591,7 @@ tests.
 ## §CLÔTURE — 2026-09-03, instance « CURSEUR QUALITÉ → BACKENDS B2 » — ✅ CLOSE (crash hôte)
 
 **🔚 POINT D'ENTRÉE SESSION SUIVANTE** — ⚠ RÉÉCRIT en fin de session : les 3 trous de l'audit
-étaient le point d'entrée, **2 ont été soldés le jour même** (`63fd41ed`) et le 3ᵉ est vérifié
+étaient le point d'entrée, **2 ont été soldés le jour même** (`a97a83d8`) et le 3ᵉ est vérifié
 (suite complète 1487 OK). *Un point d'entrée qui survit à sa résolution envoie la session
 suivante refaire du fait.* Ce qui reste, dans l'ordre :
 ① **semer `qwen-tts` au corpus** (rôle `librarian`) — c'est le geste qui fera apparaître le
@@ -11605,7 +11605,7 @@ mécanique éprouvée, appel Ollama non) — au calme, après le chantier crash.
 **aucune garde ne borne la PENTE** (`wait_for_free_vram` mesure un NIVEAU) — chantier à part,
 instance voisine.
 
-### Livré aujourd'hui (11 commits, `901e86b9` → `3557e663`)
+### Livré aujourd'hui (11 commits, `e6d1ab0d` → `4ab43918`)
 
 Brique d'auto-sélection · card orange `AWAITING_RESOURCES` · **curseur de qualité CONTINU
 0-100** (recadrage Fabien : un POIDS dans le score, pas 3 branchements) · ralliement
@@ -11653,7 +11653,7 @@ le facteur commun est la montée elle-même, aucune parade actuelle ne le couvre
   `tool_api`, chacun s'arrêtant à la PROPOSITION (`PENDING_HUMAN_VALIDATION` / plan dry-run),
   jamais à l'application — la sûreté du corpus reste le geste humain explicite.
 - ⚠ **TROU 3 (mineur, déjà réparé)** : le rejeu des patches manquait au chemin backend —
-  corrigé ce jour (`3557e663`), mais sa suite de tests n'a pas pu être relancée.
+  corrigé ce jour (`4ab43918`), mais sa suite de tests n'a pas pu être relancée.
 
 ### Pendings
 
@@ -11671,7 +11671,7 @@ le facteur commun est la montée elle-même, aucune parade actuelle ne le couvre
   Premier essai à faire au calme — sur Qwen3-TTS, il devrait rattraper le
   `composition.components` que mon manifeste manuel a manqué (`speech_tokenizer`, 682 Mo).
 
-### Suite de clôture — les 2 TROUS de la matrice sont COMBLÉS (`63fd41ed`)
+### Suite de clôture — les 2 TROUS de la matrice sont COMBLÉS (`a97a83d8`)
 
 Stack revenue (Fabien l'a relancée) → vérification possible, les deux trous de l'audit
 ci-dessus sont réglés le jour même.
@@ -11873,16 +11873,16 @@ navigateur Playwright et a été purgé en fin de passe.
 
 | commit | quoi | preuve |
 |---|---|---|
-| `9c517abf` | 4 tests rouges soldés + `related_name` sur `imager.ImageGeneration.user` (bloquait toute jumelle d'imager) + règle « la suite se lance depuis WSL2 » dans `/reprise` | suite complète **1595 OK** (base recréée) |
-| `e75ffe0c` `0cb66cd7` | maquette v4 **dérivée de la v3.5** + matrice port × modalité, lecture rectifiée par Fabien (le LOT n'a pas de port, c'est le GESTE qui le crée ; composer sans port travail = normal ; enhancer/imager à 2 inclusions = trou de PORTAGE) | `docs/card_designs/card_v4_maquette.html`, 94 px constants sur 4 vues |
-| `30189784` | **matrice des voies d'import MESURÉE** (6 cas de Fabien, 2 suppositions renversées : la médiathèque COPIE ; le prompt n'est jamais un fichier) — 10 défauts dont 1 de sécurité | `MEDIA_STORAGE_TIERING §8` (domicile décidé, ligne `AGENTS.md` élargie) |
-| `8b51fe08` | **palier 1** — brique `media_paths.resolve_under_media_root`, **17 sites** rabattus (🔴 traversée de chemin du synthesizer ; 9 dans `tool_api` où une garde existait et que 8 fonctions ignoraient), gardien anti-récidive | 82 tests OK WSL2 + Windows |
-| `b6917571` `0622030e` | **palier 2** — transcriber consolide ; canal de drag déclaré par la card (`WamaApp.filesFromServerPaths` / `injectFiles`, GLOBAL) ; dépôt en arborescence dé-collisionné ; **la brique `WamaImport` porte le DOSSIER** (elle ne le traversait pas : câbler dessus aurait régressé 8 apps) | parc **32 OK / 0 échec / 18 skips nommés** (5 gestes × 10 apps) ; `converter_01` 8/8 |
-| `35cc5b0a` | `WamaImport` couvre ce que les apps FONT : réponse liste, `multiple`, `beforeFile`, `batchScope`, `afterImport(ids, réponses)` — défauts inchangés | contrat vérifié réseau intercepté |
-| `636aa2d6` | **D12** — `/synthesizer/` 4,5 s → **0,78 s** (le grisage refaisait 2 904 `stat` disque ×24 par page) ; `synthesizer.import` redevient vert | mémo 60 s + `invalidate_engine_cache()` dans l'installeur |
-| `b5d0c1cc` | **palier « symbole »** — 11 briques globales comptées par leur symbole ; `consommateurs()` front = symbole ∪ nom (le remplacement faisait tomber la file de 81 à 2) ; dossier récursif **2 → 22** | `doc_facts` à jour, 64 tests OK |
-| `13904b7c` | drag hors card commune → import serveur (face_analyzer redevenait muette par ma branche du 05/09) ; l'événement `filemanager:filedrop` n'a plus de consommateur vivant | JS servis parse OK |
-| `b92be04c` | **card v4 REFAITE et rebranchée** (ports en onglets, modalités toutes visibles, URL = son champ, bascule fichiers, 96 px ; ne câble jamais la dropzone) | `converter_01` **8/8 gestes** ; `imager_01` (v4 posée à la main dans la copie jetable) : 2 onglets, port référence `library·url·import`, injection → chip `WamaInputMatch` |
+| `14a125f1` | 4 tests rouges soldés + `related_name` sur `imager.ImageGeneration.user` (bloquait toute jumelle d'imager) + règle « la suite se lance depuis WSL2 » dans `/reprise` | suite complète **1595 OK** (base recréée) |
+| `3585a177` `708d784f` | maquette v4 **dérivée de la v3.5** + matrice port × modalité, lecture rectifiée par Fabien (le LOT n'a pas de port, c'est le GESTE qui le crée ; composer sans port travail = normal ; enhancer/imager à 2 inclusions = trou de PORTAGE) | `docs/card_designs/card_v4_maquette.html`, 94 px constants sur 4 vues |
+| `b26eac9e` | **matrice des voies d'import MESURÉE** (6 cas de Fabien, 2 suppositions renversées : la médiathèque COPIE ; le prompt n'est jamais un fichier) — 10 défauts dont 1 de sécurité | `MEDIA_STORAGE_TIERING §8` (domicile décidé, ligne `AGENTS.md` élargie) |
+| `76d2ae60` | **palier 1** — brique `media_paths.resolve_under_media_root`, **17 sites** rabattus (🔴 traversée de chemin du synthesizer ; 9 dans `tool_api` où une garde existait et que 8 fonctions ignoraient), gardien anti-récidive | 82 tests OK WSL2 + Windows |
+| `ab35982a` `189a5bef` | **palier 2** — transcriber consolide ; canal de drag déclaré par la card (`WamaApp.filesFromServerPaths` / `injectFiles`, GLOBAL) ; dépôt en arborescence dé-collisionné ; **la brique `WamaImport` porte le DOSSIER** (elle ne le traversait pas : câbler dessus aurait régressé 8 apps) | parc **32 OK / 0 échec / 18 skips nommés** (5 gestes × 10 apps) ; `converter_01` 8/8 |
+| `85f9b1c9` | `WamaImport` couvre ce que les apps FONT : réponse liste, `multiple`, `beforeFile`, `batchScope`, `afterImport(ids, réponses)` — défauts inchangés | contrat vérifié réseau intercepté |
+| `2094d339` | **D12** — `/synthesizer/` 4,5 s → **0,78 s** (le grisage refaisait 2 904 `stat` disque ×24 par page) ; `synthesizer.import` redevient vert | mémo 60 s + `invalidate_engine_cache()` dans l'installeur |
+| `4d446988` | **palier « symbole »** — 11 briques globales comptées par leur symbole ; `consommateurs()` front = symbole ∪ nom (le remplacement faisait tomber la file de 81 à 2) ; dossier récursif **2 → 22** | `doc_facts` à jour, 64 tests OK |
+| `b5c068c6` | drag hors card commune → import serveur (face_analyzer redevenait muette par ma branche du 05/09) ; l'événement `filemanager:filedrop` n'a plus de consommateur vivant | JS servis parse OK |
+| `12a5ec97` | **card v4 REFAITE et rebranchée** (ports en onglets, modalités toutes visibles, URL = son champ, bascule fichiers, 96 px ; ne câble jamais la dropzone) | `converter_01` **8/8 gestes** ; `imager_01` (v4 posée à la main dans la copie jetable) : 2 onglets, port référence `library·url·import`, injection → chip `WamaInputMatch` |
 
 ### ⚠⚠ Les leçons de la session (les détails vivent dans les commits cités)
 
@@ -11973,14 +11973,14 @@ navigateur Playwright et a été purgé en fin de passe.
 
 | commit | quoi | preuve |
 |---|---|---|
-| `ba126921` | **3 briques pures** : `geo.ign_road_map` (BD TOPO → port `road_map`, la 2ᵉ voie à côté du CSV de projet), `geo/osm_vector.py` (`osm_control_nodes` = la seule sémantique de carrefour, `osm_road_map` mondial, `nearest_control` en mètres), `geometry.ego_rotation` (lacet/tangage par flux de points — PAS un SLAM : fx ≈ 134 px, frontière = « l'angle par le mouvement, jamais l'échelle ») ; **2 manifestes menteurs corrigés** (`ign_roads`/`road_branches` promettaient `road_map` sans en servir la forme) | 38 tests, contre-épreuve par MUTATION (axes IGN inversés ⇒ `section_id=None` sans erreur) |
-| `05d54922` | **contrat `pure` rétabli** (noyau + wrapper `TypedFrame → TypedFrame`, patron `placement_metrics`) + **le 4ᵉ registre déclaratif gagne ses tests** (`FunctionCatalogConformiteTest`, il n'en avait aucun) → trouve dès la 1ʳᵉ exécution `protocol`/`protocole` (TypeError garanti) sur 3 fonctions | 26/30 pures honoraient déjà le contrat — mesuré AVANT de poser le garde |
-| `bbff49fe` | `yaw_disagreement` **mentait à basse vitesse** : le cap GPS y est GELÉ (`ego_pose.py:139`), pas bruité → garde `reference_held` (G7 transposé au cap) | trouvé en lisant `CHAINE §[2]` — que je n'avais pas lu avant de coder |
-| `478e0151` `aa44318b` | **INVENTAIRE EXHAUSTIF mesuré dans le code** : 13 passes en 3 étages + ordre interne du tracker (12 étapes), chemin d'une bbox jusqu'à la carte, **43 leviers de correction** (13 en ⚑, 30 constantes non comparables ; UN seul touchait la pose navette, en JS ; UN seul chiffre A/B), 3 réfutations, cadre de fusion, 6 modèles IA | `check_docs` 1443 réf. ; D.2 corrigé dans l'heure (« le tracker ne l'ignore pas » était FAUX) |
-| `05ea8776` | **① la pose NAVETTE filtrée pour la 1ʳᵉ fois** — ⚑ `shuttle_filter` (OFF) : brique pure `driving.ego_track_filter` (Kalman+RTS, cap dérivé de la vitesse lissée, tenu < 1 m/s **mesuré**) ; le lisseur remonte dans `kinematics.rts_smoother`, `trajectory_smoother` délègue (**empreinte enregistrée AVANT le déplacement**, 1e-5) ; `effective_gps_track` = point d'accès UNIQUE, 6 consommateurs ; miroir JS au point d'ingestion unique | 12 tests (cap brut > 8° d'erreur vs filtré < 1/3 ; convergence < 2 s ; limite à ±2 m DOCUMENTÉE) ; 1628 `OK` |
-| `0204021e` | **②③④ visibilité** : ⚑ `sam3_homography` (ON — la voie DLT devient commutable), **`placement_source`** par détection (G7 se COMPTE, `results_summary.placement_sources` + console), ⚑ `display_ema` (ON, **live** — l'hypothèse D.3 testable sans recalcul) | 17 bascules ; 1628 `OK` |
-| `e1c2cd6a` | **⑤a** `manifest_export --kind function` : 58/58 exportés, `--check` à jour dans les DEUX venvs, test « chaque entrée du registre s'extrait en manifeste VALIDE » | 1629 `OK` |
-| `05542404` | `effective_gps_track` : 7 tests — **⚑ OFF rend l'objet MÊME** (identité stricte), brut jamais muté | revérification de session demandée par Fabien |
+| `1452695c` | **3 briques pures** : `geo.ign_road_map` (BD TOPO → port `road_map`, la 2ᵉ voie à côté du CSV de projet), `geo/osm_vector.py` (`osm_control_nodes` = la seule sémantique de carrefour, `osm_road_map` mondial, `nearest_control` en mètres), `geometry.ego_rotation` (lacet/tangage par flux de points — PAS un SLAM : fx ≈ 134 px, frontière = « l'angle par le mouvement, jamais l'échelle ») ; **2 manifestes menteurs corrigés** (`ign_roads`/`road_branches` promettaient `road_map` sans en servir la forme) | 38 tests, contre-épreuve par MUTATION (axes IGN inversés ⇒ `section_id=None` sans erreur) |
+| `706c4ca8` | **contrat `pure` rétabli** (noyau + wrapper `TypedFrame → TypedFrame`, patron `placement_metrics`) + **le 4ᵉ registre déclaratif gagne ses tests** (`FunctionCatalogConformiteTest`, il n'en avait aucun) → trouve dès la 1ʳᵉ exécution `protocol`/`protocole` (TypeError garanti) sur 3 fonctions | 26/30 pures honoraient déjà le contrat — mesuré AVANT de poser le garde |
+| `868c90bc` | `yaw_disagreement` **mentait à basse vitesse** : le cap GPS y est GELÉ (`ego_pose.py:139`), pas bruité → garde `reference_held` (G7 transposé au cap) | trouvé en lisant `CHAINE §[2]` — que je n'avais pas lu avant de coder |
+| `691a820f` `e9bc1f3d` | **INVENTAIRE EXHAUSTIF mesuré dans le code** : 13 passes en 3 étages + ordre interne du tracker (12 étapes), chemin d'une bbox jusqu'à la carte, **43 leviers de correction** (13 en ⚑, 30 constantes non comparables ; UN seul touchait la pose navette, en JS ; UN seul chiffre A/B), 3 réfutations, cadre de fusion, 6 modèles IA | `check_docs` 1443 réf. ; D.2 corrigé dans l'heure (« le tracker ne l'ignore pas » était FAUX) |
+| `f64c96de` | **① la pose NAVETTE filtrée pour la 1ʳᵉ fois** — ⚑ `shuttle_filter` (OFF) : brique pure `driving.ego_track_filter` (Kalman+RTS, cap dérivé de la vitesse lissée, tenu < 1 m/s **mesuré**) ; le lisseur remonte dans `kinematics.rts_smoother`, `trajectory_smoother` délègue (**empreinte enregistrée AVANT le déplacement**, 1e-5) ; `effective_gps_track` = point d'accès UNIQUE, 6 consommateurs ; miroir JS au point d'ingestion unique | 12 tests (cap brut > 8° d'erreur vs filtré < 1/3 ; convergence < 2 s ; limite à ±2 m DOCUMENTÉE) ; 1628 `OK` |
+| `dd8d4260` | **②③④ visibilité** : ⚑ `sam3_homography` (ON — la voie DLT devient commutable), **`placement_source`** par détection (G7 se COMPTE, `results_summary.placement_sources` + console), ⚑ `display_ema` (ON, **live** — l'hypothèse D.3 testable sans recalcul) | 17 bascules ; 1628 `OK` |
+| `a845de66` | **⑤a** `manifest_export --kind function` : 58/58 exportés, `--check` à jour dans les DEUX venvs, test « chaque entrée du registre s'extrait en manifeste VALIDE » | 1629 `OK` |
+| `8885d99b` | `effective_gps_track` : 7 tests — **⚑ OFF rend l'objet MÊME** (identité stricte), brut jamais muté | revérification de session demandée par Fabien |
 
 ### ⚠⚠ Les leçons (le détail vit dans les commits et les mémoires citées)
 
@@ -12011,7 +12011,7 @@ navigateur Playwright et a été purgé en fin de passe.
 
 - **Rien de mien n'est laissé dans l'arbre** ; `WAMA_MECANISMES.md` a été régénéré puis **remis à HEAD** (le bloc `mecanismes` est périmé par l'ARBRE PARTAGÉ : compteurs de consommateurs gonflés par les fichiers non commités de l'autre instance — à régénérer par qui commite en dernier) ;
 - `manifest_export --check` (WSL2) : **3 périmés `avatarizer` / `imager` / `avatarizer:codeformer` — autre instance** ; `--check --kind function` : **58 à jour** ;
-- `/reprise §3a` annonce encore « attendu = 1 cible » pour `check_docs` : **faux depuis `144b17c2`** (R18 soldé, 0/0 sur 1470) — le skill est dans le diff de travail de l'autre instance, non touché ici ;
+- `/reprise §3a` annonce encore « attendu = 1 cible » pour `check_docs` : **faux depuis `6c6efe43`** (R18 soldé, 0/0 sur 1470) — le skill est dans le diff de travail de l'autre instance, non touché ici ;
 - `nightly_scenarios.CIBLES_ASSUMEES = 1` devra passer à **0** dans le même geste (idem, dans son diff) ;
 - fichiers untracked à la racine (`0.27.2`, `1.26.4`, `=1.26.0,`, `torchvision`) : pas les miens, déjà signalés par l'instance card v4 ;
 - **push** : `dev` a ~60 commits d'avance (trois instances) — non poussée ;
@@ -12043,11 +12043,11 @@ Cinq défauts RÉELS, tous invisibles à la vérification manuelle, tous trouvé
 
 | défaut | portée | commit |
 |---|---|---|
-| **La sélection mourait au polling** — 4 apps remplacent la card entière à chaque tour, la classe partait avec le nœud. Sans erreur, invisible au repos, systématique dès qu'un traitement tourne | drag&drop, 4 apps | `0e67422b` |
-| **L'aperçu mourait au re-rendu** — `media-preview.js` liait ses écouteurs nœud par nœud au `DOMContentLoaded` ; 3 apps ré-armaient à la main, **9 non** | 9 apps | `2499ca89` |
-| **Le fichier témoin du harnais n'était pas décodable** — PNG hexadécimal de 71 octets, `broken data stream`. Personne ne l'avait vu : aucun scénario ne DÉCODAIT le fichier | tout le nocturne, depuis l'origine | `3094f04c` |
-| **La garde GPU n'en était pas une** — `Scenario.vram_gb` déclaré partout, **lu par personne** | tout le nocturne | `f1cffffd` |
-| 🔴 **Des succès écrasés en échec** — `is_task_dead()` répond True pour l'état Celery `SUCCESS`. Un lot de conversions rapides finissait « Traitement interrompu (worker arrêté) » quand le worker écrivait « ✓ Terminé ». **Visible par l'utilisateur** | toute app à tâches rapides | `4da3ff4d` |
+| **La sélection mourait au polling** — 4 apps remplacent la card entière à chaque tour, la classe partait avec le nœud. Sans erreur, invisible au repos, systématique dès qu'un traitement tourne | drag&drop, 4 apps | `1f1eaa6b` |
+| **L'aperçu mourait au re-rendu** — `media-preview.js` liait ses écouteurs nœud par nœud au `DOMContentLoaded` ; 3 apps ré-armaient à la main, **9 non** | 9 apps | `7759c138` |
+| **Le fichier témoin du harnais n'était pas décodable** — PNG hexadécimal de 71 octets, `broken data stream`. Personne ne l'avait vu : aucun scénario ne DÉCODAIT le fichier | tout le nocturne, depuis l'origine | `7c37fc6b` |
+| **La garde GPU n'en était pas une** — `Scenario.vram_gb` déclaré partout, **lu par personne** | tout le nocturne | `f4e848af` |
+| 🔴 **Des succès écrasés en échec** — `is_task_dead()` répond True pour l'état Celery `SUCCESS`. Un lot de conversions rapides finissait « Traitement interrompu (worker arrêté) » quand le worker écrivait « ✓ Terminé ». **Visible par l'utilisateur** | toute app à tâches rapides | `0aff7691` |
 
 ### Livré — 15 commits, en deux moitiés
 
@@ -12057,16 +12057,16 @@ froid n'aurait pas retrouvé le drag&drop ni l'historique. Corrigé à la vérif
 
 | moitié | commits |
 |---|---|
-| **PRODUIT** (drag&drop, historique) | `9e89d4eb` `3824ce40` `5d1aed80` `797bc6d6` `f22841c4` |
-| **FILET** (scénarios nocturnes, correctifs qu'ils ont révélés) | `0e67422b` `a367ab50` `9e29b3d0` `f1cffffd` `3094f04c` `2499ca89` `864b60a5` `4da3ff4d` `4e60e53e` `df48f1e0` |
+| **PRODUIT** (drag&drop, historique) | `4a806a28` `19c5af88` `1b83c68f` `514a9c87` `ffe60ba6` |
+| **FILET** (scénarios nocturnes, correctifs qu'ils ont révélés) | `1f1eaa6b` `f8e471fc` `416fdc1e` `f4e848af` `7c37fc6b` `7759c138` `c7fd3941` `0aff7691` `2ef5c2d2` `abec23cd` |
 
-1. **Manipulation directe** (`9e89d4eb`, `3824ce40`) — brique `wama-queue-dnd.js` : 4 gestes
+1. **Manipulation directe** (`4a806a28`, `19c5af88`) — brique `wama-queue-dnd.js` : 4 gestes
    (entrer dans un lot / en former un / en sortir / ordonner) + sélection clic/Ctrl/Maj/Ctrl+A.
    Règle unique : **déposer SUR une card change l'APPARTENANCE, ENTRE deux cards change
    l'ORDRE**. `QueueOrderMixin.queue_index` (13 modèles) + 6ᵉ tri « Manuel ». `merge` ≠
    `consolidate` (fusion stricte vs rangement par nature à l'import). `group_key` = le MÊME
    `nature_of` que l'import, vérifié par AST. SortableJS écarté, motifs consignés.
-2. **`WamaHistory` (`common/js/wama-history.js`, `5d1aed80` `797bc6d6` `f22841c4`)** — extrait du transcriber pour un 2ᵉ
+2. **`WamaHistory` (`common/js/wama-history.js`, `1b83c68f` `514a9c87` `ffe60ba6`)** — extrait du transcriber pour un 2ᵉ
    consommateur, le studio, qui l'a ADOPTÉ. C'est l'adoption qui a corrigé la brique :
    `commit()` (entonnoir post-mutation) et `silence()` n'existaient pas, et la garde de
    RÉ-ENTRANCE manquait.
@@ -12127,9 +12127,9 @@ du générateur. ⚠ Touche leurs tables : demander le GO à Fabien avant.
 
 - **gunicorn rechargé plusieurs fois** (`kill -HUP`) pour recharger JS et Python — il tourne
   avec le code de HEAD. Rien à faire.
-- **Push : mesuré À LA FERMETURE** — `origin/dev` connaît déjà `df48f1e0` (mon handoff) : la
+- **Push : mesuré À LA FERMETURE** — `origin/dev` connaît déjà `abec23cd` (mon handoff) : la
   branche **a été poussée pendant la session**. Restent **7 commits d'avance**, dont mes trois
-  derniers (`fb395a9c` shas manquants · `ea707be4` garde de clôture · `bd396a14` rectification)
+  derniers (`32f8b322` shas manquants · `c59c4764` garde de clôture · `1eb78381` rectification)
   et ceux d'autres instances. ⚠ Une première rédaction annonçait « 9 non poussés » en comptant
   les MIENS sans regarder l'amont : *un pending de push se mesure contre `origin`, jamais contre
   sa propre liste de commits.*
@@ -12143,11 +12143,11 @@ du générateur. ⚠ Touche leurs tables : demander le GO à Fabien avant.
 
 ### ✅ CE QUE MON RESSERREMENT DE SEUIL A CASSÉ — SOLDÉ avant la fermeture
 
-Descendre `CIBLES_ASSUMEES` de 1 à 0 (commit `df48f1e0`) **casse 2 tests** de
+Descendre `CIBLES_ASSUMEES` de 1 à 0 (commit `abec23cd`) **casse 2 tests** de
 `wama/common/tests/tests_check_docs.py` : ils assertaient le VERDICT (`ok`) là où ils ne testent que
 le COMPTAGE, donc ils étaient liés au budget. **Mesuré : 27 OK avec le correctif, 2 échecs
 sans.** Le correctif (découpler comptage et politique) a été écrit par une AUTRE instance et
-est **désormais dans HEAD** (porté par son commit `47606901`) : vérifié à la fermeture,
+est **désormais dans HEAD** (porté par son commit `17dc54b1`) : vérifié à la fermeture,
 `tests_check_docs` **27 OK** et suite complète **1673 OK (skipped=11)**. Plus rien à faire —
 la trace reste ici parce que la CAUSE était mienne.
 
@@ -12159,7 +12159,7 @@ modifié le seuil ensuite. La clôture attestait « 665 OK » sur un arbre qui n
 ### ⚠ NE M'APPARTIENT PAS — chantier d'une autre instance, laissé intact
 
 - `doc_facts --check` rend **2 blocs PÉRIMÉS** : `conformite` (son `SKILL.md` est en cours
-  d'édition dans l'arbre) et `mecanismes` (dont la source a été touchée par `527a4f5e`,
+  d'édition dans l'arbre) et `mecanismes` (dont la source a été touchée par `04440c98`,
   session « chaîne modèle↔backend↔moteur »). **Non régénérés à dessein** : régénérer figerait
   leur WIP. La commande est `python manage.py doc_facts`.
 - Un `SyntaxWarning: invalid escape sequence '\d'` apparaît dans la suite — hors de mes
@@ -12251,7 +12251,7 @@ dossier `wama/static/js/jquery-file-upload/`, `REMOVAL_LEDGER`) à faire en 3 su
 ### PALIER 2026-09-08 (midi) — GRILLE RECALIBRÉE sur les backends RÉSOLUS (GO Fabien : « on commence par régler tous les problèmes de ton 1ᵉʳ tableau »)
 
 **Le constat** (remesure demandée par Fabien) : la nuit de l'externalisation des backends
-(`8c556100`, 11/11 apps au substrat), six critères F4/F5 avaient rougi sur toutes les apps sans
+(`397cbe25`, 11/11 apps au substrat), six critères F4/F5 avaient rougi sur toutes les apps sans
 qu'une seule déclaration ait disparu — ils lisaient `wama/<app>/**/*.py`, et REQUIRED_PACKAGES,
 `BaseModelBackend`, `cache_dir=` avaient déménagé AVEC les classes. Ce n'était pas « le chantier
 d'une autre instance qui fait baisser anonymizer/enhancer » (ligne du 07/09 ci-dessous, FAUSSE
@@ -12264,7 +12264,7 @@ dans son attribution) : c'était la grille qui ne suivait plus la règle qu'elle
 | `backend_contract` | ❌ anonymizer, composer, imager (+ preuves FAUSSES : reader via `tests_table_transformer.py`, enhancer via `nightly_scenarios.py`) | ✅ 9/9, preuves au substrat | fermeture par les BASES MÉTIER (`detection_base`, `tts_base`, `image_generation_base`, `speech_to_text_base`) : c'est la base qui nomme le contrat ; harnais exclus |
 | `vram_unloader` | N/A FAUX sur l'anonymizer (aucun `torch` chez elle), rouge imager | ✅ 9/9 | voie 1 (automatique) lue sur les backends résolus |
 | `select_model` | inchangé en verdict | idem, hors commentaires | sondes VRAM maison cherchées aussi au substrat |
-| `backend_routes` | ❌ 7, raison « moteur enfoui dans tasks/utils » | ❌ 7, raison VRAIE | les ROUTES restent une décision d'APP (« c'est la frontière », 8c556100) : « N backends résolus au substrat, aucune ROUTES déclarée » |
+| `backend_routes` | ❌ 7, raison « moteur enfoui dans tasks/utils » | ❌ 7, raison VRAIE | les ROUTES restent une décision d'APP (« c'est la frontière », 397cbe25) : « N backends résolus au substrat, aucune ROUTES déclarée » |
 
 **Comment** : la décision de `backend_for_model` est extraite en `backend_inventory.resolve_entry`
 (STATIQUE, rien n'est importé — règle de `_class_backends`), `resolve_backend` ne fait plus que
@@ -12446,7 +12446,7 @@ LIEN (il vérifiait l'attribut `onclick` puis pilotait l'input : il sautait le c
 **⚠ MES ERREURS DE LA SESSION, écrites pour ne pas les refaire** :
 1. **9ᵉ récidive du commentaire `{# #}` multi-ligne** dans `enhancer/index.html` — la mémoire du
    projet l'interdit depuis 7 récidives, `check_templates` existe depuis le 27/08, je ne l'ai
-   pas lancé. Sorti à la SUITE COMPLÈTE ; corrigé par l'AUTRE instance (`d5b2f8b8`) avant moi.
+   pas lancé. Sorti à la SUITE COMPLÈTE ; corrigé par l'AUTRE instance (`0442e3fd`) avant moi.
 2. **Une sonde fausse deux fois.** J'espionnais `input.click()` sans appeler le natif : je
    SUPPRIMAIS la remontée que je voulais observer, et j'ai rendu « OK » sur 3 apps. Puis ma
    contre-épreuve du garde d'ids retirait UN seul `card_id` sur deux, donc aucune collision :
@@ -12460,7 +12460,7 @@ LIEN (il vérifiait l'attribut `onclick` puis pilotait l'input : il sautait le c
 
 **Contrôles mesurés à la clôture** : suite complète **1888 tests, 1 échec** —
 `tests_volet.PagesDeclarantesTest` sur la page **Registres**, livrée par la session CARDS/UI
-(`0e587583`) et qui fait tomber le test de son propre commit précédent (`2a91d59b`) : **pas mon
+(`0700206a`) et qui fait tomber le test de son propre commit précédent (`2a91d59b`) : **pas mon
 périmètre, à reprendre par son auteur** · `check_docs` **0 cassée / 1505** · `check_templates`
 **0 défaut / 151** · `doc_facts` régénéré (13ᵉ mécanisme de ressources) · corpus de manifestes :
 **3 périmés par mes changements** (composer, enhancer, reader) régénérés · grille : converter et
@@ -12483,7 +12483,7 @@ cards orphelines (`PROFILES §3bis`) · triades déclaratives, specs de détail,
 | `manifest_export --check` | non relancé : le corpus est en cours de régénération par une autre instance (106 manifestes modifiés dans l'arbre) |
 | grille | converter **100**, describer **100**, reader **96**, transcriber **95**, synthesizer **95** ; anonymizer **91** / enhancer **92** en BAISSE par le chantier backends d'une autre instance (`backend_packages`, `hf_cache_isolation`…), pas par le portage |
 | familles nocturnes après portage | transcriber 13/13 · converter 13/14 + skip anti-bouclage · describer 12/12 · synthesizer 12/13 + skip « pas d'URL » · enhancer 11/12 + skip anti-bouclage · reader 11/12 + skip « pas d'URL » · anonymizer 11/12 + skip anti-bouclage ; parc `.import` **0 échec** |
-| push | `dev` non poussée par moi (6 commits de portage : `18a6266c`, `401bd9a0`, `90984b25` + 3 suivants) — mesurer contre `origin/dev` avant de conclure |
+| push | `dev` non poussée par moi (6 commits de portage : `6834316b`, `7f2d5858`, `3eee89bd` + 3 suivants) — mesurer contre `origin/dev` avant de conclure |
 | **`wama.common.tests.tests_import_contract`** (ajouté après relecture demandée par Fabien) | **4 OK** — pour les 7 apps portées : la vue d'upload accepte le multipart de la brique (`file` / `files`) et répond une forme lisible par `identifiants()` (transcription Python du lecteur JS) ; un dépôt vide est REFUSÉ ; critère `import_front` vert sur l'arbre RÉEL ; `wama-import.js` chargé AVANT le script qui l'instancie — **garde contre la déconstruction** d'un portage |
 
 ### ✅ Trouvé par ces tests et CORRIGÉ (demande Fabien : « il faut régler ça »)
@@ -12501,7 +12501,7 @@ utilisateur garde ses réglages, le déposant garde les siens, un `TestCase` sur
 contrat est revenu en `TestCase` — *une vue qui ne survit pas à une transaction englobante a un
 effet de bord à trouver, pas à contourner*. ⚠ J'avais d'abord attribué ce signal à « un chantier
 anonymizer d'une autre instance » : FAUX — les suppressions stagées de `anonymizer/backends/` que
-j'avais vues sont l'externalisation des backends (`bbf7f867`, `b5d15464`), pas un chantier de l'app.
+j'avais vues sont l'externalisation des backends (`33f708c2`, `94377eda`), pas un chantier de l'app.
 **Cadre lu après coup (question Fabien : « as-tu lu le fonctionnement commun des réglages ? »)** :
 la brique est `common/utils/user_settings.py` (cache `user_{id}_{app}_{clé}`, défauts déclarés) ;
 anonymizer et enhancer sont « les seules apps sans `user_settings` commun, table `UserSettings`
@@ -12544,7 +12544,7 @@ jamais rendus, `application/x-wama-file` émis nulle part, jQuery-file-upload sa
 ## §CLÔTURE — 2026-09-07, instance « CAM_ANALYZER » (suite du §REPRISE 04→07/09 ci-dessus) — ✅ CLOSE — 🔚 DEUX DÉCISIONS ATTENDUES
 
 > Ce bloc complète le `§REPRISE — 2026-09-04 → 09-07, instance « CAM_ANALYZER … »` (commité
-> `570641b1`) avec ce qui a suivi le 07/09 : question de Fabien sur la SURCHARGE DE BOUTONS de
+> `4286cc82`) avec ce qui a suivi le 07/09 : question de Fabien sur la SURCHARGE DE BOUTONS de
 > lancement, le pipeline schéma-driven, et le palier ① livré sur GO. Contexte épuisé → clôture
 > pour session fraîche. **Trois instances** ont commité en parallèle toute la journée ; aucun
 > recouvrement de fichier, mais `PROJECT_STATUS` porte au moment de cette clôture un `§REPRISE`
@@ -12554,9 +12554,9 @@ jamais rendus, `application/x-wama-file` émis nulle part, jQuery-file-upload sa
 
 | commit | quoi | preuve |
 |---|---|---|
-| `5ee8ee4e` | **Inventaire des boutons de lancement** (`CHANGELOG § ÉTAT`, ligne « boutons de lancement ») : 11 boutons + 13 ▶ pour 4 intentions, 1 doublon strict ×2, 2 « tout relancer » dont un destructif, 3 « Compléter » pour 2 notions, calculs lancés en PARALLÈLE malgré `_DEPENDS_ON` ; artefact « volet droit » (05/08) relu contre le code = v1 partiellement livrée (Q1-Q3 ✅, Q4/3b ⏳), en-tête d'état posé dans `REPRISE_2026-08-06.md` (clé Playwright citée périmée) | mesuré dans `index.html`/`base.html`/`index.js`/`views.py` |
-| `adb74e16` | **Le pipeline schéma-driven n'était PAS à proposer : D13** (`WAMA_DATA_WORLD §9undecies.2`, tranchée 24/08 — kind `pipeline` étendu d'un nœud `function`, dispatch dans l'exécuteur ; plan C+D) — ma ligne d'une heure plus tôt le présentait comme ma route, corrigée | `/reprise §3a bis`, encore |
-| `913d9411` | **① Palier boutons** : registre `pass_tracking.PASSES` (SIX copies du graphe en dérivent : `_WATCHED`/`_STAGE`/`_DEPENDS_ON`/`_PER_CAMERA_PASSES`/`order`/`dispatch_map`) ; **▶ tout par étage** (📷/🧮) avec gating dérivé du graphe (+ 409 serveur) ; calculs **chaînés** en ordre topologique (`celery.chain`) ; « SAM3 seul » ×2 retiré, « Analyser » ×2 rebranché sur la voie du pipeline (l'ancienne `start_analysis` effaçait les DetectionFrame sans confirmation — vue laissée servie, plus appelée) ; « Compléter les passes » / « Étendre la couverture » | 20 tests registre · `check_js` 67/0 · `check_templates` 0 · **HUP gunicorn** puis smoke page 200 / 0 erreur JS · JS servi vérifié au `curl` · suite **1685 `OK`** |
+| `0e741661` | **Inventaire des boutons de lancement** (`CHANGELOG § ÉTAT`, ligne « boutons de lancement ») : 11 boutons + 13 ▶ pour 4 intentions, 1 doublon strict ×2, 2 « tout relancer » dont un destructif, 3 « Compléter » pour 2 notions, calculs lancés en PARALLÈLE malgré `_DEPENDS_ON` ; artefact « volet droit » (05/08) relu contre le code = v1 partiellement livrée (Q1-Q3 ✅, Q4/3b ⏳), en-tête d'état posé dans `REPRISE_2026-08-06.md` (clé Playwright citée périmée) | mesuré dans `index.html`/`base.html`/`index.js`/`views.py` |
+| `297be5f7` | **Le pipeline schéma-driven n'était PAS à proposer : D13** (`WAMA_DATA_WORLD §9undecies.2`, tranchée 24/08 — kind `pipeline` étendu d'un nœud `function`, dispatch dans l'exécuteur ; plan C+D) — ma ligne d'une heure plus tôt le présentait comme ma route, corrigée | `/reprise §3a bis`, encore |
+| `47d9f9af` | **① Palier boutons** : registre `pass_tracking.PASSES` (SIX copies du graphe en dérivent : `_WATCHED`/`_STAGE`/`_DEPENDS_ON`/`_PER_CAMERA_PASSES`/`order`/`dispatch_map`) ; **▶ tout par étage** (📷/🧮) avec gating dérivé du graphe (+ 409 serveur) ; calculs **chaînés** en ordre topologique (`celery.chain`) ; « SAM3 seul » ×2 retiré, « Analyser » ×2 rebranché sur la voie du pipeline (l'ancienne `start_analysis` effaçait les DetectionFrame sans confirmation — vue laissée servie, plus appelée) ; « Compléter les passes » / « Étendre la couverture » | 20 tests registre · `check_js` 67/0 · `check_templates` 0 · **HUP gunicorn** puis smoke page 200 / 0 erreur JS · JS servi vérifié au `curl` · suite **1685 `OK`** |
 
 ### ⚠⚠ Leçons du 07/09
 
@@ -12607,12 +12607,12 @@ Ordre ensuite : C → D → export du registre `PASSES` en manifeste `pipeline` 
 
 | # | commit | quoi | preuve |
 |---|---|---|---|
-| 1 | `f9bf888f` | **Deux bugs de l'imager, deux causes sans rapport.** (a) la barre d'outils était incluse DANS le `div.wama-queue-*` : en mosaïque le conteneur passe en `display:grid`, la barre y devient une CELLULE ; (b) `withPk` (dnd) et son jumeau inline (inspecteur) substituaient le pk par `\/0\/?$` — ancré en FIN d'URL, alors que l'imager porte son pk au MILIEU → POST pk=0 → 404 → `location.reload()` muet. `WamaApp.getUrl` faisait déjà ça correctement : brique commune réécrite en moins bien, DEUX fois | mosaïque 592→**290 px** mesuré ; **404** mesuré sur `/imager/queue/0/remove-from-batch/` ; audit d'imbrication sur les 17 barres du parc : imager SEUL ; contre-épreuve sur HEAD ROUGE |
-| 2 | `ab4d067f` | **Barre d'outils GÉNÉRALE** — `common/toolbar.py` : 10 outils (l'union), 2 profils (`file`, `registre`). Les 2 barres historiques SURVIVENT en FAÇADES → les 27 pages appelantes inchangées. La recherche entre dans les 12 files par UNE clé de registre | 16 pages en 200 ; 12 barres de file × 1 recherche, portée `ok` ; licences 144→30 sur « apache » ; **`display:contents` préservé** après masquage ET effacement |
-| 3 | `ab4bbceb` | carte des mécanismes régénérée depuis un état COMMITÉ ; `toolbar_registre` déclaré ; trous de jonction 38→**37** | la fausse ligne `queue_dnd`/imager disparaît |
-| 4 | `f449d5f1` | **La barre tient sur UNE ligne volets ouverts** — 3 causes : `.input-group{width:100%}` (recherche à 592 px sur 592), selects alignés sur leur option la plus longue (462 px), libellés d'action (432 px). Container query à seuil MESURÉ (1160 px), repli des libellés en icônes | 1 ligne ≥ **880 px** (la config courante en offre ~888) ; 36 boutons / 36 libellés repliables / **0 muet** ; menus déroulants non rognés (débordent de 129 px) |
-| 5 | `b3f98d1c` | **MENU CONTEXTUEL de card/lot + débordement « … »** — clic droit = TOUT + sélection multiple ; « … » = le débordement seul (seuil nominal **6**, bouton édition compris). Actions existantes LUES sur `.btn-group-actions` (contrat de `cloneActions`), transverses DÉCLARÉES via `queue_dnd_attrs`. Zéro ligne par app | proxy à **1** clic (pas de double) ; sous-menu des lots d'accueil ; « 2 éléments sélectionnés » + « Former un lot (2) » |
-| 6 | `b3f98d1c` | **PARTAGE — la 1ʳᵉ interface de partage de WAMA** (`§7.5` : « il n'existe AUCUNE interface »). Service + route unique `<surface>/<nature>/<pk>/` + modale générée. Écrit `visibility` et son scope, sur l'élément **et** son lot | **le destinataire VOIT** : `scoped_visible_q` depuis un compte tiers, invisible en privé → visible dès qu'il rejoint l'unité → visible pour un membre du projet |
+| 1 | `29f96b61` | **Deux bugs de l'imager, deux causes sans rapport.** (a) la barre d'outils était incluse DANS le `div.wama-queue-*` : en mosaïque le conteneur passe en `display:grid`, la barre y devient une CELLULE ; (b) `withPk` (dnd) et son jumeau inline (inspecteur) substituaient le pk par `\/0\/?$` — ancré en FIN d'URL, alors que l'imager porte son pk au MILIEU → POST pk=0 → 404 → `location.reload()` muet. `WamaApp.getUrl` faisait déjà ça correctement : brique commune réécrite en moins bien, DEUX fois | mosaïque 592→**290 px** mesuré ; **404** mesuré sur `/imager/queue/0/remove-from-batch/` ; audit d'imbrication sur les 17 barres du parc : imager SEUL ; contre-épreuve sur HEAD ROUGE |
+| 2 | `4336faff` | **Barre d'outils GÉNÉRALE** — `common/toolbar.py` : 10 outils (l'union), 2 profils (`file`, `registre`). Les 2 barres historiques SURVIVENT en FAÇADES → les 27 pages appelantes inchangées. La recherche entre dans les 12 files par UNE clé de registre | 16 pages en 200 ; 12 barres de file × 1 recherche, portée `ok` ; licences 144→30 sur « apache » ; **`display:contents` préservé** après masquage ET effacement |
+| 3 | `3090dfd3` | carte des mécanismes régénérée depuis un état COMMITÉ ; `toolbar_registre` déclaré ; trous de jonction 38→**37** | la fausse ligne `queue_dnd`/imager disparaît |
+| 4 | `caed44bb` | **La barre tient sur UNE ligne volets ouverts** — 3 causes : `.input-group{width:100%}` (recherche à 592 px sur 592), selects alignés sur leur option la plus longue (462 px), libellés d'action (432 px). Container query à seuil MESURÉ (1160 px), repli des libellés en icônes | 1 ligne ≥ **880 px** (la config courante en offre ~888) ; 36 boutons / 36 libellés repliables / **0 muet** ; menus déroulants non rognés (débordent de 129 px) |
+| 5 | `996bca52` | **MENU CONTEXTUEL de card/lot + débordement « … »** — clic droit = TOUT + sélection multiple ; « … » = le débordement seul (seuil nominal **6**, bouton édition compris). Actions existantes LUES sur `.btn-group-actions` (contrat de `cloneActions`), transverses DÉCLARÉES via `queue_dnd_attrs`. Zéro ligne par app | proxy à **1** clic (pas de double) ; sous-menu des lots d'accueil ; « 2 éléments sélectionnés » + « Former un lot (2) » |
+| 6 | `996bca52` | **PARTAGE — la 1ʳᵉ interface de partage de WAMA** (`§7.5` : « il n'existe AUCUNE interface »). Service + route unique `<surface>/<nature>/<pk>/` + modale générée. Écrit `visibility` et son scope, sur l'élément **et** son lot | **le destinataire VOIT** : `scoped_visible_q` depuis un compte tiers, invisible en privé → visible dès qu'il rejoint l'unité → visible pour un membre du projet |
 | 7 | *(idem)* | **Le LOT devient une cible de plein droit** (question Fabien) — il ne l'était PAS : la card mère ne porte pas `data-preview-url`. Son partage DESCEND à ses éléments | `test_le_destinataire_VOIT_le_lot_ET_son_contenu` ; 31 tests |
 | 8 | `?` | **« ENVOYER VERS… »** — la sortie d'une card en entrée d'une autre app, sans studio. RÉSOLVEUR en lecture seule ; l'envoi passe par `filemanager:api_import`, l'endpoint EXISTANT → aucun second dispatch, aucune garde recopiée | sous-menu différé (« Recherche… » puis rempli) ; POST `{paths:[2], app:'enhancer'}` sur l'endpoint RENDU ; cas vide DIT |
 | 9 | `?` | **Geste 18 nocturne** : `<app>.queue_search` + `<app>.batch_extract` (17+17). Elles POSTENT, sèment par la voie de lot, nettoient | converter/imager/transcriber : **1 → 2 entrées** ; imager : **2e file INTACTE** ; registre 261→**295** |
@@ -12851,7 +12851,7 @@ coïncident), au point de décoration UNIQUE pour que l'endpoint `card_html` l'a
 
 **⑥ D.3 — le volet OBJECTIF est JOUÉ** (09/09, WAMA relancé ; session P97 réelle `4da52df3`,
 1,2 M détections, 4352 gids ; lecture seule, sans GPU ni worker). Chiffres et méthode :
-`CAM_ANALYZER_CHAINE_TRAITEMENT §D.3 ⭐`, commits `dc2667f0` puis la RECTIFICATION.
+`CAM_ANALYZER_CHAINE_TRAITEMENT §D.3 ⭐`, commits `11069b1c` puis la RECTIFICATION.
 « Tous les objets qui dérivent sont en ③ » est FAUX (90 % portent un `world_en`).
 
 ⚠⚠ **MA PREMIÈRE CONCLUSION ÉTAIT FAUSSE, Fabien a demandé « es-tu sûr ? » — non.** J'avais
@@ -12901,7 +12901,7 @@ encore) → **marche E** (émetteur/importeur de manifeste de process) → #7 b�
 - ✅ **`tests_volet.PagesDeclarantesTest` — RÉGLÉ le 09/09 (demande de Fabien en fin de
   session)**. Ce n'était **ni un bug de page, ni un test faux** : deux tests du dépôt se
   contredisaient, sans qu'aucun ait tort. Le 22/08, 17 pages déclaraient `VOLET_AUCUN` et le
-  test figeait cet état (« plus AUCUN cadre »). Le **09/09 à 01h12** (`b071b25b`, demande de
+  test figeait cet état (« plus AUCUN cadre »). Le **09/09 à 01h12** (`14baf836`, demande de
   Fabien du 08/09), **cinq pages de liste ont RÉCUPÉRÉ un volet** pour héberger l'inspecteur de
   détail — `licenses`, `registres`, `skills`, `backends`, `rag` : elles déclarent
   `volet(medias=False, actions=False)` et REMPLISSENT la section Paramètres (titre « Détail de
@@ -12935,7 +12935,7 @@ encore) → **marche E** (émetteur/importeur de manifeste de process) → #7 b�
   renommée), `pipelines` **1** (nouveau dossier) — régénérés depuis **venv_linux** ;
 - `doc_facts` : bloc `wama_data` régénéré (l'Analyzer n'est plus bloqué par D13 mais par sa
   SURFACE) ; les autres blocs non touchés ;
-- **push** : je n'ai rien poussé, mais **`origin/dev` a avancé jusqu'à `8320f0da` pendant la
+- **push** : je n'ai rien poussé, mais **`origin/dev` a avancé jusqu'à `ecf7517a` pendant la
   session** — mes trois premiers commits (⑤b+C, D13, docs) sont donc DÉJÀ publiés, poussés par
   quelqu'un d'autre. Seul le dernier (`doc_facts`/mécanismes) reste local. À vérifier au
   prochain `/reprise` : `git rev-list --count origin/dev..dev`, jamais `git log | wc -l`
@@ -12968,7 +12968,7 @@ encore) → **marche E** (émetteur/importeur de manifeste de process) → #7 b�
 > Session ouverte par `/reprise`, poursuivie sur le monde Data et la couche `function`. C'est
 > l'instance que le §CLÔTURE cam_analyzer ci-dessus désigne comme « une autre instance travaille
 > dans `wama/common/tests/tests_catalogues.py` » : les 66 lignes qu'il voyait non commitées sont
-> devenues `8e321021`. **Partition tenue** : aucun fichier de l'instance CARDS/UI
+> devenues `7838f229`. **Partition tenue** : aucun fichier de l'instance CARDS/UI
 > (`codegen/templates_gen.py`, `codegen/views_gen.py`, `tests_codegen_*`, `CARD_DESIGN.md`,
 > `staticfiles/`) n'a été touché ni commité.
 
@@ -12976,11 +12976,11 @@ encore) → **marche E** (émetteur/importeur de manifeste de process) → #7 b�
 
 | commit | ce qu'il ferme |
 |---|---|
-| `8e321021` | **62 REFUS comptés comme « inchangés »** par `apply_manifests` — la sortie annonçait un succès là où rien n'était projeté. `_raison_du_saut()` lit les DEUX formes de refus (chaîne / liste de `{field, reason}`) et agrège. + l'en-tête de `manifests/kinds.py` mentait depuis un mois sur qui projette |
-| `80e73bab` | la **loi de propagation de schéma** (§9quater.4) REMONTE de `wama_data/view.py` au commun (`common/catalog/function_catalog.py`) — `studio` en a besoin sans dépendre du monde Data. + `diagnostiquer_chainage()` dans `studio/services/launch.py`, **mesuré à blanc et DÉLIBÉRÉMENT NON BRANCHÉ** |
-| `8734ec8a` | **29 « déclarations suspectes » n'en étaient qu'UNE** : les champs canoniques d'un type sont là *par définition* — `can_connect` consulte désormais `CANONICAL_FIELDS` |
-| `20dd2ff4` | `trajectory_offset` exigeait `ts` sur un `geo_track` — **le seul port du catalogue réclamant un champ que son type ne porte jamais**, donc inalimentable en silence |
-| `8d0cad0d` | **66 ports muets sur 143 décrits** (46 %) + garde à ZÉRO (`test_TOUT_port_porte_une_description`) |
+| `7838f229` | **62 REFUS comptés comme « inchangés »** par `apply_manifests` — la sortie annonçait un succès là où rien n'était projeté. `_raison_du_saut()` lit les DEUX formes de refus (chaîne / liste de `{field, reason}`) et agrège. + l'en-tête de `manifests/kinds.py` mentait depuis un mois sur qui projette |
+| `44d40076` | la **loi de propagation de schéma** (§9quater.4) REMONTE de `wama_data/view.py` au commun (`common/catalog/function_catalog.py`) — `studio` en a besoin sans dépendre du monde Data. + `diagnostiquer_chainage()` dans `studio/services/launch.py`, **mesuré à blanc et DÉLIBÉRÉMENT NON BRANCHÉ** |
+| `384ee997` | **29 « déclarations suspectes » n'en étaient qu'UNE** : les champs canoniques d'un type sont là *par définition* — `can_connect` consulte désormais `CANONICAL_FIELDS` |
+| `55241303` | `trajectory_offset` exigeait `ts` sur un `geo_track` — **le seul port du catalogue réclamant un champ que son type ne porte jamais**, donc inalimentable en silence |
+| `672f6df2` | **66 ports muets sur 143 décrits** (46 %) + garde à ZÉRO (`test_TOUT_port_porte_une_description`) |
 | *(ce commit)* | clôture : les tests qui manquaient, la réponse « alias de colonne », une description FAUSSE corrigée |
 
 ### Ce que la clôture elle-même a trouvé (§2a « revenir ici après la dernière écriture »)
@@ -12995,7 +12995,7 @@ encore) → **marche E** (émetteur/importeur de manifeste de process) → #7 b�
   n'est pas une relecture, c'est un test qui EXÉCUTE la phrase.*
 - **3 contrôles ajoutés là où la session n'en avait laissé aucun** :
   1. `CleTemporelleDeclareeTest` (4 tests) — les 25 contrôles existants alimentaient TOUS
-     `correct_track` avec `ts` : **la forme que la fonction annonce depuis `20dd2ff4` n'était
+     `correct_track` avec `ts` : **la forme que la fonction annonce depuis `55241303` n'était
      exercée nulle part**, et déclaration et code pouvaient re-diverger sans qu'un test tombe.
      Atteste les deux formes (`time` canonique, `ts` en repli hérité) et l'ordre de lecture ;
   2. `test_AUCUN_CHEMIN_PARALLELE_view_ne_fait_que_REEXPORTER_la_loi` — `tests_view.py` importe
@@ -13042,8 +13042,8 @@ la donnée de sa source.
 
 - **push** : ⚠ **MESURÉ, pas supposé** — `origin/dev` a avancé pendant la session, poussé par
   quelqu'un d'autre. `git rev-list --count origin/dev..dev` = **4**, dont **2 à moi**
-  (`8d0cad0d` les 66 descriptions, `e733f85f` cette clôture) ; mes quatre premiers
-  (`8e321021`, `80e73bab`, `8734ec8a`, `20dd2ff4`) sont **DÉJÀ publiés**. *Ma première
+  (`672f6df2` les 66 descriptions, `06c922ad` cette clôture) ; mes quatre premiers
+  (`7838f229`, `44d40076`, `384ee997`, `55241303`) sont **DÉJÀ publiés**. *Ma première
   rédaction de cette ligne disait « mes 6 commits sont locaux » — faux, et invérifiable sans
   la commande. Même piège que le §CLÔTURE cam_analyzer ci-dessus, le même jour.* ;
 - **aucun** worker recyclé, **aucun** flag d'environnement posé, **aucune** charge GPU lancée
@@ -13096,8 +13096,8 @@ la donnée de sa source.
 
 > Périmètre : la couche LLM/skills/mémoire et la doctrine. **Zéro fichier partagé avec
 > l'instance cam_analyzer/converter/codegen**, qui a travaillé en parallèle tout du long.
-> 9 commits : `57d4b0d0` `be48bb98` `5b161d1e` `2d907c72` `c42a98a4` `a40f386a` `78713ff3`
-> `204d013c` `583f90c6`.
+> 9 commits : `3da50117` `307c7b5b` `25cd66ed` `a3eb55bb` `6dbf6edc` `d08524c3` `98a72cbe`
+> `36569ba8` `998ea01a`.
 
 **Point de départ** : une question de Fabien — « peut-on faire travailler ensemble Claude,
 Codex, Copilot, avec mémoire et skills communs ? ». La session a répondu en MESURANT, et la
@@ -13105,23 +13105,23 @@ mesure a démenti la moitié des propositions, y compris les miennes.
 
 ### Ce qui est livré
 
-1. **`AGENTS.md` / `CLAUDE.md` — la doctrine se sépare du harnais** (`be48bb98`). 698 lignes
+1. **`AGENTS.md` / `CLAUDE.md` — la doctrine se sépare du harnais** (`307c7b5b`). 698 lignes
    coupées **par script** (« lignes de contenu perdues : 0 »), 140 renvois réaiguillés dans
    66 fichiers. La ligne de fracture n'est pas « partagé / spécifique » mais **doctrine /
    harnais** : une règle qui parle du matcher de permissions n'a aucun sens pour Codex.
    `AGENTS.md` est lu nativement par 30+ agents ; `check_docs` contrôle désormais LES DEUX.
-2. **Le cloud atteint enfin transcriber/describer/reader** (`57d4b0d0`). Les 5 aides de haut
+2. **Le cloud atteint enfin transcriber/describer/reader** (`3da50117`). Les 5 aides de haut
    niveau de `llm_utils` appelaient `ollama_chat()` en direct : **local-only par construction**,
    alors que `llm_chat` était adopté par 5 autres consommateurs. 14 sites, 8 fichiers.
-3. **Le SOUVENIR récupère page + registre** (`5b161d1e`, `c42a98a4`) — le fragment RAG les avait,
-   son jumeau non. Et **`store.approve()`, la 6ᵉ opération** (`204d013c`) : la validation humaine
+3. **Le SOUVENIR récupère page + registre** (`25cd66ed`, `6dbf6edc`) — le fragment RAG les avait,
+   son jumeau non. Et **`store.approve()`, la 6ᵉ opération** (`36569ba8`) : la validation humaine
    qu'exige `WAMA_MEMORY §6` **n'existait NULLE PART** — ni store, ni admin, ni vue.
-4. **Le pont wama-dev-ai → skills WAMA existe** (`2d907c72`) — annoncé depuis le 08/07 par
+4. **Le pont wama-dev-ai → skills WAMA existe** (`a3eb55bb`) — annoncé depuis le 08/07 par
    TROIS fichiers, présent dans AUCUN. Et son dossier de consignes avait **4 lecteurs** :
    un accesseur unique, `role_utils.consigne_role()`.
-5. **La page devient « Prompts & Skills », 5 familles, 36 entrées** (`a40f386a`, `78713ff3`) —
+5. **La page devient « Prompts & Skills », 5 familles, 36 entrées** (`d08524c3`, `98a72cbe`) —
    avec le mécanisme de sélection, les gabarits marqués, les déclarations `PROMPT_TARGETS`.
-6. **`manage.py check_skills`** (`204d013c`) — la santé du corpus de skills, branchée dans
+6. **`manage.py check_skills`** (`36569ba8`) — la santé du corpus de skills, branchée dans
    `/cloture`. *(Déjà adoptée par l'autre instance dans sa propre clôture du jour.)*
 7. **Deux registres de plus : 12 → 14** — `memories` et `prompts`.
 
@@ -13264,15 +13264,15 @@ tort par défaut* (5 écarts, 5 fois la doc en retard).
 > Suite du `§REPRISE — 2026-09-09 « ⑤b FACETTE ESTIMATEUR + D13 »` ci-dessus, qu'elle NE
 > remplace PAS (append-only). Ce bloc porte ce qui a suivi : le smoke navigateur, le test D.3,
 > **deux conclusions fausses que Fabien a fait tomber en posant deux questions**, et la mesure
-> qui les a remplacées. 11 commits, `77b43f43` → `b75d6b31`.
+> qui les a remplacées. 11 commits, `68bcacc4` → `b75d6b31`.
 
 ### Ce que Fabien a corrigé, et ce que ça a produit
 
 | sa question | ce qu'elle a révélé | ce qui a été livré |
 |---|---|---|
-| *« quel est le souci avec `tests_volet` ? le test ou un bug ? »* | **ni l'un ni l'autre** : deux tests du dépôt se contredisaient depuis `b071b25b` (09/09 01h12), sans qu'aucun ait tort — 5 pages de liste ont RÉCUPÉRÉ un volet pour l'inspecteur, et le test du 22/08 figeait leur état d'avant. Il masquait 2 pages derrière la 1ʳᵉ de sa liste | test rebâti sur l'INVARIANT (« pas de cadre VIDE ») au lieu d'un état ; `e0888d2c` |
-| *« as-tu ajouté tous les tests nécessaires ? »* | **non** — 4 chemins de l'exécuteur non tenus. Le 1ᵉʳ test écrit a trouvé un **vrai défaut** : un `to_port` inconnu de la fonction rangeait la donnée sous une clé jamais lue | 4 tests + correctif du repli ; `e0888d2c` |
-| *« es-tu sûr de ce que tu avances ? »* | **non** : ma conclusion sur D.3 reposait sur une **sélection circulaire** (candidats choisis par un faible étalement — or un track court en a mécaniquement peu) | rectification `6dbb7f82` |
+| *« quel est le souci avec `tests_volet` ? le test ou un bug ? »* | **ni l'un ni l'autre** : deux tests du dépôt se contredisaient depuis `14baf836` (09/09 01h12), sans qu'aucun ait tort — 5 pages de liste ont RÉCUPÉRÉ un volet pour l'inspecteur, et le test du 22/08 figeait leur état d'avant. Il masquait 2 pages derrière la 1ʳᵉ de sa liste | test rebâti sur l'INVARIANT (« pas de cadre VIDE ») au lieu d'un état ; `4291490f` |
+| *« as-tu ajouté tous les tests nécessaires ? »* | **non** — 4 chemins de l'exécuteur non tenus. Le 1ᵉʳ test écrit a trouvé un **vrai défaut** : un `to_port` inconnu de la fonction rangeait la donnée sous une clé jamais lue | 4 tests + correctif du repli ; `4291490f` |
+| *« es-tu sûr de ce que tu avances ? »* | **non** : ma conclusion sur D.3 reposait sur une **sélection circulaire** (candidats choisis par un faible étalement — or un track court en a mécaniquement peu) | rectification `e3e11cbd` |
 | *« regarder directement ce que fait le code plutôt que supposer »* | mes DEUX analyses externes étaient fausses ; `annotate_global_tracks` est CPU et **rejouable** | filtre INSTRUMENTÉ + exécuté sur données réelles ; `b75d6b31` |
 
 ### 🔴 LE FAIT DE LA SESSION — le filtre des garés, mesuré PAR LE CODE
@@ -13374,7 +13374,7 @@ depuis le bouton ▶ du Studio ; 7. charger le manifeste `pipeline` DANS le canv
   tâche) ; ce qui est perdu est le MESSAGE, où vivaient les six chiffres du filtre — ils sont
   consignés ailleurs (`CHAINE §D.3`, `CHANGELOG 09/09`, ce bloc), donc rien d'utile ne manque.
   *Cause probable : un `--amend` sans pathspec chez la voisine — exactement le trou que son
-  propre commit `dc800fe3` documente le même jour.* Contenu > attribution (règle du rituel) ;
+  propre commit `aad9d52d` documente le même jour.* Contenu > attribution (règle du rituel) ;
 - les scripts de mesure de la session (rejeu du tracker, 4 sondes D.3, smoke du nœud fonction)
   vivent **dans le scratchpad de session** — jetables, non versionnés.
 
@@ -13399,7 +13399,7 @@ depuis le bouton ▶ du Studio ; 7. charger le manifeste `pipeline` DANS le canv
 > Périmètre : la **doctrine mesurée** (`ROADMAP §24`), le **pivot assistant** (`tool_api.py`) et
 > le **geste médiathèque**. Zéro fichier partagé avec les trois instances parallèles
 > (import/montage, doc, cam_analyzer) — vérifié avant chaque commit, jamais supposé.
-> 14 commits, de `c30c00c6` à `be89ef56`.
+> 14 commits, de `c473ee1b` à `b86b8e09`.
 
 **Point de départ** : une demande de Fabien — « faire un point complet : tout ce qu'on a laissé
 de côté, ce qui est fait, ce qui reste ; et évaluer l'avancement par rapport à la vision ».
@@ -13701,7 +13701,7 @@ Registre des bascules : **17 → 21** (`imu_command`, `prediction_kalman`, `pred
   attribué à « l'instance import/montage » et prévu qu'il faudrait *dériver le chemin de la
   nouvelle brique* — c'est exactement ce qui a été fait). Les **4 `CorpusReelTest` skippés**
   qu'elle signale dans son bloc ne skippent plus : 30/30 sur le corpus réel.
-- ⚠ **Un de mes commits a été ABSORBÉ** par celui d'une autre instance (`7b8e9510` → **`151136ac`**
+- ⚠ **Un de mes commits a été ABSORBÉ** par celui d'une autre instance (`7b8e9510` → **`0e21eddd`**
   après mon `--amend` malheureux) : **contenu vérifié identique** (diff 0 ligne), seul le message
   a changé de main. Aucune perte.
 - ⚠ **Aucune validation navigateur** n'est due : aucune surface n'a bougé. Les bascules n'ont
@@ -13723,7 +13723,7 @@ Registre des bascules : **17 → 21** (`imu_command`, `prediction_kalman`, `pred
 - **19/19** fichiers vidéo de caméra présents et pointés au domicile par utilisateur.
 - `doc_facts --check` : **2 blocs PÉRIMÉS — `mecanismes` et `outils`** — et 🔴 **ils ne sont PAS à
   moi, donc je ne les ai PAS régénérés.** `git log` sur leurs sources (`common/mecanismes.py`,
-  les `tool_api.py`) rend `be89ef56` et `86a674f6`, deux commits de l'instance
+  les `tool_api.py`) rend `b86b8e09` et `e7964cde`, deux commits de l'instance
   **médias/médiathèque** ; aucun de mes 11 commits n'y figure. *Régénérer figerait le WIP d'une
   autre instance* (règle `/cloture §2b`). ⚠ Leur propre bloc de clôture, écrit à 14:17, annonce
   « `doc_facts` tout à jour » : **c'est leur travail postérieur qui a périmé ces deux blocs**, pas
@@ -13776,8 +13776,8 @@ autorise-t-il ? » mais) : le gabarit vit-il sur **`PortSpec.produced_fields`** 
 
 > **Domicile du détail : `MEDIA_STORAGE_TIERING.md §9`** (les 9 décisions à ne plus reposer, le
 > 3D mesuré, la construction A′, les 7 marches et leur bilan). Ce bloc n'est que le POINT
-> D'ENTRÉE. Commits : `6dedd161` (plan consigné) → `bd6f3230` (A′) → `6a7be900` (capacité
-> décide, service sans dossier) → `c736d311` (voix en médiathèque) → `497de9d6` (voix↔langue).
+> D'ENTRÉE. Commits : `a5ff2725` (plan consigné) → `cfa28c9c` (A′) → `ce9049b0` (capacité
+> décide, service sans dossier) → `2dee84aa` (voix en médiathèque) → `a2b26ffe` (voix↔langue).
 
 **Ce qui est LIVRÉ, mesuré** : `media_library/natures.py` — une nature d'asset = une entrée,
 `attributes` JSON sur `SystemAsset`/`UserAsset` (migration 0014), tout en dérive (3 tables
@@ -13846,7 +13846,7 @@ tag Ollama mort relevé par `check_model_declarations` (`qwen3.5:9b`, hors de ce
 > (librarian → write_back → `install_library --allow --apply`). **Aucune des trois commandes
 > interrompues n'avait écrit quoi que ce soit** (mesuré : pas de sortie `library_*` du jour dans
 > `wama-dev-ai/outputs`, pas de clone `vendor/triposr/`, dossier `AI-models/models/vision/triposr`
-> créé mais VIDE). Tout le travail de la journée était déjà commité (`566d1605`).
+> créé mais VIDE). Tout le travail de la journée était déjà commité (`7653ae05`).
 
 **🔚 POINT D'ENTRÉE** : `/reprise`, puis — si Fabien confirme — **reprendre la route library
 là où le crash l'a coupée**, dans cet ordre et avec le contrôle à chaque marche :
@@ -13915,7 +13915,7 @@ neufs 3/3 (serveur vivant requis).
   backend, `_app_of` rend `common` pour les 101, **0 clé publiée égale à sa clé catalogue**.
   Registre Redis WSL vivant (lecture brute `redis-cli hgetall`, sans purge) :
   `wama.common.backends.kokoro_onnx_backend.KokoroOnnxBackend:9777#common:kokoro-onnx`.
-  Origine : `f305e493` (12/08) déduisait la source du CHEMIN du module ; `8c556100` (08/09) a
+  Origine : `f305e493` (12/08) déduisait la source du CHEMIN du module ; `397cbe25` (08/09) a
   déplacé 30 modules sous `common/backends/` sans toucher cette dérivation. **Non corrigé.**
 
 ### ② Affirmations de ma carte RECTIFIÉES
@@ -14012,7 +14012,7 @@ pour rien, et la règle du 31/08 l'interdit. Le clone vit dans le scratchpad de 
 Verdict et confrontation : **`ROADMAP §16.2 « llmfit »`** (non intégré ; composite qualité×vitesse
 contraire à « jamais deux échelles mélangées » ; partage par PR GitHub écarté).
 
-### ② Livré (`5cdc2a6c`, `6598049a`, `840a947b`)
+### ② Livré (`32acb21e`, `060520d6`, `56d7b8b3`)
 - **`_bench_generation`** : chauffe non comptée + `runs` passes sur le même prompt, `num_predict`
   300, temps natifs Ollama (`eval_duration`, `prompt_eval_duration`, `load_duration`) ; saturation =
   plafond atteint à CHAQUE passe ; chaque passe → `eta_estimator.record_run(unit='token')`. Des
@@ -14088,16 +14088,16 @@ contraire à « jamais deux échelles mélangées » ; partage par PR GitHub éc
 #### CLÔTURE — 2026-09-19 : 3 corrections, 1 skill, 1 consignation — ✅ SESSION CLOSE (10 commits)
 - **Le 🔚 n°2 était FAUX** : le trou 2 (provenance du coût) n'était pas « transféré », il était
   LIVRÉ le 14/09 au soir par l'instance gouverneur, **trois blocs plus bas dans ce fichier**
-  (`extra_info['vram_measured']`). Corrigé ici et au `ROADMAP §16.2` (`c44a1fc4`).
+  (`extra_info['vram_measured']`). Corrigé ici et au `ROADMAP §16.2` (`5e2faf52`).
   ⭐ *Relire les §PALIER du MÊME SOIR avant de déclarer un reste.*
-- **Skill `/commit-partiel`** (`460b33eb`) — le geste « ne commiter que SES hunks d'un fichier
+- **Skill `/commit-partiel`** (`cce94c63`) — le geste « ne commiter que SES hunks d'un fichier
   co-édité » était résolu **CINQ fois** dans cette session avec un script de scratchpad, donc
   perdu à chaque fermeture. Script versé au dossier du skill, six pièges datés, renvois posés
   depuis `/palier §3` et `/cloture §0` (la règle y était énoncée sans issue).
   ⚠ Son marqueur disait « né après CINQ résolutions » : `check_skills` ne suivait PAS son âge
   (motif `CANDIDAT (n=1, date)`). Remis à la forme attendue, la vérité mise à côté — **3 candidats
   suivis, 0 dormant**. *Un statut écrit hors du motif que le contrôle lit n'est pas un statut.*
-- **YuE2 / ACE-Step consignés** (`c08f2b87`, `ROADMAP §16.2`) : le modèle « à référence » de la
+- **YuE2 / ACE-Step consignés** (`00a5e079`, `ROADMAP §16.2`) : le modèle « à référence » de la
   question de Fabien est **ACE-Step 1.5**, installé le 02/09 et **inerte** (aucun backend) ;
   `musicgen-melody` n'est **pas téléchargé** → la génération par référence ne marche nulle part.
   YuE2 apporte un **plan symbolique éditable** que rien dans WAMA ne fait. **2 décisions
@@ -14130,8 +14130,8 @@ l'étaient par le WIP d'autrui, régénérés depuis par leurs auteurs).
 
 **Pendings système** : aucun de mon fait — aucun worker recyclé, aucun réglage posé, **aucune
 charge GPU**. Les 7 fichiers modifiés dans l'arbre à ma fermeture sont d'autres instances
-(mtime 14→19/09, vérifiés un par un). Commits de la session : `5cdc2a6c` `6598049a` `840a947b`
-`6be0633c` `2caead27` `8d122a3a` `89ff9ada` `c44a1fc4` `460b33eb` `c08f2b87` — **non poussés**.
+(mtime 14→19/09, vérifiés un par un). Commits de la session : `32acb21e` `060520d6` `56d7b8b3`
+`58b0ce29` `3183e193` `9b4cc416` `c3acdd7a` `5e2faf52` `cce94c63` `00a5e079` — **non poussés**.
 
 #### SUITE — 2026-09-16 : l'idée 3 RETIRÉE, la DÉMARCHE écrite — `WAMA_QUALITE.md` (référence du domaine, rien de lancé)
 - Fabien : *« le trou sur la mesure de qualité interne est bien plus large que les LLM ; rien non
@@ -14262,7 +14262,7 @@ précédent).
 ## §PALIER — 2026-09-14 (soir), « MENU CONTEXTUEL : l'arbre de fichiers sur la brique commune, sous-menus en CASCADE » — ✅ LIVRÉ
 
 > Demande de Fabien : terminer ce qui avait été laissé de côté le 08/09 — « le filemanager pourra y
-> migrer » (`c7b2cc7e`). ⚠ Ce report n'était écrit dans AUCUN `.md` : seulement dans le message de
+> migrer » (`b7599190`). ⚠ Ce report n'était écrit dans AUCUN `.md` : seulement dans le message de
 > commit et l'en-tête de `wama-card-menu.js`. Puis, retour en cours de route : le sous-menu s'ouvrait
 > au clic et REMPLAÇAIT son parent ; l'accordéon « Bac à sable » refermait le menu « Applications ».
 > Détail du design : `CARD_DESIGN §2bis`.
@@ -14301,7 +14301,7 @@ commité de l'instance « gouverneur » (`base.py`, `resource_governor.py`…).
 
 **Suite complète du `/reprise`** (WSL2, avant ce palier) : 2384 tests, `FAILED (failures=2)`, deux
 causes hors de ce palier — `tests_catalogues` : le port `image` de `studio.image_to_3d` (fonction
-ajoutée par `07f8ce23`, 13/09) n'est pas un type de la taxonomie ; `tests_doc_plans` :
+ajoutée par `ec264fda`, 13/09) n'est pas un type de la taxonomie ; `tests_doc_plans` :
 `docs/dev/briques.md` périmé par le WIP gouverneur non commité.
 
 🔚 **Restes nommés** : pas de navigation au CLAVIER (flèches) dans les menus WAMA — seul Échap ;
@@ -14380,7 +14380,7 @@ sort du curseur de précision de l'anonymizer ; D. unification des deux Redis, m
 > sous-menu « Ajouter à la médiathèque » dise qu'une sortie y est déjà (coche) et permette de la
 > RETIRER ; (2) une card supprimée d'un lot de deux ne sortait du lot qu'au rechargement ;
 > (3) les menus WAMA au clavier ; (4) « Envoyer vers » : UNE source, au serveur. Détail du design :
-> `CARD_DESIGN §2bis`. (Le job 27 du converter était déjà corrigé par Fabien, `a8540011`.)
+> `CARD_DESIGN §2bis`. (Le job 27 du converter était déjà corrigé par Fabien, `80c5487b`.)
 
 **Livré**
 - **Lot réduit** : ~~`converter:delete` et `imager:delete` répondent enfin `batch_changed`~~ —
@@ -14456,7 +14456,7 @@ par `register_examples`, tenu par `tests_nightly_modes` et annexé au mécanisme
 - WAMA relancé par Fabien : **10/11 `OK` + le skip attendu** (4 menus, `send_to` converter /
   transcriber / converter_01, `batch_extract` converter / imager / transcriber ; avatarizer skip =
   contrôle inverse).
-- **Contre-épreuve sur l'ANCIEN code** (worktree de `2b7d1bac` servi en `runserver` :8766, la route
+- **Contre-épreuve sur l'ANCIEN code** (worktree de `1cd81abb` servi en `runserver` :8766, la route
   neuve y rend 404 — c'est ce qui prouve qu'on parle au bon serveur) : `tree_send_to_menus` ROUGE
   (libellés « (2 fichier(s)) » du calcul client), `card_menu_state` ROUGE (aucune coche),
   `tree_menu_keyboard` ROUGE. ⚠ `nav_sandbox_keyboard` **SKIP** : les jumelles ne sont pas
@@ -14630,14 +14630,14 @@ générateur — à confronter à ce que Fabien entend par « régénéré plusi
    geste limité aux cards, pipelines sans visibilité, mesure F7 limitée aux 10 apps Médias.
    Plan : ① médiathèque ② vocabulaire ③ geste étendu par natures déclarées ④ pipelines, fonctions,
    manifestes, jumelles ⑤ mesure ⑥ notification ⑦ édition partagée.
-   ✅ **① LIVRÉ le 2026-09-20** (`a0cf4983`, `35400cdf`) — et le constat du 17/09 ci-dessus était
+   ✅ **① LIVRÉ le 2026-09-20** (`80ba45f0`, `36057e3d`) — et le constat du 17/09 ci-dessus était
    **incomplet** : la cause n'était pas « des lectures filtrées par propriétaire », c'est que le
    **`ScopedManager` MANQUAIT** sur `UserAsset`, donc `visible_to()` n'existait pas. Posé ; portée
    explicite `?scope=` (défaut « les miens » — la même route sert le sélecteur de fichiers de 3 apps) ;
    mutations par `owned_by` ; garde du compte de service anonyme ; la card dit à qui elle est ;
    surface au registre d'aperçu ; « Partager… » par la route commune ; `api_promote` retiré (R66).
    12 tests (`media_library/tests/tests_sharing.py`), dont 4 rouges sur le code d'avant.
-   ✅ **② LIVRÉ le 2026-09-21** (`7573116d`) — **et la marche a FONDU à la mesure : un seul des quatre
+   ✅ **② LIVRÉ le 2026-09-21** (`47c8cdce`) — **et la marche a FONDU à la mesure : un seul des quatre
    écarts annoncés en était un.** `'shared'` retiré du catalogue de fonctions (mot inexistant ailleurs,
    déclaré depuis le 20/07 et jamais filtré). **Le RAG en SORT** : `'user'` n'est pas un synonyme de
    `private` mais un **AXE différent** — au rappel il filtre `Q(user=user)`, la PROPRIÉTÉ, quand les
@@ -14647,7 +14647,7 @@ générateur — à confronter à ce que Fabien entend par « régénéré plusi
    **Restent deux décisions de Fabien** : `is_public` du synthesizer (colonne → migration) et la clé de
    payload `shared` des mots-clés (frontière des données).
    ✅ **Décision du 21/09 (Fabien) — « une voix partagée doit être accessible en fonction des droits de
-   chacun »** (`8c93f81c`) : le sélecteur de voix ET la résolution `resolve_speaker_wav` filtraient
+   chacun »** (`2b321fd8`) : le sélecteur de voix ET la résolution `resolve_speaker_wav` filtraient
    chacun par propriétaire. Un lecteur commun (`voice_refs.readable_voice_assets`) sert les deux — les
    ouvrir séparément aurait fait synthétiser avec la MAUVAISE voix sans message, la résolution repliant
    en silence sur `default`. ⚠ **Reste** : la page du synthesizer écrit ses optgroups à la main
@@ -14665,15 +14665,15 @@ générateur — à confronter à ce que Fabien entend par « régénéré plusi
    ⏳ **Relevé le 21/09 (Fabien), à PLANIFIER** : la médiathèque ne suit pas l'ordre commun des boutons de
    card (« Supprimer » avant « Télécharger », ordre imposé = `AGENTS.md §CONVENTIONS`). Plus largement,
    **aligner la médiathèque sur les fonctionnements communs** est un chantier à part entière.
-   ✅ **22/09 — médiathèque, trois défauts** (`ad68315a`) : l'aperçu devinait le MIME depuis le NOM d'asset
+   ✅ **22/09 — médiathèque, trois défauts** (`2474c052`) : l'aperçu devinait le MIME depuis le NOM d'asset
    (« smoke-0802-desc-text », `text/plain` en base, « Preview not available ») — il lit désormais le MIME
    stocké puis l'extension du FICHIER, mesuré sur les 35 assets : 2 réparés, 0 autre changé ; les 6
    connecteurs ignoraient `WAMA_OUTBOUND_PROXY` (urllib seul) — ouvreur commun ; freesound posait `voice` en
    dur, un bruitage entrait comme voix. ⚠ Les deux fichiers `smoke-0802-*` sont des sorties Studio du 02/08
    rangées sur le compte RÉEL (user 1) : **non supprimés** (données d'un compte réel), et aucun filet ne les
    attrape (`nightly_tests._MOTIF_TEMOIN` ne vise que `wama_temoin_`, et pas le compte réel).
-   ✅ **22/09 — VOIX : le genre annoncé est enfin le genre entendu** (`1789f9a1`, `4e3cc624`, `19e28392`,
-   `ba75717b`) — détail `MEDIA_STORAGE_TIERING §9.4bis`. **15/15 voix adultes** concordent, mesurées par un
+   ✅ **22/09 — VOIX : le genre annoncé est enfin le genre entendu** (`00e0c9ec`, `0335b696`, `19ff49b9`,
+   `df180eb2`) — détail `MEDIA_STORAGE_TIERING §9.4bis`. **15/15 voix adultes** concordent, mesurées par un
    instrument indépendant. Cause : le libellé était cassé DANS WAMA (VoxPopuli porte `gender`, une
    docstring disait le contraire) — puis l'étiquette de la source s'est révélée fausse sur 2 clips sur 9,
    d'où la vérification PAR LA MESURE. **Décision de Fabien due : les 8 créneaux enfant/âgé** (âge
@@ -14701,7 +14701,7 @@ générateur — à confronter à ce que Fabien entend par « régénéré plusi
 
 > Question de Fabien : *« maintenant que FastWan a son backend, pourquoi n'est-il pas sélectionnable dans
 > l'Imager vidéo ? »* **La prémisse était fausse, et c'est la mesure qui l'a dit** : la session du 14/09
-> (`22ce0744`) n'avait livré qu'une SONDE (`manage.py probe_fastwan`, 231 lignes) — `SUPPORTED_MODELS` du
+> (`e111dc08`) n'avait livré qu'une SONDE (`manage.py probe_fastwan`, 231 lignes) — `SUPPORTED_MODELS` du
 > backend Wan était inchangé, et aucune app ne déclarait le modèle. Vérifié sur toutes les branches, les
 > stashs, les worktrees et l'arbre : rien d'autre n'existait. *Un backend écrit à moitié se lit comme un
 > backend, jusqu'à ce qu'on ouvre sa liste de modèles.*
@@ -14784,7 +14784,7 @@ médiathèque + manifestes **230 OK** ; sonde à blanc OK sous WSL ; `check_docs
   blanc rejouée OK. *Le budget a fait exactement son travail.*
 - ⚠⚠⚠ **DEUX fois dans la session, mon commit par chemins a emporté le travail d'une autre instance**
   (`model_registry.py` : 10 hunks Ollama, retiré par `reset --soft` + re-commit ; `memory_manager.py` :
-  son correctif `get_strategy_for_model` → `preset_vram_gb`, parti dans `9a9463ea`, l'autre instance
+  son correctif `get_strategy_for_model` → `preset_vram_gb`, parti dans `14983834`, l'autre instance
   l'a constaté et a commité ses gardes ensuite — 4/4 vertes, rien de perdu).
   **Règle : relire les hunks fichier par fichier JUSTE AVANT le commit.** Une vérification faite dix
   minutes plus tôt ne vaut rien quand plusieurs instances écrivent le même arbre.
@@ -14825,7 +14825,7 @@ une génération vidéo dans l'imager) : tout le reste est en service, seul le p
 **Pendings système**
 - Catalogue SYNCHRONISÉ depuis WSL2 (venv_linux) : +1 modèle (`imager:fastwan-2.2-ti2v-5b`), ligne
   `huggingface:` du même dépôt SUPPRIMÉE avec son manifeste. Aucun poids touché.
-- **2 commits locaux NON POUSSÉS** de ce périmètre (`9a9463ea`, `b579d756`).
+- **2 commits locaux NON POUSSÉS** de ce périmètre (`14983834`, `e8840fd5`).
 - Aucun worker recyclé, aucun flag d'environnement posé, **aucune charge GPU**.
 - Base de test partagée utilisée en `--keepdb` uniquement. Scripts de mesure (catalogue, sonde I2V,
   statistiques de VRAM) laissés dans le scratchpad de session — jetables, aucun chemin à retenir.
@@ -15051,7 +15051,7 @@ par Fabien (`#fd7e14`, 01/09). Seconde moitié de la même décision : la règle
 - `common.tests_mcp_dev_tools` : **2 échecs** (`test_une_tache_en_echec_le_dit`,
   `test_une_tache_reussie_rend_son_journal` — « la tâche n'a pas fini »). Rejoués **en isolé**
   (rouges) **puis mes six fichiers mis de côté** (`git stash` ciblé) : **rouges de la même façon
-  sans moi**. Ils PRÉEXISTENT ; dernier commit du fichier `aa6c1acf` (15/09, chantier MCP).
+  sans moi**. Ils PRÉEXISTENT ; dernier commit du fichier `130b6b18` (15/09, chantier MCP).
 - **Corpus de manifestes : 11 périmés — AVANT comme APRÈS mes modifications** (mesuré dans la même
   fenêtre, depuis WSL2). Je m'apprêtais à m'en attribuer la cause : **la mesure l'a réfuté**. Mon
   changement y ajoute un écart réel (les `statuses` passent de 4 à 5), il n'est pas à l'origine du
@@ -15063,7 +15063,7 @@ par Fabien (`#fd7e14`, 01/09). Seconde moitié de la même décision : la règle
 suites codegen = **121 tests, `OK`** ; `py_compile` sur les 5 fichiers Python touchés ; diff
 intégral relu avant commit (il a rattrapé deux défauts de ma main : un commentaire inséré **sans
 ses accents** par le script, et une fonction collée à la constante suivante).
-→ commit **`ab18e9db`** (8 fichiers).
+→ commit **`6e3499d3`** (8 fichiers).
 
 ## SUITE 2026-09-17 (5) — P2, 4ᵉ pièce : le FRONT connaît `STALE` (décision n°4 tranchée)
 
@@ -15281,10 +15281,10 @@ sous V8 et leurs accesseurs exercés état par état ; 2 fichiers statiques resy
 > qu'on n'a rien réinventé, qu'on est aligné, et qu'on consigne ce qui ne l'est pas encore.
 > Qu'a-t-on laissé de côté ? »* — faite à la MESURE, pas de mémoire.
 
-**LA SESSION = 12 commits** (17/09 19:44 → 18/09 01:30), trois vagues : ① `625a8786` doc
-collaboration, `43557bb0` clés de registre en anglais, `599aa3cb` retrait du seul jumeau
-inter-mondes ; ② P2 pièces 1→4 (`135e6e8c`, `e3f612d3`, `ab18e9db`, `0ac7b2b3`, `8836371c`) ;
-③ la déduplication de présentation (`12d7a3ae`, `89d47325`, `3c8943df`, `1d6b517c`).
+**LA SESSION = 12 commits** (17/09 19:44 → 18/09 01:30), trois vagues : ① `d9d91256` doc
+collaboration, `f9532a46` clés de registre en anglais, `4ab56f4a` retrait du seul jumeau
+inter-mondes ; ② P2 pièces 1→4 (`9eeea600`, `42346bc6`, `6e3499d3`, `fcb6652a`, `d68d5538`) ;
+③ la déduplication de présentation (`f62845cd`, `4b1fee96`, `c2ab2e21`, `98edd5d4`).
 
 **RIEN N'A ÉTÉ RÉINVENTÉ — vérifié, pas supposé.** `normalizeStatus` n'a aucun concurrent (les
 `toUpperCase()` des apps sont des comparaisons ponctuelles sur `dataset.status`, pas des tables) ;
@@ -15304,7 +15304,7 @@ convention de ses deux frères ; `state_presentation.py` n'avait aucun équivale
    cette précision laisserait croire l'inverse.
 
 **CE QUI N'ÉTAIT PAS CONSIGNÉ, et l'est maintenant** : le **rattachement au registre des
-mécanismes** (`1d6b517c`) ne vivait que dans un message de commit — `state_presentation` est
+mécanismes** (`98edd5d4`) ne vivait que dans un message de commit — `state_presentation` est
 déclaré comme mécanisme (famille « UI générée », `depends_on=('app_base_js',)`) et
 `ui_smoke_states.py` est ANNEXE de `nightly_tests`, comme ses deux frères. Preuve par les
 compteurs : **143 → 144** mécanismes, **50 → 48** modules non rattachés. ⚠ Son compteur affiche
@@ -15319,7 +15319,7 @@ poussée — ce n'est pas une brique morte.
 | **Migration des 3 modèles du Lab** (`completed` → `SUCCESS`) | **décision ouverte de Fabien** : invisible à l'écran (libellés déclarés), ne laisserait qu'un alias, celui de Celery. `ModelSyncLog` EXCLU (son `__str__` rend la valeur brute) |
 | **Brique d'agrégation** + **JS du canvas studio** | les deux derniers morceaux de P2, suspendus à **P3** (pas de ligne d'exécution par process aujourd'hui) |
 | `app_regen_check` | exige un arbre git PROPRE et fait un `git checkout` — inconcevable avec 3 instances actives. À passer **en worktree** |
-| Jumelle `converter_01` | en retard sur le générateur depuis `12d7a3ae` — aucun test ne les compare, donc rien n'est rouge : régénération à faire |
+| Jumelle `converter_01` | en retard sur le générateur depuis `f62845cd` — aucun test ne les compare, donc rien n'est rouge : régénération à faire |
 | **Langue des `msgid`** (`ROADMAP §10.A`) | décision bloquante NON touchée, à dessein : les libellés restent français, ce qui est la branche la moins coûteuse et ne préempte rien |
 | `WAMA_MECANISMES.md`, `docs/dev/briques.md` | régénérés dans l'arbre, **non commités** : ils décrivent du code absent de HEAD (WIP d'autres instances) |
 | 2 rouges `tests_mcp_dev_tools` | **préexistants**, établis par `git stash` ciblé — chantier MCP d'une autre session |
@@ -15390,7 +15390,7 @@ que la **ligne d'exécution PAR PROCESS** que P3 apporte. Rien d'autre n'est ava
 (mesuré : voir ⇒ ci-dessus).
 
 **⚠ RATTRAPÉ AU BALAYAGE, et dans aucun handoff jusqu'ici** — le document de collaboration créé
-ce soir (`625a8786`) porte **deux questions ouvertes à trancher avant ses marches 6 et 7** :
+ce soir (`d9d91256`) porte **deux questions ouvertes à trancher avant ses marches 6 et 7** :
 - **N1 — notifier QUI et par quel canal.** Seule brique existante : l'e-mail (`notify_user`), sans
   centre de notifications dans l'app. ⚠ Une portée **unité** HÉRITE aux sous-unités : partager au
   niveau université notifierait toute l'université ;
@@ -15420,7 +15420,7 @@ références, 0 cible distincte) · `check_skills` 0 défaut franc · corpus de 
 une dérive.
 
 
-## §CLÔTURE — 2026-09-19 (nuit, session 18→19/09), « MÉDIATHÈQUE : un geste, deux archétypes de sortie — bouton et route du composer retirés, gestes d'élément dans l'arbre, rôle déclaré au commun » — ✅ LIVRÉ, commit `35a07834` (non poussé)
+## §CLÔTURE — 2026-09-19 (nuit, session 18→19/09), « MÉDIATHÈQUE : un geste, deux archétypes de sortie — bouton et route du composer retirés, gestes d'élément dans l'arbre, rôle déclaré au commun » — ✅ LIVRÉ, commit `52fa7362` (non poussé)
 
 **Périmètre** (partition : médiathèque, menu contextuel commun, arbre de fichiers, détail canonique,
 adapters d'app). Demandes de Fabien dans l'ordre : ① le bouton « Exporter vers médiathèque » de la
@@ -15430,7 +15430,7 @@ retirer, et **filtrer par rôle AU COMMUN pour toutes les apps** ; ④ « attent
 et conversions de sortie par le converter » ; ⑤ « pourquoi un bruitage ne peut-il pas être un
 .aac ? » ; ⑥ régénérer la jumelle, commiter.
 
-**LIVRÉ** (`35a07834`, 48 fichiers) :
+**LIVRÉ** (`52fa7362`, 48 fichiers) :
 - **R64/R65** — bouton `.export-btn` + coche retirés (gabarit, JS, CSS, config, copies servies) ;
   route `composer:export_to_library` et sa vue retirées ; manifeste composer régénéré (WSL2) ;
   jumelle `composer_01` **drop + create + substitute urls** (état d'avant restauré) — sa card
@@ -15505,7 +15505,7 @@ converter l'est AUSSI par `result_role` (mien). Les 8 autres (`mcp`, 7 `ollama:*
 
 **PENDINGS SYSTÈME** — **redémarrer le gunicorn WSL2** (jumelle `composer_01` recréée après le
 relancement ; le code de ce commit, lui, est servi depuis le relancement de Fabien) · **4 commits
-non poussés** sur `dev` (dont `35a07834`) · serveur de dev 8011 ARRÊTÉ · base de test conservée
+non poussés** sur `dev` (dont `52fa7362`) · serveur de dev 8011 ARRÊTÉ · base de test conservée
 (`--keepdb`) · aucun stash, un seul worktree · les 7 fichiers encore modifiés dans l'arbre sont
 d'autres instances (mtime 14→18/09 : `wama-send-to.js`, `reader.js`, `ui_smoke.py`,
 `WAMA_DATA_WORLD.md`, `docs/dev/briques.md` et leurs copies servies) — non touchés.
@@ -15526,7 +15526,7 @@ applications ») — relevé sur tout `wama/`, chaque occurrence lue, quatre gé
   (« toutes les apps auront le curseur ») — condition « auto » sur le sélecteur de l'app, lu dans le
   même schéma ; plancher de deux adopteurs contre la vacuité ;
 - `tests_subscriptions:189` : trois cibles dont une inexistante = spécimens d'un comportement, gardé.
-Mesuré après : 52 tests OK sur les trois modules. Commit `43d8514a`.
+Mesuré après : 52 tests OK sur les trois modules. Commit `596eb0a4`.
 
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE — 2026-09-19
 
@@ -15546,17 +15546,17 @@ descendre à 8 dès que l'instance model_manager a commité et régénéré) · 
 
 ## §PALIER — 2026-09-19, « SOURCE UNIQUE DES CAPACITÉS : une seule route d'installation, une seule table tâche→catégorie, un corpus qui n'apprend rien de faux » — ✅ LIVRÉ, 4 commits NON POUSSÉS
 
-> Suite directe du chantier ouvert le 17/09 (`e4fe776e`, `7b292017`, `3b62c309`, `24b07af6`,
-> `4d36d9f4`). Plan validé par Fabien (« Oui je valide le plan ») ; les quatre pièces restantes
+> Suite directe du chantier ouvert le 17/09 (`7046a963`, `be7dc7d6`, `8e73ac26`, `275ea149`,
+> `691f0793`). Plan validé par Fabien (« Oui je valide le plan ») ; les quatre pièces restantes
 > sont livrées. Domicile du détail : `wama/model_manager/PROSPECTION_PIPELINE.md` (sessions du
 > 19/09) et `WAMA_MANIFEST_ARCHITECTURE.md §6ter` (règles 2 et 3 du corpus).
 
 | commit | pièce |
 |---|---|
-| `371688a0` | la carte HuggingFace lue **mécaniquement** — `prospector.card_facts` (tâche par pipeline ET tags, langues `cardData.language`, moteur si servi), à la prospection comme à l'installation. **29 lignes** ont reçu leurs langues ; ACE-Step corrigé en `text-to-music` |
-| `96ca29b9` | **une seule route d'installation** : `model_installer.request_install` (variante, garde d'espace, idempotence, Celery) partagé par le bouton ET l'assistant ; l'entrée `spec` nue retirée ; le nom YOLO devient un candidat ; `search_models` + `install_model` au `tool_api` ; scout → candidat ; integrator → la LIGNE |
-| `43901aba` | **tâche → catégorie ne se dit plus qu'à un endroit** (les 2 tables du prospector supprimées, `PLATFORM_TAG_ALIASES` + `wama_task`) ; `capabilities['tasks']` entre au vocabulaire canonique et au contrôle |
-| `ad8d6993` | le corpus **ÉNUMÈRE** le catalogue (17 manifestes, dont 12 lignes cloud sans app) et ne porte **que du déclaratif** : 82 chemins absolus de cette machine retirés d'un dépôt public ; collision de CASSE refusée ; exemples few-shot des rôles choisis PAR NATURE |
+| `eee69aab` | la carte HuggingFace lue **mécaniquement** — `prospector.card_facts` (tâche par pipeline ET tags, langues `cardData.language`, moteur si servi), à la prospection comme à l'installation. **29 lignes** ont reçu leurs langues ; ACE-Step corrigé en `text-to-music` |
+| `bdf99c72` | **une seule route d'installation** : `model_installer.request_install` (variante, garde d'espace, idempotence, Celery) partagé par le bouton ET l'assistant ; l'entrée `spec` nue retirée ; le nom YOLO devient un candidat ; `search_models` + `install_model` au `tool_api` ; scout → candidat ; integrator → la LIGNE |
+| `0f1aabeb` | **tâche → catégorie ne se dit plus qu'à un endroit** (les 2 tables du prospector supprimées, `PLATFORM_TAG_ALIASES` + `wama_task`) ; `capabilities['tasks']` entre au vocabulaire canonique et au contrôle |
+| `3171681f` | le corpus **ÉNUMÈRE** le catalogue (17 manifestes, dont 12 lignes cloud sans app) et ne porte **que du déclaratif** : 82 chemins absolus de cette machine retirés d'un dépôt public ; collision de CASSE refusée ; exemples few-shot des rôles choisis PAR NATURE |
 
 **Trois mesures qui ont changé une décision** (elles valent plus que le plan) :
 1. l'endpoint d'installation avait **quatre** entrées, dont **deux nues** qui installaient en
@@ -15581,7 +15581,7 @@ secondaires : 16 déclarations sur 4 tâches, catégories homogènes ») · `che
 **0 modèle** · plus **aucun chemin absolu** dans les 6 dossiers du corpus · tests : 349 OK
 (model_manager + catalogues + capacités), 120 OK (catalogues + manifestes), 30 OK sur le périmètre
 neuf. ⚠ `tests_tool_api_lectures.AddItemToMediaLibraryTest` échoue — **préexistant, étranger à ce
-palier** : il vient des commits médiathèque du 18→19/09 (`35a07834`…`be89ef56`), l'app DÉCLARE
+palier** : il vient des commits médiathèque du 18→19/09 (`52fa7362`…`b86b8e09`), l'app DÉCLARE
 désormais le rôle là où le test attend une ambiguïté.
 
 ### 🔚 DEUX DÉCISIONS POUR FABIEN (rien n'est tranché)
@@ -15605,7 +15605,7 @@ apparier les lignes cloud aux bancs.
 
 ### Suite du 19/09 — deux commits de plus, et ce que la suite LARGE a trouvé
 
-- `2c01ed70` **les 22 lignes CLOUD n'entraient dans AUCUN banc, et rien ne le disait.**
+- `feeb7449` **les 22 lignes CLOUD n'entraient dans AUCUN banc, et rien ne le disait.**
   `synchronize()` bornait son queryset à `is_downloaded=True | is_proposed=True` : un modèle servi
   par une clé d'API n'a aucun poids ici, donc il n'était ni apparié **ni compté** — invisible des
   trois listes du rapport. Leur catégorie était pourtant juste depuis toujours (`['llm']`) : le
@@ -15616,11 +15616,11 @@ apparier les lignes cloud aux bancs.
   `aa_intelligence_index`/`mteb_fr_retrieval`/`open_asr`). Les 8 restantes sont attendues : 3
   modèles trop RÉCENTS pour les leaderboards, `claude_code:default` (le fournisseur choisit — non
   appariable par nature), 4 sans identité lisible. Une ligne cloud RETIRÉE reste dehors.
-- `7ec1a174` le palier ci-dessus.
+- `fed46af7` le palier ci-dessus.
 
 **⚠ CE QUE LA SUITE COMPLÈTE A TROUVÉ (1610 tests) — et que ma suite ciblée du matin avait
 manqué** : `tests_external_sources:49` lisait encore `b['cle']` là où `benchmark_sync.SOURCES`
-porte `key` depuis le renommage de `4d36d9f4` (même journée). Corrigé dans `2c01ed70`.
+porte `key` depuis le renommage de `691f0793` (même journée). Corrigé dans `feeb7449`.
 *Un renommage ne casse pas, il rend FAUX : seule une suite LARGE le voit.* **Leçon de méthode :
 après un renommage, lancer `wama.common` EN ENTIER, pas seulement les modules du périmètre.**
 
@@ -15635,7 +15635,7 @@ une ambiguïté). Bilan de la suite : **1610 tests, 2 échecs + 1 erreur → l'e
 2 échecs sont tracés ci-dessus.**
 
 
-## §PALIER — 2026-09-19, « GOUVERNEUR : lecture unique des empreintes, et les DÉCISIONS A-B-C de Fabien consignées » — ✅ LIVRÉ (code `b9e2c202` + hunk emporté par `9a9463ea`)
+## §PALIER — 2026-09-19, « GOUVERNEUR : lecture unique des empreintes, et les DÉCISIONS A-B-C de Fabien consignées » — ✅ LIVRÉ (code `295c1ceb` + hunk emporté par `14983834`)
 
 > Suite de l'instance gouverneur (14/09). Fabien a recentralisé ici deux diagnostics d'autres
 > sessions (l'estimateur de VRAM ; le GO composer) et rendu ses décisions le 16/09. Consignation
@@ -15660,9 +15660,9 @@ C'est le chantier A.
 nom EXACT (défaut 4 Go), `preset_vram_gb` la clé la plus SPÉCIFIQUE : un identifiant de modèle
 (`cogvideox-5b-i2v`) aurait valu 4 Go, donc un plein GPU tenté sur 21 Go. Piège LATENT (les 7
 appelants passent une clé de preset en dur) — fermé (`preset_vram_gb(model_type) or 4.0`).
-⚠ **Le hunk de code a été emporté par le commit `9a9463ea` d'une autre session** (fichier commité
+⚠ **Le hunk de code a été emporté par le commit `14983834` d'une autre session** (fichier commité
 en entier pendant que mon hunk y était non commité — la règle AGENTS « un commit prend l'état
-COMPLET du fichier », vécue dans l'autre sens). Le code est dans HEAD ; `b9e2c202` n'ajoute que
+COMPLET du fichier », vécue dans l'autre sens). Le code est dans HEAD ; `295c1ceb` n'ajoute que
 les gardes : `tests_preset_lookup` (4) + non-régression Wan/completeness/mesure/registre **72 OK** ;
 contre-épreuve (ancienne lecture rétablie) : 2 rouges attendus. Deux de mes prémisses de test
 étaient FAUSSES au 1ᵉʳ run (`qwen-image-edit` vaut 38 comme `qwen-image` ; 18 + 4 tient dans 24)
@@ -15717,13 +15717,13 @@ NON commité ici.
 la provenance marquée, le filtre sur le pic ; périmètre `memory_manager` + `model_selector` +
 catalogue + tests ; l'imager et le backend Wan restent à l'autre session.
 
-## §PALIER — 2026-09-19 (soir), « CHANTIER A : le PREMIER chiffre est au catalogue — inventaire local, provenance, poids par composant ; cartographie des VARIANTES vérifiée » — ✅ LIVRÉ (`4cf3e1a9`, `3a47eed2`, `ee07db54`, `59ebf543`)
+## §PALIER — 2026-09-19 (soir), « CHANTIER A : le PREMIER chiffre est au catalogue — inventaire local, provenance, poids par composant ; cartographie des VARIANTES vérifiée » — ✅ LIVRÉ (`7a50d8b6`, `2264a51c`, `0fc65954`, `e071966d`)
 
 > Répartition confirmée par Fabien : l'instance sœur tient `model_installer` (porte
 > `components_for_spec`, dérivation `components_of_files`, 12 anatomies imager déclarées
-> `90e434f8`) ; ici le LOCAL, la provenance, le rédacteur au catalogue, les tests.
+> `e79021ff`) ; ici le LOCAL, la provenance, le rédacteur au catalogue, les tests.
 
-**① Inventaire local (`4cf3e1a9`)** — `prospector.local_inventory(racine)` : `[(chemin, taille)]` d'un
+**① Inventaire local (`7a50d8b6`)** — `prospector.local_inventory(racine)` : `[(chemin, taille)]` d'un
 modèle INSTALLÉ, même forme que `_siblings`, pour que la MÊME dérivation pèse local et distant.
 ⚠ On pèse les BLOBS, pas les liens : LTX-Video 13B porte `vae/text_encoder/…`, `vae/transformer/…`,
 liens vers les mêmes blobs que les composants de premier niveau (22 blobs pour 34 liens) — un parcours
@@ -15733,12 +15733,12 @@ manifeste imager ET preset —, donc le garde `_check_vram_consistency` compare 
 d'accord et fausses). Faits disque : LoRA FLUX logo présent DEUX fois (`flux/` et `logo/`) ; SDXL porte
 `vae_1_0` ; MiniMax `*_q4_0.gguf` = liens symboliques vers les Q8 (pas de Q4 réel).
 
-**② Provenance (`3a47eed2`)** — `ModelInfo.vram_provenance` (`declared` par défaut, 15 rédacteurs sur
+**② Provenance (`2264a51c`)** — `ModelInfo.vram_provenance` (`declared` par défaut, 15 rédacteurs sur
 19 ; YOLO/ONNX/Ollama `heuristic`, snapshots HF `estimated`), écrite par `_sync_model` dans
 `extra_info['vram_provenance']` quand un chiffre est posé (0 = inconnu, pas de provenance). C'est la
 condition de la cascade « mesuré → source → estimé » (A).
 
-**③ Poids par composant au catalogue (`59ebf543`)** — `ModelSyncService.persist_weights` : `local_path`
+**③ Poids par composant au catalogue (`e071966d`)** — `ModelSyncService.persist_weights` : `local_path`
 s'il nomme un snapshot, sinon `model_locations.installed_snapshots()` (index `hf_id` → racine
 `models--…`, un parcours `<catégorie>/<famille>/models--*` + cache HF partagé en repli ; une ligne
 d'app ne porte pas son snapshot, seul le composer déclare `install_dir`) → `local_inventory` →
@@ -15785,7 +15785,7 @@ généralisé, prévision qui dit POURQUOI ; (4) seuils en dur → VRAM réelle 
 retirée avec la migration des mesures des presets ; (5) 1er adoptant Kokoro ONNX (8 niveaux, sans GPU),
 puis LTX et FLUX.
 
-**⑤ Langue (`ee07db54`)** — signalé par la sœur : budget de noms de tests 1305 > 1294. Mesuré sur un
+**⑤ Langue (`0fc65954`)** — signalé par la sœur : budget de noms de tests 1305 > 1294. Mesuré sur un
 export du commit qui l'a calé : 10 noms à moi (deux fichiers écrits APRÈS la bascule du 19/09,
 renommés) + 1 FAUX POSITIF sur un nom anglais de la sœur (`declares` ; retirer `declare`/`declares`
 est faux : 105 identifiants français ne tiennent que par eux → `ALLOWED`, le remède conçu). Et le
@@ -15809,7 +15809,7 @@ de `components_of_files` (pour `safetensors_facts` par composant → pic par pr�
 (rang « source » de `_footprint_to_publish`, les deux nombres à `get_memory_strategy`, filtre du
 tirage sur le pic, migration des presets) est à l'instance sœur — cette instance ne touche plus
 `memory_manager.py`, `model_selector.py`, `base.py` ni la découverte.** Ses deux livraisons
-(`b3160647`) : `files` par rôle dans la dérivation ; pesée LOCALE des dépôts frères (pyannote 0,030,
+(`edbc5475`) : `files` par rôle dans la dérivation ; pesée LOCALE des dépôts frères (pyannote 0,030,
 plus d'`unresolved`). Livré ici en retour : **la précision par composant** —
 `prospector.local_revision` (base des chemins), `precision_of_files(revision, files)` →
 `weights['precision'] = {rôle: {params, dtypes}}` (en-têtes safetensors des fichiers RETENUS, sommés
@@ -15819,11 +15819,11 @@ transformer 17,43 Md BF16 ; Qwen 20,43 ; LTX 13,04 (T5 4,76 Md **F32**) ; FLUX 1
 sur les fichiers pleine précision → la dérivation rendait `{}` et le rédacteur se taisait ; il retombe
 sur la convention et marque `declared_unmatched` (à lire par le chantier des variantes et par la
 déclaration SDXL de la sœur). ⚠ Budget de langue CODE rouge (2621 > 2614) par des identifiants des
-commits de la sœur d'après mon recalage (`racine`, `cle`, `b3160647`) — signalé, remède chez elle.
+commits de la sœur d'après mon recalage (`racine`, `cle`, `edbc5475`) — signalé, remède chez elle.
 Tests +3 (15 + 10). 🔚 Reste ici : rien d'ouvert sur A hors B/C/D ; imager et Wan hors des deux
 périmètres.
 
-## §PALIER — 2026-09-20, « GOUVERNEUR B1 : le canal inter-process, l'attente sans plafond, l'accord EXPLICITE, la tâche déclarée et bornée » — ✅ LIVRÉ (3 commits : socle, branchement, + `61674397` docs)
+## §PALIER — 2026-09-20, « GOUVERNEUR B1 : le canal inter-process, l'attente sans plafond, l'accord EXPLICITE, la tâche déclarée et bornée » — ✅ LIVRÉ (3 commits : socle, branchement, + `7684b73d` docs)
 
 > B relancé par Fabien le 20/09 et **restructuré en B1/B2/B3** (`ROADMAP §Gouvernance`, bloc daté) ;
 > cartographie préalable confrontée aux lignes (angles morts : repli Kokoro de gunicorn hors contrat
@@ -15866,7 +15866,7 @@ sur la card en attente (`common/_card_state.html`, quand l'app passe `app` et `p
 **adoption = une variable d'include**) ; `wama-app-base.js` délégation `.vram-grant`
 (confirmation, POST, toast) + `csrfToken()` ; `staticfiles/` resynchronisé, V8 parse OK.
 
-**⚠ Incidents du palier** : mon commit `61674397` a emporté 119 lignes de ROADMAP de la sœur,
+**⚠ Incidents du palier** : mon commit `7684b73d` a emporté 119 lignes de ROADMAP de la sœur,
 écrites ENTRE mon comptage de hunks et mon commit — **compter puis commiter n'est pas atomique** :
 sur un doc partagé, TOUJOURS stager le hunk par patch (`/commit-partiel`) ; règle appliquée aux
 commits suivants (index vérifié, `git apply --cached`). Et un Edit a inséré une constante entre
@@ -15930,7 +15930,7 @@ enhancer — 7 modèles d'upscaling au catalogue mais **pas d'« auto » PAR DÉ
 « l'utilisateur désigne son moteur ») : Fabien veut le curseur → c'est cette décision qui se
 rediscute (auto parmi les upscalers par qualité, le NFE Resemble décliné du curseur), pas un trou.
 
-**⑥ SUITE 20-21/09 — converter RALLIÉ (`631f01d2`), enhancer CADRÉ.** Converter : les trois étapes
+**⑥ SUITE 20-21/09 — converter RALLIÉ (`013c8d59`), enhancer CADRÉ.** Converter : les trois étapes
 de la ROUTE §F4b ③ exécutées — presets = positions de l'échelle commune (lues chez le sélecteur,
 jamais recopiées), `values_for_intent` interpole les réglages d'encodage entre deux positions (table
 exacte aux positions, monotone entre — garde), `quality_intent` (item + lot + volet) REMPLACE le select
@@ -15968,7 +15968,7 @@ passé » à tort) ; **mesuré : anonymizer, avatarizer, composer, converter, im
 synthesizer VRAI ; describer, enhancer n/a ; transcriber FAUX (question `priority`)**.
 
 **⑧ SUITE 21/09 — enhancer PORTÉ puis RALLIÉ (GO Fabien : « puis le portage enhancer »), deux
-commits.** ① Structure (`ef427706`) : `backends/` avec `ROUTES` image/vidéo/audio au contrat commun
+commits.** ① Structure (`bb301886`) : `backends/` avec `ROUTES` image/vidéo/audio au contrat commun
 « fichier » (les mécanismes sortent de tasks.py : `media_backend`, `audio_backend` ; classes au
 substrat, résolues par le catalogue) ; les deux tâches sur `run_item_task` (gardes, ETA, console,
 tâche déclarée au gouverneur, garde-temps — la branche audio se déclare `audio_enhancer`, le nom que
@@ -16033,7 +16033,7 @@ repli Kokoro de gunicorn hors contrat (angle mort à mesurer : CPU ou GPU ?) ; l
 contrat de `_VRAM_UNLOADERS` (pyannote) ne répondent pas au canal. 🔚 **B2/B3** : à concevoir au
 ROADMAP avec Fabien avant une ligne (admission/ordonnancement inter-utilisateurs, local/cloud).
 
-## §CLÔTURE — 2026-09-21 (session 19→21/09), « SOURCE UNIQUE DES CAPACITÉS, chantier A : les deux chiffres de VRAM, l'anatomie des modèles, la langue » — ✅ LIVRÉ, ~30 commits NON POUSSÉS (dernier `106be019`)
+## §CLÔTURE — 2026-09-21 (session 19→21/09), « SOURCE UNIQUE DES CAPACITÉS, chantier A : les deux chiffres de VRAM, l'anatomie des modèles, la langue » — ✅ LIVRÉ, ~30 commits NON POUSSÉS (dernier `dd3ca1dc`)
 
 **Ce qui est livré (lu dans le code, pas recopié).** ① **L'anatomie** d'un modèle (`AIModel.composition.components`,
 schéma `_validate_composition`) : déclarée pour imager (12), composer (4, audiocraft) et synthesizer (4 — le service
@@ -16055,10 +16055,10 @@ précision, adaptateur, stratégie sans devinette), `tests_model_anatomy` (déri
 compositions déclarées, + la passe qui ne comble que le vide**, ajoutées à la clôture : elles manquaient),
 `model_manager.tests` (porte, doublons, frères), `tests_completeness` (axes `weights_missing`, `peak_under_declared`),
 `tests_catalogues` (transport), `imager.tests` (déclarations). **Mesuré à la clôture : 433 tests OK, 5 skips** sur
-ce périmètre. ⚠ Suite complète du 21/09 (2929 tests) : **8 rouges, aucun à moi**, attribués par nom — `608fc7c0`,
-`a1eaad1c`, `5e34a572` (gouverneur/curseur), `tool_api_lectures`, `mcp_dev_tools` ×2, la jumelle `composer_01`.
+ce périmètre. ⚠ Suite complète du 21/09 (2929 tests) : **8 rouges, aucun à moi**, attribués par nom — `1a8c4451`,
+`49fae7c2`, `861f0738` (gouverneur/curseur), `tool_api_lectures`, `mcp_dev_tools` ×2, la jumelle `composer_01`.
 La redondance signalée au ⑤ du palier « CURSEUR C » (révision de snapshot choisie par ordre alphabétique) est
-**réglée** : `model_anatomy._revision_of` délègue à `prospector.local_revision` (`ab061d09`).
+**réglée** : `model_anatomy._revision_of` délègue à `prospector.local_revision` (`91bb2c8b`).
 
 🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : brancher le **filtre du tirage sur le pic** dans
 `model_selector._best_by_vram` (budget et coût lisent encore `vram_gb` ; le commentaire « VRAM MESURÉE » y est
@@ -16163,18 +16163,18 @@ recommandés, NON validés) ; fichiers `wama/common/services/assistant_engine.py
 
 ---
 
-## §CLÔTURE — 2026-09-22 (session 19→22/09), « PARTAGE + VOIX » — ✅ LIVRÉ, 20 commits, POUSSÉS (`origin/dev` = `29ed4c6c`, poussé par une instance sœur)
+## §CLÔTURE — 2026-09-22 (session 19→22/09), « PARTAGE + VOIX » — ✅ LIVRÉ, 20 commits, POUSSÉS (`origin/dev` = `f8b3885c`, poussé par une instance sœur)
 
 **Périmètre** : partage unifié marches 1-2 (`WAMA_COLLABORATION §8`), voix partagées, voix de référence
 (`MEDIA_STORAGE_TIERING §9.4bis`), trois défauts de la médiathèque (aperçu, proxy des connecteurs,
 freesound), revérification « aligné sur le commun, rien de réinventé ». Détails aux items 8 et §9.4bis.
 
-**Livré** : M1 médiathèque (`a0cf4983`, `35400cdf`) · M2 vocabulaire, le RAG en sort — autre axe
-(`7573116d`) · voix partagée employable, sélecteur ET résolution sur un lecteur commun (`8c93f81c`) ·
-aperçu par le type du FICHIER, proxy commun des 6 connecteurs, freesound (`ad68315a`, garde `29ed4c6c`) ·
-voix : genre vérifié PAR LA MESURE, dédup, orphelins, noms propres (`1789f9a1` → `155c0c31`, 7 commits) ·
+**Livré** : M1 médiathèque (`80ba45f0`, `36057e3d`) · M2 vocabulaire, le RAG en sort — autre axe
+(`47c8cdce`) · voix partagée employable, sélecteur ET résolution sur un lecteur commun (`2b321fd8`) ·
+aperçu par le type du FICHIER, proxy commun des 6 connecteurs, freesound (`2474c052`, garde `f8b3885c`) ·
+voix : genre vérifié PAR LA MESURE, dédup, orphelins, noms propres (`00e0c9ec` → `cba679ea`, 7 commits) ·
 revérification : garde anonyme en un seul domicile `scoping.listable_by`, `provenance.sha256_of`
-réemployé, repli muet rendu dit (`36fb1437`).
+réemployé, repli muet rendu dit (`4c87d362`).
 **Données réelles modifiées (déclarées)** : 10 voix système retéléchargées (lignes + fichiers), 14 WAV
 orphelins retirés, 10 fichiers renommés — `media_library/system/`. Aucun travail ne référençait ces voix.
 
@@ -16212,7 +16212,7 @@ sur les données, non corrigé. `librosa`/`datasets`/`soundfile` absents de tout
 Les deux fichiers `smoke-0802-*` (sorties Studio du 02/08 sur le compte réel) : NON supprimés, décision à
 Fabien ; aucun filet ne les attrape.
 
-## §PALIER — 2026-09-22, « BAC À SABLE : la forme à LIAISON rendue, trois jumelles régénérées, le commun débarrassé de ses copies » — ✅ LIVRÉ (commit ci-dessous + `b80dbd1c` du matin)
+## §PALIER — 2026-09-22, « BAC À SABLE : la forme à LIAISON rendue, trois jumelles régénérées, le commun débarrassé de ses copies » — ✅ LIVRÉ (commit ci-dessous + `9f602711` du matin)
 
 **Cadre (Fabien, 22/09)** : le portage des apps médias = *générer les apps en bac à sable pour les faire
 converger en portant ce qui manque* ; jamais corriger une jumelle à la main, toujours régénérer ; pas de
@@ -16220,7 +16220,7 @@ chemin parallèle, rien de cassé. Domicile : `ROUTE §10.3` marche S (paragraph
 (levé) et `#36` (nouveau). Mémoire : `project_bac_a_sable_convergence`.
 
 **Livré, lu dans le code**
-1. **`card_refresh_common` VRAI 10/10** (`b80dbd1c`, matin) : 9 JS d'app redemandent leur card par
+1. **`card_refresh_common` VRAI 10/10** (`9f602711`, matin) : 9 JS d'app redemandent leur card par
    `WamaApp.fetchCard` ; l'avatarizer reçoit son gabarit d'URL par `{% url %}`.
 2. **`views_gen` rend la forme à LIAISON** (9 apps sur 10) — LUE au manifeste
    (`processing.model_spec.batch`), jamais devinée. Le fichier généré ne porte de sa forme que les kwargs
@@ -16321,7 +16321,7 @@ Périmètre : disque C: (infra), sans chantier de code. Détail et chiffres : `I
   Aucun crash hôte : des processus qui plantent à la FERMETURE de Python (pyarrow, lecture en flux du
   corpus VoxPopuli par la bibliothèque HuggingFace `datasets`). Cause établie sur les 9 dumps + repro
   4/4 sans dump ; insoluble côté Python (3 parades mesurées, toutes 4/4 plantages).
-- **Déjà corrigé ailleurs** : `download_voice_refs` sort par `os._exit` (`8eaa1c64`, autre instance). Celery
+- **Déjà corrigé ailleurs** : `download_voice_refs` sort par `os._exit` (`e30ccf27`, autre instance). Celery
   non exposé (prefork). ⚠ Tout autre script lisant un corpus HuggingFace en flux produit encore un dump.
 - **Fait** : suppression (lancée par Fabien) → C: **104,75 Go libres** ; `scripts/set_wslconfig.ps1
   -CrashDumpCount` (défaut 1) ; skill `crash-residus` PROMU n=2, scan étendu à `%TEMP%\wsl-crashes`,
@@ -16413,7 +16413,7 @@ faisait donc refuser, partout, ce qui était déjà déclaré. Les quatre optgro
 gabarit redisaient ce que `get_voice_groups` sert déjà à la modale d'item, à l'avatarizer et à
 `/common/api/voices/` — et cette copie ne savait pas dire les **voix partagées** (décision du 21/09).
 
-**Livré** (`3c419881`) : hôte `#voicePresetHost` + `WamaParams.render(context:'panel')` dans un script EN
+**Livré** (`fa910799`) : hôte `#voicePresetHost` + `WamaParams.render(context:'panel')` dans un script EN
 LIGNE (donc avant le `DOMContentLoaded` d'index.js et avant `WamaModelCaps`/`WamaInputMatch`, qui lisent
 ce select) · vue : `custom_voices`/`voice_refs_groups` → `voice_groups_json(user)` (aide neuve de la
 brique commune) · le groupe « Mes voix » se retrouve par sa **clé** (`data-group-key`), plus par un id de
@@ -16435,10 +16435,10 @@ catalogue de docs), dont **6 gardes neuves** + un parse V8 de TOUS les scripts e
 (contre-épreuve faite : V8 refuse bien un bloc cassé).
 
 **Décisions de Fabien, état** : ① voix enfant/âgé — toujours ouverte · ② connecteurs au registre des
-sources — **APPLIQUÉE** (`b3bbde6a` : 6 sources `media`, champ `user_key` « source commune, clé de
-chacun ») · ③ `media_library/system/` par nature — **APPLIQUÉE** (`b0c84db7`, vérifiée sur données
+sources — **APPLIQUÉE** (`1f7f48bc` : 6 sources `media`, champ `user_key` « source commune, clé de
+chacun ») · ③ `media_library/system/` par nature — **APPLIQUÉE** (`bff61330`, vérifiée sur données
 réelles : 37 lignes, aucun fichier manquant ni orphelin) · ④ `is_public` → `visibility` — **SOLDÉE PAR
-RETRAIT** : la colonne portait `VoicePreset`, modèle retiré entre-temps (`c3aae386`, R64-R67) ; il ne
+RETRAIT** : la colonne portait `VoicePreset`, modèle retiré entre-temps (`5ba334c8`, R64-R67) ; il ne
 reste que la ligne de la migration initiale (consigné `WAMA_COLLABORATION §9`) · ⑤ clé de payload
 `shared` des mots-clés — toujours ouverte.
 
@@ -16458,7 +16458,7 @@ commun — l'entrée au RAG en découle), puis marche 3 du partage (natures déc
 > utilisé par une ou des cards et lui demander s'il est sûr. […] Étant donné qu'il y a une brique
 > commune qui gère ça, je veux juste que tu t'assures qu'elle est bien construite et câblée. »*
 
-**Commit `c3aae386`** (28 fichiers), vérifié sur HEAD en worktree (66 tests). Le détail vit dans
+**Commit `5ba334c8`** (28 fichiers), vérifié sur HEAD en worktree (66 tests). Le détail vit dans
 `MEDIA_STORAGE_TIERING §8.6` D20/D21 et `REMOVAL_LEDGER` R64-R67 — ce bloc ne le recopie pas.
 
 **① La supposition de départ, corrigée par la mesure.** La cible du 12/09 (*« sortir les médias des
@@ -16580,7 +16580,7 @@ card d'entrée générée ne publie pas `batch_template_url`). Les 6 skips resta
 
 ⚠⚠ **L'échec d'imager_01 est une leçon sur la MESURE, pas sur le code du jour.** Sa vue `delete`
 est une copie FIGÉE (`views:reverted-couple`) qui importe `find_member_batch` depuis `batch_utils` —
-un symbole RETIRÉ le 15/09 (R63, `27f8171a`) : l'import était déjà cassé (`ImportError`) avant que je
+un symbole RETIRÉ le 15/09 (R63, `f10b131c`) : l'import était déjà cassé (`ImportError`) avant que je
 retire le module ce matin (R68, désormais `ModuleNotFoundError`). Le grep « 0 appelant » de R68 était
 VRAI sur le dépôt et FAUX sur le disque : **les jumelles sont gitignorées, et l'outil natif de
 recherche respecte `.gitignore`** — un relevé d'absence ne couvre les jumelles que s'il les nomme
@@ -16932,9 +16932,9 @@ les jumelles, mesuré par `describer_01.settings` ; puis `backend_routes` + `tas
 
 > **Traçabilité (2026-09-24)** — la correction de brique du palier précédent (`wama-params.js` et sa
 > copie servie : valeur demandée au rendu restaurée au remplissage asynchrone, `var wanted`) et ce
-> bloc de palier sont entrés dans HEAD par **`03d0814b`** (commit d'une autre instance, « la
+> bloc de palier sont entrés dans HEAD par **`57e3b982`** (commit d'une autre instance, « la
 > CONTINUATION », qui a pris ces deux fichiers co-édités en entier pendant la préparation du mien) ;
-> le reste du palier est dans **`f6778e87`**. Contenu vérifié dans HEAD, rien recommité.
+> le reste du palier est dans **`b5d08b43`**. Contenu vérifié dans HEAD, rien recommité.
 
 ## §PALIER — 2026-09-24, « describer_01 : le ⚙ ouvrait-il une modale masquée ? Non — aucun ouvreur. Corrigé au générateur » — ✅ LIVRÉ
 
@@ -16991,7 +16991,7 @@ modèle DISTILLÉ (recommandé : ~8 pas, guidage 1 — le CFG double le calcul e
 🔚 Redémarrer workers + gunicorn ; rejouer en **ltx-video-13b-0.9.8-distilled-fp8**, 8 pas,
 guidage 1 ; puis 12-15 s pour voir la continuation.
 
-## §PALIER — 2026-09-24 (soir), « describer : le traitement générique de bout en bout (17/17 sur la jumelle) — et la card mère d'un lot figée partout » — ✅ LIVRÉ (`a3ae0653`)
+## §PALIER — 2026-09-24 (soir), « describer : le traitement générique de bout en bout (17/17 sur la jumelle) — et la card mère d'un lot figée partout » — ✅ LIVRÉ (`e0fbdc00`)
 
 Suite du palier « describer_01 : le ⚙ » ci-dessus (son reste `describer_01.processing`).
 **D'abord l'infra** : le worker Celery `gpu` était MORT depuis 13:35:53 (dump WSL à la même
@@ -17060,7 +17060,7 @@ session.
   substitution (générées, mesurées et revertées ensemble). `converter_01` et `describer_01`
   régénérées ainsi ; `imager_01` (vues copiées) laissée telle quelle. Tests
   `tests_sandbox_coherence` (+2).
-- ⚠⚠ **`manifests/apps/reader.json` commité INVALIDE (`5337b157`), réparé ici** — signalé par
+- ⚠⚠ **`manifests/apps/reader.json` commité INVALIDE (`11af600e`), réparé ici** — signalé par
   l'instance transcriber (`doc_facts` plantait). L'insertion pure `"update_settings",` d'un hunk
   `-U0` s'est posée par numéro de ligne, décalée par les hunks laissés de côté, DANS l'entrée
   `clear_all`. Les six autres manifestes : routes identiques à l'extraction live (les écarts
@@ -17083,7 +17083,7 @@ revenir à la relance (redélivrance) : budget de relances + arrêt signalé. Le
 (systemd ou conteneurs) reste la décision ouverte d'`INFRA_WSL_VS_WINDOWS` point 5 — proposé,
 pas fait. → ✅ fait le soir même, palier suivant.
 
-## §PALIER — 2026-09-24 (nuit), « Worker mort : surveillance, notifications dans WAMA, garde-temps par modèle » — ✅ LIVRÉ (`4203788d`)
+## §PALIER — 2026-09-24 (nuit), « Worker mort : surveillance, notifications dans WAMA, garde-temps par modèle » — ✅ LIVRÉ (`9242f9e9`)
 
 **Décisions de Fabien** : surveillance par un script lancé au démarrage (précédent passerelle
 Discord), tous les workers et Beat ; e-mail ET notification dans WAMA ; la card doit passer en échec
@@ -17142,14 +17142,14 @@ pas de contexte CUDA en servant une page (à mesurer, lié à l'incident 2).
 ## §CLÔTURE — 2026-09-26 (nuit), « TRANSCRIBER : évaluation, alignement, modes d'écriture, portage 90/96, filtre de parole ; profils = plan aligné » — ✅ LIVRÉ, ⚠ prod transcriber en 500 jusqu'au reload
 
 **Périmètre** (session ouverte le 24/09) : Transcriber + briques communes touchées pour lui. Commits,
-dans l'ordre : `09670b7d` `1f5b224e` alignement A/B · `df905971` outil Bornes · `62653d19` geste
-`batch_extract` · `444f0576` brique `playhead_follow` (mode Live du cam_analyzer porté) · `7337db86`
-modes d'écriture · `816d3293` jeton de résultat typé par la sortie · `26fd7191` chemin média au
-studio · `c8164ebd` M10 (`WAMA_QUALITE`) · `c999cf80` configurations d'évaluation · `43117c0a`
-Qwen3-ASR indisponible dit · `33521ebf` risque du prétraitement · `a6f27c01` squelette commun +
-modèle gardé chargé · `f38685b3` modale ⚙ au cycle commun · `f50c5d72` `vad_mode` + brique
-`speech_activity` · `12353dd4` plan des profils + 2 gardes · `b6d3af59` docs dérivées 153→159 ·
-`66fd4c23`→`9e55e981` test VAD indépendant de la carte. **Aucun poussé.**
+dans l'ordre : `11a89140` `cfb559fb` alignement A/B · `087e51c7` outil Bornes · `0d77f295` geste
+`batch_extract` · `1c1c47e8` brique `playhead_follow` (mode Live du cam_analyzer porté) · `e281e246`
+modes d'écriture · `661f5063` jeton de résultat typé par la sortie · `822d991f` chemin média au
+studio · `bed99bd5` M10 (`WAMA_QUALITE`) · `0031c024` configurations d'évaluation · `9d68dcbd`
+Qwen3-ASR indisponible dit · `0fb21c02` risque du prétraitement · `49e4ad45` squelette commun +
+modèle gardé chargé · `7a9a4dbb` modale ⚙ au cycle commun · `63ffb99b` `vad_mode` + brique
+`speech_activity` · `3682a6af` plan des profils + 2 gardes · `00313a2d` docs dérivées 153→159 ·
+`115dc609`→`20df87ce` test VAD indépendant de la carte. **Aucun poussé.**
 
 **Mesures de la session** : grille transcriber **90/96** (87 au départ) ; rouges restants
 `quality_intent`, `model_options_catalog`, `backend_routes`. Sonde du filtre de parole rejouée sur
@@ -17177,13 +17177,13 @@ select de son schéma ; `ConversionProfile` = 0 ligne en base.
 
 **Tests (WSL, `venv_linux`, transcriber + converter + common + studio + cam_analyzer)** : 1954,
 **10 rouges** avant corrections ; après : doc dérivées ✓ (54 OK), `tests_endpoints` ✓ (base de test
-réparée), `gpu_safe_mode` ✓ (rouge depuis `608fc7c0`, 20/09). **Restent, pas à moi** :
+réparée), `gpu_safe_mode` ✓ (rouge depuis `1a8c4451`, 20/09). **Restent, pas à moi** :
 - `tests_identifier_language` ×4 — code 2738/2736, noms de tests 1313/1312 : travail NON COMMITÉ
   d'autres instances (aucun de mes fichiers ne porte d'identifiant relevé) ;
 - `tests_tool_api_lectures.AddItemToMediaLibraryTest` — `tool_api.py` modifié, non commité, par une
   autre instance ;
 - `tests_check_templates.DepotReelTests` — commentaire multi-ligne de
-  `common/_new_item_card_v4.html:175`, posé par `4cb36454` (22/09).
+  `common/_new_item_card_v4.html:175`, posé par `0a2b2fe4` (22/09).
 `check_docs` : 2 références cassées (`WAMA_LLM.md`, un bloc antérieur de ce fichier), hors périmètre.
 
 🔚 **POINT D'ENTRÉE** : après le reload de Fabien, rejouer `run_nightly_tests --app transcriber
@@ -17205,7 +17205,7 @@ réglages effectifs DITS, réglages bornés par les capacités du modèle (`Para
 orange / rouge), prolongation par segments (FastWan) et CONTINUATION (LTX, 25 images), OOM du
 `from_pipe` float32, aperçu imager à 4 images réparé (listes JSON de chemins), appariement des
 paliers hébergés (« Pro »), réglages recommandés d'un modèle distillé.
-Commits : `09592450` `d62b0a6a` `e0d3206a` `ece76f16` `eae1486d` `03d0814b` `e3411df8` + celui de
+Commits : `01360530` `0a5013de` `11e48ab3` `65a81f6f` `43d22e02` `57e3b982` `92f03da5` + celui de
 cette clôture — **NON POUSSÉS**.
 
 **Tests ajoutés à la clôture** (§2a bis) : `tests_cap_from_js` (8, V8 — `applyCapFrom`, tri,
@@ -17245,36 +17245,36 @@ wama, qu'on a bien tout consigné et ajouté tous les tests nécessaires »*. Pa
 élément : une route, un nom », « Worker mort » (tous ci-dessus).
 
 **Décision de Fabien (26/09)** : la surveillance des workers est le mode retenu, **pas systemd**
-(`INFRA_WSL_VS_WINDOWS` point 5). `start_wama_dev.sh` raccordé (`dcc1208b`).
+(`INFRA_WSL_VS_WINDOWS` point 5). `start_wama_dev.sh` raccordé (`a27048bc`).
 
 **Revérification — ce qu'elle a trouvé et corrigé** :
 - **3 duplications de ma main** : helper de thread nu recopié dans `ui_smoke` (le motif existait
   dans `_test_account_id`), parcours de l'URLconf écrit une 3ᵉ fois dans `tests_endpoints`,
-  identifiant français `cibles` (`app_sandbox`, compté au budget) → `d61eae21`.
+  identifiant français `cibles` (`app_sandbox`, compté au budget) → `740a990b`.
 - **Rien d'autre de réinventé** : notifications = extension de la brique `notifications` du
   registre + conception §2.3 de `WAMA_COLLABORATION` ; mort d'une tâche = preuve positive de
   `process_control` ; supervision = précédent de la passerelle Discord ; découverte des modèles par
   leur FORME = précédent `file_references.py`/`secret_crypto.py` ; ZIP texte et téléchargement
   texte = briques `make_batch_views`/`compose_output_name`.
-- **4 trous de test fermés** (`863bc056`) : scripts de supervision (`tests_worker_watchdog`, 8),
+- **4 trous de test fermés** (`b33a375a`) : scripts de supervision (`tests_worker_watchdog`, 8),
   ZIP de lot texte, sélecteurs de classe d'état retirée (la garde du 18/09 ne lisait que les
   gabarits : c'est ce trou qui a figé describer et synthesizer).
 - **Consignation complétée** : `ROUTE §S` (3 leçons de génération), `WAMA_VERIFICATION` geste 13
   (card mère figée, commun), explication corrigée de l'incident « prod en 500 » (le cache de
   gabarits PAR worker, pas une relecture à chaud — correction d'une autre instance).
 - **La garde « exemption devenue inutile » a joué** : le transcriber s'est aligné sur
-  `update_settings` (`f38685b3`) et a dû retirer son exemption du test — `settings_route` 8/10.
+  `update_settings` (`7a9a4dbb`) et a dû retirer son exemption du test — `settings_route` 8/10.
 
 **Contrôles attendus au prochain /reprise** (mesurés le 26/09) :
 - Grille : **100 critères, 892/943** ; `settings_modal_cycle` 10/10 ; `settings_route` 8/10
   (anonymizer FAUX, imager PARTIEL) ; `backend_routes` FAUX pour 7 apps, `task_skeleton` pour 5.
 - Tests du périmètre (32 modules, WSL2) : **834, 4 rouges tous au contrôle de langue** (code 2738
   pour 2736, méthodes 1313 pour 1312) — ma part nette est **−1** (vérifié commit par commit :
-  `cle` retiré, `cibles` ajouté puis retiré) ; l'ajout restant vient de `816d3293` (`resultats`,
+  `cle` retiré, `cibles` ajouté puis retiré) ; l'ajout restant vient de `661f5063` (`resultats`,
   autre instance) et d'avant. 1 erreur de CHARGEMENT (`wama.avatarizer.tests` n'existe pas — ma
   liste) ; 1 skip, hors de mes modules neufs (tous exécutés en entier).
 - `check_docs` : 2 cibles distinctes, aucune de moi (`wama-dev-ai/run_improve.py` citée par
-  `WAMA_LLM.md` ; `pipeline_utils.py:2118`, bloc imager vidéo `eae1486d`).
+  `WAMA_LLM.md` ; `pipeline_utils.py:2118`, bloc imager vidéo `43d22e02`).
 - `doc_facts --check` : 3 blocs périmés, NON régénérés — ils figeraient le WIP d'autres instances
   (`param_schema` dans `docs/dev/briques.md`) ; aucune de mes briques n'y figure.
 
@@ -17310,7 +17310,7 @@ reader, synthesizer, transcriber) puis `task_skeleton` (anonymizer, avatarizer, 
 synthesizer), app par app, jumelle régénérée à chaque pas. **Pending système** : pousser 30+
 commits non poussés (`dev`).
 
-**Suite du 2026-09-26 (après-midi) — volet droit du transcriber porté au schéma (`7966f735`)**, constat de Fabien : `vad_mode` absent du volet. Le volet était RENDU du schéma mais LU champ par champ (JS : 6 sites par id ; serveur : upload, upload_youtube, 3 listes de réglages utilisateur) — je l'avais donc exclu du volet au lieu de dire le portage inachevé. Portés au commun depuis l'imager : `param_schema.panel_*` (imager adoptant, sortie identique sur ses 19 clés) ; `WamaInspector.initFromSchema` expose `read/apply`. Dépôt par `schema_model_kwargs` ; clés `diarization`/`preprocessing_enabled` gardées en base. Vérifié sur 8011 (contrôle ciblé 3/3, gestes 7/8 — `ui` rouge par l'artefact `.mjs` connu). ⚠ **Reload gunicorn requis** : d'ici là, le JS neuf tourne avec les vues anciennes (seule la préférence de prétraitement du volet ne s'enregistre pas). 🔚 Après reload : retirer du gabarit `preprocessingUrl`/`preprocessingEnabled` (morts) et décider du sort de la route `set_preprocessing` (plus aucun appelant JS) ; proposer un geste générique « tout réglage de la modale ⚙ figure au volet » (hors prod le soir : peut rougir d'autres apps).
+**Suite du 2026-09-26 (après-midi) — volet droit du transcriber porté au schéma (`5b3e9067`)**, constat de Fabien : `vad_mode` absent du volet. Le volet était RENDU du schéma mais LU champ par champ (JS : 6 sites par id ; serveur : upload, upload_youtube, 3 listes de réglages utilisateur) — je l'avais donc exclu du volet au lieu de dire le portage inachevé. Portés au commun depuis l'imager : `param_schema.panel_*` (imager adoptant, sortie identique sur ses 19 clés) ; `WamaInspector.initFromSchema` expose `read/apply`. Dépôt par `schema_model_kwargs` ; clés `diarization`/`preprocessing_enabled` gardées en base. Vérifié sur 8011 (contrôle ciblé 3/3, gestes 7/8 — `ui` rouge par l'artefact `.mjs` connu). ⚠ **Reload gunicorn requis** : d'ici là, le JS neuf tourne avec les vues anciennes (seule la préférence de prétraitement du volet ne s'enregistre pas). 🔚 Après reload : retirer du gabarit `preprocessingUrl`/`preprocessingEnabled` (morts) et décider du sort de la route `set_preprocessing` (plus aucun appelant JS) ; proposer un geste générique « tout réglage de la modale ⚙ figure au volet » (hors prod le soir : peut rougir d'autres apps).
 
 ---
 
@@ -17321,8 +17321,8 @@ commits non poussés (`dev`).
 > établi par `date -r` fichier par fichier, pas à l'allure du statut (règle du §0 de `/cloture`).
 > Rien de mon périmètre n'est resté en arbre de travail.
 
-**Livré** — `ed6767c6` avatar · `dc2ad485` latence + client MCP · `c0224d96` bridage dev +
-cadrage · `d2b16bba` relais du curseur · `c5f79ffc` volet assistant.
+**Livré** — `5fc143d4` avatar · `3fb712fe` latence + client MCP · `243fe711` bridage dev +
+cadrage · `e586d31e` relais du curseur · `8e7beb00` volet assistant.
 
 | Livrable | Gardé par |
 |---|---|
@@ -17344,7 +17344,7 @@ contre gemma4:12b 31 · qwen3.5:4b 22,6 · gemma4:e4b 9,4).
 
 **Contrôles MESURÉS à la clôture** : périmètre **95 tests, 6 rouges, AUCUN de moi** —
 2 × `tests_mcp_dev_tools.TachesTest` (artefact venv_win, contre-épreuve WSL2 verte le 22/09) et
-4 × `tests_identifier_language` (budgets +1 code / +1 méthodes, venus de `816d3293` du 25/09 ;
+4 × `tests_identifier_language` (budgets +1 code / +1 méthodes, venus de `661f5063` du 25/09 ;
 **zéro identifiant français dans mes fichiers**, mesuré par filtre) · `check_docs` **2 cassées /
 2262, 2 cibles distinctes, aucune de moi APRÈS correction** — j'en avais ouvert une en écrivant
 le nom d'un fichier de rôle qui n'existe pas encore, corrigée ici (6ᵉ récidive de la famille §2c) ;
@@ -17386,15 +17386,15 @@ système** : commits non poussés sur `dev`.
 
 Complète le point 1 (« SMTP ») du §CLÔTURE « PORTAGE (lots, modales, routes) + WORKER MORT ».
 - Serveur donné par Fabien : `partage.univ-eiffel.fr`, **465**, SSL/TLS implicite. Django ne
-  combine pas SSL et STARTTLS → variable `WAMA_EMAIL_USE_SSL` (`aa6e54f6`) ; le 587 était un
+  combine pas SSL et STARTTLS → variable `WAMA_EMAIL_USE_SSL` (`e683d3ce`) ; le 587 était un
   défaut générique du code (`668a15cd`, 30/06), recopié dans `.env` le 19/08 (`bb9e9aa5`).
 - **Mesuré sans rien envoyer** (EHLO / MAIL FROM / RCPT TO / RSET) : le serveur REFUSE l'envoi
   non authentifié depuis la machine WAMA (`554 5.7.1 Client host rejected`). Il faut un compte
   FONCTIONNEL WAMA — jamais un compte personnel (Fabien) — ou une IP autorisée par la DSI.
 - Adresses retenues par Fabien, toutes sous le préfixe `wama-` (`no-reply@` et `wama@` jugés trop
   génériques) : compte d'envoi ET expéditeur `wama-noreply@` (défaut de `settings.py` aligné,
-  `4d5566ec`) ; alias `wama-moderation@`, `wama-admin@`, `wama-dev@`, `wama-support@`.
-- Branchés (`6cc91c55`) : `WAMA_ADMIN_EMAILS`/`WAMA_DEV_EMAILS` reçoivent les alertes
+  `14fe8253`) ; alias `wama-moderation@`, `wama-admin@`, `wama-dev@`, `wama-support@`.
+- Branchés (`9020a421`) : `WAMA_ADMIN_EMAILS`/`WAMA_DEV_EMAILS` reçoivent les alertes
   d'exploitation (`notify_admins`, repli sur chaque compte du niveau), `WAMA_SUPPORT_EMAIL` est le
   Reply-To de tous les mails. Tests `StaffAddressesTest` (4) ; `tests_notifications` 11 verts.
   `.env` rempli (hors mot de passe), `.env.example` documente le rôle de USER / PASSWORD / FROM.
@@ -17404,7 +17404,7 @@ quatre alias ; puis refaire la sonde sans envoi, relancer la pile, `manage.py se
 Jusque-là, tout envoi échoue en silence (`fail_silently=True`). **Pending système** : 33 commits
 non poussés sur `dev`.
 
-## §PALIER — 2026-09-26 (soir), « TESTS GÉNÉRIQUES : les cinq contrats de `WAMA_VERIFICATION §8` » — ✅ LIVRÉ (`7872e5ea`, `18d86ee9`, `c03753dc`, `53abe5da`, non poussés)
+## §PALIER — 2026-09-26 (soir), « TESTS GÉNÉRIQUES : les cinq contrats de `WAMA_VERIFICATION §8` » — ✅ LIVRÉ (`65a9f7d3`, `fdfc34cb`, `6c32c03c`, `7213471b`, non poussés)
 
 Demande de Fabien : *« un test est générique et s'applique à toutes les applications par défaut
 en schéma-driven — sinon on multiplie les tests »*, puis *« commence par 1 et 3, puis enchaîne les
@@ -17423,7 +17423,7 @@ gardés dans UNE seule app**. Détail, défauts trouvés et restes : `WAMA_VERIF
 - **Listes d'apps écrites à la main → dérivées** (`PORTEES`, `SOURCES`) ; tests d'app retirés
   quand un générique les tient (reader 2, synthesizer 9, transcriber 2, converter 1, imager 2) ;
   les tests du backend COMMUN audio.cpp rangés au commun.
-- ⚠ **Mon `git mv` a été emporté par le commit d'une autre instance** (`2716f47e`, assistant) :
+- ⚠ **Mon `git mv` a été emporté par le commit d'une autre instance** (`23810356`, assistant) :
   un `git mv` STAGE dans l'index PARTAGÉ. Contenu juste (le renommage là-bas, l'en-tête ici),
   attribution scindée. *Sur ce dépôt : copier puis supprimer, et commiter les deux chemins.*
 - `docs/dev/briques.md` : seuls mes hunks commités (la version régénérée porte le travail en
@@ -17449,7 +17449,7 @@ sauvegarde du volet de lot (anonymizer, imager, enhancer) → `refreshCard`, con
 > pour la vocalisation (suppression des emojis, intonations et soupirs sur les parenthèses et fins
 > de lignes) et porter ça sur la page d'accueil. On le fait de suite et le levier 5 aussi. »*
 
-**LEVIER 5 (flux SSE) — `2716f47e`.** Ollama reçoit `stream: true` dès qu'un rappel est fourni ;
+**LEVIER 5 (flux SSE) — `23810356`.** Ollama reçoit `stream: true` dès qu'un rappel est fourni ;
 chaque fragment remonte à l'écran ET à la voix. ⚠ **Le chiffre annoncé ici (« 1ᵉʳ texte 0,2 s,
 fin 2,2 s ») est CORRIGÉ plus bas** : il venait d'un tour unique sur serveur éphémère. La mesure
 sur la pile réelle est au bloc de fin de session. ⚠ Le point dur n'est pas le transport mais le **portier** (`_TokenGate`) : la
@@ -17463,7 +17463,7 @@ DÉCLARE la brique commune (`data-density` full / compact). Message d'accueil et
 restent SERVIS, par `<template>`. Une garde vérifie que les identifiants de l'ancien rendu ont
 disparu — sans elle, laisser les deux en place passerait inaperçu.
 
-**LE TEXTE À DIRE EST UNE BRIQUE — `6389072a`** (`common/utils/tts_text.py`). ⚠⚠ Ce que la mesure
+**LE TEXTE À DIRE EST UNE BRIQUE — `ed4ed5d8`** (`common/utils/tts_text.py`). ⚠⚠ Ce que la mesure
 a trouvé, et qui n'était pas la question posée : le domaine était écrit **DEUX FOIS, sous le MÊME
 NOM DE FONCTION** — la vue de vocalisation avait emojis/Markdown/respirations (1 appelant), le
 synthesizer avait URL/e-mails (6 appelants). Aucun n'était faux ; ensemble ils faisaient un
@@ -17479,7 +17479,7 @@ serveur répond 200, le WAV existe, l'écran ne montre rien — il ne s'entend q
 règle a sa CONTRE-ÉPREUVE, car toutes sont des arbitrages (le tiret se retire en incise et jamais
 dans « arrière-plan » ; le `/` se dit « ou » entre deux mots et jamais dans `26/09/2026`).
 
-**Docs + registre — `761fe722`.** `WAMA_LLM §1bis` remis à la mesure (son titre disait « rien de
+**Docs + registre — `4d624ff5`.** `WAMA_LLM §1bis` remis à la mesure (son titre disait « rien de
 câblé » alors que 1, 2 et 4 l'étaient depuis le 22/09) ; le **domicile du levier 4 était faux** :
 décrit dans `home.html`, il n'existait donc que sur l'accueil — il est dans la brique de voix.
 `mecanismes.py` gagne `tts_text` (**160** mécanismes). Trois références à des lignes du gabarit
@@ -17524,14 +17524,14 @@ commit qui le porte, il date de l'arbre qui l'a produit.*
 **Vérifié** : 107 tests de mon périmètre OK **après la dernière écriture** (flux 16, texte à dire
 17, surfaces, plans de doc, budget de langue, synthesizer) ; `check_docs` 2 cassées (les deux
 préexistantes de ce fichier), 0 périmée ; budgets de langue tenus, aucun relevé.
-**Pendings système** : la série va de **`2716f47e`** (flux) à **`b4489172`** (adresses dicibles),
+**Pendings système** : la série va de **`23810356`** (flux) à **`766fd1d7`** (adresses dicibles),
 huit commits ; le serveur dev éphémère du port 8012 est **arrêté**.
 ⚠ **Ne pas se fier à une liste de « non poussés » écrite ici** : mesuré à 21 h 45, six des huit
 l'étaient DÉJÀ, poussés par une autre instance qui a poussé la branche entière. *Sur un dépôt
 partagé, « non poussé » est un fait sur le DISTANT à un instant, pas une propriété de mes
 commits.* La mesure : `git rev-list --count origin/dev..HEAD` après un `git fetch`.
 **Reload gunicorn** : fait par Fabien pour les trois premiers, et c'est cette relance qui a permis
-la vérification ci-dessous. ⚠ **`b4489172` est POSTÉRIEUR à la relance** : le remplacement des
+la vérification ci-dessous. ⚠ **`766fd1d7` est POSTÉRIEUR à la relance** : le remplacement des
 adresses par un mot dicible n'est pas encore servi, il attend un nouveau reload.
 
 ### Après la relance de WAMA par Fabien — vérification sur le serveur RÉEL, et un défaut trouvé
@@ -17543,7 +17543,7 @@ un POST anonyme, pas 404) ; et surtout une **vocalisation de bout en bout** par 
 compte de test, microservice TTS chaud : **HTTP 200, 489 516 octets d'audio**, sur une entrée qui
 déclenche toutes les règles.
 
-⚠⚠ **ET LE SMOKE A TROUVÉ UN DÉFAUT QUE MES 17 GARDES NE VOYAIENT PAS** (corrigé, `b4489172`).
+⚠⚠ **ET LE SMOKE A TROUVÉ UN DÉFAUT QUE MES 17 GARDES NE VOYAIENT PAS** (corrigé, `766fd1d7`).
 « Écrivez à contact@… ou https://… » sortait en **« Écrivez a ou. »**, lu tel quel à voix haute :
 l'adresse était EFFACÉE, et la phrase porteuse ne disait plus rien.
 ⭐ **La garde était en cause autant que le code.** Elle vérifiait l'ABSENCE de l'adresse
@@ -17648,7 +17648,7 @@ direct, enregistrés au relâchement) et s'il vit aussi dans le profil.
 
 > Décision de Fabien : *« oui, je pense qu'il faut passer au pointage. Si le fichier est déjà
 > quelque part dans l'arbre de l'utilisateur, on le pointe depuis l'application. »* Commit
-> **`5d168e07`**, vérifié sur HEAD en worktree (174 tests). Détail : `MEDIA_STORAGE_TIERING`
+> **`f6b885a7`**, vérifié sur HEAD en worktree (174 tests). Détail : `MEDIA_STORAGE_TIERING`
 > §Cible (domicile de la bascule) + D22/D23 — ce bloc ne le recopie pas.
 
 **Deux chantiers, et l'ordre est la raison pour laquelle rien n'a été perdu.** D22 d'abord : la
@@ -17776,7 +17776,7 @@ prouver moi-même — la pièce jointe qui arrive dans Discord.
 | `manage.py check` | propre |
 
 ⚠ **Rouge PRÉ-EXISTANT, non mien, non corrigé** : `tests_access_points` échoue sur la route de
-grant VRAM (gouverneur B1, commit `608fc7c0`) — aucun de mes fichiers n'y touche.
+grant VRAM (gouverneur B1, commit `1a8c4451`) — aucun de mes fichiers n'y touche.
 ⚠ **Trou de l'instrument de langue, trouvé à l'œil** : `declarant` et `herite` ne sont pas dans la
 liste noire (vérifié : 15 renommages, total inchangé). Les y ajouter recale le budget dans le même
 commit — à faire quand l'arbre est calme.
@@ -17798,12 +17798,12 @@ commit — à faire quand l'arbre est calme.
 - Total : **13 commits**, toujours non poussés.
 
 ⚠ **Rouge PRÉ-EXISTANT, non mien, non corrigé** : `tests_access_points` échoue sur la route de
-grant VRAM (gouverneur B1, commit `608fc7c0`) — aucun de mes fichiers n'y touche.
+grant VRAM (gouverneur B1, commit `1a8c4451`) — aucun de mes fichiers n'y touche.
 ⚠ **Trou de l'instrument de langue, trouvé à l'œil** : `declarant` et `herite` ne sont pas dans la
 liste noire (vérifié : 15 renommages, total inchangé). Les y ajouter recale le budget dans le même
 commit — à faire quand l'arbre est calme.
 
-### SUITE — 2026-09-26 (serveur relancé) : le smoke a corrigé MA conception (`5422f8ff`)
+### SUITE — 2026-09-26 (serveur relancé) : le smoke a corrigé MA conception (`e6547aa7`)
 
 **Geste réel rejoué sur le live** : `.send_to` = **10 OK / 0 échec / 7 skips** (skips = dettes
 déjà déclarées — avatarizer et composer sans importeur, trois apps sans extension d'entrée).
@@ -17832,13 +17832,13 @@ skill de recherche web, comment gère-t-il le proxy ? ») qui a ouvert le vrai c
 
 | livré | commit |
 |---|---|
-| `.mjs` déclaré comme les types audio (+ garde des SIX, avec contre-épreuve) | `13a078c1` |
-| l'avatarizer replié sur `voice_groups_json` + la garde GÉNÉRIQUE qui manquait aux deux pages TTS | `9eabacd3` |
-| clé de payload `shared` → `common` (mots-clés de prompt), chaîne entière | `f806e414` |
-| la contre-épreuve du proxy mesurait la MACHINE, pas le code | `19b02e6a` |
-| `is_public` soldée par retrait + `shared` tranchée (`WAMA_COLLABORATION §9`) | `adecc849`, `m5` |
-| la recherche web par la brique commune + défi anti-robot DIT | `dc23097f` |
-| **moteurs de recherche : registre + adaptateurs + préférence au profil** | `e16088de` |
+| `.mjs` déclaré comme les types audio (+ garde des SIX, avec contre-épreuve) | `43a7f60a` |
+| l'avatarizer replié sur `voice_groups_json` + la garde GÉNÉRIQUE qui manquait aux deux pages TTS | `29a88462` |
+| clé de payload `shared` → `common` (mots-clés de prompt), chaîne entière | `0ba111d2` |
+| la contre-épreuve du proxy mesurait la MACHINE, pas le code | `3bd20e76` |
+| `is_public` soldée par retrait + `shared` tranchée (`WAMA_COLLABORATION §9`) | `6049286f`, `m5` |
+| la recherche web par la brique commune + défi anti-robot DIT | `5f9b31c7` |
+| **moteurs de recherche : registre + adaptateurs + préférence au profil** | `7ded83f6` |
 
 **Le chantier du soir — un moteur écrit en dur est un point de panne que rien ne contourne.** Mesuré
 depuis WSL2 (le process qui exécute vraiment gunicorn et Celery) : DuckDuckGo répond `200` avec 14 Ko
@@ -17888,9 +17888,9 @@ instance (annoncé au commit — une doc générée à moitié serait pire).
 ## §CLÔTURE — 2026-09-27, « MÉDIAS : POINTER, PARTAGER, RANGER » (D20→D24 + sonde de moteur)
 
 > Périmètre : les fichiers que des cards DÉSIGNENT. Huit commits à moi, **non poussés** :
-> `5d168e07` (pointage + garde de partage), `1313d1b2` et `864d86c1` (paliers), `5422f8ff`
-> (409 → 200 + scénario de suppression), `a680109e` (sonde qwen), `4137e2a7` (médiathèque =
-> déplacement), `05766d3d` et `293f72ef` (consignation, docs dérivées).
+> `f6b885a7` (pointage + garde de partage), `3e8c7180` et `fa3cebde` (paliers), `e6547aa7`
+> (409 → 200 + scénario de suppression), `0094505d` (sonde qwen), `2efea659` (médiathèque =
+> déplacement), `d6c2c637` et `234cc4ad` (consignation, docs dérivées).
 
 **Ce qui est livré**, détail au domicile (`MEDIA_STORAGE_TIERING §8.6` D20-D24 + §Cible) :
 ① la règle D20 (déplacer suit, supprimer prévient, la card reste détachée) ; ② la PROVENANCE
@@ -17912,8 +17912,8 @@ une copie, avec un retrait qui le rend à sa card ; ⑥ la sonde de disponibilit
   7,7 s avec le cache d’inventaire VIDÉ** (il sautait après 46 s).
 
 🔴 **PENDINGS SYSTÈME — ce qui attend Fabien** :
-1. **RELANCER WAMA** : le serveur sert le code d’avant `5422f8ff` (confirmation en 200), `a680109e`
-   (sonde qwen) et `4137e2a7` (médiathèque). Tout est prouvé sur serveur de dev éphémère, jamais
+1. **RELANCER WAMA** : le serveur sert le code d’avant `e6547aa7` (confirmation en 200), `0094505d`
+   (sonde qwen) et `2efea659` (médiathèque). Tout est prouvé sur serveur de dev éphémère, jamais
    sur le live pour ces trois-là ;
 2. **8 commits non poussés** (les miens) ;
 3. migrations appliquées à la base LIVE : `synthesizer 0027` (retrait de `VoicePreset`, table vide)
@@ -17980,18 +17980,18 @@ direction n'existait pas ; « le menu va devenir ingérable » → même problè
 
 | livré | commit |
 |---|---|
-| `.mjs` déclaré (+ garde des 6 types, avec contre-épreuve) | `13a078c1` |
-| avatarizer replié sur la brique commune + garde générique des 2 pages TTS | `9eabacd3` |
-| clé de payload `shared` → `common` (mots-clés), chaîne entière | `f806e414` |
-| la contre-épreuve du proxy mesurait la MACHINE, pas le code | `19b02e6a` |
-| `is_public` soldée par retrait, `shared` tranchée | `adecc849` |
-| recherche web par la brique commune + défi anti-robot DIT | `dc23097f` |
-| **moteurs de recherche : registre + adaptateurs + préférence au profil** | `e16088de` |
-| clés groupées par famille, moteur grisé qui dit la VRAIE raison | `a8cf568a` |
-| aperçu de voix réparé (lecteur sans `<source>`) + toast d'erreur lisible 15 s | `cfe8e436` |
-| card d'entrée dédupliquée + **les voix suivent la langue** | `b23010ab` |
-| Mozilla Data Collective au registre, clé de CHACUN | `63ab0044` |
-| paliers et `attendu` → `expected` | `8682c559`, `878d3ecf` |
+| `.mjs` déclaré (+ garde des 6 types, avec contre-épreuve) | `43a7f60a` |
+| avatarizer replié sur la brique commune + garde générique des 2 pages TTS | `29a88462` |
+| clé de payload `shared` → `common` (mots-clés), chaîne entière | `0ba111d2` |
+| la contre-épreuve du proxy mesurait la MACHINE, pas le code | `3bd20e76` |
+| `is_public` soldée par retrait, `shared` tranchée | `6049286f` |
+| recherche web par la brique commune + défi anti-robot DIT | `5f9b31c7` |
+| **moteurs de recherche : registre + adaptateurs + préférence au profil** | `7ded83f6` |
+| clés groupées par famille, moteur grisé qui dit la VRAIE raison | `c17da5fe` |
+| aperçu de voix réparé (lecteur sans `<source>`) + toast d'erreur lisible 15 s | `b81461a7` |
+| card d'entrée dédupliquée + **les voix suivent la langue** | `ffb7db6a` |
+| Mozilla Data Collective au registre, clé de CHACUN | `ed87a9ee` |
+| paliers et `attendu` → `expected` | `c5ec4bdf`, `8f0e7236` |
 
 **Données réelles modifiées (déclarées)** : 3 fixtures `smoke-0802-*` supprimées (feu vert), puis
 les **8 créneaux enfant/senior** retirés — lignes ET fichiers, par le geste commun
@@ -18024,7 +18024,7 @@ redémarrage requis (JS et gabarits).
 
 **AJOUT au balayage de clôture (question de Fabien : « des quick wins ? des choses laissées de
 côté ? »)** — deux trous trouvés en cherchant, pas en se souvenant :
-1. **Les librairies de la chaîne des voix** (`bacaf0f9`, `214ac36d`). Mon pending les disait
+1. **Les librairies de la chaîne des voix** (`63c20802`, `1fb98d38`). Mon pending les disait
    « hors requirements » ; la mesure a corrigé le constat : `librosa` et `soundfile` avaient DÉJÀ
    leur manifeste, seule `datasets` n'existait nulle part. Les quatre sont déclarées, manifestes
    générés par la commande depuis venv_linux. ⚠ **Divergence mesurée et déclarée** : `datasets`
@@ -18047,7 +18047,7 @@ et l'obstacle « 268 Go » qu'il annonçait était faux — mesuré, corrigé, e
 
 ### Livré
 
-1. **« Voix par défaut » suit la langue** (`0cbb3c9b`). `default` était un preset plat
+1. **« Voix par défaut » suit la langue** (`9531557b`). `default` était un preset plat
    `{'language': 'en'}` — un texte allemand sortait avec une locutrice anglaise, en silence.
    C'est le SERVEUR qui la résout (`default_voice_for_language`), transmise par la porte commune
    `speaker_wav_for(language=)` à ses trois appelants : l'audio suit partout, pas seulement dans
@@ -18057,7 +18057,7 @@ et l'obstacle « 268 Go » qu'il annonçait était faux — mesuré, corrigé, e
    première voix de la langue » est écrite deux fois (Python / JS), **un test les confronte** —
    sinon le libellé mentirait sur la voix employée. Consigné `MEDIA_STORAGE_TIERING §9.4quater`.
 2. **La médiathèque AFFICHE les attributs, et refuse la suppression d'un asset système**
-   (`6c1c2d4b`). `language`/`age`/`gender` étaient sérialisés et rendus nulle part, parce que les
+   (`094c13c3`). `language`/`age`/`gender` étaient sérialisés et rendus nulle part, parce que les
    **libellés de valeurs** vivaient dans la brique TTS : seul le menu du synthesizer savait lire
    des données que la médiathèque STOCKE. Ils remontent à la déclaration de nature
    (`natures.Attr.label`/`labels`), `voice_refs` les LIT, et le JS rend les attributs
@@ -18172,10 +18172,10 @@ offertes) et l'adaptateur Staan attend sa clé sans une ligne de code de plus.
 
 ## §CLÔTURE — 2026-09-27, « ANONYMIZER : RÉGLAGES AU COMMUN, MODE CLASSES / DESCRIPTION, JETON HF » — ✅ LIVRÉ
 
-Instance de la session transcriber → tests génériques → anonymizer. Commits : `69213680` (profils =
-DANS l'app, pas la médiathèque — trace corrigée), `88e59799` + `f481b9c2` (réglages du volet :
-brique commune `user_settings.*_panel_*`, flou par défaut 75), `98251adc` (le mode est un RÉGLAGE
-qui borne le menu de modèles), `38657fa5` (3 fichiers oubliés par une autre instance), `47ce33ac`
+Instance de la session transcriber → tests génériques → anonymizer. Commits : `b4f2a642` (profils =
+DANS l'app, pas la médiathèque — trace corrigée), `9fe592d9` + `b6128244` (réglages du volet :
+brique commune `user_settings.*_panel_*`, flou par défaut 75), `06d23053` (le mode est un RÉGLAGE
+qui borne le menu de modèles), `099733ac` (3 fichiers oubliés par une autre instance), `97e7032b`
 (jeton HF de celui qui télécharge, pastille SAM3, LocateAnything).
 
 **Ce qui est en place.**
@@ -18194,8 +18194,8 @@ qui borne le menu de modèles), `38657fa5` (3 fichiers oubliés par une autre in
   n'arrivait jamais au serveur) ; course des options (la plus lente gagnait) ; découverte des
   modèles distants lancée pour toute source à clé (500 à l'enregistrement d'un jeton HF).
 
-**Finalisation (même jour, instance seule restante, demande de Fabien)** — `8bae7457`, `d3a24204`,
-`046e435e`, `9e02c849`, `97d35907` :
+**Finalisation (même jour, instance seule restante, demande de Fabien)** — `fa957112`, `ea8e38d7`,
+`62ab202b`, `5c579220`, `1f73bd1f` :
 - **R73–R76 faits** : tables `UserSettings`/`GlobalSettings`, colonne `use_sam3`, page de profil
   `settings-edit`, commandes de transfert, listes de modèles par dossier. Relevé SANS filtre de
   chemin : il a trouvé `tool_api.add_to_anonymizer`/`get_anonymizer_status` qui écrivaient/lisaient
@@ -18225,9 +18225,9 @@ qui borne le menu de modèles), `38657fa5` (3 fichiers oubliés par une autre in
 
 **Rouges du jour NON imputés à ce chantier** : budget langue (`code` 2768 > 2735 — mes fichiers
 n'ajoutent rien, mesuré fichier par fichier contre HEAD) ; `tests_access_points` sur
-`api/vram/grant/`. *(Les deux soldés à la finalisation ci-dessus — `d3a24204`, `8bae7457`.)*
+`api/vram/grant/`. *(Les deux soldés à la finalisation ci-dessus — `ea8e38d7`, `fa957112`.)*
 
-**Clôture finale (2026-09-27 soir, `/cloture`)** — `f47c0638` + ce bloc.
+**Clôture finale (2026-09-27 soir, `/cloture`)** — `f867b8f6` + ce bloc.
 - **Gardes JS ajoutées** (§2a bis — les livrables communs de `wama-params.js` n'en avaient pas) :
   `tests_wama_params_options.RadioNameTest` (radio de modale = UN `name`, celui du réglage ;
   contre-épreuve : `radio_name` du transcriber prime toujours) et `ModeBoundMenuTest` (la requête
@@ -18290,7 +18290,7 @@ ouvert avant le relancement, probablement. ⚠ Rouge NON imputé à ce chantier 
 **B. Aligné sur WAMA ?** Métadonnée-driven (la nature déclare, tout dérive) · porte commune
 respectée — **zéro appel direct à `resolve_speaker_wav` hors de la brique, mesuré par AST** ·
 frontière des données tenue (la valeur stockée reste `default`) · registre `mecanismes.py` mis à
-jour (`360a0648`).
+jour (`19082792`).
 
 **C. La route ?** Quatre blocs dans les quatre docs de référence de leur domaine ; **aucun `.md`
 nouveau**, donc rien à ajouter à la table d'`AGENTS.md` ni à `docs_catalog.py`. `check_docs`
@@ -18305,16 +18305,16 @@ déclare un champ `voice_preset` doit passer par la porte), les appelants **déc
 plus une garde anti-vide (`vus >= 3`). Même passe sur le rendu des attributs : il testait deux
 natures nommées, il **boucle** désormais sur toutes les natures à attributs. Contre-épreuves
 mutants **5/5** (langue retirée, dans un commentaire, dans une docstring, en positionnel, appel
-qualifié). 106 tests verts sur base isolée (`e991cfed`).
+qualifié). 106 tests verts sur base isolée (`8642f653`).
 
 **E. Les 15 rouges de la suite large — attribués, aucun n'est de moi**
 
 | rouge | à qui |
 |---|---|
-| `tests_identifier_language` ×5 (code 2768>2735, classes 135>133, méthodes 1311<1312) | autres chantiers. **Ma part était +1** (`does_not_declare`, radical français) : renommée, pas budgétée (`d6e52291`) — mesure 4201 → 4200 |
+| `tests_identifier_language` ×5 (code 2768>2735, classes 135>133, méthodes 1311<1312) | autres chantiers. **Ma part était +1** (`does_not_declare`, radical français) : renommée, pas budgétée (`93c695a3`) — mesure 4201 → 4200 |
 | `tests_notifications` ×3 | adresses réelles de l'université (chantier SMTP) |
 | `tests_schema_grid` (noyau gaussien) · `tests_tool_api_lectures` · `tests_capabilities_languages` | chantiers anonymizer / `tool_api` / modèles, tous en WIP non commité |
-| `tests_check_templates` | `common/_new_item_card_v4.html:175`, commentaire multi-ligne — **dernière modification le 2026-09-22** (`4cb36454`), cinq jours avant cette session |
+| `tests_check_templates` | `common/_new_item_card_v4.html:175`, commentaire multi-ligne — **dernière modification le 2026-09-22** (`0a2b2fe4`), cinq jours avant cette session |
 | `tests_mcp_dev_tools` ×2 | serveur MCP dev, qui ne survit pas à un redémarrage (WAMA venait d'être relancé) |
 | `tests_doc_plans` | ⚠ **part MIENNE** : `docs/dev/briques.md` documente encore `resolve_speaker_wav(voice_preset, user=None)` sans `language`, et ignore `default_voice_for_language` — **et** le `token=None` d'un autre chantier |
 
@@ -18634,15 +18634,15 @@ aucune clé à préfixe doublé en base (26 clés). Garde : `tests_eta_test_acco
 
 **Doublon `xtts_v2`** (question de Fabien) : ce n'était PAS un second modèle — le catalogue n'a
 qu'une entrée (`synthesizer:coqui-xtts`) ; `xtts_v2` est l'ancien nom, renommé le 2026-09-01
-(`fb9ecfd9`). Restaient une ligne d'ETA orpheline (17/07, retirée) et l'aide du fichier batch de
+(`c27f134e`). Restaient une ligne d'ETA orpheline (17/07, retirée) et l'aide du fichier batch de
 l'avatarizer, qui proposait `--tts xtts_v2` — refusé par `engine_for_model` : une ligne recopiée
-échouait (`a5827afb`, garde `avatarizer/tests_batch_template`).
+échouait (`6b9a8ed6`, garde `avatarizer/tests_batch_template`).
 
 **Vérifié sur HEAD** (worktree jetable, côté WSL) : 422 tests des suites de la session, verts sauf
 (1) `tests_check_docs.CarteTests` — ARTEFACT : le git de WSL ne lit pas un worktree créé par le git
 Windows (`ls-files` → 128), vert sur l'arbre principal ; (2) le budget des noms de tests
 français, 1313 > 1311, par DEUX de mes noms anglais contenant des mots ambigus (`journal`,
-`declares`) — renommés (`58c865ab`), 1311/1311.
+`declares`) — renommés (`1e003d79`), 1311/1311.
 
 **Constats de la nuit (campagnes du 29/09)** :
 - le worker `default` (prefork, autoscale) garde le code de son PARENT (02:14) : un enfant forké
@@ -18673,23 +18673,23 @@ français, 1313 > 1311, par DEUX de mes noms anglais contenant des mots ambigus 
 
 **Livré (21 commits, dans l’ordre)**
 - Étape 3 de la card v4 (« la card porte les ENTRÉES, le volet les RÉGLAGES ») : (a) indication
-  commune « Réglages : volet de droite » `f6718e7b` ; (b) aperçu de voix du synthesizer au volet
-  `398e80d6`, aligné sur la chaîne commune `0332ecb0`, aperçu PENDANT `540ad6e1` ; (c) modèle et
-  prompt négatif de l'imager hors de la card `620e9577` ; restes `1314e9fb`.
-- Médiathèque : connexion exigée sur toutes ses routes (D26) `e01b2b36` ; rendre un asset système
-  à son auteur (3 photos personnelles rendues, D27) `5dddd4cc` ; asset PARTAGÉ désignable
-  `c6223b37` ; fenêtre de sélection universelle (onglets par nature, trois provenances)
-  `d6d4779f` ; menu contextuel commun `f8804565` ; card d'entrée commune (R81) `50a8d708` ; la
-  fenêtre MONTRE avant de choisir (aperçu inline commun, « Choisir », double-clic) `e2c821b5`.
-- Plan (d) : `pipeline_stage` (CodeFormer n'ouvre plus de port) `150a5337` ; card v4 à plusieurs
-  ports de TRAVAIL + onglet de médiathèque déclaré par port (`library_natures`) `a3317e8a` ;
+  commune « Réglages : volet de droite » `2cd0a0a2` ; (b) aperçu de voix du synthesizer au volet
+  `e5ec61ea`, aligné sur la chaîne commune `d36a8c0c`, aperçu PENDANT `6b1542c3` ; (c) modèle et
+  prompt négatif de l'imager hors de la card `53f65bae` ; restes `626a604a`.
+- Médiathèque : connexion exigée sur toutes ses routes (D26) `fe318498` ; rendre un asset système
+  à son auteur (3 photos personnelles rendues, D27) `8220da83` ; asset PARTAGÉ désignable
+  `0377f290` ; fenêtre de sélection universelle (onglets par nature, trois provenances)
+  `b87a82f8` ; menu contextuel commun `1b3219b5` ; card d'entrée commune (R81) `921de05b` ; la
+  fenêtre MONTRE avant de choisir (aperçu inline commun, « Choisir », double-clic) `63d23acb`.
+- Plan (d) : `pipeline_stage` (CodeFormer n'ouvre plus de port) `220db0e8` ; card v4 à plusieurs
+  ports de TRAVAIL + onglet de médiathèque déclaré par port (`library_natures`) `7778fe0a` ;
   **avatarizer en card v4** (1ʳᵉ app en place ; galerie → onglet Avatar ; « Ajouter à la file »
-  ne lance plus ; R82) `8c21d489` ; avatar NOMMÉ résolu parmi ce que l'utilisateur voit (lots,
-  Studio, assistant — D28) dans `e2c821b5`.
-- Grille : imager `settings_route` + faux positif `btn_order` `25947526` ; reader `model_caps_ui`
+  ne lance plus ; R82) `548ed778` ; avatar NOMMÉ résolu parmi ce que l'utilisateur voit (lots,
+  Studio, assistant — D28) dans `63d23acb`.
+- Grille : imager `settings_route` + faux positif `btn_order` `fa6ddf78` ; reader `model_caps_ui`
   (réglages grisés selon ce que le moteur OCR LIT) + enhancer `user_settings` (volet mémorisé,
-  R83) `4adb8820` ; jumelles bac à sable NOTÉES à part avec leur écart `96b45d8a` ; réinvention
-  trouvée à la clôture (`check_redundancy`) `66fef5ee` ; + commits de clôture (manifestes, skill,
+  R83) `bb0d1db1` ; jumelles bac à sable NOTÉES à part avec leur écart `36bea261` ; réinvention
+  trouvée à la clôture (`check_redundancy`) `febbfa05` ; + commits de clôture (manifestes, skill,
   ce bloc).
 
 **Contrôles attendus au prochain /reprise** (mesurés le 29/09 vers 17:30)
@@ -18726,7 +18726,7 @@ médiathèque, le grisage du reader — candidats pour un test V8 dans `tests_de
   `/avatarizer/` servent l'ancien code, et un gabarit neuf lu à chaud peut rendre 500.
 - **Après relance seulement** : retirer la table `enhancer.UserSettings` (R83 : modèle retiré +
   `makemigrations enhancer` + `migrate`) — la retirer avant ferait échouer l'ancien code.
-- **Push** : 6 commits à moi restent locaux (`e2c821b5`, `25947526`, `4adb8820`, `96b45d8a`, `66fef5ee` + la clôture) — les 15 premiers ont été poussés par une autre instance pendant la clôture ; décision de Fabien.
+- **Push** : 6 commits à moi restent locaux (`63d23acb`, `fa6ddf78`, `bb0d1db1`, `36bea261`, `febbfa05` + la clôture) — les 15 premiers ont été poussés par une autre instance pendant la clôture ; décision de Fabien.
 - Catalogue : lignes `avatarizer:codeformer` et `reader:*` resynchronisées à la main (script de
   scratchpad) ; la prochaine synchro complète les réécrit à l'identique.
 
@@ -18751,7 +18751,7 @@ création, groupe ses modèles) ou imager (prompt-primaire, ports déjà dériv�
 
 ## §PALIER — 2026-09-29 (soir), TESTS DE `wama/common` EN PAQUET + TTS EN CLÉ DE CATALOGUE
 
-**Tests déplacés** (`0db25a8c`, décision de Fabien, instances prévenues AVANT et APRÈS) : les 144
+**Tests déplacés** (`ff59295d`, décision de Fabien, instances prévenues AVANT et APRÈS) : les 144
 fichiers de test de `wama/common` sont dans `wama/common/tests/` — modules
 `wama.common.tests.tests_<sujet>` ; `WAMA_APP_CONVENTIONS §1.1` le dit. Un commit, construit
 dans un index temporaire depuis HEAD : le travail non commité d'autres instances a suivi intact dans
@@ -18764,24 +18764,24 @@ voisin sous la forme `from wama.common import tests_x`, que les motifs ne couvra
 budgets `tests_identifier_language` à recaler vers le BAS par l'auteur de la baisse (code 2687,
 noms 1310). Les 3 blocs générés périmés (`mecanismes`, `outils`, `briques`) l'étaient déjà à 04:22.
 
-**TTS en clé de catalogue** (`8039ccd8`) : `DEFAULT_TTS_MODEL` (`common/tts/constants`) remplace
+**TTS en clé de catalogue** (`49a97fe7`) : `DEFAULT_TTS_MODEL` (`common/tts/constants`) remplace
 ~12 littéraux, et `tts_catalog_key` normalise à l'ENTRÉE (vues, ligne de batch, outils de
 l'assistant, réglages mémorisés). Les tables de MOTEUR gardent le nom court. Aucune migration.
 
 **Tâches fantômes du gouverneur** : le jumeau de `_dead_owners` pour `running_tasks()` est écrit
-et commité par l'instance du registre VRAM (`cf644976`) — une ligne dont le process est mort dans
+et commité par l'instance du registre VRAM (`a79088e5`) — une ligne dont le process est mort dans
 le même espace de pid est purgée. Le Redis Windows est VIDÉ (18 messages restes). Le worker GPU
 bloqué de 13:36 à 17:33 l'était dans un envoi SMTP sans délai — corrigé par une autre instance
-(`b7ff435f`, délai de 30 s).
+(`29c4a4f1`, délai de 30 s).
 
 ## §CLÔTURE — 2026-09-29, session CALENDRIER → ETA → TESTS EN PAQUET
 
 **Fait depuis le palier du soir** : plage nocturne mesurée sur la MÉDIANE des campagnes complètes
-(`c8f26207`, décision de Fabien — 270 → 225 min, seules 2 campagnes complètes dans les 60 derniers
-rapports : 136 et 210 min, elle convergera) ; deux gardes qui manquaient (`1a5a41c2`) —
+(`7e5ec8b7`, décision de Fabien — 270 → 225 min, seules 2 campagnes complètes dans les 60 derniers
+rapports : 136 et 210 min, elle convergera) ; deux gardes qui manquaient (`e8a01f7a`) —
 `tests_test_layout` tient `WAMA_APP_CONVENTIONS §1.1` (contre-épreuve faite), et la voie de
 l'assistant stocke le moteur TTS en clé de catalogue ; blocs générés `mecanismes`, `outils`,
-`briques` régénérés DEPUIS HEAD (`de131fc2`, worktree + index temporaire — l'arbre garde les
+`briques` régénérés DEPUIS HEAD (`4f6cbc07`, worktree + index temporaire — l'arbre garde les
 projections du travail non commité des autres instances).
 
 **Laissé de côté — à reprendre** :
@@ -18811,13 +18811,13 @@ consigné en `WAMA_MEMORY §9bis.1`. Les deux points sont SOLDÉS.
 > Fabien (« terminer ça avant de repartir »).
 
 - ✅ **Enhancer** : format et qualité de sortie du volet rendus du SCHÉMA (comme la modale) et
-  ré-affichés depuis la mémoire du volet — `d5642d48`.
+  ré-affichés depuis la mémoire du volet — `fb0f71e9`.
 - ✅ **Composer** : le bouton AJOUTE sans lancer (« Ajouter à la file d'attente ») ; la vue
-  `generate` n'expédie plus rien, le ▶ de la card lance — `300d1b00`. Polling au chargement
+  `generate` n'expédie plus rien, le ▶ de la card lance — `feff7510`. Polling au chargement
   (composer ET avatarizer) : RUNNING ou AWAITING_RESOURCES seulement.
 - ✅ **Geste nocturne `avatarizer.url_import`** : il remplit désormais les AUTRES ports requis de
   la card v4 (l'avatar) avant de coller l'URL → SKIP devenu **OK** (2 créations, 0 lancement,
-  0 résidu) — `300d1b00`. ⚠ Piège : un témoin supprimé juste après `set_input_files` fait
+  0 résidu) — `feff7510`. ⚠ Piège : un témoin supprimé juste après `set_input_files` fait
   échouer l'envoi (« Failed to fetch »), le navigateur relit le fichier à l'envoi.
 - ⏳ **Reste l'outil `convert_file`** (assistant + Studio), qui lance encore à la création —
   **raison mesurée, pas un oubli** : le Studio le déclare `auto_start` et saute `start_converter`,
@@ -18827,9 +18827,9 @@ consigné en `WAMA_MEMORY §9bis.1`. Les deux points sont SOLDÉS.
 - Gestes de card composer/avatarizer rejoués sur 8011 : verdicts identiques au matin ; suites
   composer, enhancer, port_designation, identifier_language OK.
 - Pendings inchangés : relancer WAMA (gunicorn + celery) · puis R83 · push (mes commits locaux
-  s'ajoutent aux 7 déjà annoncés : `d5642d48`, `300d1b00`, et ce bloc).
+  s'ajoutent aux 7 déjà annoncés : `fb0f71e9`, `feff7510`, et ce bloc).
 
-**Tests de `model_manager` et `media_library` rangés** (`634f1c60`, décision de Fabien, 2026-09-29
+**Tests de `model_manager` et `media_library` rangés** (`10d23d1e`, décision de Fabien, 2026-09-29
 soir) : 19 + 14 fichiers dans leur paquet `tests/` (modules `wama.<app>.tests.tests_<sujet>`),
 même geste que `wama/common` — instances prévenues avant (toutes d'accord) et après. Vérifié côté
 WSL : 699 tests, seul rouge `tests_picker_list`, déjà rouge avant (médiathèque) ; `check_docs`
@@ -18845,10 +18845,10 @@ instance, à la demande de Fabien. ⚠ La carte `WAMA_MECANISMES.md` est périm�
 issues surtout de commits d'autres instances, et `mecanismes.py` va encore bouger avec le rangement
 de `cam_analyzer`) : régénération laissée à qui commitera le registre ensuite (`/commit-partiel §4`).
 
-**Restes soldés (2026-09-29, nuit)** — `83b2def3` : le CACHE suit la règle du broker (hors du côté
+**Restes soldés (2026-09-29, nuit)** — `84fa80f7` : le CACHE suit la règle du broker (hors du côté
 autorisé, cache en mémoire du process : un `manage.py` Windows n'écrit plus dans le Redis Windows) ;
 le JS du synthesizer ne redéclare plus le moteur par défaut (il poste vide, la vue prend
-`DEFAULT_TTS_MODEL`). `cam_analyzer` rangé par une autre instance (`ddd50184`) : la liste d'attente de
+`DEFAULT_TTS_MODEL`). `cam_analyzer` rangé par une autre instance (`faead896`) : la liste d'attente de
 `tests_test_layout` est VIDE. **Restent, sur décision** : la répétition des programmations (proposition
 faite à Fabien : n'offrir « Répéter » qu'aux cibles qui le DÉCLARENT, Studio d'abord) ; la couche
 « installations » du calendrier (aucune trace DATÉE d'une installation aujourd'hui — progression en
@@ -18896,7 +18896,7 @@ des installations) ; Lab après P3 ; versionnement des migrations (décision) ; 
   port de travail, même forme que `recursive_import`), `drag_drop` reconnaît la v4.
 - **Suite complète (WSL) : 4153 tests, 9 échecs lus un par un** — 1 à moi (relevé des cards v3,
   corrigé : les cards v4 y entrent comme « dérivées »), 8 d'AUTRES chantiers : `tests_codegen_lot`
-  imager `generation_settings` (route de `25947526`, `render_views` rend un stub) ;
+  imager `generation_settings` (route de `fa6ddf78`, `render_views` rend un stub) ;
   `tests_picker_list` (déjà rouge, médiathèque) ; `tests_notifications` ×3 (adresses d'équipe
   lues de la configuration) ; `tests_tool_api_lectures.AddItemToMediaLibrary` ; `cam_analyzer`
   ×2 (`tasks.py` en WIP d'une autre instance).
@@ -18921,11 +18921,11 @@ des installations) ; Lab après P3 ; versionnement des migrations (décision) ; 
 - ⚠ **Rouge d'un AUTRE chantier, sur HEAD** : `tests_identifier_language` — budget « noms de
   méthodes de test » mesuré 1311 pour 1310. Aucun nom signalé n'est absent de HEAD, et aucun des
   noms ajoutés par les commits récents n'est signalé : l'écart est entré par un déplacement de
-  fichiers (candidat : `ddd50184`, tests de `cam_analyzer` en paquet). À recaler par son auteur.
+  fichiers (candidat : `faead896`, tests de `cam_analyzer` en paquet). À recaler par son auteur.
 
 ## §PALIER — 2026-09-30 (nuit), COUCHE « INSTALLATIONS » DU CALENDRIER (demande de Fabien)
 
-`e10541a1` (+ docs générées `b99c44ed`) — journal DATÉ `model_manager.InstallEvent` : installations
+`c6ea712a` (+ docs générées `f3098506`) — journal DATÉ `model_manager.InstallEvent` : installations
 et désinstallations de modèles et de librairies, issue et VOIE (model manager, assistant, marcheur
 d'app, ligne de commande), sans nommer personne (couche instance, décision du 28/09). Écrit aux
 points UNIQUES de la route : `dispatch_install` (seul dispatch des deux tâches — `request_install`,
@@ -18956,7 +18956,7 @@ reprise depuis 24 h. Gardes `tests_install_history.OpenRequestsDoNotLingerTest` 
 **Session CLOSE** — restent, sans urgence : le Lab après P3 (non commencé, chantier à cadrer avec
 l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges d'autres chantiers.
 
-## §PALIER — 2026-09-30, « IMAGER SUR LA ROUTE F4b » (étape ⑥) + rôle `model` durci — ✅ `c5ef131e`, `7be54fef`, `c7b535a0` — 🔚 génération réelle Supra2-IMG depuis l'imager
+## §PALIER — 2026-09-30, « IMAGER SUR LA ROUTE F4b » (étape ⑥) + rôle `model` durci — ✅ `ae50cc83`, `5a5d430e`, `a6516a14` — 🔚 génération réelle Supra2-IMG depuis l'imager
 
 > Détail : `ROUTE §F4b` (bloc « Étape ⑥ LIVRÉE »), `INPUT_MODEL_MATCHING §5`, mécanisme `model_keys`.
 
@@ -18986,7 +18986,7 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
 ## §PALIER — 2026-09-30 (matin), « PORTAGE CARD v4 » — revérification des voies d'entrée, synthesizer en v4 — 🔚 imager et enhancer (d'abord `input_slots(app, domain)`), transcriber en dernier
 
 - ✅ **Revérification de toutes les voies d'entrée** (demande de Fabien) : 3 défauts du glisser
-  depuis l'arbre sur la card v4 corrigés (`MEDIA_STORAGE_TIERING §8.6` D29-D31, `fd3a14fc`) et le
+  depuis l'arbre sur la card v4 corrigés (`MEDIA_STORAGE_TIERING §8.6` D29-D31, `bae53b04`) et le
   geste `<app>.tree_drop` au filet nocturne ; table voie × mesure sous D29-D31.
 - ✅ **Synthesizer en v4** (7 apps sur 10) : un fichier texte est un FICHIER DE TRAVAIL,
   l'un ou l'autre avec le prompt (port de card `app_card_ports`, capacité `has_text_file_input` ;
@@ -19018,7 +19018,7 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
   que du texte). 🔴 Relancer WAMA (gunicorn HUP) — après les évaluations GPU en cours d'une autre
   instance (lot #489).
 
-## §CLÔTURE — 2026-09-30, « AVATARIZER : avatar 3D rapide + tirage commun + route VENDOR » — ✅ `a6b60a11` `892d6e8c` `79d14379` `7313c3c1` `07580648` `371db621` `10dc577f` `35b7d96f` (NON POUSSÉS) — 🔚 relancer WAMA, puis supprimer la ligne `avatarizer:musetalk-v1.0` recréée
+## §CLÔTURE — 2026-09-30, « AVATARIZER : avatar 3D rapide + tirage commun + route VENDOR » — ✅ `f61ef8fd` `11be36e0` `da3e3908` `fdddcb09` `81abc556` `1cd4f9fd` `22804f1c` `44bf7809` (NON POUSSÉS) — 🔚 relancer WAMA, puis supprimer la ligne `avatarizer:musetalk-v1.0` recréée
 
 - ✅ **Moteur `talkinghead`** (l'avatar de l'assistant) : rendu GPU dans Chromium sans tête
   (`common/backends/talkinghead_backend.py`, ~0,2 Go de VRAM mesurés, 10,7 s de vidéo en 15-21 s),
@@ -19039,45 +19039,45 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
   (lancés à 14:25 avec l'ancien code ; retrait commité à 15:21). Après relance : la supprimer
   (clé seule), puis `manifest_export --check` — elle rend aussi `avatarizer` « périmé ».
 - ⚠ Rouges NON à moi, relevés en passant : budgets de langue des NOMS DE TESTS (1312/1310 —
-  `ef1abe08`, `966cba17` ; 133/132 — `TheSchemaStatesTheCatalogueTest`, transcriber) ;
+  `6625d31a`, `4f4f3d61` ; 133/132 — `TheSchemaStatesTheCatalogueTest`, transcriber) ;
   `tests_backend_adoption` (`wama/transcriber/apps.py:146`, `PyannoteDiarizerBackend`) ; 2 réfs
-  cassées + 1 périmée de `check_docs` (PROJECT_STATUS 17217/17277, ROUTE:224). `35b7d96f` ne porte
+  cassées + 1 périmée de `check_docs` (PROJECT_STATUS 17217/17277, ROUTE:224). `44bf7809` ne porte
   que la dérive d'autres commits (la carte n'affiche pas les annexes).
 - ⏳ Restent : `librarian --repo` doit proposer `install.vendor` ; YuE/ACE-Step et avatars lourds
   comme clients suivants ; MuseTalk v1.5 lent (3 s de vidéo en 505 s, non instruit) ; libellé
   technique de la tuile objet 3D ; onglet Lot à 3 ports qui passe à la ligne.
 
-## §PALIER — 2026-09-30 (après-midi), « SORTIE ET TAILLES : CE QUE LE MODÈLE SAIT FAIRE, L'APP LE PROPOSE » — ✅ `966cba17` `d1631398` `e1ff67e` `30f12276` `a3a555a` — 🔴 RELANCER WAMA (migration imager/0024), puis VALIDER la proposition de manifeste Supra2-IMG
+## §PALIER — 2026-09-30 (après-midi), « SORTIE ET TAILLES : CE QUE LE MODÈLE SAIT FAIRE, L'APP LE PROPOSE » — ✅ `4f4f3d61` `59ad80cb` `9e7094d` `903b6153` `e0c7c43` — 🔴 RELANCER WAMA (migration imager/0024), puis VALIDER la proposition de manifeste Supra2-IMG
 
 > Déclencheur : Fabien, génération Supra2-IMG — l'option « Upscaler la sortie » sans effet, 896×512
 > proposé pour un modèle à 256×256 fixe. Demande : « de façon globale et universelle ».
 > Détail : `WAMA_APP_CONVENTIONS §6.4` (sortie), `INPUT_MODEL_MATCHING §7` (tailles).
 
-- ✅ **Enhancer réparé en service** (`966cba17`) : l'upscale d'image ne résolvait plus son backend
+- ✅ **Enhancer réparé en service** (`4f4f3d61`) : l'upscale d'image ne résolvait plus son backend
   depuis le 29/09 — `AIUpscaler` déclarait ses modèles sous `MODELS_INFO` (lu par personne) ; le
   backend Supra2 a rendu `onnxruntime` partagé. Garde générique : tout backend d'un moteur partagé
   déclare `SUPPORTED_MODELS` (contre-épreuve rouge sur l'ancien nom).
-- ✅ **Agrandissement = réglage de SORTIE commun** (`d1631398`) : `output_formats.apply_output_settings`
+- ✅ **Agrandissement = réglage de SORTIE commun** (`59ad80cb`) : `output_formats.apply_output_settings`
   (agrandissement PUIS format, après n'importe quel backend) ; upscaler TIRÉ du catalogue (tâche
   `upscale`, capacité `scale`, curseur) ; `auto_model.candidates_with` ; retiré du contrat de
   génération (`GenerationParams.upscale`, LANCZOS de `DiffusersBackend`) ; imager `output_upscale`
   (migration `0024`, True → x2) ; le converter y délègue. ⏳ adoption par composer/synthesizer/
   anonymizer/enhancer (leur boucle de conversion), vidéo (route vidéo de l'enhancer à extraire).
-- ✅ **Tailles = capacités** (`e1ff67e`, `30f12276`) : `native_resolution`/`min_resolution`/
+- ✅ **Tailles = capacités** (`9e7094d`, `903b6153`) : `native_resolution`/`min_resolution`/
   `max_resolution` (égales = FIXE), `resolution_caps_from_declaration` image ET vidéo, projetées par
   la découverte ; `MODEL_RESOLUTION_CONFIG` retirée, l'imager DÉRIVE ses tailles (native d'abord,
   modèle fixe = sa seule taille, le volet grise le reste) et lit pas/guidage au catalogue ; rôle
   `model`/scout : `enforce_resolution_facts` (`image_size` d'une config racine). Rejoué sur Supra2
   (deepseek) : « native_resolution POSÉE à '256x256' » — **proposition en attente de Valider**.
-- ✅ **Smoke des backends proposés durci** (`a3a555a`) : 2 images exigées, distinctes. Rejoué sur les
+- ✅ **Smoke des backends proposés durci** (`e0c7c43`) : 2 images exigées, distinctes. Rejoué sur les
   3 backends Supra2 : gpt-oss-120b passe, qwen3.8 (images identiques) et deepseek (`num_images`
   ignoré) refusés — ce que la génération réelle avait montré.
 - Comparatif de la chaîne d'intégration (même prompt, Supra2) : deepseek-v4-flash ~3 min 40 sans GPU,
   qwen3.8 ~12 min ; l'un et l'autre corrigent les défauts de gpt-oss (boucle doublée, progression) mais
   cassent le cas multi-images. Aucune mesure de qualité au catalogue pour les modèles Albert.
-- ⚠ Deux commits d'une autre instance (`79d14379`, `371db621`) ont emporté mon WIP de fichiers entiers
-  sans les briques qu'il appelait — HEAD cassé deux fois, réparé (`883c5eaa`, `e1ff67e`), instance
-  prévenue. Budget d'identifiants rouge (2690 > 2687) : identifiants de `79d14379`, pas les miens.
+- ⚠ Deux commits d'une autre instance (`da3e3908`, `1cd4f9fd`) ont emporté mon WIP de fichiers entiers
+  sans les briques qu'il appelait — HEAD cassé deux fois, réparé (`883c5eaa`, `9e7094d`), instance
+  prévenue. Budget d'identifiants rouge (2690 > 2687) : identifiants de `da3e3908`, pas les miens.
 - 🔚 relance WAMA (0024 retire une colonne lue par le code en service) ; Valider Supra2 au model
   manager ; puis générer Supra2 en ×4 (256 → 1024) pour éprouver la chaîne complète.
 
@@ -19095,12 +19095,12 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
 - ⏳ Laissé au chantier card v4 : l'onglet Lot passe à la ligne avec 3 ports (mise en page, à
   mesurer au navigateur). Clients suivants de la voie vendor : YuE/ACE-Step, avatars lourds.
 
-## §CLÔTURE — 2026-09-30 (soir), session « IMAGER F4b → SORTIE, TAILLES, SAUVEGARDES » — ✅ `9f12da8` `a8358c0` `014c9df` (suite de `§PALIER 2026-09-30 après-midi`) — 🔚 voir la liste ci-dessous
+## §CLÔTURE — 2026-09-30 (soir), session « IMAGER F4b → SORTIE, TAILLES, SAUVEGARDES » — ✅ `a4282a4` `ef58350` `793f48b` (suite de `§PALIER 2026-09-30 après-midi`) — 🔚 voir la liste ci-dessous
 
 - ✅ Relance vérifiée : migration `imager/0024` appliquée (3 générations passées à `x2`), page imager 200,
   tailles tirées du catalogue (Hunyuan 2048 natif 1024-2048, SD 1.5 512 ≤ 768). Supra2 : manifeste
   VALIDÉ par Fabien → `native_resolution` 256×256 au catalogue.
-- ✅ **Sauvegardes** (`9f12da8`) : la dernière exécution d'un miroir est gardée SANS expiration et
+- ✅ **Sauvegardes** (`a4282a4`) : la dernière exécution d'un miroir est gardée SANS expiration et
   affichée en permanence (« Dernière sauvegarde (date) … ») — commun à tous les miroirs
   (`mirror_sync.remember_last_run`) ; sauvegarde des MODÈLES planifiée chaque nuit à 01:30
   (`backup-models-daily`). Cause du constat de Fabien : l'avancement vit 24 h, la ligne des modèles
@@ -19111,11 +19111,11 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
   `model_index.json`) ; le dépôt est une LoRA de distillation qui exige MiniMax-H3 (non installé) et le
   moteur LightX2V (GitHub, hors route `library`) → **aucun backend possible en l'état**, le modèle
   reste grisé avec sa raison. Proposition de manifeste à REJETER (elle n'apporte que `languages`).
-- ✅ **Assistant** (`014c9df`) : le skill `assistant-dev` et la description de `dev_run_role` citent
+- ✅ **Assistant** (`793f48b`) : le skill `assistant-dev` et la description de `dev_run_role` citent
   enfin le rôle `backend` et l'ORDRE de la chaîne (model → validation → backend → validation). ⚠ Le
   serveur MCP de dev tourne depuis 00:46 : `start_wama_prod.sh` ne le démarre que s'il est absent, il
   ne le RECHARGE jamais — décision d'exploitation à prendre (non faite).
-- ⏳ **Proportions de l'image d'entrée** consignées (`a8358c0`, `INPUT_MODEL_MATCHING §8`) : 6 backends
+- ⏳ **Proportions de l'image d'entrée** consignées (`ef58350`, `INPUT_MODEL_MATCHING §8`) : 6 backends
   étirent par `resize` ; route = réglage d'entrée commun avant le backend + avertissement de card.
 - 🔚 **Restes** : §8 ci-dessus (prochain chantier) ; ralliement des apps render-based à
   `apply_output_settings` et upscale vidéo ; rechargement du MCP dev à la relance ; relecture LinTO par
@@ -19143,11 +19143,11 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
   `PROSPECTION_PIPELINE §Session du 2026-09-30`. YuE seul est sans décision de venv.
 - 📨 Correctifs de card (onglet Lot à 3 ports, libellé « filtrée : <catégorie> ») transmis aux
   sessions ; l'instance du portage card v4 est « ba » (réponses de 04 et 7d).
-- ⚠ Signalé par 04 : `79d14379` et `371db621` avaient emporté des fichiers ENTIERS avec son WIP
-  (`model_capabilities.py`, `model_registry.py`) — réparé par elle (`883c5eaa`, `e1ff67e`).
+- ⚠ Signalé par 04 : `da3e3908` et `1cd4f9fd` avaient emporté des fichiers ENTIERS avec son WIP
+  (`model_capabilities.py`, `model_registry.py`) — réparé par elle (`883c5eaa`, `9e7094d`).
   Leçon déjà écrite (`/commit-partiel`) : sur un fichier partagé, jamais `git commit <fichier>`.
 
-## §PALIER — 2026-09-30 (soir), « VOIX PERSONNELLES, CONSENTEMENT, MENTION IA, STUDIO = MÊME CHEMIN » — ✅ `e80348aa` + palier suivant — 🔴 RELANCER WAMA (migrations locales **synthesizer 0028**, destructive : `cv_1` → `ua_1` puis `DeleteModel CustomVoice` ; **common 0019** déjà appliquée, table neuve) — 🔚 portage Studio app par app (budget `UNWIRED_BUDGET`, 9 ports / 6 apps)
+## §PALIER — 2026-09-30 (soir), « VOIX PERSONNELLES, CONSENTEMENT, MENTION IA, STUDIO = MÊME CHEMIN » — ✅ `8e871cd1` + palier suivant — 🔴 RELANCER WAMA (migrations locales **synthesizer 0028**, destructive : `cv_1` → `ua_1` puis `DeleteModel CustomVoice` ; **common 0019** déjà appliquée, table neuve) — 🔚 portage Studio app par app (budget `UNWIRED_BUDGET`, 9 ports / 6 apps)
 
 > Question de Fabien : fonctionnement complet des voix personnalisées, droits, RGPD, licences ;
 > puis trois décisions (fenêtre médiathèque = la commune + sa card d'ajout ; consentement AU
@@ -19244,23 +19244,23 @@ doc porte du WIP d'autrui).
 - ⏳ Génération YuE2 sur GPU : REPORTÉE (campagne d'évaluation du transcriber sur la carte) ; le
   composer n'appelle que `composer:<modèle>` → YuE2 n'y paraîtra qu'avec son étape F4b. 🔴 Relancer
   WAMA pour que les workers importent le backend et le contrat neuf.
-- ⚠ Suite complète du 01/10 rejouée pendant qu'un commit d'une autre instance (`4e441a80`,
+- ⚠ Suite complète du 01/10 rejouée pendant qu'un commit d'une autre instance (`78479ed9`,
   suppression des fichiers) changeait le code : ~75 échecs de suppression ARTEFACTS, disparus au
   rejeu. Rouges réels non à moi : budgets de langue (+8 code depuis HEAD), import par chemin du
   transcriber (`apps.py:146`).
 
 ## §CLÔTURE — 2026-09-30 → 10-01, « MODÈLE DISTANT DANS UNE APP (Albert) + SÉLECTEUR DU TRANSCRIBER AU CATALOGUE » — ✅ livré et mesuré — 🔚 GO/NO-GO du test « Albert sur audio pré-découpé » (`WAMA_QUALITE §9bis`)
 
-- ✅ **AnythingLLM évalué** (`59cf62b4`) : rejeté comme composant et comme UI (`ROADMAP §16.2`),
+- ✅ **AnythingLLM évalué** (`f6334b7c`) : rejeté comme composant et comme UI (`ROADMAP §16.2`),
   compatible comme client MCP ; piste « présélection d'outils » versée à `WAMA_HARNESS` écart 3.
-- ✅ **1ᵉʳ moteur d'app DISTANT** (`1fef570f`) : `albert:whisper-large-v3` exécutable par le
+- ✅ **1ᵉʳ moteur d'app DISTANT** (`c819fc40`) : `albert:whisper-large-v3` exécutable par le
   transcriber (`common/backends/albert_asr_backend.py`) ; garde d'appel en brique
   `cloud_models.cloud_access` (l'assistant l'adopte). Détail : `ROADMAP §8d 4b`.
-- ✅ **Diarisation par CAPACITÉ** (`52e011ed`) : NeMo et les distants enfin diarisés.
-- ✅ **Sélecteur du transcriber au catalogue** (`5fcf6ddc` + `1d90f835`, `ROUTE §F4b` ⑦) : grain
+- ✅ **Diarisation par CAPACITÉ** (`ceb247e7`) : NeMo et les distants enfin diarisés.
+- ✅ **Sélecteur du transcriber au catalogue** (`195ca43c` + `e6947ef0`, `ROUTE §F4b` ⑦) : grain
   modèle, clés entières, `options_cloud`, curseur rapide/qualité ; migration transcriber 0027
   appliquée en base (91 cards) ; R86-R88 au `REMOVAL_LEDGER`.
-- ✅ **Albert mesuré** (`95727056`, `04160eb1`, `c7e9d3c3` + ce commit, `WAMA_QUALITE §9bis`) :
+- ✅ **Albert mesuré** (`0e9e6b72`, `80ffd751`, `70c22469` + ce commit, `WAMA_QUALITE §9bis`) :
   SUMM-RE 31,6 % contre 28,8 % (Whisper local) ; FLEURS-CS 44,5 % contre 45,1 % (8 lots, valeurs
   d'APRÈS les correctifs de langue, vérifié en base). Écart décomposé : Albert OMET plus de mots
   (segments 22-25 s, pas de découpage de la parole en amont — déduit, pas mesuré).
@@ -19281,7 +19281,7 @@ doc porte du WIP d'autrui).
 
 **Rouges vus à la clôture, pas à moi :** `tests_intent_vision.EveryAutoSelectCarriesTheSliderTest`
 (`editor_01`, app de bac à sable non versionnée de l'instance « app de zéro », sans curseur) ;
-`check_docs` 2 cassées + 1 périmée (`PROJECT_STATUS` 17217/17277, `ROUTE:224` de `148febdc`).
+`check_docs` 2 cassées + 1 périmée (`PROJECT_STATUS` 17217/17277, `ROUTE:224` de `98971b06`).
 
 **Contrôles mesurés à la clôture (01/10)** : périmètre transcriber + routage + auto-modèle +
 model_manager = **150 + 419 tests**, seul rouge réel ci-dessus (2 autres « erreurs » = noms de
@@ -19292,20 +19292,20 @@ débruitage : `workers.py`, `params.py`, `models.py`, `tests_editor.py`, gabarit
 
 ## §CLÔTURE — 2026-09-30 → 10-01, « DIARISATION MESURÉE + BANC DES PRÉTRAITEMENTS + COMPTE D'ÉVALUATION » — ✅ livré, mesuré, en service — 🔚 mot de passe du compte `evaluation` (Fabien), sort du lot #489
 
-- ✅ **Diarisation mesurée** : métriques cpWER / DER (`8160145e`, `diarization_metrics`, rangées sous
-  le DIARISEUR), réglage de card `diarization_model` (`2d33a85f`, migration transcriber 0026),
-  `asr_eval_corpus --diarization` (`98342d3a`). pyannote 3.1 ≈ community-1 sur SUMM-RE (`6ad50033`) :
+- ✅ **Diarisation mesurée** : métriques cpWER / DER (`e750a342`, `diarization_metrics`, rangées sous
+  le DIARISEUR), réglage de card `diarization_model` (`52f5d20b`, migration transcriber 0026),
+  `asr_eval_corpus --diarization` (`9a772ce0`). pyannote 3.1 ≈ community-1 sur SUMM-RE (`2d5ffca3`) :
   défaut 3.1 gardé.
 - ✅ **Évaluation** : une référence Sonal aux extraits VIDES ne compte plus ce que le moteur y entend
-  (`04bc371d`, `covered_spans`) ; sonde du VAD « auto » échantillonnée selon la durée (`bd81913e`) et
-  décision écrite dans les deux cas (`05732b53`).
-- ✅ **Banc des prétraitements** (108 cards Whisper ; `7b262259`, `dbb2f012`) : dégradation CONTRÔLÉE
+  (`17eea90b`, `covered_spans`) ; sonde du VAD « auto » échantillonnée selon la durée (`782fcb48`) et
+  décision écrite dans les deux cas (`da7a9a0b`).
+- ✅ **Banc des prétraitements** (108 cards Whisper ; `e55ea508`, `04debe06`) : dégradation CONTRÔLÉE
   (`common/utils/audio_degradation.py`, facteur manipulé du manifeste SUMM-RE) + corpus RÉEL de
   qualité moyenne CFPP2000 (`manifests/datasets/cfpp.json`, CC-BY-NC-SA-3.0, noms réels jamais
   recopiés) + variantes nivelées / améliorées (Resemble). Résultats : `WAMA_QUALITE §9bis`
-  (`f655fbb6`, `7a46b465`) — le **nivellement seul** est le meilleur prétraitement ; DeepFilterNet
+  (`f775a851`, `3207ee6c`) — le **nivellement seul** est le meilleur prétraitement ; DeepFilterNet
   EFFACE une parole enregistrée bas ; l'amélioration Resemble fait dériver la langue.
-- ✅ **Décisions de Fabien appliquées** (`8104adcb`) : nivellement → débruitage, jamais de débruitage
+- ✅ **Décisions de Fabien appliquées** (`8f3b14da`) : nivellement → débruitage, jamais de débruitage
   sur un audio non nivelé, débruitage réservé aux fonds très bruyants (aide + modale), amélioration
   de l'enhancer non branchée en prétraitement. Worker GPU relancé 12:37, gunicorn rechargé (HUP).
 - ✅ **Compte `evaluation`** (#193, local, tier utilisateur, rôle `recherche`, mot de passe NON posé) :
@@ -19314,8 +19314,8 @@ débruitage : `workers.py`, `params.py`, `models.py`, `tests_editor.py`, gabarit
   évaluations : `asr_eval_corpus … --user evaluation`. Compte RÉEL : il nourrit l'ETA (décision Fabien).
 - ✅ **Rapport partagé** (Claude Docs « Évaluation des moteurs de transcription WAMA », rév. 20) :
   sections « Prétraitements » (graphique) et « Diarisation », protocole, introduction, date.
-- ✅ **Brief de la session dédiée « preview globale + transport commun »** : `ROUTE §F3b` (`148febdc`,
-  référence corrigée `11bd0093`).
+- ✅ **Brief de la session dédiée « preview globale + transport commun »** : `ROUTE §F3b` (`98971b06`,
+  référence corrigée `8e999908`).
 
 **Pendings, nommés :**
 1. ⏳ **Mot de passe du compte `evaluation`** : à poser par Fabien (`/admin/auth/user/193/password/`).
@@ -19323,7 +19323,7 @@ débruitage : `workers.py`, `params.py`, `models.py`, `tests_editor.py`, gabarit
    (et `users/1/transcriber/input/Bonneuil_plateforme_partagee_021225_nivele.wav`, 750 Mo) — à ranger
    dans `evaluation` ou à retirer : décision de Fabien. Les 3 cards « female » (voix système) restent.
 3. ⏳ **Session dédiée preview/transport** à lancer (brief `ROUTE §F3b`).
-4. ⏳ **Chaîne d'intégration** : rejouer le rôle `model` corrigé (`7be54fef`) sur LinTO, FrWhisper,
+4. ⏳ **Chaîne d'intégration** : rejouer le rôle `model` corrigé (`5a5d430e`) sur LinTO, FrWhisper,
    Kyutai, puis le rôle `backend` — pas fait.
 5. ⏳ Non mesuré : Resemble avec la langue IMPOSÉE (aucun réglage de card pour l'imposer) ; seuil du
    VAD « auto » (couper le VAD aidait CFPP 3/3 alors que la sonde l'a gardé).
@@ -19385,7 +19385,7 @@ si la confirmation suffit. Adoption possible du `sort_by` par le model manager (
 
 ## §PALIER — 2026-10-01 (après-midi), « COMPOSER AU CATALOGUE + accelerate 1.12 + MATRICE DE PARITÉ DU TRANSPORT » — livré, NON POUSSÉ — 🔚 relancer WAMA (migration composer 0012), entrée partition/MIDI, transport commun
 
-- ✅ **Composer, route F4b** (`b0d82a1b`) : le sélecteur est tiré du CATALOGUE par TÂCHE
+- ✅ **Composer, route F4b** (`f7e5e9da`) : le sélecteur est tiré du CATALOGUE par TÂCHE
   (`text-to-music`, `text-to-audio`), groupé par le serveur, avec un « auto » PAR GROUPE
   (`auto:<tâche>`, brique commune `model_keys.auto_task`, endpoint `auto=group`). C'est la
   décision « pas de 2 modes », reconduite par Fabien : pas de nouveau domaine. YuE2, ACE-Step 1.5
@@ -19397,12 +19397,12 @@ si la confirmation suffit. Adoption possible du `sort_by` par le model manager (
 - ✅ **Route library : `constraints.no_deps`** (même commit), validé au manifeste et passé à la
   simulation et à pip. accelerate 1.12.0 installé par cette voie : sans `--no-deps`, pip
   rétrogradait `nvidia-nccl-cu12`.
-- ✅ **Transport commun, étape ①** (`acf37bde`) : cartographie et **matrice de parité** dans
+- ✅ **Transport commun, étape ①** (`9f9b1952`) : cartographie et **matrice de parité** dans
   `ROUTE §F3b` — ce que l'éditeur du transcriber et le cam_analyzer doivent garder, ligne à ligne.
   Règle posée : aucune ligne ne passe à la brique sans le geste qui l'atteste, avant et après.
   ⚠ Ce commit a EMPORTÉ un hunk d'une autre instance (ROUTE, Kyutai / `describer:whisper`
   « retiré », R28), écrit entre mon diff et mon commit à pathspec. L'historique n'est pas réécrit
-  (`d3b600b2` était déjà par-dessus) ; les instances ce et 7d sont prévenues : R28 reste du WIP
+  (`d8d89cd2` était déjà par-dessus) ; les instances ce et 7d sont prévenues : R28 reste du WIP
   non commité tant que son auteur ne l'a pas posé.
 - 🔴 **À RELANCER** : WAMA (gunicorn + workers). La migration `composer 0012` (gitignorée,
   max_length 128 + valeurs → clés) passe au relancement, AVANT gunicorn. Elle n'a PAS été
@@ -19421,7 +19421,7 @@ si la confirmation suffit. Adoption possible du `sort_by` par le model manager (
     mécanismes non commités), `tests_intent_vision` (`editor_01` sans curseur), et
     `tests_notifications` (adresses).
 
-## §PALIER — 2026-10-01 (après-midi), « ALBERT SUR AUDIO PRÉ-DÉCOUPÉ + describer:whisper RETIRÉ » — ✅ `d3b600b2`, `c4db2e95` — 🔴 RELANCER WAMA (worker et `sync_models` portent l'ancien code) — 🔚 profil du compte `evaluation` face aux modèles distants
+## §PALIER — 2026-10-01 (après-midi), « ALBERT SUR AUDIO PRÉ-DÉCOUPÉ + describer:whisper RETIRÉ » — ✅ `d8d89cd2`, `c0069ef8` — 🔴 RELANCER WAMA (worker et `sync_models` portent l'ancien code) — 🔚 profil du compte `evaluation` face aux modèles distants
 
 - ✅ **Test demandé par Fabien, mené** (`WAMA_QUALITE §9bis`) : le worker ne passait le filtre de
   parole qu'au moteur NOMMÉ `whisper` → capacité `supports_vad_filter` au contrat commun (Whisper,
@@ -19432,7 +19432,7 @@ si la confirmation suffit. Adoption possible du `sort_by` par le model manager (
 - ✅ Cards #1232-1242 rangées dans le compte `evaluation` (lots d'origine) ; posées d'abord par
   erreur sous `fabien.moreau` → 11 lots vides et 11 copies de référence du jour retirés de ce compte.
   #1072-1082 réétiquetées `vad_mode='off'` (elles avaient tourné sans filtre).
-- ✅ **`describer:whisper` retiré** (R28, `c4db2e95`) : déclaration, branche de découverte, ligne
+- ✅ **`describer:whisper` retiré** (R28, `c0069ef8`) : déclaration, branche de découverte, ligne
   de catalogue #23, manifestes. `describer:blip` reste (vrai moteur).
 - ✅ Rapport partagé Claude Docs : section Albert mise à jour (tableau des trois configurations).
 
@@ -19452,7 +19452,7 @@ si la confirmation suffit. Adoption possible du `sort_by` par le model manager (
 `describer` + catalogues + cache HF : verts hors budgets de langue (pendings 4) ; manifestes :
 describer et transcriber régénérés, 20 périmés restants à d'autres chantiers.
 
-## §PALIER — 2026-10-01 (fin d'après-midi), « APRÈS LA RELANCE : VÉRIFIÉ + PRÉVISION = TIRAGE » — ✅ `9adb9981` — 🔴 recharger gunicorn (vue, schéma et JS neufs)
+## §PALIER — 2026-10-01 (fin d'après-midi), « APRÈS LA RELANCE : VÉRIFIÉ + PRÉVISION = TIRAGE » — ✅ `b1338005` — 🔴 recharger gunicorn (vue, schéma et JS neufs)
 
 - ✅ **Vérifié après la relance de 15:03** : `describer:whisper` absent du catalogue et du select ;
   Kyutai STT validé par Fabien (proposition de 14:59, identité et langues corrigées mécaniquement)
@@ -19464,19 +19464,19 @@ describer et transcriber régénérés, 20 périmés restants à d'autres chanti
   garde `ThePreviewSaysWhatTheLaunchDrawsTest` + contre-épreuve ; mesuré sur un serveur jetable
   (8011, arrêté) : prévision = tirage = `transcriber:whisper`. 669 tests verts hors `writer_01`
   (app de bac à sable de l'instance « app de zéro », sans curseur — pas à moi).
-- ⚠ `9adb9981` a EMPORTÉ le champ `options_ports` d'une autre instance (`param_schema.py`, écrit
+- ⚠ `b1338005` a EMPORTÉ le champ `options_ports` d'une autre instance (`param_schema.py`, écrit
   entre ma lecture et mon commit) ; contenu intact, auteur prévenu (instance -42).
 - ⚠ Compte `evaluation` : actif, rôle `recherche`, profil « 100 % local », **sans mot de passe** —
   connexion à `/accounts/login/` après que Fabien en a posé un à `/admin/auth/user/193/password/`.
 
-## §PALIER — 2026-10-01 (après-midi), « RÉTENTION RÉTABLIE + ONGLET « INUTILISÉS » DE LA MÉDIATHÈQUE » — ✅ `38393094` + commit ci-dessous — 🔴 RELANCER WAMA (routes neuves) — 🔚 rétention finie × fichier gardé (proposition de Fabien à cadrer), gestes Copier/Transférer à construire
+## §PALIER — 2026-10-01 (après-midi), « RÉTENTION RÉTABLIE + ONGLET « INUTILISÉS » DE LA MÉDIATHÈQUE » — ✅ `b82e28ca` + commit ci-dessous — 🔴 RELANCER WAMA (routes neuves) — 🔚 rétention finie × fichier gardé (proposition de Fabien à cadrer), gestes Copier/Transférer à construire
 
 > Fabien : *« si l'utilisateur applique une période de rétention qui n'est pas nulle, c'est qu'il
 > souhaite la suppression des fichiers au bout de la durée qu'il indique. Il n'est pas question de
 > retirer ce fonctionnement. La question se pose quand l'utilisateur ne configure pas la rétention. »*
 > Puis : liste des fichiers inutilisés, suppression un par un et par sélection, dans la médiathèque.
 
-- **Rétention** (`38393094`) : la purge EFFACE de nouveau (propriété + partage) ; `4e441a80` l'avait
+- **Rétention** (`b82e28ca`) : la purge EFFACE de nouveau (propriété + partage) ; `78479ed9` l'avait
   fait « libérer » — lecture trop large de D34. Contrat `tests_retention` rétabli.
 - **Onglet « Inutilisés »** de la médiathèque : `released_files.list_unused` / `count_unused` /
   `origin_label` (origine lisible : « Composer · fichier de lot »), route
@@ -19502,13 +19502,13 @@ describer et transcriber régénérés, 20 périmés restants à d'autres chanti
 - ⚠ Une erreur unique, non reproduite sur deux relances, au premier passage de
   `tests_account_kinds` + `tests_access_points` + `tests_nightly` — non nommée (sortie filtrée).
 
-## §PALIER — 2026-10-01 (soir), « RÉTENTION FINIE DES FICHIERS INUTILISÉS + DUPLIQUER UNE CARD REÇUE » — ✅ `d5f4cb12` + commit ci-dessous — 🔴 RELANCER WAMA — 🔚 converter et imager : la file ne montre pas les cards reçues
+## §PALIER — 2026-10-01 (soir), « RÉTENTION FINIE DES FICHIERS INUTILISÉS + DUPLIQUER UNE CARD REÇUE » — ✅ `5d9677de` + commit ci-dessous — 🔴 RELANCER WAMA — 🔚 converter et imager : la file ne montre pas les cards reçues
 
 > Fabien : rétention finie × fichier gardé = « ok avec ce que tu proposes » (annonce avant le
 > terme, « Garder » remet le délai à zéro, silence = suppression puis liste notifiée) ; puis
 > « fais la duplication d'une card reçue » (mode lecture de `WAMA_COLLABORATION §3bis`).
 
-- **Rétention finie** (`d5f4cb12`) : `released_files.notify_long_unused` à deux régimes,
+- **Rétention finie** (`5d9677de`) : `released_files.notify_long_unused` à deux régimes,
   `purge_expired_released` (jamais sans annonce préalable), `renew_released`, onglet « Inutilisés »
   avec date de suppression et « Garder » ; détail `MEDIA_STORAGE_TIERING §8.6` D34.
 - **Dupliquer une card reçue** : `scoping.duplicable_or_404` + `duplicate_instance(for_user=…)` —
@@ -19523,15 +19523,15 @@ describer et transcriber régénérés, 20 périmés restants à d'autres chanti
   doc §3bis.2 disait « le destinataire voit la card dans le lot du propriétaire » : vrai pour les 8
   apps sur `batch_common`, faux pour ces deux-là.
 
-## §PALIER — 2026-10-01 (soir), « PARTITIONS/MIDI LIVRÉS + DEUX CHANTIERS DÉDIÉS À LANCER » — `24d36358`, `607f7416`, non poussés — 🔚 lancer le chantier PIPELINE (§10.6) et le chantier SURFACES (§F3b) en sessions dédiées ; page d'édition YuE2 SUSPENDUE à eux
+## §PALIER — 2026-10-01 (soir), « PARTITIONS/MIDI LIVRÉS + DEUX CHANTIERS DÉDIÉS À LANCER » — `3ff60533`, `093cbe08`, non poussés — 🔚 lancer le chantier PIPELINE (§10.6) et le chantier SURFACES (§F3b) en sessions dédiées ; page d'édition YuE2 SUSPENDUE à eux
 
-- ✅ **Partitions de bout en bout** (`24d36358`, `607f7416`) : nature `score`, port `reference_score`,
+- ✅ **Partitions de bout en bout** (`3ff60533`, `093cbe08`) : nature `score`, port `reference_score`,
   card du composer mise à jour SEULE par les capacités de YuE2 (`Param.options_ports`), chaîne jusqu'au
   moteur ; **MIDI** lu par `mido` 1.3.3 (route library : rôle librarian/Albert → propose/plan/apply →
   simulation sans rétrogradation) et compilé par le compilateur DU MOTEUR (`compile_score.py`, importé
   tel quel) ; MusicXML refusé en le disant. Audit d'alignement demandé par Fabien : une réinvention et
   deux incohérences corrigées (`matches_inputs`, inventaire unique `app_model_capabilities`, une branche
-  de gabarit). Domicile : `INPUT_MODEL_MATCHING §6.9`. WAMA relancé par Fabien après `607f7416` : la
+  de gabarit). Domicile : `INPUT_MODEL_MATCHING §6.9`. WAMA relancé par Fabien après `093cbe08` : la
   chaîne est en service (génération GPU d'une partition ABC/MIDI par YuE2 pas encore jouée).
 - 📍 **CHANTIER 1 — PIPELINE porté par la card (session dédiée à lancer)** — domicile
   `ROUTE §10.6`, bloc « BRIEF DE SESSION DÉDIÉE — état MESURÉ le 2026-10-01 » sous la table des
@@ -19554,14 +19554,14 @@ describer et transcriber régénérés, 20 périmés restants à d'autres chanti
   serait la première page « à la pelle » que la question de Fabien veut éviter.
 - 🔚 Rouges vus, PAS à moi : budget de langue des noms de test (133 > 132, 1316 > 1310) et
   `BUDGET_CODE` à 2679 non commité dans l'arbre — ni « ce » ni « 7d » n'en sont l'auteur (vérifié
-  par eux) ; l'arbre mesure 2678 : le −1 vient de `607f7416`. À caler par l'auteur du changement en
+  par eux) ; l'arbre mesure 2678 : le −1 vient de `093cbe08`. À caler par l'auteur du changement en
   cours, sinon au prochain palier qui touche ce fichier. Test périmé `test_ne_DEVINE_pas_le_role…`
   (rôle déclaré du composer depuis le 19/09) ; `audio/x-wav` sous Linux ; `transcriber/apps.py:146` ;
   doc dérivée `briques.md` ; `writer_01` (colonne absente de la base de test).
 
-## §PALIER — 2026-10-01 (soir), « WRITER : LA ROUTE RÉALIGNÉE, UNE CARD À CONSIGNE, UN SEUL « AUTO » » — ✅ commits `6de227cb` + ci-dessous, non poussés — 🔴 RELANCER WAMA (`writer_01` recréée, `wama-app-base.js` neuf) — 🔚 adoption de `addToQueue` par 4 apps, référence de mise en page
+## §PALIER — 2026-10-01 (soir), « WRITER : LA ROUTE RÉALIGNÉE, UNE CARD À CONSIGNE, UN SEUL « AUTO » » — ✅ commits `8f0cd3d3` + ci-dessous, non poussés — 🔴 RELANCER WAMA (`writer_01` recréée, `wama-app-base.js` neuf) — 🔚 adoption de `addToQueue` par 4 apps, référence de mise en page
 
-- **Route « app de zéro » réalignée** (`6de227cb`) : Editor → **Writer** ; les réinventions de la
+- **Route « app de zéro » réalignée** (`8f0cd3d3`) : Editor → **Writer** ; les réinventions de la
   session retirées (facette `pipelines`, enchaîneur de process, tri maison, port écrit à la main)
   — récit en `WAMA_MANIFEST_SPEC §3.1`, décision n°11 rouverte. Glu du Writer écrite par
   **qwen3.8** (rôle `codegen`), jamais par Claude ; génération réelle avec document de référence.
@@ -19608,12 +19608,12 @@ describer et transcriber régénérés, 20 périmés restants à d'autres chanti
 
 ## §CLÔTURE — 2026-10-01 (nuit), « FICHIERS LIBÉRÉS, MÉDIATHÈQUE, PARTAGE (DUPLIQUER UNE CARD REÇUE, TRANSFÉRER À…) » — ✅ clos — 🔚 voir ci-dessous
 
-**Livré (non poussé au moment d'écrire, plus le commit de cette clôture)** : `4e441a80` retirer une
-card libère et prévient · `31eb7a10` confirmation « supprimer aussi le fichier » (case décochée) +
-barre commune de la médiathèque (mode `remote`, outil `sort_by`) · `38393094` la rétention EFFACE de
-nouveau (correction de Fabien) · `56c6b1c3` onglet « Inutilisés » · `d5f4cb12` rétention finie des
-fichiers gardés (annonce, « Garder », suppression puis liste) · `4ee43263` dupliquer une card reçue ·
-`18c4ec9c` « Transférer à… ». Domiciles : `MEDIA_STORAGE_TIERING §8.6` D34, `WAMA_COLLABORATION
+**Livré (non poussé au moment d'écrire, plus le commit de cette clôture)** : `78479ed9` retirer une
+card libère et prévient · `2b4e3f76` confirmation « supprimer aussi le fichier » (case décochée) +
+barre commune de la médiathèque (mode `remote`, outil `sort_by`) · `b82e28ca` la rétention EFFACE de
+nouveau (correction de Fabien) · `799b9347` onglet « Inutilisés » · `5d9677de` rétention finie des
+fichiers gardés (annonce, « Garder », suppression puis liste) · `df191326` dupliquer une card reçue ·
+`26f6e87d` « Transférer à… ». Domiciles : `MEDIA_STORAGE_TIERING §8.6` D34, `WAMA_COLLABORATION
 §3bis.1`, `WAMA_VERIFICATION` (gestes `common.released_files` 13/13, `media_library.filter_bar` 8/8,
 `common.received_card_duplicate` 6/6, `common.card_transfer` 5/5).
 
@@ -19685,9 +19685,9 @@ lignes de ce journal). Rouges CONNUS hors périmètre, relevés dans la passe la
   recherche, facettes, tri, 0 erreur console, 0 px de débordement à 1500/1920 (11/37 px à 1366
   avec l'explorateur ouvert, accepté) ; prévision du select du transcriber = tirage =
   `transcriber:whisper` ; `wama_evaluation` actif avec mot de passe.
-- Commits de la journée : `d3b600b2` (filtre de parole par capacité, Albert), `c4db2e95` (R28),
-  `9adb9981` (prévision = tirage), `560d027d` + `abf215d8` (comptes en sections, barre commune),
-  et les blocs de suivi `9a5b7328`, `04e42049`, `4baf4e34`, plus ce bloc.
+- Commits de la journée : `d8d89cd2` (filtre de parole par capacité, Albert), `c0069ef8` (R28),
+  `b1338005` (prévision = tirage), `f89145fe` + `b8b9d7b9` (comptes en sections, barre commune),
+  et les blocs de suivi `d425001e`, `81b21e58`, `d4c7ed55`, plus ce bloc.
 
 **Pendings, nommés :**
 1. 🔚 **Compte `wama_evaluation`** : profil « 100 % local » → il ne peut pas évaluer un modèle
@@ -19698,7 +19698,7 @@ lignes de ce journal). Rouges CONNUS hors périmètre, relevés dans la passe la
    (`stt_1b_en_fr_trfs_backend.py` modifié dans l'arbre, pas à moi).
 5. Pas à moi, constatés : budgets de langue des noms de test dépassés (classes 133 > 132,
    méthodes > 1310) ; `writer_01` sans curseur (`tests_intent_vision`) ; `check_docs` 3 cassées
-   (`ROUTE:327` de `195a3c81`, `PROJECT_STATUS` 17217/17277) ; 19 manifestes périmés d'autres
+   (`ROUTE:327` de `323dfa85`, `PROJECT_STATUS` 17217/17277) ; 19 manifestes périmés d'autres
    chantiers.
 
 **Contrôles mesurés à la clôture** : `check_redundancy` 74 trouvailles, aucune dans mon code
@@ -19707,7 +19707,7 @@ ancien, qui visait `declared_engines` avant) ; tests du jour verts (accounts 75,
 auto_model + model_manager 669 hors `writer_01`) ; une erreur unique non reproduite (2 relances
 vertes) lors d'un passage `tests_account_kinds` + `tests_access_points` + `tests_nightly`.
 
-## §PALIER — 2026-10-02 (nuit), « CLÉ D'API AU PROFIL : PAGE FIGÉE » — ✅ `5e3c96f2` — 🔴 recharger gunicorn ET relancer Celery (tâche neuve `model_manager.register_cloud_key`)
+## §PALIER — 2026-10-02 (nuit), « CLÉ D'API AU PROFIL : PAGE FIGÉE » — ✅ `44461225` — 🔴 recharger gunicorn ET relancer Celery (tâche neuve `model_manager.register_cloud_key`)
 
 - ✅ Constat (compte `wama_evaluation`, clé Albert de Fabien) : « Enregistrer » semblait sans effet.
   Journal : clé écrite à 00:50:35, réponses à 00:52:53/54 (double clic), polling du serveur web
@@ -19720,7 +19720,7 @@ vertes) lors d'un passage `tests_account_kinds` + `tests_access_points` + `tests
 - ⚠ Tant que Celery n'est pas relancé, une clé enregistrée au profil n'entre au catalogue qu'au
   prochain `sync_models` périodique (le worker ignore la tâche neuve).
 
-## §PALIER — 2026-10-02, « PORTAGE : RETIRER UNE CARD À L'ÉCHELLE DE LA CARD (D35) » — ✅ `061f2571` `68a2d0cf` `0e2a9d87` (non poussés) — 🔴 RELANCER WAMA (gunicorn et workers : vues, brique et index neufs ; aucune migration) — 🔚 décision P3 pour `backend_routes` / `task_skeleton`, jumelles à régénérer (R90)
+## §PALIER — 2026-10-02, « PORTAGE : RETIRER UNE CARD À L'ÉCHELLE DE LA CARD (D35) » — ✅ `44488df1` `8ae9fc5a` `6696cd69` (non poussés) — 🔴 RELANCER WAMA (gunicorn et workers : vues, brique et index neufs ; aucune migration) — 🔚 décision P3 pour `backend_routes` / `task_skeleton`, jumelles à régénérer (R90)
 
 Session ouverte par `/reprise` sur le portage des apps. Le point d'entrée du 26/09 (`backend_routes`
 puis `task_skeleton`) CONTREDIT `ROUTE §10.6` (ces deux critères « en attente de P3 », sauf la nuance
@@ -19812,7 +19812,7 @@ Session dédiée ouverte sur le chantier `WAMA_APP_GENERATION_ROUTE.md §10.6` (
 ## §PALIER — 2026-10-02, « LISTES DE CHEMINS BRANCHÉES SUR LE TRANSFERT ET LA DUPLICATION » — ✅ commit ci-dessous — 🔴 RELANCER WAMA — 🔚 rien de neuf (solde le ⏳ du palier « Transférer un lot entier »)
 
 > Fabien : *« Oui, fais le branchement des listes de chemins. »* Sur `listed_paths` et l'index des
-> références de l'instance de portage (`061f2571`, `68a2d0cf`, `0e2a9d87`).
+> références de l'instance de portage (`44488df1`, `8ae9fc5a`, `6696cd69`).
 
 - Transfert (`card_transfer._hand_over_files`) : fichiers listés énumérés avec les champs fichier ;
   POSSÉDÉ → déplacé, `repoint` réécrit l'entrée (forme conservée) ; DÉSIGNÉ → copié, seule son
@@ -19828,42 +19828,42 @@ Session dédiée ouverte sur le chantier `WAMA_APP_GENERATION_ROUTE.md §10.6` (
 > complète de la session (tout est bien aligné, on a rien réinventé ?) et du rapport »*.
 
 - **FrWhisper et Kyutai STT 1B** validés par Fabien, versionnés TELS QUE le rôle les a écrits
-  (`b193bbc3`), corrigés après essai GPU (`2fd9d25e`) ; LinTO servi par NeMo depuis `ad96cdf5`.
+  (`563be488`), corrigés après essai GPU (`6a9e77f7`) ; LinTO servi par NeMo depuis `65dc5301`.
   Les deux backends du rôle échouaient à CHAQUE transcription — le rôle n'a aucun essai pour le
   contrat `SpeechToTextBackend` (détail : `PROSPECTION_PIPELINE §Session du 2026-10-01 (soir)`).
-- **Aval du Valider** (`9dd171bb`) : le transcriber ADOPTE le backend que le catalogue désigne (sa
+- **Aval du Valider** (`1de69c22`) : le transcriber ADOPTE le backend que le catalogue désigne (sa
   liste de moteurs était écrite en dur) ; les mesures se rangent sous la clé du MODÈLE
   (`catalogue_key_for(requested=)` — LinTO partait sous `transcriber:nemo`) ;
   `segments_from_words` au module du contrat (NeMo + Kyutai).
-- **Revérification** (`70b08f61`) — deux gestes recodés en double, ramenés à leur brique :
+- **Revérification** (`11d77db4`) — deux gestes recodés en double, ramenés à leur brique :
   `audio_decode.decode_audio_at` (fréquence GARANTIE ; 5 consommateurs, dont Qwen3-ASR qui lit
   désormais le MP3 ; Kyutai avait d'abord tourné sur un 16 kHz pris pour du 24 kHz) ;
   `card_languages` délègue à `prospector.card_facts`, qui rend des codes COURTS. Gardes que la
   session avait fait rougir, réparées : import de classe par chemin (`transcriber/apps.py` →
   `pyannote_diarizer.catalogue_key_for`) ; FrWhisper pris pour exemple « sans backend »
   (`tests_backend_contract_routing`, `tests_model_select` — le rouge signalé plus haut par une autre
-  instance le 02/10, `8d4ae7ff`).
-- ⚠ **Incident git** : `70b08f61` (pathspec sur `wama/common/mecanismes.py`, co-édité) a emporté
+  instance le 02/10, `81ab2c6e`).
+- ⚠ **Incident git** : `11d77db4` (pathspec sur `wama/common/mecanismes.py`, co-édité) a emporté
   deux lignes d'autres instances. D35 `release_card_files` GARDÉE (son code est arrivé dans
-  `061f2571`, -2f confirme) ; la phrase « Adoptée le jour même par imager, avatarizer, composer
-  et synthesizer » (`prompt_entry` / `addToQueue`) RETIRÉE de HEAD (`ff9d52fa`) — toujours dans
+  `44488df1`, -2f confirme) ; la phrase « Adoptée le jour même par imager, avatarizer, composer
+  et synthesizer » (`prompt_entry` / `addToQueue`) RETIRÉE de HEAD (`8017298f`) — toujours dans
   l'arbre, à commiter par son auteur (ni -42 ni -2f ; -ae prévenu).
 - **Rapport d'évaluation** (Claude Docs `cf2a277f…`, rev 25) : section Albert d'une autre instance
   revérifiée en base (44,5 → 39,8 % sur FLEURS-CS ; Whisper local 45,1 % sur les MÊMES 8
   enregistrements, après correctif — l'égalité avec le « avant » du tableau des correctifs est une
   coïncidence) ; suites : trois moteurs intégrés, biais d'entraînement de LinTO (CFPP2000, FLEURS),
   limites de FrWhisper (horodatage grossier) et Kyutai (plus lent que le temps réel). Consigné
-  aussi dans `WAMA_QUALITE` (`a42837c4`).
+  aussi dans `WAMA_QUALITE` (`df6d451a`).
 - **Laissé, pas à moi** : `WAMA_MECANISMES.md` non régénérée (la description `audio_decode` a
   changé — à la prochaine régénération) ; budgets de langue des tests et du code dépassés par
   d'autres chantiers (aucun identifiant de cette session ; -42 coordonne) ; `check_docs` : 3
-  références cassées, aucune de cette session (ROUTE:327 vient de `195a3c81`).
+  références cassées, aucune de cette session (ROUTE:327 vient de `323dfa85`).
 - 🔴 **RELANCER WAMA** : sans quoi le transcriber ne voit ni les deux backends ni l'adoption.
 
 ## §CLÔTURE — 2026-10-02 (nuit), « CLÉ D'API EN TÂCHE DE FOND : VÉRIFIÉ EN SERVICE » — ✅ gunicorn et Celery relancés par Fabien — 🔚 rien de bloquant ; décisions ouvertes ci-dessous
 
 - ✅ Le worker relancé exécute `model_manager.register_cloud_key` : 10 modèles rangés pour la clé
-  de `wama_evaluation`, en **285 s** — la durée que la page du profil subissait avant `5e3c96f2`.
+  de `wama_evaluation`, en **285 s** — la durée que la page du profil subissait avant `44461225`.
   Profil de `wama_evaluation` en service : texte d'attente explicite, badge « ✓ Configuré »,
   0 erreur console (aucun clic sur « Enregistrer » : la clé n'a pas été réécrite).
 - Contrôles : tests du correctif 62 verts ; `check_redundancy` 75, aucune trouvaille dans le code
@@ -19877,7 +19877,7 @@ Session dédiée ouverte sur le chantier `WAMA_APP_GENERATION_ROUTE.md §10.6` (
 4. Pas à moi, constatés : budgets de langue des noms de test, `writer_01` sans curseur,
    `check_docs` 3 cassées.
 
-## §PALIER — 2026-10-02 (suite), « PORTAGE : LE COMPOSER SUR LE SQUELETTE COMMUN » — ✅ `1fc8ab73` (non poussé) — 🔴 RELANCER les workers — 🔚 jouer une génération GPU réelle ; `backend_routes` du composer ; les quatre autres apps attendent P3
+## §PALIER — 2026-10-02 (suite), « PORTAGE : LE COMPOSER SUR LE SQUELETTE COMMUN » — ✅ `30cd431e` (non poussé) — 🔴 RELANCER les workers — 🔚 jouer une génération GPU réelle ; `backend_routes` du composer ; les quatre autres apps attendent P3
 
 **Décision de Fabien (2026-10-02)** : la nuance du 15/09 de `ROUTE §10.6` est CONFIRMÉE — une app à
 un seul process adopte `run_item_task` sans attendre le moteur commun (P3). Le composer est le 6ᵉ
@@ -19907,7 +19907,7 @@ adoptant ; les apps à plusieurs étapes (anonymizer, avatarizer, imager, synthe
    d'exécution de P3 (même trou que l'enhancer). Relevé transmis à la session pipeline.
 4. `backend_routes` du composer : toujours rouge (aucune `ROUTES` déclarée).
 
-## §PALIER — 2026-10-02, « CARDS REÇUES VISIBLES PARTOUT » — ✅ `316ec5f8` — 🔚 D9
+## §PALIER — 2026-10-02, « CARDS REÇUES VISIBLES PARTOUT » — ✅ `15252d11` — 🔚 D9
 
 Demande de Fabien : « Fais apparaître les cards reçues dans le converter et l'imager ».
 - ⚠ **Le constat consigné au `§CLÔTURE 2026-10-01 nuit` était à moitié faux** : l'imager montrait
@@ -19924,7 +19924,7 @@ Demande de Fabien : « Fais apparaître les cards reçues dans le converter et l
 
 ## §PALIER — 2026-10-02, « PIPELINE PORTÉ PAR LA CARD — P1, 2ᵉ pièce : les apps HORS catalogue se déclarent, journal, calendrier et fonctions lisent la même déclaration » — ✅ commit ci-dessous, non poussé — 🔴 RELANCER WAMA (les `ready()` de sept apps et le menu ont changé) — 🔚 dernier reste de P1 : surfaces regroupées PAR MONDE (change l'interface)
 
-Suite de `§PALIER 2026-10-02 … 1ʳᵉ pièce` (`4bca60bc`). GO de Fabien sur trois points : le studio est
+Suite de `§PALIER 2026-10-02 … 1ʳᵉ pièce` (`52095f07`). GO de Fabien sur trois points : le studio est
 du monde `transverse` (décision n°9), les apps Lab restent hors catalogue jusqu'à leur alignement
 après P3 (n°8), une seule déclaration poussée remplace les `extra_links`.
 
@@ -19958,14 +19958,14 @@ après P3 (n°8), une seule déclaration poussée remplace les `extra_links`.
   regroupées par monde — menu, accueil (blocs Studio et Lab écrits en dur, `home.html:502-585`),
   `/apps/`, catalogue du studio, explorateur de fichiers. Validation au navigateur requise.
 - **Entrées de conception pour P3** consignées au brief de `ROUTE §10.6` (relevées par l'instance
-  « portage » en portant le composer sur le squelette, `1fc8ab73`) : ordre modèle / entrée,
+  « portage » en portant le composer sur le squelette, `30cd431e`) : ordre modèle / entrée,
   modèle en cours illisible pendant un « auto », « en cours » posé par les lanceurs.
 - **Pendings système** : 🔴 relancer WAMA ; base de test `test_wama_db_reprise_pipeline` gardée
   le temps de la session.
 
 ## §PALIER — 2026-10-02, « PIPELINE PORTÉ PAR LA CARD — P1, 3ᵉ pièce : une catégorie n'est plus un monde ; menu, accueil et `/apps/` lisent UN groupage » — ✅ commit ci-dessous, non poussé — 🔴 RELANCER WAMA (gabarit d'accueil et processeur de contexte neufs) — 🔚 dernier reste de P1 : l'arborescence d'apps de l'explorateur de fichiers
 
-Suite de `a721c4ca` (2ᵉ pièce). Domicile : `ROUTE §10.6` point 6.1, bloc « 3ᵉ pièce ».
+Suite de `618333f8` (2ᵉ pièce). Domicile : `ROUTE §10.6` point 6.1, bloc « 3ᵉ pièce ».
 
 - ✅ **`APP_CATEGORIES` ne garde que Comprendre / Créer / Transformer** ; `data`, `lab` et `platform`
   en sortent — c'étaient des mondes. Les mondes ont leur table, `WORLD_SECTIONS` (libellé, icône,
@@ -19999,7 +19999,7 @@ Suite de `a721c4ca` (2ᵉ pièce). Domicile : `ROUTE §10.6` point 6.1, bloc « 
 
 ## §PALIER — 2026-10-02, « PIPELINE PORTÉ PAR LA CARD — P1, 4ᵉ pièce : l'explorateur de fichiers est DÉRIVÉ — P1 TERMINÉ » — ✅ commit ci-dessous, non poussé — 🔴 RELANCER WAMA (vue de l'arbre, JS et CSS de l'explorateur) — 🔚 P3 : décisions n°1-3 et pilote à arbitrer
 
-Suite de `7d56da95` (3ᵉ pièce). Domicile : `ROUTE §10.6` point 6.1, bloc « 4ᵉ pièce ».
+Suite de `ccdfca9e` (3ᵉ pièce). Domicile : `ROUTE §10.6` point 6.1, bloc « 4ᵉ pièce ».
 
 - ✅ **Déclaration des dossiers d'app** : `app_registry.app_media_folders(app)` — `Input` /
   `Output` par défaut pour une app du catalogue, ou ce qu'elle déclare (`media_folders` :
@@ -20024,7 +20024,7 @@ Suite de `7d56da95` (3ᵉ pièce). Domicile : `ROUTE §10.6` point 6.1, bloc « 
 - ⚠ **Relevé, non changé** : l'arbre ne filtre pas par droit d'accès (un utilisateur sans accès
   au Lab voit ses dossiers Lab, vides) — antérieur ; `media_folders` n'est pas une facette du
   manifeste d'app (une app générée a les dossiers par défaut).
-- **P1 est TERMINÉ** en quatre commits : `4bca60bc`, `a721c4ca`, `7d56da95`, et celui-ci.
+- **P1 est TERMINÉ** en quatre commits : `52095f07`, `618333f8`, `ccdfca9e`, et celui-ci.
   À régénérer par qui touchera le registre : `WAMA_MECANISMES.md` et `docs/dev/briques.md`
   (mécanisme `app_worlds`, fonctions d'`app_registry` renommées).
 
@@ -20044,7 +20044,7 @@ Suite de `7d56da95` (3ᵉ pièce). Domicile : `ROUTE §10.6` point 6.1, bloc « 
   `by_category`. Trois noms de tests neufs en `…declares…` renommés en `…states…`. Budget du code
   recalé à la mesure : **2678** (−1, `LIBELLES_MONDES` retiré). Les deux budgets des noms de
   tests restent dépassés comme à l'ouverture (133 > 132, 1316 > 1310) — pas de cette session.
-  ⚠ Les blocs de palier ci-dessus et le message du commit `a721c4ca` citent encore
+  ⚠ Les blocs de palier ci-dessus et le message du commit `618333f8` citent encore
   `declare_app_world` : c'est `register_app_world`.
 - **À faire par qui touchera le registre des mécanismes** : régénérer `WAMA_MECANISMES.md` et
   `docs/dev/briques.md` (`doc_facts`) — `test_chaque_mecanisme_a_sa_section` reste rouge (171
@@ -20093,28 +20093,28 @@ défaut ; **pilote = le composer** (YuE2 : `plan` → `render`). Plan soumis à 
 - **Non fait** : `AnalysisPass` du cam_analyzer et `node_states` du studio ne sont pas portés
   sur `ProcessRun` (hors plan de ce palier).
 
-## §CLÔTURE — 2026-10-02 (matin), « LENTEURS DE CHARGEMENT + ALBERT TRANCHÉ + SYNC CLOUD SEULE » — ✅ `ff1dfb65`, `0468d535`, `ac4a12be`, `a4b8635e` — 🔴 recharger gunicorn ET relancer Celery
+## §CLÔTURE — 2026-10-02 (matin), « LENTEURS DE CHARGEMENT + ALBERT TRANCHÉ + SYNC CLOUD SEULE » — ✅ `cf8fd603`, `4bb46944`, `16dc993f`, `0e9d9d81` — 🔴 recharger gunicorn ET relancer Celery
 
-- ✅ **Lenteurs mesurées et corrigées** (cProfile, compte de Fabien, `ff1dfb65`) : accueil
+- ✅ **Lenteurs mesurées et corrigées** (cProfile, compte de Fabien, `cf8fd603`) : accueil
   0,53 → 0,06 s, transcriber 1,71 → 0,61 s. Trois causes : `static_v` sans cache en DEBUG (le
   serveur en service tourne `DEBUG = True`, `settings.py:27`) ; le menu qui évaluait les droits
   app par app (52 requêtes, 26 lectures du registre des bacs à sable) ; la file qui chargeait les
   segments des transcriptions, deux fois (`QUEUE_DEFERRED_FIELDS`, différés par la brique
   commune). Restent sur le transcriber : 0,18 s (accord entre moteurs, segments relus pour 17
   cards) et 0,09 s (comptes de locuteurs, une requête par card) — non traités.
-- ✅ **Mise à jour du catalogue après une clé** réduite aux modèles distants (`0468d535`) :
+- ✅ **Mise à jour du catalogue après une clé** réduite aux modèles distants (`4bb46944`) :
   285 → 14,7 s, sans réconciliation (une découverte partielle ne prouve aucune disparition).
-- ✅ **Albert : verrou de sensibilité TRANCHÉ** par Fabien (`ac4a12be`) — le cloud est un choix de
+- ✅ **Albert : verrou de sensibilité TRANCHÉ** par Fabien (`16dc993f`) — le cloud est un choix de
   l'utilisateur, Albert est l'hébergement souverain de la DINUM. Idée consignée comme intention
-  (`a4b8635e`, `ROADMAP §8d`) : DIRE quand une donnée part dans le cloud (prévision, console).
+  (`0e9d9d81`, `ROADMAP §8d`) : DIRE quand une donnée part dans le cloud (prévision, console).
 - Mesures non refaites EN SERVICE : les chiffres ci-dessus sont en processus ; à remesurer après
   le rechargement (sonde de temps de page dans le scratchpad de session).
 - ⚠ Rouge PRÉEXISTANT, pas à moi : `tests_codegen_lot.ItemEditRouteAliasTest` (imager
   `generation_settings` rendu en trou de glu) — rejoué sans mes fichiers : même échec.
 
-## §PALIER — 2026-10-02, « VÉRIFICATION RÉELLE : CARDS REÇUES DANS LE CONVERTER » — ✅ `bc7094d3` — 🔚 relancer WAMA
+## §PALIER — 2026-10-02, « VÉRIFICATION RÉELLE : CARDS REÇUES DANS LE CONVERTER » — ✅ `824ec537` — 🔚 relancer WAMA
 
-Demande de Fabien : « fais la vérification réelle sur le converter » (après `316ec5f8`, tests verts).
+Demande de Fabien : « fais la vérification réelle sur le converter » (après `15252d11`, tests verts).
 - Geste neuf `common.received_card_visible` (converter : listée, rafraîchie, téléchargée, pas
   supprimable, disparaît une fois privée). **Joué sur le LIVE, il a trouvé deux défauts** que le
   contrat de parc ne voyait pas (témoin toujours rangé dans un lot, sans vrai fichier) :
@@ -20176,18 +20176,18 @@ manifeste `app`. `WAMA_MANIFEST_SPEC §3.1` corrigé (il disait l'inverse, par c
   `AnalysisPass` → `ProcessRun`) et exécuteur du studio (`node_states`) non portés ; le Writer
   reste à un process.
 
-## §PALIER — 2026-10-02 (soir), « PORTAGE : PLUS AUCUNE VUE DE LOT LOCALE — ZIP multi-format (A) et réglages de lot (B) par la fabrique » — ✅ `ac34a4af`, `60d047b4`, `8903057d`, non poussés — 🔴 RELANCER WAMA (gunicorn + workers) — 🔚 contexte `batch` du format/qualité du synthesizer ; C (`detail_spec`) et D (`model_caps_ui`) proposés, pas lancés
+## §PALIER — 2026-10-02 (soir), « PORTAGE : PLUS AUCUNE VUE DE LOT LOCALE — ZIP multi-format (A) et réglages de lot (B) par la fabrique » — ✅ `13e2e78e`, `b89c9fcd`, `1e84c415`, non poussés — 🔴 RELANCER WAMA (gunicorn + workers) — 🔚 contexte `batch` du format/qualité du synthesizer ; C (`detail_spec`) et D (`model_caps_ui`) proposés, pas lancés
 
 **Décision de Fabien (2026-10-02)** : les vues de lot « restées locales et assumées » ne sont pas
 des spécificités — on uniformise, en confrontant doc et code, sans rien réinventer.
 
-**A — `batch_download` multi-format (`ac34a4af`).** Les trois vues locales (describer, reader,
+**A — `batch_download` multi-format (`13e2e78e`).** Les trois vues locales (describer, reader,
 transcriber) étaient la même vue ; leurs trois différences étaient déjà DÉCLARÉES (formats au
 catalogue, rendu enregistré par `register_export_builder`) et lues par le ⬇ de la card et celui de
 la barre. La fabrique les lit ; la card mère rend son ZIP par la brique du ⬇ commun ; trois vues
 et trois partials retirés (`REMOVAL_LEDGER` R91).
 
-**B — `batch_update` (`60d047b4`).** Confronté au code, app par app : la vue de lot RÉÉCRIVAIT les
+**B — `batch_update` (`b89c9fcd`).** Confronté au code, app par app : la vue de lot RÉÉCRIVAIT les
 règles de la route d'élément à côté d'elle. La fabrique reçoit `apply_settings` — la fonction de
 réglage de l'app, celle que `update_settings` appelle aussi — et écrit en deux temps (un refus =
 400, aucune fille écrite). Cinq vues locales retirées : composer, converter, enhancer, imager,
@@ -20216,15 +20216,15 @@ surface). Vérifié SUR HEAD en worktree (154 tests ; seule erreur = l'artefact 
   notée le 17/08 est levée) ; demande une vérification navigateur de la modale générée.
 - jumelles du bac à sable : à régénérer (R90 : elles passent encore `file_fields=`).
 - `doc_facts --check` : blocs `conformite`, `modeles`, `outils` périmés — pas les miens
-  (`mecanismes` et `dev-briques` régénérés depuis HEAD, `8903057d`).
+  (`mecanismes` et `dev-briques` régénérés depuis HEAD, `1e84c415`).
 - ⚠ **18 manifestes de MODÈLES régénérés dans l'arbre, NON commités** : `manifest_export --kind app`
   a écrit tout le corpus périmé, pas les seules apps. Ils projettent le catalogue tel qu'il est
   dans l'arbre (travail en cours d'autres instances compris) — à commiter par qui porte ces
-  modèles ; seuls `apps/imager.json` et `apps/synthesizer.json` sont partis avec `60d047b4`.
+  modèles ; seuls `apps/imager.json` et `apps/synthesizer.json` sont partis avec `b89c9fcd`.
 - aucun geste navigateur joué sur les modales de lot : le code servi est l'ancien tant que WAMA
   n'est pas relancé.
 
-## §PALIER — 2026-10-02 (nuit), « PORTAGE : LA DURÉE DU COMPOSER EST BORNÉE PAR LA CAPACITÉ DU MODÈLE (`cap_from`) — critère `model_caps_ui` remis à l'heure » — ✅ `53a1d657`, non poussé — 🔴 RELANCER WAMA — 🔚 vérification navigateur du volet et des modales du composer (GPU occupé ce soir) ; C (`detail_spec`) attend une décision
+## §PALIER — 2026-10-02 (nuit), « PORTAGE : LA DURÉE DU COMPOSER EST BORNÉE PAR LA CAPACITÉ DU MODÈLE (`cap_from`) — critère `model_caps_ui` remis à l'heure » — ✅ `7cd45049`, non poussé — 🔴 RELANCER WAMA — 🔚 vérification navigateur du volet et des modales du composer (GPU occupé ce soir) ; C (`detail_spec`) attend une décision
 
 **Le quick win annoncé n'en était pas un par motif.** Le critère `model_caps_ui` (rouge : composer,
 imager) ne cherchait que le mot `WamaModelCaps` dans les gabarits. Confronté au code :
@@ -20269,7 +20269,7 @@ câblage, V8).
   parti.
 - C (`detail_spec` ×6, extension du langage de spec) : décision de Fabien attendue.
 
-## §PALIER — 2026-10-02 (nuit), « PIPELINE PORTÉ PAR LA CARD — 1ʳᵉ génération YuE2 RÉELLE en deux process : un échec par le worker, deux manques du composer corrigés, puis réussite sur le moteur » — ✅ commits `3547f51f` (correctif) et ci-dessous (consignation), non poussés — 🔴 RELANCER les workers pour qu'ils prennent `3547f51f` — 🔚 rejouer la génération PAR le worker en service · transcript 1277 de la campagne d'évaluation à relancer par sa session
+## §PALIER — 2026-10-02 (nuit), « PIPELINE PORTÉ PAR LA CARD — 1ʳᵉ génération YuE2 RÉELLE en deux process : un échec par le worker, deux manques du composer corrigés, puis réussite sur le moteur » — ✅ commits `c0b69b84` (correctif) et ci-dessous (consignation), non poussés — 🔴 RELANCER les workers pour qu'ils prennent `c0b69b84` — 🔚 rejouer la génération PAR le worker en service · transcript 1277 de la campagne d'évaluation à relancer par sa session
 
 Accord de Fabien (« ok pour la génération YuE2 en deux process »). Élément #281 du compte de test
 `wama_nightly_test`, créé et lancé par l'outil de l'assistant `tool_api.compose_music`.
@@ -20285,7 +20285,7 @@ Accord de Fabien (« ok pour la génération YuE2 en deux process »). Élément
   mémoire à 21:07, puis le worker a redémarré. Ce transcript avait déjà échoué seul à 19:53, et
   le 1283 à 20:18 puis à 21:10 (accès réseau) : la campagne a ses propres échecs, mais celui de
   21:07 est très probablement le mien. **1277 est à relancer par la session qui tient la campagne.**
-- ✅ **Deux manques du composer corrigés (`3547f51f`)** : il ne déclarait aucun besoin de VRAM
+- ✅ **Deux manques du composer corrigés (`c0b69b84`)** : il ne déclarait aucun besoin de VRAM
   au squelette (il n'attendait donc pas sa place) et ne rendait jamais son moteur. Désormais :
   `vram_needed` (brique commune `auto_model.vram_needed_gb`, remontée de l'enhancer), moteur
   rendu en `finally`, `YuE2Backend.unload` ferme le pipeline vendorisé et rend au process le
@@ -20313,7 +20313,7 @@ Accord de Fabien (« ok pour la génération YuE2 en deux process »). Élément
 - **Non fait** : la génération par le worker en service avec le code corrigé (il faut le
   relancer) ; la base de test isolée de la session est encore en place.
 
-## §PALIER — 2026-10-02 (midi), « MODEL MANAGER LENT : RELEVÉS DE L HÔTE WINDOWS » — ✅ `610d9108` — 🔴 recharger gunicorn
+## §PALIER — 2026-10-02 (midi), « MODEL MANAGER LENT : RELEVÉS DE L HÔTE WINDOWS » — ✅ `b71837b2` — 🔴 recharger gunicorn
 
 - ✅ **Remesuré EN SERVICE** après la relance (page HTML, 2ᵉ/3ᵉ appel) : accueil 0,05 s, transcriber
   0,40 s, la plupart des apps 0,09-0,16 s ; 1ᵉʳ appel après relance encore lent (caches froids).
@@ -20357,7 +20357,7 @@ des mécanismes, `ROUTE §10.5`, le registre des registres et le code des brique
   lu « périmé » une fois, après la prochaine relance des workers. Aucun élément réel n'est
   concerné.
 
-## §PALIER — 2026-10-02 (soir), « RANGEMENT CHEZ LE DESTINATAIRE (§3bis.2) » — ✅ `34dcf8ac` — 🔚 relancer WAMA · D9 à trancher
+## §PALIER — 2026-10-02 (soir), « RANGEMENT CHEZ LE DESTINATAIRE (§3bis.2) » — ✅ `bf59e1e6` — 🔚 relancer WAMA · D9 à trancher
 
 Demande de Fabien : « fais le rangement chez le destinataire (§3bis.2) ».
 - `common.ReceivedEntry` + `common/services/reception.py` : une ligne par destinataire et par
@@ -20382,7 +20382,7 @@ Demande de Fabien : « fais le rangement chez le destinataire (§3bis.2) ».
 
 > Fabien : *« Lance la campagne d'évaluation des trois moteurs et corriges le trou que tu signales. »*
 
-- **Le trou, comblé** (`a9d549a`) : le rôle `backend` ESSAIE un backend de transcription
+- **Le trou, comblé** (`c380e77`) : le rôle `backend` ESSAIE un backend de transcription
   (`backend_proposals.SMOKES`, CPU, extrait de parole réelle calé sur des segments entiers de la
   référence, garde-fou WER ≤ 75 %). Calibré : les deux backends du rôle échouent, les corrigés
   passent. Son premier essai a trouvé deux défauts de plus dans FrWhisper (segment hors de
@@ -20394,19 +20394,19 @@ Demande de Fabien : « fais le rangement chez le destinataire (§3bis.2) ».
   ne bat Whisper sur les réunions ; Kyutai nivelé 2ᵉ en multilingue (27,5 %) ; l'écart est
   d'omission.
 - **Trois défauts d'intégration que seule la file mélangée a montrés** : Kyutai en
-  `inference_mode` (`341af61`) ; NeMo sans graphes CUDA (`8ef3557` — LinTO réutilisé après Kyutai
+  `inference_mode` (`8d86ae0`) ; NeMo sans graphes CUDA (`345ca40` — LinTO réutilisé après Kyutai
   corrompait le contexte CUDA et toute la file tombait ; passait avec `CUDA_LAUNCH_BLOCKING=1`) ;
-  le worker ne décharge pas en fin de card (commentaire faux corrigé, `ca60c30`).
-- **Découpage des audios longs dans une PAUSE** (`8f2243e`) : la limite v1 de
+  le worker ne décharge pas en fin de card (commentaire faux corrigé, `07bf788`).
+- **Découpage des audios longs dans une PAUSE** (`39203f4`) : la limite v1 de
   `TRANSCRIBER_CORRECTION §10.5` est levée pour tous les moteurs découpés ; LinTO en passes de
   30 s (en 600 s il omettait la moitié des mots : 61 % → 43,7 %).
 - **Laissé** : CFPP non mesuré (LinTO l'a vu à l'entraînement ; ~1 h de GPU par card Kyutai) ;
-  `WAMA_MECANISMES.md` déjà régénérée par une autre instance (`a238d830`, descriptions
+  `WAMA_MECANISMES.md` déjà régénérée par une autre instance (`2610eab2`, descriptions
   `speech_activity` et `audio_decode` comprises) ; le rapport
   `asr_eval_corpus --report` exige le réseau (proxy UGE en 503 ce soir) — les chiffres viennent
   directement des mesures en base.
 
-## §PALIER — 2026-10-03 (nuit), « PORTAGE : DÉTAIL DÉCLARATIF 9/10 (C) + vérification navigateur de D » — ✅ `f9bda24c`, `fadad68b`, non poussés — 🔴 RECHARGER gunicorn (le live ne sert plus HEAD depuis `34dcf8ac` : `/common/api/reception/hidden/` en 404 sur chaque page) — 🔚 scénario `composer.settings` à rendre indifférent à une card en cours · réglages répétés au volet (décision)
+## §PALIER — 2026-10-03 (nuit), « PORTAGE : DÉTAIL DÉCLARATIF 9/10 (C) + vérification navigateur de D » — ✅ `3a1369a3`, `1ec0fd79`, non poussés — 🔴 RECHARGER gunicorn (le live ne sert plus HEAD depuis `bf59e1e6` : `/common/api/reception/hidden/` en 404 sur chaque page) — 🔚 scénario `composer.settings` à rendre indifférent à une card en cours · réglages répétés au volet (décision)
 
 **C — décision de Fabien** (« aligner les applications, uniformiser, porter au commun ; ok pour
 les formes génériques »). Lus un par un, cinq adapters code de détail (anonymizer, avatarizer,
@@ -20423,7 +20423,7 @@ gardes : `INSPECTOR_DETAIL_FIELDS §Le langage de la spec` ; `REMOVAL_LEDGER` R9
 **D vérifié au navigateur** (serveur de dev jetable côté WSL — le live, relancé la veille, ne
 servait déjà plus HEAD ; compte de test `wama_ui_smoke_v3`, rien d'enregistré) : volet du
 composer en un hôte, un descriptif de moteur, bornes 30 / 300 / 600 s au volet et dans la modale.
-**Deux défauts trouvés et corrigés** (`f9bda24c`) : `_applyCap` comparait la valeur APRÈS avoir
+**Deux défauts trouvés et corrigés** (`3a1369a3`) : `_applyCap` comparait la valeur APRÈS avoir
 baissé `max` (le navigateur clampe sans événement : nombre affiché et estimation restaient faux —
 le double de test clampe désormais) ; le curseur Durée du composer n'avait pas de `default` au
 schéma (profil neuf : 305 s, libellé vide → `default=10`).
@@ -20442,12 +20442,12 @@ modification par une autre session.
 - Jumelles du bac à sable : à régénérer (R90) ; 18 manifestes de modèles régénérés dans l'arbre
   par `manifest_export` restent non commités (pas les miens).
 
-## §PALIER — 2026-10-03, « D9 TRANCHÉ : DEUX DURÉES, MÉDIATHÈQUE SANS DURÉE » — ✅ `1c29ad69` + ce commit — 🔚 ⚙▶🗑 d'une card reçue · ses lots
+## §PALIER — 2026-10-03, « D9 TRANCHÉ : DEUX DURÉES, MÉDIATHÈQUE SANS DURÉE » — ✅ `a6171a43` + ce commit — 🔚 ⚙▶🗑 d'une card reçue · ses lots
 
 Décision de Fabien (03/10) : deux réglages au profil — les cards et leurs fichiers, le dossier
 temporaire — défauts ILLIMITÉS (« le temp est plutôt un stockage personnel : médias de test et de
 présentation ; on verra à l'usage »), médiathèque SANS durée, plafond admin 0 (déjà sa valeur).
-- Livré `1c29ad69` : rétention sur les DIX apps de file ; `temp_retention_days` + purge du temp
+- Livré `a6171a43` : rétention sur les DIX apps de file ; `temp_retention_days` + purge du temp
   (un fichier désigné n'est jamais supprimé) et son pré-avis dans la tâche quotidienne ; profil à
   deux champs. Ce commit : mise en page du profil, `purge_media` couvre aussi le temp, docs
   (`MEDIA_STORAGE_TIERING` D9 ✅, `PROFILES_PERMISSIONS §3` corrigé à la mesure).
@@ -20459,7 +20459,7 @@ présentation ; on verra à l'usage »), médiathèque SANS durée, plafond admi
 - 🔚 Ouverts (§3bis.2) : boutons ⚙ ▶ 🗑 d'une card reçue (question posée à Fabien) ; ranger une card
   reçue dans SES lots (changement de modèle).
 
-## §PALIER — 2026-10-03 (nuit), « PIPELINE PORTÉ PAR LA CARD — le pilote composer joué de bout en bout par la CHAÎNE RÉELLE ; l'attente de VRAM « illimitée » ne l'était pas » — ✅ commits `3ce1f4d7` (correctif) et ci-dessous (consignation), non poussés — 🔴 RELANCER les workers pour `3ce1f4d7` (sinon toute attente de VRAM meurt à la 3ᵉ re-livraison) — 🔚 P5 (la card affiche ses process) · cam_analyzer et exécuteur du studio à aligner · transcriber en 4 process
+## §PALIER — 2026-10-03 (nuit), « PIPELINE PORTÉ PAR LA CARD — le pilote composer joué de bout en bout par la CHAÎNE RÉELLE ; l'attente de VRAM « illimitée » ne l'était pas » — ✅ commits `ec4a900d` (correctif) et ci-dessous (consignation), non poussés — 🔴 RELANCER les workers pour `ec4a900d` (sinon toute attente de VRAM meurt à la 3ᵉ re-livraison) — 🔚 P5 (la card affiche ses process) · cam_analyzer et exécuteur du studio à aligner · transcriber en 4 process
 
 Demande de Fabien : rejouer la génération YuE2 par la vraie file (workers relancés), avec une
 revérification (bloc précédent).
@@ -20468,7 +20468,7 @@ revérification (bloc précédent).
   `plan` 159 s puis `render` 54 s (partition ABC, audio 157 s) ; puis « Enregistrer et relancer »
   par la vraie vue (`update_settings`, durée 30 → 45 s) → **`render` seul**, 131 s dont le
   rechargement, ligne `plan` intacte. Mêmes sorties que le process à part de la veille.
-- ❌→✅ **Défaut trouvé par l'attente réelle, corrigé (`3ce1f4d7`)** : à 23:09, son tour venu sur
+- ❌→✅ **Défaut trouvé par l'attente réelle, corrigé (`ec4a900d`)** : à 23:09, son tour venu sur
   une carte pleine, #282 est passé « en attente de ressources » (le correctif de l'après-midi
   joue) — mais Celery a refusé la 3ᵉ re-livraison : `task.retry(max_retries=None)` = le défaut
   de la tâche (3), pas « illimité » (`celery/app/task.py:720`). La règle du 20/09 n'était pas
@@ -20481,14 +20481,14 @@ revérification (bloc précédent).
   d'autres sessions).
 - ⚠ **Observé, non traité** : le worker GPU a été silencieux de 23:12 à 00:12 (file vide après
   l'échec de re-livraison), puis WAMA a été relancé entièrement à 00:12 (« surveillance
-  démarrée », `worker-watchdog.log`) — ces workers portent le code d'avant `3ce1f4d7` ; le
-  gardien avait aussi relancé le worker GPU à 21:08 (« gpu MORT »), après mon premier essai ; `/common/api/reception/hidden/` (`34dcf8ac`, autre session) rend 404 tant que
+  démarrée », `worker-watchdog.log`) — ces workers portent le code d'avant `ec4a900d` ; le
+  gardien avait aussi relancé le worker GPU à 21:08 (« gpu MORT »), après mon premier essai ; `/common/api/reception/hidden/` (`bf59e1e6`, autre session) rend 404 tant que
   gunicorn n'est pas rechargé ; les lignes de #281 gardent l'ancienne forme d'empreinte (lues
   « périmées » une fois).
 - Fichiers de l'essai, laissés pour écoute : `media/users/22/composer/output/audio282_YuE2-3B.abc`
   et `.wav`. Base de test isolée de la session supprimée.
 
-## §CLÔTURE — 2026-10-03, « LENTEURS : REMESURE EN SERVICE ET DERNIERS CORRECTIFS » — ✅ `8e90ada8`, `28bf294e` — 🔴 recharger gunicorn (vues de progression)
+## §CLÔTURE — 2026-10-03, « LENTEURS : REMESURE EN SERVICE ET DERNIERS CORRECTIFS » — ✅ `732224ee`, `354f4cb6` — 🔴 recharger gunicorn (vues de progression)
 
 - ✅ **Remesuré EN SERVICE** (14 pages + 9 API appelées au chargement ou en continu, meilleur de 3) :
   presque tout sous 0,15 s ; restaient au-dessus de 0,3 s le transcriber (0,41 s), l'anonymizer
@@ -20507,7 +20507,7 @@ revérification (bloc précédent).
 - Contrôles : 290 tests verts ; `check_redundancy` 77, aucune trouvaille dans ce code (le nom
   `queue_light` créait un faux positif avec `cam_analyzer._queue` → renommé).
 
-## §PALIER — 2026-10-03, « CARD REÇUE EN LECTURE SEULE + DEMANDES D'ACCÈS + NOTIFICATIONS EN DIRECT » — ✅ `b19909c9` — 🔚 relancer WAMA
+## §PALIER — 2026-10-03, « CARD REÇUE EN LECTURE SEULE + DEMANDES D'ACCÈS + NOTIFICATIONS EN DIRECT » — ✅ `bd1c03a2` — 🔚 relancer WAMA
 
 Décisions de Fabien (03/10) : boutons du propriétaire MONTRÉS en lecture seule (encart : dupliquer ·
 s'approprier), ⚙ en consultation, pastille du niveau de partage, « Mon accès » avec les modes à
@@ -20561,9 +20561,9 @@ Après la génération réelle par la vraie file (bloc précédent), GO de Fabie
   de ligne — à normaliser à l'enregistrement (`update_settings`, domaine du portage).
 - **Non fait** : ▶/⚙ par process ; gabarit généré ; les autres apps n'ont pas de pipeline.
 
-## §CLÔTURE — 2026-10-03 (fin), « GARDES DES COÛTS DE PAGE + LEÇON DE MUTATION » — ✅ `38056dd1`, `828412cc` — rien à relancer
+## §CLÔTURE — 2026-10-03 (fin), « GARDES DES COÛTS DE PAGE + LEÇON DE MUTATION » — ✅ `2e32d3a0`, `2c13306b` — rien à relancer
 
-- ✅ Tous les commits de la session sont EN SERVICE (relance de 01:03 sur `02df9c45`, vérifié par
+- ✅ Tous les commits de la session sont EN SERVICE (relance de 01:03 sur `c879350d`, vérifié par
   `git merge-base --is-ancestor`).
 - ✅ **Gardes manquantes ajoutées** (`common/tests/tests_page_cost`, 6) : lecture groupée des droits
   = décision unitaire (créateur de jumelle compris) et ≤ 2 requêtes ; `static_v` voit une
@@ -20572,9 +20572,9 @@ Après la génération réelle par la vraie file (bloc précédent), GO de Fabie
   `tests_system_monitor` et `tests_cloud_models`, chaque livrable de perf a sa garde.
 - ⚠ **Contre-épreuve par mutation** : la garde des droits était VERTE À VIDE (jumelle de test sans
   politique) — corrigée, puis rouge sur le code cassé. Leçon portée DANS le rituel
-  (`/cloture §2a bis`, `828412cc`), pas seulement ici.
+  (`/cloture §2a bis`, `2c13306b`), pas seulement ici.
 - Card 1277 (signalée par l'instance « pipeline ») : pas à moi, déjà SUCCESS — rien relancé.
-- Restes : inchangés depuis `6116a361` (transcriber 0,37 s, 1ᵉʳ appel après relance, dix
+- Restes : inchangés depuis `d35dd25f` (transcriber 0,37 s, 1ᵉʳ appel après relance, dix
   `global_progress` à centraliser, budgets de langue d'autres chantiers, push).
 
 ## §PALIER — 2026-10-03, « RAPPORT D'ÉVALUATION DANS WAMA + CATÉGORIE RAPPORTS » — ✅ commits ci-dessous — 🔚 rapports d'évaluation GÉNÉRÉS (plan consigné, rien de construit)
@@ -20585,15 +20585,15 @@ Après la génération réelle par la vraie file (bloc précédent), GO de Fabie
 
 - **Rapport complété** (Claude Docs `cf2a277f…`, rev 31) : « Quel réglage choisir », deux limites,
   section Sources (adresse d'Albert vérifiée contre `external_sources.py`).
-- **Page WAMA** `/reports/transcription/` (`aba9294b`, `fa21e63`) : instantané du rapport, graphiques
+- **Page WAMA** `/reports/transcription/` (`85b1fd9a`, `7a2c0a8`) : instantané du rapport, graphiques
   redessinés en HTML/CSS (l'export les retire ; aucune bibliothèque de graphiques vendorisée), même
   enveloppe que les fiches, vérifiée au navigateur (bureau, téléphone). Catégorie « Rapports » du menu
   « Présentations & annexes » remplie depuis `wama.views.REPORTS`, comme les archives. Générateur au
   dépôt (`scripts/reports/`), reproduit la page à l'octet près.
-- **Manque de mémoire de la campagne, vraie cause** (`17256a9`, signalée par une autre instance et
+- **Manque de mémoire de la campagne, vraie cause** (`8ae0902`, signalée par une autre instance et
   vérifiée au journal) : FrWhisper et Kyutai rechargeaient leur modèle à CHAQUE card sans libérer
   le précédent. Corrigé (réutilisation, comme NeMo), worker GPU relancé.
-- **Revérification** (`70c5db5`) : test manquant du correctif Kyutai `inference_mode` ; carte des
+- **Revérification** (`95edc75`) : test manquant du correctif Kyutai `inference_mode` ; carte des
   mécanismes à jour (`backend_proposals` : smoke par contrat ; `speech_activity` : `quietest_point`).
 - **Plan consigné** : `WAMA_QUALITE` « Rapports d'évaluation GÉNÉRÉS » — briques à réutiliser, six
   gestes manuels à transformer (agrégat de campagne, rapport sans réseau, brique de graphiques,
@@ -20630,7 +20630,7 @@ Après la génération réelle par la vraie file (bloc précédent), GO de Fabie
   `generation_settings` bouché 501 — rouge AUSSI avec mes trois fichiers remis à HEAD, rejoué
   isolément) et `tests_codegen_templates.SlotDeReferenceGenereTest…composer` (`show_reference`
   absent de la card d'entrée générée du composer : les ports `reference_*` sont devenus
-  `work_*` dans `6212e157`, session partitions/MIDI — signalé). Budgets de noms de tests
+  `work_*` dans `41dbf845`, session partitions/MIDI — signalé). Budgets de noms de tests
   (classes 133 > 132, méthodes 1316 > 1310) et budget code (2677 < 2678, à DESCENDRE) : aucun
   des noms listés par `--test-names` n'est de cette pièce — à recaler par qui les a introduits.
 - 🔚 **Restes déclarés** : charge utile Data (`promote_payload` + garde-fou « entrées requises
@@ -20641,8 +20641,8 @@ Après la génération réelle par la vraie file (bloc précédent), GO de Fabie
 
 ## §PALIER — 2026-10-03, « PIPELINE P5 — 4ᵉ pièce : ▶ PAR PROCESS CÂBLÉ SUR LE COMPOSER + ses routes de lot » — ✅ — 🔴 RELANCER gunicorn ET les workers (nouvel argument de tâche)
 
-> Suite de la 2ᵉ pièce (`d2fa0770`, partie commune), dont le câblage composer attendait le commit
-> B de la session partitions/MIDI (`6212e157`, reçu ce matin).
+> Suite de la 2ᵉ pièce (`a28dab56`, partie commune), dont le câblage composer attendait le commit
+> B de la session partitions/MIDI (`41dbf845`, reçu ce matin).
 
 - `compose_task(generation_id, process=None)` → `run_item_task(only=process)` : lancement BORNÉ
   — ce process, ses amonts périmés, jamais son aval. ⚠ **Argument de tâche nouveau : les workers
@@ -20671,14 +20671,14 @@ Après la génération réelle par la vraie file (bloc précédent), GO de Fabie
   ce que fait le ▶ de la card depuis P3 (`steps_to_run` sans `only`), le libellé du bouton de cycle
   le dit (« Recalculer ce qui est périmé ») — pas de pièce à part.
 
-## §CLÔTURE — 2026-10-03 (nuit), « PORTAGE DES APPLICATIONS : vues de lot, bornes par capacité, détail déclaratif, dédoublonnage du volet » — ✅ 12 commits (`60d047b4` → `2c510b96`), NON poussés — 🔚 POINT D'ENTRÉE : `ROUTE §11 #37` — la fabrique COMMUNE des vues de PROGRESSION (`progress` + `global_progress`, 10 apps), plan mesuré, à faire d'un bloc quand les `views.py` sont libres
+## §CLÔTURE — 2026-10-03 (nuit), « PORTAGE DES APPLICATIONS : vues de lot, bornes par capacité, détail déclaratif, dédoublonnage du volet » — ✅ 12 commits (`b89c9fcd` → `cf71b8e0`), NON poussés — 🔚 POINT D'ENTRÉE : `ROUTE §11 #37` — la fabrique COMMUNE des vues de PROGRESSION (`progress` + `global_progress`, 10 apps), plan mesuré, à faire d'un bloc quand les `views.py` sont libres
 
 **Ce que la session a livré** (tout est dans les paliers du 02/10 soir et du 03/10 nuit, ci-dessus) :
 B — plus aucune vue de lot locale (`batch_views_common` 10/10) ; D — durée du composer bornée par
 la capacité du modèle (`cap_from`), critère `model_caps_ui` remis à l'heure, deux défauts de
 brique trouvés au navigateur et corrigés ; C — détail déclaratif 9/10 (quatre formes génériques,
-cinq adapters retirés) ; puis « un fait rendu une fois » au volet (`02df9c45`) ; scénario
-`composer.settings` indifférent à une card en cours (`33a130f1`). Grille **908 → 917/939**.
+cinq adapters retirés) ; puis « un fait rendu une fois » au volet (`c879350d`) ; scénario
+`composer.settings` indifférent à une card en cours (`71399d15`). Grille **908 → 917/939**.
 
 **🔚 FILE DES CHANTIERS OUVERTS, dans l'ordre**
 1. `ROUTE §11 #37` — fabrique des vues de progression (`make_progress_views`), portage 0/10 :
@@ -20692,12 +20692,12 @@ cinq adapters retirés) ; puis « un fait rendu une fois » au volet (`02df9c45`
 
 **Pendings SYSTÈME**
 - `git push` : 12 commits de cette session (plus ceux des autres) — push sur demande seulement.
-- Le live a été relancé à 01:03 (HEAD `02df9c45`) ; un WIP non commité d'une autre session
+- Le live a été relancé à 01:03 (HEAD `c879350d`) ; un WIP non commité d'une autre session
   (`wama/common/urls.py` + trois JS communs, route `/common/api/notifications/recent/`) fait
   rougir sur le live tout scénario qui compte les requêtes en échec, jusqu'à son commit + rechargement.
 - Arbre : 18 manifestes de MODÈLES régénérés par `manifest_export` (il écrit tout le corpus périmé),
   NON commités — ils projettent le catalogue et du WIP d'autres sessions ; seuls les cinq du
-  composer (`max_duration_s`) sont partis (`2c510b96`). `manifests/apps/composer.json` : seuls mes
+  composer (`max_duration_s`) sont partis (`cf71b8e0`). `manifests/apps/composer.json` : seuls mes
   deux hunks commités, le reste projette les ports de travail d'une autre session.
 - Base de test PRIVÉE de la session (`test_wama_db_reprise_portage`) : jetable, détruite par le
   dernier run ; les sessions forgées pour les observations ont été retirées (`_drop_new_sessions`).
@@ -20708,7 +20708,7 @@ cinq adapters retirés) ; puis « un fait rendu une fois » au volet (`02df9c45`
 **Contrôles attendus au prochain /reprise (tous MESURÉS cette nuit)**
 - Tests des modules de la session : **98 OK** (`tests_detail_spec`, `tests_cap_from_declared`,
   `tests_cap_from_js`, `tests_batch_views`, `tests_item_settings_contract`). Suite complète (avant
-  `02df9c45`) : **4946 tests, 16 rouges**, aucun dans mes fichiers — docs générées de l'arbre (2 :
+  `c879350d`) : **4946 tests, 16 rouges**, aucun dans mes fichiers — docs générées de l'arbre (2 :
   `tests_doc_plans`, `tests_docs_catalog`), notifications (3), budgets de langue (5 : +3/+1/+7 venus
   d'ailleurs), `tests_tool_api_lectures` candidats, `tests_picker_list` audio/x-wav,
   `ItemEditRouteAliasTest` (stub imager), `tests_settings_surfaces` (`quality_intent` du
@@ -20786,7 +20786,7 @@ heredocs de l'outil Bash qui mangent les antislashs, `python -m unittest` nu int
   des process sur une card composer YuE2 (▶ et ⚙ par ligne), ↑/↓ sur un lot, le catalogue du
   studio (sections, glisser un nœud, ouvrir un pipeline déclaré).
 
-## §PALIER — 2026-10-03, « ARCHITECTURE DE WAMA SUR LE MOTEUR CANVAS » — ✅ `19e0df2b` — 🔚 chiffres périmés de la présentation principale (signalés, pas touchés)
+## §PALIER — 2026-10-03, « ARCHITECTURE DE WAMA SUR LE MOTEUR CANVAS » — ✅ `be8a656a` — 🔚 chiffres périmés de la présentation principale (signalés, pas touchés)
 
 > Fabien : *« Peux-tu mettre à jour la présentation de l'architecture de wama en respectant bien le
 > style de la nouvelle présentation de wama et en mettant à jour le contenu ? »*
@@ -20826,11 +20826,11 @@ heredocs de l'outil Bash qui mangent les antislashs, `python -m unittest` nu int
 - ⚠ Le correctif n'a PAS pu être rejoué au navigateur : le serveur de dev relancé répond 500
   sur toute page (`accounts_userprofile.cloud_hosting_max does not exist` — colonne d'une
   autre session, migration pas encore passée). Il est tenu par le test, pas par l'œil.
-- **Commits P5 du jour (non poussés)** : `921d059d` promotion fille ↔ mère · `30ead900` docs
-  générées · `929c5a54` ▶ par process composer · `d2f637b9` ⚙ par process + gabarit généré ·
-  `b71677d2` catalogue du studio · + ce correctif.
+- **Commits P5 du jour (non poussés)** : `327d0490` promotion fille ↔ mère · `e764c40e` docs
+  générées · `fcf0ec9d` ▶ par process composer · `ae19a05b` ⚙ par process + gabarit généré ·
+  `ccf93023` catalogue du studio · + ce correctif.
 
-## §PALIER — 2026-10-03, « MODE COLLABORATION (E1-E5) + MES PARTAGES » — ✅ `cc5e4240` — 🔚 relancer WAMA, puis jouer `common.collaboration_cycle` sur le live
+## §PALIER — 2026-10-03, « MODE COLLABORATION (E1-E5) + MES PARTAGES » — ✅ `35b8913d` — 🔚 relancer WAMA, puis jouer `common.collaboration_cycle` sur le live
 
 Fabien tranche E1-E5 (03/10, toutes sur la recommandation) : personnes nommées ; relance = celle de
 la card, fin notifiée aux deux ; verrou doux + trace ; retrait à effet immédiat. Domicile :
@@ -20901,7 +20901,7 @@ Parti d'un échange réel de Fabien avec l'assistant (fil #16). Cinq constats me
   (`tests_kokoro_onnx_phonemes`, `tests_talkinghead_progress`, `tests_assistant_surfaces`,
   `tests_cloud_models`, `tests_api_keys`, `tests_claude_subscription`), `ROADMAP`, `WAMA_LLM`.
 
-## §PALIER — 2026-10-03, « PRÉSENTATION PRINCIPALE CONFRONTÉE AU CODE » — ✅ `44d8a440` — 🔚 rien
+## §PALIER — 2026-10-03, « PRÉSENTATION PRINCIPALE CONFRONTÉE AU CODE » — ✅ `1c51326d` — 🔚 rien
 
 > Fabien : *« corrige les chiffres de la présentation principale. Il y a des choses fausses comme
 > ça : Jamais exécuté Apple Depth Pro : il fait planter la machine hôte. Tout ce qui concerne les
@@ -20943,9 +20943,9 @@ Parti d'un échange réel de Fabien avec l'assistant (fil #16). Cinq constats me
   - ▶ par process par le VRAI worker : composer #313 (compte de test) — plan 155 s + rendu 54 s,
     puis ▶ du rendu SEUL : la partition n'est pas rejouée (ligne `plan` intacte), l'audio est
     remplacé.
-- **Studio** (`6eac95fd`) : l'exécuteur écrit les lignes `ProcessRun` (une par nœud app ou
+- **Studio** (`0ae91132`) : l'exécuteur écrit les lignes `ProcessRun` (une par nœud app ou
   fonction, adressées par le run) ; le nœud fautif passe `FAILURE`.
-- **Process OPTIONNELS** (`4bddc3db`) : `ProcessSpec.toggle` + case à cocher de la bande ; un
+- **Process OPTIONNELS** (`ee11d709`) : `ProcessSpec.toggle` + case à cocher de la bande ; un
   optionnel en échec ne fait plus échouer la card ; `output_fingerprint` pour une sortie qui
   n'est pas un fichier.
 - **TRANSCRIBER en quatre process** : `transcriber/function_specs.py` (transcribe requis →
@@ -20972,7 +20972,7 @@ Parti d'un échange réel de Fabien avec l'assistant (fil #16). Cinq constats me
 
 ## §PALIER — 2026-10-03 (suite), « AVATARIZER : LE MODÈLE D'ANIMATION SE CHOISIT » — ✅ commit ci-dessous, non poussé — 🔴 RELANCER gunicorn et les workers GPU — 🔚 option de lot et outil de l'assistant pour ce choix · réglages MuseTalk masqués pour un avatar 3D · anonyme qui lance un job
 
-Suite du palier « ASSISTANT : VOIX, AVATAR 3D, SECOND AXE DU CLOUD » (`89f9cf80`), qui laissait
+Suite du palier « ASSISTANT : VOIX, AVATAR 3D, SECOND AXE DU CLOUD » (`cb05fcc4`), qui laissait
 ce point en constat. Question de Fabien : « on a ajouté des modèles, mais je ne peux utiliser que
 MuseTalk + CodeFormer ».
 - **Le job porte son choix** : `AvatarJob.animation_model` (« auto » par défaut — comportement
@@ -21009,8 +21009,8 @@ MuseTalk + CodeFormer ».
 
 ## §CLÔTURE — 2026-10-03, « PARTAGE : RANGEMENT, LECTURE SEULE, DEMANDES, COLLABORATION, MES PARTAGES ; RÉTENTION D9 » — ✅ vérifié sur le LIVE — 🔚 voir les ouverts
 
-Session ouverte le 01/10 (fichiers libérés), close le 03/10. Commits de la fin : `cc5e4240`
-(collaboration, Mes partages), `c8027fa7` (lecture d'un lot reçu + gardes), `ea234dae` (docs
+Session ouverte le 01/10 (fichiers libérés), close le 03/10. Commits de la fin : `35b8913d`
+(collaboration, Mes partages), `0efd549d` (lecture d'un lot reçu + gardes), `ff4571e1` (docs
 générées depuis un worktree de HEAD). NON POUSSÉS.
 - **Vérifié sur le live relancé** : `collaboration_cycle` 9/9, `received_card_readonly_request`
   12/12, `received_entry_arrangement` 8/8, `received_card_visible` 7/7, `received_card_duplicate`
@@ -21039,9 +21039,9 @@ générées depuis un worktree de HEAD). NON POUSSÉS.
 
 Suite de « il faut tout aligner » (`ROUTE §10.6`, bloc « P6 ENGAGÉE »).
 
-- ✅ **synthesizer** (`e456c711`) : tâche sur le squelette commun ; le squelette sait re-livrer
+- ✅ **synthesizer** (`44064f5b`) : tâche sur le squelette commun ; le squelette sait re-livrer
   une tâche dont le SERVICE n'est pas prêt (`ServiceNotReady`). Synthèse kokoro réelle jouée.
-- ✅ **avatarizer** (`7545f2bd`) : pipeline `speak` → `animate`. Joué en réel sous le compte de
+- ✅ **avatarizer** (`69e42f23`) : pipeline `speak` → `animate`. Joué en réel sous le compte de
   test : speak 2,0 s + animate 245 s ; cadrage changé → `animate` seul, voix et audio inchangés.
   Tests : `wama.avatarizer` 50 verts (8 neufs, `tests_pipeline.py`).
 - ✅ **transcriber, process `import`** (demande de Fabien, relayée par une autre session) : une
@@ -21072,7 +21072,7 @@ Restes déclarés :
 
 Suite du bloc précédent (`ROUTE §10.6`, bloc « P6 ENGAGÉE »).
 
-- ✅ **anonymizer** (`91e161d9`) : `process_single_media` → `run_item_task`. Joué en réel sous le
+- ✅ **anonymizer** (`ea423d57`) : `process_single_media` → `run_item_task`. Joué en réel sous le
   compte de test : visage flouté en 2,1 s, modèle tiré en « auto » nommé sur la ligne
   (`anonymizer:yolo:yolov9s-face-lindevs.pt`). Corrigé au passage : verrous non rendus quand la
   tâche sortait par l'arrêt ; média sans fichier qui sortait sans rien dire.
@@ -21084,7 +21084,7 @@ Suite du bloc précédent (`ROUTE §10.6`, bloc « P6 ENGAGÉE »).
   arrêté deux générations réussies relevées en base (vidéo 4 481 s, image 2 351 s) —
   `TASK_MAX_MINUTES['imager'] = 120`. Valeur posée sur une mesure, à confirmer par Fabien.
 - ✅ Test rattrapé : `tests_vram_wait` attendait encore `max_retries=None` (périmé depuis
-  `3ce1f4d7`, attente de VRAM sans plafond) — rouge préexistant de cette session, soldé.
+  `ec4a900d`, attente de VRAM sans plafond) — rouge préexistant de cette session, soldé.
 
 Mesures : tests du périmètre 188 joués (imager, anonymizer, contrat du squelette, attente VRAM,
 pipeline, lanceurs de l'assistant, réconciliation) → verts après les deux corrections ci-dessus.
@@ -21147,7 +21147,7 @@ cherchée (service TTS occupé ou en rechargement après la relance : c'est le c
 Pages des dix apps et du studio sur le serveur relancé : 200, bande des process présente sur
 transcriber et composer.
 
-**Livré ensuite** : la card de l'avatarizer montre « Voix → Animation » (`27d06d60`) — bande
+**Livré ensuite** : la card de l'avatarizer montre « Voix → Animation » (`d78d115e`) — bande
 commune, ▶ et ⚙ par process, état montré par l'adaptateur unique, route `start/<pk>/<process>/`.
 Tests `wama.avatarizer` 47 verts ; smoke navigateur sur serveur de dev 8011 : deux lignes, deux
 ▶, deux ⚙, modale réduite aux cinq réglages de la voix, 0 erreur console.
@@ -21198,16 +21198,16 @@ visiteur ne lance rien, sauf dans le converter ». Détail : `PROFILES_PERMISSIO
   `converter/{views,tasks}.py`, `converter/templates/converter/index.html`, `settings.py`,
   `avatarizer/tests_animation_model.py` (un nom de test), `PROFILES_PERMISSIONS.md`.
 
-## §PALIER — 2026-10-03 (soir), « PORTAGE : revue de la session Pipeline, deux lanceurs réalignés, FABRIQUE DES VUES DE PROGRESSION 10/10 (ROUTE §11 #37) » — ✅ `89e7a18`, `381e52ce` + commit du composer, non poussés — 🔴 RECHARGER gunicorn ET les workers (tâche anonymizer, vues) — 🔚 décisions de Fabien sur les points ouverts de la revue · docs générées à régénérer depuis HEAD
+## §PALIER — 2026-10-03 (soir), « PORTAGE : revue de la session Pipeline, deux lanceurs réalignés, FABRIQUE DES VUES DE PROGRESSION 10/10 (ROUTE §11 #37) » — ✅ `215d8a6`, `6572b4b6` + commit du composer, non poussés — 🔴 RECHARGER gunicorn ET les workers (tâche anonymizer, vues) — 🔚 décisions de Fabien sur les points ouverts de la revue · docs générées à régénérer depuis HEAD
 
 **Revue de la session Pipeline (demande de Fabien)** — trois relectures d'agents, chaque défaut
 grave revérifié dans le code avant d'être retenu, puis confronté à la doc :
-- ✅ **corrigé** (`89e7a18`) : l'anonymizer posait RUNNING dans la TÂCHE, avant la garde
+- ✅ **corrigé** (`215d8a6`) : l'anonymizer posait RUNNING dans la TÂCHE, avant la garde
   anti-re-livraison du squelette — un message re-livré PÉRIMÉ remettait « en cours » pour
   toujours un média terminé (cas #741). Règle : RUNNING est posé par les LANCEURS
   (`§PALIER 2026-09-14`) ; le lanceur de file (`process_user_media_batch`) passe désormais par
   `begin_processing` et enregistre le `task_id`. Contre-épreuve rouge sur l'ancien code ;
-- ✅ **corrigé** (`89e7a18`) : `tool_api.start_transcriber` gardait sa remise à zéro (texte et
+- ✅ **corrigé** (`215d8a6`) : `tool_api.start_transcriber` gardait sa remise à zéro (texte et
   segments vidés au clic) — avec le pipeline, un lancement du résumé seul résumait un texte vide.
   Il emprunte le lanceur du ▶ (`begin_processing` + `_reset_for_relaunch` + `_task_for`) ;
 - ⛔ **pas un défaut, d'après la doc** : la durée max de 30 min des apps nouvellement sur le
@@ -21247,7 +21247,7 @@ une réinvention, retirée). Équivalence mesurée sur 200 éléments réels ava
   (clés d'une card ET de la file, toutes les apps), `tests_eta_test_accounts` (plancher 8 → 6 :
   trois appels `record_run` rendus au squelette, qui nomme le propriétaire).
 - ✅ **Composer** (commit suivant, 21:40) : son `views.py`, tenu par la session cover YuE à 20:40,
-  a été libéré par `7c28de32` — porté dans la foulée, équivalence mesurée (sa barre comptait les
+  a été libéré par `21e83325` — porté dans la foulée, équivalence mesurée (sa barre comptait les
   éléments en attente comme « en cours » : aligné), exemption vidée. **Grille 931/950,
   `progress_views_common` VRAI 10/10.** Tests composer + contrat + pipeline : 137 OK.
 - ⏳ Manifestes `avatarizer`/`enhancer`/`transcriber` non régénérés (travail d'autres sessions
@@ -21318,10 +21318,10 @@ Cinq questions de Fabien sur l'assistant, mesurées. Deux soldées, trois en con
   français ajouté (une méthode française du générateur renommée) ; les lecteurs JS locaux de la
   barre sont tous neutralisés.
 - Tests : 654 (10 apps + contrats communs) → 1 rouge PRÉEXISTANT (`ItemEditRouteAliasTest`) ; deux
-  rouges du transcriber attribués à la COURSE avec `d465ba4e` (process `align`, commité pendant la
+  rouges du transcriber attribués à la COURSE avec `dc6fedeb` (process `align`, commité pendant la
   suite) — rejoués après : 60 OK. Coordination : la session Pipeline attend ces fichiers de tâches
   (sortie qui garde le natif) — prévenue.
-- **Restes, signalés pas faits** : ① le converter ouvert au visiteur (`1f1e53b5`) garde `start`,
+- **Restes, signalés pas faits** : ① le converter ouvert au visiteur (`c4b36251`) garde `start`,
   `status` et `global_progress` derrière `@login_required` — un visiteur ne peut ni lancer ni suivre
   sa file (domaine de la session visiteur) ; ② `_app_scripts.html` (le socle JS d'app) n'est adopté
   par AUCUNE app réelle — chacune recopie ses balises, d'où l'oubli de l'anonymizer ; ③ docs
@@ -21365,22 +21365,22 @@ Cinq questions de Fabien sur l'assistant, mesurées. Deux soldées, trois en con
 - 🔚 La jumelle `imager_01` porte encore ses balises (gabarit recopié, hors total) : à la
   régénération des jumelles (R90).
 
-## §PALIER — 2026-10-04, « ASSISTANT : MODÈLES DE L'ABONNEMENT + CORPUS SYSTÈME (la doc de WAMA rappelable) » — ✅ `73845ff1`, `34c80b4a` + commit ci-dessous, non poussés — 🔴 RECHARGER gunicorn, relancer workers + beat — 🔚 vecteurs des fragments neufs la nuit (décision) · journal des connexions (décisions) · montage SMB (deux défauts) · docs générées
+## §PALIER — 2026-10-04, « ASSISTANT : MODÈLES DE L'ABONNEMENT + CORPUS SYSTÈME (la doc de WAMA rappelable) » — ✅ `8e483336`, `a73d9a72` + commit ci-dessous, non poussés — 🔴 RECHARGER gunicorn, relancer workers + beat — 🔚 vecteurs des fragments neufs la nuit (décision) · journal des connexions (décisions) · montage SMB (deux défauts) · docs générées
 
 > Demandes de Fabien : pourquoi un seul modèle, inconnu, par l'abonnement ; l'assistant a-t-il
 > accès à la doc ; puis *« rester bien aligné sur le fonctionnement de WAMA et ne rien réinventer »*.
 
-- **Abonnement Claude Code** (`73845ff1`) : la ligne DÉCLARÉE s'étend — `ExternalSource.declared_models`
+- **Abonnement Claude Code** (`8e483336`) : la ligne DÉCLARÉE s'étend — `ExternalSource.declared_models`
   (`default`, `fable`, `opus`, `sonnet`, alias documentés par le CLI), `--model` passé, modèle
   réellement servi lu dans `modelUsage` et affiché au tour. Détail : `ROADMAP §8d`. Mesuré sur le
   compte réel : 3 lignes ajoutées par la sonde, appel `sonnet` → `claude-sonnet-5-5`.
-- **Corpus système** (`34c80b4a`) : `common/memory/docs_corpus.py` + outils `search_docs` /
+- **Corpus système** (`a73d9a72`) : `common/memory/docs_corpus.py` + outils `search_docs` /
   `read_doc`. Détail et raisons : `WAMA_MEMORY.md §7quinquies` (domicile unique). Mesuré : 50 docs,
   6 654 fragments, projection 2 s, vecteurs 79 s ; deux tours RÉELS d'assistant (recherche →
   lecture de section → réponse citée), `tool_steps` lus.
 - **Trouvé à la revérification de fin de session, corrigé ici** : `purge-visitors` (ajoutée le
   03/10 en `crontab(minute=20)`) tombait chaque nuit dans la plage RÉSERVÉE des tests nocturnes —
-  `tests_calendar` était rouge depuis `1f1e53b5`, non rejoué alors. Passée en INTERVALLE (3600 s),
+  `tests_calendar` était rouge depuis `c4b36251`, non rejoué alors. Passée en INTERVALLE (3600 s),
   la forme des battements de fond. *Une entrée planifiée ajoutée sans rejouer `tests_calendar` :
   le contrôle existait, il fallait le lancer.*
 - **Gardes ajoutées** : `tests_calendar.test_every_beat_entry_names_a_registered_task`
@@ -21415,7 +21415,7 @@ Cinq questions de Fabien sur l'assistant, mesurées. Deux soldées, trois en con
 
 Deux décisions de Fabien du 03/10 au soir, exécutées (`ROUTE §10.6`, bloc « P6 ENGAGÉE »).
 
-**1. L'étage B de l'alignement est un process** (`d465ba4e`) — `align`, après `import`, avant les
+**1. L'étage B de l'alignement est un process** (`dc6fedeb`) — `align`, après `import`, avant les
 locuteurs et la cohérence ; il ne part qu'au LANCEMENT de la card, jamais au dépôt du document.
 Joué en réel : dépôt sans GPU, puis ▶ → import + alignement (133 s). Suite transcriber 159 verts.
 
@@ -21424,11 +21424,11 @@ transforme ; changer le format, la qualité ou l'agrandissement ne rejoue plus l
 
 | commit | contenu |
 |---|---|
-| `e41b39e1` | brique `output_formats.render_outputs` + champ partagé `native_outputs` |
-| `1510d912` | imager « Génération → Sortie » (image et vidéo), bande sur la card |
-| `ffc980c8` | brique `common/services/output_process.py` (le process, sa glu, les trois gestes du moteur) |
-| `6181ce63` | composer, synthesizer, anonymizer ; squelette : photo des réglages à la FIN du process |
-| `86001f4d` | enhancer (ses deux files) |
+| `93de50a4` | brique `output_formats.render_outputs` + champ partagé `native_outputs` |
+| `3aae7eab` | imager « Génération → Sortie » (image et vidéo), bande sur la card |
+| `7bb27699` | brique `common/services/output_process.py` (le process, sa glu, les trois gestes du moteur) |
+| `2fa28825` | composer, synthesizer, anonymizer ; squelette : photo des réglages à la FIN du process |
+| `299fd30b` | enhancer (ses deux files) |
 
 Migrations additives appliquées : imager 0025, composer 0016 + 0017 (durée par défaut 210 s),
 synthesizer 0029, anonymizer 0032, enhancer 0017.
@@ -21480,10 +21480,10 @@ Paliers de la session, dans l'ordre : `§PALIER 2026-10-03 « ASSISTANT : VOIX�
 `2026-10-04 (suite) « MODÈLES CLOUD »`, `2026-10-04 « ASSISTANT : MODÈLES DE L'ABONNEMENT +
 CORPUS SYSTÈME »`.
 
-**Commits** (neuf à ce point, plus celui de cette clôture) : `89f9cf80` voix / avatar 3D / second
-axe cloud · `ecae5d7b` modèle d'animation · `ff8ee866` garde du visiteur · `1f1e53b5` converter
-ouvert au visiteur · `cc8c41dd` sonde cloud + origine · `73845ff1` modèles de l'abonnement ·
-`34c80b4a` corpus système · `e0f82f48` purge des visiteurs en intervalle + gardes · `66ec0757`
+**Commits** (neuf à ce point, plus celui de cette clôture) : `cb05fcc4` voix / avatar 3D / second
+axe cloud · `22275d96` modèle d'animation · `5418d7c7` garde du visiteur · `c4b36251` converter
+ouvert au visiteur · `16843d06` sonde cloud + origine · `8e483336` modèles de l'abonnement ·
+`a73d9a72` corpus système · `a0b146c5` purge des visiteurs en intervalle + gardes · `b585b6aa`
 partages réseau.
 
 **🔚 POINT D'ENTRÉE SESSION SUIVANTE** : décider les leviers de latence de l'assistant
@@ -21502,7 +21502,7 @@ par Albert » ressenti après chaque relance.
 5. Partages réseau : Kerberos non géré ; un partage à identifiants se reconnecte à la main après
    un redémarrage (`INFRA_WSL_VS_WINDOWS §Partages réseau`).
 
-**Pendings système** : 🔴 recharger gunicorn (partages réseau `66ec0757` + les deux réglages
+**Pendings système** : 🔴 recharger gunicorn (partages réseau `b585b6aa` + les deux réglages
 ajoutés au `.env` local, lus au démarrage) et relancer beat (`purge-visitors` en intervalle,
 `docs-corpus-sync`) ; pousser ; parcours visiteur NON rejoué sur le live ; le geste « connecter
 un dossier distant » NON rejoué au navigateur après la correction (mot de passe requis).
@@ -21549,7 +21549,7 @@ tours réels, pas par un test.
   `tests_docs_catalog` (docs générées), un test de rôles candidats de la médiathèque (cause non
   cherchée).
 
-## §CLÔTURE — 2026-10-04, « CAM_ANALYZER : GÉOMÉTRIE DES LATÉRALES + PASSES DU LAB SUR LES LIGNES D'EXÉCUTION COMMUNES (étapes 1-2/3) » — session du 02→04/10 — ✅ `7ec82ec1`, `8089d5a5` non poussés (le reste de la session l'est) — 🔴 RELANCER WAMA (gunicorn + workers : les lecteurs des passes ont changé) — 🔚 décision sur l'étape 3 · relais ratés 26 → 54
+## §CLÔTURE — 2026-10-04, « CAM_ANALYZER : GÉOMÉTRIE DES LATÉRALES + PASSES DU LAB SUR LES LIGNES D'EXÉCUTION COMMUNES (étapes 1-2/3) » — session du 02→04/10 — ✅ `dab3a5ef`, `014cce16` non poussés (le reste de la session l'est) — 🔴 RELANCER WAMA (gunicorn + workers : les lecteurs des passes ont changé) — 🔚 décision sur l'étape 3 · relais ratés 26 → 54
 
 **Livré** (détail : `CAM_ANALYZER_CHANGELOG.md`, entrées de tête, et `ROUTE §10.6` 4.1) :
 - **Géométrie des caméras latérales** (02→03/10) : champ vertical cohérent avec l'image, orientation
@@ -21559,8 +21559,8 @@ tours réels, pas par un test.
   recollement un pour un (⚑ stitch_one_to_one). **Session ENA_CASA passée sur la géométrie mesurée**
   (décision de Fabien) ; tracking + indicateurs relancés par Fabien, résultats en base = le rejeu.
 - **Passes du Lab → `common.ProcessRun`** (mandat de Fabien, proposé par la session Portage) :
-  étape 1 écriture en double (`bf271cea`) + péremption PAR LIGNE passe × caméra (`7ec82ec1`) ;
-  étape 2 (`8089d5a5`) : historique repris sur la base réelle (`manage.py backfill_pass_lines` :
+  étape 1 écriture en double (`7b7ccd83`) + péremption PAR LIGNE passe × caméra (`dab3a5ef`) ;
+  étape 2 (`014cce16`) : historique repris sur la base réelle (`manage.py backfill_pass_lines` :
   77 lignes créées, contrôle passe par passe 79/79 concordantes) PUIS lecteurs basculés sur
   `process_runs.lines` (panneau via `lab_status`, péremption, réutilisation du tracking, ETA, calcul
   interrompu, SAM3 annulé). Session pipeline (-ae) prévenue ; aucun changement à `process_runs.py`.
@@ -21596,7 +21596,7 @@ créées par la reprise (voulues, inoffensives, rejouable sans effet) ; réglage
 changés (consignés au CHANGELOG avec leur annulation) ; scripts de mesure et de mutation dans le
 scratchpad de session, jetables.
 
-## §PALIER — 2026-10-04 (après-midi), « PIPELINE : relecture "a-t-on réinventé ?" — fabrique du ▶ par process, règle de propriété dans la brique de sortie, modale à portée » — ✅ `498c9d4c` + commit de ce bloc, non poussés — 🔴 RECHARGER gunicorn (vues de l'enhancer, JS commun) — 🔚 câblage JS du ▶ par process et décoration de card encore écrits par app
+## §PALIER — 2026-10-04 (après-midi), « PIPELINE : relecture "a-t-on réinventé ?" — fabrique du ▶ par process, règle de propriété dans la brique de sortie, modale à portée » — ✅ `0402971d` + commit de ce bloc, non poussés — 🔴 RECHARGER gunicorn (vues de l'enhancer, JS commun) — 🔚 câblage JS du ▶ par process et décoration de card encore écrits par app
 
 **Question de Fabien : « Tout est aligné avec le fonctionnement de WAMA ? On n'a rien réinventé ? »** — relu contre le code, trois écarts trouvés et soldés (détail : `ROUTE §11 #38`).
 
@@ -21607,9 +21607,9 @@ scratchpad de session, jetables.
 
 **Mesures.** Workers en service, six cards du compte de test (imager, anonymizer, enhancer image + audio, composer, synthesizer) : rendues, format changé, relancées — moteur rejoué dans AUCUNE, sortie seule < 1,5 s, original gardé. **Le synthesizer est donc joué en réel** (reste du palier précédent soldé). Serveur en service, fabrique : ▶ de card 200, process inconnu 400, sortie seule 200, double clic 409, moteur non rejoué. Tests (WSL, base isolée) : 249 + 151 + 300 joués ; rouges ANTÉRIEURS et hors de ce palier : budgets de noms de tests (classes 134 > 132, méthodes 1321 > 1310). Grille : **948/967** (103 critères).
 
-**Restes.** Câblage JS du ▶ par process (`btn.dataset.process` → URL) et décoration de card (`decorate` + `preload`) écrits par app · aide `_convert` recopiée dans cinq fichiers de tests · anonymizer détection→flou et CodeFormer de l'avatarizer encore dans le process moteur · exécuteur du studio sans `AWAITING_RESOURCES`/`STALE` · `AnalysisPass`→`ProcessRun` étape 3 (décision de Fabien, session cam ; étape 2 faite `8089d5a5`).
+**Restes.** Câblage JS du ▶ par process (`btn.dataset.process` → URL) et décoration de card (`decorate` + `preload`) écrits par app · aide `_convert` recopiée dans cinq fichiers de tests · anonymizer détection→flou et CodeFormer de l'avatarizer encore dans le process moteur · exécuteur du studio sans `AWAITING_RESOURCES`/`STALE` · `AnalysisPass`→`ProcessRun` étape 3 (décision de Fabien, session cam ; étape 2 faite `014cce16`).
 
-## §PALIER — 2026-10-04 (soir), « PIPELINE : les deux restes de la relecture soldés — modèle demandé déclaré une fois, câblage JS et décoration de page en commun » — ✅ `cf498eb0` + commit de ce bloc, non poussés — 🔴 RECHARGER gunicorn — 🔚 retour de test de Fabien
+## §PALIER — 2026-10-04 (soir), « PIPELINE : les deux restes de la relecture soldés — modèle demandé déclaré une fois, câblage JS et décoration de page en commun » — ✅ `3dde07fb` + commit de ce bloc, non poussés — 🔴 RECHARGER gunicorn — 🔚 retour de test de Fabien
 
 Suite du palier de l'après-midi (`ROUTE §11 #38`, mis à jour).
 
@@ -21624,7 +21624,7 @@ Suite du palier de l'après-midi (`ROUTE §11 #38`, mis à jour).
 
 **Restes.** Aide `_convert` recopiée dans cinq fichiers de tests · anonymizer détection→flou et CodeFormer de l'avatarizer encore dans le process moteur · exécuteur du studio sans `AWAITING_RESOURCES`/`STALE` · `AnalysisPass`→`ProcessRun` étape 3 (décision de Fabien).
 
-## §PALIER — 2026-10-04 (après-midi), « ASSISTANT : LES CINQ LEVIERS DE LATENCE CÂBLÉS (préchauffage, voix sur la carte graphique, flux cloud, phrase suivante, décompte) » — ✅ `3e5bde12`, `bbcab4a0`, `60f605f8`, `221b4c7a`, non poussés — 🔴 RECHARGER gunicorn, RELANCER le service de voix et les workers — 🔚 écoute de Fabien · prompt d'outils (levier ③ du 22/09)
+## §PALIER — 2026-10-04 (après-midi), « ASSISTANT : LES CINQ LEVIERS DE LATENCE CÂBLÉS (préchauffage, voix sur la carte graphique, flux cloud, phrase suivante, décompte) » — ✅ `3c14508e`, `9f4c6acc`, `4b4a0a9f`, `9b89995a`, non poussés — 🔴 RECHARGER gunicorn, RELANCER le service de voix et les workers — 🔚 écoute de Fabien · prompt d'outils (levier ③ du 22/09)
 
 > Fabien : *« l'assistant est encore lent à répondre et à vocaliser… en passant par Albert, je
 > pensais qu'il serait plus rapide »*, puis *« tu peux réparer la voix sur la carte graphique et
@@ -21634,19 +21634,19 @@ Suite du palier de l'après-midi (`ROUTE §11 #38`, mis à jour).
 - **Le diagnostic** : Albert n'était pas lent (premier texte à 0,5 s avec le vrai prompt). Le
   lent venait de l'import de `litellm` (≈ 20 s au premier tour cloud de CHAQUE worker, donc
   après chaque relance), de la voix calculée sur le processeur, et de l'absence de flux cloud.
-- **① Préchauffage** (`3e5bde12`) : `assistant_engine.warm_up()` en arrière-plan dans chaque
+- **① Préchauffage** (`3c14508e`) : `assistant_engine.warm_up()` en arrière-plan dans chaque
   worker gunicorn. Premier tour réel par Albert, processus neuf : 29,7 s → 2,9 s.
-- **② Voix sur la carte graphique** (`bbcab4a0`) : `onnxruntime` (processeur) masquait
+- **② Voix sur la carte graphique** (`9f4c6acc`) : `onnxruntime` (processeur) masquait
   `onnxruntime-gpu` dans le venv Linux — désinstallé, GPU réinstallé. 1,3 s → 0,18 s par phrase
   courte, 4,5 s → 0,53 s pour 11 s de son. ⚠ L'agrandisseur de l'Enhancer tournait sur le
   processeur lui aussi (même moteur) — non remesuré. `pip check` signale désormais 4 lignes
   ATTENDUES ; garde `tests_onnx_runtime`.
-- **③ Flux cloud + ④ phrase suivante** (`60f605f8`) : `llm_chat(on_delta=…)`, portier commun.
+- **③ Flux cloud + ④ phrase suivante** (`4b4a0a9f`) : `llm_chat(on_delta=…)`, portier commun.
   Deux défauts trouvés en vérifiant : le portier laissait passer le JSON d'un appel d'outil
   annoncé par une phrase ; et, plus grave, chaque fragment du flux était nettoyé séparément —
   les mots arrivaient COLLÉS au service de voix, aucune fin de phrase n'était reconnue, la voix
   ne partait qu'à la fin du tour (tout tour en flux, donc le modèle local depuis le 26/09).
-- **⑤ Durée du tour et décompte** (`221b4c7a`, idée de Fabien) : mesurée, écrite sur le tour,
+- **⑤ Durée du tour et décompte** (`9b89995a`, idée de Fabien) : mesurée, écrite sur le tour,
   apprise par l'ETA commune sous la clé `assistant-turn:<modèle>`, décomptée par le chat.
   Aucun a priori, rien sous 2 s : Albert (1,1 à 1,9 s) n'affiche donc PAS de décompte.
   Migration `common/0027` (deux colonnes nullables) appliquée AVANT l'édition du modèle ;
@@ -21677,7 +21677,7 @@ Fin des restes nommés aux deux paliers du jour (demande de Fabien : « tu peux 
 
 ## §CLÔTURE — 2026-10-04, « PIPELINE porté par la card : P6 fini, relecture "a-t-on réinventé ?" soldée, CodeFormer en process, studio » — session du 03→04/10 — non poussé — 🔴 RECHARGER gunicorn ET workers — 🔚 décider : détection → floutage de l'anonymizer (persister les détections)
 
-**Périmètre de la session** : `ROUTE §10.6` (marches P6 et suites) — paliers du jour ci-dessus (`§PALIER 2026-10-04` nuit, après-midi, soir, fin de journée). Commits de la session, du plus ancien au plus récent : `7545f2bd` `d516cecf` `91e161d9` `948a94f9` `27d06d60` `bd85643b` `d465ba4e` `e41b39e1` `1510d912` `ffc980c8` `6181ce63` `86001f4d` `4c24d57f` `22ba04af` `498c9d4c` `c62d7c84` `c804a70d` `cf498eb0` `da201574` `a684eeee` `2459520e` `8b8831b6` `6af1a1e6`, plus le commit de ce bloc.
+**Périmètre de la session** : `ROUTE §10.6` (marches P6 et suites) — paliers du jour ci-dessus (`§PALIER 2026-10-04` nuit, après-midi, soir, fin de journée). Commits de la session, du plus ancien au plus récent : `69e42f23` `c89a09e4` `ea423d57` `0befd44e` `d78d115e` `096c9248` `dc6fedeb` `93de50a4` `3aae7eab` `7bb27699` `2fa28825` `299fd30b` `9e9221e9` `1d1a6e19` `0402971d` `2fda2339` `ed7cd64c` `3dde07fb` `b36c1473` `92dc32f3` `246c6106` `6125f737` `3200cef8`, plus le commit de ce bloc.
 
 **🔚 Point d'entrée de la session suivante** : recharger gunicorn et les workers, puis jouer sur le live une card d'avatar photo (▶, puis cocher l'amélioration faciale : seul « Visage » doit tourner).
 
@@ -21700,15 +21700,15 @@ Fin des restes nommés aux deux paliers du jour (demande de Fabien : « tu peux 
 
 **Gardes ajoutées par la session (derniers lots).** `make_process_start_view` → tests de route des sept apps (`tests_pipeline` / `tests_task`) ; `model_of` / `decorate_cards` → `tests_process_pipeline` ; process `enhance` → `avatarizer/tests_pipeline` (4 tests) ; relais d'attente du studio → `studio/tests_node_states` (dont une contre-épreuve de délai) ; modale à portée et câblage JS → vérifiés au NAVIGATEUR seulement (non gardés par un test : le harnais V8 des tests JS ne couvre pas `settingsModal`).
 
-**Artefacts et effets de bord.** Scripts de la session (essais réels, sondes navigateur, commits par index temporaire) : dans le scratchpad de session, jetables. Cards de test semées sous le compte de test nocturne : toutes retirées par leur pk. Le worktree de régénération est supprimé. Serveur de dev jetable (port 8011) arrêté. Une erreur rattrapée : un export de manifestes d'app joué par le venv Windows (`8b8831b6`) retirait des librairies — corrigé par `6af1a1e6`, leçon écrite dans le skill `commit-partiel §4`.
+**Artefacts et effets de bord.** Scripts de la session (essais réels, sondes navigateur, commits par index temporaire) : dans le scratchpad de session, jetables. Cards de test semées sous le compte de test nocturne : toutes retirées par leur pk. Le worktree de régénération est supprimé. Serveur de dev jetable (port 8011) arrêté. Une erreur rattrapée : un export de manifestes d'app joué par le venv Windows (`6125f737`) retirait des librairies — corrigé par `3200cef8`, leçon écrite dans le skill `commit-partiel §4`.
 
 ⚠ Dans l'arbre de travail, `docs/dev/briques.md` et la carte des mécanismes sont plus anciens que HEAD (copies d'une autre session) : `DocDeveloppeurTest.test_chaque_mecanisme_a_sa_section` y est rouge, vert sur HEAD.
 
-## §CLÔTURE (suite) — 2026-10-04, « PIPELINE : revérification demandée par Fabien — gardes manquantes ajoutées et PROUVÉES par mutation, essai sur le live relancé » — ✅ `7064187d` + commit de ce bloc, non poussés — 🔚 inchangé : décider détection → floutage de l'anonymizer
+## §CLÔTURE (suite) — 2026-10-04, « PIPELINE : revérification demandée par Fabien — gardes manquantes ajoutées et PROUVÉES par mutation, essai sur le live relancé » — ✅ `6813744a` + commit de ce bloc, non poussés — 🔚 inchangé : décider détection → floutage de l'anonymizer
 
 Fabien, après la clôture : « peux-tu tout revérifier ? A-t-on bien tout consigné, rien laissé de côté, ajouté tous les tests nécessaires ? ». Relevé symbole par symbole (`grep` de chaque brique livrée dans les fichiers de tests) : **cinq briques communes n'étaient nommées par aucun test** — elles n'étaient exercées qu'à travers les apps, ou vues au navigateur. La table de clôture précédente les donnait en partie pour gardées : c'était trop dit.
 
-- **Gardes ajoutées (`7064187d`)** : `tests_process_views` (fabrique du ▶ par process : refus, 409, card d'autrui, remise à zéro sous verrou, modèle connu au lancement ; + garde GÉNÉRIQUE « toute app qui déclare un pipeline route `start_process` par la fabrique ») · `tests_output_process` (propriété + partage avant de retirer un ancien rendu, empreinte, original perdu) · `tests_cap_from_js` en V8 (modale à portée — règle rendue pure, `scopedConfig` — et câblage `WamaCycleButton`) · `tests_conformity_process_start` (les verdicts du critère).
+- **Gardes ajoutées (`6813744a`)** : `tests_process_views` (fabrique du ▶ par process : refus, 409, card d'autrui, remise à zéro sous verrou, modèle connu au lancement ; + garde GÉNÉRIQUE « toute app qui déclare un pipeline route `start_process` par la fabrique ») · `tests_output_process` (propriété + partage avant de retirer un ancien rendu, empreinte, original perdu) · `tests_cap_from_js` en V8 (modale à portée — règle rendue pure, `scopedConfig` — et câblage `WamaCycleButton`) · `tests_conformity_process_start` (les verdicts du critère).
 - **Preuve par mutation, onze règles cassées une à une, onze gardes ROUGES, fichiers restaurés** : process sans objet accepté · process inconnu accepté · règle de propriété retirée · règle de partage retirée · `decorate` rappelé sous portée · process non passé au handler · modèle déclaré ignoré par `card_view` · attente comptée dans le délai du studio · attente non relayée · « Visage » sans transformation · critère de grille vert sur une vue écrite à la main.
 - **Sur le live relancé** (compte de test, card #634 retirée) : voix 129 s + animation 219 s ; amélioration cochée puis ▶ de card → « Visage » seul, 102 s, ni voix ni animation rejouées ; décochée puis ▶ du process par HTTP → 200, vidéo animée rendue en 0,1 s. Bande à trois process sur la card.
 - **Tests** après la dernière écriture : 324 joués, OK (1 skip inchangé) — dont `composer.tests_pipeline` (revenu vert : la colonne `lyrics` est migrée) et `DocDeveloppeurTest` (vert : trois docs GÉNÉRÉES restées dans l'arbre dans leur version du 29-30/09, plus anciennes que HEAD, ont été réalignées sur HEAD — mtime vérifié avant).
@@ -21748,10 +21748,10 @@ puis supprimée ; scripts dans le scratchpad de session.
 
 ## §CLÔTURE — 2026-10-04 (soir), « ASSISTANT : cinq leviers de latence, voix sur la carte graphique, partages réseau » — clôture DÉFINITIVE de la session du 03→04/10 (elle complète la `§CLÔTURE — 2026-10-04` du matin) — non poussé — 🔚 un tour de Fabien par Albert, à écouter, puis lire sa durée en base
 
-**Commits de l'après-midi** : `66ec0757` partages réseau · `3e5bde12` préchauffage · `bbcab4a0`
-voix sur la carte graphique · `60f605f8` flux cloud + phrase suivante · `221b4c7a` durée du tour
-et décompte · `b6ba9265` copies servies · `a0accab6` entrée 10 du script des patches + clé de
-catalogue par la brique commune · `f07426b1` carte des mécanismes régénérée depuis HEAD.
+**Commits de l'après-midi** : `b585b6aa` partages réseau · `3c14508e` préchauffage · `9f4c6acc`
+voix sur la carte graphique · `4b4a0a9f` flux cloud + phrase suivante · `9b89995a` durée du tour
+et décompte · `8d4e9a5a` copies servies · `e4058990` entrée 10 du script des patches + clé de
+catalogue par la brique commune · `01218f40` carte des mécanismes régénérée depuis HEAD.
 Détail : `§PALIER 2026-10-04 (après-midi)` et sa « Revérification EN SERVICE », ci-dessus.
 
 **🔚 POINT D'ENTRÉE** : Fabien envoie un message à l'assistant (réponse de plusieurs phrases, par
@@ -21805,16 +21805,16 @@ Décision de Fabien : « on sépare détection/segmentation et floutage dans l'a
 
 ## §CLÔTURE — 2026-10-04, « COMPOSER : SHEETSAGE2 et cover YuE2, a priori déclarés, durée 3:30, onde serveur, harnais LLM, route du prompt de l'imager, VOIX, PAROLES DE CARD » — session du 03→04/10 — non poussé — 🔴 RECHARGER gunicorn ET workers (migrations `composer 0018-0020` déjà appliquées, défauts posés EN BASE) — 🔚 essai réel YuE2 en voix « Chanson » sans paroles
 
-**Commits** (03/10) `d565a821` `b229ba72` `a57dbb17` SheetSage2 (tâche `audio-to-score`) · `b3a3defd`
-process `extract_score` · `7c28de32` entrées étendues du pipeline (`takes_place`, `covering_inputs`) ·
-(04/10) `62cbb6ed` 1ʳᵉ reprise GPU + `DECLARED_PRIORS` · `d4a30c43` `display_format` / `default_from`
-(durée 3:30, reprise de la durée de l'audio de travail) · `9bc3c090` barre de progression d'une card
-lancée par ▶ (10 apps + générateur) · `d508d44a` Propriétés média du gestionnaire de fichiers ·
-`0b36586d` onde d'un audio lourd par pics serveur + harnais LLM (modèle tiré, contrat, ✨ de la card) ·
-`bb5949dc` route du prompt de l'imager, paroles hors LLM, contrat à l'ingestion, MiniMax réaligné,
-modale de l'imager corrigée · `063af84b` réglage « Voix » · `df124fbb` paroles de card — **défait par
-`7cea5a30` (autre session, index construit sur un HEAD antérieur), RÉTABLI par `fce2f8d4`** ·
-`9be48926` revers de la règle de péremption · `d3669473` gardes de clôture + repli « 10 s » soldé.
+**Commits** (03/10) `a16b2052` `972ce3c6` `7b54d04b` SheetSage2 (tâche `audio-to-score`) · `d057b5d9`
+process `extract_score` · `21e83325` entrées étendues du pipeline (`takes_place`, `covering_inputs`) ·
+(04/10) `32bd173e` 1ʳᵉ reprise GPU + `DECLARED_PRIORS` · `3624a1f2` `display_format` / `default_from`
+(durée 3:30, reprise de la durée de l'audio de travail) · `3838ba7d` barre de progression d'une card
+lancée par ▶ (10 apps + générateur) · `1d16c919` Propriétés média du gestionnaire de fichiers ·
+`262582d9` onde d'un audio lourd par pics serveur + harnais LLM (modèle tiré, contrat, ✨ de la card) ·
+`f08f02d0` route du prompt de l'imager, paroles hors LLM, contrat à l'ingestion, MiniMax réaligné,
+modale de l'imager corrigée · `eb9bb685` réglage « Voix » · `6d01d528` paroles de card — **défait par
+`d71e24e6` (autre session, index construit sur un HEAD antérieur), RÉTABLI par `1fb48f66`** ·
+`e33e2db2` revers de la règle de péremption · `923a6f1f` gardes de clôture + repli « 10 s » soldé.
 
 **Décisions de Fabien de la session** : « extract_score », jamais « transcribe » hors du transcriber ;
 le morceau à reprendre est un port de TRAVAIL ; durée par défaut 3:30 et reprise de celle de l'audio ;
@@ -21873,12 +21873,12 @@ posé sur MiniMax-Music3 et YuE2 (par `write_back` de leurs manifestes) ; migrat
 Aucune card créée sur le live par cette fin de session.
 
 **Leçons** : une garde de clôture se prouve par mutation (trois fois ce jour) ; un « reste » annoncé
-dans un message de commit se solde à la clôture ou se nomme ici — celui de `d4a30c43` avait attendu
+dans un message de commit se solde à la clôture ou se nomme ici — celui de `3624a1f2` avait attendu
 une journée ; ajouter un réglage surveillé ne doit pas périmer l'existant (règle commune posée).
 
 **Suite (même soir)** — « la forme d'onde ne s'affiche pas jusqu'au bout dans la preview » (Fabien) :
-`f6418731`. Le lecteur commun découpait le canvas par `ceil(longueur / largeur)` : sans effet sur un
-PCM décodé, faux sur les 800 PICS serveur branchés le matin (`0b36586d`) — à 500 px, l'onde tenait sur
+`4afd5618`. Le lecteur commun découpait le canvas par `ceil(longueur / largeur)` : sans effet sur un
+PCM décodé, faux sur les 800 PICS serveur branchés le matin (`262582d9`) — à 500 px, l'onde tenait sur
 400 et la fin restait plate. Chaque colonne lit désormais sa part proportionnelle (comme l'éditeur du
 transcriber) ; garde V8 `tests_preview_peaks.TheWaveformReachesTheEndTest`, prouvée par mutation.
 Non vu au navigateur. 🔴 Un rechargement de page suffit (JS servi), aucun service à relancer pour ce point.
@@ -21889,13 +21889,13 @@ Question de Fabien avant la clôture : « a-t-on bien tout consigné ? rien oubl
 - **Réinvention** : l'enhancer avait recopié À LA MAIN le publieur de frames d'aperçu de l'anonymizer (JPEG, URL, publication, jamais retiré) → il adopte `preview_utils.PartialFrames` ; garde générique `NoAppWritesItsOwnPartialFrameTest` (aucune app n'écrit puis ne publie une image elle-même).
 - **Critère en retard du mécanisme** : `during_preview` ne connaissait pas `PartialFrames` → anonymizer et enhancer passaient ROUGES (grille 948 → 946) ; appris, grille revenue à **948/967** (103 critères), garde `DuringPreviewCriterionKnowsTheBrickTest`.
 - **Gardes manquantes** : rendu VIDÉO depuis les détections (ffmpeg, intermédiaire retiré), détection vidéo YOLO (en flux, pistes) et SAM3 (une frame en échec n'arrête pas le média), choix du détecteur (SAM3 / repli YOLO), duplication qui vide aussi les détections. Prouvées par MUTATION (9 règles cassées au total sur ce chantier, 9 gardes rouges).
-- **Consignation** : retraits inscrits au `REMOVAL_LEDGER` (R100 floutage dans les moteurs, R101 glu unique + progression simulée + manifeste `anonymizer.generate`, R102 publieur de frames recopié) ; références de ligne périmées corrigées (`06087210`).
+- **Consignation** : retraits inscrits au `REMOVAL_LEDGER` (R100 floutage dans les moteurs, R101 glu unique + progression simulée + manifeste `anonymizer.generate`, R102 publieur de frames recopié) ; références de ligne périmées corrigées (`5a4e0595`).
 
 **Contrôles attendus au prochain /reprise (mesurés le 05/10).** Tests (WSL, base isolée) : anonymizer, enhancer, briques communes — verts, SAUF `EveryAppPipelineTest` (7 apps) : rouge à cause d'un changement NON COMMITÉ d'une autre session (`process_pipeline.manifest` exporte désormais `label`/`outputs`/`share`, « session Writer », 05/10 12:33) — leur ré-export le soldera. Budgets de langue : « code » recalé à 2670 sur HEAD ; noms de tests dépassés par d'autres sessions (134 > 132, > 1310). `check_docs` : 5 cassées anciennes, 0 périmée. Grille 948/967. Dans l'arbre, `docs/dev/briques.md` est plus ancien que HEAD (écrit 04/10 15:32 par une autre session) — `DocDeveloppeurTest` rouge sur l'arbre, vert sur HEAD.
 
 **File des chantiers ouverts.** ① Retour de test de Fabien (anonymizer à trois process, bascule de l'aperçu). ② Vue « Détection » APRÈS le traitement (image : simple ; vidéo : superposition navigateur ou seconde vidéo). ③ ETA d'une card à deux process coûteux (une seule clé lue). ④ Studio : `STALE`. ⑤ `watched` dérivés du schéma (`Param` → process) : PRIS par la session -42 (accord du 05/10, forme convenue : attribut sur le réglage, pas de défaut implicite, garde « tout réglage rattaché ou déclaré sans péremption »). ⑥ Lab (autre session) : `cam_analyzer` a ses propres masque→polygones et écriture vidéo annotée — candidats à `common/utils/detections.py`, non touchés.
 
-## §PALIER — 2026-10-05, « ANONYMIZER : RETOURS DE LA CARD #1026 » — livré (`545129c3`, `fbc6254a`, `b58e459c`, non poussés) — 🔚 relancer gunicorn + workers · question cinématique ouverte
+## §PALIER — 2026-10-05, « ANONYMIZER : RETOURS DE LA CARD #1026 » — livré (`651f7b8f`, `8740afc1`, `a47f0a44`, non poussés) — 🔚 relancer gunicorn + workers · question cinématique ouverte
 
 Trois retours de Fabien après une vidéo jouée (card #1026, compte réel, lue seulement) :
 
@@ -21953,7 +21953,7 @@ Ordre approuvé par Fabien (« oui pour les trois, dans l'ordre proposé ») :
   texte 5,97 s, 3,41 s, 1,69 s. Découpe et suites : `WAMA_LLM §1bis`. L'ETA apprise vaut 2,68 s
   de moyenne (5 mesures) : le décompte s'affichera donc désormais pour ce modèle.
 - **Préchauffage du 4ᵉ worker** : levé — les quatre l'ont journalisé à la relance du 05/10.
-- **Liste d'outils construite une fois par processus** (`tool_api.build_tools_list`, `766f66d6`) :
+- **Liste d'outils construite une fois par processus** (`tool_api.build_tools_list`, `f02ba593`) :
   préparation d'un tour 0,74 s → 0,07 s. Gardes : `ToolsListBuiltOncePerProcessTest`.
 - **Agrandisseur de l'Enhancer** : il prend ses fournisseurs à la brique commune
   (`ai_upscaler.py:197-198`), qui offre de nouveau la carte graphique. NON mesuré sur un
@@ -21961,7 +21961,7 @@ Ordre approuvé par Fabien (« oui pour les trois, dans l'ordre proposé ») :
 - ⚠ **Faute de méthode, réparée** : un commit par chemin (`32c28606`, remplacé) a emporté 29
   lignes de ce fichier écrites par une autre session — la garde du script s'était arrêtée, mais
   la commande suivante, séparée par un point-virgule, est partie quand même. Remplacé par
-  `766f66d6` (mes deux fichiers seuls) ; les 29 lignes sont revenues non commitées dans l'arbre.
+  `f02ba593` (mes deux fichiers seuls) ; les 29 lignes sont revenues non commitées dans l'arbre.
   *Une garde qui s'arrête ne protège que ce qui est enchaîné à elle par `&&`.*
 - 🔴 recharger gunicorn pour la liste d'outils. 🔚 inchangés : chemin local à froid (122 s) ·
   journal des connexions (2 décisions) · vecteurs des fragments neufs la nuit (décision) ·
@@ -22034,7 +22034,7 @@ projetteraient le WIP de trois mécanismes d'autres sessions ; à faire depuis H
 import du transcriber) — ils pèsent leur dernière durée sur la card ; la taille de l'entrée de la
 sortie n'existe pas avant le moteur.
 
-## §PALIER — 2026-10-05 (suite), « TRAJECTOIRES : PRIMITIVES DU CAM_ANALYZER AU COMMUN » — livré (`10edb722`, `a3848cc8`, non poussés) — 🔚 délégation des copies cam/Data (demandée à la session cam) · extrapolation aux bouts (décision)
+## §PALIER — 2026-10-05 (suite), « TRAJECTOIRES : PRIMITIVES DU CAM_ANALYZER AU COMMUN » — livré (`5804aa5f`, `771b6175`, non poussés) — 🔚 délégation des copies cam/Data (demandée à la session cam) · extrapolation aux bouts (décision)
 
 Recadrage de Fabien : les fonctions du cam_analyzer vont dans la bibliothèque COMMUNE de
 fonctions, `wama_data/functions` (où il prend déjà `kalman_rts_cv` et l'extrapolation) — pas
@@ -22050,7 +22050,7 @@ s'écartent de la droite de plus d'une demi-taille. Détail : `ROUTE §10.6` blo
 
 ## §PALIER (suite) — 2026-10-05, « ETA PAR PROCESS : vérifié après la relance de WAMA » — ✅ commit de ce bloc, non poussé — 🔚 un vrai lancement d'une card à plusieurs process, pour voir le plan et l'apprentissage des clés neuves dans le worker
 
-WAMA relancé par Fabien (gunicorn 15:38, workers et beat 15:39, après `43c52df4`). Mesuré :
+WAMA relancé par Fabien (gunicorn 15:38, workers et beat 15:39, après `1b775619`). Mesuré :
 - **journal d'erreurs vide** depuis la relance ; la palette du Studio (`/studio/api/run-options/`,
   500 avant la relance) répond **200** ;
 - **vues de progression rejouées** sur six cards réelles (code et base du live, lecture seule,
@@ -22062,44 +22062,44 @@ WAMA relancé par Fabien (gunicorn 15:38, workers et beat 15:39, après `43c52df
   cohérence sont cochés : c'est la règle « clé de process = apprise seulement », rien n'est
   encore appris sous `transcriber:diarize|summarize|coherence` — leurs glus l'apprennent au
   premier lancement ;
-- suite sur l'arbre actuel, par-dessus `b03b221b` (`watched` dérivés) et `3055f0d7` (Writer) :
+- suite sur l'arbre actuel, par-dessus `f98954e3` (`watched` dérivés) et `f98aa625` (Writer) :
   `tests_process_eta`, `tests_progress_views`, `tests_process_pipeline`, ETA du cam_analyzer —
   103 tests **OK**.
 
 Non vérifié : un vrai lancement par le worker (plan `PENDING` écrit par la tâche, apprentissage
 des clés neuves) — il rejoue le résultat d'une card réelle, il attend l'accord de Fabien.
 
-## §CLÔTURE — 2026-10-05, « CAM_ANALYZER : PASSES DU LAB SUR LES LIGNES COMMUNES (étape 3/3, CLOSE) + TRACKER : doublons fondus, recollement dans les deux sens, trous en courbe, biais de distance mesuré à chaque tracking » — session du 04→05/10 — ✅ `7cea5a30`…`1eecadbd` poussés ; `e6fe9d4c`, `04ca6887`, `627ec7c6`, `feb56cd2` NON poussés — 🔴 WAMA relancé par Fabien en fin de session : vérifier que gunicorn ET les workers tournent sur ce code — 🔚 pourquoi ⚑ range_correction raccourcit les suivis
+## §CLÔTURE — 2026-10-05, « CAM_ANALYZER : PASSES DU LAB SUR LES LIGNES COMMUNES (étape 3/3, CLOSE) + TRACKER : doublons fondus, recollement dans les deux sens, trous en courbe, biais de distance mesuré à chaque tracking » — session du 04→05/10 — ✅ `d71e24e6`…`851c5dd2` poussés ; `559af56a`, `cb1ae003`, `28cc04f4`, `0b5ea0c4` NON poussés — 🔴 WAMA relancé par Fabien en fin de session : vérifier que gunicorn ET les workers tournent sur ce code — 🔚 pourquoi ⚑ range_correction raccourcit les suivis
 
 **Livré** (détail, chiffres et annulation : `CAM_ANALYZER_CHANGELOG.md`, entrées de tête ; retrait : `REMOVAL_LEDGER` R97–R99 ; moteur : `ROUTE §10.6` 4.1) :
-- **`AnalysisPass` → `common.ProcessRun`, étape 3/3 CLOSE** (`7cea5a30`, `8d66a4ab`) : les écrivains
+- **`AnalysisPass` → `common.ProcessRun`, étape 3/3 CLOSE** (`d71e24e6`, `ee6d8e79`) : les écrivains
   `mark_*` écrivent directement la ligne commune ; libellés des 18 passes dans le registre
   (`Pass.label`, repris mot pour mot) ; panneau, `run_passes`, péremption, ETA et calcul interrompu
   au vocabulaire `JOB_*` ; JS du panneau sur `WamaApp.normalizeStatus`/`statusLabel` + point d'état
   commun ; `process_runs.start` garde l'`eta_size_s` du résumé précédent. Table supprimée par la
   migration `cam_analyzer 0032`, **lancée par Fabien** avant redémarrage (récit rectifié deux fois,
-  `73a6fd06`, `1eecadbd`) ; sauvegarde SQL de la table tirée du dump de 03:30 (dossier des
+  `8e9b30a8`, `851c5dd2`) ; sauvegarde SQL de la table tirée du dump de 03:30 (dossier des
   sauvegardes de base, gitignoré — à garder). Panneau vu en service : 21 lignes SUCCESS.
-- **⚑ duplicate_chain_merge** (« Doublons de détection fondus », `dde8ebc0`) : un suivi COURT
+- **⚑ duplicate_chain_merge** (« Doublons de détection fondus », `7e2b7e05`) : un suivi COURT
   (≤ 12 observations) qui double un autre dans une même image (IoU ≥ 0,3, < 2 m) est fondu avant le
   recollement. Règle G459 (fantôme de 525,1 s).
 - **⚑ stitch_bidirectional** (« Recollement dans les DEUX sens ») et **⚑ ghost_hermite** (« Trous
-  comblés en COURBE ») (`e6fe9d4c`) : raccord jugé aussi par la tête de B, seulement entre morceaux
+  comblés en COURBE ») (`559af56a`) : raccord jugé aussi par la tête de B, seulement entre morceaux
   roulant ≥ 3 m/s, sens opposés refusés — règle la Twingo G1588 (1780 s) ; fantômes des trous en
   Hermite (cap au bord des trous p90 19,3° → 2,4°).
-- **Biais de distance par portée, MESURÉ AUTOMATIQUEMENT à chaque Tracking 360°** (`04ca6887`
-  mesure, `627ec7c6` brique) : demande de Fabien « le plus universel possible, par mesure
+- **Biais de distance par portée, MESURÉ AUTOMATIQUEMENT à chaque Tracking 360°** (`cb1ae003`
+  mesure, `28cc04f4` brique) : demande de Fabien « le plus universel possible, par mesure
   automatisée ». Brique PURE dans `wama_data/functions/geometry/placement_metrics.py`
   (`static_range_ratios`, `range_bias_curve`, `correct_range`, `range_curve_is_usable` ≥ 2 tranches),
   FunctionSpec `range_bias_curve` au catalogue ; résultat persisté dans `config['range_bias']` et le
   résumé, affiché en console. Correction derrière **⚑ range_correction** (« Distances corrigées par la
   portée ») : **à laisser OFF**.
-- **Délégation aux primitives communes** (`feb56cd2`, à la demande de la session -ae) :
+- **Délégation aux primitives communes** (`0b5ea0c4`, à la demande de la session -ae) :
   `multicam_tracker.box_iou`, `placement_metrics._iou` et `hermite_ghost` délèguent à
-  `shapes.box_iou` / `gap_fill.hermite_gap` ; garde de délégation écrite par -ae (`62eb2cbf`).
-- Skill `commit-partiel` §0 : relire le fichier AU MOMENT du geste (`bed933d3`) — après que
-  `7cea5a30`, commité sur un index temporaire avec un HEAD qui avait bougé, a annulé deux commits
-  d'autres sessions (rétablis par `fce2f8d4` et `9779088c`).
+  `shapes.box_iou` / `gap_fill.hermite_gap` ; garde de délégation écrite par -ae (`91f22783`).
+- Skill `commit-partiel` §0 : relire le fichier AU MOMENT du geste (`8a0a516d`) — après que
+  `d71e24e6`, commité sur un index temporaire avec un HEAD qui avait bougé, a annulé deux commits
+  d'autres sessions (rétablis par `1fb48f66` et `97f9c57e`).
 
 **Recommandation à Fabien** (bascules OFF par défaut, A/B par rejeu, écritures neutralisées) :
 activer ⚑ stitch_bidirectional et ⚑ ghost_hermite ; ⚑ duplicate_chain_merge au choix (G459 réglé,
@@ -22146,7 +22146,7 @@ les quatre ⚑ apparaissent dans « Comparer » · push de 4 commits cam_analyze
 IGN partiellement indisponible pendant les rejeux (mêmes conditions pour tous, garés non concluants
 à ±2) · scripts de rejeu et de mutation dans le scratchpad de session, jetables.
 
-### Revérification « rien réinventé » du palier WRITER (2026-10-05, demande de Fabien) — après `3055f0d7`
+### Revérification « rien réinventé » du palier WRITER (2026-10-05, demande de Fabien) — après `f98aa625`
 
 - Sept écarts corrigés, détail dans `WAMA_APP_GENERATION_ROUTE §10.6` (position commune, bloc 🔎) :
   lecteurs de nœud et dossiers du corpus repris de leurs domiciles ; catégories dérivées de
@@ -22161,10 +22161,10 @@ IGN partiellement indisponible pendant les rejeux (mêmes conditions pour tous, 
 
 ## §PALIER — 2026-10-05, « COMPOSER : RESTES DE LA CLÔTURE DU 04/10 SOLDÉS — grisage des non-chanteurs, ✨ de l'imager sur la brique, ACE-Step, langue des paroles détectée, `watched` DÉRIVÉ des réglages » — ✅ non poussé — 🔴 RECHARGER gunicorn ET workers (`Param.stales`, `watched_of`, `text_language`) — 🔚 essai GPU YuE2 « Chanson » · mesure interne de qualité musicale (décision)
 
-**Commits** `65d37d2e` (restes 1-4 et 6) · `8ccde499` (scénarios nocturnes `composer.vocals_matching`,
-`imager.prompt_enrich_trigger`) · `3e96c5eb` (référence de doc) · `b03b221b` (reste 5) · `e5c60399`
+**Commits** `c6860bcd` (restes 1-4 et 6) · `96b997c7` (scénarios nocturnes `composer.vocals_matching`,
+`imager.prompt_enrich_trigger`) · `3b88a8d0` (référence de doc) · `f98954e3` (reste 5) · `8019e36e`
 (manifestes `app` — clé `stales` — carte des mécanismes et API des briques régénérées DEPUIS UN
-WORKTREE DE HEAD `c14bace8`). Non régénérés, artefacts du worktree : le bloc de grille du skill
+WORKTREE DE HEAD `247b8923`). Non régénérés, artefacts du worktree : le bloc de grille du skill
 `conformite` (`logs/` gitignoré) et `WAMA_DATA_WORLD` (consommateurs comptés à 0 dans l'arbre
 jetable) ; les manifestes `model` périmés viennent du catalogue en base, pas de cette session.
 
@@ -22207,8 +22207,8 @@ aucun réglage recopié à la main ; **prouvée par mutation** : `stales` de la 
 **Contrôles MESURÉS** : suites touchées (process, pipeline, squelette, codegen, bac à sable, réglages,
 grille de schéma + les sept apps) **779 tests, 1 rouge** —
 `tests_codegen_lot.ItemEditRouteAliasTest.test_an_item_edit_route_with_pk_gets_the_opener_and_a_conventional_body`,
-**préexistant** : rouge identique sur HEAD `3055f0d7` sans mes modifications (worktree). La route
-d'édition de l'imager est alignée depuis le 29/09 (`25947526` : `update_settings` →
+**préexistant** : rouge identique sur HEAD `f98aa625` sans mes modifications (worktree). La route
+d'édition de l'imager est alignée depuis le 29/09 (`fa6ddf78` : `update_settings` →
 `views.generation_settings`) et le générateur nomme le corps conventionnel d'après la ROUTE, pas d'après
 la VUE déclarée → bouchon 501. À qui : le générateur (`views_gen`, `corps_update`), session codegen.
 
@@ -22220,7 +22220,7 @@ inchangé) · mesure interne de qualité musicale (décision) · réunion des de
 chantier SURFACES (`ROUTE §F3b`, décision `§13` en ouverture) · page d'édition partition + paroles,
 même chantier.
 
-## §CLÔTURE — 2026-10-05, « ANONYMIZER : DÉTECTIONS, APERÇU, TRAJECTOIRES » — clos (`545129c3` → `ff44f31c`, non poussés) — 🔚 relancer gunicorn + workers · budget de langue à recaler (pas à moi)
+## §CLÔTURE — 2026-10-05, « ANONYMIZER : DÉTECTIONS, APERÇU, TRAJECTOIRES » — clos (`651f7b8f` → `df9cbb65`, non poussés) — 🔚 relancer gunicorn + workers · budget de langue à recaler (pas à moi)
 
 Session du chantier pipeline (anonymizer séparé en Détection → Floutage → Sortie, 04/10), puis
 les retours de Fabien sur la card #1026. Détail et gardes : `ROUTE §10.6`, bloc anonymizer.
@@ -22228,22 +22228,22 @@ les retours de Fabien sur la card #1026. Détail et gardes : `ROUTE §10.6`, blo
   (`hermite_gap`). ✅ Face « Détection » après traitement + Comparer sur vidéos synchronisées
   (`PreviewRegistry.register(faces=)`, `WamaPreviewOverlay`). ✅ Segmentation empêchée dite en
   console. ✅ Primitives du cam_analyzer portées au commun `wama_data/functions` (`hermite_gap`,
-  `box_iou`) ; le cam et le Data délèguent (`feb56cd2`), garde `TheOldCopiesDelegateTest`.
-- ✅ **Extrapolation aux bouts** (`dc096d1f`, décision de Fabien) : `max_extrapolation_frames`,
+  `box_iou`) ; le cam et le Data délèguent (`0b5ea0c4`), garde `TheOldCopiesDelegateTest`.
+- ✅ **Extrapolation aux bouts** (`80d7af0c`, décision de Fabien) : `max_extrapolation_frames`,
   défaut 5, 0 = jamais — réglage SÉPARÉ de l'interpolation (un seul côté : quelques images ;
   l'interpolation, encadrée, comble 50 images). Migration `anonymizer/0035` additive
   (`db_default`) APPLIQUÉE. Manifestes `apps`/`pipelines/anonymizer` régénérés.
-- `render_media` → `paint_media` (`ea6331c0`) : faux positif de `check_redundancy` contre la
+- `render_media` → `paint_media` (`89843aef`) : faux positif de `check_redundancy` contre la
   colle `_render` du composer, débruité de mon côté.
 - **Vérifié** : 586 tests du périmètre sur HEAD (worktree) — anonymizer, détections, aperçu,
   pipeline, cam_analyzer, `wama_data` geometry/kinematics — tous verts SAUF le budget de langue
   ci-dessous ; navigateur (serveur jetable) : faces, surcouche, Comparer synchronisé, 0 erreur
   JS ; live relancé : `wama-preview-overlay.js` et l'inspecteur à jour servis (200).
-- 🔴 **Relancer gunicorn ET workers** : l'extrapolation (`dc096d1f`) et `paint_media`
-  (`ea6331c0`) sont arrivés APRÈS la relance de l'après-midi.
+- 🔴 **Relancer gunicorn ET workers** : l'extrapolation (`80d7af0c`) et `paint_media`
+  (`89843aef`) sont arrivés APRÈS la relance de l'après-midi.
 - 🔴 **Budget de langue DÉPASSÉ, pas par moi** — `tests_identifier_language` : code 2678 > 2670,
   classes de test 135 > 132, méthodes 1319 > 1310 (mesuré sur HEAD ET sur l'arbre, contre-épreuve
-  faite). Mon seul identifiant relevé est renommé (`a0e98bd0`). Plusieurs relevés sont des noms
+  faite). Mon seul identifiant relevé est renommé (`1b1be591`). Plusieurs relevés sont des noms
   ANGLAIS que la liste noire prend pour du français (`declare`, `declares`, `poses`,
   `refuses` : `composer/tests_prompt_harness`, `tests_process_eta`, `tests_codegen_from_scratch`,
   `tests_input_match_capability`, `tests_process_pipeline:438`, `enhancer/tests_task`,
@@ -22255,9 +22255,9 @@ les retours de Fabien sur la card #1026. Détail et gardes : `ROUTE §10.6`, blo
 
 ## §CLÔTURE — 2026-10-05, « ASSISTANT + JOURNAL DES CONNEXIONS + ORIGINE DES MODÈLES » — clôture de la session du 03→05/10 — non poussé — 🔴 RECHARGER gunicorn, relancer beat — 🔚 réglages de moteur qui disparaissent à la 2ᵉ ouverture (NON reproduit, question posée à Fabien)
 
-**Commits du 05/10** : `766f66d6` liste d'outils construite une fois · `51fcb174` tours réels
-mesurés · `ee61a916` leçon au skill de commit partiel · `80543acf` origine des modèles dans les
-sélecteurs · `5e7e53ce` journal des connexions.
+**Commits du 05/10** : `f02ba593` liste d'outils construite une fois · `6c425309` tours réels
+mesurés · `4285debf` leçon au skill de commit partiel · `8426e96d` origine des modèles dans les
+sélecteurs · `0efdf14c` journal des connexions.
 
 - **Journal des connexions** : détail `PROFILES_PERMISSIONS §1.7`. Marqué (24 personnes sur
   1 087 lignes), refus nommés et motivés, purge à six mois (beat 01:40), profil + admin.
@@ -22273,7 +22273,7 @@ Enhancer, Anonymizer — réglages d'un process puis modale complète, en altern
 chacun, mêmes champs à chaque fois, aucune erreur de console ; Reader et Describer à la suite.
 Il manque le geste exact (quelle app, quel bouton, quelle zone se vide). ⚠ Ne pas conclure à
 l'absence de défaut : le compte de test n'a pas les cards de Fabien, et le regroupement des
-options par origine (`80543acf`) est arrivé à la relance qui précède son constat.
+options par origine (`8426e96d`) est arrivé à la relance qui précède son constat.
 
 **File des chantiers ouverts** : ① ce défaut de modale ; ② chemin local à froid (122 s) —
 trois leviers proposés, non décidés (tirage qui compte le chargement, maintien plus long sous
@@ -22295,10 +22295,10 @@ verte avec la nouvelle entrée planifiée.
 
 ## §CLÔTURE — 2026-10-05, « PORTAGE + ETA PAR PROCESS » — session du 03→05/10 — ✅ revérification complète demandée par Fabien, commit de ce bloc, non poussé — 🔴 RECHARGER gunicorn (fenêtre de lecture de la vue de progression) — 🔚 ETA propre de la sortie commune et de l'import
 
-**Livré dans la session** (tout non poussé) : `89e7a189` (anonymizer et outil de l'assistant :
-« en cours » posé par le LANCEUR) · `381e52ce` + `a70095b5` (#37 fabrique des vues de
-progression, 10/10) · `94b9b8b6` (triplet d'ETA en un lieu, `request_user` par défaut) ·
-`09b557e8` (socle JS `_app_scripts`, #25 soldé) · `43c52df4` + `88c4ac48` (ETA par process,
+**Livré dans la session** (tout non poussé) : `215d8a6c` (anonymizer et outil de l'assistant :
+« en cours » posé par le LANCEUR) · `6572b4b6` + `904c5f28` (#37 fabrique des vues de
+progression, 10/10) · `9fd43df7` (triplet d'ETA en un lieu, `request_user` par défaut) ·
+`9739b6e5` (socle JS `_app_scripts`, #25 soldé) · `1b775619` + `d449d887` (ETA par process,
 vérifiée après relance) · le commit de ce bloc.
 
 **La revérification a trouvé UN défaut, à moi** : `launch_eta` passe par `steps_to_run`, donc par
@@ -22335,10 +22335,10 @@ apprise, estimation 24,4 s pour 24,5 réels.
 périmètre de la session**. Établis : `kinematics.tests_gap_fill`, `cam_analyzer`
 `tests_calibration_reference` et `tests_ortho_correction` **verts en isolé** (arbre de la
 session cam modifié pendant le run) ; `tests_taxonomie_ollama` (`KeyError: 'albert:distant'`,
-chantier de l'origine des modèles, `80543acf`) ; `EveryAppPipelineTest` sur l'anonymizer : le
+chantier de l'origine des modèles, `8426e96d`) ; `EveryAppPipelineTest` sur l'anonymizer : le
 `manifests/pipelines/anonymizer.json` de l'ARBRE n'a pas `max_extrapolation_frames` que HEAD
-porte (`dc096d1f`, autre session — commit par index construit sans mise à jour de l'arbre) ;
-`ItemEditRouteAliasTest` préexistant (consigné par -42, `e0ba6318`) ; les autres comme au
+porte (`80d7af0c`, autre session — commit par index construit sans mise à jour de l'arbre) ;
+`ItemEditRouteAliasTest` préexistant (consigné par -42, `677e035f`) ; les autres comme au
 palier du jour (docs générées, `accounts`, notifications, contrat d'import, `lyrics`, budgets
 de langue dépassés par du code d'autres fichiers).
 
@@ -22363,7 +22363,7 @@ de cette session (modèles, `anonymizer` ci-dessus).
 dans le scratchpad de session, jetables. Effets de bord : une card anonymizer créée puis
 supprimée par la vue de l'app ; ETA apprise par ce run réel (données vraies, compte réel).
 
-## §CLÔTURE (complément) — 2026-10-05, « ANONYMIZER » — gardes manquantes ajoutées (`5e1157d7`)
+## §CLÔTURE (complément) — 2026-10-05, « ANONYMIZER » — gardes manquantes ajoutées (`932895b5`)
 
 Le tableau livrable → garde (question de Fabien : « tous les tests nécessaires ajoutés ? ») a
 trouvé TROIS livrables sans garde, tous du genre qui ne se voit pas à l'exécution : le floutage
@@ -22373,7 +22373,7 @@ synchro des deux vidéos de Comparer (V8, fausses vidéos). Gardées et prouvée
 83 tests OK. **Seul reste sans garde, déclaré** : la position des badges du curseur Comparer
 (CSS, vue au navigateur le 05/10).
 
-## §CLÔTURE — 2026-10-05, « WRITER à deux process + générateur multi-process + revérification + HTML en médiathèque » — `3055f0d7`, `c14bace8` + commit de ce bloc, non poussés — 🔚 rééditer un document produit ailleurs
+## §CLÔTURE — 2026-10-05, « WRITER à deux process + générateur multi-process + revérification + HTML en médiathèque » — `f98aa625`, `247b8923` + commit de ce bloc, non poussés — 🔚 rééditer un document produit ailleurs
 
 - **Livré** : le générateur sait une app à plusieurs process (patron composer, `ROUTE §10.6`
   position commune du 05/10, blocs ✅ et 🔎) ; le Writer en `write` → `layout` avec la référence
@@ -22395,7 +22395,7 @@ synchro des deux vidéos de Comparer (V8, fausses vidéos). Gardées et prouvée
   (imager), budgets de langue (autres sessions), `tests_picker_list:86` (MIME `audio/x-wav` de
   WSL).
 
-## §PALIER — 2026-10-05 (soir), « ANONYMIZER : RETOURS SAM3 (card #1034) » — livré (`5c105309`, `ca4a86a3`, non poussés) — 🔴 relancer workers + gunicorn, puis rejouer une vidéo SAM3
+## §PALIER — 2026-10-05 (soir), « ANONYMIZER : RETOURS SAM3 (card #1034) » — livré (`b760859b`, `47d321d8`, non poussés) — 🔴 relancer workers + gunicorn, puis rejouer une vidéo SAM3
 
 Quatre retours de Fabien, tous mesurés et vrais (détail : `ROUTE §10.6`, bloc anonymizer ;
 retraits R103) : finitions ignorées au contour et fondu vers l'intérieur (plaques LISIBLES,
@@ -22412,7 +22412,7 @@ inchangée. `paint_media` → `rewrite_media` (« paint » = génération par IA
 - ⚠ Bascule `feature_flags` du protocole du 19/08 non posée (`Media` sans champ de
   configuration) : retour arrière par revert ; comparaison chiffrée faite.
 
-## §PALIER — 2026-10-06, « APERÇU : PENDANT EN PLEIN ÉCRAN, MODALE À FACES » — livré (`8816a106`, non poussé) — 🔴 recharger la page (JS/CSS communs)
+## §PALIER — 2026-10-06, « APERÇU : PENDANT EN PLEIN ÉCRAN, MODALE À FACES » — livré (`5fc8624b`, non poussé) — 🔴 recharger la page (JS/CSS communs)
 
 Demandes de Fabien : la face Pendant en plein écran, puis les faces Entrée | Détection |
 Comparer | Sortie dans la modale ET le plein écran. Brique commune `media-preview.js` (toute
@@ -22425,7 +22425,7 @@ gardes `PreviewModalTest` prouvées par mutation.
 - ⚠ Un passage du smoke sur quatre a échoué sur une étape non identifiée (sortie tronquée),
   les trois autres sont verts de bout en bout : à surveiller si la modale se comporte mal.
 
-## §PALIER — 2026-10-06, « RIEN RÉINVENTÉ ? + AGRANDISSEMENT 0,75–1,25 » — livré (`1fdd4d15`, `0a077582`, non poussés) — 🔴 relancer gunicorn (schémas) puis recharger la page
+## §PALIER — 2026-10-06, « RIEN RÉINVENTÉ ? + AGRANDISSEMENT 0,75–1,25 » — livré (`16f4795a`, `6f29a435`, non poussés) — 🔴 relancer gunicorn (schémas) puis recharger la page
 
 Relecture demandée par Fabien : trois réinventions de ma main dans la modale (suiveur de la face
 Pendant, barre de vues, adresse « pendant ») → un suiveur commun `WamaInspector.followDuring`,
@@ -22437,7 +22437,7 @@ nouvelles bornes (mesuré). Détail : `ROUTE §10.6`, bloc anonymizer.
   composer (`lyrics`…) présents sur une seule surface (session composer du 04-05/10).
 - ⏳ Remède de fond des bornes : le « volet rendu du schéma » (reste du 2026-09-27).
 
-## §PALIER — 2026-10-06, « COMPARER EN SUPERPOSITION + COPIE DE LECTURE » — livré (`9ae8d29a`, `9229cc49`, non poussés) — 🔴 relancer gunicorn, workers ET beat, puis `manage.py playback_copies`
+## §PALIER — 2026-10-06, « COMPARER EN SUPERPOSITION + COPIE DE LECTURE » — livré (`b19db9af`, `c5fbd7a9`, non poussés) — 🔴 relancer gunicorn, workers ET beat, puis `manage.py playback_copies`
 
 - Comparer dans la modale et son plein écran = la superposition à curseur du volet (fabrique
   commune `WamaInspector.compareView`).
@@ -22451,26 +22451,26 @@ nouvelles bornes (mesuré). Détail : `ROUTE §10.6`, bloc anonymizer.
   tâche `common.make_playback_copy`.
 - ⚠ Rouge PRÉEXISTANT, pas à moi : `SettingsSurfacesTest` (réglages du composer).
 
-## §PALIER — 2026-10-06, « COMPARER : SUPERPOSITION ET EFFACEMENT DANS LA MODALE ET LE PLEIN ÉCRAN » — livré (`ee2799c0`, non poussé) — 🔴 recharger la page (CSS/JS communs)
+## §PALIER — 2026-10-06, « COMPARER : SUPERPOSITION ET EFFACEMENT DANS LA MODALE ET LE PLEIN ÉCRAN » — livré (`8043c9a0`, non poussé) — 🔴 recharger la page (CSS/JS communs)
 
 - Retour de Fabien : dans la modale et le plein écran, la sortie s'étirait au lieu de se
-  superposer. Le palier précédent (`9ae8d29a`) n'avait PAS réglé ça : les règles média de la
+  superposer. Le palier précédent (`b19db9af`) n'avait PAS réglé ça : les règles média de la
   modale descendaient dans le calque Sortie. Correctif : le composant possède sa géométrie (l'hôte ne
   règle que la référence), le calque vidéo porte ses contrôles, la barre des faces ne mord plus sur
   l'image. Domicile : `ROUTE §10.6` (puce « Comparer dans la modale »).
 - Mesuré au navigateur, image ET vidéo × volet, modale, plein écran (6 cas) : superposition au
   pixel à 20 % et 80 % du curseur, 0 erreur JS. 56 tests OK ; garde de géométrie prouvée par mutation.
 
-## §CLÔTURE — 2026-10-06, « ANONYMIZER / APERÇU COMMUN / COPIE DE LECTURE » (suite de la clôture du 05/10, `eb320b6b`) — CLOS (`29f97928`, `585406e1`, non poussés) — 🔴 relancer gunicorn, workers ET beat, puis `manage.py playback_copies` et rejouer le Floutage de #1034
+## §CLÔTURE — 2026-10-06, « ANONYMIZER / APERÇU COMMUN / COPIE DE LECTURE » (suite de la clôture du 05/10, `1f31cc88`) — CLOS (`eae2e611`, `744465c4`, non poussés) — 🔴 relancer gunicorn, workers ET beat, puis `manage.py playback_copies` et rejouer le Floutage de #1034
 
 **Livré depuis la clôture du 05/10** (détail : `ROUTE §10.6`, `MEDIA_STORAGE_TIERING §COPIES DE LECTURE`) :
-retours SAM3 de #1034 (`5c105309` : formes floutées en un flou avec finitions, liaison bornée,
-déduites à la forme) ; face Pendant en plein écran, modale à faces d'où qu'on l'ouvre (`8816a106`) ;
-agrandissement 0,75–1,25 (`1fdd4d15`) ; un seul suiveur Pendant (`0a077582`) ; Comparer en
-superposition dans la modale et le plein écran (`9ae8d29a`, géométrie `ee2799c0`) ; copie de
-lecture des vidéos illisibles (`9229cc49`).
+retours SAM3 de #1034 (`b760859b` : formes floutées en un flou avec finitions, liaison bornée,
+déduites à la forme) ; face Pendant en plein écran, modale à faces d'où qu'on l'ouvre (`5fc8624b`) ;
+agrandissement 0,75–1,25 (`16f4795a`) ; un seul suiveur Pendant (`6f29a435`) ; Comparer en
+superposition dans la modale et le plein écran (`b19db9af`, géométrie `8043c9a0`) ; copie de
+lecture des vidéos illisibles (`c5fbd7a9`).
 
-**Revérification demandée par Fabien (« rien réinventé ? », tests nécessaires)** — `29f97928` :
+**Revérification demandée par Fabien (« rien réinventé ? », tests nécessaires)** — `eae2e611` :
 quatre recopies que `check_redundancy` ne voyait pas (il rapproche par le nom), trouvées en lisant
 les modules voisins : sonde `probe_video` homonyme → `media_probe.probe_video_format` ; écriture
 ffmpeg par temporaire déjà dans `ensure_h264` → `video_compat._transcode` ; URL média relue à la
@@ -22499,21 +22499,21 @@ rendu du schéma · studio `STALE` et ETA de la sortie commune (chantier pipelin
 `model` périmés au corpus (pas de cette session) · 🔚 la copie de lecture n'a pas encore été vue
 créée À L'IMPORT sur le live (récepteur chargé à la relance).
 
-## §CLÔTURE — 2026-10-06, « ASSISTANT DISCORD : HISTORIQUE OUTILLÉ, FIN DE TÂCHE DANS LE FIL, SON DES NOTIFICATIONS » — livré (`c452e6ee` → `c928fd69`, 8 commits, non poussés) — 🔴 relancer passerelle + workers + gunicorn — 🔚 vérifier dans Discord qu'une fin de tâche revient seule dans son fil, avec son fichier, une seule image
+## §CLÔTURE — 2026-10-06, « ASSISTANT DISCORD : HISTORIQUE OUTILLÉ, FIN DE TÂCHE DANS LE FIL, SON DES NOTIFICATIONS » — livré (`afecb3de` → `1ffa1431`, 8 commits, non poussés) — 🔴 relancer passerelle + workers + gunicorn — 🔚 vérifier dans Discord qu'une fin de tâche revient seule dans son fil, avec son fichier, une seule image
 
 Parti d'un signalement de Fabien (« le lien ne marche plus, l'image n'arrive plus dans Discord »),
 déroulé par le skill `diagnostic-assistant` jusqu'aux causes, chacune mesurée :
-- **L'assistant inventait parce que l'historique servi ne montrait AUCUN outil** (`c452e6ee`) :
+- **L'assistant inventait parce que l'historique servi ne montrait AUCUN outil** (`afecb3de`) :
   rejoué vers Albert, même modèle et même message — outil sans historique, fabrication avec
   (0/8 → 8/8 une fois les étapes dépliées). Détail : `WAMA_LLM.md §2026-10-05`.
-- `!oublier` (`432ea89`) ; la card POINTÉE de l'anonymizer échouait (chemin d'entrée reconstruit,
-  R104, `87447ee8`) ; la limite d'outils rendait l'appel brut (`eb0565fe`).
-- **La fin d'une tâche revient dans le fil d'où elle a été demandée** (`ce64985d`, `ROADMAP §19.2`
+- `!oublier` (`e608b42`) ; la card POINTÉE de l'anonymizer échouait (chemin d'entrée reconstruit,
+  R104, `bb053473`) ; la limite d'outils rendait l'appel brut (`6a4b9e09`).
+- **La fin d'une tâche revient dans le fil d'où elle a été demandée** (`c1e968bd`, `ROADMAP §19.2`
   ✅) : `notify_job_end`, notification qui désigne son élément, relève par curseur, origine lue dans
   le store de conversation (`tool_api.items_of_step`), contrat `item_id` comblé à la source ;
   signal de l'imager retiré (R105). Détail : `WAMA_LLM.md §2026-10-06`.
-- **Son des notifications dans WAMA** (`ee4428af`, `WAMA_COLLABORATION §5.2`) ; image en double
-  sous le message Discord (`dba97208`) ; revérification demandée par Fabien (`c928fd69`) : le fichier
+- **Son des notifications dans WAMA** (`fdce668b`, `WAMA_COLLABORATION §5.2`) ; image en double
+  sous le message Discord (`98ce266b`) ; revérification demandée par Fabien (`1ffa1431`) : le fichier
   joint vient des sorties déclarées (`send_to.sorties_de`), le rappel d'ajout lit le contrat.
 - Migrations APPLIQUÉES, non versionnées (règle du dépôt) : `common 0028` et `accounts 0027`
   (`db_default`), `gateway 0002`.
@@ -22554,7 +22554,7 @@ fichiers de la session ; 33 mutations jouées, 33 rouges.
 **Artefacts** : scripts de diagnostic, de mutation et de smoke dans le scratchpad de session
 (jetables) ; compte de test nocturne remis en état (notifications témoins supprimées, préférence de
 son rétablie) ; serveur de dev du port 8011 arrêté ; worktrees jetables supprimés (le worktree
-`wt_mine` détaché sur `dba97208` est d'une autre instance) ; cards réelles de Fabien : 1036
+`wt_mine` détaché sur `98ce266b` est d'une autre instance) ; cards réelles de Fabien : 1036
 (échouée avant le correctif R104, relançable), 1046 et 1047 réussies.
 
 ## §PALIER — 2026-10-06 (soir), « PARTAGE À UNE PERSONNE + N1 + DATE DES PARTAGES » — livré (commit de ce bloc, non poussé) — 🔴 RECHARGER gunicorn (la date de portée n'est pas en service) — 🔚 mode MODIFICATION (V2/V3/M3) · conflit montré
@@ -22594,7 +22594,7 @@ autre instance (`AI_MODEL_CHOICES`), revenu sain quelques minutes plus tard.
 quand le registre co-édité sera commité ; mode modification, conflit montré, « ses lots » (ouverts
 du 03/10, inchangés).
 
-## §PALIER — 2026-10-06 (nuit), « AGRANDISSEURS PAR LA CHAÎNE : SWIN2SR + ENHANCER EN CLÉS (F4b ⑤) » — livré (`eee0b6b`, `59f4b0b`, commit de ce palier, non poussés) — 🔴 REDÉMARRER WAMA (`start_wama_prod.sh` : migration `enhancer/0018` AVANT gunicorn — ne pas migrer à la main, l'ancien code lirait `enhancer:enhancer:…`) — 🔚 1ᵉʳ agrandissement Swin2SR par une card, sur GPU
+## §PALIER — 2026-10-06 (nuit), « AGRANDISSEURS PAR LA CHAÎNE : SWIN2SR + ENHANCER EN CLÉS (F4b ⑤) » — livré (`d516e27`, `f0465de`, commit de ce palier, non poussés) — 🔴 REDÉMARRER WAMA (`start_wama_prod.sh` : migration `enhancer/0018` AVANT gunicorn — ne pas migrer à la main, l'ancien code lirait `enhancer:enhancer:…`) — 🔚 1ᵉʳ agrandissement Swin2SR par une card, sur GPU
 
 Demande de Fabien : de meilleurs agrandisseurs, intégrés PAR LES MÉCANISMES de WAMA, sans GPU
 (alimentation) — rôles sur Albert, essais sur CPU. Banc CPU : GaterV3 (débruitage), SPAN (×4
@@ -22652,7 +22652,7 @@ Constaté par Fabien en testant à deux comptes : *« j'ai bien reçu tout le lo
 préexistant ; gestes sur 8011 : `person_share_cycle` 12/12, `collaboration_cycle` 9/9 (passe par
 « Ouvrir »), `received_card_visible` 7/7.
 
-## §PALIER — 2026-10-07, « ROUTE UNIQUE DES SELECTS DE CATALOGUE + STUDIO + MODALE » — livré (`c08941a3` + commit de ce palier, non poussés) — 🔴 relancer gunicorn + workers (schémas, studio, porte des outils)
+## §PALIER — 2026-10-07, « ROUTE UNIQUE DES SELECTS DE CATALOGUE + STUDIO + MODALE » — livré (`9f06f0bd` + commit de ce palier, non poussés) — 🔴 relancer gunicorn + workers (schémas, studio, porte des outils)
 
 Relecture de Fabien (« vérifie plus largement », « une route unique », « la modale se construit
 aussi sur les paramètres »).
@@ -22725,7 +22725,7 @@ SPAN installé par la chaîne et servi sur CPU (×4). Détail : `PROSPECTION_PIP
 - 🔚 Adoptions à venir du pilote : téléchargeurs écrits par app (enhancer, anonymizer, Cam
   Analyzer, avatarizer). `WAMA_MECANISMES.md` à régénérer.
 
-## §CLÔTURE — 2026-10-06 → 10-08, « PARTAGE : À UNE PERSONNE, DATÉ, FILLE SEULE, COMPLÉTION, CONFLIT DE CORRECTION » — clos (`7cfb2d16`, `cf7ca9cb`, `d38e722c` + commit de ce bloc, non poussés) — 🔴 WSL a redémarré : PostgreSQL ARRÊTÉ, WAMA hors service — 🔚 relancer, puis rejouer les gestes du partage sur le live
+## §CLÔTURE — 2026-10-06 → 10-08, « PARTAGE : À UNE PERSONNE, DATÉ, FILLE SEULE, COMPLÉTION, CONFLIT DE CORRECTION » — clos (`4b20d877`, `37e92f2f`, `99f67cf5` + commit de ce bloc, non poussés) — 🔴 WSL a redémarré : PostgreSQL ARRÊTÉ, WAMA hors service — 🔚 relancer, puis rejouer les gestes du partage sur le live
 
 Session ouverte par `/reprise` sur le partage (cards, médias : lecture, modification, collaboration).
 Domicile unique : `WAMA_COLLABORATION` (§2.3, §2.4, §3bis.2, §4.5, §4.7, §5.3, §9) ; gestes :
@@ -22762,7 +22762,7 @@ mécanismes restent périmées, régénération à faire depuis HEAD par l'insta
 
 **🔴 Pendings système** :
 - WSL a redémarré : PostgreSQL arrêté, WAMA hors service — à relancer (Fabien) ;
-- puis relancer gunicorn sur le code de `d38e722c` (correction de `file_references` : sans elle,
+- puis relancer gunicorn sur le code de `99f67cf5` (correction de `file_references` : sans elle,
   « Transférer à… » et l'acceptation d'une demande de propriété tombent en 500 tant que la table
   d'une jumelle ne suit pas son modèle) ;
 - trois bases de test laissées sur PostgreSQL par la session (`test_wama_db_person_sharing`, `_b`,
@@ -22790,7 +22790,7 @@ mécanismes restent périmées, régénération à faire depuis HEAD par l'insta
 Suite de `§CLÔTURE — 2026-10-06 → 10-08` : WSL redémarré et WAMA relancé par Fabien (alimentation
 remplacée), les restes de la clôture sont faits.
 - **Tests du périmètre** (partage, conflit, fichiers, files et lots, demandes d'accès,
-  notifications, transcriber, médiathèque) : **413 OK**, mesurés sur le code de `55e69db0`.
+  notifications, transcriber, médiathèque) : **413 OK**, mesurés sur le code de `b70af576`.
 - **Gestes sur le live** : 11 sur 13 verts du premier coup ; les 2 rouges compris et corrigés :
   ① `correction_conflict` — un VRAI défaut de la marche 1 : la page de correction ne sérialisait pas
   ses enregistrements (le second, parti avant la réponse du premier, portait l'ancienne empreinte :
@@ -22804,16 +22804,16 @@ remplacée), les restes de la clôture sont faits.
   pour ce complément (pas de Python modifié hors des gestes).
 
 
-## §CLÔTURE — 2026-10-07 → 10-10, « CLÉS D'INSTANCE SUR LA PAGE SOURCES + ILaaS + ARTIFICIAL ANALYSIS V2 » — clos (`df52f4d`, `aafff173` + commit de ce bloc, non poussés) — WAMA relancé par Fabien, migrations appliquées — 🔚 poser la clé ILaaS à réception et la mesurer
+## §CLÔTURE — 2026-10-07 → 10-10, « CLÉS D'INSTANCE SUR LA PAGE SOURCES + ILaaS + ARTIFICIAL ANALYSIS V2 » — clos (`bcf8605`, `5471ed7e` + commit de ce bloc, non poussés) — WAMA relancé par Fabien, migrations appliquées — 🔚 poser la clé ILaaS à réception et la mesurer
 
 Trois livrables, une décision de Fabien (07/10 : *« c'est la page Sources externes qui doit gérer
 les clés système »*). Détail : `WAMA_LLM.md` (blocs ILaaS et clés d'instance), `WAMA_HARNESS.md`
 chantier 5 (état), `WAMA_QUALITE.md` (constat musique corrigé).
-- **Artificial Analysis → contrat V2 gratuit** (`df52f4d`) : les `/api/v2/data/*` meurent le
+- **Artificial Analysis → contrat V2 gratuit** (`bcf8605`) : les `/api/v2/data/*` meurent le
   2026-11-04 (410 Gone). Chemins `language/models/free` et `media/<famille>/models/free` ; banc LLM
   PAGINÉ (sans la pagination, 3 pages sur 4 perdues en silence). Mesuré avec la vraie clé :
   9 requêtes, 554 LLM, quota gratuit 100 / 24 h.
-- **Clés d'instance** (`aafff173`) : `accounts.InstanceApiKey` (base abstraite `ProviderKey`
+- **Clés d'instance** (`5471ed7e`) : `accounts.InstanceApiKey` (base abstraite `ProviderKey`
   commune avec `UserApiKey`), posée par un admin dans l'inspecteur de `/common/sources/` ;
   `external_sources.api_key` = page puis `.env`. `ExternalSource.shareable` : ILaaS oui (clés
   d'application), Albert non (quotas par compte). Un geste `api_keys.store_key`, un champ JS
@@ -22825,14 +22825,14 @@ chantier 5 (état), `WAMA_QUALITE.md` (constat musique corrigé).
 
 **Vérifié après la relance (10/10)** : `accounts/0028` et `model_manager/0023` appliquées ; la route
 de la clé d'instance répond (403 en anonyme, pas 404) ; `wama-key-field.js` servi ; la carte ILaaS
-affichée. Tests du périmètre sur HEAD `d1769f09` : **250 lancés, 1 rouge qui n'est pas de la
+affichée. Tests du périmètre sur HEAD `036cdcb7` : **250 lancés, 1 rouge qui n'est pas de la
 session** (ci-dessous), puis **10/10** sur `InstanceKeyTest` après les deux gardes ajoutées à la
 clôture. Contre-épreuves faites (partage neutralisé ; clé d'instance retirée de `_key_models`) :
 rouge les deux fois. `check_redundancy` : 105, **0 dans les fichiers de la session**.
 
 **Rouge déclaré, pas de cette session** : `tests_external_sources.RegistreTest.
 test_les_bancs_de_performance_sont_ceux_de_benchmark_sync` — `benchmark_sync` lit une source
-`hf_bench` que `external_sources` ne déclare pas ; introduite par `d1769f09` (bancs fiables, 10/10).
+`hf_bench` que `external_sources` ne déclare pas ; introduite par `036cdcb7` (bancs fiables, 10/10).
 
 **Pendings** :
 - 🔚 **à la clé ILaaS** : la poser sur la page Sources, cocher « Partager », puis
@@ -22860,7 +22860,7 @@ Skill corrigé : `/commit-partiel` (le patch de `pick_hunks.py` est un fichier d
 ## §PALIER — 2026-10-10, « GaterV3 + 1ʳᵉ ADOPTION DU TÉLÉCHARGEMENT COMMUN » — livré (commits de ce palier, non poussés) — 🔴 relancer le worker `gpu` (lancé le 09/10 16:11, il n'a pas les commits du 09 au soir et du 10) et gunicorn (entrée GaterV3 de l'agrandisseur)
 
 GaterV3 installé par Celery (tâche `denoise` = décision de Fabien), servi sur CPU ; YOLOPv2 du Cam
-Analyzer sur `download_asset` (CHANGELOG de l'app) ; table des mécanismes régénérée (`7f153382`).
+Analyzer sur `download_asset` (CHANGELOG de l'app) ; table des mécanismes régénérée (`6e5c7493`).
 Détail : `PROSPECTION_PIPELINE §Suite du 2026-10-10`.
 - 🔚 Adoptions restantes : anonymizer (après l'autre instance), QualityScaler de l'enhancer ;
   CodeFormer ÉCARTÉ (ensemble de poids, disposition vendorisée) — seul défaut à corriger : la
@@ -22884,7 +22884,7 @@ Le smoke navigateur déclaré en attente au bloc précédent est joué sur le li
 ⚠ Une capture d'ÉLÉMENT du volet droit, hors de la zone visible d'un conteneur qui défile, sort
 DÉFORMÉE (lignes superposées) : faire défiler l'élément avant de le capturer.
 
-## §CLÔTURE (suite) — 2026-10-11, « CLÉS D'INSTANCE : les restes soldés sans la clé ILaaS » — clos (`c28db2d4`, non poussé) — ✅ servi (gunicorn + workers relancés le 2026-10-12 à 01:11, après le commit) · 🔚 poser la vraie clé ILaaS
+## §CLÔTURE (suite) — 2026-10-11, « CLÉS D'INSTANCE : les restes soldés sans la clé ILaaS » — clos (`025e7209`, non poussé) — ✅ servi (gunicorn + workers relancés le 2026-10-12 à 01:11, après le commit) · 🔚 poser la vraie clé ILaaS
 
 Demande de Fabien : solder ce qui ne dépend pas de la clé ILaaS (toujours en attente d'acceptation).
 - **Retirer une clé retire ce qu'elle ouvrait** (pending du bloc du 07→10/10, tranché dans
@@ -22928,7 +22928,7 @@ pose les fichiers sous le dossier de l'app, `pull_model <clé>` = jumeau CLI du 
 
 ## §PALIER — 2026-10-10 (nuit), « audit : rien de réinventé, aucun chemin parallèle » — livré (commit de ce palier, non poussé)
 
-Audit des commits `afd9524d` → `b76841e9` demandé par Fabien. Soldés : `pull_model <clé>` =
+Audit des commits `0ec1d92e` → `9073a06b` demandé par Fabien. Soldés : `pull_model <clé>` =
 `request_install` (la route unique, plus le pilote interne) ; empreinte par
 `provenance.sha256_of` ; adresse du pilote `yolo` dérivée de la source `github` ; constante morte
 retirée. Signalés : jeton GitHub hors `external_sources`, marcheur sans garde d'espace, lien HF en
@@ -22947,7 +22947,7 @@ attendues : `PROSPECTION_PIPELINE §Suite du 2026-10-10 (nuit, 2)`.
 - 🔴 Relancer gunicorn + workers : la page lit `installable` (nouveau Python) ; les lignes de
   profondeur prennent leur `install_dir` à la prochaine synchronisation.
 
-## §PALIER — 2026-10-11, « VOLETS GÉNÉRÉS : avatarizer, synthesizer, enhancer » — livré (`823062a5` + commit des gardes, non poussés) — 🔴 relancer gunicorn (fait par Fabien le 11/10 avant les gardes)
+## §PALIER — 2026-10-11, « VOLETS GÉNÉRÉS : avatarizer, synthesizer, enhancer » — livré (`fb4a19d7` + commit des gardes, non poussés) — 🔴 relancer gunicorn (fait par Fabien le 11/10 avant les gardes)
 
 Les trois volets écrits à la main sont rendus du schéma (`WamaParams.render(context:'panel')`),
 comme les six autres : 9 apps sur 10. Les `dom_id` gardent les ids d'avant ; ce qui n'est pas au

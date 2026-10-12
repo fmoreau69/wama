@@ -165,7 +165,7 @@ chaque étape (diarisation, résumé, cohérence) se relance seule au lieu de to
     §Session du 2026-09-29`). Jouée PAR L'ASSISTANT pour la 1ʳᵉ fois le 30/09, elle a buté sur
     deux défauts : ① `assistant_engine._parse_tool_call` ne reconnaissait pas un appel à
     arguments IMBRIQUÉS — `dev_run_role(args={…})` revenait comme du texte, la chaîne n'avait donc
-    jamais pu être jouée par l'assistant (corrigé, `c244ce85`) ; ② le serveur MCP « wama-dev »
+    jamais pu être jouée par l'assistant (corrigé, `5705795d`) ; ② le serveur MCP « wama-dev »
     datait du 26/09 et ignorait le rôle `backend` : `start_wama_prod.sh:465` ne le lance que s'il
     n'en tourne aucun, donc **une relance de WAMA ne le recharge jamais** (relancé à la main ; le
     script reste à corriger). Résultat : rôle `model` sur LinTO FR → manifeste VALIDE, en attente
@@ -262,7 +262,7 @@ détectée ; la card ne gardait que la langue du **premier** passage (`workers._
     langue que Canary ne transcrit pas → toute la card en échec. ⏳ Piste : un passage dont la
     détection est incertaine ou hors langues du moteur prend la langue du passage précédent (ou
     celle de la sonde) au lieu de faire échouer la card.
-- ✅ **Les deux pistes CORRIGÉES et REMESURÉES le 2026-09-29 au soir** (`db0e7886`, `6f4271ef` ;
+- ✅ **Les deux pistes CORRIGÉES et REMESURÉES le 2026-09-29 au soir** (`969df942`, `d2a6b011` ;
   les mêmes 135 cards rejouées, les 45 autres n'étant pas concernées) : sonde en fenêtres de
   **10 s** (24 au plus), une langue n'est retenue que si elle gagne **au moins 2 fenêtres** (une
   fenêtre isolée « es » d'une réunion toute française, `012c`, suffisait sinon) ; un passage

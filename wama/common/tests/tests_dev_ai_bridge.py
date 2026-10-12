@@ -137,7 +137,7 @@ class CheckSkillsTest(SimpleTestCase):
 class ModelVocabulariesServedToEveryRoleTest(SimpleTestCase):
     """Les vocabulaires FERMÉS d'un manifeste `model` sont servis à TOUT rôle qui en écrit un.
 
-    Vécu le 2026-09-30 : `e750fa74` avait servi `INPUT_TYPES` au seul rôle `model` ; le rôle
+    Vécu le 2026-09-30 : `5331eaea` avait servi `INPUT_TYPES` au seul rôle `model` ; le rôle
     frère `scout` écrit le même manifeste et, sans ce vocabulaire, qwen3.8 a déclaré `audio`/
     `image` comme entrées de LongCat-Video-Avatar-1.5 (manifeste invalide). La garde est
     GÉNÉRIQUE : elle part de ce que fait un rôle (valider un manifeste), pas d'une liste.

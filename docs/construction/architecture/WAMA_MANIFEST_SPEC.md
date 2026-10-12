@@ -267,7 +267,7 @@ gating (`access`), le câblage prompts/tool_api.
 
 ### 3.1 ~~Facette `pipelines`~~ — RETIRÉE le 2026-10-01 : une réinvention (décision n°11 tranchée le 2026-10-02)
 
-> Formalisée puis retirée le même jour (commits `145f920b` → retrait), après revérification
+> Formalisée puis retirée le même jour (commits `ab0e063d` → retrait), après revérification
 > demandée par Fabien. Gardé ici pour que la prochaine génération ne la réécrive pas.
 >
 > ✅ **Décision n°11 tranchée le 2026-10-02 (Fabien)** — domicile : `WAMA_APP_GENERATION_ROUTE

@@ -1257,7 +1257,7 @@ une card TERMINÉE du compte de test DÉVELOPPEUR, partagée en public, est dans
 du compte de test ; son fragment se rafraîchit (200), son résultat se télécharge (200), sa
 suppression lui est refusée (403) ; repassée privée, elle sort de sa file ; la card du propriétaire
 est intacte. Demande de Fabien (« fais la vérification réelle sur le converter »), après
-`316ec5f8` — dont les tests Django étaient verts.
+`15252d11` — dont les tests Django étaient verts.
 ⭐ **Joué d'abord sur le serveur LIVE, il a trouvé deux défauts que ces tests ne pouvaient pas
 voir**, parce que leur témoin était toujours rangé DANS un lot et sans vrai fichier :
 1. **500 sur toute la file du destinataire** : le témoin est une card SANS LOT (le converter ne

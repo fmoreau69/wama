@@ -1,6 +1,6 @@
 """
 FrWhisper and Kyutai STT 1B — the two transcription backends written by the `backend` role and
-validated on 2026-10-01. Both failed on EVERY transcription as written (b193bbc3); what is held
+validated on 2026-10-01. Both failed on EVERY transcription as written (563be488); what is held
 here without GPU nor weights: they are the backends the catalogue resolves for their models, and
 the two conversions the real run proved wrong (Kyutai's frame-aligned tokens → timed words,
 FrWhisper's Whisper windows → segments). The runtime itself was attested by a real run on 5 min

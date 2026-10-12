@@ -36,7 +36,7 @@ VÉRIFIÉ**, et c'est la vérification qui rend le commit sans pathspec légitim
   session** (vécu le 2026-10-04). Une session longue a suivi le §1 tel qu'il était quand elle
   l'avait lu — `git commit` sur index temporaire —, alors que le fichier portait depuis six jours
   la forme `commit-tree -p $BASE` : son commit a ANNULÉ deux commits d'autres sessions
-  (`3e24dfa2`, `df124fbb`), rétablis ensuite. Ce skill grandit à chaque piège vécu par une
+  (`90ef25c3`, `6d01d528`), rétablis ensuite. Ce skill grandit à chaque piège vécu par une
   instance ; *la version que l'on a en tête est celle d'avant le dernier piège*.
 
 ## 1. Le geste, dans l'ordre
@@ -160,7 +160,7 @@ mais c'est défaire son geste dans son dos.
   🔴 **Récidive le 2026-09-30 — SANS avoir ouvert ce skill** (script maison `apply --unidiff-zero`
   sur le gabarit du transcriber, 5 hunks d'autrui avant le mien) : le bloc `{% comment %}` s'est
   posé DANS le script du lot (numéro nouveau 203 au lieu de l'ancien 222), commité tel quel
-  (`6af91cdc`), rattrapé par `bfa70b4a` (blob recomposé depuis HEAD + `update-index --cacheinfo`).
+  (`3883098d`), rattrapé par `91d65890` (blob recomposé depuis HEAD + `update-index --cacheinfo`).
   Le contrôle qui l'a vu : `git diff -U0 --ignore-cr-at-eol` APRÈS le commit, qui montrait encore
   mes lignes — côté retiré ET côté ajouté. *Charger ce skill avant tout commit partiel, même
   « simple » : le piège est dans l'outil, pas dans la complexité du cas.*
@@ -209,10 +209,10 @@ mais c'est défaire son geste dans son dos.
 
 - 🔴🔴 **2026-09-28 — l'INDEX TEMPORAIRE a sa propre fenêtre de course : HEAD qui BOUGE.** Construit
   par `git read-tree HEAD`, il photographie le HEAD de CET instant. Une autre instance a commité
-  `f5150548` quarante secondes avant mon `git commit` : le commit, posé sur le NOUVEAU HEAD avec
-  l'arbre construit sur l'ANCIEN, a **défait ses deux fichiers** (`e0ae60dc`, 33 fichiers annoncés
-  pour 31 construits — le seul signe). Rattrapé par un commit correctif à pathspec (`1b9d9752`),
-  contenu vérifié identique à `f5150548`.
+  `48a198bc` quarante secondes avant mon `git commit` : le commit, posé sur le NOUVEAU HEAD avec
+  l'arbre construit sur l'ANCIEN, a **défait ses deux fichiers** (`838184e7`, 33 fichiers annoncés
+  pour 31 construits — le seul signe). Rattrapé par un commit correctif à pathspec (`7aa1e258`),
+  contenu vérifié identique à `48a198bc`.
   ✅ **Le contrôle** : noter `BASE=$(git rev-parse HEAD)` au `read-tree`, et juste avant le commit
   exiger `[ "$(git rev-parse HEAD)" = "$BASE" ]` — sinon RECONSTRUIRE l'index (relancer le script),
   jamais commiter. Et après : `git show --stat HEAD` doit compter EXACTEMENT les fichiers de l'index
@@ -248,7 +248,7 @@ mais c'est défaire son geste dans son dos.
   jamais un `;` entre une vérification et le geste qu'elle autorise. Et un fichier « propre il y a
   une minute » ne l'est plus : c'est l'état AU MOMENT du commit qui compte.
 - 🔴🔴 **2026-10-11 — RÉCIDIVE du piège du 28/09 (HEAD qui bouge), cette fois sur TROIS commits.**
-  `9ef1ee68` a pour parent `11604afe`, mais son arbre avait été lu sur `c28db2d4` : il a DÉFAIT
+  `c44f0432` a pour parent `d237fd8e`, mais son arbre avait été lu sur `025e7209` : il a DÉFAIT
   dans HEAD trois commits d'autres sessions (29 fichiers, dont 6 supprimés). Rien ne l'a signalé à
   son auteur ; vu par une autre session parce que `git diff --cached` montrait comme « à ajouter »
   des fichiers qu'elle savait commités. ⇒ le `[ HEAD = BASE ]` + `update-ref … $BASE` du §1 n'est
@@ -258,7 +258,7 @@ mais c'est défaire son geste dans son dos.
   <parent réel> <commit fautif> | head -1)` (une seule ligne = sans conflit). Trouver la base :
   `git diff --stat <candidat> <fautif>` ne doit montrer QUE le travail propre du fautif. Vérifier
   avant de poser : `git diff --stat <parent réel> $TREE` = ce travail exactement ; puis
-  `commit-tree $TREE -p <fautif>` + `update-ref … <fautif>` (`9973ad92`). Ici l'arbre fusionné
+  `commit-tree $TREE -p <fautif>` + `update-ref … <fautif>` (`f531436f`). Ici l'arbre fusionné
   était IDENTIQUE à l'index partagé, qui portait encore le bon contenu — l'index réaligné sur HEAD
   est revenu vide de lui-même.
 

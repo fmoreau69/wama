@@ -565,7 +565,7 @@ multi-surface) ; ④ composer + reader (déjà rendus par WamaParams : seule la 
 ⑧ anonymizer (scan disque conservé en repli jusqu'à preuve) ; ⑨ surfaces transverses (assistant,
 studio, Lab — `cam_analyzer` n'a **aucun** usage du catalogue : chantier à part).
 
-##### ✅ Étapes ② et ③ LIVRÉES le 2026-09-01 (`fb9ecfd9`, `c8d35ee9`)
+##### ✅ Étapes ② et ③ LIVRÉES le 2026-09-01 (`c27f134e`, `b039ec51`)
 
 **Mesure d'entrée** : catalogue **7** moteurs TTS, app **4**. Les 3 invisibles étaient installés
 et licenciés — dont **Kokoro-ONNX**, posé la veille par la chaîne (3,3 s de chargement contre
@@ -758,7 +758,7 @@ d'annoncer un modèle que le lancement ne retiendrait pas (règle du 27/09).
   les deux recopies d'options vers les modales, `#backendHelp` et son pont `data-selected`, et le
   grisage de la diarisation par `WamaModelCaps` — il la désactivait pour WHISPER (le catalogue dit
   `supports_diarization: False`), avec un motif contradictoire ; tout moteur qui ne diarise pas
-  passe par pyannote depuis `52e011ed`.
+  passe par pyannote depuis `ceb247e7`.
 - **Card** : le chip montre le modèle QUI A TOURNÉ (`model_key`, libellé du catalogue), signale un
   modèle demandé qui n'a pas tourné ; l'ETA apprend toujours sous le nom du moteur (`engine_name_for`).
 - **Gardes** : `transcriber/tests_model_select` (13) + fixtures de catalogue partagées
@@ -805,10 +805,10 @@ par source — anonymizer `model_to_use`, avatarizer `animation_model`, enhancer
 ##### ✅ Étape ⑤ SOLDÉE le 2026-10-07 — plus aucun select par source, et une PORTE de lancement commune
 
 Les quatre restes ci-dessus listent par TÂCHE et stockent des clés de catalogue entières :
-avatarizer `lip-sync` (`576982ca`), enhancer audio `audio-enhance` (`e92dd3e5`), anonymizer
+avatarizer `lip-sync` (`89fbdab4`), enhancer audio `audio-enhance` (`76da7c80`), anonymizer
 `detect`/`segment` — la mise en page et la détection en vocabulaire ouvert sortant de `detect`
-sous les termes standard `layout-detection` et `zero-shot-object-detection` (`52919e35`,
-`46d40c74`) —, reader `ocr` (`67352282`). Chaque domaine est UNE déclaration que le select, le
+sous les termes standard `layout-detection` et `zero-shot-object-detection` (`9c2b2e8e`,
+`d2d83ad0`) —, reader `ocr` (`1e8dbdb9`). Chaque domaine est UNE déclaration que le select, le
 tirage `auto` et la méta d'appariement lisent ; `save()` normalise un identifiant nu ; une
 migration PURE par app (`avatarizer/0022`, `enhancer/0019`, `anonymizer/0036`, `reader/0012`).
 `matches_inputs` exige désormais une tâche DÉCLARÉE quand on en demande une.
@@ -1010,13 +1010,13 @@ légitime déclarée (correspondance mode→domaine imager, musique/ambiance com
   `intent` borné par `coerce_params`, cascade unique `auto_model.quality_intent_of` (champ de
   l'item → réglage d'app durable → 50) lue d'office par `resolve_model_choice(item=)`, critère de
   grille `quality_intent` (déclaré ET passé dans l'appel). Reader rallié (réglage d'app).
-- **✅ Converter CÂBLÉ le 2026-09-20 (`631f01d2`)** — les trois étapes ci-dessous, exécutées :
+- **✅ Converter CÂBLÉ le 2026-09-20 (`013c8d59`)** — les trois étapes ci-dessous, exécutées :
   presets = positions de l'échelle commune lues chez le sélecteur (Rapide 15 / Équilibré 50 /
   Qualité 85), `values_for_intent` INTERPOLE les réglages d'encodage entre deux positions (table
   exacte aux positions), `quality_intent` remplace le select de lot (traces `quality_intent` +
   `quality_preset`, clés `web/balanced/max` conservées comme données pour filemanager/tool_api),
   `quality` JPEG passe `advanced`. Critère de grille `quality_intent` : converter VRAI.
-- **✅ Imager, composer (`49bf2224`) et enhancer (`ef427706` + `3e6d2f3e`) RALLIÉS le
+- **✅ Imager, composer (`29e9fec4`) et enhancer (`bb301886` + `f2c32146`) RALLIÉS le
   2026-09-21** — les deux premiers : colonne + `intent_param` sur « auto » + `item=` au tirage.
   L'enhancer = son PORTAGE (la décision « l'utilisateur désigne son moteur » est LEVÉE) :
   `backends/ROUTES` au contrat commun, tâches sur `run_item_task`, modales au cycle
@@ -1446,7 +1446,7 @@ sur la même liste.
 > Restes B : l'étalement du preset au clic côté généré ; `quick_convert`/profils (endpoints
 > 501 de la jumelle) ; B2 (backends de modèles connus — 1er livré : Table Transformer).
 >
-> ✅ **MARCHE B2 — LE LLM QUI ÉCRIT LE BACKEND EXISTE (2026-09-29, `95ea980`, `b41a2c1`)** —
+> ✅ **MARCHE B2 — LE LLM QUI ÉCRIT LE BACKEND EXISTE (2026-09-29, `feef9b7`, `aa0ad6c`)** —
 > les trois backends B2 d'avant (Table Transformer, Audio8, Qwen3-TTS) ont été écrits à la main ;
 > le « LLM de la marche B » annoncé ci-dessous n'avait pas d'implémentation. Rôle `backend`
 > (`wama-dev-ai/run_backend.py` + `prompts/backend.txt`) : matière MÉCANIQUE (manifeste — refus
@@ -1507,7 +1507,7 @@ sur la même liste.
 > `task_skeleton`, `detail_spec`, `triad_specs`) — describer **100 %**, 2ᵉ plein score.
 
 > **⚠ GRILLE RECALIBRÉE après l'externalisation des backends (2026-09-08).** Depuis
-> `8c556100`, aucune app ne porte de classe de backend : les 35 classes vivent sous
+> `397cbe25`, aucune app ne porte de classe de backend : les 35 classes vivent sous
 > `wama/common/backends/`, et une app **appelle son modèle**, dont le catalogue résout le
 > backend (`AIModel.source` → `composition.runtime.engine` → `ENGINE`/`SUPPORTED_MODELS`).
 > Six critères F4/F5 lisaient encore `wama/<app>/**/*.py` : remesure du matin =
@@ -1543,7 +1543,7 @@ sur la même liste.
 
 > ✅ **CRITÈRE `backend_routes` RECALÉ (2026-10-06, décision de Fabien)** — il ne connaissait
 > que les `ROUTES` (nature → fonction) et rougissait sur les sept apps dont les process
-> choisissent leur backend par le MODÈLE. Or `8c556100` l'avait tranché : les `ROUTES` sont la
+> choisissent leur backend par le MODÈLE. Or `397cbe25` l'avait tranché : les `ROUTES` sont la
 > décision de routage d'APP, **pas** le lien modèle → backend, qui vit au catalogue. Leur
 > imposer des `ROUTES` aurait été une déclaration fictive. Mesuré avant : aucun process de ces
 > sept apps n'aiguille par nature d'entrée (relevé process par process, lignes revérifiées). Le
@@ -1553,7 +1553,7 @@ sur la même liste.
 > contourne la porte. Deux restes, nommés par ce qui manque :
 > - **synthesizer** — la table `ENGINE_BACKENDS` (moteur → classe) redit le `ENGINE` que chaque
 >   backend TTS déclare : la classe ne se dérive pas de la porte `backend_for_model` (laissée en
->   place par `8c556100` car consommée par le service TTS, sans Django) ;
+>   place par `397cbe25` car consommée par le service TTS, sans Django) ;
 > - **anonymizer** — SAM3 passe par le catalogue, mais la voie YOLO instancie
 >   `anonymize.Anonymize` par son chemin de module (`anonymizer/tasks.py:621`). Angle mort de
 >   `tests_backend_adoption`, qui ne compte que les `from … import Classe` : le critère le voit
@@ -3499,7 +3499,7 @@ formes** (`Param`, `ParamSpec`, le `params_spec` du Studio, du HTML écrit à la
 Et un nœud intégré se déclare à **quatre endroits** : la palette (`wama-studio.js:27-74`,
 `BUILTINS`), son rôle (`manifests/builtin/pipeline.py:36-37`), ses réglages (`studio/views.py:227-270`),
 son exécution (`studio/tasks.py` : `SOURCE_HANDLERS` et branches par nom de nœud). ⚠ Les deux nœuds
-Data de la 1ʳᵉ marche de P7 (`75146d7d`) y ont ajouté une **citation du monde Data dans le
+Data de la 1ʳᵉ marche de P7 (`7159838e`) y ont ajouté une **citation du monde Data dans le
 substrat** — `studio/views.py` et `studio/tasks.py` importent `wama_data` —, le défaut que
 `AGENTS.md` nomme (« le registre ne connaît jamais ses producteurs ») : introduit le 2026-10-11,
 retiré par R2 ci-dessous.
@@ -3891,7 +3891,7 @@ panneau parle `JOB_*`).
 >     relançable). Mais ① le composer ne déclarait AUCUN besoin de VRAM au squelette — il
 >     n'attendait donc pas ; ② son moteur n'était jamais RELÂCHÉ : YuE2 est resté chargé dans le
 >     worker avec le plafond mémoire que son pipeline pose au process, et la tâche suivante (une
->     transcription d'une autre session) a manqué de mémoire à son tour. Corrigé (`3547f51f`) :
+>     transcription d'une autre session) a manqué de mémoire à son tour. Corrigé (`c0b69b84`) :
 >     `vram_needed` déclaré (cascade commune `auto_model.vram_needed_gb`, remontée de
 >     l'enhancer), moteur rendu en `finally` (`unload()`), `YuE2Backend.unload` ferme le pipeline
 >     vendorisé et rend au process le plafond du GOUVERNEUR (il posait 1.0), et l'attente de VRAM
@@ -3915,7 +3915,7 @@ panneau parle `JOB_*`).
 >     mêmes sorties qu'en process à part ; puis durée changée par la VRAIE vue (`update_settings`,
 >     « Enregistrer et relancer ») → `render` SEUL (131 s dont le rechargement), ligne `plan`
 >     intacte. **Le pilote est joué de bout en bout par la chaîne réelle.**
->   - ⚠ **Ce que l'attente réelle a montré, et corrigé (`3ce1f4d7`)** : à 23:09, son tour venu
+>   - ⚠ **Ce que l'attente réelle a montré, et corrigé (`ec4a900d`)** : à 23:09, son tour venu
 >     sur une carte pleine (résidents de la campagne de transcription), #282 est bien passé « en
 >     attente de ressources » (le correctif de l'après-midi) — mais Celery a REFUSÉ la 3ᵉ
 >     re-livraison : `task.retry(max_retries=None)` veut dire « le défaut de la tâche » (3,
@@ -4152,7 +4152,7 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   en faire un amont) —, `recompute_stale` délègue la règle à `process_runs.stale_nodes` (un
 >   nœud par ligne type × caméra). Rien ne change pour les données ni pour l'interface.
 > - 🔄 **`AnalysisPass` → `ProcessRun`, en trois étapes** (session cam_analyzer, à la demande de
->   Fabien) : **étape 1/3 faite le 2026-10-03** (`bf271cea`) — chaque écrivain de passe du Lab
+>   Fabien) : **étape 1/3 faite le 2026-10-03** (`7b7ccd83`) — chaque écrivain de passe du Lab
 >   écrit AUSSI sa ligne commune (élément = la session d'analyse, nœud = la passe,
 >   `instance_key` = la caméra, statuts traduits à l'écriture) ; **étape 2/3 faite le
 >   2026-10-04** — l'historique repris (`manage.py backfill_pass_lines` : 77 lignes créées,
@@ -4170,7 +4170,7 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   nœud par nœud : décision ouverte n°4).
 >
 > 🔄 **P6 ENGAGÉE le 2026-10-03 — les apps hors squelette y entrent, une par une** :
-> - **synthesizer** (`e456c711`) : `synthesize_voice` → `run_item_task`, un seul process. Le
+> - **synthesizer** (`44064f5b`) : `synthesize_voice` → `run_item_task`, un seul process. Le
 >   squelette a gagné `ServiceNotReady` : une glu qui dépend d'un SERVICE encore en chargement
 >   (le microservice TTS) le dit, et la tâche est re-livrée (60 × 10 s, puis un échec DIT) —
 >   la politique que deux apps tenaient à la main autour de `self.retry()`, dont l'épuisement
@@ -4181,7 +4181,7 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   sans refaire l'audio. Le modèle TTS tiré par « auto » n'est plus écrit dans le réglage (il
 >   est sur la ligne `speak`). Joué en réel : speak 2,0 s + animate 245 s, puis cadrage changé →
 >   `animate` seul. ✅ La card montre sa bande « Voix → Animation » avec ▶ et ⚙ par process
->   (`27d06d60`, smoke navigateur vert). ✅ **CodeFormer est le process `enhance`
+>   (`d78d115e`, smoke navigateur vert). ✅ **CodeFormer est le process `enhance`
 >   (« Visage ») depuis le 2026-10-04** : TROIS process pour une photo. Il a toujours lieu pour
 >   une photo, comme « Sortie » — demandée, l'amélioration garde la vidéo animée à côté
 >   (`native_outputs`) ; retirée, la vidéo animée reprend sa place sans rien recalculer ; sans
@@ -4200,7 +4200,7 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   ▶ ultérieur ne ré-importe pas un document inchangé) et retire celle de `transcribe`. La
 >   tâche `import_existing_result_task` et sa route Celery disparaissent. Locuteurs d'une card
 >   importée : l'interrupteur décide seul ; un document sans heures n'a rien à attribuer.
->   ✅ **L'étage B de l'alignement est le process `align`** (`d465ba4e`, décisions de Fabien du
+>   ✅ **L'étage B de l'alignement est le process `align`** (`dc6fedeb`, décisions de Fabien du
 >   03/10) : optionnel sans interrupteur, après `import`, AVANT les locuteurs (pyannote
 >   attribue par le temps) et la cohérence (qui écrit ses marques sur les segments que
 >   l'aligneur réécrit) ; il a lieu pour un document SANS heures (propriété du document : pas
@@ -4208,7 +4208,7 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   sur une card jamais lancée ne mobilise pas le GPU. Joué en réel : dépôt sans GPU, puis ▶ →
 >   import, alignement (Whisper pour les repères, aligneur du catalogue), 133 s. ⚠ ▶ sur une
 >   card importée passe par la file GPU (la tâche du pipeline), plus par `default`.
-> - **anonymizer** (`91e161d9`) : `process_single_media` → `run_item_task`, un seul process. L'app
+> - **anonymizer** (`ea423d57`) : `process_single_media` → `run_item_task`, un seul process. L'app
 >   garde ce qui lui est propre (verrou de dédoublonnage, arrêt demandé, simulation de
 >   progression, aperçu « pendant », couverture multi-modèles — inchangée). La ligne nomme le
 >   modèle EMPLOYÉ sous « auto ». Corrigé au passage : verrous non rendus quand la tâche sortait
@@ -4320,10 +4320,10 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       paramètres (mètres là-bas, pixels à l'échelle de l'objet ici). Le centre d'une détection
 >       déduite part à la vitesse d'ARRIVÉE de l'objet et rejoint sa vitesse de REPRISE, au lieu
 >       d'une droite. Trois copies de l'IoU (cam, `placement_metrics._iou`, la mienne) → une ;
->       ✅ les anciens noms du cam_analyzer et du monde Data DÉLÈGUENT (`feb56cd2`, session
+>       ✅ les anciens noms du cam_analyzer et du monde Data DÉLÈGUENT (`0b5ea0c4`, session
 >       cam), gardé par `tests_gap_fill.TheOldCopiesDelegateTest` (la fonction commune
 >       substituée, l'ancien nom la suit).
->     - ✅ **EXTRAPOLATION aux bouts d'un objet** (décision de Fabien le même jour, `dc096d1f`) :
+>     - ✅ **EXTRAPOLATION aux bouts d'un objet** (décision de Fabien le même jour, `80d7af0c`) :
 >       un objet reste flouté `max_extrapolation_frames` images (défaut **5**, `0` = jamais)
 >       avant sa première détection et après sa dernière — là où un visage entre dans le champ
 >       sans être encore vu. **Réglage SÉPARÉ de l'interpolation** (question de Fabien : un
@@ -4402,7 +4402,7 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       SCHÉMA seul à −9–9 contre le moteur, le modèle et le volet à −10–10). Le gabarit ne peut
 >       pas se passer de bornes (un curseur sans bornes arrondit 1,05 à 1 avant tout script) :
 >       garde générique `tests_settings_surfaces.PanelBoundsFollowTheSchemaTest`, toute app.
->       ⏳ Le remède de fond reste le « volet rendu du schéma » (reste du 2026-09-27). `1fdd4d15`.
+>       ⏳ Le remède de fond reste le « volet rendu du schéma » (reste du 2026-09-27). `16f4795a`.
 >     - ✅ **Comparer dans la modale et son plein écran = la forme du volet** (Fabien,
 >       2026-10-06 : « une superposition avec le slider comme dans la preview de l'inspecteur ») :
 >       la modale juxtaposait deux médias. UNE fabrique `WamaInspector.compareView` (sortie
@@ -4426,7 +4426,7 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       calque = boîte de la référence à 20 % et 80 % du curseur, détections à la taille de la
 >       référence, barre des faces dégagée, clic des contrôles atteignant la référence. Garde
 >       `test_compare_owns_its_geometry_whatever_the_host`, sélecteur par sélecteur (prouvée par
->       mutation). `ee2799c0`.
+>       mutation). `8043c9a0`.
 >     - ✅ **Une vidéo source illisible dans WAMA depuis toujours (`SEQ08-01.mp4`, 2026-10-06)** —
 >       RÉSOLU le jour même par la COPIE DE LECTURE, décision de Fabien (créée à l'import, dossier
 >       caché de l'utilisateur) : domicile `MEDIA_STORAGE_TIERING §Ce que media/ a le droit de
@@ -4461,7 +4461,7 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       (liaison par la place, petit objet rapide, plus proche candidat, aucun plafond caché),
 >       `tests_preview_faces` (face après détection, repli sur l'entrée, réglages d'affichage,
 >       `data-wama-multiplay` — prouvée par mutation), `tests_cap_from_js.PreviewOverlayTest`
->       (V8). `545129c3`.
+>       (V8). `651f7b8f`.
 >     - ~~⏳ Ouvert — réutiliser la cinématique du cam_analyzer~~ → fait, ci-dessus (les
 >       primitives sont communes). ⚠ Ma première réponse proposait de les loger dans
 >       `wama/common/` « parce que le substrat n'importe pas les mondes » : c'était lire la règle
@@ -4929,7 +4929,7 @@ possible **sans aucun process**.
     monde media dans les fonctions ? »*, puis *« faut-il rester sur process d'app ? »*.
     - **UN catalogue pour tout ce qui devient un NŒUD** — calculs Data, passes du Lab, process
       d'une app Médias. Le kind `pipeline` ne connaît que `source | sink | app | function`
-      (`builtin/pipeline.py:35`) : un process n'est dessinable au Studio (`3d8dc994`, pipelines
+      (`builtin/pipeline.py:35`) : un process n'est dessinable au Studio (`5dcfdea1`, pipelines
       déclarés ouverts en diagramme) que s'il est au catalogue. C'est la « glu INTER-mondes »
       d'`AGENTS.md`, pas un catalogue du monde Data.
     - **La CATÉGORIE est le rôle, le RATTACHEMENT une propriété.** Le cam_analyzer range ses passes
@@ -4993,7 +4993,7 @@ possible **sans aucun process**.
       de mise en page reprise sans son texte, puis consigne de forme changée → seul `layout` à
       jouer, ▶ borné en 5 s, fond intact (même fichier), mention demandée présente.
     - 🔎 **Revérification « rien réinventé » (05/10, demande de Fabien), après le commit
-      `3055f0d7`** — sept écarts, tous corrigés :
+      `f98aa625`** — sept écarts, tous corrigés :
       1. `pipeline_decl` lisait `node['kind']`/`node['function']` → `node_kind()`/`function_key()`,
          « les DEUX seuls lecteurs » de la convention (`builtin/pipeline.py:22`) ; ses dossiers
          viennent de `manifest_export.DOSSIERS` ; la clé du process « Sortie » est importée
@@ -5057,7 +5057,7 @@ possible **sans aucun process**.
 | **P5** ✅ 03/10 | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) — livré en six pièces le 03/10 (point 5 : bande des process, état montré, ▶ / ⚙ / case à cocher par process, gabarit généré, promotion fille ↔ mère, catalogue du studio) | P3 (le renommage et le glisser-déposer : à tout moment) |
 | **P6** ✅ 03/10 | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les apps qui ne l'ont pas. ✅ Les dix apps passent par `run_item_task` ; SEPT déclarent un pipeline et le montrent sur leur card : transcriber (6 process dont `import` et `align`), avatarizer, et les cinq apps du process « Sortie » commun (imager, composer, synthesizer, anonymizer, enhancer) — point 4, bloc « P6 ENGAGÉE ». Restent à un seul process : describer, reader, converter (rien à ne pas rejouer) | P4 |
 | **P7a** | une forme de réglages, un rendu, une coercition et une déclaration de nœud dans tous les mondes (point 3.3bis) : R1 pont `ParamSpec → Param` + inspecteur du Studio par `WamaParams` ; R2 déclaration unique des nœuds intégrés ; R3 profil Lab au schéma ; R4 ⚙ des process de la card Data | R1 : — ; R2-R4 : les arbitrages (a)-(c) du point 3.3bis |
-| **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script. 1ʳᵉ marche ✅ 2026-10-11 (`75146d7d` : entrée `data_connector`, sortie `data_export`, pipeline sans process) | P3, P5, P7a (R1, R2 ; R4 pour le ⚙ des process) ; décision n°7 pour le seul process « script » (les n°5 et 6 n'étaient pas ouvertes — corrigé le 2026-10-11) |
+| **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script. 1ʳᵉ marche ✅ 2026-10-11 (`7159838e` : entrée `data_connector`, sortie `data_export`, pipeline sans process) | P3, P5, P7a (R1, R2 ; R4 pour le ⚙ des process) ; décision n°7 pour le seul process « script » (les n°5 et 6 n'étaient pas ouvertes — corrigé le 2026-10-11) |
 | **P8** | rôle assistant → manifeste `pipeline` / `dataset` | P3 |
 
 > 📍 **BRIEF DE SESSION DÉDIÉE — état MESURÉ le 2026-10-01** (demande de Fabien : *« l'idée du
@@ -5065,8 +5065,8 @@ possible **sans aucun process**.
 > ferait 2 chantiers dédiés à lancer »* — l'autre est le chantier SURFACES, `§F3b`).
 > - **Fait** : P0 (15/09) ; P2, six pièces (17-18/09 : six états dont `STALE`, alias unifiés,
 >   présentation déclarée) — son reste attend P3. Depuis : passes du cam_analyzer ouvertes au
->   studio (`3d8dc994`), ETA par process du pipeline cam (`c80d8f62`), capacité `pipeline_stage`
->   (`150a5337`), card « les ENTRÉES, le volet les RÉGLAGES » (`8b2b76ad`).
+>   studio (`5dcfdea1`), ETA par process du pipeline cam (`df66efae`), capacité `pipeline_stage`
+>   (`220db0e8`), card « les ENTRÉES, le volet les RÉGLAGES » (`53c837de`).
 > - **Pas commencé** : **P1** — `APP_CATALOG` ne porte aucune clé `world` (mesuré : seuls les
 >   manifestes et le calendrier en parlent) ; **P3** — l'exécution par process n'existe que dans
 >   le cam_analyzer (`AnalysisPass`, `pass_tracking.py`), le studio garde son exécuteur
@@ -5088,7 +5088,7 @@ possible **sans aucun process**.
 >   studio (« on RÉUNIT les pièces ») ; puis le pilote (transcriber P4 ou YuE2) ; P5 ensuite.
 > - **Mise à jour du 2026-10-02 (session dédiée ouverte)** : **P1 est LIVRÉ** en quatre pièces
 >   (point 6.1). La suite est P3, qui attend les décisions n°1-3. Pour l'arbitrage du pilote :
->   le transcriber ET le composer sont sur le squelette commun — le composer depuis `1fc8ab73`
+>   le transcriber ET le composer sont sur le squelette commun — le composer depuis `30cd431e`
 >   (le jour même, instance « portage » : `compose_task` passe par `run_item_task`,
 >   `composer/tasks.py:31` ; la nuance du 15/09 ci-dessous est confirmée par Fabien — une app à
 >   un seul process l'adopte sans attendre P3). Un pilote YuE2 n'a donc plus ce préalable.
@@ -5132,7 +5132,7 @@ une tâche s'exécute (classement des critères rouges de la grille au 15/09,
 - **au cas par cas** : `output_naming` et `select_model` de l'anonymizer.
 
 ⏳ **Nuance PROPOSÉE le 15/09, à confirmer par Fabien (coordination avec l'instance « squelette / VRAM »,
-commit `9d3104a5`)** : l'attente ci-dessus vaut pour les apps dont le traitement a PLUSIEURS étapes
+commit `5d9e7bdc`)** : l'attente ci-dessus vaut pour les apps dont le traitement a PLUSIEURS étapes
 (transcriber, anonymizer, avatarizer, enhancer vidéo) — leur glu sera redécoupée en process. Une app à
 **un seul process** (le composer : une seule tâche, `composer/tasks.py:29-30`) peut adopter
 `run_item_task` **dès maintenant sans travail perdu**, À CONDITION que le moteur commun garde
@@ -5280,7 +5280,7 @@ l'utilisateur puisse savoir où en est sa tâche*. Brique `common/services/globa
   de WSL où tournent les workers) portait **446 messages `gpu`** jamais consommés (444
   `synthesize_voice`, 2 `compose_task`) : listes `gpu*` vidées, contenu SAUVEGARDÉ avant. ⚠ Le même
   Redis porte encore 1 399 messages `default` et 27 `celery`, NON touchés.
-  *(Vidés à leur tour le 28/09 au soir, puis 18 restes le 29/09 ; depuis `4fcd037c` et `83b2def3`,
+  *(Vidés à leur tour le 28/09 au soir, puis 18 restes le 29/09 ; depuis `02e7b540` et `84fa80f7`,
   un processus Windows n'y écrit plus ni tâche ni cache.)*
 
 **13.9 LA RÉPÉTITION — tranchée le 2026-09-30 (Fabien) : pas d'interface de répétition sur les
@@ -5359,7 +5359,7 @@ de répétition n'est ajouté pour les cards.
 | 35 | ~~**Un pipeline sans process est refusé** : `studio/services/launch.py` exige au moins un nœud app ou fonction → l'export seul (entrée → sortie, ex. extraire les tables de situations d'une base connectée) est impossible, alors qu'il est valide dans le modèle du 15/09 — **§10.6 point 3.6**~~ ✅ **2026-10-11** : accepté, et le cas cité s'exécute (`data_connector` → `data_export`, `studio/tests_data_nodes.py`) | F8 | moteur |
 | 36 | **Les six VUES DE LOT n'ont pas de fabrique commune** (mesuré 2026-09-22, question de Fabien « le fonctionnement batch est commun et porté ? ») : le MODÈLE de lot (`BatchMixin`, `register_batch_sync`), la FILE (`build_batches_list`, `_queue_entry.html`) et la MANIPULATION (`make_queue_manipulation_views` : réordonner/déplacer/sortir/fusionner) sont communs et à 10/10 ; mais `batch_start`, `batch_delete`, `batch_duplicate`, `batch_download`, `batch_update`, `batch_status` sont écrites À LA MAIN dans les 10 apps, même forme à chaque fois — 60 lectures de lot recopiées sous cinq graphies (`.items.select_related(fk).order_by('row_index')`, `.all()`, sans ordre là où l'ordre compte), **0/10** sur la brique `batch_elements`. ~~La fabrique manquante est DÉJÀ ÉCRITE : ce sont les corps conventionnels de `views_gen`~~ → ✅ **BRIQUE LIVRÉE le soir même** : `common/utils/batch_views.make_batch_views` (les six vues, paramétrée comme la fabrique de file — `task`, champs FICHIER, sorties vidées à la duplication, réglages + schéma, forme par `item_model`/`fk_name` ou `batch_attr`/`row_field`, `batch_extra`) + `read_settings_payload`/`apply_item_settings` partagés avec la vue `update` d'un élément. Le générateur la CONSOMME (plus aucun corps de lot émis : le fichier généré du describer perd 80 lignes) ; `tests_batch_views` (12, les deux formes) ; mécanisme `batch_views` au registre. **Portage des apps réelles — pilote describer FAIT le soir même** (1ʳᵉ app après le générateur) : cinq vues remplacées par `_bv = make_batch_views(...)`, spécificités en kwargs (`reset_on_start` = `_reset_for_relaunch` + cache à 0, `progress_of`/`on_delete` sur le cache `describer_progress_<id>`, `result_text` vidé à la duplication, `@app_access` gardé sur le démarrage) ; `update_options` passe par `read_settings_payload`/`apply_item_settings` (l'ancien typage à la main `int`/`bool` = ce que le schéma déclare) ; `batch_list` et `batch_download` lisent le lot par `batch_elements` (qui lit désormais le CACHE d'un lot préchargé : 0 requête). `batch_download` reste LOCAL (multi-format `?fmt=`, §9.10) → `batch_views_common` = partiel ASSUMÉ, `batch_read_common` VRAI ; describer 87/89. **Puis reader et transcriber (23/09)** — même recette, deux hooks de plus nés du réel : `empty_is_value` (reader : `language` vide = auto-détection, une VALEUR) et `task_for` (transcriber : la tâche se choisit par élément, avec ou sans pré-traitement) ; les réponses portent `success: True` (le front du reader le lit). Trois apps à `batch_read_common` VRAI et `batch_views_common` partiel ASSUMÉ (`batch_download` multi-format local, §9.10). **Puis avatarizer et composer (23/09)** — quatre hooks de plus, tous nés d'une spécificité MESURÉE : `start_only_pending` (composer : « créer ≠ démarrer » ; le défaut de la fabrique = l'idiome majoritaire, ▶ de lot RELANCE tout ce qui ne tourne pas, échecs et succès compris — mon premier jet ne lançait que les PENDING, corrigé), `after_update` (avatarizer : `quality_mode` dérivé de `use_enhancer`), `item_extra(copie, original)` (composer : `output_filename` de la ligne de liaison), `read_lookup` (avatarizer : un lot PARTAGÉ se télécharge par `visible_or_404`). Avatarizer : les cinq vues par la fabrique, plus aucune lecture locale (86/93). Composer : `batch_update` (validation du modèle contre le catalogue, `generation_type` dérivé, curseur) et `batch_download` (nom d'archive = ligne de liaison) restent LOCAUX, écarts assumés, lus par `batch_elements` (89/97). **Puis enhancer et imager (23/09)** — deux hooks de plus : `start_reset_for(request)` (enhancer : la remise à zéro du ▶ audio se fabrique depuis la requête) et `output_name` (nom de fichier dans l'archive). Enhancer = DEUX files, donc deux fabriques sur la même page (`_bv` média, `_abv` audio), `batch_update` local (91/94). Imager : ses routes passent de `<int:batch_id>` à `<int:pk>` (dernière graphie déviante des 10 apps) ; start/delete/duplicate par la fabrique (`start_only_pending`, `task_for` image/vidéo, cache de progression oublié au démarrage et à la suppression, `generated_images` purgées par `_forget_outputs` — extrait de `_purger_generation`, qui supprimait aussi la LIGNE ; `domain` du lot conservé à la duplication) ; `batch_update` (un schéma PAR élément) et `get_batch_children` (lecture PARTAGÉE) restent locaux, lus par `batch_elements` (88/98). **Puis synthesizer, anonymizer et converter (23/09) — 10/10.** Deux ajouts au commun, nés du réel : `startable(élément)` (converter : un job sans format de sortie n'est ni lancé ni compté) et **`batch_link`**, posé par `batch_elements` sur chaque élément — la LIGNE qui le porte (ligne de liaison, ou l'élément lui-même en FK directe) — ce qui permet aux hooks de nommer d'après la ligne (`output_name`/`item_label`/`item_extra` = `s.batch_link.output_filename`) : c'était la seule raison pour laquelle composer et synthesizer gardaient un `batch_download` local. Synthesizer : les CINQ vues par la fabrique, `batch_utils.duplicate_synthesizer_batch` (une « brique commune » à un seul appelant, qui importait l'app) RETIRÉ (`REMOVAL_LEDGER` R68), fichier de lot partagé à la duplication par `batch_extra` ; `batch_update_settings` et `batch_list` locaux, lus par la brique (88/94, `batch_views_common` VRAI). Anonymizer : quatre vues, réglages = `PARAMS_JSON` coercé + `MSValues_customised` par `after_update`, purge des verrous/cache/sortie floutée par `on_delete` ; `batch_download` local (la sortie n'est pas un FileField, 89/98). Converter (FK directe) : quatre vues, `@login_required` gardé ; `batch_update` local (`poser_reglages` + geste de qualité, 81/83). Le ZIP commun est DEFLATED (idiome des trois). **Restent locaux, assumés** : `batch_download` multi-format (describer, reader, transcriber, §9.10), `batch_update` à logique propre (composer, enhancer, imager, converter) et `batch_download` de l'anonymizer (sortie hors FileField). Celui du composer est passé sur la fabrique dans la foulée (`output_name=_link_name` par `batch_link`). ✅ **2026-10-02 — le `batch_download` multi-format n'est PAS une spécificité (décision de Fabien : « ce ne sont pas des spécificités, on uniformise au mieux »).** Confronté au code : les trois vues locales (describer, reader, transcriber) étaient la MÊME vue, à trois détails près — et ces trois détails étaient déjà DÉCLARÉS ailleurs : les formats au catalogue (`export_formats`, `export_binding='late'`), le rendu par app au registre (`export_formats.register_export_builder`), tous deux lus depuis le 23-30/08 par le bouton ⬇ de la card et celui de la barre de file. Seul le niveau LOT ne les lisait pas : il recopiait les formats en dur dans la vue ET dans un partial `_batch_download_menu.html` par app, avec une query à lui (`?fmt=` contre `?format=`). La fabrique lit désormais ces deux déclarations (aucun paramètre neuf : `export_formats.requested_format` borne le format aux déclarés ; `output_name` donne la souche de chaque entrée) ; la card mère rend son bouton ZIP par la brique du ⬇ commun (`_batch_card.html` → `download_button … split=False`), les trois partials et les trois vues sont retirés (`REMOVAL_LEDGER` R91). Gardes : `tests_batch_views.LateBindingBatchDownloadTest` (chaque app late-binding du catalogue par sa VRAIE route, jumelle comprise), `tests_downloads.BatchCardZipButtonTests`. Describer **100 %**. ✅ **2026-10-02 (suite) — les `batch_update` « à logique propre » n'en étaient pas non plus.** Confronté au code, app par app : la vue de lot RÉÉCRIVAIT les règles de la route d'élément à côté d'elle (sa lecture de `request.POST`, sa validation, ses champs dérivés) — deux codes pour une règle, et celui du lot avait perdu des validations en route (composer : modèle invalide ignoré en silence ; converter : format validé deux fois, par deux messages ; synthesizer : JSON seul, `speed`/`pitch` remis à 1.0 quand ils n'étaient pas postés). La fabrique reçoit `apply_settings` : LA fonction de l'app qui pose des réglages sur UN élément, celle que sa route `update_settings` appelle aussi (`_apply_job_settings`, `_apply_generation_settings` ×2, `_apply_enhancement_settings`, `_apply_synthesis_settings`, `_apply_reading_settings`) ; `schema` peut dépendre de l'élément (imager : image ou vidéo) ; l'écriture est en DEUX TEMPS (poser sur toutes les filles, puis sauver) : un réglage refusé (`ValueError`) répond 400 et n'écrit AUCUNE fille. Six vues locales retirées (`REMOVAL_LEDGER` R92) : composer, converter, enhancer, imager, synthesizer (sous le nom `batch_update_settings`, que le critère ne voyait pas : l'app était VERTE avec une vue à la main — motif élargi) ; route du synthesizer alignée (`batch/<pk>/update/`, nom `batch_update`, comme les neuf autres). ⚠ Trouvé par la garde, pas par la lecture : le **reader**, déjà sur la fabrique, déclarait ses champs à DEUX endroits (route d'élément : quatre ; fabrique : trois) — sa modale de lot affichait un format de sortie que le serveur n'écrivait pas. Garde GÉNÉRIQUE, aucune app nommée : `tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest` poste chaque réglage postable par un lot à la route d'élément ET à la route de lot et compare ce qui est écrit (9 apps à lots, toutes mesurées) ; `tests_batch_views` tient le crochet (deux temps, schéma par élément) et le critère sous ses deux graphies. `batch_views_common` : **VRAI 10/10** | F5 | brique ✅ ; portage **10/10** |
 | 37 | **La PROGRESSION n'a pas de fabrique commune** (mesuré le 2026-10-03, question de Fabien « dix apps ont chacune leur propre fonction de progression, à centraliser ») : DEUX familles écrites à la main dans chaque app. ① `global_progress` ×10 (+ `process_progress` de l'anonymizer, + `audio_global_progress` de l'enhancer) : chacune recompte total / en cours / terminés / échoués et une progression d'ensemble — **trois formules** (moyenne de tous les `progress` ; terminés = 100 + cache des en-cours ; moyenne SQL `Avg`) et **quatre vocabulaires** de clés (`done`/`success`, `failed`/`failure`/`error`) que le JS COMMUN `wama-global-progress.js` absorbe en acceptant toutes les graphies. ② `progress(request, pk)` ×8 (+ audio enhancer) : même squelette partout — `visible_or_404` (lecture → partage F7), progression lue au cache `<app>_progress_<id>` sinon en base, `status`, erreur (sous `error` OU `error_message`, parfois seulement en échec), `estimated_seconds` par `eta_estimator.estimate(clé, taille, unité)` dont le triplet est écrit à la main dans chaque vue (trois apps ont déjà un helper `*_eta_key_size` ; le composer ajoute un repli a-priori `gen_factor`) ; autour, les clés PROPRES que son JS lit (`partial_text`, `status_message`, URLs de résultat, `processes`/`shown_state`, split image/vidéo de l'imager) ; le reader rend `_item_to_dict` entier. **La forme commune** : `make_progress_views(work_model, get_user, cache_prefix, eta_for=…, extra=…, error_key=…, queryset=…)` → `{'progress', 'global_progress'}`, UNE formule de progression globale et un payload au vocabulaire COMPLET (`total, pending, running, success, failure, done, failed, overall_progress`), les spécificités en crochets — le modèle de `make_batch_views` (#36), et le triplet d'ETA DÉCLARÉ une fois par app (le squelette de tâche le rend déjà à `record_run` : `'eta': (clé, taille, unité)` — un seul lieu pour l'a-priori et l'appris). Méthode : équivalence MESURÉE par app sur témoins avant bascule (payload clé pour clé, comme B et C), contrat générique « chaque `<app>:progress` et `<app>:global_progress` rend les clés communes », URL de l'imager `<int:generation_id>` → `<int:pk>`. ✅ **BRIQUE LIVRÉE et PORTÉE 10/10 le 2026-10-03 (soir)** : `common/utils/progress_views.make_progress_views` → `{'progress', 'global_progress'}`. ⚠ La formule n'est PAS une nouvelle décision : c'est celle du CONTRAT de la barre commune (`wama-global-progress.js` dérive `done / total`, sa ligne de stats sépare « terminé » et « échoué ») et de l'app de référence (describer) — réussi = 100, en cours = sa progression vivante, échec et attente = 0 : **un échec est échoué, pas terminé** (Fabien, 03/10 ; le composer, qui comptait un échec 100, et les apps qui le comptaient à sa progression étaient en DÉRIVE). Crochets : `eta_for` (le triplet d'ETA déclaré une fois, `(clé, taille, unité[, modèle chargé])`), `eta_fallback` (a-priori du composer), `extra` (clés propres que lit le JS), `progress_of` (même crochet que `make_batch_views` : le dict `{'pct'}` du reader, `media_progress_<id>` de l'anonymizer), `progress_field`, `pipeline_model` (bande des process : `processes`/`shown_state` rendus seulement si l'app déclare un pipeline), `queryset` (converter : sans les jobs éphémères), `domains` (imager : image / vidéo, le premier à plat). Erreur : `error` ET `error_message`, vides hors échec (un message d'un échec passé ne se montre plus sur une card relancée). **Équivalence MESURÉE avant bascule** sur 200 éléments réels de 10 files, en lecture seule (ancienne vue contre fabrique) : clés ajoutées seulement, valeurs communes identiques, barres de file à quelques points près (l'alignement sur la formule). Lecteurs locaux de la barre (describer, enhancer, reader, synthesizer) déjà neutralisés : seul le composant commun la lit. URL de l'imager `<int:generation_id>` → `<int:pk>` ; l'anonymizer gagne `progress/<int:pk>/` au format commun, `process_progress/?media_id=` retiré (`REMOVAL_LEDGER` R95). Le générateur la CONSOMME (`_pv` en tête du module généré). Gardes : `tests_progress_views` (formule, crochets), `tests_item_lifecycle_contract` (clés d'une card et de la file, TOUTES les apps), critère `progress_views_common` **VRAI 10/10**. Le **composer** est passé le même soir, dès son `views.py` libéré par la session cover YuE (équivalence mesurée : sa barre comptait les éléments EN ATTENTE comme « en cours », écart aligné ; bande des process identique) — l'exemption `NOT_YET_ON_THE_FACTORY` est vide. ✅ **Revérification du même soir (demande de Fabien) — deux restes du plan soldés** : ① le **triplet d'ETA est déclaré UNE fois par app**, dans le module de tâches (`<app>_eta_key_size(item, model=None)`, l'idiome qu'enhancer et anonymizer avaient déjà ; describer : `eta.py`) — la glu le rend à `record_run` avec le modèle tiré, la vue le lit. Six apps l'écrivaient deux fois, et l'avatarizer DIVERGEAIT : la vue estimait un avatar 3D sous `avatarizer:<qualité>`, la tâche apprenait sous `avatarizer:talkinghead` (la vue lit désormais la nature de l'avatar par `input_match.work_token_for`, la brique du tirage). Garde générique `tests_progress_views.OneEtaPlacePerAppTest` + `avatarizer/tests_pipeline.OneEtaKeyForTheTaskAndTheViewTest` ; ② la règle « connecté, sinon anonyme » est le DÉFAUT de la fabrique (`progress_views.request_user`) — recopiée en lambda dans six apps au portage, retirée. ⚠ **2026-10-05** : pour une card à PROCESS, l'ETA est celle de ses process (`process_runs.launch_eta`, §10.6 4.5) — `eta_for` / `eta_fallback` ont quitté les vues des sept apps à pipeline, ils ne servent plus qu'aux trois apps à un seul process | F5 | ✅ brique | portage 10/10 |
-| 38 | **Le ▶ d'UN process n'avait pas de fabrique commune** (relevé le 2026-10-04 en relisant le chantier pipeline, question de Fabien « on n'a rien réinventé ? ») : la vue `start/<pk>/<process>/` (§10.6 5.1) était écrite à la main dans six apps (composer, transcriber, avatarizer, imager, synthesizer, anonymizer) et greffée sur `start` dans l'enhancer — trois formes de refus (400 / 409 / message d'app), quatre formes de réponse. ✅ **BRIQUE LIVRÉE et PORTÉE 7/7 le jour même** : `common/utils/process_views.make_process_start_view(work_model, task_for, reset_on_start \| reset_for_process, model_key)` — mêmes crochets que `make_batch_views` ; le pipeline se lit de l'app de l'élément (`pipeline_of`), il n'est pas un argument ; `model_key` peut rendre `DECIDED_AT_LAUNCH` (composer sous « auto » : la tâche tranche). Réponse unique `{success, id, task_id, status: 'RUNNING', process}` ; déjà en cours → **409** partout. URL de l'imager `<int:generation_id>` → `<int:pk>`. Critère `process_start_common` : VRAI 7/7, non applicable aux trois apps à un seul process (converter, describer, reader). **Même relecture, deux autres écarts soldés** : ① la brique de sortie (`output_process`) retirait un ancien rendu sous la seule règle de PARTAGE — elle pose désormais les deux règles de `safe_delete_file` (propriété `owns_file` + partage) et son `relative()` a laissé la place à `file_references.relative_to_media` ; ② une modale ⚙ À PORTÉE (le ⚙ d'un process) ne rend plus les zones d'app hors schéma (`decorate` : prompt de l'imager, classes à flouter de l'anonymizer) — règle posée dans `WamaParams.settingsModal`, rien par app. **Les deux restes nommés ce jour-là, soldés le soir (`cf498eb0`)** : ① « le modèle que la card demande » est DÉCLARÉ une fois par app (`register_app_pipeline(model_of=…)`, `AppPipeline.requested_model`) — chaque app le redisait à la bande des process, à la vue de progression et au ▶ d'un process, et le composer en avait deux versions ; `card_view`/`decorate`, `make_progress_views` et `make_process_start_view` le lisent par défaut (`None` = connu au lancement, la tâche tranche — l'argument `model_key` et `DECIDED_AT_LAUNCH` ont disparu) ; ② `process_pipeline.decorate_cards(items, each)` (lignes lues en une requête, puis décoration) remplace la boucle recopiée dans six vues, et `WamaCycleButton.processOf` / `processUrl` (+ `wire` qui passe le process au handler) le câblage JS recopié dans huit fichiers. Vérifié au navigateur sur les six files à process « Sortie » (modale à portée réduite au schéma, ▶ « Sortie » → `start/<id>/output/`) | F5 | ✅ brique | portage 7/7 |
+| 38 | **Le ▶ d'UN process n'avait pas de fabrique commune** (relevé le 2026-10-04 en relisant le chantier pipeline, question de Fabien « on n'a rien réinventé ? ») : la vue `start/<pk>/<process>/` (§10.6 5.1) était écrite à la main dans six apps (composer, transcriber, avatarizer, imager, synthesizer, anonymizer) et greffée sur `start` dans l'enhancer — trois formes de refus (400 / 409 / message d'app), quatre formes de réponse. ✅ **BRIQUE LIVRÉE et PORTÉE 7/7 le jour même** : `common/utils/process_views.make_process_start_view(work_model, task_for, reset_on_start \| reset_for_process, model_key)` — mêmes crochets que `make_batch_views` ; le pipeline se lit de l'app de l'élément (`pipeline_of`), il n'est pas un argument ; `model_key` peut rendre `DECIDED_AT_LAUNCH` (composer sous « auto » : la tâche tranche). Réponse unique `{success, id, task_id, status: 'RUNNING', process}` ; déjà en cours → **409** partout. URL de l'imager `<int:generation_id>` → `<int:pk>`. Critère `process_start_common` : VRAI 7/7, non applicable aux trois apps à un seul process (converter, describer, reader). **Même relecture, deux autres écarts soldés** : ① la brique de sortie (`output_process`) retirait un ancien rendu sous la seule règle de PARTAGE — elle pose désormais les deux règles de `safe_delete_file` (propriété `owns_file` + partage) et son `relative()` a laissé la place à `file_references.relative_to_media` ; ② une modale ⚙ À PORTÉE (le ⚙ d'un process) ne rend plus les zones d'app hors schéma (`decorate` : prompt de l'imager, classes à flouter de l'anonymizer) — règle posée dans `WamaParams.settingsModal`, rien par app. **Les deux restes nommés ce jour-là, soldés le soir (`3dde07fb`)** : ① « le modèle que la card demande » est DÉCLARÉ une fois par app (`register_app_pipeline(model_of=…)`, `AppPipeline.requested_model`) — chaque app le redisait à la bande des process, à la vue de progression et au ▶ d'un process, et le composer en avait deux versions ; `card_view`/`decorate`, `make_progress_views` et `make_process_start_view` le lisent par défaut (`None` = connu au lancement, la tâche tranche — l'argument `model_key` et `DECIDED_AT_LAUNCH` ont disparu) ; ② `process_pipeline.decorate_cards(items, each)` (lignes lues en une requête, puis décoration) remplace la boucle recopiée dans six vues, et `WamaCycleButton.processOf` / `processUrl` (+ `wire` qui passe le process au handler) le câblage JS recopié dans huit fichiers. Vérifié au navigateur sur les six files à process « Sortie » (modale à portée réduite au schéma, ▶ « Sortie » → `start/<id>/output/`) | F5 | ✅ brique | portage 7/7 |
 
 ---
 

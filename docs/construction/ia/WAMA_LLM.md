@@ -1174,7 +1174,7 @@ describer (inversion de dépendance). Fixer = faire passer le describer par
 `modele_par_tier(exige=['completion','vision'])` + peupler `vision` au catalogue.
 
 > ⚠ **Chemin RECTIFIÉ le 2026-09-03** (le fichier a bougé de l'ancien module « image_describer »
-> de `utils/` vers `backends/image_backend.py` — marche B1 du describer, `5b3f82f6` ; l'ancien
+> de `utils/` vers `backends/image_backend.py` — marche B1 du describer, `41d31eb4` ; l'ancien
 > chemin n'est délibérément PAS réécrit en toutes lettres ici : le citer en ferait une référence
 > cassée de plus, piège documenté au skill `/reprise`). **L'incohérence n'est pas
 > résorbée, elle a DÉMÉNAGÉ** — vérifié au code ce jour : la liste en dur vit désormais en
@@ -1317,7 +1317,7 @@ l'adaptateur avec la borne que son protocole DÉCLARE ?
 > marche pas » était le libellé laissé par `_strip_unsourced_urls` — le garde-fou fonctionnait,
 > mais le RESTE de la réponse partait. Modèle : `qwen3.5:4b`, tiré au curseur 50.
 
-Deux contrôles, dans `assistant_engine` et `development_models` (commit `cf644976`) :
+Deux contrôles, dans `assistant_engine` et `development_models` (commit `a79088e5`) :
 1. **Plancher de l'assistant OUTILLÉ** (`AGENT_CODING_FLOOR = 30`, décision de Fabien) : le tirage
    AUTOMATIQUE d'un tour connecté écarte un modèle MESURÉ sous le plancher (sous-indice coding du
    banc AA, qui inclut Terminal-Bench) — `qwen3.5:4b` (22,6) et `gemma4:e4b` (9,4) sortent,

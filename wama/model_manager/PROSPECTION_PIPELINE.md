@@ -1434,7 +1434,7 @@ passent AUSSI une source — `assistant_engine.py:226` et `llm_utils.py:150` dis
 ### Le seul constat sans réserve : `table-transformer` n'est relié à rien
 
 **`table-transformer` ×2 porte `backend_ref = ''` et `composition = {}`** alors que son
-backend est écrit et testé sur les poids réels (B2 n°1, `046af1be`). Le chantier ⑤ du handoff
+backend est écrit et testé sur les poids réels (B2 n°1, `0fcd6f3d`). Le chantier ⑤ du handoff
 annonçait « `backend_ref` posé EN BASE — une réinstallation le perdrait » : **il n'y est
 déjà plus.** La voie déclarative durable n'est pas un confort, c'est ce qui relierait le
 modèle au backend qu'on vient de lui écrire.
@@ -1608,7 +1608,7 @@ ici**, il touche `base.py` et `resource_governor`, hors périmètre de session.
 
 ### ⚠⚠ Le verdict de backend est VENV-DÉPENDANT (mesuré, pas déduit)
 
-Depuis le raffinement `missing_packages()` de l'inventaire (`02001d2d`, « l'inventaire
+Depuis le raffinement `missing_packages()` de l'inventaire (`be6085da`, « l'inventaire
 n'annonce que l'EXÉCUTABLE »), `known_engines()` ne rend que les moteurs dont le runtime pip
 est présent **dans le venv courant**. Le même appel, sur le même catalogue, à la même
 seconde, a rendu :
@@ -1762,7 +1762,7 @@ non appariées / sans identité). Elles n'étaient pas *mal* classées : elles n
 
 **Cause** — `synchronize()` bornait son queryset à `is_downloaded=True | is_proposed=True`.
 `is_downloaded` voulait dire « utilisable ici », ce qui était vrai tant que tout était local ;
-depuis que le **cloud est une source de découverte du registre** (`3b62c309`, ce chantier), un
+depuis que le **cloud est une source de découverte du registre** (`8e73ac26`, ce chantier), un
 modèle servi par une clé d'API est utilisable **sans aucun poids sur cette machine**. Leur
 catégorie de banc, elle, était correcte depuis toujours (`_local_categories` rend `['llm']` pour
 `anthropic:*` comme pour `albert:*`) — le filtre les écartait avant qu'on la calcule.
@@ -1856,7 +1856,7 @@ pour la vidéo — et aucun bouton.
 Même architecture (transformer 5 Md + encodeur UMT5 5,7 Md + VAE, `weights.total_gb` 22,5),
 donc **même VRAM** : pic en déchargement ≈ 10,6 Go, pic plein ≈ 22,5 Go
 (`memory_manager.model_footprint_gb`, mesuré ce jour sur la ligne imager : 10,58 / 22,52, provenance
-`source` — la marge d'activations est hors du pic depuis `79478dc4`). Les pics par composant et
+`source` — la marge d'activations est hors du pic depuis `330c33af`). Les pics par composant et
 par précision (`peaks_for_precision`) ne départagent donc pas les deux : ils changent la
 faisabilité des gros modèles vidéo face à la carte, pas l'écart entre ces deux-là. La différence est
 **vitesse contre fidélité** : 3 pas DMD contre ~50 pas. Le backend (`WanVideoBackend`) déclare
@@ -1933,7 +1933,7 @@ s'écrit, par l'assistant ou l'installation du model manager. Cas réel : `Supra
   au `ROUTE §10.3` depuis le 03/09) ; ④ l'imager ne lit pas le catalogue ; ⑤ la surface dev
   n'admettait pas `scout --seed-candidate` / `integrator --candidate`.
 
-**Livré** (commits `cf644976`, `a405f7b`, `3e51a06`, `e233ec3`, `95ea980`) :
+**Livré** (commits `a79088e5`, `598f4b9`, `0920978`, `837228e`, `feef9b7`) :
 1. `prospector.named_repo` : une URL de page HF ou `org/nom` DÉSIGNE le dépôt (en tête des
    résultats), et un dépôt nommé passe le plancher de poids — `tests_named_search` ;
 2. `provenance.record_after_install` transmet `spec.composition` à `set_identity` (ne comble
@@ -1970,7 +1970,7 @@ qwen3.8, sinon Albert »*. Premier maillon joué : le rôle `scout` (tirage par 
 `Soul-AILab/SoulX-FlashHead-1_3B`. Rien n'est installé ni semé en candidat : sorties dans
 `wama-dev-ai/outputs/scout_*_2026-09-30_*.json`, `PENDING_HUMAN_VALIDATION`.
 
-**Trou ① — le scout ne recevait AUCUN vocabulaire fermé hormis `model_type`.** `e750fa74` avait
+**Trou ① — le scout ne recevait AUCUN vocabulaire fermé hormis `model_type`.** `5331eaea` avait
 servi `INPUT_TYPES` au seul rôle `model` ; le scout écrit le même manifeste. Mesuré : LongCat
 (`inputs_required ['audio']`, `inputs_optional ['image']`) et InfiniteTalk (`['audio','video']`)
 INVALIDES. Correctif : `role_utils.model_vocabularies()` (ex-`vocabulaires()` de
@@ -2071,19 +2071,19 @@ trous, chacune comblée par un fait mécanique ou une brique, jamais par une con
 |---|---|
 | rôle `model` | le LLM écrivait l'identité d'un AUTRE modèle (la fiche de Kyutai, partagée, cite `stt-2.6b-en`) → `enforce_identity` ; les langues lues ailleurs que dans la fiche → `card_languages`, qui délègue à `prospector.card_facts` (codes courts depuis ce jour) ; un `.nemo` sans moteur proposé → `FORMAT_ENGINES` ; aucune anatomie pour un modèle simple → `enforce_component_facts` (le rôle `backend` l'exige) |
 | moteur au catalogue | LinTO posé en `transformers` (le `library_name` de la fiche, jamais confronté à la lib installée) → corrigé en `nemo` et servi par `NemoASRBackend` ; ⏳ l'installation devrait vérifier `library_name` contre la librairie réellement installée |
-| rôle `backend` | « contrôles : OK », « résolution simulée : CE backend » — et **aucun essai** : `smoke: pas de smoke pour le contrat SpeechToTextBackend`. Joués à la main sur GPU, **les deux échouaient à chaque transcription** : Kyutai passait l'audio EN POSITION au processeur (lu comme une image → entrée vide) à 16 kHz au lieu de 24 ; FrWhisper passait par le `pipeline` transformers, qui importe torchcodec (cassé dans le venv) quelle que soit l'entrée. Le code du rôle est versionné TEL QUEL (b193bbc3), les corrections à part (2fd9d25e, 70b08f61) : l'écart mesure ce que le rôle a raté |
-| aval du Valider | un backend validé était introuvable par le transcriber (liste de moteurs écrite en dur) et ses mesures se rangeaient sous la clé du MOTEUR → le gestionnaire adopte la classe que le catalogue désigne, `catalogue_key_for` reçoit la demande de la card (9dd171bb) |
+| rôle `backend` | « contrôles : OK », « résolution simulée : CE backend » — et **aucun essai** : `smoke: pas de smoke pour le contrat SpeechToTextBackend`. Joués à la main sur GPU, **les deux échouaient à chaque transcription** : Kyutai passait l'audio EN POSITION au processeur (lu comme une image → entrée vide) à 16 kHz au lieu de 24 ; FrWhisper passait par le `pipeline` transformers, qui importe torchcodec (cassé dans le venv) quelle que soit l'entrée. Le code du rôle est versionné TEL QUEL (563be488), les corrections à part (6a9e77f7, 11d77db4) : l'écart mesure ce que le rôle a raté |
+| aval du Valider | un backend validé était introuvable par le transcriber (liste de moteurs écrite en dur) et ses mesures se rangeaient sous la clé du MOTEUR → le gestionnaire adopte la classe que le catalogue désigne, `catalogue_key_for` reçoit la demande de la card (1de69c22) |
 
 ⭐ **Ce que la revue a trouvé en plus, et qui valait pour tout le dépôt** : `audio_decode.decode_audio`
 laisse un WAV à sa fréquence NATIVE. Trois consommateurs rééchantillonnaient chacun à leur façon,
 les deux backends neufs l'avaient oublié — Kyutai a d'abord « entendu » un audio accéléré de moitié,
 et rendait pourtant un texte lisible, ce qui l'aurait laissé passer. → `decode_audio_at`, fréquence
-GARANTIE, cinq consommateurs (70b08f61).
+GARANTIE, cinq consommateurs (11d77db4).
 
 **Mesuré sur GPU** (5 min de SUMM-RE 007a) : FrWhisper 24 segments en 77 s, horodatage grossier
 (ce fine-tune émet rarement ses jetons de temps : souvent un segment par fenêtre de 30 s) ;
 Kyutai 79 segments en 345 s, plus lent que le temps réel ; LinTO 60 s en 3,8 s.
-✅ **Trou comblé le 2026-10-02 (`a9d549a`)** — le rôle `backend` ESSAIE désormais un backend de
+✅ **Trou comblé le 2026-10-02 (`c380e77`)** — le rôle `backend` ESSAIE désormais un backend de
 transcription : `backend_proposals.SMOKES` (un essai par contrat), sur CPU, un extrait de parole
 réelle des corpus versés en médiathèque système, calé sur des segments ENTIERS de la référence ;
 texte non vide, segments ordonnés et dans l'extrait, taux d'erreur ≤ 75 % (garde-fou contre
@@ -2158,7 +2158,7 @@ Toute la chaîne a tourné sans GPU : scout et rôle `model` sur Albert (`gpt-os
 par `request_install` (file par défaut, téléchargement seul), « Valider » par `proposals.apply`
 (autorisé par Fabien), essais par les portes de WAMA avec les fournisseurs ONNX forcés sur CPU.
 
-| étape | trou rencontré → comblé (`eee0b6b`, `59f4b0b`, palier enhancer) |
+| étape | trou rencontré → comblé (`d516e27`, `f0465de`, palier enhancer) |
 |---|---|
 | scout | tâche `image-to-image` (édition → l'imager) : l'étiquette HF mélange édition et agrandissement, et le dépôt ne porte pas le tag `super-resolution` → `role_utils.enforce_task_facts` : la classe `…SuperResolution` du `config.json` prouve `upscale`, la clé `upscale` donne `scale` ; scout ET rôle `model` |
 | scout | `native_resolution: 64x64` = la fenêtre d'entraînement (il agrandit du 80×128, mesuré) → pas de taille native pour une tâche dont la sortie suit l'entrée (`SIZE_FOLLOWS_INPUT_TASKS`) |
@@ -2217,7 +2217,7 @@ partiel préexistant).
   (`supported_entry_errors(…, code)`), contre-épreuve dans les deux sens.
 - Incidences cherchées hors des seuls lecteurs directs : Lab et Data — aucune ; STUDIO — un nœud
   ne savait faire un select que depuis des `choices` : 7 nœuds sur 8 (dont l'enhancer depuis
-  `a68e7494`) avaient un champ TEXTE → ils héritent des options du catalogue (`c08941a3`) ;
+  `2cf72a42`) avaient un champ TEXTE → ils héritent des options du catalogue (`9f06f0bd`) ;
   ASSISTANT — `add_to_enhancer` n'annonçait plus de liste.
 - **Route UNIQUE** (décision de Fabien) : un select de catalogue n'annonce rien à l'outil et sa
   porte ne refuse rien, dans TOUTES les apps — `options_domain` (transcriber seul) retiré
@@ -2388,7 +2388,7 @@ et 1.6).
   branche de repli du script écrit `codeformer.pth` À PLAT là où la découverte le cherche sous
   `CodeFormer/`. **Anonymizer** reporté (édité par une autre instance), **QualityScaler** de
   l'enhancer reporté (ses modèles embarqués vivent dans un dossier que l'app balaie elle-même).
-- `WAMA_MECANISMES.md` régénéré depuis un worktree de HEAD (`7f153382`).
+- `WAMA_MECANISMES.md` régénéré depuis un worktree de HEAD (`6e5c7493`).
 
 **Complément du même jour — les VISAGES, sur deux images de Fabien** (`Faces_01` : passants
 masqués, 6 visages dont 2 flous au fond ; `faces_02` : « le plus grand selfie du monde », Dhaka
@@ -2527,7 +2527,7 @@ prenait la détection chez facexlib, omettait deux fichiers.
   sont pas relancés, la ligne perd sa déclaration au prochain passage.
 
 **Suite du 2026-10-10 (nuit) — audit « rien de réinventé, aucun chemin parallèle » (demande de
-Fabien) sur les commits `afd9524d` → `b76841e9`.** Chaque ajout confronté à l'existant ; trois
+Fabien) sur les commits `0ec1d92e` → `9073a06b`.** Chaque ajout confronté à l'existant ; trois
 écarts de mon fait, soldés :
 - **`pull_model <clé>` appelait `install_from_spec`** — le pilote INTERNE. Or `request_install`
   est « UNE SEULE ROUTE d'installation depuis l'extérieur » (sa docstring, 2026-09-19) : la clé
@@ -2667,7 +2667,7 @@ Restes :
 
 **Suite du 2026-10-11 — décisions de Fabien sur les quatre restes (« 1A, puis 4, puis 3 app par
 app, puis la clé facultative »).**
-- ✅ **1A** (`fcaf7d2`) : `pull_model <nom Ollama>` passe par sa PROPOSITION
+- ✅ **1A** (`c75dd0d`) : `pull_model <nom Ollama>` passe par sa PROPOSITION
   (`prospector.seed_ollama_candidate`, pendant de `seed_yolo_candidate` : existence au manifeste
   du registre, poids par `weight_for_spec`) puis par `request_install`. La purge de
   `prospect_ollama` épargne une demande nommée (rôle `named`). La garde des appelants des pilotes
@@ -2790,7 +2790,7 @@ l'info de leur provenance »).
 défauts que leur exécution a trouvés.**
 - ✅ Retirés par le corps du bouton (`uninstall_model`) : les poids pleins
   `PaddlePaddle/PaddleOCR-VL-1.6` (1,8 Go, tirés par l'assistant avant la règle du projecteur) et
-  la ligne hors route `Mungert/PaddleOCR-VL-1.6-GGUF` (0,4 Go). Fils d'épreuve effacés (`b2e8b18d`).
+  la ligne hors route `Mungert/PaddleOCR-VL-1.6-GGUF` (0,4 Go). Fils d'épreuve effacés (`d47e390e`).
 - ✅ **Recherche nommée** (`seed_hf_search`) : un dépôt DÉSIGNÉ dont l'étiquette est hors balayage
   est jugé sur la tâche que SA carte déclare (`_rule_for_task`) — `lightonai/lightonocr-3-1b`
   (`image-text-to-text` + tag `ocr`) rendait 0 résultat. Le balayage subi, lui, ignore toujours
@@ -2822,11 +2822,11 @@ défauts que leur exécution a trouvés.**
   🔴 Relancer gunicorn ET les workers pour que la tempête cesse.
 
 **Suite du 2026-10-11 (4) — le corpus de manifestes SUIT la désinstallation (décision de Fabien).**
-- Constat : la régénération du corpus (`0748f766`) y a fait entrer les cinq OCR désinstallés le
+- Constat : la régénération du corpus (`ff290948`) y a fait entrer les cinq OCR désinstallés le
   jour même, dont deux GGUF sans projecteur — une composition fausse pour le few-shot, qui pioche
   dans `manifests/models/` (`role_utils.manifest_examples`). Le refresh des « déjà semés »
   réécrivait le manifeste d'une ligne désinstallée ; une clé sans ligne restait sur disque,
-  signalée « extraction impossible » à chaque export (`reader:glm-ocr`, sorti par `08d73a90`, y
+  signalée « extraction impossible » à chaque export (`reader:glm-ocr`, sorti par `78c20d85`, y
   était revenu).
 - Question de Fabien : garder les manifestes et backends retirés dans un dossier d'ARCHIVE, comme
   exemples ? **Non retenu** : l'archive existe déjà — l'historique git garde chaque manifeste

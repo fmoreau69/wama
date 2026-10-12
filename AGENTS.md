@@ -838,7 +838,7 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > route de lecture occupe `settings/<id>/`), FAUX pour transcriber et anonymizer — écarts
 > DÉCLARÉS avec leur raison dans `tests_endpoints.ItemEditRouteConventionTest`.
 > ⚠ **Remesuré le 2026-09-26 : 892/943** — `settings_route` VRAI pour **8 apps** (le transcriber
-> s'est aligné, `f38685b3`, et a retiré son exemption du test — la garde « exemption devenue
+> s'est aligné, `7a9a4dbb`, et a retiré son exemption du test — la garde « exemption devenue
 > inutile » a joué), reste l'anonymizer (FAUX) et l'imager (PARTIEL) ; `settings_modal_cycle`
 > **10/10**.
 > ⚠ **Remesuré le 2026-10-02 : 910/939** (100 critères) — `batch_views_common` **VRAI 10/10** :

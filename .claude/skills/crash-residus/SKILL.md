@@ -40,7 +40,7 @@ notes PRSTATUS/NT_FILE → signal, thread fautif, bibliothèques sur sa pile) su
 coupable — `wsl.exe -e bash -lc "<venv_linux>/bin/python <skill>/core_read.py /mnt/c/.../x.dmp"`. Pour REPRODUIRE sans produire un nouveau dump : `prctl(PR_SET_DUMPABLE, 0)` en tête
 du script (ctypes, option 4). Cas du 22/09 : pyarrow (bibliothèque HuggingFace `datasets`, lecture
 en flux) qui plante à la FERMETURE de Python — insoluble côté Python, parade `os._exit`
-(`download_voice_refs`, commit `8eaa1c64`). Plafond : `maxCrashDumpCount` dans
+(`download_voice_refs`, commit `e30ccf27`). Plafond : `maxCrashDumpCount` dans
 `scripts/set_wslconfig.ps1`.
 
 ⚠ **Ne JAMAIS purger `%TEMP%` en bloc** : le swap VIVANT, des DLL en usage et le scratchpad de

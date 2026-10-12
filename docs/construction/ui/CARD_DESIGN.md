@@ -1117,7 +1117,7 @@ modalité, pas pour l'édition (exigence 3). Slots NATIFS sous le prompt : chips
 (`wama-prompt-enrich` gagne son bouton — ferme le défaut « attaché sans déclencheur »).
 
 > ⚠ **D est DÉPASSÉ pour les réglages — décision de Fabien du 2026-09-28** (précédée du retrait
-> des miroirs voix/vitesse du synthesizer le 27/09, `b23010ab`) : **la card porte les ENTRÉES, les
+> des miroirs voix/vitesse du synthesizer le 27/09, `ffb7db6a`) : **la card porte les ENTRÉES, les
 > RÉGLAGES vivent au volet et dans la modale ⚙** — un seul domicile, inter-mondes. Plus de
 > `quick=True`, plus de sélecteur de modèle dans la card. Règle complète et sous-étapes :
 > §11.11, « Étape 3 ». Ce qui reste vrai de D : la galerie d'avatars n'est pas un type de case
@@ -1461,7 +1461,7 @@ non. Garde `tests_catalogues.LivePortComesFromAnAppCapabilityTest`.
    prompt négatif, voix, vitesse, formats… — **vivent au volet droit et dans la modale ⚙**, un
    seul domicile, générés du schéma dans tous les mondes. La card les MONTRE (section Réglages,
    étiquettes, lecture seule). Précédent : le retrait des miroirs voix/vitesse du synthesizer
-   (27/09, `b23010ab`). Le prompt négatif est un RÉGLAGE (`INPUT_MODEL_MATCHING §6.1`).
+   (27/09, `ffb7db6a`). Le prompt négatif est un RÉGLAGE (`INPUT_MODEL_MATCHING §6.1`).
 2. **L'utilisateur est prévenu, explicitement** : « Réglages : volet de droite » est écrit dans la
    card d'entrée COMMUNE, jamais par app.
 3. **On AJOUTE à la file ; on règle ; puis on lance.** La card créée est modifiable (modale,

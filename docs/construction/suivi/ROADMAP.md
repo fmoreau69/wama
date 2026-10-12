@@ -537,7 +537,7 @@ fichier, pas dans les 11 apps.
   correspondance (`AIModel.model_key` = `<source>:<model_id>`, `_app_of()` + `_current_model`).
   Séparateur `#` car les clés catalogue contiennent des `:` (`anonymizer:yolo:yolo11n.pt`).
   🔴 **CONSTAT PÉRIMÉ depuis le 2026-09-08 — MESURÉ le 2026-09-14.** `_app_of()` déduit la source
-  du CHEMIN du module (`common/backends/base.py`) ; depuis `8c556100` (« 11/11 au substrat ») tous
+  du CHEMIN du module (`common/backends/base.py`) ; depuis `397cbe25` (« 11/11 au substrat ») tous
   les backends vivent sous `wama/common/backends/`. Mesure en lecture seule sur la base : **les
   101 modèles qui résolvent un backend publient `common:<id>`, 0 rejoint sa clé catalogue** ; le
   registre vivant portait `…KokoroOnnxBackend:9777#common:kokoro-onnx` quand le catalogue connaît
@@ -726,16 +726,16 @@ tirage. **Chantier A (décidé)** : deux chiffres par modèle — poids par comp
 fichiers sans charger, et pic selon la stratégie — c'est le pic que le filtre compare ; cascade de
 provenance mesurée → source → estimée, jamais sous la source ; provenance marquée à la découverte.
 Fait au passage : une seule règle de lecture de la table d'empreintes (`get_strategy_for_model` →
-`preset_vram_gb`, hunk dans `9a9463ea`, gardes `b9e2c202`).
-✅ **Le PREMIER chiffre est au catalogue (19/09 soir, `59ebf543` — détail `PROJECT_STATUS §PALIER
+`preset_vram_gb`, hunk dans `14983834`, gardes `295c1ceb`).
+✅ **Le PREMIER chiffre est au catalogue (19/09 soir, `e071966d` — détail `PROJECT_STATUS §PALIER
 2026-09-19 (soir) « CHANTIER A »`)** : `extra_info['weights']` {components, total_gb, largest_gb,
 source, variants/unresolved, signature, at} — clé collante, `vram_gb` intact —, écrit par
 `ModelSyncService.persist_weights` après chaque `full_sync` et par la tâche beat
 `model_manager.persist_weights` (1 h). Chaîne : `model_locations.installed_snapshots()` (hf_id →
-snapshot) → `prospector.local_inventory` (blobs, une fois chacun — `4cf3e1a9`) →
+snapshot) → `prospector.local_inventory` (blobs, une fois chacun — `7a50d8b6`) →
 `model_installer.components_for_spec` (UN lecteur des poids, celui de l'installation ; la composition
 DÉCLARÉE tranche, sinon `source='repo'` = borne). Provenance de `vram_gb` marquée à la découverte
-(`3a47eed2`). Mesuré sur le parc : Hunyuan 49,5/32,5 pour 16 déclarés ; LTX 44,4/24,3 pour 14 ;
+(`2264a51c`). Mesuré sur le parc : Hunyuan 49,5/32,5 pour 16 déclarés ; LTX 44,4/24,3 pour 14 ;
 Qwen 53,7/38,1 ; CogVideoX 20,2/10,5 ; FastWan 22,5/10,6 ; FLUX 31,4/22,2. ⏳ **Reste** : le SECOND
 chiffre (pic par stratégie et dtype, marge 4 Go, `memory_manager`), la migration des mesures de
 `MODEL_SIZE_PRESETS`, et le filtre du tirage sur le pic (`peak_offload` = admissibilité ;
@@ -1574,8 +1574,8 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
   / `segmentation_for_intent` (les seuils de l'anonymizer, inchangés au cran près — garde
   `tests_intent_vision`) et `couvrir_classes(quality_intent=)` ; grisage des classes sur « auto »
   (union des modèles de détection installés) ; reader rallié (curseur = réglage d'app) ; critère de
-  grille `quality_intent` (97 critères, 846/913). ✅ **21/09 : converter (`631f01d2`), imager,
-  composer puis enhancer ralliés** (enhancer = portage en deux commits, `ef427706` + suivant :
+  grille `quality_intent` (97 critères, 846/913). ✅ **21/09 : converter (`013c8d59`), imager,
+  composer puis enhancer ralliés** (enhancer = portage en deux commits, `bb301886` + suivant :
   ROUTES, squelette, modales au cycle commun, « auto » + curseur + facteur — détail
   `PROJECT_STATUS §PALIER « CURSEUR C » ⑧`) — mesuré par le critère : **8 apps VRAI**, describer n/a,
   **transcriber FAUX** — question ouverte : `priority` whisper-first reste l'ordre, le curseur
@@ -1731,7 +1731,7 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    Restes, même soir : ✅ **diarisation** — la liste pyannote du worker, écrite par NOM
    (`whisper`, `qwen_asr`), devient la CAPACITÉ déclarée (`supports_diarization`) : le distant
    est diarisé, et NeMo (Canary, Parakeet), qui ne l'était JAMAIS malgré sa déclaration, aussi
-   (`52e011ed`) ; ✅ **« auto » et les distants, AU COMMUN** (décision de Fabien) : toute app qui
+   (`ceb247e7`) ; ✅ **« auto » et les distants, AU COMMUN** (décision de Fabien) : toute app qui
    déclare `options_cloud` voit son tirage recevoir les distants que le profil ouvre à
    l'automatique, et la prévision dit ce tirage-là (`ROUTE §F4b`, brique d'auto-sélection) —
    effectif pour le transcriber dès que son select déclarera `options_cloud` ; ✅ au passage, les
@@ -1768,7 +1768,7 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    rendue durable, §23.3bis) lu par TOUTES les surfaces, réglages dans le composant assistant là
    où il s'affiche. Préalable demandé : cartographie exhaustive assistant + wama-dev-ai, pour ne
    rien perdre des mécanismes en place — ✅ FAITE (`WAMA_LLM.md §Cartographie de l'assistant`), et
-   brique `user_settings` rendue durable (commit `d75b405d`).
+   brique `user_settings` rendue durable (commit `7a18d5dd`).
    **Réponses de Fabien sur la cartographie (15/09)** :
    ① déclaration : UNIFORMISER la déclaration des apps au catalogue et les CLASSER PAR MONDE —
    ⚠ chantier mené dans une AUTRE session : ne pas recouvrir ; les frictions mesurées (§D de la
@@ -4265,7 +4265,7 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
      connexion ; le mot de passe est RÉVOQUÉ si le montage échoue et quand le dossier est retiré.
      Le mot de passe du COMPTE n'est jamais stocké par ce chemin. La saisie identifiant + mot de
      passe reste possible (tout mot de passe que le nuage accepte en WebDAV). Le premier essai
-     avait rendu un 405 : adresse non complétée (page web) — corrigé dans `dd0adffa`.
+     avait rendu un 405 : adresse non complétée (page web) — corrigé dans `5bbeb349`.
      **Essai réel par le navigateur RÉUSSI le 11/10** (Fabien : « ça marche »). Tenu par
      `filemanager/tests.py::RemoteMountTests` (15 tests, dont 5 du flux : montage avec le mot de
      passe accordé, adresse d'interrogation étrangère refusée, révocation à l'échec et au retrait,
@@ -4704,7 +4704,7 @@ l'enhancer (mêmes gestes). À traiter avec la maquette v4.
   a CONVERTI un PNG réel en JPEG lisible (SUCCESS, `converter_01/…/output/`)**. Le critère
   de sortie de la chaîne de génération est atteint.
   ✅ **B2 entamé le même soir** : backend Table Transformer (reader) — 1er des « CONNUS »
-  de la liste installs, testé SUR LES POIDS RÉELS (6/6) ; restes au commit `046af1be`
+  de la liste installs, testé SUR LES POIDS RÉELS (6/6) ; restes au commit `0fcd6f3d`
   (câblage `extract_tables`, FastWan, TTS).
 - **⚠ Fonctions data ≠ backends (précision de Fabien, retenue)** : le `function_catalog`
   est le catalogue des fonctions DATA (mondes Data/Lab — le floutage peut y être une
@@ -5139,15 +5139,15 @@ réécriture), l'adaptation des skills `/reprise` et `/cloture`, la déclaration
    `PROJECT_STATUS` du 2026-09-10 (`§24.8`, confrontation au code). La règle constat/intention
    n'était pas écrite ce jour-là : relire ses corrections une à une, en particulier les « reste
    à faire » retirés, et remettre — marqué ⏳ — ce qui était une intention et non un constat.
-   ✅ **Fait le 2026-09-14.** Relus : les 3 commits du balayage (`4601ea9a`, `5bd106c0`,
-   `80e40f1a`) et tout `.md` amputé du 10 au 12/09 (`c30c00c6`, `db67d3d8`, `14fbdcf3`,
-   `ca9f48bb`, `9b92356e`). Le balayage de `PROJECT_STATUS` n'a **rien perdu** : il barre et
+   ✅ **Fait le 2026-09-14.** Relus : les 3 commits du balayage (`5263f337`, `96c101cc`,
+   `819fe782`) et tout `.md` amputé du 10 au 12/09 (`c473ee1b`, `360d8e1b`, `60456ecc`,
+   `3718293a`, `08c5f6b3`). Le balayage de `PROJECT_STATUS` n'a **rien perdu** : il barre et
    corrige en place, et garde les intentions (hook RAG, geste d'indexation, P2/P3 des cards —
    l'extraction de `_batch_card` visait la déduplication, tenue : 10 apps sur `_queue_entry.html`).
-   **La perte était dans la boussole de ce fichier** (`c30c00c6`) : trois intentions retirées
+   **La perte était dans la boussole de ce fichier** (`c473ee1b`) : trois intentions retirées
    avec le constat faux voisin — consolidation des mécanismes d'UI, extraction des dernières
    briques communes, hiérarchie du RAG — **restaurées** en tête (H1, H2). L'archive supprimée
-   par `9b92356e` était un doublon créé par la même session (contenu dans `archive/CONTEXT.md §5`).
+   par `08c5f6b3` était un doublon créé par la même session (contenu dans `archive/CONTEXT.md §5`).
    ⚠ **Reste une décision à Fabien** : le verbe `settings` de l'API a été écarté **sur mesure**
    (`§24.4① quater`, « route `update` sur 2 apps sur 15 ») — une intention sortie sans décision.
 2. **Puis la révision de fond**, sur les seuls docs qui portent la connaissance (pas
@@ -5193,7 +5193,7 @@ registre (⑤), la confrontation dans les deux sens.
   **Méthode** : `git mv` (historique conservé), skill `/renommage-api` (grep exhaustif des
   citations), `check_docs` en filet — ⚠ après avoir levé son exclusion de `docs/` dans l'index des
   noms, sans quoi toute citation par nom nu casserait. À faire AVANT la révision de fond §25.2.
-  ✅ **FAIT le 2026-09-14** (session dédiée, seule active). **Palier A** `8fc9fde5` : la carte lit
+  ✅ **FAIT le 2026-09-14** (session dédiée, seule active). **Palier A** `78b9bbe5` : la carte lit
   ce que git suit ; 8 docs de module déclarés. **Palier B** : 71 fichiers déplacés par `git mv`,
   citations recalées par un moteur à cinq règles — une par FORME de citation — lancé à blanc
   puis relu diff par diff. Deux formes n'ont été vues qu'en cours de route, et c'est la leçon :

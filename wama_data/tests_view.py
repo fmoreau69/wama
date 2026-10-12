@@ -82,7 +82,7 @@ class RegleTest(unittest.TestCase):
 
         Elle était écrite dans `wama_data/view.py`, alors que `studio` et le substrat en ont
         besoin sans dépendre du monde Data — elle est remontée à `common/catalog` le 09/09
-        (`80e73bab`). Ce fichier continue d'importer depuis `.view`, donc **une réimplémentation
+        (`44d40076`). Ce fichier continue d'importer depuis `.view`, donc **une réimplémentation
         locale passerait tous les contrôles ci-dessus** : ils mesurent un COMPORTEMENT, et deux
         copies d'accord entre elles ont le même. Seule l'IDENTITÉ des objets réfute le chemin
         parallèle — c'est la doctrine « une route unique » rendue mécanique.

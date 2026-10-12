@@ -54,7 +54,7 @@ def model_vocabularies() -> str:
     frère `scout` écrit le MÊME manifeste et ne recevait AUCUN de ces vocabulaires. Vécu au
     1er passage réel des avatars (qwen3.8, LongCat-Video-Avatar-1.5) : `inputs_required
     ['audio']`, `inputs_optional ['image']` — manifeste invalide, exactement le défaut que
-    `e750fa74` avait corrigé pour le seul rôle `model`. *Une garde se pose avec ses jumeaux.*
+    `5331eaea` avait corrigé pour le seul rôle `model`. *Une garde se pose avec ses jumeaux.*
 
     Import PARESSEUX, comme `ollama_host` : Django n'est exigé qu'à l'appel.
     """

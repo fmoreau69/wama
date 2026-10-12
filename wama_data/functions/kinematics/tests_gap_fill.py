@@ -38,7 +38,7 @@ class HermiteGapTest(SimpleTestCase):
 
 class TheOldCopiesDelegateTest(SimpleTestCase):
     """The cam_analyzer and the Data world kept their NAMES (`hermite_ghost`, `box_iou`,
-    `_iou`) but delegate to the common primitives since `feb56cd2` — until then this class
+    `_iou`) but delegate to the common primitives since `0b5ea0c4` — until then this class
     compared their results. Comparing results is now trivial ; what must hold is that no copy
     grows back : replace the common function, the old name must follow it."""
 

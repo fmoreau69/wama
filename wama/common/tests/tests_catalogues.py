@@ -793,7 +793,7 @@ class CardEntreeConformiteTest(TestCase):
         """
         return {
             # (L'entrée `avatarizer` — slot voix restreint, avatar par la galerie — est RETIRÉE
-            # le 2026-09-29 : elle décrivait sa card v3. En v4 depuis `8c21d489`, ses deux ports
+            # le 2026-09-29 : elle décrivait sa card v3. En v4 depuis `548ed778`, ses deux ports
             # offrent ce qu'il déclare, et le relevé, qui ignorait les cards v4, ne la confrontait
             # plus à rien.)
             # (L'entrée `imager` — la card v3 n'offrait que « fichier de prompts .txt/.csv » — est

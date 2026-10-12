@@ -2,7 +2,7 @@
 Le modèle de fichier batch ne propose que des moteurs TTS qui s'exécutent (2026-09-29).
 
 Il montrait `--tts xtts_v2`, nom mort depuis le renommage `xtts_v2 → coqui-xtts` (2026-09-01,
-`fb9ecfd9`) : `engine_for_model('xtts_v2')` lève, donc une ligne recopiée de l'aide échouait.
+`c27f134e`) : `engine_for_model('xtts_v2')` lève, donc une ligne recopiée de l'aide échouait.
 """
 import re
 

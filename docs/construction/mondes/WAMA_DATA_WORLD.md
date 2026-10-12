@@ -3691,7 +3691,7 @@ La réponse est **déjà à moitié dans le dépôt** :
 
 **Ce qui a changé le 2026-09-09 et rend la carte contrôlable.** Jusque-là, une carte d'alias
 aurait pointé vers un ensemble d'arrivée OUVERT : rien ne disait quels noms canoniques existent,
-donc rien n'aurait pu réfuter `lat → latitude_wgs`. Depuis `8734ec8a`, `CANONICAL_FIELDS`
+donc rien n'aurait pu réfuter `lat → latitude_wgs`. Depuis `384ee997`, `CANONICAL_FIELDS`
 (`common/catalog/data_types.py`) est **consulté par `can_connect`** : un `geo_track` porte
 `time`/`lat`/`lon` **par définition de son type**. La cible d'un alias est donc un ensemble
 **FERMÉ et déjà exécutoire** — une carte qui vise un nom hors de cet ensemble est réfutable
@@ -4393,7 +4393,7 @@ casseraient en silence… sauf le premier, que l'instrument attraperait) :
     présentaient comme ouvertes deux choses DÉCIDÉES — la distinction Importer / Connector (§7, §11.5 :
     l'Importer rassemble des fichiers volants dans un nouveau `.wdat`, le Connector connecte une base
     déjà constituée) et la forme de l'export (§11.8 ⑨). Les quatre endroits sont corrigés
-    (`628bcbdc`). Ce qui restait n'était pas une décision mais une MESURE : une base connectée qui
+    (`10cf89d6`). Ce qui restait n'était pas une décision mais une MESURE : une base connectée qui
     change relève de `STALE`, dont la photo ne garde aujourd'hui que le CHEMIN des entrées.
   - ✅ **Livré** : l'entrée `data_connector` (`functions/io/connector.py` — une base ou un dossier de
     bases, inventaire seul à la connexion, flux lus à la demande par le consommateur) et la sortie

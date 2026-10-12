@@ -226,7 +226,7 @@ class TheSettingTravelsThroughTheRoutesTest(TestCase):
         self.assertEqual('instrumental', gen.vocals)
 
     def test_a_creation_without_duration_takes_the_field_s_default_not_ten_seconds(self):
-        # `d4a30c43` moved the default to 3:30 and left two fallbacks of 10 s in the view.
+        # `3624a1f2` moved the default to 3:30 and left two fallbacks of 10 s in the view.
         from wama.composer.models import ComposerGeneration
         with mock.patch('wama.common.utils.user_settings.get_user_app_settings',
                         side_effect=lambda user, app, defaults: dict(defaults)):

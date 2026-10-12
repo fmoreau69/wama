@@ -219,7 +219,7 @@ Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
 
 **Inventaire — SOURCE VIVANTE, pas de liste figée ici.** `FUNCTION_CATALOG` après `load_all()`,
 ou la page `/model-manager/functions/`. **Mesuré le 2026-09-07 : 58 fonctions (20 app-bound)** —
-et le corpus `manifests/functions/` en porte autant depuis `e1c2cd6a`.
+et le corpus `manifests/functions/` en porte autant depuis `a845de66`.
 
 > ⚠ Ce chiffre date la mesure, il n'est **pas un critère**. La liste nominative qui vivait ici
 > annonçait « 19 fonctions » — elle datait du 2026-07-22 et n'a jamais suivi les ajouts

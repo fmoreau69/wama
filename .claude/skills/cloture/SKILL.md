@@ -288,7 +288,7 @@ python manage.py check_redundancy          # compter AVANT/APRÈS ses propres co
   ```
   Chacun est soit **RÉGLÉ**, soit dans la liste des pendings du handoff. **Aucun troisième état.**
   ⚠ **Le MESSAGE de commit est une source à part entière, et le motif doit être LARGE** (vécu le
-  2026-10-04) : `d4a30c43` écrivait « ⚠ Restes : le repli de durée à 10 s… » — le motif d'alors
+  2026-10-04) : `3624a1f2` écrivait « ⚠ Restes : le repli de durée à 10 s… » — le motif d'alors
   (`reste à`, sensible à la casse) ne l'attrapait pas, et le reste a attendu une journée, soldé
   seulement parce qu'un balayage élargi l'a trouvé. *Un reste annoncé dans un commit se solde à
   la clôture ou se nomme au handoff — jamais il ne vit seul dans `git log`.*

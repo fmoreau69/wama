@@ -555,7 +555,7 @@ class PredicatDeVoixClonéeDéfiniUneFoisTest(TestCase):
             # l'avatarizer déclarait tout et n'incluait ni l'un ni l'autre — le bloc, gardé par
             # `if (window.WamaModelCaps)`, était mort sans signal. Cette garde ne lisait que la
             # déclaration ; elle lit désormais aussi le <script src>.
-            # Deux formes de chargement : le <script src> direct, ou — depuis `09b557e8` (socle JS
+            # Deux formes de chargement : le <script src> direct, ou — depuis `9739b6e5` (socle JS
             # d'app, ROUTE §11 #25) — le socle commun AVEC le drapeau de la brique. La garde lisait
             # le seul <script src> et était rouge depuis ce portage (relevé le 2026-10-05).
             socle = 'common/_app_scripts.html' in gabarit

@@ -10,7 +10,7 @@ snapshot est résolu depuis le CATALOGUE (extra_info['path'], posé par l'instal
 avec un repli disque Django-free sur le chemin conventionnel (le service TTS
 n'initialise pas Django). Aucun paquet pip : tout le runtime est déjà dans le venv —
 c'est précisément ce qui met Audio8 en tête de la liste des « CONNUS » (handoff
-16868d89), quand chatterbox exige des pins qui détruiraient le venv partagé.
+f1544bc9), quand chatterbox exige des pins qui détruiraient le venv partagé.
 
 ⚠ CLONAGE NON PROMIS (supports_cloning=False, délibéré) : l'API zero-shot d'Audio8
 exige le TRANSCRIT EXACT de l'audio de référence (`reference_text`) — une donnée que

@@ -100,7 +100,7 @@ class _AppFiles:
 
     # ── Les BACKENDS de l'app — RÉSOLUS, plus lus dans son dossier (2026-09-08) ──────────
     #
-    # Depuis `8c556100`, aucune app ne porte de classe de backend chez elle : les 35 classes
+    # Depuis `397cbe25`, aucune app ne porte de classe de backend chez elle : les 35 classes
     # vivent sous `wama/common/backends/`, et une app appelle SON modèle, dont le catalogue
     # résout le backend. Les critères F4 qui lisaient `wama/<app>/**/*.py` (REQUIRED_PACKAGES,
     # BaseModelBackend, cache_dir=, sondes VRAM) ont donc ROUGI sur 10 apps en une nuit sans
@@ -787,7 +787,7 @@ def _release_card_file(f: _AppFiles):
 
     ⚠ CE CRITÈRE S'APPELAIT `safe_delete` et cherchait `safe_delete_file` dans les vues. Juste
     tant que retirer une card EFFAÇAIT ; faux depuis la décision D34 de `MEDIA_STORAGE_TIERING`
-    (`4e441a80`) : la brique a deux verbes sous une même règle (propriété + partage) —
+    (`78479ed9`) : la brique a deux verbes sous une même règle (propriété + partage) —
     `release_card_file` pour une card qu'on RETIRE, `safe_delete_file` pour une card qui REMPLACE
     son résultat (relance). Mesuré le jour du recalage : les cinq apps qui n'ont aucune relance
     dans leurs vues étaient ROUGES pour avoir suivi la règle, deux étaient vertes par un
@@ -1692,7 +1692,7 @@ def _backend_routes(f: _AppFiles):
     Recalé le 2026-10-06 (décision de Fabien). Ce critère ne connaissait qu'une déclaration,
     `backends/__init__.ROUTES` (nature → callable, marche B1) : il rougissait sur les sept apps
     dont les process choisissent leur backend par le MODÈLE — ce qu'aucune `ROUTES` ne dit, et
-    ce que `8c556100` a tranché : « les ROUTES sont la décision de routage d'APP (nature →
+    ce que `397cbe25` a tranché : « les ROUTES sont la décision de routage d'APP (nature →
     fonction), PAS le lien modèle → backend », qui vit au catalogue (le modèle porte son moteur,
     le backend s'en dérive). Leur imposer des `ROUTES` aurait été une déclaration fictive,
     doublon du catalogue. Il connaissait encore moins la LECTURE : le converter était vert sur
@@ -1736,7 +1736,7 @@ def _backend_routes(f: _AppFiles):
                            "`ENGINE` des backends (porte `backend_for_model`)")
     if f.glob('backends/*.py'):
         return False, "paquet backends/ présent sans routage déclaré (ni ROUTES, ni porte du catalogue)"
-    # ⚠ Depuis le 08/09 les CLASSES vivent au substrat (8c556100) : une app sans paquet n'a donc
+    # ⚠ Depuis le 08/09 les CLASSES vivent au substrat (397cbe25) : une app sans paquet n'a donc
     # plus « le moteur enfoui » — elle a des backends résolus et pas de routage déclaré.
     resolus = f.backend_paths()
     if resolus:
@@ -1849,7 +1849,7 @@ def _tool_api_item_id(f: _AppFiles):
     if re.search(r"""['"]item_id['"]""", m.group(0)):
         return True, f"tool_api.py:{line} (retourne 'item_id')"
     # Un alias qui DÉLÈGUE (`@wraps(create_image)` puis `return create_image(…)`) : depuis le
-    # 2026-10-06 (`c928fd69`) les créateurs rendent la clé EUX-MÊMES et les alias ne la recopient
+    # 2026-10-06 (`1ffa1431`) les créateurs rendent la clé EUX-MÊMES et les alias ne la recopient
     # plus. Le critère lisait le seul corps de l'alias — rouge ×4 sur un contrat tenu.
     delegate = re.search(r"^\s*return\s+(\w+)\(", m.group(0), re.M)
     if delegate:
@@ -2258,7 +2258,7 @@ CRITERIA: list[Criterion] = [
     Criterion('processing_time', 'F5', 'ProcessingTimeMixin (temps réel persisté)',
               lambda f: _present(f, MODELS, r'ProcessingTimeMixin')),
     #: ⚠ DEUX graphies acceptées depuis le 2026-09-01 : les statuts ont pris un DOMICILE
-    #: UNIQUE (`common/models.py::JOB_STATUS_CHOICES`, commit 515da622) et les apps
+    #: UNIQUE (`common/models.py::JOB_STATUS_CHOICES`, commit f192497a) et les apps
     #: l'IMPORTENT au lieu d'écrire 'SUCCESS' en dur. Ne chercher que la graphie en dur
     #: mettait les 10 apps au ROUGE le jour même de la centralisation — 3ᵉ occurrence du
     #: précédent `btn_order`/`batch_card_common` (le critère doit SUIVRE ce qu'il mesure

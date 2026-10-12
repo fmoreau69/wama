@@ -3,7 +3,7 @@ Où vivent les tests — la règle `WAMA_APP_CONVENTIONS §1.1` tenue par un con
 
 Au-delà d'une dizaine de fichiers de test, une app les range dans un paquet `tests/` ; et une app
 qui a ce paquet n'en remet plus à sa racine. Le 29/09, les 144 tests de `wama/common` y sont passés
-(`0db25a8c`) pendant que plusieurs instances avaient l'habitude d'écrire `wama/common/tests_x.py` :
+(`ff59295d`) pendant que plusieurs instances avaient l'habitude d'écrire `wama/common/tests_x.py` :
 sans garde, le premier test neuf serait revenu à la racine, et la règle n'aurait tenu que de mémoire.
 """
 from pathlib import Path

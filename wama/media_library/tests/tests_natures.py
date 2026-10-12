@@ -19,7 +19,7 @@ from wama.media_library import natures
 from wama.media_library.models import (ALLOWED_EXTENSIONS, ASSET_TYPE_CATEGORY, ASSET_TYPES,
                                        TYPE_GROUPS, SystemAsset, UserAsset)
 
-#: `models.py` au 2026-09-12 (commit e90c18de) — recopié tel quel, c'est la référence.
+#: `models.py` au 2026-09-12 (commit 221e9595) — recopié tel quel, c'est la référence.
 #: ⚠ Nature `speech` AJOUTÉE le 2026-09-28 (décision Fabien : les jeux d'évaluation ASR vont en
 #: médiathèque SYSTÈME, `WAMA_QUALITE §9bis`) — une réunion n'est pas une voix de clonage — et
 #: `srt`/`vtt` admis en `document` (les références de ces jeux). Empreinte recalée à la mesure.

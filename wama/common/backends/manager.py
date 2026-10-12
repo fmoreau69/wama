@@ -337,7 +337,7 @@ def route_for_nature(package: str, nature: str, routes: dict = None):
 
     L'AUTRE moitié du routage, et pas un second chemin vers un backend : les trois portes
     ci-dessus vont du MODÈLE au backend (le catalogue) ; celle-ci suit la décision de routage
-    de l'APP (`backends/__init__.ROUTES`, « la frontière », 8c556100) — une nature mène à une
+    de l'APP (`backends/__init__.ROUTES`, « la frontière », 397cbe25) — une nature mène à une
     fonction de l'app, qui résout elle-même son modèle par les portes du catalogue.
 
     `package` : le paquet de l'app appelante (`__package__`) — l'import est RELATIF À LUI, ce
@@ -367,7 +367,7 @@ def route_for_nature(package: str, nature: str, routes: dict = None):
 # dans l'autre sens : parmi les modèles du catalogue que cette classe exécute, celui que ce nom
 # désigne. Avant, la source se DÉDUISAIT du chemin du module (`base._app_of`) — juste tant que
 # les backends vivaient dans les apps, faux pour les 101 modèles résolus depuis leur
-# déménagement sous `common/backends/` (8c556100 ; mesuré le 2026-09-14 : 0 clé juste).
+# déménagement sous `common/backends/` (397cbe25 ; mesuré le 2026-09-14 : 0 clé juste).
 CATALOG_INDEX_TTL_S = 60.0
 _CATALOG_INDEX: dict = {}
 

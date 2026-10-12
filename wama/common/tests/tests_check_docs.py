@@ -195,7 +195,7 @@ class ContratNocturneTests(SimpleTestCase):
                                    f"Bilan : 5 cassée(s), 0 périmée(s)\n")
         # ⚠ Ce test porte sur le COMPTAGE (cinq références, UNE cible), pas sur le verdict.
         # Il assertait aussi `ok` — ce qui le liait au BUDGET : quand `CIBLES_ASSUMEES` est
-        # passé de 1 à 0 (seuil resserré une fois les docs à zéro, commit df48f1e0), il est
+        # passé de 1 à 0 (seuil resserré une fois les docs à zéro, commit abec23cd), il est
         # devenu rouge sans qu'une ligne de la logique testée ne bouge.
         # *Un test de comptage qui asserte une POLITIQUE casse au premier changement de seuil.*
         # Le verdict reste éprouvé là où il est vraiment en jeu, deux tests plus bas.

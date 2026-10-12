@@ -308,7 +308,7 @@ class AdoptionDeLaBriqueTest(SimpleTestCase):
                 self.assertIs(etat, True, f'{app} : {preuve}')
 
     def test_wama_import_js_est_charge_avant_le_script_qui_l_instancie(self):
-        # Depuis le socle JS d'app (`09b557e8`, ROUTE §11 #25), la brique se charge par
+        # Depuis le socle JS d'app (`9739b6e5`, ROUTE §11 #25), la brique se charge par
         # `common/_app_scripts.html` et plus par une balise écrite dans chaque gabarit : le test
         # cherchait encore la balise et était ROUGE ×7 depuis (relevé « préexistant » par deux
         # clôtures du 2026-10-06 sans sa cause). Les deux graphies valent ; le socle doit, lui,

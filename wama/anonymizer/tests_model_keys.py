@@ -2,7 +2,7 @@
 catalogue KEYS — the pattern of the enhancer (`enhancer.tests.CatalogueKeysTest`).
 
 Measured before switching: once document layout and open-vocabulary detection left `detect`
-(`52919e35`), the task domain gives the same 32 models as the old `source='anonymizer'` one, all
+(`9c2b2e8e`), the task domain gives the same 32 models as the old `source='anonymizer'` one, all
 served. A model of another source may still enter it tomorrow: the launch refuses what nothing
 serves, with the reason.
 """

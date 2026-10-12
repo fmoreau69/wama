@@ -1,4 +1,4 @@
-"""Grille F4/F5 après l'EXTERNALISATION des backends (8c556100, 2026-09-08).
+"""Grille F4/F5 après l'EXTERNALISATION des backends (397cbe25, 2026-09-08).
 
 Le 08/09 au matin, une remesure de la grille rendait `backend_packages` 0/10,
 `hf_cache_isolation` 🔶 9/10, `backend_contract` rouge sur 4 apps — la nuit même où les
@@ -229,7 +229,7 @@ class CriteresSurBackendsResolusTest(SimpleTestCase):
 
 
 class BackendRoutingIsDeclaredAndReadTest(SimpleTestCase):
-    """`backend_routes`, recalé le 2026-10-06 : deux déclarations légitimes (8c556100), chacune
+    """`backend_routes`, recalé le 2026-10-06 : deux déclarations légitimes (397cbe25), chacune
     LUE par sa porte — ROUTES par nature (`route_for_nature`), catalogue par modèle
     (`backend_for_key` / `backend_for_model`). Partiel : ce qui déclare sans lire, ou ce qui
     contourne la porte."""

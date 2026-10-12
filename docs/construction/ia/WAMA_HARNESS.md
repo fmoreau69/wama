@@ -310,7 +310,7 @@ de nos propres retards de doc.*
 (`openai`, `mistral`…) n'a ni garde ni clé personnelle, atteignable par l'API v1 et un POST forgé*
 (`WAMA_LLM.md:782`). Et `OPENAI_COMPATIBLE_PROVIDERS` est une **dérivation pure** de
 `protocol == 'openai'` — exactement le geste fait le 2026-09-19 sur les doublons de format
-(`ba5810bc`).
+(`10485654`).
 
 **Les deux tables ne se contredisent pas ; c'est leur COEXISTENCE qui est le défaut.**
 Seul apport net de l'état de l'art ici : **délai et reprises déclarés par fournisseur** (un modèle

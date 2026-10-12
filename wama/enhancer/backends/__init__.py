@@ -4,7 +4,7 @@ Les CLASSES vivent au substrat depuis le 06/09 (`wama/common/backends/ai_upscale
 `wama/common/backends/audio_enhancer.py`, contrat `BaseModelBackend`) et se DÉRIVENT du
 catalogue (`backend_for_key('enhancer:<id>')`). Ce paquet ne porte que ce qui reste une
 décision d'app : le ROUTAGE nature → callable au contrat commun (« ce n'est pas un reste,
-c'est la frontière », 8c556100), que `tasks_gen` compose en corps de tâche.
+c'est la frontière », 397cbe25), que `tasks_gen` compose en corps de tâche.
 """
 
 #: ── ROUTAGE nature → backend : LA déclaration que la chaîne de génération COMPOSE ─────────

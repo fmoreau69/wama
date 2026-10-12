@@ -1127,7 +1127,7 @@ APP_CATALOG = {
         'description': 'Génération de musique et effets sonores par IA.',
         # fichier de prompts (lot) + MÉLODIE de référence — même forme que l'imager
         # (`TEXT + IMAGE`, « fichier de prompts (lot) + image reference »). L'audio est
-        # entré dans la card au portage du mode ATTACHE (2026-09-07, `b5fc83eb`) sans que
+        # entré dans la card au portage du mode ATTACHE (2026-09-07, `0fb57ca9`) sans que
         # cette déclaration suive : `tests_catalogues.CardEntreeConformiteTest` a relevé
         # l'écart. `input_types` NE bouge PAS — l'audio est une RÉFÉRENCE, pas une nature
         # d'entrée de travail (le composer part d'un prompt).

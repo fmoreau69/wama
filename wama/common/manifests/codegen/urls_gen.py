@@ -80,7 +80,7 @@ ROUTE_ALIASES = {
     # template only emits it when it finds this route) and a 501 stub as edit view: measured on
     # `describer_01`, whose ⚙ did nothing (« aucune app n'a déclaré d'ouvreur »).
     # Same evening, the real apps were aligned on CONVENTIONS §3.1 (`update_settings`), the
-    # transcriber the next day (f38685b3): only frozen sandbox twins (copied views) still use
+    # transcriber the next day (7a9a4dbb): only frozen sandbox twins (copied views) still use
     # another name — the aliases stay until they are regenerated (criterion `settings_route`,
     # `tests_endpoints.ItemEditRouteConventionTest`).
     # ⚠ `update_settings` is ALSO the anonymizer's name for a GLOBAL settings route, without pk.

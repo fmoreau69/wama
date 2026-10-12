@@ -36,7 +36,7 @@ def _noop(*_a, **_k):
 
 def _gpu_safe_mode() -> bool:
     """Garde GPU (WAMA_GPU_SAFE_MODE) — JUMELLE de la garde du triage VLM du smoke
-    (27898e4b, crashs hôte du 02/09 : la montée VRAM Ollama est le facteur commun).
+    (af378453, crashs hôte du 02/09 : la montée VRAM Ollama est le facteur commun).
     Une garde se pose avec ses jumeaux : ce chemin-ci monte Ollama vision de la même
     façon, sans opt-in utilisateur (cascade AUTOMATIQUE). Les usages Ollama DEMANDÉS
     (résumé LLM, cohérence — toggles explicites) restent hors garde."""

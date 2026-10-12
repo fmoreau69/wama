@@ -289,7 +289,7 @@ class TroisiemeVoieTest(SimpleTestCase):
     `mkdir(parents=True)` — donc ils étaient VERTS SOUS WINDOWS EN CRÉANT `D:\\dossier\\famille`
     sur le disque réel (mesuré : le dossier y était), et ROUGES SOUS LINUX où `/dossier` est
     la racine système (`PermissionError`). Ils n'ont jamais pu passer sous WSL2 depuis leur
-    création (`6595ba6e`) : le chantier les avait validés depuis venv_win seul.
+    création (`8fb73004`) : le chantier les avait validés depuis venv_win seul.
     Même famille que le `MEDIA_ROOT` réel soldé le 25/08 — **un test qui écrit hors de son
     dossier jetable ment sur au moins une plateforme.**
     """
