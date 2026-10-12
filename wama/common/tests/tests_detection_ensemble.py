@@ -3,8 +3,8 @@
 A frame detector writes only `detect_frames` : the common loop keeps the asked classes above
 its threshold and builds the document ; documents of several detectors are joined ; ultralytics
 models go through `Anonymize`, any other through its own backend ; the coverage adds models per
-class and ranks them by their MEASURED miss rate when the whole lot is measured ; the recall
-bench counts containers.
+class and ranks them by their MEASURED miss rate when the whole lot is measured. (The recall
+bench's container counts are tested with the bench, `model_manager/tests/tests_bench_boxes.py`.)
 """
 import os
 import shutil
@@ -233,19 +233,6 @@ class EnsembleCoverageTest(TestCase):
         self.assertEqual('anonymizer:yolo:yolov8m-plates.pt',
                          self._plates(taille_preferee='m')[0],
                          'one unmeasured candidate : the old order holds')
-
-
-class ContainmentCountsTest(SimpleTestCase):
-
-    def test_a_near_container_is_found_when_a_detection_centre_falls_in_it(self):
-        from wama.model_manager.services.bench import containment_counts
-        ref = {'min_height': 45, 'containers': [
-            [[0, 0, 100, 60], [200, 0, 260, 30]],       # near, far
-            [[0, 0, 100, 60]]]}
-        doc = _doc('x', [], {0: [dets.detection(box=[40, 40, 50, 46], label='plate'),
-                                 dets.detection(box=[300, 100, 310, 104], label='plate')]})
-        self.assertEqual({'near': 2, 'found': 1, 'missed': 1, 'detections': 2, 'inside': 1},
-                         containment_counts(doc, ref))
 
 
 class FrameDetectorResolutionTest(TestCase):

@@ -58,6 +58,24 @@ class MatchTest(SimpleTestCase):
         self.assertEqual({'tiny': 1}, counts['hit_buckets'])
 
 
+class ContainmentCountsTest(SimpleTestCase):
+    """The recall bench on containers (moved here from `tests_detection_ensemble`, 2026-10-12 :
+    a test of the bench is part of the bench, not a consumer of it)."""
+
+    def test_a_near_container_is_found_when_a_detection_centre_falls_in_it(self):
+        from wama.common.utils import detections as dets
+        from wama.model_manager.services.bench import containment_counts
+        ref = {'min_height': 45, 'containers': [
+            [[0, 0, 100, 60], [200, 0, 260, 30]],       # near, far
+            [[0, 0, 100, 60]]]}
+        doc = dets.new_document(media='video', width=64, height=48, fps=10, frame_count=5,
+                                engine='x', models=[], classes=['plate'])
+        dets.add(doc, 0, [dets.detection(box=[40, 40, 50, 46], label='plate'),
+                          dets.detection(box=[300, 100, 310, 104], label='plate')])
+        self.assertEqual({'near': 2, 'found': 1, 'missed': 1, 'detections': 2, 'inside': 1},
+                         containment_counts(doc, ref))
+
+
 class ReferenceTest(SimpleTestCase):
 
     def test_the_reference_points_at_the_native_annotation_by_relative_paths(self):
