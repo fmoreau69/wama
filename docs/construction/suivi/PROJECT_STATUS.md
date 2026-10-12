@@ -22999,6 +22999,25 @@ Détail, mesures et réponses aux questions de sécurité : `PROSPECTION_PIPELIN
   `GITHUB_TOKEN` dans `external_sources` (proposition faite, attend le feu vert) · cartes `github`
   sans lien de version au model manager (palier du 10/10 soir).
 
+## §CLÔTURE — 2026-10-12, « CHAMPS SECRETS : le navigateur n'y remplit plus le mot de passe WAMA » — livré (`6dc83c7c`, non poussé) — 🔴 relancer gunicorn (widgets de `accounts/models.py`) + Ctrl+F5
+
+Relevé de Fabien : l'œil de « Clé de l'instance » (HuggingFace, ILaaS…) affichait son mot de
+passe WAMA en clair. WAMA ne renvoie jamais une clé : Chrome remplissait le champ,
+`autocomplete="off"` étant ignoré sur un `type="password"`. Détail : `WAMA_LLM.md` (sous les clés
+d'instance).
+- ✅ `WamaKeyField` (profil + Sources), jeton d'API du profil, « Ajouter un utilisateur »,
+  inscription → `new-password` ; connexion → `current-password`. Copie servie resynchronisée,
+  rendu vérifié en V8.
+- ✅ Garde `tests_password_autofill` (4 tests) : tout champ mot de passe des gabarits, du JS et des
+  widgets Django déclare `new-password`/`current-password` ; elle voit les 6 champs et 3 widgets
+  réels ; **contre-épreuve par mutation** (brique remise en `off` → ROUGE, restaurée).
+- Contrôles mesurés à la clôture : 176 tests OK (garde + `tests_external_sources` + `accounts`) ;
+  `check_redundancy` : aucune trouvaille dans les fichiers de la session ; `check_docs` : 21
+  cassées / 3 périmées, aucune dans `WAMA_LLM.md` ; `check_skills` : 0 défaut franc.
+- 🔚 **Fabien** : vérifier qu'aucune clé PERSONNELLE n'a été enregistrée pendant que Chrome
+  remplissait le champ (sinon c'est le mot de passe qui est stocké comme clé) — non vérifié en
+  base. Pousser `6dc83c7c`.
+
 ## §PALIER — 2026-10-12, « RÉGLAGES : une forme, un rendu, une porte, tous mondes (ROUTE §10.6 3.3bis, marche R1) » — livré (`f1c3d4e1` + docs dérivées `de63f973`, non poussés) — 🔴 relancer gunicorn (vues studio/avatarizer, `tool_api`) + Ctrl+F5 (Studio)
 
 - **Livré** : le Studio rend TOUS ses nœuds (apps, fonctions, nœuds intégrés) par `WamaParams`
