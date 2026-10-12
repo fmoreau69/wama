@@ -496,6 +496,109 @@ class CatalogueUpdateInTheBackgroundTest(TestCase):
         self.assertEqual({'registered': False}, register_cloud_key_task(pk))
 
 
+#: Shape of ILaaS's `GET /v1/models`, read with the real key on 2026-10-12: no `type`, no
+#: aliases — only `id`, `object`, `owned_by`. Fixes the form the parser reads, describes nothing.
+ILAAS_LISTING = [{'id': model_id, 'object': 'model', 'owned_by': model_id}
+                 for model_id in ('gemma-4-31b', 'llama-3.1-8b', 'mistral-small-4-119b')]
+
+
+def _listing_answers(*listings, status=200):
+    """`requests.get` answers, one per call: the provider's `data` for each read."""
+    return [mock.Mock(status_code=status, ok=status < 400,
+                      json=mock.Mock(return_value={'object': 'list', 'data': list(data)}))
+            for data in listings]
+
+
+@override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
+class EmptyListingTest(TestCase):
+    """2026-10-12 — ILaaS answers `{"data": []}` with HTTP 200 to about one read in two (9 of 20
+    measured, same key, same headers; its chat answers 10 times out of 10). Taken as a list, the
+    empty answer emptied the instance key of its models and `retire_unlisted` withdrew their
+    catalogue rows — on the « Save » gesture and at the nightly probe alike, with no error shown."""
+
+    def setUp(self):
+        from wama.accounts.models import InstanceApiKey
+        _sync_cloud_seul(self)
+        self.row = InstanceApiKey.objects.create(source='ilaas', api_key='sk-ilaas', shared=True)
+
+    def _list(self, *listings, status=200):
+        with mock.patch('requests.get', side_effect=_listing_answers(*listings, status=status)) as get:
+            try:
+                return get, cloud_models.list_remote_models('ilaas', 'sk-ilaas'), None
+            except cloud_models.CloudDiscoveryError as exc:
+                return get, None, exc
+
+    def _refresh(self, *listings):
+        with mock.patch('requests.get', side_effect=_listing_answers(*listings)):
+            return cloud_models.refresh_key(self.row)
+
+    def test_an_empty_answer_is_read_again_until_the_list_comes(self):
+        get, models, error = self._list([], [], ILAAS_LISTING)
+        self.assertIsNone(error)
+        self.assertEqual(3, get.call_count)
+        self.assertEqual([m['id'] for m in ILAAS_LISTING], [m['id'] for m in models])
+        # No `type` in the listing: the type DECLARED by the source applies.
+        self.assertEqual({'text-generation'}, {m['type'] for m in models})
+
+    def test_a_list_that_stays_empty_is_a_discovery_error(self):
+        get, models, error = self._list(*([[]] * cloud_models.LISTING_ATTEMPTS))
+        self.assertIsNone(models)
+        self.assertEqual(cloud_models.LISTING_ATTEMPTS, get.call_count)
+        self.assertIn("n'a rendu aucun modèle", str(error))
+
+    def test_a_full_list_is_read_once(self):
+        # Counter-check: a provider that answers is not called again.
+        get, models, _ = self._list(ILAAS_LISTING)
+        self.assertEqual((1, 3), (get.call_count, len(models)))
+
+    def test_a_refused_key_is_not_read_again(self):
+        # Counter-check: a refusal is an answer, not an empty list — reading again would only
+        # repeat it (and hammer a provider that counts refused calls).
+        get, models, error = self._list([], status=401)
+        self.assertEqual(1, get.call_count)
+        self.assertIn('clé refusée', str(error))
+
+    def test_the_key_keeps_its_models_and_the_catalogue_its_rows(self):
+        self.assertEqual((3, ''), self._refresh(ILAAS_LISTING))
+        row = AIModel.objects.get(model_key='ilaas:gemma-4-31b')
+        self.assertTrue(row.is_available)
+        count, error = self._refresh(*([[]] * cloud_models.LISTING_ATTEMPTS))
+        self.assertEqual(0, count)
+        self.row.refresh_from_db()
+        self.assertEqual(error, self.row.discovery_error, 'the error is SAID on the key row')
+        self.assertEqual(3, len(self.row.open_models), 'the previous list is kept')
+        self.assertEqual([m['id'] for m in ILAAS_LISTING],
+                         [m['id'] for m in self.row.remote_listing])
+        row.refresh_from_db()
+        self.assertTrue(row.is_available, 'the catalogue row is not withdrawn')
+
+    def test_saving_the_key_on_the_sources_page_says_the_empty_answer(self):
+        """The gesture of the « Sources externes » page (`store_key`): an empty answer read
+        again gives the models; one that stays empty is said, and the key stays saved."""
+        from wama.accounts.api_keys import store_key
+        with mock.patch('requests.get', side_effect=_listing_answers([], ILAAS_LISTING)):
+            result = store_key(self.row, 'sk-ilaas-2')
+        self.assertEqual((200, 3, ''),
+                         (result['status'], result['models_count'], result['discovery_error']))
+        with mock.patch('requests.get',
+                        side_effect=_listing_answers(*([[]] * cloud_models.LISTING_ATTEMPTS))):
+            result = store_key(self.row, 'sk-ilaas-3')
+        self.assertEqual((200, True), (result['status'], result['has_key']))
+        self.assertIn("n'a rendu aucun modèle", result['discovery_error'])
+        self.row.refresh_from_db()
+        self.assertEqual(('sk-ilaas-3', 3), (self.row.api_key, len(self.row.open_models)))
+
+    def test_the_nightly_probe_keeps_the_list_and_reports_the_empty_answer(self):
+        self._refresh(ILAAS_LISTING)
+        with mock.patch('requests.get',
+                        side_effect=_listing_answers(*([[]] * cloud_models.LISTING_ATTEMPTS))):
+            summary = cloud_models.refresh_all_keys()
+        self.assertIn("n'a rendu aucun modèle", summary['errors']['ilaas'])
+        self.assertEqual({}, summary['removed'])
+        self.row.refresh_from_db()
+        self.assertEqual(3, len(self.row.open_models))
+
+
 @override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
 class HostingCeilingTest(TestCase):
     """SECOND AXE du cloud (2026-10-03) : le niveau dit QUAND, le plafond dit JUSQU'OÙ, et un

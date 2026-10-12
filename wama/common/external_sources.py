@@ -388,9 +388,10 @@ SOURCES: tuple[ExternalSource, ...] = (
     # ESR), protocole OpenAI. Il délivre des clés d'APPLICATION (une par service, validée par
     # un admin ILaaS) : d'où `shareable` — l'admin WAMA la pose sur la page Sources externes et
     # la partage ; un compte qui a sa clé individuelle ILaaS la pose au profil, elle prime.
-    # ⚠ `default_remote_type` : leur `/models` n'a pas été lu avec une vraie clé (demande en
-    # cours) ; si la liste ne dit pas la tâche, `text-generation` sous-déclare la vision de
-    # certains modèles plutôt que de la prêter à ceux qui ne l'ont pas. À remesurer à la clé.
+    # ⚠ `default_remote_type` : MESURÉ le 2026-10-12 avec la vraie clé, leur `/models` ne porte
+    # que `id`, `object`, `owned_by` — aucune tâche. `text-generation` vaut donc pour les 6
+    # modèles : il sous-déclare la vision éventuelle de certains plutôt que de la prêter à ceux
+    # qui ne l'ont pas. La même liste répond VIDE à ~1 lecture sur 2 (`cloud_models.LISTING_ATTEMPTS`).
     # Embeddings (`rag-api.ilaas.fr`, jeton à part) et transcription (adresse remise avec la
     # clé) : non branchés — le RAG de WAMA a ses propres embeddings (`WAMA_MEMORY.md`).
     ExternalSource(
@@ -402,7 +403,7 @@ SOURCES: tuple[ExternalSource, ...] = (
         api_key_help_url='https://www.ilaas.fr/demande-de-cles-ilaas/',
         hosting='sovereign', cost_tier='free', protocol='openai',
         default_remote_type='text-generation',
-        # ⚠ Non mesuré (clé en attente) : nom PUBLIÉ de leur liste des modèles.
+        # Identifiant SERVI, mesuré le 2026-10-12 (`llm_gateway_check --provider ilaas`).
         default_model='mistral-small-4-119b', doc='docs/construction/ia/WAMA_LLM.md'),
     # 2026-10-10 (décision de Fabien) : OpenRouter, AGRÉGATEUR — une clé, plusieurs centaines de
     # modèles de nombreux éditeurs, protocole OpenAI. Sa liste (`GET /models`, lisible sans clé)

@@ -9,7 +9,9 @@ DÉCOUVERTE PAR LES CLÉS DES UTILISATEURS (Fabien, 15/09) : à l'enregistrement
 les modèles ouverts à CE compte (`GET /models`) et les garde avec la clé ; le catalogue porte
 l'UNION. Chaque utilisateur ne choisit que ce que SA clé ouvre.
 ⚠ Une clé qui ne voit plus un modèle ne prouve pas qu'il a disparu (il peut être fermé à ce seul
-compte) : la découverte AJOUTE et MET À JOUR, elle ne retire rien du catalogue.
+compte) : une ligne n'est retirée que si AUCUNE clé de la source ne l'ouvre plus — MARQUÉE
+indisponible, jamais supprimée (`retire_unlisted`). *Ce paragraphe disait jusqu'au 2026-10-12
+« elle ne retire rien du catalogue » : périmé depuis `retire_unlisted` (18/09).*
 
 NON-RÉGRESSION : ces lignes n'entrent au tirage que par `select_model(cloud_keys=…)`, que
 `allowed_cloud_keys` calcule d'après le niveau cloud du profil.
@@ -140,25 +142,48 @@ def _is_free(pricing) -> bool:
         return False
 
 
+#: Lectures de la liste avant de conclure qu'un fournisseur n'en rend AUCUNE (2026-10-12).
+#: MESURÉ ce jour chez ILaaS : `GET /models` répond `{"data": []}` en HTTP 200 à 9 lectures
+#: sur 20, avec la même clé et les mêmes en-têtes, quand les autres rendent les 6 modèles — un
+#: serveur de leur répartiteur ne connaît pas la clé (le chat, lui, répond 10 fois sur 10).
+#: Cinq lectures laissent ~2 % de chances de n'en avoir que des vides, pour une seconde au plus.
+LISTING_ATTEMPTS = 5
+
+
 def list_remote_models(source: str, api_key: str, timeout: float = 20.0) -> list:
-    """Modèles ouverts à `api_key` chez `source` : [{id, name, type, aliases[, cost_tier]}]."""
+    """Modèles ouverts à `api_key` chez `source` : [{id, name, type, aliases[, cost_tier]}].
+
+    Une liste VIDE n'est pas une réponse (2026-10-12) : une clé qu'un fournisseur de modèles
+    accepte et à laquelle il n'ouvre rien, c'est une panne de sa liste, pas un fait. La prendre
+    pour une liste vidait la clé de ses modèles et retirait leurs lignes du catalogue
+    (`retire_unlisted`), au geste « Enregistrer » comme à la sonde nocturne — sans rien
+    afficher. Elle est relue (`LISTING_ATTEMPTS`), puis levée en `CloudDiscoveryError` : c'est
+    le chemin qui GARDE la liste précédente et dit l'erreur sur la ligne de la clé.
+    """
     import requests
 
     src = external_sources.get(source)
     label = src.label
     params = {'limit': 1000} if src.protocol == 'anthropic' else None
-    try:
-        r = requests.get(f"{external_sources.base_url(source)}/models",
-                         headers=_auth_headers(src, api_key), params=params,
-                         proxies=external_sources.proxies_for(source), timeout=timeout)
-    except requests.RequestException as exc:
-        raise CloudDiscoveryError(f"{label} injoignable ({type(exc).__name__})") from exc
-    if r.status_code in (401, 403):
-        raise CloudDiscoveryError(f"clé refusée par {label} (HTTP {r.status_code})")
-    if not r.ok:
-        raise CloudDiscoveryError(f"{label} : HTTP {r.status_code}")
+    for _attempt in range(LISTING_ATTEMPTS):
+        try:
+            r = requests.get(f"{external_sources.base_url(source)}/models",
+                             headers=_auth_headers(src, api_key), params=params,
+                             proxies=external_sources.proxies_for(source), timeout=timeout)
+        except requests.RequestException as exc:
+            raise CloudDiscoveryError(f"{label} injoignable ({type(exc).__name__})") from exc
+        if r.status_code in (401, 403):
+            raise CloudDiscoveryError(f"clé refusée par {label} (HTTP {r.status_code})")
+        if not r.ok:
+            raise CloudDiscoveryError(f"{label} : HTTP {r.status_code}")
+        data = r.json().get('data') or []
+        if data:
+            break
+    else:
+        raise CloudDiscoveryError(f"{label} n'a rendu aucun modèle ({LISTING_ATTEMPTS} lectures) : "
+                                  "liste précédente conservée")
     out = []
-    for m in (r.json().get('data') or []):
+    for m in data:
         if not m.get('id'):
             continue
         # Protocole OpenAI (Albert) : `type` est une tâche. Chez Anthropic, `type` vaut « model »

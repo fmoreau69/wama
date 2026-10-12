@@ -22915,6 +22915,36 @@ celle-ci. `check_redundancy` : rien sur les symboles neufs.
 `/models` et son attente sur 429) ; `WAMA_MECANISMES.md` (`mecanismes.py` toujours co-édité) ;
 embeddings et transcription d'ILaaS (exigent la clé).
 
+## §PALIER — 2026-10-12, « CLÉ ILaaS posée et MESURÉE — la liste vide n'est plus une liste » — livré (non commité) — 🔴 relancer gunicorn + workers (la sonde nocturne de l'ancien code peut revider la clé)
+
+Clé d'APPLICATION ILaaS reçue, posée par Fabien sur la page Sources et partagée. Détail mesuré :
+`WAMA_LLM.md` (bloc ILaaS).
+- ✅ `llm_gateway_check --provider ilaas` OK ; `mistral-small-4-119b` = identifiant servi ;
+  6 modèles ; `/models` ne porte aucune tâche (`text-generation` pour tous).
+- **Défaut trouvé** : `/models` d'ILaaS répond `{"data": []}` en 200 à 9 lectures sur 20 (le chat
+  10/10). La découverte prenait le vide pour une liste : clé enregistrée à 12:05 avec 0 modèle,
+  sans erreur affichée, et `retire_unlisted` aurait retiré les lignes à chaque sonde nocturne.
+  **Corrigé pour toute source** dans `cloud_models.list_remote_models` : relue
+  `LISTING_ATTEMPTS` (5) fois, puis `CloudDiscoveryError` — le chemin existant qui garde la liste
+  précédente et dit l'erreur sur la ligne de la clé (« Clé enregistrée, modèles non lus : … »).
+  Garde `tests_cloud_models.EmptyListingTest` (7 tests : liste, page Sources via `store_key`,
+  sonde nocturne, catalogue) ; contre-épreuve avec la fonction de HEAD : les 5 attendus rouges
+  pour la bonne raison, les 2 contre-cas (liste pleine lue une fois, clé refusée non relue) verts.
+- Découverte relancée sur le live avec le code corrigé : 6 modèles `ilaas:*` au catalogue,
+  disponibles ; joué par l'assistant (compte sans clé ILaaS personnelle) → clé partagée, 6 modèles
+  au choix et au tirage, réponse correcte (fil d'essai effacé).
+- Constat périmé corrigé : l'en-tête de `cloud_models.py` disait que la découverte « ne retire rien
+  du catalogue » — faux depuis `retire_unlisted` (`8e73ac26`, 18/09).
+
+**Tests** : `tests_cloud_models` + `tests_api_keys` (96), `tests_claude_subscription`,
+`tests_external_sources` verts. **Rouge, pas de cette session** : budgets de langue (code 2669 >
+2668, classes 133 > 132, méthodes 1303 > 1301) — WIP d'autres instances (`ui_smoke.py`,
+`doc_facts.py`, `check_docs.py`…) ; aucun identifiant relevé dans les lignes ajoutées ici.
+
+**Restent** : 🔚 signaler à ILaaS la liste vide intermittente · vision de `gemma-4-31b` / des Qwen
+à MESURER puis déclarer (aucune tâche dans leur liste) · attente sur 429 non mesurée · clé
+d'embedding reçue, rangée hors WAMA (rien ne la lit : `rag-api.ilaas.fr` non branché).
+
 ## §PALIER — 2026-10-10 (soir), « CodeFormer : poids par le CATALOGUE » — livré (commit de ce palier, non poussé) — 🔴 relancer TOUS les workers (une synchro planifiée sur l'ancien code efface la déclaration de la ligne `avatarizer:codeformer`), puis `python manage.py pull_model avatarizer:codeformer` (rien à télécharger : vérifie et journalise)
 
 Repli de `setup_avatarizer.sh` corrigé en passant par la route du catalogue : l'app déclare les

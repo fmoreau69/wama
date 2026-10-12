@@ -852,10 +852,28 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
 - **ILaaS (fédération d'inférence de l'ESR) — déclarée le 2026-10-07**, source `ilaas`
   (`https://llm.ilaas.fr/v1`, protocole OpenAI, `hosting='sovereign'`). Elle délivre des clés
   d'**APPLICATION** (une par service, validée par un admin ILaaS) : la source se déclare donc
-  `shareable`. ⚠ **Non mesurée** : aucune vraie clé à la date (demande en cours) — le format de
-  `/models` (porte-t-il la tâche ?), le modèle par défaut (`mistral-small-4-119b`, nom PUBLIÉ) et
-  la sortie restent à attester par `manage.py llm_gateway_check --provider ilaas`. Embeddings
-  (`rag-api.ilaas.fr`, jeton à part) et transcription : non branchés.
+  `shareable`. Embeddings (`rag-api.ilaas.fr`, jeton à part) et transcription : non branchés.
+  **Mesurée le 2026-10-12, avec la vraie clé d'application** (posée sur la page Sources,
+  partagée) :
+  - `llm_gateway_check --provider ilaas` → « ✓ Passerelle OK » ; `mistral-small-4-119b` est bien
+    l'identifiant SERVI, pas seulement le nom publié ;
+  - `/models` ouvre **6 modèles** (`gemma-4-31b`, `llama-3.1-8b`, `mistral-medium-latest`,
+    `mistral-small-4-119b`, `qwen-3.6-35b-instruct`, `qwen-3.8-27b`) et ne porte **que** `id`,
+    `object`, `owned_by` : aucune tâche, aucune modalité. `default_remote_type='text-generation'`
+    s'applique donc à tous — la vision éventuelle de gemma-4 ou des Qwen n'est PAS déclarée
+    (⏳ à mesurer modèle par modèle, puis à déclarer, jamais à deviner d'un nom) ;
+  - ⚠ **`/models` répond `{"data": []}` en HTTP 200 à ~1 lecture sur 2** (9/20, même clé, mêmes
+    en-têtes, avec et sans proxy) — un serveur de leur répartiteur ne connaît pas la clé ; le
+    chat, lui, répond 10/10. Prise pour une liste, la réponse vide avait vidé la clé de ses
+    modèles à l'enregistrement, sans erreur. Corrigé dans la découverte, pour TOUTE source :
+    une liste vide est relue (`cloud_models.LISTING_ATTEMPTS`), puis levée en erreur de
+    découverte, qui garde la liste précédente (`tests_cloud_models.EmptyListingTest`). À
+    signaler à ILaaS ;
+  - joué par l'assistant (`conversation_turn`, `provider='ilaas'`) sur un compte SANS clé
+    personnelle : clé partagée reçue (`cloud_access`), 6 modèles ouverts au choix comme au
+    tirage, réponse correcte ;
+  - attente sur 429 : non mesurée (aucun 429 sur 30 appels, aucun en-tête de limite) — la
+    source garde `rate_limit_wait_s` à 0.
 - **OpenRouter (agrégateur) — déclaré le 2026-10-10** (décision de Fabien), source `openrouter`
   (`https://openrouter.ai/api/v1`, protocole OpenAI, `hosting='third_party'`, `metered`, clé
   PERSONNELLE non partageable — crédits par compte). Ajout par le registre SEUL, sur la route
