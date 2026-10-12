@@ -2912,6 +2912,9 @@ retirer SyncNet, go pour la clé GITHUB_TOKEN », puis « on termine tout ça »
 - ✅ Lien de version des cartes `github` au model manager : déjà en place
   (`platform_url` → `…/releases/tag/<tag>`, vérifié sur SPAN et GaterV3) — le reste noté le 10/10
   était périmé.
-- 🔚 **Anonymizer** : le téléchargeur d'app tourne encore (`yolo_utils.get_model_path` →
-  `model_manager.auto_download_model` au traitement, commande `manage_models`), hors route, sans
-  empreinte. Non touché : une autre instance remanie la résolution de ses modèles (12/10).
+- 🔚 **Anonymizer** : un RÉSIDU, pas un téléchargeur actif (corrigé le jour même sur remarque de
+  Fabien). Ses modèles se résolvent par le catalogue (`yolo_utils.model_path_for` →
+  `AIModel.local_path`) et s'installent par le pilote `yolo` de la route. Reste, dans
+  `get_model_path`, un repli `auto_download_model` (requête directe sur l'asset Ultralytics, sans
+  empreinte) atteint seulement quand ni le catalogue ni le disque n'ont le fichier. À retirer ;
+  non touché, une autre instance remanie la résolution de ses modèles (12/10).

@@ -23087,9 +23087,10 @@ trois poids DeepFace sont déclarés (version GitHub `v1.0`, empreintes mesurée
 officiels) ; `GITHUB_TOKEN` entre au registre des sources comme clé FACULTATIVE
 (`api_key_optional`), posable sur « Sources externes ». SyncNet (1,4 Go, entraînement seul)
 retiré du disque. Détail : `PROSPECTION_PIPELINE §Suite du 2026-10-12`.
-- 🔚 Anonymizer : téléchargeur d'app encore actif au traitement (`yolo_utils` →
-  `auto_download_model`, commande `manage_models`) — autre instance sur la résolution de ses
-  modèles.
+- 🔚 Anonymizer : RÉSIDU seulement. Ses modèles se résolvent par le catalogue
+  (`yolo_utils.model_path_for` → `AIModel.local_path`) et s'installent par le pilote `yolo` ;
+  reste un repli `auto_download_model` dans `get_model_path`, atteint quand ni le catalogue ni
+  le disque n'ont le fichier (hors route, sans empreinte). À retirer — autre instance sur l'app.
 - 🔚 DeepFace retélécharge seul un poids absent (bon dossier, sans empreinte) : vérification à
   poser dans un backend `deepface` le jour du portage de l'app (le substrat ne nomme pas le Lab).
 - 🔚 `WAMA_MECANISMES` / `docs/dev/briques.md` à régénérer (co-édités au moment du commit).
