@@ -878,7 +878,10 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
 - **ILaaS (fédération d'inférence de l'ESR) — déclarée le 2026-10-07**, source `ilaas`
   (`https://llm.ilaas.fr/v1`, protocole OpenAI, `hosting='sovereign'`). Elle délivre des clés
   d'**APPLICATION** (une par service, validée par un admin ILaaS) : la source se déclare donc
-  `shareable`. Embeddings (`rag-api.ilaas.fr`, jeton à part) et transcription : non branchés.
+  `shareable`. Transcription : non branchée. Embeddings : service à part (`rag-api.ilaas.fr`,
+  jeton à part — OpenGateLLM, la passerelle d'Albert), déclaré le 2026-10-13 en source
+  `ilaas_rag` pour que sa clé se pose, sans que rien ne la lise ; la suite se tranche avec le
+  routage des modèles cloud (`ROADMAP §8d`, plan « sélection automatique universelle », étape 7).
   **Mesurée le 2026-10-12, avec la vraie clé d'application** (posée sur la page Sources,
   partagée) :
   - `llm_gateway_check --provider ilaas` → « ✓ Passerelle OK » ; `mistral-small-4-119b` est bien

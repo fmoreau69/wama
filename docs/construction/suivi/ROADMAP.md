@@ -1459,6 +1459,31 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
   6. ⏳ **Médias générés par un distant** (images) : OpenRouter sert 12 modèles qui rendent des
      images, **aucun gratuit** (mesuré sur sa liste le 12/10) ; aucune vidéo. À ouvrir après
      2-5, comme une capacité de la source, et sur consentement « payant ».
+  7. ⏳ **Embeddings distants** (2026-10-13, demande de Fabien : à reprendre ICI). **État mesuré :**
+     - un seul embedder, LOCAL et FIXE : `bge-m3` par Ollama (`memory/embed.py:32`, `/api/embed`),
+       appelé en direct, hors du tirage. Aucun appel du code ne demande `requires=['embedding']`,
+       alors que `albert:bge-m3` porte le drapeau au catalogue (`cloud_models.abilities_for`) :
+       listé, jamais utilisé ;
+     - ILaaS sert ses embeddings sur un service À PART (`rag-api.ilaas.fr`, jeton à part), déclaré
+       le 13/10 comme source `ilaas_rag`, famille `rag` et non `llm` (décision de Fabien) : sa clé
+       se pose sur la page Sources, RIEN ne la lit, aucun modèle ne s'ouvre (garde
+       `tests_api_keys.InstanceKeyTest.test_the_ilaas_rag_key_is_stored_but_opens_nothing_yet`,
+       contre-épreuve faite). Lu SANS clé sur son `/openapi.json` public : c'est **OpenGateLLM**, la
+       passerelle d'Albert — `/v1/embeddings`, `/v1/rerank`, `/v1/ocr`, `/v1/audio/transcriptions`,
+       `/v1/chat/completions`, collections et `/v1/search`. `/v1/models` rend 401 sans jeton : ses
+       modèles et leurs dimensions ne sont PAS mesurés ;
+     - contraintes déjà dans le code : vecteurs de **1024** dimensions (`EXPECTED_DIMS`, sinon
+       refusés) ; nom du modèle STOCKÉ par ligne (`Embedded.embedding_model`), donc changer
+       d'embedder = réindex complet — même un `bge-m3` servi ailleurs porte un autre nom ;
+       dégradation, jamais échec (en-tête d'`embed.py`) ; le réindex est le même geste que la
+       bascule prévue vers `qwen3-embedding:4b` (§ en tête de ce fichier).
+     **Ce qui diffère du chat** : l'embedder est aujourd'hui une constante d'INSTANCE — un même index
+     ne mélange pas deux espaces de vecteurs —, donc le tirage par profil de 1-5 ne s'y applique
+     pas tel quel. Et la mémoire porte les notes PRIVÉES des comptes : un embedder distant serait la
+     première sortie de son contenu hors de la machine (plafond d'hébergement du profil, §8d ③).
+     **Suite** : clé posée (Fabien) → mesurer `/v1/models` (types, dimensions) → décider si
+     `ilaas_rag` devient un fournisseur `llm` comme Albert (ses modèles de chat entreraient alors au
+     tirage, avec ceux de `llm.ilaas.fr`) → brancher ou non `embed.py` sur un modèle distant.
   **À trancher par Fabien** : ① un modèle CHOISI à la main qui sature — basculer seul, ou le dire
   et proposer ? (aujourd'hui le choix manuel l'emporte toujours) ; ② la bascule d'abord pour
   l'assistant seul, ou d'emblée pour les apps (`chat_with_catalog_model`, transcription Albert) ?

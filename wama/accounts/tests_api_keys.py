@@ -345,6 +345,21 @@ class InstanceKeyTest(TestCase):
     def test_sharing_needs_a_stored_key(self):
         self.assertEqual(400, self._post('ilaas', {'shared': True}).status_code)
 
+    def test_the_ilaas_rag_key_is_stored_but_opens_nothing_yet(self):
+        """2026-10-13 (decision of Fabien): the key of the ILaaS RAG service is set on the
+        « Sources externes » page while its use waits for the cloud routing. Silent if broken:
+        declared as an `llm` source, setting it would read its models and put its chat models
+        in the assistant's automatic draw before anyone decided it."""
+        from wama.common import external_sources
+        from wama.common.utils.llm_utils import declared_llm_source
+        r = self._post('ilaas_rag', {'api_key': CLAIR})
+        self.assertEqual(200, r.status_code)
+        self.assertNotIn('models_count', r.json())
+        self.refresh.assert_not_called()
+        self.assertEqual(CLAIR, external_sources.api_key('ilaas_rag'))
+        self.assertIsNone(declared_llm_source('ilaas_rag'))
+        self.assertNotIn('ilaas_rag', [s.key for s in api_keys.keyed_sources(self.user)])
+
     def test_a_shared_key_opens_its_models_to_an_account_allowed_to_use_the_cloud(self):
         from wama.accounts.models import InstanceApiKey
         from wama.model_manager.services.cloud_models import allowed_cloud_keys

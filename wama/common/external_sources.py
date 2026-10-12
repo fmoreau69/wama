@@ -252,6 +252,12 @@ KINDS = {
     #: l'utilisateur saisit en connectant le dossier, et le secret vit sur le MONTAGE (chiffré),
     #: pas au profil : un même compte peut connecter plusieurs nuages.
     'stockage':  'Stockage de fichiers',
+    #: Service d'embeddings et de RAG DISTANT dont la clé se pose AVANT que WAMA ne s'en serve
+    #: (2026-10-13, ILaaS) : famille à part de `llm` exprès — une source `llm` fait lire ses
+    #: modèles dès que sa clé est posée (`api_keys.store_key`) et ses modèles de chat entrent au
+    #: tirage de l'assistant. L'usage (embeddings de la mémoire, fournisseur cloud) se tranche
+    #: avec le routage des modèles cloud (`ROADMAP §8d`, sélection automatique, étape 7).
+    'rag':       'Embeddings et RAG',
 }
 
 
@@ -429,8 +435,8 @@ SOURCES: tuple[ExternalSource, ...] = (
     # que `id`, `object`, `owned_by` — aucune tâche. `text-generation` vaut donc pour les 6
     # modèles : il sous-déclare la vision éventuelle de certains plutôt que de la prêter à ceux
     # qui ne l'ont pas. La même liste répond VIDE à ~1 lecture sur 2 (`cloud_models.LISTING_ATTEMPTS`).
-    # Embeddings (`rag-api.ilaas.fr`, jeton à part) et transcription (adresse remise avec la
-    # clé) : non branchés — le RAG de WAMA a ses propres embeddings (`WAMA_MEMORY.md`).
+    # Embeddings : service à part, `ilaas_rag` ci-dessous. Transcription (adresse remise avec la
+    # clé) : non branchée.
     ExternalSource(
         'ilaas', 'ILaaS (ESR)', 'https://llm.ilaas.fr/v1',
         "Inférence LLM mutualisée de l'enseignement supérieur et de la recherche, compatible "
@@ -442,6 +448,20 @@ SOURCES: tuple[ExternalSource, ...] = (
         default_remote_type='text-generation',
         # Identifiant SERVI, mesuré le 2026-10-12 (`llm_gateway_check --provider ilaas`).
         default_model='mistral-small-4-119b', doc='docs/construction/ia/WAMA_LLM.md'),
+    # 2026-10-13 (demande de Fabien : « que je puisse poser la clé ») : le service RAG d'ILaaS,
+    # jeton À PART de celui du chat. Lu sans clé le même jour sur son `/openapi.json` public :
+    # c'est OpenGateLLM, la passerelle d'Albert — `/v1/embeddings`, `/v1/rerank`, `/v1/ocr`,
+    # `/v1/audio/transcriptions`, `/v1/chat/completions`, collections et `/v1/search` ;
+    # `/v1/models` rend 401 sans jeton. Famille `rag` et non `llm` (décision de Fabien) : poser la
+    # clé n'ouvre aucun modèle et RIEN ne la lit encore — son usage se tranche avec le routage des
+    # modèles cloud. Une fois tranché, la déclarer comme Albert (`kind='llm'`, `protocol`).
+    ExternalSource(
+        'ilaas_rag', 'ILaaS RAG (ESR)', 'https://rag-api.ilaas.fr/v1',
+        "Embeddings, reclassement et RAG mutualisés de l'ESR (OpenGateLLM) — clé posée, pas encore "
+        "utilisée par WAMA", kind='rag', env='ILAAS_RAG_API_BASE',
+        api_key_env='ILAAS_RAG_API_KEY',
+        api_key_help_url='https://www.ilaas.fr/demande-de-cles-ilaas/',
+        hosting='sovereign', cost_tier='free', doc='docs/construction/ia/WAMA_LLM.md'),
     # 2026-10-10 (décision de Fabien) : OpenRouter, AGRÉGATEUR — une clé, plusieurs centaines de
     # modèles de nombreux éditeurs, protocole OpenAI. Sa liste (`GET /models`, lisible sans clé)
     # ne porte pas de `type` mais les MODALITÉS d'entrée et de sortie (`architecture`) et, pour

@@ -23205,3 +23205,30 @@ triade de la spec de détail (`detail_registry`, `build_detail`) au lieu d'un se
 (écart d'alignement relevé par `/reverif`, non corrigé : il change ce que reçoit l'assistant) ;
 (2) faire converger les jumelles (écart −4 à −18 pt, `app_sandbox converge`, `ROUTE §11`).
 **Pendings système** : relancer gunicorn + workers + service TTS ; rien de poussé.
+
+## §PALIER — 2026-10-13, « ILaaS RAG : la clé d'embedding se pose sur la page Sources, rien ne la lit » — livré (commit de ce palier, non poussé) — 🔴 relancer gunicorn (registre des sources)
+
+Suite de la clôture « CLÉ ILaaS » du 12/10. Demande de Fabien : consigner les embeddings ILaaS
+pour la session de routage cloud, et seulement déclarer le service pour qu'il pose la clé.
+- **Source `ilaas_rag`** (`external_sources.py`), adresse `https://rag-api.ilaas.fr/v1`, jeton
+  `ILAAS_RAG_API_KEY`, souveraine, gratuite. Famille NOUVELLE `rag` (« Embeddings et RAG ») et non
+  `llm` — **décision de Fabien** : une source `llm` lit ses modèles dès que la clé est posée et
+  ses modèles de chat entrent au tirage de l'assistant. Ni clé personnelle, ni partage : rien ne
+  la lit encore.
+- **Mesuré sans clé** (`/openapi.json` public) : le service est **OpenGateLLM**, la passerelle
+  d'Albert — embeddings, reclassement, OCR, transcription, chat, collections et recherche ;
+  `/v1/models` rend 401 sans jeton (modèles et dimensions non mesurés).
+- **Garde** `tests_api_keys.InstanceKeyTest.test_the_ilaas_rag_key_is_stored_but_opens_nothing_yet`
+  (clé enregistrée, aucune découverte, pas un fournisseur pour `llm_chat`, absente du profil).
+  Contre-épreuve : la même source redéclarée `llm` → rouge (« models_count » rendu).
+- **Consigné pour la session de routage** : `ROADMAP §8d`, plan « sélection automatique
+  universelle », **étape 7 « Embeddings distants »** — état mesuré (embedder local fixe
+  `bge-m3`, `albert:bge-m3` listé jamais utilisé), contraintes (1024 dimensions, réindex à tout
+  changement, embedder = constante d'INSTANCE, mémoire privée qui sortirait de la machine) et
+  suite. `WAMA_LLM.md` (bloc ILaaS) y renvoie.
+
+**Tests** : `tests_api_keys`, `tests_external_sources`, `tests_cloud_models`,
+`tests_llm_providers` — 163 OK.
+
+**Restent** : 🔚 Fabien pose la clé sur la page Sources (famille « Embeddings et RAG ») · puis,
+dans la session de routage : mesurer `/v1/models`, décider de la famille et de l'usage.
