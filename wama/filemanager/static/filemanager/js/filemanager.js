@@ -1357,8 +1357,10 @@
             input.style.cssText = 'background:#1e2228; color:#dee2e6;';
             input.placeholder = field.label;
             if (field.help) input.title = field.help;
-            input.autocomplete = field.secret ? 'current-password'
-                : (/user/.test(field.name) ? 'username' : 'off');
+            // Jamais rempli par le navigateur : un même compte peut avoir un identifiant
+            // pour le nuage et un autre pour le partage réseau, et WAMA est une seule page
+            // pour lui. « new-password » est la seule valeur que Chrome ne remplit pas.
+            input.autocomplete = field.secret ? 'new-password' : 'off';
             input.dataset.field = field.name;
             input.dataset.secret = field.secret ? '1' : '';
             input.value = previous[field.name] || field.value || '';

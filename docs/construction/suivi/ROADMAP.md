@@ -4301,11 +4301,17 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
      - Tests : `StorageTypeTests` (3, dont « chaque option passée à rclone existe dans le rclone
        installé »), `SmbByRcloneTests` (5), `OAuthStorageTests` (7) ; mécanisme déclaré au
        registre (`mecanismes.py`, `remote_mounts`).
-     - ⚠ **Non éprouvé en réel** : le SMB par rclone (invité, domaine, sous-dossier) attend un
-       essai sur un VRAI partage de l'établissement — un serveur SMB de test (impacket) a
-       déclenché l'EDR du poste et a été retiré ; Google Drive et OneDrive attendent un client
-       OAuth déclaré chez le fournisseur (décision de l'établissement : des données de recherche
-       y transiteraient).
+     - ✅ **SMB par rclone éprouvé en réel le 12/10** (partage de l'établissement, domaine,
+       sous-dossier) — un serveur SMB de test (impacket) avait déclenché l'EDR du poste et a été
+       retiré : l'essai s'est fait sur un vrai partage. Le premier refus (« identifiants
+       refusés ») était juste : le navigateur avait rempli l'identifiant du NUAGE, distinct de
+       celui de l'annuaire du partage. D'où : les champs d'identifiants de la fenêtre ne sont plus
+       jamais remplis par le navigateur (`autocomplete` `off` / `new-password`).
+       ⚠ Un shell `wsl.exe` ouvert à part n'a pas l'espace de noms de montage de gunicorn : un
+       montage rclone vivant y paraît absent (`mountpoint` faux, dossier vide) — lire
+       `/proc/<pid du démon>/mountinfo`.
+     - ⏳ Google Drive et OneDrive attendent un client OAuth déclaré chez le fournisseur
+       (décision de l'établissement : des données de recherche y transiteraient).
      - **12/10, premier essai réel après relance** : un dossier retiré « réapparaissait » et
        demandait un second retrait. Mesuré aux journaux : l'accès accordé dans le navigateur, le
        montage a pris 18 s, pendant lesquelles la fenêtre disait encore « en attente » — Fabien a
