@@ -135,6 +135,32 @@ def _hors_depot(chemin):
             or bool(_MEMOIRE.match(c.rsplit('/', 1)[-1])))
 
 
+#: Les CORPUS EXTERNES déclarés (`wama-dev-ai/corpus.py::CORPORA` — BIND, ComfyUI…) : une
+#: référence `<corpus>:<chemin>[:<ligne>]` désigne un fichier de CE dépôt tiers, pas de WAMA. C'est
+#: la forme que prescrit `/cartographie §5` (« référence rejouable `corpus:chemin` ») — le contrôle
+#: l'ignorait : son motif `chemin.py:ligne` attrapait le chemin derrière le préfixe, et 13 faits de
+#: la passe ComfyUI passaient pour des références mortes (2026-10-12). Noms lus par AST : le dossier
+#: `wama-dev-ai` n'est pas un paquet (tiret-case), et lire une déclaration n'exécute rien.
+def _corpus_externes(base) -> tuple:
+    import ast
+    try:
+        arbre = ast.parse((base / 'wama-dev-ai' / 'corpus.py').read_text(encoding='utf-8'))
+    except (OSError, SyntaxError):
+        return ()
+    for n in arbre.body:
+        cible = n.target if isinstance(n, ast.AnnAssign) else (
+            n.targets[0] if isinstance(n, ast.Assign) and len(n.targets) == 1 else None)
+        if getattr(cible, 'id', '') == 'CORPORA' and isinstance(n.value, ast.Dict):
+            return tuple(k.value for k in n.value.keys
+                         if isinstance(k, ast.Constant) and isinstance(k.value, str))
+    return ()
+
+
+def _sans_refs_externes(ligne: str, motif) -> str:
+    """La ligne, privée de ses références à un corpus externe (`motif` = `<corpus>:<chemin>`)."""
+    return motif.sub(' ', ligne) if motif is not None else ligne
+
+
 class Command(BaseCommand):
     help = "Vérifie que les références des docs de référence pointent sur du code qui existe."
 
@@ -304,6 +330,9 @@ class Command(BaseCommand):
                        for p in sorted(base.glob(SKILLS_GLOB))]
 
         casses, perimes, ambigus, chiffres, verifies = [], [], [], [], 0
+        externes = _corpus_externes(base)
+        motif_externe = (re.compile(r'\b(?:' + '|'.join(map(re.escape, externes))
+                                    + r'):[\w/\\.\-]+(?::\d+(?:-\d+)?)?') if externes else None)
 
         for nom, f in cibles:
             if not f.exists():
@@ -406,6 +435,8 @@ class Command(BaseCommand):
 
                 if intentionnel:
                     continue
+                # Les références à un corpus EXTERNE déclaré ne sont pas des chemins de WAMA.
+                ligne = _sans_refs_externes(ligne, motif_externe)
                 # ── liens vers d'autres .md ────────────────────────────────
                 for cible in LIEN_MD.findall(ligne):
                     if _hors_depot(cible):

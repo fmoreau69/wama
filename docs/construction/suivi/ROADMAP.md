@@ -2993,39 +2993,39 @@ pillow 11.3.0 (36), aiohttp (48), cryptography, pyjwt, python-multipart, urllib3
   (agrandissement), `trellis2` / `hunyuan3d` / `triposplat` (studio 3D), `mmaudio`.
 - À lire en passe 1 : le dépôt porte son propre aperçu des latents (`latent_preview.py`, racine,
   hors périmètre du corpus — le relire à part) et un `AGENTS.md` (veille des harnais :
-  `WAMA_HARNESS.md`), ainsi qu'un `QUANTIZATION.md`.
+  `WAMA_HARNESS.md`), ainsi qu'un `comfyui:QUANTIZATION.md`.
 
 **Passe 1 — faits (2026-10-06)** — références `comfyui:<chemin>:<ligne>` au commit `7d9e5a04` ;
 lecture faite par un agent, **cinq points revérifiés à la ligne** (marqués ✓) :
 - **Détection par les POIDS, jamais par une config** : `model_detection.detect_unet_config`
-  (`comfy/model_detection.py:44`) lit des clés « signature » et des formes de tenseurs
+  (`comfyui:comfy/model_detection.py:44`) lit des clés « signature » et des formes de tenseurs
   (Wan : `head.modulation`, `:735-789` ; Flux : `double_blocks…key_norm`, `:263`), puis
   `model_config_from_unet_config` prend la première classe de `supported_models.models` qui
-  correspond — l'ORDRE de la liste départage (`supported_models.py:2604-2631`). Une déclaration
+  correspond — l'ORDRE de la liste départage (`comfyui:supported_models.py:2604-2631`). Une déclaration
   de modèle (`supported_models_base.BASE`, `:31-124`) porte : clés de correspondance, réglages
   d'échantillonnage, format de latents, dtypes, facteur mémoire, encodeurs de texte, préfixes
   du VAE et des encodeurs dans le checkpoint unique.
 - ✓ **Les dossiers diffusers ne sont lus que partiellement, par un chargeur DÉPRÉCIÉ** :
-  `comfy/diffusers_load.py:12-19` ne connaît que `unet/`, `vae/`, `text_encoder/`,
+  `comfyui:comfy/diffusers_load.py:12-19` ne connaît que `unet/`, `vae/`, `text_encoder/`,
   `text_encoder_2/` — ni `transformer/`, ni fichiers fragmentés ; nœud `DiffusersLoader`
-  marqué `DEPRECATED` (`nodes.py:661`). Le format natif est le **checkpoint en un fichier**
-  (safetensors, `comfy/sd.py:2159-2326`).
+  marqué `DEPRECATED` (`comfyui:nodes.py:661`). Le format natif est le **checkpoint en un fichier**
+  (safetensors, `comfyui:comfy/sd.py:2159-2326`).
 - **Quantification** native fp8 / nvfp4 / mxfp8 / int8 par le paquet externe `comfy-kitchen`
-  (`comfy/quant_ops.py:7-46, 201-265` ; `QUANTIZATION.md`) — ✓ **aucun chargeur GGUF dans le
+  (`comfyui:comfy/quant_ops.py:7-46, 201-265` ; `comfyui:QUANTIZATION.md`) — ✓ **aucun chargeur GGUF dans le
   cœur** (motif `gguf`, insensible à la casse, sur tout le dépôt : seulement `main.py`,
-  `utils/mime_types.py` et des tests ; GGUF = nœud tiers).
-- ✓ **VRAM mesurée sur tout le GPU**, autres processus compris (`model_management.py:1848`,
+  `comfyui:utils/mime_types.py` et des tests ; GGUF = nœud tiers).
+- ✓ **VRAM mesurée sur tout le GPU**, autres processus compris (`comfyui:model_management.py:1848`,
   `mem_get_info`), ✓ réserve fixe de 400 à 700 Mo pour « les autres applications »
   (`:877-885`, `--reserve-vram`), pression NVML par défaut, déchargement partiel puis complet
   (`free_memory`, `:893-937`). Il ne suppose donc pas posséder le GPU — mais **aucun protocole
   de coordination** au-delà de ces réserves.
-- ✓ **Aperçu des latents** : sur la PRÉDICTION de l'image propre (`denoised`, `samplers.py:1003`)
-  et la PREMIÈRE image d'une vidéo (`latent_preview.py:77-80`) ; TAESD si un petit décodeur est
+- ✓ **Aperçu des latents** : sur la PRÉDICTION de l'image propre (`denoised`, `comfyui:samplers.py:1003`)
+  et la PREMIÈRE image d'une vidéo (`comfyui:latent_preview.py:77-80`) ; TAESD si un petit décodeur est
   installé, sinon la projection linéaire. WAMA projette les latents BRUITÉS (seuls exposés par
   diffusers) — consigné comme reste en `ROUTE §F3b`.
 - **Sans interface** : `POST /prompt` (graphe au format « API »), suivi par `/ws`, résultats par
   `/history/{id}` et `/view`, `POST /free` pour décharger, `POST /interrupt`
-  (`server.py:1138-1265`) ; écoute sur `127.0.0.1` par défaut (`cli_args.py:63`).
+  (`comfyui:server.py:1138-1265`) ; écoute sur `127.0.0.1` par défaut (`comfyui:cli_args.py:63`).
 
 **Ce que la passe 1 CORRIGE de nos hypothèses** :
 - « **Moteur externe = accès immédiat** à beaucoup de modèles » : faux pour NOS poids. WAMA range

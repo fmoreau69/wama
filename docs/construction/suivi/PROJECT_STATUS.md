@@ -17215,7 +17215,7 @@ cette clôture — **NON POUSSÉS**.
 **Non gardé** : la navigation ↑/↓ qui saute les cards filtrées (`wama-inspector.js`,
 `wama-queue.js`) — logique interne de fermeture, vue au navigateur seulement.
 
-**Contrôles** : `check_docs` 1 cible distincte (`wama-dev-ai/run_improve.py`, citée par
+**Contrôles** : `check_docs` 1 cible distincte (le pilote `run_improve` de wama-dev-ai, citée par
 `WAMA_LLM.md`, autre instance) — la 2ᵉ, un chemin de diffusers que j'avais écrit ici, corrigée ;
 `doc_facts` 2 blocs périmés, NON régénérés (ils embarqueraient le WIP d'une autre instance — mes
 briques neuves y entreront au prochain rattrapage) ; corpus de manifestes 85 périmés dont 10 lignes
@@ -17274,8 +17274,8 @@ wama, qu'on a bien tout consigné et ajouté tous les tests nécessaires »*. Pa
   `cle` retiré, `cibles` ajouté puis retiré) ; l'ajout restant vient de `661f5063` (`resultats`,
   autre instance) et d'avant. 1 erreur de CHARGEMENT (`wama.avatarizer.tests` n'existe pas — ma
   liste) ; 1 skip, hors de mes modules neufs (tous exécutés en entier).
-- `check_docs` : 2 cibles distinctes, aucune de moi (`wama-dev-ai/run_improve.py` citée par
-  `WAMA_LLM.md` ; `pipeline_utils.py:2118`, bloc imager vidéo `43d22e02`).
+- `check_docs` : 2 cibles distinctes, aucune de moi (le pilote `run_improve` de wama-dev-ai, cité par
+  `WAMA_LLM.md` ; `site-packages/diffusers/pipelines/pipeline_utils.py:2118`, bloc imager vidéo `43d22e02`).
 - `doc_facts --check` : 3 blocs périmés, NON régénérés — ils figeraient le WIP d'autres instances
   (`param_schema` dans `docs/dev/briques.md`) ; aucune de mes briques n'y figure.
 
@@ -20472,7 +20472,7 @@ revérification (bloc précédent).
 - ❌→✅ **Défaut trouvé par l'attente réelle, corrigé (`ec4a900d`)** : à 23:09, son tour venu sur
   une carte pleine, #282 est passé « en attente de ressources » (le correctif de l'après-midi
   joue) — mais Celery a refusé la 3ᵉ re-livraison : `task.retry(max_retries=None)` = le défaut
-  de la tâche (3), pas « illimité » (`celery/app/task.py:720`). La règle du 20/09 n'était pas
+  de la tâche (3), pas « illimité » (`site-packages/celery/app/task.py:720`). La règle du 20/09 n'était pas
   tenue et son test (`tests_gpu_safe_mode`) exigeait précisément `None`. L'élément est resté « en
   attente » sans tâche jusqu'à une relance à la main. Désormais : `WAIT_RETRIES_UNLIMITED` et un
   filet (re-livraison refusée → FAILURE dit, ligne refermée, utilisateur prévenu). ⚠ Toute app

@@ -243,7 +243,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   Flux2-klein, et — le même jour — par les **cinq backends VIDÉO** (CogVideoX, LTX, Mochi,
   HunyuanVideo, Wan/FastWan : la dernière image des latents, segments d'une vidéo longue compris) ;
   `STILL_TO_PREVIEW` de `tests_latent_preview` est VIDE. ⏳ **Reste, relevé par la cartographie
-  de ComfyUI** (`ROADMAP §16.11`, passe 1 : `latent_preview.py:62-85`, `samplers.py:1003`) :
+  de ComfyUI** (`ROADMAP §16.11`, passe 1 : `comfyui:latent_preview.py:62-85`, `comfyui:samplers.py:1003`) :
   ComfyUI projette la PRÉDICTION de l'image propre (`denoised`, x0), WAMA les latents BRUITÉS du
   pas courant — seuls exposés par le rappel de diffusers (`_callback_tensor_inputs` =
   `latents`, `prompt_embeds`). Notre aperçu est donc plus bruité en début de génération ; il
@@ -391,7 +391,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     transport commun de ce chantier) et le **contrat de vue abonnée** ; (2) la **déclaration d'une
     surface** (quelles vues, sur quel axe, quels panneaux tirés du schéma, quels gestes → quels
     process) ; (3) les **vues** elles-mêmes, aujourd'hui enfermées dans des pages : onde fenêtrée
-    sur pics serveur, liste de segments, carte de chaleur, minimap (`transcriber/.../edit.js`,
+    sur pics serveur, liste de segments, carte de chaleur, minimap (`wama/transcriber/static/transcriber/js/edit.js`,
     1428 l.) ; et pour YuE2 une vue **partition** (aucun moteur de rendu ABC n'est vendorisé —
     `abcjs` est le candidat évident, route `library`/vendor).
     **Conséquence, proposée à Fabien** : la page d'édition de YuE2 ne s'écrit PAS avant ce chantier
@@ -3570,7 +3570,7 @@ formes** (`Param`, `ParamSpec`, le `params_spec` du Studio, du HTML écrit à la
 | passe Lab (cam_analyzer) | champs du profil `AnalysisProfile`, **modale écrite à la main** (`cam_analyzer/templates/cam_analyzer/index.html:410-680`) ; ce que surveille une passe est listé à la main (`pass_tracking.py:77-133`), là où une app Médias le DÉRIVE de `Param.stales` (`process_pipeline.declared_stales`, `AppPipeline.watched_of`) | HTML + `index.js` | la vue du profil |
 
 Et un nœud intégré se déclare à **quatre endroits** : la palette (`wama-studio.js:27-74`,
-`BUILTINS`), son rôle (`manifests/builtin/pipeline.py:36-37`), ses réglages (`studio/views.py:227-270`),
+`BUILTINS`), son rôle (`manifests/builtin/pipeline.py:36-37`), ses réglages (`studio/views.py:227-270`, remplacé par R1 — cf. ci-dessous),
 son exécution (`studio/tasks.py` : `SOURCE_HANDLERS` et branches par nom de nœud). ⚠ Les deux nœuds
 Data de la 1ʳᵉ marche de P7 (`7159838e`) y ont ajouté une **citation du monde Data dans le
 substrat** — `studio/views.py` et `studio/tasks.py` importent `wama_data` —, le défaut que
@@ -4037,7 +4037,7 @@ panneau parle `JOB_*`).
 >     sur une carte pleine (résidents de la campagne de transcription), #282 est bien passé « en
 >     attente de ressources » (le correctif de l'après-midi) — mais Celery a REFUSÉ la 3ᵉ
 >     re-livraison : `task.retry(max_retries=None)` veut dire « le défaut de la tâche » (3,
->     `celery/app/task.py:720`), pas « illimité ». La règle du 20/09 n'était pas tenue, et son
+>     `site-packages/celery/app/task.py:720`), pas « illimité ». La règle du 20/09 n'était pas tenue, et son
 >     test exigeait précisément `None`. L'élément est resté « en attente » SANS tâche jusqu'à une
 >     relance à la main. Désormais : plafond explicite hors de portée (`WAIT_RETRIES_UNLIMITED`),
 >     et filet — une re-livraison refusée devient un ÉCHEC dit, jamais un élément abandonné.
@@ -4054,7 +4054,7 @@ panneau parle `JOB_*`).
 >
 >   Vérifié SANS écart : l'adressage de `ProcessRun` suit la convention de `RunOutcome` et
 >   d'`InputProvenance` (`app` + `object_type` + `object_id`) ; le drapeau de moteur se lit sur
->   la CLASSE comme `supports_vad_filter` (`transcriber/backends/manager.py:506`) ; relâcher le
+>   la CLASSE comme `supports_vad_filter` (`transcriber/backends/manager.py:465`) ; relâcher le
 >   moteur passe par `unload()`, que l'enveloppe du contrat commun relie au gouverneur
 >   (`backends/base.py`, registre `_LIVE_BACKENDS`) — le dictionnaire `_OPEN_BACKENDS` du
 >   composer ne le double pas, il garde l'instance le temps de la tâche pour pouvoir la rendre ;

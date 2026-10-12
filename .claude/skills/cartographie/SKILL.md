@@ -78,7 +78,11 @@ wama-dev-ai a produit des **affirmations d'absence fausses 4 fois sur 6**. Donc 
 
 Dans le document de référence du domaine (**pas un nouveau `.md`**) :
 
-- les faits établis, avec leur référence rejouable (`corpus:chemin`) et la ligne ;
+- les faits établis, avec leur référence rejouable (`corpus:chemin`) et la ligne — le préfixe
+  sur CHAQUE référence, pas seulement en tête de bloc : `check_docs` ne reconnaît une référence
+  externe qu'à son préfixe de corpus déclaré (`wama-dev-ai/corpus.py::CORPORA`) ; sans lui, il
+  la cherche dans WAMA — 13 faits de la passe ComfyUI en « cassés » (2026-10-12), et un
+  `latent_preview.py` résolu en silence vers le fichier WAMA du même nom ;
 - **ce que la passe a CORRIGÉ de nos hypothèses** — c'est la valeur principale, et ça se perd si on
   ne l'écrit pas explicitement ;
 - les trous identifiés côté WAMA (ce que le corpus a et que nous n'avons pas) ;

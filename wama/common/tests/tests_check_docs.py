@@ -156,6 +156,36 @@ class ChiffreSansSourceTests(SimpleTestCase):
         self.assertIn('CHIFFRE SANS SOURCE', r)
 
 
+class ExternalCorpusReferenceTests(SimpleTestCase):
+    """`<corpus>:<chemin>:<ligne>` désigne un fichier d'un corpus EXTERNE déclaré
+    (`wama-dev-ai/corpus.py::CORPORA`), la forme que prescrit `/cartographie §5`. Le contrôle la
+    lisait comme un chemin de WAMA : 13 faits de la passe ComfyUI passaient pour morts, et un
+    `latent_preview.py:62-85` de ComfyUI se résolvait EN SILENCE vers le fichier WAMA du même nom
+    (2026-10-12)."""
+
+    BODY = "Détection par les poids (`{ref}`)."
+
+    def _run(self, ref, corpora=('comfyui',)):
+        tmp = _depot_temporaire('essai', self.BODY.format(ref=ref))
+        self.addCleanup(tmp.cleanup)
+        if corpora is not None:
+            (Path(tmp.name) / 'wama-dev-ai').mkdir()
+            keys = ', '.join(f"'{c}': Corpus(name='{c}')" for c in corpora)
+            (Path(tmp.name) / 'wama-dev-ai' / 'corpus.py').write_text(
+                f"CORPORA: Dict[str, Corpus] = {{{keys}}}\n", encoding='utf-8')
+        with override_settings(BASE_DIR=tmp.name):
+            return _rapport(tmp)
+
+    def test_a_reference_to_a_declared_corpus_is_out_of_the_repository(self):
+        self.assertIn('Aucune référence cassée', self._run('comfyui:comfy/model_detection.py:44'))
+
+    def test_without_the_declaration_the_same_reference_is_dead(self):
+        self.assertIn('CASSÉ', self._run('comfyui:comfy/model_detection.py:44', corpora=None))
+
+    def test_an_undeclared_prefix_excuses_nothing(self):
+        self.assertIn('CASSÉ', self._run('autre:comfy/model_detection.py:44'))
+
+
 class HorsDepotTests(SimpleTestCase):
     """La mémoire Claude vit hors du dépôt : la citer n'est pas une référence morte."""
 
