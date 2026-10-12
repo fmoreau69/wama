@@ -13,6 +13,22 @@ la médiathèque refuse alors l'opération.
 #: présent dans les deux désigne la photo, comme avant l'arrivée des avatars 3D.
 AVATAR_NATURES = ('avatar', 'object3d')
 
+#: Ce qu'un asset d'une nature doit PORTER pour être un avatar qui parle — mesuré à l'ingest
+#: (attributs A′) : un maillage TripoSR est un `object3d`, mais seul un visage riggé ARKit parle.
+SPEAKING_ATTRIBUTES = {'object3d': {'face_rig': 'arkit'}}
+
+
+def nameable_avatars(user) -> list:
+    """Les NOMS d'avatars que `user` peut citer — ceux qu'il VOIT (les siens, les partagés, le
+    système), photo puis objet 3D qui parle, sans doublon : la liste d'un sélecteur qui désigne
+    par nom (le nœud du Studio). Domicile : ICI, à côté du résolveur de ces noms — la liste
+    vivait dans la vue du Studio (`api_run_options`), loin de la règle qui les résout."""
+    from wama.media_library.services import visible_asset_names
+    names = []
+    for nature in AVATAR_NATURES:
+        names += visible_asset_names(user, nature, SPEAKING_ATTRIBUTES.get(nature))
+    return list(dict.fromkeys(names))
+
 
 def designate_named_avatar(name, user):
     """L'avatar `name`, désigné comme le fait la card : pointé, jamais recopié (2026-09-29).

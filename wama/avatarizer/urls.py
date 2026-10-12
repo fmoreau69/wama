@@ -15,6 +15,7 @@ urlpatterns = [
     path('delete/<int:pk>/', views.delete, name='delete'),
     path('download/<int:pk>/', views.download, name='download'),
     path('gallery/', views.gallery_list, name='gallery_list'),
+    path('api/avatar-gallery/', views.api_avatar_gallery, name='api_avatar_gallery'),
     path('settings/<int:pk>/', views.update_settings, name='update_settings'),
     path('duplicate/<int:pk>/', views.duplicate, name='duplicate'),
     path('extract-text/', views.extract_text, name='extract_text'),

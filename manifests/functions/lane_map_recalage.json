@@ -82,44 +82,44 @@
     "owner": "",
     "params": [
       {
-        "choices": "m",
+        "choices": null,
         "default": 25.0,
-        "description": "",
+        "description": "Rayon des tronçons candidats.",
         "key": "radius_m",
         "max": 100.0,
         "min": 5.0,
         "type": "float",
-        "unit": "Rayon des tronçons candidats."
+        "unit": "m"
       },
       {
-        "choices": "°",
+        "choices": null,
         "default": 15.0,
-        "description": "",
+        "description": "Écart de cap max navette ↔ voie, et cap GPS ↔ axe, pour qu'une observation devienne ancre.",
         "key": "max_heading_dev_deg",
         "max": 45.0,
         "min": 1.0,
         "type": "float",
-        "unit": "Écart de cap max navette ↔ voie, et cap GPS ↔ axe, pour qu'une observation devienne ancre."
+        "unit": "°"
       },
       {
-        "choices": "m",
+        "choices": null,
         "default": 15.0,
-        "description": "",
+        "description": "Correction latérale max acceptée (au-delà : rattachement ou ligne faux). Mesuré en canyon urbain : dérive GPS locale jusqu'à 12 m.",
         "key": "max_correction_m",
         "max": 30.0,
         "min": 0.5,
         "type": "float",
-        "unit": "Correction latérale max acceptée (au-delà : rattachement ou ligne faux). Mesuré en canyon urbain : dérive GPS locale jusqu'à 12 m."
+        "unit": "m"
       },
       {
-        "choices": "s",
+        "choices": null,
         "default": 20.0,
-        "description": "",
+        "description": "Écart max entre deux ancres pour interpoler.",
         "key": "max_gap_s",
         "max": 120.0,
         "min": 1.0,
         "type": "float",
-        "unit": "Écart max entre deux ancres pour interpoler."
+        "unit": "s"
       },
       {
         "choices": [
@@ -135,54 +135,54 @@
         "unit": ""
       },
       {
-        "choices": "m²/s",
+        "choices": null,
         "default": 0.1,
-        "description": "",
+        "description": "Vitesse de variation du biais GPS (marche aléatoire) — réglée par validation croisée.",
         "key": "bias_q",
         "max": 1.0,
         "min": 0.001,
         "type": "float",
-        "unit": "Vitesse de variation du biais GPS (marche aléatoire) — réglée par validation croisée."
+        "unit": "m²/s"
       },
       {
-        "choices": "m",
+        "choices": null,
         "default": 1.5,
-        "description": "",
+        "description": "Bruit d'une ancre (mesure latérale).",
         "key": "bias_sigma_m",
         "max": 5.0,
         "min": 0.1,
         "type": "float",
-        "unit": "Bruit d'une ancre (mesure latérale)."
+        "unit": "m"
       },
       {
-        "choices": "m",
+        "choices": null,
         "default": 1.5,
-        "description": "",
+        "description": "Au-delà de cet écart-type, la correction n'est plus appliquée (trop loin d'une ancre).",
         "key": "max_bias_sigma_m",
         "max": 10.0,
         "min": 0.1,
         "type": "float",
-        "unit": "Au-delà de cet écart-type, la correction n'est plus appliquée (trop loin d'une ancre)."
+        "unit": "m"
       },
       {
-        "choices": "m",
+        "choices": null,
         "default": 2.0,
-        "description": "",
+        "description": "Au-delà du bout d'un tronçon de plus de tant, l'écart n'est pas latéral : pas d'ancre.",
         "key": "max_overshoot_m",
         "max": 20.0,
         "min": 0.0,
         "type": "float",
-        "unit": "Au-delà du bout d'un tronçon de plus de tant, l'écart n'est pas latéral : pas d'ancre."
+        "unit": "m"
       },
       {
-        "choices": "×",
+        "choices": null,
         "default": 0.0,
-        "description": "",
+        "description": "Échelle latérale de la projection (largeur vue / largeur réelle) ; 0 = mesurée contre la carte.",
         "key": "lateral_scale",
         "max": 5.0,
         "min": 0.0,
         "type": "float",
-        "unit": "Échelle latérale de la projection (largeur vue / largeur réelle) ; 0 = mesurée contre la carte."
+        "unit": "×"
       }
     ],
     "projects": [

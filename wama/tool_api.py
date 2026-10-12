@@ -4024,31 +4024,23 @@ def execute_tool(tool_name: str, args: dict, user) -> dict:
         clean, ignored = sanitize_tool_args(tool_name, args)
         if ignored:
             logger.info(f"[tool_api] {tool_name} : arguments hors signature ignorés : {ignored}")
-        # Bornes de CHOIX du schéma — pendant des bornes numériques de la coercition, au
-        # point d'exécution UNIQUE : les selects des 43 outils sont bornés ici, sans
-        # validation recopiée par app (les listes en dur divergeaient : styles describer,
-        # modèles enhancer). None/'' passent (défaut) ; l'erreur nomme les valeurs valides.
+        # La PORTE du schéma, au point d'exécution UNIQUE (`param_schema.schema_refusals`, la
+        # même que le Studio et l'exécution d'une fonction, 2026-10-12) : un choix hors liste
+        # (les selects des 43 outils, sans validation recopiée par app — les listes en dur
+        # divergeaient : styles describer, modèles enhancer), un nombre hors de sa GRILLE
+        # (`blur_ratio=2`, noyau pair, passait ici le 2026-09-23 : `normalize_blur_ratio` le
+        # réécrivait en 3, un flou invisible — corriger en silence, c'est produire un résultat
+        # vide qui a l'air d'un succès), un nombre ILLISIBLE (la coercition le remplaçait par le
+        # défaut). Lue sur les arguments REÇUS : la coercition a déjà effacé l'illisible de
+        # `clean`. None/'' passent (défaut) ; l'erreur nomme chaque valeur et ce qui est valide.
         app_id = app_id_for_tool(tool_name)
         if app_id:
-            from wama.common.utils.param_schema import (
-                invalid_choice_values, schema_for_app, unapplicable_numeric_values)
-            schema = schema_for_app(app_id)
-            bad = invalid_choice_values(schema, clean)
-            if bad:
-                detail = ' ; '.join(
-                    f"{k}={', '.join(map(repr, refusees))} (valides : {', '.join(valides)})"
-                    for k, (refusees, valides) in sorted(bad.items()))
-                return {'error': f"Valeur hors schéma pour '{tool_name}' : {detail}"}
-            # … et la GRILLE des nombres. `blur_ratio=2` (noyau pair) passait ici le
-            # 2026-09-23 : `normalize_blur_ratio` le réécrivait en 3, un flou invisible, sur
-            # une photo dont SAM3 avait pourtant trouvé les trois visages. Refuser est la
-            # seule réponse honnête — corriger en silence, c'est produire un résultat vide
-            # qui a l'air d'un succès.
-            off = unapplicable_numeric_values(schema, clean)
-            if off:
-                detail = ' ; '.join(f"{k}={value!r} — {why}"
-                                    for k, (value, why) in sorted(off.items()))
-                return {'error': f"Valeur inapplicable pour '{tool_name}' : {detail}"}
+            from wama.common.utils.param_schema import (describe_refusals, schema_for_app,
+                                                        schema_refusals)
+            refusals = schema_refusals(schema_for_app(app_id), args or {})
+            if refusals:
+                return {'error': f"Valeur hors schéma pour '{tool_name}' : "
+                                 f"{describe_refusals(refusals)}"}
         # `user` n'est passé que si l'outil le déclare — remplace le cas spécial
         # `if tool_name == 'sam3_examples'` codé en dur : la signature le dit déjà.
         sig = _tool_signature(fn)

@@ -226,12 +226,14 @@ class LExecuteurDispatcheSurLeKindTest(TestCase):
         sont ce qu'on lit quand un graphe ne part pas. Un refus muet ou générique s'y paierait
         à chaque essai. ⚠ Le type est DIT par l'utilisateur, jamais deviné d'une extension
         (card d'entrée de `WAMA_DATA_FUNCTION_CARDS §5`) : un type inconnu doit donc être
-        refusé sur le vocabulaire, pas silencieusement ramené à `table`.
+        refusé sur le vocabulaire, pas silencieusement ramené à `table`. Depuis le 2026-10-12, ce
+        refus-là est celui de la PORTE commune des réglages (`checked_values` : le type est un
+        choix de son schéma) — il nomme le réglage et la valeur.
         """
         cas = [
             ({}, 'choisissez'),                                              # rien de choisi
             ({'asset_path': 'nexiste/pas.csv'}, 'introuvable'),               # chemin mort
-            ({'asset_path': self.rel, 'data_type': 'trajectoire'}, 'taxonomie'),   # hors vocabulaire
+            ({'asset_path': self.rel, 'data_type': 'trajectoire'}, "data_type : 'trajectoire'"),
         ]
         for params, attendu in cas:
             with self.subTest(params=params):
@@ -306,9 +308,10 @@ class LaPaletteServeLesFonctionsTest(TestCase):
         self.assertIn('description', ports['output'])
 
     def test_les_params_d_un_noeud_fonction_viennent_des_ParamSpec_et_de_la_signature(self):
-        from wama.studio.views import function_node_params_specs
-        specs = function_node_params_specs()
-        pure = {p['name'] for p in specs['function:ego_track_filter']}
-        self.assertEqual(pure, {'sigma_a', 'sigma_m', 'heading_min_speed_mps'})
-        app = [p['name'] for p in specs['function:cam_analyzer.distance']]
+        from wama.studio.services.node_params import node_schema
+        pure = node_schema('function:ego_track_filter')['params']
+        self.assertEqual({p['name'] for p in pure}, {'sigma_a', 'sigma_m', 'heading_min_speed_mps'})
+        self.assertTrue(all(p['type'] == 'number' for p in pure),
+                        'un réglage numérique se rend en NOMBRE, plus en champ texte')
+        app = [p['name'] for p in node_schema('function:cam_analyzer.distance')['params']]
         self.assertEqual(app[0], 'session_id', "l'argument requis de la tâche, par introspection")

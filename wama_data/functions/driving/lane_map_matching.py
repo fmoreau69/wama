@@ -384,27 +384,27 @@ SPEC = register(FunctionSpec(
                  derived_from=['road_map', 'segmentation', 'gps'], estimate_field='corr_de_m'),
     ],
     params=[
-        ParamSpec('radius_m', 'float', 25.0, 5.0, 100.0, 'm', 'Rayon des tronçons candidats.'),
-        ParamSpec('max_heading_dev_deg', 'float', 15.0, 1.0, 45.0, '°',
-                  'Écart de cap max navette ↔ voie, et cap GPS ↔ axe, pour qu\'une observation '
+        ParamSpec('radius_m', 'float', 25.0, 5.0, 100.0, unit='m', description='Rayon des tronçons candidats.'),
+        ParamSpec('max_heading_dev_deg', 'float', 15.0, 1.0, 45.0, unit='°',
+                  description='Écart de cap max navette ↔ voie, et cap GPS ↔ axe, pour qu\'une observation '
                   'devienne ancre.'),
-        ParamSpec('max_correction_m', 'float', 15.0, 0.5, 30.0, 'm',
-                  'Correction latérale max acceptée (au-delà : rattachement ou ligne faux). '
+        ParamSpec('max_correction_m', 'float', 15.0, 0.5, 30.0, unit='m',
+                  description='Correction latérale max acceptée (au-delà : rattachement ou ligne faux). '
                   "Mesuré en canyon urbain : dérive GPS locale jusqu'à 12 m."),
-        ParamSpec('max_gap_s', 'float', 20.0, 1.0, 120.0, 's',
-                  'Écart max entre deux ancres pour interpoler.'),
+        ParamSpec('max_gap_s', 'float', 20.0, 1.0, 120.0, unit='s',
+                  description='Écart max entre deux ancres pour interpoler.'),
         ParamSpec('bias_model', 'enum', 'kalman', choices=['kalman', 'interpolate'],
                   description="Passage des ancres à la trace : biais GPS lissé (Kalman + RTS) ou "
                               "interpolation entre ancres proches."),
-        ParamSpec('bias_q', 'float', 0.1, 0.001, 1.0, 'm²/s',
-                  'Vitesse de variation du biais GPS (marche aléatoire) — réglée par validation croisée.'),
-        ParamSpec('bias_sigma_m', 'float', 1.5, 0.1, 5.0, 'm', "Bruit d'une ancre (mesure latérale)."),
-        ParamSpec('max_bias_sigma_m', 'float', 1.5, 0.1, 10.0, 'm',
-                  "Au-delà de cet écart-type, la correction n'est plus appliquée (trop loin d'une ancre)."),
-        ParamSpec('max_overshoot_m', 'float', 2.0, 0.0, 20.0, 'm',
-                  "Au-delà du bout d'un tronçon de plus de tant, l'écart n'est pas latéral : pas d'ancre."),
-        ParamSpec('lateral_scale', 'float', 0.0, 0.0, 5.0, '×',
-                  'Échelle latérale de la projection (largeur vue / largeur réelle) ; 0 = mesurée '
+        ParamSpec('bias_q', 'float', 0.1, 0.001, 1.0, unit='m²/s',
+                  description='Vitesse de variation du biais GPS (marche aléatoire) — réglée par validation croisée.'),
+        ParamSpec('bias_sigma_m', 'float', 1.5, 0.1, 5.0, unit='m', description="Bruit d'une ancre (mesure latérale)."),
+        ParamSpec('max_bias_sigma_m', 'float', 1.5, 0.1, 10.0, unit='m',
+                  description="Au-delà de cet écart-type, la correction n'est plus appliquée (trop loin d'une ancre)."),
+        ParamSpec('max_overshoot_m', 'float', 2.0, 0.0, 20.0, unit='m',
+                  description="Au-delà du bout d'un tronçon de plus de tant, l'écart n'est pas latéral : pas d'ancre."),
+        ParamSpec('lateral_scale', 'float', 0.0, 0.0, 5.0, unit='×',
+                  description='Échelle latérale de la projection (largeur vue / largeur réelle) ; 0 = mesurée '
                   'contre la carte.'),
     ],
     cost={'cpu_bound': True},

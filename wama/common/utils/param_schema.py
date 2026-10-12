@@ -46,8 +46,13 @@ class Param:
                                                 # ex. voix : [("Voix par défaut", [...]), ("Mes voix", [...])]
     min: Optional[float] = None
     max: Optional[float] = None
-    step: Optional[float] = None
-    unit: str = ""                              # suffixe d'affichage de la valeur d'un range (ex. "s")
+    step: Any = None                            # pas de la grille (nombre) ; "any" = décimal LIBRE,
+                                                # sans grille (un `float` de fonction, 2026-10-12 —
+                                                # sans lui, un champ nombre n'accepte que des entiers
+                                                # et sa flèche avance de 1 sur une borne de 0 à 1).
+                                                # Absent = le comportement du navigateur (pas de 1).
+    unit: str = ""                              # unité AFFICHÉE avec la valeur : suffixe d'un range,
+                                                # d'un champ nombre (ex. "s", "m")
     min_label: str = ""                         # libellés FORMATÉS des bornes du range (ex. "10s"/"10min")
     max_label: str = ""                         #   — priment sur min/max bruts à l'affichage (P2-bis)
     contexts: Tuple[str, ...] = ALL_CONTEXTS
@@ -521,7 +526,13 @@ def schema_for_app(app_id: str) -> List[dict]:
     son attribut PRINCIPAL : c'est ce que `params_attr` déclare aujourd'hui, pas une limite de
     cette fonction. Le jour où le pointeur devient multiple, il ne bouge qu'ICI.
     """
-    import importlib
+    module_name, attr = _params_location(app_id)
+    return _module_list(module_name, attr)
+
+
+def _params_location(app_id: str):
+    """(module, attribut) du schéma PRINCIPAL d'une app — la résolution que `schema_for_app` et
+    `groups_for_app` partagent : pointeur DÉCLARATIF `GENERIC_APPS[app_id]`, sinon convention."""
     module_name = attr = None
     try:
         from wama.studio.services.generic_runner import GENERIC_APPS
@@ -531,10 +542,29 @@ def schema_for_app(app_id: str) -> List[dict]:
         pass
     if not module_name:
         module_name, attr = f'wama.{app_id}.params', 'PARAMS_JSON'
+    return module_name, attr or 'PARAMS_JSON'
+
+
+def _module_list(module_name: str, attr: str) -> List[dict]:
+    import importlib
     try:
         return list(getattr(importlib.import_module(module_name), attr, []) or [])
     except Exception:
         return []
+
+
+def groups_for_app(app_id: str) -> List[dict]:
+    """Groupes d'affichage (`ParamGroup`) du schéma PRINCIPAL d'une app — le pendant de
+    `schema_for_app`, pour qu'une surface qui rend le schéma ENTIER (le nœud du Studio,
+    2026-10-12) le rende comme la modale de l'app : groupes, conditions de groupe, colonnes.
+
+    Convention, comme les schémas : le groupe d'un schéma `<X>PARAMS_JSON` s'appelle
+    `<X>GROUPS_JSON` (anonymizer, converter : `GROUPS_JSON` ; imager : `IMAGE_GROUPS_JSON`).
+    [] quand l'app n'en déclare pas — le rendu est alors à plat, comme dans sa propre modale."""
+    module_name, attr = _params_location(app_id)
+    if not attr.endswith('PARAMS_JSON'):
+        return []
+    return _module_list(module_name, attr[:-len('PARAMS_JSON')] + 'GROUPS_JSON')
 
 
 def declared_param_schemas(app_id: str):
@@ -549,14 +579,7 @@ def declared_param_schemas(app_id: str):
     (GENERIC_APPS.params_module/params_attr, repli convention `wama.<app>.params`).
     """
     import importlib
-    module_name, primary = f'wama.{app_id}.params', 'PARAMS_JSON'
-    try:
-        from wama.studio.services.generic_runner import GENERIC_APPS
-        conf = GENERIC_APPS.get(app_id) or {}
-        module_name = conf.get('params_module') or module_name
-        primary = conf.get('params_attr') or primary
-    except Exception:
-        pass
+    module_name, primary = _params_location(app_id)
     try:
         mod = importlib.import_module(module_name)
     except Exception:
@@ -792,3 +815,88 @@ def coerce_schema_values(schema, data, only_present: bool = True) -> dict:
         else:
             out[name] = raw
     return out
+
+
+# ── La PORTE d'un réglage reçu : refuser ce qu'aucune coercition ne rend applicable ──────────
+# `coerce_schema_values` TYPE et BORNE ; elle ne REFUSE rien. Trois cas ne se corrigent pas sans
+# mentir, et se refusent en nommant la valeur : un choix hors liste (`invalid_choice_values`), un
+# nombre hors de sa grille (`unapplicable_numeric_values`), un nombre ILLISIBLE — `coerce_params`
+# le remplacerait par le défaut en silence, alors que l'utilisateur a écrit autre chose.
+# Lue par la porte des outils (`tool_api.execute_tool`, qui composait les deux premiers à la main
+# jusqu'au 2026-10-12), le lancement d'un graphe du Studio, l'exécution d'une fonction et d'un
+# nœud intégré : UNE composition.
+
+def schema_refusals(schema, data) -> dict:
+    """{nom: raison} de chaque valeur PRÉSENTE que le schéma refuse. Vide = tout est applicable.
+
+    La grille se juge sur la valeur BORNÉE, comme la porte des outils l'a toujours fait : une
+    valeur au-delà du maximum est ramenée au maximum (coercition), et c'est lui que la grille
+    juge — seul ce qu'aucune coercition ne rend applicable est refusé."""
+    out = {}
+    for name, (refused, valid) in invalid_choice_values(schema, data).items():
+        out[name] = (f"{', '.join(map(repr, refused))} n'est pas un choix proposé "
+                     f"(choix : {', '.join(valid)})")
+    readable = []
+    for p in schema:
+        name = _pget(p, 'name')
+        if name in out or _pget(p, 'type') not in ('range', 'number', 'intent'):
+            continue
+        raw = data.get(name) if hasattr(data, 'get') else None
+        if raw is None or raw == '' or isinstance(raw, bool):
+            continue
+        try:
+            float(raw)
+            readable.append(name)
+        except (TypeError, ValueError):
+            out[name] = f"{raw!r} n'est pas un nombre"
+    bounded = coerce_params(schema, data)
+    for name, (value, why) in unapplicable_numeric_values(
+            schema, {n: bounded[n] for n in readable if n in bounded}).items():
+        out[name] = f"{value!r} — {why}"
+    return out
+
+
+def describe_refusals(refusals: dict) -> str:
+    """Une phrase par valeur refusée, dans l'ordre des noms — le texte d'une erreur montrée."""
+    return ' ; '.join(f"{name} : {why}" for name, why in sorted(refusals.items()))
+
+
+def checked_values(schema, data) -> dict:
+    """Les valeurs FOURNIES, refusées si le schéma les refuse, sinon typées et bornées — la porte
+    d'un réglage reçu (graphe du Studio, card, vue). Lève `ValueError` qui nomme chaque refus."""
+    refusals = schema_refusals(schema, data)
+    if refusals:
+        raise ValueError(f"réglage(s) refusé(s) — {describe_refusals(refusals)}")
+    return coerce_schema_values(schema, data)
+
+
+# ── Le PONT `ParamSpec` → `Param` (ROUTE §10.6 point 3.3bis, règle 2 — marche R1, 2026-10-12) ──
+# Une fonction DÉCLARE ses réglages en `ParamSpec` (contrat sérialisé : kind `function`, clés des
+# protocoles Data) ; toute surface les REND en `Param`. Le pont ne perd rien de ce que la
+# déclaration dit — type, défaut, bornes, choix, unité, aide —, et n'invente rien de ce qu'elle
+# ne dit pas : sans libellé court déclaré, le libellé est la CLÉ (la description, souvent une
+# phrase entière, devient l'AIDE sous le champ). Il remplace deux projections qui perdaient les
+# bornes et faisaient de chaque nombre un champ texte (`studio/views.function_node_params_specs`).
+# Lecture par attributs (`key`, `type`…) : ce module ne dépend pas du catalogue.
+
+#: Type de DÉCLARATION (`function_catalog.PARAM_TYPES`) → type de RENDU (`Param.type`).
+SPEC_TYPE_TO_PARAM_TYPE = {
+    'float': 'number', 'int': 'number', 'bool': 'toggle',
+    'enum': 'select', 'str': 'text', 'json': 'textarea',
+}
+
+
+def param_from_spec(spec) -> Param:
+    """Le `Param` d'un `ParamSpec`. Lève `ValueError` sur un type que le pont ne connaît pas —
+    jamais un repli silencieux en champ texte (c'est ce qui rendait les nombres en texte)."""
+    ptype = SPEC_TYPE_TO_PARAM_TYPE.get(spec.type)
+    if ptype is None:
+        raise ValueError(f"réglage `{spec.key}` : type « {spec.type} » inconnu du pont "
+                         f"({', '.join(SPEC_TYPE_TO_PARAM_TYPE)})")
+    choices = None
+    if spec.type == 'enum':
+        choices = [(str(c), str(c)) for c in (spec.choices or [])]
+    step = 1 if spec.type == 'int' else ('any' if spec.type == 'float' else None)
+    return Param(name=spec.key, type=ptype, label=spec.key, help=spec.description or '',
+                 default=spec.default, choices=choices, min=spec.min, max=spec.max,
+                 step=step, unit=spec.unit or '')

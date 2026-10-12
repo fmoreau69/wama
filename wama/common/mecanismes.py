@@ -1672,7 +1672,13 @@ MECHANISMS = (
               "défauts du schéma ← preset ← réglages POSÉS — formulation Fabien, ROADMAP "
               "§23.2bis) : la base ne stocke que le POSÉ (vide = « le preset décide »), les "
               "défauts restent au schéma — c'est ce qui rend un preset POSSIBLE, et ce qui a "
-              "remplacé resolve_options du converter + les défauts en dur des backends",
+              "remplacé resolve_options du converter + les défauts en dur des backends. Depuis le "
+              "12/10 (ROUTE §10.6 3.3bis, R1) c'est LA forme de tous les mondes : le pont "
+              "`param_from_spec` projette les `ParamSpec` d'une fonction sans perte, le Studio rend "
+              "tous ses nœuds par WamaParams (renderer commun `media_picker`, `isGesture`), et la "
+              "PORTE des refus (`schema_refusals`/`checked_values` : choix hors liste, nombre "
+              "illisible ou hors grille) est lue par la porte des outils, le lancement d'un graphe, "
+              "l'exécution d'une fonction et le moteur de vue Data",
               'wama/common/utils/param_schema.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/static/common/js/wama-params.js',
                        'wama/common/templates/common/_settings_modal_footer.html')),

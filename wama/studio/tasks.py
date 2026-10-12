@@ -226,28 +226,21 @@ def _frame_summary(frame) -> str:
         return repr(frame)
 
 
-def _coerce_params(spec, params: dict) -> dict:
-    """Params de nœud (formulaire : chaînes) → types des `ParamSpec` ; vide = défaut de la
-    fonction (on ne passe rien, comme le runner générique)."""
-    out = {}
-    declared = {p.key: p for p in spec.params}
-    for k, v in (params or {}).items():
-        if v in (None, ''):
-            continue
-        ps = declared.get(k)
-        if ps is None:
-            continue          # un param inconnu de la fonction ne lui est pas passé
-        try:
-            if ps.type == 'float':
-                v = float(v)
-            elif ps.type == 'int':
-                v = int(float(v))
-            elif ps.type == 'bool':
-                v = str(v).strip().lower() in ('1', 'true', 'oui', 'on', 'yes')
-        except (TypeError, ValueError):
-            raise ValueError(f"paramètre `{k}` : valeur {v!r} non convertible en {ps.type}")
-        out[k] = v
-    return out
+def builtin_node_values(node) -> dict:
+    """Les réglages d'un nœud INTÉGRÉ (entrée, sortie) passés par la porte commune — typés,
+    bornés, refusés s'ils ne sont pas applicables (`param_schema.checked_values`), contre le
+    schéma que l'inspecteur a rendu (`node_params.node_schema`). Avant le 2026-10-12, ces nœuds
+    lisaient leurs réglages bruts : un interrupteur arrivait en `'1'`/`''`."""
+    from wama.common.utils.param_schema import checked_values
+    from wama.studio.services.node_params import node_label, node_schema
+    raw = node.get('params') or {}
+    schema = node_schema(node['app'])
+    if schema is None:
+        return dict(raw)
+    try:
+        return checked_values(schema['params'], raw)
+    except ValueError as exc:
+        raise ValueError(f"Nœud « {node_label(node['app'])} » : {exc}")
 
 
 def _run_pure_function(spec, frames_by_port: dict, params: dict):
@@ -272,7 +265,10 @@ def _run_pure_function(spec, frames_by_port: dict, params: dict):
             keywords[port.key] = got
     if positional is None:
         raise ValueError("aucune entrée")
-    result = spec.fn(positional, **keywords, **_coerce_params(spec, params))
+    # Les réglages passent par LA porte de la fonction (`FunctionSpec.call_params` : le pont vers
+    # `Param`, puis `checked_values`) — types ET bornes, refus nommés. L'ancienne coercition locale
+    # ne connaissait que les types : une borne déclarée n'était tenue nulle part au lancement.
+    result = spec.fn(positional, **keywords, **spec.call_params(params))
     if not isinstance(result, TypedFrame):
         raise ValueError(f"la fonction n'a pas rendu un TypedFrame ({type(result).__name__}) — "
                          f"contrat `pure` non honoré (noyau branché à la place du wrapper ?)")
@@ -468,7 +464,7 @@ def run_pipeline_task(self, run_id):
             # Nœud SOURCE (card d'entrée) : produit sa valeur depuis ses params.
             if app in SOURCE_HANDLERS:
                 _save_state(nid, status=JOB_RUNNING)
-                out_type, value = SOURCE_HANDLERS[app](user, node.get('params') or {})
+                out_type, value = SOURCE_HANDLERS[app](user, builtin_node_values(node))
                 is_frame = hasattr(value, 'df') and hasattr(value, 'data_type')
                 is_lots = _is_lot_list(value)
                 outputs[nid] = {'type': out_type, 'value': value, 'is_frame': is_frame,
@@ -487,7 +483,7 @@ def run_pipeline_task(self, run_id):
                 if not lots:
                     raise ValueError("Nœud « Export de données » : aucune base reçue (connectez "
                                      "un nœud « Base connectée »).")
-                note = _sink_data_export(user, lots, node.get('params') or {})
+                note = _sink_data_export(user, lots, builtin_node_values(node))
                 _save_state(nid, status=JOB_SUCCESS, output=note)
                 _console(user.id, f"Studio run #{run.pk} : export écrit — {note}")
                 continue
@@ -502,14 +498,15 @@ def run_pipeline_task(self, run_id):
                 if incoming[0].get('is_lots'):
                     raise ValueError("Nœud « Sortie » : une base connectée ne se range pas en "
                                      "médiathèque — passez par un nœud « Export de données ».")
+                sink_params = builtin_node_values(node)
                 if incoming[0].get('is_frame'):
                     note = _sink_frame_to_media_library(user, incoming[0]['value'],
-                                                        node.get('params') or {}, run.pk)
+                                                        sink_params, run.pk)
                 elif incoming[0].get('is_text'):
                     note = _sink_text_to_media_library(user, incoming[0]['value'],
-                                                       node.get('params') or {}, run.pk)
+                                                       sink_params, run.pk)
                 else:
-                    note = _sink_media_library(user, incoming[0]['value'], node.get('params') or {})
+                    note = _sink_media_library(user, incoming[0]['value'], sink_params)
                 _save_state(nid, status=JOB_SUCCESS, output=note)
                 _console(user.id, f"Studio run #{run.pk} : sortie rangée — {note}")
                 continue
@@ -588,7 +585,14 @@ def run_pipeline_task(self, run_id):
                             port = ports_connus[0] if ports_connus else None
                         if port:
                             fichiers[port] = up['value']
+                    # Les réglages DÉCLARÉS de la fonction passent par sa porte (types, bornes,
+                    # refus nommés) ; les autres — arguments de la tâche, comme `session_id` —
+                    # restent tels quels : c'est la signature de la tâche qui les juge.
                     params_noeud = dict(node.get('params') or {})
+                    try:
+                        params_noeud.update(spec.call_params(params_noeud))
+                    except ValueError as exc:
+                        raise ValueError(f"Nœud fonction « {key} » : {exc}")
                     params_noeud.setdefault('user_id', user.pk)
                     res = _run_app_function(spec, params_noeud,
                                             lambda **kw: _save_state(nid, **kw), NODE_TIMEOUT_S,

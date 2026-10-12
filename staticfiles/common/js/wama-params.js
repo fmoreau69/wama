@@ -234,6 +234,24 @@
       '<i class="fas fa-photo-video"></i></button></div>';
   }, { modelHelp: true, optionSources: true });
 
+  // ── GESTE ou REMPLISSAGE ? (2026-10-12) ───────────────────────────────────────────────────
+  // Le moteur émet lui-même des `change` : à chaque recharge des options d'un select (pour que
+  // l'appariement et les filtres se rejouent), et quand une fenêtre (médiathèque) pose une valeur
+  // CHOISIE par l'utilisateur. Un consommateur qui ENREGISTRE ce qu'on règle — le graphe du
+  // Studio, et son historique d'annulation — doit distinguer les deux : un remplissage n'est pas
+  // une décision, un choix dans la médiathèque en est une, alors que ni l'un ni l'autre n'est un
+  // évènement « de confiance » du navigateur. Les émissions qui portent un choix sont marquées
+  // (`gestureEvent`) ; `isGesture(e)` répond pour tous les cas.
+  function gestureEvent(type) {
+    const e = new Event(type, { bubbles: true });
+    e.wamaGesture = true;
+    return e;
+  }
+
+  function isGesture(e) {
+    return !!(e && (e.isTrusted || e.wamaGesture));
+  }
+
   // Pose l'option (l'insère dans son groupe si le select ne la connaît pas encore — une voix
   // qu'on vient d'ajouter), la choisit, et le DIT (`change`) : appariement, grisage des moteurs
   // et puce de la voix clonée écoutent ce select comme s'il avait été choisi à la main.
@@ -257,7 +275,7 @@
       select.dispatchEvent(new CustomEvent('wama:options-filled', { bubbles: true }));
     }
     select.value = o.value;
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    select.dispatchEvent(gestureEvent('change'));   // l'utilisateur l'a CHOISIE dans la fenêtre
   }
 
   // UN écouteur délégué pour toutes les surfaces (volet, modales rendues à la volée). Gardé : une
@@ -307,13 +325,57 @@
       ' rows="2">' + esc(api.value) + '</textarea>';
   });
 
+  // L'UNITÉ déclarée se lit à côté de la valeur (2026-10-12) : un champ nombre la taisait — seul
+  // le curseur l'affichait —, et un réglage de fonction en mètres ou en secondes perdait la
+  // moitié de son sens en passant de la déclaration au formulaire. `step: 'any'` = décimal libre.
   registerRenderer('number', function (p, api) {
-    const attrs = [p.min != null ? 'min="' + p.min + '"' : '',
-                   p.max != null ? 'max="' + p.max + '"' : '',
-                   p.step != null ? 'step="' + p.step + '"' : ''].join(' ');
-    return '<input type="number" class="form-control form-control-sm" id="' + api.id + '" ' +
+    const attrs = [p.min != null ? 'min="' + esc(p.min) + '"' : '',
+                   p.max != null ? 'max="' + esc(p.max) + '"' : '',
+                   p.step != null ? 'step="' + esc(p.step) + '"' : ''].join(' ');
+    const input = '<input type="number" class="form-control form-control-sm" id="' + api.id + '" ' +
       api.idAttr + ' value="' + esc(api.value) + '" ' + attrs + '>';
+    if (!p.unit) return input;
+    return '<div class="input-group input-group-sm">' + input +
+      '<span class="input-group-text">' + esc(p.unit) + '</span></div>';
   });
+
+  // ── Désigner un média de la MÉDIATHÈQUE (2026-10-12, renderer commun) ─────────────────────
+  // Un champ dont la valeur est le CHEMIN d'un asset (relatif à MEDIA_ROOT) : la valeur vit dans
+  // un champ caché que `read()`/`apply()` voient comme tout champ ; un bouton ouvre la fenêtre
+  // commune (`MediaPicker`) en DÉSIGNATION (`onPick` : l'asset est pointé, jamais recopié —
+  // `MEDIA_STORAGE_TIERING §8.6` D10). Il n'existait que dans l'inspecteur du Studio, écrit à la
+  // main et téléchargeant le fichier choisi pour n'en garder que l'URL : toute surface l'a
+  // désormais, sans une ligne de plus.
+  function _mediaShown(path) {
+    return path ? String(path).split('/').pop() : '';
+  }
+
+  registerRenderer('media_picker', function (p, api) {
+    const v = api.value || '';
+    return '<input type="hidden" id="' + api.id + '" ' + api.idAttr + ' value="' + esc(v) + '">' +
+      '<button type="button" class="btn btn-sm btn-outline-info w-100 text-truncate"' +
+      ' data-media-pick="' + api.id + '" title="Médiathèque : choisir un média">' +
+      '<i class="fas fa-photo-film me-1"></i><span class="wama-media-pick-name">' +
+      esc(_mediaShown(v) || 'Choisir dans la médiathèque…') + '</span></button>';
+  }, { labelIsBlock: true });
+
+  if (!global.__wamaMediaPickBound) document.addEventListener('click', function (e) {
+    const btn = e.target.closest && e.target.closest('[data-media-pick]');
+    if (!btn) return;
+    const field = document.getElementById(btn.getAttribute('data-media-pick'));
+    if (!field || !global.MediaPicker) return;
+    MediaPicker.open({
+      type: 'all',
+      onPick: function (asset) {
+        if (!asset || !asset.path) return;
+        field.value = asset.path;
+        const name = btn.querySelector('.wama-media-pick-name');
+        if (name) name.textContent = asset.name || _mediaShown(asset.path);
+        field.dispatchEvent(gestureEvent('change'));
+      },
+    });
+  });
+  global.__wamaMediaPickBound = true;
 
   /** Libellé d'une VALEUR de réglage : le FORMAT déclaré (`display_format` : « duration » →
    *  « 3:30 », « size » → « 3,8 Go », formateurs communs de `WamaApp`), sinon la valeur suivie
@@ -577,9 +639,13 @@
   // CATALOGUE, plus d'une liste écrite dans l'app. Le domaine se déclare au schéma via
   // `options_query` (cf. ci-dessous) — sans quoi une clé, qui ne porte qu'une URL fixe,
   // ne saurait pas DE QUOI parler.
+  // `avatar_gallery` (2026-10-12) : les avatars que l'utilisateur peut NOMMER — la liste même que
+  // résout `designate_named_avatar` (`avatarizer/system_assets.py`). Elle n'était servie que par la
+  // vue du Studio, en option de page : la clé était déclarée sans être résolue nulle part ailleurs.
   var OPTION_SOURCES = global.WAMA_OPTION_SOURCES || {
     voices: '/common/api/voices/',
     catalog: '/model-manager/api/models/options/',
+    avatar_gallery: '/avatarizer/api/avatar-gallery/',
   };
   var _optionSourceCache = {};
 
@@ -1168,6 +1234,12 @@
       const span = r.querySelector('.wama-range-val');
       if (inp && span) span.textContent = inp.value;
     });
+    // Le nom montré d'un média désigné suit sa valeur (champ caché posé ci-dessus).
+    container.querySelectorAll('[data-media-pick]').forEach(function (btn) {
+      const field = document.getElementById(btn.getAttribute('data-media-pick'));
+      const name = btn.querySelector('.wama-media-pick-name');
+      if (field && name) name.textContent = _mediaShown(field.value) || 'Choisir dans la médiathèque…';
+    });
     _syncIntentSliders(container);   // curseur d'intention : hidden → position + tricolore
     _bindConditional(container);
     // Bornes par capacité du modèle (`cap_from`) : rejouées sur les valeurs qu'on vient de poser.
@@ -1437,6 +1509,9 @@
                         // Extension du vocabulaire de composants SANS toucher au moteur :
                         // un type absent du registry retombe sur le champ texte (jamais d'erreur).
                         registerRenderer: registerRenderer,
+                        // Un `change` est-il une DÉCISION de l'utilisateur (geste, choix dans
+                        // la médiathèque) ou un remplissage du moteur ? Pour qui enregistre.
+                        isGesture: isGesture,
                         // Sources d'options adossées à une donnée de page (cf. PAGE_OPTION_SOURCES) —
                         // exposé pour qu'un optionsResolver (d'app ou GÉNÉRÉ) délègue au registre
                         // commun au lieu de réécrire la même résolution.

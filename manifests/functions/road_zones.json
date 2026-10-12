@@ -37,24 +37,24 @@
     "owner": "",
     "params": [
       {
-        "choices": "m",
+        "choices": null,
         "default": 3.0,
-        "description": "",
+        "description": "Largeur de voie supposée quand la chaussée n'a pas de largeur déclarée.",
         "key": "default_lane_width_m",
         "max": 5.0,
         "min": 2.0,
         "type": "float",
-        "unit": "Largeur de voie supposée quand la chaussée n'a pas de largeur déclarée."
+        "unit": "m"
       },
       {
-        "choices": "m",
+        "choices": null,
         "default": 0.3,
-        "description": "",
+        "description": "Tolérance de simplification des contours.",
         "key": "simplify_m",
         "max": 5.0,
         "min": 0.0,
         "type": "float",
-        "unit": "Tolérance de simplification des contours."
+        "unit": "m"
       }
     ],
     "projects": [],

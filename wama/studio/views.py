@@ -88,44 +88,6 @@ _FUNCTION_ICONS = {
 }
 
 
-def function_node_params_specs():
-    """Specs de params des nœuds FONCTION (forme des `params_spec` du runner générique) :
-    `ParamSpec` → champ ; pour une fonction `app`-bound, les arguments OBLIGATOIRES de sa
-    tâche `impl` (ex. `session_id`) s'ajoutent en tête — par introspection, jamais par app."""
-    from wama.common.catalog import function_catalog as fc
-    from wama.common.manifests.builtin.pipeline import FUNCTION_NODE_PREFIX
-    from wama.studio.tasks import app_function_job_kwargs
-    fc.load_all()
-    specs = {}
-    for key, spec in fc.FUNCTION_CATALOG.items():
-        entries = []
-        if spec.binding == fc.Binding.APP and spec.impl:
-            try:
-                required = app_function_job_kwargs(spec.impl)
-            except ValueError:
-                required = []
-            entries += [{'name': n, 'label': n, 'type': 'text',
-                         'placeholder': f'requis par {spec.impl.split(":")[-1]}'} for n in required]
-        for p in spec.params:
-            e = {'name': p.key, 'label': p.description or p.key}
-            if p.type == 'enum' and p.choices:
-                e['type'] = 'select'
-                e['options'] = [{'value': c, 'label': str(c)} for c in p.choices]
-            elif p.type == 'bool':
-                e['type'] = 'select'
-                e['options'] = [{'value': '', 'label': 'Non'}, {'value': '1', 'label': 'Oui'}]
-            else:
-                e['type'] = 'text'
-                if p.min is not None or p.max is not None or p.unit:
-                    e['placeholder'] = f"{p.min if p.min is not None else ''}–" \
-                                       f"{p.max if p.max is not None else ''} {p.unit}".strip(' –')
-            if p.default is not None:
-                e['default'] = p.default
-            entries.append(e)
-        specs[f'{FUNCTION_NODE_PREFIX}{key}'] = entries
-    return specs
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Persistance + exécution (2026-07-11 — PROJECT_STATUS §15 : les 2 ⏳ du studio)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -217,70 +179,17 @@ def api_declared_pipeline_detail(request, key):
 
 @login_required
 def api_run_options(request):
-    """Options d'exécution métadonnée-driven : params_spec par app exécutable +
-    listes dynamiques (galerie d'avatars)."""
-    from .services.runners import runner_for
-    from .services.generic_runner import GENERIC_APPS, with_catalog_options
-    # Source unique : params.py. Les selects tirés du CATALOGUE reçoivent leurs options À CHAQUE
-    # requête (le spec du runner est en cache) — un modèle installé y entre sans redémarrage.
-    specs = {app: with_catalog_options(runner_for(app)['params_spec']) for app in GENERIC_APPS}
-    # Nœuds intégrés (cards d'entrée / de sortie) — configurables dans l'inspecteur
-    specs['text_input'] = [
-        {'name': 'text', 'label': 'Texte', 'type': 'textarea',
-         'placeholder': 'Texte / prompt envoyé au nœud aval…'},
-    ]
-    specs['media_import'] = [
-        {'name': 'asset_path', 'label': 'Média (médiathèque)', 'type': 'media_picker'},
-    ]
-    from wama.common.catalog.data_types import DataType, known_types
-    specs['dataset_input'] = [
-        {'name': 'asset_path', 'label': 'Fichier tabulaire (médiathèque)', 'type': 'media_picker'},
-        {'name': 'data_type', 'label': 'Type de donnée', 'type': 'select',
-         'options': sorted(known_types()),
-         'default': DataType.TABLE},
-    ]
-    # Monde Data (2026-10-11) : l'ENTRÉE Connector et la SORTIE Exporter. ⏳ Les déclarations
-    # d'export se saisissent ici en JSON (forme `Declaration.to_dict`) : leur éditeur — famille,
-    # tables, colonnes ordonnées, aperçu (§11.1) — est une surface de la card du Data Analyzer.
-    specs['data_connector'] = [
-        {'name': 'path', 'label': 'Base ou dossier de bases', 'type': 'text',
-         'placeholder': 'chemin du gestionnaire de fichiers (mounts/<id>/… pour un dossier connecté)'},
-    ]
-    from wama_data.core.export import writable_formats
-    specs['data_export'] = [
-        {'name': 'declarations', 'label': "Déclarations d'export (JSON)", 'type': 'textarea',
-         'placeholder': '[{"name": "situations", "colonnes": [{"stream": "…", "field": "…"}], '
-                        '"identite": ["trip_id"], "format": "' + '|'.join(writable_formats()) + '"}]'},
-        {'name': 'destination', 'label': 'Dossier de destination', 'type': 'text',
-         'placeholder': "(défaut : le dossier d'où viennent les données)"},
-        {'name': 'concat_lots', 'label': 'Concaténer les bases', 'type': 'select',
-         'options': [{'value': '', 'label': 'Non'}, {'value': '1', 'label': 'Oui'}]},
-        {'name': 'concat_declarations', 'label': 'Concaténer les déclarations', 'type': 'select',
-         'options': [{'value': '', 'label': 'Non'}, {'value': '1', 'label': 'Oui'}]},
-        {'name': 'overwrite', 'label': 'Remplacer un fichier existant', 'type': 'select',
-         'options': [{'value': '', 'label': 'Non'}, {'value': '1', 'label': 'Oui'}]},
-    ]
-    specs.update(function_node_params_specs())   # D13 : nœuds fonction
-    specs['studio_output'] = [
-        {'name': 'asset_name', 'label': 'Nom dans la médiathèque', 'type': 'text',
-         'placeholder': '(défaut : nom du fichier produit)'},
-        {'name': 'asset_type', 'label': "Type d'asset", 'type': 'select',
-         'options': ['video', 'image', 'voice', 'audio_music', 'audio_sfx', 'document'],
-         'default': 'video'},
-    ]
-    # Galerie d'avatars — MÊME SOURCE que l'app avatarizer, et c'est maintenant vrai au sens
-    # fort : la médiathèque. Ce bloc RECOPIAIT le parcours de dossier de `avatarizer.views`
-    # (deux scans pour une seule galerie) ; les deux lisent désormais `SystemAsset`, donc ils
-    # ne peuvent plus diverger. Le studio n'a besoin que des NOMS pour sa liste d'options.
-    # 2026-09-29 : la liste est celle que l'utilisateur VOIT (les siens, les partagés, le système)
-    # — la même que la card de l'avatarizer ; le nom choisi se résout par `designate_named_avatar`.
-    # 2026-09-30 : + les avatars 3D (objets 3D au visage ARKit, moteur TalkingHead de l'avatarizer)
-    # — filtrés sur l'attribut MESURÉ, pas sur toute la nature : un maillage TripoSR ne parle pas.
-    from wama.media_library.services import visible_asset_names
-    gallery = (visible_asset_names(request.user, 'avatar')
-               + visible_asset_names(request.user, 'object3d', attributes={'face_rig': 'arkit'}))
-    gallery = list(dict.fromkeys(gallery))
-    return JsonResponse({'params_specs': specs, 'options': {'avatar_gallery': gallery}})
+    """Réglages de chaque nœud exécutable, sous la forme commune : `{'schemas': {nœud: {params,
+    groups}}}` — des `Param` que l'inspecteur rend par `WamaParams`, comme la modale ⚙ d'une card
+    (`services/node_params.py`, ROUTE §10.6 point 3.3bis, marche R1).
+
+    Rien n'est résolu ici : un select tiré du catalogue, des voix ou des avatars se remplit SEUL,
+    par l'endpoint commun de sa source (`OPTION_SOURCES` de `wama-params.js`), à chaque ouverture
+    — un modèle installé y entre sans redémarrage. Ce qui vivait ici le recopiait : les options du
+    catalogue résolues à chaque requête, et la galerie d'avatars (désormais
+    `avatarizer:api_avatar_gallery`, la liste même que résout `designate_named_avatar`)."""
+    from .services.node_params import offered_node_schemas
+    return JsonResponse({'schemas': offered_node_schemas()})
 
 
 @login_required

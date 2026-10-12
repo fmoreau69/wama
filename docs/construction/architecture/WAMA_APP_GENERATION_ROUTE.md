@@ -161,10 +161,12 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   - ~~modale batch JAMAIS rendue par WamaParams~~ — **PÉRIMÉ, mesuré 2026-08-06** : anonymizer,
     avatarizer et imager rendent `context:'batch'`. Ce qui reste écrit à la main est la **coquille**
     (`<div class="modal">` + titre + pied), jamais le CONTENU (généré du schéma).
-  - le **studio a son PROPRE renderer** `renderNodeParams` (`wama-studio.js:606-665` au 2026-10-11)
+  - ~~le **studio a son PROPRE renderer** `renderNodeParams` (`wama-studio.js:606-665` au 2026-10-11)
     **appauvri** (pas de toggle/range/radio/show_if/advanced) — réinvention à supprimer (doit appeler
-    WamaParams). Route tracée, tous mondes : **§10.6 point 3.3bis** (une forme `Param`, un rendu, une
-    coercition — fonctions Data, nœuds intégrés et profil Lab compris).
+    WamaParams).~~ ✅ **2026-10-12 (marche R1)** : l'inspecteur du Studio rend tous ses nœuds par
+    `WamaParams` (contexte `item`), depuis leur schéma `Param` (`studio/services/node_params.py`) —
+    `REMOVAL_LEDGER R116`. Route tracée, tous mondes : **§10.6 point 3.3bis** (une forme `Param`, un
+    rendu, une coercition — fonctions Data, nœuds intégrés et profil Lab compris ; restent R2-R4).
 - **Adoption réelle — RE-MESURÉE le 2026-08-31** (balayage exhaustif des 10 apps, fichier:ligne
   au §S2ter ; la table qui vivait ici datait du 06/08 et disait 3/10 là où le parc est à 10/10) :
 
@@ -1369,7 +1371,8 @@ le passé.*
   *(précisé le 2026-09-15) : depuis le 2026-09-09, nœuds `function` (`function:<clé>`) et source
   `dataset_input` ; type de nœud `pipeline` décidé le 15/09, non implémenté. `node_states` (un JSON par
   run) sera remplacé par une ligne d'exécution PAR PROCESS — §10.6 point 4.1.*
-- **Trou** : `renderNodeParams` appauvri (cf. F3). **Cible : E/S du nœud DÉRIVÉES des ports**, pas re-saisies.
+- ~~**Trou** : `renderNodeParams` appauvri (cf. F3).~~ ✅ 2026-10-12 : réglages des nœuds par `WamaParams`
+  (§10.6 point 3.3bis, R1). **Cible : E/S du nœud DÉRIVÉES des ports**, pas re-saisies.
 - **Manifeste** : `studio.{runnable, primary_input, input_kwarg, fixed_kwargs, auto_start}` — ports/output_type
   **lus depuis `ports`** (fin de la double saisie).
 
@@ -1393,8 +1396,8 @@ enhancer média, avatarizer audio) ; E/S manuelle sans `io_scope` → verdict `d
 redéclaration manuelle, le récupère par construction. Mesuré : 10/10 agree (7 derived / 3 narrowed).
 
 ### §10.2 — Adopter les briques sous-adoptées — 🔄 (chantier d'homogénéisation, indépendant du manifeste)
-WamaParams sur les apps hand-built restantes + modale batch + studio→WamaParams (supprimer
-`renderNodeParams` — route : §10.6 point 3.3bis, marche R1) ; chips ; `select_model()` ; **enum de statut commune** (tuer les 3 tables
+WamaParams sur les apps hand-built restantes + modale batch + ~~studio→WamaParams (supprimer
+`renderNodeParams` — route : §10.6 point 3.3bis, marche R1)~~ ✅ 2026-10-12 ; chips ; `select_model()` ; **enum de statut commune** (tuer les 3 tables
 d'alias) ; `during_preview` émission (9 apps).
 
 **✅ Ajout du 2026-08-23 — les ACTIONS DE CARD sont sorties de ce chantier.** ⚙ Paramètres et
@@ -2144,6 +2147,8 @@ outillé avant d'ouvrir cette marche.
      qui interroge **les deux registres** avant de se plaindre — en nommant la clé absente.
      Restent 2 clés non résolues et **assumées explicitement** (`SOURCES_NON_RESOLUES` du module de
      tests) : `backends` (transcriber) et `avatar_gallery` (studio, déclarée hors schéma d'app).
+     ✅ **`avatar_gallery` résolue le 2026-10-12** (R1 du §10.6 point 3.3bis) : endpoint
+     `avatarizer:api_avatar_gallery` au registre `OPTION_SOURCES` — reste `backends`.
   10. **La barre de file n'était câblable que par une app — donc jamais par un gabarit.** Le
      partial `_queue_actions.html` reçoit des **ids** et son contrat dit « handlers JS de l'app » ;
      or un gabarit ne peut pas écrire de handler, il ne peut que passer une URL. La jumelle naissait
@@ -3551,7 +3556,9 @@ son exécution (`studio/tasks.py` : `SOURCE_HANDLERS` et branches par nom de nœ
 Data de la 1ʳᵉ marche de P7 (`7159838e`) y ont ajouté une **citation du monde Data dans le
 substrat** — `studio/views.py` et `studio/tasks.py` importent `wama_data` —, le défaut que
 `AGENTS.md` nomme (« le registre ne connaît jamais ses producteurs ») : introduit le 2026-10-11,
-retiré par R2 ci-dessous.
+retiré par R2 ci-dessous. *(Depuis R1, 2026-10-12, les réglages des nœuds intégrés vivent dans
+`studio/services/node_params.py` : c'est lui, et non plus `views.py`, qui cite `wama_data` pour les
+formats d'export ; `tasks.py` inchangé.)*
 
 **La route — six règles.**
 1. **La forme est `Param`** (`common/utils/param_schema.py`). Tout ce qui a des réglages les EXPOSE
@@ -3605,6 +3612,49 @@ domicile du registre des nœuds intégrés (proposé : à côté de `SOURCE_NODE
 **Gardes à écrire avec R1** : tout nœud que le Studio offre a un schéma `Param` que `WamaParams` sait
 rendre (aucun type inconnu) ; puis un critère de grille « aucun écran de réglages hors `WamaParams` »,
 sur le modèle de `settings_modal_cycle`.
+
+✅ **R1 LIVRÉE le 2026-10-12** (demande de Fabien : *« méticuleusement, en profondeur et parfaitement
+aligné sur le fonctionnement de WAMA, universel, commun et portable à tous les mondes »* ;
+`REMOVAL_LEDGER R116`). Ce qui est en place, règle par règle :
+- **Règle 1-2 — la forme et le pont.** `param_schema.param_from_spec` projette un `ParamSpec` en
+  `Param` sans rien perdre ni inventer : `float`/`int` → nombre (grille de 1 pour un entier, `step:
+  'any'` pour un décimal — sans lui un champ nombre n'accepte que des entiers), `bool` → interrupteur,
+  `enum` → select, `str` → texte, `json` → zone de texte ; défaut, bornes, unité, choix ; la
+  description devient l'AIDE, le libellé est la CLÉ tant que (a) n'est pas tranchée. Un type inconnu
+  LÈVE (plus de repli en champ texte). `FunctionSpec.param_schema()` l'expose.
+  ⚠⚠ **Mesuré en écrivant le pont** : 20 déclarations sur 131, dans quatre fichiers
+  (`depth_geometry`, `lane_map_matching`, `road_zones`, `cam_analyzer/function_specs`), passaient
+  `ParamSpec(k, t, d, lo, hi, 'm', 'Profondeur…')` : l'unité tombait dans `choices`, la description
+  dans `unit`, la description restait vide — sérialisé tel quel au corpus (`"choices": "m"`), affiché
+  par le Studio comme une unité. Corrigé à la SOURCE, et rendu IMPOSSIBLE par la forme : tout ce qui
+  suit `max` se nomme (`KW_ONLY`). `json` entre au vocabulaire déclaré (`PARAM_TYPES`), où il était
+  employé sans y figurer.
+- **Règle 3 — un rendu.** L'inspecteur du Studio rend app, fonction et nœud intégré par
+  `WamaParams.render(context:'item')` ; une app y apporte son schéma ENTIER et ses groupes
+  (`groups_for_app`, convention `<X>GROUPS_JSON`). `media_picker` est un renderer COMMUN (désignation
+  `onPick`, plus de téléchargement du fichier choisi) ; un nombre affiche son UNITÉ ; `isGesture`
+  distingue une décision de l'utilisateur d'une recharge d'options (le graphe et son historique
+  d'annulation n'enregistrent que les décisions). Les selects `catalog`, `voices` et désormais
+  `avatar_gallery` (endpoint `avatarizer:api_avatar_gallery`, la liste que résout
+  `designate_named_avatar`) se remplissent par l'endpoint COMMUN de leur source.
+- **Règle 4 — une porte.** `param_schema.schema_refusals` / `checked_values` refusent en nommant ce
+  qu'aucune coercition ne rend applicable — choix hors liste, nombre ILLISIBLE (la coercition le
+  remplaçait par le défaut), nombre hors de sa grille (jugée sur la valeur bornée) — puis typent et
+  bornent. Lue PARTOUT : la porte des outils (`execute_tool`, qui composait à la main), le lancement
+  d'un graphe (AVANT dispatch), l'exécution d'une fonction (`FunctionSpec.call_params`, pure ou
+  rattachée), d'un nœud intégré (ses interrupteurs arrivaient en `'1'`/`''`), et le moteur de vue du
+  monde Data (`wama_data/view.apply`).
+- **Règle 5** : le porteur des valeurs reste les `params` du nœud ; l'ex-`extra_params_spec` de
+  l'avatarizer est un `Param` (son avatar est une ENTRÉE de la card, pas un réglage de l'app : il reste
+  propre au nœud tant que le nœud ne lit pas son port image).
+- **Gardes** : `studio.tests_node_settings` (tout nœud offert — 141 — a un schéma que `WamaParams`
+  sait rendre, toute source d'options résolue ; refus avant dispatch, contre-épreuve ; plus aucun
+  rendu propre au Studio ; V8 sur le script SERVI), `tests_param_bridge` (déclarations bien formées,
+  projection sans perte, porte), `tests_wama_params_fields` (V8 : unité, `media_picker`, geste).
+- ⏳ **Reste, nommé** : le **critère de grille** « aucun écran de réglages hors `WamaParams` » — il
+  mesure les APPS, et sa première cible est la modale écrite à la main du profil Lab (R3) : il
+  s'écrit avec R3. Les libellés des nœuds intégrés vivent encore à deux endroits (palette JS,
+  `node_params`) : R2.
 
 **3.4 Étages = sous-pipelines.** Le champ `stage` de cam_analyzer (`analyse` / `calcul`,
 `cam_analyzer.json` lignes 105 et 195) devient une STRUCTURE : deux pipelines (« analyse d'image »,
@@ -5105,7 +5155,7 @@ possible **sans aucun process**.
 | **P4** | pilote Médias — ✅ **arbitré le 2026-10-02 (Fabien) : le COMPOSER**, YuE2 en deux process (`plan` consigne → partition, `render` partition → audio ; éditer la partition rend le rendu `STALE`). 🔄 **Code livré le 02/10** (point 4, « paliers B et C ») ; génération réelle JOUÉE le soir même sur le moteur (plan → render, puis render seul) — rejouée par le worker en service le 03/10 (dont ▶ du rendu seul). ✅ Le **transcriber** en 4 process livré le 03/10, A/B objectif fait (point 4, bloc « P4, 2ᵉ pilote ») | P3 |
 | **P5** ✅ 03/10 | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) — livré en six pièces le 03/10 (point 5 : bande des process, état montré, ▶ / ⚙ / case à cocher par process, gabarit généré, promotion fille ↔ mère, catalogue du studio) | P3 (le renommage et le glisser-déposer : à tout moment) |
 | **P6** ✅ 03/10 | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les apps qui ne l'ont pas. ✅ Les dix apps passent par `run_item_task` ; SEPT déclarent un pipeline et le montrent sur leur card : transcriber (6 process dont `import` et `align`), avatarizer, et les cinq apps du process « Sortie » commun (imager, composer, synthesizer, anonymizer, enhancer) — point 4, bloc « P6 ENGAGÉE ». Restent à un seul process : describer, reader, converter (rien à ne pas rejouer) | P4 |
-| **P7a** | une forme de réglages, un rendu, une coercition et une déclaration de nœud dans tous les mondes (point 3.3bis) : R1 pont `ParamSpec → Param` + inspecteur du Studio par `WamaParams` ; R2 déclaration unique des nœuds intégrés ; R3 profil Lab au schéma ; R4 ⚙ des process de la card Data | R1 : — ; R2-R4 : les arbitrages (a)-(c) du point 3.3bis |
+| **P7a** | une forme de réglages, un rendu, une coercition et une déclaration de nœud dans tous les mondes (point 3.3bis) : R1 pont `ParamSpec → Param` + inspecteur du Studio par `WamaParams` — ✅ **2026-10-12** (+ porte commune des refus, porte des outils comprise) ; R2 déclaration unique des nœuds intégrés ; R3 profil Lab au schéma ; R4 ⚙ des process de la card Data | R1 : — ; R2-R4 : les arbitrages (a)-(c) du point 3.3bis |
 | **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script. 1ʳᵉ marche ✅ 2026-10-11 (`7159838e` : entrée `data_connector`, sortie `data_export`, pipeline sans process) | P3, P5, P7a (R1, R2 ; R4 pour le ⚙ des process) ; décision n°7 pour le seul process « script » (les n°5 et 6 n'étaient pas ouvertes — corrigé le 2026-10-11) |
 | **P8** | rôle assistant → manifeste `pipeline` / `dataset` | P3 |
 
@@ -5372,7 +5422,7 @@ de répétition n'est ajouté pour les cards.
 |---|---|---|---|
 | 1 | ✅ **fait (2026-08-11, §10.1)** — describer `input_types` `text`→`document` : le port travail porte `document`, le port prompt fantôme a disparu | F2 | ✅ |
 | 2 | ✅ **clos comme trou d'adoption — RE-MESURÉ 2026-08-31 : `context:'batch'` est à 10/10** (avatarizer compris, `index.html:367` — la ligne précédente « 5/10, avatarizer jamais » était périmée par le bas ; 3ᵉ recomptage de cette ligne, toujours faux). Le générateur émet désormais l'ouvreur de lot COMPLET (`onBatchSettings` + `settingsModal context:'batch'`, §S2ter). Le déficit RÉEL a changé de nom : le **cycle complet** `settingsModal` n'est qu'à **2/10** (8 apps gardent leur coquille + save maison) — c'est la ligne « cycle » de la table F3, pas celle-ci | F3 | ✅ re-qualifié |
-| 3 | studio `renderNodeParams` appauvri (réinvente WamaParams en dégradant) — **re-mesuré le 2026-10-11 et élargi** : le studio projette TROIS sources (schéma d'app, `ParamSpec`, listes de nœuds intégrés) vers son format propre, et coerce les fonctions sans bornes ; la route qui le résorbe dans tous les mondes est le **§10.6 point 3.3bis** (marche R1) | F3/F8 | réinvention à supprimer → §10.6 3.3bis R1 |
+| 3 | studio `renderNodeParams` appauvri (réinvente WamaParams en dégradant) — **re-mesuré le 2026-10-11 et élargi** : le studio projette TROIS sources (schéma d'app, `ParamSpec`, listes de nœuds intégrés) vers son format propre, et coerce les fonctions sans bornes ; la route qui le résorbe dans tous les mondes est le **§10.6 point 3.3bis** (marche R1) — ✅ **soldé le 2026-10-12** : `WamaParams` pour tous les nœuds, une porte commune, `REMOVAL_LEDGER R116` | F3/F8 | ✅ résorbé (§10.6 3.3bis R1) |
 | 4 | ✅ **périmé (2026-07-30)** — le front consomme bien `?side=during` (`wama-inspector.js::_startDuring`). Trou RÉEL reformulé : l'**émission** de partiels n'existe que dans le composer (1/10) | F3b | adoption, pas frontend |
 | 5 | `select_model()` : composer, transcriber, imager, **reader** (2026-07-31, `61a666f`). Reclaim VRAM ✅ **unifié** (cf. F4). Ce qui restait n'était PAS un trou : enhancer/avatarizer/synthesizer n'ont **aucune sélection automatique à faire** (l'utilisateur désigne, ou le modèle vit hors process) ; describer = unification différée par AGENTS.md (Phase 4) ; anonymizer = `select_best_models()` couvre un **jeu de classes avec plusieurs modèles** là où la brique n'en choisit qu'un, et lit déjà le catalogue → sur-ensemble légitime | F4 | ✅ pour l'essentiel |
 | 5b | **Capacités canoniques** ✅ (2026-07-31, `8ffac24`) : `inputs_required/optional` n'était produit que par **2 découvertes sur 9** → `WamaInputMatch` n'avait rien à comparer (c'est la cause de `input_match_ui` 9/10 KO, pas un défaut d'UI). Les 98 modèles portent désormais `task` + `modalities` + `inputs_*`, zéro clé hors `CANONICAL_CAPABILITIES`. ⚠ La canonicalisation se fait **à la DÉCOUVERTE**, pas dans les `model_config` d'app : frontière **délibérée** (l'app déclare en son vocabulaire, le catalogue est la source unique) | F4 | ✅ |

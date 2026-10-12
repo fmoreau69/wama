@@ -96,7 +96,7 @@ _spec('sam3_markings', 'Marquages SAM3', "Marquages au sol (passages piétons, l
                         description="Marquages au sol segmentés, en coordonnées IMAGE "
                                     "(`polygon`). Leur passage au monde est le rôle du "
                                     "tracking 360°, pas de cette passe.")],
-      params=[ParamSpec('sam3_fps', 'float', 2.0, 0.5, 12.0, 'img/s', 'Cadence de segmentation.')],
+      params=[ParamSpec('sam3_fps', 'float', 2.0, 0.5, 12.0, unit='img/s', description='Cadence de segmentation.')],
       cost={'vram_gb': 8})
 
 # ── Positionnement / géométrie ────────────────────────────────────────────────

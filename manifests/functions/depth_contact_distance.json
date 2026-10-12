@@ -48,34 +48,34 @@
     "owner": "",
     "params": [
       {
-        "choices": "px",
+        "choices": null,
         "default": 3,
-        "description": "",
+        "description": "Demi-taille du patch médian.",
         "key": "half",
         "max": 32,
         "min": 0,
         "type": "int",
-        "unit": "Demi-taille du patch médian."
+        "unit": "px"
       },
       {
-        "choices": "m",
+        "choices": null,
         "default": 0.3,
-        "description": "",
+        "description": "Profondeur plausible min.",
         "key": "d_min",
         "max": 10.0,
         "min": 0.0,
         "type": "float",
-        "unit": "Profondeur plausible min."
+        "unit": "m"
       },
       {
-        "choices": "m",
+        "choices": null,
         "default": 120.0,
-        "description": "",
+        "description": "Profondeur plausible max.",
         "key": "d_max",
         "max": 300.0,
         "min": 5.0,
         "type": "float",
-        "unit": "Profondeur plausible max."
+        "unit": "m"
       }
     ],
     "projects": [

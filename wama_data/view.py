@@ -234,7 +234,11 @@ def apply(view: View, ref: TemporalReferential) -> Result:
             # Le flux porte une dérivée sans être regardé : on le charge quand même, sinon la
             # déclaration serait à moitié honorée sans que rien ne le dise.
             entree = frame_from_referential(ref, d.stream, t0=view.fenetre.t0, t1=view.fenetre.t1)
-        produit = spec.fn(entree, **dict(d.params))
+        # Les réglages DÉCLARÉS passent par la porte de la fonction (types, bornes, refus nommés —
+        # `FunctionSpec.call_params`, la même qu'au lancement d'un nœud du Studio) ; un réglage que
+        # la fonction ne déclare pas reste tel quel, c'est sa signature qui le juge.
+        params = dict(d.params)
+        produit = spec.fn(entree, **{**params, **spec.call_params(params)})
         if d.sort_de_la_table:
             out.annexes[d.name or annex_name(d.stream, d.fonction)] = produit
         else:

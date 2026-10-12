@@ -134,7 +134,8 @@ def launch_graph(user, graph, *, pipeline_id=None):
       - au moins un nœud app OU fonction exécutable dans le graphe — OU une entrée reliée à une
         sortie : ✅ depuis le 2026-10-11, un pipeline SANS process (entrée → sortie, export seul)
         est accepté, comme le modèle du 2026-09-15 le veut (WAMA_APP_GENERATION_ROUTE.md §10.6
-        3.6, §11 #35).
+        3.6, §11 #35) ;
+      - les réglages de chaque nœud sont applicables (porte commune, 2026-10-12).
     """
     from wama.studio.models import StudioRun
     from wama.studio.services.runners import runner_for
@@ -182,6 +183,18 @@ def launch_graph(user, graph, *, pipeline_id=None):
     if not (any(runner_for(n['app']) or _is_function(n) for n in nodes) or feeds_a_sink):
         return None, (f'Rien à exécuter : aucun nœud-app ni nœud fonction, et aucune entrée '
                       f'reliée à une sortie (apps : {runnable}).')
+    # Les RÉGLAGES de chaque nœud passent la porte commune AVANT le dispatch (2026-10-12) : un
+    # choix hors liste, un nombre illisible ou hors de sa grille se refusent ici, en le nommant,
+    # contre le schéma que l'inspecteur a rendu (`node_params.node_schema`) — au lieu d'échouer au
+    # milieu d'un run, ou d'être remplacés en silence par un défaut.
+    from wama.common.utils.param_schema import describe_refusals, schema_refusals
+    from wama.studio.services.node_params import node_label, node_schema
+    for n in nodes:
+        schema = node_schema(n['app'])
+        refusals = schema_refusals(schema['params'], n.get('params') or {}) if schema else {}
+        if refusals:
+            return None, (f"Nœud « {node_label(n['app'])} » : réglage(s) refusé(s) — "
+                          f"{describe_refusals(refusals)}")
 
     run = StudioRun.objects.create(user=user, graph=graph, pipeline_id=pipeline_id)
     task = run_pipeline_task.delay(run.pk)

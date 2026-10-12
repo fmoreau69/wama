@@ -49,44 +49,44 @@
     "owner": "",
     "params": [
       {
-        "choices": "m",
+        "choices": null,
         "default": 1.5,
-        "description": "",
+        "description": "Profondeur min retenue (route utile).",
         "key": "z_min",
         "max": 20.0,
         "min": 0.1,
         "type": "float",
-        "unit": "Profondeur min retenue (route utile)."
+        "unit": "m"
       },
       {
-        "choices": "m",
+        "choices": null,
         "default": 60.0,
-        "description": "",
+        "description": "Profondeur max retenue.",
         "key": "z_max",
         "max": 200.0,
         "min": 5.0,
         "type": "float",
-        "unit": "Profondeur max retenue."
+        "unit": "m"
       },
       {
-        "choices": "m",
+        "choices": null,
         "default": 0.1,
-        "description": "",
+        "description": "Seuil inlier au plan.",
         "key": "ransac_thresh",
         "max": 1.0,
         "min": 0.01,
         "type": "float",
-        "unit": "Seuil inlier au plan."
+        "unit": "m"
       },
       {
-        "choices": "",
+        "choices": null,
         "default": 100,
-        "description": "",
+        "description": "Inliers minimum pour valider le plan.",
         "key": "min_inliers",
         "max": 100000,
         "min": 3,
         "type": "int",
-        "unit": "Inliers minimum pour valider le plan."
+        "unit": ""
       }
     ],
     "projects": [

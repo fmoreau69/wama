@@ -15,11 +15,13 @@ Déclarer une app ici = quelques lignes de manifeste. Vocabulaire optionnel (sp�
 DÉCLARÉES, pas codées) : `primary_input='prompt'` (entrée = texte) ; `input_kwarg`
 (l'entrée primaire part dans ce kwarg au lieu du 2e positionnel) ; `fixed_kwargs`
 (constantes de création, ex. mode standalone) ; `auto_start` (le créateur dispatche
-déjà — start = no-op) ; `extra_params_spec` (params de nœud ABSENTS du schéma d'app —
-à résorber en les ajoutant au params.py de l'app). Le shim `runners.py` se vide en miroir.
+déjà — start = no-op) ; `extra_params_spec` (réglages PROPRES AU NŒUD, absents du schéma
+d'app, déclarés sous la forme commune `Param` — 2026-10-12). Le shim `runners.py` se vide en
+miroir. Les réglages d'un nœud se lisent à UN endroit : `services/node_params.node_schema`.
 """
 from __future__ import annotations
 
+from wama.common.utils.param_schema import Param, schema_to_dicts
 
 
 # Manifeste des apps NORMALISÉES (contrat rempli). Depuis 2026-08-11 (route §10.1), les E/S
@@ -81,12 +83,18 @@ GENERIC_APPS = {
         'fixed_kwargs': {'avatar_source': 'gallery'},
         'params_module': 'wama.avatarizer.params',
         'params_attr': 'PARAMS_JSON',
-        # L'avatar n'est PAS (encore) dans le params.py de l'app → spec additionnelle
-        # déclarée ici ; à résorber en l'ajoutant au schéma d'app (options_source).
-        'extra_params_spec': [
-            {'name': 'avatar_gallery_name', 'label': 'Avatar', 'type': 'select',
-             'options_source': 'avatar_gallery'},
-        ],
+        # L'avatar est une ENTRÉE de la card (port image), pas un réglage : il n'a pas sa place au
+        # schéma de l'app, dont la modale règle un élément. Le nœud V1 ne lit pas ce port
+        # (`io_scope`, `UNWIRED_PORTS_BUDGET`) : il NOMME donc l'avatar par un réglage propre au
+        # nœud — sous la forme commune (`Param`, 2026-10-12), sa liste servie par la source
+        # `avatar_gallery` (les noms que `designate_named_avatar` résout). Il disparaît le jour
+        # où le nœud lit son port image.
+        'extra_params_spec': schema_to_dicts([
+            Param(name='avatar_gallery_name', type='select', label='Avatar',
+                  options_source='avatar_gallery', contexts=('item',), stales=(),
+                  help='Les avatars de la médiathèque que vous voyez : les vôtres, les partagés, '
+                       'la galerie.'),
+        ]),
     },
     'anonymizer': {
         'params_module': 'wama.anonymizer.params',
@@ -185,52 +193,6 @@ def _error_text(res):
     partagée avec `AppAccessMiddleware._deny`) — sans ça, le run afficherait « forbidden ».
     """
     return res.get('detail') or res.get('error')
-
-
-def _node_params_spec(app_id, conf):
-    """Schéma params.py → spec de nœud studio (mapping de FORME, pas de contenu)."""
-    from wama.common.utils.param_schema import schema_for_app
-    spec = []
-    for p in schema_for_app(app_id):
-        if 'item' not in (p.get('contexts') or []):
-            continue
-        entry = {'name': p['name'], 'label': p.get('label') or p['name']}
-        ptype = p.get('type')
-        if ptype == 'select' and p.get('choices'):
-            entry['type'] = 'select'
-            entry['options'] = [{'value': c[0], 'label': c[1]} for c in p['choices']]
-        elif ptype == 'select' and p.get('options_source') == 'catalog':
-            # Select tiré du CATALOGUE (route F4b, 2026-10-07) : il tombait dans le cas texte —
-            # un champ libre au lieu de la liste que l'app propose (7 nœuds sur 8, mesuré :
-            # synthesizer, composer, imager, transcriber, enhancer, avatarizer ×2, anonymizer).
-            # Ici, la DÉCLARATION seule : ce spec est mis en cache par `runner_for` ; les options
-            # se résolvent à chaque requête (`with_catalog_options`), comme l'endpoint de l'app.
-            entry['type'] = 'select'
-            entry['options_source'] = 'catalog'
-            entry['options_query'] = dict(p.get('options_query') or {})
-            entry['options_auto'] = bool(p.get('options_auto'))
-        elif ptype == 'toggle':
-            entry['type'] = 'select'
-            entry['options'] = [{'value': '', 'label': 'Non'}, {'value': '1', 'label': 'Oui'}]
-        else:   # range / texte
-            entry['type'] = 'text'
-            if p.get('min') is not None or p.get('max') is not None:
-                entry['placeholder'] = f"{p.get('min', '')}–{p.get('max', '')} {p.get('unit', '')}".strip()
-        if p.get('default') is not None:
-            entry['default'] = p['default']
-        spec.append(entry)
-    spec.extend(conf.get('extra_params_spec') or [])
-    return spec
-
-
-def with_catalog_options(spec) -> list:
-    """Copie de `spec` dont les selects de CATALOGUE reçoivent leurs options MAINTENANT, par LA
-    lecture commune (`param_schema.catalog_options` — celle du volet, de l'endpoint, de la
-    validation à la création). Le spec d'entrée (en cache) n'est jamais modifié."""
-    from wama.common.utils.param_schema import catalog_options
-    return [{**entry, 'options': [{'value': v, 'label': l} for v, l in catalog_options(entry)]}
-            if entry.get('options_source') == 'catalog' else entry
-            for entry in spec]
 
 
 # ── Les PORTS du nœud → les arguments de l'outil (2026-09-30) ──────────────────────────────────
@@ -425,6 +387,5 @@ def build_generic_runner(app_id):
         'start': start,
         'poll': poll,
         'output_type': conf.get('output_type', 'auto'),
-        'params_spec': _node_params_spec(app_id, conf),
         'generic': True,
     }

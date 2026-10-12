@@ -584,7 +584,7 @@
         ];
         try {
             body.innerHTML = WamaDetails.renderSections(data, schema);
-            renderNodeParams(body, node);
+            mountNodeSettings(body, node);
             var acts = WamaDetails.renderActions(data, [
                 { label: 'Supprimer le nœud', icon: 'fas fa-trash', cls: 'btn btn-sm btn-outline-danger w-100',
                   onClick: function () { removeNode(node.id); } },
@@ -599,69 +599,46 @@
         }
     }
 
-    // ── Params d'exécution du nœud (métadonnée-driven : params_spec des runners) ──
-    var paramsSpecs = {};   // app -> spec[], servi par /studio/api/run-options/
-    var runOptions = {};    // listes dynamiques (ex. avatar_gallery)
+    // ── Réglages du nœud : le rendu COMMUN (`WamaParams`), depuis le schéma `Param` du nœud ──
+    // ROUTE §10.6 point 3.3bis, marche R1 (2026-10-12). Un nœud app, fonction ou intégré expose
+    // ses réglages sous la forme que rendent la modale ⚙ d'une card et le volet
+    // (`studio/services/node_params.py`) : mêmes champs, mêmes bornes, mêmes conditions, mêmes
+    // sources d'options. Ce fichier avait son PROPRE rendu (`renderNodeParams`, 2026-07-11 →
+    // 10-12), qui faisait d'un curseur un champ texte et d'un interrupteur un select Oui/Non, et
+    // perdait conditions, groupes, aides et bornes — retiré. Contexte `item` : un nœud est un
+    // élément, comme celui que règle la modale ⚙.
+    var nodeSchemas = {};   // nœud -> {params, groups}, servi par /studio/api/run-options/
 
-    function renderNodeParams(body, node) {
-        var spec = paramsSpecs[node.app];
-        if (!spec || !spec.length) return;
-        node.params = node.params || {};
+    function mountNodeSettings(body, node) {
+        var schema = nodeSchemas[node.app];
+        if (!schema || !schema.params || !schema.params.length) return;
         var wrap = el('div', 'studio-node-params mt-2 pt-2 border-top border-secondary');
         wrap.appendChild(el('div', 'small text-white-50 mb-1',
             '<i class="fas fa-sliders-h me-1"></i>Paramètres d’exécution'));
-        spec.forEach(function (p) {
-            var field = el('div', 'mb-2');
-            field.appendChild(el('label', 'form-label small text-white-50 mb-0', p.label));
-            var input;
-            if (p.type === 'textarea') {
-                input = el('textarea', 'form-control form-control-sm bg-dark text-light border-secondary');
-                input.rows = 3;
-                input.placeholder = p.placeholder || '';
-            } else if (p.type === 'select') {
-                input = el('select', 'form-select form-select-sm bg-dark text-light border-secondary');
-                var opts = p.options || runOptions[p.options_source] || [];
-                opts.forEach(function (o) {
-                    var op = el('option');
-                    if (o && typeof o === 'object') { op.value = o.value; op.textContent = o.label || o.value; }
-                    else { op.value = o; op.textContent = o; }
-                    input.appendChild(op);
-                });
-            } else if (p.type === 'media_picker') {
-                // Bouton Médiathèque (MediaPicker commun) → stocke le chemin + la catégorie du média.
-                input = el('button', 'btn btn-sm btn-outline-info w-100');
-                input.type = 'button';
-                var chosen = node.params.asset_name_display || '';
-                input.innerHTML = '<i class="fas fa-photo-film me-1"></i>' +
-                    (chosen ? chosen : 'Choisir dans la médiathèque…');
-                input.addEventListener('click', function () {
-                    // const MediaPicker au top-level = binding lexical global, PAS window.MediaPicker
-                    var MP = (typeof MediaPicker !== 'undefined') ? MediaPicker : global.MediaPicker;
-                    if (!MP) { toast('Médiathèque indisponible sur cette page.', 'error'); return; }
-                    MP.open({ type: 'all', onSelect: function (file, asset) {
-                        if (!asset) return;
-                        var url = asset.file_url || '';
-                        node.params.asset_path = url.replace(/^\/?media\//, '');
-                        node.params.asset_name_display = asset.name || url.split('/').pop();
-                        input.innerHTML = '<i class="fas fa-photo-film me-1"></i>' + node.params.asset_name_display;
-                        persistDraft();
-                    } });
-                });
-                field.appendChild(input);
-                wrap.appendChild(field);
-                return;   // pas de câblage value/input générique pour ce type
-            } else {
-                input = el('input', 'form-control form-control-sm bg-dark text-light border-secondary');
-            }
-            input.value = node.params[p.name] != null ? node.params[p.name] : (p['default'] || '');
-            if (input.value && !node.params[p.name]) node.params[p.name] = input.value;
-            // `true` = saisie : la rafale coalesce, sinon « bonjour » coûterait 7 crans.
-            input.addEventListener('input', function () { node.params[p.name] = input.value; persistDraft(true); });
-            input.addEventListener('change', function () { node.params[p.name] = input.value; persistDraft(); });
-            field.appendChild(input);
-            wrap.appendChild(field);
-        });
+        if (!global.WamaParams) {
+            // JAMAIS muet : un inspecteur sans réglages ne dirait pas pourquoi.
+            wrap.appendChild(el('div', 'text-danger small',
+                'Réglages indisponibles : wama-params.js n’est pas chargé sur cette page.'));
+            body.appendChild(wrap);
+            return;
+        }
+        var host = el('div', 'wama-params');
+        wrap.appendChild(host);
+        // Dans le DOM AVANT le rendu : les sources d'options retrouvent leur select par id.
         body.appendChild(wrap);
+        WamaParams.render(host, schema.params, {
+            context: 'item', values: node.params || {}, groups: schema.groups || [] });
+        // Le graphe n'enregistre que les DÉCISIONS de l'utilisateur (`isGesture`) : la recharge
+        // des options d'un select émet aussi un `change`, qui n'est pas un réglage — l'enregistrer
+        // remplirait l'historique d'annulation de crans vides à chaque ouverture de l'inspecteur.
+        function sync(e) {
+            if (!WamaParams.isGesture(e)) return;
+            node.params = WamaParams.read(host);
+            // `true` = saisie : la rafale coalesce, sinon « bonjour » coûterait 7 crans.
+            persistDraft(e.type === 'input');
+        }
+        host.addEventListener('input', sync);
+        host.addEventListener('change', sync);
     }
 
     // ── Sérialisation / restauration du graphe ─────────────────────────────
@@ -1133,8 +1110,8 @@
 
         // Persistance + exécution (2026-07-11)
         api('/studio/api/run-options/').then(function (d) {
-            paramsSpecs = d.params_specs || {};
-            runOptions = d.options || {};
+            nodeSchemas = d.schemas || {};
+            if (selected) updateInspector();   // un nœud ouvert avant l'arrivée des schémas
         })['catch'](function () {});
         refreshPipelineList();
         var saveBtn = document.getElementById('studioSaveBtn');

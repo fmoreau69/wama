@@ -657,6 +657,16 @@ def gallery_list(request):
     return JsonResponse({'images': _gallery_images()})
 
 
+def api_avatar_gallery(request):
+    """GET : les avatars que l'utilisateur peut NOMMER (`system_assets.nameable_avatars`), sous la
+    forme des sources d'options communes (`{'groups': …}`, comme `/common/api/voices/`) — la
+    source `avatar_gallery` de `WamaParams` (registre `OPTION_SOURCES`). Le nœud Avatarizer du
+    Studio la lit depuis le 2026-10-12 ; la vue du Studio en recopiait la liste."""
+    from .system_assets import nameable_avatars
+    names = nameable_avatars(_get_user(request))
+    return JsonResponse({'groups': [{'group': '', 'options': [[n, n] for n in names]}]})
+
+
 # ---------------------------------------------------------------------------
 # Batch — import par fichier (format à balises unifié) + groupes
 # ---------------------------------------------------------------------------

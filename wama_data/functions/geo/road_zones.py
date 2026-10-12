@@ -109,9 +109,9 @@ SPEC = register(FunctionSpec(
                       cardinality='many',
                       description='Polygones de chaussée : contour extérieur puis trous, en (lat, lon).')],
     params=[
-        ParamSpec('default_lane_width_m', 'float', 3.0, 2.0, 5.0, 'm',
-                  'Largeur de voie supposée quand la chaussée n\'a pas de largeur déclarée.'),
-        ParamSpec('simplify_m', 'float', 0.3, 0.0, 5.0, 'm', 'Tolérance de simplification des contours.'),
+        ParamSpec('default_lane_width_m', 'float', 3.0, 2.0, 5.0, unit='m',
+                  description='Largeur de voie supposée quand la chaussée n\'a pas de largeur déclarée.'),
+        ParamSpec('simplify_m', 'float', 0.3, 0.0, 5.0, unit='m', description='Tolérance de simplification des contours.'),
     ],
     fn=road_zones,
 ))

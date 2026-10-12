@@ -27,7 +27,8 @@ SOURCE = 'converter'
 #: lesquelles le resolver généré affiche son avertissement nommé, à dessein. Cette liste doit
 #: DÉCROÎTRE : y ajouter une clé est une décision, pas un réflexe (résorber = déclarer la source
 #: au registre commun de `wama-params.js`, jamais écrire un resolver dans une app).
-SOURCES_NON_RESOLUES = {'backends', 'avatar_gallery'}
+#: `avatar_gallery` en est sortie le 2026-10-12 : endpoint `avatarizer:api_avatar_gallery`.
+SOURCES_NON_RESOLUES = {'backends'}
 
 _JS = 'wama/common/static/common/js/'
 

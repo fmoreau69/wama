@@ -8,7 +8,7 @@ Voir `WAMA_DATA_FUNCTION_CARDS.md`.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import KW_ONLY, dataclass, field
 from typing import Callable, Optional
 
 from wama.common.catalog.data_types import CANONICAL_FIELDS, is_compatible
@@ -25,14 +25,30 @@ class FunctionCategory:
     AGGREGATE = 'aggregate'      # agrège par groupe
 
 
+#: Le vocabulaire des types d'un `ParamSpec` — fermé. `json` = une structure saisie en texte
+#: (les chaînes de conditions du Segmenter) : la fonction la lit, le formulaire ne la type pas.
+PARAM_TYPES = ('float', 'int', 'bool', 'enum', 'str', 'json')
+
+
 @dataclass
 class ParamSpec:
-    """Un paramètre → un champ de la modale de réglages (auto-générée)."""
+    """Un paramètre d'une fonction — sa DÉCLARATION, sérialisée telle quelle (kind `function`,
+    clés des protocoles Data). L'interface ne la lit jamais directement : elle passe par le pont
+    `param_schema.param_from_spec`, qui en fait un `Param` — la forme que rendent toutes les
+    surfaces (`WAMA_APP_GENERATION_ROUTE §10.6` point 3.3bis, règle 2).
+
+    ⚠ Au-delà de `max`, tout se NOMME (`choices=`, `unit=`, `description=`) — depuis le
+    2026-10-12. Mesuré ce jour-là : 20 déclarations sur 131, dans quatre fichiers, écrivaient
+    `ParamSpec('z_min', 'float', 1.5, 0.1, 20.0, 'm', 'Profondeur min…')` — l'unité tombait
+    dans `choices`, la description dans `unit`, et la description restait vide. Aucune erreur :
+    le studio affichait « 0.1–20.0 Profondeur min retenue. » comme une unité. Un argument NOMMÉ
+    rend la confusion impossible ; une garde l'aurait seulement signalée."""
     key: str
-    type: str = 'float'          # 'float' | 'int' | 'bool' | 'enum' | 'str'
+    type: str = 'float'          # ∈ PARAM_TYPES
     default: object = None
     min: Optional[float] = None
     max: Optional[float] = None
+    _: KW_ONLY
     choices: Optional[list] = None
     unit: str = ''
     description: str = ''
@@ -241,6 +257,21 @@ class FunctionSpec:
 
     def defaults(self):
         return {p.key: p.default for p in self.params}
+
+    def param_schema(self) -> list:
+        """Les réglages de la fonction sous la forme que rendent TOUTES les surfaces (`Param`) :
+        nœud du Studio, ⚙ d'un process sur une card, volet. Une projection sans perte de ses
+        `ParamSpec` (`param_schema.param_from_spec`), jamais un second format."""
+        from wama.common.utils.param_schema import param_from_spec
+        return [param_from_spec(p) for p in self.params]
+
+    def call_params(self, raw) -> dict:
+        """Les réglages REÇUS (formulaire, graphe, vue) prêts à passer à la fonction : typés et
+        bornés par le schéma, seuls les réglages fournis — un réglage absent ou vide laisse jouer
+        le défaut de la fonction. Lève `ValueError` en nommant ce qui est refusé (choix hors liste,
+        nombre illisible ou hors de sa grille). La MÊME porte partout où une fonction s'applique."""
+        from wama.common.utils.param_schema import checked_values
+        return checked_values(self.param_schema(), raw or {})
 
 
 FUNCTION_CATALOG: dict = {}

@@ -87,5 +87,10 @@ nœud.{% endcomment %}
 {% comment %}Historique annuler/rétablir — brique COMMUNE. AVANT wama-studio.js :
 `WamaHistory.create()` y est appelé au corps de l'IIFE, donc à l'évaluation du script.{% endcomment %}
 <script src="{% static_v 'common/js/wama-history.js' %}"></script>
+{% comment %}Réglages des nœuds : le rendu COMMUN (`WamaParams`, ROUTE §10.6 point 3.3bis, R1) —
+il n'est pas global à `base.html` (cf. `common/_app_scripts.html`). `wama-model-caps.js` : ce dont
+une source d'options adossée à la médiathèque a besoin (le bouton des voix), comme dans une app.{% endcomment %}
+<script src="{% static_v 'common/js/wama-params.js' %}"></script>
+<script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>
 <script src="{% static_v 'studio/js/wama-studio.js' %}"></script>
 {% endblock %}

@@ -259,6 +259,8 @@ body:                                   # (sous l'enveloppe commune)
   # F8 STUDIO              [GENERIC_APPS → DEVIENT une projection, plus un 2e registre]
   studio: {runnable, primary_input, input_kwarg, fixed_kwargs, auto_start, extra_params_spec}
           # ports/output_type NE sont PLUS redéclarés : lus depuis `ports` (fin de la redondance)
+          # extra_params_spec : réglages PROPRES AU NŒUD, sous la forme `Param` (2026-10-12,
+          # ROUTE §10.6 point 3.3bis R1) — le nœud rend le schéma `params` entier, plus ceux-là
 ```
 
 **Régénérable depuis le manifeste** (cible du round-trip) : `models.py` (spine + statuts), `urls/views`
