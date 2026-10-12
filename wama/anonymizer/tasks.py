@@ -361,35 +361,37 @@ def _detection_kwargs(media, user):
     # `models` (multi-modèles) court-circuite : la couverture a déjà tranché, refaire une
     # sélection mono-modèle ici ne servirait à rien et brouillerait la trace console.
     if 'model_path' not in kwargs and 'models' not in kwargs:
-        try:
-            from .utils.yolo_utils import get_model_path as _gmp
-            from .utils.model_selector import select_model_by_precision
-
-            # Le modèle du média s'il en porte un, sinon la sélection automatique.
-            model_to_use = user_specified_model or None
-            if model_to_use:
-                _console(user.id, f"Using media-specific model: {model_to_use}")
-
-            if model_to_use:
-                kwargs['model_path'] = model_path_for(model_to_use)
-                kwargs['model_key'] = user_specified_key
-            else:
-                # Auto-select model based on precision level and classes
-                selected_model = select_model_by_precision(
-                    classes_to_blur=kwargs['classes2blur'],
-                    precision_level=precision_level
-                )
-
-                if selected_model:
-                    kwargs['model_path'] = _gmp(selected_model)
-                    _console(user.id, f"Auto-selected model (precision {precision_level}): {selected_model}")
-                # Fallback to custom face/plate model if needed
-                elif any(c in kwargs['classes2blur'] for c in ['face', 'plate']):
-                    kwargs['model_path'] = _gmp("yolov8m_faces&plates_720p.pt")
-                    _console(user.id, f"Using custom face/plate model")
-        except Exception as e:
-            _console(user.id, f"Warning: Model selection failed ({e}), using default")
-            pass
+        # Le modèle de la card s'il en porte un ; sinon la COUVERTURE des classes, brique commune
+        # (`model_coverage`, par `needs_parallel_detection`) — seule source : le catalogue.
+        # L'ancien sélecteur mono-modèle qui vivait ici (scan à côté du catalogue, modèle deviné
+        # par son NOM de fichier, puis `yolov8m_faces&plates_720p.pt` écrit en dur) est RETIRÉ le
+        # 2026-10-12 (`REMOVAL_LEDGER R117`, décision de Fabien) : rien ne couvre → on s'arrête
+        # en nommant ce qui manque, jamais un autre modèle que celui qui convient.
+        if user_specified_model:
+            kwargs['model_path'] = model_path_for(user_specified_model)
+            kwargs['model_key'] = user_specified_key
+            _console(user.id, f"Using media-specific model: {user_specified_model}")
+        else:
+            # Hors SAM3, la couverture a déjà parlé ci-dessus ; avec SAM3, c'est son REPLI YOLO
+            # qu'on prépare — par la même couverture.
+            cover = (parallel_info if should_check_parallel
+                     else needs_parallel_detection(kwargs['classes2blur'], precision_level))
+            chosen = cover.get('models') or []
+            if len(chosen) == 1:
+                kwargs['model_path'] = chosen[0].get('path')
+                kwargs['model_key'] = chosen[0].get('model_key')
+            elif chosen:
+                kwargs['models'] = [{'path': m['path'], 'name': m.get('name'),
+                                     'classes': m.get('classes'), 'model_key': m.get('model_key')}
+                                    for m in chosen]
+            elif not use_sam3:
+                missing = cover.get('unsupported_classes') or kwargs['classes2blur']
+                if not missing:
+                    raise ValueError("Aucune classe à flouter : choisissez au moins une classe "
+                                     "dans les réglages de l'élément.")
+                raise ValueError(f"Aucun modèle installé ne détecte : {', '.join(missing)} — "
+                                 "installez un détecteur qui les porte, ou retirez-les des "
+                                 "classes à flouter.")
 
     # Les modèles EMPLOYÉS, en clés de catalogue, pour la ligne d'exécution — ce que le réglage
     # ne dit pas quand il est resté « auto ». SAM3 n'est pas nommé : `detect_media` peut se
@@ -638,6 +640,11 @@ def detect_media(**kwargs):
                 reason = f"SAM3 error: {e}"
         if user_id:
             _console(user_id, f"Warning: {reason}. Falling back to YOLO.")
+        if not kwargs.get('models') and not kwargs.get('model_path'):
+            # Le repli se prépare par la couverture commune (R117) : rien ne la couvre, on le dit.
+            raise ValueError(f"{reason} — et aucun détecteur installé ne couvre "
+                             f"{', '.join(kwargs.get('classes2blur') or []) or 'ces classes'} "
+                             "pour le repli.")
 
     if user_id:
         _console(user_id, f"Détecteurs pour les classes : {kwargs.get('classes2blur', [])}")

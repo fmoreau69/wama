@@ -455,49 +455,6 @@ def debug_media_status(request):
     return JsonResponse(result, json_dumps_params={'indent': 2})
 
 
-def get_model_recommendations(request):
-    """
-    API endpoint pour obtenir les recommandations de modèles basées sur les classes à flouter.
-
-    GET params:
-        - classes: Liste des classes séparées par des virgules (ex: "person,car,face")
-        - current_model: Modèle actuellement sélectionné (optionnel)
-
-    Returns:
-        JSON avec les recommandations de modèles
-    """
-    from wama.anonymizer.utils.model_selector import get_model_selection_info
-
-    # Get parameters
-    classes_str = request.GET.get('classes', '')
-    current_model = request.GET.get('current_model', None)
-
-    if not classes_str:
-        return JsonResponse({
-            'status': 'error',
-            'message': 'Paramètre "classes" manquant'
-        }, status=400)
-
-    # Parse classes list
-    classes_to_blur = [cls.strip() for cls in classes_str.split(',') if cls.strip()]
-
-    if not classes_to_blur:
-        return JsonResponse({
-            'status': 'error',
-            'message': 'Aucune classe fournie'
-        }, status=400)
-
-    # Get model selection info
-    try:
-        info = get_model_selection_info(classes_to_blur, current_model)
-        return JsonResponse(info)
-    except Exception as e:
-        return JsonResponse({
-            'status': 'error',
-            'message': str(e)
-        }, status=500)
-
-
 def _live_progress(media):
     """La progression vivante d'un média : clé `media_progress_<id>`, sinon `blur_progress`."""
     cached = cache.get(f"media_progress_{media.id}")

@@ -303,6 +303,17 @@ class BackendRoutingIsDeclaredAndReadTest(SimpleTestCase):
                        "ENGINE_BACKENDS = engine_classes('text-to-speech')\n"})
         self.assertIs(True, cc._backend_routes(f)[0])
 
+    def test_a_selection_delegated_to_the_common_coverage_is_an_adoption(self):
+        """The anonymizer since R117 (2026-10-12) : its only selector declares the app's choices
+        and calls `couvrir_classes`, the common multi-model brick — no longer a home-made one."""
+        body = ("from wama.model_manager.models import AIModel\n"
+                "def select_best_models_by_precision(classes):\n"
+                "    return couvrir_classes(classes, source='anonymizer')\n")
+        self.assertIs(True, cc._select_model(self._app({'utils/model_selector.py': body}))[0])
+        home_made = body.replace("couvrir_classes(classes, source='anonymizer')",
+                                 "AIModel.objects.all()")
+        self.assertEqual('partial', cc._select_model(self._app({'utils/model_selector.py': home_made}))[0])
+
     def test_a_comment_citing_a_door_is_no_proof(self):
         f = self._app({'backends/__init__.py': self.ROUTES,
                        'tasks.py': '# TODO: route_for_nature(__package__, nature)\n'})

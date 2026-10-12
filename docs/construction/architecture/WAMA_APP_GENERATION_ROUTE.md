@@ -1596,6 +1596,12 @@ sur la même liste.
 > retard d'un mécanisme fait porter une app vers l'ancienne forme pour le verdir* (même leçon que
 > `model_caps_ui`, 02/10). Gardes : `tests_conformity_backends` (+2),
 > `tests_backend_inventory.EngineTableDerivedFromDeclarationsTest`.
+> ③ **anonymizer, `select_model`** (le même jour, décision de Fabien « retirer et arrêter net ») :
+> l'ancien sélecteur mono-modèle, son repli écrit en dur (`yolov8m_faces&plates_720p.pt`) et
+> l'endpoint mort `model_recommendations` sont RETIRÉS (`REMOVAL_LEDGER R117`). La sélection passe
+> par la seule couverture commune (`model_coverage.couvrir_classes`), repli YOLO de SAM3 compris ;
+> rien ne couvre → la tâche s'arrête en NOMMANT les classes. Le critère reconnaît `couvrir_classes`
+> comme brique commune (multi-modèles, complément de `select_model()`). **Grille : 10/10 à 100 %.**
 
 **Palier `params` (soir, sur dev)** : extract MULTI-SCHÉMAS — tous les attributs `*PARAMS_JSON`
 (trou #10 résorbé : imager IMAGE+VIDEO, enhancer MEDIA+AUDIO étaient invisibles), facette

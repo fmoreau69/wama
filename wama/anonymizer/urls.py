@@ -58,9 +58,6 @@ urlpatterns = [
     # Debug
     path('debug/media-status/', views.debug_media_status, name='debug_media_status'),
 
-    # Model Management
-    path('model-recommendations/', views.get_model_recommendations, name='model_recommendations'),
-
     # Duplication
     path('duplicate/<int:media_id>/', views.duplicate_media, name='duplicate_media'),
 

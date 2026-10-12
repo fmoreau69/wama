@@ -64,6 +64,13 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         self.media = Media.objects.create(
             user=self.user, file_ext='.png', status='PENDING', classes2blur=['face'],
             file=f"{app_media_dir('anonymizer', self.user.id, 'input')}/street.png")
+        #: Ce que rend la couverture COMMUNE des classes (`needs_parallel_detection`) : un
+        #: détecteur qui couvre `face`. Jusqu'au 2026-10-12 elle rendait VIDE ici, et ces tests ne
+        #: passaient que par le repli écrit en dur que R117 a retiré.
+        self.cover = {'parallel': False, 'unsupported_classes': [],
+                      'models': [{'id': 'detect/yolo11n.pt', 'path': '/models/yolo11n.pt',
+                                  'model_key': 'anonymizer:yolo:yolo11n.pt', 'name': 'yolo11n.pt',
+                                  'classes': ['face']}]}
 
     def _detected(self, **kwargs):
         self.engine_kwargs = kwargs
@@ -83,9 +90,7 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         with mock.patch.object(tasks, 'detect_media', side_effect=engine or self._detected) as detected, \
                 mock.patch(INLINE_CONVERSION, side_effect=self._convert), \
                 mock.patch.object(tasks, 'needs_parallel_detection',
-                                  return_value={'parallel': False, 'models': []}), \
-                mock.patch('wama.anonymizer.utils.model_selector.select_model_by_precision',
-                           return_value=None), \
+                                  return_value=self.cover), \
                 mock.patch('wama.anonymizer.utils.yolo_utils.get_model_path',
                            side_effect=lambda name, *a, **kw: f'/models/{name}'), \
                 mock.patch('wama.common.utils.task_skeleton.close_old_connections'):
@@ -120,6 +125,16 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         self.assertEqual(self.media.detections_file.name,
                          process_runs.line(self.media, 'detect').output_ref)
         self.assertEqual([], self.media.native_outputs, 'nothing transformed : a single file')
+
+    def test_an_auto_card_nothing_covers_stops_and_names_the_classes(self):
+        """R117 (2026-10-12) : the old single-model selector fell back on a model written in the
+        task (`yolov8m_faces&plates_720p.pt`) ; nothing installed covers the classes → the card
+        fails and says which, no detector is guessed."""
+        self.cover = {'parallel': False, 'models': [], 'unsupported_classes': ['face']}
+        _outcome, detected = self._run(model_to_use='')
+        self.assertEqual('FAILURE', self.media.status)
+        self.assertIn('Aucun modèle installé ne détecte : face', self.media.error_message)
+        detected.assert_not_called()
 
     def test_a_pointed_card_is_read_where_its_file_is(self):
         """Une card DÉSIGNÉE pointe son fichier (`media_paths.reference_or_copy`) : l'entrée vit
@@ -330,7 +345,8 @@ class DetectMediaRoutingTest(TestCase):
     prompt valid, otherwise — or when SAM3 fails — the YOLO detector, said in the console. Both
     return the document ; neither blurs."""
 
-    def _route(self, *, installed=True, valid=True, sam3_raises=False, use_sam3=True):
+    def _route(self, *, installed=True, valid=True, sam3_raises=False, use_sam3=True,
+               model_path='/models/yolo11n.pt'):
         sam3_doc, yolo_doc = _document(tag='sam3'), _document(tag='yolo11n')
         processor = mock.Mock()
         processor.return_value.detect.side_effect = (
@@ -343,9 +359,16 @@ class DetectMediaRoutingTest(TestCase):
                 mock.patch('wama.common.backends.manager.backend_for_key', return_value=processor), \
                 mock.patch.object(tasks.anonymize, 'Anonymize', yolo), \
                 mock.patch.object(tasks, '_console') as console:
+            # Le repli YOLO arrive préparé par la tâche (la couverture commune, R117).
             doc = tasks.detect_media(media_path='/in/x.png', use_sam3=use_sam3,
-                                     sam3_prompt='face', classes2blur=['face'], user_id=None)
+                                     sam3_prompt='face', classes2blur=['face'], user_id=None,
+                                     model_path=model_path)
         return doc['tag'], processor, yolo, console
+
+    def test_a_failed_sam3_without_a_covering_detector_says_so(self):
+        """No fallback model is invented any more (R117) : the failure names the classes."""
+        with self.assertRaisesRegex(ValueError, 'SAM3 not installed .*face'):
+            self._route(installed=False, model_path=None)
 
     def test_a_description_goes_to_sam3(self):
         tag, processor, yolo, _ = self._route()

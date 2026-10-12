@@ -1900,7 +1900,11 @@ def _select_model(f: _AppFiles):
     # conforme (résolution au lancement, domaine du schéma) sortait ROUGE.
     # Surface = code de l'app + backends résolus (08/09) : une sonde VRAM maison qui a
     # déménagé au substrat avec sa classe tourne toujours dans le processus de l'app.
-    adopted = f.find_py(r'\b(select_model(_id)?|resolve_model_choice)\b', code=True)
+    # `couvrir_classes` = la brique commune de COUVERTURE (`model_coverage`) : `select_model()` ne
+    # choisit qu'UN modèle, elle choisit la combinaison qui couvre un jeu de classes — l'anonymizer
+    # y délègue depuis le 12/08 et n'a plus d'autre sélecteur depuis le retrait R117 (2026-10-12).
+    # Sans elle ici, sa déclaration (`select_best_models_by_precision`) restait lue « maison ».
+    adopted = f.find_py(r'\b(select_model(_id)?|resolve_model_choice|couvrir_classes)\b', code=True)
     if adopted:
         return True, adopted
 

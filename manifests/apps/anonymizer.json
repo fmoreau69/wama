@@ -2131,7 +2131,6 @@
         "help",
         "index",
         "merge",
-        "model_recommendations",
         "move_to_batch",
         "preview_media",
         "process",
@@ -2258,11 +2257,6 @@
           "name": "debug_media_status",
           "pattern": "debug/media-status/",
           "view": "views.debug_media_status"
-        },
-        {
-          "name": "model_recommendations",
-          "pattern": "model-recommendations/",
-          "view": "views.get_model_recommendations"
         },
         {
           "name": "duplicate_media",
