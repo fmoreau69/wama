@@ -23029,7 +23029,7 @@ Détail, mesures et réponses aux questions de sécurité : `PROSPECTION_PIPELIN
   `GITHUB_TOKEN` dans `external_sources` (proposition faite, attend le feu vert) · cartes `github`
   sans lien de version au model manager (palier du 10/10 soir).
 
-## §CLÔTURE — 2026-10-12, « CHAMPS SECRETS : le navigateur n'y remplit plus le mot de passe WAMA » — livré (`6dc83c7c`, non poussé) — 🔴 relancer gunicorn (widgets de `accounts/models.py`) + Ctrl+F5
+## §CLÔTURE — 2026-10-12, « CHAMPS SECRETS : le navigateur n'y remplit plus le mot de passe WAMA » — livré (`6dc83c7c`, non poussé) — ✅ VALIDÉ par Fabien sur le live le 12/10 (gunicorn relancé, CHAMPS SECRETS plus remplis par Chrome)
 
 Relevé de Fabien : l'œil de « Clé de l'instance » (HuggingFace, ILaaS…) affichait son mot de
 passe WAMA en clair. WAMA ne renvoie jamais une clé : Chrome remplissait le champ,
