@@ -23198,7 +23198,7 @@ qu'elles exercent modifiés non commités par d'autres). Contre-épreuves des ga
 **⚠ Relevé en fin de session** : l'arbre ne démarre plus Django — `anonymizer_01/apps.py` (copie)
 importe `anonymizer_detection_face`, retiré de `preview_utils.py` par un WIP non commité d'une autre
 instance (signalé à l'instance « aperçu »). Remède côté bac à sable : `app_sandbox substitute
-anonymizer_01 apps` une fois ce WIP commité.
+anonymizer_01 apps` une fois ce WIP commité. ✅ **Réparé le jour même** par l'instance « aperçu » (import retiré de la jumelle, chantier R119) : `manage.py check` vert, `tests_hf_cache_routing` repassé au vert ; restent `EntryFaceTest` (WSL : `.yaml` = `application/yaml`, signalé) et `tests_taxonomie_ollama` (`cloud_models.py` en cours ailleurs).
 
 **🔚 POINT D'ENTRÉE SESSION SUIVANTE** : une session NEUVE pour (1) dériver les lignes de statut de la
 triade de la spec de détail (`detail_registry`, `build_detail`) au lieu d'un second langage de champs
