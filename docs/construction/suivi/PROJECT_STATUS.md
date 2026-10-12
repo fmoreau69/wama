@@ -22971,3 +22971,30 @@ sélectionnée → ses réglages au volet, ✕ → ceux de la file. Retraits : `
   catalogue du moteur TTS (AIModel.model_key) » sous le modèle TTS (volet et modale) ; même
   `resolveKey` recomposé (`anonymizer:` + clé entière) dans `WamaModelCaps` de l'anonymizer — déduit,
   non rejoué.
+
+## §PALIER — 2026-10-11 → 12, « PILOTE `files` : chaque fichier déclaré porte son ORIGINE » — livré (`c75dd0df`, `df297089`, `4f762783`, poussés le 12/10) — gunicorn + workers relancés par Fabien le 12/10, vérifié sur le live
+
+Demande de Fabien : « 1A, puis 4, puis 3 app par app », puis « option A (l'officiel d'abord), ok
+pour le miroir, aligner l'intégration des modèles d'où qu'ils viennent et garder toujours leur
+provenance ». 1A : `pull_model <nom Ollama>` devient une proposition (`seed_ollama_candidate`)
+installée par `request_install`. Puis le pilote `files` d'`install_from_spec`
+(`pull_declared_files`, remplace `pull_github_files`) : chaque fichier qu'une app déclare nomme son
+origine — dépôt du Hub figé à un COMMIT, version GitHub exacte, ou adresse fixe d'une source
+déclarée de la famille « poids » (ajouts : `mediapipe_models`, `face_alignment`) —, taille et
+empreinte épinglées ; la provenance va de la déclaration à `extra_info['declared_files']` puis au
+journal, fichier par fichier. Adoptions : enhancer (7 ONNX, miroir `svjack/AI-onnx` figé ;
+téléchargement au démarrage retiré, `REMOVAL_LEDGER` R111), Face Analyzer (`.task` sorti du dépôt
+vers `vision/mediapipe`), MuseTalk (11 fichiers ; lien `vendor/musetalk/models` posé par le
+backend ; `TORCH_HOME` du sous-processus — S3FD n'atterrit plus dans `$HOME`), CodeFormer.
+Détail, mesures et réponses aux questions de sécurité : `PROSPECTION_PIPELINE §Suite du 2026-10-11
+(après-midi)`.
+- ✅ Live (12/10, après relance) : 10 lignes rendent un spec `files`, toutes installées ; les 23
+  fichiers déclarés relus à l'empreinte, 0 téléchargé ; rien dans `$HOME/.cache/torch`, plus de
+  `.task` dans le dossier de l'app, lien MuseTalk en place.
+- 🔚 **SyncNet** (`latentsync_syncnet.pt`, 1,4 Go, lu par l'ENTRAÎNEMENT de MuseTalk seul, jamais
+  par l'inférence ; re-téléchargeable depuis `ByteDance/LatentSync`) — garder ou retirer :
+  décision de Fabien (recommandation : retirer, déclarer le jour d'un affinage).
+- 🔚 Désinstaller une ligne à fichiers déclarés (la désinstallation ne vise qu'un dossier) ·
+  poids DeepFace par la route · anonymizer (YOLO, autre instance) · clé facultative
+  `GITHUB_TOKEN` dans `external_sources` (proposition faite, attend le feu vert) · cartes `github`
+  sans lien de version au model manager (palier du 10/10 soir).
