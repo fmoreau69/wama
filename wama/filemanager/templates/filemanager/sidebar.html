@@ -31,6 +31,16 @@
         </form>
     </div>
 
+    {% if not user.is_authenticated %}
+    {% comment %}Visiteur sans compte : pas d'arbre (2026-10-12). Ses routes lui sont fermées
+       (`accounts.middleware.VISITOR_CLOSED_PREFIXES`) — l'arbre d'un compte partagé se lisait et
+       s'écrivait par tous les visiteurs. Sans `#filemanager-tree`, filemanager.js ne démarre pas.{% endcomment %}
+    <p class="small text-white-50 px-3 py-2 mb-0">
+        <i class="fas fa-right-to-bracket me-1"></i>Connectez-vous pour déposer et retrouver vos
+        fichiers : sans compte, aucun fichier n'est gardé.
+    </p>
+</aside>
+    {% else %}
     <!-- Drop Zone for Upload + Connect folder -->
     <div id="filemanager-dropzone" class="filemanager-dropzone">
         <i class="fas fa-cloud-upload-alt"></i>
@@ -50,6 +60,7 @@
         <div id="filemanager-tree"></div>
     </div>
 </aside>
+    {% endif %}
 
 <style>
 #mountCredFields input::placeholder { color: #6c7a8a; }

@@ -27,8 +27,14 @@ visiteur se DÉCLARE, elle ne s'exempte pas ici.
   - sur une app PUBLIQUE (le converter depuis le 2026-10-04) : le visiteur AGIT, sous une
     identité éphémère propre à sa session, bornée et purgée (`accounts/visitors.py`).
 ⚠ Ce que la garde ne couvre PAS : une route en GET qui AGIRAIT (aucune connue — `start` est en
-POST depuis le 2026-09-22), et les chemins hors apps (`/common/…`, `/filemanager/…`), gardés
-chez eux.
+POST depuis le 2026-09-22), et les chemins hors apps (`/common/…`), gardés chez eux.
+
+LE GESTIONNAIRE DE FICHIERS EST FERMÉ AU VISITEUR, lecture comprise (2026-10-12). Il était
+dit « gardé chez lui » : aucune de ses vues ne l'était. Mesuré : sans session, toutes ses routes
+tombaient sur le compte `anonymous` PARTAGÉ — un même arbre lisible, alimentable et effaçable
+par tous les visiteurs, l'import vers dix apps hors de cette garde, et la connexion d'un dossier
+local QUELCONQUE du serveur, ensuite téléchargeable par tous. Le visiteur n'a qu'une app, le
+converter, qui dépose par ses propres routes ; il n'a donc pas d'arbre de fichiers.
 """
 from django.http import JsonResponse
 from django.shortcuts import redirect
@@ -39,6 +45,11 @@ READ_METHODS = ('GET', 'HEAD', 'OPTIONS')
 
 VISITOR_REFUSAL = "Connectez-vous pour utiliser l'application « {app} » : sans compte, les pages se consultent mais rien ne se lance."
 
+#: Chemins hors apps FERMÉS au visiteur, lecture comprise (2026-10-12, ci-dessus).
+VISITOR_CLOSED_PREFIXES = ('/filemanager/',)
+
+VISITOR_FILES_REFUSAL = "Connectez-vous pour déposer et retrouver vos fichiers : sans compte, aucun fichier n'est gardé."
+
 
 class AppAccessMiddleware:
     def __init__(self, get_response):
@@ -46,7 +57,11 @@ class AppAccessMiddleware:
 
     def __call__(self, request):
         user = getattr(request, 'user', None)
-        from wama.accounts.permissions import app_id_for_path, accessible
+        from wama.accounts.permissions import app_id_for_path, accessible, is_guest_account
+        if (request.path.startswith(VISITOR_CLOSED_PREFIXES)
+                and (user is None or not user.is_authenticated or is_guest_account(user))):
+            return JsonResponse({'error': VISITOR_FILES_REFUSAL, 'detail': VISITOR_FILES_REFUSAL,
+                                 'login_required': True}, status=403)
         if user is not None and user.is_authenticated:
             app_id = app_id_for_path(request.path)
             if app_id and not accessible(user, 'app', app_id):

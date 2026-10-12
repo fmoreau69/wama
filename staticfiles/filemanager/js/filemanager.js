@@ -24,6 +24,9 @@
     document.addEventListener('DOMContentLoaded', init);
 
     function init() {
+        // Visiteur sans compte : la page ne porte pas d'arbre, ses routes lui sont fermées
+        // (2026-10-12, `accounts.middleware.VISITOR_CLOSED_PREFIXES`).
+        if (!document.getElementById('filemanager-tree')) return;
         // Check if jstree is available
         if (typeof $.jstree === 'undefined') {
             console.error('jstree not loaded');

@@ -15,6 +15,8 @@ Aucun des deux ne se serait vu à l'exécution : une politique jamais lue et un 
 dit « oui » plus souvent que le premier ne lèvent aucune exception. D'où des tests de PROPRIÉTÉ,
 qui portent sur l'ensemble des surfaces gardées et pas sur un cas relu à la main.
 """
+import json
+
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
@@ -310,3 +312,53 @@ class VisitorActionGuardTests(TestCase):
         self.client.force_login(user)
         response = self.client.post(reverse('avatarizer:create'), {})
         self.assertNotEqual(403, response.status_code)       # la vue répond (400 : rien fourni)
+
+
+class VisitorFileManagerClosedTests(TestCase):
+    """2026-10-12: the file manager is closed to a visitor, reads included. Measured before:
+    without a session every route fell back on the SHARED `anonymous` account — one tree that
+    every visitor could read, fill and empty, an import into ten apps outside the app guard, and
+    the mounting of ANY local server folder, then downloadable by everyone."""
+
+    @staticmethod
+    def _routes():
+        """Every file-manager route, as a concrete path — tomorrow's route included."""
+        import re
+        from wama.filemanager.urls import urlpatterns
+        paths = []
+        for pattern in urlpatterns:
+            raw = str(pattern.pattern).lstrip('^').rstrip('$')
+            raw = re.sub(r'<int:\w+>|\(\?P<pk>\\d\+\)', '1', raw)
+            raw = re.sub(r'<str:\w+>|\(\?P<path>\.[+*]\)', 'x.txt', raw)
+            paths.append('/filemanager/' + raw)
+        return paths
+
+    def test_no_file_manager_route_serves_a_visitor(self):
+        routes = self._routes()
+        self.assertGreaterEqual(len(routes), 20, 'too few routes: the test would measure nothing')
+        reached = {f'{method.upper()} {url}': code
+                   for url in routes for method in ('get', 'post')
+                   for code in [getattr(self.client, method)(url).status_code] if code != 403}
+        self.assertEqual({}, reached, 'a visitor without a session reaches these routes')
+
+    def test_a_visitor_cannot_mount_a_server_folder(self):
+        from wama.filemanager.models import MountedFolder
+        before = MountedFolder.objects.count()
+        response = self.client.post('/filemanager/api/mounts/',
+                                    json.dumps({'name': 'x', 'local_path': '/'}),
+                                    content_type='application/json')
+        self.assertEqual(403, response.status_code)
+        self.assertTrue(response.json()['login_required'])
+        self.assertEqual(before, MountedFolder.objects.count())
+
+    def test_a_session_visitor_identity_is_refused_too(self):
+        from wama.accounts.permissions import VISITOR_ACCOUNT_PREFIX
+        self.client.force_login(User.objects.create_user(f'{VISITOR_ACCOUNT_PREFIX}t', password='x'))
+        self.assertEqual(403, self.client.get('/filemanager/api/tree/').status_code)
+
+    def test_a_member_still_reaches_the_file_manager_and_sees_the_tree(self):
+        """Counter-test: only the visitor is closed out."""
+        self.assertNotIn('id="filemanager-tree"', self.client.get('/').content.decode())
+        self.client.force_login(User.objects.create_user('fm_member', password='x'))
+        self.assertNotEqual(403, self.client.get('/filemanager/api/tree/').status_code)
+        self.assertIn('id="filemanager-tree"', self.client.get('/').content.decode())
