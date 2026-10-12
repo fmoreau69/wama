@@ -23,6 +23,12 @@ _EXT_MIME_FALLBACK = {
     '.mp3': 'audio/mpeg',  '.wav': 'audio/wav',   '.ogg': 'audio/ogg',
     '.flac': 'audio/flac', '.aac': 'audio/aac',   '.m4a': 'audio/mp4',
     '.opus': 'audio/opus', '.weba': 'audio/webm',
+    # Textes que la stdlib ne connaît pas : sans eux, le visualiseur ne les montre pas en texte
+    # (`media-preview.js` teste `text/`). L'aperçu du filemanager les forçait à `text/plain`
+    # localement ; il passe par la fabrique commune depuis le 2026-10-12 — la règle vit ici.
+    # Mesuré sous venv_win : `.md`, `.yaml`, `.yml` sont aussi inconnus de la stdlib.
+    '.log': 'text/plain', '.ini': 'text/plain', '.cfg': 'text/plain',
+    '.md': 'text/markdown', '.yaml': 'text/yaml', '.yml': 'text/yaml',
 }
 
 # Objets 3D (ROADMAP §17ter) — la stdlib n'en connaît AUCUN (mesuré 13/09 : `.obj` rend même

@@ -199,9 +199,12 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   clé de texte inline, `content` (la modale lisait `text_content`) ; le geste d'entrée des cards =
   `.preview-media-link` vers l'aperçu d'ÉLÉMENT, générateur compris. Gardes `tests_preview_entry`
   + geste nocturne `<app>.preview` (`WAMA_VERIFICATION §3`, geste 11b) ; retraits `REMOVAL_LEDGER R115`.
-  ⏳ **Ouvert, à trancher par Fabien** : une RÉFÉRENCE nommée en `source_file` échappe à la règle
-  côté `travail` — la voix de référence du synthesizer (repli de sa spec, seul lieu où le volet la
-  montre) ; le schéma canonique n'a pas de clé `reference_*` (`INSPECTOR_DETAIL_FIELDS`).
+  ⚠ **Et corrigé le jour même** (relecture de l'instance de portage) : une RÉFÉRENCE nommée en
+  `source_file` échappait à la règle côté `travail` — la voix de référence du synthesizer (repli
+  de sa spec, pour le volet) devenait l'entrée d'un texte SAISI. Aucune déclaration ne relie un
+  champ à son jeton de port ; la NATURE, si : un fichier n'est l'entrée que s'il est de la nature
+  d'un port de travail (`_work_natures`, `category_of_path`), sinon la face prend `source_text`.
+  Limite dite : une référence de MÊME nature qu'un port de travail ne serait pas distinguée.
 - **« PENDANT » (preview progressive)** : **chaîne COMPLÈTE** (composer `emit_streaming_peaks` →
   capacité `during_preview=True` `app_registry.py:455` → face `?side=during` `preview_utils.py:255`
   → **consommée par `wama-inspector.js` `_startDuring`** (polling 1300 ms, auto-arrêt en fin de run).

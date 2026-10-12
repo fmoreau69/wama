@@ -226,6 +226,24 @@ def _input_port_group(app_name):
     return None
 
 
+def _work_natures(app_name) -> set:
+    """Natures (`MEDIA_CATEGORIES`) qu'acceptent les ports de TRAVAIL de l'app — même accesseur
+    unique. Ce qui rend la règle « jamais un port `reference` » applicable à un FICHIER : aucune
+    déclaration ne relie un champ de modèle à son jeton de port (`voice_reference` ↔
+    `reference_voice`), mais un fichier de travail est de la nature d'un port de travail. Mesuré
+    le 2026-10-12 (relecture de l'instance de portage) : sans ce filtre, une synthèse au texte
+    SAISI montrait sa voix de référence en face Entrée — sa spec la remonte en `source_file`
+    pour le volet. ⚠ Limite : une référence de MÊME nature qu'un port de travail n'est pas
+    distinguée ici (aucune app ne la nomme en `source_file` aujourd'hui)."""
+    try:
+        from wama.common.app_registry import studio_node_ports
+        ports = studio_node_ports(app_name) or {}
+    except Exception:
+        return set()
+    return {t for p in (ports.get('inputs') or []) if p.get('group') == 'travail'
+            for t in (p.get('types') or [])}
+
+
 #: Ce que l'adaptateur du registre AJOUTE à la face Entrée, quand il décrit le même fichier.
 REGISTERED_METADATA = ('duration', 'resolution', 'properties')
 
@@ -239,8 +257,10 @@ def _input_preview(app_name, instance, request):
     SYMÉTRIQUES de la face Sortie (`result_file`/`result_text`) —
       - port `prompt` → `source_text` (la consigne), jamais un fichier : une app à consigne qui
         nomme une référence en `source_file` (jumelle writer_01) n'en fait pas son entrée ;
-      - port `travail` → `source_file` (le fichier de travail), sinon `source_text` (le texte
-        saisi « l'un ou l'autre » du synthesizer, l'image de travail absente de l'imager).
+      - port `travail` → `source_file` S'IL est de la nature d'un port de travail
+        (`_work_natures`), sinon `source_text` (le texte saisi « l'un ou l'autre » du
+        synthesizer, dont la voix de RÉFÉRENCE n'est jamais l'entrée ; la consigne de l'imager
+        sans image de travail).
     ⚠ Le port `travail` lisait jusque-là le `file_field` du REGISTRE d'aperçu, une seconde
     déclaration de l'entrée qui avait dérivé : composer et synthesizer y nommaient leur SORTIE
     audio (la face Entrée montrait le résultat, ou une erreur avant lui) ; le générateur l'avait
@@ -254,6 +274,11 @@ def _input_preview(app_name, instance, request):
         return PreviewRegistry.get_preview_data(app_name, instance, request)
     group = _input_port_group(app_name)
     url = d.get('source_file') if group != 'prompt' else None
+    natures = _work_natures(app_name) if url else set()
+    if url and natures:
+        from wama.common.app_registry import category_of_path
+        if category_of_path(str(url).split('?')[0]) not in natures:
+            url = None          # pas de la nature d'un port de TRAVAIL : une référence (§F3b)
     if url:
         data = _media_face(url, request)
         data.update(_registered_metadata(app_name, instance, request, url))

@@ -127,6 +127,18 @@ class EntryFaceTest(TestCase):
         self.assertIn('Chère lectrice', entry['content'], 'the text of a .docx is extracted')
         self.assertTrue(_path(entry['url']).endswith('lettre.docx'), 'and the file stays downloadable')
 
+    def test_a_reference_voice_is_never_the_entry_of_a_typed_text(self):
+        """Measured by the porting instance on 307f0c3c : the synthesizer spec lifts
+        `voice_reference` into `source_file` (for the side panel), and the Entry face showed the
+        VOICE of a typed text. The route says the entry binds on the WORK port, never a reference."""
+        from wama.synthesizer.models import VoiceSynthesis
+        synthesis = VoiceSynthesis.objects.create(
+            user=self.user, text_content='Bonjour à tous.',
+            voice_reference=self._file('synthesizer', 'input', 'voix.wav'))
+        entry = self._preview('synthesizer', synthesis.pk, 'input')
+        self.assertEqual('Bonjour à tous.', entry.get('content'))
+        self.assertNotIn('voix.wav', _path(entry.get('url')))
+
     def test_a_text_output_is_served_under_the_one_text_key(self):
         from wama.reader.models import ReadingItem
         item = ReadingItem.objects.create(
@@ -163,6 +175,15 @@ class EntryFaceTest(TestCase):
         self.assertEqual('text/plain', data['mime_type'])
         self.assertIn('Une note.', data['content'])
         self.assertNotIn('text_content', data)
+
+    def test_the_text_files_the_platform_does_not_know_stay_text(self):
+        """`.log`, `.ini`, `.cfg` (and `.md`, `.yaml` under Windows) : unknown to the stdlib,
+        they were forced to text by the file manager's own copy, gone with it (relecture of
+        307f0c3c). The rule lives in the common MIME table now — for every consumer."""
+        for name in ('journal.log', 'reglages.ini', 'outil.cfg', 'notes.md', 'conf.yaml'):
+            rel = self._file('synthesizer', 'input', name, b'cle = valeur')
+            data = self.client.get('/filemanager/api/preview/', {'path': rel}).json()
+            self.assertTrue(data['mime_type'].startswith('text/'), f"{name} : {data['mime_type']}")
 
 
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
