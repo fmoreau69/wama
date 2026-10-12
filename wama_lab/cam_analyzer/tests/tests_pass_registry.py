@@ -54,7 +54,8 @@ class RegistreTest(unittest.TestCase):
         self.assertEqual(set(pt._WATCHED), set(pt.ORDER))
         self.assertEqual(set(pt._STAGE), set(pt.ORDER))
         self.assertEqual(set(pt._DEPENDS_ON), set(pt.ORDER))
-        self.assertEqual(pt._PER_CAMERA_PASSES, {'yolo_detect', 'yolopv2_lanes', 'sam3_markings'})
+        self.assertEqual(pt._PER_CAMERA_PASSES, {'yolo_detect', 'yolopv2_lanes', 'sam3_markings',
+                                                 'anonymize_detect', 'anonymize_blur'})
 
     def test_les_valeurs_d_avant_le_registre_sont_CONSERVEES(self):
         """Empreinte des six dicts tels qu'ils étaient écrits à la main (relevé 2026-09-07) :

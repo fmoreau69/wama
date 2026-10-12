@@ -1036,33 +1036,18 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
             # are per-window anyway.
             _use_window_iter = bool(_restrict_to_windows and _intersection_windows)
 
-            # Convert windows → (f_start, f_end) ranges and merge any that
-            # overlap or are adjacent (within 1 frame). Two windows on the
-            # same road may overlap when they're closer than 2× the radius;
-            # without merging, the same frame would be yielded twice and the
-            # downstream DetectionFrame bulk_create would hit the
-            # (camera, frame_number) unique constraint.
-            def _merge_ranges(ranges):
-                if not ranges:
-                    return []
-                ranges = sorted(ranges)
-                merged = [list(ranges[0])]
-                for s, e in ranges[1:]:
-                    if s <= merged[-1][1] + 1:  # overlap or adjacent
-                        merged[-1][1] = max(merged[-1][1], e)
-                    else:
-                        merged.append([s, e])
-                return [tuple(r) for r in merged]
+            # Fenêtres → plages d'images fusionnées : `utils/window_clips` (sorti d'ici le
+            # 2026-10-12, partagé avec l'anonymisation pour l'affichage).
+            from .utils.window_clips import (extract_clip, merge_frame_ranges as _merge_ranges,
+                                             window_frame_ranges)
 
             _frame_ranges = []
             if _use_window_iter:
-                _raw_ranges = []
-                for w in _intersection_windows:
-                    fs = max(0, int(w['t_enter'] * fps))
-                    fe = min(total_frames - 1, int(w['t_exit'] * fps))
-                    if fs <= fe:
-                        _raw_ranges.append((fs, fe))
-                _frame_ranges = _merge_ranges(_raw_ranges)
+                # les fenêtres qui tombent dans la vidéo (le compte de la ligne console)
+                _raw_ranges = [w for w in _intersection_windows
+                               if max(0, int(w['t_enter'] * fps))
+                               <= min(total_frames - 1, int(w['t_exit'] * fps))]
+                _frame_ranges = window_frame_ranges(_intersection_windows, fps, total_frames)
                 _total_processing_frames = sum(fe - fs + 1 for fs, fe in _frame_ranges)
                 _merged_note = (
                     f" (fusionnées en {len(_frame_ranges)} segments contigus)"
@@ -1143,38 +1128,20 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
                 """
                 if _use_window_iter:
                     import shutil as _sh
-                    import subprocess as _sp
                     import tempfile as _tf
-                    _ff = _sh.which('ffmpeg')
+                    from .utils.window_clips import ffmpeg_path
+                    _ff = ffmpeg_path()
 
                     if _ff is not None:
                         # ── Path F : ffmpeg mini-clip extraction + streaming ──
                         _tmp_dir = _tf.mkdtemp(prefix=f"wama_cam{camera.id}_seg_")
                         try:
                             for _seg_idx, (f_start, f_end) in enumerate(_frame_ranges):
-                                _t_start_s = f_start / fps
-                                _duration_s = (f_end - f_start + 1) / fps
                                 _tmp_clip = os.path.join(_tmp_dir, f"seg_{_seg_idx:03d}.mp4")
 
-                                # Extract a frame-accurate sub-clip. Re-encoding
-                                # with libx264 -crf 18 is ~visually lossless and
-                                # gives us exact frame counts (unlike -c copy
-                                # which snaps to keyframes).
-                                _proc = _sp.run([
-                                    _ff, '-y', '-loglevel', 'error',
-                                    '-ss', f"{_t_start_s:.6f}",
-                                    '-i', video_path,
-                                    '-t', f"{_duration_s:.6f}",
-                                    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18',
-                                    '-pix_fmt', 'yuv420p', '-an',
-                                    _tmp_clip,
-                                ], capture_output=True, text=True, timeout=600)
-
-                                if _proc.returncode != 0 or not os.path.exists(_tmp_clip):
-                                    logger.warning(
-                                        f"[ffmpeg-seg] segment {_seg_idx} extraction failed: "
-                                        f"{(_proc.stderr or '')[-200:]}"
-                                    )
+                                # Extrait EXACT de la plage (`window_clips.extract_clip`).
+                                if not extract_clip(video_path, f_start, f_end, fps, _tmp_clip,
+                                                    ffmpeg=_ff):
                                     continue
 
                                 # Stream-track the mini-clip in native mode.
@@ -1872,6 +1839,131 @@ def compute_depth_task(self, session_id: str):
             mark_failed(AnalysisSession.objects.get(pk=session_id), 'depth', str(e))
         except Exception:
             pass
+        return {'error': str(e), 'session_id': session_id}
+
+
+def _anonymize_cameras(session):
+    """Les caméras de la session qui ont une vidéo, dans l'ordre des positions."""
+    return [c for c in session.cameras.all().order_by('position') if c.video_file]
+
+
+@shared_task(bind=True)
+def compute_anonymize_detect_task(self, session_id: str):
+    """Passe ANALYSE « Anonymisation — détection » (2026-10-12) : visages, plaques… dans les
+    FENÊTRES d'intersection de chaque caméra, par les détecteurs que l'Anonymizer choisit pour
+    les classes et le cran du profil (`utils/display_anonymization`). Branche d'AFFICHAGE : rien
+    de ce que lit l'analyse ne change. Une ligne par caméra ; les détecteurs sont chargés une fois."""
+    close_old_connections()
+    from .models import AnalysisSession
+    from .utils import display_anonymization as anon
+    from .utils.pass_tracking import mark_completed, mark_failed, mark_started
+    from wama.common.utils import detections as dets
+
+    pass_key = anon.DETECT_PASS
+    detector_set = None
+    session = None
+    try:
+        session = AnalysisSession.objects.select_related('profile', 'user').get(pk=session_id)
+        profile = session.profile
+        cameras = _anonymize_cameras(session)
+        windows = session.intersection_windows or []
+        models, missing = anon.detectors_for(profile)
+        refusal = ("Aucune fenêtre d'intersection : rien à anonymiser (déclarer des "
+                   "intersections au profil)." if not windows else
+                   f"Aucun détecteur pour {', '.join(missing) or 'ces classes'}." if not models
+                   else None)
+        if refusal:
+            for cam in cameras:
+                mark_failed(session, pass_key, refusal, camera=cam)
+            _console(session.user_id, f"Anonymisation : {refusal}")
+            return {'error': refusal, 'session_id': session_id}
+        if missing:
+            _console(session.user_id, f"Anonymisation : aucun détecteur pour {', '.join(missing)}")
+        settings_ = anon.anonymizer_settings()
+        classes = list(profile.anonymize_classes or [])
+        _console(session.user_id,
+                 f"Anonymisation (cran {profile.anonymize_quality}) : "
+                 + ', '.join(m.get('model_key') or m.get('name') or '?' for m in models))
+        detector_set = anon.load_detectors(models, session.user)
+        done = {}
+        for cam in cameras:
+            if _is_cancelled(session.user_id):
+                mark_failed(session, pass_key, 'Annulée.', camera=cam)
+                continue
+            mark_started(session, pass_key, profile, camera=cam)
+            try:
+                doc = anon.detect_camera(
+                    cam, windows, detector_set, classes=classes,
+                    threshold=settings_.get('detection_threshold', 0.25),
+                    cancelled=lambda: _is_cancelled(session.user_id))
+                path = dets.write(anon.detections_path(session, cam.position), doc)
+                found, scope = dets.count(doc), doc.get('scope') or []
+                mark_completed(session, pass_key, camera=cam, output_summary={
+                    'detections': found, 'ranges': len(scope),
+                    'frames': sum(e - s + 1 for s, e in scope),
+                    'models': doc.get('models') or [], 'file': os.path.basename(path)})
+                done[cam.position] = found
+                _console(session.user_id, f"Anonymisation [{cam.position}] : {found} détection(s) "
+                                          f"sur {len(scope)} plage(s)")
+            except InterruptedError as e:
+                mark_failed(session, pass_key, str(e), camera=cam)
+            except Exception as e:
+                logger.error(f"anonymize_detect [{cam.position}] : {e}", exc_info=True)
+                mark_failed(session, pass_key, str(e), camera=cam)
+        return {'session_id': session_id, 'detections': done}
+    except Exception as e:
+        logger.error(f"compute_anonymize_detect_task failed: {e}", exc_info=True)
+        if session is not None:
+            from .utils.pass_tracking import fail_running
+            fail_running(session, pass_key, str(e))
+        return {'error': str(e), 'session_id': session_id}
+    finally:
+        anon.unload_detectors(detector_set)
+
+
+@shared_task(bind=True)
+def compute_anonymize_blur_task(self, session_id: str):
+    """Passe ANALYSE « Anonymisation — floutage » (2026-10-12) : la vidéo de chaque caméra
+    réécrite depuis ses détections (le process « Floutage » de l'Anonymizer, ses réglages par
+    défaut), l'image entière hors des fenêtres anonymisées. Aucun modèle n'est chargé."""
+    close_old_connections()
+    from .models import AnalysisSession
+    from .utils import display_anonymization as anon
+    from .utils.pass_tracking import mark_completed, mark_failed, mark_started
+    from wama.common.utils import detections as dets
+
+    pass_key = anon.BLUR_PASS
+    session = None
+    try:
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
+        settings_ = anon.anonymizer_settings()
+        written = {}
+        for cam in _anonymize_cameras(session):
+            source = anon.detections_path(session, cam.position)
+            if not os.path.isfile(source):
+                mark_failed(session, pass_key, "Aucune détection : lancer d'abord "
+                                                "« Anonymisation — détection ».", camera=cam)
+                continue
+            if _is_cancelled(session.user_id):
+                mark_failed(session, pass_key, 'Annulée.', camera=cam)
+                continue
+            mark_started(session, pass_key, session.profile, camera=cam)
+            try:
+                doc = dets.read(source)
+                path = anon.blur_camera(cam, doc, settings_, anon.video_path(session, cam.position))
+                mark_completed(session, pass_key, camera=cam,
+                               output_summary={'file': os.path.basename(path)})
+                written[cam.position] = os.path.basename(path)
+                _console(session.user_id, f"Anonymisation [{cam.position}] : vidéo floutée écrite")
+            except Exception as e:
+                logger.error(f"anonymize_blur [{cam.position}] : {e}", exc_info=True)
+                mark_failed(session, pass_key, str(e), camera=cam)
+        return {'session_id': session_id, 'videos': written}
+    except Exception as e:
+        logger.error(f"compute_anonymize_blur_task failed: {e}", exc_info=True)
+        if session is not None:
+            from .utils.pass_tracking import fail_running
+            fail_running(session, pass_key, str(e))
         return {'error': str(e), 'session_id': session_id}
 
 

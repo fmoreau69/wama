@@ -41,6 +41,21 @@
         "from": "intersection_windows",
         "to": "ortho_recalage",
         "to_port": null
+      },
+      {
+        "from": "extraction",
+        "to": "anonymize_detect",
+        "to_port": null
+      },
+      {
+        "from": "intersection_windows",
+        "to": "anonymize_detect",
+        "to_port": null
+      },
+      {
+        "from": "anonymize_detect",
+        "to": "anonymize_blur",
+        "to_port": null
       }
     ],
     "nodes": [
@@ -146,13 +161,42 @@
           "task": "compute_ortho_recalage_task",
           "watched": []
         }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.anonymize_detect",
+        "id": "anonymize_detect",
+        "kind": "function",
+        "params": {
+          "gpu": true,
+          "per_camera": true,
+          "stage": "analyse",
+          "task": "compute_anonymize_detect_task",
+          "watched": [
+            "anonymize_classes",
+            "anonymize_quality"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.anonymize_blur",
+        "id": "anonymize_blur",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": true,
+          "stage": "analyse",
+          "task": "compute_anonymize_blur_task",
+          "watched": []
+        }
       }
     ]
   },
   "description": "Pipeline déclaré en code (`pass_tracking.PASSES`) : étage ANALYSE seul — ses amonts de l'autre étage sont ses entrées ; chaque passe est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "cam_analyzer.analyse",
   "manifest_kind": "pipeline",
-  "name": "Cam Analyzer — analyse d'image (perception) (7 passes)",
+  "name": "Cam Analyzer — analyse d'image (perception) (9 passes)",
   "owner": null,
   "projects": [
     "ENA"

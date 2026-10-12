@@ -27,6 +27,11 @@ def _default_analyzed_positions():
     return ['front', 'rear', 'left', 'right']
 
 
+def _default_anonymize_classes():
+    """Ce qu'une vidéo de caméra embarquée montre d'identifiant : visages et plaques."""
+    return ['face', 'plate']
+
+
 def cam_upload_path(instance, filename):
     """Dossier d'entrée du cam_analyzer — par la BRIQUE COMMUNE `app_media_dir`.
 
@@ -127,6 +132,21 @@ class AnalysisProfile(models.Model):
     restrict_to_intersection_windows = models.BooleanField(
         default=True,
         help_text='Skip YOLO inference outside intersection windows (intersection_insertion only)',
+    )
+    # ── Anonymisation pour l'AFFICHAGE (2026-10-12) ─────────────────────────────────────────
+    # Passes `anonymize_detect` / `anonymize_blur` : les vidéos floutées ne servent qu'à être
+    # MONTRÉES (démonstration publique) — l'analyse lit toujours les vidéos d'origine. Les
+    # détecteurs sont ceux que l'Anonymizer choisit pour ces classes à ce cran du curseur.
+    anonymize_classes = models.JSONField(
+        default=_default_anonymize_classes,
+        db_default=models.Value(['face', 'plate'], output_field=models.JSONField()),
+        blank=True,
+        help_text="Classes floutées dans les vidéos d'affichage (vocabulaire de l'Anonymizer).",
+    )
+    anonymize_quality = models.PositiveSmallIntegerField(
+        default=50, db_default=50,
+        help_text="Curseur rapide/qualité de l'Anonymizer (0 = rapide, 100 = précis) pour les "
+                  "vidéos d'affichage.",
     )
     analyzed_positions = models.JSONField(
         default=_default_analyzed_positions,

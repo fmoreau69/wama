@@ -99,6 +99,34 @@ _spec('sam3_markings', 'Marquages SAM3', "Marquages au sol (passages piétons, l
       params=[ParamSpec('sam3_fps', 'float', 2.0, 0.5, 12.0, unit='img/s', description='Cadence de segmentation.')],
       cost={'vram_gb': 8})
 
+# ── Anonymisation pour l'AFFICHAGE (2026-10-12) — une branche, que l'analyse ne lit pas ──────
+_spec('anonymize_detect', 'Anonymisation — détection (affichage)',
+      "Le process « Détection » de l'Anonymizer sur les FENÊTRES d'intersection de chaque caméra : "
+      "les détecteurs que l'Anonymizer retient pour les classes et le cran du curseur du profil.",
+      FC.DETECTOR, 'cam_analyzer.tasks:compute_anonymize_detect_task', ['vision', 'gpu', 'privacy'],
+      inputs=[PortSpec('video', DT.TABLE, description='Frames caméra (RTMaps).'),
+              PortSpec('windows', DT.SEGMENTS, group='reference',
+                       description="Les fenêtres d'intersection : seules leurs images sont "
+                                   "anonymisées, pour ne pas payer le GPU sur toute la vidéo.")],
+      outputs=[PortSpec('detections', DT.DETECTIONS, produced_fields=['frame', 'bbox', 'label'],
+                        description="Visages, plaques… par image, au format `detections` de "
+                                    "l'Anonymizer. Ne sert QU'AU floutage d'affichage.")],
+      params=[ParamSpec('anonymize_quality', 'int', 50, 0, 100, unit='',
+                        description="Curseur rapide/qualité de l'Anonymizer.")],
+      cost={'vram_gb': 4})
+
+_spec('anonymize_blur', 'Anonymisation — floutage (affichage)',
+      "Le process « Floutage » de l'Anonymizer : chaque vidéo réécrite depuis ses détections, "
+      "image entière floutée hors des fenêtres anonymisées. Même cadence, même taille, même "
+      "nombre d'images que l'originale — l'affichage peut la servir à sa place.",
+      FC.TRANSFORM, 'cam_analyzer.tasks:compute_anonymize_blur_task', ['video', 'blur', 'privacy'],
+      inputs=[PortSpec('video', DT.TABLE, description='Frames caméra (RTMaps).'),
+              PortSpec('detections', DT.DETECTIONS, group='reference',
+                       description="Ce qu'il faut flouter (passe `anonymize_detect`).")],
+      outputs=[PortSpec('video', DT.TABLE, produced_fields=['position', 'path'],
+                        description="Une vidéo floutée par caméra, pour l'affichage seul.")],
+      cost={'cpu_bound': True})
+
 # ── Positionnement / géométrie ────────────────────────────────────────────────
 _spec('distance', 'Distance / vitesse / TTC', "Distance pinhole/homographie + vitesse et TTC filtrés par track.",
       FC.ENRICHER, 'cam_analyzer.tasks:compute_distance_task', ['vision', 'geo'],

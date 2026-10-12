@@ -120,6 +120,13 @@ def stream_video(request, camera_id):
         return HttpResponse(status=404)
 
     file_path = camera.video_file.path
+    if request.GET.get('variant') == 'anonymized':
+        # La vidéo floutée pour l'affichage (passe `anonymize_blur`) — jamais l'originale à sa
+        # place : sans elle, 404, et le lecteur garde ce qu'il montrait.
+        from .utils.display_anonymization import anonymized_video
+        file_path = anonymized_video(camera)
+        if file_path is None:
+            return HttpResponse(status=404)
     if not os.path.isfile(file_path):
         return HttpResponse(status=404)
 
@@ -263,6 +270,7 @@ def create_session(request):
 def get_session(request, session_id):
     """Get full session details."""
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    from .utils.display_anonymization import anonymized_video
 
     cameras = []
     for c in session.cameras.all():
@@ -271,6 +279,10 @@ def get_session(request, session_id):
             'position': c.position,
             'label': c.label,
             'video_url': f'/lab/cam-analyzer/api/cameras/{c.id}/stream/' if c.video_file else None,
+            # La vidéo floutée de la passe `anonymize_blur`, que l'option « Anonymisé » du volet
+            # droit sert à la place de l'originale (affichage seul).
+            'anonymized_video_url': (f'/lab/cam-analyzer/api/cameras/{c.id}/stream/?variant=anonymized'
+                                     if c.video_file and anonymized_video(c) else None),
             'filename': os.path.basename(c.video_file.name) if c.video_file else '',
             'duration': c.duration,
             'fps': c.fps,
@@ -995,17 +1007,19 @@ def run_passes(request, session_id):
     statuses = get_passes_status(session)
 
     needs_run = set()
+    # Une passe `on_demand` (registre) ne part que NOMMÉE : ni « tout relancer », ni « compléter ».
+    unnamed = [s for s in statuses if not s.get('on_demand')]
     if force and requested:
         needs_run.update(requested)
     elif force:
-        needs_run.update(s['pass_type'] for s in statuses)
+        needs_run.update(s['pass_type'] for s in unnamed)
     elif requested:
         needs_run.update(requested)
     else:
         # default: all missing or stale or failed (vocabulaire commun : une passe jamais jouée
         # est `PENDING`, comme dans la bande des process)
         from wama.common.models import JOB_FAILURE, JOB_PENDING, JOB_STALE
-        for s in statuses:
+        for s in unnamed:
             if s['status'] in (JOB_PENDING, JOB_STALE, JOB_FAILURE):
                 needs_run.add(s['pass_type'])
 
@@ -1381,6 +1395,8 @@ def list_profiles(request):
         'sam3_fps': p.sam3_fps,
         'restrict_to_intersection_windows': p.restrict_to_intersection_windows,
         'analyzed_positions': p.analyzed_positions or ['front', 'rear'],
+        'anonymize_classes': p.anonymize_classes,
+        'anonymize_quality': p.anonymize_quality,
         'model_path': p.model_path,
         'task_type': p.task_type,
         'target_classes': p.target_classes,
@@ -1423,6 +1439,21 @@ def save_profile(request):
         analyzed_positions = [p for p in analyzed_positions if p in valid_positions]
         if not analyzed_positions:
             analyzed_positions = ['front', 'rear']
+        # Anonymisation pour l'affichage (2026-10-12) : posée seulement quand le formulaire
+        # l'envoie — un client qui ne la connaît pas ne la remet pas à son défaut.
+        anonymize_settings = {}
+        if 'anonymize_classes' in data:
+            classes = data.get('anonymize_classes') or []
+            if isinstance(classes, str):
+                classes = json.loads(classes)
+            classes = [str(c).strip() for c in classes if str(c).strip()]
+            anonymize_settings['anonymize_classes'] = classes or ['face', 'plate']
+        if 'anonymize_quality' in data:
+            try:
+                anonymize_settings['anonymize_quality'] = max(0, min(100, int(float(
+                    data.get('anonymize_quality')))))
+            except (TypeError, ValueError):
+                pass
         model_path = data.get('model_path', '')
         task_type = data.get('task_type', 'detect')
         target_classes = data.get('target_classes', [])
@@ -1462,6 +1493,8 @@ def save_profile(request):
             profile.restrict_to_intersection_windows = restrict_to_intersection_windows
             profile.yolopv2_all_views = yolopv2_all_views
             profile.analyzed_positions = analyzed_positions
+            for field, value in anonymize_settings.items():
+                setattr(profile, field, value)
             profile.model_path = model_path
             profile.task_type = task_type
             profile.target_classes = target_classes
@@ -1489,6 +1522,7 @@ def save_profile(request):
                 confidence=confidence,
                 iou_threshold=iou_threshold,
                 tracker=tracker,
+                **anonymize_settings,
             )
 
         # Auto-recompute intersection_windows for sessions using this profile
@@ -1526,6 +1560,8 @@ def save_profile(request):
                 'sam3_fps': profile.sam3_fps,
                 'restrict_to_intersection_windows': profile.restrict_to_intersection_windows,
                 'analyzed_positions': profile.analyzed_positions or ['front', 'rear'],
+                'anonymize_classes': profile.anonymize_classes,
+                'anonymize_quality': profile.anonymize_quality,
                 'model_path': profile.model_path,
                 'task_type': profile.task_type,
                 'target_classes': profile.target_classes,

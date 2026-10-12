@@ -59,6 +59,10 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
                 title="Projeter le gabarit de voie SUR la vidéo pour caler la largeur de voie sur la route réelle (garde la segmentation yolopv2 séparément)">
             <i class="fas fa-road me-1"></i>Voie/vidéo
         </button>
+        <button type="button" id="anonymizedViewBtn" class="btn btn-sm btn-outline-success" disabled
+                title="Aucune vidéo anonymisée pour cette session : lancer les passes « Anonymisation » du pipeline.">
+            <i class="fas fa-user-secret me-1"></i>Anonymisé
+        </button>
         <div class="td-subrow">
             <span class="d-inline-flex align-items-center gap-1"
                   title="Filtre de confiance à l'affichage : masque les détections faibles, SANS ré-analyse">
@@ -923,5 +927,7 @@ Upload vidéos / .rec + CSV
 <script src="{% static 'vendors/leaflet-1.9.4/leaflet-rotate.js' %}"></script>
 <script src="{% static_v 'common/js/wama-shuttle.js' %}"></script>
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
+{# Le curseur rapide/qualité commun (`common/_intent_slider.html`) s'anime par wama-params.js. #}
+<script src="{% static_v 'common/js/wama-params.js' %}"></script>
 <script src="{% static_v 'cam_analyzer/js/index.js' %}"></script>
 {% endblock %}

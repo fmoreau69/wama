@@ -1,0 +1,76 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "cam_analyzer.tasks:compute_anonymize_blur_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Frames caméra (RTMaps).",
+        "group": "travail",
+        "key": "video",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Ce qu'il faut flouter (passe `anonymize_detect`).",
+        "group": "reference",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "cam_analyzer.anonymize_blur",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une vidéo floutée par caméra, pour l'affichage seul.",
+        "key": "video",
+        "optional": false,
+        "produced_fields": [
+          "position",
+          "path"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "video",
+      "blur",
+      "privacy"
+    ],
+    "visibility": "public"
+  },
+  "description": "Le process « Floutage » de l'Anonymizer : chaque vidéo réécrite depuis ses détections, image entière floutée hors des fenêtres anonymisées. Même cadence, même taille, même nombre d'images que l'originale — l'affichage peut la servir à sa place.",
+  "key": "cam_analyzer.anonymize_blur",
+  "manifest_kind": "function",
+  "name": "Anonymisation — floutage (affichage)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.anonymize_blur",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "lab"
+}

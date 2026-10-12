@@ -597,6 +597,30 @@ window.CAM_ANALYZER = {
                     </div>
                 </div>
 
+                <!-- Anonymisation pour l'AFFICHAGE (passes anonymize_detect / anonymize_blur) -->
+                <hr class="border-secondary my-3">
+                <div class="mb-3">
+                    <div class="small fw-semibold text-warning mb-1">
+                        <i class="fas fa-user-secret me-1"></i>Anonymisation des vidéos (affichage)
+                    </div>
+                    <div class="d-flex gap-3 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input anonymize-class" type="checkbox" id="anonymizeFace" value="face" checked>
+                            <label class="form-check-label small" for="anonymizeFace">Visages</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input anonymize-class" type="checkbox" id="anonymizePlate" value="plate" checked>
+                            <label class="form-check-label small" for="anonymizePlate">Plaques</label>
+                        </div>
+                    </div>
+                    {% include 'common/_intent_slider.html' with dom_id='anonymizeQualitySlider' name='anonymize_quality' value=50 step=5 %}
+                    <div class="form-text text-secondary small">
+                        Les détecteurs de l'Anonymizer pour ce cran, sur les fenêtres d'intersection seules ;
+                        l'image entière est floutée ailleurs. Les vidéos floutées ne servent qu'à l'affichage
+                        (bouton « Anonymisé ») : l'analyse lit toujours les vidéos d'origine.
+                    </div>
+                </div>
+
                 <!-- Paramètres du RAPPORT intersections (visibles pour intersection_insertion) -->
                 <div id="intersectionsSection" style="display:none;">
                     <hr class="border-secondary my-3">

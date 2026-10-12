@@ -1,0 +1,136 @@
+"""Anonymisation des vidéos pour l'AFFICHAGE (passes `anonymize_detect` / `anonymize_blur`,
+2026-10-12) : les fenêtres découpées comme pour la détection YOLO, les détections ramenées aux
+indices de la vidéo, l'image entière floutée hors des fenêtres, la vidéo floutée de même longueur
+que l'originale, et une branche qui ne part jamais sans être nommée.
+
+    python manage.py test wama_lab.cam_analyzer.tests.tests_display_anonymization --keepdb
+"""
+import os
+import shutil
+import tempfile
+import unittest
+from types import SimpleNamespace
+
+import numpy as np
+
+from wama_lab.cam_analyzer.utils import display_anonymization as anon
+from wama_lab.cam_analyzer.utils import pass_tracking as pt
+from wama_lab.cam_analyzer.utils.window_clips import (ffmpeg_path, merge_frame_ranges,
+                                                      window_frame_ranges)
+
+
+class WindowRangesTest(unittest.TestCase):
+
+    def test_overlapping_and_adjacent_ranges_merge(self):
+        self.assertEqual(merge_frame_ranges([(10, 20), (0, 5), (6, 8), (18, 30)]),
+                         [(0, 8), (10, 30)])
+
+    def test_windows_become_frame_ranges_bounded_to_the_video(self):
+        windows = [{'t_enter': 1.0, 't_exit': 2.0}, {'t_enter': 9.5, 't_exit': 20.0},
+                   {'t_enter': 30.0, 't_exit': 31.0}]
+        self.assertEqual(window_frame_ranges(windows, fps=10, total_frames=100),
+                         [(10, 20), (95, 99)])
+
+
+class OutsideWindowsTest(unittest.TestCase):
+
+    def test_a_frame_outside_every_range_gets_the_whole_image(self):
+        whole = {'label': anon.OUTSIDE_LABEL, 'box': [0, 0, 4, 4]}
+        seen = {'label': 'face', 'box': [1, 1, 2, 2]}
+        frames = anon._FramesWithOutside({3: [seen]}, [[2, 4], [8, 9]], whole)
+        self.assertEqual(frames.get(3, []), [seen])
+        self.assertEqual(frames.get(2, []), [], "dans une plage, sans détection : rien à flouter")
+        self.assertEqual(frames.get(9, []), [])
+        self.assertEqual(frames.get(5, []), [whole])
+        self.assertEqual(frames.get(0, []), [whole])
+        self.assertEqual(frames.get(10, []), [whole])
+
+
+class OnDemandPassesTest(unittest.TestCase):
+
+    def test_the_anonymization_branch_is_declared_on_demand_and_nothing_else_is(self):
+        self.assertEqual({p.key for p in pt.PASSES if p.on_demand},
+                         {'anonymize_detect', 'anonymize_blur'})
+
+    def test_the_blur_follows_the_detection_which_follows_the_windows(self):
+        self.assertEqual(pt._DEPENDS_ON['anonymize_blur'], ['anonymize_detect'])
+        self.assertIn('intersection_windows', pt._DEPENDS_ON['anonymize_detect'])
+        self.assertEqual(pt._WATCHED['anonymize_detect'], ['anonymize_classes', 'anonymize_quality'])
+
+    def test_a_panel_row_says_whether_its_pass_is_on_demand(self):
+        row = pt._panel_row(pt._BY_KEY['anonymize_detect'], 'front')
+        self.assertTrue(row['on_demand'])
+        self.assertFalse(pt._panel_row(pt._BY_KEY['yolo_detect'], 'front')['on_demand'])
+
+
+def _write_video(path, frames=12, size=(64, 48), fps=12.0):
+    import cv2
+    writer = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*'MJPG'), fps, size, True)
+    for i in range(frames):
+        image = np.zeros((size[1], size[0], 3), np.uint8)
+        image[:, ::4] = 255                      # des rayures : un flou s'y voit
+        image[0, 0] = (i, i, i)
+        writer.write(image)
+    writer.release()
+
+
+def _frame_count(path):
+    import cv2
+    capture = cv2.VideoCapture(path)
+    count = 0
+    while capture.read()[0]:
+        count += 1
+    capture.release()
+    return count
+
+
+@unittest.skipIf(ffmpeg_path() is None, "ffmpeg absent")
+class VideoRoundTripTest(unittest.TestCase):
+    """Sur une vraie petite vidéo : extraits, indices, longueur de la sortie."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='wama_anon_test_')
+        self.source = os.path.join(self.tmp, 'front.avi')
+        _write_video(self.source)
+        self.camera = SimpleNamespace(id=0, fps=12.0, video_file=SimpleNamespace(path=self.source))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_detections_found_in_a_window_land_on_the_video_frame_numbers(self):
+        clip_lengths = []
+
+        class FakeDetectors:
+            def detect(self, *, media_path, classes2blur, detection_threshold, progress=None):
+                n = _frame_count(media_path)
+                clip_lengths.append(n)
+                return {'engine': 'fake', 'models': ['fake'],
+                        'frames': [{'i': 0, 'd': [{'label': 'face', 'conf': 0.9,
+                                                   'box': [1, 1, 9, 9], 'track': 'm0:1'}]},
+                                   {'i': n + 5, 'd': [{'label': 'face', 'box': [1, 1, 2, 2]}]}]}
+
+        windows = [{'t_enter': 3 / 12, 't_exit': 5 / 12}, {'t_enter': 8 / 12, 't_exit': 9 / 12}]
+        doc = anon.detect_camera(self.camera, windows, FakeDetectors(), classes=['face'],
+                                 threshold=0.25)
+        self.assertEqual(doc['scope'], [[3, 5], [8, 9]])
+        self.assertEqual(clip_lengths, [3, 2], "un extrait = exactement les images de sa plage")
+        self.assertEqual([f['i'] for f in doc['frames']], [3, 8],
+                         "indice de l'extrait + début de la plage ; rien au-delà de la plage")
+        self.assertEqual(doc['frames'][0]['d'][0]['track'], 'r0:m0:1')
+        self.assertEqual(doc['frame_count'], 12)
+
+    def test_the_blurred_video_keeps_every_frame_and_blurs_outside_the_windows(self):
+        import cv2
+        from wama.common.utils import detections as dets
+        doc = dets.new_document(media='video', width=64, height=48, fps=12.0, frame_count=12)
+        doc['scope'] = [[2, 4]]
+        target = os.path.join(self.tmp, 'out', 'front.mp4')
+        written = anon.blur_camera(self.camera, doc, {'blur_ratio': 25, 'interpolate_detections': False},
+                                   target)
+        self.assertEqual(_frame_count(written), 12)
+        capture = cv2.VideoCapture(written)
+        frames = [capture.read()[1] for _ in range(12)]
+        capture.release()
+        stripes = lambda image: float(np.std(image[:, :, 0].astype(float)))
+        self.assertGreater(stripes(frames[3]), 3 * stripes(frames[8]),
+                           "dans la fenêtre l'image reste nette, hors fenêtre elle est floutée")

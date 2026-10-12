@@ -1,0 +1,88 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "detector",
+    "cost": {
+      "vram_gb": 4
+    },
+    "impl": "cam_analyzer.tasks:compute_anonymize_detect_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Frames caméra (RTMaps).",
+        "group": "travail",
+        "key": "video",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Les fenêtres d'intersection : seules leurs images sont anonymisées, pour ne pas payer le GPU sur toute la vidéo.",
+        "group": "reference",
+        "key": "windows",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "cam_analyzer.anonymize_detect",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Visages, plaques… par image, au format `detections` de l'Anonymizer. Ne sert QU'AU floutage d'affichage.",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [
+          "frame",
+          "bbox",
+          "label"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 50,
+        "description": "Curseur rapide/qualité de l'Anonymizer.",
+        "key": "anonymize_quality",
+        "max": 100,
+        "min": 0,
+        "type": "int",
+        "unit": ""
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision",
+      "gpu",
+      "privacy"
+    ],
+    "visibility": "public"
+  },
+  "description": "Le process « Détection » de l'Anonymizer sur les FENÊTRES d'intersection de chaque caméra : les détecteurs que l'Anonymizer retient pour les classes et le cran du curseur du profil.",
+  "key": "cam_analyzer.anonymize_detect",
+  "manifest_kind": "function",
+  "name": "Anonymisation — détection (affichage)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.anonymize_detect",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "lab"
+}

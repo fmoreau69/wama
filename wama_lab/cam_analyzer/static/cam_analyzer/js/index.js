@@ -470,6 +470,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     _safe('showCameraVideo:' + cam.position, () => showCameraVideo(cam.position, cam.video_url, cam));
                 });
             }
+            _safe('refreshAnonymizedBtn', refreshAnonymizedBtn);
 
             // Offset de synchro GPS↔vidéo (recalage manuel par session).
             gpsTimeOffset = data.gps_time_offset || 0;
@@ -762,6 +763,58 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // ── Vidéos ANONYMISÉES pour l'affichage (passes `anonymize_*`, 2026-10-12) ──────────────
+    // Option du volet droit (« Anonymisé », groupe Vue) : le lecteur reste celui de toujours, il
+    // reçoit seulement une autre source — la vidéo floutée de la caméra quand elle existe.
+    // Préférence de CE navigateur (localStorage), jamais un réglage de session.
+    const ANON_VIEW_KEY = 'camAnalyzer:anonymizedView';
+    let anonymizedView = false;
+    try { anonymizedView = localStorage.getItem(ANON_VIEW_KEY) === '1'; } catch (e) { /* noop */ }
+
+    function cameraVideoUrl(camData, fallbackUrl) {
+        if (anonymizedView && camData && camData.anonymized_video_url) return camData.anonymized_video_url;
+        return (camData && camData.video_url) || fallbackUrl;
+    }
+
+    function refreshAnonymizedBtn() {
+        const btn = document.getElementById('anonymizedViewBtn');
+        if (!btn) return;
+        const available = Object.values(cameras).some(c => c && c.anonymized_video_url);
+        btn.disabled = !available;
+        const on = anonymizedView && available;
+        btn.classList.toggle('btn-success', on);
+        btn.classList.toggle('btn-outline-success', !on);
+        btn.title = available
+            ? "Afficher les vidéos ANONYMISÉES (visages et plaques floutés aux intersections, image entière floutée ailleurs). Affichage seul : l'analyse lit toujours les vidéos d'origine."
+            : "Aucune vidéo anonymisée pour cette session : lancer les passes « Anonymisation » du pipeline.";
+    }
+
+    function applyAnonymizedView() {
+        const t = playheadT();
+        const wasPlaying = isPlaying;
+        if (wasPlaying) syncPause();
+        let pending = 0;
+        positions.forEach(pos => {
+            const cam = cameras[pos];
+            const video = document.getElementById(`video-${pos}`);
+            if (!cam || !video || !cam.video_url) return;
+            const url = cameraVideoUrl(cam);
+            if (video.getAttribute('src') === url) return;
+            pending += 1;
+            video.addEventListener('loadeddata', () => {
+                pending -= 1;
+                if (pending === 0) {
+                    syncSeek(t);
+                    if (wasPlaying) syncPlay();
+                }
+            }, { once: true });
+            video.src = url;
+            video.load();
+        });
+        if (pending === 0 && wasPlaying) syncPlay();
+        refreshAnonymizedBtn();
+    }
+
     function showCameraVideo(position, videoUrl, camData) {
         const zone = document.getElementById(`dropzone-${position}`);
         const video = document.getElementById(`video-${position}`);
@@ -769,7 +822,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const placeholder = zone.querySelector('.drop-placeholder');
 
         if (placeholder) placeholder.style.display = 'none';
-        video.src = videoUrl;
+        video.src = cameraVideoUrl(camData, videoUrl);
         video.style.display = 'block';
         video.load();
         zone.classList.add('has-video');
@@ -887,7 +940,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!currentSessionId) return;
         let list = _lastPipelinePasses;
         if (!list.length) list = (await loadPipelinePanel()) || [];
-        const types = [...new Set(list.filter(p => (p.stage || 'analyse') === stage).map(p => p.pass_type))]
+        // Une passe `on_demand` (registre serveur) ne part que par son ▶ ou la sélection.
+        const types = [...new Set(list.filter(p => (p.stage || 'analyse') === stage && !p.on_demand)
+                                      .map(p => p.pass_type))]
             .filter(t => !STAGE_LAUNCH_EXCLUDED.has(t))
             // Profondeur : GPU lourd et optionnel — seulement si la bascule ⚑ la demande.
             .filter(t => t !== 'depth' || camFeat.depth_estimation === true);
@@ -4897,6 +4952,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     sam3_fps: parseFloat((document.getElementById('sam3FpsInput') || {}).value) || 2.0,
                     restrict_to_intersection_windows: document.getElementById('restrictToIntersectionWindows').checked,
                     yolopv2_all_views: document.getElementById('yolopv2AllViews')?.checked || false,
+                    // Anonymisation pour l'affichage (passes anonymize_*) : classes + curseur.
+                    anonymize_classes: Array.from(document.querySelectorAll('.anonymize-class'))
+                        .filter(c => c.checked).map(c => c.value),
+                    anonymize_quality: parseInt((document.getElementById('anonymizeQualitySlider') || {}).value, 10) || 50,
                     analyzed_positions: ['front', 'rear', 'left', 'right'].filter(p =>
                         document.getElementById('analyze-' + p)?.checked
                     ),
@@ -5071,6 +5130,18 @@ document.addEventListener('DOMContentLoaded', function () {
                         profile.restrict_to_intersection_windows !== false;
                     const _yav = document.getElementById('yolopv2AllViews');
                     if (_yav) _yav.checked = !!profile.yolopv2_all_views;
+                    // Anonymisation pour l'affichage : classes cochées + curseur (le libellé du
+                    // curseur commun suit par l'événement `input`, lié par wama-params.js).
+                    const _anonClasses = Array.isArray(profile.anonymize_classes)
+                        ? profile.anonymize_classes : ['face', 'plate'];
+                    document.querySelectorAll('.anonymize-class').forEach(c => {
+                        c.checked = _anonClasses.includes(c.value);
+                    });
+                    const _aqs = document.getElementById('anonymizeQualitySlider');
+                    if (_aqs) {
+                        _aqs.value = profile.anonymize_quality != null ? profile.anonymize_quality : 50;
+                        _aqs.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
 
                     // Analysed positions (default front + rear)
                     const analyzed = Array.isArray(profile.analyzed_positions) && profile.analyzed_positions.length
@@ -5112,6 +5183,12 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('restrictToIntersectionWindows').checked = true;
             const _yavD = document.getElementById('yolopv2AllViews');
             if (_yavD) _yavD.checked = false;
+            document.querySelectorAll('.anonymize-class').forEach(c => { c.checked = true; });
+            const _aqsD = document.getElementById('anonymizeQualitySlider');
+            if (_aqsD) {
+                _aqsD.value = 50;
+                _aqsD.dispatchEvent(new Event('input', { bubbles: true }));
+            }
 
             // Analysed positions — default front + rear
             ['front', 'rear', 'left', 'right'].forEach(p => {
@@ -5382,6 +5459,16 @@ document.addEventListener('DOMContentLoaded', function () {
         // Les « Indicateurs » (TTC/PET + tracking 360°) sont désormais la passe `indicators`
         // du pipeline (étage Calculs) — plus de bouton dédié dans la carte. Cf. volet droit § Analyser.
         // Bascule masquage des véhicules stationnés/garés.
+        // Vidéos anonymisées à l'affichage (option du volet droit, cf. applyAnonymizedView).
+        const _avb = document.getElementById('anonymizedViewBtn');
+        if (_avb) {
+            refreshAnonymizedBtn();
+            _avb.onclick = () => {
+                anonymizedView = !anonymizedView;
+                try { localStorage.setItem(ANON_VIEW_KEY, anonymizedView ? '1' : '0'); } catch (e) { /* noop */ }
+                applyAnonymizedView();
+            };
+        }
         const _hpb = document.getElementById('hideParkedBtn');
         if (_hpb) _hpb.onclick = () => {
             hideParked = !hideParked;

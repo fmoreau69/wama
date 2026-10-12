@@ -43,6 +43,21 @@
         "to_port": null
       },
       {
+        "from": "extraction",
+        "to": "anonymize_detect",
+        "to_port": null
+      },
+      {
+        "from": "intersection_windows",
+        "to": "anonymize_detect",
+        "to_port": null
+      },
+      {
+        "from": "anonymize_detect",
+        "to": "anonymize_blur",
+        "to_port": null
+      },
+      {
         "from": "yolo_detect",
         "to": "lane_events",
         "to_port": null
@@ -229,6 +244,35 @@
       },
       {
         "app": null,
+        "function": "cam_analyzer.anonymize_detect",
+        "id": "anonymize_detect",
+        "kind": "function",
+        "params": {
+          "gpu": true,
+          "per_camera": true,
+          "stage": "analyse",
+          "task": "compute_anonymize_detect_task",
+          "watched": [
+            "anonymize_classes",
+            "anonymize_quality"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.anonymize_blur",
+        "id": "anonymize_blur",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": true,
+          "stage": "analyse",
+          "task": "compute_anonymize_blur_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
         "function": "cam_analyzer.lane_events",
         "id": "lane_events",
         "kind": "function",
@@ -378,7 +422,7 @@
   "description": "Pipeline déclaré en code (`pass_tracking.PASSES`) : étage ANALYSE (perception, GPU) puis CALCUL (dérivation CPU rejouable) ; chaque passe est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "cam_analyzer",
   "manifest_kind": "pipeline",
-  "name": "Cam Analyzer — chaîne complète (18 passes)",
+  "name": "Cam Analyzer — chaîne complète (20 passes)",
   "owner": null,
   "projects": [
     "ENA"

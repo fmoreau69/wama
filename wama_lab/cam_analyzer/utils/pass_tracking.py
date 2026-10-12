@@ -51,7 +51,11 @@ logger = logging.getLogger(__name__)
 #               `eta_estimator`) : 'analysed' (secondes de vidéo analysées — de la caméra pour une
 #               passe par caméra, la plus longue sinon), 'windows' (durée cumulée des fenêtres
 #               d'intersection), 'video' (vidéo entière). ETA PAR PROCESS, clé `cam_analyzer:<passe>`
-#               (ROUTE §10.6, 4.5 — ce registre est une des pièces du moteur commun).
+#               (ROUTE §10.6, 4.5 — ce registre est une des pièces du moteur commun) ;
+#   on_demand   passe lancée SEULEMENT quand on la nomme (son ▶, la sélection) — jamais par un
+#               ▶ d'étage, « Compléter les passes » ni « Tout relancer » : une branche hors de
+#               l'analyse (l'anonymisation pour l'affichage, des heures de GPU) ne part pas parce
+#               qu'elle n'a jamais été jouée.
 from dataclasses import dataclass, field as _field
 
 from wama.common.services.process_pipeline import ProcessSpec
@@ -68,6 +72,7 @@ class Pass(ProcessSpec):
     per_camera: bool = False
     task: str = ''
     eta_size: str = 'analysed'
+    on_demand: bool = False
 
     @property
     def function_key(self) -> str:
@@ -96,6 +101,17 @@ PASSES: tuple = (
     # empêchait de chaîner les deux étages en sous-pipelines (ROUTE §10.6 3.4).
     Pass('ortho_recalage', label='Recalage ortho (passages piétons IGN, mesure)', stage='analyse', depends_on=('sam3_markings', 'intersection_windows'),
          task='compute_ortho_recalage_task', gpu=True, eta_size='windows'),
+    # Anonymisation pour l'AFFICHAGE (2026-10-12, démonstrations publiques) : une BRANCHE — rien
+    # ne la lit dans l'analyse, qui garde les vidéos d'origine. Les deux process de l'Anonymizer
+    # (« Détection » puis « Floutage »), sur les fenêtres d'intersection seules ; l'image entière
+    # est floutée ailleurs (`utils/display_anonymization.py`).
+    Pass('anonymize_detect', label='Anonymisation — détection (affichage)', stage='analyse',
+         depends_on=('extraction', 'intersection_windows'),
+         watched=('anonymize_classes', 'anonymize_quality'), per_camera=True,
+         task='compute_anonymize_detect_task', gpu=True, eta_size='windows', on_demand=True),
+    Pass('anonymize_blur', label='Anonymisation — floutage (affichage)', stage='analyse',
+         depends_on=('anonymize_detect',), per_camera=True, task='compute_anonymize_blur_task',
+         eta_size='video', on_demand=True),
     # ── CALCUL (dérivation, CPU, rejouable) ─────────────────────────────────────
     Pass('lane_events', label='Évènements de voie', stage='calcul', depends_on=('yolo_detect', 'yolopv2_lanes'),
          task='compute_lane_events_task'),
@@ -504,7 +520,7 @@ def order_session_items(pass_keys, detect_force=False) -> list:
 #: qui tournent. L'annulation lève le verrou explicitement (`abort_session_chain`).
 DETECTION_CHAIN_TTL_S = 24 * 3600
 #: Tâches GPU d'ANALYSE qu'« Annuler » doit pouvoir révoquer (la 1ʳᵉ de la chaîne est suivie).
-_CANCELLABLE = ('process_session_task', 'analyze_sam3_only_task')
+_CANCELLABLE = ('process_session_task', 'analyze_sam3_only_task', 'compute_anonymize_detect_task')
 
 
 def _signatures(item, sid):
@@ -527,8 +543,10 @@ def _start_session_chain(session_id, items) -> list:
     from celery.utils import uuid
     sigs = [s for it in items for s in _signatures(it, sid)]
     names = [s.task.rsplit('.', 1)[-1] for s in sigs]
-    ttl = DETECTION_CHAIN_TTL_S if any(it['key'] == 'detection' for it in items) \
-        else CALC_CHAIN_TTL_S
+    # Une chaîne qui porte une passe GPU longue (détection, anonymisation d'affichage) garde le
+    # verrou long : l'anonymisation d'une session ENA dépasse les 4 h d'une chaîne de calculs.
+    ttl = DETECTION_CHAIN_TTL_S if any(it['key'] == 'detection' or getattr(_BY_KEY.get(it['key']), 'gpu', False)
+                                       for it in items) else CALC_CHAIN_TTL_S
     cache.set(calc_chain_key(sid), names, timeout=ttl)
     import time as _time
     _pk = []
@@ -776,6 +794,7 @@ def _panel_row(spec, camera, line=None) -> dict:
         'completed_at': line.finished_at.isoformat() if line is not None and line.finished_at else None,
         'duration_s': line.duration_s if line is not None else None,
         'error_message': (line.error_message or '') if line is not None else '',
+        'on_demand': spec.on_demand,
     }
 
 
