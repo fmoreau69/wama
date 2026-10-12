@@ -1,0 +1,12 @@
+# Configuration de gitleaks, lue d'office par `manage.py check_secret_leaks` et par le hook
+# pre-commit (fichier `.gitleaks.toml` à la racine du dépôt balayé).
+# Les règles par défaut restent TOUTES actives ; on n'ajoute que des exceptions ciblées, chacune
+# sur la LIGNE exacte d'un faux positif lu et vérifié — jamais sur un fichier ni sur une règle.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "faux positif generic-api-key : `model_key=_model_key, notify_label='Composer'` (wama/composer/tasks.py) -- un argument nomme `*_key` suivi d'une chaine, pas une cle (lu le 2026-10-12)"
+regexTarget = "line"
+regexes = ['''model_key=_model_key, notify_label=''']
