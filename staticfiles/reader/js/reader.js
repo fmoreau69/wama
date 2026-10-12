@@ -278,7 +278,7 @@
     // Double-clic sur une preview de card → la visionneuse COMMUNE (`media-preview.js`), sur
     // la face Sortie avec sa bascule Entrée | Sortie. Le reader l'interceptait (`wama:card-expand`
     // + `openFullTextModal` sur `reader:text`) pour ouvrir le seul texte OCR, sans faces ;
-    // retiré le 2026-10-12 (REMOVAL_LEDGER R116) : la face Sortie sert déjà le texte intégral.
+    // retiré le 2026-10-12 (REMOVAL_LEDGER R118) : la face Sortie sert déjà le texte intégral.
 
     function expandPreview(id) {
         const preview = document.querySelector(

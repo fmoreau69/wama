@@ -1552,7 +1552,7 @@ Un worker publie plusieurs vues du même instant (`publish_partial(variant=, lab
 
 - **Domicile** : `wama/common/utils/preview_utils.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common - Preview Utilities
-- **API publique** (15) :
+- **API publique** (14) :
   - `get_or_create_anonymous_user()` — Get or create the anonymous user.
   - `file_face(url, path=None, name=None)` — Payload d'aperçu d'UN fichier : `{name, url, mime_type}`, plus `content` (le texte
   - `publish_partial(app_name, pk, url_or_path, variant=None, label=None)` — Worker : publie l'URL (média) d'un aperçu PARTIEL courant, servi par `?side=during`.
@@ -1566,7 +1566,6 @@ Un worker publie plusieurs vues du même instant (`publish_partial(variant=, lab
   - `with_playback_copy(data, request)` — Une vidéo que le navigateur ne lit pas est servie par sa COPIE DE LECTURE quand elle
   - `register_app_preview(app_name: str, model_class, file_field: str='input_file', user_field: str='user', duration_field: str=None, width_field: str=None, height_…` — Convenience function to register an app with common field patterns.
   - `anonymizer_preview_adapter(media, request)` — Custom adapter for Anonymizer Media model. None once the input file is RELEASED (the
-  - `anonymizer_detection_face(media, request)` — Face « Détection » de l'anonymizer (2026-10-05, demande de Fabien) : le média d'ENTRÉE et,
   - `transcriber_preview_adapter(transcript, request)` — Custom adapter for Transcriber Transcript model.
 
 ### Application du corpus de manifestes
@@ -2250,7 +2249,7 @@ Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivi
 
 ### Preview unifiée
 
-Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement (2026-09-13, §17ter trou 2). Une app DÉCLARE ses faces d'aperçu entre Entrée et Sortie (`register(faces=)`, l'anonymizer : « Détection », le document `detections` dessiné sur l'entrée par `WamaPreviewOverlay`) ; une face `compare_base` est la référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05). La modale porte les mêmes faces d'où qu'on l'ouvre (volet, vignette de card), suit la face PENDANT en direct avec ses vues — par le MÊME suiveur que le volet (`WamaInspector.followDuring`) —, et son PLEIN ÉCRAN est elle-même agrandie (la surcouche image seule ne sert plus qu'aux galeries sans élément). Depuis le 2026-10-12 : la face Entrée se lit, comme la Sortie, dans les clés canoniques du detail (`source_file`, sinon `source_text`) sous la règle des ports (travail, sinon prompt, jamais référence) ; UNE fabrique de face fichier (`file_face`, texte d'un .docx extrait) sert les cards ET le filemanager ; un texte inline voyage sous la seule clé `content` ; une card ouvre son entrée par le geste commun `.preview-media-link` (geste nocturne `<app>.preview`)
+Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement (2026-09-13, §17ter trou 2). Les faces entre Entrée et Sortie sont les PROCESS du pipeline de la card, DÉRIVÉES de ce qu'il déclare (`_process_faces`, 2026-10-12 — elles se déclaraient à la main, `register(faces=)`, R119) : libellé du process, résultat lisible (`ProcessSpec.result`, un texte) ou fichiers (`outputs`), rendu par le TYPE du port de sortie — des `detections` dessinées sur l'entrée par `WamaPreviewOverlay` (options de dessin : `register(overlay_options=)`) ; une face qui montre ce que montre déjà une autre n'est pas une étape de plus. La dernière face qui montre l'entrée est la référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05). La modale porte les mêmes faces d'où qu'on l'ouvre (volet, vignette de card), suit la face PENDANT en direct avec ses vues — par le MÊME suiveur que le volet (`WamaInspector.followDuring`) —, et son PLEIN ÉCRAN est elle-même agrandie (la surcouche image seule ne sert plus qu'aux galeries sans élément). Depuis le 2026-10-12 : la face Entrée se lit, comme la Sortie, dans les clés canoniques du detail (`source_file`, sinon `source_text`) sous la règle des ports (travail, sinon prompt, jamais référence) ; UNE fabrique de face fichier (`file_face`, texte d'un .docx extrait) sert les cards ET le filemanager ; un texte inline voyage sous la seule clé `content` ; une card ouvre son entrée par le geste commun `.preview-media-link` (geste nocturne `<app>.preview`)
 
 - **Domicile** : `wama/common/utils/preview_registry.py`
 - **Module** : WAMA Common - Preview Registry

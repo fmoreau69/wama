@@ -69,6 +69,7 @@
           "eta": "transcriber.workers:transcribe_eta",
           "gpu": true,
           "label": "Transcription",
+          "result": "transcriber.utils.transcript_documents:transcription_text",
           "share": 17,
           "watched": [
             "backend",
@@ -89,6 +90,7 @@
           "degree": "required",
           "gpu": false,
           "label": "Import",
+          "result": "transcriber.utils.transcript_documents:transcription_text",
           "watched": [
             "work_result"
           ]
@@ -118,6 +120,7 @@
           "eta": "transcriber.workers:diarize_eta",
           "gpu": true,
           "label": "Locuteurs",
+          "result": "transcriber.utils.transcript_documents:diarization_text",
           "toggle": "enable_diarization",
           "watched": [
             "diarization_model"
@@ -134,6 +137,7 @@
           "eta": "transcriber.workers:summarize_eta",
           "gpu": false,
           "label": "Résumé",
+          "result": "transcriber.utils.transcript_documents:summary_text",
           "toggle": "generate_summary",
           "watched": [
             "summary_type"
@@ -150,6 +154,7 @@
           "eta": "transcriber.workers:coherence_eta",
           "gpu": false,
           "label": "Cohérence",
+          "result": "transcriber.utils.transcript_documents:coherence_text",
           "toggle": "verify_coherence",
           "watched": []
         }

@@ -229,3 +229,102 @@ def parse_speaker_turns(content: str) -> TranscriptDocument:
             doc.outside_speech.append(line.strip())
     close_turn()
     return doc
+
+
+# ── L'export TXT ENRICHI de WAMA — l'écriture du format que `parse_speaker_turns` relit ─────────
+# Une SECTION par process du pipeline (`function_specs.py`) : transcription, locuteurs, résumé,
+# cohérence. Chaque section est AUSSI le résultat lisible de son process (`ProcessSpec.result`),
+# que l'aperçu commun montre en face (`ROUTE §F3b`, faces du pipeline, 2026-10-12). Sorti de
+# `workers._build_txt_content`, qui l'écrivait d'un bloc : l'export reste octet pour octet ce
+# qu'il était (`tests_result_sections`, golden écrit contre l'ancien code).
+
+_FRAME = '=' * 60
+
+
+def _transcription_body(transcript) -> list:
+    return [transcript.text or '']
+
+
+def _diarization_body(transcript) -> list:
+    from wama.transcriber.models import TranscriptSegment
+    segments = list(TranscriptSegment.objects.filter(transcript=transcript).order_by('order'))
+    if not any(s.speaker_id for s in segments):
+        return []
+    lines = []
+    for seg in segments:
+        lines += [f"[{seg.speaker_id or 'Inconnu'}]  {seg.format_time_range()}", f"  {seg.text}", '']
+    return lines[:-1]
+
+
+def _summary_body(transcript) -> list:
+    if not transcript.summary:
+        return []
+    lines = [transcript.summary]
+    if transcript.key_points:
+        lines += ['', "Points clés :"] + [f"  • {point}" for point in transcript.key_points]
+    if transcript.action_items:
+        lines += ['', "Actions :"] + [f"  • {item}" for item in transcript.action_items]
+    return lines
+
+
+def _coherence_body(transcript) -> list:
+    if transcript.coherence_score is None:
+        return []
+    lines = [f"Score : {transcript.coherence_score}/100"]
+    if transcript.coherence_notes:
+        lines += ['', "Problèmes détectés :"] + [
+            f"  • {note.strip()}" for note in transcript.coherence_notes.splitlines() if note.strip()]
+    if (transcript.coherence_suggestion
+            and transcript.coherence_suggestion.strip() != transcript.text.strip()):
+        lines += ['', "Version corrigée proposée :", '-' * 40, transcript.coherence_suggestion]
+    return lines
+
+
+def _summary_title(transcript) -> str:
+    return "COMPTE-RENDU DE RÉUNION" if transcript.summary_type == 'meeting' else "RÉSUMÉ"
+
+
+#: (titre — constant ou `callable(transcript)`, corps) de chaque section, dans l'ordre de l'export.
+_SECTIONS = (
+    ('TRANSCRIPTION', _transcription_body),
+    ('DIARISATION — LOCUTEURS', _diarization_body),
+    (_summary_title, _summary_body),
+    ('VÉRIFICATION DE COHÉRENCE', _coherence_body),
+)
+
+
+def enriched_text(transcript) -> str:
+    """L'export TXT enrichi : chaque section non vide, encadrée de son titre. La transcription
+    figure toujours, même vide."""
+    parts = []
+    for position, (title, body) in enumerate(_SECTIONS):
+        lines = body(transcript)
+        if lines or position == 0:
+            heading = title(transcript) if callable(title) else title
+            parts += [_FRAME, heading, _FRAME, *lines, '']
+    return '\n'.join(parts)
+
+
+def _readable(lines) -> Optional[str]:
+    text = '\n'.join(lines).strip('\n')
+    return text if text.strip() else None
+
+
+def transcription_text(transcript) -> Optional[str]:
+    """Résultat lisible des process `transcribe` / `import` — le texte, ou None."""
+    return _readable(_transcription_body(transcript))
+
+
+def diarization_text(transcript) -> Optional[str]:
+    """Résultat lisible du process `diarize` — les tours par locuteur, ou None sans locuteur."""
+    return _readable(_diarization_body(transcript))
+
+
+def summary_text(transcript) -> Optional[str]:
+    """Résultat lisible du process `summarize` — résumé, points clés, actions, ou None."""
+    return _readable(_summary_body(transcript))
+
+
+def coherence_text(transcript) -> Optional[str]:
+    """Résultat lisible du process `coherence` — score, problèmes, version proposée, ou None."""
+    return _readable(_coherence_body(transcript))

@@ -5,6 +5,10 @@ Comparer des autres apps).
 Held here : the « Détection » face exists once the detection ran, serves the INPUT with the
 detections document as an overlay, is the reference side of Compare ; Compare is offered for two
 videos (not only two images) ; an app that declares no face keeps the old shape.
+
+Since 2026-10-12 the face is the one of the PROCESS `detect` (`preview_utils._process_faces`) —
+the hand-written declaration is gone (`REMOVAL_LEDGER R119`) : its key is the process key, its
+input url carries the common `?v=` like every face. Everything else is held unchanged here.
 """
 import json
 import os
@@ -54,13 +58,13 @@ class DetectionFaceOfTheAnonymizerTest(TestCase):
         media = self._media(detections_file=doc,
                             output_file=self._file('output', 'street_blurred_yolo_1.mp4'))
         sides = self._preview(media)['sides']
-        self.assertEqual([{'key': 'detection', 'label': 'Détection', 'icon': 'fa-vector-square'}],
+        self.assertEqual([{'key': 'detect', 'label': 'Détection', 'icon': 'fa-vector-square'}],
                          sides['faces'])
-        self.assertEqual('detection', sides['compare_base'])
+        self.assertEqual('detect', sides['compare_base'])
         self.assertTrue(sides['comparable'], 'two videos are comparable now')
-        face = self._preview(media, 'detection')
-        self.assertEqual('detection', face['side'])
-        self.assertTrue(face['url'].endswith('/street.mp4'), 'the INPUT is shown')
+        face = self._preview(media, 'detect')
+        self.assertEqual('detect', face['side'])
+        self.assertTrue(face['url'].split('?')[0].endswith('/street.mp4'), 'the INPUT is shown')
         self.assertIn('street_detections_yolo_1.json', face['overlay']['url'])
         self.assertEqual('detections', face['overlay']['kind'])
         self.assertTrue(face['overlay']['boxes'])
@@ -71,13 +75,13 @@ class DetectionFaceOfTheAnonymizerTest(TestCase):
         self.assertEqual([], sides['faces'])
         self.assertEqual('input', sides['compare_base'])
         self.assertTrue(sides['comparable'])
-        self.assertEqual('input', self._preview(media, 'detection')['side'],
+        self.assertEqual('input', self._preview(media, 'detect')['side'],
                          'an absent face falls back to the input')
 
     def test_the_display_settings_of_the_card_follow_the_overlay(self):
         doc = self._file('output', 'street_detections_yolo_3.json', b'{"kind": "detections"}')
         media = self._media(detections_file=doc, show_boxes=False, show_conf=False)
-        overlay = self._preview(media, 'detection')['overlay']
+        overlay = self._preview(media, 'detect')['overlay']
         self.assertEqual((False, True, False),
                          (overlay['boxes'], overlay['labels'], overlay['confidence']))
 

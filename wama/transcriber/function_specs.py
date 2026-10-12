@@ -146,6 +146,12 @@ register(FunctionSpec(
 #: prétraitement, nivellement, filtre de parole, langues ; locuteurs : modèle de diarisation ;
 #: résumé : son type. `PIPELINE.watched_of(spec)` réunit les deux.
 
+#: Le RÉSULTAT LISIBLE de chaque process (`ProcessSpec.result`, 2026-10-12) : la section de
+#: l'export TXT enrichi qu'il remplit — ce que l'aperçu commun montre en face du process.
+#: L'alignement n'en a pas : il recale des heures, son effet se lirait sur les segments.
+_DOCUMENTS = 'transcriber.utils.transcript_documents'
+
+
 def _requested_model(t):
     """Le modèle que la card demande, « auto » compris : les process se montrent AVANT le
     premier lancement — c'est là que leurs cases à cocher servent."""
@@ -155,24 +161,26 @@ def _requested_model(t):
 
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('transcribe', label='Transcription',
-                applies=_transcribes, gpu=True, share=17, eta='transcriber.workers:transcribe_eta'),
+                applies=_transcribes, gpu=True, share=17, eta='transcriber.workers:transcribe_eta',
+                result=f'{_DOCUMENTS}:transcription_text'),
     # L'import relit un document (quelques secondes) : pas d'ETA propre, sa dernière durée suffit.
     ProcessSpec('import', label='Import', watched=('work_result',),
-                applies=_has_existing_result, share=1),
+                applies=_has_existing_result, share=1, result=f'{_DOCUMENTS}:transcription_text'),
     ProcessSpec('align', label='Alignement', depends_on=('import',), degree=OPTIONAL,
                 applies=_align_applies, gpu=True, share=2, eta='transcriber.workers:align_eta'),
     ProcessSpec('diarize', label='Locuteurs', depends_on=('transcribe', 'import', 'align'),
                 degree=OPTIONAL, toggle='enable_diarization',
-                applies=_diarize_applies, gpu=True, share=1, eta='transcriber.workers:diarize_eta'),
+                applies=_diarize_applies, gpu=True, share=1, eta='transcriber.workers:diarize_eta',
+                result=f'{_DOCUMENTS}:diarization_text'),
     # Résumé et cohérence lisent le texte ET ses locuteurs (le compte-rendu de réunion les cite,
     # la cohérence par segment s'écrit sur les segments que la diarisation réécrit).
     ProcessSpec('summarize', label='Résumé', depends_on=('transcribe', 'import', 'diarize'),
                 degree=OPTIONAL, toggle='generate_summary', share=1,
-                eta='transcriber.workers:summarize_eta'),
+                eta='transcriber.workers:summarize_eta', result=f'{_DOCUMENTS}:summary_text'),
     ProcessSpec('coherence', label='Cohérence',
                 depends_on=('transcribe', 'import', 'align', 'diarize'),
                 degree=OPTIONAL, toggle='verify_coherence', share=1,
-                eta='transcriber.workers:coherence_eta'),
+                eta='transcriber.workers:coherence_eta', result=f'{_DOCUMENTS}:coherence_text'),
 ), label='Transcriber — transcription ou import, alignement, locuteurs, résumé, cohérence',
    source_ref='transcriber.function_specs:PIPELINE',
    model_of=lambda t: _requested_model(t))

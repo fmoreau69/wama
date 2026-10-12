@@ -170,6 +170,14 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     def __str__(self):
         return self.title or f"Media {self.pk}"
 
+    def draw_options(self) -> dict:
+        """Ce que la card demande de MONTRER de ses détections (`show_boxes`, `show_labels`,
+        `show_conf`), aux noms des options de dessin communes (`detections.draw`) — lu par la vue
+        « Détection » d'une frame pendant le traitement (`tasks._drawn`) et par la surcouche de la
+        face « Détection » de l'aperçu (`PreviewRegistry.register(overlay_options=)`)."""
+        return {'boxes': bool(self.show_boxes), 'labels': bool(self.show_labels),
+                'confidence': bool(self.show_conf)}
+
     def save(self, *args, **kwargs):
         # Modèle = CLÉ DE CATALOGUE (route F4b ⑤, 2026-10-07 — patron de l'enhancer), normalisée
         # au point de passage de tous les écrivains (modale, volet, lots, assistant, duplication) :

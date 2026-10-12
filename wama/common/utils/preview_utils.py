@@ -506,6 +506,111 @@ def _during_preview_data(app_name, instance, request):
     return data
 
 
+#: Les côtés que `unified_preview` sert par leur NOM : une face de process ne les prend jamais. Le
+#: process commun des réglages de sortie s'appelle `output` (`output_process.OUTPUT_KEY`) — sa face
+#: EST la Sortie.
+RESERVED_SIDES = ('input', 'output', 'during', 'compare')
+
+#: Ce qu'on AFFICHE d'une face de process : l'icône du TYPE de ce qu'elle rend (premier port de
+#: sortie de son `FunctionSpec` — nature média ou type de donnée). Les types produits aujourd'hui ;
+#: un autre prend l'icône générique.
+FACE_ICONS = {'detections': 'fa-vector-square', 'score': 'fa-music', 'audio': 'fa-volume-high',
+              'video': 'fa-film', 'image': 'fa-image', 'document': 'fa-file-lines'}
+FACE_ICON_DEFAULT = 'fa-layer-group'
+
+#: Types de donnée qui se montrent PAR-DESSUS le média qu'ils décrivent (l'entrée de la card),
+#: dessinés dans le navigateur par `WamaPreviewOverlay` — jamais réencodés en un média de plus.
+OVERLAY_TYPES = ('detections',)
+
+
+def _face_identity(data):
+    """Ce qu'une face MONTRE : son fichier (sans `?v=`), sa surcouche, son texte. Deux faces de
+    même identité sont une seule étape — la seconde ne s'affiche pas."""
+    if not data:
+        return None
+    overlay = data.get('overlay') or {}
+    return (_media_rel(data.get('url')) or str(data.get('url') or '').split('?')[0],
+            _media_rel(overlay.get('url')) if overlay else None,
+            str(data.get('content') or '').strip())
+
+
+def _overlay_face(app_name, instance, request, base, url, data_type, label):
+    """Une donnée qui se DESSINE sur l'entrée (des détections) : l'entrée de la card, la donnée
+    par-dessus (`overlay`), avec ce que la card règle de ce dessin
+    (`PreviewRegistry.overlay_options`). Sans entrée lisible (fichier libéré) : pas de face."""
+    if not base or not base.get('url'):
+        return None
+    data = dict(base)
+    data['name'] = f"{label} — {base.get('name', '')}"
+    data['overlay'] = {'kind': data_type, 'url': request.build_absolute_uri(_versioned(url)),
+                       **PreviewRegistry.overlay_options(app_name, instance)}
+    return data
+
+
+def _process_face(app_name, pipeline, spec, instance, request, input_data):
+    """Ce que montre la face d'UN process : son résultat lisible déclaré (`ProcessSpec.result`,
+    un texte), sinon le premier de ses fichiers déclarés (`outputs`) que le disque porte — rendu
+    selon le TYPE de sa sortie (`AppPipeline.output_type`) : une surcouche sur l'entrée pour des
+    détections, le fichier lui-même sinon (le rendu par MIME de la visionneuse). None : rien.
+
+    Le contenu PRÉSENT décide, pas l'état de la ligne d'exécution : une card montre ce qu'elle
+    porte. (L'état d'un process — périmé, en échec — sur sa face : à venir, `ROUTE §F3b`.)"""
+    label = spec.label or spec.key
+    text = pipeline.readable_result(spec, instance)
+    if text:
+        return {'name': label, 'mime_type': 'text/plain', 'content': text}
+    data_type = pipeline.output_type(spec)
+    for field in spec.outputs:
+        value = getattr(instance, field, None)
+        if not getattr(value, 'name', None):
+            continue
+        url = value.url
+        if not _local_media_path(url):        # un fichier annoncé que le disque ne porte plus
+            continue
+        if data_type in OVERLAY_TYPES:
+            return _overlay_face(app_name, instance, request, input_data, url, data_type, label)
+        return _media_face(url, request)
+    return None
+
+
+def _process_faces(app_name, instance, request, input_data, output_data) -> dict:
+    """Les faces ENTRE Entrée et Sortie : les PROCESS du pipeline de la card, dans l'ordre du
+    graphe — `{clé du process: (méta {key, label, icon}, données)}` (`ROUTE §F3b`, 2026-10-12,
+    demande de Fabien : « le pipeline étant l'unité commune à tout WAMA, la preview pourrait
+    s'adapter au pipeline »).
+
+    Elles se DÉRIVENT de ce que le pipeline déclare déjà (`ProcessSpec` : libellé, `outputs`,
+    `result` ; le type du port de sortie au catalogue) : l'anonymizer déclarait sa face
+    « Détection » à la main (`register(faces=)`), seconde déclaration de son process `detect`
+    — retirée (`REMOVAL_LEDGER R119`). Une app à un seul process (pas de pipeline) garde
+    Entrée | Sortie. Une face qui montre ce que montre déjà l'Entrée, la Sortie ou une face
+    précédente n'est pas une étape de plus (le rendu que la sortie a gardé tel quel, la
+    transcription qui EST la Sortie du transcriber). Une face qui casse n'emporte pas les autres."""
+    from wama.common.services.process_pipeline import pipeline_of
+    pipeline = pipeline_of(instance)
+    if pipeline is None:
+        return {}
+    shown = [_face_identity(input_data), _face_identity(output_data)]
+    faces = {}
+    for spec in pipeline.ordered():
+        if spec.key in RESERVED_SIDES:
+            continue
+        try:
+            data = _process_face(app_name, pipeline, spec, instance, request, input_data)
+        except Exception as exc:
+            logger.warning(f"Preview {app_name}/{getattr(instance, 'pk', '?')} : face du process "
+                           f"« {spec.key} » indisponible : {exc}")
+            data = None
+        identity = _face_identity(data)
+        if identity is None or identity in shown:
+            continue
+        shown.append(identity)
+        faces[spec.key] = ({'key': spec.key, 'label': spec.label or spec.key,
+                            'icon': FACE_ICONS.get(pipeline.output_type(spec), FACE_ICON_DEFAULT)},
+                           data)
+    return faces
+
+
 def unified_preview(request, app_name: str, pk: int):
     """
     Unified preview endpoint for any registered app.
@@ -558,18 +663,14 @@ def unified_preview(request, app_name: str, pk: int):
         during_data = _during_preview_data(app_name, instance, request)   # chantier 2 (PENDANT)
         has_input = bool(preview_data and not preview_data.get('error'))
         has_output = bool(output_data)
-        # Faces DÉCLARÉES par l'app (2026-10-05) — l'anonymizer : « Détection ».
-        faces = {}
-        for face in PreviewRegistry.faces(app_name):
-            try:
-                face_data = face['adapter'](instance, request)
-            except Exception as exc:
-                logger.warning(f"Preview face {app_name}/{face.get('key')}: {exc}")
-                face_data = None
-            if face_data:
-                faces[face['key']] = (face, face_data)
-        base_key = next((key for key, (face, _d) in faces.items() if face.get('compare_base')),
-                        'input')
+        # Faces ENTRE Entrée et Sortie : les PROCESS du pipeline de la card (2026-10-12) —
+        # l'anonymizer « Détection », le transcriber « Locuteurs », « Résumé », « Cohérence ».
+        faces = _process_faces(app_name, instance, request,
+                               preview_data if has_input else None, output_data)
+        # Comparer confronte la Sortie à la dernière face qui MONTRE L'ENTRÉE (l'entrée et ses
+        # détections dessinées), sinon à l'entrée elle-même.
+        base_key = next((key for key, (_meta, d) in reversed(list(faces.items()))
+                         if d.get('overlay')), 'input')
         base_data = faces[base_key][1] if base_key in faces else (preview_data if has_input else None)
         cat_base = _mime_category(base_data.get('mime_type')) if base_data else ''
         cat_out = _mime_category(output_data.get('mime_type')) if has_output else ''
@@ -581,9 +682,7 @@ def unified_preview(request, app_name: str, pk: int):
             'comparable': bool(base_data and has_output and cat_base == cat_out
                                and cat_base in ('image', 'video')),
             'compare_base': base_key,
-            'faces': [{'key': key, 'label': face.get('label') or key,
-                       'icon': face.get('icon') or 'fa-layer-group'}
-                      for key, (face, _d) in faces.items()],
+            'faces': [meta for meta, _d in faces.values()],
             # PENDANT : l'app sait-elle montrer sa sortie EN CONSTRUCTION (capacité) vs a-t-elle
             # un partiel MAINTENANT
             'during_capable': app_supports_during_preview(app_name),
@@ -706,27 +805,6 @@ def anonymizer_preview_adapter(media, request):
         "resolution": f"{media.width}x{media.height}" if media.width and media.height else "",
         "properties": media.properties if hasattr(media, 'properties') else "",
     }
-
-
-def anonymizer_detection_face(media, request):
-    """Face « Détection » de l'anonymizer (2026-10-05, demande de Fabien) : le média d'ENTRÉE et,
-    par-dessus, ce que la détection a trouvé — dessiné dans le navigateur depuis le document
-    `detections` de la card (`overlay`), sans réencoder de vidéo. Absente tant que la détection
-    n'a pas eu lieu."""
-    if not getattr(media, 'detections_file', None):
-        return None
-    from django.utils.encoding import iri_to_uri
-    data = anonymizer_preview_adapter(media, request)
-    if data is None:
-        return None
-    data['name'] = f"Détections — {data.get('name', '')}"
-    data['overlay'] = {
-        'kind': 'detections',
-        'url': request.build_absolute_uri(_versioned(iri_to_uri(media.detections_file.url))),
-        'boxes': bool(media.show_boxes), 'labels': bool(media.show_labels),
-        'confidence': bool(media.show_conf),
-    }
-    return data
 
 
 def transcriber_preview_adapter(transcript, request):

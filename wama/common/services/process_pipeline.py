@@ -117,6 +117,13 @@ class ProcessSpec:
                   modèle chargé[, a priori]])` — l'ETA PAR PROCESS (`ROUTE §10.6` 4.5), celle que
                   sa glu apprend ; lue par `process_runs.launch_eta`. Absent = le process ne vaut
                   que sa dernière durée sur la card.
+      result      chemin `module:attribut` (même forme qu'`eta`) vers `(élément) -> texte | None` :
+                  le RÉSULTAT LISIBLE du process quand ce n'est pas un fichier — le texte d'une
+                  transcription, ses tours par locuteur, un résumé, un rapport de cohérence
+                  (décision de Fabien, 2026-10-12 : « le process porte sa sortie », comme il porte
+                  ses fichiers dans `outputs`). C'est ce que l'aperçu commun montre en FACE du
+                  process (`preview_utils`, `ROUTE §F3b`). Absent = le process n'a de résultat
+                  lisible que par ses `outputs`.
     """
     key: str
     label: str = ''
@@ -131,6 +138,7 @@ class ProcessSpec:
     toggle: str = ''
     available: Callable = None
     eta: object = None
+    result: object = None
 
 
 def output_fingerprint(ref: str) -> str:
@@ -263,6 +271,33 @@ class AppPipeline:
             return [], []
         return list(declared.inputs or []), list(declared.outputs or [])
 
+    def output_type(self, spec: ProcessSpec) -> str:
+        """Le TYPE de ce que le process rend — celui du premier port de sortie de son
+        `FunctionSpec` (une nature média ou un type de donnée, `app_registry.known_port_types`),
+        '' s'il n'est pas déclaré. C'est lui qui choisit le rendu d'une face d'aperçu."""
+        outputs = self._ports(spec)[1]
+        return outputs[0].data_type if outputs else ''
+
+    @staticmethod
+    def readable_result(spec: ProcessSpec, item):
+        """Le résultat LISIBLE déclaré du process (`ProcessSpec.result`) pour cet élément : un
+        texte, ou None — sans déclaration, ou déclaration illisible (dite au journal, jamais
+        levée : un aperçu ne casse pas pour un lecteur, comme `process_runs.process_eta`)."""
+        declared = spec.result
+        if not declared:
+            return None
+        try:
+            if isinstance(declared, str):
+                from wama.common.catalog.function_catalog import resolve_impl
+                declared = resolve_impl(declared)
+            text = declared(item)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                "[process_pipeline] résultat du process « %s » illisible", spec.key, exc_info=True)
+            return None
+        return str(text) if text else None
+
     def _bridges(self):
         """`[(ports que l'amont PREND, ports de l'aval qu'il ALIMENTE)]` des process disponibles
         ICI : un process alimente, chez ses process DIRECTEMENT en aval (`depends_on`), les
@@ -322,7 +357,9 @@ class AppPipeline:
                              **({'outputs': list(spec.outputs)} if spec.outputs else {}),
                              **({'share': spec.share} if spec.share != 1 else {}),
                              **({'eta': spec.eta} if isinstance(spec.eta, str) and spec.eta
-                                else {})}}
+                                else {}),
+                             **({'result': spec.result}
+                                if isinstance(spec.result, str) and spec.result else {})}}
                  for spec in self.specs]
         links = [{'from': upstream, 'to': spec.key, 'to_port': None}
                  for spec in self.specs for upstream in spec.depends_on]

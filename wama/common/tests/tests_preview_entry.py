@@ -177,9 +177,11 @@ class EntryFaceTest(TestCase):
         self.assertNotIn('text_content', data)
 
     def test_the_text_files_the_platform_does_not_know_stay_text(self):
-        """`.log`, `.ini`, `.cfg` (and `.md`, `.yaml` under Windows) : unknown to the stdlib,
-        they were forced to text by the file manager's own copy, gone with it (relecture of
-        307f0c3c). The rule lives in the common MIME table now — for every consumer."""
+        """`.log`, `.ini`, `.cfg`, `.md`, `.yaml` : unknown to the stdlib of one platform or
+        typed `application/yaml` by the other (venv_linux — red under WSL only, 2026-10-12), they
+        were forced to text by the file manager's own copy, gone with it (relecture of 307f0c3c).
+        The rule lives in the common MIME table now, and PRIMES over the stdlib — for every
+        consumer, on both platforms."""
         for name in ('journal.log', 'reglages.ini', 'outil.cfg', 'notes.md', 'conf.yaml'):
             rel = self._file('synthesizer', 'input', name, b'cle = valeur')
             data = self.client.get('/filemanager/api/preview/', {'path': rel}).json()

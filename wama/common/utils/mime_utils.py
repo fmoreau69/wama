@@ -23,12 +23,21 @@ _EXT_MIME_FALLBACK = {
     '.mp3': 'audio/mpeg',  '.wav': 'audio/wav',   '.ogg': 'audio/ogg',
     '.flac': 'audio/flac', '.aac': 'audio/aac',   '.m4a': 'audio/mp4',
     '.opus': 'audio/opus', '.weba': 'audio/webm',
-    # Textes que la stdlib ne connaît pas : sans eux, le visualiseur ne les montre pas en texte
-    # (`media-preview.js` teste `text/`). L'aperçu du filemanager les forçait à `text/plain`
-    # localement ; il passe par la fabrique commune depuis le 2026-10-12 — la règle vit ici.
-    # Mesuré sous venv_win : `.md`, `.yaml`, `.yml` sont aussi inconnus de la stdlib.
+}
+
+# Fichiers TEXTE lisibles tels quels — ces types PRIMENT sur la stdlib, comme le 3D : le
+# visualiseur ne montre en texte que `text/…` (`media-preview.js`). L'aperçu du filemanager les
+# forçait à `text/plain` localement ; il passe par la fabrique commune depuis le 2026-10-12 — la
+# règle vit ici. Les bases de la stdlib DIVERGENT d'une plateforme à l'autre (mesuré le
+# 2026-10-12) : venv_win ne connaît ni `.md`, ni `.yaml`, ni `.abc` ; venv_linux connaît `.yaml`
+# en `application/yaml` — un « connu » qui n'est pas lu comme du texte (relevé par l'instance de
+# portage, test rouge sous WSL seulement). En simple repli, le même fichier s'ouvrait en texte
+# sous Windows et en téléchargement sous Linux, où tourne le service.
+_EXT_MIME_TEXT = {
     '.log': 'text/plain', '.ini': 'text/plain', '.cfg': 'text/plain',
     '.md': 'text/markdown', '.yaml': 'text/yaml', '.yml': 'text/yaml',
+    # Partition ABC (une face du composer, 2026-10-12).
+    '.abc': 'text/vnd.abc',
 }
 
 # Objets 3D (ROADMAP §17ter) — la stdlib n'en connaît AUCUN (mesuré 13/09 : `.obj` rend même
@@ -47,6 +56,8 @@ def guess_mime_type(path_or_name: str) -> str:
     ext = Path(path_or_name).suffix.lower()
     if ext in _EXT_MIME_3D:
         return _EXT_MIME_3D[ext]
+    if ext in _EXT_MIME_TEXT:
+        return _EXT_MIME_TEXT[ext]
     guessed, _ = mimetypes.guess_type(path_or_name)
     if guessed:
         return guessed

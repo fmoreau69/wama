@@ -9,7 +9,7 @@ manifestes `pipeline` et `function` de l'app (`pipeline_decl`), au lieu de le fa
 Ce qui est rendu, et rien d'autre :
   • un `FunctionSpec` par process (nom, description, catégorie, ports — ceux du manifeste) ;
   • `PIPELINE = register_app_pipeline(...)` : un `ProcessSpec` par nœud (dépendances = liens,
-    réglages surveillés, degré, part de barre, sorties déclarées) ;
+    réglages surveillés, degré, part de barre, sorties déclarées, ETA et résultat lisible) ;
   • `model_of` — « le modèle que la card demande » — DÉRIVÉ du select de modèle du schéma
     (`options_source: catalog`) : `None` sous « auto », la tâche tranchera.
 Ce qui n'est PAS rendu : `applies` / `available` (logique de moteur — un process qui n'a pas
@@ -165,6 +165,8 @@ def render_function_specs(manifest: dict) -> tuple:
             args.append(f"toggle={s['toggle']!r}")
         if s.get('eta'):
             args.append(f"eta={s['eta']!r}")
+        if s.get('result'):
+            args.append(f"result={s['result']!r}")
         lines.append(f"    ProcessSpec({', '.join(args)}),")
     model_kw = ', model_of=_requested_model' if model_field else ''
     lines += [f"), label={(pipeline.get('name') or app_key)!r},",

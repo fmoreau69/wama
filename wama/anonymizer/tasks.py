@@ -421,8 +421,7 @@ def _drawn(media, image, found):
     `show_labels`, `show_conf`) — ces réglages pilotaient une fenêtre OpenCV côté serveur
     (`track(show=…)`), que personne ne voyait ; ils pilotent désormais l'aperçu."""
     from wama.common.utils.detections import draw
-    return draw(image, found, boxes=media.show_boxes, labels=media.show_labels,
-                confidence=media.show_conf)
+    return draw(image, found, **media.draw_options())
 
 
 def _segmentation_note(media, doc):

@@ -38,7 +38,7 @@ class PreviewRegistry:
                  adapter: Callable[[models.Model, Any], Dict[str, Any]],
                  file_field: str = 'input_file',
                  user_field: str = 'user',
-                 faces=None):
+                 overlay_options=None):
         """
         Register a model for preview.
 
@@ -57,18 +57,18 @@ class PreviewRegistry:
             - resolution: str (optional) - resolution display
             - properties: str (optional) - additional properties
 
-        `faces` (2026-10-05) : des FACES d'aperçu propres à l'app, entre Entrée et Sortie —
-        `[{'key', 'label', 'icon', 'adapter': (instance, request) -> dict | None,
-        'compare_base': bool}]`. L'anonymizer y déclare « Détection » (l'entrée, ses détections
-        dessinées par-dessus : `overlay`). Une face `compare_base` est le côté de RÉFÉRENCE du
-        mode Comparer à la place de l'entrée. Un adaptateur qui rend None : face absente.
+        Les faces ENTRE Entrée et Sortie ne se déclarent plus ici : ce sont les PROCESS du
+        pipeline de la card (`preview_utils._process_faces`, 2026-10-12). L'app n'y ajoute que
+        ce qu'elle seule sait : `overlay_options`, `(instance) -> dict` des options de dessin
+        d'une surcouche (`detections.draw` : boxes, labels, confidence) — l'anonymizer les règle
+        par card. Sans elle, tout est dessiné.
         """
         cls._registry[app_name] = {
             'model': model_class,
             'adapter': adapter,
             'file_field': file_field,
             'user_field': user_field,
-            'faces': list(faces or []),
+            'overlay_options': overlay_options,
         }
         logger.debug(f"Registered preview adapter for {app_name}: {model_class.__name__}")
 
@@ -106,10 +106,18 @@ class PreviewRegistry:
         return reg['adapter'](instance, request)
 
     @classmethod
-    def faces(cls, app_name: str) -> list:
-        """Les faces d'aperçu déclarées par l'app (cf. `register(faces=)`)."""
-        reg = cls._registry.get(app_name)
-        return list(reg.get('faces') or []) if reg else []
+    def overlay_options(cls, app_name: str, instance) -> dict:
+        """Les options de dessin d'une surcouche pour cet élément (cf. `register(overlay_options=)`)
+        — `{}` sans déclaration ou si elle lève : la surcouche dessine alors tout."""
+        reg = cls._registry.get(app_name) or {}
+        declared = reg.get('overlay_options')
+        if declared is None:
+            return {}
+        try:
+            return dict(declared(instance) or {})
+        except Exception:
+            logger.warning(f"Options de surcouche de {app_name} illisibles", exc_info=True)
+            return {}
 
     @classmethod
     def is_registered(cls, app_name: str) -> bool:

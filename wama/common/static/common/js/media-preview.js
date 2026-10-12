@@ -407,7 +407,8 @@
                 .then(function (nd) { if (nd) { nd._baseUrl = base; nd.sides = nd.sides || s; showPreviewModal(nd); } });
         };
         add('Entrée', 'fa-right-to-bracket', data.side === 'input', function () { goSide('input'); });
-        // Faces DÉCLARÉES par l'app (2026-10-05) — l'anonymizer : « Détection ».
+        // Les faces des PROCESS du pipeline de la card (2026-10-12, `preview_utils._process_faces`)
+        // — l'anonymizer « Détection », le transcriber « Locuteurs », « Résumé », « Cohérence ».
         (s.faces || []).forEach(function (f) {
             add(f.label, f.icon || 'fa-layer-group', data.side === f.key, function () { goSide(f.key); });
         });

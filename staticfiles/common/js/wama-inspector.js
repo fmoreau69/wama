@@ -862,8 +862,8 @@
       bar.appendChild(mk('Entrée', 'fa-right-to-bracket', d.side === 'input', function () {
         _fetchPreviewSide(baseUrl, 'input', title);
       }));
-      // Les faces DÉCLARÉES par l'app (`PreviewRegistry.register(faces=)`), entre l'entrée et
-      // la sortie — l'anonymizer : « Détection ».
+      // Les faces des PROCESS du pipeline de la card (`preview_utils._process_faces`, 2026-10-12),
+      // entre l'entrée et la sortie — l'anonymizer « Détection », le transcriber « Résumé »…
       (s.faces || []).forEach(function (f) {
         bar.appendChild(mk(f.label, f.icon || 'fa-layer-group', d.side === f.key, function () {
           _fetchPreviewSide(baseUrl, f.key, title);

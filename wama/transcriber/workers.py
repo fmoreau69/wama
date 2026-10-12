@@ -153,78 +153,6 @@ def _get_output_dir(transcript: Transcript) -> str:
     return str(output_dir)
 
 
-def _build_txt_content(transcript: Transcript) -> str:
-    """
-    Build enriched TXT content:
-      - Full transcription text
-      - Diarization table (if segments exist)
-      - LLM summary / meeting notes (if generated)
-      - Coherence report (if verified)
-    """
-    parts: list[str] = []
-
-    # ── 1. Transcription ──────────────────────────────────────────────────
-    parts.append("=" * 60)
-    parts.append("TRANSCRIPTION")
-    parts.append("=" * 60)
-    parts.append(transcript.text or '')
-    parts.append('')
-
-    # ── 2. Diarisation ────────────────────────────────────────────────────
-    segments = TranscriptSegment.objects.filter(transcript=transcript).order_by('order')
-    if segments.exists() and any(s.speaker_id for s in segments):
-        parts.append("=" * 60)
-        parts.append("DIARISATION — LOCUTEURS")
-        parts.append("=" * 60)
-        for seg in segments:
-            speaker = seg.speaker_id or 'Inconnu'
-            time_range = seg.format_time_range()
-            parts.append(f"[{speaker}]  {time_range}")
-            parts.append(f"  {seg.text}")
-            parts.append('')
-
-    # ── 3. Résumé LLM ────────────────────────────────────────────────────
-    if transcript.summary:
-        parts.append("=" * 60)
-        label = "COMPTE-RENDU DE RÉUNION" if transcript.summary_type == 'meeting' else "RÉSUMÉ"
-        parts.append(label)
-        parts.append("=" * 60)
-        parts.append(transcript.summary)
-        if transcript.key_points:
-            parts.append('')
-            parts.append("Points clés :")
-            for kp in transcript.key_points:
-                parts.append(f"  • {kp}")
-        if transcript.action_items:
-            parts.append('')
-            parts.append("Actions :")
-            for ai in transcript.action_items:
-                parts.append(f"  • {ai}")
-        parts.append('')
-
-    # ── 4. Vérification de cohérence ──────────────────────────────────────
-    if transcript.coherence_score is not None:
-        parts.append("=" * 60)
-        parts.append("VÉRIFICATION DE COHÉRENCE")
-        parts.append("=" * 60)
-        parts.append(f"Score : {transcript.coherence_score}/100")
-        if transcript.coherence_notes:
-            parts.append('')
-            parts.append("Problèmes détectés :")
-            for note in transcript.coherence_notes.splitlines():
-                if note.strip():
-                    parts.append(f"  • {note.strip()}")
-        if (transcript.coherence_suggestion
-                and transcript.coherence_suggestion.strip() != transcript.text.strip()):
-            parts.append('')
-            parts.append("Version corrigée proposée :")
-            parts.append("-" * 40)
-            parts.append(transcript.coherence_suggestion)
-        parts.append('')
-
-    return '\n'.join(parts)
-
-
 def _save_output_files(transcript: Transcript, backend_name: str) -> None:
     """Save SRT (after diarization) and enriched TXT (after all steps) to output folder."""
     try:
@@ -250,7 +178,10 @@ def _save_output_files(transcript: Transcript, backend_name: str) -> None:
         # ── TXT (enriched — called AFTER summary + coherence) ─────────────
         txt_path = os.path.join(output_dir, f"{stem}.txt")
         with open(txt_path, 'w', encoding='utf-8') as f:
-            f.write(_build_txt_content(transcript))
+            # Une section par process : l'écriture du format vit avec sa relecture
+            # (`transcript_documents.enriched_text`, sections = faces de l'aperçu).
+            from .utils.transcript_documents import enriched_text
+            f.write(enriched_text(transcript))
 
         _console(transcript.user_id, f"Fichiers de sortie sauvegardés: {stem}.txt / .srt")
     except Exception as e:

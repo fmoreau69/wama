@@ -450,6 +450,53 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       vidéo (axe commun) ; l'évaluation dans l'anonymizer (corrections = vérité terrain, WIDER
       FACE val, `WAMA_APPRENTISSAGE §8bis`) ; porter vers ces briques les pilotes en attente
       (YuE2, retouche Imager).
+- 🔄 **FACES DU PIPELINE — la preview suit le pipeline (Fabien, 2026-10-12)**. *« Avant, une card
+  portait tout le process sans distinction et la preview de même […]. Maintenant, la card porte un
+  pipeline de process, les médias intermédiaires sont conservés. Le pipeline étant l'unité commune à
+  tout WAMA, la preview pourrait s'adapter au pipeline. »* C'est le volet **FACES** du chantier
+  ci-dessus — il ne touche ni au transport ni aux lecteurs (contrainte du 19/08 tenue).
+  - **Principe** : une face d'aperçu = un process du pipeline (`§10.6`), dans l'ordre du graphe,
+    entre Entrée et Sortie ; son contenu se DÉRIVE de ce que le pipeline déclare déjà — libellé du
+    process, ses fichiers (`ProcessSpec.outputs`), et le TYPE du port de sortie de sa fonction au
+    catalogue (`AppPipeline.output_type`), qui choisit le rendu. Une app à un seul process garde
+    Entrée | Sortie. Le front n'a pas changé : la visionneuse et le volet rendaient déjà toute face
+    annoncée par `unified_preview` (`sides.faces`, `?side=<clé>`).
+  - **Doublons supprimés** : la face « Détection » de l'anonymizer était DÉCLARÉE À LA MAIN
+    (`register(faces=)`, 2026-10-05) alors qu'elle est la sortie de son process `detect` → dérivée,
+    déclaration retirée (`REMOVAL_LEDGER R119`, parité tenue par `tests_preview_faces`). Le texte
+    enrichi du transcriber (`workers._build_txt_content`) écrivait déjà une section par process :
+    ce sont désormais les résultats lisibles de ces process (`transcript_documents`, export octet
+    pour octet).
+  - **Décision n°1 (Fabien, 2026-10-12) — où se déclare un résultat qui n'est pas un fichier : SUR
+    LE PROCESS.** `ProcessSpec.result` = chemin `module:attribut` (forme d'`eta`) vers
+    `(élément) -> texte` ; exporté au manifeste `pipeline`, relu par le générateur
+    (`function_specs_gen`). `outputs` reste réservé aux champs FICHIER (`reset_outputs` les vide).
+  - ✅ **Livré le 2026-10-12** — étape 0 (MESURE) : `tests_pipeline_faces.
+    EveryProcessHasAReadableResultTest`, liste des process sans résultat lisible, avec leur raison,
+    qui ne peut que DESCENDRE (6 : l'original gardé par la Sortie de anonymizer `blur`, enhancer /
+    imager / synthesizer `generate` ; avatarizer `enhance`, qui rend la Sortie elle-même ;
+    transcriber `align`). Étape 1 (DÉRIVATION, serveur seul) : `preview_utils._process_faces` —
+    anonymizer « Détection » (l'entrée + ses détections, référence de Comparer, options de dessin
+    `register(overlay_options=)` ← `Media.draw_options`), composer « Partition » / « Partition
+    extraite » (ABC servi en texte sur les deux plateformes, `mime_utils`), avatarizer « Voix »,
+    transcriber « Locuteurs », « Résumé », « Cohérence ». Une face qui montre ce que montre déjà
+    l'Entrée, la Sortie ou une face précédente n'est pas une étape de plus (le rendu d'un moteur
+    gardé tel quel par la Sortie ; la transcription, qui EST la Sortie du transcriber). Le contenu
+    PRÉSENT décide, pas l'état de la ligne d'exécution. Contre-épreuves rouges (dédoublonnage,
+    côté réservé, surcouche, déclaration retirée).
+  - ⏳ **Restes, dans l'ordre** : ② rendus par TYPE (segments horodatés à locuteurs, rapport de
+    cohérence, ABC en partition), puis la PARITÉ de la modale de résultat du transcriber (onglets,
+    compteurs de mots, copie, txt/srt, diarisation, cohérence, évaluation — chaque point tenu par un
+    test ou un geste) avant de retirer son interception du double-clic (exemption de
+    `tests_preview_entry`) ; ③ les lignes de la bande des process ouvrent leur face, l'état du
+    process (périmé, en échec) se lit sur elle ; ④ Studio (nœuds `StudioRun`, `output_ref`), Lab
+    (passes du cam_analyzer, une face par caméra, `instance_key`), Data (Explorer). Et la face de
+    l'ORIGINAL gardé par la Sortie (`native_outputs`) pour les quatre process de la liste qui le
+    rendent (anonymizer `blur`, `generate` ×3) ; le rendu `segments` sortira `align` de la liste.
+  - ⏳ **Décisions ouvertes, à rediscuter avec Fabien** : la place de l'Évaluation du transcriber
+    (une mesure contre une référence, pas un process) ; résumé et cohérence du describer (onglets à
+    la demande, pas des process) ; la face d'une fonction PURE du Studio et de Data (sortie
+    recalculée, non conservée — décision n°2 du `§10.6`).
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
   `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
 - **Manifeste** : inspector adapter (mapping champs→clés canoniques), preview binding sur port,
@@ -4563,7 +4610,9 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >       modèle manquant. Aucune installation faite (décision de Fabien).
 >     - **Face « Détection » après le traitement, et Comparer « comme les autres apps »** :
 >       brique commune, pas un mécanisme d'app — `PreviewRegistry.register(faces=)` déclare des
->       faces d'aperçu entre Entrée et Sortie (adaptateur, icône, `compare_base`) ;
+>       faces d'aperçu entre Entrée et Sortie (adaptateur, icône, `compare_base`) [⚠ retiré le
+>       2026-10-12 : les faces sont DÉRIVÉES des process du pipeline, `§F3b` « faces du
+>       pipeline », `REMOVAL_LEDGER R119`] ;
 >       l'anonymizer y déclare « Détection » = l'ENTRÉE + le document `detections` dessiné
 >       par-dessus dans le navigateur (`overlay`, réglages d'affichage `show_*` de la card),
 >       sans réencodage. Une face `compare_base` est le côté de référence de Comparer, qui
