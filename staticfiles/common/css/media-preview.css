@@ -111,32 +111,32 @@
     display: block;
 }
 
+/* Apparaît au survol de l'image par la convention commune (`wama-reveal-host` / `wama-reveal`,
+   wama-touch.css) : toujours visible au doigt, et au clavier. Ces règles vivaient AUSSI dans
+   filemanager.css, qui les écrasait (chargé après) : une seule définition depuis le 2026-10-12,
+   celle qui s'affichait réellement (40 px, survol bleu). */
 .preview-fullscreen-btn {
     position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 30px;
-    height: 30px;
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
     border: none;
-    background: rgba(0, 0, 0, 0.5);
-    color: rgba(255, 255, 255, 0.85);
-    border-radius: 5px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    border-radius: 8px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s, color 0.15s;
-    opacity: 0;
-    z-index: 5;
-}
-
-.preview-image-wrapper:hover .preview-fullscreen-btn {
-    opacity: 1;
+    font-size: 1.1rem;
+    transition: background 0.2s ease, transform 0.2s ease, opacity 0.15s ease;
+    z-index: 10;
 }
 
 .preview-fullscreen-btn:hover {
-    background: rgba(0, 0, 0, 0.75);
-    color: #fff;
+    background: rgba(102, 126, 234, 0.9);
+    transform: scale(1.1);
 }
 
 /* === NAVIGATION BUTTONS (modal) ===

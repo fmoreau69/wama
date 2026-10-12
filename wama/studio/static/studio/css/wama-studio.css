@@ -90,7 +90,10 @@
 .studio-world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
 .studio-links { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; z-index: 1; }
 /* En HAUT à droite : le bas du canvas peut passer sous le pied de page fixe (mesuré à 1000 px). */
-.studio-zoom { position: absolute; right: .6rem; top: .6rem; z-index: 5; }
+/* Bornée au canvas : un canvas étroit (tablette en portrait, boutons tactiles de 44 px — mesuré
+   le 2026-10-12) renvoie les boutons à la ligne au lieu d'en cacher un sous le bord gauche. */
+.studio-zoom { position: absolute; right: .6rem; top: .6rem; z-index: 5;
+               max-width: calc(100% - 1.2rem); flex-wrap: wrap; justify-content: flex-end; }
 .studio-zoom .btn { background: rgba(13, 13, 26, .85); }
 .studio-zoom .studio-zoom-label { min-width: 3.6rem; font-variant-numeric: tabular-nums; }
 .studio-hint {
@@ -147,6 +150,15 @@
 .studio-port .dot.is-armed { box-shadow: 0 0 0 3px rgba(110, 168, 254, .4); }
 .studio-port .dot.compatible { border-color: #6ee7a8; box-shadow: 0 0 0 3px rgba(110, 231, 168, .35); }
 .studio-port .dot.incompatible { opacity: .35; cursor: not-allowed; }
+/* Au doigt : relier deux ports se fait au toucher (toucher la sortie, puis l'entrée) — le port
+   atteint le plancher tactile commun (wama-touch.css), et la croix de retrait du nœud aussi. */
+@media (pointer: coarse) {
+    .studio-port .dot { width: var(--wama-touch-min, 24px); height: var(--wama-touch-min, 24px); }
+    .studio-node-head .studio-node-del {
+        min-width: var(--wama-touch-min, 24px); min-height: var(--wama-touch-min, 24px);
+        display: inline-flex; align-items: center; justify-content: center;
+    }
+}
 .studio-port .types { color: #8b93a7; }
 
 /* Lien SVG */

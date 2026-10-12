@@ -60,6 +60,14 @@ body.wama-simple [data-wama-chat][data-density="full"] .wama-assistant-feed { ma
 [data-wama-chat][data-density="compact"] textarea { font-size: .82rem; }
 [data-wama-chat][data-density="full"] .wama-assistant-row { gap: .5rem; margin-top: .75rem; }
 [data-wama-chat][data-density="full"] textarea { min-height: 38px; padding: .375rem .75rem; }
+/* Au DOIGT, les quatre boutons atteignent la cible tactile commune (wama-touch.css) : sur une
+   ligne, ils écrasaient la saisie (18 px de large dans le volet, mesuré le 2026-10-12). La saisie
+   prend sa ligne, les boutons passent dessous, l'envoi au bout. */
+@media (pointer: coarse) {
+  [data-wama-chat] .wama-assistant-row { flex-wrap: wrap; }
+  [data-wama-chat] textarea { flex: 1 1 100%; order: -1; min-height: var(--wama-touch-target, 44px); }
+  [data-wama-chat] [data-assistant-send] { margin-left: auto; }
+}
 
 [data-wama-chat] .wama-assistant-status {
   font-size: .7rem; color: #6c757d; margin-top: 4px; white-space: nowrap; overflow: hidden;

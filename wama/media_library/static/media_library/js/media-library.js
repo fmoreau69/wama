@@ -437,7 +437,8 @@
 
     function buildCard(asset, isSystem) {
         const card = document.createElement('div');
-        card.className = `asset-card${isSystem ? ' system-asset' : ''}`;
+        // `wama-reveal-host` : ses actions apparaissent au survol, toujours au doigt (wama-touch.css).
+        card.className = `asset-card wama-reveal-host${isSystem ? ' system-asset' : ''}`;
         card.dataset.id = asset.id;
 
         // Preview
@@ -490,7 +491,7 @@
         // commune : le menu contextuel (`WamaCardMenu.entreesCompletes`) en lit les entrées, comme
         // sur les cards de file. Aucune liste d'entrées n'est écrite pour la médiathèque.
         const actionsHtml = `
-            <div class="card-actions-overlay btn-group-actions">
+            <div class="card-actions-overlay btn-group-actions wama-reveal">
                 ${asset.file_url ? `
                 <button class="btn btn-sm btn-dark preview-btn" title="Aperçu" data-id="${asset.id}">
                     <i class="fas fa-expand"></i>
@@ -896,7 +897,7 @@
 
     function buildSearchCard(r) {
         const card = document.createElement('div');
-        card.className = 'sr-card';
+        card.className = 'sr-card wama-reveal-host';
 
         let thumbHtml = '';
         if (r.asset_type === 'image' || r.asset_type === 'avatar') {
@@ -921,7 +922,7 @@
 
         card.innerHTML = `
             ${thumbHtml}
-            <button class="btn btn-sm btn-primary sr-import-btn" title="Importer dans ma médiathèque">
+            <button class="btn btn-sm btn-primary sr-import-btn wama-reveal" title="Importer dans ma médiathèque">
                 <i class="fas fa-plus"></i>
             </button>
             <div class="sr-body">
@@ -976,7 +977,7 @@
             const data = await resp.json();
             if (resp.ok && data.id) {
                 btn.innerHTML = '<i class="fas fa-check"></i>';
-                btn.className = 'btn btn-sm btn-success sr-import-btn';
+                btn.className = 'btn btn-sm btn-success sr-import-btn wama-reveal';
                 toast(`"${data.name}" importé dans votre médiathèque`);
                 loadCounts();
             } else {

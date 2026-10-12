@@ -84,6 +84,14 @@
     padding: .06rem .5rem; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .wama-file-chip .wama-file-x { cursor: pointer; opacity: .6; }
 .wama-file-chip .wama-file-x:hover { opacity: 1; color: #dc3545; }
+/* Au doigt : la croix atteint le plancher tactile commun (wama-touch.css) sans faire de la
+   pastille un bouton de 44 px. */
+@media (pointer: coarse) {
+    .wama-file-chip .wama-file-x {
+        min-width: var(--wama-touch-min, 24px); min-height: var(--wama-touch-min, 24px);
+        display: inline-flex; align-items: center; justify-content: center; opacity: .85;
+    }
+}
 .wama-files-meta { font-size: .62rem; color: #6c757d; flex-shrink: 0; }
 
 /* ── Mosaïque : la preview grandit, les tuiles s'empilent (CARD_DESIGN §4) ───────────── */

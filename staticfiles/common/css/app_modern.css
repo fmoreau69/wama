@@ -285,6 +285,10 @@ textarea {
 }
 
 .wama-play-btn:hover { color: #0dcaf0; }
+/* Au doigt : la cible tactile commune (wama-touch.css) — 20 × 12 px ne se touche pas. */
+@media (pointer: coarse) {
+    .wama-play-btn { width: auto; min-width: var(--wama-touch-target, 44px); min-height: var(--wama-touch-target, 44px); }
+}
 
 .wama-audio-time {
     font-size: 0.72rem;

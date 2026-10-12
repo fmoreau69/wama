@@ -145,7 +145,7 @@
             if (!el) return;
             event.preventDefault();
             event.stopPropagation();
-            // L'app peut ouvrir SON détail (ex. modal de résultat transcriber/reader)
+            // L'app peut ouvrir SON détail (ex. modal de résultat transcriber)
             // en écoutant 'wama:card-expand' et en appelant preventDefault().
             var ev = new CustomEvent('wama:card-expand', {
                 bubbles: true, cancelable: true,
@@ -503,7 +503,7 @@
         } else if (mimeType.startsWith('image/')) {
             // Create wrapper with fullscreen button
             const wrapper = document.createElement('div');
-            wrapper.className = 'preview-image-wrapper';
+            wrapper.className = 'preview-image-wrapper wama-reveal-host';   // bouton révélé au survol (wama-touch.css)
             wrapper.ondblclick = function() {
                 _expand(data);
             };
@@ -519,7 +519,7 @@
             }
 
             const fullscreenBtn = document.createElement('button');
-            fullscreenBtn.className = 'preview-fullscreen-btn';
+            fullscreenBtn.className = 'preview-fullscreen-btn wama-reveal';
             fullscreenBtn.title = 'Plein écran (double-clic)';
             fullscreenBtn.innerHTML = _SVG_EXPAND;
             fullscreenBtn.onclick = function(e) {

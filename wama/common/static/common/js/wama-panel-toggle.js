@@ -69,10 +69,11 @@
     if (edges[side] || !document.getElementById(s.panel)) return;
     var edge = document.createElement('button');
     edge.type = 'button';
-    edge.className = 'wama-panel-edge';
+    // La pastille apparaît au survol de la frontière : convention commune (wama-touch.css).
+    edge.className = 'wama-panel-edge wama-reveal-host';
     edge.dataset.side = side;
     edge.setAttribute('aria-controls', s.panel);
-    edge.innerHTML = '<span class="wama-panel-edge-pill" aria-hidden="true"><i></i></span>';
+    edge.innerHTML = '<span class="wama-panel-edge-pill wama-reveal" aria-hidden="true"><i></i></span>';
     // La pastille suit le pointeur le long de la frontière : elle apparaît là où l'on regarde.
     edge.addEventListener('pointermove', function (e) {
       var r = edge.getBoundingClientRect();

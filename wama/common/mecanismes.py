@@ -568,6 +568,20 @@ MECHANISMS = (
               'wama/common/static/common/js/wama-panel-toggle.js', 'docs/construction/ui/WAMA_VOLETS.md',
               annexes=('wama/common/static/common/css/wama-panel-toggle.css',),
               symbol='WamaPanels'),         # global de base.html : compté par son symbole
+    Mechanism('touch', "WAMA au doigt (écrans tactiles)",
+              "Une règle commune, montée par base.html EN DERNIER, pour tout écran dont le "
+              "pointeur principal est un doigt — critère UNIQUE `(pointer: coarse)` : commandes à "
+              "44 px au moins (boutons, onglets, menus, titres repliables, `[role=button]`), cases, "
+              "interrupteurs et curseurs à 24 px au moins — des PLANCHERS, jamais des tailles. Et "
+              "la convention « révélé au survol » : `.wama-reveal-host` sur l'hôte, `.wama-reveal` "
+              "sur l'action — montrée au survol, au clavier, et TOUJOURS au doigt. Une règle "
+              "`:hover` locale qui révélerait un élément est refusée par `tests_touch`. Les "
+              "briques affinent chez elles, sur le même critère (process des cards v3, lecteur "
+              "audio, saisie de l'assistant, ports du studio, variante « large » de l'explorateur)",
+              'wama/common/static/common/css/wama-touch.css',
+              'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
+              annexes=('wama/common/tests/tests_touch.py',),
+              symbol='wama-reveal'),        # classe CSS : comptée par les gabarits/JS qui la posent
     Mechanism('card_menu', "Menu contextuel de card/lot + débordement « … »",
               "Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; "
               "le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales "

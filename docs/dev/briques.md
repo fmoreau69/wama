@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**196 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**197 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1306,6 +1306,12 @@ CVE des paquets INSTALLÉS du venv courant via l'API OSV.dev (pas les requiremen
   - `inventaire() -> list[tuple[str, str]]` — (nom, version) des distributions installées dans CET interpréteur.
   - `interroger_osv(paquets: list[tuple[str, str]]) -> dict[str, list[str]]` — {"nom==version": [ids OSV]} — lève si l'API est injoignable.
   - `class Command(BaseCommand)`
+
+### WAMA au doigt (écrans tactiles)
+
+Une règle commune, montée par base.html EN DERNIER, pour tout écran dont le pointeur principal est un doigt — critère UNIQUE `(pointer: coarse)` : commandes à 44 px au moins (boutons, onglets, menus, titres repliables, `[role=button]`), cases, interrupteurs et curseurs à 24 px au moins — des PLANCHERS, jamais des tailles. Et la convention « révélé au survol » : `.wama-reveal-host` sur l'hôte, `.wama-reveal` sur l'action — montrée au survol, au clavier, et TOUJOURS au doigt. Une règle `:hover` locale qui révélerait un élément est refusée par `tests_touch`. Les briques affinent chez elles, sur le même critère (process des cards v3, lecteur audio, saisie de l'assistant, ports du studio, variante « large » de l'explorateur)
+
+- **Domicile** : `wama/common/static/common/css/wama-touch.css` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 
 ### Évaluation d'un résultat contre sa référence
 

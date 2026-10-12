@@ -1,0 +1,91 @@
+/*
+ * WAMA AU DOIGT — la règle commune des écrans tactiles (ROADMAP §27, étape 1 — 2026-10-12).
+ *
+ * Montée par base.html, donc valable sur toute page des trois mondes (Médias, Data, Lab) :
+ * aucune app n'écrit une ligne. Chargée APRÈS les feuilles communes : au doigt, ses planchers
+ * priment sur les tailles compactes des briques — et ce sont des PLANCHERS (`min-height`,
+ * `min-width`), jamais des tailles : une brique qui dessine plus grand le reste.
+ *
+ * LE CRITÈRE TACTILE DE WAMA est `(pointer: coarse)` — le pointeur PRINCIPAL est un doigt —, le
+ * même partout (repli des volets, variante « large » de l'explorateur). Un portable tactile piloté
+ * à la souris garde l'interface dense.
+ *
+ * Deux choses, mesurées au relevé tablette du 2026-10-10 (iPad Pro 11 émulé) :
+ *   1. les CIBLES : 1 227 cibles sur 1 328 sous 44 px, 175 sous 24 px (process des cards v3 à
+ *      15 px de haut, interrupteurs, titres repliables du studio…) ;
+ *   2. ce qui n'apparaît qu'au SURVOL : un doigt ne survole pas, l'action reste cachée.
+ *
+ * Les deux tailles de référence :
+ *   --wama-touch-target  44 px — cible confortable (WCAG 2.5.5, recommandations iPadOS) ;
+ *   --wama-touch-min     24 px — plancher pour ce qui ne peut pas grandir sans casser sa ligne
+ *                                (WCAG 2.5.8, niveau AA : cases, curseurs, interrupteurs).
+ */
+:root {
+  --wama-touch-target: 44px;
+  --wama-touch-min: 24px;
+}
+
+/* ── Révélé au survol : LA convention ────────────────────────────────────────────────────────
+   Une action secondaire qui n'apparaît qu'au survol de son hôte : `.wama-reveal-host` sur l'hôte,
+   `.wama-reveal` sur l'action. Le clavier la montre aussi (focus visible dans l'hôte : jusqu'ici
+   on tabulait sur un bouton invisible), et au doigt elle est TOUJOURS visible. Une brique qui veut
+   un délai d'apparition pose `--wama-reveal-delay` sur l'hôte. Une règle `:hover` locale qui
+   révélerait un élément est refusée par `tests_touch` : c'est cette convention qu'on adopte.
+   La transition est posée sans poids (`:where`) : une brique qui anime aussi son fond ou sa
+   taille garde sa propre `transition`. */
+.wama-reveal { opacity: 0; }
+:where(.wama-reveal) { transition: opacity .15s ease; }
+.wama-reveal-host:hover .wama-reveal,
+.wama-reveal-host:focus-visible .wama-reveal,
+.wama-reveal-host:has(:focus-visible) .wama-reveal {
+  opacity: 1;
+  transition-delay: var(--wama-reveal-delay, 0s);
+}
+
+@media (pointer: coarse) {
+  .wama-reveal { opacity: 1; }
+
+  /* ── Commandes : cible confortable ──────────────────────────────────────────────────────────
+     `align-content: center` centre le libellé dans la hauteur gagnée sans changer le `display`
+     des boutons (un passage en flex ferait perdre l'espace entre l'icône et le texte). */
+  .btn,
+  .btn-close,
+  .nav-link,
+  .navbar-brand,
+  .dropdown-item,
+  .page-link,
+  .list-group-item-action,
+  [role="button"],
+  summary {
+    min-height: var(--wama-touch-target);
+    align-content: center;
+  }
+  .btn,
+  .btn-close {
+    min-width: var(--wama-touch-target);
+  }
+  .form-select,
+  input.form-control {
+    min-height: var(--wama-touch-target);
+  }
+
+  /* ── Cases, interrupteurs, curseurs : plancher ──────────────────────────────────────────────
+     La case grandit, le libellé (déjà cliquable) recule d'autant. */
+  .form-check-input,
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-width: var(--wama-touch-min);
+    min-height: var(--wama-touch-min);
+  }
+  .form-check .form-check-input { margin-top: 0; }
+  .form-check { padding-left: 2em; }
+  .form-check .form-check-input { margin-left: -2em; }
+  .form-switch { padding-left: 3.25em; }
+  .form-switch .form-check-input {
+    min-width: 2.75em;
+    margin-left: -3.25em;
+  }
+  input[type="range"] { min-height: var(--wama-touch-min); }
+  .form-range::-webkit-slider-thumb { width: 1.5rem; height: 1.5rem; margin-top: -.5rem; }
+  .form-range::-moz-range-thumb { width: 1.5rem; height: 1.5rem; }
+}

@@ -423,5 +423,9 @@
 /* ▶ et ⚙ par process : discrets ; le ▶ est absent tant que la card est en vol (un seul lancement
    à la fois), le ⚙ reste (la modale s'ouvre en consultation). */
 .wcv3-proc-run, .wcv3-proc-settings { padding: 0 .3rem; font-size: .62rem; line-height: 1.3; }
+/* Au doigt, ▶ et ⚙ atteignent la cible tactile commune (wama-touch.css) : l'icône grandit avec. */
+@media (pointer: coarse) {
+  .wcv3-proc-run, .wcv3-proc-settings { font-size: .85rem; }
+}
 .wama-card[data-status="RUNNING"] .wcv3-proc-run,
 .wama-card[data-status="AWAITING_RESOURCES"] .wcv3-proc-run { display: none; }

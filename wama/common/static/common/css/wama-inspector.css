@@ -106,6 +106,12 @@ body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--collapsed { dis
     font-size: .62rem; color: #67e8f9; opacity: 0; transition: opacity .15s ease; pointer-events: none;
 }
 .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header:hover::after { opacity: .85; }
+/* Au doigt, pas de survol : le libellé reste affiché, et il dit le geste du doigt (wama-touch.css). */
+@media (pointer: coarse) {
+    .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header::after {
+        content: "🃏 toucher pour désempiler"; opacity: .85;
+    }
+}
 .batch-group-header { position: relative; }
 .batch-group:has(.collapse[data-wama-batch-key].show) .batch-group-header { box-shadow: none; }
 /* Card MÈRE de batch = même squelette que les filles ; .is-batch = seul le style diffère.

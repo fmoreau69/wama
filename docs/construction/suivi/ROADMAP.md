@@ -5264,8 +5264,24 @@ aucun débordement horizontal**. Les défauts sont ailleurs :
 | survol | boutons-icônes expliqués par la seule infobulle : 16 à 24 par app, 45 à la médiathèque ; 14 règles CSS qui ne montrent une action qu'au survol (actions des cartes de la médiathèque, import d'un résultat de recherche, plein écran de l'aperçu) | étape 1 |
 
 **L'ordre proposé** :
-1. ⏳ **Une règle commune pour les écrans tactiles** (`@media (pointer: coarse)`) : cibles
-   agrandies, actions de survol montrées en permanence. Toutes les pages d'un coup.
+1. ✅ **Une règle commune pour les écrans tactiles** — **LIVRÉE le 2026-10-12** :
+   `common/css/wama-touch.css`, montée par `base.html` en dernier, critère unique
+   `(pointer: coarse)` ; convention `.wama-reveal-host` / `.wama-reveal` pour ce qui n'apparaît
+   qu'au survol (montré aussi au clavier, toujours au doigt) ; forme d'emploi :
+   `WAMA_APP_CONVENTIONS §23`, garde `tests_touch`. **Mesuré**, mêmes 16 pages en iPad portrait,
+   1 247 cibles hors libellés et liens dans le texte (que la norme exempte) : sous 24 px
+   **109 → 0**, sous 44 px **1 152 → 601** ; les deux pages du Lab, passées après, n'ajoutent
+   aucune cible sous 24 px. Ce qui reste à 24-43 px est VOULU (cases, interrupteurs, curseurs au plancher de 24 ; lignes de l'explorateur à 32, la
+   variante `large` de jsTree) ; aucun débordement horizontal, volets ouverts ou repliés ; à la
+   souris, rien ne change (process 19 × 15, interrupteur 32 × 16, lignes à 24). Défaut induit
+   trouvé et corrigé au passage : la saisie de l'assistant écrasée à 18 px par ses boutons
+   agrandis (elle prend désormais sa ligne au doigt), la barre de zoom du studio rognée.
+   ⚠ Précision du relevé du 10/10 : sur les « 14 règles » de survol, **quatre sites** cachaient
+   vraiment une action (aperçu plein écran — défini DEUX fois, dans `media-preview.css` et
+   `filemanager.css`, fusionnés —, actions et import de la médiathèque, pastille de la
+   frontière) ; les autres changeaient l'apparence de l'élément survolé lui-même, ou venaient
+   des bibliothèques tierces. ⏳ **Reste** : les boutons-icônes qui ne s'expliquent que par leur
+   infobulle (`title`, invisible au doigt) — à traiter avec les gestes (étape 3).
 2. 🔄 **Les volets** : ✅ repli manuel par la frontière, livré le 2026-10-10 (`WamaPanels`,
    pastille visible au doigt ; centre 394 → 834 px en portrait) ; ⏳ repli d'office sous une
    largeur et barre du haut — `WAMA_VOLETS §9.5`.

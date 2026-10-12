@@ -2581,6 +2581,51 @@ la philosophie *métadonnée-driven* (voir `AGENTS.md` § Philosophie générale
 
 ---
 
+## 23. Écrans tactiles — WAMA au doigt (2026-10-12, `ROADMAP §27` étape 1)
+
+> Toute page de tout monde passe par `base.html`, qui monte `common/css/wama-touch.css` **en
+> dernier** : une app n'a rien à écrire pour être utilisable au doigt. Ce paragraphe dit ce
+> qu'elle ne doit PAS défaire. Garde : `wama/common/tests/tests_touch.py`.
+
+**Un seul critère tactile : `@media (pointer: coarse)`** — le pointeur PRINCIPAL est un doigt.
+Le même pour le repli des volets, l'explorateur (variante `large` de jsTree) et toute brique qui
+s'adapte. `(hover: none)`, `any-pointer`, `any-hover` sont refusés : sur un même appareil, une
+partie de l'interface basculerait et pas l'autre. Un portable tactile piloté à la souris garde
+l'interface dense.
+
+**Deux tailles** (variables de `:root`) — et ce sont des PLANCHERS (`min-height`, `min-width`) :
+
+| variable | valeur | pour | référence |
+|---|---|---|---|
+| `--wama-touch-target` | 44 px | boutons, onglets, menus, titres repliables (`summary`), `[role=button]`, listes déroulantes, champs | WCAG 2.5.5, iPadOS |
+| `--wama-touch-min` | 24 px | cases, interrupteurs, curseurs, ports et croix des briques compactes | WCAG 2.5.8 (AA) |
+
+Une brique compacte qui a besoin d'une forme propre au doigt l'écrit **chez elle**, sur le même
+critère et avec ces variables (process des cards v3, lecteur audio, saisie de l'assistant, ports
+du studio, croix des pastilles de fichiers) — jamais la règle commune ne nomme une classe d'app.
+
+**Révélé au survol : la convention.** Un doigt ne survole pas : une action qui n'apparaît qu'au
+survol de son hôte N'EXISTE PAS au doigt (relevé du 2026-10-10 : actions des cartes de la
+médiathèque, import d'un résultat de recherche, plein écran de l'aperçu).
+
+```html
+<div class="ma-carte wama-reveal-host">            <!-- l'hôte -->
+  <div class="mes-actions wama-reveal">…</div>     <!-- montré au survol, au clavier, toujours au doigt -->
+</div>
+```
+
+- ❌ `.ma-carte:hover .mes-actions { opacity: 1; }` — refusé par la garde, qui balaie le dépôt.
+- Un délai d'apparition se pose sur l'hôte : `--wama-reveal-delay: .12s` (frontière des volets).
+- Un **décor** de l'élément survolé lui-même (`:hover::after`, une bordure, une ombre) n'est pas
+  une action cachée et reste libre ; au doigt, s'il porte une information, le montrer
+  (« 🃏 toucher pour désempiler », `wama-inspector.css`).
+
+**Ce que l'étape 1 ne couvre pas** (`ROADMAP §27`) : les gestes de glisser, défiler, pincer
+(étape 3), les volets en tiroir et la barre du haut (étape 2), et les boutons-icônes qui ne
+s'expliquent que par leur infobulle (`title`), invisible au doigt.
+
+---
+
 ## Annexe A — Passage rapide en revue (wama-dev-ai)
 
 Lors d'un audit d'une app, vérifier dans l'ordre :

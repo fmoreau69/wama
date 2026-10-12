@@ -70,7 +70,9 @@ body > .container-fluid { transition: margin var(--wama-panel-anim), width var(-
 .wama-panel-edge[data-side="left"]::before  { left: 0; }
 .wama-panel-edge[data-side="right"]::before { right: 0; }
 
-/* La pastille : suit le pointeur le long de la frontière (--y posé par le script). */
+/* La pastille : suit le pointeur le long de la frontière (--y posé par le script). Elle
+   apparaît au survol par la convention commune (`wama-reveal-host` sur la frontière,
+   `wama-reveal` sur elle — wama-touch.css), avec le délai ci-dessous. */
 .wama-panel-edge-pill {
     position: absolute;
     top: var(--y);
@@ -82,18 +84,15 @@ body > .container-fluid { transition: margin var(--wama-panel-anim), width var(-
     box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
     color: #e6e9f0;
     font-size: .62rem;
-    opacity: 0;
     pointer-events: none;
-    transition: opacity .15s ease;
 }
 .wama-panel-edge[data-side="left"]  .wama-panel-edge-pill { left: 0;  transform: translate(-50%, -50%); }
 .wama-panel-edge[data-side="right"] .wama-panel-edge-pill { right: 0; transform: translate(50%, -50%); }
 
 /* Survol : un court délai — un pointeur qui ne fait que PASSER ne fait rien clignoter. */
+.wama-panel-edge { --wama-reveal-delay: .12s; }
 .wama-panel-edge:hover::before,
 .wama-panel-edge:focus-visible::before { opacity: .75; transition-delay: .12s; }
-.wama-panel-edge:hover .wama-panel-edge-pill,
-.wama-panel-edge:focus-visible .wama-panel-edge-pill { opacity: 1; transition-delay: .12s; }
 
 /* Volet REPLIÉ : la frontière se colle au bord de la fenêtre et garde une trace discrète —
    on sait qu'un volet est là sans qu'il prenne de place. La pastille rentre dans la fenêtre. */
@@ -106,11 +105,12 @@ body.wama-right-collapsed .wama-panel-edge[data-side="right"]:hover::before { op
 body.wama-left-collapsed  .wama-panel-edge[data-side="left"]  .wama-panel-edge-pill { transform: translate(2px, -50%); }
 body.wama-right-collapsed .wama-panel-edge[data-side="right"] .wama-panel-edge-pill { transform: translate(-2px, -50%); }
 
-/* Au DOIGT (tablette) : pas de survol — la pastille reste visible, la zone est plus large.
+/* Au DOIGT (tablette) : pas de survol — la pastille reste visible (la convention commune la
+   montre ; elle reste ici un peu en retrait), la zone atteint le plancher tactile commun.
    Mesure tablette du 2026-10-10 : un geste qui n'existe qu'au survol n'existe pas au doigt. */
 @media (pointer: coarse) {
-    .wama-panel-edge { width: 22px; }
-    .wama-panel-edge-pill { opacity: .8; width: 22px; height: 40px; border-radius: 11px; font-size: .75rem; }
+    .wama-panel-edge { width: var(--wama-touch-min, 24px); }
+    .wama-panel-edge .wama-panel-edge-pill { opacity: .8; width: 22px; height: 40px; border-radius: 11px; font-size: .75rem; }
     .wama-panel-edge::before { opacity: .25; }
 }
 

@@ -62,13 +62,12 @@
 }
 .asset-card:hover { border-color: #4a4a7a; box-shadow: 0 4px 16px #0006; }
 .asset-card.system-asset { background: #141e14; border-color: #1e3a1e; }
-.asset-card:hover .card-actions-overlay { opacity: 1; }
 
-/* Overlay actions (apparaît au survol) */
+/* Overlay actions — apparaît au survol de la carte par la convention commune
+   (`wama-reveal-host` / `wama-reveal`, wama-touch.css) : toujours visible au doigt. */
 .card-actions-overlay {
     position: absolute; top: .4rem; right: .4rem;
     display: flex; gap: .3rem;
-    opacity: 0; transition: opacity .15s;
     z-index: 10;  /* passe au-dessus de la couche GPU de <video> */
 }
 .asset-badge-system {
@@ -160,11 +159,10 @@
 .sr-body { padding: .5rem .65rem .65rem; }
 .sr-title { font-size: .8rem; font-weight: 600; color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sr-meta  { font-size: .68rem; color: #666; margin-top: .15rem; }
+/* Révélé au survol du résultat (convention commune `wama-reveal`, wama-touch.css). */
 .sr-import-btn {
     position: absolute; bottom: .4rem; right: .4rem;
-    opacity: 0; transition: opacity .15s;
 }
-.sr-card:hover .sr-import-btn { opacity: 1; }
 .sr-license { font-size: .65rem; padding: .1rem .3rem; border-radius: 3px; background: #1e3a1e; color: #6bcb6b; }
 
 /* ── Load more ──────────────────────────────────────────────────── */

@@ -114,6 +114,10 @@
             'core': {
                 'themes': {
                     'name': 'default-dark',
+                    // Au doigt : la variante « large » de jsTree (lignes de 32 px au lieu de 24),
+                    // sur le critère tactile commun de WAMA (wama-touch.css). `responsive` ne joue
+                    // qu'à 768 px de large : une tablette en portrait (834) n'y entre pas.
+                    'variant': (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 'large' : false,
                     'responsive': true,
                     'dots': false,
                     'icons': true
@@ -2330,9 +2334,9 @@
         const mime = data.mime_type || '';
         if (mime.startsWith('image/')) {
             container.innerHTML = `
-                <div class="preview-image-wrapper" ondblclick="window.FileManagerFullscreen.open('${data.url}', '${escapeHtml(data.name)}')">
+                <div class="preview-image-wrapper wama-reveal-host" ondblclick="window.FileManagerFullscreen.open('${data.url}', '${escapeHtml(data.name)}')">
                     <img src="${data.url}" alt="${data.name}" style="max-width:100%; max-height:70vh;">
-                    <button class="preview-fullscreen-btn" onclick="event.stopPropagation(); window.FileManagerFullscreen.open('${data.url}', '${escapeHtml(data.name)}')" title="Plein écran (double-clic)">
+                    <button class="preview-fullscreen-btn wama-reveal" onclick="event.stopPropagation(); window.FileManagerFullscreen.open('${data.url}', '${escapeHtml(data.name)}')" title="Plein écran (double-clic)">
                         <i class="fa fa-expand"></i>
                     </button>
                 </div>
