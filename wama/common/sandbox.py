@@ -112,6 +112,41 @@ def _paths_in(value, prefix: str) -> list:
     return [value] if isinstance(value, str) and value.startswith(prefix) else []
 
 
+def _module_level_statements(body):
+    """Les instructions exécutées AU NIVEAU DU MODULE, blocs compris : un nom posé dans un
+    `try:`/`if`/`with` de tête est exposé comme un autre (`MODELS_ROOT` de l'anonymizer, posé
+    dans un `try/except ImportError` — faux « absent » mesuré le 2026-10-07). On ne descend
+    jamais dans une fonction ni une classe : leurs noms sont locaux."""
+    import ast
+    for n in body:
+        yield n
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        for field in ('body', 'orelse', 'finalbody'):
+            yield from _module_level_statements(getattr(n, field, None) or [])
+        for h in getattr(n, 'handlers', None) or []:
+            yield from _module_level_statements(h.body)
+
+
+def exposed_names(tree) -> set:
+    """Les noms qu'un module EXPOSE (arbre AST) : définis, affectés ou importés au niveau du
+    module, blocs de tête compris. LA lecture du bac à sable — le juge d'imports de
+    `app_sandbox` et `resolves` (injection des registres) la partagent depuis le 2026-10-12 ;
+    la seconde l'avait recopiée sans les blocs de tête."""
+    import ast
+    names = set()
+    for n in _module_level_statements(tree.body):
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(n.name)
+        elif isinstance(n, ast.Assign):
+            names.update(t.id for t in n.targets if isinstance(t, ast.Name))
+        elif isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name):
+            names.add(n.target.id)
+        elif isinstance(n, (ast.Import, ast.ImportFrom)):
+            names.update((a.asname or a.name.split('.')[0]) for a in n.names)
+    return names
+
+
 def resolves(dotted: str) -> bool:
     """Le chemin pointé `wama.<…>` désigne-t-il un module, ou un nom DÉFINI au niveau d'un module,
     lu sur le disque SANS RIEN IMPORTER (le module reste pur : il est lu par settings) ?
@@ -135,17 +170,7 @@ def resolves(dotted: str) -> bool:
             tree = ast.parse(module.read_text(encoding='utf-8'))
         except (OSError, SyntaxError, ValueError):
             return False
-        names = set()
-        for node in tree.body:
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                names.add(node.name)
-            elif isinstance(node, ast.Assign):
-                names |= {t.id for t in node.targets if isinstance(t, ast.Name)}
-            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-                names.add(node.target.id)
-            elif isinstance(node, (ast.Import, ast.ImportFrom)):
-                names |= {(a.asname or a.name).split('.')[0] for a in node.names}
-        return rest[0] in names
+        return rest[0] in exposed_names(tree)
     return False
 
 

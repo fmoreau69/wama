@@ -40,8 +40,12 @@ Objectif : ne jamais laisser un palier non consigné ni non validé. À déroule
   **soit tu l'annonces dans ton message, soit tu attends — jamais en silence.** Vécu deux fois :
   12 fichiers balayés, puis 14 lignes de `mecanismes.py` le 2026-08-26.
   ✅ **Troisième voie depuis le 2026-09-19 : `/commit-partiel`** — l'index se construit avec MES
-  seuls hunks du fichier co-édité (patch `-U0` + `git apply --cached`), se vérifie, puis se
-  commite ; le WIP d'autrui reste dans l'arbre.
+  seuls hunks du fichier co-édité, se vérifie, puis se commite ; le WIP d'autrui reste dans
+  l'arbre. **CHARGER le skill, ne pas refaire son geste de mémoire** : ce paragraphe disait
+  « patch `-U0` + `git apply --cached` » jusqu'au 2026-10-12 — c'est le geste FAUTIF (une insertion
+  se pose d'après le numéro NOUVEAU, décalée par les hunks d'autrui laissés), trois fois vécu
+  (26/09, 30/09, 12/10 `ac46fb72` → `91513a99`). La voie sûre est le blob recomposé
+  (`stage_by_oldlines.py`, ou contenu cible vérifié + `hash-object` + `update-index --cacheinfo`).
 - Un commit par palier logique, message conventionnel français (`feat(app): …`, `fix: …`, `docs: …`).
 - ⚠ **Message long → `-F <fichier>`, jamais `-m`** : les backticks d'un `-m` sont interprétés par
   le shell et des fragments s'évaporent en silence (récidivé 23/08 puis 26/08).

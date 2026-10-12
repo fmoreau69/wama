@@ -695,26 +695,15 @@ def contract_engines(task: str) -> dict:
     contract = TASK_CONTRACTS.get(task)
     if not contract:
         return {}
+    from types import SimpleNamespace
     package = Path(__file__).resolve().parents[1] / 'backends'
     found, _unreadable = _class_backends(package, 'wama.common.backends')
-    bases = {}
-    for f in sorted(package.glob('*.py')):
-        for name, info in _FICHIERS_BACKENDS.get(f, _file_classes)[0].items():
-            bases.setdefault(name, set()).update(info['bases'])
-
-    def _lineage(name):
-        seen, todo = set(), [name]
-        while todo:
-            for b in bases.get(todo.pop(), ()):
-                if b not in seen:
-                    seen.add(b)
-                    todo.append(b)
-        return seen
-
     out, ambiguous = {}, set()
     for name, info in found:
         engine = (info.get('attrs') or {}).get('ENGINE')
-        if not engine or (contract[1] not in _lineage(name) and name != contract[1]):
+        # La lignée par la lecture commune (`_class_lineage`, mémorisée) — celle du filtre LIANT.
+        lineage = _class_lineage(SimpleNamespace(module=info['module'], name=name)) or set()
+        if not engine or (contract[1] not in lineage and name != contract[1]):
             continue
         if engine in out:
             ambiguous.add(engine)

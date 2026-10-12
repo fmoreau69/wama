@@ -164,6 +164,13 @@ mais c'est défaire son geste dans son dos.
   Le contrôle qui l'a vu : `git diff -U0 --ignore-cr-at-eol` APRÈS le commit, qui montrait encore
   mes lignes — côté retiré ET côté ajouté. *Charger ce skill avant tout commit partiel, même
   « simple » : le piège est dans l'outil, pas dans la complexité du cas.*
+  🔴 **3ᵉ récidive le 2026-10-12, encore SANS avoir ouvert ce skill** — et `/palier §3` en était
+  la cause : il prescrivait lui-même « patch `-U0` + `git apply --cached` » (corrigé le jour même).
+  Hunks filtrés d'un `-U0` sur une doc dérivée (`docs/dev/briques.md`, un bloc de six lignes
+  d'autrui retiré du patch) : quatre entrées posées six lignes trop haut (`ac46fb72`), rattrapé par
+  `91513a99` (contenu cible = fichier de l'arbre MOINS la part d'autrui, vérifié par deux `diff`
+  — contre l'arbre, contre HEAD —, puis `hash-object` + `update-index --cacheinfo`). Même contrôle
+  qui l'a vu : le diff de l'arbre contre le nouveau HEAD, relu après le commit.
 - 🔴 **2026-09-26 — vérifier l'index PUIS commiter laisse une FENÊTRE DE COURSE.** Mesuré le
   jour même : `git diff --cached --stat` montrait 15 fichiers, le `git commit` qui a suivi en a
   porté **16**. Une autre instance avait stagé un `git mv` entre les deux (le temps de rédiger le
@@ -272,6 +279,10 @@ mais c'est défaire son geste dans son dos.
   ⚠ Et dans le script de garde, sous `set -o pipefail`, **`grep -c … | grep -qx 0` échoue
   justement quand le compte vaut zéro** (`grep -c` sort en 1 sans correspondance) : la garde a
   arrêté un index CORRECT. Tester une absence par `! grep -q <motif>`.
+  ⚠ **Et pas `git show :<f> | grep -q <motif>` non plus** (vécu le même jour, autre session) :
+  `grep -q` ferme le tube à la PREMIÈRE correspondance, `git show` meurt en SIGPIPE, `pipefail`
+  rend l'échec et `set -e` arrête un index CORRECT juste avant le commit. Écrire le blob indexé
+  dans un fichier (`git show :<f> > <scratchpad>/x`), puis `grep -q` sur ce fichier.
 
 ## 4. Docs générées
 

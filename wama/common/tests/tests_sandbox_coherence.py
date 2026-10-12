@@ -758,6 +758,37 @@ class TwinStaticFollowsItsSourceTest(SimpleTestCase):
                 cmd_sandbox.Command()._resync_static('writer_01')
 
 
+class DeadCopiedCardsTest(SimpleTestCase):
+    """Generated templates that hold left the COPIED cards on disk, included by nothing — they
+    misled any reading of the code (2026-10-12). They go to a witness ; the rest stays."""
+
+    def test_only_a_copied_card_nothing_names_is_dead(self):
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            tpl = root / 'x_01' / 'templates' / 'x_01'
+            tpl.mkdir(parents=True)
+            (tpl / 'index.html').write_text(
+                "{# manifest-gen #}{% include 'x_01/_generic_card.html' %}", encoding='utf-8')
+            (tpl / '_generic_card.html').write_text('{# manifest-gen #}<div></div>', encoding='utf-8')
+            (tpl / '_item_card.html').write_text('<div>old copy</div>', encoding='utf-8')
+            (tpl / '_meta.html').write_text('<span></span>', encoding='utf-8')
+            # The COPIED index, kept as a witness, still includes the old card.
+            (tpl / 'index.html.temoin').write_text("{% include 'x_01/_item_card.html' %}",
+                                                   encoding='utf-8')
+            (root / 'x_01' / 'views.py').write_text(
+                "render(request, 'x_01/_meta.html')\n", encoding='utf-8')
+            # Mentions that serve nothing : a comment, a COPIED test (left out of the suite).
+            (root / 'x_01' / 'static').mkdir()
+            (root / 'x_01' / 'static' / 'x.js').write_text(
+                '// the class changed in `_item_card.html` too', encoding='utf-8')
+            (root / 'x_01' / 'tests.py').write_text(
+                "TEMPLATE = 'x_01/_item_card.html'\n", encoding='utf-8')
+            with patch.object(cmd_sandbox, 'WAMA_DIR', root):
+                dead = cmd_sandbox._dead_copied_templates('x_01')
+        # A witness, a comment, a copied test name nothing that is served.
+        self.assertEqual(['templates/x_01/_item_card.html'], dead)
+
+
 class BornAppSubstitutionTest(SimpleTestCase):
     """An app born from a manifest is substituted from THAT manifest (2026-10-12 : writer_01 kept
     a card the generator had fixed, and only `remove` + `create` — data lost — regenerated it)."""

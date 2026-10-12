@@ -41,7 +41,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 
 from wama.common.sandbox import (
-    LABEL_RE, REGISTRY_PATH, is_test_module, load_registry, save_registry,
+    LABEL_RE, REGISTRY_PATH, exposed_names, is_test_module, load_registry, save_registry,
 )
 
 WAMA_DIR = Path(__file__).resolve().parents[3]          # …/wama
@@ -245,22 +245,6 @@ def parse_test_run(output: str) -> dict:
     return out
 
 
-def _module_level_statements(body):
-    """Les instructions exécutées AU NIVEAU DU MODULE, blocs compris : un nom posé dans un
-    `try:`/`if`/`with` de tête est exposé comme un autre (`MODELS_ROOT` de l'anonymizer, posé
-    dans un `try/except ImportError` — faux « absent » mesuré le 2026-10-07). On ne descend
-    jamais dans une fonction ni une classe : leurs noms sont locaux."""
-    import ast
-    for n in body:
-        yield n
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            continue
-        for champ in ('body', 'orelse', 'finalbody'):
-            yield from _module_level_statements(getattr(n, champ, None) or [])
-        for h in getattr(n, 'handlers', None) or []:
-            yield from _module_level_statements(h.body)
-
-
 def _imports_intra_paquet_non_resolus(label: str) -> list:
     """Juge GÉNÉRIQUE de cohérence du paquet jumeau (2026-09-03, demande Fabien : « qu'une
     nouvelle génération ne redécouvre pas les mêmes problèmes »).
@@ -287,17 +271,7 @@ def _imports_intra_paquet_non_resolus(label: str) -> list:
             continue    # un fichier insyntaxique est le problème d'un AUTRE juge (compile)
         arbres[p] = arbre
         mod = '.'.join(p.relative_to(base).with_suffix('').parts)
-        noms = set()
-        for n in _module_level_statements(arbre.body):
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                noms.add(n.name)
-            elif isinstance(n, ast.Assign):
-                noms.update(t.id for t in n.targets if isinstance(t, ast.Name))
-            elif isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name):
-                noms.add(n.target.id)
-            elif isinstance(n, (ast.Import, ast.ImportFrom)):
-                noms.update((a.asname or a.name.split('.')[0]) for a in n.names)
-        exposes[mod] = noms
+        exposes[mod] = exposed_names(arbre)       # la lecture commune (`sandbox.exposed_names`)
 
     manquants = []
     for p, arbre in arbres.items():
@@ -483,24 +457,69 @@ def _superseded_task_modules(manifest: dict, fname: str = 'tasks.py') -> list:
     return out
 
 
+def _app_manifest_file(path) -> tuple:
+    """`(manifeste, chemin)` d'un manifeste `app` FICHIER, lu et VALIDÉ — la lecture commune de
+    la création de zéro et de la substitution d'une app née d'un manifeste (2026-10-12)."""
+    import json
+
+    from wama.common.manifests.kinds import MANIFEST_KINDS
+    manifest_path = Path(path) if Path(path).is_absolute() else BASE_DIR / path
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    except (OSError, ValueError) as exc:
+        raise CommandError(f'Manifeste illisible : {manifest_path} ({exc})')
+    if manifest.get('manifest_kind') != 'app':
+        raise CommandError("Seul un manifeste de kind `app` crée une app.")
+    errors = MANIFEST_KINDS['app'].validate(manifest.get('body') or {})
+    if errors:
+        raise CommandError('Manifeste invalide : ' + ' ; '.join(errors[:5]))
+    return manifest, manifest_path
+
+
 def _born_manifest(label: str, entry: dict) -> tuple:
     """`(manifeste, clé)` d'une app NÉE D'UN MANIFESTE : le fichier d'où elle est née, plus la
     facette `data` introspectée de ses modèles — le second temps de `_create_from_manifest`, que
     `views_gen` et `templates_gen` exigent. Ici l'app est installée : l'introspection se fait dans
     le processus, sans le sous-processus qu'il fallait à la création."""
-    import json
-
     from wama.common.manifests.builtin.app import _data
-    path = BASE_DIR / entry['from_manifest']
-    try:
-        manifest = json.loads(path.read_text(encoding='utf-8'))
-    except (OSError, ValueError) as exc:
-        raise CommandError(f'Manifeste d\'origine illisible : {path} ({exc})')
+    manifest, _path = _app_manifest_file(entry['from_manifest'])
     data = _data(label)
     if not (data or {}).get('models'):
         raise CommandError(f'Introspection des modèles de {label} vide.')
     manifest.setdefault('body', {})['data'] = data
     return manifest, manifest.get('key') or ''
+
+
+def _dead_copied_templates(label: str) -> list:
+    """Gabarits COPIÉS de la jumelle que plus aucun de ses fichiers ne nomme — chemins relatifs
+    au paquet, prêts pour `_withdraw_modules`.
+
+    Une substitution `templates` écrit `index.html` et `_generic_card.html` ; les cards COPIÉES
+    (`_item_card.html`, `_job_card.html`…) restaient sur disque sans que rien ne les inclue, et
+    trompaient toute lecture du code (2026-10-12, relevé par l'instance « aperçu » : un contrat a
+    dû apprendre à les écarter). Une card est VIVANTE si un autre fichier du paquet cite son nom
+    (`card_template=`, `render`, `{% include %}`, nom calculé : on cherche le NOM DE FICHIER, pas
+    le chemin). Un gabarit généré (marque `manifest-gen`) n'est jamais concerné."""
+    pkg = WAMA_DIR / label
+    tpl_dir = pkg / 'templates' / label
+    if not tpl_dir.is_dir():
+        return []
+    texts = {p: p.read_text(encoding='utf-8', errors='replace')
+             for p in pkg.rglob('*') if p.is_file() and p.suffix.lower() in TEXT_EXT
+             and not any(part in SKIP_DIRS for part in p.relative_to(pkg).parts)}
+    # Ce qui SERT un gabarit : son nom en CHAÎNE (`'x_01/_card.html'`, `f'{app}/_card.html'`,
+    # `"_card.html"`) dans un fichier SERVI. Pas une mention en commentaire (« `_job_card.html` »
+    # d'un JS copié gardait la card de converter_01 en vie), ni un test COPIÉ, que la suite écarte.
+    servers = {p: t for p, t in texts.items()
+               if not is_test_module(p.relative_to(pkg).parts)}
+    dead = []
+    for card in sorted(tpl_dir.glob('*.html')):
+        if 'manifest-gen' in texts.get(card, '')[:600]:
+            continue
+        named = re.compile(r"""[/'"]""" + re.escape(card.name) + r"""['"]""")
+        if not any(named.search(text) for other, text in servers.items() if other != card):
+            dead.append(card.relative_to(pkg).as_posix())
+    return dead
 
 
 def _withdraw_modules(label: str, files: list) -> list:
@@ -768,18 +787,8 @@ class Command(BaseCommand):
         from wama.common.app_registry import APP_CATALOG
         from wama.common.manifests.builtin.app import (_capabilities_target, _identity_target,
                                                        _ports_target)
-        from wama.common.manifests.kinds import MANIFEST_KINDS
 
-        manifest_path = Path(path) if Path(path).is_absolute() else BASE_DIR / path
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
-        except (OSError, ValueError) as exc:
-            raise CommandError(f'Manifeste illisible : {manifest_path} ({exc})')
-        if manifest.get('manifest_kind') != 'app':
-            raise CommandError("Seul un manifeste de kind `app` crée une app.")
-        errors = MANIFEST_KINDS['app'].validate(manifest.get('body') or {})
-        if errors:
-            raise CommandError('Manifeste invalide : ' + ' ; '.join(errors[:5]))
+        manifest, manifest_path = _app_manifest_file(path)
         key = manifest.get('key') or ''
         if not re.fullmatch(r'[a-z_]+', key):
             raise CommandError(f'Clé d\'app invalide : {key!r} (underscore_case, AGENTS.md).')
@@ -1138,6 +1147,13 @@ class Command(BaseCommand):
                      and not l.startswith(('+++', '---'))]
             details.append(f'diff copie↔généré : {len(delta)} lignes')
 
+        # 4 bis. Gabarits qui TIENNENT : les cards COPIÉES que plus rien ne nomme partent en
+        # témoin (`_dead_copied_templates`) — rétablies par `revert templates`.
+        if verdict == 'ok' and 'templates' in targets:
+            dead = _withdraw_modules(label, _dead_copied_templates(label))
+            if dead:
+                details.append(f'gabarits copiés que plus rien ne nomme, mis en témoin : {dead}')
+
         # 5. Échec → RETOUR AU TÉMOIN (jamais une jumelle morte) ; sinon journal.
         # Multi-fichiers : chaque fichier revient à SON témoin ; un fichier NEUF (sans
         # témoin) est retiré.
@@ -1299,6 +1315,14 @@ class Command(BaseCommand):
             for t in sorted((WAMA_DIR / label).glob('*.py.temoin')):
                 p = t.with_name(t.name[:-len('.temoin')])
                 if p.name != fname and not p.exists():
+                    shutil.copy2(t, p)
+                    restored.append(p.name)
+        if target == 'templates':
+            # Les cards COPIÉES mises en témoin quand les gabarits générés ont tenu
+            # (`_dead_copied_templates`) reviennent avec les copies : même règle que ci-dessus.
+            for t in sorted((WAMA_DIR / label / 'templates' / label).glob('*.html.temoin')):
+                p = t.with_name(t.name[:-len('.temoin')])
+                if not p.exists():
                     shutil.copy2(t, p)
                     restored.append(p.name)
         if not restored and not removed:

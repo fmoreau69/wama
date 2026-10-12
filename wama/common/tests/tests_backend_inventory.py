@@ -819,11 +819,8 @@ class EngineTableDerivedFromDeclarationsTest(SimpleTestCase):
         found = [('A', {'attrs': {'ENGINE': 'same'}, 'module': 'm.a'}),
                  ('B', {'attrs': {'ENGINE': 'same'}, 'module': 'm.b'}),
                  ('C', {'attrs': {'ENGINE': 'own'}, 'module': 'm.c'})]
-        files = {'A': {'bases': {'TTSBackend'}}, 'B': {'bases': {'TTSBackend'}},
-                 'C': {'bases': {'TTSBackend'}}}
         from unittest.mock import patch
         with patch.object(bi, '_class_backends', return_value=(found, [])), \
-                patch.object(bi.Path, 'glob', return_value=[Path('x.py')]), \
-                patch.object(bi._FICHIERS_BACKENDS, 'get', return_value=(files, '')), \
+                patch.object(bi, '_class_lineage', return_value={'TTSBackend', 'BaseModelBackend'}), \
                 self.assertLogs(bi.logger, level='WARNING'):
             self.assertEqual({'own': ('m.c', 'C')}, bi.contract_engines('text-to-speech'))

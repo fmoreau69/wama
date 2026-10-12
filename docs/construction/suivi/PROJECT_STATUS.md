@@ -15882,7 +15882,8 @@ la sœur, réparé) : *une ancre `def f` sans ses décorateurs n'est pas une anc
 **Ce qui était mesuré** : le commun était prêt (`intent_param`, renderer `type='intent'`, partial,
 score pondéré `_best_by_vram:273-292`) et adopté COMPLÈTEMENT par synthesizer/avatarizer/assistant ;
 l'anonymizer déclinait le curseur par sa voie locale (`get_model_size_from_precision` n/s/m/l/x aux
-seuils 20/40/60/80, segmentation ≥ 50 — `anonymizer/utils/model_selector.py:549-582`) et nourrissait
+seuils 20/40/60/80, segmentation ≥ 50 — `anonymizer/utils/model_selector.py:127-147`, lignes
+recalées le 2026-10-12 après le retrait R117) et nourrissait
 déjà `couvrir_classes` de ses deux préférences ; **imager, composer, reader, transcriber appelaient
 la brique SANS lui passer l'intention** ; `coerce_params` ignorait le type `intent` ; sur « auto »,
 **rien n'était grisé** (`index.html:441-444`, caps = null) ; le critère `select_model` rendait vert sur
