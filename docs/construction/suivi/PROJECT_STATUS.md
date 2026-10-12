@@ -23097,3 +23097,29 @@ retiré du disque. Détail : `PROSPECTION_PIPELINE §Suite du 2026-10-12`.
 - ⚠ Budgets de langue rouges dans la suite (code, classes et méthodes de test) : ajouts
   d'autres instances (`ui_smoke`, `tests_catalogues`, `doc_facts`, `check_docs`), aucun de ce
   palier.
+
+## §CLÔTURE — 2026-10-12, « CLÉ ILaaS » — palier du même jour COMMITÉ (`444c3828`, non poussé) — 🔴 relancer gunicorn + workers
+
+Le palier « CLÉ ILaaS posée et MESURÉE » plus haut se disait « non commité » : il l'est, dans
+`444c3828` (5 fichiers, index construit hunk par hunk ; le WIP « réutilisation des données »
+d'une autre instance, co-édité dans `cloud_models.py`, `tests_cloud_models.py`,
+`external_sources.py` et `WAMA_LLM.md`, est resté dans l'arbre, vérifié à la clôture).
+
+- **Question de Fabien, TRANSFÉRÉE à la session « routage des modèles cloud »** : *« si Albert est
+  surchargé, bascule-t-on cloud → cloud → local ? »* Constat mesuré ici, pour qu'il ne se perde
+  pas : **aucune bascule n'existe**. Sur un 429, `llm_utils._completion` attend (`Retry-After`,
+  sinon `rate_limit_wait_s`, plafond 60 s) et retente UNE fois ; ensuite l'assistant termine le
+  tour en erreur (`run_assistant_turn`). Le tirage (`resolve_turn_model`) ne connaît aucun signal
+  de saturation de fournisseur. La conception est à cette autre session, pas à celle-ci.
+- **Contrôles mesurés à la clôture** : `tests_cloud_models`, `tests_external_sources`,
+  `tests_api_keys`, `tests_llm_providers` — **150 OK** (arbre courant, WIP d'autrui compris) ;
+  `check_redundancy` 102 trouvailles, **aucune** dans `cloud_models.py` ; `check_docs` 21
+  cassées / 2 périmées, aucune dans les lignes de cette session ; `check_skills` sans défaut franc.
+- Artefacts : sondes ILaaS et script de commit dans le scratchpad de session (jetables, aucun
+  n'imprime la clé) ; fil d'essai de l'assistant effacé ; en base, la clé d'instance ILaaS
+  partagée et ses 6 lignes `ilaas:*` (voulues).
+
+**Restent** : 🔚 signaler à ILaaS la liste vide intermittente (`/models` vide ~1 lecture sur 2) ·
+vision de `gemma-4-31b` / des Qwen à MESURER puis déclarer · attente sur 429 d'ILaaS non mesurée ·
+clé d'embedding rangée hors WAMA (`rag-api.ilaas.fr` non branché) · budgets de langue rouges
+(ajouts d'autres instances, aucun de cette session).
