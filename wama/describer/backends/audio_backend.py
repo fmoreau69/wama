@@ -1,5 +1,5 @@
 """
-Backend AUDIO du describer — transcription Whisper + résumé LLM.
+Backend AUDIO du describer — transcription (Whisper par défaut, ou le modèle désigné) + résumé LLM.
 
 Contrat commun « texte » (voir `image_backend`) :
     callable(input_path, options=dict, progress_callback=fn, partial_callback=fn,
@@ -18,9 +18,30 @@ def _noop(*_a, **_k):
     return None
 
 
+def transcribe_speech(input_path: str, asr_model: str = None, user=None, console=None,
+                      duration: float = 0.0) -> str:
+    """Le texte parlé d'un fichier audio (ou de la piste son extraite d'une vidéo) — l'étape
+    `transcribe` du pipeline (`function_specs.PIPELINE`). `asr_model` : la clé de catalogue
+    retenue (« auto » / None = Whisper large-v3, le chemin d'avant). Lève si la transcription
+    échoue."""
+    from wama.common.utils.auto_model import is_auto
+    console = console or _noop
+    if is_auto(asr_model):
+        console("Transcription audio avec Whisper (large-v3)…")
+    else:
+        console(f"Transcription audio avec {asr_model}…")
+    from wama.common.utils.whisper_utils import transcribe_audio as _transcribe
+    return _transcribe(input_path, model_name='large-v3', model_key=asr_model, user=user,
+                       duration=duration).text
+
+
 def describe_audio(input_path: str, options: dict = None,
                    progress_callback=None, partial_callback=None, console=None) -> str:
-    """Décrit un contenu audio (transcription puis résumé) — contrat commun « texte »."""
+    """Décrit un contenu audio (transcription puis résumé) — contrat commun « texte ».
+
+    `options['transcript']` (2026-10-13) : la transcription que le process `transcribe` a déjà
+    rendue — reprise telle quelle, l'audio n'est pas réécouté. Absente (appel du contrat seul,
+    la jumelle), elle est faite ici, par le modèle `options['asr_model']`."""
     options = options or {}
     progress = progress_callback or _noop
     partial = partial_callback or _noop
@@ -34,13 +55,10 @@ def describe_audio(input_path: str, options: dict = None,
     progress(20)
 
     try:
-        # Transcribe audio with shared whisper_utils (faster-whisper, large-v3)
-        console("Transcription audio avec Whisper (large-v3)…")
-        partial("Chargement du modèle Whisper…")
-
-        from wama.common.utils.whisper_utils import transcribe_audio as _transcribe
-        _result = _transcribe(input_path, model_name='large-v3')
-        transcript = _result.text
+        transcript = options.get('transcript')
+        if transcript is None:
+            partial("Chargement du modèle de transcription…")
+            transcript = transcribe_speech(input_path, options.get('asr_model'), console=console)
 
         if not transcript or not transcript.strip():
             return "Aucune parole détectée dans le fichier audio."
@@ -55,10 +73,12 @@ def describe_audio(input_path: str, options: dict = None,
         if output_style == 'meeting':
             console("Génération du compte-rendu de réunion (Ollama)…")
             partial("Rédaction du compte-rendu…")
-            from wama.common.utils.llm_utils import generate_meeting_summary, get_describer_model
-            _model = get_describer_model('audio', 'meeting')
+            from wama.common.utils.llm_utils import generate_meeting_summary
+            from .model_choice import llm_for
+            _model, _provider = llm_for(options, 'audio', 'meeting')
             console(f"Modèle LLM : {_model}")
-            return generate_meeting_summary(transcript, language=output_language, model=_model)
+            return generate_meeting_summary(transcript, language=output_language, model=_model,
+                                            provider=_provider)
 
         # If short, just format the transcript
         if word_count <= max_length:
@@ -71,15 +91,16 @@ def describe_audio(input_path: str, options: dict = None,
         partial("Génération du résumé en cours…")
         progress(70)
 
-        from wama.common.utils.llm_utils import generate_structured_summary, get_describer_model
-        _model = get_describer_model('audio', output_style)
+        from wama.common.utils.llm_utils import generate_structured_summary
+        from .model_choice import llm_for
+        _model, _provider = llm_for(options, 'audio', output_style)
         console(f"Modèle LLM : {_model}")
 
         try:
             summary_data = generate_structured_summary(
                 transcript, content_hint='audio',
                 language=output_language or 'fr',
-                model=_model,
+                model=_model, provider=_provider,
             )
             progress(85)
 

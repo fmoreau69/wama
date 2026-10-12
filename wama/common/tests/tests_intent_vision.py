@@ -137,7 +137,10 @@ class IntentCascadeTest(TestCase):
         self.assertEqual(auto_model.intent_field_for('synthesizer'), 'quality_intent')
         self.assertEqual(auto_model.intent_field_for('anonymizer'), 'precision_level')
         self.assertEqual(auto_model.intent_field_for('converter'), 'quality_intent')   # rallié le 20/09
-        self.assertIsNone(auto_model.intent_field_for('describer'))
+        # The describer gained its slider with its model selects (2026-10-13, pipeline) ; the
+        # « none » case is kept on an app that serves no automatic choice at all.
+        self.assertEqual(auto_model.intent_field_for('describer'), 'quality_intent')
+        self.assertIsNone(auto_model.intent_field_for('media_library'))
         u = get_user_model().objects.create_user('c_intent', password='x')
 
         class _Item:

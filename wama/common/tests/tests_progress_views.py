@@ -101,10 +101,18 @@ class OneEtaPlacePerAppTest(SimpleTestCase):
 @override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
                                        'LOCATION': 'progress-views-tests'}})
 class FactoryViewsTest(TestCase):
-    """On a real queue model (the describer's), the hooks do what the apps declare."""
+    """On a real queue model (the describer's), the hooks do what the apps declare.
+
+    The describer carries a pipeline since 2026-10-13 : it is set aside here (`pipeline_of` →
+    None), these tests hold the hooks of a card WITHOUT pipeline — a card with one is held by
+    `tests_process_eta` and the pipeline tests of each app."""
 
     def setUp(self):
         from wama.describer.models import Description
+        no_pipeline = mock.patch('wama.common.services.process_pipeline.pipeline_of',
+                                 return_value=None)
+        no_pipeline.start()
+        self.addCleanup(no_pipeline.stop)
         cache.clear()
         self.model = Description
         self.user = get_user_model().objects.create_user('progress-views', password='x')

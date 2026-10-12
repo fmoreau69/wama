@@ -12,8 +12,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Bouton de cycle commun ▶/⏹/↻ : câblage délégué (start/restart→startDescription, stop→stopDescription)
     // + auto-sync sur data-status (l'icône suit le statut, plug-and-play). startDescription/stopDescription
     // sont des déclarations de fonction (hoistées) → référençables ici.
+    // `process` : le ▶ d'UN process de la bande (2026-10-13, pipeline) → lancement borné (route
+    // `start/<id>/<process>/`) ; vide pour le ▶ de la card, qui lance tout ce qui est dû.
     if (window.WamaCycleButton && queueContainer) {
-        WamaCycleButton.wire(queueContainer, { start: (id) => startDescription(id), stop: (id) => stopDescription(id) });
+        WamaCycleButton.wire(queueContainer, {
+            start: (id, btn, process) => startDescription(id, process),
+            stop: (id) => stopDescription(id),
+        });
         WamaCycleButton.autoSync({ container: queueContainer, cardSelector: '.wama-card' });
     }
 
@@ -112,12 +117,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Bind events for existing cards
     document.querySelectorAll('.wama-card').forEach(bindCardEvents);
 
-    // Reprise du suivi des cards DÉJÀ en cours à l'ouverture de la page. Lu sur `data-status` :
-    // la classe `.processing` a été retirée des cards le 2026-09-18 (le CSS lit l'attribut), et
-    // ce sélecteur ne trouvait plus rien — une card en cours au chargement restait figée, même
-    // passée en échec (vu par le geste `describer.worker_death`, 2026-09-24).
-    document.querySelectorAll('.wama-card[data-status="RUNNING"], .wama-card[data-status="AWAITING_RESOURCES"]').forEach(card => {
-        startPolling(card.dataset.id);
+    // Reprise du suivi des cards DÉJÀ en cours à l'ouverture de la page. Lu sur l'état de
+    // l'ÉLÉMENT (`data-element-status`, 2026-10-13) : `data-status` est l'état MONTRÉ, déduit des
+    // process — une card terminée dont un optionnel reste à compléter s'y montre « en attente »,
+    // et la suivre la ferait recharger en boucle. (La classe `.processing`, lue jusqu'au
+    // 2026-09-24, avait été retirée des cards le 2026-09-18 : une card en cours restait figée.)
+    document.querySelectorAll('.wama-card[data-id]').forEach(card => {
+        const status = (card.dataset.elementStatus || card.dataset.status || '').toUpperCase();
+        if (status === 'RUNNING' || status === 'AWAITING_RESOURCES') startPolling(card.dataset.id);
     });
 
     // === Settings Modal ===
@@ -167,15 +174,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // checkbox + re-sync des sliders — pas de _set maison, route unique).
         const group = btn.closest('.batch-group');
         const first = group ? group.querySelector('.settings-btn') : null;
-        const fd = first ? first.dataset : {};
         const host = document.getElementById('describerBatchParams');
-        if (window.WamaParams && host) {
-            const vals = {};
-            if (fd.outputStyle) vals.output_style = fd.outputStyle;
-            if (fd.outputLanguage) vals.output_language = fd.outputLanguage;
-            if (fd.maxLength) vals.max_length = fd.maxLength;
-            if (fd.generateSummary != null) vals.generate_summary = fd.generateSummary;
-            if (fd.verifyCoherence != null) vals.verify_coherence = fd.verifyCoherence;
+        if (window.WamaParams && host && first) {
+            // LE lecteur unique des data-* du gear (`WamaInspector.gearValues`, celui de la modale
+            // d'élément) sur les noms du SCHÉMA — la liste de cinq réglages écrite ici à la main
+            // ignorait tout réglage ajouté (les modèles et le curseur, 2026-10-13).
+            const schema = window.WAMA_DESCRIBER_SCHEMA || [];
+            const vals = WamaInspector.gearValues(first.closest('.wama-card') || first,
+                                                  schema.map(function (p) { return p.name; }));
             WamaParams.apply(host, vals);   // une clé absente n'écrase pas le champ
         }
         new bootstrap.Modal(modalEl).show();
@@ -226,7 +232,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) { /* non-fatal */ }
     }
 
-    async function startDescription(id) {
+    async function startDescription(id, process) {
         const card = document.querySelector(`.wama-card[data-id="${id}"]`);
         if (!card) return;
 
@@ -242,7 +248,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (startBtn) startBtn.disabled = true;
 
         try {
-            const response = await fetch(config.urls.start.replace('/0/', `/${id}/`), {
+            // `process` : le ▶ d'un process de la bande — adresse composée par la brique commune.
+            const url = WamaCycleButton.processUrl(config.urls.start.replace('/0/', `/${id}/`), process);
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': config.csrfToken,
@@ -366,11 +374,15 @@ document.addEventListener('DOMContentLoaded', function() {
                            }));
         }
 
+        // Les PROCESS de la card (bande commune) suivent le traitement en place.
+        if (data && window.WamaApp && WamaApp.updateProcessRows) WamaApp.updateProcessRows(card, data.processes);
+
         // `data-status` pilote TOUT : la couleur d'état (CSS sur l'attribut) et le bouton de
         // cycle (WamaCycleButton.autoSync, qui passe en ⏹ Stop sans qu'on retire de bouton).
         // Les classes processing/success/error posées ici recopiaient l'information — retirées
-        // le 2026-09-18.
+        // le 2026-09-18. `data-element-status` : l'état de l'ÉLÉMENT, sur lequel le suivi se fie.
         card.dataset.status = status;
+        card.dataset.elementStatus = status;
     }
 
     // Card RENDUE SERVEUR — source unique : partial _description_card.html via

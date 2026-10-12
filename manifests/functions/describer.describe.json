@@ -1,0 +1,87 @@
+{
+  "body": {
+    "app": "describer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "describer.workers:describe_content",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le texte parlé (audio, vidéo).",
+        "group": "travail",
+        "key": "transcript",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Les légendes des images-clés (vidéo).",
+        "group": "travail",
+        "key": "frames",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "image",
+        "description": "L'image à décrire.",
+        "group": "travail",
+        "key": "work_image",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le document à décrire.",
+        "group": "travail",
+        "key": "work_document",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "describer.describe",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "La description.",
+        "key": "description",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "text",
+      "vision",
+      "llm"
+    ],
+    "visibility": "public"
+  },
+  "description": "Rédige la description de l'entrée au style et dans la langue de la card : une image par le modèle de vision, un document, un audio ou une vidéo par le modèle de langage, à partir de ce que la transcription et les légendes ont rendu.",
+  "key": "describer.describe",
+  "manifest_kind": "function",
+  "name": "Describer — décrire",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:describer.describe",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

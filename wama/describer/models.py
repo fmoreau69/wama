@@ -105,6 +105,27 @@ class Description(ProcessingTimeMixin, ScopedVisibility):
         help_text="Maximum length of summary in words"
     )
 
+    # Le MODÈLE de chaque rôle du pipeline (2026-10-13, `function_specs.PIPELINE`) — clés de
+    # catalogue, ou « auto » : transcription (audio, piste son d'une vidéo), vision (image,
+    # images-clés d'une vidéo), langage (rédaction, résumé, cohérence). `db_default` : le code
+    # en service avant le redémarrage insère sans ces colonnes (migration 0015).
+    asr_model = models.CharField(max_length=200, blank=True, default='auto', db_default='auto',
+                                 help_text="Clé de catalogue du modèle de transcription, ou « auto ».")
+    vision_model = models.CharField(max_length=200, blank=True, default='auto', db_default='auto',
+                                    help_text="Clé de catalogue du modèle de vision, ou « auto ».")
+    llm_model = models.CharField(max_length=200, blank=True, default='auto', db_default='auto',
+                                 help_text="Clé de catalogue du modèle de langage, ou « auto ».")
+    # Curseur rapide/qualité du tirage « auto » — lu au LANCEMENT (`resolve_model_choice(item=…)`
+    # → `quality_intent_of`). Null = le réglage d'app de l'utilisateur, sinon équilibré (50).
+    quality_intent = models.IntegerField(null=True, blank=True,
+                                         help_text="Curseur rapide/qualité 0-100 du tirage auto")
+
+    # Sorties INTERMÉDIAIRES des process, gardées sur la card : un process relancé seul (▶ de la
+    # bande) reprend celles de ses amonts au lieu de les refaire.
+    transcript = models.TextField(blank=True, default='', db_default='')
+    frame_captions = models.JSONField(blank=True, default=list,
+                                      db_default=models.Value([], output_field=models.JSONField()))
+
     # Optional LLM summary (generated after description if requested)
     generate_summary = models.BooleanField(default=False)
     summary = models.TextField(blank=True)

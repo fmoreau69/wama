@@ -913,15 +913,28 @@ class NatureFieldAgreementTest(SimpleTestCase):
     APPS = ItemEditRouteAliasTest.APPS
 
     def test_upload_writes_the_nature_column_the_task_reads(self):
+        """⚠ The describer carries a PIPELINE since 2026-10-13, whose glues the generator does not
+        compose yet (marche B — like every pipeline app) : the case that revealed the defect, a
+        nature column of its own (`detected_type`), is read on its SINGLE-process form, the one
+        the generator still composes for an app that routes its backends."""
         import re
+        from unittest import mock
+        from wama.common.manifests.codegen import pipeline_decl
         from wama.common.manifests.ingest import extract
         from wama.common.manifests.codegen.tasks_gen import render_tasks
+        declared = pipeline_decl.declared_pipeline
+
+        def single_process_describer(app_id):
+            return (None, None) if app_id == 'describer' else declared(app_id)
+
         checked = []
         for app in self.APPS:
             manifest = extract('app', app)
             if not manifest:
                 continue
-            tasks_src, _why = render_tasks(manifest)
+            with mock.patch.object(pipeline_decl, 'declared_pipeline',
+                                   side_effect=single_process_describer):
+                tasks_src, _why = render_tasks(manifest)
             read = re.search(r"getattr\(item, '(\w+)', ''\)", tasks_src or '')
             if not read:
                 continue          # no composed body: nothing is read

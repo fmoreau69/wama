@@ -1,0 +1,137 @@
+{
+  "body": {
+    "layout": {},
+    "links": [
+      {
+        "from": "transcribe",
+        "to": "describe",
+        "to_port": null
+      },
+      {
+        "from": "frames",
+        "to": "describe",
+        "to_port": null
+      },
+      {
+        "from": "describe",
+        "to": "summarize",
+        "to_port": null
+      },
+      {
+        "from": "describe",
+        "to": "coherence",
+        "to_port": null
+      }
+    ],
+    "nodes": [
+      {
+        "app": null,
+        "function": "describer.transcribe",
+        "id": "transcribe",
+        "kind": "function",
+        "params": {
+          "degree": "required",
+          "eta": "describer.workers:transcribe_eta",
+          "gpu": true,
+          "label": "Transcription",
+          "result": "describer.function_specs:transcript_text",
+          "share": 4,
+          "watched": [
+            "asr_model",
+            "quality_intent",
+            "input_file"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "describer.frames",
+        "id": "frames",
+        "kind": "function",
+        "params": {
+          "degree": "required",
+          "eta": "describer.workers:frames_eta",
+          "gpu": true,
+          "label": "Images-clés",
+          "result": "describer.function_specs:frames_text",
+          "share": 3,
+          "watched": [
+            "vision_model",
+            "input_file"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "describer.describe",
+        "id": "describe",
+        "kind": "function",
+        "params": {
+          "degree": "required",
+          "eta": "describer.workers:describe_eta",
+          "gpu": false,
+          "label": "Description",
+          "result": "describer.function_specs:description_text",
+          "share": 3,
+          "watched": [
+            "output_style",
+            "output_language",
+            "max_length",
+            "vision_model",
+            "llm_model",
+            "input_file"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "describer.summarize",
+        "id": "summarize",
+        "kind": "function",
+        "params": {
+          "degree": "optional",
+          "eta": "describer.workers:summarize_eta",
+          "gpu": false,
+          "label": "Résumé",
+          "result": "describer.function_specs:summary_text",
+          "toggle": "generate_summary",
+          "watched": [
+            "output_language",
+            "llm_model"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "describer.coherence",
+        "id": "coherence",
+        "kind": "function",
+        "params": {
+          "degree": "optional",
+          "eta": "describer.workers:coherence_eta",
+          "gpu": false,
+          "label": "Cohérence",
+          "result": "describer.function_specs:coherence_text",
+          "toggle": "verify_coherence",
+          "watched": [
+            "output_language",
+            "llm_model"
+          ]
+        }
+      }
+    ]
+  },
+  "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
+  "key": "describer",
+  "manifest_kind": "pipeline",
+  "name": "Describer — transcription, images-clés, description, résumé, cohérence (5 process)",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "describer.function_specs:PIPELINE",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

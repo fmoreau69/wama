@@ -1,0 +1,56 @@
+{
+  "body": {
+    "app": "describer",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {},
+    "impl": "describer.workers:describe_content",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "La description à résumer.",
+        "group": "travail",
+        "key": "description",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "describer.summarize",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le résumé.",
+        "key": "summary",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "text",
+      "llm"
+    ],
+    "visibility": "public"
+  },
+  "description": "Résume la description (résumé structuré, LLM).",
+  "key": "describer.summarize",
+  "manifest_kind": "function",
+  "name": "Describer — résumer",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:describer.summarize",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

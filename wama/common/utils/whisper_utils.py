@@ -13,6 +13,12 @@ consommateurs (describer audio/vidéo n'utilisent que `.text`), exécution par
 `get_backend('whisper')` — singleton géré, modèle GARDÉ chargé après l'appel (pattern
 keep_loaded maison ; le reclaim du gouverneur l'évince si la VRAM manque ailleurs).
 
+Depuis le 2026-10-13, `model_key` désigne N'IMPORTE QUEL modèle de transcription du catalogue
+(le select du describer, même domaine que celui du transcriber) : résolu par le gestionnaire du
+transcriber (`get_backend`), la variante demandée chargée (`model_for_request`), l'audio long
+découpé par la règle du transcriber (`_transcribe_maybe_chunked`) quand le moteur a une durée
+maximale. Sans clé, ou « auto », le chemin d'avant : Whisper large-v3.
+
 Usage:
     from wama.common.utils.whisper_utils import transcribe_audio, WhisperResult
 
@@ -54,19 +60,28 @@ def transcribe_audio(
     vad_filter: bool = True,
     word_timestamps: bool = True,
     beam_size: int = 5,
+    model_key: Optional[str] = None,
+    user=None,
+    duration: float = 0.0,
 ) -> WhisperResult:
     """
-    Transcrit un fichier audio/vidéo VIA le backend Whisper du transcriber.
+    Transcrit un fichier audio/vidéo VIA un backend de transcription du transcriber.
 
     Args:
         audio_path:      Chemin du fichier audio / vidéo.
-        model_name:      Taille du modèle Whisper (défaut : 'large-v3').
+        model_name:      Taille du modèle Whisper (défaut : 'large-v3') — chemin sans `model_key`.
         language:        Code ISO 639-1, ou None pour auto-détection.
         device:          IGNORÉ (délégué) — le backend choisit device et compute type.
         compute_type:    IGNORÉ (délégué) — idem.
         vad_filter:      Retirer les silences (Voice Activity Detection).
         word_timestamps: Timing mot-à-mot dans les segments.
         beam_size:       Largeur du beam search.
+        model_key:       Clé de catalogue d'un modèle de transcription ; None / « auto » = Whisper
+                         large-v3, comme avant.
+        user:            Celui pour qui un modèle DISTANT est appelé (sa clé, ses droits) — un
+                         distant sans utilisateur est refusé : il partirait avec la clé de l'instance.
+        duration:        Durée de l'audio (s) : au-delà de ce qu'un moteur accepte, l'audio est
+                         découpé (règle du transcriber). 0 = inconnue, pas de découpage.
 
     Returns:
         WhisperResult avec .text, .language, .duration, .segments.
@@ -76,19 +91,28 @@ def transcribe_audio(
     Raises:
         RuntimeError si le chargement ou la transcription échoue.
     """
-    from wama.transcriber.backends.manager import get_backend
+    from wama.common.utils.auto_model import is_auto
+    from wama.transcriber.backends.manager import TranscriberBackendManager, get_backend
 
-    backend = get_backend('whisper')
-    if not backend.load(model_name):        # no-op si déjà chargé avec ce modèle
-        raise RuntimeError(f"Chargement du modèle Whisper '{model_name}' impossible")
-
-    res = backend.transcribe(
-        audio_path,
-        language=language,
-        vad_filter=vad_filter,
-        enable_timestamps=word_timestamps,
-        beam_size=beam_size,
-    )
+    kwargs = dict(language=language, vad_filter=vad_filter, enable_timestamps=word_timestamps,
+                  beam_size=beam_size)
+    if model_key and not is_auto(model_key):
+        if TranscriberBackendManager._is_remote_key(model_key) and user is None:
+            raise RuntimeError(f"« {model_key} » est un modèle distant : il ne s'appelle que pour "
+                               "un utilisateur, avec sa clé.")
+        backend = get_backend(model_key, user=user)
+        wanted = TranscriberBackendManager.model_for_request(backend, model_key)
+        if not (backend.load(wanted) if wanted else backend.load()):
+            raise RuntimeError(f"Chargement du modèle « {model_key} » impossible")
+        # Le découpage d'un audio plus long que le moteur ne l'accepte : la règle du transcriber,
+        # reprise telle quelle (un moteur illimité — Whisper — passe en direct).
+        from wama.transcriber.workers import _transcribe_maybe_chunked
+        res = _transcribe_maybe_chunked(backend, audio_path, float(duration or 0), kwargs)
+    else:
+        backend = get_backend('whisper')
+        if not backend.load(model_name):        # no-op si déjà chargé avec ce modèle
+            raise RuntimeError(f"Chargement du modèle Whisper '{model_name}' impossible")
+        res = backend.transcribe(audio_path, **kwargs)
     if not res.success:
         raise RuntimeError(res.error or 'Transcription échouée')
 

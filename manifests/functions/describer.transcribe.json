@@ -1,0 +1,67 @@
+{
+  "body": {
+    "app": "describer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "describer.workers:describe_content",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "L'audio à transcrire.",
+        "group": "travail",
+        "key": "work_audio",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "La vidéo dont la piste son est transcrite.",
+        "group": "travail",
+        "key": "work_video",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "describer.transcribe",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le texte parlé.",
+        "key": "transcript",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "speech",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Transcrit la parole d'un audio, ou de la piste son d'une vidéo, avec le modèle de transcription de la card ou le tirage automatique (Whisper d'abord).",
+  "key": "describer.transcribe",
+  "manifest_kind": "function",
+  "name": "Describer — transcrire la parole",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:describer.transcribe",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

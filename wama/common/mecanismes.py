@@ -2406,7 +2406,7 @@ ASSUMED_LOCAL = {
     # Triage du 2026-08-13 (les 3 dernières entrées du backlog) — aucun n'était mort, mes
     # « 0 apps » ne comptaient pas wama_lab :
     'wama/common/utils/intervals.py': "algèbre d'intervalles — cam_analyzer (coverage) seul consommateur",
-    'wama/common/utils/whisper_utils.py': "adaptateur describer → backend Whisper du transcriber (UNIFIÉ 13/08 : plus de double chemin de chargement) ; consommé par le describer seul",
+    'wama/common/utils/whisper_utils.py': "transcription d'un fichier pour les apps hors transcriber (describer, avatarizer) par le gestionnaire du transcriber — Whisper large-v3 sans clé, toute clé de catalogue de transcription sinon, découpage compris (13/10) ; plus de double chemin de chargement (13/08)",
     # 2026-08-27 : la page du registre `skills`. Le service ne porte AUCUN mécanisme propre — il
     # dérive `prompt_skills/*.md` × PROMPT_TARGETS × DOMAINES pour un seul gabarit. Les mécanismes
     # qu'il donne à VOIR sont déjà déclarés (`prompt_pipeline`, `assistant_skills`, `registres`).

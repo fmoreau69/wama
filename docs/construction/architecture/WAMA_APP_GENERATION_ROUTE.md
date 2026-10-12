@@ -494,9 +494,13 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     l'ORIGINAL gardé par la Sortie (`native_outputs`) pour les quatre process de la liste qui le
     rendent (anonymizer `blur`, `generate` ×3) ; le rendu `segments` sortira `align` de la liste.
   - ⏳ **Décisions ouvertes, à rediscuter avec Fabien** : la place de l'Évaluation du transcriber
-    (une mesure contre une référence, pas un process) ; résumé et cohérence du describer (onglets à
-    la demande, pas des process) ; la face d'une fonction PURE du Studio et de Data (sortie
-    recalculée, non conservée — décision n°2 du `§10.6`).
+    (une mesure contre une référence, pas un process) ; la face d'une fonction PURE du Studio et
+    de Data (sortie recalculée, non conservée — décision n°2 du `§10.6`).
+    ~~résumé et cohérence du describer (onglets à la demande, pas des process)~~ — **constat faux,
+    corrigé le 2026-10-13** : ils étaient calculés DANS la tâche, derrière les interrupteurs
+    `generate_summary` / `verify_coherence`, leurs échecs avalés (`describer/workers.py`, version
+    d'avant) — des process optionnels comme ceux du transcriber, non déclarés. Ils le sont
+    depuis : le describer porte son pipeline (`§10.6`, bloc « Le DESCRIBER en pipeline »).
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
   `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
 - **Manifeste** : inspector adapter (mapping champs→clés canoniques), preview binding sur port,
@@ -4641,6 +4645,54 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   en « auto » (98,7 s), **vidéo en « auto »** (LTX fp8, 273 s — jamais jouée avant par le
 >   nouveau code), avatar `speak` 116 s → `animate` 225 s (`PROJECT_STATUS §PALIER` du jour).
 
+> ✅ **Le DESCRIBER en pipeline — LIVRÉ le 2026-10-13** (décision de Fabien : *« toutes les
+> applications doivent fonctionner en pipeline »*, et *« plusieurs modèles peuvent faire ces
+> process, il faudrait aussi porter ça »*). Il passait pour une app « à un seul process » alors
+> que sa tâche enchaînait transcription, légendes des images-clés, rédaction, résumé et
+> cohérence — dans une fonction, sans ligne d'exécution, les deux derniers en échec AVALÉS.
+> - **CINQ process selon la NATURE de l'entrée** (`describer/function_specs.py`, glues
+>   `workers.PROCESSES`) : `transcribe` (audio, piste son d'une vidéo) → `frames` (images-clés
+>   d'une vidéo, pas pour un compte-rendu de réunion qui ne les lit pas) → `describe` (toute card)
+>   → `summarize`, `coherence` (optionnels, leurs interrupteurs d'avant ; le résumé sans objet
+>   pour un compte-rendu, qui EST un résumé). Une image ou un document : un seul process.
+>   Les sorties intermédiaires sont gardées sur la card (`transcript`, `frame_captions`,
+>   migration `describer/0015`, `db_default` partout) : la rédaction les REPREND
+>   (`options['transcript']`, `options['frame_captions']`), un process relancé seul aussi.
+> - **Le MODÈLE de chaque rôle se choisit** (patron des deux selects de l'avatarizer, route
+>   F4b) : transcription (`asr_model`, le domaine du transcriber, sa politique « Whisper d'abord »
+>   et le curseur rapide/qualité), vision (`vision_model` : BLIP et les modèles de conversation
+>   qui lisent une image), langage (`llm_model`). « auto » garde le comportement d'avant : la
+>   cascade vision, les tiers du style (`get_describer_model`) — ces deux selects se TAISENT
+>   (`options_auto="silent"`), une prévision du catalogue ne dirait pas cette règle. Un modèle
+>   DÉSIGNÉ n'est jamais remplacé en silence (règle du transcriber) ; un modèle distant est
+>   refusé en le disant (les aides de `llm_utils` ne portent pas la clé d'un utilisateur).
+>   Lecture commune aux quatre backends : `backends/model_choice.py`.
+> - **Ce qui n'a pas été réécrit** : les backends gardent leur contrat commun « texte » (la
+>   jumelle et `route_for_nature` les appellent seuls — sans les résultats d'amont, ils les font
+>   eux-mêmes) ; la brique de transcription commune (`whisper_utils.transcribe_audio`) prend une
+>   clé de catalogue et la confie au gestionnaire du transcriber (`get_backend`,
+>   `model_for_request`, découpage `_transcribe_maybe_chunked`) — sans clé, Whisper large-v3
+>   comme avant. Le lanceur ne vide plus les résultats (`_reset_for_relaunch`), la triade de
+>   l'assistant prend la remise à zéro du ▶ de la card ; la duplication vide tous les résultats
+>   (une liste, `DUPLICATE_RESET`). Faces de l'aperçu : Transcription, Images-clés, Résumé,
+>   Cohérence (`ProcessSpec.result`) ; un optionnel désactivé ne montre rien (règle 4.4).
+> - Gardes : `describer/tests_pipeline.py` (34) ; contre-épreuves ROUGES (description qui ne
+>   reçoit plus la transcription, modèle de langage qui ne périme rien, modèle de vision muet
+>   remplacé par BLIP, lanceur qui efface, brique qui ignore la clé, rapport d'un optionnel
+>   désactivé, images-clés d'un compte-rendu).
+> - ⚠ **Grille : 100 % → 97 %**, et c'est une mesure, pas une régression : en gagnant des
+>   selects de modèle, le describer entre dans `input_match_ui` et `model_caps_ui`. Le grisage par
+>   entrées (`WamaInputMatch`) n'est PAS câblé à dessein sur les selects vision et langage : le
+>   catalogue déclare `prompt` comme entrée requise des modèles de conversation, il les griserait
+>   tous ; sur la transcription, il ne griserait rien (tous exigent l'audio que la card fournit).
+>   Question posée à Fabien plutôt que de verdir le critère.
+> - ⏳ **Restes** : le « compte-rendu de réunion » comme TYPE de résumé (au transcriber, il l'est
+>   déjà) plutôt que comme style de sortie — il résume encore à deux endroits (backends et
+>   process) ; le découpage des backends (vidéo : images-clés et piste son sont des process, la
+>   combinaison reste au backend) ; reader (son analyse LLM, `analyze_document_task`, hors
+>   pipeline) et converter — la suite de la même décision ; le nom d'une card dans sa
+>   notification est le libellé du DERNIER process (« cohérence 90/100 »), transcriber compris.
+
 #### 5. Couche 3 — l'UI : la card affiche son pipeline, le studio affiche le même objet en graphe
 
 **5.1 Anatomie de la card** (même ordre que `CARD_DESIGN §11.8` : Entrée / Réglages / Sortie) :
@@ -5088,6 +5140,12 @@ possible **sans aucun process**.
     à l'app depuis le 09/09. Ce qui reste établi : un process d'app est un pipeline à UN nœud
     (30/08), et c'est le cas normal — une app ne déclare un pipeline que si sa card porte
     plusieurs process.
+    ⚠ **Recadré le 2026-10-13 (Fabien)** : *« Toutes les applications doivent fonctionner en
+    pipeline. »* — mesuré le même jour, le describer passait pour « un seul process » alors que
+    sa tâche en enchaînait cinq, invisibles. La question n'est plus « la card porte-t-elle
+    plusieurs process ? » mais « quels process la tâche enchaîne-t-elle ? » : toute étape qui a
+    son modèle, son coût ou son échec propre est un process DÉCLARÉ. ✅ describer (13/10) ;
+    ⏳ reader (analyse LLM à la demande, hors pipeline), converter.
     Historique : une facette `pipelines` à nœuds `process` avait été écrite le 2026-10-01 pour le
     Writer, puis RETIRÉE le jour même (elle doublait le kind `pipeline`, un tri topologique
     existant et le moteur commun — `WAMA_MANIFEST_SPEC §3.1` garde le récit).

@@ -3198,7 +3198,9 @@ TRIAD_SPECS = {
         'model': 'wama.describer.models.Description',
         'task': 'wama.describer.workers.describe_content',
         'id_kwarg': 'description_id',
-        'reset': {'result_text': '', 'error_message': ''},
+        # Celle du ▶ de la card : depuis le pipeline (2026-10-13) chaque process réécrit sa sortie
+        # quand il est rejoué — effacer la description ici la perdrait sous un résumé relancé seul.
+        'reset': 'wama.describer.views._reset_and_clear_progress',
         'empty_msg': 'Aucune description en attente.',
         'status_order': '-id',
         'status_fields': {

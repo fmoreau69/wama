@@ -7,29 +7,49 @@ par `WamaParams.render(container, PARAMS_JSON, {context})`. Les `dom_id` reprenn
 de chaque surface → JS existant + apparence préservés (migration sans casse).
 
 Voir le gabarit `transcriber/params.py` et `common/utils/param_schema.py`.
+
+Depuis le 2026-10-13 la card porte un PIPELINE (`function_specs.PIPELINE`) : chaque réglage
+déclare les process qu'il PÉRIME (`stales`) — changer le style ne réécoute pas l'audio, changer
+le modèle de transcription ne réécrit que ce qui en dépend. Et le MODÈLE de chaque rôle se choisit
+(décision de Fabien : « plusieurs modèles peuvent faire ces process ») : transcription, vision,
+langage — trois selects tirés du CATALOGUE par capacité (route F4b, patron de l'avatarizer et de
+ses deux selects), « auto » en tête.
 """
+from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
 from wama.describer.models import Description
 
+PANEL_ITEM_BATCH = ("panel", "item", "batch")
+
 PARAMS = derive_from_model(
     Description,
-    include=["output_style", "output_language", "max_length", "generate_summary", "verify_coherence"],
+    # ⚠ ORDRE : `asr_model` reste le PREMIER select `catalog` — `auto_model.catalog_field` rend le
+    # premier, et le tirage « auto » du lancement (`workers.asr_key`) lit SON domaine et ses
+    # affinages (`options_resolution`). Les deux autres « auto » sont propres au describer (la
+    # cascade vision, les tiers du style) : leur select se tait plutôt que de prévoir faux.
+    include=["output_style", "output_language", "max_length",
+             "asr_model", "quality_intent", "vision_model", "llm_model",
+             "generate_summary", "verify_coherence"],
     overrides={
         # dom_id "batch" (17/08) : modale batch DÉDIÉE générée (contrat reader) — remplace le
         # détournement de la modale item (_settingsBatchId + titre échangé) ; batch_update
-        # accepte les 5 champs (_apply_description_options).
+        # accepte les champs de SETTINGS_FIELDS (views.py).
         "output_style": dict(
             type="select", label="Format de sortie", icon="fa-align-left",
             dom_id={"panel": "output_style", "item": "settingsOutputFormat",
                     "batch": "batchSettingsOutputStyle"},
             help="Niveau de détail de la description générée.",
             chip=True,
+            # Un compte-rendu de réunion ne lit pas les images-clés et EST déjà un résumé : le
+            # style décide aussi si `frames` et `summarize` ont lieu (`function_specs`).
+            stales=("describe",),
         ),
         "output_language": dict(
             type="select", label="Langue de sortie", icon="fa-language",
             dom_id={"panel": "output_language", "item": "settingsOutputLanguage",
                     "batch": "batchSettingsOutputLanguage"},
             chip=True,
+            stales=("describe", "summarize", "coherence"),
         ),
         "max_length": dict(
             type="range", label="Longueur max", icon="fa-text-width",
@@ -38,7 +58,73 @@ PARAMS = derive_from_model(
                     "batch": "batchSettingsMaxLength"},
             help="Longueur maximale (caractères) de la description.",
             chip=True,
+            stales=("describe",),
         ),
+        # ── Le MODÈLE de chaque rôle (2026-10-13) ─────────────────────────────────────────────
+        # Transcription : le domaine du transcriber, sa politique « Whisper d'abord » et l'entrée
+        # que la card FOURNIT (un audio) — déclarées ici, lues par le lancement ET la prévision.
+        # Pas de modèle distant (`options_cloud`) : le describer transcrivait en local, il le reste
+        # tant que ce n'est pas décidé.
+        "asr_model": dict(
+            type="select", label="Modèle de transcription", icon="fa-microphone", chip=True,
+            options_source="catalog",
+            options_query={"task": "transcription"},
+            options_auto=True,
+            options_resolution={"priority": ["whisper", "vibevoice", "qwen"],
+                                "available_inputs": ["work_audio"]},
+            help_source="describer",
+            help_fallback={"auto": "Choisi au lancement : Whisper d'abord, puis selon la mémoire "
+                                   "GPU libre. Sert un audio et la piste son d'une vidéo."},
+            dom_id={"panel": "asr_model", "item": "settingsAsrModel",
+                    "batch": "batchSettingsAsrModel"},
+            contexts=PANEL_ITEM_BATCH,
+            stales=("transcribe",),
+        ),
+        # Curseur rapide/qualité : il arbitre le tirage « auto » de la transcription (les deux
+        # autres « auto » suivent leur règle propre) — visible quand ce tirage a lieu.
+        "quality_intent": intent_param(
+            dom_id={"panel": "quality_intent", "item": "settingsQualityIntent",
+                    "batch": "batchSettingsQualityIntent"},
+            contexts=PANEL_ITEM_BATCH,
+            show_if={"field": "asr_model", "equals": "auto"},
+            stales=("transcribe",),
+        ),
+        # Vision : les modèles qui lisent une image — BLIP (légendage) et les modèles de
+        # conversation qui acceptent une image (`llm` + `vision`, convention d'Ollama).
+        # `options_auto="silent"` : « auto » est la cascade du describer (Ollama vision puis BLIP
+        # pour une image, BLIP pour les images-clés), qu'une prévision du catalogue ne dirait pas.
+        "vision_model": dict(
+            type="select", label="Modèle de vision", icon="fa-eye", chip=True,
+            options_source="catalog",
+            options_query={"task": "captioning,text-generation", "modality": "image"},
+            options_auto="silent",
+            help_source="describer",
+            help_fallback={"auto": "Une image : le meilleur modèle Ollama vision installé, BLIP "
+                                   "à défaut. Les images-clés d'une vidéo : BLIP."},
+            dom_id={"panel": "vision_model", "item": "settingsVisionModel",
+                    "batch": "batchSettingsVisionModel"},
+            contexts=PANEL_ITEM_BATCH,
+            stales=("frames", "describe"),
+        ),
+        # Langage : rédaction d'un document, d'un audio, d'une vidéo, puis résumé et cohérence.
+        # « auto » = le gabarit du style (rapide pour un résumé court, lourd pour une synthèse
+        # scientifique ou la cohérence), résolu au catalogue (`llm_utils.get_describer_model`).
+        "llm_model": dict(
+            type="select", label="Modèle de langage", icon="fa-brain", chip=True,
+            options_source="catalog",
+            options_query={"model_type": "llm"},
+            options_auto="silent",
+            help_source="describer",
+            help_fallback={"auto": "Choisi au lancement selon le style : un modèle rapide pour "
+                                   "un résumé court, le plus capable pour une synthèse "
+                                   "scientifique ou la vérification de cohérence."},
+            dom_id={"panel": "llm_model", "item": "settingsLlmModel",
+                    "batch": "batchSettingsLlmModel"},
+            contexts=PANEL_ITEM_BATCH,
+            stales=("describe", "summarize", "coherence"),
+        ),
+        # Les INTERRUPTEURS des process optionnels : ils sont le `toggle` de leur process, ils ne
+        # périment rien.
         "generate_summary": dict(
             type="toggle", label="Générer un résumé LLM", icon="fa-file-lines",
             dom_id={"panel": "globalGenerateSummary", "item": "settingsGenerateSummary",

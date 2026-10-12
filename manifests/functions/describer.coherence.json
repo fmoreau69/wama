@@ -1,0 +1,56 @@
+{
+  "body": {
+    "app": "describer",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {},
+    "impl": "describer.workers:describe_content",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "La description à vérifier.",
+        "group": "travail",
+        "key": "description",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "describer.coherence",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Score, remarques et version proposée.",
+        "key": "report",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "text",
+      "llm"
+    ],
+    "visibility": "public"
+  },
+  "description": "Note la cohérence de la description, relève ses anomalies et propose une version corrigée (LLM).",
+  "key": "describer.coherence",
+  "manifest_kind": "function",
+  "name": "Describer — vérifier la cohérence",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:describer.coherence",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

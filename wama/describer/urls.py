@@ -24,6 +24,9 @@ urlpatterns = [
     path('move-to-batch/<int:pk>/', views.move_to_batch, name='move_to_batch'),
     path('remove-from-batch/<int:pk>/', views.remove_from_batch, name='remove_from_batch'),
     path('start/<int:pk>/', views.start, name='start'),
+    # ▶ d'UN process de la bande (`ROUTE §10.6` 5.1) — même préfixe que le ▶ de la card
+    # (`WamaCycleButton.processUrl`).
+    path('start/<int:pk>/<str:process>/', views.start_process, name='start_process'),
     path('stop/<int:pk>/', views.stop, name='stop'),
     path('progress/<int:pk>/', views.progress, name='progress'),
     path('card/<int:pk>/html/', views.card_html, name='card_html'),

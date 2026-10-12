@@ -1,0 +1,57 @@
+{
+  "body": {
+    "app": "describer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "describer.workers:describe_content",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "La vidéo à parcourir.",
+        "group": "travail",
+        "key": "work_video",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "describer.frames",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Les légendes, datées, des images-clés.",
+        "key": "frames",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "video",
+      "vision",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Extrait les images-clés d'une vidéo (une toutes les 10 s, 18 au plus) et légende chacune avec le modèle de vision de la card (BLIP en automatique).",
+  "key": "describer.frames",
+  "manifest_kind": "function",
+  "name": "Describer — légender les images-clés",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:describer.frames",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

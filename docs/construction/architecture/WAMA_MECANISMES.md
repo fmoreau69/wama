@@ -444,7 +444,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 - `translator.py` — brique deep-translator — sera absorbée par le Translator (ROADMAP §10)
 - `voice_options.py` — pendant VOIX d'output_formats (avatarizer) — promouvoir si adoption s'élargit
 - `waveform.py` — rendu de forme d'onde — fusion des 2 renderers encore pendante (REPRISE)
-- `whisper_utils.py` — adaptateur describer → backend Whisper du transcriber (UNIFIÉ 13/08 : plus de double chemin de chargement) ; consommé par le describer seul
+- `whisper_utils.py` — transcription d'un fichier pour les apps hors transcriber (describer, avatarizer) par le gestionnaire du transcriber — Whisper large-v3 sans clé, toute clé de catalogue de transcription sinon, découpage compris (13/10) ; plus de double chemin de chargement (13/08)
 - `format_converter.py` — conversion de formats de poids — plomberie chaîne modèles (avec format_policy)
 
 </details>

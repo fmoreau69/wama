@@ -151,10 +151,12 @@ def describe_text(input_path: str, options: dict = None,
         if output_style == 'meeting':
             console("Génération du compte-rendu de réunion (Ollama)…")
             partial("Rédaction du compte-rendu…")
-            from wama.common.utils.llm_utils import generate_meeting_summary, get_describer_model
-            _model = get_describer_model('text', 'meeting')
+            from wama.common.utils.llm_utils import generate_meeting_summary
+            from .model_choice import llm_for
+            _model, _provider = llm_for(options, 'text', 'meeting')
             console(f"Modèle LLM : {_model}")
-            result = generate_meeting_summary(text, language=output_language, model=_model)
+            result = generate_meeting_summary(text, language=output_language, model=_model,
+                                              provider=_provider)
             partial(result[:500])
             return result
 
@@ -170,13 +172,16 @@ def describe_text(input_path: str, options: dict = None,
         partial("Génération du résumé en cours…")
         progress(50)
 
+        # Le modèle se lit HORS du `try` : un modèle désigné invalide est une erreur dite, pas un
+        # « Ollama indisponible » suivi d'un texte tronqué.
+        from .model_choice import llm_for
+        _model, _provider = llm_for(options, 'text', output_style)
         try:
-            from wama.common.utils.llm_utils import generate_structured_summary, get_describer_model
-            _model = get_describer_model('text', output_style)
+            from wama.common.utils.llm_utils import generate_structured_summary
             console(f"Modèle LLM : {_model}")
             summary_data = generate_structured_summary(
                 text, content_hint='text', language=output_language or 'fr',
-                model=_model,
+                model=_model, provider=_provider,
             )
             progress(85)
 

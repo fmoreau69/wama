@@ -15,6 +15,8 @@ sable peut copier ce paquet et l'exécuter tel quel.
 Cascade vision (ordre de préférence) :
   1. Ollama vision (gemma4:12b > gemma4:e4b) — qualité, hors contrat VRAM (HTTP hôte)
   2. BLIP local (`blip_backend`, contrat BaseModelBackend) — repli sans Ollama
+C'est le comportement de « auto ». Un modèle DÉSIGNÉ (`options['vision_model']`, 2026-10-13 —
+`model_choice.vision_for`) remplace la cascade : BLIP, ou ce modèle Ollama seul.
 """
 
 import logging
@@ -205,7 +207,17 @@ def describe_image(input_path: str, options: dict = None,
         # --- Pick the vision model first: its language ability decides the prompt language ---
         # Graine §10.B : prompter direct dans la langue de sortie si le modèle est multilingue
         # (gemma4/qwen), au lieu de la chaîne « caption EN → reformatage FR » en aval.
-        if _gpu_safe_mode():
+        # Le modèle DÉSIGNÉ par la card (`vision_model`, 2026-10-13) passe avant la cascade : un
+        # usage DEMANDÉ, hors garde GPU (qui ne couvre que la cascade AUTOMATIQUE), jamais
+        # remplacé en silence s'il ne répond pas.
+        from .model_choice import BLIP, vision_for
+        chosen = vision_for(options)
+        if chosen == BLIP:
+            console("Modèle de vision désigné : BLIP.")
+            ollama_model = None
+        elif chosen:
+            ollama_model = chosen
+        elif _gpu_safe_mode():
             console("Garde GPU active (WAMA_GPU_SAFE_MODE) : cascade Ollama vision sautée — BLIP local.")
             ollama_model = None
         else:
@@ -219,10 +231,13 @@ def describe_image(input_path: str, options: dict = None,
                 console(f"Description générée avec {ollama_model} ✓")
                 progress(70)
                 partial(caption)
+            elif chosen:
+                raise RuntimeError(f"Le modèle de vision désigné « {ollama_model} » n'a rendu "
+                                   "aucune description (Ollama joignable ? modèle installé ?).")
 
         if not caption:
             # --- Fallback: BLIP ---
-            if not _gpu_safe_mode():
+            if not _gpu_safe_mode() and chosen != BLIP:
                 msg = "Aucun modèle Ollama vision disponible" if not ollama_model else f"{ollama_model} indisponible"
                 console(f"{msg}, utilisation de BLIP…")
             partial("Chargement du modèle BLIP…")

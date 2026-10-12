@@ -206,11 +206,11 @@ class IndexView(TemplateView):
                                           work_attr='description', order_by='-id',
                                           extra=_extra)
 
-        # Chips de card GÉNÉRÉS du schéma (brique card_chips) — même décoration que card_html.
-        for b in batches_list:
-            for link in b['items']:
-                if link.description:
-                    _decorate_desc(link.description)
+        # Chips de card GÉNÉRÉS du schéma (brique card_chips) + process — même décoration que
+        # card_html ; les lignes d'exécution de la page lues en UNE requête (`decorate_cards`).
+        from wama.common.services.process_pipeline import decorate_cards
+        decorate_cards([link.description for b in batches_list for link in b['items']
+                        if link.description], each=_decorate_desc)
 
         # Tri + filtrage de la file — brique COMMUNE (remplace le « batchs d'abord » codé en dur).
         from wama.common.utils.queue_view import apply_queue_sort_filter
@@ -455,14 +455,20 @@ def stop(request, pk):
 
 
 def _reset_for_relaunch(description):
-    """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race."""
+    """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race.
+
+    ⚠ Depuis le 2026-10-13 la card porte un PIPELINE (`function_specs.PIPELINE`) : un lancement
+    ne rejoue que ce qui n'est plus à jour. Le résultat d'un process s'efface donc QUAND CE
+    PROCESS EST REJOUÉ (sa glu le réécrit, `workers.PROCESSES`), plus ici — sinon relancer le seul
+    résumé effacerait la description qu'il résume (la règle du transcriber, 2026-10-03)."""
     description.progress = 0
     description.error_message = ''
-    description.result_text = ''
-    description.summary = ''
-    description.coherence_score = None
-    description.coherence_notes = ''
-    description.coherence_suggestion = ''
+
+
+#: Ce qu'une card DUPLIQUÉE ne porte pas de son original : ses résultats, ceux de chaque process.
+#: Une seule liste pour la duplication d'un élément et celle d'un lot (`make_batch_views`).
+DUPLICATE_RESET = {'result_text': '', 'transcript': '', 'frame_captions': [], 'summary': '',
+                   'coherence_score': None, 'coherence_notes': '', 'coherence_suggestion': ''}
 
 
 # ── Les SIX vues de lot : fabrique COMMUNE (`batch_views.make_batch_views`, portage 2026-09-22,
@@ -489,7 +495,8 @@ def _output_stem(d):
 
 
 #: Réglages d'un élément — les colonnes que la modale et le volet écrivent (schéma `params.py`).
-SETTINGS_FIELDS = ('output_style', 'output_language', 'max_length', 'generate_summary',
+SETTINGS_FIELDS = ('output_style', 'output_language', 'max_length', 'asr_model',
+                   'quality_intent', 'vision_model', 'llm_model', 'generate_summary',
                    'verify_coherence')
 
 
@@ -507,7 +514,7 @@ _bv = make_batch_views(
     params_fields=SETTINGS_FIELDS, schema=_SCHEMA,
     item_model=BatchDescriptionItem, fk_name='description',
     reset_on_start=_reset_and_clear_progress,
-    reset_on_duplicate={**DEFAULT_RESET, 'result_text': ''},
+    reset_on_duplicate={**DEFAULT_RESET, **DUPLICATE_RESET},
     progress_of=lambda d: cache.get(f"describer_progress_{d.id}", d.progress or 0),
     on_delete=lambda d: cache.delete(f"describer_progress_{d.id}"),
     output_name=_output_stem,
@@ -548,11 +555,25 @@ def start(request, pk):
     })
 
 
-def _decorate_desc(desc):
-    """Chips de card générés du SCHÉMA (params.py chip=True) — brique commune card_chips."""
+from wama.common.utils.process_views import make_process_start_view  # noqa: E402
+
+# ▶ d'UN process de la card (`ROUTE §10.6` 5.1) : fabrique COMMUNE — c'est aussi le résumé ou la
+# cohérence « à la demande » sur une description déjà faite.
+start_process = app_access('describer')(make_process_start_view(
+    work_model=Description, task_for=lambda d: _describe_content,
+    get_user=get_user, reset_on_start=_reset_and_clear_progress))
+
+
+def _decorate_desc(desc, preloaded=False):
+    """Chips de card générés du SCHÉMA (params.py chip=True) — brique commune card_chips —, puis
+    les PROCESS de la card et son état MONTRÉ (`process_pipeline.decorate`, `ROUTE §10.6` 5.1).
+    Le modèle est celui que la card demande, « auto » compris : les process se montrent AVANT le
+    premier lancement — c'est là que leurs cases à cocher servent."""
+    from wama.common.services.process_pipeline import decorate
     from wama.common.utils.card_chips import chips_by_section
     from wama.describer.params import PARAMS_JSON
     desc.chips = chips_by_section(desc, PARAMS_JSON)
+    decorate(desc, preloaded=preloaded)
     return desc
 
 
@@ -573,36 +594,37 @@ def card_html(request, pk):
     return HttpResponse(html)
 
 
-def _eta_triplet(description):
-    """Le triplet d'ETA du describer (`eta.eta_size_unit`, la règle que `record_run` apprend) :
-    service chargé à la demande → modèle réputé chargé."""
-    from .eta import eta_size_unit
-    _ct = description.detected_type or description.content_type
-    _size, _unit = eta_size_unit(_ct, description)
-    return f'describer:{_ct}', _size, _unit, True
-
-
 def _progress_extra(description):
-    """Les clés PROPRES que le JS du describer lit : texte partiel, puis le résultat."""
+    """Les clés PROPRES que le JS du describer lit : texte partiel, puis le résultat.
+
+    Résumé et cohérence ne sont rendus que si leur process est ACTIVÉ : depuis le pipeline, le
+    lancement ne les efface plus (`_reset_for_relaunch`), et un optionnel désactivé ne pèse plus
+    sur la card (`ROUTE §10.6` règle 4.4) — l'onglet d'un résumé qu'on a décoché reste vide, comme
+    quand la relance l'effaçait."""
     from wama.common.utils.preview_utils import get_partial_text
     data = {'partial_text': get_partial_text('describer', description.id)}
     if description.status == 'SUCCESS':
         data['result_text'] = description.result_text
         if description.result_file:
             data['result_url'] = description.result_file.url
-        data['summary'] = description.summary or ''
-        data['coherence_score'] = description.coherence_score
-        data['coherence_notes'] = description.coherence_notes or ''
-        data['coherence_suggestion'] = description.coherence_suggestion or ''
+        from .function_specs import summary_text
+        on_summary = summary_text(description) is not None
+        on_coherence = description.verify_coherence
+        data['summary'] = (description.summary or '') if on_summary else ''
+        data['coherence_score'] = description.coherence_score if on_coherence else None
+        data['coherence_notes'] = (description.coherence_notes or '') if on_coherence else ''
+        data['coherence_suggestion'] = ((description.coherence_suggestion or '')
+                                        if on_coherence else '')
     return data
 
 
 # Les DEUX vues de progression : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11
-# #37, 2026-10-03) — le describer n'y déclare que son triplet d'ETA et ses clés propres.
+# #37, 2026-10-03) — le describer n'y déclare que ses clés propres. Plus de triplet d'ETA de vue
+# depuis le pipeline (2026-10-13) : la card s'estime à la SOMME de ses process, chacun déclarant
+# le sien (`ProcessSpec.eta`, `workers.*_eta`) — deux estimations pour une card divergeaient.
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(work_model=Description, app_id='describer',
-                          eta_for=_eta_triplet, extra=_progress_extra)
+_pv = make_progress_views(work_model=Description, app_id='describer', extra=_progress_extra)
 progress = _pv['progress']
 global_progress = require_GET(_pv['global_progress'])
 
@@ -685,9 +707,9 @@ def duplicate(request, pk):
             'status': 'PENDING',
             'progress': 0,
             'task_id': '',
-            'result_text': '',
             'properties': '',
             'error_message': '',
+            **DUPLICATE_RESET,
         },
         clear_fields=['result_file'],
     )
@@ -1064,11 +1086,6 @@ def update_settings(request, pk):
     if touched:
         description.save(update_fields=touched)
 
-    return JsonResponse({
-        'id': description.id,
-        'output_style': description.output_style,
-        'output_language': description.output_language,
-        'max_length': description.max_length,
-        'generate_summary': description.generate_summary,
-        'verify_coherence': description.verify_coherence,
-    })
+    # Les réglages tels qu'ENREGISTRÉS — la liste du schéma, pas une seconde liste à tenir.
+    return JsonResponse({'id': description.id,
+                         **{name: getattr(description, name) for name in SETTINGS_FIELDS}})
