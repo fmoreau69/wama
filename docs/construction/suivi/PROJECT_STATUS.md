@@ -23123,3 +23123,33 @@ d'une autre instance, co-édité dans `cloud_models.py`, `tests_cloud_models.py`
 vision de `gemma-4-31b` / des Qwen à MESURER puis déclarer · attente sur 429 d'ILaaS non mesurée ·
 clé d'embedding rangée hors WAMA (`rag-api.ilaas.fr` non branché) · budgets de langue rouges
 (ajouts d'autres instances, aucun de cette session).
+
+## §CLÔTURE — 2026-10-12, « SPEAK DU TRANSCRIBER RALLIÉ À L'ÉCOUTE COMMUNE » — COMMITÉ (`5c067e13`, non poussé) — 🔴 relancer gunicorn
+
+Demande de Fabien : *« appliquer aussi les améliorations au bouton Speak, aligner sur le commun,
+réutiliser »*. Détail : `WAMA_LLM.md §1bis`, bloc « Le Speak du transcriber écoute par la MÊME
+brique ».
+
+- **Livré** : la brique `wama-assistant-listen.js` gagne `capture(opts)` (l'écoute SANS chat) ;
+  le Speak l'utilise et quitte `webkitSpeechRecognition` (audio chez Google). `save_realtime`
+  inscrit le moteur qui a écouté et fait naître la card par la cascade commune des dépôts
+  (`_deposit_settings`) : avant, défauts du modèle et diarisation FORCÉE.
+- **Décisions de Fabien (même jour)** : texte affiché **phrase par phrase** (plus mot à mot) ;
+  le texte en direct reste **provisoire et rapide** (écoute de l'assistant, au profil) ; la
+  qualité vient de la **relance (↻)** sur l'audio enregistré, avec les réglages de l'auteur. Une
+  transcription « avec réglages » phrase à phrase (option B1) est ÉCARTÉE : diarisation, langues
+  multiples, découpage et nivellement ont besoin de l'audio entier, et un modèle lourd chargé au
+  début d'une réunion ferait attendre. La diarisation suit le réglage (défaut : active).
+- **Contrôles mesurés** : `tests_assistant_listen` + `transcriber.tests_panel_settings` **50 OK** ;
+  `tests_import_contract` + `tests_panel_user_settings` + `wama.transcriber` **175 OK** ; garde
+  « préférences portées par la card » prouvée par mutation (rouge avec la diarisation forcée,
+  verte une fois restaurée) ; `check_redundancy` 102, **aucune** dans les lignes de la session ;
+  `check_docs` 0 cassée / 0 périmée. ⚠ `check_skills` ne démarre plus : `anonymizer_01/apps.py`
+  appelle `PreviewRegistry.register(faces=…)`, argument refusé — jumelle de bac à sable d'une
+  autre instance, pas de cette session ; tout `manage.py` est concerné tant qu'elle reste ainsi.
+- **Restent** : 🔚 la card temps réel n'a ni segments ni mots (`segments_json`) — option A
+  proposée, non décidée ; validation au vrai micro par Fabien (Speak + conversation) ; modèle
+  d'écoute TIRÉ (turbo / Kyutai STT) ; `WAMA_MECANISMES` et `docs/dev/briques.md` à régénérer
+  (co-édités).
+- Artefacts : scripts de commit et sauvegarde de mutation dans le scratchpad de session
+  (jetables). Aucun compte ni élément semé hors base de test.
