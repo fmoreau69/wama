@@ -436,7 +436,8 @@ class LoginForm(AuthenticationForm):
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': "User ID (forname.name)"})
     )
     password = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': "Password"})
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': "Password",
+                                          'autocomplete': 'current-password'})
     )
 
 
@@ -448,10 +449,12 @@ class UserRegistrationForm(UserCreationForm):
         widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': "Email"})
     )
     password1 = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': "Mot de passe"})
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': "Mot de passe",
+                                     'autocomplete': 'new-password'})
     )
     password2 = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': "Confirmer le mot de passe"})
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': "Confirmer le mot de passe",
+                                     'autocomplete': 'new-password'})
     )
 
     class Meta:

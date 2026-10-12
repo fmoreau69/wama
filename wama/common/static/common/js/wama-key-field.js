@@ -58,7 +58,10 @@
         '<div class="input-group input-group-sm">' +
           '<input type="password" id="key-' + esc(id) + '"' +
           ' class="form-control bg-dark text-light border-secondary"' +
-          ' placeholder="' + esc(placeholder) + '" autocomplete="off">' +
+          // « off » est ignoré par Chrome sur un champ mot de passe : il y remplissait le mot de
+          // passe WAMA de l'utilisateur, qu'un clic sur Enregistrer aurait posé comme clé d'API
+          // (2026-10-12). « new-password » est la seule valeur qu'il ne remplit pas.
+          ' placeholder="' + esc(placeholder) + '" autocomplete="new-password" spellcheck="false">' +
           '<button class="btn btn-outline-secondary" type="button" data-key-action="toggle" ' + attrs +
           ' title="Afficher / masquer la saisie (une clé enregistrée n\'est jamais renvoyée au navigateur)">' +
             '<i class="fas fa-eye" id="eye-' + esc(id) + '"></i></button>' +

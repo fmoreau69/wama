@@ -908,6 +908,17 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   ne garde que les fournisseurs sans source ; ③ (délais par fournisseur) reste à faire. Et
   `assistant_engine.SOURCE_PROVIDERS` connaît toute source `llm` : un modèle `ilaas:*` choisi au
   sélecteur serait sinon parti sur le moteur LOCAL.
+  ⚠ **2026-10-12 — le champ de clé affichait le mot de passe WAMA** (relevé de Fabien : l'œil de
+  « Clé de l'instance » HuggingFace, puis ILaaS, le montrait en clair). WAMA ne renvoie jamais une
+  clé : c'est **Chrome** qui remplissait ce `type="password"`, `autocomplete="off"` y étant
+  ignoré — un clic sur Enregistrer aurait posé le mot de passe comme clé d'API. `WamaKeyField`
+  déclare désormais `new-password` (la seule valeur que Chrome ne remplit pas), donc profil et
+  page Sources ensemble ; même défaut corrigé sur le jeton d'API du profil, la fenêtre « Ajouter
+  un utilisateur » (le mot de passe de l'admin y devenait celui du nouveau compte) et le
+  formulaire d'inscription ; la connexion déclare `current-password` (remplissage voulu). Tenu
+  par `wama/common/tests/tests_password_autofill.py` : tout champ mot de passe des gabarits, du JS
+  et des widgets Django DOIT déclarer `new-password` ou `current-password`. Même remède que les
+  identifiants d'un dossier distant (`ROADMAP` §rclone, `3af80d55`).
 - **Un fournisseur existe s'il est au registre — 2026-10-11** (chantier 5 de `WAMA_HARNESS.md`
   soldé). `llm_chat` refuse tout fournisseur hors registre avant l'appel
   (`llm_utils.declared_llm_source`) ; les six noms sans source (`openai`, `mistral`, `groq`,
