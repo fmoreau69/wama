@@ -213,13 +213,27 @@ class CardsOpenTheirEntryByTheCommonGestureTest(SimpleTestCase):
     the file manager's preview (which knows no item, hence no Entry | Output faces)."""
 
     @staticmethod
-    def _cards():
+    def _served(card: Path) -> bool:
+        """The card is SERVED : another file of ITS app (a page's `card_template=`, the view that
+        re-renders it) names it. A card copied into a twin and replaced by the generated one is
+        named by nobody there — it is dead, and measuring it would measure nothing served
+        (2026-10-12 : converter_01/_job_card.html, reader_01/_item_card.html)."""
+        app_dir = card.parents[2]
+        if app_dir.name == 'common':
+            return True                 # une card COMMUNE est servie par les autres apps
+        name = f'{card.parent.name}/{card.name}'
+        return any(name in other.read_text(encoding='utf-8', errors='replace')
+                   for pattern in ('**/*.html', '**/*.py') for other in app_dir.glob(pattern)
+                   if other != card)
+
+    @classmethod
+    def _cards(cls):
         # Hors jumelles COPIÉES : figées par construction, elles ne suivent pas le code réel (même
         # règle que les autres contrats génériques, `sandbox.twins_with_copied_views`).
         from wama.common.sandbox import twins_with_copied_views
         copied = twins_with_copied_views()
         return sorted(card for card in Path(settings.BASE_DIR, 'wama').glob('*/templates/*/_*card*.html')
-                      if card.parts[-4] not in copied)
+                      if card.parts[-4] not in copied and cls._served(card))
 
     @property
     def CARDS(self):
