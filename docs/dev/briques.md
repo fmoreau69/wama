@@ -940,10 +940,10 @@ Lue, jamais devinée : ce qui tourne au gouverneur, ce qui attend dans les liste
 
 ### Fuites de secrets
 
-gitleaks sur l'historique git COMPLET + vérifie que le hook pre-commit est en place et non dérivé : un hook mort est une garde silencieusement absente, donc rouge et pas warning
+gitleaks sur l'historique git COMPLET, aucune ligne d'attribution dans les messages, et vérifie que les hooks git versionnés (pre-commit, commit-msg, pre-push — ce dernier voit aussi les commits faits par commit-tree) sont en place et non dérivés : un hook mort est une garde silencieusement absente, donc rouge et pas warning
 
 - **Domicile** : `wama/common/management/commands/check_secret_leaks.py` · **doc** : [docs/construction/suivi/ROADMAP.md §16.10](../construction/suivi/ROADMAP.md)
-- **Module** : check_secret_leaks — fuites de secrets dans l'HISTORIQUE GIT COMPLET (gitleaks), et présence du hook pre-commit qui empêche d'en créer de nouvelles.
+- **Module** : check_secret_leaks — fuites de secrets dans l'HISTORIQUE GIT COMPLET (gitleaks), lignes d'attribution dans les messages, et présence des hooks git qui empêchent d'en créer.
 - **API publique** (2) :
   - `binaire_gitleaks() -> Path`
   - `class Command(BaseCommand)`

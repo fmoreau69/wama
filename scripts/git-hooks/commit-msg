@@ -1,0 +1,20 @@
+#!/bin/sh
+# Garde d'attribution : refuse un message de commit qui porte une ligne d'attribution à un outil
+# ou à un agent (`Co-Authored-By:`, « Generated with … »). Règle de Fabien, valable pour TOUT
+# auteur — humain, Claude Code, Codex, Copilot… — d'où un hook git et non le hook d'un outil.
+# Motifs : scripts/git-hooks/attribution.pattern (expressions étendues POSIX, sans casse), lus
+# aussi par le hook pre-push et par `manage.py check_secret_leaks`.
+# Source versionnée : scripts/git-hooks/commit-msg — installé dans .git/hooks/ par
+# scripts/fetch_security_tools.py.
+# ⚠ `git commit-tree` n'exécute AUCUN hook : le filet pour ces commits est le hook pre-push.
+
+root=$(git rev-parse --show-toplevel) || exit 0
+patterns="$root/scripts/git-hooks/attribution.pattern"
+[ -f "$patterns" ] || exit 0
+
+if grep -v '^#' "$1" | grep -qiE -f "$patterns"; then
+    echo "commit refusé : le message porte une ligne d'attribution (motifs : scripts/git-hooks/attribution.pattern)." >&2
+    grep -v '^#' "$1" | grep -iE -f "$patterns" >&2
+    exit 1
+fi
+exit 0

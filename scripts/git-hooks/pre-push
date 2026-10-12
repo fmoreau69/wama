@@ -1,0 +1,51 @@
+#!/bin/sh
+# Filet avant publication : chaque commit sur le point d'être poussé est contrôlé, QUELLE QUE SOIT
+# la façon dont il a été créé. Les hooks pre-commit et commit-msg ne voient que `git commit` ;
+# `git commit-tree` (la forme sûre de la discipline multi-instances, AGENTS.md), un rebase ou une
+# réécriture d'historique les contournent. Ce qui part sur le dépôt PUBLIC passe ici.
+#   1. aucun message ne porte de ligne d'attribution (scripts/git-hooks/attribution.pattern) ;
+#   2. gitleaks ne trouve aucune fuite dans ces commits (configuration : .gitleaks.toml).
+# Binaire gitleaks absent : le point 2 est sauté, jamais le point 1 (même règle que pre-commit :
+# ne pas bloquer sur de l'outillage absent).
+# Source versionnée : scripts/git-hooks/pre-push — installé par scripts/fetch_security_tools.py.
+
+root=$(git rev-parse --show-toplevel) || exit 0
+patterns="$root/scripts/git-hooks/attribution.pattern"
+zero=0000000000000000000000000000000000000000
+
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*|Windows*) bin="$root/tools/security/bin/gitleaks.exe" ;;
+    *)                             bin="$root/tools/security/bin/gitleaks" ;;
+esac
+
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "$local_sha" = "$zero" ] && continue          # suppression de branche : rien à contrôler
+    if [ "$remote_sha" = "$zero" ]; then
+        range="$local_sha --not --remotes"          # branche neuve : ce que le distant n'a pas
+    else
+        range="$remote_sha..$local_sha"
+    fi
+
+    if [ -f "$patterns" ]; then
+        set --
+        while IFS= read -r p; do
+            [ -n "$p" ] && set -- "$@" "--grep=$p"
+        done < "$patterns"
+        # shellcheck disable=SC2086 — $range porte volontairement plusieurs arguments
+        found=$(git log --format="%h %s" -i -E "$@" $range </dev/null)
+        if [ -n "$found" ]; then
+            echo "push refusé ($remote_ref) : commit(s) porteur(s) d'une ligne d'attribution :" >&2
+            echo "$found" >&2
+            status=1
+        fi
+    fi
+
+    if [ -x "$bin" ]; then
+        if ! "$bin" git --redact --no-banner --log-opts="$range" "$root" </dev/null >&2; then
+            echo "push refusé ($remote_ref) : gitleaks signale une fuite dans les commits à pousser." >&2
+            status=1
+        fi
+    fi
+done
+exit $status

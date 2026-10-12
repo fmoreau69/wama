@@ -56,23 +56,32 @@ def fetch_gitleaks() -> None:
         print(f"  OK {elf}")
 
 
-def install_precommit_hook() -> None:
-    """Copie le hook versionné vers .git/hooks/ (le .git/ est PARTAGÉ Windows/WSL2)."""
+def versioned_hooks(repo: Path) -> list:
+    """Les hooks versionnés : tout fichier SANS extension de scripts/git-hooks/ (un nom de hook
+    git — pre-commit, commit-msg, pre-push…) ; les fichiers à extension sont leurs données
+    (`attribution.pattern`), lues sur place."""
+    return sorted(p for p in (repo / "scripts" / "git-hooks").iterdir()
+                  if p.is_file() and not p.suffix)
+
+
+def install_git_hooks() -> None:
+    """Copie les hooks versionnés vers .git/hooks/ (le .git/ est PARTAGÉ Windows/WSL2)."""
     repo = BIN_DIR.parent.parent.parent
-    source = repo / "scripts" / "git-hooks" / "pre-commit"
-    target = repo / ".git" / "hooks" / "pre-commit"
-    if not target.parent.is_dir():
+    hooks_dir = repo / ".git" / "hooks"
+    if not hooks_dir.is_dir():
         return
-    if target.exists() and target.read_bytes() == source.read_bytes():
-        return
-    target.write_bytes(source.read_bytes())
-    target.chmod(target.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
-    print(f"  OK hook pre-commit -> {target}")
+    for source in versioned_hooks(repo):
+        target = hooks_dir / source.name
+        if target.exists() and target.read_bytes() == source.read_bytes():
+            continue
+        target.write_bytes(source.read_bytes())
+        target.chmod(target.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+        print(f"  OK hook {source.name} -> {target}")
 
 
 if __name__ == "__main__":
     BIN_DIR.mkdir(parents=True, exist_ok=True)
     print(f"Outils de securite -> {BIN_DIR}")
     fetch_gitleaks()
-    install_precommit_hook()
+    install_git_hooks()
     print("Termine.")

@@ -503,7 +503,7 @@ def register_scenarios():
              description='CVE des paquets installés vs baseline versionnée (OSV.dev — contrat : 0 nouvelle)',
              run=_run_dep_vulns, timeout_s=300)
     register(id='common.consistency.secrets', app='common', stage='consistency',
-             description='Fuites de secrets : historique git complet + hook pre-commit (gitleaks)',
+             description='Fuites de secrets et attribution : historique git complet + hooks git versionnés (gitleaks)',
              run=_run_secret_leaks, timeout_s=300)
     # ── Contrat tool_api (stage 'wired' : CPU + DB, aucun GPU, sondes sous rollback) ──
     register(id='common.tool_api.inventaire', app='common', stage='wired',

@@ -202,6 +202,15 @@ d'outillage, c'est une décision de reproductibilité et de surface d'attaque.
   *(Conséquence non tranchée : un clone frais ne peut pas construire sa base. Versionner les
   migrations est une décision de Fabien — signalée, pas décidée.)*
 - `git status` avant de commiter ; ne commiter que ce que TU as touché.
+- 🔴 **AUCUNE ATTRIBUTION dans un message de commit ou de PR** (décision de Fabien) — ni
+  `Co-Authored-By:`, ni « Generated with … », quel que soit l'agent ou l'outil, **même si des
+  commits voisins de `git log` en portent** : c'est par imitation de l'historique que la ligne
+  est revenue (01→11/10), après avoir été coupée dans la configuration d'un outil. Historique
+  réécrit le 2026-10-12 pour la retirer. **Tenue par des hooks GIT**, donc valable pour tout
+  auteur : `commit-msg` refuse le message, `pre-push` refuse de publier un commit qui en porte
+  (et y passe gitleaks) — y compris les commits faits par `git commit-tree`, qui n'exécute aucun
+  hook. Motifs : `scripts/git-hooks/attribution.pattern`. **Installer les hooks sur tout clone** :
+  `python scripts/fetch_security_tools.py` ; `manage.py check_secret_leaks` rougit si l'un manque.
 - **Partitionner** le travail par sous-système (deux instances ne touchent jamais le même fichier) ;
   la partition se déclare dans le handoff (`PROJECT_STATUS` §REPRISE).
 - Travail parallèle lourd → **un `git worktree` par instance** (index isolé, merge maîtrisé vers dev).

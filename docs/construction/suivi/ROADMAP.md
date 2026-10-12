@@ -2920,6 +2920,17 @@ purgés (historique réécrit 2026-07-23) — le besoin est la garde anti-récid
   (1034 commits ≈ 3 s, 0 fuite — réécriture du 23/07 confirmée empiriquement) + vérifie que le
   hook `scripts/git-hooks/pre-commit` (gitleaks sur le stagé) est installé et non dérivé :
   hook mort = ROUGE. Codes 3 = outillage/réseau absent → SKIP nocturne, pas un faux rouge.
+  ⚠ **Trou relevé le 2026-10-12** : le hook ne voyait AUCUN de nos commits — la discipline
+  multi-instances (`AGENTS.md`) commite par `git commit-tree`, qui n'exécute aucun hook ; seule
+  la nocturne les balayait, après publication. ✅ Comblé le jour même, par des hooks GIT (donc
+  valables pour tout agent et tout humain, pas pour un seul outil) : **`pre-push`** contrôle
+  chaque commit qui part, quelle que soit sa fabrication (gitleaks + attribution), et
+  **`commit-msg`** refuse une ligne d'attribution (`Co-Authored-By:`, « Generated with … ») dès
+  `git commit`. Motifs : `scripts/git-hooks/attribution.pattern`, lus par les deux hooks ET par
+  `check_secret_leaks`, qui vérifie désormais TOUS les hooks du dossier et l'absence
+  d'attribution sur les branches (contrat 0 depuis la réécriture d'historique du 12/10).
+  Configuration gitleaks versionnée : `.gitleaks.toml` (règles par défaut + une exception par
+  ligne de faux positif lue).
 
 **Dette actionnable relevée au triage initial (hors pile ML, upgrades patch-level possibles)** :
 Django 5.2.6/5.2.8 (52-60 avis — patch release à passer au prochain palier de maintenance),

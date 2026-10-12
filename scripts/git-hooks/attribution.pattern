@@ -1,0 +1,2 @@
+^[[:space:]]*co-authored-by:
+^[^[:alnum:]]*generated (with|by) \[?(claude|codex|chatgpt|copilot|cursor|aider|gemini)

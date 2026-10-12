@@ -961,8 +961,10 @@ MECHANISMS = (
               'wama/common/management/commands/check_dep_vulns.py', 'docs/construction/suivi/ROADMAP.md §16.10',
               symbol='check_dep_vulns'),
     Mechanism('secret_leaks', 'Fuites de secrets',
-              "gitleaks sur l'historique git COMPLET + vérifie que le hook pre-commit est en "
-              "place et non dérivé : un hook mort est une garde silencieusement absente, donc "
+              "gitleaks sur l'historique git COMPLET, aucune ligne d'attribution dans les "
+              "messages, et vérifie que les hooks git versionnés (pre-commit, commit-msg, "
+              "pre-push — ce dernier voit aussi les commits faits par commit-tree) sont en "
+              "place et non dérivés : un hook mort est une garde silencieusement absente, donc "
               "rouge et pas warning",
               'wama/common/management/commands/check_secret_leaks.py', 'docs/construction/suivi/ROADMAP.md §16.10',
               symbol='check_secret_leaks'),
