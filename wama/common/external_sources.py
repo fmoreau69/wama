@@ -343,6 +343,12 @@ class ExternalSource:
     #: plafond de son profil (`data_reuse_accepted`, 2026-10-12) ; toujours envoyés sans
     #: utilisateur (clé d'instance). Chaîne JSON (et non dict) : la source est figée, donc hachable.
     no_reuse_request_body: str = ''
+    #: Fournisseur LLM : ses modèles GRATUITS ne sont servis qu'à qui accepte que ses requêtes
+    #: servent à entraîner (OpenRouter, mesuré le 2026-10-12 : sous `no_reuse_request_body`, un
+    #: modèle `:free` répond 404 « No endpoints found matching your data policy (Free model
+    #: training) »). Le tirage automatique ne les retient donc qu'au dernier cran du plafond
+    #: (`cloud_models.allowed_cloud_keys`) — sinon il tirerait un modèle voué à l'échec.
+    free_models_need_data_reuse: bool = False
     #: Fournisseur LLM : attente, en secondes, après un refus de débit (HTTP 429) qui ne dit pas
     #: quand recommencer (`Retry-After`) — MESURÉE sur le fournisseur ; 0 = l'attente commune
     #: (`llm_utils.RATE_LIMIT_WAIT_S`). Chantier 5 ③ de `WAMA_HARNESS.md` (2026-10-11) : la
@@ -460,8 +466,12 @@ SOURCES: tuple[ExternalSource, ...] = (
         # Assoupli le 2026-10-12 (Fabien) : la règle suit le plafond du profil — au dernier cran
         # (`third_party_all`), rien n'est ajouté. Mesuré ce jour sur deux modèles `:free` : un
         # seul hébergeur chacun, leur éditeur (Google AI Studio, NVIDIA) — s'il garde les
-        # requêtes, `deny` les rend injoignables (non vérifié faute de clé).
+        # requêtes, `deny` les rend injoignables. VÉRIFIÉ le soir même avec la clé posée :
+        # Nemotron 3 Super `:free` → 404 sous `deny` (« Free model training »), réponse en 1,1 s
+        # sans ; les deux Gemma 4 `:free` → 429 de l'hébergeur dans les deux cas (file gratuite
+        # saturée, rien à conclure).
         no_reuse_request_body='{"provider": {"data_collection": "deny"}}',
+        free_models_need_data_reuse=True,
         doc='docs/construction/ia/WAMA_LLM.md'),
     # 2026-09-15 : l'API Anthropic (fournisseur « claude » de l'assistant) et l'ABONNEMENT Claude
     # Code — deux canaux de facturation opposés vers les mêmes modèles (cf. `claude_code.py`).

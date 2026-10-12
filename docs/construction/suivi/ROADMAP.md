@@ -1406,6 +1406,62 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
   puis *capacité* (contexte/VRAM saturés → escalade cloud, dont `_route_model_by_context` est
   déjà l'embryon local) ; ④ override utilisateur `auto` par défaut (patron `resolve_auto_model`
   de l'imager). ⚠ Le choix manuel est un **override**, jamais le mécanisme principal.
+- ⭐ **PLAN « SÉLECTION AUTOMATIQUE UNIVERSELLE » (2026-10-12, demande de Fabien)** — *« quelque
+  chose de fiable, robuste, universel, applicable partout (toutes les apps, tous les mondes), qui
+  tient compte de ce qui est en place en local et distant et qui, selon le geste utilisateur,
+  privilégie ce qui ne sature ni WAMA en local ni les quotas »*. Reprend la conception de la
+  session « bascule entre clouds » (close le même jour, question transférée ici).
+  **État mesuré le 12/10** (lignes lues) :
+  - « cloud si saturé » ne fait RIEN au tirage : `allowed_cloud_keys` rend l'ensemble vide hors
+    « cloud autorisé » (`cloud_models.py`, `if policy == 'local_only' or (automatic and policy
+    != 'cloud_allowed')`) ; aucun signal de saturation n'existe (`gpu_is_busy` et
+    `global_queue.free_at` existent, personne ne les lit pour ça) ;
+  - aucune bascule sur panne : un 429 attend `Retry-After` ou le délai de la source, retente UNE
+    fois le MÊME fournisseur (`llm_utils._completion`, `RATE_LIMIT_RETRIES = 1`), puis le tour
+    échoue. Mesuré : un modèle `:free` d'OpenRouter en 429 → **83,8 s** d'attente, puis l'erreur ;
+  - aucun compte de quota par fournisseur (ni base, ni cache) ;
+  - quatre règles d'admission parallèles : `allowed_cloud_keys`, `dev_cloud_keys`
+    (`development_models.py`), `remote_stt_key` (`speech_input.py` — le PREMIER modèle distant
+    par ordre alphabétique) et `role_utils.resolve_model` de wama-dev-ai (défaut fixe en cloud) ;
+  - une app ne reçoit du cloud que si son schéma déclare `options_cloud`
+    (`auto_model.declared_cloud_keys`) — c'est juste : un distant doit savoir faire la tâche.
+  **Cible** : UN chemin — admission (profil : QUAND, JUSQU'OÙ, À QUEL COÛT) → candidats locaux et
+  distants → ordre de PRÉFÉRENCE dérivé du profil → santé des fournisseurs → appel avec bascule
+  par nouveau tirage. Aucune chaîne écrite à la main ; LiteLLM Router écarté (une seconde logique
+  de choix à côté du catalogue).
+  **Étapes, du plus sûr au plus structurant :**
+  1. ✅ **Coût lu PAR MODÈLE à l'admission** (12/10) : les modèles gratuits d'un fournisseur
+     facturé (19 chez OpenRouter) entrent au tirage sans le consentement « payant » ; ceux d'une
+     source qui les sert à condition d'entraîner (`free_models_need_data_reuse`, mesuré : 404
+     « Free model training » sous `deny`) n'y entrent qu'au dernier cran du plafond. Gardes :
+     `tests_cloud_models.FreeModelsOfAMeteredSourceTest`.
+  2. ⏳ **Bascule sur panne** : 429 après la reprise, 5xx, délai dépassé, connexion refusée → le
+     fournisseur est noté SATURÉ quelques minutes (durée = `Retry-After`, sinon celle de la source)
+     et le tirage est REJOUÉ sans lui ; une tentative par fournisseur, garde-fou de boucle sur le
+     modèle de `_invented_turn`. La note sert aux tours suivants (on ne reperd pas 60 s), et la
+     bascule est DITE (« Albert saturé → ILaaS », intention `§8d` plus bas : dire quand une donnée
+     part et pourquoi). Pas d'attente de 60 s quand un autre candidat existe. Domicile de la note
+     à trancher en lisant `resource_governor` (orienté GPU) — sinon une petite brique commune
+     déclarée à `mecanismes.py`.
+  3. ⏳ **Quotas comptés** : requêtes par (utilisateur, source) et par fenêtre, contre les quotas
+     DÉCLARÉS sur la source (OpenRouter sans crédit : 20/min et 50/jour ; Albert) → la source est
+     tenue pour saturée AVANT le 429.
+  4. ⏳ **Ordre de préférence décidé par le profil** (demande de Fabien) : au dernier cran
+     (« commercial, même s'il garde mes données »), les modèles GRATUITS commerciaux passent
+     d'abord, pour épargner le GPU local et les quotas souverains ; puis le souverain ; puis le
+     local ; le payant seulement sur consentement. En dessous, l'ordre ③ (`local → cloud gratuit
+     → payant`). « Cloud si saturé » devient effectif : GPU occupé / file trop longue / VRAM
+     insuffisante → le distant est admis. Forme : un RANG de préférence par candidat, appliqué
+     avant la qualité (patron de `priority` dans `select_model`), le plancher de capacité de
+     l'appelant restant prioritaire (`agent_candidates` de l'assistant outillé).
+  5. ⏳ **Un seul chemin partout** : `remote_stt_key`, `dev_cloud_keys` et `role_utils.resolve_model`
+     passent par le même tirage ; les mondes Data et Lab l'héritent par `resolve_model_choice`.
+  6. ⏳ **Médias générés par un distant** (images) : OpenRouter sert 12 modèles qui rendent des
+     images, **aucun gratuit** (mesuré sur sa liste le 12/10) ; aucune vidéo. À ouvrir après
+     2-5, comme une capacité de la source, et sur consentement « payant ».
+  **À trancher par Fabien** : ① un modèle CHOISI à la main qui sature — basculer seul, ou le dire
+  et proposer ? (aujourd'hui le choix manuel l'emporte toujours) ; ② la bascule d'abord pour
+  l'assistant seul, ou d'emblée pour les apps (`chat_with_catalog_model`, transcription Albert) ?
 - **Duplicata à résorber** : `wama-dev-ai/config.py::select_model_for_role` réimplémente une
   sélection RAM-aware avec chaînes de fallback, et appelle Ollama en direct (pas LiteLLM). Une
   fois la politique ci-dessus en place, c'est à **lui d'adopter la brique** (il gagne le cloud

@@ -923,9 +923,15 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   `choices=`). La carte « Modèles cloud » du profil affiche à TOUS l'avertissement
   (`external_sources.DATA_REUSE_WARNING`) avant le choix. Motif mesuré le 12/10 : deux modèles
   `:free` (Gemma 4 31B, Nemotron 3 Super) n'ont qu'UN hébergeur, leur éditeur — si celui-ci garde
-  les requêtes, `deny` les rend injoignables (⚠ non vérifié faute de clé). Gardes :
+  les requêtes, `deny` les rend injoignables — **VÉRIFIÉ le soir même** avec la clé d'instance
+  posée (compte sans crédit) : Nemotron 3 Super `:free` → 404 « No endpoints found matching your
+  data policy (Free model training) » sous `deny`, « OK » en 1,1 s sans ; les deux Gemma 4
+  `:free` → 429 de l'hébergeur dans les deux cas (file gratuite saturée). D'où
+  `ExternalSource.free_models_need_data_reuse` : le tirage automatique ne retient ces gratuits
+  qu'au dernier cran, et lit désormais le coût PAR MODÈLE (`ROADMAP §8d`, plan « sélection
+  automatique universelle », étape 1). Gardes :
   `tests_llm_providers.DeclaredRequestBodyTest`, `tests_cloud_models.HostingCeilingTest`,
-  `tests_api_keys.NiveauCloudTest`. Faits vérifiés le
+  `tests_cloud_models.FreeModelsOfAMeteredSourceTest`, `tests_api_keys.NiveauCloudTest`. Faits vérifiés le
   10/10 : un modèle est servi par un ou plusieurs hébergeurs (13 pour Gemma 4 31B, en partie
   quantifiés fp4), majoritairement américains, région UE réservée aux offres Business/Enterprise ;
   modèles gratuits limités à 20 req/min et 50 req/jour (1 000 au-delà de 10 crédits achetés).

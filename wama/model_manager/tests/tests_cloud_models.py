@@ -691,6 +691,46 @@ class HostingCeilingTest(TestCase):
         self.assertFalse(cloud_models.data_reuse_accepted(None))
 
 
+class FreeModelsOfAMeteredSourceTest(TestCase):
+    """2026-10-12: the cost is read PER MODEL. OpenRouter is a metered source carrying free
+    models; the metered filter read the SOURCE's tier, so none ever entered the automatic draw.
+    And its free models are served only to who accepts training on the requests (measured:
+    404 « Free model training » under `data_collection: deny`) — so the draw takes them only at
+    the last rung of the ceiling."""
+
+    FREE, PAID = 'openrouter:vendor/model:free', 'openrouter:vendor/model'
+
+    _keys = HostingCeilingTest._keys
+    _set = HostingCeilingTest._set
+
+    def setUp(self):
+        HostingCeilingTest.setUp(self)
+        from wama.accounts.models import UserApiKey
+        UserApiKey.objects.create(user=self.user, source='openrouter', api_key='sk',
+                                  open_models=[self.FREE, self.PAID])
+        for key, tier in ((self.FREE, 'free'), (self.PAID, 'metered')):
+            AIModel.objects.create(model_key=key, name=key, model_type='llm', source='openrouter',
+                                   execution='cloud', cost_tier=tier)
+
+    def test_the_last_rung_lets_the_free_models_into_the_draw_and_not_the_paid_ones(self):
+        self._set(cloud_hosting_max='third_party_all')
+        self.assertEqual({'albert:chat', self.FREE}, self._keys())
+
+    def test_below_the_last_rung_the_draw_skips_free_models_bound_to_fail(self):
+        self._set(cloud_hosting_max='third_party')
+        self.assertEqual({'albert:chat'}, self._keys())
+
+    def test_the_metered_consent_adds_the_paid_ones_only(self):
+        self._set(cloud_hosting_max='third_party', cloud_metered_auto=True)
+        self.assertEqual({'albert:chat', 'anthropic:claude-x', self.PAID}, self._keys())
+
+    def test_the_manual_choice_is_not_filtered(self):
+        """Counter-test: naming a model is a consent — the manual list keeps both."""
+        self._set(cloud_hosting_max='third_party')
+        self.assertEqual({'albert:chat', 'anthropic:claude-x', self.FREE, self.PAID},
+                         self._keys(automatic=False))
+
+
 @override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
 class NightlyRefreshTest(TestCase):
     """La sonde NOCTURNE relit les modèles de chaque clé (2026-10-04) : la liste n'était relue

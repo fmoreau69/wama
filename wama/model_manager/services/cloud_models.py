@@ -521,6 +521,11 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
       une clé d'API Anthropic, le tirage rendait un modèle facturé au jeton aux curseurs 0, 50
       et 100 (un distant « coûte » 0 sur la carte, cf. `model_selector._best_by_vram`). Le
       choix MANUEL n'est pas concerné : nommer un modèle payant est un consentement.
+      ⚠ Le coût se lit PAR MODÈLE (2026-10-12) : un fournisseur facturé à l'usage porte des
+      modèles GRATUITS (`AIModel.cost_tier == 'free'`, 19 chez OpenRouter), qui entrent au tirage
+      sans ce consentement. Le filtre lisait le tier de la SOURCE : aucun n'entrait jamais.
+    - chez une source dont les gratuits exigent d'accepter l'entraînement
+      (`free_models_need_data_reuse`), le tirage ne les retient qu'au DERNIER cran du plafond.
     C'est ici, à l'ADMISSION, que le coût s'arbitre — pas dans le score du sélecteur.
     """
     if user is None or not getattr(user, 'is_authenticated', False):
@@ -537,9 +542,15 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
     # de clé existe : l'abonnement Claude Code est `developer_only`. Mesuré le 2026-09-16 — sans ce
     # filtre, un compte ordinaire portant une ligne `claude_code` voyait le modèle d'abonnement
     # dans le sélecteur commun, alors que la garde du moteur le lui refuse.
-    ouvertes = {s.key for s in llm_sources(user)
-                if external_sources.hosting_within(s.hosting, ceiling)
-                and not (automatic and s.cost_tier == 'metered' and not metered_auto)}
+    within = [s for s in llm_sources(user) if external_sources.hosting_within(s.hosting, ceiling)]
+    ouvertes = {s.key for s in within}
+    # Au tirage automatique, ces sources n'ouvrent que leurs modèles GRATUITS (coût par modèle)…
+    free_only = {s.key for s in within
+                 if automatic and s.cost_tier == 'metered' and not metered_auto}
+    # … et celles-ci n'ouvrent PAS leurs gratuits, servis à la seule condition d'entraîner dessus.
+    no_free = {s.key for s in within
+               if automatic and s.free_models_need_data_reuse
+               and not external_sources.data_reuse_accepted(ceiling)}
     keys = set()
     # `values_list` : les modèles seuls, sans déchiffrer la clé.
     personal = dict(UserApiKey.objects.filter(user=user, source__in=ouvertes).exclude(api_key='')
@@ -554,6 +565,16 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
     for opened in (InstanceApiKey.objects.filter(source__in=borrowed)
                    .values_list('open_models', flat=True)):
         keys.update(opened or [])
+    filtered = free_only | no_free
+    if filtered:
+        from wama.model_manager.models import AIModel
+        held = {k for k in keys if k.split(':', 1)[0] in filtered}
+        free = set(AIModel.objects.filter(model_key__in=held, cost_tier='free')
+                   .values_list('model_key', flat=True))
+        for key in held:
+            source = key.split(':', 1)[0]
+            if (source in free_only and key not in free) or (source in no_free and key in free):
+                keys.discard(key)
     return keys
 
 
