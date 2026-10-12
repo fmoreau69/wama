@@ -22998,3 +22998,33 @@ Détail, mesures et réponses aux questions de sécurité : `PROSPECTION_PIPELIN
   poids DeepFace par la route · anonymizer (YOLO, autre instance) · clé facultative
   `GITHUB_TOKEN` dans `external_sources` (proposition faite, attend le feu vert) · cartes `github`
   sans lien de version au model manager (palier du 10/10 soir).
+
+## §PALIER — 2026-10-12, « RÉGLAGES : une forme, un rendu, une porte, tous mondes (ROUTE §10.6 3.3bis, marche R1) » — livré (`f1c3d4e1` + docs dérivées `de63f973`, non poussés) — 🔴 relancer gunicorn (vues studio/avatarizer, `tool_api`) + Ctrl+F5 (Studio)
+
+- **Livré** : le Studio rend TOUS ses nœuds (apps, fonctions, nœuds intégrés) par `WamaParams`
+  depuis leur schéma `Param` (`studio/services/node_params.node_schema`, 141 nœuds) ; pont
+  `param_schema.param_from_spec` (`ParamSpec` → `Param`, sans perte) ; PORTE des refus
+  (`schema_refusals`/`checked_values`/`FunctionSpec.call_params` : choix hors liste, nombre
+  illisible, hors grille jugée sur la valeur bornée) lue par `execute_tool`, `launch_graph` (avant
+  dispatch), l'exécution d'une fonction ou d'un nœud intégré, et `wama_data/view.apply`. WamaParams :
+  renderer `media_picker`, unité d'un champ nombre, `isGesture` ; source `avatar_gallery`
+  (`avatarizer:api_avatar_gallery`). 20 `ParamSpec` sur 131 passaient unité/description en position
+  (corrigés, `KW_ONLY` les rend impossibles). Retraits : `REMOVAL_LEDGER R116`.
+- ⚠ **Rattrapage** : le premier commit (`2b5b92c5`, remplacé) avait emporté un hunk d'une autre
+  session dans `wama/tool_api.py` (`sanitize_tool_args`, `null` = non fourni, fil Discord #43),
+  écrit entre la vérification et le commit. Remplacé par `f1c3d4e1` (même arbre sans ce hunk) ; le
+  travail de l'autre session est resté NON COMMITÉ dans l'arbre, intact.
+- **Contrôles** : suite complète WSL (6612 tests) → 19 échecs, **aucun dû à R1** hors
+  `tests_doc_plans` (briques.md, soldé par `de63f973`) — les autres portent sur des fichiers
+  d'autres sessions (composer, transcriber, writer_01, imager, calendrier, accounts, aperçu,
+  media_library, budgets de langue des TESTS : 133/132 classes et 1303/1301 méthodes, aucun nom
+  ajouté par R1). Sur HEAD en worktree : 1210 tests ciblés, mêmes 4 échecs étrangers
+  (`AddItemToMediaLibraryTest.test_ne_DEVINE_pas_le_role…` rouge sur HEAD, sans lien avec la porte).
+  `manifest_roundtrip avatarizer` fidèle.
+- ⚠ `WAMA_MECANISMES.md` régénéré en WORKTREE change les compteurs de consommateurs (566→474…) :
+  ils lisent des fichiers non versionnés. Seule la cellule `param_schema` a donc été posée.
+- 🔚 **Restes** : arbitrages (a) `label` court sur `ParamSpec`, (b) domicile du registre des nœuds
+  intégrés (`manifests/builtin/pipeline.py` proposé), (c) ordre R3/R4 → puis R2-R4, degré `open`
+  du moteur, puis le Data Analyzer. Différés nommés : critère de grille « aucun écran de réglages
+  hors WamaParams » (avec R3) ; libellés des nœuds intégrés encore recopiés dans la palette JS (R2).
+  Pousser `165ecee2` + R1 (décision de Fabien).
