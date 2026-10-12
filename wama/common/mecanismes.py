@@ -1960,7 +1960,7 @@ MECHANISMS = (
               "reste le repli ; une source `shareable` (clés d'application : ILaaS) peut la "
               "PARTAGER avec les comptes sans clé — la clé personnelle prime toujours. Le champ "
               "de saisie est UNE brique (`WamaKeyField`) pour le profil et la page. Une clé "
-              "FACULTATIVE (`api_key_optional`, 2026-10-12 : `GITHUB_TOKEN` de `github_api`) "
+              "FACULTATIVE (`api_key_optional`, 2026-10-12 : le jeton de `github_api`) "
               "relève un quota sans rendre la source « non configurée » quand elle manque",
               'wama/common/external_sources.py', 'docs/construction/suivi/PROJECT_STATUS.md',
               annexes=('wama/common/utils/http_proxy.py',
