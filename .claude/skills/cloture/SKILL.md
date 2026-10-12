@@ -46,6 +46,9 @@ retrouve-t-elle TOUT ? »*
 
 ## 2. Contrôles mécaniques
 
+> Ces contrôles, plus une passe d'ALIGNEMENT (route, mondes, un seul chemin), se jouent aussi
+> EN COURS de session, sans handoff : `/reverif` (2026-10-12) — il renvoie ici, il ne recopie pas.
+
 ### 2a. 🔴 LES TESTS DE TON PÉRIMÈTRE — inconditionnel, jamais « si la session l'a rendu nécessaire »
 
 ```bash
