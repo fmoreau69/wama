@@ -22947,7 +22947,7 @@ attendues : `PROSPECTION_PIPELINE §Suite du 2026-10-10 (nuit, 2)`.
 - 🔴 Relancer gunicorn + workers : la page lit `installable` (nouveau Python) ; les lignes de
   profondeur prennent leur `install_dir` à la prochaine synchronisation.
 
-## §PALIER — 2026-10-11, « VOLETS GÉNÉRÉS : avatarizer, synthesizer, enhancer » — livré (`fb4a19d7` + commit des gardes, non poussés) — 🔴 relancer gunicorn (fait par Fabien le 11/10 avant les gardes)
+## §PALIER — 2026-10-11, « VOLETS GÉNÉRÉS : avatarizer, synthesizer, enhancer » — livré (`fb4a19d7` + gardes `c44f0432`, poussés le 12/10) — 🔴 relancer gunicorn (fait par Fabien le 11/10 avant les gardes)
 
 Les trois volets écrits à la main sont rendus du schéma (`WamaParams.render(context:'panel')`),
 comme les six autres : 9 apps sur 10. Les `dom_id` gardent les ids d'avant ; ce qui n'est pas au
