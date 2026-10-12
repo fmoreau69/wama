@@ -90,6 +90,7 @@ smoke.{% endcomment %}
         <span class="xs-key-badges">
         {% if l.api_key_env %}
           {% if l.cle_posee %}<span class="wama-cat-badge xs-cle-ok">clé posée{% if l.key_origin == 'env' %} (.env){% endif %}</span>
+          {% elif l.api_key_optional %}<span class="wama-cat-badge xs-type" title="La source répond sans clé ; une clé relève son quota">clé facultative</span>
           {% else %}<span class="wama-cat-badge xs-cle-ko">clé absente</span>{% endif %}
           {% if l.shared %}<span class="wama-cat-badge xs-cle-ok">partagée</span>{% endif %}
         {% endif %}
@@ -167,7 +168,8 @@ document.addEventListener('DOMContentLoaded', function () {
                        s.locale ? '<span class="badge bg-success">service local</span>'
                                 : '<span class="badge bg-primary">Internet (proxy UGE)</span>'];
             if (s.api_key_env) b.push(s.cle_posee ? '<span class="badge bg-success">clé posée</span>'
-                                                   : '<span class="badge bg-danger">clé absente</span>');
+                : s.api_key_optional ? '<span class="badge bg-secondary">clé facultative</span>'
+                : '<span class="badge bg-danger">clé absente</span>');
             if (s.shared) b.push('<span class="badge bg-success">partagée avec tous les comptes</span>');
             if (s.user_key) b.push('<span class="badge bg-info">clé par utilisateur (profil)</span>');
             return b;
@@ -181,7 +183,8 @@ document.addEventListener('DOMContentLoaded', function () {
             { k: "Variable d'environnement", field: 'env', code: true },
             { k: "Clé d'API (variable)", field: 'api_key_env', code: true },
             { k: "Clé de l'instance", get: function (s) {
-                return s.api_key_env ? (KEY_ORIGINS[s.key_origin] || 'absente') : ''; } },
+                return s.api_key_env ? (KEY_ORIGINS[s.key_origin]
+                    || (s.api_key_optional ? 'facultative — non posée' : 'absente')) : ''; } },
             { k: "Clé de chaque utilisateur", get: function (s) {
                 return s.user_key ? ((s.api_key_label || "Clé d'API") + ' — au profil') : ''; } },
         ] },
@@ -282,7 +285,8 @@ document.addEventListener('DOMContentLoaded', function () {
     function cardBadges(s) {
         if (!s.api_key_env) return '';
         return (s.cle_posee ? '<span class="wama-cat-badge xs-cle-ok">clé posée' + (s.key_origin === 'env' ? ' (.env)' : '') + '</span>'
-                            : '<span class="wama-cat-badge xs-cle-ko">clé absente</span>') +
+                : s.api_key_optional ? '<span class="wama-cat-badge xs-type">clé facultative</span>'
+                : '<span class="wama-cat-badge xs-cle-ko">clé absente</span>') +
                (s.shared ? ' <span class="wama-cat-badge xs-cle-ok">partagée</span>' : '');
     }
 
@@ -293,7 +297,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (card) {
             const holder = card.querySelector('.xs-key-badges');
             if (holder) holder.innerHTML = cardBadges(s);
-            card.dataset.fCle = s.shared ? 'shared' : (s.key_origin ? 'set' : 'missing');
+            card.dataset.fCle = s.shared ? 'shared' : (s.key_origin ? 'set'
+                : (s.api_key_optional ? '' : 'missing'));
         }
         if (host) host.innerHTML = WamaDetails.renderSections(s, SOURCE_DETAIL_SCHEMA) + addressPanel(s) + keyPanel(s);
         if (msg) WamaKeyField.showMsg(document.getElementById('msg-instance-' + s.key), msg[0], msg[1]);

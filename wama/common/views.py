@@ -620,6 +620,8 @@ def external_sources_view(request):
             'address_origin': address_origin(s.key),
             'api_key_env': s.api_key_env,
             'cle_posee': bool(origin) if s.api_key_env else None,
+            # Clé FACULTATIVE (2026-10-12) : absente, la source répond quand même — rien à poser.
+            'api_key_optional': s.api_key_optional,
             # Clé posée par CHAQUE utilisateur, au profil (22/09) — jamais « configurée » ici.
             'user_key': s.user_key,
             'api_key_label': s.api_key_label, 'api_key_help_url': s.api_key_help_url,
@@ -649,7 +651,8 @@ def external_sources_view(request):
                   'missing': 'À poser'}
     for l in lignes:
         l['key_state'] = ('shared' if l['shared'] else 'set' if l['key_origin']
-                          else 'missing' if l['api_key_env'] else '')
+                          else 'missing' if l['api_key_env'] and not l['api_key_optional']
+                          else '')
     present_states = {l['key_state'] for l in lignes}
     facettes.append({'cle': 'cle', 'label': "Clé de l'instance", 'tous': 'Toutes',
                      'options': {k: v for k, v in key_states.items() if k in present_states}})

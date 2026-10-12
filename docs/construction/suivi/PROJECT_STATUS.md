@@ -23077,3 +23077,21 @@ d'instance).
   du moteur, puis le Data Analyzer. Différés nommés : critère de grille « aucun écran de réglages
   hors WamaParams » (avec R3) ; libellés des nœuds intégrés encore recopiés dans la palette JS (R2).
   Pousser `165ecee2` + R1 (décision de Fabien).
+
+## §PALIER — 2026-10-12, « FICHIERS DÉCLARÉS : désinstallation, DeepFace, clé GitHub facultative, SyncNet retiré » — livré (commit de ce palier, non poussé) — 🔴 relancer gunicorn + workers (désinstallation, page « Sources externes », lignes DeepFace)
+
+Fin du chantier du pilote `files` (palier précédent). Une ligne à fichiers déclarés se
+désinstalle (`remove_declared_files` : ces fichiers seuls, jamais le dossier partagé) ; les
+trois poids DeepFace sont déclarés (version GitHub `v1.0`, empreintes mesurées sur les assets
+officiels) ; `GITHUB_TOKEN` entre au registre des sources comme clé FACULTATIVE
+(`api_key_optional`), posable sur « Sources externes ». SyncNet (1,4 Go, entraînement seul)
+retiré du disque. Détail : `PROSPECTION_PIPELINE §Suite du 2026-10-12`.
+- 🔚 Anonymizer : téléchargeur d'app encore actif au traitement (`yolo_utils` →
+  `auto_download_model`, commande `manage_models`) — autre instance sur la résolution de ses
+  modèles.
+- 🔚 DeepFace retélécharge seul un poids absent (bon dossier, sans empreinte) : vérification à
+  poser dans un backend `deepface` le jour du portage de l'app (le substrat ne nomme pas le Lab).
+- 🔚 `WAMA_MECANISMES` / `docs/dev/briques.md` à régénérer (co-édités au moment du commit).
+- ⚠ Budgets de langue rouges dans la suite (code, classes et méthodes de test) : ajouts
+  d'autres instances (`ui_smoke`, `tests_catalogues`, `doc_facts`, `check_docs`), aucun de ce
+  palier.

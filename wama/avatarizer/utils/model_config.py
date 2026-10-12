@@ -58,7 +58,8 @@ _DWPOSE_REV = '1a7144101628d69ee7a3768d1ee3a094070dc388'        # yzd-v/DWPose
 #:     Google Drive, qui n'est pas une adresse de fichier stable — un MIROIR du Hub, accepté à
 #:     l'empreinte des octets en service depuis février (une vingtaine de dépôts servent les mêmes).
 #: ⚠ HORS de la liste : `syncnet/latentsync_syncnet.pt` (1,4 Go, ByteDance/LatentSync) — lu par
-#: l'ENTRAÎNEMENT seul (`train.py`, perte de synchronisation), jamais par l'inférence.
+#: l'ENTRAÎNEMENT seul (`train.py`, perte de synchronisation), jamais par l'inférence. Retiré
+#: du disque le 2026-10-12 (décision de Fabien) ; le déclarer ici le jour d'un affinage.
 MUSETALK_FILES = [
     {'path': 'musetalkV15/unet.pth', 'size': 3400074924,
      'sha256': '7ebf6c98c181e20838e4c0054e96e944ac60d5d692cc01db42839fe11b787007',

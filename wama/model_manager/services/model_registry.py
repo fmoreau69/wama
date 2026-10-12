@@ -1225,7 +1225,7 @@ class ModelRegistry:
         """
         try:
             from wama_lab.face_analyzer.utils.model_config import (
-                DEEPFACE_RELEASES, FACE_ANALYZER_MODELS, chemin_local,
+                DEEPFACE_DIR, DEEPFACE_RELEASES, FACE_ANALYZER_MODELS, chemin_local,
             )
         except Exception as e:
             logger.debug(f"Could not import face_analyzer model_config: {e}")
@@ -1252,7 +1252,11 @@ class ModelRegistry:
                                 # Un poids OPTIONNEL absent n'est pas une app cassée : `age` et
                                 # `gender` (1 Go) ne se chargent que si « Âge & Genre » est
                                 # activé. Sans ce drapeau, l'UI lirait « modèle manquant ».
-                                'optional': bool(config.get('optional'))},
+                                'optional': bool(config.get('optional')),
+                                # Poids DÉCLARÉS (2026-10-12) : installables et désinstallables
+                                # par la route, un fichier par ligne, origine = version GitHub.
+                                'install_dir': str(DEEPFACE_DIR),
+                                'declared_files': config['files']},
                     capabilities={'task': 'face-analysis', 'modalities': ['image', 'video'],
                                   'inputs_required': ['work_file']},
                     # Anatomie DÉCLARÉE (même champ que les autres apps) : le moteur — l'autre

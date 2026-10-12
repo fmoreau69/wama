@@ -936,6 +936,74 @@ def declared_files_present(install_dir, files) -> bool:
     return bool(files) and all((Path(install_dir) / f['path']).exists() for f in files)
 
 
+def _declared_targets(model) -> tuple[Path, list] | None:
+    """Le dossier et les fichiers qu'une ligne DÉCLARE (`install_dir` + `declared_files`), ou
+    None si elle n'en déclare pas ou qu'un chemin sort de son dossier."""
+    info = model.extra_info or {}
+    files, install_dir = info.get('declared_files'), (info.get('install_dir') or '').strip()
+    if not files or not install_dir:
+        return None
+    if any(_relative_path_error(str((f or {}).get('path') or '')) for f in files):
+        return None
+    root = Path(install_dir)
+    return root, [root / f['path'] for f in files]
+
+
+def remove_declared_files(model, include_shared: bool = False) -> dict:
+    """Le pendant de `pull_declared_files` pour la désinstallation : retire EXACTEMENT les
+    fichiers que la ligne déclare, jamais son dossier — l'enhancer range ses sept modèles dans un
+    seul dossier, MuseTalk y garde des poids non déclarés (SyncNet, entraînement seul).
+
+    Un fichier qu'une AUTRE ligne installée déclare aussi est partagé : refus qui la nomme
+    (`needs_confirmation`), comme pour un dossier, tant que `include_shared` n'est pas donné.
+    Les dossiers vidés par le retrait partent avec lui, jusqu'au dossier de l'app (exclu).
+    Rend {'ok', 'freed_gb', 'sharing'} ou {'ok': False, 'error', …}."""
+    from wama.common.utils.model_locations import models_root
+
+    from ..models import AIModel, EXECUTION_LOCAL
+
+    declared = _declared_targets(model)
+    if declared is None:
+        return {'ok': False, 'error': f"« {model.name} » ne déclare aucun fichier retirable."}
+    root, targets = declared
+    try:
+        root.resolve().relative_to(models_root().resolve())
+    except (ValueError, OSError):
+        return {'ok': False, 'error': f"chemin hors de la racine des modèles : {root}"}
+    mine = {t.resolve() for t in targets}
+    sharing = []
+    others = (AIModel.objects.filter(is_downloaded=True, is_proposed=False,
+                                     execution=EXECUTION_LOCAL, extra_info__has_key='declared_files')
+              .exclude(pk=model.pk))
+    for other in others:
+        theirs = _declared_targets(other)
+        if theirs and mine & {t.resolve() for t in theirs[1]}:
+            sharing.append(other)
+    if sharing and not include_shared:
+        names = [m.name for m in sharing]
+        return {'ok': False, 'needs_confirmation': True, 'sharing': names, 'dependents': [],
+                'error': "ces fichiers sont AUSSI ceux de : " + ', '.join(names)
+                         + " — ils seront désinstallés ensemble."}
+    loaded = [m.name for m in sharing if m.is_loaded]
+    if loaded:
+        return {'ok': False, 'error': f"« {', '.join(loaded)} » partage ces fichiers et est "
+                                      "chargé en mémoire — le décharger d'abord."}
+    freed = 0
+    for target in targets:
+        if target.is_file() and not target.is_symlink():
+            freed += target.stat().st_size
+        if target.is_file() or target.is_symlink():
+            target.unlink()
+        parent = target.parent
+        while parent != root and root in parent.parents:
+            try:
+                parent.rmdir()               # seulement s'il est VIDE
+            except OSError:
+                break
+            parent = parent.parent
+    return {'ok': True, 'freed_gb': freed / 1024 ** 3, 'sharing': sharing}
+
+
 def pull_declared_files(spec: dict, timeout: int = 600, dry_run: bool = False) -> dict:
     """Les fichiers qu'une app DÉCLARE, posés SOUS son dossier (`target_dir`), chacun tiré de
     son ORIGINE déclarée (cf. l'en-tête du pilote).
@@ -1574,6 +1642,8 @@ def uninstall_model(model_key: str, include_shared: bool = False, via: str = '')
     même geste. Miroir de `install_from_spec` : dispatch par nature du stockage.
 
       • ollama   → `DELETE /api/delete` (driver existant `delete_ollama_model`) ;
+      • fichiers DÉCLARÉS (pilote `files`, 2026-10-12) → `remove_declared_files` : ces fichiers-là
+                   seulement, leur dossier est partagé (enhancer) ou en porte d'autres (MuseTalk) ;
       • fichiers → suppression du dossier résolu par `weights_dir_of` (+ ses verrous `.locks`).
                    Couvre depuis le 2026-09-28 les modèles d'APP (imager, synthesizer,
                    transcriber…), qui étaient refusés faute de porter leur chemin — décision
@@ -1626,6 +1696,14 @@ def uninstall_model(model_key: str, include_shared: bool = False, via: str = '')
         if not res.get('ok'):
             return {'ok': False, 'error': f"retrait Ollama impossible : {res.get('error')}"}
         kind = 'ollama'
+    elif (model.extra_info or {}).get('declared_files'):
+        # Les fichiers que l'app DÉCLARE (pilote `files`) : retirés un à un, jamais leur dossier.
+        res = remove_declared_files(model, include_shared=include_shared)
+        if not res.get('ok'):
+            return res
+        freed_gb = res['freed_gb']
+        marked += res['sharing']
+        kind = 'declared_files'
     else:
         # GARDE-FOUS avant tout rm -rf : le dossier doit être SOUS la racine canonique —
         # jamais de suppression hors de `AI-models/models/`, quoi que dise la base. Le cache HF

@@ -62,7 +62,8 @@ logger = logging.getLogger(__name__)
 #: plus bas reste le registre des BANCS — il dit comment LIRE une valeur (priorité, échelle,
 #: méta) ; il ne dit plus où joindre la plateforme. Deux registres, deux questions.
 from wama.common.external_sources import (ARENA_DATASET, MTEB_RESULTS_REPO,  # noqa: F401
-                                          OPEN_ASR_DATASETS, base_url as _base_url_of,
+                                          OPEN_ASR_DATASETS, api_key as _api_key,
+                                          base_url as _base_url_of,
                                           get as _source, proxies_for as _proxies_for)
 from wama.common.external_sources import base_url as _base_url
 
@@ -824,7 +825,7 @@ def _mteb_index(markers=()):
     api = _base_url_of('github_api')
     proxies = _proxies_for('github_api')
     headers = {'Accept': 'application/vnd.github+json'}
-    tok = os.environ.get('GITHUB_TOKEN', '').strip()
+    tok = _api_key('github_api').strip()        # facultatif : relève le quota anonyme
     if tok:
         headers['Authorization'] = f'Bearer {tok}'
 

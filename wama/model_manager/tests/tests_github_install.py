@@ -395,6 +395,18 @@ class ReadingAReleaseTest(SimpleTestCase):
         self.assertTrue(get.call_args.args[0].endswith(
             '/repos/Phhofm/models/releases/tags/4xNomosUni_span_multijpg'))
 
+    def test_the_token_is_the_registry_key_and_optional(self):
+        """The `github_api` source's key (Sources page, then `.env`) — never sent when unset."""
+        from wama.model_manager.services import prospector as p
+        response = type('R', (), {'status_code': 404, 'raise_for_status': lambda s: None})()
+        for key, expected in (('tok', 'Bearer tok'), ('', None)):
+            with self.subTest(key=key), \
+                    patch('wama.common.external_sources.api_key', return_value=key) as read, \
+                    patch('requests.get', return_value=response) as get:
+                p.github_release(SPAN['ref'])
+            read.assert_called_with('github_api')
+            self.assertEqual(expected, get.call_args.kwargs['headers'].get('Authorization'))
+
     def test_the_licence_is_the_one_the_release_states(self):
         from wama.model_manager.services.prospector import github_release_license
         self.assertEqual('CC BY 4.0', github_release_license(SPAN_RELEASE))
@@ -772,6 +784,83 @@ class DeclaredFilesTest(TestCase):
         """A mirror is not an author: the model's identity is the one its discovery declares."""
         from wama.model_manager.services.provenance import identity_for_spec
         self.assertIsNone(identity_for_spec(self._spec()))
+
+
+class UninstallingDeclaredFilesTest(TestCase):
+    """Désinstaller une ligne à fichiers déclarés retire CES fichiers, jamais leur dossier :
+    l'enhancer range ses sept modèles dans un seul, MuseTalk y garde des poids non déclarés."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.settings_cm = self.settings(AI_MODELS_DIR=self.root)
+        self.settings_cm.enable()
+        self.addCleanup(self.settings_cm.disable)
+        self.app_dir = os.path.join(self.root, 'models', 'lipsync', 'codeformer')
+
+    def _place(self, *paths):
+        for rel in paths:
+            path = os.path.join(self.app_dir, *rel.split('/'))
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'wb') as fh:
+                fh.write(b'x' * 1024)
+
+    def _row(self, key, files, **over):
+        from wama.model_manager.models import AIModel
+        return AIModel.objects.create(
+            model_key=key, name=key, source='avatarizer', is_downloaded=True,
+            extra_info={'install_dir': self.app_dir, 'declared_files': files}, **over)
+
+    def test_only_the_declared_files_go_and_emptied_folders_with_them(self):
+        self._place(*(f['path'] for f in DECLARED), 'facelib/not_declared.pth')
+        self._row('avatarizer:codeformer', DECLARED)
+        res = mi.uninstall_model('avatarizer:codeformer')
+        self.assertTrue(res['ok'], res)
+        self.assertEqual('declared_files', res['kind'])
+        for f in DECLARED:
+            self.assertFalse(os.path.exists(os.path.join(self.app_dir, *f['path'].split('/'))))
+        self.assertTrue(os.path.exists(os.path.join(self.app_dir, 'facelib', 'not_declared.pth')),
+                        'a file the row does not declare stays')
+        self.assertFalse(os.path.exists(os.path.join(self.app_dir, 'CodeFormer')),
+                         'a folder emptied by the removal goes with it')
+        self.assertTrue(os.path.isdir(self.app_dir), 'never the app folder')
+        from wama.model_manager.models import AIModel
+        self.assertFalse(AIModel.objects.get(model_key='avatarizer:codeformer').is_downloaded)
+
+    def test_a_sibling_row_in_the_same_folder_keeps_its_file(self):
+        """The enhancer case: one folder, one file per row."""
+        self._place(DECLARED[0]['path'], DECLARED[2]['path'])
+        self._row('enhancer:a', [DECLARED[0]])
+        self._row('enhancer:b', [DECLARED[2]])
+        res = mi.uninstall_model('enhancer:a')
+        self.assertTrue(res['ok'], res)
+        self.assertEqual([], res['also_marked'])
+        self.assertTrue(os.path.exists(os.path.join(self.app_dir, 'face-parse', 'resnet18.pth')))
+
+    def test_a_file_declared_by_another_installed_row_needs_confirmation(self):
+        self._place(DECLARED[0]['path'])
+        self._row('avatarizer:one', [DECLARED[0]])
+        self._row('avatarizer:two', [DECLARED[0]])
+        res = mi.uninstall_model('avatarizer:one')
+        self.assertTrue(res.get('needs_confirmation'), res)
+        self.assertEqual(['avatarizer:two'], res['sharing'])
+        self.assertTrue(os.path.exists(os.path.join(self.app_dir, 'CodeFormer', 'codeformer.pth')))
+        res = mi.uninstall_model('avatarizer:one', include_shared=True)
+        self.assertTrue(res['ok'], res)
+        self.assertEqual(['avatarizer:two'], res['also_marked'])
+
+    def test_counter_proof_outside_the_models_root_nothing_is_removed(self):
+        elsewhere = tempfile.mkdtemp()
+        kept = os.path.join(elsewhere, 'CodeFormer', 'codeformer.pth')
+        os.makedirs(os.path.dirname(kept))
+        open(kept, 'wb').close()
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key='avatarizer:outside', name='outside',
+                               source='avatarizer', is_downloaded=True,
+                               extra_info={'install_dir': elsewhere,
+                                           'declared_files': [DECLARED[0]]})
+        res = mi.uninstall_model('avatarizer:outside')
+        self.assertFalse(res['ok'])
+        self.assertTrue(os.path.exists(kept))
 
 
 class PullModelRequestsTheInstallTest(TestCase):

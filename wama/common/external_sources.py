@@ -253,6 +253,11 @@ class ExternalSource:
     api_key_env: str = ''
     #: Page où l'on obtient une clé — affichée à côté du champ de saisie du profil.
     api_key_help_url: str = ''
+    #: La clé de l'instance est FACULTATIVE (2026-10-12, décision de Fabien) : la source répond
+    #: sans elle, la clé ne fait que relever un quota (API GitHub : 60 appels/h anonymes, 5000
+    #: avec un jeton). Sans ce drapeau, déclarer `api_key_env` rendait la source « non
+    #: configurée » tant que personne ne posait de clé — ce qui la gardait hors du registre.
+    api_key_optional: bool = False
     #: Fournisseur LLM : où partent les données — une valeur de `HOSTING_SCALE` ('private',
     #: 'sovereign' — hébergement de l'État —, 'third_party'). Une clé d'API suffit à faire d'une
     #: source un service DISTANT (Fabien, 15/09).
@@ -588,9 +593,17 @@ SOURCES: tuple[ExternalSource, ...] = (
         "Poids et échantillons publiés en releases (ultralytics, coqui, "
         "serengil/deepface_models…) — TOUT poids qui n'est pas sur HuggingFace passe par ici",
         kind='poids'),
+    # Jeton FACULTATIF (2026-10-12) : deux lecteurs le prenaient dans l'environnement, hors du
+    # registre (`prospector.github_release`, `benchmark_sync._mteb_index`) — la page ne pouvait
+    # ni le dire ni le poser. Il ne sert qu'à l'API ; le téléchargement d'un poids publié
+    # (`github`) n'en a pas besoin.
     ExternalSource(
         'github_api', 'API GitHub', 'https://api.github.com',
-        "Liste des releases — résolution de la version d'un poids", kind='poids'),
+        "Versions publiées (fichiers, licence) et index du banc MTEB — jeton facultatif : quota "
+        "relevé de 60 à 5000 appels/h", kind='poids',
+        api_key_env='GITHUB_TOKEN', api_key_optional=True,
+        api_key_label='Jeton GitHub (lecture des dépôts publics, aucune permission)',
+        api_key_help_url='https://github.com/settings/personal-access-tokens/new'),
     # 2026-09-30 : le rôle librarian doit savoir si un dépôt est PUBLIÉ sur PyPI — un
     # `pyproject.toml` ne suffit pas (YuE, ACE-Step en ont un et sont absents de PyPI) : sans
     # publication, la route `library` refuse pip, et la voie est vendor.
@@ -920,12 +933,13 @@ def is_configured(key: str) -> bool:
     profil de chacun, et c'est son connecteur qui refuse, avec un motif, quand elle manque. La
     page le dit en toutes lettres (« clé par utilisateur ») au lieu d'un « configurée » trompeur.
     Une source dont l'adresse est EXIGÉE (`address_required`) ne l'est pas tant qu'aucune
-    adresse n'est posée : son défaut déclaré n'est qu'un exemple.
+    adresse n'est posée : son défaut déclaré n'est qu'un exemple. Une clé FACULTATIVE
+    (`api_key_optional`) absente ne la rend pas « non configurée » : la source répond sans elle.
     """
     src = get(key)
     if src.address_required and not address_origin(key):
         return False
-    return bool(api_key(key)) if src.api_key_env else True
+    return bool(api_key(key)) if src.api_key_env and not src.api_key_optional else True
 
 
 def attributions() -> tuple[str, ...]:

@@ -127,6 +127,29 @@ class CleApiTest(SimpleTestCase):
         with mock.patch.dict(os.environ, {'ARTIFICIAL_ANALYSIS_API_KEY': 'k'}):
             self.assertTrue(es.is_configured('artificial_analysis'))
 
+    def test_an_optional_key_leaves_the_source_configured_and_is_read_when_set(self):
+        """GitHub's API answers without a token (60 calls/h); a token only raises the quota."""
+        source = es.get('github_api')
+        self.assertTrue(source.api_key_optional)
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertTrue(es.is_configured('github_api'))
+            self.assertEqual('', es.api_key('github_api'))
+        with mock.patch.dict(os.environ, {source.api_key_env: 'tok'}):
+            self.assertEqual('tok', es.api_key('github_api'))
+
+    def test_the_github_token_is_read_through_the_registry_only(self):
+        """Its two readers took it from the environment, out of the page's sight."""
+        found = []
+        for root in ('wama', 'wama_lab', 'wama_data'):
+            for path in (Path(settings.BASE_DIR) / root).rglob('*.py'):
+                rel = path.relative_to(settings.BASE_DIR).as_posix()
+                if (path.name.startswith('tests') or '/tests/' in rel
+                        or rel == 'wama/common/external_sources.py'):
+                    continue
+                if 'GITHUB_TOKEN' in path.read_text(encoding='utf-8', errors='replace'):
+                    found.append(rel)
+        self.assertEqual([], found)
+
     def test_les_attributions_sont_derivees_du_registre(self):
         """Obligation de licence (l'Arena est en CC-BY-4.0), donc jamais une chaîne figée."""
         attributions = es.attributions()

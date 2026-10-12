@@ -452,7 +452,9 @@ MECHANISMS = (
               "2026-10-07), files (les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE "
               "parmi les sources déclarées — dépôt du Hub figé au commit, version GitHub, adresse "
               "fixe d'une source « poids » — taille et empreinte épinglées, 2026-10-11 : "
-              "CodeFormer, MuseTalk, enhancer, Face Analyzer) ; `download_asset` = le "
+              "CodeFormer, MuseTalk, enhancer, Face Analyzer, DeepFace le 12/10 ; la "
+              "désinstallation retire ces fichiers-là seulement, `remove_declared_files`) ; "
+              "`download_asset` = le "
               "téléchargement contrôlé commun aux pilotes à "
               "fichier (empreinte d'un fichier en place : `provenance.sha256_of`)",
               'wama/model_manager/services/model_installer.py', '',
@@ -1957,7 +1959,9 @@ MECHANISMS = (
               "externes » (`accounts.InstanceApiKey`, chiffrée) et prime sur le `.env`, qui "
               "reste le repli ; une source `shareable` (clés d'application : ILaaS) peut la "
               "PARTAGER avec les comptes sans clé — la clé personnelle prime toujours. Le champ "
-              "de saisie est UNE brique (`WamaKeyField`) pour le profil et la page",
+              "de saisie est UNE brique (`WamaKeyField`) pour le profil et la page. Une clé "
+              "FACULTATIVE (`api_key_optional`, 2026-10-12 : `GITHUB_TOKEN` de `github_api`) "
+              "relève un quota sans rendre la source « non configurée » quand elle manque",
               'wama/common/external_sources.py', 'docs/construction/suivi/PROJECT_STATUS.md',
               annexes=('wama/common/utils/http_proxy.py',
                        'wama/common/utils/ollama_host.py',

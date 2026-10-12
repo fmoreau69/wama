@@ -2880,3 +2880,38 @@ défauts que leur exécution a trouvés.**
   Règle consignée à son domicile : `WAMA_MANIFEST_ARCHITECTURE §6ter` règle 4. Tests :
   `tests_manifest_corpus` (6, dont « aucun écrivain hors de la porte » par AST).
 
+
+**Suite du 2026-10-12 — fin du chantier « fichiers déclarés » (décisions de Fabien : « ok pour
+retirer SyncNet, go pour la clé GITHUB_TOKEN », puis « on termine tout ça »).**
+- ✅ Live après relance : les 10 lignes à fichiers déclarés rendent un spec `files` ; les 23
+  fichiers relus à l'empreinte par le pilote, 0 téléchargé.
+- ✅ **SyncNet retiré du disque** (`lipsync/musetalk/syncnet/`, 1,4 Go) — entraînement seul ; le
+  déclarer dans `MUSETALK_FILES` le jour d'un affinage (origine officielle `ByteDance/LatentSync`).
+- ✅ **Désinstaller une ligne à fichiers déclarés** (`model_installer.remove_declared_files`,
+  branche de `uninstall_model`) : retire CES fichiers, jamais leur dossier — l'enhancer range ses
+  sept modèles dans un seul, MuseTalk y gardait SyncNet. Un fichier qu'une autre ligne installée
+  déclare aussi demande confirmation (`needs_confirmation`, même règle que les dossiers) ; les
+  dossiers vidés partent, jamais celui de l'app. Avant : refus « aucun dossier de poids
+  désinstallable » (sain, mais aucun geste). Tests : `UninstallingDeclaredFilesTest` (4).
+- ✅ **Poids DeepFace par la route** : les trois `.h5` déclarés (origine
+  `serengil/deepface_models:v1.0`, la version que la lib tire), un fichier par ligne ; GitHub ne
+  publie pas d'empreinte pour cette version → les trois assets officiels lus EN FLUX le 12/10 :
+  identiques aux fichiers en service. Tests : `face_analyzer/tests_deepface_weights` (dont « la
+  version est celle que la lib installée tire »).
+  🔚 La lib retélécharge encore d'elle-même un poids absent (dans `DEEPFACE_HOME`, donc au bon
+  endroit, mais sans empreinte) : l'en empêcher demande que `common/backends/emotions.py` lise la
+  déclaration d'une app du Lab — un monde nommé par le substrat. Le jour où l'app est portée
+  (backend déclarant `ENGINE = 'deepface'`), la vérification ira dans son backend.
+- ✅ **Clé facultative** : champ `ExternalSource.api_key_optional` ; `github_api` déclare
+  `GITHUB_TOKEN` avec ce drapeau (`is_configured` reste vrai sans clé). Les deux lecteurs
+  (`prospector.github_release`, `benchmark_sync._mteb_index`) lisent `api_key('github_api')` —
+  donc la clé posée par un admin sur « Sources externes », puis le `.env`. La page dit « clé
+  facultative » au lieu de « clé absente » et ne la range pas sous « À poser ». Le téléchargement
+  des poids publiés (`github`) n'emploie pas de jeton. Garde : plus aucun `GITHUB_TOKEN` hors du
+  registre (`tests_external_sources`).
+- ✅ Lien de version des cartes `github` au model manager : déjà en place
+  (`platform_url` → `…/releases/tag/<tag>`, vérifié sur SPAN et GaterV3) — le reste noté le 10/10
+  était périmé.
+- 🔚 **Anonymizer** : le téléchargeur d'app tourne encore (`yolo_utils.get_model_path` →
+  `model_manager.auto_download_model` au traitement, commande `manage_models`), hors route, sans
+  empreinte. Non touché : une autre instance remanie la résolution de ses modèles (12/10).

@@ -55,12 +55,27 @@ DEEPFACE_DIR = Path(settings.MODEL_PATHS['vision']['deepface']) / '.deepface' / 
 #: Dépôt GitHub d'où sortent les poids — nommé UNE fois (identifiant, pas une URL construite).
 DEEPFACE_RELEASES = 'serengil/deepface_models'
 
+#: La version que la librairie tire (`deepface/models/demography/*.py` : `…/download/v1.0/…`).
+DEEPFACE_RELEASE = f'{DEEPFACE_RELEASES}:v1.0'
+
+
+def _deepface_file(name: str, size: int, sha256: str) -> list:
+    """Un poids DÉCLARÉ (pilote `files`, 2026-10-12) : la version publiée que la lib tire, à
+    l'empreinte MESURÉE — l'asset officiel, lu en flux le 12/10, et le fichier en service depuis
+    janvier sont identiques (GitHub ne publie pas d'empreinte pour cette version)."""
+    return [{'path': name, 'size': size, 'sha256': sha256,
+             'origin': {'source': 'github', 'release': DEEPFACE_RELEASE, 'file': name}}]
+
+
 #: Les poids réellement utilisés par l'app. `age`/`gender` ne servent QUE si `enable_age_gender`
 #: est activé dans l'interface — d'où leur `optional`, qui explique pourquoi 1 Go peut manquer
-#: sans que l'app soit cassée.
+#: sans que l'app soit cassée. `files` : leur déclaration pour la route d'installation.
 FACE_ANALYZER_MODELS = {
     'deepface-expression': {
         'fichier': 'facial_expression_model_weights.h5',
+        'files': _deepface_file(
+            'facial_expression_model_weights.h5', 5977392,
+            'e8e8851d3fa05c001b1c27fd8841dfe08d7f82bb786a53ad8776725b7a1e824c'),
         'type': 'vision',
         'engine': 'deepface',
         'optional': False,
@@ -69,6 +84,9 @@ FACE_ANALYZER_MODELS = {
     },
     'deepface-age': {
         'fichier': 'age_model_weights.h5',
+        'files': _deepface_file(
+            'age_model_weights.h5', 538771776,
+            '0aeff75734bfe794113756d2bfd0ac823d51e9422c8961125b570871d3c2b114'),
         'type': 'vision',
         'engine': 'deepface',
         'optional': True,
@@ -77,6 +95,9 @@ FACE_ANALYZER_MODELS = {
     },
     'deepface-gender': {
         'fichier': 'gender_model_weights.h5',
+        'files': _deepface_file(
+            'gender_model_weights.h5', 537149760,
+            '45513ce5678549112d25ab85b1926fb65986507d49c674a3d04b2ba70dba2eb5'),
         'type': 'vision',
         'engine': 'deepface',
         'optional': True,

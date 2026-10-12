@@ -1811,8 +1811,8 @@ def seed_ollama_candidate(name: str) -> dict:
 # Le pendant de ce que `HfApi().model_info` donne au scout pour un dépôt HF : la version lue sur
 # l'API GitHub — c'est l'usage DÉCLARÉ de la source `github_api` (« Liste des releases —
 # résolution de la version d'un poids »), qui n'avait jusqu'ici aucun lecteur pour cela.
-# Même client que `benchmark_sync._mteb_index` (en-tête, jeton `GITHUB_TOKEN` facultatif : le
-# quota anonyme est de 60 appels/h).
+# Même client que `benchmark_sync._mteb_index` (en-tête, jeton facultatif de la source
+# `github_api` : le quota anonyme est de 60 appels/h).
 
 def github_release(ref: str):
     """La version `owner/repo:tag` telle que l'API GitHub la publie (dict), `{}` si elle
@@ -1820,14 +1820,14 @@ def github_release(ref: str):
     (la distinction de `_siblings`)."""
     import requests
 
-    from wama.common.external_sources import base_url, proxies_for
+    from wama.common.external_sources import api_key, base_url, proxies_for
 
     from .model_installer import github_release_of
     repo, tag = github_release_of(ref)
     if not (repo and tag):
         return {}
     headers = {'Accept': 'application/vnd.github+json'}
-    token = os.environ.get('GITHUB_TOKEN', '').strip()
+    token = api_key('github_api').strip()
     if token:
         headers['Authorization'] = f'Bearer {token}'
     try:
