@@ -40,6 +40,77 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
             <i class="fas fa-compass me-1"></i>Ouvrir <i class="fas fa-caret-down ms-1"></i>
         </button>
     </div>
+    {# ── Panneau CALIBRATION (replié par défaut) — tout ce qui définit la géométrie ── #}
+    <div id="calibPanel" class="d-none w-100 p-2 rounded"
+         style="background:rgba(255,255,255,.03); border:1px solid #495057;">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded"
+                  style="background:rgba(255,193,7,.12);border:1px solid rgba(255,193,7,.3);"
+                  title="Recalage synchro GPS↔vidéo (secondes) : glisse jusqu'à ce que la navette colle à la vidéo, puis 💾">
+                <span class="small fw-semibold text-warning"><i class="fas fa-sync-alt me-1"></i>Synchro GPS Δ</span>
+                <input type="range" id="gpsOffsetSlider" min="-30" max="30" step="0.05" value="0" style="width:110px;">
+                <input type="number" id="gpsOffsetInput" step="0.05" value="0"
+                       class="form-control form-control-sm" style="width:64px;">
+                <span class="small text-secondary">s</span>
+                <button type="button" id="gpsOffsetSaveBtn" class="btn btn-sm btn-outline-success"
+                        title="Enregistrer l'offset pour cette session">💾</button>
+            </span>
+            <button type="button" id="syncRecBtn" class="btn btn-sm btn-outline-info"
+                    title="Recalculer la synchro GPS↔vidéo (échelle+offset) + largeur de voie depuis le .rec RTMaps">
+                <i class="fas fa-magic me-1"></i>Sync .rec
+            </button>
+        </div>
+        <div class="d-flex flex-wrap gap-1 align-items-center mt-2"
+             title="Orientation de montage réelle de chaque caméra (deg, sens horaire depuis l'avant) — appliquée au rendu immédiatement, au tracking 360°/prédiction au prochain calcul des indicateurs.">
+            <span class="small text-secondary fw-semibold"><i class="fas fa-compass me-1"></i>Yaw</span>
+            <span id="camYawInputs" class="d-inline-flex align-items-center flex-wrap gap-1">
+                <span class="small text-secondary">Av</span>
+                <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="front" step="0.5" style="width:52px; padding:1px 3px;">
+                <span class="small text-secondary">Dr</span>
+                <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="right" step="0.5" style="width:52px; padding:1px 3px;">
+                <span class="small text-secondary">Ar</span>
+                <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="rear" step="0.5" style="width:52px; padding:1px 3px;">
+                <span class="small text-secondary">Ga</span>
+                <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="left" step="0.5" style="width:52px; padding:1px 3px;">
+                <span class="small text-secondary" title="Champ VERTICAL des caméras latérales (°). Le champ horizontal de chaque latérale en est dérivé par les proportions de son image (une seule focale, pixels carrés). Un champ plus grand que le réel SURESTIME les distances latérales. Session ENA : 53° (la fiche F1015 dit 97° × 53°, mais 97° est l'angle de bord à bord d'un objectif à distorsion ; le sténopé équivalent fait ~76° H).">FOV V lat.</span>
+                <input type="number" id="camFovLatInput" class="form-control form-control-sm" min="20" max="80" step="0.5" style="width:52px; padding:1px 3px;">
+                <span class="small text-secondary" title="Position de l'ANTENNE GPS dans le repère véhicule (m) : latéral (+ = droite) puis longitudinal (+ = avant), origine = centre arrière. Rig ENA : coin arrière droit ≈ (1.0, 0.0). Le point GPS est ramené au centre du véhicule — corrige un biais latéral systématique.">Antenne</span>
+                <input type="number" id="antLatInput" class="form-control form-control-sm" min="-2" max="2" step="0.1" style="width:52px; padding:1px 3px;" title="latéral (m, + = droite)">
+                <input type="number" id="antLonInput" class="form-control form-control-sm" min="-1" max="5" step="0.1" style="width:52px; padding:1px 3px;" title="longitudinal (m, + = avant)">
+                <button type="button" id="camYawSaveBtn" class="btn btn-sm btn-outline-success"
+                        title="Enregistrer yaw + FOV caméras pour cette session">💾</button>
+            </span>
+            <span class="d-inline-flex align-items-center gap-1 ms-2"
+                  title="Hauteur caméra (m) pour la projection sol→image du gabarit vidéo">
+                <span class="small text-secondary">H cam</span>
+                <input type="range" id="camHeightSlider" min="0.8" max="3.2" step="0.05" value="2.4" style="width:80px;">
+                <span class="small text-secondary" id="camHeightVal" style="min-width:34px;">2.4m</span>
+            </span>
+        </div>
+        <div class="d-flex flex-wrap gap-1 align-items-center mt-2">
+            <span class="small text-secondary fw-semibold"><i class="fas fa-ruler-combined me-1"></i>Sol</span>
+            <button type="button" id="calibToggleBtn" class="btn btn-sm btn-outline-info"
+                    title="Calibrer le sol : cliquer les 4 coins d'un passage piéton">
+                <i class="fas fa-ruler-combined me-1"></i>Calibrer
+            </button>
+            <button type="button" id="sam3CalibBtn" class="btn btn-sm btn-outline-info"
+                    title="Détecter le passage sur la frame courante et calibrer la vue de dessus">
+                <i class="fas fa-crosshairs me-1"></i>Calib. SAM3
+            </button>
+            <button type="button" id="sam3TestBtn" class="btn btn-sm btn-outline-light"
+                    title="Tester SAM3 sur la frame courante (masks + scores)">
+                <i class="fas fa-flask"></i>
+            </button>
+            <button type="button" id="orthoRecalageBtn" class="btn btn-sm btn-outline-warning"
+                    title="Recalage absolu : segmente les passages piétons sur l'orthophoto IGN et mesure le décalage avec ceux vus par les caméras (étape 2b, MESURE — SAM3 + GPU)">
+                <i class="fas fa-satellite-dish me-1"></i>Recalage ortho
+            </button>
+            <button type="button" id="orthoCorrectionBtn" class="btn btn-sm btn-outline-success"
+                    title="Applique le recalage mesuré à la trajectoire (étape 2b, APPLICATION — calcul pur, relançable à volonté pour recalibrer le seuil de masquage). Nécessite la bascule ⚑ « Recalage GPS par marquages ortho ».">
+                <i class="fas fa-crosshairs me-1"></i>Corriger trajectoire
+            </button>
+        </div>
+    </div>
     {# ── Section 2 : VUE (bascules d'affichage) ── #}
     <div class="td-group">
         <span class="td-group-label">Vue</span>
@@ -99,77 +170,6 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
 {# ── Panneau ⚑ COMPARER (dé-floté 2026-08-06) — auto-généré par scope, cf. renderFeatPanel ── #}
 <div id="featModesPanel" class="d-none mb-1 p-2 rounded"
      style="background:rgba(255,255,255,.03); border:1px solid #495057; max-width:340px;"></div>
-{# ── Panneau CALIBRATION (replié par défaut) — tout ce qui définit la géométrie ── #}
-<div id="calibPanel" class="d-none mb-1 p-2 rounded"
-     style="background:rgba(255,255,255,.03); border:1px solid #495057;">
-    <div class="d-flex flex-wrap gap-2 align-items-center">
-        <span class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded"
-              style="background:rgba(255,193,7,.12);border:1px solid rgba(255,193,7,.3);"
-              title="Recalage synchro GPS↔vidéo (secondes) : glisse jusqu'à ce que la navette colle à la vidéo, puis 💾">
-            <span class="small fw-semibold text-warning"><i class="fas fa-sync-alt me-1"></i>Synchro GPS Δ</span>
-            <input type="range" id="gpsOffsetSlider" min="-30" max="30" step="0.05" value="0" style="width:110px;">
-            <input type="number" id="gpsOffsetInput" step="0.05" value="0"
-                   class="form-control form-control-sm" style="width:64px;">
-            <span class="small text-secondary">s</span>
-            <button type="button" id="gpsOffsetSaveBtn" class="btn btn-sm btn-outline-success"
-                    title="Enregistrer l'offset pour cette session">💾</button>
-        </span>
-        <button type="button" id="syncRecBtn" class="btn btn-sm btn-outline-info"
-                title="Recalculer la synchro GPS↔vidéo (échelle+offset) + largeur de voie depuis le .rec RTMaps">
-            <i class="fas fa-magic me-1"></i>Sync .rec
-        </button>
-    </div>
-    <div class="d-flex flex-wrap gap-1 align-items-center mt-2"
-         title="Orientation de montage réelle de chaque caméra (deg, sens horaire depuis l'avant) — appliquée au rendu immédiatement, au tracking 360°/prédiction au prochain calcul des indicateurs.">
-        <span class="small text-secondary fw-semibold"><i class="fas fa-compass me-1"></i>Yaw</span>
-        <span id="camYawInputs" class="d-inline-flex align-items-center flex-wrap gap-1">
-            <span class="small text-secondary">Av</span>
-            <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="front" step="0.5" style="width:52px; padding:1px 3px;">
-            <span class="small text-secondary">Dr</span>
-            <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="right" step="0.5" style="width:52px; padding:1px 3px;">
-            <span class="small text-secondary">Ar</span>
-            <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="rear" step="0.5" style="width:52px; padding:1px 3px;">
-            <span class="small text-secondary">Ga</span>
-            <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="left" step="0.5" style="width:52px; padding:1px 3px;">
-            <span class="small text-secondary" title="Champ VERTICAL des caméras latérales (°). Le champ horizontal de chaque latérale en est dérivé par les proportions de son image (une seule focale, pixels carrés). Un champ plus grand que le réel SURESTIME les distances latérales. Session ENA : 53° (la fiche F1015 dit 97° × 53°, mais 97° est l'angle de bord à bord d'un objectif à distorsion ; le sténopé équivalent fait ~76° H).">FOV V lat.</span>
-            <input type="number" id="camFovLatInput" class="form-control form-control-sm" min="20" max="80" step="0.5" style="width:52px; padding:1px 3px;">
-            <span class="small text-secondary" title="Position de l'ANTENNE GPS dans le repère véhicule (m) : latéral (+ = droite) puis longitudinal (+ = avant), origine = centre arrière. Rig ENA : coin arrière droit ≈ (1.0, 0.0). Le point GPS est ramené au centre du véhicule — corrige un biais latéral systématique.">Antenne</span>
-            <input type="number" id="antLatInput" class="form-control form-control-sm" min="-2" max="2" step="0.1" style="width:52px; padding:1px 3px;" title="latéral (m, + = droite)">
-            <input type="number" id="antLonInput" class="form-control form-control-sm" min="-1" max="5" step="0.1" style="width:52px; padding:1px 3px;" title="longitudinal (m, + = avant)">
-            <button type="button" id="camYawSaveBtn" class="btn btn-sm btn-outline-success"
-                    title="Enregistrer yaw + FOV caméras pour cette session">💾</button>
-        </span>
-        <span class="d-inline-flex align-items-center gap-1 ms-2"
-              title="Hauteur caméra (m) pour la projection sol→image du gabarit vidéo">
-            <span class="small text-secondary">H cam</span>
-            <input type="range" id="camHeightSlider" min="0.8" max="3.2" step="0.05" value="2.4" style="width:80px;">
-            <span class="small text-secondary" id="camHeightVal" style="min-width:34px;">2.4m</span>
-        </span>
-    </div>
-    <div class="d-flex flex-wrap gap-1 align-items-center mt-2">
-        <span class="small text-secondary fw-semibold"><i class="fas fa-ruler-combined me-1"></i>Sol</span>
-        <button type="button" id="calibToggleBtn" class="btn btn-sm btn-outline-info"
-                title="Calibrer le sol : cliquer les 4 coins d'un passage piéton">
-            <i class="fas fa-ruler-combined me-1"></i>Calibrer
-        </button>
-        <button type="button" id="sam3CalibBtn" class="btn btn-sm btn-outline-info"
-                title="Détecter le passage sur la frame courante et calibrer la vue de dessus">
-            <i class="fas fa-crosshairs me-1"></i>Calib. SAM3
-        </button>
-        <button type="button" id="sam3TestBtn" class="btn btn-sm btn-outline-light"
-                title="Tester SAM3 sur la frame courante (masks + scores)">
-            <i class="fas fa-flask"></i>
-        </button>
-        <button type="button" id="orthoRecalageBtn" class="btn btn-sm btn-outline-warning"
-                title="Recalage absolu : segmente les passages piétons sur l'orthophoto IGN et mesure le décalage avec ceux vus par les caméras (étape 2b, MESURE — SAM3 + GPU)">
-            <i class="fas fa-satellite-dish me-1"></i>Recalage ortho
-        </button>
-        <button type="button" id="orthoCorrectionBtn" class="btn btn-sm btn-outline-success"
-                title="Applique le recalage mesuré à la trajectoire (étape 2b, APPLICATION — calcul pur, relançable à volonté pour recalibrer le seuil de masquage). Nécessite la bascule ⚑ « Recalage GPS par marquages ortho ».">
-            <i class="fas fa-crosshairs me-1"></i>Corriger trajectoire
-        </button>
-    </div>
-</div>
 <div id="camAnalyzerMapWrap" class="position-relative">
     <div id="camAnalyzerMiniMap"
          style="height: 320px; width: 100%; border-radius: 6px; border: 1px solid #495057; background: #1a1d20;"></div>

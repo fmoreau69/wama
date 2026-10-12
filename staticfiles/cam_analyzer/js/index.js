@@ -5370,14 +5370,14 @@ document.addEventListener('DOMContentLoaded', function () {
             const el = document.getElementById(id);
             if (el) { el.style.cursor = ''; el.removeEventListener('click', onCalibClick, true); }
         });
-        const panel = document.getElementById('calibPanel'); if (panel) panel.remove();
+        const panel = document.getElementById('groundCalibPanel'); if (panel) panel.remove();
         const b = document.getElementById('calibToggleBtn'); if (b) b.innerHTML = '<i class="fas fa-ruler-combined me-1"></i>Calibrer';
     }
 
     function showCalibPanel() {
-        const old = document.getElementById('calibPanel'); if (old) old.remove();
+        const old = document.getElementById('groundCalibPanel'); if (old) old.remove();
         const panel = document.createElement('div');
-        panel.id = 'calibPanel';
+        panel.id = 'groundCalibPanel';
         panel.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:3000;'
             + 'background:#1e1e24;color:#eee;border:1px solid #444;border-radius:8px;padding:12px 14px;'
             + 'font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.5);max-width:560px;';
