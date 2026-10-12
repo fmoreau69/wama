@@ -243,9 +243,18 @@
     /**
      * Show the preview modal with the given media data.
      */
+    /** La modale sait-elle montrer ce payload ? Un fichier (`url`) ou un TEXTE servi inline
+     *  (`content`) — la clé que rend le serveur pour toute face texte (`preview_utils.file_face`,
+     *  sortie `result_text`, entrée `source_text`) et que lit le volet. Pure (gardée en V8,
+     *  `tests_preview_entry`). ⚠ La modale lisait `text_content` jusqu'au 2026-10-12 : toute face
+     *  TEXTE ouverte d'une card (Describer, Reader, Transcriber) tombait sur « No media URL ». */
+    function showable(data) {
+        return !!(data && (data.url || typeof data.content === 'string'));
+    }
+
     function showPreviewModal(data) {
-        if (!data || (!data.url && data.text_content === undefined)) {
-            showPreviewError('No media URL available');
+        if (!showable(data)) {
+            showPreviewError((data && data.error) || 'Aperçu indisponible pour cet élément');
             return;
         }
         // Une autre face que celle qui se CONSTRUIT : le suivi en direct s'arrête.
@@ -606,9 +615,9 @@
             wrapper.appendChild(toolbar);
             wrapper.appendChild(pre);
 
-            if (data.text_content != null) {
-                // Contenu déjà extrait côté serveur (docx, odt, rtf…) — pas de fetch
-                pre.textContent = data.text_content;
+            if (typeof data.content === 'string') {
+                // Texte servi inline (sortie/entrée texte, docx/odt/rtf extrait) — pas de fetch
+                pre.textContent = data.content;
             } else if (data.url) {
                 fetch(data.url)
                     .then(r => r.ok ? r.text() : Promise.reject(r.status))
@@ -619,8 +628,8 @@
             }
 
             return wrapper;
-        } else if (data.text_content !== undefined) {
-            // Pre-extracted text (e.g., DOCX — no direct URL available)
+        } else if (typeof data.content === 'string') {
+            // Texte inline sans type texte déclaré
             const wrapper = document.createElement('div');
             wrapper.className = 'w-100';
 
@@ -631,7 +640,7 @@
             const pre = document.createElement('pre');
             pre.className = 'text-light p-3 mb-0';
             pre.style.cssText = 'max-height:65vh; overflow-y:auto; background:#1e1e1e; border-radius:4px; font-size:13px; white-space:pre-wrap; word-wrap:break-word; border:1px solid #495057;';
-            pre.textContent = data.text_content || '';
+            pre.textContent = data.content;
 
             copyBtn.addEventListener('click', () => {
                 navigator.clipboard.writeText(pre.textContent).then(() => {
@@ -985,7 +994,7 @@
      * @param {string} title   - Modal title (filename, label…)
      */
     function showTextModal(text, title) {
-        showPreviewModal({ text_content: text || '', name: title || 'Texte' });
+        showPreviewModal({ content: text || '', name: title || 'Texte', mime_type: 'text/plain' });
     }
 
     // Export functions to window for external use
@@ -997,6 +1006,6 @@
     window.openWamaFullscreen = openFullscreen;
     window.closeWamaFullscreen = closeFullscreen;
     // Les fonctions pures de la modale (gardées en V8, `tests_cap_from_js`).
-    window.WamaMediaPreview = { itemAddress: _itemAddress };
+    window.WamaMediaPreview = { itemAddress: _itemAddress, showable: showable };
 
 })();

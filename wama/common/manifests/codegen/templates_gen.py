@@ -701,7 +701,7 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
           <div class="wcv3-in-lines">
             {{% if elem.input_file %}}
             <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu du fichier source"
-                  data-preview-url="/filemanager/api/preview/?path={{{{ elem.input_file.name|urlencode }}}}">{{{{ elem.input_filename|default:elem.id }}}}</span>
+                  data-preview-url="{{% url 'common:unified_preview' '{app}' elem.id %}}?side=input">{{{{ elem.input_filename|default:elem.id }}}}</span>
             {{% else %}}
             <span class="wcv3-in-name">{{{{ elem.input_filename|default:elem.id }}}}</span>
             {{% endif %}}

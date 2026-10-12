@@ -176,7 +176,9 @@ def create_simple_adapter(file_field: str = 'input_file',
         An adapter function suitable for PreviewRegistry.register()
     """
     def adapter(instance, request):
-        file = getattr(instance, file_field, None)
+        # `file_field=None` : l'app n'a pas de média d'ENTRÉE à décrire (le composer part d'une
+        # consigne) — ses faces viennent de la spec de détail (`preview_utils._input_preview`).
+        file = getattr(instance, file_field, None) if file_field else None
         if not file:
             return {'error': 'No file available'}
 

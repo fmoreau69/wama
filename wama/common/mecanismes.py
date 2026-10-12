@@ -250,6 +250,7 @@ MECHANISMS = (
                        'wama/common/services/ui_smoke_menus.py',
                        'wama/common/services/ui_smoke_states.py',
                        'wama/common/services/ui_smoke_panel.py',
+                       'wama/common/services/ui_smoke_preview.py',
                        'wama/common/services/rights_matrix.py',
                        'wama/common/nightly_scenarios.py',
                        'wama/common/nightly_suite.py')),
@@ -1710,7 +1711,13 @@ MECHANISMS = (
               "porte les mêmes faces d'où qu'on l'ouvre (volet, vignette de card), suit la "
               "face PENDANT en direct avec ses vues — par le MÊME suiveur que le volet "
               "(`WamaInspector.followDuring`) —, et son PLEIN ÉCRAN est elle-même agrandie "
-              "(la surcouche image seule ne sert plus qu'aux galeries sans élément)",
+              "(la surcouche image seule ne sert plus qu'aux galeries sans élément). Depuis le "
+              "2026-10-12 : la face Entrée se lit, comme la Sortie, dans les clés canoniques du "
+              "detail (`source_file`, sinon `source_text`) sous la règle des ports (travail, sinon "
+              "prompt, jamais référence) ; UNE fabrique de face fichier (`file_face`, texte d'un "
+              ".docx extrait) sert les cards ET le filemanager ; un texte inline voyage sous la "
+              "seule clé `content` ; une card ouvre son entrée par le geste commun "
+              "`.preview-media-link` (geste nocturne `<app>.preview`)",
               'wama/common/utils/preview_registry.py', '',
               annexes=('wama/common/utils/preview_utils.py',
                        'wama/common/static/common/js/media-preview.js',

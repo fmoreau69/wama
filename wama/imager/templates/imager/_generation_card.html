@@ -40,7 +40,10 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
           {% if domain == 'video' %}<i class="fas fa-film text-warning"></i>{% else %}<i class="fas fa-image text-info"></i>{% endif %}
         </span>
         <div class="wcv3-in-lines">
-          <span class="wcv3-in-name" title="{{ elem.prompt }}">{{ elem.prompt|truncatechars:80|default:'(sans prompt)' }}</span>
+          {% comment %}Geste COMMUN d'aperçu de l'entrée (2026-10-12) : l'image de travail si la
+          génération en a une (`source_file`), sinon la consigne entière (`source_text`).{% endcomment %}
+          <span role="button" class="wcv3-in-name preview-media-link" title="{{ elem.prompt }}"
+                data-preview-url="{% url 'common:unified_preview' 'imager' elem.id %}?side=input">{{ elem.prompt|truncatechars:80|default:'(sans prompt)' }}</span>
         </div>
       </div>
     </div>

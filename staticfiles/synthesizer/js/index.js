@@ -215,30 +215,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // .preview-text-btn — aperçu du texte via le composant commun
-        // (showPreviewModal gère l'affichage scrollable + bouton Copier).
-        const textBtn = e.target.closest('.preview-text-btn');
-        if (textBtn) {
-            const id = textBtn.dataset.id;
-            try {
-                const response = await fetch(URLS.textPreview + id + '/');
-                const data = await response.json();
-                if (response.ok && data.success) {
-                    if (typeof window.showPreviewModal === 'function') {
-                        window.showPreviewModal({
-                            text_content: data.text_content || '',
-                            name: data.filename || 'Texte',
-                            properties: `${data.word_count} mots • Durée estimée: ${data.duration_display}`,
-                        });
-                    }
-                } else {
-                    WamaApp.toast(data.error || 'Impossible de charger le texte', 'error');
-                }
-            } catch (err) {
-                WamaApp.toast('Erreur: ' + err.message, 'error');
-            }
-            return;
-        }
+        // (Aperçu du texte source : geste COMMUN `.preview-media-link` de la card, face Entrée de
+        // l'aperçu unifié — la branche locale `.preview-text-btn` est retirée le 2026-10-12.)
 
         // Duplication, suppression et ⚙ paramètres : brique commune queue-actions.js. Les trois
         // branches locales ont été retirées (⚙ et 🗑 le 2026-08-23) — les garder à côté de la

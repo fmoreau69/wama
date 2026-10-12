@@ -37,7 +37,10 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
           {% if elem.generation_type == 'music' %}<i class="fas fa-music text-success"></i>{% else %}<i class="fas fa-bolt text-danger"></i>{% endif %}
         </span>
         <div class="wcv3-in-lines">
-          <span class="wcv3-in-name" title="{{ elem.prompt }}">{{ card_label|default:elem.prompt|truncatechars:60 }}</span>
+          {% comment %}Geste COMMUN d'aperçu de l'entrée (2026-10-12) : la consigne ENTIÈRE, face
+          Entrée de l'aperçu unifié (`source_text`) — la card n'en montre que 60 caractères.{% endcomment %}
+          <span role="button" class="wcv3-in-name preview-media-link" title="{{ elem.prompt }}"
+                data-preview-url="{% url 'common:unified_preview' 'composer' elem.id %}?side=input">{{ card_label|default:elem.prompt|truncatechars:60 }}</span>
           <span class="wcv3-in-props" title="Durée de génération estimée (GPU chaud)">
             <i class="fas fa-hourglass-half fa-xs opacity-50"></i> <span class="estimated-time">{{ elem.estimated_display }}</span>
           </span>

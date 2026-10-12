@@ -1092,7 +1092,7 @@
         fetch(`${config.apiPreviewUrl || '/filemanager/api/preview/'}?path=${encodeURIComponent(path)}`)
             .then(res => res.json())
             .then(data => {
-                if (data.url || data.text_content !== undefined) {
+                if (data.url || typeof data.content === 'string') {
                     if (typeof window.showPreviewModalWithNav === 'function') {
                         // Stubs pour avoir le bon compte et activer les boutons nav
                         const stubs = previewSiblings.map(n => ({ name: n.text || n.id, url: '', mime_type: '' }));
@@ -2364,8 +2364,8 @@
                 <embed src="${data.url}" type="application/pdf"
                        style="width:100%; height:70vh; border:none; border-radius:6px;">
             `;
-        } else if (data.text_content !== undefined) {
-            const escapedContent = escapeHtml(data.text_content);
+        } else if (typeof data.content === 'string') {
+            const escapedContent = escapeHtml(data.content);
             container.innerHTML = `<pre class="text-preview" style="background:#0d1117;border:1px solid #374151;border-radius:6px;padding:15px;max-height:60vh;overflow:auto;white-space:pre-wrap;word-wrap:break-word;font-family:'Consolas','Monaco',monospace;font-size:0.85rem;color:#e2e8f0;margin:0;">${escapedContent}</pre>`;
         } else {
             container.innerHTML = `<p>Aperçu non disponible pour ce type de fichier</p>`;

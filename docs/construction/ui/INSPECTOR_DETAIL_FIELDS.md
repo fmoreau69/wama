@@ -192,7 +192,7 @@ c'est ce qui rend `source_text` / `result_text` structurants et non décoratifs 
 
 | Consommateur | Ce qu'il lit | Où |
 |---|---|---|
-| **Aperçu d'entrée** (texte) | `source_text` | `preview_utils.py:113-123` |
+| **Aperçu d'entrée** (face Entrée, fichier OU texte — 2026-10-12) | `source_file`, sinon `source_text` (port `prompt` : `source_text` seul) | `preview_utils._input_preview` — symétrique de la face Sortie (`result_file`/`result_text`) ; le `file_field` du registre d'aperçu ne désigne plus l'entrée |
 | **Geste « Ajouter au RAG »** | `result_text`, sinon `source_text` — **data-gated** : pas de texte ⇒ pas de bouton | `wama-inspector.js` (`_ragChip`) |
 | **Ingestion RAG** | `result_text` (sortie) puis `source_text` (entrée) | `common/views.py` — boucle `('result_text','sortie'),('source_text','entrée')` (ancre symbolique : les numéros de ligne de ce fichier dérivent) |
 | **Runner du studio** | `result_text` (chaînage texte → synthesizer) | cf. §Ajout 2026-07-13 |

@@ -1136,40 +1136,11 @@ def api_preview(request):
     if not full_path.exists():
         return JsonResponse({'error': 'File not found'}, status=404)
 
-    ext = full_path.suffix.lower()
-
-    # Détection MIME robuste — brique COMMUNE (common/utils/mime_utils.py), plus de dict local :
-    # ce correctif (mimetypes.guess_type échoue sur .webp etc. sous Windows) est désormais aussi
-    # consommé par l'inspecteur commun (preview_registry.create_simple_adapter, 2026-07-10).
-    from wama.common.utils.mime_utils import guess_mime_type
-    mime_type = guess_mime_type(full_path.name)
-
-    # Images, videos, audio — direct URL, browser renders natively
-    if mime_type.startswith(('image/', 'video/', 'audio/')):
-        return JsonResponse({'url': media_url, 'mime_type': mime_type, 'name': full_path.name})
-
-    # PDF — browser renders via <embed>
-    if ext == '.pdf':
-        return JsonResponse({'url': media_url, 'mime_type': 'application/pdf', 'name': full_path.name})
-
-    # Plain text, markdown, CSV, JSON, XML — direct URL, media-preview.js fetches content
-    plain_text_extensions = {'.txt', '.md', '.csv', '.json', '.xml', '.log', '.yaml', '.yml', '.ini', '.cfg'}
-    if ext in plain_text_extensions:
-        return JsonResponse({'url': media_url, 'mime_type': mime_type or 'text/plain', 'name': full_path.name})
-
-    # DOCX and other office formats — extract text server-side (no native browser renderer)
-    if ext in {'.docx', '.odt', '.rtf'}:
-        try:
-            from wama.synthesizer.utils.text_extractor import extract_text_from_file
-            text_content = extract_text_from_file(str(full_path))
-            if len(text_content) > 10000:
-                text_content = text_content[:10000] + '\n\n... [Contenu tronqué]'
-            return JsonResponse({'url': None, 'mime_type': 'text/plain', 'name': full_path.name, 'text_content': text_content})
-        except Exception as e:
-            logger.error(f"Error extracting text from {full_path}: {e}")
-            return JsonResponse({'url': None, 'mime_type': mime_type, 'name': full_path.name, 'error': str(e)})
-
-    return JsonResponse({'url': None, 'mime_type': mime_type, 'name': full_path.name})
+    # LA fabrique commune des faces fichier (2026-10-12) — la même que l'Entrée et la Sortie des
+    # cards : type MIME (`mime_utils`), et TEXTE extrait d'un document bureautique, servi sous
+    # `content`. Cette vue en avait sa copie, seule à savoir extraire un .docx.
+    from wama.common.utils.preview_utils import file_face
+    return JsonResponse(file_face(media_url, path=full_path, name=full_path.name))
 
 
 def _allowed_app_prefixes(user_id):

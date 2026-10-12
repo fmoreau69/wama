@@ -38,18 +38,14 @@ class SynthesizerConfig(AppConfig):
         except Exception:
             pass
 
-        # Register for unified preview
-        from wama.common.utils.preview_registry import PreviewRegistry
-        from wama.common.utils.preview_utils import synthesizer_preview_adapter
+        # Aperçu unifié : le registre porte le modèle et son propriétaire ; les faces Entrée et
+        # Sortie se dérivent de la spec de détail ci-dessous (`source_file`/`source_text`,
+        # `result_file`). Il déclarait jusqu'au 2026-10-12 la SORTIE audio comme fichier
+        # d'entrée — la face Entrée montrait le résultat, ou une erreur avant lui.
+        from wama.common.utils.preview_utils import register_app_preview
         from .models import VoiceSynthesis
 
-        PreviewRegistry.register(
-            app_name='synthesizer',
-            model_class=VoiceSynthesis,
-            adapter=synthesizer_preview_adapter,
-            file_field='audio_output',
-            user_field='user'
-        )
+        register_app_preview('synthesizer', VoiceSynthesis, file_field='text_file')
 
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md) — audit 2026-07-11.
         # Réglages spécifiques → labels de params.py (source unique), jamais relabellisés.

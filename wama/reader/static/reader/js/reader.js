@@ -302,16 +302,6 @@
         }
     }
 
-    function openSourcePreview(id, filename) {
-        const _urls = window.READER_APP?.urls || {};
-        if (!_urls.previewUrlTemplate) return;
-        const apiUrl = _urls.previewUrlTemplate.replace('/0/', `/${id}/`);
-        fetch(apiUrl)
-            .then(r => r.json())
-            .then(data => { if (typeof window.showPreviewModal === 'function') window.showPreviewModal(data); })
-            .catch(() => {});
-    }
-
     function expandPreview(id) {
         const preview = document.querySelector(
             `.reader-card[data-id="${id}"] .reader-preview`
@@ -664,12 +654,8 @@
         updateGlobalProgress();
         setInterval(updateGlobalProgress, 2000);
 
-        // Source file preview — delegated click on .source-preview-btn
-        document.addEventListener('click', e => {
-            const btn = e.target.closest('.source-preview-btn');
-            if (!btn) return;
-            openSourcePreview(btn.dataset.id, btn.dataset.filename);
-        });
+        // (Aperçu du fichier source : geste COMMUN `.preview-media-link` de la card, écouté par
+        // `media-preview.js` — l'écoute locale de `.source-preview-btn` est retirée le 2026-10-12.)
 
         // Persist settings
         ['backendSelect', 'modeSelect', 'languageInput'].forEach(id => {

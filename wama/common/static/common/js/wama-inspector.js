@@ -762,7 +762,9 @@
     function _stopDuring() { if (_during) { _during.stop(); _during = null; } }
 
     // Double-clic sur l'aperçu → PLEIN ÉCRAN via la modale commune (WamaMediaPreview, PAS de
-    // réinvention) + icône overlay indicative. Le texte inline (prompt/sortie) passe par text_content.
+    // réinvention) + icône overlay indicative. Le payload passe TEL QUEL : la modale lit le texte
+    // inline sous `content`, comme le serveur le rend (la traduction en `text_content` qui vivait
+    // ici est retirée le 2026-10-12 — la modale ouverte d'une CARD ne la recevait pas).
     function _attachFullscreen(d, baseUrl) {
       if (!previewHost || typeof global.showPreviewModal !== 'function') return;
       previewHost.style.position = previewHost.style.position || 'relative';
@@ -770,9 +772,7 @@
       previewHost.ondblclick = function () {
         try {
           // Transmet baseUrl + sides + side : la modale reconstruit le toggle Entrée/Comparer/Sortie.
-          var m = (d.content && !d.url)
-            ? { text_content: d.content, name: d.name || 'Texte', mime_type: 'text/plain' }
-            : d;
+          var m = Object.assign({}, d);
           m._baseUrl = baseUrl; m.sides = d.sides; m.side = d.side;
           global.showPreviewModal(m);
         } catch (e) { /* no-op */ }

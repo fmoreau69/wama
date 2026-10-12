@@ -32,17 +32,64 @@ def _mime_category(mime):
     return (mime or '').split('/')[0]
 
 
+#: Documents sans rendu natif dans le navigateur : leur TEXTE est extrait côté serveur et servi
+#: en `content`. Seul l'aperçu du filemanager le savait jusqu'au 2026-10-12 — une card dont
+#: l'entrée était un .docx (synthesizer, describer) n'offrait qu'un lien de téléchargement.
+OFFICE_TEXT_EXTENSIONS = ('.docx', '.odt', '.rtf')
+TEXT_PREVIEW_MAX_CHARS = 10000
+
+
+def file_face(url, path=None, name=None):
+    """Payload d'aperçu d'UN fichier : `{name, url, mime_type}`, plus `content` (le texte
+    extrait) pour un document bureautique. LA fabrique de toute face fichier — l'Entrée et la
+    Sortie d'une card, et l'aperçu du filemanager (2026-10-12 : chacun avait sa copie, et seul
+    le filemanager extrayait le texte).
+
+    Un texte se sert TOUJOURS sous la clé `content`, la seule que lisent le volet et la modale
+    (`media-preview.js`). `url` est rendue telle quelle (l'appelant la fait absolue) ; `path`,
+    le fichier sur disque, est déduit de l'URL de MEDIA quand l'appelant ne le donne pas."""
+    from urllib.parse import unquote
+
+    from .mime_utils import guess_mime_type
+    clean = str(url or '').split('?')[0]
+    name = name or os.path.basename(unquote(clean)) or 'fichier'
+    data = {'name': name, 'url': url,
+            'mime_type': guess_mime_type(name) or 'application/octet-stream'}
+    if os.path.splitext(name)[1].lower() not in OFFICE_TEXT_EXTENSIONS:
+        return data
+    path = path or _local_media_path(url)
+    if not path:
+        return data
+    try:
+        from wama.synthesizer.utils.text_extractor import extract_text_from_file
+        text = extract_text_from_file(str(path))
+    except Exception as exc:
+        # Le fichier reste téléchargeable : un aperçu ne casse pas pour un extracteur.
+        logger.warning(f"Aperçu : texte non extrait de {name} : {exc}")
+        return data
+    if len(text) > TEXT_PREVIEW_MAX_CHARS:
+        text = text[:TEXT_PREVIEW_MAX_CHARS] + '\n\n... [Contenu tronqué]'
+    data.update(mime_type='text/plain', content=text)
+    return data
+
+
+def _detail_of(app_name, instance):
+    """Le detail canonique de l'élément (`build_detail`, INSPECTOR_DETAIL_FIELDS.md), ou None
+    si l'app n'en déclare pas. LA déclaration de ce qu'est son entrée et sa sortie."""
+    from .detail_registry import DetailRegistry
+    entry = DetailRegistry.get(app_name)
+    adapter = entry.get('adapter') if entry else None
+    return (adapter(instance) or {}) if adapter else None
+
+
 def _output_preview_data(app_name, instance, request):
     """Payload preview du RÉSULTAT, dérivé des clés CANONIQUES du detail (`result_file`
     de build_detail — INSPECTOR_DETAIL_FIELDS.md). Zéro code par app : si l'app a un
     adapter detail avec un résultat, la preview de sortie existe. None sinon."""
     try:
-        from .detail_registry import DetailRegistry
-        entry = DetailRegistry.get(app_name)
-        adapter = entry.get('adapter') if entry else None
-        if not adapter:
+        d = _detail_of(app_name, instance)
+        if d is None:
             return None
-        d = adapter(instance)
         from .mime_utils import guess_mime_type as _mime
         # Sortie MULTIPLE (2026-08-22) : si l'app déclare la clé canonique `result_files`, la
         # face Sortie sert la COLLECTION — le rendu commun en fait une grille. Le représentant
@@ -70,15 +117,14 @@ def _output_preview_data(app_name, instance, request):
             if txt:
                 return {'name': 'Sortie', 'mime_type': 'text/plain', 'content': str(txt).strip()}
             return None
-        from .mime_utils import guess_mime_type
-        clean = url.split('?')[0]
-        return {
-            'name': os.path.basename(clean),
-            'url': request.build_absolute_uri(_versioned(url)),
-            'mime_type': guess_mime_type(clean) or 'application/octet-stream',
-        }
+        return _media_face(url, request)
     except Exception:
         return None
+
+
+def _media_face(url, request):
+    """Face d'un fichier de MEDIA désigné par le detail : absolue, versionnée (`?v=<mtime>`)."""
+    return file_face(request.build_absolute_uri(_versioned(url)), path=_local_media_path(url))
 
 
 def _versioned(url):
@@ -180,30 +226,53 @@ def _input_port_group(app_name):
     return None
 
 
-def _input_preview(app_name, instance, request):
-    """Face ENTRÉE de la preview, dérivée du port de travail/prompt (jamais reference).
+#: Ce que l'adaptateur du registre AJOUTE à la face Entrée, quand il décrit le même fichier.
+REGISTERED_METADATA = ('duration', 'resolution', 'properties')
 
-    - port `prompt` (texte, ex. composer/synthesizer) → le PROMPT en texte inline (`content`) ;
-    - port `travail` (média, ex. transcriber/imager) → l'adaptateur enregistré (fichier de travail).
+
+def _input_preview(app_name, instance, request):
+    """Face ENTRÉE de la preview. La RÈGLE reste celle de la route (`ROUTE §F3b`,
+    `WAMA_MANIFEST_SPEC §preview`) : l'entrée bind sur le port de TRAVAIL, sinon sur le PROMPT,
+    jamais sur un port `reference` — groupe lu par l'accesseur unique (`_input_port_group`).
+
+    Ce qui change le 2026-10-12, c'est OÙ se lit le contenu : dans les clés CANONIQUES du detail,
+    SYMÉTRIQUES de la face Sortie (`result_file`/`result_text`) —
+      - port `prompt` → `source_text` (la consigne), jamais un fichier : une app à consigne qui
+        nomme une référence en `source_file` (jumelle writer_01) n'en fait pas son entrée ;
+      - port `travail` → `source_file` (le fichier de travail), sinon `source_text` (le texte
+        saisi « l'un ou l'autre » du synthesizer, l'image de travail absente de l'imager).
+    ⚠ Le port `travail` lisait jusque-là le `file_field` du REGISTRE d'aperçu, une seconde
+    déclaration de l'entrée qui avait dérivé : composer et synthesizer y nommaient leur SORTIE
+    audio (la face Entrée montrait le résultat, ou une erreur avant lui) ; le générateur l'avait
+    constaté (`models_gen.declared_result_fields`) sans que l'aperçu change. Le registre garde ce
+    que lui seul sait : le modèle et son propriétaire, les faces propres à l'app, et la
+    durée/résolution d'un média (`REGISTERED_METADATA`, reprises si son fichier EST l'entrée).
+    Une app sans detail (médiathèque) garde l'adaptateur du registre seul.
     """
-    if _input_port_group(app_name) == 'prompt':
-        # Texte d'entrée = clé CANONIQUE `source_text` du detail (symétrique de `result_text`).
-        # ZÉRO nom de champ en dur : les prompt-apps la déclarent dans leur `build_detail`
-        # (composer=prompt, synthesizer=text_content). Une app à port prompt qui ne la déclare
-        # pas n'aura simplement pas de face Entrée (signal clair : la déclarer).
-        txt = ''
-        try:
-            from .detail_registry import DetailRegistry
-            entry = DetailRegistry.get(app_name)
-            adapter = entry.get('adapter') if entry else None
-            if adapter:
-                st = (adapter(instance) or {}).get('source_text')
-                if st:
-                    txt = str(st).strip()
-        except Exception:
-            pass
-        return {'name': 'Prompt', 'mime_type': 'text/plain', 'content': txt} if txt else None
-    return PreviewRegistry.get_preview_data(app_name, instance, request)
+    d = _detail_of(app_name, instance)
+    if d is None:
+        return PreviewRegistry.get_preview_data(app_name, instance, request)
+    group = _input_port_group(app_name)
+    url = d.get('source_file') if group != 'prompt' else None
+    if url:
+        data = _media_face(url, request)
+        data.update(_registered_metadata(app_name, instance, request, url))
+        return data
+    txt = str(d.get('source_text') or '').strip()
+    name = 'Prompt' if group == 'prompt' else 'Entrée'
+    return {'name': name, 'mime_type': 'text/plain', 'content': txt} if txt else None
+
+
+def _registered_metadata(app_name, instance, request, url):
+    """Durée, résolution, propriétés que l'adaptateur du registre sait d'un média — reprises
+    seulement s'il décrit le fichier d'ENTRÉE (même chemin de MEDIA), jamais un autre."""
+    try:
+        reg = PreviewRegistry.get_preview_data(app_name, instance, request)
+    except Exception:
+        return {}
+    if not isinstance(reg, dict) or not reg.get('url') or _media_rel(reg['url']) != _media_rel(url):
+        return {}
+    return {key: reg[key] for key in REGISTERED_METADATA if reg.get(key)}
 
 
 # ── Phase PENDANT (chantier 2) : preview progressive/temporaire pendant le traitement ──────────
@@ -449,7 +518,14 @@ def unified_preview(request, app_name: str, pk: int):
 
     # Get preview data using the registered adapter
     try:
-        preview_data = _input_preview(app_name, instance, request)
+        # Une face qui CASSE n'emporte pas les autres — comme les faces déclarées ci-dessous.
+        # Mesuré le 2026-10-12 : l'anonymizer dont l'entrée a été LIBÉRÉE levait ici, et le 500
+        # privait l'élément de sa SORTIE, qui existait.
+        try:
+            preview_data = _input_preview(app_name, instance, request)
+        except Exception as exc:
+            logger.warning(f"Preview {app_name}/{pk} : face Entrée indisponible : {exc}")
+            preview_data = None
         # Preview ENTRÉE/SORTIE (décision 2026-07-12, STUDIO_VISION) : ?side=output sert le
         # RÉSULTAT (clé canonique result_file du detail) ; méta `sides` additive pour que
         # l'inspecteur affiche le toggle [Entrée|Sortie] (+ slider comparatif si comparable).
@@ -588,9 +664,12 @@ def register_app_preview(app_name: str, model_class, file_field: str = 'input_fi
 # ============================================================================
 
 def anonymizer_preview_adapter(media, request):
-    """Custom adapter for Anonymizer Media model."""
+    """Custom adapter for Anonymizer Media model. None once the input file is RELEASED (the
+    card keeps its output) — `media.file.url` raised there, and took the whole preview down."""
     from django.utils.encoding import iri_to_uri
 
+    if not media.file:
+        return None
     media_url = request.build_absolute_uri(iri_to_uri(media.file.url))
     mime_type, _ = mimetypes.guess_type(media.file.path)
 
@@ -613,6 +692,8 @@ def anonymizer_detection_face(media, request):
         return None
     from django.utils.encoding import iri_to_uri
     data = anonymizer_preview_adapter(media, request)
+    if data is None:
+        return None
     data['name'] = f"Détections — {data.get('name', '')}"
     data['overlay'] = {
         'kind': 'detections',
@@ -621,24 +702,6 @@ def anonymizer_detection_face(media, request):
         'confidence': bool(media.show_conf),
     }
     return data
-
-
-def synthesizer_preview_adapter(synthesis, request):
-    """Custom adapter for Synthesizer VoiceSynthesis model - previews audio output."""
-    from django.utils.encoding import iri_to_uri
-
-    if not synthesis.audio_output:
-        return {'error': 'No audio available'}
-
-    audio_url = request.build_absolute_uri(iri_to_uri(synthesis.audio_output.url))
-
-    return {
-        "name": os.path.basename(synthesis.audio_output.name),
-        "url": audio_url,
-        "mime_type": "audio/wav",
-        "duration": synthesis.duration_display if hasattr(synthesis, 'duration_display') else "",
-        "properties": synthesis.properties if hasattr(synthesis, 'properties') else "",
-    }
 
 
 def transcriber_preview_adapter(transcript, request):

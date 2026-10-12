@@ -46,8 +46,10 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
         </span>
         <div class="wcv3-in-lines">
           {% if elem.input_file %}
+          {% comment %}L'aperçu de l'ÉLÉMENT (face Entrée), comme les autres cards — il passait par
+          celui du filemanager (2026-10-12) : la modale s'ouvrait sans ses faces Entrée | Sortie.{% endcomment %}
           <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu du fichier source"
-                data-preview-url="/filemanager/api/preview/?path={{ elem.input_file.name|urlencode }}">
+                data-preview-url="{% url 'common:unified_preview' 'converter' elem.id %}?side=input">
             {{ elem.input_filename }}
           </span>
           {% else %}

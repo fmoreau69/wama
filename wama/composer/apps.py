@@ -29,14 +29,18 @@ class ComposerConfig(AppConfig):
         except Exception:
             pass
 
-        # Aperçu (volet inspecteur) : composer = text-to-music → l'aperçu est la SORTIE audio.
+        # Aperçu unifié : le registre porte le modèle et son propriétaire. Le composer part d'une
+        # CONSIGNE, pas d'un fichier : aucun média d'entrée à décrire (`file_field=None`) — la
+        # face Entrée est le prompt (`source_text`), la face Sortie l'audio (`result_file`), tous
+        # deux lus dans la spec ci-dessous. Il déclarait jusqu'au 2026-10-12 sa SORTIE comme
+        # fichier d'entrée : la face Entrée montrait le résultat.
         try:
             from wama.common.utils.preview_utils import register_app_preview
             from .models import ComposerGeneration
             register_app_preview(
                 app_name='composer',
                 model_class=ComposerGeneration,
-                file_field='audio_output',
+                file_field=None,
                 user_field='user',
             )
 

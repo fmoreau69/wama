@@ -21,8 +21,8 @@ Contexte : elem = ReadingItem décoré par _decorate_card() (.chips, .input_prop
 
 ⚠ Contrats JS à ne pas casser (relevés dans reader.js) : .reader-card[data-id][data-status],
   .wama-eta (l.90), .btn-group-actions (cloné par l'inspecteur l.618), .reader-preview
-  (dblclick l.121/715 + data-action=expand → maxHeight 80px l.342), .source-preview-btn,
-  data-action settings|delete, data-backend/mode/language sur ⚙ (duplication = brique
+  (dblclick l.121/715 + data-action=expand → maxHeight 80px l.342), .preview-media-link
+  (geste commun d'aperçu de l'entrée), data-action settings|delete, data-backend/mode/language sur ⚙ (duplication = brique
   commune queue-actions.js via [data-duplicate-url], plus de branche locale).
 {% endcomment %}
 
@@ -43,13 +43,14 @@ Contexte : elem = ReadingItem décoré par _decorate_card() (.chips, .input_prop
     <div class="wcv3-sec wcv3-sec--input">
       <span class="wcv3-lbl">{% trans "Entrée" %}</span>
       <div class="wcv3-in">
-        <span role="button" class="wcv3-thumb source-preview-btn"
-              data-id="{{ elem.id }}" data-filename="{{ fname }}"
-              title="{% trans "Aperçu du fichier source" %}">
-          <i class="fas fa-file-alt text-info"></i>
-        </span>
+        <span class="wcv3-thumb"><i class="fas fa-file-alt text-info"></i></span>
         <div class="wcv3-in-lines">
-          <span class="wcv3-in-name" title="{{ fname }}">{{ fname }}</span>
+          {% comment %}Le GESTE commun d'aperçu de l'entrée (`media-preview.js`, délégation sur
+          `.preview-media-link`) — celui des autres cards. Le reader avait le sien
+          (`.source-preview-btn` sur la seule icône + `openSourcePreview`), retiré le 2026-10-12 :
+          un clic sur le NOM du fichier n'ouvrait rien.{% endcomment %}
+          <span role="button" class="wcv3-in-name preview-media-link" title="{% trans "Aperçu du fichier source" %}"
+                data-preview-url="{% url 'common:unified_preview' 'reader' elem.id %}?side=input">{{ fname }}</span>
           {% if elem.input_props %}
           <span class="wcv3-in-props">{% for p in elem.input_props %}{% if not forloop.first %}<span class="sep">·</span>{% endif %}{{ p }}{% endfor %}</span>
           {% endif %}

@@ -439,6 +439,7 @@ try:
     from wama.common.services.ui_smoke_menus import register_menu_scenarios
     from wama.common.services.ui_smoke_states import register_state_color_scenarios
     from wama.common.services.ui_smoke_panel import register_panel_reflect_scenarios
+    from wama.common.services.ui_smoke_preview import register_preview_scenarios
     register_ui_scenarios()
     # Les briques d'APPARIEMENT s'exécutent SERVIES : aucun test Python ne voit un bloc gardé
     # par `if (window.WamaModelCaps)` qui se tait parce que la brique n'est pas chargée
@@ -545,6 +546,11 @@ try:
     # sans rechargement (demande de Fabien). Aucun GPU : l'état de crash est posé en base, puis la
     # brique que le worker relancé appelle (`reconcile_dead_worker_tasks`) le solde.
     register_worker_death_scenarios()
+    # 2026-10-12 — gestes 11 et 11b, l'APERÇU d'une card : son entrée (le nom), puis sa sortie
+    # (la vignette), sur un résultat POSÉ en base — aucun GPU. Le geste 11 de `processing` n'est
+    # joué que sur le converter : « No media URL » (Describer) et l'entrée inerte (Reader) n'étaient
+    # vus par aucun scénario.
+    register_preview_scenarios()
     # 2026-08-27 — geste 14 (moitié « fichier de lot »), enregistré À LA PLACE du geste 7 qui
     # devait suivre. Le geste 7 (« créer par le bouton primaire ») débloquait d'un coup
     # `inspector_actions` et `batch_actions` sur les trois apps dont la file reste vide — mais

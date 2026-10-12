@@ -188,6 +188,20 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 - **Preview** : `PreviewRegistry` + `unified_preview` ; **10/11** (imager exclu, décision documentée). Règle
   **entrée = port `travail` sinon `prompt`, JAMAIS `reference`** — **implémentée et vérifiée** via l'accesseur
   unique (`preview_utils.py:66-85`). Face sortie dérivée de l'adapter Detail (couplage Preview→Detail).
+  ⚠ **Corrigé le 2026-10-12** (Describer « No media URL available », entrée du Reader inerte —
+  Fabien) : « vérifiée » était un constat PÉRIMÉ. La règle des ports décidait bien du GROUPE, mais
+  le port `travail` lisait alors le `file_field` du registre d'aperçu, seconde déclaration de
+  l'entrée qui avait dérivé — composer et synthesizer y nommaient leur SORTIE audio (relevé sur
+  toutes les apps). La règle est INCHANGÉE ; le CONTENU se lit désormais dans les clés canoniques du
+  detail, symétriques de la Sortie : `travail` → `source_file`, sinon `source_text` ; `prompt` →
+  `source_text` seul (`_input_preview`). Avec trois corollaires communs : UNE fabrique de face
+  fichier `file_face` (le texte d'un .docx extrait, pour les cards comme pour le filemanager) ; UNE
+  clé de texte inline, `content` (la modale lisait `text_content`) ; le geste d'entrée des cards =
+  `.preview-media-link` vers l'aperçu d'ÉLÉMENT, générateur compris. Gardes `tests_preview_entry`
+  + geste nocturne `<app>.preview` (`WAMA_VERIFICATION §3`, geste 11b) ; retraits `REMOVAL_LEDGER R115`.
+  ⏳ **Ouvert, à trancher par Fabien** : une RÉFÉRENCE nommée en `source_file` échappe à la règle
+  côté `travail` — la voix de référence du synthesizer (repli de sa spec, seul lieu où le volet la
+  montre) ; le schéma canonique n'a pas de clé `reference_*` (`INSPECTOR_DETAIL_FIELDS`).
 - **« PENDANT » (preview progressive)** : **chaîne COMPLÈTE** (composer `emit_streaming_peaks` →
   capacité `during_preview=True` `app_registry.py:455` → face `?side=during` `preview_utils.py:255`
   → **consommée par `wama-inspector.js` `_startDuring`** (polling 1300 ms, auto-arrêt en fin de run).
@@ -231,7 +245,9 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   s'éclaircit au fil des pas. Et **un seul concept** : le drapeau
   `streaming`, doublon sans lecteur, est retiré (`REMOVAL_LEDGER R107`) ; la déclaration
   `during_preview` est tenue par `tests_during_preview_declared` (déclaré ⇔ émis).
-- **Filemanager** : **unifié** (réutilise `media-preview.js`), mais endpoint de données distinct.
+- **Filemanager** : **unifié** (réutilise `media-preview.js`), mais endpoint de données distinct —
+  qui construit sa réponse par la MÊME fabrique de face fichier que les cards (`file_face`,
+  2026-10-12 ; il en avait sa copie, seule à extraire le texte d'un .docx).
 - 🔜 **CHANTIER « PREVIEW GLOBALE + TRANSPORT COMMUN » — brief de SESSION DÉDIÉE (Fabien, 2026-09-30)**.
   *« Une preview globale commune qui peut être tirée par capacités partout dans tout WAMA, et de
   même pour le transport média : une seule brique commune avec toutes les spécificités, que l'on

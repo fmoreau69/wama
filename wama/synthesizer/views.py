@@ -312,56 +312,6 @@ def upload_text(request):
     return _card_created_response(synthesis, success=True)
 
 
-def text_preview(request, pk: int):
-    """
-    Récupère le contenu texte d'une synthèse pour prévisualisation.
-
-    ⚠ `get_object_or_404` vivait DANS le `try/except Exception` ci-dessous jusqu'au 2026-09-22 :
-    `Http404` est une exception, elle était avalée et rendue en **500** — un identifiant inexistant
-    répondait « erreur serveur ». Trouvé par le parcours générique des adresses
-    (`common/tests/tests_endpoints.py`). La recherche est sortie du `try`, et un fichier texte ABSENT du
-    disque (référence morte, cf. `check_media_integrity`) répond 404, pas 500.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import visible_or_404
-    synthesis = visible_or_404(VoiceSynthesis, user, pk=pk)
-    if not synthesis.text_content and not (synthesis.text_file and
-                                           os.path.exists(synthesis.text_file.path)):
-        return JsonResponse({'success': False,
-                             'error': "Le fichier texte de cette synthèse est introuvable."},
-                            status=404)
-    try:
-        # Si le contenu texte est déjà extrait, l'utiliser
-        if synthesis.text_content:
-            text_content = synthesis.text_content
-        else:
-            # Sinon, extraire depuis le fichier
-            try:
-                from .utils.text_extractor import extract_text_from_file
-                text_content = extract_text_from_file(synthesis.text_file.path)
-            except ImportError:
-                # Fallback: lire le fichier brut
-                try:
-                    with open(synthesis.text_file.path, 'r', encoding='utf-8') as f:
-                        text_content = f.read()
-                except Exception as e:
-                    text_content = f"Impossible de lire le fichier: {str(e)}"
-
-        return JsonResponse({
-            'success': True,
-            'filename': synthesis.filename,
-            'text_content': text_content,
-            'word_count': synthesis.word_count,
-            'duration_display': synthesis.duration_display,
-        })
-
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': f'Erreur lors de la récupération du texte: {str(e)}'
-        }, status=500)
-
-
 @app_access('synthesizer')
 def stop(request, pk: int):
     """

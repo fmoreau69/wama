@@ -48,7 +48,11 @@ pas la variable de gabarit.
           {% endif %}
         </span>
         <div class="wcv3-in-lines">
-          <span class="wcv3-in-name">
+          {% comment %}Geste COMMUN d'aperçu de l'entrée (2026-10-12) : l'avatar déposé, sinon
+          l'audio fourni (`source_file` de la spec). ⚠ Un avatar de GALERIE n'a pas encore de nom
+          dans la spec (URL dérivée, `avatar_gallery_url`) : l'aperçu montre alors l'audio.{% endcomment %}
+          <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu de l'entrée"
+                data-preview-url="{% url 'common:unified_preview' 'avatarizer' elem.id %}?side=input">
             {{ elem.avatar_label|default:"—"|truncatechars:24 }}
           </span>
           <span class="wcv3-in-props">avatar animé</span>

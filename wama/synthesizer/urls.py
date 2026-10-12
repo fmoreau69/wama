@@ -24,7 +24,8 @@ urlpatterns = [
     path('move-to-batch/<int:pk>/', views.move_to_batch, name='move_to_batch'),
     path('remove-from-batch/<int:pk>/', views.remove_from_batch, name='remove_from_batch'),
     path('upload-text/', views.upload_text, name='upload_text'),
-    path('text-preview/<int:pk>/', views.text_preview, name='text_preview'),
+    # `text-preview/<pk>/` retirée le 2026-10-12 : la face Entrée de l'aperçu unifié sert le
+    # texte (saisi, ou extrait du fichier), ouverte par le geste commun de la card.
     # L'aperçu rend un FICHIER en une requête (chaîne de la synthèse) ; l'ancien flux SSE
     # `voice-preview-stream/` est retiré le 2026-09-28.
     path('voice-preview/', views.voice_preview, name='voice_preview'),
