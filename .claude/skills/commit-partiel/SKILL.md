@@ -261,6 +261,17 @@ mais c'est défaire son geste dans son dos.
   `commit-tree $TREE -p <fautif>` + `update-ref … <fautif>` (`f531436f`). Ici l'arbre fusionné
   était IDENTIQUE à l'index partagé, qui portait encore le bon contenu — l'index réaligné sur HEAD
   est revenu vide de lui-même.
+- ⚠ **2026-10-12 — le classifieur du mode auto peut REFUSER `commit-tree` + `update-ref`** (lu
+  comme une falsification d'historique). Ne pas insister ni contourner : repli sur la voie du §1
+  par l'index PARTAGÉ, **seulement s'il est vide au départ** — `stage_my_hunks.py` puis
+  `stage_by_oldlines.py` (il pose le blob par `update-index`, sans `commit-tree`), vérification
+  et `git commit -F` sans pathspec **enchaînés par `&&` dans une seule commande** (la fenêtre de
+  course se réduit à cette commande). Vécu sur un bloc de clôture ajouté en fin de
+  `PROJECT_STATUS`, à côté d'un palier non commité d'une autre instance : `45a0a8ac`, 19 lignes
+  miennes seules.
+  ⚠ Et dans le script de garde, sous `set -o pipefail`, **`grep -c … | grep -qx 0` échoue
+  justement quand le compte vaut zéro** (`grep -c` sort en 1 sans correspondance) : la garde a
+  arrêté un index CORRECT. Tester une absence par `! grep -q <motif>`.
 
 ## 4. Docs générées
 
