@@ -1713,16 +1713,13 @@ def forget_in_corpus(model_keys) -> None:
     d'un modèle désinstallé (`_gone_model_keys`, 2026-10-11). Jamais bloquant : le retrait des
     poids est fait, un corpus en retard se rattrape au prochain export complet.
 
-    `settings.MANIFEST_CORPUS_SYNC` à False le coupe — le runner de tests le pose : une base de
-    test désinstalle des clés qui existent au vrai corpus (`synthesizer:bark`), et ce geste
-    effacerait un fichier versionné."""
-    from django.conf import settings
-    if not getattr(settings, 'MANIFEST_CORPUS_SYNC', True):
-        return
-    from django.core.management import call_command
+    Par la porte commune du corpus (`common/manifests/corpus.follow`), que le runner de tests
+    coupe : une base de test désinstalle des clés qui existent au vrai corpus
+    (`synthesizer:bark`), et ce geste effacerait un fichier versionné."""
+    from wama.common.manifests.corpus import follow
     for key in model_keys:
         try:
-            call_command('manifest_export', key, kind='model', verbosity=0)
+            follow(key, kind='model')
         except Exception as e:
             logger.warning("[uninstall] corpus non suivi pour %s : %s", key, e)
 

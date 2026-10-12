@@ -1720,7 +1720,7 @@ Mesure les 8 facettes F1–F8 des apps par analyse du code réel
 
 ### Manifestes
 
-Extraction/validation/projection des 7 kinds vers les registres
+Extraction/validation/projection des 7 kinds vers les registres. Le corpus versionné suit le registre À CHAUD par UNE porte (`corpus.follow` : installation, validation d'une proposition, désinstallation — 2026-10-12), que le runner de tests coupe
 
 - **Domicile** : `wama/common/manifests/ingest.py` · **doc** : [docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md](../construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md)
 - **Module** : Moteur d'INGEST — validate → (sandbox) store → verify → promote → un-ingest.
@@ -2687,7 +2687,7 @@ Un adaptateur par moteur (Exa, Staan, SearXNG, DuckDuckGo) derrière UN contrat 
 
 ### Médias de test isolés
 
-Le runner de tests redirige `MEDIA_ROOT` vers `media_tests/run-<id>/` — dossier SŒUR de `media/`, jamais dedans (servi, sauvegardé, miré) ; les exécutions orphelines (vides ou > 24 h, teardown jamais joué) se balaient à l'entrée de la suivante. Le nocturne, lui, écrit chez les COMPTES DE TEST dans `media/` (serveur vivant) et se balaie par NOM (`wama_temoin_*`, dossier temporaire compris). Question Fabien 2026-09-13 : « on ne change rien pour ça ». Même raison pour le CORPUS de manifestes, versionné (2026-10-12) : le runner pose `MANIFEST_CORPUS_SYNC = False`, une désinstallation jouée en base de test ne retire donc jamais un fichier réel (`model_installer.forget_in_corpus`)
+Le runner de tests redirige `MEDIA_ROOT` vers `media_tests/run-<id>/` — dossier SŒUR de `media/`, jamais dedans (servi, sauvegardé, miré) ; les exécutions orphelines (vides ou > 24 h, teardown jamais joué) se balaient à l'entrée de la suivante. Le nocturne, lui, écrit chez les COMPTES DE TEST dans `media/` (serveur vivant) et se balaie par NOM (`wama_temoin_*`, dossier temporaire compris). Question Fabien 2026-09-13 : « on ne change rien pour ça ». Même raison pour le CORPUS de manifestes, versionné (2026-10-12) : le runner pose `MANIFEST_CORPUS_SYNC = False`, qui coupe la porte `manifests.corpus.follow` — une installation, une validation ou une désinstallation jouée en base de test ne réécrit ni ne retire jamais un fichier réel
 
 - **Domicile** : `wama/common/runners.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §①bis](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Runner de tests WAMA — isole le média des tests du média de PRODUCTION.

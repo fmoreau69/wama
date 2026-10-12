@@ -2872,5 +2872,11 @@ défauts que leur exécution a trouvés.**
   que `uninstall_model` : `uninstalled_at`, ligne gardée) toute ligne `ollama:` « téléchargée »
   absente du relevé — sauf une ligne touchée depuis le relevé (installation qui vient de finir) ;
   le retrait entre au journal des installations (`via='ollama rm'`) et le manifeste quitte le
-  corpus (`forget_in_corpus`). Tests : `tests_ollama_removed_outside` (7).
+  corpus (`forget_in_corpus`). Tests : `tests_ollama_removed_outside` (8).
+- ✅ (même jour, demande de Fabien) **Une seule porte pour écrire le corpus à chaud** :
+  `wama/common/manifests/corpus.follow`, empruntée par l'installation (`provenance`), la
+  validation d'une proposition (`proposals.apply`) et la désinstallation (`forget_in_corpus`) ;
+  le runner de tests la coupe — l'interrupteur ne protégeait jusque-là que la désinstallation.
+  Règle consignée à son domicile : `WAMA_MANIFEST_ARCHITECTURE §6ter` règle 4. Tests :
+  `tests_manifest_corpus` (6, dont « aucun écrivain hors de la porte » par AST).
 

@@ -110,9 +110,10 @@ class WamaTestRunner(DiscoverRunner):
         self._media_de_test = Path(tempfile.mkdtemp(prefix='run-', dir=str(racine)))
         self._media_reel = settings.MEDIA_ROOT
         settings.MEDIA_ROOT = str(self._media_de_test)
-        # Même raison pour le CORPUS de manifestes (versionné) : une désinstallation jouée
-        # dans une base de test le ferait suivre, et ses clés existent au vrai corpus
-        # (`model_installer.forget_in_corpus`, 2026-10-11).
+        # Même raison pour le CORPUS de manifestes (versionné) : une installation, une
+        # validation ou une désinstallation jouée dans une base de test le ferait suivre, et
+        # ses clés existent au vrai corpus — la porte `manifests.corpus.follow` lit ce drapeau
+        # (2026-10-12).
         self._corpus_sync = getattr(settings, 'MANIFEST_CORPUS_SYNC', True)
         settings.MANIFEST_CORPUS_SYNC = False
 

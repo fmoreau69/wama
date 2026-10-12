@@ -37,7 +37,12 @@ class ManifestProposalTest(TestCase):
     def setUp(self):
         # L'export au corpus écrit dans `manifests/` du DÉPÔT : simulé (vécu à la 1ʳᵉ exécution,
         # un `huggingface__Org~Img.json` fictif y était apparu).
+        # La porte du corpus est coupée par le runner (`MANIFEST_CORPUS_SYNC`) : on la rouvre
+        # pour vérifier que « Valider » l'emprunte, l'écriture restant simulée.
         from unittest import mock
+        switch = self.settings(MANIFEST_CORPUS_SYNC=True)
+        switch.enable()
+        self.addCleanup(switch.disable)
         export = mock.patch('django.core.management.call_command')
         self.export = export.start()
         self.addCleanup(export.stop)

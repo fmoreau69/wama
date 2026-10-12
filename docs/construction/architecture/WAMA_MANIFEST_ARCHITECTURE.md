@@ -317,6 +317,20 @@ python manage.py manifest_export --check    # sort en erreur si le corpus est p�
   cette collision, comme il refusait déjà `__`/`~` : *refuser vaut mieux que corrompre en
   silence.* Le refresh des déjà semés est conservé — sans lui, le manifeste d'une ligne écartée
   (le YOLO visages exclu le 12/08) fossilise ce que l'export ne produit plus.
+- **Règle 4 — le corpus des modèles reflète ce qui est INSTALLÉ, et il suit à chaud par UNE
+  porte** (2026-10-11/12, décisions de Fabien). Le refresh des semés réécrivait le manifeste d'une
+  ligne DÉSINSTALLÉE (cinq OCR retirés le 11/10 y sont entrés le jour même, dont deux GGUF sans
+  projecteur — une composition fausse pour le few-shot) et laissait sur disque celui d'une clé
+  disparue. Désormais `manifest_export` RETIRE le fichier d'une ligne désinstallée
+  (`models.uninstalled_q`) ou sans ligne (`_gone_model_keys`, y compris à la clé explicite ;
+  `--check` le compte périmé) ; une ligne ÉCARTÉE garde le sien (règle 3). **Pas de dossier
+  d'archive** : l'historique git garde chaque manifeste retiré, daté et motivé — un dossier se
+  figerait dans une forme que l'export ne régénère plus. Les trois gestes qui réécrivent le
+  corpus pendant que WAMA tourne — installation (`provenance`), « Valider » une proposition
+  (`proposals.apply`), désinstallation (`forget_in_corpus`) — passent par `corpus.follow`, que
+  le runner de tests coupe (`MANIFEST_CORPUS_SYNC = False`, comme il redirige `MEDIA_ROOT`).
+  Tenu par `tests_manifest_corpus` (la porte, l'interrupteur, aucun écrivain hors de la porte)
+  et `tests_corpus_follows_uninstall`.
 - **JSON trié, indentation stable** → le `git diff` du corpus devient la **revue de ce qui change
   dans la surface déclarée d'une app**. C'est la raison de le versionner malgré son caractère dérivé.
 

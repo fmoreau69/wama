@@ -1623,7 +1623,9 @@ class TacheHeriteeALInstallationTest(TestCase):
             vues_a_l_export.append(AIModel.objects.get(pk=vierge.pk).capabilities.get('task'))
 
         spec = {'kind': 'hf', 'ref': 'Org/Detecteur', 'category': 'vision', 'task': 'detect'}
-        with patch.object(pv, 'identity_for_spec', return_value=dict(self.IDENTITE)), \
+        # Porte du corpus rouverte (le runner la coupe), écriture simulée.
+        with self.settings(MANIFEST_CORPUS_SYNC=True), \
+                patch.object(pv, 'identity_for_spec', return_value=dict(self.IDENTITE)), \
                 patch('django.core.management.call_command', side_effect=_export):
             r = pv.record_after_install(spec, ['huggingface:Org/Detecteur'])
         vierge.refresh_from_db()

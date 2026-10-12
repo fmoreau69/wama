@@ -1099,7 +1099,10 @@ MECHANISMS = (
 
     *_domain('Manifestes & registres', (
     Mechanism('manifests', 'Manifestes',
-              "Extraction/validation/projection des 7 kinds vers les registres",
+              "Extraction/validation/projection des 7 kinds vers les registres. Le corpus "
+              "versionné suit le registre À CHAUD par UNE porte (`corpus.follow` : installation, "
+              "validation d'une proposition, désinstallation — 2026-10-12), que le runner de "
+              "tests coupe",
               'wama/common/manifests/ingest.py', 'docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md',
               # Annexes complétées le 2026-08-31 (audit) : le dossier `manifests/` entrait au
               # balayage et ces modules — enveloppe, vocabulaire des kinds, table de projection,
@@ -1114,7 +1117,10 @@ MECHANISMS = (
                        'wama/common/manifests/builtin/library.py',
                        'wama/common/manifests/builtin/model.py',
                        'wama/common/manifests/builtin/pipeline.py',
-                       'wama/common/manifests/builtin/project.py')),
+                       'wama/common/manifests/builtin/project.py',
+                       # La porte du corpus à chaud (2026-10-12) et sa garde « une seule porte ».
+                       'wama/common/manifests/corpus.py',
+                       'wama/common/tests/tests_manifest_corpus.py')),
     Mechanism('manifest_proposals', 'Propositions de manifestes (geste « Valider »)',
               "Le cycle sandbox → vérifié → promu (WAMA_MANIFEST_ARCHITECTURE §4) reçoit son "
               "premier appelant (29/09) : un rôle LLM DÉPOSE son manifeste au magasin (bac à "
@@ -2170,8 +2176,9 @@ MECHANISMS = (
               "vivant) et se balaie par NOM (`wama_temoin_*`, dossier temporaire compris). "
               "Question Fabien 2026-09-13 : « on ne change rien pour ça ». Même raison pour le "
               "CORPUS de manifestes, versionné (2026-10-12) : le runner pose "
-              "`MANIFEST_CORPUS_SYNC = False`, une désinstallation jouée en base de test ne "
-              "retire donc jamais un fichier réel (`model_installer.forget_in_corpus`)",
+              "`MANIFEST_CORPUS_SYNC = False`, qui coupe la porte `manifests.corpus.follow` — "
+              "une installation, une validation ou une désinstallation jouée en base de test ne "
+              "réécrit ni ne retire jamais un fichier réel",
               'wama/common/runners.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §①bis',
               annexes=('wama/common/tests/tests_media_tests_hygiene.py',)),
     Mechanism('video_utils', 'Utilitaires vidéo',

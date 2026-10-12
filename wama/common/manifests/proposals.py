@@ -145,9 +145,8 @@ def apply(obj, user=None) -> dict:
     promote(obj, PROMOTED_VISIBILITY)
     corpus = None
     try:
-        from django.core.management import call_command
-        call_command('manifest_export', obj.key, kind=obj.manifest_kind, verbosity=0)
-        corpus = 'écrit'
+        from .corpus import follow
+        corpus = follow(obj.key, kind=obj.manifest_kind)
     except Exception as e:                       # le corpus est un miroir : il se rattrape
         corpus = f"échec : {type(e).__name__}: {e}"
         logger.warning("[proposals] export au corpus impossible pour %s : %s", obj.key, e)

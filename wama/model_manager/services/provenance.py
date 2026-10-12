@@ -291,12 +291,10 @@ def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
     corpus = None
     if apply and export:
         try:
-            from django.core.management import call_command
-            # On passe par la commande plutôt que de réécrire la règle de nommage du corpus
-            # (`_nom_fichier`, qui assainit le `:` des clés modèle) : une seconde graphie
-            # rendrait le glob inverse faux.
-            call_command('manifest_export', model_key, kind='model', verbosity=0)
-            corpus = 'écrit'
+            # La porte commune du corpus (`common/manifests/corpus.py`) : la commande d'export,
+            # que le runner de tests coupe.
+            from wama.common.manifests.corpus import follow
+            corpus = follow(model_key, kind='model')
         except Exception as e:
             corpus = f"échec : {type(e).__name__}: {e}"
 
