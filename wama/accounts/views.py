@@ -238,6 +238,9 @@ def profile_view(request):
         # Plafond d'hébergement : l'échelle et ses libellés ont UN domicile (`external_sources`).
         'cloud_hostings': [(level, external_sources.HOSTING_CEILING_LABELS[level])
                            for level in external_sources.HOSTING_SCALE],
+        # Ce que le dernier cran fait des données, dit AVANT qu'on le choisisse (2026-10-12).
+        'data_reuse_ceiling': external_sources.DATA_REUSE_CEILING,
+        'data_reuse_warning': external_sources.DATA_REUSE_WARNING,
         'secret_storage_available': storage_available(),
         # Moteurs de recherche : l'inventaire vient du REGISTRE (sources `recherche` ayant un
         # adaptateur), jamais d'une liste écrite au gabarit — ajouter un moteur ne touche

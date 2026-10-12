@@ -480,11 +480,15 @@
                     <div class="d-flex gap-2 align-items-center">
                         <select id="cloudHostingSelect"
                                 class="form-select form-select-sm bg-dark text-white border-secondary"
-                                style="max-width: 360px;">
+                                style="max-width: 480px;">
                             {% for value, label in cloud_hostings %}
                             <option value="{{ value }}" {% if value == profile.cloud_hosting_max %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
+                    </div>
+                    {% comment %}Dit TOUJOURS, pas seulement une fois le cran choisi : on prévient avant le geste (2026-10-12).{% endcomment %}
+                    <div id="cloudDataReuseWarning" class="small mt-2 {% if profile.cloud_hosting_max == data_reuse_ceiling %}text-warning{% else %}text-white-50{% endif %}">
+                        <i class="fas fa-triangle-exclamation me-1"></i>{{ data_reuse_warning }}
                     </div>
                     <div class="form-check mt-3">
                         <input class="form-check-input" type="checkbox" id="cloudMeteredAuto"

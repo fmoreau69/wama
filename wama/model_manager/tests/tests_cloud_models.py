@@ -668,6 +668,27 @@ class HostingCeilingTest(TestCase):
         for source in es.SOURCES:
             if source.kind == 'llm':
                 self.assertIn(source.hosting, es.HOSTING_SCALE, source.key)
+                # Le dernier cran est un PLAFOND, jamais un hébergement déclaré.
+                self.assertNotEqual(es.DATA_REUSE_CEILING, source.hosting, source.key)
+        # Chaque cran tient dans la colonne du profil (pas de `choices=`, donc rien d'autre ne le
+        # vérifie : un 1ᵉʳ nom de 17 caractères y a échoué le 2026-10-12).
+        from wama.accounts.models import UserProfile
+        width = UserProfile._meta.get_field('cloud_hosting_max').max_length
+        for level in es.HOSTING_SCALE:
+            self.assertLessEqual(len(level), width, level)
+
+    def test_only_the_last_rung_accepts_data_reuse_and_it_still_admits_every_source(self):
+        """2026-10-12 (Fabien) : la règle de collecte suit le plafond. Le dernier cran admet tout
+        ce qu'admet « commercial », et seul lui accepte qu'un hébergeur garde les requêtes."""
+        user = get_user_model().objects.get(pk=self.user.pk)
+        self.assertFalse(cloud_models.data_reuse_accepted(user))         # défaut : souverain
+        self._set(cloud_hosting_max='third_party')
+        self.assertFalse(cloud_models.data_reuse_accepted(get_user_model().objects.get(pk=self.user.pk)))
+        self._set(cloud_hosting_max='third_party_all')
+        user = get_user_model().objects.get(pk=self.user.pk)
+        self.assertTrue(cloud_models.data_reuse_accepted(user))
+        self.assertEqual({'albert:chat', 'anthropic:claude-x'}, self._keys(automatic=False))
+        self.assertFalse(cloud_models.data_reuse_accepted(None))
 
 
 @override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])

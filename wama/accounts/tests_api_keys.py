@@ -151,6 +151,20 @@ class NiveauCloudTest(TestCase):
         self.assertEqual(400, self.client.post(url, data='{}',
                                                content_type='application/json').status_code)
 
+    def test_the_data_reuse_rung_is_offered_saved_and_explained_before_choosing(self):
+        """2026-10-12 (Fabien): the last rung lets a provider keep or train on the requests. The
+        page says so to EVERY profile — warning before the choice, not after."""
+        from django.utils.html import escape
+        from wama.common import external_sources
+        page = self.client.get(reverse('accounts:profile')).content.decode()
+        self.assertIn('value="third_party_all"', page)
+        self.assertIn(escape(external_sources.DATA_REUSE_WARNING), page)
+        ok = self.client.post(reverse('accounts:profile-cloud-policy'),
+                              data=json.dumps({'cloud_hosting_max': 'third_party_all'}),
+                              content_type='application/json')
+        self.assertEqual(200, ok.status_code)
+        self.assertEqual('third_party_all', UserProfile.objects.get(user=self.user).cloud_hosting_max)
+
 
 @override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
 class ClesMediathequeTest(TestCase):

@@ -218,22 +218,41 @@ class DeclaredRateLimitWaitTest(SimpleTestCase):
 
 
 class DeclaredRequestBodyTest(SimpleTestCase):
-    """2026-10-10 (Fabien's decision): OpenRouter routes every request only to providers that
-    neither keep nor train on the data — a rule DECLARED by the source (`request_body`)."""
+    """2026-10-10 (Fabien's decision): OpenRouter routes a request only to providers that
+    neither keep nor train on the data — a rule DECLARED by the source (`no_reuse_request_body`).
+    2026-10-12: the rule follows the user's hosting ceiling — not sent once they accept reuse."""
 
-    def _sent(self, provider, env):
+    def _sent(self, provider, env, **kwargs):
         fake = _fake_litellm()
         with patch.dict(sys.modules, {'litellm': fake}), patch.dict(os.environ, env), \
                 patch.object(external_sources, 'stored_instance_key', return_value=''):
-            text, err = llm_utils.llm_chat(MESSAGES, provider=provider)
+            text, err = llm_utils.llm_chat(MESSAGES, provider=provider, **kwargs)
         self.assertEqual(('OK', None), (text, err))
         return fake.completion.call_args.kwargs
 
-    def test_openrouter_requests_deny_data_collection(self):
+    def test_openrouter_requests_deny_data_collection_by_default(self):
         sent = self._sent('openrouter', {'OPENROUTER_API_KEY': 'or-key'})
         self.assertEqual({'provider': {'data_collection': 'deny'}}, sent['extra_body'])
         self.assertEqual('openai/openrouter/auto', sent['model'])
 
+    def test_accepted_data_reuse_sends_no_rule(self):
+        sent = self._sent('openrouter', {'OPENROUTER_API_KEY': 'or-key'}, data_reuse_ok=True)
+        self.assertNotIn('extra_body', sent)
+
     def test_a_source_without_a_rule_sends_nothing_more(self):
         # Counter-check: Albert's requests are unchanged.
         self.assertNotIn('extra_body', self._sent('albert', {'ALBERT_API_KEY': 'k'}))
+
+    def test_chat_with_source_reads_the_users_ceiling(self):
+        """The wiring: a signed-in user's ceiling decides; no user (instance key) stays strict."""
+        user = MagicMock(is_authenticated=True)
+        for accepted in (True, False):
+            with patch('wama.model_manager.services.cloud_models.cloud_access', return_value='k'), \
+                    patch('wama.model_manager.services.cloud_models.data_reuse_accepted',
+                          return_value=accepted), \
+                    patch.object(llm_utils, 'llm_chat', return_value=('OK', None)) as chat:
+                llm_utils.chat_with_source('openrouter', 'm', MESSAGES, user=user)
+            self.assertIs(accepted, chat.call_args.kwargs['data_reuse_ok'])
+        with patch.object(llm_utils, 'llm_chat', return_value=('OK', None)) as chat:
+            llm_utils.chat_with_source('openrouter', 'm', MESSAGES)
+        self.assertIs(False, chat.call_args.kwargs['data_reuse_ok'])

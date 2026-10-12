@@ -83,10 +83,21 @@ HOSTING = {'private': 'privé', 'sovereign': 'souverain', 'third_party': 'héber
 #:                     encore (2026-10-03) : la valeur existe pour que le plafond du profil et
 #:                     la présentation disent la même chose le jour où une source arrive ;
 #:   • `sovereign`   — hébergement de l'État (Albert, DINUM, SecNumCloud) ;
-#:   • `third_party` — hébergeur commercial.
+#:   • `third_party` — hébergeur commercial, qui ne garde pas les requêtes et n'entraîne pas
+#:                     dessus quand le fournisseur sait le demander (OpenRouter :
+#:                     `no_reuse_request_body`) ;
+#:   • `third_party_all` — le même, y COMPRIS les hébergeurs qui conservent les requêtes ou
+#:                     s'en servent pour entraîner leurs modèles : souvent la condition des
+#:                     modèles GRATUITS (servis par leur seul éditeur). Cran de PLAFOND seulement —
+#:                     aucune source ne le déclare comme hébergement. Décision de Fabien,
+#:                     2026-10-12 : la règle de collecte suit le choix de l'utilisateur.
 #: C'est l'ORDRE qui fait la règle : un profil plafonné à un niveau admet ce niveau et tous
 #: ceux qui le précèdent (`hosting_within`). Décision de Fabien, 2026-10-03.
-HOSTING_SCALE = ('private', 'sovereign', 'third_party')
+HOSTING_SCALE = ('private', 'sovereign', 'third_party', 'third_party_all')
+
+#: Le cran du plafond à partir duquel l'utilisateur accepte que ses requêtes soient gardées ou
+#: servent à entraîner un modèle (`data_reuse_accepted`).
+DATA_REUSE_CEILING = 'third_party_all'
 
 #: Comment on DIT à l'utilisateur où tourne un modèle distant (aide sous un sélecteur de modèle,
 #: `AIModel.origin_label`) — un libellé par niveau de l'échelle.
@@ -180,8 +191,16 @@ HOSTING_CEILING_DEFAULT = 'sovereign'
 HOSTING_CEILING_LABELS = {
     'private': "Cloud privé seulement (serveurs de l'établissement)",
     'sovereign': "Jusqu'aux clouds souverains (Albert)",
-    'third_party': "Jusqu'aux clouds commerciaux",
+    'third_party': "Jusqu'aux clouds commerciaux, sans conservation de mes données",
+    'third_party_all': "Jusqu'aux clouds commerciaux, même s'ils gardent ou réutilisent mes données",
 }
+
+#: Ce que l'utilisateur doit SAVOIR avant de choisir le dernier cran — affiché sous le plafond, au
+#: profil (2026-10-12).
+DATA_REUSE_WARNING = (
+    "Au dernier niveau, un hébergeur commercial peut conserver vos requêtes (textes, documents "
+    "envoyés) et s'en servir pour entraîner ses modèles. C'est souvent la condition des modèles "
+    "gratuits. N'y envoyez rien de confidentiel ni de personnel.")
 
 
 def hosting_within(hosting: str, ceiling: str) -> bool:
@@ -195,6 +214,12 @@ def hosting_within(hosting: str, ceiling: str) -> bool:
     if ceiling not in HOSTING_SCALE:
         ceiling = HOSTING_CEILING_DEFAULT
     return HOSTING_SCALE.index(hosting) <= HOSTING_SCALE.index(ceiling)
+
+
+def data_reuse_accepted(ceiling: str) -> bool:
+    """Un profil plafonné à `ceiling` accepte-t-il qu'un hébergeur garde ou réutilise ses
+    requêtes ? Seulement au dernier cran ; un plafond inconnu vaut le défaut, donc non."""
+    return ceiling == DATA_REUSE_CEILING
 
 #: Portées. `LOCAL` = service tournant sur la machine (ou l'hôte) : le proxy doit être
 #: NEUTRALISÉ, sans quoi il répond sa page d'erreur HTML à la place du service (incident
@@ -312,11 +337,12 @@ class ExternalSource:
     #: ligne `default`. ⚠ N'y écrire que des identifiants que le fournisseur ACCEPTE, vérifiés
     #: sur lui : ils partent tels quels dans son appel.
     declared_models: tuple = ()
-    #: Fournisseur LLM : champs AJOUTÉS au corps de chaque requête de conversation (2026-10-10) —
-    #: une règle d'usage que la source impose à chaque appel, lue par `llm_utils.llm_chat`.
-    #: OpenRouter : n'aller que chez des hébergeurs qui ne gardent ni n'entraînent sur les données.
-    #: Chaîne JSON (et non dict) : la source est figée, donc hachable.
-    request_body: str = ''
+    #: Fournisseur LLM : champs AJOUTÉS au corps d'une requête de conversation pour qu'aucun
+    #: hébergeur ne garde ni n'entraîne sur les données (OpenRouter, 2026-10-10), lus par
+    #: `llm_utils.llm_chat`. Envoyés SAUF si l'utilisateur a accepté cette réutilisation au
+    #: plafond de son profil (`data_reuse_accepted`, 2026-10-12) ; toujours envoyés sans
+    #: utilisateur (clé d'instance). Chaîne JSON (et non dict) : la source est figée, donc hachable.
+    no_reuse_request_body: str = ''
     #: Fournisseur LLM : attente, en secondes, après un refus de débit (HTTP 429) qui ne dit pas
     #: quand recommencer (`Retry-After`) — MESURÉE sur le fournisseur ; 0 = l'attente commune
     #: (`llm_utils.RATE_LIMIT_WAIT_S`). Chantier 5 ③ de `WAMA_HARNESS.md` (2026-10-11) : la
@@ -427,11 +453,15 @@ SOURCES: tuple[ExternalSource, ...] = (
         api_key_help_url='https://openrouter.ai/settings/keys',
         hosting='third_party', cost_tier='metered', protocol='openai',
         default_model='openrouter/auto',
-        # Décision de Fabien (2026-10-10) : chaque requête n'est routée que vers des hébergeurs
-        # qui ne conservent pas les données et n'entraînent pas dessus (`data_collection: deny`,
-        # doc « provider routing » ; défaut d'OpenRouter : `allow`). `zdr` (aucune conservation,
-        # plus strict) n'est pas imposé : il réduit fortement les hébergeurs possibles.
-        request_body='{"provider": {"data_collection": "deny"}}',
+        # Décision de Fabien (2026-10-10) : une requête n'est routée que vers des hébergeurs qui
+        # ne conservent pas les données et n'entraînent pas dessus (`data_collection: deny`, doc
+        # « provider routing » ; défaut d'OpenRouter : `allow`). `zdr` (aucune conservation, plus
+        # strict) n'est pas imposé : il réduit fortement les hébergeurs possibles.
+        # Assoupli le 2026-10-12 (Fabien) : la règle suit le plafond du profil — au dernier cran
+        # (`third_party_all`), rien n'est ajouté. Mesuré ce jour sur deux modèles `:free` : un
+        # seul hébergeur chacun, leur éditeur (Google AI Studio, NVIDIA) — s'il garde les
+        # requêtes, `deny` les rend injoignables (non vérifié faute de clé).
+        no_reuse_request_body='{"provider": {"data_collection": "deny"}}',
         doc='docs/construction/ia/WAMA_LLM.md'),
     # 2026-09-15 : l'API Anthropic (fournisseur « claude » de l'assistant) et l'ABONNEMENT Claude
     # Code — deux canaux de facturation opposés vers les mêmes modèles (cf. `claude_code.py`).

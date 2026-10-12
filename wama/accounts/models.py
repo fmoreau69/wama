@@ -99,8 +99,10 @@ class UserProfile(models.Model):
     # SECOND AXE du cloud (décision de Fabien, 2026-10-03) : `cloud_policy` dit QUAND WAMA peut
     # sortir du local, ces deux champs disent JUSQU'OÙ et À QUEL PRIX.
     #   • `cloud_hosting_max` — PLAFOND d'hébergement, sur l'échelle ordonnée
-    #     `external_sources.HOSTING_SCALE` (privé < souverain < commercial). Vaut pour le tirage
-    #     automatique ET pour le choix manuel : au-delà du plafond, rien ne part.
+    #     `external_sources.HOSTING_SCALE` (privé < souverain < commercial < commercial qui garde
+    #     ou réutilise les données). Vaut pour le tirage automatique ET pour le choix manuel :
+    #     au-delà du plafond, rien ne part. Le dernier cran décide aussi de la règle de collecte
+    #     envoyée au fournisseur (`data_reuse_accepted`, 2026-10-12).
     #     ⚠ AUCUN `choices=` : l'échelle a UN domicile (`external_sources`), et la figer ici
     #     ferait une migration à chaque niveau ajouté (même raison que `search_engine`).
     #   • `cloud_metered_auto` — le tirage AUTOMATIQUE peut-il retenir un modèle FACTURÉ À

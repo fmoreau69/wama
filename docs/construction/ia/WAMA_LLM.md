@@ -887,8 +887,19 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   Modèle par défaut : `openrouter/auto` (routeur d'OpenRouter). **Données (décision de Fabien,
   même jour)** : chaque requête porte `provider.data_collection = "deny"` — OpenRouter ne la
   route que vers des hébergeurs qui ne conservent pas les données et n'entraînent pas dessus (son
-  défaut est `allow`) ; règle DÉCLARÉE sur la source (`ExternalSource.request_body`), transmise
-  par `llm_chat` (`extra_body`). `zdr` (aucune conservation) n'est pas imposé. Faits vérifiés le
+  défaut est `allow`) ; règle DÉCLARÉE sur la source (`ExternalSource.no_reuse_request_body`),
+  transmise par `llm_chat` (`extra_body`). `zdr` (aucune conservation) n'est pas imposé.
+  **Assoupli le 2026-10-12 (décision de Fabien : « partir des choix utilisateurs »)** : la règle
+  suit le PLAFOND d'hébergement du profil, qui gagne un 4ᵉ cran, `third_party_all` (« jusqu'aux
+  clouds commerciaux, même s'ils gardent ou réutilisent mes données ») — à ce cran seul, rien
+  n'est ajouté (`cloud_models.data_reuse_accepted`, passé par `chat_with_source`) ; en dessous et
+  sans utilisateur (clé d'instance), `deny` reste. Pas de migration (l'échelle n'a pas de
+  `choices=`). La carte « Modèles cloud » du profil affiche à TOUS l'avertissement
+  (`external_sources.DATA_REUSE_WARNING`) avant le choix. Motif mesuré le 12/10 : deux modèles
+  `:free` (Gemma 4 31B, Nemotron 3 Super) n'ont qu'UN hébergeur, leur éditeur — si celui-ci garde
+  les requêtes, `deny` les rend injoignables (⚠ non vérifié faute de clé). Gardes :
+  `tests_llm_providers.DeclaredRequestBodyTest`, `tests_cloud_models.HostingCeilingTest`,
+  `tests_api_keys.NiveauCloudTest`. Faits vérifiés le
   10/10 : un modèle est servi par un ou plusieurs hébergeurs (13 pour Gemma 4 31B, en partie
   quantifiés fp4), majoritairement américains, région UE réservée aux offres Business/Enterprise ;
   modèles gratuits limités à 20 req/min et 50 req/jour (1 000 au-delà de 10 crédits achetés).

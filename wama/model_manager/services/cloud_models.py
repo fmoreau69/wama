@@ -468,6 +468,14 @@ def hosting_ceiling(user) -> str:
     return value if value in external_sources.HOSTING_SCALE else external_sources.HOSTING_CEILING_DEFAULT
 
 
+def data_reuse_accepted(user) -> bool:
+    """`user` accepte-t-il qu'un hébergeur garde ou réutilise ses requêtes ? Le dernier cran de
+    son plafond le dit (2026-10-12) ; sans utilisateur, non."""
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return False
+    return external_sources.data_reuse_accepted(hosting_ceiling(user))
+
+
 def cloud_refusal(user, source: str = '') -> str:
     """Motif de refus d'un appel distant pour `user`, sinon ''. Sans utilisateur : ''.
 
@@ -505,7 +513,8 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
     - « cloud autorisé » → les deux.
 
     SECOND AXE (Fabien, 2026-10-03) — le niveau dit QUAND, ces deux réglages disent JUSQU'OÙ :
-    - le PLAFOND d'hébergement (`cloud_hosting_max` : privé < souverain < commercial) borne les
+    - le PLAFOND d'hébergement (`cloud_hosting_max` : privé < souverain < commercial < commercial
+      qui garde ou réutilise les données) borne les
       deux chemins — une source au-delà du plafond n'ouvre rien, ni au tirage ni au choix ;
     - un modèle FACTURÉ À L'USAGE (`cost_tier == 'metered'`) n'entre au tirage AUTOMATIQUE que
       si le profil le dit (`cloud_metered_auto`). Mesuré le 03/10 : avec « cloud autorisé » et

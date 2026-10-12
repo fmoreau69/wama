@@ -354,6 +354,7 @@ def llm_chat(
     temperature: Optional[float] = None,
     on_delta=None,
     tools: Optional[list] = None,
+    data_reuse_ok: bool = False,
 ) -> tuple[Optional[str], Optional[str]]:
     """
     Unified LLM chat function — provider-agnostic entry point.
@@ -391,6 +392,10 @@ def llm_chat(
                     fournisseur revient comme TEXTE `{"tool": nom, "args": {…}}` — la forme que la
                     boucle de l'assistant lit déjà (`_parse_tool_call`) ; le premier seul s'il y en
                     a plusieurs, la boucle en exécute un par tour (2026-10-11, gpt-oss d'Albert).
+        data_reuse_ok: Cloud only. L'utilisateur accepte qu'un hébergeur garde ou réutilise ses
+                    requêtes (dernier cran de son plafond, `chat_with_source`) : la règle
+                    `no_reuse_request_body` de la source n'est alors PAS envoyée. Faux par
+                    défaut — un appel sans utilisateur reste strict (2026-10-12).
 
     Returns:
         (text, None) on success · (None, error_string) on failure
@@ -448,9 +453,11 @@ def llm_chat(
         if not api_key:
             return None, (f"clé absente pour « {provider} » : la poser sur la page « Sources "
                           f"externes » ou définir {declared.api_key_env} dans .env")
-        # Règle d'usage DÉCLARÉE par la source, ajoutée à chaque requête (2026-10-10 — OpenRouter :
-        # aucun hébergeur qui garde ou entraîne sur les données).
-        extra_body = json.loads(declared.request_body) if declared.request_body else None
+        # Règle DÉCLARÉE par la source (2026-10-10 — OpenRouter : aucun hébergeur qui garde ou
+        # entraîne sur les données), sauf si l'utilisateur a accepté cette réutilisation au
+        # plafond de son profil (2026-10-12).
+        extra_body = (json.loads(declared.no_reuse_request_body)
+                      if declared.no_reuse_request_body and not data_reuse_ok else None)
     else:
         # Source au protocole natif de LiteLLM (API Anthropic) : son nom EST le préfixe.
         extra_body = None
@@ -625,12 +632,16 @@ def chat_with_source(source: str, model_id: Optional[str], messages: list, *, us
     passée : `llm_chat` prend celle de l'instance, comme avant.
     """
     api_key = None
+    data_reuse_ok = False
     if user is not None and getattr(user, 'is_authenticated', False):
-        from wama.model_manager.services.cloud_models import cloud_access
+        from wama.model_manager.services.cloud_models import cloud_access, data_reuse_accepted
         api_key = cloud_access(user, source, model_id or '')
+        # La règle de collecte suit le PLAFOND du profil (Fabien, 2026-10-12).
+        data_reuse_ok = data_reuse_accepted(user)
     return llm_chat(messages, model=model_id or None, provider=source, api_key=api_key,
                     num_predict=num_predict, think=think, timeout=timeout,
-                    temperature=temperature, on_delta=on_delta, tools=tools)
+                    temperature=temperature, on_delta=on_delta, tools=tools,
+                    data_reuse_ok=data_reuse_ok)
 
 
 def extract_json_from_llm(text: str) -> Optional[dict]:
