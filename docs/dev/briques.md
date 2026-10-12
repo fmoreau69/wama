@@ -2275,11 +2275,11 @@ L'APPARENCE d'un état (libellé, classe de badge, classe de texte, icône) déc
 
 ### Schéma de paramètres
 
-Source unique des réglages d'app : volet droit, modales (item ET lot, `context`) et DÉFAUTS APPLICABLES d'un élément naissant (applicable_defaults, filtre show_if au vocabulaire du moteur JS) sont dérivés de lui. Depuis le 01/09 il porte AUSSI LA cascade des valeurs effectives (effective_settings : défauts du schéma ← preset ← réglages POSÉS — formulation Fabien, ROADMAP §23.2bis) : la base ne stocke que le POSÉ (vide = « le preset décide »), les défauts restent au schéma — c'est ce qui rend un preset POSSIBLE, et ce qui a remplacé resolve_options du converter + les défauts en dur des backends
+Source unique des réglages d'app : volet droit, modales (item ET lot, `context`) et DÉFAUTS APPLICABLES d'un élément naissant (applicable_defaults, filtre show_if au vocabulaire du moteur JS) sont dérivés de lui. Depuis le 01/09 il porte AUSSI LA cascade des valeurs effectives (effective_settings : défauts du schéma ← preset ← réglages POSÉS — formulation Fabien, ROADMAP §23.2bis) : la base ne stocke que le POSÉ (vide = « le preset décide »), les défauts restent au schéma — c'est ce qui rend un preset POSSIBLE, et ce qui a remplacé resolve_options du converter + les défauts en dur des backends. Depuis le 12/10 (ROUTE §10.6 3.3bis, R1) c'est LA forme de tous les mondes : le pont `param_from_spec` projette les `ParamSpec` d'une fonction sans perte, le Studio rend tous ses nœuds par WamaParams (renderer commun `media_picker`, `isGesture`), et la PORTE des refus (`schema_refusals`/`checked_values` : choix hors liste, nombre illisible ou hors grille) est lue par la porte des outils, le lancement d'un graphe, l'exécution d'une fonction et le moteur de vue Data
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
-- **API publique** (25) :
+- **API publique** (30) :
   - `class Param` — Description d'UN paramètre, indépendante de la surface de rendu.
   - `format_display(value, display_format: str) -> Optional[str]` — La valeur dans le FORMAT déclaré (`Param.display_format`), None si le format est inconnu
   - `derive_from_model(model_class, include: List[str], overrides: dict=None) -> List[Param]` — Construit la liste de `Param` d'une app à partir des champs d'un modèle Django.
@@ -2295,6 +2295,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `effective_settings(schema, posees=None, preset=None, contexte=None) -> dict` — Valeurs EFFECTIVES d'un élément — **défauts (schéma) ← preset ← réglages POSÉS**.
   - `coerce_params(schema, data, caps=None)` — Borne UNIQUE des paramètres numériques = le SCHÉMA (`params.py`). Source de vérité serveur.
   - `schema_for_app(app_id: str) -> List[dict]` — Schéma de params d'une app, résolu depuis le REGISTRE (`wama/<app>/params.py`).
+  - `groups_for_app(app_id: str) -> List[dict]` — Groupes d'affichage (`ParamGroup`) du schéma PRINCIPAL d'une app — le pendant de
   - `declared_param_schemas(app_id: str)` — TOUS les schémas de params déclarés par le module de l'app — pas seulement l'attribut
   - `schema_model_kwargs(app_id: str, params: dict) -> dict` — Sous-ensemble de `params` qui est À LA FOIS déclaré au schéma de l'app ET un champ
   - `schema_extra_params(app_id: str, params: dict) -> dict` — Symétrique de `schema_model_kwargs` : les params DÉCLARÉS au schéma qui ne sont PAS des
@@ -2305,6 +2306,10 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `unapplicable_numeric_values(schema, data) -> dict` — {nom: (valeur_refusée, explication)} pour chaque nombre PRÉSENT que le schéma ne peut
   - `schema_choice_values(app_id, name) -> set` — Valeurs valides d'un param à `choices`, DÉRIVÉES du schéma — jamais recopiées.
   - `coerce_schema_values(schema, data, only_present: bool=True) -> dict` — Coercition COMPLÈTE d'un mapping selon le schéma : types (booléens) + bornes (numériques).
+  - `schema_refusals(schema, data) -> dict` — {nom: raison} de chaque valeur PRÉSENTE que le schéma refuse. Vide = tout est applicable.
+  - `describe_refusals(refusals: dict) -> str` — Une phrase par valeur refusée, dans l'ordre des noms — le texte d'une erreur montrée.
+  - `checked_values(schema, data) -> dict` — Les valeurs FOURNIES, refusées si le schéma les refuse, sinon typées et bornées — la porte
+  - `param_from_spec(spec) -> Param` — Le `Param` d'un `ParamSpec`. Lève `ValueError` sur un type que le pont ne connaît pas —
 
 ### Shuttle J/K/L
 
@@ -3082,8 +3087,7 @@ Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique
 
 - **Domicile** : `wama/studio/services/generic_runner.py` · **doc** : [docs/construction/mondes/STUDIO_VISION.md](../construction/mondes/STUDIO_VISION.md)
 - **Module** : Studio — runner GÉNÉRIQUE piloté par le CONTRAT d'app (STUDIO_VISION « principe directeur », 2026-07-12). Zéro logique par app : tout vient des sources uniques.
-- **API publique** (6) :
-  - `with_catalog_options(spec) -> list` — Copie de `spec` dont les selects de CATALOGUE reçoivent leurs options MAINTENANT, par LA
+- **API publique** (5) :
   - `primary_ports(app_id) -> set` — Les ports par lesquels arrive l'ENTRÉE PRINCIPALE du nœud (transmise par `create`).
   - `unwired_ports(app_id) -> list` — Les ports du nœud que l'outil de l'app ne LIT pas encore — le portage qui reste.
   - `unwired_ports_report(measure=None)` — (ok, détail) — la liste MESURÉE des ports non lus confrontée au budget, dans les deux
