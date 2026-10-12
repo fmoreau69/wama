@@ -38,6 +38,8 @@
 | Masquage global | `base.html:22` | `body.wama-simple #wama-right-panel { display:none }` — **les deux volets disparaissent en mode simplifié** |
 | **Repli par la frontière** (2026-10-10) | `common/js/wama-panel-toggle.js` + `common/css/wama-panel-toggle.css` | `WamaPanels` : un clic sur la frontière d'un volet le replie / le rouvre, sur toute page — voir §9 ② |
 | **Place des volets** (2026-10-10) | `wama-panel-toggle.css` | marges dérivées `--wama-left-gutter` / `--wama-right-gutter` (largeur du volet, ou 0 replié / sans volet / mode simplifié) : SEULE source que lisent le corps, l'en-tête et les barres fixes — jamais plus `--fm-*-width` (`tests_panel_toggle`) |
+| **Contextes de largeur** (2026-10-12) | `base.html` (amorce `WamaPanelsContext`) + `wama-panel-toggle.js` | sous le `lg` de Bootstrap : classe `wama-narrow`, volets repliés d'office, un seul ouvert, mémoire `wama_panel_<côté>_narrow` — voir §9 ⑤ |
+| **Barre du haut et pied** (2026-10-12) | `includes/header.html`, `base.html`, `filemanager.css` | grilles `1fr auto 1fr` ; la barre est un CONTENEUR (`wama-header`) dont les libellés `.wama-header-label` s'effacent derrière leur icône — §9 ⑤ |
 | Scripts inspecteur | `base.html:309-310` | `wama-inspector.js` + `-autofill.js` chargés **globalement** depuis le 2026-08-20 |
 
 ⚠ **Le CSS de structure du volet droit vit chez le filemanager** (`filemanager.css:199-254` :
@@ -382,9 +384,49 @@ dépôt (14 pages), toute modification y est transverse par construction.
    centrale 346 à 394 px sur 834 en portrait selon la page, 626 sur 1194 en paysage ; canvas du
    studio 158 px en portrait (438 en paysage), inutilisable. En portrait, la barre du haut se
    chevauche (« WAMA » sur « Simplifié », « Panneau » sur le nom du compte).
-   ✅ Le **repli manuel** (question 2) rend 834 px au centre. ⏳ Reste : **replier d'office
-   sous une largeur** (volets en tiroir, rouverts par leur frontière) — sans écraser un choix
-   explicite de l'utilisateur —, et la **barre du haut** à largeur de tablette.
+   ✅ Le **repli manuel** (question 2) rend 834 px au centre.
+   ✅ **LIVRÉ le 2026-10-12** (`ROADMAP §27` étape 2) — le repli d'office et les deux barres :
+   - **Deux contextes de largeur.** Sous le point de rupture `lg` de Bootstrap (992 px, lu dans
+     sa feuille, `--bs-breakpoint-lg` — pas un nombre à nous) : volets **repliés d'office**,
+     **un seul ouvert** (en ouvrir un replie l'autre), **mémoire à part**
+     (`wama_panel_<côté>_narrow`). Le choix fait en grand n'est jamais écrit depuis le contexte
+     étroit : il revient tel quel à la rotation en paysage, et l'étroit retrouve le sien au
+     retour. Une seule écriture de la règle : `WamaPanelsContext`, posé par l'amorce de
+     `base.html` avant le premier rendu, que la brique relit quand la largeur change.
+     ⚠ La LARGEUR, pas le pointeur : une fenêtre étroite à la souris a le même problème de place
+     qu'une tablette ; le pointeur décide de la taille des cibles (`wama-touch.css`), la largeur
+     décide de la place des volets.
+   - **Pousser, pas recouvrir — décision prise à la conception.** La note d'origine disait
+     « volets en tiroir ». Un tiroir recouvre le centre ; or deux gestes centraux exigent un
+     centre VIVANT pendant que le volet est ouvert : glisser de l'explorateur vers l'app
+     (`filemanager.js:261`), et cliquer une card pour remplir l'inspecteur. Le volet ouvert
+     pousse donc la zone centrale, comme en grand, et l'exclusivité garde au centre 594 à 634 px
+     (portrait). Aucun voile, aucune fermeture « au clic dehors » : elle aurait refermé le
+     panneau à chaque card cliquée.
+   - **La barre du haut** était trois blocs, le logo posé en ABSOLU au centre : rien ne
+     l'empêchait de recouvrir ses voisins, et il les recouvrait **dès 1 280 px de bureau**
+     volets ouverts (« WAMA » sur « Simplifié », 71 px), pas seulement en tablette (la droite y
+     débordait de 97 px sur le volet). Désormais une grille `1fr auto 1fr` : le logo reste au
+     centre tant que les côtés y tiennent, se décale sinon, ne recouvre jamais. La barre est un
+     **conteneur** (sa largeur n'est pas celle de la fenêtre : elle se loge entre les volets) et
+     ses libellés s'effacent derrière leur icône, du moins utile au plus utile — le mode
+     (720 px), le nom du compte (580), « Applications » (440) —, masqués à l'œil seulement (forme
+     `.visually-hidden` de Bootstrap : le lecteur d'écran les lit toujours). Nom du compte borné
+     à 16 caractères.
+   - **Le pied**, même défaut, même remède : les ressources système, posées en absolu, couvraient
+     le titre centré dès 834 px ; grille `1fr minmax(0, auto) 1fr`, le titre s'abrège au besoin.
+   **Mesuré**, 6 pages × 6 profils (iPad Pro 11 portrait et paysage, iPad mini portrait,
+   bureau 1 280 / 1 024 / 900) : **0 chevauchement** dans la barre (avant : 33 combinaisons sur 36 — seule la médiathèque, sans
+   volet droit, y échappait en grand), **0
+   recouvrement** au pied, 0 défilement horizontal, 0 erreur console ; centre en portrait **394
+   → 834 px** (studio : canvas pleine largeur, il en avait 158). Barre seule balayée de 320 à
+   820 px, nom réel puis nom en lettres larges : aucun chevauchement. Gardes :
+   `tests_panel_toggle` (l'amorce PUIS la brique, jouées dans V8 sur la même mémoire) et le
+   scénario nocturne **`common.layout.tablet`** (`ui_smoke_layout.py` : portrait → paysage →
+   portrait, puis bureau), vérifié **rouge** sur l'ancienne mise en page réinjectée (barre 77 px,
+   pied 170 px).
+   ⏳ Ce qui reste hors de cette étape : un téléphone (sous ~600 px, un volet ouvert laisse peu
+   au centre — hors du périmètre tablette), et les gestes (`ROADMAP §27` étape 3).
 
 ## Voir aussi
 - `WAMA_DATA_WORLD.md §11.8` — l'UI du monde Data hérite de la file Médias ; les évolutions ⑦ du

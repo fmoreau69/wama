@@ -4,9 +4,12 @@
         <!-- Menu déroulant Applications (gauche) -->
         <div class="wama-header-left">
             <div class="dropdown">
-                <button class="btn btn-dark dropdown-toggle d-flex align-items-center" type="button" id="appsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                {% comment %}`wama-header-label` : les libellés de la barre. Quand la barre manque de
+                place (volets ouverts sur un écran moyen, tablette), ils s'effacent derrière leur
+                icône sans quitter le lecteur d'écran (filemanager.css, requête de conteneur).{% endcomment %}
+                <button class="btn btn-dark dropdown-toggle d-flex align-items-center" type="button" id="appsDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Applications">
                     <i class="fas fa-th me-2"></i>
-                    <span>Applications</span>
+                    <span class="wama-header-label">Applications</span>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-dark wama-apps-menu" aria-labelledby="appsDropdown">
                     {# Menu GÉNÉRÉ des déclarations (get_app_groups, cf. app_registry) — groupé par #}
@@ -174,7 +177,7 @@
                             onclick="window.wamaToggleMode && window.wamaToggleMode()"
                             title="Passer en Mode Simplifié — masque les volets ; le logo WAMA ouvre l’accueil simplifié">
                         <i id="uiModeBtnIcon" class="fas fa-expand-alt me-1"></i>
-                        <span id="uiModeBtnLabel">Simplifié</span>
+                        <span id="uiModeBtnLabel" class="wama-header-label">Simplifié</span>
                     </button>
                 </li>
                 <!-- Bouton Compte / Login -->
@@ -193,9 +196,10 @@
                     </a>
                 </li>
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false"
+                       title="{{ user.first_name|default:user.username }} {{ user.last_name }}">
                         <i class="fas fa-user me-1"></i>
-                        <span>{{ user.first_name|default:user.username }} {{ user.last_name }}</span>
+                        <span class="wama-header-label wama-header-name">{{ user.first_name|default:user.username }} {{ user.last_name }}</span>
                     </a>
                     {% comment %}
                       DEUX SECTIONS, nommées (Fabien, 01/09) : « Mon espace » = ce qui appartient
@@ -345,7 +349,7 @@
                 <li class="nav-item">
                     <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#LOGIN-MODAL">
                         <i class="fas fa-door-open me-1"></i>
-                        <span>Login</span>
+                        <span class="wama-header-label">Login</span>
                     </a>
                 </li>
                 {% endif %}

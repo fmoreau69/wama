@@ -439,6 +439,7 @@ try:
     from wama.common.services.ui_smoke_menus import register_menu_scenarios
     from wama.common.services.ui_smoke_states import register_state_color_scenarios
     from wama.common.services.ui_smoke_panel import register_panel_reflect_scenarios
+    from wama.common.services.ui_smoke_layout import register_layout_scenarios
     from wama.common.services.ui_smoke_preview import register_preview_scenarios
     register_ui_scenarios()
     # Les briques d'APPARIEMENT s'exécutent SERVIES : aucun test Python ne voit un bloc gardé
@@ -486,6 +487,10 @@ try:
     # Le VOLET DROIT est une troisième surface : ni la santé de la page ni la création d'un
     # élément ne voient un ✕ qui ne désélectionne pas (aucune erreur console — cf. WAMA_VOLETS §4).
     register_volet_scenarios()
+    # 2026-10-12 — la MISE EN PAGE à largeur de tablette : volets par contexte de largeur, barre
+    # du haut et pied sans chevauchement. Un logo posé sur ses voisins ne lève aucune erreur — il
+    # l'était dès 1 280 px volets ouverts, et personne ne l'a dit avant une mesure.
+    register_layout_scenarios()
     # 2026-08-27 — le chemin que AUCUN des six précédents n'emprunte : la SÉLECTION.
     # `batch_actions` clique les boutons DE la card ; c'est `selectItem`/`selectBatch` qui
     # peuplent le volet Actions. D'où deux défauts MUETS passés au travers du nocturne :

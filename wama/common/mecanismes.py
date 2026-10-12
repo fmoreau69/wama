@@ -566,9 +566,17 @@ MECHANISMS = (
               "`--wama-right-gutter` (0 replié, sans volet ou en mode simplifié) que lisent le "
               "corps, l'en-tête et les barres fixes des pages ; une règle qui se calerait sur la "
               "largeur brute d'un volet est refusée par `tests_panel_toggle`. Au doigt (tablette), "
-              "la pastille reste visible. Après chaque bascule : `resize` + `wama:panels`",
+              "la pastille reste visible. Après chaque bascule : `resize` + `wama:panels`. DEUX "
+              "CONTEXTES DE LARGEUR (2026-10-12) : sous le point de rupture `lg` de Bootstrap "
+              "(tablette en portrait, fenêtre étroite), volets repliés d'office, un seul ouvert à "
+              "la fois, mémoire à part — le choix fait en grand n'est jamais écrasé "
+              "(`WamaPanelsContext`, posé par base.html avant le premier rendu). La barre du haut "
+              "et le pied sont des grilles `1fr auto 1fr` : rien ne s'y chevauche, les libellés "
+              "s'effacent derrière leur icône quand la barre manque de place (requête de "
+              "conteneur) ; mesuré chaque nuit par `common.layout.tablet`",
               'wama/common/static/common/js/wama-panel-toggle.js', 'docs/construction/ui/WAMA_VOLETS.md',
-              annexes=('wama/common/static/common/css/wama-panel-toggle.css',),
+              annexes=('wama/common/static/common/css/wama-panel-toggle.css',
+                       'wama/common/services/ui_smoke_layout.py'),
               symbol='WamaPanels'),         # global de base.html : compté par son symbole
     Mechanism('touch', "WAMA au doigt (écrans tactiles)",
               "Une règle commune, montée par base.html EN DERNIER, pour tout écran dont le "

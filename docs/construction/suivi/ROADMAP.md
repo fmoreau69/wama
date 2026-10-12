@@ -5282,9 +5282,17 @@ aucun débordement horizontal**. Les défauts sont ailleurs :
    frontière) ; les autres changeaient l'apparence de l'élément survolé lui-même, ou venaient
    des bibliothèques tierces. ⏳ **Reste** : les boutons-icônes qui ne s'expliquent que par leur
    infobulle (`title`, invisible au doigt) — à traiter avec les gestes (étape 3).
-2. 🔄 **Les volets** : ✅ repli manuel par la frontière, livré le 2026-10-10 (`WamaPanels`,
-   pastille visible au doigt ; centre 394 → 834 px en portrait) ; ⏳ repli d'office sous une
-   largeur et barre du haut — `WAMA_VOLETS §9.5`.
+2. ✅ **Les volets et les barres** — **LIVRÉE le 2026-10-12** (le repli manuel par la
+   frontière l'était le 10/10) : deux **contextes de largeur** sous le `lg` de Bootstrap
+   (volets repliés d'office, un seul ouvert, mémoire à part — le choix fait en grand n'est
+   jamais écrasé), volet ouvert qui POUSSE le centre plutôt qu'un tiroir qui le recouvre (glisser
+   de l'explorateur, clic sur une card : le centre reste vivant) ; **barre du haut et pied** en
+   grilles `1fr auto 1fr`, libellés effacés derrière leur icône par requête de conteneur.
+   **Mesuré**, 6 pages × 6 profils : chevauchements de la barre **33/36 → 0** (le défaut existait
+   aussi au BUREAU, dès 1 280 px volets ouverts), pied recouvert → 0, centre en portrait 394 →
+   834 px. Gardes : `tests_panel_toggle` (amorce + brique jouées dans V8) et le scénario nocturne
+   `common.layout.tablet`, vérifié rouge sur l'ancienne mise en page. Détail et raisons :
+   `WAMA_VOLETS §9.5`.
 3. ⏳ **Une brique commune de gestes au pointeur** dans `wama/common/` (glisser, défiler,
    pincer) : le studio l'adopte d'abord, puis la file — le plus gros morceau, elle touche toutes
    les apps — et l'éditeur du transcriber. Pas cinq versions du même geste : le glisser HTML5

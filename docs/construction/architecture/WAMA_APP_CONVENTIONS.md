@@ -2581,7 +2581,7 @@ la philosophie *métadonnée-driven* (voir `AGENTS.md` § Philosophie générale
 
 ---
 
-## 23. Écrans tactiles — WAMA au doigt (2026-10-12, `ROADMAP §27` étape 1)
+## 23. Écrans tactiles — WAMA au doigt (2026-10-12, `ROADMAP §27` étapes 1 et 2)
 
 > Toute page de tout monde passe par `base.html`, qui monte `common/css/wama-touch.css` **en
 > dernier** : une app n'a rien à écrire pour être utilisable au doigt. Ce paragraphe dit ce
@@ -2620,9 +2620,21 @@ médiathèque, import d'un résultat de recherche, plein écran de l'aperçu).
   une action cachée et reste libre ; au doigt, s'il porte une information, le montrer
   (« 🃏 toucher pour désempiler », `wama-inspector.css`).
 
-**Ce que l'étape 1 ne couvre pas** (`ROADMAP §27`) : les gestes de glisser, défiler, pincer
-(étape 3), les volets en tiroir et la barre du haut (étape 2), et les boutons-icônes qui ne
-s'expliquent que par leur infobulle (`title`), invisible au doigt.
+**La PLACE se décide à la largeur, pas au pointeur** (étape 2, 2026-10-12). Le pointeur dit la
+taille des cibles ; la largeur dit combien de colonnes tiennent — une fenêtre étroite à la souris
+a le même problème qu'une tablette en portrait. Sous le `lg` de Bootstrap, `WamaPanels` passe en
+contexte étroit (classe `wama-narrow` sur `<body>`) : volets repliés d'office, un seul ouvert,
+mémoire à part (`WAMA_VOLETS §9.5`). Ce qu'une page ne doit pas défaire :
+- ne pas poser ses propres seuils pour les volets ni lire `localStorage` à leur place — l'état
+  est `WamaPanels.isCollapsed(côté)` / `isNarrow()`, et l'événement `wama:panels` ;
+- une barre fixe calée sur les volets lit `--wama-left-gutter` / `--wama-right-gutter`
+  (`tests_panel_toggle` refuse la largeur brute) ;
+- un libellé ajouté à la barre du haut porte `wama-header-label` : il s'effacera derrière son
+  icône quand la barre manque de place, et l'élément garde un `title`.
+
+**Ce que les étapes 1 et 2 ne couvrent pas** (`ROADMAP §27`) : les gestes de glisser, défiler,
+pincer (étape 3), et les boutons-icônes qui ne s'expliquent que par leur infobulle (`title`),
+invisible au doigt.
 
 ---
 
