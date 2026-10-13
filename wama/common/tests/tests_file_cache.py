@@ -74,3 +74,21 @@ class ResolutionEnSerieTest(TestCase):
         with patch.object(bi, 'inventory', side_effect=AssertionError("inventaire relu")):
             obtenu = {m: backend_for_engine(m, entries=vivier) for m in moteurs}
         self.assertEqual(obtenu, attendu)
+
+    def test_without_entries_the_pool_is_read_once_and_reread_after_an_install(self):
+        """2026-10-13 — la page du Transcriber résolvait le backend de chaque card SANS vivier :
+        8 inventaires complets, 6,2 s. Le vivier est mémorisé à sa source ; une installation
+        (`invalidate_engine_cache`) le fait relire."""
+        from ..backends.manager import backend_for_engine, invalidate_engine_cache
+        from ..services import backend_inventory as bi
+
+        invalidate_engine_cache()
+        real = bi.inventory
+        with patch.object(bi, 'inventory', side_effect=real) as reads:
+            moteurs = sorted({e.engine for e in bi.resolvable_entries() if e.engine})
+            for m in moteurs:
+                backend_for_engine(m)
+            self.assertEqual(1, reads.call_count, 'the pool was re-read for each resolution')
+            invalidate_engine_cache()
+            backend_for_engine(moteurs[0])
+            self.assertEqual(2, reads.call_count, 'an install must make the pool re-read')

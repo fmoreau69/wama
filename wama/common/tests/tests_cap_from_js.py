@@ -562,13 +562,17 @@ class PreviewModalTest(SimpleTestCase):
         from py_mini_racer import MiniRacer
         v8 = MiniRacer()
         v8.eval(FAKE_DOM)
-        # A synchronous fake fetch and clock : each call answers the next payload.
+        # A synchronous fake fetch and clock : each call answers the next payload. The follower
+        # runs on the common loop `WamaApp.Poller` (2026-10-13), which chains `setTimeout` after
+        # each answer — `tick()` fires the one pending turn.
         v8.eval("""
-            var calls = [], payloads = [], timers = [];
-            function setInterval(fn) { timers.push(fn); return timers.length; }
-            function clearInterval() {}
+            var calls = [], payloads = [], pending = null;
+            function setTimeout(fn) { pending = fn; return 1; }
+            function clearTimeout() { pending = null; }
+            function tick() { var fn = pending; pending = null; if (fn) fn(); }
             function thenable(value) {
-              return {then: function (f) { return thenable(f(value)); }, catch: function () {}};
+              return {then: function (f) { return thenable(f(value)); },
+                      catch: function () { return thenable(value); }};
             }
             function fetch(url) {
               calls.push(url);
@@ -576,6 +580,10 @@ class PreviewModalTest(SimpleTestCase):
               return thenable({ok: true, json: function () { return body; }});
             }
         """)
+        v8.eval("document.cookie = ''; var navigator = {}; var localStorage = "
+                "{getItem: function () { return null; }, setItem: function () {}};")
+        v8.eval((JS / 'wama-app-base.js').read_text(encoding='utf-8'))
+        v8.eval('var WamaApp = window.WamaApp;')
         v8.eval((JS / 'wama-inspector.js').read_text(encoding='utf-8'))
         out = v8.eval("""(function () {
             var frame = function (url) { return {url: url, variant: 'blur',
@@ -587,11 +595,11 @@ class PreviewModalTest(SimpleTestCase):
               isRunning: function () { return running; },
               onFrame: function (d) { shown.push(d.url); },
               onEnd: function () { ended.push('end'); }});
-            timers[0](); timers[0](); timers[0]();      // same frame, gap between processes, new
+            tick(); tick(); tick();                     // same frame, gap between processes, new
             payloads = [frame('c.jpg')];
             f.choose('detection');                      // the chosen view is asked at once
-            running = false; timers[0]();               // the card is done → end, once
-            timers[0]();
+            running = false; tick();                    // the card is done → end, once
+            tick();
             return [shown, ended, calls[calls.length - 1]];
         })()""")
         self.assertEqual(['a.jpg', 'b.jpg', 'c.jpg'], list(out[0]),

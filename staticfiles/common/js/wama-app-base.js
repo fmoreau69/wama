@@ -99,50 +99,113 @@
     return text.trim().split(/\s+/).filter(Boolean).length;
   }
 
-  // ── Poller : boucle de progression résiliente, indexée par id ────────
-  // cfg = { urlTemplate, onData(id,data), interval=1200, maxFails=10, onGiveUp(id) }
+  // ── Poller : boucle d'interrogation résiliente, indexée par id ───────
+  // cfg = { urlTemplate, onData(id,data), interval=1200, maxFails=10, onGiveUp(id),
+  //         onError(id,err), immediate=false }
+  //   urlTemplate : gabarit Django (« /0/ » remplacé par l'id) OU fonction(id) → URL ;
+  //                 une fonction qui rend null saute ce tour (rien à demander).
   // Une exception dans onData ne tue PAS la boucle ; une erreur réseau transitoire
-  // n'arrête le poller qu'après `maxFails` échecs consécutifs.
+  // n'arrête le poller qu'après `maxFails` échecs consécutifs (Infinity : jamais).
+  //
+  // ⚠⚠ MESURÉ le 2026-10-13 (Imager figé, modales et aperçus ouverts « d'un coup », superposés) :
+  // la boucle était un `setInterval` qui relançait sa requête SANS attendre la précédente, y
+  // compris dans les onglets cachés. Serveur lent (8 requêtes simultanées, saturé par une
+  // campagne de tests) → les requêtes s'empilaient, occupaient les ~6 connexions que le
+  // navigateur ouvre vers un même hôte, et les clics de l'utilisateur attendaient derrière.
+  // D'où deux règles, tenues ICI pour toutes les boucles qui passent par cette brique :
+  //   1. le tour suivant ne part qu'APRÈS la réponse du précédent (+ intervalle) — jamais deux
+  //      requêtes du même poller en vol ;
+  //   2. onglet caché → plus aucune requête ; au retour, un tour immédiat remet à jour.
   function Poller(cfg) {
     cfg = cfg || {};
     this.urlTemplate = cfg.urlTemplate;
     this.onData = cfg.onData || function () {};
     this.onGiveUp = cfg.onGiveUp || function () {};
+    this.onError = cfg.onError || null;
     this.interval = cfg.interval || 1200;
     this.maxFails = cfg.maxFails || 10;
-    this._pollers = new Map();
+    this.immediate = !!cfg.immediate;
+    this._pollers = new Map();   // id → { timer, inFlight, fails }
+    pollerRegistry.add(this);
+  }
+
+  // Tous les pollers vivants de la page : le retour au premier plan les relance d'un tour.
+  const pollerRegistry = new Set();
+  function pageHidden() { return typeof document !== 'undefined' && document.hidden === true; }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', function () {
+      if (pageHidden()) return;
+      pollerRegistry.forEach(function (p) {
+        p._pollers.forEach(function (st, id) { p._tick(id); });
+      });
+    });
   }
 
   Poller.prototype.has = function (id) { return this._pollers.has(id); };
 
-  Poller.prototype.start = function (id) {
-    if (this._pollers.has(id)) return;
-    const self = this;
-    let fails = 0;
-    const handle = setInterval(function () {
-      fetch(getUrl(self.urlTemplate, id))
-        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-        .then(function (data) {
-          fails = 0;
-          try { self.onData(id, data); }
-          catch (e) { console.error('[WamaApp.Poller] onData', id, e); }
-        })
-        .catch(function (err) {
-          fails++;
-          console.warn('[WamaApp.Poller] poll', id, 'échec', fails, err);
-          if (fails >= self.maxFails) { self.stop(id); self.onGiveUp(id); }
-        });
-    }, this.interval);
-    this._pollers.set(id, handle);
+  Poller.prototype._url = function (id) {
+    return (typeof this.urlTemplate === 'function') ? this.urlTemplate(id)
+                                                    : getUrl(this.urlTemplate, id);
   };
 
+  Poller.prototype._schedule = function (id) {
+    const st = this._pollers.get(id);
+    if (!st) return;                       // arrêté entre-temps (souvent DANS onData)
+    clearTimeout(st.timer);
+    const self = this;
+    st.timer = setTimeout(function () { self._tick(id); }, this.interval);
+  };
+
+  // Un tour : rien si une requête est déjà en vol ou si l'onglet est caché (le retour au
+  // premier plan relance). Le tour suivant se programme à la RÉPONSE, jamais avant.
+  Poller.prototype._tick = function (id) {
+    const st = this._pollers.get(id);
+    if (!st || st.inFlight) return;
+    clearTimeout(st.timer);
+    if (pageHidden()) return;
+    const url = this._url(id);
+    if (!url) { this._schedule(id); return; }
+    const self = this;
+    st.inFlight = true;
+    fetch(url)
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (data) {
+        st.fails = 0;
+        try { self.onData(id, data); }
+        catch (e) { console.error('[WamaApp.Poller] onData', id, e); }
+      })
+      .catch(function (err) {
+        st.fails++;
+        if (self.onError) { try { self.onError(id, err); } catch (e) { /* rappel d'app */ } }
+        else console.warn('[WamaApp.Poller] poll', id, 'échec', st.fails, err);
+        if (st.fails >= self.maxFails && self._pollers.get(id) === st) {
+          self.stop(id); self.onGiveUp(id);
+        }
+      })
+      .then(function () {
+        st.inFlight = false;
+        if (self._pollers.get(id) === st) self._schedule(id);
+      });
+  };
+
+  Poller.prototype.start = function (id) {
+    if (this._pollers.has(id)) return;
+    this._pollers.set(id, { timer: null, inFlight: false, fails: 0 });
+    if (this.immediate) this._tick(id);
+    else this._schedule(id);
+  };
+
+  // Un tour tout de suite (changement de filtre, de variante…) — sauf si un tour est en vol :
+  // sa réponse arrive, et le suivant lira l'état neuf.
+  Poller.prototype.poke = function (id) { this._tick(id); };
+
   Poller.prototype.stop = function (id) {
-    const handle = this._pollers.get(id);
-    if (handle) { clearInterval(handle); this._pollers.delete(id); }
+    const st = this._pollers.get(id);
+    if (st) { clearTimeout(st.timer); this._pollers.delete(id); }
   };
 
   Poller.prototype.stopAll = function () {
-    this._pollers.forEach(function (h) { clearInterval(h); });
+    this._pollers.forEach(function (st) { clearTimeout(st.timer); });
     this._pollers.clear();
   };
 

@@ -263,33 +263,23 @@ document.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // Card actions
   // ======================================================================
-  function bindCardActions(scope) {
-    const root = scope || document;
-
-    // Bouton de cycle commun (délégué, lié une fois par card ; survit aux rebuilds d'actions).
-    if (window.WamaCycleButton) {
-      // `btn.dataset.process` : le ▶ d'UN process de la bande → lancement borné (route
-      // `start/<id>/<process>/`) ; sans lui, le ▶ de la card lance tout ce qui est dû.
-      WamaCycleButton.wire(root, {
-        start: (id, btn, process) => handleStart(id, process),
-        stop: (id) => handleStop(id),
-      });
-    }
-    // Repli legacy si la brique n'est pas chargée.
-    root.querySelectorAll('.start-btn').forEach(btn => {
-      if (btn.dataset.bound === '1') return;
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', () => handleStart(btn.dataset.id));
+  // Bouton de cycle commun, délégué UNE fois sur la FILE, comme les autres apps (describer,
+  // imager…). ⚠⚠ Il était lié sur chaque CARD jusqu'au 2026-10-13 : la card remplacée par une
+  // neuve (case d'un process cochée, `refreshCard`) n'avait plus d'écouteur, et tous ses ▶ — celui
+  // de la card comme ceux des process — restaient muets jusqu'au rechargement (constat de Fabien :
+  // « Locuteurs » coché, la flèche ne lançait rien). Le repli `.start-btn` est parti avec : aucun
+  // gabarit n'en produit plus, et la brique est montée par `base.html`.
+  // `btn.dataset.process` : le ▶ d'UN process de la bande → lancement borné (route
+  // `start/<id>/<process>/`) ; sans lui, le ▶ de la card lance tout ce qui est dû.
+  if (queueContainer) {
+    WamaCycleButton.wire(queueContainer, {
+      start: (id, btn, process) => handleStart(id, process),
+      stop: (id) => handleStop(id),
     });
-
-    // ⚙ et 🗑 : PLUS RIEN à lier ici. Les deux passent par la brique commune queue-actions.js
-    // (délégation UNIQUE sur le document, valable aussi pour les cards rendues plus tard) —
-    // portage 2026-08-23. Le `dataset.bound` qui protégeait ces boucles du re-binding disparaît
-    // avec elles : c'est le symptôme qui s'en va, pas seulement le code.
-
-    // Duplication : brique commune queue-actions.js (data-duplicate-url sur le bouton),
-    // qui pose aussi le focus de la card dupliquée avant le reload — le binder local est mort.
   }
+
+  // ⚙, 🗑 et ⧉ : rien à lier par card — la brique commune queue-actions.js délègue sur le
+  // document (portage 2026-08-23), valable aussi pour les cards rendues plus tard.
 
   // ⏹ Stop : arrête le traitement en cours (endpoint commun) → item relançable (↻). La card est
   // rafraîchie par le flux normal (updateCard → refreshCard) qui repassera le bouton en ↻.
@@ -1036,7 +1026,6 @@ document.addEventListener('DOMContentLoaded', function () {
       // terminée dont un process optionnel reste à compléter se montre « en attente » — la
       // suivre la ferait recharger la page en boucle (le serveur répond « terminé »).
       const status = (card.dataset.elementStatus || card.dataset.status || '').toUpperCase();
-      bindCardActions(card);
       if (['PENDING', 'RUNNING', 'STARTED'].includes(status)) {
         startPolling(card.dataset.id);
       }

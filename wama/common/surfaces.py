@@ -165,8 +165,18 @@ def surfaces_of(app: str) -> list:
 DECLARING_MODULE = 'surfaces'
 
 
+#: Les déclarations sont importées UNE fois par processus, comme celles des pipelines
+#: (`process_pipeline._load_declarations`). Mesuré le 2026-10-13 : `surface_button` (une fois par
+#: card) relançait le balayage — un `import_module` RATÉ par app sans surfaces, donc une recherche
+#: sur tout `sys.path` à travers /mnt/d : 0,15 s l'appel, **4,5 s** pour la page de l'anonymizer.
+_loaded = False
+
+
 def load_all() -> dict:
-    """Importe les déclarations de surfaces des apps installées (idempotent)."""
+    """Importe les déclarations de surfaces des apps installées (une fois par processus)."""
+    global _loaded
+    if _loaded:
+        return SURFACES
     import importlib
     import logging
     try:
@@ -174,6 +184,7 @@ def load_all() -> dict:
         names = [c.name for c in django_apps.get_app_configs()]
     except Exception:
         return SURFACES
+    _loaded = True
     for name in names:
         if name == 'wama.common':
             continue

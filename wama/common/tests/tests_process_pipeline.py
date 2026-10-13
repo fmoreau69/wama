@@ -284,6 +284,50 @@ class WhatALaunchReplaysTest(TestCase):
         self.assertEqual({'render'}, pipeline.refresh(item))
 
 
+class AResultOlderThanThePipelineTest(TestCase):
+    """2026-10-13 — Fabien's transcript #739 (28/09) predates the transcriber pipeline (03/10): no
+    line, so nothing was « up to date » and the ▶ of « Locuteurs » re-listened to the whole audio.
+    A SUCCESSFUL element proves its `required` processes rendered: the first read of the element
+    (a queue page, `preload`) gives them a line ; an `optional` one, unknown, stays to be played."""
+
+    def _pipeline(self):
+        return AppPipeline('demo_pipeline', (
+            ProcessSpec('transcribe', watched=('prompt',)),
+            ProcessSpec('diarize', depends_on=('transcribe',), degree='optional',
+                        toggle='wants_speakers'),
+        ), label='Demo')
+
+    def test_the_required_process_is_adopted_and_the_option_alone_is_played(self):
+        from wama.common.services import process_pipeline
+        pipeline = self._pipeline()
+        item = _Element(status=JOB_SUCCESS, wants_speakers=True)
+        self.assertEqual(['transcribe', 'diarize'], _keys(pipeline.steps_to_run(item)),
+                         'without the adoption, everything is replayed — the defect')
+        with mock.patch.dict(APP_PIPELINES, {'demo_pipeline': pipeline}):
+            process_pipeline.preload([item])
+        process_pipeline.release(item)
+        self.assertEqual(JOB_SUCCESS, process_runs.line(item, 'transcribe').status)
+        self.assertIsNone(process_runs.line(item, 'diarize'), 'an optional was invented')
+        self.assertEqual(['diarize'], _keys(pipeline.steps_to_run(item, only='diarize')))
+        self.assertEqual(['diarize'], _keys(pipeline.steps_to_run(item)))
+
+    def test_nothing_is_adopted_for_an_element_not_successful_or_already_tracked(self):
+        pipeline = self._pipeline()
+        self.assertEqual({}, pipeline.adopt_prior_result(_Element(status=JOB_PENDING)))
+        self.assertEqual({}, pipeline.adopt_prior_result(_Element(status=JOB_RUNNING)))
+        tracked = _Element(status=JOB_SUCCESS)
+        process_runs.fail(tracked, 'transcribe', 'out of memory')
+        self.assertEqual({}, pipeline.adopt_prior_result(tracked))
+        self.assertEqual(JOB_FAILURE, process_runs.line(tracked, 'transcribe').status)
+
+    def test_a_setting_changed_after_the_adoption_makes_it_stale(self):
+        pipeline = self._pipeline()
+        item = _Element(status=JOB_SUCCESS)
+        pipeline.adopt_prior_result(item)
+        item.prompt = 'another language'
+        self.assertEqual(['transcribe'], _keys(pipeline.steps_to_run(item)))
+
+
 class WhatTheCardShowsTest(TestCase):
     """P5 — the card shows its processes and ONE state, read through the adapter
     (`shown_state`), never `item.status` alone: a stale render under a « successful » element

@@ -90,6 +90,63 @@ class TacheReussieTest(TestCase):
         self.assertEqual('RUNNING', Modele.objects.get(pk=self.job.pk).status)
 
 
+class _HeldThread:
+    """`threading.Thread` stand-in: keeps the target, runs it only when the test says so."""
+    held = []
+
+    def __init__(self, target=None, **_k):
+        self.target = target
+
+    def start(self):
+        _HeldThread.held.append(self.target)
+
+
+class PageCallDoesNotWaitForTheFleetTest(TestCase):
+    """2026-10-13 — the index page of every app called the reconciliation WITHOUT a snapshot, and
+    the fleet photo waited for a busy `--pool=solo` worker that never answers: 4,2 s per page
+    (11,9 s for the Transcriber's). The page call now returns at once ; the reconciliation runs in
+    the background and the card's poller shows the result."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('reconcile_bg_test', 'b@test.local', 'x')
+        from wama.converter.models import ConversionBatch, ConversionJob
+        lot = ConversionBatch.objects.create(user=self.user, total=1, media_type='image')
+        self.job = ConversionJob.objects.create(
+            user=self.user, media_type='image', batch=lot, batch_row_index=0,
+            status='RUNNING', task_id='task-of-a-dead-worker')
+        _HeldThread.held = []
+
+    def test_the_page_call_takes_no_photo_and_the_background_reconciles(self):
+        from django.core.cache import cache
+        from django.db import connection
+        from wama.converter.models import ConversionJob
+        cache.clear()
+        with patch('threading.Thread', _HeldThread), \
+             patch.object(process_control, 'collect_worker_snapshot',
+                          side_effect=AssertionError('fleet photo taken in the request')):
+            n = process_control.reconcile_orphaned_running([self.job],
+                                                           error_field='error_message')
+        self.assertEqual(0, n)
+        self.assertEqual(1, len(_HeldThread.held), 'no background reconciliation was started')
+        self.assertEqual('RUNNING', ConversionJob.objects.get(pk=self.job.pk).status)
+
+        with patch.object(process_control, 'collect_worker_snapshot',
+                          return_value={'workers': (), 'task_ids': ()}), \
+             patch.object(process_control, 'is_task_dead', return_value=True), \
+             patch.object(process_control, '_tache_reussie', return_value=False), \
+             patch.object(connection, 'close'):
+            _HeldThread.held[0]()
+        self.assertEqual('FAILURE', ConversionJob.objects.get(pk=self.job.pk).status)
+
+    def test_a_reload_while_it_runs_starts_no_second_one(self):
+        from django.core.cache import cache
+        cache.clear()
+        with patch('threading.Thread', _HeldThread):
+            process_control.reconcile_orphaned_running([self.job])
+            process_control.reconcile_orphaned_running([self.job])
+        self.assertEqual(1, len(_HeldThread.held))
+
+
 class _FakeResult:
     """`AsyncResult` stand-in whose successive `.state` reads follow a script."""
     states = []

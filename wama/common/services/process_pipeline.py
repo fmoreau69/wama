@@ -66,9 +66,12 @@ def preload(items) -> None:
     process, l'ETA du lancement et la card posaient chacune la question."""
     items = [item for item in items if item is not None]
     grouped = process_runs.lines_by_item(items)
+    pipeline = pipeline_of(items[0]) if items else None
     for item in items:
         setattr(item, PRELOADED, grouped.get(str(item.pk), []))
         item.__dict__.setdefault(APPLIES_MEMO, {})
+        if pipeline is not None and pipeline.adopt_prior_result(item):
+            setattr(item, PRELOADED, list(process_runs.lines(item)))
 
 
 def release(item) -> None:
@@ -460,6 +463,38 @@ class AppPipeline:
     def applicable(self, item, model_key=None) -> list:
         """Les process qui ont lieu pour cet élément, dans l'ordre de lancement (`takes_place`)."""
         return [spec for spec in self.ordered() if self.takes_place(spec, item, model_key)]
+
+    def adopt_prior_result(self, item) -> dict:
+        """Un élément RÉUSSI avant que son app ne déclare ce pipeline n'a aucune ligne : rien n'y
+        était « à jour », donc toute relance rejouait TOUT — le ▶ « Locuteurs » d'une transcription
+        du 28/09 (pipeline du 03/10) réécoutait l'audio entier (constat de Fabien, 2026-10-13 ;
+        65 transcriptions seulement avaient une ligne).
+
+        Son succès PROUVE que ses process `required` ont rendu (règle 4.4 : l'échec d'un required
+        fait échouer la card) : ils reçoivent une ligne `SUCCESS`, photo des réglages d'aujourd'hui
+        — ceux qui ont produit le résultat, l'élément n'ayant pas été relancé depuis. Un `optional`
+        n'en reçoit pas : on ne sait pas s'il a tourné, il reste à jouer. Rien pour un élément qui
+        a déjà une ligne de ce pipeline, ou qui n'est pas réussi. Rend `{clé: ligne}` adoptées.
+
+        Appelé par `preload` (toute page de file, toute card relue) : c'est la première lecture
+        de l'élément depuis la déclaration du pipeline, donc AVANT qu'un réglage n'y change."""
+        if getattr(item, 'status', None) != JOB_SUCCESS or self.rows(item):
+            return {}
+        model_key = self.requested_model(item)
+        adopted = {}
+        for spec in self.applicable(item, model_key):
+            if spec.degree != REQUIRED:
+                continue
+            output_ref = next((getattr(item, f).name for f in spec.outputs
+                               if getattr(getattr(item, f, None), 'name', '')), '')
+            row = process_runs.safely(
+                process_runs.succeed, item, spec.key, process_key=self.function_key(spec),
+                output_ref=output_ref, model_key=model_key or '',
+                output_summary={'adopted': True},
+                settings_snapshot=self.snapshot(spec, item, adopted))
+            if row is not None:
+                adopted[spec.key] = row
+        return adopted
 
     # ── Péremption, sélection, état ─────────────────────────────────────────────────────────
     def refresh(self, item) -> set:

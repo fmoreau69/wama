@@ -155,30 +155,31 @@ document.addEventListener('DOMContentLoaded', function () {
   window.addEventListener('pagehide', function () { leaving = true; });
   window.addEventListener('beforeunload', function () { leaving = true; });
 
-  function refreshConsole() {
-    var url = buildUrl();
-    fetch(url)
-      .then(function (response) {
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        return response.json();
-      })
-      .then(function (data) {
-        var lines = data.output || [];
-        if (!lines.length) {
-          container.innerHTML = '<p class="mb-0 text-muted">Aucun log disponible.</p>';
-          return;
-        }
-        container.innerHTML = lines.map(renderLine).join('');
-        // Auto-scroll to bottom
-        var parent = container.parentElement;
-        if (parent) parent.scrollTop = parent.scrollHeight;
-      })
-      .catch(function (error) {
-        if (leaving) return;
-        console.error('Console fetch error:', error);
-        container.innerHTML = '<p class="text-danger mb-0">Erreur: ' + escapeHtml(error.message) + '</p>';
-      });
-  }
+  // Boucle commune `WamaApp.Poller` : tour suivant après la réponse, pause en onglet caché.
+  var poller = new WamaApp.Poller({
+    urlTemplate: function () { return buildUrl(); },   // relue à chaque tour (filtres)
+    interval: 3000,
+    immediate: true,
+    maxFails: Infinity,
+    onData: function (id, data) {
+      var lines = data.output || [];
+      if (!lines.length) {
+        container.innerHTML = '<p class="mb-0 text-muted">Aucun log disponible.</p>';
+        return;
+      }
+      container.innerHTML = lines.map(renderLine).join('');
+      // Auto-scroll to bottom
+      var parent = container.parentElement;
+      if (parent) parent.scrollTop = parent.scrollHeight;
+    },
+    onError: function (id, error) {
+      if (leaving) return;
+      console.error('Console fetch error:', error);
+      container.innerHTML = '<p class="text-danger mb-0">Erreur: ' + escapeHtml(error.message) + '</p>';
+    },
+  });
+
+  function refreshConsole() { poller.poke('console'); }
 
   // ── Init ─────────────────────────────────────────────────────────────────
 
@@ -201,6 +202,5 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // Initial load + polling every 3 seconds
-  refreshConsole();
-  setInterval(refreshConsole, 3000);
+  poller.start('console');
 });

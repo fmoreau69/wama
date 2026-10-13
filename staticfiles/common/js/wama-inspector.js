@@ -277,38 +277,39 @@
   //   rend { stop(), choose(variante) }
   function followDuring(baseUrl, opts) {
     opts = opts || {};
-    var state = { variant: opts.variant || null, sig: '', timer: null, stopped: false };
-    function stop() {
-      state.stopped = true;
-      if (state.timer) { clearInterval(state.timer); state.timer = null; }
-    }
+    var state = { variant: opts.variant || null, sig: '', stopped: false };
+    // Boucle commune `WamaApp.Poller` : tour suivant après la réponse, pause en onglet caché.
+    var poller = new WamaApp.Poller({
+      urlTemplate: function () {
+        if (opts.isRunning && !opts.isRunning()) { end(null); return null; }
+        return duringUrl(baseUrl, state.variant);
+      },
+      interval: opts.every || 1300,
+      immediate: true,
+      maxFails: Infinity,
+      // Une réponse HTTP en erreur dit « rien à suivre » (arrêt) ; une coupure réseau, un tour perdu.
+      onError: function (id, err) { if (/^HTTP /.test((err && err.message) || '')) stop(); },
+      onData: function (id, d) {
+        if (state.stopped) return;
+        if (!d || !d.sides || !d.sides.during_capable) { stop(); return; }   // ne publie rien
+        // Rien de publié À CET INSTANT : pas encore, ou entre deux process (l'anonymizer retire
+        // ses partiels entre la détection et le floutage). La fin se lit à l'état de l'élément
+        // (`isRunning`) ; sans lui, la disparition des partiels après en avoir montré la dit.
+        if (!d.sides.has_during) { if (!opts.isRunning && state.sig) end(d); return; }
+        var sig = JSON.stringify([d.url || '', d.mime_type || '', (d.peaks || []).length,
+                                  (typeof d.content === 'string') ? d.content.length : -1,
+                                  d.variant || '', (d.variants || []).length]);
+        if (sig === state.sig) return;
+        state.sig = sig;
+        if (opts.onFrame) opts.onFrame(d);
+      },
+    });
+    function stop() { state.stopped = true; poller.stop('during'); }
     function end(d) { stop(); if (opts.onEnd) opts.onEnd(d || null); }
-    function tick() {
-      if (state.stopped) return;
-      if (opts.isRunning && !opts.isRunning()) { end(null); return; }
-      fetch(duringUrl(baseUrl, state.variant))
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (d) {
-          if (state.stopped) return;
-          if (!d || !d.sides || !d.sides.during_capable) { stop(); return; }   // ne publie rien
-          // Rien de publié À CET INSTANT : pas encore, ou entre deux process (l'anonymizer retire
-          // ses partiels entre la détection et le floutage). La fin se lit à l'état de l'élément
-          // (`isRunning`) ; sans lui, la disparition des partiels après en avoir montré la dit.
-          if (!d.sides.has_during) { if (!opts.isRunning && state.sig) end(d); return; }
-          var sig = JSON.stringify([d.url || '', d.mime_type || '', (d.peaks || []).length,
-                                    (typeof d.content === 'string') ? d.content.length : -1,
-                                    d.variant || '', (d.variants || []).length]);
-          if (sig === state.sig) return;
-          state.sig = sig;
-          if (opts.onFrame) opts.onFrame(d);
-        })
-        .catch(function () {});
-    }
-    state.timer = setInterval(tick, opts.every || 1300);
-    tick();
+    poller.start('during');
     return {
       stop: stop,
-      choose: function (variant) { state.variant = variant; state.sig = ''; tick(); },
+      choose: function (variant) { state.variant = variant; state.sig = ''; poller.poke('during'); },
     };
   }
 

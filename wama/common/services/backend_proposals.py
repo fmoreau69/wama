@@ -638,6 +638,10 @@ def apply(name: str, user=None) -> dict:
     except ValueError:
         written = str(target)
     target.write_text(code, encoding='utf-8')
+    # Le vivier de résolution est mémorisé une minute : le backend écrit doit y entrer TOUT DE
+    # SUITE, comme après une installation de librairie.
+    from wama.common.backends.manager import invalidate_engine_cache
+    invalidate_engine_cache()
     data.update(status='APPLIED', applied_by=getattr(user, 'username', None),
                 applied_at=time.strftime('%Y-%m-%dT%H:%M:%S'), written=written)
     f.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')

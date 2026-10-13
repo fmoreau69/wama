@@ -145,3 +145,38 @@ class SandboxRegistryCacheTest(SimpleTestCase):
         self._write([{'label': 'converter_01', 'created_by': 'alice'}], 1_000_000)
         self.sandbox.load_registry()[0]['created_by'] = 'mallory'
         self.assertEqual('alice', self.sandbox.load_registry()[0]['created_by'])
+
+
+class OutputDigestCacheTest(SimpleTestCase):
+    """2026-10-13 — the process strip re-hashed every card's outputs on each display (1,2 s on the
+    anonymizer and composer pages). An unchanged file is not read again ; a rewritten one is — a
+    process output rewritten must still make its downstream stale."""
+
+    def test_an_unchanged_file_is_hashed_once_and_a_rewritten_one_again(self):
+        import hashlib
+        from wama.common.utils import provenance
+        path = Path(tempfile.mkdtemp()) / 'out.txt'
+        path.write_text('first', encoding='utf-8')
+        os.utime(path, (1_000_000, 1_000_000))
+        with mock.patch.object(provenance, '_digest', wraps=provenance._digest) as read:
+            first = [provenance.sha256_of(path) for _ in range(3)]
+            path.write_text('second', encoding='utf-8')
+            os.utime(path, (2_000_000, 2_000_000))
+            second = provenance.sha256_of(path)
+        self.assertEqual(2, read.call_count, 'an unchanged file was read again')
+        self.assertEqual(hashlib.sha256(b'first').hexdigest(), first[0])
+        self.assertEqual(hashlib.sha256(b'second').hexdigest(), second)
+
+
+class SurfaceDeclarationsLoadedOnceTest(SimpleTestCase):
+    """2026-10-13 — `surface_button` (once per card) re-ran the import of every app's `surfaces`
+    module: a FAILED import per app without one, i.e. a search of `sys.path` over /mnt/d —
+    4,5 s for the anonymizer page. The declarations load once per process."""
+
+    def test_the_declarations_are_imported_once(self):
+        from wama.common import surfaces
+        surfaces.load_all()
+        with mock.patch('importlib.import_module') as imported:
+            surfaces.surface('anonymizer', 'review')
+            surfaces.surfaces_of('anonymizer')
+        imported.assert_not_called()

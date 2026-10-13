@@ -634,11 +634,27 @@ def orphelins(entrees, servis) -> tuple:
             [e for e in classes if e.deprecated])
 
 
+#: Le vivier de la résolution, mémorisé `ENGINE_CACHE_TTL_S` comme le verdict d'importabilité
+#: (`backends/manager.py`) et vidé par la même porte, `invalidate_engine_cache()` (installeurs,
+#: backend proposé validé). Le mémo vivait en COPIE dans `_unserved_by_task_contract` (2026-09-30)
+#: et nulle part ailleurs : toute autre résolution sans `entries=` relisait l'inventaire —
+#: mesuré le 2026-10-13, **6,2 s** de la page du Transcriber (`backend_for_key` par card, 0,77 s
+#: chacun : 1 000 `stat` sur `/mnt/d`, `find_spec` de chaque paquet requis).
+_RESOLVABLE_CACHE: dict = {}
+
+
 def resolvable_entries() -> List[BackendEntry]:
     """Le vivier que la résolution consulte — jumelles de bac à sable exclues. Un appelant qui
-    résout EN SÉRIE le lit une fois et le passe en `entries=` : sans cela, chaque résolution
-    relit l'inventaire — 48 fois pour les 48 modèles de l'anonymizer (mesuré le 2026-09-14)."""
-    return [e for a in inventory() if not a.generated_from for e in a.entries]
+    résout EN SÉRIE peut toujours le lire une fois et le passer en `entries=` ; sans lui, la
+    lecture est mémorisée une minute (cf. `_RESOLVABLE_CACHE`)."""
+    import time
+    from wama.common.backends.manager import ENGINE_CACHE_TTL_S
+    now = time.monotonic()
+    hit = _RESOLVABLE_CACHE.get('entries')
+    if hit is None or now - hit[0] >= ENGINE_CACHE_TTL_S:
+        hit = _RESOLVABLE_CACHE['entries'] = (
+            now, [e for a in inventory() if not a.generated_from for e in a.entries])
+    return list(hit[1])
 
 
 #: CONTRAT d'une tâche : `tâche → (module du paquet backends, classe, LIANT ?)`. Sert deux fois :

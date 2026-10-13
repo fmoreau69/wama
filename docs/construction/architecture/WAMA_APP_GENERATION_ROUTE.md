@@ -4015,6 +4015,12 @@ panneau parle `JOB_*`).
 >   lanceur a déjà retiré l'ancienne sortie quand la tâche pose la question (`reset` de
 >   `begin_processing`) — lire le fichier d'abord ferait d'une relance complète une reprise du
 >   dernier process.
+> - **Un résultat ANTÉRIEUR au pipeline est adopté** (2026-10-13, `adopt_prior_result`, appelé par
+>   `preload`) : un élément réussi avant que son app ne déclare son pipeline n'avait aucune ligne,
+>   donc rien d'« à jour » — le ▶ « Locuteurs » d'une transcription du 28/09 réécoutait tout
+>   l'audio (constat de Fabien). Son succès prouve ses `required` : ils reçoivent une ligne
+>   `SUCCESS` (photo des réglages du jour, `output_summary.adopted`) à la première lecture de la
+>   card ; un `optional`, dont on ignore s'il a tourné, reste à jouer. Toutes les apps en pipeline.
 > - **Les trois causes de péremption de 4.3 sont écrites** (`refresh`) : réglage surveillé
 >   changé ; amont périmé ou en échec (cascade) ; **entrée remplacée** — la photo d'un process
 >   garde l'EMPREINTE de la sortie de chaque amont (`@upstream` : `provenance.sha256_of`, la

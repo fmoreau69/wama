@@ -299,3 +299,38 @@ class CardsStatutStaleTest(SimpleTestCase):
                                  {'q_sort': 'recent', 'q_filter': 'all'})
         self.assertIn('value="stale"', rendu)
         self.assertIn('Périmé', rendu)
+
+
+class CycleButtonWiredOnTheQueueTest(SimpleTestCase):
+    """2026-10-13 — constat de Fabien sur le Transcriber : « Locuteurs » coché, le ▶ du process ne
+    lançait rien. Le bouton de cycle y était câblé sur chaque CARD ; une card remplacée par une neuve
+    (case d'un process, rafraîchissement) perdait l'écouteur, et tous ses ▶ restaient muets.
+    `WamaCycleButton.wire` délègue : elle se pose sur un conteneur qui SURVIT aux cards (la file),
+    jamais sur une card. Garde lue sur toutes les sources JS des apps, tous mondes — sauf les
+    jumelles du bac à sable, COPIES gitignorées de leur source qu'on ne corrige jamais (elles
+    reprennent le JS corrigé à leur régénération)."""
+
+    PER_CARD = ('card', 'scope', 'el', 'item', 'element')
+
+    def test_no_app_wires_the_cycle_button_on_a_card(self):
+        import re
+        from wama.common.sandbox import sandbox_labels
+        twins = set(sandbox_labels())
+        offenders = []
+        roots = [BASE / 'wama', BASE / 'wama_lab', BASE / 'wama_data']
+        for root in roots:
+            for path in root.rglob('static/**/*.js'):
+                if 'vendors' in path.parts or twins & set(path.parts):
+                    continue
+                src = path.read_text(encoding='utf-8', errors='replace')
+                for m in re.finditer(r'WamaCycleButton\.wire\(\s*([\w$.]+)', src):
+                    head = src[:m.start()]
+                    enclosing = re.findall(r'function\s+\w*\s*\(([^)]*)\)', head)
+                    params = enclosing[-1] if enclosing else ''
+                    names = {p.strip() for p in params.split(',')}
+                    if m.group(1) in self.PER_CARD or names & set(self.PER_CARD):
+                        line = head.count('\n') + 1
+                        offenders.append(f'{path.relative_to(BASE)}:{line}')
+        self.assertEqual([], offenders,
+                         'WamaCycleButton.wire posé sur une card : ses ▶ mourront au premier '
+                         'remplacement de la card — le poser une fois sur la file')

@@ -14,6 +14,9 @@
  *   running, failed|failure|error, overall_progress? }  (overall_progress dérivé si absent).
  * dataKey : extrait data[dataKey] pour les endpoints imbriqués (ex. {image:{…}, video:{…}}).
  *
+ * Plusieurs barres sur le MÊME endpoint partagent UN appel (une boucle `WamaApp.Poller` par
+ * URL : tour suivant après la réponse, pause en onglet caché).
+ *
  * Comportement commun à TOUTES les barres :
  *   - met à jour #<…>ProgressBar / Stats / Pct, balayage bleu/vert PERMANENT (.active)
  *   - barre toujours visible (file vide → "Aucune tâche", 0 %)
@@ -42,66 +45,83 @@
         // Barre toujours visible (homogène) : neutralise un éventuel opacity:0 inline.
         if (statusEl) { statusEl.style.opacity = '1'; statusEl.style.pointerEvents = ''; }
 
-        function tick() {
-            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                .then(function (r) { return r.json(); })
-                .then(function (raw) {
-                    // Endpoint imbriqué (multi-domaine) : on isole le sous-objet du domaine.
-                    var d = dataKey ? (raw[dataKey] || {}) : raw;
+        function render(raw) {
+            // Endpoint imbriqué (multi-domaine) : on isole le sous-objet du domaine.
+            var d = dataKey ? (raw[dataKey] || {}) : raw;
 
-                    // Tolérance aux variantes de nommage : done|success|completed, failed|failure|error.
-                    var total   = d.total || 0;
-                    var done    = (d.done != null ? d.done
-                                 : d.success != null ? d.success
-                                 : d.completed != null ? d.completed : 0) || 0;
-                    var running = d.running || 0;
-                    var failed  = (d.failed != null ? d.failed
-                                 : d.failure != null ? d.failure
-                                 : d.error != null ? d.error : 0) || 0;
-                    var p       = (d.overall_progress != null ? d.overall_progress
-                                 : (total ? Math.round(done / total * 100) : 0)) || 0;
+            // Tolérance aux variantes de nommage : done|success|completed, failed|failure|error.
+            var total   = d.total || 0;
+            var done    = (d.done != null ? d.done
+                         : d.success != null ? d.success
+                         : d.completed != null ? d.completed : 0) || 0;
+            var running = d.running || 0;
+            var failed  = (d.failed != null ? d.failed
+                         : d.failure != null ? d.failure
+                         : d.error != null ? d.error : 0) || 0;
+            var p       = (d.overall_progress != null ? d.overall_progress
+                         : (total ? Math.round(done / total * 100) : 0)) || 0;
 
-                    bar.style.width = p + '%';
-                    bar.classList.add('active');  // balayage coloré permanent ; l'état (%) reste toujours affiché
+            bar.style.width = p + '%';
+            bar.classList.add('active');  // balayage coloré permanent ; l'état (%) reste toujours affiché
 
-                    if (stats) {
-                        stats.textContent = total
-                            ? (done + '/' + total + ' terminé · ' + running
-                               + ' en cours · ' + failed + ' échoué')
-                            : 'Aucune tâche';
-                    }
-                    if (pct) pct.textContent = total ? p + '%' : '';
+            if (stats) {
+                stats.textContent = total
+                    ? (done + '/' + total + ' terminé · ' + running
+                       + ' en cours · ' + failed + ' échoué')
+                    : 'Aucune tâche';
+            }
+            if (pct) pct.textContent = total ? p + '%' : '';
 
-                    // Source UNIQUE des compteurs de file (l'inspecteur les LIT, ne recompte pas).
-                    // ⚠ L'événement fait partie du contrat (2026-09-02) : au chargement,
-                    // l'inspecteur rend son résumé « File · N éléments » AVANT le premier
-                    // poll — WamaQueueStats est alors indéfini et la section restait cachée
-                    // jusqu'à la première désélection (constat Fabien sur converter_01, vrai
-                    // sur les 10 apps : même course, même code). Le poller ANNONCE donc ses
-                    // stats ; l'inspecteur ré-affiche si rien n'est sélectionné.
-                    var premiereFois = !window.WamaQueueStats;
-                    window.WamaQueueStats = { total: total, done: done, running: running, failed: failed };
-                    if (premiereFois) {
-                        document.dispatchEvent(new CustomEvent('wama:queue-stats'));
-                    }
+            // Source UNIQUE des compteurs de file (l'inspecteur les LIT, ne recompte pas).
+            // ⚠ L'événement fait partie du contrat (2026-09-02) : au chargement,
+            // l'inspecteur rend son résumé « File · N éléments » AVANT le premier
+            // poll — WamaQueueStats est alors indéfini et la section restait cachée
+            // jusqu'à la première désélection (constat Fabien sur converter_01, vrai
+            // sur les 10 apps : même course, même code). Le poller ANNONCE donc ses
+            // stats ; l'inspecteur ré-affiche si rien n'est sélectionné.
+            var premiereFois = !window.WamaQueueStats;
+            window.WamaQueueStats = { total: total, done: done, running: running, failed: failed };
+            if (premiereFois) {
+                document.dispatchEvent(new CustomEvent('wama:queue-stats'));
+            }
 
-                    if (window.WamaEta) {
-                        var etaEl = document.getElementById(etaId);
-                        if (etaEl) window.WamaEta.render(etaEl, window.WamaEta.aggregateAll());
-                    }
+            if (window.WamaEta) {
+                var etaEl = document.getElementById(etaId);
+                if (etaEl) window.WamaEta.render(etaEl, window.WamaEta.aggregateAll());
+            }
 
-                    if (lastDone >= 0 && done > lastDone) {
-                        document.dispatchEvent(new CustomEvent('media:processed'));
-                    }
-                    lastDone = done;
+            if (lastDone >= 0 && done > lastDone) {
+                document.dispatchEvent(new CustomEvent('media:processed'));
+            }
+            lastDone = done;
 
-                    if (onData) { try { onData(d); } catch (e) { /* callback app : ignorer */ } }
-                })
-                .catch(function () { /* réseau : ignorer ce tick */ });
+            if (onData) { try { onData(d); } catch (e) { /* callback app : ignorer */ } }
         }
 
-        tick();
-        setInterval(tick, interval);
+        follow(url, interval, render);
+    }
+
+    // UNE boucle par endpoint, quel que soit le nombre de barres qui le lisent : l'Imager
+    // (barres images + vidéos sur `global-progress/`) faisait DEUX requêtes identiques toutes
+    // les 1,5 s (mesuré le 2026-10-13, toujours par paires dans le journal d'accès). La boucle
+    // est `WamaApp.Poller` — réponse attendue avant le tour suivant, pause en onglet caché.
+    var loops = {};
+    function follow(url, interval, render) {
+        if (loops[url]) { loops[url].renders.push(render); return; }
+        var loop = loops[url] = { renders: [render] };
+        var poller = new WamaApp.Poller({
+            urlTemplate: function () { return url; },
+            interval: interval,
+            immediate: true,
+            maxFails: Infinity,                   // une barre de file ne renonce jamais
+            onError: function () { /* réseau : ignorer ce tour */ },
+            onData: function (id, raw) {
+                loop.renders.forEach(function (r) {
+                    try { r(raw || {}); } catch (e) { console.error('[WamaGlobalProgress]', e); }
+                });
+            },
+        });
+        poller.start('global');
     }
 
     global.WamaGlobalProgress = { init: startBar };

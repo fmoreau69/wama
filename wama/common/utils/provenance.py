@@ -39,17 +39,33 @@ _BLOC = 1024 * 1024
 SEUIL_EMPREINTE_OCTETS = 512 * 1024 * 1024
 
 
+#: Empreintes déjà lues, gardées tant que le fichier n'a pas changé (brique `FileCache`). Mesuré
+#: le 2026-10-13 : la bande des process ré-empreintait les sorties de chaque card à chaque
+#: affichage (péremption, `output_fingerprint`) — 1,2 s sur les pages de l'anonymizer et du
+#: composer, à lire des fichiers entiers sur /mnt/d.
+_DIGESTS = None
+
+
+def _digest(p, limite):
+    if not p.is_file() or p.stat().st_size > limite:
+        return ''
+    h = hashlib.sha256()
+    with p.open('rb') as fh:
+        for bloc in iter(lambda: fh.read(_BLOC), b''):
+            h.update(bloc)
+    return h.hexdigest()
+
+
 def sha256_of(chemin, *, limite=SEUIL_EMPREINTE_OCTETS):
-    """Empreinte d'un fichier, ou `''` s'il est trop gros / illisible. Ne lève jamais."""
+    """Empreinte d'un fichier, ou `''` s'il est trop gros / illisible. Ne lève jamais. Un
+    fichier inchangé (date de modification, taille) n'est pas relu."""
+    global _DIGESTS
     try:
         p = Path(chemin)
-        if not p.is_file() or p.stat().st_size > limite:
-            return ''
-        h = hashlib.sha256()
-        with p.open('rb') as fh:
-            for bloc in iter(lambda: fh.read(_BLOC), b''):
-                h.update(bloc)
-        return h.hexdigest()
+        if _DIGESTS is None:
+            from wama.common.file_cache import FileCache
+            _DIGESTS = FileCache()
+        return _DIGESTS.get(p, lambda q: _digest(q, limite), key=(str(p), limite))
     except Exception:
         return ''
 

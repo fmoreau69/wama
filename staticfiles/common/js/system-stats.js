@@ -85,29 +85,21 @@
         }
     }
 
-    async function fetchStats() {
-        try {
-            const response = await fetch(STATS_URL);
-            if (response.ok) {
-                const stats = await response.json();
-                updateStats(stats);
-            }
-        } catch (error) {
-            // Silently fail - don't spam console with errors
-        }
-    }
-
     function init() {
         // Only run if the footer stats container exists
         if (!document.getElementById('systemStats')) {
             return;
         }
 
-        // Initial fetch
-        fetchStats();
-
-        // Periodic updates
-        setInterval(fetchStats, UPDATE_INTERVAL);
+        // Boucle commune `WamaApp.Poller` : tour suivant après la réponse, pause en onglet caché.
+        new WamaApp.Poller({
+            urlTemplate: function () { return STATS_URL; },
+            interval: UPDATE_INTERVAL,
+            immediate: true,
+            maxFails: Infinity,
+            onData: function (id, stats) { updateStats(stats); },
+            onError: function () { /* Silently fail - don't spam console with errors */ },
+        }).start('footer');
     }
 
     // Initialize when DOM is ready

@@ -23278,3 +23278,34 @@ test_un_modele_distant_n_est_jamais_dit_a_telecharger` ROUGE, déjà au palier d
 des modèles distants (`cloud_models`), étranger à cette session ; (4) jumelles : le générateur ne
 porte pas `cap_from` (« reads ») ni `modalitySlot` — chantier convergence.
 **Pendings système** : relancer gunicorn (gabarits, JS servis, critère) ; rien de poussé.
+
+## §PALIER — 2026-10-13, « LENTEURS DE CHARGEMENT : boucles du navigateur, pages d'index, flèche ▶ du Transcriber » — 🔴 relancer gunicorn
+
+Constat de Fabien : Transcriber et Imager lents à charger ; dans l'Imager, modales et aperçus
+« ne s'affichaient pas puis se sont tous ouverts d'un coup, superposés ». Mesuré : une campagne
+`run_nightly_tests --stage ui` (autre instance) faisait 88 % des requêtes du gunicorn EN SERVICE
+(8 requêtes simultanées), et le navigateur empilait ses propres interrogations.
+- ✅ **`WamaApp.Poller`** (`wama-app-base.js`) : le tour suivant part APRÈS la réponse (jamais deux
+  requêtes d'un poller en vol), rien en onglet caché, un tour immédiat au retour ; `urlTemplate`
+  fonction, `immediate`, `onError`, `poke`. Passent par lui : barres de file (UNE boucle par
+  endpoint — l'Imager doublait `global-progress/`), console, stats du pied de page, suivi
+  « pendant » de l'inspecteur. Garde `tests_poller_js` (contre-épreuve faite).
+- ✅ **Pages d'index (10 apps)** : `reconcile_orphaned_running` sans photo part en tâche de FOND
+  (fil + verrou cache 30 s) — l'`inspect()` attendait 2×2 s un worker solo occupé ; la card
+  réconciliée est montrée par son poller. Garde `tests_reconcile.PageCallDoesNotWaitForTheFleetTest`.
+- ✅ Vivier de résolution mémorisé à SA SOURCE (`resolvable_entries`, 60 s, vidé par
+  `invalidate_engine_cache`, désormais aussi après `backend_proposals.apply`) ; surfaces chargées
+  une fois par processus ; `sha256_of` par `FileCache`. Gardes `tests_file_cache`, `tests_page_cost`.
+- ✅ **Flèche ▶ du Transcriber** câblée sur la FILE (elle l'était par card : morte après le
+  remplacement de la card). Garde générique `tests_status_ui.CycleButtonWiredOnTheQueueTest`
+  (jumelles exclues : `transcriber_01` garde le défaut jusqu'à sa régénération).
+- ✅ **Résultat antérieur au pipeline ADOPTÉ** (`ROUTE §10.6`) : le ▶ « Locuteurs » d'une
+  transcription d'avant le 03/10 ne réécoute plus l'audio. `speaker_count` retenu par instance.
+- Mesuré (compte 1, en processus, 2ᵉ chargement) : transcriber 11,9 → ~1 s, anonymizer 4,0 →
+  0,56 s, composer 2,4 → 0,69 s ; les autres apps 0,16-0,54 s, synthesizer ~1 s (rendu de 94 cards).
+- ⏳ Restes : 12 apps/pages gardent un `setInterval` local au lieu du Poller (avatarizer, describer,
+  anonymizer, composer, synthesizer, enhancer ×2, converter, studio, reader, model manager,
+  filemanager, gabarit `templates_gen.py:347`) ; `_asr_text` relit les segments (~0,4 s) ;
+  `max_requests = 1000` recycle les workers toutes les 5 min sous la campagne de tests ;
+  description de `WamaApp.Poller` dans `mecanismes.py` non mise à jour (`WAMA_MECANISMES.md` en
+  cours d'édition par une autre instance).

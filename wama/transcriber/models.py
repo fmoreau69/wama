@@ -1,3 +1,5 @@
+from functools import cached_property
+
 from django.db import models
 from django.contrib.auth.models import User
 from wama.common.utils.media_paths import upload_to_user_input
@@ -177,9 +179,13 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
         """Check if transcript has segments with diarization."""
         return self.segments.exists()
 
-    @property
+    @cached_property
     def speaker_count(self) -> int:
-        """Nombre de locuteurs identifiés (exclut les segments sans locuteur attribué)."""
+        """Nombre de locuteurs identifiés (exclut les segments sans locuteur attribué).
+
+        Retenu sur l'instance (2026-10-13) : la card le lit deux fois (`_transcript_card.html`),
+        soit deux requêtes par card de la file. Chaque rendu de card (page, rafraîchissement) lit
+        une instance neuve, donc un compte à jour."""
         return self.segments.exclude(speaker_id='').values('speaker_id').distinct().count()
 
     @property

@@ -399,13 +399,22 @@ def reconcile_orphaned_running(instances, *, snapshot=None,
     répond, ni si la preuve de mort n'est pas positive (cf. `is_task_orphaned`). Ignore
     les items sans task_id (peut-être tout juste démarrés — task_id pas encore persisté,
     cf. begin_processing).
+
+    ⚠ SANS `snapshot` (l'appel des pages d'index des 10 apps), la réconciliation part EN TÂCHE
+    DE FOND et l'appel rend 0 tout de suite. Mesuré le 2026-10-13 : la photo de la flotte
+    (`collect_worker_snapshot`, deux interrogations de 2 s) attend un worker `--pool=solo` qui
+    ne répond jamais pendant qu'il travaille — chaque page d'une app dont un élément tournait
+    payait **4,2 s** (11,9 s pour la page du Transcriber). Rien n'attend le verdict dans la
+    page : la card réconciliée passe en échec en base, et son poller (`WamaApp.Poller`, qui
+    suit toute card non terminale) la rafraîchit. Avec `snapshot`, l'appel reste SYNCHRONE.
     """
     running = [i for i in instances if getattr(i, status_field, None) == running_value]
     if not running:
         return 0
     if snapshot is None:
-        snapshot = collect_worker_snapshot()
-    if snapshot is None:
+        _reconcile_in_background(running, status_field=status_field, task_field=task_field,
+                                 running_value=running_value, to_status=to_status,
+                                 error_field=error_field, error_message=error_message)
         return 0
     n = 0
     for inst in running:
@@ -442,6 +451,52 @@ def reconcile_orphaned_running(instances, *, snapshot=None,
         _mark_reconciled(inst, status_field, task_field, to_status, error_field, error_message)
         n += 1
     return n
+
+
+#: Une réconciliation de fond des MÊMES items, lancée par n'importe quel processus, couvre les
+#: pages chargées pendant ce délai : sans ce verrou, chaque rechargement (et « Démarrer tout »
+#: recharge) relançait la photo de la flotte.
+RECONCILE_LOCK_S = 30
+
+
+def _reconcile_in_background(running, **opts) -> None:
+    """La réconciliation de `running`, hors de la requête : un fil d'exécution relit les items
+    (leur statut a pu bouger), prend la photo de la flotte et réconcilie. Rien si la même
+    réconciliation tourne déjà (verrou du cache partagé, tous processus)."""
+    import hashlib
+    import logging
+    import threading
+
+    model = type(running[0])
+    pks = sorted(i.pk for i in running)
+    digest = hashlib.md5(','.join(map(str, pks)).encode()).hexdigest()
+    try:
+        from django.core.cache import cache
+        if not cache.add(f'wama:reconcile:{model._meta.label_lower}:{digest}', 1,
+                         RECONCILE_LOCK_S):
+            return
+    except Exception:
+        pass                    # cache injoignable : on réconcilie quand même, sans verrou
+
+    def run():
+        from django.db import connection
+        try:
+            from wama.common.utils.batch_common import without_heavy_fields
+            fresh = list(without_heavy_fields(model.objects.filter(
+                pk__in=pks, **{opts['status_field']: opts['running_value']})))
+            snapshot = collect_worker_snapshot() if fresh else None
+            if snapshot is not None:
+                n = reconcile_orphaned_running(fresh, snapshot=snapshot, **opts)
+                if n:
+                    logging.getLogger(__name__).info(
+                        "[process_control] %s : %d tâche(s) RUNNING orpheline(s) réconciliée(s) "
+                        "→ échec relançable", model._meta.label_lower, n)
+        except Exception as e:
+            logging.getLogger(__name__).debug("[process_control] réconciliation de fond : %s", e)
+        finally:
+            connection.close()          # la connexion de CE fil, jamais celle de la requête
+
+    threading.Thread(target=run, daemon=True, name='wama-reconcile').start()
 
 
 def _pid_alive(pid) -> bool:
