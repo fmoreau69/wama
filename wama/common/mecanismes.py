@@ -356,7 +356,8 @@ MECHANISMS = (
               "(2026-10-10). Registre `ui_bricks` = le catalogue des briques. 2ᵉ (2026-10-13) : "
               "le fond du Writer — un champ FICHIER s'édite comme texte (règles communes), la "
               "surface se déclare au manifeste (facette `surfaces`) et se génère ; refus 409 sur "
-              "état périmé et verrou doux pour toutes les surfaces",
+              "état périmé et verrou doux pour toutes les surfaces ; brique « Versions » : reprendre "
+              "le texte d'une révision GARDÉE, un geste d'édition annulable",
               'wama/common/surfaces.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/surface_views.py',
@@ -624,9 +625,13 @@ MECHANISMS = (
               "du schéma, fichiers et leur empreinte, instruction — rattachée au fait `produit` de "
               "`RunOutcome` (un journal, pas deux) ; une révision PUBLIÉE est une version. Capture "
               "posée une fois dans le squelette de tâche : zéro ligne par app, la file ne voit rien. "
-              "⏳ Restaurer, sorties immuables, rétention et volet Historique : marches suivantes",
+              "Une app qui le DÉCLARE (`keep_outputs`, le Writer d'abord, 2026-10-13) GARDE la copie "
+              "des fichiers de ses 20 dernières révisions + des publiées (`KeptOutputsMixin`, liste "
+              "déclarée à la rétention) ; au-delà la révision dit « fichier purgé ». "
+              "⏳ Restaurer d'un geste, les dix apps, volet Historique : marches suivantes",
               'wama/common/services/revisions.py',
-              'docs/construction/exploitation/WAMA_COLLABORATION.md §7.1'),
+              'docs/construction/exploitation/WAMA_COLLABORATION.md §7.1',
+              annexes=('wama/common/tests/tests_kept_revision_outputs.py',)),
     Mechanism('item_sharing', "Partage d'un élément ou d'un lot (1ʳᵉ interface)",
               "LE GESTE qui manquait au mécanisme de visibilité : `PROFILES_PERMISSIONS §7.5` "
               "disait « il n'existe AUCUNE interface de partage » (il fallait l'admin Django). "

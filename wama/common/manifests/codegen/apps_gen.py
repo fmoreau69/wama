@@ -110,5 +110,16 @@ def render_apps(manifest: dict) -> tuple:
             pad = ' ' * len(f"        register_app_detail_spec('{app_id}', {item_model}, ")
             lignes += [pad + l for l in rendu[1:]]
             lignes[-1] += ')'
+    revisions = proc.get('revisions')
+    if revisions:
+        # Fichiers de RÉVISION gardés (`processing.revisions`, 2026-10-13, `WAMA_COLLABORATION
+        # §7.2`) : la brique les copie, la rétention les voit par la liste déclarée.
+        keep = (revisions.get('keep') if isinstance(revisions, dict) else None) or 20
+        lignes += [
+            '        from wama.common.services.revisions import KEPT_FIELD, keep_outputs',
+            f"        keep_outputs('{app_id}', keep={int(keep)})",
+            '        from wama.common.services.retention import register_retention_model',
+            f"        register_retention_model({item_model}._meta.label, path_lists=(KEPT_FIELD,))",
+        ]
     lignes.append('')
     return '\n'.join(lignes), None

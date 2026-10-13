@@ -4,9 +4,13 @@ Révisions d'un élément — la brique de la marche 8a (`WAMA_COLLABORATION.md 
 CE QU'ELLE FAIT : garde, DANS la card, l'historique des états qu'un élément a reçus. Chaque
 résultat produit donne une révision numérotée (réglages, sorties et leur empreinte,
 instruction) ; une révision que l'on PUBLIE devient une version.
-CE QU'ELLE NE FAIT PAS (encore — marches suivantes, §7.1) : restaurer un état, rendre les
-sorties immuables (une relance réécrit encore au même chemin), purger selon une rétention,
+CE QU'ELLE NE FAIT PAS (encore — marches suivantes, §7.1) : restaurer un état d'un geste,
 afficher l'historique au volet droit.
+GARDER LES FICHIERS (2026-10-13, reste 2 de §7.2) — pour une app qui le DÉCLARE
+(`keep_outputs`, le Writer d'abord) : chaque révision copie ses fichiers de sortie dans la liste
+de la card (`KeptOutputsMixin`), et les `keep` dernières révisions + les publiées gardent les leurs ;
+au-delà le fichier part, la révision reste et le dit (`purged`). Une relance réécrit toujours au
+même chemin : c'est la COPIE qui ne s'écrase plus.
 
 AUCUNE APP N'ÉCRIT SA RÈGLE ICI. Ce qu'on garde d'un élément se DÉRIVE :
   - ses réglages, de son schéma de paramètres (`schema_for_app`, params de contexte `item`) —
@@ -144,14 +148,151 @@ def record_revision(app_id: str, item, *, origin: str = 'process', user=None, ou
                     .aggregate(n=Max('number'))['n']) or 0
             try:
                 with transaction.atomic():
-                    return ItemRevision.objects.create(number=last + 1, **target, **values)
+                    revision = ItemRevision.objects.create(number=last + 1, **target, **values)
             except IntegrityError:
                 continue
+            keep_files(app_id, item, revision)
+            return revision
         logger.warning("[revisions] numéro introuvable pour %s", target)
         return None
     except Exception as exc:
         logger.debug("[revisions] révision non enregistrée (%s: %s)", type(exc).__name__, exc)
         return None
+
+
+# ── Fichiers gardés (reste 2 de §7.2) ───────────────────────────────────────────────────
+
+#: Le champ de la card qui porte les fichiers gardés (`common.models.KeptOutputsMixin`).
+KEPT_FIELD = 'kept_outputs'
+#: V3 tranché par Fabien le 2026-10-13 : les 20 dernières révisions + les publiées.
+KEEP_DEFAULT = 20
+#: Sous-dossier, à côté du fichier vivant, où vivent ses copies de révision.
+KEPT_FOLDER = 'revisions'
+
+#: `{app: nombre de révisions dont les fichiers se gardent}` — rempli par `keep_outputs`, appelé
+#: depuis le `ready()` de l'app qui le déclare (`processing.revisions` du manifeste) : ce module
+#: ne nomme aucune app.
+_KEEPING = {}
+
+
+def keep_outputs(app_id: str, keep: int = KEEP_DEFAULT) -> None:
+    """Déclare que `app_id` GARDE les fichiers de ses `keep` dernières révisions (+ les publiées).
+    Son modèle d'élément hérite `KeptOutputsMixin` et déclare `kept_outputs` à la rétention."""
+    _KEEPING[app_id] = max(1, int(keep))
+
+
+def kept_count(app_id: str) -> int:
+    """Combien de révisions gardent leurs fichiers pour `app_id` — 0 : l'app n'en garde pas."""
+    return _KEEPING.get(app_id, 0)
+
+
+def kept_path(path: str, number: int) -> str:
+    """Où vit la copie de `path` pour la révision `number` : à côté de lui, dans `revisions/`,
+    numérotée — `…/drafts/7_draft.md` → `…/drafts/revisions/7_draft.r3.md`."""
+    import posixpath
+    folder, name = posixpath.split(str(path).replace('\\', '/'))
+    stem, ext = posixpath.splitext(name)
+    return posixpath.join(folder, KEPT_FOLDER, f'{stem}.r{number}{ext}')
+
+
+def _kept_entries(item) -> list:
+    """La liste gardée telle qu'elle est EN BASE (l'instance de l'appelant peut être plus vieille
+    qu'un enregistrement concurrent)."""
+    value = (type(item).objects.filter(pk=item.pk).values_list(KEPT_FIELD, flat=True).first())
+    return list(value or [])
+
+
+def keep_files(app_id: str, item, revision) -> list:
+    """Copie les fichiers de sortie de `revision` dans la liste gardée de `item`, puis applique la
+    rétention (`prune_kept`). Rend les entrées ajoutées. Rien pour une app qui ne garde pas, une
+    sortie texte (sa valeur est en base, pas dans un fichier) ou un fichier absent. Best-effort :
+    ne lève jamais — une copie manquée laisse la révision désigner le fichier vivant, comme avant."""
+    if not kept_count(app_id) or not hasattr(item, KEPT_FIELD):
+        return []
+    try:
+        import os
+        import shutil
+
+        from django.conf import settings
+        added = []
+        for ref in revision.outputs or []:
+            path = ref.get('path') or ''
+            source = os.path.join(settings.MEDIA_ROOT, path) if path else ''
+            if not source or not os.path.isfile(source):
+                continue
+            rel = kept_path(path, revision.number)
+            target = os.path.join(settings.MEDIA_ROOT, rel)
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            partial = target + '.part'
+            shutil.copyfile(source, partial)
+            os.replace(partial, target)
+            added.append({'path': rel, 'field': ref.get('field') or '',
+                          'revision': revision.number, 'sha256': ref.get('sha256') or ''})
+        if added:
+            entries = _kept_entries(item) + added
+            type(item).objects.filter(pk=item.pk).update(**{KEPT_FIELD: entries})
+            setattr(item, KEPT_FIELD, entries)
+            prune_kept(app_id, item)
+        return added
+    except Exception as exc:
+        logger.warning("[revisions] fichiers de la révision %s non gardés (%s: %s)",
+                       getattr(revision, 'number', '?'), type(exc).__name__, exc)
+        return []
+
+
+def prune_kept(app_id: str, item) -> list:
+    """La rétention V3 : seuls les fichiers des `kept_count` dernières révisions et des révisions
+    PUBLIÉES restent. Au-delà, le fichier part — s'il vit chez l'app de la card et que rien d'autre
+    ne le désigne, les deux règles de `safe_delete_file` — et la révision le dit (`purged` sur sa
+    référence, §7.1 « fichier purgé ») ; elle-même n'est jamais effacée. Rend les chemins retirés."""
+    keep = kept_count(app_id)
+    if not keep:
+        return []
+    import os
+
+    from django.conf import settings
+
+    from wama.common.utils.file_references import is_referenced_elsewhere
+    from wama.common.utils.queue_duplication import owns_file
+    revisions = revisions_of(app_id, item)
+    kept = set(revisions.values_list('number', flat=True)[:keep])
+    kept |= set(revisions.filter(published_at__isnull=False).values_list('number', flat=True))
+    entries = _kept_entries(item)
+    stay, gone = [], []
+    for entry in entries:
+        (stay if entry.get('revision') in kept else gone).append(entry)
+    if not gone:
+        return []
+    type(item).objects.filter(pk=item.pk).update(**{KEPT_FIELD: stay})
+    setattr(item, KEPT_FIELD, stay)
+    removed = []
+    for entry in gone:
+        rel = entry.get('path') or ''
+        if rel and owns_file(item, rel) and not is_referenced_elsewhere(
+                rel, label=item._meta.label, pk=item.pk, field=KEPT_FIELD):
+            try:
+                os.remove(os.path.join(settings.MEDIA_ROOT, rel))
+                removed.append(rel)
+            except OSError:
+                pass
+    by_number = {}
+    for entry in gone:
+        by_number.setdefault(entry.get('revision'), set()).add(entry.get('field'))
+    for revision in revisions.filter(number__in=list(by_number)):
+        fields = by_number[revision.number]
+        revision.outputs = [dict(ref, purged=True) if ref.get('field') in fields else ref
+                            for ref in revision.outputs or []]
+        revision.save(update_fields=['outputs'])
+    return removed
+
+
+def kept_file(app_id: str, item, number: int, field: str) -> str:
+    """Le fichier GARDÉ du champ `field` à la révision `number` (chemin relatif à MEDIA_ROOT), ''
+    s'il n'y en a pas (révision sans ce champ, fichier purgé, app qui ne garde pas)."""
+    for entry in list(getattr(item, KEPT_FIELD, None) or []):
+        if entry.get('revision') == number and entry.get('field') == field:
+            return entry.get('path') or ''
+    return ''
 
 
 # ── Lecture ────────────────────────────────────────────────────────────────────────────

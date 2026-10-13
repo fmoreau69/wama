@@ -52,6 +52,30 @@ RETENTION_MODELS = [
 ]
 
 
+def register_retention_model(label: str, *, path_lists=(), date: str = None, user: str = None):
+    """Déclare `label` à la rétention depuis le `ready()` de SON app — la forme d'une app GÉNÉRÉE,
+    dont le substrat ne connaît pas le nom (« le registre ne connaît jamais ses producteurs »,
+    `AGENTS.md`). Idempotent : une 2ᵉ déclaration complète les `path_lists` de la 1ʳᵉ. La liste
+    ci-dessus reste celle des dix apps réelles.
+
+    Né le 2026-10-13 avec les fichiers de révision gardés (`KeptOutputsMixin`) : une liste de
+    chemins n'est vue du retrait d'une card, de la purge et de l'index des références que DÉCLARÉE
+    ici (`file_references.path_list_fields`)."""
+    entry = next((e for e in RETENTION_MODELS if e['model'] == label), None)
+    if entry is None:
+        entry = {'model': label}
+        if date:
+            entry['date'] = date
+        if user:
+            entry['user'] = user
+        RETENTION_MODELS.append(entry)
+    lists = list(entry.get('path_lists') or [])
+    lists += [name for name in path_lists if name not in lists]
+    if lists:
+        entry['path_lists'] = lists
+    return entry
+
+
 def _delete_path(rel):
     """Efface un fichier relatif à MEDIA_ROOT et oublie sa note de fichier libéré. Fail-safe."""
     from django.conf import settings

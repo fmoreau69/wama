@@ -204,6 +204,25 @@ class NativeOutputsMixin(models.Model):
         abstract = True
 
 
+class KeptOutputsMixin(models.Model):
+    """Les fichiers de RÉVISION gardés d'une card — ses sorties telles que chaque révision les a
+    laissées, pour qu'une révision désigne un fichier qui ne s'écrase plus (`WAMA_COLLABORATION
+    §7.2`, marche 8a reste 2 ; décision de Fabien du 2026-10-13 : le Writer d'abord, les 20
+    dernières révisions + les publiées).
+
+    Entrées `{path, field, revision, sha256}` (chemin relatif à MEDIA_ROOT), écrites par
+    `revisions.record_revision` quand l'app GARDE ses sorties (`revisions.keep_outputs`). Même
+    forme et même déclaration que `NativeOutputsMixin` : une app qui hérite ce champ le DÉCLARE à
+    la rétention (`path_lists`), et c'est par là que le retrait d'une card, la purge, l'index des
+    références et le déplacement d'un fichier le voient — sans qu'aucun d'eux n'apprenne les
+    révisions. Nullable, pour la même raison que `native_outputs`."""
+
+    kept_outputs = models.JSONField(null=True, blank=True, default=list)
+
+    class Meta:
+        abstract = True
+
+
 class QueueOrderMixin(models.Model):
     """Position MANUELLE de l'entrée dans la file (CARD_DESIGN §3bis — manipulation directe).
 

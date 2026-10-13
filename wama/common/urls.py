@@ -26,6 +26,11 @@ urlpatterns = [
          name='surface_data'),
     path('surface/<str:app>/<str:key>/<int:pk>/save/', surface_views.surface_save,
          name='surface_save'),
+    # Les VERSIONS gardées du fichier édité (2026-10-13, `WAMA_COLLABORATION §7.2`).
+    path('surface/<str:app>/<str:key>/<int:pk>/revisions/', surface_views.surface_revisions,
+         name='surface_revisions'),
+    path('surface/<str:app>/<str:key>/<int:pk>/revisions/<int:number>/',
+         surface_views.surface_revision_value, name='surface_revision_value'),
 
     # Enrichissement de prompt à la demande (✨) — générique {prompt, app, domain}, cf. WAMA_LLM.md §Skills
     path('api/enrich-prompt/', views.api_enrich_prompt, name='enrich_prompt'),

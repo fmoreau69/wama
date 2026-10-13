@@ -75,6 +75,7 @@ def surface_page(request, app: str, key: str, pk: int):
             'data_url': base + 'data/',
             'save_url': base + 'save/',
             'run_url': _url(f'{app}:start_process', pk, found.reruns) if found.reruns else '',
+            'revisions_url': base + 'revisions/',
             'back_url': _url(f'{app}:index'),
             'can_edit': _can_edit(request.user, item),
             'layout_key': f'wama.surface.{found.id}',
@@ -112,6 +113,57 @@ def surface_data(request, app: str, key: str, pk: int):
         'can_edit': _can_edit(request.user, item),
         'token': state_token(value),
     })
+
+
+@login_required
+@require_GET
+def surface_revisions(request, app: str, key: str, pk: int):
+    """Les révisions de l'élément, la plus récente d'abord, et pour chacune si le fichier ÉDITÉ
+    a été gardé (`revisions.kept_file`) — ce que la brique « Versions » liste. Vide pour une
+    surface qui n'édite pas un fichier texte, ou une app qui ne garde pas ses sorties."""
+    from wama.common.services.revisions import kept_count, kept_file, revisions_of
+    found = _surface_or_404(app, key)
+    item = _readable_or_404(found, request.user, pk)
+    if not found.text_value or not kept_count(app):
+        return JsonResponse({'revisions': [], 'keeps': False})
+    from wama.common.models import ItemRevision
+    labels = dict(ItemRevision.ORIGIN_CHOICES)
+    out = []
+    for revision in revisions_of(app, item).select_related('user')[:200]:
+        user = revision.user
+        out.append({
+            'number': revision.number,
+            'origin': revision.origin,
+            'origin_label': labels.get(revision.origin, revision.origin),
+            'created_at': revision.created_at.isoformat(),
+            'user': (user.get_full_name() or user.username) if user else '',
+            'models': revision.model_keys or [],
+            'published': revision.published_at is not None,
+            'kept': bool(kept_file(app, item, revision.number, found.edits)),
+        })
+    return JsonResponse({'revisions': out, 'keeps': True, 'keep': kept_count(app)})
+
+
+@login_required
+@require_GET
+def surface_revision_value(request, app: str, key: str, pk: int, number: int):
+    """Le texte du fichier édité tel que la révision `number` l'a laissé (sa copie gardée) —
+    « Reprendre » le charge dans la page, qui l'enregistre comme une correction de plus."""
+    from django.conf import settings
+
+    from wama.common.services.revisions import kept_file
+    from wama.common.surfaces import validate_text
+    found = _surface_or_404(app, key)
+    item = _readable_or_404(found, request.user, pk)
+    rel = kept_file(app, item, number, found.edits) if found.text_value else ''
+    if not rel:
+        raise Http404("aucune version gardée pour cette révision")
+    try:
+        with open(os.path.join(settings.MEDIA_ROOT, rel), encoding='utf-8', errors='replace') as source:
+            value = validate_text(source.read())
+    except (OSError, ValueError):
+        raise Http404("version illisible")
+    return JsonResponse({'number': number, 'value': value})
 
 
 def _process_states(item) -> dict:

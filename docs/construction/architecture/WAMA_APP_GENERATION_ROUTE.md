@@ -491,6 +491,20 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       process déclarés) ; extraire la facette des apps existantes ; clic dans l'aperçu → section
       (cadre isolé : des ancres posées par `layout`) ; un HTML rendu SANS `<meta charset>` est
       servi sans jeu de caractères (accents cassés — vu sur un témoin au smoke).
+    - ✅ **VERSIONS GARDÉES — 2026-10-13 (soir)**, retours de Fabien sur le live (« je ne peux
+      pas revenir à la version précédente ? ») : le fond s'écrivait EN PLACE et la révision ne
+      gardait que son empreinte. Marche 8a reste 2 (`WAMA_COLLABORATION §7.2`), pour le Writer
+      seul (*« on teste sur lui avant de porter au commun »*), V3 = 20 + publiées : facette
+      `processing.revisions`, `KeptOutputsMixin` + `revisions.keep_outputs` + liste déclarée à la
+      rétention (la forme de `native_outputs`) ; brique de surface `revision_history` (reprendre =
+      un geste d'édition annulable, l'enregistrement fait une révision nouvelle).
+    - ✅ **DÉFAUT DE CHAÎNE corrigé au passage** : `substitute <app née> models` rendait le modèle
+      depuis la facette `data` INTROSPECTÉE — rien de ce que le manifeste gagne n'atteignait le
+      modèle (le mixin), la glu du modèle était perdue (`filename`, `__str__`, libellés du lot)
+      et les `related_name` re-suffixés (`…_writer_01_writer_01`, une migration de plus par
+      passage). Une app née d'un manifeste rend désormais son modèle comme à sa CRÉATION
+      (squelette A5, `app_sandbox.render_payload`) ; mesuré : `models.py` régénéré IDENTIQUE,
+      aucune migration. Tenu par `tests_codegen_from_scratch`.
 - 🔄 **FACES DU PIPELINE — la preview suit le pipeline (Fabien, 2026-10-12)**. *« Avant, une card
   portait tout le process sans distinction et la preview de même […]. Maintenant, la card porte un
   pipeline de process, les médias intermédiaires sont conservés. Le pipeline étant l'unité commune à

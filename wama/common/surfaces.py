@@ -292,6 +292,16 @@ register_brick(UIBrick(
     consumes=('document',)))
 
 register_brick(UIBrick(
+    key='revision_history', name='Versions',
+    description="Les révisions de l'élément dont le fichier édité a été GARDÉ (`revisions."
+                "keep_outputs`, `WAMA_COLLABORATION §7.2`), la plus récente d'abord : qui, quand, "
+                "d'où (traitement, correction à la main). « Reprendre » charge le texte d'une "
+                "version dans la page — un geste d'édition comme un autre, annulable, que "
+                "l'enregistrement fait révision nouvelle : restaurer ne détruit rien (§7.1).",
+    script='common/js/surfaces/brick-revision-history.js',
+    consumes=('document',), emits=('document',)))
+
+register_brick(UIBrick(
     key='surface_actions', name='Actions de la surface',
     description="Annuler / rétablir (historique commun), enregistrer, appliquer — rejouer le "
                 "process que la modification a périmé.",

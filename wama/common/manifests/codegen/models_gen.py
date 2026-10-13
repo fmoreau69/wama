@@ -278,6 +278,10 @@ def render_models(manifest: dict) -> tuple:
     statuses = proc.get('statuses') or list(status_labels)
     ordering = item.get('ordering') or ['-created_at']
     nom_item = item['name']
+    # Fichiers de RÉVISION gardés (`processing.revisions`, 2026-10-13) : le champ commun
+    # `kept_outputs` vient de son mixin, jamais d'une colonne écrite ici.
+    keeps = bool(proc.get('revisions'))
+    bases = ('KeptOutputsMixin, ' if keeps else '') + 'ProcessingTimeMixin, ScopedVisibility'
 
     l = [
         '"""',
@@ -292,14 +296,17 @@ def render_models(manifest: dict) -> tuple:
         'from django.contrib.auth.models import User',
         'from django.db import models',
         '',
-        'from wama.common.models import (BatchMixin, ProcessingTimeMixin, ScopedManager,',
-        '                                ScopedVisibility)',
+        ('from wama.common.models import (BatchMixin, KeptOutputsMixin, ProcessingTimeMixin,'
+         if keeps else
+         'from wama.common.models import (BatchMixin, ProcessingTimeMixin, ScopedManager,'),
+        ('                                ScopedManager, ScopedVisibility)' if keeps else
+         '                                ScopedVisibility)'),
         ('from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output'
          if any(k == 'file' for _n, k in results) or _declares_step_outputs(app_id)
          else 'from wama.common.utils.media_paths import upload_to_user_input'),
         '',
         '',
-        f'class {nom_item}(ProcessingTimeMixin, ScopedVisibility):',
+        f'class {nom_item}({bases}):',
         '    # Partage F7 : lectures via visible_to()/visible_or_404, mutations par user.',
         '    objects = ScopedManager()',
         '',

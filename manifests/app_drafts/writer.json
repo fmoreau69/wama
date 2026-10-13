@@ -236,6 +236,7 @@
         }
       },
       "processing_time": true,
+      "revisions": {"keep": 20},
       "statuses": ["PENDING", "AWAITING_RESOURCES", "RUNNING", "SUCCESS", "FAILURE"],
       "tasks": [
         {"file": "tasks.py", "function": "write_document_task", "lifecycle": true,
@@ -272,10 +273,11 @@
         "reruns": "layout",
         "reads": {"preview": "output_file"},
         "slots": [
-          {"id": "text", "brick": "text_sections", "x": 0, "y": 0, "w": 7, "h": 15},
+          {"id": "text", "brick": "text_sections", "x": 0, "y": 0, "w": 7, "h": 12},
+          {"id": "versions", "brick": "revision_history", "x": 0, "y": 12, "w": 7, "h": 4},
           {"id": "preview", "brick": "html_preview", "x": 7, "y": 0, "w": 5, "h": 10,
            "options": {"role": "preview"}},
-          {"id": "actions", "brick": "surface_actions", "x": 7, "y": 10, "w": 5, "h": 5}
+          {"id": "actions", "brick": "surface_actions", "x": 7, "y": 10, "w": 5, "h": 6}
         ]
       }
     ]

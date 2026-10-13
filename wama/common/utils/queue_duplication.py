@@ -316,6 +316,11 @@ def duplicate_instance(instance, reset_fields=None, clear_fields=None, *, for_us
     from wama.common.utils.output_formats import NATIVE_FIELD
     if hasattr(obj, NATIVE_FIELD):
         setattr(obj, NATIVE_FIELD, [])
+    # De même les fichiers de RÉVISION gardés (`KeptOutputsMixin`, 2026-10-13) : les révisions
+    # sont celles de la card source, la copie n'en a aucune.
+    from wama.common.services.revisions import KEPT_FIELD
+    if hasattr(obj, KEPT_FIELD):
+        setattr(obj, KEPT_FIELD, [])
 
     obj.save()
     if received:

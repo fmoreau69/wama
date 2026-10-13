@@ -30,6 +30,7 @@ vierges. Drop symétrique : `migrate <label> zero` AVANT le retrait du registre/
 """
 from __future__ import annotations
 
+import copy
 import os
 import re
 import shutil
@@ -491,6 +492,23 @@ def _born_manifest(label: str, entry: dict) -> tuple:
         raise CommandError(f'Introspection des modèles de {label} vide.')
     manifest.setdefault('body', {})['data'] = data
     return manifest, manifest.get('key') or ''
+
+
+def render_payload(manifest: dict, target: str, born: bool) -> dict:
+    """Le manifeste que le gabarit de `target` reçoit lors d'une substitution.
+
+    Une app NÉE d'un manifeste rend son modèle comme à sa CRÉATION : le squelette (A5) depuis le
+    manifeste, jamais la facette `data` introspectée — qui ne peut rien apprendre du manifeste
+    (mesuré le 2026-10-13 : `processing.revisions` ne donnait pas son mixin), perd la glu du modèle
+    (`filename`, `__str__`, libellés du lot) et RE-suffixait les related_name
+    (`…_writer_01_writer_01`, une migration de plus à chaque passage). L'introspection reste ce
+    que les vues et les gabarits exigent (second temps de la création). Une jumelle d'une app
+    existante, elle, garde la facette `data` : son modèle EST celui de sa source."""
+    if not (born and target == 'models'):
+        return manifest
+    payload = copy.deepcopy(manifest)
+    payload.get('body', {}).pop('data', None)
+    return payload
 
 
 def _dead_copied_templates(label: str) -> list:
@@ -1036,7 +1054,8 @@ class Command(BaseCommand):
         renders = []
         for c in targets:            # tout RENDRE avant d'écrire : un refus n'écrit rien
             fname_c, mod_path, fn_name = _SUBSTITUTABLE[c]
-            rendered, raison = getattr(importlib.import_module(mod_path), fn_name)(manifest)
+            rendered, raison = getattr(importlib.import_module(mod_path), fn_name)(
+                render_payload(manifest, c, born))
             if rendered is None:
                 raise CommandError(f'Gabarit {c} : rien à générer — {raison}')
             renders.append((c, fname_c, rendered))

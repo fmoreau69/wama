@@ -251,6 +251,11 @@ body:                                   # (sous l'enveloppe commune)
     ingest: {source: source_url, target: <field>, mode: audio|media|smart}  # trou #14 : projette vers
     # WAMA_INGEST (common/utils/source_ingest.ensure_local_input). Capté par extract (transcriber/describer) ;
     # projection = write-back futur. Va de pair avec capabilities.accepts_url (→ génère la card d'import URL).
+    revisions: {keep: 20}   # ✅ 2026-10-13 — l'app GARDE les fichiers de ses `keep` dernières révisions
+    # (+ les publiées) : `models_gen` donne au modèle d'élément `KeptOutputsMixin` (liste
+    # `kept_outputs`), `apps_gen` appelle `revisions.keep_outputs` et déclare la liste à la
+    # rétention (`register_retention_model`). WAMA_COLLABORATION §7.2 (reste 2), V3 tranché.
+    # Premier adoptant : le Writer (bac à sable) — on l'éprouve avant de le porter aux autres apps.
 
   # F6 PROMPTS / IA        [PROMPT_TARGETS + prompt_skills + tool_api]
   prompts: {targets:[{field,kind,model_field,source,default_model_type,enrich,domain_field,reference_field}],

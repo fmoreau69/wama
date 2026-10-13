@@ -271,3 +271,66 @@ class AnAppWithSeveralProcessesIsGeneratedTest(SimpleTestCase):
         self.assertIsNotNone(src, reason)
         self.assertEqual(1, len(_calls(src, 'output_spec')))
         self.assertNotIn(OUTPUT_KEY, [c.args[0].value for c in _calls(src, 'ProcessSpec')])
+
+
+class DeclaredRevisionKeepingIsGeneratedTest(SimpleTestCase):
+    """`processing.revisions` (2026-10-13, `WAMA_COLLABORATION §7.2`) : the app KEEPS the files of
+    its last revisions. The model gets the common list from its mixin — never a column written by
+    the generator — and `ready()` declares the count and the list to retention, which is how the
+    removal of a card, the purge and the reference index see the kept files. Nothing of the kind
+    for an app that does not declare it."""
+
+    @staticmethod
+    def _bases(src, class_name):
+        for node in ast.walk(ast.parse(src)):
+            if isinstance(node, ast.ClassDef) and node.name == class_name:
+                return [getattr(b, 'id', '') for b in node.bases]
+        return []
+
+    def _render(self, keep):
+        from wama.common.manifests.codegen.apps_gen import render_apps
+        from wama.common.manifests.codegen.models_gen import render_models
+        manifest = json.loads(DRAFT.read_text(encoding='utf-8'))
+        proc = manifest['body']['processing']
+        if keep:
+            proc['revisions'] = {'keep': keep}
+        else:
+            proc.pop('revisions', None)
+        models_src, reason = render_models(manifest)
+        self.assertIsNotNone(models_src, reason)
+        apps_src, reason = render_apps(manifest)
+        self.assertIsNotNone(apps_src, reason)
+        return models_src, apps_src
+
+    def test_a_declared_count_gives_the_mixin_and_the_declarations(self):
+        models_src, apps_src = self._render(7)
+        self.assertIn('KeptOutputsMixin', self._bases(models_src, 'WriterDocument'))
+        self.assertNotIn('kept_outputs', _class_fields(models_src, 'WriterDocument'),
+                         'the list comes from the mixin, not from a generated column')
+        calls = {(c.func.id if isinstance(c.func, ast.Name) else '') for c in ast.walk(ast.parse(apps_src))
+                 if isinstance(c, ast.Call)}
+        self.assertTrue({'keep_outputs', 'register_retention_model'} <= calls, calls)
+        self.assertIn('keep=7', apps_src)
+        compile(models_src, 'models.py', 'exec')
+        compile(apps_src, 'apps.py', 'exec')
+
+    def test_an_app_that_does_not_declare_it_gets_nothing(self):
+        models_src, apps_src = self._render(None)
+        self.assertNotIn('KeptOutputsMixin', models_src)
+        self.assertNotIn('keep_outputs', apps_src)
+        self.assertNotIn('register_retention_model', apps_src)
+
+
+class ABornAppRegeneratesItsModelLikeAtItsCreationTest(SimpleTestCase):
+    """`app_sandbox substitute <born> models` rendered the model from the INTROSPECTED `data`
+    facet (2026-10-13) : nothing the manifest gained could reach the model, the model's glue was
+    lost and the related names were suffixed twice. A born app's model renders like at its
+    creation — the skeleton, from the manifest ; a twin of an existing app keeps its `data`."""
+
+    def test_the_introspected_data_is_left_out_of_a_born_model_only(self):
+        from wama.common.management.commands.app_sandbox import render_payload
+        manifest = {'key': 'writer', 'body': {'data': {'models': [{'name': 'X'}]}, 'processing': {}}}
+        self.assertNotIn('data', render_payload(manifest, 'models', born=True)['body'])
+        self.assertIn('data', manifest['body'], 'the manifest given is never mutated')
+        self.assertIn('data', render_payload(manifest, 'views', born=True)['body'])
+        self.assertIn('data', render_payload(manifest, 'models', born=False)['body'])
