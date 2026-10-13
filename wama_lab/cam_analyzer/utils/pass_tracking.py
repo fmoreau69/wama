@@ -704,7 +704,9 @@ def tracking_is_current(session, features) -> tuple:
     seen = summary.get('features')
     if seen is None:
         return False, 'tracking antérieur à l’instantané des bascules', summary
-    changed = sorted(k for k in set(seen) | set(features) if seen.get(k) != features.get(k))
+    # même règle que la péremption du panneau (`recompute_stale`, `process_runs._watched_changed`) :
+    # une bascule absente de la photo n'a pas changé, c'est la surveillance qui a changé
+    changed = sorted(k for k in set(seen) & set(features) if seen[k] != features[k])
     if changed:
         return False, 'bascules changées depuis : ' + ', '.join(changed), summary
     for key in TRACKING_SIDE_INPUTS:
@@ -750,13 +752,31 @@ def recompute_stale(session) -> int:
         dep = by_type_any_completed.get(dep_type)
         return node_of[id(dep)] if dep is not None else f'missing:{dep_type}'
 
+    # Les bascules ⚑ de CALCUL sont des réglages surveillés du TRACKING 360° : sa ligne range à sa
+    # fin celles qu'il a vues (`features`). Avant le 2026-10-13, seuls les Indicateurs les
+    # comparaient (`tracking_is_current`) : changer une bascule ne périmait rien au panneau, et
+    # « Compléter les passes » ne relançait rien. Un tracking sans cette photo garde l'ancienne règle.
+    from .features import compute_snapshot
+    switches_now = _switch_photo(compute_snapshot(session))
+
+    def tracking_switches(r):
+        seen = (getattr(r, 'output_summary', None) or {}).get('features')
+        return _switch_photo(seen) if r.node_id == 'global_tracking' and seen is not None else None
+
+    def taken(r):
+        return {**(r.settings_snapshot or {}), **(tracking_switches(r) or {})}
+
+    def now(r):
+        cur = _profile_snapshot(profile, _WATCHED.get(r.node_id) or [])
+        return {**cur, **switches_now} if tracking_switches(r) is not None else cur
+
     stale = stale_nodes(
         states={node_of[id(r)]: r.status for r in rows},
         depends_on={node_of[id(r)]: [upstream_node(d) for d in _DEPENDS_ON.get(r.node_id, [])]
                     for r in rows},
-        snapshots={node_of[id(r)]: r.settings_snapshot or {} for r in rows},
-        current={node_of[id(r)]: _profile_snapshot(profile, _WATCHED[r.node_id])
-                 for r in rows if _WATCHED.get(r.node_id)})
+        snapshots={node_of[id(r)]: taken(r) for r in rows},
+        current={node_of[id(r)]: now(r)
+                 for r in rows if _WATCHED.get(r.node_id) or tracking_switches(r) is not None})
     # PAR LIGNE (passe × caméra), pas par passe : chaque caméra a sa photo de réglages — la
     # détection relancée à l'arrière avec le nouveau modèle n'est pas périmée parce que l'avant
     # l'est (`tests_pass_registry`, « for THAT camera only »). `process_runs.mark_stale` périme
@@ -765,6 +785,11 @@ def recompute_stale(session) -> int:
     if pairs:
         _stale_common_lines(session, pairs)
     return len(pairs)
+
+
+def _switch_photo(switches: dict) -> dict:
+    """Bascules ⚑ en clés de réglage, préfixées pour ne jamais croiser un champ du profil."""
+    return {f'feature:{k}': v for k, v in (switches or {}).items()}
 
 
 def _stale_common_lines(session, pairs) -> int:

@@ -69,6 +69,44 @@ class ComputeSnapshotTest(SimpleTestCase):
         self.assertIn('fov_dist_correction', snap)
 
 
+class SwitchChangeStalesThePanelTest(SimpleTestCase):
+    """Changer une bascule de calcul PÉRIME le tracking AU PANNEAU, et l'aval par cascade
+    (2026-10-13) : avant, seuls les Indicateurs le voyaient, et « Compléter les passes » ne
+    relançait rien — mesuré sur `_seg`, cinq bascules changées, aucune passe périmée."""
+
+    def _stale(self, seen, config_features):
+        from wama_lab.cam_analyzer.utils.features import compute_snapshot
+        photo = compute_snapshot(SimpleNamespace(config={}))
+        for k in seen.get('drop', ()):
+            photo.pop(k)
+        photo.update(seen.get('set', {}))
+        # toutes les passes du registre terminées : seule la photo des bascules peut périmer
+        rows = [row(key, summary={'features': photo} if key == 'global_tracking' else {})
+                for key in pt.ORDER]
+        for r in rows:
+            r.settings_snapshot = {}
+        runs = SimpleNamespace(lines=lambda session: rows)
+        session = SimpleNamespace(profile=None, config={'features': config_features})
+        with mock.patch.object(pt, '_common_runs', return_value=runs), \
+                mock.patch.object(pt, '_stale_common_lines') as staled:
+            pt.recompute_stale(session)
+        return {node for node, _ in (staled.call_args.args[1] if staled.called else [])}
+
+    def test_a_changed_switch_stales_the_tracking_and_the_indicators(self):
+        self.assertEqual(self._stale({}, {'class_family_gate': False}), {'global_tracking', 'indicators'})
+
+    def test_the_same_switches_stale_nothing(self):
+        self.assertEqual(self._stale({}, {}), set())
+
+    def test_a_switch_missing_from_the_photo_is_not_a_change(self):
+        """Une bascule passée « lue par un calcul » après le tracking : la surveillance a changé,
+        pas le réglage — même règle que `process_runs._watched_changed`."""
+        self.assertEqual(self._stale({'drop': ('fov_dist_correction',)}, {}), set())
+
+    def test_a_display_switch_stales_nothing(self):
+        self.assertEqual(self._stale({}, {'display_ema': False}), set())
+
+
 class FailedSideInputTest(TrackingIsCurrentTest):
     def test_a_side_input_that_failed_after_the_tracking_does_not_invalidate_it(self):
         """Une correction ortho ÉCHOUÉE n'a rien changé à ce que lit le tracking (2026-10-01)."""
