@@ -23303,12 +23303,23 @@ Constat de Fabien : Transcriber et Imager lents à charger ; dans l'Imager, moda
   transcription d'avant le 03/10 ne réécoute plus l'audio. `speaker_count` retenu par instance.
 - Mesuré (compte 1, en processus, 2ᵉ chargement) : transcriber 11,9 → ~1 s, anonymizer 4,0 →
   0,56 s, composer 2,4 → 0,69 s ; les autres apps 0,16-0,54 s, synthesizer ~1 s (rendu de 94 cards).
-- ⏳ Restes : 12 apps/pages gardent un `setInterval` local au lieu du Poller (avatarizer, describer,
-  anonymizer, composer, synthesizer, enhancer ×2, converter, studio, reader, model manager,
-  filemanager, gabarit `templates_gen.py:347`) ; `_asr_text` relit les segments (~0,4 s) ;
-  `max_requests = 1000` recycle les workers toutes les 5 min sous la campagne de tests ;
-  description de `WamaApp.Poller` dans `mecanismes.py` non mise à jour (`WAMA_MECANISMES.md` en
-  cours d'édition par une autre instance).
+- ✅ **Suite le jour même (demande de Fabien) — `WamaApp.Poller` ADOPTÉ PARTOUT** : les 12
+  apps/pages qui gardaient un `setInterval` réseau (avatarizer, describer, anonymizer, composer,
+  synthesizer, enhancer ×2, converter, studio, reader, gestionnaire de fichiers, model manager —
+  dont la dette `createMirrorBackupUI`) ET le cam_analyzer (statut, passes, RTMaps, battements du
+  Live), relevé par la garde neuve. La brique gagne `request(id) → Promise` (tour qui n'est pas
+  un GET JSON) et attend un `onData` asynchrone. Retirés : copies « de repli » (enhancer, reader,
+  dont la `Map` vide rendait « Tout effacer » sans effet sur le suivi) et `updateGlobalProgress`
+  neutralisées par `return` mais rappelées toutes les 2-5 s (4 apps + no-op audio).
+  Garde `tests_poller_js.EveryPollingLoopIsTheCommonOneTest` : 11 `setInterval` restants
+  DÉCLARÉS avec leur raison (aucun n'interroge le serveur en boucle rapide), la liste ne peut que
+  descendre ; contre-épreuve faite (l'ancien composer la fait rougir). Description du socle JS
+  à jour dans `mecanismes.py` (+ ses deux projections). Domicile : `ROUTE §10.2`.
+- ⏳ Restes : jumelles `_01` à régénérer (leurs copies gardent les anciennes boucles) ; le gabarit
+  `templates_gen.py:347` garde un balayage DOM `_pollRunning` (sans requête) qui confie au Poller
+  les cards lancées ailleurs ; `_asr_text` relit les segments (~0,4 s) ; `max_requests = 1000`
+  recycle les workers toutes les 5 min sous la campagne de tests ; validation NAVIGATEUR des
+  boucles portées non faite (parse V8 + tests seulement).
 
 ## §PALIER — 2026-10-13, « GRILLE FONCTIONNELLE DES APPS PORTÉES : TEST OU BUG ? » — ✅ LIVRÉ — 🔚 file `gpu` du nocturne (décision)
 

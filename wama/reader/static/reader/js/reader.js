@@ -119,54 +119,24 @@
 
     // ─── Polling ──────────────────────────────────────────────────────────────
 
-    const pollingTimers = {};
-
-    // Polling délégué à WamaApp.Poller (résilient : retries) ; création paresseuse + repli local.
-    let _poller = null;
-    function _getPoller() {
-        if (!window.WamaApp) return null;
-        if (!_poller) {
-            _poller = new WamaApp.Poller({
-                urlTemplate: urls.progress,
-                onData: function (id, item) {
-                    upsertCard(item);
-                    if (item.status !== 'RUNNING' && item.status !== 'PENDING') {
-                        _poller.stop(id);
-                        if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
-                    }
-                },
-            });
-        }
-        return _poller;
-    }
-
-    function startPolling(id) {
-        const p = _getPoller();
-        if (p) { p.start(id); return; }
-        if (pollingTimers[id]) return;
-        pollingTimers[id] = setInterval(async () => {
-            try {
-                const r = await fetch(urlFor('progress', id));
-                const item = await r.json();
-                upsertCard(item);
-                if (item.status !== 'RUNNING' && item.status !== 'PENDING') {
-                    stopPolling(id);
-                    if (window.WamaFM) WamaFM.processed();
-                }
-            } catch (e) {
-                stopPolling(id);
+    // Polling : brique commune WamaApp.Poller (résilient : retries ; jamais deux requêtes en vol,
+    // pause en onglet caché). Sa copie locale « de repli si WamaApp absent » est retirée le
+    // 2026-10-13 : la brique est montée par `base.html`, le repli ne servait jamais — et c'est
+    // son dictionnaire, vide, que « Tout effacer » parcourait : rien n'était arrêté.
+    const poller = new WamaApp.Poller({
+        urlTemplate: urls.progress,
+        onData: function (id, item) {
+            upsertCard(item);
+            if (item.status !== 'RUNNING' && item.status !== 'PENDING') {
+                poller.stop(id);
+                if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
             }
-        }, 1500);
-    }
+        },
+    });
 
-    function stopPolling(id) {
-        const p = _getPoller();
-        if (p) { p.stop(id); return; }
-        if (pollingTimers[id]) {
-            clearInterval(pollingTimers[id]);
-            delete pollingTimers[id];
-        }
-    }
+    function startPolling(id) { poller.start(id); }
+
+    function stopPolling(id) { poller.stop(id); }
 
     // ─── Item actions ─────────────────────────────────────────────────────────
 
@@ -209,7 +179,6 @@
     WamaQueueActions.onDeleted(function (id) {
         stopPolling(id);
         insertEmptyStateIfNeeded();
-        updateGlobalProgress();
     });
 
     // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js).
@@ -318,7 +287,6 @@
                 const data = reponses[0] || {};
                 if (data.multi) { window.location.reload(); return; }
                 (data.created || []).forEach(item => upsertCard(item));
-                updateGlobalProgress();
             },
         });
     }
@@ -356,7 +324,7 @@
 
         document.getElementById('reader-clear-btn')?.addEventListener('click', async () => {
             if (!confirm('Supprimer tous les éléments de la file ?')) return;
-            Object.keys(pollingTimers).forEach(stopPolling);
+            poller.stopAll();
             try {
                 await csrfFetch(urls.clearAll, { method: 'POST' });
                 if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
@@ -391,37 +359,9 @@
         });
     }
 
-    // ─── Global progress ──────────────────────────────────────────────────────
-
-    function updateGlobalProgress() {
-        return; // Neutralisé : barre globale + ETA pilotées par la brique commune wama-global-progress.js.
-        if (!urls.globalProgress) return;
-        fetch(urls.globalProgress)
-            .then(r => r.json())
-            .then(data => {
-                const bar          = document.getElementById('globalProgressBar');
-                const stats        = document.getElementById('globalProgressStats');
-                const pct          = document.getElementById('globalProgressPct');
-                const globalStatus = document.getElementById('globalStatus');
-                const p = data.overall_progress || 0;
-                if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
-                if (bar)   bar.style.width    = p + '%';
-                if (stats) stats.textContent  = `${data.done}/${data.total} terminé · ${data.running} en cours`;
-                if (pct)   pct.textContent    = p ? p + '%' : '';
-                if (globalStatus) {
-                    const active = (data.total || 0) > 0;
-                    globalStatus.style.opacity       = active ? '1' : '0';
-                    globalStatus.style.pointerEvents = active ? '' : 'none';
-                    // Remove shimmer once all done
-                    if (bar && data.done === data.total && data.total > 0) {
-                        bar.classList.remove('active');
-                    } else if (bar) {
-                        bar.classList.add('active');
-                    }
-                }
-            })
-            .catch(() => {});
-    }
+    // (Barre globale + ETA : brique commune wama-global-progress.js. La copie locale, neutralisée
+    // par un `return` et pourtant rappelée toutes les 2 s et après chaque geste, est retirée le
+    // 2026-10-13 avec ses appels.)
 
     // ─── Batch group URL helper ───────────────────────────────────────────────
 
@@ -440,7 +380,6 @@
             const collapseEl = batchEl.querySelector('.collapse');
             if (collapseEl) bootstrap.Collapse.getOrCreateInstance(collapseEl).show();
         }
-        updateGlobalProgress();
     }
 
     // « Enregistrer et lancer » de la modale de lot : le seul lancement de lot que l'app POSTe
@@ -587,8 +526,6 @@
         initCycleButton();
         bindBatchGroupActions();
         updateDownloadAllBtn();
-        updateGlobalProgress();
-        setInterval(updateGlobalProgress, 2000);
 
         // (Aperçu du fichier source : geste COMMUN `.preview-media-link` de la card, écouté par
         // `media-preview.js` — l'écoute locale de `.source-preview-btn` est retirée le 2026-10-12.)
@@ -646,7 +583,7 @@
             result.handled = true;
             fetch(urlFor('progress', result.id))
                 .then(r => r.json())
-                .then(item => { upsertCard(item); updateGlobalProgress(); })
+                .then(item => { upsertCard(item); })
                 .catch(() => {});
         }
         // Import GROUPÉ (`batch` : fichiers reçus ensemble = un LOT côté serveur) ou sans id → on

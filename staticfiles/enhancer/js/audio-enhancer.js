@@ -6,7 +6,19 @@ document.addEventListener('DOMContentLoaded', function () {
   const cfg = window.AUDIO_ENHANCER_APP || {};
   const csrfToken = cfg.csrfToken;
 
-  const pollers = new Map();
+  // Suivi des cards audio en cours — boucle COMMUNE `WamaApp.Poller` (2026-10-13 : c'était un
+  // `setInterval` local, qui relançait sans attendre la réponse et tournait en onglet caché).
+  // Une erreur arrête le suivi, comme avant.
+  const poller = new WamaApp.Poller({
+    urlTemplate: (id) => getUrl(cfg.audioProgressUrlTemplate, id),
+    interval: 1500,
+    maxFails: 1,
+    onError: () => { /* le suivi s'arrête : la card reste telle quelle */ },
+    onData: (id, data) => {
+      updateRow(id, data);
+      if (data.status === 'SUCCESS' || data.status === 'FAILURE') poller.stop(id);
+    },
+  });
 
   function csrfHeaders(extra) {
     return Object.assign({}, extra || {}, { 'X-CSRFToken': csrfToken });
@@ -115,7 +127,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     container.prepend(card);
     if (typeof initMediaPreview === 'function') initMediaPreview();
-    updateAudioGlobalProgress();
   }
 
   async function refreshAudioCard(id) {
@@ -243,39 +254,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  function pollAudioProgress(id) {
-    if (pollers.has(id)) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const resp = await fetch(getUrl(cfg.audioProgressUrlTemplate, id));
-        const data = await resp.json();
-        updateRow(id, data);
-
-        if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
-          clearInterval(interval);
-          pollers.delete(id);
-          updateAudioGlobalProgress();
-        }
-      } catch (e) {
-        clearInterval(interval);
-        pollers.delete(id);
-      }
-    }, 1500);
-
-    pollers.set(id, interval);
-  }
+  function pollAudioProgress(id) { poller.start(id); }
 
   // 🗑 RÉSIDU de suppression (cards AUDIO) — SCOPÉ à la file audio. Le `within` est indispensable
   // ici : `index.js` déclare le résidu des cards d'AMÉLIORATION, et sans scope la seconde
   // déclaration aurait écrasé la première en silence. La brique commune porte la confirmation,
   // le POST, le retrait de card, le lot vidé et le signal au gestionnaire de fichiers ; il ne
-  // reste que le poller local (pas encore `WamaApp.Poller`) et deux rendus d'en-tête.
+  // reste que l'arrêt du suivi (`WamaApp.Poller`) et le message de file vide.
   WamaQueueActions.onDeleted(function (id) {
-    if (pollers.has(id)) {
-      clearInterval(pollers.get(id));
-      pollers.delete(id);
-    }
+    poller.stop(id);
     const container = document.getElementById('audio-enhancer-queue');
     if (container && !container.querySelector('[data-id]')) {
       const el = document.createElement('div');
@@ -283,16 +270,13 @@ document.addEventListener('DOMContentLoaded', function () {
       el.textContent = 'Aucun fichier audio en attente.';
       container.appendChild(el);
     }
-    updateAudioGlobalProgress();
   }, { domain: 'audio' });
 
   // ── Global progress ───────────────────────────────────────────────────────
 
-  // Barre globale AUDIO + bouton « tout télécharger » : désormais pilotés par la fonction
-  // commune WamaGlobalProgress (voir l'init en fin de fichier) — zéro duplication.
-  // Conservée en no-op car appelée impérativement après diverses actions ; le poll commun
-  // (1,5 s) rafraîchit la barre et le bouton automatiquement.
-  function updateAudioGlobalProgress() { /* no-op : cf. WamaGlobalProgress.init */ }
+  // Barre globale AUDIO + bouton « tout télécharger » : pilotés par la fonction commune
+  // WamaGlobalProgress (voir l'init en fin de fichier), qui se rafraîchit seule. Le no-op
+  // `updateAudioGlobalProgress` et ses appels sont retirés le 2026-10-13.
 
   // ── Button handlers ───────────────────────────────────────────────────────
 
@@ -333,9 +317,7 @@ document.addEventListener('DOMContentLoaded', function () {
             el.textContent = 'Aucun fichier audio en attente.';
             container.appendChild(el);
           }
-          pollers.forEach(clearInterval);
-          pollers.clear();
-          updateAudioGlobalProgress();
+          poller.stopAll();
         } catch (err) {
           WamaApp.toast('Erreur: ' + err.message);
         }

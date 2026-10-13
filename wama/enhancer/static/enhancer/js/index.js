@@ -6,8 +6,6 @@ document.addEventListener('DOMContentLoaded', function () {
   const clearAllBtn = document.getElementById('enhancer-clear-btn');
   const downloadAllBtn = document.getElementById('enhancer-download-all-btn');
 
-  const pollers = new Map();
-
   // Délégué à WamaApp (brique commune wama-app-base.js) ; repli local si non chargé.
   function getUrl(template, id) {
     return window.WamaApp ? WamaApp.getUrl(template, id) : template.replace('/0/', `/${id}/`);
@@ -143,43 +141,19 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // Polling délégué à WamaApp.Poller (brique commune, résilient : retries maxFails).
-  // Création paresseuse (config.progressUrlTemplate prêt) ; repli local si WamaApp absent.
-  let _poller = null;
-  function _getPoller() {
-    if (!window.WamaApp) return null;
-    if (!_poller) {
-      _poller = new WamaApp.Poller({
-        urlTemplate: config.progressUrlTemplate,
-        onData: function (id, data) { updateRow(id, data); },
-        interval: 1500,
-      });
-    }
-    return _poller;
-  }
+  // Polling : brique commune WamaApp.Poller (résilient : retries maxFails ; jamais deux requêtes en
+  // vol, pause en onglet caché). Sa copie locale « de repli si WamaApp absent » est retirée le
+  // 2026-10-13 : la brique est montée par `base.html` sur toutes les pages, le repli ne servait
+  // jamais — et c'est sa `Map` que « Tout effacer » parcourait, vide : rien n'était arrêté.
+  const poller = new WamaApp.Poller({
+    urlTemplate: config.progressUrlTemplate,
+    onData: function (id, data) { updateRow(id, data); },
+    interval: 1500,
+  });
 
-  function startPolling(id) {
-    const p = _getPoller();
-    if (p) { p.start(id); return; }
-    if (pollers.has(id)) return;
-    const interval = setInterval(() => {
-      fetch(getUrl(config.progressUrlTemplate, id))
-        .then((response) => response.json())
-        .then((data) => updateRow(id, data))
-        .catch(() => stopPolling(id));
-    }, 1500);
-    pollers.set(id, interval);
-  }
+  function startPolling(id) { poller.start(id); }
 
-  function stopPolling(id) {
-    const p = _getPoller();
-    if (p) { p.stop(id); return; }
-    const interval = pollers.get(id);
-    if (interval) {
-      clearInterval(interval);
-      pollers.delete(id);
-    }
-  }
+  function stopPolling(id) { poller.stop(id); }
 
   async function updateRow(id, data) {
     const card = queueTable ? queueTable.querySelector(`[data-id="${id}"]`) : null;
@@ -421,7 +395,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // sur TOUTES les pages : appel direct, sans garde `if (window.…)` — une garde
         // rendrait muette la seule chose qu'on veut voir si elle casse.
         WamaQueue.clearCards(queueTable);
-        pollers.forEach((_, id) => stopPolling(id));
+        poller.stopAll();
         if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
         insertEmptyRowIfNeeded(true);
         updateDownloadAllState();
@@ -461,30 +435,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  function updateGlobalProgress() {
-    return; // Neutralisé : barre globale + ETA pilotées par la brique commune wama-global-progress.js.
-    if (!config.globalProgressUrl) return;
-
-    fetch(config.globalProgressUrl)
-      .then(response => response.json())
-      .then(data => {
-        const progressBar = document.getElementById('globalProgressBar');
-        const statsText = document.getElementById('globalProgressStats');
-        const pct = document.getElementById('globalProgressPct');
-        const globalStatus = document.getElementById('globalStatus');
-        const progress = data.overall_progress || 0;
-        if (progressBar) progressBar.style.width = progress + '%';
-        if (statsText) statsText.textContent = `${data.success}/${data.total} terminé · ${data.running} en cours`;
-        if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
-        if (pct) pct.textContent = progress ? progress + '%' : '';
-        if (globalStatus) {
-          const active = (data.total || 0) > 0;
-          globalStatus.style.opacity = active ? '1' : '0';
-          globalStatus.style.pointerEvents = active ? '' : 'none';
-        }
-      })
-      .catch(error => console.error('Error updating global progress:', error));
-  }
+  // (Barre globale + ETA : brique commune wama-global-progress.js. La copie locale, neutralisée
+  // par un `return` et pourtant rappelée toutes les 2 s, est retirée le 2026-10-13.)
 
   // === Import par URL : le FORMALISME COMMUN (2026-09-08) ===
   // Même reste de portage que l'anonymizer : ce JS postait `media_url` à la vue d'upload
@@ -535,10 +487,6 @@ document.addEventListener('DOMContentLoaded', function () {
   setTimeout(() => {
     bindRowActions(document);
   }, 100);
-
-  // Update global progress every 2 seconds
-  updateGlobalProgress();
-  setInterval(updateGlobalProgress, 2000);
 
   // ── Batch detect bar — delegated to WamaBatchImport (common/js/batch-import.js)
   // Initialisation dans le template via window._batchImport = WamaBatchImport({...})

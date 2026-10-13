@@ -100,12 +100,16 @@
   }
 
   // ── Poller : boucle d'interrogation résiliente, indexée par id ───────
-  // cfg = { urlTemplate, onData(id,data), interval=1200, maxFails=10, onGiveUp(id),
+  // cfg = { urlTemplate | request, onData(id,data), interval=1200, maxFails=10, onGiveUp(id),
   //         onError(id,err), immediate=false }
   //   urlTemplate : gabarit Django (« /0/ » remplacé par l'id) OU fonction(id) → URL ;
   //                 une fonction qui rend null saute ce tour (rien à demander).
+  //   request     : fonction(id) → Promise, À LA PLACE de `urlTemplate` quand le tour n'est pas
+  //                 un GET JSON (un POST, plusieurs appels, un chargeur qui rend lui-même) — sa
+  //                 valeur va à `onData`, son rejet à `onError` (2026-10-13, cam_analyzer).
   // Une exception dans onData ne tue PAS la boucle ; une erreur réseau transitoire
-  // n'arrête le poller qu'après `maxFails` échecs consécutifs (Infinity : jamais).
+  // n'arrête le poller qu'après `maxFails` échecs consécutifs (Infinity : jamais). Un `onData`
+  // qui rend une promesse est ATTENDU avant le tour suivant.
   //
   // ⚠⚠ MESURÉ le 2026-10-13 (Imager figé, modales et aperçus ouverts « d'un coup », superposés) :
   // la boucle était un `setInterval` qui relançait sa requête SANS attendre la précédente, y
@@ -119,6 +123,7 @@
   function Poller(cfg) {
     cfg = cfg || {};
     this.urlTemplate = cfg.urlTemplate;
+    this.request = cfg.request || null;
     this.onData = cfg.onData || function () {};
     this.onGiveUp = cfg.onGiveUp || function () {};
     this.onError = cfg.onError || null;
@@ -163,18 +168,27 @@
     if (!st || st.inFlight) return;
     clearTimeout(st.timer);
     if (pageHidden()) return;
-    const url = this._url(id);
-    if (!url) { this._schedule(id); return; }
     const self = this;
+    let pending;
+    if (this.request) {
+      pending = Promise.resolve().then(function () { return self.request(id); });
+    } else {
+      const url = this._url(id);
+      if (!url) { this._schedule(id); return; }
+      pending = fetch(url)
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    }
     st.inFlight = true;
-    fetch(url)
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    pending
       .then(function (data) {
         st.fails = 0;
-        try { self.onData(id, data); }
+        let out;
+        try { out = self.onData(id, data); }
         catch (e) { console.error('[WamaApp.Poller] onData', id, e); }
-      })
-      .catch(function (err) {
+        return Promise.resolve(out).catch(function (e) {
+          console.error('[WamaApp.Poller] onData', id, e);
+        });
+      }, function (err) {
         st.fails++;
         if (self.onError) { try { self.onError(id, err); } catch (e) { /* rappel d'app */ } }
         else console.warn('[WamaApp.Poller] poll', id, 'échec', st.fails, err);

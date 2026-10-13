@@ -376,38 +376,33 @@
     // Polling
     // ---------------------------------------------------------------------------
 
-    const pollingMap = {};
+    // Boucle COMMUNE `WamaApp.Poller` (2026-10-13 : c'était un `setInterval` local, qui relançait
+    // sans attendre la réponse et tournait en onglet caché). Une erreur arrête le suivi, comme avant.
+    const poller = new WamaApp.Poller({
+        urlTemplate: APP.progressUrlTemplate,
+        interval: 2000,
+        maxFails: 1,
+        onError: () => { /* le suivi s'arrête : la card reste telle quelle */ },
+        onData: (genId, data) => {
+            updateCardStatus(genId, data.status, data.progress, data);
 
-    function startPolling(genId) {
-        if (pollingMap[genId]) return;
-        pollingMap[genId] = setInterval(() => pollProgress(genId), 2000);
-    }
-
-    function stopPolling(genId) {
-        clearInterval(pollingMap[genId]);
-        delete pollingMap[genId];
-    }
-
-    function pollProgress(genId) {
-        fetch(WamaApp.getUrl(APP.progressUrlTemplate, genId))
-            .then(r => r.json())
-            .then(data => {
-                updateCardStatus(genId, data.status, data.progress, data);
-
-                if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
-                    stopPolling(genId);
-                    if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
-                    // Card FINALE rendue serveur (waveform + boutons complets) — plus d'injection JS.
-                    insertRenderedCard(genId);
-                    if (data.status === 'SUCCESS') {
-                        showToast('Génération terminée !', 'success');
-                    } else {
-                        showToast('Génération échouée : ' + (data.error || ''), 'error');
-                    }
+            if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
+                stopPolling(genId);
+                if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
+                // Card FINALE rendue serveur (waveform + boutons complets) — plus d'injection JS.
+                insertRenderedCard(genId);
+                if (data.status === 'SUCCESS') {
+                    showToast('Génération terminée !', 'success');
+                } else {
+                    showToast('Génération échouée : ' + (data.error || ''), 'error');
                 }
-            })
-            .catch(() => stopPolling(genId));
-    }
+            }
+        },
+    });
+
+    function startPolling(genId) { poller.start(genId); }
+
+    function stopPolling(genId) { poller.stop(genId); }
 
     function updateCardStatus(id, status, progress, data) {
         const card = document.querySelector(`.generation-card[data-id="${id}"]`);
@@ -490,7 +485,7 @@
         }
 
         // Fin de tâche : la card COMPLÈTE (waveform + boutons) est re-rendue par le serveur
-        // (insertRenderedCard dans pollProgress) — l'injection de chaines HTML est supprimée (B2-5).
+        // (insertRenderedCard dans le `onData` du poller) — l'injection de chaines HTML est supprimée (B2-5).
     }
 
     // Auto-start du polling des items LANCÉS au chargement — état lu sur data-status (plus de

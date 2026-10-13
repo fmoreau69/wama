@@ -16,7 +16,18 @@
     // de port — un fichier joint ou une DÉSIGNATION (médiathèque, arbre). Tenir une copie en
     // variable (`audioFile`, `selectedAvatarSource`…) laissait l'écran et le formulaire diverger
     // dès qu'un geste commun (✕ de la card, désignation) passait par l'input sans elle.
-    let activePollers        = {};    // {job_id: intervalId}
+    // Suivi des jobs en cours : la boucle COMMUNE `WamaApp.Poller` (2026-10-13 — elle était un
+    // `setInterval` local, qui relançait sans attendre la réponse et tournait en onglet caché).
+    const jobPoller = new WamaApp.Poller({
+        urlTemplate: (jobId) => `${cfg.urls.progress}${jobId}/`,
+        interval: 2000,
+        maxFails: Infinity,
+        onError: () => { /* réseau : ignorer ce tour */ },
+        onData: (jobId, data) => {
+            updateJobCard(jobId, data);
+            if (data.status === 'SUCCESS' || data.status === 'FAILURE') jobPoller.stop(jobId);
+        },
+    });
 
     // -----------------------------------------------------------------------
     // DOM Helpers
@@ -365,7 +376,7 @@
             const data = await r.json().catch(() => ({}));
             if (card && data.status) card.dataset.status = data.status;
         } catch (e) { /* non-fatal */ }
-        if (activePollers[jobId]) { clearInterval(activePollers[jobId]); delete activePollers[jobId]; }
+        jobPoller.stop(jobId);
         // Re-rendu SERVEUR de la card (badge/boutons/barre) — sans lui, l'état visuel restait
         // « en cours » jusqu'à un F5 (constat Fabien 17/08) : le poller étant coupé juste
         // au-dessus, aucune transition ne pouvait plus re-rendre la card.
@@ -393,23 +404,7 @@
 
     // Poll job progress
     // -----------------------------------------------------------------------
-    function startPolling(jobId) {
-        if (activePollers[jobId]) return;
-        activePollers[jobId] = setInterval(() => pollJob(jobId), 2000);
-    }
-
-    async function pollJob(jobId) {
-        try {
-            const resp = await fetch(`${cfg.urls.progress}${jobId}/`);
-            const data = await resp.json();
-            updateJobCard(jobId, data);
-
-            if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
-                clearInterval(activePollers[jobId]);
-                delete activePollers[jobId];
-            }
-        } catch (_) { /* ignore network errors */ }
-    }
+    function startPolling(jobId) { jobPoller.start(jobId); }
 
     // -----------------------------------------------------------------------
     // Update job card from API data
@@ -544,10 +539,10 @@
     WamaQueueActions.onSettings(function (id, btn) { openSettingsModal(id, btn); });
 
     // 🗑 RÉSIDU de suppression — la brique retire la card, le lot vidé et signale au gestionnaire
-    // de fichiers ; ne restent que le poller local (pas encore `WamaApp.Poller` ici), le compteur
-    // d'en-tête et le message de file vide.
+    // de fichiers ; ne restent que l'arrêt du suivi (`WamaApp.Poller`), le compteur d'en-tête et
+    // le message de file vide.
     WamaQueueActions.onDeleted(function (id) {
-        if (activePollers[id]) { clearInterval(activePollers[id]); delete activePollers[id]; }
+        jobPoller.stop(id);
         updateJobsCount(-1);
         if (!$('.synthesis-card')) {
             const container = $('#jobs-container');
@@ -643,9 +638,7 @@
                 return;
             }
             $$('.synthesis-card').forEach((card) => {
-                const jid = card.dataset.jobId;
-                clearInterval(activePollers[jid]);
-                delete activePollers[jid];
+                jobPoller.stop(card.dataset.jobId);
                 card.remove();
             });
             if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager

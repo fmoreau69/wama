@@ -53,7 +53,6 @@
 
     // ── State ─────────────────────────────────────────────────────────────────
     let currentMediaType = null;
-    const pollingTimers  = {};   // { jobId: intervalId }
     let cachedProfiles   = [];   // last fetched list
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -294,47 +293,44 @@
         return (card.dataset.elementStatus || card.dataset.status || '').toUpperCase();
     }
 
-    function startPolling(jobId) {
-        if (pollingTimers[jobId]) return;
-        pollingTimers[jobId] = setInterval(() => pollJob(jobId), 1500);
-    }
+    // Boucle COMMUNE `WamaApp.Poller` (2026-10-13 : c'était un `setInterval` local, qui relançait
+    // sans attendre la réponse et tournait en onglet caché). Une réponse en erreur saute le tour.
+    const poller = new WamaApp.Poller({
+        urlTemplate: (jobId) => urlFor(APP.urls.status, jobId),
+        interval: 1500,
+        maxFails: Infinity,
+        onError: () => { /* ignore */ },
+        onData: (jobId, data) => { onStatus(jobId, data).catch(() => { /* ignore */ }); },
+    });
 
-    function stopPolling(jobId) {
-        if (pollingTimers[jobId]) {
-            clearInterval(pollingTimers[jobId]);
-            delete pollingTimers[jobId];
+    function startPolling(jobId) { poller.start(jobId); }
+
+    function stopPolling(jobId) { poller.stop(jobId); }
+
+    async function onStatus(jobId, data) {
+        const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
+        if (card) {
+            // ETA (moteur commun) — débit observé, sans seed côté converter
+            if (window.WamaEta) {
+                const est = WamaEta.update(jobId, { progress: data.progress, status: data.status, seedSeconds: data.estimated_seconds, modelLoaded: false });
+                WamaEta.render(card.querySelector('.wama-eta'), est);
+            }
+            if (data.status === elementStatus(card)) {
+                // Même état : maj légère de la progression, le markup ne bouge pas — les
+                // PROCESS de la bande suivent en place (brique commune).
+                const fill = card.querySelector('.wama-progress-fill');
+                if (fill) fill.style.width = (data.progress || 0) + '%';
+                const pct = card.querySelector('.progress-text');
+                if (pct) pct.textContent = (data.progress || 0) + '%';
+                if (window.WamaApp && WamaApp.updateProcessRows) WamaApp.updateProcessRows(card, data.processes);
+            } else {
+                // Transition d'état → re-rendu SERVEUR de la card (source unique).
+                await refreshCard(jobId);
+            }
         }
-    }
-
-    async function pollJob(jobId) {
-        try {
-            const resp = await fetch(urlFor(APP.urls.status, jobId));
-            if (!resp.ok) return;
-            const data = await resp.json();
-            const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
-            if (card) {
-                // ETA (moteur commun) — débit observé, sans seed côté converter
-                if (window.WamaEta) {
-                    const est = WamaEta.update(jobId, { progress: data.progress, status: data.status, seedSeconds: data.estimated_seconds, modelLoaded: false });
-                    WamaEta.render(card.querySelector('.wama-eta'), est);
-                }
-                if (data.status === elementStatus(card)) {
-                    // Même état : maj légère de la progression, le markup ne bouge pas — les
-                    // PROCESS de la bande suivent en place (brique commune).
-                    const fill = card.querySelector('.wama-progress-fill');
-                    if (fill) fill.style.width = (data.progress || 0) + '%';
-                    const pct = card.querySelector('.progress-text');
-                    if (pct) pct.textContent = (data.progress || 0) + '%';
-                    if (window.WamaApp && WamaApp.updateProcessRows) WamaApp.updateProcessRows(card, data.processes);
-                } else {
-                    // Transition d'état → re-rendu SERVEUR de la card (source unique).
-                    await refreshCard(jobId);
-                }
-            }
-            if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
-                stopPolling(jobId);
-            }
-        } catch (_) { /* ignore */ }
+        if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
+            stopPolling(jobId);
+        }
     }
 
     async function refreshCard(jobId) {

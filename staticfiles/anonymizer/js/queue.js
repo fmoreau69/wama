@@ -37,51 +37,46 @@
     return fresh;
   }
 
-  // ── Polling par card en cours ───────────────────────────────────────────
-  const timers = {};
+  // ── Polling par card en cours — boucle COMMUNE `WamaApp.Poller` (2026-10-13 : c'était un
+  // `setInterval` local, qui relançait sans attendre la réponse et tournait en onglet caché) ──
+  const poller = new WamaApp.Poller({
+    urlTemplate: (id) => getUrl(cfg.progressUrlTemplate, id),
+    interval: 2500,
+    maxFails: Infinity,
+    onError: () => { /* réseau : ignorer ce tour */ },
+    onData: onProgress,
+  });
 
-  function stopPolling(id) {
-    if (timers[id]) {
-      clearInterval(timers[id]);
-      delete timers[id];
+  function stopPolling(id) { poller.stop(id); }
+
+  function startPolling(id) { poller.start(id); }
+
+  async function onProgress(id, d) {
+    const card = queue.querySelector('.anon-card[data-id="' + id + '"]');
+    if (!card) {
+      stopPolling(id);
+      return;
     }
-  }
-
-  function startPolling(id) {
-    if (timers[id]) return;
-    timers[id] = setInterval(async () => {
-      let d;
-      try {
-        d = await (await fetch(getUrl(cfg.progressUrlTemplate, id))).json();
-      } catch (e) {
-        return;
-      }
-      const card = queue.querySelector('.anon-card[data-id="' + id + '"]');
-      if (!card) {
-        stopPolling(id);
-        return;
-      }
-      // L'état de l'ÉLÉMENT : `data-status` porte l'état MONTRÉ (« périmé » sous un élément terminé).
-      const prev = card.dataset.elementStatus || card.dataset.status;
-      if (window.WamaEta) {
-        WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(id, {
-          progress: d.progress,
-          status: d.status,
-          seedSeconds: d.estimated_seconds,
-          modelLoaded: true,
-        }));
-      }
-      if (d.status && d.status !== prev) {
-        // Transition d'état → re-render serveur (source unique du markup)
-        await refreshCard(id);
-        if (d.status !== 'RUNNING' && d.status !== 'PENDING') stopPolling(id);
-        return;
-      }
-      const fill = card.querySelector('.wama-progress-fill');
-      if (fill) fill.style.width = (d.progress || 0) + '%';
-      const txt = card.querySelector('.progress-text');
-      if (txt) txt.textContent = (d.progress || 0) + '%';
-    }, 2500);
+    // L'état de l'ÉLÉMENT : `data-status` porte l'état MONTRÉ (« périmé » sous un élément terminé).
+    const prev = card.dataset.elementStatus || card.dataset.status;
+    if (window.WamaEta) {
+      WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(id, {
+        progress: d.progress,
+        status: d.status,
+        seedSeconds: d.estimated_seconds,
+        modelLoaded: true,
+      }));
+    }
+    if (d.status && d.status !== prev) {
+      // Transition d'état → re-render serveur (source unique du markup)
+      await refreshCard(id);
+      if (d.status !== 'RUNNING' && d.status !== 'PENDING') stopPolling(id);
+      return;
+    }
+    const fill = card.querySelector('.wama-progress-fill');
+    if (fill) fill.style.width = (d.progress || 0) + '%';
+    const txt = card.querySelector('.progress-text');
+    if (txt) txt.textContent = (d.progress || 0) + '%';
   }
 
   function pollRunningCards() {

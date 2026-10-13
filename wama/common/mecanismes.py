@@ -1819,7 +1819,9 @@ MECHANISMS = (
               'wama/common/utils/app_modes.py', 'docs/construction/ui/MODES_QUEUE_UX.md',
               annexes=('wama/common/static/common/js/wama-modes.js',)),
     Mechanism('app_base_js', 'Socle JS des apps',
-              "Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides",
+              "Plomberie commune file/cards : csrfFetch, urls, états vides, et `Poller` — LA boucle "
+              "d'interrogation du navigateur : jamais deux requêtes en vol, muette en onglet caché "
+              "(2026-10-13 ; toute boucle des apps passe par lui, garde `tests_poller_js`)",
               'wama/common/static/common/js/wama-app-base.js', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               symbol='WamaApp'),            # global de base.html : compté par son symbole
     Mechanism('state_presentation', "Présentation des états",

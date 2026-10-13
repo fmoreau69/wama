@@ -33,8 +33,35 @@ document.addEventListener('DOMContentLoaded', function() {
     // (`downloadAllBtn` : const retirée le 2026-08-30 avec son handler — bouton = brique commune.)
     const clearAllBtn = document.getElementById('clearAllBtn');
 
-    // Progress tracking
-    const pollers = new Map();
+    // Progress tracking — boucle COMMUNE `WamaApp.Poller` (2026-10-13 — un `setInterval` local à
+    // la seconde, qui relançait sans attendre la réponse et tournait en onglet caché).
+    const poller = new WamaApp.Poller({
+        urlTemplate: config.urls.progress,
+        interval: 1000,
+        maxFails: Infinity,
+        onError: (id, error) => console.error('Polling error:', error),
+        onData: (id, data) => {
+            const card = document.querySelector(`.wama-card[data-id="${id}"]`);
+            if (!card) { stopPolling(id); return; }
+
+            updateCardStatus(card, data.status, data.progress, data);
+
+            // Update partial result if available
+            if (data.partial_text) {
+                const preview = card.querySelector('.result-preview');
+                if (preview) preview.textContent = data.partial_text.substring(0, 150) + '...';
+            }
+
+            if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
+                stopPolling(id);
+                if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
+                // Transition d'état → re-rendu SERVEUR (source unique du markup). AUSSI en
+                // FAILURE depuis la card v3 (13/08) : l'update en place ciblait .status-badge,
+                // qui n'existe plus — sans re-rendu la card restait affichée « En cours ».
+                refreshCard(card.dataset.id);
+            }
+        },
+    });
 
     // Update max length display
     if (maxLength && maxLengthValue) {
@@ -276,63 +303,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function startPolling(id) {
-        if (pollers.has(id)) return;
+    function startPolling(id) { poller.start(id); }
 
-        const interval = setInterval(async () => {
-            try {
-                const response = await fetch(config.urls.progress.replace('/0/', `/${id}/`), {
-                    headers: {
-                        'X-CSRFToken': config.csrfToken
-                    }
-                });
-
-                const data = await response.json();
-                const card = document.querySelector(`.wama-card[data-id="${id}"]`);
-
-                if (!card) {
-                    stopPolling(id);
-                    return;
-                }
-
-                updateCardStatus(card, data.status, data.progress, data);
-
-                // Update partial result if available
-                if (data.partial_text) {
-                    const preview = card.querySelector('.result-preview');
-                    if (preview) {
-                        preview.textContent = data.partial_text.substring(0, 150) + '...';
-                    }
-                }
-
-                // Stop polling if done
-                if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
-                    stopPolling(id);
-                    if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
-
-                    // Transition d'état → re-rendu SERVEUR (source unique du markup). AUSSI en
-                    // FAILURE depuis la card v3 (13/08) : l'update en place ciblait .status-badge,
-                    // qui n'existe plus — sans re-rendu la card restait affichée « En cours ».
-                    refreshCard(card.dataset.id);
-
-                    updateGlobalProgress();
-                }
-
-            } catch (error) {
-                console.error('Polling error:', error);
-            }
-        }, 1000);
-
-        pollers.set(id, interval);
-    }
-
-    function stopPolling(id) {
-        const interval = pollers.get(id);
-        if (interval) {
-            clearInterval(interval);
-            pollers.delete(id);
-        }
-    }
+    function stopPolling(id) { poller.stop(id); }
 
     function updateCardStatus(card, status, progress, data) {
         // Always show 100% when done
@@ -616,39 +589,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (verifyCoherence) verifyCoherence.checked = false;
     });
 
-    // === Global Progress ===
-
-    async function updateGlobalProgress() {
-        return; // Neutralisé : barre globale + ETA pilotées par la brique commune wama-global-progress.js.
-        try {
-            const response = await fetch(config.urls.globalProgress, {
-                headers: {
-                    'X-CSRFToken': config.csrfToken
-                }
-            });
-
-            const data = await response.json();
-
-            const progressBar = document.getElementById('globalProgressBar');
-            const progressStats = document.getElementById('globalProgressStats');
-            const progressPct = document.getElementById('globalProgressPct');
-            const globalStatus = document.getElementById('globalStatus');
-
-            const p = data.overall_progress || 0;
-            if (progressBar) progressBar.style.width = p + '%';
-            if (progressStats) progressStats.textContent = `${data.success}/${data.total} terminé · ${data.running} en cours`;
-            if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
-            if (progressPct) progressPct.textContent = p ? p + '%' : '';
-            if (globalStatus) {
-                const active = (data.total || 0) > 0;
-                globalStatus.style.opacity = active ? '1' : '0';
-                globalStatus.style.pointerEvents = active ? '' : 'none';
-            }
-
-        } catch (error) {
-            console.error('Global progress error:', error);
-        }
-    }
+    // (Barre globale + ETA : brique commune wama-global-progress.js. La copie locale, neutralisée
+    // par un `return` et pourtant rappelée toutes les 5 s, est retirée le 2026-10-13.)
 
     function updateQueueCount() {
         const cards = document.querySelectorAll('.wama-card');
@@ -664,12 +606,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.WamaApp && WamaApp.toast) WamaApp.toast(message, type);
         else console.info('[Describer]', message);
     }
-
-    // Initial global progress update
-    updateGlobalProgress();
-
-    // Update global progress every 5 seconds
-    setInterval(updateGlobalProgress, 5000);
 
     // ── Batch template download — now served by Django view ───────────────
     // The batchTemplateLink anchor uses href="{% url 'describer:batch_template' %}" directly.

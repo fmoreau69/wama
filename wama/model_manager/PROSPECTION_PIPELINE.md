@@ -284,7 +284,8 @@ Trois écarts trouvés dans la livraison ci-dessus et corrigés dans la foulée 
    un nom figé aurait pourri au prochain remplacement (leçon déjà consignée dans llm_utils).
 2. Le polling JS refaisait une boucle à la main — rebasé sur la brique commune
    `WamaApp.Poller` (wama-app-base.js). NB : `createMirrorBackupUI` (backups, antérieur)
-   garde sa boucle locale — dette préexistante, à rebaser à l'occasion.
+   gardait sa boucle locale — ✅ rebasée le 2026-10-13 avec les autres boucles de la page
+   (relevés mémoire, disque, modèles inactifs), `WAMA_APP_GENERATION_ROUTE §10.2` « `WamaApp.Poller` adopté partout ».
 3. « publication cache + garde tâche vivante » se dupliquait entre `run_mirror_job` /
    `_mirror_job_start` et l'install → EXTRAIT en brique commune
    `common/utils/task_progress.py` (`publier_progression` + `progression_en_cours`),
@@ -323,7 +324,7 @@ le mécanisme le fera sortir dès publication, via le tri TENDANCE.
    réel reste la sélection (indices) puis l'humain.
 
 RESTE (mis à jour) : beat hebdo (Ollama + génération) ; vision (YOLO) auto-proposée ;
-`createMirrorBackupUI` à rebaser sur WamaApp.Poller (dette antérieure) ; chargeur/backends
+~~`createMirrorBackupUI` à rebaser sur WamaApp.Poller~~ (fait le 2026-10-13) ; chargeur/backends
 pour EXPLOITER un modèle diffusion fraîchement installé (installé+catalogué ≠ utilisable,
 cf. note pull_hf_model).
 

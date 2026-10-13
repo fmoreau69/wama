@@ -2674,25 +2674,27 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Auto-refresh memory stats every 10 seconds
-    setInterval(async function() {
-        try {
-            const response = await fetch('{% url "model_manager:api_memory_stats" %}');
-            const data = await response.json();
+    // Auto-refresh memory stats every 10 seconds — boucle COMMUNE `WamaApp.Poller` (2026-10-13 :
+    // les rafraîchissements de fond de cette page étaient des `setInterval`, qui relançaient sans
+    // attendre la réponse et tournaient en onglet caché).
+    new WamaApp.Poller({
+        urlTemplate: () => '{% url "model_manager:api_memory_stats" %}',
+        interval: 10000,
+        maxFails: Infinity,
+        onError: () => { /* Silent fail for background refresh */ },
+        onData: (_key, data) => {
             if (data.success) {
                 updateMemoryDisplay(data.gpu);
                 updateCpuDisplay(data.cpu);
                 updateRamDisplay(data.system);
             }
-        } catch (err) {
-            // Silent fail for background refresh
-        }
-    }, 10000);
+        },
+    }).start('memory');
 
     // Initial load - non-blocking
     loadModels();
     loadBackupStatus();
-    loadDiskSpace();
+    // (L'espace disque : premier relevé par sa boucle commune, plus bas — `immediate`.)
     // La reprise d'affichage des miroirs (modèles / médias) se fait plus bas, juste
     // après la création des deux UI — voir createMirrorBackupUI.
 
@@ -2742,18 +2744,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    async function loadDiskSpace() {
-        try {
-            const response = await fetch('{% url "model_manager:api_disk_space" %}');
-            const data = await response.json();
-            if (data.success && data.disk) {
-                updateDiskDisplay(data.disk);
-            }
-        } catch (err) {
-            console.error('Error loading disk space:', err);
-        }
-    }
-
     async function checkDiskSpaceForDownload(requiredGb, safetyMarginGb = 5) {
         try {
             const response = await fetch(
@@ -2767,8 +2757,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Refresh disk space every 30 seconds
-    setInterval(loadDiskSpace, 30000);
+    // Disk space : relevé au chargement puis toutes les 30 s (boucle commune `WamaApp.Poller`)
+    new WamaApp.Poller({
+        urlTemplate: () => '{% url "model_manager:api_disk_space" %}',
+        interval: 30000,
+        immediate: true,
+        maxFails: Infinity,
+        onError: (_key, err) => console.error('Error loading disk space:', err),
+        onData: (_key, data) => { if (data.success && data.disk) updateDiskDisplay(data.disk); },
+    }).start('disk');
 
     // =========================================================================
     // Memory Management Functions
@@ -2839,41 +2836,39 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    async function loadIdleModels() {
-        try {
-            const response = await fetch('{% url "model_manager:api_idle_models" %}?threshold=300');
-            const data = await response.json();
-            if (data.success) {
-                updateIdleModels(data.idle_models);
-            }
-        } catch (err) {
-            console.error('Error loading idle models:', err);
-        }
-    }
+    // Modèles inactifs, mémoire du processus, modèles suivis : relevés au chargement puis toutes
+    // les 15 s par UNE boucle commune `WamaApp.Poller`, une clé par relevé (2026-10-13 — trois
+    // chargeurs `fetch` rappelés par un `setInterval`, sans attendre la réponse, en onglet caché).
+    // Un geste qui change l'état (décharger un modèle) redemande un tour : `load…()` = `poke`.
+    const MEMORY_DETAIL = {
+        idle: {
+            url: '{% url "model_manager:api_idle_models" %}?threshold=300',
+            apply: (data) => updateIdleModels(data.idle_models),
+        },
+        detailed: {
+            url: '{% url "model_manager:api_memory_detailed" %}',
+            apply: (data) => { document.getElementById('process-rss').textContent = WamaApp.formatSize(data.ram.process_rss_gb, 'GB'); },
+        },
+        tracked: {
+            url: '{% url "model_manager:api_tracked_models" %}',
+            apply: (data) => { document.getElementById('tracked-total').textContent = WamaApp.formatSize(data.total_tracked_mb, 'MB'); },
+        },
+    };
+    const memoryDetailPoller = new WamaApp.Poller({
+        urlTemplate: (key) => MEMORY_DETAIL[key].url,
+        interval: 15000,
+        immediate: true,
+        maxFails: Infinity,
+        onError: (key, err) => console.error(`Error loading ${key} memory data:`, err),
+        onData: (key, data) => { if (data.success) MEMORY_DETAIL[key].apply(data); },
+    });
+    Object.keys(MEMORY_DETAIL).forEach((key) => memoryDetailPoller.start(key));
 
-    async function loadDetailedMemory() {
-        try {
-            const response = await fetch('{% url "model_manager:api_memory_detailed" %}');
-            const data = await response.json();
-            if (data.success) {
-                document.getElementById('process-rss').textContent = WamaApp.formatSize(data.ram.process_rss_gb, 'GB');
-            }
-        } catch (err) {
-            console.error('Error loading detailed memory:', err);
-        }
-    }
+    function loadIdleModels() { memoryDetailPoller.poke('idle'); }
 
-    async function loadTrackedModels() {
-        try {
-            const response = await fetch('{% url "model_manager:api_tracked_models" %}');
-            const data = await response.json();
-            if (data.success) {
-                document.getElementById('tracked-total').textContent = WamaApp.formatSize(data.total_tracked_mb, 'MB');
-            }
-        } catch (err) {
-            console.error('Error loading tracked models:', err);
-        }
-    }
+    function loadDetailedMemory() { memoryDetailPoller.poke('detailed'); }
+
+    function loadTrackedModels() { memoryDetailPoller.poke('tracked'); }
 
     async function unloadModelById(modelId) {
         showLoading('Unloading model...');
@@ -2986,7 +2981,30 @@ document.addEventListener('DOMContentLoaded', function() {
     // =========================================================================
 
     function createMirrorBackupUI(cfg) {
-        let timer = null;
+        // Suivi : boucle COMMUNE `WamaApp.Poller` (2026-10-13 — un `setInterval` local, la dette
+        // « à rebaser sur WamaApp.Poller » de `PROSPECTION_PIPELINE.md`). `poll()` relève l'état ;
+        // la boucle continue tant qu'une sauvegarde tourne, puis dit la fin (`onFinish`).
+        let following = false;
+        const poller = new WamaApp.Poller({
+            urlTemplate: () => cfg.progressUrl,
+            interval: 3000,
+            immediate: true,
+            maxFails: Infinity,
+            onError: () => { /* Silencieux : le polling reprendra au prochain tour / rechargement. */ },
+            onData: (_key, data) => {
+                // Un avancement encore en cache prime ; sinon, le bilan de la dernière exécution.
+                render(data.progress, data.last);
+                if (data.progress && data.progress.state === 'RUNNING') {
+                    following = true;
+                    return;
+                }
+                poller.stop('mirror');
+                if (following) {
+                    following = false;
+                    if (cfg.onFinish) cfg.onFinish();
+                }
+            },
+        });
 
         // `last` (2026-09-30) : bilan de la dernière exécution TERMINÉE, sans expiration. Sans
         // lui, la ligne s'effaçait 24 h après une sauvegarde lancée à la main.
@@ -3038,23 +3056,9 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById(cfg.prefix + '-current').textContent = p.current || '';
         }
 
-        async function poll() {
-            try {
-                const response = await fetch(cfg.progressUrl);
-                const data = await response.json();
-                // Un avancement encore en cache prime ; sinon, le bilan de la dernière exécution.
-                render(data.progress, data.last);
-
-                if (data.progress && data.progress.state === 'RUNNING') {
-                    if (!timer) timer = setInterval(poll, 3000);
-                } else if (timer) {
-                    clearInterval(timer);
-                    timer = null;
-                    if (cfg.onFinish) cfg.onFinish();
-                }
-            } catch (err) {
-                // Silencieux : le polling reprendra au prochain tick / rechargement.
-            }
+        function poll() {
+            if (poller.has('mirror')) poller.poke('mirror');
+            else poller.start('mirror');
         }
 
         async function start() {
@@ -3193,16 +3197,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initial load of memory management data
     loadCleanerStatus();
-    loadIdleModels();
-    loadDetailedMemory();
-    loadTrackedModels();
-
-    // Refresh memory data every 15 seconds
-    setInterval(() => {
-        loadIdleModels();
-        loadDetailedMemory();
-        loadTrackedModels();
-    }, 15000);
+    // (Modèles inactifs, mémoire détaillée, modèles suivis : leur boucle commune les relève au
+    // chargement — `memoryDetailPoller`, `immediate`.)
 });
 </script>
 {% endblock %}

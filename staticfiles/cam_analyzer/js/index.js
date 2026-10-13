@@ -44,7 +44,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Phase 2 state
-    let pollingInterval = null;
+    // Suivi du statut d'analyse — boucle COMMUNE `WamaApp.Poller` (2026-10-13 : c'était un
+    // `setInterval`, qui relançait sans attendre la réponse et tournait en onglet caché).
+    const statusPoller = new WamaApp.Poller({
+        urlTemplate: (sessionId) => `${config.urls.sessionStatus}${sessionId}/status/`,
+        interval: 2000,
+        maxFails: Infinity,
+        onError: (sessionId, e) => console.error('Error polling status:', e),
+        onData: (sessionId, data) => onSessionStatus(sessionId, data),
+    });
     let detectionData = {};    // { position: { fps, width, height, frames: [{frame_number, timestamp, detections}] } }
     let lastSam3TestOverlay = null;  // { time, res } — overlay du dernier 🔬 Test SAM3 (persistant)
     let lastRoadMask = {};           // position → derniers road_mask connus (overlay route persistant)
@@ -140,8 +148,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     // Saisies du panneau Calibration REMPLACÉES par une mesure (⚑ measured_camera_yaw /
     // measured_camera_fov, mêmes conditions que ci-dessus) : la valeur appliquée s'affiche à côté,
-    // et la saisie est grisée quand elle ne sert plus à aucune caméra. Elle reste enregistrée :
-    // c'est elle qui revient si la bascule est coupée ou la mesure jugée inapplicable.
+    // et la saisie est BARRÉE (jamais `disabled` : le thème la rendait blanc sur blanc, 2026-10-13)
+    // quand elle ne sert plus à aucune caméra. Elle reste éditable et enregistrée : c'est elle qui
+    // revient si la bascule est coupée ou la mesure jugée inapplicable.
     function markMeasuredCalibInputs() {
         const mark = (inp, note, unused) => {
             if (!inp) return;
@@ -154,7 +163,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (inp.dataset.titleTyped === undefined) inp.dataset.titleTyped = inp.title || '';
             s.textContent = note;
             s.classList.toggle('d-none', !note);
-            inp.disabled = !!unused;
+            inp.style.textDecoration = unused ? 'line-through' : '';
+            inp.style.opacity = unused ? '0.6' : '';
             inp.title = note ? `Saisie remplacée par la mesure (${note.replace('→ ', '')}) — `
                                + 'elle revient si la bascule « MESURÉ » est coupée.'
                              : inp.dataset.titleTyped;
@@ -1192,7 +1202,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Des passes tournent (ou une chaîne attend en file) sans que CETTE page les suive —
             // page rechargée en cours de chaîne, lancement depuis un autre onglet : suivre. Sans
             // cela le panneau restait sur l'instantané du chargement jusqu'au rafraîchissement.
-            if (!passesPollTimer && (calcChainQueued || _passes.some(p => passStatus(p) === 'RUNNING'))) {
+            if (!passesPoller.has('passes') && (calcChainQueued || _passes.some(p => passStatus(p) === 'RUNNING'))) {
                 startPassesPolling();
             }
             return data.passes || [];
@@ -1211,57 +1221,65 @@ document.addEventListener('DOMContentLoaded', function () {
     // surveille donc les passes elles-mêmes jusqu'à ce qu'aucune ne soit 'running',
     // avec une période de grâce (la tâche Celery peut mettre quelques secondes à
     // démarrer et à poser son état running).
-    let passesPollTimer = null;
-    function stopPassesPolling() {
-        if (passesPollTimer) { clearInterval(passesPollTimer); passesPollTimer = null; }
-    }
+    // La boucle est la boucle COMMUNE `WamaApp.Poller` (2026-10-13 : c'était un `setInterval`,
+    // qui relançait sans attendre la réponse et tournait en onglet caché) ; son tour est le
+    // chargeur du panneau lui-même (`request`), qui re-rend et rend l'état frais des passes.
+    let passesTrack = { seenRunning: false, ticks: 0, idleTicks: 0 };
+    const passesPoller = new WamaApp.Poller({
+        request: () => (currentSessionId ? loadPipelinePanel() : null),
+        interval: 2500,
+        maxFails: Infinity,
+        onData: (_key, passes) => onPassesTick(passes),
+    });
+    function stopPassesPolling() { passesPoller.stopAll(); }
     let calcChainQueued = false;   // verrou serveur : une chaîne ▶ Calculs est en file ou en cours
     const passSelection = new Set();   // passes cochées (« ▶ sélection » de chaque étage), gardées entre re-rendus
     function startPassesPolling() {
         stopPassesPolling();
-        let seenRunning = false, ticks = 0, idleTicks = 0;
-        passesPollTimer = setInterval(async () => {
-            if (!currentSessionId) { stopPassesPolling(); return; }
-            ticks += 1;
-            const passes = await loadPipelinePanel();   // re-render + état frais
-            if (passes === null) return;                // erreur transitoire → on réessaie
-            // Une chaîne encore EN FILE (derrière une autre tâche du worker GPU) n'a aucune passe
-            // « running » : sans ce test, le suivi s'arrêtait au bout de ~10 s et le panneau
-            // invitait à relancer — d'où deux chaînes entrelacées (2026-09-29).
-            if (passes.some(p => passStatus(p) === 'RUNNING') || calcChainQueued) { seenRunning = true; idleTicks = 0; return; }
-            // Entre deux passes d'une chaîne, AUCUNE n'est « running » le temps que la suivante
-            // démarre : un seul relevé inactif arrêtait le suivi en pleine chaîne. On en exige 3
-            // consécutifs (~7,5 s).
-            idleTicks += 1;
-            if ((seenRunning && idleTicks >= 3) || (!seenRunning && ticks >= 4)) {   // fini (ou jamais démarré)
-                stopPassesPolling();
-                loadAllDetections(currentSessionId);    // données ré-annotées fraîches
-                loadSessions();
-                setRightPanelExportsEnabled(true);
-                // Données DÉRIVÉES du tracking (ancres, stationnés, couverture) : re-fetch
-                // léger du payload session — sans réinitialiser lecteurs/vidéos.
-                try {
-                    const r = await fetch(`${config.urls.getSession}${currentSessionId}/`);
-                    const d = await r.json();
-                    stationaryGids = new Set((d.results_summary && d.results_summary.stationary_global_tracks) || []);
-                    sessionBranches = (d.results_summary && d.results_summary.intersection_branches) || {};
-                    sessionMarkings = (d.results_summary && d.results_summary.intersection_markings) || {};
-                    orthoMarkings = (d.results_summary && d.results_summary.ortho_markings) || {};
-                    orthoRecalage = (d.results_summary && d.results_summary.ortho_recalage) || null;
-                    orthoCorrection = (d.results_summary && d.results_summary.ortho_correction) || null;
-                    shuttleFilter = (d.results_summary && d.results_summary.shuttle_filter) || null;
-                    laneMapRecalage = (d.results_summary && d.results_summary.lane_map_recalage) || null;
-                    gpsLatency = (d.results_summary && d.results_summary.visual_yaw
-                                  && d.results_summary.visual_yaw.gps_latency) || null;
-                    stationaryAnchors = (d.results_summary && d.results_summary.stationary_anchors) || {};
-                    sessionAnalyzedRanges = (d.config && d.config.analyzed_ranges) || {};
-                    // Corrections de trajectoire fraîches → ré-ingérer la trace (sinon la carte gardait
-                    // l'ancienne jusqu'au rechargement de la page). Vue conservée.
-                    renderMiniMap(rawGpsTrack, lastMiniMapWindows, { keepView: true });
-                    topDownLastRender = -999; updateMiniMapShuttle(playheadT());
-                } catch (e) { /* prochaine sélection de session fera foi */ }
-            }
-        }, 2500);
+        passesTrack = { seenRunning: false, ticks: 0, idleTicks: 0 };
+        passesPoller.start('passes');
+    }
+    async function onPassesTick(passes) {
+        if (!currentSessionId) { stopPassesPolling(); return; }
+        const tr = passesTrack;
+        tr.ticks += 1;
+        if (passes === null) return;                // erreur transitoire → on réessaie
+        // Une chaîne encore EN FILE (derrière une autre tâche du worker GPU) n'a aucune passe
+        // « running » : sans ce test, le suivi s'arrêtait au bout de ~10 s et le panneau
+        // invitait à relancer — d'où deux chaînes entrelacées (2026-09-29).
+        if (passes.some(p => passStatus(p) === 'RUNNING') || calcChainQueued) { tr.seenRunning = true; tr.idleTicks = 0; return; }
+        // Entre deux passes d'une chaîne, AUCUNE n'est « running » le temps que la suivante
+        // démarre : un seul relevé inactif arrêtait le suivi en pleine chaîne. On en exige 3
+        // consécutifs (~7,5 s).
+        tr.idleTicks += 1;
+        if ((tr.seenRunning && tr.idleTicks >= 3) || (!tr.seenRunning && tr.ticks >= 4)) {   // fini (ou jamais démarré)
+            stopPassesPolling();
+            loadAllDetections(currentSessionId);    // données ré-annotées fraîches
+            loadSessions();
+            setRightPanelExportsEnabled(true);
+            // Données DÉRIVÉES du tracking (ancres, stationnés, couverture) : re-fetch
+            // léger du payload session — sans réinitialiser lecteurs/vidéos.
+            try {
+                const r = await fetch(`${config.urls.getSession}${currentSessionId}/`);
+                const d = await r.json();
+                stationaryGids = new Set((d.results_summary && d.results_summary.stationary_global_tracks) || []);
+                sessionBranches = (d.results_summary && d.results_summary.intersection_branches) || {};
+                sessionMarkings = (d.results_summary && d.results_summary.intersection_markings) || {};
+                orthoMarkings = (d.results_summary && d.results_summary.ortho_markings) || {};
+                orthoRecalage = (d.results_summary && d.results_summary.ortho_recalage) || null;
+                orthoCorrection = (d.results_summary && d.results_summary.ortho_correction) || null;
+                shuttleFilter = (d.results_summary && d.results_summary.shuttle_filter) || null;
+                laneMapRecalage = (d.results_summary && d.results_summary.lane_map_recalage) || null;
+                gpsLatency = (d.results_summary && d.results_summary.visual_yaw
+                              && d.results_summary.visual_yaw.gps_latency) || null;
+                stationaryAnchors = (d.results_summary && d.results_summary.stationary_anchors) || {};
+                sessionAnalyzedRanges = (d.config && d.config.analyzed_ranges) || {};
+                // Corrections de trajectoire fraîches → ré-ingérer la trace (sinon la carte gardait
+                // l'ancienne jusqu'au rechargement de la page). Vue conservée.
+                renderMiniMap(rawGpsTrack, lastMiniMapWindows, { keepView: true });
+                topDownLastRender = -999; updateMiniMapShuttle(playheadT());
+            } catch (e) { /* prochaine sélection de session fera foi */ }
+        }
     }
 
     async function runPasses(types, force) {
@@ -1924,61 +1942,49 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function startStatusPolling(sessionId) {
         stopStatusPolling();
-        pollingInterval = setInterval(() => pollSessionStatus(sessionId), 2000);
+        statusPoller.start(sessionId);
     }
 
-    function stopStatusPolling() {
-        if (pollingInterval) {
-            clearInterval(pollingInterval);
-            pollingInterval = null;
+    function stopStatusPolling() { statusPoller.stopAll(); }
+
+    function onSessionStatus(sessionId, data) {
+        const pct = Math.round(data.progress || 0);
+        progressBar.style.width = `${pct}%`;
+        progressPercent.textContent = `${pct}%`;
+        if (data.status_message) {
+            progressLabel.textContent = data.status_message;
         }
-    }
 
-    async function pollSessionStatus(sessionId) {
-        try {
-            const resp = await fetch(`${config.urls.sessionStatus}${sessionId}/status/`);
-            const data = await resp.json();
-
-            const pct = Math.round(data.progress || 0);
-            progressBar.style.width = `${pct}%`;
-            progressPercent.textContent = `${pct}%`;
-            if (data.status_message) {
-                progressLabel.textContent = data.status_message;
-            }
-
-            if (data.intersection_windows) {
-                renderIntersectionWindows(data.intersection_windows);
-            }
-
-            if (data.status === 'completed') {
-                stopStatusPolling();
-                hideProgress();
-                showResults(data.results_summary);
-                loadAllDetections(sessionId);
-                loadSessions(); // refresh table
-                setRightPanelExportsEnabled(true);
-                loadPipelinePanel();
-            } else if (data.status === 'paused') {
-                // Proposition C — cancel maps to PAUSED. Partial data is
-                // viewable ; the user can resume or just inspect what's done.
-                stopStatusPolling();
-                hideProgress();
-                showResults(data.results_summary);  // rapport partiel (données conservées)
-                loadAllDetections(sessionId);
-                loadSessions();
-                setRightPanelExportsEnabled(true);
-                loadPipelinePanel();
-            } else if (data.status === 'failed') {
-                stopStatusPolling();
-                hideProgress();
-                alert('Analyse échouée: ' + (data.error_message || 'Erreur inconnue'));
-                loadSessions();
-            }
-            // En cours (processing/pending) : on ne touche PAS au rapport — le dernier
-            // rapport généré (results_summary du run précédent) reste affiché tel quel.
-        } catch (e) {
-            console.error('Error polling status:', e);
+        if (data.intersection_windows) {
+            renderIntersectionWindows(data.intersection_windows);
         }
+
+        if (data.status === 'completed') {
+            stopStatusPolling();
+            hideProgress();
+            showResults(data.results_summary);
+            loadAllDetections(sessionId);
+            loadSessions(); // refresh table
+            setRightPanelExportsEnabled(true);
+            loadPipelinePanel();
+        } else if (data.status === 'paused') {
+            // Proposition C — cancel maps to PAUSED. Partial data is
+            // viewable ; the user can resume or just inspect what's done.
+            stopStatusPolling();
+            hideProgress();
+            showResults(data.results_summary);  // rapport partiel (données conservées)
+            loadAllDetections(sessionId);
+            loadSessions();
+            setRightPanelExportsEnabled(true);
+            loadPipelinePanel();
+        } else if (data.status === 'failed') {
+            stopStatusPolling();
+            hideProgress();
+            alert('Analyse échouée: ' + (data.error_message || 'Erreur inconnue'));
+            loadSessions();
+        }
+        // En cours (processing/pending) : on ne touche PAS au rapport — le dernier
+        // rapport généré (results_summary du run précédent) reste affiché tel quel.
     }
 
     // =========================================================================
@@ -2718,11 +2724,14 @@ document.addEventListener('DOMContentLoaded', function () {
         { scope: 'hybrid', mark: ' ◐', label: '◐ Immédiat en partie — objets suivis au prochain tracking', open: false,
           hint: 'La page applique tout de suite ce qu’elle peut recomposer (la navette, depuis un calcul '
                 + 'déjà stocké, et les objets non suivis). Les objets suivis gardent l’état du dernier '
-                + '« Tracking 360° » jusqu’au prochain : pour comparer les objets, relancer le tracking.',
+                + '« Tracking 360° », qui passe « périmé » : « Compléter les passes » le relance.',
           rowHint: ' — ◐ immédiat sur la navette et les objets non suivis ; objets suivis au prochain « Tracking 360° ».' },
         { scope: 'compute', mark: ' ⟳', label: '⟳ Calcul — à relancer', open: false,
-          hint: 'Aucun effet avant le recalcul : « Compléter les passes » relance ce qui est périmé.',
-          rowHint: ' — ⟳ aucun effet avant le recalcul (« Compléter les passes »).' },
+          hint: 'Aucun effet avant le recalcul. Changer une bascule périme le « Tracking 360° » (et les '
+                + 'Indicateurs) : « Compléter les passes » les relance. Exceptions, à relancer à la main : '
+                + 'le biais GPS lissé (passe « Recalage voie + carte ») et l’arbitrage des labels SAM3 '
+                + '(passe « Marquages SAM3 »).',
+          rowHint: ' — ⟳ aucun effet avant le recalcul (le Tracking 360° passe « périmé »).' },
     ];
     const FEAT_GROUPS_OPEN_KEY = 'cam_analyzer_feat_groups_open';
     function featGroupsOpen() {
@@ -4841,7 +4850,18 @@ document.addEventListener('DOMContentLoaded', function () {
     // RTMaps Upload
     // =========================================================================
 
-    let rtmapsPollingTimer = null;
+    // Suivi de l'extraction — boucle COMMUNE `WamaApp.Poller` (2026-10-13 : c'était un
+    // `setInterval`, qui relançait sans attendre la réponse et tournait en onglet caché).
+    const rtmapsPoller = new WamaApp.Poller({
+        urlTemplate: () => (currentSessionId
+            ? `${config.urls.rtmapsStatus}${currentSessionId}/rtmaps/status/` : null),
+        interval: 2000,
+        maxFails: Infinity,
+        onError: (_key, e) => console.error('[RTMaps] polling error:', e),
+        onData: (_key, data) => onRtmapsStatus(data),
+    });
+    function startRtmapsPolling() { rtmapsPoller.stopAll(); rtmapsPoller.start('rtmaps'); }
+    function stopRtmapsPolling() { rtmapsPoller.stopAll(); }
 
     function updateRtmapsPanel() {
         const panel = document.getElementById('rtmapsPanel');
@@ -4881,43 +4901,33 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             // Start polling extraction status
-            clearInterval(rtmapsPollingTimer);
-            rtmapsPollingTimer = setInterval(() => pollRtmapsStatus(), 2000);
+            startRtmapsPolling();
         } catch (e) {
             console.error('[RTMaps] upload error:', e);
             extractBtn.disabled = false;
         }
     }
 
-    async function pollRtmapsStatus() {
-        if (!currentSessionId) return;
-        try {
-            const resp = await fetch(`${config.urls.rtmapsStatus}${currentSessionId}/rtmaps/status/`);
-            const data = await resp.json();
-            setRtmapsProgress(data.progress || 0, data.status_message || '');
+    function onRtmapsStatus(data) {
+        setRtmapsProgress(data.progress || 0, data.status_message || '');
 
-            if (data.session_status === 'completed' || data.session_status === 'failed' ||
-                data.progress >= 100) {
-                clearInterval(rtmapsPollingTimer);
-                rtmapsPollingTimer = null;
-                document.getElementById('rtmapsExtractBtn').disabled = false;
-                document.getElementById('rtmapsAviImportBtn').disabled = false;
-                if (data.session_status === 'failed') {
-                    setRtmapsProgress(0, 'Extraction echouee');
-                } else if (data.progress >= 100) {
-                    setRtmapsProgress(100, 'Extraction terminee');
-                    // Reload session to show extracted cameras
-                    setTimeout(() => loadSession(currentSessionId), 1000);
-                }
+        if (data.session_status === 'completed' || data.session_status === 'failed' ||
+            data.progress >= 100) {
+            stopRtmapsPolling();
+            document.getElementById('rtmapsExtractBtn').disabled = false;
+            document.getElementById('rtmapsAviImportBtn').disabled = false;
+            if (data.session_status === 'failed') {
+                setRtmapsProgress(0, 'Extraction echouee');
+            } else if (data.progress >= 100) {
+                setRtmapsProgress(100, 'Extraction terminee');
+                // Reload session to show extracted cameras
+                setTimeout(() => loadSession(currentSessionId), 1000);
             }
-            // If YOLO analysis started, switch to normal polling
-            if (data.session_status === 'processing' || data.session_status === 'pending') {
-                clearInterval(rtmapsPollingTimer);
-                rtmapsPollingTimer = null;
-                startStatusPolling(currentSessionId);
-            }
-        } catch (e) {
-            console.error('[RTMaps] polling error:', e);
+        }
+        // If YOLO analysis started, switch to normal polling
+        if (data.session_status === 'processing' || data.session_status === 'pending') {
+            stopRtmapsPolling();
+            startStatusPolling(currentSessionId);
         }
     }
 
@@ -4980,8 +4990,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (progressDiv) progressDiv.style.display = 'none';
                 return;
             }
-            clearInterval(rtmapsPollingTimer);
-            rtmapsPollingTimer = setInterval(() => pollRtmapsStatus(), 2000);
+            startRtmapsPolling();
         } catch (e) {
             console.error('[QuadratureAVI] upload error:', e);
             btn.disabled = false;
@@ -5571,7 +5580,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // les détections fraîches de la zone visible sont fusionnées dans detectionData
         // (les trous se comblent visuellement pendant la lecture). Les gid/indicateurs
         // complets arrivent au prochain « Calculer les indicateurs ».
-        let liveMode = false, liveCursorTimer = null, liveMergeTimer = null;
+        let liveMode = false;
         const _liveSendCursor = async (enabled) => {
             if (!currentSessionId) return;
             try {
@@ -5613,6 +5622,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 } catch (e) { /* tick suivant */ }
             }
         };
+        // Les deux battements du Live — boucles COMMUNES `WamaApp.Poller` par leur tour (`request`)
+        // (2026-10-13 : deux `setInterval`, qui relançaient sans attendre et tournaient en onglet
+        // caché ; caché, le Live se tait — aucune analyse d'avance pour une vue que personne ne
+        // regarde — et reprend d'un tour au retour).
+        const liveCursorPoller = new WamaApp.Poller({
+            request: () => _liveSendCursor(true), interval: 1200, maxFails: Infinity,
+            onError: () => { /* réseau : réessaiera au tour suivant */ },
+        });
+        const liveMergePoller = new WamaApp.Poller({
+            request: _liveMergeFresh, interval: 3000, maxFails: Infinity,
+            onError: () => { /* tour suivant */ },
+        });
         const _lab = document.getElementById('liveAnalysisBtn');
         if (_lab) _lab.onclick = () => {
             liveMode = !liveMode;
@@ -5621,11 +5642,11 @@ document.addEventListener('DOMContentLoaded', function () {
             _lab.classList.toggle('btn-outline-warning', !liveMode);
             if (liveMode) {
                 _liveSendCursor(true);
-                liveCursorTimer = setInterval(() => _liveSendCursor(true), 1200);
-                liveMergeTimer = setInterval(_liveMergeFresh, 3000);
+                liveCursorPoller.start('live');
+                liveMergePoller.start('live');
             } else {
-                clearInterval(liveCursorTimer); clearInterval(liveMergeTimer);
-                liveCursorTimer = liveMergeTimer = null;
+                liveCursorPoller.stopAll();
+                liveMergePoller.stopAll();
                 _liveSendCursor(false);
                 // L'arrêt explicite déclenche côté serveur l'ENCHAÎNEMENT AUTO du
                 // tracking 360° (gids + trajectoires lissées, ~90 s) — le poller de

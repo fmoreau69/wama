@@ -307,77 +307,47 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Auto-refresh progress
-    setInterval(async () => {
-        // Lu sur `data-status` : la classe `.processing` a été retirée des cards le 2026-09-18
-        // (le CSS lit l'attribut) — ce sélecteur ne trouvait plus rien, aucune card en cours
-        // n'était suivie (vu par le geste `synthesizer.worker_death`, 2026-09-24).
-        const runningCards = document.querySelectorAll(
-            '.synthesis-card[data-status="RUNNING"], .synthesis-card[data-status="AWAITING_RESOURCES"]');
+    // Suivi des cards en cours — boucle COMMUNE `WamaApp.Poller`, une par card (2026-10-13 : c'était
+    // un `setInterval` local qui relisait les cards du DOM toutes les 2 s, l'une après l'autre,
+    // sans attendre la fin du tour précédent et en onglet caché). Chaque geste de lancement
+    // RECHARGE la page (▶, lot, modale) : les cards en cours se lisent donc au chargement.
+    // Lu sur `data-status` : la classe `.processing` a été retirée des cards le 2026-09-18
+    // (le CSS lit l'attribut) — vu par le geste `synthesizer.worker_death`, 2026-09-24.
+    const RUNNING_CARDS = '.synthesis-card[data-status="RUNNING"], .synthesis-card[data-status="AWAITING_RESOURCES"]';
+    const cardPoller = new WamaApp.Poller({
+        urlTemplate: (id) => URLS.progress + id + '/',
+        interval: 2000,
+        maxFails: Infinity,
+        onError: (id, error) => console.error('Progress update error:', error),
+        onData: async (id, data) => {
+            const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
+            if (!card) { cardPoller.stop(id); return; }
 
-        for (const card of runningCards) {
-            const id = card.dataset.id;
-            try {
-                const response = await fetch(URLS.progress + id + '/');
-                const data = await response.json();
-
-                // Update progress bar
-                const progressBar = card.querySelector('.wama-progress-fill');
-                const progressText = card.querySelector('.progress-text');
-                if (progressBar) {
-                    progressBar.style.width = data.progress + '%';
-                    progressBar.classList.add('active');
-                }
-                if (progressText) progressText.textContent = data.progress + '%';
-                if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(card.dataset.id, { progress: data.progress, status: data.status, seedSeconds: data.estimated_seconds, modelLoaded: false }));
-
-                // Update card in-place on completion — no full page reload
-                // (a full reload interrupts audio preview and reloads the slow FileManager)
-                if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
-                    // Card redemandée par la brique commune (WamaApp.fetchCard, portage
-                    // 2026-09-22 — la copie en ligne du fetch + parse vivait ici).
-                    const newCard = await WamaApp.fetchCard(URLS.cardHtml, id);
-                    if (newCard) card.replaceWith(newCard);
-                    if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
-                }
-            } catch (error) {
-                console.error('Progress update error:', error);
+            const progressBar = card.querySelector('.wama-progress-fill');
+            const progressText = card.querySelector('.progress-text');
+            if (progressBar) {
+                progressBar.style.width = data.progress + '%';
+                progressBar.classList.add('active');
             }
-        }
-    }, 2000);
+            if (progressText) progressText.textContent = data.progress + '%';
+            if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(id, { progress: data.progress, status: data.status, seedSeconds: data.estimated_seconds, modelLoaded: false }));
 
-    // Auto-refresh global progress
-    async function updateGlobalProgress() {
-        return; // Neutralisé : barre globale + ETA pilotées par la brique commune wama-global-progress.js.
-        try {
-            const response = await fetch(URLS.globalProgress);
-            const data = await response.json();
-
-            const globalProgressBar = document.getElementById('globalProgressBar');
-            const globalProgressText = document.getElementById('globalProgressText');
-            const globalProgressStats = document.getElementById('globalProgressStats');
-            const globalStatus = document.getElementById('globalStatus');
-
-            const p = data.overall_progress || 0;   // contrat commun (31/08 — repli legacy retiré au nettoyage)
-            if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
-            if (globalProgressBar) globalProgressBar.style.width = p + '%';
-            if (globalProgressText) globalProgressText.textContent = p ? p + '%' : '';
-            if (globalProgressStats) {
-                globalProgressStats.textContent = `${data.done}/${data.total} terminé · ${data.running} en cours${data.failed > 0 ? ` · ${data.failed} échoué` : ''}`;
+            // Update card in-place on completion — no full page reload
+            // (a full reload interrupts audio preview and reloads the slow FileManager)
+            if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
+                cardPoller.stop(id);
+                // Card redemandée par la brique commune (WamaApp.fetchCard, portage
+                // 2026-09-22 — la copie en ligne du fetch + parse vivait ici).
+                const newCard = await WamaApp.fetchCard(URLS.cardHtml, id);
+                if (newCard) card.replaceWith(newCard);
+                if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
             }
-            if (globalStatus) {
-                const active = (data.total || 0) > 0;
-                globalStatus.style.opacity = active ? '1' : '0';
-                globalStatus.style.pointerEvents = active ? '' : 'none';
-            }
-        } catch (error) {
-            console.error('Global progress update error:', error);
-        }
-    }
+        },
+    });
+    document.querySelectorAll(RUNNING_CARDS).forEach((card) => cardPoller.start(card.dataset.id));
 
-    // Update global progress every 2 seconds
-    updateGlobalProgress();
-    setInterval(updateGlobalProgress, 2000);
+    // (Barre globale + ETA : brique commune wama-global-progress.js. La copie locale, neutralisée
+    // par un `return` et pourtant rappelée toutes les 2 s, est retirée le 2026-10-13.)
 
     // Soumission via le bouton primaire de la card d'entrée COMMUNE : brique commune
     // `WamaApp.addToQueue` (portage 2026-10-01) — bouton « Envoi… », refus dit, toast. Le texte

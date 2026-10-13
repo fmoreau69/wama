@@ -1558,6 +1558,21 @@ spécificité, c'est la trace de cette brique non adoptée. Il disparaîtra à m
 et `WamaApp.emptyState`, adopté par 1 app avant que le converter ne le rejoigne, est le suivant
 sur la même liste.
 
+> ✅ **`WamaApp.Poller` ADOPTÉ PARTOUT (2026-10-13)** — constat de Fabien (Imager figé, modales
+> ouvertes « d'un coup ») : les boucles relançaient sans attendre la réponse et tournaient en
+> onglet caché. La brique tient désormais deux règles — **jamais deux requêtes d'un poller en
+> vol** (le tour suivant part à la réponse) et **rien en onglet caché** (un tour au retour) — plus
+> `request(id) → Promise` pour un tour qui n'est pas un GET JSON (POST, plusieurs appels, un
+> chargeur qui rend lui-même) et l'attente d'un `onData` asynchrone. Portés dessus : les 10 apps
+> Médias, le studio, le gestionnaire de fichiers, le model manager (dont la dette
+> `createMirrorBackupUI`), le cam_analyzer, et les briques communes (barres de file — UNE boucle
+> par endpoint —, console, pied de page, suivi « pendant »). Les copies « de repli si WamaApp
+> absent » (enhancer, reader) et les `updateGlobalProgress` neutralisées (4 apps) sont retirées.
+> **Garde : `tests_poller_js.EveryPollingLoopIsTheCommonOneTest`** — tout `setInterval` restant
+> du code des apps est déclaré avec sa raison (aucun n'interroge le serveur en boucle rapide) ;
+> la liste ne peut que descendre. Le générateur garde un balayage DOM (`_pollRunning`, sans
+> requête) qui confie les cards lancées ailleurs au Poller.
+
 ### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB) + `identity`/`ports`/`capabilities`/`studio`/`modes`/`prompts`/`params` ✅ (2026-08-11) + `inspector` ✅ (A3) + `tool_api` ✅ (A4) ; `processing` = projection PARTIELLE assumée (urls comparable ; tasks A2b et models A5 en CREATE-ONLY — les corps/champs restants = marche B)
 
 > ✅ **MARCHE B1 CLOSE (2026-09-02 soir)** — le corps des tâches se COMPOSE depuis le

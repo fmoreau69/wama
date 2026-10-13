@@ -11,9 +11,11 @@ Ce que ces tests tiennent, pour toutes les boucles qui passent par la brique :
   * jamais deux requêtes du même poller en vol — le tour suivant part APRÈS la réponse ;
   * onglet caché → aucune requête ; au retour au premier plan, un tour immédiat ;
   * un arrêt décidé DANS `onData` n'est pas annulé par la reprogrammation ;
-  * deux barres de file sur le MÊME endpoint (images + vidéos de l'Imager) → UN appel par tour.
+  * deux barres de file sur le MÊME endpoint (images + vidéos de l'Imager) → UN appel par tour ;
+  * aucune app n'interroge le serveur par son propre `setInterval` (garde générique, sans V8).
 
-V8 vient de `py_mini_racer` (AGENTS.md §JS) — absent de venv_linux : les tests y SKIPPENT.
+V8 vient de `py_mini_racer` (AGENTS.md §JS) — absent de venv_linux : les tests qui l'exécutent
+y SKIPPENT.
 """
 import importlib.util
 import json
@@ -91,6 +93,27 @@ class PollerLoopTest(SimpleTestCase):
         self.v8.eval("document.hidden = false; fire('visibilitychange');")
         self.assertEqual(2, self._js('calls.length'), 'coming back asks at once, without waiting')
 
+    def test_a_request_turn_follows_the_same_rules_and_awaits_its_on_data(self):
+        """`request` (2026-10-13, cam_analyzer) : un tour qui n'est pas un GET JSON — un POST, un
+        chargeur qui rend lui-même. Mêmes règles : jamais deux en vol, et un `onData` asynchrone
+        est attendu avant le tour suivant (le rendu d'un tour ne chevauche pas le suivant)."""
+        self.v8.eval("""
+            var asked = 0, renders = [], finishRender = null;
+            var p = new WamaApp.Poller({immediate: true,
+                request: function (id) { asked++; return fetch('/custom/' + id + '/')
+                                           .then(function (r) { return r.json(); }); },
+                onData: function (id, d) { renders.push(d.n);
+                    return new Promise(function (r) { finishRender = r; }); }});
+            p.start(5);""")
+        self.assertEqual(['/custom/5/'], self._js('calls'))
+        self.v8.eval('answer({n: 1});')
+        self.v8.eval('tick(); tick();')
+        self.assertEqual(1, self._js('asked'), 'the next turn left before onData had finished')
+        self.v8.eval('finishRender();')
+        self.v8.eval('tick();')
+        self.assertEqual(2, self._js('asked'))
+        self.assertEqual([1], self._js('renders'))
+
     def test_a_stop_decided_in_on_data_is_final(self):
         self.v8.eval("""var p = new WamaApp.Poller({urlTemplate: '/x/0/', immediate: true,
                           onData: function (id) { p.stop(id); }});
@@ -121,3 +144,69 @@ class PollerLoopTest(SimpleTestCase):
             '[els.globalProgressBar.style.width, els.videoGlobalProgressBar.style.width]'))
         self.v8.eval('tick();')
         self.assertEqual(2, self._js('calls.length'), 'one call per turn, not one per bar')
+
+
+class EveryPollingLoopIsTheCommonOneTest(SimpleTestCase):
+    """2026-10-13 — douze apps et pages interrogeaient le serveur par un `setInterval` local
+    (avatarizer, describer, anonymizer, composer, synthesizer, enhancer ×2, converter, studio,
+    reader, gestionnaire de fichiers, model manager), plus le cam_analyzer (statut, passes,
+    RTMaps, battements du Live) trouvé par cette garde même : portés sur `WamaApp.Poller`. Ce qui reste
+    de `setInterval` dans le code des apps est DÉCLARÉ ici, boucle par boucle, avec sa raison —
+    aucune n'interroge le serveur en boucle rapide. Une boucle nouvelle fait rougir : soit elle
+    passe par la brique, soit elle se déclare ici en disant pourquoi elle n'en relève pas.
+    Les jumelles du bac à sable (copies gitignorées, jamais corrigées à la main) sont exclues."""
+
+    #: `chemin relatif: (nombre, raison)` — le compte ne peut que descendre.
+    DECLARED = {
+        'wama/common/static/common/js/wama-app-base.js':
+            (1, 'notifications toutes les 60 s ; continuent en onglet caché pour le son'),
+        'wama/common/static/common/js/wama-assistant-chat.js':
+            (1, 'compte à rebours affiché, aucune requête'),
+        'wama/common/static/common/js/wama-assistant-voice.js':
+            (1, "attente du silence de l'avatar, aucune requête"),
+        'wama/common/static/common/js/wama-card-menu.js':
+            (1, "battement d'un verrou (60 s) : doit continuer en onglet caché"),
+        'wama/common/static/common/js/wama-eta.js':
+            (1, 'rendu local des ETA de lot, aucune requête'),
+        'wama/common/static/common/js/wama-schedule.js':
+            (1, 'place dans la file toutes les 15 s, déjà muette en onglet caché'),
+        'wama/common/static/common/js/library-add.js':
+            (1, "chronomètre d'enregistrement micro, aucune requête"),
+        'wama/transcriber/static/transcriber/js/edit.js':
+            (2, "lecture à rebours et frappe de l'éditeur, aucune requête"),
+        'wama/static/presentation/wama-presentation-3d.js':
+            (1, 'visite animée de la présentation, aucune requête'),
+        'wama_lab/cam_analyzer/static/cam_analyzer/js/index.js':
+            (1, 'lecture vidéo à rebours (currentTime décrémenté), aucune requête'),
+        'wama_lab/face_analyzer/templates/face_analyzer/realtime.html':
+            (1, "compteur d'images par seconde affiché, aucune requête"),
+    }
+
+    def test_no_app_polls_with_a_local_interval(self):
+        import re
+        from collections import Counter
+        from wama.common.sandbox import sandbox_labels
+        base = Path(settings.BASE_DIR)
+        twins = set(sandbox_labels())
+        found = Counter()
+        for root in (base / 'wama', base / 'wama_lab', base / 'wama_data'):
+            for path in list(root.rglob('*.js')) + list(root.rglob('templates/**/*.html')):
+                parts = set(path.parts)
+                if 'vendors' in parts or twins & parts or path.name.endswith('.min.js') \
+                        or 'staticfiles' in parts:
+                    continue
+                rel = path.relative_to(base).as_posix()
+                if rel.startswith('wama/static/js/'):
+                    continue                       # bibliothèques tierces copiées
+                code = re.sub(r'^\s*//.*$', '', path.read_text(encoding='utf-8', errors='replace'),
+                              flags=re.M)
+                n = len(re.findall(r'\bsetInterval\(', code))
+                if n:
+                    found[rel] = n
+        unexpected = {f: n for f, n in found.items()
+                      if n > self.DECLARED.get(f, (0, ''))[0]}
+        self.assertEqual({}, unexpected,
+                         'boucle `setInterval` non déclarée : passer par `WamaApp.Poller` '
+                         '(wama-app-base.js), ou la déclarer ici avec sa raison')
+        stale = {f for f, (n, _r) in self.DECLARED.items() if found.get(f, 0) < n}
+        self.assertEqual(set(), stale, 'une boucle déclarée a disparu : baisser son compte')

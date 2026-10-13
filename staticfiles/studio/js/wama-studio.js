@@ -929,19 +929,27 @@
             .then(function (d) {
                 if (btn) btn.disabled = true;
                 setRunStatus('Exécution #' + d.run_id + ' en cours…', 'text-warning');
-                runPoll = setInterval(function () { pollRun(d.run_id, btn); }, 2500);
+                runPoll = d.run_id;
+                runPoller.start(d.run_id);
             })['catch'](function (e) { toast(e.message, 'error'); });
     }
 
-    function pollRun(runId, btn) {
-        api('/studio/api/run/' + runId + '/').then(function (d) {
+    // Suivi de l'exécution — boucle COMMUNE `WamaApp.Poller` (2026-10-13 : c'était un `setInterval`
+    // local, qui relançait sans attendre la réponse et tournait en onglet caché).
+    var runPoller = new WamaApp.Poller({
+        urlTemplate: function (runId) { return '/studio/api/run/' + runId + '/'; },
+        interval: 2500,
+        maxFails: Infinity,
+        onError: function () { /* réseau : ignorer ce tour */ },
+        onData: function (runId, d) {
             Object.keys(d.node_states || {}).forEach(function (nid) {
                 setNodeRunState(nid, d.node_states[nid].status);
             });
             updateFlows(d.node_states);
             if (d.status === 'SUCCESS' || d.status === 'FAILURE') {
-                clearInterval(runPoll); runPoll = null;
+                runPoller.stop(runId); runPoll = null;
                 clearAllFlows();
+                var btn = document.getElementById('studioRunBtn');
                 if (btn) btn.disabled = false;
                 if (d.status === 'SUCCESS') {
                     setRunStatus('Terminé ✔ (' + (d.processing_display || '') + ')', 'text-success');
@@ -951,8 +959,8 @@
                     toast('Pipeline en échec : ' + (d.error || ''), 'error');
                 }
             }
-        })['catch'](function () {});
-    }
+        },
+    });
 
     // ── Drag d'un nœud ─────────────────────────────────────────────────────
     function makeDraggable(node, handle) {

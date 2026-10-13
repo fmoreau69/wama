@@ -2341,7 +2341,7 @@ La couche JS commune d'une page d'app — `_app_scripts.html` : formulaires du s
 
 ### Socle JS des apps
 
-Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides
+Plomberie commune file/cards : csrfFetch, urls, états vides, et `Poller` — LA boucle d'interrogation du navigateur : jamais deux requêtes en vol, muette en onglet caché (2026-10-13 ; toute boucle des apps passe par lui, garde `tests_poller_js`)
 
 - **Domicile** : `wama/common/static/common/js/wama-app-base.js` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 

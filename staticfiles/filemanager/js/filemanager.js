@@ -11,7 +11,7 @@
     // State
     let tree = null;
     let lastTreeHash = null;
-    let autoRefreshInterval = null;
+    let autoRefreshPoller = null;
     let wasProcessing = false;  // Track previous processing state for edge detection
     const AUTO_REFRESH_DELAY = 5000; // Check every 5 seconds
 
@@ -55,8 +55,27 @@
         );
     }
 
+    // Suivi de l'arbre — boucle COMMUNE `WamaApp.Poller` (2026-10-13 : c'était un `setInterval`
+    // local, qui relançait sans attendre la réponse et tournait en onglet caché). Créée ICI et non
+    // en tête : ce fichier se charge AVANT `wama-app-base.js` (`base.html`), l'appel suit le DOM.
     function setupAutoRefresh() {
-        autoRefreshInterval = setInterval(checkForChanges, AUTO_REFRESH_DELAY);
+        if (autoRefreshPoller) return;
+        autoRefreshPoller = new WamaApp.Poller({
+            urlTemplate: checkForChanges,
+            interval: AUTO_REFRESH_DELAY,
+            immediate: false,
+            maxFails: Infinity,
+            onError: function () { /* Silently ignore errors during auto-refresh */ },
+            onData: function (_key, data) {
+                const newHash = data.mtime_hash;
+                if (lastTreeHash && newHash !== lastTreeHash) {
+                    console.log('[FileManager] Tree changed, refreshing...');
+                    refreshTree();
+                }
+                lastTreeHash = newHash;
+            },
+        });
+        autoRefreshPoller.start('tree');
     }
 
     function setupCustomEventListeners() {
@@ -72,8 +91,9 @@
         document.addEventListener('media:processed', refreshTree);
     }
 
-    async function checkForChanges() {
-        if (!tree) return;
+    // L'adresse du tour suivant, ou null pour le sauter (contrat de `WamaApp.Poller`).
+    function checkForChanges() {
+        if (!tree) return null;
 
         const processing = isProcessingActive();
 
@@ -82,7 +102,7 @@
             wasProcessing = false;
             lastTreeHash = null;
             refreshTree();
-            return;
+            return null;
         }
 
         wasProcessing = processing;
@@ -92,21 +112,8 @@
         // refresh est débouncé → pas de churn. Couvre toutes les apps sans code
         // par-app (en complément des appels instantanés WamaFM).
 
-        try {
-            // Use lightweight mtime endpoint instead of full tree scan
-            const mtimeUrl = config.apiTreeMtimeUrl || '/filemanager/api/tree/mtime/';
-            const response = await fetch(mtimeUrl);
-            const data = await response.json();
-            const newHash = data.mtime_hash;
-
-            if (lastTreeHash && newHash !== lastTreeHash) {
-                console.log('[FileManager] Tree changed, refreshing...');
-                refreshTree();
-            }
-            lastTreeHash = newHash;
-        } catch (error) {
-            // Silently ignore errors during auto-refresh
-        }
+        // Use lightweight mtime endpoint instead of full tree scan
+        return config.apiTreeMtimeUrl || '/filemanager/api/tree/mtime/';
     }
 
     function initJstree() {
@@ -443,7 +450,7 @@
         if (progBar)  progBar.style.width = '0%';
         if (progPct)  progPct.textContent = '0%';
         // Clean state from any previous use of the (reused) modal.
-        if (modal._pollTimer) { clearInterval(modal._pollTimer); modal._pollTimer = null; }
+        if (modal._poller) { modal._poller.stopAll(); modal._poller = null; }
         modal._activeJobId = null;
 
         const setProgress = (pct) => {
@@ -452,13 +459,16 @@
             if (progPct)  progPct.textContent = pct + '%';
         };
 
-        const STALL_TICKS = 20;  // ~20 s with no progress → assume worker down
+        const STALL_TICKS = 20;  // ~20 réponses (≥ 20 s) without progress → assume worker down
 
         function stopPolling() {
-            if (modal._pollTimer) { clearInterval(modal._pollTimer); modal._pollTimer = null; }
+            if (modal._poller) { modal._poller.stopAll(); modal._poller = null; }
         }
 
-        // Poll the ephemeral job status until DONE/ERROR (with stall guard).
+        // Poll the ephemeral job status until DONE/ERROR (with stall guard) — boucle COMMUNE
+        // `WamaApp.Poller` (2026-10-13 : c'était un `setInterval` local à la seconde, qui relançait
+        // sans attendre la réponse et tournait en onglet caché). Les tours se comptent aux
+        // RÉPONSES : un serveur lent ne fait plus déclarer le worker muet.
         // modal._activeJobId tracks the job still needing cancellation if closed.
         function pollStatus(jobId, fmt) {
             modal._activeJobId = jobId;
@@ -466,12 +476,13 @@
             const dismissUrl = (config.converterDismissUrl || '/converter/0/dismiss/').replace('/0/', '/' + jobId + '/');
             let ticks = 0;
             stopPolling();
-            modal._pollTimer = setInterval(async () => {
-                ticks++;
-                try {
-                    const r = await fetch(statusUrl);
-                    if (!r.ok) return;
-                    const s = await r.json();
+            modal._poller = new WamaApp.Poller({
+                urlTemplate: () => statusUrl,
+                interval: 1000,
+                maxFails: Infinity,
+                onError: () => { /* keep polling */ },
+                onData: (_jobId, s) => {
+                    ticks++;
                     setProgress(s.progress || 0);
 
                     // Stall guard: still RUNNING at 0% after STALL_TICKS → worker likely down.
@@ -503,8 +514,9 @@
                         if (progWrap) progWrap.style.display = 'none';
                         resetBtn();
                     }
-                } catch (_) { /* keep polling */ }
-            }, 1000);
+                },
+            });
+            modal._poller.start(jobId);
         }
 
         // Cancel a still-running job whenever the modal closes (footer Annuler,
@@ -512,7 +524,7 @@
         if (!modal.dataset.cancelHookBound) {
             modal.dataset.cancelHookBound = '1';
             modal.addEventListener('hide.bs.modal', function() {
-                if (modal._pollTimer) { clearInterval(modal._pollTimer); modal._pollTimer = null; }
+                if (modal._poller) { modal._poller.stopAll(); modal._poller = null; }
                 if (modal._activeJobId) {
                     _converterCancel(modal._activeJobId);
                     modal._activeJobId = null;
