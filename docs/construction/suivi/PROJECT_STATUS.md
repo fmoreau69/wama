@@ -23355,3 +23355,19 @@ chargent un modèle dans le processus même de la campagne.
 
 **Pendings système** : relancer gunicorn (vues composer/synthesizer, `sam3_manager`, gabarit
 reader, JS servis).
+
+## §CLÔTURE — 2026-10-13, « ILaaS RAG : clé posée et mesurée » — consigné (commit de ce bloc, non poussé)
+
+Suite du §PALIER du même jour. Fabien a posé la clé `ilaas_rag` sur la page Sources ; vérifié :
+- **Clé enregistrée** (une ligne `InstanceApiKey`, non partagée) et **rien ne s'est ouvert** :
+  aucune liste lue, aucun modèle découvert — la garde du palier tient sur le live.
+- **Mesuré avec la clé** : `/v1/models` → 3 modèles à coût nul — `bge-m3` (embeddings, contexte
+  8192), `bge-reranker-v2-m3` (reclassement), `gpt-oss-120b` (chat, absent de `llm.ilaas.fr`).
+  `/v1/embeddings` sur `bge-m3` : 1024 dimensions ; **cosinus avec notre `bge-m3` local = 0,99999**
+  sur deux phrases : même espace de vecteurs.
+- Consigné à `ROADMAP §8d`, étape 7 : le réindex ne tiendrait plus qu'au nom stocké ; la décision
+  (famille, usage, nom) reste à la session de routage cloud.
+
+**Restent** (session de routage) : décider de la famille d'`ilaas_rag` et de l'usage de ses
+trois modèles. Ici : 🔴 relancer gunicorn + workers · pousser `444c3828`, `ad56d0d1`, `91771ff6` et
+ce commit.

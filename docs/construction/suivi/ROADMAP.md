@@ -1476,8 +1476,13 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
        `tests_api_keys.InstanceKeyTest.test_the_ilaas_rag_key_is_stored_but_opens_nothing_yet`,
        contre-épreuve faite). Lu SANS clé sur son `/openapi.json` public : c'est **OpenGateLLM**, la
        passerelle d'Albert — `/v1/embeddings`, `/v1/rerank`, `/v1/ocr`, `/v1/audio/transcriptions`,
-       `/v1/chat/completions`, collections et `/v1/search`. `/v1/models` rend 401 sans jeton : ses
-       modèles et leurs dimensions ne sont PAS mesurés ;
+       `/v1/chat/completions`, collections et `/v1/search`. **Clé posée par Fabien le 13/10, mesuré
+       avec elle** : `/v1/models` rend **3 modèles**, tous à coût nul — `bge-m3`
+       (`text-embeddings-inference`, contexte 8192), `bge-reranker-v2-m3` (`text-classification`) et
+       `gpt-oss-120b` (`text-generation`, un modèle de chat que `llm.ilaas.fr` ne liste pas).
+       `/v1/embeddings` sur `bge-m3` : **1024 dimensions**, et sur deux phrases le **cosinus avec
+       notre `bge-m3` local vaut 0,99999** — c'est le MÊME espace de vecteurs : un index construit
+       en local se lit avec le distant, et inversement ;
      - contraintes déjà dans le code : vecteurs de **1024** dimensions (`EXPECTED_DIMS`, sinon
        refusés) ; nom du modèle STOCKÉ par ligne (`Embedded.embedding_model`), donc changer
        d'embedder = réindex complet — même un `bge-m3` servi ailleurs porte un autre nom ;
@@ -1487,7 +1492,10 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
      ne mélange pas deux espaces de vecteurs —, donc le tirage par profil de 1-5 ne s'y applique
      pas tel quel. Et la mémoire porte les notes PRIVÉES des comptes : un embedder distant serait la
      première sortie de son contenu hors de la machine (plafond d'hébergement du profil, §8d ③).
-     **Suite** : clé posée (Fabien) → mesurer `/v1/models` (types, dimensions) → décider si
+     ⇒ la contrainte du réindex ne tient plus qu'au NOM stocké : un `bge-m3` distant sous le nom
+     `bge-m3` rendrait le relais local ↔ distant possible sans réindex (à décider, pas à supposer :
+     la mesure porte sur deux phrases).
+     **Suite** : ~~clé posée, `/v1/models` mesuré~~ (13/10) → décider si
      `ilaas_rag` devient un fournisseur `llm` comme Albert (ses modèles de chat entreraient alors au
      tirage, avec ceux de `llm.ilaas.fr`) → brancher ou non `embed.py` sur un modèle distant.
   **Tranché par Fabien le 13/10** : ① un modèle CHOISI à la main qui sature ne bascule pas seul —
