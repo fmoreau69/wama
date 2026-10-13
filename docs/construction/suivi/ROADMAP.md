@@ -1467,6 +1467,15 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
      insuffisante → le distant est admis. Forme : un RANG de préférence par candidat, appliqué
      avant la qualité (patron de `priority` dans `select_model`), le plancher de capacité de
      l'appelant restant prioritaire (`agent_candidates` de l'assistant outillé).
+     ➕ **Le curseur est INERTE entre distants** (mesuré le 13/10 sur un compte « cloud
+     autorisé », 20 distants admis : la prévision rend `ilaas:qwen-3.8-27b` aux curseurs 0, 50
+     et 100). Cause : un distant coûte **0** au score (`model_selector._best_by_vram`, `costs =
+     {… 0.0 if is_cloud(m) …}`) ; entre distants seule la qualité départage, donc le meilleur
+     gagne à tous les crans ; face à un local, le terme « légèreté » lui est toujours acquis.
+     Le coût 0 est voulu (« il ne prend rien sur CETTE carte ») ; ce qui manque est un coût
+     propre au distant — sa vitesse apprise (`eta_estimator.comparable_speeds`, lue seulement si
+     TOUT le lot en a une) ou sa latence. À trancher avec le rang de préférence : décision de
+     Fabien.
   5. ⏳ **Un seul chemin partout** : `remote_stt_key`, `dev_cloud_keys` et `role_utils.resolve_model`
      passent par le même tirage ; les mondes Data et Lab l'héritent par `resolve_model_choice`.
      ➕ **L'enrichissement des prompts de génération** (relevé le 13/10 en relisant le harnais) :

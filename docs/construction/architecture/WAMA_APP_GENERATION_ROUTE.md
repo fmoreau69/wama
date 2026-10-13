@@ -1209,7 +1209,11 @@ légitime déclarée (correspondance mode→domaine imager, musique/ambiance com
 - **« auto » en 1ʳᵉ option + PRÉVISION sous le select** (décisions Fabien, 01/09) :
   `options_auto=True` au schéma (OPT-IN — ne le déclarer que si le lancement résout) →
   l'endpoint sert l'option et `auto_preview` (même chemin que le tirage réel), le JS
-  affiche « Prévu : … — réévalué au lancement » quand la valeur est `auto`.
+  affiche « Prévu : … — réévalué au lancement » quand la valeur est `auto`. Depuis le
+  2026-10-13 la prévision porte aussi la PROVENANCE (`origin`, = `AIModel.origin_label`) :
+  « Prévu : qwen-3.8-27b · Cloud souverain · ILaaS (ESR) · gratuit (quota) — … » (Fabien : le
+  nom seul ne disait pas que c'était ILaaS). Texte : `WamaParams.autoPreviewText` ; gardes
+  `tests_auto_model.PreviewOriginTest`.
 - **Réévaluation au lancement, DITE** : synthesizer (`workers.py`) et avatarizer
   (`workers.py`, mode pipeline) résolvent au lancement et consignent le choix dans la
   console de l'item. Adopteurs : synthesizer + avatarizer (via schéma), imager + composer

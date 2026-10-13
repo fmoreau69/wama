@@ -972,7 +972,8 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   · coût* (« Cloud souverain · Albert API (DINUM) · gratuit (quota) »), le coût du MODÈLE s'il en
   déclare un, sinon celui de la source. Lu par l'intitulé de groupe des sélecteurs
   (`model_origin` — un fournisseur qui mêle gratuits et payants, OpenRouter, donne deux groupes),
-  l'aide sous le sélecteur (`AIModel.origin_label`) et le profil sous chaque fournisseur
+  l'aide sous le sélecteur et la prévision « auto » (`AIModel.origin_label`, la seconde depuis
+  le 2026-10-13) et le profil sous chaque fournisseur
   (`source_origin_label`). Vocabulaire des coûts : `external_sources.COST_TIERS`, dont
   `COST_TIER_CHOICES` dérive. Le nom de la source Claude Code perd « (abonnement) » ; ⚠ le
   libellé de l'énumération `ModelSource.CLAUDE_CODE` (admin seulement) le garde : le changer

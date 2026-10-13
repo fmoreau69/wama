@@ -23538,6 +23538,18 @@ ligne) — la hausse vient de travaux non commités d'autres sessions.
 **Pendings système** : 🔴 relancer gunicorn (gabarit du profil ; la bascule est déjà servie depuis
 la relance du 13/10) · pousser `1d74380e` et le commit de ce bloc.
 
+**Complément du 13/10 au soir** (« les clouds souverains ne sont jamais proposés au curseur ») :
+- diagnostic : rien de cassé. Sur le compte de Fabien (« cloud autorisé »), la prévision tirait
+  bien un distant, `ilaas:qwen-3.8-27b`, mais la note ne disait que le NOM ; un second compte de
+  Fabien, `fmoreau`, est en « 100 % local » (valeur par défaut) ;
+- `786ce901` : la prévision « auto » dit la PROVENANCE (`origin` = `AIModel.origin_label`, texte
+  `WamaParams.autoPreviewText`) ; le plafond « souverain » du profil ne nomme plus Albert (« hébergés
+  et opérés en France » — ILaaS est souverain aussi). Gardes : `tests_auto_model.PreviewOriginTest`
+  (dont V8 sur le fichier servi), `HostingCeilingTest.test_a_ceiling_says_what_the_level_is_never_a_provider`
+  (parcourt les sources déclarées) ; deux contre-épreuves rouges ; 259 tests OK ;
+- ➕ décision ouverte, consignée à l'étape 4 de `ROADMAP §8d` : le curseur est INERTE entre
+  distants (un distant coûte 0 au score, le meilleur gagne à tous les crans).
+
 ## §CLÔTURE — 2026-10-13, « ASSISTANT VOCAL : lèvres, écho, reprise de parole ; Envoyer vers » — ✅ LIVRÉ — 🔚 éprouver la conversation vocale au vrai micro
 
 **Demandes de Fabien, dans l'ordre** : « Envoyer vers » qui proposait des apps refusées ; les
