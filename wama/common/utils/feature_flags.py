@@ -21,6 +21,10 @@ Contrat :
   doit retenir leur état pour savoir s'il est périmé.
 - `processes` nomme les process (passes, nœuds de pipeline) qui LISENT la bascule : la changer
   périme ceux-là, et seulement ceux-là (l'aval suit par la cascade du pipeline).
+- `legacy` dit comment calculait un process lancé AVANT que la bascule existe. Par défaut (None),
+  une bascule absente de sa photo n'a pas changé — c'est la surveillance qui a changé. Une bascule
+  née ON qui change le calcul déclare `legacy=False` : sans cela, la nouvelle règle n'atteignait
+  jamais un calcul déjà fait (`with_legacy`).
 
 Utilisé par : cam_analyzer (premier consommateur). Conçu pour WAMA Data.
 """
@@ -38,6 +42,7 @@ class Feature:
     default: bool = True
     scope: str = 'live'  # un de SCOPES (cf. docstring du module)
     processes: tuple = ()  # clés des process qui la lisent (cf. docstring du module)
+    legacy: bool | None = None  # état d'un calcul antérieur à la bascule (cf. docstring du module)
 
     def __post_init__(self):
         if self.scope not in SCOPES:
@@ -50,6 +55,14 @@ def read_by(registry, config, process):
     """État {clé: bool} des bascules que le process `process` lit — sa photo au lancement."""
     state = resolve(registry, config)
     return {f.key: state[f.key] for f in registry if process in f.processes}
+
+
+def with_legacy(registry, process, photo):
+    """Photo {clé: bool} d'un calcul de `process`, complétée de l'état `legacy` de chaque bascule
+    qu'il lit, qu'elle ne porte pas et qui en déclare un : le calcul a tourné avant qu'elle existe."""
+    older = {f.key: f.legacy for f in registry
+             if process in f.processes and f.legacy is not None and f.key not in photo}
+    return {**older, **photo}
 
 
 def resolve(registry, config):

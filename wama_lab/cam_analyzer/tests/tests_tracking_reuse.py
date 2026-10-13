@@ -174,6 +174,72 @@ class ParkedRadiusTest(SimpleTestCase):
         self.assertEqual(snap(before, 'intersection_windows'), snap(after, 'intersection_windows'))
         self.assertNotEqual(snap(before, 'global_tracking'), snap(after, 'global_tracking'))
 
+    def _stale_old_tracking(self, profile):
+        """Un tracking lancé AVANT que le rayon soit surveillé : sa photo (les bascules vues, rangées
+        à son résumé) ne le porte pas ; les autres passes ont la photo de leurs réglages du jour."""
+        from wama_lab.cam_analyzer.utils.features import compute_snapshot
+        rows = []
+        for key in pt.ORDER:
+            tracked = key == 'global_tracking'
+            r = row(key, summary={'features': compute_snapshot(SimpleNamespace(config={}))} if tracked else {})
+            r.settings_snapshot = {} if tracked else pt._profile_snapshot(profile, pt._WATCHED.get(key) or [])
+            rows.append(r)
+        runs = SimpleNamespace(lines=lambda session: rows)
+        with mock.patch.object(pt, '_common_runs', return_value=runs), \
+                mock.patch.object(pt, '_stale_common_lines') as staled:
+            pt.recompute_stale(SimpleNamespace(profile=profile, config={}))
+        return {node for node, _ in (staled.call_args.args[1] if staled.called else [])}
+
+    def test_a_radius_set_after_an_old_tracking_stales_it(self):
+        """Vécu le 2026-10-13 : rayon posé à 15 m sur `_seg`, tracking du matin resté « terminé » —
+        « Compléter les passes » ne l'aurait pas refait. Il avait tourné au rayon d'analyse."""
+        self.assertIn('global_tracking', self._stale_old_tracking(self._profile(parked_radius_m=15)))
+
+    def test_an_old_tracking_without_a_parked_radius_stays_current(self):
+        self.assertEqual(self._stale_old_tracking(self._profile()), set())
+
+
+class SwitchBornSinceTheTrackingTest(SimpleTestCase):
+    """Une bascule née ON qui change le calcul déclare comment calculait un tracking d'avant
+    (`Feature.legacy`) : ⚑ parked_speed_floor, sans quoi le plancher de 2 m/s n'atteignait jamais un
+    tracking déjà fait (2026-10-13)."""
+
+    def _old_tracking_photo(self):
+        from wama_lab.cam_analyzer.utils.features import compute_snapshot
+        photo = compute_snapshot(SimpleNamespace(config={}))
+        photo.pop('parked_speed_floor')
+        return photo
+
+    def test_the_old_tracking_is_staled_at_the_panel(self):
+        rows = [row(key, summary={'features': self._old_tracking_photo()} if key == 'global_tracking' else {})
+                for key in pt.ORDER]
+        for r in rows:
+            r.settings_snapshot = {}
+        runs = SimpleNamespace(lines=lambda session: rows)
+        with mock.patch.object(pt, '_common_runs', return_value=runs), \
+                mock.patch.object(pt, '_stale_common_lines') as staled:
+            pt.recompute_stale(SimpleNamespace(profile=None, config={}))
+        self.assertIn('global_tracking', {node for node, _ in staled.call_args.args[1]})
+
+    def test_the_indicators_do_not_reuse_it(self):
+        from wama_lab.cam_analyzer.utils.features import compute_snapshot
+        runs = SimpleNamespace(lines=lambda session: [
+            row('global_tracking', summary={'features': self._old_tracking_photo()})])
+        with mock.patch.object(pt, '_common_runs', return_value=runs):
+            ok, why, _ = pt.tracking_is_current(SimpleNamespace(id='s'),
+                                                compute_snapshot(SimpleNamespace(config={})))
+        self.assertFalse(ok)
+        self.assertIn('parked_speed_floor', why)
+
+    def test_switched_off_it_matches_the_old_tracking(self):
+        from wama_lab.cam_analyzer.utils.features import compute_snapshot
+        runs = SimpleNamespace(lines=lambda session: [
+            row('global_tracking', summary={'features': self._old_tracking_photo()})])
+        with mock.patch.object(pt, '_common_runs', return_value=runs):
+            ok, why, _ = pt.tracking_is_current(SimpleNamespace(id='s'), compute_snapshot(
+                SimpleNamespace(config={'features': {'parked_speed_floor': False}})))
+        self.assertTrue(ok, why)
+
 
 class FailedSideInputTest(TrackingIsCurrentTest):
     def test_a_side_input_that_failed_after_the_tracking_does_not_invalidate_it(self):

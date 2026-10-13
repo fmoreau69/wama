@@ -10,7 +10,8 @@ bascule déclarée ici (jamais de if ad hoc dispersé) — voir CAM_ANALYZER_CHA
 """
 from wama.common.utils.feature_flags import (Feature, RECOMPUTE_SCOPES, resolve,
                                              is_enabled as _is_enabled, describe as _describe,
-                                             sanitize_overrides, read_by as _read_by)
+                                             sanitize_overrides, read_by as _read_by,
+                                             with_legacy as _with_legacy)
 
 # Passes qui LISENT chaque bascule (`processes`) : la changer les périme au panneau, et seulement
 # elles — l'aval suit par la cascade du pipeline. MESURÉ le 2026-10-13 (graphe d'appels depuis la
@@ -331,7 +332,7 @@ FEATURES = [
             "l'arrêt au carrefour reste exclu par le rayon « Garés » de l'intersection. OFF = 0,5 m/s. "
             "Tracking à rejouer.",
             default=True, scope='compute',
-            processes=TRACKING),
+            processes=TRACKING, legacy=False),
     Feature('parked_motion_vs_shuttle', 'Garés : mouvement jugé contre la navette',
             "Une voiture garée « bouge » dans nos calculs quand la navette passe : l'angle de vue change "
             "et sa position calculée glisse de plusieurs mètres. La garde « trajectoire immobile » la "
@@ -511,6 +512,12 @@ def compute_snapshot(session):
 def read_by(session, pass_key):
     """Bascules que la passe `pass_key` lit, avec leur état : la photo rangée à son lancement."""
     return _read_by(FEATURES, getattr(session, 'config', None), pass_key)
+
+
+def with_legacy(pass_key, photo):
+    """Photo des bascules d'un calcul de `pass_key`, complétée de l'état qu'avait un calcul lancé
+    avant les bascules nées depuis (`Feature.legacy`)."""
+    return _with_legacy(FEATURES, pass_key, photo)
 
 
 def catalog(session):

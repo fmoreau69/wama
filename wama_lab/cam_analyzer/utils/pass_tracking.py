@@ -275,16 +275,22 @@ def _intersections_for_windows(profile):
             for i in (getattr(profile, 'intersections', None) or [])]
 
 
-def _parked_zones(profile):
+def _parked_zones(profile, legacy=False):
     """Centre et rayon « jamais garé » de chaque intersection — la seule part du profil que le
-    tracking lit dans ses intersections (`multicam_tracker`, `intersection_analyzer.parked_radius_m`)."""
+    tracking lit dans ses intersections (`multicam_tracker`, `intersection_analyzer.parked_radius_m`).
+    `legacy` : la règle d'avant le 2026-10-13, le rayon d'analyse pour tous."""
     from .intersection_analyzer import parked_radius_m
-    return [[i.get('lat'), i.get('lon'), parked_radius_m(i, 30.0)]
+    return [[i.get('lat'), i.get('lon'),
+             parked_radius_m({k: v for k, v in i.items() if k != 'parked_radius_m'} if legacy else i, 30.0)]
             for i in (getattr(profile, 'intersections', None) or []) if isinstance(i, dict)]
 
 
 #: Réglages surveillés DÉRIVÉS du profil : une passe ne surveille que la part d'un champ qu'elle lit.
 _DERIVED_SETTINGS = {'intersections': _intersections_for_windows, 'parked_zones': _parked_zones}
+#: Valeur qu'avait un réglage surveillé pour un calcul lancé AVANT qu'on le surveille. Sans elle, il
+#: est absent de la photo, donc « inchangé » : le rayon garés posé à 15 m le 2026-10-13 ne périmait
+#: pas un tracking du matin, et « Compléter les passes » ne l'aurait pas refait.
+_LEGACY_SETTINGS = {'parked_zones': lambda profile: _parked_zones(profile, legacy=True)}
 
 
 def _profile_snapshot(profile, watched_keys: list[str]) -> dict:
@@ -734,7 +740,9 @@ def tracking_is_current(session, features) -> tuple:
     # une bascule absente de la photo n'a pas changé, c'est la surveillance qui a changé ; et seules
     # comptent celles que le tracking LIT (`Feature.processes`) — une bascule du TTC/PET ne le
     # refait plus
-    from .features import FEATURES
+    # … et une bascule née depuis compte pour l'état qu'avait l'ancien calcul (`Feature.legacy`)
+    from .features import FEATURES, with_legacy
+    seen = with_legacy('global_tracking', seen)
     read = {f.key for f in FEATURES if 'global_tracking' in f.processes}
     changed = sorted(k for k in set(seen) & set(features) & read if seen[k] != features[k])
     if changed:
@@ -792,7 +800,7 @@ def recompute_stale(session) -> int:
     # Et les Indicateurs : avant de réutiliser un tracking, ils vérifiaient qu'il avait vu les mêmes
     # bascules (`tracking_is_current`, ancienne règle : TOUTES), ou le refaisaient — ceux terminés
     # après lui ont donc vu SA photo.
-    from .features import read_by
+    from .features import read_by, with_legacy
     tracking = max((r for r in rows if r.node_id == 'global_tracking' and r.finished_at
                     and (getattr(r, 'output_summary', None) or {}).get('features') is not None),
                    key=lambda r: r.finished_at, default=None)
@@ -807,6 +815,16 @@ def recompute_stale(session) -> int:
             elif r.node_id == 'indicators' and tracking is not None and r.finished_at \
                     and r.finished_at >= tracking.finished_at:
                 photo.update(_switch_photo(tracking.output_summary['features']))
+        # Lancée avant qu'un réglage soit surveillé ou qu'une bascule existe : l'état de l'ANCIEN
+        # calcul (`_LEGACY_SETTINGS`, `Feature.legacy`), pas « inchangé ». Une photo VIDE garde la
+        # règle d'origine du commun (`_watched_changed`).
+        if profile is not None and photo:
+            for key in _WATCHED.get(r.node_id) or []:
+                if key in _LEGACY_SETTINGS and key not in photo:
+                    photo[key] = _LEGACY_SETTINGS[key](profile)
+        if _has_switches(photo):
+            seen = {k[len(SWITCH_PREFIX):]: v for k, v in photo.items() if k.startswith(SWITCH_PREFIX)}
+            photo.update(_switch_photo(with_legacy(r.node_id, seen)))
         photos[id(r)] = photo
     switches_now = {}
 
