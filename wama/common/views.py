@@ -2088,6 +2088,61 @@ def api_notifications_recent(request):
     return JsonResponse({'unread': unread.count(), 'last_id': last, 'items': items})
 
 
+#: Ce que le panneau de la cloche montre au plus (la page complète en garde 200).
+NOTIFICATION_PANEL_MAX = 50
+
+
+@login_required
+def api_notifications_list(request):
+    """GET `filter` (`unread` | `all`, défaut), `limit` (défaut 20, au plus 50) — les
+    notifications du PANNEAU de la cloche (`WAMA_COLLABORATION.md §2.3`, 2026-10-13) : les plus
+    récentes d'abord, chacune avec son style et ses gestes (`services.notification_panel`)."""
+    from wama.common.models import Notification
+    from wama.common.services.notification_panel import notification_payload
+    mine = Notification.objects.filter(recipient=request.user)
+    unread = mine.filter(read_at__isnull=True)
+    shown = unread if request.GET.get('filter') == 'unread' else mine
+    try:
+        limit = max(1, min(NOTIFICATION_PANEL_MAX, int(request.GET.get('limit') or 20)))
+    except ValueError:
+        limit = 20
+    rows = list(shown.order_by('-created_at', '-pk')[:limit])
+    return JsonResponse({'unread': unread.count(), 'total': shown.count(),
+                         'items': [notification_payload(n, request.user) for n in rows]})
+
+
+@login_required
+@require_POST
+def api_notification_act(request, pk: int, action: str):
+    """POST — `read`, `unread` ou `delete` sur UNE notification du compte (panneau de la cloche
+    et page complète). Rend le nombre de non lues, pour la pastille."""
+    from django.utils import timezone
+    from wama.common.models import Notification
+    note = Notification.objects.filter(pk=pk, recipient=request.user).first()
+    if note is None:
+        return JsonResponse({'done': False, 'reason': 'notification introuvable'}, status=404)
+    if action == 'delete':
+        note.delete()
+    elif action in ('read', 'unread'):
+        note.read_at = timezone.now() if action == 'read' else None
+        note.save(update_fields=['read_at'])
+    else:
+        return JsonResponse({'done': False, 'reason': f'geste inconnu : {action}'}, status=400)
+    unread = Notification.objects.filter(recipient=request.user, read_at__isnull=True).count()
+    return JsonResponse({'done': True, 'unread': unread})
+
+
+@login_required
+@require_POST
+def api_notifications_read_all(request):
+    """POST — « Tout marquer comme lu » du panneau de la cloche."""
+    from django.utils import timezone
+    from wama.common.models import Notification
+    n = Notification.objects.filter(recipient=request.user,
+                                    read_at__isnull=True).update(read_at=timezone.now())
+    return JsonResponse({'done': True, 'marked': n, 'unread': 0})
+
+
 @login_required
 def api_reception_hidden(request):
     """GET `app` — combien d'entrées reçues l'utilisateur a retirées de sa file dans cette app

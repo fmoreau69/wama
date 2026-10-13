@@ -10,10 +10,6 @@
 
     // State
     let tree = null;
-    let lastTreeHash = null;
-    let autoRefreshPoller = null;
-    let wasProcessing = false;  // Track previous processing state for edge detection
-    const AUTO_REFRESH_DELAY = 5000; // Check every 5 seconds
 
     // Preview navigation state
     let currentPreviewNode = null;
@@ -39,44 +35,12 @@
         setupCustomEventListeners();
     }
 
-    /**
-     * Detect if any WAMA app on the page is currently processing.
-     * Uses DOM indicators rendered by Django templates and set by app JS.
-     */
-    function isProcessingActive() {
-        return !!document.querySelector(
-            // Toute card en cours porte data-status (la classe .processing a été retirée des
-            // cards le 2026-09-18 : l'ancien sélecteur par classe de la card synthesizer ne
-            // trouvait plus rien).
-            '[data-status="RUNNING"], ' +
-            // Anonymizer, Imager: body flag set by app JS
-            '[data-wama-processing]'
-        );
-    }
-
-    // Suivi de l'arbre — boucle COMMUNE `WamaApp.Poller` (2026-10-13 : c'était un `setInterval`
-    // local, qui relançait sans attendre la réponse et tournait en onglet caché). Créée ICI et non
-    // en tête : ce fichier se charge AVANT `wama-app-base.js` (`base.html`), l'appel suit le DOM.
-    function setupAutoRefresh() {
-        if (autoRefreshPoller) return;
-        autoRefreshPoller = new WamaApp.Poller({
-            urlTemplate: checkForChanges,
-            interval: AUTO_REFRESH_DELAY,
-            immediate: false,
-            maxFails: Infinity,
-            onError: function () { /* Silently ignore errors during auto-refresh */ },
-            onData: function (_key, data) {
-                const newHash = data.mtime_hash;
-                if (lastTreeHash && newHash !== lastTreeHash) {
-                    console.log('[FileManager] Tree changed, refreshing...');
-                    refreshTree();
-                }
-                lastTreeHash = newHash;
-            },
-        });
-        autoRefreshPoller.start('tree');
-    }
-
+    // L'arbre se tient à jour par ÉVÉNEMENTS (ci-dessous : les apps signalent fichier déposé,
+    // traité, supprimé — `wama-fm-notify.js`). L'ancienne surveillance périodique de l'arbre
+    // (`setupAutoRefresh` / `checkForChanges`, empreinte `api/tree/mtime/`) n'était plus appelée
+    // depuis le 2026-03-17 — retirée volontairement, elle repliait et dépliait l'arbre en continu
+    // — et a été supprimée le 2026-10-13 avec sa route : elle ne coûtait plus qu'une requête
+    // inutile à chaque page.
     function setupCustomEventListeners() {
         // Listen for custom refresh events from other apps
         document.addEventListener('filemanager:refresh', function() {
@@ -88,31 +52,6 @@
         document.addEventListener('media:uploaded', refreshTree);
         document.addEventListener('media:deleted', refreshTree);
         document.addEventListener('media:processed', refreshTree);
-    }
-
-    // L'adresse du tour suivant, ou null pour le sauter (contrat de `WamaApp.Poller`).
-    function checkForChanges() {
-        if (!tree) return null;
-
-        const processing = isProcessingActive();
-
-        // If processing just ended, force a refresh
-        if (wasProcessing && !processing) {
-            wasProcessing = false;
-            lastTreeHash = null;
-            refreshTree();
-            return null;
-        }
-
-        wasProcessing = processing;
-        // NB : on ne saute PLUS le poll pendant un traitement — sinon les fichiers
-        // de SORTIE créés en cours de process n'apparaissent qu'après coup. Le poll
-        // ne déclenche un refresh que si le hash mtime change réellement, et le
-        // refresh est débouncé → pas de churn. Couvre toutes les apps sans code
-        // par-app (en complément des appels instantanés WamaFM).
-
-        // Use lightweight mtime endpoint instead of full tree scan
-        return config.apiTreeMtimeUrl || '/filemanager/api/tree/mtime/';
     }
 
     function initJstree() {
@@ -1005,32 +944,12 @@
 
     function handleTreeLoaded() {
         console.log('FileManager tree loaded');
-
-        // Store initial tree state for change detection.
         // L'état plié/déplié est restauré par le plugin 'state' (event
         // state_ready, qui déclenche aussi autoExpandCurrentAppFolder).
-        fetchTreeHash();
-    }
-
-    async function fetchTreeHash() {
-        // DOIT utiliser le même endpoint/format que checkForChanges (mtime_hash),
-        // sinon lastTreeHash (JSON du full tree) ne correspond jamais au hash mtime
-        // → checkForChanges déclenche un refresh complet à CHAQUE poll (toutes les
-        // 5 s), en boucle, rechargeant le squelette + relançant tout le lazy-load.
-        try {
-            const response = await fetch(config.apiTreeMtimeUrl || '/filemanager/api/tree/mtime/');
-            const data = await response.json();
-            lastTreeHash = data.mtime_hash;
-        } catch (error) {
-            console.warn('[FileManager] Could not fetch tree hash:', error);
-        }
     }
 
     function handleTreeRefreshed() {
         console.log('FileManager tree refreshed');
-
-        // Update hash after refresh
-        fetchTreeHash();
 
         // Le plugin 'state' restaure l'ouverture après refresh (state_ready) ;
         // on garde un filet pour l'app courante + tooltips.

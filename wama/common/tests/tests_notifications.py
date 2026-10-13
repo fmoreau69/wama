@@ -9,7 +9,7 @@ from unittest import mock
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from wama.common.models import Notification
@@ -311,3 +311,202 @@ class OpeningANotificationMarksItReadTest(TestCase):
         js = (Path(settings.BASE_DIR) / 'wama/common/static/common/js/wama-app-base.js').read_text(
             encoding='utf-8')
         self.assertIn("/common/notifications/' + encodeURIComponent(item.id) +", js)
+
+
+class BellPanelRoutesTest(TestCase):
+    """The PANEL of the bell (2026-10-13, Fabien: « je veux pouvoir interagir avec les
+    notifications directement dans la petite fenêtre ») — its routes: the list, then read / unread
+    / delete one, read all. Each touches the caller's own notifications only."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.me = User.objects.create_user('panel_me', password='x')
+        self.other = User.objects.create_user('panel_other', password='x')
+        self.client.force_login(self.me)
+
+    def _note(self, user=None, kind='job_done', title='Done', url='/describer/', read=False):
+        from django.utils import timezone
+        return Notification.objects.create(recipient=user or self.me, kind=kind, title=title,
+                                           url=url, read_at=timezone.now() if read else None)
+
+    def _list(self, **params):
+        return self.client.get(reverse('common:api_notifications_list'), params).json()
+
+    def _act(self, note, action):
+        return self.client.post(reverse('common:api_notification_act', args=[note.pk, action]))
+
+    def test_the_panel_lists_ones_own_notifications_newest_first_with_their_style(self):
+        old = self._note(title='old', read=True)
+        new = self._note(kind='job_failed', title='new')
+        self._note(user=self.other, title='not mine')
+        data = self._list()
+        self.assertEqual([new.pk, old.pk], [n['id'] for n in data['items']])
+        self.assertEqual(1, data['unread'])
+        first = data['items'][0]
+        self.assertEqual(('fa-times-circle', 'danger', False), (first['icon'], first['tone'], first['read']))
+        # « Ouvrir » goes through the route that marks it read (2026-10-07).
+        self.assertEqual(reverse('common:notification_open', args=[new.pk]), first['open_url'])
+        self.assertEqual([], first['actions'])
+
+    def test_the_unread_filter_and_the_limit(self):
+        self._note(read=True)
+        unread = [self._note(title=f'u{i}') for i in range(3)]
+        self.assertEqual({n.pk for n in unread}, {n['id'] for n in self._list(filter='unread')['items']})
+        self.assertEqual(2, len(self._list(limit=2)['items']))
+        self.assertEqual(4, self._list(limit='nope')['total'])
+
+    def test_read_unread_and_delete_act_on_ones_own_notification(self):
+        note = self._note()
+        self.assertEqual({'done': True, 'unread': 0}, self._act(note, 'read').json())
+        self.assertEqual(1, self._act(note, 'unread').json()['unread'])
+        note.refresh_from_db()
+        self.assertIsNone(note.read_at)
+        self.assertTrue(self._act(note, 'delete').json()['done'])
+        self.assertFalse(Notification.objects.filter(pk=note.pk).exists())
+
+    def test_someone_elses_notification_is_out_of_reach(self):
+        theirs = self._note(user=self.other)
+        for action in ('read', 'delete'):
+            self.assertEqual(404, self._act(theirs, action).status_code)
+        theirs.refresh_from_db()
+        self.assertIsNone(theirs.read_at)
+
+    def test_an_unknown_gesture_is_refused(self):
+        self.assertEqual(400, self._act(self._note(), 'archive').status_code)
+
+    def test_read_all_marks_every_unread_of_ones_own_only(self):
+        self._note(); self._note()
+        theirs = self._note(user=self.other)
+        rep = self.client.post(reverse('common:api_notifications_read_all')).json()
+        self.assertEqual((True, 2, 0), (rep['done'], rep['marked'], rep['unread']))
+        theirs.refresh_from_db()
+        self.assertIsNone(theirs.read_at)
+
+
+class BellPanelAccessRequestTest(TestCase):
+    """A gesture PROPER to a kind, declared by the server (`notification_panel.ACTIONS_BY_KIND`):
+    « Accorder / Refuser » an access request — for the OWNER, while the request waits."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        self.tmp = tempfile.mkdtemp()
+        setting = override_settings(MEDIA_ROOT=self.tmp)
+        setting.enable()
+        self.addCleanup(setting.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        from wama.common.services.access_requests import request_access
+        from wama.common.services.sharing import partager
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        from wama.describer.models import Description
+        User = get_user_model()
+        self.owner = User.objects.create_user('panel_owner', password='x')
+        self.requester = User.objects.create_user('panel_requester', password='x')
+        _lot, (card,) = _lot_de(Description, self.owner, 1)
+        partager(self.owner, card, 'public')
+        self.grant = request_access(self.requester, card, 'own', surface='describer')
+
+    def _items(self, user):
+        self.client.force_login(user)
+        return self.client.get(reverse('common:api_notifications_list')).json()['items']
+
+    def test_the_owner_gets_accept_and_refuse_while_the_request_waits(self):
+        (item,) = [n for n in self._items(self.owner) if n['kind'] == 'access_request']
+        answer = reverse('common:access_request_answer', args=[self.grant.pk])
+        self.assertEqual([('Accorder', answer, {'accept': '1'}), ('Refuser', answer, {'accept': '0'})],
+                         [(a['label'], a['post'], a['data']) for a in item['actions']])
+        # Refused from the panel's own gesture: the request no longer waits, the gestures go.
+        self.assertTrue(self.client.post(answer, item['actions'][1]['data']).json()['done'])
+        (item,) = [n for n in self._items(self.owner) if n['kind'] == 'access_request']
+        self.assertEqual([], item['actions'])
+
+    def test_a_recipient_who_does_not_own_the_element_is_offered_nothing_to_answer(self):
+        # The request's notification held by someone who is NOT the owner (ownership moved since,
+        # or a copy): the gestures are computed from who owns the element NOW, never from who
+        # received the notification. (A first version looped over the requester's items — who
+        # never receives this kind: it passed with the check removed. Counter-proof, 2026-10-13.)
+        Notification.objects.create(recipient=self.requester, kind='access_request', title='copy',
+                                    url=f'/common/requests/{self.grant.pk}/')
+        (item,) = [n for n in self._items(self.requester) if n['kind'] == 'access_request']
+        self.assertEqual([], item['actions'])
+
+
+class BellPanelRenderingTest(SimpleTestCase):
+    """The panel's rendering is PURE (state → HTML), run here in V8: escaping, unread marks, the
+    server-declared gestures, the consent step, the undo line, the empty states, the footer."""
+
+    def setUp(self):
+        import importlib.util
+        if importlib.util.find_spec('py_mini_racer') is None:
+            self.skipTest('py_mini_racer absent de ce venv')
+        from pathlib import Path
+        from django.conf import settings
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval('var window = {};')
+        self.v8.eval((Path(settings.BASE_DIR) / 'wama/common/static/common/js/wama-notifications.js')
+                     .read_text(encoding='utf-8'))
+
+    def _render(self, **state):
+        import json
+        base = {'filter': 'all', 'items': [], 'unread': 0, 'loading': False, 'error': False,
+                'expanded': {}, 'busy': {}, 'consent': {}, 'pending': {}}
+        base.update(state)
+        return self.v8.eval(f'window.WamaNotifications._renderPanel({json.dumps(base)}, '
+                            f'Date.parse("2026-10-13T12:00:00Z"))')
+
+    @staticmethod
+    def _item(**kw):
+        item = {'id': 7, 'kind': 'job_done', 'title': 'Fini', 'body': '', 'app': '',
+                'open_url': '/common/notifications/7/open/', 'created_at': '2026-10-13T11:55:00Z',
+                'read': False, 'icon': 'fa-check-circle', 'tone': 'success', 'actions': []}
+        item.update(kw)
+        return item
+
+    def test_a_title_is_escaped_and_an_unread_one_is_marked(self):
+        html = self._render(items=[self._item(title='<img src=x onerror=alert(1)>')], unread=1)
+        self.assertIn('&lt;img src=x onerror=alert(1)&gt;', html)
+        self.assertNotIn('<img src=x', html)
+        self.assertIn('wn-item is-unread', html)
+        self.assertIn('wn-dot', html)
+        self.assertIn('il y a 5 min', html)
+        self.assertIn('Non lues <span class="wn-count">1</span>', html)
+
+    def test_a_read_one_offers_to_mark_it_unread_and_read_all_is_off(self):
+        html = self._render(items=[self._item(read=True)])
+        self.assertNotIn('is-unread', html)
+        self.assertIn('Marquer comme non lue', html)
+        self.assertIn('data-wn-readall title="Tout marquer comme lu" aria-label="Tout marquer comme lu" disabled', html)
+
+    def test_the_server_declared_gestures_and_their_consent_step(self):
+        actions = [{'label': 'Accorder', 'icon': 'fa-check', 'tone': 'success', 'post': '/a/', 'data': {}},
+                   {'label': 'Refuser', 'icon': 'fa-times', 'tone': 'danger', 'post': '/a/', 'data': {}}]
+        html = self._render(items=[self._item(actions=actions)])
+        self.assertIn('class="wn-btn tone-success" data-wn-do="0"', html)
+        self.assertIn('class="wn-btn tone-danger" data-wn-do="1"', html)
+        busy = self._render(items=[self._item(actions=actions)], busy={'7': True}, unread=1)
+        self.assertEqual(2, busy.count(' disabled>'))
+        consent = self._render(items=[self._item(actions=actions)],
+                               consent={'7': {'statement': 'Je cède <b>tout</b>', 'index': 0, 'label': 'Accorder'}})
+        self.assertIn('Je cède &lt;b&gt;tout&lt;/b&gt;', consent)
+        self.assertIn('Valider et accorder', consent)
+        self.assertNotIn('data-wn-do=', consent)
+
+    def test_a_deletion_waiting_for_undo_and_the_empty_states(self):
+        self.assertIn('data-wn-undo="7"', self._render(items=[self._item()], pending={'7': 1}))
+        self.assertIn('Tout est lu.', self._render(filter='unread'))
+        self.assertIn('Aucune notification.', self._render())
+        self.assertIn('Réessayer', self._render(error=True))
+
+    def test_the_footer_leads_to_the_full_page(self):
+        self.assertIn('<a class="wn-foot" href="/common/notifications/">Voir toutes les notifications',
+                      self._render())
+
+    def test_times_read_as_people_say_them(self):
+        now = 'Date.parse("2026-10-13T12:00:00Z")'
+        said = self.v8.eval('JSON.stringify(["2026-10-13T11:59:40Z", "2026-10-13T11:55:00Z", '
+                            '"2026-10-13T10:00:00Z", "2026-10-12T11:00:00Z", "2026-10-10T12:00:00Z"]'
+                            f'.map(function (t) {{ return window.WamaNotifications._relativeTime(t, {now}); }}))')
+        import json
+        self.assertEqual(['à l’instant', 'il y a 5 min', 'il y a 2 h', 'hier', 'il y a 3 j'],
+                         json.loads(said))

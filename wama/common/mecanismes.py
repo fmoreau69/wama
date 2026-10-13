@@ -1689,6 +1689,16 @@ MECHANISMS = (
               'wama/common/utils/notifications.py', 'docs/construction/exploitation/WAMA_COLLABORATION.md',
               annexes=('wama/common/context_processors.py',
                        'wama/common/templates/common/notifications.html')),
+    Mechanism('notification_panel', 'Panneau de la cloche',
+              "Un clic sur la cloche ouvre ses notifications SANS quitter la page (2026-10-13) : "
+              "ouvrir, lu / non lu, supprimer (avec « Annuler »), tout lire, et les gestes PROPRES "
+              "à un type — déclarés par le serveur (STYLE_BY_KIND, ACTIONS_BY_KIND : « Accorder / "
+              "Refuser » une demande d'accès), la page ne connaît aucun type. Ouvrir le panneau ne "
+              "marque rien comme lu ; le lien de la cloche reste la page complète (Ctrl-clic)",
+              'wama/common/services/notification_panel.py',
+              'docs/construction/exploitation/WAMA_COLLABORATION.md',
+              annexes=('wama/common/static/common/js/wama-notifications.js',
+                       'wama/common/static/common/css/wama-notifications.css')),
 
     )),
 

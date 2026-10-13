@@ -23454,3 +23454,38 @@ Studio ? »
 beat. Tant que beat garde l'ancienne planification, la campagne part encore sur `gpu`. Inversement,
 un beat relancé SANS le worker `nightly` laisserait les campagnes en attente dans une file que
 personne ne lit.
+
+## §PALIER — 2026-10-13, « PANNEAU DE LA CLOCHE ; surveillance morte de l'arbre retirée » — ✅ LIVRÉ — 🔴 relancer gunicorn — 🔚 `wama-schedule.js` (attend le commit d'une autre instance)
+
+**Demande de Fabien** : *« pour la cloche de notification, quand je clique dessus, une petite
+fenêtre contextuelle avec en bas un lien vers la page complète… je veux pouvoir interagir avec les
+notifications directement dans la petite fenêtre »* ; et, de la revérification du même jour :
+*« corrige wama-schedule dans le commun et supprime le code mort »*.
+
+- ✅ **Panneau de la cloche** — domicile `WAMA_COLLABORATION.md §2.3` (la ligne « la cloche reste un
+  LIEN, pas un panneau déroulant » y est barrée et datée). Brique `wama-notifications.js` +
+  `.css` (montées par `base.html`), registre serveur `common/services/notification_panel.py`
+  (`STYLE_BY_KIND`, `ACTIONS_BY_KIND` — « Accorder / Refuser » une demande d'accès, au
+  propriétaire seul), routes `api/notifications/`, `…/<id>/<read|unread|delete>/`, `…/read-all/` ;
+  la page complète gagne « non lu » et « supprimer ». Décisions de Fabien : ouvrir le panneau ne
+  marque rien comme lu ; une notification se supprime. Registre `mecanismes.py`
+  (`notification_panel`).
+  Vérifié : `tests_notifications` (routes, gestes propres au type, rendu pur dans V8 — deux
+  contre-épreuves, dont une qui a révélé un premier test VIDE, réécrit) ; scénario navigateur sur
+  serveur éphémère 8011, compte jetable créé puis supprimé : **30/30**, zéro erreur JS, captures
+  ordinateur et téléphone relues (un faux « survol » de la 1ʳᵉ notification à l'ouverture,
+  corrigé : surbrillance au seul focus clavier).
+- ✅ **Surveillance morte de l'arbre retirée** (`REMOVAL_LEDGER` R124) : `setupAutoRefresh` /
+  `checkForChanges` / `fetchTreeHash` et la route `api_tree_mtime` — plus appelés depuis le
+  17/03, ils coûtaient encore une requête à chaque page. L'arbre suit les événements des apps.
+  `wama.filemanager` 81/81 (WSL).
+- 🔚 **`wama-schedule.js` NON corrigé, volontairement** : une autre instance a, NON COMMITÉ depuis
+  15:11, une modification des MÊMES lignes (observateur de la file, pose des pastilles par
+  `place()`). Et le plan de correction l'exige : `decorate()` retire et repose ses pastilles, son
+  observateur reçoit ces mutations APRÈS que `decorating` est retombé (rappel asynchrone) — ne
+  réagir qu'à une card ajoutée / retirée ou à une pastille PERDUE, sans écarter d'abord ses propres
+  mutations (`observer.takeRecords()` en fin de `decorate`), ferait boucler la relecture sur la
+  version de HEAD. ⏳ À faire après son commit : `takeRecords()` + filtre « card / pastille
+  perdue » ; effet attendu ≈ 1 appel par seconde de moins tant qu'une card avance.
+- 🔴 **Relancer gunicorn** (routes neuves). D'ici là, la cloche retombe sur la page complète (la
+  route du panneau répond 404, le repli est prévu) ; les JS/CSS sont servis tout de suite.

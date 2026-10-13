@@ -120,6 +120,12 @@ urlpatterns = [
     # Les NOUVELLES notifications, pour la cloche et la fenêtre en bas à droite (2026-10-03).
     path('api/notifications/recent/', views.api_notifications_recent,
          name='api_notifications_recent'),
+    # Le PANNEAU de la cloche (2026-10-13) : la liste, puis lu / non lu / supprimer, tout lire.
+    path('api/notifications/', views.api_notifications_list, name='api_notifications_list'),
+    path('api/notifications/read-all/', views.api_notifications_read_all,
+         name='api_notifications_read_all'),
+    path('api/notifications/<int:pk>/<str:action>/', views.api_notification_act,
+         name='api_notification_act'),
     # ENVOYER VERS — résolveur en LECTURE SEULE : sorties de l'élément + apps éligibles +
     # l'endpoint qui reçoit. L'envoi lui-même passe par `filemanager:api_import`, celui qui
     # sert déjà « Envoyer vers… » — on ne duplique pas ses gardes.

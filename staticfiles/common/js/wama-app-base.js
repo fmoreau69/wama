@@ -1373,11 +1373,18 @@
         // Première visite (rien de mémorisé) : on prend le point de départ sans rien montrer —
         // l'historique est sur la page Notifications, pas en rafale à l'écran.
         if (isFinite(seen)) {
-          (d.items || []).forEach(notifPopup);
+          // Panneau de la cloche OUVERT (2026-10-13) : la nouvelle s'y inscrit en tête — une
+          // fenêtre en bas à droite la dirait une seconde fois. Le son, lui, sonne.
+          const panelOpen = global.WamaNotifications && global.WamaNotifications.isOpen();
+          if (!panelOpen) (d.items || []).forEach(notifPopup);
           const chime = chimeFor(d.items);
           if (chime.sound && claimChime(chime.lastId)) ringUnlessPlaying(chime.sound);
         }
         writeLastSeen(Math.max(d.last_id || 0, isFinite(seen) ? seen : 0));
+        // Ce qui vient d'arriver, pour qui l'écoute (le panneau de la cloche se relit).
+        if (d.items && d.items.length && document.dispatchEvent && global.CustomEvent) {
+          document.dispatchEvent(new CustomEvent('wama:notifications', { detail: d }));
+        }
       })
       .catch(function () { /* hors ligne, route absente : rien à dire */ });
   }
@@ -1394,6 +1401,7 @@
     });
   }
   global.WamaApp.checkNotifications = checkNotifications;
+  global.WamaApp.setBellCount = setBellCount;          // le panneau de la cloche tient la pastille
   global.WamaApp.playNotificationSound = playChime;   // « écouter » du profil
   global.WamaApp.isAudioPlaying = isAudioPlaying;     // la question inverse de « faire taire »
   if (typeof document === 'undefined' || !document.addEventListener) {

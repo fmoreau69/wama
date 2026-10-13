@@ -183,7 +183,9 @@
                 <!-- Bouton Compte / Login -->
                 {% if user.is_authenticated and user.username != 'anonymous' %}
                 {% comment %}Notifications DANS WAMA (WAMA_COLLABORATION §2.3) : badge des non
-                lues, compte fourni par `context_processors.unread_notifications`.{% endcomment %}
+                lues, compte fourni par `context_processors.unread_notifications`. Un clic ouvre le
+                PANNEAU de la cloche (`wama-notifications.js`, 2026-10-13) ; le lien reste la page
+                complète (Ctrl-clic, clic du milieu, et repli sans JS).{% endcomment %}
                 <li class="nav-item">
                     <a class="nav-link position-relative" href="{% url 'common:notifications' %}"
                        id="wamaNotificationsLink"

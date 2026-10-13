@@ -59,9 +59,14 @@ Les préférences type × canal (§5.2) sont la marche 5, pas cette page.
       {% if not n.read_at %}
       <form method="post" action="{% url 'common:notifications_mark_read' %}">
         {% csrf_token %}<input type="hidden" name="id" value="{{ n.pk }}">
-        <button type="submit" class="btn btn-sm btn-outline-secondary">Marquer comme lu</button>
+        <button type="submit" class="btn btn-sm btn-outline-info">Marquer comme lu</button>
       </form>
+      {% else %}
+      {# Gestes du panneau de la cloche, mêmes routes (`wama-notifications.js`, 2026-10-13). #}
+      <button type="button" class="btn btn-sm btn-outline-info" data-wn-page-act="unread" data-id="{{ n.pk }}">Marquer comme non lu</button>
       {% endif %}
+      <button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-wn-page-act="delete" data-id="{{ n.pk }}"
+              title="Supprimer cette notification"><i class="fas fa-trash-alt"></i></button>
     </div>
   </div>
   {% empty %}

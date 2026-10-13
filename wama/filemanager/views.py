@@ -34,8 +34,9 @@ def get_user_media_root(user):
 
 
 def _app_folders_config(user_id):
-    """La DÉCLARATION des dossiers d'app de l'arbre — lue par l'arbre ET par le détecteur de
-    changements (`api_tree_mtime`), pour qu'ils ne puissent plus diverger.
+    """La DÉCLARATION des dossiers d'app de l'arbre — lue par l'arbre (le détecteur de
+    changements `api_tree_mtime` qui la lisait aussi est retiré le 2026-10-13 : sa surveillance
+    périodique n'était plus appelée depuis le 17/03, l'arbre suit les événements des apps).
 
     ⚠ DÉRIVÉE depuis le 2026-10-02 (route §10.6 point 6.1) : cette fonction écrivait un bloc par
     app — libellé, icône, sous-dossiers —, à tenir à la main à chaque app ajoutée, et citait les
@@ -420,44 +421,6 @@ def api_tree(request):
     user = get_user(request)
     tree = build_file_tree(user)
     return JsonResponse(tree, safe=False)
-
-
-@require_GET
-def api_tree_mtime(request):
-    """
-    Lightweight change-detection endpoint for polling.
-
-    Returns a compact hash built from the mtime of each registered top-level
-    folder — no recursion, one stat() per folder. The JS poller uses this
-    instead of fetching the full tree every 5 s.
-    """
-    import hashlib
-    user = get_user(request)
-    media_root = Path(settings.MEDIA_ROOT)
-    uid = user.id
-
-    # Le MÊME ensemble que l'arbre, lu à la MÊME déclaration (`_app_folders_config`) : temp +
-    # chaque dossier-feuille déclaré. Une stat par dossier, aucune récursion sur le disque.
-    def _leaves(nodes):
-        for node in nodes:
-            if node.get('path'):
-                yield node['path']
-            children = node.get('children')
-            if isinstance(children, list):
-                yield from _leaves(children)
-
-    leaf_paths = [f'users/{uid}/temp', *_leaves(_app_folders_config(uid))]
-
-    h = hashlib.md5()
-    for rel in leaf_paths:
-        p = media_root / rel
-        if p.exists():
-            try:
-                h.update(f'{rel}:{p.stat().st_mtime}'.encode())
-            except OSError:
-                pass
-
-    return JsonResponse({'mtime_hash': h.hexdigest()})
 
 
 @require_GET
