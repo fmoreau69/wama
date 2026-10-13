@@ -25,6 +25,7 @@ The anonymizer's « Détection » face (the process `detect`) keeps its own pari
 import ast
 import json
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -122,6 +123,11 @@ class EveryProcessHasAReadableResultTest(SimpleTestCase):
         for app, spec in coherence:
             with self.subTest(app=app):
                 self.assertEqual('coherence', spec.result_format)
+
+    def test_the_speaker_turns_are_shown_as_segments(self):
+        """The transcriber's modal drew each turn with its speaker in colour ; a plain text face
+        would lose that."""
+        self.assertEqual('segments', _real_pipelines()['transcriber'].spec('diarize').result_format)
 
 
 class _MediaRootMixin:
@@ -249,6 +255,18 @@ class ProcessFacesTest(_MediaRootMixin, TestCase):
                          high['content'], 'the text Copy takes')
         self.assertIsNone(build_coherence_report(None, '', '', 'x'), 'nothing checked : no report')
 
+    def test_speaker_turns_are_served_as_segments_with_their_text(self):
+        from wama.common.services.process_pipeline import AppPipeline, ProcessSpec
+        turns = [{'speaker': 'A', 'time_range': '0-1', 'text': 'Bonjour'},
+                 {'speaker': 'B', 'time_range': '1-2', 'text': 'à tous'}]
+        pipe = AppPipeline('demo_faces', (
+            ProcessSpec('who', label='Locuteurs', result=lambda item: turns, result_format='segments'),
+        ), label='Demo')
+        with mock.patch('wama.common.services.process_pipeline.pipeline_of', return_value=pipe):
+            face = self._faces('demo_faces', self.user)['who'][1]
+        self.assertEqual(turns, face['segments'])
+        self.assertEqual('[A]  0-1\n  Bonjour\n\n[B]  1-2\n  à tous', face['content'])
+
     def test_an_unknown_result_form_is_refused_at_declaration(self):
         from wama.common.services.process_pipeline import AppPipeline, ProcessSpec
         with self.assertRaises(ValueError):
@@ -303,9 +321,29 @@ class TranscriberFacesTest(_MediaRootMixin, TestCase):
         self.assertEqual({'score': 45, 'level': 'danger', 'notes': ['n1'],
                           'suggestion': 'Bonjour à tous !', 'original': 'Bonjour à tous.'}, report)
 
+    def test_its_speakers_evaluation_and_downloads_reach_the_viewer(self):
+        """What the transcriber's own modal showed besides its texts (retired 2026-10-13, R126) :
+        the speaker turns, the measure against a reference AFTER the Output, TXT/SRT."""
+        from django.urls import reverse
+        from wama.transcriber.models import TranscriptSegment
+        t = self._transcript(reference_result=self._file('transcriber/reference/ref.txt'))
+        TranscriptSegment.objects.create(transcript=t, speaker_id='SPEAKER_00', start_time=0,
+                                         end_time=1, text='Bonjour à tous.')
+        sides = self._preview(t)['sides']
+        self.assertEqual([{'key': 'evaluation', 'label': 'Évaluation', 'icon': 'fa-scale-balanced'}],
+                         sides['after'])
+        url = reverse('transcriber:download', args=[t.pk])
+        self.assertEqual([f'{url}?format={f}' for f in ('txt', 'srt', 'pdf', 'docx')],
+                         [d['url'] for d in sides['downloads']])
+        self.assertEqual('SPEAKER_00', self._preview(t, 'diarize')['segments'][0]['speaker'])
+        measure = self._preview(t, 'evaluation')
+        self.assertEqual(('evaluation', True), (measure['side'], measure['evaluation']['pending']))
+        self.assertIn('ref.txt', measure['content'])
+
     def test_before_its_optional_processes_it_has_no_face(self):
         sides = self._preview(self._transcript())['sides']
         self.assertEqual([], sides['faces'])
+        self.assertEqual([], sides['after'], 'no reference : nothing measured')
         self.assertEqual('input', sides['compare_base'])
 
 
@@ -343,6 +381,30 @@ class ViewerDrawsTheReportTest(SimpleTestCase):
         self.assertIn('badge bg-secondary', html)
         self.assertNotIn('wama-coherence-original', html)
         self.assertNotIn('<ul', html)
+
+    def test_each_speaker_keeps_its_colour_and_every_text_is_escaped(self):
+        html = self.v8.eval('window.WamaMediaPreview.segmentsHtml(' + json.dumps([
+            {'speaker': 'A', 'time_range': '0-1', 'text': '<i>x</i>'},
+            {'speaker': 'B', 'time_range': '1-2', 'text': 'y'},
+            {'speaker': 'A', 'time_range': '2-3', 'text': 'z'}]) + ', false)')
+        colours = re.findall(r'background-color:(#[0-9a-f]{6})', html)
+        self.assertEqual(3, len(colours))
+        self.assertEqual(colours[0], colours[2], 'the same speaker, the same colour')
+        self.assertNotEqual(colours[0], colours[1])
+        self.assertIn('&lt;i&gt;x&lt;/i&gt;', html)
+
+    def test_the_downloads_are_links_to_the_declared_formats(self):
+        html = self.v8.eval('window.WamaMediaPreview.downloadsHtml(' + json.dumps([
+            {'value': 'srt', 'label': 'SRT', 'icon': 'fas fa-closed-captioning',
+             'url': '/t/download/3/?format=srt&"x'}]) + ')')
+        self.assertIn('href="/t/download/3/?format=srt&amp;&quot;x" download', html)
+        self.assertIn('> SRT</a>', html)
+
+    def test_the_evaluation_comes_after_the_output(self):
+        keys = self.v8.eval('window.WamaMediaPreview.faceButtons(' + json.dumps({'sides': {
+            'has_input': True, 'has_output': True, 'faces': [{'key': 'diarize', 'label': 'L'}],
+            'after': [{'key': 'evaluation', 'label': 'Évaluation'}]}}) + ').map(function (b) { return b.key; })')
+        self.assertEqual(['input', 'diarize', 'output', 'evaluation'], list(keys))
 
     def test_a_text_face_counts_its_words(self):
         label = lambda text: self.v8.eval(f'window.WamaMediaPreview.wordsLabel({json.dumps(text)})')

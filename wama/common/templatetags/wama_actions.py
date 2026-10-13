@@ -16,7 +16,7 @@ register = template.Library()
 
 @register.inclusion_tag('common/_download_button.html')
 def download_button(app, url, ready, available=None, title=None, empty_title=None, css_class=None,
-                    html_id=None, label=None, split=True):
+                    html_id=None, label=None, split=True, item=None):
     """Rend le bouton ⬇ de l'app `app` selon `WAMA_APP_CONVENTIONS §6.3`.
 
     `url`       : URL de téléchargement SANS query (`{% url 'app:download' o.id %}`).
@@ -25,6 +25,9 @@ def download_button(app, url, ready, available=None, title=None, empty_title=Non
                   (ex. `json` de reader, qui suppose un `raw_result`) ne doit pas s'afficher.
                   `None` = tous les formats déclarés. Passer une liste VIDE n'aurait pas le même
                   sens (aucun format), d'où le défaut à `None` et non à `()`.
+    `item`      : l'élément de la card — sans `available`, la restriction est celle que l'app
+                  DÉCLARE (`export_formats.register_export_availability`), la même que lit la
+                  visionneuse (2026-10-13 : la règle du reader vivait dans son seul gabarit).
 
     La forme — lien simple ou split ▾ — n'est PAS un paramètre : elle se déduit de
     `export_formats` déclaré au catalogue. Une app ne peut donc pas choisir sa forme au gabarit,
@@ -40,7 +43,9 @@ def download_button(app, url, ready, available=None, title=None, empty_title=Non
     ⚠ Renommé le 2026-08-30 (ex-`bouton_telecharger`, params `pret`/`disponibles`/`titre`/
     `titre_vide`/`classe`) : un tag est lu dans 12 gabarits, donc une API — anglais obligatoire.
     """
-    from wama.common.utils.export_formats import entries_for_app
+    from wama.common.utils.export_formats import available_formats, entries_for_app
+    if available is None and item is not None:
+        available = available_formats(app, item)
     return {
         'url': url,
         'ready': bool(ready),

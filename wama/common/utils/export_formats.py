@@ -100,6 +100,28 @@ def entries_for_app(app_name: str, available=None) -> list[dict]:
     return entries(conv.get('export_formats') or (), available)
 
 
+#: Les formats déclarés qu'un élément NE PEUT PAS rendre : `{app: (élément) -> formats}` — le
+#: `json` du reader suppose un `raw_result`. Déclaré par l'app (`register_export_missing`), lu
+#: par le bouton ⬇ de la card ET par la visionneuse : la règle vivait dans le gabarit de la
+#: card seul (2026-10-13), la visionneuse l'aurait ignorée. Par ce qui MANQUE, pour ne jamais
+#: recopier la liste déclarée.
+_MISSING: dict = {}
+
+
+def register_export_missing(app_name: str, missing) -> None:
+    """`missing` : `(élément) -> itérable des formats déclarés` que CET élément n'a pas."""
+    _MISSING[app_name] = missing
+
+
+def available_formats(app_name: str, item):
+    """Les formats déclarés que `item` peut rendre, ou None (= tous ceux que l'app déclare)."""
+    missing = _MISSING.get(app_name)
+    if missing is None or item is None:
+        return None
+    absent = {f.lower() for f in missing(item)}
+    return [e['value'] for e in entries_for_app(app_name) if e['value'] not in absent]
+
+
 def requested_format(app_name: str, query) -> str:
     """Le format DEMANDÉ à un téléchargement d'une app late-binding, lu dans la query du bouton ⬇
     commun (`?format=`) et borné aux formats que l'app DÉCLARE ; absent ou inconnu → le premier

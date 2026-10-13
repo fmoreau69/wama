@@ -4,19 +4,50 @@ Ces tests tiennent le CONTRAT que l'extraction ne devait pas casser : les ancres
 (`#tab-<clé>`, `#<cible>`, `#wc-<clé>`) sont ce que le JS des apps consomme déjà. Une
 factorisation qui les déplace n'est pas une factorisation, c'est une régression silencieuse —
 le JS ne lève pas, il ne trouve simplement plus rien.
+
+⚠ 2026-10-13 : AUCUNE app réelle ne déclare plus d'onglets — le describer (R125) puis le
+transcriber (R126) ont rendu leurs facettes à la visionneuse commune. Seules deux jumelles de
+bac à sable (`describer_01`, `transcriber_01`, gabarits COPIÉS le 07/10) rendent encore le
+partial. Le contrat se tient donc sur une déclaration de DÉMONSTRATION, qui reprend celle que
+portait le transcriber, tant que le mécanisme existe — son retrait est une décision à part.
 """
 import re
 
+from django.contrib.auth import get_user_model
 from django.template import Context, Template
 from django.test import SimpleTestCase
 
-from wama.common.utils.detail_registry import result_tabs_for
+from wama.common.utils.detail_registry import DetailRegistry, result_tabs_for
 
-#: Les ancres relevées sur les DEUX gabarits AVANT extraction (git HEAD du 07/09). Le describer
-#: n'y est plus depuis le 2026-10-13 (R125) : sa modale propre est retirée, ses facettes sont les
-#: faces de la visionneuse commune.
+DEMO = 'demo_result_tabs'
+
+#: Les facettes que déclarait le transcriber jusqu'au 2026-10-13 (R126).
+DEMO_TABS = [
+    {'cle': 'transcription', 'label': 'Transcription', 'icone': 'fa-file-alt',
+     'cible': 'resultText', 'forme': 'pre', 'badge': True},
+    {'cle': 'diarisation', 'label': 'Diarisation', 'icone': 'fa-users',
+     'cible': 'diarisationContent', 'forme': 'nu', 'attente': 'Chargement...'},
+    {'cle': 'resume', 'label': 'Résumé', 'icone': 'fa-file-lines',
+     'cible': 'resumeContent', 'forme': 'html', 'badge': True, 'cache': True},
+    {'cle': 'coherence', 'label': 'Cohérence', 'icone': 'fa-spell-check',
+     'cible': 'coherenceContent', 'forme': 'nu', 'badge': True, 'cache': True},
+    {'cle': 'evaluation', 'label': 'Évaluation', 'icone': 'fa-scale-balanced',
+     'cible': 'evaluationContent', 'forme': 'nu', 'cache': True},
+]
+
+
+def setUpModule():
+    DetailRegistry.register(DEMO, get_user_model(), lambda item: {}, spec={'result_tabs': DEMO_TABS})
+
+
+def tearDownModule():
+    DetailRegistry._registry.pop(DEMO, None)
+
+
+#: Les ancres relevées sur les DEUX gabarits AVANT extraction (git HEAD du 07/09) — celles du
+#: transcriber, portées par la déclaration de démonstration.
 ANCRES_ATTENDUES = {
-    'transcriber': {'resultTabs', 'tab-transcription', 'tab-transcription-btn',
+    DEMO: {'resultTabs', 'tab-transcription', 'tab-transcription-btn',
                     'wc-transcription', 'tab-diarisation', 'tab-diarisation-btn',
                     'tab-resume', 'tab-resume-btn', 'wc-resume', 'tab-coherence',
                     'tab-coherence-btn', 'wc-coherence', 'resultText', 'diarisationContent',
@@ -64,7 +95,7 @@ class OngletsDeResultatTest(SimpleTestCase):
 
     def test_the_evaluation_tab_waits_for_a_reference(self):
         """No reference, no measure: showing the tab would promise a comparison that isn't there."""
-        html = _rendu('transcriber')
+        html = _rendu(DEMO)
         bloc = html[html.index('id="tab-evaluation-btn"'):][:260]
         self.assertIn('display:none', bloc)
 
@@ -81,10 +112,10 @@ class OngletsDeResultatTest(SimpleTestCase):
     def test_les_defauts_sont_appliques_PAR_L_ACCESSEUR_pas_par_le_gabarit(self):
         """Une valeur par défaut posée dans un template se recopie au premier partial qui
         l'oublie. Elles vivent donc dans `result_tabs_for`."""
-        for o in result_tabs_for('transcriber'):
+        for o in result_tabs_for(DEMO):
             self.assertTrue(o['label'] and o['icone'] and o['cible'])
             self.assertIn(o['forme'], ('pre', 'html', 'nu'))
-        diar = [o for o in result_tabs_for('transcriber') if o['cle'] == 'diarisation'][0]
+        diar = [o for o in result_tabs_for(DEMO) if o['cle'] == 'diarisation'][0]
         self.assertEqual(diar['attente'], 'Chargement...')
         self.assertFalse(diar['badge'], "la diarisation n'avait pas de compteur de mots")
 
@@ -109,9 +140,10 @@ class DeclarationDansLaSpecDeDetailTest(SimpleTestCase):
                              f'{app} : facettes rendues sans venir de sa spec de détail')
 
     def test_un_adapter_CODE_peut_porter_une_spec(self):
-        """Le transcriber garde son adapter irréductible ET déclare ses facettes : exiger la
-        conversion complète de l'adapter d'abord aurait gelé R18 derrière la marche A3."""
-        from wama.common.utils.detail_registry import DetailRegistry
-        e = DetailRegistry.get('transcriber')
+        """Une app à adapter irréductible peut déclarer ses facettes (le transcriber l'a fait
+        jusqu'au 2026-10-13) : exiger la conversion complète de l'adapter d'abord aurait gelé R18
+        derrière la marche A3."""
+        e = DetailRegistry.get(DEMO)
         self.assertTrue(callable(e['adapter']))
         self.assertTrue(e['spec'].get('result_tabs'))
+        self.assertEqual([o['cle'] for o in DEMO_TABS], [o['cle'] for o in result_tabs_for(DEMO)])

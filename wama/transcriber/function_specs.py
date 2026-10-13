@@ -171,7 +171,7 @@ PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('diarize', label='Locuteurs', depends_on=('transcribe', 'import', 'align'),
                 degree=OPTIONAL, toggle='enable_diarization',
                 applies=_diarize_applies, gpu=True, share=1, eta='transcriber.workers:diarize_eta',
-                result=f'{_DOCUMENTS}:diarization_text'),
+                result=f'{_DOCUMENTS}:diarization_segments', result_format='segments'),
     # Résumé et cohérence lisent le texte ET ses locuteurs (le compte-rendu de réunion les cite,
     # la cohérence par segment s'écrit sur les segments que la diarisation réécrit).
     ProcessSpec('summarize', label='Résumé', depends_on=('transcribe', 'import', 'diarize'),

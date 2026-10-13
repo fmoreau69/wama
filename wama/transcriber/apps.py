@@ -179,9 +179,10 @@ class TranscriberConfig(AppConfig):
         # nommer des champs et relibeller quatre réglages à la main (« Diarisation », « Résumé »,
         # « Mots-clés », « Cohérence »). Les libellés viennent désormais du SCHÉMA (`params.py`,
         # ceux de la modale ⚙) et un réglage vrai est affiché « Oui » par l'inspecteur, pour
-        # toutes les apps. Les FACETTES de résultat étaient déjà une donnée (R18, 2026-09-07) :
-        # clés/ids INCHANGÉS — `resultText`, `diarisationContent`, `resumeContent`,
-        # `coherenceContent` sont le contrat que son JS consomme.
+        # toutes les apps.
+        # Plus de `result_tabs` (retirés le 2026-10-13, R126) : la modale propre qu'ils
+        # structuraient est retirée — transcription, locuteurs, résumé, cohérence et évaluation
+        # sont les faces de la visionneuse commune, TXT/SRT ses téléchargements.
         from wama.common.utils.detail_registry import register_app_detail_spec
         register_app_detail_spec('transcriber', Transcript, {
             'source_file': 'audio',
@@ -191,20 +192,4 @@ class TranscriberConfig(AppConfig):
             'result_text': 'text',
             'extra': [{'field': 'enable_diarization'}, {'field': 'generate_summary'},
                       {'field': 'hotwords'}, {'field': 'verify_coherence'}],
-            'result_tabs': [
-                {'cle': 'transcription', 'label': 'Transcription', 'icone': 'fa-file-alt',
-                 'cible': 'resultText', 'forme': 'pre', 'badge': True},
-                # Visible d'emblée (pas de `cache`) : la diarisation se charge à l'ouverture,
-                # d'où son texte d'attente — c'est ce que faisait le bloc en dur.
-                {'cle': 'diarisation', 'label': 'Diarisation', 'icone': 'fa-users',
-                 'cible': 'diarisationContent', 'forme': 'nu', 'attente': 'Chargement...'},
-                {'cle': 'resume', 'label': 'Résumé', 'icone': 'fa-file-lines',
-                 'cible': 'resumeContent', 'forme': 'html', 'badge': True, 'cache': True},
-                {'cle': 'coherence', 'label': 'Cohérence', 'icone': 'fa-spell-check',
-                 'cible': 'coherenceContent', 'forme': 'nu', 'badge': True, 'cache': True},
-                # Mesure contre la RÉFÉRENCE (`result_evaluation`) — masqué tant qu'aucune
-                # référence n'est posée ; rempli par le rendu COMMUN `WamaEvaluation.renderItem`.
-                {'cle': 'evaluation', 'label': 'Évaluation', 'icone': 'fa-scale-balanced',
-                 'cible': 'evaluationContent', 'forme': 'nu', 'cache': True},
-            ],
         })

@@ -57,8 +57,16 @@ class ResultSectionsTest(TestCase):
         from wama.transcriber.utils import transcript_documents as docs
         t = self._full()
         self.assertEqual('Bonjour à tous.', docs.transcription_text(t))
+        # The speaker turns are SEGMENTS (drawn one by one by the common viewer) ; their text is
+        # the common form, the one the export reads.
+        from wama.common.services.process_pipeline import segments_text
+        segments = docs.diarization_segments(t)
+        self.assertEqual([{'speaker': 'SPEAKER_00', 'time_range': '00:01.000 - 00:04.500',
+                           'text': 'Bonjour'},
+                          {'speaker': 'Inconnu', 'time_range': '00:04.500 - 00:09.000',
+                           'text': 'à tous.'}], segments)
         self.assertEqual('[SPEAKER_00]  00:01.000 - 00:04.500\n  Bonjour\n\n'
-                         '[Inconnu]  00:04.500 - 00:09.000\n  à tous.', docs.diarization_text(t))
+                         '[Inconnu]  00:04.500 - 00:09.000\n  à tous.', segments_text(segments))
         # The summary is markdown (`result_format`) : its key points and actions are real lists,
         # the way the transcriber's own result modal showed them — the export keeps its bullets.
         self.assertEqual('Un résumé.\n\n### Points clés\n- a\n- b\n\n### Actions à mener\n- c',
@@ -71,7 +79,7 @@ class ResultSectionsTest(TestCase):
     def test_a_process_that_left_nothing_has_no_readable_result(self):
         from wama.transcriber.utils import transcript_documents as docs
         t = self._transcript()
-        self.assertIsNone(docs.diarization_text(t), 'no speaker named : nothing to show')
+        self.assertIsNone(docs.diarization_segments(t), 'no speaker named : nothing to show')
         self.assertIsNone(docs.summary_text(t))
         self.assertIsNone(docs.coherence_report(t))
         self.assertIsNone(docs.transcription_text(self._transcript(text='')))

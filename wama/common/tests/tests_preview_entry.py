@@ -318,10 +318,10 @@ class CardPreviewsOpenTheCommonViewerTest(SimpleTestCase):
     preview ; the Reader's double-click showed its output text alone)."""
 
     #: Apps whose JS takes over `wama:card-expand` to open their OWN modal, with the reason.
-    #: An entry that no longer intercepts fails the test : the exemption must go with it.
-    OWN_RESULT_MODAL = {
-        'transcriber': "its result modal carries the summary, coherence and diarization tabs",
-    }
+    #: An entry that no longer intercepts fails the test : the exemption must go with it. EMPTY
+    #: since 2026-10-13 (R126) : the transcriber's tabbed modal was the last one — its speakers,
+    #: coherence report, evaluation and TXT/SRT downloads are now the common viewer's.
+    OWN_RESULT_MODAL = {}
 
     def test_a_batch_child_keeps_the_preview_of_a_single_card(self):
         guard = re.compile(r'\{%\s*if\b[^%]*\bnot\s+in_batch\b')
@@ -338,6 +338,19 @@ class CardPreviewsOpenTheCommonViewerTest(SimpleTestCase):
                for card in CardsOpenTheirEntryByTheCommonGestureTest._cards()
                if re.search(r'class="[^"]*\bpreview-btn\b', card.read_text(encoding='utf-8'))]
         self.assertEqual([], own)
+
+    def test_every_card_preview_says_where_its_double_click_leads(self):
+        # The common gesture opens the viewer at `data-preview-url` ; without it the double-click
+        # leads nowhere. The transcriber's card had none while its own modal took the gesture
+        # (found on 2026-10-13, retiring that modal, R126).
+        gesture = re.compile(r'<[^>]*class="[^"]*\bwama-card-preview\b[^"]*"[^>]*>', re.S)
+        mute = []
+        for card in CardsOpenTheirEntryByTheCommonGestureTest._cards():
+            app = card.parent.name
+            for tag in gesture.findall(card.read_text(encoding='utf-8')):
+                if app not in self.OWN_RESULT_MODAL and 'data-preview-url=' not in tag:
+                    mute.append(f'{app}/{card.name}')
+        self.assertEqual([], mute)
 
     def test_only_a_declared_app_takes_over_the_double_click(self):
         # Hors jumelles : aucune substitution ne régénère leur `static/` (facettes du registre :

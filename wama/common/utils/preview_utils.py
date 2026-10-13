@@ -508,8 +508,8 @@ def _during_preview_data(app_name, instance, request):
 
 #: Les côtés que `unified_preview` sert par leur NOM : une face de process ne les prend jamais. Le
 #: process commun des réglages de sortie s'appelle `output` (`output_process.OUTPUT_KEY`) — sa face
-#: EST la Sortie.
-RESERVED_SIDES = ('input', 'output', 'during', 'compare')
+#: EST la Sortie. `evaluation` : la mesure de la Sortie contre sa référence (`_evaluation_face`).
+RESERVED_SIDES = ('input', 'output', 'during', 'compare', 'evaluation')
 
 #: Ce qu'on AFFICHE d'une face de process : l'icône du TYPE de ce qu'elle rend (premier port de
 #: sortie de son `FunctionSpec` — nature média ou type de donnée). Les types produits aujourd'hui ;
@@ -563,6 +563,10 @@ def _process_face(app_name, pipeline, spec, instance, request, input_data):
         # coloré, remarques, version proposée en regard du texte vérifié) ; `content` est son
         # texte, pour Copier.
         return {'name': label, 'mime_type': 'text/plain', 'content': text, 'coherence': value}
+    if text and spec.result_format == 'segments' and isinstance(value, (list, tuple)):
+        # Les TOURS DE PAROLE, dessinés un par un, le locuteur dans sa couleur ; `content` = leur
+        # texte (Copier).
+        return {'name': label, 'mime_type': 'text/plain', 'content': text, 'segments': list(value)}
     if text and spec.result_format == 'markdown':
         # Mis en forme par LE rendu markdown de WAMA (celui du lecteur de docs : HTML brut
         # neutralisé, liens externes en nouvel onglet) ; `content` garde le texte, pour Copier.
@@ -623,6 +627,42 @@ def _process_faces(app_name, instance, request, input_data, output_data) -> dict
     return faces
 
 
+def _evaluation_face(app_name, instance):
+    """La face « Évaluation » : la mesure de la Sortie contre la RÉFÉRENCE posée sur l'élément,
+    pour une app qui DÉCLARE son évaluation (`result_evaluation.register_evaluation`) — lue par
+    `item_evaluation`, dessinée par le rendu commun `WamaEvaluation.renderItem`. Elle vient
+    APRÈS la Sortie, qu'elle mesure. `{}` : rien de déclaré, ou aucune référence posée.
+
+    2026-10-13 (Fabien : « porte la diarisation, l'évaluation et txt/srt au commun ») : c'était
+    un onglet de la modale propre du transcriber."""
+    from wama.common.services.result_evaluation import evaluation_text, item_evaluation
+    measure = item_evaluation(app_name, instance)
+    if not measure:
+        return {}
+    return {'evaluation': ({'key': 'evaluation', 'label': 'Évaluation', 'icon': 'fa-scale-balanced'},
+                           {'name': 'Évaluation', 'mime_type': 'text/plain',
+                            'content': evaluation_text(measure), 'evaluation': measure})}
+
+
+def _downloads(app_name, instance, ready) -> list:
+    """Les formats que l'app DÉCLARE au téléchargement (`export_formats`, `WAMA_APP_CONVENTIONS
+    §6.3`), bornés à ceux que CET élément a (`export_formats.available_formats`), avec leur
+    adresse — ceux du bouton ⬇ de la card, que la visionneuse offre aussi (2026-10-13 : la
+    modale du transcriber avait TXT et SRT, celle du describer TXT). `[]` sans résultat, sans
+    format déclaré, ou sans route `<app>:download`."""
+    if not ready:
+        return []
+    from django.urls import NoReverseMatch, reverse
+    from wama.common.utils.export_formats import available_formats, entries_for_app
+    try:
+        url = reverse(f'{app_name}:download', args=[instance.pk])
+    except NoReverseMatch:
+        return []
+    return [{'value': e['value'], 'label': str(e['label']), 'icon': e['icon'],
+             'url': f"{url}?format={e['value']}"}
+            for e in entries_for_app(app_name, available_formats(app_name, instance))]
+
+
 def unified_preview(request, app_name: str, pk: int):
     """
     Unified preview endpoint for any registered app.
@@ -679,6 +719,18 @@ def unified_preview(request, app_name: str, pk: int):
         # l'anonymizer « Détection », le transcriber « Locuteurs », « Résumé », « Cohérence ».
         faces = _process_faces(app_name, instance, request,
                                preview_data if has_input else None, output_data)
+        # … et APRÈS la Sortie, ce qui la mesure (l'évaluation contre la référence). Une face
+        # ou un menu qui casse n'emporte pas le reste de l'aperçu.
+        try:
+            after = _evaluation_face(app_name, instance)
+        except Exception as exc:
+            logger.warning(f"Preview {app_name}/{pk} : face Évaluation indisponible : {exc}")
+            after = {}
+        try:
+            downloads = _downloads(app_name, instance, has_output)
+        except Exception as exc:
+            logger.warning(f"Preview {app_name}/{pk} : téléchargements indisponibles : {exc}")
+            downloads = []
         # Comparer confronte la Sortie à la dernière face qui MONTRE L'ENTRÉE (l'entrée et ses
         # détections dessinées), sinon à l'entrée elle-même.
         base_key = next((key for key, (_meta, d) in reversed(list(faces.items()))
@@ -695,14 +747,16 @@ def unified_preview(request, app_name: str, pk: int):
                                and cat_base in ('image', 'video')),
             'compare_base': base_key,
             'faces': [meta for meta, _d in faces.values()],
+            'after': [meta for meta, _d in after.values()],
+            'downloads': downloads,
             # PENDANT : l'app sait-elle montrer sa sortie EN CONSTRUCTION (capacité) vs a-t-elle
             # un partiel MAINTENANT
             'during_capable': app_supports_during_preview(app_name),
             'has_during': bool(during_data),
         }
         side = (request.GET.get('side') or 'input').lower()
-        if side in faces:
-            data = dict(faces[side][1])
+        if side in faces or side in after:
+            data = dict((faces.get(side) or after[side])[1])
             data['side'] = side
         elif side == 'during' and during_data:
             data = dict(during_data)

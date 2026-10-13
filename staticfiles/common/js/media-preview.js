@@ -143,8 +143,64 @@
             '</div>';
     }
 
-    function _coherenceOf(data) {
-        return (data && data.coherence && typeof data.coherence === 'object') ? data.coherence : null;
+    /** Couleurs des locuteurs, attribuées dans l'ordre d'apparition — la palette de la modale du
+     *  transcriber (2026-10-13). */
+    const SPEAKER_COLORS = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f',
+                            '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac'];
+
+    /** Des TOURS DE PAROLE (`ProcessSpec.result_format='segments'`, `[{speaker, time_range,
+     *  text}]`) en HTML : le locuteur dans sa couleur, sa plage, ses mots — la diarisation de la
+     *  modale du transcriber. `compact` (volet) : les mots sous le locuteur. Tout texte échappé.
+     *  Pure (gardée en V8, `tests_pipeline_faces`). */
+    function segmentsHtml(segments, compact) {
+        const colors = {};
+        let next = 0;
+        return '<div class="wama-segments">' + (segments || []).map(function (s) {
+            const who = String((s && s.speaker) || '');
+            if (!(who in colors)) colors[who] = SPEAKER_COLORS[next++ % SPEAKER_COLORS.length];
+            return '<div class="d-flex align-items-start mb-2 px-1' + (compact ? ' flex-column' : '') + '">' +
+                '<div class="wama-segment-who"><span class="badge me-1" style="background-color:' + colors[who] +
+                ';color:#fff;font-size:.75rem;">' + escapeHtml(who) + '</span>' +
+                '<small class="text-muted">' + escapeHtml(s && s.time_range) + '</small></div>' +
+                '<div class="' + (compact ? '' : 'ms-2 ') + 'text-light wama-segment-text">' +
+                escapeHtml(s && s.text) + '</div></div>';
+        }).join('') + '</div>';
+    }
+
+    /** Les TÉLÉCHARGEMENTS de l'élément (`sides.downloads` : les formats que l'app déclare,
+     *  `preview_utils._downloads`) en liens — ceux du bouton ⬇ de la card (la modale du
+     *  transcriber avait TXT et SRT, 2026-10-13). Pure (gardée en V8). */
+    function downloadsHtml(downloads) {
+        return (downloads || []).map(function (d) {
+            return '<a class="btn btn-sm btn-outline-info py-0" href="' + escapeHtml(d.url) + '" download ' +
+                'title="Télécharger ' + escapeHtml(d.label) + '"><i class="' + escapeHtml(d.icon) + '"></i> ' +
+                escapeHtml(d.label) + '</a>';
+        }).join('');
+    }
+
+    /** Le DESSIN d'une face à résultat structuré — rapport de cohérence, tours de parole,
+     *  évaluation contre la référence (rendu commun `WamaEvaluation.renderItem`) — ou null :
+     *  la face se lit alors comme son texte (`content`). */
+    function _structured(data, compact) {
+        const el = document.createElement('div');
+        if (data && data.coherence && typeof data.coherence === 'object') {
+            el.innerHTML = coherenceHtml(data.coherence, compact);
+        } else if (data && Array.isArray(data.segments)) {
+            el.innerHTML = segmentsHtml(data.segments, compact);
+        } else if (data && data.evaluation && typeof data.evaluation === 'object' && window.WamaEvaluation) {
+            if (!window.WamaEvaluation.renderItem(el, data.evaluation)) return null;
+        } else {
+            return null;
+        }
+        return el;
+    }
+
+    /** Le texte dont une face structurée compte les mots : la version proposée (sinon l'original)
+     *  d'un rapport, les mots des tours ; '' pour une évaluation (des taux, pas un texte). */
+    function _structuredWords(data) {
+        if (data.coherence) return data.coherence.suggestion || data.coherence.original || '';
+        if (Array.isArray(data.segments)) return data.segments.map(function (s) { return (s && s.text) || ''; }).join(' ');
+        return '';
     }
 
     // ════════════════════════════════════════════════════════════════════════════════════════
@@ -298,12 +354,13 @@
                 }
                 return;
             }
-            // Rapport de COHÉRENCE (`ProcessSpec.result_format='coherence'`) : score, remarques et
-            // les deux textes l'un sous l'autre, à la densité du volet.
-            const report = _coherenceOf(data);
-            if (report) {
+            // Résultat STRUCTURÉ (rapport de cohérence, tours de parole, évaluation) : son dessin, à
+            // la densité du volet.
+            const drawn = _structured(data, true);
+            if (drawn) {
                 host.innerHTML = '<div class="wama-inspector-preview"><div class="small text-start mb-1" ' +
-                    'style="max-height:200px;overflow:auto;">' + coherenceHtml(report, true) + '</div></div>';
+                    'style="max-height:200px;overflow:auto;"></div></div>';
+                host.querySelector('.wama-inspector-preview > div').appendChild(drawn);
                 _previewCaption(host, name, data);
                 return;
             }
@@ -429,7 +486,8 @@
 
     /** Les boutons de la bascule des faces, dans l'ordre CHRONOLOGIQUE : Entrée → faces des process
      *  du pipeline (`preview_utils._process_faces` : l'anonymizer « Détection », le transcriber
-     *  « Résumé »…) → Pendant → Comparer → Sortie. Chaque bouton n'existe que si sa face existe.
+     *  « Résumé »…) → Pendant → Comparer → Sortie → ce qui MESURE la Sortie (`sides.after` :
+     *  l'Évaluation contre la référence, 2026-10-13). Chaque bouton n'existe que si sa face existe.
      *  Pure (gardée en V8, `tests_preview_navigation`). */
     function faceButtons(d) {
         const s = (d && d.sides) || {};
@@ -441,6 +499,9 @@
         if (s.has_during || (d && d.side === 'during')) out.push({ key: 'during', label: 'Pendant', icon: 'fa-hourglass-half' });
         if (s.comparable && s.has_output) out.push({ key: 'compare', label: 'Comparer', icon: 'fa-left-right' });
         if (s.has_output) out.push({ key: 'output', label: 'Sortie', icon: 'fa-flag-checkered' });
+        (s.after || []).forEach(function (f) {
+            out.push({ key: f.key, label: f.label, icon: f.icon || 'fa-layer-group' });
+        });
         return out;
     }
 
@@ -1048,6 +1109,7 @@
 
         // Les faces de l'élément (Entrée | … | Sortie), dans leur emplacement dédié.
         _renderModalSides(modal, data);
+        _renderModalDownloads(modal, data);
         // La face PENDANT se suit EN DIRECT dans la modale comme dans le volet (2026-10-05,
         // demande de Fabien : voir les détections de l'anonymizer en grand pendant le traitement).
         if (data.side === 'during' && data._baseUrl && !data._duringTick) _startModalDuring(modal, data);
@@ -1133,6 +1195,23 @@
             slot.insertBefore(bar, slot.firstChild);
         }
         _renderModalVariants(modal, data);
+    }
+
+    /** Les TÉLÉCHARGEMENTS de l'élément, au pied de la visionneuse (là où la modale du
+     *  transcriber avait « Télécharger TXT / SRT ») : les formats que l'app déclare, quelle que
+     *  soit la face montrée. Rien sans élément (un fichier du gestionnaire, une galerie). */
+    function _renderModalDownloads(modal, data) {
+        const footer = modal.querySelector('.modal-footer');
+        if (!footer) return;
+        let holder = footer.querySelector('.wama-preview-downloads');
+        if (!holder) {
+            holder = document.createElement('div');
+            holder.className = 'wama-preview-downloads d-flex flex-wrap gap-1 justify-content-center align-items-center w-100';
+            footer.appendChild(holder);
+        }
+        const list = (data.sides && data.sides.downloads) || [];
+        holder.innerHTML = list.length ? '<small class="text-muted me-1">Télécharger :</small>' + downloadsHtml(list) : '';
+        holder.style.display = list.length ? '' : 'none';
     }
 
     function _goSide(base, sides, side) {
@@ -1374,12 +1453,12 @@
 
             // Un résultat MIS EN FORME par le serveur (`ProcessSpec.result_format`, le résumé du
             // describer, 2026-10-13) : son HTML, neutralisé à la source (`docs_catalog
-            // .render_markdown`) ; un RAPPORT DE COHÉRENCE : dessiné par `coherenceHtml`. Copier
-            // garde le texte d'origine.
-            const report = _coherenceOf(data);
-            const formatted = !report && typeof data.html === 'string';
-            const pre = document.createElement((formatted || report) ? 'div' : 'pre');
-            if (report) {
+            // .render_markdown`) ; un résultat STRUCTURÉ (rapport de cohérence, tours de parole,
+            // évaluation) : son dessin (`_structured`). Copier garde le texte d'origine.
+            const drawn = _structured(data, false);
+            const formatted = !drawn && typeof data.html === 'string';
+            const pre = document.createElement((formatted || drawn) ? 'div' : 'pre');
+            if (drawn) {
                 pre.className = 'text-light mb-0';
                 pre.style.cssText = 'max-height:65vh; overflow-y:auto;';
             } else {
@@ -1390,7 +1469,7 @@
             pre.textContent = 'Chargement…';
 
             copyBtn.addEventListener('click', () => {
-                navigator.clipboard.writeText((formatted || report) ? data.content : pre.textContent).then(() => {
+                navigator.clipboard.writeText((formatted || drawn) ? data.content : pre.textContent).then(() => {
                     copyBtn.innerHTML = '<i class="fas fa-check text-success"></i> Copié';
                     setTimeout(() => { copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copier'; }, 2000);
                 }).catch(() => {});
@@ -1399,10 +1478,10 @@
             wrapper.appendChild(toolbar);
             wrapper.appendChild(pre);
 
-            if (report) {
-                // Les mots de la version proposée, sinon du texte vérifié (règle des anciennes modales).
-                pre.innerHTML = coherenceHtml(report, false);
-                setWords(report.suggestion || report.original);
+            if (drawn) {
+                pre.textContent = '';
+                pre.appendChild(drawn);
+                setWords(_structuredWords(data));
             } else if (formatted) {
                 pre.innerHTML = data.html;
                 setWords(data.content);
@@ -1720,7 +1799,8 @@
     window.WamaMediaPreview = {
         // pures
         itemAddress: _itemAddress, showable: showable, faceButtons: faceButtons, compareTitle: compareTitle,
-        wordsLabel: wordsLabel, coherenceHtml: coherenceHtml,
+        wordsLabel: wordsLabel, coherenceHtml: coherenceHtml, segmentsHtml: segmentsHtml,
+        downloadsHtml: downloadsHtml,
         stepTarget: stepTarget, duringUrl: duringUrl, faceUrl: faceUrl,
         // rendu en ligne
         renderInline: renderInline, hydrateCardPreviews: hydrateCardPreviews,

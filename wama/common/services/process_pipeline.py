@@ -48,7 +48,15 @@ from wama.common.services.process_runs import OPTIONAL, REQUIRED
 UPSTREAM_KEY = '@upstream'
 
 #: Les formes du résultat lisible d'un process (`ProcessSpec.result_format`) : '' = texte brut.
-RESULT_FORMATS = ('', 'markdown', 'coherence')
+RESULT_FORMATS = ('', 'markdown', 'coherence', 'segments')
+
+
+def segments_text(segments) -> str:
+    """Des SEGMENTS de parole (`result_format='segments'` : `[{speaker, time_range, text}]`) en
+    texte — un tour par bloc, son locuteur et sa plage, puis ses mots. La forme de l'export TXT
+    du transcriber, qui la lit d'ici."""
+    return '\n\n'.join(f"[{s.get('speaker') or ''}]  {s.get('time_range') or ''}\n  {s.get('text') or ''}"
+                       for s in segments or ())
 
 #: Attribut posé sur un élément par `preload` : ses lignes d'exécution, lues une fois.
 PRELOADED = '_process_rows'
@@ -138,7 +146,9 @@ class ProcessSpec:
                   que la face montre comme le faisaient les modales du describer et du
                   transcriber : score coloré, remarques, version proposée EN REGARD du texte
                   vérifié (2026-10-13, Fabien : « on ne doit rien perdre, on complète le
-                  commun »).
+                  commun ») ; 'segments' — `result` rend des tours de parole
+                  `[{speaker, time_range, text}]`, que la face montre un par un, le locuteur
+                  dans sa couleur (la diarisation de la modale du transcriber, même jour).
     """
     key: str
     label: str = ''
@@ -320,12 +330,15 @@ class AppPipeline:
     @staticmethod
     def result_text(spec: ProcessSpec, value):
         """Le TEXTE d'un résultat déclaré : un rapport de cohérence s'écrit par la brique commune
-        (`llm_utils.coherence_report_text`), tout autre résultat est déjà son texte."""
+        (`llm_utils.coherence_report_text`), des segments par `segments_text` ; tout autre
+        résultat est déjà son texte."""
         if not value:
             return None
         if spec.result_format == 'coherence' and isinstance(value, dict):
             from wama.common.utils.llm_utils import coherence_report_text
             return coherence_report_text(value)
+        if spec.result_format == 'segments' and isinstance(value, (list, tuple)):
+            return segments_text(value)
         return str(value)
 
     @classmethod

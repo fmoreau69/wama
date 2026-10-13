@@ -101,7 +101,7 @@ par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
   | `extra` | `'max_chars': n` *(2026-10-03)* | texte TRONQUÉ (`…`) | composer (prompt) |
   | `extra` | entrée SANS `label` *(2026-10-03)* | le libellé est celui du SCHÉMA (`params.py`) — principe 2 ci-dessus, enfin tenu par le code | transcriber |
   | — | `extra_from_params: True \| 'champ JSON'` | tous les réglages posés du schéma principal | converter, enhancer |
-  | — | `aliases`, `result_tabs` | alias canoniques ; onglets de résultat texte (R18) | converter ; transcriber (le describer les a retirés le 2026-10-13, R125 : ses facettes sont les faces de la visionneuse commune) |
+  | — | `aliases`, `result_tabs` | alias canoniques ; onglets de résultat texte (R18) | converter ; aucune app pour `result_tabs` depuis le 2026-10-13 (le describer, R125, puis le transcriber, R126, les ont retirés : leurs facettes sont les faces de la visionneuse commune) |
   | valeur | `['a', 'b']` sur une LISTE *(2026-10-05)* | dans « premier champ non vide », un champ qui porte une collection rend son PREMIER élément | imager (la vidéo, sinon la 1ʳᵉ image) |
   | valeur | `result_files: 'champ'` *(2026-10-05)* | la COLLECTION de résultats (émise à partir de deux) | imager (`output_images`) |
   | valeur | `params_schema: <valeur>` *(2026-10-05)* | le schéma des réglages, NOMMÉ ou CHOISI PAR ÉLÉMENT (`*PARAMS_JSON` du module de l'app PROPRIÉTAIRE du modèle) ; absent = le schéma principal | imager (image/vidéo), audio_enhancer (`AUDIO_PARAMS_JSON`) |

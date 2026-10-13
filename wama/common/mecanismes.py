@@ -1343,7 +1343,11 @@ MECHANISMS = (
               "et projetables), et un partial commun les rend. "
               "⚠ Ce n'est PAS une 2ᵉ mécanique de preview : la preview de CARD reste "
               "`PreviewRegistry`, et les autres apps n'ont qu'une lecture — ou plusieurs "
-              "RÉSULTATS dans une seule preview (imager, `result_files`)",
+              "RÉSULTATS dans une seule preview (imager, `result_files`). "
+              "⚠ PLUS AUCUNE app réelle ne le consomme depuis le 2026-10-13 : le describer (R125) "
+              "puis le transcriber (R126) ont rendu leurs facettes à la visionneuse commune "
+              "(faces des process). Restent deux jumelles de bac à sable aux gabarits COPIÉS le "
+              "07/10 (`describer_01`, `transcriber_01`) — son retrait est une décision à part",
               'wama/common/templates/common/_result_tabs.html', 'docs/construction/ui/CARD_DESIGN.md',
               annexes=('wama/common/utils/detail_registry.py',
                        'wama/common/tests/tests_result_tabs.py')),
@@ -1794,7 +1798,15 @@ MECHANISMS = (
               "gestionnaire, une galerie) puis les fichiers d'une sortie multiple — ←/→ fichier "
               "par fichier puis élément voisin, ↑/↓ d'élément en élément, face gardée, volet "
               "resynchronisé à la fermeture ; le volet et le gestionnaire de fichiers en sont "
-              "consommateurs (geste nocturne `common.preview_navigation`)",
+              "consommateurs (geste nocturne `common.preview_navigation`). Depuis le soir du "
+              "2026-10-13, la FORME d'un résultat de process se déclare "
+              "(`ProcessSpec.result_format`) : markdown mis en forme, RAPPORT de cohérence "
+              "(score coloré, version proposée en regard du texte vérifié), tours de PAROLE "
+              "(`segments`, le locuteur dans sa couleur) ; la face « Évaluation » (mesure contre "
+              "la référence, `result_evaluation`) vient APRÈS la Sortie (`sides.after`) ; la "
+              "visionneuse offre les TÉLÉCHARGEMENTS que l'app déclare (`export_formats`) et "
+              "compte les mots de toute face texte — ce que portaient les modales propres du "
+              "describer et du transcriber, retirées (R125, R126)",
               'wama/common/utils/preview_registry.py', '',
               annexes=('wama/common/utils/preview_utils.py',
                        'wama/common/static/common/js/media-preview.js',
@@ -1840,7 +1852,9 @@ MECHANISMS = (
               "2026-10-02 le ZIP de LOT lit les deux mêmes déclarations (fabrique "
               "`make_batch_views`, format borné par `requested_format`, bouton de la card mère "
               "rendu par ce même ⬇) : les trois niveaux — card, lot, barre de file — parlent "
-              "`?format=`",
+              "`?format=`. Depuis le 2026-10-13 la visionneuse commune offre les mêmes formats, "
+              "et ce qu'un ÉLÉMENT ne peut pas rendre se déclare (`register_export_missing` : le "
+              "`json` du reader sans résultat brut), lu par le ⬇ de la card (`item=`) et par elle",
               'wama/common/utils/export_formats.py', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.3',
               annexes=('wama/common/templates/common/_download_button.html',
                        'wama/common/templatetags/wama_actions.py')),

@@ -3,9 +3,10 @@
  *
  * Rendu COMMUN (2026-09-23) de ce que rend l'endpoint commun
  * `/common/api/result-reference/<surface>/element/<pk>/` (`result_evaluation.item_evaluation`).
- * Il ne connaît aucune app : une surface qui DÉCLARE son évaluation (`register_evaluation`) et
- * pose l'onglet dans sa spec de détail (`result_tabs`, clé `evaluation`) n'a qu'à appeler
- * `WamaEvaluation.fill(surface, pk, container, tabButton)`.
+ * Il ne connaît aucune app : une surface qui DÉCLARE son évaluation (`register_evaluation`) a sa
+ * face « Évaluation » dans la visionneuse commune, APRÈS la Sortie (`preview_utils._evaluation_face`,
+ * dessinée par `renderItem` — 2026-10-13, elle était un onglet de la modale du transcriber).
+ * `fill(surface, pk, container, tabButton)` reste pour un conteneur à remplir soi-même.
  *
  * Ce qui est montré, et pourquoi : le TAUX ne suffit pas à juger une mesure. On montre aussi
  * ses comptes (substitutions, suppressions, insertions, longueurs) et ce que la lecture de la

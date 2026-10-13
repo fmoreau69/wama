@@ -82,7 +82,6 @@ par fillDetail.{% endcomment %}
       downloadUrlTemplate: '{% url "transcriber:download" 0 %}',
       editUrlTemplate: '{% url "transcriber:edit" 0 %}',
       downloadSrtUrlTemplate: '{% url "transcriber:download_srt" 0 %}',
-      segmentsUrlTemplate: '{% url "transcriber:segments" 0 %}',
       settingsUrlTemplate: '{% url "transcriber:update_settings" 0 %}',
       startAllUrl: '{% url "transcriber:start_all" %}',
       clearUrl: '{% url "transcriber:clear_all" %}',
@@ -107,7 +106,6 @@ par fillDetail.{% endcomment %}
 {% include 'common/_app_scripts.html' with with_input_match=True with_model_caps=True with_modes=True %}  {# socle JS d'app commun (ROUTE §11 #25) #}
 {# Voie d'import COMMUNE (WamaImport) : 1ʳᵉ app en place à l'adopter (2026-09-07) — index.js l'instancie, plus aucune boucle upload maison. #}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
-<script src="{% static_v 'common/js/wama-evaluation.js' %}"></script>  {# onglet « Évaluation » (mesure contre la référence, rendu commun) #}
 <link rel="stylesheet" href="{% static_v 'common/css/wama-params.css' %}">
 <script>
 // Rendu du volet de réglages DEPUIS LE SCHÉMA (avant index.js → les champs legacy existent pour son init).
@@ -285,33 +283,6 @@ appliqués à tous les items non-RUNNING (batch_update_settings). {% endcomment 
                 <div id="transcriberBatchParams"></div>
             </div>
             {% include 'common/_settings_modal_footer.html' with save_id='saveBatchSettingsBtn' save_label='Appliquer' save_start_id='saveBatchSettingsAndStartBtn' save_start_label='Appliquer et démarrer' %}
-        </div>
-    </div>
-</div>
-
-<!-- Result Preview Modal -->
-<div class="modal fade" id="resultModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-file-alt"></i> <span id="resultModalTitle">Résultat</span>
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <!-- Tabs -->
-                {% result_tabs 'transcriber' %}
-            </div>
-            <div class="modal-footer">
-                <a href="#" class="btn btn-info" id="resultDownloadBtn">
-                    <i class="fas fa-download"></i> Télécharger TXT
-                </a>
-                <a href="#" class="btn btn-warning" id="resultSrtBtn">
-                    <i class="fas fa-closed-captioning"></i> Télécharger SRT
-                </a>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-            </div>
         </div>
     </div>
 </div>

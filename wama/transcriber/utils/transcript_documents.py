@@ -246,14 +246,9 @@ def _transcription_body(transcript) -> list:
 
 
 def _diarization_body(transcript) -> list:
-    from wama.transcriber.models import TranscriptSegment
-    segments = list(TranscriptSegment.objects.filter(transcript=transcript).order_by('order'))
-    if not any(s.speaker_id for s in segments):
-        return []
-    lines = []
-    for seg in segments:
-        lines += [f"[{seg.speaker_id or 'Inconnu'}]  {seg.format_time_range()}", f"  {seg.text}", '']
-    return lines[:-1]
+    from wama.common.services.process_pipeline import segments_text
+    segments = diarization_segments(transcript)
+    return segments_text(segments).split('\n') if segments else []
 
 
 def _summary_body(transcript) -> list:
@@ -315,9 +310,16 @@ def transcription_text(transcript) -> Optional[str]:
     return _readable(_transcription_body(transcript))
 
 
-def diarization_text(transcript) -> Optional[str]:
-    """Résultat lisible du process `diarize` — les tours par locuteur, ou None sans locuteur."""
-    return _readable(_diarization_body(transcript))
+def diarization_segments(transcript) -> Optional[list]:
+    """Résultat du process `diarize` (`result_format='segments'`) : les tours de parole, chacun
+    avec son locuteur (« Inconnu » quand la diarisation n'en a pas attribué), sa plage et ses
+    mots — ou None sans aucun locuteur nommé."""
+    from wama.transcriber.models import TranscriptSegment
+    segments = list(TranscriptSegment.objects.filter(transcript=transcript).order_by('order'))
+    if not any(s.speaker_id for s in segments):
+        return None
+    return [{'speaker': seg.speaker_id or 'Inconnu', 'time_range': seg.format_time_range(),
+             'text': seg.text} for seg in segments]
 
 
 def summary_text(transcript) -> Optional[str]:

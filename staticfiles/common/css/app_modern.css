@@ -1123,6 +1123,12 @@ pre.wama-result-text   { white-space: pre-wrap; word-wrap: break-word; margin: 0
 .wama-coherence-proposed .wama-coherence-text { color: #7ee787; }
 .wama-inspector-preview .wama-coherence-text  { font-size: 12px; max-height: 120px; }
 
+/* TOURS DE PAROLE d'une face (`result_format='segments'`, `WamaMediaPreview.segmentsHtml`) : le
+   locuteur et sa plage en colonne fixe, ses mots à côté — la diarisation de l'ancienne modale. */
+.wama-segment-who  { min-width: 120px; flex-shrink: 0; }
+.wama-segment-text { font-size: 14px; line-height: 1.5; }
+.wama-inspector-preview .wama-segment-text { font-size: 12px; }
+
 /* ── ÉVALUATION contre une référence (2026-09-23, `result_evaluation`) ──────────────────────
    Deux surfaces, un vocabulaire : la ligne FINE de la card mère (comparaison des modèles du
    lot, `_batch_evaluation_line.html`) et l'onglet « Évaluation » d'un élément

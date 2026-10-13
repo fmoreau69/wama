@@ -110,6 +110,34 @@ class BoutonTelechargerTests(SimpleTestCase):
         self.assertNotIn('dropdown', html)
 
 
+class WhatAnItemCannotRenderIsDeclaredTest(SimpleTestCase):
+    """The reader offers `json` only for an item that carries the engine's raw result. The rule
+    lived in its card template alone (2026-10-13) ; the common viewer, which offers the same
+    downloads, would have ignored it. It is DECLARED by the app now, and read by both."""
+
+    def _item(self, raw):
+        from types import SimpleNamespace
+        return SimpleNamespace(raw_result=raw)
+
+    def test_the_card_button_reads_the_declaration(self):
+        html = Template("{% load wama_actions %}{% download_button 'reader' '/dl/' True item=it %}") \
+            .render(Context({'it': self._item(None)}))
+        self.assertIn('/dl/?format=pdf', html)
+        self.assertNotIn('format=json', html)
+        html = Template("{% load wama_actions %}{% download_button 'reader' '/dl/' True item=it %}") \
+            .render(Context({'it': self._item({'pages': []})}))
+        self.assertIn('format=json', html)
+
+    def test_an_app_without_declaration_offers_every_declared_format(self):
+        from wama.common.utils.export_formats import available_formats
+        self.assertIsNone(available_formats('transcriber', self._item(None)))
+        self.assertEqual(['txt', 'md', 'pdf', 'docx'], available_formats('reader', self._item(None)))
+
+    def test_no_card_writes_the_rule_by_hand_any_more(self):
+        card = Path(settings.BASE_DIR, 'wama', 'reader', 'templates', 'reader', '_item_card.html')
+        self.assertNotIn("'txt,md,pdf,docx'", card.read_text(encoding='utf-8'))
+
+
 class PasDeDropdownReconstruitEnJSTests(SimpleTestCase):
     """⚠ Garde-fou jumeau du précédent, côté JS (2026-08-30).
 

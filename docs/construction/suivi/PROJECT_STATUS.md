@@ -9208,8 +9208,8 @@ explicite possible, **uniquement là où retraduire n'altère pas le résultat**
 
 1. **QUICK WIN, indépendant des 3 arbitrages ouverts** : la fusion du ⬇ de file avec la brique
    commune de bouton de téléchargement (pending déjà écrit en `WAMA_APP_GENERATION_ROUTE §S2bis.12`).
-   Mesuré ce jour, c'est **pire que ce que le pending disait** : `transcriber/static/transcriber/js/index.js:833`
-   reconstruit à la main un dropdown Bootstrap autour du bouton rendu par le partial commun, avec
+   Mesuré ce jour, c'est **pire que ce que le pending disait** : `transcriber/static/transcriber/js/index.js`
+   (ligne 833 ce jour-là) reconstruit à la main un dropdown Bootstrap autour du bouton rendu par le partial commun, avec
    **la liste des 4 formats CODÉE EN DUR** et l'URL fabriquée par un `replace('start_all','download_all')`
    — soit exactement le « chemin construit en JS » corrigé ailleurs en `§S2bis.3`. Or la brique sait
    déjà rendre ce split-button depuis une liste DÉCLARÉE ; il lui manque `id` et `label`.

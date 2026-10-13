@@ -22,8 +22,14 @@ class ReaderConfig(AppConfig):
         # Rendu des formats de sortie (late-binding, §6.4) — celui des téléchargements, déclaré
         # pour le geste commun « ranger en médiathèque » (2026-09-18). Chemin pointé, résolu à
         # l'usage.
-        from wama.common.utils.export_formats import register_export_builder
+        from wama.common.utils.export_formats import (register_export_builder,
+                                                      register_export_missing)
         register_export_builder('reader', 'wama.reader.views:build_reading_bytes')
+        # `json` suppose le résultat BRUT du moteur : un élément qui n'en a pas ne l'offre pas —
+        # ni au bouton ⬇ de sa card, ni dans la visionneuse (2026-10-13, la règle vivait dans le
+        # seul gabarit de la card).
+        register_export_missing('reader', lambda item: () if getattr(item, 'raw_result', None)
+                                else ('json',))
 
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md) — SPEC déclarative
         # (A3a) : reader = OCR documents (source_type constant), sortie = texte (clé

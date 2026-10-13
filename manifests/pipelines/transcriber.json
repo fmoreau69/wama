@@ -120,7 +120,8 @@
           "eta": "transcriber.workers:diarize_eta",
           "gpu": true,
           "label": "Locuteurs",
-          "result": "transcriber.utils.transcript_documents:diarization_text",
+          "result": "transcriber.utils.transcript_documents:diarization_segments",
+          "result_format": "segments",
           "toggle": "enable_diarization",
           "watched": [
             "diarization_model"

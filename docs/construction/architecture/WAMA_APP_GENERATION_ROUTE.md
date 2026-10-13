@@ -578,16 +578,31 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     listes titrées : ses puces indentées se seraient fondues en une ligne) ; l'export TXT garde
     les siennes. Gardes : `tests_pipeline_faces` (rapport servi et niveaux, déclaration des deux
     apps, bout en bout transcriber, dessin et compte en V8), contre-épreuves rouges.
-  - ⏳ **Restes, dans l'ordre** : ② rendus par TYPE (segments horodatés à locuteurs, ABC en
-    partition), puis la PARITÉ de la modale de résultat du transcriber (onglets, copie, txt/srt,
-    diarisation, évaluation — chaque point tenu par un test ou un geste) avant de retirer son interception du double-clic (exemption de
-    `tests_preview_entry`) ; ③ les lignes de la bande des process ouvrent leur face, l'état du
+  - ✅ **2026-10-13 (soir) — la PARITÉ de la modale du transcriber, puis son retrait** (Fabien :
+    *« porte aussi la diarisation, l'évaluation et txt/srt au commun »* ; `REMOVAL_LEDGER R126`).
+    Quatrième forme de résultat, `result_format='segments'` : le `result` rend des tours de parole
+    `[{speaker, time_range, text}]` (`transcript_documents.diarization_segments`), la visionneuse
+    les dessine un par un, le locuteur dans sa couleur (`WamaMediaPreview.segmentsHtml`, la
+    palette de la modale), et leur texte (`process_pipeline.segments_text`) est AUSSI celui de
+    l'export TXT. La face « Évaluation » (`preview_utils._evaluation_face`, de la déclaration
+    `register_evaluation`) vient APRÈS la Sortie, qu'elle mesure (`sides.after`), dessinée par le
+    rendu commun `WamaEvaluation.renderItem` (désormais chargé par `base.html`). La visionneuse
+    offre, à son pied, les TÉLÉCHARGEMENTS que l'app déclare (`export_formats` + route
+    `<app>:download`, `sides.downloads`) — TXT/SRT/PDF/DOCX pour le transcriber, et le TXT que
+    la modale du describer offrait (perdu avec R125, rendu ici). Ce qu'un élément ne peut pas
+    rendre se DÉCLARE (`export_formats.register_export_missing`) : le `json` du reader sans
+    résultat brut, règle qui vivait dans le seul gabarit de sa card et que le ⬇ lit désormais
+    aussi (`item=`). Puis retirés : la modale, son interception du double-clic (l'exemption de
+    `tests_preview_entry` est vide), ses `result_tabs`. Le mécanisme `result_tabs` n'a plus aucun
+    consommateur réel (deux jumelles aux gabarits copiés le 07/10) : son retrait est à décider.
+  - ⏳ **Restes, dans l'ordre** : ② rendus par TYPE (ABC en partition) ; ③ les lignes de la bande des process ouvrent leur face, l'état du
     process (périmé, en échec) se lit sur elle ; ④ Studio (nœuds `StudioRun`, `output_ref`), Lab
     (passes du cam_analyzer, une face par caméra, `instance_key`), Data (Explorer). Et la face de
     l'ORIGINAL gardé par la Sortie (`native_outputs`) pour les quatre process de la liste qui le
     rendent (anonymizer `blur`, `generate` ×3) ; le rendu `segments` sortira `align` de la liste.
-  - ⏳ **Décisions ouvertes, à rediscuter avec Fabien** : la place de l'Évaluation du transcriber
-    (une mesure contre une référence, pas un process) ; la face d'une fonction PURE du Studio et
+  - ⏳ **Décisions ouvertes, à rediscuter avec Fabien** : ~~la place de l'Évaluation du
+    transcriber (une mesure contre une référence, pas un process)~~ — **tranché le 2026-10-13** :
+    elle est au commun, face « Évaluation » APRÈS la Sortie (point ci-dessus) ; la face d'une fonction PURE du Studio et
     de Data (sortie recalculée, non conservée — décision n°2 du `§10.6`).
     ~~résumé et cohérence du describer (onglets à la demande, pas des process)~~ — **constat faux,
     corrigé le 2026-10-13** : ils étaient calculés DANS la tâche, derrière les interrupteurs

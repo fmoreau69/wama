@@ -19,10 +19,12 @@
   partial pose la structure et les ancres (`#tab-<clé>`, `#<cible>`, `#wc-<clé>`), qui sont le
   contrat déjà consommé par les scripts existants — aucun d'eux n'a à changer.
 
-  Seul consommateur depuis le 2026-10-13 : le transcriber (le describer a retiré sa modale propre,
-  R125 — ses facettes sont les faces de la visionneuse commune, une par process).
+  ⚠ AUCUNE app réelle ne le rend plus depuis le 2026-10-13 : le describer (R125) puis le
+  transcriber (R126) ont retiré leur modale propre — leurs facettes sont les faces de la
+  visionneuse commune, une par process. Seules deux jumelles de bac à sable aux gabarits copiés
+  le 07/10 (describer_01, transcriber_01) l'appellent encore ; son retrait est une décision à part.
 
-  Usage :  {% templatetag openblock %} result_tabs 'transcriber' {% templatetag closeblock %}
+  Usage :  {% templatetag openblock %} result_tabs '<app>' {% templatetag closeblock %}
 {% endcomment %}
 {% if onglets %}
 <ul class="nav nav-tabs mb-3" id="resultTabs" role="tablist">

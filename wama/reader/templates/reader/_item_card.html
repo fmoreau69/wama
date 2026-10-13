@@ -118,16 +118,12 @@ boucle.{% endcomment %}
         </button>
         {% include 'common/_cycle_button.html' with id=elem.id status=elem.shown_state|default:elem.status %}
         {% comment %}`json` n'est offert que si l'elem porte un `raw_result` : la DÉCLARATION
-        (`export_formats` au catalogue) dit ce que l'app sait EXPORTER, l'ITEM dit ce qu'il A.
-        C'est le rôle du paramètre `available` — sans lui il faudrait soit perdre le
-        conditionnel, soit remettre du markup dans la card.{% endcomment %}
+        (`export_formats` au catalogue) dit ce que l'app sait EXPORTER, l'ITEM dit ce qu'il A —
+        règle DÉCLARÉE par l'app (`register_export_availability`, apps.py), lue par ce bouton
+        et par la visionneuse commune (2026-10-13).{% endcomment %}
         {% url 'reader:download' elem.id as url_dl %}
         {% if elem.result_text %}
-          {% if elem.raw_result %}
-            {% download_button 'reader' url_dl True %}
-          {% else %}
-            {% download_button 'reader' url_dl True 'txt,md,pdf,docx' %}
-          {% endif %}
+          {% download_button 'reader' url_dl True item=elem %}
         {% else %}
           {% download_button 'reader' '' False %}
         {% endif %}

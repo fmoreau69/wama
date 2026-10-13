@@ -364,6 +364,20 @@ def item_evaluation(surface: str, item) -> Optional[dict]:
     }
 
 
+def evaluation_text(measure: dict) -> str:
+    """La mesure d'`item_evaluation` en TEXTE — ce que Copier emporte de la face « Évaluation »
+    de la visionneuse (le dessin est `WamaEvaluation.renderItem`)."""
+    if measure.get('pending'):
+        return (f"Référence {measure.get('reference_name')} posée — la mesure suivra le "
+                f"prochain résultat.")
+    lines = [f"{measure.get('model_label')} comparé à {measure.get('reference_name')}"]
+    for m in measure.get('metrics') or ():
+        rate = '—' if m.get('value') is None else f"{m['value'] * 100:.1f} %"
+        lines.append(f"{m.get('label')} : {rate} (substitutions {m.get('substitutions')}, "
+                     f"suppressions {m.get('deletions')}, insertions {m.get('insertions')})")
+    return '\n'.join(lines)
+
+
 def batch_evaluation(surface: str, items: Iterable) -> Optional[dict]:
     """Comparaison des modèles d'un lot — le résumé de la ligne de la card mère.
 
