@@ -531,6 +531,17 @@ def _image_temoin(ext: str) -> bytes:
 IDS_CARDS_JS = ("[...document.querySelectorAll('.wama-card[data-id]:not(.is-batch)')]"
                 ".map(c => c.dataset.id)")
 
+#: Is this element in the DOMAIN tab on screen? A page with several queues keeps one per domain
+#: tab (enhancer image-video / audio, imager image / video) and each has its own « Tout effacer »
+#: and ⚙. Measured on 2026-10-13: two audio cards left in the HIDDEN audio tab of the test
+#: account made `enhancer.clear_all` and `enhancer.settings` red — the image queue was emptied,
+#: the gear was reachable, the scenario counted what the user does not see.
+IN_SHOWN_PANE_JS = "(e => { const p = e.closest('.tab-pane'); return !p || p.classList.contains('active'); })"
+
+#: The same cards as `IDS_CARDS_JS`, restricted to the domain tab on screen.
+IDS_SHOWN_CARDS_JS = ("[...document.querySelectorAll('.wama-card[data-id]:not(.is-batch)')]"
+                      f".filter({IN_SHOWN_PANE_JS}).map(c => c.dataset.id)")
+
 
 def _fichier_temoin(extensions: str) -> Path:
     """Un fichier minuscule d'une extension que l'app ACCEPTE (déduite de sa zone de dépôt)."""
@@ -2799,7 +2810,9 @@ def check_app_settings(app: str, url_path: str):
 
     _nettoyes = []
     url = f"{BASE_URL.rstrip('/')}{url_path}"
-    IDS = IDS_CARDS_JS
+    # The cards of the domain tab ON SCREEN: a card of a hidden tab is no element whose gear the
+    # user can open, and it must not spare the mount (`IN_SHOWN_PANE_JS`).
+    IDS = IDS_SHOWN_CARDS_JS
 
     try:
         from wama.common.utils.preview_registry import PreviewRegistry
@@ -3988,11 +4001,14 @@ def register_delete_from_batch_scenarios():
 #     la portée du geste est donc close par le code, pas par la prudence de l'instrument.
 # La garde de montage reste posée : après l'effacement, la différence d'ids est vide, elle
 # n'a plus rien à retirer — ce qui est exactement l'aveu que le geste a fait son travail.
+#: Restricted to the domain tab on screen (`IN_SHOWN_PANE_JS`): each domain queue has its OWN
+#: « Tout effacer », and the button clicked is the visible one.
 _FILE_EN_ETAT = """(() => {
+    const shown = """ + IN_SHOWN_PANE_JS + """;
     const cartes = Array.from(document.querySelectorAll('[data-id]'))
-        .filter(e => /card/.test(String(e.className || '')) && e.dataset.id)
+        .filter(e => /card/.test(String(e.className || '')) && e.dataset.id && shown(e))
         .map(e => e.dataset.id);
-    const lots = Array.from(document.querySelectorAll('.wama-card.is-batch'))
+    const lots = Array.from(document.querySelectorAll('.wama-card.is-batch')).filter(shown)
         .map(e => { const b = e.querySelector('[data-batch-id]');
                     return b ? b.getAttribute('data-batch-id') : ''; })
         .filter(Boolean);
@@ -5023,9 +5039,12 @@ def check_app_queue_dnd(app: str, url_path: str):
               # ── 2. Le SEUIL de dépôt : tiers médian vs tiers haut/bas ─────────────────
               # C'est la règle qui sépare les quatre gestes. On simule un drag depuis la
               # première card vers la dernière, et on lit le RETOUR VISUEL — jamais on ne lâche.
-              _derniere = page.query_selector(
-                  f'[data-wama-dnd] .wama-card[data-id="{ids[-1]}"]:not(.is-batch)')
-              if _derniere:
+              # A LOCATOR, not a handle: a card re-rendered during the clicks above leaves a
+              # handle on a dead node (« Element is not attached to the DOM », reader, 12 and
+              # 13/10) — the lesson `check_app_settings` and the preview gesture already hold.
+              _derniere = page.locator(
+                  f'[data-wama-dnd] .wama-card[data-id="{ids[-1]}"]:not(.is-batch)').first
+              if _derniere.count():
                   _derniere.scroll_into_view_if_needed(timeout=3000)
               page.wait_for_timeout(200)
               seuils = page.evaluate(
@@ -6114,6 +6133,12 @@ def check_app_batch_processing(app: str, url_path: str):
             if not champ:
                 raise SkipScenario("aucun champ d'import au contrat de la card commune — "
                                    "impossible de monter un lot")
+            # A single-file field takes no multi-drop: Playwright REFUSES to set two files on it
+            # (« Non-multiple file input can only accept single file »), which was reported as an
+            # error of the app (composer, writer_01, 2026-10-12). Same verdict as the one below.
+            if champ.get_attribute('multiple') is None:
+                raise SkipScenario("le champ d'import n'accepte qu'un fichier — cette app n'offre "
+                                   "pas le multi-dépôt, il n'y a pas de lot à démarrer")
             IDS = IDS_CARDS_JS
             avant_ids = set(page.evaluate(IDS))
             temoins = [_fichier_temoin(champ.get_attribute('accept') or '') for _ in range(2)]

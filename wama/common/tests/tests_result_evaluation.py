@@ -408,15 +408,21 @@ class CapabilityAndDeclarationGoTogetherTest(TestCase):
     """`has_reference_result` opens a port; `register_evaluation` reads what enters it. One
     without the other is a port that accepts a file nothing reads, or a reader nobody feeds."""
 
+    # Real apps only: a sandbox twin copies its source's catalogue entry, and what its generator
+    # does not yet emit is measured by its own grid (`sandbox_apps`), never by this suite.
     def test_every_app_declaring_the_capability_has_registered_its_evaluation(self):
         from wama.common.app_registry import APP_CATALOG
-        declared = {a for a, c in APP_CATALOG.items() if c.get('has_reference_result')}
-        registered = set(evaluation.evaluable_surfaces()) & set(APP_CATALOG)
+        from wama.common.sandbox import non_sandbox_apps
+        apps = set(non_sandbox_apps(APP_CATALOG))
+        declared = {a for a in apps if APP_CATALOG[a].get('has_reference_result')}
+        registered = set(evaluation.evaluable_surfaces()) & apps
         self.assertEqual(declared, registered)
 
     def test_every_app_declaring_the_result_import_can_import(self):
         from wama.common.app_registry import APP_CATALOG
-        declared = {a for a, c in APP_CATALOG.items() if c.get('has_result_import')}
+        from wama.common.sandbox import non_sandbox_apps
+        apps = set(non_sandbox_apps(APP_CATALOG))
+        declared = {a for a in apps if APP_CATALOG[a].get('has_result_import')}
         importing = {s for s in evaluation.evaluable_surfaces()
-                     if evaluation.evaluation_spec(s).import_result is not None} & set(APP_CATALOG)
+                     if evaluation.evaluation_spec(s).import_result is not None} & apps
         self.assertEqual(declared, importing)

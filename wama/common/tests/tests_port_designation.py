@@ -22,15 +22,19 @@ from wama.common.tests import tests_import_contract as _contract
 from wama.common.tests.tests_import_contract import _WITNESSES
 from wama.common.utils.media_paths import designation_field
 
-#: (app, route, port, nature du témoin, POST minimal) — ce qu'il faut à la vue pour créer.
+#: (app, route, port, champ qui le stocke, nature du témoin, POST minimal) — ce qu'il faut à la
+#: vue pour créer. Le PORT est le nom sous lequel le fichier est reçu, le CHAMP celui où il est
+#: rangé : ils diffèrent au composer depuis le 2026-10-03 (port de travail `work_audio`, champ
+#: `melody_reference` gardé — une donnée stockée garde son nom). Le cas postait encore sous le nom
+#: du champ, que la vue n'écoute plus : le pointage échouait, et le refus passait sans rien mesurer.
 PORT_CASES = [
-    ('imager', 'imager:create', 'reference_image', 'image',
+    ('imager', 'imager:create', 'reference_image', 'reference_image', 'image',
      {'generation_mode': 'img2img', 'prompt': 'témoin', 'model': 'auto'}),
-    ('avatarizer', 'avatarizer:create', 'audio_input', 'audio',
+    ('avatarizer', 'avatarizer:create', 'audio_input', 'audio_input', 'audio',
      {'avatar_source': 'gallery', 'avatar_gallery_name': 'witness.png'}),
-    ('composer', 'composer:generate', 'melody_reference', 'audio',
+    ('composer', 'composer:generate', 'work_audio', 'melody_reference', 'audio',
      {'prompt': 'témoin', 'model': 'musicgen-melody', 'duration': '5'}),
-    ('synthesizer', 'synthesizer:upload', 'voice_reference', 'audio', {}),
+    ('synthesizer', 'synthesizer:upload', 'voice_reference', 'voice_reference', 'audio', {}),
 ]
 
 
@@ -76,25 +80,32 @@ class PortsReceiveDesignationsTest(TestCase):
 
     def test_each_port_points_a_designated_file_of_the_users_space(self):
         from wama.common.utils.file_references import direct_references
-        for app, route, port, nature, extra in PORT_CASES:
+        for app, route, port, field, nature, extra in PORT_CASES:
             with self.subTest(app=app, port=port):
                 user = self._user_for(f'{app}_port', self._roles(app))
                 self.client.force_login(user)
                 rel = self._witness(user, f'{app}_{port}', nature)
                 rep = self._post(app, route, port, rel, extra)
                 self.assertLess(rep.status_code, 400, f'{app} : {rep.status_code} {rep.content[:300]!r}')
-                refs = [r for r in direct_references(rel) if r['field'] == port]
+                refs = [r for r in direct_references(rel) if r['field'] == field]
                 self.assertTrue(refs, f'{app} : le port `{port}` ne POINTE pas le fichier désigné')
 
     def test_a_port_rejects_someone_elses_file(self):
         from wama.common.utils.file_references import direct_references
         from django.contrib.auth.models import User
         other = User.objects.create_user('port_someone_else', password='x')
-        for app, route, port, nature, extra in PORT_CASES:
+        for app, route, port, _field, nature, extra in PORT_CASES:
             with self.subTest(app=app, port=port):
                 user = self._user_for(f'{app}_port_refused', self._roles(app))
                 self.client.force_login(user)
                 rel = self._witness(other, f'{app}_{port}_theirs', nature)
-                self._post(app, route, port, rel, extra)
+                rep = self._post(app, route, port, rel, extra)
                 self.assertFalse(direct_references(rel),
                                  f'{app} : le port `{port}` a pris le fichier d’un autre')
+                # The refusal is SAID, and nothing is added: measured on 2026-10-13, the composer
+                # and the synthesizer created the card without the file and said nothing. And
+                # the line above alone was blind — a file taken by COPY leaves no reference to
+                # the other's path (counter-proof: the reading guard neutralised, all green).
+                self.assertEqual(400, rep.status_code,
+                                 f'{app} : le refus du port `{port}` doit refuser l’ajout')
+                self.assertIn('error', rep.json(), f'{app} : le refus doit dire son motif')

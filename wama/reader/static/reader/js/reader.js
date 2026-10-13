@@ -432,49 +432,25 @@
 
     // ─── Batch group actions ──────────────────────────────────────────────────
 
+    // Suite du ▶ de LOT : suivre les éléments lancés sans recharger, et déplier le lot.
+    function followBatchStart(data, batchId) {
+        (data.started || []).forEach(id => startPolling(id));
+        const batchEl = document.querySelector(`.batch-group[data-batch-id="${batchId}"]`);
+        if (batchEl) {
+            const collapseEl = batchEl.querySelector('.collapse');
+            if (collapseEl) bootstrap.Collapse.getOrCreateInstance(collapseEl).show();
+        }
+        updateGlobalProgress();
+    }
+
+    // « Enregistrer et lancer » de la modale de lot : le seul lancement de lot que l'app POSTe
+    // elle-même — celui du bouton ▶ appartient à la brique commune (`bindBatchGroupActions`).
     async function startBatch(batchId) {
         try {
             const r = await csrfFetch(urlForBatch('batchStart', batchId), { method: 'POST' });
-            const data = await r.json();
-            // Poll all started items directly — no page reload
-            (data.started || []).forEach(id => startPolling(id));
-            // Expand the batch group so the user can see progress
-            const batchEl = document.querySelector(`.batch-group[data-batch-id="${batchId}"]`);
-            if (batchEl) {
-                const collapseEl = batchEl.querySelector('.collapse');
-                if (collapseEl) bootstrap.Collapse.getOrCreateInstance(collapseEl).show();
-            }
-            updateGlobalProgress();
+            followBatchStart(await r.json(), batchId);
         } catch (e) {
             console.error('[Reader] batch start error:', e);
-        }
-    }
-
-    async function deleteBatch(batchId) {
-        if (!confirm('Supprimer ce batch et tous ses éléments ?')) return;
-        try {
-            await csrfFetch(urlForBatch('batchDelete', batchId), { method: 'POST' });
-            if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
-            const el = document.querySelector(`.batch-group[data-batch-id="${batchId}"]`);
-            if (el) el.remove();
-            if (document.querySelectorAll('.reader-card, .batch-group').length === 0) {
-                document.getElementById('queueContainer').innerHTML =
-                    `<div id="emptyState" class="text-center text-secondary py-5">
-                        <i class="fas fa-inbox fa-3x mb-3 opacity-50"></i>
-                        <p>File d'attente vide — importez des documents pour commencer</p>
-                    </div>`;
-            }
-        } catch (e) {
-            console.error('[Reader] batch delete error:', e);
-        }
-    }
-
-    async function duplicateBatch(batchId) {
-        try {
-            await csrfFetch(urlForBatch('batchDuplicate', batchId), { method: 'POST' });
-            window.location.reload();
-        } catch (e) {
-            console.error('[Reader] batch duplicate error:', e);
         }
     }
 
@@ -535,19 +511,15 @@
         } catch { WamaApp.toast('Erreur réseau', 'error'); }
     }
 
+    // ▶ ⧉ 🗑 ⚙ de LOT : la brique commune (`queue-actions.js`) tient le clic, la confirmation, le
+    // POST et le rechargement ; l'app DÉCLARE seulement la suite du ▶ et l'ouvreur du ⚙.
+    // ⚠ Jusqu'au 2026-10-13 ces boutons étaient AUSSI branchés ici (handlers d'avril, d'avant la
+    // brique) : chaque clic partait DEUX fois — un ⧉ créait deux copies du lot, un ▶ lançait le lot
+    // deux fois (relevé par le geste nocturne `reader.batch_actions`, rouge les 12 et 13/10).
     function bindBatchGroupActions() {
-        document.querySelectorAll('.batch-start-btn').forEach(btn => {
-            btn.addEventListener('click', () => startBatch(btn.dataset.batchId));
-        });
-        document.querySelectorAll('.batch-delete-btn').forEach(btn => {
-            btn.addEventListener('click', () => deleteBatch(btn.dataset.batchId));
-        });
-        document.querySelectorAll('.batch-duplicate-btn').forEach(btn => {
-            btn.addEventListener('click', () => duplicateBatch(btn.dataset.batchId));
-        });
-        document.querySelectorAll('.batch-settings-btn').forEach(btn => {
-            btn.addEventListener('click', () => openBatchSettingsModal(btn));
-        });
+        if (!window.WamaQueueActions) return;
+        WamaQueueActions.onBatchStarted(followBatchStart);
+        WamaQueueActions.onBatchSettings((id, btn) => openBatchSettingsModal(btn));
     }
 
     // ─── Init ─────────────────────────────────────────────────────────────────

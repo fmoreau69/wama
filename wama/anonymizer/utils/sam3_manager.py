@@ -35,17 +35,25 @@ except ImportError:
 
 
 def check_sam3_installed() -> bool:
-    """
-    Check if SAM3 package is installed.
-
-    Returns:
-        True if SAM3 is installed and importable
-    """
+    """Le paquet `sam3` est-il installé dans CE venv ? Par `find_spec`, SANS l'importer — la
+    question du contrat commun (`BaseModelBackend.missing_packages`, `REQUIRED_PACKAGES` du
+    `SAM3Processor`). ⚠ Un `import sam3` coûtait **57 s** (torch compris, mesuré le 2026-10-13) :
+    la pastille du volet l'appelait à chaque page de l'anonymizer, et un worker gunicorn neuf
+    restait pendu dessus — la page n'atteignait jamais le repos réseau."""
+    import importlib.util
     try:
-        import sam3
-        return True
-    except ImportError:
+        return importlib.util.find_spec('sam3') is not None
+    except (ImportError, ValueError):
         return False
+
+
+def _sam3_version() -> str:
+    """Version INSTALLÉE, lue dans les métadonnées de la distribution (aucun import)."""
+    try:
+        from importlib.metadata import version
+        return version('sam3')
+    except Exception:
+        return 'unknown'
 
 
 def check_sam3_models_cached() -> bool:
@@ -119,13 +127,11 @@ def get_sam3_status() -> Dict:
     except Exception:
         pass
 
-    try:
-        import sam3
-        status['installed'] = True
-        status['version'] = getattr(sam3, '__version__', 'unknown')
-    except ImportError as e:
-        status['error'] = f"SAM3 not installed: {e}"
+    if not check_sam3_installed():
+        status['error'] = "SAM3 not installed: No module named 'sam3'"
         return status
+    status['installed'] = True
+    status['version'] = _sam3_version()
 
     status['ready'] = bool(status['models_cached'])
     if not status['ready']:

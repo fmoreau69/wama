@@ -83,7 +83,11 @@ class PreviewMimeForThePickerTest(TestCase):
         self.assertEqual('', asset['mime_type'], 'la donnée stockée ne change pas')
 
     def test_a_generic_stored_type_is_resolved_from_the_file(self):
-        self.assertEqual('audio/wav', self._preview_mime('voice.wav', 'application/octet-stream')['preview_mime'])
+        # The extension table is the SYSTEM's (`mimetypes`): `audio/wav` on Windows, `audio/x-wav`
+        # under WSL — measured 2026-10-13, where WAMA runs. Both play in the browser; what is held
+        # is that the generic stored type gives way to the file's.
+        self.assertIn(self._preview_mime('voice.wav', 'application/octet-stream')['preview_mime'],
+                      ('audio/wav', 'audio/x-wav'))
 
     def test_a_meaningful_stored_type_is_kept(self):
         """Contre-épreuve : un type stocké qui dit quelque chose prime sur l'extension."""

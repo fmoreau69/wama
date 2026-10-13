@@ -91,8 +91,7 @@ window.READER_APP = Object.assign({}, window.READER_APP || {}, {
         batchStart:      "{% url 'reader:batch_start' 0 %}",
         batchStatus:     "{% url 'reader:batch_status' 0 %}",
         batchDownload:   "{% url 'reader:batch_download' 0 %}",
-        batchDelete:     "{% url 'reader:batch_delete' 0 %}",
-        batchDuplicate:  "{% url 'reader:batch_duplicate' 0 %}",
+        {# batchDelete / batchDuplicate retirés le 2026-10-13 : la card mère porte ses URLs, la brique commune les POSTe #}
         batchUpdate:     "{% url 'reader:batch_update' 0 %}",
     },
 });

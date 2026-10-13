@@ -16,8 +16,8 @@ from pathlib import Path
 from django.conf import settings
 
 from .ui_smoke import (BASE_URL, IGNORED_CONSOLE, _drop_new_sessions, _exiger_la_page,
-                       _fichier_temoin, _session_keys, _test_account_id, _test_session_key,
-                       accept_dialogs, set_delete_files)
+                       _fichier_temoin, _in_plain_thread, _session_keys, _test_account_id,
+                       _test_session_key, accept_dialogs, set_delete_files)
 from .ui_smoke_matching import _bilan, _cookie, _retirer
 
 ARBRE = '#filemanager-tree'
@@ -748,7 +748,10 @@ def check_released_files():
                 page.wait_for_selector('#fileInfoModal', state='hidden', timeout=10000)
                 # …et il figure dans l'onglet « Inutilisés » de la médiathèque, d'où on le supprime
                 # par son bouton de ligne (2026-10-01).
-                kept_row = f'#unusedList [data-unused-row="{ReleasedFile.objects.get(path=kept_rel).pk}"]'
+                # The row is born of the gesture, so it is read DURING it: from a bare thread, the
+                # Playwright context refusing the ORM (`SynchronousOnlyOperation`, red on 2026-10-12).
+                released_pk = _in_plain_thread(lambda: ReleasedFile.objects.get(path=kept_rel).pk)
+                kept_row = f'#unusedList [data-unused-row="{released_pk}"]'
                 page.goto(BASE_URL + '/media-library/?tab=unused', wait_until='networkidle', timeout=60000)
                 page.wait_for_selector(kept_row, timeout=15000)
                 verdicts.append((kept_path.name in page.inner_text(kept_row),

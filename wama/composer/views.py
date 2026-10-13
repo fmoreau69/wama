@@ -287,6 +287,31 @@ def generate(request):
     except (ValueError, TypeError):
         duration = _DEFAULT_DURATION
 
+    # Le MORCEAU À REPRENDRE (cover) — ports de TRAVAIL depuis le 2026-10-03 (décision de Fabien) :
+    # l'audio de MusicGen Melody (`work_audio`) et la partition de YuE2 (`work_score`). Chacun est
+    # reçu sous le nom de son PORT, téléversé ou DÉSIGNÉ (brique `received_inputs` : une
+    # désignation se POINTE), et rangé dans son champ — les champs, des données stockées, gardent
+    # leur nom (`melody_reference`, `reference_score`). Joint si le modèle le DÉCLARE (un « auto »
+    # le fera tirer parmi ceux qui le consomment).
+    # Reçus AVANT la création (2026-10-13) : une désignation REFUSÉE (fichier d'un autre) était
+    # ignorée en silence — la card naissait sans le morceau, sans un mot. Elle refuse désormais
+    # l'ajout avec son motif, comme l'imager et l'avatarizer, et rien n'est créé.
+    from wama.common.utils.media_paths import received_inputs
+    # « Le modèle le déclare » s'entend AU SEIN DU PIPELINE : l'audio d'un cover est aussi joint
+    # pour un modèle qui en suivra la partition extraite (`accepts_input`, 2026-10-03).
+    joined = []
+    for port, field, accepted in (('work_audio', 'melody_reference',
+                                   accepts_input(model_id, 'work_audio')),
+                                  ('work_score', 'reference_score',
+                                   accepts_input(model_id, 'work_score'))):
+        if not accepted:
+            continue
+        received = received_inputs(request, user, 'composer', field=port)
+        if received:
+            joined.append((received[0], field))
+        elif received.refusal:
+            return JsonResponse({'error': received.refusal}, status=400)
+
     gen = ComposerGeneration.objects.create(
         user=user,
         prompt=prompt,
@@ -305,24 +330,8 @@ def generate(request):
         'model': model_id, 'duration': duration, 'vocals': gen.vocals,
         'output_format': gen.output_format, 'output_quality': gen.output_quality})
 
-    # Le MORCEAU À REPRENDRE (cover) — ports de TRAVAIL depuis le 2026-10-03 (décision de Fabien) :
-    # l'audio de MusicGen Melody (`work_audio`) et la partition de YuE2 (`work_score`). Chacun est
-    # reçu sous le nom de son PORT, téléversé ou DÉSIGNÉ (brique `received_inputs` : une
-    # désignation se POINTE), et rangé dans son champ — les champs, des données stockées, gardent
-    # leur nom (`melody_reference`, `reference_score`). Joint si le modèle le DÉCLARE (un « auto »
-    # le fera tirer parmi ceux qui le consomment).
-    from wama.common.utils.media_paths import received_inputs
-    # « Le modèle le déclare » s'entend AU SEIN DU PIPELINE : l'audio d'un cover est aussi joint
-    # pour un modèle qui en suivra la partition extraite (`accepts_input`, 2026-10-03).
-    for port, field, accepted in (('work_audio', 'melody_reference',
-                                   accepts_input(model_id, 'work_audio')),
-                                  ('work_score', 'reference_score',
-                                   accepts_input(model_id, 'work_score'))):
-        if not accepted:
-            continue
-        received = received_inputs(request, user, 'composer', field=port)
-        if received:
-            received[0].assign(gen, field)
+    for received, field in joined:
+        received.assign(gen, field)
 
     # Wrap in batch-of-1
     _wrap_generation_in_batch(gen)

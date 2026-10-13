@@ -100,7 +100,11 @@ class AptitudesAffichees(TestCase):
         self.client.force_login(self.user)
 
     def _libelles(self, query=''):
-        groupes = self.client.get(self.URL + query).json()['groups'][0]['options']
+        # Every group: since 2026-10-05 the options are ranged under their ORIGIN (« WAMA
+        # local », then each remote source — `views._groups_by_origin`), so a remote model is
+        # never in the first group. Reading only `groups[0]` lost it.
+        groupes = [o for g in self.client.get(self.URL + query).json()['groups']
+                   for o in g['options']]
         return {(o[0] if isinstance(o, list) else o['value']):
                 (o[1] if isinstance(o, list) else o['label']) for o in groupes}
 

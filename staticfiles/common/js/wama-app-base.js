@@ -991,6 +991,9 @@
           const msg = typeof opts.successMessage === 'function' ? opts.successMessage(data)
                                                                 : opts.successMessage;
           toast(msg || 'Ajouté à la file — réglez-le si besoin, puis ▶ pour lancer.', 'success');
+          // Ajouté avec une réserve DITE par le serveur (`warning`, ex. une référence désignée
+          // refusée) : jamais lue avant le 2026-10-13, donc jamais montrée.
+          if (data.warning) toast(data.warning, 'warning');
           if (global.WamaFM && global.WamaFM.uploaded) global.WamaFM.uploaded();
           if (opts.reset !== false) clear();
           if (typeof opts.onAdded === 'function') opts.onAdded(data);

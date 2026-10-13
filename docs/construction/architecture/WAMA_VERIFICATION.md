@@ -1836,3 +1836,50 @@ portages, pas des tests ; le `model_loaded` nocturne générique (décision de F
 quelle fréquence). Côté UI (consigne du même jour) : le moins de rechargement de page possible —
 `refreshCard` plutôt que `location.reload()` (l'enregistrement du volet de lot en fait encore un
 dans anonymizer, imager, enhancer).
+
+---
+
+## 9. Les rouges de la grille FONCTIONNELLE des apps portées : TEST ou BUG ? (2026-10-13)
+
+> Question de Fabien : *« Je vois qu'il y a des erreurs dans la grille fonctionnelle pour les
+> applications portées. Est-ce que ce sont des problèmes des tests eux-mêmes ou de vrais bugs ? »*
+> Sources : le passage complet de la nuit (`nightly_20261013_105541`, GPU compris), puis trois
+> rejeux de jour, sans GPU, sur le code de l'arbre. Chaque rouge a été rejoué ou sondé avant
+> d'être classé. Aucun n'a été classé d'après son seul message.
+
+**La majorité venait de l'instrument ou de l'environnement, mais quatre vrais bugs se cachaient
+dessous.** Un rouge d'instrument masque un défaut réel : tant que le scénario tombe avant le
+geste, il ne mesure pas l'app.
+
+| rouge | cause MESURÉE | nature | ce qui a été fait |
+|---|---|---|---|
+| `<app>.processing` / `batch_processing` (6 apps) | la campagne nocturne tourne ELLE-MÊME comme tâche sur le worker `gpu` (`--pool=solo`, `settings.py` : `common.run_nightly_tests` → file `gpu`, 5 h 30 le 12/10). Ses scénarios lancent des tâches sur la même file, qui attendent qu'elle finisse. Journal du 12/10 : les tâches démarrent à 11:29:18, juste après la campagne, sur des éléments déjà effacés (« introuvable »). C'est le blocage déjà décrit pour le Studio (`settings.py`, orchestrateur sur une file dédiée) | **infrastructure du nocturne** | ⏳ **décision de Fabien** : l'orchestrateur ne doit pas occuper la file dont ses gestes ont besoin. Seuls les `model_loaded` chargent dans le processus de la campagne (`transcriber.asr_load`, `enhancer.deepfilternet_load`) |
+| anonymizer : 5 gestes sur `Page.goto … networkidle` | `GET /anonymizer/sam3/status/` (pastille du volet, à CHAQUE page) faisait **`import sam3` : 57 s** (torch compris), contre 5 ms pour `find_spec`. Un worker gunicorn neuf restait bloqué dessus, et la découverte des modèles payait la même chose | **bug** | `sam3_manager.check_sam3_installed` passe par `find_spec`, la version par les métadonnées ; garde `anonymizer.tests_task.Sam3StatusWithoutImportTest` (contre-épreuve rouge) |
+| `reader.batch_actions` | ⧉ de lot : **deux POST par clic**. `reader.js` branchait encore ▶ ⧉ 🗑 sur la card mère, alors que la brique commune les tient déjà ⇒ deux copies du lot, ▶ lancé deux fois | **bug** | R121 ; garde `tests_queue_delete_contract.BatchActionsOwnedByTheBrickTest` (rejoué vert) |
+| `reader.queue_dnd` | `scroll_into_view_if_needed` sur un HANDLE obtenu avant les clics de sélection : une card re-rendue entre-temps laisse un nœud mort. Sonde : aucune card n'est re-rendue sur une page au repos (reader, converter) | **instrument** | un locator, qui se résout à nouveau (leçon déjà écrite pour `settings` et l'aperçu) ; rejoué vert sur reader, converter, enhancer |
+| composer / synthesizer : référence refusée | une désignation REFUSÉE (fichier d'un autre) était ignorée en silence : la card naissait sans le morceau ou la voix, sans un mot. Trouvé par la contre-épreuve d'un test AVEUGLE (`test_a_port_rejects_someone_elses_file` restait vert garde neutralisée : un fichier pris par COPIE ne laisse aucune référence au chemin d'autrui) | **bug** | refus 400 avec motif, AVANT toute création (comme l'imager et l'avatarizer) ; le test exige le refus dit (contre-épreuve : 4 rouges) |
+| ajout générique : `warning` | les vues générées répondent `warning` (réserve d'un ajout), que ni `WamaApp.addToQueue` ni `WamaImport` ne lisaient | **bug** (jumelles) | toast « warning » dans les deux briques |
+| `enhancer.settings` / `clear_all` | deux cards AUDIO laissées le 04/10 dans l'onglet masqué : le scénario comptait toute la page, alors que chaque onglet de domaine a sa file, son ⚙ et son « Tout effacer » | **instrument** | `ui_smoke.IN_SHOWN_PANE_JS` / `IDS_SHOWN_CARDS_JS` : l'onglet affiché seul (rejoués verts) |
+| `composer.batch_processing` | deux fichiers posés sur un champ à fichier UNIQUE : Playwright refuse | **instrument** | non applicable, avec sa raison |
+| `common.released_files` | lecture ORM DANS le contexte Playwright (`SynchronousOnlyOperation`) | **instrument** | brique existante `_in_plain_thread` (rejoué vert) |
+| `processing` de jour, `Page.goto` de jour (reader, transcriber, describer) | serveur relancé PENDANT le passage (`ERR_CONNECTION_REFUSED` : 135 scénarios sur 206 au premier rejeu), charge de la campagne et des suites d'autres instances | **environnement** | rejoués verts ; aucune requête bloquée à la sonde |
+
+**Tests Django rouges dans la même grille** (suites `wama.common`, `accounts`, `model_manager`,
+`media_library` du 12/10) : `accounts` verte sur le code du jour ; **cinq tests en retard sur un
+changement VOULU** — le port du composer renommé `work_audio` le 03/10 (`tests_port_designation`),
+les options rangées par ORIGINE depuis le 05/10 (`tests_taxonomie_ollama`), le type MIME du
+système (`audio/x-wav` sous WSL, `tests_picker_list`), une recopie du vocabulaire au lieu de
+`known_types()` (`tests_surfaces`), une jumelle comptée comme app réelle
+(`tests_result_evaluation`) ; et **un défaut du générateur** (`ItemEditRouteAliasTest`) : une vue
+de réglages dont le nom n'est pas celui de sa route (l'imager, depuis le 29/09) recevait un
+bouchon 501 (`views_gen`, `d['view_routes']`).
+
+**🔚 Restes nommés, hors des 10 apps ou à décider** : la file `gpu` de la campagne (ci-dessus) ;
+`studio.pipeline.converter`, rouge depuis le 12/10 : la porte des réglages de nœud (`f1c3d4e1`) refuse
+`asset_type='audio'`, une CATÉGORIE que le puits traduit en nature depuis le 13/09 (même
+question pour les graphes enregistrés) ; `media_library` (dépôt, dossier, « Tout effacer »,
+recherche) et `studio.queue_search` — surfaces non portées sur la file commune ;
+`wama.common.suite` dépasse son budget de 2400 s ; le ⚙ de lot de l'enhancer, de l'imager et de
+l'avatarizer est ouvert par l'app SANS ouvreur déclaré à la brique (un avertissement console,
+pas de double geste) ; contrôles de cohérence (corpus de manifestes, `doc_facts`, redondances,
+intégrité des médias, vulnérabilités) — maintenance, pas des gestes.

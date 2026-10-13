@@ -30,10 +30,9 @@ class RegistryTest(SimpleTestCase):
 
     def test_every_brick_consumes_only_existing_vocabularies(self):
         from wama.common.app_registry import MEDIA_CATEGORIES
-        from wama.common.catalog.data_types import DataType
+        from wama.common.catalog.data_types import known_types
         from wama.common.surfaces import BRICKS
-        known = set(MEDIA_CATEGORIES) | {v for k, v in vars(DataType).items()
-                                         if k.isupper() and isinstance(v, str)}
+        known = set(MEDIA_CATEGORIES) | known_types()
         for brick in BRICKS.values():
             with self.subTest(brick=brick.key):
                 self.assertFalse(set(brick.consumes) - known,

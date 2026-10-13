@@ -107,6 +107,11 @@ def _donnees(manifest: dict) -> dict:
     # View name → declared pattern: an item-route alias gets the conventional `(request, pk)`
     # body only if its pattern takes `<int:pk>` (`urls_gen.alias_fits`, 2026-09-24).
     d['view_patterns'] = {}
+    # View name → declared ROUTE name. They differ when an app aligned its route on the
+    # convention and kept its view: the imager's `settings/<int:pk>/` is named `update_settings`
+    # and served by `generation_settings` (2026-09-29). Keyed by view name only, the item-edit
+    # body was emitted under the route name and the view the urls call stayed a 501 stub.
+    d['view_routes'] = {}
     for e in (proc.get('extra_routes') or []):
         expr = str(e.get('view') or '')
         if not expr:
@@ -117,6 +122,7 @@ def _donnees(manifest: dict) -> dict:
         if not nom.isidentifier():
             continue
         d['view_patterns'][nom] = str(e.get('pattern') or '')
+        d['view_routes'][nom] = str(e.get('name') or '')
         d['extras'].append(nom)
         if is_cbv:
             d['extra_classes'].add(nom)
@@ -1107,6 +1113,11 @@ def {nom}(request, pk):
     for _nom in route_variants('update'):
         if alias_fits('update', _nom, d['view_patterns']):
             vues[_nom] = corps_update(_nom)
+    # … and under the VIEW name when the route carries a conventional name the view does not.
+    for _view, _route in d['view_routes'].items():
+        if (_view not in vues and _route in route_variants('update')
+                and '<int:pk>' in d['view_patterns'].get(_view, '')):
+            vues[_view] = corps_update(_view)
 
     # Les SIX vues de lot viennent de la FABRIQUE COMMUNE `make_batch_views` (bloc `fabrique`
     # ci-dessous) — extraite de ce gabarit le 2026-09-22 (ROUTE §11 #36) : ce fichier n'émet plus

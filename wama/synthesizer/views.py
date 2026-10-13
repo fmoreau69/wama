@@ -125,6 +125,16 @@ def _panel_pref_key(param):
     return _PANEL_PREF_KEYS.get(param.get('name'))
 
 
+def synthesis_panel_values(user, app='synthesizer') -> dict:
+    """Les valeurs du VOLET de l'auteur, par NOM de param : ses derniers choix mémorisés, les
+    défauts du schéma pour le reste (brique commune `read_panel_settings`). C'est ce que la page
+    affiche et ce que la card poste ; une synthèse créée SANS volet (import du gestionnaire de
+    fichiers, « Envoyer vers ») le reçoit tel quel en `params` de `create_synthesis`.
+    `app` : une jumelle de bac à sable passe le sien."""
+    from wama.common.utils.user_settings import read_panel_settings
+    return read_panel_settings(user, app, _SYNTH_PARAMS_JSON, key=_panel_pref_key)
+
+
 class IndexView(View):
     """Page principale du synthesizer."""
 
@@ -207,8 +217,6 @@ class IndexView(View):
                 except Exception as exc:
                     logger.warning(f"[Synthesizer] Impossible de lancer le téléchargement des voix : {exc}")
 
-        from wama.common.utils.user_settings import read_panel_settings
-
         context = {
             'batches_list': batches_list,
             'queue_count': queue_count,
@@ -220,8 +228,7 @@ class IndexView(View):
             # la brique commune sous leurs clés historiques (`preferred_*`, écrites à la création
             # d'une synthèse), les défauts du schéma pour le reste.
             'params_json': json.dumps(_SYNTH_PARAMS_JSON),
-            'panel_values_json': json.dumps(read_panel_settings(
-                user, 'synthesizer', _SYNTH_PARAMS_JSON, key=_panel_pref_key)),
+            'panel_values_json': json.dumps(synthesis_panel_values(user)),
             # Appariement entrée↔modèles (brique commune input_match) : une voix CLONÉE
             # choisie grise les moteurs sans clonage — cf. INPUT_MODEL_MATCHING.md.
             'input_match_meta': json.dumps(self._input_match_meta()),
@@ -277,6 +284,10 @@ def upload(request):
     if not received:
         return JsonResponse({'error': received.refusal or 'Aucun fichier fourni'}, status=400)
     voice = received_inputs(request, user, 'synthesizer', field='voice_reference')
+    if not voice and voice.refusal:
+        # Une voix désignée et REFUSÉE (fichier d'un autre) faisait naître la card avec la voix
+        # par défaut, sans un mot (2026-10-13) : l'ajout est refusé avec son motif.
+        return JsonResponse({'error': voice.refusal}, status=400)
     try:
         synthesis = create_synthesis(user, work_file=received[0],
                                      reference_voice=voice[0] if voice else None,
@@ -292,6 +303,8 @@ def upload_text(request):
     from .services import SynthesisRefused, create_synthesis
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     voice = received_inputs(request, user, 'synthesizer', field='voice_reference')
+    if not voice and voice.refusal:
+        return JsonResponse({'error': voice.refusal}, status=400)
     try:
         synthesis = create_synthesis(user, prompt=request.POST.get('text_content', ''),
                                      title=request.POST.get('title', ''),
@@ -568,6 +581,8 @@ def start_all(request):
         return JsonResponse({
             'error': f'Erreur lors de la récupération des options: {str(e)}'
         }, status=400)
+    if not voice_received and voice_received.refusal:
+        return JsonResponse({'error': voice_received.refusal}, status=400)
 
     # Récupérer toutes les synthèses (sauf celles en cours)
     qs = VoiceSynthesis.objects.filter(user=user).exclude(status='RUNNING')
@@ -739,13 +754,17 @@ def update_settings(request, pk: int):
     from wama.common.utils.batch_views import read_settings_payload
     data = read_settings_payload(request, _SYNTH_PARAMS_JSON,
                                  [p['name'] for p in _SYNTH_PARAMS_JSON])
+    # Voice reference — téléversée ou DÉSIGNÉE (médiathèque, arbre) : pointée. Lue AVANT
+    # d'appliquer quoi que ce soit : une désignation refusée refuse l'enregistrement entier,
+    # au lieu de garder l'ancienne voix sans le dire (2026-10-13).
+    voice_received = received_inputs(request, user, 'synthesizer', field='voice_reference')
+    if not voice_received and voice_received.refusal:
+        return JsonResponse({'error': voice_received.refusal}, status=400)
     try:
         _apply_synthesis_settings(synthesis, data)
     except ValueError as refusal:
         return JsonResponse({'error': str(refusal)}, status=400)
 
-    # Voice reference — téléversée ou DÉSIGNÉE (médiathèque, arbre) : pointée.
-    voice_received = received_inputs(request, user, 'synthesizer', field='voice_reference')
     if voice_received:
         synthesis.voice_reference = voice_received[0].value
 

@@ -416,3 +416,43 @@ class SegmentationNoteTest(TestCase):
     def test_nothing_is_said_when_it_was_not_asked_or_took_place(self):
         self.assertEqual('', self._note(precision_level=30, use_segmentation=False))
         self.assertEqual('', self._note(precision_level=60, polygons=[[[8, 8], [40, 8], [40, 40]]]))
+
+
+class Sam3StatusWithoutImportTest(TestCase):
+    """The SAM3 chip of the panel asks its status on EVERY anonymizer page (`sam3/status/`), and
+    the model discovery asks it too. `import sam3` cost 57 s (torch included, measured on
+    2026-10-13): a fresh gunicorn worker hung on it, the page never reached network idle and
+    five browser gestures of the anonymizer went red. The status reads the venv, never imports."""
+
+    def _status_importing(self):
+        import builtins
+        from wama.anonymizer.utils import sam3_manager
+        real_import, imported = builtins.__import__, []
+
+        def spy(name, *args, **kwargs):
+            if name == 'sam3' or name.startswith('sam3.'):
+                imported.append(name)
+            return real_import(name, *args, **kwargs)
+        with mock.patch('builtins.__import__', spy):
+            status = sam3_manager.get_sam3_status()
+        return status, imported
+
+    def test_the_status_never_imports_the_package(self):
+        status, imported = self._status_importing()
+        self.assertEqual([], imported, 'the status must read the venv, not import sam3')
+        self.assertIn('installed', status)
+
+    def test_installed_follows_the_venv_and_the_version_its_metadata(self):
+        import importlib.util
+        from wama.anonymizer.utils import sam3_manager
+        present = importlib.util.find_spec('sam3') is not None
+        status, _ = self._status_importing()
+        self.assertEqual(present, status['installed'])
+        if present:
+            from importlib.metadata import version
+            self.assertEqual(version('sam3'), status['version'])
+        with mock.patch('importlib.util.find_spec', return_value=None):
+            absent = sam3_manager.get_sam3_status()
+        self.assertFalse(absent['installed'])
+        self.assertFalse(absent['ready'])
+        self.assertTrue(absent['error'])

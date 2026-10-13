@@ -1211,3 +1211,54 @@ class CriteresDeLaGrilleTest(SimpleTestCase):
         self.assertIsNone(crit(self._app({page: '<div></div>\n'})[0])[0])
         # Un COMMENTAIRE qui cite le socle ne l'inclut pas.
         self.assertIs(crit(self._app({page: "{# _app_scripts.html #}\n" + tag})[0])[0], False)
+
+
+class BatchActionsOwnedByTheBrickTest(SimpleTestCase):
+    """▶ ⧉ 🗑 ↓ of a LOT belong to the common brick (`queue-actions.js`, `batchAction`): it holds
+    the click, the confirmation, the POST and the reload, and an app only DECLARES what follows
+    (`onBatchStarted`, `onBatchSettings`). Measured on 2026-10-13: the reader still bound the same
+    buttons itself (handlers of April, older than the brick) — every click left TWICE, a ⧉ made
+    two copies of the lot, a ▶ launched it twice. Held on every app's script, never on one."""
+
+    OWNED = ('start', 'delete', 'duplicate', 'realign')
+    BRICK = Path('wama/common/static/common/js/queue-actions.js')
+
+    @staticmethod
+    def _code(text):
+        """The script without its comments: a comment that names the old binding binds nothing."""
+        text = re.sub(r'/\*.*?\*/', '', text, flags=re.S)
+        return re.sub(r'(?m)(^|[^:"\'`])//[^\n]*', r'\1', text)
+
+    def _bindings(self, text):
+        owned = '|'.join(self.OWNED)
+        pattern = (r"(querySelectorAll|closest)\(\s*['\"`][^'\"`]*\.batch-(?:%s)-btn\b" % owned)
+        return [m.group(0) for m in re.finditer(pattern, self._code(text))]
+
+    def _scripts(self):
+        from django.conf import settings
+        from wama.common.app_registry import APP_CATALOG
+        # A sandbox twin is measured against its source by its own grid, never by this suite.
+        twins = {k for k, v in APP_CATALOG.items() if (v or {}).get('sandbox')}
+        base = Path(settings.BASE_DIR)
+        for root in ('wama', 'wama_lab', 'wama_data'):
+            for path in (base / root).rglob('static/**/*.js'):
+                rel = path.relative_to(base)
+                if (rel == self.BRICK or 'vendor' in rel.parts or 'vendors' in rel.parts
+                        or rel.parts[1] in twins):
+                    continue
+                yield rel, path.read_text(encoding='utf-8', errors='replace')
+
+    def test_no_app_binds_a_lot_action_the_brick_owns(self):
+        found = {str(rel): hits for rel, text in self._scripts() if (hits := self._bindings(text))}
+        self.assertEqual({}, found, 'a lot action bound by the app as well as by the brick '
+                                    'leaves twice — declare the follow-up to WamaQueueActions')
+
+    def test_the_rule_sees_a_binding_and_not_a_comment_nor_a_proxy_click(self):
+        self.assertTrue(self._bindings(
+            "document.querySelectorAll('.batch-duplicate-btn').forEach(b => b.onclick = f);"))
+        self.assertTrue(self._bindings("const b = e.target.closest('.batch-start-btn');"))
+        self.assertFalse(self._bindings("// document.querySelectorAll('.batch-delete-btn')"))
+        # The card menu PROXIES a click to the brick's button: that is no second binding.
+        self.assertFalse(self._bindings("var dup = env.querySelector('.batch-duplicate-btn');"))
+        # The ⚙ of a lot is not owned: the brick dispatches it to the opener the app declares.
+        self.assertFalse(self._bindings("const b = e.target.closest('.batch-settings-btn');"))

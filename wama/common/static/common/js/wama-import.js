@@ -265,6 +265,9 @@
           return { ids: [], data: data };
         }
         if (global.WamaFM && WamaFM.uploaded) WamaFM.uploaded();
+        // Ajouté, mais avec une réserve que le serveur DIT (`warning` : une désignation refusée,
+        // une nature hors vocabulaire) — jamais lue avant le 2026-10-13, donc jamais montrée.
+        if (data.warning) signaler('Import : ' + data.warning, 'warning');
         return { ids: identifiants(data), data: data };
       } catch (err) {
         signaler('Import : ' + (err && err.message ? err.message : 'erreur réseau'));
