@@ -592,11 +592,22 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       habillaient en fait la surcouche commune y sont reprises telles qu'affichées.
     - **Gardes** : `tests_preview_navigation` (pas de navigation, bascule en V8 ; une définition
       par fonction d'aperçu ; un seul écouteur de flèches) ; scénario nocturne
-      `common.preview_navigation` (29 gestes sur cards fictives servies par la page, gestionnaire
+      `common.preview_navigation` (35 gestes sur cards fictives servies par la page, gestionnaire
       de fichiers réel, galerie et surcouche) et chaque `<app>.preview` passe d'une card réelle à
       l'autre, face gardée, volet resynchronisé, puis ↑/↓ DU VOLET refont son aperçu — 9 apps vertes, avatarizer écarté (sortie vidéo
       seule) ; contre-épreuves sur le JS de HEAD ROUGES (« 3 fichiers », aucune séquence, flèche
       détournée vers `f3.png`). Retraits : `REMOVAL_LEDGER R123`.
+    - ✅ **Comparer, fichier par fichier — le même jour** (décision de Fabien sur proposition) :
+      le titre nomme les DEUX fichiers confrontés (`compareTitle`, « source.jpg ↔ floutee.jpg ») —
+      il gardait celui de la face d'avant, l'entrée ou « 4 fichiers » selon le chemin ; une sortie
+      MULTIPLE se compare au fichier MONTRÉ (Comparer prenait toujours le premier) et ←/→ passent
+      aux autres fichiers SANS quitter Comparer, puis à la card voisine ; revenir à la Sortie garde
+      le fichier. Aucune brique neuve : `compareFaces` et `compareView` inchangés, le rendu
+      (`_showCompare`) les appelle sur le fichier courant de la navigation commune. Le volet n'est
+      pas concerné (il montre la grille, sans fichier courant : son Comparer prend le représentant).
+      Gestes : 6 de plus dans `common.preview_navigation`, qui vérifient aussi que les médias
+      AFFICHÉS sont ceux que nomme le titre ; contre-épreuve sur HEAD : ces 8 gestes rouges, les
+      27 autres verts.
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
   `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
 - **Manifeste** : inspector adapter (mapping champs→clés canoniques), preview binding sur port,

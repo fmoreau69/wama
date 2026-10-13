@@ -712,10 +712,17 @@
     }
 
     /** Les fichiers d'une sortie MULTIPLE montrés un par un (la visionneuse n'en montrait que le
-     *  représentant). Comparer confronte deux faces, jamais une collection. */
+     *  représentant). Comparer en porte aussi : la référence confrontée au fichier montré
+     *  (2026-10-13 — Comparer prenait toujours le premier). */
     function _filesOf(data) {
-        return (data && data.side !== 'compare' && Array.isArray(data.files) && data.files.length > 1)
-            ? data.files : null;
+        return (data && Array.isArray(data.files) && data.files.length > 1) ? data.files : null;
+    }
+
+    /** Le titre de Comparer : les DEUX fichiers confrontés (« source.jpg ↔ floutee.jpg ») — il
+     *  gardait celui de la face d'avant, l'entrée ou « 4 fichiers » selon le chemin pris. Pure
+     *  (gardée en V8, `tests_preview_navigation`). */
+    function compareTitle(reference, output) {
+        return ((reference && reference.name) || 'Entrée') + ' ↔ ' + ((output && output.name) || 'Sortie');
     }
 
     function _position() {
@@ -840,7 +847,11 @@
         const modal = document.getElementById('wamaMediaPreviewModal');
         if (!_seq || target.index === _seq.index) {
             _sub = target.sub;
-            if (currentPreviewData) _display(currentPreviewData);
+            if (currentPreviewData && currentPreviewData.side === 'compare') {
+                if (modal) _showCompare(modal, currentPreviewData);    // le fichier suivant, comparé
+            } else if (currentPreviewData) {
+                _display(currentPreviewData);
+            }
             return;
         }
         const seq = _seq;
@@ -855,7 +866,7 @@
             if (seq.onMove) seq.onMove(target.index, d);
             _display(d);
             if (face === 'compare' && modal && d._baseUrl && d.sides && d.sides.comparable) {
-                _modalCompare(modal, d._baseUrl, d.sides);
+                _modalCompare(modal, d._baseUrl, d.sides, _sub);      // le fichier d'arrivée, comparé
             }
         }).catch(function () { /* l'élément voisin n'a pas d'aperçu : on reste sur celui-ci */ });
     }
@@ -1064,7 +1075,8 @@
             if (!nd) return;
             nd._baseUrl = base;
             nd.sides = nd.sides || sides;
-            _sub = 0;
+            // De Comparer (ou de la Sortie) vers la Sortie : le MÊME fichier ; ailleurs, le premier.
+            if (side !== 'output') _sub = 0;
             _display(nd);
         });
     }
@@ -1096,24 +1108,40 @@
     /** Comparer dans la modale et son plein écran : la SORTIE superposée à la référence, un
      *  curseur — la fabrique COMMUNE `compareView`, sur les faces de `compareFaces` (celles du
      *  volet). La modale juxtaposait deux médias jusqu'au 2026-10-06 (Fabien : « une
-     *  superposition avec le slider »). */
-    function _modalCompare(modal, base, s) {
-        const container = modal.querySelector('.preview-container');
+     *  superposition avec le slider »). Une sortie MULTIPLE est comparée fichier par fichier
+     *  (2026-10-13) : `sub` = le fichier montré au clic (par défaut celui de la vue courante) ;
+     *  ←/→ passent aux autres fichiers EN RESTANT dans Comparer, puis à la card voisine. */
+    function _modalCompare(modal, base, s, sub) {
         compareFaces(base, s).then(function (pair) {
-            if (!pair || !container) return;
-            _stopModalDuring();
-            _releaseContent(container);
-            Array.prototype.forEach.call(container.querySelectorAll(':scope > :not(.wama-preview-nav-btn)'),
-                function (el) { el.remove(); });
-            const view = compareView(pair.din, pair.dout, pair.baseLabel);
-            view.classList.add('wama-modal-compare');
-            container.appendChild(view);
-            const din = pair.din;
-            din._baseUrl = base; din.sides = s; din.side = 'compare';
-            currentPreviewData = din;
-            _renderModalSides(modal, din);
-            updateNavigationUI(modal);
+            if (!pair) return;
+            const files = _filesOf(pair.dout);
+            _sub = files ? Math.min(Math.max(0, sub == null ? _sub : sub), files.length - 1) : 0;
+            _showCompare(modal, { side: 'compare', sides: s, _baseUrl: base,
+                                  files: files || undefined, _pair: pair });
         });
+    }
+
+    /** Rend Comparer pour la face `face` (ses deux faces chargées, `_pair`) sur le fichier `_sub`. */
+    function _showCompare(modal, face) {
+        const container = modal.querySelector('.preview-container');
+        const pair = face._pair;
+        if (!container || !pair) return;
+        const files = _filesOf(face);
+        const output = files ? Object.assign({}, pair.dout, files[_sub]) : pair.dout;
+        _stopModalDuring();
+        _releaseContent(container);
+        Array.prototype.forEach.call(container.querySelectorAll(':scope > :not(.wama-preview-nav-btn)'),
+            function (el) { el.remove(); });
+        const view = compareView(pair.din, output, pair.baseLabel);
+        view.classList.add('wama-modal-compare');
+        container.appendChild(view);
+        currentPreviewData = face;
+        modal.querySelector('.modal-title').textContent = compareTitle(pair.din, output);
+        // Le pied disait les propriétés de la face d'AVANT : il se tait plutôt que de mentir.
+        const meta = modal.querySelector('.preview-meta');
+        if (meta) meta.textContent = '';
+        _renderModalSides(modal, face);
+        updateNavigationUI(modal);
     }
 
     /**
@@ -1577,7 +1605,7 @@
     // `tests_preview_entry`, `tests_preview_navigation`).
     window.WamaMediaPreview = {
         // pures
-        itemAddress: _itemAddress, showable: showable, faceButtons: faceButtons,
+        itemAddress: _itemAddress, showable: showable, faceButtons: faceButtons, compareTitle: compareTitle,
         stepTarget: stepTarget, duringUrl: duringUrl, faceUrl: faceUrl,
         // rendu en ligne
         renderInline: renderInline, hydrateCardPreviews: hydrateCardPreviews,

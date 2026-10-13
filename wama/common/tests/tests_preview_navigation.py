@@ -133,6 +133,14 @@ class OneFaceSwitchTest(SimpleTestCase):
         self.assertEqual(['input', 'output'], list(out[2]))
         self.assertEqual(1, out[3])
 
+    def test_compare_is_titled_by_the_two_files_it_confronts(self):
+        """The title kept the face shown before (the entry, or « 4 fichiers ») — 2026-10-13."""
+        out = self.v8.eval("""(function () {
+            var t = window.WamaMediaPreview.compareTitle;
+            return [t({name: 'source.jpg'}, {name: 'floutee.jpg'}), t({}, null)];
+        })()""")
+        self.assertEqual(['source.jpg ↔ floutee.jpg', 'Entrée ↔ Sortie'], list(out))
+
     def test_the_panel_and_the_viewer_have_their_own_density(self):
         out = self.v8.eval("""(function () {
             var P = window.WamaMediaPreview, face = {sides: {has_input: true, has_output: true}};

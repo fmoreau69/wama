@@ -145,7 +145,9 @@ class CompareLetsBothVideosPlayTest(TestCase):
 
     def test_the_panel_and_the_modal_build_compare_with_the_common_view(self):
         panel = self._body('wama-inspector.js', 'function _renderCompare')
-        modal = self._body('media-preview.js', 'function _modalCompare')
+        # La modale charge (`_modalCompare`) puis rend, fichier par fichier (`_showCompare`).
+        modal = (self._body('media-preview.js', 'function _modalCompare')
+                 + self._body('media-preview.js', 'function _showCompare'))
         for surface in (panel, modal):
             self.assertIn('compareView(', surface)
             self.assertIn('compareFaces(', surface, 'the two faces are fetched by one brick too')

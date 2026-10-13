@@ -659,7 +659,13 @@ def _expect(page, title: str, counter: str = None, face: str = None, compare: bo
                 return m.querySelector('.modal-title').textContent.trim() === w.title
                     && (w.counter == null || (c && c.style.display !== 'none' ? c.textContent.trim() : '') === w.counter)
                     && (w.face == null || (a ? a.textContent.trim() : '') === w.face)
-                    && (w.compare == null || !!m.querySelector('.wama-modal-compare') === w.compare); }""",
+                    && (w.compare == null || !!m.querySelector('.wama-modal-compare') === w.compare)
+                    // Comparer : les médias AFFICHÉS sont ceux que nomme le titre (« réf ↔ sortie »).
+                    && (w.compare !== true || (() => {
+                        const [ref, out] = w.title.split(' ↔ ');
+                        const base = m.querySelector('.wama-compare-base');
+                        const top = m.querySelector('.wama-compare-top img, .wama-compare-top video');
+                        return base && top && base.src.includes(ref) && top.src.includes(out); })()); }""",
             arg=want, timeout=timeout_ms)
         return ''
     except Exception:
@@ -770,17 +776,30 @@ def check_preview_navigation():
                 page.evaluate(JS_FULL, True)
                 gesture('bouton › à tout l’écran', click(modal + ' .wama-preview-nav-next'), 'i3.png', '3 / 3', 'Entrée')
                 page.evaluate(JS_FULL, False)
-                # ── COMPARER suit la navigation (le titre reste celui de la sortie, chargée
-                #    avant d'être comparée) ─────────────────────────────────────────────────────
+                # ── COMPARER suit la navigation : le titre nomme les DEUX fichiers confrontés, une
+                #    sortie multiple se compare fichier par fichier (2026-10-13) ────────────────
                 gesture('Comparer', click(modal + ' .wama-modal-sides button', 'Comparer'),
-                        'i3.png', '3 / 3', 'Comparer', compare=True)
+                        'i3.png ↔ o3a.png', '3 / 3 · fichier 1 / 2', 'Comparer', compare=True)
                 gesture('Comparer gardé à la card précédente', press('ArrowUp'),
-                        'o2.png', '2 / 3', 'Comparer', compare=True)
+                        'i2.png ↔ o2.png', '2 / 3', 'Comparer', compare=True)
+                gesture('Comparer : ← arrive sur la DERNIÈRE image de la card précédente', press('ArrowLeft'),
+                        'i1.png ↔ o1c.png', '1 / 3 · fichier 3 / 3', 'Comparer', compare=True)
+                gesture('Comparer : ← parcourt les images sans quitter Comparer', press('ArrowLeft'),
+                        'i1.png ↔ o1b.png', '1 / 3 · fichier 2 / 3', 'Comparer', compare=True)
+                gesture('Comparer : →', press('ArrowRight'),
+                        'i1.png ↔ o1c.png', '1 / 3 · fichier 3 / 3', 'Comparer', compare=True)
+                gesture('Comparer : → après la dernière image, la card suivante', press('ArrowRight'),
+                        'i2.png ↔ o2.png', '2 / 3', 'Comparer', compare=True)
                 close()
                 # ── la VIGNETTE d'une grille ouvre la visionneuse sur SON fichier ────────────
                 gesture('clic sur la 2ᵉ vignette', click(card1 + ' .wama-preview-tile', nth=1),
                         'o1b.png', '1 / 3 · fichier 2 / 3', 'Sortie')
                 gesture('→ depuis la vignette', press('ArrowRight'), 'o1c.png', '1 / 3 · fichier 3 / 3')
+                gesture('Comparer confronte l’image MONTRÉE (la 3ᵉ)',
+                        click(modal + ' .wama-modal-sides button', 'Comparer'),
+                        'i1.png ↔ o1c.png', '1 / 3 · fichier 3 / 3', 'Comparer', compare=True)
+                gesture('de Comparer à la Sortie : la même image', click(modal + ' .wama-modal-sides button', 'Sortie'),
+                        'o1c.png', '1 / 3 · fichier 3 / 3', 'Sortie', compare=False)
                 close()
 
                 # ── GESTIONNAIRE DE FICHIERS : les fichiers du dossier ─────────────────────────
