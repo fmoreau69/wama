@@ -297,6 +297,11 @@ Design retenu (validé sur le principe avec Fabien) :
 
 `profile.sam3_fps` (cadence SAM3) et `profile.geometry_enabled` (active l'homographie sol)
 sont sur le PROFIL (pas la session).
+Chaque intersection du profil porte TROIS rayons (`intersection_analyzer`) : `radius_m`
+(analyse), `interest_radius_m` (rapport) et `parked_radius_m` (2026-10-13) — autour du centre,
+un immobile n'est jamais compté garé (porte `pres_intersection` du tracking ; absent → rayon
+d'analyse, la règle historique, 30 m sur ENA_CASA). Réglable dans le formulaire d'intersection
+(« Garés (m) », cercle bleu) ; le tracking le surveille (`parked_zones`), pas les fenêtres.
 
 ## Bascules de comparaison (⚑ Modes)
 
@@ -311,10 +316,18 @@ du plus direct au plus coûteux — `feature_flags.SCOPES`, 2026-10-13) :
   aussi : les objets SUIVIS gardent l'état du dernier « Tracking 360° » jusqu'au prochain. ⚠ Un
   A/B au clic ne compare donc que la navette : l'écart navette ↔ objets suivis mêle deux états ;
 - `compute` — aucun effet avant le recalcul.
-`hybrid` et `compute` entrent dans l'instantané du tracking (`compute_snapshot`) : les changer le
-périme. **Le scope se MESURE à qui lit la bascule** (`tests_feature_scopes`) — jusqu'au
-2026-10-13, trois bascules `live` étaient lues par le tracking (le changer ne le périmait pas) et
-sept bascules `compute` déplaçaient la navette au clic.
+Chaque bascule `hybrid`/`compute` NOMME les passes qui la lisent (`Feature.processes`) : chaque
+passe range à son lancement la photo des siennes (`pass_tracking.mark_started`, clés `feature:*`),
+et en changer une périme ces passes au panneau — et seulement elles, l'aval suivant par la
+cascade ; « Compléter les passes » les relance, l'infobulle de la bascule les nomme. Une ligne
+lancée avant la photo garde l'ancienne règle (sauf le tracking, qui rangeait déjà les bascules
+vues, et les Indicateurs terminés après lui). **Le scope ET les passes se MESURENT**
+(`tests_feature_scopes` : qui lit la bascule, la page ou un calcul ; graphe d'appels depuis la
+tâche de chaque passe, écarts déclarés avec leur raison — `lane_map=False`/`ortho=False`, et
+`sam3_homography`, qui ne périme pas la détection GPU). Jusqu'au 2026-10-13, trois bascules `live`
+étaient lues par le tracking, sept bascules `compute` déplaçaient la navette au clic, et changer
+une bascule ne périmait RIEN au panneau (seuls les Indicateurs le voyaient, en refaisant le
+tracking — y compris pour une bascule du TTC/PET, qu'il ne lit pas).
 Règle : **jamais de if ad hoc dispersé** pour une amélioration comparable.
 
 | Bascule | Défaut | Scope | Effet |

@@ -2724,15 +2724,18 @@ document.addEventListener('DOMContentLoaded', function () {
         { scope: 'hybrid', mark: ' ◐', label: '◐ Immédiat en partie — objets suivis au prochain tracking', open: false,
           hint: 'La page applique tout de suite ce qu’elle peut recomposer (la navette, depuis un calcul '
                 + 'déjà stocké, et les objets non suivis). Les objets suivis gardent l’état du dernier '
-                + '« Tracking 360° », qui passe « périmé » : « Compléter les passes » le relance.',
+                + '« Tracking 360° ». Les passes qui la lisent passent « périmées » : « Compléter les '
+                + 'passes » les relance (survoler une bascule pour les voir).',
           rowHint: ' — ◐ immédiat sur la navette et les objets non suivis ; objets suivis au prochain « Tracking 360° ».' },
         { scope: 'compute', mark: ' ⟳', label: '⟳ Calcul — à relancer', open: false,
-          hint: 'Aucun effet avant le recalcul. Changer une bascule périme le « Tracking 360° » (et les '
-                + 'Indicateurs) : « Compléter les passes » les relance. Exceptions, à relancer à la main : '
-                + 'le biais GPS lissé (passe « Recalage voie + carte ») et l’arbitrage des labels SAM3 '
-                + '(passe « Marquages SAM3 »).',
-          rowHint: ' — ⟳ aucun effet avant le recalcul (le Tracking 360° passe « périmé »).' },
+          hint: 'Aucun effet avant le recalcul. Les passes qui la lisent passent « périmées » : '
+                + '« Compléter les passes » les relance (survoler une bascule pour les voir).',
+          rowHint: ' — ⟳ aucun effet avant le recalcul.' },
     ];
+    // « Rend périmé : … » — les passes qui LISENT la bascule (`Feature.processes`, servies avec leur
+    // libellé) ; l'aval de ces passes suit par la cascade du pipeline.
+    const featProcessesHint = (f) => ((f.process_labels || []).length
+        ? `\n\nRend périmé : ${f.process_labels.join(', ')} (et leur aval).` : '');
     const FEAT_GROUPS_OPEN_KEY = 'cam_analyzer_feat_groups_open';
     function featGroupsOpen() {
         try { return JSON.parse(localStorage.getItem(FEAT_GROUPS_OPEN_KEY) || '{}') || {}; }
@@ -2746,7 +2749,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const row = document.createElement('label');
             row.className = 'd-flex align-items-start gap-2 small mb-1';
             row.style.cursor = 'pointer';
-            row.title = f.description + group.rowHint;
+            row.title = f.description + group.rowHint + featProcessesHint(f);
             const cb = document.createElement('input');
             cb.type = 'checkbox';
             cb.checked = !!f.enabled;
@@ -4569,6 +4572,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let intersectionMap = null;
     let intersectionMarker = null;
     let intersectionCircle = null;
+    let intersectionParkedCircle = null;   // rayon « jamais garé » (bleu), sous le rayon d'analyse
+    const _parkedRadiusInput = () => document.getElementById('intParkedRadius');
 
     function _initIntersectionMap() {
         if (intersectionMap) return;  // already initialized
@@ -4605,6 +4610,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function _updateIntersectionCircle(lat, lng) {
         const radius = parseInt(document.getElementById('intRadius').value) || 100;
+        const parked = parseFloat((_parkedRadiusInput() || {}).value);
+        const parkedR = (isFinite(parked) && parked > 0) ? parked : radius;
+        if (intersectionParkedCircle) {
+            intersectionParkedCircle.setLatLng([lat, lng]);
+            intersectionParkedCircle.setRadius(parkedR);
+        } else {
+            intersectionParkedCircle = L.circle([lat, lng], {
+                radius: parkedR, color: '#0dcaf0', fillColor: '#0dcaf0', fillOpacity: 0.10,
+                weight: 1.5, dashArray: '4 4', interactive: false,
+            }).addTo(intersectionMap);
+        }
         if (intersectionCircle) {
             intersectionCircle.setLatLng([lat, lng]);
             intersectionCircle.setRadius(radius);
@@ -4638,7 +4654,7 @@ document.addEventListener('DOMContentLoaded', function () {
         list.innerHTML = intersections.map((it, idx) => `
             <div class="d-flex align-items-center gap-2 py-1 border-bottom border-secondary">
                 <span class="badge bg-warning text-dark">${escapeHtml(it.name)}</span>
-                <small class="text-secondary flex-grow-1">${it.lat.toFixed(5)}, ${it.lon.toFixed(5)} &mdash; ${it.radius_m}m</small>
+                <small class="text-secondary flex-grow-1">${it.lat.toFixed(5)}, ${it.lon.toFixed(5)} &mdash; ${it.radius_m}m${it.parked_radius_m ? ` · garés ${it.parked_radius_m}m` : ''}</small>
                 <button class="btn btn-sm btn-outline-secondary py-0 px-1 edit-int-btn" data-idx="${idx}" title="Modifier">
                     <i class="fas fa-pencil-alt"></i>
                 </button>
@@ -4671,6 +4687,7 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('intLat').value = it.lat;
             document.getElementById('intLon').value = it.lon;
             document.getElementById('intRadius').value = it.radius_m;
+            if (_parkedRadiusInput()) _parkedRadiusInput().value = it.parked_radius_m || '';
             lat = it.lat;
             lng = it.lon;
         } else {
@@ -4678,9 +4695,11 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('intLat').value = '';
             document.getElementById('intLon').value = '';
             document.getElementById('intRadius').value = 100;
+            if (_parkedRadiusInput()) _parkedRadiusInput().value = '';
             // Remove existing marker/circle for a fresh form
             if (intersectionMarker) { intersectionMarker.remove(); intersectionMarker = null; }
             if (intersectionCircle) { intersectionCircle.remove(); intersectionCircle = null; }
+            if (intersectionParkedCircle) { intersectionParkedCircle.remove(); intersectionParkedCircle = null; }
         }
         form.style.display = '';
 
@@ -4698,7 +4717,16 @@ document.addEventListener('DOMContentLoaded', function () {
             alert('Nom, latitude et longitude requis');
             return;
         }
-        const entry = { name, lat, lon, radius_m: radius };
+        // Les autres clés de l'intersection sont GARDÉES (le rayon d'intérêt `interest_radius_m`
+        // était perdu à chaque édition, cette ligne ne connaissant que quatre clés).
+        const prev = (editingIntersectionIdx !== null && intersections[editingIntersectionIdx]) || {};
+        const entry = { ...prev, name, lat, lon, radius_m: radius };
+        // Rayon « jamais garé » (2026-10-13) : vide = le rayon d'analyse (`parked_radius_m` absent)
+        if (_parkedRadiusInput()) {
+            const parked = parseFloat(_parkedRadiusInput().value);
+            if (isFinite(parked) && parked > 0) entry.parked_radius_m = parked;
+            else delete entry.parked_radius_m;
+        }
         if (editingIntersectionIdx !== null) {
             intersections[editingIntersectionIdx] = entry;
         } else {
@@ -4708,6 +4736,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('intersectionForm').style.display = 'none';
         if (intersectionMarker) { intersectionMarker.remove(); intersectionMarker = null; }
         if (intersectionCircle) { intersectionCircle.remove(); intersectionCircle = null; }
+        if (intersectionParkedCircle) { intersectionParkedCircle.remove(); intersectionParkedCircle = null; }
         renderIntersectionsList();
     }
 
@@ -4772,13 +4801,14 @@ document.addEventListener('DOMContentLoaded', function () {
         renderSam3PromptsList();
     });
 
-    // Sync circle radius when user changes the radius field
-    document.getElementById('intRadius').addEventListener('input', () => {
+    // Sync circle radius when user changes the radius field (rayon d'analyse OU rayon garés)
+    // (le champ « garés » peut manquer si le gabarit servi est plus ancien que ce JS)
+    ['intRadius', 'intParkedRadius'].forEach(id => (document.getElementById(id) || { addEventListener() {} }).addEventListener('input', () => {
         if (intersectionMarker) {
             const pos = intersectionMarker.getLatLng();
             _updateIntersectionCircle(pos.lat, pos.lng);
         }
-    });
+    }));
 
     // Sync marker when user types lat/lon manually
     ['intLat', 'intLon'].forEach(id => {

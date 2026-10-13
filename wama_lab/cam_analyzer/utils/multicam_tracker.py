@@ -1364,12 +1364,17 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     # ── Détection des véhicules STATIONNÉS (garés) ──────────────────────────────
     # Track à vitesse max ~nulle sur toute sa vie = garé, SAUF s'il passe près d'une
     # intersection (voiture arrêtée au carrefour = pertinente, on la garde).
+    # « Près » = rayon `parked_radius_m` de CHAQUE intersection du profil (2026-10-13, réglable) ;
+    # absent → son rayon d'analyse, la règle historique (lu jusque-là dans les fenêtres, copie du
+    # même rayon). Les fenêtres ne servent plus que sans profil.
+    from .intersection_analyzer import parked_radius_m
     windows = session.intersection_windows or []
+    _centers = list(getattr(getattr(session, 'profile', None), 'intersections', None) or []) or windows
     win_local = []
-    for w in windows:
+    for w in _centers:
         if w.get('lat') is not None and w.get('lon') is not None:
             we, wn = to_local(w['lat'], w['lon'])
-            win_local.append((we, wn, w.get('radius_m', 30.0)))
+            win_local.append((we, wn, parked_radius_m(w, 30.0)))
 
     def _near_intersection(hs):
         for (_, _, e, n, _) in hs:

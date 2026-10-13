@@ -74,14 +74,15 @@ class SwitchChangeStalesThePanelTest(SimpleTestCase):
     (2026-10-13) : avant, seuls les Indicateurs le voyaient, et « Compléter les passes » ne
     relançait rien — mesuré sur `_seg`, cinq bascules changées, aucune passe périmée."""
 
-    def _stale(self, seen, config_features):
+    def _stale(self, seen, config_features, indicators_before=False):
         from wama_lab.cam_analyzer.utils.features import compute_snapshot
         photo = compute_snapshot(SimpleNamespace(config={}))
         for k in seen.get('drop', ()):
             photo.pop(k)
         photo.update(seen.get('set', {}))
         # toutes les passes du registre terminées : seule la photo des bascules peut périmer
-        rows = [row(key, summary={'features': photo} if key == 'global_tracking' else {})
+        rows = [row(key, summary={'features': photo} if key == 'global_tracking' else {},
+                    at=T0 - timedelta(hours=1) if key == 'indicators' and indicators_before else T0)
                 for key in pt.ORDER]
         for r in rows:
             r.settings_snapshot = {}
@@ -105,6 +106,73 @@ class SwitchChangeStalesThePanelTest(SimpleTestCase):
 
     def test_a_display_switch_stales_nothing(self):
         self.assertEqual(self._stale({}, {'display_ema': False}), set())
+
+    def test_a_ttc_switch_stales_the_indicators_but_no_longer_the_tracking(self):
+        """Le tracking ne lit pas les bascules du TTC/PET (`Feature.processes`) : changer l'une
+        d'elles le refaisait (~4 min) pour rien. Les Indicateurs terminés APRÈS le tracking ont vu
+        sa photo (ils l'avaient vérifiée pour le réutiliser) : elle leur sert de repli."""
+        self.assertEqual(self._stale({}, {'prediction_ground': True}), {'indicators'})
+
+    def test_indicators_older_than_the_tracking_keep_the_old_rule(self):
+        self.assertEqual(self._stale({}, {'prediction_ground': True}, indicators_before=True), set())
+
+
+class SwitchPhotoPerPassTest(SimpleTestCase):
+    """Chaque passe range à son lancement la photo des bascules qu'ELLE lit (2026-10-13) : en
+    changer une périme ses lecteurs, et seulement eux (l'aval suit par la cascade)."""
+
+    def _stale(self, config_features, photo_for=None):
+        from wama_lab.cam_analyzer.utils.features import read_by
+        defaults = SimpleNamespace(config={})
+        photo_for = set(pt.ORDER) if photo_for is None else photo_for
+        rows = []
+        for key in pt.ORDER:
+            r = row(key, summary={})
+            r.settings_snapshot = pt._switch_photo(read_by(defaults, key)) if key in photo_for else {}
+            rows.append(r)
+        runs = SimpleNamespace(lines=lambda session: rows)
+        session = SimpleNamespace(profile=None, config={'features': config_features})
+        with mock.patch.object(pt, '_common_runs', return_value=runs), \
+                mock.patch.object(pt, '_stale_common_lines') as staled:
+            pt.recompute_stale(session)
+        return {node for node, _ in (staled.call_args.args[1] if staled.called else [])}
+
+    def test_a_ttc_switch_stales_the_indicators_only(self):
+        self.assertEqual(self._stale({'prediction_kalman': True}), {'indicators'})
+
+    def test_the_sam3_arbitration_stales_the_sam3_pass_and_its_downstream(self):
+        stale = self._stale({'sam3_label_arbitration': False})
+        self.assertIn('sam3_markings', stale)
+        self.assertNotIn('global_tracking', stale, "le tracking ne dépend pas de SAM3 (registre)")
+
+    def test_the_lane_map_bias_stales_the_lane_map_pass(self):
+        self.assertEqual(self._stale({'gps_bias_kalman': False}), {'lane_map_recalage'})
+
+    def test_a_pass_launched_before_the_photo_is_not_staled_by_a_switch(self):
+        """Sinon toutes les passes qui lisent une bascule seraient périmées d'un coup à la mise à
+        jour — recalage ortho (GPU) compris."""
+        self.assertEqual(self._stale({'gps_bias_kalman': False}, photo_for=set()), set())
+
+
+class ParkedRadiusTest(SimpleTestCase):
+    """Rayon « jamais garé » réglable par intersection (2026-10-13, demande de Fabien)."""
+
+    def _profile(self, **extra):
+        return SimpleNamespace(intersections=[{'name': 'A', 'lat': 43.6, 'lon': 7.07, 'radius_m': 30,
+                                               **extra}])
+
+    def test_absent_it_falls_back_on_the_analysis_radius(self):
+        from wama_lab.cam_analyzer.utils.intersection_analyzer import parked_radius_m
+        self.assertEqual(parked_radius_m({'radius_m': 30}), 30)
+        self.assertEqual(parked_radius_m({'radius_m': 30, 'parked_radius_m': 10}), 10)
+        self.assertEqual(parked_radius_m({}), 30.0)
+
+    def test_it_stales_the_tracking_but_not_the_windows(self):
+        """Les fenêtres l'ignorent : sinon SAM3 et le recalage ortho (GPU) suivaient par cascade."""
+        before, after = self._profile(), self._profile(parked_radius_m=10)
+        snap = lambda p, key: pt._profile_snapshot(p, pt._WATCHED[key])
+        self.assertEqual(snap(before, 'intersection_windows'), snap(after, 'intersection_windows'))
+        self.assertNotEqual(snap(before, 'global_tracking'), snap(after, 'global_tracking'))
 
 
 class FailedSideInputTest(TrackingIsCurrentTest):

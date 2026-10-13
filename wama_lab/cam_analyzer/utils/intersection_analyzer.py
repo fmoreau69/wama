@@ -17,6 +17,11 @@ Séparation :
   sortie ; il se dérive des détections DÉJÀ en base, donc se change **sans recalcul** et peut
   légitimement dépasser le rayon d'analyse (il exploite alors ce qui existe — la couverture
   réelle se lit sur la bande de la timeline). Absent → retombe sur `radius_m`.
+* `parked_radius_m` — rayon autour du centre où un véhicule immobile n'est **jamais compté
+  garé** (2026-10-13, demande de Fabien : 30 m réutilisés du rayon d'analyse, c'était beaucoup
+  trop large — un immobile SUR une voie est dans le carrefour, donc près de son centre ; ailleurs
+  il roule, et les portes « sur voie » / « en mouvement » le disent déjà). Lu par le tracking
+  360°, qui le surveille. Absent → retombe sur `radius_m` (règle historique).
 
 Corollaire vécu : les fenêtres de 245 s observées sur les sessions `_det` viennent d'un
 `radius_m` historique plus large (50 puis 60 m, ramené à 40 m). Un rayon d'analyse large
@@ -106,6 +111,16 @@ def interest_radius_m(intersection: dict, default: float = 40.0) -> float:
     """
     try:
         v = float(intersection.get('interest_radius_m') or 0.0)
+    except (TypeError, ValueError):
+        v = 0.0
+    return v if v > 0 else analysis_radius_m(intersection, default)
+
+
+def parked_radius_m(intersection: dict, default: float = 30.0) -> float:
+    """Rayon « jamais garé » autour du centre — retombe sur le rayon d'analyse s'il n'est pas défini
+    (cf. en-tête du module)."""
+    try:
+        v = float(intersection.get('parked_radius_m') or 0.0)
     except (TypeError, ValueError):
         v = 0.0
     return v if v > 0 else analysis_radius_m(intersection, default)

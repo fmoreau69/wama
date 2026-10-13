@@ -19,6 +19,8 @@ Contrat :
   · `compute` : aucun effet avant le recalcul.
   `hybrid` et `compute` (`RECOMPUTE_SCOPES`) changent un résultat calculé : un calcul stocké
   doit retenir leur état pour savoir s'il est périmé.
+- `processes` nomme les process (passes, nœuds de pipeline) qui LISENT la bascule : la changer
+  périme ceux-là, et seulement ceux-là (l'aval suit par la cascade du pipeline).
 
 Utilisé par : cam_analyzer (premier consommateur). Conçu pour WAMA Data.
 """
@@ -35,10 +37,19 @@ class Feature:
     description: str    # effet précis (UI + doc)
     default: bool = True
     scope: str = 'live'  # un de SCOPES (cf. docstring du module)
+    processes: tuple = ()  # clés des process qui la lisent (cf. docstring du module)
 
     def __post_init__(self):
         if self.scope not in SCOPES:
             raise ValueError(f'{self.key} : scope inconnu {self.scope!r} (attendu : {SCOPES})')
+        if self.processes and self.scope not in RECOMPUTE_SCOPES:
+            raise ValueError(f'{self.key} : une bascule d\'affichage ne périme aucun process')
+
+
+def read_by(registry, config, process):
+    """État {clé: bool} des bascules que le process `process` lit — sa photo au lancement."""
+    state = resolve(registry, config)
+    return {f.key: state[f.key] for f in registry if process in f.processes}
 
 
 def resolve(registry, config):

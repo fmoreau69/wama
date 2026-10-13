@@ -10,7 +10,18 @@ bascule déclarée ici (jamais de if ad hoc dispersé) — voir CAM_ANALYZER_CHA
 """
 from wama.common.utils.feature_flags import (Feature, RECOMPUTE_SCOPES, resolve,
                                              is_enabled as _is_enabled, describe as _describe,
-                                             sanitize_overrides)
+                                             sanitize_overrides, read_by as _read_by)
+
+# Passes qui LISENT chaque bascule (`processes`) : la changer les périme au panneau, et seulement
+# elles — l'aval suit par la cascade du pipeline. MESURÉ le 2026-10-13 (graphe d'appels depuis la
+# tâche de chaque passe, lectures `enabled(...)` / `<état>.get(...)`), puis vérifié à la main là où
+# un argument coupe la lecture : `effective_gps_track(lane_map=False)` (la passe « Recalage voie +
+# carte » ne lit pas sa bascule), `ortho=False` (le recalage ortho ne lit pas la sienne). Tenu par
+# `tests_feature_scopes`.
+#: placent quelque chose avec la pose navette et la géométrie des caméras
+PLACEMENT_READERS = ('camera_intrinsics', 'depth_calc', 'lane_map_recalage', 'ortho_recalage',
+                'ortho_correction', 'global_tracking', 'indicators')
+TRACKING = ('global_tracking',)
 
 FEATURES = [
     Feature('fov_dist_correction', 'Correction FOV distances',
@@ -18,13 +29,15 @@ FEATURES = [
             "(caméras latérales : ×3,6 trop courtes). OFF = distances brutes stockées. Immédiat sur "
             "les objets non suivis ; le tracking 360° la lit aussi : les objets suivis changent au "
             "prochain « Tracking 360° ».",
-            default=True, scope='hybrid'),
+            default=True, scope='hybrid',
+            processes=PLACEMENT_READERS),
     Feature('mount_lever_arm', 'Bras de levier caméras',
             "Positions de montage réelles des caméras (antenne GPS à l'arrière, caméra "
             "avant +4,5 m). OFF = toutes les caméras supposées à l'antenne. Immédiat sur les objets "
             "non suivis ; le tracking 360° la lit aussi : les objets suivis changent au prochain "
             "« Tracking 360° ».",
-            default=True, scope='hybrid'),
+            default=True, scope='hybrid',
+            processes=PLACEMENT_READERS),
     Feature('heading_ratio', 'Cap par ratio de bbox',
             "Cap des lents/stationnés estimé par le ratio largeur/hauteur de bbox, fondu "
             "avec la trajectoire selon la vitesse. OFF = trajectoire seule (cap figé à "
@@ -42,7 +55,8 @@ FEATURES = [
             "du véhicule : tout le repère est ramené au centre arrière via le levier déclaré "
             "(config gps_antenna). Corrige un biais systématique ~1 m vers la droite. La navette "
             "bouge tout de suite ; les objets suivis au prochain « Tracking 360° ».",
-            default=True, scope='hybrid'),
+            default=True, scope='hybrid',
+            processes=PLACEMENT_READERS),
     Feature('gps_latency', 'Latence du GPS compensée',
             "Une position GPS arrive en retard sur l'image qu'elle accompagne (latence du récepteur) : "
             "la navette était dessinée en ARRIÈRE de ce que montrent les caméras, de vitesse × retard. "
@@ -51,12 +65,14 @@ FEATURES = [
             "+0,55 s (+0,3 à +0,45 s par l'accéléromètre et la vitesse Doppler, même sens), soit "
             "~1,8 m à 12 km/h. La navette bouge tout de suite ; les objets suivent au prochain "
             "« Tracking 360° ». OFF = synchro du .rec seule.",
-            default=False, scope='hybrid'),
+            default=False, scope='hybrid',
+            processes=PLACEMENT_READERS + ('intersection_windows',)),
     Feature('artifact_filter', 'Filtre reflets/artefacts',
             "Masque les détections collées à l'image (reflets de vitrage : bbox immobile "
             "pendant que la navette avance). Le marquage/exclusion du tracking s'applique "
             "au prochain calcul des indicateurs ; le masquage à l'affichage est immédiat.",
-            default=True, scope='hybrid'),
+            default=True, scope='hybrid',
+            processes=TRACKING),
     Feature('anchor_heading', 'Cap serveur des stationnés',
             "Cap des véhicules garés = consensus axial du ratio de bbox sur TOUTE la vie "
             "du track (calculé par le tracking 360°), au lieu de l'estimation frame par "
@@ -67,7 +83,8 @@ FEATURES = [
             "depuis le mouvement + véhicules stationnés) au lieu du pinhole (hauteur de "
             "bbox). Étape 2a : corrige l'angle (gain ×5 mesuré) ; l'échelle absolue viendra "
             "des marquages ortho. Recalcule la calib au tracking si absente.",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=TRACKING),
     Feature('ortho_correction', 'Recalage GPS par marquages ortho',
             "Applique à la trajectoire l'offset mesuré à l'étape 2b (passages piétons de "
             "l'orthophoto IGN vs caméra) — l'ÉCHELLE/POSITION absolue que 2a ne peut pas "
@@ -77,14 +94,16 @@ FEATURES = [
             "BD TOPO). Calculé par la passe « Correction de trajectoire ortho » ; la bascule "
             "choisit de l'appliquer, au tracking comme à l'affichage. OFF = trajectoire "
             "brute, l'offset restant mesuré et rapporté.",
-            default=False, scope='hybrid'),
+            default=False, scope='hybrid',
+            processes=tuple(p for p in PLACEMENT_READERS if not p.startswith('ortho_'))),
     Feature('marking_axis_snap', 'Passages piétons calés sur le corridor',
             "Un passage piéton agrégé en monde (SAM3, toutes caméras, tous passages) prend "
             "l'orientation la plus proche de la rue de la navette ou de sa perpendiculaire, et une "
             "longueur bornée à une chaussée — l'axe du nuage de points dérivait (diagonales, "
             "traits étirés le long de la rue). OFF = axe principal du nuage. Sert l'affichage ET "
             "le recalage ortho, qui mesure sur ces marquages.",
-            default=True, scope='compute'),
+            default=True, scope='compute',
+            processes=('ortho_recalage', 'global_tracking')),
     Feature('gps_bias_kalman', 'Biais GPS lissé (Kalman)',
             "Le recalage voie + carte estime le BIAIS du GPS (est, nord) comme un état lent, "
             "observé par chaque ancre dans la seule direction perpendiculaire à la route : des "
@@ -93,12 +112,14 @@ FEATURES = [
             "retournement, carrefour) tant que son incertitude reste faible. OFF = correction "
             "interpolée entre ancres proches, nulle loin d'elles. Relancer la passe « Recalage "
             "voie + carte ».",
-            default=True, scope='compute'),
+            default=True, scope='compute',
+            processes=('lane_map_recalage',)),
     Feature('same_camera_exclusion', "Une boîte par véhicule et par image (tracking)",
             "Dans une même image d'une même caméra, deux détections sont deux objets : le tracking "
             "360° ne les fond plus dans le même véhicule (la fusion de doublons reste permise ENTRE "
             "caméras). OFF = une file de voitures garées proches pouvait porter un seul numéro.",
-            default=True, scope='compute'),
+            default=True, scope='compute',
+            processes=TRACKING),
     Feature('chain_lock_priority', 'Tracking : les objets déjà suivis d\'abord',
             "Dans chaque image, les détections d'une trajectoire DÉJÀ suivie récupèrent leur numéro "
             "avant que les nouvelles ne cherchent le véhicule le plus proche. Sans cet ordre, une "
@@ -106,7 +127,8 @@ FEATURES = [
             "devait alors en changer : un même véhicule éclaté sur plusieurs numéros. A/B : "
             "« Continuité du suivi » en console (chaînes éclatées, doublons, recollement). "
             "Mesuré sur ENA_CASA (2026-10-01) : chaînes éclatées 867 → 724, sans fusion abusive.",
-            default=True, scope='compute'),
+            default=True, scope='compute',
+            processes=TRACKING),
     Feature('birth_same_camera_guard', 'Tracking : un véhicule déjà vu par la caméra ne s\'absorbe pas',
             "Une NOUVELLE trajectoire d'une caméra ne peut pas rejoindre un véhicule que cette même "
             "caméra voit déjà par une autre trajectoire (vue il y a moins de 0,5 s) : c'est un autre "
@@ -115,7 +137,8 @@ FEATURES = [
             "l'autre trajectoire reste permise (le détecteur a changé de numéro pour le même véhicule). "
             "Mesuré sur ENA_CASA avec la précédente (2026-10-01) : chaînes éclatées 867 → 597, doublons "
             "28 → 25, relais ratés 39 → 38, aucune fusion abusive. A/B : « Continuité du suivi ».",
-            default=True, scope='compute'),
+            default=True, scope='compute',
+            processes=TRACKING),
     Feature('class_family_gate', 'Porte de famille de classe (tracking)',
             "Le tracking 360° ne relie jamais un deux-roues (moto, vélo) à un quatre-roues "
             "(voiture, camion, bus) ni à un piéton : ni au rattachement d'une nouvelle chaîne, "
@@ -123,7 +146,8 @@ FEATURES = [
             "(votes pondérés, établie seulement au-delà d'un seuil) — une image mal classée "
             "ne ferme rien. OFF = association sur la seule position (motos fondues dans une "
             "voiture voisine et affichées « car »).",
-            default=True, scope='compute'),
+            default=True, scope='compute',
+            processes=TRACKING),
     Feature('ghost_on_smoothed', 'Fantômes sur la trajectoire lissée',
             "Les fantômes (positions reconstituées dans un trou de détection) sont interpolés "
             "entre les deux points LISSÉS qui encadrent le trou — ceux-là mêmes que "
@@ -131,7 +155,8 @@ FEATURES = [
             "l'entrée et à la sortie du fantôme. OFF = interpolation entre positions brutes "
             "(saut mesuré p90 2,25 m, p99 9,1 m). Les fantômes tombés dans l'emprise de la "
             "navette sont retirés dans les deux cas (physiquement impossibles).",
-            default=True, scope='compute'),
+            default=True, scope='compute',
+            processes=TRACKING),
     Feature('map_buildings', 'Bâtiments sur la carte',
             "Dessine les emprises des bâtiments BD TOPO autour de la navette sur la vue de "
             "dessus (IGN, chargées par zone). Ce sont eux qui dévient le GPS en canyon urbain "
@@ -144,28 +169,32 @@ FEATURES = [
             "la navette roule — arrêtée, elle ne tourne pas. Mesuré sur 115 segments : erreur de "
             "cap p90 30,5° → 16,9°, vrais virages 30° → 14°. Exige la focale mesurée (passe "
             "« Champ des caméras »). Appliqué au prochain calcul du filtre (« Indicateurs »).",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=TRACKING),
     Feature('measured_camera_fov', 'Champ des caméras MESURÉ',
             "Utilise le champ de vue des caméras avant/arrière MESURÉ sur la session (passe "
             "« Champ des caméras » : rotation vue dans l'image contre cap GPS en virage) au lieu "
             "de la fiche technique (110° pour la caméra avant, mesurée ~75°). Change le latéral des "
             "objets, les largeurs de voie vues, le cap par ratio et la projection sol : "
             "calibration sol, recalage voie + carte et calculs sont à rejouer après bascule.",
-            default=False, scope='hybrid'),
+            default=False, scope='hybrid',
+            processes=PLACEMENT_READERS),
     Feature('cut_box_inner_edge', 'Boîtes coupées par le bord INTÉRIEUR',
             "Une boîte coupée par le bord de l'image était placée au centre de sa partie VISIBLE, trop vers "
             "l'intérieur. On part de son bord intérieur (non coupé) et on prolonge de la demi-étendue "
             "apparente du véhicule. Constat du 2026-10-03, 519 s : une voiture coupée au bord de l'avant "
             "était placée à 8,7 m de la mesure de la latérale qui la voyait entière — le passage de relais "
             "ratait (G449 / G473).",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=TRACKING),
     Feature('lens_distortion', 'Distorsion des objectifs',
             "Applique la distorsion radiale de chaque caméra (session : `camera_distortion`) à la "
             "projection sol, à la calibration et au placement pinhole. Mesuré le 2026-10-03 : sans elle, "
             "une voiture GARÉE qui traverse l'image d'une latérale « avance » de 17 % (gauche) à 22 % "
             "(droite) du trajet de la navette — elle semble la suivre ; les bords de l'image, là où se font "
             "les passages avant ↔ latérales, sont les plus faux. Calculs à rejouer après bascule.",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=PLACEMENT_READERS),
     Feature('parked_long_exposure', 'Garés en « pose longue »',
             "Un garé ne bouge pas : comme un temps de pose long en photographie, il se juge sur TOUTES ses "
             "observations. Le suivi image par image coupe un objet immobile en fragments (sorties de champ, "
@@ -174,7 +203,8 @@ FEATURES = [
             "les positions coïncident (moins de 1,5 m, même famille, jamais vus ensemble par une caméra) sont "
             "réunis avant de juger ; la position fixe et le cap se prennent sur l'ensemble. Exige ⚑ « Garés = "
             "hors des voies ». Mesure : « garés en double » (ancres à moins de 2 m). Tracking à rejouer.",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=TRACKING),
     Feature('trajectory_twin_merge', 'Trajectoires jumelles réunies (doublons)',
             "Un même véhicule vu par deux caméras (recouvrement avant ↔ latérale, au bord des images) peut "
             "recevoir deux identifiants qui roulent côte à côte : affiché deux fois, avec des fantômes qui ne "
@@ -183,7 +213,8 @@ FEATURES = [
             "réunis — jugés contre tout le groupe, jamais une voiture avec un deux-roues. Les immobiles "
             "relèvent de la « pose longue ». Mesure : les doublons (paires proches entre caméras). Tracking à "
             "rejouer.",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=TRACKING),
     Feature('measured_lens_distortion', 'Distorsion des objectifs MESURÉE (lignes droites)',
             "La distorsion de CHAQUE caméra (les quatre) est mesurée sur ses propres images, sans mire : une "
             "arête droite du décor (bordure, marquage, façade) est droite dans une image sans distorsion ; "
@@ -192,7 +223,8 @@ FEATURES = [
             "avant 0,69 et arrière 0,55 (saisies à 0), gauche 0,53 (saisie 0,5, mesurée aussi le 03/10 par "
             "les garés), droite 0,62 (saisie 0,7). Rejouer la passe « Champ des caméras », puis la calibration "
             "sol et le tracking.",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=PLACEMENT_READERS),
     Feature('vehicle_center_placement', 'Véhicules placés par leur CENTRE',
             "Une caméra place un véhicule par le bas de sa boîte : le contact au sol de la face qu'elle "
             "VOIT. Vu de profil il était placé une demi-largeur trop près (≈ 0,9 m), vu de dos une "
@@ -200,7 +232,8 @@ FEATURES = [
             "un garé vu par une latérale, qui n'était alors jamais reconnu garé. Le point est repoussé "
             "le long de la ligne de visée jusqu'au centre (axe : vitesse du véhicule s'il roule, sinon "
             "parallèle à la navette). Change tous les placements : calculs à rejouer après bascule.",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=TRACKING),
     Feature('stitch_one_to_one', 'Recollement un pour un',
             "Le recollement des morceaux de trajectoire (un objet coupé en deux, par exemple en "
             "zone aveugle) ne prolonge une fin de trajectoire qu'UNE fois, et jamais vers un groupe "
@@ -208,7 +241,8 @@ FEATURES = [
             "fusionnaient des dizaines de véhicules en un seul (mesuré le 2026-10-03 : 93 000 "
             "allers-retours entre objets distincts sous un même numéro, 581 avec la bascule ; doublons "
             "et relais ratés inchangés). ON par défaut : c'est la correction d'un défaut, pas une option.",
-            default=True, scope='compute'),
+            default=True, scope='compute',
+            processes=TRACKING),
     Feature('duplicate_chain_merge', 'Doublons de détection fondus',
             "Le détecteur suit parfois UNE voiture par deux chaînes (deux boîtes superposées dans la même "
             "image) : la seconde recevait son propre numéro de véhicule, puis le recollement pouvait la "
@@ -218,7 +252,8 @@ FEATURES = [
             "Un numéro COURT (au plus ~1 s d'observations) qui n'est qu'un doublon (boîtes superposées, "
             "moins de 2 m) est fondu dans l'autre AVANT le recollement ; deux numéros vus une seule fois "
             "séparés dans une même image ne le sont jamais. Tracking à rejouer après bascule.",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=TRACKING),
     Feature('stitch_bidirectional', 'Recollement dans les DEUX sens',
             "Deux morceaux de trajectoire sont jugés comme UNE trajectoire : en plus de prolonger la fin "
             "de A jusqu'au début de B, on ramène B en arrière (sa vitesse estimée sur ses premières "
@@ -227,7 +262,8 @@ FEATURES = [
             "règle d'avant. Constat du 2026-10-05 : la Twingo G1588 (1780 s) qui ACCÉLÈRE pour doubler "
             "(~3 puis 6,5 m/s à l'arrière, 11 m/s à l'avant) — A prolongé la manquait de 9,4 m. "
             "Tracking à rejouer après bascule.",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=TRACKING),
     Feature('range_correction', 'Distances corrigées par la portée (mesure automatique)',
             "À chaque calcul du tracking, la justesse des distances est MESURÉE automatiquement, par "
             "caméra et par méthode (projection sol, hauteur de boîte), sur les voitures garées : une "
@@ -237,7 +273,8 @@ FEATURES = [
             "courbe d'après correction s'affiche en console (contrôle : ~1,00). Mesuré le 2026-10-05 : "
             "projection sol arrière 0,60 à 30-40 m, avant 0,78 au-delà de 20 m. Universel : rien à "
             "saisir pour une nouvelle vue caméra. Tracking à rejouer (deux fois la 1ʳᵉ fois).",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=TRACKING),
     Feature('offset_pitch_calib', "Inclinaison des caméras par l'écartement des garés (mesure automatique)",
             "Une voiture garée ne bouge pas : sa distance à la trajectoire de la navette ne doit pas "
             "dépendre de la caméra qui la voit. À chaque calcul du tracking, on cherche pour chaque caméra "
@@ -247,14 +284,16 @@ FEATURES = [
             "latérales écartaient les garés de +1,3 à +1,5 m de plus que l'avant — les trajectoires droites "
             "s'incurvaient autour de la navette. Universel : rien à régler pour une nouvelle vue caméra. "
             "Tracking à rejouer (deux fois la 1ʳᵉ fois).",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=TRACKING),
     Feature('ghost_hermite', 'Trous comblés en COURBE',
             "Un trou de suivi (≤ 6 s) était comblé par une ligne droite entre ses deux bords : le cap "
             "cassait à l'entrée et à la sortie, et la ligne pouvait couper une file de garés. La courbe "
             "part dans la direction et à l'allure de l'arrivée et rejoint la sortie de même (vitesses "
             "lissées) ; repli sur la droite si les vitesses ne sont pas cohérentes avec la distance. "
             "Tracking à rejouer après bascule.",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=TRACKING),
     Feature('measured_camera_yaw', 'Orientation des latérales MESURÉE',
             "Utilise l'orientation de montage des caméras latérales MESURÉE sur la session (passe "
             "« Champ des caméras » : le mouvement de la navette, tiré de la trace, contraint les "
@@ -262,7 +301,8 @@ FEATURES = [
             "droite et ~−77,5° à gauche le 2026-10-02). Refusée si la caméra avant, contrôle de la "
             "méthode, ne retrouve pas ~0°. Change le placement de tout ce que voient les latérales "
             "et les jonctions avec l'avant : calibration sol et calculs sont à rejouer après bascule.",
-            default=False, scope='hybrid'),
+            default=False, scope='hybrid',
+            processes=PLACEMENT_READERS),
     Feature('parked_off_road', 'Garés = hors des voies',
             "Un véhicule est GARÉ si sa position médiane est HORS de l'emprise de chaussée IGN "
             "(à plus de 0,5 m du bord) : un immobile SUR la chaussée — à un feu, dans une file, à un "
@@ -271,7 +311,8 @@ FEATURES = [
             "d'étalement en mètres, qui mesuraient le bruit de placement plus que le mouvement. "
             "OFF = règle historique. Emprise indisponible : règle historique, dite en console. "
             "Près d'une intersection, jamais garé (règle d'origine du filtre, rétablie le 2026-10-01).",
-            default=True, scope='compute'),
+            default=True, scope='compute',
+            processes=TRACKING),
     Feature('parked_motion_guard', 'Garés : trajectoire immobile exigée',
             "Sous « Garés = hors des voies », un track ne peut être garé que s'il ne SE DÉPLACE pas : "
             "position médiane du premier tiers contre celle du dernier tiers (le bruit de placement "
@@ -279,14 +320,16 @@ FEATURES = [
             "qui roule. Demande de Fabien (2026-10-01) : un véhicule de l'intersection figé en garé "
             "est une interaction PERDUE ; mieux vaut un garé affiché mobile. Seuil non validé contre "
             "une vérité terrain — compté en console. OFF = sans cette garde.",
-            default=True, scope='compute'),
+            default=True, scope='compute',
+            processes=TRACKING),
     Feature('sam3_label_arbitration', 'SAM3 : un marquage, un seul label',
             "Les prompts SAM3 sont interrogés séparément : un même marquage pouvait sortir sous "
             "deux labels (une rangée de triangles vue comme « triangles » ET « passage piéton »). "
             "Deux masques de labels différents qui se recouvrent à plus de 50 % du plus petit sont "
             "le même objet : seul le plus confiant est gardé. Compté en console. Agit à la passe "
             "SAM3 (à relancer).",
-            default=True, scope='compute'),
+            default=True, scope='compute',
+            processes=('sam3_markings',)),
     Feature('map_road_zones', 'Chaussée IGN sur la carte',
             "Dessine l'emprise de la CHAUSSÉE autour de la navette : axes BD TOPO élargis de leur "
             "largeur puis unis — bords de voie, carrefours et giratoires ouverts. Remplace les "
@@ -304,7 +347,8 @@ FEATURES = [
             "2026-09-05 : aucun avant lui). Rapport A/B chiffré en console au recalcul. Une fois le "
             "filtre calculé, la navette bascule tout de suite ; les objets suivis au prochain "
             "« Tracking 360° ».",
-            default=False, scope='hybrid'),
+            default=False, scope='hybrid',
+            processes=PLACEMENT_READERS + ('visual_yaw',)),
     Feature('prediction_ground', "Projection sol dans le TTC/PET",
             "Place les objets du calcul TTC/PET par PROJECTION SOL (calib `ground_calib`) au "
             "lieu du pinhole. 🔴 **OFF par DÉCISION, pas par prudence** : la projection sol "
@@ -315,7 +359,8 @@ FEATURES = [
             "détections que le pinhole refuse (bbox coupées au bord) — un gain de COUVERTURE "
             "réel, sur une PRÉCISION encore mauvaise. ⚠ Distincte de ⚑ `auto_ground_calib`, "
             "qui vaut pour le TRACKER : deux placements, une différence VOULUE.",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=('indicators',)),
     Feature('prediction_causal_smoothing', "Lissage CAUSAL en entrée de la prédiction",
             "La trajectoire objet servie au TTC/PET est lissée par une fenêtre TRAÎNANTE "
             "(le point courant et ses prédécesseurs) au lieu de la fenêtre CENTRÉE "
@@ -326,7 +371,8 @@ FEATURES = [
             "artificiellement. La fenêtre centrée regarde bien moins loin que le lissage RTS "
             "de `world_en` (tout le track), mais elle regarde quand même : différence de "
             "DEGRÉ, pas de nature. OFF = fenêtre centrée, comportement historique.",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=('indicators',)),
     Feature('prediction_kalman', "Extrapolation Kalman pour le TTC/PET",
             "Les trajectoires navette et objet sont extrapolées par un filtre de Kalman à "
             "accélération constante au lieu de « vitesse + accélération constantes ». ⚠ Les "
@@ -337,7 +383,8 @@ FEATURES = [
             "§D.5 ④`). ⚠ Extrapolation CAUSALE dans les deux cas (historique jusqu'à t0) : "
             "rien à voir avec le lissage RTS, qui voit le futur. OFF = le script d'origine, "
             "comportement historique.",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=('indicators',)),
     Feature('lane_map_recalage', "Recalage voie + carte (latéral + cap navette)",
             "Corrige la position LATÉRALE et le CAP de la navette par la voie vue (lignes YOLOPv2 "
             "projetées au sol, caméra avant) et l'axe routier IGN BD TOPO (largeur, nombre de "
@@ -347,7 +394,8 @@ FEATURES = [
             "GPS ≈ 2 m trop à droite et cap figé à −5,9° à Roumanille-Poincaré (2026-09-28). "
             "OFF = pose GPS (filtrée ou brute), comportement historique. Une fois la passe faite, la "
             "navette bascule tout de suite ; les objets suivis au prochain « Tracking 360° ».",
-            default=False, scope='hybrid'),
+            default=False, scope='hybrid',
+            processes=tuple(p for p in PLACEMENT_READERS if p != 'lane_map_recalage')),
     Feature('imu_command', "Accéléromètre en commande du filtre navette",
             "Le filtre de trajectoire navette (⚑ `shuttle_filter`) cesse de supposer "
             "« accélération inconnue ±0,8 m/s² » et prend l'accélération MESURÉE par "
@@ -357,7 +405,8 @@ FEATURES = [
             "N'a d'effet qu'au RECALCUL, et seulement si ⚑ `shuttle_filter` sert la trace. "
             "Ne corrige PAS le cap : ça demande un gyroscope (§D.4 ⑥). OFF = modèle à "
             "accélération inconnue, comportement historique.",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=TRACKING),
     Feature('sam3_homography', 'Homographie sol par passage piéton (DLT)',
             "Utilise l'homographie calibrée sur un passage piéton (SAM3 ou clics, "
             "`camera.ground_homography`) là où elle est consommée : distances géométriques à "
@@ -365,8 +414,11 @@ FEATURES = [
             "BIAISÉE sur les données réelles (#546 inversion de signe, #537 profondeur non "
             "monotone) mais restée active sans bascule jusqu'au 2026-09-05 (§INVENTAIRE D.2). "
             "OFF = projection paramétrique (FOV réels, hauteur 2,4 m, pitch 0) pour les marquages, "
-            "aucune distance géométrique à l'analyse. Défaut ON = comportement historique.",
-            default=True, scope='compute'),
+            "aucune distance géométrique à l'analyse. Défaut ON = comportement historique. ⚠ Les "
+            "distances géométriques de l'ANALYSE (profil `geometry_enabled`) ne suivent qu'une "
+            "nouvelle détection : la bascule ne périme pas la détection YOLO (des heures de GPU).",
+            default=True, scope='compute',
+            processes=('ortho_recalage', 'ortho_correction', 'global_tracking')),
     Feature('display_ema', "Lissage EMA d'affichage (repli par frame)",
             "En repli ③ (détection sans ancre ni world_en : frames postérieures au dernier calcul, "
             "ou véhicule non qualifié stationné), la distance et le latéral affichés sont lissés "
@@ -379,7 +431,8 @@ FEATURES = [
             "Les stop_line/passages piétons segmentés par SAM3 sont projetés au sol et "
             "agrégés multi-passages : bornes réelles d'intersection sur la mini-map, et "
             "axe de la branche croisante même sans trafic observé.",
-            default=True, scope='compute'),
+            default=True, scope='compute',
+            processes=TRACKING),
     Feature('sam3_interp', 'Interpolation des marquages SAM3',
             "Les marquages (passages piétons…) ne sont segmentés qu'aux keyframes "
             "(sam3_fps du profil) : l'affichage interpole entre deux keyframes "
@@ -389,11 +442,13 @@ FEATURES = [
             "Les voies croisantes aux intersections sont apprises des trajectoires monde "
             "des véhicules suivis (côté, azimut, étendue et largeur observés) au lieu "
             "d'une bande perpendiculaire symétrique aveugle.",
-            default=True, scope='compute'),
+            default=True, scope='compute',
+            processes=TRACKING),
     Feature('heading_cluster', 'Prior de cluster (cap des garés)',
             "Les garés voisins (< 15 m) partagent souvent leur axe (rangée, épi) : mélange "
             "axial pondéré du cap individuel avec celui des voisins.",
-            default=True, scope='compute'),
+            default=True, scope='compute',
+            processes=TRACKING),
     Feature('track_speed_unified', 'Vitesse/distance unifiées par track',
             "Une seule vitesse/distance monde par véhicule (tracker 360°) servie à toutes "
             "les vues, au lieu de valeurs indépendantes par caméra. (Pas encore implémenté "
@@ -411,7 +466,8 @@ FEATURES = [
             "CONSOMME le plan profondeur au lieu de la recherche homographique (tranché sur "
             "`placement_spread`) ; l'overlay de profondeur viendra plus tard. Voir "
             "CAM_ANALYZER_CHAINE_TRAITEMENT.md §[E].",
-            default=False, scope='compute'),
+            default=False, scope='compute',
+            processes=TRACKING),
 ]
 
 
@@ -431,8 +487,19 @@ def compute_snapshot(session):
     return {f.key: eff[f.key] for f in FEATURES if f.scope in RECOMPUTE_SCOPES}
 
 
+def read_by(session, pass_key):
+    """Bascules que la passe `pass_key` lit, avec leur état : la photo rangée à son lancement."""
+    return _read_by(FEATURES, getattr(session, 'config', None), pass_key)
+
+
 def catalog(session):
-    return _describe(FEATURES, getattr(session, 'config', None))
+    """Catalogue du panneau ⚑, chaque bascule avec les LIBELLÉS des passes qu'elle périme."""
+    from .pass_tracking import PASSES
+    labels = {p.key: p.label for p in PASSES}
+    rows = _describe(FEATURES, getattr(session, 'config', None))
+    for row in rows:
+        row['process_labels'] = [labels.get(k, k) for k in row['processes']]
+    return rows
 
 
 def clean_overrides(raw):
