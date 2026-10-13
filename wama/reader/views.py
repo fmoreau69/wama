@@ -300,6 +300,32 @@ class IndexView(View):
         })
 
 
+def new_reading_settings(user, app='reader', post=None) -> dict:
+    """Les réglages d'une lecture NAISSANTE — moteur, mode, format, langue, plus le curseur
+    rapide/qualité (réglage d'APP, pas de colonne : l'appelant le retire avant de créer).
+    Réglages persistés (brique user_settings, clés = noms de params.py) : le POST prime, sinon
+    DERNIER réglage utilisé (pattern converter). Le dépôt de la card et l'import du gestionnaire
+    de fichiers (« Envoyer vers », sans volet donc sans POST) passent ici ; `app` : une jumelle
+    de bac à sable passe le sien. ⚠ `language` : '' POSTé = auto-détection VOULUE → test de
+    présence, pas `or` (qui écraserait un champ vidé exprès)."""
+    from wama.common.utils.auto_model import INTENT_DEFAULT, read_quality_intent
+    from wama.common.utils.user_settings import get_user_app_settings
+    post = post if post is not None else {}
+    last = get_user_app_settings(user, app, {
+        'backend': 'auto', 'mode': 'auto', 'output_format': 'txt', 'language': '',
+        'quality_intent': INTENT_DEFAULT})
+    # Le curseur est lu au lancement par `quality_intent_of` quand le moteur est sur « auto ».
+    # Borné, ne lève jamais.
+    return {
+        'backend': post.get('backend') or last['backend'],
+        'mode': post.get('mode') or last['mode'],
+        'output_format': post.get('output_format') or last['output_format'],
+        'language': post['language'] if 'language' in post else last['language'],
+        'quality_intent': (read_quality_intent(post.get('quality_intent'))
+                           if post.get('quality_intent', '') != '' else last['quality_intent']),
+    }
+
+
 @require_POST
 def upload(request):
     """Upload one or more files to the reading queue."""
@@ -311,23 +337,10 @@ def upload(request):
     if not files:
         return JsonResponse({'error': files.refusal or 'Aucun fichier reçu'}, status=400)
 
-    # Réglages persistés (brique user_settings, clés = noms de params.py) : le POST prime,
-    # sinon DERNIER réglage utilisé (pattern converter). Sert surtout aux créations sans
-    # formulaire (tool_api, imports serveur). ⚠ `language` : '' POSTé = auto-détection
-    # VOULUE → test de présence, pas `or` (qui écraserait un champ vidé exprès).
-    from wama.common.utils.auto_model import INTENT_DEFAULT, read_quality_intent
-    from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
-    last = get_user_app_settings(user, 'reader', {
-        'backend': 'auto', 'mode': 'auto', 'output_format': 'txt', 'language': '',
-        'quality_intent': INTENT_DEFAULT})
-    backend       = request.POST.get('backend') or last['backend']
-    mode          = request.POST.get('mode') or last['mode']
-    output_format = request.POST.get('output_format') or last['output_format']
-    language      = request.POST['language'] if 'language' in request.POST else last['language']
-    # Curseur rapide/qualité (chantier C) : réglage d'APP, pas de colonne — lu au lancement par
-    # `quality_intent_of` quand le moteur est sur « auto ». Bornée, ne lève jamais.
-    quality_intent = (read_quality_intent(request.POST.get('quality_intent'))
-                      if request.POST.get('quality_intent', '') != '' else last['quality_intent'])
+    from wama.common.utils.user_settings import save_user_app_settings
+    reading = new_reading_settings(user, post=request.POST)
+    # Curseur rapide/qualité (chantier C) : réglage d'APP, pas de colonne — gardé, pas posé.
+    quality_intent = reading.pop('quality_intent')
 
     from wama.common.utils.batch_views import read_settings_payload
     pipeline_settings = {k: v for k, v in read_settings_payload(
@@ -345,11 +358,8 @@ def upload(request):
             user=user,
             input_file=f.value,
             original_filename=f.name,
-            backend=backend,
-            mode=mode,
-            output_format=output_format,
-            language=language,
             status='PENDING',
+            **reading,
         )
         f.record(item, 'input_file')
         # Le modèle de langage et les interrupteurs des process optionnels (2026-10-13) : ceux du
@@ -377,10 +387,7 @@ def upload(request):
                             status=400)
 
     # Re-persiste les choix comme défauts du prochain dépôt.
-    save_user_app_settings(user, 'reader', {
-        'backend': backend, 'mode': mode,
-        'output_format': output_format, 'language': language,
-        'quality_intent': quality_intent})
+    save_user_app_settings(user, 'reader', {**reading, 'quality_intent': quality_intent})
 
     if len(items_created) > 1:
         # Multiple files → one multi-item batch

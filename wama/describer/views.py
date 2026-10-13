@@ -33,27 +33,37 @@ logger = logging.getLogger(__name__)
 # _fetch_html_as_text : lecture de page web portee au commun (reutilisable partout).
 from wama.common.utils.url_ingest import fetch_html_as_text as _fetch_html_as_text  # noqa: E402,F401
 
-def _read_creation_options(request, user):
-    """Options de création (style/langue/longueur) : POST prioritaire, sinon DERNIERS réglages
-    persistés de l'utilisateur (brique commune user_settings — point 14 checklist, 2026-07-06).
-    Persiste ce qui est posté (les prochains éléments héritent des derniers choix).
-    Remplace 4 lectures POST dupliquées (défauts recopiés à l'identique)."""
-    from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
-    stored = get_user_app_settings(user, 'describer', {  # wama:redondance-ok — défauts du contrat de réglages utilisateur (décision d'app)
+def new_description_settings(user, app='describer', post=None) -> dict:
+    """Options de création (style/langue/longueur) d'une description NAISSANTE : POST
+    prioritaire, sinon DERNIERS réglages persistés de l'utilisateur (brique commune
+    user_settings — point 14 checklist, 2026-07-06). Le dépôt de la card et l'import du
+    gestionnaire de fichiers (« Envoyer vers », sans volet donc sans POST) passent ici ;
+    `app` : une jumelle de bac à sable passe le sien."""
+    from wama.common.utils.user_settings import get_user_app_settings
+    post = post if post is not None else {}
+    stored = get_user_app_settings(user, app, {  # wama:redondance-ok — défauts du contrat de réglages utilisateur (décision d'app)
         'output_style': 'detailed', 'output_language': 'fr', 'max_length': 500})
-    output_style = request.POST.get('output_style') or stored['output_style']
+    output_style = post.get('output_style') or stored['output_style']
     # Un style qui n'en est plus un (« meeting », devenu un type de résumé le 2026-10-13 — un
     # réglage mémorisé avant peut le porter) retombe sur le défaut.
     if output_style not in dict(Description.OUTPUT_STYLE_CHOICES):
         output_style = 'detailed'
-    output_language = request.POST.get('output_language') or stored['output_language']
+    output_language = post.get('output_language') or stored['output_language']
     try:
-        max_length = int(request.POST.get('max_length') or stored['max_length'])
+        max_length = int(post.get('max_length') or stored['max_length'])
     except (TypeError, ValueError):
         max_length = 500
-    save_user_app_settings(user, 'describer', {
-        'output_style': output_style, 'output_language': output_language, 'max_length': max_length})
-    return output_style, output_language, max_length
+    return {'output_style': output_style, 'output_language': output_language,
+            'max_length': max_length}
+
+
+def _read_creation_options(request, user):
+    """Options de création d'un DÉPÔT (`new_description_settings`), persistées : les prochains
+    éléments héritent des derniers choix. Remplace 4 lectures POST dupliquées."""
+    from wama.common.utils.user_settings import save_user_app_settings
+    values = new_description_settings(user, post=request.POST)
+    save_user_app_settings(user, 'describer', values)
+    return values['output_style'], values['output_language'], values['max_length']
 
 
 def get_user(request):

@@ -297,16 +297,17 @@ class IndexView(View):
         })
 
 
-def _deposit_settings(user, post):
-    """Réglages d'un DÉPÔT : ceux que l'utilisateur a MÉMORISÉS au volet (brique commune
-    `read_panel_settings`, 2026-09-29 — ex-table `UserSettings` propre à l'enhancer, jamais
-    écrite), puis ce que le VOLET POSTE, lu par le schéma (`schema_model_kwargs`). Ce qui a été
-    posté devient la mémoire du volet (`save_panel_settings`) : l'élément suivant et la page
-    rechargée partent des derniers réglages employés."""
+def new_enhancement_settings(user, model=None, app='enhancer', post=None):
+    """Les colonnes de réglage d'une amélioration (image/vidéo) NAISSANTE : ceux que
+    l'utilisateur a MÉMORISÉS au volet (brique commune `read_panel_settings`, 2026-09-29 —
+    ex-table `UserSettings` propre à l'enhancer, jamais écrite), puis ce que le dépôt POSTE, lu
+    par le schéma (`schema_model_kwargs`). Le dépôt de la card et l'import du gestionnaire de
+    fichiers (« Envoyer vers », sans volet donc sans POST) passent ici ; `model`/`app` : une
+    jumelle de bac à sable passe les siens."""
     from wama.common.utils.param_schema import schema_model_kwargs
-    from wama.common.utils.user_settings import read_panel_settings, save_panel_settings
+    from wama.common.utils.user_settings import element_columns, read_panel_settings
     from wama.enhancer.params import MEDIA_PARAMS
-    stored = read_panel_settings(user, 'enhancer', MEDIA_PARAMS)
+    stored = read_panel_settings(user, app, MEDIA_PARAMS)
     values = {'ai_model': stored.get('ai_model') or 'auto',
               'denoise': bool(stored.get('denoise')),
               'blend_factor': stored.get('blend_factor') or 0.0,
@@ -316,6 +317,16 @@ def _deposit_settings(user, post):
                    if k not in ('upscale_factor', 'quality_intent') and v not in (None, '')})
     values['upscale_factor'] = _factor_posted(post, 4)
     values['quality_intent'] = _intent_posted(post)
+    return element_columns(values, model or Enhancement)
+
+
+def _deposit_settings(user, post):
+    """Réglages d'un DÉPÔT (`new_enhancement_settings`). Ce qui a été posté devient la mémoire
+    du volet (`save_panel_settings`) : l'élément suivant et la page rechargée partent des
+    derniers réglages employés."""
+    from wama.common.utils.user_settings import save_panel_settings
+    from wama.enhancer.params import MEDIA_PARAMS
+    values = new_enhancement_settings(user, post=post)
     names = {p.name for p in MEDIA_PARAMS}
     save_panel_settings(user, 'enhancer', MEDIA_PARAMS,
                         {k: post.get(k) for k in names if k in post})

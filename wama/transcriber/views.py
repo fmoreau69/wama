@@ -1740,14 +1740,22 @@ def _save_user_panel_values(user, data):
     return save_panel_settings(user, 'transcriber', _SCHEMA, data, key=user_setting_key)
 
 
+def new_transcript_settings(user, model=None, app='transcriber', post=None):
+    """Les colonnes de réglage d'un transcript NAISSANT, par la cascade COMMUNE (défauts ←
+    réglages de l'auteur ← ce que le dépôt poste, `user_settings.new_element_settings`).
+    Le dépôt de la card et l'import du gestionnaire de fichiers (« Envoyer vers », sans volet
+    donc sans POST) passent ici ; `model`/`app` : une jumelle de bac à sable passe les siens."""
+    from wama.common.utils.user_settings import new_element_settings
+    return new_element_settings(user, app, _SCHEMA, model or Transcript, post=post,
+                                key=user_setting_key)
+
+
 def _deposit_settings(user, post):
     """Les réglages d'un DÉPÔT (fichier, lien) : ce que le volet poste est gardé comme
-    préférences, puis l'élément naît par la cascade COMMUNE (défauts ← réglages de l'auteur ←
-    POST, `user_settings.new_element_settings`, 2026-09-27) — avant, un champ absent du POST
-    prenait le défaut du modèle et non la préférence de l'auteur."""
-    from wama.common.utils.user_settings import new_element_settings
+    préférences, puis l'élément naît par la cascade COMMUNE (`new_transcript_settings`,
+    2026-09-27) — avant, un champ absent du POST prenait le défaut du modèle et non la
+    préférence de l'auteur."""
     _save_user_panel_values(user, post)
-    return new_element_settings(user, 'transcriber', _SCHEMA, Transcript, post=post,
-                                key=user_setting_key)
+    return new_transcript_settings(user, post=post)
 
 

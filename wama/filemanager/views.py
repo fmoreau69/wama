@@ -1429,10 +1429,15 @@ def import_to_describer(source_path, user, app_label='describer'):
     « Envoyer vers describer_01 » n'existait pas — 3ᵉ occurrence du même trou).
     `detected_type` est posé À L'IMPORT (comme à l'upload) : c'est la clé de routage
     nature→backend (marche B1) — sans elle, le corps composé de la jumelle n'a rien à router.
+    L'élément naît comme au dépôt de la card (2026-10-13) : options de l'auteur
+    (`new_description_settings`) et propriétés du fichier — avant, défauts du modèle et aucune
+    propriété.
     """
     from django.apps import apps as django_apps
-    from wama.describer.views import detect_type_from_extension
     from wama.common.utils.media_paths import reference_or_copy
+    from wama.common.utils.user_settings import element_columns
+    from wama.describer.views import (detect_type_from_extension, get_file_properties,
+                                      new_description_settings)
 
     Description = django_apps.get_model(app_label, 'Description')
 
@@ -1440,10 +1445,12 @@ def import_to_describer(source_path, user, app_label='describer'):
 
     ext = dest_path.suffix.lstrip('.').lower()
     description = Description.objects.create(
-        user=user, detected_type=detect_type_from_extension(ext))
+        user=user, detected_type=detect_type_from_extension(ext),
+        **element_columns(new_description_settings(user, app=app_label), Description))
     description.input_file.name = relative_path
     description.filename = dest_path.name
     description.file_size = dest_path.stat().st_size
+    description.properties = get_file_properties(description)
     description.save()
     # (La provenance est enregistrée par le répartiteur `api_import_to_app`, pour tous les
     # importeurs — cet appel-ci, le seul du 11/09, y a été remonté le 2026-09-22.)
@@ -1500,7 +1507,10 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
 
     elif ext in image_extensions or ext in video_extensions:
         # ── Image / Video ─────────────────────────────────────────────────────
+        # Réglages de l'auteur, comme au dépôt de la card (`new_enhancement_settings`,
+        # 2026-10-13). La branche audio n'en a pas à reprendre : son dépôt n'en lit aucun.
         from wama.common.utils.video_utils import get_media_info
+        from wama.enhancer.views import new_enhancement_settings
 
         Enhancement = django_apps.get_model(app_label, 'Enhancement')
         media_type = 'image' if ext in image_extensions else 'video'
@@ -1511,6 +1521,7 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
             user=user, media_type=media_type,
             width=media_info['width'], height=media_info['height'],
             duration=media_info['duration'], file_size=media_info['file_size'],
+            **new_enhancement_settings(user, model=Enhancement, app=app_label),
         )
         enhancement.input_file.name = relative_path
         enhancement.save()
@@ -1644,11 +1655,19 @@ def import_to_anonymizer(source_path, user, app_label='anonymizer'):
 
 
 def import_to_synthesizer(source_path, user, app_label='synthesizer'):
-    """Import a text file to Synthesizer app. `app_label` re-cible une jumelle (importer_for)."""
-    from django.apps import apps as django_apps
-    from wama.common.utils.media_paths import reference_or_copy
+    """Import a text file to Synthesizer app. `app_label` re-cible une jumelle (importer_for).
 
-    VoiceSynthesis = django_apps.get_model(app_label, 'VoiceSynthesis')
+    La synthèse naît par le CHEMIN UNIQUE de l'app (`services.create_synthesis` — card, lot,
+    Studio, assistant), avec ce que le volet de l'auteur aurait posté
+    (`synthesis_panel_values`). Jusqu'au 2026-10-13 cet importeur créait à la main, langue et
+    voix en dur : le seul des cinq chemins que le ralliement du 30/09 n'avait pas atteint.
+    Le module `services` est celui de l'app CIBLE : une jumelle crée dans SES tables.
+    """
+    import importlib
+    from django.apps import apps as django_apps
+    from wama.common.utils.media_paths import ReceivedInput, reference_or_copy
+    from wama.synthesizer.views import synthesis_panel_values
+
     allowed_exts = {'.txt', '.pdf', '.docx', '.csv', '.md'}
     dest_path, relative_path = reference_or_copy(
         source_path, app_label, user.id, 'input', allowed_exts=allowed_exts)
@@ -1670,30 +1689,14 @@ def import_to_synthesizer(source_path, user, app_label='synthesizer'):
     except Exception:
         pass  # Not a batch file — fall through to normal import
 
-    # Create VoiceSynthesis record with user-specific path
-    synthesis = VoiceSynthesis.objects.create(
-        user=user,                     # tts_model : défaut du modèle (DEFAULT_TTS_MODEL)
-        language='fr',
-        voice_preset='default',
-        speed=1.0,
-        pitch=1.0,
-        emotion_intensity=1.0,
-    )
-    # Set file path directly
-    synthesis.text_file.name = relative_path
-    synthesis.save()
-
-    # Extract text and update metadata
-    try:
-        from wama.synthesizer.utils.text_extractor import extract_text_from_file, clean_text_for_tts
-        text_content = extract_text_from_file(str(dest_path))
-        synthesis.text_content = clean_text_for_tts(text_content)
-        synthesis.update_metadata()
-    except Exception as e:
-        logger.warning(f"Could not extract text from {dest_path}: {e}")
-        synthesis.text_content = ""
-        synthesis.word_count = 0
-        synthesis.save()
+    # Le fichier reçu a la forme d'une DÉSIGNATION (`media_paths.designate`) : pointé ou copié
+    # ci-dessus, assigné par son chemin. Sa provenance définitive est posée par le répartiteur
+    # (`api_import_to_app`), qui connaît l'adresse affichée dans le gestionnaire.
+    work_file = ReceivedInput(dest_path.name, relative_path, local_path=str(dest_path),
+                              designation=relative_path)
+    services = importlib.import_module(f'{django_apps.get_app_config(app_label).name}.services')
+    synthesis = services.create_synthesis(
+        user, work_file=work_file, params=synthesis_panel_values(user, app=app_label))
 
     return {
         'imported': True,
@@ -1705,25 +1708,46 @@ def import_to_synthesizer(source_path, user, app_label='synthesizer'):
 
 
 def import_to_reader(source_path, user, app_label='reader'):
-    """Import a document/image file to Reader (OCR) app. `app_label` re-cible une jumelle."""
+    """Import a document/image file to Reader (OCR) app. `app_label` re-cible une jumelle.
+
+    L'élément naît comme au dépôt de la card (2026-10-13) : derniers réglages de l'auteur
+    (`new_reading_settings`) et nombre de pages d'un PDF — avant, défauts du modèle."""
     from django.apps import apps as django_apps
     from wama.common.utils.media_paths import reference_or_copy
+    from wama.common.utils.user_settings import element_columns
+    from wama.reader.views import _wrap_reading_in_batch, new_reading_settings
 
     ReadingItem = django_apps.get_model(app_label, 'ReadingItem')
     reader_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp'}
     dest_path, relative_path = reference_or_copy(
         source_path, app_label, user.id, 'input', allowed_exts=reader_extensions)
 
-    item = ReadingItem(user=user, original_filename=dest_path.name, status='PENDING')
+    settings_values = new_reading_settings(user, app=app_label)
+    settings_values.pop('quality_intent')   # réglage d'APP, pas une colonne de l'élément
+    item = ReadingItem(user=user, original_filename=dest_path.name, status='PENDING',
+                       **element_columns(settings_values, ReadingItem))
     item.input_file.name = relative_path
     item.save()
 
-    from wama.reader.views import _wrap_reading_in_batch
-    _wrap_reading_in_batch(item)
+    if dest_path.suffix.lower() == '.pdf':
+        try:
+            from wama.reader.tasks import _count_pdf_pages
+            pages = _count_pdf_pages(str(dest_path))
+            if pages:
+                item.page_count = pages
+                item.save(update_fields=['page_count'])
+        except Exception as exc:
+            logger.warning(f"[filemanager] reader : pages de {dest_path.name} non comptées : {exc}")
+
+    # Le lot d'un élément de la SOURCE seulement : celui d'une jumelle ne peut pas se lier aux
+    # lots du reader (Django refuse l'instance d'un autre modèle — l'import échouait, après avoir
+    # créé un lot vide chez la source) ; la page de la jumelle enveloppe ses orphelins.
+    if app_label == 'reader':
+        _wrap_reading_in_batch(item)
 
     return {
         'imported': True,
-        'app': 'reader',
+        'app': app_label,
         'id': item.id,
         'filename': dest_path.name,
         'path': relative_path,
@@ -1733,10 +1757,12 @@ def import_to_reader(source_path, user, app_label='reader'):
 def import_to_converter(source_path, user, app_label='converter'):
     """Import a file to the Converter queue.
 
-    Like every other app: COPY the source into converter/<user>/input and
-    create a PENDING ConversionJob referencing that copy (so deleting the job
-    later removes the app-owned copy, never the user's original). The user
-    picks the output format/quality on the Converter page (settings modal).
+    Like every other app: POINT the source when it lives in the user's tree, COPY it
+    otherwise (`reference_or_copy`, since 2026-09-23), and create a PENDING ConversionJob
+    referencing it (deleting the job never removes the user's original). The output format is
+    the last one used for this media type, as on a card deposit — empty when there is none,
+    the user then picks it on the Converter page (settings modal) — and the job is born
+    COMPLETE with the schema defaults (`apply_birth_settings`, ROADMAP §23.2quater).
     The on-the-fly "Conversion rapide" is a separate flow (in-place, no copy).
 
     `app_label` : re-cible l'importeur sur une JUMELLE de bac à sable (`converter_01`) —
@@ -1747,6 +1773,7 @@ def import_to_converter(source_path, user, app_label='converter'):
     """
     from django.apps import apps as django_apps
     from wama.converter.utils.format_router import detect_media_type
+    from wama.converter.views import apply_birth_settings, last_output_format
     from wama.common.utils.media_paths import reference_or_copy
 
     ConversionJob = django_apps.get_model(app_label, 'ConversionJob')
@@ -1761,11 +1788,16 @@ def import_to_converter(source_path, user, app_label='converter'):
         user=user,
         input_filename=dest_path.name,
         media_type=media_type,
-        output_format='',     # défini par l'utilisateur sur la page Converter
+        output_format=last_output_format(user, media_type, app=app_label),
         status='PENDING',
     )
     job.input_file.name = relative_path
-    job.save(update_fields=['input_file'])
+    touched = ['input_file']
+    # Une jumelle générée ne porte pas l'écriture des réglages (`poser_reglages`) : elle garde
+    # les défauts de son modèle, comme avant.
+    if hasattr(job, 'poser_reglages'):
+        touched += [f for f in apply_birth_settings(job, media_type) if f not in touched]
+    job.save(update_fields=touched)
 
     return {
         'imported': True,
@@ -1777,18 +1809,29 @@ def import_to_converter(source_path, user, app_label='converter'):
 
 
 def import_to_transcriber(source_path, user, app_label='transcriber'):
-    """Import a file to Transcriber app. `app_label` re-cible une jumelle (importer_for)."""
+    """Import a file to Transcriber app. `app_label` re-cible une jumelle (importer_for).
+
+    L'élément naît comme au dépôt de la card (2026-10-13) : réglages de l'auteur par la cascade
+    commune (`new_transcript_settings`) et durée lue sur le fichier — avant, défauts du modèle,
+    et une durée rattrapée seulement au rendu suivant de la file."""
     from django.apps import apps as django_apps
     from wama.common.utils.media_paths import reference_or_copy
+    from wama.transcriber.views import _describe_audio, new_transcript_settings
 
     Transcript = django_apps.get_model(app_label, 'Transcript')
     dest_path, relative_path = reference_or_copy(source_path, app_label, user.id, 'input')
 
-    # status='DRAFT' → l'élément arrive en zone de staging (« À valider »), pas
-    # directement en file (cohérent avec l'upload / l'URL). Cf. conventions §8.X.
-    transcript = Transcript.objects.create(user=user, status='DRAFT')
+    # status='DRAFT' : une card BROUILLON dans la file, comme au dépôt (le « staging » à
+    # valider est retiré depuis le 2026-06-29) ; rien n'est lancé.
+    transcript = Transcript.objects.create(
+        user=user, status='DRAFT',
+        **new_transcript_settings(user, model=Transcript, app=app_label))
     transcript.audio.name = relative_path
     transcript.save()
+    try:
+        _describe_audio(transcript)
+    except Exception as exc:
+        logger.warning(f"[filemanager] transcriber : durée de {dest_path.name} non lue : {exc}")
 
     return {
         'imported': True,

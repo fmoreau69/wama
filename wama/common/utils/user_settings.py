@@ -175,6 +175,13 @@ def new_element_settings(user, app, params, model, *, post=None, context=None, k
     values = effective_settings(params, posees={**prefs, **posted}, contexte=context)
     # Réglages HORS schéma : ceux de l'auteur (aucun dépôt ne les poste).
     values.update({name: prefs[name] for name in (extra or {})})
+    return element_columns(values, model)
+
+
+def element_columns(values, model) -> dict:
+    """`values` restreint aux colonnes concrètes de `model` — ce qu'un `objects.create(**…)`
+    accepte. Sert aussi l'import d'une JUMELLE de bac à sable : son modèle généré peut ne pas
+    porter toutes les colonnes de sa source (« Envoyer vers », 2026-10-13)."""
     concrete = {f.name for f in model._meta.concrete_fields}
     return {k: v for k, v in values.items() if k in concrete}
 

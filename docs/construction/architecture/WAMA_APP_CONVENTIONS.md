@@ -943,19 +943,39 @@ if (window.WamaEta) {
 
 ### 8.3 Import depuis FileManager
 
-> **Copie dans l'input via le helper commun (obligatoire).** Chaque
-> `import_to_<app>(source_path, user)` (dans `filemanager/views.py`) doit utiliser
-> `copy_into_app_input()` de `wama/common/utils/media_paths.py` pour copier la
-> source dans `<app>/<user>/<subfolder>` (nom anti-collision + chemin relatif).
-> Ne JAMAIS ré-implémenter la boucle de copie/collision (factorisé 2026-06).
+> **Pointer ou copier via le helper commun (obligatoire).** Chaque
+> `import_to_<app>(source_path, user, app_label='<app>')` (dans `filemanager/views.py`) doit
+> utiliser `reference_or_copy()` de `wama/common/utils/media_paths.py` : le fichier est POINTÉ
+> s'il est dans l'arbre de l'utilisateur, COPIÉ sinon (montage, arbre d'autrui) — nom
+> anti-collision + chemin relatif. Ne JAMAIS ré-implémenter la boucle de copie/collision.
+> *(Corrigé le 2026-10-13 : ce paragraphe prescrivait `copy_into_app_input()` et « une app ne
+> travaille QUE sur la copie » — vrai jusqu'au 2026-09-23, décision du pointage,
+> `MEDIA_STORAGE_TIERING §Cible`. `copy_into_app_input()` ne reste qu'au cam_analyzer, qui lit
+> ses entrées par dossier.)*
 > ```python
-> from wama.common.utils.media_paths import copy_into_app_input
-> dest_path, relative_path = copy_into_app_input(
->     source_path, 'monapp', user.id, 'input', allowed_exts={'.pdf', '.png'})
-> # puis création du modèle de file spécifique à l'app (non factorisable)
+> from wama.common.utils.media_paths import reference_or_copy
+> dest_path, relative_path = reference_or_copy(
+>     source_path, app_label, user.id, 'input', allowed_exts={'.pdf', '.png'})
+> # puis la NAISSANCE de l'élément par le chemin de l'app (ci-dessous) — jamais à la main
 > ```
-> Principe WAMA : une app ne travaille QUE sur la copie dans son dossier input ;
-> la suppression d'une tâche ne supprime que les fichiers du dossier média de l'app.
+> La suppression d'une card LIBÈRE ses fichiers, elle n'efface jamais l'original de
+> l'utilisateur (`release_card_files`).
+>
+> **L'élément naît par le chemin de son app (2026-10-13).** Un importeur ne compose jamais
+> les réglages de l'élément : il appelle la fonction de naissance que le DÉPÔT de la card
+> appelle aussi — `new_<élément>_settings(user, model=…, app=…, post=None)` (transcriber,
+> enhancer, describer, reader, anonymizer), `last_output_format` + `apply_birth_settings`
+> (converter), le chemin unique `services.create_synthesis` (synthesizer) — et calcule les
+> mêmes métadonnées (durée, propriétés, pages). Sans volet, il n'y a pas de POST : la cascade
+> rend les défauts sous les préférences de l'auteur. `model`/`app` re-ciblent une jumelle.
+> Jusqu'à cette date, six importeurs sur dix créaient avec les défauts du modèle (le
+> synthesizer avec une langue et une voix en dur) : un fichier envoyé depuis l'arbre ignorait
+> les préférences de son auteur. ⏳ Reste l'imager : une image envoyée crée une génération
+> `describe2img`, mode dont le retrait est décidé (`INPUT_MODEL_MATCHING`, 10/09) — sa
+> naissance se tranchera avec ce retrait. Face Analyzer n'a aucun réglage d'auteur et
+> cam_analyzer ne crée aucun élément : rien à reprendre. Garde : `wama/filemanager/tests_send_to_settings.py` — un
+> dépôt par la card, puis « Envoyer vers » par la route du gestionnaire, mêmes réglages ; la
+> contre-épreuve d'un second auteur ; prouvée par mutation, importeur par importeur.
 
 Le FileManager expose `/filemanager/api/import/` et `/filemanager/api/mkdir/`.
 Fonctionnalités disponibles :
