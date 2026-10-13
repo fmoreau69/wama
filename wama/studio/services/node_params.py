@@ -139,7 +139,10 @@ def node_schema(app: str):
     from wama.studio.services.generic_runner import GENERIC_APPS
     if app in GENERIC_APPS:
         from wama.common.utils.param_schema import groups_for_app, schema_for_app
-        return {'params': schema_for_app(app) + list(GENERIC_APPS[app].get('extra_params_spec') or []),
+        # Les réglages propres au nœud sont des `Param` réduits à leurs champs déclarés (le
+        # registre est un littéral écrit par le manifeste) : complétés ici de leurs défauts.
+        extras = [Param(**entry) for entry in GENERIC_APPS[app].get('extra_params_spec') or []]
+        return {'params': schema_for_app(app) + schema_to_dicts(extras),
                 'groups': groups_for_app(app)}
     return None
 

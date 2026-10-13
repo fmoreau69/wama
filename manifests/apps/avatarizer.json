@@ -1400,49 +1400,15 @@
     "studio": {
       "extra_params_spec": [
         {
-          "advanced": false,
-          "cap_from": null,
-          "chip": false,
-          "chip_label": "",
-          "choices": null,
           "contexts": [
             "item"
           ],
-          "default": null,
-          "default_from": null,
-          "display_format": "",
-          "dom_id": "",
-          "group": "",
           "help": "Les avatars de la médiathèque que vous voyez : les vôtres, les partagés, la galerie.",
-          "help_fallback": null,
-          "help_html": "",
-          "help_source": null,
-          "icon": "",
-          "inline": false,
           "label": "Avatar",
-          "max": null,
-          "max_label": "",
-          "min": null,
-          "min_label": "",
           "name": "avatar_gallery_name",
-          "option_groups": null,
-          "options_abilities": false,
-          "options_auto": false,
-          "options_cloud": false,
-          "options_group": "",
-          "options_mode": null,
-          "options_ports": false,
-          "options_query": null,
-          "options_resolution": null,
           "options_source": "avatar_gallery",
-          "pills": [],
-          "radio_name": "",
-          "section": "settings",
-          "show_if": null,
           "stales": [],
-          "step": null,
-          "type": "select",
-          "unit": ""
+          "type": "select"
         }
       ],
       "fixed_kwargs": {

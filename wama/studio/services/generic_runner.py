@@ -21,8 +21,6 @@ miroir. Les réglages d'un nœud se lisent à UN endroit : `services/node_params
 """
 from __future__ import annotations
 
-from wama.common.utils.param_schema import Param, schema_to_dicts
-
 
 # Manifeste des apps NORMALISÉES (contrat rempli). Depuis 2026-08-11 (route §10.1), les E/S
 # (`input_kinds`/`primary_input`/`output_type`) sont DÉRIVÉES des ports (`studio_node_ports`,
@@ -89,12 +87,18 @@ GENERIC_APPS = {
         # nœud — sous la forme commune (`Param`, 2026-10-12), sa liste servie par la source
         # `avatar_gallery` (les noms que `designate_named_avatar` résout). Il disparaît le jour
         # où le nœud lit son port image.
-        'extra_params_spec': schema_to_dicts([
-            Param(name='avatar_gallery_name', type='select', label='Avatar',
-                  options_source='avatar_gallery', contexts=('item',), stales=(),
-                  help='Les avatars de la médiathèque que vous voyez : les vôtres, les partagés, '
-                       'la galerie.'),
-        ]),
+        # ⚠ Un LITTÉRAL, jamais une expression : ce registre est écrit par la facette `studio` du
+        # manifeste (`manifests/builtin/app._project_studio`), qui ne relit et n'écrit que des
+        # littéraux — un `schema_to_dicts([Param(…)])` y était lu « expression », donc projeté en
+        # écart perpétuel et refusé à l'écriture (mesuré le 2026-10-13). Chaque entrée est un
+        # `Param` réduit à ses champs déclarés (les autres gardent leur défaut) ; `node_params`
+        # la normalise par `Param(**entrée)`, qui refuse un champ inconnu.
+        'extra_params_spec': [
+            {'name': 'avatar_gallery_name', 'type': 'select', 'label': 'Avatar',
+             'options_source': 'avatar_gallery', 'contexts': ['item'], 'stales': [],
+             'help': 'Les avatars de la médiathèque que vous voyez : les vôtres, les partagés, '
+                     'la galerie.'},
+        ],
     },
     'anonymizer': {
         'params_module': 'wama.anonymizer.params',

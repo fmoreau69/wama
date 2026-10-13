@@ -138,11 +138,13 @@ class CatalogueSelectsReachTheNodeTest(TestCase):
 
     def test_an_app_node_exposes_the_app_schema_itself(self):
         """The whole schema, every field as the app declares it — not a projection of it."""
-        from wama.common.utils.param_schema import schema_for_app
+        from wama.common.utils.param_schema import Param, schema_for_app, schema_to_dicts
         from wama.studio.services.node_params import node_schema
         for app in generic_runner.GENERIC_APPS:
             with self.subTest(app=app):
-                extra = list(generic_runner.GENERIC_APPS[app].get('extra_params_spec') or [])
+                # Les réglages propres au nœud : des `Param` déclarés par leurs seuls champs.
+                extra = schema_to_dicts([Param(**entry) for entry in
+                                         generic_runner.GENERIC_APPS[app].get('extra_params_spec') or []])
                 self.assertEqual(schema_for_app(app) + extra, node_schema(app)['params'])
 
     def test_the_enhancer_node_offers_auto_and_the_catalogue_models(self):

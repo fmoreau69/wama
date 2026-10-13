@@ -69,6 +69,36 @@ class EveryNodeRendersWithTheCommonEngineTest(TestCase):
         self.assertEqual(('select', 'avatar_gallery'), (avatar['type'], avatar['options_source']))
 
 
+class TheNodeRegistryIsWhatTheCorpusDeclaresTest(SimpleTestCase):
+    """Le registre des nœuds d'app (`GENERIC_APPS`) est ÉCRIT par la facette `studio` du manifeste
+    d'app : il doit rester ce que le corpus déclare, sous une forme que la projection sait relire.
+    Vécu le 2026-10-13 : R1 y avait posé une expression (`schema_to_dicts([Param(…)])`) — rendu
+    juste, mais la projection la lisait « expression », annonçait un écart perpétuel et aurait
+    refusé de l'écrire. Aucun test ne le voyait : la suite ne lisait que le rendu."""
+
+    def test_projecting_each_app_manifest_onto_the_node_registry_changes_nothing(self):
+        import json
+        from wama.common.manifests.builtin.app import _project_studio
+        drifts = {}
+        for path in sorted((BASE / 'manifests/apps').glob('*.json')):
+            manifest = json.loads(path.read_text(encoding='utf-8'))
+            if not (manifest.get('body') or {}).get('studio'):
+                continue
+            plan = _project_studio(manifest, apply=False)
+            if plan.get('op') != 'noop':
+                drifts[path.stem] = (plan.get('op'), plan.get('would_change'))
+        self.assertEqual({}, drifts)
+
+    def test_every_node_own_setting_is_a_param(self):
+        """`Param(**entrée)` refuse un champ inconnu : une faute de frappe ne passe pas en silence."""
+        from wama.common.utils.param_schema import Param
+        from wama.studio.services.generic_runner import GENERIC_APPS
+        for app, conf in GENERIC_APPS.items():
+            for entry in conf.get('extra_params_spec') or []:
+                with self.subTest(app=app, setting=entry.get('name')):
+                    Param(**entry)
+
+
 class BuiltinNodeGateTest(SimpleTestCase):
 
     def test_the_settings_of_a_builtin_node_are_typed(self):
