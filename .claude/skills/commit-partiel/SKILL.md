@@ -61,6 +61,10 @@ git diff --cached -U0 | grep '^@@'
 NEW=$(git commit-tree "$(git write-tree)" -p "$BASE" -F <scratchpad>/msg.txt)
 git update-ref "refs/heads/$(git branch --show-current)" "$NEW" "$BASE"
 # g. l'index est redevenu vide, HEAD ne porte que mes fichiers
+#    ⚠ Avec un INDEX TEMPORAIRE, l'index PARTAGÉ garde les blobs d'AVANT pour mes chemins : un
+#    retour arrière stagé que le prochain commit d'autrui emporterait (oublié dans un script le
+#    2026-10-13, vu ici). Réaligner CES SEULS chemins, jamais un reset global :
+git reset -q HEAD -- <mes chemins>
 git diff --cached --stat | wc -l    # 0
 git show --stat --format='%h %s' HEAD
 ```
