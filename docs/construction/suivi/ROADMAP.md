@@ -4307,6 +4307,20 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
    🔚 Ensuite (décisions) : la RÉÉDITION d'un document produit ailleurs (comme la reprise d'une
    transcription : séparer `work_result`/`attach_result` de l'évaluation, puis la page d'édition
    — chantier SURFACES), les sources cards/RAG, l'hébergement, la promotion hors du bac à sable.
+   ✅ 2026-10-13 — **la PAGE D'ÉDITION du fond, par les briques** (décisions de Fabien le jour
+   même) : 2ᵉ surface du chantier SURFACES (`WAMA_APP_GENERATION_ROUTE §F3b`), DÉCLARÉE dans le
+   manifeste (facette `surfaces`, `WAMA_MANIFEST_SPEC`) et GÉNÉRÉE (`surfaces_gen`) — règle D5.
+   Le fond corrigé s'écrit **dans le fichier média du fond** (`draft_file`), comme le texte saisi
+   du synthesizer devient son fichier de travail ; `layout` passe périmé par l'empreinte de sortie
+   et « Appliquer » le rejoue ; une révision « corrigé à la main » (8a) garde la trace. Annuler /
+   rétablir = l'historique COMMUN (`contenteditable` + rafales, la règle du Transcriber).
+   Briques neuves, universelles : `text_sections`, `html_preview`. Refus 409 sur état périmé et
+   verrou doux portés au noyau, donc à TOUTES les surfaces (`WAMA_COLLABORATION §2`).
+   🔚 **Étape 2, décidée le même jour** : générer des paragraphes du fond PAR PROMPT et mettre à
+   jour la forme PAR PROMPT — chacun un geste qui modifie la donnée, donc un process déclaré
+   (`§10.6`), glue par le rôle `codegen`. Restent aussi : la consigne de forme sur la page (elle
+   s'édite à la ⚙ et périme déjà `layout`) ; le clic dans l'aperçu → section du fond (impossible
+   dans un cadre isolé sans script : à reprendre avec des ancres posées par `layout`).
 2. Publier (capacité commune).
 3. PDF par Chromium.
 4. docx / tex / pptx par Pandoc.

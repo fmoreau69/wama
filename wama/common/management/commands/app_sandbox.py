@@ -64,6 +64,9 @@ _SUBSTITUTABLE = {
     # quand l'app en déclare un (`pipeline_decl`) ; sinon la cible n'a rien à générer.
     'function_specs': ('function_specs.py', 'wama.common.manifests.codegen.function_specs_gen',
                        'render_function_specs'),
+    # Les SURFACES (pages d'édition composées de briques, 2026-10-13) — rendues seulement quand le
+    # manifeste en déclare (facette `surfaces`) ; le bouton ✎ de la card suit (`templates`).
+    'surfaces': ('surfaces.py', 'wama.common.manifests.codegen.surfaces_gen', 'render_surfaces'),
     'views':  ('views.py',  'wama.common.manifests.codegen.views_gen',  'render_views'),
     # Multi-fichiers (le gabarit rend un DICT nom→contenu) : écrits sous templates/<label>/.
     'templates': ('templates/', 'wama.common.manifests.codegen.templates_gen', 'render_index'),
@@ -833,9 +836,12 @@ class Command(BaseCommand):
         # process) se lit par la CLÉ, comme au corpus (`pipeline_decl`) : `function_specs.py`
         # n'est rendu que s'il est déclaré — sans lui, une app à un process, le cas normal.
         from wama.common.manifests.codegen.pipeline_decl import declared_pipeline
+        from wama.common.manifests.codegen.surfaces_gen import declared_surfaces
         targets = ['apps', 'models', 'params', 'tasks']
         if declared_pipeline(key)[0]:
             targets.append('function_specs')
+        if declared_surfaces(manifest):
+            targets.append('surfaces')
         first = render(targets, manifest)
         (pkg / 'migrations').mkdir(parents=True, exist_ok=True)
         (pkg / '__init__.py').write_text('', encoding='utf-8')

@@ -8,10 +8,16 @@ n'écrit ni page, ni lecture, ni enregistrement (2026-10-10, chantier SURFACES).
 Droits : LIRE = voir la card (la règle de l'aperçu, `PreviewRegistry.check_permission`, cards
 partagées comprises) ; ÉCRIRE = l'éditer (`scoping.editable_or_404` : le propriétaire ou un
 collaborateur nommé, dont le geste est tracé `corrige`).
+
+CONFLIT (2026-10-13 — la règle de la page de correction du Transcriber, `WAMA_COLLABORATION
+§2.4`, portée ici pour TOUTES les surfaces) : la page reçoit l'empreinte de l'état édité
+(`edit_lock.state_token`) et la renvoie ; un enregistrement préparé sur un état PÉRIMÉ est refusé
+(409), la ligne verrouillée le temps de comparer et d'écrire.
 """
 from __future__ import annotations
 
 import json
+import os
 
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, JsonResponse
@@ -85,6 +91,7 @@ def surface_data(request, app: str, key: str, pk: int):
     ok, reason = found.can_open(item)
     if not ok:
         return JsonResponse({'error': reason}, status=409)
+    from wama.common.services.edit_lock import state_token
     reads = {}
     for role, field_name in found.reads.items():
         value = getattr(item, field_name, None)
@@ -92,12 +99,85 @@ def surface_data(request, app: str, key: str, pk: int):
             reads[role] = _document(value)
         else:
             reads[role] = value.url if value else ''
+    if request.GET.get('only') == 'state':
+        # Le SUIVI d'un process rejoué (« Appliquer ») : ce que les briques relisent, sans la
+        # valeur éditée — que la page tient déjà, et qui peut peser un document entier.
+        return JsonResponse({'reads': reads, 'processes': _process_states(item)})
+    value = _value_of(found, item)
     return JsonResponse({
+        'processes': _process_states(item),
         'reads': reads,
-        'value': getattr(item, found.edits, None) or {},
+        'value': value,
         'context': found.context_of(item),
         'can_edit': _can_edit(request.user, item),
+        'token': state_token(value),
     })
+
+
+def _process_states(item) -> dict:
+    """`{process: état}` des lignes d'exécution de l'élément (`STALE` compris : le moteur l'a
+    posé à l'enregistrement) — ce qu'une brique lit pour dire qu'un rendu est périmé, en cours ou
+    refait. `{}` sans pipeline."""
+    try:
+        from wama.common.services.process_pipeline import pipeline_of
+        pipeline = pipeline_of(item)
+        if pipeline is None:
+            return {}
+        return {key: row.status for key, row in pipeline.rows(item).items()}
+    except Exception:
+        return {}
+
+
+def _value_of(found, item):
+    """La valeur ÉDITÉE telle que la page la reçoit : le texte du fichier, ou le champ de donnée."""
+    if found.text_value:
+        field = getattr(item, found.edits, None)
+        if not getattr(field, 'name', ''):
+            return ''
+        try:
+            with open(field.path, encoding='utf-8', errors='replace') as source:
+                return source.read()
+        except OSError:
+            return ''
+    return getattr(item, found.edits, None) or {}
+
+
+def _write_text(item, field_name: str, text: str) -> bool:
+    """Écrit le texte édité dans le fichier du champ ; rend `False` si rien n'a changé.
+
+    EN PLACE quand le fichier est à la card et à elle seule (`owns_file`, `is_shared_elsewhere` —
+    les deux règles de `safe_delete_file`) : le chemin ne bouge pas, la ligne d'exécution du
+    process qui l'a produit le désigne toujours, et son empreinte change — l'aval passe périmé.
+    Écrit à côté puis remplacé (`os.replace`, même dossier : jamais à travers deux systèmes de
+    fichiers), une coupure ne laisse pas un fichier à moitié écrit.
+    Sinon (un fichier qu'elle ne fait que désigner, ou qu'une autre ligne désigne aussi) : jamais
+    réécrit — un NOUVEAU fichier chez l'app de la card, que ses lignes d'exécution désignent
+    désormais à la place de l'ancien, qui reste intact pour ses autres porteurs."""
+    from django.core.files.base import ContentFile
+
+    from wama.common.services import process_runs
+    from wama.common.utils.queue_duplication import is_shared_elsewhere, owns_file
+    field = getattr(item, field_name)
+    old = field.name
+    data = text.encode('utf-8')
+    if old and owns_file(item, old) and not is_shared_elsewhere(item, field_name, old):
+        path = field.path
+        try:
+            with open(path, 'rb') as current:
+                if current.read() == data:
+                    return False
+        except OSError:
+            pass
+        partial = path + '.part'
+        with open(partial, 'wb') as out:
+            out.write(data)
+        os.replace(partial, path)
+        return True
+    field.save(os.path.basename(old) if old else f'{field_name}.md', ContentFile(data), save=False)
+    item.save(update_fields=[field_name])
+    if old:
+        process_runs.lines(item).filter(output_ref=old).update(output_ref=field.name)
+    return True
 
 
 def _document(value):
@@ -114,16 +194,36 @@ def _document(value):
 @login_required
 @require_POST
 def surface_save(request, app: str, key: str, pk: int):
+    from django.db import transaction
+
+    from wama.common.services import edit_lock
     from wama.common.utils.scoping import editable_or_404
     found = _surface_or_404(app, key)
     item = editable_or_404(found.model_class(), request.user, trace='corrige', pk=pk)
     try:
         payload = json.loads(request.body or b'{}')
-        value = found.validate(payload.get('value'))
+        value = found.clean(payload.get('value'))
     except (ValueError, KeyError, TypeError) as error:
         return JsonResponse({'error': str(error)}, status=400)
-    setattr(item, found.edits, value)
-    item.save(update_fields=[found.edits])
+    changed = True
+    with transaction.atomic():
+        item = type(item).objects.select_for_update().get(pk=item.pk)
+        conflict = edit_lock.stale_edit(request.user, item, payload.get('base'),
+                                        _value_of(found, item))
+        if conflict:
+            return JsonResponse(conflict, status=409)
+        if found.text_value:
+            changed = _write_text(item, found.edits, value)
+        else:
+            setattr(item, found.edits, value)
+            item.save(update_fields=[found.edits])
+    if found.text_value and changed:
+        # Un fichier corrigé à la main est un état de la card : une RÉVISION « corrigé à la
+        # main » (marche 8a) — la même trace qu'un résultat produit, jamais un geste ajouté.
+        from wama.common.models import ItemRevision
+        from wama.common.services.revisions import record_revision
+        record_revision(app, item, origin=ItemRevision.ORIGIN_MANUAL, user=request.user,
+                        output_fields=[found.edits])
     stale = []
     if found.reruns:
         # La péremption suit le champ SURVEILLÉ — on la recalcule ici pour la dire à la page.
@@ -134,4 +234,5 @@ def surface_save(request, app: str, key: str, pk: int):
                 stale = sorted(pipeline.refresh(item))
         except Exception:
             stale = []
-    return JsonResponse({'ok': True, 'value': value, 'stale': stale})
+    return JsonResponse({'ok': True, 'value': value, 'stale': stale,
+                         'token': edit_lock.state_token(value)})

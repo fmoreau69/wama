@@ -169,6 +169,17 @@ body:                                   # (sous l'enveloppe commune)
     # (REMOVAL_LEDGER) ; la déclaration est tenue par `tests_during_preview_declared` (déclaré ⇔ émis).
   capabilities: {has_realtime, has_edit_page, instant_preview, batch,
                  export_binding: late|early, supports_profiles, has_url_import, has_youtube}
+  # SURFACES (2026-10-13, 2ᵉ surface du chantier SURFACES : le fond du Writer) — les pages
+  # d'édition de l'app, COMPOSÉES de briques universelles (`common/surfaces.py`, registre
+  # `ui_bricks`) et servies par les vues communes. Rendue en `<app>/surfaces.py` par
+  # `codegen/surfaces_gen` ; la card générée porte un ✎ par surface (`templates_gen`).
+  surfaces: [{key, label, edits, reruns?, reads: {rôle: champ},
+              slots: [{id, brick, x, y, w, h, options?}]}]
+  # `edits` doit être un FICHIER produit par un process déclaré (`pipeline.outputs`) : il s'édite
+  # comme TEXTE, validation/disponibilité/écriture communes. Une couche de DONNÉES (corrections de
+  # l'anonymizer) porte sa validation en Python : elle s'écrit dans l'app, le gabarit la REFUSE.
+  # ⏳ Non encore EXTRAITE des apps existantes (`builtin/app.py`) : seule une app née d'un
+  # manifeste la porte. L'extraire demandera de dire quoi faire d'une validation en Python.
   # SORTIE = 3 CONCERNS SÉPARÉS (jamais surchargés — corrigé 2026-07-22, détail WAMA_APP_GENERATION_ROUTE §F2) :
   #   output_type   = catégorie média FIXE (ports/preview/routage) ; converter = 'mirror/any'
   #   output_format = mécanisme COMMUN hérité du converter (générique-par-catégorie ∪ app-spécifique) ; sélecteur download

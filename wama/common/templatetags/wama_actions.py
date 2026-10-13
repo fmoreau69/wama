@@ -387,7 +387,9 @@ def surface_button(app, key, item):
     if found is None:
         return {'shown': False}
     ok, reason = found.can_open(item)
-    corrections = getattr(item, found.edits, None) or {}
+    # « Corrigé » se lit d'une couche de corrections non vide ; un fichier texte édité est
+    # TOUJOURS rempli (c'est la sortie du process) et ne dit donc rien de tel.
+    corrections = not found.text_value and (getattr(item, found.edits, None) or {})
     return {
         'shown': True, 'ok': ok,
         'url': reverse('common:surface', args=[app, key, item.pk]),

@@ -27,6 +27,16 @@ CE QU'UNE SURFACE DÉCLARE : ses emplacements (brique, position et taille par d�
 grille), les champs de l'élément qu'elle LIT par rôle, le champ qu'elle ÉCRIT et sa validation,
 le process que l'écriture périme. Les vues communes (`surface_views`) la servent sans une ligne
 d'app : une app déclare, elle n'écrit pas de page.
+
+LE CHAMP ÉCRIT a deux natures, DÉDUITES de son type — jamais déclarées (2026-10-13, 2ᵉ surface :
+le fond du Writer) :
+  • un champ de DONNÉE (JSON) : la valeur éditée est ce champ, validée par la fonction que la
+    surface déclare (`validate`) — la couche de corrections de l'anonymizer ;
+  • un champ FICHIER : la valeur éditée est le TEXTE de ce fichier, comme le texte saisi du
+    synthesizer devient le fichier de travail de sa card. Validation, disponibilité et écriture
+    sont alors communes (`text_value`) : une app n'a rien à écrire. Quand ce fichier est la
+    SORTIE d'un process, le réécrire périme son aval par l'empreinte de sortie
+    (`process_pipeline.output_fingerprint`) — sans une ligne de plus.
 """
 from __future__ import annotations
 
@@ -37,6 +47,17 @@ from typing import Callable, Optional
 WORLDS = ('media', 'data', 'lab', 'studio')
 #: Colonnes de la grille de mise en page (gridstack, défaut 12).
 GRID_COLUMNS = 12
+#: Plafond d'un texte édité sur une surface : un document qu'on relit et corrige, pas un flux.
+MAX_TEXT_CHARS = 2_000_000
+
+
+def validate_text(value) -> str:
+    """Le texte d'un champ fichier édité, assaini : une chaîne, fins de ligne `\\n`, plafonnée."""
+    if not isinstance(value, str):
+        raise ValueError("texte : une chaîne est attendue")
+    if len(value) > MAX_TEXT_CHARS:
+        raise ValueError(f"texte : plus de {MAX_TEXT_CHARS} caractères")
+    return value.replace('\r\n', '\n').replace('\r', '\n')
 
 
 @dataclass(frozen=True)
@@ -90,8 +111,10 @@ class Surface:
     #: servi par son URL ; un document JSON (`detections_file`) est lu et rendu tel quel.
     reads: dict
     #: Champ ÉCRIT par la page et sa validation (rend la valeur assainie, lève `ValueError`).
+    #: Un champ FICHIER est édité comme TEXTE et validé par la règle commune (`validate_text`) :
+    #: `validate` ne se déclare que pour un champ de donnée.
     edits: str
-    validate: Callable
+    validate: Optional[Callable] = None
     #: Process que l'écriture périme et que « Appliquer » rejoue (`<app>:start_process`).
     reruns: str = ''
     #: L'élément peut-il s'ouvrir dans cette surface ? `(bool, raison)` — la raison s'affiche.
@@ -114,10 +137,42 @@ class Surface:
         from django.apps import apps
         return apps.get_model(self.model)
 
+    @property
+    def text_value(self) -> bool:
+        """Le champ écrit est-il un FICHIER, édité comme texte ? Lu du modèle, jamais déclaré."""
+        from django.db.models import FileField
+        try:
+            return isinstance(self.model_class()._meta.get_field(self.edits), FileField)
+        except Exception:
+            return False
+
+    def clean(self, value):
+        """La valeur reçue de la page, assainie — lève `ValueError` si elle est refusée."""
+        if self.text_value:
+            return validate_text(value)
+        if self.validate is None:
+            raise ValueError(f"surface {self.id} : aucune validation déclarée pour « {self.edits} »")
+        return self.validate(value)
+
     def can_open(self, item) -> tuple:
-        if self.available is None:
-            return True, ''
-        return self.available(item)
+        if self.available is not None:
+            return self.available(item)
+        if self.text_value and not getattr(getattr(item, self.edits, None), 'name', ''):
+            return False, f"Rien à éditer : lancer d'abord « {self._producer_label(item)} »."
+        return True, ''
+
+    def _producer_label(self, item) -> str:
+        """Le libellé du process qui PRODUIT le fichier édité (sa sortie déclarée), lu du pipeline
+        de l'élément — sinon le nom du champ."""
+        try:
+            from wama.common.services.process_pipeline import pipeline_of
+            pipeline = pipeline_of(item)
+            for spec in (pipeline.specs if pipeline is not None else ()):
+                if self.edits in (spec.outputs or ()):
+                    return spec.label or spec.key
+        except Exception:
+            pass
+        return self.edits
 
     def bricks(self) -> list:
         return [BRICKS[slot.brick] for slot in self.slots]
@@ -218,6 +273,23 @@ register_brick(UIBrick(
     script='common/js/surfaces/brick-object-list.js',
     requires=('common/js/wama-detections.js',),
     consumes=('detections',)))
+
+register_brick(UIBrick(
+    key='text_sections', name='Texte en sections',
+    description="Un texte structuré (Markdown) découpé en sections à ses titres, chacune éditable "
+                "à la main ; l'annuler/rétablir est celui de WAMA (une rafale de frappe = un cran). "
+                "Aucune barre de mise en forme : on corrige le FOND, la forme se demande à part "
+                "(ROADMAP §21.5, décision n°2).",
+    script='common/js/surfaces/brick-text-sections.js',
+    consumes=('document',), emits=('document',)))
+
+register_brick(UIBrick(
+    key='html_preview', name='Aperçu du document',
+    description="Le document rendu (HTML) en lecture seule, dans un cadre isolé — sans script ni "
+                "navigation, la règle de l'aperçu de l'inspecteur. On ne l'édite jamais : il se "
+                "recharge quand le process qui le produit a été rejoué.",
+    script='common/js/surfaces/brick-html-preview.js',
+    consumes=('document',)))
 
 register_brick(UIBrick(
     key='surface_actions', name='Actions de la surface',

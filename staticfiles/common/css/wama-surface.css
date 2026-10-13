@@ -49,6 +49,23 @@
 .wama-object-label { font-weight: 600; min-width: 4rem; }
 .wama-object-meta { color: #8a8f98; margin-right: auto; font-variant-numeric: tabular-nums; }
 
+/* Texte en sections — on corrige le FOND : pas de mise en forme, un texte lisible et ses titres */
+.wama-text-sections { padding: .5rem .65rem 2rem; }
+.wama-section-text {
+  white-space: pre-wrap; overflow-wrap: anywhere; font-size: .86rem; line-height: 1.55; color: #e6edf3;
+  padding: .35rem .5rem; margin-bottom: .35rem; border-left: 3px solid transparent; border-radius: .25rem;
+  outline: none; min-height: 1.6rem;
+}
+.wama-section-text.has-heading::first-line { font-weight: 700; color: #ffffff; }
+.wama-section-text[contenteditable]:hover { background: rgba(255,255,255,.03); }
+.wama-section-text[contenteditable]:focus { background: rgba(13,202,240,.07); border-left-color: #0dcaf0; }
+
+/* Aperçu du document — cadre isolé, fond blanc (le rendu porte ses propres couleurs) */
+.wama-brick-preview { overflow: hidden; background: #fff; }
+.wama-brick-preview iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+.wama-preview-empty { padding: 1rem; font-size: .8rem; color: #555; }
+.wama-preview-state { font-size: .68rem; font-weight: 600; }
+
 /* Actions */
 .wama-brick-actions { display: flex; flex-direction: column; gap: .45rem; padding: .55rem; }
 .wama-actions-row { display: flex; gap: .35rem; }

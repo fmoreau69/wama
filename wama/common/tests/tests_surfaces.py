@@ -172,3 +172,184 @@ class ReviewSurfaceViewsTest(TestCase):
         page = self.client.get(self.base)
         self.assertContains(page, 'la vidéo viendra')
         self.assertEqual(409, self.client.get(self.base + 'data/').status_code)
+
+    def test_a_save_prepared_on_a_stale_state_is_refused_not_written(self):
+        self.client.force_login(self.user)
+        token = self.client.get(self.base + 'data/').json()['token']
+        first = {'removed': [{'i': 0, 'box': [5, 5, 20, 20]}]}
+        res = self.client.post(self.base + 'save/', json.dumps({'value': first, 'base': token}),
+                               content_type='application/json')
+        self.assertEqual(200, res.status_code, res.content)
+        # A second page opened on the SAME first state saves after the first one : refused.
+        late = self.client.post(self.base + 'save/', json.dumps({'value': {}, 'base': token}),
+                                content_type='application/json')
+        self.assertEqual(409, late.status_code)
+        self.media.refresh_from_db()
+        self.assertEqual(first['removed'], self.media.detection_corrections['removed'])
+        # The token the first save returned is the current state : accepted.
+        ok = self.client.post(self.base + 'save/', json.dumps({'value': {}, 'base': res.json()['token']}),
+                              content_type='application/json')
+        self.assertEqual(200, ok.status_code, ok.content)
+
+
+class TextSectionsSplitTest(SimpleTestCase):
+    """The text brick cuts a document at its headings WITHOUT losing a character : what it
+    writes back is what was read, plus the user's corrections."""
+
+    CASES = [
+        '# Title\n\nIntro.\n\n## Part\nBody\n',
+        'No heading at all.\nSecond line.',
+        '',
+        '# A\n```\n# not a heading, inside code\n```\n# B\n\n\n',
+        'Preamble\n# First\ntext',
+    ]
+
+    def _split(self, engine, text):
+        return json.loads(engine.eval('JSON.stringify(window.__brick.split(%s))' % json.dumps(text)))
+
+    def test_the_sections_rebuild_the_text_exactly(self):
+        from py_mini_racer import MiniRacer
+        engine = MiniRacer()
+        engine.eval('var window = {WamaSurface: {registerBrick: function (k, d) { window.__brick = d; }}};'
+                    + _js('common/js/surfaces/brick-text-sections.js'))
+        for text in self.CASES:
+            with self.subTest(text=text):
+                self.assertEqual(text, ''.join(self._split(engine, text)))
+        self.assertEqual(['# A\n```\n# not a heading, inside code\n```\n', '# B\n\n\n'],
+                         self._split(engine, self.CASES[3]),
+                         'a « # » inside a code block does not start a section')
+        self.assertEqual(['Preamble\n', '# First\ntext'], self._split(engine, self.CASES[4]))
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class TextSurfaceViewsTest(TestCase):
+    """A surface whose edited field is a FILE edits its TEXT — the common rule of the Writer's
+    fond. Held on the anonymizer, whose `detect` produces `detections_file` and whose `blur`
+    depends on it : the same shape as the Writer's `write` → `layout`, without the sandbox."""
+
+    def setUp(self):
+        from wama.anonymizer.models import Media
+        from wama.common.surfaces import SURFACES, BrickSlot, Surface, register_surface
+        from wama.common.utils.media_paths import app_media_dir, get_app_media_path
+        self.addCleanup(shutil.rmtree, settings.MEDIA_ROOT, True)
+        self.user = get_user_model().objects.create_user('text_surface_owner', password='x')
+        out = get_app_media_path('anonymizer', self.user.id, 'output')
+        out.mkdir(parents=True, exist_ok=True)
+        (out / 'draft.md').write_text('# Title\nFirst text.\n', encoding='utf-8')
+        self.rel = f"{app_media_dir('anonymizer', self.user.id, 'output')}/draft.md"
+        self.media = Media.objects.create(user=self.user, file_ext='.png', media_type='image',
+                                          detections_file=self.rel)
+        register_surface(Surface(
+            app='anonymizer', key='text_probe', label='Probe', model='anonymizer.Media',
+            slots=(BrickSlot('text', 'text_sections', 0, 0, 12, 10),),
+            reads={}, edits='detections_file', reruns='blur'))
+        self.addCleanup(SURFACES.pop, 'anonymizer.text_probe', None)
+        self.base = f'/common/surface/anonymizer/text_probe/{self.media.pk}/'
+        self.client.force_login(self.user)
+
+    def _save(self, value, base=None):
+        body = {'value': value}
+        if base is not None:
+            body['base'] = base
+        return self.client.post(self.base + 'save/', json.dumps(body), content_type='application/json')
+
+    def _file(self):
+        return (Path(settings.MEDIA_ROOT) / self.rel).read_text(encoding='utf-8')
+
+    def test_the_page_reads_the_text_of_the_file(self):
+        data = self.client.get(self.base + 'data/').json()
+        self.assertEqual('# Title\nFirst text.\n', data['value'])
+        self.assertTrue(data['token'])
+
+    def test_a_save_rewrites_the_file_in_place_and_stales_the_downstream_process(self):
+        from wama.anonymizer.function_specs import PIPELINE
+        from wama.common.models import ItemRevision
+        from wama.common.services import process_runs
+        process_runs.succeed(self.media, 'detect', output_ref=self.rel, process_key='anonymizer.detect',
+                             settings_snapshot=PIPELINE.snapshot(PIPELINE.spec('detect'), self.media))
+        process_runs.succeed(self.media, 'blur', process_key='anonymizer.blur',
+                             settings_snapshot=PIPELINE.snapshot(PIPELINE.spec('blur'), self.media))
+        token = self.client.get(self.base + 'data/').json()['token']
+        res = self._save('# Title\r\nCorrected text.\n', base=token)
+        self.assertEqual(200, res.status_code, res.content)
+        self.assertEqual('# Title\nCorrected text.\n', self._file(), 'line endings normalised')
+        self.media.refresh_from_db()
+        self.assertEqual(self.rel, self.media.detections_file.name, 'same path : the process row still designates it')
+        self.assertEqual(['blur'], res.json()['stale'], 'the new fingerprint stales the downstream process')
+        revision = ItemRevision.objects.get(app='anonymizer', object_id=self.media.pk)
+        self.assertEqual(ItemRevision.ORIGIN_MANUAL, revision.origin)
+        self.assertEqual(['detections_file'], [o['field'] for o in revision.outputs])
+
+    def test_an_unchanged_text_writes_nothing(self):
+        from wama.common.models import ItemRevision
+        res = self._save('# Title\nFirst text.\n')
+        self.assertEqual(200, res.status_code, res.content)
+        self.assertFalse(ItemRevision.objects.filter(app='anonymizer', object_id=self.media.pk).exists())
+
+    def test_a_stale_base_is_refused_and_the_file_is_untouched(self):
+        res = self._save('Overwritten.\n', base='not-the-current-state')
+        self.assertEqual(409, res.status_code)
+        self.assertEqual('# Title\nFirst text.\n', self._file())
+
+    def test_a_file_another_row_designates_is_never_rewritten(self):
+        from wama.anonymizer.models import Media
+        from wama.common.services import process_runs
+        Media.objects.create(user=self.user, file_ext='.png', media_type='image', detections_file=self.rel)
+        process_runs.succeed(self.media, 'detect', output_ref=self.rel, process_key='anonymizer.detect')
+        res = self._save('# Title\nMine only.\n')
+        self.assertEqual(200, res.status_code, res.content)
+        self.assertEqual('# Title\nFirst text.\n', self._file(), 'the other holder keeps its file')
+        self.media.refresh_from_db()
+        new = self.media.detections_file.name
+        self.assertNotEqual(self.rel, new)
+        self.assertEqual('# Title\nMine only.\n', (Path(settings.MEDIA_ROOT) / new).read_text(encoding='utf-8'))
+        self.assertEqual(new, process_runs.line(self.media, 'detect').output_ref,
+                         'the process row follows : its output is not taken for lost')
+
+    def test_an_empty_file_field_names_the_process_that_produces_it(self):
+        type(self.media).objects.filter(pk=self.media.pk).update(detections_file='')
+        self.assertEqual(409, self.client.get(self.base + 'data/').status_code)
+        self.assertContains(self.client.get(self.base), 'Détection')
+
+    def test_a_non_string_value_is_refused(self):
+        self.assertEqual(400, self._save({'not': 'text'}).status_code)
+
+
+class SurfacesGeneratorTest(SimpleTestCase):
+    """A generated app DECLARES its surfaces in its manifest ; `surfaces.py` is rendered (rule D5 :
+    only the manifest is written by hand)."""
+
+    def _manifest(self):
+        path = Path(settings.BASE_DIR) / 'manifests' / 'app_drafts' / 'writer.json'
+        return json.loads(path.read_text(encoding='utf-8'))
+
+    def test_the_writer_surface_is_rendered_from_its_manifest(self):
+        from wama.common.manifests.codegen.surfaces_gen import render_surfaces
+        src, reason = render_surfaces(self._manifest())
+        self.assertIsNone(reason)
+        compile(src, 'surfaces.py', 'exec')
+        self.assertIn("edits='draft_file'", src)
+        self.assertIn("reruns='layout'", src)
+        self.assertIn("_APP = __name__.rsplit('.', 2)[-2]", src, 'the label is never written in full')
+
+    def test_what_cannot_be_declared_is_refused_with_its_reason(self):
+        from wama.common.manifests.codegen.surfaces_gen import render_surfaces
+        cases = {
+            'brick': ('slots', 0, 'brick', 'no_such_brick', 'brique inconnue'),
+            'grid': ('slots', 0, 'w', 13, 'hors de la grille'),
+        }
+        for name, (facet, index, field, value, expected) in cases.items():
+            with self.subTest(case=name):
+                m = self._manifest()
+                m['body']['surfaces'][0][facet][index][field] = value
+                self.assertIn(expected, render_surfaces(m)[1])
+        m = self._manifest()
+        m['body']['surfaces'][0]['edits'] = 'prompt'
+        self.assertIn("n'est la sortie d'aucun process", render_surfaces(m)[1],
+                      'a data field carries its validation in Python : never generated')
+        m = self._manifest()
+        m['body']['surfaces'][0]['reruns'] = 'publish'
+        self.assertIn('process rejoué inconnu', render_surfaces(m)[1])
+        m = self._manifest()
+        del m['body']['surfaces']
+        self.assertIsNone(render_surfaces(m)[0])

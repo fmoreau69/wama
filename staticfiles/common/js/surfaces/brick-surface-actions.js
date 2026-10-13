@@ -7,6 +7,8 @@
  * Enregistrer : le champ déclaré par la surface, validé par le serveur.
  * Appliquer : enregistre puis rejoue le process que la modification a périmé (`reruns`).
  * Disposition : rend à chaque brique la place que la surface déclare.
+ * Aide : les gestes que chaque brique montée DÉCLARE (`help`, lu par `ctx.helps()`) — jamais ceux
+ * d'une brique écrits ici (l'aide de l'image y figurait en dur : fausse sur une page de texte).
  */
 (function (global) {
     'use strict';
@@ -22,7 +24,8 @@
             '</div>' +
             (reruns ? '<button type="button" class="btn btn-sm btn-success w-100" data-act="apply" title="Enregistrer puis relancer « ' + reruns + ' »"><i class="fas fa-play"></i> Appliquer</button>' : '') +
             '<button type="button" class="btn btn-sm btn-link text-secondary" data-act="layout" title="Rendre à chaque panneau sa place d\'origine"><i class="fas fa-table-cells-large"></i> Disposition par défaut</button>' +
-            '<div class="wama-actions-help">Molette : zoom · glisser : se déplacer · N : ajouter une zone · Suppr : retirer · R : rétablir · F : image entière</div>';
+            '<div class="wama-actions-help"></div>';
+        var helpEl = body.querySelector('.wama-actions-help');
 
         body.addEventListener('click', function (ev) {
             var b = ev.target.closest('[data-act]');
@@ -41,6 +44,9 @@
                 b.disabled = !ctx.canEdit;
             });
             ctx.history.syncButtons();
+            // Lue à chaque rafraîchissement : les briques placées APRÈS celle-ci sur la grille
+            // sont montées plus tard que son `mount`.
+            helpEl.textContent = ctx.helps().join(' — ');
         }
         refresh();
         return { refresh: refresh };

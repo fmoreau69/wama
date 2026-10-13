@@ -353,13 +353,17 @@ MECHANISMS = (
               "sa validation, process que l'écriture périme), servie par des vues COMMUNES et "
               "composée de briques UI universelles — déplaçables, redimensionnables (gridstack), "
               "historique commun. 1ʳᵉ surface : la correction des détections de l'anonymizer "
-              "(2026-10-10). Registre `ui_bricks` = le catalogue des briques",
+              "(2026-10-10). Registre `ui_bricks` = le catalogue des briques. 2ᵉ (2026-10-13) : "
+              "le fond du Writer — un champ FICHIER s'édite comme texte (règles communes), la "
+              "surface se déclare au manifeste (facette `surfaces`) et se génère ; refus 409 sur "
+              "état périmé et verrou doux pour toutes les surfaces",
               'wama/common/surfaces.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/surface_views.py',
                        'wama/common/templates/common/surface.html',
                        'wama/common/static/common/js/surfaces/wama-surface.js',
                        'wama/common/static/common/js/wama-detections.js',
+                       'wama/common/manifests/codegen/surfaces_gen.py',
                        'wama/common/tests/tests_surfaces.py')),
     Mechanism('detection_ensemble', 'Détection par un ensemble de modèles',
               "L'UNION des documents `detections` de plusieurs détecteurs, quelle que soit leur "

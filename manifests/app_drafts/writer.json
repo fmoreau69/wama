@@ -262,7 +262,22 @@
       "params_attr": "PARAMS_JSON",
       "params_module": "wama.writer.params",
       "runnable": true
-    }
+    },
+    "surfaces": [
+      {
+        "key": "edit",
+        "label": "Corriger le fond",
+        "edits": "draft_file",
+        "reruns": "layout",
+        "reads": {"preview": "output_file"},
+        "slots": [
+          {"id": "text", "brick": "text_sections", "x": 0, "y": 0, "w": 7, "h": 15},
+          {"id": "preview", "brick": "html_preview", "x": 7, "y": 0, "w": 5, "h": 10,
+           "options": {"role": "preview"}},
+          {"id": "actions", "brick": "surface_actions", "x": 7, "y": 10, "w": 5, "h": 5}
+        ]
+      }
+    ]
   },
   "description": "Rédige un document (présentation, rapport, page web) à partir d'une consigne et d'un document de référence : le fond est écrit par un LLM, puis mis en forme dans le format de sortie (HTML d'abord). Cas d'épreuve de la route « app de zéro » (ROADMAP §21.5, ROUTE §10.5).",
   "key": "writer",

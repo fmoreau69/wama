@@ -676,6 +676,12 @@ document.addEventListener('DOMContentLoaded', function () {{
     bouton_del = (f'''
         <button type="button" class="btn btn-sm btn-outline-danger delete-btn" title="Supprimer"
                 data-delete-url="{{% url '{app}:{route_delete}' elem.id %}}"><i class="fas fa-trash"></i></button>''' if route_delete else '')
+    # ✎ ÉDITER : un bouton par SURFACE déclarée au manifeste (facette `surfaces`, 2026-10-13) —
+    # le tag commun le rend grisé avec sa raison quand la surface ne s'ouvre pas sur l'élément.
+    from wama.common.manifests.codegen.surfaces_gen import declared_surfaces
+    bouton_edit = ''.join(f'''
+        {{% surface_button '{app}' '{s.get('key')}' elem %}}''' for s in declared_surfaces(manifest)
+                          if s.get('key'))
 
     card = f'''{{% load wama_actions %}}{{% comment %}}{mark} — _generic_card.html GÉNÉRÉ.
 CARD v3 « sections × chips » (CARD_DESIGN §11) émise DEPUIS LE MANIFESTE — recadrage Fabien
@@ -743,7 +749,7 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
         <div class="btn-group-actions wcv3-actions">
         <button type="button" class="btn btn-sm btn-outline-secondary settings-btn" title="Paramètres"
                 data-id="{{{{ elem.id }}}}" {{% for k, v in elem.gear_data.items %}}data-{{{{ k }}}}="{{{{ v }}}}" {{% endfor %}}><i class="fas fa-cog"></i></button>
-        {{% include 'common/_cycle_button.html' with id=elem.id status=elem.shown_state|default:elem.status %}}{bouton_dl}{bouton_dup}{bouton_del}
+        {{% include 'common/_cycle_button.html' with id=elem.id status=elem.shown_state|default:elem.status %}}{bouton_edit}{bouton_dl}{bouton_dup}{bouton_del}
         </div>
       </div>
 

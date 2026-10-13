@@ -325,7 +325,8 @@
         fillClasses();
         setTool('select');
         refresh();
-        return { refresh: refresh, tools: tools };
+        return { refresh: refresh, tools: tools,
+                 help: 'Molette : zoom · glisser : se déplacer · N : ajouter une zone · Suppr : retirer · R : rétablir · F : image entière' };
     }
 
     global.WamaSurface.registerBrick('image_boxes', { title: 'Image et zones', mount: mount });

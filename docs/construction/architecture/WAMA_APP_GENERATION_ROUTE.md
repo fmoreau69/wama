@@ -450,6 +450,38 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       vidéo (axe commun) ; l'évaluation dans l'anonymizer (corrections = vérité terrain, WIDER
       FACE val, `WAMA_APPRENTISSAGE §8bis`) ; porter vers ces briques les pilotes en attente
       (YuE2, retouche Imager).
+  - ✅ **2ᵉ SURFACE — 2026-10-13, la page d'édition du FOND du Writer** (décisions de Fabien le
+    jour même ; `ROADMAP §21.5` étape 1) :
+    - **un champ FICHIER s'édite comme TEXTE**, nature DÉDUITE du type du champ
+      (`Surface.text_value`) — validation (`validate_text`), disponibilité (« lancer d'abord
+      « Rédaction » », lue du pipeline) et écriture communes : une app n'a rien à écrire. C'est le
+      fonctionnement du synthesizer (le texte saisi devient le fichier de travail de la card). On
+      écrit **dans** le fichier média, EN PLACE quand la card le possède seule — la ligne
+      d'exécution du process producteur le désigne toujours, son empreinte change, l'aval passe
+      `STALE` (`output_fingerprint`) ; sinon un NOUVEAU fichier, que ses lignes désignent à la
+      place. Chaque enregistrement qui change le texte laisse une révision « corrigé à la main »
+      (`ItemRevision.ORIGIN_MANUAL`, marche 8a) ;
+    - **déclarée au manifeste, générée** (règle D5, `§10.5`) : facette `surfaces`
+      (`WAMA_MANIFEST_SPEC`), gabarit `codegen/surfaces_gen` (refuse un champ qui n'est pas un
+      fichier produit par un process : une validation en Python ne se génère pas), cible
+      `app_sandbox substitute <label> surfaces`, ✎ sur la card générée (`templates_gen`) ;
+    - **deux briques universelles** : `text_sections` (le Markdown découpé à ses titres sans
+      perdre un caractère ; `contenteditable` et non `<textarea>`, pour que Ctrl+Z soit
+      l'historique COMMUN — `wama-history.js` laisse un champ de formulaire à sa pile native ;
+      rafale de frappe = un cran, `ctx.edit(fn, {burst: true})`) et `html_preview` (cadre
+      `<iframe sandbox>` sans permission, règle de l'inspecteur ; dit périmé / en cours / refait
+      d'après l'état du process, `data/?only=state`) ;
+    - **portés au NOYAU, donc à toutes les surfaces** : refus 409 d'un enregistrement préparé sur
+      un état périmé et verrou doux (`WAMA_COLLABORATION §2`), suivi du process rejoué après
+      « Appliquer » ; l'aide des gestes est DÉCLARÉE par chaque brique (`help`) — celle de l'image
+      était écrite en dur dans la brique d'actions, fausse sur une page de texte ;
+    - **éprouvé** : 21 tests (`tests_surfaces`, dont 11 neufs), smoke navigateur des deux surfaces sur serveur
+      éphémère (frappe, Ctrl+Z / Ctrl+Maj+Z communs, glisser dans le texte sans déplacer la
+      brique, enregistrement en place, `layout` `STALE`, révision manuelle, 0 erreur console).
+    - ⏳ **Restes** : générer un paragraphe du fond et refaire la forme PAR PROMPT (étape 2, des
+      process déclarés) ; extraire la facette des apps existantes ; clic dans l'aperçu → section
+      (cadre isolé : des ancres posées par `layout`) ; un HTML rendu SANS `<meta charset>` est
+      servi sans jeu de caractères (accents cassés — vu sur un témoin au smoke).
 - 🔄 **FACES DU PIPELINE — la preview suit le pipeline (Fabien, 2026-10-12)**. *« Avant, une card
   portait tout le process sans distinction et la preview de même […]. Maintenant, la card porte un
   pipeline de process, les médias intermédiaires sont conservés. Le pipeline étant l'unité commune à
