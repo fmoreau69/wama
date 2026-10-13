@@ -29,6 +29,7 @@ class MiniMapTimeBaseTest(SimpleTestCase):
         self.ctx = MiniRacer()
         self.ctx.eval(f"""
             var cachedGpsTrack = {json.dumps(TRACK)}; var gpsTimeScale = {SCALE}, gpsTimeOffset = {OFFSET};
+            var camFeat = {{}}, gpsLatency = null;   // ⚑ gps_latency coupée (cf. test dédié)
             var camAntenna = [1.0, 0.0]; var calls = {{}}; var miniMap = {{ removeLayer() {{}} }};
             var miniMapClickMarker = null, miniMapPassHighlight = null, miniMapHighlightedPassIdx = -1,
                 miniMapShuttleMarker = null, intersectionWindows = [], drawn = null;
@@ -38,8 +39,8 @@ class MiniMapTimeBaseTest(SimpleTestCase):
             function updateMiniMapShuttle(t) {{ calls.shuttle = t; }}
             function updatePassInfo(t) {{ calls.info = t; }}
         """)
-        for name in ('antennaCorrect', 'findGpsAtTime', 'gpsToVideoTime', 'handleMiniMapClick',
-                     'updateMiniMapPassHighlight'):
+        for name in ('antennaCorrect', 'gpsOffset', 'findGpsAtTime', 'gpsToVideoTime',
+                     'handleMiniMapClick', 'updateMiniMapPassHighlight'):
             self.ctx.eval(extract_function(src, name))
 
     def test_clicking_the_drawn_track_puts_the_shuttle_where_one_clicked(self):
@@ -53,6 +54,18 @@ class MiniMapTimeBaseTest(SimpleTestCase):
         shuttle_at = json.loads(self.ctx.eval(f'JSON.stringify(findGpsAtTime({calls["seek"]}))'))
         self.assertAlmostEqual(shuttle_at['lat'], p['lat'], places=7)
         self.assertAlmostEqual(calls['seek'], (TRACK[400]['ts'] - OFFSET) / SCALE, places=6)
+
+    def test_with_the_gps_latency_on_a_click_still_puts_the_shuttle_where_one_clicked(self):
+        """⚑ gps_latency (2026-10-13) : la synchro gagne la latence, dans les DEUX sens."""
+        latency = 0.55
+        self.ctx.eval(f'camFeat.gps_latency = true;'
+                      f'gpsLatency = {{applicable: true, latency_s: {latency}}};')
+        p = json.loads(self.ctx.eval('JSON.stringify(antennaCorrect(cachedGpsTrack[400]))'))
+        self.ctx.eval(f'handleMiniMapClick({p["lat"]}, {p["lon"]})')
+        seek = json.loads(self.ctx.eval('JSON.stringify(calls)'))['seek']
+        self.assertAlmostEqual(seek, (TRACK[400]['ts'] - OFFSET - latency) / SCALE, places=6)
+        shuttle_at = json.loads(self.ctx.eval(f'JSON.stringify(findGpsAtTime({seek}))'))
+        self.assertAlmostEqual(shuttle_at['lat'], p['lat'], places=7)
 
     def test_the_current_pass_is_highlighted_where_the_shuttle_is(self):
         t_enter, t_exit = 150.0, 152.0        # temps VIDÉO, comme `window_recompute`

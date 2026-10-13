@@ -2607,8 +2607,10 @@ document.addEventListener('DOMContentLoaded', function () {
     // bascule de trajectoire change — ré-ingérer `cachedGpsTrack` empilerait les corrections.
     let rawGpsTrack = [];
     let lastMiniMapWindows = [];
+    // (`gps_latency` ne change pas la trace mais l'instant lu dessus : la carte doit rester fixe,
+    // elle aussi, pour que l'avance de la navette se voie)
     const TRACK_FEATURES = new Set(['shuttle_filter', 'lane_map_recalage', 'ortho_correction',
-                                    'antenna_lever']);
+                                    'antenna_lever', 'gps_latency']);
 
     // ── Vue de dessus (couche objets sur la carte, zoom sémantique) ─────────
     let miniMapObjectLayer = null;     // marqueurs objets (X,Y → lat/lon)
@@ -2670,25 +2672,46 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ── Panneau ⚑ Modes : bascules AUTO-GÉNÉRÉES depuis le catalogue serveur ─────────
     // (métadonnée-driven : libellé/description/scope viennent de utils/features.py —
-    // zéro HTML par bascule). live = effet immédiat ; ⟳ = recalcul des indicateurs requis.
+    // zéro HTML par bascule). Un groupe repliable par scope, du plus direct au plus coûteux
+    // (`feature_flags.SCOPES`, ordre tenu par tests_feature_scopes) :
+    //   live    = affichage seul, immédiat ;
+    //   hybrid  = la page en applique une partie tout de suite (navette, objets non suivis),
+    //             les objets suivis gardent l'état du dernier Tracking 360° ;
+    //   compute = aucun effet avant le recalcul.
+    const FEAT_GROUPS = [
+        { scope: 'live', mark: '', label: '⚡ Affichage — immédiat', open: true,
+          hint: 'Bascule instantanée : aucun calcul ne la lit.',
+          rowHint: '' },
+        { scope: 'hybrid', mark: ' ◐', label: '◐ Immédiat en partie — objets suivis au prochain tracking', open: false,
+          hint: 'La page applique tout de suite ce qu’elle peut recomposer (la navette, depuis un calcul '
+                + 'déjà stocké, et les objets non suivis). Les objets suivis gardent l’état du dernier '
+                + '« Tracking 360° » jusqu’au prochain : pour comparer les objets, relancer le tracking.',
+          rowHint: ' — ◐ immédiat sur la navette et les objets non suivis ; objets suivis au prochain « Tracking 360° ».' },
+        { scope: 'compute', mark: ' ⟳', label: '⟳ Calcul — à relancer', open: false,
+          hint: 'Aucun effet avant le recalcul : « Compléter les passes » relance ce qui est périmé.',
+          rowHint: ' — ⟳ aucun effet avant le recalcul (« Compléter les passes »).' },
+    ];
+    const FEAT_GROUPS_OPEN_KEY = 'cam_analyzer_feat_groups_open';
+    function featGroupsOpen() {
+        try { return JSON.parse(localStorage.getItem(FEAT_GROUPS_OPEN_KEY) || '{}') || {}; }
+        catch (e) { return {}; }
+    }
     function renderFeatPanel(catalog) {
         const panel = document.getElementById('featModesPanel');
         if (!panel) return;
         panel.innerHTML = '';
-        // Auto-généré PAR SCOPE (métadonnée-driven, cf. utils/features.py) : on sépare les
-        // bascules à effet immédiat (comparent deux calculs DÉJÀ stockés, zéro recalcul) de
-        // celles qui changent le résultat et exigent de relancer « Calculer les indicateurs ».
-        const _buildFeatRow = (f) => {
+        const _buildFeatRow = (f, group, refreshCount) => {
             const row = document.createElement('label');
             row.className = 'd-flex align-items-start gap-2 small mb-1';
             row.style.cursor = 'pointer';
-            row.title = f.description + (f.scope === 'compute'
-                ? ' — ⟳ nécessite de relancer « Calculer les indicateurs ».' : '');
+            row.title = f.description + group.rowHint;
             const cb = document.createElement('input');
             cb.type = 'checkbox';
             cb.checked = !!f.enabled;
             cb.onchange = async () => {
                 camFeat[f.key] = cb.checked;
+                f.enabled = cb.checked;
+                refreshCount();
                 rebuildCamGeo();
                 topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); topDownAxial.clear();
                 // Une bascule de TRAJECTOIRE change la trace elle-même : la ré-ingérer (sinon
@@ -2717,27 +2740,38 @@ document.addEventListener('DOMContentLoaded', function () {
             };
             row.appendChild(cb);
             const span = document.createElement('span');
-            span.textContent = f.label + (f.scope === 'compute' ? ' ⟳' : '');
+            span.textContent = f.label + group.mark;
             row.appendChild(span);
             return row;
         };
-        const _featGroups = [
-            { label: '⚡ Affichage — immédiat',
-              hint: 'Bascule instantanée : compare deux façons DÉJÀ calculées, aucun recalcul.',
-              test: (f) => f.scope !== 'compute' },
-            { label: '⟳ Calcul — à relancer',
-              hint: 'Change le résultat : relance « Calculer les indicateurs » pour voir l’effet.',
-              test: (f) => f.scope === 'compute' },
-        ];
-        _featGroups.forEach((g) => {
-            const items = (catalog || []).filter(g.test);
+        // Repliable (accordéon `<details>` natif, comme les groupes repliés de WamaParams) ;
+        // l'état ouvert/fermé de chaque groupe est retenu par navigateur.
+        const opened = featGroupsOpen();
+        FEAT_GROUPS.forEach((g) => {
+            const items = (catalog || []).filter(f => (f.scope || 'live') === g.scope);
             if (!items.length) return;
-            const h = document.createElement('div');
-            h.className = 'small fw-semibold text-info mt-1 mb-1';
-            h.textContent = g.label;
-            h.title = g.hint;
-            panel.appendChild(h);
-            items.forEach((f) => panel.appendChild(_buildFeatRow(f)));
+            const box = document.createElement('details');
+            box.className = 'mb-1';
+            box.open = (g.scope in opened) ? !!opened[g.scope] : g.open;
+            const head = document.createElement('summary');
+            head.className = 'small fw-semibold text-info mt-1 mb-1';
+            head.style.cursor = 'pointer';
+            head.title = g.hint;
+            const count = document.createElement('span');
+            count.className = 'text-secondary fw-normal ms-1';
+            const refreshCount = () => {
+                count.textContent = `${items.filter(f => f.enabled).length}/${items.length}`;
+            };
+            refreshCount();
+            head.append(g.label, count);
+            box.appendChild(head);
+            items.forEach((f) => box.appendChild(_buildFeatRow(f, g, refreshCount)));
+            box.addEventListener('toggle', () => {
+                const state = featGroupsOpen();
+                state[g.scope] = box.open;
+                try { localStorage.setItem(FEAT_GROUPS_OPEN_KEY, JSON.stringify(state)); } catch (e) { /* noop */ }
+            });
+            panel.appendChild(box);
         });
     }
 

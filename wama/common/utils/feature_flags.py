@@ -11,12 +11,21 @@ Contrat :
 - le registre est la SOURCE UNIQUE des clés, libellés, descriptions et défauts ;
 - l'objet porteur ne stocke QUE les surcharges (dict {key: bool}) — un flag absent
   retombe sur son défaut, ce qui permet de changer les défauts sans migration ;
-- `scope` distingue les bascules à effet immédiat (`live` : rendu/affichage) de celles
-  qui exigent de relancer un calcul (`compute`) — l'UI s'en sert pour prévenir.
+- `scope` dit QUAND une bascule prend effet — l'UI les range dans cet ordre, du plus direct au
+  plus coûteux, et prévient :
+  · `live` : affichage seul, effet immédiat, aucun calcul ne la lit ;
+  · `hybrid` : la page recompose une partie du rendu tout de suite (depuis un calcul déjà
+    stocké, ou sa propre géométrie), le reste suit au prochain calcul, qui la lit aussi ;
+  · `compute` : aucun effet avant le recalcul.
+  `hybrid` et `compute` (`RECOMPUTE_SCOPES`) changent un résultat calculé : un calcul stocké
+  doit retenir leur état pour savoir s'il est périmé.
 
 Utilisé par : cam_analyzer (premier consommateur). Conçu pour WAMA Data.
 """
 from dataclasses import dataclass, asdict
+
+SCOPES = ('live', 'hybrid', 'compute')       # du plus direct au plus coûteux (ordre d'affichage)
+RECOMPUTE_SCOPES = ('hybrid', 'compute')     # ceux qu'un calcul lit
 
 
 @dataclass(frozen=True)
@@ -25,7 +34,11 @@ class Feature:
     label: str          # libellé court pour l'UI
     description: str    # effet précis (UI + doc)
     default: bool = True
-    scope: str = 'live'  # 'live' = effet immédiat ; 'compute' = recalcul nécessaire
+    scope: str = 'live'  # un de SCOPES (cf. docstring du module)
+
+    def __post_init__(self):
+        if self.scope not in SCOPES:
+            raise ValueError(f'{self.key} : scope inconnu {self.scope!r} (attendu : {SCOPES})')
 
 
 def resolve(registry, config):

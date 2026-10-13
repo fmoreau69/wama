@@ -8,18 +8,23 @@ vue de dessus). Un flag absent de la config retombe sur son défaut.
 Règle : toute amélioration COMPARABLE du positionnement/cap/distances passe par une
 bascule déclarée ici (jamais de if ad hoc dispersé) — voir CAM_ANALYZER_CHANGELOG.md.
 """
-from wama.common.utils.feature_flags import (Feature, resolve, is_enabled as _is_enabled,
-                                             describe as _describe, sanitize_overrides)
+from wama.common.utils.feature_flags import (Feature, RECOMPUTE_SCOPES, resolve,
+                                             is_enabled as _is_enabled, describe as _describe,
+                                             sanitize_overrides)
 
 FEATURES = [
     Feature('fov_dist_correction', 'Correction FOV distances',
             "Corrige les distances annotées avec un ancien FOV V supposé "
-            "(caméras latérales : ×3,6 trop courtes). OFF = distances brutes stockées.",
-            default=True, scope='live'),
+            "(caméras latérales : ×3,6 trop courtes). OFF = distances brutes stockées. Immédiat sur "
+            "les objets non suivis ; le tracking 360° la lit aussi : les objets suivis changent au "
+            "prochain « Tracking 360° ».",
+            default=True, scope='hybrid'),
     Feature('mount_lever_arm', 'Bras de levier caméras',
             "Positions de montage réelles des caméras (antenne GPS à l'arrière, caméra "
-            "avant +4,5 m). OFF = toutes les caméras supposées à l'antenne.",
-            default=True, scope='live'),
+            "avant +4,5 m). OFF = toutes les caméras supposées à l'antenne. Immédiat sur les objets "
+            "non suivis ; le tracking 360° la lit aussi : les objets suivis changent au prochain "
+            "« Tracking 360° ».",
+            default=True, scope='hybrid'),
     Feature('heading_ratio', 'Cap par ratio de bbox',
             "Cap des lents/stationnés estimé par le ratio largeur/hauteur de bbox, fondu "
             "avec la trajectoire selon la vitesse. OFF = trajectoire seule (cap figé à "
@@ -35,8 +40,9 @@ FEATURES = [
     Feature('antenna_lever', "Levier d'antenne GPS",
             "Le point GPS est l'ANTENNE (coin arrière droit sur le rig ENA), pas le centre "
             "du véhicule : tout le repère est ramené au centre arrière via le levier déclaré "
-            "(config gps_antenna). Corrige un biais systématique ~1 m vers la droite.",
-            default=True, scope='compute'),
+            "(config gps_antenna). Corrige un biais systématique ~1 m vers la droite. La navette "
+            "bouge tout de suite ; les objets suivis au prochain « Tracking 360° ».",
+            default=True, scope='hybrid'),
     Feature('gps_latency', 'Latence du GPS compensée',
             "Une position GPS arrive en retard sur l'image qu'elle accompagne (latence du récepteur) : "
             "la navette était dessinée en ARRIÈRE de ce que montrent les caméras, de vitesse × retard. "
@@ -45,12 +51,12 @@ FEATURES = [
             "+0,55 s (+0,3 à +0,45 s par l'accéléromètre et la vitesse Doppler, même sens), soit "
             "~1,8 m à 12 km/h. La navette bouge tout de suite ; les objets suivent au prochain "
             "« Tracking 360° ». OFF = synchro du .rec seule.",
-            default=False, scope='compute'),
+            default=False, scope='hybrid'),
     Feature('artifact_filter', 'Filtre reflets/artefacts',
             "Masque les détections collées à l'image (reflets de vitrage : bbox immobile "
             "pendant que la navette avance). Le marquage/exclusion du tracking s'applique "
             "au prochain calcul des indicateurs ; le masquage à l'affichage est immédiat.",
-            default=True, scope='live'),
+            default=True, scope='hybrid'),
     Feature('anchor_heading', 'Cap serveur des stationnés',
             "Cap des véhicules garés = consensus axial du ratio de bbox sur TOUTE la vie "
             "du track (calculé par le tracking 360°), au lieu de l'estimation frame par "
@@ -71,7 +77,7 @@ FEATURES = [
             "BD TOPO). Calculé par la passe « Correction de trajectoire ortho » ; la bascule "
             "choisit de l'appliquer, au tracking comme à l'affichage. OFF = trajectoire "
             "brute, l'offset restant mesuré et rapporté.",
-            default=False, scope='compute'),
+            default=False, scope='hybrid'),
     Feature('marking_axis_snap', 'Passages piétons calés sur le corridor',
             "Un passage piéton agrégé en monde (SAM3, toutes caméras, tous passages) prend "
             "l'orientation la plus proche de la rue de la navette ou de sa perpendiculaire, et une "
@@ -145,7 +151,7 @@ FEATURES = [
             "de la fiche technique (110° pour la caméra avant, mesurée ~75°). Change le latéral des "
             "objets, les largeurs de voie vues, le cap par ratio et la projection sol : "
             "calibration sol, recalage voie + carte et calculs sont à rejouer après bascule.",
-            default=False, scope='compute'),
+            default=False, scope='hybrid'),
     Feature('cut_box_inner_edge', 'Boîtes coupées par le bord INTÉRIEUR',
             "Une boîte coupée par le bord de l'image était placée au centre de sa partie VISIBLE, trop vers "
             "l'intérieur. On part de son bord intérieur (non coupé) et on prolonge de la demi-étendue "
@@ -256,7 +262,7 @@ FEATURES = [
             "droite et ~−77,5° à gauche le 2026-10-02). Refusée si la caméra avant, contrôle de la "
             "méthode, ne retrouve pas ~0°. Change le placement de tout ce que voient les latérales "
             "et les jonctions avec l'avant : calibration sol et calculs sont à rejouer après bascule.",
-            default=False, scope='compute'),
+            default=False, scope='hybrid'),
     Feature('parked_off_road', 'Garés = hors des voies',
             "Un véhicule est GARÉ si sa position médiane est HORS de l'emprise de chaussée IGN "
             "(à plus de 0,5 m du bord) : un immobile SUR la chaussée — à un feu, dans une file, à un "
@@ -295,8 +301,10 @@ FEATURES = [
             "positionnement (tracking 360°, ancres, TTC/PET, calibration sol) en hérite. OFF = "
             "GPS brut, cap = bearing entre fixes (±10-25° à basse vitesse — la source d'erreur "
             "angulaire dominante, §[2]). Premier levier qui touche la pose navette (inventaire "
-            "2026-09-05 : aucun avant lui). Rapport A/B chiffré en console au recalcul.",
-            default=False, scope='compute'),
+            "2026-09-05 : aucun avant lui). Rapport A/B chiffré en console au recalcul. Une fois le "
+            "filtre calculé, la navette bascule tout de suite ; les objets suivis au prochain "
+            "« Tracking 360° ».",
+            default=False, scope='hybrid'),
     Feature('prediction_ground', "Projection sol dans le TTC/PET",
             "Place les objets du calcul TTC/PET par PROJECTION SOL (calib `ground_calib`) au "
             "lieu du pinhole. 🔴 **OFF par DÉCISION, pas par prudence** : la projection sol "
@@ -337,8 +345,9 @@ FEATURES = [
             "recalage ortho. Calcul stocké par la passe « Recalage voie + carte » ; appliqué au "
             "point d'ingestion UNIQUE de la pose, après ⚑ shuttle_filter. Mesure fondatrice : "
             "GPS ≈ 2 m trop à droite et cap figé à −5,9° à Roumanille-Poincaré (2026-09-28). "
-            "OFF = pose GPS (filtrée ou brute), comportement historique.",
-            default=False, scope='compute'),
+            "OFF = pose GPS (filtrée ou brute), comportement historique. Une fois la passe faite, la "
+            "navette bascule tout de suite ; les objets suivis au prochain « Tracking 360° ».",
+            default=False, scope='hybrid'),
     Feature('imu_command', "Accéléromètre en commande du filtre navette",
             "Le filtre de trajectoire navette (⚑ `shuttle_filter`) cesse de supposer "
             "« accélération inconnue ±0,8 m/s² » et prend l'accélération MESURÉE par "
@@ -415,10 +424,11 @@ def effective(session):
 
 
 def compute_snapshot(session):
-    """Bascules de CALCUL (`scope='compute'`) en vigueur : ce qu'un calcul stocké a vu. Une bascule
-    d'affichage (`live`) n'invalide aucun calcul, elle n'y figure donc pas."""
+    """Bascules lues par un CALCUL (`compute`, et `hybrid` dont la page applique une partie tout de
+    suite) en vigueur : ce qu'un calcul stocké a vu. Une bascule d'affichage (`live`) n'invalide
+    aucun calcul, elle n'y figure donc pas."""
     eff = effective(session)
-    return {f.key: eff[f.key] for f in FEATURES if f.scope == 'compute'}
+    return {f.key: eff[f.key] for f in FEATURES if f.scope in RECOMPUTE_SCOPES}
 
 
 def catalog(session):

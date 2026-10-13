@@ -60,11 +60,13 @@ class TrackingIsCurrentTest(SimpleTestCase):
 
 
 class ComputeSnapshotTest(SimpleTestCase):
-    def test_only_compute_switches_enter_the_snapshot(self):
+    def test_every_switch_a_computation_reads_enters_the_snapshot(self):
         from wama_lab.cam_analyzer.utils.features import FEATURES as REG, compute_snapshot
         snap = compute_snapshot(SimpleNamespace(config={}))
-        self.assertEqual(set(snap), {f.key for f in REG if f.scope == 'compute'})
+        self.assertEqual(set(snap), {f.key for f in REG if f.scope in ('compute', 'hybrid')})
         self.assertNotIn('display_ema', snap)     # une bascule d'affichage n'invalide aucun calcul
+        # lue par le tracking ET appliquée en partie par la page : elle périme le tracking (2026-10-13)
+        self.assertIn('fov_dist_correction', snap)
 
 
 class FailedSideInputTest(TrackingIsCurrentTest):

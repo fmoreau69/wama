@@ -123,7 +123,7 @@ class MeasuredYawFlagTest(SimpleTestCase):
         from wama_lab.cam_analyzer.utils.features import FEATURES
         flag = {f.key: f for f in FEATURES}['measured_camera_yaw']
         self.assertFalse(flag.default)
-        self.assertEqual(flag.scope, 'compute')
+        self.assertEqual(flag.scope, 'hybrid')   # la page l'applique aux cônes et aux objets non suivis
 
     def test_the_js_mirror_reads_the_effective_yaw(self):
         from pathlib import Path

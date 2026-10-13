@@ -303,27 +303,37 @@ sont sur le PROFIL (pas la session).
 Chaque amélioration COMPARABLE est une bascule déclarée dans `utils/features.py`
 (mécanisme générique : `wama/common/utils/feature_flags.py`, conçu pour WAMA Data) —
 panneau ⚑ Modes de la vue de dessus, persistée dans `session.config['features']`.
-Les bascules `live` agissent instantanément au rendu (JS `rebuildCamGeo`) ET côté
-backend au prochain calcul (`camera_geometry` les consulte — un seul point d'application
-par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration comparable.
+Trois scopes, rangés dans cet ordre dans le panneau « Comparer » (un groupe repliable chacun,
+du plus direct au plus coûteux — `feature_flags.SCOPES`, 2026-10-13) :
+- `live` — affichage seul, effet immédiat ; **aucun calcul ne la lit** ;
+- `hybrid` — la page en applique une partie tout de suite (la navette, depuis un calcul déjà
+  stocké ; les objets non suivis, par sa propre géométrie `rebuildCamGeo`), et un calcul la lit
+  aussi : les objets SUIVIS gardent l'état du dernier « Tracking 360° » jusqu'au prochain. ⚠ Un
+  A/B au clic ne compare donc que la navette : l'écart navette ↔ objets suivis mêle deux états ;
+- `compute` — aucun effet avant le recalcul.
+`hybrid` et `compute` entrent dans l'instantané du tracking (`compute_snapshot`) : les changer le
+périme. **Le scope se MESURE à qui lit la bascule** (`tests_feature_scopes`) — jusqu'au
+2026-10-13, trois bascules `live` étaient lues par le tracking (le changer ne le périmait pas) et
+sept bascules `compute` déplaçaient la navette au clic.
+Règle : **jamais de if ad hoc dispersé** pour une amélioration comparable.
 
 | Bascule | Défaut | Scope | Effet |
 |---|---|---|---|
-| `fov_dist_correction` | ON | live | correction des distances annotées avec un ancien FOV V |
-| `mount_lever_arm` | ON | live | bras de levier des caméras (montage vs centre arrière) |
+| `fov_dist_correction` | ON | hybrid | correction des distances annotées avec un ancien FOV V |
+| `mount_lever_arm` | ON | hybrid | bras de levier des caméras (montage vs centre arrière) |
 | `heading_ratio` | ON | live | cap par ratio de bbox fondu avec la trajectoire |
-| `antenna_lever` | ON | compute | point GPS = antenne (coin arrière droit ENA) ramené au centre arrière |
-| `gps_latency` | OFF | compute | la synchro vidéo → GPS ajoute la latence du GPS mesurée par « Cap visuel » (+0,55 s sur ENA_CASA, 2026-10-13) |
-| `artifact_filter` | ON | live | masque les reflets/artefacts fixes (bbox immobile pendant que la navette avance) |
+| `antenna_lever` | ON | hybrid | point GPS = antenne (coin arrière droit ENA) ramené au centre arrière |
+| `gps_latency` | OFF | hybrid | la synchro vidéo → GPS ajoute la latence du GPS mesurée par « Cap visuel » (+0,55 s sur ENA_CASA, 2026-10-13) |
+| `artifact_filter` | ON | hybrid | masque les reflets/artefacts fixes (bbox immobile pendant que la navette avance) |
 | `anchor_heading` | ON | live | cap des garés = consensus axial du ratio sur toute la vie du track |
 | `heading_cluster` | ON | compute | prior de cap : garés voisins <15 m partagent leur axe |
 | `sam3_interp` | ON | live | interpolation des marquages SAM3 entre keyframes (fondu aux bords) |
 | `world_markings` | ON | compute | stop_line/crossing projetés+agrégés en monde (bornes d'intersection) |
 | `learned_branches` | ON | compute | voies croisantes apprises des trajectoires du trafic |
-| `ortho_correction` | OFF | compute | étape 2b APPLIQUÉE (fonction `cam_analyzer.ortho_correction`) : biais caméra (médiane globale) écarté, correction GPS locale par intersection, interpolée et atténuée selon le masquage satellite BD TOPO |
+| `ortho_correction` | OFF | hybrid | étape 2b APPLIQUÉE (fonction `cam_analyzer.ortho_correction`) : biais caméra (médiane globale) écarté, correction GPS locale par intersection, interpolée et atténuée selon le masquage satellite BD TOPO |
 | `sam3_homography` | ON | compute | la voie **DLT sur passage piéton** (`camera.ground_homography`) devient COMMUTABLE là où elle est consommée (analyse, `marking_world`, `lane_estimator`) — elle s'appliquait sans bascule (§INVENTAIRE D.2). ON = historique |
 | `display_ema` | ON | live | l'**EMA α=0,3** de distance/latéral en repli d'affichage ③ (`index.js`) devient COMMUTABLE — hypothèse D.3 (retard de phase = garés qui « suivent la navette ») testable en direct, sans recalcul. ON = historique |
-| `shuttle_filter` | OFF | compute | **pose NAVETTE filtrée** (Kalman vitesse-constante + RTS, brique pure `driving.ego_track_filter`) : position lissée, cap dérivé de la vitesse lissée et tenu sous 1 m/s. Calcul stocké (`results_summary.shuttle_filter`), bascule relue au point d'ingestion UNIQUE serveur (`ego_pose.effective_gps_track`) et JS (`_applyShuttleFilter`). Premier ⚑ qui touche la pose navette (2026-09-05). A/B console : déplacement RMS, écart de cap médian, part tenue |
+| `shuttle_filter` | OFF | hybrid | **pose NAVETTE filtrée** (Kalman vitesse-constante + RTS, brique pure `driving.ego_track_filter`) : position lissée, cap dérivé de la vitesse lissée et tenu sous 1 m/s. Calcul stocké (`results_summary.shuttle_filter`), bascule relue au point d'ingestion UNIQUE serveur (`ego_pose.effective_gps_track`) et JS (`_applyShuttleFilter`). Premier ⚑ qui touche la pose navette (2026-09-05). A/B console : déplacement RMS, écart de cap médian, part tenue |
 | `track_speed_unified` | OFF | compute | (chantier) vitesse/distance monde uniques par track |
 
 ## Calibration sol — plan complet (angle par le mouvement + échelle par les marquages)
