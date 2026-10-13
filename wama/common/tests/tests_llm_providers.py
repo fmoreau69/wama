@@ -256,3 +256,70 @@ class DeclaredRequestBodyTest(SimpleTestCase):
         with patch.object(llm_utils, 'llm_chat', return_value=('OK', None)) as chat:
             llm_utils.chat_with_source('openrouter', 'm', MESSAGES)
         self.assertIs(False, chat.call_args.kwargs['data_reuse_ok'])
+
+
+class ProviderSaturationNoteTest(SimpleTestCase):
+    """2026-10-13 (ROADMAP §8d step 2): a call refused because the PROVIDER is saturated NOTES it
+    — the automatic draw then leaves it out while the note lasts — and a caller that has another
+    provider at hand can skip the minute's wait. A fault of the request notes nothing."""
+
+    class RateLimitError(Exception):
+        status_code = 429
+
+        def __init__(self):
+            super().__init__('limit')
+            self.response = MagicMock(headers={'retry-after': '7'})
+
+    class ServiceUnavailableError(Exception):
+        status_code = 503
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def tearDown(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def _fail(self, error, **kwargs):
+        def completion(**_kwargs):
+            raise error
+        with patch.dict(sys.modules, {'litellm': MagicMock(completion=completion)}), \
+                patch('time.sleep') as sleep:
+            result = llm_utils.llm_chat(MESSAGES, provider='albert', model='m', api_key='k',
+                                        **kwargs)
+        return result, sleep
+
+    def _noted(self, scope):
+        from wama.model_manager.services.cloud_models import saturated_sources
+        return saturated_sources({'albert': scope}).get('albert', '')
+
+    def test_a_rate_limit_without_waiting_fails_at_once_and_notes_the_key(self):
+        (text, _error), sleep = self._fail(self.RateLimitError(), rate_limit_wait=False,
+                                           saturation_scope='user:7')
+        self.assertIsNone(text)
+        sleep.assert_not_called()
+        self.assertEqual(llm_utils.RATE_LIMITED, self._noted('user:7'))
+        # The limit belongs to THAT key: another key is not concerned.
+        self.assertEqual('', self._noted('instance'))
+
+    def test_the_scope_is_computed_only_when_a_failure_is_noted(self):
+        scope = MagicMock(return_value='user:8')
+        with patch.dict(sys.modules, {'litellm': _fake_litellm()}):
+            llm_utils.llm_chat(MESSAGES, provider='albert', model='m', api_key='k',
+                               saturation_scope=scope)
+        scope.assert_not_called()
+        self._fail(self.RateLimitError(), rate_limit_wait=False, saturation_scope=scope)
+        self.assertEqual(llm_utils.RATE_LIMITED, self._noted('user:8'))
+
+    def test_an_outage_is_noted_for_every_key(self):
+        self._fail(self.ServiceUnavailableError('down'))
+        self.assertEqual(llm_utils.UNAVAILABLE, self._noted('user:9'))
+
+    def test_a_fault_of_the_request_notes_nothing(self):
+        """Counter-check: a refused key or an unknown model is not fixed by another provider."""
+        for error in (ValueError('clé refusée'), type('AuthenticationError', (Exception,),
+                                                      {'status_code': 401})('401')):
+            with self.subTest(error=type(error).__name__):
+                self._fail(error)
+                self.assertEqual('', self._noted('instance'))

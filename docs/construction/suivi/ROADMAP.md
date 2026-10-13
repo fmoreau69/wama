@@ -1435,14 +1435,20 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
      source qui les sert à condition d'entraîner (`free_models_need_data_reuse`, mesuré : 404
      « Free model training » sous `deny`) n'y entrent qu'au dernier cran du plafond. Gardes :
      `tests_cloud_models.FreeModelsOfAMeteredSourceTest`.
-  2. ⏳ **Bascule sur panne** : 429 après la reprise, 5xx, délai dépassé, connexion refusée → le
-     fournisseur est noté SATURÉ quelques minutes (durée = `Retry-After`, sinon celle de la source)
-     et le tirage est REJOUÉ sans lui ; une tentative par fournisseur, garde-fou de boucle sur le
-     modèle de `_invented_turn`. La note sert aux tours suivants (on ne reperd pas 60 s), et la
-     bascule est DITE (« Albert saturé → ILaaS », intention `§8d` plus bas : dire quand une donnée
-     part et pourquoi). Pas d'attente de 60 s quand un autre candidat existe. Domicile de la note
-     à trancher en lisant `resource_governor` (orienté GPU) — sinon une petite brique commune
-     déclarée à `mecanismes.py`.
+  2. ✅ **Bascule sur panne** (13/10) : 429, 5xx, délai dépassé, connexion refusée → le
+     fournisseur est noté SATURÉ (durée = `Retry-After`, sinon celle de la source ; 3 min pour une
+     panne) et le tirage AUTOMATIQUE l'écarte le temps de la note — pour tout appelant, puisque
+     tous lisent `allowed_cloud_keys`. Domicile : `cloud_models` (l'admission), pas
+     `resource_governor`, qui gouverne les ressources LOCALES ; la note vit dans le cache partagé.
+     L'assistant en est le premier utilisateur : modèle tiré → relais immédiat, sans l'attente de
+     60 s, une source jamais reprise dans le même tour, bascule DITE ; modèle choisi → relais
+     PROPOSÉ, joué en un clic sur le web. Détail et gardes : `WAMA_LLM.md` (§ limite de débit
+     d'Albert). **Restes** : ① le relais EN COURS D'APPEL pour une app (une tâche qui a tiré son
+     modèle puis échoue) attend l'étape 5 — un chemin d'appel commun « tirer puis appeler » ;
+     d'ici là, une app profite de la note à son lancement SUIVANT ; ② la transcription d'Albert
+     (`albert_asr_backend`, sa propre attente sur 429) ne pose pas encore la note ; ③ le relais
+     peut être le modèle LOCAL, chargé à froid (jusqu'à ~2 min mesurées) — l'étape 4 dira quand
+     le local est admis (GPU occupé, file longue).
   3. ⏳ **Quotas comptés** : requêtes par (utilisateur, source) et par fenêtre, contre les quotas
      DÉCLARÉS sur la source (OpenRouter sans crédit : 20/min et 50/jour ; Albert) → la source est
      tenue pour saturée AVANT le 429.
@@ -1484,9 +1490,9 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
      **Suite** : clé posée (Fabien) → mesurer `/v1/models` (types, dimensions) → décider si
      `ilaas_rag` devient un fournisseur `llm` comme Albert (ses modèles de chat entreraient alors au
      tirage, avec ceux de `llm.ilaas.fr`) → brancher ou non `embed.py` sur un modèle distant.
-  **À trancher par Fabien** : ① un modèle CHOISI à la main qui sature — basculer seul, ou le dire
-  et proposer ? (aujourd'hui le choix manuel l'emporte toujours) ; ② la bascule d'abord pour
-  l'assistant seul, ou d'emblée pour les apps (`chat_with_catalog_model`, transcription Albert) ?
+  **Tranché par Fabien le 13/10** : ① un modèle CHOISI à la main qui sature ne bascule pas seul —
+  on le dit et on propose le relais en un clic (le choix manuel est un consentement explicite) ;
+  ② la bascule vit d'emblée dans la brique commune, l'assistant en premier utilisateur.
 - **Duplicata à résorber** : `wama-dev-ai/config.py::select_model_for_role` réimplémente une
   sélection RAM-aware avec chaînes de fallback, et appelle Ollama en direct (pas LiteLLM). Une
   fois la politique ci-dessus en place, c'est à **lui d'adopter la brique** (il gagne le cloud

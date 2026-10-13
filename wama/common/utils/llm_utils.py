@@ -316,25 +316,76 @@ RATE_LIMIT_RETRIES = 1
 RATE_LIMIT_WAIT_S = 60.0
 RATE_LIMIT_MAX_WAIT_S = 60.0
 
+#: Motifs d'une note de saturation (`cloud_models.note_saturation`) — affichés à l'utilisateur.
+RATE_LIMITED = 'limite de débit'
+UNAVAILABLE = 'indisponible'
+#: Une PANNE du fournisseur, pas une faute de la requête : statut HTTP, ou type d'erreur LiteLLM.
+_OUTAGE_STATUSES = (408, 500, 502, 503, 504)
+_OUTAGE_TYPES = ('APIConnectionError', 'Timeout', 'ServiceUnavailableError',
+                 'InternalServerError', 'BadGatewayError')
 
-def _completion(litellm, wait_s: float = RATE_LIMIT_WAIT_S, **kwargs):
+
+def _rate_limited(exc) -> bool:
+    return getattr(exc, 'status_code', None) == 429 or type(exc).__name__ == 'RateLimitError'
+
+
+def _retry_after(exc, wait_s: float) -> float:
+    """L'attente que le fournisseur DEMANDE (`Retry-After`), sinon `wait_s`, plafonnée."""
+    headers = getattr(getattr(exc, 'response', None), 'headers', None) or {}
+    try:
+        wait = float(headers.get('retry-after'))
+    except (TypeError, ValueError):
+        wait = wait_s
+    return min(max(wait, 1.0), RATE_LIMIT_MAX_WAIT_S)
+
+
+def provider_saturation(exc, wait_s: float = RATE_LIMIT_WAIT_S):
+    """(portée, durée, motif) quand l'échec dit que le FOURNISSEUR est saturé ou en panne — None
+    pour une faute de la requête (clé refusée, modèle inconnu), qu'un autre fournisseur ne règle
+    pas. Portée `key` : la limite tient à la clé ; `all` : la panne vaut pour tous.
+    Reconnu par le statut ou le type LiteLLM, jamais par le texte du message."""
+    if _rate_limited(exc):
+        return 'key', _retry_after(exc, wait_s), RATE_LIMITED
+    if (getattr(exc, 'status_code', None) in _OUTAGE_STATUSES
+            or type(exc).__name__ in _OUTAGE_TYPES):
+        from wama.model_manager.services.cloud_models import OUTAGE_NOTE_S
+        return 'all', OUTAGE_NOTE_S, UNAVAILABLE
+    return None
+
+
+def _note_provider_failure(provider: str, exc, wait_s: float, scope) -> None:
+    """Note le fournisseur saturé quand l'échec le dit (`provider_saturation`) — le tirage
+    automatique l'écarte alors le temps de la note (bascule, `ROADMAP §8d` étape 2). `scope` :
+    la portée de la clé, ou la fonction qui la calcule (lue seulement ici, en cas d'échec)."""
+    found = provider_saturation(exc, wait_s)
+    if found is None:
+        return
+    reach, seconds, reason = found
+    try:
+        from wama.model_manager.services.cloud_models import ALL_KEYS, note_saturation
+        if reach != 'key':
+            scope = ALL_KEYS
+        elif callable(scope):
+            scope = scope()
+        note_saturation(provider, scope=scope, seconds=seconds, reason=reason)
+    except Exception:
+        logger.debug('[llm_utils] note de saturation impossible (%s)', provider, exc_info=True)
+
+
+def _completion(litellm, wait_s: float = RATE_LIMIT_WAIT_S, retries: Optional[int] = None,
+                **kwargs):
     """`litellm.completion`, avec l'attente sur 429 (`Retry-After` s'il est donné, sinon `wait_s`,
-    plafonné). Reconnu par le statut ou le type LiteLLM, jamais par le texte du message."""
+    plafonné). Reconnu par le statut ou le type LiteLLM, jamais par le texte du message.
+    `retries=0` : aucune attente — l'appelant a un autre fournisseur sous la main."""
     import time
-    for attempt in range(RATE_LIMIT_RETRIES + 1):
+    retries = RATE_LIMIT_RETRIES if retries is None else retries
+    for attempt in range(retries + 1):
         try:
             return litellm.completion(**kwargs)
         except Exception as e:
-            limited = (getattr(e, 'status_code', None) == 429
-                       or type(e).__name__ == 'RateLimitError')
-            if not limited or attempt >= RATE_LIMIT_RETRIES:
+            if not _rate_limited(e) or attempt >= retries:
                 raise
-            headers = getattr(getattr(e, 'response', None), 'headers', None) or {}
-            try:
-                wait = float(headers.get('retry-after'))
-            except (TypeError, ValueError):
-                wait = wait_s
-            wait = min(max(wait, 1.0), RATE_LIMIT_MAX_WAIT_S)
+            wait = _retry_after(e, wait_s)
             logger.warning(f"[llm_utils] limite de débit ({kwargs.get('model')}) — "
                            f"nouvel essai dans {wait:.0f} s")
             time.sleep(wait)
@@ -355,6 +406,8 @@ def llm_chat(
     on_delta=None,
     tools: Optional[list] = None,
     data_reuse_ok: bool = False,
+    rate_limit_wait: bool = True,
+    saturation_scope='instance',
 ) -> tuple[Optional[str], Optional[str]]:
     """
     Unified LLM chat function — provider-agnostic entry point.
@@ -396,6 +449,12 @@ def llm_chat(
                     requêtes (dernier cran de son plafond, `chat_with_source`) : la règle
                     `no_reuse_request_body` de la source n'est alors PAS envoyée. Faux par
                     défaut — un appel sans utilisateur reste strict (2026-10-12).
+        rate_limit_wait: Cloud only. Faux : un 429 échoue TOUT DE SUITE, sans l'attente ni le
+                    nouvel essai — l'appelant a un autre fournisseur (tirage rejoué, 2026-10-13).
+        saturation_scope: Cloud only. Portée de la CLÉ employée (`cloud_models.saturation_scope`),
+                    ou la fonction sans argument qui la calcule — lue seulement en cas d'échec.
+                    Un échec qui dit le fournisseur saturé le NOTE pour elle, et le tirage
+                    automatique l'écarte le temps de la note (`ROADMAP §8d` étape 2).
 
     Returns:
         (text, None) on success · (None, error_string) on failure
@@ -484,6 +543,7 @@ def llm_chat(
         kwargs['tools'] = tools
     # Attente sur 429 sans `Retry-After` : celle que la source a MESURÉE, sinon la commune.
     wait_s = declared.rate_limit_wait_s or RATE_LIMIT_WAIT_S
+    retries = None if rate_limit_wait else 0
 
     try:
         if on_delta is not None:
@@ -491,7 +551,7 @@ def llm_chat(
             # 1 à 2 s (mesuré sur Albert) — sans flux, l'écran et la voix attendaient la fin.
             pieces = []
             calls: dict = {}                 # appel d'outil reçu par morceaux, par `index`
-            for chunk in _completion(litellm, wait_s, stream=True, **kwargs):
+            for chunk in _completion(litellm, wait_s, retries, stream=True, **kwargs):
                 choices = getattr(chunk, 'choices', None) or []
                 delta = getattr(choices[0], 'delta', None) if choices else None
                 fragment = getattr(delta, 'content', None)
@@ -509,7 +569,7 @@ def llm_chat(
             if not text.strip():
                 return None, EMPTY_RESPONSE_ERROR
             return text.strip(), None
-        response = _completion(litellm, wait_s, **kwargs)
+        response = _completion(litellm, wait_s, retries, **kwargs)
         message = response.choices[0].message
         for call in _listed(getattr(message, 'tool_calls', None))[:1]:
             return tool_call_text(call.function.name, call.function.arguments), None
@@ -519,6 +579,7 @@ def llm_chat(
         return text.strip(), None
     except Exception as e:
         logger.error(f"[llm_utils] LiteLLM error ({provider}/{model}): {e}")
+        _note_provider_failure(provider, e, wait_s, saturation_scope)
         return None, str(e)
 
 
@@ -617,10 +678,13 @@ def chat_with_source(source: str, model_id: Optional[str], messages: list, *, us
                      num_predict: Optional[int] = None, think: bool = False,
                      timeout: Optional[float] = None, temperature: Optional[float] = None,
                      on_delta=None, tools: Optional[list] = None,
+                     rate_limit_wait: bool = True,
                      ) -> tuple[Optional[str], Optional[str]]:
     """Un appel à un fournisseur LLM DÉCLARÉ (`external_sources`, type `llm` : Albert, API
     Anthropic…), avec la clé de l'UTILISATEUR quand il est connecté — `(texte, None)` ou
     `(None, erreur)` de `llm_chat`. Le nom du fournisseur EST le nom de la source.
+    Un échec qui dit le fournisseur saturé le NOTE pour la clé employée (`rate_limit_wait` : celui
+    de `llm_chat`).
 
     ⚠ LÈVE `CloudAccessRefused` (motif + statut HTTP) quand la garde commune refuse (profil
     « 100 % local », modèle non ouvert par la clé, clé absente) : l'appelant choisit sa forme de
@@ -633,15 +697,20 @@ def chat_with_source(source: str, model_id: Optional[str], messages: list, *, us
     """
     api_key = None
     data_reuse_ok = False
+    scope = 'instance'
     if user is not None and getattr(user, 'is_authenticated', False):
-        from wama.model_manager.services.cloud_models import cloud_access, data_reuse_accepted
+        from wama.model_manager.services.cloud_models import (
+            cloud_access, data_reuse_accepted, saturation_scope)
         api_key = cloud_access(user, source, model_id or '')
         # La règle de collecte suit le PLAFOND du profil (Fabien, 2026-10-12).
         data_reuse_ok = data_reuse_accepted(user)
+        # La portée de la clé ne se lit qu'en cas d'échec : une requête de moins par appel.
+        scope = lambda: saturation_scope(user, source)  # noqa: E731
     return llm_chat(messages, model=model_id or None, provider=source, api_key=api_key,
                     num_predict=num_predict, think=think, timeout=timeout,
                     temperature=temperature, on_delta=on_delta, tools=tools,
-                    data_reuse_ok=data_reuse_ok)
+                    data_reuse_ok=data_reuse_ok, rate_limit_wait=rate_limit_wait,
+                    saturation_scope=scope)
 
 
 def extract_json_from_llm(text: str) -> Optional[dict]:

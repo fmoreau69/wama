@@ -717,7 +717,8 @@ def _claude_code_call(messages: list, user=None, model: str = '') -> tuple:
 
 
 def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
-              think: bool = None, on_delta=None, tools: list | None = None) -> tuple:
+              think: bool = None, on_delta=None, tools: list | None = None,
+              rate_limit_wait: bool = True) -> tuple:
     """
     Un tour de LLM, quel que soit le fournisseur.
 
@@ -735,6 +736,9 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
 
     `tools` : la déclaration NATIVE des outils (`_native_tool_specs`), pour un fournisseur déclaré
     qui l'accepte — son appel revient dans la forme texte que la boucle lit déjà.
+
+    `rate_limit_wait` : faux quand le tour peut BASCULER (modèle tiré, `_failover_target`) — un
+    429 échoue alors sans l'attente d'une minute.
 
     Returns:
         (text, usage_dict) on success · (None, error_dict) on failure
@@ -769,7 +773,7 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
         try:
             text, err = chat_with_source(source.key, llm_model, messages, user=user,
                                          num_predict=4096, timeout=180.0, on_delta=on_delta,
-                                         tools=tools)
+                                         tools=tools, rate_limit_wait=rate_limit_wait)
         except CloudAccessRefused as e:
             return None, {'error': str(e), 'status': e.status}
     else:
@@ -784,6 +788,46 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
             return '', {'input_tokens': 0, 'output_tokens': 0}
         return None, {'error': err or 'LLM error', 'status': 502}
     return text, {'input_tokens': 0, 'output_tokens': 0}
+
+
+def _provider_source(provider) -> str:
+    """Source du CATALOGUE d'un fournisseur de tour (`ollama` pour le local) — sens inverse de
+    `SOURCE_PROVIDERS`, la règle de `turn_model_key`."""
+    return 'ollama' if provider in _LOCAL_PROVIDERS else PROVIDER_SOURCES.get(provider, provider)
+
+
+def _turn_is_drawn(user, provider, model) -> bool:
+    """Le modèle du tour est-il TIRÉ (« auto ») plutôt que CHOISI ? Mêmes règles que
+    `resolve_turn_model` : ce que la surface impose, sinon le réglage durable de l'utilisateur."""
+    if provider:
+        return False
+    from wama.common.utils.auto_model import AUTO, is_auto
+    if model in _LEGACY_ROLES:
+        model = None
+    return is_auto(model or assistant_settings(user).get('model') or AUTO)
+
+
+def _failover_target(user, provider, domain, tried) -> tuple | None:
+    """Après un échec du tour : (motif, fournisseur, modèle) de RELAIS quand le fournisseur vient
+    d'être noté saturé (`llm_chat` pose la note : limite de débit, panne), None sinon.
+
+    BASCULE SUR PANNE (`ROADMAP §8d` étape 2, 2026-10-13 — conception de la session « bascule
+    entre clouds », décisions de Fabien du 13/10) : le relais est le TIRAGE COMMUN REJOUÉ — la
+    note écarte déjà la source à l'admission (`allowed_cloud_keys`) —, jamais une liste écrite à
+    la main ; `tried` (les sources déjà essayées dans le tour) interdit d'y revenir. Le tour
+    l'emploie quand son modèle est TIRÉ ; un modèle CHOISI ne bascule pas seul, le relais est
+    alors PROPOSÉ (le choix manuel est un consentement explicite)."""
+    if user is None or provider in _LOCAL_PROVIDERS or provider in _SUBSCRIPTION_PROVIDERS:
+        return None
+    from wama.model_manager.services.cloud_models import saturation_reason
+    reason = saturation_reason(user, _provider_source(provider))
+    if not reason:
+        return None
+    from wama.common.utils.auto_model import AUTO
+    new_provider, new_model = resolve_turn_model(user, None, AUTO, domain=domain)
+    if _provider_source(new_provider) in tried:
+        return None
+    return reason, new_provider, new_model
 
 
 def _accepts_native_tools(source, model: str | None) -> bool:
@@ -1297,6 +1341,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # Le fournisseur se DÉRIVE du modèle (réglage durable de l'utilisateur, sinon tirage « auto »)
     # quand la surface n'impose rien : c'est ce qui donne le MÊME choix au web, à l'API et aux
     # canaux, sans qu'aucune surface ne porte de réglage propre.
+    # Un modèle TIRÉ peut basculer sur panne ; un modèle CHOISI, non (`_failover_target`).
+    drawn = _turn_is_drawn(user, provider, model) if user is not None else False
     provider, llm_model = resolve_turn_model(user, provider, model, domain=domain)
     from wama.common.utils.assistant_skills import resolve_domain
     development = resolve_domain(domain).development
@@ -1444,6 +1490,11 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # Reste à 0 pour les autres fournisseurs, qui ne rapportent pas de coût.
     total_usage = {'input_tokens': 0, 'output_tokens': 0, 'cost_usd': 0.0}
     empty_retried = False
+    # Bascule sur panne : les sources essayées dans ce tour, et les relais déjà faits (dits). Un
+    # modèle TIRÉ n'attend pas une limite de débit — il a un relais ; l'option n'est passée que
+    # là, l'appel d'un modèle choisi garde sa forme d'avant.
+    tried, relays = {_provider_source(provider)}, []
+    no_wait = {'rate_limit_wait': False} if drawn else {}
 
     for _ in range(MAX_TOOL_ITERATIONS):
         # FLUX (levier 5) : un portier par itération — il ne laisse passer ni la réflexion du
@@ -1454,9 +1505,42 @@ def run_assistant_turn(user, message: str, provider: str = None,
         if on_event is not None:
             gate = _TokenGate(lambda fragment: on_event({'type': 'delta', 'text': fragment}))
         text, result = _llm_call(messages, llm_model, provider, user=user, think=think,
-                                 on_delta=(gate.feed if gate else None), **native_kwargs)
+                                 on_delta=(gate.feed if gate else None),
+                                 **no_wait, **native_kwargs)
         if gate is not None:
             gate.close()
+        # BASCULE SUR PANNE (`ROADMAP §8d` étape 2, 2026-10-13) : le fournisseur vient d'être noté
+        # saturé. Modèle TIRÉ → le tirage est rejoué sans lui et le tour CONTINUE, en le disant —
+        # sans l'attente d'une minute (mesuré le 12/10 : 83,8 s puis l'erreur). Modèle CHOISI → rien
+        # ne bascule seul : le relais est PROPOSÉ (décision de Fabien du 13/10).
+        relay = _failover_target(user, provider, domain, tried) if text is None else None
+        if relay is not None and drawn:
+            reason, new_provider, new_model = relay
+            relays.append(f"{_provider_source(provider)} : {reason}")
+            provider, llm_model = new_provider, new_model
+            local = provider in _LOCAL_PROVIDERS
+            if local:
+                llm_model = _route_model_by_context(llm_model, messages)
+            think = thinking_wanted(assistant_settings(user).get('quality_intent')) if local else None
+            tried.add(_provider_source(provider))
+            native_tools = _native_tool_specs(user, provider, dev_tools, llm_model)
+            native_kwargs = {'tools': native_tools} if native_tools else {}
+            etiquette = f"{_label(provider, llm_model, local)} · relais ({', '.join(relays)})"
+            logger.warning("[ai_chat] %s — relais : %s", relays[-1], etiquette)
+            if on_event is not None:
+                on_event({'type': 'delta', 'text': f"\n\n_⟳ {relays[-1]} — relais par "
+                                                   f"{_label(provider, llm_model, local)}…_\n\n"})
+                on_event({'type': 'model', 'model_key': turn_model_key(provider, llm_model),
+                          'label': etiquette})
+            continue
+        if relay is not None:
+            reason, new_provider, new_model = relay
+            proposed = _label(new_provider, new_model, new_provider in _LOCAL_PROVIDERS)
+            result = dict(result, error=(
+                f"{result.get('error') or 'Erreur du fournisseur'}\n\n"
+                f"{_provider_source(provider)} : {reason}. Le modèle choisi dans vos réglages ne "
+                f"répond pas pour l'instant ; le choix automatique répondrait avec {proposed}."),
+                fallback={'model_key': turn_model_key(new_provider, new_model), 'label': proposed})
         if text is None:
             return result  # error dict
 

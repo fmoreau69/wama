@@ -164,6 +164,27 @@
     return wrap;
   };
 
+  /** Bulle d'ERREUR d'un tour. Le modèle CHOISI est saturé (2026-10-13) : le serveur PROPOSE le
+   *  relais que le choix automatique prendrait (`fallback`) — un clic renvoie le même message
+   *  avec ce modèle, pour ce message seul ; le réglage de l'utilisateur ne change pas. */
+  Chat.prototype.errorBubble = function (result, message) {
+    var line = this.bubble((result && result.error) || 'Erreur', 'error');
+    var relay = result && result.fallback;
+    if (relay && relay.model_key && message) {
+      var self = this;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-sm btn-outline-secondary ms-2 align-top';
+      btn.textContent = 'Répondre avec ' + (relay.label || relay.model_key);
+      btn.addEventListener('click', function () {
+        btn.disabled = true;
+        self.send({ message: message, model: relay.model_key });
+      });
+      line.appendChild(btn);
+    }
+    return line;
+  };
+
   Chat.prototype.textOf = function (bubble) {
     var clone = bubble.cloneNode(true);
     var badge = clone.querySelector('.wama-assistant-model');
@@ -311,20 +332,26 @@
   // Rend la PROMESSE du tour (résolue quand la réponse est écrite — pas quand elle est dite) :
   // la conversation vocale (`wama-assistant-listen.js`) enchaîne dessus. Rien à envoyer →
   // promesse résolue tout de suite.
-  Chat.prototype.send = function () {
-    var message = (this.input.value || '').trim();
+  // `relay` ({message, model}) : renvoi d'un message avec le modèle proposé (`errorBubble`) — la
+  // saisie en cours n'est pas touchée.
+  Chat.prototype.send = function (relay) {
+    var message = relay ? relay.message : (this.input.value || '').trim();
     if (!message || this.input.disabled) return Promise.resolve(false);
     this.dropGreeting();
     this.feed.appendChild(this.bubble(message, 'user'));
-    this.input.value = '';
-    this.autoGrow();
+    if (!relay) {
+      this.input.value = '';
+      this.autoGrow();
+    }
     this.busy(true);
     this.startWaiting();
     if (global.WamaAssistantVoice) global.WamaAssistantVoice.stop();
     this.controller = global.AbortController ? new AbortController() : null;
     this.pendingPage = null;          // une page retenue par un tour précédent ne se suit plus
     var self = this;
-    var tour = this.cfg.streamUrl ? this.sendStreaming(message) : this.sendBlocking(message);
+    var model = relay ? relay.model : null;
+    var tour = this.cfg.streamUrl ? this.sendStreaming(message, model)
+      : this.sendBlocking(message, model);
     return tour.catch(function (e) {
       self.stopWaiting();
       self.pendingPage = null;        // tour interrompu ou en échec : on ne quitte pas la page
@@ -385,12 +412,17 @@
     });
   };
 
-  Chat.prototype.sendBlocking = function (message) {
+  /** Corps d'un tour : le message, et le modèle imposé pour lui seul s'il y en a un. */
+  function turnBody(message, model) {
+    return JSON.stringify(model ? { message: message, model: model } : { message: message });
+  }
+
+  Chat.prototype.sendBlocking = function (message, model) {
     var self = this;
     return fetch(this.cfg.chatUrl, {
       method: 'POST', signal: this.signal(),
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
-      body: JSON.stringify({ message: message }),
+      body: turnBody(message, model),
     }).then(function (r) {
       // ⚠ Brique commune : un 502/504 rend du HTML, et `response.json()` seul faisait lire
       // « Unexpected token '<' » à l'utilisateur au lieu de la raison (mesuré le 23/09).
@@ -399,7 +431,7 @@
     }).then(function (data) {
       self.stopWaiting();
       if (data.success === false || (!data.success && data.error)) {
-        self.feed.appendChild(self.bubble(data.error || 'Erreur', 'error'));
+        self.feed.appendChild(self.errorBubble(data, message));
         return;
       }
       if (data.tool_steps && data.tool_steps.length) {
@@ -419,10 +451,10 @@
    * modèle, donc l'affichage se réaligne dessus. Sans ce recalage, un fragment perdu laisserait
    * à l'écran un texte différent de celui qui est enregistré dans le fil.
    */
-  Chat.prototype.sendStreaming = function (message) {
+  Chat.prototype.sendStreaming = function (message, model) {
     var self = this;
     if (!global.fetch || !global.ReadableStream || !global.TextDecoder) {
-      return this.sendBlocking(message);
+      return this.sendBlocking(message, model);
     }
     var voix = global.WamaAssistantVoice ? global.WamaAssistantVoice.speakStream() : null;
     var bulle = null, texte = '', recu = false;
@@ -443,14 +475,14 @@
     return fetch(this.cfg.streamUrl, {
       method: 'POST', signal: this.signal(),
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
-      body: JSON.stringify({ message: message }),
+      body: turnBody(message, model),
     }).then(function (resp) {
       var type = resp.headers.get('Content-Type') || '';
       // Le serveur n'a pas ouvert de flux (garde GPU, erreur, route absente) : on retombe sur
       // le tour synchrone plutôt que d'échouer — le repli est la raison d'être de ce test.
       if (!resp.ok || type.indexOf('text/event-stream') === -1) {
         if (voix) voix.end();
-        return self.sendBlocking(message);
+        return self.sendBlocking(message, model);
       }
       var lecteur = resp.body.getReader();
       var decodeur = new TextDecoder();
@@ -470,7 +502,7 @@
         } else if (evt.type === 'done') {
           var r = evt.result || {};
           self.stopWaiting();
-          if (r.error) { self.feed.appendChild(self.bubble(r.error, 'error')); return; }
+          if (r.error) { self.feed.appendChild(self.errorBubble(r, message)); return; }
           if (!recu) {                                       // cloud : aucun fragment, tout arrive ici
             self.feed.appendChild(self.bubble(r.response, 'assistant', r.model));
             if (voix) voix.push(r.response || '');

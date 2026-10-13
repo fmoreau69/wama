@@ -1746,6 +1746,21 @@ Le fil a été éprouvé par l'assistant : prospecter, puis installer trois OCR.
      d'écart ont tous été refusés.
    - C'est la brique commune : assistant et apps.
    - Les copies locales (ASR d'Albert, Hub dans le prospecteur) restent à rallier.
+   - **Bascule sur panne (2026-10-13, `ROADMAP §8d` étape 2).** Un échec qui dit le FOURNISSEUR
+     saturé — 429, 5xx, connexion refusée, délai dépassé ; jamais une faute de la requête (clé
+     refusée, modèle inconnu) — le NOTE dans le cache partagé (`llm_utils.provider_saturation` →
+     `cloud_models.note_saturation`) : pour la CLÉ employée s'il s'agit d'une limite de débit
+     (durée : `Retry-After`, sinon l'attente de la source), pour toutes s'il s'agit d'une panne
+     (3 min). Le tirage AUTOMATIQUE l'écarte le temps de la note (`allowed_cloud_keys`) : donc
+     PARTOUT — assistant, apps, transcription distante, rôles de dev — sans qu'aucun ne le lise.
+     L'assistant, premier utilisateur (`run_assistant_turn`) : modèle TIRÉ → pas d'attente d'une
+     minute, le tirage est REJOUÉ sans la source et le tour continue en le DISANT (« ⟳ albert :
+     limite de débit — relais par … », étiquette « · relais (…) ») ; une source n'est jamais
+     reprise dans le même tour. Modèle CHOISI → rien ne bascule seul (décision de Fabien, 13/10) :
+     l'erreur PROPOSE le relais que prendrait le tirage, et le chat web le joue en un clic
+     (« Répondre avec … » : le message renvoyé avec ce modèle, pour lui seul).
+     Gardes : `tests_cloud_failover`, `tests_llm_providers.ProviderSaturationNoteTest`,
+     `tests_cloud_models.SaturatedSourceOutOfTheDrawTest`.
 
 **Et la donnée porte la correction des clés** : le modèle recomposait `reader:hf:org/dépôt` au
 lieu de la clé `proposed:hf:org/dépôt` écrite par l'utilisateur. Le refus `not_found` de

@@ -412,13 +412,16 @@ def ai_chat_stream(request):
         return JsonResponse({'response': _RELEASE_WAIT_MESSAGE, 'busy': True})
 
     user, domain = request.user, data.get('domain')
+    # Modèle imposé pour CE message seul — le relais PROPOSÉ quand le modèle choisi est saturé
+    # (2026-10-13) ; même paramètre que le tour synchrone, mêmes gardes (`cloud_access`).
+    model = data.get('model') or None
     events: 'queue.Queue' = queue.Queue()
 
     def engine():
         from wama.common.services.assistant_engine import conversation_turn
         try:
             result = conversation_turn(user, message, surface='web', domain=domain,
-                                       on_event=events.put)
+                                       model=model, on_event=events.put)
             events.put({'type': 'done', 'result': result})
         except Exception as e:                      # jamais de trace nue vers le navigateur
             logger.exception('ai_chat_stream')

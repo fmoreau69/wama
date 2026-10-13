@@ -731,6 +731,50 @@ class FreeModelsOfAMeteredSourceTest(TestCase):
                          self._keys(automatic=False))
 
 
+class SaturatedSourceOutOfTheDrawTest(TestCase):
+    """2026-10-13 (ROADMAP §8d step 2): a provider noted saturated is left out of the AUTOMATIC
+    draw while the note lasts — for every caller, since they all read this admission. A rate
+    limit belongs to the KEY; an outage to the provider, for everyone."""
+
+    _keys = HostingCeilingTest._keys
+    _set = HostingCeilingTest._set
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        HostingCeilingTest.setUp(self)
+        self._set(cloud_hosting_max='third_party', cloud_metered_auto=True)
+
+    def tearDown(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def test_a_rate_limited_key_leaves_its_source_out_of_the_draw(self):
+        self.assertEqual({'albert:chat', 'anthropic:claude-x'}, self._keys())
+        user = get_user_model().objects.get(pk=self.user.pk)
+        self.assertEqual(f'user:{self.user.pk}', cloud_models.saturation_scope(user, 'albert'))
+        cloud_models.note_saturation('albert', scope=f'user:{self.user.pk}', seconds=60,
+                                     reason='limite de débit')
+        self.assertEqual({'anthropic:claude-x'}, self._keys())
+        self.assertEqual('limite de débit', cloud_models.saturation_reason(user, 'albert'))
+
+    def test_the_manual_choice_keeps_a_saturated_source(self):
+        """Counter-test: naming a model is a consent — the caller proposes a relay instead."""
+        cloud_models.note_saturation('albert', scope=cloud_models.ALL_KEYS, seconds=60,
+                                     reason='indisponible')
+        self.assertEqual({'albert:chat', 'anthropic:claude-x'}, self._keys(automatic=False))
+
+    def test_another_keys_limit_does_not_concern_this_user(self):
+        cloud_models.note_saturation('albert', scope='instance', seconds=60, reason='x')
+        cloud_models.note_saturation('albert', scope='user:0', seconds=60, reason='x')
+        self.assertEqual({'albert:chat', 'anthropic:claude-x'}, self._keys())
+
+    def test_an_outage_is_out_of_the_draw_for_every_key(self):
+        cloud_models.note_saturation('anthropic', scope=cloud_models.ALL_KEYS, seconds=60,
+                                     reason='indisponible')
+        self.assertEqual({'albert:chat'}, self._keys())
+
+
 @override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
 class NightlyRefreshTest(TestCase):
     """La sonde NOCTURNE relit les modèles de chaque clé (2026-10-04) : la liste n'était relue
