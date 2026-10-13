@@ -307,6 +307,8 @@
             // Deux files empilées à la fois (page à onglets) : seule la file VISIBLE répond
             // aux flèches, sinon chaque frappe déplacerait aussi le focus de l'onglet caché.
             if (queue.offsetParent === null) return;
+            // Une MODALE ouverte (la visionneuse navigue elle-même entre les cards) garde le clavier.
+            if (document.querySelector('.modal.show')) return;
             const t = ev.target;
             if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
             const list = cards();

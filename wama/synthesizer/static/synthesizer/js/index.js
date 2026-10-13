@@ -407,7 +407,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // renvoie un aperçu de la forme COMMUNE (`url`, `mime_type`, `peaks`) ; la page ne fait que :
     //   • réserver le canal de parole (`WamaApp.Speech.claim`) — un 2ᵉ clic ABANDONNE la requête
     //     en vol, et une réponse périmée n'est jamais rendue ;
-    //   • rendre par `WamaInspector.renderInlinePreview` — lecteur `WamaAudioPlayer`, onde
+    //   • rendre par `WamaMediaPreview.renderInline` — lecteur `WamaAudioPlayer`, onde
     //     dessinée des pics serveur, exclusivité (page, onglets, voix) comprise ;
     //   • lancer la lecture (`WamaAudioPlayer.play`), geste demandé par le clic.
     // La légende du lecteur (`name`) dit le moteur RÉEL — « auto » résolu — et le nombre de mots.
@@ -443,7 +443,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 host.dataset.playerId = PREVIEW_PLAYER;
                 host.style.display = 'block';
-                WamaInspector.renderInlinePreview(host, data, true);
+                WamaMediaPreview.renderInline(host, data, true);
                 WamaAudioPlayer.play(PREVIEW_PLAYER);
             } catch (error) {
                 // Abandon par un 2ᵉ clic ou une autre lecture : rien à signaler.

@@ -92,349 +92,14 @@
     });
   }
 
-  // ── DENSITÉ d'un aperçu texte, DÉCLARÉE par l'hôte (2026-08-22) ───────────────────────
-  // Un volet et une CARD n'ont pas la même densité : le volet peut dérouler 3000 caractères
-  // dans un <pre> scrollable, une card veut un extrait NU de quelques centaines de signes.
-  // Cette différence était jusqu'ici résolue en RÉÉCRIVANT l'extrait dans chaque gabarit —
-  // describer 400 (.result-preview), reader 400 (.reader-preview + filtre compact_preview),
-  // transcriber 160 (.wama-card-preview) : trois longueurs, trois classes, trois bouts de
-  // markup pour un seul et même geste. L'hôte la DÉCLARE désormais, le commun la rend.
-  //   data-preview-mode="excerpt"     → extrait nu (pas de <pre>, pas de légende)
-  //   data-preview-max-chars="400"    → longueur, propre à la card
-  // Absent = comportement d'AVANT, à l'identique (volet et adoptants du 18/08 intacts).
-  var TEXTE_MAX_VOLET = 3000, TEXTE_MAX_CARD = 400;
-
-  function _densitePreview(host) {
-    var d = (host && host.dataset) || {};
-    var mode = d.previewMode || 'rich';
-    var max = parseInt(d.previewMaxChars, 10);
-    if (!(max > 0)) max = (mode === 'excerpt') ? TEXTE_MAX_CARD : TEXTE_MAX_VOLET;
-    return { mode: mode, max: max };
-  }
-
-  // Compactage pour extrait de card : syntaxe markdown retirée, blancs écrasés. MIROIR CLIENT
-  // du filtre `compact_preview` de reader (reader_tags.py:8) — même traitement, mêmes étapes,
-  // dans le même ordre. Il devient inutile dans les gabarits : un extrait rendu par le commun
-  // ne peut plus dépendre d'un filtre que seul reader possède.
-  function _compacteTexte(t) {
-    return String(t == null ? '' : t)
-      .replace(/^#{1,6}\s+/gm, '')
-      .replace(/\*{1,3}|_{1,3}/g, '')
-      .replace(/^\s*[-*+]\s+/gm, '')
-      .replace(/\|/g, ' ')
-      .replace(/`+/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  // ── Sortie MULTIPLE : grille de vignettes (2026-08-22) ────────────────────────────────
-  // Rend la clé canonique `result_files` (N fichiers issus d'UN traitement — imager génère N
-  // images). Remplace les boucles d'<img> écrites par app.
-  // La NAVIGATION de la visionneuse est nourrie par la COLLECTION elle-même, jamais par un
-  // balayage du DOM : imager collectait `.generated-image-preview img` alors que la classe est
-  // SUR le <img>, donc sa collecte rendait 0 et la visionneuse retombait silencieusement sur
-  // « image seule, sans navigation » (constaté 22/08). Ici la liste vient de la donnée, elle
-  // ne peut pas se désaccorder du markup.
-  function _renderPreviewGrid(host, files) {
-    host.innerHTML = '';
-    var grille = document.createElement('div');
-    grille.className = 'wama-preview-grid d-flex flex-wrap gap-2';
-    files.forEach(function (f, i) {
-      var mime = (f.mime_type || '').toLowerCase();
-      var tuile;
-      if (mime.indexOf('video/') === 0) {
-        tuile = document.createElement('video');
-        tuile.src = f.url;
-        tuile.preload = 'metadata';
-      } else {
-        tuile = document.createElement('img');
-        tuile.src = f.url;
-        tuile.alt = f.name || '';
-      }
-      tuile.className = 'wama-preview-tile img-thumbnail bg-dark border-secondary';
-      tuile.title = f.name || '';
-      tuile.addEventListener('click', function (e) {
-        e.preventDefault();
-        e.stopPropagation();          // ne pas voler le clic de sélection de la card
-        if (global.showPreviewModalWithNav) global.showPreviewModalWithNav(f, files, i);
-        else if (global.showPreviewModal) global.showPreviewModal(f);
-      });
-      grille.appendChild(tuile);
-    });
-    host.appendChild(grille);
-    _previewCaption(host, files.length + ' fichiers');
-  }
-
-  // Rendu INLINE compact d'un aperçu média dans le volet (≠ modale plein écran de media-preview.js).
-  // Données = JSON de common:unified_preview {name, url, mime_type, …}. autoplay gated par le profil
-  // (jamais de génération : on n'affiche que l'existant — CARD_DESIGN §10.6 / décision Fabien).
-  // ── Aperçu « pendant » : ses VARIANTES (2026-10-04) ──────────────────────────────────────
-  // L'adresse de la face PENDANT, avec la vue choisie — pure (gardée en V8, `tests_cap_from_js`).
-  function duringUrl(baseUrl, variant) {
-    var u = baseUrl + (baseUrl.indexOf('?') === -1 ? '?' : '&') + 'side=during';
-    return variant ? u + '&variant=' + encodeURIComponent(variant) : u;
-  }
-
-  // Le bouton [Détection | Floutage] : une entrée par vue publiée, l'active en plein.
-  function variantToggle(variants, active, onPick) {
-    var bar = document.createElement('div');
-    bar.className = 'btn-group btn-group-sm wama-preview-variants mt-1 w-100';
-    (variants || []).forEach(function (v) {
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'btn py-0 px-2 flex-fill ' + (v.key === active ? 'btn-info' : 'btn-outline-info');
-      b.textContent = v.label || v.key;
-      b.setAttribute('data-variant', v.key);
-      b.addEventListener('click', function () { onPick(v.key); });
-      bar.appendChild(b);
-    });
-    return bar;
-  }
-
-  // ── Comparer : la SORTIE superposée à la RÉFÉRENCE, un curseur (2026-10-06) ──────────────
-  // Commun au volet et à la modale (la modale juxtaposait deux vidéos ; Fabien : « une
-  // superposition avec le slider comme dans le volet »). Images ou vidéos : le calque Sortie est
-  // rogné depuis la gauche, les deux médias ont la même géométrie ; deux vidéos jouent ensemble
-  // (la référence porte les contrôles) ; la référence porte sa surcouche (détections dessinées).
-  function compareView(inD, outD, baseLabel) {
-    var view = document.createElement('div');
-    view.className = 'wama-compare-view';
-    var wrap = document.createElement('div');
-    wrap.className = 'wama-compare';
-    // Les deux vidéos jouent ENSEMBLE : échappatoire de la lecture exclusive (wama-app-base).
-    wrap.setAttribute('data-wama-multiplay', '');
-    var isVideo = (inD.mime_type || '').indexOf('video/') === 0;
-    var label = escapeHtml(baseLabel || 'Entrée');
-    if (isVideo) {
-      wrap.innerHTML =
-        '<video class="wama-compare-base" src="' + escapeHtml(inD.url) + '" controls muted playsinline></video>' +
-        // Le calque porte AUSSI les contrôles (2026-10-06) : il couvrait ceux de la référence sur
-        // toute la partie rognée. Il ne capte aucun clic (`pointer-events: none`) et a la boîte
-        // de la référence : on voit ses contrôles, on clique ceux de la référence, juste dessous ;
-        // les deux vidéos étant synchronisées, l'état montré est le même.
-        '<div class="wama-compare-top"><video src="' + escapeHtml(outD.url) + '" controls muted playsinline></video></div>' +
-        '<span class="wama-compare-badge in">' + label + '</span>' +
-        '<span class="wama-compare-badge out">Sortie</span>';
-    } else {
-      wrap.innerHTML =
-        '<img class="wama-compare-base" src="' + escapeHtml(inD.url) + '" alt="' + label + '">' +
-        '<div class="wama-compare-top"><img src="' + escapeHtml(outD.url) + '" alt="Sortie"></div>' +
-        '<span class="wama-compare-badge in">' + label + '</span>' +
-        '<span class="wama-compare-badge out">Sortie</span>';
-    }
-    view.appendChild(wrap);
-    var range = document.createElement('input');
-    range.type = 'range';
-    range.min = 0; range.max = 100; range.value = 50;
-    range.className = 'form-range wama-compare-range';
-    view.appendChild(range);
-    var base = wrap.querySelector('.wama-compare-base');
-    var top = wrap.querySelector('.wama-compare-top');
-    var topMedia = top.querySelector('img, video');
-    function sync() {
-      topMedia.style.width = base.clientWidth + 'px';
-      topMedia.style.height = base.clientHeight + 'px';
-      top.style.width = range.value + '%';
-    }
-    base.addEventListener(isVideo ? 'loadedmetadata' : 'load', sync);
-    range.addEventListener('input', sync);
-    // La taille de la référence change (plein écran, volet redimensionné) : le calque suit.
-    if (global.ResizeObserver) new global.ResizeObserver(sync).observe(base);
-    if (base.complete || (isVideo && base.readyState >= 1)) sync();
-    if (isVideo && global.WamaPreviewOverlay) WamaPreviewOverlay.syncVideos(base, topMedia);
-    if (inD.overlay && global.WamaPreviewOverlay) {
-      WamaPreviewOverlay.attach(base, inD.overlay);
-      var holder = base.parentNode;
-      holder.style.display = 'block';
-      wrap.insertBefore(holder, wrap.firstChild);
-    }
-    return view;
-  }
-
-  // Une card est-elle EN COURS (son `data-status`) ? Le volet a la card ; la modale la retrouve
-  // par l'adresse d'aperçu de l'élément (`data-preview-url` commence par elle).
-  function isRunningCard(card) {
-    var st = card && card.dataset && card.dataset.status;
-    return st === 'RUNNING' || st === 'PROCESSING';
-  }
-  function cardOfPreview(baseUrl) {
-    var all = document.querySelectorAll('[data-preview-url]');
-    for (var i = 0; i < all.length; i++) {
-      if ((all[i].getAttribute('data-preview-url') || '').indexOf(baseUrl) === 0) {
-        return all[i].closest ? all[i].closest('[data-status]') : null;
-      }
-    }
-    return null;
-  }
-
-  // ── Suivre la face PENDANT (2026-10-06) : UN suiveur, pour le volet ET la modale ──────────
-  // Il interroge `?side=during` (vue choisie gardée), ne rend que ce qui a CHANGÉ (sans quoi un
-  // média partiel recréait son lecteur et redémarrait toutes les 1,3 s — 2026-08-13), et dit la
-  // fin : élément plus en cours (`isRunning`), ou partiels retirés après en avoir montré. Une app
-  // qui ne publie rien : arrêt, sans fin annoncée. La modale en avait sa copie (2026-10-05,
-  // retirée le lendemain à la question de Fabien « rien réinventé ? »).
-  //   opts = { variant, isRunning(), onFrame(données), onEnd(données|null), every }
-  //   rend { stop(), choose(variante) }
-  function followDuring(baseUrl, opts) {
-    opts = opts || {};
-    var state = { variant: opts.variant || null, sig: '', stopped: false };
-    // Boucle commune `WamaApp.Poller` : tour suivant après la réponse, pause en onglet caché.
-    var poller = new WamaApp.Poller({
-      urlTemplate: function () {
-        if (opts.isRunning && !opts.isRunning()) { end(null); return null; }
-        return duringUrl(baseUrl, state.variant);
-      },
-      interval: opts.every || 1300,
-      immediate: true,
-      maxFails: Infinity,
-      // Une réponse HTTP en erreur dit « rien à suivre » (arrêt) ; une coupure réseau, un tour perdu.
-      onError: function (id, err) { if (/^HTTP /.test((err && err.message) || '')) stop(); },
-      onData: function (id, d) {
-        if (state.stopped) return;
-        if (!d || !d.sides || !d.sides.during_capable) { stop(); return; }   // ne publie rien
-        // Rien de publié À CET INSTANT : pas encore, ou entre deux process (l'anonymizer retire
-        // ses partiels entre la détection et le floutage). La fin se lit à l'état de l'élément
-        // (`isRunning`) ; sans lui, la disparition des partiels après en avoir montré la dit.
-        if (!d.sides.has_during) { if (!opts.isRunning && state.sig) end(d); return; }
-        var sig = JSON.stringify([d.url || '', d.mime_type || '', (d.peaks || []).length,
-                                  (typeof d.content === 'string') ? d.content.length : -1,
-                                  d.variant || '', (d.variants || []).length]);
-        if (sig === state.sig) return;
-        state.sig = sig;
-        if (opts.onFrame) opts.onFrame(d);
-      },
-    });
-    function stop() { state.stopped = true; poller.stop('during'); }
-    function end(d) { stop(); if (opts.onEnd) opts.onEnd(d || null); }
-    poller.start('during');
-    return {
-      stop: stop,
-      choose: function (variant) { state.variant = variant; state.sig = ''; poller.poke('during'); },
-    };
-  }
-
-  function renderInlinePreview(host, data, autoplay) {
-    if (!host) return;
-    // Collection AVANT l'aiguillage par mime : `files` décrit N sorties, `mime_type` ne décrit
-    // que le représentant — trancher sur le mime ferait rendre une seule vignette.
-    if (Array.isArray(data.files) && data.files.length > 1) {
-      _renderPreviewGrid(host, data.files);
-      return;
-    }
-    const mime = (data.mime_type || '').toLowerCase();
-    const url = data.url || '';
-    const name = escapeHtml(data.name || '');
-    let media = '';
-    var u = escapeHtml(url);  // sécurise l'attribut src/href (guillemets, noms spéciaux)
-    if (mime.indexOf('image/') === 0) {
-      media = '<img src="' + u + '" alt="" class="wama-inspector-preview-media" style="max-width:100%;max-height:220px;border-radius:6px;">';
-    } else if (mime.indexOf('video/') === 0) {
-      media = '<video src="' + u + '" controls ' + (autoplay ? 'autoplay muted ' : '') +
-        'class="wama-inspector-preview-media" style="max-width:100%;max-height:220px;border-radius:6px;"></video>';
-    } else if (mime.indexOf('audio/') === 0) {
-      if (global.WamaAudioPlayer && WamaAudioPlayer.create) {
-        // playerId : data-player-id de l'hôte si fourni (previews DANS les cards — N players
-        // simultanés), repli 'insp' (volet inspecteur, hôte unique). 18/08.
-        var pid = (host.dataset && host.dataset.playerId) || 'insp';
-        host.innerHTML = '';
-        try {
-          host.appendChild(WamaAudioPlayer.create(url, pid, { autoplay: !!autoplay }));
-          // Pics serveur (common/utils/waveform.compute_peaks) : onde dessinée SANS décoder
-          // (fichiers longs) ou qui se CONSTRUIT (streaming « pendant »). setPeaks normalise
-          // l'échelle uint8→0-1. Additif : sans data.peaks, comportement inchangé.
-          if (Array.isArray(data.peaks) && data.peaks.length && WamaAudioPlayer.setPeaks) {
-            WamaAudioPlayer.setPeaks(pid, data.peaks);
-          }
-        }
-        catch (e) { host.innerHTML = '<audio src="' + u + '" controls ' + (autoplay ? 'autoplay ' : '') + 'style="width:100%;"></audio>'; }
-        _previewCaption(host, name);
-        return;
-      }
-      media = '<audio src="' + u + '" controls ' + (autoplay ? 'autoplay ' : '') + 'style="width:100%;"></audio>';
-    } else if (mime === 'application/pdf') {
-      media = '<embed src="' + u + '" type="application/pdf" style="width:100%;height:220px;border-radius:6px;">';
-    } else if (mime === 'text/html') {
-      // HTML : iframe SANDBOXÉE (pas de script, pas de navigation) — aperçu sûr.
-      media = '<iframe src="' + u + '" sandbox class="wama-inspector-preview-media" ' +
-        'style="width:100%;height:220px;border:0;background:#fff;border-radius:6px;"></iframe>';
-    } else if (mime.indexOf('text/') === 0) {
-      var dens = _densitePreview(host);
-      if (dens.mode === 'excerpt') {
-        // EXTRAIT de card : texte nu dans l'hôte lui-même — ni <pre> scrollable ni légende,
-        // qui sont la densité du volet. On écrit dans l'hôte SANS toucher à ses classes ni à
-        // ses attributs : c'est ce qui préserve les gestes déjà posés par les apps dessus
-        // (reader = data-action="expand" + double-clic texte intégral, transcriber = double-clic
-        // overlay via .wama-card-preview, describer = .result-preview où son polling écrit le
-        // texte partiel pendant le RUN). Tous ces contrats portent sur l'ÉLÉMENT, aucun sur son
-        // contenu — vérifié consommateur par consommateur avant le portage.
-        var _extrait = function (t) {
-          var c = _compacteTexte(t);
-          host.textContent = c ? (c.length > dens.max ? c.slice(0, dens.max) + ' …' : c) : '(vide)';
-        };
-        if (typeof data.content === 'string') {
-          _extrait(data.content);
-        } else {
-          fetch(url).then(function (r) { return r.ok ? r.text() : ''; }).then(_extrait)
-            .catch(function () { /* best-effort : la card reste lisible sans extrait */ });
-        }
-        return;
-      }
-      // Texte (plain/markdown/csv… ; ex. le PROMPT en entrée). Contenu inline si fourni
-      // (data.content, cas prompt sans fichier), sinon chargé en async depuis l'URL.
-      host.innerHTML = '<div class="wama-inspector-preview"><pre class="small text-white-50 text-start mb-1" ' +
-        'style="max-height:200px;overflow:auto;white-space:pre-wrap;word-break:break-word;">…</pre></div>';
-      var pre = host.querySelector('pre');
-      var _renderText = function (t) {
-        if (pre) pre.textContent = (t && t.length > 3000) ? t.slice(0, 3000) + '\n…' : (t || '(vide)');
-      };
-      if (typeof data.content === 'string') {
-        _renderText(data.content);
-      } else {
-        fetch(url).then(function (r) { return r.ok ? r.text() : ''; }).then(_renderText)
-          .catch(function () { if (pre) pre.textContent = '(aperçu indisponible)'; });
-      }
-      _previewCaption(host, name, data);
-      return;
-    } else {
-      media = '<a href="' + u + '" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info">' +
-        '<i class="fas fa-external-link-alt"></i> Ouvrir</a>';
-    }
-    host.innerHTML = '<div class="wama-inspector-preview text-center">' + media + '</div>';
-    // Une face qui porte une SURCOUCHE (la « Détection » de l'anonymizer, 2026-10-05) : les
-    // détections dessinées par-dessus le média, à la frame courante.
-    if (data.overlay && global.WamaPreviewOverlay) {
-      WamaPreviewOverlay.attach(host.querySelector('.wama-inspector-preview-media'), data.overlay);
-    }
-    _previewCaption(host, name, data);
-  }
-
-  // Légende : nom + métadonnées DÉJÀ présentes dans la réponse unified_preview
-  // (durée/résolution/propriétés) — 1re brique d'infos dans l'inspecteur, sans nouvel endpoint.
-  function _previewMeta(data) {
-    const bits = [];
-    if (data.duration) {
-      const d = Math.round(data.duration), m = Math.floor(d / 60), s = d % 60;
-      bits.push(m ? (m + ' min ' + (s < 10 ? '0' : '') + s + ' s') : (s + ' s'));
-    }
-    if (data.resolution) bits.push(String(data.resolution));
-    if (data.properties) bits.push(String(data.properties));
-    return bits;
-  }
-
-  function _previewCaption(host, name, data) {
-    if (name) {
-      const cap = document.createElement('small');
-      cap.className = 'text-white-50 d-block text-truncate mt-1';
-      cap.title = name; cap.textContent = name;
-      host.appendChild(cap);
-    }
-    (data ? _previewMeta(data) : []).forEach(function (t) {
-      const el = document.createElement('small');
-      el.className = 'text-muted d-block text-truncate';
-      el.style.fontSize = '.7rem';
-      el.title = t; el.textContent = t;
-      host.appendChild(el);
-    });
+  // ── L'APERÇU vient de LA brique commune `media-preview.js` (`WamaMediaPreview`) ─────────────
+  // Rendu en ligne, faces (bascule, Comparer, Pendant), visionneuse et navigation y vivent depuis
+  // le 2026-10-13 : ils étaient ICI (la visionneuse les empruntait à `WamaInspector`) et le volet
+  // recopiait la bascule des faces, sans Pendant. Le volet n'en est plus qu'un CONSOMMATEUR ; ses
+  // anciens noms restent exportés en renvois (`WamaInspector.renderInlinePreview`…).
+  function _P() { return global.WamaMediaPreview || {}; }
+  function _alias(name) {
+    return function () { var P = _P(); return P[name].apply(P, arguments); };
   }
 
   // Rendu COMPACT des infos d'item = chips (cohérent avec les cards ; INSPECTOR_DETAIL_FIELDS.md).
@@ -760,23 +425,25 @@
       }).catch(hideDetail);
     }
     var _during = null;
+    var _panelCard = null;     // la card dont le volet montre l'aperçu (Pendant, visionneuse)
     function _stopDuring() { if (_during) { _during.stop(); _during = null; } }
 
-    // Double-clic sur l'aperçu → PLEIN ÉCRAN via la modale commune (WamaMediaPreview, PAS de
-    // réinvention) + icône overlay indicative. Le payload passe TEL QUEL : la modale lit le texte
-    // inline sous `content`, comme le serveur le rend (la traduction en `text_content` qui vivait
-    // ici est retirée le 2026-10-12 — la modale ouverte d'une CARD ne la recevait pas).
+    // Double-clic sur l'aperçu → la VISIONNEUSE commune sur l'élément (ses faces, son plein écran,
+    // et les cards voisines au clavier) + icône indicative. Le payload passe TEL QUEL : la modale
+    // lit le texte inline sous `content`, comme le serveur le rend.
     function _attachFullscreen(d, baseUrl) {
-      if (!previewHost || typeof global.showPreviewModal !== 'function') return;
+      var P = _P();
+      if (!previewHost || !P.openForCard) return;
       previewHost.style.position = previewHost.style.position || 'relative';
       previewHost.title = 'Double-clic : plein écran';
-      previewHost.ondblclick = function () {
+      previewHost.ondblclick = function (e) {
+        // Une vignette de la grille ouvre déjà la visionneuse sur SON fichier (au clic).
+        if (e && e.target && e.target.closest && e.target.closest('.wama-preview-tile')) return;
         try {
-          // Transmet baseUrl + sides + side : la modale reconstruit le toggle Entrée/Comparer/Sortie.
           var m = Object.assign({}, d);
           m._baseUrl = baseUrl; m.sides = d.sides; m.side = d.side;
-          global.showPreviewModal(m);
-        } catch (e) { /* no-op */ }
+          P.openForCard(m, _panelCard, 0);
+        } catch (err) { /* no-op */ }
       };
       if (!previewHost.querySelector('.wama-preview-expand')) {
         var ic = document.createElement('div');
@@ -795,9 +462,12 @@
     function fillPreview(card, title) {
       _stopDuring();
       if (!previewHost || !card) return;
+      _panelCard = card;
       var link = (card.matches && card.matches('[data-preview-url]')) ? card : card.querySelector('[data-preview-url]');
       var url = link && link.getAttribute('data-preview-url');
       if (!url) { restorePreview(); return; }
+      // L'adresse de l'ÉLÉMENT, sans la face que porte le lien (`?side=input` du nom d'entrée).
+      if (_P().itemAddress) url = _P().itemAddress(url);
       // Défaut INTELLIGENT (2026-07-12) : item terminé → on demande la SORTIE (le serveur
       // replie sur l'entrée si l'app n'a pas de result_file). Sinon : entrée.
       var status = (card.dataset && card.dataset.status) || '';
@@ -810,19 +480,24 @@
 
     function _startDuring(baseUrl, card, title) {
       _stopDuring();
+      var P = _P();
       // VARIANTES (2026-10-04) : plusieurs vues du même instant publiées par le worker
       // (`preview_utils.publish_partial(variant=)` — l'anonymizer : détections dessinées /
       // frame floutée). La vue CHOISIE est gardée par le suiveur commun d'un tick à l'autre.
-      var follower = followDuring(baseUrl, {
-        isRunning: function () { return isRunningCard(card); },
+      var follower = P.followDuring(baseUrl, {
+        isRunning: function () { return P.isRunningCard(card); },
         onEnd: function () { _fetchPreviewSide(baseUrl, 'output', title); },   // → la SORTIE
         onFrame: function (d) {
-          renderInlinePreview(previewHost, d, false);
+          d._baseUrl = baseUrl;
+          P.renderInline(previewHost, d, false);
           // Double-clic → la modale commune, sur CETTE face suivie en direct (2026-10-05 : seule
           // face du volet sans plein écran — le double-clic rouvrait la face précédente).
           _attachFullscreen(d, baseUrl);
+          // La bascule des faces, comme sur toute autre face (2026-10-13 : le volet n'en avait
+          // pas pendant le traitement), PUIS les vues de cet instant.
+          _renderSides(baseUrl, d, title);
           if (d.variants && d.variants.length > 1) {
-            previewHost.appendChild(variantToggle(d.variants, d.variant, function (key) {
+            previewHost.appendChild(P.variantToggle(d.variants, d.variant, function (key) {
               follower.choose(key);
             }));
           }
@@ -832,72 +507,46 @@
     }
 
     function _fetchPreviewSide(baseUrl, side, title) {
-      var u = baseUrl + (baseUrl.indexOf('?') === -1 ? '?' : '&') + 'side=' + side;
-      fetch(u).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      var P = _P();
+      fetch(P.faceUrl(baseUrl, side)).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
         // accepte une face à URL (média), à CONTENU inline (prompt texte) OU à PICS (streaming)
         if (!d || (!d.url && !d.content && !(d.peaks && d.peaks.length))) { restorePreview(); return; }
         var autoplay = (cfg.autoplay != null) ? cfg.autoplay : global.WAMA_INSPECTOR_AUTOPLAY;
-        renderInlinePreview(previewHost, d, !!autoplay);
+        d._baseUrl = baseUrl;          // une vignette de la grille ouvre l'élément sur son fichier
+        P.renderInline(previewHost, d, !!autoplay);
         _attachFullscreen(d, baseUrl);
-        _renderSideToggle(baseUrl, d, title);
+        _renderSides(baseUrl, d, title);
         if (previewTitleEl && title) previewTitleEl.textContent = title;
       }).catch(restorePreview);
     }
 
-    // Toggle [Entrée | Sortie | Comparer] — générique (clés canoniques source_file/result_file,
-    // méta `sides` de unified_preview). Comparer = slider image/image (STUDIO_VISION 2026-07-12).
-    function _renderSideToggle(baseUrl, d, title) {
-      var s = d.sides;
-      if (!s || !s.has_input || !s.has_output) return;
-      var bar = document.createElement('div');
-      bar.className = 'btn-group btn-group-sm wama-preview-sides mt-1 w-100';   // pleine largeur
-      function mk(label, icon, active, onClick) {
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'btn py-0 px-2 flex-fill ' + (active ? 'btn-info' : 'btn-outline-info');
-        b.innerHTML = '<i class="fas ' + icon + ' me-1"></i>' + label;
-        b.addEventListener('click', onClick);
-        return b;
-      }
-      // Ordre CHRONOLOGIQUE (2026-07-21) : Entrée → Comparer → Sortie.
-      bar.appendChild(mk('Entrée', 'fa-right-to-bracket', d.side === 'input', function () {
-        _fetchPreviewSide(baseUrl, 'input', title);
-      }));
-      // Les faces des PROCESS du pipeline de la card (`preview_utils._process_faces`, 2026-10-12),
-      // entre l'entrée et la sortie — l'anonymizer « Détection », le transcriber « Résumé »…
-      (s.faces || []).forEach(function (f) {
-        bar.appendChild(mk(f.label, f.icon || 'fa-layer-group', d.side === f.key, function () {
-          _fetchPreviewSide(baseUrl, f.key, title);
-        }));
+    // La bascule des faces du volet = LA bascule commune (`WamaMediaPreview.sidesBar`, en densité
+    // de volet) : la même que la visionneuse, Pendant compris. Le volet la recopiait jusqu'au
+    // 2026-10-13 (sans la face Pendant). Changer de face arrête le suivi en direct.
+    function _renderSides(baseUrl, d, title) {
+      var P = _P();
+      var bar = P.sidesBar && P.sidesBar(d, {
+        compact: true,
+        go: function (side) {
+          _stopDuring();
+          if (side === 'during') _startDuring(baseUrl, _panelCard, title);
+          else _fetchPreviewSide(baseUrl, side, title);
+        },
+        compare: function () { _stopDuring(); _renderCompare(baseUrl, title, d.sides); },
       });
-      if (s.comparable) {
-        bar.appendChild(mk('Comparer', 'fa-left-right', d.side === 'compare', function () {
-          _renderCompare(baseUrl, title, s);
-        }));
-      }
-      bar.appendChild(mk('Sortie', 'fa-flag-checkered', d.side === 'output', function () {
-        _fetchPreviewSide(baseUrl, 'output', title);
-      }));
-      previewHost.appendChild(bar);
+      if (bar) previewHost.appendChild(bar);
     }
 
-    // Slider comparatif entrée/sortie (V1 : images) — l'image SORTIE est rognée par un
-    // conteneur dont la largeur suit le curseur ; les deux images ont la même géométrie.
+    // Comparer dans le volet : les faces de `compareFaces`, la vue `compareView` — celles de la
+    // visionneuse (la SORTIE rognée par le curseur, superposée à la référence).
     function _renderCompare(baseUrl, title, sides) {
-      var sep = baseUrl.indexOf('?') === -1 ? '?' : '&';
+      var P = _P();
       var s = sides || { has_input: true, has_output: true, comparable: true };
-      var baseSide = s.compare_base || 'input';
-      var baseLabel = baseSide === 'input' ? 'Entrée'
-        : ((s.faces || []).filter(function (f) { return f.key === baseSide; })[0] || {}).label || baseSide;
-      Promise.all([
-        fetch(baseUrl + sep + 'side=' + baseSide).then(function (r) { return r.json(); }),
-        fetch(baseUrl + sep + 'side=output').then(function (r) { return r.json(); }),
-      ]).then(function (both) {
-        var inD = both[0], outD = both[1];
-        if (!inD || !outD || !inD.url || !outD.url) return;
+      P.compareFaces(baseUrl, s).then(function (pair) {
+        if (!pair) return;
         previewHost.innerHTML = '';
-        previewHost.appendChild(compareView(inD, outD, baseLabel));
-        _renderSideToggle(baseUrl, { side: 'compare', sides: s }, title);
+        previewHost.appendChild(P.compareView(pair.din, pair.dout, pair.baseLabel));
+        _renderSides(baseUrl, { side: 'compare', sides: s }, title);
       });
     }
 
@@ -1186,6 +835,16 @@
     const db = $(ids.deselect);
     if (db) db.addEventListener('click', deselect);
 
+    // La visionneuse refermée sur une AUTRE card que celle d'où on l'a ouverte la désigne
+    // (`media-preview.js`, `wama:preview-card`) : le volet la sélectionne — une seule sélection,
+    // et les flèches du volet reprennent de là.
+    qc.addEventListener('wama:preview-card', function (e) {
+      const card = e.target && e.target.closest && e.target.closest(CARD_SEL);
+      if (!card || !card.dataset.id || !qc.contains(card)) return;
+      selectItem(card.dataset.id);
+      if (card.scrollIntoView) card.scrollIntoView({ block: 'nearest' });
+    });
+
     // ── Navigation clavier (générique) ──────────────────────────────────────
     // ↑/↓ : déplace la sélection entre cards — UNIQUEMENT si une card est déjà sélectionnée
     // (on n'usurpe pas le scroll de page tant que l'utilisateur n'est pas « entré » dans la file).
@@ -1212,6 +871,10 @@
     if (cfg.keyboardNav !== false) {
       document.addEventListener('keydown', function (e) {
         if (e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+        // Une MODALE ouverte (la visionneuse, des réglages) garde le clavier : ↑/↓ déplaçaient la
+        // sélection DERRIÈRE la visionneuse sans qu'elle change, et Échap désélectionnait la card
+        // en refermant la modale (mesuré le 2026-10-13). La visionneuse navigue elle-même.
+        if (document.querySelector('.modal.show')) return;
         if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && itemId !== null) {
           e.preventDefault();
           moveSelection(e.key === 'ArrowDown' ? 1 : -1);
@@ -1401,57 +1064,11 @@
     return api;
   }
 
-  // ── Preview de RÉSULTAT dans les CARDS — mécanisme COMMUN (18/08, décision Fabien) ─────
-  // La route (mécanisme « Preview unifiée » n°30) veut que la preview vienne du COMMUN, pas
-  // d'un markup par app : une card déclare UNIQUEMENT un placeholder
-  //   <div class="wcv3-preview" data-card-preview="<unified_preview>?side=output"
-  //        data-player-id="<pk>"></div>
-  // et l'hydrateur ci-dessous fetch le JSON unified_preview puis rend via le MÊME
-  // renderInlinePreview que le volet (mime-driven : image/vidéo/audio-waveform+pics/pdf/
-  // texte). Remplace les markups <video>/<img> écrits à la main dans les templates.
-  function hydrateCardPreviews(root) {
-    var scope = root || document;
-    var hosts = scope.querySelectorAll('[data-card-preview]:not([data-preview-hydrated])');
-    hosts.forEach(function (host) {
-      host.setAttribute('data-preview-hydrated', '1');
-      fetch(host.getAttribute('data-card-preview'))
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (d) {
-          if (d && (d.url || typeof d.content === 'string')) renderInlinePreview(host, d, false);
-        })
-        .catch(function () { /* best-effort : la card reste lisible sans preview */ });
-    });
-  }
-  // Auto : au chargement + sur toute mutation de la page (refreshCard remplace des nœuds,
-  // les batchs se déplient…). Observer léger : ne re-scanne que si des nœuds sont AJOUTÉS.
-  //
-  // ⚠ Le déclencheur regarde si les nœuds AJOUTÉS portent (ou contiennent) un hôte de preview,
-  // au lieu de re-scanner tout le document à chaque lot. Sans ce filtre, ce fichier ne pouvait
-  // pas être chargé globalement : sur une page à fort brassage DOM et SANS card (filemanager et
-  // son arbre jstree, polling des stats), chaque ajout de nœud déclenchait un
-  // `querySelectorAll` sur tout le document, pour rien. Le comportement est inchangé là où il
-  // y a des cards — on ne fait que cesser de payer là où il n'y en a pas. (2026-08-20, préalable
-  // au chargement global demandé par Fabien.)
-  var HOTE_PREVIEW = '[data-card-preview]';
-  function _contientHote(n) {
-    if (!n || n.nodeType !== 1) return false;
-    return (n.matches && n.matches(HOTE_PREVIEW)) ||
-           (n.querySelector && !!n.querySelector(HOTE_PREVIEW));
-  }
+  // L'aperçu de résultat DANS les cards (`[data-card-preview]`, mécanisme commun n°30) est
+  // hydraté par la brique d'aperçu (`WamaMediaPreview.hydrateCardPreviews`, 2026-10-13).
   document.addEventListener('DOMContentLoaded', function () {
     // Inspecteur de REGISTRE : une page declare `data-wama-inspecte`, rien de plus.
     try { autoInitRegistres(); } catch (e) { console.warn('[WamaInspector] registres', e); }
-    hydrateCardPreviews(document);
-    try {
-      new MutationObserver(function (muts) {
-        for (var i = 0; i < muts.length; i++) {
-          var ajouts = muts[i].addedNodes;
-          for (var j = 0; ajouts && j < ajouts.length; j++) {
-            if (_contientHote(ajouts[j])) { hydrateCardPreviews(document); return; }
-          }
-        }
-      }).observe(document.body, { childList: true, subtree: true });
-    } catch (e) { /* très vieux navigateur : hydratation au chargement seulement */ }
   });
 
   // ── Lecture des réglages d'une card depuis ses data-* — LE lecteur unique ──────────────
@@ -1656,11 +1273,12 @@
                            autoInitRegistres: autoInitRegistres,
                            detailDeriveDe: detailDeriveDe,
                            cloneBatchActions: cloneBatchActions,
-                           renderInlinePreview: renderInlinePreview,
-                           duringUrl: duringUrl, variantToggle: variantToggle,
-                           followDuring: followDuring, isRunningCard: isRunningCard,
-                           compareView: compareView,
-                           cardOfPreview: cardOfPreview,
                            gearValues: gearValues, sharedGearValues: sharedGearValues,
-                           hydrateCardPreviews: hydrateCardPreviews };
+                           // Renvois vers LA brique d'aperçu (`WamaMediaPreview`, 2026-10-13) :
+                           // ces noms ont des appelants (pages, tests) — ils ne cassent pas.
+                           renderInlinePreview: _alias('renderInline'),
+                           duringUrl: _alias('duringUrl'), variantToggle: _alias('variantToggle'),
+                           followDuring: _alias('followDuring'), isRunningCard: _alias('isRunningCard'),
+                           compareView: _alias('compareView'), cardOfPreview: _alias('cardOfPreview'),
+                           hydrateCardPreviews: _alias('hydrateCardPreviews') };
 })(window);

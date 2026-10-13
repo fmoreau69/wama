@@ -413,7 +413,8 @@ class RunButtonOfAProcessTest(SimpleTestCase):
 class DuringVariantsOfThePreviewTest(SimpleTestCase):
     """The « during » preview offers a switch between the views a worker publishes (2026-10-04 :
     the anonymizer's detection and blur of the same frame). The address carries the chosen view ;
-    the toggle has one button per view, the active one filled, and says the key it picks."""
+    the toggle has one button per view, the active one filled, and says the key it picks. Held in
+    the preview brick (`WamaMediaPreview`) since 2026-10-13 ; `WamaInspector` keeps the old names."""
 
     def setUp(self):
         from py_mini_racer import MiniRacer
@@ -426,11 +427,12 @@ class DuringVariantsOfThePreviewTest(SimpleTestCase):
                     addEventListener: function (t, fn) { el.listeners[t] = fn; }};
           return el;
         };""")
+        self.v8.eval((JS / 'media-preview.js').read_text(encoding='utf-8'))
         self.v8.eval((JS / 'wama-inspector.js').read_text(encoding='utf-8'))
 
     def test_the_address_carries_the_chosen_view(self):
         out = self.v8.eval("""(function () {
-            var I = window.WamaInspector;
+            var I = window.WamaMediaPreview;
             return [I.duringUrl('/preview/anonymizer/4/', null),
                     I.duringUrl('/preview/anonymizer/4/?x=1', 'blur'),
                     I.duringUrl('/p/', 'a b')];
@@ -442,7 +444,7 @@ class DuringVariantsOfThePreviewTest(SimpleTestCase):
     def test_the_toggle_has_one_button_per_view_and_says_the_one_picked(self):
         out = self.v8.eval("""(function () {
             var picked = [];
-            var bar = window.WamaInspector.variantToggle(
+            var bar = window.WamaMediaPreview.variantToggle(
                 [{key: 'detection', label: 'Détection'}, {key: 'blur', label: 'Floutage'}],
                 'blur', function (k) { picked.push(k); });
             bar.children[0].listeners.click();
@@ -452,6 +454,11 @@ class DuringVariantsOfThePreviewTest(SimpleTestCase):
                     bar.children[0].className.indexOf('btn-outline-info') >= 0, picked[0]];
         })()""")
         self.assertEqual([2, 'Détection', True, True, 'detection'], list(out))
+
+    def test_the_inspector_keeps_its_old_names_as_aliases(self):
+        out = self.v8.eval("[window.WamaInspector.duringUrl('/p/', 'blur'), "
+                           "window.WamaInspector.variantToggle([{key: 'a'}], 'a', function () {}).children.length]")
+        self.assertEqual(['/p/?side=during&variant=blur', 1], list(out))
 
 
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
@@ -536,27 +543,30 @@ class PreviewModalTest(SimpleTestCase):
         return body[:body.index('\n    }\n')]
 
     def test_every_way_into_the_modal_carries_the_item_and_its_live_face(self):
-        self.assertIn('data._baseUrl = base', self._body('media-preview.js', 'function openPreview'),
+        self.assertIn('_fetchItem(endpoint)', self._body('media-preview.js', 'function openPreview'))
+        self.assertIn('data._baseUrl = base', self._body('media-preview.js', 'function _fetchItem'),
                       'a card thumbnail opens the modal WITH its faces')
         self.assertIn('_attachFullscreen(d, baseUrl)', self._body('wama-inspector.js',
                                                                  'function _startDuring'),
                       'the PENDING face of the side panel opens the modal too')
         self.assertIn('_startModalDuring(modal, data)', self._body('media-preview.js',
-                                                                  'function showPreviewModal('),
+                                                                  'function _display('),
                       'the PENDING face is followed live in the modal')
-        navigation = self._body('media-preview.js', 'function navigatePreview')
-        self.assertIn('_renderModalSides(modal, item)', navigation)
-        self.assertNotIn('_renderModalSides(modal, data)', navigation)
+        # The keyboard navigation goes through the SAME display as an opening (it raised a
+        # ReferenceError from 2026-07-21 to 2026-10-05, then rebuilt the content by its own copy).
+        navigation = self._body('media-preview.js', 'function _navigate')
+        self.assertIn('_display(d)', navigation)
+        self.assertNotIn('buildPreviewContent', navigation)
 
     def test_one_follower_of_the_pending_face_for_the_panel_and_the_modal(self):
         """The modal had its own copy of the panel's follower (2026-10-05, removed the next day
-        at Fabien's « rien réinventé ? ») : both go through `WamaInspector.followDuring`."""
-        self.assertIn('followDuring(', self._body('wama-inspector.js', 'function _startDuring'))
+        at Fabien's « rien réinventé ? ») : both go through `WamaMediaPreview.followDuring`."""
+        self.assertIn('P.followDuring(', self._body('wama-inspector.js', 'function _startDuring'))
         modal = self._body('media-preview.js', 'function _startModalDuring')
-        self.assertIn('I.followDuring(', modal)
+        self.assertIn('followDuring(', modal)
         self.assertNotIn('setInterval', modal)
-        self.assertIn('I.variantToggle(', self._body('media-preview.js',
-                                                    'function _renderModalVariants'))
+        self.assertIn('variantToggle(', self._body('media-preview.js',
+                                                  'function _renderModalVariants'))
 
     def test_the_follower_renders_changes_only_keeps_the_view_and_ends_on_the_card(self):
         from py_mini_racer import MiniRacer
@@ -584,14 +594,14 @@ class PreviewModalTest(SimpleTestCase):
                 "{getItem: function () { return null; }, setItem: function () {}};")
         v8.eval((JS / 'wama-app-base.js').read_text(encoding='utf-8'))
         v8.eval('var WamaApp = window.WamaApp;')
-        v8.eval((JS / 'wama-inspector.js').read_text(encoding='utf-8'))
+        v8.eval((JS / 'media-preview.js').read_text(encoding='utf-8'))
         out = v8.eval("""(function () {
             var frame = function (url) { return {url: url, variant: 'blur',
               sides: {during_capable: true, has_during: true}}; };
             var gap = {sides: {during_capable: true, has_during: false}};
             var shown = [], ended = [], running = true;
             payloads = [frame('a.jpg'), frame('a.jpg'), gap, frame('b.jpg')];
-            var f = window.WamaInspector.followDuring('/p/7/', {
+            var f = window.WamaMediaPreview.followDuring('/p/7/', {
               isRunning: function () { return running; },
               onFrame: function (d) { shown.push(d.url); },
               onEnd: function () { ended.push('end'); }});

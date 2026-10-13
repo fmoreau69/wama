@@ -224,7 +224,10 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   **Aucune émission** : imager, avatarizer — ✅ le **synthesizer** publie depuis le même jour
   (8ᵉ app) : l'audio déjà synthétisé, après chaque segment d'un texte long, vitesse/hauteur
   appliquées (`workers._during_preview`, rappel `on_partial` de `utils/speech_render`) ; un texte
-  d'un seul segment n'a rien à montrer avant son résultat. **Seul l'inspecteur la lit** (`_startDuring`) :
+  d'un seul segment n'a rien à montrer avant son résultat. ⚠ *Constat périmé, corrigé le
+  2026-10-13 à la lecture du code : la visionneuse la suit aussi depuis le 2026-10-05, et le
+  suiveur unique vit dans la brique d'aperçu (`media-preview.js`, `followDuring`), que le volet
+  appelle.* **Seul l'inspecteur la lit** (`_startDuring`) :
   les cards de la file n'affichent pas la face « pendant » (`CARD_DESIGN` « zone de preview
   permanente » = orientation, pas un câblage). Et les pics d'onde qu'elle transporte n'étaient
   **jamais dessinés** jusqu'à ce jour (`setPeaks` sans effet sur un lecteur pas encore initialisé,
@@ -253,6 +256,12 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 - **Filemanager** : **unifié** (réutilise `media-preview.js`), mais endpoint de données distinct —
   qui construit sa réponse par la MÊME fabrique de face fichier que les cards (`file_face`,
   2026-10-12 ; il en avait sa copie, seule à extraire le texte d'un .docx).
+  ⚠ *Unifié à moitié jusqu'au 2026-10-13 (mesuré au navigateur)* : il gardait son PROPRE
+  écouteur de flèches, actif sur TOUTE visionneuse ouverte — après un aperçu de fichier, une
+  flèche dans la visionneuse d'une card y montrait un fichier du dossier —, plus une surcouche
+  plein écran et un rendu (`updatePreviewContent`) morts depuis le retrait de `#filePreviewModal`.
+  Il ouvre désormais une SÉQUENCE de la visionneuse (`WamaMediaPreview.openSequence`, chargée
+  fichier par fichier) ; retraits `REMOVAL_LEDGER R123`.
 - 🔜 **CHANTIER « PREVIEW GLOBALE + TRANSPORT COMMUN » — brief de SESSION DÉDIÉE (Fabien, 2026-09-30)**.
   *« Une preview globale commune qui peut être tirée par capacités partout dans tout WAMA, et de
   même pour le transport média : une seule brique commune avec toutes les spécificités, que l'on
@@ -550,9 +559,44 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     Gardes : scénario nocturne `common.preview_layout` (image, vidéo, audio, PDF, texte, Comparer
     × modale et tout l'écran × deux tailles d'écran : 24 mises en page, contre-épreuve sur HEAD
     ROUGE) ; chaque `<app>.preview` mesure la même règle sur la card réelle ;
-    `tests_preview_entry.SidesSwitchHasItsOwnPlaceTest`. ⏳ Le volet recopie la construction de
-    la bascule (`_renderSideToggle`, sans la face Pendant) : une brique commune aux deux
-    surfaces reste à extraire.
+    `tests_preview_entry.SidesSwitchHasItsOwnPlaceTest`. ~~⏳ Le volet recopie la construction de
+    la bascule (`_renderSideToggle`, sans la face Pendant)~~ — ✅ soldé le jour même, bloc suivant.
+  - ✅ **UNE brique d'aperçu, UNE bascule, UNE navigation — 2026-10-13** (Fabien : *« une seule
+    brique commune de preview devrait suffire, contenant toutes les possibilités et s'adaptant à
+    l'appel (filemanager, preview modale de card, volet droit, plein écran) »*, puis *« quand
+    j'utilise les flèches pour changer de card, la preview ne se met pas à jour […] l'Imager a
+    potentiellement 4 images par card […] et dans le filemanager. Avant c'était le cas »*).
+    - **État mesuré avant** (navigateur, compte de test) : la brique était en DEUX morceaux — le
+      rendu en ligne, Comparer et le suiveur Pendant vivaient dans `wama-inspector.js` (la
+      visionneuse les empruntait à `WamaInspector`), le volet RECOPIAIT la bascule (sans Pendant)
+      et Comparer. La visionneuse ouverte d'une card n'avait AUCUNE séquence : ←/→ ne faisaient
+      rien, ↓ déplaçait la sélection du volet DERRIÈRE elle ; une génération de l'imager n'y
+      montrait que son image représentative (« 4 fichiers »). La navigation inter-cards de
+      l'imager avait disparu le 2026-08-31 avec `openImagePreview` (retirée pour « 0 appelant »
+      au portage du mécanisme n°30 : la grille du volet ne naviguait plus qu'entre les images
+      d'UNE card). Le gestionnaire détournait les flèches (bloc Filemanager ci-dessus).
+    - **Désormais** : `media-preview.js` (`WamaMediaPreview`) porte tout l'aperçu — rendu en ligne
+      (`renderInline`, `hydrateCardPreviews`), faces (`faceButtons`/`sidesBar` en deux densités,
+      `compareFaces`/`compareView`, `followDuring`, `variantToggle`), visionneuse, plein écran, et
+      UNE navigation : une SÉQUENCE (les cards de la file — onglet et filtre respectés, lot replié
+      joignable ; les fichiers d'un dossier ; une galerie) puis les FICHIERS d'une sortie multiple.
+      ←/→ et ‹ › vont fichier par fichier puis à l'élément voisin (en reculant, on arrive sur son
+      dernier fichier) ; ↑/↓ sautent d'élément en élément ; la face regardée est gardée (Entrée,
+      Sortie, une face de process, Comparer) ; une vignette ouvre l'élément sur SON fichier ;
+      refermée sur une autre card, la visionneuse la désigne (`wama:preview-card`) et le volet la
+      sélectionne. Le volet (`wama-inspector.js`), le gestionnaire de fichiers et la fenêtre de
+      sélection n'en sont plus que consommateurs ; une modale ouverte garde le clavier (le volet
+      et la pile de la file s'abstiennent — Échap ne désélectionne plus la card en refermant la
+      visionneuse). `WamaInspector` garde les anciens noms en RENVOIS (`renderInlinePreview`…).
+      Le CSS du composant a suivi (`media-preview.css`) ; deux règles du gestionnaire qui
+      habillaient en fait la surcouche commune y sont reprises telles qu'affichées.
+    - **Gardes** : `tests_preview_navigation` (pas de navigation, bascule en V8 ; une définition
+      par fonction d'aperçu ; un seul écouteur de flèches) ; scénario nocturne
+      `common.preview_navigation` (29 gestes sur cards fictives servies par la page, gestionnaire
+      de fichiers réel, galerie et surcouche) et chaque `<app>.preview` passe d'une card réelle à
+      l'autre, face gardée, volet resynchronisé, puis ↑/↓ DU VOLET refont son aperçu — 9 apps vertes, avatarizer écarté (sortie vidéo
+      seule) ; contre-épreuves sur le JS de HEAD ROUGES (« 3 fichiers », aucune séquence, flèche
+      détournée vers `f3.png`). Retraits : `REMOVAL_LEDGER R123`.
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
   `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
 - **Manifeste** : inspector adapter (mapping champs→clés canoniques), preview binding sur port,

@@ -1390,12 +1390,12 @@ MECHANISMS = (
     Mechanism('during_preview_variants', "Aperçu « pendant » à plusieurs vues",
               "Un worker publie plusieurs vues du même instant (`publish_partial(variant=, label=)`, "
               "publieur de frames limité dans le temps `PartialFrames`) ; la face PENDANT de "
-              "l'aperçu les liste et sert celle demandée (`?variant=`), l'inspecteur affiche le "
-              "bouton de bascule (`WamaInspector.variantToggle`). Né le 2026-10-04 pour basculer "
-              "entre détection et floutage de l'anonymizer — toute app peut publier ses vues",
+              "l'aperçu les liste et sert celle demandée (`?variant=`), le volet et la visionneuse "
+              "affichent le bouton de bascule (`WamaMediaPreview.variantToggle`, brique d'aperçu "
+              "`preview` — il vivait dans l'inspecteur jusqu'au 2026-10-13). Né le 2026-10-04 pour "
+              "basculer entre détection et floutage de l'anonymizer — toute app peut publier ses vues",
               'wama/common/utils/preview_utils.py',
-              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
-              annexes=('wama/common/static/common/js/wama-inspector.js',)),
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6'),
     Mechanism('process_start_view', "▶ d'un process (fabrique commune)",
               "La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_view` "
               "(2026-10-04) : process connu, ayant lieu pour cette card (`AppPipeline.applicable`), "
@@ -1752,14 +1752,23 @@ MECHANISMS = (
               "(2026-10-05). La modale "
               "porte les mêmes faces d'où qu'on l'ouvre (volet, vignette de card), suit la "
               "face PENDANT en direct avec ses vues — par le MÊME suiveur que le volet "
-              "(`WamaInspector.followDuring`) —, et son PLEIN ÉCRAN est elle-même agrandie "
+              "(`followDuring`) —, et son PLEIN ÉCRAN est elle-même agrandie "
               "(la surcouche image seule ne sert plus qu'aux galeries sans élément). Depuis le "
               "2026-10-12 : la face Entrée se lit, comme la Sortie, dans les clés canoniques du "
               "detail (`source_file`, sinon `source_text`) sous la règle des ports (travail, sinon "
               "prompt, jamais référence) ; UNE fabrique de face fichier (`file_face`, texte d'un "
               ".docx extrait) sert les cards ET le filemanager ; un texte inline voyage sous la "
               "seule clé `content` ; une card ouvre son entrée par le geste commun "
-              "`.preview-media-link` (geste nocturne `<app>.preview`)",
+              "`.preview-media-link` (geste nocturne `<app>.preview`). Depuis le 2026-10-13, UNE "
+              "brique front (`media-preview.js`, `WamaMediaPreview`) porte tout l'aperçu : rendu "
+              "en ligne (cards, volet, fenêtre de sélection), bascule des faces COMMUNE au volet et "
+              "à la visionneuse (`sidesBar`, Pendant compris — le volet en avait sa copie), "
+              "Comparer (`compareFaces`, `compareView`), suiveur Pendant, visionneuse, et UNE "
+              "navigation : une séquence (les cards de la file, les fichiers d'un dossier du "
+              "gestionnaire, une galerie) puis les fichiers d'une sortie multiple — ←/→ fichier "
+              "par fichier puis élément voisin, ↑/↓ d'élément en élément, face gardée, volet "
+              "resynchronisé à la fermeture ; le volet et le gestionnaire de fichiers en sont "
+              "consommateurs (geste nocturne `common.preview_navigation`)",
               'wama/common/utils/preview_registry.py', '',
               annexes=('wama/common/utils/preview_utils.py',
                        'wama/common/static/common/js/media-preview.js',
@@ -1789,8 +1798,9 @@ MECHANISMS = (
     Mechanism('inspector', 'Inspecteur contextuel (volet droit)',
               "Trois étages (card / lot / file) : sélection → Infos + preview + actions "
               "clonées (cloneActions) + PARAMÈTRES reflétés (initFromSchema : panel "
-              "read/apply dérivés du schéma, cardSettings via card_gear) ; hydrate aussi "
-              "les previews de card (hydrateCardPreviews)",
+              "read/apply dérivés du schéma, cardSettings via card_gear) ; son aperçu (rendu, "
+              "faces, visionneuse) vient de la brique `preview` (`media-preview.js`, 2026-10-13 — "
+              "il l'hébergeait, et recopiait la bascule des faces)",
               'wama/common/static/common/js/wama-inspector.js', 'docs/construction/ui/WAMA_VOLETS.md',
               annexes=('wama/common/templates/common/_inspector_actions.html',),
               symbol='WamaInspector'),      # global de base.html : compté par son symbole
@@ -1843,7 +1853,7 @@ MECHANISMS = (
     # `common/static/`). Elles sont toutes APPELÉES PAR LEUR NOM par leur hôte : ce sont donc
     # des mécanismes ordinaires, pas des rendus enfichables. `audio_player` est le seul
     # CANDIDAT au statut de rendu — il le deviendra le jour où l'aiguillage par mime de
-    # `renderInlinePreview` sera un registre et non une cascade de `if`.
+    # `renderInline` (`media-preview.js`) sera un registre et non une cascade de `if`.
     Mechanism('audio_player', 'Lecteur audio (onde + transport)',
               "Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivité "
               "inter-lecteurs et inter-onglets ; monté par la preview dans le volet ET les cards",

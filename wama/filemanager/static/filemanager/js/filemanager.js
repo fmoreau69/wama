@@ -36,7 +36,6 @@
         initJstree();
         setupSearch();
         setupUploadDropzone();
-        setupPreviewModal();
         setupCustomEventListeners();
     }
 
@@ -1108,17 +1107,19 @@
         currentPreviewNode = node;
         updatePreviewSiblings(node);
 
-        fetch(`${config.apiPreviewUrl || '/filemanager/api/preview/'}?path=${encodeURIComponent(path)}`)
-            .then(res => res.json())
+        fetchFilePreview(path)
             .then(data => {
                 if (data.url || typeof data.content === 'string') {
-                    if (typeof window.showPreviewModalWithNav === 'function') {
-                        // Stubs pour avoir le bon compte et activer les boutons nav
-                        const stubs = previewSiblings.map(n => ({ name: n.text || n.id, url: '', mime_type: '' }));
-                        window.showPreviewModalWithNav(data, stubs, previewIndex);
-                        // Déléguer la navigation au filemanager (lazy fetch par fichier)
-                        window.setPreviewNavCallback(function(newIdx) {
-                            _filemanagerFetchAndShow(newIdx);
+                    // La visionneuse COMMUNE et SA navigation (2026-10-13) : la séquence est celle
+                    // des fichiers du dossier, chargés à la demande. Le gestionnaire avait son propre
+                    // écouteur de flèches, actif même quand la visionneuse montrait une CARD : une
+                    // flèche y affichait alors un fichier de ce dossier.
+                    const P = window.WamaMediaPreview;
+                    if (P && P.openSequence && previewSiblings.length > 1) {
+                        P.openSequence({
+                            count: previewSiblings.length, index: previewIndex, data: data,
+                            load: i => fetchFilePreview(previewSiblings[i].data.path),
+                            onMove: i => { previewIndex = i; currentPreviewNode = previewSiblings[i]; },
                         });
                     } else if (typeof window.showPreviewModal === 'function') {
                         window.showPreviewModal(data);
@@ -1133,20 +1134,10 @@
             });
     }
 
-    function _filemanagerFetchAndShow(newIdx) {
-        const nextNode = previewSiblings[newIdx];
-        if (!nextNode) return;
-        previewIndex = newIdx;
-        currentPreviewNode = nextNode;
-        const path = nextNode.data?.path;
-        if (!path) return;
-        fetch(`${config.apiPreviewUrl || '/filemanager/api/preview/'}?path=${encodeURIComponent(path)}`)
-            .then(res => res.json())
-            .then(data => {
-                // showPreviewModal met à jour le contenu sans réinitialiser previewItems/currentIndex
-                if (typeof window.showPreviewModal === 'function') window.showPreviewModal(data);
-            })
-            .catch(err => console.error('[FileManager] Preview nav error:', err));
+    /** L'aperçu d'un fichier de l'arbre (`api_preview`, la fabrique de face commune `file_face`). */
+    function fetchFilePreview(path) {
+        return fetch(`${config.apiPreviewUrl || '/filemanager/api/preview/'}?path=${encodeURIComponent(path)}`)
+            .then(res => res.json());
     }
 
     function updatePreviewSiblings(node) {
@@ -2156,240 +2147,11 @@
     }
 
     // === MODALS ===
-
-    function setupPreviewModal() {
-        // Set up keyboard navigation for preview modal and fullscreen
-        document.addEventListener('keydown', function(e) {
-            // Ignore if user is typing in an input
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-            // Check if fullscreen is open
-            const fullscreenOverlay = document.getElementById('imageFullscreenOverlay');
-            if (fullscreenOverlay) {
-                if (e.key === 'Escape') {
-                    e.preventDefault();
-                    window.FileManagerFullscreen.close();
-                } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    window.FileManagerFullscreen.navigate(-1);
-                } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    window.FileManagerFullscreen.navigate(1);
-                }
-                return;
-            }
-
-            // Check if preview modal is open (unified modal)
-            const modal = document.getElementById('wamaMediaPreviewModal');
-            if (!modal || !modal.classList.contains('show')) return;
-
-            if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-                e.preventDefault();
-                navigatePreview(-1);
-            } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-                e.preventDefault();
-                navigatePreview(1);
-            } else if (e.key === 'Escape') {
-                // Let Bootstrap handle Escape
-            }
-        });
-
-        // Setup fullscreen API
-        setupFullscreen();
-    }
-
-    // === FULLSCREEN ===
-
-    function setupFullscreen() {
-        window.FileManagerFullscreen = {
-            open: openFullscreen,
-            close: closeFullscreen,
-            navigate: navigateFullscreen
-        };
-    }
-
-    function openFullscreen(imageUrl, imageName) {
-        // Remove existing overlay if any
-        closeFullscreen();
-
-        const overlay = document.createElement('div');
-        overlay.id = 'imageFullscreenOverlay';
-        overlay.onclick = function(e) {
-            if (e.target === overlay) closeFullscreen();
-        };
-
-        // Build navigation buttons if there are siblings
-        let navPrev = '';
-        let navNext = '';
-        let infoBar = '';
-
-        if (previewSiblings.length > 1) {
-            const isFirst = previewIndex === 0;
-            const isLast = previewIndex === previewSiblings.length - 1;
-
-            navPrev = `
-                <button class="fullscreen-nav-btn fullscreen-nav-prev ${isFirst ? 'disabled' : ''}"
-                        onclick="event.stopPropagation(); window.FileManagerFullscreen.navigate(-1)" title="Précédent (←)">
-                    <i class="fa fa-chevron-left"></i>
-                </button>
-            `;
-            navNext = `
-                <button class="fullscreen-nav-btn fullscreen-nav-next ${isLast ? 'disabled' : ''}"
-                        onclick="event.stopPropagation(); window.FileManagerFullscreen.navigate(1)" title="Suivant (→)">
-                    <i class="fa fa-chevron-right"></i>
-                </button>
-            `;
-            infoBar = `
-                <div class="fullscreen-info">
-                    <span class="filename" title="${escapeHtml(imageName)}">${escapeHtml(imageName)}</span>
-                    <span class="counter">${previewIndex + 1} / ${previewSiblings.length}</span>
-                </div>
-            `;
-        } else {
-            infoBar = `
-                <div class="fullscreen-info">
-                    <span class="filename" title="${escapeHtml(imageName)}">${escapeHtml(imageName)}</span>
-                </div>
-            `;
-        }
-
-        overlay.innerHTML = `
-            <button class="fullscreen-close-btn" onclick="event.stopPropagation(); window.FileManagerFullscreen.close()" title="Fermer (Échap)">
-                <i class="fa fa-times"></i>
-            </button>
-            ${navPrev}
-            <img src="${imageUrl}" alt="${escapeHtml(imageName)}" onclick="event.stopPropagation()">
-            ${navNext}
-            ${infoBar}
-        `;
-
-        document.body.appendChild(overlay);
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeFullscreen() {
-        const overlay = document.getElementById('imageFullscreenOverlay');
-        if (overlay) {
-            overlay.remove();
-            document.body.style.overflow = '';
-        }
-    }
-
-    function navigateFullscreen(direction) {
-        if (previewSiblings.length <= 1) return;
-
-        const newIndex = previewIndex + direction;
-        if (newIndex < 0 || newIndex >= previewSiblings.length) return;
-
-        const nextNode = previewSiblings[newIndex];
-        previewIndex = newIndex;
-
-        // Fetch new preview data
-        fetch(`${config.apiPreviewUrl || '/filemanager/api/preview/'}?path=${encodeURIComponent(nextNode.data.path)}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.mime_type && data.mime_type.startsWith('image/')) {
-                    // Update fullscreen image
-                    const overlay = document.getElementById('imageFullscreenOverlay');
-                    if (overlay) {
-                        const img = overlay.querySelector('img');
-                        const filename = overlay.querySelector('.filename');
-                        const counter = overlay.querySelector('.counter');
-                        const prevBtn = overlay.querySelector('.fullscreen-nav-prev');
-                        const nextBtn = overlay.querySelector('.fullscreen-nav-next');
-
-                        if (img) img.src = data.url;
-                        if (filename) { filename.textContent = data.name; filename.title = data.name; }
-                        if (counter) counter.textContent = `${previewIndex + 1} / ${previewSiblings.length}`;
-                        if (prevBtn) prevBtn.classList.toggle('disabled', previewIndex === 0);
-                        if (nextBtn) nextBtn.classList.toggle('disabled', previewIndex === previewSiblings.length - 1);
-                    }
-
-                    // Also update the preview panel in background
-                    updatePreviewContent(data);
-                } else {
-                    // Not an image, close fullscreen and update panel
-                    closeFullscreen();
-                    updatePreviewContent(data);
-                }
-            })
-            .catch(err => {
-                console.error('Failed to navigate fullscreen:', err);
-            });
-    }
-
-    function navigatePreview(direction) {
-        if (previewSiblings.length <= 1) return;
-        const newIndex = previewIndex + direction;
-        if (newIndex < 0 || newIndex >= previewSiblings.length) return;
-        _filemanagerFetchAndShow(newIndex);
-    }
-
-    function updatePreviewContent(data) {
-        const modal = document.getElementById('filePreviewModal');
-        if (!modal) return;
-
-        const title = modal.querySelector('.modal-title');
-        const container = modal.querySelector('.preview-container');
-        const counter = modal.querySelector('.preview-counter');
-        const prevBtn = modal.querySelector('.preview-nav-prev');
-        const nextBtn = modal.querySelector('.preview-nav-next');
-
-        // Update title with counter
-        title.textContent = data.name;
-        if (counter) {
-            counter.textContent = `${previewIndex + 1} / ${previewSiblings.length}`;
-        }
-
-        // Update navigation button states
-        if (prevBtn) prevBtn.classList.toggle('disabled', previewIndex === 0);
-        if (nextBtn) nextBtn.classList.toggle('disabled', previewIndex === previewSiblings.length - 1);
-
-        // Update content (inline panel)
-        const mime = data.mime_type || '';
-        if (mime.startsWith('image/')) {
-            container.innerHTML = `
-                <div class="preview-image-wrapper wama-reveal-host" ondblclick="window.FileManagerFullscreen.open('${data.url}', '${escapeHtml(data.name)}')">
-                    <img src="${data.url}" alt="${data.name}" style="max-width:100%; max-height:70vh;">
-                    <button class="preview-fullscreen-btn wama-reveal" onclick="event.stopPropagation(); window.FileManagerFullscreen.open('${data.url}', '${escapeHtml(data.name)}')" title="Plein écran (double-clic)">
-                        <i class="fa fa-expand"></i>
-                    </button>
-                </div>
-            `;
-        } else if (mime.startsWith('video/')) {
-            container.innerHTML = `
-                <video controls autoplay muted style="max-width:100%; max-height:70vh;">
-                    <source src="${data.url}" type="${mime}">
-                </video>
-                <div class="video-error-message d-none text-center p-4">
-                    <i class="fa fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-                    <h5>Lecture impossible</h5>
-                    <p class="mb-2">Le codec de cette vidéo n'est pas supporté par le navigateur.</p>
-                    <a href="${data.url}" download class="btn btn-outline-light btn-sm">
-                        <i class="fa fa-download me-2"></i>Télécharger le fichier
-                    </a>
-                </div>
-            `;
-            const video = container.querySelector('video');
-            const errorMsg = container.querySelector('.video-error-message');
-            video.addEventListener('error', function() {
-                video.classList.add('d-none');
-                errorMsg.classList.remove('d-none');
-            });
-        } else if (mime.startsWith('audio/')) {
-            container.innerHTML = `<audio src="${data.url}" controls autoplay style="width:100%;"></audio>`;
-        } else if (mime === 'application/pdf') {
-            container.innerHTML = `
-                <embed src="${data.url}" type="application/pdf"
-                       style="width:100%; height:70vh; border:none; border-radius:6px;">
-            `;
-        } else if (typeof data.content === 'string') {
-            const escapedContent = escapeHtml(data.content);
-            container.innerHTML = `<pre class="text-preview" style="background:#0d1117;border:1px solid #374151;border-radius:6px;padding:15px;max-height:60vh;overflow:auto;white-space:pre-wrap;word-wrap:break-word;font-family:'Consolas','Monaco',monospace;font-size:0.85rem;color:#e2e8f0;margin:0;">${escapedContent}</pre>`;
-        } else {
-            container.innerHTML = `<p>Aperçu non disponible pour ce type de fichier</p>`;
-        }
-    }
+    // L'aperçu d'un fichier s'ouvre dans la visionneuse COMMUNE (`media-preview.js`), qui porte la
+    // navigation au clavier et le plein écran (`previewFile`). Retirés le 2026-10-13 : l'écouteur
+    // de flèches propre au gestionnaire (actif sur toute visionneuse ouverte — il y montrait les
+    // fichiers du dossier à la place d'une card), sa surcouche plein écran et `updatePreviewContent`,
+    // morts depuis le retrait de la modale `#filePreviewModal` (REMOVAL_LEDGER R123).
 
     function showInfoModal(data) {
         let modal = document.getElementById('fileInfoModal');

@@ -90,8 +90,9 @@ class CompareLetsBothVideosPlayTest(TestCase):
     """The common « exclusive playback » (`wama-app-base.js`) pauses every other media when one
     starts : the compared video started by the sync paused the reference at once (seen in the
     browser on 2026-10-05). Since 2026-10-06 the panel and the modal build Compare with ONE common
-    view (`WamaInspector.compareView` : the output laid OVER the reference, a slider — the modal
-    showed two videos side by side) : the escape hatch lives there, and both surfaces use it."""
+    view (`WamaMediaPreview.compareView`, in the preview brick since 2026-10-13 : the output laid
+    OVER the reference, a slider — the modal showed two videos side by side) : the escape hatch
+    lives there, and both surfaces use it."""
 
     @staticmethod
     def _body(name, function, indent='    '):
@@ -103,7 +104,7 @@ class CompareLetsBothVideosPlayTest(TestCase):
         return body[:body.index('\n' + indent + '}\n')]
 
     def test_the_common_compare_view_lets_the_two_videos_play_together(self):
-        view = self._body('wama-inspector.js', 'function compareView', indent='  ')
+        view = self._body('media-preview.js', 'function compareView')
         self.assertIn("setAttribute('data-wama-multiplay'", view)
         self.assertIn('syncVideos', view)
         self.assertIn('wama-compare-top', view, 'the output laid over the reference')
@@ -119,27 +120,33 @@ class CompareLetsBothVideosPlayTest(TestCase):
         css = os.path.join(settings.BASE_DIR, 'wama', 'common', 'static', 'common', 'css')
         with open(os.path.join(css, 'media-preview.css'), encoding='utf-8') as fh:
             modal = re.sub(r'/\*.*?\*/', '', fh.read(), flags=re.S)       # comments out
-        selectors = [s.strip() for group in re.findall(r'([^{}]+)\{', modal) for s in group.split(',')]
+        # The HOST rules are the viewer's (`#wamaMediaPreviewModal …`) ; the component's own rules
+        # live in the same sheet since 2026-10-13 (moved from wama-inspector.css with its JS).
+        rules = re.findall(r'([^{}]+)\{([^}]*)\}', modal)
+        host = [(sel, body) for sel, body in rules if '#wamaMediaPreviewModal' in sel]
+        selectors = [s.strip() for sel, _body in host for s in sel.split(',')]
         reaching = [s for s in selectors if re.search(r'\.preview-container (img|video)\b', s)]
         self.assertTrue(reaching, 'the instrument sees the host media rules')
         for selector in reaching:
             self.assertIn(':not(.wama-compare', selector, f'host rule reaches Compare : {selector}')
-        self.assertNotRegex(modal, r'\.wama-compare-top[^{]*\{[^}]*(width|height)',
-                            'the host never sizes the output layer')
-        with open(os.path.join(css, 'wama-inspector.css'), encoding='utf-8') as fh:
-            component = fh.read()
+        for sel, body in host:
+            self.assertFalse('.wama-compare-top' in sel and re.search(r'width|height', body),
+                             f'the host never sizes the output layer : {sel}')
+        component = modal
         rule = re.search(r'\.wama-compare \.wama-compare-top > img[^{]*\{([^}]*)\}', component)
         self.assertIsNotNone(rule)
         for declaration in ('max-width: none', 'max-height: none', 'object-fit: contain'):
             self.assertIn(declaration, rule.group(1))
 
     def test_the_output_video_shows_the_controls_it_covers(self):
-        view = self._body('wama-inspector.js', 'function compareView', indent='  ')
+        view = self._body('media-preview.js', 'function compareView')
         self.assertRegex(view, r'wama-compare-top"><video[^>]*\bcontrols\b',
                          'the layer hid the reference controls over the clipped part')
 
     def test_the_panel_and_the_modal_build_compare_with_the_common_view(self):
-        self.assertIn('compareView(', self._body('wama-inspector.js', 'function _renderCompare'))
+        panel = self._body('wama-inspector.js', 'function _renderCompare')
         modal = self._body('media-preview.js', 'function _modalCompare')
-        self.assertIn('I.compareView(', modal)
+        for surface in (panel, modal):
+            self.assertIn('compareView(', surface)
+            self.assertIn('compareFaces(', surface, 'the two faces are fetched by one brick too')
         self.assertNotIn('buildPreviewContent', modal, 'no more side-by-side copies')

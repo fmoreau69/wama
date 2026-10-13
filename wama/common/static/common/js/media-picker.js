@@ -33,7 +33,7 @@
  *
  * APERÇU AVANT LE CHOIX (2026-09-29, demande : « sinon on ne sait pas de quoi il s'agit ») : un
  * clic MONTRE l'asset dans le volet d'aperçu de la fenêtre — le rendu INLINE commun
- * (`WamaInspector.renderInlinePreview` : image, vidéo, lecteur audio commun, PDF, texte), celui
+ * (`WamaMediaPreview.renderInline` : image, vidéo, lecteur audio commun, PDF, texte), celui
  * du volet droit des apps ; « Choisir » confirme, un DOUBLE-CLIC choisit directement. Avant, un
  * clic choisissait à l'aveugle, et tout ce qui n'était pas une image portait la même icône
  * « fichier audio » (vidéos, documents, modèles 3D compris).
@@ -228,8 +228,8 @@ const MediaPicker = (() => {
     const media = document.getElementById('mp-preview-media');
     media.dataset.playerId = 'mediapicker';
     const data = { url: asset.file_url, name: asset.name, mime_type: _mimeOf(asset) };
-    if (window.WamaInspector && WamaInspector.renderInlinePreview) {
-      WamaInspector.renderInlinePreview(media, data, false);
+    if (window.WamaMediaPreview && WamaMediaPreview.renderInline) {
+      WamaMediaPreview.renderInline(media, data, false);
     } else if (data.mime_type.indexOf('image/') === 0) {
       media.innerHTML = `<img src="${_esc(asset.file_url)}" alt="" style="max-width:100%;max-height:220px">`;
     }

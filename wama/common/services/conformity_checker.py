@@ -378,7 +378,8 @@ def _card_preview_hydratee(f: _AppFiles):
     """Aperçu de résultat DANS la card via le mécanisme commun n°30 (placeholder hydraté).
 
     Contrat : la card déclare `data-card-preview="<unified_preview>?side=output"` et
-    `WamaInspector.hydrateCardPreviews` la remplit (mime-driven : image/vidéo/audio+onde/pdf/
+    la brique d'aperçu la remplit (`WamaMediaPreview.hydrateCardPreviews`, `media-preview.js` ;
+    `WamaInspector` en garde le nom en renvoi) (mime-driven : image/vidéo/audio+onde/pdf/
     texte). `partial` = la card porte encore son propre `<img>`/`<video>` de résultat : ça
     s'affiche, mais chaque app redécide du rendu et les corrections ne profitent qu'à elle.
     """
@@ -1520,8 +1521,9 @@ def _catalog_entry(f: _AppFiles):
 def _during_preview(f: _AppFiles):
     """Émission backend par l'app ⟷ consommation par le front COMMUN (`?side=during`).
 
-    Le consommateur vit dans `wama-inspector.js` (`_startDuring`), PAS dans `media-preview.js`
-    qui ne fait que rendre la donnée — vérifié 2026-07-30 (le trou #4 de la route était périmé).
+    Le consommateur est le suiveur commun `followDuring` de la brique d'aperçu (`media-preview.js`
+    depuis le 2026-10-13), tiré par le volet (`wama-inspector.js`, `_startDuring`) ET la
+    visionneuse — la mesure lit tout le JS commun, elle ne dépend pas de ce domicile.
     """
     # L'émission se lit par l'API de la brique (publish_partial_text/peaks/…, 13/08) —
     # pas seulement par le flag : un worker qui publie EST la preuve. `PartialFrames` (2026-10-04,

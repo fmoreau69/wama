@@ -151,10 +151,10 @@ class NothingRevealedOnHoverAloneTest(SimpleTestCase):
 
     def test_the_former_hover_sites_adopted_the_convention(self):
         sites = {
+            # (le filemanager n'est plus un site : sa copie de l'aperçu — `updatePreviewContent`,
+            # morte — est retirée le 2026-10-13, ses fichiers s'ouvrent dans la visionneuse commune)
             COMMON / 'js' / 'media-preview.js': ("'preview-image-wrapper wama-reveal-host'",
                                                  "'preview-fullscreen-btn wama-reveal'"),
-            BASE / 'wama' / 'filemanager' / 'static' / 'filemanager' / 'js' / 'filemanager.js': (
-                'preview-image-wrapper wama-reveal-host', 'preview-fullscreen-btn wama-reveal'),
             BASE / 'wama' / 'media_library' / 'static' / 'media_library' / 'js' / 'media-library.js': (
                 'asset-card wama-reveal-host', 'btn-group-actions wama-reveal',
                 "'sr-card wama-reveal-host'", 'sr-import-btn wama-reveal'),

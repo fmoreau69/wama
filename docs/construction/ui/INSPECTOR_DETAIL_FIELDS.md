@@ -251,6 +251,11 @@ Voir l'audit (transcriber `backend→engine` `audio→source_file` … ; reader 
   `url` = le représentant, pour la rétro-compatibilité), et `renderInlinePreview` en fait une
   **grille de vignettes** dont le clic ouvre la visionneuse commune — la navigation étant
   nourrie par la collection elle-même, jamais par un balayage du DOM.
+  ⚠ *Précisé le 2026-10-13* : la visionneuse ne montrait de `files` que le représentant, et le
+  clic sur une vignette n'y naviguait qu'entre les fichiers d'UNE card (sans ses faces). Le rendu
+  vit désormais dans la brique d'aperçu (`WamaMediaPreview.renderInline`, `media-preview.js`) ;
+  la vignette ouvre l'ÉLÉMENT sur SON fichier, et la visionneuse parcourt les fichiers puis les
+  cards voisines (`ROUTE §F3b`, bloc « UNE brique d'aperçu »).
 
   > Ne contredit PAS la décision figée n°2 du 2026-07-07 (« `result_file` non distingué par
   > type ») : il ne s'agit pas de distinguer un type de sortie, mais un **cardinal**. Le concept

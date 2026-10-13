@@ -24,7 +24,7 @@
 }
 
 /* Les médias d'une FACE (image, vidéo) — jamais ceux de COMPARER : le composant `.wama-compare`
-   possède sa géométrie (`wama-inspector.css`, le même dans le volet et ici). Ces règles d'hôte y
+   possède sa géométrie (fin de cette feuille, la même dans le volet et ici). Ces règles d'hôte y
    descendaient et rétrécissaient le calque Sortie à la largeur rognée par le curseur, hauteur
    imposée : il s'étirait au lieu d'être effacé (2026-10-06, Fabien : « l'image de sortie s'étire
    et s'agrandit au lieu de se superposer »). */
@@ -264,28 +264,33 @@
     cursor: zoom-out;
 }
 
-/* Bouton fermer fullscreen — au-dessus des nav buttons */
+/* Bouton fermer fullscreen — au-dessus des nav buttons.
+   ⚠ Valeurs AFFICHÉES jusqu'ici, reprises telles quelles le 2026-10-13 : `filemanager.css`, chargé
+   après, redéfinissait ces classes pour SA surcouche (retirée) et habillait en réalité celle-ci —
+   deux définitions du même bouton, la seconde gagnait. Une seule depuis, ici. */
 .fullscreen-close-btn {
     position: absolute;
-    top: 16px;
-    right: 16px;
-    width: 36px;
-    height: 36px;
+    top: 20px;
+    right: 20px;
+    width: 48px;
+    height: 48px;
     border: none;
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.75);
-    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border-radius: 50%;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s, color 0.15s;
+    font-size: 1.5rem;
+    transition: all 0.2s ease;
     z-index: 11; /* au-dessus des nav buttons (z-index: 10) */
 }
 
 .fullscreen-close-btn:hover {
-    background: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.2);
     color: #fff;
+    transform: scale(1.1);
 }
 
 /* Boutons nav fullscreen — même classe, positionnement ajusté */
@@ -304,25 +309,25 @@
     height: 20px;
 }
 
-/* Barre info fullscreen */
+/* Barre info fullscreen (valeurs affichées, reprises de `filemanager.css` — cf. le bouton fermer) */
 .fullscreen-info {
     position: absolute;
-    bottom: 16px;
+    bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.6);
-    color: rgba(255, 255, 255, 0.8);
-    padding: 6px 16px;
-    border-radius: 6px;
-    font-size: 0.82rem;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.9rem;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 15px;
     white-space: nowrap;
 }
 
 .fullscreen-info .filename {
-    max-width: 380px;
+    max-width: 400px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -338,9 +343,59 @@
     .wama-preview-nav-btn { width: 32px; }
     #wamaFullscreenOverlay .wama-preview-nav-btn { width: 42px; }
 
+    .fullscreen-close-btn {
+        top: 10px;
+        right: 10px;
+        width: 40px;
+        height: 40px;
+    }
     .fullscreen-info {
-        font-size: 0.75rem;
-        padding: 5px 12px;
+        bottom: 10px;
+        font-size: 0.8rem;
+        padding: 8px 15px;
     }
     .fullscreen-info .filename { max-width: 180px; }
+}
+
+/* ═══ La brique en LIGNE (cards, volet) — déplacé de wama-inspector.css le 2026-10-13, avec le JS
+   (`renderInline`, `sidesBar`, `compareView` vivent dans media-preview.js). Posé en fin de feuille :
+   même rang dans la cascade qu'avant (juste après cette feuille), aucune règle ne change de poids. */
+
+/* ── Preview entrée/sortie + slider comparatif (2026-07-12, STUDIO_VISION) ── */
+.wama-preview-sides { display: inline-flex; }
+.wama-compare { position: relative; display: inline-block; max-width: 100%; }
+.wama-compare img, .wama-compare video { max-width: 100%; max-height: 220px; border-radius: 6px; display: block; }
+.wama-compare-top { position: absolute; inset: 0; width: 50%; overflow: hidden;
+                    border-right: 2px solid #0dcaf0; }
+.wama-compare-top img, .wama-compare-top video { max-width: none; }
+/* La géométrie de Comparer appartient au COMPOSANT, où qu'il soit (volet, modale, plein écran) :
+   le média du calque a la BOÎTE de la référence (posée par `compareView`), jamais une borne de
+   l'hôte ; les deux en `contain`, ils se superposent pixel pour pixel (2026-10-06). */
+.wama-compare .wama-compare-base { object-fit: contain; }
+.wama-compare .wama-compare-top > img, .wama-compare .wama-compare-top > video {
+  max-width: none; max-height: none; object-fit: contain; }
+/* Comparer des VIDÉOS (2026-10-05) : les contrôles sont ceux de la référence, sous le calque. */
+.wama-compare-top { pointer-events: none; }
+.wama-compare-badge { position: absolute; top: 4px; font-size: .65rem; padding: 1px 6px;
+                      border-radius: 4px; background: rgba(0,0,0,.55); color: #fff; }
+/* Le calque SORTIE est rogné depuis la GAUCHE : son badge est à gauche, la référence à droite
+   (inversés jusqu'au 2026-10-05 — vu en comparant détection et floutage). */
+.wama-compare-badge.in { right: 4px; }
+.wama-compare-badge.out { left: 4px; z-index: 1; }
+.wama-compare-range { max-width: 100%; margin-top: .25rem; }
+
+/* ── Grille de sortie MULTIPLE (2026-08-22) — rendu commun de la clé canonique `result_files`.
+   Reprend les valeurs RELEVÉES sur la grille d'imager (4 par ligne, vignette 150px, recadrage
+   couvrant) plutôt que d'en réinventer : c'est la même densité à l'écran, mais décidée une
+   fois pour toutes les apps à sorties multiples au lieu d'être écrite en style inline dans un
+   gabarit. La hauteur de la zone hôte est libérée par .wcv3-preview:has(img, video, …). */
+.wama-preview-grid { width: 100%; }
+.wama-preview-tile {
+  flex: 0 0 calc(25% - 6px);
+  max-width: calc(25% - 6px);
+  min-width: 100px;
+  max-height: 150px;
+  object-fit: cover;
+  cursor: zoom-in;
+  border-radius: .25rem;
 }

@@ -17,7 +17,13 @@ CE QU'IL FAIT, sans GPU et sans connaître aucune app :
      face Entrée dans sa bascule quand la spec en déclare une. Une app qui intercepte
      `wama:card-expand` (transcriber) ouvre sa propre modale : dit en ⚠, elle n'a pas les faces.
      Une card FILLE de lot a son aperçu comme une card seule (enhancer aligné le 2026-10-12).
+  5. (2026-10-13) passe au clavier de cette card à l'autre élément monté — face gardée — et, la
+     visionneuse refermée, exige que le volet sélectionne la card d'arrivée.
 Une erreur d'aperçu (le toast que lève `media-preview.js`) est un ÉCHEC, jamais un constat.
+
+Deux matrices COMMUNES, sans élément monté : `common.preview_layout` (la place de la bascule des
+faces, par nature de fichier) et `common.preview_navigation` (les gestes de navigation : fichiers
+d'un élément, cards voisines, face gardée, gestionnaire de fichiers, galerie et surcouche).
 
 Module à part d'`ui_smoke.py` (même raison qu'`ui_smoke_panel`) ; il en réutilise les briques et
 ne redéfinit rien. ⚠ Tout l'ORM est HORS du contexte Playwright (`SynchronousOnlyOperation`).
@@ -220,12 +226,84 @@ def _seen(shown) -> str:
 def _close(page):
     """Referme la visionneuse ET attend la fin de son fondu : le fond Bootstrap qui reste une
     fraction de seconde intercepte le geste suivant (mesuré le 2026-10-12 : le double-clic sur
-    l'aperçu expirait derrière le fond de la visionneuse d'entrée, refermée par Échap)."""
+    l'aperçu expirait derrière le fond de la visionneuse d'entrée, refermée par Échap).
+    ⚠ Et pas PENDANT son ouverture : Bootstrap ignore Échap et `hide()` tant que le fondu d'entrée
+    court — un geste qui referme aussitôt ouvert laissait la visionneuse ouverte (2026-10-13)."""
+    page.wait_for_timeout(400)
     page.keyboard.press('Escape')
     page.evaluate("""() => document.querySelectorAll('.modal.show').forEach(m => {
         const i = window.bootstrap && bootstrap.Modal.getInstance(m); if (i) i.hide(); })""")
     page.wait_for_function("() => !document.querySelector('.modal.show, .modal-backdrop')",
                            timeout=8000)
+
+
+def _check_card_navigation(page, card: str, ident, other, faults: list, findings: list):
+    """La visionneuse ouverte sur l'entrée de `ident` passe, au clavier, à la card `other` (↑/↓ —
+    deux cards au résultat posé), en GARDANT la face regardée ; refermée sur `other`, le volet la
+    sélectionne. Mesuré le 2026-10-13 avant le correctif : les flèches ne faisaient rien dans la
+    visionneuse, et ↓ déplaçait la sélection du volet DERRIÈRE elle."""
+    seq = page.evaluate("""(sel) => { const c = document.querySelector(sel), P = window.WamaMediaPreview;
+        return c && P && P.cardSequence ? P.cardSequence(c).map(e => e.dataset.id) : null; }""",
+                        card.format(ident))
+    if not seq or ident not in seq or other not in seq:
+        faults.append(f"navigation : #{ident} et #{other} absentes de la séquence de la visionneuse ({seq})")
+        return
+    i, j = seq.index(ident), seq.index(other)
+    key = 'ArrowDown' if j > i else 'ArrowUp'
+    link = page.locator(card.format(ident) + ' .preview-media-link[data-preview-url]').first
+    if link.count():
+        opener = lambda: link.click(timeout=6000)             # noqa: E731
+    else:
+        preview = page.locator(card.format(ident) + ' .wama-card-preview').first
+        opener = lambda: preview.dblclick(timeout=6000)       # noqa: E731
+    shown, errors = _open_and_read(page, opener)
+    if shown is None or shown.get('own') or errors:
+        _close(page)
+        return                       # l'ouverture elle-même est jugée par les gestes ci-dessus
+    before = page.evaluate(JS_NAV_STATE) or {}
+    for _ in range(abs(j - i)):
+        page.keyboard.press(key)
+        page.wait_for_timeout(250)
+    want = f'{j + 1} / {len(seq)}'
+    try:
+        page.wait_for_function(
+            """(w) => { const m = document.querySelector('#wamaMediaPreviewModal.show');
+                const c = m && m.querySelector('.wama-preview-counter');
+                const t = c ? c.textContent.trim() : '';
+                return t === w || t.startsWith(w + ' ·'); }""", arg=want, timeout=8000)
+    except Exception:
+        faults.append(f"navigation : {key} ne mène pas à la card #{other} (vu {page.evaluate(JS_NAV_STATE)})")
+        _close(page)
+        return
+    after = page.evaluate(JS_NAV_STATE) or {}
+    if before.get('face') and after.get('face') != before.get('face'):
+        faults.append(f"navigation : la face « {before['face']} » n'est pas gardée (« {after.get('face')} »)")
+    _close(page)
+    try:
+        page.wait_for_function(
+            "(id) => !!document.querySelector('[data-id=\"' + id + '\"].inspector-selected')",
+            arg=str(other), timeout=6000)
+    except Exception:
+        faults.append(f"navigation : refermée sur la card #{other}, le volet ne la sélectionne pas")
+        return
+    # Les flèches DU VOLET (visionneuse fermée) : la sélection repart vers `ident` et l'aperçu du
+    # volet est REFAIT (marqué avant, il doit avoir été remplacé) — l'autre lecture du défaut.
+    back = 'ArrowUp' if key == 'ArrowDown' else 'ArrowDown'
+    page.evaluate("() => { const h = document.getElementById('preview-container');"
+                  " if (h && h.firstElementChild) h.firstElementChild.dataset.navProbe = 'old'; }")
+    page.keyboard.press(back)
+    try:
+        page.wait_for_function(
+            """([id, pos]) => { const sel = document.querySelector('.inspector-selected[data-id]');
+                const h = document.getElementById('preview-container');
+                return sel && sel.dataset.id === id && h && !h.querySelector('[data-nav-probe]')
+                    && h.children.length > 0; }""",
+            arg=[str(seq[j - 1 if back == 'ArrowUp' else j + 1]), j], timeout=8000)
+    except Exception:
+        faults.append(f"volet : {back} ne sélectionne pas la card voisine ou ne refait pas son aperçu")
+        return
+    findings.append(f"navigation #{ident} → #{other} ({key}, face « {before.get('face') or '—'} » "
+                    f"gardée), volet resynchronisé, {back} du volet refait son aperçu")
 
 
 def check_app_preview(app: str, url_path: str):
@@ -247,7 +325,7 @@ def check_app_preview(app: str, url_path: str):
     if not token:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
     card = '.wama-card[data-id="{}"]:not(.is-batch)'
-    witness = None
+    witness = witness2 = None
     detail = ''
     with _garde_de_montage(app, 'preview') as cleaned:
         with sync_playwright() as p:
@@ -273,6 +351,10 @@ def check_app_preview(app: str, url_path: str):
                 posed, witness = _in_plain_thread(_store_a_witness_result, app, ident)
                 if posed is None:
                     raise SkipScenario(f"élément #{ident} : {witness}")
+                # Le second élément a aussi son résultat : la visionneuse passe de l'un à l'autre.
+                other = new_ids[1] if len(new_ids) > 1 else None
+                if other:
+                    _posed, witness2 = _in_plain_thread(_store_a_witness_result, app, other)
                 page.goto(url, wait_until='networkidle', timeout=PAGE_TIMEOUT_MS)
                 page.wait_for_timeout(1500)
                 page.evaluate("() => document.querySelectorAll('.batch-group .collapse')"
@@ -350,6 +432,10 @@ def check_app_preview(app: str, url_path: str):
                             findings.append(f"sortie → {_seen(shown)}")
                             _check_sides_layout(page, 'sortie', faults)
                         _close(page)
+
+                # ── NAVIGATION : d'une card à l'autre, la face gardée, le volet resynchronisé ──
+                if other:
+                    _check_card_navigation(page, card, ident, other, faults, findings)
                 if js_errors:
                     faults.append(f"JS en erreur : {' | '.join(js_errors)}")
                 if faults:
@@ -363,8 +449,9 @@ def check_app_preview(app: str, url_path: str):
                 raise
             finally:
                 browser.close()
-                if witness and os.path.isfile(str(witness)):
-                    os.remove(witness)
+                for path in (witness, witness2):
+                    if path and os.path.isfile(str(path)):
+                        os.remove(path)
     if cleaned:
         detail += f" ; {_total_nettoye(cleaned)} objet(s) de montage nettoyé(s)"
     return True, detail
@@ -486,9 +573,282 @@ def check_preview_layout():
                   "est sous l'aperçu, sans le recouvrir")
 
 
+#: L'état de la visionneuse que lisent les gestes de navigation : le fichier montré (titre), le
+#: compteur (« 2 / 3 · fichier 1 / 4 »), la face active de la bascule, Comparer affiché ou non.
+JS_NAV_STATE = """() => {
+    const m = document.querySelector('#wamaMediaPreviewModal.show');
+    if (!m) return null;
+    const active = m.querySelector('.wama-modal-sides .btn-info');
+    const counter = m.querySelector('.wama-preview-counter');
+    return {title: m.querySelector('.modal-title').textContent.trim(),
+            counter: counter && counter.style.display !== 'none' ? counter.textContent.trim() : '',
+            face: active ? active.textContent.trim() : '',
+            compare: !!m.querySelector('.wama-modal-compare')};
+}"""
+
+#: Trois éléments FICTIFS servis par la page elle-même (`page.route`), la sortie du premier en
+#: TROIS fichiers et celle du troisième en deux — la sortie multiple d'une génération d'images.
+_NAV_FILES = {1: ['o1a', 'o1b', 'o1c'], 2: ['o2'], 3: ['o3a', 'o3b']}
+_NAV_SIDES = {'has_input': True, 'has_output': True, 'comparable': True}
+_NAV_ITEM = '/common/preview/none/'
+
+#: Les cards fictives, dans un ONGLET actif (la séquence d'une card est celle de son onglet : les
+#: cards réelles de la page n'y entrent pas). Leur aperçu est hydraté par la brique commune.
+JS_NAV_CARDS = """([ids, item]) => {
+    const pane = document.createElement('div');
+    pane.className = 'tab-pane active';
+    pane.id = 'wamaNavProbe';
+    ids.forEach(id => {
+        const c = document.createElement('div');
+        c.className = 'wama-card';
+        c.dataset.id = 'nav' + id;
+        c.dataset.status = 'SUCCESS';
+        c.innerHTML = `<a href="#" class="preview-media-link" data-preview-url="${item}${id}/?side=input">entrée ${id}</a>`
+            + `<div class="wama-card-preview" style="min-height:60px" data-preview-url="${item}${id}/?side=output"`
+            + ` data-card-preview="${item}${id}/?side=output"></div>`;
+        pane.appendChild(c);
+    });
+    document.body.prepend(pane);
+}"""
+
+
+def _nav_payload(url: str, base: str) -> dict:
+    """La face que sert `page.route` pour un élément fictif : l'entrée, ou la sortie (multiple)."""
+    import re
+    ident = int(re.search(r'/none/(\d+)/', url).group(1))
+    if 'side=input' in url:
+        return {'url': f'{base}i{ident}.png', 'mime_type': 'image/png', 'name': f'i{ident}.png',
+                'side': 'input', 'sides': _NAV_SIDES}
+    names = _NAV_FILES[ident]
+    files = [{'url': f'{base}{n}.png', 'mime_type': 'image/png', 'name': f'{n}.png'} for n in names]
+    face = dict(files[0], side='output', sides=_NAV_SIDES)
+    if len(files) > 1:
+        face.update(name=f'{len(files)} fichiers', files=files)
+    return face
+
+
+def _nav_witnesses(folder: str):
+    from PIL import Image
+    os.makedirs(folder, exist_ok=True)
+    names = [n for group in _NAV_FILES.values() for n in group] + [f'i{i}' for i in _NAV_FILES]
+    for k, name in enumerate(names):
+        Image.new('RGB', (320, 180), (30 + 20 * k, 90, 160)).save(os.path.join(folder, f'{name}.png'))
+
+
+def _session_user_folder(token: str, sub: str) -> str:
+    """Un dossier du gestionnaire de fichiers du compte de la session (`users/<id>/temp/<sub>`)."""
+    from importlib import import_module
+
+    from django.conf import settings
+    store = import_module(settings.SESSION_ENGINE).SessionStore(session_key=token)
+    folder = os.path.join(str(settings.MEDIA_ROOT), 'users', str(store.get('_auth_user_id')), 'temp', sub)
+    return folder
+
+
+def _expect(page, title: str, counter: str = None, face: str = None, compare: bool = None,
+            timeout_ms: int = 8000):
+    """Attend que la visionneuse montre `title` (et le compteur, la face, Comparer demandés) ;
+    rend '' ou ce qu'elle montre à la place."""
+    want = {'title': title, 'counter': counter, 'face': face, 'compare': compare}
+    try:
+        page.wait_for_function(
+            """(w) => { const m = document.querySelector('#wamaMediaPreviewModal.show');
+                if (!m) return false;
+                const c = m.querySelector('.wama-preview-counter');
+                const a = m.querySelector('.wama-modal-sides .btn-info');
+                return m.querySelector('.modal-title').textContent.trim() === w.title
+                    && (w.counter == null || (c && c.style.display !== 'none' ? c.textContent.trim() : '') === w.counter)
+                    && (w.face == null || (a ? a.textContent.trim() : '') === w.face)
+                    && (w.compare == null || !!m.querySelector('.wama-modal-compare') === w.compare); }""",
+            arg=want, timeout=timeout_ms)
+        return ''
+    except Exception:
+        return f"attendu {', '.join(f'{k}={v!r}' for k, v in want.items() if v is not None)} — " \
+               f"vu {page.evaluate(JS_NAV_STATE)}"
+
+
+def check_preview_navigation():
+    """La navigation de la visionneuse, geste par geste, sur la brique COMMUNE (`media-preview.js`) :
+    les fichiers d'un élément puis l'élément voisin (←/→, boutons ‹ ›), d'élément en élément (↑/↓),
+    la face regardée gardée d'une card à l'autre (Entrée, Comparer), à tout l'écran, la vignette
+    d'une grille ouverte sur SON fichier ; les fichiers d'un dossier du gestionnaire de fichiers ;
+    une galerie et sa surcouche plein écran ; et aucune flèche détournée d'une visionneuse à
+    l'autre. Éléments fictifs servis par la page (`page.route`), aucun traitement. (ok, détail)."""
+    import json
+    import shutil
+
+    from django.conf import settings
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+
+    apps = list(discoverable_apps())
+    token = _test_session_key(apps[0][0]) if apps else None
+    if not token:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
+    folder = os.path.join(str(settings.MEDIA_ROOT), 'smoke_preview_nav')
+    base = settings.MEDIA_URL + 'smoke_preview_nav/'
+    fm_folder = _in_plain_thread(_session_user_folder, token, 'smoke_preview_nav')
+    _in_plain_thread(_nav_witnesses, folder)
+    os.makedirs(fm_folder, exist_ok=True)
+    for i in range(4):
+        shutil.copyfile(os.path.join(folder, 'o1a.png'), os.path.join(fm_folder, f'f{i}.png'))
+    faults, steps = [], 0
+
+    def check(fault, what):
+        nonlocal steps
+        steps += 1
+        if fault:
+            faults.append(f"{what} : {fault}")
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                context = browser.new_context(viewport={'width': 1600, 'height': 1000})
+                context.add_cookies(_cookie(token))
+                page = context.new_page()
+                js_errors = []
+                page.on('pageerror', lambda e: js_errors.append(str(e)[:160]))
+                page.route(f'**{_NAV_ITEM}**', lambda route: route.fulfill(
+                    content_type='application/json', body=json.dumps(_nav_payload(route.request.url, base))))
+                page.goto(f"{BASE_URL.rstrip('/')}{apps[0][1]}", wait_until='networkidle',
+                          timeout=PAGE_TIMEOUT_MS)
+                page.evaluate(JS_NAV_CARDS, [list(_NAV_FILES), _NAV_ITEM])
+                page.wait_for_selector('#wamaNavProbe .wama-preview-tile', timeout=8000)
+                keys = page.keyboard
+                modal = '#wamaMediaPreviewModal'
+
+                def gesture(what, action, *expected, **kw):
+                    """Un geste puis ce que la visionneuse doit montrer ; une panne du geste lui-même
+                    (élément absent, visionneuse fermée) est un DÉFAUT nommé, jamais une exception."""
+                    try:
+                        action()
+                    except Exception as exc:
+                        check(f"geste impossible ({type(exc).__name__} : {str(exc).splitlines()[0][:120]})", what)
+                        return
+                    check(_expect(page, *expected, **kw) if expected else '', what)
+
+                def press(key):
+                    return lambda: keys.press(key)
+
+                def click(selector, text=None, nth=0):
+                    loc = page.locator(selector, has_text=text) if text else page.locator(selector)
+                    return lambda: loc.nth(nth).click(timeout=4000)
+
+                def dblclick(selector):
+                    return lambda: page.locator(selector).first.dblclick(timeout=4000)
+
+                def close():
+                    try:
+                        _close(page)
+                    except Exception:
+                        check('la visionneuse ne se referme pas', 'fermeture')
+                        page.evaluate("() => document.querySelectorAll('.modal.show').forEach(m => "
+                                      "bootstrap.Modal.getOrCreateInstance(m).hide())")
+                        page.wait_for_timeout(600)
+
+                card1 = '#wamaNavProbe .wama-card[data-id="nav1"]'
+                # ── CARDS : fichiers puis card voisine, d'une card à l'autre ──────────────────
+                gesture("ouverture d'une card (double-clic sur son aperçu)",
+                        dblclick(card1 + ' .wama-card-preview small'), 'o1a.png', '1 / 3 · fichier 1 / 3', 'Sortie')
+                for title, counter in (('o1b.png', '1 / 3 · fichier 2 / 3'), ('o1c.png', '1 / 3 · fichier 3 / 3'),
+                                       ('o2.png', '2 / 3'), ('o3a.png', '3 / 3 · fichier 1 / 2')):
+                    gesture(f'→ vers {title}', press('ArrowRight'), title, counter)
+                gesture('← vers la card précédente', press('ArrowLeft'), 'o2.png', '2 / 3')
+                gesture('← arrive sur le DERNIER fichier de la card précédente', press('ArrowLeft'),
+                        'o1c.png', '1 / 3 · fichier 3 / 3')
+                gesture('↓ saute à la card suivante', press('ArrowDown'), 'o2.png', '2 / 3')
+                gesture('↓', press('ArrowDown'))
+                gesture('↓ puis ↑', press('ArrowUp'), 'o2.png', '2 / 3')
+                # ── la FACE regardée est gardée d'une card à l'autre ──────────────────────────
+                gesture('bascule vers la face Entrée', click(modal + ' .wama-modal-sides button', 'Entrée'),
+                        'i2.png', '2 / 3', 'Entrée')
+                gesture('la face Entrée gardée à la card suivante', press('ArrowDown'), 'i3.png', '3 / 3', 'Entrée')
+                gesture('bouton ‹', click(modal + ' .wama-preview-nav-prev'), 'i2.png', '2 / 3', 'Entrée')
+                # ── à TOUT L'ÉCRAN (la modale agrandie) ───────────────────────────────────────
+                page.evaluate(JS_FULL, True)
+                gesture('bouton › à tout l’écran', click(modal + ' .wama-preview-nav-next'), 'i3.png', '3 / 3', 'Entrée')
+                page.evaluate(JS_FULL, False)
+                # ── COMPARER suit la navigation (le titre reste celui de la sortie, chargée
+                #    avant d'être comparée) ─────────────────────────────────────────────────────
+                gesture('Comparer', click(modal + ' .wama-modal-sides button', 'Comparer'),
+                        'i3.png', '3 / 3', 'Comparer', compare=True)
+                gesture('Comparer gardé à la card précédente', press('ArrowUp'),
+                        'o2.png', '2 / 3', 'Comparer', compare=True)
+                close()
+                # ── la VIGNETTE d'une grille ouvre la visionneuse sur SON fichier ────────────
+                gesture('clic sur la 2ᵉ vignette', click(card1 + ' .wama-preview-tile', nth=1),
+                        'o1b.png', '1 / 3 · fichier 2 / 3', 'Sortie')
+                gesture('→ depuis la vignette', press('ArrowRight'), 'o1c.png', '1 / 3 · fichier 3 / 3')
+                close()
+
+                # ── GESTIONNAIRE DE FICHIERS : les fichiers du dossier ─────────────────────────
+                opened = page.evaluate("""() => new Promise(res => {
+                    const t = window.$ && $('#filemanager-tree').jstree && $('#filemanager-tree').jstree(true);
+                    if (!t) return res(false);
+                    t.open_node('section_user', () => t.open_node('temp', () => {
+                        const f = (t.get_node('temp').children || []).find(id => /smoke_preview_nav/.test(id));
+                        if (!f) return res(false);
+                        t.open_node(f, () => res(true)); })); })""")
+                if not opened:
+                    faults.append("gestionnaire de fichiers : le dossier témoin n'apparaît pas dans l'arbre")
+                else:
+                    gesture('gestionnaire : ouverture',
+                            lambda: page.locator('#filemanager-tree a.jstree-anchor', has_text='f0.png')
+                            .first.dblclick(timeout=4000), 'f0.png', '1 / 4')
+                    gesture('gestionnaire : →', press('ArrowRight'), 'f1.png', '2 / 4')
+                    gesture('gestionnaire : ↓', press('ArrowDown'), 'f2.png', '3 / 4')
+                    gesture('gestionnaire : bouton ›', click(modal + ' .wama-preview-nav-next'), 'f3.png', '4 / 4')
+                    gesture('gestionnaire : ←', press('ArrowLeft'), 'f2.png', '3 / 4')
+                    close()
+                    # Une flèche dans la visionneuse d'une CARD ne montre plus un fichier du dossier.
+                    gesture('card rouverte après le gestionnaire', dblclick(card1 + ' .wama-card-preview small'),
+                            'o1a.png', '1 / 3 · fichier 1 / 3')
+                    gesture('aucune flèche détournée vers le gestionnaire', press('ArrowRight'),
+                            'o1b.png', '1 / 3 · fichier 2 / 3')
+                    close()
+
+                # ── GALERIE (liste en main, médiathèque) et sa SURCOUCHE plein écran ─────────
+                gesture('galerie : ouverture', lambda: page.evaluate(
+                    """(b) => window.showPreviewModalWithNav(
+                        {url: b + 'o2.png', name: 'g1', mime_type: 'image/png'},
+                        ['o2', 'o3a', 'o3b'].map((n, i) => ({url: b + n + '.png', name: 'g' + (i + 1),
+                                                           mime_type: 'image/png'})), 0)""", base), 'g1', '1 / 3')
+                gesture('galerie : →', press('ArrowRight'), 'g2', '2 / 3')
+                gesture('galerie : surcouche plein écran', click(modal + ' .preview-fullscreen-btn'))
+                try:
+                    keys.press('ArrowRight')
+                    page.wait_for_function("""() => { const o = document.getElementById('wamaFullscreenOverlay');
+                        return o && /o3b\\.png/.test(o.querySelector('img').src)
+                            && o.querySelector('.wama-preview-counter').textContent.trim() === '3 / 3'; }""",
+                                           timeout=5000)
+                    check('', 'surcouche plein écran : →')
+                    keys.press('Escape')
+                    page.wait_for_function("() => !document.getElementById('wamaFullscreenOverlay')", timeout=4000)
+                except Exception:
+                    check('la surcouche ne suit pas la flèche (ou ne se ferme pas à Échap)', 'surcouche plein écran')
+                    page.evaluate("() => window.closeWamaFullscreen && window.closeWamaFullscreen()")
+                close()
+                if js_errors:
+                    faults.append(f"JS en erreur : {' | '.join(js_errors)}")
+                context.close()
+            finally:
+                browser.close()
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+        shutil.rmtree(fm_folder, ignore_errors=True)
+    if faults:
+        return False, f"{steps} gestes : " + ' ; '.join(faults)
+    return True, (f"{steps} gestes de navigation : fichiers d'un élément puis card voisine (←/→, "
+                  "boutons), d'une card à l'autre (↑/↓), face gardée (Entrée, Comparer), tout l'écran, "
+                  "vignette, gestionnaire de fichiers, galerie et sa surcouche — aucune flèche détournée")
+
+
 def register_preview_scenarios():
-    """Enregistre un scénario `<app>.preview` par app disposant d'un index, et la matrice de mise
-    en page de la visionneuse (`common.preview_layout`) — aucun GPU."""
+    """Enregistre un scénario `<app>.preview` par app disposant d'un index, la matrice de mise
+    en page de la visionneuse (`common.preview_layout`) et ses gestes de navigation
+    (`common.preview_navigation`) — aucun GPU."""
     from wama.common.services.nightly_tests import register
 
     register(
@@ -497,6 +857,15 @@ def register_preview_scenarios():
                      "sans le recouvrir, pour chaque nature de fichier (image, vidéo, audio, PDF, "
                      "texte, Comparer), à sa taille et à tout l'écran, sur deux tailles d'écran"),
         run=lambda ctx: check_preview_layout(),
+        timeout_s=240, vram_gb=0.0,
+    )
+    register(
+        id="common.preview_navigation", app="common", stage="ui",
+        description=("Visionneuse : ←/→ parcourent les fichiers d'un élément puis passent à la card "
+                     "voisine, ↑/↓ sautent de card en card, la face regardée est gardée ; idem au "
+                     "gestionnaire de fichiers et dans une galerie (surcouche plein écran comprise), "
+                     "sans flèche détournée d'une visionneuse à l'autre"),
+        run=lambda ctx: check_preview_navigation(),
         timeout_s=240, vram_gb=0.0,
     )
 

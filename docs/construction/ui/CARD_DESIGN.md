@@ -99,6 +99,9 @@ input/textarea/select déjà posée pour l'éditeur transcriber).
   texte seul sans faces : retiré le 2026-10-12 (`REMOVAL_LEDGER R118`). Une app qui intercepte
   est DÉCLARÉE avec sa raison (`tests_preview_entry.CardPreviewsOpenTheCommonViewerTest`).
   Une card FILLE de lot a son aperçu comme une card seule (enhancer aligné le même jour).
+  Ouverte depuis une card, la visionneuse NAVIGUE entre les cards de la file (←/→ fichier par
+  fichier puis card voisine, ↑/↓ de card en card, face gardée) et, refermée sur une autre card,
+  le volet la sélectionne (2026-10-13, `ROUTE §F3b`).
 - S'articule avec le **cycle avant/pendant/après** de la preview (`preview_utils`, faces
   Entrée/Comparer/Sortie) — c'est CE mécanisme qui remplace la drop zone du volet droit
   (décision 2026-07-25).
