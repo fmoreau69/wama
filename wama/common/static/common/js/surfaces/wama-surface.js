@@ -142,10 +142,18 @@
         var saved = readLayout(config.layout_key) || {};
         var mounted = [];
 
+        // Le titre (la poignée `handle`) existe AVANT que gridstack ne prenne l'élément :
+        // gridstack cherche ses poignées une seule fois, à `makeWidget`, et faute d'en trouver
+        // rend TOUTE la brique déplaçable — un glisser dans l'image (redimensionner une zone)
+        // devenait, après quelques pixels, un déplacement de la brique (relevé par Fabien,
+        // 2026-10-13). D'où l'élément construit à la main plutôt que `addWidget`.
         function frame(slot) {
             var place = saved[slot.id] || slot;
-            var el = grid.addWidget({ id: slot.id, x: place.x, y: place.y, w: place.w, h: place.h });
-            var content = el.querySelector('.grid-stack-item-content');
+            var el = document.createElement('div');
+            el.className = 'grid-stack-item';
+            var content = document.createElement('div');
+            content.className = 'grid-stack-item-content';
+            el.appendChild(content);
             var def = BRICKS[slot.brick] || {};
             var head = document.createElement('div');
             head.className = 'wama-brick-head';
@@ -157,6 +165,8 @@
             body.className = 'wama-brick-body';
             content.appendChild(head);
             content.appendChild(body);
+            root.appendChild(el);
+            grid.makeWidget(el, { id: slot.id, x: place.x, y: place.y, w: place.w, h: place.h });
             if (!def.mount) {
                 body.textContent = 'Brique « ' + slot.brick + ' » non chargée.';
                 return null;
