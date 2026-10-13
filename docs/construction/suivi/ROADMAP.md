@@ -1469,6 +1469,11 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
      l'appelant restant prioritaire (`agent_candidates` de l'assistant outillé).
   5. ⏳ **Un seul chemin partout** : `remote_stt_key`, `dev_cloud_keys` et `role_utils.resolve_model`
      passent par le même tirage ; les mondes Data et Lab l'héritent par `resolve_model_choice`.
+     ➕ **L'enrichissement des prompts de génération** (relevé le 13/10 en relisant le harnais) :
+     `prompt_enrichment.enrich_generative` appelle Ollama avec un modèle d'instance
+     (`WAMA_PROMPT_ENRICH_MODEL`), hors du tirage — local seul, quel que soit le profil. Le
+     rallier change ce que reçoivent les apps (un prompt enrichi par un distant) : décision de
+     Fabien avant le geste.
   6. ⏳ **Médias générés par un distant** (images) : OpenRouter sert 12 modèles qui rendent des
      images, **aucun gratuit** (mesuré sur sa liste le 12/10) ; aucune vidéo. À ouvrir après
      2-5, comme une capacité de la source, et sur consentement « payant ».

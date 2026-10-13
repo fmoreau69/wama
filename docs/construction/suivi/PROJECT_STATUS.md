@@ -23489,3 +23489,43 @@ notifications directement dans la petite fenêtre »* ; et, de la revérificatio
   perdue » ; effet attendu ≈ 1 appel par seconde de moins tant qu'une card avance.
 - 🔴 **Relancer gunicorn** (routes neuves). D'ici là, la cloche retombe sur la page complète (la
   route du panneau répond 404, le repli est prévu) ; les JS/CSS sont servis tout de suite.
+
+## §CLÔTURE — 2026-10-12→13, « SÉLECTION AUTOMATIQUE UNIVERSELLE, étapes 1-2 (`ROADMAP §8d`) + champs pré-remplis du profil » — ✅ LIVRÉ — 🔚 étape 3 (quotas comptés) ou décisions ci-dessous
+
+**Livré** — le détail vit dans `ROADMAP §8d` et `WAMA_LLM.md` (§ limite de débit d'Albert) :
+- `d2de8e50` étape 1 : le tirage automatique lit le coût PAR MODÈLE ;
+- `dae7d18d` étape 2 : bascule sur panne — fournisseur noté saturé, écarté du tirage ; modèle
+  tiré → relais immédiat et dit ; modèle choisi → relais proposé (« Répondre avec … ») ;
+- `fb731d85` : le relais garde le harnais jusqu'au bout — relais vers le local préparé comme un
+  départ local, dernier appel après la limite d'outils qui bascule, note et écart au journal
+  `[cloud]` ;
+- `1d74380e` : profil — l'ancien mot de passe et le code d'appariement Discord ne sont plus
+  pré-remplis par Chrome (le code était pris pour l'identifiant) ; hors connexion, plus aucun
+  `current-password` (garde `tests_password_autofill`) ;
+- clôture : garde V8 du bouton « Répondre avec … » (`tests_cloud_failover.ProposedRelayInTheChatTest`),
+  le harnais au relais consigné dans `WAMA_LLM.md`, l'enrichissement des prompts nommé à l'étape 5.
+
+**Diagnostic du 13/10, « l'assistant est passé par wama-dev-ai »** : ni défaut ni quota — le tour
+venait du compte de démonstration, réglé en local seul et sans clé. Fabien l'a passé en cloud
+souverain lui-même. ⚠ Lire le COMPTE du tour avant de soupçonner un quota.
+
+**Décision reconfirmée le 13/10** : Albert reste en clé PERSONNELLE. ILaaS délivre une clé
+d'application (partageable), Albert non — `shareable` reste réservé à ILaaS (décision du 15/09).
+
+**Contrôles** : `tests_cloud_failover` 10/10, avec trois contre-épreuves par mutation (relais
+vers le local non préparé, dernier appel sans bascule, bouton sans modèle → chacune rouge sur sa
+garde) ; `tests_password_autofill` + comptes : 154 OK ; HEAD vérifié en worktree après
+`fb731d85` : 262 OK. `check_redundancy` : aucune trouvaille dans les fichiers de la session.
+`check_identifier_language` : rouge sur les budgets, aucun nom de la session (vérifié ligne à
+ligne) — la hausse vient de travaux non commités d'autres sessions.
+
+**Restent, à décider par Fabien** :
+1. étape 3, quotas comptés ; étape 4, ordre de préférence par profil (OpenRouter gratuit d'abord
+   au dernier cran) ;
+2. étape 5 : rallier l'enrichissement des prompts au tirage (change ce que reçoivent les apps) ;
+3. étape 7 : ILaaS RAG — famille d'`ilaas_rag`, embeddings distants, reclassement, `gpt-oss-120b` ;
+4. restes de l'étape 2 : relais en cours d'appel pour les apps (étape 5), ASR d'Albert qui ne pose
+   pas la note, relais vers un local froid (étape 4).
+
+**Pendings système** : 🔴 relancer gunicorn (gabarit du profil ; la bascule est déjà servie depuis
+la relance du 13/10) · pousser `1d74380e` et le commit de ce bloc.

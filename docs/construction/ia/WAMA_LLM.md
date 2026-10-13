@@ -1761,6 +1761,17 @@ Le fil a été éprouvé par l'assistant : prospecter, puis installer trois OCR.
      (« Répondre avec … » : le message renvoyé avec ce modèle, pour lui seul).
      Gardes : `tests_cloud_failover`, `tests_llm_providers.ProviderSaturationNoteTest`,
      `tests_cloud_models.SaturatedSourceOutOfTheDrawTest`.
+   - **Le relais garde le HARNAIS** (2026-10-13, question de Fabien : « comme Claude qui change
+     de modèle en gardant le contexte ») : le tour continue sur les MÊMES messages — prompt
+     système (consignes, compétence de rôle, contexte du labo tiré de la mémoire, état de WAMA),
+     historique, outils déjà joués. Ne change que ce qui se règle par modèle : outils natifs,
+     réflexion, étiquette. Un relais vers le LOCAL est préparé comme un départ local
+     (`assistant_engine._prepare_local_model` : fenêtre de contexte, et traduction de la demande
+     si le modèle ne déclare pas la langue) ; le dernier appel, après la limite d'outils, bascule
+     aussi. Au journal : `[cloud] … noté saturé` et `[cloud] écartées du tirage`. ⚠ Avant de
+     soupçonner un quota, lire le COMPTE du tour : le 13/10, un tour « passé en local » venait
+     d'un compte de démonstration réglé en local seul. Gardes : `tests_cloud_failover` (dont le
+     bouton « Répondre avec … », exécuté en V8).
 
 **Et la donnée porte la correction des clés** : le modèle recomposait `reader:hf:org/dépôt` au
 lieu de la clé `proposed:hf:org/dépôt` écrite par l'utilisateur. Le refus `not_found` de

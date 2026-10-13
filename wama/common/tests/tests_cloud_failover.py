@@ -9,11 +9,14 @@ provider is saturated NOTES it (`llm_chat` → `cloud_models.note_saturation`), 
     with the catalog key a click resends the message with.
 `_llm_call` is replaced: what is held here is the turn's decision, not the network.
 """
+import json
+from pathlib import Path
 from unittest import mock
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.common.services import assistant_engine
 from wama.model_manager.services import cloud_models
@@ -136,3 +139,59 @@ class CloudFailoverTest(TestCase):
         self.assertEqual(1, call.call_count)
         self.assertEqual('clé refusée', result['error'])
         self.assertNotIn('fallback', result)
+
+
+#: Le strict nécessaire du DOM pour rendre une bulle d'erreur et cliquer son bouton (V8).
+FAKE_DOM = r"""
+var window = this;
+function element() {
+  return { children: [], textContent: '', appendChild: function (c) { this.children.push(c); },
+           addEventListener: function (type, fn) { this['on' + type] = fn; } };
+}
+var document = { readyState: 'complete', querySelectorAll: function () { return []; },
+                 cookie: '', createElement: element };
+var bodies = [];
+function fetch(url, options) { bodies.push(options.body); return new Promise(function () {}); }
+"""
+
+
+class ProposedRelayInTheChatTest(SimpleTestCase):
+    """Côté chat web (`wama-assistant-chat.js`, fichier SERVI) : le relais PROPOSÉ pour un modèle
+    choisi devient un bouton, et le clic renvoie le même message avec ce modèle, pour ce message
+    seul. Un bouton qui renverrait sans le modèle retomberait sur le modèle saturé — un défaut
+    qu'aucun test Python ne voit."""
+
+    def _ctx(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8')
+        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+                  / 'wama-assistant-chat.js').read_text(encoding='utf-8')
+        ctx = MiniRacer()
+        ctx.eval(FAKE_DOM + source)
+        ctx.eval("var chat = Object.create(WamaAssistantChat._Chat.prototype);"
+                 "chat.bubble = function () { return element(); };"
+                 "var sent = []; chat.send = function (relay) { sent.push(relay); };")
+        return ctx
+
+    def test_the_proposed_relay_resends_the_message_with_its_model(self):
+        ctx = self._ctx()
+        ctx.eval("var line = chat.errorBubble({error: 'saturé', fallback: {model_key: "
+                 "'ilaas:mistral', label: 'ILaaS · mistral'}}, 'bonjour');"
+                 "line.children[0].onclick();")
+        self.assertEqual('Répondre avec ILaaS · mistral', ctx.eval("line.children[0].textContent"))
+        self.assertEqual({'message': 'bonjour', 'model': 'ilaas:mistral'},
+                         json.loads(ctx.eval("JSON.stringify(sent[0])")))
+
+    def test_an_error_without_relay_has_no_button(self):
+        ctx = self._ctx()
+        self.assertEqual(0, ctx.eval("chat.errorBubble({error: 'clé refusée'}, 'bonjour')"
+                                     ".children.length"))
+
+    def test_the_model_rides_with_this_message_only(self):
+        ctx = self._ctx()
+        ctx.eval("chat.cfg = {chatUrl: '/chat/'}; chat.signal = function () { return null; };"
+                 "chat.sendBlocking('bonjour', 'ilaas:mistral'); chat.sendBlocking('merci', null);")
+        self.assertEqual([{'message': 'bonjour', 'model': 'ilaas:mistral'}, {'message': 'merci'}],
+                         [json.loads(b) for b in ctx.eval("bodies")])
