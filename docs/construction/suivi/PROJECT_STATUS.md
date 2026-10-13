@@ -23382,3 +23382,40 @@ Suite du §PALIER du même jour. Fabien a posé la clé `ilaas_rag` sur la page 
 **Restent** (session de routage) : décider de la famille d'`ilaas_rag` et de l'usage de ses
 trois modèles. Ici : 🔴 relancer gunicorn + workers · pousser `444c3828`, `ad56d0d1`, `91771ff6` et
 ce commit.
+
+## §PALIER — 2026-10-13, « NOCTURNE : FILE DÉDIÉE ET DEUX CADENCES ; NŒUD SORTIE DU STUDIO » — ✅ LIVRÉ — 🔴 relancer les services
+
+**Demande de Fabien** : « vas-y pour la file dédiée au nocturne. Peut-on distinguer les tests qui
+doivent tourner chaque nuit et qui sont courts, des tests qui peuvent tourner moins souvent, de
+façon hebdomadaire, la nuit le week-end ? Peux-tu aussi corriger le souci d'audio dans le pipeline
+Studio ? »
+
+**Livré (`40299a95`, local, non poussé)** — détail : `WAMA_VERIFICATION §4ter` et `§9`, R122 :
+- **file `nightly`** : un worker dédié (`scripts/wama_services.sh`, solo), démarré et surveillé par
+  la boucle commune ; la route y envoie `common.run_nightly_tests`. Les traitements lancés par les
+  gestes de la campagne ne l'attendent plus sur `gpu`. Garde : toute file routée a son worker ;
+- **deux cadences**, DÉRIVÉES (`nightly_tests.scenario_cadence`) : sont hebdomadaires les suites
+  Django, les scénarios qui déclarent de la VRAM et ceux des jumelles ; le reste est quotidien.
+  Mesuré sur la nuit du 13/10 :
+  - quotidiens : 311 scénarios, **116 min**, du lundi au samedi à 04:30 ;
+  - hebdomadaires : 293 scénarios, **248 min**, le dimanche à 04:30 ; les chargements de modèles
+    passent en tête.
+
+  La cohérence (04:15) sort des deux campagnes : elle était jouée deux fois. La tâche et la
+  commande (`--cadence`) lisent la même sélection, et le calendrier mesure chaque cadence sur ses
+  propres rapports. Avant ce changement, une campagne complète (6 h 13) dépassait les 6 h de
+  redélivrance de Redis ;
+- **Studio** : le scénario écrivait la catégorie `audio`, refusée par la porte des réglages de nœud.
+  Il écrit désormais une nature. Les choix du nœud « Sortie » se lisent à `ASSET_TYPES` : la liste
+  écrite à la main n'offrait que 6 natures sur 10. Aucun graphe enregistré n'était concerné.
+
+**Contrôles** :
+- tests : 210 sur les modules du nocturne et du calendrier, 93 au Studio ;
+- 4 contre-épreuves rouges ;
+- `studio.pipeline.converter` rejoué vert ;
+- `check_docs` 0/0 ; aucun identifiant français ajouté.
+
+**🔴 Relancer les services** (`start_wama_prod.sh`) : il démarre le worker `nightly` et recharge
+beat. Tant que beat garde l'ancienne planification, la campagne part encore sur `gpu`. Inversement,
+un beat relancé SANS le worker `nightly` laisserait les campagnes en attente dans une file que
+personne ne lit.
