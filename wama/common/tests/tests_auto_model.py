@@ -130,6 +130,51 @@ class PrevisionTest(TestCase):
         self.assertIsNone(predict_model_choice({'task': 'text-to-speech'}))
 
 
+class PreviewOriginTest(TestCase):
+    """2026-10-13 (Fabien): « Prévu : qwen-3.8-27b » did not say it was ILaaS. The preview carries
+    WHERE the model runs — the sentence of the menu's group titles (`AIModel.origin_label`) — and
+    the note under the select shows it."""
+
+    def test_a_local_preview_says_local(self):
+        _tts('synthesizer:tts-seul', 'TTS seul', 0.5)
+        self.assertEqual('WAMA local', predict_model_choice({'task': 'text-to-speech'})['origin'])
+
+    def test_a_remote_preview_names_its_provider(self):
+        from unittest import mock
+        from wama.model_manager.models import EXECUTION_CLOUD
+        remote = AIModel.objects.create(
+            model_key='ilaas:qwen-3.8-27b', name='qwen-3.8-27b', model_type='llm', source='ilaas',
+            execution=EXECUTION_CLOUD, cost_tier='free', is_available=True)
+        with mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                        return_value=remote.model_key):
+            origin = predict_model_choice({'model_type': 'llm'})['origin']
+        self.assertEqual(remote.origin_label, origin)
+        self.assertIn('ILaaS', origin)
+        self.assertIn('souverain', origin)
+
+    def test_the_note_under_the_select_shows_the_origin(self):
+        """On the SERVED file, in V8: the origin is said; a remote model shows no local VRAM."""
+        from pathlib import Path
+        from django.conf import settings
+        from py_mini_racer import MiniRacer
+        v8 = MiniRacer()
+        v8.eval("var window = {}; var document = {readyState: 'complete', "
+                "addEventListener: function () {}, querySelectorAll: function () { return []; }};")
+        v8.eval((Path(settings.BASE_DIR) / 'staticfiles/common/js/wama-params.js')
+                .read_text(encoding='utf-8'))
+        remote = v8.eval("window.WamaParams.autoPreviewText({name: 'qwen-3.8-27b', vram_gb: 0, "
+                         "origin: 'Cloud souverain · ILaaS (ESR) · gratuit (quota)'})")
+        self.assertEqual('Prévu : qwen-3.8-27b · Cloud souverain · ILaaS (ESR) · gratuit (quota)'
+                         ' — réévalué au lancement', remote)
+        local = v8.eval("window.WamaParams.autoPreviewText({name: 'qwen3.5:4b', vram_gb: 3.4, "
+                        "origin: 'WAMA local · Ollama'})")
+        self.assertEqual('Prévu : qwen3.5:4b (3.4 Go) · WAMA local · Ollama — réévalué au lancement',
+                         local)
+        # Counter-test: a preview without an origin (older answer) keeps the former text.
+        self.assertEqual('Prévu : x (1 Go) — réévalué au lancement',
+                         v8.eval("window.WamaParams.autoPreviewText({name: 'x', vram_gb: 1})"))
+
+
 class EndpointOptionsAutoTest(TestCase):
 
     URL = '/model-manager/api/models/options/'

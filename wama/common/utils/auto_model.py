@@ -290,7 +290,9 @@ def predict_model_choice(spec):
     que le tirage réel — VRAM libre, résidence, classement — pour que la prévision dise
     la vérité du lancement. Photo du moment : le lancement réévalue.
 
-    Retour : {'id', 'name', 'vram_gb'} — `id` dans l'espace de clés du domaine.
+    Retour : {'id', 'name', 'vram_gb', 'origin'} — `id` dans l'espace de clés du domaine ;
+    `origin` dit OÙ le modèle tourne (`AIModel.origin_label`, la phrase des intitulés de groupe
+    du menu). Fabien, 2026-10-13 : « Prévu : qwen-3.8-27b » ne disait pas que c'était ILaaS.
     """
     key = resolve_model_choice(AUTO, spec=dict(spec or {}))
     if not key:
@@ -303,6 +305,7 @@ def predict_model_choice(spec):
         'id': key,
         'name': (m.name if m else str(key)),
         'vram_gb': (m.vram_gb if m else None),
+        'origin': (m.origin_label if m else ''),
     }
 
 

@@ -82,7 +82,8 @@ HOSTING = {'private': 'privé', 'sovereign': 'souverain', 'third_party': 'héber
 #:                     donnée quitte le poste, pas l'institution. ⏳ Aucune source ne le déclare
 #:                     encore (2026-10-03) : la valeur existe pour que le plafond du profil et
 #:                     la présentation disent la même chose le jour où une source arrive ;
-#:   • `sovereign`   — hébergement de l'État (Albert, DINUM, SecNumCloud) ;
+#:   • `sovereign`   — hébergement public ou qualifié en France (Albert de la DINUM, ILaaS de
+#:                     l'ESR, SecNumCloud) ;
 #:   • `third_party` — hébergeur commercial, qui ne garde pas les requêtes et n'entraîne pas
 #:                     dessus quand le fournisseur sait le demander (OpenRouter :
 #:                     `no_reuse_request_body`) ;
@@ -190,7 +191,9 @@ HOSTING_CEILING_DEFAULT = 'sovereign'
 #: Libellés du PLAFOND au profil (une formulation par niveau, dans l'ordre de l'échelle).
 HOSTING_CEILING_LABELS = {
     'private': "Cloud privé seulement (serveurs de l'établissement)",
-    'sovereign': "Jusqu'aux clouds souverains (Albert)",
+    # Ce que le niveau EST, jamais un fournisseur nommé (2026-10-13, Fabien : « Albert en dur…
+    # pas homogène avec les autres choix ») — ILaaS est souverain lui aussi, et la liste s'allonge.
+    'sovereign': "Jusqu'aux clouds souverains (hébergés et opérés en France)",
     'third_party': "Jusqu'aux clouds commerciaux, sans conservation de mes données",
     'third_party_all': "Jusqu'aux clouds commerciaux, même s'ils gardent ou réutilisent mes données",
 }

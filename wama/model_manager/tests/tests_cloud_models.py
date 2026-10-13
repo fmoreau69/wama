@@ -677,6 +677,20 @@ class HostingCeilingTest(TestCase):
         for level in es.HOSTING_SCALE:
             self.assertLessEqual(len(level), width, level)
 
+    def test_a_ceiling_says_what_the_level_is_never_a_provider(self):
+        """2026-10-13 (Fabien) : « Albert en dur… pas homogène avec les autres choix » — ILaaS est
+        souverain lui aussi. Un cran DÉCRIT l'hébergement ; nommer une source la périme à la
+        suivante. Parcours des sources DÉCLARÉES, pas une liste de noms."""
+        from wama.common import external_sources as es
+        names = {s.key.split('_')[0].lower() for s in es.SOURCES if s.kind == 'llm'}
+        names |= {s.label.split()[0].lower() for s in es.SOURCES
+                  if s.kind == 'llm' and s.label.split()[0].lower() != 'api'}
+        self.assertIn('albert', names)
+        self.assertIn('ilaas', names)
+        for level, label in es.HOSTING_CEILING_LABELS.items():
+            words = set(label.lower().replace('(', ' ').replace(')', ' ').split())
+            self.assertFalse(words & names, f'{level} : {label}')
+
     def test_only_the_last_rung_accepts_data_reuse_and_it_still_admits_every_source(self):
         """2026-10-12 (Fabien) : la règle de collecte suit le plafond. Le dernier cran admet tout
         ce qu'admet « commercial », et seul lui accepte qu'un hébergeur garde les requêtes."""

@@ -852,14 +852,23 @@
       note.className = 'wp-auto-preview form-text text-muted small';
       sel.insertAdjacentElement('afterend', note);
     }
-    var vram = preview.vram_gb ? ' (' + preview.vram_gb + ' Go)' : '';
-    note.textContent = 'Prévu : ' + preview.name + vram + ' — réévalué au lancement';
+    note.textContent = _autoPreviewText(preview);
     var refresh = function () { note.hidden = (sel.value !== 'auto'); };
     if (!sel._wpAutoPreviewBound) {
       sel._wpAutoPreviewBound = true;
       sel.addEventListener('change', refresh);
     }
     refresh();
+  }
+
+  // Texte de la prévision. La PROVENANCE y figure (2026-10-13, Fabien : « Prévu : qwen-3.8-27b »
+  // ne disait pas que c'était ILaaS) — la phrase des intitulés de groupe du menu, calculée par le
+  // serveur (`AIModel.origin_label`) : « WAMA local · Ollama », « Cloud souverain · ILaaS (ESR) ·
+  // gratuit (quota) ». Un modèle distant n'a pas de VRAM locale : rien ne s'affiche à sa place.
+  function _autoPreviewText(preview) {
+    var vram = preview.vram_gb ? ' (' + preview.vram_gb + ' Go)' : '';
+    var origin = preview.origin ? ' · ' + preview.origin : '';
+    return 'Prévu : ' + preview.name + vram + origin + ' — réévalué au lancement';
   }
 
   // ── Sources d'options adossées à une DONNÉE DE PAGE (résolution SYNCHRONE) ──────────────
@@ -1558,5 +1567,8 @@
                         // (+ « auto » et sa prévision) — sans ça, seules les modales,
                         // rendues par render(), passaient par les sources d'options.
                         bindOptionSources: _bindOptionSources,
+                        // Le texte de la prévision « auto » (provenance comprise) — exposé pour
+                        // sa garde V8 (`tests_auto_model.PreviewOriginTest`).
+                        autoPreviewText: _autoPreviewText,
                         rendererTypes: function () { return Object.keys(RENDERERS); } };
 })(window);
