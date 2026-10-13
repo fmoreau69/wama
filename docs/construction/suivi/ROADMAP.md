@@ -1449,6 +1449,13 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
      (`albert_asr_backend`, sa propre attente sur 429) ne pose pas encore la note ; ③ le relais
      peut être le modèle LOCAL, chargé à froid (jusqu'à ~2 min mesurées) — l'étape 4 dira quand
      le local est admis (GPU occupé, file longue).
+     **Complété le 13/10 (relecture du harnais à la bascule)** : le relais garde les messages du
+     tour — prompt, skill de rôle, contexte du labo, historique, outils joués —, donc le même
+     harnais. Deux trous fermés : un relais vers le LOCAL est préparé comme un départ local
+     (fenêtre ET traduction de la demande, `assistant_engine._prepare_local_model`) ; le DERNIER
+     appel, après la limite d'outils, bascule aussi. La note et l'écart se lisent dans les
+     journaux (`[cloud] … noté saturé`, `[cloud] écartées du tirage`) : sans eux, « quota ou
+     défaut ? » ne se tranchait pas.
   3. ⏳ **Quotas comptés** : requêtes par (utilisateur, source) et par fenêtre, contre les quotas
      DÉCLARÉS sur la source (OpenRouter sans crédit : 20/min et 50/jour ; Albert) → la source est
      tenue pour saturée AVANT le 429.
@@ -1498,6 +1505,9 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
      **Suite** : ~~clé posée, `/v1/models` mesuré~~ (13/10) → décider si
      `ilaas_rag` devient un fournisseur `llm` comme Albert (ses modèles de chat entreraient alors au
      tirage, avec ceux de `llm.ilaas.fr`) → brancher ou non `embed.py` sur un modèle distant.
+     ⚑ **Ces choix reviennent à la session de routage cloud** (signalé le 13/10 par la session
+     d'intégration d'ILaaS) : l'usage d'ILaaS RAG — embeddings, classement (`bge-reranker-v2-m3`)
+     et son modèle de chat `gpt-oss-120b` — se décide ici, avec l'ordre de préférence de l'étape 4.
   **Tranché par Fabien le 13/10** : ① un modèle CHOISI à la main qui sature ne bascule pas seul —
   on le dit et on propose le relais en un clic (le choix manuel est un consentement explicite) ;
   ② la bascule vit d'emblée dans la brique commune, l'assistant en premier utilisateur.

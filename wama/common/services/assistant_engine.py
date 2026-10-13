@@ -830,6 +830,31 @@ def _failover_target(user, provider, domain, tried) -> tuple | None:
     return reason, new_provider, new_model
 
 
+def _prepare_local_model(llm_model: str | None, messages: list, user, asked_index: int):
+    """Le modèle LOCAL d'un tour, ajusté à ses messages — au départ du tour comme au relais d'une
+    bascule sur panne (un relais vers le local a les mêmes besoins qu'un tour local d'emblée).
+
+    1. Fenêtre de contexte : un modèle plus grand si les messages débordent
+       (`_route_model_by_context`).
+    2. Intention (KIND 'intent', §2bis.4 / §16.6) : si le modèle ne gère pas la langue de
+       l'utilisateur, la demande (`messages[asked_index]`) est traduite vers une langue qu'il gère.
+       Modèles multilingues (qwen…) → routing direct → AUCUN appel/chargement traducteur
+       (ressource-safe : pas de cascade). N'agit que si le modèle déclare explicitement ses
+       langues. (Cloud : sans objet — les modèles frontière sont multilingues, et le routing est
+       indexé sur le catalogue Ollama.)
+    """
+    llm_model = _route_model_by_context(llm_model, messages)
+    try:
+        from wama.common.utils.app_metadata import process_prompt_for
+        asked = messages[asked_index]['content']
+        routed = process_prompt_for('assistant', 'message', asked, user=user, model_id=llm_model)
+        if routed and routed != asked:
+            messages[asked_index]['content'] = routed
+    except Exception:
+        pass
+    return llm_model
+
+
 def _accepts_native_tools(source, model: str | None) -> bool:
     """Ce MODÈLE de la source a-t-il été mesuré avec les outils déclarés nativement ? Sans
     modèle nommé, c'est le modèle par défaut de la source qui répond (préfixe de protocole ôté)."""
@@ -1458,24 +1483,10 @@ def run_assistant_turn(user, message: str, provider: str = None,
         {"role": "user",   "content": message},
     ]
 
+    # La demande de ce tour : un relais vers le local la traduit au besoin, comme un départ local.
+    asked_index = len(messages) - 1
     if local:
-        # Auto-upgrade model if context is too long for the selected model
-        llm_model = _route_model_by_context(llm_model, messages)
-
-        # Intention (KIND 'intent', §2bis.4 / §16.6) : si le LLM résolu ne gère pas la langue de
-        # l'utilisateur, traduire le message vers une langue qu'il gère. Modèles assistant
-        # multilingues (qwen…) → routing direct → AUCUN appel/chargement traducteur (résource-safe :
-        # pas de cascade). Ne fait quelque chose que si le modèle déclare explicitement ses langues.
-        # (Cloud : sans objet — les modèles frontière sont multilingues, et le routing est
-        # indexé sur le catalogue Ollama.)
-        try:
-            from wama.common.utils.app_metadata import process_prompt_for
-            routed = process_prompt_for('assistant', 'message', message, user=user,
-                                        model_id=llm_model)
-            if routed and routed != message:
-                messages[-1]['content'] = routed
-        except Exception:
-            pass
+        llm_model = _prepare_local_model(llm_model, messages, user, asked_index)
 
     etiquette = _label(provider, llm_model, local)
     # Le modèle RETENU, dit à qui écoute dès qu'il est connu : c'est ce qui permet d'annoncer
@@ -1496,6 +1507,29 @@ def run_assistant_turn(user, message: str, provider: str = None,
     tried, relays = {_provider_source(provider)}, []
     no_wait = {'rate_limit_wait': False} if drawn else {}
 
+    def _take_relay(relay):
+        # Le tour PASSE au relais : mêmes `messages` — prompt système, skill de rôle, contexte du
+        # labo, historique, outils déjà joués —, donc le même harnais ; seuls changent le
+        # fournisseur et ce qui se règle par modèle (fenêtre, langue, réflexion, outils natifs).
+        nonlocal provider, llm_model, local, think, native_tools, native_kwargs, etiquette
+        reason, new_provider, new_model = relay
+        relays.append(f"{_provider_source(provider)} : {reason}")
+        provider, llm_model = new_provider, new_model
+        local = provider in _LOCAL_PROVIDERS
+        if local:
+            llm_model = _prepare_local_model(llm_model, messages, user, asked_index)
+        think = thinking_wanted(assistant_settings(user).get('quality_intent')) if local else None
+        tried.add(_provider_source(provider))
+        native_tools = _native_tool_specs(user, provider, dev_tools, llm_model)
+        native_kwargs = {'tools': native_tools} if native_tools else {}
+        etiquette = f"{_label(provider, llm_model, local)} · relais ({', '.join(relays)})"
+        logger.warning("[ai_chat] %s — relais : %s", relays[-1], etiquette)
+        if on_event is not None:
+            on_event({'type': 'delta', 'text': f"\n\n_⟳ {relays[-1]} — relais par "
+                                               f"{_label(provider, llm_model, local)}…_\n\n"})
+            on_event({'type': 'model', 'model_key': turn_model_key(provider, llm_model),
+                      'label': etiquette})
+
     for _ in range(MAX_TOOL_ITERATIONS):
         # FLUX (levier 5) : un portier par itération — il ne laisse passer ni la réflexion du
         # modèle ni un appel d'outil, qui arrivent par le même canal que la réponse.
@@ -1515,23 +1549,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
         # ne bascule seul : le relais est PROPOSÉ (décision de Fabien du 13/10).
         relay = _failover_target(user, provider, domain, tried) if text is None else None
         if relay is not None and drawn:
-            reason, new_provider, new_model = relay
-            relays.append(f"{_provider_source(provider)} : {reason}")
-            provider, llm_model = new_provider, new_model
-            local = provider in _LOCAL_PROVIDERS
-            if local:
-                llm_model = _route_model_by_context(llm_model, messages)
-            think = thinking_wanted(assistant_settings(user).get('quality_intent')) if local else None
-            tried.add(_provider_source(provider))
-            native_tools = _native_tool_specs(user, provider, dev_tools, llm_model)
-            native_kwargs = {'tools': native_tools} if native_tools else {}
-            etiquette = f"{_label(provider, llm_model, local)} · relais ({', '.join(relays)})"
-            logger.warning("[ai_chat] %s — relais : %s", relays[-1], etiquette)
-            if on_event is not None:
-                on_event({'type': 'delta', 'text': f"\n\n_⟳ {relays[-1]} — relais par "
-                                                   f"{_label(provider, llm_model, local)}…_\n\n"})
-                on_event({'type': 'model', 'model_key': turn_model_key(provider, llm_model),
-                          'label': etiquette})
+            _take_relay(relay)
             continue
         if relay is not None:
             reason, new_provider, new_model = relay
@@ -1660,13 +1678,20 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # par le schéma → ajout → lancement → statut : cinq outils, plus de tour pour répondre).
     logger.warning("[ai_chat] tool-calling iteration limit reached")
     messages.append({"role": "user", "content": _TOOL_LIMIT_PROMPT})
-    gate = None
-    if on_event is not None:
-        gate = _TokenGate(lambda fragment: on_event({'type': 'delta', 'text': fragment}))
-    text, result = _llm_call(messages, llm_model, provider, user=user, think=think,
-                             on_delta=(gate.feed if gate else None))
-    if gate is not None:
-        gate.close()
+    while True:
+        gate = None
+        if on_event is not None:
+            gate = _TokenGate(lambda fragment: on_event({'type': 'delta', 'text': fragment}))
+        text, result = _llm_call(messages, llm_model, provider, user=user, think=think,
+                                 on_delta=(gate.feed if gate else None), **no_wait)
+        if gate is not None:
+            gate.close()
+        # Ce dernier appel bascule aussi (modèle TIRÉ) : sans relais, le tour finissait sur la seule
+        # trace des outils alors qu'un autre fournisseur pouvait répondre. Fini : `tried` grandit.
+        relay = _failover_target(user, provider, domain, tried) if text is None and drawn else None
+        if relay is None:
+            break
+        _take_relay(relay)
     if text is not None:
         total_usage['input_tokens'] += result.get('input_tokens', 0)
         total_usage['output_tokens'] += result.get('output_tokens', 0)

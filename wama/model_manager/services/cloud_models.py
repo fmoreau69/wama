@@ -586,6 +586,9 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
                                   for s in ouvertes})
         if busy:
             keys = {k for k in keys if k.split(':', 1)[0] not in busy}
+            # Dit dans les journaux : « pourquoi le tirage n'a-t-il pas pris ce fournisseur ? »
+            logger.info('[cloud] écartées du tirage de %s : %s', getattr(user, 'pk', None),
+                        ', '.join(f'{s} ({r})' for s, r in sorted(busy.items())))
     return keys
 
 
@@ -624,6 +627,8 @@ def note_saturation(source: str, *, scope: str, seconds: float, reason: str) -> 
     seconds = min(max(float(seconds or 0), 1.0), SATURATION_NOTE_MAX_S)
     try:
         cache.set(f'{SATURATION_CACHE_PREFIX}{source}:{scope}', reason or 'saturé', timeout=seconds)
+        logger.warning('[cloud] %s noté saturé (%s, portée %s) pour %.0f s',
+                       source, reason or 'saturé', scope, seconds)
     except Exception:
         logger.debug('[cloud] note de saturation non écrite (%s)', source, exc_info=True)
 

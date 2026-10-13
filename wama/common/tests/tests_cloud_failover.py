@@ -36,9 +36,12 @@ class CloudFailoverTest(TestCase):
         notes its provider saturated, as `llm_chat` does. `draws`: what the draw returns."""
         calls = []
         answers = iter(answers)
+        # The request as each call reads it (the turn may rewrite it for a local model).
+        self.asked = []
 
         def fake_llm(messages, llm_model, provider, user=None, **call_kwargs):
             calls.append((provider, llm_model, call_kwargs))
+            self.asked.append(messages[1]['content'])
             answer = next(answers)
             if answer is None:
                 cloud_models.note_saturation(assistant_engine._provider_source(provider),
@@ -83,6 +86,43 @@ class CloudFailoverTest(TestCase):
         self.assertNotIn('rate_limit_wait', calls[0][2])
         self.assertIn('limite de débit', result['error'])
         self.assertEqual('ilaas:mistral', result['fallback']['model_key'])
+
+    def test_a_relay_to_the_local_model_prepares_it_as_a_local_start(self):
+        """The relay keeps the turn's messages (same harness) and gets what a local start gets:
+        the context window, and the request translated when the local model lacks the language."""
+        with mock.patch.object(assistant_engine, '_route_model_by_context',
+                               side_effect=lambda model, messages: model) as window, \
+                mock.patch('wama.common.utils.app_metadata.process_prompt_for',
+                           return_value='hello') as intent:
+            result, calls, _events = self._turn(
+                [None, 'Réponse locale.'], [('albert', 'chat'), ('ollama', 'gemma')])
+        self.assertEqual(['bonjour', 'hello'], self.asked)
+        self.assertEqual(1, window.call_count)
+        self.assertEqual('gemma', intent.call_args.kwargs['model_id'])
+        self.assertEqual(('ollama', 'gemma'), calls[-1][:2])
+        self.assertEqual('Réponse locale.', result['response'])
+
+    def test_the_last_call_after_the_tool_limit_switches_too(self):
+        tool = '{"tool": "get_status", "args": {}}'
+        answers = [tool] * assistant_engine.MAX_TOOL_ITERATIONS + [None, 'Fin par le relais.']
+        with mock.patch('wama.tool_api.execute_tool', return_value={'ok': True}):
+            result, calls, _events = self._turn(answers, [('albert', 'chat'), ('ilaas', 'mistral')])
+        self.assertEqual(('ilaas', 'mistral'), calls[-1][:2])
+        self.assertIs(False, calls[-2][2].get('rate_limit_wait'))
+        self.assertEqual('Fin par le relais.', result['response'])
+        self.assertIn('relais (albert : limite de débit)', result['model'])
+
+    def test_a_chosen_model_ends_on_the_trace_after_the_tool_limit(self):
+        """Counter-test: a chosen model does not switch on its own — the last call failing still
+        ends on the trace of what was done, as before."""
+        tool = '{"tool": "get_status", "args": {}}'
+        answers = [tool] * assistant_engine.MAX_TOOL_ITERATIONS + [None]
+        with mock.patch('wama.tool_api.execute_tool', return_value={'ok': True}):
+            result, calls, _events = self._turn(answers, [('albert', 'chat'), ('ilaas', 'mistral')],
+                                                model='albert:chat')
+        self.assertEqual(assistant_engine.MAX_TOOL_ITERATIONS + 1, len(calls))
+        self.assertNotIn('rate_limit_wait', calls[-1][2])
+        self.assertIn('get_status', result['response'])
 
     def test_a_failure_that_is_not_a_saturation_changes_nothing(self):
         """Counter-test: a refused key or an unknown model notes nothing — no relay, the error
