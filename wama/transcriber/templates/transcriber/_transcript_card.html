@@ -28,7 +28,7 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                         <span class="wcv3-head">#{{ elem.id }}<span class="sep">·</span>{{ elem.created_at|date:"d/m H:i" }}</span><small class="text-muted d-block" style="font-size:.65rem;"></small>
                         {% if elem.audio %}
                         <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
-                                data-preview-url="{% url 'common:unified_preview' 'transcriber' elem.id %}"
+                                data-preview-url="{% url 'common:unified_preview' 'transcriber' elem.id %}?side=input"
                                 style="color: inherit;">
                             <i class="fas fa-file-audio"></i>
                             {{ elem.filename }}

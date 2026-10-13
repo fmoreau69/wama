@@ -525,6 +525,17 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     gardé tel quel par la Sortie ; la transcription, qui EST la Sortie du transcriber). Le contenu
     PRÉSENT décide, pas l'état de la ligne d'exécution. Contre-épreuves rouges (dédoublonnage,
     côté réservé, surcouche, déclaration retirée).
+  - ✅ **2026-10-13 — ② amorcé, et la modale propre du DESCRIBER retirée** (demande de Fabien : son
+    bouton 👁 ouvrait une modale à onglets alors que l'aperçu de la card et du volet ouvrent la
+    visionneuse ; `REMOVAL_LEDGER R125`). Vérifié avant de retirer : la visionneuse montre Entrée,
+    Résumé, Cohérence (score, remarques, version proposée) et Sortie (la description). Le seul
+    écart était la FORME du résumé, écrit en markdown et montré brut : `ProcessSpec.result_format`
+    (`''` texte | `'markdown'`, refusé à la déclaration sinon), exporté au manifeste `pipeline` et
+    relu par le générateur comme `result` ; le serveur rend le texte par LE rendu markdown de WAMA
+    (`docs_catalog.render_markdown`, HTML brut neutralisé) sous `html`, `content` garde le texte
+    (Copier) ; visionneuse et volet l'affichent (`.wama-result-formatted`). Déclaré pour les
+    résumés du describer et du transcriber. Perdus avec la modale, assumés : le score de
+    cohérence en couleur, la version proposée en regard de l'original, les compteurs de mots.
   - ⏳ **Restes, dans l'ordre** : ② rendus par TYPE (segments horodatés à locuteurs, rapport de
     cohérence, ABC en partition), puis la PARITÉ de la modale de résultat du transcriber (onglets,
     compteurs de mots, copie, txt/srt, diarisation, cohérence, évaluation — chaque point tenu par un

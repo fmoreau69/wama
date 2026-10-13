@@ -95,6 +95,7 @@ def process_specs(pipeline: dict) -> list:
             'toggle': params.get('toggle', ''),
             'eta': params.get('eta', ''),
             'result': params.get('result', ''),
+            'result_format': params.get('result_format', ''),
         })
     return out
 

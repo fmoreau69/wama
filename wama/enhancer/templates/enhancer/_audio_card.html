@@ -25,7 +25,7 @@ Contexte : elem (AudioEnhancement, décorée .chips), in_batch (bool).
         <span class="wcv3-thumb"><i class="fas fa-microphone-alt text-success"></i></span>
         <div class="wcv3-in-lines">
           <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu"
-                data-preview-url="{% url 'common:unified_preview' 'audio_enhancer' elem.id %}">
+                data-preview-url="{% url 'common:unified_preview' 'audio_enhancer' elem.id %}?side=input">
             {% if elem.get_input_filename %}{{ elem.get_input_filename }}{% else %}{{ elem.source_url|truncatechars:40 }}{% endif %}
           </span>
           {% if elem.duration %}<span class="wcv3-in-props">{{ elem.duration|floatformat:1 }}s</span>{% endif %}

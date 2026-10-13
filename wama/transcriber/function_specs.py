@@ -176,7 +176,8 @@ PIPELINE = register_app_pipeline(_APP, (
     # la cohérence par segment s'écrit sur les segments que la diarisation réécrit).
     ProcessSpec('summarize', label='Résumé', depends_on=('transcribe', 'import', 'diarize'),
                 degree=OPTIONAL, toggle='generate_summary', share=1,
-                eta='transcriber.workers:summarize_eta', result=f'{_DOCUMENTS}:summary_text'),
+                eta='transcriber.workers:summarize_eta', result=f'{_DOCUMENTS}:summary_text',
+                result_format='markdown'),
     ProcessSpec('coherence', label='Cohérence',
                 depends_on=('transcribe', 'import', 'align', 'diarize'),
                 degree=OPTIONAL, toggle='verify_coherence', share=1,

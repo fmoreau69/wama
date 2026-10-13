@@ -557,6 +557,12 @@ def _process_face(app_name, pipeline, spec, instance, request, input_data):
     porte. (L'état d'un process — périmé, en échec — sur sa face : à venir, `ROUTE §F3b`.)"""
     label = spec.label or spec.key
     text = pipeline.readable_result(spec, instance)
+    if text and spec.result_format == 'markdown':
+        # Mis en forme par LE rendu markdown de WAMA (celui du lecteur de docs : HTML brut
+        # neutralisé, liens externes en nouvel onglet) ; `content` garde le texte, pour Copier.
+        from wama.common.docs_catalog import render_markdown
+        return {'name': label, 'mime_type': 'text/markdown', 'content': text,
+                'html': render_markdown(text)['html']}
     if text:
         return {'name': label, 'mime_type': 'text/plain', 'content': text}
     data_type = pipeline.output_type(spec)

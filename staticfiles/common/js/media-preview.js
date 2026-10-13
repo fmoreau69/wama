@@ -255,6 +255,15 @@
                 }
                 return;
             }
+            // Résultat MIS EN FORME par le serveur (`ProcessSpec.result_format`, 2026-10-13) : son
+            // HTML neutralisé à la source, à la densité du volet.
+            if (typeof data.html === 'string') {
+                host.innerHTML = '<div class="wama-inspector-preview"><div class="small text-white-50 text-start mb-1 wama-result-formatted" ' +
+                    'style="max-height:200px;overflow:auto;word-break:break-word;"></div></div>';
+                host.querySelector('.wama-result-formatted').innerHTML = data.html;
+                _previewCaption(host, name, data);
+                return;
+            }
             // Texte (plain/markdown/csv… ; ex. le PROMPT en entrée). Contenu inline si fourni
             // (data.content, cas prompt sans fichier), sinon chargé en async depuis l'URL.
             host.innerHTML = '<div class="wama-inspector-preview"><pre class="small text-white-50 text-start mb-1" ' +
@@ -1300,13 +1309,18 @@
             toolbar.appendChild(copyBtn);
             if (data.url) toolbar.appendChild(openBtn);
 
-            const pre = document.createElement('pre');
-            pre.className = 'text-light p-3 mb-0';
-            pre.style.cssText = 'max-height:65vh; overflow-y:auto; background:#1e1e1e; border-radius:4px; font-size:13px; white-space:pre-wrap; word-wrap:break-word; border:1px solid #495057;';
+            // Un résultat MIS EN FORME par le serveur (`ProcessSpec.result_format`, le résumé du
+            // describer, 2026-10-13) : son HTML, neutralisé à la source (`docs_catalog
+            // .render_markdown`) ; Copier garde le texte d'origine.
+            const formatted = typeof data.html === 'string';
+            const pre = document.createElement(formatted ? 'div' : 'pre');
+            pre.className = 'text-light p-3 mb-0' + (formatted ? ' wama-result-formatted' : '');
+            pre.style.cssText = 'max-height:65vh; overflow-y:auto; background:#1e1e1e; border-radius:4px; font-size:13px; word-wrap:break-word; border:1px solid #495057;'
+                + (formatted ? '' : ' white-space:pre-wrap;');
             pre.textContent = 'Chargement…';
 
             copyBtn.addEventListener('click', () => {
-                navigator.clipboard.writeText(pre.textContent).then(() => {
+                navigator.clipboard.writeText(formatted ? data.content : pre.textContent).then(() => {
                     copyBtn.innerHTML = '<i class="fas fa-check text-success"></i> Copié';
                     setTimeout(() => { copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copier'; }, 2000);
                 }).catch(() => {});
@@ -1315,7 +1329,9 @@
             wrapper.appendChild(toolbar);
             wrapper.appendChild(pre);
 
-            if (typeof data.content === 'string') {
+            if (formatted) {
+                pre.innerHTML = data.html;
+            } else if (typeof data.content === 'string') {
                 // Texte servi inline (sortie/entrée texte, docx/odt/rtf extrait) — pas de fetch
                 pre.textContent = data.content;
             } else if (data.url) {

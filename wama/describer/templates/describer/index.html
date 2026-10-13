@@ -82,37 +82,6 @@ Ids dropZone/fileInput/describerFolderInput/media_url/mediaUrlSubmit conservés.
 {% endblock %}
 
 {% block extra_modals %}
-<!-- Result Preview Modal -->
-<div class="modal fade" id="resultModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-file-alt"></i> <span id="resultModalTitle">Resultat</span>
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div id="resultLoader" class="text-center py-4">
-                    <div class="spinner-border text-info" role="status">
-                        <span class="visually-hidden">Chargement...</span>
-                    </div>
-                </div>
-                <div id="resultContent" style="display: none;">
-                    <!-- Tabs -->
-                    {% result_tabs 'describer' %}
-                </div>
-            </div>
-            <div class="modal-footer">
-                <a href="#" class="btn btn-info" id="resultDownloadBtn">
-                    <i class="fas fa-download"></i> Telecharger
-                </a>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 {% comment %}Modale ⚙ d'ITEM : plus de markup ici — GÉNÉRÉE par le cycle commun
 `WamaParams.settingsModal` (index.js, portage 2026-09-24). Ne reste que le pied COMMUN qu'il
 greffe, avec les classes qu'il délègue (`save-settings-btn` / `save-and-restart-btn`).{% endcomment %}

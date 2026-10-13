@@ -12,12 +12,10 @@ from django.test import SimpleTestCase
 
 from wama.common.utils.detail_registry import result_tabs_for
 
-#: Les ancres relevées sur les DEUX gabarits AVANT extraction (git HEAD du 07/09).
+#: Les ancres relevées sur les DEUX gabarits AVANT extraction (git HEAD du 07/09). Le describer
+#: n'y est plus depuis le 2026-10-13 (R125) : sa modale propre est retirée, ses facettes sont les
+#: faces de la visionneuse commune.
 ANCRES_ATTENDUES = {
-    'describer': {'resultTabs', 'tab-description', 'tab-description-btn', 'wc-description',
-                  'tab-resume', 'tab-resume-btn', 'wc-resume', 'tab-coherence',
-                  'tab-coherence-btn', 'wc-coherence', 'resultText', 'resumeContent',
-                  'coherenceContent'},
     'transcriber': {'resultTabs', 'tab-transcription', 'tab-transcription-btn',
                     'wc-transcription', 'tab-diarisation', 'tab-diarisation-btn',
                     'tab-resume', 'tab-resume-btn', 'wc-resume', 'tab-coherence',
@@ -103,7 +101,7 @@ class DeclarationDansLaSpecDeDetailTest(SimpleTestCase):
         l'accesseur rend est ce que sa SPEC déclare, clé pour clé."""
         from wama.common.utils.detail_registry import DetailRegistry
         avec = [a for a in DetailRegistry.registered_apps() if result_tabs_for(a)]
-        self.assertGreaterEqual(len(avec), 2, 'parcours vacueux')
+        self.assertGreaterEqual(len(avec), 1, 'parcours vacueux')
         for app in avec:
             spec = (DetailRegistry.get(app) or {}).get('spec') or {}
             self.assertEqual([o['cle'] for o in result_tabs_for(app)],

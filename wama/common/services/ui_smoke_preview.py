@@ -17,6 +17,8 @@ CE QU'IL FAIT, sans GPU et sans connaître aucune app :
      face Entrée dans sa bascule quand la spec en déclare une. Une app qui intercepte
      `wama:card-expand` (transcriber) ouvre sa propre modale : dit en ⚠, elle n'a pas les faces.
      Une card FILLE de lot a son aperçu comme une card seule (enhancer aligné le 2026-10-12).
+  4bis. (2026-10-13) sélectionne la card : le bouton d'agrandissement de l'aperçu du VOLET reçoit le
+     clic, n'est pas posé sur l'aperçu, et ouvre la visionneuse commune ;
   5. (2026-10-13) passe au clavier de cette card à l'autre élément monté — face gardée — et, la
      visionneuse refermée, exige que le volet sélectionne la card d'arrivée.
 Une erreur d'aperçu (le toast que lève `media-preview.js`) est un ÉCHEC, jamais un constat.
@@ -108,6 +110,58 @@ JS_FULL = """(on) => {
     const d = document.querySelector('#wamaMediaPreviewModal .modal-dialog');
     if (t && d && d.classList.contains('modal-fullscreen') !== on) t.click();
 }"""
+
+
+#: Le bouton d'agrandissement de l'aperçu du VOLET. Relevé par Fabien le 2026-10-13 : visible mais
+#: inerte (un décor en `pointer-events:none`), et posé en absolu SUR l'aperçu, par-dessus
+#: l'ascenseur d'un texte long. `receives` : au centre du bouton, c'est lui qui reçoit le clic.
+JS_PANEL_EXPAND = """() => {
+    const host = document.getElementById('preview-container');
+    const btn = document.querySelector('.wama-preview-expand');
+    if (!host || !btn) return {host: !!host, button: !!btn};
+    const b = btn.getBoundingClientRect(), h = host.getBoundingClientRect();
+    const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+    return {host: true, button: true, sized: b.width > 4 && b.height > 4,
+            receives: !!hit && btn.contains(hit),
+            crosses: !(b.bottom <= h.top || b.top >= h.bottom || b.right <= h.left || b.left >= h.right)};
+}"""
+
+
+def panel_expand_fault(state) -> str:
+    """'' si le bouton d'agrandissement du volet est un vrai bouton, hors de l'aperçu ; sinon ce
+    qui cloche. `None` ou pas d'hôte : la page n'a pas d'aperçu de volet, rien à juger."""
+    if not state or not state.get('host'):
+        return ''
+    if not state.get('button'):
+        return "volet : l'aperçu n'a pas de bouton d'agrandissement"
+    if not state.get('sized'):
+        return "volet : le bouton d'agrandissement n'a pas de taille (masqué)"
+    if state.get('crosses'):
+        return "volet : le bouton d'agrandissement est posé SUR l'aperçu (il en recouvre l'ascenseur)"
+    if not state.get('receives'):
+        return "volet : le bouton d'agrandissement ne reçoit pas le clic (décor ou recouvert)"
+    return ''
+
+
+def _check_panel_expand(page, card_sel: str, faults: list, findings: list):
+    """La card sélectionnée, son aperçu dans le volet s'agrandit par SON bouton : la visionneuse
+    commune s'ouvre (le même geste que le double-clic sur l'aperçu)."""
+    page.locator(card_sel).first.click(position={'x': 6, 'y': 6}, timeout=6000)
+    try:
+        page.wait_for_selector('.wama-preview-expand', state='attached', timeout=10000)
+    except Exception:
+        pass                         # le verdict ci-dessous dit ce qui manque
+    fault = panel_expand_fault(page.evaluate(JS_PANEL_EXPAND))
+    if fault:
+        faults.append(fault)
+        return
+    shown, errors = _open_and_read(page, lambda: page.locator('.wama-preview-expand').first.click(timeout=4000))
+    fault = _verdict("agrandissement de l'aperçu du volet", shown, errors)
+    if fault:
+        faults.append(fault)
+    else:
+        findings.append(f"volet : le bouton d'agrandissement ouvre la visionneuse ({_seen(shown)})")
+    _close(page)
 
 
 def sides_layout_fault(layout, where: str, must_fill: bool = False) -> str:
@@ -376,6 +430,12 @@ def check_app_preview(app: str, url_path: str):
                     else:
                         entry_opened = not shown.get('own')
                         findings.append(f"entrée → {_seen(shown)}")
+                        # Le NOM d'entrée ouvre la face Entrée — pas la face par défaut d'un élément
+                        # terminé, la Sortie (relevé par Fabien sur le Describer le 2026-10-13 : cinq
+                        # cards ne demandaient pas `?side=input`, et ce geste ne regardait pas la face).
+                        face = (page.evaluate(JS_NAV_STATE) or {}).get('face', '')
+                        if entry_opened and 'Entrée' in shown.get('sides', []) and face != 'Entrée':
+                            faults.append(f"entrée : le nom d'entrée ouvre la face « {face} », pas l'Entrée")
                         if entry_opened:
                             _check_sides_layout(page, 'entrée', faults)
                         # La bascule de la VISIONNEUSE vers la face Sortie (ses propres faces).
@@ -432,6 +492,9 @@ def check_app_preview(app: str, url_path: str):
                             findings.append(f"sortie → {_seen(shown)}")
                             _check_sides_layout(page, 'sortie', faults)
                         _close(page)
+
+                # ── VOLET : l'aperçu de la card sélectionnée s'agrandit par son bouton ──────
+                _check_panel_expand(page, card.format(ident), faults, findings)
 
                 # ── NAVIGATION : d'une card à l'autre, la face gardée, le volet resynchronisé ──
                 if other:

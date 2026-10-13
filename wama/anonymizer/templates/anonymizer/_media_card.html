@@ -32,7 +32,7 @@ Contexte : elem (décoré par _decorate_card → elem.chips), in_batch, user.
         </span>
         <div class="wcv3-in-lines">
           <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu"
-                data-preview-url="{% url 'common:unified_preview' 'anonymizer' elem.id %}">
+                data-preview-url="{% url 'common:unified_preview' 'anonymizer' elem.id %}?side=input">
             {{ elem.get_filename }}
           </span>
           <span class="wcv3-in-props">{% if elem.width and elem.height %}{{ elem.width }}×{{ elem.height }}{% if elem.fps %}<span class="sep">·</span>{{ elem.fps }} fps{% endif %}{% endif %}{% if elem.duration_inMinSec %}<span class="sep">·</span>{{ elem.duration_inMinSec }}{% endif %}</span>

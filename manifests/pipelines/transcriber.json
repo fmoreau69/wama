@@ -138,6 +138,7 @@
           "gpu": false,
           "label": "Résumé",
           "result": "transcriber.utils.transcript_documents:summary_text",
+          "result_format": "markdown",
           "toggle": "generate_summary",
           "watched": [
             "summary_type"

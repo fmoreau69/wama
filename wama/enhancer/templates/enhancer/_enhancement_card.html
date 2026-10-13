@@ -28,7 +28,7 @@ Contexte : elem (Enhancement, décorée .chips), in_batch (bool).
         </span>
         <div class="wcv3-in-lines">
           <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu"
-                data-preview-url="{% url 'common:unified_preview' 'enhancer' elem.id %}">
+                data-preview-url="{% url 'common:unified_preview' 'enhancer' elem.id %}?side=input">
             {% if elem.get_input_filename %}{{ elem.get_input_filename }}{% else %}{{ elem.source_url|truncatechars:40 }}{% endif %}
           </span>
           {% if elem.width %}<span class="wcv3-in-props">{{ elem.width }}×{{ elem.height }}</span>{% endif %}

@@ -6,7 +6,7 @@ Contexte : elem = Description (décorée par _decorate_desc → .chips) ; in_bat
 Rendue au chargement (cards autonomes ET filles) et par describer:card_html (refresh in-place).
 
 ⚠ Contrats JS à ne pas casser (relevés dans describer/index.js) : .wama-card[data-id]
-  [data-status], .settings-btn + data-* (:220/:393), .preview-btn (:214), .delete-btn (:208),
+  [data-status], .settings-btn + data-* (:220/:393), .delete-btn (:208),
   .duplicate-btn[data-duplicate-url] (brique commune), .result-preview (:506 — partial_text
   live), .wama-progress-fill (:558), .progress-text (:565), .wama-eta (:572).
   L'ancien .status-badge n'existe plus : les transitions SUCCESS/FAILURE re-rendent la card
@@ -33,7 +33,7 @@ process optionnel reste à compléter se montre « en attente » sans être rela
         </span>
         <div class="wcv3-in-lines">
           <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu du fichier source"
-                data-preview-url="{% url 'common:unified_preview' 'describer' elem.id %}">
+                data-preview-url="{% url 'common:unified_preview' 'describer' elem.id %}?side=input">
             {{ elem.filename }}
           </span>
           <span class="wcv3-in-props">{{ elem.detected_type|default:'—' }}<span class="sep">·</span>{{ elem.format_file_size }}</span>
@@ -82,7 +82,7 @@ process optionnel reste à compléter se montre « en attente » sans être rela
       </div>
     </div>
 
-    {# ── ACTIONS : ordre conventionnel ⚙ ▶ 👁 ⬇ ⧉ 🗑 (classes/données describer JS) ── #}
+    {# ── ACTIONS : ordre conventionnel ⚙ ▶ ⬇ ⧉ 🗑 (classes/données describer JS) ── #}
     <div class="wcv3-sec wcv3-sec--actions">
       <span class="wcv3-lbl">Actions</span>
       <div class="btn-group-actions wcv3-actions">
@@ -95,10 +95,10 @@ process optionnel reste à compléter se montre « en attente » sans être rela
           <i class="fas fa-cog"></i>
         </button>
         {% include 'common/_cycle_button.html' with id=elem.id status=elem.shown_state|default:elem.status %}
+        {% comment %}Plus de bouton 👁 (retiré le 2026-10-13, R125) : le résultat s'ouvre par
+        l'aperçu de la card ou celui du volet, dans la visionneuse commune, dont les faces sont
+        les process — Description, Résumé, Cohérence.{% endcomment %}
         {% if elem.status == 'SUCCESS' %}
-        <button class="btn btn-sm btn-outline-success preview-btn" data-id="{{ elem.id }}" title="Voir le résultat">
-          <i class="fas fa-eye"></i>
-        </button>
         {% url 'describer:download' elem.id as url_dl %}
         {% download_button 'describer' url_dl True %}
         {% else %}

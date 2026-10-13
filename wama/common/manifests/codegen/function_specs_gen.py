@@ -167,6 +167,8 @@ def render_function_specs(manifest: dict) -> tuple:
             args.append(f"eta={s['eta']!r}")
         if s.get('result'):
             args.append(f"result={s['result']!r}")
+        if s.get('result_format'):
+            args.append(f"result_format={s['result_format']!r}")
         lines.append(f"    ProcessSpec({', '.join(args)}),")
     model_kw = ', model_of=_requested_model' if model_field else ''
     lines += [f"), label={(pipeline.get('name') or app_key)!r},",

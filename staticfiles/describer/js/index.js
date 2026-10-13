@@ -129,11 +129,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // 🗑 : plus de bind PAR CARD ici — brique commune queue-actions.js, délégation unique
         // (portage 2026-08-23). La suite est déclarée par `onDeleted`, plus bas.
 
-        // Preview button
-        const previewBtn = card.querySelector('.preview-btn');
-        if (previewBtn) {
-            previewBtn.addEventListener('click', () => showPreview(card.dataset.id));
-        }
+        // 👁 : plus de bouton ni de modale de résultat propres (retirés le 2026-10-13, R125) — le
+        // résultat s'ouvre par l'aperçu de la card ou du volet, dans la visionneuse commune.
 
         // ⚙ : plus rien à lier ICI. La brique commune (queue-actions.js) délègue une fois pour
         // toutes ; ce bind PAR CARD était précisément le défaut visé par CARD_DESIGN §3 (N
@@ -387,130 +384,6 @@ document.addEventListener('DOMContentLoaded', function() {
         updateQueueCount();
         showToast('Description supprimee', 'success');
     });
-
-    // === Preview Modal (tabbed) ===
-
-    function wordCount(text) {
-        if (!text || !text.trim()) return 0;
-        return text.trim().split(/\s+/).filter(Boolean).length;
-    }
-
-    function setWordCount(spanId, text) {
-        const span = document.getElementById(spanId);
-        if (!span) return;
-        const n = wordCount(text);
-        if (n > 0) { span.textContent = `${n} mot${n !== 1 ? 's' : ''}`; span.style.display = ''; }
-        else { span.textContent = ''; span.style.display = 'none'; }
-    }
-
-    function renderDescMarkdown(text) {
-        if (!text) return '';
-        return text
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/### (.+)/g, '<h6 class="text-info mt-3 mb-1">$1</h6>')
-            .replace(/## (.+)/g, '<h5 class="text-warning mt-3 mb-2">$1</h5>')
-            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(/^- (.+)$/gm, '<li>$1</li>')
-            .replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`)
-            .replace(/\n\n/g, '<br><br>')
-            .replace(/\n/g, '<br>');
-    }
-
-    async function showPreview(id) {
-        const modal = new bootstrap.Modal(document.getElementById('resultModal'));
-        const loader = document.getElementById('resultLoader');
-        const content = document.getElementById('resultContent');
-        const resultText = document.getElementById('resultText');
-        const downloadBtn = document.getElementById('resultDownloadBtn');
-
-        loader.style.display = 'block';
-        content.style.display = 'none';
-
-        // Reset tabs visibility
-        const tabResumeBtn = document.getElementById('tab-resume-btn');
-        const tabCoherenceBtn = document.getElementById('tab-coherence-btn');
-        if (tabResumeBtn) tabResumeBtn.style.display = 'none';
-        if (tabCoherenceBtn) tabCoherenceBtn.style.display = 'none';
-
-        // Activate description tab
-        const descTab = document.getElementById('tab-description-btn');
-        if (descTab) { try { new bootstrap.Tab(descTab).show(); } catch(e) {} }
-
-        modal.show();
-
-        try {
-            // Use progress endpoint to get full data including summary/coherence
-            const response = await fetch(config.urls.progress.replace('/0/', `/${id}/`), {
-                headers: { 'X-CSRFToken': config.csrfToken }
-            });
-
-            const data = await response.json();
-
-            document.getElementById('resultModalTitle').textContent = `Description #${id}`;
-            resultText.textContent = data.result_text || 'Aucun resultat disponible';
-            setWordCount('wc-description', data.result_text || '');
-            if (downloadBtn) downloadBtn.href = config.urls.download.replace('/0/', `/${id}/`) + '?format=txt';
-
-            // Résumé tab
-            const resumeContent = document.getElementById('resumeContent');
-            if (data.summary && resumeContent) {
-                resumeContent.innerHTML = renderDescMarkdown(data.summary);
-                setWordCount('wc-resume', data.summary || '');
-                if (tabResumeBtn) tabResumeBtn.style.display = '';
-            }
-
-            // Cohérence tab
-            const coherenceContent = document.getElementById('coherenceContent');
-            if (data.coherence_score !== null && data.coherence_score !== undefined && coherenceContent) {
-                const score = data.coherence_score;
-                const scoreColor = score >= 80 ? 'success' : score >= 50 ? 'warning' : 'danger';
-                let notesHtml = '';
-                if (data.coherence_notes) {
-                    const notes = data.coherence_notes.split('\n').filter(l => l.trim());
-                    notesHtml = '<ul class="mt-2">' + notes.map(n => `<li class="text-light small">${n.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</li>`).join('') + '</ul>';
-                }
-                let sideBySide = '';
-                if (data.coherence_suggestion) {
-                    const orig = (data.result_text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                    const sugg = data.coherence_suggestion.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                    sideBySide = `
-                        <div class="row mt-3">
-                          <div class="col-md-6">
-                            <div class="card" style="background:#1e1e1e;border:1px solid #495057;">
-                              <div class="card-header py-1 small text-muted">Texte original</div>
-                              <div class="card-body p-2">
-                                <pre style="color:#d4d4d4;white-space:pre-wrap;font-size:13px;max-height:300px;overflow-y:auto;margin:0;">${orig}</pre>
-                              </div>
-                            </div>
-                          </div>
-                          <div class="col-md-6">
-                            <div class="card" style="background:#1e2820;border:1px solid #2ea043;">
-                              <div class="card-header py-1 small text-muted">Correction proposée</div>
-                              <div class="card-body p-2">
-                                <pre style="color:#7ee787;white-space:pre-wrap;font-size:13px;max-height:300px;overflow-y:auto;margin:0;">${sugg}</pre>
-                              </div>
-                            </div>
-                          </div>
-                        </div>`;
-                }
-                coherenceContent.innerHTML = `
-                    <div class="d-flex align-items-center mb-2">
-                        <span class="badge bg-${scoreColor} fs-5 me-3">${score}/100</span>
-                        <span class="text-light">Score de cohérence</span>
-                    </div>
-                    ${notesHtml}${sideBySide}`;
-                setWordCount('wc-coherence', data.coherence_suggestion || data.result_text || '');
-                if (tabCoherenceBtn) tabCoherenceBtn.style.display = '';
-            }
-
-            loader.style.display = 'none';
-            content.style.display = 'block';
-
-        } catch (error) {
-            console.error('Preview error:', error);
-            loader.innerHTML = '<p class="text-danger">Erreur lors du chargement</p>';
-        }
-    }
 
     // === Batch Actions ===
 

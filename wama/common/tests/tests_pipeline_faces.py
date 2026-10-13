@@ -100,6 +100,11 @@ class EveryProcessHasAReadableResultTest(SimpleTestCase):
                                                 for k in node.keywords}
         self.assertEqual(read['summarize'], rendered['summarize'].get('result'))
         self.assertNotIn('result', rendered['align'])
+        # The FORM of the result travels the same way (2026-10-13).
+        forms = {s['key']: s['result_format'] for s in process_specs(pipe.manifest())}
+        self.assertEqual(('markdown', ''), (forms['summarize'], forms['align']))
+        self.assertEqual('markdown', rendered['summarize'].get('result_format'))
+        self.assertNotIn('result_format', rendered['align'])
 
 
 class _MediaRootMixin:
@@ -190,6 +195,29 @@ class ProcessFacesTest(_MediaRootMixin, TestCase):
         self.assertEqual({'name': 'Premier', 'mime_type': 'text/plain', 'content': 'un texte'},
                          faces['first'][1])
 
+    def test_a_markdown_result_is_served_formatted_and_neutralized(self):
+        # 2026-10-13 : the Describer's own modal formatted its summary, the common face showed
+        # the raw `##`. The process DECLARES the form ; the text stays under `content` (Copy).
+        from wama.common.services.process_pipeline import AppPipeline, ProcessSpec
+        text = '## Synthèse\n\n- **un** point\n\n<script>alert(1)</script>'
+        pipe = AppPipeline('demo_faces', (
+            ProcessSpec('sum', label='Résumé', result=lambda item: text, result_format='markdown'),
+            ProcessSpec('raw', depends_on=('sum',), result=lambda item: '## brut'),
+        ), label='Demo')
+        with mock.patch('wama.common.services.process_pipeline.pipeline_of', return_value=pipe):
+            faces = self._faces('demo_faces', self.user)
+        formatted, raw = faces['sum'][1], faces['raw'][1]
+        self.assertEqual(('text/markdown', text), (formatted['mime_type'], formatted['content']))
+        self.assertIn('<h2', formatted['html'])
+        self.assertIn('<strong>un</strong>', formatted['html'])
+        self.assertNotIn('<script>', formatted['html'], 'raw HTML is never rendered')
+        self.assertNotIn('html', raw, 'a plain text result stays plain')
+
+    def test_an_unknown_result_form_is_refused_at_declaration(self):
+        from wama.common.services.process_pipeline import AppPipeline, ProcessSpec
+        with self.assertRaises(ValueError):
+            AppPipeline('demo_faces', (ProcessSpec('a', result_format='rst'),), label='Demo')
+
 
 class TranscriberFacesTest(_MediaRootMixin, TestCase):
     """End to end : the endpoint the panel and the viewer read (`/common/preview/<app>/<pk>/`)."""
@@ -223,6 +251,7 @@ class TranscriberFacesTest(_MediaRootMixin, TestCase):
                          'the transcription IS the Output : it is not repeated as a face')
         summary = self._preview(t, 'summarize')
         self.assertEqual(('summarize', 'Un résumé.'), (summary['side'], summary['content']))
+        self.assertIn('<p>Un résumé.</p>', summary['html'], 'the summary is declared markdown')
         self.assertEqual('Bonjour à tous.', self._preview(t, 'output')['content'])
 
     def test_before_its_optional_processes_it_has_no_face(self):

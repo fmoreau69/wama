@@ -299,6 +299,9 @@ class CardsOpenTheirEntryByTheCommonGestureTest(SimpleTestCase):
             for url in link.findall(card.read_text(encoding='utf-8')):
                 seen += 1
                 self.assertIn("common:unified_preview", url, f'{card.name} : {url}')
+                # The ENTRY face, asked for : without it a finished item opens on its Output
+                # (five cards, the Describer reported by Fabien on 2026-10-13).
+                self.assertTrue(url.endswith('?side=input'), f'{card.name} : {url}')
         self.assertGreaterEqual(seen, 8, 'the instrument sees the entry links')
 
     def test_the_generator_emits_the_same_entry_link(self):
@@ -306,6 +309,7 @@ class CardsOpenTheirEntryByTheCommonGestureTest(SimpleTestCase):
         source = Path(templates_gen.__file__).read_text(encoding='utf-8')
         self.assertNotIn('/filemanager/api/preview/', source)
         self.assertIn("preview-media-link", source)
+        self.assertIn("elem.id %}}?side=input", source)
 
 
 class CardPreviewsOpenTheCommonViewerTest(SimpleTestCase):
@@ -325,6 +329,15 @@ class CardPreviewsOpenTheCommonViewerTest(SimpleTestCase):
                    for card in CardsOpenTheirEntryByTheCommonGestureTest._cards()
                    if guard.search(card.read_text(encoding='utf-8'))]
         self.assertEqual([], guarded)
+
+    def test_no_card_keeps_its_own_result_button(self):
+        # The result opens by the card's preview or the side panel's, in the common viewer whose
+        # faces are the processes. The describer kept an 👁 to its own tabbed modal (retired
+        # 2026-10-13, R125, asked by Fabien). The USE — a comment may name the retired button.
+        own = [card.parent.name + '/' + card.name
+               for card in CardsOpenTheirEntryByTheCommonGestureTest._cards()
+               if re.search(r'class="[^"]*\bpreview-btn\b', card.read_text(encoding='utf-8'))]
+        self.assertEqual([], own)
 
     def test_only_a_declared_app_takes_over_the_double_click(self):
         # Hors jumelles : aucune substitution ne régénère leur `static/` (facettes du registre :
@@ -380,3 +393,42 @@ class SidesSwitchHasItsOwnPlaceTest(SimpleTestCase):
         from wama.common.services.ui_smoke_preview import register_preview_scenarios
         register_preview_scenarios()
         self.assertIn('common.preview_layout', {s.id for s in nightly_tests.REGISTRY})
+
+
+class SidePanelExpandIsARealButtonTest(SimpleTestCase):
+    """The expand button of the side panel's preview is a BUTTON, outside the preview — reported by
+    Fabien (2026-10-13): an inert decoration (`pointer-events:none`) laid on the preview, over the
+    scrollbar of a long text. The geometry is measured in a browser by the nightly scenarios
+    (`<app>.preview`); held here : the rule they apply, and the place the inspector gives it."""
+
+    def _inspector(self):
+        return (Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / 'common' / 'js'
+                / 'wama-inspector.js').read_text(encoding='utf-8')
+
+    def test_the_verdict_names_what_is_wrong(self):
+        from wama.common.services.ui_smoke_preview import panel_expand_fault
+        good = {'host': True, 'button': True, 'sized': True, 'receives': True, 'crosses': False}
+        self.assertEqual('', panel_expand_fault(None))
+        self.assertEqual('', panel_expand_fault({'host': False, 'button': False}))
+        self.assertEqual('', panel_expand_fault(good))
+        self.assertIn("pas de bouton", panel_expand_fault({'host': True, 'button': False}))
+        self.assertIn('taille', panel_expand_fault(dict(good, sized=False)))
+        self.assertIn('SUR', panel_expand_fault(dict(good, crosses=True)))
+        self.assertIn('ne reçoit pas', panel_expand_fault(dict(good, receives=False)))
+
+    def test_the_button_lives_in_the_section_title_and_opens_the_viewer(self):
+        source = self._inspector()
+        block = source[source.index('function _attachFullscreen'):source.index('function restorePreview')]
+        self.assertNotIn('pointer-events:none', block)
+        self.assertNotIn('previewHost.appendChild', block)
+        self.assertIn("createElement('button')", block)
+        self.assertIn('previewTitleEl.appendChild(btn)', block)
+        self.assertIn('_openViewer()', block)
+
+    def test_writing_the_title_keeps_the_button(self):
+        # The title is the item's name while a preview is shown : a bare `textContent =` would
+        # wipe the button with it. One writer, which puts the button back.
+        source = self._inspector()
+        self.assertEqual(1, source.count('previewTitleEl.textContent ='))
+        writer = source[source.index('function _setPreviewTitle'):]
+        self.assertIn('_showExpandButton()', writer[:writer.index('\n    }\n')])

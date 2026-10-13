@@ -389,7 +389,7 @@
     var previewHost = cfg.previewHost ? $(cfg.previewHost) : document.getElementById('preview-container');
     var previewTitleEl = cfg.previewTitleSel ? $(cfg.previewTitleSel) : document.getElementById('rightPanelMediaTitle');
     var previewPlaceholder = previewHost ? previewHost.innerHTML : '';
-    var previewTitleDefault = previewTitleEl ? previewTitleEl.textContent : '';
+    var previewTitleDefault = previewTitleEl ? previewTitleEl.innerHTML : '';
     var infoHost = document.getElementById('inspectorInfo');
     var infoSection = document.getElementById('info-section');
     var mediaSection = document.getElementById('media-section');  // section Médias/aperçu (n'a de sens que pour un ITEM)
@@ -429,35 +429,63 @@
     function _stopDuring() { if (_during) { _during.stop(); _during = null; } }
 
     // Double-clic sur l'aperçu → la VISIONNEUSE commune sur l'élément (ses faces, son plein écran,
-    // et les cards voisines au clavier) + icône indicative. Le payload passe TEL QUEL : la modale
-    // lit le texte inline sous `content`, comme le serveur le rend.
+    // et les cards voisines au clavier). Le payload passe TEL QUEL : la modale lit le texte inline
+    // sous `content`, comme le serveur le rend.
+    // Et un BOUTON qui fait la même chose, dans le TITRE de la section (le motif de l'outil de
+    // l'Assistant), hors de la zone qui défile. Jusqu'au 2026-10-13 c'était une icône posée en
+    // absolu SUR l'aperçu, en simple décor (`pointer-events:none`) : visible mais inerte, et
+    // par-dessus l'ascenseur d'un texte long ou d'un PDF (relevé par Fabien).
+    var _openViewer = null;
     function _attachFullscreen(d, baseUrl) {
       var P = _P();
       if (!previewHost || !P.openForCard) return;
-      previewHost.style.position = previewHost.style.position || 'relative';
-      previewHost.title = 'Double-clic : plein écran';
-      previewHost.ondblclick = function (e) {
-        // Une vignette de la grille ouvre déjà la visionneuse sur SON fichier (au clic).
-        if (e && e.target && e.target.closest && e.target.closest('.wama-preview-tile')) return;
+      _openViewer = function () {
         try {
           var m = Object.assign({}, d);
           m._baseUrl = baseUrl; m.sides = d.sides; m.side = d.side;
           P.openForCard(m, _panelCard, 0);
         } catch (err) { /* no-op */ }
       };
-      if (!previewHost.querySelector('.wama-preview-expand')) {
-        var ic = document.createElement('div');
-        ic.className = 'wama-preview-expand';
-        ic.innerHTML = '<i class="fas fa-expand"></i>';
-        ic.style.cssText = 'position:absolute;top:6px;right:6px;opacity:.55;pointer-events:none;font-size:.8rem;';
-        previewHost.appendChild(ic);
+      previewHost.title = 'Double-clic : plein écran';
+      previewHost.ondblclick = function (e) {
+        // Une vignette de la grille ouvre déjà la visionneuse sur SON fichier (au clic).
+        if (e && e.target && e.target.closest && e.target.closest('.wama-preview-tile')) return;
+        _openViewer();
+      };
+      _showExpandButton();
+    }
+
+    function _showExpandButton() {
+      if (!previewTitleEl || !_openViewer) return;
+      var btn = previewTitleEl.querySelector('.wama-preview-expand');
+      if (!btn) {
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-sm btn-link p-0 float-end text-secondary wama-preview-expand';
+        btn.title = 'Agrandir l’aperçu (ou double-clic dessus)';
+        btn.innerHTML = '<i class="fas fa-expand"></i>';
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (_openViewer) _openViewer();
+        });
+        previewTitleEl.appendChild(btn);
       }
+    }
+
+    // Le titre de la section : un texte (le nom de l'élément), ou son contenu d'origine — le bouton
+    // d'agrandissement y est reposé tant qu'un aperçu est montré.
+    function _setPreviewTitle(text) {
+      if (!previewTitleEl) return;
+      if (text == null) previewTitleEl.innerHTML = previewTitleDefault;
+      else previewTitleEl.textContent = text;
+      _showExpandButton();
     }
 
     function restorePreview() {
       _stopDuring();
+      _openViewer = null;
       if (previewHost) previewHost.innerHTML = previewPlaceholder;
-      if (previewTitleEl) previewTitleEl.textContent = previewTitleDefault;
+      _setPreviewTitle(null);
     }
     function fillPreview(card, title) {
       _stopDuring();
@@ -516,7 +544,7 @@
         P.renderInline(previewHost, d, !!autoplay);
         _attachFullscreen(d, baseUrl);
         _renderSides(baseUrl, d, title);
-        if (previewTitleEl && title) previewTitleEl.textContent = title;
+        if (title) _setPreviewTitle(title);
       }).catch(restorePreview);
     }
 

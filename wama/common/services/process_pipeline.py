@@ -47,6 +47,9 @@ from wama.common.services.process_runs import OPTIONAL, REQUIRED
 #: Le `@` l'écarte de tout nom de réglage.
 UPSTREAM_KEY = '@upstream'
 
+#: Les formes du résultat lisible d'un process (`ProcessSpec.result_format`) : '' = texte brut.
+RESULT_FORMATS = ('', 'markdown')
+
 #: Attribut posé sur un élément par `preload` : ses lignes d'exécution, lues une fois.
 PRELOADED = '_process_rows'
 #: … et, dans la même fenêtre, les réponses de `applies` par (process, modèle).
@@ -127,6 +130,10 @@ class ProcessSpec:
                   ses fichiers dans `outputs`). C'est ce que l'aperçu commun montre en FACE du
                   process (`preview_utils`, `ROUTE §F3b`). Absent = le process n'a de résultat
                   lisible que par ses `outputs`.
+      result_format  la FORME de ce texte : '' (texte brut) ou 'markdown' — un résumé rédigé
+                  par un LLM a des titres et des listes, que l'aperçu met alors en forme
+                  (2026-10-13 : la modale propre du describer le faisait, la face commune
+                  montrait les `##` bruts).
     """
     key: str
     label: str = ''
@@ -142,6 +149,7 @@ class ProcessSpec:
     available: Callable = None
     eta: object = None
     result: object = None
+    result_format: str = ''
 
 
 def output_fingerprint(ref: str) -> str:
@@ -221,6 +229,9 @@ class AppPipeline:
             if spec.toggle and spec.degree != OPTIONAL:
                 raise ValueError(f"pipeline de {app} : « {spec.key} » porte un interrupteur "
                                  f"(`toggle`) mais n'est pas `optional`")
+            if spec.result_format not in RESULT_FORMATS:
+                raise ValueError(f"pipeline de {app} : forme de résultat « {spec.result_format} » "
+                                 f"inconnue ({', '.join(f or '(texte)' for f in RESULT_FORMATS)})")
         self.ordered()                      # un cycle se refuse à la DÉCLARATION, pas au lancement
 
     # ── Déclaration ─────────────────────────────────────────────────────────────────────────
@@ -362,7 +373,9 @@ class AppPipeline:
                              **({'eta': spec.eta} if isinstance(spec.eta, str) and spec.eta
                                 else {}),
                              **({'result': spec.result}
-                                if isinstance(spec.result, str) and spec.result else {})}}
+                                if isinstance(spec.result, str) and spec.result else {}),
+                             **({'result_format': spec.result_format}
+                                if spec.result_format else {})}}
                  for spec in self.specs]
         links = [{'from': upstream, 'to': spec.key, 'to_port': None}
                  for spec in self.specs for upstream in spec.depends_on]
