@@ -631,9 +631,14 @@
         // Le graphe n'enregistre que les DÉCISIONS de l'utilisateur (`isGesture`) : la recharge
         // des options d'un select émet aussi un `change`, qui n'est pas un réglage — l'enregistrer
         // remplirait l'historique d'annulation de crans vides à chaque ouverture de l'inspecteur.
+        // Les valeurs lues COMPLÈTENT les `params` du nœud, elles ne les remplacent pas : un nœud
+        // d'un pipeline déclaré y porte aussi la déclaration de son process (`degree`, `watched`,
+        // `label`, `outputs`… — `process_pipeline.AppPipeline.graph`, lue par les générateurs), et
+        // un réglage que ce contexte ne rend pas garde sa valeur. Le rendu d'avant R1 écrivait clé
+        // par clé ; R1 remplaçait le tout et effaçait les deux au premier geste (relevé le 2026-10-13).
         function sync(e) {
             if (!WamaParams.isGesture(e)) return;
-            node.params = WamaParams.read(host);
+            node.params = Object.assign({}, node.params || {}, WamaParams.read(host));
             // `true` = saisie : la rafale coalesce, sinon « bonjour » coûterait 7 crans.
             persistDraft(e.type === 'input');
         }

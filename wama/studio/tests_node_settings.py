@@ -187,6 +187,15 @@ class TheStudioHasNoSettingsRendererOfItsOwnTest(SimpleTestCase):
         self.assertIn('WamaParams.render(', src)
         self.assertIn('WamaParams.isGesture(', src)
 
+    def test_a_settings_gesture_completes_the_node_params_never_replaces_them(self):
+        """Les `params` d'un nœud de pipeline déclaré portent aussi la déclaration de son process
+        (`degree`, `watched`…), que les générateurs relisent : un geste dans l'inspecteur qui les
+        REMPLACERAIT par les seuls champs rendus les effacerait (R1, rattrapé le 2026-10-13)."""
+        src = STUDIO_JS.read_text(encoding='utf-8')
+        self.assertIsNone(re.search(r'node\.params\s*=\s*WamaParams\.read\(', src))
+        self.assertRegex(src, r'node\.params\s*=\s*Object\.assign\(\{\},\s*node\.params[^)]*,\s*'
+                              r'WamaParams\.read\(host\)\)')
+
     def test_the_page_loads_the_common_engine_before_the_studio(self):
         html = (BASE / 'wama/studio/templates/studio/index.html').read_text(encoding='utf-8')
         self.assertLess(html.index("common/js/wama-params.js"), html.index("studio/js/wama-studio.js"))
