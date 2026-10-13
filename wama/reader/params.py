@@ -56,14 +56,23 @@ PARAMS = derive_from_model(
                 "ollama:glm-ocr:latest": "GLM-OCR 0.9B (via Ollama) — léger et rapide, bon compromis pour texte imprimé courant.",
             },
         ),
+        # Mode et langue : les réglages que le MOTEUR lit — sa capacité `params` (olmOCR les deux,
+        # GLM-OCR la langue seule, docTR aucun ; `READER_MODELS[…]['params']` et `FAMILLES_OLLAMA`).
+        # Un moteur qui ne les lit pas les GRISE, raison dite (`cap_from` « reads », 2026-10-13).
+        # Ce grisage était câblé à la main dans `reader.js` (`wireEngineParams`, 29/09) et ne
+        # grisait plus rien depuis les clés entières du 07/10 (`'reader:' + 'reader:olmocr'`).
         "mode": dict(
             type="select", label="Mode de lecture", icon="fa-pen-nib", chip=True,
             dom_id={"panel": "modeSelect", "batch": "batchSettingsMode", "item": "rSettings_mode"},
+            cap_from={"field": "backend", "capability": "params", "mode": "reads",
+                      "reason": "Ce moteur ne tient pas compte du mode de lecture."},
         ),
         "language": dict(
             type="text", label="Langue", icon="fa-language", chip=True,
             dom_id={"panel": "languageInput", "batch": "batchSettingsLanguage", "item": "rSettings_language"},
             help="Optionnel (ex. fr, en). Auto-détection si vide.",
+            cap_from={"field": "backend", "capability": "params", "mode": "reads",
+                      "reason": "Ce moteur ne tient pas compte de la langue indiquée."},
         ),
         "output_format": dict(
             type="select", label="Format de sortie", icon="fa-file-lines", chip=True,

@@ -2,7 +2,8 @@
 
 `READER_MODELS[…]['params']` dit ce que le moteur lit réellement (mesuré dans les backends :
 olmOCR le mode et la langue, GLM-OCR la langue, docTR rien) ; la découverte le recopie en
-capacité canonique `params`, que l'UI lit pour griser le reste (`WamaModelCaps`, reader.js).
+capacité canonique `params`, que l'UI lit pour griser le reste — déclaré au schéma depuis le
+2026-10-13 (`cap_from` « reads », `WamaParams`), câblé à la main dans `reader.js` avant.
 Un nom mal orthographié griserait un réglage que le moteur lit, sans que rien ne le signale.
 """
 from django.test import SimpleTestCase
@@ -34,6 +35,19 @@ class EngineParamsTest(SimpleTestCase):
         from wama.model_manager.services.model_registry import FAMILLES_OLLAMA
         self.assertEqual(['language'], FAMILLES_OLLAMA['glm-ocr']['params'])
         self.assertNotIn('glm-ocr', READER_MODELS)
+
+    def test_every_setting_an_engine_may_read_is_bound_to_that_reading(self):
+        """The schema declares the binding (`cap_from` « reads » on the engine select), for every
+        setting that SOME engine lists — the panel, the item and the batch modals follow alone."""
+        listed = {name for config in READER_MODELS.values() for name in config['params']}
+        self.assertTrue(listed, 'vacuous: no engine lists a setting')
+        by_name = {p['name']: p for p in PARAMS_JSON}
+        for name in listed:
+            with self.subTest(setting=name):
+                cap_from = by_name[name].get('cap_from') or {}
+                self.assertEqual(('backend', 'params', 'reads'),
+                                 (cap_from.get('field'), cap_from.get('capability'),
+                                  cap_from.get('mode')))
 
     def test_the_discovery_carries_params_into_the_capabilities(self):
         from wama.model_manager.services.model_registry import ModelRegistry

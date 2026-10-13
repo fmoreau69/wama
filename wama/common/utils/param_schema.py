@@ -142,7 +142,8 @@ class Param:
                                                 # (visible si « truthy » : toggle coché / valeur non vide).
                                                 # dict = condition par VALEUR : {"field": "media_type",
                                                 # "in": ["video","image"]} ou {"field": "use_sam3",
-                                                # "equals": True}. Réévalué au change de n'importe quel champ.
+                                                # "equals": True} ou {"field": "engine", "not_equals":
+                                                # "auto"} (2026-10-13). Réévalué au change de n'importe quel champ.
     advanced: bool = False                      # repliable sous « Avancé »
     help_source: Optional[str] = None           # select de MODÈLE : source catalogue (model_manager)
                                                  # → WamaParams affiche desc courte/longue + VRAM sous le select
@@ -176,6 +177,10 @@ class Param:
                                                 # le curseur est BORNÉ à la capacité. Modèle « auto » ou sans
                                                 # capacité → curseur du schéma, inchangé. Serveur : la tâche
                                                 # lit les MÊMES capacités (ex. `video_caps_from_declaration`).
+                                                # "mode": "reads" (2026-10-13) — le réglage est GRISÉ,
+                                                # raison dite, quand le modèle ne le LIT pas : capacité
+                                                # liste (`params`, appartenance du nom) ou booléenne
+                                                # (`supports_*`) ; inconnue ou « auto » → intact.
     display_format: str = ""                    # FORMAT d'affichage de la valeur (2026-10-04) : "duration"
                                                 # (secondes → « 3:30 ») | "size" (octets → « 3,8 Go »).
                                                 # Remplace le suffixe nu `unit` partout où la valeur se LIT :
@@ -332,7 +337,8 @@ def _pget(p, key, default=None):
 
 def _show_if_met(cond, values) -> bool:
     """Le `show_if` d'un param est-il satisfait par `values` ? MÊME vocabulaire que le moteur
-    JS (wama-params.js::met) : {field, equals:…} | {field, in:[…]} | champ seul → truthy."""
+    JS (wama-params.js::met) : {field, equals:…} | {field, not_equals:…} | {field, in:[…]} |
+    champ seul → truthy."""
     if not cond:
         return True
     if isinstance(cond, str):
@@ -342,6 +348,8 @@ def _show_if_met(cond, values) -> bool:
         return str(cur) in [str(x) for x in cond['in']]
     if 'equals' in cond:
         return str(cur) == str(cond['equals'])
+    if 'not_equals' in cond:
+        return str(cur) != str(cond['not_equals'])
     return bool(cur) and cur not in ('false', '0')
 
 

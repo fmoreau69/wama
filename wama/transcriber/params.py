@@ -94,6 +94,16 @@ PARAMS = derive_from_model(
             type="textarea", label="Mots-clés contextuels", icon="fa-tags",
             dom_id={"panel": "hotwordsInput", "item": "settingsHotwords"},
             help="Séparés par des virgules", stales=("transcribe",),
+            # Lus par le modèle choisi ? Sa capacité `supports_hotwords` (déclarée par la classe
+            # du moteur, `BaseModelBackend`) le dit : NeMo (Canary, Parakeet) les ignore. Le champ
+            # est alors grisé, raison dite — jamais caché. ⚠ Un modèle installé par la prospection
+            # (`huggingface:…`, FrWhisper) ne porte pas encore l'attribut de son moteur au
+            # catalogue : inconnu, il reste intact (2026-10-13 ; le grisage de diarisation par
+            # `WamaModelCaps`, retiré le 30/09, lisait une capacité qui ne disait pas ce qu'il
+            # croyait ; celle-ci est l'attribut que le moteur honore, `workers.py` lui passant
+            # les mots-clés dans tous les cas).
+            cap_from={"field": "backend", "capability": "supports_hotwords", "mode": "reads",
+                      "reason": "Ce modèle ne tient pas compte des mots-clés contextuels."},
         ),
         "preprocess_audio": dict(
             label="Prétraitement audio", icon="fa-wand-magic-sparkles",

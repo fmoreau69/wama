@@ -22,7 +22,7 @@ import datetime
 from .models import Transcript, BatchTranscript, BatchTranscriptItem
 from .utils.speakers import normalize_speaker_label, normalize_segments_speakers, unique_speakers, display_speaker
 from wama.common.utils.console_utils import get_console_lines
-from wama.common.utils.input_match import input_labels as _input_labels
+from wama.common.utils.input_match import input_labels as _input_labels, select_match_meta
 from wama.accounts.permissions import app_access
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
@@ -202,18 +202,6 @@ def _auto_wrap_orphans(user):
                       item_model=BatchTranscriptItem, fk_name='transcript')
 
 
-def _input_match_meta():
-    """Meta brique COMMUNE sur le DOMAINE du select (tâche `transcription`) : ses clés sont les
-    clés de catalogue entières, donc les valeurs mêmes des options (route F4b ⑦, 2026-09-30 —
-    elle était re-clée par nom de moteur tant que le select listait des moteurs) + pseudo-choix
-    'auto' (intersection des requis)."""
-    from wama.common.utils.input_match import auto_entry, input_match_meta
-    meta = input_match_meta(task='transcription')
-    if meta:
-        meta['auto'] = auto_entry(meta)
-    return meta
-
-
 class IndexView(View):
     def get(self, request):
         from wama.common.utils.batch_common import without_heavy_fields
@@ -309,7 +297,9 @@ class IndexView(View):
             'panel_values_json': json.dumps(panel_values),
             # Appariement entrée↔modèles (brique commune input_match) : meta sur les clés de
             # catalogue, les valeurs mêmes du select ; 'auto' = intersection des requis.
-            'input_match_meta': json.dumps(_input_match_meta()),
+            # Domaine du select lu sur sa DÉCLARATION (`backend.options_query`), clés de catalogue
+            # entières + « auto » — brique commune depuis le 2026-10-13.
+            'input_match_meta': json.dumps(select_match_meta('transcriber', 'backend')),
             'input_labels': json.dumps(_input_labels()),
         })
 

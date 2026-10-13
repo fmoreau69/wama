@@ -369,6 +369,52 @@
   }
 
   /*
+   * Slot MODALITÉ — le fichier de la card, jugé par ce que le modèle LIT (2026-10-13).
+   * Déclencheur : le describer. Une seule entrée (`work_file`, quatre natures) alimente trois
+   * sélecteurs (transcription, vision, langage) : le jeton du port ne dit pas ce qu'une étape
+   * reçoit, la NATURE du fichier le dit — une image va au modèle de vision, un audio au modèle de
+   * transcription. Le slot est fourni quand le fichier (joint OU désigné) est d'une des `natures`
+   * déclarées ; un modèle l'accepte quand ses `modalities` (vocabulaire canonique, portées par la
+   * meta : `extra_caps=('modalities',)`) contiennent `modality`. Modalités non déclarées : rien
+   * d'affirmé, rien de grisé — un catalogue muet n'est pas un refus.
+   * La nature vient de l'EXTENSION, lue dans `extensions` ({nature: [ext…]}, la table serveur
+   * `app_registry.media_extensions`, passée par la vue — jamais recopiée ici). Un dépôt de
+   * plusieurs fichiers est jugé sur le premier.
+   *
+   *   slots: { work_image: WamaInputMatch.modalitySlot('fileInput',
+   *              { modality: 'image', natures: ['image', 'video'], extensions: EXT, label: 'Image' }) }
+   */
+  function modalitySlot(inputId, opts) {
+    opts = opts || {};
+    const natures = opts.natures || [];
+    const natureByExt = {};
+    Object.keys(opts.extensions || {}).forEach(function (nature) {
+      (opts.extensions[nature] || []).forEach(function (ext) {
+        natureByExt[String(ext).replace(/^\./, '').toLowerCase()] = nature;
+      });
+    });
+    const nameOf = function (el) {
+      const d = (global.WamaApp && WamaApp.designationOf) ? WamaApp.designationOf(el) : null;
+      if (d) return d.name || d.path || '';
+      return (el && el.files && el.files.length) ? el.files[0].name : '';
+    };
+    const natureOf = function (el) {
+      const m = /\.([^./\\]+)$/.exec(nameOf(el));
+      return m ? (natureByExt[m[1].toLowerCase()] || '') : '';
+    };
+    return {
+      inputId: inputId,
+      label: opts.label || opts.modality,
+      isProvided: function (el) { return natures.indexOf(natureOf(el)) !== -1; },
+      describe: function (el) { return nameOf(el); },
+      accepts: function (caps) {
+        const read = Array.isArray(caps && caps.modalities) ? caps.modalities : null;
+        return !read || !read.length || read.indexOf(opts.modality) !== -1;
+      },
+    };
+  }
+
+  /*
    * ── Les voix SUIVENT la langue choisie (2026-09-27, constat de Fabien) ──────────────────
    * « Il y a un sélecteur de langue et un sélecteur de voix, mais le sélecteur de langue ne
    * filtre pas les voix. » Mesuré : exact, et ce n'était pas un défaut mais un TROU — le
@@ -490,7 +536,8 @@
   }
 
   global.WamaInputMatch = { init: init, voiceSlot: voiceSlot, langSlot: langSlot,
-                            capabilitySlot: capabilitySlot, isAutoValue: isAutoValue,
+                            capabilitySlot: capabilitySlot, modalitySlot: modalitySlot,
+                            isAutoValue: isAutoValue,
                             voicesFollowLanguage: voicesFollowLanguage,
                             voiceGroupOrder: voiceGroupOrder };
 })(window);

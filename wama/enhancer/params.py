@@ -44,8 +44,8 @@ def _media_model_help():
 
 MEDIA_MODEL_HELP = _media_model_help()
 
-#: Clé du moteur Resemble — c'est elle que portent l'option du select et la colonne (route F4b ⑤) ;
-#: ses réglages propres (mode, force, NFE) ne s'affichent que pour elle.
+#: Clé du moteur Resemble — c'est elle que portent l'option du select et la colonne (route F4b ⑤).
+#: Ses réglages propres (mode, force, NFE) suivent sa capacité `params`, pas cette clé.
 RESEMBLE_KEY = 'enhancer:resemble'
 
 # Aide moteurs audio — courte + longue, curée ; le REPLI quand le catalogue ne répond pas,
@@ -151,18 +151,26 @@ AUDIO_PARAMS = [
           dom_id={'panel': 'audioQualityIntent', 'item': 'settingsAudioQualityIntent'},
           contexts=('panel', 'item'), stales=('generate',),
           **intent_param(show_if={'field': 'engine', 'equals': 'auto'})),
-    # mode/force/qualité = spécifiques Resemble → affichés seulement si engine=resemble (show_if).
+    # mode/force/qualité : les réglages que le MOTEUR lit — sa capacité `params` (catalogue,
+    # `model_registry`, Resemble les trois, DeepFilterNet aucun) les GRISE, raison dite, pour un
+    # moteur qui ne les lit pas (`cap_from` « reads », 2026-10-13). Ils étaient affichés par le NOM
+    # du moteur (`show_if engine == RESEMBLE_KEY`), à côté du fait que le catalogue portait déjà.
+    # Cachés sous « auto » : le tirage choisit le moteur au lancement et le NFE se décline alors
+    # du curseur (`utils/auto_model.audio_nfe`) — rien à régler ici.
     Param(name='mode', type='select', label='Mode', icon='fa-sliders-h', chip=True, default='both',
           dom_id={'panel': 'audioMode', 'item': 'settingsAudioMode'}, contexts=('panel', 'item'),
           choices=[('both', 'Débruitage + Amélioration (Recommandé)'),
                    ('denoise', 'Débruitage seul (Rapide)'),
                    ('enhance', 'Amélioration seule')],
-          show_if={'field': 'engine', 'equals': RESEMBLE_KEY}, stales=('generate',)),
+          show_if={'field': 'engine', 'not_equals': 'auto'},
+          cap_from={'field': 'engine', 'capability': 'params', 'mode': 'reads'},
+          stales=('generate',)),
     Param(name='strength', type='range', label='Force débruitage', icon='fa-wind',
           dom_id={'panel': 'audioDenoisingStrength', 'item': 'settingsAudioStrength'},
           min=0, max=1, step=0.1, default=0.5, min_label='Doux', max_label='Fort',
           contexts=('panel', 'item'),
-          show_if={'field': 'engine', 'equals': RESEMBLE_KEY},
+          show_if={'field': 'engine', 'not_equals': 'auto'},
+          cap_from={'field': 'engine', 'capability': 'params', 'mode': 'reads'},
           # Le champ est `denoising_strength` (mappé côté vue) : c'est LUI que la photo lit,
           # déclaré hors schéma dans function_specs.py — `strength`, absent de l'élément, y
           # reste constant (lu vide) et ne périme rien à lui seul.
@@ -172,7 +180,9 @@ AUDIO_PARAMS = [
           choices=[('32', 'Rapide (32 étapes)'),
                    ('64', 'Équilibré (64 étapes)'),
                    ('128', 'Meilleur (128 étapes)')],
-          show_if={'field': 'engine', 'equals': RESEMBLE_KEY}, stales=('generate',)),
+          show_if={'field': 'engine', 'not_equals': 'auto'},
+          cap_from={'field': 'engine', 'capability': 'params', 'mode': 'reads'},
+          stales=('generate',)),
 ]
 
 # ── Format/qualité de SORTIE (la docstring le PROMETTAIT « via la brique commune » sans

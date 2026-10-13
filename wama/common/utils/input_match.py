@@ -21,7 +21,8 @@ from typing import Any, Callable, Dict, Optional
 def input_match_meta(source: Optional[str] = None,
                      key: Optional[Callable[[str], str]] = None,
                      extra_caps: tuple = (),
-                     task: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+                     task: Optional[str] = None,
+                     query: Optional[Dict[str, Any]] = None) -> Dict[str, Dict[str, Any]]:
     """{model_id: {label, inputs_required, inputs_optional}} depuis le CATALOGUE — fail-safe {}.
 
     `source` = valeur d'`AIModel.source` (le lien app↔modèles, cf. feedback_find_accessor).
@@ -39,16 +40,25 @@ def input_match_meta(source: Optional[str] = None,
     viennent d'une requête par capacité produirait un appariement MUET sur tout modèle d'une
     autre source (mesuré : 3 des 7 moteurs TTS). Les deux modes doivent nommer les mêmes
     choses, sinon `WamaInputMatch` n'apparie rien et ne le dit pas.
+
+    `query` (2026-10-13) : le DOMAINE ENTIER d'un select (`options_query` : tâche, catégorie,
+    modalité…), lu comme l'endpoint de ses options — `task` seul ne bornait pas le select de
+    vision du describer (`captioning,text-generation` + `modality: image`).
     """
+    if task and not query:
+        query = {'task': task}
     strip = key or (lambda mk: mk.split(':', 1)[-1])
-    if task:
+    if query:
         strip = key or (lambda mk: mk)      # les options portent la clé entière
     try:
         from wama.model_manager.models import AIModel
         meta: Dict[str, Dict[str, Any]] = {}
-        if task:
+        if query:
             from wama.model_manager.services import get_registry_models
-            _choices, _info = get_registry_models(None, task=task)
+            # Les clés de DOMAINE que l'endpoint des options lit (`api_model_options`) — et elles
+            # seules : la meta nomme exactement ce que le select propose.
+            domain = {k: query[k] for k in ('task', 'model_type', 'modality') if query.get(k)}
+            _choices, _info = get_registry_models(query.get('source') or None, **domain)
             cibles = AIModel.objects.filter(model_key__in=[c[0] for c in _choices])
         else:
             from wama.common.sandbox import declaring_app   # une jumelle : modèles de sa source
@@ -66,6 +76,42 @@ def input_match_meta(source: Optional[str] = None,
         return meta
     except Exception:
         return {}
+
+
+def select_match_meta(app_id: str, field: str, extra_caps: tuple = (),
+                      inputs: bool = True) -> Dict[str, Dict[str, Any]]:
+    """Meta d'appariement d'un select de modèle DÉCLARÉ au schéma de l'app — son domaine est
+    celui de son `options_query`, lu là où il est déclaré, jamais recopié dans la vue.
+
+    Extraite le 2026-10-13 au 3ᵉ consommateur : le transcriber (`task='transcription'`) et le
+    reader (`OCR_SPEC`) portaient la même fonction, domaine écrit en dur dans la vue À CÔTÉ de
+    celui du schéma ; le describer en aurait été la troisième copie, pour trois selects.
+    « auto » reçoit l'entrée commune (`auto_entry`) quand le select sert le tirage commun
+    (`options_auto=True`) ; un « auto » `silent` est la règle propre de l'app (la cascade vision
+    du describer) qu'une intersection ne décrirait pas — pas d'entrée. Fail-safe {}.
+
+    `inputs=False` : la card ne fournit PAS les entrées des modèles de ce select, son pipeline
+    les compose (le describer : la consigne d'un modèle de vision, la piste son d'une vidéo).
+    Les `inputs_*` du catalogue feraient alors annoncer « ⚠ Ce modèle requiert : Consigne » sous
+    chaque modèle de conversation — la meta ne garde que le libellé et `extra_caps` (ses
+    `modalities`, jugées par `WamaInputMatch.modalitySlot`), et pas d'« auto » d'intersection."""
+    from wama.common.utils.param_schema import declared_param_schemas
+    try:
+        declared = declared_param_schemas(app_id) or {}
+    except Exception:
+        return {}
+    param = next((p for params in (declared.get('schemas') or {}).values() for p in params
+                  if isinstance(p, dict) and p.get('name') == field), None)
+    if not param or param.get('options_source') != 'catalog' or not param.get('options_query'):
+        return {}
+    meta = input_match_meta(query=param['options_query'], extra_caps=extra_caps)
+    if not inputs:
+        return {mid: {k: v for k, v in entry.items()
+                      if k not in ('inputs_required', 'inputs_optional')}
+                for mid, entry in meta.items()}
+    if meta and param.get('options_auto') is True:
+        meta['auto'] = auto_entry(meta)
+    return meta
 
 
 def auto_entry(meta: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:

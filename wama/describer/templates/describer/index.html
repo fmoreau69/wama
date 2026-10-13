@@ -182,7 +182,7 @@ item (_settingsBatchId + titre échangé). Corps GÉNÉRÉ du MÊME schéma (con
     };
 </script>
 {# wama-inspector.css + wama-params.css chargés globalement (base.html) — plus de link local ici #}
-{% include 'common/_app_scripts.html' %}  {# socle JS d'app commun (ROUTE §11 #25) #}
+{% include 'common/_app_scripts.html' with with_input_match=True %}  {# socle JS d'app commun (ROUTE §11 #25) + appariement entrée ↔ modèles #}
 {# Voie d'import COMMUNE (WamaImport) : chargée par le socle ci-dessus, AVANT index.js qui l'instancie. #}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
 {% comment %}⚠ wama-app-base.js est chargé GLOBALEMENT par base.html:285 — ne JAMAIS le
@@ -199,6 +199,30 @@ ré-inclure : double BroadcastChannel → l'exclusivité audio fait taire son pr
   // Modale BATCH dédiée : mêmes params, contexte 'batch' (ids batchSettings* via dom_id).
   var bh = document.getElementById('describerBatchParams');
   if (bh) WamaParams.render(bh, schema, { context: 'batch', values: {} });
+
+  // Appariement entrée ↔ modèles (brique commune wama-input-match) : le fichier déposé dans la
+  // card va à l'étape qui lit SA nature — la transcription pour un audio ou une vidéo (`HEARD`
+  // de function_specs.py), la vision pour une image ou les images-clés d'une vidéo. Un modèle
+  // qui ne lit pas cette modalité est GRISÉ, raison dite (jamais caché, ✕ pour le retrouver).
+  if (!window.WamaInputMatch) return;
+  var meta = {{ input_match_json|default:"{}"|safe }};
+  var extensions = {{ media_extensions_json|default:"{}"|safe }};
+  [['asr_model', 'audio', ['audio', 'video'], 'Audio ou vidéo'],
+   ['vision_model', 'image', ['image', 'video'], 'Image ou vidéo']].forEach(function (s) {
+    var select = document.getElementById(s[0]);
+    if (!select) return;
+    var status = document.createElement('small');
+    status.id = s[0] + 'MatchStatus';
+    status.className = 'text-info d-block mt-1';
+    status.style.display = 'none';
+    var row = select.closest('.wama-param');
+    if (row) row.appendChild(status);
+    var slots = {};
+    slots[s[1]] = WamaInputMatch.modalitySlot('fileInput',
+        { modality: s[1], natures: s[2], extensions: extensions, label: s[3] });
+    WamaInputMatch.init({ selectId: s[0], meta: meta[s[0]] || {}, slots: slots,
+                          statusId: status.id });
+  });
 })();
 </script>
 <script src="{% static_v 'describer/js/index.js' %}"></script>

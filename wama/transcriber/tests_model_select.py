@@ -50,6 +50,28 @@ class TheSchemaStatesTheCatalogueTest(TestCase):
         self.assertEqual(['panel'], list(slider['contexts']),
                          'an app setting, like the reader: the card has no column for it')
 
+    def test_the_hotwords_follow_what_the_chosen_model_honours(self):
+        """Greyed for a model whose engine ignores them (`cap_from` « reads », 2026-10-13): the
+        catalogue carries the engine's own flag (`BaseModelBackend.supports_hotwords`), so the
+        screen reads the fact the engine declares — NeMo ignores them, Whisper honours them."""
+        from wama.common.backends.nemo_asr_backend import NemoASRBackend
+        from wama.common.backends.whisper_backend import WhisperBackend
+        from wama.model_manager.services.model_registry import ModelRegistry
+        from wama.transcriber.params import PARAMS_JSON
+        field = next(p for p in PARAMS_JSON if p['name'] == 'hotwords')
+        self.assertEqual(('backend', 'supports_hotwords', 'reads'),
+                         tuple(field['cap_from'][k] for k in ('field', 'capability', 'mode')))
+        registry = ModelRegistry()
+        registry._models = {}
+        registry._discover_transcriber_models()
+        for key, engine in (('transcriber:canary-1b-v2', NemoASRBackend),
+                            ('transcriber:whisper', WhisperBackend)):
+            with self.subTest(model=key):
+                self.assertIs(engine.supports_hotwords,
+                              registry._models[key].capabilities['supports_hotwords'])
+        self.assertFalse(NemoASRBackend.supports_hotwords, 'vacuous: nothing would be greyed')
+        self.assertTrue(WhisperBackend.supports_hotwords, 'vacuous: everything would be greyed')
+
     def test_the_apps_own_engine_endpoint_is_gone(self):
         with self.assertRaises(NoReverseMatch):
             reverse('transcriber:backends')

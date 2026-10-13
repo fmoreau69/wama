@@ -2480,9 +2480,20 @@ class ModelRegistry:
         # 2026-08-19). Une capacité réelle du parc restait invisible à `select_model(requires=...)`.
         caps = {**default_inputs_for(task), 'task': task}
         modalities = list(caps.get('modalities') or ['text'])
-        caps['modalities'] = (modalities
-                              + (['image'] if 'vision' in brutes and 'image' not in modalities else [])
-                              + (['audio'] if 'audio' in brutes and 'audio' not in modalities else []))
+        added = ((['image'] if 'vision' in brutes and 'image' not in modalities else [])
+                 + (['audio'] if 'audio' in brutes and 'audio' not in modalities else []))
+        caps['modalities'] = modalities + added
+        # L'ENTRÉE qui va avec la modalité ajoutée (2026-10-13) : un modèle de conversation qui
+        # voit ACCEPTE une image, en option — il converse aussi sans. La ligne disait `image` dans
+        # ses modalités et `['prompt']` seul dans ses entrées : `matches_inputs(consumes=…)` ne le
+        # retenait pas pour une image, et l'appariement de la card le grisait. Seulement pour une
+        # modalité AJOUTÉE par le drapeau : celle que la tâche implique a déjà son entrée (`glm-ocr`,
+        # tâche `ocr`, reçoit sa page par `work_file`). Écrit à chaque passe, vide compris : la
+        # synchronisation fusionne clé par clé, un modèle qui perd `vision` doit perdre l'entrée.
+        if brutes:
+            token = {'image': 'work_image', 'audio': 'work_audio'}
+            caps['inputs_optional'] = (list(caps.get('inputs_optional') or [])
+                                       + [token[m] for m in added])
         # Les SIX drapeaux sont écrits, vrais ou faux, dès qu'Ollama a répondu (2026-09-18) : la
         # synchronisation fusionne désormais `capabilities` clé par clé, et un drapeau absent
         # laisserait survivre une valeur d'un sync antérieur — un modèle qui perd `vision` à une

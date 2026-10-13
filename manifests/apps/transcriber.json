@@ -1294,7 +1294,12 @@
           },
           {
             "advanced": false,
-            "cap_from": null,
+            "cap_from": {
+              "capability": "supports_hotwords",
+              "field": "backend",
+              "mode": "reads",
+              "reason": "Ce modèle ne tient pas compte des mots-clés contextuels."
+            },
             "chip": true,
             "chip_label": "",
             "choices": null,

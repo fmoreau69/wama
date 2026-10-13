@@ -930,6 +930,8 @@
   //     (rouge) si le modèle déclare `extension`, sinon le curseur est BORNÉ à la capacité.
   //   • mode 'fixed'   : la capacité IMPOSE la valeur (cadence native) → champ verrouillé, dit.
   //   • mode 'note'    : la capacité est seulement RAPPELÉE sous le champ (résolution native).
+  //   • mode 'reads'   : le champ est GRISÉ, raison dite, quand le modèle ne le lit pas —
+  //     capacité liste (`params`) ou booléenne (`supports_*`) (2026-10-13).
   // Modèle « auto » ou sans la capacité → champ du schéma, intact (dégradation douce).
   var _capsBySource = {};
   // `query` (2026-09-29) : domaine d'un select peuplé du CATALOGUE (`_optionQuery` du param
@@ -1031,6 +1033,21 @@
     if (row) row.classList.remove('is-extrapolated');
     if (mode === 'note') {
       if (cap) note.textContent = (cf.label || 'Natif :') + ' ' + cap + unit;
+      return;
+    }
+    if (mode === 'reads') {
+      // Le modèle choisi LIT-il ce réglage ? Une capacité LISTE (`params`, les réglages que le
+      // moteur lit) répond par l'appartenance du nom ; une capacité BOOLÉENNE (`supports_*`) par
+      // sa valeur. Inconnu (« auto », capacité non déclarée) : intact — on ne grise jamais sur
+      // une absence d'information. Grisé, jamais caché (INPUT_MODEL_MATCHING) ; la valeur reste
+      // celle de l'utilisateur, `read()` l'envoie toujours (2026-10-13).
+      var unread = cap !== undefined && cap !== null &&
+        (Array.isArray(cap) ? cap.indexOf(cf.param || p.name) === -1 : !cap);
+      var why = cf.reason || 'Ce modèle ne tient pas compte de ce réglage.';
+      el.disabled = unread;
+      el.title = unread ? why : '';
+      if (row) row.classList.toggle('opacity-50', unread);
+      if (unread) note.textContent = why;
       return;
     }
     if (mode === 'fixed') {
@@ -1173,7 +1190,8 @@
       });
       return val;
     }
-    // show_if : string « <champ> » (truthy) OU JSON {field, in:[…] | equals:… }.
+    // show_if : string « <champ> » (truthy) OU JSON {field, in:[…] | equals:… | not_equals:… }.
+    // Jumeau serveur : `param_schema._show_if_met` — même vocabulaire, les deux changent ensemble.
     function parseCond(raw) {
       if (!raw) return null;
       try { const o = JSON.parse(raw); if (o && typeof o === 'object') return o; } catch (e) {}
@@ -1183,6 +1201,7 @@
       const cur = valByName(cond.field);
       if (cond.in) return cond.in.map(String).indexOf(String(cur)) !== -1;
       if ('equals' in cond) return String(cur) === String(cond.equals);
+      if ('not_equals' in cond) return String(cur) !== String(cond.not_equals);
       return !!cur && cur !== 'false' && cur !== '0';   // défaut : truthy
     }
     function apply() {
@@ -1491,6 +1510,9 @@
                         // …et son CÂBLAGE (champ modèle absent du rendu → dit ; valeurs posées
                         // par `apply` → borne rejouée), pour la même garde.
                         bindCapFrom: _bindCapFrom,
+                        // La visibilité `show_if` — exposée pour la garde de PARITÉ avec son
+                        // jumeau serveur `param_schema._show_if_met` (`tests_cap_from_js`).
+                        bindConditional: _bindConditional,
                         // Libellé d'une valeur (`display_format`) — appelé par l'`oninput` du
                         // curseur rendu ; `proposedValue`/`bindDefaultFrom` : la règle de
                         // `default_from`, exposée pour sa garde V8.

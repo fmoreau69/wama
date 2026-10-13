@@ -541,6 +541,46 @@ port de TRAVAIL (`INPUT_TYPES`). Correction, à périmètre de JETONS :
      ne juge pas avant, puis rejoue. L'appariement rejoue aussi sur `wama:options-filled`.
 - Gardes : `tests_input_match_capability` (V8 sur les briques servies, deux mutations prouvées).
 
+### 6.12 Une entrée, plusieurs étapes — le fichier jugé par sa NATURE, `modalitySlot` (2026-10-13)
+
+> Déclencheur : le describer en pipeline (`db859275`) — trois sélecteurs (transcription, vision,
+> langage) derrière UNE entrée, `work_file`, qui prend quatre natures. Fabien : « méticuleusement,
+> aligné avec le fonctionnement de WAMA ».
+
+- **Le jeton du port ne dit pas ce qu'une étape reçoit, la nature du fichier le dit** : une image
+  va au modèle de vision, un audio ou une vidéo au modèle de transcription (`HEARD` du pipeline).
+  Les deux voies « par jeton » mesurées étaient fausses : un slot `work_file` (patron du reader)
+  grisait les modèles Ollama qui voient (ils n'acceptent pas `work_file`) ; un slot `work_image`
+  grisait BLIP (sa tâche `captioning` implique `work_file`). Et passer BLIP à `work_image` aurait
+  ouvert une SECONDE entrée « Image de travail » sur la card : ses ports sont l'union des entrées
+  de ses modèles (§6.3, `app_input_ports`).
+- **`WamaInputMatch.modalitySlot(id, {modality, natures, extensions, label})`** — même famille que
+  `langSlot`/`capabilitySlot` : fourni quand le fichier (joint ou désigné) est d'une des `natures`
+  (lue par l'EXTENSION dans `app_registry.media_extensions`, passée par la vue — la table serveur,
+  jamais recopiée en JS) ; compatible quand les `modalities` canoniques du modèle contiennent
+  `modality`. Modalités non déclarées : rien de grisé.
+- **La meta ne porte pas les entrées** (`input_match.select_match_meta(…, inputs=False)`) : la card
+  ne les fournit pas, le pipeline les compose. Avec elles, la ligne d'état aurait dit « ⚠ Ce modèle
+  requiert : Consigne » sous chaque modèle de conversation — la crainte relevée par l'instance
+  pipeline le jour même. Le modèle de langage reçoit du texte du pipeline, jamais le fichier : pas
+  d'appariement.
+- **`select_match_meta(app, champ)`** lit le domaine sur la DÉCLARATION du select (`options_query`
+  entier : tâche, catégorie, modalité), comme l'endpoint de ses options. Extraite au 3ᵉ consommateur :
+  le transcriber et le reader portaient chacun la même fonction, domaine écrit en dur dans la vue à
+  côté de celui du schéma (`REMOVAL_LEDGER R120`).
+- **Catalogue, à la source** : un modèle Ollama qui voit (`vision`) accepte `work_image` en option,
+  qui entend (`audio`) `work_audio` — ses modalités le disaient, ses entrées non, et
+  `matches_inputs(consumes=['work_image'])` ne le retenait pas. Seulement pour une modalité AJOUTÉE
+  par le drapeau (`glm-ocr` garde sa page par `work_file`) ; écrit vide compris (fusion clé par clé).
+  Aucun port ne s'ouvre : seul le composer tire des ports de son select (`options_ports`).
+- ⚠ **Le grisage ne vit que tant que le fichier est dans l'entrée**, comme chez le reader et le
+  transcriber : la card consomme le fichier au dépôt. La modale ⚙ d'un élément existant, dont la
+  nature est connue, n'est pas appariée — pas plus que chez ces deux apps (le composer et
+  l'avatarizer, eux, rebranchent l'appariement à chaque ouverture, §6.11). Reste nommé.
+- Gardes : `tests_input_match_modality` (V8 sur la brique servie ; domaine déclaré ; page du
+  describer), `tests_taxonomie_ollama.test_a_model_that_sees_or_hears_accepts_the_matching_input` ;
+  contre-épreuves rouges (slot qui accepte tout ; entrées gardées ; version de HEAD du catalogue).
+
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 
 **Demande de Fabien** : *« il faut que les paramètres modale/inspecteur tirent leurs infos des
@@ -557,6 +597,7 @@ tâche serveur) et règle le champ, sur TOUTES les surfaces (modale, volet) sans
 | `range` (défaut) | piste **bleue** jusqu'à la capacité (fonctionnement natif) ; au-delà, **rouge** si le modèle déclare `extension` (fonctionnement extrapolé, dit sous le curseur), sinon le curseur S'ARRÊTE à la capacité | `video_duration` ← `max_duration_s`, `duration_extension` |
 | `fixed` | la capacité IMPOSE la valeur : champ verrouillé, raison dite | `video_fps` ← `fps` |
 | `note` | la capacité est rappelée sous le champ | `video_resolution` ← `native_resolution` |
+| `reads` (2026-10-13) | le champ est GRISÉ, raison dite, quand le modèle ne le LIT pas — capacité liste `params` (appartenance du nom) ou booléenne `supports_*` ; inconnue → intact | reader `mode`/`language` ← `params` ; transcriber `hotwords` ← `supports_hotwords` ; enhancer mode/force/NFE ← `params` |
 
 Modèle « auto » ou capacité absente → champ du schéma intact. Les capacités vidéo (`fps`,
 `max_frames`, `max_duration_s`, `native_resolution`, `duration_extension`) sont au vocabulaire
@@ -624,6 +665,36 @@ dans l'ordre du schéma, UN descriptif de moteur ; MusicGen/AudioGen → curseur
 Vu au passage, PRÉEXISTANT, corrigé le 2026-10-03 (demande de Fabien) : le volet répétait le
 moteur et le format/qualité de sortie sous Réglages — règle commune « un fait rendu une fois »,
 `INSPECTOR_DETAIL_FIELDS §Le langage de la spec`.
+
+**2026-10-13 — un réglage que le MOTEUR ne lit pas : mode `reads`.** Relevé par la grille,
+critère `model_caps_ui` : le transcriber et l'enhancer y étaient VERTS par le commentaire qui
+annonçait le RETRAIT de leur `WamaModelCaps` — le critère cherchait le NOM dans le texte brut. Il
+cherche désormais un APPEL hors commentaire (`WamaModelCaps.init(`, `WamaInputMatch.init(`), et les
+`//` des scripts d'un gabarit sont neutralisés comme ceux d'un `.js` ; contre-épreuve : les deux
+critères rougissent quand la neutralisation est retirée. Ce qui restait à porter, porté par UNE
+forme déclarative au lieu de trois câblages :
+- **reader** — son grisage de `mode`/`language` (`wireEngineParams`, `reader.js`, 29/09) était
+  câblé à la main et **ne grisait plus rien depuis les clés entières du 07/10** (`'reader:' +
+  'reader:olmocr'`, et la seule source `reader` lue — jamais `ollama:glm-ocr`). Retiré (`R120`) ;
+  `cap_from` « reads » lit le domaine du select.
+- **transcriber** — `hotwords` ← `supports_hotwords`, l'attribut du moteur (`BaseModelBackend`) que
+  la découverte recopie : NeMo (Canary, Parakeet) l'ignore. ⚠ Un modèle installé par la
+  prospection (`huggingface:aihpi/FrWhisper`, Linto, Kyutai) ne porte pas encore l'attribut de son
+  moteur au catalogue : inconnu, il reste intact — reste nommé (`PROJECT_STATUS` palier du 13/10).
+- **enhancer** — mode, force et NFE suivaient le NOM du moteur (`show_if engine == resemble`), à
+  côté du fait que le catalogue portait déjà (`params`, et son commentaire : « l'UI s'adapte, PAS de
+  show_if hardcodé »). Ils suivent `params`, grisés pour DeepFilterNet ; cachés sous « auto »
+  seulement (`show_if` gagne `not_equals`, dans ses DEUX lecteurs — JS et `_show_if_met` —, garde
+  de parité), le NFE s'y déclinant du curseur.
+- **describer** — rien ne se dérive : aucune capacité des modèles de ses trois selects ne nomme un
+  de ses réglages. Le critère le DIT au lieu de rougir : non applicable quand aucune capacité
+  (`params`, `supports_<réglage>`) ne nomme un réglage de l'app (`conformity_checker.
+  _capability_named_settings`), jamais sur un catalogue illisible. Une capacité numérique d'un autre
+  nom (`max_duration_s` → `duration`) n'est reliée que par `cap_from`, reconnu avant.
+Gardes : `tests_cap_from_js` (la règle « reads », parité `show_if`), `tests_cap_from_declared`
+(« reads » sur une liste ou un booléen ; le critère compte un appel, pas une mention ; ce que
+« nommer » lit), `reader.tests_engine_params`, `transcriber.tests_model_select`, `enhancer.tests` ;
+contre-épreuves rouges.
 
 **2026-09-23 (nuit) — deux natures d'au-delà.** `duration_extension` vaut `continuation` quand
 l'app déclare `continuation_frames` (LTX : 25 images, conditionnement VIDÉO du passage suivant —

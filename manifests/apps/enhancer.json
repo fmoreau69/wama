@@ -1399,7 +1399,11 @@
           },
           {
             "advanced": false,
-            "cap_from": null,
+            "cap_from": {
+              "capability": "params",
+              "field": "engine",
+              "mode": "reads"
+            },
             "chip": true,
             "chip_label": "",
             "choices": [
@@ -1454,8 +1458,8 @@
             "radio_name": "",
             "section": "settings",
             "show_if": {
-              "equals": "enhancer:resemble",
-              "field": "engine"
+              "field": "engine",
+              "not_equals": "auto"
             },
             "stales": [
               "generate"
@@ -1466,7 +1470,11 @@
           },
           {
             "advanced": false,
-            "cap_from": null,
+            "cap_from": {
+              "capability": "params",
+              "field": "engine",
+              "mode": "reads"
+            },
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1508,8 +1516,8 @@
             "radio_name": "",
             "section": "settings",
             "show_if": {
-              "equals": "enhancer:resemble",
-              "field": "engine"
+              "field": "engine",
+              "not_equals": "auto"
             },
             "stales": [
               "generate"
@@ -1520,7 +1528,11 @@
           },
           {
             "advanced": false,
-            "cap_from": null,
+            "cap_from": {
+              "capability": "params",
+              "field": "engine",
+              "mode": "reads"
+            },
             "chip": false,
             "chip_label": "",
             "choices": [
@@ -1575,8 +1587,8 @@
             "radio_name": "",
             "section": "settings",
             "show_if": {
-              "equals": "enhancer:resemble",
-              "field": "engine"
+              "field": "engine",
+              "not_equals": "auto"
             },
             "stales": [
               "generate"

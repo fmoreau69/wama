@@ -709,7 +709,12 @@
           },
           {
             "advanced": false,
-            "cap_from": null,
+            "cap_from": {
+              "capability": "params",
+              "field": "backend",
+              "mode": "reads",
+              "reason": "Ce moteur ne tient pas compte du mode de lecture."
+            },
             "chip": true,
             "chip_label": "",
             "choices": [
@@ -773,7 +778,12 @@
           },
           {
             "advanced": false,
-            "cap_from": null,
+            "cap_from": {
+              "capability": "params",
+              "field": "backend",
+              "mode": "reads",
+              "reason": "Ce moteur ne tient pas compte de la langue indiquée."
+            },
             "chip": true,
             "chip_label": "",
             "choices": null,

@@ -191,6 +191,12 @@ def _sans_commentaires(text: str, suffixe: str) -> str:
         text = re.sub(r'\{#.*?#\}', _blanc, text, flags=re.S)
         text = re.sub(r'\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', _blanc, text, flags=re.S)
         text = re.sub(r'<!--.*?-->', _blanc, text, flags=re.S)
+        if suffixe == '.html':
+            # Les `<script>` en ligne d'un gabarit portent les mêmes commentaires de ligne qu'un
+            # `.js` (2026-10-13) : la preuve d'`input_match_ui` du transcriber pointait sur
+            # `// Appariement entrée↔modèles (brique commune wama-input-match)`. Ligne entière
+            # seulement — une URL `https://` en milieu de ligne n'est jamais touchée.
+            text = re.sub(r'(?m)^\s*//[^\n]*', _blanc, text)
         if suffixe == '.js':
             # ⚠ Les lignes `//` d'ABORD (2026-09-08) : un commentaire de ligne qui cite `text/*`
             # ou `image/*` ouvrait un faux bloc `/* … */` quand les blocs étaient retirés en
@@ -235,8 +241,8 @@ class Criterion:
     mechanism: str = ''
 
 
-def _present(f: _AppFiles, patterns, regex, label_ok=None):
-    ev = f.find(patterns, regex)
+def _present(f: _AppFiles, patterns, regex, label_ok=None, code=False):
+    ev = f.find_code(patterns, regex) if code else f.find(patterns, regex)
     return (True, ev) if ev else (False, None)
 
 
@@ -620,7 +626,55 @@ def _model_caps_ui(f: _AppFiles):
     declared = f.find_code(PARAMS, r'\bcap_from\s*=\s*\{')
     if declared:
         return True, f"{declared} — réglage borné par une capacité du modèle (`cap_from`)"
-    return _present(f, TEMPLATES + JS, r'wama-model-caps|WamaModelCaps')
+    # Un APPEL de la brique, hors commentaire (2026-10-13). Le motif était le NOM seul, cherché
+    # dans le texte brut : le transcriber et l'enhancer étaient VERTS par le commentaire qui
+    # annonçait le RETRAIT de leur `WamaModelCaps` (`{% comment %}… est RETIRÉ…`).
+    wired = _present(f, TEMPLATES + JS, r'\bWamaModelCaps\s*\.\s*init\s*\(', code=True)
+    if wired[0]:
+        return wired
+    named = _capability_named_settings(f)
+    if named == set():
+        return None, ("aucune capacité des modèles proposés par ses selects ne nomme un de ses "
+                      "réglages (`params`, `supports_<réglage>`)")
+    return False, (f"réglages nommés par une capacité : {', '.join(sorted(named))}"
+                   if named else None)
+
+
+def _capability_named_settings(f: _AppFiles):
+    """Les réglages de l'app qu'une capacité d'un modèle PROPOSÉ par ses selects NOMME — ou None
+    si le catalogue est illisible (jamais un N/A à l'aveugle).
+
+    « Nommer » est ce que le vocabulaire canonique dit déjà : `params`, « noms de paramètres UI
+    pertinents pour ce moteur » (reader, enhancer), et les drapeaux `supports_<x>` du moteur
+    (`BaseModelBackend`) quand l'app a un réglage `<x>` (transcriber : `hotwords`). Les modèles
+    sont ceux que l'endpoint des selects sert — `get_registry_models` sur `options_query`, la
+    lecture de `app_registry._select_models_capabilities` —, de TOUS les selects du catalogue.
+
+    Ce que la règle ne voit pas, et pourquoi c'est sans perte : une capacité NUMÉRIQUE qui borne
+    un réglage d'un autre nom (`max_duration_s` → `duration`) n'est reliée que par `cap_from`,
+    reconnu avant cette lecture. Née pour le describer (2026-10-13) : trois selects (transcription,
+    vision, langage) dont aucun modèle ne déclare un réglage du describer — rien à dériver."""
+    try:
+        from wama.common.utils.param_schema import declared_param_schemas
+        from wama.model_manager.services import get_registry_models
+        declared = declared_param_schemas(f.app) or {}
+        schema = [p for params in (declared.get('schemas') or {}).values()
+                  for p in params if isinstance(p, dict)]
+        names = {p.get('name') for p in schema}
+        named = set()
+        for p in schema:
+            if p.get('options_source') != 'catalog' or not p.get('options_query'):
+                continue
+            query = dict(p['options_query'])
+            _choices, info = get_registry_models(query.pop('source', None), **query)
+            for d in info:
+                caps = d.get('capabilities') or {}
+                named |= names & set(caps.get('params') or [])
+                named |= {k[len('supports_'):] for k in caps
+                          if k.startswith('supports_') and k[len('supports_'):] in names}
+        return named
+    except Exception:
+        return None
 
 
 def _modes_declared(f: _AppFiles):
@@ -2125,8 +2179,10 @@ CRITERIA: list[Criterion] = [
     # Fabien 13/08 — converter ffmpeg/pandoc → non applicable, même garde que F4) ; et sans
     # SÉLECTEUR il n'y a pas d'hôte (verdict Fabien 17/08 — describer routage auto,
     # avatarizer MuseTalk fixe → gate commun _has_engine_select, comme model_help).
+    # Un APPEL de la brique hors commentaire (2026-10-13) — le NOM dans le texte brut comptait
+    # les commentaires, comme le faux vert de `model_caps_ui` relevé le même jour.
     Criterion('input_match_ui', 'F2', 'Grisage des modèles incompatibles (WamaInputMatch)',
-              lambda f: _present(f, TEMPLATES + JS, r'wama-input-match|WamaInputMatch')
+              lambda f: _present(f, TEMPLATES + JS, r'\bWamaInputMatch\s*\.\s*init\s*\(', code=True)
               if _uses_models(f) and _has_engine_select(f) else (None, None),
               mechanism='model_capabilities'),
     Criterion('filemanager_import', 'F2', 'Réception « Envoyer vers app » (wama:fileimported)',

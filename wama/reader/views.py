@@ -23,7 +23,7 @@ from .models import ReadingItem, BatchReadingItem, BatchReadingItemLink
 from .tasks import read_document_task, _count_pdf_pages, _extract_natural_text
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
-from wama.common.utils.input_match import input_labels as _input_labels
+from wama.common.utils.input_match import input_labels as _input_labels, select_match_meta
 from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 
 logger = logging.getLogger(__name__)
@@ -214,18 +214,6 @@ def _decorate_card(reading):
     return reading
 
 
-def _input_match_meta():
-    """Meta brique COMMUNE (clés catalogue = valeurs du select) + pseudo-choix 'auto'. Par la
-    TÂCHE du select (route F4b ⑤, 2026-10-07) : ses options portent des clés ENTIÈRES, de toute
-    source — une meta ancrée sur `source='reader'` n'aurait rien apparié pour GLM-OCR (Ollama)."""
-    from wama.common.utils.input_match import auto_entry, input_match_meta
-    from wama.reader.utils.model_config import OCR_SPEC
-    meta = input_match_meta(task=OCR_SPEC['task'])
-    if meta:
-        meta['auto'] = auto_entry(meta)
-    return meta
-
-
 class IndexView(View):
     def get(self, request):
         user = _get_user(request)
@@ -294,7 +282,10 @@ class IndexView(View):
             'params_json': json.dumps(PARAMS_JSON),
             # Appariement entrée↔modèles (brique commune input_match) : clés catalogue =
             # valeurs du select ; 'auto' = auto_entry (brique).
-            'input_match_meta': json.dumps(_input_match_meta()),
+            # Domaine du select lu sur sa DÉCLARATION (`backend.options_query` = `OCR_SPEC`) : clés
+            # ENTIÈRES de toute source (GLM-OCR est servi par Ollama) + « auto » — brique commune
+            # depuis le 2026-10-13.
+            'input_match_meta': json.dumps(select_match_meta('reader', 'backend')),
             'input_labels': json.dumps(_input_labels()),
         })
 

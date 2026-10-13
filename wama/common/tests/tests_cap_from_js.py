@@ -124,6 +124,69 @@ class CapFromTest(SimpleTestCase):
         })()""")
         self.assertEqual(['16', False], list(restored))
 
+    def _reads(self, caps_sequence, capability='params', name='mode'):
+        """Applies « reads » for each caps of the sequence on the SAME field; returns the states."""
+        import json
+        cf = {'field': 'backend', 'capability': capability, 'mode': 'reads', 'reason': 'ignoré'}
+        return self.v8.eval(f"""(function () {{
+            var el = fakeRange('fast', '1'), note = fakeNote(), row = {{classList: classList()}};
+            el.title = '';
+            return {json.dumps(caps_sequence)}.map(function (caps) {{
+                window.WamaParams.applyCapFrom(el, note, row, {json.dumps({'name': name})},
+                                               {json.dumps(cf)}, caps);
+                return {{disabled: el.disabled, value: String(el.value), note: note.textContent,
+                         title: el.title, faded: row.classList.contains('opacity-50')}};
+            }});
+        }})()""")
+
+    def test_a_setting_the_engine_does_not_list_is_greyed_with_its_reason(self):
+        """`params` = the settings the engine reads (reader: docTR none, olmOCR mode+language)."""
+        unread, read = self._reads([{'params': []}, {'params': ['mode', 'language']}])
+        self.assertTrue(unread['disabled'] and unread['faded'])
+        self.assertEqual(('ignoré', 'ignoré'), (unread['note'], unread['title']))
+        # Counter-test: an engine that reads it gives it back, value untouched, nothing said.
+        self.assertEqual((False, False, '', 'fast'),
+                         (read['disabled'], read['faded'], read['note'], read['value']))
+
+    def test_a_boolean_capability_answers_by_its_value(self):
+        """`supports_hotwords` (transcriber): False greys, True gives back."""
+        off, on = self._reads([{'supports_hotwords': False}, {'supports_hotwords': True}],
+                              capability='supports_hotwords', name='hotwords')
+        self.assertTrue(off['disabled'])
+        self.assertFalse(on['disabled'])
+
+    def test_show_if_says_the_same_in_the_browser_and_on_the_server(self):
+        """`show_if` has TWO readers — `_bindConditional` (screen) and `param_schema._show_if_met`
+        (defaults applied, card clauses). `not_equals` entered both on 2026-10-13 (the enhancer
+        hides Resemble's settings under « auto » only); every form is checked on both sides."""
+        import json
+        from wama.common.utils.param_schema import _show_if_met
+        cases = [({'field': 'engine', 'not_equals': 'auto'}, 'auto'),
+                 ({'field': 'engine', 'not_equals': 'auto'}, 'enhancer:resemble'),
+                 ({'field': 'engine', 'equals': 'auto'}, 'auto'),
+                 ({'field': 'engine', 'equals': 'auto'}, 'x'),
+                 ({'field': 'engine', 'in': ['a', 'b']}, 'b'),
+                 ({'field': 'engine', 'in': ['a', 'b']}, 'c')]
+        for cond, value in cases:
+            with self.subTest(cond=cond, value=value):
+                shown = self.v8.eval(f"""(function () {{
+                    var field = {{type: 'select', value: {json.dumps(value)},
+                                  getAttribute: function (n) {{ return n === 'name' ? 'engine' : null; }}}};
+                    var row = {{style: {{}}, getAttribute: function () {{ return {json.dumps(json.dumps(cond))}; }}}};
+                    var box = {{addEventListener: function () {{}}, querySelectorAll: function (sel) {{
+                        return sel === '[data-show-if]' ? [row] : [field]; }}}};
+                    window.WamaParams.bindConditional(box);
+                    return row.style.display !== 'none';
+                }})()""")
+                self.assertEqual(_show_if_met(cond, {'engine': value}), shown)
+
+    def test_nothing_known_greys_nothing(self):
+        """« auto » (no caps) or an undeclared capability: never grey on an absence of fact —
+        FrWhisper's catalogue row does not carry its engine's flag yet."""
+        greyed, auto, undeclared = self._reads([{'params': []}, None, {'task': 'ocr'}])
+        self.assertTrue(greyed['disabled'])
+        self.assertFalse(auto['disabled'] or undeclared['disabled'], 'restored once unknown')
+
 
 #: A container holding a duration slider and (optionally) its model select, a catalogue stub that
 #: answers at once, and what the brick needs around them. The binding is the REAL one.

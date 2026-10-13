@@ -57,7 +57,20 @@ class EveryDeclaredBindingCanBeBoundTest(SimpleTestCase):
                 self.assertIn(cf.get('capability'), CANONICAL_CAPABILITIES)
                 if cf.get('extension'):
                     self.assertIn(cf['extension'], CANONICAL_CAPABILITIES)
-                self.assertIn(cf.get('mode', 'range'), ('range', 'fixed', 'note'))
+                self.assertIn(cf.get('mode', 'range'), ('range', 'fixed', 'note', 'reads'))
+
+    def test_a_reads_binding_reads_a_list_of_settings_or_a_boolean(self):
+        """« reads » greys a setting the chosen model does not read: the capability must be the
+        list of settings an engine reads (`params`) or a boolean `supports_*` — a numeric limit
+        would grey nothing, or everything, without a word."""
+        reads = [(app, p) for app, _attr, _schema, p in _declared_bindings()
+                 if p['cap_from'].get('mode') == 'reads']
+        self.assertGreaterEqual(len({app for app, _p in reads}), 3, 'transcriber, enhancer, reader')
+        for app, p in reads:
+            with self.subTest(app=app, param=p['name']):
+                capability = p['cap_from']['capability']
+                self.assertTrue(capability == 'params' or capability.startswith('supports_'),
+                                capability)
 
 
 class DurationCapabilityFromDeclarationTest(SimpleTestCase):
@@ -141,3 +154,85 @@ class ModelCapabilitiesCriterionTest(SimpleTestCase):
         from wama.common.tests.tests_queue_delete_contract import CriteresDeLaGrilleTest
         f, _cc = CriteresDeLaGrilleTest._app(self, {'params.py': "# cap_from={'field': 'model'}\n"})
         self.assertIsNone(f.find_code(cc.PARAMS, r'\bcap_from\s*=\s*\{'))
+
+
+#: The three comment shapes that made `model_caps_ui` / `input_match_ui` green on 2026-10-13 —
+#: the transcriber and the enhancer announced the REMOVAL of their `WamaModelCaps` in a comment.
+COMMENTED = {
+    'templates/app/index.html': (
+        "{% comment %}Le grisage par `WamaModelCaps.init(` est RETIRÉ.{% endcomment %}\n"
+        "<script>\n  // WamaInputMatch.init({ … }) retiré lui aussi\n</script>\n"),
+    'static/app/js/index.js': "// WamaModelCaps.init({ controls }) — ancienne forme\n",
+}
+
+
+class TheGridCountsACallNotAMentionTest(SimpleTestCase):
+    """`model_caps_ui` and `input_match_ui` look for a CALL of the brick outside comments."""
+
+    def _files(self, files):
+        from wama.common.tests.tests_queue_delete_contract import CriteresDeLaGrilleTest
+        return CriteresDeLaGrilleTest._app(self, files)[0]
+
+    def _verdict(self, key, files, named=frozenset({'hotwords'})):
+        from unittest import mock
+        criterion = next(c for c in cc.CRITERIA if c.key == key)
+        with mock.patch.object(cc, '_uses_models', lambda f: True), \
+             mock.patch.object(cc, '_has_engine_select', lambda f: True), \
+             mock.patch.object(cc, '_capability_named_settings',
+                               lambda f: set(named) if named is not None else None):
+            return criterion.fn(self._files(files))
+
+    def test_a_comment_announcing_the_removal_is_not_an_adoption(self):
+        for key in ('model_caps_ui', 'input_match_ui'):
+            with self.subTest(criterion=key):
+                self.assertIs(self._verdict(key, COMMENTED)[0], False)
+
+    def test_a_call_is_an_adoption(self):
+        """Counter-test: the same files plus a real call — green, and the evidence names it."""
+        for key, call in (('model_caps_ui', 'WamaModelCaps.init({modelSelectId: "m"});'),
+                          ('input_match_ui', 'WamaInputMatch.init({selectId: "m"});')):
+            with self.subTest(criterion=key):
+                files = dict(COMMENTED)
+                files['static/app/js/index.js'] += call + '\n'
+                state, evidence = self._verdict(key, files)
+                self.assertIs(state, True)
+                self.assertIn('index.js:2', evidence)
+
+    def test_nothing_to_derive_is_outside_with_its_reason_never_blindly(self):
+        """No capability of the proposed models names a setting (the describer): outside, said.
+        An unreadable catalogue (None) is NOT « nothing »: red, never N/A on a blind read."""
+        state, reason = self._verdict('model_caps_ui', COMMENTED, named=set())
+        self.assertIsNone(state)
+        self.assertIn('ne nomme', reason)
+        self.assertIs(self._verdict('model_caps_ui', COMMENTED, named=None)[0], False)
+
+
+class CapabilityNamedSettingsTest(SimpleTestCase):
+    """What « a capability names a setting » reads: `params` lists, and `supports_<setting>`."""
+
+    def _named(self, schema, models):
+        from unittest import mock
+        from wama.common.tests.tests_queue_delete_contract import CriteresDeLaGrilleTest
+        f = CriteresDeLaGrilleTest._app(self, {})[0]
+        with mock.patch('wama.common.utils.param_schema.declared_param_schemas',
+                        lambda app: {'schemas': {'PARAMS_JSON': schema}}), \
+             mock.patch('wama.model_manager.services.get_registry_models',
+                        lambda source, **q: ([], [{'capabilities': c} for c in models])):
+            return cc._capability_named_settings(f)
+
+    SELECT = {'name': 'backend', 'type': 'select', 'options_source': 'catalog',
+              'options_query': {'task': 'transcription'}}
+
+    def test_a_listed_setting_and_a_supports_flag_name_settings(self):
+        schema = [self.SELECT, {'name': 'hotwords'}, {'name': 'mode'}, {'name': 'other'}]
+        models = [{'supports_hotwords': False, 'supports_timestamps': True},
+                  {'params': ['mode', 'unknown']}]
+        self.assertEqual({'hotwords', 'mode'}, self._named(schema, models))
+
+    def test_capabilities_that_name_no_setting_of_the_app_name_nothing(self):
+        """The describer: transcription models flag hotwords and timestamps, chat models flag
+        vision and tools — none of them is a describer setting."""
+        schema = [self.SELECT, {'name': 'output_style'}, {'name': 'max_length'}]
+        models = [{'supports_hotwords': True, 'supports_timestamps': True},
+                  {'vision': True, 'tools': True, 'inputs_required': ['prompt']}]
+        self.assertEqual(set(), self._named(schema, models))

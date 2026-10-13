@@ -235,6 +235,18 @@ class IndexView(TemplateView):
         # Schéma de params (source unique modale+inspecteur, rendu par WamaParams). Voir describer/params.py.
         from wama.describer.params import PARAMS_JSON
         context['params_json'] = json.dumps(PARAMS_JSON)
+        # Appariement entrée ↔ modèles (brique commune, 2026-10-13) : le fichier de la card va
+        # au modèle de transcription s'il s'entend, au modèle de vision s'il se voit — jugé par
+        # les MODALITÉS que chaque modèle lit (`WamaInputMatch.modalitySlot`), sur le domaine
+        # DÉCLARÉ de chaque select. Sans les entrées du catalogue : la card ne les fournit pas,
+        # le pipeline les compose (la consigne, la piste son). Le modèle de langage reçoit du
+        # texte du pipeline, jamais le fichier : pas d'appariement.
+        from wama.common.app_registry import media_extensions
+        from wama.common.utils.input_match import select_match_meta
+        context['input_match_json'] = json.dumps({
+            field: select_match_meta('describer', field, extra_caps=('modalities',), inputs=False)
+            for field in ('asr_model', 'vision_model')})
+        context['media_extensions_json'] = json.dumps(media_extensions())
         context['success_count'] = all_descs.filter(status='SUCCESS').count()
         context['descriptions'] = all_descs  # kept for global progress bar template ref
 

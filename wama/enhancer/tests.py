@@ -291,11 +291,28 @@ class AudioCatalogueKeysTest(TestCase):
         self.assertEqual(['auto', 'enhancer:deepfilternet', 'enhancer:resemble'],
                          sorted(v for v, _ in catalog_options(self._engine_param())))
 
-    def test_resemble_only_settings_show_for_the_resemble_key(self):
+    def test_engine_settings_follow_what_the_chosen_engine_reads(self):
+        """Mode, strength and NFE follow the engine's `params` capability (`cap_from` « reads »),
+        no longer its NAME — the catalogue declared the fact, the panel recoded it (2026-10-13)."""
+        from wama.common.utils.param_schema import _show_if_met
         from wama.enhancer.params import AUDIO_PARAMS
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = ModelRegistry()
+        registry._models = {}
+        registry._discover_enhancer_models()
+        reads = {key: registry._models[key].capabilities['params']
+                 for key in ('enhancer:resemble', 'enhancer:deepfilternet')}
         for name in ('mode', 'strength', 'quality'):
-            p = next(p for p in AUDIO_PARAMS if p.name == name)
-            self.assertEqual({'field': 'engine', 'equals': 'enhancer:resemble'}, p.show_if, name)
+            with self.subTest(setting=name):
+                p = next(p for p in AUDIO_PARAMS if p.name == name)
+                self.assertEqual({'field': 'engine', 'capability': 'params', 'mode': 'reads'},
+                                 p.cap_from)
+                self.assertIn(name, reads['enhancer:resemble'])
+                self.assertNotIn(name, reads['enhancer:deepfilternet'], 'greyed for DeepFilterNet')
+                # Hidden under « auto » only: the draw picks the engine, the NFE follows the slider.
+                self.assertFalse(_show_if_met(p.show_if, {'engine': 'auto'}))
+                for engine in reads:
+                    self.assertTrue(_show_if_met(p.show_if, {'engine': engine}), engine)
 
     def test_the_audio_panel_is_generated_from_the_schema(self):
         """The audio panel is GENERATED too (2026-10-11): its engine select is filled by the

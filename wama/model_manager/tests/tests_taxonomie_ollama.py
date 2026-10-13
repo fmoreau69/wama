@@ -47,6 +47,21 @@ class TacheDeclareeTest(TestCase):
         self.assertEqual(['text', 'image'], chat['modalities'])
         self.assertNotIn('params', chat)
 
+    def test_a_model_that_sees_or_hears_accepts_the_matching_input(self):
+        """Its modalities said `image` while its inputs said `prompt` alone (2026-10-13): no
+        `consumes=['work_image']` draw kept it, and the card's matching greyed it."""
+        sees = self._caps('qwen3.8:latest', {'completion', 'vision'})
+        self.assertEqual(['prompt'], sees['inputs_required'], 'it still converses without')
+        self.assertEqual(['work_image'], sees['inputs_optional'])
+        both = self._caps('gemma4:e4b', {'completion', 'vision', 'audio'})
+        self.assertEqual(['work_image', 'work_audio'], both['inputs_optional'])
+        # Counter-checks: a blind model accepts nothing more (written empty: the sync merges key by
+        # key, a model that loses `vision` loses the input), and an OCR keeps its page as its input.
+        self.assertEqual([], self._caps('qwen3:8b', {'completion'})['inputs_optional'])
+        ocr = self._caps('glm-ocr:latest', {'completion', 'tools', 'vision'})
+        self.assertNotIn('work_image', ocr.get('inputs_optional') or [])
+        self.assertEqual(['work_file'], ocr['inputs_required'])
+
     def test_une_specialite_declaree_survit_a_la_decouverte(self):
         caps = self._caps('translategemma:12b', {'completion', 'vision'})
         self.assertEqual(('text-generation', 'translation'),

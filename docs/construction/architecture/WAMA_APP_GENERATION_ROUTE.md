@@ -177,7 +177,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   | rendu batch `context:'batch'` (WamaParams) | **10/10** | la coquille de modale reste à la main hors anonymizer/imager ; le GÉNÉRATEUR émet désormais l'ouvreur de lot complet (§S2ter) |
   | chips métadonnée (`card_chips`) | **10/10** (11 décorateurs, 6 noms — §S2ter) | l'assiette `values` (JSON) n'est passée que par converter |
   | `gear_data` (property modèle) | **10/10** | — |
-  | écran DÉRIVÉ des capacités du modèle (`cap_from` au schéma, ou `WamaModelCaps`) | ~~synthesizer seul~~ **8/8 apps à sélecteur de moteur au 2026-10-02** (grille `model_caps_ui`) : `cap_from` pour imager et composer, `WamaModelCaps` pour les six autres | la forme déclarative (`cap_from`) est la cible ; ⚠ le transcriber charge la brique sans plus l'appeler (grisage de la diarisation retiré, R88) : vert par le motif, pas par l'usage |
+  | écran DÉRIVÉ des capacités du modèle (`cap_from` au schéma, ou `WamaModelCaps`) | ~~synthesizer seul~~ ~~8/8 apps au 2026-10-02~~ **8/8 au 2026-10-13** (grille `model_caps_ui` ; 9 apps à sélecteur de moteur, le describer non applicable) : `cap_from` pour imager, composer, reader, transcriber et enhancer (mode `reads`, 13/10), `WamaModelCaps` appelé pour synthesizer, avatarizer et anonymizer | la forme déclarative (`cap_from`) est la cible. ⚠ Le « 8/8 » du 02/10 comptait le transcriber et l'enhancer VERTS par un commentaire annonçant le retrait de leur brique : le critère compte un APPEL depuis le 13/10 (`INPUT_MODEL_MATCHING §7`) |
   | **champ de VOLET généré** (`WamaParams.render(context:'panel')` + source d'options) | **1/10 au 2026-09-27** — synthesizer, le seul champ de voix | Les autres champs de volet restent écrits à la main, avec leur `name=` ; l'inspecteur lit les DEUX formes (`[name=]`,`[data-param=]`), donc une app peut porter ses champs UN PAR UN. ⚠ Ce qui bloquait n'était pas technique : une phrase (« les options sont SERVER-RENDERED, on NE remplace donc PAS les champs ») recopiée du schéma vers DEUX briques communes **et cette route**. Le portage a d'abord consisté à la retirer. ⚠ Piège mesuré : un champ généré n'a **pas** de `name=` en contexte `panel` — tout lecteur qui n'interroge que `[name=]` cesse d'enregistrer, sans erreur |
   | **réglages utilisateur persistés** (`user_settings`) | **8/10** | anonymizer + enhancer persistent en TABLE Django maison (`UserSettings`) — architecture différente, pas un oubli |
 - **Manifeste** : `params` = `{primary, schemas}` **multi-schémas depuis le palier params**
@@ -4686,6 +4686,12 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   catalogue déclare `prompt` comme entrée requise des modèles de conversation, il les griserait
 >   tous ; sur la transcription, il ne griserait rien (tous exigent l'audio que la card fournit).
 >   Question posée à Fabien plutôt que de verdir le critère.
+>   ✅ **Tranché le 2026-10-13** (Fabien : « méticuleusement, aligné avec le fonctionnement de
+>   WAMA ») : l'appariement juge le fichier par sa NATURE et le modèle par ses `modalities`
+>   (`WamaInputMatch.modalitySlot`), sans les entrées que le pipeline compose
+>   (`select_match_meta(inputs=False)`) ; `model_caps_ui` est NON APPLICABLE, dérivé — aucune
+>   capacité des modèles de ses selects ne nomme un réglage du describer. Détail et gardes :
+>   `INPUT_MODEL_MATCHING §6.12` et `§7` (2026-10-13). Grille : describer **100 %**.
 > - ⏳ **Restes** : le « compte-rendu de réunion » comme TYPE de résumé (au transcriber, il l'est
 >   déjà) plutôt que comme style de sortie — il résume encore à deux endroits (backends et
 >   process) ; le découpage des backends (vidéo : images-clés et piste son sont des process, la
