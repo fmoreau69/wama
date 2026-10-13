@@ -23529,3 +23529,35 @@ ligne) — la hausse vient de travaux non commités d'autres sessions.
 
 **Pendings système** : 🔴 relancer gunicorn (gabarit du profil ; la bascule est déjà servie depuis
 la relance du 13/10) · pousser `1d74380e` et le commit de ce bloc.
+
+## §CLÔTURE — 2026-10-13, « ASSISTANT VOCAL : lèvres, écho, reprise de parole ; Envoyer vers » — ✅ LIVRÉ — 🔚 éprouver la conversation vocale au vrai micro
+
+**Demandes de Fabien, dans l'ordre** : « Envoyer vers » qui proposait des apps refusées ; les
+lèvres de l'avatar « complètement décalées » ; l'écho de la conversation vocale ; la bascule sur
+wama-dev-ai lors d'un essai ; puis « ne coupe qu'une fois la phrase reconnue et on clôture ».
+
+- `18925bb0` **Envoyer vers** — les réglages de l'utilisateur et les vues des apps concernées
+  (gardes : `tests_send_to_settings`).
+- `3cd73b6b` **Lèvres** — découpage glouton (une réponse reçue d'un bloc = un seul audio) +
+  estimation des mots sur toute la durée du morceau + latence de sortie ignorée. Pire reprise de
+  phrase 1,1 s → 0,3 s. Détail : `WAMA_LLM §1bis` levier 4. ✅ Confirmé par Fabien.
+- `62ffe380` **Écho** — l'assistant se répondait à lui-même. Correction par le TEXTE
+  (`isAudible`, `isOwnSpeech`, avance oubliée). Détail : `WAMA_LLM` §L'ÉCOUTE.
+- `39612df5` **Reprise de parole** — ne coupe plus au premier son, seulement une fois la phrase
+  transcrite et reconnue comme n'étant pas son écho (décision de Fabien).
+- **Bascule sur wama-dev-ai : rien à corriger.** L'essai de 11:27 venait du compte de
+  démonstration (profil 100 % local) : le tirage ne pouvait rendre qu'un modèle local. Le compte de
+  Fabien tire `ilaas:qwen-3.8-27b`, rejoué depuis WSL avec le travail en cours de l'instance
+  wama-dev-ai présent dans l'arbre (rôles tirés pour le compte, bridage dev retiré de la
+  conversation) : aligné sur la route, rien en double.
+
+**Contrôles attendus au prochain /reprise** : `tests_assistant_listen` + `tests_assistant_voice_js`
++ `tests_assistant_surfaces` = **113 OK** côté WSL (mesuré à 17:15) ; 4 + 7 mutations des gardes
+d'écho et de reprise de parole toutes rouges ; `check_redundancy` : aucune trouvaille dans les
+fichiers de la session.
+
+**Pendings système** : 🔴 relancer gunicorn (vues d'« Envoyer vers ») · Ctrl+F5 côté navigateur
+(voix, écoute, avatar) · pousser `39612df5` et le commit de ce bloc.
+
+**🔚 POINT D'ENTRÉE** : éprouver la conversation vocale AU VRAI MICRO (écho disparu ? reprise de
+parole au bon moment ?) — aucun test V8 ne remplace un haut-parleur et un micro.

@@ -427,6 +427,15 @@ de Fabien : « purement amélioratif »), **5 ✅ le 26/09** ; seul 3 reste une 
    ⚠ **Domicile corrigé le 26/09** : ce levier vivait dans `home.html`, donc il n'existait QUE
    sur l'accueil. Il est dans la brique commune de voix (`speakStream`), et le volet droit en
    bénéficie sans une ligne de plus.
+   ⚠ **Les lèvres décalées (signalé par Fabien le 2026-10-13, `3cd73b6b`)** : le découpage en
+   phrases était devenu GLOUTON — une réponse reçue d'un bloc partait en UN seul audio (232
+   caractères mesurés), et l'avatar, qui estime le moment de chaque mot sur la durée de chaque
+   morceau, accumulait l'erreur sur tout le morceau (pire reprise de phrase : 1,1 s). Le
+   découpage rend maintenant le plus court groupe de phrases finies d'au moins 60 caractères
+   (`takeSentences`), l'estimation compte les pauses de ponctuation et les chiffres, et la
+   latence de sortie mesurée par le navigateur est compensée (`WamaAvatar.outputLatencyMs`).
+   Mesuré : pire reprise 0,3 s, 8 reprises sur 9 sous 0,1 s. Gardes :
+   `tests_assistant_voice_js` (`ReplyReceivedAtOnceIsSplitTest`, `AvatarLipTimingTest`).
 5. ✅ **Flux jeton par jeton (SSE) — câblé le 26/09.** Ollama reçoit `stream: true` **dès qu'un
    rappel est fourni**, et chaque fragment remonte jusqu'à l'écran et jusqu'à la voix.
    La voix parle par phrases pendant que le reste arrive.
@@ -535,6 +544,19 @@ chez Google, il fallait envoyer soi-même, et elle n'existait que sur l'accueil.
 - **Reprendre la parole** : pendant que l'assistant réfléchit ou parle, une voix plus forte
   (+18 dB) et plus longue (350 ms) coupe sa voix ET interrompt son tour (`chat.abort()`, nouveau
   dans la brique de chat avec `isBusy()` ; `send()` rend désormais la promesse du tour).
+  ⚠ **Depuis le 2026-10-13 (décision de Fabien, `39612df5`), la coupure attend la phrase
+  COMPRISE** : transcrite, puis reconnue comme n'étant pas l'écho de l'assistant. L'annulation
+  d'écho du navigateur peut ne pas couvrir ce que joue la page, et un écho le coupait au premier
+  son. Prix assumé : il parle encore le temps de la transcription (1 à 2 s à chaud).
+- **L'écho (2026-10-13, `62ffe380`)** : « … si vous avez besoin d'autre chose », fin d'une réponse
+  encore jouée par le haut-parleur, est repartie comme réplique — l'assistant s'est répondu.
+  Trois trous : l'écoute redevenait sensible dès la fin de l'audio pour la carte son (le
+  haut-parleur joue encore pendant la latence de sortie) ; l'avance de 400 ms se remplissait de
+  SA voix ; rien ne disait qu'une phrase était la sienne. La correction repose sur le TEXTE : la
+  voix retient ses mots et jusqu'à quand elle est audible (`isAudible`, latence de sortie
+  comprise) ; l'écoute oublie l'avance quand il se tait ; une phrase commencée pendant qu'il
+  s'entendait et faite de ses mots dans l'ordre (≥ 80 %) est écartée (`isOwnSpeech`). Reprendre
+  ses mots APRÈS qu'il s'est tu reste une réplique. ⏳ Jamais éprouvé au vrai micro.
   ⚠ **Seulement si le navigateur confirme l'annulation d'écho** (`getSettings().echoCancellation`) :
   sans elle l'assistant s'entendrait et s'interromprait — l'écoute est alors SOURDE pendant qu'il
   répond (chacun son tour), et le bouton le dit. Le serveur, lui, finit le tour interrompu et
@@ -549,7 +571,8 @@ chez Google, il fallait envoyer soi-même, et elle n'existait que sur l'accueil.
   navigateur~~ (rallié le 2026-10-12, bloc suivant) ; validation à l'oreille et au micro par
   Fabien (aucun test ne remplace un vrai micro).
 - Gardes : `common/tests/tests_assistant_listen.py` (23 — vue, client, brique exécutée dans V8 ;
-  contre-épreuve faite : sans `chat.abort()`, la reprise de parole passe au rouge).
+  contre-épreuve faite : sans `chat.abort()`, la reprise de parole passe au rouge). **54 au
+  2026-10-13** (capture du Speak, écho, coupure après la phrase comprise ; mutations rouges).
 - **Le « Speak » du transcriber écoute par la MÊME brique (2026-10-12, demande de Fabien :
   « aligner sur le commun, réutiliser »).** Le port « en direct » passait encore par
   `webkitSpeechRecognition` (audio chez Google, français imposé) et ouvrait le micro une seconde
