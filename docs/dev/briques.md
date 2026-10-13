@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**197 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**198 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -203,7 +203,7 @@ Le registre `IMPORTERS` EST le dispatch ET la source du résolveur SERVEUR « En
 
 - **Domicile** : `wama/filemanager/views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §S2bis](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : FileManager views - API for file browsing and management.
-- **API publique** (46) :
+- **API publique** (45) :
   - `get_user(request)` — Get current user or anonymous user.
   - `get_user_media_root(user)` — Get the media root path for a specific user.
   - `build_file_tree(user)` — Build a file tree structure for jstree with two collapsible sections:
@@ -213,7 +213,6 @@ Le registre `IMPORTERS` EST le dispatch ET la source du résolveur SERVEUR « En
   - `scan_mount_folder(abs_folder, virtual_prefix)` — Scan a mounted folder and return jstree nodes with virtual paths.
   - `api_children(request)` — Lazy-load children of a specific folder node (called by jstree when expanding).
   - `api_tree(request)` — Get file tree for jstree.
-  - `api_tree_mtime(request)` — Lightweight change-detection endpoint for polling.
   - `api_search(request)` — Search files by name.
   - `api_upload(request)` — Upload file(s) to user's temp folder, preserving folder structure if provided.
   - `sanitize_relative_path(path)` — Sanitize a relative path to prevent directory traversal attacks.
@@ -688,7 +687,7 @@ Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit
   - `register_surface(surface: Surface) -> Surface`
   - `surface(app: str, key: str) -> Optional[Surface]`
   - `surfaces_of(app: str) -> list`
-  - `load_all() -> dict` — Importe les déclarations de surfaces des apps installées (idempotent).
+  - `load_all() -> dict` — Importe les déclarations de surfaces des apps installées (une fois par processus).
 
 ### Sélection de modèle
 
@@ -1187,7 +1186,7 @@ D'OÙ vient le fichier qu'une card consomme. La frontière était déjà tracée
 - **Domicile** : `wama/common/utils/provenance.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : PROVENANCE D'UNE ENTRÉE — d'où vient le fichier qu'une card consomme.
 - **API publique** (9) :
-  - `sha256_of(chemin, *, limite=SEUIL_EMPREINTE_OCTETS)` — Empreinte d'un fichier, ou `''` s'il est trop gros / illisible. Ne lève jamais.
+  - `sha256_of(chemin, *, limite=SEUIL_EMPREINTE_OCTETS)` — Empreinte d'un fichier, ou `''` s'il est trop gros / illisible. Ne lève jamais. Un
   - `record_provenance(instance, field, *, kind, ref='', original_name='', source_path=None, user=None)` — Enregistre d'où vient `instance.<field>`. Remplace la trace existante, ne l'empile pas.
   - `ref_for(source_path)` — Adresse d'une source : son chemin relatif à `MEDIA_ROOT` s'il y vit, sinon son chemin brut.
   - `record_import(instance, field, source_path, *, kind='temp')` — La moitié complémentaire de `copy_into_app_input`, pour le motif « copier PUIS créer ».
@@ -2072,6 +2071,16 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class Conversation(models.Model)` — Un fil de dialogue avec l'assistant, quelle que soit la surface qui le porte.
   - `class ConversationTurn(models.Model)` — Un tour de conversation — ce que l'utilisateur a dit, ou ce que l'assistant a répondu.
   - `class InputProvenance(models.Model)` — D'OÙ vient le fichier d'entrée d'un élément — le LIEN qui manquait.
+
+### Panneau de la cloche
+
+Un clic sur la cloche ouvre ses notifications SANS quitter la page (2026-10-13) : ouvrir, lu / non lu, supprimer (avec « Annuler »), tout lire, et les gestes PROPRES à un type — déclarés par le serveur (STYLE_BY_KIND, ACTIONS_BY_KIND : « Accorder / Refuser » une demande d'accès), la page ne connaît aucun type. Ouvrir le panneau ne marque rien comme lu ; le lien de la cloche reste la page complète (Ctrl-clic)
+
+- **Domicile** : `wama/common/services/notification_panel.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md](../construction/exploitation/WAMA_COLLABORATION.md)
+- **Module** : Ce que le PANNEAU de la cloche montre d'une notification (`WAMA_COLLABORATION.md §2.3`, 2026-10-13, demande de Fabien : *« quand je clique sur la cloche, une petite fenêtre… je veux pouvoir interagir avec les notifications directement dans la petite fenêtre »*).
+- **API publique** (2) :
+  - `notification_actions(notification, user) -> list`
+  - `notification_payload(notification, user) -> dict` — La notification telle que le panneau la rend : texte, état, style, gestes.
 
 ### Réglages de référence d'un lot (promotion fille ↔ mère)
 
