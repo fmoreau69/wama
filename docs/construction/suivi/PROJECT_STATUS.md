@@ -23569,3 +23569,57 @@ fichiers de la session.
 
 **🔚 POINT D'ENTRÉE** : éprouver la conversation vocale AU VRAI MICRO (écho disparu ? reprise de
 parole au bon moment ?) — aucun test V8 ne remplace un haut-parleur et un micro.
+
+## §CLÔTURE — 2026-10-13, « LENTEURS → POLLER PARTOUT → REVÉRIFICATION → PANNEAU DE LA CLOCHE » — consigné (non poussé) — 🔴 relancer gunicorn
+
+🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : relancer gunicorn, puis ouvrir la cloche sur le serveur en
+service (le panneau ne s'ouvre qu'avec les routes neuves) ; le reste de ce périmètre attend une
+décision, pas un geste.
+
+**Commits de la session** (dans l'ordre, tous dans `dev`) : `d1d7214c` lenteurs des pages ·
+`a10d9651` Poller partout · `2736bca6` revérification + registre du Poller · `09c8292a` panneau de
+la cloche + R124 · `5c89f307` docs générées · `0b9502b3` relectures de `wama-schedule.js` · + le
+commit de cette clôture (gardes ajoutées, échappement délégué, deux leçons aux skills).
+
+**Pendings système** : relancer gunicorn (Python de `d1d7214c` et routes de `09c8292a` ; les
+JS/CSS sont servis à chaud) · pousser — sur demande.
+
+**Gardes de la session** (une par livrable) : Poller → `tests_poller_js.PollerLoopTest` (pas de
+chevauchement, onglet caché, `request`, arrêt dans `onData`, réinscription) · une boucle par
+endpoint de barre → `test_two_queue_bars_on_one_endpoint_share_one_call` · aucune boucle locale →
+`EveryPollingLoopIsTheCommonOneTest` · réconciliation de fond → `tests_reconcile.PageCallDoesNotWaitForTheFleetTest`
+· vivier mémorisé → `tests_file_cache` · adoption → `tests_process_pipeline.AResultOlderThanThePipelineTest`
+· ▶ du Transcriber → `tests_status_ui.CycleButtonWiredOnTheQueueTest` · surfaces et empreintes →
+`tests_page_cost` · `speaker_count` → `transcriber.tests_queue_load` (ajoutée à la clôture) ·
+panneau → `tests_notifications.BellPanelRoutesTest`, `BellPanelAccessRequestTest`,
+`BellPanelRenderingTest`, `ArrivalWhileTheBellPanelIsOpenTest` (ajoutée à la clôture) ·
+`wama-schedule.js` → `tests_poller_js.ScheduleChipsRereadOnlyWhatMattersTest`. Contre-épreuves
+par MUTATION, toutes rouges : réinscription du Poller, échappement du titre, gestes au seul
+propriétaire, pas de fenêtre panneau ouvert, filtres destinataire (liste et gestes),
+`speaker_count`, relectures de la file.
+**NON gardés, déclarés** : le comportement des douze portages d'apps (tenus par la garde de FORME
+et par un passage navigateur, 13 pages, zéro erreur JS — aucun test par app) ; l'arrêt sur erreur
+du suivi des miroirs du model manager (JS en ligne du gabarit).
+
+**Contrôles mesurés à la clôture** : 2177 tests du périmètre (11 apps + transcriber + Lab + 12
+modules communs, WSL) : 3 erreurs, toutes `BellPanelRenderingTest` — dues à une édition du JS
+PENDANT le passage ; rejoués : 56/56 OK. `check_docs` : 0 cassée / 2788. `check_redundancy` : 106
+trouvailles au dépôt, 0 dans les fichiers de la session (relecture manuelle : un `esc()` recopiait
+`WamaApp.escapeHtml` — délégué). `check_skills` : 0 défaut. Manifestes : aucun ne cite les routes
+touchées.
+
+**Laissé de côté, nommément** : jumelles `_01` à régénérer (anciennes boucles) · `_pollRunning` du
+gabarit du générateur · `_asr_text` relit les segments (~0,4 s) · `max_requests = 1000` · gestes de
+LANCEMENT non rejoués au navigateur · le reader redemande card + progression à chaque tour
+(antérieur) · garde de langue des identifiants ROUGE (2675 > 2668, classes 134 > 132, méthodes
+1304 > 1301) par des identifiants d'AUTRES commits (`git blame` : `982229c3`, `0aff7691`,
+`f62845cd`…) — à renommer par leurs auteurs · `REMOVAL_LEDGER` : R43, R64, R65, R66 en DOUBLE,
+antérieurs à la session (non renumérotés : cités ailleurs).
+**Décision ouverte** : l'adoption des résultats antérieurs aux pipelines ÉCRIT des lignes
+`SUCCESS` à la lecture d'une page (9 apps + `enhancer_01` ce jour) — à valider ou à borner.
+
+**Artefacts et effets de bord** : scripts de mesure et de scénario dans le scratchpad de session
+(jetables) · compte jetable du scénario de la cloche créé puis SUPPRIMÉ · serveur de dev éphémère
+arrêté · worktrees de vérification retirés · sessions Django des passages navigateur supprimées ·
+lignes `ProcessRun` adoptées en base (voir la décision ci-dessus) · un changement non commité
+d'une autre session (pastilles de `wama-schedule.js`, 15:11) ADOPTÉ et réparé dans `0b9502b3`.

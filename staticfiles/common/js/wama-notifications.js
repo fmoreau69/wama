@@ -31,11 +31,9 @@
 
   // ── Rendu : fonctions PURES (état → HTML), testées dans V8 ───────────────────────────────
 
-  function esc(value) {
-    return String(value == null ? '' : value).replace(/[&<>"']/g, function (m) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
-    });
-  }
+  // L'échappement COMMUN (`WamaApp.escapeHtml`) ; la conversion en texte d'abord, qu'il ne fait
+  // pas (un nombre n'a pas de `.replace`).
+  function esc(value) { return global.WamaApp.escapeHtml(value == null ? '' : String(value)); }
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
 

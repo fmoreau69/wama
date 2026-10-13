@@ -87,6 +87,16 @@ print('COUNTERPROOF <nom>: failures =', failures,
   navigateur. (Écrit dans l'en-tête du module de smoke ; je l'ai lu après être tombé dedans.)
 - **Neutraliser trop haut ne prouve rien** : patcher la fonction que le test appelle lui-même fait
   échouer le test pour la mauvaise raison. Viser la brique **sous** le comportement mesuré.
+- **2026-10-13 — dans V8, une PROMESSE ne se règle qu'ENTRE deux `eval`** (`py_mini_racer`). Deux
+  fois le même jour, une contre-épreuve écrite en UN seul `eval` (geste, réponse, minuterie,
+  lecture) a rendu le même résultat pour le code sain et le code muté : la réponse était encore
+  « en vol » au moment de lire. ✅ Découper comme le test qu'on éprouve : un `eval` par étape, et un
+  tour de minuterie par `eval` quand une réponse doit se régler avant le suivant. *Deux résultats
+  identiques sain / muté accusent d'abord le harnais.*
+- **2026-10-13 — une garde qui BOUCLE sur un ensemble peut boucler sur RIEN.** « Le demandeur ne
+  reçoit aucun bouton » parcourait les notifications du demandeur — qui ne reçoit jamais ce type :
+  vert avec la garde retirée. ✅ Exiger l'élément qu'on vérifie (`(item,) = [...]` plutôt qu'un
+  `for`) : le dépaquetage échoue si l'ensemble est vide. Seule la mutation l'a montré.
 
 ## 5. Ce que la contre-épreuve ne remplace pas
 

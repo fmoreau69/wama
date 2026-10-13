@@ -431,6 +431,61 @@ class BellPanelAccessRequestTest(TestCase):
         self.assertEqual([], item['actions'])
 
 
+class ArrivalWhileTheBellPanelIsOpenTest(SimpleTestCase):
+    """A NEW notification reaches the page through the relève of `wama-app-base.js` (every 60 s):
+    with the panel closed it pops up bottom right; with the panel OPEN it is listed there instead
+    — a pop-up would say it twice. Either way the relève announces `wama:notifications`, which the
+    open panel reloads on (2026-10-13). Run in V8 on the real file."""
+
+    STUBS = """
+    var events = [], popups = 0;
+    function fakeEl() {
+      return {style: {}, className: '', setAttribute: function () {}, addEventListener: function () {},
+              appendChild: function (c) { if (c.className === 'wama-notif-popup') popups++; },
+              querySelector: function () { return {addEventListener: function () {}}; },
+              remove: function () {}};
+    }
+    var bell = fakeEl();
+    document.getElementById = function (id) { return id === 'wamaNotificationsLink' ? bell : null; };
+    document.createElement = function () { return fakeEl(); };
+    document.body = fakeEl();
+    document.dispatchEvent = function (e) { events.push(e.type); };
+    window.CustomEvent = function (type, init) { this.type = type; this.detail = init && init.detail; };
+    var CustomEvent = window.CustomEvent;
+    localStorage.getItem = function (k) { return k === 'wama.notifications.lastSeen' ? '5' : null; };
+    // Le `fetch` GLOBAL (celui que le code appelle) remplace celui du harnais, qui ne répond
+    // jamais ; `window.fetch` est ce que la relève vérifie avant de partir.
+    fetch = window.fetch = function () {
+      return Promise.resolve({ok: true, headers: {get: function () { return 'application/json'; }},
+        json: function () { return {unread: 1, last_id: 6,
+                                    items: [{id: 6, title: 'Fini', body: '', url: '', sound: ''}]}; }});
+    };
+    """
+
+    def _arrive(self, panel_open):
+        import importlib.util
+        if importlib.util.find_spec('py_mini_racer') is None:
+            self.skipTest('py_mini_racer absent de ce venv')
+        from py_mini_racer import MiniRacer
+        from wama.common.tests.tests_cap_from_js import FAKE_DOM
+        from wama.common.tests.tests_poller_js import HARNESS, JS
+        v8 = MiniRacer()
+        v8.eval(FAKE_DOM + HARNESS)
+        v8.eval((JS / 'wama-app-base.js').read_text(encoding='utf-8'))
+        v8.eval(self.STUBS)
+        v8.eval('window.WamaNotifications = {isOpen: function () { return %s; }};'
+                % ('true' if panel_open else 'false'))
+        v8.eval('window.WamaApp.checkNotifications();')
+        v8.eval('1')                                  # la réponse se règle entre deux `eval`
+        return v8.eval('popups'), list(v8.eval('JSON.parse(JSON.stringify(events))'))
+
+    def test_closed_panel_the_arrival_pops_up_bottom_right(self):
+        self.assertEqual((1, ['wama:notifications']), self._arrive(panel_open=False))
+
+    def test_open_panel_the_arrival_is_not_said_twice(self):
+        self.assertEqual((0, ['wama:notifications']), self._arrive(panel_open=True))
+
+
 class BellPanelRenderingTest(SimpleTestCase):
     """The panel's rendering is PURE (state → HTML), run here in V8: escaping, unread marks, the
     server-declared gestures, the consent step, the undo line, the empty states, the footer."""
@@ -439,13 +494,14 @@ class BellPanelRenderingTest(SimpleTestCase):
         import importlib.util
         if importlib.util.find_spec('py_mini_racer') is None:
             self.skipTest('py_mini_racer absent de ce venv')
-        from pathlib import Path
-        from django.conf import settings
         from py_mini_racer import MiniRacer
+        from wama.common.tests.tests_cap_from_js import FAKE_DOM
+        from wama.common.tests.tests_poller_js import HARNESS, JS
         self.v8 = MiniRacer()
-        self.v8.eval('var window = {};')
-        self.v8.eval((Path(settings.BASE_DIR) / 'wama/common/static/common/js/wama-notifications.js')
-                     .read_text(encoding='utf-8'))
+        self.v8.eval(FAKE_DOM + HARNESS)
+        # La brique commune d'abord (l'échappement en vient), comme dans `base.html`.
+        self.v8.eval((JS / 'wama-app-base.js').read_text(encoding='utf-8'))
+        self.v8.eval((JS / 'wama-notifications.js').read_text(encoding='utf-8'))
 
     def _render(self, **state):
         import json

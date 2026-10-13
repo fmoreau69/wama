@@ -38,6 +38,22 @@ class QueueLoadTest(TestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual([], _reads_segments(queries.captured_queries))
 
+    def test_a_card_counts_its_speakers_with_one_query_and_a_fresh_read_counts_again(self):
+        """`speaker_count` (2026-10-13) : la card le lit DEUX fois (`_transcript_card.html`) — deux
+        requêtes par card de la file tant que c'était une propriété. Retenu sur l'instance ;
+        chaque rendu lit une instance neuve, donc un compte à jour."""
+        from wama.transcriber.models import TranscriptSegment
+        item = Transcript.objects.create(user=self.user, audio='transcriber/input/c.wav',
+                                         status='SUCCESS')
+        for i, speaker in enumerate(['SPEAKER_00', 'SPEAKER_01', 'SPEAKER_00', '']):
+            TranscriptSegment.objects.create(transcript=item, speaker_id=speaker, order=i)
+        with CaptureQueriesContext(connection) as queries:
+            counts = (item.speaker_count, item.speaker_count)
+        self.assertEqual((2, 2), counts, 'a segment without a speaker is not one')
+        self.assertEqual(1, len(queries.captured_queries))
+        TranscriptSegment.objects.create(transcript=item, speaker_id='SPEAKER_02', order=9)
+        self.assertEqual(3, Transcript.objects.get(pk=item.pk).speaker_count)
+
     def test_the_global_progress_is_one_light_query(self):
         with CaptureQueriesContext(connection) as queries:
             data = self.client.get(reverse('transcriber:global_progress')).json()

@@ -49,7 +49,11 @@ python .claude/skills/commit-partiel/stage_my_hunks.py <scratchpad>/mine.patch \
     "docs/construction/suivi/PROJECT_STATUS.md=<mot-clé>" "docs/construction/suivi/ROADMAP.md=<mot-clé>"
 # c. dans l'index, sans toucher l'arbre
 git apply --cached --unidiff-zero --whitespace=nowarn <scratchpad>/mine.patch
-# d. mes fichiers PROPRES, entiers
+# d. mes fichiers PROPRES, entiers — APRÈS avoir mesuré leur différence À CET INSTANT
+#    (« propre » est une supposition : vécu le 2026-10-13, `a10d9651` a emporté deux hunks d'une
+#    autre instance dans un fichier « à moi »). Dans le script, avant le `git add` :
+#    expect() { [ "$(git diff --numstat HEAD -- "$1" | cut -f1,2 | tr '\t' /)" = "$2/$3" ] || exit 5; }
+#    expect <fichier> <mes ajouts> <mes suppressions>      # relevés en relisant MON diff
 git add <fichier propre> ...
 # e. VÉRIFIER — tout ce qui s'affiche doit être à moi (fichiers ET hunks)
 git diff --cached --stat
