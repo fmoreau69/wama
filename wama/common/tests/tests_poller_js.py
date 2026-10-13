@@ -223,3 +223,99 @@ class EveryPollingLoopIsTheCommonOneTest(SimpleTestCase):
                          '(wama-app-base.js), ou la déclarer ici avec sa raison')
         stale = {f for f, (n, _r) in self.DECLARED.items() if found.get(f, 0) < n}
         self.assertEqual(set(), stale, 'une boucle déclarée a disparu : baisser son compte')
+
+
+#: Faux DOM pour `wama-schedule.js` : une file, une card, des changements simulés, les relectures
+#: de `/common/schedule/active/` comptées.
+SCHEDULE_DOM = r"""
+var window = {};
+function Node(classes, attrs, children) {
+  this.nodeType = 1; this.classes = classes || []; this.attrs = attrs || {}; this.children = children || [];
+  var self = this;
+  this.classList = { contains: function (c) { return self.classes.indexOf(c) !== -1; } };
+}
+Node.prototype.getAttribute = function (k) { return k in this.attrs ? this.attrs[k] : null; };
+Node.prototype.setAttribute = function (k, v) { this.attrs[k] = String(v); };
+Node.prototype.appendChild = function (n) { this.children.push(n); return n; };
+Node.prototype.remove = function () {};
+Node.prototype.matches = function (sel) {
+  if (sel === '.wama-card[data-id]') return this.classList.contains('wama-card') && 'data-id' in this.attrs;
+  if (sel === '[data-schedule-tool]') return 'data-schedule-tool' in this.attrs;
+  if (sel === '[data-schedule-url]') return 'data-schedule-url' in this.attrs;
+  if (sel.charAt(0) === '.' && sel.indexOf(' ') === -1) return this.classList.contains(sel.slice(1));
+  return false;
+};
+Node.prototype.all = function () {
+  var out = [];
+  this.children.forEach(function (c) { if (c.nodeType === 1) { out.push(c); out = out.concat(c.all()); } });
+  return out;
+};
+Node.prototype.querySelectorAll = function (sel) { return this.all().filter(function (n) { return n.matches(sel); }); };
+Node.prototype.querySelector = function (sel) { return this.querySelectorAll(sel)[0] || null; };
+var card = new Node(['wama-card'], {'data-id': '5'}, [new Node(['wcv3-sec--state'])]);
+var queue = new Node([], {'data-schedule-tool': 'start_describer', 'data-schedule-url': '/common/schedule/'}, [card]);
+var root = new Node([], {}, [queue]);
+var document = {
+  readyState: 'complete', hidden: false, cookie: '',
+  querySelectorAll: function (s) { return root.querySelectorAll(s); },
+  querySelector: function (s) { return root.querySelector(s); },
+  addEventListener: function () {},
+  createElement: function () { return new Node([]); },
+};
+var timers = [];
+function setTimeout(fn) { timers.push(fn); return timers.length; }
+function clearTimeout(id) { if (id) timers[id - 1] = null; }
+function setInterval() { return 0; }
+function tick() { var fns = timers.filter(Boolean); timers = timers.map(function () { return null; });
+                  fns.forEach(function (f) { f(); }); }
+var reads = 0;
+function fetch() { reads++; return Promise.resolve({ok: true, json: function () { return {actions: [], queue: []}; }}); }
+var observers = [];
+var MutationObserver = window.MutationObserver = function (cb) { this.cb = cb; observers.push(this); };
+MutationObserver.prototype.observe = function () {};
+function mutate(records) { observers.forEach(function (o) { o.cb(records); }); }
+function text() { return {nodeType: 3}; }
+"""
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class ScheduleChipsRereadOnlyWhatMattersTest(SimpleTestCase):
+    """`wama-schedule.js` relit `/common/schedule/active/` quand la file CHANGE — mais seulement ce
+    qui touche aux programmations (2026-10-13, relevé à la revérification demandée par Fabien) :
+    tout nœud ajouté comptait, texte compris, et une card en cours faisait relire la file à chaque
+    tour de son suivi (13 lectures en 16 s sur le Transcriber).
+    Contre-épreuves faites : la version d'avant relit sur un pourcentage ; une version qui reposait
+    la pastille AVANT de demander la relecture ne relisait plus rien (son drapeau bloquait)."""
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(SCHEDULE_DOM)
+        self.v8.eval((JS / 'wama-schedule.js').read_text(encoding='utf-8'))
+        self._settle()
+
+    def _settle(self):
+        # Un tour de minuterie par `eval` : la réponse de `fetch` se règle ENTRE deux `eval`, puis
+        # le drapeau `decorating` retombe au tour suivant (piège du harnais, vécu en l'écrivant).
+        for _ in range(4):
+            self.v8.eval('tick();')
+
+    def _reads_after(self, records):
+        before = self.v8.eval('reads')
+        self.v8.eval(f'mutate({records});')
+        self._settle()
+        return self.v8.eval('reads') - before
+
+    def test_a_progress_that_moves_rereads_nothing(self):
+        self.assertEqual(1, self.v8.eval('reads'), 'the page reads the schedule once on load')
+        self.assertEqual(0, self._reads_after('[{addedNodes: [text()], removedNodes: [text()]}]'))
+        self.assertEqual(0, self._reads_after("[{addedNodes: [new Node(['progress-text'])], removedNodes: []}]"))
+
+    def test_a_card_that_arrives_rereads_the_schedule(self):
+        self.assertEqual(1, self._reads_after(
+            "[{addedNodes: [new Node(['wama-card'], {'data-id': '9'})], removedNodes: []}]"))
+
+    def test_a_chip_lost_by_a_redrawn_section_rereads_the_schedule(self):
+        self.assertEqual(1, self._reads_after(
+            "[{addedNodes: [new Node(['wcv3-sec--state'])], removedNodes: "
+            "[new Node(['wcv3-sec--state'], {}, [new Node(['wama-schedule-chip'])])]}]"))

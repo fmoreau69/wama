@@ -23455,7 +23455,7 @@ beat. Tant que beat garde l'ancienne planification, la campagne part encore sur 
 un beat relancé SANS le worker `nightly` laisserait les campagnes en attente dans une file que
 personne ne lit.
 
-## §PALIER — 2026-10-13, « PANNEAU DE LA CLOCHE ; surveillance morte de l'arbre retirée » — ✅ LIVRÉ — 🔴 relancer gunicorn — 🔚 `wama-schedule.js` (attend le commit d'une autre instance)
+## §PALIER — 2026-10-13, « PANNEAU DE LA CLOCHE ; surveillance morte de l'arbre retirée ; relectures de `wama-schedule.js` » — ✅ LIVRÉ — 🔴 relancer gunicorn
 
 **Demande de Fabien** : *« pour la cloche de notification, quand je clique dessus, une petite
 fenêtre contextuelle avec en bas un lien vers la page complète… je veux pouvoir interagir avec les
@@ -23479,14 +23479,22 @@ notifications directement dans la petite fenêtre »* ; et, de la revérificatio
   `checkForChanges` / `fetchTreeHash` et la route `api_tree_mtime` — plus appelés depuis le
   17/03, ils coûtaient encore une requête à chaque page. L'arbre suit les événements des apps.
   `wama.filemanager` 81/81 (WSL).
-- 🔚 **`wama-schedule.js` NON corrigé, volontairement** : une autre instance a, NON COMMITÉ depuis
-  15:11, une modification des MÊMES lignes (observateur de la file, pose des pastilles par
-  `place()`). Et le plan de correction l'exige : `decorate()` retire et repose ses pastilles, son
-  observateur reçoit ces mutations APRÈS que `decorating` est retombé (rappel asynchrone) — ne
-  réagir qu'à une card ajoutée / retirée ou à une pastille PERDUE, sans écarter d'abord ses propres
-  mutations (`observer.takeRecords()` en fin de `decorate`), ferait boucler la relecture sur la
-  version de HEAD. ⏳ À faire après son commit : `takeRecords()` + filtre « card / pastille
-  perdue » ; effet attendu ≈ 1 appel par seconde de moins tant qu'une card avance.
+- ✅ **`wama-schedule.js` corrigé le jour même (Fabien : « je ne pense pas qu'une autre instance
+  soit dessus, mais vérifie »)**. Vérifié : 10 sessions ouvertes sur le dépôt, aucune trace de
+  propriétaire ; le changement non commité (15:11, contemporain du travail « nocturne » sur
+  `tasks.py`) n'avait plus bougé depuis plus de deux heures. ⚠ **Mon analyse d'abord consignée ici
+  était FAUSSE** : `decorate()` ne relâche `decorating` qu'au tour suivant (`setTimeout(…, 0)`),
+  et un `MutationObserver` est notifié AVANT — ses propres pastilles étaient déjà ignorées,
+  `takeRecords()` inutile. *Une affirmation sur un ordre d'exécution se mesure, elle ne se déduit pas.*
+  Correction : un changement de la file ne relit `/schedule/active/` que s'il ajoute ou retire une
+  CARD, ou s'il fait perdre une PASTILLE (section redessinée) — plus un pourcentage qui avance.
+  ⚠ **Le changement non commité trouvé dans le fichier a été ADOPTÉ et réparé** : il reposait la
+  pastille tout de suite au redessin (plus de clignotement — bonne idée), mais AVANT de demander
+  la relecture, dont il bloquait ainsi le départ par le drapeau `decorating` — mesuré : plus
+  AUCUNE relecture, une card lancée gardait « Programmé ». Il était déjà SERVI (copié dans
+  `staticfiles/`). Ordre inversé. Garde : `tests_poller_js.ScheduleChipsRereadOnlyWhatMattersTest`
+  (faux DOM dans V8) ; contre-épreuves MESURÉES — HEAD relit sur un pourcentage, l'ordre
+  d'origine ne relit plus rien.
 - 🔴 **Relancer gunicorn** (routes neuves). D'ici là, la cloche retombe sur la page complète (la
   route du panneau répond 404, le repli est prévu) ; les JS/CSS sont servis tout de suite.
 

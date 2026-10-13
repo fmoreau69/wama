@@ -202,7 +202,27 @@
         return $('.wcv3-sec--state .wcv3-state', card) || $('.wcv3-sec--state', card) || card;
     }
 
+    /** Pose `wanted` (ou rien) dans la card, sans toucher une pastille déjà identique : la
+     *  détruire puis la recréer à chaque relecture faisait battre la section d'état. */
+    function place(card, wanted) {
+        var olds = $$('.wama-schedule-chip', card);
+        if (wanted && olds.length === 1 && olds[0].innerHTML === wanted.innerHTML) {
+            olds[0].title = wanted.title;
+            return;
+        }
+        olds.forEach(function (old) { old.remove(); });
+        if (wanted) { slotOf(card).appendChild(wanted); }
+    }
+
+    // Dernière lecture de la file : quand une card est REDESSINÉE (rafraîchissement d'état, qui
+    // réécrit sa section et emporte la pastille), on la repose aussitôt depuis cette lecture —
+    // dans le même cycle, avant que le navigateur ne repeigne. Jusqu'au 2026-10-13, la pastille
+    // disparaissait jusqu'à la relecture réseau (≥ 400 ms) : la section d'état se contractait
+    // puis se dilatait à chaque rafraîchissement d'une card en attente.
+    var last = null;
+
     function decorate(actions, queued) {
+        last = { actions: actions, queued: queued };
         decorating = true;
         try {
             $$('[data-schedule-tool]').forEach(function (queue) {
@@ -218,10 +238,9 @@
                     }
                 });
                 $$('.wama-card[data-id]', queue).forEach(function (card) {
-                    $$('.wama-schedule-chip', card).forEach(function (old) { old.remove(); });
                     var id = String(card.getAttribute('data-id'));
-                    if (byId[id]) { slotOf(card).appendChild(chip(byId[id], url)); }
-                    else if (waiting[id]) { slotOf(card).appendChild(queueChip(waiting[id])); }
+                    place(card, byId[id] ? chip(byId[id], url)
+                        : (waiting[id] ? queueChip(waiting[id]) : null));
                 });
             });
         } finally {
@@ -257,17 +276,36 @@
         pending = setTimeout(refresh, 400);
     }
 
+    // Ce qui, dans un changement de la file, peut toucher aux programmations : une card qui
+    // ARRIVE ou PART (ajout, retrait, re-rendu), ou une pastille PERDUE (section d'une card
+    // réécrite). Le reste — un pourcentage qui avance, une ETA — n'y change rien. Jusqu'au
+    // 2026-10-13, tout nœud ajouté comptait, texte compris : une card en cours faisait relire la
+    // file à chaque tour de son suivi (mesuré : 13 lectures en 16 s sur le Transcriber).
+    function isCard(n) {
+        return n.nodeType === 1 && (n.matches('.wama-card[data-id]') || !!n.querySelector('.wama-card[data-id]'));
+    }
+    function holdsChip(n) {
+        return n.nodeType === 1 && (n.classList.contains('wama-schedule-chip') || !!n.querySelector('.wama-schedule-chip'));
+    }
+    function touchesSchedule(m) {
+        return Array.prototype.some.call(m.addedNodes, isCard)
+            || Array.prototype.some.call(m.removedNodes, function (n) { return isCard(n) || holdsChip(n); });
+    }
+
     function watch() {
         if (!global.MutationObserver) { return; }
         $$('[data-schedule-tool]').forEach(function (queue) {
             new MutationObserver(function (mutations) {
                 if (decorating) { return; }
                 var foreign = mutations.some(function (m) {
-                    return Array.prototype.some.call(m.addedNodes, function (n) {
-                        return !(n.classList && n.classList.contains('wama-schedule-chip'));
-                    });
+                    return touchesSchedule(m);
                 });
-                if (foreign) { scheduleRefresh(); }
+                if (!foreign) { return; }
+                // La relecture est demandée AVANT la repose immédiate : `decorate` lève le drapeau
+                // `decorating`, que `scheduleRefresh` respecte — dans l'autre ordre, plus aucune
+                // relecture ne partait (une card lancée gardait sa pastille « Programmé »).
+                scheduleRefresh();                                    // la file relue (anti-rebond)
+                if (last) { decorate(last.actions, last.queued); }   // et aucun trou visible d'ici là
             }).observe(queue, { childList: true, subtree: true });
         });
     }
