@@ -96,7 +96,7 @@ contextualiser. Constat qui corrige une intuition naturelle (« aligner sur les 
 |---|---|---|---|
 | **① File entière** (aucune sélection) | `init()`, `deselect()`, `media:processed` | Médias **masquée** ; Infos = agrégat de file lu de `WamaQueueStats` | 718-726, 843-847 |
 | **② Item (card)** | clic délégué, ↑/↓ | params reflétés · actions · aperçu · `fillDetail` → `/common/detail/<app>/<pk>/` · Infos visible | 740-753 |
-| **③ Batch** | clic sur `.batch-group` | réglages du **1ᵉʳ item** · agrégat `data-batch-*` · **aucun aperçu** | 755-767 |
+| **③ Batch** | clic sur `.batch-group`, ↑/↓ (le lot est un arrêt de la file depuis le 2026-10-14, `queueStops`) | réglages du **1ᵉʳ item** · agrégat `data-batch-*` · **aucun aperçu** | 755-767 |
 | **④ Désélection** | croix, **Échap**, clic hors card | restaure les défauts, vide les actions, `onDeselect()` | 769-785 |
 
 ⚠ **Ne rien casser ici** : ce comportement file/batch/card est éprouvé et s'accroche aux

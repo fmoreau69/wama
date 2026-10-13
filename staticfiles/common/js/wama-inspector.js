@@ -86,6 +86,36 @@
       label || '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId);
   }
 
+  // ── Les ARRÊTS de la file au clavier (2026-10-14) — pures, gardées en V8 ────────────────────
+  // `queueStops` : les entrées de la page (dans son ordre) → {id} pour un élément, {batch} pour un
+  // LOT ; une entrée sans l'un ni l'autre reste à sa place mais n'est jamais un arrêt.
+  // `nextStop` : l'indice de l'arrêt suivant (`dir` = ±1) après la sélection `current`
+  // ({id} ou {batch}), le premier arrêt si rien de la liste n'est sélectionné, -1 au bord.
+  function queueStops(entries) {
+    return (entries || []).map(function (e) {
+      var id = (e && e.id != null && e.id !== '') ? String(e.id) : null;
+      var batch = (!id && e && e.batch != null && e.batch !== '') ? String(e.batch) : null;
+      return { id: id, batch: batch };
+    });
+  }
+
+  function nextStop(stops, current, dir) {
+    var isStop = function (s) { return !!(s && (s.id || s.batch)); };
+    var cur = current || {};
+    var at = -1;
+    for (var i = 0; i < stops.length; i++) {
+      var s = stops[i];
+      if ((cur.id != null && s.id === String(cur.id))
+          || (cur.id == null && cur.batch != null && s.batch === String(cur.batch))) { at = i; break; }
+    }
+    if (at < 0) {
+      for (var k = 0; k < stops.length; k++) if (isStop(stops[k])) return k;
+      return -1;
+    }
+    for (var j = at + dir; j >= 0 && j < stops.length; j += dir) if (isStop(stops[j])) return j;
+    return -1;
+  }
+
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -874,27 +904,46 @@
     });
 
     // ── Navigation clavier (générique) ──────────────────────────────────────
-    // ↑/↓ : déplace la sélection entre cards — UNIQUEMENT si une card est déjà sélectionnée
+    // ↑/↓ : déplace la sélection dans la file — UNIQUEMENT si quelque chose est déjà sélectionné
     // (on n'usurpe pas le scroll de page tant que l'utilisateur n'est pas « entré » dans la file).
     // Entrée/Espace : active la card (événement `wama:card-activate`). Échap : déselectionne.
+    //
+    // Les ARRÊTS sont ceux de la file, dans l'ordre de la page : chaque LOT (sa card mère), puis
+    // ses filles, et chaque card seule (`queueStops`). Mesuré le 2026-10-14 (relevé par Fabien :
+    // « avant je pouvais naviguer à travers toutes les cards batch, filles, unitaires ; maintenant
+    // ça bloque ») : la liste était `CARD_SEL`, que la card MÈRE porte aussi (`card_class` de
+    // `_queue_entry.html`, depuis le 2026-08-25) sans `data-id` — ↓ d'une card seule vers un lot
+    // visait la mère, qui n'avait pas d'identifiant, et rien ne bougeait ; un lot sélectionné,
+    // lui, ignorait les flèches. Une fille d'un lot REPLIÉ ouvre son lot quand on l'atteint
+    // (`_reveal`) : sélectionnée cachée, elle laissait la file immobile à l'écran.
     // ⚠ Une card écartée par un FILTRE (`.wama-f-hors-filtre`, posé par la barre de filtrage
-    // commune, sur elle ou sur son enrobage) n'est pas dans la liste : sans cela ↑/↓
-    // sélectionnait des cards invisibles (relevé par Fabien sur le model manager, 2026-09-23).
-    // On ne filtre PAS sur la visibilité brute : une card d'un lot replié reste joignable.
-    function cardList() {
-      return Array.prototype.slice.call(qc.querySelectorAll(CARD_SEL))
-        .filter(function (c) { return !c.closest('.wama-f-hors-filtre'); });
+    // commune, sur elle ou sur son enrobage) n'est pas un arrêt : sans cela ↑/↓ sélectionnait des
+    // cards invisibles (relevé par Fabien sur le model manager, 2026-09-23).
+    function stopEntries() {
+      return Array.prototype.slice.call(qc.querySelectorAll(CARD_SEL + ', ' + BATCH_SEL))
+        .filter(function (el) { return !el.closest('.wama-f-hors-filtre'); })
+        .map(function (el) {
+          if (el.matches(BATCH_SEL)) return { batch: el.dataset[BATCH_ATTR] || '', el: el };
+          return { id: el.dataset.id, el: el };
+        });
+    }
+    function _reveal(el) {
+      const fold = el.closest('.collapse');
+      const scroll = function () { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
+      if (fold && !fold.classList.contains('show') && global.bootstrap && bootstrap.Collapse) {
+        fold.addEventListener('shown.bs.collapse', scroll, { once: true });
+        bootstrap.Collapse.getOrCreateInstance(fold, { toggle: false }).show();
+        return;
+      }
+      scroll();
     }
     function moveSelection(dir) {
-      const list = cardList();
-      if (!list.length) return;
-      let idx = list.findIndex(function (c) { return c.dataset.id === String(itemId); });
-      let next = idx < 0 ? 0 : Math.min(list.length - 1, Math.max(0, idx + dir));
-      const card = list[next];
-      if (card && card.dataset.id) {
-        selectItem(card.dataset.id);
-        card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      }
+      const entries = stopEntries();
+      const i = nextStop(queueStops(entries), { id: itemId, batch: batchId }, dir);
+      if (i < 0) return;
+      const e = entries[i];
+      if (e.id) selectItem(e.id); else selectBatch(e.batch);
+      _reveal(e.id ? e.el : (e.el.querySelector('.is-batch') || e.el));
     }
     if (cfg.keyboardNav !== false) {
       document.addEventListener('keydown', function (e) {
@@ -903,7 +952,7 @@
         // sélection DERRIÈRE la visionneuse sans qu'elle change, et Échap désélectionnait la card
         // en refermant la modale (mesuré le 2026-10-13). La visionneuse navigue elle-même.
         if (document.querySelector('.modal.show')) return;
-        if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && itemId !== null) {
+        if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && (itemId !== null || batchId !== null)) {
           e.preventDefault();
           moveSelection(e.key === 'ArrowDown' ? 1 : -1);
         } else if (e.key === 'Escape' && (itemId !== null || batchId !== null)) {
@@ -1302,6 +1351,7 @@
                            detailDeriveDe: detailDeriveDe,
                            cloneBatchActions: cloneBatchActions,
                            gearValues: gearValues, sharedGearValues: sharedGearValues,
+                           queueStops: queueStops, nextStop: nextStop,
                            // Renvois vers LA brique d'aperçu (`WamaMediaPreview`, 2026-10-13) :
                            // ces noms ont des appelants (pages, tests) — ils ne cassent pas.
                            renderInlinePreview: _alias('renderInline'),

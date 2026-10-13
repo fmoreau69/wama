@@ -88,6 +88,60 @@ class NavigationStepTest(SimpleTestCase):
 
 
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class QueueKeyboardStopsTest(SimpleTestCase):
+    """↑/↓ of the panel walk the WHOLE queue : single cards, each batch (its mother card), its
+    children. Asked by Fabien (2026-10-14) : « avant je pouvais naviguer à travers toutes les cards
+    batch, filles, unitaires ; maintenant ça bloque ». Measured in a browser (test account, describer
+    queue = a single card above a batch of two) : ↓ from the single card did nothing — the list was
+    the app's card class, which the MOTHER card carries too, with no `data-id` — and a selected batch
+    ignored the arrows."""
+
+    # The page order of the describer queue measured that day : a single card, the batch wrapper,
+    # its mother card (app card class, NO id), its two children, then another single card.
+    PAGE = [{'id': '1945'}, {'batch': '1565'}, {}, {'id': '1943'}, {'id': '1944'}, {'id': '1950'}]
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM)
+        self.v8.eval((JS / 'wama-inspector.js').read_text(encoding='utf-8'))
+
+    def _next(self, current, direction, page=None):
+        return self.v8.eval('(function () { var I = window.WamaInspector; return I.nextStop('
+                            f'I.queueStops({json.dumps(page or self.PAGE)}), {json.dumps(current)}, '
+                            f'{direction}); }})()')
+
+    def _walk(self, start, direction):
+        seen, at = [], start
+        while True:
+            i = self._next(at, direction)
+            if i < 0:
+                return seen
+            stop = self.PAGE[i]
+            seen.append(stop.get('id') or 'batch ' + stop['batch'])
+            at = {'id': stop.get('id'), 'batch': stop.get('batch')}
+
+    def test_down_from_a_single_card_reaches_the_batch_then_its_children(self):
+        self.assertEqual(['batch 1565', '1943', '1944', '1950'], self._walk({'id': '1945'}, 1))
+
+    def test_up_from_the_last_card_comes_back_through_the_batch(self):
+        self.assertEqual(['1944', '1943', 'batch 1565', '1945'], self._walk({'id': '1950'}, -1))
+
+    def test_a_selected_batch_moves_on(self):
+        self.assertEqual(3, self._next({'id': None, 'batch': '1565'}, 1), 'its first child')
+        self.assertEqual(0, self._next({'id': None, 'batch': 1565}, -1), 'the card above it')
+
+    def test_the_mother_card_without_id_is_never_a_stop(self):
+        self.assertNotIn(2, [self._next({'id': '1943'}, -1), self._next({'batch': '1565'}, 1)])
+
+    def test_the_edges_stay_and_an_unknown_selection_starts_at_the_first_stop(self):
+        self.assertEqual(-1, self._next({'id': '1950'}, 1))
+        self.assertEqual(-1, self._next({'id': '1945'}, -1))
+        self.assertEqual(0, self._next({'id': '999'}, 1))
+        self.assertEqual(-1, self._next({'id': '1'}, 1, page=[{}]))
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
 class OneFaceSwitchTest(SimpleTestCase):
     """The face switch is built ONCE (`WamaMediaPreview.sidesBar`) for the panel and the viewer —
     the panel had its own copy, without the « Pendant » face."""
@@ -212,6 +266,16 @@ class OnePreviewBrickTest(SimpleTestCase):
         out = v8.eval("[typeof window.WamaInspector.renderInlinePreview, "
                       "window.WamaInspector.duringUrl('/p/1/', null)]")
         self.assertEqual(['function', '/p/1/?side=during'], list(out))
+
+    def test_the_panel_arrows_walk_the_stops_of_the_queue(self):
+        """↑/↓ of the panel go through `queueStops`/`nextStop`, and a selected BATCH answers them
+        too (it ignored them : `itemId !== null` only)."""
+        panel = (JS / 'wama-inspector.js').read_text(encoding='utf-8')
+        body = panel[panel.index('function moveSelection('):panel.index('if (cfg.keyboardNav !== false)')]
+        self.assertIn('nextStop(queueStops(entries)', body)
+        self.assertIn('selectBatch(e.batch)', body)
+        self.assertIn("(e.key === 'ArrowDown' || e.key === 'ArrowUp') && (itemId !== null || batchId !== null)",
+                      panel)
 
     def test_the_nightly_gestures_are_registered(self):
         from wama.common.services import nightly_tests

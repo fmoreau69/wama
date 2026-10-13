@@ -73,6 +73,11 @@ Un **clic** sur une card = 3 effets cohérents : (a) **étend** la card (concis�
 **Navigation clavier** : `↑↓←→` déplacent la sélection (pile ET mosaïque), `Entrée/Espace` étend/replie,
 `Échap` replie. → exploration rapide du contenu sans souris (réutilise la garde clavier
 input/textarea/select déjà posée pour l'éditeur transcriber).
+Les ↑/↓ du volet traversent **toute la file**, dans l'ordre de la page : card seule, LOT (sa card
+mère, sélection de lot), ses filles, lot suivant… ; une fille d'un lot replié **ouvre son lot**
+pour être vue (`WamaInspector.queueStops` / `nextStop`, 2026-10-14 — relevé par Fabien : « ça
+bloque ». La card mère porte la classe de card de l'app sans `data-id` : ↓ d'une card seule vers
+un lot ne faisait rien, et un lot sélectionné ignorait les flèches).
 
 ### 1quinquies. Preview du résultat — modèle à 3 niveaux (divulgation progressive)
 
