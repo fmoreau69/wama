@@ -104,6 +104,49 @@
         return !!(data && (data.url || typeof data.content === 'string'));
     }
 
+    /** « N mots » d'un texte, '' s'il est vide — compté par la brique commune
+     *  (`WamaApp.wordCount`, repli identique). Ce que portaient les onglets des modales de
+     *  résultat du describer et du transcriber ; toute face TEXTE l'affiche (2026-10-13). Pure. */
+    function wordsLabel(text) {
+        const count = (window.WamaApp && window.WamaApp.wordCount)
+            ? window.WamaApp.wordCount(String(text || ''))
+            : String(text || '').trim().split(/\s+/).filter(Boolean).length;
+        return count ? count + ' mot' + (count > 1 ? 's' : '') : '';
+    }
+
+    /** Le RAPPORT DE COHÉRENCE d'une face (`ProcessSpec.result_format='coherence'`, forme de
+     *  `llm_utils.build_coherence_report`) en HTML : score coloré par son niveau, remarques,
+     *  version proposée EN REGARD du texte vérifié — ce que montraient les modales propres du
+     *  describer et du transcriber (2026-10-13 : « on ne doit rien perdre, on complète le
+     *  commun »). `compact` (volet) : les deux textes l'un sous l'autre. Tout texte est échappé ;
+     *  un niveau inconnu prend la couleur neutre. Pure (gardée en V8, `tests_pipeline_faces`). */
+    function coherenceHtml(report, compact) {
+        const r = report || {};
+        const level = ['success', 'warning', 'danger'].indexOf(r.level) >= 0 ? r.level : 'secondary';
+        const notes = (r.notes || []).map(function (note) {
+            return '<li class="text-light small">' + escapeHtml(note) + '</li>';
+        }).join('');
+        const column = function (title, text, kind) {
+            return '<div class="' + (compact ? 'mb-2' : 'col-md-6') + '"><div class="card wama-coherence-' + kind + '">' +
+                '<div class="card-header py-1 small text-muted">' + title + '</div>' +
+                '<div class="card-body p-2"><pre class="wama-coherence-text">' + escapeHtml(text) + '</pre></div></div></div>';
+        };
+        const sides = r.suggestion
+            ? column('Texte original', r.original || '', 'original') + column('Correction proposée', r.suggestion, 'proposed')
+            : '';
+        return '<div class="wama-coherence">' +
+            '<div class="d-flex align-items-center mb-2">' +
+            '<span class="badge bg-' + level + (compact ? '' : ' fs-5') + ' me-3">' + escapeHtml(r.score) + '/100</span>' +
+            '<span class="text-light">Score de cohérence</span></div>' +
+            (notes ? '<ul class="mt-2">' + notes + '</ul>' : '') +
+            (sides ? (compact ? '<div class="mt-2">' + sides + '</div>' : '<div class="row mt-3">' + sides + '</div>') : '') +
+            '</div>';
+    }
+
+    function _coherenceOf(data) {
+        return (data && data.coherence && typeof data.coherence === 'object') ? data.coherence : null;
+    }
+
     // ════════════════════════════════════════════════════════════════════════════════════════
     // RENDU EN LIGNE — cards, volet, fenêtre de sélection (déplacé de wama-inspector.js le 2026-10-13)
     // ════════════════════════════════════════════════════════════════════════════════════════
@@ -253,6 +296,15 @@
                     fetch(url).then(function (r) { return r.ok ? r.text() : ''; }).then(excerpt)
                         .catch(function () { /* best-effort : la card reste lisible sans extrait */ });
                 }
+                return;
+            }
+            // Rapport de COHÉRENCE (`ProcessSpec.result_format='coherence'`) : score, remarques et
+            // les deux textes l'un sous l'autre, à la densité du volet.
+            const report = _coherenceOf(data);
+            if (report) {
+                host.innerHTML = '<div class="wama-inspector-preview"><div class="small text-start mb-1" ' +
+                    'style="max-height:200px;overflow:auto;">' + coherenceHtml(report, true) + '</div></div>';
+                _previewCaption(host, name, data);
                 return;
             }
             // Résultat MIS EN FORME par le serveur (`ProcessSpec.result_format`, 2026-10-13) : son
@@ -1306,21 +1358,39 @@
             openBtn.className = 'btn btn-sm btn-outline-light';
             openBtn.innerHTML = '<i class="fas fa-external-link-alt"></i> Ouvrir';
 
+            // Le nombre de mots de la face (les onglets des anciennes modales de résultat le
+            // portaient) : à gauche de la barre, posé dès que le texte est connu.
+            const words = document.createElement('span');
+            words.className = 'badge bg-secondary align-self-center me-auto wama-preview-words';
+            const setWords = (text) => {
+                words.textContent = wordsLabel(text);
+                words.style.display = words.textContent ? '' : 'none';
+            };
+            setWords('');
+
+            toolbar.appendChild(words);
             toolbar.appendChild(copyBtn);
             if (data.url) toolbar.appendChild(openBtn);
 
             // Un résultat MIS EN FORME par le serveur (`ProcessSpec.result_format`, le résumé du
             // describer, 2026-10-13) : son HTML, neutralisé à la source (`docs_catalog
-            // .render_markdown`) ; Copier garde le texte d'origine.
-            const formatted = typeof data.html === 'string';
-            const pre = document.createElement(formatted ? 'div' : 'pre');
-            pre.className = 'text-light p-3 mb-0' + (formatted ? ' wama-result-formatted' : '');
-            pre.style.cssText = 'max-height:65vh; overflow-y:auto; background:#1e1e1e; border-radius:4px; font-size:13px; word-wrap:break-word; border:1px solid #495057;'
-                + (formatted ? '' : ' white-space:pre-wrap;');
+            // .render_markdown`) ; un RAPPORT DE COHÉRENCE : dessiné par `coherenceHtml`. Copier
+            // garde le texte d'origine.
+            const report = _coherenceOf(data);
+            const formatted = !report && typeof data.html === 'string';
+            const pre = document.createElement((formatted || report) ? 'div' : 'pre');
+            if (report) {
+                pre.className = 'text-light mb-0';
+                pre.style.cssText = 'max-height:65vh; overflow-y:auto;';
+            } else {
+                pre.className = 'text-light p-3 mb-0' + (formatted ? ' wama-result-formatted' : '');
+                pre.style.cssText = 'max-height:65vh; overflow-y:auto; background:#1e1e1e; border-radius:4px; font-size:13px; word-wrap:break-word; border:1px solid #495057;'
+                    + (formatted ? '' : ' white-space:pre-wrap;');
+            }
             pre.textContent = 'Chargement…';
 
             copyBtn.addEventListener('click', () => {
-                navigator.clipboard.writeText(formatted ? data.content : pre.textContent).then(() => {
+                navigator.clipboard.writeText((formatted || report) ? data.content : pre.textContent).then(() => {
                     copyBtn.innerHTML = '<i class="fas fa-check text-success"></i> Copié';
                     setTimeout(() => { copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copier'; }, 2000);
                 }).catch(() => {});
@@ -1329,15 +1399,21 @@
             wrapper.appendChild(toolbar);
             wrapper.appendChild(pre);
 
-            if (formatted) {
+            if (report) {
+                // Les mots de la version proposée, sinon du texte vérifié (règle des anciennes modales).
+                pre.innerHTML = coherenceHtml(report, false);
+                setWords(report.suggestion || report.original);
+            } else if (formatted) {
                 pre.innerHTML = data.html;
+                setWords(data.content);
             } else if (typeof data.content === 'string') {
                 // Texte servi inline (sortie/entrée texte, docx/odt/rtf extrait) — pas de fetch
                 pre.textContent = data.content;
+                setWords(data.content);
             } else if (data.url) {
                 fetch(data.url)
                     .then(r => r.ok ? r.text() : Promise.reject(r.status))
-                    .then(text => { pre.textContent = text; })
+                    .then(text => { pre.textContent = text; setWords(text); })
                     .catch(err => { pre.textContent = `Erreur lors du chargement (${err}).`; });
             } else {
                 pre.textContent = data.error ? `Aperçu indisponible : ${data.error}` : 'Aperçu indisponible.';
@@ -1644,6 +1720,7 @@
     window.WamaMediaPreview = {
         // pures
         itemAddress: _itemAddress, showable: showable, faceButtons: faceButtons, compareTitle: compareTitle,
+        wordsLabel: wordsLabel, coherenceHtml: coherenceHtml,
         stepTarget: stepTarget, duringUrl: duringUrl, faceUrl: faceUrl,
         // rendu en ligne
         renderInline: renderInline, hydrateCardPreviews: hydrateCardPreviews,

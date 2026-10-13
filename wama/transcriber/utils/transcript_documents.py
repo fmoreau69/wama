@@ -321,10 +321,22 @@ def diarization_text(transcript) -> Optional[str]:
 
 
 def summary_text(transcript) -> Optional[str]:
-    """Résultat lisible du process `summarize` — résumé, points clés, actions, ou None."""
-    return _readable(_summary_body(transcript))
+    """Résultat lisible du process `summarize`, en MARKDOWN (`result_format`) : le résumé tel que
+    le modèle l'a rédigé, puis ses points clés et ses actions en listes titrées — comme les
+    montrait la modale du transcriber. (L'export TXT garde ses puces, `_summary_body`.)"""
+    if not (transcript.summary or '').strip():
+        return None
+    parts = [transcript.summary.strip()]
+    for title, entries in (("Points clés", transcript.key_points),
+                           ("Actions à mener", transcript.action_items)):
+        if entries:
+            parts += ['', f'### {title}', *[f'- {entry}' for entry in entries]]
+    return '\n'.join(parts)
 
 
-def coherence_text(transcript) -> Optional[str]:
-    """Résultat lisible du process `coherence` — score, problèmes, version proposée, ou None."""
-    return _readable(_coherence_body(transcript))
+def coherence_report(transcript) -> Optional[dict]:
+    """Résultat du process `coherence` : le rapport de la brique commune, en regard de la
+    TRANSCRIPTION qu'elle a vérifiée — ou None."""
+    from wama.common.utils.llm_utils import build_coherence_report
+    return build_coherence_report(transcript.coherence_score, transcript.coherence_notes,
+                                  transcript.coherence_suggestion, transcript.text)

@@ -113,7 +113,8 @@
           "eta": "describer.workers:coherence_eta",
           "gpu": false,
           "label": "Cohérence",
-          "result": "describer.function_specs:coherence_text",
+          "result": "describer.function_specs:coherence_report",
+          "result_format": "coherence",
           "toggle": "verify_coherence",
           "watched": [
             "output_language",

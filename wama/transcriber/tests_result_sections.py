@@ -59,13 +59,19 @@ class ResultSectionsTest(TestCase):
         self.assertEqual('Bonjour à tous.', docs.transcription_text(t))
         self.assertEqual('[SPEAKER_00]  00:01.000 - 00:04.500\n  Bonjour\n\n'
                          '[Inconnu]  00:04.500 - 00:09.000\n  à tous.', docs.diarization_text(t))
-        self.assertTrue(docs.summary_text(t).startswith('Un résumé.\n\nPoints clés :'))
-        self.assertTrue(docs.coherence_text(t).startswith('Score : 82/100'))
+        # The summary is markdown (`result_format`) : its key points and actions are real lists,
+        # the way the transcriber's own result modal showed them — the export keeps its bullets.
+        self.assertEqual('Un résumé.\n\n### Points clés\n- a\n- b\n\n### Actions à mener\n- c',
+                         docs.summary_text(t))
+        # The coherence is the REPORT of the common brick, set against the text it checked.
+        self.assertEqual({'score': 82, 'level': 'success', 'notes': ['n1', 'n2'],
+                          'suggestion': 'Bonjour à tous !', 'original': 'Bonjour à tous.'},
+                         docs.coherence_report(t))
 
     def test_a_process_that_left_nothing_has_no_readable_result(self):
         from wama.transcriber.utils import transcript_documents as docs
         t = self._transcript()
         self.assertIsNone(docs.diarization_text(t), 'no speaker named : nothing to show')
         self.assertIsNone(docs.summary_text(t))
-        self.assertIsNone(docs.coherence_text(t))
+        self.assertIsNone(docs.coherence_report(t))
         self.assertIsNone(docs.transcription_text(self._transcript(text='')))

@@ -560,12 +560,27 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     relu par le générateur comme `result` ; le serveur rend le texte par LE rendu markdown de WAMA
     (`docs_catalog.render_markdown`, HTML brut neutralisé) sous `html`, `content` garde le texte
     (Copier) ; visionneuse et volet l'affichent (`.wama-result-formatted`). Déclaré pour les
-    résumés du describer et du transcriber. Perdus avec la modale, assumés : le score de
-    cohérence en couleur, la version proposée en regard de l'original, les compteurs de mots.
-  - ⏳ **Restes, dans l'ordre** : ② rendus par TYPE (segments horodatés à locuteurs, rapport de
-    cohérence, ABC en partition), puis la PARITÉ de la modale de résultat du transcriber (onglets,
-    compteurs de mots, copie, txt/srt, diarisation, cohérence, évaluation — chaque point tenu par un
-    test ou un geste) avant de retirer son interception du double-clic (exemption de
+    résumés du describer et du transcriber. ⚠ Trois rendus de la modale avaient été déclarés
+    « perdus, assumés » (le score en couleur, la version proposée en regard de l'original, les
+    compteurs de mots) — refusé par Fabien le jour même : *« on ne doit rien perdre, on complète
+    le commun »* ; voir le point suivant.
+  - ✅ **2026-10-13 — le RAPPORT DE COHÉRENCE et le compte de mots, au commun.** Troisième forme
+    de résultat, `result_format='coherence'` : le `result` du process rend alors le rapport de la
+    brique commune `verify_text_coherence`, mis en forme par `llm_utils.build_coherence_report`
+    (`{score, level, notes, suggestion, original}` — `original` est le texte VÉRIFIÉ, le niveau
+    sort des paliers `COHERENCE_LEVELS` 80/50 des deux anciennes modales) ; le serveur le sert sous
+    `coherence` avec son texte sous `content` (Copier, `coherence_report_text`) ; la visionneuse
+    le dessine (`WamaMediaPreview.coherenceHtml` : score coloré, remarques, original et correction
+    proposée en regard ; l'un sous l'autre dans le volet). Déclaré pour la cohérence du describer
+    et du transcriber, dont les deux lecteurs texte presque jumeaux (`coherence_text`) sont
+    remplacés. Toute face TEXTE de la visionneuse porte son nombre de mots (`wordsLabel`, par
+    `WamaApp.wordCount`). Le résumé du transcriber est du VRAI markdown (points clés et actions en
+    listes titrées : ses puces indentées se seraient fondues en une ligne) ; l'export TXT garde
+    les siennes. Gardes : `tests_pipeline_faces` (rapport servi et niveaux, déclaration des deux
+    apps, bout en bout transcriber, dessin et compte en V8), contre-épreuves rouges.
+  - ⏳ **Restes, dans l'ordre** : ② rendus par TYPE (segments horodatés à locuteurs, ABC en
+    partition), puis la PARITÉ de la modale de résultat du transcriber (onglets, copie, txt/srt,
+    diarisation, évaluation — chaque point tenu par un test ou un geste) avant de retirer son interception du double-clic (exemption de
     `tests_preview_entry`) ; ③ les lignes de la bande des process ouvrent leur face, l'état du
     process (périmé, en échec) se lit sur elle ; ④ Studio (nœuds `StudioRun`, `output_ref`), Lab
     (passes du cam_analyzer, une face par caméra, `instance_key`), Data (Explorer). Et la face de

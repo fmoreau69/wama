@@ -155,7 +155,8 @@
           "eta": "transcriber.workers:coherence_eta",
           "gpu": false,
           "label": "Cohérence",
-          "result": "transcriber.utils.transcript_documents:coherence_text",
+          "result": "transcriber.utils.transcript_documents:coherence_report",
+          "result_format": "coherence",
           "toggle": "verify_coherence",
           "watched": []
         }

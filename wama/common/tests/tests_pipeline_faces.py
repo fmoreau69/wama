@@ -14,7 +14,11 @@ Held here :
   - the transcriber, end to end over HTTP : « Locuteurs », « Résumé », « Cohérence » between its
     Input and its Output (the transcription, which IS its Output, is not repeated) ;
   - the declaration travels with the pipeline : exported to the manifest, read back by the
-    generator.
+    generator ;
+  - NOTHING the apps' own result modals showed is lost (2026-10-13, Fabien : « on ne doit rien
+    perdre, on complète le commun ») : the summary as markdown, the coherence as a REPORT (score
+    coloured by its level, notes, the proposal set against the checked text), a word count on
+    every text face.
 The anonymizer's « Détection » face (the process `detect`) keeps its own parity test,
 `tests_preview_faces`.
 """
@@ -102,9 +106,22 @@ class EveryProcessHasAReadableResultTest(SimpleTestCase):
         self.assertNotIn('result', rendered['align'])
         # The FORM of the result travels the same way (2026-10-13).
         forms = {s['key']: s['result_format'] for s in process_specs(pipe.manifest())}
-        self.assertEqual(('markdown', ''), (forms['summarize'], forms['align']))
+        self.assertEqual(('markdown', 'coherence', ''),
+                         (forms['summarize'], forms['coherence'], forms['align']))
         self.assertEqual('markdown', rendered['summarize'].get('result_format'))
+        self.assertEqual('coherence', rendered['coherence'].get('result_format'))
         self.assertNotIn('result_format', rendered['align'])
+
+    def test_the_coherence_checks_are_shown_as_reports(self):
+        """Every process that runs the common coherence brick declares the REPORT form — the
+        describer and transcriber modals showed its score in colour and its proposal side by
+        side ; a plain text face would lose both."""
+        coherence = [(app, spec) for app, pipe in _real_pipelines().items() for spec in pipe.specs
+                     if spec.key == 'coherence']
+        self.assertEqual({'describer', 'transcriber'}, {app for app, _ in coherence})
+        for app, spec in coherence:
+            with self.subTest(app=app):
+                self.assertEqual('coherence', spec.result_format)
 
 
 class _MediaRootMixin:
@@ -213,6 +230,25 @@ class ProcessFacesTest(_MediaRootMixin, TestCase):
         self.assertNotIn('<script>', formatted['html'], 'raw HTML is never rendered')
         self.assertNotIn('html', raw, 'a plain text result stays plain')
 
+    def test_a_coherence_report_is_served_with_its_level_and_its_text(self):
+        from wama.common.services.process_pipeline import AppPipeline, ProcessSpec
+        from wama.common.utils.llm_utils import build_coherence_report
+        reports = {key: build_coherence_report(score, 'n1\n\n n2 ', 'proposé', 'vérifié')
+                   for key, score in (('high', 80), ('mid', 50), ('low', 49))}
+        pipe = AppPipeline('demo_faces', tuple(
+            ProcessSpec(key, label=key, result=(lambda item, r=report: r), result_format='coherence')
+            for key, report in reports.items()), label='Demo')
+        with mock.patch('wama.common.services.process_pipeline.pipeline_of', return_value=pipe):
+            faces = self._faces('demo_faces', self.user)
+        self.assertEqual(['success', 'warning', 'danger'],
+                         [faces[k][1]['coherence']['level'] for k in ('high', 'mid', 'low')])
+        high = faces['high'][1]
+        self.assertEqual({'score': 80, 'level': 'success', 'notes': ['n1', 'n2'],
+                          'suggestion': 'proposé', 'original': 'vérifié'}, high['coherence'])
+        self.assertEqual('Score : 80/100\n\nRemarques :\n• n1\n• n2\n\nVersion proposée :\nproposé',
+                         high['content'], 'the text Copy takes')
+        self.assertIsNone(build_coherence_report(None, '', '', 'x'), 'nothing checked : no report')
+
     def test_an_unknown_result_form_is_refused_at_declaration(self):
         from wama.common.services.process_pipeline import AppPipeline, ProcessSpec
         with self.assertRaises(ValueError):
@@ -254,7 +290,60 @@ class TranscriberFacesTest(_MediaRootMixin, TestCase):
         self.assertIn('<p>Un résumé.</p>', summary['html'], 'the summary is declared markdown')
         self.assertEqual('Bonjour à tous.', self._preview(t, 'output')['content'])
 
+    def test_its_summary_lists_and_its_coherence_report_reach_the_viewer(self):
+        # What the transcriber's own modal showed : key points and actions as lists, the score
+        # with its level, the proposal set against the transcription.
+        t = self._transcript(summary='Un résumé.', key_points=['a'], action_items=['c'],
+                             coherence_score=45, coherence_notes='n1',
+                             coherence_suggestion='Bonjour à tous !')
+        summary = self._preview(t, 'summarize')['html']
+        self.assertIn('<li>a</li>', summary)
+        self.assertIn('<li>c</li>', summary)
+        report = self._preview(t, 'coherence')['coherence']
+        self.assertEqual({'score': 45, 'level': 'danger', 'notes': ['n1'],
+                          'suggestion': 'Bonjour à tous !', 'original': 'Bonjour à tous.'}, report)
+
     def test_before_its_optional_processes_it_has_no_face(self):
         sides = self._preview(self._transcript())['sides']
         self.assertEqual([], sides['faces'])
         self.assertEqual('input', sides['compare_base'])
+
+
+class ViewerDrawsTheReportTest(SimpleTestCase):
+    """The viewer's drawing of a report and its word count — pure functions of the brick, in V8."""
+
+    def setUp(self):
+        import importlib.util
+        if importlib.util.find_spec('py_mini_racer') is None:
+            self.skipTest('py_mini_racer absent de ce venv')
+        from py_mini_racer import MiniRacer
+        from .tests_cap_from_js import FAKE_DOM, JS
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM)
+        self.v8.eval((JS / 'media-preview.js').read_text(encoding='utf-8'))
+
+    def _html(self, report, compact=False):
+        return self.v8.eval(f'window.WamaMediaPreview.coherenceHtml({json.dumps(report)}, '
+                            f'{json.dumps(compact)})')
+
+    def test_the_score_is_coloured_and_the_proposal_set_against_the_original(self):
+        html = self._html({'score': 42, 'level': 'danger', 'notes': ['<b>n1</b>'],
+                           'suggestion': 'proposé', 'original': 'vérifié'})
+        self.assertIn('badge bg-danger fs-5', html)
+        self.assertIn('42/100', html)
+        self.assertIn('&lt;b&gt;n1&lt;/b&gt;', html, 'every text is escaped')
+        self.assertIn('class="row mt-3"', html, 'side by side in the viewer')
+        self.assertLess(html.index('vérifié'), html.index('proposé'))
+        self.assertNotIn('row mt-3', self._html({'score': 42, 'level': 'danger',
+                                                 'suggestion': 'p', 'original': 'o'}, True),
+                         'one under the other in the panel')
+
+    def test_without_a_proposal_there_are_no_columns_and_an_unknown_level_is_neutral(self):
+        html = self._html({'score': 90, 'level': '" onmouseover="x', 'notes': []})
+        self.assertIn('badge bg-secondary', html)
+        self.assertNotIn('wama-coherence-original', html)
+        self.assertNotIn('<ul', html)
+
+    def test_a_text_face_counts_its_words(self):
+        label = lambda text: self.v8.eval(f'window.WamaMediaPreview.wordsLabel({json.dumps(text)})')
+        self.assertEqual(('3 mots', '1 mot', ''), (label(' un  deux\ntrois '), label('un'), label('  ')))

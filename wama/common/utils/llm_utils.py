@@ -990,6 +990,40 @@ def verify_text_coherence(
     }
 
 
+#: Lecture d'un score de cohérence : (plancher, niveau) — la couleur que lui donne l'aperçu
+#: commun (celle des modales de résultat du describer et du transcriber, 2026-10-13).
+COHERENCE_LEVELS = ((80, 'success'), (50, 'warning'), (0, 'danger'))
+
+
+def build_coherence_report(score, notes, suggestion, original) -> Optional[dict]:
+    """Le rapport de `verify_text_coherence` tel qu'un élément l'a GARDÉ, sous la forme que
+    l'aperçu commun montre (`ProcessSpec.result_format='coherence'`) : `{score, level, notes,
+    suggestion, original}` — `original` est le texte VÉRIFIÉ, que la face met en regard de la
+    version proposée. Les notes gardées en un texte (une par ligne) redeviennent une liste.
+    None : pas de score, rien n'a été vérifié."""
+    if score is None:
+        return None
+    score = int(score)
+    if isinstance(notes, str):
+        notes = notes.splitlines()
+    return {'score': score,
+            'level': next((level for floor, level in COHERENCE_LEVELS if score >= floor),
+                          COHERENCE_LEVELS[-1][1]),
+            'notes': [str(n).strip() for n in (notes or []) if str(n).strip()],
+            'suggestion': (suggestion or '').strip(),
+            'original': (original or '').strip()}
+
+
+def coherence_report_text(report: dict) -> str:
+    """Le rapport en TEXTE — ce que Copier emporte et ce qui identifie la face."""
+    parts = [f"Score : {report['score']}/100"]
+    if report.get('notes'):
+        parts += ['', 'Remarques :'] + [f"• {note}" for note in report['notes']]
+    if report.get('suggestion'):
+        parts += ['', 'Version proposée :', report['suggestion']]
+    return '\n'.join(parts)
+
+
 def analyze_segments_coherence(
     segments: list,
     language: str = 'fr',

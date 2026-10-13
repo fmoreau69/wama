@@ -48,7 +48,7 @@ from wama.common.services.process_runs import OPTIONAL, REQUIRED
 UPSTREAM_KEY = '@upstream'
 
 #: Les formes du résultat lisible d'un process (`ProcessSpec.result_format`) : '' = texte brut.
-RESULT_FORMATS = ('', 'markdown')
+RESULT_FORMATS = ('', 'markdown', 'coherence')
 
 #: Attribut posé sur un élément par `preload` : ses lignes d'exécution, lues une fois.
 PRELOADED = '_process_rows'
@@ -130,10 +130,15 @@ class ProcessSpec:
                   ses fichiers dans `outputs`). C'est ce que l'aperçu commun montre en FACE du
                   process (`preview_utils`, `ROUTE §F3b`). Absent = le process n'a de résultat
                   lisible que par ses `outputs`.
-      result_format  la FORME de ce texte : '' (texte brut) ou 'markdown' — un résumé rédigé
+      result_format  la FORME de ce résultat : '' (texte brut) ; 'markdown' — un résumé rédigé
                   par un LLM a des titres et des listes, que l'aperçu met alors en forme
                   (2026-10-13 : la modale propre du describer le faisait, la face commune
-                  montrait les `##` bruts).
+                  montrait les `##` bruts) ; 'coherence' — `result` rend alors le RAPPORT de la
+                  brique commune `verify_text_coherence` (`llm_utils.build_coherence_report`),
+                  que la face montre comme le faisaient les modales du describer et du
+                  transcriber : score coloré, remarques, version proposée EN REGARD du texte
+                  vérifié (2026-10-13, Fabien : « on ne doit rien perdre, on complète le
+                  commun »).
     """
     key: str
     label: str = ''
@@ -293,10 +298,11 @@ class AppPipeline:
         return outputs[0].data_type if outputs else ''
 
     @staticmethod
-    def readable_result(spec: ProcessSpec, item):
-        """Le résultat LISIBLE déclaré du process (`ProcessSpec.result`) pour cet élément : un
-        texte, ou None — sans déclaration, ou déclaration illisible (dite au journal, jamais
-        levée : un aperçu ne casse pas pour un lecteur, comme `process_runs.process_eta`)."""
+    def declared_result(spec: ProcessSpec, item):
+        """Ce que rend la déclaration `ProcessSpec.result` pour cet élément, TEL QUEL : un texte,
+        un rapport (`result_format='coherence'`), ou None — sans déclaration, ou déclaration
+        illisible (dite au journal, jamais levée : un aperçu ne casse pas pour un lecteur, comme
+        `process_runs.process_eta`)."""
         declared = spec.result
         if not declared:
             return None
@@ -304,13 +310,28 @@ class AppPipeline:
             if isinstance(declared, str):
                 from wama.common.catalog.function_catalog import resolve_impl
                 declared = resolve_impl(declared)
-            text = declared(item)
+            return declared(item) or None
         except Exception:
             import logging
             logging.getLogger(__name__).warning(
                 "[process_pipeline] résultat du process « %s » illisible", spec.key, exc_info=True)
             return None
-        return str(text) if text else None
+
+    @staticmethod
+    def result_text(spec: ProcessSpec, value):
+        """Le TEXTE d'un résultat déclaré : un rapport de cohérence s'écrit par la brique commune
+        (`llm_utils.coherence_report_text`), tout autre résultat est déjà son texte."""
+        if not value:
+            return None
+        if spec.result_format == 'coherence' and isinstance(value, dict):
+            from wama.common.utils.llm_utils import coherence_report_text
+            return coherence_report_text(value)
+        return str(value)
+
+    @classmethod
+    def readable_result(cls, spec: ProcessSpec, item):
+        """Le résultat LISIBLE déclaré du process pour cet élément : un texte, ou None."""
+        return cls.result_text(spec, cls.declared_result(spec, item))
 
     def _bridges(self):
         """`[(ports que l'amont PREND, ports de l'aval qu'il ALIMENTE)]` des process disponibles

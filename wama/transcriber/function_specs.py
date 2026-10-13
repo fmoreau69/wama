@@ -181,7 +181,8 @@ PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('coherence', label='Cohérence',
                 depends_on=('transcribe', 'import', 'align', 'diarize'),
                 degree=OPTIONAL, toggle='verify_coherence', share=1,
-                eta='transcriber.workers:coherence_eta', result=f'{_DOCUMENTS}:coherence_text'),
+                eta='transcriber.workers:coherence_eta', result=f'{_DOCUMENTS}:coherence_report',
+                result_format='coherence'),
 ), label='Transcriber — transcription ou import, alignement, locuteurs, résumé, cohérence',
    source_ref='transcriber.function_specs:PIPELINE',
    model_of=lambda t: _requested_model(t))

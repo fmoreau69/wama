@@ -1114,6 +1114,15 @@ pre.wama-result-text   { white-space: pre-wrap; word-wrap: break-word; margin: 0
 .wama-result-formatted ol                            { margin: 0 0 .5em; }
 .wama-result-formatted ul, .wama-result-formatted ol { padding-left: 1.3em; }
 
+/* Rapport de COHÉRENCE d'une face (`result_format='coherence'`, `WamaMediaPreview.coherenceHtml`) :
+   le texte vérifié et la correction proposée en regard, aux couleurs des anciennes modales. */
+.wama-coherence-original { background: #1e1e1e; border: 1px solid #495057; }
+.wama-coherence-proposed { background: #1e2820; border: 1px solid #2ea043; }
+.wama-coherence-text     { color: #d4d4d4; white-space: pre-wrap; word-wrap: break-word;
+                           font-size: 13px; max-height: 300px; overflow-y: auto; margin: 0; }
+.wama-coherence-proposed .wama-coherence-text { color: #7ee787; }
+.wama-inspector-preview .wama-coherence-text  { font-size: 12px; max-height: 120px; }
+
 /* ── ÉVALUATION contre une référence (2026-09-23, `result_evaluation`) ──────────────────────
    Deux surfaces, un vocabulaire : la ligne FINE de la card mère (comparaison des modèles du
    lot, `_batch_evaluation_line.html`) et l'onglet « Évaluation » d'un élément

@@ -496,9 +496,12 @@ class FacesOfTheDescriberTest(_Cards):
         self.assertIn('a red car', faces['frames'][1]['content'])
 
     def test_a_coherence_report_reads_its_score_notes_and_proposal(self):
-        from wama.describer.function_specs import coherence_text
+        from wama.describer.function_specs import coherence_report
         card = self._run(self._audio(verify_coherence=True))
-        self.assertIn('90/100', coherence_text(card))
+        report = coherence_report(card)
+        self.assertEqual(90, report['score'])
+        self.assertEqual(card.result_text.strip(), report['original'],
+                         'the proposal is set against the description it checked')
         Description.objects.filter(pk=card.pk).update(verify_coherence=False)
         card.refresh_from_db()
-        self.assertIsNone(coherence_text(card), 'an option switched off shows nothing')
+        self.assertIsNone(coherence_report(card), 'an option switched off shows nothing')

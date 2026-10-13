@@ -86,15 +86,13 @@ def summary_text(d):
     return (getattr(d, 'summary', '') or '').strip() or None
 
 
-def coherence_text(d):
-    if not getattr(d, 'verify_coherence', False) or getattr(d, 'coherence_score', None) is None:
+def coherence_report(d):
+    """Le rapport de la brique commune, en regard de la DESCRIPTION qu'elle a vérifiée."""
+    if not getattr(d, 'verify_coherence', False):
         return None
-    parts = [f"Score : {d.coherence_score}/100"]
-    if (d.coherence_notes or '').strip():
-        parts += ['', 'Remarques :', d.coherence_notes.strip()]
-    if (d.coherence_suggestion or '').strip():
-        parts += ['', 'Version proposée :', d.coherence_suggestion.strip()]
-    return '\n'.join(parts)
+    from wama.common.utils.llm_utils import build_coherence_report
+    return build_coherence_report(getattr(d, 'coherence_score', None), d.coherence_notes,
+                                  d.coherence_suggestion, d.result_text)
 
 
 register(FunctionSpec(
@@ -175,7 +173,7 @@ PIPELINE = register_app_pipeline(_APP, (
                 result_format='markdown'),
     ProcessSpec('coherence', label='Cohérence', depends_on=('describe',), degree=OPTIONAL,
                 toggle='verify_coherence', share=1, eta='describer.workers:coherence_eta',
-                result=f'{_SELF}:coherence_text'),
+                result=f'{_SELF}:coherence_report', result_format='coherence'),
 ), label='Describer — transcription, images-clés, description, résumé, cohérence',
    source_ref='describer.function_specs:PIPELINE',
    model_of=describe_model)

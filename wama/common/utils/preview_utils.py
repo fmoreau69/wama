@@ -556,7 +556,13 @@ def _process_face(app_name, pipeline, spec, instance, request, input_data):
     Le contenu PRÉSENT décide, pas l'état de la ligne d'exécution : une card montre ce qu'elle
     porte. (L'état d'un process — périmé, en échec — sur sa face : à venir, `ROUTE §F3b`.)"""
     label = spec.label or spec.key
-    text = pipeline.readable_result(spec, instance)
+    value = pipeline.declared_result(spec, instance)
+    text = pipeline.result_text(spec, value)
+    if text and spec.result_format == 'coherence' and isinstance(value, dict):
+        # Le RAPPORT de la brique commune, que la visionneuse et le volet dessinent (score
+        # coloré, remarques, version proposée en regard du texte vérifié) ; `content` est son
+        # texte, pour Copier.
+        return {'name': label, 'mime_type': 'text/plain', 'content': text, 'coherence': value}
     if text and spec.result_format == 'markdown':
         # Mis en forme par LE rendu markdown de WAMA (celui du lecteur de docs : HTML brut
         # neutralisé, liens externes en nouvel onglet) ; `content` garde le texte, pour Copier.
