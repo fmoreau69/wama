@@ -366,18 +366,20 @@ Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/con
 
 - **Domicile** : `wama/common/services/nightly_tests.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §Tests fonctionnels nocturnes](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Charpente des tests fonctionnels nocturnes de WAMA. ============================================================================
-- **API publique** (15) :
+- **API publique** (17) :
   - `class SkipScenario(Exception)` — Levée par un `run` quand une dépendance est absente (modèle/lib non installé) :
   - `class Scenario` — Un test fonctionnel déclaratif. `run(ctx) -> (ok: bool, detail: str)` ; peut lever.
   - `class ScenarioResult`
   - `register(**kwargs) -> Scenario` — Enregistre un scénario. Doublon d'id → remplace (réimport sûr).
+  - `scenario_cadence(sc: Scenario, sandbox_apps=None) -> str` — `daily` ou `weekly`. La DÉCLARATION prime ; sinon la règle, tirée de ce que le scénario
+  - `select_scenarios(app=None, stage=None, cadence=None, scenarios=None) -> List[Scenario]` — Les scénarios ACTIFS d'une campagne — la tâche planifiée et la commande lisent la même.
   - `get_test_user()` — Utilisateur de test DÉDIÉ (jamais le compte réel). Créé si absent.
   - `get_test_dev_user()` — Compte de test DÉVELOPPEUR, dédié aux surfaces dev-gated (jumelles de bac à sable).
   - `is_test_account(user) -> bool` — Un compte de TEST déclaré (`TEST_USERNAMES`) : ce qu'il exécute ne MESURE pas la machine.
   - `sweep_test_witnesses() -> int` — Efface les FICHIERS témoins restés dans les dossiers média des comptes de TEST.
   - `free_vram() -> None` — Téardown VRAM best-effort entre scénarios (réutilise le cleaner du model_manager).
   - `run_one(sc: Scenario, ctx: dict) -> ScenarioResult` — Exécute UN scénario (timing + capture d'exception). NB : timeout dur = TODO prod
-  - `run_all(scenarios: Optional[List[Scenario]]=None, write: bool=True) -> dict` — Joue les scénarios EN SÉRIE, téardown VRAM avant/après chacun. Retourne le rapport.
+  - `run_all(scenarios: Optional[List[Scenario]]=None, write: bool=True, cadence: Optional[str]=None) -> dict` — Joue les scénarios EN SÉRIE, téardown VRAM avant/après chacun. Retourne le rapport.
   - `build_report(results: List[ScenarioResult]) -> dict`
   - `write_report(report: dict) -> Path`
   - `functional_grid() -> dict` — La grille FONCTIONNELLE (2ᵉ grille de `WAMA_VERIFICATION §2`, décidée le 22/08 et
@@ -675,11 +677,12 @@ Décrit une image via un modèle multimodal Ollama local (bench, smoke UI, fichi
 
 ### Surfaces — pages d'édition composées de briques
 
-Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit et sa validation, process que l'écriture périme), servie par des vues COMMUNES et composée de briques UI universelles — déplaçables, redimensionnables (gridstack), historique commun. 1ʳᵉ surface : la correction des détections de l'anonymizer (2026-10-10). Registre `ui_bricks` = le catalogue des briques
+Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit et sa validation, process que l'écriture périme), servie par des vues COMMUNES et composée de briques UI universelles — déplaçables, redimensionnables (gridstack), historique commun. 1ʳᵉ surface : la correction des détections de l'anonymizer (2026-10-10). Registre `ui_bricks` = le catalogue des briques. 2ᵉ (2026-10-13) : le fond du Writer — un champ FICHIER s'édite comme texte (règles communes), la surface se déclare au manifeste (facette `surfaces`) et se génère ; refus 409 sur état périmé et verrou doux pour toutes les surfaces
 
 - **Domicile** : `wama/common/surfaces.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : SURFACES et BRIQUES UI — le registre (2026-10-10, ouverture du chantier SURFACES).
-- **API publique** (8) :
+- **API publique** (9) :
+  - `validate_text(value) -> str` — Le texte d'un champ fichier édité, assaini : une chaîne, fins de ligne `\n`, plafonnée.
   - `class UIBrick`
   - `class BrickSlot` — Une brique placée sur une surface : position et taille PAR DÉFAUT (l'utilisateur les
   - `class Surface`
@@ -789,7 +792,7 @@ Le journal sur l'axe du TEMPS — mêmes sources (Médias, Lab, Studio), interva
   - `observed_events(user, start, end, *, now=None, queue=None) -> list[CalendarEvent]` — Items de l'utilisateur dont le dépôt, l'exécution ou la fin tombe dans `[start, end)`, plus
   - `batch_events(user, start, end) -> list[CalendarEvent]` — La création des LOTS de l'utilisateur dans `[start, end)`.
   - `expiry_events(user, start, end) -> list[CalendarEvent]` — Les purges de rétention qui toucheront l'utilisateur dans `[start, end)`.
-  - `measured_nightly_minutes(stage=None, reports_dir=None) -> float | None` — Durée MÉDIANE récente d'une campagne nocturne complète, en minutes — `None` sans mesure.
+  - `measured_nightly_minutes(stage=None, reports_dir=None, cadence=None) -> float | None` — Durée MÉDIANE récente d'une campagne nocturne complète, en minutes — `None` sans mesure.
   - `window_minutes(entry_name) -> tuple[int, str]` — Durée réservée pour une entrée beat : `(minutes, 'measured' | 'declared')`.
   - `maintenance_windows(start, end) -> list[CalendarEvent]` — Occurrences des entrées beat À HORAIRE (`crontab`) dans `[start, end)`.
   - `reserved_windows(start, end, resource=None) -> list[CalendarEvent]` — Fenêtres qui RÉSERVENT une ressource (`gpu`, `cpu`), ou toutes si `resource` est `None`.
@@ -1557,7 +1560,7 @@ Qui consomme quoi (imports + briques front), niveau APP vs infrastructure, et jo
 
 ### Aperçu « pendant » à plusieurs vues
 
-Un worker publie plusieurs vues du même instant (`publish_partial(variant=, label=)`, publieur de frames limité dans le temps `PartialFrames`) ; la face PENDANT de l'aperçu les liste et sert celle demandée (`?variant=`), l'inspecteur affiche le bouton de bascule (`WamaInspector.variantToggle`). Né le 2026-10-04 pour basculer entre détection et floutage de l'anonymizer — toute app peut publier ses vues
+Un worker publie plusieurs vues du même instant (`publish_partial(variant=, label=)`, publieur de frames limité dans le temps `PartialFrames`) ; la face PENDANT de l'aperçu les liste et sert celle demandée (`?variant=`), le volet et la visionneuse affichent le bouton de bascule (`WamaMediaPreview.variantToggle`, brique d'aperçu `preview` — il vivait dans l'inspecteur jusqu'au 2026-10-13). Né le 2026-10-04 pour basculer entre détection et floutage de l'anonymizer — toute app peut publier ses vues
 
 - **Domicile** : `wama/common/utils/preview_utils.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common - Preview Utilities
@@ -2236,7 +2239,7 @@ Traversée récursive d'un drop/webkitdirectory — brique F2 montée globale (b
 
 ### Inspecteur contextuel (volet droit)
 
-Trois étages (card / lot / file) : sélection → Infos + preview + actions clonées (cloneActions) + PARAMÈTRES reflétés (initFromSchema : panel read/apply dérivés du schéma, cardSettings via card_gear) ; hydrate aussi les previews de card (hydrateCardPreviews)
+Trois étages (card / lot / file) : sélection → Infos + preview + actions clonées (cloneActions) + PARAMÈTRES reflétés (initFromSchema : panel read/apply dérivés du schéma, cardSettings via card_gear) ; son aperçu (rendu, faces, visionneuse) vient de la brique `preview` (`media-preview.js`, 2026-10-13 — il l'hébergeait, et recopiait la bascule des faces)
 
 - **Domicile** : `wama/common/static/common/js/wama-inspector.js` · **doc** : [docs/construction/ui/WAMA_VOLETS.md](../construction/ui/WAMA_VOLETS.md)
 
@@ -2268,7 +2271,7 @@ Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivi
 
 ### Preview unifiée
 
-Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement (2026-09-13, §17ter trou 2). Les faces entre Entrée et Sortie sont les PROCESS du pipeline de la card, DÉRIVÉES de ce qu'il déclare (`_process_faces`, 2026-10-12 — elles se déclaraient à la main, `register(faces=)`, R119) : libellé du process, résultat lisible (`ProcessSpec.result`, un texte) ou fichiers (`outputs`), rendu par le TYPE du port de sortie — des `detections` dessinées sur l'entrée par `WamaPreviewOverlay` (options de dessin : `register(overlay_options=)`) ; une face qui montre ce que montre déjà une autre n'est pas une étape de plus. La dernière face qui montre l'entrée est la référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05). La modale porte les mêmes faces d'où qu'on l'ouvre (volet, vignette de card), suit la face PENDANT en direct avec ses vues — par le MÊME suiveur que le volet (`WamaInspector.followDuring`) —, et son PLEIN ÉCRAN est elle-même agrandie (la surcouche image seule ne sert plus qu'aux galeries sans élément). Depuis le 2026-10-12 : la face Entrée se lit, comme la Sortie, dans les clés canoniques du detail (`source_file`, sinon `source_text`) sous la règle des ports (travail, sinon prompt, jamais référence) ; UNE fabrique de face fichier (`file_face`, texte d'un .docx extrait) sert les cards ET le filemanager ; un texte inline voyage sous la seule clé `content` ; une card ouvre son entrée par le geste commun `.preview-media-link` (geste nocturne `<app>.preview`)
+Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement (2026-09-13, §17ter trou 2). Les faces entre Entrée et Sortie sont les PROCESS du pipeline de la card, DÉRIVÉES de ce qu'il déclare (`_process_faces`, 2026-10-12 — elles se déclaraient à la main, `register(faces=)`, R119) : libellé du process, résultat lisible (`ProcessSpec.result`, un texte) ou fichiers (`outputs`), rendu par le TYPE du port de sortie — des `detections` dessinées sur l'entrée par `WamaPreviewOverlay` (options de dessin : `register(overlay_options=)`) ; une face qui montre ce que montre déjà une autre n'est pas une étape de plus. La dernière face qui montre l'entrée est la référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05). La modale porte les mêmes faces d'où qu'on l'ouvre (volet, vignette de card), suit la face PENDANT en direct avec ses vues — par le MÊME suiveur que le volet (`followDuring`) —, et son PLEIN ÉCRAN est elle-même agrandie (la surcouche image seule ne sert plus qu'aux galeries sans élément). Depuis le 2026-10-12 : la face Entrée se lit, comme la Sortie, dans les clés canoniques du detail (`source_file`, sinon `source_text`) sous la règle des ports (travail, sinon prompt, jamais référence) ; UNE fabrique de face fichier (`file_face`, texte d'un .docx extrait) sert les cards ET le filemanager ; un texte inline voyage sous la seule clé `content` ; une card ouvre son entrée par le geste commun `.preview-media-link` (geste nocturne `<app>.preview`). Depuis le 2026-10-13, UNE brique front (`media-preview.js`, `WamaMediaPreview`) porte tout l'aperçu : rendu en ligne (cards, volet, fenêtre de sélection), bascule des faces COMMUNE au volet et à la visionneuse (`sidesBar`, Pendant compris — le volet en avait sa copie), Comparer (`compareFaces`, `compareView` ; fichier par fichier pour une sortie multiple, titré par ses deux fichiers), suiveur Pendant, visionneuse, et UNE navigation : une séquence (les cards de la file, les fichiers d'un dossier du gestionnaire, une galerie) puis les fichiers d'une sortie multiple — ←/→ fichier par fichier puis élément voisin, ↑/↓ d'élément en élément, face gardée, volet resynchronisé à la fermeture ; le volet et le gestionnaire de fichiers en sont consommateurs (geste nocturne `common.preview_navigation`)
 
 - **Domicile** : `wama/common/utils/preview_registry.py`
 - **Module** : WAMA Common - Preview Registry
@@ -2516,8 +2519,9 @@ Registre de Feature par app + surcharges JSON de l'objet porteur — comparer AV
 
 - **Domicile** : `wama/common/utils/feature_flags.py`
 - **Module** : Bascules de fonctionnalités (feature flags) portées par un objet-config — mécanisme GÉNÉRIQUE.
-- **API publique** (5) :
+- **API publique** (6) :
   - `class Feature`
+  - `read_by(registry, config, process)` — État {clé: bool} des bascules que le process `process` lit — sa photo au lancement.
   - `resolve(registry, config)` — État effectif {key: bool} : défauts du registre surchargés par config['features'].
   - `is_enabled(registry, config, key)` — État effectif d'UNE bascule (KeyError si la clé n'est pas au registre).
   - `describe(registry, config=None)` — Catalogue sérialisable pour l'UI : métadonnées + état effectif de chaque bascule.
@@ -2801,7 +2805,7 @@ Réglages durables en base (UserAppSetting, cache devant) ; réglages du VOLET d
 
 - **Domicile** : `wama/common/utils/user_settings.py`
 - **Module** : WAMA Common — Réglages UTILISATEUR par app, DURABLES en base (cache en lecture devant).
-- **API publique** (9) :
+- **API publique** (10) :
   - `get_user_app_settings(user, app, defaults)` — Retourne le dict complet des réglages de ``user`` pour ``app``.
   - `get_user_app_setting(user, app, name, default=None)` — Lecture d'UN réglage.
   - `clear_user_app_settings(user, app, names)` — Retire les réglages `names` de ``user`` pour ``app`` : ils reprennent le défaut que
@@ -2809,6 +2813,7 @@ Réglages durables en base (UserAppSetting, cache devant) ; réglages du VOLET d
   - `save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=None) -> dict` — Garde comme préférences les réglages du volet présents dans `data` (par NOM), coercés par
   - `reset_panel_settings(user, app, params, *, key=None, extra=None, clean=None) -> dict` — Remet le volet de ``user`` sur les défauts : ses préférences sont RETIRÉES (jamais
   - `new_element_settings(user, app, params, model, *, post=None, context=None, key=None, extra=None, clean=None) -> dict` — Les colonnes de réglage d'un élément NAISSANT — il naît complet (`ROADMAP §23.2quater`),
+  - `element_columns(values, model) -> dict` — `values` restreint aux colonnes concrètes de `model` — ce qu'un `objects.create(**…)`
   - `make_panel_settings_views(app, params, *, key=None, extra=None, clean=None)` — Les deux vues JSON du volet — lecture (GET) et enregistrement (POST, JSON par NOM, clés
   - `save_user_app_settings(user, app, values, *, timeout=DEFAULT_TIMEOUT)` — Persiste chaque réglage fourni (en base, et en cache pour la lecture).
 
