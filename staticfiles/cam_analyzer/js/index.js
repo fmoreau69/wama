@@ -136,6 +136,39 @@ document.addEventListener('DOMContentLoaded', function () {
                 mount: camFeat.mount_lever_arm !== false ? CAMERA_MOUNT[p] : [0, 0],
             };
         });
+        markMeasuredCalibInputs();
+    }
+    // Saisies du panneau Calibration REMPLACÉES par une mesure (⚑ measured_camera_yaw /
+    // measured_camera_fov, mêmes conditions que ci-dessus) : la valeur appliquée s'affiche à côté,
+    // et la saisie est grisée quand elle ne sert plus à aucune caméra. Elle reste enregistrée :
+    // c'est elle qui revient si la bascule est coupée ou la mesure jugée inapplicable.
+    function markMeasuredCalibInputs() {
+        const mark = (inp, note, unused) => {
+            if (!inp) return;
+            let s = inp.nextElementSibling;
+            if (!s || !s.classList.contains('calib-measured-note')) {
+                s = document.createElement('span');
+                s.className = 'small text-info calib-measured-note';
+                inp.after(s);
+            }
+            if (inp.dataset.titleTyped === undefined) inp.dataset.titleTyped = inp.title || '';
+            s.textContent = note;
+            s.classList.toggle('d-none', !note);
+            inp.disabled = !!unused;
+            inp.title = note ? `Saisie remplacée par la mesure (${note.replace('→ ', '')}) — `
+                               + 'elle revient si la bascule « MESURÉ » est coupée.'
+                             : inp.dataset.titleTyped;
+        };
+        document.querySelectorAll('#camYawInputs .cam-yaw-input').forEach(inp => {
+            const y = camFeat.measured_camera_yaw ? measuredYaw[inp.dataset.pos] : null;
+            const on = y != null && isFinite(y);
+            mark(inp, on ? `→ ${y.toFixed(1)}° mesuré` : '', on);
+        });
+        // Le champ latéral vaut pour la gauche ET la droite : grisé seulement si les deux sont mesurées.
+        const lat = ['left', 'right'].map(p => (camFeat.measured_camera_fov && measuredFov[p]) ? measuredFov[p].v : null);
+        const parts = lat.map((v, i) => (v != null ? `${i ? 'D' : 'G'} ${v.toFixed(1)}°` : null)).filter(Boolean);
+        mark(document.getElementById('camFovLatInput'), parts.length ? `→ ${parts.join(' / ')} mesuré` : '',
+             parts.length === 2);
     }
     rebuildCamGeo();
     let TOPDOWN_FOV_V_DEG = 60;      // FOV vertical caméra (deg) pour le cap pinhole (ajustable)
@@ -5488,8 +5521,6 @@ document.addEventListener('DOMContentLoaded', function () {
         wire('calibToggleBtn', () => calibMode ? stopCalibration() : startCalibration());
         wire('sam3TestBtn', () => runSam3Test(false));
         wire('sam3CalibBtn', () => runSam3Test(true));
-        wire('orthoRecalageBtn', runOrthoRecalage);
-        wire('orthoCorrectionBtn', runOrthoCorrection);
         wire('copyDebugBtn', copyDebugInfo);
         // Bascule coloration Prédiction (trajectoire) ↔ naïf (ttc_s) pour comparer.
         const _pb = document.getElementById('predictionBtn');
@@ -5917,96 +5948,6 @@ document.addEventListener('DOMContentLoaded', function () {
             alert('Test SAM3 : délai dépassé (le modèle charge ~30 s, réessaie).');
         } catch (e) { alert('Échec : ' + e.message); }
         finally { if (btn) { btn.disabled = false; btn.textContent = label; } }
-    }
-
-    // Recalage 2b : segmente les passages piétons sur l'ortho IGN (serveur, SAM3) et
-    // mesure le décalage avec les crossings caméra. Poll jusqu'au résultat, puis retrace.
-    async function runOrthoRecalage() {
-        if (!currentSessionId) return;
-        const btn = document.getElementById('orthoRecalageBtn');
-        const label = btn ? btn.innerHTML : '';
-        if (btn) { btn.disabled = true; btn.textContent = '⏳ Recalage…'; }
-        try {
-            const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/ortho-recalage/`, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
-            });
-            const j = await r.json();
-            if (!j.success) { alert('Recalage ortho : ' + (j.error || '?')); return; }
-            // Poll (SAM3 charge ~30 s + fetch tuiles) — jusqu'à ~3 min.
-            for (let i = 0; i < 36; i++) {
-                await new Promise(res => setTimeout(res, 5000));
-                const sr = await fetch(`${config.urls.getSession}${currentSessionId}/`);
-                const sd = await sr.json();
-                const rec = sd.results_summary && sd.results_summary.ortho_recalage;
-                if (rec) {
-                    orthoMarkings = (sd.results_summary.ortho_markings) || {};
-                    orthoRecalage = rec;
-                    const g = rec.global;
-                    updateTopDown(playheadT());
-                    alert(g
-                        ? `Recalage ortho mesuré : décalage ${Math.hypot(g.de_m, g.dn_m).toFixed(1)} m `
-                          + `(Est ${g.de_m >= 0 ? '+' : ''}${g.de_m} / Nord ${g.dn_m >= 0 ? '+' : ''}${g.dn_m} m, `
-                          + `${g.n} appariements).\nLes passages piétons ortho (orange) sont tracés sur la carte. `
-                          + `Offset NON appliqué (comparaison visuelle).`
-                        : 'Recalage ortho : passages piétons ortho détectés mais aucun appariement '
-                          + 'avec les crossings caméra (relance le tracking 360° puis réessaie).');
-                    return;
-                }
-            }
-            alert('Recalage ortho : délai dépassé (réessaie — le réseau IGN peut être lent).');
-        } catch (e) { alert('Échec : ' + e.message); }
-        finally { if (btn) { btn.disabled = false; btn.innerHTML = label; } }
-    }
-
-    // Étape 2b (2/2) — APPLIQUE le recalage mesuré. Calcul pur (ni SAM3 ni GPU) : quelques
-    // secondes, relançable à volonté pour recalibrer le seuil de masquage sans refaire la
-    // segmentation ortho. C'est tout l'intérêt d'avoir séparé mesure et application.
-    async function runOrthoCorrection() {
-        if (!currentSessionId) { alert('Aucune session sélectionnée.'); return; }
-        // La correction se CALCULE bascule ON ou OFF (2026-09-28) : c'est la bascule qui choisit
-        // ensuite de l'appliquer — avant, OFF empêchait le calcul, et ON sans calcul ne faisait rien.
-        const btn = document.getElementById('orthoCorrectionBtn');
-        const label = btn ? btn.innerHTML : '';
-        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Correction…'; }
-        try {
-            const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/ortho-correction/`, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
-            });
-            const d = await r.json();
-            if (!d.success) { alert('Correction : ' + (d.error || 'échec')); return; }
-
-            // Le masque satellite BD TOPO est un appel réseau par intersection : on laisse
-            // le temps à la tâche, puis on relit le résumé.
-            for (let i = 0; i < 24; i++) {
-                await new Promise(res => setTimeout(res, 2500));
-                const sr = await fetch(`${config.urls.getSession}${currentSessionId}/`);
-                if (!sr.ok) continue;
-                const sd = await sr.json();
-                const cor = sd.results_summary && sd.results_summary.ortho_correction;
-                if (cor && cor.report) {
-                    orthoCorrection = cor;
-                    const rep = cor.report, cb = cor.camera_bias || {};
-                    alert(`Correction de trajectoire calculée`
-                        + ((camFeat && camFeat['ortho_correction']) ? ` et appliquée.\n\n`
-                           : ` — active ⚑ « Recalage GPS par marquages ortho » pour l'appliquer.\n\n`)
-                        + `Biais caméra écarté (projection, non appliqué) : `
-                        + `E ${(cb.de_m || 0).toFixed(1)} / N ${(cb.dn_m || 0).toFixed(1)} m\n`
-                        + `Correction GPS locale : ${rep.n_anchors} repères, `
-                        + `moy ${rep.mean_shift_m} m, max ${rep.max_shift_m} m\n`
-                        + `Atténuation moyenne (masquage satellite) : ×${rep.mean_alpha}\n\n`
-                        + `Bascule ⚑ ON/OFF pour comparer avec la trace brute.`);
-                    // (appelait `reloadSessionData`, qui n'a jamais existé : la trace n'était pas
-                    // ré-ingérée et la correction n'apparaissait qu'au rechargement de la page)
-                    renderMiniMap(rawGpsTrack, lastMiniMapWindows, { keepView: true });
-                    topDownLastRender = -999; updateMiniMapShuttle(playheadT());
-                    return;
-                }
-            }
-            alert('Correction : délai dépassé (le WFS IGN peut être lent — réessaie).');
-        } catch (e) { alert('Échec : ' + e.message); }
-        finally { if (btn) { btn.disabled = false; btn.innerHTML = label; } }
     }
 
     // Copie un instantané de synchro de l'instant courant (temps vidéo, frames &

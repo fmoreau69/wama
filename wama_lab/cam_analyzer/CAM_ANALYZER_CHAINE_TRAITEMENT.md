@@ -369,8 +369,9 @@ Règle : **jamais de if ad hoc dispersé** pour une amélioration comparable.
   ✅ **FAIT (rapport + affichage)**, commit `034912c`, `utils/ortho_markings.py`. SAM3 segmente
   les passages piétons **sur l'orthophoto IGN** (mosaïque WMTS z19 ≈ 0,22 m/px, géo-transform
   Web Mercator exacte), puis MATCHING avec nos crossings agrégés depuis les caméras
-  (`marking_world.py`). Tâche `compute_ortho_recalage_task` + bouton « Recalage ortho »
-  (panneau Calibration) ; crossings ortho tracés en orange sur la mini-carte. **MESURÉ** :
+  (`marking_world.py`). Tâche `compute_ortho_recalage_task`, lancée par la passe « Recalage ortho »
+  du pipeline (et la correction par la passe « Correction de trajectoire ortho ») ; crossings ortho
+  tracés en orange sur la mini-carte. **MESURÉ** :
   2 passages piétons/intersection (conf ~0,7), offset global caméra→ortho **2,93 m E / 4,2 m N
   (~5,1 m)** = biais GPS + projection résiduel. **RAPPORT SEUL** : l'offset est stocké
   (`results_summary.ortho_recalage`) mais PAS appliqué au positionnement — validation visuelle

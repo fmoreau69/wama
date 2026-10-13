@@ -200,11 +200,13 @@ class InterruptedCalcPassTest(SimpleTestCase):
         src = inspect.getsource(views)
         self.assertNotIn('compute_indicators_task.delay(', src)
         self.assertNotIn('compute_ortho_correction_task.delay(', src)
+        # le bouton « Recalage ortho » du panneau Calibration lançait sa tâche ici, hors file ;
+        # retiré le 2026-10-13 (doublon de la passe `ortho_recalage`)
+        self.assertNotIn('compute_ortho_recalage_task.delay(', src)
         self.assertNotRegex(src, r'(?<![\w.])chain\(', "les vues ne lancent aucune chaîne elles-mêmes")
         self.assertEqual(inspect.getsource(pt).count('chain(*'), 1,
                          "un seul lancement de chaîne : pass_tracking._start_session_chain")
         self.assertNotIn('.delay(', inspect.getsource(views.run_passes),
                          "le panneau des passes ne lance rien hors de la file de la session")
         self.assertIn("launch_session_passes(session.id, ['indicators'])", src)
-        self.assertIn("launch_session_passes(session.id, ['ortho_correction'])", src)
         self.assertIn('res = launch_session_passes(session.id, needs_run, detect_force=', src)

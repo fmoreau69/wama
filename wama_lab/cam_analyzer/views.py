@@ -1210,46 +1210,6 @@ def start_sam3_only(request, session_id):
 
 
 @login_required
-@require_http_methods(["POST"])
-def ortho_recalage(request, session_id):
-    """Étape 2b — mesure l'offset de recalage absolu via les passages piétons de
-    l'orthophoto IGN (SAM3 + réseau). Asynchrone (GPU). Le résultat est affiché sur
-    la mini-carte et dans la console ; l'offset n'est PAS appliqué (validation d'abord)."""
-    from .tasks import compute_ortho_recalage_task
-    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
-    if not session.intersection_windows:
-        return JsonResponse({'success': False,
-                             'error': 'Aucune intersection définie sur ce profil'}, status=400)
-    if session.status == AnalysisSession.Status.PROCESSING:
-        return JsonResponse({'success': False, 'error': 'Une analyse est déjà en cours'}, status=400)
-    _pause_live(session_id)
-    task = compute_ortho_recalage_task.delay(str(session.id))
-    _console(request.user.id, "Recalage ortho — lancement (segmentation SAM3 sur l'orthophoto).")
-    return JsonResponse({'success': True, 'task_id': task.id})
-
-
-@login_required
-@require_http_methods(["POST"])
-def ortho_correction(request, session_id):
-    """Étape 2b (2/2) — APPLIQUE le recalage mesuré à la trajectoire (bascule ⚑ ortho_correction).
-
-    Calcul pur (pas de GPU, pas de SAM3) : relançable à volonté pour recalibrer le seuil de
-    masquage sans refaire la segmentation ortho. Exige que la mesure ait été faite."""
-    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
-    if not ((session.results_summary or {}).get('ortho_recalage') or {}).get('per_window'):
-        return JsonResponse({'success': False,
-                             'error': "Aucun recalage mesuré — lancer d'abord « Recalage absolu ortho »"},
-                            status=400)
-    # file de la session, comme toute passe (`launch_session_passes`)
-    from .utils.pass_tracking import launch_session_passes
-    res = launch_session_passes(session.id, ['ortho_correction'])
-    _console(request.user.id, "Correction de trajectoire — "
-             + ("lancement (calcul pur + masquage BD TOPO)." if res['launched']
-                else "mise en file derrière les calculs en cours."))
-    return JsonResponse({'success': True, **res})
-
-
-@login_required
 @require_http_methods(["GET"])
 def session_buildings(request, session_id):
     """Emprises des bâtiments BD TOPO autour d'un point (⚑ map_buildings — AFFICHAGE seul).
