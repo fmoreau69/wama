@@ -23309,3 +23309,49 @@ Constat de Fabien : Transcriber et Imager lents à charger ; dans l'Imager, moda
   `max_requests = 1000` recycle les workers toutes les 5 min sous la campagne de tests ;
   description de `WamaApp.Poller` dans `mecanismes.py` non mise à jour (`WAMA_MECANISMES.md` en
   cours d'édition par une autre instance).
+
+## §PALIER — 2026-10-13, « GRILLE FONCTIONNELLE DES APPS PORTÉES : TEST OU BUG ? » — ✅ LIVRÉ — 🔚 file `gpu` du nocturne (décision)
+
+**Demande de Fabien** : « Je vois qu'il y a des erreurs dans la grille fonctionnelle pour les
+applications portées… Est-ce que ce sont des problèmes des tests eux-mêmes ou de vrais bugs ? »
+Tri complet dans `WAMA_VERIFICATION §9`, établi sur le passage complet de la nuit
+(`nightly_20261013_105541`) puis sur trois rejeux de jour. Chaque rouge a été rejoué ou sondé.
+
+**Livré (`00b56a0f`, local, non poussé)** :
+- **quatre vrais bugs** :
+  - statut SAM3 : `import sam3` coûtait **57 s** par worker, et la page de l'anonymizer
+    n'atteignait jamais le repos réseau ;
+  - actions de lot du reader branchées deux fois : un ⧉ faisait deux copies, un ▶ lançait le lot
+    deux fois (R121) ;
+  - référence refusée ignorée en silence au composer et au synthesizer ;
+  - `warning` des vues générées jamais montré ;
+- **un défaut du générateur** : une vue de réglages dont le nom n'est pas celui de sa route (imager)
+  recevait un bouchon 501 ;
+- **instrument** : onglet de domaine affiché seul (enhancer), champ à fichier unique, ORM hors du
+  contexte Playwright, locator au lieu d'un handle ;
+- **cinq tests en retard** sur un changement voulu, dont un test de refus AVEUGLE.
+
+**Contrôles** :
+- gestes rejoués verts : enhancer settings, clear_all et preview ; `reader.batch_actions` et
+  `reader.queue_dnd` ; `common.released_files` ; et tous ceux que le redémarrage du serveur avait
+  coupés (135 sur 206 au premier rejeu) ;
+- contre-épreuves rouges : statut SAM3, refus des ports (4 cas), contrat d'évaluation,
+  branchements de lot de HEAD ;
+- 167 + 296 + 52 + 40 tests verts sur les modules touchés ; `check_docs` 0/0 ; aucun identifiant
+  français ajouté.
+
+**🔚 Reste à décider (Fabien)** : la campagne nocturne tourne SUR le worker `gpu` (`--pool=solo`).
+Ses gestes `processing` et `batch_processing` y lancent des tâches qui ne démarrent qu'après elle.
+C'est le cas de 6 apps chaque nuit. Le Studio a déjà résolu ce blocage en donnant à son
+orchestrateur une file dédiée. Seuls `transcriber.asr_load` et `enhancer.deepfilternet_load`
+chargent un modèle dans le processus même de la campagne.
+
+**🔚 Restes nommés** :
+- `studio.pipeline.converter` : la porte des réglages de nœud (`f1c3d4e1`) refuse `asset_type='audio'`,
+  une catégorie que le puits traduisait — régression d'un autre chantier ;
+- `media_library` et `studio.queue_search` : surfaces non portées ;
+- `wama.common.suite` dépasse ses 2400 s ;
+- ⚙ de lot de l'enhancer, de l'imager et de l'avatarizer sans ouvreur déclaré.
+
+**Pendings système** : relancer gunicorn (vues composer/synthesizer, `sam3_manager`, gabarit
+reader, JS servis).
