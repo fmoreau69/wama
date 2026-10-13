@@ -617,6 +617,22 @@ class SkeletonRunsThePipelineTest(TestCase):
         produced = [call for call in signal.call_args_list if call.args[2] == 'produit']
         self.assertEqual(['family:plan', 'family:render'], produced[0].args[3])
 
+    def test_a_glue_sees_what_it_watched_at_its_last_render(self):
+        """`ctx.snapshot` / `ctx.previous_snapshot` (2026-10-13) : read BEFORE the launch plan sets
+        the lines back to pending — what lets the Writer's layout know that only its upstream
+        changed, and adjust its result instead of redoing it."""
+        seen = []
+
+        def render(element, ctx):
+            seen.append((ctx.snapshot, ctx.previous_snapshot))
+            return {}
+        item = self._run(self._element('pipeline_snapshots'), render=render)
+        self.assertIsNone(seen[0][1], 'never rendered : no previous photo')
+        self.assertIn('@upstream', seen[0][0], 'the photo carries its upstream fingerprint')
+        self.model.objects.filter(pk=item.pk).update(status='RUNNING')
+        self._run(item, render=render)
+        self.assertEqual(seen[0][0], seen[1][1], 'the photo of its last render, not the new one')
+
     def test_a_failure_closes_the_line_of_the_process_that_failed_only(self):
         def broken(element, ctx):
             raise RuntimeError('render is down')

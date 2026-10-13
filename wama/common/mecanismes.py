@@ -366,6 +366,16 @@ MECHANISMS = (
                        'wama/common/static/common/js/wama-detections.js',
                        'wama/common/manifests/codegen/surfaces_gen.py',
                        'wama/common/tests/tests_surfaces.py')),
+    Mechanism('document_layout', 'Mise en forme AJUSTÉE d\'un document (fond en sections)',
+              "Le fond Markdown découpé en sections (règle de la brique `text_sections`, tenue sous "
+              "V8), un PLAN d'après la part de mots changés par section (`text_metrics`) : un bout "
+              "de phrase se remplace dans la forme sans modèle, une section très modifiée se remet "
+              "en forme seule, une structure qui change refait tout. Base = les fichiers de "
+              "révision GARDÉS + la photo de ce que le process surveille (`ctx.previous_snapshot`) ; "
+              "repères `data-wama-section` ; réponse de modèle sans « ```html », avec son charset. "
+              "Montrée au rôle `codegen` pour le process qu'une surface rejoue (2026-10-13)",
+              'wama/common/utils/document_sections.py', 'docs/construction/suivi/ROADMAP.md §21.5',
+              annexes=('wama/common/tests/tests_document_sections.py',)),
     Mechanism('detection_ensemble', 'Détection par un ensemble de modèles',
               "L'UNION des documents `detections` de plusieurs détecteurs, quelle que soit leur "
               "famille (2026-10-10) : les modèles ultralytics ensemble par `Anonymize`, chacun des "

@@ -143,6 +143,12 @@ BRICKS_BY_TRIGGER = {
     # chemin que la prévision « Prévu : … » (2026-10-01 : la 1ʳᵉ glu du Writer passait `auto`
     # tel quel à la brique LLM, qui tirait par un autre chemin que la prévision).
     ('param_flag', 'options_auto'): ('auto_model', ('resolve_model_choice',)),
+    # Le process qu'une SURFACE rejoue après une correction à la main (`surfaces[].reruns`,
+    # 2026-10-13 — la mise en forme du Writer) : il AJUSTE son résultat d'après ce qui a changé
+    # au lieu de le refaire, et rend un document sans clôture de code. Seul ce process le reçoit.
+    ('surface_rerun', None): ('document_layout', ('adjustment_basis', 'plan_layout_update',
+                                                  'apply_plan', 'full_layout_instruction',
+                                                  'finish_document')),
 }
 
 
@@ -160,17 +166,19 @@ def _brick_file(mechanism_key: str, names: tuple) -> Path:
     raise SystemExit(f'brique {names} introuvable dans le mécanisme {mechanism_key}')
 
 
-def _triggered(resolus: list, man: dict) -> list:
+def _triggered(resolus: list, man: dict, process: str = None) -> list:
     model_types = {((m.get('body') or {}).get('identity') or {}).get('model_type')
                    for m in resolus if m.get('manifest_kind') == 'model'}
     body = (man or {}).get('body') or {}
     facets = set(body)
     param_flags = {flag for schema in ((body.get('params') or {}).get('schemas') or {}).values()
                    for field in schema or [] for flag, on in field.items() if on is True}
+    reruns = {s.get('reruns') for s in body.get('surfaces') or [] if isinstance(s, dict)}
     return [v for (kind, value), v in BRICKS_BY_TRIGGER.items()
             if (kind == 'model_type' and value in model_types)
             or (kind == 'facet' and value in facets)
-            or (kind == 'param_flag' and value in param_flags)]
+            or (kind == 'param_flag' and value in param_flags)
+            or (kind == 'surface_rerun' and process and process in reruns)]
 
 
 def signatures_briques() -> dict:
@@ -190,10 +198,11 @@ def signatures_briques() -> dict:
     return out
 
 
-def briques_communes(resolus: list, man: dict = None) -> str:
-    """Source des briques communes DÉCLENCHÉES par le manifeste composé (par AST)."""
+def briques_communes(resolus: list, man: dict = None, process: str = None) -> str:
+    """Source des briques communes DÉCLENCHÉES par le manifeste composé (par AST) — pour le
+    process visé quand une brique ne vaut que pour lui (`surface_rerun`)."""
     blocks = []
-    for mechanism_key, names in _triggered(resolus, man):
+    for mechanism_key, names in _triggered(resolus, man, process):
         p = _brick_file(mechanism_key, names)
         module = '.'.join(p.relative_to(REPO_ROOT).with_suffix('').parts)
         blocks.append(f'# from {module} import {", ".join(names)}   (mécanisme `{mechanism_key}`)\n'
@@ -217,8 +226,10 @@ def matiere_manifeste(app_id: str, manifest_path: str = '') -> tuple:
     body = man.get('body') or {}
     # Compaction : la glu n'a pas besoin des facettes UI (modes/studio/inspector/tool_api).
     # `prompts` GARDÉE (2026-10-01) : elle dit que la consigne passe par le pipeline de prompts.
+    # `surfaces` GARDÉE (2026-10-13) : elle dit quel process est rejoué après une correction à
+    # la main du fichier qu'elle édite — celui qui reçoit les briques d'ajustement.
     garde = {k: body[k] for k in ('identity', 'params', 'processing', 'models',
-                                  'capabilities', 'ports', 'prompts') if k in body}
+                                  'capabilities', 'ports', 'prompts', 'surfaces') if k in body}
     compact = {k: v for k, v in man.items() if k != 'body'} | {'body': garde}
     resolus = []
     for r in man.get('requires') or []:
@@ -569,7 +580,7 @@ def main():
     corps = json.dumps(man, ensure_ascii=False, indent=1)
     jambes = '\n'.join(json.dumps(m, ensure_ascii=False) for m in resolus)
     inventaire = inventaire_app(args.app)
-    briques = briques_communes(resolus, man)
+    briques = briques_communes(resolus, man, args.process)
     champs, props = champs_item(proc.get('item_model') or '', args.app)
     user_msg = (
         f'CONTRAT de la brique run_item_task (docstring de task_skeleton.py) :\n{contrat}\n\n'
@@ -608,7 +619,7 @@ def main():
         if verif['compile_ok']:
             called = {getattr(n.func, 'id', None) or getattr(n.func, 'attr', None)
                       for n in ast.walk(ast.parse(code)) if isinstance(n, ast.Call)}
-            for _key, names in _triggered(resolus, man):
+            for _key, names in _triggered(resolus, man, args.process):
                 verif['warnings'] += [f'brique déclenchée par le manifeste non appelée : {name}'
                                       for name in names if name not in called]
         return verif

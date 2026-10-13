@@ -4336,6 +4336,27 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
    (`§10.6`), glue par le rôle `codegen`. Restent aussi : la consigne de forme sur la page (elle
    s'édite à la ⚙ et périme déjà `layout`) ; le clic dans l'aperçu → section du fond (impossible
    dans un cadre isolé sans script : à reprendre avec des ancres posées par `layout`).
+   🔄 2026-10-13 (soir) — **retours de Fabien sur le live, et ses décisions** : *« Si à chaque
+   modification du fond il faut régénérer, ça me paraît long »* → **les deux** : *« remise en forme
+   par section si la section est complètement modifiée, forme réutilisée si seulement un bout de
+   phrase est modifié — la quantité de modifications définit le process d'ajustement »* ;
+   *« conserver les versions »* (le temps des versions de cards communes) ; *« conserver les
+   styles HTML générés pour réappliquer un style à une autre présentation »*.
+   - ✅ **Versions** : fichiers de révision GARDÉS pour le Writer (20 + publiées,
+     `WAMA_COLLABORATION §7.2`), brique de surface « Versions » (reprendre = geste annulable).
+   - ✅ **Briques d'ajustement** (`common/utils/document_sections.py`, mécanisme
+     `document_layout`) : découpage du fond (règle de `text_sections`, tenue sous V8), plan par la
+     part de mots changés (`text_metrics`, seuil `PATCH_CEILING` = 0,3), remplacement de texte dans
+     la forme sans modèle, remise en forme d'UNE section par le modèle de la glu, repères
+     `data-wama-section`, réponse sans « ```html » et avec `<meta charset>` (deux restes soldés).
+     Base = copies gardées + photo de ce que le process surveille (`ctx.previous_snapshot`,
+     squelette) : la forme demandée a changé → tout refaire. Montrées au rôle `codegen` pour le
+     seul process qu'une surface rejoue. La GLU `layout` se régénère PAR LE RÔLE (D5).
+   - ✅ **Styles** : le chemin existe sans geste neuf — « Ajouter à la médiathèque » range le
+     HTML rendu (Document), le port « Modèle de mise en page » en reprend la FORME, jamais le texte
+     (`reference_comprehension`, lecture `form`). ⏳ Une nature « Style de présentation » à part
+     (comme « Voix ») est possible : une entrée de `media_library/natures.py`, mais une migration
+     des choix de la médiathèque et ses tests figés à mettre à jour — décision de Fabien.
 2. Publier (capacité commune).
 3. PDF par Chromium.
 4. docx / tex / pptx par Pandoc.

@@ -48,6 +48,11 @@ Contrat de la glu `process(item, ctx) -> dict | None` :
     console le dit, les process suivants sont joués (règle d'agrégation 4.4).
   - `ctx.step` : clé du process en cours quand la card en porte plusieurs (None sinon) ;
     `ctx.reset_progress()` : barre de la card à zéro, hors de la part du process en cours.
+  - `ctx.snapshot` / `ctx.previous_snapshot` (pipeline, 2026-10-13) : la photo de ce que le process
+    SURVEILLE maintenant (réglages, fichiers, empreinte de sortie de ses amonts sous `@upstream`)
+    et celle de son dernier RENDU — None s'il n'avait jamais réussi. Ce qui permet à une glu de
+    savoir si seul son amont a changé (la forme demandée, non) et d'AJUSTER son résultat au lieu de
+    le refaire (`document_sections.adjustment_basis`, la mise en forme du Writer).
     La glu peut retourner À TOUT MOMENT (ex. chemin court PDF natif du reader) : le retour
     déclenche le flux de succès standard.
   - une exception = FAILURE (message tronqué dans `error_field`, console ✗, notification
@@ -97,6 +102,10 @@ class TaskContext:
         #: Process en cours quand la card en porte plusieurs (clé du `ProcessSpec`) ; None pour
         #: une app à un seul process.
         self.step = None
+        #: Photo de ce que le process en cours surveille maintenant, et celle de son dernier rendu
+        #: réussi (None s'il n'en a jamais eu) — cf. le contrat en tête de module.
+        self.snapshot = None
+        self.previous_snapshot = None
         self._window = (0.0, 100.0)
 
     def enter_step(self, step, start_pct: float, end_pct: float) -> None:
@@ -497,7 +506,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
     # ⚠ Corrigé le 2026-09-14 : ce commentaire disait « avant `ctx.progress(0)` qui bascule
     # l'item en RUNNING » — faux, `TaskContext.progress` n'écrit que le cache et `progress`.
     # RUNNING est posé par les VUES de lancement, avant `.delay()`.
-    from wama.common.models import JOB_AWAITING_RESOURCES, JOB_RUNNING
+    from wama.common.models import JOB_AWAITING_RESOURCES, JOB_RUNNING, JOB_STALE, JOB_SUCCESS
     essais = int(getattr(getattr(task, 'request', None), 'retries', 0) or 0)
     if essais and getattr(item, 'status', None) not in (JOB_AWAITING_RESOURCES, JOB_RUNNING):
         # RE-LIVRAISON d'un report (`task.retry`, seul retry du squelette) alors que l'item
@@ -572,6 +581,11 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         with _time_guard(limit_s):
             steps = _selected_steps(app_id, item, process, pipeline, processes, resolved_key,
                                     only=only)
+            # Ce que chaque process avait RENDU, lu AVANT que le plan ne repasse ses lignes en
+            # attente : la photo de son dernier succès (ou d'un succès devenu périmé), offerte à
+            # sa glu (`ctx.previous_snapshot`) pour qu'elle sache ce qui a changé depuis.
+            prior = ({key: row for key, row in pipeline.rows(item).items()
+                      if row.status in (JOB_SUCCESS, JOB_STALE)} if pipeline is not None else {})
             if pipeline is not None:
                 # Le PLAN du lancement sur les lignes (2026-10-05) : chaque process retenu passe
                 # `PENDING` (« son tour n'est pas venu ») et porte cette tâche. C'est ce qui dit,
@@ -587,10 +601,13 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                 if spec is not None:
                     ctx.enter_step(spec.key, 100.0 * done_share / total_share,
                                    100.0 * (done_share + share) / total_share)
+                    ctx.snapshot = pipeline.snapshot(spec, item)
+                    ctx.previous_snapshot = (dict(prior[spec.key].settings_snapshot or {})
+                                             if spec.key in prior else None)
                 process_runs.safely(
                     process_runs.start, item, node, process_key=process_key,
                     kind='app' if spec is None else 'function',
-                    settings_snapshot=pipeline.snapshot(spec, item) if spec is not None else None,
+                    settings_snapshot=ctx.snapshot if spec is not None else None,
                     model_key=resolved_key or '', task_id=task_ref)
                 t_step = time.time()
                 try:
