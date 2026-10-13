@@ -23320,6 +23320,41 @@ Constat de Fabien : Transcriber et Imager lents à charger ; dans l'Imager, moda
   les cards lancées ailleurs ; `_asr_text` relit les segments (~0,4 s) ; `max_requests = 1000`
   recycle les workers toutes les 5 min sous la campagne de tests ; validation NAVIGATEUR des
   boucles portées non faite (parse V8 + tests seulement).
+- ✅ **Revérification complète (demande de Fabien, même jour)** — les diffs de `d1d7214c` et
+  `a10d9651` relus contre l'ANCIEN code, ligne à ligne. Confirmé : les cinq `updateGlobalProgress`
+  retirées commençaient par `return;` ou étaient vides (describer:622, synthesizer:351,
+  enhancer:465, reader:397, no-op audio:295) et plus aucun appel n'en reste ; la `Map` de repli de
+  l'enhancer et du reader n'était remplie que dans la branche « WamaApp absent », jamais prise.
+  Aucun nom supprimé n'est encore lu. Ordre de chargement MESURÉ sur les 13 pages rendues : chaque
+  JS porté vient après `wama-app-base.js`, sauf `filemanager.js`, dont le Poller naît à
+  `DOMContentLoaded`. Le synthesizer ne suit plus que les cards en cours au chargement : vérifié
+  chemin par chemin (▶, réglages + relance, « Tout démarrer », ajout, imports) — tous rechargent.
+  Navigateur (Playwright, 13 pages, lecture seule) : **zéro erreur JS** ; barre globale ≈ 1 appel
+  / 1,5 s, l'Imager 1 appel pour ses deux barres ; les deux suivis de miroir s'arrêtent après un
+  relevé. Tests : 1840 (11 apps + transcriber + Lab) dont les 28 rouges sont tous des montages
+  réseau de `wama.filemanager` lancés depuis le venv Windows — **81/81 OK côté WSL** ; les 5 rouges
+  communs sont la garde de langue, dépassée par des identifiants d'AUTRES commits (`git blame` :
+  `982229c3`, `0aff7691`, `f62845cd`… — aucun des miens), rouge aussi dans un worktree de HEAD.
+  **Corrigé** : (1) registre du `Poller` — inscrit par `start`, retiré quand il ne suit plus rien
+  (un Poller créé par geste — `followDuring`, conversion rapide — y restait jusqu'au rechargement),
+  test `test_a_poller_started_again_after_stopping_still_catches_up_when_shown` + contre-épreuve ;
+  (2) miroirs du model manager — une erreur sans sauvegarde suivie arrête le suivi, comme le
+  relevé unique d'avant (il réessayait toutes les 3 s).
+  **⚠ Écarts consignés** : `a10d9651` a emporté DEUX hunks non commités d'une autre instance dans
+  `cam_analyzer/js/index.js` (+ copie servie) — saisies de calibration barrées, aides « le Tracking
+  360° passe périmé » — par un `git add` du fichier entier ; leur partie Python et le CHANGELOG sont
+  dans `eeaeedb9`, HEAD est cohérent, l'attribution non. `setupAutoRefresh` du gestionnaire de
+  fichiers n'est plus appelé depuis le 2026-03-17 (`51e37275`, retrait VOLONTAIRE contre un
+  repli/dépli continu) : l'« arbre » porté est du code mort, seule la conversion rapide tournait.
+  L'adoption des résultats antérieurs écrit des lignes à la LECTURE d'une page : 9 apps touchées
+  (+ la jumelle `enhancer_01`), conformes à l'applicabilité (mesuré), doublon impossible
+  (`process_run_unique_line`).
+- ⏳ Restes ajoutés : `wama-schedule.js` relit `/common/schedule/active/` à CHAQUE mutation de la
+  file (`MutationObserver`, anti-rebond 400 ms) — ≈ 1 appel/s tant qu'une card avance (13 en 16 s
+  sur le Transcriber) ; ce n'est pas un `setInterval`, la garde ne le voit pas ; le reader
+  redemande card + progression à chaque tour (comportement antérieur) ; `setupAutoRefresh` /
+  `checkForChanges` morts à retirer ou rappeler (décision) ; gestes de lancement non rejoués au
+  navigateur (chargements seulement).
 
 ## §PALIER — 2026-10-13, « GRILLE FONCTIONNELLE DES APPS PORTÉES : TEST OU BUG ? » — ✅ LIVRÉ — 🔚 file `gpu` du nocturne (décision)
 

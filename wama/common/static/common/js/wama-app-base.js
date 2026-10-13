@@ -131,10 +131,11 @@
     this.maxFails = cfg.maxFails || 10;
     this.immediate = !!cfg.immediate;
     this._pollers = new Map();   // id → { timer, inFlight, fails }
-    pollerRegistry.add(this);
   }
 
-  // Tous les pollers vivants de la page : le retour au premier plan les relance d'un tour.
+  // Les pollers qui suivent AU MOINS un id : le retour au premier plan les relance d'un tour.
+  // Inscrits par `start`, retirés quand ils ne suivent plus rien — un Poller créé par geste (suivi
+  // pendant le traitement de l'inspecteur, conversion rapide) n'y reste pas jusqu'au rechargement.
   const pollerRegistry = new Set();
   function pageHidden() { return typeof document !== 'undefined' && document.hidden === true; }
   if (typeof document !== 'undefined' && document.addEventListener) {
@@ -205,6 +206,7 @@
   Poller.prototype.start = function (id) {
     if (this._pollers.has(id)) return;
     this._pollers.set(id, { timer: null, inFlight: false, fails: 0 });
+    pollerRegistry.add(this);
     if (this.immediate) this._tick(id);
     else this._schedule(id);
   };
@@ -216,11 +218,13 @@
   Poller.prototype.stop = function (id) {
     const st = this._pollers.get(id);
     if (st) { clearTimeout(st.timer); this._pollers.delete(id); }
+    if (!this._pollers.size) pollerRegistry.delete(this);
   };
 
   Poller.prototype.stopAll = function () {
     this._pollers.forEach(function (st) { clearTimeout(st.timer); });
     this._pollers.clear();
+    pollerRegistry.delete(this);
   };
 
   // ── État vide d'un conteneur de file ─────────────────────────────────

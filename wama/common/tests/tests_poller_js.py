@@ -93,6 +93,19 @@ class PollerLoopTest(SimpleTestCase):
         self.v8.eval("document.hidden = false; fire('visibilitychange');")
         self.assertEqual(2, self._js('calls.length'), 'coming back asks at once, without waiting')
 
+    def test_a_poller_started_again_after_stopping_still_catches_up_when_shown(self):
+        """Un Poller ne reste inscrit au retour de l'onglet que tant qu'il suit un id (2026-10-13 :
+        ceux créés par geste — suivi de l'inspecteur, conversion rapide — y restaient jusqu'au
+        rechargement). Relancé après `stopAll`, il doit s'y réinscrire."""
+        self.v8.eval("""var p = new WamaApp.Poller({urlTemplate: '/x/0/', immediate: true});
+                        p.start(1); answer({}); p.stopAll();
+                        p.start(2); answer({});""")
+        self.v8.eval('document.hidden = true; tick();')
+        self.assertEqual(2, self._js('calls.length'))
+        self.v8.eval("document.hidden = false; fire('visibilitychange');")
+        self.assertEqual(['/x/1/', '/x/2/', '/x/2/'], self._js('calls'),
+                         'a poller restarted after stopAll was forgotten by the tab return')
+
     def test_a_request_turn_follows_the_same_rules_and_awaits_its_on_data(self):
         """`request` (2026-10-13, cam_analyzer) : un tour qui n'est pas un GET JSON — un POST, un
         chargeur qui rend lui-même. Mêmes règles : jamais deux en vol, et un `onData` asynchrone

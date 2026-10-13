@@ -2990,7 +2990,9 @@ document.addEventListener('DOMContentLoaded', function() {
             interval: 3000,
             immediate: true,
             maxFails: Infinity,
-            onError: () => { /* Silencieux : le polling reprendra au prochain tour / rechargement. */ },
+            // Silencieux. Une sauvegarde suivie continue d'être suivie (le tour suivant réessaie) ;
+            // sinon on s'arrête, comme le relevé unique d'avant — il reprendra au rechargement.
+            onError: () => { if (!following) poller.stop('mirror'); },
             onData: (_key, data) => {
                 // Un avancement encore en cache prime ; sinon, le bilan de la dernière exécution.
                 render(data.progress, data.last);
