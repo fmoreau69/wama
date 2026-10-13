@@ -168,11 +168,13 @@ def upload_media_from_url(url, output_path):
     lot, ingest déclaratif) : la cible est validée AVANT toute sortie réseau — sans quoi le
     serveur interroge le réseau interne avec ses droits à lui (SSRF, cf. `url_guard`).
     """
-    from wama.common.utils.url_guard import verifier_url
+    from wama.common.utils.url_guard import UrlRefusee, verifier_redirections, verifier_url
+    from wama.common.utils.url_ingest import is_media_platform
     verifier_url(url)
     try:
-        # YouTube and similar platforms
-        if 'youtube.com' in url or 'youtu.be' in url:
+        # Plateformes média : la MÊME table que la décision page/média (`url_ingest`) — une
+        # URL Vimeo ou SoundCloud partait jusque-là au GET générique, qui rendait sa page HTML.
+        if is_media_platform(url):
             ydl_opts = {
                 # Download BEST quality: best video + best audio, merged to mp4
                 # bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best
@@ -217,7 +219,9 @@ def upload_media_from_url(url, output_path):
                         final_path = base_path
                     return final_path
             except Exception as yerr:
-                # Fallback to pytube if available
+                # Repli pytube : YouTube seulement (pytube ne connaît pas les autres plateformes).
+                if not ('youtube.com' in url or 'youtu.be' in url):
+                    raise ValueError(f"Platform download failed (yt_dlp): {yerr}")
                 try:
                     from pytube import YouTube
                     print(f"[YouTube Download] yt_dlp failed, trying pytube fallback: {yerr}")
@@ -263,6 +267,10 @@ def upload_media_from_url(url, output_path):
             'Referer': url,
         }
         response = requests.get(url, stream=True, timeout=20, headers=headers)
+        # Le GET suit les redirections : chaque saut se re-valide, comme la lecture de page
+        # (`url_ingest._get_page`) — sinon une adresse publique redirige le serveur vers son
+        # réseau interne. Le refus remonte TEL QUEL (pas emballé en « Download failed »).
+        verifier_redirections(response)
         response.raise_for_status()
         filename = _filename_from_response(url, response)
         unique_filename = get_unique_filename(output_path, filename)
@@ -274,6 +282,8 @@ def upload_media_from_url(url, output_path):
                     f.write(chunk)
         return save_path
 
+    except UrlRefusee:
+        raise
     except Exception as e:
         raise ValueError(f"Download failed: {e}")
 

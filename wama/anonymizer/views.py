@@ -43,7 +43,6 @@ from ..accounts.views import get_or_create_anonymous_user
 from ..settings import MEDIA_ROOT, MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
 from ..common.utils.console_utils import get_console_lines
 from ..common.utils.video_utils import get_media_info
-from ..common.utils.video_utils import upload_media_from_url
 from ..common.utils.media_paths import get_app_media_path, ensure_app_media_dirs
 # Le chemin d'un fichier d'app se COMPOSE (`get_relative_media_path`), il ne
 # s'écrit pas — préalable au domicile unique par utilisateur (2026-09-11).
@@ -97,8 +96,11 @@ class IndexView(View):
                         user_input_dir.mkdir(parents=True, exist_ok=True)
 
                         if is_url(path):
-                            video_path = upload_media_from_url(path, str(user_input_dir))
-                            origin = {'kind': 'url', 'ref': path, 'source_path': None}
+                            # La SOURCE est enregistrée, le récepteur commun la télécharge dès
+                            # la création hors requête (`source_ingest`, 2026-10-13) — même
+                            # geste que `batch_create`.
+                            added.append(_media_from_url(path, user, request.POST))
+                            continue
                         else:
                             # Confinement (05/09) : ce site lisait N'IMPORTE QUEL chemin serveur
                             # cité dans un .txt — le seul du parc sans garde, alors que le
@@ -127,6 +129,10 @@ class IndexView(View):
                 return JsonResponse({'success': True, 'added': added, 'errors': failed})
 
             # Case 2: direct upload (file or URL)
+            media_url = (request.POST.get('media_url') or '').strip()
+            if not media_file and media_url:
+                return JsonResponse({'success': True,
+                                     'media': _media_from_url(media_url, user, request.POST)})
             video_path = upload_from_url(request, user, media_file)
             media_result = process_media(
                 video_path, user,
@@ -213,11 +219,20 @@ def process_media(video_path, user, post=None):
         return str(e)
 
 
-def upload_from_url(request, user, media_file=None):
-    """Handle media from either a received file (`media_paths.ReceivedInput` : téléversé ou
-    désigné) or a form URL."""
-    media_url = request.POST.get('media_url')
+def _media_from_url(url, user, post=None):
+    """Un Media créé depuis une URL : la source est enregistrée, le fichier arrive par le
+    récepteur commun dès la création, hors requête (`source_ingest`), avec ses métadonnées
+    (`derive` déclaré dans `WAMA_INGEST`). Même forme que les lignes de `batch_create`."""
+    filename = url.split('?')[0].rstrip('/').split('/')[-1] or url
+    media = Media.objects.create(user=user, title=filename, source_url=url, file='',
+                                 file_ext='', **new_media_settings(user, post=post))
+    return {'is_valid': True, 'id': media.id, 'name': filename, 'source_url': url,
+            'username': user.username}
 
+
+def upload_from_url(request, user, media_file=None):
+    """Handle media from a received file (`media_paths.ReceivedInput` : téléversé ou désigné).
+    Une URL ne passe plus par ici : elle devient une SOURCE (`_media_from_url`)."""
     # Use user-specific input directory
     output_path = get_app_media_path('anonymizer', user.id, 'input')
     output_path.mkdir(parents=True, exist_ok=True)
@@ -229,8 +244,6 @@ def upload_from_url(request, user, media_file=None):
         return media_file.local_path
     if media_file:
         return handle_uploaded_media_file(media_file.value, output_path)
-    elif media_url:
-        return upload_media_from_url(media_url, output_path)
 
     raise ValueError("No media file or URL provided.")
 

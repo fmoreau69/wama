@@ -50,7 +50,6 @@ def enhance_media(self, enhancement_id: int, process: str = None):
     _forget_lost(Enhancement, enhancement_id)
     run_item_task(self, app_id='enhancer', model=Enhancement, item_id=enhancement_id,
                   pipeline=PIPELINE, processes={'generate': _enhance_media, 'output': _output},
-                  ingest_derive=_derive_media_type,
                   # Le modèle résolu EST une clé de catalogue (route F4b ⑤, 2026-10-06).
                   vram_needed=lambda e: _vram_needed(_media_model(e)),
                   model_key=_media_model,

@@ -63,12 +63,13 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
     #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
     STATUS_CHOICES = JOB_STATUS_CHOICES
     # Ingest URL déclaratif — consommé par la brique commune
-    # common/utils/source_ingest.ensure_local_input() au démarrage de la tâche.
+    # common/utils/source_ingest.ensure_local_input() dès la création ; `derive` pose media_type.
     WAMA_INGEST = {
         'source': 'source_url',
         'target': 'input_file',
         'mode': 'media',
         'name_field': 'input_filename',
+        'derive': 'wama.converter.tasks._derive_media_type',
     }
 
     user          = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conversion_jobs')

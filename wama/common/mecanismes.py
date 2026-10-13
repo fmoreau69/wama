@@ -1119,7 +1119,13 @@ MECHANISMS = (
               # faux positif que le middleware, cf. plus haut).
               symbol='conversation_store'),
     Mechanism('source_ingest', 'Ingest de source',
-              "Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST",
+              "Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST. "
+              "⭐ Depuis le 2026-10-13 (décision de Fabien) : DÈS LA CRÉATION, hors requête — "
+              "récepteur `post_save` sur tout modèle à WAMA_INGEST → tâche `common.ingest_source` "
+              "(file default) ; le lancement rattrape un échec et attend un téléchargement en "
+              "cours (verrou partagé). `derive` (chemin pointé) DÉCLARÉ dans la spec ; une page "
+              "web gardée en `.html` ; nature d'une URL AVANT téléchargement : "
+              "`url_ingest.url_nature` (même table que la décision page/média)",
               'wama/common/utils/source_ingest.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/utils/url_ingest.py',)),
     # Garde de SORTIE, distincte de l'ingest : l'ingest sait CHERCHER, celle-ci dit OÙ il a le

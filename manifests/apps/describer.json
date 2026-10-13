@@ -799,7 +799,9 @@
         ".md",
         ".csv",
         ".pdf",
-        ".docx"
+        ".docx",
+        ".html",
+        ".htm"
       ],
       "url_name": "describer:index",
       "verbose_name": "Describer - AI Content Description"
@@ -1605,6 +1607,7 @@
         }
       ],
       "ingest": {
+        "derive": "wama.describer.workers._derive_detected_type",
         "mode": "smart",
         "name_field": "filename",
         "size_field": "file_size",

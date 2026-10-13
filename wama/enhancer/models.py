@@ -18,11 +18,12 @@ class Enhancement(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
 
     objects = ScopedManager()
     # Ingest URL déclaratif — consommé par la brique commune
-    # common/utils/source_ingest.ensure_local_input() au démarrage de la tâche.
+    # common/utils/source_ingest.ensure_local_input() dès la création ; `derive` pose media_type.
     WAMA_INGEST = {
         'source': 'source_url',
         'target': 'input_file',
         'mode': 'media',
+        'derive': 'wama.enhancer.tasks._derive_media_type',
     }
 
     MEDIA_TYPE_CHOICES = [

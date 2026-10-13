@@ -179,7 +179,6 @@ def process_single_media(self, media_id, force_individual=False, process=None):
                       pipeline=PIPELINE,
                       processes={'detect': _detect, 'blur': _blur, 'output': _output},
                       notify_label='Anonymizer', only=process,
-                      ingest_derive=_ingested_metadata,
                       progress_fn=lambda item, pct, msg: set_media_progress(item.pk, pct))
     finally:
         # Release dedup locks — succès, échec, arrêt : dans tous les cas.

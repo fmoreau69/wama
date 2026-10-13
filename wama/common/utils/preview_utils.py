@@ -283,9 +283,35 @@ def _input_preview(app_name, instance, request):
         data = _media_face(url, request)
         data.update(_registered_metadata(app_name, instance, request, url))
         return data
+    if group != 'prompt':
+        pending = _source_url_face(app_name, instance)
+        if pending:
+            return pending
     txt = str(d.get('source_text') or '').strip()
     name = 'Prompt' if group == 'prompt' else 'Entrée'
     return {'name': name, 'mime_type': 'text/plain', 'content': txt} if txt else None
+
+
+def _source_url_face(app_name, instance):
+    """Face Entrée d'une card créée avec une URL dont le fichier n'est pas encore là : l'URL et
+    l'état du téléchargement (`source_ingest.ingest_state`). La card disait « Aucun aperçu
+    disponible » — relevé par Fabien le 2026-10-13 sur une page GitHub (Describer #1923).
+    Même règle que pour un fichier (`_work_natures`) : une URL dont la nature connue n'est pas
+    celle d'un port de TRAVAIL désigne une référence, qui n'est jamais l'Entrée (§F3b)."""
+    from wama.common.utils.source_ingest import ingest_state
+    from wama.common.utils.url_ingest import url_nature
+    state = ingest_state(instance)
+    if not state:
+        return None
+    nature, natures = url_nature(state['url']), _work_natures(app_name)
+    if nature and natures and nature not in natures:
+        return None
+    if state['state'] == 'failed':
+        status = f"Échec du téléchargement : {state['error']}\nIl sera retenté au lancement."
+    else:
+        status = "Téléchargement en cours…"
+    return {'name': 'Entrée', 'mime_type': 'text/plain', 'source_url': state['url'],
+            'ingest_state': state['state'], 'content': f"Source : {state['url']}\n{status}"}
 
 
 def _registered_metadata(app_name, instance, request, url):

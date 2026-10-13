@@ -123,6 +123,17 @@ class CommonConfig(AppConfig):
             logging.getLogger(__name__).debug(
                 'Récepteurs de copie de lecture non enregistrés', exc_info=True)
 
+        # ENTRÉE PAR URL (2026-10-13, décision de Fabien) : toute card créée avec une URL voit son
+        # entrée téléchargée dès sa création, hors requête — sur tout modèle qui déclare
+        # `WAMA_INGEST`. Même forme que ci-dessus : un récepteur générique, aucune app n'écrit rien.
+        try:
+            from wama.common.utils.source_ingest import register_source_ingest_receivers
+            register_source_ingest_receivers()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).debug(
+                "Récepteurs d'ingest d'URL non enregistrés", exc_info=True)
+
         # Registres catalogués : l'import DÉCLARE, il n'actualise rien (voir `registries.py`).
         # C'est ce qui donne aux pages catalogue leur bouton sans une ligne d'UI par page.
         try:

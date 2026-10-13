@@ -2568,6 +2568,7 @@
         }
       ],
       "ingest": {
+        "derive": "wama.enhancer.tasks._derive_media_type",
         "mode": "media",
         "source": "source_url",
         "target": "input_file"

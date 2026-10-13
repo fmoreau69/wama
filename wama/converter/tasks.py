@@ -33,7 +33,7 @@ def convert_media_task(self, job_id: int, process: str = None):
     from wama.common.utils.task_skeleton import run_item_task
     from .function_specs import PIPELINE
     run_item_task(self, app_id='converter', model=ConversionJob, item_id=job_id,
-                  pipeline=PIPELINE, processes=PROCESSES, ingest_derive=_derive_media_type,
+                  pipeline=PIPELINE, processes=PROCESSES,
                   notify_label='Converter', only=process)
 
 

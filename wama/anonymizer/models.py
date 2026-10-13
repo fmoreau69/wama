@@ -30,9 +30,10 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # mutations inchangées (filtrées par user) → lecture seule par construction.
     objects = ScopedManager()
 
-    # Ingest commun (source_ingest.ensure_local_input, appelé en tête de tâche) :
-    # télécharge source_url vers le FileField si le fichier n'est pas encore local.
-    WAMA_INGEST = {'source': 'source_url', 'target': 'file', 'mode': 'media'}
+    # Ingest commun (source_ingest.ensure_local_input, dès la création) : télécharge
+    # source_url vers le FileField ; `derive` relève les métadonnées du fichier reçu.
+    WAMA_INGEST = {'source': 'source_url', 'target': 'file', 'mode': 'media',
+                   'derive': 'wama.anonymizer.tasks._ingested_metadata'}
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="media")
     title = models.CharField(max_length=255, blank=True)

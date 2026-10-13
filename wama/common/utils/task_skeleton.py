@@ -461,7 +461,7 @@ def _selected_steps(app_id, item, process, pipeline, processes, resolved_key, on
 
 def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                   vram_needed=None, model_key=None,
-                  error_field: str = 'error_message', ingest_derive=None,
+                  error_field: str = 'error_message',
                   notify_label: str = None, progress_fn=None,
                   pipeline=None, processes=None, only: str = None):
     """Exécute la glu `process` dans le squelette conventionnel. Voir le contrat en tête de
@@ -551,9 +551,12 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         except Exception as exc:      # prévenir est un confort, jamais une condition
             logger.debug('[%s] annonce de téléchargement impossible : %s', app_id, exc)
 
+    # L'entrée d'une card créée avec une URL est téléchargée DÈS LA CRÉATION (`source_ingest`,
+    # 2026-10-13) ; ici, le rattrapage : un téléchargement échoué est retenté, un téléchargement
+    # en cours est ATTENDU. Les champs propres à l'app viennent du `derive` déclaré par la spec.
     try:
         from wama.common.utils.source_ingest import ensure_local_input
-        ensure_local_input(item, console=ctx.console, derive=ingest_derive)
+        ensure_local_input(item, console=ctx.console)
     except Exception as exc:
         logger.warning(f"[{app_id}] ensure_local_input({item_id}) : {exc}")
 

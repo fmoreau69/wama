@@ -907,14 +907,20 @@ def batch_create(request):
             quality_mode='quality' if row['use_enhancer'] else 'fast',
             bbox_shift=row['bbox_shift'],
         )
-        # Standalone : rattacher l'audio s'il résout sous MEDIA_ROOT (partage, pas de copie)
+        # Standalone : rattacher l'audio s'il résout sous MEDIA_ROOT (partage, pas de copie) ;
+        # une URL devient la SOURCE, téléchargée dès la création (`source_ingest`, WAMA_INGEST) —
+        # elle était ignorée sans un mot jusqu'au 2026-10-13, et la card partait sans audio.
         if row['mode'] == 'standalone' and row['audio_path']:
             from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
-            try:
-                _target, rel = resolve_under_media_root(row['audio_path'])
-                job.audio_input.name = rel
-            except (OutsideMediaRoot, FileNotFoundError):
-                pass
+            if row['audio_path'].lower().startswith(('http://', 'https://')):
+                job.source_url = row['audio_path']
+            else:
+                try:
+                    _target, rel = resolve_under_media_root(row['audio_path'])
+                    job.audio_input.name = rel
+                except (OutsideMediaRoot, FileNotFoundError):
+                    warnings.append(f"Ligne {row.get('line_num') or '?'} : audio introuvable — "
+                                    f"{row['audio_path']}")
         if avatar:
             job.avatar_upload = avatar.value
         job.save()

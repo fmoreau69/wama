@@ -200,8 +200,8 @@ ré-inclure : double BroadcastChannel → l'exclusivité audio fait taire son pr
 <script>
 // Import URL depuis la card d'entrée : réutilise le FORMALISME BATCH commun.
 // L'URL = un batch d'1 ligne → même parseur + consolidation qu'un fichier batch
-// (batch_create crée la Description avec source_url, téléchargée au démarrage de
-// la tâche). initUrlImport (commun) gère input/bouton/Entrée/spinner ; ingestText
+// (batch_create crée la Description avec source_url, téléchargée dès la création
+// hors requête — source_ingest). initUrlImport (commun) gère input/bouton/Entrée/spinner ; ingestText
 // (commun) pousse l'URL dans le pipeline batch. Aucune route serveur dédiée.
 document.addEventListener('DOMContentLoaded', function () {
     if (!window.WamaApp) return;

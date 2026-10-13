@@ -19,7 +19,7 @@ from .models import (Enhancement, AudioEnhancement,
                      BatchAudioEnhancement, BatchAudioEnhancementItem)
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.console_utils import get_console_lines
-from ..common.utils.video_utils import upload_media_from_url, get_media_info
+from ..common.utils.video_utils import get_media_info
 from ..common.utils.queue_duplication import release_card_files, duplicate_instance
 from ..common.utils.scoping import visible_or_404
 
@@ -360,78 +360,24 @@ def upload(request):
     image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic']
     video_extensions = ['.mp4', '.webm', '.mkv', '.flv', '.gif', '.avi', '.mov', '.mpg', '.qt', '.3gp']
 
-    # Handle URL download
+    # URL : la SOURCE est enregistrée, le récepteur commun la télécharge dès la création, HORS
+    # de la requête (`source_ingest`, 2026-10-13) — même geste que `batch_create`. Une nature
+    # connue d'avance hors image/vidéo est refusée ici ; inconnue, le `derive` la pose à l'arrivée.
     if media_url and not file:
+        from wama.common.utils.url_ingest import url_nature
+        nature = url_nature(media_url)
+        if nature and nature not in ('image', 'video'):
+            return JsonResponse({'error': 'Format non supporté'}, status=400)
+        enhancement = Enhancement.objects.create(
+            user=user, media_type=nature, source_url=media_url,
+            **_deposit_settings(user, request.POST),
+        )
         try:
-            import tempfile
-            from django.core.files import File
-
-            logger.info(f"[Enhancer] Downloading media from URL: {media_url}")
-
-            # Brique COMMUNE `work_dir` (2026-08-25) : le nettoyage est porté par le `with`.
-            # Il était ici recopié DEUX fois (format refusé, puis chemin nominal) et manquait
-            # au troisième cas — celui où l'ingestion lève. `os.rmdir` refusait de plus un
-            # dossier NON VIDE : un `.part` laissé par yt_dlp suffisait à faire échouer le
-            # nettoyage, et l'`except OSError: pass` avalait l'erreur.
-            from wama.common.utils.work_dir import work_dir
-            with work_dir('enhancer_url') as temp_dir:
-                downloaded_path = upload_media_from_url(media_url, str(temp_dir))
-                filename = os.path.basename(downloaded_path)
-
-                logger.info(f"[Enhancer] Downloaded to: {downloaded_path}")
-
-                # Detect media type
-                file_ext = os.path.splitext(filename)[1].lower()
-                if file_ext in image_extensions:
-                    media_type = 'image'
-                elif file_ext in video_extensions:
-                    media_type = 'video'
-                else:
-                    logger.error(f"Unsupported format: {file_ext}")
-                    return JsonResponse({'error': 'Format non supporté'}, status=400)
-
-                logger.info(f"Detected media type: {media_type}")
-
-                # Create enhancement with the downloaded file
-                with open(downloaded_path, 'rb') as f:
-                    django_file = File(f, name=filename)
-
-                    enhancement = Enhancement.objects.create(
-                        user=user,
-                        media_type=media_type,
-                        input_file=django_file,
-                        **_deposit_settings(user, request.POST),
-                    )
-
-            logger.info(f"Created Enhancement ID: {enhancement.id}")
-
-            # Wrap in batch-of-1
-            try:
-                _wrap_enhancement_in_batch(enhancement)
-            except Exception:
-                pass
-
-            # Analyze file
-            try:
-                _analyze_media(enhancement)
-                logger.info(f"Media analyzed: {enhancement.width}x{enhancement.height}")
-            except Exception as e:
-                logger.warning(f"Could not analyze media: {e}")
-
-            return JsonResponse({
-                'id': enhancement.id,
-                'media_type': enhancement.media_type,
-                'input_url': enhancement.input_file.url,
-                'input_filename': enhancement.get_input_filename(),
-                'width': enhancement.width,
-                'height': enhancement.height,
-                'file_size': enhancement.file_size,
-                'status': enhancement.status,
-            })
-
-        except Exception as e:
-            logger.error(f"[Enhancer] URL download failed: {e}")
-            return JsonResponse({'error': f'Download failed: {str(e)}'}, status=400)
+            _wrap_enhancement_in_batch(enhancement)
+        except Exception:
+            pass
+        return JsonResponse({'id': enhancement.id, 'media_type': enhancement.media_type,
+                             'source_url': media_url, 'status': enhancement.status})
 
     # Handle regular file upload
     # Detect media type

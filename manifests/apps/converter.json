@@ -2283,6 +2283,7 @@
         }
       ],
       "ingest": {
+        "derive": "wama.converter.tasks._derive_media_type",
         "mode": "media",
         "name_field": "input_filename",
         "source": "source_url",

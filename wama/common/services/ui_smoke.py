@@ -1704,10 +1704,13 @@ def register_tree_drop_scenarios():
 #
 # Le scénario en fait donc sa mesure au lieu de la contourner. Il distingue trois familles
 # PAR LEUR COMPORTEMENT — jamais par une liste d'apps, qui dériverait dès la suivante :
-#   • URL DIFFÉRÉE (transcriber, converter, describer…) : l'URL entre par le pipeline de LOT
-#     commun (`WamaApp.initUrlImport` → `ingestText`), l'élément est créé avec sa source, et
-#     le téléchargement attend le démarrage de la tâche (`ensure_local_input`). Aucun octet
-#     ne sort à l'import : le geste est mesurable ENTIER, et il l'est.
+#   • URL DIFFÉRÉE (toutes les apps à bouton depuis le 2026-10-13) : l'URL entre par le
+#     pipeline de LOT commun (`WamaApp.initUrlImport` → `ingestText`), l'élément est créé avec
+#     sa source, et le téléchargement part AUSSITÔT, hors requête (`source_ingest`, tâche
+#     `common.ingest_source`) — où la garde refuse le témoin de bouclage. La requête d'import
+#     ne sort pas : le maillon « un élément apparaît » est mesurable ENTIER.
+#     ⚠ Le contrôle « un fichier s'est-il rempli ? » ci-dessous lit donc un téléchargement
+#     ASYNCHRONE (`WAMA_VERIFICATION §Geste 14`, note du 2026-10-13).
 #   • URL RÉSOLUE À L'IMPORT (anonymizer, enhancer, avatarizer — chacune son propre handler) :
 #     la vue télécharge tout de suite. La garde refuse le témoin local, l'app rend son motif,
 #     le scénario le RECONNAÎT et skippe EN LE NOMMANT. Le maillon « un élément apparaît »

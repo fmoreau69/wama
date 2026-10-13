@@ -2295,6 +2295,7 @@
         }
       ],
       "ingest": {
+        "derive": "wama.anonymizer.tasks._ingested_metadata",
         "mode": "media",
         "source": "source_url",
         "target": "file"

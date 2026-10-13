@@ -763,15 +763,15 @@ def batch_preview(request):
 def batch_create(request):
     """Crée des jobs depuis un fichier batch d'URLs/chemins.
 
-    Téléchargement eager : URL distante → upload_media_from_url ; chemin local
-    (sous MEDIA_ROOT) → copie. Chaque source → un ConversionJob PENDING (format
-    réglé ensuite via les réglages du batch). Consolidation par nature.
-    Les lignes en échec sont ignorées et reportées dans `warnings`.
+    URL distante → la SOURCE est enregistrée et téléchargée dès la création, HORS de la
+    requête, par le récepteur commun (`source_ingest`, 2026-10-13 — le converter était la seule
+    app à télécharger dans la requête : un lot d'URL tenait la requête ouverte, et une vidéo
+    longue dépassait la coupure de 120 s) ; chemin local (sous MEDIA_ROOT) → pointé ou copié.
+    Chaque source → un ConversionJob PENDING (format réglé ensuite via les réglages du batch).
+    Consolidation par nature. Les lignes en échec sont ignorées et reportées dans `warnings`.
     """
-    import os as _os
-    from django.conf import settings
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
-    from wama.common.utils.media_paths import get_app_media_path, reference_or_copy
+    from wama.common.utils.media_paths import reference_or_copy
 
     user = request.user
     try:
@@ -781,10 +781,6 @@ def batch_create(request):
     if not items:
         return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
 
-    media_root = Path(settings.MEDIA_ROOT).resolve()
-    dest_dir = get_app_media_path('converter', user.id, 'input')
-    dest_dir.mkdir(parents=True, exist_ok=True)
-
     job_ids = []
     for item in items:
         src = (item.get('path') or '').strip()
@@ -792,30 +788,36 @@ def batch_create(request):
             continue
         try:
             if src.startswith(('http://', 'https://')):
-                from wama.common.utils.video_utils import upload_media_from_url
-                before = set(_os.listdir(dest_dir))
-                upload_media_from_url(src, str(dest_dir))
-                new = sorted(set(_os.listdir(dest_dir)) - before)
-                if not new:
-                    warnings.append(f'Échec téléchargement : {src}')
+                # Nature connue AVANT le téléchargement (extension, plateforme : la table commune
+                # `url_ingest.url_nature`) ; inconnue (une page sans extension), c'est le `derive`
+                # déclaré qui la pose à l'arrivée du fichier. Le nom aussi arrive avec le fichier
+                # (`name_field` de la spec), d'où un `input_filename` vide ici.
+                from wama.common.utils.url_ingest import url_nature
+                from .utils.format_router import SUPPORTED_CONVERSIONS
+                nature = url_nature(src)
+                if nature and nature not in SUPPORTED_CONVERSIONS:
+                    warnings.append(f'Type non supporté : {src}')
                     continue
-                fname = new[0]
-                dpath = dest_dir / fname
-                rel = get_relative_media_path('converter', user.id, 'input', fname)
-                origin = {'kind': 'url', 'ref': src, 'source_path': None}
-            else:
-                from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
-                from wama.common.utils.provenance import kind_of
-                try:
-                    abs_src, src_rel = resolve_under_media_root(src)
-                except (OutsideMediaRoot, FileNotFoundError):
-                    warnings.append(f'Introuvable : {src}')
-                    continue
-                # Une ligne `-i` qui désigne un fichier DÉJÀ dans l'arbre de l'utilisateur est
-                # POINTÉE, plus recopiée (2026-09-23) : la brique décide, le site ne sait rien.
-                dpath, rel = reference_or_copy(abs_src, 'converter', user.id, 'input')
-                fname = dpath.name
-                origin = {'kind': kind_of(src_rel), 'ref': src_rel, 'source_path': abs_src}
+                media_type = detect_media_type((item.get('filename') or '').strip()) or nature
+                job = ConversionJob.objects.create(
+                    user=user, input_filename='', media_type=media_type or '',
+                    source_url=src, output_format='', status='PENDING',
+                )
+                job_ids.append(job.id)
+                continue
+
+            from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+            from wama.common.utils.provenance import kind_of
+            try:
+                abs_src, src_rel = resolve_under_media_root(src)
+            except (OutsideMediaRoot, FileNotFoundError):
+                warnings.append(f'Introuvable : {src}')
+                continue
+            # Une ligne `-i` qui désigne un fichier DÉJÀ dans l'arbre de l'utilisateur est
+            # POINTÉE, plus recopiée (2026-09-23) : la brique décide, le site ne sait rien.
+            dpath, rel = reference_or_copy(abs_src, 'converter', user.id, 'input')
+            fname = dpath.name
+            origin = {'kind': kind_of(src_rel), 'ref': src_rel, 'source_path': abs_src}
 
             media_type = detect_media_type(fname)
             if media_type is None:

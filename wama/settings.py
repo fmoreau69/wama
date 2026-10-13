@@ -821,6 +821,9 @@ if ENABLE_CELERY:
         # Copie de LECTURE d'une vidéo illisible par le navigateur (ffmpeg, CPU) : jamais la file
         # GPU, où elle attendrait derrière un traitement (2026-10-06).
         'common.make_playback_copy': {'queue': 'default'},
+        # Téléchargement de l'entrée d'une card créée avec une URL (réseau, CPU) : jamais la file
+        # GPU, où il attendrait derrière un traitement (2026-10-13, `source_ingest`).
+        'common.ingest_source': {'queue': 'default'},
         # Passe LLM de la prospection : GPU (Ollama hôte = même carte) en --pool=solo →
         # SÉRIALISÉE derrière tout traitement utilisateur, jamais en concurrence (2026-08-19).
         'model_manager.assess_proposed': {'queue': 'gpu', 'priority': _prio('_prospect_assess')},

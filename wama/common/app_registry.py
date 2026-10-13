@@ -1237,7 +1237,11 @@ APP_CATALOG = {
         'icon':        'fas fa-search-plus',
         'url_name':    'describer:index',
         'description': 'Description automatique d\'images, vidéos, fichiers audio et documents par LLM.',
-        'input_extensions': IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS + TEXT_EXTENSIONS,
+        # `.html`/`.htm` (2026-10-13) : une page web importée par URL est gardée telle quelle
+        # (`url_ingest`), et le backend texte la lit déjà (`describer/backends/text_backend.py`) —
+        # un `.html` déposé à la main était pourtant refusé.
+        'input_extensions': (IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS
+                             + TEXT_EXTENSIONS + ('.html', '.htm')),
         # `document`, pas `text` (correctif route §10.1, 2026-08-11) : les fichiers texte/PDF
         # que le describer DÉCRIT sont des documents de TRAVAIL — `text` fabriquait un port
         # prompt fantôme et le port travail perdait `document` (les extensions, elles, étaient

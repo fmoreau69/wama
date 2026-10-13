@@ -108,6 +108,23 @@ def make_playback_copy_task(rel):
     return make_playback_copy(rel)
 
 
+@shared_task(name='common.ingest_source')
+def ingest_source_task(app_label, model_name, pk):
+    """Télécharge l'entrée d'une card créée avec une URL (`source_ingest`, 2026-10-13 — décision
+    de Fabien : à la création, hors requête, sans seuil de taille). Mise en file par le récepteur
+    générique ; CPU et réseau seuls, jamais la file GPU. Idempotente et exclusive : une entrée
+    déjà là n'est pas refaite, un téléchargement en cours n'est pas doublé."""
+    from django.apps import apps as django_apps
+
+    from wama.common.utils.source_ingest import ingest_now
+    try:
+        instance = django_apps.get_model(app_label, model_name).objects.get(pk=pk)
+    except Exception as exc:
+        logger.debug(f"[source_ingest] {app_label}.{model_name}#{pk} introuvable ({exc})")
+        return None
+    return ingest_now(instance)
+
+
 @shared_task(name='common.refresh_registry')
 def refresh_registry(key: str):
     """Actualise UN registre catalogué, hors du processus web.

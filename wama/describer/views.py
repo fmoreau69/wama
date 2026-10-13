@@ -24,14 +24,10 @@ from django.utils.http import content_disposition_header
 from .models import Description, BatchDescription, BatchDescriptionItem
 from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 from ..accounts.views import get_or_create_anonymous_user
-from ..common.utils.video_utils import upload_media_from_url
 
 # Retiré par erreur le 2026-07-22 (portage de url_ingest) : les 9 `logger.*` de ce module levaient
 # NameError — dont l'import par URL dès sa 1ʳᵉ ligne. Tenu par `tests_unbound_names`.
 logger = logging.getLogger(__name__)
-
-# _fetch_html_as_text : lecture de page web portee au commun (reutilisable partout).
-from wama.common.utils.url_ingest import fetch_html_as_text as _fetch_html_as_text  # noqa: E402,F401
 
 def new_description_settings(user, app='describer', post=None) -> dict:
     """Options de création (style/langue/longueur) d'une description NAISSANTE : POST
@@ -288,80 +284,33 @@ def upload(request):
                                       f'{os.path.splitext(uploaded_file.name)[1] or uploaded_file.name}'},
                             status=400)
 
-    # Handle URL download
+    # URL : la SOURCE est enregistrée, le récepteur commun la télécharge dès la création, HORS
+    # de la requête (`source_ingest`, 2026-10-13) — même geste que `batch_create`. La nature
+    # exacte arrive avec le fichier (`derive` déclaré dans `WAMA_INGEST`).
     if media_url and not uploaded_file:
-        try:
-            import tempfile
-            from django.core.files import File
-
-            logger.info(f"[Describer] Downloading media from URL: {media_url}")
-
-            # Download to temp directory
-            # For plain HTML pages, extract readable text instead of saving raw markup.
-            # Media platform URLs (YouTube, Vimeo, …) serve text/html on HEAD but
-            # must go through upload_media_from_url (yt_dlp), so we skip the check for them.
-            # Brique COMMUNE `work_dir` (2026-08-25) : le nettoyage est porté par le `with`,
-            # donc garanti même si l'ingestion lève. L'ancien couple `os.remove` + `os.rmdir`
-            # ne tenait que sur le chemin heureux ET à un seul fichier près : `rmdir` refuse
-            # un dossier NON VIDE, et un `.part` laissé par yt_dlp suffisait à le faire
-            # échouer — l'`except OSError: pass` avalant l'erreur, le dossier restait.
-            from wama.common.utils.work_dir import work_dir
-            with work_dir('describer_url') as temp_dir:
-                # Ingestion URL (page web -> texte / media -> download) centralisee.
-                from wama.common.utils.url_ingest import fetch_url_content
-                downloaded_path = fetch_url_content(media_url, str(temp_dir))
-                filename = os.path.basename(downloaded_path)
-
-                logger.info(f"[Describer] Downloaded to: {downloaded_path}")
-
-                # Create the model with the downloaded file
-                ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-                detected_type = detect_type_from_extension(ext)
-
-                # Get options from request
-                output_style, output_language, max_length = _read_creation_options(request, user)
-
-                # Create description with the downloaded file
-                with open(downloaded_path, 'rb') as f:
-                    django_file = File(f, name=filename)
-                    file_size = os.path.getsize(downloaded_path)
-
-                    description = Description.objects.create(
-                        user=user,
-                        input_file=django_file,
-                        filename=filename,
-                        file_size=file_size,
-                        detected_type=detected_type,
-                        output_style=output_style,
-                        output_language=output_language,
-                        max_length=max_length,
-                    )
-
-            # Get file properties
-            properties = get_file_properties(description)
-            description.properties = properties
-            description.save()
-
-            logger.info(f"[Describer] Created Description ID: {description.id}")
-
-            _wrap_description_in_batch(description)
-
-            return JsonResponse({
-                'id': description.id,
-                'filename': description.filename,
-                'file_size': description.format_file_size(),
-                'detected_type': description.detected_type,
-                'type_icon': description.get_type_icon(),
-                'output_style': description.output_style,
-                'output_language': description.output_language,
-                'max_length': description.max_length,
-                'status': description.status,
-                'properties': description.properties,
-            })
-
-        except Exception as e:
-            logger.error(f"[Describer] URL download failed: {e}")
-            return JsonResponse({'error': f'Download failed: {str(e)}'}, status=400)
+        output_style, output_language, max_length = _read_creation_options(request, user)
+        fname = media_url.split('?')[0].rstrip('/').split('/')[-1] or media_url
+        description = Description.objects.create(
+            user=user,
+            source_url=media_url,
+            filename=fname,
+            detected_type=_source_nature(media_url, fname),
+            output_style=output_style,
+            output_language=output_language,
+            max_length=max_length,
+        )
+        _wrap_description_in_batch(description)
+        return JsonResponse({
+            'id': description.id,
+            'filename': description.filename,
+            'source_url': media_url,
+            'detected_type': description.detected_type,
+            'type_icon': description.get_type_icon(),
+            'output_style': description.output_style,
+            'output_language': description.output_language,
+            'max_length': description.max_length,
+            'status': description.status,
+        })
 
     # Handle regular file upload
     filename = uploaded_file.name
@@ -420,6 +369,19 @@ def detect_type_from_extension(ext):
     if ext in _DESCRIBER_AUD_EXTS:
         return 'audio'
     return 'document'
+
+
+def _source_nature(source, fname):
+    """Nature d'une ligne de lot AVANT son téléchargement. Une URL se lit d'abord par la table
+    commune (`url_ingest.url_nature` : une vidéo YouTube `watch?v=…` est une vidéo, pas un
+    document) ; sinon l'extension du nom ; à défaut, un document (une page web). La nature
+    EXACTE est posée au téléchargement, dès la création (`_derive_detected_type`)."""
+    from wama.common.utils.url_ingest import url_nature
+    nature = url_nature(source) if source.lower().startswith(('http://', 'https://')) else ''
+    if nature in ('image', 'video', 'audio'):
+        return nature
+    ext = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
+    return detect_type_from_extension(ext) if ext else 'document'
 
 
 def get_file_properties(description):
@@ -888,8 +850,7 @@ def batch_preview(request):
     from wama.common.utils.batch_parsers import batch_media_list_preview_response
 
     def _enrich(item):
-        ext_item = item['filename'].rsplit('.', 1)[-1].lower() if '.' in item['filename'] else ''
-        item['detected_type'] = detect_type_from_extension(ext_item) if ext_item else 'document'
+        item['detected_type'] = _source_nature(item.get('path') or '', item['filename'])
 
     return batch_media_list_preview_response(request, item_enricher=_enrich)
 
@@ -898,7 +859,8 @@ def batch_preview(request):
 def batch_import(request):
     """
     Create Description entries from a batch file of URLs/paths.
-    Files are not downloaded yet — download happens when each task starts.
+    Files are not downloaded in the request — the common receiver downloads each URL right
+    after creation, outside the request (`source_ingest`).
     """
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
 
@@ -917,8 +879,7 @@ def batch_import(request):
     for item in items:
         url_or_path = item['path']
         fname = url_or_path.split('/')[-1].split('\\')[-1] or url_or_path
-        ext_item = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
-        detected_type = detect_type_from_extension(ext_item) if ext_item else 'document'
+        detected_type = _source_nature(url_or_path, fname)
 
         desc = Description.objects.create(
             user=user,
@@ -977,8 +938,7 @@ def batch_create(request):
     for i, item in enumerate(items):
         url_or_path = item['path']
         fname = url_or_path.split('/')[-1].split('\\')[-1] or url_or_path
-        ext_item = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
-        detected_type = detect_type_from_extension(ext_item) if ext_item else 'document'
+        detected_type = _source_nature(url_or_path, fname)
 
         desc = Description.objects.create(
             user=user,

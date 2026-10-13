@@ -19,11 +19,12 @@ class Description(ProcessingTimeMixin, ScopedVisibility):
     """Model for a description/summarization task."""
 
     # Ingest média déclaratif commun (common/utils/source_ingest.ensure_local_input) :
-    # une URL/chemin dans source_url est téléchargée vers input_file. mode 'smart' =
-    # page web → texte lisible / média → download. (stopgap avant facette manifeste F5)
+    # une URL dans source_url est téléchargée vers input_file dès la création. mode 'smart' =
+    # page web → `.html` gardé / média → download ; `derive` pose la nature du fichier reçu.
     WAMA_INGEST = {
         'source': 'source_url', 'target': 'input_file', 'mode': 'smart',
         'name_field': 'filename', 'size_field': 'file_size',
+        'derive': 'wama.describer.workers._derive_detected_type',
     }
 
     #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.

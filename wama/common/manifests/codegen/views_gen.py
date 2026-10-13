@@ -326,6 +326,15 @@ def _nature(nom):
     cat = category_of_path(nom)
     return cat if cat in _TYPES_ENTREE else ''
 
+
+def _nature_url(url):
+    """Nature d'une URL AVANT son téléchargement — la table commune de `url_ingest.url_nature`
+    (plateforme média, extension), contrainte au même vocabulaire ; '' si elle ne la connaît
+    pas. Sans elle, une URL YouTube (`watch?v=…`) était classée par son « extension »."""
+    from wama.common.utils.url_ingest import url_nature
+    cat = url_nature(url)
+    return cat if cat in _TYPES_ENTREE else ''
+
 ''' if nature_champ else ''
 
     # ── Suppression physique : la PROPRIÉTÉ et le PARTAGE sont jugés par la brique ──
@@ -582,7 +591,7 @@ def upload(request):
         p_field = d['prompt_field']
         vide = (f"not str(kwargs.get('{p_field}') or '').strip()" if p_field else 'True')
         # URL d'un port (`WamaApp.addToQueue` la poste sous `source_url` quand l'élément peut la
-        # garder — même condition qu'au gabarit) : téléchargée AU LANCEMENT (`ensure_local_input`).
+        # garder — même condition qu'au gabarit) : téléchargée dès la création (`source_ingest`).
         has_url = 'source_url' in d['champ_noms']
         ligne_url = ("\n    _url = (request.POST.get('source_url') or '').strip()"
                      "\n    if f is None and _url:\n        kwargs['source_url'] = _url"
@@ -659,8 +668,9 @@ def batch_preview(request):
     #   `copy_into_app_input` (copie sûre + chemin relatif MEDIA_ROOT),
     #   `group_into_batches_by_nature` (règle générale de regroupement, conventions §9).
     #
-    # ⚠ UNE URL N'EST PAS TÉLÉCHARGÉE ICI. On enregistre la SOURCE et `ensure_local_input` la
-    # résout en tête de tâche (idempotent, WAMA_INGEST). Deux raisons, pas une : la requête ne
+    # ⚠ UNE URL N'EST PAS TÉLÉCHARGÉE ICI. On enregistre la SOURCE ; le récepteur commun
+    # (`source_ingest`, 2026-10-13) la télécharge dès la création, HORS de la requête, et
+    # `ensure_local_input` rattrape en tête de tâche (idempotent, WAMA_INGEST). Deux raisons : la requête ne
     # part pas chercher N fichiers distants sous le nez de l'utilisateur (le converter, lui,
     # télécharge en eager et un lot de 30 URL y tient la requête ouverte), et le seul chemin de
     # téléchargement reste celui qui passe par la garde SSRF. Une app SANS ingest déclaré le dit
@@ -672,7 +682,7 @@ def batch_preview(request):
                     obj.{_nom} = nom
                     obj.save(update_fields=['{_nom}'])""" if _nom else "pass")
     bc_nom_fichier = f"kwargs['{_nom}'] = _dest.name" if _nom else "pass"
-    bc_nature_url = (f"""nature = _nature(nom or src)
+    bc_nature_url = (f"""nature = _nature_url(src) or _nature(nom or src)
                 if nature:
                     kwargs['{nature_champ}'] = nature
                 else:

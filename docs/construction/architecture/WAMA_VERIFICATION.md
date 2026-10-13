@@ -881,6 +881,20 @@ constatent au clic :
 | **URL résolue à l'import** (le serveur télécharge tout de suite) | `anonymizer`, `converter`, `enhancer` | ⊘ la garde REFUSE le témoin de bouclage — **skip qui atteste que la garde est ARMÉE sur ce chemin** |
 | **champ sans bouton** (l'URL part avec le bouton primaire, geste GPU) | `composer`, `imager`, `avatarizer` | ⊘ skip nommé — hors session |
 
+> ⚠ **Constat corrigé le 2026-10-13 (mesuré au code, `MEDIA_STORAGE_TIERING §8.2` note 7)** —
+> la table ci-dessus est l'état du jour où le scénario a été écrit. Déjà avant ce 13/10, le code
+> ne la suivait plus : `anonymizer` et `enhancer` passaient par le pipeline de lot (URL différée,
+> régime « au lancement »), seul le `converter` téléchargeait dans la requête. **Depuis le 13/10,
+> les dix apps ont un seul fonctionnement** : l'élément est créé avec sa source, et le
+> téléchargement part AUSSITÔT, hors requête (`common.ingest_source`, file `default`). Pour le
+> scénario : le maillon « un élément apparaît » est mesurable pour TOUTES les apps à bouton
+> (converter compris) ; le témoin de bouclage est refusé par la garde **dans la tâche de fond**
+> — l'Entrée de la card dit « Échec du téléchargement : Cible interdite (adresse de bouclage) ».
+> ⚠ Le contrôle anti-SSRF « un fichier s'est-il rempli ? » lit désormais un téléchargement
+> ASYNCHRONE : lu trop tôt, il conclurait « rien » sur une app qui contournerait la garde. Toutes
+> les voies passent aujourd'hui par `ensure_local_input` (garde commune, redirections comprises) ;
+> durcir le scénario (attendre la fin de la tâche avant la mesure) reste à faire.
+
 > ⚠⚠ **Le cas qui justifie le scénario à lui seul : une app qui RÉUSSIT.** Si un `FileField` se
 > remplit depuis `127.0.0.1`, l'app n'appelle pas la garde commune — c'est une **SSRF**, et c'est
 > un **ÉCHEC**, pas un succès du geste. Le scénario ne le déduit pas du code : après fermeture du

@@ -424,52 +424,25 @@ def upload_youtube(request):
     settings_values = _deposit_settings(user, request.POST)
 
     try:
-        from ..common.utils.video_utils import download_youtube_audio
-        from django.core.files.base import ContentFile
-        import tempfile
-
-        # Créer un dossier temporaire pour le téléchargement
-        temp_dir = tempfile.mkdtemp()
-
-        # Télécharger l'audio
-        audio_path, video_title = download_youtube_audio(youtube_url, temp_dir)
-
-        # Lire le fichier audio
-        with open(audio_path, 'rb') as audio_file:
-            audio_content = audio_file.read()
-
-        # Créer un ContentFile pour Django
-        audio_name = f"{video_title[:100]}_youtube.wav"  # Limiter la longueur du nom
-        audio_django_file = ContentFile(audio_content, name=audio_name)
-
-        # Créer le transcript en STAGING (DRAFT) — comme l'upload de fichier :
-        # l'élément arrive en zone « À valider », pas directement en file.
+        # La SOURCE est enregistrée ; le récepteur commun télécharge l'audio dès la création,
+        # HORS de la requête (`source_ingest`, 2026-10-13) — même geste que `batch_create`.
+        # Le transcript arrive en STAGING (DRAFT) — comme l'upload de fichier : l'élément arrive
+        # en zone « À valider », pas directement en file.
         t = Transcript.objects.create(
             user=user,
-            audio=audio_django_file,
+            source_url=youtube_url,
+            audio='',
             status='DRAFT',
             **settings_values,
         )
-
-        # Nettoyer le dossier temporaire
-        try:
-            shutil.rmtree(temp_dir)
-        except OSError:
-            pass
-
-        _describe_audio(t)
         # Pas de _wrap_transcript_in_batch : reste en staging jusqu'à validation.
 
         return JsonResponse({
             'id': t.id,
-            'audio_url': t.audio.url,
-            'audio_label': os.path.basename(smart_str(t.audio.name)),
+            'source_url': youtube_url,
             'status': t.status,
             'staged': True,
-            'properties': t.properties,
-            'duration_display': t.duration_display,
             'preprocess_audio': t.preprocess_audio,
-            'video_title': video_title,
         })
 
     except Exception as e:
@@ -1460,7 +1433,8 @@ def batch_create(request):
     """
     Parse batch file (URLs/paths), create BatchTranscript + Transcript entries.
     Returns batch_id and list of transcript IDs.
-    Files are not downloaded yet — download happens when each task starts.
+    Files are not downloaded in the request — the common receiver downloads each URL right
+    after creation, outside the request (`source_ingest`).
     """
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
 
@@ -1495,7 +1469,7 @@ def batch_create(request):
         t = Transcript.objects.create(
             user=user,
             source_url=url_or_path,
-            audio='',  # empty — will be populated when task downloads the file
+            audio='',  # empty — populated by the common receiver right after creation
             backend=backend,
             hotwords=hotwords,
             preprocess_audio=preprocess_audio,

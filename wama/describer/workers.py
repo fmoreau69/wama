@@ -30,12 +30,13 @@ def describe_content(self, description_id: int, process: str = None):
     from .function_specs import PIPELINE
     _settle_nature(description_id)
     run_item_task(self, app_id='describer', model=Description, item_id=description_id,
-                  pipeline=PIPELINE, processes=PROCESSES, ingest_derive=_derive_detected_type,
+                  pipeline=PIPELINE, processes=PROCESSES,
                   notify_label='Describer', only=process)
 
 
 def _derive_detected_type(inst, path, fname):
-    """Hook `derive` de l'ingest URL (WAMA_INGEST) : renseigne detected_type au téléchargement."""
+    """Hook `derive` de l'ingest URL, DÉCLARÉ dans `WAMA_INGEST` : renseigne detected_type au
+    téléchargement (une page web gardée en `.html` est un document)."""
     ext = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
     from .views import detect_type_from_extension
     inst.detected_type = detect_type_from_extension(ext)
