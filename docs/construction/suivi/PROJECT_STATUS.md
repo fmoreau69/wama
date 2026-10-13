@@ -23232,3 +23232,49 @@ pour la session de routage cloud, et seulement déclarer le service pour qu'il p
 
 **Restent** : 🔚 Fabien pose la clé sur la page Sources (famille « Embeddings et RAG ») · puis,
 dans la session de routage : mesurer `/v1/models`, décider de la famille et de l'usage.
+
+## §PALIER — 2026-10-13, « LES APPS SOUS 100 % : DESCRIBER, ET DEUX FAUX VERTS » — ✅ LIVRÉ — 🔚 convergence des jumelles
+
+**Demande de Fabien** : « On termine les 3 apps entre 97 et 99 % ? » Mesure du jour : seul le
+describer était sous 100 % (97 %, depuis son pipeline `db859275`), mais `model_caps_ui` était VERT
+chez le transcriber et l'enhancer par un COMMENTAIRE annonçant le retrait de leur `WamaModelCaps`
+(preuves `transcriber/index.html:156`, `enhancer/index.html:326`). Décisions de Fabien : « corriger
+puis porter » ; describer : catalogue corrigé + appariement câblé + non-applicable dérivé, « mais on
+fait ça méticuleusement en profondeur, aligné avec le fonctionnement de WAMA ».
+
+**Livré (local, non poussé)** — détail : `INPUT_MODEL_MATCHING §6.12` et `§7` (2026-10-13), `R120` :
+- critère `model_caps_ui` / `input_match_ui` : un APPEL hors commentaire (`…init(`), `//` des
+  scripts de gabarit neutralisés ; `model_caps_ui` NON APPLICABLE quand aucune capacité des modèles
+  proposés ne nomme un réglage (`_capability_named_settings`), jamais sur un catalogue illisible ;
+- `cap_from` mode **`reads`** (grisé, raison dite, quand le moteur ne lit pas le réglage ; capacité
+  `params` ou `supports_*`) — reader (son `wireEngineParams` à la main ne grisait plus rien depuis
+  le 07/10), transcriber (`hotwords` ← `supports_hotwords`), enhancer (mode/force/NFE ← `params`,
+  plus par le NOM de Resemble) ; `show_if` gagne `not_equals` dans ses deux lecteurs ;
+- `WamaInputMatch.modalitySlot` (fichier jugé par sa nature, modèle par ses `modalities`) et
+  `input_match.select_match_meta` (domaine lu sur la déclaration du select ; transcriber et reader
+  ralliés, leurs copies retirées) ; describer câblé sur `asr_model` et `vision_model` ;
+- catalogue : un modèle Ollama qui voit/entend accepte `work_image`/`work_audio` en option ;
+- manifestes `enhancer`, `transcriber`, `reader` réexportés (seuls ces hunks).
+
+**Contrôles mesurés** : grille **10/10 à 100 %** (describer 98/98) ; comparaison critère par critère
+avec le rapport d'avant : seuls changent describer (`input_match_ui` → vrai, `model_caps_ui` →
+non applicable) et la jumelle `transcriber_01` (`model_caps_ui` vrai → FAUX : elle était verte par le
+même commentaire ; écart −5 pt, à la convergence). Contre-épreuves 7/7 rouges (`reads` neutralisé,
+`not_equals` retiré du JS, slot qui accepte tout, grille qui relit les commentaires, entrées gardées,
+catalogue de HEAD, moteur NeMo qui honorerait les mots-clés). Commit **`852789c2`**. Suite
+(common, describer, enhancer, transcriber, reader, model_manager) : **4556 tests, 15 F + 1 E, aucun
+de cette session** — tous déjà au palier du 12/10 sauf `tests_doc_plans` (`docs/dev/briques.md` :
+les fonctions de SATURATION cloud, `saturation_scope`/`provider_saturation`, travail d'une autre
+instance) ; `tests_identifier_language` : mes 17 fichiers n'ajoutent AUCUN identifiant français
+(compte HEAD = arbre, même collecteur) ; `check_docs` 0/0.
+
+**🔚 Restes nommés** : (1) un modèle installé par la prospection (`huggingface:aihpi/FrWhisper`,
+Linto, Kyutai) ne porte pas au catalogue les attributs `supports_*` de son moteur — le grisage des
+mots-clés le laisse intact (inconnu) ; à porter dans la chaîne capacités (`ROUTE §F4b`) ;
+(2) l'appariement du describer ne vit que tant que le fichier est dans l'entrée (consommé au
+dépôt) — sa modale ⚙ n'est pas appariée, comme chez le reader et le transcriber (le composer et
+l'avatarizer la rebranchent, `INPUT_MODEL_MATCHING §6.11`) ; (3) `tests_taxonomie_ollama.
+test_un_modele_distant_n_est_jamais_dit_a_telecharger` ROUGE, déjà au palier du 12/10 — libellés
+des modèles distants (`cloud_models`), étranger à cette session ; (4) jumelles : le générateur ne
+porte pas `cap_from` (« reads ») ni `modalitySlot` — chantier convergence.
+**Pendings système** : relancer gunicorn (gabarits, JS servis, critère) ; rien de poussé.
