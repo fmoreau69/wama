@@ -149,8 +149,10 @@ BRICKS_BY_TRIGGER = {
     # API ÉTROITE (même jour) : la 1ʳᵉ glu générée sur `plan_layout_update` + `apply_plan` lisait
     # des attributs inexistants des objets qu'ils rendent (`basis.text`, `plan.kind`) — le rôle ne
     # voit que les fonctions montrées. `adjust_layout` fait le tout et rend du HTML ou None.
+    # La mise en forme complète aussi rend ses MESSAGES (fond compris) : sur la seule règle
+    # (`full_layout_instruction`), deux glus de suite n'envoyaient pas le fond au modèle.
     ('surface_rerun', None): ('document_layout', ('adjustment_basis', 'adjust_layout',
-                                                  'full_layout_instruction', 'finish_document')),
+                                                  'full_layout_messages', 'finish_document')),
 }
 
 
@@ -558,6 +560,13 @@ def process_checks(code: str, nom_impose: str, spec: dict, all_specs: list,
     warnings += [f'écrit la sortie d\'un AUTRE process : {o}' for o in sorted(written & others)]
     read = {n.attr for n in ast.walk(fn) if isinstance(n, ast.Attribute)
             and isinstance(n.value, ast.Name) and n.value.id == 'item'}
+    # `getattr(item, 'champ', défaut)` LIT aussi le champ (2026-10-13 : la glu de mise en forme
+    # du Writer lisait `document_kind` ainsi ; le contrôle le disait « jamais lu », et deux tours de
+    # réparation n'ont rien pu y faire — le modèle avait raison, l'instrument tort).
+    read |= {n.args[1].value for n in ast.walk(fn) if isinstance(n, ast.Call)
+             and isinstance(n.func, ast.Name) and n.func.id == 'getattr' and len(n.args) >= 2
+             and isinstance(n.args[0], ast.Name) and n.args[0].id == 'item'
+             and isinstance(n.args[1], ast.Constant) and isinstance(n.args[1].value, str)}
     by_key = {s['key']: s for s in all_specs}
     warnings += [f'sortie d\'amont jamais lue : item.{o}'
                  for k in spec['depends_on'] for o in by_key.get(k, {}).get('outputs', ())

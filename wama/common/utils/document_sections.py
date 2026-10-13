@@ -19,7 +19,7 @@ CE QUE FAIT CETTE BRIQUE, et ce qu'elle ne fait pas :
 
 LES REPÈRES. Le HTML garde la trace de ses sections : chaque section du fond est rendue dans un
 élément `data-wama-section="<n>"` (n = rang dans le fond, 0 d'abord). Une mise en forme complète
-les demande (`full_layout_instruction`) ; sans eux, aucun ajustement n'est possible et le plan
+les demande (`full_layout_messages`) ; sans eux, aucun ajustement n'est possible et le plan
 dit de tout refaire. Ce sont aussi les ancres qu'attend le « clic dans l'aperçu → section ».
 
 LA BASE DE COMPARAISON vient des fichiers de révision GARDÉS (`revisions.keep_outputs`,
@@ -288,7 +288,7 @@ def adjust_layout(basis, text: str, ask, *, style: str = '', language: str = '',
     en forme (`basis`, rendu par `adjustment_basis`) — le rendu d'avant tel quel si le fond n'a
     pas changé, des sections retouchées sinon. None quand il faut TOUT refaire (pas de base, une
     structure qui change, des repères qui manquent, une réponse du modèle inutilisable) : la glu
-    fait alors sa mise en forme complète (`full_layout_instruction`, `finish_document`).
+    fait alors sa mise en forme complète (`full_layout_messages`, `finish_document`).
 
     `ask(messages) -> texte` : l'appel au modèle choisi par la glu, pour les seules sections à
     remettre en forme. Rien d'autre n'est appelé : un bout de phrase changé se remplace sans
@@ -326,6 +326,23 @@ def full_layout_instruction(text: str) -> str:
             f'dans UN élément portant l\'attribut {SECTION_ATTR}="k", k allant de 0 à {count - 1} '
             f"dans l'ordre du fond ; ne fusionne ni ne coupe aucune section. Le document commence "
             f'par <!DOCTYPE html> et déclare <meta charset="utf-8">.')
+
+
+def full_layout_messages(text: str, *, style: str = '', language: str = '',
+                         kind: str = '') -> list:
+    """Les messages d'une mise en forme COMPLÈTE — le jumeau de `section_relayout_messages` :
+    la règle (`full_layout_instruction`), la nature du document, sa langue, la consigne de forme,
+    et le FOND lui-même dans le message utilisateur.
+
+    Les deux glus générées sur la seule règle, le 2026-10-13, n'envoyaient pas le fond au modèle :
+    le nom faisait croire qu'elle le contenait (elle n'en lit que le nombre de sections). Une glu
+    passe donc par cette brique, puis par `finish_document`."""
+    system = (full_layout_instruction(text)
+              + (f" Nature du document : {kind}." if kind else '')
+              + (f" Langue du document : {language}." if language else '')
+              + (f" Consigne de forme : {style}" if style else ''))
+    return [{'role': 'system', 'content': system},
+            {'role': 'user', 'content': f"Fond à mettre en forme (Markdown) :\n{text}"}]
 
 
 def finish_document(reply: str, text: str, console=None) -> str:

@@ -49,6 +49,14 @@ def _g(item, ctx):
     return process_prompt_for(app=ctx.app_id, value=WriterDocument)
 """
 
+GLUE_READING_ITS_SETTINGS = """
+def _g(item, ctx):
+    other = ctx
+    kind = getattr(item, "document_kind", "")
+    style = getattr(other, "style_instruction", "")
+    return {"fields": {"output_file": kind + item.language + style}, "output_ref": kind}
+"""
+
 
 def _never(messages):
     raise AssertionError('no model must be called for a phrase change')
@@ -162,6 +170,18 @@ class DocumentReplyTest(SimpleTestCase):
                         console=lambda msg, level=None: said.append(msg))
         self.assertTrue(said and '2 section(s) sur 3' in said[0])
 
+    def test_a_full_layout_sends_the_text_and_what_the_process_watches(self):
+        """Two generated glues built on the rule alone never sent the text to the model."""
+        from wama.common.utils.document_sections import full_layout_messages
+        system, user = full_layout_messages(DRAFT, style='sobre', language='fr', kind='report')
+        self.assertEqual(('system', 'user'), (system['role'], user['role']))
+        self.assertIn(DRAFT, user['content'])
+        for said in ('de 0 à 2', 'report', 'fr', 'sobre'):
+            self.assertIn(said, system['content'])
+        bare = full_layout_messages(DRAFT)[0]['content']
+        self.assertNotIn('Consigne de forme', bare)
+        self.assertNotIn('Nature du document', bare)
+
 
 class AdjustmentBasisTest(TestCase):
     """The base comes from the KEPT revision files — the ▶ of a process removes its output before
@@ -249,6 +269,17 @@ class TheCodegenRoleSeesTheBricksForTheReplayedProcessTest(SimpleTestCase):
         glue = ast.parse(GLUE_WITH_AN_UNDEFINED_NAME).body[0]
         self.assertEqual(['KEY', 'process_prompt_for'],
                          codegen.undefined_names(glue, allowed={'WriterDocument'}))
+
+    def test_a_setting_read_through_getattr_is_read(self):
+        """The regenerated layout glue read `document_kind` as `getattr(item, ...)` : the check
+        called it never read, and two repair rounds could not satisfy it. A getattr on anything
+        but the item reads nothing of it."""
+        from wama.common.tests.tests_dev_ai_bridge import _charger
+        codegen = _charger('run_codegen')
+        spec = {'key': 'layout', 'outputs': ['output_file'], 'depends_on': [],
+                'watched': ['document_kind', 'language', 'style_instruction']}
+        self.assertEqual(['réglage surveillé jamais lu : item.style_instruction'],
+                         codegen.process_checks(GLUE_READING_ITS_SETTINGS, '_g', spec, [spec]))
 
 
 class AdjustLayoutTest(SimpleTestCase):

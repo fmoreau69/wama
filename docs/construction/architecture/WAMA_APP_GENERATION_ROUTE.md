@@ -516,7 +516,15 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       `process_prompt_for` sans l'importer (`NameError` au premier lancement, aucun contrôle) →
       contrôle neuf `undefined_names` (une portée par glu, noms du fichier mince admis ; mesuré
       sans faux positif sur les glues réelles du Writer, du converter, du reader et du composer).
-      Glu en attente de la validation de Fabien (jamais d'auto-application).
+      Deux autres défauts d'OUTIL au tirage suivant, demandé pour `document_kind` : le contrôle
+      des réglages surveillés ne voyait pas `getattr(item, 'champ')` (deux tours de réparation
+      contre un faux avertissement) → lecture par `getattr` comptée ; et sur la seule règle
+      `full_layout_instruction`, deux glus de suite N'ENVOYAIENT PAS LE FOND au modèle → brique
+      `full_layout_messages` (fond, nature, langue, consigne), jumelle de
+      `section_relayout_messages`. **Glu appliquée le 2026-10-13 sur GO de Fabien** par la chaîne
+      (`substitute writer_01 tasks` puis `glue` des deux process ; fichier identique à l'octet au
+      rendu à blanc) ; banc hors application : bout de phrase 0 appel, section 1, forme changée →
+      tout refait avec le fond et sa nature dans les messages.
 - 🔄 **FACES DU PIPELINE — la preview suit le pipeline (Fabien, 2026-10-12)**. *« Avant, une card
   portait tout le process sans distinction et la preview de même […]. Maintenant, la card porte un
   pipeline de process, les médias intermédiaires sont conservés. Le pipeline étant l'unité commune à
