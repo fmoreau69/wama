@@ -41,6 +41,11 @@ PARKED_MOVE_MPS = 0.5
 #: changement d'angle de vue (une garée « avançait » de 17 à 22 % du trajet de la navette sans la
 #: correction de distorsion, mesuré le 2026-10-03).
 PARKED_DRIFT_SHARE = 0.5
+#: ⚑ parked_speed_floor — vitesse (m/s, ≈ 7 km/h) en deçà de laquelle un « hors voies » n'est pas un véhicule
+#: qui roule, au lieu de `PARKED_MOVE_MPS` (1,8 km/h). Mesuré le 2026-10-13 sur 4da52df3 : 524 des 867
+#: « en mouvement » allaient à moins de 2 m/s — l'allure de la dérive de placement pendant le passage de la
+#: navette (Fabien : « 5 m sur la durée de passage de la navette, hors voie, c'est un garé »).
+PARKED_SPEED_FLOOR_MPS = 2.0
 #: Deux ANCRES de garés plus proches que ceci sont un même objet compté deux fois (mesure `parked_twins`).
 PARKED_TWIN_M = 2.0
 
@@ -261,13 +266,13 @@ def parked_motion(hs, sh_traj):
     return dist, (dist / dt if dt > 1e-6 else 0.0), shuttle_travel_m(sh_traj, ta, tb)
 
 
-def is_moving(dist, speed, shuttle_m, *, vs_shuttle=False, drift_share=None):
+def is_moving(dist, speed, shuttle_m, *, vs_shuttle=False, drift_share=None, min_speed=PARKED_MOVE_MPS):
     """Garde des garés (⚑ parked_motion_guard) : le track SE DÉPLACE-t-il ? Il faut ≥ `PARKED_MOVE_M` ET
-    ≥ `PARKED_MOVE_MPS`. Sous ⚑ parked_motion_vs_shuttle, il faut EN PLUS dépasser `drift_share` du
-    chemin de la navette sur le même intervalle : la dérive de placement d'un immobile n'existe que
-    quand la navette bouge (l'angle de vue change), et en reste une fraction ; un vrai mobile se
-    déplace par lui-même, navette arrêtée comprise."""
-    if dist < PARKED_MOVE_M or speed < PARKED_MOVE_MPS:
+    ≥ `min_speed` (`PARKED_SPEED_FLOOR_MPS` sous ⚑ parked_speed_floor). Sous ⚑ parked_motion_vs_shuttle,
+    il faut EN PLUS dépasser `drift_share` du chemin de la navette sur le même intervalle : la dérive de
+    placement d'un immobile n'existe que quand la navette bouge (l'angle de vue change), et en reste une
+    fraction ; un vrai mobile se déplace par lui-même, navette arrêtée comprise."""
+    if dist < PARKED_MOVE_M or speed < min_speed:
         return False
     if vs_shuttle:
         return dist > (PARKED_DRIFT_SHARE if drift_share is None else drift_share) * shuttle_m
@@ -278,7 +283,7 @@ def is_moving(dist, speed, shuttle_m, *, vs_shuttle=False, drift_share=None):
 DRIFT_SHARES_TRIED = (0.2, 0.3, 0.5, 0.7, 1.0)
 
 
-def parked_motion_stats(motion_by_gid, gate_by_gid):
+def parked_motion_stats(motion_by_gid, gate_by_gid, min_speed=PARKED_MOVE_MPS):
     """Mesure de ⚑ parked_motion_vs_shuttle sur les « hors voies » (`motion_by_gid` : gid → (distance,
     vitesse, chemin de la navette)) : par porte finale, quantiles de la part du chemin de la navette, et,
     pour chaque part de `DRIFT_SHARES_TRIED`, combien de tracks la garde ABSOLUE jugerait mobiles et
@@ -292,11 +297,11 @@ def parked_motion_stats(motion_by_gid, gate_by_gid):
     out = {'share_by_gate': {g: dict(_quantiles([v for v in vals if v != float('inf')]), n=len(vals),
                                      shuttle_still=sum(1 for v in vals if v == float('inf')))
                              for g, vals in by_gate.items()}}
-    absolute = [m for m in motion_by_gid.values() if is_moving(*m)]
+    absolute = [m for m in motion_by_gid.values() if is_moving(*m, min_speed=min_speed)]
+    out['min_speed_mps'] = min_speed
     out['absolute_moving'] = len(absolute)
-    out['still_moving_vs_shuttle'] = {str(s): sum(1 for m in absolute if is_moving(*m, vs_shuttle=True,
-                                                                                 drift_share=s))
-                                      for s in DRIFT_SHARES_TRIED}
+    out['still_moving_vs_shuttle'] = {str(s): sum(1 for m in absolute if is_moving(
+        *m, vs_shuttle=True, drift_share=s, min_speed=min_speed)) for s in DRIFT_SHARES_TRIED}
     return out
 
 
@@ -1511,14 +1516,18 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     # (« en mouvement » : 959 des 1714 « hors voies » de 4da52df3). Un déplacement n'est retenu que s'il
     # dépasse aussi une part du chemin de la navette sur le même intervalle (`is_moving`).
     _vs_shuttle = _feat.get('parked_motion_vs_shuttle', False)
+    # ⚑ parked_speed_floor (Fabien, 2026-10-13 : « il faut durcir les règles des garés ») : un « hors
+    # voies » qui va à moins de ~7 km/h ne roule pas — c'est la dérive de son placement.
+    _min_speed = PARKED_SPEED_FLOOR_MPS if _feat.get('parked_speed_floor', True) else PARKED_MOVE_MPS
 
     def _moving(hs):
-        return is_moving(*parked_motion(hs, sh_traj), vs_shuttle=_vs_shuttle)
+        return is_moving(*parked_motion(hs, sh_traj), vs_shuttle=_vs_shuttle, min_speed=_min_speed)
     _lexp = None
     if _feat.get('parked_long_exposure', False) and _footprint is not None:
         from wama_data.functions.kinematics.static_fusion import long_exposure_groups
         _frag = long_exposure_candidates(track_hist, cls_votes, _footprint, _edge,
-                                         moving=_moving if _vs_shuttle else None)
+                                         moving=_moving if (_vs_shuttle or _min_speed != PARKED_MOVE_MPS)
+                                         else None)
         _cand = {f[0] for f in _frag}
         _lx = long_exposure_groups(_frag, distinct_box_conflicts(_continuity_obs, _cand, _root))
         _lexp = {'candidats': len(_frag), 'fragments_reunis': len(_lx), 'objets': len(set(_lx.values()))}
@@ -1608,7 +1617,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             if porte == 'retenu' and _near_intersection(hs):
                 porte = 'pres_intersection'
             if porte == 'retenu' and _feat.get('parked_motion_guard', True):
-                if is_moving(*_motion, vs_shuttle=_vs_shuttle):
+                if is_moving(*_motion, vs_shuttle=_vs_shuttle, min_speed=_min_speed):
                     porte = 'en_mouvement'
             _rejets[porte] += 1
             d['porte'] = porte
@@ -1625,7 +1634,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     logger.info('[référence de calibration] %s immobiles compacts (garés retenus : %s, règle %s)',
                 len(calibration_reference), len(stationary_gids), _stationary_rule)
     logger.info('[stationnés] %s', ' · '.join(f'{k}={v}' for k, v in _rejets.items()))
-    _motion_stats = parked_motion_stats(_motion_by_gid, _gate_by_gid)
+    _motion_stats = parked_motion_stats(_motion_by_gid, _gate_by_gid, _min_speed)
     if _motion_stats:
         logger.info('[stationnés/mouvement contre la navette] %s', _motion_stats)
 

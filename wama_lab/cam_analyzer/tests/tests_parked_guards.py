@@ -44,7 +44,7 @@ class OffRoadBranchGuardsTest(SimpleTestCase):
         self.assertIn("_near_intersection(hs)", branch)
         self.assertIn("porte = 'pres_intersection'", branch)
         self.assertIn("parked_motion(hs, sh_traj)", branch)
-        self.assertIn("is_moving(*_motion, vs_shuttle=_vs_shuttle)", branch)
+        self.assertIn("is_moving(*_motion, vs_shuttle=_vs_shuttle, min_speed=_min_speed)", branch)
         self.assertIn("porte = 'en_mouvement'", branch)
         self.assertIn("parked_motion_guard", branch)
 
@@ -98,4 +98,26 @@ class MotionAgainstShuttleTest(SimpleTestCase):
 
     def test_the_long_exposure_candidates_take_the_same_guard(self):
         src = inspect.getsource(mt.annotate_global_tracks)
-        self.assertIn("moving=_moving if _vs_shuttle else None", src)
+        self.assertIn("moving=_moving if (_vs_shuttle or _min_speed != PARKED_MOVE_MPS)", src)
+
+
+class SpeedFloorTest(SimpleTestCase):
+    """⚑ parked_speed_floor (2026-10-13) : 5 m de dérive sur le passage de la navette, hors voie, c'est un
+    garé ; un véhicule qui roule va à plus de 2 m/s."""
+
+    def test_a_parked_car_drifting_5_m_during_the_pass_is_parked(self):
+        """6 m en 10 s (0,6 m/s) : mobile pour l'ancienne garde, garé avec le plancher de vitesse."""
+        motion = mt.parked_motion(track(150, 0.0, 0.1, 30, 8, 0.6, 0.0, noise=0.8), shuttle(0.0, 15.0, 5.0))
+        self.assertTrue(mt.is_moving(*motion))
+        self.assertFalse(mt.is_moving(*motion, min_speed=mt.PARKED_SPEED_FLOOR_MPS))
+
+    def test_a_vehicle_crossing_the_intersection_still_moves(self):
+        """Le profil de G2759 : ~3,4 m/s."""
+        motion = mt.parked_motion(track(105, 2.0, 0.072, 0, 0, 3.4, 0.0, noise=1.5), shuttle(0.0, 15.0, 5.0))
+        self.assertTrue(mt.is_moving(*motion, min_speed=mt.PARKED_SPEED_FLOOR_MPS))
+
+    def test_the_floor_is_read_from_its_toggle_and_on_by_default(self):
+        from wama_lab.cam_analyzer.utils.features import FEATURES
+        self.assertTrue(next(f for f in FEATURES if f.key == 'parked_speed_floor').default)
+        src = inspect.getsource(mt.annotate_global_tracks)
+        self.assertIn("_feat.get('parked_speed_floor', True)", src)

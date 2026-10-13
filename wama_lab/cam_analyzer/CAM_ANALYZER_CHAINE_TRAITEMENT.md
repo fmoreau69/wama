@@ -1136,6 +1136,18 @@ coût à juger à l'œil (un même garé laissé en deux ancres, ou deux voisins
 Le résumé garde désormais, par véhicule hors voies, sa porte, son déplacement, sa vitesse et le
 chemin de la navette (`parked_motion_by_gid`) : « pourquoi CE G… n'est pas garé » se lit.
 
+**Règles durcies le même jour (décision de Fabien : « 5 m sur la durée de passage de la navette,
+hors voie, c'est un garé » ; « on ne prend pas de risque » — un mobile réel a un déplacement qui
+le trahit, un véhicule qui attend au carrefour est exclu par le rayon d'intersection).** La garde
+exigeait déjà ≥ 0,5 m/s (1,8 km/h) ; 524 des 867 « en mouvement » allaient à moins de 2 m/s.
+⚑ `parked_speed_floor` (ON par défaut) porte le plancher à **2 m/s** (≈ 7 km/h) ; rayon « garés »
+du profil 4 posé à **15 m** sur ses deux intersections. Rejeu sans écriture (⚑ contre la navette
+OFF) : en mouvement 867 → **372**, près d'une intersection 301 → **126**, garés 416 → **643**
+objets (pose longue : 491 objets, 1246 fragments réunis) — **mais garés en double 111 → 333** :
+c'est le défaut suivant (des morceaux d'un même garé laissés à 1,5-2 m, ou vus ensemble comme
+deux boîtes). ⚠ Le test « près d'une intersection » porte sur CHAQUE position du track, pas sur
+sa médiane : avec la dérive, la zone réellement exclue dépasse le cercle dessiné.
+
 ⚠ Ce qui n'a PAS été joué : les bascules ⚑ elles-mêmes (`display_ema` OFF, `shuttle_filter` ON)
 et la comparaison `placement_spread` OFF/ON — elles demandent un RECALCUL de la session (les
 données lues datent d'un run antérieur au 2026-09-05 : `placement_spread` et `placement_sources`

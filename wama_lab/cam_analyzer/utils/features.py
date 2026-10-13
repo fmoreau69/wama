@@ -322,6 +322,16 @@ FEATURES = [
             "une vérité terrain — compté en console. OFF = sans cette garde.",
             default=True, scope='compute',
             processes=TRACKING),
+    Feature('parked_speed_floor', 'Garés : un mobile va à plus de 7 km/h',
+            "Sous « trajectoire immobile exigée », un véhicule hors voies n'est jugé en mouvement que "
+            "s'il se déplace d'au moins 5 m à plus de 2 m/s (≈ 7 km/h), au lieu de 0,5 m/s. Une voiture "
+            "garée « glisse » de quelques mètres dans nos calculs pendant que la navette passe : 5 m "
+            "sur la durée de son passage, hors voie, c'est un garé. Mesuré le 2026-10-13 : 524 des 867 "
+            "véhicules hors voies écartés « en mouvement » allaient à moins de 2 m/s. Un véhicule à "
+            "l'arrêt au carrefour reste exclu par le rayon « Garés » de l'intersection. OFF = 0,5 m/s. "
+            "Tracking à rejouer.",
+            default=True, scope='compute',
+            processes=TRACKING),
     Feature('parked_motion_vs_shuttle', 'Garés : mouvement jugé contre la navette',
             "Une voiture garée « bouge » dans nos calculs quand la navette passe : l'angle de vue change "
             "et sa position calculée glisse de plusieurs mètres. La garde « trajectoire immobile » la "
