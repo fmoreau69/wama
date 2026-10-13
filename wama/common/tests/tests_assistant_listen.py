@@ -350,7 +350,10 @@ function fakeButton() {
            addEventListener: function () {} };
 }
 var calls = [];
-var voice = { speaking: false, isSpeaking: function () { return this.speaking; },
+var voice = { speaking: false, audible: false, echo: false,
+              isSpeaking: function () { return this.speaking; },
+              isAudible: function () { return this.speaking || this.audible; },
+              isOwnSpeech: function () { return this.echo; },
               stop: function () { calls.push('voice.stop'); }, onChange: function () {} };
 window.WamaAssistantVoice = voice;
 var chat = { busy: false, sent: [],
@@ -472,6 +475,56 @@ class ListenBrickTest(SimpleTestCase):
         self._controller(ctx, echo_cancelled=True)
         ctx.eval("c.mode = 'off'; c.sendTurn('trop tard');")
         self.assertEqual([], json.loads(ctx.eval("JSON.stringify(chat.sent)")))
+
+    def _heard(self, ctx, text):
+        """Une phrase captée en conversation, que le service transcrit en `text`."""
+        ctx.eval("""
+            var Blob = function (parts, opts) { this.parts = parts; };
+            var fetch = function () {
+              return Promise.resolve({ json: function () { return Promise.resolve({ text: %r }); } });
+            };
+            c.onSegment('end', new Float32Array(1600));
+        """ % text)
+        return json.loads(ctx.eval("JSON.stringify(chat.sent)"))
+
+    def test_the_assistant_s_own_voice_heard_at_the_mic_is_not_sent_back(self):
+        """2026-10-13 : « … si vous avez besoin d'autre chose », fin d'une réponse encore jouée
+        par le haut-parleur, est repartie comme réplique — l'assistant s'est répondu."""
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=True)
+        ctx.eval("voice.echo = true;")
+        self.assertEqual([], self._heard(ctx, "vous avez besoin d'autre chose."))
+
+    def test_a_phrase_that_is_not_its_echo_is_still_sent(self):
+        """Contre-épreuve."""
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=True)
+        self.assertEqual(['Liste mes fichiers'], self._heard(ctx, 'Liste mes fichiers'))
+
+    def test_the_assistant_is_active_while_its_voice_is_still_audible(self):
+        """Le haut-parleur joue encore après la fin de l'audio (latence de sortie)."""
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=False)
+        ctx.eval("voice.audible = true;")
+        self.assertEqual('deaf', ctx.eval("c.frameMode()"))
+        ctx.eval("voice.audible = false;")
+        self.assertEqual('normal', ctx.eval("c.frameMode()"))
+
+    def test_what_the_mic_kept_while_the_assistant_spoke_is_not_the_next_phrase(self):
+        """L'avance du découpage (400 ms) se remplit aussi pendant que l'assistant parle : quand il
+        se tait, elle est faite de SA voix et n'ouvre pas la phrase suivante."""
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=True)
+        ctx.eval("""
+            c.segmenter = new WamaAssistantListen._Segmenter(48000, 900, function () {});
+            var frame = new Float32Array(2048);
+            for (var j = 0; j < 2048; j++) frame[j] = 0.003 * Math.sin(j * 0.05);
+            voice.speaking = true;
+            for (var i = 0; i < 10; i++) c.onFrame(frame);
+        """)
+        self.assertGreater(ctx.eval("c.segmenter.prerollMs"), 300, 'avance pleine pendant sa voix')
+        ctx.eval("voice.speaking = false; c.onFrame(frame);")
+        self.assertLess(ctx.eval("c.segmenter.prerollMs"), 50)
 
     def test_the_warm_up_announces_itself_and_the_label_names_who_listens(self):
         ctx = self._ctx()

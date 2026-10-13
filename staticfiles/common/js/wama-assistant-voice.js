@@ -16,6 +16,9 @@
  *       voix est activée ; rend une Promise résolue à la fin.
  *   stop()           : coupe la lecture en cours (canal commun ET avatar).
  *   setEnabled(on)   : muet / actif, PERSISTÉ par la même route que les réglages de l'assistant.
+ *   isAudible()      : la voix parle, ou sort encore du haut-parleur (latence de sortie).
+ *   isOwnSpeech(text, heardAt) : une phrase entendue au micro n'est-elle que l'ÉCHO de ce que
+ *       la voix disait ? — lu par l'écoute de la conversation (`wama-assistant-listen.js`).
  *   bindButton(btn)  : câble le bouton à trois états — ⏹ pendant une lecture (clic = arrêter),
  *       🔊 voix active (clic = muet), 🔇 muet (clic = réactiver). Plusieurs boutons peuvent
  *       être câblés (accueil + volet) : ils reflètent le même état.
@@ -30,6 +33,53 @@
   var state = { enabled: true, speaking: false, voice: '', lang: 'fr', settingsUrl: '' };
   var listeners = [];
   var avatarPoll = null;
+
+  // ── Ce que la voix a DIT, et jusqu'à quand on l'entend (2026-10-13) ───────────────────────
+  // La conversation vocale (`wama-assistant-listen.js`) a pris la fin d'une réponse pour une
+  // réplique : « … si vous avez besoin d'autre chose » est reparti comme message de l'utilisateur,
+  // et l'assistant s'est répondu. Le haut-parleur joue encore APRÈS la fin de l'audio (latence de
+  // sortie, mesurée par le navigateur), et le micro l'entend. Ce qui tranche n'est pas
+  // l'acoustique — l'annulation d'écho du navigateur ne couvre pas toujours ce que la page joue —
+  // mais le TEXTE : la voix sait ce qu'elle vient de dire.
+  //: Part des mots d'une phrase entendue qui doivent se retrouver, DANS L'ORDRE, dans ce que la
+  //: voix vient de dire pour qu'elle soit son écho. Sous 1 : la transcription d'un écho perd ou
+  //: déforme des mots ; mesuré sur l'écho du 13/10, la part était de 1.
+  var ECHO_SHARE = 0.8;
+  var said = { words: [], audibleUntil: 0 };    // le tour de parole en cours, ou le dernier
+
+  function speechWords(text) {
+    return String(text || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  }
+
+  // Le son quitte le haut-parleur après la latence de sortie : celle que l'avatar mesure.
+  function markSilent() {
+    var latency = avatarReady() ? global.WamaAvatar.outputLatencyMs() : 0;
+    said.audibleUntil = Date.now() + latency;
+  }
+
+  /** La voix de l'assistant s'entend-elle encore ? (parle, ou sort encore du haut-parleur) */
+  function isAudible() {
+    return state.speaking || Date.now() < said.audibleUntil;
+  }
+
+  /**
+   * `text` (une phrase entendue au micro, dont le son a commencé à `heardAt`, en ms) n'est-il que
+   * l'écho de ce que la voix disait ? Il faut les DEUX : entendu pendant que la voix était
+   * audible — une réponse de l'utilisateur qui reprend les mots de l'assistant APRÈS qu'il s'est
+   * tu n'est pas un écho —, et fait de ses mots, dans l'ordre.
+   */
+  function isOwnSpeech(text, heardAt) {
+    if (!said.words.length || !(heardAt <= said.audibleUntil)) return false;
+    var words = speechWords(text);
+    if (!words.length) return false;
+    var at = 0, found = 0;
+    words.forEach(function (word) {
+      var index = said.words.indexOf(word, at);
+      if (index >= 0) { found++; at = index + 1; }
+    });
+    return found / words.length >= ECHO_SHARE;
+  }
   // ⚠ La page qui se DÉCHARGE abandonne les requêtes en vol, et le navigateur rend alors
   // `TypeError: Failed to fetch` — indiscernable d'un service TTS en panne si on le journalise.
   // Mesuré au smoke du 2026-09-26 : changer de page pendant une vocalisation écrivait une
@@ -155,6 +205,7 @@
     if (global.WamaApp && global.WamaApp.Speech) global.WamaApp.Speech.stop();
     if (global.WamaAvatar && global.WamaAvatar.stop) global.WamaAvatar.stop();
     clearInterval(avatarPoll); avatarPoll = null;
+    if (state.speaking) markSilent();
     setSpeaking(false);
   }
 
@@ -178,6 +229,8 @@
     }
     var turn = global.WamaApp.Speech.claim();
     if (global.WamaAvatar && global.WamaAvatar.stop) global.WamaAvatar.stop();
+    said.words = [];
+    said.audibleUntil = Infinity;               // jusqu'à la fin de ce tour, `end()` la date
     setSpeaking(true);
     var pending = '';            // texte reçu, pas encore prononçable
     var playback = Promise.resolve();
@@ -219,6 +272,7 @@
       // flux — et un marqueur coupé entre deux fragments n'était jamais reconnu.
       var clean = stripMarkdown(text);
       if (!clean) return;
+      said.words = said.words.concat(speechWords(clean));
       var audio = requests.then(function () {
         if (!turn.valid()) return null;
         return fetchSpeech(clean, turn.signal);
@@ -245,7 +299,7 @@
         pending = '';
         if (rest) enqueue(rest);
         return playback.then(waitAvatarSilence).then(function () {
-          if (turn.valid()) setSpeaking(false);
+          if (turn.valid()) { markSilent(); setSpeaking(false); }
           return true;
         });
       },
@@ -308,6 +362,8 @@
     setEnabled: setEnabled,
     isEnabled: function () { return state.enabled; },
     isSpeaking: function () { return state.speaking; },
+    isAudible: isAudible,
+    isOwnSpeech: isOwnSpeech,
     bindButton: bindButton,
     onChange: function (fn) { listeners.push(fn); },
     stripMarkdown: stripMarkdown,

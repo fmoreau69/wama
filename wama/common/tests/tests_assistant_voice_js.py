@@ -133,6 +133,59 @@ class ReplyReceivedAtOnceIsSplitTest(SimpleTestCase):
         self.assertEqual(['Avec plaisir ! Autre chose ?'], self._asked(['Avec plaisir ! Autre chose ?']))
 
 
+#: Réponse réelle de l'assistant (13/10) dont la fin, encore jouée par le haut-parleur, est
+#: repartie au micro comme réplique de l'utilisateur.
+ECHOED_REPLY = "Avec plaisir ! N'hésitez pas si vous avez besoin d'autre chose. "
+ECHO_HEARD = "vous avez besoin d'autre chose."
+
+
+class VoiceKnowsItsOwnWordsTest(SimpleTestCase):
+    """La voix sait ce qu'elle vient de dire, et jusqu'à quand on l'entend : c'est ce que lit
+    l'écoute de la conversation pour ne jamais renvoyer l'assistant à lui-même (2026-10-13)."""
+
+    _ctx = NextSentenceIsRequestedDuringPlaybackTest._ctx
+
+    def _speaking(self):
+        ctx = self._ctx()
+        ctx.eval("turn.push(%r);" % ECHOED_REPLY)
+        return ctx
+
+    def _own(self, ctx, text, heard_at='Date.now()'):
+        return ctx.eval("WamaAssistantVoice.isOwnSpeech(%r, %s)" % (text, heard_at))
+
+    def test_its_own_words_heard_while_it_speaks_are_its_echo(self):
+        self.assertTrue(self._own(self._speaking(), ECHO_HEARD))
+
+    def test_another_sentence_heard_while_it_speaks_is_not_an_echo(self):
+        """Contre-épreuve : on peut lui couper la parole — même en reprenant quelques-uns de ses
+        mots (« besoin », « d'autre » : 4 mots sur 10, dans l'ordre)."""
+        self.assertFalse(self._own(self._speaking(), "Non, je n'ai besoin de rien d'autre, merci."))
+
+    def test_words_heard_after_it_went_silent_belong_to_the_user(self):
+        """Une réponse qui REPREND ses mots, dite une fois qu'il s'est tu, n'est pas un écho."""
+        ctx = self._speaking()
+        ctx.eval("turn.end(); finishPlayback(0);")
+        self.assertFalse(ctx.eval("WamaAssistantVoice.isSpeaking()"))
+        self.assertFalse(self._own(ctx, ECHO_HEARD, 'Date.now() + 1000'))
+        self.assertTrue(self._own(ctx, ECHO_HEARD, 'Date.now() - 1000'),
+                        "commencée pendant qu'il parlait, elle reste son écho")
+
+    def test_it_stays_audible_for_the_output_latency(self):
+        ctx = self._speaking()
+        ctx.eval("""
+            var fakeNow = 1000000;
+            Date.now = function () { return fakeNow; };
+            var clearInterval = function () {};
+            window.WamaAvatar = { isReady: function () { return true; }, stop: function () {},
+                                  outputLatencyMs: function () { return 300; } };
+            WamaAssistantVoice.stop();
+        """)
+        self.assertFalse(ctx.eval("WamaAssistantVoice.isSpeaking()"))
+        self.assertTrue(ctx.eval("WamaAssistantVoice.isAudible()"), 'le haut-parleur joue encore')
+        ctx.eval("fakeNow += 301;")
+        self.assertFalse(ctx.eval("WamaAssistantVoice.isAudible()"))
+
+
 FAKE_HEAD = r"""
 var window = this;
 var spoken = null;

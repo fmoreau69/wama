@@ -50,7 +50,13 @@
  *   state()                : {mode: 'off'|'dictation'|'conversation'|'capture', phase, echoCancelled}.
  *
  * Dépend de : `WamaAssistantChat` (send/abort/isBusy/input), `WamaAssistantVoice`
- * (isSpeaking/stop/onChange), `WamaApp.toast` et `WamaApp.csrfToken` si présents.
+ * (isAudible/isOwnSpeech/stop/onChange), `WamaApp.toast` et `WamaApp.csrfToken` si présents.
+ *
+ * L'ÉCHO (2026-10-13) : la fin d'une réponse, encore jouée par le haut-parleur, est repartie
+ * comme réplique — l'assistant s'est répondu à lui-même. Trois gestes, dans la brique : l'écoute
+ * tient l'assistant pour actif tant que sa voix est AUDIBLE (latence de sortie comprise) ; quand
+ * il se tait, l'avance du découpage, faite de sa voix, est oubliée ; et une phrase commencée
+ * pendant qu'il s'entendait, faite de ses propres mots, est écartée (`isOwnSpeech`).
  */
 (function (global) {
   'use strict';
@@ -207,6 +213,14 @@
     if (this.quietMs >= this.endMs || this.totalMs >= MAX_UTTERANCE_MS) this.finish();
   };
 
+  /** Oublie l'AVANCE (et le début de voix en cours de mesure) — sans toucher une phrase ouverte. */
+  Segmenter.prototype.forgetPreroll = function () {
+    if (this.frames) return;
+    this.preroll = [];
+    this.prerollMs = 0;
+    this.loudMs = 0;
+  };
+
   Segmenter.prototype.finish = function () {
     if (!this.frames) return;
     var frames = this.frames, speechMs = this.speechMs;
@@ -357,10 +371,11 @@
     }
   };
 
-  /** L'assistant est-il en train de répondre (réflexion OU voix) ? */
+  /** L'assistant est-il en train de répondre (réflexion OU voix) ? « Voix » = AUDIBLE : le
+   *  haut-parleur joue encore après la fin de l'audio (latence de sortie, 2026-10-13). */
   Controller.prototype.assistantActive = function () {
     var voice = global.WamaAssistantVoice;
-    return !!((this.chat.isBusy && this.chat.isBusy()) || (voice && voice.isSpeaking()));
+    return !!((this.chat.isBusy && this.chat.isBusy()) || (voice && voice.isAudible()));
   };
 
   Controller.prototype.frameMode = function () {
@@ -434,12 +449,20 @@
 
   Controller.prototype.onFrame = function (frame) {
     if (!this.segmenter) return;
-    this.segmenter.feed(frame, this.frameMode());
+    var mode = this.frameMode();
+    // L'assistant vient de se taire : ce que le micro a gardé en AVANCE, c'est sa voix — pas le
+    // début de la phrase suivante (2026-10-13 : la fin d'une réponse repartait comme réplique).
+    if (mode === 'normal' && this.lastFrameMode !== 'normal') this.segmenter.forgetPreroll();
+    this.lastFrameMode = mode;
+    this.segmenter.feed(frame, mode);
   };
 
   Controller.prototype.onSegment = function (evt, samples, how) {
     var self = this;
     if (evt === 'start') {
+      // Quand le SON a commencé (le découpage l'a mesuré avant de déclarer la phrase) : c'est
+      // ce qui dit, à la fin, si la voix de l'assistant s'entendait encore (`isOwnSpeech`).
+      this.heardAt = Date.now() - (this.segmenter ? this.segmenter.speechMs : 0);
       // Reprendre la parole : la voix se tait, le tour en cours s'interrompt.
       if (how === 'interrupt') {
         if (global.WamaAssistantVoice) global.WamaAssistantVoice.stop();
@@ -452,12 +475,16 @@
     if (evt === 'discard') { this.phase = 'listening'; this.render(); return; }
 
     // 'end' : une phrase complète.
-    var mode = this.mode, rate = this.mic ? this.mic.rate : TARGET_RATE;
+    var mode = this.mode, rate = this.mic ? this.mic.rate : TARGET_RATE, heardAt = this.heardAt;
     if (mode === 'dictation') { closeMic(this.mic); this.mic = null; this.segmenter = null; }
     this.phase = 'transcribing';
     this.pending++;
     this.render();
     transcribe(samples, rate).then(function (text) {
+      // L'assistant ne se répond jamais à lui-même : sa propre voix, entendue au micro, n'est
+      // ni une réplique ni une dictée (`WamaAssistantVoice.isOwnSpeech`).
+      var voice = global.WamaAssistantVoice;
+      if (text && voice && voice.isOwnSpeech(text, heardAt)) return;
       if (mode === 'dictation') { self.writeDraft(text); return; }
       if (text && self.mode === 'conversation') self.sendTurn(text);
     }).catch(function (e) {

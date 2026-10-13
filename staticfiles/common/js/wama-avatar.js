@@ -186,4 +186,6 @@ export function instance() {
   return head;
 }
 
-window.WamaAvatar = { init, speak, isReady, stop, instance };
+// `outputLatencyMs` : la voix s'en sert pour savoir jusqu'à quand elle est encore AUDIBLE — c'est
+// là que l'écoute de la conversation doit encore la tenir pour la sienne (écho, 2026-10-13).
+window.WamaAvatar = { init, speak, isReady, stop, instance, outputLatencyMs };
