@@ -97,7 +97,8 @@
           "toggle": "generate_summary",
           "watched": [
             "output_language",
-            "llm_model"
+            "llm_model",
+            "summary_type"
           ]
         }
       },

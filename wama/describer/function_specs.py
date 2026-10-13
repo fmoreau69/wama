@@ -11,13 +11,16 @@ AVALÉS (un avertissement en console sous une card « terminée »). Décision d
 applications doivent fonctionner en pipeline ». CINQ process, selon la nature de l'entrée :
   • `transcribe` — l'audio, ou la piste son d'une vidéo → le texte parlé. Audio et vidéo seulement.
     Modèle : `asr_model` (le domaine de transcription du transcriber ; « auto » = Whisper d'abord).
-  • `frames`     — la vidéo → les légendes de ses images-clés. Vidéo seulement, et pas pour un
-    compte-rendu de réunion, qui ne les lit pas. Modèle : `vision_model` (« auto » = BLIP).
+  • `frames`     — la vidéo → les légendes de ses images-clés. Vidéo seulement. Modèle :
+    `vision_model` (« auto » = BLIP).
   • `describe`   — l'entrée et ce que les amonts ont rendu → la description, au style demandé.
     Toute card. Modèle : `vision_model` pour une image (« auto » = la cascade Ollama vision puis
     BLIP), `llm_model` pour le reste (« auto » = le tier du style, `get_describer_model`).
-  • `summarize`  — la description → un résumé (LLM). OPTIONNEL, interrupteur `generate_summary` ;
-    sans objet pour un compte-rendu de réunion, qui EST déjà un résumé.
+  • `summarize`  — un résumé (LLM), du TYPE de la card (`summary_type`) : structuré, depuis la
+    description ; ou compte-rendu de réunion, depuis la parole entière ou le texte du document.
+    OPTIONNEL, interrupteur `generate_summary`. (Jusqu'au 2026-10-13 le compte-rendu était un
+    STYLE de description, rédigé par chaque backend à la place de la description : il est un type
+    de résumé, comme au transcriber — migration 0016.)
   • `coherence`  — la description → score, remarques, version proposée (LLM). OPTIONNEL,
     interrupteur `verify_coherence`.
 
@@ -34,9 +37,8 @@ _APP = 'describer'
 _IMPL = 'describer.workers:describe_content'
 _SELF = 'describer.function_specs'
 
-#: Natures qui ont une parole à transcrire, et celle qui a des images-clés.
+#: Natures qui ont une parole à transcrire.
 HEARD = ('audio', 'video')
-MEETING = 'meeting'
 
 
 def nature_of(d) -> str:
@@ -51,11 +53,7 @@ def _hears(d, model_key=None) -> bool:
 
 
 def _has_frames(d, model_key=None) -> bool:
-    return nature_of(d) == 'video' and getattr(d, 'output_style', '') != MEETING
-
-
-def _not_a_meeting(d, model_key=None) -> bool:
-    return getattr(d, 'output_style', '') != MEETING
+    return nature_of(d) == 'video'
 
 
 def describe_model(d) -> str:
@@ -83,7 +81,7 @@ def description_text(d):
 
 
 def summary_text(d):
-    if not (getattr(d, 'generate_summary', False) and _not_a_meeting(d)):
+    if not getattr(d, 'generate_summary', False):
         return None
     return (getattr(d, 'summary', '') or '').strip() or None
 
@@ -139,11 +137,15 @@ register(FunctionSpec(
 
 register(FunctionSpec(
     key='describer.summarize', name='Describer — résumer',
-    description="Résume la description (résumé structuré, LLM).",
+    description="Résume la card (LLM), selon son type de résumé : un résumé structuré de la "
+                "description, ou un compte-rendu de réunion de la parole entière (ou du texte du "
+                "document).",
     category=FC.ENRICHER, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['text', 'llm'],
-    inputs=[PortSpec('description', 'document', description="La description à résumer.")],
-    outputs=[PortSpec('summary', 'document', description="Le résumé.")]))
+    inputs=[PortSpec('description', 'document', description="La description à résumer."),
+            PortSpec('transcript', 'document', optional=True,
+                     description="La parole entière, source d'un compte-rendu de réunion.")],
+    outputs=[PortSpec('summary', 'document', description="Le résumé ou le compte-rendu.")]))
 
 register(FunctionSpec(
     key='describer.coherence', name='Describer — vérifier la cohérence',
@@ -168,7 +170,7 @@ PIPELINE = register_app_pipeline(_APP, (
                 watched=('input_file',), share=3, eta='describer.workers:describe_eta',
                 result=f'{_SELF}:description_text'),
     ProcessSpec('summarize', label='Résumé', depends_on=('describe',), degree=OPTIONAL,
-                toggle='generate_summary', applies=_not_a_meeting, share=1,
+                toggle='generate_summary', share=1,
                 eta='describer.workers:summarize_eta', result=f'{_SELF}:summary_text'),
     ProcessSpec('coherence', label='Cohérence', depends_on=('describe',), degree=OPTIONAL,
                 toggle='verify_coherence', share=1, eta='describer.workers:coherence_eta',

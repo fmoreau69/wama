@@ -150,7 +150,7 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('summary', 'Resume court'), ('detailed', 'Description detaillee'), ('scientific', 'Synthese scientifique'), ('bullet_points', 'Points cles'), ('meeting', 'Compte-rendu de reunion')]",
+                  "expr": "[('summary', 'Resume court'), ('detailed', 'Description detaillee'), ('scientific', 'Synthese scientifique'), ('bullet_points', 'Points cles')]",
                   "imports": []
                 },
                 "default": {
@@ -348,6 +348,29 @@
                 }
               },
               "name": "generate_summary"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('structured', 'Résumé structuré'), ('meeting', 'Compte-rendu de réunion')]",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "'structured'",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'structured'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "16",
+                  "imports": []
+                }
+              },
+              "name": "summary_type"
             },
             {
               "args": [],
@@ -889,10 +912,6 @@
               [
                 "bullet_points",
                 "Points cles"
-              ],
-              [
-                "meeting",
-                "Compte-rendu de reunion"
               ]
             ],
             "contexts": [
@@ -1359,6 +1378,64 @@
             "cap_from": null,
             "chip": false,
             "chip_label": "",
+            "choices": [
+              [
+                "structured",
+                "Structuré"
+              ],
+              [
+                "meeting",
+                "Réunion"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "structured",
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-list",
+            "inline": true,
+            "label": "",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "summary_type",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": "generate_summary",
+            "stales": [
+              "summarize"
+            ],
+            "step": null,
+            "type": "radio",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
             "choices": null,
             "contexts": [
               "item",
@@ -1590,6 +1667,7 @@
             "vision_model",
             "llm_model",
             "generate_summary",
+            "summary_type",
             "verify_coherence"
           ],
           "user_related_name": "descriptions"
@@ -1628,8 +1706,9 @@
             "llm_model": "select — Clé de catalogue du modèle de langage, ou « auto ». (défaut : 'auto')",
             "max_length": "range — Longueur maximale (caractères) de la description. [100–2000] (défaut : 500)",
             "output_language": "select — Langue de sortie (choix : fr | en | auto) (défaut : 'fr')",
-            "output_style": "select — Niveau de détail de la description générée. (choix : summary | detailed | scientific | bullet_points | meeting) (défaut : 'detailed')",
+            "output_style": "select — Niveau de détail de la description générée. (choix : summary | detailed | scientific | bullet_points) (défaut : 'detailed')",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
+            "summary_type": "radio (choix : structured | meeting) (défaut : 'structured')",
             "verify_coherence": "toggle — Vérifier la cohérence (défaut : False)",
             "vision_model": "select — Clé de catalogue du modèle de vision, ou « auto ». (défaut : 'auto')"
           },

@@ -710,9 +710,11 @@ def add_to_describer(
     Args:
         user:            Django User instance
         file_path:       Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (from list_user_files)
-        output_style:    STYLE de description (résumé, détaillée, compte-rendu…), PAS un format
-                         de fichier — le format d'export est choisi par l'utilisateur APRÈS le
-                         traitement. Valeurs : celles déclarées au schéma `describer/params.py`.
+        output_style:    STYLE de description (résumé court, détaillée, scientifique, points
+                         clés), PAS un format de fichier — le format d'export est choisi par
+                         l'utilisateur APRÈS le traitement. Valeurs : celles déclarées au schéma
+                         `describer/params.py`. Un compte-rendu de réunion n'est pas un style
+                         (depuis le 2026-10-13) : `generate_summary=True, summary_type='meeting'`.
         output_language: 'fr' | 'en' | 'auto'
         max_length:      Maximum length of result in words (default: 500)
 

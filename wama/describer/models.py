@@ -47,7 +47,13 @@ class Description(ProcessingTimeMixin, ScopedVisibility):
         ('detailed', 'Description detaillee'),
         ('scientific', 'Synthese scientifique'),
         ('bullet_points', 'Points cles'),
-        ('meeting', 'Compte-rendu de reunion'),
+    ]
+
+    # Le compte-rendu de réunion est un TYPE DE RÉSUMÉ depuis le 2026-10-13 (il était un style de
+    # description) — comme au transcriber ; migration 0016 pour les cards posées en « meeting ».
+    SUMMARY_TYPE_CHOICES = [
+        ('structured', 'Résumé structuré'),
+        ('meeting', 'Compte-rendu de réunion'),
     ]
 
     LANGUAGE_CHOICES = [
@@ -128,6 +134,8 @@ class Description(ProcessingTimeMixin, ScopedVisibility):
 
     # Optional LLM summary (generated after description if requested)
     generate_summary = models.BooleanField(default=False)
+    summary_type = models.CharField(max_length=16, choices=SUMMARY_TYPE_CHOICES,
+                                    default='structured', db_default='structured')
     summary = models.TextField(blank=True)
 
     # Optional coherence check (score + notes + LLM-proposed correction)

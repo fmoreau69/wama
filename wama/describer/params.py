@@ -29,7 +29,7 @@ PARAMS = derive_from_model(
     # cascade vision, les tiers du style) : leur select se tait plutôt que de prévoir faux.
     include=["output_style", "output_language", "max_length",
              "asr_model", "quality_intent", "vision_model", "llm_model",
-             "generate_summary", "verify_coherence"],
+             "generate_summary", "summary_type", "verify_coherence"],
     overrides={
         # dom_id "batch" (17/08) : modale batch DÉDIÉE générée (contrat reader) — remplace le
         # détournement de la modale item (_settingsBatchId + titre échangé) ; batch_update
@@ -40,8 +40,6 @@ PARAMS = derive_from_model(
                     "batch": "batchSettingsOutputStyle"},
             help="Niveau de détail de la description générée.",
             chip=True,
-            # Un compte-rendu de réunion ne lit pas les images-clés et EST déjà un résumé : le
-            # style décide aussi si `frames` et `summarize` ont lieu (`function_specs`).
             stales=("describe",),
         ),
         "output_language": dict(
@@ -129,6 +127,13 @@ PARAMS = derive_from_model(
             type="toggle", label="Générer un résumé LLM", icon="fa-file-lines",
             dom_id={"panel": "globalGenerateSummary", "item": "settingsGenerateSummary",
                     "batch": "batchSettingsGenerateSummary"},
+        ),
+        # Le TYPE de résumé (2026-10-13) — le compte-rendu de réunion en est un, comme au
+        # transcriber (il était un style de description, migration 0016).
+        "summary_type": dict(
+            type="radio", label="", icon="fa-list", show_if="generate_summary", inline=True,
+            choices=[("structured", "Structuré"), ("meeting", "Réunion")],
+            stales=("summarize",),
         ),
         "verify_coherence": dict(
             type="toggle", label="Vérifier la cohérence", icon="fa-spell-check",

@@ -187,10 +187,6 @@ def describe_image(input_path: str, options: dict = None,
     output_language = options.get('output_language') or 'fr'
     max_length = int(options.get('max_length') or 500)
 
-    # Meeting format not applicable to images — silently use detailed
-    if output_style == 'meeting':
-        output_style = 'detailed'
-
     console("Chargement de l'image…")
     progress(20)
 

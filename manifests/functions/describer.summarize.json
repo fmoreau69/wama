@@ -15,6 +15,16 @@
         "optional": false,
         "produced_fields": [],
         "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "La parole entière, source d'un compte-rendu de réunion.",
+        "group": "travail",
+        "key": "transcript",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
       }
     ],
     "key": "describer.summarize",
@@ -22,7 +32,7 @@
       {
         "cardinality": "one",
         "data_type": "document",
-        "description": "Le résumé.",
+        "description": "Le résumé ou le compte-rendu.",
         "key": "summary",
         "optional": false,
         "produced_fields": [],
@@ -38,7 +48,7 @@
     ],
     "visibility": "public"
   },
-  "description": "Résume la description (résumé structuré, LLM).",
+  "description": "Résume la card (LLM), selon son type de résumé : un résumé structuré de la description, ou un compte-rendu de réunion de la parole entière (ou du texte du document).",
   "key": "describer.summarize",
   "manifest_kind": "function",
   "name": "Describer — résumer",

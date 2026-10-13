@@ -1381,11 +1381,26 @@
   }
 
   // Le schéma RÉDUIT aux réglages nommés — plus les porteurs `hidden` (ex. `media_type`), qui
-  // conditionnent l'affichage des autres et ne se montrent pas. Les groupes sans champ restant
-  // sortent avec eux. Pure (testée en V8, `tests_cap_from_js`).
+  // conditionnent l'affichage des autres et ne se montrent pas, et le champ qui COMMANDE le
+  // `show_if` d'un réglage retenu (2026-10-13) : sans lui la condition ne se juge pas, et le
+  // réglage restait masqué — le type de résumé dans le ⚙ du process « Résumé », que
+  // l'interrupteur du résumé commande. Les groupes sans champ restant sortent avec eux.
+  // Pure (testée en V8, `tests_cap_from_js`).
   function scopedSchema(schema, names) {
     const wanted = {};
     (names || []).forEach(function (n) { wanted[n] = true; });
+    const controller = function (p) {
+      const cond = p.show_if;
+      return cond ? (typeof cond === 'object' ? cond.field : cond) : null;
+    };
+    let grew = true;
+    while (grew) {                       // une commande peut avoir sa propre commande
+      grew = false;
+      (schema || []).forEach(function (p) {
+        const field = wanted[p.name] && controller(p);
+        if (field && !wanted[field]) { wanted[field] = true; grew = true; }
+      });
+    }
     return (schema || []).filter(function (p) { return p.type === 'hidden' || wanted[p.name]; });
   }
 

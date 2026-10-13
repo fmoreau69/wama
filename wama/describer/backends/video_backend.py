@@ -93,7 +93,7 @@ def describe_video(input_path: str, options: dict = None,
         console(f"Video duration: {int(duration)}s")
 
         frame_descriptions = options.get('frame_captions')
-        if frame_descriptions is None and output_style != 'meeting':
+        if frame_descriptions is None:
             frame_descriptions = caption_frames(input_path, options, progress, partial, console,
                                                 duration=duration)
         frame_descriptions = frame_descriptions or []
@@ -113,20 +113,13 @@ def describe_video(input_path: str, options: dict = None,
                 console("Traitement de la piste audio…")
                 partial("Transcription audio…")
                 audio_transcript = transcribe_track(input_path, options.get('asr_model'), console)
-        # For meeting format we need the full transcript (no summarization)
-        if audio_transcript and output_style != 'meeting':
+        # Le compte-rendu de réunion, qui lit la parole ENTIÈRE, est un type de résumé (process
+        # `summarize`, 2026-10-13) : la description, elle, condense toujours.
+        if audio_transcript:
             audio_transcript = condense_transcript(
                 audio_transcript, max_length // 2, output_language=output_language,
                 llm_model=llm_model, llm_provider=llm_provider)
         progress(75)
-
-        # Meeting compte-rendu: skip frame analysis, use LLM on transcript
-        if output_style == 'meeting':
-            console("Génération du compte-rendu de réunion (Ollama)…")
-            partial("Rédaction du compte-rendu…")
-            from wama.common.utils.llm_utils import generate_meeting_summary
-            return generate_meeting_summary(audio_transcript, language=output_language,
-                                            model=llm_model, provider=llm_provider)
 
         # Combine visual and audio descriptions
         console("Generating video summary...")

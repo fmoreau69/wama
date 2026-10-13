@@ -313,6 +313,23 @@ class ScopedSettingsModalTest(SimpleTestCase):
         self.assertEqual(['media_type', 'duration'], list(kept))
         self.assertEqual([], list(self.v8.eval("window.WamaParams.scopedSchema([], ['x'])")))
 
+    def test_the_scoped_schema_keeps_the_field_that_commands_a_kept_setting(self):
+        """The summary type was HIDDEN in the gear of the « Résumé » process (describer,
+        transcriber, 2026-10-13): its `show_if` reads the summary switch, which the scope had
+        left out — a condition that cannot be judged hides its row."""
+        schema = ("[{name: 'generate_summary', type: 'toggle'},"
+                  " {name: 'summary_type', type: 'radio', show_if: 'generate_summary'},"
+                  " {name: 'engine', type: 'select', show_if: {field: 'mode', equals: 'x'}},"
+                  " {name: 'mode', type: 'select', show_if: 'advanced'},"
+                  " {name: 'advanced', type: 'toggle'}, {name: 'language', type: 'select'}]")
+        names = lambda wanted: list(self.v8.eval(
+            f"window.WamaParams.scopedSchema({schema}, {wanted})"
+            ".map(function (p) {{ return p.name; }})"))
+        self.assertEqual(['generate_summary', 'summary_type'], names("['summary_type']"))
+        self.assertEqual(['engine', 'mode', 'advanced'], names("['engine']"),
+                         'a command that has its own command is kept with it')
+        self.assertEqual(['language'], names("['language']"), 'nothing more when nothing commands')
+
     def test_a_scope_is_taken_once_by_the_next_modal_and_expires_by_itself(self):
         # `settingsModal` itself builds a DOM modal (too DOM-bound for V8) : what it does first —
         # take the pending scope — is exercised through the same function, exposed.

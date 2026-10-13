@@ -4652,9 +4652,8 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 > cohérence — dans une fonction, sans ligne d'exécution, les deux derniers en échec AVALÉS.
 > - **CINQ process selon la NATURE de l'entrée** (`describer/function_specs.py`, glues
 >   `workers.PROCESSES`) : `transcribe` (audio, piste son d'une vidéo) → `frames` (images-clés
->   d'une vidéo, pas pour un compte-rendu de réunion qui ne les lit pas) → `describe` (toute card)
->   → `summarize`, `coherence` (optionnels, leurs interrupteurs d'avant ; le résumé sans objet
->   pour un compte-rendu, qui EST un résumé). Une image ou un document : un seul process.
+>   d'une vidéo) → `describe` (toute card) → `summarize`, `coherence` (optionnels, leurs
+>   interrupteurs d'avant). Une image ou un document : un seul process.
 >   Les sorties intermédiaires sont gardées sur la card (`transcript`, `frame_captions`,
 >   migration `describer/0015`, `db_default` partout) : la rédaction les REPREND
 >   (`options['transcript']`, `options['frame_captions']`), un process relancé seul aussi.
@@ -4679,7 +4678,7 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 > - Gardes : `describer/tests_pipeline.py` (34) ; contre-épreuves ROUGES (description qui ne
 >   reçoit plus la transcription, modèle de langage qui ne périme rien, modèle de vision muet
 >   remplacé par BLIP, lanceur qui efface, brique qui ignore la clé, rapport d'un optionnel
->   désactivé, images-clés d'un compte-rendu).
+>   désactivé).
 > - ⚠ **Grille : 100 % → 97 %**, et c'est une mesure, pas une régression : en gagnant des
 >   selects de modèle, le describer entre dans `input_match_ui` et `model_caps_ui`. Le grisage par
 >   entrées (`WamaInputMatch`) n'est PAS câblé à dessein sur les selects vision et langage : le
@@ -4692,9 +4691,18 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   (`select_match_meta(inputs=False)`) ; `model_caps_ui` est NON APPLICABLE, dérivé — aucune
 >   capacité des modèles de ses selects ne nomme un réglage du describer. Détail et gardes :
 >   `INPUT_MODEL_MATCHING §6.12` et `§7` (2026-10-13). Grille : describer **100 %**.
-> - ⏳ **Restes** : le « compte-rendu de réunion » comme TYPE de résumé (au transcriber, il l'est
->   déjà) plutôt que comme style de sortie — il résume encore à deux endroits (backends et
->   process) ; le découpage des backends (vidéo : images-clés et piste son sont des process, la
+> - ✅ **Le compte-rendu de réunion est un TYPE DE RÉSUMÉ** (même jour, « il faut tout
+>   aligner ») — comme au transcriber, et non plus un style de description que chaque backend
+>   rédigeait à la place de la description. Réglage `summary_type` (structuré / réunion, visible
+>   quand le résumé est demandé, il ne périme que `summarize`) ; le compte-rendu lit la parole
+>   ENTIÈRE (audio, vidéo — la description, elle, la condense) ou le texte du document
+>   (`workers._meeting_source`), avec le modèle lourd sous « auto ». Les quatre branches
+>   « meeting » des backends sont retirées ; une vidéo en compte-rendu légende désormais ses
+>   images-clés (sa description est une description). Migration `describer/0016` : les cards
+>   posées en style « meeting » deviennent type « réunion », résumé activé, style « détaillé »,
+>   et leur compte-rendu déjà rédigé passe dans `summary` (1 card sur 19 en base). Un style
+>   mémorisé « meeting » retombe sur « détaillé » à la création. Gardes : `MeetingReportTest`.
+> - ⏳ **Restes** : le découpage des backends (vidéo : images-clés et piste son sont des process, la
 >   combinaison reste au backend) ; reader (son analyse LLM, `analyze_document_task`, hors
 >   pipeline) et converter — la suite de la même décision ; le nom d'une card dans sa
 >   notification est le libellé du DERNIER process (« cohérence 90/100 »), transcriber compris.

@@ -112,7 +112,9 @@ def describe_eta(item):
 
 
 def summarize_eta(item):
-    return 'describer:summarize', 1.0, 'item', True, 0.0
+    # Un compte-rendu (modèle lourd, parole entière) n'a pas la durée d'un résumé structuré.
+    kind = ':meeting' if getattr(item, 'summary_type', '') == 'meeting' else ''
+    return f'describer:summarize{kind}', 1.0, 'item', True, 0.0
 
 
 def coherence_eta(item):
@@ -203,24 +205,48 @@ def _describe_step(item, ctx):
             'label': item.filename or f"description #{item.id}"}
 
 
+def _meeting_source(item, nature) -> str:
+    """Ce qu'un compte-rendu de réunion lit : la parole ENTIÈRE (audio, vidéo — jamais la
+    description, qui la condense), le texte du document, ou à défaut la description."""
+    if nature in ('audio', 'video'):
+        return item.transcript or ''
+    if nature == 'document':
+        from .backends.text_backend import extract_text_from_file
+        return extract_text_from_file(item.input_file.path) or ''
+    return item.result_text or ''
+
+
 def _summarize_step(item, ctx):
-    """Process `summarize` (optionnel) : un résumé structuré de la description. Son échec se lit
-    sur SA ligne ; avant le pipeline, c'était un avertissement sous une card « terminée »."""
-    if not (item.result_text or '').strip():
-        return {'label': 'rien à résumer'}
-    from wama.common.utils.llm_utils import generate_structured_summary
+    """Process `summarize` (optionnel) : un résumé du TYPE de la card — structuré (depuis la
+    description) ou compte-rendu de réunion (`_meeting_source`). Son échec se lit sur SA ligne ;
+    avant le pipeline, c'était un avertissement sous une card « terminée »."""
     from .backends.model_choice import catalog_key_of, llm_for
     from .function_specs import nature_of
     opts = _options(item)
     nature = nature_of(item)
-    model, provider = llm_for(opts, nature, opts.get('output_style') or 'detailed')
-    ctx.console(f"Génération du résumé LLM — modèle : {model}")
-    data = generate_structured_summary(item.result_text, content_hint=nature,
-                                       language=opts.get('output_language') or 'fr',
-                                       model=model, provider=provider)
-    ctx.console("Résumé LLM généré ✓")
-    return {'fields': {'summary': data['summary']}, 'label': 'résumé',
-            'models': [catalog_key_of(model)], 'output_fingerprint': _fingerprint(data['summary']),
+    language = opts.get('output_language') or 'fr'
+    if opts.get('summary_type') == 'meeting':
+        source = _meeting_source(item, nature)
+        if not source.strip():
+            return {'label': 'rien à résumer'}
+        from wama.common.utils.llm_utils import generate_meeting_summary
+        model, provider = llm_for(opts, nature, 'meeting')   # heavy tier sous « auto »
+        ctx.console(f"Rédaction du compte-rendu de réunion — modèle : {model}")
+        summary, label = generate_meeting_summary(source, language=language, model=model,
+                                                  provider=provider), 'compte-rendu'
+    else:
+        if not (item.result_text or '').strip():
+            return {'label': 'rien à résumer'}
+        from wama.common.utils.llm_utils import generate_structured_summary
+        model, provider = llm_for(opts, nature, opts.get('output_style') or 'detailed')
+        ctx.console(f"Génération du résumé LLM — modèle : {model}")
+        summary = generate_structured_summary(item.result_text, content_hint=nature,
+                                              language=language, model=model,
+                                              provider=provider)['summary']
+        label = 'résumé'
+    ctx.console(f"{label.capitalize()} généré ✓")
+    return {'fields': {'summary': summary}, 'label': label,
+            'models': [catalog_key_of(model)], 'output_fingerprint': _fingerprint(summary),
             'eta': summarize_eta(item)[:3]}
 
 

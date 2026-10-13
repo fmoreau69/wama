@@ -69,17 +69,6 @@ def describe_audio(input_path: str, options: dict = None,
         progress(60)
         partial(transcript[:300] + "..." if len(transcript) > 300 else transcript)
 
-        # Meeting compte-rendu: use heavy LLM directly
-        if output_style == 'meeting':
-            console("Génération du compte-rendu de réunion (Ollama)…")
-            partial("Rédaction du compte-rendu…")
-            from wama.common.utils.llm_utils import generate_meeting_summary
-            from .model_choice import llm_for
-            _model, _provider = llm_for(options, 'audio', 'meeting')
-            console(f"Modèle LLM : {_model}")
-            return generate_meeting_summary(transcript, language=output_language, model=_model,
-                                            provider=_provider)
-
         # If short, just format the transcript
         if word_count <= max_length:
             console("Transcript is short, using directly...")

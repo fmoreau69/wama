@@ -45,7 +45,7 @@ class _Cards(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user('describer_pipeline', password='x')
-        self.heard, self.framed, self.summaries, self.checks = [], [], [], []
+        self.heard, self.framed, self.summaries, self.checks, self.reports = [], [], [], [], []
         self.summary_error = None
 
     def _card(self, nature, name, content, **fields):
@@ -87,6 +87,10 @@ class _Cards(TestCase):
         self.checks.append(text)
         return {'score': 90, 'notes': ['fine'], 'suggestion': ''}
 
+    def _meeting(self, text, **kwargs):
+        self.reports.append((text, kwargs.get('model')))
+        return '# Meeting report'
+
     def _run(self, card, process=None):
         Description.objects.filter(pk=card.pk).update(status='RUNNING')
         with mock.patch.object(workers, 'asr_key', return_value='transcriber:whisper'), \
@@ -103,6 +107,8 @@ class _Cards(TestCase):
                            side_effect=self._summary), \
                 mock.patch('wama.common.utils.llm_utils.verify_text_coherence',
                            side_effect=self._check), \
+                mock.patch('wama.common.utils.llm_utils.generate_meeting_summary',
+                           side_effect=self._meeting), \
                 mock.patch('wama.common.utils.task_skeleton.close_old_connections'):
             workers.describe_content.run(card.pk, process)
         card.refresh_from_db()
@@ -129,9 +135,9 @@ class ProcessesFollowTheNatureTest(_Cards):
         card = self._audio(generate_summary=True, verify_coherence=True)
         self.assertEqual(['transcribe', 'describe', 'summarize', 'coherence'], self._keys(card))
 
-    def test_a_meeting_report_reads_no_key_frame_and_is_already_a_summary(self):
-        card = self._video(output_style='meeting', generate_summary=True)
-        self.assertEqual(['transcribe', 'describe'], self._keys(card))
+    def test_a_meeting_report_is_a_summary_type_the_video_is_still_described(self):
+        card = self._video(summary_type='meeting', generate_summary=True)
+        self.assertEqual(['transcribe', 'frames', 'describe', 'summarize'], self._keys(card))
 
     def test_a_historical_nature_is_read_through_its_alias(self):
         self.assertEqual(['describe'], self._keys(self._card('pdf', 'a.pdf', b'%PDF-1.4')))
@@ -192,6 +198,44 @@ class AudioCardRunTest(_Cards):
         _reset_for_relaunch(card)
         self.assertTrue(card.result_text and card.summary and card.transcript)
         self.assertEqual((0, ''), (card.progress, card.error_message))
+
+
+class MeetingReportTest(_Cards):
+    """The meeting report is a SUMMARY TYPE (2026-10-13), as in the transcriber — it was a
+    description style, written by each backend in place of the description."""
+
+    def test_the_report_is_written_from_the_whole_speech_not_from_the_description(self):
+        card = self._run(self._audio(summary_type='meeting', generate_summary=True))
+        self.assertEqual([('hello everyone', 'tier-llm')], self.reports)
+        self.assertEqual([], self.summaries, 'no structured summary was asked')
+        self.assertEqual('# Meeting report', card.summary)
+        self.assertIn('hello everyone', card.result_text, 'the description stays a description')
+        self.assertEqual('compte-rendu', process_runs.line(card, 'summarize').output_summary['label'])
+
+    def test_a_document_report_reads_the_document_text(self):
+        card = self._run(self._card('document', 'minutes.txt', b'Alice opens the meeting.',
+                                    summary_type='meeting', generate_summary=True))
+        self.assertEqual('Alice opens the meeting.', self.reports[0][0])
+
+    def test_changing_the_summary_type_replays_the_summary_only(self):
+        card = self._run(self._audio(generate_summary=True))
+        Description.objects.filter(pk=card.pk).update(summary_type='meeting')
+        card.refresh_from_db()
+        self.assertEqual({'summarize'}, PIPELINE.refresh(card))
+        card = self._run(card)
+        self.assertEqual((1, 1), (len(self.heard), len(self.reports)))
+        self.assertEqual('# Meeting report', card.summary)
+
+    def test_a_card_posted_in_the_old_meeting_style_keeps_its_report_as_a_summary(self):
+        import importlib
+
+        from django.apps import apps
+        migration = importlib.import_module('wama.describer.migrations.0016_description_summary_type')
+        card = self._audio(output_style='meeting', result_text='# Old report', status='SUCCESS')
+        migration.meeting_style_to_summary_type(apps, None)
+        card.refresh_from_db()
+        self.assertEqual(('detailed', 'meeting', True, '# Old report'),
+                         (card.output_style, card.summary_type, card.generate_summary, card.summary))
 
 
 class VideoCardRunTest(_Cards):

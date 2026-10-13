@@ -42,6 +42,10 @@ def _read_creation_options(request, user):
     stored = get_user_app_settings(user, 'describer', {  # wama:redondance-ok — défauts du contrat de réglages utilisateur (décision d'app)
         'output_style': 'detailed', 'output_language': 'fr', 'max_length': 500})
     output_style = request.POST.get('output_style') or stored['output_style']
+    # Un style qui n'en est plus un (« meeting », devenu un type de résumé le 2026-10-13 — un
+    # réglage mémorisé avant peut le porter) retombe sur le défaut.
+    if output_style not in dict(Description.OUTPUT_STYLE_CHOICES):
+        output_style = 'detailed'
     output_language = request.POST.get('output_language') or stored['output_language']
     try:
         max_length = int(request.POST.get('max_length') or stored['max_length'])
@@ -509,7 +513,7 @@ def _output_stem(d):
 #: Réglages d'un élément — les colonnes que la modale et le volet écrivent (schéma `params.py`).
 SETTINGS_FIELDS = ('output_style', 'output_language', 'max_length', 'asr_model',
                    'quality_intent', 'vision_model', 'llm_model', 'generate_summary',
-                   'verify_coherence')
+                   'summary_type', 'verify_coherence')
 
 
 def _reset_and_clear_progress(description):
