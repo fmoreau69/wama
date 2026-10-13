@@ -322,6 +322,17 @@ FEATURES = [
             "une vérité terrain — compté en console. OFF = sans cette garde.",
             default=True, scope='compute',
             processes=TRACKING),
+    Feature('parked_motion_vs_shuttle', 'Garés : mouvement jugé contre la navette',
+            "Une voiture garée « bouge » dans nos calculs quand la navette passe : l'angle de vue change "
+            "et sa position calculée glisse de plusieurs mètres. La garde « trajectoire immobile » la "
+            "prenait pour un véhicule qui roule — constat du 2026-10-13 : 959 des 1714 véhicules hors "
+            "voies écartés ainsi, contre 387 garés retenus, et autant de garés affichés qui tremblent "
+            "malgré « garés masqués ». Avec cette bascule, un déplacement ne compte que s'il dépasse "
+            "aussi la moitié du chemin de la navette sur le même intervalle : un vrai mobile se déplace "
+            "par lui-même, navette arrêtée comprise. Un garé retenu est ensuite dessiné à position et "
+            "cap fixes. Les fragments d'un garé (pose longue) sont choisis de même. Tracking à rejouer.",
+            default=False, scope='compute',
+            processes=TRACKING),
     Feature('sam3_label_arbitration', 'SAM3 : un marquage, un seul label',
             "Les prompts SAM3 sont interrogés séparément : un même marquage pouvait sortir sous "
             "deux labels (une rangée de triangles vue comme « triangles » ET « passage piéton »). "

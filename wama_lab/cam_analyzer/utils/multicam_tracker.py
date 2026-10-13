@@ -36,6 +36,11 @@ MAX_NET_OVER_PATH = 0.8
 #: terrain ; un critère « revu à un autre tour » s'est révélé non discriminant, 90 % partout).
 PARKED_MOVE_M = 5.0
 PARKED_MOVE_MPS = 0.5
+#: ⚑ parked_motion_vs_shuttle — part du chemin de la NAVETTE (même intervalle) qu'un « hors voies » doit
+#: dépasser pour être jugé mobile : en deçà, son déplacement est la dérive de placement que produit le
+#: changement d'angle de vue (une garée « avançait » de 17 à 22 % du trajet de la navette sans la
+#: correction de distorsion, mesuré le 2026-10-03).
+PARKED_DRIFT_SHARE = 0.5
 #: Deux ANCRES de garés plus proches que ceci sont un même objet compté deux fois (mesure `parked_twins`).
 PARKED_TWIN_M = 2.0
 
@@ -146,11 +151,13 @@ def road_side_m(e, n, footprint, edge):
     return (-1.0 if footprint.contains(pt) else 1.0) * edge.distance(pt)
 
 
-def long_exposure_candidates(track_hist, cls_votes, footprint, edge, *, margin_m=OFF_ROAD_MARGIN_M):
+def long_exposure_candidates(track_hist, cls_votes, footprint, edge, *, margin_m=OFF_ROAD_MARGIN_M,
+                             moving=None):
     """⚑ parked_long_exposure — fragments qui PEUVENT être un morceau de garé : famille garable (vote
     majoritaire, même faible : un fragment bref n'a pas encore de famille ÉTABLIE), position médiane hors
-    chaussée à plus de `margin_m`, et qui ne roule pas (`robust_displacement`). Rend [(gid, e, n, n_obs,
-    famille)] pour `wama_data.functions.kinematics.static_fusion.long_exposure_groups`."""
+    chaussée à plus de `margin_m`, et qui ne roule pas (`moving(hs)`, par défaut `robust_displacement`
+    contre les seuils absolus). Rend [(gid, e, n, n_obs, famille)] pour
+    `wama_data.functions.kinematics.static_fusion.long_exposure_groups`."""
     out = []
     for gid, hist in track_hist.items():
         fam = dominant_family(cls_votes.get(gid) or {}, min_weight=0.0, min_share=0.5)
@@ -162,9 +169,13 @@ def long_exposure_candidates(track_hist, cls_votes, footprint, edge, *, margin_m
         me, mn = es[len(es) // 2], ns[len(ns) // 2]
         if road_side_m(me, mn, footprint, edge) < margin_m:
             continue
-        dist, speed = robust_displacement(hs)
-        if dist >= PARKED_MOVE_M and speed >= PARKED_MOVE_MPS:
-            continue
+        if moving is not None:
+            if moving(hs):
+                continue
+        else:
+            dist, speed = robust_displacement(hs)
+            if dist >= PARKED_MOVE_M and speed >= PARKED_MOVE_MPS:
+                continue
         out.append((gid, me, mn, len(hs), fam))
     return out
 
@@ -205,23 +216,88 @@ def off_road_gate(hs, votes, footprint, edge, margin_m=OFF_ROAD_MARGIN_M):
     return 'retenu'
 
 
-def robust_displacement(hs):
-    """(distance m, vitesse m/s) entre la position MÉDIANE du premier tiers et celle du dernier
-    tiers d'un track `[(fn, t, e, n, classe)]` trié — le bruit de placement s'y moyenne, un vrai
-    déplacement reste. Le rapport net/chemin (`MAX_NET_OVER_PATH`) ne le voit pas : le bruit
-    allonge le chemin (G2759 : 25,6 m parcourus, net/chemin 0,27)."""
+def thirds_motion(hs):
+    """(distance m, t_a, t_b) entre la position MÉDIANE du premier tiers et celle du dernier tiers
+    d'un track `[(fn, t, e, n, classe)]` trié, et les instants médians de ces deux tiers."""
     n = len(hs)
     if n < 3:
-        return 0.0, 0.0
+        return 0.0, 0.0, 0.0
     k = max(n // 3, 1)
 
     def med(part, i):
         v = sorted(h[i] for h in part)
         return v[len(v) // 2]
     a, b = hs[:k], hs[-k:]
-    dist = math.hypot(med(b, 2) - med(a, 2), med(b, 3) - med(a, 3))
-    dt = med(b, 1) - med(a, 1)
+    return math.hypot(med(b, 2) - med(a, 2), med(b, 3) - med(a, 3)), med(a, 1), med(b, 1)
+
+
+def robust_displacement(hs):
+    """(distance m, vitesse m/s) entre la position MÉDIANE du premier tiers et celle du dernier
+    tiers d'un track `[(fn, t, e, n, classe)]` trié — le bruit de placement s'y moyenne, un vrai
+    déplacement reste. Le rapport net/chemin (`MAX_NET_OVER_PATH`) ne le voit pas : le bruit
+    allonge le chemin (G2759 : 25,6 m parcourus, net/chemin 0,27)."""
+    dist, ta, tb = thirds_motion(hs)
+    dt = tb - ta
     return dist, (dist / dt if dt > 1e-6 else 0.0)
+
+
+def shuttle_travel_m(sh_traj, t0, t1):
+    """Chemin parcouru par la navette (m) entre t0 et t1 : la LONGUEUR de sa trajectoire, pas son
+    déplacement net (un virage ne la raccourcit pas). `sh_traj` = `shuttle_trajectory`."""
+    if t1 <= t0 or len(sh_traj) < 2:
+        return 0.0
+    t = sh_traj[:, 0]
+    inner = sh_traj[(t > t0) & (t < t1)]
+    pts = ([_shuttle_pose_at(sh_traj, t0)[:2]] + [(r[1], r[2]) for r in inner]
+           + [_shuttle_pose_at(sh_traj, t1)[:2]])
+    return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(pts, pts[1:]))
+
+
+def parked_motion(hs, sh_traj):
+    """(distance m, vitesse m/s, chemin de la navette m) d'un track trié : son déplacement robuste
+    (`thirds_motion`) et ce que la navette a parcouru entre les deux mêmes instants."""
+    dist, ta, tb = thirds_motion(hs)
+    dt = tb - ta
+    return dist, (dist / dt if dt > 1e-6 else 0.0), shuttle_travel_m(sh_traj, ta, tb)
+
+
+def is_moving(dist, speed, shuttle_m, *, vs_shuttle=False, drift_share=None):
+    """Garde des garés (⚑ parked_motion_guard) : le track SE DÉPLACE-t-il ? Il faut ≥ `PARKED_MOVE_M` ET
+    ≥ `PARKED_MOVE_MPS`. Sous ⚑ parked_motion_vs_shuttle, il faut EN PLUS dépasser `drift_share` du
+    chemin de la navette sur le même intervalle : la dérive de placement d'un immobile n'existe que
+    quand la navette bouge (l'angle de vue change), et en reste une fraction ; un vrai mobile se
+    déplace par lui-même, navette arrêtée comprise."""
+    if dist < PARKED_MOVE_M or speed < PARKED_MOVE_MPS:
+        return False
+    if vs_shuttle:
+        return dist > (PARKED_DRIFT_SHARE if drift_share is None else drift_share) * shuttle_m
+    return True
+
+
+#: Parts du chemin de la navette essayées par `parked_motion_stats` : le seuil se choisit sur ce compte.
+DRIFT_SHARES_TRIED = (0.2, 0.3, 0.5, 0.7, 1.0)
+
+
+def parked_motion_stats(motion_by_gid, gate_by_gid):
+    """Mesure de ⚑ parked_motion_vs_shuttle sur les « hors voies » (`motion_by_gid` : gid → (distance,
+    vitesse, chemin de la navette)) : par porte finale, quantiles de la part du chemin de la navette, et,
+    pour chaque part de `DRIFT_SHARES_TRIED`, combien de tracks la garde ABSOLUE jugerait mobiles et
+    combien le resteraient contre la navette — portes « avance » et « près d'une intersection » comprises,
+    qui ne consultent pas la garde, pour juger le critère sur toute la population hors voies."""
+    if not motion_by_gid:
+        return {}
+    by_gate = defaultdict(list)
+    for gid, (dist, _speed, sh_m) in motion_by_gid.items():
+        by_gate[gate_by_gid.get(gid, '?')].append(dist / sh_m if sh_m > 1e-6 else float('inf'))
+    out = {'share_by_gate': {g: dict(_quantiles([v for v in vals if v != float('inf')]), n=len(vals),
+                                     shuttle_still=sum(1 for v in vals if v == float('inf')))
+                             for g, vals in by_gate.items()}}
+    absolute = [m for m in motion_by_gid.values() if is_moving(*m)]
+    out['absolute_moving'] = len(absolute)
+    out['still_moving_vs_shuttle'] = {str(s): sum(1 for m in absolute if is_moving(*m, vs_shuttle=True,
+                                                                                 drift_share=s))
+                                      for s in DRIFT_SHARES_TRIED}
+    return out
 
 
 def track_descriptors(hs):
@@ -1429,10 +1505,20 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     # qui ne roulent pas et dont les positions coïncident sont RÉUNIS avant de juger : la qualification, la
     # position fixe et le cap (ci-dessous) portent alors sur TOUTES les observations de l'objet. Exige
     # l'emprise de chaussée (⚑ parked_off_road) : sans elle, rien n'est réuni.
+    # ⚑ parked_motion_vs_shuttle (Fabien, 2026-10-13 : « des garés hors voies continuent à bouger
+    # légèrement et à apparaître ») : la garde de mouvement prenait la DÉRIVE de placement d'un garé — sa
+    # position calculée glisse quand l'angle de vue change, navette en marche — pour un déplacement
+    # (« en mouvement » : 959 des 1714 « hors voies » de 4da52df3). Un déplacement n'est retenu que s'il
+    # dépasse aussi une part du chemin de la navette sur le même intervalle (`is_moving`).
+    _vs_shuttle = _feat.get('parked_motion_vs_shuttle', False)
+
+    def _moving(hs):
+        return is_moving(*parked_motion(hs, sh_traj), vs_shuttle=_vs_shuttle)
     _lexp = None
     if _feat.get('parked_long_exposure', False) and _footprint is not None:
         from wama_data.functions.kinematics.static_fusion import long_exposure_groups
-        _frag = long_exposure_candidates(track_hist, cls_votes, _footprint, _edge)
+        _frag = long_exposure_candidates(track_hist, cls_votes, _footprint, _edge,
+                                         moving=_moving if _vs_shuttle else None)
         _cand = {f[0] for f in _frag}
         _lx = long_exposure_groups(_frag, distinct_box_conflicts(_continuity_obs, _cand, _root))
         _lexp = {'candidats': len(_frag), 'fragments_reunis': len(_lx), 'objets': len(set(_lx.values()))}
@@ -1491,6 +1577,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     # Porte de sortie PAR TRACK (2026-10-03) : « pourquoi ce véhicule n'est-il pas garé ? » se
     # répondait par un compteur global — la question de Fabien à 511,8 s portait sur SIX voitures.
     _gate_by_gid = {}
+    _motion_by_gid = {}      # « hors voies » : (déplacement m, vitesse m/s, chemin de la navette m)
     for gid, hist in track_hist.items():
         hs = sorted(hist)
         d = track_descriptors(hs)
@@ -1510,6 +1597,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             calibration_reference.append(gid)
         if _footprint is not None:
             porte = off_road_gate(hs, cls_votes.get(gid), _footprint, _edge)
+            _motion = parked_motion(hs, sh_traj) if porte == 'retenu' else None
+            if _motion is not None:
+                _motion_by_gid[gid] = _motion
             if porte == 'retenu' and d['net_sur_chemin'] > MAX_NET_OVER_PATH:
                 porte = 'avance'
             # Près d'une INTERSECTION : jamais garé — la règle d'ORIGINE du filtre (« voiture arrêtée
@@ -1518,8 +1608,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             if porte == 'retenu' and _near_intersection(hs):
                 porte = 'pres_intersection'
             if porte == 'retenu' and _feat.get('parked_motion_guard', True):
-                _dist, _speed = robust_displacement(hs)
-                if _dist >= PARKED_MOVE_M and _speed >= PARKED_MOVE_MPS:
+                if is_moving(*_motion, vs_shuttle=_vs_shuttle):
                     porte = 'en_mouvement'
             _rejets[porte] += 1
             d['porte'] = porte
@@ -1536,6 +1625,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     logger.info('[référence de calibration] %s immobiles compacts (garés retenus : %s, règle %s)',
                 len(calibration_reference), len(stationary_gids), _stationary_rule)
     logger.info('[stationnés] %s', ' · '.join(f'{k}={v}' for k, v in _rejets.items()))
+    _motion_stats = parked_motion_stats(_motion_by_gid, _gate_by_gid)
+    if _motion_stats:
+        logger.info('[stationnés/mouvement contre la navette] %s', _motion_stats)
 
     # Distribution des grandeurs CANDIDATES sur la population qui atteint la décision
     # (≥ 5 observations). Des quantiles, pas une moyenne : la question posée au chantier
@@ -1925,6 +2017,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'offset_pitch': offset_pitch,
             'stationary_rejects': _rejets,
             'stationary_gate_by_gid': _gate_by_gid,
+            'stationary_motion_by_gid': _motion_by_gid,
+            'stationary_motion_stats': _motion_stats,
             'stationary_rule': _stationary_rule,
             'stationary_candidates': _stat_candidats,
             'stable_class_fragiles': _cls_fragiles,

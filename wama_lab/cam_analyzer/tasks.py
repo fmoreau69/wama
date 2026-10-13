@@ -2788,6 +2788,20 @@ def _run_global_tracking(session):
         # qui retient 1,8 % de ses candidats doit dire par quelle porte sortent les autres.
         rs['stationary_rejects'] = _gt.get('stationary_rejects') or {}
         rs['stationary_rule'] = _gt.get('stationary_rule')
+        # Pourquoi CE véhicule hors voies n'est pas garé (2026-10-13) : sa porte, son déplacement robuste,
+        # sa vitesse et le chemin de la navette sur le même intervalle — le compteur global ne répondait
+        # pas à « pourquoi ce garé bouge-t-il encore ? ». Les seuls « hors voies » (~1700 sur 4da52df3).
+        _gates = _gt.get('stationary_gate_by_gid') or {}
+        rs['parked_motion_by_gid'] = {
+            str(g): [_gates.get(g)] + [round(float(x), 2) for x in m]
+            for g, m in (_gt.get('stationary_motion_by_gid') or {}).items()}
+        rs['parked_motion_stats'] = _gt.get('stationary_motion_stats') or {}
+        _ms = rs['parked_motion_stats']
+        if _ms.get('absolute_moving'):
+            _console(session.user_id,
+                     f"Garés — jugés en mouvement par la garde absolue : {_ms['absolute_moving']} ; "
+                     "le resteraient contre la navette (part de son chemin) : " + ", ".join(
+                         f"{s} → {n}" for s, n in _ms.get('still_moving_vs_shuttle', {}).items()))
         # État d'un calcul PRÉCÉDENT (2026-09-30) : gids et positions monde que ce calcul ne
         # réécrit pas, donc PÉRIMÉS — retirés au lieu de survivre. 0 attendu au 2ᵉ calcul d'affilée.
         # Contrôle qualité par caméra (2026-09-30) : objets placés derrière leur caméra

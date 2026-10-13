@@ -1105,6 +1105,37 @@ artefact de placement, pas un mobile. La corrélation entre le déplacement appa
 celui de la navette est sans dimension, indépendante de l'échelle du bruit — et elle vise
 exactement ce qui a été OBSERVÉ à l'écran. À mesurer, pas à croire.
 
+#### D.3 ter — LA PISTE MESURÉE : le déplacement contre le chemin de la navette (2026-10-13)
+
+Constat de Fabien : *« des véhicules hors des 30 m et hors des voies continuent à bouger
+légèrement et à apparaître malgré "garés masqués" »*. Sous ⚑ `parked_off_road`, la porte qui les
+écarte est la garde de mouvement (⚑ `parked_motion_guard` : ≥ 5 m ET ≥ 0,5 m/s entre médianes du
+premier et du dernier tiers) — 959 des 1714 « hors voies » au calcul de 11h34, contre 387 retenus.
+La règle juge déjà la position MÉDIANE contre l'emprise IGN (l'idée « barycentre hors voie » de
+Fabien est en place depuis le 30/09) : c'est la garde d'après qui prend la dérive pour un trajet.
+
+Mesure (rejeu de `annotate_global_tracks`, écritures neutralisées, `parked_motion_stats`) — part
+= déplacement robuste / chemin de la navette entre les deux mêmes instants :
+
+| porte | n | déplacement p50 | vitesse p50 | part p25 / p50 / p75 |
+|---|---|---|---|---|
+| retenu | 416 | 1,6 m | 0,01 m/s | 0,0002 / 0,014 / 0,22 |
+| en mouvement | 867 | 10,7 m | 1,7 m/s | 0,38 / 0,61 / 1,29 |
+| avance | 68 | 57 m | 11 m/s | 21 / 179 / 284 |
+
+**La part n'est PAS bimodale chez les « en mouvement »** : elle croît continûment avec le
+déplacement (5-8 m : p50 0,41 ; 8-12 m : 0,52 ; 12-20 m : 0,77 ; 20-40 m : 1,64). Aucun seuil ne
+sépare proprement la dérive d'un vrai mobile lent ; 0,5 est un compromis, pas une frontière.
+
+⚑ `parked_motion_vs_shuttle` (OFF par défaut) : mobile seulement si, EN PLUS, déplacement > 0,5 ×
+chemin de la navette ; la pose longue choisit ses fragments de même. Rejeu ON contre OFF sur
+`4da52df3` : en mouvement 867 → 534, garés 416 → 508 objets, fragments réunis 584 → 1076 (pose
+longue : 332 → 446 objets) — **mais garés en double (ancres < 2 m) 111 → 243**. Le gain en objets
+est modeste parce que des fragments se réunissent ; le doublement des « garés en double » est le
+coût à juger à l'œil (un même garé laissé en deux ancres, ou deux voisins réellement proches ?).
+Le résumé garde désormais, par véhicule hors voies, sa porte, son déplacement, sa vitesse et le
+chemin de la navette (`parked_motion_by_gid`) : « pourquoi CE G… n'est pas garé » se lit.
+
 ⚠ Ce qui n'a PAS été joué : les bascules ⚑ elles-mêmes (`display_ema` OFF, `shuttle_filter` ON)
 et la comparaison `placement_spread` OFF/ON — elles demandent un RECALCUL de la session (les
 données lues datent d'un run antérieur au 2026-09-05 : `placement_spread` et `placement_sources`
