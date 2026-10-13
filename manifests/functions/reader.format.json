@@ -1,0 +1,56 @@
+{
+  "body": {
+    "app": "reader",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {},
+    "impl": "reader.tasks:read_document_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le texte lu.",
+        "group": "travail",
+        "key": "text",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "reader.format",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le texte en Markdown.",
+        "key": "markdown",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "text",
+      "llm"
+    ],
+    "visibility": "public"
+  },
+  "description": "Remet le texte lu en Markdown (titres, listes, tableaux) sans rien en retrancher (LLM) ; le texte natif d'un PDF reste tel quel.",
+  "key": "reader.format",
+  "manifest_kind": "function",
+  "name": "Reader — mettre en forme",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:reader.format",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

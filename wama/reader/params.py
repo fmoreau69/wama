@@ -7,6 +7,11 @@ constat périmé).
 Dérivé du modèle `ReadingItem` (mode = TextChoices du modèle ; le moteur, du CATALOGUE). Rendu par
 `WamaParams.render(container, PARAMS_JSON, {context})`. Les `dom_id` reprennent les IDs LEGACY de
 chaque surface → JS existant + apparence préservés. Gabarit : transcriber/params.py.
+
+Depuis le 2026-10-13 la card porte un PIPELINE (`function_specs.PIPELINE` : lecture, mise en
+forme, analyse) : chaque réglage déclare les process qu'il PÉRIME (`stales`) — changer de modèle
+de langage ne relit pas le document. Les deux process optionnels ont leur interrupteur, et le
+modèle de langage qu'ils emploient se choisit (`llm_model`).
 """
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
@@ -22,7 +27,8 @@ PARAMS = derive_from_model(
     # (pas de colonne) : le reader n'a pas de choix par item, le curseur est un RÉGLAGE D'APP
     # de l'utilisateur (brique durable `user_settings`), lu au lancement par
     # `auto_model.quality_intent_of(item, 'reader')` quand le moteur est sur « auto ».
-    include=["backend", "quality_intent", "mode", "language", "output_format"],
+    include=["backend", "quality_intent", "mode", "language", "output_format",
+             "llm_model", "format_markdown", "generate_analysis"],
     overrides={
         "quality_intent": intent_param(
             dom_id={"panel": "qualityIntent"}, contexts=("panel",),
@@ -55,6 +61,7 @@ PARAMS = derive_from_model(
                 "reader:doctr": "docTR — pipeline détection + reconnaissance, tourne sur CPU. Idéal documents imprimés simples.",
                 "ollama:glm-ocr:latest": "GLM-OCR 0.9B (via Ollama) — léger et rapide, bon compromis pour texte imprimé courant.",
             },
+            stales=("read",),
         ),
         # Mode et langue : les réglages que le MOTEUR lit — sa capacité `params` (olmOCR les deux,
         # GLM-OCR la langue seule, docTR aucun ; `READER_MODELS[…]['params']` et `FAMILLES_OLLAMA`).
@@ -66,6 +73,7 @@ PARAMS = derive_from_model(
             dom_id={"panel": "modeSelect", "batch": "batchSettingsMode", "item": "rSettings_mode"},
             cap_from={"field": "backend", "capability": "params", "mode": "reads",
                       "reason": "Ce moteur ne tient pas compte du mode de lecture."},
+            stales=("read",),
         ),
         "language": dict(
             type="text", label="Langue", icon="fa-language", chip=True,
@@ -73,6 +81,8 @@ PARAMS = derive_from_model(
             help="Optionnel (ex. fr, en). Auto-détection si vide.",
             cap_from={"field": "backend", "capability": "params", "mode": "reads",
                       "reason": "Ce moteur ne tient pas compte de la langue indiquée."},
+            # La mise en forme la lit aussi (indice de langue donné au LLM).
+            stales=("read", "format"),
         ),
         "output_format": dict(
             type="select", label="Format de sortie", icon="fa-file-lines", chip=True,
@@ -82,6 +92,37 @@ PARAMS = derive_from_model(
             dom_id={"panel": "outputFormatSelect", "batch": "batchSettingsOutputFormat",
                     "item": "rSettings_output_format"},
             help="Format du texte produit. Les autres formats restent téléchargeables ensuite.",
+        ),
+        # ── Le modèle de LANGAGE et les deux process qui l'emploient (2026-10-13) ────────────
+        # « auto » = leur comportement d'avant : le gabarit « par défaut » du describer pour la mise
+        # en forme, le modèle par défaut de l'instance pour l'analyse. Une prévision du catalogue
+        # ne dirait pas cette règle : le select se TAIT (`options_auto="silent"`, patron du
+        # describer). Une clé désigne un modèle local, jamais remplacé en silence.
+        "llm_model": dict(
+            type="select", label="Modèle de langage", icon="fa-brain", chip=True,
+            options_source="catalog",
+            options_query={"model_type": "llm"},
+            options_auto="silent",
+            help_source="reader",
+            help_fallback={"auto": "Choisi au lancement : le modèle de mise en forme habituel, "
+                                   "le modèle par défaut de l'instance pour l'analyse."},
+            dom_id={"panel": "llmModelSelect", "batch": "batchSettingsLlmModel",
+                    "item": "rSettings_llm_model"},
+            stales=("format", "analyze"),
+        ),
+        # Les INTERRUPTEURS des process optionnels : ils sont le `toggle` de leur process, ils ne
+        # périment rien. La mise en forme est COCHÉE par défaut : elle avait toujours lieu.
+        "format_markdown": dict(
+            type="toggle", label="Mettre en forme (Markdown)", icon="fa-heading",
+            dom_id={"panel": "formatMarkdownToggle", "batch": "batchSettingsFormatMarkdown",
+                    "item": "rSettings_format_markdown"},
+            help="Titres, listes et tableaux remis en Markdown par un LLM, sans rien retrancher. "
+                 "Le texte natif d'un PDF reste tel quel.",
+        ),
+        "generate_analysis": dict(
+            type="toggle", label="Analyser (résumé, points clés)", icon="fa-magnifying-glass-chart",
+            dom_id={"panel": "generateAnalysisToggle", "batch": "batchSettingsGenerateAnalysis",
+                    "item": "rSettings_generate_analysis"},
         ),
     },
 )

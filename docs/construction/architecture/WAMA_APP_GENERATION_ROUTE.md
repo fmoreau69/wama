@@ -4703,9 +4703,37 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   et leur compte-rendu déjà rédigé passe dans `summary` (1 card sur 19 en base). Un style
 >   mémorisé « meeting » retombe sur « détaillé » à la création. Gardes : `MeetingReportTest`.
 > - ⏳ **Restes** : le découpage des backends (vidéo : images-clés et piste son sont des process, la
->   combinaison reste au backend) ; reader (son analyse LLM, `analyze_document_task`, hors
->   pipeline) et converter — la suite de la même décision ; le nom d'une card dans sa
->   notification est le libellé du DERNIER process (« cohérence 90/100 »), transcriber compris.
+>   combinaison reste au backend) ; converter — la suite de la même décision ; le nom d'une card
+>   dans sa notification est le libellé du DERNIER process (« cohérence 90/100 »), transcriber
+>   compris.
+
+> ✅ **Le READER en pipeline — LIVRÉ le 2026-10-13** (même décision). Sa tâche lisait le document
+> PUIS le mettait en forme par un LLM dont l'échec était AVALÉ (le texte brut rendu sous une card
+> « terminée », sans un mot) ; son analyse LLM vivait dans une tâche à part que rien dans
+> l'interface n'appelait (l'analyse n'apparaissait qu'aux exports PDF/DOCX).
+> - **TROIS process** (`reader/function_specs.py`, glues `tasks.PROCESSES`) : `read` (texte natif
+>   d'un PDF numérique, sinon le moteur OCR — la porte commune, inchangée) → `format` (Markdown,
+>   OPTIONNEL et COCHÉ par défaut : il avait toujours lieu ; le texte natif d'un PDF reste tel
+>   quel, comme avant ; il lit le texte LU, `raw_result`, jamais une mise en forme d'avant) →
+>   `analyze` (résumé, points clés, actions — OPTIONNEL). Interrupteurs `format_markdown` /
+>   `generate_analysis` et modèle de langage `llm_model` (migration `reader/0013`, `db_default`
+>   partout, appliquée en base avant `models.py`) ; « auto » = le comportement d'avant (gabarit de
+>   mise en forme ; défaut de l'instance pour l'analyse), le select se TAIT (`options_auto="silent"`).
+> - Ce qui en sort : une mise en forme en échec se voit sur SA ligne, le texte lu reste ; changer
+>   de modèle de langage ne relit pas le document (olmOCR : ~10 min de chargement) ; la route
+>   `analyze/` est le ▶ du process `analyze` (interrupteur activé) ; `analyze_document_task` est
+>   gardée pour un message en vol (jumeau par chaîne) ; un optionnel décoché ne se sert ni ne
+>   s'exporte plus (règle 4.4, `document_export`).
+> - **Une brique au passage** : la lecture d'un modèle de langage DÉSIGNÉ par un select de card
+>   (`llm_utils.designated_local_model`, `card_llm`, `ollama_catalog_key`) sort du describer
+>   (`backends/model_choice.py`, qui y délègue) — deux apps, une lecture.
+> - **Défaut trouvé au geste** : le ⚙ de la card du reader ouvrait sa modale DEUX FOIS (un câblage
+>   d'`init()` resté à côté de la délégation commune de `queue-actions.js`) — deux modales de même
+>   id, et le ⚙ d'un process ouvert ensuite remplissait le select catalogue de l'ANCIENNE. Retiré.
+>   La modale de LOT lit ses valeurs par le lecteur commun (`gearValues`, `WamaParams.read`) au lieu
+>   de trois champs écrits à la main (le format de sortie y était ignoré).
+> - Gardes : `reader/tests_pipeline.py` ; contre-épreuves ROUGES (mise en forme avalée, lanceur qui
+>   efface, modèle de langage qui ne périme plus la mise en forme). Grille : reader **100 %**.
 
 #### 5. Couche 3 — l'UI : la card affiche son pipeline, le studio affiche le même objet en graphe
 
@@ -5159,7 +5187,7 @@ possible **sans aucun process**.
     sa tâche en enchaînait cinq, invisibles. La question n'est plus « la card porte-t-elle
     plusieurs process ? » mais « quels process la tâche enchaîne-t-elle ? » : toute étape qui a
     son modèle, son coût ou son échec propre est un process DÉCLARÉ. ✅ describer (13/10) ;
-    ⏳ reader (analyse LLM à la demande, hors pipeline), converter.
+    ✅ reader (13/10 : lecture, mise en forme, analyse) ; ⏳ converter.
     Historique : une facette `pipelines` à nœuds `process` avait été écrite le 2026-10-01 pour le
     Writer, puis RETIRÉE le jour même (elle doublait le kind `pipeline`, un tri topologique
     existant et le moteur commun — `WAMA_MANIFEST_SPEC §3.1` garde le récit).

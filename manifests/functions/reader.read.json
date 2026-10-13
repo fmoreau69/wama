@@ -1,0 +1,67 @@
+{
+  "body": {
+    "app": "reader",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "reader.tasks:read_document_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le document à lire (PDF…).",
+        "group": "travail",
+        "key": "work_document",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "image",
+        "description": "L'image à lire.",
+        "group": "travail",
+        "key": "work_image",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "reader.read",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le texte lu.",
+        "key": "text",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "ocr",
+      "document",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Lit le texte d'un document ou d'une image : texte natif d'un PDF numérique, sinon le moteur OCR de la card ou le tirage automatique.",
+  "key": "reader.read",
+  "manifest_kind": "function",
+  "name": "Reader — lire",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:reader.read",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

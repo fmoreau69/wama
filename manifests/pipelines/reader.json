@@ -1,0 +1,92 @@
+{
+  "body": {
+    "layout": {},
+    "links": [
+      {
+        "from": "read",
+        "to": "format",
+        "to_port": null
+      },
+      {
+        "from": "read",
+        "to": "analyze",
+        "to_port": null
+      },
+      {
+        "from": "format",
+        "to": "analyze",
+        "to_port": null
+      }
+    ],
+    "nodes": [
+      {
+        "app": null,
+        "function": "reader.read",
+        "id": "read",
+        "kind": "function",
+        "params": {
+          "degree": "required",
+          "eta": "reader.tasks:read_eta",
+          "gpu": true,
+          "label": "Lecture",
+          "result": "reader.function_specs:read_text",
+          "share": 8,
+          "watched": [
+            "backend",
+            "mode",
+            "language",
+            "input_file"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "reader.format",
+        "id": "format",
+        "kind": "function",
+        "params": {
+          "degree": "optional",
+          "eta": "reader.tasks:format_eta",
+          "gpu": false,
+          "label": "Mise en forme",
+          "result": "reader.function_specs:formatted_text",
+          "toggle": "format_markdown",
+          "watched": [
+            "language",
+            "llm_model"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "reader.analyze",
+        "id": "analyze",
+        "kind": "function",
+        "params": {
+          "degree": "optional",
+          "eta": "reader.tasks:analyze_eta",
+          "gpu": false,
+          "label": "Analyse",
+          "result": "reader.function_specs:analysis_text",
+          "toggle": "generate_analysis",
+          "watched": [
+            "llm_model"
+          ]
+        }
+      }
+    ]
+  },
+  "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
+  "key": "reader",
+  "manifest_kind": "pipeline",
+  "name": "Reader — lecture, mise en forme, analyse (3 process)",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "reader.function_specs:PIPELINE",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

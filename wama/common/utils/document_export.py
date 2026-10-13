@@ -472,8 +472,8 @@ def generate_reader_pdf(item) -> bytes:
     _section_title(pdf, 'Texte Extrait')
     _body_text(pdf, _sanitize_for_latin1(_strip_markdown(item.result_text or '')))
 
-    # ── Analysis (if any) ──
-    if item.analysis:
+    # ── Analysis (if any) — process optionnel du reader : décoché, il ne s'exporte pas ──
+    if item.analysis and getattr(item, 'generate_analysis', True):
         pdf.ln(2)
         _section_title(pdf, 'Analyse')
         _body_text(pdf, _sanitize_for_latin1(_strip_markdown(item.analysis)))
@@ -517,8 +517,8 @@ def generate_reader_docx(item) -> bytes:
     doc.add_heading('Texte Extrait', 1)
     doc.add_paragraph(_strip_markdown(item.result_text or ''))
 
-    # Analysis
-    if item.analysis:
+    # Analysis — process optionnel du reader : décoché, il ne s'exporte pas
+    if item.analysis and getattr(item, 'generate_analysis', True):
         doc.add_heading('Analyse', 1)
         doc.add_paragraph(_strip_markdown(item.analysis))
 

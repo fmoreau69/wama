@@ -74,26 +74,22 @@ def _progress_extra(item: ReadingItem) -> dict:
         'has_result': bool(item.result_text),
         'has_raw_result': bool(item.raw_result),
         'used_backend': item.used_backend,
-        'analysis': item.analysis,
+        # Un optionnel DÉSACTIVÉ ne pèse plus sur la card (`ROUTE §10.6` règle 4.4) : le
+        # lancement ne vide plus l'analyse, la décocher la tait.
+        'analysis': item.analysis if item.generate_analysis else '',
         'created_at': item.created_at.isoformat(),
     }
 
 
-def _eta_triplet(item: ReadingItem):
-    """Le triplet d'ETA, celui que la glu apprend (`tasks.reader_eta_key_size`)."""
-    from .tasks import reader_eta_key_size
-    return (*reader_eta_key_size(item), True)
-
-
 def _item_to_dict(item: ReadingItem) -> dict:
     """La card à jour, rendue par les vues qui la créent ou la modifient (dépôt, duplication,
-    réglages) — les mêmes clés que la vue de progression (`_pv`)."""
+    réglages) — les mêmes clés que la vue de progression (`_pv`). L'ETA est celle du LANCEMENT :
+    la somme des process qu'il jouerait (`process_runs.launch_eta`, 2026-10-13)."""
     eta = 0.0
     if item.status in ('PENDING', 'RUNNING'):
         try:
-            from wama.model_manager.services.eta_estimator import estimate
-            key, size, unit, loaded = _eta_triplet(item)
-            eta = estimate(key, size=size, unit=unit, model_loaded=loaded)
+            from wama.common.services.process_runs import launch_eta
+            eta = launch_eta(item) or 0.0
         except Exception:
             eta = 0.0
     return {'id': item.id, 'status': item.status, 'progress': _live_progress(item),
@@ -214,6 +210,16 @@ def _decorate_card(reading):
     return reading
 
 
+def _decorate_with_processes(reading, preloaded=False):
+    """Sections v3 (`_decorate_card`), puis les PROCESS de la card et son état MONTRÉ
+    (`process_pipeline.decorate`, `ROUTE §10.6` 5.1) — moteur demandé « auto » compris : les
+    process se montrent AVANT le premier lancement, c'est là que leurs cases à cocher servent."""
+    from wama.common.services.process_pipeline import decorate
+    _decorate_card(reading)
+    decorate(reading, preloaded=preloaded)
+    return reading
+
+
 class IndexView(View):
     def get(self, request):
         user = _get_user(request)
@@ -254,6 +260,10 @@ class IndexView(View):
 
         batches_list = build_batches_list(user, batch_model=BatchReadingItem,
                                           work_attr='reading', order_by='-id', extra=_extra)
+        # Les PROCESS de chaque card (sections v3 déjà posées par `_extra`) — les lignes
+        # d'exécution de la page lues en UNE requête (`decorate_cards`, 2026-10-13).
+        from wama.common.services.process_pipeline import decorate_cards
+        decorate_cards([link.reading for b in batches_list for link in b['items'] if link.reading])
 
         # Tri + filtrage de la file — brique COMMUNE (toolbar _queue_toolbar).
         from wama.common.utils.queue_view import apply_queue_sort_filter
@@ -319,6 +329,10 @@ def upload(request):
     quality_intent = (read_quality_intent(request.POST.get('quality_intent'))
                       if request.POST.get('quality_intent', '') != '' else last['quality_intent'])
 
+    from wama.common.utils.batch_views import read_settings_payload
+    pipeline_settings = {k: v for k, v in read_settings_payload(
+        request, _SCHEMA, PIPELINE_SETTINGS).items() if k in PIPELINE_SETTINGS}
+
     from wama.common.app_registry import accepts_file
     items_created = []
     created = []
@@ -338,6 +352,11 @@ def upload(request):
             status='PENDING',
         )
         f.record(item, 'input_file')
+        # Le modèle de langage et les interrupteurs des process optionnels (2026-10-13) : ceux du
+        # volet quand il les poste, coercés au schéma ; sinon les défauts du modèle.
+        touched = _apply_reading_settings(item, pipeline_settings)
+        if touched:
+            item.save(update_fields=touched)
 
         # Count PDF pages immediately (quick, synchronous)
         if ext == '.pdf':
@@ -392,11 +411,19 @@ def stop(request, pk: int):
 
 
 def _reset_for_relaunch(item):
-    """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race."""
-    item.result_text = ''
-    item.raw_result = ''
+    """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race.
+
+    ⚠ Depuis le 2026-10-13 la card porte un PIPELINE (`function_specs.PIPELINE`) : un lancement
+    ne rejoue que ce qui n'est plus à jour. Le résultat d'un process s'efface donc QUAND CE
+    PROCESS EST REJOUÉ (sa glu le réécrit, `tasks.PROCESSES`), plus ici — sinon relancer la seule
+    analyse effacerait le texte qu'elle analyse (la règle du transcriber et du describer)."""
     item.error_message = ''
     item.progress = 0
+
+
+#: Ce qu'une card DUPLIQUÉE ne porte pas de son original : ses résultats, ceux de chaque process.
+#: Une seule liste pour la duplication d'un élément et celle d'un lot (`make_batch_views`).
+DUPLICATE_RESET = {'result_text': '', 'raw_result': '', 'used_backend': '', 'analysis': ''}
 
 
 # ── Les SIX vues de lot : fabrique COMMUNE (`batch_views.make_batch_views`, portage 2026-09-23,
@@ -421,7 +448,10 @@ def _output_stem(r):
 
 
 #: Réglages d'une lecture écrits par la modale ⚙, le volet et la modale de LOT (schéma `params.py`).
-SETTINGS_FIELDS = ('backend', 'mode', 'output_format', 'language')
+SETTINGS_FIELDS = ('backend', 'mode', 'output_format', 'language', 'llm_model',
+                   'format_markdown', 'generate_analysis')
+#: Ceux du PIPELINE (2026-10-13) — le dépôt les lit aussi, quand le volet les poste.
+PIPELINE_SETTINGS = ('llm_model', 'format_markdown', 'generate_analysis')
 #: `language` vide EST une valeur (auto-détection) — lu par la route d'élément et par la fabrique.
 SETTINGS_EMPTY_IS_VALUE = ('language',)
 
@@ -446,7 +476,7 @@ _bv = make_batch_views(
     apply_settings=_apply_reading_settings,
     item_model=BatchReadingItemLink, fk_name='reading',
     reset_on_start=_reset_for_relaunch,
-    reset_on_duplicate={**DEFAULT_RESET, 'result_text': '', 'used_backend': ''},
+    reset_on_duplicate={**DEFAULT_RESET, **DUPLICATE_RESET},
     progress_of=lambda r: (cache.get(f'reader_progress_{r.id}') or {}).get('pct', r.progress),
     on_delete=lambda r: cache.delete(f'reader_progress_{r.id}'),
     output_name=_output_stem,
@@ -479,25 +509,34 @@ def start(request, pk: int):
     return JsonResponse({'ok': True, 'task_id': task.id})
 
 
+from wama.common.utils.process_views import make_process_start_view  # noqa: E402
+
+# ▶ d'UN process de la card (`ROUTE §10.6` 5.1) : fabrique COMMUNE — c'est aussi la mise en forme
+# ou l'analyse « à la demande » sur un texte déjà lu.
+start_process = app_access('reader')(make_process_start_view(
+    work_model=ReadingItem, task_for=lambda r: read_document_task,
+    get_user=_get_user, reset_on_start=_reset_for_relaunch))
+
+
 def card_html(request, pk: int):
     """Card RENDUE serveur — source UNIQUE du markup v3 (partial _item_card.html ;
     CARD_DESIGN §3, update JS en place). `in_batch` : position dans la file, brique commune."""
     from wama.common.utils.batch_common import is_batch_child
     from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
     item = visible_or_404(ReadingItem, _get_user(request), pk=pk)
-    _decorate_card(item)
+    _decorate_with_processes(item)
     return render(request, 'reader/_item_card.html',
                   {'elem': item, 'in_batch': is_batch_child(item)})
 
 
 # Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
-# 2026-10-03) — l'app n'y déclare que sa progression vivante (un dict au cache), son triplet d'ETA
-# et ses clés propres.
+# 2026-10-03) — l'app n'y déclare que sa progression vivante (un dict au cache) et ses clés
+# propres. Plus de triplet d'ETA de vue depuis le pipeline (2026-10-13) : la card s'estime à la
+# SOMME de ses process, chacun déclarant le sien (`ProcessSpec.eta`, `tasks.*_eta`).
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
 _pv = make_progress_views(work_model=ReadingItem, app_id='reader',
-                          progress_of=_live_progress, eta_for=_eta_triplet,
-                          extra=_progress_extra)
+                          progress_of=_live_progress, extra=_progress_extra)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 
@@ -601,9 +640,8 @@ def duplicate(request, pk: int):
             'status': 'PENDING',
             'progress': 0,
             'task_id': '',
-            'result_text': '',
-            'used_backend': '',
             'error_message': '',
+            **DUPLICATE_RESET,
         },
     )
     # 'duplicated' = contrat de la brique commune queue-actions.js (focus + reload)
@@ -721,16 +759,19 @@ def update_settings(request, pk: int):
 
 @require_POST
 def analyze(request, pk: int):
-    """Lance une analyse LLM (résumé + points clés) sur le texte OCR extrait."""
+    """L'analyse LLM (résumé + points clés) d'un texte déjà lu — depuis le pipeline (2026-10-13),
+    le process OPTIONNEL `analyze` : son interrupteur s'active et SON ▶ est joué (le texte lu et
+    sa mise en forme restent en place)."""
     from wama.common.utils.scoping import editable_or_404
     item = editable_or_404(ReadingItem, _get_user(request), pk=pk)
 
     if not item.result_text:
         return JsonResponse({'error': 'Pas encore de texte extrait'}, status=400)
 
-    from .tasks import analyze_document_task
-    task = analyze_document_task.delay(item.id)
-    return JsonResponse({'ok': True, 'task_id': task.id})
+    if not item.generate_analysis:
+        item.generate_analysis = True
+        item.save(update_fields=['generate_analysis'])
+    return start_process(request, pk, 'analyze')
 
 
 def batch_template(request):

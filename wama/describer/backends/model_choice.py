@@ -18,25 +18,23 @@ BLIP_KEY = 'describer:blip'
 BLIP = 'blip'
 
 
+_OWNER = 'le Describer'
+
+
 def local_ollama_name(key: str, role: str) -> str:
-    """Le nom Ollama d'une clé `ollama:<nom>` ; lève `ValueError` pour toute autre source."""
-    from wama.common.utils.model_keys import split_key
-    source, model_id = split_key(key)
-    if source != 'ollama' or not model_id:
-        raise ValueError(f"Modèle de {role} « {key} » : le Describer n'appelle que des modèles "
-                         "locaux (Ollama) pour ce rôle.")
-    return model_id
+    """Le nom Ollama d'une clé `ollama:<nom>` ; lève `ValueError` pour toute autre source
+    (lecture COMMUNE `llm_utils.designated_local_model`)."""
+    from wama.common.utils.llm_utils import designated_local_model
+    return designated_local_model(key, role, _OWNER)
 
 
 def llm_for(options: dict, content_type: str, output_style: str):
     """`(nom, fournisseur)` du modèle de LANGAGE pour ce contenu et ce style : sous « auto », le
     tier historique (`get_describer_model`, fournisseur du réglage global) ; sinon le modèle
-    désigné, chez Ollama."""
-    key = (options or {}).get('llm_model')
-    if is_auto(key):
-        from wama.common.utils.llm_utils import get_describer_model
-        return get_describer_model(content_type, output_style), None
-    return local_ollama_name(key, 'langage'), 'ollama'
+    désigné, chez Ollama (lecture COMMUNE `llm_utils.card_llm`)."""
+    from wama.common.utils.llm_utils import card_llm, get_describer_model
+    return card_llm((options or {}).get('llm_model'),
+                    auto=lambda: get_describer_model(content_type, output_style), owner=_OWNER)
 
 
 def vision_for(options: dict):
@@ -53,6 +51,5 @@ def vision_for(options: dict):
 def catalog_key_of(name: str) -> str:
     """La clé de catalogue d'un modèle de vision ou de langage nommé par un backend — ce que la
     ligne d'exécution du process retient (`models` du retour de glu)."""
-    if not name:
-        return ''
-    return BLIP_KEY if name == BLIP else f'ollama:{name}'
+    from wama.common.utils.llm_utils import ollama_catalog_key
+    return BLIP_KEY if name == BLIP else ollama_catalog_key(name)

@@ -3221,7 +3221,9 @@ TRIAD_SPECS = {
         'model': 'wama.reader.models.ReadingItem',
         'task': 'wama.reader.tasks.read_document_task',
         'id_kwarg': 'item_id',
-        'reset': {'result_text': '', 'error_message': ''},
+        # Celle du ▶ de la card (2026-10-13) : le reader porte un pipeline, le résultat d'un process
+        # ne s'efface que quand CE process est rejoué — vider `result_text` ici perdait le texte lu.
+        'reset': 'wama.reader.views._reset_for_relaunch',
         'empty_msg': 'Aucun document en attente.',
         'status_order': '-id',
         'status_fields': {

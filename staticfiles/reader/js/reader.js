@@ -183,17 +183,21 @@
         }
     }
 
-    async function startItem(id) {
+    // `process` : le ▶ d'UN process de la bande (2026-10-13, pipeline) → lancement borné (route
+    // `start/<id>/<process>/`, adresse composée par la brique commune) ; vide pour le ▶ de la
+    // card, qui lance tout ce qui est dû.
+    async function startItem(id, process) {
         const card = document.querySelector(`.reader-card[data-id="${id}"]`);
         // Relance pendant le traitement : stopper d'abord (évite le 409 « déjà en cours »).
-        if (card && (card.dataset.status || '').toUpperCase() === 'RUNNING') {
+        if (card && (card.dataset.elementStatus || card.dataset.status || '').toUpperCase() === 'RUNNING') {
             await stopItem(id);
         }
         if (card) {
             card.dataset.status = 'RUNNING';
+            card.dataset.elementStatus = 'RUNNING';
         }
         try {
-            await csrfFetch(urlFor('start', id), { method: 'POST' });
+            await csrfFetch(WamaCycleButton.processUrl(urlFor('start', id), process), { method: 'POST' });
             startPolling(id);
         } catch (e) {
             console.error('[Reader] start error:', e);
@@ -302,6 +306,13 @@
                 fd.append('language',      document.getElementById('languageInput')?.value.trim() || '');
                 // Curseur rapide/qualité (chantier C) : réglage d'app, persisté par le serveur.
                 fd.append('quality_intent', document.getElementById('qualityIntent')?.value || '');
+                // Modèle de langage et interrupteurs des process optionnels (pipeline, 2026-10-13),
+                // lus par la brique sur le volet rendu du schéma.
+                const panel = document.getElementById('readerPanelParams');
+                const vals = (window.WamaParams && panel) ? WamaParams.read(panel) : {};
+                ['llm_model', 'format_markdown', 'generate_analysis'].forEach(function (name) {
+                    if (name in vals) fd.append(name, vals[name]);
+                });
             },
             afterImport:  function (ids, reponses) {
                 const data = reponses[0] || {};
@@ -488,25 +499,25 @@
         document.getElementById('batchSettingsBatchLabel').textContent = '#' + id;
         document.getElementById('batchSettingsBatchId').value = id;
         // Presets = réglages de la 1re fille (la card mère commune _batch_card.html ne porte
-        // plus de data-backend/mode/language — ils vivent sur les cards, source serveur unique).
+        // plus de data-backend/mode/language — ils vivent sur les cards, source serveur unique),
+        // lus par LE lecteur unique des data-* du gear (`WamaInspector.gearValues`) sur les noms
+        // du SCHÉMA. Les trois champs écrits ici à la main ignoraient le format de sortie et tout
+        // réglage ajouté (le modèle de langage et les process optionnels, 2026-10-13).
         const firstCfg = document.querySelector(`#batchItems${id} [data-action="settings"]`);
-        const cfg = (firstCfg && firstCfg.dataset) || btn.dataset || {};
-        const selEl = document.getElementById('batchSettingsBackend');
-        if (selEl) selEl.value = cfg.backend || '';
-        const modeEl = document.getElementById('batchSettingsMode');
-        if (modeEl) modeEl.value = cfg.mode || '';
-        const langEl = document.getElementById('batchSettingsLanguage');
-        if (langEl) langEl.value = cfg.language || '';
+        const host = document.getElementById('readerBatchParams');
+        if (window.WamaParams && host && firstCfg) {
+            const schema = window.WAMA_READER_SCHEMA || [];
+            WamaParams.apply(host, WamaInspector.gearValues(firstCfg.closest('.wama-card') || firstCfg,
+                                                            schema.map(function (p) { return p.name; })));
+        }
         _batchSettingsModal.show();
     }
 
     async function saveBatchSettings(andStart) {
         const batchId = document.getElementById('batchSettingsBatchId').value;
-        const payload = {
-            backend:  document.getElementById('batchSettingsBackend').value,
-            mode:     document.getElementById('batchSettingsMode').value,
-            language: (document.getElementById('batchSettingsLanguage').value || '').trim(),
-        };
+        // Les valeurs de la modale, lues par la brique sur le schéma rendu (`WamaParams.read`).
+        const host = document.getElementById('readerBatchParams');
+        const payload = (window.WamaParams && host) ? WamaParams.read(host) : {};
         try {
             const r = await csrfFetch(urlForBatch('batchUpdate', batchId), {
                 method: 'POST',
@@ -588,7 +599,11 @@
         const q = document.getElementById('queueContainer');
         if (!q) return;
         // Câblage délégué (start/restart→startItem, stop→stopItem) + auto-sync de l'icône sur data-status.
-        WamaCycleButton.wire(q, { start: (id) => startItem(id), stop: (id) => stopItem(id) });
+        // Le 3ᵉ argument de `start` : le process dont on a cliqué le ▶ dans la bande (2026-10-13).
+        WamaCycleButton.wire(q, {
+            start: (id, btn, process) => startItem(id, process),
+            stop: (id) => stopItem(id),
+        });
         WamaCycleButton.autoSync({ container: q, cardSelector: '.reader-card' });
     }
 
@@ -617,19 +632,25 @@
         });
 
         // Bind existing cards and start polling for RUNNING + PENDING items
-        // (PENDING items may have tasks already queued — catch the RUNNING transition)
+        // (PENDING items may have tasks already queued — catch the RUNNING transition).
+        // Lu sur l'état de l'ÉLÉMENT (`data-element-status`, 2026-10-13) : `data-status` est l'état
+        // MONTRÉ, déduit des process — une card terminée dont un optionnel reste à compléter s'y
+        // montre « en attente ».
         document.querySelectorAll('.reader-card').forEach(card => {
             const id = parseInt(card.dataset.id);
-            if (card.dataset.status === 'RUNNING' || card.dataset.status === 'PENDING') {
+            const status = (card.dataset.elementStatus || card.dataset.status || '').toUpperCase();
+            if (status === 'RUNNING' || status === 'PENDING') {
                 startPolling(id);
             }
-            // Bind action buttons
+            // Bind action buttons. ⚙ et 🗑 sont délégués par la brique commune (queue-actions.js),
+            // comme dans `bindCardActions` depuis le 2026-08-23 — ce second câblage, resté ici,
+            // ouvrait la modale de la card DEUX FOIS : deux modales de même id, et le ⚙ d'un
+            // process ouvert ensuite remplissait le select de l'ANCIENNE (catalogue vide dans la
+            // nouvelle, mesuré le 2026-10-13). La branche 🗑 appelait `deleteItem`, qui n'existe plus.
             card.querySelectorAll('[data-action]').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const action = btn.dataset.action;
-                    if (action === 'settings') openItemSettings(btn);
                     if (action === 'start' || action === 'restart') startItem(id);
-                    if (action === 'delete') deleteItem(id);
                     if (action === 'expand') expandPreview(id);
                 });
             });

@@ -7,8 +7,6 @@ from celery import shared_task
 from django.core.cache import cache
 from django.db import close_old_connections
 
-from wama.common.utils.console_utils import push_console_line
-
 logger = logging.getLogger(__name__)
 
 PROGRESS_CACHE_TTL = 3600  # 1 hour
@@ -21,23 +19,6 @@ def _set_progress(item, pct: int, msg: str = ''):
     """`progress_fn` déclaré à la brique task_skeleton : le front du reader polle un DICT
     {'pct','msg'} (messages d'étape), pas l'entier nu du défaut."""
     cache.set(f'reader_progress_{item.pk}', {'pct': pct, 'msg': msg}, PROGRESS_CACHE_TTL)
-
-
-def _console(user_id: int, message: str, level: str = None) -> None:
-    try:
-        if level is None:
-            low = message.lower()
-            if any(w in low for w in ('erreur', 'error', 'failed', 'échec')):
-                level = 'error'
-            elif any(w in low for w in ('warning', 'attention', 'warn')):
-                level = 'warning'
-            elif any(w in low for w in ('debug',)):
-                level = 'debug'
-            else:
-                level = 'info'
-        push_console_line(user_id, message, level=level, app='reader')
-    except Exception:
-        pass
 
 
 def _count_pdf_pages(file_path: str) -> int:
@@ -137,11 +118,15 @@ def _extract_natural_text(text: str) -> str:
     return text
 
 
-def _format_as_markdown(text: str, language: str = '') -> str:
+def _format_as_markdown(text: str, language: str = '', model: str = '',
+                        provider: str = None) -> str:
     """
     Use a local LLM (Ollama) to reformat raw OCR text as clean Markdown.
     Preserves all content — only applies structure (headings, lists, tables, bold…).
-    Falls back to the original text if the LLM is unavailable or fails.
+
+    `model` / `provider` : le modèle de langage de la card (`llm_model`), ou '' = le tier
+    historique. Un échec LÈVE depuis le 2026-10-13 : il était avalé (texte brut rendu sans un mot)
+    — c'est désormais le process `format` qui échoue, sur SA ligne, le texte lu restant en place.
     """
     if not text or not text.strip():
         return text
@@ -161,7 +146,7 @@ def _format_as_markdown(text: str, language: str = '') -> str:
     # `llm_chat` et non `ollama_chat` : dernier appelant direct porté le 2026-09-09 —
     # le contrat d'appel est documenté à `llm_utils.py::_APPEL_LLM` (dont le `model or None`).
     from wama.common.utils.llm_utils import llm_chat, get_describer_model
-    model = get_describer_model('text', 'markdown')
+    model = model or get_describer_model('text', 'markdown')
 
     result, error = llm_chat(
         messages=[
@@ -169,6 +154,7 @@ def _format_as_markdown(text: str, language: str = '') -> str:
             {"role": "user", "content": text},
         ],
         model=model or None,
+        provider=provider,
         num_predict=8192,
         num_ctx=8192,   # Cap KV cache — formatting needs no large context window
         think=False,
@@ -176,8 +162,7 @@ def _format_as_markdown(text: str, language: str = '') -> str:
     )
 
     if error or not result:
-        logger.warning(f"[Reader] Mise en forme Markdown échouée ({error}) — texte brut conservé")
-        return text
+        raise RuntimeError(f"Mise en forme Markdown échouée : {error or 'réponse vide'}")
 
     return result.strip()
 
@@ -194,30 +179,32 @@ def reader_eta_key_size(item, backend: str = None) -> tuple[str, float, str]:
 
 
 @shared_task(bind=True, name='wama.reader.tasks.read_document_task')
-def read_document_task(self, item_id: int):
+def read_document_task(self, item_id: int, process: str = None):
     """Squelette = brique commune task_skeleton (gardes, ingest, chrono, statuts, ETA,
     notifications) — olmOCR (~16 Go) et doctr chargent en VRAM depuis cette tâche : profil à
     risque exact de la garde anti-boucle-de-crash. Le front du reader pollant {'pct','msg'},
-    l'écriture de progression est DÉCLARÉE (`progress_fn=_set_progress`)."""
+    l'écriture de progression est DÉCLARÉE (`progress_fn=_set_progress`).
+
+    Depuis le 2026-10-13 la card porte un PIPELINE (`function_specs.PIPELINE` : lecture, mise en
+    forme, analyse) : le squelette joue les process qu'un lancement retient, une ligne d'exécution
+    chacun. `process` : lancement borné à ce process (▶ de la bande — ⚠ argument de tâche du
+    2026-10-13 : workers à relancer)."""
     from wama.common.utils.task_skeleton import run_item_task
+    from .function_specs import PIPELINE
     from .models import ReadingItem
     run_item_task(self, app_id='reader', model=ReadingItem, item_id=item_id,
-                  process=_read, notify_label='Reader', progress_fn=_set_progress)
+                  pipeline=PIPELINE, processes=PROCESSES, notify_label='Reader',
+                  progress_fn=_set_progress, only=process)
 
 
 def _read(item, ctx):
-    """GLU reader (contrat task_skeleton) : extraction native PDF (chemin court), sinon
-    sélection de backend OCR + mise en forme Markdown LLM. Le retour anticipé du PDF natif
-    déclenche le flux de succès standard de la brique."""
+    """Process `read` (glu, contrat task_skeleton) : texte natif d'un PDF numérique (chemin
+    court), sinon le moteur OCR de la card. Rend le texte LU — sa mise en forme est le process
+    `format`. Le résultat d'avant n'est plus vidé au départ : il l'est quand CE process le
+    réécrit (relancer la seule analyse ne relit pas le document)."""
     ctx.console(f"[Reader] Démarrage : {item.filename}")
     ctx.progress(2, "Démarrage…")
     try:
-        item.status = 'RUNNING'
-        item.result_text = ''
-        item.raw_result = ''
-        item.error_message = ''
-        item.save(update_fields=['status', 'result_text', 'raw_result', 'error_message'])
-
         # Count pages for PDF if not yet done
         if item.page_count == 0 and item.input_file.name.lower().endswith('.pdf'):
             n = _count_pdf_pages(item.input_file.path)
@@ -235,6 +222,7 @@ def _read(item, ctx):
                     'fields': {'result_text': direct_text, 'raw_result': direct_text,
                                'used_backend': 'fitz_direct'},
                     'eta': reader_eta_key_size(item, backend='fitz_direct'),
+                    'output_fingerprint': _fingerprint(direct_text),
                     'label': item.filename,
                     'console_success': f"[Reader] ✓ {item.filename} — "
                                        f"{len(direct_text)} caractères (PDF natif)",
@@ -252,8 +240,7 @@ def _read(item, ctx):
         ctx.progress(5, f"Backend : {backend}")
 
         # Aperçu « PENDANT » (brique COMMUNE preview_utils, servi par `?side=during`) :
-        # le texte OCR se CONSTRUIT page à page dans l'inspecteur (olmocr/glm), et le brut
-        # complet s'affiche pendant la mise en forme LLM (étape longue à 98 %). Best-effort.
+        # le texte OCR se CONSTRUIT page à page dans l'inspecteur (olmocr/glm). Best-effort.
         from wama.common.utils.preview_utils import clear_partial, publish_partial_text
 
         def _partial(txt):
@@ -272,19 +259,15 @@ def _read(item, ctx):
 
         result_text = _extract_natural_text(raw_text)
 
-        # Post-processing: LLM Markdown formatting (always applied) — le brut reste lisible
-        # en aperçu partiel pendant que le LLM formate.
-        _partial(result_text)
-        ctx.progress(98, "Mise en forme…")
-        ctx.console("[Reader] Mise en forme via LLM…")
-        result_text = _format_as_markdown(result_text, item.language)
-
+        # La mise en forme Markdown est le process `format` (2026-10-13) : ici, le texte LU.
         clear_partial('reader', item.pk)   # la face SORTIE prend le relais
         ctx.progress(100, "Terminé")
         return {
             'fields': {'result_text': result_text, 'raw_result': raw_text,
                        'used_backend': backend},
+            'models': [backend],
             'eta': reader_eta_key_size(item, backend=backend),
+            'output_fingerprint': _fingerprint(raw_text),
             'label': item.filename,
             'console_success': f"[Reader] ✓ {item.filename} — "
                                f"{len(result_text)} caractères extraits",
@@ -301,41 +284,89 @@ def _read(item, ctx):
         raise
 
 
+def _fingerprint(text) -> str:
+    """Empreinte d'une sortie qui n'est pas un fichier — ce qui périme l'aval quand elle change."""
+    from wama.common.services.revisions import text_fingerprint
+    return text_fingerprint(text or '')
+
+
+def _llm(item, auto=None):
+    """`(nom, fournisseur)` du modèle de langage de la card (`llm_model`) — lecture COMMUNE."""
+    from wama.common.utils.llm_utils import card_llm
+    return card_llm(getattr(item, 'llm_model', '') or 'auto', auto=auto, owner='le Reader')
+
+
+# ── ETA par process (`ProcessSpec.eta`) — `read` garde sa clé par moteur (son historique appris) ;
+# les deux process LLM sont estimés appris seulement.
+
+def read_eta(item):
+    return (*reader_eta_key_size(item), True)
+
+
+def format_eta(item):
+    return 'reader:format', max(int(item.page_count or 0), 1), 'page', True, 0.0
+
+
+def analyze_eta(item):
+    return 'reader:analyze', 1.0, 'item', True, 0.0
+
+
+def _format(item, ctx):
+    """Process `format` (optionnel, coché par défaut) : le texte lu remis en Markdown. Le texte
+    NATIF d'un PDF reste tel quel (il ne l'a jamais été). Lit le texte LU (`raw_result`), jamais
+    une mise en forme d'avant : la rejouer ne reformate pas un texte déjà reformaté."""
+    if item.used_backend == 'fitz_direct':
+        return {'label': 'texte natif, gardé tel quel'}
+    text = _extract_natural_text(item.raw_result or '')
+    if not (text or '').strip():
+        return {'label': 'rien à mettre en forme'}
+    from wama.common.utils.llm_utils import ollama_catalog_key
+    model, provider = _llm(item)
+    ctx.progress(10, "Mise en forme…")
+    ctx.console(f"[Reader] Mise en forme via LLM{f' — modèle : {model}' if model else ''}…")
+    result = _format_as_markdown(text, item.language, model=model, provider=provider)
+    return {'fields': {'result_text': result}, 'label': 'Markdown',
+            'models': [ollama_catalog_key(model)] if provider == 'ollama' else [],
+            'output_fingerprint': _fingerprint(result), 'eta': format_eta(item)[:3]}
+
+
+def _analyze(item, ctx):
+    """Process `analyze` (optionnel) : résumé, points clés et actions du texte — mis en forme
+    s'il l'a été."""
+    if not (item.result_text or '').strip():
+        return {'label': 'rien à analyser'}
+    from wama.common.utils.llm_utils import generate_structured_summary, ollama_catalog_key
+    model, provider = _llm(item)
+    ctx.console(f"[Reader] Analyse LLM : {item.filename}…")
+    data = generate_structured_summary(item.result_text, content_hint='description',
+                                       language='fr', model=model, provider=provider)
+    lines = [data['summary']]
+    if data['key_points']:
+        lines.append('\nPoints clés :')
+        lines.extend(f'• {p}' for p in data['key_points'])
+    if data['action_items']:
+        lines.append('\nActions :')
+        lines.extend(f'• {a}' for a in data['action_items'])
+    analysis = '\n'.join(lines)
+    return {'fields': {'analysis': analysis}, 'label': 'analyse',
+            'models': [ollama_catalog_key(model)] if provider == 'ollama' else [],
+            'output_fingerprint': _fingerprint(analysis), 'eta': analyze_eta(item)[:3]}
+
+
+#: La glu de chaque process du pipeline (`function_specs.PIPELINE`).
+PROCESSES = {'read': _read, 'format': _format, 'analyze': _analyze}
+
+
 @shared_task(bind=True, name='wama.reader.tasks.analyze_document_task')
 def analyze_document_task(self, item_id: int):
-    """On-demand LLM analysis of an already-extracted text (summary + key points)."""
+    """L'analyse « à la demande » d'avant le pipeline (2026-10-13) — gardée pour un message encore
+    en vol (nom de tâche = jumeau par chaîne) : elle active l'interrupteur et joue le seul process
+    `analyze`. La route `analyze/` passe désormais par le ▶ de ce process (`views.analyze`)."""
     close_old_connections()
+    from wama.common.utils.task_skeleton import run_item_task
+    from .function_specs import PIPELINE
     from .models import ReadingItem
-
-    try:
-        item = ReadingItem.objects.select_related('user').get(pk=item_id)
-    except ReadingItem.DoesNotExist:
-        logger.error(f"[Reader] ReadingItem {item_id} introuvable pour analyse")
-        return {'ok': False, 'error': 'introuvable'}
-
-    if not item.result_text:
-        return {'ok': False, 'error': 'Pas de texte extrait'}
-
-    user_id = item.user_id
-    _console(user_id, f"[Reader] Analyse LLM : {item.filename}…")
-
-    try:
-        from wama.common.utils.llm_utils import generate_structured_summary
-        summary_data = generate_structured_summary(
-            item.result_text, content_hint='description', language='fr',
-        )
-        lines = [summary_data['summary']]
-        if summary_data['key_points']:
-            lines.append('\nPoints clés :')
-            lines.extend(f'• {p}' for p in summary_data['key_points'])
-        if summary_data['action_items']:
-            lines.append('\nActions :')
-            lines.extend(f'• {a}' for a in summary_data['action_items'])
-        item.analysis = '\n'.join(lines)
-        item.save(update_fields=['analysis'])
-        _console(user_id, f"[Reader] Analyse terminée ✓ ({item.filename})")
-        return {'ok': True, 'analysis': item.analysis}
-    except Exception as exc:
-        logger.error(f"[Reader] Analyse LLM item {item_id}: {exc}", exc_info=True)
-        _console(user_id, f"[Reader] Analyse échouée : {exc}")
-        return {'ok': False, 'error': str(exc)}
+    ReadingItem.objects.filter(pk=item_id).update(generate_analysis=True)
+    run_item_task(self, app_id='reader', model=ReadingItem, item_id=item_id,
+                  pipeline=PIPELINE, processes=PROCESSES, notify_label='Reader',
+                  progress_fn=_set_progress, only='analyze')

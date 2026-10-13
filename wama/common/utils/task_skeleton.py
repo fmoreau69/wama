@@ -53,12 +53,13 @@ Contrat de la glu `process(item, ctx) -> dict | None` :
   - une exception = FAILURE (message tronqué dans `error_field`, console ✗, notification
     d'échec). Le nettoyage spécifique d'échec (fichiers temporaires…) reste DANS la glu
     (try/finally ou except-reraise) — le squelette ne connaît pas ses artefacts.
-  Hors contrat (volontaire) : les tâches d'ENRICHISSEMENT à la demande (reader `analyze`,
-  transcriber `enrich`) — elles ne pilotent PAS le cycle de vie de l'item (ni statut ni
-  progress) ; les faire passer ici corromprait l'état (FAILURE sur un item déjà SUCCESS).
+  Hors contrat (volontaire) : les tâches d'ENRICHISSEMENT à la demande (transcriber `enrich`)
+  — elles ne pilotent PAS le cycle de vie de l'item (ni statut ni progress) ; les faire passer
+  ici corromprait l'état (FAILURE sur un item déjà SUCCESS).
   ⏳ Précisé le 2026-09-15 (WAMA_APP_GENERATION_ROUTE.md §10.6 4.7) : ces enrichissements
   deviendront des process `optional` avec leur propre ligne d'exécution — l'état de la card
-  étant DÉDUIT de ses process, ils ne corrompront plus rien.
+  étant DÉDUIT de ses process, ils ne corrompront plus rien. ✅ L'`analyze` du reader l'est
+  devenu le 2026-10-13 (process `analyze` de son pipeline).
 
 Le squelette pose, dans l'ordre de la convention : `close_old_connections`, chargement de
 l'item (`select_related('user')`), `refuse_crash_redelivery` (garde anti-boucle-de-crash),

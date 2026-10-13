@@ -76,6 +76,39 @@ def get_describer_model(content_type: str, output_style: str) -> str:
     return str(choisi or default or _dernier_recours())
 
 
+# ── Le modèle de langage qu'un select de CARD désigne (2026-10-13) ─────────────────────────────
+# Le select `llm_model` d'une app (describer, reader) porte une clé de catalogue ou « auto ». Une
+# clé désigne un modèle LOCAL (Ollama) : ces aides ne portent pas la clé d'un utilisateur, un
+# distant posé par un autre chemin est donc REFUSÉ en le disant plutôt que parti avec la clé de
+# l'instance ; et un modèle désigné qui ne répond pas est une erreur dite, jamais un repli muet
+# (règle du transcriber). Sortie du describer (`backends/model_choice.py`) quand le reader en a eu
+# besoin : une seule lecture pour toutes les apps.
+
+def designated_local_model(key: str, role: str = 'langage', owner: str = 'Cette application') -> str:
+    """Le nom Ollama d'une clé `ollama:<nom>` ; `ValueError` pour toute autre source."""
+    from wama.common.utils.model_keys import split_key
+    source, model_id = split_key(key)
+    if source != 'ollama' or not model_id:
+        raise ValueError(f"Modèle de {role} « {key} » : {owner} n'appelle que des modèles "
+                         "locaux (Ollama) pour ce rôle.")
+    return model_id
+
+
+def card_llm(key: str, auto=None, owner: str = 'Cette application'):
+    """`(nom, fournisseur)` du modèle de langage qu'une card demande : sous « auto », `auto()`
+    (le comportement propre à l'app — un tier, le défaut du funnel…) et le fournisseur du réglage
+    global ; sinon le modèle désigné, chez Ollama."""
+    from wama.common.utils.auto_model import is_auto
+    if is_auto(key):
+        return (auto() if auto else ''), None
+    return designated_local_model(key, 'langage', owner), 'ollama'
+
+
+def ollama_catalog_key(name: str) -> str:
+    """La clé de catalogue d'un modèle Ollama nommé — ce qu'une ligne d'exécution retient."""
+    return f'ollama:{name}' if name else ''
+
+
 def modele_par_defaut() -> str:
     """
     Modèle LLM à utiliser quand l'appelant n'en impose aucun — résolu, jamais figé.

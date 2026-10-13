@@ -11,7 +11,8 @@ Deux rôles :
   - `app_tasks(app_id)` : tâches RÉELLES lues par AST de tasks.py/workers.py (fichier, pas
     import) — {function, task_name, file, lifecycle}. `lifecycle` distingue les tâches à
     cycle de vie d'item (adopteront `run_item_task`) des ENRICHISSEMENTS à la demande
-    (reader `analyze`, transcriber `enrich` — hors contrat brique, cf. task_skeleton).
+    (transcriber `enrich` — hors contrat brique, cf. task_skeleton ; l'`analyze` du reader
+    est un process de son pipeline depuis le 2026-10-13, joué par `run_item_task`).
     Heuristique : segment source contenant `run_item_task`, ou 'SUCCESS' ET 'FAILURE'.
   - `render_tasks(manifest)` : rend le fichier mince pour les tâches lifecycle déclarées.
     Requiert `processing.tasks` + `processing.item_model` (extraits par la facette).

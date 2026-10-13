@@ -72,9 +72,20 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
     used_backend  = models.CharField(max_length=128, blank=True, default='')
     error_message = models.TextField(blank=True, default='')
 
-    # LLM analysis (on-demand)
+    # LLM analysis — process OPTIONNEL `analyze` du pipeline (2026-10-13 ; il était « à la
+    # demande », par une tâche à part que rien dans l'interface n'appelait).
     analysis      = models.TextField(blank=True, default='',
                                      help_text='Résumé/analyse LLM du texte extrait')
+
+    # Le PIPELINE (2026-10-13, `function_specs.PIPELINE`) : les interrupteurs des deux process
+    # optionnels et le modèle de langage qu'ils emploient (« auto » = le comportement d'avant).
+    # `db_default` : le code en service avant le redémarrage insère sans ces colonnes (0013).
+    format_markdown = models.BooleanField(default=True, db_default=True,
+                                          help_text='Mise en forme Markdown du texte lu (LLM)')
+    generate_analysis = models.BooleanField(default=False, db_default=False,
+                                            help_text='Analyse LLM du texte lu (résumé, points clés)')
+    llm_model     = models.CharField(max_length=200, blank=True, default='auto', db_default='auto',
+                                     help_text="Clé de catalogue du modèle de langage, ou « auto ».")
 
     created_at    = models.DateTimeField(auto_now_add=True)
 

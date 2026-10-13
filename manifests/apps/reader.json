@@ -347,6 +347,71 @@
             },
             {
               "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Mise en forme Markdown du texte lu (LLM)'",
+                  "imports": []
+                }
+              },
+              "name": "format_markdown"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Analyse LLM du texte lu (résumé, points clés)'",
+                  "imports": []
+                }
+              },
+              "name": "generate_analysis"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "'auto'",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'auto'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Clé de catalogue du modèle de langage, ou « auto ».'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "200",
+                  "imports": []
+                }
+              },
+              "name": "llm_model"
+            },
+            {
+              "args": [],
               "class": "django.db.models.DateTimeField",
               "kwargs": {
                 "auto_now_add": {
@@ -652,7 +717,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
-            "stales": null,
+            "stales": [
+              "read"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -771,7 +838,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
-            "stales": null,
+            "stales": [
+              "read"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -827,7 +896,10 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
-            "stales": null,
+            "stales": [
+              "read",
+              "format"
+            ],
             "step": null,
             "type": "text",
             "unit": ""
@@ -890,6 +962,166 @@
             "stales": null,
             "step": null,
             "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": true,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "auto",
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsLlmModel",
+              "item": "rSettings_llm_model",
+              "panel": "llmModelSelect"
+            },
+            "group": "",
+            "help": "Clé de catalogue du modèle de langage, ou « auto ».",
+            "help_fallback": {
+              "auto": "Choisi au lancement : le modèle de mise en forme habituel, le modèle par défaut de l'instance pour l'analyse."
+            },
+            "help_html": "",
+            "help_source": "reader",
+            "icon": "fa-brain",
+            "inline": false,
+            "label": "Modèle de langage",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "llm_model",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": "silent",
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": {
+              "model_type": "llm"
+            },
+            "options_resolution": null,
+            "options_source": "catalog",
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "format",
+              "analyze"
+            ],
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": true,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsFormatMarkdown",
+              "item": "rSettings_format_markdown",
+              "panel": "formatMarkdownToggle"
+            },
+            "group": "",
+            "help": "Titres, listes et tableaux remis en Markdown par un LLM, sans rien retrancher. Le texte natif d'un PDF reste tel quel.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-heading",
+            "inline": false,
+            "label": "Mettre en forme (Markdown)",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "format_markdown",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "stales": null,
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": false,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsGenerateAnalysis",
+              "item": "rSettings_generate_analysis",
+              "panel": "generateAnalysisToggle"
+            },
+            "group": "",
+            "help": "Analyse LLM du texte lu (résumé, points clés)",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-magnifying-glass-chart",
+            "inline": false,
+            "label": "Analyser (résumé, points clés)",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "generate_analysis",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "stales": null,
+            "step": null,
+            "type": "toggle",
             "unit": ""
           }
         ]
@@ -956,6 +1188,7 @@
         "reorder_queue",
         "start",
         "start_all",
+        "start_process",
         "stop",
         "update_settings",
         "upload"
@@ -965,6 +1198,11 @@
           "name": "start",
           "pattern": "start/<int:pk>/",
           "view": "views.start"
+        },
+        {
+          "name": "start_process",
+          "pattern": "start/<int:pk>/<str:process>/",
+          "view": "views.start_process"
         },
         {
           "name": "stop",
@@ -1061,7 +1299,10 @@
             "backend",
             "mode",
             "language",
-            "output_format"
+            "output_format",
+            "llm_model",
+            "format_markdown",
+            "generate_analysis"
           ],
           "user_related_name": "reading_items"
         }
@@ -1084,7 +1325,7 @@
         {
           "file": "tasks.py",
           "function": "analyze_document_task",
-          "lifecycle": false,
+          "lifecycle": true,
           "task_name": "wama.reader.tasks.analyze_document_task"
         }
       ]
@@ -1124,10 +1365,7 @@
         "empty_msg": "Aucun document en attente.",
         "id_kwarg": "item_id",
         "model": "wama.reader.models.ReadingItem",
-        "reset": {
-          "error_message": "",
-          "result_text": ""
-        },
+        "reset": "wama.reader.views._reset_for_relaunch",
         "status_fields": {
           "backend": "backend",
           "error_message": {
