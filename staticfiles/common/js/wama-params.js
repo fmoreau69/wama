@@ -442,16 +442,21 @@
     // L'échelle est 0-100 PAR CONTRAT (les zones en dépendent) ; seul le PAS se déclare —
     // un moteur à paliers discrets (anonymizer : 5 réels) dit ainsi la vérité du curseur.
     var step = parseInt(p.step, 10) || 1;
+    // Les graduations vivent SOUS LE CURSEUR, dans sa colonne (`wama-intent-track`) : posées
+    // sous toute la ligne, elles s'étalaient aussi sous la valeur affichée à droite (2026-10-13).
+    // La valeur s'aligne sur le CURSEUR (haut de ligne, hauteur d'un `.form-range`), pas sur le
+    // milieu de la colonne curseur + graduations.
     return '<div class="wama-intent">' +
-      '<div class="d-flex align-items-center gap-2">' +
+      '<div class="d-flex align-items-start gap-2">' +
+      '<div class="wama-intent-track flex-grow-1" style="min-width:0">' +
       '<input type="range" class="form-range wama-intent-slider" min="0" max="100" step="' + step + '"' +
       ' id="' + api.id + '" ' + api.idAttr + ' value="' + v + '"' +
       ' style="accent-color:' + z.color + '"' +
       ' aria-label="' + esc(p.label || 'Rapide ou qualité') + '">' +
-      '<span class="wama-intent-val small fw-bold text-nowrap" style="color:' + z.color + ' !important">' +
-      v + ' · ' + z.label + '</span></div>' +
       '<div class="d-flex justify-content-between small text-muted" style="margin-top:-4px;opacity:.7">' +
-      '<span>Rapide</span><span>Équilibré</span><span>Qualité</span></div></div>';
+      '<span>Rapide</span><span>Équilibré</span><span>Qualité</span></div></div>' +
+      '<span class="wama-intent-val small fw-bold text-nowrap" style="line-height:1.5rem;color:' +
+      z.color + ' !important">' + v + ' · ' + z.label + '</span></div></div>';
   });
   document.addEventListener('input', function (e) {
     var slider = e.target;

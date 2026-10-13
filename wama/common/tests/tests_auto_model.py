@@ -6,7 +6,7 @@ maintenant), et l'endpoint d'options (« auto » servi en 1ʳᵉ position, opt-i
 """
 
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
+from django.test import Client, SimpleTestCase, TestCase
 
 from wama.common.utils.auto_model import (
     AUTO_LABEL, catalog_domain, is_auto, predict_model_choice, resolve_model_choice,
@@ -536,6 +536,84 @@ class CurseurDeQualiteTest(TestCase):
                          'max="100"', 'Rapide', 'Équilibré', 'Qualité'):
             self.assertIn(marqueur, partial)
             self.assertIn(marqueur, js)
+
+
+def _html_tree(markup):
+    """Arbre minimal {tag, classes, text, children} d'un fragment HTML."""
+    from html.parser import HTMLParser
+    root = {'tag': None, 'classes': [], 'text': '', 'children': []}
+    stack = [root]
+
+    class Builder(HTMLParser):
+        def handle_starttag(self, tag, attrs):
+            node = {'tag': tag, 'classes': (dict(attrs).get('class') or '').split(),
+                    'text': '', 'children': []}
+            stack[-1]['children'].append(node)
+            if tag != 'input':
+                stack.append(node)
+
+        def handle_endtag(self, tag):
+            if tag != 'input' and len(stack) > 1:
+                stack.pop()
+
+        def handle_data(self, data):
+            stack[-1]['text'] += data
+
+    Builder().feed(markup)
+    return root
+
+
+def _walk(node):
+    yield node
+    for child in node['children']:
+        yield from _walk(child)
+
+
+class IntentGraduationsUnderTheSliderTest(SimpleTestCase):
+    """2026-10-13, relevé de Fabien sur l'accueil : les graduations Rapide / Équilibré / Qualité
+    prenaient toute la largeur de la ligne, alors que la valeur (« 50 · Équilibré ») est à droite
+    du curseur — elles ne tombaient pas sous les positions qu'elles nomment. Elles vivent dans la
+    colonne du curseur, sans la valeur, et les DEUX rendus (partial serveur, renderer JS) le font."""
+
+    def _assert_graduations_under_the_slider(self, markup):
+        tracks = [n for n in _walk(_html_tree(markup)) if 'wama-intent-track' in n['classes']]
+        self.assertEqual(1, len(tracks), 'une colonne du curseur')
+        inside = list(_walk(tracks[0]))
+        self.assertTrue(any('wama-intent-slider' in n['classes'] for n in inside), 'le curseur')
+        self.assertEqual(['Rapide', 'Équilibré', 'Qualité'],
+                         [n['text'] for n in inside if n['tag'] == 'span'], 'ses graduations')
+        self.assertFalse(any('wama-intent-val' in n['classes'] for n in inside),
+                         'la valeur est À CÔTÉ du curseur, pas au-dessus des graduations')
+
+    def test_the_server_partial_puts_the_graduations_under_the_slider(self):
+        from django.template.loader import render_to_string
+        self._assert_graduations_under_the_slider(render_to_string(
+            'common/_intent_slider.html', {'dom_id': 'q', 'name': 'q', 'value': 50}))
+
+    def test_the_js_renderer_puts_the_graduations_under_the_slider(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+        from pathlib import Path
+        from django.conf import settings
+        ctx = MiniRacer()
+        ctx.eval("""
+            var window = this; function CustomEvent(t) { this.type = t; } function Event(t) { this.type = t; }
+            var document = { getElementById: function () { return null; },
+                             querySelectorAll: function () { return []; },
+                             addEventListener: function () {} };
+            function box() { return { innerHTML: '', querySelectorAll: function () { return []; },
+                                      querySelector: function () { return null; },
+                                      addEventListener: function () {} }; }
+        """)
+        ctx.eval((Path(settings.BASE_DIR) / 'staticfiles/common/js/wama-params.js')
+                 .read_text(encoding='utf-8'))
+        markup = ctx.eval("(function(){ var b = box(); WamaParams.render(b, [{ name: 'quality_intent',"
+                          " type: 'intent', label: 'Qualité' }], { context: 'panel', values: {} });"
+                          " return b.innerHTML; })()")
+        self.assertIn('wama-intent-slider', markup, 'le renderer a bien rendu le curseur')
+        self._assert_graduations_under_the_slider(markup)
 
 
 class PredicatDeVoixClonéeDéfiniUneFoisTest(TestCase):
