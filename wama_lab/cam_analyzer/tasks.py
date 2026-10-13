@@ -369,7 +369,8 @@ def _detect_intersection_insertion(session, camera, frames):
         return []
 
     intersections = profile.intersections or []
-    gps_track = session.gps_track or []
+    from .utils.ego_pose import gps_fixes
+    gps_track = gps_fixes(session)
 
     if not intersections:
         logger.info("[intersection] No intersections configured in profile, skipping")
@@ -535,7 +536,8 @@ def _compute_conflict_events(session, intersection_windows):
     if not lane_events.exists():
         return 0
 
-    gps_track = session.gps_track or []
+    from .utils.ego_pose import gps_fixes
+    gps_track = gps_fixes(session)
     conflicts = []
 
     for le in lane_events:
@@ -2176,7 +2178,7 @@ def compute_visual_yaw_task(self, session_id: str):
     close_old_connections()
     from .models import AnalysisSession
     from .utils.pass_tracking import mark_started, mark_completed, mark_failed
-    from .utils.visual_yaw import compute_visual_yaw
+    from .utils.visual_yaw import compute_visual_yaw, measure_gps_latency
     try:
         session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
         mark_started(session, 'visual_yaw', session.profile)
@@ -2186,6 +2188,15 @@ def compute_visual_yaw_task(self, session_id: str):
             mark_failed(session, 'visual_yaw', report.get('skipped') or 'mesure impossible')
             _console(session.user_id, f"Cap visuel : {report.get('skipped')}")
             return {'session_id': session_id, **report}
+        # la même rotation mesure le retard du GPS sur la vidéo (⚑ gps_latency l'applique)
+        lat = measure_gps_latency(session, data)
+        data['gps_latency'] = lat
+        report['gps_latency_s'] = lat and lat['latency_s']
+        if lat:
+            _console(session.user_id,
+                     f"Latence du GPS sur la vidéo : {lat['latency_s']:+.2f} s (corrélation {lat['r']}, "
+                     f"{lat['r_at_zero']} sans décalage, {lat['samples']} instants en virage) — "
+                     f"{'appliquée' if lat['applicable'] else 'NON applicable'} sous ⚑ Latence du GPS compensée")
         session.refresh_from_db(fields=['results_summary'])
         rs = session.results_summary or {}
         rs['visual_yaw'] = data
@@ -3741,9 +3752,11 @@ def extract_rtmaps_task(self, session_id: str, rec_path: str = None, csv_path: s
         # Annoter cap + vitesse depuis les positions (sinon heading/speed restent à 0
         # dans le track stocké → vue de dessus mal orientée). C'est la même fonction
         # que celle utilisée par EgoPose, mais appliquée AU TRACK PERSISTÉ.
+        # Une entrée par FIXE (`distinct_fixes`) : le .rec répète chaque position dans plusieurs
+        # trames NMEA, ce qui annulait la vitesse deux fois sur trois.
         try:
-            from .utils.ego_pose import annotate_gps_heading_speed
-            gps_track = annotate_gps_heading_speed(gps_track)
+            from .utils.ego_pose import annotate_gps_heading_speed, distinct_fixes
+            gps_track = annotate_gps_heading_speed(distinct_fixes(gps_track))
         except Exception:
             logger.debug('annotate GPS heading/speed failed (non-blocking)', exc_info=True)
         session.gps_track = gps_track

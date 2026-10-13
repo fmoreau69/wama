@@ -62,13 +62,22 @@ de chaque caméra** (front 384×248, left 408×244, rear 408×248, right 384×24
 
 ## [2] Pose ego (GPS) — `ego_pose.py`
 
-- Piste GPS ~1 fixe / 2,7 s. **Cap = bearing entre fixes consécutifs** (maintenu si
+- Piste GPS **1 fixe / s**, chaque fixe porté par TROIS trames NMEA (RMC, GGA, GLL, reçues à +0,
+  +0,1, +0,4 s, même position) : la trace se lit par `ego_pose.gps_fixes` (une entrée par fixe, à
+  sa 1ʳᵉ réception ; cap et vitesse recalculés). ⚠ Corrigé le 2026-10-13 : lue entrée par entrée,
+  la vitesse était nulle 2 fois sur 3 (« à l'arrêt 78 % du temps », vrai : 36 %) et la vue servait
+  1 entrée sur 8 — d'où le « ~1 fixe / 2,7 s » qu'écrivait cette ligne, et un retard d'affichage
+  jusqu'à 2,3 m. **Cap = bearing entre fixes consécutifs** (maintenu si
   déplacement < 0,30 m) → **bruité à faible vitesse** (±10-25°), c'est LA source d'erreur
   angulaire dominante (bras de levier : 8 m × 15° ≈ 2 m d'arc sur les objets).
-- Synchro vidéo↔GPS : `ts = t_vidéo × gps_time_scale + gps_time_offset` (par session). Tout
-  consommateur de la pose navette convertit par `prediction_adapter.video_to_gps_time` — la calib
-  sol 2a et les marquages monde passaient le temps vidéo brut jusqu'au 2026-09-28 (~20 s à ~5 min
-  d'écart ; garde AST `tests_gps_time_base`).
+- Synchro vidéo↔GPS : `ts = t_vidéo × scale + offset`, `(scale, offset) =
+  prediction_adapter.gps_time_mapping(session)` — accesseur UNIQUE : `gps_time_scale`,
+  `gps_time_offset` de la session, plus sous ⚑ `gps_latency` la **latence du GPS** mesurée par la
+  passe « Cap visuel » (+0,55 s sur ENA_CASA, 2026-10-13 ; confirmée par l'accéléromètre et la
+  vitesse Doppler). Tout consommateur de la pose navette convertit par
+  `prediction_adapter.video_to_gps_time` — la calib sol 2a et les marquages monde passaient le temps
+  vidéo brut jusqu'au 2026-09-28 (~20 s à ~5 min d'écart ; garde AST `tests_gps_time_base`). Seules
+  les lignes du cap visuel restent en synchro brute : ce sont elles qui MESURENT la latence.
 - Interpolation backend : `_shuttle_pose_at` (prediction_adapter) — position lerp, **cap
   en interpolation CIRCULAIRE** (plus court arc ; l'ancien lerp linéaire passait par 180°
   au wrap 359°→1° — navette plein nord = wrap permanent).
@@ -304,6 +313,7 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 | `mount_lever_arm` | ON | live | bras de levier des caméras (montage vs centre arrière) |
 | `heading_ratio` | ON | live | cap par ratio de bbox fondu avec la trajectoire |
 | `antenna_lever` | ON | compute | point GPS = antenne (coin arrière droit ENA) ramené au centre arrière |
+| `gps_latency` | OFF | compute | la synchro vidéo → GPS ajoute la latence du GPS mesurée par « Cap visuel » (+0,55 s sur ENA_CASA, 2026-10-13) |
 | `artifact_filter` | ON | live | masque les reflets/artefacts fixes (bbox immobile pendant que la navette avance) |
 | `anchor_heading` | ON | live | cap des garés = consensus axial du ratio sur toute la vie du track |
 | `heading_cluster` | ON | compute | prior de cap : garés voisins <15 m partagent leur axe |

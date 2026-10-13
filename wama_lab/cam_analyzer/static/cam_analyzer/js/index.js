@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let lastRoadMask = {};           // position → derniers road_mask connus (overlay route persistant)
     let gpsTimeOffset = 0;           // recalage GPS↔vidéo (s) : ts_gps = t*scale + offset
     let gpsTimeScale = 1;            // échelle temps vidéo→réel (corrige fps AVI erroné)
+    let gpsLatency = null;           // latence du GPS MESURÉE (passe « Cap visuel »), appliquée sous ⚑ gps_latency
     let laneWidthM = 3.5;            // largeur de voie (m) pour le gabarit vue de dessus
     let showLaneVideo = false;       // projeter le gabarit de voie SUR la vidéo (calibration)
     let laneCamHeightM = 2.4;        // hauteur caméra (m) — rig ENA : ~2 m au-dessus du plancher + châssis ≈ 0,4 m
@@ -519,6 +520,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 orthoCorrection = (data.results_summary && data.results_summary.ortho_correction) || null;
                 shuttleFilter = (data.results_summary && data.results_summary.shuttle_filter) || null;
                 laneMapRecalage = (data.results_summary && data.results_summary.lane_map_recalage) || null;
+                gpsLatency = (data.results_summary && data.results_summary.visual_yaw
+                              && data.results_summary.visual_yaw.gps_latency) || null;
                 stationaryAnchors = (data.results_summary && data.results_summary.stationary_anchors) || {};
                 sessionAnalyzedRanges = (data.config && data.config.analyzed_ranges) || {};
             } catch (e) { stationaryGids = new Set(); stationaryAnchors = {}; sessionAnalyzedRanges = {}; }
@@ -1215,6 +1218,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     orthoCorrection = (d.results_summary && d.results_summary.ortho_correction) || null;
                     shuttleFilter = (d.results_summary && d.results_summary.shuttle_filter) || null;
                     laneMapRecalage = (d.results_summary && d.results_summary.lane_map_recalage) || null;
+                    gpsLatency = (d.results_summary && d.results_summary.visual_yaw
+                                  && d.results_summary.visual_yaw.gps_latency) || null;
                     stationaryAnchors = (d.results_summary && d.results_summary.stationary_anchors) || {};
                     sessionAnalyzedRanges = (d.config && d.config.analyzed_ranges) || {};
                     // Corrections de trajectoire fraîches → ré-ingérer la trace (sinon la carte gardait
@@ -3122,11 +3127,20 @@ document.addEventListener('DOMContentLoaded', function () {
                  lon: pc.lon + de / (111320.0 * Math.cos(pc.lat * Math.PI / 180)) };
     }
 
+    // Offset EFFECTIF de la synchro vidéo → GPS : celui de la session PLUS la latence du GPS sous
+    // ⚑ gps_latency (une position reçue en t décrit la navette en t − latence). Miroir de
+    // `prediction_adapter.gps_time_mapping` : mêmes conditions (bascule ON, mesure applicable).
+    function gpsOffset() {
+        const lat = (camFeat && camFeat['gps_latency'] && gpsLatency && gpsLatency.applicable
+                     && typeof gpsLatency.latency_s === 'number') ? gpsLatency.latency_s : 0;
+        return gpsTimeOffset + lat;
+    }
+
     function findGpsAtTime(t) {
         if (!cachedGpsTrack.length) return null;
         // ts_gps = temps_vidéo * scale + offset (scale corrige un fps AVI erroné → la
-        // désync ne grandit plus ; offset = recalage constant). Voir gps_time_scale.
-        t = t * gpsTimeScale + gpsTimeOffset;
+        // désync ne grandit plus ; offset = recalage constant + latence GPS). Voir gps_time_scale.
+        t = t * gpsTimeScale + gpsOffset();
         let lo = 0, hi = cachedGpsTrack.length - 1;
         while (lo < hi - 1) {
             const mid = (lo + hi) >> 1;
@@ -3312,7 +3326,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // (direction du trail) tournent sur eux-mêmes. Moyenne CIRCULAIRE (atan2 des
         // vecteurs unitaires) : pas de piège au wrap 359°→1° (navette plein nord).
         if (pose && pose.heading != null && cachedGpsTrack && cachedGpsTrack.length) {
-            const ts = currentTime * gpsTimeScale + gpsTimeOffset;
+            const ts = currentTime * gpsTimeScale + gpsOffset();
             let ci = cachedGpsTrack.findIndex(p => p.ts > ts);
             if (ci < 0) ci = cachedGpsTrack.length;
             let sx = 0, sy = 0;
@@ -3349,7 +3363,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const dLo = (b.lon - a.lon) * 111320 * Math.cos(a.lat * Math.PI / 180);
             return Math.hypot(dLa, dLo);
         };
-        const _tsCur = currentTime * gpsTimeScale + gpsTimeOffset;
+        const _tsCur = currentTime * gpsTimeScale + gpsOffset();
         const _win = [];
         if (cachedGpsTrack.length) {
             let lo = 0, hi = cachedGpsTrack.length - 1;
@@ -3841,7 +3855,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Fenêtres en temps VIDÉO (`window_recompute`), trace en temps GPS : convertir les bornes,
         // sinon on surligne un tronçon décalé d'environ 20 s de trajet.
-        const g0 = w.t_enter * gpsTimeScale + gpsTimeOffset, g1 = w.t_exit * gpsTimeScale + gpsTimeOffset;
+        const g0 = w.t_enter * gpsTimeScale + gpsOffset(), g1 = w.t_exit * gpsTimeScale + gpsOffset();
         const segment = cachedGpsTrack
             .filter(p => p.ts >= g0 && p.ts <= g1)
             .map(p => { const c = antennaCorrect(p); return [c.lat, c.lon]; });
@@ -3903,9 +3917,9 @@ document.addEventListener('DOMContentLoaded', function () {
         updatePassInfo(tVideo);
     }
 
-    // Inverse de `t_gps = t_vidéo × gpsTimeScale + gpsTimeOffset` (cf. `findGpsAtTime`).
+    // Inverse de `t_gps = t_vidéo × gpsTimeScale + gpsOffset()` (cf. `findGpsAtTime`).
     function gpsToVideoTime(tGps) {
-        return (tGps - gpsTimeOffset) / (gpsTimeScale || 1);
+        return (tGps - gpsOffset()) / (gpsTimeScale || 1);
     }
 
     // Update the right-panel info box to show details of the current pass

@@ -390,16 +390,43 @@ def _ensure_endpoint(hist, t0):
     return np.vstack([hist, pt])
 
 
-def video_to_gps_time(session, t_video):
-    """Temps VIDÉO (DetectionFrame.timestamp = frame / fps) → temps GPS, la base de temps de la
-    trajectoire navette (`shuttle_trajectory`, `p['ts']`) : t_gps = t × gps_time_scale + offset.
+def gps_latency_s(session):
+    """Latence du GPS sur la vidéo (s) appliquée à la synchro — 0 hors ⚑ gps_latency, ou si la
+    mesure (passe « Cap visuel », `visual_yaw.measure_gps_latency`) manque ou n'est pas applicable."""
+    try:
+        from .features import enabled
+        if not enabled(session, 'gps_latency'):
+            return 0.0
+    except Exception:
+        return 0.0
+    m = (((getattr(session, 'results_summary', None) or {}).get('visual_yaw') or {})
+         .get('gps_latency') or {})
+    if not m.get('applicable') or m.get('latency_s') is None:
+        return 0.0
+    return float(m['latency_s'])
 
-    Le tracker et la prédiction le calculent en ligne (`fn / fps * scale + off`) ; la calib sol 2a
-    et les marquages monde interrogeaient la pose avec le temps VIDÉO jusqu'au 2026-09-28 — avec
-    scale 0,961 l'erreur vaut ~20 s à 8 min de vidéo et ~5 min en fin de session (même défaut que
-    les fenêtres, corrigé le 2026-07-18, `41bef1a`)."""
+
+def gps_time_mapping(session):
+    """`(scale, offset)` de la synchro vidéo → GPS : t_gps = t_vidéo × scale + offset — accesseur
+    UNIQUE (tracker, prédiction, calibrations, fenêtres, artefacts, affichage via la vue).
+
+    `offset` = celui de la session (synchro du .rec ou réglage manuel) PLUS la latence du GPS sous
+    ⚑ gps_latency : une position reçue en t décrit la navette en t − latence, donc l'image de
+    l'instant t se place avec la position reçue en t + latence."""
     scale = float(getattr(session, 'gps_time_scale', None) or 1.0) or 1.0
     off = float(getattr(session, 'gps_time_offset', None) or 0.0)
+    return scale, off + gps_latency_s(session)
+
+
+def video_to_gps_time(session, t_video):
+    """Temps VIDÉO (DetectionFrame.timestamp = frame / fps) → temps GPS, la base de temps de la
+    trajectoire navette (`shuttle_trajectory`, `p['ts']`) : t_gps = t × scale + offset
+    (`gps_time_mapping`).
+
+    La calib sol 2a et les marquages monde interrogeaient la pose avec le temps VIDÉO jusqu'au
+    2026-09-28 — avec scale 0,961 l'erreur vaut ~20 s à 8 min de vidéo et ~5 min en fin de session
+    (même défaut que les fenêtres, corrigé le 2026-07-18, `41bef1a`)."""
+    scale, off = gps_time_mapping(session)
     return float(t_video) * scale + off
 
 
@@ -538,8 +565,7 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
                if isinstance(v, dict)}
     _src_counts = defaultdict(int)   # G7 : un placement MIXTE se compte, il ne se suppose pas
     fps = cams[0].fps or 12.0
-    scale = session.gps_time_scale or 1.0
-    off = session.gps_time_offset or 0.0
+    scale, off = gps_time_mapping(session)
 
     # Collecte par global_track_id, avec position MONDE de chaque détection (toutes caméras).
     by_gid = defaultdict(list)   # gid -> [(ts, det, frame_obj, e, n, ego_long, class)]

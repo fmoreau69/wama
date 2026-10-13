@@ -850,8 +850,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         return 0
 
     fps = cams[0].fps or 12.0
-    scale = session.gps_time_scale or 1.0
-    off = session.gps_time_offset or 0.0
+    from .prediction_adapter import gps_time_mapping
+    scale, off = gps_time_mapping(session)
     _geo = camera_geometry(session)  # yaw/FOV/montage réels par caméra (rig + session)
     from .features import effective as _features_effective
     _feat = _features_effective(session)

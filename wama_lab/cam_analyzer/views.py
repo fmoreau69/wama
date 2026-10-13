@@ -291,13 +291,15 @@ def get_session(request, session_id):
             'time_offset': c.time_offset,
         })
 
-    # Downsample gps_track for the mini-map. With 24k points across 2h20 of
-    # driving, 1500 samples = 1 point per ~5.5s ≈ 46m at 30 km/h, which
-    # under-samples sharp turns. 3000 points (~22m gap) tracks corners
-    # cleanly while keeping the JSON payload around 250 KB.
-    gps_full = session.gps_track or []
-    if len(gps_full) > 3000:
-        step = max(1, len(gps_full) // 3000)
+    # Trace de la vue de dessus : UNE entrée par fixe GPS (`gps_fixes`), toutes servies jusqu'à
+    # 12 000 (2 h 20 à 1 Hz ≈ 8 400). Jusqu'au 2026-10-13 on servait une entrée sur 8 des 24 000 :
+    # chaque fixe y figure trois fois (trames RMC, GGA, GLL), un point servi sur trois portait une
+    # position déjà vieille de 0,4 s, et l'interpolation tous les 2,7 s dessinait la navette jusqu'à
+    # 2,3 m en arrière (0,4 m en médiane).
+    from .utils.ego_pose import gps_fixes
+    gps_full = gps_fixes(session)
+    if len(gps_full) > 12000:
+        step = max(1, len(gps_full) // 12000)
         gps_sampled = [
             {'ts': p.get('ts'), 'lat': p.get('lat'), 'lon': p.get('lon'),
              'heading': p.get('heading'), 'speed_kmh': p.get('speed_kmh')}

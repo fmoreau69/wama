@@ -143,6 +143,59 @@ def annotate_gps_heading_speed(gps: list[dict], min_move_m: float = 0.30) -> lis
     return gps
 
 
+#: Une position répétée plus longtemps que ceci n'est plus le même fixe relu par plusieurs trames :
+#: le récepteur la TIENT (navette arrêtée) — on garde aussi la fin de la répétition.
+FIX_HOLD_S = 1.5
+
+
+def distinct_fixes(gps: list[dict], hold_s: float = FIX_HOLD_S) -> list[dict]:
+    """Une entrée par FIXE GPS, à sa PREMIÈRE réception.
+
+    Le .rec porte chaque fixe dans plusieurs trames NMEA (RMC, GGA, GLL sur ENA_CASA : 3 entrées par
+    seconde, reçues à +0, +0,1 et +0,4 s, même position). Gardées telles quelles, elles faussaient tout
+    ce qui lit la trace entrée par entrée (mesuré le 2026-10-13) : vitesse NULLE deux fois sur trois et
+    1,7 fois trop forte la troisième, position périmée de 0,4 s dans les points servis à la vue de dessus.
+    Une répétition qui dure plus de `hold_s` est un fixe TENU (arrêt) : sa dernière entrée est gardée,
+    sinon l'interpolation ferait glisser la navette pendant tout l'arrêt.
+    Rend la liste d'origine elle-même quand il n'y a rien à retirer."""
+    out, run_last = [], None
+    for p in gps:
+        if out and p.get('lat') == out[-1].get('lat') and p.get('lon') == out[-1].get('lon'):
+            run_last = p
+            continue
+        if run_last is not None and run_last.get('ts') is not None and out[-1].get('ts') is not None \
+                and float(run_last['ts']) - float(out[-1]['ts']) > hold_s:
+            out.append(run_last)
+        run_last = None
+        out.append(p)
+    if run_last is not None and run_last.get('ts') is not None and out[-1].get('ts') is not None \
+            and float(run_last['ts']) - float(out[-1]['ts']) > hold_s:
+        out.append(run_last)
+    return gps if len(out) == len(gps) else out
+
+
+def gps_fixes(session) -> list[dict]:
+    """Trace GPS de la session, une entrée par fixe (`distinct_fixes`) avec cap et vitesse
+    recalculés sur ces fixes — point de lecture UNIQUE de `session.gps_track`.
+
+    Les traces importées avant le 2026-10-13 portent les trames répétées et leurs vitesses fausses : on
+    les corrige à la LECTURE, sans réécrire la trace stockée (régénérable du .rec). Une trace déjà
+    propre est rendue telle quelle. Mémorisé sur l'objet session (la trace d'ENA_CASA fait 24 000
+    entrées, et les passes la relisent souvent)."""
+    gt = session.gps_track or []
+    memo = getattr(session, '_gps_fixes_memo', None)
+    if memo is not None and memo[0] is gt:
+        return memo[1]
+    fixes = distinct_fixes(gt)
+    if fixes is not gt:
+        fixes = annotate_gps_heading_speed([dict(p) for p in fixes])
+    try:
+        session._gps_fixes_memo = (gt, fixes)
+    except AttributeError:
+        pass
+    return fixes
+
+
 class EgoPose:
     """
     Trajectoire ego interrogeable par timestamp. Priorité aux données API navette
@@ -239,7 +292,7 @@ def longitudinal_accel_series(session):
 
     # Biais à l'arrêt : médiane de l'accélération lue là où la vitesse GPS est quasi nulle.
     arret = []
-    gt = [p for p in (session.gps_track or [])
+    gt = [p for p in gps_fixes(session)
           if p.get('ts') is not None and p.get('speed_kmh') is not None]
     if gt:
         gt.sort(key=lambda p: p['ts'])
@@ -279,7 +332,7 @@ def compute_shuttle_filter(session):
     médian, part de cap tenu). Retourne le rapport.
     """
     from wama_data.functions.driving.ego_trajectory_filter import filter_gps_points
-    gt = session.gps_track or []
+    gt = gps_fixes(session)
     accel, infos = None, None
     try:
         from .features import enabled
@@ -338,7 +391,8 @@ def effective_gps_track(session, lane_map=True, ortho=True):
 
     ⚑ `shuttle_filter` ON et calcul présent → trace dont `lat`/`lon`/`heading` sont les valeurs
     FILTRÉES (les brutes restent en `*_raw`, et `heading_held` dit si le cap est tenu — ce
-    qu'un consommateur comme `yaw_disagreement` doit savoir). Sinon → `gps_track` tel quel.
+    qu'un consommateur comme `yaw_disagreement` doit savoir). Sinon → la trace des fixes
+    (`gps_fixes` : une entrée par fixe GPS — `gps_track` lui-même quand il est déjà propre).
     La bascule est relue à CHAQUE appel : OFF ⇒ brut même si un calcul traîne en base, sinon
     l'A/B mentirait (même règle que `_applyOrthoCorrection`).
 
@@ -346,7 +400,7 @@ def effective_gps_track(session, lane_map=True, ortho=True):
     branches, artefacts). Les fenêtres d'intersection et la couverture restent sur le brut :
     elles délimitent l'ANALYSE, pas une position — les filtrer invaliderait la couverture.
     """
-    gt = session.gps_track or []
+    gt = gps_fixes(session)
     try:
         from .features import enabled
         use_filter = enabled(session, 'shuttle_filter')

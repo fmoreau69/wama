@@ -91,14 +91,18 @@ class CommandeAccelerometreTest(unittest.TestCase):
 
     @staticmethod
     def _session(biais=0.0, a_roule=0.5, n=200):
-        """Moitié à l'arrêt (accélération nulle + biais), moitié en mouvement."""
-        imu, gps = [], []
+        """Moitié à l'arrêt (accélération nulle + biais), moitié en mouvement. La position AVANCE quand
+        la navette roule : la vitesse est relue des fixes (`gps_fixes`, 2026-10-13), plus du champ
+        stocké — une position immobile annoncée à 12 km/h n'était cohérente qu'avec l'ancienne lecture."""
+        imu, gps, lat = [], [], 45.0
         for i in range(n):
             t = i * 0.1
             arret = i < n // 2
             imu.append({'ts': t, 'ax': (0.0 if arret else a_roule) / 9.80665 + biais / 9.80665,
                         'ay': 0.0, 'az': 0.95})
-            gps.append({'ts': t, 'lat': 45.0, 'lon': 4.0,
+            if not arret:
+                lat += 12.0 / 3.6 * 0.1 / 111320.0
+            gps.append({'ts': t, 'lat': lat, 'lon': 4.0,
                         'speed_kmh': 0.0 if arret else 12.0})
         s = _Session(gps)
         s.imu_track = imu
@@ -135,7 +139,8 @@ class CommandeAccelerometreTest(unittest.TestCase):
     def test_sans_arrets_le_repli_est_ANNONCE_pas_silencieux(self):
         from wama_lab.cam_analyzer.utils.ego_pose import longitudinal_accel_series
         imu = [{'ts': i * 0.1, 'ax': 0.05, 'ay': 0.0, 'az': 0.95} for i in range(200)]
-        gps = [{'ts': i * 0.1, 'lat': 45.0, 'lon': 4.0, 'speed_kmh': 20.0} for i in range(200)]
+        gps = [{'ts': i * 0.1, 'lat': 45.0 + i * 20.0 / 3.6 * 0.1 / 111320.0, 'lon': 4.0,
+                'speed_kmh': 20.0} for i in range(200)]
         s = _Session(gps)
         s.imu_track = imu
         _at, infos = longitudinal_accel_series(s)

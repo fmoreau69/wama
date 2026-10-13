@@ -14,9 +14,10 @@ Deux conditions, toutes deux MESURÉES comme indispensables :
     autres usagers y bougent — jusqu'à 90° de fausse rotation sur un arrêt de 3 min. Un véhicule
     non holonome ne tourne pas sans avancer.
 
-Stocké : `results_summary['visual_yaw'] = {'fx_px', 'step', 'rows': [[t_gps, yaw_deg], …]}` —
-une ligne par paire ANALYSÉE (les paires à l'arrêt valent 0 par construction et ne sont pas
-écrites). `yaw_cumulative()` en fait la source `yaw_cum` du filtre.
+Stocké : `results_summary['visual_yaw'] = {'fx_px', 'step', 'rows': [[t_gps, yaw_deg], …],
+'gps_latency': {…}}` — une ligne par paire ANALYSÉE (les paires à l'arrêt valent 0 par construction
+et ne sont pas écrites). `yaw_cumulative()` en fait la source `yaw_cum` du filtre ;
+`measure_gps_latency()` en tire le retard du GPS sur la vidéo (⚑ gps_latency, 2026-10-13).
 """
 import logging
 from bisect import bisect_right
@@ -57,6 +58,7 @@ def compute_visual_yaw(session, position='front'):
     if not cap.isOpened():
         return None, {'skipped': 'vidéo illisible'}
     fps = cam.fps or 12.0
+    # synchro SANS la latence du GPS (⚑ gps_latency) : ces lignes servent à la MESURER
     scale = float(session.gps_time_scale or 1.0) or 1.0
     off = float(session.gps_time_offset or 0.0)
     W, H = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -96,13 +98,89 @@ def compute_visual_yaw(session, position='front'):
     return {'fx_px': fx, 'step': STEP, 'position': position, 'rows': out}, report
 
 
+#: Retard du GPS au-delà duquel la mesure est rejetée plutôt qu'appliquée (s).
+MAX_GPS_LATENCY_S = 2.0
+#: Corrélation minimale au retard retenu pour juger la mesure applicable.
+MIN_LATENCY_R = 0.5
+#: Seuls les virages renseignent sur un cap : vitesse de lacet GPS minimale (°/s) et vitesse (m/s).
+TURN_RATE_DEG_S = 2.0
+MOVING_MPS = 1.0
+
+
+def measure_gps_latency(session, data=None):
+    """Retard du GPS sur la VIDÉO (s), mesuré par la rotation : vitesse de lacet VUE par la caméra
+    avant (lignes de cette passe) contre vitesse de lacet du cap GPS (fixes, différence centrée), en
+    virage. > 0 : le GPS décrit l'instant que la vidéo montrait `latency_s` plus tôt — la navette est
+    dessinée en ARRIÈRE de sa position, de vitesse × retard.
+
+    Mesuré le 2026-10-13 sur ENA_CASA : +0,55 s par cette méthode (stable du seuil de virage 0 à
+    4 °/s), +0,35 à +0,45 s par l'accéléromètre du .rec (latérale : GPS +0,10 s, vidéo −0,25 s, avant
+    reprise du milieu de paire) et +0,30 s par la dérivée de la vitesse Doppler — trois références,
+    même sens. Les lignes sont horodatées à la FIN de leur paire d'images : le milieu est repris ici.
+    Rend {'latency_s', 'r', 'r_at_zero', 'samples', 'method', 'applicable'} ou None."""
+    import math
+    from wama_data.functions.kinematics.signal_lag import estimate_lag
+    from .ego_pose import gps_fixes
+    data = data if data is not None else ((session.results_summary or {}).get('visual_yaw') or {})
+    rows = data.get('rows') or []
+    fixes = [p for p in gps_fixes(session) if p.get('ts') is not None and p.get('lat') is not None]
+    if len(rows) < 100 or len(fixes) < 100:
+        return None
+    cam = session.cameras.filter(position=data.get('position') or 'front').first()
+    fps = (getattr(cam, 'fps', None) or 12.0)
+    scale = float(session.gps_time_scale or 1.0) or 1.0
+    step_s = (data.get('step') or STEP) / fps * scale
+    vt = np.array([r[0] for r in rows], float) - step_s / 2.0
+    vrate = np.array([r[1] for r in rows], float) / step_s
+
+    t = np.array([p['ts'] for p in fixes], float)
+    lat0 = math.radians(fixes[0]['lat'])
+    x = np.array([p['lon'] for p in fixes], float) * 111320.0 * math.cos(lat0)
+    y = np.array([p['lat'] for p in fixes], float) * 111320.0
+    hd = np.degrees(np.unwrap(np.arctan2(x[2:] - x[:-2], y[2:] - y[:-2])))
+    tc = t[1:-1]
+    gspeed = np.hypot(x[2:] - x[:-2], y[2:] - y[:-2]) / np.maximum(t[2:] - t[:-2], 1e-6)
+    grate = np.gradient(hd, tc)
+
+    # même bande passante des deux côtés : le GPS est à ~1 Hz, la rotation vue est lissée sur 1 s
+    grid = np.arange(max(vt[0], tc[0]), min(vt[-1], tc[-1]), 0.05)
+    if len(grid) < 400:
+        return None
+    k = 20
+    kern = np.ones(k) / k
+    # lacet × vitesse (une accélération latérale) : l'erreur de POSITION d'un retard vaut vitesse ×
+    # retard, la mesure doit peser les virages comme la position les subit. Sans cette pondération, les
+    # virages lents (où le cap GPS est le plus traînant) tirent la mesure vers 0,75 s sur ENA_CASA.
+    v = np.interp(grid, tc, gspeed)
+    rate_gps = np.convolve(np.interp(grid, tc, grate), kern, mode='same')
+    vis = np.convolve(np.interp(grid, vt, vrate), kern, mode='same') * v
+    gps = rate_gps * v
+
+    def turning(g):
+        return (np.abs(np.interp(g, grid, rate_gps)) > TURN_RATE_DEG_S) & (np.interp(g, grid, v) > MOVING_MPS)
+
+    res = estimate_lag(grid, vis, grid, gps, mask=turning)
+    if res is None:
+        return None
+    applicable = abs(res['lag_s']) <= MAX_GPS_LATENCY_S and res['r'] >= MIN_LATENCY_R
+    return {'latency_s': res['lag_s'], 'r': res['r'], 'r_at_zero': res['r_at_zero'],
+            'samples': res['samples'], 'method': 'lacet × vitesse, vu contre GPS (virages)',
+            'applicable': bool(applicable)}
+
+
 def yaw_cumulative(session):
-    """`callable(t_gps) -> deg` : rotation vue CUMULÉE (source `yaw_cum` du filtre navette), ou None."""
+    """`callable(t_gps) -> deg` : rotation vue CUMULÉE (source `yaw_cum` du filtre navette), ou None.
+
+    Les lignes sont horodatées par la synchro vidéo SANS la latence du GPS (c'est elle qu'elles
+    mesurent) : sous ⚑ gps_latency, elles sont décalées de cette latence pour rejoindre le temps de
+    la trace."""
     data = (session.results_summary or {}).get('visual_yaw') or {}
     rows = data.get('rows') or []
     if not rows:
         return None
-    t = [r[0] for r in rows]
+    from .prediction_adapter import gps_latency_s
+    lat = gps_latency_s(session)
+    t = [r[0] + lat for r in rows]
     cum = list(np.cumsum([r[1] for r in rows]))
 
     def at(tg):

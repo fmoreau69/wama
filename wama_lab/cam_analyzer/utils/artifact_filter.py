@@ -28,10 +28,9 @@ def _shuttle_positions(session):
     gt = effective_gps_track(session)
     if len(gt) < 2:
         return []
-    from .prediction_adapter import make_local_frame
+    from .prediction_adapter import make_local_frame, gps_time_mapping
     to_local = make_local_frame(gt)
-    scale = float(session.gps_time_scale or 1.0) or 1.0
-    off = float(session.gps_time_offset or 0.0)
+    scale, off = gps_time_mapping(session)
     out = []
     for p in gt:
         try:

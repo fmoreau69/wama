@@ -37,6 +37,15 @@ FEATURES = [
             "du véhicule : tout le repère est ramené au centre arrière via le levier déclaré "
             "(config gps_antenna). Corrige un biais systématique ~1 m vers la droite.",
             default=True, scope='compute'),
+    Feature('gps_latency', 'Latence du GPS compensée',
+            "Une position GPS arrive en retard sur l'image qu'elle accompagne (latence du récepteur) : "
+            "la navette était dessinée en ARRIÈRE de ce que montrent les caméras, de vitesse × retard. "
+            "La synchro vidéo → GPS ajoute ce retard, MESURÉ par la passe « Cap visuel » (rotation vue "
+            "par la caméra avant contre cap GPS, en virage). Mesuré le 2026-10-13 sur ENA_CASA : "
+            "+0,55 s (+0,3 à +0,45 s par l'accéléromètre et la vitesse Doppler, même sens), soit "
+            "~1,8 m à 12 km/h. La navette bouge tout de suite ; les objets suivent au prochain "
+            "« Tracking 360° ». OFF = synchro du .rec seule.",
+            default=False, scope='compute'),
     Feature('artifact_filter', 'Filtre reflets/artefacts',
             "Masque les détections collées à l'image (reflets de vitrage : bbox immobile "
             "pendant que la navette avance). Le marquage/exclusion du tracking s'applique "

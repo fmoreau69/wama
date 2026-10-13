@@ -44,9 +44,10 @@ def recompute_intersection_windows(session, profile=None) -> list[dict]:
 
     from .intersection_analyzer import IntersectionAnalyzer
 
+    from .ego_pose import gps_fixes
     raw_windows = IntersectionAnalyzer(
         intersections=profile.intersections,
-        gps_track=session.gps_track,
+        gps_track=gps_fixes(session),
         fps=12.0,
         frame_height=250,
     ).find_intersection_windows()
@@ -59,8 +60,8 @@ def recompute_intersection_windows(session, profile=None) -> list[dict]:
     # GPS décalait les zones proportionnellement au temps (scale 0,961 sur ENA :
     # ~20 s à 8 min, ~5 min en fin de session → passages ratés, segments à côté
     # des zones, saut « aller au passage » avant le centre — constat 2026-07-18).
-    _scale = float(session.gps_time_scale or 1.0) or 1.0
-    _off = float(session.gps_time_offset or 0.0)
+    from .prediction_adapter import gps_time_mapping
+    _scale, _off = gps_time_mapping(session)
 
     def _to_video(ts):
         return (ts - _off) / _scale

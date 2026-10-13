@@ -100,6 +100,12 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 
 ---
 
+## 2026-10-13
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| (ce commit — fixes GPS + latence) | **① Une entrée par FIXE GPS** (`ego_pose.distinct_fixes` / `gps_fixes`, point de lecture unique de `session.gps_track` : `effective_gps_track`, filtre navette, biais IMU, fenêtres, conflits, insertions, vue) — à la LECTURE, la trace stockée n'est pas réécrite ; à l'import, stockée propre. **② La vue sert TOUS les fixes** (≤ 12 000) au lieu d'une entrée sur 8. **③ ⚑ `gps_latency`** (OFF par défaut) : la synchro vidéo → GPS ajoute la latence du GPS, mesurée par la passe « Cap visuel » (`visual_yaw.measure_gps_latency`, brique `kinematics.signal_lag.estimate_lag`) ; accesseur UNIQUE `prediction_adapter.gps_time_mapping` (tracker, prédiction, calibrations, fenêtres, artefacts) et `gpsOffset()` côté JS ; les lignes du cap visuel restent en synchro brute (elles MESURENT la latence) et `yaw_cumulative` les décale. | Constat de Fabien (session `_seg`, 515–528 s) : navette dessinée ≥ 5 m en arrière des vidéos. Mesuré : le .rec porte chaque fixe dans 3 trames NMEA (RMC/GGA/GLL, +0/+0,1/+0,4 s) → `speed_kmh` nulle 2 fois sur 3 et ×1,7 la 3ᵉ (« à l'arrêt 78 % du temps » → **36 %**, max 41 → 22 km/h), et la vue servait 1 entrée sur 8 dont 1/3 périmée de 0,4 s (retard médian 0,4 m, jusqu'à 2,3 m). Latence GPS sur la vidéo : **+0,55 s** (lacet × vitesse, stable du seuil de virage 0 à 4 °/s), confirmée par l'accéléromètre du .rec (+0,35 à +0,45 s) et la vitesse Doppler (+0,30 s) — ~1,8 m à 12 km/h. ⚠ Reste ~2-3 m mesurés aux passages piétons, NON expliqués par le temps. | 362 tests cam_analyzer + kinematics verts (`tests_gps_fixes`, `tests_signal_lag` neufs ; 2 fixtures de `tests_ego_pose` rendues cohérentes : une position immobile annoncée à 12 km/h) ; parse V8 du JS servi. Annuler : `git revert` + sync `staticfiles/` ; ⚑ `gps_latency` OFF suffit pour la latence. Rejouer : « Cap visuel » (mesure), « Indicateurs » (filtre navette), « Recalage voie + carte », « Tracking 360° », « Conflits ». |
+
 ## 2026-10-12
 
 | Commit | Quoi | Pourquoi | Validation/annulation |

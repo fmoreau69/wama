@@ -314,13 +314,12 @@ def measure_camera_intrinsics(session):
     caméras (`mount_yaw` par position, `yaw_control`)."""
     from .ego_pose import effective_gps_track
     from .prediction_adapter import (make_local_frame, shuttle_trajectory, antenna_offset,
-                                     camera_geometry, CAMERA_FOV_H)
+                                     camera_geometry, CAMERA_FOV_H, gps_time_mapping)
     gt = effective_gps_track(session)
     to_local = make_local_frame(gt)
     sh = shuttle_trajectory(gt, to_local, antenna=antenna_offset(session))
     windows = turn_windows(sh)
-    scale = float(session.gps_time_scale or 1.0) or 1.0
-    off = float(session.gps_time_offset or 0.0)
+    scale, off = gps_time_mapping(session)
     fov_over = (session.config or {}).get('camera_fov') or {}
     out = {'turn_windows': len(windows)}
     for pos in MEASURABLE:
