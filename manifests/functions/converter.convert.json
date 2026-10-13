@@ -1,0 +1,132 @@
+{
+  "body": {
+    "app": "converter",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "converter.tasks:convert_media_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "image",
+        "description": "Le fichier à convertir (image).",
+        "group": "travail",
+        "key": "work_image",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "Le fichier à convertir (video).",
+        "group": "travail",
+        "key": "work_video",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Le fichier à convertir (audio).",
+        "group": "travail",
+        "key": "work_audio",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le fichier à convertir (document).",
+        "group": "travail",
+        "key": "work_document",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "archive",
+        "description": "Le fichier à convertir (archive).",
+        "group": "travail",
+        "key": "work_archive",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "converter.convert",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "image",
+        "description": "Le fichier converti (image).",
+        "key": "converted_image",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "Le fichier converti (video).",
+        "key": "converted_video",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Le fichier converti (audio).",
+        "key": "converted_audio",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le fichier converti (document).",
+        "key": "converted_document",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "archive",
+        "description": "Le fichier converti (archive).",
+        "key": "converted_archive",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "ffmpeg",
+      "conversion"
+    ],
+    "visibility": "public"
+  },
+  "description": "Convertit le fichier au format demandé (vidéo, audio, image, document, archive), avec les réglages d'encodage de la card.",
+  "key": "converter.convert",
+  "manifest_kind": "function",
+  "name": "Converter — convertir",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:converter.convert",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

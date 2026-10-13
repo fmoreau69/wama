@@ -79,6 +79,12 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
 
     output_file   = models.FileField(upload_to=UploadToUserPath('converter', 'output'),
                                      null=True, blank=True)
+    # La conversion BRUTE, gardée quand un post-traitement IA est demandé (pipeline, 2026-10-13 —
+    # option 1 de Fabien) : le process `enhance` repart d'elle, il se rejoue donc seul (×2 → ×4)
+    # sans reconvertir ni retraiter un fichier déjà traité. Vide sans post-traitement : la sortie
+    # EST la conversion. Migration 0013 (nullable).
+    converted_file = models.FileField(upload_to=UploadToUserPath('converter', 'output'),
+                                      null=True, blank=True)
     output_format = models.CharField(max_length=20, blank=True)  # 'mp4', 'webp', …
 
     # ── RÉGLAGES : une colonne par param du schéma (uniformisation 2026-09-01) ──────────
@@ -148,6 +154,16 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
     @property
     def cross_app_options(self) -> dict:
         return self._reglages(self.CHAMPS_CROSS_APP)
+
+    @property
+    def ai_postprocess_requested(self) -> bool:
+        """Un post-traitement IA est-il DEMANDÉ pour ce job — une option posée que le catalogue
+        de sa nature offre (`format_router.CROSS_APP_OPTIONS`, la règle de `cross_app`) ?
+        Surveillé par la CONVERSION (pipeline, 2026-10-13) : demander ou retirer le
+        post-traitement change où va la conversion ; passer de ×2 à ×4 ne la touche pas."""
+        from .utils.format_router import CROSS_APP_OPTIONS
+        allowed = {o['id'] for o in CROSS_APP_OPTIONS.get(self.media_type, [])}
+        return any(v for k, v in self.cross_app_options.items() if k in allowed)
 
     def poser_reglages(self, valeurs: dict) -> list:
         """Écrit des réglages sur les colonnes ; renvoie les champs TOUCHÉS (pour

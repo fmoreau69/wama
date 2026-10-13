@@ -10,6 +10,10 @@ Squelette (gardes, progress, chrono, statuts, ETA, console, notifications) = bri
 `common/utils/task_skeleton.run_item_task` (marche A2, route §10.3). Ce fichier ne porte plus
 que la GLU du converter : routage de format, presets qualité, nommage de sortie, quick-convert
 in-place atomique.
+
+Depuis le 2026-10-13 la card porte un PIPELINE (`function_specs.PIPELINE` : conversion,
+post-traitement IA) : une glu par process. Quand un post-traitement suit, la conversion BRUTE est
+gardée (`converted_file`) et le post-traitement en repart — il se rejoue seul sans reconvertir.
 """
 import logging
 import os
@@ -23,11 +27,14 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True)
-def convert_media_task(self, job_id: int):
+def convert_media_task(self, job_id: int, process: str = None):
+    """`process` : lancement borné à ce process du pipeline (▶ de la bande — ⚠ argument de tâche
+    du 2026-10-13 : workers à relancer)."""
     from wama.common.utils.task_skeleton import run_item_task
+    from .function_specs import PIPELINE
     run_item_task(self, app_id='converter', model=ConversionJob, item_id=job_id,
-                  process=_convert, ingest_derive=_derive_media_type,
-                  notify_label='Converter')
+                  pipeline=PIPELINE, processes=PROCESSES, ingest_derive=_derive_media_type,
+                  notify_label='Converter', only=process)
 
 
 def _derive_media_type(inst, path, fname):
@@ -39,12 +46,54 @@ def _derive_media_type(inst, path, fname):
     return ['media_type']
 
 
-def _convert(job, ctx):
-    """GLU converter (contrat task_skeleton) : résout chemins et options, dispatche au backend
-    du type de média, déplace atomiquement le résultat in-place. Une exception = FAILURE (le
-    squelette gère statut/console/notification) ; le fichier temporaire in-place est nettoyé
-    ICI (le squelette ne connaît pas les artefacts de la glu)."""
+def _final_place(job):
+    """Où va la sortie FINALE de la card : `(dossier relatif à MEDIA_ROOT, dossier, nom, en place)`.
+
+      - dest_dir set (quick convert in-place) → next to the source, keep the original stem, add a
+        numeric suffix on collision.
+      - otherwise → the user's home, users/<user>/converter/output/, named after the card."""
     from django.conf import settings
+    in_place = bool(job.dest_dir)
+    if in_place:
+        rel_dir = job.dest_dir if job.dest_dir.endswith('/') else job.dest_dir + '/'
+        out_dir = settings.MEDIA_ROOT / rel_dir
+        out_dir.mkdir(parents=True, exist_ok=True)
+        return rel_dir, out_dir, _build_inplace_name(out_dir, job.input_filename,
+                                                     job.output_format), True
+    # Le domicile de l'utilisateur, décidé par la brique (`app_media_dir`) et nulle part
+    # ailleurs. ⚠ Cette ligne composait `f"converter/{job.user_id}/output/"` à la main et a
+    # survécu à la bascule du 2026-09-12 : chaque conversion recréait `media/converter/` et
+    # y enregistrait sa sortie (jobs 27 et 31, relancés le 14/09 — relevé le 2026-09-22).
+    # Aucune des trois gardes ne la voyait : ni `MEDIA_ROOT` sur la ligne, ni fichier listé,
+    # ni `upload_to` — c'est le NOM enregistré (`'output_file': …`) qui partait faux.
+    from wama.common.utils.media_paths import app_media_dir
+    rel_dir = app_media_dir('converter', job.user_id, 'output') + '/'
+    out_dir = settings.MEDIA_ROOT / rel_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return rel_dir, out_dir, _build_output_name(job.input_filename, job.output_format,
+                                                item_id=job.id), False
+
+
+def _reserved_temp(output_format: str) -> str:
+    """Un nom temporaire à la bonne extension (ffmpeg/Pillow choisissent le muxer d'après elle),
+    réservé puis libéré : le backend crée lui-même le fichier."""
+    import tempfile as _tf
+    _fd, path = _tf.mkstemp(prefix='wama_conv_', suffix=f'.{output_format.lower()}')
+    os.close(_fd)
+    os.unlink(path)
+    return path
+
+
+def _convert(job, ctx):
+    """Process `convert` (glu, contrat task_skeleton) : résout chemins et options, dispatche au
+    backend du type de média. Sans post-traitement, la conversion EST la sortie (déplacée
+    atomiquement in-place) ; avec, elle est gardée BRUTE (`converted_file`) dans le domicile de
+    l'app, et le process `enhance` en tire la sortie. Une exception = FAILURE (le squelette gère
+    statut/console/notification) ; le fichier temporaire in-place est nettoyé ICI (le squelette
+    ne connaît pas les artefacts de la glu)."""
+    from django.conf import settings
+    from wama.common.utils.queue_duplication import safe_delete_file
+    from .function_specs import enhances
 
     # Format ABSENT ≠ format non supporté (2026-09-14) : un job né d'un import sans format
     # descendait jusqu'au backend, qui répondait « Format vidéo non supporté : » (format vide) —
@@ -55,44 +104,28 @@ def _convert(job, ctx):
 
     ctx.console(f"Conversion démarrée : {job.input_filename} → .{job.output_format}")
     input_path = job.input_file.path
+    then_enhance = enhances(job)
 
-    # Output location:
-    #   - dest_dir set (quick convert in-place) → write next to the source,
-    #     keep the original stem, add a numeric suffix on collision.
-    #   - otherwise → the user's home, users/<user>/converter/output/, timestamped name.
-    in_place = bool(job.dest_dir)
-    if in_place:
-        output_rel_dir = job.dest_dir if job.dest_dir.endswith('/') else job.dest_dir + '/'
-        output_dir = settings.MEDIA_ROOT / output_rel_dir
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_name = _build_inplace_name(output_dir, job.input_filename, job.output_format)
-    else:
-        # Le domicile de l'utilisateur, décidé par la brique (`app_media_dir`) et nulle part
-        # ailleurs. ⚠ Cette ligne composait `f"converter/{job.user_id}/output/"` à la main et a
-        # survécu à la bascule du 2026-09-12 : chaque conversion recréait `media/converter/` et
-        # y enregistrait sa sortie (jobs 27 et 31, relancés le 14/09 — relevé le 2026-09-22).
-        # Aucune des trois gardes ne la voyait : ni `MEDIA_ROOT` sur la ligne, ni fichier listé,
-        # ni `upload_to` — c'est le NOM enregistré plus bas (`'output_file': …`) qui partait faux.
+    if then_enhance:
+        # La conversion BRUTE : un fichier de travail de la card, dans le domicile de l'app —
+        # jamais à côté de la source de l'utilisateur, même en conversion rapide.
         from wama.common.utils.media_paths import app_media_dir
+        from wama.common.utils.output_naming import compose_output_name
         output_rel_dir = app_media_dir('converter', job.user_id, 'output') + '/'
         output_dir = settings.MEDIA_ROOT / output_rel_dir
         output_dir.mkdir(parents=True, exist_ok=True)
-        output_name = _build_output_name(job.input_filename, job.output_format, item_id=job.id)
+        output_name = compose_output_name(app='converter', source_name=job.input_filename,
+                                          item_id=job.id, nature='raw',
+                                          ext=job.output_format.lower())
+        in_place = False
+    else:
+        output_rel_dir, output_dir, output_name, in_place = _final_place(job)
 
     final_output_path = str(output_dir / output_name)
-
-    # Atomic output for in-place quick convert: backends write to a temp file
-    # (correct extension so ffmpeg/Pillow pick the right muxer), moved to the
-    # final location only on success. Cancelling/erroring never leaves a
-    # partial/corrupt file next to the user's source.
-    if in_place:
-        import tempfile as _tf
-        _fd, output_path = _tf.mkstemp(prefix='wama_conv_',
-                                       suffix=f'.{job.output_format.lower()}')
-        os.close(_fd)
-        os.unlink(output_path)  # backends create it themselves; we only reserved the name
-    else:
-        output_path = final_output_path
+    # Atomic output for in-place quick convert: the backend writes a temp file, moved to the
+    # final location only on success — cancelling/erroring never leaves a partial/corrupt file
+    # next to the user's source.
+    output_path = _reserved_temp(job.output_format) if in_place else final_output_path
 
     # ── MODÈLE ÉVÉNEMENTIEL (Fabien, 02/09, ROADMAP §23.2quater) : la tâche lit LES
     # COLONNES, point. Le preset n'est PLUS un facteur au lancement — c'est un GESTE
@@ -118,38 +151,28 @@ def _convert(job, ctx):
     _streamable = (job.media_type == 'audio'
                    or (job.media_type == 'video'
                        and (job.output_format or '').lower() in ('webm', 'mkv', 'ts')))
-    if not in_place and _streamable:
+    if not in_place and not then_enhance and _streamable:
         from wama.common.utils.preview_utils import publish_partial
         publish_partial('converter', job.pk, settings.MEDIA_URL + output_rel_dir + output_name)
+
+    # Un VISITEUR sans compte n'a pas de post-traitement IA : le converter lui est ouvert parce
+    # qu'il ne prend aucune ressource GPU (décision du 2026-08-30), et ces options chargent un
+    # modèle (`function_specs.enhances` : le process n'a pas lieu). Dit dans la console de
+    # l'élément, jamais ignoré en silence.
+    if not then_enhance and getattr(job, 'ai_postprocess_requested', False):
+        ctx.console("Post-traitement IA non appliqué : il demande un compte "
+                    "(l'essai sans compte ne prend aucune ressource GPU).")
 
     try:
         # Le backend de la NATURE, par les ROUTES que l'app déclare (porte commune, contrat
         # « fichier » des cinq backends, B1 02/09). Jusqu'au 2026-10-05 cette glu les CONTOURNAIT
         # par un `if/elif` écrit à la main : les ROUTES ne servaient qu'au manifeste et à la
         # jumelle. La qualité d'image voyage dans `options` (le schéma la pose toujours pour une
-        # image, défaut 85 — le repli `90` de l'ancien appel n'était jamais pris). La conversion
-        # occupe 0-90 % : le post-traitement IA qui suit parle de 90 à 98 (`cross_app`) — une
-        # vidéo montait à 100 puis redescendait.
+        # image, défaut 85 — le repli `90` de l'ancien appel n'était jamais pris).
         from wama.common.backends.manager import route_for_nature
         convert = route_for_nature(__package__, job.media_type)
         convert(input_path, output_path, job.output_format, options=eff_opts,
-                progress_callback=lambda p: ctx.progress(int(p * 0.9)))
-        ctx.progress(90)
-
-        # Options cross-app (Phase 2, wiring 18/08) : post-traitement IA inline (enhancer)
-        # sur le fichier de sortie, AVANT le move in-place final — un échec suit le chemin
-        # FAILURE normal (cleanup + clear_during dans le except ci-dessous).
-        # Un VISITEUR sans compte n'a pas de post-traitement IA : le converter lui est ouvert
-        # parce qu'il ne prend aucune ressource GPU (décision du 2026-08-30), et ces options
-        # chargent un modèle. Dit dans la console de l'élément, jamais ignoré en silence.
-        from wama.accounts.permissions import is_guest_account
-        from .utils.cross_app import apply_cross_app_options
-        if is_guest_account(job.user):
-            if any(getattr(job, name, None) for name in job.CHAMPS_CROSS_APP):
-                ctx.console("Post-traitement IA non appliqué : il demande un compte "
-                            "(l'essai sans compte ne prend aucune ressource GPU).")
-        else:
-            apply_cross_app_options(job, output_path, ctx.console, ctx.progress)
+                progress_callback=lambda p: ctx.progress(int(p)))
     except Exception:
         # Remove the in-place temp file so no partial output lingers.
         if in_place:
@@ -161,6 +184,18 @@ def _convert(job, ctx):
         _clear_during(job)
         raise
 
+    # L'ancien rendu de CE process est remplacé (règle d'une relance — `safe_delete_file` : le
+    # fichier de la card seulement, et seulement si rien d'autre ne le partage). Jusqu'au
+    # pipeline, le lanceur l'effaçait au CLIC (`views.start`) : relancer le seul post-traitement
+    # aurait emporté la conversion qu'il reprend.
+    rel_path = f"{output_rel_dir}{output_name}"
+    for name in (('converted_file',) if then_enhance else ('output_file', 'converted_file')):
+        previous = getattr(job, name, None)
+        if previous and previous.name != rel_path:
+            safe_delete_file(job, name)
+    fields = ({'converted_file': rel_path} if then_enhance
+              else {'output_file': rel_path, 'converted_file': None})
+
     # In-place: move the temp result to its final location next to the source.
     if in_place:
         import shutil as _sh
@@ -169,10 +204,62 @@ def _convert(job, ctx):
     _clear_during(job)
 
     return {
-        'fields': {'output_file': f"{output_rel_dir}{output_name}"},
+        'fields': fields,
+        'output_ref': rel_path,
         'eta': converter_eta_key_size(job, size_bytes=os.path.getsize(input_path)),
         'label': output_name,
     }
+
+
+def _enhance(job, ctx):
+    """Process `enhance` (glu) : le post-traitement IA demandé, appliqué à une COPIE de la
+    conversion brute (`converted_file`) — la brute reste, le process se rejoue seul. La sortie
+    finale va où la conversion serait allée sans lui (in-place compris, atomique)."""
+    import shutil as _sh
+
+    from wama.common.utils.queue_duplication import safe_delete_file
+    from .utils.cross_app import apply_cross_app_options
+
+    if not job.converted_file:
+        raise RuntimeError("Conversion brute absente — relancer la conversion.")
+    source = job.converted_file.path
+    work = _reserved_temp(job.output_format)
+    _sh.copy2(source, work)
+    try:
+        # `cross_app` parle de 90 à 98 % (il suivait la conversion dans la même étape) : ramené
+        # à l'étendue de CE process.
+        apply_cross_app_options(job, work, ctx.console,
+                                lambda p: ctx.progress(max(0, min(99, int((p - 90) * 12)))))
+        output_rel_dir, output_dir, output_name, _ = _final_place(job)
+        rel_path = f"{output_rel_dir}{output_name}"
+        if job.output_file and job.output_file.name != rel_path:
+            safe_delete_file(job, 'output_file')
+        _sh.move(work, str(output_dir / output_name))
+    finally:
+        if os.path.exists(work):
+            os.unlink(work)
+    _clear_during(job)
+    return {'fields': {'output_file': rel_path}, 'output_ref': rel_path,
+            'eta': enhance_eta(job)[:3], 'label': output_name}
+
+
+# ── ETA par process (`ProcessSpec.eta`) — `convert` garde sa clé par type de conversion (son
+# historique appris) ; le post-traitement est estimé appris seulement, par nature.
+
+def convert_eta(job):
+    return (*converter_eta_key_size(job), True)
+
+
+def enhance_eta(job):
+    try:
+        size = (job.input_file.size or 0) if job.input_file else 0
+    except OSError:                       # fichier d'entrée absent : la taille ne se lit pas
+        size = 0
+    return f'converter:enhance:{job.media_type}', max(size / 1e6, 0.01), 'mb', True, 0.0
+
+
+#: La glu de chaque process du pipeline (`function_specs.PIPELINE`).
+PROCESSES = {'convert': _convert, 'enhance': _enhance}
 
 
 def converter_eta_key_size(job, size_bytes=None) -> tuple[str, float, str]:

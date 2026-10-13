@@ -14,6 +14,9 @@ urlpatterns = [
     path('download-all/',               views.download_all,         name='download_all'),
     path('clear-all/',                  views.clear_all,            name='clear_all'),
     path('<int:pk>/start/',             views.start,                name='start'),
+    # ▶ d'UN process de la bande (`ROUTE §10.6` 5.1) — même préfixe que le ▶ de la card
+    # (`WamaCycleButton.processUrl` ajoute `<process>/`).
+    path('<int:pk>/start/<str:process>/', views.start_process,      name='start_process'),
     path('<int:pk>/status/',            views.status,               name='status'),
     path('global_progress/',            views.global_progress,      name='global_progress'),
     path('settings/<int:pk>/',          views.update_settings,      name='update_settings'),

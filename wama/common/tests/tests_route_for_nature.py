@@ -133,6 +133,6 @@ class ConverterFollowsItsRoutesTest(SimpleTestCase):
                 result = tasks._convert(job, ctx)
         self.assertEqual([('in.png', 'webp', True)], calls, 'the route of the TABLE, not a hand branch')
         self.assertTrue(result['fields']['output_file'].endswith('.webp'))
-        ctx.progress.assert_any_call(90)
-        self.assertLessEqual(max(c.args[0] for c in ctx.progress.call_args_list), 90,
-                             'the conversion stays under 90 — the AI post-processing reports 90-98')
+        # The AI post-processing is its OWN process since the pipeline (2026-10-13): the
+        # conversion reports over its whole step (it stayed under 90 when both shared one).
+        ctx.progress.assert_any_call(100)

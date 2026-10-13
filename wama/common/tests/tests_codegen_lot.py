@@ -46,6 +46,20 @@ def _fonction(src, nom):
     return None
 
 
+def _as_single_process(*apps):
+    """The generator composes the task body of a SINGLE-process app that routes its backends
+    (marche B1) ; it does not compose the glues of a pipeline app yet. Since 2026-10-13 every
+    app carries a pipeline (« every application works as a pipeline », Fabien) — the converter,
+    then the describer, were the last single-process subjects : the B1 composition is held on
+    them, read under their former single-process form."""
+    from unittest import mock
+    from wama.common.manifests.codegen import pipeline_decl
+    declared = pipeline_decl.declared_pipeline
+    return mock.patch.object(pipeline_decl, 'declared_pipeline',
+                             side_effect=lambda app_id: (None, None) if app_id in apps
+                             else declared(app_id))
+
+
 def _types_entree(src):
     """La valeur ÉVALUÉE de `_TYPES_ENTREE` — pas une sous-chaîne de la source."""
     for noeud in ast.parse(src).body:
@@ -215,7 +229,8 @@ class CheminDeLotTest(SimpleTestCase):
         import ast
         from wama.common.manifests.ingest import extract
         from wama.common.manifests.codegen.tasks_gen import render_tasks
-        src, raison = render_tasks(extract('app', 'converter'))
+        with _as_single_process('converter'):
+            src, raison = render_tasks(extract('app', 'converter'))
         self.assertIsNotNone(src, f'génération impossible : {raison}')
         ast.parse(src)
         self.assertIn('CORPS COMPOSÉ', src)
@@ -239,7 +254,8 @@ class CheminDeLotTest(SimpleTestCase):
         from wama.common.manifests.codegen.tasks_gen import render_tasks
         m = deepcopy(extract('app', 'converter'))
         (m['body'].get('processing') or {}).pop('backend_routes', None)
-        src, raison = render_tasks(m)
+        with _as_single_process('converter'):
+            src, raison = render_tasks(m)
         self.assertIsNotNone(src, f'génération impossible : {raison}')
         self.assertIn('NotImplementedError', src)
         self.assertNotIn('CORPS COMPOSÉ', src)
@@ -918,22 +934,15 @@ class NatureFieldAgreementTest(SimpleTestCase):
         nature column of its own (`detected_type`), is read on its SINGLE-process form, the one
         the generator still composes for an app that routes its backends."""
         import re
-        from unittest import mock
-        from wama.common.manifests.codegen import pipeline_decl
         from wama.common.manifests.ingest import extract
         from wama.common.manifests.codegen.tasks_gen import render_tasks
-        declared = pipeline_decl.declared_pipeline
-
-        def single_process_describer(app_id):
-            return (None, None) if app_id == 'describer' else declared(app_id)
 
         checked = []
         for app in self.APPS:
             manifest = extract('app', app)
             if not manifest:
                 continue
-            with mock.patch.object(pipeline_decl, 'declared_pipeline',
-                                   side_effect=single_process_describer):
+            with _as_single_process('describer', 'converter'):
                 tasks_src, _why = render_tasks(manifest)
             read = re.search(r"getattr\(item, '(\w+)', ''\)", tasks_src or '')
             if not read:
@@ -945,6 +954,7 @@ class NatureFieldAgreementTest(SimpleTestCase):
                           f'{app}: the task reads `{field}`, the upload never writes it')
             checked.append(app)
         self.assertIn('describer', checked, 'the case that revealed the defect must be covered')
+        self.assertIn('converter', checked, 'the `media_type` form must stay covered too')
 
     def test_the_batch_gets_the_nature_only_if_it_has_the_column(self):
         """Counter-check: `BatchDescription` has no `detected_type` — creating a batch with it

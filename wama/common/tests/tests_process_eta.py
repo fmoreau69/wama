@@ -384,11 +384,28 @@ class EtaSeededCriterionReadsTheDeclaredFormTest(SimpleTestCase):
         self.assertIn('function_specs.py', proof)
 
     def test_a_single_process_app_is_still_seen_through_its_view_hook(self):
-        """Counter-proof : the converter keeps `eta_for=` and stays green by it."""
+        """Counter-proof : an app WITHOUT a pipeline keeps `eta_for=` and stays green by it. The
+        converter was that app until 2026-10-13 (« every application works as a pipeline ») —
+        none of the ten is left, so the form is held on a stand-in that has only the hook."""
+        from wama.common.services import conformity_checker as cc
+
+        class _OnlyTheViewHook:
+            def find(self, files, pattern):
+                if files is cc.TASKS and 'run_item_task' in pattern:
+                    return 'app/tasks.py:1'
+                if files is cc.VIEWS and 'eta_for' in pattern:
+                    return 'app/views.py:1'
+                return None
+
+        state, proof = cc._eta_seeded(_OnlyTheViewHook())
+        self.assertIs(True, state)
+        self.assertIn('views.py', proof)
+
+    def test_the_converter_is_seen_through_its_declared_process_eta(self):
         from wama.common.services import conformity_checker as cc
         state, proof = cc._eta_seeded(cc._AppFiles('converter'))
         self.assertIs(True, state)
-        self.assertIn('views.py', proof)
+        self.assertIn('function_specs.py', proof)
 
 
 def _app_dir(app) -> Path:

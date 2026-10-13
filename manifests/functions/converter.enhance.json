@@ -1,0 +1,95 @@
+{
+  "body": {
+    "app": "converter",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {},
+    "impl": "converter.tasks:convert_media_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "image",
+        "description": "La conversion brute (image).",
+        "group": "travail",
+        "key": "converted_image",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "La conversion brute (video).",
+        "group": "travail",
+        "key": "converted_video",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "La conversion brute (audio).",
+        "group": "travail",
+        "key": "converted_audio",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "converter.enhance",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "image",
+        "description": "Le fichier post-traité (image).",
+        "key": "enhanced_image",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "Le fichier post-traité (video).",
+        "key": "enhanced_video",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Le fichier post-traité (audio).",
+        "key": "enhanced_audio",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "gpu",
+      "upscale",
+      "audio"
+    ],
+    "visibility": "public"
+  },
+  "description": "Applique à la conversion le post-traitement IA demandé : agrandissement ou débruitage d'une image, amélioration de l'audio (ou de la piste son d'une vidéo).",
+  "key": "converter.enhance",
+  "manifest_kind": "function",
+  "name": "Converter — post-traitement IA",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:converter.enhance",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

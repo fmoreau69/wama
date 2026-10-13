@@ -207,5 +207,20 @@ def _cross_app_params():
 
 PARAMS += _cross_app_params()
 
+
+# ── Ce que chaque réglage PÉRIME (pipeline, 2026-10-13 — `function_specs.PIPELINE`) ──────────
+# Les réglages d'ENCODAGE périment la conversion ; ceux du POST-TRAITEMENT, le seul
+# post-traitement (il repart de la conversion brute gardée : ×2 → ×4 ne reconvertit pas) ; le
+# curseur rapide/qualité les deux — il écrit l'encodage et arbitre le tirage de l'agrandisseur.
+# Posé en une règle : la liste des réglages du post-traitement est DÉRIVÉE du catalogue
+# (`CROSS_APP_OPTIONS`), et un réglage d'encodage ajouté demain hérite de la bonne péremption.
+_ENHANCE_PARAMS = {o['id'] for opts in CROSS_APP_OPTIONS.values() for o in opts}
+for _p in PARAMS:
+    if _p.type == 'hidden':
+        continue                       # le porteur de nature ne se règle pas
+    _p.stales = (('enhance',) if _p.name in _ENHANCE_PARAMS
+                 else ('convert', 'enhance') if _p.name == 'quality_intent'
+                 else ('convert',))
+
 PARAMS_JSON = schema_to_dicts(PARAMS)
 GROUPS_JSON = groups_to_dicts(GROUPS)

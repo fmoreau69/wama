@@ -1,0 +1,86 @@
+{
+  "body": {
+    "layout": {},
+    "links": [
+      {
+        "from": "convert",
+        "to": "enhance",
+        "to_port": null
+      }
+    ],
+    "nodes": [
+      {
+        "app": null,
+        "function": "converter.convert",
+        "id": "convert",
+        "kind": "function",
+        "params": {
+          "degree": "required",
+          "eta": "converter.tasks:convert_eta",
+          "gpu": false,
+          "label": "Conversion",
+          "outputs": [
+            "converted_file",
+            "output_file"
+          ],
+          "share": 3,
+          "watched": [
+            "output_format",
+            "quality_intent",
+            "quality",
+            "resize_w",
+            "resize_h",
+            "rotation",
+            "flip_h",
+            "flip_v",
+            "video_quality",
+            "fps",
+            "gif_fps",
+            "gif_width",
+            "audio_bitrate",
+            "sample_rate",
+            "channels",
+            "normalize",
+            "input_file",
+            "ai_postprocess_requested"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "converter.enhance",
+        "id": "enhance",
+        "kind": "function",
+        "params": {
+          "degree": "required",
+          "eta": "converter.tasks:enhance_eta",
+          "gpu": true,
+          "label": "Post-traitement IA",
+          "outputs": [
+            "output_file"
+          ],
+          "share": 2,
+          "watched": [
+            "quality_intent",
+            "upscale",
+            "denoise",
+            "audio_enhance"
+          ]
+        }
+      }
+    ]
+  },
+  "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
+  "key": "converter",
+  "manifest_kind": "pipeline",
+  "name": "Converter — conversion, post-traitement IA (2 process)",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "converter.function_specs:PIPELINE",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

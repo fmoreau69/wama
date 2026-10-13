@@ -336,6 +336,27 @@
             },
             {
               "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('converter', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "converted_file"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "blank": {
@@ -1086,7 +1107,9 @@
             "radio_name": "",
             "section": "output",
             "show_if": null,
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -1144,7 +1167,10 @@
                 "audio"
               ]
             },
-            "stales": null,
+            "stales": [
+              "convert",
+              "enhance"
+            ],
             "step": 1,
             "type": "intent",
             "unit": ""
@@ -1193,7 +1219,9 @@
               "equals": "image",
               "field": "media_type"
             },
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": 1,
             "type": "range",
             "unit": ""
@@ -1243,7 +1271,9 @@
               "equals": "image",
               "field": "media_type"
             },
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "number",
             "unit": ""
@@ -1293,7 +1323,9 @@
               "equals": "image",
               "field": "media_type"
             },
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "number",
             "unit": ""
@@ -1363,7 +1395,9 @@
                 "video"
               ]
             },
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -1416,7 +1450,9 @@
                 "video"
               ]
             },
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -1469,7 +1505,9 @@
                 "video"
               ]
             },
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -1519,7 +1557,9 @@
               "equals": "video",
               "field": "media_type"
             },
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "number",
             "unit": ""
@@ -1569,7 +1609,9 @@
               "equals": "video",
               "field": "media_type"
             },
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "number",
             "unit": ""
@@ -1619,7 +1661,9 @@
               "equals": "video",
               "field": "media_type"
             },
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "number",
             "unit": ""
@@ -1669,7 +1713,9 @@
               "equals": "video",
               "field": "media_type"
             },
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "number",
             "unit": ""
@@ -1740,7 +1786,9 @@
               "equals": "audio",
               "field": "media_type"
             },
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -1807,7 +1855,9 @@
               "equals": "audio",
               "field": "media_type"
             },
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -1870,7 +1920,9 @@
               "equals": "audio",
               "field": "media_type"
             },
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -1920,7 +1972,9 @@
               "equals": "audio",
               "field": "media_type"
             },
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -1983,7 +2037,9 @@
               "equals": "image",
               "field": "media_type"
             },
-            "stales": null,
+            "stales": [
+              "enhance"
+            ],
             "step": null,
             "type": "select",
             "unit": ""
@@ -2033,7 +2089,9 @@
               "equals": "image",
               "field": "media_type"
             },
-            "stales": null,
+            "stales": [
+              "enhance"
+            ],
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -2086,7 +2144,9 @@
                 "audio"
               ]
             },
-            "stales": null,
+            "stales": [
+              "enhance"
+            ],
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -2170,6 +2230,7 @@
         "reorder_queue",
         "start",
         "start_all",
+        "start_process",
         "status",
         "update_settings",
         "upload"
@@ -2189,6 +2250,11 @@
           "name": "cancel",
           "pattern": "<int:pk>/cancel/",
           "view": "views.cancel"
+        },
+        {
+          "name": "start_process",
+          "pattern": "<int:pk>/start/<str:process>/",
+          "view": "views.start_process"
         },
         {
           "name": "update_settings",

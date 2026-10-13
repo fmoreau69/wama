@@ -235,14 +235,17 @@
 
     // ── Queue actions ─────────────────────────────────────────────────────────
 
-    async function startJob(jobId) {
+    // `process` : le ▶ d'UN process de la bande (2026-10-13, pipeline) → lancement borné (route
+    // `<id>/start/<process>/`, adresse composée par la brique commune) ; vide pour le ▶ de la
+    // card, qui lance tout ce qui est dû.
+    async function startJob(jobId, process) {
         const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
         // Relance pendant le traitement (modale) : annuler d'abord (évite un double run / 409).
-        if (card && (card.dataset.status || '').toUpperCase() === 'RUNNING') {
+        if (card && elementStatus(card) === 'RUNNING') {
             await cancelJob(jobId);
         }
         try {
-            const resp = await csrfPost(urlFor(APP.urls.start, jobId));
+            const resp = await csrfPost(WamaCycleButton.processUrl(urlFor(APP.urls.start, jobId), process));
             if (resp.ok) {
                 // Re-rendu SERVEUR tout de suite : la vue a posé RUNNING avant de répondre.
                 // ⚠ 2026-09-14 — on écrivait `card.dataset.status = 'RUNNING'` AVANT la requête
@@ -285,6 +288,12 @@
 
     // ── Polling ───────────────────────────────────────────────────────────────
 
+    // L'état de l'ÉLÉMENT (`data-element-status`, 2026-10-13) : `data-status` est l'état MONTRÉ,
+    // déduit des process — le suivi et la comparaison au serveur se fient au premier.
+    function elementStatus(card) {
+        return (card.dataset.elementStatus || card.dataset.status || '').toUpperCase();
+    }
+
     function startPolling(jobId) {
         if (pollingTimers[jobId]) return;
         pollingTimers[jobId] = setInterval(() => pollJob(jobId), 1500);
@@ -309,12 +318,14 @@
                     const est = WamaEta.update(jobId, { progress: data.progress, status: data.status, seedSeconds: data.estimated_seconds, modelLoaded: false });
                     WamaEta.render(card.querySelector('.wama-eta'), est);
                 }
-                if (data.status === card.dataset.status) {
-                    // Même état : maj légère de la progression, le markup ne bouge pas.
+                if (data.status === elementStatus(card)) {
+                    // Même état : maj légère de la progression, le markup ne bouge pas — les
+                    // PROCESS de la bande suivent en place (brique commune).
                     const fill = card.querySelector('.wama-progress-fill');
                     if (fill) fill.style.width = (data.progress || 0) + '%';
                     const pct = card.querySelector('.progress-text');
                     if (pct) pct.textContent = (data.progress || 0) + '%';
+                    if (window.WamaApp && WamaApp.updateProcessRows) WamaApp.updateProcessRows(card, data.processes);
                 } else {
                     // Transition d'état → re-rendu SERVEUR de la card (source unique).
                     await refreshCard(jobId);
@@ -343,7 +354,11 @@
     // Bouton de cycle commun ▶/⏹/↻ : clics délégués (start/restart→startJob, stop→cancelJob) + auto-sync
     // de l'icône sur data-status (le re-rendu serveur refreshCard le maintient). Remplace l'ancien .job-start-btn.
     if (window.WamaCycleButton) {
-        WamaCycleButton.wire(queue, { start: (id) => startJob(id), stop: (id) => cancelJob(id) });
+        // Le 3ᵉ argument de `start` : le process dont on a cliqué le ▶ dans la bande (2026-10-13).
+        WamaCycleButton.wire(queue, {
+            start: (id, btn, process) => startJob(id, process),
+            stop: (id) => cancelJob(id),
+        });
         WamaCycleButton.autoSync({ container: queue, cardSelector: '.job-card' });
     }
 
@@ -787,8 +802,9 @@
 
     // ── Auto-start polling for RUNNING jobs (on page load) ────────────────────
 
-    document.querySelectorAll('.job-card[data-status="RUNNING"]').forEach(card => {
-        startPolling(card.dataset.jobId);
+    // Lu sur l'état de l'ÉLÉMENT (2026-10-13) : `data-status` est l'état montré, déduit des process.
+    document.querySelectorAll('.job-card').forEach(card => {
+        if (elementStatus(card) === 'RUNNING') startPolling(card.dataset.jobId);
     });
 
     // ── Init ──────────────────────────────────────────────────────────────────

@@ -28,8 +28,10 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
   .progress-text (:370), .btn-group-actions (clonage inspecteur), .settings-btn[data-id],
   .job-delete-btn, .duplicate-btn[data-duplicate-url], .preview-media-link.
 {% endcomment %}
+{% comment %}`data-status` = l'état MONTRÉ, déduit des process (`process_pipeline.decorate`,
+2026-10-13) ; `data-element-status` = celui de l'ÉLÉMENT, sur lequel le suivi se fie.{% endcomment %}
 <div class="job-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
-     data-job-id="{{ elem.id }}" data-id="{{ elem.id }}" data-status="{{ elem.status }}"
+     data-job-id="{{ elem.id }}" data-id="{{ elem.id }}" data-status="{{ elem.shown_state|default:elem.status }}" data-element-status="{{ elem.status }}"
      data-preview-url="{% url 'common:unified_preview' 'converter' elem.id %}">
 <div class="card-body py-2">
 
@@ -94,8 +96,8 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
       <span class="wcv3-lbl">État</span>
       <div class="wcv3-state">
         <span class="wcv3-state-line">
-          <span class="wama-status-dot" data-s="{{ elem.status }}"></span>
-          <span>{{ elem.get_status_display }}</span>
+          <span class="wama-status-dot" data-s="{{ elem.shown_state|default:elem.status }}"></span>
+          <span>{{ elem.shown_state_label|default:elem.get_status_display }}</span>
         </span>
         {% if elem.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ elem.id }}"></span>{% endif %}
         {% if elem.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=elem.processing_display %}{% endif %}
@@ -118,7 +120,7 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
                 {% for k, v in elem.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}>
           <i class="fas fa-cog"></i>
         </button>
-        {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
+        {% include 'common/_cycle_button.html' with id=elem.id status=elem.shown_state|default:elem.status %}
         {% url 'converter:download' elem.id as url_dl %}
         {% if elem.status == 'SUCCESS' and elem.output_file %}
           {% download_button 'converter' url_dl True %}
@@ -141,6 +143,14 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
         </button>
       </div>
     </div>
+
+    {% comment %}PROCESS de la card (2026-10-13, `ROUTE §10.6` 5.1) : conversion, puis le
+    post-traitement IA quand il est demandé — une ligne chacun, générée des lignes d'exécution
+    (`function_specs.PIPELINE`, `views.card_html` / l'index). ▶ et ⚙ par process : le
+    post-traitement se relance seul, il repart de la conversion brute gardée. Rien sous deux
+    process (une conversion sans post-traitement).{% endcomment %}
+    {% url 'converter:update_settings' elem.id as url_settings %}
+    {% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id settings_url=url_settings %}
 
     {% comment %}Barre pleine largeur — VERTE sur tout le cycle (§11), en LIGNE 2 de la
     grille (jamais dans la piste État). En ÉCHEC : FIGÉE au % atteint, on voit OÙ le

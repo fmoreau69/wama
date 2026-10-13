@@ -33,7 +33,7 @@ from django.db import transaction
 from .models import ConversionJob, ConversionProfile, ConversionBatch
 from .utils.format_router import detect_media_type, get_output_formats, SUPPORTED_CONVERSIONS
 from ..accounts.views import get_or_create_anonymous_user
-from ..common.utils.queue_duplication import safe_delete_file, release_card_files, duplicate_instance
+from ..common.utils.queue_duplication import release_card_files, duplicate_instance
 from ..common.utils.param_schema import schema_extra_params, schema_model_kwargs
 # Le chemin d'un fichier d'app se COMPOSE (`get_relative_media_path`), il ne
 # s'écrit pas — préalable au domicile unique par utilisateur (2026-09-11).
@@ -201,6 +201,10 @@ class IndexView(View):
                     items_sorted, _PARAMS_JSON,
                     values_of=lambda j: {**(j.options or {}), **(j.cross_app_options or {})}),
             })
+        # Les PROCESS de chaque card (pipeline, 2026-10-13) — les lignes d'exécution de la page
+        # lues en UNE requête (`decorate_cards`), après les chips posés ci-dessus.
+        from wama.common.services.process_pipeline import decorate_cards
+        decorate_cards([j for b in batches_list for j in b['items']])
 
         # Tri + filtrage de la file — brique COMMUNE (toolbar _queue_toolbar), alignée sur
         # reader/composer/transcriber/describer (2026-07-10, Converter n'avait ni l'un ni l'autre).
@@ -250,6 +254,31 @@ def _visitor_trial(request):
             'max_items': visitors.max_items()}
 
 
+def last_output_format(user, media_type, app='converter') -> str:
+    """Le DERNIER format de sortie employé pour ce type de média (brique user_settings), ''
+    s'il n'y en a pas. Le dépôt de la card et l'import du gestionnaire de fichiers (« Envoyer
+    vers ») le lisent ; `app` : une jumelle de bac à sable passe le sien."""
+    from wama.common.utils.user_settings import get_user_app_settings
+    key = f'last_format_{media_type}'
+    return get_user_app_settings(user, app, {key: ''}).get(key) or ''
+
+
+def apply_birth_settings(job, media_type, options=None) -> list:
+    """MODÈLE ÉVÉNEMENTIEL (Fabien, 02/09, ROADMAP §23.2quater) : l'élément naît COMPLET —
+    les défauts applicables du schéma sont ÉCRITS en base à la création, le POST de la
+    zone de composition par-dessus (le geste de l'utilisateur prime). Les chips d'une card
+    fraîche sont donc pleines (demande du 31/08) ET le preset reste opérant : il n'arbitre
+    plus au lancement, il ÉCRIT au clic (§23.2quater — l'ancienne règle « ne stocker que
+    l'explicite » du §23.2bis est REMPLACÉE par ce modèle).
+    Posé sans sauver ; rend les champs touchés. Le dépôt de la card et l'import du
+    gestionnaire de fichiers passent ici."""
+    from wama.common.utils.param_schema import applicable_defaults
+    from wama.converter.params import PARAMS_JSON as _SCH
+    birth = applicable_defaults(_SCH, {'media_type': media_type})
+    birth.update(options or {})
+    return job.poser_reglages(birth)
+
+
 @login_required
 @require_POST
 @app_access('converter')
@@ -277,10 +306,9 @@ def upload(request):
 
     # Réglages persistés (brique user_settings) : le POST prime, sinon dernier
     # format utilisé pour ce type de média.
-    from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
+    from wama.common.utils.user_settings import save_user_app_settings
     if not output_fmt:
-        output_fmt = (get_user_app_settings(user, 'converter', {f'last_format_{media_type}': ''})
-                      .get(f'last_format_{media_type}') or '')
+        output_fmt = last_output_format(user, media_type)
     if not output_fmt:
         return JsonResponse({'error': 'Format de sortie manquant'}, status=400)
 
@@ -310,19 +338,9 @@ def upload(request):
         status='PENDING',
     )
     file_obj.record(job, 'input_file')
-    # MODÈLE ÉVÉNEMENTIEL (Fabien, 02/09, ROADMAP §23.2quater) : l'élément naît COMPLET —
-    # les défauts applicables du schéma sont ÉCRITS en base à la création, le POST de la
-    # zone de composition par-dessus (le geste de l'utilisateur prime). Les chips d'une card
-    # fraîche sont donc pleines (demande du 31/08) ET le preset reste opérant : il n'arbitre
-    # plus au lancement, il ÉCRIT au clic (§23.2quater — l'ancienne règle « ne stocker que
-    # l'explicite » du §23.2bis est REMPLACÉE par ce modèle).
-    from wama.common.utils.param_schema import applicable_defaults
-    from wama.converter.params import PARAMS_JSON as _SCH
-    naissance = applicable_defaults(_SCH, {'media_type': media_type})
-    naissance.update(options or {})
-    champs = job.poser_reglages(naissance)
-    if champs:
-        job.save(update_fields=champs)
+    touched = apply_birth_settings(job, media_type, options)
+    if touched:
+        job.save(update_fields=touched)
 
     # Re-persiste le choix comme défaut du prochain dépôt de ce type de média.
     save_user_app_settings(user, 'converter', {f'last_format_{media_type}': output_fmt})
@@ -370,16 +388,13 @@ def start(request, pk):
             except Exception:
                 pass
 
-        # L'ancienne sortie : détruite par la brique si elle est au converter et que plus rien ne la
-        # partage (une copie par « Dupliquer » la garde) ; la RÉFÉRENCE part dans tous les cas —
-        # une nouvelle sortie va être produite.
-        safe_delete_file(job, 'output_file')
-        job.output_file = None
-
+        # L'ancienne sortie n'est plus effacée ICI (pipeline, 2026-10-13) : un lancement ne
+        # rejoue que ce qui n'est plus à jour, et la glu qui réécrit une sortie remplace
+        # l'ancienne (`tasks._convert` / `_enhance`, `safe_delete_file`) — effacer au clic
+        # aurait emporté la conversion brute que le post-traitement reprend.
+        _reset_for_relaunch(job)
         job.status        = 'RUNNING'
         job.task_id       = ''
-        job.error_message = ''
-        job.progress      = 0
         job.save()
 
     task    = convert_media_task.delay(job.id)
@@ -389,10 +404,25 @@ def start(request, pk):
     return JsonResponse({'success': True, 'task_id': task.id})
 
 
-def _eta_triplet(job):
-    """Le triplet d'ETA, celui que la glu apprend (`tasks.converter_eta_key_size`)."""
-    from .tasks import converter_eta_key_size
-    return (*converter_eta_key_size(job), True)
+def _reset_for_relaunch(job):
+    """Remise à zéro avant (re)lancement, SOUS le verrou — ni la sortie ni la conversion brute :
+    le résultat d'un process s'efface quand CE process est rejoué (sa glu le remplace)."""
+    job.error_message = ''
+    job.progress = 0
+
+
+#: Les fichiers que la card PRODUIT — vidés à la duplication (élément et lot) : la sortie, et la
+#: conversion brute qu'un post-traitement reprend (pipeline, 2026-10-13).
+OUTPUT_FIELDS = ('output_file', 'converted_file')
+
+
+from wama.common.utils.process_views import make_process_start_view  # noqa: E402
+
+# ▶ d'UN process de la card (`ROUTE §10.6` 5.1) : fabrique COMMUNE — le post-traitement relancé
+# seul repart de la conversion brute gardée.
+start_process = login_required(make_process_start_view(
+    work_model=ConversionJob, task_for=lambda job: _task_for(job),
+    get_user=lambda request: request.user, reset_on_start=_reset_for_relaunch))
 
 
 def _progress_extra(job):
@@ -412,13 +442,14 @@ def _progress_extra(job):
 
 
 # Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
-# 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et sa file (les jobs
-# éphémères n'y sont pas).
+# 2026-10-03) — l'app n'y déclare que ses clés propres et sa file (les jobs éphémères n'y sont
+# pas). Plus de triplet d'ETA de vue depuis le pipeline (2026-10-13) : la card s'estime à la
+# SOMME de ses process, chacun déclarant le sien (`ProcessSpec.eta`, `tasks.*_eta`).
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
 _pv = make_progress_views(
     work_model=ConversionJob, get_user=lambda request: request.user, app_id='converter',
-    eta_for=_eta_triplet, extra=_progress_extra,
+    extra=_progress_extra,
     queryset=lambda user: ConversionJob.objects.filter(user=user, ephemeral=False))
 status = login_required(_pv['progress'])
 global_progress = login_required(_pv['global_progress'])
@@ -620,7 +651,7 @@ def duplicate(request, pk):
             'task_id':       '',
             'error_message': '',
         },
-        clear_fields=['output_file'],
+        clear_fields=list(OUTPUT_FIELDS),
     )
     return JsonResponse({'success': True, 'id': new_job.id})   # contrat commun (cf. upload)
 
@@ -840,7 +871,7 @@ def _task_for(_job):
 _bv = make_batch_views(
     work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda request: request.user,
     task_for=_task_for, start_only_pending=True, startable=lambda job: bool(job.output_format),
-    output_fields=('output_file',),
+    output_fields=OUTPUT_FIELDS,
     batch_attr='batch', row_field='batch_row_index',
     batch_extra=lambda lot: {'media_type': lot.media_type},
     zip_name=lambda lot: f'converter_batch_{lot.id}.zip',
@@ -1106,6 +1137,9 @@ def card_html(request, pk):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     job = visible_or_404(ConversionJob, user, pk=pk)   # LECTURE : une card reçue se rafraîchit aussi
     _decorate_job(job)
+    # Les PROCESS de la card et son état MONTRÉ (pipeline, 2026-10-13 — `ROUTE §10.6` 5.1).
+    from wama.common.services.process_pipeline import decorate
+    decorate(job)
     # Clé `elem` (2026-09-09) : le gabarit lit désormais l'élément sous le nom commun, comme
     # les 9 autres cards d'app. Jumeau PAR CHAÎNE du renommage du gabarit — invisible d'un
     # `manage.py check` comme d'un test qui n'ouvrirait pas ce partial : une card rendue avec

@@ -4703,9 +4703,8 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   et leur compte-rendu déjà rédigé passe dans `summary` (1 card sur 19 en base). Un style
 >   mémorisé « meeting » retombe sur « détaillé » à la création. Gardes : `MeetingReportTest`.
 > - ⏳ **Restes** : le découpage des backends (vidéo : images-clés et piste son sont des process, la
->   combinaison reste au backend) ; converter — la suite de la même décision ; le nom d'une card
->   dans sa notification est le libellé du DERNIER process (« cohérence 90/100 »), transcriber
->   compris.
+>   combinaison reste au backend) ; le nom d'une card dans sa notification est le libellé du
+>   DERNIER process (« cohérence 90/100 »), transcriber compris.
 
 > ✅ **Le READER en pipeline — LIVRÉ le 2026-10-13** (même décision). Sa tâche lisait le document
 > PUIS le mettait en forme par un LLM dont l'échec était AVALÉ (le texte brut rendu sous une card
@@ -4734,6 +4733,38 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   de trois champs écrits à la main (le format de sortie y était ignoré).
 > - Gardes : `reader/tests_pipeline.py` ; contre-épreuves ROUGES (mise en forme avalée, lanceur qui
 >   efface, modèle de langage qui ne périme plus la mise en forme). Grille : reader **100 %**.
+
+> ✅ **Le CONVERTER en pipeline — LIVRÉ le 2026-10-13** (même décision ; relevé par Fabien : « les
+> cards du converter n'affichent pas le pipeline »). Sa tâche convertissait PUIS appliquait le
+> post-traitement IA (agrandissement, débruitage, amélioration audio — des modèles GPU) sur le
+> fichier converti, réécrit en place, dans la même étape.
+> - **DEUX process** (`converter/function_specs.py`) : `convert` (toute card) → `enhance`, qui n'a
+>   lieu que si un post-traitement est DEMANDÉ et que le compte y a droit (pas un visiteur :
+>   décision du 2026-08-30). `enhance` reste REQUIS : demandé, son échec fait échouer la card —
+>   mais la conversion reste.
+> - **La conversion BRUTE est gardée** quand un post-traitement suit (`converted_file`, migration
+>   `converter/0013`, nullable — **option 1 de Fabien**, 13/10, contre « reconvertir à chaque
+>   fois ») : `enhance` repart d'une COPIE d'elle, il se rejoue donc seul (×2 → ×4) sans reconvertir
+>   et sans retraiter un fichier déjà traité. Sans post-traitement, la sortie EST la conversion
+>   (rien de plus sur disque). Libérée avec la card (FileField : `release_card_files`).
+> - **Retirer le post-traitement** se lit sur la conversion : elle surveille la DEMANDE
+>   (`ConversionJob.ai_postprocess_requested`, champ hors schéma de son `watched`) — la retirer la
+>   périme, la sortie redevient la conversion simple ; passer de ×2 à ×4 ne la touche pas. Les
+>   réglages déclarent leur péremption en une règle (`params.py`) : encodage → `convert`,
+>   post-traitement (dérivé de `CROSS_APP_OPTIONS`) → `enhance`, curseur → les deux.
+> - Le lanceur n'efface plus la sortie au clic (`views.start`) : la glu qui réécrit une sortie
+>   remplace l'ancienne (`safe_delete_file`). ▶ par process (`<pk>/start/<process>/`), bande des
+>   process, état montré ; ETA par process (`convert` garde sa clé par type de conversion).
+>   Une conversion simple n'a qu'un process : pas de bande (règle commune, « rien sous deux »).
+> - ⚠ **Conséquence pour la génération** : le converter était le DERNIER sujet réel de la
+>   composition B1 (`tasks_gen` ne compose le corps que d'une app à UN process qui route ses
+>   backends ; une app à pipeline reçoit des trous `NotImplementedError`). Depuis ce jour, **aucune
+>   des dix apps n'a son corps de tâche composé** : la marche suivante est la composition des
+>   GLUES par process (une glu = un appel de backend sur ROUTES). B1 et l'accord de la colonne de
+>   nature restent tenus sur leur forme « à un process » (`tests_codegen_lot._as_single_process`).
+> - Gardes : `converter/tests_pipeline.py` ; contre-épreuves ROUGES (post-traitement qui repart de
+>   la sortie, conversion qui ne surveille plus la demande, lanceur qui efface). Grille :
+>   converter **100 %** (86/86).
 
 #### 5. Couche 3 — l'UI : la card affiche son pipeline, le studio affiche le même objet en graphe
 
@@ -5187,7 +5218,8 @@ possible **sans aucun process**.
     sa tâche en enchaînait cinq, invisibles. La question n'est plus « la card porte-t-elle
     plusieurs process ? » mais « quels process la tâche enchaîne-t-elle ? » : toute étape qui a
     son modèle, son coût ou son échec propre est un process DÉCLARÉ. ✅ describer (13/10) ;
-    ✅ reader (13/10 : lecture, mise en forme, analyse) ; ⏳ converter.
+    ✅ reader (13/10 : lecture, mise en forme, analyse) ; ✅ converter (13/10 : conversion,
+    post-traitement IA) — les dix apps.
     Historique : une facette `pipelines` à nœuds `process` avait été écrite le 2026-10-01 pour le
     Writer, puis RETIRÉE le jour même (elle doublait le kind `pipeline`, un tri topologique
     existant et le moteur commun — `WAMA_MANIFEST_SPEC §3.1` garde le récit).
