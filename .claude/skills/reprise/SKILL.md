@@ -150,8 +150,10 @@ recouvrir un échec qui remplace un autre :
   scénario nocturne `common.consistency.docs` était **rouge pour cette seule raison**, vérifié en
   le lançant). Un seuil qui bouge sans raison finit par être relevé machinalement, donc à ne plus
   protéger.
-  **Le critère à appliquer reste le même à la main : compter les CIBLES DISTINCTES — attendu = 1**
-  (`_result_tabs.html`). Une **2ᵉ cible distincte** = vraie dérive. Comparer les fichiers cités,
+  **Le critère à appliquer reste le même à la main : compter les CIBLES DISTINCTES — attendu = 0**
+  depuis le 2026-09-07 (la seule cible due, le partial d'onglets de résultat, a été créée ce
+  jour-là — puis supprimée avec son mécanisme le 2026-10-13, `REMOVAL_LEDGER R127`, ses
+  citations datées marquées comme telles). Une cible distincte = vraie dérive. Comparer les fichiers cités,
   jamais le seul nombre. Le gate ajoute une **tolérance zéro aux défauts francs** (frontmatter de
   skill), qui ne sont jamais « assumés ».
 

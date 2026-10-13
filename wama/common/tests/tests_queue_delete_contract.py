@@ -1195,7 +1195,7 @@ class CriteresDeLaGrilleTest(SimpleTestCase):
     def test_les_mecanismes_de_ce_palier_ont_chacun_un_critere(self):
         from wama.common.services.mecanismes_scan import orphan_criteria, mechanisms_without_criterion
         sans = {m.key for m, _apps in mechanisms_without_criterion()}
-        for cle in ('queue_order', 'inspector', 'result_tabs', 'app_scripts'):
+        for cle in ('queue_order', 'inspector', 'app_scripts'):
             self.assertNotIn(cle, sans, f"mécanisme `{cle}` : aucun critère ne le vérifie")
         self.assertEqual(orphan_criteria(), [])
 

@@ -1757,27 +1757,6 @@
     }
 
     /**
-     * Global delegated handler for .copy-result-btn buttons.
-     * Any element with class "copy-result-btn" and data-target="<elementId>"
-     * will copy the textContent of that element to clipboard.
-     */
-    document.addEventListener('click', function(e) {
-        const btn = e.target.closest('.copy-result-btn');
-        if (!btn) return;
-        const el = document.getElementById(btn.dataset.target);
-        if (!el) return;
-        navigator.clipboard.writeText(el.textContent || el.innerText).then(() => {
-            btn.innerHTML = '<i class="fas fa-check text-success"></i>';
-            setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 2000);
-        }).catch(() => {
-            const range = document.createRange();
-            range.selectNodeContents(el);
-            window.getSelection().removeAllRanges();
-            window.getSelection().addRange(range);
-        });
-    });
-
-    /**
      * Show a simple text modal with a copy button.
      * Can be called from any app for displaying result/OCR text.
      * @param {string} text    - The text to display

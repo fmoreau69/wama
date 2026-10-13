@@ -297,24 +297,5 @@ window._batchImport = WamaBatchImport({
     },
 });
 </script>
-<script>
-/* Copy button for result text panels */
-document.addEventListener('click', function(e) {
-    const btn = e.target.closest('.copy-result-btn');
-    if (!btn) return;
-    const el = document.getElementById(btn.dataset.target);
-    if (!el) return;
-    navigator.clipboard.writeText(el.textContent || el.innerText).then(() => {
-        btn.innerHTML = '<i class="fas fa-check text-success"></i>';
-        setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 2000);
-    }).catch(() => {
-        /* fallback: select text */
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        window.getSelection().removeAllRanges();
-        window.getSelection().addRange(range);
-    });
-});
-</script>
 
 {% endblock %}

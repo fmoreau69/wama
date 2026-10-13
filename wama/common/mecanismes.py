@@ -1334,23 +1334,6 @@ MECHANISMS = (
               symbol='poids_locaux',
               annexes=('wama/common/utils/hf_cache.py',
                        'wama/common/tests/tests_hf_cache_routing.py')),
-    Mechanism('result_tabs', 'Onglets de résultat TEXTE',
-              "Un item peut avoir PLUSIEURS lectures d'un même résultat (transcription, "
-              "diarisation, résumé, cohérence). Le schéma canonique ne portait qu'UN "
-              "`result_text` — d'où deux modales à onglets quasi identiques, tracées au "
-              "`REMOVAL_LEDGER R18` depuis le 22/07. Les facettes se déclarent désormais dans "
-              "la SPEC DE DÉTAIL de l'app (donc extractibles au manifeste, facette `inspector`, "
-              "et projetables), et un partial commun les rend. "
-              "⚠ Ce n'est PAS une 2ᵉ mécanique de preview : la preview de CARD reste "
-              "`PreviewRegistry`, et les autres apps n'ont qu'une lecture — ou plusieurs "
-              "RÉSULTATS dans une seule preview (imager, `result_files`). "
-              "⚠ PLUS AUCUNE app réelle ne le consomme depuis le 2026-10-13 : le describer (R125) "
-              "puis le transcriber (R126) ont rendu leurs facettes à la visionneuse commune "
-              "(faces des process). Restent deux jumelles de bac à sable aux gabarits COPIÉS le "
-              "07/10 (`describer_01`, `transcriber_01`) — son retrait est une décision à part",
-              'wama/common/templates/common/_result_tabs.html', 'docs/construction/ui/CARD_DESIGN.md',
-              annexes=('wama/common/utils/detail_registry.py',
-                       'wama/common/tests/tests_result_tabs.py')),
     Mechanism('apply_manifests', 'Application du corpus de manifestes',
               "Le sens ENTRANT du corpus : `manifest_export` écrit les manifestes DEPUIS les "
               "registres, rien ne les appliquait DANS l'autre sens. Sur une installation neuve, "

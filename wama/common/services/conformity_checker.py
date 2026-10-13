@@ -1823,33 +1823,6 @@ def _task_skeleton(f: _AppFiles):
     return False, "tâche d'item hand-rolled — gardes/progress/ETA réécrits (brique task_skeleton)"
 
 
-def _result_tabs(f: _AppFiles):
-    """Onglets de résultat TEXTE : DÉCLARÉS et rendus par le partial commun (R18, 07/09).
-
-    ⚠ NON APPLICABLE à la plupart des apps, et ce n'est pas un manque : le cas visé est
-    « UN résultat, PLUSIEURS lectures de ce résultat », uniquement du TEXTE. Une app qui a une
-    seule lecture (converter, anonymizer…) ou plusieurs RÉSULTATS dans une preview (imager)
-    n'a rien à déclarer — la mesurer sur ce critère produirait un rouge qui ne veut rien dire.
-    D'où l'enveloppe : le critère ne s'active que si l'app REND du texte à plusieurs facettes,
-    c'est-à-dire si son gabarit porte la barre `id="resultTabs"` ou si elle en déclare.
-
-    Rouge = elle maintient sa propre barre d'onglets en dur ; c'est exactement la duplication
-    que le `REMOVAL_LEDGER R18` traçait entre describer et transcriber.
-    """
-    declare = f.find_code(APPS_PY, r"'result_tabs'")
-    en_dur = f.find_code(TEMPLATES, r'id="resultTabs"')
-    tag = f.find_code(TEMPLATES, r'{%\s*result_tabs')
-    if not declare and not en_dur and not tag:
-        return None, "app sans facettes texte multiples — critère non applicable"
-    if tag and declare:
-        return True, f'{tag} + déclaration {declare}'
-    if en_dur:
-        return False, f"barre d'onglets EN DUR ({en_dur}) — déclarer `result_tabs` dans la spec de détail et rendre par {{% result_tabs %}}"
-    if declare and not tag:
-        return 'partial', f'facettes déclarées ({declare}) mais le gabarit ne rend pas le partial commun'
-    return 'partial', "partial commun rendu sans facettes déclarées"
-
-
 def _detail_spec(f: _AppFiles):
     """Registration du détail en SPEC-DONNÉE (`register_app_detail_spec`, marche A3a).
 
@@ -2265,11 +2238,10 @@ CRITERIA: list[Criterion] = [
     Criterion('detail_spec', 'F3', 'Détail du volet en SPEC-donnée (register_app_detail_spec, A3a)',
               _detail_spec,
               mechanism='detail_registry'),
-    # RATTACHÉ à `result_tabs` le 2026-09-15 (ex-`detail_registry`) : le mécanisme de même nom
-    # (`_result_tabs.html`) figurait « sans critère » alors que celui-ci le mesure.
-    Criterion('result_tabs', 'F3', 'Onglets de résultat TEXTE déclarés + partial commun (R18)',
-              _result_tabs,
-              mechanism='result_tabs'),
+    # Plus de critère `result_tabs` (retiré le 2026-10-13 avec son mécanisme, REMOVAL_LEDGER
+    # R127) : les lectures d'un résultat sont les faces de la visionneuse commune, et les deux
+    # gestes qui menaient à une modale propre (bouton 👁 de card, double-clic intercepté) sont
+    # tenus par `tests_preview_entry.CardPreviewsOpenTheCommonViewerTest`.
     # ── F4 modèles ──
     Criterion('eta_seeded', 'F4', 'ETA seedée auto-apprenante (record_run + estimate)', _eta_seeded,
               mechanism='eta'),

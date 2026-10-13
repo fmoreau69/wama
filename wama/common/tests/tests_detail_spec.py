@@ -175,7 +175,9 @@ def _named_fields(form):
 
 VALUE_KEYS = ('source_file', 'source_type', 'engine', 'engine_effective', 'result_file',
               'result_files', 'result_role', 'result_text', 'source_text', 'params_schema')
-KNOWN_KEYS = set(VALUE_KEYS) | {'extra', 'extra_from_params', 'aliases', 'result_tabs'}
+# `result_tabs` left the vocabulary on 2026-10-13 (REMOVAL_LEDGER R127): a spec that still
+# declared text tabs would be read by nothing, so it fails here.
+KNOWN_KEYS = set(VALUE_KEYS) | {'extra', 'extra_from_params', 'aliases'}
 
 
 def _schema_names(form):

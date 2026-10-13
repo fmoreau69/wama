@@ -1754,12 +1754,6 @@ Extraction/validation/projection des 7 kinds vers les registres. Le corpus versi
   - `un_ingest(kind: str, key: str) -> bool`
   - `diff_dicts(a: Any, b: Any, path: str='') -> list[dict]` — Écarts a(=manifeste) vs b(=courant). Ordre des listes ignoré pour les listes de scalaires.
 
-### Onglets de résultat TEXTE
-
-Un item peut avoir PLUSIEURS lectures d'un même résultat (transcription, diarisation, résumé, cohérence). Le schéma canonique ne portait qu'UN `result_text` — d'où deux modales à onglets quasi identiques, tracées au `REMOVAL_LEDGER R18` depuis le 22/07. Les facettes se déclarent désormais dans la SPEC DE DÉTAIL de l'app (donc extractibles au manifeste, facette `inspector`, et projetables), et un partial commun les rend. ⚠ Ce n'est PAS une 2ᵉ mécanique de preview : la preview de CARD reste `PreviewRegistry`, et les autres apps n'ont qu'une lecture — ou plusieurs RÉSULTATS dans une seule preview (imager, `result_files`)
-
-- **Domicile** : `wama/common/templates/common/_result_tabs.html` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
-
 ### Passe-plat des déclarations de modèle
 
 Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la convention `wama/<app>/utils/model_config.py::<APP>_MODELS`, ne connaît aucune app, et surtout ne touche AUCUNE BASE. ⚠ Le catalogue `AIModel` porte la même information, mais le lire ajouterait une dépendance ORM à chaque backend — or c'est justement l'absence de Django qui les rend déplaçables. On lirait la bonne donnée en détruisant la propriété cherchée
@@ -2261,7 +2255,6 @@ Schéma canonique des infos d'item affichées au volet droit
   - `settings_from_schema(instance, schema, *, skip=(), carrier=None)` — {libellé: valeur} des réglages POSÉS du schéma — la liste « Réglages » du volet, pour les
   - `build_detail(instance, *, source_file=None, source_type=None, engine=None, engine_effective=None, result_file=None, result_files=None, result_role=None, result…` — Assemble le dict canonique d'un item (épine dorsale). Les valeurs vides sont OMISES
   - `unified_detail(request, app_name: str, pk: int)` — Endpoint commun : infos d'un item selon le schéma canonique (miroir de unified_preview).
-  - `result_tabs_for(app_name: str) -> list` — Facettes TEXTE déclarées par `app_name` — [] si l'app n'en déclare pas.
 
 ### Lecteur audio (onde + transport)
 

@@ -601,8 +601,11 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     rendre se DÉCLARE (`export_formats.register_export_missing`) : le `json` du reader sans
     résultat brut, règle qui vivait dans le seul gabarit de sa card et que le ⬇ lit désormais
     aussi (`item=`). Puis retirés : la modale, son interception du double-clic (l'exemption de
-    `tests_preview_entry` est vide), ses `result_tabs`. Le mécanisme `result_tabs` n'a plus aucun
-    consommateur réel (deux jumelles aux gabarits copiés le 07/10) : son retrait est à décider.
+    `tests_preview_entry` est vide), ses `result_tabs`. Puis, décision de Fabien le même jour, le
+    MÉCANISME `result_tabs` lui-même (partial, tag, accesseur, clé de spec, critère F3 —
+    `REMOVAL_LEDGER R127`) : plus aucun consommateur, les deux jumelles qui le rendaient encore
+    (gabarits copiés le 07/10) recréées depuis leurs sources. Les lectures d'un résultat n'ont
+    plus qu'une voie : les faces de la visionneuse.
   - ⏳ **Restes, dans l'ordre** : ② rendus par TYPE (ABC en partition) ; ③ les lignes de la bande des process ouvrent leur face, l'état du
     process (périmé, en échec) se lit sur elle ; ④ Studio (nœuds `StudioRun`, `output_ref`), Lab
     (passes du cam_analyzer, une face par caméra, `instance_key`), Data (Explorer). Et la face de

@@ -945,7 +945,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 ### 21.3 Trous de portage à combler (reprise) — priorisés
 
 1. ✅ 2026-07-08 **Describer `cardSelector`** — vérifié empiriquement DÉJÀ à `.synthesis-card`
-   (`describer/index.html:315`) ; l'entrée était en retard sur le code. Le `.wama-card` restant
+   (`describer/index.html`, ligne 315 ce jour-là) ; l'entrée était en retard sur le code. Le `.wama-card` restant
    (`index.js:20`) est le `autoSync` du cycle-button, sans effet de bord (header batch sans bouton).
 2. ✅ 2026-07-08 **Reader statuts alignés en BASE** : `DONE/ERROR` → `SUCCESS/FAILURE`
    (migration `reader.0008` choices + data, sweep models/views/tasks/JS/template — les clés JSON
@@ -2341,7 +2341,7 @@ maintenir ici en parallèle reproduirait le défaut.
 
 1. ⏳ **`describer.result_file` orphelin** : retrait en passe ISOLÉE (migration describer.00xx sur
    les DEUX bases) — ~32 occurrences restantes (views 17, models 3).
-2. ⏳ **`common/_result_tabs.html`** : cf. `REMOVAL_LEDGER R18`.
+2. ⏳ **`common/_result_tabs.html`** : cf. `REMOVAL_LEDGER R18` (créé le 2026-09-07) — supprimé le 2026-10-13, `REMOVAL_LEDGER R127`.
 3. ⏳ **Streaming MusicGen mid-génération** : `audiocraft_backend.on_audio` n'est appelé qu'UNE fois
    en fin de génération — pas de token-callback ; `emit_streaming_peaks` prêt côté tasks.
 4. ⏳ **Fusion des 2 renderers waveform** : cf. `REMOVAL_LEDGER R19` (calcul déjà unifié).
@@ -3212,7 +3212,7 @@ par une autre instance pendant cette session.
 
 | contrôle | valeur mesurée |
 |---|---|
-| `check_docs` | 34 docs, 13 skills, **1102 références** — **7 cassées, 0 périmée**, mais **1 SEULE cible distincte** (`common/_result_tabs.html`, partial jamais créé). ⚠ C'est la cible distincte qui est le critère, pas le 7 : il monte dès qu'un `.md` recite la même cible. |
+| `check_docs` | 34 docs, 13 skills, **1102 références** — **7 cassées, 0 périmée**, mais **1 SEULE cible distincte** (`common/_result_tabs.html`, partial jamais créé — créé le 07/09 puis supprimé le 13/10, R127). ⚠ C'est la cible distincte qui est le critère, pas le 7 : il monte dès qu'un `.md` recite la même cible. |
 | tests du périmètre | `wama.common.tests.tests_volet` → **13/13 OK** (6,3 s). `wama.filemanager` → **0 test** (l'app n'en a aucun — dette nommée, pas un vert). |
 | nocturne complet | `--stage ui` → **92/158 OK, 1 échec, 65 skips**, `witness_files_swept: 20`. L'échec attendu est `common.rights_anonymous` **tant que l'arbitrage n'est pas rendu** — un second échec = vraie dérive. |
 | balayage disque | **0 témoin résiduel** sous `media/` après passe. |
@@ -3251,7 +3251,7 @@ motif `/model-manager/` à nouveau. D'où `OrgUnit.local()` sur les 8 sites inte
 sorties. ⚠ migration `common/0010` **non versionnée** (`.gitignore:18`).
 
 **Divers relevés, non traités** : `group_required()` (`accounts/models.py:293`) est du **code mort** ;
-6 références cassées **préexistantes** dans ce fichier pointent `common/_result_tabs.html`
+6 références cassées **préexistantes** dans ce fichier pointent `common/_result_tabs.html` (supprimé le 13/10, R127)
 (territoire instance sœur). **Suite** : S3 `AccessGrant` + préséance, S4 file de modération,
 S5 `access_matrix` → `logs/access_matrix.json` + personas nocturnes.
 
@@ -3613,7 +3613,7 @@ l'appariement qu'il faut refaire, seulement le process.
   sans jamais l'afficher — utile si le jeton est de nouveau confondu avec la clé publique).
 
 #### Contrôles attendus au prochain `/reprise`
-`check_docs` → **3 CASSÉ** (toutes `common/_result_tabs.html`, périmètre codegen d'une autre
+`check_docs` → **3 CASSÉ** (toutes `common/_result_tabs.html`, supprimé le 13/10 (R127), périmètre codegen d'une autre
 instance — **pas** une régression de ce chantier) · `ChannelLink` → **1 ligne** (fabien.moreau
 ↔ discord) au lieu de 0.
 
@@ -3818,7 +3818,7 @@ livrée en parallèle par l'autre instance (`d55bc79a`), **sans conflit**.
 
 | contrôle | valeur |
 |---|---|
-| `check_docs` | **2 cassées / 0 périmée** sur 475 réf. (11 docs) — les 2 = `common/_result_tabs.html`, dette `REMOVAL_LEDGER R18` |
+| `check_docs` | **2 cassées / 0 périmée** sur 475 réf. (11 docs) — les 2 = `common/_result_tabs.html` (supprimé le 13/10, R127), dette `REMOVAL_LEDGER R18` |
 | `manifest_export --check` | corpus **à jour, 110 manifestes** |
 | `doc_facts --check` | **5 faits à jour** (mecanismes, modeles, outils, roundtrip, wama_data) |
 | `check_app_conformity` | converter/describer/transcriber **100** · enhancer 99 · anonymizer/avatarizer/composer/reader/synthesizer 98 · imager 97 |
@@ -4003,7 +4003,7 @@ son témoin retombait sur `.txt` pour les apps à images.
 
 ### Contrôles attendus au prochain `/reprise` (chiffres de référence)
 - `doc_facts --check` : **4 faits à jour** (mecanismes, modeles, outils, roundtrip).
-- `check_docs` : **2 CASSÉ attendus** — `PROJECT_STATUS.md:2257` (`common/_result_tabs.html`) et
+- `check_docs` : **2 CASSÉ attendus** — `PROJECT_STATUS.md:2257` (`common/_result_tabs.html`, supprimé le 13/10, R127) et
   `ROADMAP.md:1117` (`wama/common/middleware.py`), dette PRÉEXISTANTE hors périmètre prospection.
 - Base : **~56 candidats proposés** (24 Ollama `new` + 32 HF), **0 candidat `update`** (les 8 étaient
   faux), **43 sans confiance**, **17 modèles benchmarkés**.
@@ -7728,7 +7728,7 @@ l'a établi** ; sinon on ne distingue pas « corrigé » de « pas de charge pen
   symétrique) ou 96 Go en descendant à 2933/2666.
 
 ### Contrôles attendus au prochain /reprise
-- `check_docs` : **4 CASSÉ / 0 périmée sur 518** — les 4 pointent sur `common/_result_tabs.html`
+- `check_docs` : **4 CASSÉ / 0 périmée sur 518** — les 4 pointent sur `common/_result_tabs.html` (supprimé le 13/10, R127)
   depuis `PROJECT_STATUS.md` (l. 2291, 2780, 2985, 3170). ⚠ **Cible jamais créée** (absente de tout
   l'historique git), pas une régression ; **hors de mon périmètre**, non corrigée. Le seuil connu
   était 2 → **réajuster à 4** ou créer/retirer la cible.
@@ -8426,7 +8426,7 @@ couvre.
 
 ### C. Les « 5 références cassées » de `check_docs` n'étaient PAS une erreur
 
-Elles pointent toutes **une cible unique** (`common/_result_tabs.html`, dette `REMOVAL_LEDGER R18`)
+Elles pointent toutes **une cible unique** (`common/_result_tabs.html`, supprimé le 13/10 (R127), dette `REMOVAL_LEDGER R18`)
 et le contrat compte désormais des **cibles distinctes** (`CIBLES_ASSUMEES = 1`, corrigé le 27/08).
 `common.consistency.docs` est **vert**. C'est exactement le piège que cette correction d'unité a
 fermé : *compter des références au lieu de cibles fait monter un seuil tout seul.*
