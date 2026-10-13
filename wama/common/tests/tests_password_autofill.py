@@ -8,10 +8,15 @@ remplissait le champ, `autocomplete="off"` étant ignoré sur un `type="password
 Enregistrer aurait posé le mot de passe comme clé d'API. Même défaut dans la fenêtre « Ajouter un
 utilisateur » (le mot de passe de l'admin devenait celui du nouveau compte).
 
-La règle : tout champ mot de passe DÉCLARE ce qu'il attend — `current-password` (connexion,
-ancien mot de passe : le remplissage y est voulu) ou `new-password` (tout le reste, la seule
-valeur que Chrome ne remplit pas). Ce test la tient sur les gabarits, le JS servi et les widgets
-de formulaire Django.
+La règle : tout champ mot de passe DÉCLARE ce qu'il attend — `current-password` (la connexion
+seule : le remplissage y est voulu) ou `new-password` (tout le reste, la seule valeur que Chrome
+ne remplit pas). Ce test la tient sur les gabarits, le JS servi et les widgets de formulaire
+Django.
+
+Le 13/10, Fabien a vu l'« ancien mot de passe » du profil pré-rempli, et le champ du code
+d'appariement Discord rempli de son identifiant (Chrome le prenait pour le champ « utilisateur »
+du mot de passe qu'il remplissait). Redemander l'ancien mot de passe n'a de sens que s'il est
+tapé : hors connexion, plus aucun `current-password`.
 """
 import re
 from pathlib import Path
@@ -66,6 +71,13 @@ class PasswordAutofillTest(SimpleTestCase):
                 if not DECLARED.search(args):
                     missing.append(f'{path.relative_to(settings.BASE_DIR)} : PasswordInput({args[:70]})')
         self.assertEqual(missing, [], '\n'.join(missing))
+
+    def test_only_the_login_form_asks_the_browser_to_fill_the_password(self):
+        # Gabarits et JS : aucun `current-password` — le formulaire de connexion est un widget
+        # Django (`accounts.models.LoginForm`), couvert par le test des widgets.
+        filled = [str(p.relative_to(settings.BASE_DIR)) for p in list(_files('*.html')) + list(_files('*.js'))
+                  if 'current-password' in p.read_text(encoding='utf-8', errors='ignore')]
+        self.assertEqual(filled, [])
 
     def test_the_guard_sees_an_undeclared_password_input(self):
         # Contre-épreuve : la forme d'avant le correctif doit être vue.

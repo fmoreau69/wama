@@ -567,7 +567,7 @@
                         <input type="text" id="channelCodeInput" maxlength="16"
                                class="form-control bg-dark text-light border-secondary text-uppercase"
                                placeholder="Code d'appariement (ex. K7M2P9QR)"
-                               autocomplete="off" style="letter-spacing:0.12em;">
+                               autocomplete="one-time-code" style="letter-spacing:0.12em;">
                         <button class="btn btn-outline-primary" type="button" id="channelLinkBtn">
                             <i class="fas fa-link me-1"></i> Relier
                         </button>
@@ -590,9 +590,11 @@
                 <div class="card-body">
                     <div class="mb-3">
                         <label class="form-label text-muted small">Mot de passe actuel</label>
+                        {# new-password : le navigateur ne pré-remplit pas l'ancien mot de passe —
+                           le redemander n'a de sens que s'il est TAPÉ (Fabien, 13/10). #}
                         <input type="password" id="oldPassword"
                                class="form-control bg-dark text-light border-secondary"
-                               autocomplete="current-password">
+                               autocomplete="new-password">
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-muted small">Nouveau mot de passe</label>
