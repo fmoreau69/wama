@@ -505,6 +505,18 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       passage). Une app née d'un manifeste rend désormais son modèle comme à sa CRÉATION
       (squelette A5, `app_sandbox.render_payload`) ; mesuré : `models.py` régénéré IDENTIQUE,
       aucune migration. Tenu par `tests_codegen_from_scratch`.
+    - ✅ **MISE EN FORME AJUSTÉE — la glu `layout` régénérée PAR LE RÔLE** (D5 ; décision de
+      Fabien : la quantité de modifications définit l'ajustement, `ROADMAP §21.5`). Briques
+      `document_layout` (`common/utils/document_sections.py`) montrées au rôle `codegen` pour le
+      SEUL process qu'une surface rejoue (déclencheur `surface_rerun`, facette `surfaces` dans la
+      matière). La 1ʳᵉ glu générée a montré deux défauts d'OUTIL — *chaque défaut vu en relisant
+      la glu est un défaut de l'outil* (leçon du 01/10) : elle lisait des attributs inexistants des
+      objets que rendaient les briques (`basis.text`, `plan.kind` : le rôle ne voit que les
+      FONCTIONS montrées) → API ÉTROITE, `adjust_layout` rend du HTML ou None ; elle appelait
+      `process_prompt_for` sans l'importer (`NameError` au premier lancement, aucun contrôle) →
+      contrôle neuf `undefined_names` (une portée par glu, noms du fichier mince admis ; mesuré
+      sans faux positif sur les glues réelles du Writer, du converter, du reader et du composer).
+      Glu en attente de la validation de Fabien (jamais d'auto-application).
 - 🔄 **FACES DU PIPELINE — la preview suit le pipeline (Fabien, 2026-10-12)**. *« Avant, une card
   portait tout le process sans distinction et la preview de même […]. Maintenant, la card porte un
   pipeline de process, les médias intermédiaires sont conservés. Le pipeline étant l'unité commune à

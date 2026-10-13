@@ -282,13 +282,46 @@ def apply_plan(previous_html: str, plan: LayoutPlan, ask, *, style: str = '',
     return with_charset(str(soup))
 
 
+def adjust_layout(basis, text: str, ask, *, style: str = '', language: str = '',
+                  console=None) -> str | None:
+    """LE geste d'une glu de mise en forme : le HTML de `text`, AJUSTÉ depuis la dernière mise
+    en forme (`basis`, rendu par `adjustment_basis`) — le rendu d'avant tel quel si le fond n'a
+    pas changé, des sections retouchées sinon. None quand il faut TOUT refaire (pas de base, une
+    structure qui change, des repères qui manquent, une réponse du modèle inutilisable) : la glu
+    fait alors sa mise en forme complète (`full_layout_instruction`, `finish_document`).
+
+    `ask(messages) -> texte` : l'appel au modèle choisi par la glu, pour les seules sections à
+    remettre en forme. Rien d'autre n'est appelé : un bout de phrase changé se remplace sans
+    modèle. (L'API étroite est voulue : la 1ʳᵉ glu générée sur les briques détaillées lisait des
+    attributs qui n'existaient pas — 2026-10-13.)"""
+    if basis is None:
+        return None
+    plan = plan_layout_update(basis.previous_text, text, basis.previous_html, language=language or None)
+    if plan.mode == 'full':
+        if console:
+            console(f"Mise en forme complète : {plan.reason}.")
+        return None
+    if plan.mode == 'none':
+        if console:
+            console("Fond inchangé : le rendu précédent est repris tel quel.")
+        return with_charset(basis.previous_html)
+    return apply_plan(basis.previous_html, plan, ask, style=style, language=language,
+                      console=console)
+
+
 # ── La mise en forme complète ───────────────────────────────────────────────────────────────
 
 def full_layout_instruction(text: str) -> str:
     """La règle à ajouter à la consigne d'une mise en forme COMPLÈTE : les repères de sections
     (sans eux, aucune correction suivante ne pourra être ajustée) et le jeu de caractères."""
     count = len(split_sections(text))
-    return (f"Le fond compte {count} section(s), chacune commence à un titre Markdown (la "
+    # Le texte RECOPIÉ tel quel n'est pas une préférence de style : c'est ce qui permet à la
+    # correction suivante d'un bout de phrase de se reporter dans la forme sans modèle (la 2ᵉ glu
+    # générée, le 2026-10-13, l'avait perdu de sa consigne) — la règle vit donc ICI.
+    return (f"Mets en forme le fond fourni en un document HTML complet et autonome. Reprends son "
+            f"texte TEL QUEL — sans le reformuler, le résumer ni le compléter : seule la "
+            f"présentation t'appartient. "
+            f"Le fond compte {count} section(s), chacune commence à un titre Markdown (la "
             f"première peut être le texte qui précède le premier titre). Rends chaque section "
             f'dans UN élément portant l\'attribut {SECTION_ATTR}="k", k allant de 0 à {count - 1} '
             f"dans l'ordre du fond ; ne fusionne ni ne coupe aucune section. Le document commence "

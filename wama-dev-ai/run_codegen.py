@@ -146,9 +146,11 @@ BRICKS_BY_TRIGGER = {
     # Le process qu'une SURFACE rejoue après une correction à la main (`surfaces[].reruns`,
     # 2026-10-13 — la mise en forme du Writer) : il AJUSTE son résultat d'après ce qui a changé
     # au lieu de le refaire, et rend un document sans clôture de code. Seul ce process le reçoit.
-    ('surface_rerun', None): ('document_layout', ('adjustment_basis', 'plan_layout_update',
-                                                  'apply_plan', 'full_layout_instruction',
-                                                  'finish_document')),
+    # API ÉTROITE (même jour) : la 1ʳᵉ glu générée sur `plan_layout_update` + `apply_plan` lisait
+    # des attributs inexistants des objets qu'ils rendent (`basis.text`, `plan.kind`) — le rôle ne
+    # voit que les fonctions montrées. `adjust_layout` fait le tout et rend du HTML ou None.
+    ('surface_rerun', None): ('document_layout', ('adjustment_basis', 'adjust_layout',
+                                                  'full_layout_instruction', 'finish_document')),
 }
 
 
@@ -276,8 +278,57 @@ def _returned_field_keys(fn_node) -> set:
     return keys
 
 
+def module_level_names(source: str) -> set:
+    """Les noms que le fichier MINCE définit au niveau du module (imports, fonctions, affectations)
+    — la glu y est insérée, elle peut les lire sans les importer."""
+    names = set()
+    try:
+        tree = ast.parse(source or '')
+    except SyntaxError:
+        return names
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            names.update((al.asname or al.name).split('.')[0] for al in node.names)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(node.name)
+        elif isinstance(node, ast.Assign):
+            names.update(t.id for t in node.targets if isinstance(t, ast.Name))
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            names.add(node.target.id)        # `_OPEN_BACKENDS: dict = {}` (composer)
+    return names
+
+
+def undefined_names(func: ast.AST, allowed=()) -> list:
+    """Les noms LUS dans `func` que rien ne définit : ni paramètre, ni affectation, ni import, ni
+    fonction ou classe locale, ni boucle, ni `with … as`, ni `except … as`, ni nom de Python —
+    ni `allowed` (ce que le fichier mince définit autour de la glu). Né le 2026-10-13 : la glu de
+    mise en forme du Writer appelait `process_prompt_for` sans l'importer — `NameError` au premier
+    lancement, et aucun contrôle ne le disait. Grossier par construction (une seule portée pour
+    toute la fonction) : il rate un nom défini trop tard, jamais un nom défini nulle part."""
+    import builtins
+    bound, read = set(allowed) | set(dir(builtins)), set()
+    for node in ast.walk(func):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            if not isinstance(node, ast.Lambda):
+                bound.add(node.name)
+            a = node.args
+            bound.update(x.arg for x in a.posonlyargs + a.args + a.kwonlyargs)
+            bound.update(x.arg for x in (a.vararg, a.kwarg) if x)
+        elif isinstance(node, ast.ClassDef):
+            bound.add(node.name)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            bound.update((al.asname or al.name).split('.')[0] for al in node.names)
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            bound.add(node.name)
+        elif isinstance(node, ast.Name):
+            (bound if isinstance(node.ctx, (ast.Store, ast.Del)) else read).add(node.id)
+        elif isinstance(node, (ast.Global, ast.Nonlocal)):
+            bound.update(node.names)
+    return sorted(read - bound)
+
+
 def controles(code: str, nom_impose: str, app_id: str = None, item_fields=None,
-              settings_fields=None) -> dict:
+              settings_fields=None, module_names=()) -> dict:
     """Contrôles mécaniques du bloc généré — le LLM propose, la chaîne juge. `item_fields` = les
     champs du modèle d'item : la règle 5 du prompt n'admet qu'eux comme clés de `fields`, et ce
     contrôle la rend mécanique (elle n'était qu'une consigne)."""
@@ -315,6 +366,10 @@ def controles(code: str, nom_impose: str, app_id: str = None, item_fields=None,
         out['signature_ok'] = args[:2] == ['item', 'ctx']
         if not out['signature_ok']:
             out['warnings'].append(f'signature {args} ≠ (item, ctx)')
+        missing = undefined_names(cible, module_names)
+        if missing:
+            out['warnings'].append(f'nom(s) jamais défini(s) ni importé(s) dans la glu : {missing} '
+                                   f'(NameError au premier lancement)')
         if item_fields:
             hors = sorted(_returned_field_keys(cible) - set(item_fields))
             if hors:
@@ -608,7 +663,8 @@ def main():
         verif = controles(code, nom_impose, args.app,
                           item_fields=[c.split(' (')[0] for c in champs],
                           settings_fields=((proc.get('model_spec') or {}).get('item') or {})
-                          .get('params_fields'))
+                          .get('params_fields'),
+                          module_names=module_level_names(mince))
         if process_spec and verif['compile_ok']:
             verif['warnings'] += process_checks(
                 code, nom_impose, process_spec, all_specs, read_by_bricks(man),

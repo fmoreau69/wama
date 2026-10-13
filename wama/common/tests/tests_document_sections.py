@@ -33,6 +33,23 @@ HTML = ('<!DOCTYPE html><html><head><meta charset="utf-8"><style>.s{color:red}</
         '<p>La précision dépasse celle des méthodes classiques.</p></section></body></html>')
 
 
+END_SECTION = """
+## Fin
+Oui.
+"""
+
+GLUE_WITH_AN_UNDEFINED_NAME = """
+def _g(item, ctx):
+    import os
+    from wama.common.utils.llm_utils import chat_with_catalog_model
+    def ask(messages):
+        return chat_with_catalog_model(KEY, messages)
+    for part in [1]:
+        os.path.join(str(part))
+    return process_prompt_for(app=ctx.app_id, value=WriterDocument)
+"""
+
+
 def _never(messages):
     raise AssertionError('no model must be called for a phrase change')
 
@@ -216,8 +233,31 @@ class TheCodegenRoleSeesTheBricksForTheReplayedProcessTest(SimpleTestCase):
         man = {'body': {'surfaces': [{'key': 'edit', 'reruns': 'layout'}]}}
         layout = [names for _key, names in codegen._triggered([], man, 'layout')]
         write = [names for _key, names in codegen._triggered([], man, 'write')]
-        self.assertTrue(any('plan_layout_update' in names for names in layout))
-        self.assertFalse(any('plan_layout_update' in names for names in write))
+        self.assertTrue(any('adjust_layout' in names for names in layout))
+        self.assertFalse(any('adjust_layout' in names for names in write))
         signatures = codegen.signatures_briques()
-        self.assertIn('apply_plan', signatures, 'the registry points at the module that defines them')
-        self.assertIn('ask', signatures['apply_plan'])
+        self.assertIn('adjust_layout', signatures, 'the registry points at the module that defines them')
+        self.assertIn('ask', signatures['adjust_layout'])
+
+    def test_a_name_never_defined_in_a_glue_is_reported(self):
+        """The first layout glue called `process_prompt_for` without importing it — a NameError
+        at the first launch that no check reported."""
+        import ast
+
+        from wama.common.tests.tests_dev_ai_bridge import _charger
+        codegen = _charger('run_codegen')
+        glue = ast.parse(GLUE_WITH_AN_UNDEFINED_NAME).body[0]
+        self.assertEqual(['KEY', 'process_prompt_for'],
+                         codegen.undefined_names(glue, allowed={'WriterDocument'}))
+
+
+class AdjustLayoutTest(SimpleTestCase):
+    """`adjust_layout` — the one gesture a layout glue makes : HTML or None (redo it all)."""
+
+    def test_no_base_means_redo_and_an_unchanged_fond_keeps_the_render(self):
+        from wama.common.utils.document_sections import LayoutBasis, adjust_layout
+        self.assertIsNone(adjust_layout(None, DRAFT, _never))
+        basis = LayoutBasis(DRAFT, HTML)
+        self.assertEqual(HTML, adjust_layout(basis, DRAFT, _never))
+        self.assertIsNone(adjust_layout(basis, DRAFT + END_SECTION, _never), 'new structure')
+        self.assertIn('caméra standard', adjust_layout(basis, DRAFT.replace('ordinaire', 'standard'), _never))
