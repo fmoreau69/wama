@@ -36,7 +36,8 @@
           {"display": true, "field": "model", "label": "Modèle"}
         ],
         "result_file": "output_file",
-        "source_file": "reference_document"
+        "source_file": "reference_document",
+        "source_text": "prompt"
       },
       "preview": {
         "file_field": "output_file",

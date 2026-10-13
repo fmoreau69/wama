@@ -683,6 +683,14 @@ document.addEventListener('DOMContentLoaded', function () {{
         {{% surface_button '{app}' '{s.get('key')}' elem %}}''' for s in declared_surfaces(manifest)
                           if s.get('key'))
 
+    # Libellé de l'ENTRÉE : le nom du fichier de travail, sinon la consigne quand la spec de détail
+    # en déclare une (`source_text` — Writer, comme imager et composer), sinon le numéro.
+    source_text = str((((manifest.get('body') or {}).get('inspector') or {}).get('detail_spec')
+                       or {}).get('source_text') or '')
+    entry_label = ('{{ elem.input_filename|default:elem.%s|truncatechars:80|default:elem.id }}'
+                   % source_text if source_text.isidentifier()
+                   else '{{ elem.input_filename|default:elem.id }}')
+
     card = f'''{{% load wama_actions %}}{{% comment %}}{mark} — _generic_card.html GÉNÉRÉ.
 CARD v3 « sections × chips » (CARD_DESIGN §11) émise DEPUIS LE MANIFESTE — recadrage Fabien
 2026-08-30 : l'ancienne card squelette était l'INSTRUMENT de mesure d'écart (marche S2) ;
@@ -705,12 +713,12 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
         <div class="wcv3-in">
           <span class="wcv3-thumb"><i class="fas fa-file{{% if elem.media_type == 'video' %}}-video{{% elif elem.media_type == 'audio' %}}-audio{{% elif elem.media_type == 'image' %}}-image{{% endif %}} text-info"></i></span>
           <div class="wcv3-in-lines">
-            {{% if elem.input_file %}}
-            <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu du fichier source"
-                  data-preview-url="{{% url 'common:unified_preview' '{app}' elem.id %}}?side=input">{{{{ elem.input_filename|default:elem.id }}}}</span>
-            {{% else %}}
-            <span class="wcv3-in-name">{{{{ elem.input_filename|default:elem.id }}}}</span>
-            {{% endif %}}
+            {{% comment %}}Geste COMMUN d'aperçu de l'entrée, TOUJOURS posé (règle des cards réelles du
+            2026-10-12) : la face Entrée de l'aperçu unifié décide de ce qu'elle montre — le fichier de
+            travail, sinon la consigne (`source_text` de la spec). Il dépendait de `elem.input_file`,
+            un nom de champ supposé : aucune card générée n'ouvrait son entrée.{{% endcomment %}}
+            <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu de l'entrée"
+                  data-preview-url="{{% url 'common:unified_preview' '{app}' elem.id %}}?side=input">{entry_label}</span>
             <span class="wcv3-in-props">{{{{ elem.media_type|default:'—' }}}}{{% for p in elem.input_props %}} · {{{{ p }}}}{{% endfor %}}</span>
           </div>
         </div>

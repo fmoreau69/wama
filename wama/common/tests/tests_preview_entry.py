@@ -161,6 +161,20 @@ class EntryFaceTest(TestCase):
         self.assertEqual('output', data['side'], 'and the output that exists is served')
         self.assertTrue(_path(data['url']).endswith('street_blurred.jpg'))
 
+    def test_behind_an_https_front_the_media_address_is_https(self):
+        """Measured on the live 2026-10-13 : the front (Apache) ends TLS and the header was read
+        only under `WAMA_HTTPS`, so a page served in https received `http://…/media/…` — and
+        Chrome blocks a mixed-content FRAME : no HTML preview showed anywhere."""
+        from wama.anonymizer.models import Media
+        media = Media.objects.create(
+            user=self.user, file='', file_ext='.jpg', media_type='image', status='SUCCESS',
+            output_file=self._file('anonymizer', 'output', 'street_blurred.jpg'))
+        url = f'/common/preview/anonymizer/{media.pk}/?side=output'
+        self.assertTrue(self.client.get(url, HTTP_X_FORWARDED_PROTO='https').json()['url']
+                        .startswith('https://'))
+        self.assertTrue(self.client.get(url).json()['url'].startswith('http://'),
+                        'a direct call, without the front, stays in http')
+
     def test_the_media_metadata_of_the_registry_joins_the_entry_of_the_same_file(self):
         from wama.anonymizer.models import Media
         media = Media.objects.create(

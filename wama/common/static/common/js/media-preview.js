@@ -226,9 +226,13 @@
         } else if (mime === 'application/pdf') {
             media = '<embed src="' + u + '" type="application/pdf" style="width:100%;height:220px;border-radius:6px;">';
         } else if (mime === 'text/html') {
-            // HTML : iframe SANDBOXÉE (pas de script, pas de navigation) — aperçu sûr.
+            // HTML : iframe SANDBOXÉE (pas de script, pas de navigation) — aperçu sûr. Dans une
+            // CARD, le cadre ne prend pas les gestes (2026-10-13) : un double-clic tombait dans le
+            // document encadré, qui ne le rend jamais à la page — l'aperçu ne s'agrandissait pas.
+            const inert = host.classList && host.classList.contains('wama-card-preview')
+                ? 'pointer-events:none;' : '';
             media = '<iframe src="' + u + '" sandbox class="wama-inspector-preview-media" ' +
-                'style="width:100%;height:220px;border:0;background:#fff;border-radius:6px;"></iframe>';
+                'style="width:100%;height:220px;border:0;background:#fff;border-radius:6px;' + inert + '"></iframe>';
         } else if (mime.indexOf('text/') === 0) {
             const density = _previewDensity(host);
             if (density.mode === 'excerpt') {
@@ -1255,6 +1259,24 @@
             fallbackLink.innerHTML = `<a href="${escapeHtml(data.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light"><i class="fas fa-external-link-alt me-1"></i>Ouvrir dans un nouvel onglet</a>`;
             wrapper.appendChild(fallbackLink);
 
+            return wrapper;
+        } else if (mimeType.startsWith('text/html')) {
+            // HTML (2026-10-13) : le document RENDU, dans un cadre sans aucune permission — la
+            // règle de l'aperçu inline, de l'inspecteur et de la brique `html_preview` des
+            // surfaces. La visionneuse n'avait pas ce cas : un double-clic sur l'aperçu d'un
+            // document du Writer ouvrait « Preview not available ».
+            const wrapper = document.createElement('div');
+            wrapper.className = 'w-100';
+            const frame = document.createElement('iframe');
+            frame.src = data.url;
+            frame.setAttribute('sandbox', '');
+            frame.className = 'w-100';
+            frame.style.cssText = 'height:70vh;border:0;background:#fff;border-radius:4px;';
+            wrapper.appendChild(frame);
+            const openLink = document.createElement('div');
+            openLink.className = 'text-center mt-2';
+            openLink.innerHTML = `<a href="${escapeHtml(data.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light"><i class="fas fa-external-link-alt me-1"></i>Ouvrir dans un nouvel onglet</a>`;
+            wrapper.appendChild(openLink);
             return wrapper;
         } else if (mimeType === 'text/plain' || (mimeType.startsWith('text/') && !mimeType.startsWith('text/html'))) {
             // Text file: fetch content and display in scrollable pre

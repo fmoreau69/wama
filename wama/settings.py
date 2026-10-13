@@ -713,11 +713,18 @@ if WAMA_PUBLIC_URL:
 # casse silencieusement la connexion — un cookie `Secure` n'est jamais renvoyé sur une
 # page http, donc la session n'existe plus et le login boucle sans message d'erreur.
 WAMA_HTTPS = os.environ.get('WAMA_HTTPS', '') == '1'
+# Le SCHÉMA de la requête, lui, se lit TOUJOURS chez le frontal — sorti de la bascule le
+# 2026-10-13. Apache termine le TLS et parle http à Django : sans cet en-tête, Django se croit
+# en clair, `request.is_secure()` reste faux, la garde `next` du login (accounts/views.py)
+# raisonne sur le mauvais schéma, et `build_absolute_uri` rend des adresses `http://` à une
+# page servie en https. Mesuré : l'aperçu de toute sortie HTML partait en `http://localhost/
+# media/…`, et Chrome BLOQUE un cadre en contenu mixte (il ne relève que les images et les
+# médias) — aucun aperçu HTML ne s'affichait, dans les cards comme au volet. Lire l'en-tête ne
+# pose ni cookie `Secure` ni redirection : rien de ce qui casse une instance servie en http.
+# Les deux vhosts Apache ÉCRASENT l'en-tête (`INFRA_WSL_VS_WINDOWS` §HTTPS) ; un appel direct à
+# gunicorn n'en porte pas et reste en http.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 if WAMA_HTTPS:
-    # Apache/nginx termine le TLS et parle http à Django : sans cet en-tête, Django se
-    # croit en clair, `request.is_secure()` reste faux, et la garde `next` du login
-    # (accounts/views.py) raisonnerait sur le mauvais schéma.
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True

@@ -813,3 +813,35 @@ class ParamsGenereTest(SimpleTestCase):
         from wama.common.manifests.builtin import app as builtin_app
         src = inspect.getsource(builtin_app._write_params_file)
         self.assertIn('render_params_source', src)
+
+
+class GeneratedCardOpensItsEntryTest(SimpleTestCase):
+    """The generated card opens its ENTRY by the common gesture, always — the Entry face of the
+    unified preview decides what it shows (the work file, else the prompt). Until 2026-10-13 the
+    link hung on `elem.input_file`, a supposed field name : no generated card opened its entry
+    (the Writer's prompt never showed)."""
+
+    @staticmethod
+    def _card(source_text=None):
+        import copy
+        manifest = copy.deepcopy(_manifeste(SOURCE))      # l'extraction est mise en cache
+        if source_text:
+            spec = manifest['body'].setdefault('inspector', {}).setdefault('detail_spec', {})
+            spec['source_text'] = source_text
+        src, reason = render_index(manifest)
+        return (src or {}).get('_generic_card.html') or '', reason
+
+    def test_the_entry_link_does_not_hang_on_a_supposed_field(self):
+        card, reason = self._card()
+        if not card:
+            self.skipTest(f'card non générée : {reason}')
+        self.assertNotIn('elem.input_file %', card)
+        self.assertIn('preview-media-link', card)
+
+    def test_an_app_with_a_prompt_entry_labels_it_with_the_prompt(self):
+        card, reason = self._card(source_text='prompt')
+        if not card:
+            self.skipTest(f'card non générée : {reason}')
+        self.assertIn('elem.input_filename|default:elem.prompt|truncatechars:80', card)
+        plain, _ = self._card()
+        self.assertNotIn('elem.prompt|truncatechars', plain, 'no prompt label without a declared prompt')
