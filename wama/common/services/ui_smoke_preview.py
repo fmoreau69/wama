@@ -58,8 +58,8 @@ JS_SHOWN = """() => {
     const modal = document.querySelector('#wamaMediaPreviewModal.show');
     if (!modal) return null;
     const box = modal.querySelector('.preview-container');
-    const parts = box ? Array.from(box.children).filter(e =>
-        !e.matches('.wama-preview-nav-btn, .wama-modal-sides, .wama-modal-variants')) : [];
+    // (Les bascules ne sont plus DANS le conteneur depuis le 2026-10-13 : emplacement dédié sous lui.)
+    const parts = box ? Array.from(box.children).filter(e => !e.matches('.wama-preview-nav-btn')) : [];
     const media = box && box.querySelector('video, audio, img, embed, pre, canvas, [data-wama-3d], .wama-audio-player');
     const pre = box && box.querySelector('pre');
     // Le nom d'un contenu : sa balise, sinon (un <div> de lecteur, un conteneur) sa classe.
@@ -71,6 +71,66 @@ JS_SHOWN = """() => {
             sides: Array.from(modal.querySelectorAll('.wama-modal-sides button'))
                         .map(b => b.textContent.trim())};
 }"""
+
+
+#: La PLACE de la bascule des faces (Entrée | … | Sortie) et des vues dans la visionneuse : sa boîte
+#: ne croise pas celle de l'aperçu, elle est SOUS lui, et visible sans défiler. Demande de Fabien
+#: (2026-10-13) : posée sur l'aperçu, elle recouvrait la barre d'outils du lecteur PDF, le haut d'un
+#: texte, l'image ou la vidéo à tout l'écran. `null` : pas de visionneuse ou pas de bascule.
+JS_SIDES_LAYOUT = """() => {
+    const m = document.querySelector('#wamaMediaPreviewModal.show');
+    if (!m) return null;
+    const box = m.querySelector('.preview-container');
+    const content = box && Array.from(box.children).find(e => !e.matches('.wama-preview-nav-btn'));
+    const bars = Array.from(m.querySelectorAll('.wama-modal-sides, .wama-modal-variants'));
+    if (!content || !bars.length) return null;
+    const r = e => e.getBoundingClientRect();
+    const c = r(content);
+    const media = box.querySelector('img, video, embed, pre');
+    return {
+        bars: bars.map(b => { const s = r(b); return {
+            cross: !(s.bottom <= c.top || s.top >= c.bottom || s.right <= c.left || s.left >= c.right),
+            below: s.top >= c.bottom - 0.5,
+            visible: s.top >= 0 && s.bottom <= window.innerHeight}; }),
+        fills: media ? r(media).height >= c.height - 2 : true,
+    };
+}"""
+
+#: Basculer la visionneuse à tout l'écran (`on`) ou la rendre à sa taille.
+JS_FULL = """(on) => {
+    const t = document.querySelector('#wamaMediaPreviewModal .wama-preview-full-toggle');
+    const d = document.querySelector('#wamaMediaPreviewModal .modal-dialog');
+    if (t && d && d.classList.contains('modal-fullscreen') !== on) t.click();
+}"""
+
+
+def sides_layout_fault(layout, where: str, must_fill: bool = False) -> str:
+    """'' si la bascule a SA place (sous l'aperçu, sans le croiser, visible), sinon ce qui cloche.
+    `must_fill` : à tout l'écran, une image ou une vidéo prend la hauteur disponible."""
+    if not layout:
+        return ''
+    for bar in layout['bars']:
+        if bar['cross']:
+            return f"{where} : la bascule des faces RECOUVRE l'aperçu"
+        if not bar['below']:
+            return f"{where} : la bascule des faces n'est pas SOUS l'aperçu"
+        if not bar['visible']:
+            return f"{where} : la bascule des faces sort de l'écran"
+    if must_fill and not layout['fills']:
+        return f"{where} : le média ne prend pas la hauteur disponible"
+    return ''
+
+
+def _check_sides_layout(page, where: str, faults: list):
+    """La place de la bascule, la visionneuse à sa taille PUIS à tout l'écran (rendue ensuite)."""
+    for full in (False, True):
+        page.evaluate(JS_FULL, full)
+        page.wait_for_timeout(500)
+        fault = sides_layout_fault(page.evaluate(JS_SIDES_LAYOUT),
+                                   f"{where} ({'tout l’écran' if full else 'modale'})")
+        if fault:
+            faults.append(fault)
+    page.evaluate(JS_FULL, False)
 
 
 def _store_a_witness_result(app: str, item_id) -> tuple:
@@ -234,6 +294,8 @@ def check_app_preview(app: str, url_path: str):
                     else:
                         entry_opened = not shown.get('own')
                         findings.append(f"entrée → {_seen(shown)}")
+                        if entry_opened:
+                            _check_sides_layout(page, 'entrée', faults)
                         # La bascule de la VISIONNEUSE vers la face Sortie (ses propres faces).
                         if 'Sortie' in (shown or {}).get('sides', []):
                             page.evaluate(JS_PROBE)
@@ -286,6 +348,7 @@ def check_app_preview(app: str, url_path: str):
                                             "Entrée | Sortie de la visionneuse commune)")
                         else:
                             findings.append(f"sortie → {_seen(shown)}")
+                            _check_sides_layout(page, 'sortie', faults)
                         _close(page)
                 if js_errors:
                     faults.append(f"JS en erreur : {' | '.join(js_errors)}")
@@ -307,9 +370,135 @@ def check_app_preview(app: str, url_path: str):
     return True, detail
 
 
+#: Les natures de fichier que la visionneuse rend différemment — chacune pose sa bascule sous elle.
+LAYOUT_CASES = (('image', 'w.png', 'image/png'), ('vidéo', 'w.mp4', 'video/mp4'),
+                ('audio', 'w.wav', 'audio/wav'), ('pdf', 'w.pdf', 'application/pdf'),
+                ('texte', None, 'text/plain'))
+LAYOUT_VIEWPORTS = ((1600, 1000), (1280, 700))
+_LAYOUT_SIDES = {'has_input': True, 'has_output': True, 'comparable': True,
+                 'faces': [{'key': 'detect', 'label': 'Détection', 'icon': 'fa-eye'}]}
+#: Une adresse d'élément que le test SERT lui-même (Comparer y demande ses deux faces).
+_LAYOUT_ITEM = '/common/preview/none/0/'
+
+
+def _layout_witnesses(folder: str):
+    """Les fichiers témoins de la matrice — de vraies tailles (une image 1×1 ne dit rien d'une
+    mise en page) ; la géométrie d'un `<video>` ne dépend pas de son contenu."""
+    from fpdf import FPDF
+    from PIL import Image
+    os.makedirs(folder, exist_ok=True)
+    Image.new('RGB', (640, 360), (40, 90, 160)).save(os.path.join(folder, 'w.png'))
+    with open(os.path.join(folder, 'w.wav'), 'wb') as out:
+        out.write(_wav_silence(2.0))
+    with open(os.path.join(folder, 'w.mp4'), 'wb') as out:
+        out.write(b'')
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font('Helvetica', size=14)
+    pdf.cell(0, 10, 'Temoin de mise en page')
+    pdf.output(os.path.join(folder, 'w.pdf'))
+
+
+def check_preview_layout():
+    """La bascule des faces de la visionneuse a SA place pour chaque nature de fichier (image,
+    vidéo, audio, PDF, texte, et Comparer), visionneuse à sa taille et à tout l'écran, sur deux
+    tailles d'écran. Pilote la visionneuse COMMUNE directement (`showPreviewModal`) : aucun
+    élément monté, aucune tâche. (ok, détail)."""
+    import json
+    import shutil
+
+    from django.conf import settings
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+
+    apps = list(discoverable_apps())
+    token = _test_session_key(apps[0][0]) if apps else None
+    if not token:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
+    folder = os.path.join(str(settings.MEDIA_ROOT), 'smoke_preview_layout')
+    base = settings.MEDIA_URL + 'smoke_preview_layout/'
+    _in_plain_thread(_layout_witnesses, folder)
+    opened = """([data, sides, item]) => window.showPreviewModal(Object.assign({}, data,
+        {name: 'témoin', side: 'output', sides: sides, _baseUrl: item}))"""
+    faults, measured = [], 0
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                for width, height in LAYOUT_VIEWPORTS:
+                    context = browser.new_context(viewport={'width': width, 'height': height})
+                    context.add_cookies(_cookie(token))
+                    page = context.new_page()
+                    js_errors = []
+                    page.on('pageerror', lambda e: js_errors.append(str(e)[:160]))
+                    page.route(f'**{_LAYOUT_ITEM}**', lambda route: route.fulfill(
+                        content_type='application/json', body=json.dumps(
+                            {'url': base + 'w.png', 'mime_type': 'image/png', 'name': 'témoin',
+                             'side': 'input' if 'side=input' in route.request.url else 'output',
+                             'sides': _LAYOUT_SIDES})))
+                    page.goto(f"{BASE_URL.rstrip('/')}{apps[0][1]}", wait_until='networkidle',
+                              timeout=PAGE_TIMEOUT_MS)
+                    screen = f'{width}×{height}'
+                    for name, file_name, mime in LAYOUT_CASES:
+                        data = ({'url': base + file_name, 'mime_type': mime} if file_name
+                                else {'content': 'Ligne de texte\n' * 80, 'mime_type': mime})
+                        page.evaluate(opened, [data, _LAYOUT_SIDES, _LAYOUT_ITEM])
+                        page.wait_for_selector('#wamaMediaPreviewModal.show', timeout=8000)
+                        for full in (False, True):
+                            page.evaluate(JS_FULL, full)
+                            page.wait_for_timeout(600)
+                            fault = sides_layout_fault(
+                                page.evaluate(JS_SIDES_LAYOUT),
+                                f"{name}, {'tout l’écran' if full else 'modale'}, {screen}",
+                                must_fill=full and name in ('image', 'vidéo'))
+                            measured += 1
+                            if fault:
+                                faults.append(fault)
+                        page.evaluate(JS_FULL, False)
+                    # COMPARER : ses deux faces sont servies par la route ci-dessus.
+                    for full in (False, True):
+                        page.evaluate(JS_FULL, full)
+                        page.locator('#wamaMediaPreviewModal .wama-modal-sides button',
+                                     has_text='Comparer').first.click(timeout=4000)
+                        page.wait_for_selector('#wamaMediaPreviewModal .wama-modal-compare',
+                                               timeout=8000)
+                        page.wait_for_timeout(600)
+                        fault = sides_layout_fault(
+                            page.evaluate(JS_SIDES_LAYOUT),
+                            f"comparer, {'tout l’écran' if full else 'modale'}, {screen}")
+                        measured += 1
+                        if fault:
+                            faults.append(fault)
+                    page.evaluate(JS_FULL, False)
+                    _close(page)
+                    if js_errors:
+                        faults.append(f"{screen} : JS en erreur : {' | '.join(js_errors)}")
+                    context.close()
+            finally:
+                browser.close()
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+    if faults:
+        return False, ' ; '.join(faults)
+    return True, (f"{measured} mises en page mesurées ({len(LAYOUT_CASES)} natures + Comparer, "
+                  f"modale et tout l'écran, {len(LAYOUT_VIEWPORTS)} tailles d'écran) : la bascule "
+                  "est sous l'aperçu, sans le recouvrir")
+
+
 def register_preview_scenarios():
-    """Enregistre un scénario `<app>.preview` par app disposant d'un index — aucun GPU."""
+    """Enregistre un scénario `<app>.preview` par app disposant d'un index, et la matrice de mise
+    en page de la visionneuse (`common.preview_layout`) — aucun GPU."""
     from wama.common.services.nightly_tests import register
+
+    register(
+        id="common.preview_layout", app="common", stage="ui",
+        description=("Visionneuse : la bascule des faces (Entrée | … | Sortie) est SOUS l'aperçu, "
+                     "sans le recouvrir, pour chaque nature de fichier (image, vidéo, audio, PDF, "
+                     "texte, Comparer), à sa taille et à tout l'écran, sur deux tailles d'écran"),
+        run=lambda ctx: check_preview_layout(),
+        timeout_s=240, vram_gb=0.0,
+    )
 
     for label, path in discoverable_apps():
         register(

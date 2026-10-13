@@ -38,15 +38,41 @@
 /* PLEIN ÉCRAN = la modale à tout l'écran (2026-10-05, demande de Fabien) : ses faces (Entrée,
    Détection, Pendant, Comparer, Sortie), la comparaison et le direct y restent — la surcouche
    image seule (#wamaFullscreenOverlay) ne sert plus qu'aux galeries sans élément. */
+/* À tout l'écran, l'aperçu prend la place qui RESTE : en-tête, emplacement des bascules (faces,
+   vues) et pied gardent la leur. Jusqu'au 2026-10-13 des hauteurs figées (`100vh - 110/130/230px`)
+   supposaient la barre des faces POSÉE SUR l'aperçu ; elle a son emplacement dédié sous lui
+   (`media-preview.js`, `_sidesSlot`), qu'une hauteur figée aurait poussé hors de l'écran. */
+/* La règle COMMUNE des modales (`app_modern.css` : `.modal-dialog { margin-top: 70px !important }`,
+   sous la barre de navigation) décalait aussi la modale À TOUT L'ÉCRAN : haute de 100 % mais posée à
+   70 px, son bas sortait de l'écran — mesuré le 2026-10-13, la bande des bascules à 1 005 px pour
+   un écran de 1 000. À tout l'écran, la modale couvre la barre : elle part du haut. */
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen {
+    margin-top: 0 !important;
+}
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .modal-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
 #wamaMediaPreviewModal .modal-dialog.modal-fullscreen .preview-container {
-    min-height: calc(100vh - 110px) !important;   /* le conteneur porte `min-height:300px` en ligne */
+    flex: 1 1 auto;
+    min-height: 0 !important;   /* le conteneur porte `min-height:300px` en ligne */
 }
 /* Le média PREND la hauteur (une image ne grandit pas seule au-delà de sa taille naturelle) ;
    `contain` garde les proportions — c'est aussi ce que suppose la surcouche des détections. */
+/* L'image est ENVELOPPÉE (`.preview-image-wrapper`, qui porte son bouton d'agrandissement) : une
+   hauteur en % ne passe que si l'enveloppe en a une — sans elle l'image restait à sa taille
+   naturelle à tout l'écran (mesuré : 360 px sur 885 disponibles). */
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .preview-image-wrapper {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 #wamaMediaPreviewModal .modal-dialog.modal-fullscreen .preview-container img:not(.wama-compare img),
 #wamaMediaPreviewModal .modal-dialog.modal-fullscreen .preview-container video:not(.wama-compare video) {
-    height: calc(100vh - 130px) !important;
-    max-height: calc(100vh - 130px) !important;
+    height: 100% !important;
+    max-height: 100% !important;
     width: auto;
     max-width: 100%;
     object-fit: contain;
@@ -58,7 +84,6 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding-top: 68px;          /* sous la barre des faces (ses boutons passent sur deux lignes) */
 }
 #wamaMediaPreviewModal .wama-modal-compare .wama-compare-base {
     max-height: 70vh;
@@ -67,11 +92,19 @@
     width: 100%;
     max-width: 900px;
 }
-/* En plein écran : la référence prend la hauteur, la place de la barre des faces et du curseur
-   réservée ; `contain` garde ses proportions (le calque, en `contain` dans la même boîte, aussi). */
+/* En plein écran : la référence prend la hauteur restante, celle du curseur réservée ; `contain`
+   garde ses proportions (le calque, en `contain` dans la même boîte, aussi). */
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .wama-modal-compare {
+    height: 100%;
+}
+/* La référence est dans l'enveloppe du composant (`.wama-compare`) : c'est elle qui reçoit la
+   hauteur, la référence la remplit. */
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .wama-modal-compare .wama-compare {
+    height: calc(100% - 3rem);
+}
 #wamaMediaPreviewModal .modal-dialog.modal-fullscreen .wama-modal-compare .wama-compare-base {
-    height: calc(100vh - 230px);
-    max-height: calc(100vh - 230px);
+    height: 100%;
+    max-height: 100%;
     width: auto;
     max-width: 100%;
 }

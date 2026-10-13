@@ -33,6 +33,12 @@
     const _SVG_CLOSE = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
     const _SVG_EXPAND = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 
+    // L'emplacement DÉDIÉ des bascules (faces, vues) de la modale — sous l'aperçu, hors de la zone
+    // qui défile, jamais superposé au contenu (`_sidesSlot`). Masqué tant qu'il est vide.
+    const SLOT_CLASS = 'wama-modal-sides-slot border-top border-secondary';
+    const SLOT_STYLE = 'display:none;flex-direction:column;align-items:center;gap:.35rem;'
+        + 'padding:.5rem .75rem;flex-shrink:0;';
+
     // Current preview data for fullscreen
     let currentPreviewData = null;
 
@@ -379,19 +385,47 @@
         });
     }
 
-    /** Toggle Entrée/Comparer/Sortie DANS le plein écran — commun, réutilise `?side=X`. Ne s'affiche
-     *  que si l'appelant a passé `_baseUrl` + `sides` (has_input && has_output, ou une face PENDANT). */
+    /** L'emplacement DÉDIÉ des bascules de la modale, SOUS l'aperçu et hors de la zone qui défile
+     *  (2026-10-13, demande de Fabien) : la barre des faces était posée en `position:absolute`
+     *  DANS l'aperçu — elle recouvrait la barre d'outils du lecteur PDF, le haut d'un texte, et
+     *  l'image ou la vidéo à tout l'écran. Visible seulement quand il porte une bascule. Une modale
+     *  créée avant cette version (page restée ouverte) reçoit son emplacement à la volée. */
+    function _sidesSlot(modal) {
+        let slot = modal.querySelector('.wama-modal-sides-slot');
+        if (!slot) {
+            slot = document.createElement('div');
+            slot.className = SLOT_CLASS;
+            slot.style.cssText = SLOT_STYLE;
+            const footer = modal.querySelector('.modal-footer');
+            if (footer) footer.parentNode.insertBefore(slot, footer);
+            else modal.querySelector('.modal-content').appendChild(slot);
+        }
+        return slot;
+    }
+
+    function _syncSidesSlot(modal) {
+        const slot = _sidesSlot(modal);
+        slot.style.display = slot.children.length ? 'flex' : 'none';
+    }
+
+    /** Toggle Entrée/Comparer/Sortie de la modale (et de son plein écran) — commun, réutilise
+     *  `?side=X`. Ne s'affiche que si l'appelant a passé `_baseUrl` + `sides` (has_input &&
+     *  has_output, ou une face PENDANT). Posée dans l'emplacement dédié (`_sidesSlot`). */
     function _renderModalSides(modal, data) {
-        const container = modal.querySelector('.preview-container');
-        let bar = modal.querySelector('.wama-modal-sides');
+        const slot = _sidesSlot(modal);
+        let bar = slot.querySelector('.wama-modal-sides');
         const s = data.sides, base = data._baseUrl;
         const during = data.side === 'during';
-        if (!base || !s || (!during && !(s.has_input && s.has_output))) { if (bar) bar.remove(); return; }
+        if (!base || !s || (!during && !(s.has_input && s.has_output))) {
+            if (bar) bar.remove();
+            _renderModalVariants(modal, data);
+            return;
+        }
         if (!bar) {
             bar = document.createElement('div');
             bar.className = 'wama-modal-sides btn-group btn-group-sm';
-            bar.style.cssText = 'position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:6;';
-            if (container) { container.style.position = container.style.position || 'relative'; container.appendChild(bar); }
+            bar.style.cssText = 'flex-wrap:wrap;justify-content:center;max-width:100%;';  // beaucoup de faces : à la ligne
+            slot.insertBefore(bar, slot.firstChild);
         }
         bar.innerHTML = '';
         const add = function (label, icon, active, fn) {
@@ -422,21 +456,25 @@
      *  COMMUNE du volet (`WamaInspector.variantToggle`), posée À PART sous celle des faces : une
      *  vue de la face Pendant n'est pas une face (la face « Détection » porte le même nom). */
     function _renderModalVariants(modal, data) {
-        let holder = modal.querySelector('.wama-modal-variants');
+        const slot = _sidesSlot(modal);
+        let holder = slot.querySelector('.wama-modal-variants');
         const variants = data.side === 'during' ? (data.variants || []) : [];
         const I = window.WamaInspector;
-        if (variants.length < 2 || !I || !I.variantToggle) { if (holder) holder.remove(); return; }
+        if (variants.length < 2 || !I || !I.variantToggle) {
+            if (holder) holder.remove();
+            _syncSidesSlot(modal);
+            return;
+        }
         if (!holder) {
             holder = document.createElement('div');
             holder.className = 'wama-modal-variants';
-            holder.style.cssText = 'position:absolute;top:52px;left:50%;transform:translateX(-50%);z-index:6;';
-            const container = modal.querySelector('.preview-container');
-            if (container) container.appendChild(holder);
+            slot.appendChild(holder);          // SOUS la barre des faces, dans le même emplacement
         }
         holder.innerHTML = '';
         holder.appendChild(I.variantToggle(variants, data.variant, function (key) {
             if (_modalDuring) _modalDuring.choose(key);
         }));
+        _syncSidesSlot(modal);
     }
 
     /** Comparer dans la modale et son plein écran : la SORTIE superposée à la référence, un
@@ -457,7 +495,7 @@
             const din = a[0], dout = a[1];
             if (!din || !dout || !din.url || !dout.url || !container) return;
             _stopModalDuring();
-            Array.prototype.forEach.call(container.querySelectorAll(':scope > :not(.wama-modal-sides):not(.wama-preview-nav-btn)'),
+            Array.prototype.forEach.call(container.querySelectorAll(':scope > :not(.wama-preview-nav-btn)'),
                 function (el) { el.remove(); });
             const view = I.compareView(din, dout, baseLabel);
             view.classList.add('wama-modal-compare');
@@ -819,6 +857,9 @@
                         <button class="wama-preview-nav-btn wama-preview-nav-next" style="display:none;" title="Suivant (→)">${_SVG_NEXT}</button>
                         <div class="preview-container d-flex justify-content-center align-items-center" style="min-height:300px;background:#111;"></div>
                     </div>
+                    <!-- Emplacement DÉDIÉ des bascules (faces, vues) — SOUS l'aperçu, hors de la zone
+                         qui défile : jamais superposé au contenu (2026-10-13, cf. _sidesSlot). -->
+                    <div class="${SLOT_CLASS}" style="${SLOT_STYLE}"></div>
                     <div class="modal-footer border-secondary py-2">
                         <small class="preview-meta text-muted w-100 text-center"></small>
                     </div>

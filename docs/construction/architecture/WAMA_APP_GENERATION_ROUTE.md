@@ -501,6 +501,26 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     `generate_summary` / `verify_coherence`, leurs échecs avalés (`describer/workers.py`, version
     d'avant) — des process optionnels comme ceux du transcriber, non déclarés. Ils le sont
     depuis : le describer porte son pipeline (`§10.6`, bloc « Le DESCRIBER en pipeline »).
+  - ✅ **La PLACE de la bascule des faces — 2026-10-13** (Fabien : *« elles se superposent à la
+    preview dans la modale selon le type de fichier et peuvent masquer des réglages […] un
+    emplacement dédié qui ne se superpose pas à la preview et qui soit systématiquement
+    en-dessous »*). Mesuré avant le correctif : 10 cas sur 10 en défaut — la barre des faces était
+    posée en `position:absolute` DANS l'aperçu de la visionneuse (`media-preview.js`) ; elle
+    recouvrait la barre d'outils du lecteur PDF et le haut d'un texte, l'image et la vidéo à tout
+    l'écran. Désormais un **emplacement dédié** (`_sidesSlot`) entre la zone d'aperçu (qui défile)
+    et le pied : faces puis vues de la face Pendant, jamais sur le contenu, toujours visibles. À
+    tout l'écran, l'aperçu prend la hauteur RESTANTE (mise en page souple au lieu des hauteurs
+    figées `100vh - 110/130/230px`, qui supposaient la barre posée sur lui) ; la marge commune
+    des modales (`app_modern.css`, `margin-top: 70px !important`) ne décale plus la modale à tout
+    l'écran — son bas sortait de 70 px. Le **volet** posait déjà sa bascule sous l'aperçu
+    (`wama-inspector.js`, `_renderSideToggle`) ; le plein écran d'un élément EST la modale
+    agrandie (la surcouche image `#wamaFullscreenOverlay` ne sert qu'aux galeries, sans faces).
+    Gardes : scénario nocturne `common.preview_layout` (image, vidéo, audio, PDF, texte, Comparer
+    × modale et tout l'écran × deux tailles d'écran : 24 mises en page, contre-épreuve sur HEAD
+    ROUGE) ; chaque `<app>.preview` mesure la même règle sur la card réelle ;
+    `tests_preview_entry.SidesSwitchHasItsOwnPlaceTest`. ⏳ Le volet recopie la construction de
+    la bascule (`_renderSideToggle`, sans la face Pendant) : une brique commune aux deux
+    surfaces reste à extraire.
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
   `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
 - **Manifeste** : inspector adapter (mapping champs→clés canoniques), preview binding sur port,
