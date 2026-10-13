@@ -450,18 +450,31 @@ class ListenBrickTest(SimpleTestCase):
         ctx.eval("voice.speaking = false; chat.busy = true;")
         self.assertEqual('deaf', ctx.eval("c.frameMode()"), 'pendant la réflexion aussi')
 
-    def test_speaking_over_the_assistant_stops_its_voice_and_its_turn(self):
+    def test_speaking_over_the_assistant_stops_it_once_the_phrase_is_understood(self):
+        """2026-10-13 : on ne coupe plus au premier son — l'annulation d'écho du navigateur peut
+        ne pas couvrir ce que joue la page, et un écho coupait l'assistant."""
         ctx = self._ctx()
         self._controller(ctx, echo_cancelled=True)
         ctx.eval("c.onSegment('start', null, 'interrupt');")
-        self.assertEqual(['voice.stop', 'chat.abort'], json.loads(ctx.eval("JSON.stringify(calls)")))
+        self.assertEqual([], json.loads(ctx.eval("JSON.stringify(calls)")), 'pas au premier son')
         self.assertEqual('hearing', ctx.eval("c.phase"))
+        self.assertEqual(['Arrête-toi'], self._heard(ctx, 'Arrête-toi'))
+        self.assertEqual(['voice.stop', 'chat.abort'], json.loads(ctx.eval("JSON.stringify(calls)")))
 
-    def test_a_voice_heard_while_the_assistant_is_silent_interrupts_nothing(self):
-        """Contre-épreuve : une phrase ordinaire ne coupe rien."""
+    def test_its_own_echo_heard_over_it_does_not_stop_it(self):
+        """Contre-épreuve : sa propre voix, revenue au micro, ne lui coupe pas la parole."""
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=True)
+        ctx.eval("voice.echo = true; c.onSegment('start', null, 'interrupt');")
+        self.assertEqual([], self._heard(ctx, "vous avez besoin d'autre chose."))
+        self.assertEqual([], json.loads(ctx.eval("JSON.stringify(calls)")))
+
+    def test_an_ordinary_phrase_stops_nothing(self):
+        """Contre-épreuve : une phrase dite pendant qu'il se tait part sans rien interrompre."""
         ctx = self._ctx()
         self._controller(ctx, echo_cancelled=True)
         ctx.eval("c.onSegment('start', null, 'normal');")
+        self.assertEqual(['Liste mes fichiers'], self._heard(ctx, 'Liste mes fichiers'))
         self.assertEqual([], json.loads(ctx.eval("JSON.stringify(calls)")))
 
     def test_a_transcribed_phrase_is_sent_as_the_next_turn(self):

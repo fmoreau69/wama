@@ -24,8 +24,11 @@
  *                              répond à voix haute, l'écoute continue. Reste actif d'une page
  *                              à l'autre pendant la session (sessionStorage).
  *   4. REPRENDRE LA PAROLE : pendant que l'assistant réfléchit ou parle, une voix nette et
- *      soutenue (seuils plus hauts) coupe sa voix et interrompt son tour (`chat.abort()`), et
- *      ce qu'on dit devient la réplique suivante. ⚠ Seulement si le navigateur confirme
+ *      soutenue (seuils plus hauts) est écoutée ; une fois TRANSCRITE et reconnue comme n'étant
+ *      pas sa propre voix (`isOwnSpeech`), elle coupe sa voix, interrompt son tour
+ *      (`chat.abort()`) et devient la réplique suivante. Il parle donc encore le temps de la
+ *      transcription (2026-10-13, décision de Fabien : l'annulation d'écho du navigateur peut
+ *      ne pas couvrir ce que joue la page, un écho le coupait). ⚠ Seulement si le navigateur confirme
  *      l'annulation d'écho (`getSettings().echoCancellation`) : sans elle, l'assistant
  *      s'entendrait lui-même et s'interromprait. L'écoute est alors SOURDE pendant qu'il parle
  *      (chacun son tour), et le bouton le dit.
@@ -463,11 +466,10 @@
       // Quand le SON a commencé (le découpage l'a mesuré avant de déclarer la phrase) : c'est
       // ce qui dit, à la fin, si la voix de l'assistant s'entendait encore (`isOwnSpeech`).
       this.heardAt = Date.now() - (this.segmenter ? this.segmenter.speechMs : 0);
-      // Reprendre la parole : la voix se tait, le tour en cours s'interrompt.
-      if (how === 'interrupt') {
-        if (global.WamaAssistantVoice) global.WamaAssistantVoice.stop();
-        if (this.chat.abort) this.chat.abort();
-      }
+      // Une voix qui couvre l'assistant : on ne le coupe qu'une fois la phrase transcrite et
+      // reconnue comme n'étant pas la sienne (2026-10-13, décision de Fabien) — l'annulation
+      // d'écho du navigateur peut ne pas couvrir ce que joue la page.
+      this.bargeIn = (how === 'interrupt');
       this.phase = 'hearing';
       this.render();
       return;
@@ -476,6 +478,8 @@
 
     // 'end' : une phrase complète.
     var mode = this.mode, rate = this.mic ? this.mic.rate : TARGET_RATE, heardAt = this.heardAt;
+    var bargeIn = this.bargeIn;
+    this.bargeIn = false;
     if (mode === 'dictation') { closeMic(this.mic); this.mic = null; this.segmenter = null; }
     this.phase = 'transcribing';
     this.pending++;
@@ -486,7 +490,9 @@
       var voice = global.WamaAssistantVoice;
       if (text && voice && voice.isOwnSpeech(text, heardAt)) return;
       if (mode === 'dictation') { self.writeDraft(text); return; }
-      if (text && self.mode === 'conversation') self.sendTurn(text);
+      if (!text || self.mode !== 'conversation') return;
+      if (bargeIn) self.interrupt();
+      self.sendTurn(text);
     }).catch(function (e) {
       say(e.message || String(e));
     }).then(function () {
@@ -495,6 +501,12 @@
       else if (self.mode === 'conversation' && self.phase === 'transcribing') self.phase = 'listening';
       self.render();
     });
+  };
+
+  /** Reprendre la parole : la voix se tait, le tour en cours s'interrompt. */
+  Controller.prototype.interrupt = function () {
+    if (global.WamaAssistantVoice) global.WamaAssistantVoice.stop();
+    if (this.chat.abort) this.chat.abort();
   };
 
   Controller.prototype.writeDraft = function (text) {
