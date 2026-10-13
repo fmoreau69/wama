@@ -34,9 +34,9 @@
   // `TypeError: Failed to fetch` — indiscernable d'un service TTS en panne si on le journalise.
   // Mesuré au smoke du 2026-09-26 : changer de page pendant une vocalisation écrivait une
   // erreur rouge en console à chaque fois. On note le départ, et on se tait à partir de là.
-  var quitte = false;
-  ['pagehide', 'beforeunload'].forEach(function (evenement) {
-    global.addEventListener(evenement, function () { quitte = true; stop(); });
+  var leaving = false;
+  ['pagehide', 'beforeunload'].forEach(function (eventName) {
+    global.addEventListener(eventName, function () { leaving = true; stop(); });
   });
 
   function csrfToken() {
@@ -70,16 +70,25 @@
       .trim();
   }
 
-  // Phrases regroupées (≥ 60 caractères) : la première part au service dès la réponse reçue.
-  function splitSentences(text) {
-    var parts = text.split(/(?<=[.!?…])\s+(?=\S)/);
-    var chunks = [], current = '';
-    parts.forEach(function (part) {
-      current = current ? current + ' ' + part : part;
-      if (current.length >= CHUNK_MIN_CHARS) { chunks.push(current); current = ''; }
-    });
-    if (current) chunks.push(current);
-    return chunks;
+  /**
+   * Le plus COURT groupe de phrases achevées qui atteint CHUNK_MIN_CHARS, retiré de `text` —
+   * `{chunk, rest}`, `chunk` vide tant qu'aucun groupe n'est prêt.
+   *
+   * ⚠ JAMAIS « tout jusqu'à la dernière phrase achevée » (2026-10-13). Le découpage tenait à
+   * une expression GOURMANDE : en flux, les jetons arrivent un par un et elle rendait bien des
+   * groupes de ~70 caractères ; mais une réponse reçue D'UN BLOC (bouton « Écouter », tour
+   * synchrone, fournisseur sans flux) partait entière en UN seul audio. Or l'avatar répartit
+   * les mots sur la durée de chaque audio (`wama-avatar.js`) : sur 30 s, l'estimation dérive
+   * et les lèvres décrochent de la voix. Mesuré : 4 phrases → 4 morceaux en flux, 1 d'un bloc.
+   * Le découpage ne dépend plus du rythme d'arrivée du texte.
+   */
+  function takeSentences(text) {
+    var boundary = /[.!?…](?=\s)/g, match;
+    while ((match = boundary.exec(text))) {
+      var end = match.index + 1;
+      if (end >= CHUNK_MIN_CHARS) return { chunk: text.slice(0, end), rest: text.slice(end) };
+    }
+    return { chunk: '', rest: text };
   }
 
   function fetchSpeech(text, signal) {
@@ -99,7 +108,7 @@
   }
 
   function avatarReady() {
-    return !!(global.WamaAvatar && global.WamaAvatar.estPret && global.WamaAvatar.estPret());
+    return !!(global.WamaAvatar && global.WamaAvatar.isReady && global.WamaAvatar.isReady());
   }
 
   // Un morceau : l'avatar le joue s'il est prêt (TalkingHead met en file, on enchaîne sans
@@ -170,18 +179,19 @@
     var turn = global.WamaApp.Speech.claim();
     if (global.WamaAvatar && global.WamaAvatar.stop) global.WamaAvatar.stop();
     setSpeaking(true);
-    var attente = '';            // texte reçu, pas encore prononçable
-    var chaine = Promise.resolve();
-    var fini = false;
+    var pending = '';            // texte reçu, pas encore prononçable
+    var playback = Promise.resolve();
+    var ended = false;
 
-    // Ne prend que des phrases ACHEVÉES : en flux, la dernière peut être coupée au milieu.
-    // `force` (fin du tour) vide ce qui reste, quoi qu'il arrive.
-    function prendre(force) {
-      if (force) { var tout = attente; attente = ''; return tout; }
-      var m = attente.match(/^[\s\S]*[.!?…](?=\s)/);
-      if (!m || m[0].length < CHUNK_MIN_CHARS) return '';
-      attente = attente.slice(m[0].length);
-      return m[0];
+    // Ne prend que des phrases ACHEVÉES (en flux, la dernière peut être coupée au milieu), par
+    // groupes courts (`takeSentences`) ; la fin du tour vide ce qui reste, quoi qu'il arrive.
+    function enqueueReady() {
+      for (;;) {
+        var taken = takeSentences(pending);
+        if (!taken.chunk) return;
+        pending = taken.rest;
+        enqueue(taken.chunk);
+      }
     }
 
     // ⚠ Un tour PÉRIMÉ n'a pas d'erreur à signaler : quitter la page ou relancer une question
@@ -190,7 +200,7 @@
     // les journaliser remplissait la console de faux défauts — mesuré au smoke du 2026-09-26
     // en changeant de page pendant une vocalisation.
     function report(e) {
-      if (!quitte && turn.valid() && e && e.name !== 'AbortError') {
+      if (!leaving && turn.valid() && e && e.name !== 'AbortError') {
         console.error('[WamaAssistantVoice]', e);
       }
     }
@@ -202,39 +212,39 @@
     // silence égal au temps de calcul entre deux phrases.
     var requests = Promise.resolve();
 
-    function enfiler(texte) {
+    function enqueue(text) {
       // Le Markdown se retire sur la PHRASE prête, jamais fragment par fragment : nettoyer
       // chaque fragment retirait son espace de tête, donc les mots arrivaient COLLÉS au
       // service de voix (« Bonjour » + « je » → « Bonjourje ») dès que la réponse venait en
       // flux — et un marqueur coupé entre deux fragments n'était jamais reconnu.
-      var propre = stripMarkdown(texte);
-      if (!propre) return;
+      var clean = stripMarkdown(text);
+      if (!clean) return;
       var audio = requests.then(function () {
         if (!turn.valid()) return null;
-        return fetchSpeech(propre, turn.signal);
+        return fetchSpeech(clean, turn.signal);
       }).catch(function (e) { report(e); return null; });
       requests = audio;
-      chaine = chaine.then(function () {
+      playback = playback.then(function () {
         return audio.then(function (blob) {
           if (!turn.valid() || !blob) return;
-          return playChunk(blob, propre, turn);
+          return playChunk(blob, clean, turn);
         });
       }).catch(report);
     }
 
     return {
       push: function (fragment) {
-        if (fini) return;
-        attente += (fragment || '');
-        var pret = prendre(false);
-        if (pret) enfiler(pret);
+        if (ended) return;
+        pending += (fragment || '');
+        enqueueReady();
       },
       end: function () {
-        if (fini) return chaine;
-        fini = true;
-        var reste = prendre(true);
-        if (reste) enfiler(reste);
-        return chaine.then(waitAvatarSilence).then(function () {
+        if (ended) return playback;
+        ended = true;
+        var rest = pending;
+        pending = '';
+        if (rest) enqueue(rest);
+        return playback.then(waitAvatarSilence).then(function () {
           if (turn.valid()) setSpeaking(false);
           return true;
         });
@@ -248,9 +258,9 @@
   function speak(text, options) {
     var clean = stripMarkdown(text);
     if (!clean) return Promise.resolve(false);
-    var flux = speakStream(options);
-    flux.push(text);
-    return flux.end();
+    var stream = speakStream(options);
+    stream.push(text);
+    return stream.end();
   }
 
   function setEnabled(on, options) {
@@ -301,6 +311,6 @@
     bindButton: bindButton,
     onChange: function (fn) { listeners.push(fn); },
     stripMarkdown: stripMarkdown,
-    splitSentences: splitSentences,
+    takeSentences: takeSentences,
   };
 })(window);

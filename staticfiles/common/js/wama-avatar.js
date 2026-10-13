@@ -17,50 +17,86 @@ import { TalkingHead } from 'talkinghead';
 
 /** Langues ayant un module de visèmes (lipsync-<lang>.mjs vendorisé). Les autres retombent
  *  sur l'anglais : mieux vaut un lip-sync approximatif qu'un `import()` dynamique en échec. */
-const LANGUES_VISEMES = ['fr', 'en', 'de', 'fi', 'lt'];
+const VISEME_LANGUAGES = ['fr', 'en', 'de', 'fi', 'lt'];
 
 let head = null;          // instance TalkingHead
-let pret = false;         // avatar chargé et affiché
-let ctxAudio = null;      // AudioContext partagé (un seul par page)
+let ready = false;        // avatar chargé et affiché
+let decodeCtx = null;     // AudioContext partagé (un seul par page)
 
-function langueVisemes(lang) {
-  const court = String(lang || 'fr').toLowerCase().split('-')[0];
-  return LANGUES_VISEMES.includes(court) ? court : 'en';
+function visemeLanguage(lang) {
+  const short = String(lang || 'fr').toLowerCase().split('-')[0];
+  return VISEME_LANGUAGES.includes(short) ? short : 'en';
 }
 
-function contexteAudio() {
-  if (!ctxAudio) {
-    ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+function audioContext() {
+  if (!decodeCtx) {
+    decodeCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-  return ctxAudio;
+  return decodeCtx;
+}
+
+/** Pause que la voix marque APRÈS une ponctuation, en ms. Mesuré le 2026-10-13 sur Kokoro
+ *  (voix française, trois réponses réelles) : 180 à 340 ms après « ! . : », de rien à près de
+ *  0,5 s après une virgule — d'où une moyenne. Avec ces valeurs, 8 reprises de phrase sur 9
+ *  tombent à moins de 100 ms de la voix, la pire à 315 ms (1 135 ms au prorata des lettres). */
+const PAUSE_AFTER_MS = { '.': 250, '!': 250, '?': 250, '…': 250, ':': 200, ';': 200, ',': 100 };
+
+/** Part du silence que l'estimation s'autorise : au-delà, elle se fie aux mots. */
+const MAX_PAUSE_SHARE = 0.4;
+
+/** Poids PARLÉ d'un mot : ses lettres, et quatre par chiffre — un chiffre se dit en un mot
+ *  (« zéro », « cinq »). Mesuré : « DSC05016.jpg » (12 caractères) décalait la suite de 1,1 s. */
+function spokenWeight(word) {
+  const letters = (word.match(/\p{L}/gu) || []).length;
+  const digits = (word.match(/\d/g) || []).length;
+  return letters + 4 * digits || 1;
 }
 
 /**
- * Répartit les mots sur la durée réelle de l'audio, AU PRORATA DE LEUR LONGUEUR.
+ * Répartit les mots sur la durée réelle de l'audio, au prorata de leur POIDS PARLÉ, en
+ * réservant aux ponctuations fortes la pause que la voix y marque.
  *
  * Kokoro ne nous rend pas de timestamps en français : son calcul interne (`join_timestamps`,
  * exact par construction) n'existe que sur la branche anglaise. L'alignement approché est
- * l'arbitrage acté pour le pilote — il suffit à juger si l'avatar convainc, ce qui est la
- * question posée. La voie exacte (remonter les timestamps de Kokoro) reste ouverte, et le
- * catalogue sait déjà DIRE si un moteur en fournit (`timestamp_languages`).
+ * l'arbitrage acté pour le pilote. La voie exacte (remonter les timestamps de Kokoro) reste
+ * ouverte, et le catalogue sait déjà DIRE si un moteur en fournit (`timestamp_languages`).
  *
- * Le prorata de longueur bat une répartition uniforme : « anticonstitutionnellement » ne dure
- * pas le même temps que « a ». Ça reste une estimation, pas une mesure.
+ * ⚠ L'estimation ne tient que sur un audio COURT : son erreur s'accumule du début à la fin. D'où
+ * le découpage en groupes de phrases de `wama-assistant-voice.js` (`takeSentences`). Jusqu'au
+ * 2026-10-13 elle ignorait les pauses et les chiffres : mesuré sur une réponse de 12 s, la
+ * phrase qui suit « DSC05016.jpg » était estimée 1,1 s trop tôt.
+ *
+ * `leadMs` décale tous les mots : la latence de sortie du navigateur (voir `speak`).
  */
-function estimerTimings(texte, dureeMs) {
-  const mots = String(texte || '').trim().split(/\s+/).filter(Boolean);
-  if (!mots.length || !dureeMs) return null;
-  const total = mots.reduce((n, m) => n + m.length, 0) || mots.length;
+function estimateTimings(text, durationMs, leadMs = 0) {
+  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length || !durationMs) return null;
+  const pauses = words.map((w, i) => (i < words.length - 1 ? PAUSE_AFTER_MS[w.slice(-1)] || 0 : 0));
+  const pauseTotal = pauses.reduce((n, p) => n + p, 0);
+  const pauseScale = pauseTotal > MAX_PAUSE_SHARE * durationMs
+    ? (MAX_PAUSE_SHARE * durationMs) / pauseTotal : 1;
+  const weights = words.map(spokenWeight);
+  const weightTotal = weights.reduce((n, w) => n + w, 0);
+  const speechMs = durationMs - pauseTotal * pauseScale;
   const wtimes = [];
   const wdurations = [];
   let t = 0;
-  for (const mot of mots) {
-    const part = (mot.length / total) * dureeMs;
-    wtimes.push(Math.round(t));
+  words.forEach((word, i) => {
+    const part = (weights[i] / weightTotal) * speechMs;
+    wtimes.push(Math.round(t + leadMs));
     wdurations.push(Math.round(part));
-    t += part;
-  }
-  return { words: mots, wtimes, wdurations };
+    t += part + pauses[i] * pauseScale;
+  });
+  return { words, wtimes, wdurations };
+}
+
+/** Ce que le navigateur met entre le départ d'un son et sa sortie au haut-parleur, en ms.
+ *  Quelques ms sur une carte son, 150 à 300 sur un casque Bluetooth — davantage quand le micro
+ *  est ouvert (conversation vocale) ; TalkingHead, lui, anime les lèvres au départ du son. */
+function outputLatencyMs() {
+  const ctx = head && head.audioCtx;
+  if (!ctx) return 0;
+  return Math.round(1000 * ((ctx.outputLatency || 0) + (ctx.baseLatency || 0)));
 }
 
 /** Cadrage du VOLET de l'assistant — le défaut de `init` (réglé au navigateur le 2026-09-22). */
@@ -77,13 +113,13 @@ export const PANEL_CAMERA = { cameraView: 'upper', cameraDistance: -1.5, cameraY
  */
 export async function init(node, opts) {
   if (head || !node) return head;
-  const lang = langueVisemes(opts && opts.lang);
+  const lang = visemeLanguage(opts && opts.lang);
   const camera = Object.assign({}, PANEL_CAMERA, (opts && opts.camera) || {});
   head = new TalkingHead(node, Object.assign({
     // Pas de `ttsEndpoint` : la synthèse reste côté WAMA (Kokoro), on ne fait que RENDRE.
     // Le laisser vide évite que TalkingHead tente son propre TTS.
     ttsEndpoint: '',
-    lipsyncModules: LANGUES_VISEMES,
+    lipsyncModules: VISEME_LANGUAGES,
     lipsyncLang: lang,          // défaut de la lib = 'fi' (finnois) — à écraser explicitement
     // CADRAGE (Fabien, 2026-09-22 : « beaucoup de marge vide autour de l'avatar ») — mesuré au
     // navigateur sur un volet de 329 px de large : la vue « upper » par défaut (caméra à
@@ -101,32 +137,35 @@ export async function init(node, opts) {
     avatarMood: (opts && opts.mood) || 'neutral',
     lipsyncLang: lang,
   });
-  pret = true;
+  ready = true;
   return head;
 }
 
 /** Vrai si l'avatar est chargé et peut parler. */
-export function estPret() {
-  return pret && !!head;
+export function isReady() {
+  return ready && !!head;
 }
 
 /**
  * Fait parler l'avatar sur un audio DÉJÀ synthétisé (Blob WAV rendu par /api/tts-kokoro/).
  * Rend `true` si l'avatar a pris la parole, `false` s'il n'était pas prêt — l'appelant peut
  * alors jouer l'audio normalement (dégradation douce : on ne perd JAMAIS la voix).
+ * `options.live` (vrai par défaut) : le son sort au haut-parleur, les lèvres attendent donc la
+ * latence de sortie ; le rendu vidéo image par image passe `{live: false}`.
  */
-export async function speak(blob, texte, lang, timings) {
-  if (!estPret() || !blob) return false;
+export async function speak(blob, text, lang, timings, options = {}) {
+  if (!isReady() || !blob) return false;
   try {
     const buf = await blob.arrayBuffer();
     // decodeAudioData CONSOMME l'ArrayBuffer : ne pas le réutiliser après cet appel.
-    const audio = await contexteAudio().decodeAudioData(buf);
+    const audio = await audioContext().decodeAudioData(buf);
     // `timings` ({words, wtimes, wdurations}, ms) — MESURÉS quand l'appelant les a (mots datés par
-    // la transcription, rendu vidéo du 2026-09-30) ; sinon l'estimation au prorata.
-    timings = timings || estimerTimings(texte, audio.duration * 1000);
+    // la transcription, rendu vidéo du 2026-09-30) ; sinon l'estimation.
+    const leadMs = options.live === false ? 0 : outputLatencyMs();
+    timings = timings || estimateTimings(text, audio.duration * 1000, leadMs);
     const r = { audio };
     if (timings) Object.assign(r, timings);
-    head.speakAudio(r, { lipsyncLang: langueVisemes(lang) });
+    head.speakAudio(r, { lipsyncLang: visemeLanguage(lang) });
     return true;
   } catch (e) {
     console.error('[WamaAvatar] speak a échoué — repli sur la voix seule', e);
@@ -147,4 +186,4 @@ export function instance() {
   return head;
 }
 
-window.WamaAvatar = { init, speak, estPret, stop, instance };
+window.WamaAvatar = { init, speak, isReady, stop, instance };

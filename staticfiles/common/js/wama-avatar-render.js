@@ -99,9 +99,10 @@ export async function speak(wavBase64, text, lang, timings) {
   const bytes = Uint8Array.from(atob(wavBase64), c => c.charCodeAt(0));
   const clock0 = head.animClock;
   speechStart = null;
-  // `timings` : mots MESURÉS (transcription), sinon `WamaAvatar` estime au prorata du texte.
+  // `timings` : mots MESURÉS (transcription), sinon `WamaAvatar` les estime. `live: false` :
+  // l'image et le son s'assemblent hors navigateur, aucune latence de haut-parleur à compenser.
   const ok = await window.WamaAvatar.speak(new Blob([bytes], { type: 'audio/wav' }), text, lang,
-                                           timings || null);
+                                           timings || null, { live: false });
   if (!ok) throw new Error("l'avatar n'a pas pris la parole (WamaAvatar.speak a refusé)");
   // TalkingHead programme l'audio en asynchrone : on laisse tourner la boucle d'événements
   // (sans avancer l'horloge) jusqu'au relevé.
