@@ -129,22 +129,18 @@ def refresh_registry(key: str):
 
 
 @shared_task(name='common.run_nightly_tests')
-def run_nightly_tests_task(app=None, stage=None):
+def run_nightly_tests_task(app=None, stage=None, cadence=None):
     """
     Joue la suite de tests fonctionnels nocturnes (sérialisée, VRAM-aware).
-    Planifiée par Celery beat dans la plage RÉSERVÉE des tests nocturnes (settings, 04:15 puis
-    04:30 ; `NIGHTLY_TESTS_ENABLED=0` retire la suite fonctionnelle).
-    Filtrable par `app` / `stage`. Retourne le résumé.
+    Planifiée par Celery beat dans la plage RÉSERVÉE des tests nocturnes (settings : cohérence
+    04:15 ; quotidiens 04:30 du lundi au samedi ; hebdomadaires le dimanche 04:30 ;
+    `NIGHTLY_TESTS_ENABLED=0` retire les deux dernières).
+    Filtrable par `app` / `stage` / `cadence` (`nightly_tests.select_scenarios`). Retourne le résumé.
     """
-    from wama.common.services.nightly_tests import REGISTRY, run_all
+    from wama.common.services.nightly_tests import run_all, select_scenarios
 
-    scenarios = [
-        s for s in REGISTRY
-        if s.enabled
-        and (not app or s.app == app)
-        and (not stage or s.stage == stage)
-    ]
-    report = run_all(scenarios)
+    scenarios = select_scenarios(app=app, stage=stage, cadence=cadence)
+    report = run_all(scenarios, cadence=cadence)
     logger.info("[nightly] %s", report.get('summary'))
     return report.get('summary')
 

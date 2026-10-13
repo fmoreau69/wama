@@ -145,3 +145,93 @@ class DeclarationVramTest(SimpleTestCase):
             self.assertEqual(ids[attendu].app, app)
             self.assertEqual(ids[attendu].stage, 'ui')
             self.assertFalse(ids[attendu].vram_gb, f'{attendu} ne charge aucun modèle')
+
+
+class CadenceTest(SimpleTestCase):
+    """Two cadences (2026-10-13, Fabien: « distinguish the tests that must run every night and are
+    short from those that can run weekly, on a weekend night »). The rule is DERIVED from what a
+    scenario already declares; a declaration overrides it."""
+
+    def setUp(self):
+        self._registry = nightly_tests.REGISTRY
+        nightly_tests.REGISTRY = []
+        for ident, app, stage, vram, cadence in (
+                ('t.gesture', 't', 'ui', 0.0, None),
+                ('t.suite', 't', 'suite', 0.0, None),
+                ('t.processing', 't', 'ui', float('inf'), None),
+                ('t.load', 't', 'model_loaded', 10.0, None),
+                ('t_01.gesture', 't_01', 'ui', 0.0, None),
+                ('t.declared', 't', 'ui', 0.0, 'weekly')):
+            nightly_tests.register(id=ident, app=app, stage=stage, description=ident,
+                                   run=lambda ctx: (True, ''), vram_gb=vram, cadence=cadence)
+
+    def tearDown(self):
+        nightly_tests.REGISTRY = self._registry
+
+    def _ids(self, cadence):
+        from unittest import mock
+        with mock.patch.object(nightly_tests, '_sandbox_apps', return_value={'t_01'}):
+            return [s.id for s in nightly_tests.select_scenarios(cadence=cadence)]
+
+    def test_a_short_gesture_of_a_real_app_runs_every_night(self):
+        self.assertEqual(['t.gesture'], self._ids('daily'))
+
+    def test_suites_gpu_twins_and_declared_scenarios_wait_for_the_weekend(self):
+        self.assertEqual({'t.suite', 't.processing', 't.load', 't_01.gesture', 't.declared'},
+                         set(self._ids('weekly')))
+
+    def test_the_weekly_night_loads_its_models_first(self):
+        """They load in the campaign's own process: before its processing gestures occupy the
+        card, not after."""
+        self.assertEqual('t.load', self._ids('weekly')[0])
+
+    def test_no_cadence_is_every_scenario_and_an_unknown_one_is_refused(self):
+        self.assertEqual(6, len(self._ids(None)))
+        with self.assertRaises(ValueError):
+            nightly_tests.select_scenarios(cadence='monthly')
+        with self.assertRaises(ValueError):
+            nightly_tests.register(id='t.bad', app='t', stage='ui', description='',
+                                   run=lambda ctx: (True, ''), cadence='hourly')
+
+    def test_the_command_plays_the_same_selection(self):
+        out = StringIO()
+        from unittest import mock
+        with mock.patch.object(nightly_tests, '_sandbox_apps', return_value={'t_01'}):
+            call_command('run_nightly_tests', '--dry-run', '--cadence', 'daily', stdout=out)
+        self.assertIn('t.gesture', out.getvalue())
+        self.assertNotIn('t.suite', out.getvalue())
+
+    def test_the_scheduled_task_passes_its_cadence_to_the_selection_and_the_report(self):
+        from unittest import mock
+        from wama.common import tasks
+        with mock.patch.object(nightly_tests, '_sandbox_apps', return_value={'t_01'}), \
+                mock.patch.object(nightly_tests, 'run_all',
+                                  return_value={'summary': {}}) as run_all:
+            tasks.run_nightly_tests_task(cadence='daily')
+        played, kwargs = run_all.call_args
+        self.assertEqual(['t.gesture'], [s.id for s in played[0]])
+        self.assertEqual('daily', kwargs['cadence'])
+
+
+class CadenceOnTheRealRegistryTest(SimpleTestCase):
+    """On the registry the apps really fill: the nightly part stays SHORT and GPU-free."""
+
+    def test_the_daily_cadence_needs_no_gpu_and_runs_no_django_suite(self):
+        from wama.common.services.nightly_tests import register_examples
+        register_examples()
+        daily = nightly_tests.select_scenarios(cadence='daily')
+        weekly = nightly_tests.select_scenarios(cadence='weekly')
+        self.assertGreater(len(daily), 50, 'registry nearly empty: nothing measured here')
+        self.assertTrue(weekly)
+        self.assertEqual([], [s.id for s in daily if (s.vram_gb or 0) > 0 or s.stage == 'suite'])
+
+    def test_the_consistency_checks_run_once_a_night_under_their_own_entry(self):
+        """They have their entry at 04:15; the full campaign played them again at 04:30
+        (report of 2026-10-13). A cadence campaign leaves them out."""
+        from wama.common.services.nightly_tests import register_examples
+        register_examples()
+        own = nightly_tests.select_scenarios(stage='consistency')
+        self.assertTrue(own)
+        for cadence in nightly_tests.CADENCES:
+            self.assertEqual([], [s.id for s in nightly_tests.select_scenarios(cadence=cadence)
+                                  if s.stage == 'consistency'], cadence)

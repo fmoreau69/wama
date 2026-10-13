@@ -100,8 +100,9 @@ class ReservedNightlyWindowTest(TestCase):
     def test_every_declared_window_names_a_real_beat_entry(self):
         beat = set(getattr(settings, 'CELERY_BEAT_SCHEDULE', {}) or {})
         for name in cal.BEAT_WINDOWS:
-            if name == 'nightly-functional-tests' and os.environ.get('NIGHTLY_TESTS_ENABLED') == '0':
-                continue   # retirée volontairement par l'exploitation
+            if (name in ('nightly-functional-tests', 'nightly-weekly-tests')
+                    and os.environ.get('NIGHTLY_TESTS_ENABLED') == '0'):
+                continue   # retirées volontairement par l'exploitation
             with self.subTest(entry=name):
                 self.assertIn(name, beat, 'déclaration orpheline : aucune entrée beat de ce nom')
 
@@ -123,6 +124,11 @@ class ReservedNightlyWindowTest(TestCase):
         if 'nightly-functional-tests' in settings.CELERY_BEAT_SCHEDULE:
             gpu = cal.reserved_windows(*_week(), resource='gpu')
             self.assertEqual(len(gpu), 7, 'une plage GPU réservée par nuit')
+            # Six nuits de semaine pour les quotidiens, la nuit du samedi au dimanche pour les
+            # hebdomadaires (2026-10-13) — jamais les deux la même nuit.
+            weekly = [w for w in gpu if w.extra['beatEntry'] == 'nightly-weekly-tests']
+            self.assertEqual(1, len(weekly))
+            self.assertEqual(6, weekly[0].start.astimezone(PARIS).weekday())   # dimanche
 
     def test_no_scheduled_entry_overlaps_a_reserved_window(self):
         conflicts = cal.reserved_window_conflicts(*_week())

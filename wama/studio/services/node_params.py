@@ -39,6 +39,7 @@ def _builtin_nodes() -> dict:
     ⏳ Le libellé est encore écrit aussi dans la palette (`wama-studio.js`, `BUILTINS`) : R2 fait
     lire les deux au même registre."""
     from wama.common.catalog.data_types import DataType, known_types
+    from wama.media_library.models import ASSET_TYPES
     from wama_data.core.export import writable_formats
     no_stale = ()      # un nœud intégré n'est pas un process : rien à périmer
     return {
@@ -85,10 +86,10 @@ def _builtin_nodes() -> dict:
         'studio_output': {'label': 'Sortie', 'params': [
             Param(name='asset_name', type='text', label='Nom dans la médiathèque',
                   stales=no_stale, help='Vide : le nom du fichier produit.'),
+            # Les NATURES déclarées une fois (`media_library.natures`, A′), jamais une liste ici :
+            # celle qui vivait à cette place n'en offrait que six sur dix (2026-10-13).
             Param(name='asset_type', type='select', label="Type d'asset", stales=no_stale,
-                  choices=[(t, t) for t in ('video', 'image', 'voice', 'audio_music',
-                                            'audio_sfx', 'document')],
-                  default='video'),
+                  choices=list(ASSET_TYPES), default='video'),
         ]},
     }
 

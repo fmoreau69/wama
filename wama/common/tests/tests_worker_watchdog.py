@@ -89,7 +89,9 @@ class WorkerSupervisionShellTest(SimpleTestCase):
         lines = r.stdout.split()
         self.assertIn('BOGUS_DEAD', lines)
         patterns = [l for l in r.stdout.splitlines() if l and not l.startswith('BOGUS')]
-        self.assertEqual(4, len(patterns), r.stdout)
+        workers = self._bash(f'PROJECT_DIR="{BASE}" LOG_DIR=/tmp; source "{SERVICES}"; '
+                             'echo $WAMA_CELERY_WORKERS').stdout.split()
+        self.assertEqual(len(workers), len(patterns), r.stdout)     # one pattern per worker
         for pattern in patterns:
             self.assertRegex(pattern, r'\[\w\]', pattern)
 
@@ -101,3 +103,17 @@ class WorkerSupervisionShellTest(SimpleTestCase):
         self.assertIn('--pool=prefork', prod)
         self.assertIn('--autoscale=4,1', prod)
         self.assertIn('--pool=solo', dev)
+
+    def test_every_routed_queue_has_its_worker(self):
+        """A task routed to a queue no worker consumes waits forever, in silence. The nightly
+        campaign got its own queue on 2026-10-13: the route and the worker come together."""
+        from django.conf import settings
+        r = self._bash(f'PROJECT_DIR="{BASE}" LOG_DIR=/tmp; source "{SERVICES}"; '
+                       'celery() { echo "$*"; }; '
+                       'for w in $WAMA_CELERY_WORKERS; do start_celery_worker $w; done')
+        consumed = {q for qs in re.findall(r'--queues=(\S+)', r.stdout) for q in qs.split(',')}
+        routed = {route['queue'] for route in settings.CELERY_TASK_ROUTES.values()}
+        routed |= {entry['options']['queue'] for entry in settings.CELERY_BEAT_SCHEDULE.values()
+                   if (entry.get('options') or {}).get('queue')}
+        self.assertEqual(set(), routed - consumed, 'queue(s) without a worker')
+        self.assertIn('nightly', consumed)

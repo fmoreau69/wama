@@ -115,6 +115,31 @@ class BuiltinNodeGateTest(SimpleTestCase):
         self.assertIn('Jeu de données', str(caught.exception))
         self.assertIn("data_type : 'trajectoire'", str(caught.exception))
 
+    def test_the_output_node_offers_every_declared_nature(self):
+        """Read from the natures declared once (A′), never a list of its own: the list written
+        here until 2026-10-13 offered six natures out of ten."""
+        from wama.media_library.natures import ASSET_NATURES
+        from wama.studio.services.node_params import node_schema
+        field = next(p for p in node_schema('studio_output')['params'] if p['name'] == 'asset_type')
+        self.assertEqual(list(ASSET_NATURES), [c[0] for c in field['choices']])
+
+    def test_every_output_type_a_studio_scenario_writes_passes_the_node_gate(self):
+        """The nightly pipeline wrote the CATEGORY `audio`: refused by the common gate of node
+        settings since 2026-10-12, `studio.pipeline.converter` was red every night."""
+        import ast
+        from pathlib import Path
+        from wama.studio.tasks import builtin_node_values
+        source = Path(__file__).with_name('nightly_scenarios.py').read_text(encoding='utf-8')
+        written = [node.values[i].value for node in ast.walk(ast.parse(source))
+                   if isinstance(node, ast.Dict)
+                   for i, key in enumerate(node.keys)
+                   if isinstance(key, ast.Constant) and key.value == 'asset_type'
+                   and isinstance(node.values[i], ast.Constant)]
+        self.assertTrue(written, 'no output type found: nothing measured')
+        for value in written:
+            with self.subTest(asset_type=value):
+                builtin_node_values({'app': 'studio_output', 'params': {'asset_type': value}})
+
 
 class LaunchRefusesBeforeDispatchTest(TestCase):
     """Un réglage inapplicable se refuse AVANT le dispatch : rien ne part en file."""

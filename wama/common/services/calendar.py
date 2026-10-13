@@ -82,8 +82,15 @@ BEAT_WINDOWS = {
     'purge-expired-media': {'label': 'Purge des médias expirés', 'minutes': 10},
     'nightly-consistency': {'label': 'Tests nocturnes — cohérence', 'minutes': 15,
                             'measure': 'nightly:consistency', 'reserves': ('cpu',)},
-    'nightly-functional-tests': {'label': 'Tests nocturnes — fonctionnels (GPU)', 'minutes': 180,
-                                 'measure': 'nightly:all', 'reserves': ('gpu', 'cpu')},
+    # Deux cadences (2026-10-13, `nightly_tests.scenario_cadence`). Durées DÉCLARÉES = la mesure
+    # de la campagne complète du 13/10 découpée selon la règle (quotidiens 116 min, hebdomadaires
+    # 247 min), majorée comme une mesure ; chacune est remplacée par sa mesure dès ses rapports.
+    # Les deux RÉSERVENT la carte : la nuit de semaine ne charge aucun modèle, mais ses gestes font
+    # servir des pages par gunicorn, et un traitement programmé dans la plage fausserait leurs durées.
+    'nightly-functional-tests': {'label': 'Tests nocturnes — quotidiens', 'minutes': 150,
+                                 'measure': 'nightly:daily', 'reserves': ('gpu', 'cpu')},
+    'nightly-weekly-tests': {'label': 'Tests nocturnes — hebdomadaires (GPU)', 'minutes': 315,
+                             'measure': 'nightly:weekly', 'reserves': ('gpu', 'cpu')},
 }
 
 #: Une fenêtre mesurée est la durée MÉDIANE des campagnes complètes récentes, majorée de cette
@@ -475,12 +482,14 @@ def _nightly_reports_dir() -> Path:
     return Path(settings.BASE_DIR) / 'logs' / 'nightly_tests'
 
 
-def measured_nightly_minutes(stage=None, reports_dir=None) -> float | None:
+def measured_nightly_minutes(stage=None, reports_dir=None, cadence=None) -> float | None:
     """Durée MÉDIANE récente d'une campagne nocturne complète, en minutes — `None` sans mesure.
 
     Source : les rapports `nightly_*.json` (`nightly_tests.write_report`), durée = somme des
     `duration_s` des scénarios (la campagne est SÉRIELLE, `run_all`). `stage` restreint aux
-    rapports dont tous les scénarios visent ce stage ; `None` = toute campagne.
+    rapports dont tous les scénarios visent ce stage ; `cadence` aux rapports de cette cadence
+    (`run_all(cadence=)`, 2026-10-13) — une nuit hebdomadaire ne mesure pas une nuit de semaine ;
+    `None` = toute campagne.
 
     ⚠ LA MÉDIANE DES CAMPAGNES COMPLÈTES (décision de Fabien, 2026-09-29). C'était la PLUS LONGUE :
     la nuit du 29/09, la file GPU occupée par des lots lancés à la main a fait durer la campagne
@@ -497,12 +506,15 @@ def measured_nightly_minutes(stage=None, reports_dir=None) -> float | None:
     runs = []                                        # (nombre de scénarios, minutes)
     for path in sorted(reports_dir.glob('nightly_*.json'))[-MEASURE_LOOKBACK_REPORTS:]:
         try:
-            results = json.loads(path.read_text(encoding='utf-8')).get('results') or []
+            report = json.loads(path.read_text(encoding='utf-8'))
         except (OSError, ValueError):
             continue
+        results = report.get('results') or []
         if not results:
             continue
         if stage and any(r.get('stage_target') != stage for r in results):
+            continue
+        if cadence and report.get('cadence') != cadence:
             continue
         runs.append((len(results), sum(float(r.get('duration_s') or 0) for r in results) / 60.0))
     if not runs:
@@ -514,7 +526,8 @@ def measured_nightly_minutes(stage=None, reports_dir=None) -> float | None:
 
 _MEASURES = {
     'nightly:consistency': lambda: measured_nightly_minutes('consistency'),
-    'nightly:all': lambda: measured_nightly_minutes(None),
+    'nightly:daily': lambda: measured_nightly_minutes(None, cadence='daily'),
+    'nightly:weekly': lambda: measured_nightly_minutes(None, cadence='weekly'),
 }
 
 

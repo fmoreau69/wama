@@ -6,14 +6,16 @@ Exemples :
     python manage.py run_nightly_tests                   # joue tout
     python manage.py run_nightly_tests --app transcriber # filtre par app
     python manage.py run_nightly_tests --stage wired     # filtre par étape cible
+    python manage.py run_nightly_tests --cadence daily   # ce que joue chaque nuit (sans GPU)
 
-Planification nocturne : à brancher sur Celery beat une fois la charpente validée.
+Planification : Celery beat, worker `nightly` (`settings.py`, `scripts/wama_services.sh`).
 """
 import json
 
 from django.core.management.base import BaseCommand
 
-from wama.common.services.nightly_tests import REGISTRY, run_all, STAGES
+from wama.common.services.nightly_tests import (CADENCES, REGISTRY, STAGES, run_all,
+                                                select_scenarios)
 
 
 class Command(BaseCommand):
@@ -22,6 +24,10 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--app", help="Filtrer par app (ex. transcriber)")
         parser.add_argument("--stage", choices=STAGES, help="Filtrer par étape cible")
+        # La même sélection que la campagne PLANIFIÉE (`select_scenarios`) : `daily` = ce que
+        # joue chaque nuit, `weekly` = la nuit du week-end (`nightly_tests.scenario_cadence`).
+        parser.add_argument("--cadence", choices=CADENCES,
+                            help="Ne jouer que les scénarios de cette cadence (daily | weekly)")
         # Un scénario NOMMÉ : c'est ce qui manquait pour rejouer un cas précis après
         # correction, sans relancer toute la série. Accepte plusieurs ids séparés par des
         # virgules, et un préfixe (`--id converter_01.` joue tous ceux de la jumelle).
@@ -74,13 +80,9 @@ class Command(BaseCommand):
         if max_vram is None:
             max_vram = float('inf') if opts.get("avec_gpu") else 0.0
 
-        candidats = [
-            s for s in REGISTRY
-            if s.enabled
-            and (not opts.get("app") or s.app == opts["app"])
-            and (not opts.get("stage") or s.stage == opts["stage"])
-            and _retenu(s)
-        ]
+        candidats = [s for s in select_scenarios(app=opts.get("app"), stage=opts.get("stage"),
+                                                 cadence=opts.get("cadence"))
+                     if _retenu(s)]
         scenarios = [s for s in candidats if (s.vram_gb or 0.0) <= max_vram]
         ecartes = [s for s in candidats if s not in scenarios]
         if ecartes:
@@ -111,7 +113,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"  - [{s.app}] {s.id} (cible: {s.stage}) — {s.description}")
             return
 
-        report = run_all(scenarios)
+        report = run_all(scenarios, cadence=opts.get("cadence"))
         s = report["summary"]
         style = self.style.SUCCESS if s["failed"] == 0 else self.style.ERROR
         self.stdout.write(style(

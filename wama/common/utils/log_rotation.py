@@ -54,6 +54,7 @@ RUNTIME_LOGS = (
     "celery-default.log",
     "celery-gpu.log",
     "celery-studio.log",  # worker studio — ajouté au démarrage APRÈS cette liste, jamais tourné
+    "celery-nightly.log",  # worker des tests nocturnes (scripts/wama_services.sh, 2026-10-13)
     "django-errors.log",  # `django.request` (5xx) — cf. common/apps.py:ready()
     "gateway-discord.log",  # passerelle de canaux (start_wama_prod.sh, §19)
     "gunicorn-access.log",

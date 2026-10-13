@@ -54,6 +54,14 @@ TEST_DEV_USERNAME = "wama_nightly_dev"   # surfaces dev-gated (jumelles) — cf.
 # tests qui importe » — il n'etait visible que dans un terminal (cf. `common/nightly_suite.py`).
 STAGES = ("wired", "ui", "consistency", "suite", "model_loaded", "output")
 
+# CADENCE d'un scénario (2026-10-13, demande de Fabien : « distinguer les tests qui doivent tourner
+# chaque nuit et qui sont courts, des tests qui peuvent tourner moins souvent, de façon
+# hebdomadaire, la nuit le week-end »). Mesuré sur la campagne complète du 13/10 (6 h 13) : les
+# gestes des apps réelles et du substrat font 116 min ; le reste — suites Django (112 min), gestes
+# des jumelles (96 min), traitements GPU réels (38 min), chargements de modèles (1 min) — tourne le
+# week-end. Une campagne complète dépassait aussi le délai de redélivrance de Redis (6 h).
+CADENCES = ("daily", "weekly")
+
 
 class SkipScenario(Exception):
     """Levée par un `run` quand une dépendance est absente (modèle/lib non installé) :
@@ -71,6 +79,9 @@ class Scenario:
     timeout_s: int = 300
     vram_gb: float = 0.0             # info de planification (sérialisation déjà garantie)
     enabled: bool = True
+    #: `daily` | `weekly` ; `None` = DÉRIVÉE par `scenario_cadence` — ne la déclarer que pour
+    #: s'écarter de la règle, avec la raison.
+    cadence: Optional[str] = None
 
 
 @dataclass
@@ -93,10 +104,59 @@ REGISTRY: List[Scenario] = []
 def register(**kwargs) -> Scenario:
     """Enregistre un scénario. Doublon d'id → remplace (réimport sûr)."""
     sc = Scenario(**kwargs)
+    if sc.cadence is not None and sc.cadence not in CADENCES:
+        raise ValueError(f"{sc.id} : cadence inconnue {sc.cadence!r} (attendu : {CADENCES})")
     global REGISTRY
     REGISTRY = [s for s in REGISTRY if s.id != sc.id]
     REGISTRY.append(sc)
     return sc
+
+
+def _sandbox_apps() -> set:
+    from wama.common.app_registry import APP_CATALOG
+    return {k for k, v in APP_CATALOG.items() if (v or {}).get('sandbox')}
+
+
+def scenario_cadence(sc: Scenario, sandbox_apps=None) -> str:
+    """`daily` ou `weekly`. La DÉCLARATION prime ; sinon la règle, tirée de ce que le scénario
+    déclare déjà — rien n'est à recopier sur ses 600 entrées :
+
+      * une suite Django (`suite`) : la plus longue famille (≈ 4 min par app) ;
+      * un scénario qui déclare de la VRAM (traitements réels, chargements de modèles) ;
+      * un scénario d'une JUMELLE de bac à sable : il mesure le GÉNÉRATEUR, pas une app servie
+        (`WAMA_VERIFICATION §1bis`), et l'écart ne bouge qu'avec un chantier de convergence ;
+    sont hebdomadaires. Tout le reste — gestes des apps réelles, du substrat, droits — est
+    quotidien : court, et c'est ce qui casse quand on touche au code de la journée.
+    """
+    if sc.cadence:
+        return sc.cadence
+    if sc.stage == 'suite' or (sc.vram_gb or 0.0) > 0:
+        return 'weekly'
+    twins = _sandbox_apps() if sandbox_apps is None else sandbox_apps
+    return 'weekly' if sc.app in twins else 'daily'
+
+
+def select_scenarios(app=None, stage=None, cadence=None, scenarios=None) -> List[Scenario]:
+    """Les scénarios ACTIFS d'une campagne — la tâche planifiée et la commande lisent la même.
+
+    `cadence='weekly'` ne prend QUE les hebdomadaires : la nuit du week-end ne rejoue pas les
+    quotidiens (ils ont leur propre entrée), sans quoi la campagne repasserait au-dessus des 6 h
+    du délai de redélivrance. Les chargements de modèles (`model_loaded`) passent EN TÊTE : ils
+    chargent dans le processus de la campagne, avant que ses traitements occupent la carte.
+    Une campagne À CADENCE laisse la cohérence (`consistency`) à son entrée propre, chaque nuit à
+    04:15 : la campagne complète la rejouait un quart d'heure plus tard (rapport du 13/10).
+    """
+    if cadence is not None and cadence not in CADENCES:
+        raise ValueError(f"cadence inconnue {cadence!r} (attendu : {CADENCES})")
+    pool = REGISTRY if scenarios is None else scenarios
+    twins = _sandbox_apps() if cadence else set()
+    chosen = [s for s in pool
+              if s.enabled
+              and (not app or s.app == app)
+              and (not stage or s.stage == stage)
+              and not (cadence and not stage and s.stage == 'consistency')
+              and (not cadence or scenario_cadence(s, twins) == cadence)]
+    return sorted(chosen, key=lambda s: s.stage != 'model_loaded')
 
 
 # ── Garde-fous & utilitaires ────────────────────────────────────────────────
@@ -280,8 +340,11 @@ def run_one(sc: Scenario, ctx: dict) -> ScenarioResult:
         )
 
 
-def run_all(scenarios: Optional[List[Scenario]] = None, write: bool = True) -> dict:
-    """Joue les scénarios EN SÉRIE, téardown VRAM avant/après chacun. Retourne le rapport."""
+def run_all(scenarios: Optional[List[Scenario]] = None, write: bool = True,
+            cadence: Optional[str] = None) -> dict:
+    """Joue les scénarios EN SÉRIE, téardown VRAM avant/après chacun. Retourne le rapport.
+    `cadence` est inscrite au rapport : c'est sur elle que le calendrier mesure la durée à
+    réserver pour chaque campagne (`calendar.measured_nightly_minutes`)."""
     scenarios = scenarios if scenarios is not None else [s for s in REGISTRY if s.enabled]
     user = get_test_user()
     ctx = {"user": user}
@@ -300,6 +363,8 @@ def run_all(scenarios: Optional[List[Scenario]] = None, write: bool = True) -> d
 
     report = build_report(results)
     report["witness_files_swept"] = balayes
+    if cadence:
+        report["cadence"] = cadence
     if write:
         path = write_report(report)
         report["report_path"] = str(path)

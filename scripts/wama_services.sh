@@ -14,7 +14,7 @@
 # ------------------------------------------------------------------------------------------
 
 #: Les processus Celery surveillés et relancés, dans l'ordre de lancement.
-WAMA_CELERY_WORKERS="gpu default studio beat"
+WAMA_CELERY_WORKERS="gpu default studio nightly beat"
 
 # Configuration commune à tous les process (gunicorn compris).
 wama_runtime_env() {
@@ -59,6 +59,7 @@ celery_worker_pattern() {
         gpu)     echo 'celery.*--hostname=[g]pu@' ;;
         default) echo 'celery.*--hostname=[d]efault@' ;;
         studio)  echo 'celery.*--hostname=[s]tudio@' ;;
+        nightly) echo 'celery.*--hostname=[n]ightly@' ;;
         beat)    echo 'celery -A wama [b]eat' ;;
         *)       return 1 ;;
     esac
@@ -67,7 +68,7 @@ celery_worker_pattern() {
 # Nom de nœud Celery (celui qu'écrit le méta `STARTED` d'une tâche) ; beat n'en a pas.
 celery_worker_node() {
     case "$1" in
-        gpu|default|studio) echo "$1@$(hostname)" ;;
+        gpu|default|studio|nightly) echo "$1@$(hostname)" ;;
         *) echo "$1" ;;
     esac
 }
@@ -106,6 +107,13 @@ start_celery_worker() {
             celery -A wama worker --pool=solo --queues=studio --hostname=studio@%h \
                 --statedb="$LOG_DIR/celery-studio.state" \
                 --loglevel=INFO --detach --logfile "$LOG_DIR/celery-studio.log" ;;
+        # Nightly : ORCHESTRATEUR des tests nocturnes (`common.run_nightly_tests`, plusieurs heures
+        # par campagne). File DÉDIÉE pour la même raison que le Studio : sur `gpu` (solo), les
+        # traitements que ses gestes lancent n'étaient servis qu'après elle (2026-10-13).
+        nightly)
+            celery -A wama worker --pool=solo --queues=nightly --hostname=nightly@%h \
+                --prefetch-multiplier=1 --statedb="$LOG_DIR/celery-nightly.state" \
+                --loglevel=INFO --detach --logfile "$LOG_DIR/celery-nightly.log" ;;
         beat)
             celery -A wama beat --loglevel=INFO --detach --logfile "$LOG_DIR/celery-beat.log" ;;
         *)

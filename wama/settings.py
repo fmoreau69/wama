@@ -800,9 +800,12 @@ if ENABLE_CELERY:
         # (solo) doit rester libre de poller, et l'inférence doit passer par le gouverneur VRAM.
         'wama.studio.gpu_tasks.*': {'queue': 'gpu', 'priority': _prio('studio')},
         'wama.studio.tasks.*': {'queue': 'studio'},
-        # Charge des modèles → queue GPU, mais palier le plus BAS : une campagne
-        # de tests nocturnes ne doit jamais passer devant un traitement demandé.
-        'common.run_nightly_tests': {'queue': 'gpu', 'priority': _prio('_nightly_tests')},
+        # Campagne de tests nocturnes : ORCHESTRATEUR, donc sa propre file (worker `nightly`,
+        # `scripts/wama_services.sh`) — même règle que le Studio ci-dessus. Elle tournait sur
+        # `gpu` (solo) : ses gestes de traitement y envoyaient des tâches qui n'étaient servies
+        # qu'APRÈS elle, sur des éléments déjà effacés — 6 apps rouges chaque nuit, mesuré le
+        # 2026-10-13 (`WAMA_VERIFICATION §9`). Le palier bas est gardé pour un lancement à la main.
+        'common.run_nightly_tests': {'queue': 'nightly', 'priority': _prio('_nightly_tests')},
         # Actualisation d'un catalogue (scan disque, greps de code) : CPU pur, JAMAIS de GPU.
         # Elle tomberait déjà sur `default` par défaut — on la déclare parce qu'une tâche
         # générique, appelable pour n'importe quel registre présent ou futur, ne doit pas
@@ -996,15 +999,26 @@ if ENABLE_CELERY:
         'options': {'queue': 'default'},        # CPU pur — JAMAIS la queue gpu
     }
 
-    # Suite fonctionnelle complète (model_loaded/output, GPU). Elle était retenue derrière
-    # `NIGHTLY_TESTS_ENABLED=1` à cause des crashs de l'hôte : l'alimentation a été remplacée le
-    # 2026-09-21 et Fabien a déclaré l'instabilité RÉSOLUE le 2026-09-28 — elle est planifiée par
-    # défaut. `NIGHTLY_TESTS_ENABLED=0` la retire (interrupteur d'exploitation, plus de sécurité).
+    # Suite fonctionnelle. Elle était retenue derrière `NIGHTLY_TESTS_ENABLED=1` à cause des
+    # crashs de l'hôte : l'alimentation a été remplacée le 2026-09-21 et Fabien a déclaré
+    # l'instabilité RÉSOLUE le 2026-09-28 — elle est planifiée par défaut.
+    # `NIGHTLY_TESTS_ENABLED=0` la retire (interrupteur d'exploitation, plus de sécurité).
+    # DEUX CADENCES depuis le 2026-10-13 (décision de Fabien, `nightly_tests.scenario_cadence`) :
+    # les QUOTIDIENS (gestes des apps réelles et du substrat, sans GPU, ≈ 2 h) du lundi au samedi,
+    # les HEBDOMADAIRES (suites Django, jumelles, traitements GPU, ≈ 4 h) la nuit du samedi au
+    # dimanche. Une campagne complète faisait 6 h 13 — au-delà des 6 h de redélivrance de Redis.
     if os.environ.get('NIGHTLY_TESTS_ENABLED', '1') != '0':
         CELERY_BEAT_SCHEDULE['nightly-functional-tests'] = {
             'task': 'common.run_nightly_tests',
-            'schedule': crontab(hour=4, minute=30),  # heure locale (CELERY_TIMEZONE)
-            'options': {'queue': 'gpu'},             # scénarios chargent des modèles
+            'schedule': crontab(hour=4, minute=30, day_of_week='mon-sat'),  # heure locale
+            'kwargs': {'cadence': 'daily'},
+            'options': {'queue': 'nightly'},
+        }
+        CELERY_BEAT_SCHEDULE['nightly-weekly-tests'] = {
+            'task': 'common.run_nightly_tests',
+            'schedule': crontab(hour=4, minute=30, day_of_week='sun'),
+            'kwargs': {'cadence': 'weekly'},
+            'options': {'queue': 'nightly'},
         }
 
     # Logging : les loggers wama.* propagent vers le handler Celery (logfile)

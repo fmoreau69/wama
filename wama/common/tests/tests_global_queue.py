@@ -140,13 +140,16 @@ class SnapshotTest(TestCase):
         self.assertEqual((seconds, source), (600.0, 'measured'),
                          'la médiane doit rester celle des trois réussites réelles (10 min)')
 
-    def test_a_nightly_campaign_in_the_queue_lasts_its_reserved_window(self):
-        from wama.common.services.calendar import window_minutes
-        entries = Q.snapshot(_at(1, 10), running=[],
-                             queued=[{'task_id': 'n1', 'task_name': 'common.run_nightly_tests'}])
-        self.assertEqual(entries[0].expected_end - entries[0].expected_start,
-                         timedelta(minutes=window_minutes('nightly-functional-tests')[0]))
-        self.assertEqual(entries[0].title, 'Tests nocturnes')
+    def test_the_nightly_campaign_never_waits_in_the_gpu_queue(self):
+        """It ORCHESTRATES gestures whose tasks go to `gpu` (solo): queued there, it served them
+        only after itself (2026-10-13). Its own queue is `nightly`, and its window is the
+        calendar's (`reserved_windows`), not an entry of this queue."""
+        from django.conf import settings
+        self.assertEqual('nightly', settings.CELERY_TASK_ROUTES['common.run_nightly_tests']['queue'])
+        for name in ('nightly-functional-tests', 'nightly-weekly-tests'):
+            entry = settings.CELERY_BEAT_SCHEDULE.get(name)
+            if entry:
+                self.assertEqual('nightly', entry['options']['queue'], name)
 
 
 class AutoPlacementTest(SimpleTestCase):
@@ -171,7 +174,12 @@ class AutoPlacementTest(SimpleTestCase):
         # 03:40 + 1 h déborderait sur la cohérence de 04:15 : repoussé après TOUTES les plages.
         run_at, _ = S.place('asap', None, _at(1, 3, 40), seconds=3600)
         self.assertIsNone(S.overlapping_window(run_at, run_at + timedelta(hours=1)))
-        self.assertGreater(run_at, _at(1, 7))
+        # After the LAST window of that night, read from the calendar — not a fixed hour: the
+        # windows follow their measures (the daily one ended at 07:00 sharp on 2026-10-13).
+        from wama.common.services.calendar import reserved_windows
+        night = [w for w in reserved_windows(_at(1, 0), _at(1, 12)) if w.start >= _at(1, 4)]
+        self.assertTrue(night, 'no reserved window that night: nothing measured')
+        self.assertGreaterEqual(run_at, max(w.end for w in night))
 
     def test_a_manual_time_whose_duration_overflows_is_refused(self):
         _run_at, conflict = S.place('manual', _at(1, 4, 0), _at(1, 0), seconds=3600)

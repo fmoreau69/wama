@@ -1604,7 +1604,18 @@ maintenance — cohérence 04:15, fonctionnelle 04:30, durée réservée MESURÉ
 (`common/services/calendar.py::BEAT_WINDOWS`) ; `tests_calendar` rougit si une autre entrée
 planifiée y entre. Effectif au prochain redémarrage de beat.
 
-**Forme proposée, NON décidée** (elle appelle un GO) : un champ déclaratif `cadence`
+✅ **DÉCIDÉ ET LIVRÉ le 2026-10-13** (Fabien : *« distinguer les tests qui doivent tourner chaque
+nuit et qui sont courts, des tests qui peuvent tourner moins souvent, de façon hebdomadaire, la nuit
+le week-end »*) — sous une forme plus courte que celle proposée ci-dessous : deux cadences
+(`daily` / `weekly`, pas de mensuelle), et une cadence **DÉRIVÉE** de ce que chaque scénario déclare
+déjà (`nightly_tests.scenario_cadence` : suite Django, VRAM déclarée ou jumelle ⇒ hebdomadaire), le
+champ `Scenario.cadence` ne servant qu'à s'écarter de la règle. Filtre, tâche, commande
+(`--cadence`) et entrées beat dans le même commit, par `select_scenarios`, leçon de `vram_gb` tenue.
+Mesuré sur la campagne complète du 13/10 (6 h 13) : quotidiens **116 min** (lundi → samedi, 04:30),
+hebdomadaires **248 min** (dimanche 04:30) ; la cohérence garde son entrée de 04:15 et sort des deux
+campagnes (elle était jouée deux fois). Le lien vers le TYPE de modèle reste à faire (ci-dessous).
+
+**Forme proposée le 28/09** (historique) : un champ déclaratif `cadence`
 (`daily`/`weekly`/`monthly`) sur `Scenario` — qui n'en porte aucun aujourd'hui —, son filtre posé
 **dans la tâche Celery** et non seulement dans la commande, et trois entrées beat (`crontab` sait
 faire `day_of_week` et `day_of_month`). ⚠ **Avec sa leçon** : `vram_gb` a été *déclaré depuis
@@ -1853,7 +1864,7 @@ geste, il ne mesure pas l'app.
 
 | rouge | cause MESURÉE | nature | ce qui a été fait |
 |---|---|---|---|
-| `<app>.processing` / `batch_processing` (6 apps) | la campagne nocturne tourne ELLE-MÊME comme tâche sur le worker `gpu` (`--pool=solo`, `settings.py` : `common.run_nightly_tests` → file `gpu`, 5 h 30 le 12/10). Ses scénarios lancent des tâches sur la même file, qui attendent qu'elle finisse. Journal du 12/10 : les tâches démarrent à 11:29:18, juste après la campagne, sur des éléments déjà effacés (« introuvable »). C'est le blocage déjà décrit pour le Studio (`settings.py`, orchestrateur sur une file dédiée) | **infrastructure du nocturne** | ⏳ **décision de Fabien** : l'orchestrateur ne doit pas occuper la file dont ses gestes ont besoin. Seuls les `model_loaded` chargent dans le processus de la campagne (`transcriber.asr_load`, `enhancer.deepfilternet_load`) |
+| `<app>.processing` / `batch_processing` (6 apps) | la campagne nocturne tourne ELLE-MÊME comme tâche sur le worker `gpu` (`--pool=solo`, `settings.py` : `common.run_nightly_tests` → file `gpu`, 5 h 30 le 12/10). Ses scénarios lancent des tâches sur la même file, qui attendent qu'elle finisse. Journal du 12/10 : les tâches démarrent à 11:29:18, juste après la campagne, sur des éléments déjà effacés (« introuvable »). C'est le blocage déjà décrit pour le Studio (`settings.py`, orchestrateur sur une file dédiée) | **infrastructure du nocturne** | ✅ **décidé par Fabien le jour même** : file DÉDIÉE `nightly` et son worker (`scripts/wama_services.sh`, solo) ; les deux `model_loaded` passent en tête de la campagne hebdomadaire, avant que ses traitements occupent la carte ; garde `tests_worker_watchdog.test_every_routed_queue_has_its_worker` |
 | anonymizer : 5 gestes sur `Page.goto … networkidle` | `GET /anonymizer/sam3/status/` (pastille du volet, à CHAQUE page) faisait **`import sam3` : 57 s** (torch compris), contre 5 ms pour `find_spec`. Un worker gunicorn neuf restait bloqué dessus, et la découverte des modèles payait la même chose | **bug** | `sam3_manager.check_sam3_installed` passe par `find_spec`, la version par les métadonnées ; garde `anonymizer.tests_task.Sam3StatusWithoutImportTest` (contre-épreuve rouge) |
 | `reader.batch_actions` | ⧉ de lot : **deux POST par clic**. `reader.js` branchait encore ▶ ⧉ 🗑 sur la card mère, alors que la brique commune les tient déjà ⇒ deux copies du lot, ▶ lancé deux fois | **bug** | R121 ; garde `tests_queue_delete_contract.BatchActionsOwnedByTheBrickTest` (rejoué vert) |
 | `reader.queue_dnd` | `scroll_into_view_if_needed` sur un HANDLE obtenu avant les clics de sélection : une card re-rendue entre-temps laisse un nœud mort. Sonde : aucune card n'est re-rendue sur une page au repos (reader, converter) | **instrument** | un locator, qui se résout à nouveau (leçon déjà écrite pour `settings` et l'aperçu) ; rejoué vert sur reader, converter, enhancer |
@@ -1874,10 +1885,13 @@ système (`audio/x-wav` sous WSL, `tests_picker_list`), une recopie du vocabulai
 de réglages dont le nom n'est pas celui de sa route (l'imager, depuis le 29/09) recevait un
 bouchon 501 (`views_gen`, `d['view_routes']`).
 
-**🔚 Restes nommés, hors des 10 apps ou à décider** : la file `gpu` de la campagne (ci-dessus) ;
-`studio.pipeline.converter`, rouge depuis le 12/10 : la porte des réglages de nœud (`f1c3d4e1`) refuse
-`asset_type='audio'`, une CATÉGORIE que le puits traduit en nature depuis le 13/09 (même
-question pour les graphes enregistrés) ; `media_library` (dépôt, dossier, « Tout effacer »,
+**Soldés le jour même (décisions de Fabien)** : la file dédiée et les deux cadences (§4ter) ;
+`studio.pipeline.converter` — le scénario écrivait la CATÉGORIE `audio`, que la porte commune des
+réglages de nœud (`f1c3d4e1`) refuse ; aucun graphe enregistré n'en porte (mesuré : 2 pipelines
+`video`). Le scénario écrit une nature, et les choix du nœud « Sortie » se lisent aux natures
+déclarées (`media_library.models.ASSET_TYPES`) — la liste écrite à la main en offrait 6 sur 10.
+
+**🔚 Restes nommés, hors des 10 apps** : `media_library` (dépôt, dossier, « Tout effacer »,
 recherche) et `studio.queue_search` — surfaces non portées sur la file commune ;
 `wama.common.suite` dépasse son budget de 2400 s ; le ⚙ de lot de l'enhancer, de l'imager et de
 l'avatarizer est ouvert par l'app SANS ouvreur déclaré à la brique (un avertissement console,

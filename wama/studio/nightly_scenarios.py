@@ -65,7 +65,9 @@ def _run_pipeline_end_to_end(ctx):
             {'id': 'n2', 'app': 'converter',
              'params': {'output_format': 'mp3', 'channels': '1'}},
             {'id': 'n3', 'app': 'studio_output',
-             'params': {'asset_type': 'audio', 'asset_name': nom_sortie}},
+             # Une NATURE, ce que le nœud offre et que sa porte accepte (`node_params`) — pas la
+             # catégorie `audio`, refusée depuis la porte commune des réglages (12/10).
+             'params': {'asset_type': 'audio_music', 'asset_name': nom_sortie}},
         ],
         'links': [{'from': 'n1', 'to': 'n2'}, {'from': 'n2', 'to': 'n3'}],
     }

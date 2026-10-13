@@ -224,11 +224,9 @@ def snapshot(now=None, *, running=None, queued=None) -> list[QueueEntry]:
 
 
 def _system_task_seconds(task_name):
-    """Une tâche sans élément (tests nocturnes, prospection) : sa durée réservée si elle en a une."""
-    if task_name == 'common.run_nightly_tests':
-        from .calendar import window_minutes
-        minutes, source = window_minutes('nightly-functional-tests')
-        return float(minutes * 60), source
+    """Une tâche sans élément (prospection) : sa durée déclarée. La campagne de tests nocturnes
+    n'est plus dans cette file depuis le 2026-10-13 : elle a sa file, `nightly` (`settings.py`) —
+    sa plage réservée reste lue par le calendrier (`calendar.reserved_windows`)."""
     return float(DEFAULT_TASK_SECONDS), 'declared'
 
 
@@ -246,8 +244,7 @@ def _entry(position, state, row, src_obj, start, end, source, started_at=None):
 
 
 def _system_title(task_name):
-    return {'common.run_nightly_tests': 'Tests nocturnes',
-            'model_manager.assess_proposed': 'Évaluation de modèles'}.get(task_name, 'Tâche système')
+    return {'model_manager.assess_proposed': 'Évaluation de modèles'}.get(task_name, 'Tâche système')
 
 
 def free_at(now=None, entries=None):
