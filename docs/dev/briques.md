@@ -532,11 +532,11 @@ Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×a
 
 ### Installation de modèles
 
-Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, `pull_model <clé|org/dépôt|nom Ollama>` — un nom se PROPOSE d'abord (`seed_hf_search`, `seed_ollama_candidate`) —, marcheur d'app `install_requirements` ; garde d'espace disque, tâche Celery, journal — seule à appeler `dispatch_install`) ; `AIModel.is_installable` en dit la règle à la page. Un pilote INTERNE (`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, 2026-10-07), files (les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE parmi les sources déclarées — dépôt du Hub figé au commit, version GitHub, adresse fixe d'une source « poids » — taille et empreinte épinglées, 2026-10-11 : CodeFormer, MuseTalk, enhancer, Face Analyzer) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à fichier (empreinte d'un fichier en place : `provenance.sha256_of`)
+Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, `pull_model <clé|org/dépôt|nom Ollama>` — un nom se PROPOSE d'abord (`seed_hf_search`, `seed_ollama_candidate`) —, marcheur d'app `install_requirements` ; garde d'espace disque, tâche Celery, journal — seule à appeler `dispatch_install`) ; `AIModel.is_installable` en dit la règle à la page. Un pilote INTERNE (`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, 2026-10-07), files (les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE parmi les sources déclarées — dépôt du Hub figé au commit, version GitHub, adresse fixe d'une source « poids » — taille et empreinte épinglées, 2026-10-11 : CodeFormer, MuseTalk, enhancer, Face Analyzer, DeepFace le 12/10 ; la désinstallation retire ces fichiers-là seulement, `remove_declared_files`) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à fichier (empreinte d'un fichier en place : `provenance.sha256_of`)
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (48) :
+- **API publique** (49) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(hf_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -559,6 +559,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `declared_files_error(spec: dict) -> str | None` — Motif de refus d'un descripteur `files`, ou None — pur : l'installation et la pesée
   - `declared_file_url(origin: dict) -> str` — Adresse d'un fichier déclaré, DÉRIVÉE de sa source déclarée — jamais écrite en dur.
   - `declared_files_present(install_dir, files) -> bool` — Tous les fichiers déclarés sont-ils à leur place ? (présence, sans relire l'empreinte —
+  - `remove_declared_files(model, include_shared: bool=False) -> dict` — Le pendant de `pull_declared_files` pour la désinstallation : retire EXACTEMENT les
   - `pull_declared_files(spec: dict, timeout: int=600, dry_run: bool=False) -> dict` — Les fichiers qu'une app DÉCLARE, posés SOUS son dossier (`target_dir`), chacun tiré de
   - `download_asset(url: str, target: str, *, timeout: int=600, min_bytes: int=0, sha256: str='', proxies=None) -> dict` — Télécharge UN fichier publié (asset de version GitHub…) vers `target`, sans jamais laisser
   - `register_after_install()` — Re-synchronise le catalogue `AIModel` pour que le modèle fraîchement installé apparaisse.
@@ -1053,7 +1054,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
 
 - **Domicile** : `wama/model_manager/services/cloud_models.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Modèles DISTANTS au catalogue — découverte par la clé d'un UTILISATEUR (ROADMAP §8d Phase 3, 4b).
-- **API publique** (18) :
+- **API publique** (23) :
   - `abilities_for(task: str, remote_type: str='') -> dict` — Drapeaux `ModelAbility` qu'une TÂCHE distante garantit — ceux que `select_model(requires=…)`
   - `class CloudDiscoveryError(RuntimeError)` — Découverte impossible — message lisible par l'utilisateur, jamais la clé.
   - `task_and_type(remote_type: str)` — (tâche NÔTRE, model_type) d'un type annoncé par le fournisseur, ou (None, None).
@@ -1068,8 +1069,13 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
   - `refresh_all_keys() -> dict` — Relit chez CHAQUE fournisseur les modèles ouverts à CHAQUE clé posée — la sonde nocturne.
   - `register_open_models(row) -> None` — Le CATALOGUE suit la liste gardée sur la clé `row` : la partie LONGUE de `refresh_key`
   - `hosting_ceiling(user) -> str` — PLAFOND d'hébergement du profil (`UserProfile.cloud_hosting_max`), sur l'échelle
+  - `data_reuse_accepted(user) -> bool` — `user` accepte-t-il qu'un hébergeur garde ou réutilise ses requêtes ? Le dernier cran de
   - `cloud_refusal(user, source: str='') -> str` — Motif de refus d'un appel distant pour `user`, sinon ''. Sans utilisateur : ''.
   - `allowed_cloud_keys(user, automatic: bool=True) -> set` — `model_key` des modèles distants que `user` autorise — à passer à `select_model(cloud_keys=…)`.
+  - `saturation_scope(user, source: str) -> str` — Portée de la limite de débit de `source` pour `user` — elle tient à la CLÉ (Albert compte
+  - `note_saturation(source: str, *, scope: str, seconds: float, reason: str) -> None` — Note `source` saturée pour la portée `scope` (`saturation_scope`, ou `ALL_KEYS` pour une
+  - `saturated_sources(scopes: dict) -> dict` — {source: motif} des sources notées saturées — `scopes` : {source: portée de la clé}. Une
+  - `saturation_reason(user, source: str) -> str` — Le motif de saturation de `source` pour `user` (« limite de débit », « indisponible »), ou ''.
   - `class CloudAccessRefused(RuntimeError)` — Appel distant refusé — message lisible par l'utilisateur ; `status` = code HTTP à rendre.
   - `cloud_access(user, source: str, model_id: str='') -> str` — La CLÉ avec laquelle `user` appelle `source` (et le modèle `model_id` s'il est nommé), ou
 
@@ -1344,14 +1350,18 @@ Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama loca
 
 - **Domicile** : `wama/common/utils/llm_utils.py`
 - **Module** : WAMA Common — LLM utilities Shared Ollama client for use in Celery workers (transcriber, describer, ...).
-- **API publique** (17) :
+- **API publique** (21) :
   - `get_describer_model(content_type: str, output_style: str) -> str` — Return the Ollama model name to use for a given (content_type, output_style) pair.
+  - `designated_local_model(key: str, role: str='langage', owner: str='Cette application') -> str` — Le nom Ollama d'une clé `ollama:<nom>` ; `ValueError` pour toute autre source.
+  - `card_llm(key: str, auto=None, owner: str='Cette application')` — `(nom, fournisseur)` du modèle de langage qu'une card demande : sous « auto », `auto()`
+  - `ollama_catalog_key(name: str) -> str` — La clé de catalogue d'un modèle Ollama nommé — ce qu'une ligne d'exécution retient.
   - `modele_par_defaut() -> str` — Modèle LLM à utiliser quand l'appelant n'en impose aucun — résolu, jamais figé.
   - `modele_par_tier(tier: str='default', exige=None, priority=None, prefer_loaded: bool=True) -> str` — Résolution PUBLIQUE d'un tier (`heavy`/`default`/`fast`) — même mécanique que
   - `ollama_chat(messages: list, model: str='', num_predict: int=2048, num_ctx: Optional[int]=None, think: bool=True, timeout: float=180.0, keep_alive: Optional[str…` — Send a chat request to the local Ollama server.
   - `declared_llm_source(provider: str)` — La source `external_sources` d'un fournisseur DISTANT que `llm_chat` sait appeler, ou None.
   - `openai_compatible_source(provider: str) -> str` — La source `external_sources` d'un fournisseur qui parle le protocole OpenAI depuis une
   - `default_cloud_model(provider: str) -> str` — Modèle par défaut d'un fournisseur cloud : réglage déclaré, sinon celui de sa source
+  - `provider_saturation(exc, wait_s: float=RATE_LIMIT_WAIT_S)` — (portée, durée, motif) quand l'échec dit que le FOURNISSEUR est saturé ou en panne — None
   - `llm_chat(messages: list, model: str=None, provider: str=None, num_predict: int=2048, num_ctx: Optional[int]=None, think: bool=True, timeout: float=180.0, api_k…` — Unified LLM chat function — provider-agnostic entry point.
   - `tool_call_text(name: str, arguments) -> str` — Un appel d'outil NATIF (nom + arguments JSON du fournisseur) rendu dans la forme texte de
   - `chat_with_catalog_model(catalog_key: str, messages: list, *, user=None, num_predict: Optional[int]=None, think: bool=False, timeout: Optional[float]=None, temp…` — Un appel LLM désigné par une CLÉ DE CATALOGUE (`ollama:qwen3.8:latest`,
@@ -2845,16 +2855,17 @@ Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffm
 
 ### Sources externes
 
-Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la surcharge, variable portant la clé d'API, attribution exigée par la licence, et surtout la PORTÉE (service local ou Internet) — d'où le traitement du proxy est DÉRIVÉ au lieu d'être choisi à la main par chaque appelant. Ajouter une plateforme = une entrée. ⚠ Ne déclare JAMAIS le client : chaque source a sa forme (JSON authentifié, parquet, HTML scrapé), le parseur reste chez le consommateur. La CLÉ peut être celle de l'instance (`api_key_env`) ou celle de CHACUN, posée au profil (`user_key`) : depuis le 2026-09-22 (décision de Fabien) les connecteurs de la médiathèque y sont déclarés (famille `media`) — adresse, proxy et sonde d'ici, clé de chaque utilisateur. Depuis le 2026-10-07 (décision de Fabien), la clé d'INSTANCE se pose par un admin sur la page « Sources externes » (`accounts.InstanceApiKey`, chiffrée) et prime sur le `.env`, qui reste le repli ; une source `shareable` (clés d'application : ILaaS) peut la PARTAGER avec les comptes sans clé — la clé personnelle prime toujours. Le champ de saisie est UNE brique (`WamaKeyField`) pour le profil et la page
+Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la surcharge, variable portant la clé d'API, attribution exigée par la licence, et surtout la PORTÉE (service local ou Internet) — d'où le traitement du proxy est DÉRIVÉ au lieu d'être choisi à la main par chaque appelant. Ajouter une plateforme = une entrée. ⚠ Ne déclare JAMAIS le client : chaque source a sa forme (JSON authentifié, parquet, HTML scrapé), le parseur reste chez le consommateur. La CLÉ peut être celle de l'instance (`api_key_env`) ou celle de CHACUN, posée au profil (`user_key`) : depuis le 2026-09-22 (décision de Fabien) les connecteurs de la médiathèque y sont déclarés (famille `media`) — adresse, proxy et sonde d'ici, clé de chaque utilisateur. Depuis le 2026-10-07 (décision de Fabien), la clé d'INSTANCE se pose par un admin sur la page « Sources externes » (`accounts.InstanceApiKey`, chiffrée) et prime sur le `.env`, qui reste le repli ; une source `shareable` (clés d'application : ILaaS) peut la PARTAGER avec les comptes sans clé — la clé personnelle prime toujours. Le champ de saisie est UNE brique (`WamaKeyField`) pour le profil et la page. Une clé FACULTATIVE (`api_key_optional`, 2026-10-12 : le jeton de `github_api`) relève un quota sans rendre la source « non configurée » quand elle manque
 
 - **Domicile** : `wama/common/external_sources.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : external_sources — registre DÉCLARATIF des sources externes joignables par WAMA.
-- **API publique** (24) :
+- **API publique** (25) :
   - `cost_label(tier: str) -> str` — « gratuit (quota) », « facturé à l'usage », « abonnement » — '' pour un coût inconnu.
   - `remote_origin_label(source: str, cost_tier: str='') -> str` — LE libellé d'un modèle distant, calculé de ce qui est DÉCLARÉ : hébergement · fournisseur ·
   - `source_origin_label(source: str) -> str` — Où partent les données d'un FOURNISSEUR et ce qu'il coûte, sans son nom (que l'écran
   - `model_origin(model_key: str, execution: str='', cost_tier: str='') -> tuple` — `(clé, libellé, rang)` de l'ORIGINE d'un modèle — où son inférence a lieu.
   - `hosting_within(hosting: str, ceiling: str) -> bool` — `hosting` est-il admis par un profil plafonné à `ceiling` ?
+  - `data_reuse_accepted(ceiling: str) -> bool` — Un profil plafonné à `ceiling` accepte-t-il qu'un hébergeur garde ou réutilise ses
   - `class ExternalSource` — Une source externe : ce qu'elle est et comment on l'adresse — jamais comment on la lit.
   - `by_key() -> dict[str, ExternalSource]`
   - `serves_many_tasks(key: str) -> bool` — La source `key` sert-elle des modèles de plusieurs tâches sous un même moteur, hors du
