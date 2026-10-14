@@ -1,0 +1,30 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "the Deno authors <support@deno.com>",
+      "license": "MIT",
+      "repository": "https://deno.com",
+      "summary": "Python redistribution of Deno binaries",
+      "version": "2.9.7"
+    },
+    "install": {
+      "pip": "deno==2.9.7",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Python redistribution of Deno binaries",
+  "key": "deno",
+  "manifest_kind": "library",
+  "name": "deno",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:deno==2.9.7",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

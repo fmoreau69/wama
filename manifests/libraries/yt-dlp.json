@@ -1,0 +1,34 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {
+      "console_scripts": [
+        "yt-dlp"
+      ]
+    },
+    "identity": {
+      "author": "pukkandan <pukkandan.ytdlp@gmail.com>",
+      "license": "Unlicense",
+      "repository": "https://github.com/yt-dlp/yt-dlp",
+      "summary": "A feature-rich command-line audio/video downloader",
+      "version": "2026.8.19"
+    },
+    "install": {
+      "pip": "yt-dlp==2026.8.19",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "A feature-rich command-line audio/video downloader",
+  "key": "yt-dlp",
+  "manifest_kind": "library",
+  "name": "yt-dlp",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:yt-dlp==2026.8.19",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,0 +1,30 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "Simon Sawicki <contact@grub4k.dev>",
+      "license": "Unlicense AND MIT AND ISC",
+      "repository": "https://github.com/yt-dlp/ejs",
+      "summary": "External JavaScript for yt-dlp supporting many runtimes",
+      "version": "0.8.0"
+    },
+    "install": {
+      "pip": "yt-dlp-ejs==0.8.0",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "External JavaScript for yt-dlp supporting many runtimes",
+  "key": "yt-dlp-ejs",
+  "manifest_kind": "library",
+  "name": "yt-dlp-ejs",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:yt-dlp-ejs==0.8.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
