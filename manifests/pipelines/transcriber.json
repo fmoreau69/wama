@@ -65,6 +65,7 @@
         "id": "transcribe",
         "kind": "function",
         "params": {
+          "card_model": true,
           "degree": "required",
           "eta": "transcriber.workers:transcribe_eta",
           "gpu": true,

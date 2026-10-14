@@ -4533,6 +4533,32 @@ process** (clé ETA du process, pas de l'app), signal `RunOutcome` par process, 
 > rend `auto`) : il est sérialisé et déclaré, il n'attend pas sa VRAM ; (d) la DURÉE MAX reste
 > celle de la card ; (e) le cam_analyzer route ses passes par la même règle (`Pass.gpu`, garde
 > `tests_calc_routing`) mais hors squelette, sans le gouverneur.
+>
+> ✅ **(a) soldé pour le modèle de la CARD, (b) en partie — 2026-10-14, passation à la session du
+> routage cloud** (`ROADMAP §8d` étape 4, décision de Fabien : *« si la tâche est prévue en
+> distant, il ne faut pas réserver de créneau »*). **Mesuré d'abord** : le squelette TIRE déjà le
+> modèle de la card avant la boucle des process (`run_item_task(model_key=…)`, « auto » résolu —
+> le transcriber le tire une fois par lancement, `workers._model_key`, et sa glu relit ce même
+> tirage) ; et les process LLM d'aujourd'hui (résumé, cohérence, mise en forme, analyse) passent
+> par les aides de `llm_utils` vers l'Ollama hôte, en LOCAL quel que soit le profil — ils sont
+> donc réellement GPU. Le seul process qui part en distant est celui qui emploie le modèle de la
+> card, et la seule app qui ouvre les distants à ses cards est le transcriber (`options_cloud`).
+> D'où une DÉCLARATION, pas une devinette : `ProcessSpec.card_model` — le process emploie LE
+> modèle de la card. Tiré distant, il ne tient pas la carte (`task_skeleton._holds_the_card`) :
+> file par défaut (`queue_of(spec, gpu)`), aucune attente de VRAM, aucune déclaration au
+> gouverneur. Les AUTRES process GPU de la card restent GPU sans hériter du besoin du modèle
+> distant (b, pour ce cas). Une glu sans déclaration emploie le modèle de la card par
+> définition. Posé sur `transcriber.transcribe` ; exporté au manifeste `pipeline` (seulement
+> quand il est vrai), relu (`pipeline_decl`) et réécrit par le générateur. Le test « modèle
+> distant ? » a UN domicile, `cloud_models.is_cloud_key` (la copie en ligne de
+> `backends/manager.backend_instance` le lit). Gardes : `tests_process_governance.
+> TheDrawDecidesWhoHoldsTheCardTest` (7), sept contre-épreuves rouges.
+> ⏳ **Ce qui reste de (a)** : un process LLM dont le modèle se tire À L'APPEL — le jour où les
+> aides de `llm_utils` passeront par le tirage commun (`ROADMAP §8d` étape 5, enrichissement
+> compris), il faudra que ce process résolve SON modèle avant le choix de file, comme la card.
+> **De (b)** : un process GPU qui n'emploie pas le modèle de la card hérite toujours du besoin
+> d'un modèle de card LOCAL (la diarisation après Whisper) — même remède : que le process
+> déclare son modèle. (c), (d), (e) inchangés.
 
 **Gestes de lancement** : un process · un étage (sous-pipeline) · tout · **compléter manquant +
 périmé** (les deux boutons de `ROADMAP §9.2.bis`, généralisés).

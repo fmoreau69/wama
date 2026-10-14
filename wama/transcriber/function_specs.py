@@ -159,9 +159,13 @@ def _requested_model(t):
     return catalogue_value(t.backend) or 'auto'
 
 
+#: `card_model` : la transcription emploie LE modèle de la card — tiré distant (Albert), elle ne
+#: tient pas la carte (`ProcessSpec.card_model`, 2026-10-14). Les autres process GPU gardent leur
+#: modèle local (alignement, locuteurs, résumé et cohérence par l'Ollama hôte).
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('transcribe', label='Transcription',
-                applies=_transcribes, gpu=True, share=17, eta='transcriber.workers:transcribe_eta',
+                applies=_transcribes, gpu=True, card_model=True, share=17,
+                eta='transcriber.workers:transcribe_eta',
                 result=f'{_DOCUMENTS}:transcription_text'),
     # L'import relit un document (quelques secondes) : pas d'ETA propre, sa dernière durée suffit.
     ProcessSpec('import', label='Import', watched=('work_result',),

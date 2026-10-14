@@ -1543,7 +1543,10 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
        ⚠ Mesuré : la file et la déclaration au gouverneur suivent aujourd'hui le PROCESS
        (`task_skeleton.queue_of`, `spec.gpu`, l. 726-743), pas le modèle tiré, et
        `auto_model.vram_needed_gb` ne regarde pas l'exécution : le gouverneur doit savoir si le
-       modèle est local ou distant.
+       modèle est local ou distant. ✅ **Livré le 14/10** (passation de la session du gouverneur
+       au grain du process) : `ProcessSpec.card_model` + `task_skeleton._holds_the_card` — un
+       process qui emploie le modèle de la card, tiré distant, ne tient pas la carte ; détail et
+       restes à `ROUTE §10.6` 4.5 (bloc du 14/10).
      ⏳ **Ouvert** : séparer au profil l'assistant des traitements d'app (assistant en cloud,
      données traitées en local) — et ce qu'un assistant distant LIT d'un résultat traité en
      local. Mesuré le 14/10 : le FICHIER ne transite pas (l'assistant ne reçoit que

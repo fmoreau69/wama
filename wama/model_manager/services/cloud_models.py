@@ -595,6 +595,20 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
     return keys
 
 
+def is_cloud_key(model_key) -> bool:
+    """La clé de catalogue `model_key` désigne-t-elle un modèle servi par un FOURNISSEUR
+    (`AIModel.execution`) ? Faux pour une clé inconnue ou « auto » non résolu : dans le doute,
+    l'appelant traite le modèle comme local (le squelette lui garde la carte). La forme par
+    instance est `model_selector.is_cloud`."""
+    if not model_key:
+        return False
+    try:
+        from wama.model_manager.models import AIModel, EXECUTION_CLOUD
+        return AIModel.objects.filter(model_key=model_key, execution=EXECUTION_CLOUD).exists()
+    except Exception:
+        return False
+
+
 # La NOTE de saturation d'un fournisseur (étape 2, 13/10) a déménagé le 14/10 dans la brique
 # commune des services externes, `common/services/source_quota.py` (étape 3) : la même note sert
 # désormais à TOUT service qui refuse, LLM ou non, et le compte des quotas vit à côté d'elle.

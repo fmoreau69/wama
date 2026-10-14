@@ -72,6 +72,9 @@ sollicite la carte (`ProcessSpec.gpu`), le squelette le joue sur la file GPU (re
 défaut), attend sa VRAM (`_vram_need`, `_differer_faute_de_vram`) et le déclare « en cours » au
 gouverneur le temps de sa glu. Une glu sans déclaration (`process=`, sans pipeline) garde la règle
 d'avant : comptée GPU, sur la file de sa tâche.
+Un process qui emploie LE modèle de la card (`ProcessSpec.card_model`, et toute glu sans
+déclaration) ne tient pas la carte quand ce modèle est tiré DISTANT (`ROADMAP §8d` étape 4,
+2026-10-14) : ni file GPU, ni attente de VRAM, ni déclaration au gouverneur.
 
 Le squelette pose, dans l'ordre de la convention : `close_old_connections`, chargement de
 l'item (`select_related('user')`), `refuse_crash_redelivery` (garde anti-boucle-de-crash),
@@ -274,16 +277,30 @@ def _retry(task, **options):
         raise _HandOver(signal) from None
 
 
-def queue_of(spec) -> str | None:
+def queue_of(spec, gpu: bool = None) -> str | None:
     """La FILE Celery où se joue ce process : la file GPU pour un process qui sollicite la carte
     (`ProcessSpec.gpu`), la file par défaut sinon (2026-10-14, décision de Fabien : une conversion
     CPU ne réserve pas la file GPU, un post-traitement IA ne la contourne pas). None pour une glu
-    sans déclaration (`spec` None, app à un seul process sans pipeline) : rien ne se déplace."""
+    sans déclaration (`spec` None, app à un seul process sans pipeline) : rien ne se déplace.
+    `gpu` : ce que le squelette a décidé pour CE lancement (`_holds_the_card`) — le drapeau
+    déclaré sinon."""
     if spec is None:
         return None
     from django.conf import settings
     from wama.common.services.global_queue import GPU_QUEUE
-    return GPU_QUEUE if spec.gpu else getattr(settings, 'CELERY_TASK_DEFAULT_QUEUE', 'default')
+    gpu = spec.gpu if gpu is None else gpu
+    return GPU_QUEUE if gpu else getattr(settings, 'CELERY_TASK_DEFAULT_QUEUE', 'default')
+
+
+def _holds_the_card(spec, card_remote: bool) -> bool:
+    """CE process tient-il la carte, pour CE lancement ? Le drapeau déclaré (`ProcessSpec.gpu` ;
+    une glu sans déclaration compte GPU), sauf quand il emploie le modèle de la card
+    (`card_model` — une glu sans déclaration l'emploie par définition) et que ce modèle a été
+    tiré DISTANT (`ROADMAP §8d` étape 4, décision de Fabien du 2026-10-14 : « si la tâche est
+    prévue en distant, il ne faut pas réserver de créneau »)."""
+    declared = spec is None or spec.gpu
+    uses_card_model = spec is None or spec.card_model
+    return declared and not (uses_card_model and card_remote)
 
 
 def _delivered_on(task) -> str:
@@ -721,17 +738,25 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
             total_share = (done_share
                            + sum(spec.share if spec is not None else 1 for *_x, spec in steps)) or 1
             written, carried_label = {}, None
+            # Le modèle de la card a-t-il été tiré DISTANT ? (étape 4 de `ROADMAP §8d`)
+            from wama.model_manager.services.cloud_models import is_cloud_key
+            card_remote = is_cloud_key(resolved_key)
             for index, (node, process_key, glue, spec) in enumerate(steps):
                 share = spec.share if spec is not None else 1
                 # ── Le process sur SA file, avec SA VRAM, déclaré s'il tient la carte ────────
                 # Une glu sans déclaration (`spec` None) garde la règle d'avant : elle est
                 # comptée GPU, et ne change pas de file.
-                queue = queue_of(spec)
+                gpu = _holds_the_card(spec, card_remote)
+                queue = queue_of(spec, gpu)
                 delivered = _delivered_on(task)
                 if queue and delivered and delivered != queue:
                     _hand_over_to(task, app_id, queue, ctx)
-                gpu = spec is None or spec.gpu
-                need = _vram_need(item, vram_needed, resolved_key) if gpu else None
+                # Le besoin VRAM est celui du modèle de la card : un process qui n'emploie PAS ce
+                # modèle, quand il est distant, n'en hérite pas (son propre besoin n'est pas
+                # déclaré — reste nommé à `ROUTE §10.6` 4.5).
+                foreign = card_remote and spec is not None and not spec.card_model
+                need = (_vram_need(item, None if foreign else vram_needed,
+                                   None if foreign else resolved_key) if gpu else None)
                 if need:
                     try:
                         refused = _differer_faute_de_vram(

@@ -361,7 +361,7 @@ Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA.
   - `class TaskContext` — Poignées offertes à la glu : progress + console. `progress_fn` permet à une app de
   - `class TaskTimeLimitExceeded(Exception)` — Le traitement a dépassé sa durée max (`resource_governor.task_time_limit_s`).
   - `class ServiceNotReady(Exception)` — Ce dont le traitement DÉPEND n'est pas encore prêt — un service qui charge (le service TTS
-  - `queue_of(spec) -> str | None` — La FILE Celery où se joue ce process : la file GPU pour un process qui sollicite la carte
+  - `queue_of(spec, gpu: bool=None) -> str | None` — La FILE Celery où se joue ce process : la file GPU pour un process qui sollicite la carte
   - `run_item_task(task, *, app_id: str, model, item_id: int, process=None, vram_needed=None, model_key=None, error_field: str='error_message', notify_label: str=No…` — Exécute la glu `process` dans le squelette conventionnel. Voir le contrat en tête de
 
 ### Tests nocturnes
@@ -1090,7 +1090,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
 
 - **Domicile** : `wama/model_manager/services/cloud_models.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Modèles DISTANTS au catalogue — découverte par la clé d'un UTILISATEUR (ROADMAP §8d Phase 3, 4b).
-- **API publique** (19) :
+- **API publique** (20) :
   - `abilities_for(task: str, remote_type: str='') -> dict` — Drapeaux `ModelAbility` qu'une TÂCHE distante garantit — ceux que `select_model(requires=…)`
   - `class CloudDiscoveryError(RuntimeError)` — Découverte impossible — message lisible par l'utilisateur, jamais la clé.
   - `task_and_type(remote_type: str)` — (tâche NÔTRE, model_type) d'un type annoncé par le fournisseur, ou (None, None).
@@ -1108,6 +1108,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
   - `data_reuse_accepted(user) -> bool` — `user` accepte-t-il qu'un hébergeur garde ou réutilise ses requêtes ? Le dernier cran de
   - `cloud_refusal(user, source: str='') -> str` — Motif de refus d'un appel distant pour `user`, sinon ''. Sans utilisateur : ''.
   - `allowed_cloud_keys(user, automatic: bool=True) -> set` — `model_key` des modèles distants que `user` autorise — à passer à `select_model(cloud_keys=…)`.
+  - `is_cloud_key(model_key) -> bool` — La clé de catalogue `model_key` désigne-t-elle un modèle servi par un FOURNISSEUR
   - `class CloudAccessRefused(RuntimeError)` — Appel distant refusé — message lisible par l'utilisateur ; `status` = code HTTP à rendre.
   - `cloud_access(user, source: str, model_id: str='') -> str` — La CLÉ avec laquelle `user` appelle `source` (et le modèle `model_id` s'il est nommé), ou
 

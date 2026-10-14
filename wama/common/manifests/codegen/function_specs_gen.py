@@ -157,6 +157,8 @@ def render_function_specs(manifest: dict) -> tuple:
             args.append(f"degree={s['degree']!r}")
         if s['gpu']:
             args.append('gpu=True')
+        if s.get('card_model'):
+            args.append('card_model=True')
         if s['share'] != 1:
             args.append(f"share={s['share']}")
         if s['outputs']:

@@ -116,12 +116,19 @@ class ProcessSpec:
                   pas de la card) — le squelette le joue sur la file GPU, le déclare au
                   gouverneur pendant qu'il tourne, et lui fait attendre sa VRAM ; un process sans
                   GPU (conversion, floutage, sortie, import) se joue sur la file par défaut et ne
-                  tient pas la carte. Un appel LLM compte comme GPU même quand le modèle tiré
-                  est distant : la source n'est connue qu'à l'appel, et le relâcher sur la file
-                  par défaut ferait charger l'Ollama hôte EN CONCURRENCE des traitements — ce
-                  qui a fait tomber l'hôte le 2026-08-19 (`settings.py`, route de
-                  `model_manager.assess_proposed`). Jusque-là : « dit à l'utilisateur, jamais
-                  une garde » ;
+                  tient pas la carte. Un appel LLM compte comme GPU tant que son modèle n'est
+                  connu qu'à l'appel : le relâcher sur la file par défaut ferait charger l'Ollama
+                  hôte EN CONCURRENCE des traitements — ce qui a fait tomber l'hôte le
+                  2026-08-19 (`settings.py`, route de `model_manager.assess_proposed`). Jusque-là :
+                  « dit à l'utilisateur, jamais une garde ». L'exception est `card_model` ;
+      card_model  le process emploie LE modèle de la card — celui que le squelette tire avant la
+                  boucle des process (`run_item_task(model_key=…)`, « auto » résolu). Si ce
+                  tirage est DISTANT, le process ne tient pas la carte : ni file GPU, ni
+                  déclaration au gouverneur, ni attente de VRAM (`ROADMAP §8d` étape 4, décision
+                  de Fabien du 2026-10-14 : « si la tâche est prévue en distant, il ne faut pas
+                  réserver de créneau »). Les AUTRES process GPU de la card (un résumé par Ollama
+                  après une transcription distante) restent GPU, mais n'héritent plus du besoin
+                  VRAM d'un modèle qu'ils n'emploient pas ;
       share       part de la barre de progression de la card (poids relatif) ;
       applies     `(item, model_key) -> bool` : le process a-t-il lieu pour CET élément ? Absent =
                   toujours. C'est ce qui laisse un pipeline à deux process n'en jouer qu'un pour
@@ -170,6 +177,7 @@ class ProcessSpec:
     degree: str = REQUIRED
     function: str = ''
     gpu: bool = False
+    card_model: bool = False
     share: int = 1
     applies: Callable = None
     outputs: tuple = ()
@@ -414,6 +422,9 @@ class AppPipeline:
                   'params': {'degree': spec.degree, 'gpu': spec.gpu,
                              'watched': list(self.watched_of(spec)),
                              **({'toggle': spec.toggle} if spec.toggle else {}),
+                             # 2026-10-14 (ROADMAP §8d étape 4) : écrit seulement quand il est
+                             # vrai — ajout pur, les autres pipelines exportés ne bougent pas.
+                             **({'card_model': True} if spec.card_model else {}),
                              **({'label': spec.label} if spec.label else {}),
                              **({'outputs': list(spec.outputs)} if spec.outputs else {}),
                              **({'share': spec.share} if spec.share != 1 else {}),

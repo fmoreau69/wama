@@ -268,8 +268,8 @@ def backend_instance(cls, model_key: str = '', user=None):
     instance = _INSTANCES_BY_CLASS.get_backend(name)
     instance.catalogue_key = model_key or ''
     if model_key:
-        from wama.model_manager.models import AIModel, EXECUTION_CLOUD
-        if AIModel.objects.filter(model_key=model_key, execution=EXECUTION_CLOUD).exists():
+        from wama.model_manager.services.cloud_models import is_cloud_key
+        if is_cloud_key(model_key):
             from wama.common.services.source_quota import saturation_scope
             from wama.common.utils.model_keys import split_key
             from wama.model_manager.services.cloud_models import cloud_access

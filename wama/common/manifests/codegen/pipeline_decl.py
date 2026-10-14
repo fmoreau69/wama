@@ -73,8 +73,8 @@ def declared_pipeline(app_key: str, root: Path = None):
 def process_specs(pipeline: dict) -> list:
     """Les process du manifeste dans l'ORDRE du registre, à la forme des champs de
     `process_pipeline.ProcessSpec` : {key, function, label, depends_on, watched, degree, gpu,
-    share, outputs, toggle, eta, result}. Les dépendances sont les LIENS (`from` → `to`), comme à
-    l'export."""
+    card_model, share, outputs, toggle, eta, result}. Les dépendances sont les LIENS (`from` →
+    `to`), comme à l'export."""
     body = (pipeline or {}).get('body') or {}
     links = body.get('links') or []
     out = []
@@ -90,6 +90,7 @@ def process_specs(pipeline: dict) -> list:
             'watched': list(params.get('watched') or []),
             'degree': params.get('degree', 'required'),
             'gpu': bool(params.get('gpu')),
+            'card_model': bool(params.get('card_model')),
             'share': int(params.get('share') or 1),
             'outputs': list(params.get('outputs') or []),
             'toggle': params.get('toggle', ''),

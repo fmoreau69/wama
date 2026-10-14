@@ -248,6 +248,98 @@ class EachProcessOnItsQueueTest(_Base):
                          {spec.key: queue_of(spec) for spec in PIPELINE.specs})
 
 
+class TheDrawDecidesWhoHoldsTheCardTest(_Base):
+    """2026-10-14 (ROADMAP §8d step 4, Fabien: « if the task is planned remote, no slot must be
+    booked »): a process that uses THE card's model (`ProcessSpec.card_model`) does not hold the
+    card when that model was drawn REMOTE — no GPU queue, no VRAM wait, nothing declared. The
+    other GPU processes of the card keep the card, without inheriting the remote model's need."""
+
+    REMOTE, LOCAL = 'albert:whisper-test', 'transcriber:whisper-test'
+
+    def setUp(self):
+        super().setUp()
+        from wama.model_manager.models import AIModel
+        for key, execution in ((self.REMOTE, 'cloud'), (self.LOCAL, 'local')):
+            AIModel.objects.create(model_key=key, name=key, model_type='speech',
+                                   source=key.split(':')[0], execution=execution)
+        self.pipeline = AppPipeline(self.app, (
+            ProcessSpec('transcribe', gpu=True, card_model=True),
+            ProcessSpec('summarize', depends_on=('transcribe',), gpu=True),
+        ), label='Demo')
+        patch = mock.patch('wama.common.utils.auto_model.vram_needed_gb', return_value=8.0)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_a_remote_draw_leaves_the_gpu_queue_before_the_process_plays(self):
+        task, sent = _task('gpu')
+        with self.assertRaises(_Resent):
+            self._run(self._element('draw_hop_down'), task, free=0.5, model_key=self.REMOTE)
+        self.assertEqual([], self.calls)
+        self.assertEqual('default', sent[0]['queue'])
+
+    def test_on_the_default_queue_it_plays_without_vram_and_undeclared(self):
+        task, sent = _task('default')
+        with self.assertRaises(_Resent):
+            self._run(self._element('draw_plays'), task, free=0.5, model_key=self.REMOTE)
+        self.assertEqual(['transcribe'], self.calls, 'played at once, no VRAM wait')
+        self.assertEqual([], self.seen['transcribe'], 'not declared to the governor')
+        self.assertEqual('gpu', sent[0]['queue'], 'the local summary goes back to the GPU queue')
+
+    def test_the_other_gpu_process_does_not_inherit_the_remote_models_need(self):
+        self.pipeline = AppPipeline(self.app, (ProcessSpec('summarize', gpu=True),), label='Demo')
+        task, sent = _task('gpu')
+        item = self._run(self._element('draw_foreign'), task, free=0.5, model_key=self.REMOTE)
+        self.assertEqual('SUCCESS', item.status)
+        self.assertEqual([], sent, 'no wait for a model it does not use')
+        self.assertEqual([(self.app, 'summarize')], self.seen['summarize'], 'still holds the card')
+
+    def test_counter_test_a_local_draw_keeps_the_card_and_waits(self):
+        task, sent = _task('gpu')
+        with self.assertRaises(_Resent):
+            self._run(self._element('draw_local'), task, free=0.5, model_key=self.LOCAL)
+        self.assertEqual([], self.calls)
+        self.assertNotEqual('default', (sent[0].get('queue') or 'gpu'),
+                            'a local model waits for its VRAM, it does not leave the GPU queue')
+
+    def test_the_transcriber_declares_its_transcription_on_the_cards_model_only(self):
+        from wama.common.utils.task_skeleton import queue_of
+        from wama.transcriber.function_specs import PIPELINE
+        self.assertEqual({'transcribe'}, {s.key for s in PIPELINE.specs if s.card_model})
+        spec = next(s for s in PIPELINE.specs if s.key == 'transcribe')
+        self.assertEqual(('gpu', 'default'), (queue_of(spec), queue_of(spec, gpu=False)))
+
+    def test_the_declaration_survives_the_manifest_round_trip(self):
+        """Exported to the `pipeline` manifest, read back by the generator: a generated twin of the
+        transcriber keeps `card_model` (written only when true — pure addition)."""
+        from wama.common.manifests.codegen.pipeline_decl import process_specs
+        from wama.transcriber.function_specs import PIPELINE
+        specs = {s['key']: s for s in process_specs(PIPELINE.manifest())}
+        self.assertTrue(specs['transcribe']['card_model'])
+        self.assertFalse(specs['summarize']['card_model'])
+        params = {n['id']: n['params'] for n in PIPELINE.graph()['nodes']}
+        self.assertNotIn('card_model', params['summarize'])
+
+    def test_the_generator_writes_it_back(self):
+        """On the generator's own case (the Writer draft), its first process declared on the
+        card's model: the generated `function_specs.py` carries `card_model=True` there only."""
+        import copy
+        import json
+        from wama.common.manifests.codegen import function_specs_gen
+        from wama.common.manifests.codegen.pipeline_decl import declared_pipeline
+        from wama.common.tests.tests_codegen_from_scratch import DRAFT, _calls
+        pipeline, functions = declared_pipeline('writer')
+        pipeline = copy.deepcopy(pipeline)
+        pipeline['body']['nodes'][0]['params']['card_model'] = True
+        with mock.patch.object(function_specs_gen, 'declared_pipeline',
+                               return_value=(pipeline, functions)):
+            src, reason = function_specs_gen.render_function_specs(
+                json.loads(DRAFT.read_text(encoding='utf-8')))
+        self.assertIsNotNone(src, reason)
+        flagged = [c.args[0].value for c in _calls(src, 'ProcessSpec')
+                   if any(k.arg == 'card_model' for k in c.keywords)]
+        self.assertEqual([pipeline['body']['nodes'][0]['id']], flagged)
+
+
 class TheFlagSaysWhatTheCatalogueSaysTest(SimpleTestCase):
     """`ProcessSpec.gpu` is a GUARD since 2026-10-14: a process wrongly declared CPU would run
     beside the GPU work and hold the card undeclared. What the function does is said by the
