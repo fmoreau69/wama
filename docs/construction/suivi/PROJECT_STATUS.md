@@ -23873,3 +23873,18 @@ le point 1 »*.
   app ← pipeline) — piège d'outil, signalé, pas corrigé.
 - ⏳ **Actions programmées** : même outil, mais l'étape n'est pas retenue — non ouvert, faute de
   besoin (`ROUTE §10.6`, ▶ par process).
+
+## §PASSATION — 2026-10-14, « LE GOUVERNEUR AU GRAIN DU PROCESS » → session « routage des modèles cloud » (`ROADMAP §8d`)
+
+**Décision de Fabien** (suite du §CLÔTURE du même titre) : un process qui appelle Ollama ou le
+service TTS compte bien comme GPU. *« L'inverse aurait été mensonge. »* Les huit `gpu=True` des
+process LLM/TTS restent, et `tests_process_governance` tient la règle.
+
+**Les cinq restes du palier sont transmis** à la session du routage des modèles cloud (dernier
+commit à la passation : `b4c259af`, quotas des services externes), que Fabien juge la bonne
+pour finir le chantier : (1) un LLM DISTANT compte encore GPU, (2) le besoin VRAM est celui du
+modèle de la CARD, (3) le post-traitement du converter ne déclare pas de modèle, (4) la durée
+max reste au grain de la card, (5) le cam_analyzer est hors squelette et sans gouverneur. Les
+points 1 à 3 ont une même racine : la garde lit un drapeau STATIQUE, alors que le modèle d'un
+process (local ou distant, et lequel) n'est connu qu'au tirage. Domicile : `ROUTE §10.6` 4.5,
+bloc du 2026-10-14.
