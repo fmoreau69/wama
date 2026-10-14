@@ -520,6 +520,23 @@ def model_key_of(owner: str) -> str | None:
     return cles[0] if cles else None
 
 
+def resident_here_gb(model_key: str) -> float:
+    """Go que CE process tient déjà pour `model_key` (ses backends résidents) — 0.0 sinon.
+
+    Un chargement de ce modèle ici serait IDEMPOTENT (`BaseModelBackend.load`) : ces Go ne sont
+    pas un besoin. Écrit le 2026-10-14 pour l'attente de VRAM au grain du PROCESS (squelette de
+    tâche) : le rendu du composer suit sa partition, même modèle, même worker — le pilote ne voit
+    plus libres les Go que la partition vient de charger, et sans ce décompte le rendu attendrait
+    pour toujours le modèle qu'il tient déjà. Le même cas existait d'une card à la suivante.
+    Seul CE process compte : un modèle résident dans un autre (service TTS, Ollama hôte, un
+    second worker) ne se partage pas avec un chargement d'ici."""
+    if not model_key:
+        return 0.0
+    me = os.getpid()
+    return sum(gb for owner, gb in reservations().items()
+               if owner_pid(owner) == me and model_key in model_keys_of(owner))
+
+
 #: Détenteur des lignes de résidence de l'OLLAMA HÔTE (service séparé, lu par `/api/ps`).
 OLLAMA_HOST_OWNER_PREFIX = f"ollama-host{OWNER_MODEL_SEP}"
 
@@ -908,10 +925,14 @@ def _hdel(key: str, *fields) -> None:
 # ── Tâches en cours ─────────────────────────────────────────────────────────────────────
 
 def task_started(app_id: str, item_id, needed_gb: float = 0.0, *,
-                 max_s: float | None = None) -> str:
+                 max_s: float | None = None, process: str = '') -> str:
     """Déclare une tâche GPU EN COURS ; rend son jeton. Posé par le squelette commun autour de
     la glu (`run_item_task`) — un seul point, aucune app. La ligne expire d'elle-même à
-    `max_s` (défaut `TASK_DEFAULT_MAX_S`) : un worker mort ne laisse pas une tâche fantôme."""
+    `max_s` (défaut `TASK_DEFAULT_MAX_S`) : un worker mort ne laisse pas une tâche fantôme.
+
+    Depuis le 2026-10-14 la ligne vaut pour UN PROCESS de la card (`process`, la clé du
+    `ProcessSpec`) : le squelette ne la pose qu'autour d'un process qui sollicite la carte — la
+    conversion du converter ou le floutage de l'anonymizer ne sont plus « une tâche GPU »."""
     tenant = tenant_id()
     token = f"{app_id}:{item_id}:{tenant}"
     line = {
@@ -919,6 +940,8 @@ def task_started(app_id: str, item_id, needed_gb: float = 0.0, *,
         'tenant': tenant, 'ts': _now(),
         'ttl': float(max_s if max_s is not None else TASK_DEFAULT_MAX_S),
     }
+    if process:
+        line['process'] = process
     # Où vit le pid du `tenant` : un lecteur du même espace constate sa MORT sans attendre `ttl`
     # (jumeau de `_dead_owners`, 2026-09-29). Posé seulement quand le tenant EST le pid de
     # l'écrivain — même règle que `reserve_vram` : on n'atteste que ce qu'on sait de soi.
@@ -1139,7 +1162,9 @@ def holders_summary(limit: int = 4) -> str:
         parts.append("résidents : " + shown + (f" +{extra}" if extra > 0 else ''))
     tasks = running_tasks()
     if tasks:
-        parts.append("en cours : " + ', '.join(f"{t['app']} #{t['item']}" for t in tasks[:limit]))
+        parts.append("en cours : " + ', '.join(
+            f"{t['app']} #{t['item']}" + (f" ({t['process']})" if t.get('process') else '')
+            for t in tasks[:limit]))
     return ' ; '.join(parts)
 
 

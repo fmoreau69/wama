@@ -266,7 +266,9 @@ app de file : déposer → démarrer → RUNNING → SUCCESS → télécharger u
 > 🔴 **CE VERT NE COUVRE QU'UNE APP, ET IL FAUT LE LIRE AINSI.** Le scénario est ÉCRIT et
 > ENREGISTRÉ pour les 17 apps, mais **joué sur le seul converter** : sa VRAM est dérivée du
 > ROUTAGE CELERY (`wama.converter.tasks.*` → file `default`, tout le reste → `gpu`), donc le
-> mode sans GPU écarte les 16 autres. C'est la doctrine du §4.0 — *un scénario écrit et non joué
+> mode sans GPU écarte les 16 autres *(précisé le 2026-10-14 : la route dit où la card commence ;
+> chaque process se joue désormais sur sa file, et le post-traitement IA du converter passe sur
+> `gpu` — le scénario n'en demande pas)*. C'est la doctrine du §4.0 — *un scénario écrit et non joué
 > attend ; un scénario qu'on n'écrit pas n'existera jamais.* Compter ces gestes « couverts
 > partout » serait exactement le faux vert que ce document traque.
 >

@@ -66,6 +66,13 @@ Contrat de la glu `process(item, ctx) -> dict | None` :
   étant DÉDUIT de ses process, ils ne corrompront plus rien. ✅ L'`analyze` du reader l'est
   devenu le 2026-10-13 (process `analyze` de son pipeline).
 
+Le gouverneur au grain du PROCESS (2026-10-14, `ROUTE §10.6` 4.5) : avant chaque process qui
+sollicite la carte (`ProcessSpec.gpu`), le squelette le joue sur la file GPU (re-livraison
+`task.retry(queue=…)` si la tâche est ailleurs — un process sans GPU, lui, part sur la file par
+défaut), attend sa VRAM (`_vram_need`, `_differer_faute_de_vram`) et le déclare « en cours » au
+gouverneur le temps de sa glu. Une glu sans déclaration (`process=`, sans pipeline) garde la règle
+d'avant : comptée GPU, sur la file de sa tâche.
+
 Le squelette pose, dans l'ordre de la convention : `close_old_connections`, chargement de
 l'item (`select_related('user')`), `refuse_crash_redelivery` (garde anti-boucle-de-crash),
 progress 0, `ensure_local_input` (no-op sans `WAMA_INGEST`), chrono, puis au succès
@@ -246,8 +253,121 @@ def _grant_honoured(grant, item) -> bool:
         return False
 
 
+class _HandOver(Exception):
+    """La tâche se RE-LIVRE (`task.retry`) : attente de VRAM, ou process suivant sur une autre file.
+    Porte le signal de Celery jusqu'à la sortie du squelette — sans quoi le filet « une exception
+    = FAILURE » le prendrait pour un échec du process."""
+
+    def __init__(self, signal):
+        super().__init__(str(signal))
+        self.signal = signal
+
+
+def _retry(task, **options):
+    """`task.retry(...)`, levé ENVELOPPÉ (`_HandOver`) — le signal de Celery traverse la boucle
+    des process sans être compté comme un échec."""
+    try:
+        raise task.retry(**options)
+    except _HandOver:
+        raise
+    except Exception as signal:
+        raise _HandOver(signal) from None
+
+
+def queue_of(spec) -> str | None:
+    """La FILE Celery où se joue ce process : la file GPU pour un process qui sollicite la carte
+    (`ProcessSpec.gpu`), la file par défaut sinon (2026-10-14, décision de Fabien : une conversion
+    CPU ne réserve pas la file GPU, un post-traitement IA ne la contourne pas). None pour une glu
+    sans déclaration (`spec` None, app à un seul process sans pipeline) : rien ne se déplace."""
+    if spec is None:
+        return None
+    from django.conf import settings
+    from wama.common.services.global_queue import GPU_QUEUE
+    return GPU_QUEUE if spec.gpu else getattr(settings, 'CELERY_TASK_DEFAULT_QUEUE', 'default')
+
+
+def _delivered_on(task) -> str:
+    """La file d'où vient CETTE livraison ('' hors worker : appel direct, test)."""
+    info = getattr(getattr(task, 'request', None), 'delivery_info', None) or {}
+    return str(info.get('routing_key') or '')
+
+
+def _hand_over_to(task, app_id: str, queue: str, ctx) -> None:
+    """Re-livre la tâche sur `queue`, tout de suite : le process suivant se joue là-bas. Même
+    geste que l'attente de VRAM (`task.retry`, même identifiant de tâche) — les process déjà
+    rendus ne se rejouent pas (`steps_to_run`), leurs lignes portent la tâche (`plan`).
+
+    La PRIORITÉ est celle que le gouverneur donne à l'app — la source même des routes Celery
+    (`settings.CELERY_TASK_ROUTES`, `_prio(<app>)`), lue sur le label de l'app du modèle
+    (l'audio de l'enhancer y est `enhancer`, comme sa route). Jamais celle de la livraison :
+    MESURÉ sur un worker jetable (2026-10-14, celery 5.5.3), un message envoyé SANS priorité se
+    relit `priority: 0` — le palier le plus prioritaire. La reprendre ferait entrer un message
+    du converter (file par défaut, sans priorité) devant toute la file GPU. Une option passée
+    l'emporte sur celle de la livraison (`app/task.py:629-651`, `canvas.py:341`, mesuré aussi)."""
+    from wama.common.services.resource_governor import celery_priority_for
+    priority = celery_priority_for(ctx.item._meta.app_label)
+    ctx.console(f"Étape suivante sur la file « {queue} ».", level='info')
+    logger.info("[%s] item #%s : re-livré sur la file %s", app_id, ctx.item.pk, queue)
+    _retry(task, queue=queue, priority=priority, countdown=0,
+           max_retries=WAIT_RETRIES_UNLIMITED)
+
+
+def _vram_need(item, vram_needed, model_key):
+    """Besoin VRAM du process GPU qui va partir : celui que l'app DÉCLARE (`vram_needed`), sinon
+    celui de son modèle au catalogue (`auto_model.vram_needed_gb`, la cascade commune — mesurée,
+    source, déclarée, preset), MOINS ce que ce worker en tient déjà (`resident_here_gb`) : un
+    process qui suit un autre sur le même modèle ne le redemande pas. None : rien à attendre.
+
+    Le besoin DÉRIVÉ de `model_key` est du 2026-10-14 : le composer et l'enhancer le déclaraient
+    à la main, à l'identique (`vram_needed_gb(model_key(élément))`) ; les autres apps qui disent
+    leur modèle (transcriber, imager) n'attendaient rien. ⚠ C'est le modèle de la CARD : un
+    process qui en charge un autre (la diarisation après la transcription) se le voit appliquer
+    — le décompte de ce que le worker tient en retire l'essentiel."""
+    need = None
+    if vram_needed is not None:
+        try:
+            need = vram_needed(item) if callable(vram_needed) else float(vram_needed)
+        except Exception as exc:
+            logger.warning("besoin VRAM illisible (%s) — on tente sans différer", exc)
+            return None
+    elif model_key:
+        from wama.common.utils.auto_model import vram_needed_gb
+        need = vram_needed_gb(model_key)
+    if not need:
+        return None
+    if model_key:
+        from wama.common.services.resource_governor import resident_here_gb
+        need = float(need) - resident_here_gb(model_key)
+    return float(need) if need > 0 else None
+
+
+def _launch_done(pipeline, item, task_ref: str, steps) -> tuple[int, float, list]:
+    """Ce que CE lancement a déjà rendu lors d'une livraison PRÉCÉDENTE (re-livraison vers une
+    autre file, attente de VRAM au milieu du pipeline) : `(parts de barre, secondes mesurées,
+    modèles employés)`. Les lignes le disent — un process rendu porte la tâche du lancement
+    (`plan`), et Celery garde l'identifiant d'une tâche à travers ses re-livraisons. Sans ce
+    report, la barre repartirait de zéro à chaque changement de file, `processing_seconds` (les
+    durées que lit la file globale) ne compterait que la dernière livraison, et le signal
+    `produit` perdrait les modèles des process déjà joués."""
+    from wama.common.models import JOB_SUCCESS
+    if pipeline is None or not task_ref:
+        return 0, 0.0, []
+    playing = {spec.key for *_x, spec in steps if spec is not None}
+    shares, seconds, models = 0, 0.0, []
+    rows = pipeline.rows(item)
+    for spec in pipeline.ordered():
+        row = rows.get(spec.key)
+        if (spec.key not in playing and row is not None and row.task_id == task_ref
+                and row.status == JOB_SUCCESS):
+            shares += spec.share
+            seconds += float(row.duration_s or 0.0)
+            if row.model_key and row.model_key not in models:
+                models.append(row.model_key)
+    return shares, seconds, models
+
+
 def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
-                            error_field, write_line: bool = True):
+                            error_field, *, node=None, process_key=''):
     """Trois cas (Fabien, 20/09), jamais un échec muet. Rend True si l'item ne part pas.
 
     (a) `besoin_gb` ne tient pas sur la carte VIDE → REFUS immédiat et dit : aucune attente ne
@@ -264,15 +384,18 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
     devient VISIBLE sur la card et annulable.
     ⚠ Un `retry` Celery publie un NOUVEAU message : il ne porte pas le drapeau `redelivered`,
     la garde anti-boucle-de-crash (`refuse_crash_redelivery`) ne s'en émeut pas (vérifié).
-    `write_line=False` pour une app à PIPELINE : avant le tirage on ne sait pas quel process
-    partira le premier, et une ligne « main » n'est pas un de ses process — l'attente est alors
-    portée par l'ÉLÉMENT seul (`AWAITING_RESOURCES`), qui reste ce que l'interface lit.
+    Depuis le 2026-10-14 l'attente se décide AU PROCESS (le squelette l'appelle avant chaque
+    process GPU) : `node` / `process_key` désignent sa ligne, qui dit l'attente. Jusque-là elle
+    se décidait avant le premier process, et une card à pipeline n'écrivait aucune ligne — « on
+    ne sait pas quel process partira le premier ».
     """
     from celery.exceptions import MaxRetriesExceededError
     from wama.common.models import JOB_AWAITING_RESOURCES
     from wama.common.services import process_runs
     from wama.common.services import resource_governor as gov
 
+    node = node or process_runs.MAIN_NODE
+    process_key = process_key or app_id
     try:
         libre = gov.effective_free_gb()
     except Exception:
@@ -289,8 +412,7 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
         if _has_field(model, error_field):
             champs[error_field] = msg
         model.objects.filter(pk=item_id).update(**champs)
-        if write_line:
-            process_runs.safely(process_runs.fail, item, message=msg, process_key=app_id)
+        process_runs.safely(process_runs.fail, item, node, msg, process_key=process_key)
         ctx.console(f"✗ {msg}", level='error')
         _notify(item, app_id.title(), _item_label(item, item_id), False, detail=msg, app_id=app_id)
         return True
@@ -313,9 +435,8 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
     if _has_field(model, error_field):
         champs[error_field] = ''          # ce n'est pas une erreur : on n'en laisse pas la trace
     model.objects.filter(pk=item_id).update(**champs)
-    if write_line:
-        process_runs.safely(process_runs.await_resources, item, process_key=app_id,
-                            task_id=getattr(getattr(task, 'request', None), 'id', '') or '')
+    process_runs.safely(process_runs.await_resources, item, node, process_key=process_key,
+                        task_id=getattr(getattr(task, 'request', None), 'id', '') or '')
     ctx.console(msg, level='info')
     logger.info("[%s] item #%s différé — %s", app_id, item_id, msg)
     try:
@@ -329,8 +450,7 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
         if _has_field(model, error_field):
             champs[error_field] = msg
         model.objects.filter(pk=item_id).update(**champs)
-        if write_line:
-            process_runs.safely(process_runs.fail, item, message=msg, process_key=app_id)
+        process_runs.safely(process_runs.fail, item, node, msg, process_key=process_key)
         ctx.console(f"✗ {msg}", level='error')
         _notify(item, app_id.title(), _item_label(item, item_id), False, detail=msg, app_id=app_id)
         return True
@@ -498,35 +618,26 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
 
     ctx = TaskContext(app_id, model, item, progress_fn=progress_fn)
 
-    # ── Ressources AVANT de se déclarer en cours (2026-09-01) ────────────────────────────
-    # Placé ICI, avant tout geste de traitement : un item différé ne doit jamais avoir été
-    # « en cours ». `vram_needed` est OPTIONNEL — une app qui ne le déclare pas garde
-    # exactement le comportement d'avant (aucune des 10 ne bouge tant qu'elle ne l'a pas
-    # déclaré).
-    # ⚠ Corrigé le 2026-09-14 : ce commentaire disait « avant `ctx.progress(0)` qui bascule
+    # ── Ressources : AU GRAIN DU PROCESS (2026-10-14) ────────────────────────────────────
+    # L'attente de VRAM, la déclaration « tâche GPU en cours » et la FILE se décident désormais
+    # avant chaque process, selon ce qu'il est (`ProcessSpec.gpu`) — plus avant la card entière.
+    # Décision de Fabien : une conversion CPU ne réserve pas la carte, un post-traitement IA ne
+    # la contourne pas ; « contrôler chaque process individuellement ». C'est la route écrite
+    # (`ROUTE §10.6` 4.5 : « attente de ressources (gouverneur), ETA par process » ; nuance du
+    # 15/09 : `vram_needed` « à déclarer au grain du process »), dont seule l'ETA était livrée.
+    # ⚠ Corrigé le 2026-09-14 : un commentaire disait « avant `ctx.progress(0)` qui bascule
     # l'item en RUNNING » — faux, `TaskContext.progress` n'écrit que le cache et `progress`.
     # RUNNING est posé par les VUES de lancement, avant `.delay()`.
     from wama.common.models import JOB_AWAITING_RESOURCES, JOB_RUNNING, JOB_STALE, JOB_SUCCESS
     essais = int(getattr(getattr(task, 'request', None), 'retries', 0) or 0)
     if essais and getattr(item, 'status', None) not in (JOB_AWAITING_RESOURCES, JOB_RUNNING):
-        # RE-LIVRAISON d'un report (`task.retry`, seul retry du squelette) alors que l'item
-        # n'attend plus : l'utilisateur l'a annulé, supprimé de la file ou relancé autrement
-        # entre-temps. Le traiter quand même ferait tourner ce qu'il a arrêté.
+        # RE-LIVRAISON (`task.retry` : attente de VRAM, ou process suivant sur une autre file)
+        # alors que l'item n'attend plus et ne tourne plus : l'utilisateur l'a annulé, supprimé
+        # de la file ou relancé autrement entre-temps. Le traiter quand même ferait tourner ce
+        # qu'il a arrêté.
         logger.info("[%s] item #%s : report abandonné (statut %s, plus en attente de ressources)",
                     app_id, item_id, getattr(item, 'status', None))
         return
-    besoin = None
-    if vram_needed is not None:
-        try:
-            besoin = vram_needed(item) if callable(vram_needed) else float(vram_needed)
-        except Exception as exc:
-            logger.warning("[%s] besoin VRAM illisible (%s) — on tente sans différer",
-                           app_id, exc)
-            besoin = None
-        if besoin and _differer_faute_de_vram(task, ctx, item, model, item_id, app_id,
-                                              float(besoin), error_field,
-                                              write_line=pipeline is None):
-            return
 
     # Un item RE-LIVRÉ après un report ne repasse par aucune vue de lancement : sans ce geste,
     # il resterait affiché « En attente de ressources » pendant tout son traitement. Seul ce
@@ -535,7 +646,10 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         model.objects.filter(pk=item_id, status=JOB_AWAITING_RESOURCES).update(status=JOB_RUNNING)
         item.status = JOB_RUNNING
 
-    ctx.progress(0)
+    if not essais:
+        # Une RE-LIVRAISON garde sa barre : ce que le lancement a déjà rendu y est compté
+        # (`_launch_done`), elle ne repart pas de zéro à chaque changement de file.
+        ctx.progress(0)
 
     # ── Premier lancement : PRÉVENIR du téléchargement des poids (2026-09-08) ────────────
     # `model_key` est OPTIONNEL et se déclare comme `vram_needed` : une chaîne, ou un callable
@@ -565,11 +679,12 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
     # La TÂCHE EN COURS se déclare au gouverneur (B1, 2026-09-20) : jusque-là « une tâche GPU
     # tourne » ne se lisait que dans les statuts RUNNING des tables d'app — invisible du
     # gouverneur, donc de l'attente des autres. La ligne expire avec la durée max du traitement.
+    # Depuis le 2026-10-14 elle se pose autour de chaque process GPU (`token`, dans la boucle).
     from wama.common.services import resource_governor as gov
     # Le MODÈLE peut porter sa durée max (réglée au model manager, 2026-09-24) : une vidéo longue
     # dépasse légitimement le défaut de 30 min.
     limit_s = gov.task_time_limit_s(app_id, getattr(item, 'user', None), model_key=resolved_key)
-    token = gov.task_started(app_id, item_id, besoin or 0.0, max_s=limit_s)
+    token = None
     # LIGNE D'EXÉCUTION du process (ROUTE §10.6 4.1, marche P3 — 2026-10-02) : une app du
     # squelette a UN process, donc une ligne. Elle porte ce que l'élément ne disait pas pendant
     # le traitement : le modèle EMPLOYÉ quand le réglage est resté « auto ». L'élément reste la
@@ -597,10 +712,35 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                 process_runs.safely(process_runs.plan, item,
                                     [(node_, key_, 'function') for node_, key_, *_r in steps],
                                     task_id=task_ref)
-            total_share = sum(spec.share if spec is not None else 1 for *_x, spec in steps) or 1
-            done_share, written, used, carried_label = 0, {}, [], None
+            # Ce que le lancement a déjà rendu lors d'une livraison précédente : sa part de barre
+            # et ses secondes restent comptées (`_launch_done`).
+            done_share, done_seconds, used = _launch_done(pipeline, item, task_ref, steps)
+            total_share = (done_share
+                           + sum(spec.share if spec is not None else 1 for *_x, spec in steps)) or 1
+            written, carried_label = {}, None
             for index, (node, process_key, glue, spec) in enumerate(steps):
                 share = spec.share if spec is not None else 1
+                # ── Le process sur SA file, avec SA VRAM, déclaré s'il tient la carte ────────
+                # Une glu sans déclaration (`spec` None) garde la règle d'avant : elle est
+                # comptée GPU, et ne change pas de file.
+                queue = queue_of(spec)
+                delivered = _delivered_on(task)
+                if queue and delivered and delivered != queue:
+                    _hand_over_to(task, app_id, queue, ctx)
+                gpu = spec is None or spec.gpu
+                need = _vram_need(item, vram_needed, resolved_key) if gpu else None
+                if need:
+                    try:
+                        refused = _differer_faute_de_vram(
+                            task, ctx, item, model, item_id, app_id, need, error_field,
+                            node=node, process_key=process_key)
+                    except Exception as signal:       # le report : `task.retry`
+                        raise _HandOver(signal) from None
+                    if refused:
+                        return
+                if gpu:
+                    token = gov.task_started(app_id, item_id, need or 0.0, max_s=limit_s,
+                                             process=spec.key if spec is not None else '')
                 if spec is not None:
                     ctx.enter_step(spec.key, 100.0 * done_share / total_share,
                                    100.0 * (done_share + share) / total_share)
@@ -633,6 +773,11 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                     done_share += share
                     res, node = {}, None      # rien à refermer en succès pour ce process
                     continue
+                finally:
+                    # Le process a rendu (ou levé) : il ne tient plus la carte.
+                    if token:
+                        gov.task_finished(token)
+                        token = None
                 used += [k for k in (res.get('models') or []) if k and k not in used]
                 written.update(res.get('fields') or {})
                 if res.get('label'):
@@ -670,7 +815,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         if _has_field(model, 'progress'):
             fields['progress'] = 100
         if _has_field(model, 'processing_seconds'):
-            fields['processing_seconds'] = round(time.time() - t0, 1)
+            fields['processing_seconds'] = round(done_seconds + time.time() - t0, 1)
         model.objects.filter(pk=item_id).update(**fields)
         if node is not None:          # None : le dernier process, optionnel, a échoué (ligne déjà dite)
             final_snapshot = None
@@ -696,11 +841,15 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         # via `models` (même motif que `eta`) ; sans déclaration on enregistre quand même le
         # fait, avec une liste vide — un signal sans attribution vaut mieux qu'aucun signal.
         outcome = _signal(item, app_id, 'produit', res.get('models'),
-                          {'secondes': round(time.time() - t0, 1)})
+                          {'secondes': round(done_seconds + time.time() - t0, 1)})
         # RÉVISION (marche 8a) : l'état que ce résultat donne à l'élément, rattaché au fait
         # `produit` — posée ici, elle vaut pour toutes les apps du squelette sans une ligne par app.
         _revision(model, item_id, app_id, outcome, res)
         _notify(item, label_app, nom, True, app_id=app_id)
+    except _HandOver as handover:
+        # La tâche est RE-LIVRÉE (attente de VRAM, ou process suivant sur l'autre file) : rien
+        # n'a échoué. Le signal de Celery sort tel quel — c'est lui qui dit au worker « réessayé ».
+        raise handover.signal from None
     except TaskTimeLimitExceeded:
         # Arrêt PROPRE à la durée max : échec RELANÇABLE, dit avec la sortie possible (le plafond
         # se règle dans le profil), rien de classé comme une erreur du modèle.
@@ -761,4 +910,5 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         _signal(item, app_id, 'echec', None, {'erreur': msg[:200]})
         _notify(item, label_app, nom, False, detail=msg, app_id=app_id)
     finally:
-        gov.task_finished(token)
+        if token:                     # un process GPU interrompu hors de sa glu (durée max)
+            gov.task_finished(token)

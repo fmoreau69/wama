@@ -49,7 +49,7 @@ class _TwoProcesses(TestCase):
         type(item).objects.filter(pk=item.pk).update(status='RUNNING', **settings)
         with mock.patch(route, self._route), \
                 mock.patch(resolver, return_value=drawn), \
-                mock.patch('wama.enhancer.utils.auto_model.vram_needed_gb', return_value=None), \
+                mock.patch('wama.common.utils.auto_model.vram_needed_gb', return_value=None), \
                 mock.patch('wama.common.utils.model_readiness.warn_if_weights_missing'), \
                 mock.patch(INLINE_CONVERSION,
                            side_effect=self._convert), \

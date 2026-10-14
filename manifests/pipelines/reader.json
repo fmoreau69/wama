@@ -47,7 +47,7 @@
         "params": {
           "degree": "optional",
           "eta": "reader.tasks:format_eta",
-          "gpu": false,
+          "gpu": true,
           "label": "Mise en forme",
           "result": "reader.function_specs:formatted_text",
           "toggle": "format_markdown",
@@ -65,7 +65,7 @@
         "params": {
           "degree": "optional",
           "eta": "reader.tasks:analyze_eta",
-          "gpu": false,
+          "gpu": true,
           "label": "Analyse",
           "result": "reader.function_specs:analysis_text",
           "toggle": "generate_analysis",

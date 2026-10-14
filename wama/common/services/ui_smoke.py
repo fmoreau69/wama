@@ -5727,6 +5727,11 @@ def _vram_declaree(app: str) -> float:
     plafond fini ne l'admet — et c'est la doctrine déjà écrite du dépôt : *une VRAM inconnue
     n'est jamais gratuite*. `--with-gpu` les libère tous ; affiner viendra du catalogue le jour
     où le GPU rouvrira, et ce sera un geste conscient.
+
+    ⚠ Précisé le 2026-10-14 : la route dit où la card COMMENCE. Depuis que chaque process se
+    joue sur sa file (`task_skeleton.queue_of`), le post-traitement IA du converter passe sur
+    la file `gpu` — ce scénario n'en demande pas (aucune option posée, `ai_postprocess_requested`
+    faux) : sa conversion reste sur `default`, sans GPU.
     """
     routes = getattr(settings, 'CELERY_TASK_ROUTES', None) or {}
     for motif, conf in routes.items():

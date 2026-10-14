@@ -4472,6 +4472,56 @@ process** (clé ETA du process, pas de l'app), signal `RunOutcome` par process, 
 > valait 26,7 s/Mpx pour 0,68 mesuré, séquelle d'un apprentissage antérieur (l'ancienne vue disait
 > 736) ; elle converge (14,7 après ce run, α = 0,3).
 
+> ✅ **Attente de ressources et FILE par process — LIVRÉES le 2026-10-14** (décision de Fabien,
+> question du jour : *« une conversion vidéo longue se fait sur le GPU, ou sur le CPU en réservant
+> un créneau sur le GPU ? »* — sur le CPU, mais la card entière était déclarée « tâche GPU »
+> pendant que son post-traitement IA, lui, chargeait ses modèles depuis la file par défaut sans
+> rien attendre). Le gouverneur était au grain de la CARD : déclaration, attente de VRAM et durée
+> max posées une fois avant tous les process (`task_skeleton`), et la file était celle du MODULE
+> de la tâche. Ce qui est en place, sans pièce neuve — le drapeau `ProcessSpec.gpu`, posé depuis
+> le 02/10 sur chaque process GPU mais lu par le seul manifeste, devient la GARDE :
+> - **un process GPU** se déclare au gouverneur pendant qu'il tourne (`task_started(process=…)`,
+>   « qui tient quoi » le nomme) et attend sa VRAM avant de partir ; **un process sans GPU**
+>   (conversion, floutage, sortie, import) ne tient pas la carte et n'attend rien ;
+> - **le besoin** est celui que l'app déclare (`vram_needed`), sinon celui du modèle de la card au
+>   catalogue (`auto_model.vram_needed_gb`), MOINS ce que le worker en tient déjà
+>   (`resource_governor.resident_here_gb`) — sans ce décompte, le rendu du composer attendrait pour
+>   toujours le modèle que sa partition vient de charger (et le même cas existait d'une card à la
+>   suivante). Le composer et l'enhancer déclaraient ce besoin à la main, à l'identique : copies
+>   retirées (`REMOVAL_LEDGER R129`) ; le transcriber et l'imager, qui disent leur modèle,
+>   attendent désormais aussi ;
+> - **chaque process se joue sur SA file** — GPU s'il sollicite la carte, par défaut sinon : la
+>   tâche se RE-LIVRE à l'autre file entre deux process (`task.retry(queue=…)`, le geste de
+>   l'attente de VRAM — pas une chaîne Celery à côté du moteur, 4.8). Les process rendus ne se
+>   rejouent pas (`steps_to_run`), leurs lignes portent la tâche (`plan`), Celery garde son
+>   identifiant : la barre, les secondes mesurées (`processing_seconds`, que lit la file globale)
+>   et les modèles employés (signal `produit`) du lancement sont reportés (`_launch_done`). Une
+>   longue conversion CPU ne réserve plus la file GPU ; le post-traitement IA du converter y entre
+>   à son tour ; la sortie d'une card GPU rend la file GPU dès que le modèle a rendu ;
+> - **la priorité** d'une re-livraison est celle de l'app (`celery_priority_for`, la source des
+>   routes), jamais celle du message : MESURÉ sur un worker jetable, un message envoyé sans
+>   priorité se relit `priority: 0` — le converter serait entré en tête de la file GPU.
+>
+> **Le sens du drapeau, tranché** : `gpu` = le process sollicite la carte, par un modèle chargé
+> dans le worker OU par un service local qui en charge un (Ollama hôte, service TTS). Les huit
+> process LLM ou TTS passent à `True` (voix de l'avatarizer ; description, résumé, cohérence du
+> describer ; résumé et cohérence du transcriber ; mise en forme et analyse du reader) : ils
+> tournaient déjà sur la file GPU avec leur card, les laisser `False` les aurait fait charger
+> l'Ollama hôte EN CONCURRENCE des traitements — la cause de la chute de l'hôte du 2026-08-19
+> (route de `model_manager.assess_proposed`). Mesuré avant : le drapeau suivait l'étiquette `gpu`
+> du catalogue sans exception, mais les deux voix divergeaient et tout process `llm` était
+> `False` (sauf la jumelle du Writer, générée `True`). Garde : le drapeau égale les étiquettes
+> `gpu` / `llm` / `tts` de la fonction, pour chaque process des dix apps.
+> Gardes : `tests_process_governance` (13), `tests_process_pipeline` (l'attente dite sur la ligne
+> du process), `composer.tests_pipeline`, `enhancer.tests` ; contre-épreuves par mutation.
+> ⏳ **Restes, nommés** : (a) un appel LLM vers un modèle DISTANT compte encore comme GPU — la
+> source n'est connue qu'à l'appel ; (b) le besoin VRAM est celui du modèle de la CARD, appliqué à
+> chaque process GPU (la diarisation après la transcription) — un process ne déclare pas son
+> modèle ; (c) le post-traitement IA du converter ne déclare pas son modèle (`conversion_model`
+> rend `auto`) : il est sérialisé et déclaré, il n'attend pas sa VRAM ; (d) la DURÉE MAX reste
+> celle de la card ; (e) le cam_analyzer route ses passes par la même règle (`Pass.gpu`, garde
+> `tests_calc_routing`) mais hors squelette, sans le gouverneur.
+
 **Gestes de lancement** : un process · un étage (sous-pipeline) · tout · **compléter manquant +
 périmé** (les deux boutons de `ROADMAP §9.2.bis`, généralisés).
 
@@ -5653,7 +5703,9 @@ commit `5d9e7bdc`)** : l'attente ci-dessus vaut pour les apps dont le traitement
 `process(item, ctx)` (`task_skeleton.py:14-29`) comme contrat d'un process d'app — ce que la présente
 section recommande (4.5 : on RÉUNIT les pièces, on n'en réécrit pas). Même règle pour `vram_needed` :
 à déclarer au grain du **process** (4.5, ETA et attente de ressources par process), ce qui coïncide
-avec l'app tant qu'elle n'a qu'un process.
+avec l'app tant qu'elle n'a qu'un process. ✅ **2026-10-14** : l'attente, la déclaration au
+gouverneur et la file sont au grain du process (4.5, bloc du même jour) ; le besoin se dérive du
+modèle de la card quand l'app n'en déclare pas.
 
 #### 12. Consignations corrigées ou précisées le 2026-09-15 (elles renvoient ici)
 
@@ -5799,6 +5851,10 @@ l'utilisateur puisse savoir où en est sa tâche*. Brique `common/services/globa
   (`place_of` → `queue` dans `get_<app>_status` et `get_item_detail`), la même ligne que la
   pastille. Détail et restes : `WAMA_LLM.md` §« 2026-10-13 — les tests bloquent-ils ma tâche ? ».
   Gardes : `tests_global_queue` (+21 ; six contre-épreuves par mutation, rouges).
+- ✅ **2026-10-14 — la file ne compte plus une conversion CPU comme une tâche GPU.** Le reste
+  « tâches déclarées au gouverneur hors file GPU (converter) » du 13/10 venait de la déclaration
+  au grain de la CARD : depuis que le gouverneur est au grain du process (point 4.5, bloc du même
+  jour), seul un process GPU se déclare — et il se joue sur la file GPU.
 - ✅ **Relevés en chemin, TRAITÉS le même soir (GO de Fabien)** : (1) `settings.py` réaffectait
   `CELERY_BROKER_TRANSPORT_OPTIONS` depuis `8360b3e2` (29/07) et PERDAIT le `visibility_timeout` de
   6 h — redélivrance au défaut Redis d'une heure, sous la durée de la suite nocturne GPU : le bloc

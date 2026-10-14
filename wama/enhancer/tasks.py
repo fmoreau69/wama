@@ -50,8 +50,8 @@ def enhance_media(self, enhancement_id: int, process: str = None):
     _forget_lost(Enhancement, enhancement_id)
     run_item_task(self, app_id='enhancer', model=Enhancement, item_id=enhancement_id,
                   pipeline=PIPELINE, processes={'generate': _enhance_media, 'output': _output},
-                  # Le modèle résolu EST une clé de catalogue (route F4b ⑤, 2026-10-06).
-                  vram_needed=lambda e: _vram_needed(_media_model(e)),
+                  # Le modèle résolu EST une clé de catalogue (route F4b ⑤, 2026-10-06) : le
+                  # squelette en tire le besoin VRAM du process GPU (2026-10-14).
                   model_key=_media_model,
                   notify_label='Enhancer', only=process)
 
@@ -65,8 +65,8 @@ def enhance_audio(self, audio_enhancement_id: int, process: str = None):
     run_item_task(self, app_id='audio_enhancer', model=AudioEnhancement,
                   item_id=audio_enhancement_id,
                   pipeline=PIPELINE, processes={'generate': _enhance_audio, 'output': _output},
-                  # Le moteur résolu EST une clé de catalogue (route F4b ⑤, 2026-10-07).
-                  vram_needed=lambda a: _vram_needed(_audio_engine(a)),
+                  # Le moteur résolu EST une clé de catalogue (route F4b ⑤, 2026-10-07) : le
+                  # squelette en tire le besoin VRAM du process GPU (2026-10-14).
                   model_key=_audio_engine,
                   notify_label='Enhancer (audio)', only=process)
 
@@ -87,10 +87,10 @@ def _output(item, ctx):
 
 
 # ── Tirage « auto » AU LANCEMENT (curseur C, 2026-09-21) ──────────────────────────────────
-# Résolu UNE fois par lancement et mémorisé sur l'instance : le squelette interroge le besoin
-# VRAM (`vram_needed`) et la clé des poids (`model_key`) AVANT la glu, qui doit parler du même
-# modèle. L'item GARDE « auto » (une relance ré-arbitre avec la VRAM du moment) ; le modèle
-# retenu vit dans la console, l'ETA et la ligne d'exécution (`models`).
+# Résolu UNE fois par lancement et mémorisé sur l'instance : le squelette interroge la clé des
+# poids (`model_key`) — et, depuis le 2026-10-14, en tire le besoin VRAM — AVANT la glu, qui doit
+# parler du même modèle. L'item GARDE « auto » (une relance ré-arbitre avec la VRAM du moment) ;
+# le modèle retenu vit dans la console, l'ETA et la ligne d'exécution (`models`).
 
 def _media_model(enhancement) -> str:
     if not getattr(enhancement, '_resolved_model', None):
@@ -104,11 +104,6 @@ def _audio_engine(ae) -> str:
         from .utils.auto_model import resolve_audio_engine
         ae._resolved_engine = resolve_audio_engine(ae)
     return ae._resolved_engine
-
-
-def _vram_needed(model_key: str):
-    from .utils.auto_model import vram_needed_gb
-    return vram_needed_gb(model_key)
 
 
 # ── Glu MÉDIA ───────────────────────────────────────────────────────────────────────────

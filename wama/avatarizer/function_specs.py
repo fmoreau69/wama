@@ -84,8 +84,10 @@ register(FunctionSpec(
 # les deux. Voix : texte, modèle TTS, curseur, langue, voix ; animation : modèle, bbox ;
 # visage : `use_enhancer`.
 PIPELINE = register_app_pipeline(_APP, (
+    # La voix sort du service TTS, qui tient son modèle sur la carte : `gpu` (comme la synthèse
+    # du synthesizer, même service).
     ProcessSpec('speak', label='Voix',
-                share=1, applies=_speak_applies, outputs=('audio_input',),
+                gpu=True, share=1, applies=_speak_applies, outputs=('audio_input',),
                 eta='avatarizer.workers:speak_eta_key_size'),
     ProcessSpec('animate', label='Animation', depends_on=('speak',),
                 watched=('audio_input', 'avatar_source', 'avatar_gallery_name', 'avatar_upload'),

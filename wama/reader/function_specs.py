@@ -90,14 +90,16 @@ register(FunctionSpec(
 
 #: `watched` : les champs HORS schéma — le fichier d'entrée. Les RÉGLAGES déclarent eux-mêmes ce
 #: qu'ils périment (`Param.stales`, params.py) ; `PIPELINE.watched_of(spec)` réunit les deux.
+#: `gpu` : tous — la mise en forme et l'analyse passent par un modèle de langage (Ollama hôte, sur
+#: la carte), que la file GPU sérialise (`ProcessSpec.gpu`).
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('read', label='Lecture', watched=('input_file',), gpu=True, share=8,
                 eta='reader.tasks:read_eta', result=f'{_SELF}:read_text'),
     ProcessSpec('format', label='Mise en forme', depends_on=('read',), degree=OPTIONAL,
-                toggle='format_markdown', share=1, eta='reader.tasks:format_eta',
+                toggle='format_markdown', gpu=True, share=1, eta='reader.tasks:format_eta',
                 result=f'{_SELF}:formatted_text'),
     ProcessSpec('analyze', label='Analyse', depends_on=('read', 'format'), degree=OPTIONAL,
-                toggle='generate_analysis', share=1, eta='reader.tasks:analyze_eta',
+                toggle='generate_analysis', gpu=True, share=1, eta='reader.tasks:analyze_eta',
                 result=f'{_SELF}:analysis_text'),
 ), label='Reader — lecture, mise en forme, analyse',
    source_ref='reader.function_specs:PIPELINE',

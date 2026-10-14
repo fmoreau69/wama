@@ -2022,8 +2022,10 @@ diagnostic envisagé n'est PAS fait : l'assistant n'avait rien à observer, le s
 à vide ; à reconsidérer s'il se trompe encore en VOYANT l'état.
 ⏳ Restes : effectif au redémarrage de gunicorn ET du worker GPU (le démarrage noté n'existe
 qu'à partir du prochain `worker_ready` ; d'ici là, un orphelin n'est écarté que par la règle « un
-seul en cours »). Les tâches déclarées au gouverneur hors file GPU (converter, file `default`)
-restent comptées dans la file GPU, comme avant — consigné, non tranché.
+seul en cours »). ~~Les tâches déclarées au gouverneur hors file GPU (converter, file `default`)
+restent comptées dans la file GPU, comme avant — consigné, non tranché.~~ ✅ Soldé le 2026-10-14 :
+le gouverneur est au grain du PROCESS (`WAMA_APP_GENERATION_ROUTE §10.6` 4.5) — une conversion
+CPU ne se déclare plus, le post-traitement IA se joue sur la file GPU.
 
 ## Intake universel de fichiers par l'assistant — inventaire MESURÉ 2026-08-29, plan PROPOSÉ (⏳ validation Fabien)
 

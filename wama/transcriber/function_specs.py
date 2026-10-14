@@ -173,14 +173,15 @@ PIPELINE = register_app_pipeline(_APP, (
                 applies=_diarize_applies, gpu=True, share=1, eta='transcriber.workers:diarize_eta',
                 result=f'{_DOCUMENTS}:diarization_segments', result_format='segments'),
     # Résumé et cohérence lisent le texte ET ses locuteurs (le compte-rendu de réunion les cite,
-    # la cohérence par segment s'écrit sur les segments que la diarisation réécrit).
+    # la cohérence par segment s'écrit sur les segments que la diarisation réécrit). `gpu` : un
+    # modèle de langage (Ollama hôte, sur la carte), que la file GPU sérialise (`ProcessSpec.gpu`).
     ProcessSpec('summarize', label='Résumé', depends_on=('transcribe', 'import', 'diarize'),
-                degree=OPTIONAL, toggle='generate_summary', share=1,
+                degree=OPTIONAL, toggle='generate_summary', gpu=True, share=1,
                 eta='transcriber.workers:summarize_eta', result=f'{_DOCUMENTS}:summary_text',
                 result_format='markdown'),
     ProcessSpec('coherence', label='Cohérence',
                 depends_on=('transcribe', 'import', 'align', 'diarize'),
-                degree=OPTIONAL, toggle='verify_coherence', share=1,
+                degree=OPTIONAL, toggle='verify_coherence', gpu=True, share=1,
                 eta='transcriber.workers:coherence_eta', result=f'{_DOCUMENTS}:coherence_report',
                 result_format='coherence'),
 ), label='Transcriber — transcription ou import, alignement, locuteurs, résumé, cohérence',

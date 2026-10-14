@@ -753,16 +753,27 @@ class SkeletonRunsThePipelineTest(TestCase):
         self.assertEqual({'plan': JOB_SUCCESS, 'render': JOB_FAILURE}, self._states(item))
         self.assertIn('Durée maximale', process_runs.line(item, 'render').error_message)
 
-    def test_a_wait_for_the_graphics_card_writes_no_main_line(self):
-        """Before the draw nobody knows which process starts first, and « main » is not one of
-        the processes of a pipeline: the wait is carried by the element alone."""
+    def test_the_wait_for_the_graphics_card_is_decided_at_the_gpu_process_on_its_line(self):
+        """2026-10-14 (Fabien: the governor at the grain of the PROCESS): a process that does not
+        use the card plays without waiting; the GPU process that follows waits, and its OWN line
+        says so — no « main » line. Until then the wait was decided before the card, and a
+        pipeline card wrote no line at all (« nobody knows which process starts first »)."""
         from wama.common.utils.task_skeleton import run_item_task
+        self.pipeline = AppPipeline(self.app, (
+            ProcessSpec('plan'), ProcessSpec('render', depends_on=('plan',), gpu=True),
+        ), label='Demo')
 
         class Deferred(Exception):
             pass
         task = _task()
         task.retry = staticmethod(lambda **kwargs: Deferred(kwargs))
         item = self._element('pipeline_waits')
+
+        def glue(key):
+            def inner(element, ctx):
+                self.calls.append(key)
+                return {}
+            return inner
         with mock.patch('wama.common.utils.task_skeleton.close_old_connections'), \
                 mock.patch('wama.common.services.resource_governor.effective_free_gb',
                            return_value=1.0), \
@@ -775,10 +786,12 @@ class SkeletonRunsThePipelineTest(TestCase):
             with self.assertRaises(Deferred):
                 run_item_task(task, app_id=self.app, model=self.model, item_id=item.pk,
                               pipeline=self.pipeline, vram_needed=8.0,
-                              processes={'plan': lambda e, c: {}, 'render': lambda e, c: {}})
+                              processes={'plan': glue('plan'), 'render': glue('render')})
         item = self.model.objects.get(pk=item.pk)
         self.assertEqual('AWAITING_RESOURCES', item.status)
-        self.assertFalse(process_runs.lines(item).exists())
+        self.assertEqual(['plan'], self.calls, 'the process without GPU did not wait')
+        self.assertEqual({'plan': JOB_SUCCESS, 'render': 'AWAITING_RESOURCES'}, self._states(item))
+        self.assertIsNone(process_runs.line(item), 'still no « main » line')
 
     def test_the_skeleton_can_be_bounded_to_one_process(self):
         item = self._run(self._element('pipeline_bounded_first'))

@@ -18,7 +18,9 @@ déclare ses process comme le cam_analyzer déclare ses passes :
   • le registre S'EXPORTE en manifeste `pipeline` (`register_pipeline_source`) : il s'ouvre au
     studio comme tout pipeline (« UNE représentation, DEUX éditeurs ») ;
   • l'exécution reste au squelette de tâche (`task_skeleton.run_item_task(pipeline=…,
-    processes={clé: glu})`), qui joue les process retenus DANS une seule tâche Celery ;
+    processes={clé: glu})`), qui joue les process retenus dans UNE tâche Celery — chacun sur la
+    file que dit son drapeau `gpu` : la tâche se re-livre à l'autre file entre deux process
+    (2026-10-14, cf. `gpu` ci-dessous) ;
   • l'état de chaque process vit sur sa ligne (`process_runs`), l'état de la card s'en DÉDUIT.
 
 CE QUE CE MODULE DÉCIDE
@@ -108,7 +110,18 @@ class ProcessSpec:
                   l'ordre du schéma puis de cette liste ;
       degree      `required` (son échec fait échouer la card) | `optional` ;
       function    clé du catalogue de fonctions quand elle diffère de `<app>.<key>` ;
-      gpu         le process charge le GPU (dit à l'utilisateur, jamais une garde) ;
+      gpu         le process SOLLICITE LA CARTE GRAPHIQUE : un modèle chargé dans le worker, ou
+                  un service local qui en charge un (Ollama hôte, service TTS). C'est une GARDE
+                  depuis le 2026-10-14 (décision de Fabien : le gouverneur au grain du process,
+                  pas de la card) — le squelette le joue sur la file GPU, le déclare au
+                  gouverneur pendant qu'il tourne, et lui fait attendre sa VRAM ; un process sans
+                  GPU (conversion, floutage, sortie, import) se joue sur la file par défaut et ne
+                  tient pas la carte. Un appel LLM compte comme GPU même quand le modèle tiré
+                  est distant : la source n'est connue qu'à l'appel, et le relâcher sur la file
+                  par défaut ferait charger l'Ollama hôte EN CONCURRENCE des traitements — ce
+                  qui a fait tomber l'hôte le 2026-08-19 (`settings.py`, route de
+                  `model_manager.assess_proposed`). Jusque-là : « dit à l'utilisateur, jamais
+                  une garde » ;
       share       part de la barre de progression de la card (poids relatif) ;
       applies     `(item, model_key) -> bool` : le process a-t-il lieu pour CET élément ? Absent =
                   toujours. C'est ce qui laisse un pipeline à deux process n'en jouer qu'un pour

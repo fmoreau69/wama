@@ -157,6 +157,8 @@ register(FunctionSpec(
 
 #: `watched` : les champs HORS schéma — le fichier d'entrée. Les RÉGLAGES déclarent eux-mêmes ce
 #: qu'ils périment (`Param.stales`, params.py) ; `PIPELINE.watched_of(spec)` réunit les deux.
+#: `gpu` : tous — la description, le résumé et la cohérence passent par un modèle de langage
+#: (Ollama hôte, sur la carte), que la file GPU sérialise (`ProcessSpec.gpu`).
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('transcribe', label='Transcription', watched=('input_file',),
                 applies=_hears, gpu=True, share=4, eta='describer.workers:transcribe_eta',
@@ -165,14 +167,14 @@ PIPELINE = register_app_pipeline(_APP, (
                 applies=_has_frames, gpu=True, share=3, eta='describer.workers:frames_eta',
                 result=f'{_SELF}:frames_text'),
     ProcessSpec('describe', label='Description', depends_on=('transcribe', 'frames'),
-                watched=('input_file',), share=3, eta='describer.workers:describe_eta',
+                watched=('input_file',), gpu=True, share=3, eta='describer.workers:describe_eta',
                 result=f'{_SELF}:description_text'),
     ProcessSpec('summarize', label='Résumé', depends_on=('describe',), degree=OPTIONAL,
-                toggle='generate_summary', share=1,
+                toggle='generate_summary', gpu=True, share=1,
                 eta='describer.workers:summarize_eta', result=f'{_SELF}:summary_text',
                 result_format='markdown'),
     ProcessSpec('coherence', label='Cohérence', depends_on=('describe',), degree=OPTIONAL,
-                toggle='verify_coherence', share=1, eta='describer.workers:coherence_eta',
+                toggle='verify_coherence', gpu=True, share=1, eta='describer.workers:coherence_eta',
                 result=f'{_SELF}:coherence_report', result_format='coherence'),
 ), label='Describer — transcription, images-clés, description, résumé, cohérence',
    source_ref='describer.function_specs:PIPELINE',

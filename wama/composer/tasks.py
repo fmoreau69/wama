@@ -48,7 +48,7 @@ def compose_task(self, generation_id: int, process: str | None = None):
                       pipeline=PIPELINE,
                       processes={'extract_score': _extract_score, 'plan': _plan, 'render': _render,
                                  'output': _output},
-                      vram_needed=_vram_needed, model_key=_model_key, notify_label='Composer',
+                      model_key=_model_key, notify_label='Composer',
                       only=process)
     finally:
         _release_backend(generation_id)
@@ -58,7 +58,9 @@ def compose_task(self, generation_id: int, process: str | None = None):
 # Les deux manques que la 1ʳᵉ génération YuE2 réelle a montrés (2026-10-02, élément #281) :
 #   • le composer ne déclarait AUCUN besoin au squelette : parti sur une carte pleine (modèles de
 #     transcription résidents dans le même worker), il a échoué faute de mémoire au lieu
-#     d'attendre (`AWAITING_RESOURCES`, ou la libération accordée par l'utilisateur) ;
+#     d'attendre (`AWAITING_RESOURCES`, ou la libération accordée par l'utilisateur). Depuis le
+#     2026-10-14 le squelette tire ce besoin du modèle de CE lancement (`_model_key`), avant
+#     chaque process GPU — la copie `_vram_needed` est retirée (`REMOVAL_LEDGER R129`) ;
 #   • le moteur n'était jamais RELÂCHÉ : après l'échec, ses poids sont restés dans le worker —
 #     avec le plafond mémoire que YuE2 pose au process — et la tâche SUIVANTE (une transcription
 #     d'une autre file) a manqué de mémoire à son tour.
@@ -108,12 +110,6 @@ def extract_score_eta_key_size(gen) -> tuple[str, float, str]:
 def extract_score_eta(gen):
     """ETA déclarée du process `extract_score` : apprise seulement (clé de process, cf. `plan_eta`)."""
     return (*extract_score_eta_key_size(gen), False, 0.0)
-
-
-def _vram_needed(gen):
-    """Besoin VRAM du modèle de CE lancement (cascade commune du catalogue), None si inconnu."""
-    from wama.common.utils.auto_model import vram_needed_gb
-    return vram_needed_gb(_model_key(gen))
 
 
 #: Moteurs ouverts par les lancements EN COURS dans ce process : {id de génération: instance}.

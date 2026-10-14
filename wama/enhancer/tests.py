@@ -402,14 +402,17 @@ class NfeDeclinesFromTheSliderTest(SimpleTestCase):
 
 class VramNeedIsTheCommonFootprintTest(TestCase):
     """La garde VRAM du squelette lit la cascade COMMUNE (`model_footprint_gb`), jamais un
-    chiffre recopié ; sans ligne de catalogue, pas de garde."""
+    chiffre recopié ; sans ligne de catalogue, pas de garde. Depuis le 2026-10-14 le squelette la
+    tire lui-même du modèle que la tâche lui donne (`model_key`) : l'enhancer n'a plus de copie
+    (`REMOVAL_LEDGER R129`)."""
 
     def test_the_catalogue_row_s_footprint_is_returned_and_an_unknown_key_gives_none(self):
+        from wama.common.utils.task_skeleton import _vram_need
         _catalogue_row('enhancer:resemble', 'speech', task='audio-enhance')
         from wama.model_manager.models import AIModel
         AIModel.objects.filter(model_key='enhancer:resemble').update(vram_gb=4.0)
-        self.assertEqual(am.vram_needed_gb('enhancer:resemble'), 4.0)
-        self.assertIsNone(am.vram_needed_gb('enhancer:absent'))
+        self.assertEqual(_vram_need(None, None, 'enhancer:resemble'), 4.0)
+        self.assertIsNone(_vram_need(None, None, 'enhancer:absent'))
 
 
 class MediaRouteHelpersTest(SimpleTestCase):

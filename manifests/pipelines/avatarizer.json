@@ -22,7 +22,7 @@
         "params": {
           "degree": "required",
           "eta": "avatarizer.workers:speak_eta_key_size",
-          "gpu": false,
+          "gpu": true,
           "label": "Voix",
           "outputs": [
             "audio_input"

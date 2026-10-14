@@ -136,7 +136,7 @@
         "params": {
           "degree": "optional",
           "eta": "transcriber.workers:summarize_eta",
-          "gpu": false,
+          "gpu": true,
           "label": "Résumé",
           "result": "transcriber.utils.transcript_documents:summary_text",
           "result_format": "markdown",
@@ -154,7 +154,7 @@
         "params": {
           "degree": "optional",
           "eta": "transcriber.workers:coherence_eta",
-          "gpu": false,
+          "gpu": true,
           "label": "Cohérence",
           "result": "transcriber.utils.transcript_documents:coherence_report",
           "result_format": "coherence",

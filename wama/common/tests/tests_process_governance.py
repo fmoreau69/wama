@@ -1,0 +1,277 @@
+"""The governor at the grain of the PROCESS, and each process on ITS queue (2026-10-14).
+
+Decision of Fabien, the same day: « declare to the governor the steps of a card's pipeline, not
+the whole process of an app's card » — a long CPU conversion must not reserve the GPU queue, an
+AI post-processing must not go around it. The route had it written (`ROUTE §10.6` 4.5: « waiting
+for resources (governor), ETA per process »; nuance of 15/09: `vram_needed` « at the grain of the
+process »); only the ETA had been delivered.
+
+What these guards hold:
+- only a process that uses the card (`ProcessSpec.gpu`) is declared running to the governor, and
+  only while it runs; a CPU process never waits for VRAM;
+- the VRAM need is the declared one, otherwise the one of the card's model in the catalogue,
+  minus what THIS worker already holds of it (the composer's render follows its score on the same
+  model: without that, it would wait forever for what it holds);
+- a process delivered on the wrong queue is handed over to its own (`task.retry(queue=…)`) with
+  an explicit priority — never as a failure — and the next delivery resumes there: nothing
+  replayed, the bar, the measured seconds and the employed models of the launch carried over;
+- the flag is coherent with what the catalogue says of the function (`gpu`, `llm`, `tts` tags),
+  for every real app.
+
+No GPU, no Redis: the probe is simulated, the registry is the fake Redis.
+"""
+import os
+from unittest import mock
+
+from django.contrib.auth import get_user_model
+from django.test import SimpleTestCase, TestCase
+
+from wama.common.models import JOB_PENDING, JOB_SUCCESS, ProcessRun
+from wama.common.services import process_runs
+from wama.common.services import resource_governor as gov
+from wama.common.services.process_pipeline import AppPipeline, ProcessSpec
+from wama.common.tests.tests_queue_delete_contract import _instance
+from wama.common.tests.tests_task_skeleton_contract import _adopters
+from wama.common.tests.tests_vram_ledger import _FauxRedis
+
+#: Catalogue tags that say a function uses the card — directly, or through a local service.
+GPU_TAGS = {'gpu', 'llm', 'tts'}
+
+
+class _Resent(Exception):
+    """What a fake `task.retry` returns: the skeleton raises it."""
+
+
+def _task(queue='', retries=0, priority=None):
+    """A bound-task double: its delivery (queue, priority) and the re-deliveries it asked for."""
+    sent = []
+    info = {'routing_key': queue, 'priority': priority} if queue else {}
+
+    class _T:
+        class request:
+            id = 'task-governance'
+            delivery_info = info
+        request.retries = retries
+
+        @staticmethod
+        def retry(**options):
+            sent.append(options)
+            return _Resent(options)
+    return _T, sent
+
+
+class _Base(TestCase):
+
+    def setUp(self):
+        self.app, self.model = _adopters()[0]
+        self.redis = _FauxRedis()
+        for patch in (mock.patch.object(gov, '_redis', return_value=self.redis),
+                      mock.patch.object(gov, 'total_vram_gb', return_value=24.0),
+                      mock.patch('wama.common.utils.task_skeleton.close_old_connections')):
+            patch.start()
+            self.addCleanup(patch.stop)
+        self.calls, self.seen = [], {}
+        self.pipeline = AppPipeline(self.app, (
+            ProcessSpec('convert', share=1),
+            ProcessSpec('enhance', depends_on=('convert',), gpu=True, share=3),
+        ), label='Demo')
+
+    def _element(self, name):
+        user = get_user_model().objects.create_user(name, password='x')
+        item = _instance(self.model, user)
+        self.model.objects.filter(pk=item.pk).update(status='RUNNING')
+        return item
+
+    def _glue(self, key):
+        def glue(element, ctx):
+            self.calls.append(key)
+            self.seen[key] = [(t['app'], t.get('process')) for t in gov.running_tasks()]
+            return {'models': [f'family:{key}']}
+        return glue
+
+    def _run(self, item, task, free=24.0, **kwargs):
+        from wama.common.utils.task_skeleton import run_item_task
+        processes = {spec.key: self._glue(spec.key) for spec in self.pipeline.specs}
+        with mock.patch.object(gov, 'effective_free_gb', return_value=free), \
+                mock.patch.object(gov, 'release_granted', return_value=None), \
+                mock.patch.object(gov, 'holders_summary', return_value=''):
+            run_item_task(task, app_id=self.app, model=self.model, item_id=item.pk,
+                          pipeline=self.pipeline, processes=processes, **kwargs)
+        return self.model.objects.get(pk=item.pk)
+
+    def _states(self, item):
+        return {row.node_id: row.status for row in process_runs.lines(item)}
+
+
+class OnlyTheGpuProcessHoldsTheCardTest(_Base):
+
+    def test_the_conversion_is_not_a_gpu_task_and_the_post_processing_is(self):
+        task, _sent = _task()
+        item = self._run(self._element('gov_holds'), task)
+        self.assertEqual('SUCCESS', item.status)
+        self.assertEqual([], self.seen['convert'], 'a CPU process does not hold the card')
+        self.assertEqual([(self.app, 'enhance')], self.seen['enhance'])
+        self.assertEqual([], gov.running_tasks(), 'released when the process returns')
+
+    def test_a_cpu_process_never_waits_for_vram(self):
+        self.pipeline = AppPipeline(self.app, (ProcessSpec('convert'),), label='Demo')
+        task, sent = _task()
+        item = self._run(self._element('gov_cpu_no_wait'), task, free=0.5, vram_needed=8.0)
+        self.assertEqual('SUCCESS', item.status)
+        self.assertEqual([], sent)
+
+    def test_the_line_of_the_gpu_process_is_released_when_it_fails(self):
+        def broken(element, ctx):
+            raise RuntimeError('out of memory')
+        task, _sent = _task()
+        item = self._element('gov_fails')
+        from wama.common.utils.task_skeleton import run_item_task
+        with mock.patch.object(gov, 'effective_free_gb', return_value=24.0):
+            run_item_task(task, app_id=self.app, model=self.model, item_id=item.pk,
+                          pipeline=self.pipeline,
+                          processes={'convert': self._glue('convert'), 'enhance': broken})
+        self.assertEqual('FAILURE', self.model.objects.get(pk=item.pk).status)
+        self.assertEqual([], gov.running_tasks())
+
+    def test_who_holds_the_card_names_the_process(self):
+        token = gov.task_started('converter', 12, 2.0, process='enhance')
+        self.addCleanup(gov.task_finished, token)
+        with mock.patch.object(gov, 'resident_models', return_value={}):
+            self.assertIn('converter #12 (enhance)', gov.holders_summary())
+
+
+class TheNeedOfTheProcessTest(_Base):
+
+    def test_without_a_declared_need_the_model_of_the_card_gives_it(self):
+        task, _sent = _task()
+        with mock.patch('wama.common.utils.auto_model.vram_needed_gb', return_value=8.0) as need:
+            with self.assertRaises(_Resent):
+                self._run(self._element('gov_derived'), task, free=1.0, model_key='family:m')
+        need.assert_called_with('family:m')
+        self.assertEqual(['convert'], self.calls, 'the conversion played, the GPU process waits')
+
+    def test_a_model_this_worker_already_holds_is_not_a_need(self):
+        gov.reserve_vram(f'wama.x.Engine:{os.getpid()}#family:m', 8.0, allocated=True)
+        task, sent = _task()
+        with mock.patch('wama.common.utils.auto_model.vram_needed_gb', return_value=8.0):
+            item = self._run(self._element('gov_resident_here'), task, free=0.5,
+                             model_key='family:m')
+        self.assertEqual('SUCCESS', item.status)
+        self.assertEqual([], sent, 'no wait for the model it holds')
+
+    def test_the_same_model_held_by_another_process_is_still_a_need(self):
+        gov.reserve_vram('wama.x.Engine:999999#family:m', 8.0, allocated=True)
+        self.assertEqual(0.0, gov.resident_here_gb('family:m'))
+        task, _sent = _task()
+        with mock.patch('wama.common.utils.auto_model.vram_needed_gb', return_value=8.0):
+            with self.assertRaises(_Resent):
+                self._run(self._element('gov_resident_elsewhere'), task, free=0.5,
+                          model_key='family:m')
+
+
+class EachProcessOnItsQueueTest(_Base):
+
+    def test_a_gpu_process_delivered_on_the_default_queue_is_handed_over_to_the_gpu_queue(self):
+        task, sent = _task('default')
+        item = self._element('gov_hop_up')
+        with self.assertRaises(_Resent):
+            self._run(item, task)
+        self.assertEqual(['convert'], self.calls)
+        self.assertEqual('gpu', sent[0]['queue'])
+        self.assertEqual(0, sent[0]['countdown'])
+        self.assertEqual(gov.celery_priority_for(self.model._meta.app_label), sent[0]['priority'],
+                         'the priority of the app, as its route: a message sent WITHOUT priority '
+                         'is delivered as priority 0 (measured) — it would enter the GPU queue '
+                         'ahead of everything')
+        item = self.model.objects.get(pk=item.pk)
+        self.assertEqual('RUNNING', item.status, 'a hand-over is not a failure')
+        self.assertEqual({'convert': JOB_SUCCESS, 'enhance': JOB_PENDING}, self._states(item))
+        self.assertEqual([], gov.running_tasks())
+
+    def test_a_cpu_process_leaves_the_gpu_queue_and_the_delivered_priority_is_never_reused(self):
+        self.pipeline = AppPipeline(self.app, (
+            ProcessSpec('generate', gpu=True), ProcessSpec('output', depends_on=('generate',)),
+        ), label='Demo')
+        task, sent = _task('gpu', priority=0)
+        with self.assertRaises(_Resent):
+            self._run(self._element('gov_hop_down'), task)
+        self.assertEqual(['generate'], self.calls)
+        self.assertEqual(('default', gov.celery_priority_for(self.model._meta.app_label)),
+                         (sent[0]['queue'], sent[0]['priority']))
+
+    def test_the_next_delivery_resumes_there_with_the_bar_the_seconds_and_the_models(self):
+        timed = any(f.name == 'processing_seconds' for f in self.model._meta.get_fields())
+        item = self._element('gov_resume')
+        task, _sent = _task('default')
+        with self.assertRaises(_Resent):
+            self._run(item, task)
+        ProcessRun.objects.filter(object_id=str(item.pk), node_id='convert').update(duration_s=5.0)
+        self.calls.clear()
+        bar = []
+
+        def enhance(element, ctx):
+            self.calls.append('enhance')
+            ctx.progress(0)
+            return {'models': ['family:enhance']}
+        task, sent = _task('gpu', retries=1)
+        from wama.common.utils.task_skeleton import run_item_task
+        with mock.patch.object(gov, 'effective_free_gb', return_value=24.0), \
+                mock.patch('wama.common.utils.task_skeleton._signal') as signal:
+            run_item_task(task, app_id=self.app, model=self.model, item_id=item.pk,
+                          pipeline=self.pipeline,
+                          processes={'convert': self._glue('convert'), 'enhance': enhance},
+                          progress_fn=lambda element, pct, msg: bar.append(round(pct)))
+        item = self.model.objects.get(pk=item.pk)
+        self.assertEqual([], sent)
+        self.assertEqual(['enhance'], self.calls, 'the conversion is not played again')
+        self.assertEqual('SUCCESS', item.status)
+        produced = [c for c in signal.call_args_list if c.args[2] == 'produit'][0]
+        self.assertEqual(['family:convert', 'family:enhance'], produced.args[3])
+        self.assertGreaterEqual(produced.args[4]['secondes'], 5.0)
+        self.assertEqual([25, 100], bar,
+                         'the bar starts where the conversion left it — never back to zero')
+        if timed:
+            self.assertGreaterEqual(item.processing_seconds, 5.0)
+
+    def test_outside_a_worker_nothing_moves(self):
+        task, sent = _task()
+        item = self._run(self._element('gov_no_delivery'), task)
+        self.assertEqual('SUCCESS', item.status)
+        self.assertEqual([], sent)
+
+    def test_the_converter_converts_beside_the_gpu_queue_and_post_processes_on_it(self):
+        """Fabien's question (2026-10-14): « a long video conversion runs on the GPU, or on the
+        CPU while booking a GPU slot? » — now on the CPU, booking nothing."""
+        from wama.common.utils.task_skeleton import queue_of
+        from wama.converter.function_specs import PIPELINE
+        self.assertEqual({'convert': 'default', 'enhance': 'gpu'},
+                         {spec.key: queue_of(spec) for spec in PIPELINE.specs})
+
+
+class TheFlagSaysWhatTheCatalogueSaysTest(SimpleTestCase):
+    """`ProcessSpec.gpu` is a GUARD since 2026-10-14: a process wrongly declared CPU would run
+    beside the GPU work and hold the card undeclared. What the function does is said by the
+    catalogue's tags — a model on the card (`gpu`), a language model of the Ollama host (`llm`),
+    the TTS service (`tts`). Measured the day it was written: the two voices disagreed
+    (synthesizer `True`, avatarizer `False`) and every `llm` process was `False`."""
+
+    def test_every_process_of_every_real_app_declares_what_its_function_does(self):
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.catalog.function_catalog import FUNCTION_CATALOG, load_all
+        from wama.common.sandbox import non_sandbox_apps
+        from wama.common.services import process_pipeline as pp
+        load_all()
+        pp._load_declarations()
+        real = set(non_sandbox_apps(APP_CATALOG))
+        checked = 0
+        for app, pipeline in pp.APP_PIPELINES.items():
+            if app not in real:
+                continue
+            for spec in pipeline.specs:
+                function = FUNCTION_CATALOG.get(pipeline.function_key(spec))
+                with self.subTest(app=app, process=spec.key):
+                    self.assertIsNotNone(function)
+                    uses_the_card = bool(GPU_TAGS & set(function.tags or ()))
+                    self.assertEqual(uses_the_card, spec.gpu)
+                checked += 1
+        self.assertGreater(checked, 25, 'the ten apps were read')

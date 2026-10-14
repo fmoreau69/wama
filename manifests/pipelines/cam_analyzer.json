@@ -388,7 +388,9 @@
           "per_camera": false,
           "stage": "calcul",
           "task": "compute_global_tracking_task",
-          "watched": []
+          "watched": [
+            "parked_zones"
+          ]
         }
       },
       {

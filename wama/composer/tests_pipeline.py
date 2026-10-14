@@ -305,12 +305,17 @@ class TheCardAndTheGraphicsCardTest(TestCase):
         self.assertEqual('SUCCESS', gen.status, gen.error_message)
 
     def test_the_need_is_the_one_of_the_model_of_this_launch(self):
+        """The skeleton derives the need from the model the task gives it (`model_key`, the draw
+        of THIS launch) — the composer no longer copies the rule (2026-10-14)."""
+        from wama.common.utils.task_skeleton import _vram_need
         gen = self._generation(model=AUTO)
         with mock.patch('wama.composer.utils.auto_model.resolve_auto_model',
                         return_value=SCORE_MODEL), \
                 mock.patch('wama.common.utils.auto_model.vram_needed_gb',
-                           return_value=7.3) as need:
-            self.assertEqual(7.3, tasks._vram_needed(gen))
+                           return_value=7.3) as need, \
+                mock.patch('wama.common.services.resource_governor.resident_here_gb',
+                           return_value=0.0):
+            self.assertEqual(7.3, _vram_need(gen, None, tasks._model_key(gen)))
         need.assert_called_once_with(SCORE_MODEL)
 
     def test_a_card_that_does_not_fit_now_waits_instead_of_starting(self):
@@ -333,8 +338,11 @@ class TheCardAndTheGraphicsCardTest(TestCase):
         self.assertEqual('AWAITING_RESOURCES', gen.status)
         self.assertEqual((0, []), (_ScoreEngine.built, _ScoreEngine.plans),
                          'the engine was loaded although the card had no room')
-        self.assertFalse(process_runs.lines(gen).exists(),
-                         'the wait of a pipeline card is carried by the element, not by a line')
+        # Since 2026-10-14 the wait is decided at the PROCESS (the governor at the grain of the
+        # pipeline step): the first GPU process says it waits on its own line, nothing ran.
+        states = {row.node_id: row.status for row in process_runs.lines(gen)}
+        self.assertEqual('AWAITING_RESOURCES', states.pop('plan'))
+        self.assertTrue(all(s == 'PENDING' for s in states.values()), states)
 
 
 class TheCardShowsItsProcessesTest(TestCase):

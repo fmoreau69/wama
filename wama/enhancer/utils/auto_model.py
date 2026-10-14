@@ -105,15 +105,3 @@ def audio_nfe(ae, engine: str) -> int:
         return nfe_for_intent(quality_intent_of(ae, APP_ID))
     return int(ae.quality or 64)
 
-
-def vram_needed_gb(model_key: str):
-    """Besoin VRAM du modèle RÉSOLU, pour la garde du squelette (`vram_needed`) : LA cascade
-    commune `memory_manager.model_footprint_gb` (mesurée → source → déclarée → preset), lue sur
-    la ligne de catalogue ; None si la ligne manque ou si personne ne sait (pas de garde —
-    jamais un chiffre recopié ici). `offload=False` : un moteur ONNX ne décharge rien.
-    ⚠ Mesuré le 21/09 : les 7 upscalers n'ont qu'une VRAM heuristique de taille (0,0-0,1 Go)
-    — leur `vram_usage` déclaré dans `model_config` attend d'être PROJETÉ par la découverte
-    (`model_registry`, fichier de la session sœur) ; la garde suivra sans une ligne ici.
-    La lecture vit dans la brique commune depuis le 2026-10-02 (2ᵉ consommateur : le composer)."""
-    from wama.common.utils.auto_model import vram_needed_gb as common_vram_needed_gb
-    return common_vram_needed_gb(model_key, offload=False)

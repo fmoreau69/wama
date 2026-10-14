@@ -118,7 +118,9 @@ MECHANISMS = (
               "Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une ligne "
               "de réservation ou de tâche dont le process écrivain est MORT (même espace de pid) "
               "sort sans attendre son TTL (29/09 : 4 lignes sur 8 après une relance, ~24 Go "
-              "fantômes retranchés du tirage)",
+              "fantômes retranchés du tirage). Une ligne « tâche en cours » vaut pour UN process "
+              "GPU de la card depuis le 2026-10-14 ; `resident_here_gb` dit ce que CE process "
+              "tient déjà d'un modèle (un rechargement idempotent n'est pas un besoin)",
               'wama/common/services/resource_governor.py', 'docs/construction/suivi/PROJECT_STATUS.md §0'),
     Mechanism('backend_contract', 'Contrat de backend',
               "Cycle de vie commun des porteurs de modèle — ALIMENTATION du gouverneur "
@@ -137,9 +139,15 @@ MECHANISMS = (
               # renseigner le symbole, sinon le chiffre est décoratif.
               symbol='BaseModelBackend'),
     Mechanism('task_skeleton', 'Squelette de tâche',
-              "Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA",
+              "Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA. "
+              "Depuis le 2026-10-14 le gouverneur y est au grain du PROCESS : avant chaque "
+              "process GPU (`ProcessSpec.gpu`), attente de VRAM (besoin déclaré, sinon celui du "
+              "modèle de la card, moins ce que le worker tient) et déclaration « en cours » ; "
+              "chaque process se joue sur SA file (GPU ou par défaut), la tâche se re-livrant à "
+              "l'autre entre deux process (`queue_of`, barre et durées du lancement reportées)",
               'wama/common/utils/task_skeleton.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
-              depends_on=('process_runs',)),
+              annexes=('wama/common/tests/tests_process_governance.py',),
+              depends_on=('process_runs', 'resource_governor')),
     # Ajouté le 2026-10-02 (pipeline porté par la card, marche P3 — route §10.6 points 4.1 à 4.4).
     # Généralise le suivi de passes du cam_analyzer (`AnalysisPass`, `pass_tracking`) : c'est la
     # 1ʳᵉ pièce du moteur commun, écrite par le squelette pour son unique process.

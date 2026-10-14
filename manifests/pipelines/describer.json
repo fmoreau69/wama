@@ -69,7 +69,7 @@
         "params": {
           "degree": "required",
           "eta": "describer.workers:describe_eta",
-          "gpu": false,
+          "gpu": true,
           "label": "Description",
           "result": "describer.function_specs:description_text",
           "share": 3,
@@ -91,7 +91,7 @@
         "params": {
           "degree": "optional",
           "eta": "describer.workers:summarize_eta",
-          "gpu": false,
+          "gpu": true,
           "label": "Résumé",
           "result": "describer.function_specs:summary_text",
           "result_format": "markdown",
@@ -111,7 +111,7 @@
         "params": {
           "degree": "optional",
           "eta": "describer.workers:coherence_eta",
-          "gpu": false,
+          "gpu": true,
           "label": "Cohérence",
           "result": "describer.function_specs:coherence_report",
           "result_format": "coherence",
