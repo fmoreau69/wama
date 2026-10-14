@@ -1053,6 +1053,73 @@
       .catch(function () { return null; });
   }
 
+  /** Card dont l'ENTRÉE se télécharge encore (URL, tâche commune `common.ingest_source`) :
+   *  redemandée au serveur toutes les 3 s, et REMPLACÉE dès que son marqueur a changé — fichier
+   *  arrivé (vignette, nom, durée) ou échec. Avant le 2026-10-14, il fallait recharger la page.
+   *  Le marqueur `[data-ingest-pending]` est posé par la bande commune `_card_processes.html`,
+   *  que les onze cards incluent ; l'URL de la card par l'entrée de file (`data-card-url`).
+   *  Aucune app n'écrit rien. Une card supprimée entre-temps arrête son suivi. */
+  const ingestCards = new Map();          // clé → { url, id }
+  function findIngestCard(key) {
+    const ref = ingestCards.get(key);
+    if (!ref) return null;
+    const entries = document.querySelectorAll('[data-card-url]');
+    for (let i = 0; i < entries.length; i++) {
+      if (entries[i].dataset.cardUrl !== ref.url) continue;
+      const card = entries[i].querySelector('.wama-card[data-id="' + ref.id + '"]');
+      if (card) return card;
+    }
+    return null;
+  }
+  const ingestPoller = new Poller({
+    interval: 3000,
+    request: function (key) {
+      const card = findIngestCard(key);
+      if (!card) { ingestPoller.stop(key); ingestCards.delete(key); return null; }
+      const ref = ingestCards.get(key);
+      return fetchCard(ref.url, ref.id).then(function (fresh) {
+        if (!fresh) return;
+        const marker = fresh.querySelector('[data-ingest-pending]');
+        if (marker && marker.dataset.ingestPending === 'downloading') return;   // pas encore
+        ingestPoller.stop(key);
+        ingestCards.delete(key);
+        const current = findIngestCard(key) || card;
+        if (current.isConnected) current.replaceWith(fresh);
+      });
+    },
+  });
+  function watchIngestCards(root) {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('[data-ingest-pending="downloading"]').forEach(function (marker) {
+      const card = marker.closest('.wama-card[data-id]');
+      const entry = card && card.closest('[data-card-url]');
+      if (!entry) return;
+      const key = entry.dataset.cardUrl + '|' + card.dataset.id;
+      if (ingestPoller.has(key)) return;
+      ingestCards.set(key, { url: entry.dataset.cardUrl, id: card.dataset.id });
+      ingestPoller.start(key);
+    });
+  }
+  if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
+    const startWatching = function () {
+      watchIngestCards(document);
+      // Les cards ajoutées sans recharger la page (ajout à la file, lot, card rafraîchie).
+      // Seuls les nœuds AJOUTÉS qui portent le marqueur déclenchent un relevé.
+      new MutationObserver(function (mutations) {
+        mutations.forEach(function (m) {
+          m.addedNodes.forEach(function (n) {
+            if (n.nodeType !== 1) return;
+            if (n.matches('[data-ingest-pending]') || n.querySelector('[data-ingest-pending]')) {
+              watchIngestCards(n.parentNode || n);
+            }
+          });
+        });
+      }).observe(document.body, { childList: true, subtree: true });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startWatching);
+    else startWatching();
+  }
+
   /** Taille LISIBLE, unité choisie selon la valeur : « 512 Ko », « 3,8 Go ».
    *
    *  Pourquoi pas « tout en Go » (question de Fabien, 2026-09-29) : les tailles de WAMA vont
