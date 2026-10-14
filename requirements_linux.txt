@@ -39,7 +39,9 @@ transformers>=4.57,<5  # oubli comblé 2026-08-04 — importé par musetalk/desc
                        # patches/apply_patches.py sont écrits pour l'API 4.57+ (cf. AGENTS.md).
                        # ⚠ venv_win porte 5.12.1 — divergence CONNUE, non corrigée ici.
 ultralytics
-yt-dlp
+yt-dlp>=2026.8.19             # cf. requirements.txt : YouTube exige yt-dlp-ejs + deno
+yt-dlp-ejs
+deno
 
 # Converter — document backend (Pandoc binding)
 pypandoc==1.13

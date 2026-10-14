@@ -99,7 +99,9 @@ tqdm>=4.67.1
 transformers>=4.57,<5
 ultralytics>=8.3.203
 watchdog>=3.0.0
-yt-dlp>=2025.6.9
+yt-dlp>=2026.8.19             # YouTube : 2025.9.23 ne recevait plus que du 360p (mesuré 2026-10-14)
+yt-dlp-ejs>=0.8.0             # solveur des défis JavaScript de YouTube (extra `default` de yt-dlp)
+deno>=2.9.7                   # moteur JavaScript que yt-dlp exige pour YouTube (binaire dans le venv)
 
 # Converter — document backend (Pandoc binding)
 pypandoc==1.13

@@ -31,7 +31,15 @@ Contrat JS : `[data-processes]` > `.wcv3-proc[data-process=<clé>]` > `.wama-sta
 `.wcv3-proc-note` — mis à jour en place par `WamaApp.updateProcessRows(card, rows)` pendant le
 traitement (le re-rendu serveur complet n'arrive qu'en fin de tâche).
 Usage : {% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id %}
+
+ENTRÉE EN TÉLÉCHARGEMENT (2026-10-14) — une card créée avec une URL naît SANS fichier ; la tâche
+commune `common.ingest_source` le télécharge en arrière-plan. Tant qu'il manque, ce gabarit pose
+un marqueur `data-ingest-pending` (`downloading` | `failed`, lu sur `elem` par `source_ingest_state`) :
+`wama-app-base.js` redemande alors la card (`fetchCard`) et la remplace dès que le marqueur a
+changé — vignette, nom et durée arrivent sans recharger la page. Posé ici parce que cette bande
+est le seul gabarit commun que les ONZE cards incluent ; il ne dépend pas de `processes`.
 {% endcomment %}
+{% load wama_actions %}{% source_ingest_state elem as ingest %}{% if ingest %}<span hidden data-ingest-pending="{{ ingest.state }}"></span>{% endif %}
 {% if processes|length > 1 %}
 <div class="wcv3-processes" style="grid-column:1/-1;" data-processes>
   <span class="wcv3-lbl">Process</span>

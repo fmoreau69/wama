@@ -358,6 +358,18 @@ def ports_have_group(ports, group):
 
 
 @register.simple_tag
+def source_ingest_state(elem):
+    """L'entrée de la card se télécharge-t-elle encore ? — `ingest_state` de `source_ingest`
+    (`{'url', 'state', 'error'}` ou None). Lu par la bande commune `_card_processes.html`, qui
+    pose le marqueur que `wama-app-base.js` suit pour redemander la card à l'arrivée du fichier."""
+    from wama.common.utils.source_ingest import ingest_state
+    try:
+        return ingest_state(elem) if elem is not None and getattr(elem, 'pk', None) else None
+    except Exception:
+        return None                      # un rendu de card n'échoue jamais pour ce marqueur
+
+
+@register.simple_tag
 def lot_slot(app):
     """L'onglet « Lot » de la card v4 — `None` si l'app ne déclare pas le lot (`has_batch`).
 

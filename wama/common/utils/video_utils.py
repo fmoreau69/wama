@@ -26,6 +26,20 @@ def _get_ffmpeg_path():
     return get_ffmpeg_exe()
 
 
+def _js_runtimes():
+    """Le moteur JavaScript que yt_dlp exige pour YouTube (`deno`, paquet pip du venv).
+
+    Sans lui, YouTube ne livre plus que des formats dégradés. Son chemin est passé
+    explicitement : un worker lancé par `venv_linux/bin/celery` n'a pas le `bin/` du venv
+    dans son PATH, où yt_dlp le chercherait sinon.
+    """
+    try:
+        from deno import find_deno_bin
+        return {'deno': {'path': find_deno_bin()}}
+    except Exception:
+        return {'deno': {}}
+
+
 def get_ffprobe_path():
     """DÉLÈGUE à la brique ffmpeg_utils (cf. _get_ffmpeg_path)."""
     from wama.common.utils.ffmpeg_utils import get_ffprobe_exe
@@ -176,10 +190,11 @@ def upload_media_from_url(url, output_path):
         # URL Vimeo ou SoundCloud partait jusque-là au GET générique, qui rendait sa page HTML.
         if is_media_platform(url):
             ydl_opts = {
-                # Download BEST quality: best video + best audio, merged to mp4
-                # bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best
-                # This ensures we get the highest resolution available
-                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
+                # La meilleure qualité LISIBLE par nos traitements : H.264 (YouTube s'y arrête
+                # à 1080p). Le « meilleur » brut est de l'AV1 4K, qu'OpenCV ne décode pas
+                # (mesuré le 2026-10-14 : 244 Mo illisibles, contre 84 Mo lus en 1080p).
+                'format': ('bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/best[vcodec^=avc1]'
+                           '/bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best'),
                 'merge_output_format': 'mp4',
                 'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
                 'noplaylist': True,
@@ -192,10 +207,9 @@ def upload_media_from_url(url, output_path):
                     'Accept-Language': 'en-US,en;q=0.9',
                     'Referer': 'https://www.youtube.com/',
                 },
-                # Helps avoid throttling/403 in some cases
-                'extractor_args': {
-                    'youtube': {'player_client': ['android', 'web']}
-                },
+                # Clients du lecteur YouTube : ceux que yt_dlp choisit. Les forcer à
+                # `android, web` ne laissait plus que le format 18 (360p) — mesuré le 2026-10-14.
+                'js_runtimes': _js_runtimes(),
                 'nocheckcertificate': True,
                 'overwrites': False,
                 'concurrent_fragment_downloads': 4,  # Speed up download with more threads
@@ -409,13 +423,8 @@ def download_youtube_audio(youtube_url: str, output_dir: str) -> Tuple[str, str]
                 'Accept-Language': 'en-us,en;q=0.5',
                 'Sec-Fetch-Mode': 'navigate',
             },
-            # Options supplémentaires
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'web'],
-                    'player_skip': ['webpage', 'configs'],
-                }
-            },
+            # Clients du lecteur : ceux de yt_dlp, comme `upload_media_from_url`.
+            'js_runtimes': _js_runtimes(),
             'age_limit': None,
             'socket_timeout': 30,
             'retries': 10,

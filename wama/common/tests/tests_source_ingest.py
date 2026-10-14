@@ -263,6 +263,37 @@ class CreationDownloadTest(_UserCase):
         self.assertEqual(name, 'users/x/describer/input/p.html')
 
 
+class CardFollowsTheDownloadTest(_UserCase):
+    """La card SAIT que son entrée se télécharge : le marqueur que `wama-app-base.js` suit pour
+    la redemander à l'arrivée du fichier (avant le 2026-10-14, il fallait recharger la page)."""
+
+    MARKER = 'data-ingest-pending="downloading"'
+
+    def test_the_card_carries_the_marker_until_the_file_arrives(self):
+        self.client.force_login(self.user)
+        d = self._description('https://github.com/turgu1/uPDF')
+        url = reverse('describer:card_html', args=[d.pk])
+        self.assertContains(self.client.get(url), self.MARKER)
+        with mock.patch.object(source_ingest, '_download',
+                               CreationDownloadTest._fake_download(None, 'turgu1_uPDF.html')):
+            source_ingest.ingest_now(d)
+        self.assertNotContains(self.client.get(url), 'data-ingest-pending')
+
+    def test_every_card_includes_the_common_band_that_carries_the_marker(self):
+        """Le marqueur vit dans `_card_processes.html` : une card qui ne l'inclut pas (ou pas avec
+        `elem`) ne serait jamais suivie — sans erreur."""
+        from pathlib import Path
+
+        from django.conf import settings
+        cards = [p for p in Path(settings.BASE_DIR, 'wama').glob('*/templates/*/_*card.html')
+                 if p.parts[-4] != 'common' and not p.parts[-4].endswith('_01')]
+        self.assertGreaterEqual(len(cards), 11)
+        for card in cards:
+            with self.subTest(card=str(card)):
+                self.assertIn("include 'common/_card_processes.html' with processes=elem.processes",
+                              card.read_text(encoding='utf-8'))
+
+
 class UserGesturesTest(_UserCase):
     """Les gestes : coller une URL (lot d'une ligne) dans le Describer et le converter, et la
     route `upload_youtube` du transcriber. Aucune requête ne télécharge — la source part en file."""
