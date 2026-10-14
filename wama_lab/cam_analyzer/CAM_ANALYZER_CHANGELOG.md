@@ -81,6 +81,25 @@ le smoke du 05/09 atteste seulement : page cam_analyzer HTTP 200, 0 erreur JS, J
 (audit #4) · vitesse/distance unifiées par track (`track_speed_unified` = **stub, 0 consommateur**) ·
 mask_geometry / YOLO-OBB (non implémenté) · dépassement depuis trajectoires monde par `global_track_id`.
 
+**P3 — affichage (consigné le 2026-10-14, décision de Fabien : « on verra plus tard ») :**
+**chargement FENÊTRÉ des détections.** Après `f1603790`, le serveur sert les 433 Mo de `4da52df3`
+en ~4 s, mais le navigateur les reçoit et les décode TOUS à l'ouverture (`loadAllDetections`,
+`?start=0&end=999999`). Piste : ne demander que les images autour de l'instant affiché et
+compléter au fil de la lecture et des sauts. ⚠ Change le comportement : la courbe de proximité
+du bandeau (`buildProximityTimeline`) et tout ce qui parcourt `detectionData` en entier
+devraient lire une source agrégée (la courbe existe déjà côté serveur, `get_analytics_data`).
+
+**Prospectif — amélioration de la dynamique de l'image avant détection (question de Fabien,
+2026-10-14, rien de lancé).** Pistes : rehaussement classique déterministe (CLAHE), modèles de
+faible luminosité légers (Zero-DCE++, SCI) ou lourds (Retinexformer), méthodes entraînées POUR la
+détection (IA-YOLO, FeatEnHancer). ⚠ Risques : détecteurs entraînés sur des images « normales »
+(décalage de distribution), bruit et blocs H.264 amplifiés dans les ombres, artefacts ou
+détails inventés (GAN), scintillement d'une image à l'autre qui fragmente les pistes, seuils
+réglés sur les confiances actuelles. Une vidéo 8 bits n'a pas de vraie haute dynamique à
+retrouver : ce qui est écrêté est perdu. Préalable : MESURER où la lumière fait échouer les
+détections ; puis, s'il y a lieu, une bascule ⚑ testée sur ces fenêtres avec une métrique
+objective (pistes fragmentées, détections perdues), jamais à l'œil.
+
 ## Gaps vérifiés dans le code (2026-07-21 — audit de reprise)
 
 | # | Constat (fichier) | Gravité | Statut |
