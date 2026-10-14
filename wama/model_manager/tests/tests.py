@@ -1944,7 +1944,7 @@ class RouteUniqueDInstallationTest(TestCase):
         seule garde d'espace — un outil ne peut pas contourner ce que la vue applique."""
         from wama import tool_api
         from django.contrib.auth import get_user_model
-        user = get_user_model().objects.create_user('demandeur', password='x')
+        user = get_user_model().objects.create_superuser('demandeur', password='x')
         with patch('wama.model_manager.services.model_installer.request_install',
                    return_value={'ok': True, 'started': True, 'model_key': 'proposed:hf:Org/P',
                                  'task_id': 'tid-2'}) as req:
@@ -1959,7 +1959,7 @@ class RouteUniqueDInstallationTest(TestCase):
     def test_l_assistant_rend_les_chiffres_du_refus_d_espace(self):
         from wama import tool_api
         from django.contrib.auth import get_user_model
-        user = get_user_model().objects.create_user('demandeur2', password='x')
+        user = get_user_model().objects.create_superuser('demandeur2', password='x')
         blocked = {'success': False, 'error': 'Espace insuffisant', 'needed_gb': 50.0,
                    'free_gb': 12.0, 'after_gb': -38.0, 'margin_gb': 10.0,
                    'force_possible': True, 'replaces': None, 'reason': 'espace_insuffisant'}
@@ -1976,7 +1976,7 @@ class RouteUniqueDInstallationTest(TestCase):
         PROPOSITIONS, il n'installe rien."""
         from wama import tool_api
         from django.contrib.auth import get_user_model
-        user = get_user_model().objects.create_user('chercheur', password='x')
+        user = get_user_model().objects.create_superuser('chercheur', password='x')
         with patch('wama.model_manager.services.prospector.seed_hf_search',
                    return_value={'ok': True, 'query': 'kokoro', 'created': 2, 'updated': 0,
                                  'already': 1, 'skipped': 0, 'total': 2,
@@ -2038,13 +2038,25 @@ class RouteUniqueDInstallationTest(TestCase):
         self.assertTrue(res['started'])
         delay.assert_called_once_with('proposed:hf:Org/Juge', user_id=None)
 
-    def test_les_deux_verbes_de_modeles_sont_gardes_par_le_model_manager(self):
-        """Ce sont les seuls outils qui écrivent côté modèles : ils suivent le gating de la
-        page (développeurs/admins), pas celui des lectures transverses."""
-        from wama.tool_api import TOOL_APP_OVERRIDE, TOOL_REGISTRY
-        for nom in ('search_models', 'install_model', 'prospect_models', 'get_install_options'):
-            self.assertIn(nom, TOOL_REGISTRY)
-            self.assertEqual(TOOL_APP_OVERRIDE.get(nom), 'model_manager', nom)
+    def test_the_model_writing_tools_are_read_under_the_registries_and_managed_by_developers(self):
+        """The only tools that write on the model side. Since 2026-10-13 the model manager is a
+        page of the Registries: the tools belong to `registries` (any account reads), and the
+        GESTURE is refused in their body to anyone who is not a developer."""
+        from django.contrib.auth.models import User
+        from wama.accounts.models import UserProfile
+        from wama import tool_api
+        member = User.objects.create_user('models_member', password='x')
+        developer = User.objects.create_user('models_developer', password='x')
+        UserProfile.objects.update_or_create(user=developer, defaults={'account_tier': 'developpeur'})
+        developer = User.objects.get(pk=developer.pk)
+        for name in ('search_models', 'install_model', 'prospect_models', 'get_install_options'):
+            self.assertIn(name, tool_api.TOOL_REGISTRY)
+            self.assertEqual('registries', tool_api.TOOL_APP_OVERRIDE.get(name), name)
+        self.assertEqual('forbidden', tool_api.search_models(member, 'kokoro')['error'])
+        self.assertEqual('forbidden', tool_api.install_model(member, 'proposed:hf:x/y')['error'])
+        self.assertEqual('forbidden', tool_api.prospect_models(member)['error'])
+        self.assertEqual('forbidden', tool_api.get_install_options(member, 'proposed:hf:x/y')['error'])
+        self.assertIsNone(tool_api._registry_management_refusal(developer))
 
 
 class _SourcesFactices:

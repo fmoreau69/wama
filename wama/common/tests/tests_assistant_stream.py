@@ -371,9 +371,13 @@ class ChatStreamViewTest(TestCase):
                                                data=json.dumps({'message': '  '}),
                                                content_type='application/json').status_code)
         self.client.logout()
-        self.assertEqual(401, self.client.post(reverse('ai_chat_stream'),
-                                               data=json.dumps({'message': 'x'}),
-                                               content_type='application/json').status_code)
+        # Depuis le 2026-10-13 l'assistant est un outil de la politique d'accès : le visiteur est
+        # arrêté AVANT la vue, par la garde commune, qui lui dit de se connecter (403 +
+        # `login_required`) — le même refus que pour toute app non publique.
+        refused = self.client.post(reverse('ai_chat_stream'), data=json.dumps({'message': 'x'}),
+                                   content_type='application/json')
+        self.assertEqual(403, refused.status_code)
+        self.assertTrue(refused.json()['login_required'])
 
 
 class HomeUsesTheCommonBrickTest(TestCase):

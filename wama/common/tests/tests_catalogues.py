@@ -647,7 +647,11 @@ class DeclaredWorldsTest(TestCase):
             with self.subTest(app=app):
                 self.assertEqual(app_world(app), world)
                 surface = surface_for(app)
-                self.assertEqual(surface['gate'], app, "la clé du droit est l'identifiant d'app")
+                # La clé du droit est l'identifiant d'app — sauf une page qui relève d'un outil
+                # plus large, et qui le DÉCLARE : le model manager est une page des Registres
+                # depuis le 2026-10-13.
+                expected_gate = 'registries' if app == 'model_manager' else app
+                self.assertEqual(surface['gate'], expected_gate)
                 self.assertIn(app, [s['app'] for s in surfaces(world)])
         self.assertEqual(app_world('wama_data'), 'data')
 
@@ -657,7 +661,7 @@ class DeclaredWorldsTest(TestCase):
         from wama.common.app_registry import surfaces
         self.assertEqual([s['app'] for s in surfaces('lab')], ['face_analyzer', 'cam_analyzer'])
         self.assertEqual([s['app'] for s in surfaces('transverse')],
-                         ['studio', 'media_library', 'model_manager'])
+                         ['studio', 'media_library', 'model_manager', 'registries'])
         self.assertEqual(surfaces('media'), [],
                          "le monde Médias ne porte aucune surface hors catalogue")
 

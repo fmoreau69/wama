@@ -863,7 +863,7 @@ def app_access_matrix(request):
     from wama.accounts.models import AppAccessPolicy
     from wama.accounts.permissions import (ROLES, ROLE_DESCRIPTIONS, GROUP_PREFIX,
                                            TIER_CHOICES, APP_DESCRIPTIONS_FALLBACK,
-                                           APP_GROUP_ORDER, app_group)
+                                           APP_GROUP_ORDER, all_gated_apps, app_group)
     try:
         from wama.common.app_registry import APP_CATALOG
     except Exception:
@@ -877,7 +877,11 @@ def app_access_matrix(request):
         return meta.get('description') or APP_DESCRIPTIONS_FALLBACK.get(app_id, '')
 
     by_group = {}
-    for pol in AppAccessPolicy.objects.prefetch_related('roles').order_by('app_id'):
+    # Seuls les outils GARDÉS : une ligne restée en base pour un droit retiré (`model_manager`,
+    # devenu une page des Registres le 2026-10-13) ne déciderait plus rien — l'afficher
+    # éditable laisserait croire le contraire.
+    gated = all_gated_apps()
+    for pol in AppAccessPolicy.objects.filter(app_id__in=gated).prefetch_related('roles').order_by('app_id'):
         active = {g.name[len(GROUP_PREFIX):] for g in pol.roles.all() if g.name.startswith(GROUP_PREFIX)}
         by_group.setdefault(app_group(pol.app_id), []).append({
             'app_id': pol.app_id,

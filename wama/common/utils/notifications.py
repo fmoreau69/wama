@@ -101,12 +101,13 @@ def notify_in_app(users, kind, title, body='', url='', *, app='', item=None, obj
 
 
 def infrastructure_admins():
-    """Les comptes qui administrent l'infrastructure : ceux que la politique d'accès laisse
-    entrer au model manager (même point de décision que ses 52 vues, `accessible`)."""
+    """Les comptes qui administrent l'infrastructure : ceux qui GÈRENT le model manager (même
+    point de décision que ses gestes, `can_manage_registries` — 2026-10-13 : le lire est ouvert
+    à tout compte depuis qu'il est une page des Registres, le gérer reste aux développeurs)."""
     from django.contrib.auth import get_user_model
-    from wama.accounts.permissions import accessible
+    from wama.accounts.permissions import can_manage_registries
     return [u for u in get_user_model().objects.filter(is_active=True)
-            if accessible(u, 'app', 'model_manager')]
+            if can_manage_registries(u)]
 
 
 #: Niveau de compte de chaque audience du staff, et le réglage de son adresse fonctionnelle.

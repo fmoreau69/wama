@@ -2123,8 +2123,12 @@ MECHANISMS = (
               "déclarée (scan / mesure / re-déclaration / DÉRIVÉ) décide du rendu — un dérivé "
               "affiche « toujours à jour » au lieu d'un bouton qui ne ferait rien — ET le LIEU "
               "d'exécution : état partagé → tâche Celery non bloquante, registre en mémoire → "
-              "sur place, avec propagation aux autres workers gunicorn",
-              'wama/common/registries.py', '',
+              "sur place, avec propagation aux autres workers gunicorn. Depuis le 2026-10-13 : "
+              "LIRE les registres (pages, model manager compris) relève du droit d'accès "
+              "`registries`, tout compte sauf le visiteur ; les GÉRER — actualiser, et pour les "
+              "modèles installer, supprimer, prospecter, libérer la carte — d'UNE règle, "
+              "`can_manage_registries` (profil développeur ou administrateur)",
+              'wama/common/registries.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
               annexes=('wama/common/registries_builtin.py',
                        'wama/common/static/common/js/wama-catalog-refresh.js',
                        'wama/common/templatetags/wama_catalog.py')),
@@ -2345,7 +2349,11 @@ MECHANISMS = (
               "service `anonymous` y est FERMÉ par code, pas par état de base. Signature GÉNÉRALE "
               "depuis S2 — accessible(user, kind, element_id) : chaque FAMILLE d'élément déclare "
               "dans KIND_DECISION qui décide pour elle, un kind inconnu LÈVE, et une décision "
-              "unique ne garde que ce que ses POINTS D'APPLICATION lisent réellement (§8.9)",
+              "unique ne garde que ce que ses POINTS D'APPLICATION lisent réellement (§8.9). "
+              "Un outil gardé est une PAGE (card ou `register_surface`) ou, depuis le 2026-10-13, "
+              "un OUTIL SANS PAGE (`register_pageless_tool` : gestionnaire de fichiers, "
+              "assistant — chemins gardés déclarés, l'assistant gardé aussi dans "
+              "`conversation_turn`). `access_cases()` énumère tous les cas pour la présentation",
               'wama/accounts/permissions.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
               annexes=('wama/accounts/tests.py', 'wama/accounts/tests_access_points.py'),
               symbol='accessible'),
@@ -2388,7 +2396,8 @@ MECHANISMS = (
     Mechanism('app_worlds', "Monde déclaré d'une app",
               "Chaque app DÉCLARE son monde (media | data | lab | transverse) : dans son entrée "
               "d'APP_CATALOG, ou — hors catalogue — depuis son `ready()` (`register_app_world` ; "
-              "`register_surface`, qui porte aussi l'identité de sa page). UNE lecture, "
+              "`register_surface`, qui porte aussi l'identité de sa page ; "
+              "`register_pageless_tool`, pour un outil gardé sans page). UNE lecture, "
               "`app_world()` : le manifeste d'app, le monde d'une fonction, le menu, `/apps/`, le "
               "journal et le calendrier la lisent, rien ne le déduit d'un libellé de navigation",
               'wama/common/app_registry.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',

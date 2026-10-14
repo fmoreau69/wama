@@ -85,6 +85,10 @@ APP_DESCRIPTIONS_FALLBACK = {
     'studio': "Studio (méta-app) : orchestration de pipelines en reliant les apps sur un canvas.",
     'face_analyzer': "WAMA-Lab : analyse de visages (recherche).",
     'cam_analyzer': "WAMA-Lab : analyse de vidéos de caméras embarquées (transport).",
+    'registries': "Registres : la carte de ce que WAMA sait nommer et de la façon dont elle se "
+                  "tient à jour — catalogue des modèles compris (model manager).",
+    'filemanager': "Gestionnaire de fichiers : le volet de vos dossiers, imports et envois vers les apps.",
+    'assistant': "Assistant : la conversation avec WAMA (web, voix, Discord, API).",
 }
 GROUP_PREFIX = 'role:'   # un rôle = un Group nommé 'role:<clé>'
 
@@ -109,10 +113,21 @@ DEFAULT_APP_ACCESS = {
     # seule : conversion par ffmpeg/pandoc, aucune ressource GPU.
     'converter':    {'roles': [], 'public': True},
     'media_library': {'roles': []},
+    # Registres : entrés dans la politique le 2026-10-13 (décision de Fabien) — ils n'avaient
+    # AUCUNE garde. Le model manager en est un (le registre des modèles) : ses pages se LISENT
+    # sous ce droit. Lire : tout compte, jamais le visiteur, lecture comprise
+    # (`middleware.VISITOR_CLOSED`). GÉRER — actualiser un registre, installer, supprimer,
+    # prospecter, libérer la carte — : à partir du profil développeur (`can_manage_registries`),
+    # une seule règle pour tous les registres. Il n'y a donc plus de droit `model_manager` : il
+    # mêlait les deux (2026-10-13).
+    'registries':   {'roles': []},
+    # Outils SANS PAGE (2026-10-13, décision de Fabien) : un volet ou une conversation, pas une
+    # page du catalogue `/apps/`. Déclarés par `app_registry.register_pageless_tool` (monde,
+    # libellé, chemins gardés). Tout compte, jamais le visiteur.
+    'filemanager':  {'roles': []},
+    'assistant':    {'roles': []},
     # Orchestration (méta-app)
     'studio':       {'roles': ['communication', 'ingenierie']},
-    # Outils techniques (tier développeur requis)
-    'model_manager': {'roles': ['ingenierie'], 'min_tier': 'developpeur'},
     # WAMA-Lab (expérimental / recherche — accès restreint)
     'face_analyzer': {'roles': ['recherche', 'ingenierie']},
     'cam_analyzer':  {'roles': ['recherche', 'ingenierie']},
@@ -145,7 +160,7 @@ APP_GROUP = {
     'transcriber': 'Recherche / Analyse', 'describer': 'Recherche / Analyse', 'reader': 'Recherche / Analyse',
     'converter': 'Utilitaires', 'media_library': 'Utilitaires',
     'studio': 'Orchestration',
-    'model_manager': 'Technique',
+    'registries': 'Technique', 'filemanager': 'Utilitaires', 'assistant': 'Utilitaires',
     'face_analyzer': 'WAMA Lab', 'cam_analyzer': 'WAMA Lab',
 }
 
@@ -174,7 +189,15 @@ PATH_APP_MAP = [
     # appliquait JAMAIS sa propre politique. Une politique déclarée qu'aucun point d'application
     # ne lit ne garde rien — elle donne juste l'apparence d'un contrôle. Le piège du tiret était
     # connu (`wama/urls.py:57`, audit P2 du 17/08) : il avait été documenté, pas refermé.
-    ('model-manager',     'model_manager'),
+    # Depuis le 2026-10-13, le model manager est une page des REGISTRES : il se lit sous leur
+    # droit ; ses gestes restent aux développeurs (`model_manager.views.is_admin_or_dev`).
+    ('model-manager',     'registries'),
+    # La page des registres et son API d'état/actualisation vivent sous `/common/` (2026-10-13).
+    ('common/registries',   'registries'),
+    ('common/registres',    'registries'),
+    ('common/api/registres', 'registries'),
+    # Outils sans page (2026-10-13) : leurs chemins sont DÉCLARÉS avec eux
+    # (`app_registry.register_pageless_tool`) et lus par `app_id_for_path`.
     # 'studio' est désormais une vraie app montée sur /studio/ → résolu par le 1er segment.
 ]
 
@@ -220,6 +243,10 @@ def app_id_for_path(path):
     for prefix, app_id in PATH_APP_MAP:
         if p == prefix or p.startswith(prefix + '/'):
             return app_id
+    from wama.common.app_registry import pageless_tool_for_path
+    tool = pageless_tool_for_path(p)
+    if tool in DEFAULT_APP_ACCESS:
+        return tool
     seg = p.split('/', 1)[0]
     return seg if seg in DEFAULT_APP_ACCESS else None
 
@@ -247,6 +274,20 @@ def tool_accessible(user, tool_name):
 #: Groupes Django qui font un développeur. `developpeur` est un groupe HOMONYME du tier — les
 #: deux vocabulaires coexistent en base (mesuré le 2026-08-21), on accepte les deux.
 DEVELOPER_GROUPS = ('dev', 'admin', 'developpeur')
+
+
+def can_manage_registries(user):
+    """GÉRER un registre — l'actualiser, et pour le registre des modèles : installer, supprimer,
+    prospecter, libérer la carte. DOMICILE UNIQUE (2026-10-13, décision de Fabien : le model
+    manager est un registre, aligné sur les autres). Les LIRE relève du droit d'accès `registries`.
+
+    Le PROFIL décide (développeur ou administrateur, superutilisateur compris), jamais les
+    Groups hérités 'dev'/'admin' de la migration `accounts/0002` : c'était le second barème
+    retiré du model manager le 27/08 (`tests_access_points.ModelManagerGardeUniqueTests`).
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return False
+    return user_tier(user) in BYPASS_TIERS
 
 
 def is_developer(user):
@@ -441,9 +482,16 @@ def access_cases():
     from itertools import combinations
     role_keys = list(ROLES)
     role_sets = [list(c) for n in range(len(role_keys) + 1) for c in combinations(role_keys, n)]
+    from wama.common.app_registry import WORLD_SECTIONS, app_world
+    from wama.common.services.calendar import app_identity
     # Jumelles de bac à sable exclues : dev-only par contrat, elles doubleraient leur app source.
-    apps = sorted((a for a in all_gated_apps() if app_group(a) != 'Bac à sable'), key=lambda a: (APP_GROUP_ORDER.index(app_group(a))
-                                                   if app_group(a) in APP_GROUP_ORDER else 99, a))
+    # Rangées par MONDE déclaré, dans l'ordre des sections du menu (2026-10-13 : la scène des
+    # droits les regroupe), puis par groupe.
+    def world_rank(a):
+        return (WORLD_SECTIONS.get(app_world(a)) or {}).get('order', 99)
+    apps = sorted((a for a in all_gated_apps() if app_group(a) != 'Bac à sable'),
+                  key=lambda a: (world_rank(a), APP_GROUP_ORDER.index(app_group(a))
+                                 if app_group(a) in APP_GROUP_ORDER else 99, a))
     policies = {a: _policy_for(a) for a in apps}
     matrix, distinct = [], set()
     for tier in TIER_ORDER:
@@ -457,10 +505,13 @@ def access_cases():
         'tiers': [{'key': k, 'label': l} for k, l in TIER_CHOICES],
         'roles': [{'key': k, 'label': ROLES[k], 'help': ROLE_DESCRIPTIONS.get(k, '')} for k in role_keys],
         'role_sets': role_sets,
-        'apps': [{'id': a, 'group': app_group(a),
+        # `label` : l'identité commune d'une app (catalogue, surface ou outil sans page).
+        'apps': [{'id': a, 'label': app_identity(a)[0], 'group': app_group(a), 'world': app_world(a),
                   'roles': sorted(policies[a]['roles']), 'public': bool(policies[a]['public']),
                   'min_tier': policies[a]['min_tier']} for a in apps],
         'matrix': matrix,
+        # Libellé de chaque monde : celui des sections du menu, jamais redit côté scène.
+        'worlds': {w: s['label'] for w, s in WORLD_SECTIONS.items()},
         'configurations': len(TIER_ORDER) * len(role_sets),
         'distinct_rows': len(distinct),
     }

@@ -38,12 +38,13 @@ class ModelManagerConfig(AppConfig):
 
         # La gestion des modèles se DÉCLARE : son monde et sa page (route §10.6 point 6.1).
         # `nav_hide` : présente au catalogue `/apps/`, pas au menu Applications — elle a son
-        # entrée dans la section Administration. Elle EST sous contrôle d'accès
-        # (DEFAULT_APP_ACCESS, min_tier développeur) : la clé du droit est son identifiant.
+        # entrée dans la section Administration. Depuis le 2026-10-13 c'est une page des
+        # REGISTRES (le registre des modèles) : elle se lit sous leur droit, `gate='registries'`,
+        # et ses gestes restent aux développeurs (`views.is_admin_or_dev`).
         from wama.common.app_registry import register_surface
         register_surface('model_manager', world='transverse', label='Gestion des modèles',
                          url_name='model_manager:index', icon='fa-microchip',
-                         nav_hide=True, order=30)
+                         nav_hide=True, order=30, gate='registries')
 
         # Journal DÉDIÉ pour la synchro du catalogue (brique COMMUNE) : `[ModelSync]`
         # émet une ligne par modèle à chaque réconciliation et représentait 71 % de

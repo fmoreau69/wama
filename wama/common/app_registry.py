@@ -888,7 +888,8 @@ def register_app_world(app_id: str, world: str) -> None:
 
 def register_surface(app_id: str, *, world: str, label: str, url_name: str, icon: str,
                      description: str = '', color: str | None = None,
-                     nav_hide: bool = False, order: int = 50, media_folders: tuple = ()) -> None:
+                     nav_hide: bool = False, order: int = 50, media_folders: tuple = (),
+                     gate: str = '') -> None:
     """Déclare la PAGE d'une app hors catalogue : son monde et son identité (libellé, route,
     icône, description, couleur). Le menu Applications, l'accueil, `/apps/`, le journal et le
     calendrier la lisent.
@@ -901,9 +902,12 @@ def register_surface(app_id: str, *, world: str, label: str, url_name: str, icon
     fichiers (`DEFAULT_MEDIA_FOLDERS` pour une app à entrées et sorties ; rien par défaut — le
     studio ou la médiathèque n'ont pas de dossier d'app). Idempotent : un `ready()` rejoué
     remplace la même entrée.
+
+    `gate` : la clé du droit quand ce n'est PAS l'identifiant — une page qui relève d'un outil
+    plus large (le model manager est une page des Registres depuis le 2026-10-13).
     """
     register_app_world(app_id, world)
-    surface = {'app': app_id, 'gate': app_id, 'world': world, 'label': label,
+    surface = {'app': app_id, 'gate': gate or app_id, 'world': world, 'label': label,
                'url_name': url_name, 'icon': icon, 'description': description, 'order': order}
     if color:
         surface['color'] = color
@@ -912,6 +916,40 @@ def register_surface(app_id: str, *, world: str, label: str, url_name: str, icon
     if media_folders:
         surface['media_folders'] = tuple(media_folders)
     _SURFACES[app_id] = surface
+
+
+# ─── OUTILS SANS PAGE (2026-10-13, décision de Fabien) ────────────────────────────────────────
+# Un outil gardé par la politique d'accès est d'ordinaire une PAGE (une card d'`APP_CATALOG` ou
+# une surface ci-dessus). Le gestionnaire de fichiers (un volet) et l'assistant (une
+# conversation) n'en ont pas : ils se déclarent ici, avec les CHEMINS par lesquels le middleware
+# les garde et un chemin de SONDE (une lecture qui répond à un membre) pour la mesure nocturne
+# des droits. Ni menu, ni carte `/apps/`, ni masquage : il n'y a rien à afficher ni à masquer.
+_PAGELESS_TOOLS: dict = {}
+
+
+def register_pageless_tool(app_id: str, *, world: str, label: str, icon: str, paths: tuple,
+                           probe: str, description: str = '') -> None:
+    """Déclare un outil gardé SANS PAGE : son monde, son identité et ses chemins gardés.
+    Idempotent, comme `register_surface`."""
+    register_app_world(app_id, world)
+    _PAGELESS_TOOLS[app_id] = {'app': app_id, 'gate': app_id, 'world': world, 'label': label,
+                               'icon': icon, 'description': description,
+                               'paths': tuple(p.strip('/') for p in paths), 'probe': probe}
+
+
+def pageless_tools() -> list:
+    """Les outils sans page déclarés (copies), par libellé."""
+    return sorted((dict(t) for t in _PAGELESS_TOOLS.values()), key=lambda t: t['label'])
+
+
+def pageless_tool_for_path(path: str) -> str | None:
+    """L'outil sans page qu'un chemin de requête désigne, ou None."""
+    p = path.strip('/')
+    for tool in _PAGELESS_TOOLS.values():
+        for prefix in tool['paths']:
+            if p == prefix or p.startswith(prefix + '/'):
+                return tool['app']
+    return None
 
 
 def surfaces(world: str | None = None) -> list:

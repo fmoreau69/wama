@@ -291,8 +291,22 @@
     <div class="row mb-4">
         <div class="col">
             <h1 class="mb-1"><i class="fas fa-microchip me-2 text-info"></i>Model Manager</h1>
-            <p class="text-muted mb-0">Manage AI models across all WAMA applications</p>
+            <p class="text-muted mb-0">{% if can_manage %}Manage AI models across all WAMA applications{% else %}Le registre des modèles de WAMA — en lecture : les gestes de gestion sont réservés aux développeurs{% endif %}</p>
         </div>
+        {% comment %}LECTURE SEULE pour un compte non développeur (2026-10-13, décision de Fabien : le
+        model manager est un registre). Les éléments de gestion restent dans le DOM — le script
+        de la page s'y accroche sans garde — mais ne se montrent pas, et le script ne lance aucun
+        de leurs relevés (`CAN_MANAGE`). Leurs routes refusent de toute façon un non-développeur.{% endcomment %}
+        {% if not can_manage %}
+        <style>
+            #btn-refresh, #btn-clear-gpu, #mmResourceRow, #mmDiskRow, #mmSystemRow,
+            #selection-toolbar, .wama-filter-bar .form-check, .model-select-cb,
+            #backup-status, #backup-path, #backup-models-progress, #backup-media-progress,
+            .btn-prospect-install, .btn-prospect-reject, .btn-unload, .model-card .dropdown {
+                display: none !important;
+            }
+        </style>
+        {% endif %}
         <div class="col-auto d-flex align-items-center gap-2">
             <button class="btn btn-outline-info btn-action" id="btn-refresh" title="Refresh model list">
                 <i class="fas fa-sync-alt me-1"></i> Refresh
@@ -756,9 +770,9 @@ décompte de modèles n'en est pas une. mmCatalogRow y est déplacé par JS.{% e
 {% endblock %}
 
 {# Section Médias → ressources système. mmResourceRow + mmDiskRow y sont déplacés par JS. #}
-{% block right_panel_media_title %}Ressources système{% endblock %}
+{% block right_panel_media_title %}{% if can_manage %}Ressources système{% endif %}{% endblock %}
 {% block right_panel_media %}
-<div id="mmResourceSlot"></div>
+{% if can_manage %}<div id="mmResourceSlot"></div>{% endif %}
 {% endblock %}
 
 {# Section Paramètres → inspecteur du modèle (si card sélectionnée), sinon outils système. #}
@@ -773,6 +787,14 @@ mémoire (le texte d'accueil ne parlait que de mémoire alors que le volet porte
 sauvegardes et suivi des modèles chargés — remarque Fabien 2026-08-19). Les IDs sont ceux
 qu'attendent WamaInspector (inspectorActions) et le JS de la page : ne pas renommer. {% endcomment %}
 <div id="inspectorActions">
+    {% if not can_manage %}
+    <p class="text-muted small mb-0">
+        <i class="fas fa-hand-pointer me-1"></i>Cliquez une carte pour inspecter un modèle.
+        Le registre des modèles se lit ici ; l'installer, le prospecter ou libérer la carte
+        graphique est réservé aux développeurs.
+    </p>
+</div>
+    {% else %}
     <p class="text-muted small mb-2">
         <i class="fas fa-hand-pointer me-1"></i>Cliquez une carte pour inspecter un modèle.
         Sans sélection, ce volet est le <strong>poste de maintenance</strong> du catalogue :
@@ -841,6 +863,7 @@ a rien en attente. {% endcomment %}
     <i class="fas fa-memory me-1" style="color:#8ecae6"></i>Mémoire &amp; modèles chargés
 </div>
 <div id="mmSystemSlot"></div>
+    {% endif %}
 {% endblock %}
 
 {% block right_panel_actions_title %}Actions du modèle{% endblock %}
@@ -856,6 +879,9 @@ a rien en attente. {% endcomment %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const csrfToken = '{{ csrf_token }}';
+    // Lecture seule pour un non-développeur (2026-10-13) : aucun relevé d'infrastructure ni de
+    // gestion n'est lancé — leurs routes le refuseraient, et la page n'en montre rien.
+    const CAN_MANAGE = {{ can_manage|yesno:"true,false" }};
     const loadingOverlay = document.getElementById('loading-overlay');
     const loadingMessage = document.getElementById('loading-message');
     const modelsGrid = document.getElementById('models-grid');
@@ -1616,6 +1642,7 @@ document.addEventListener('DOMContentLoaded', function() {
     ];
 
     // Schéma d'actions (section Actions). Proposés → installer/rejeter ; sinon HF/décharger/convertir.
+    // Lecture seule : seul le lien vers la plateforme reste (les autres actions sont des gestes).
     const MODEL_ACTIONS_SCHEMA = [
         { label: 'Installer', icon: 'fas fa-download', cls: 'btn btn-sm btn-primary',
           when: function (m) { return !!m.is_proposed; },
@@ -1660,7 +1687,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 };
             });
         } },
-    ];
+    ].filter(function (action) { return CAN_MANAGE || !!action.href; });
 
     async function mmCatalogInstall(m) {
         if (!confirm(`Télécharger « ${m.name} » maintenant ?\n\n`
@@ -2044,7 +2071,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (assessBtn) assessBtn.addEventListener('click', mmRunAssess);
         const benchBtn = document.getElementById('mmBenchBtn');
         if (benchBtn) benchBtn.addEventListener('click', mmRunBench);
-        mmLoadProposals();
+        if (CAN_MANAGE) mmLoadProposals();
     }
 
     // ── Propositions de manifestes (2026-09-29) ─────────────────────────────────────────
@@ -2677,7 +2704,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Auto-refresh memory stats every 10 seconds — boucle COMMUNE `WamaApp.Poller` (2026-10-13 :
     // les rafraîchissements de fond de cette page étaient des `setInterval`, qui relançaient sans
     // attendre la réponse et tournaient en onglet caché).
-    new WamaApp.Poller({
+    if (CAN_MANAGE) new WamaApp.Poller({
         urlTemplate: () => '{% url "model_manager:api_memory_stats" %}',
         interval: 10000,
         maxFails: Infinity,
@@ -2693,7 +2720,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initial load - non-blocking
     loadModels();
-    loadBackupStatus();
+    if (CAN_MANAGE) loadBackupStatus();
     // (L'espace disque : premier relevé par sa boucle commune, plus bas — `immediate`.)
     // La reprise d'affichage des miroirs (modèles / médias) se fait plus bas, juste
     // après la création des deux UI — voir createMirrorBackupUI.
@@ -2758,7 +2785,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Disk space : relevé au chargement puis toutes les 30 s (boucle commune `WamaApp.Poller`)
-    new WamaApp.Poller({
+    if (CAN_MANAGE) new WamaApp.Poller({
         urlTemplate: () => '{% url "model_manager:api_disk_space" %}',
         interval: 30000,
         immediate: true,
@@ -2862,7 +2889,7 @@ document.addEventListener('DOMContentLoaded', function() {
         onError: (key, err) => console.error(`Error loading ${key} memory data:`, err),
         onData: (key, data) => { if (data.success) MEMORY_DETAIL[key].apply(data); },
     });
-    Object.keys(MEMORY_DETAIL).forEach((key) => memoryDetailPoller.start(key));
+    if (CAN_MANAGE) Object.keys(MEMORY_DETAIL).forEach((key) => memoryDetailPoller.start(key));
 
     function loadIdleModels() { memoryDetailPoller.poke('idle'); }
 
@@ -3115,8 +3142,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // `const`, donc en zone morte temporelle tant que cette ligne n'est pas exécutée —
     // l'appeler avant lèverait une ReferenceError (l'ancien `pollBackupModels` était
     // une déclaration de fonction, hissée, ce qui masquait la contrainte).
-    backupModelsUI.poll();
-    backupMediaUI.poll();
+    if (CAN_MANAGE) {
+        backupModelsUI.poll();
+        backupMediaUI.poll();
+    }
 
     // Clear GPU Cache
     document.getElementById('btn-clear-gpu-cache').addEventListener('click', async function() {
@@ -3198,7 +3227,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Initial load of memory management data
-    loadCleanerStatus();
+    if (CAN_MANAGE) loadCleanerStatus();
     // (Modèles inactifs, mémoire détaillée, modèles suivis : leur boucle commune les relève au
     // chargement — `memoryDetailPoller`, `immediate`.)
 });

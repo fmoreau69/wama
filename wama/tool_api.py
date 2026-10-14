@@ -1756,10 +1756,21 @@ def get_ai_model(user, model_key: str) -> dict:
 #   • `install_model` n'installe QUE ce qui est déjà proposé ou déjà au catalogue — il n'y a
 #     pas d'entrée par descripteur nu (elle a été retirée de l'endpoint le même jour). Une
 #     phrase en langage naturel ne peut donc pas faire télécharger un dépôt arbitraire.
-# Les deux sont gardés par l'app `model_manager` (développeurs/admins) dans
-# TOOL_APP_OVERRIDE — ce que son commentaire annonçait déjà : « une future action d'écriture
-# (install/unload) serait gardée 'model_manager', pas ces lectures ».
+# Ils étaient gardés par l'app `model_manager` dans TOOL_APP_OVERRIDE. Depuis le 2026-10-13 le
+# model manager est une page des REGISTRES, lisible par tout compte : ces outils relèvent donc
+# de `registries` (lire), et le GESTE — chercher, prospecter, installer — se garde dans le
+# CORPS, comme `ask_claude_code`, par la règle unique de gestion des registres
+# (`can_manage_registries`).
 # Le corpus de manifestes, lui, reste hors de portée : rien ici ne projette ni n'ingère.
+
+
+def _registry_management_refusal(user):
+    """Le refus d'un geste de GESTION du registre des modèles, ou None s'il est permis."""
+    from wama.accounts.permissions import can_manage_registries
+    if can_manage_registries(user):
+        return None
+    return {'error': 'forbidden',
+            'detail': "Gérer les modèles (chercher, prospecter, installer) est réservé aux développeurs."}
 
 def search_models(user, query: str, limit: int = 10, max_results: int = 5) -> dict:
     """
@@ -1785,6 +1796,9 @@ def search_models(user, query: str, limit: int = 10, max_results: int = 5) -> di
     """
     from wama.model_manager.services.prospector import seed_hf_search
 
+    refusal = _registry_management_refusal(user)
+    if refusal:
+        return refusal
     q = (query or '').strip()
     if not q:
         return {'error': "query requis : le nom (même partiel) d'un modèle à chercher."}
@@ -1858,6 +1872,9 @@ def prospect_models(user) -> dict:
     """
     from wama.model_manager.services.prospector import run_prospection
 
+    refusal = _registry_management_refusal(user)
+    if refusal:
+        return refusal
     summary = run_prospection()
     sources = {}
     for label in ('hf_successors', 'hf', 'benchmarks'):
@@ -1889,6 +1906,9 @@ def get_install_options(user, model_key: str) -> dict:
     from wama.model_manager.models import AIModel
     from wama.model_manager.services.prospector import install_options
 
+    refusal = _registry_management_refusal(user)
+    if refusal:
+        return refusal
     cand = AIModel.objects.filter(model_key=(model_key or '').strip(), is_proposed=True).first()
     if cand is None:
         from wama.model_manager.services.model_installer import similar_model_keys
@@ -1932,6 +1952,9 @@ def install_model(user, model_key: str, force: bool = False,
     """
     from wama.model_manager.services.model_installer import request_install
 
+    refusal = _registry_management_refusal(user)
+    if refusal:
+        return refusal
     # `user` : le téléchargement se fait avec SON jeton HuggingFace (règle commune des clés).
     res = request_install((model_key or '').strip(), force=bool(force),
                           variant_ref=variant_ref or '', variant_file=variant_file or '',
@@ -3251,13 +3274,15 @@ TOOL_APP_OVERRIDE = {
     # d'écriture (install/unload) serait gardée 'model_manager', pas ces lectures.
     'list_ai_models':      None,
     'get_ai_model':        None,
-    # …et voici l'action d'ÉCRITURE que cette ligne annonçait : gardée `model_manager`, donc
-    # réservée aux développeurs/admins comme la page elle-même (2026-09-19).
-    'search_models':       'model_manager',
-    'install_model':       'model_manager',
-    'prospect_models':     'model_manager',
-    # Écrit les relevés de variantes sur la proposition et appelle le Hub : gardé comme la page.
-    'get_install_options': 'model_manager',
+    # …et voici l'action d'ÉCRITURE que cette ligne annonçait (2026-09-19). Gardée `model_manager`
+    # jusqu'au 2026-10-13 ; le model manager est depuis une page des Registres : l'outil relève
+    # de `registries`, et le GESTE est réservé aux développeurs dans son corps
+    # (`_registry_management_refusal`) — le droit de lire n'ouvre pas celui de gérer.
+    'search_models':       'registries',
+    'install_model':       'registries',
+    'prospect_models':     'registries',
+    # Écrit les relevés de variantes sur la proposition et appelle le Hub : même garde.
+    'get_install_options': 'registries',
     # Médiathèque : RANGER un fichier À SOI y est un geste TRANSVERSE, pas l'usage de l'app
     # `media_library` (décision Fabien, 2026-09-11 : « on rend commun et on porte sur les apps
     # de façon universelle »). Il était gaté sur `media_library` du seul FAIT DE SON NOM — le

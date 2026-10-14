@@ -157,7 +157,7 @@ class InstallOptionsToolTest(TestCase):
         from django.contrib.auth import get_user_model
         from wama import tool_api
         _candidate('ocr')
-        user = get_user_model().objects.create_user('install_options_tool', password='x')
+        user = get_user_model().objects.create_superuser('install_options_tool', password='x')
         out = tool_api.get_install_options(user, 'proposed:hf:PaddlePaddle/PaddleOCR-VL-1.6')
         self.assertTrue(out['choice'])
         self.assertEqual(['full', 'variant_file'], [o['kind'] for o in out['options']])
@@ -183,7 +183,7 @@ class SimilarKeysOnRefusalTest(TestCase):
         from django.contrib.auth import get_user_model
         from wama import tool_api
         _candidate('ocr')
-        user = get_user_model().objects.create_user('similar_keys', password='x')
+        user = get_user_model().objects.create_superuser('similar_keys', password='x')
         for out in (tool_api.install_model(user, 'reader:hf:PaddlePaddle/PaddleOCR-VL-1.6'),
                     tool_api.get_install_options(user, 'reader:hf:PaddlePaddle/PaddleOCR-VL-1.6')):
             self.assertEqual(['proposed:hf:PaddlePaddle/PaddleOCR-VL-1.6'], out['similar_keys'])
@@ -193,7 +193,7 @@ class SimilarKeysOnRefusalTest(TestCase):
         from django.contrib.auth import get_user_model
         from wama import tool_api
         _candidate('ocr')
-        user = get_user_model().objects.create_user('variant_as_key', password='x')
+        user = get_user_model().objects.create_superuser('variant_as_key', password='x')
         out = tool_api.install_model(user, 'proposed:hf:Mungert/PaddleOCR-VL-1.6-GGUF')
         self.assertEqual(['proposed:hf:PaddlePaddle/PaddleOCR-VL-1.6'], out['similar_keys'])
         self.assertIn('variant_ref=Mungert/PaddleOCR-VL-1.6-GGUF', out['error'])
@@ -202,7 +202,7 @@ class SimilarKeysOnRefusalTest(TestCase):
         """Contre-épreuve : pas de voisin, pas de champ."""
         from django.contrib.auth import get_user_model
         from wama import tool_api
-        user = get_user_model().objects.create_user('no_similar_keys', password='x')
+        user = get_user_model().objects.create_superuser('no_similar_keys', password='x')
         out = tool_api.install_model(user, 'reader:hf:nobody/nothing')
         self.assertEqual('not_found', out['reason'])
         self.assertNotIn('similar_keys', out)
@@ -431,7 +431,7 @@ class SearchGivesCatalogKeysTest(TestCase):
         from django.contrib.auth import get_user_model
         from wama import tool_api
         _candidate('ocr')
-        user = get_user_model().objects.create_user('search_keys', password='x')
+        user = get_user_model().objects.create_superuser('search_keys', password='x')
         nothing_written = {'ok': True, 'query': 'q', 'created': 0, 'updated': 0, 'already': 0,
                            'skipped': 5, 'total': 0, 'refs': []}
         with patch.object(p, 'seed_hf_search', return_value=nothing_written):
@@ -446,7 +446,7 @@ class SearchGivesCatalogKeysTest(TestCase):
         from django.contrib.auth import get_user_model
         from wama import tool_api
         _candidate('ocr')
-        user = get_user_model().objects.create_user('search_extra_word', password='x')
+        user = get_user_model().objects.create_superuser('search_extra_word', password='x')
         nothing_written = {'ok': True, 'refs': []}
         with patch.object(p, 'seed_hf_search', return_value=nothing_written):
             out = tool_api.search_models(user, 'PaddleOCR-VL-1.6 Ollama')
@@ -457,7 +457,7 @@ class SearchGivesCatalogKeysTest(TestCase):
         from django.contrib.auth import get_user_model
         from wama import tool_api
         _candidate('ocr')
-        user = get_user_model().objects.create_user('search_hub_down', password='x')
+        user = get_user_model().objects.create_superuser('search_hub_down', password='x')
         refused = {'ok': False, 'error': 'HfHubHTTPError: 429 Client Error: Too Many Requests'}
         with patch.object(p, 'seed_hf_search', return_value=refused):
             out = tool_api.search_models(user, 'PaddleOCR-VL-1.6')

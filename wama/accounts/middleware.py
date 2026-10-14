@@ -45,10 +45,23 @@ READ_METHODS = ('GET', 'HEAD', 'OPTIONS')
 
 VISITOR_REFUSAL = "Connectez-vous pour utiliser l'application « {app} » : sans compte, les pages se consultent mais rien ne se lance."
 
-#: Chemins hors apps FERMÉS au visiteur, lecture comprise (2026-10-12, ci-dessus).
-VISITOR_CLOSED_PREFIXES = ('/filemanager/',)
-
 VISITOR_FILES_REFUSAL = "Connectez-vous pour déposer et retrouver vos fichiers : sans compte, aucun fichier n'est gardé."
+
+VISITOR_REGISTRIES_REFUSAL = "Connectez-vous pour consulter les registres de WAMA."
+
+#: Chemins FERMÉS au visiteur, lecture comprise, et le motif qu'il lit : le gestionnaire de
+#: fichiers (2026-10-12, ci-dessus) et les Registres (2026-10-13, décision de Fabien : « tout
+#: compte sauf anonyme »). Un outil non public reste sinon LISIBLE par le visiteur.
+VISITOR_CLOSED = {
+    '/filemanager/': VISITOR_FILES_REFUSAL,
+    '/common/registries/': VISITOR_REGISTRIES_REFUSAL,
+    '/common/registres/': VISITOR_REGISTRIES_REFUSAL,
+    '/common/api/registres/': VISITOR_REGISTRIES_REFUSAL,
+    # Le registre des modèles (2026-10-13). Ses lectures d'API étaient déjà `login_required` :
+    # le visiteur n'en recevait qu'une redirection, il reçoit désormais le motif.
+    '/model-manager/': VISITOR_REGISTRIES_REFUSAL,
+}
+VISITOR_CLOSED_PREFIXES = tuple(VISITOR_CLOSED)
 
 
 class AppAccessMiddleware:
@@ -60,8 +73,8 @@ class AppAccessMiddleware:
         from wama.accounts.permissions import app_id_for_path, accessible, is_guest_account
         if (request.path.startswith(VISITOR_CLOSED_PREFIXES)
                 and (user is None or not user.is_authenticated or is_guest_account(user))):
-            return JsonResponse({'error': VISITOR_FILES_REFUSAL, 'detail': VISITOR_FILES_REFUSAL,
-                                 'login_required': True}, status=403)
+            reason = next(m for p, m in VISITOR_CLOSED.items() if request.path.startswith(p))
+            return JsonResponse({'error': reason, 'detail': reason, 'login_required': True}, status=403)
         if user is not None and user.is_authenticated:
             app_id = app_id_for_path(request.path)
             if app_id and not accessible(user, 'app', app_id):

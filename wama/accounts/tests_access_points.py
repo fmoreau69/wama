@@ -77,9 +77,11 @@ class PointDApplicationTests(TestCase):
         exemption qui grignoterait la page rendrait la politique du model_manager décorative,
         sans que rien ne le signale.
         """
-        self.assertEqual(app_id_for_path('/model-manager/'), 'model_manager')
-        self.assertEqual(app_id_for_path('/model-manager/libraries/'), 'model_manager')
-        self.assertEqual(app_id_for_path('/model-manager/functions/'), 'model_manager')
+        # Depuis le 2026-10-13 le model manager est une page des REGISTRES : il se lit sous leur
+        # droit — la page reste GARDÉE, c'est la propriété que ce test tient.
+        self.assertEqual(app_id_for_path('/model-manager/'), 'registries')
+        self.assertEqual(app_id_for_path('/model-manager/libraries/'), 'registries')
+        self.assertEqual(app_id_for_path('/model-manager/functions/'), 'registries')
         # Les deux lectures dont dépend l'UI des autres apps : plus gardées par l'app.
         self.assertIsNone(app_id_for_path('/model-manager/api/models/db/'))
         self.assertIsNone(app_id_for_path('/model-manager/api/models/options/'))
@@ -127,10 +129,23 @@ class PointDApplicationTests(TestCase):
     def test_toute_surface_gardee_a_bien_une_url_reversible(self):
         # Garde d'instrument : si un `url_name` cassait, le test précédent passerait en
         # n'examinant plus rien.
+        from wama.common.app_registry import pageless_tools
         urls = _urls_des_surfaces_gardees()
-        manquantes = sorted(all_gated_apps() - set(urls))
+        pageless = {t['gate'] for t in pageless_tools()}
+        manquantes = sorted(all_gated_apps() - set(urls) - pageless)
         self.assertEqual(manquantes, [],
                          f"surfaces gardées sans url_name relevable : {manquantes}")
+
+    def test_every_pageless_tool_is_guarded_on_its_declared_paths(self):
+        """A tool WITHOUT a page (2026-10-13) has no URL name to resolve: what keeps it guarded
+        is its declared paths — each, and its probe, must resolve to the tool."""
+        from wama.common.app_registry import pageless_tools
+        tools = [t for t in pageless_tools() if t['gate'] in all_gated_apps()]
+        self.assertTrue(tools, 'no pageless tool: the test would measure nothing')
+        for tool in tools:
+            for path in tool['paths'] + (tool['probe'],):
+                self.assertEqual(tool['gate'], app_id_for_path(f'/{path.strip("/")}/'),
+                                 f"{tool['app']}: {path} escapes the middleware")
 
 
 class FamillesDElementsTests(TestCase):
@@ -162,12 +177,15 @@ class FamillesDElementsTests(TestCase):
 
 
 class ModelManagerGardeUniqueTests(TestCase):
-    """`is_admin_or_dev` était un second barème : il doit désormais dire la MÊME chose."""
+    """`is_admin_or_dev` était un second barème : il doit désormais dire la MÊME chose.
+
+    Depuis le 2026-10-13 la chose qu'il dit est la règle unique de GESTION des registres
+    (`can_manage_registries`) : le model manager est un registre, le lire est ouvert à tout
+    compte, le gérer reste au profil développeur."""
 
     def setUp(self):
         for k in ROLES:
             Group.objects.get_or_create(name=GROUP_PREFIX + k)
-        self.pol = DEFAULT_APP_ACCESS['model_manager']
 
     def _compte(self, nom, tier, roles=()):
         u = User.objects.create_user(nom, password='x')
@@ -182,10 +200,11 @@ class ModelManagerGardeUniqueTests(TestCase):
             self._compte('mm_user', 'utilisateur', ['ingenierie']),
             self._compte('mm_nu', 'utilisateur'),
         ]
+        from wama.accounts.permissions import can_manage_registries
         for u in cas:
             self.assertEqual(
-                bool(is_admin_or_dev(u)), accessible(u, 'app', 'model_manager'),
-                f"{u.username} : le décorateur et `accessible()` divergent")
+                bool(is_admin_or_dev(u)), can_manage_registries(u),
+                f"{u.username} : le décorateur et la règle de gestion des registres divergent")
 
     def test_un_group_herite_dev_n_ouvre_plus_rien_par_lui_meme(self):
         # Le barème retiré. Les Groups 'admin'/'dev' de la migration accounts/0002 sont
@@ -201,9 +220,8 @@ class ModelManagerGardeUniqueTests(TestCase):
     def test_le_tier_developpeur_declare_ouvre_bien_le_model_manager(self):
         # La contre-épreuve : sans elle, « tout est fermé » passerait le test précédent.
         from wama.model_manager.views import is_admin_or_dev
-        self.assertEqual(self.pol.get('min_tier'), 'developpeur',
-                         "prémisse du test : la politique exige le tier développeur")
         self.assertTrue(is_admin_or_dev(self._compte('mm_dev2', 'developpeur')))
+        self.assertFalse(is_admin_or_dev(self._compte('mm_user2', 'utilisateur', ['ingenierie'])))
 
 
 class LeContexteNeMasquePasLeBaremeTests(TestCase):
@@ -290,9 +308,13 @@ class VisitorActionGuardTests(TestCase):
         # Une page qui tombe pour une AUTRE raison (base de test en retard d'une migration de
         # jumelle…) n'est pas l'objet de ce test : seul un 403 de la garde le ferait échouer.
         from django.test import Client
+        from wama.accounts.middleware import VISITOR_CLOSED_PREFIXES
         visitor = Client(raise_request_exception=False)
+        # Sauf les pages FERMÉES au visiteur par décision, lecture comprise (les Registres,
+        # 2026-10-13) : celles-là sont tenues par `RegistriesAccessTests`.
         refused = {app_id: visitor.get(url).status_code
-                   for app_id, url in self._index_urls().items()}
+                   for app_id, url in self._index_urls().items()
+                   if not url.startswith(VISITOR_CLOSED_PREFIXES)}
         self.assertEqual({}, {a: c for a, c in refused.items() if c == 403})
 
     def test_an_app_declared_public_lets_the_visitor_through_the_guard(self):
@@ -362,3 +384,120 @@ class VisitorFileManagerClosedTests(TestCase):
         self.client.force_login(User.objects.create_user('fm_member', password='x'))
         self.assertNotEqual(403, self.client.get('/filemanager/api/tree/').status_code)
         self.assertIn('id="filemanager-tree"', self.client.get('/').content.decode())
+
+
+class RegistriesAccessTests(TestCase):
+    """2026-10-13 (Fabien's decision): the Registries enter the access policy as a common
+    transversal tool. They had no guard at all: every account reads them, a visitor never does,
+    and only a developer refreshes a registry an account may refresh."""
+
+    def _account(self, name, tier):
+        user = User.objects.create_user(name, password='x')
+        UserProfile.objects.update_or_create(user=user, defaults={'account_tier': tier})
+        return User.objects.get(pk=user.pk)
+
+    @staticmethod
+    def _shared_registry():
+        """A registry whose refresh is open beyond the staff, and cheap to run in a test."""
+        from wama.common.registries import DERIVED, REGISTRIES
+        return next(r.key for r in REGISTRIES.values() if r.permission == 'auth' and r.nature == DERIVED)
+
+    def test_the_registries_are_a_gated_column_of_the_transversal_world(self):
+        from wama.accounts.permissions import access_cases, app_id_for_path
+        columns = {a['id']: a for a in access_cases()['apps']}
+        self.assertIn('registries', columns, 'the registries are missing from the access scene')
+        self.assertEqual('transverse', columns['registries']['world'])
+        self.assertEqual('registries', app_id_for_path('/common/registries/'))
+        self.assertEqual('registries', app_id_for_path('/common/api/registres/apps/refresh/'))
+
+    def test_a_visitor_never_reads_the_registries(self):
+        for url in (reverse('common:registries'), reverse('common:registres_etat')):
+            response = self.client.get(url)
+            self.assertEqual(403, response.status_code, url)
+            self.assertTrue(response.json()['login_required'])
+
+    def test_a_member_reads_the_registries_but_never_refreshes_them(self):
+        self.client.force_login(self._account('reg_member', 'utilisateur'))
+        self.assertEqual(200, self.client.get(reverse('common:registries')).status_code)
+        response = self.client.post(reverse('common:registre_refresh', args=[self._shared_registry()]))
+        self.assertEqual(403, response.status_code)
+        self.assertIn('développeurs', response.json()['error'])
+
+    def test_a_developer_refreshes_a_shared_registry(self):
+        """Counter-test: the refusal above is the member's, not the route's."""
+        self.client.force_login(self._account('reg_developer', 'developpeur'))
+        response = self.client.post(reverse('common:registre_refresh', args=[self._shared_registry()]))
+        self.assertEqual(200, response.status_code, response.content[:200])
+
+    def test_the_model_manager_is_a_registry_page_and_not_a_column_of_its_own(self):
+        from wama.accounts.permissions import access_cases, all_gated_apps
+        self.assertNotIn('model_manager', all_gated_apps(), 'no separate right any more')
+        self.assertNotIn('model_manager', [a['id'] for a in access_cases()['apps']])
+        self.assertEqual(403, self.client.get(reverse('model_manager:index')).status_code,
+                         'a visitor never reads the model registry')
+
+    def test_a_member_reads_the_model_manager_without_any_management_gesture(self):
+        self.client.force_login(self._account('mm_reader', 'utilisateur'))
+        page = self.client.get(reverse('model_manager:index'))
+        self.assertEqual(200, page.status_code)
+        self.assertFalse(page.context['can_manage'])
+        self.assertIn('const CAN_MANAGE = false;', page.content.decode())
+        self.assertEqual(200, self.client.get(reverse('model_manager:api_models_db')).status_code)
+        refused = self.client.post(reverse('model_manager:api_clear_gpu'))
+        self.assertIn(refused.status_code, (302, 403), 'a member never frees the graphics card')
+
+    def test_a_developer_manages_the_model_manager(self):
+        """Counter-test: the read-only page is the member's, not everyone's."""
+        self.client.force_login(self._account('mm_manager', 'developpeur'))
+        page = self.client.get(reverse('model_manager:index'))
+        self.assertEqual(200, page.status_code)
+        self.assertTrue(page.context['can_manage'])
+        self.assertIn('const CAN_MANAGE = true;', page.content.decode())
+
+
+class PagelessToolsTests(TestCase):
+    """2026-10-13 (Fabien's decision): the file manager (a side panel) and the assistant (a
+    conversation) are tools WITHOUT a page. They enter the access policy all the same — the
+    same decision, editable on the access admin page, shown by the rights scene."""
+
+    def _member(self, name):
+        user = User.objects.create_user(name, password='x')
+        UserProfile.objects.update_or_create(user=user, defaults={'account_tier': 'utilisateur'})
+        return User.objects.get(pk=user.pk)
+
+    def _restrict(self, tool, role='recherche'):
+        """A policy edited in WAMA: the tool now needs a role the member does not hold."""
+        from wama.accounts.models import AppAccessPolicy
+        policy, _ = AppAccessPolicy.objects.get_or_create(app_id=tool)
+        policy.roles.add(Group.objects.get_or_create(name=GROUP_PREFIX + role)[0])
+
+    def test_both_tools_are_columns_of_the_transversal_world(self):
+        from wama.accounts.permissions import access_cases
+        columns = {a['id']: a for a in access_cases()['apps']}
+        for tool in ('filemanager', 'assistant'):
+            self.assertIn(tool, columns, f'{tool} is missing from the access scene')
+            self.assertEqual('transverse', columns[tool]['world'])
+
+    def test_a_member_reaches_both_tools_by_default(self):
+        self.client.force_login(self._member('pageless_member'))
+        self.assertEqual(200, self.client.get('/filemanager/api/tree/').status_code)
+        self.assertEqual(200, self.client.get(reverse('ai_chat_thread')).status_code)
+
+    def test_the_policy_edited_in_wama_closes_the_file_manager(self):
+        self._restrict('filemanager')
+        self.client.force_login(self._member('fm_closed'))
+        self.assertEqual(403, self.client.get('/filemanager/api/tree/').status_code)
+
+    def test_the_policy_closes_the_assistant_on_every_surface(self):
+        """The web routes are closed by the middleware; Discord and the API go through
+        `conversation_turn`, which is guarded too — no model is called."""
+        from unittest import mock
+        from wama.common.services import assistant_engine
+        self._restrict('assistant')
+        member = self._member('assistant_closed')
+        self.client.force_login(member)
+        self.assertEqual(403, self.client.get(reverse('ai_chat_thread')).status_code)
+        with mock.patch.object(assistant_engine, 'run_assistant_turn') as engine:
+            result = assistant_engine.conversation_turn(member, 'bonjour', surface='api')
+        self.assertIn('error', result)
+        engine.assert_not_called()

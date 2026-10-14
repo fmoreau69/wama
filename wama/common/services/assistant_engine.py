@@ -1284,7 +1284,14 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
 
     Rend le dict du moteur, augmenté de `conversation_id`.
     """
+    from wama.accounts.permissions import accessible
     from wama.common.services import conversation_store
+
+    # L'assistant est un outil de la politique d'accès (2026-10-13) : ce tour est le point
+    # commun à TOUTES ses surfaces (web, voix, Discord, API), c'est donc ici qu'il se garde —
+    # le middleware ne voit que les routes web.
+    if not accessible(user, 'app', 'assistant'):
+        return {'error': "L'assistant n'est pas ouvert à votre compte."}
 
     fil = None
     historique = []

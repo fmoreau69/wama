@@ -280,8 +280,19 @@ class PermissionTest(TestCase):
         self.assertFalse(is_authorized(get('apps'), _Compte()))
         self.assertTrue(is_authorized(get('apps'), _Staff()))
 
-    def test_un_registre_sans_effet_de_bord_partage_est_ouvert(self):
-        self.assertTrue(is_authorized(get('skills'), _Compte()))
+    def test_a_shared_registry_is_refreshed_by_a_developer_never_by_a_plain_account(self):
+        """2026-10-13 (Fabien's decision): a plain account READS the registries, never refreshes
+        them — even one without a shared side effect, which used to be open to every account."""
+        from django.contrib.auth.models import User
+        from wama.accounts.models import UserProfile
+        users = {}
+        for tier in ('utilisateur', 'developpeur'):
+            user = User.objects.create_user(f'registry_{tier}', password='x')
+            UserProfile.objects.update_or_create(user=user, defaults={'account_tier': tier})
+            users[tier] = User.objects.get(pk=user.pk)
+        self.assertEqual('auth', get('skills').permission)
+        self.assertFalse(is_authorized(get('skills'), users['utilisateur']))
+        self.assertTrue(is_authorized(get('skills'), users['developpeur']))
 
     def test_rafraichir_refuse_et_le_DIT(self):
         res = refresh('apps', user=_Compte())

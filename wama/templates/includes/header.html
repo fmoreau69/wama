@@ -304,13 +304,14 @@
                                 <i class="fas fa-scale-balanced me-2 text-success"></i> Licences
                             </a>
                         </li>
-                        {% if is_admin %}
+                        {% comment %}Models : le registre des modèles, lisible par tout compte depuis
+                        le 2026-10-13 (ses gestes restent aux développeurs) — même rang que les
+                        autres catalogues de cette section.{% endcomment %}
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'model_manager:index' %}">
                                 <i class="fas fa-microchip me-2 text-info"></i> Models
                             </a>
                         </li>
-                        {% endif %}
                         {% comment %}Backends (12ᵉ registre, 03/09) : la page existait et n'était
                         atteignable que par la carte des registres — constat Fabien. Même rang que
                         les autres catalogues de cette section.{% endcomment %}

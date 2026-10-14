@@ -111,12 +111,13 @@ def app_identity(app) -> tuple[str, str]:
     mesuré le 2026-09-28) : elle reçoit la couleur du monde TRANSVERSAL plutôt que le bleu par
     défaut de FullCalendar, qui la ferait passer pour une autre app.
     """
-    from ..app_registry import APP_CATALOG, surface_for, world_color
+    from ..app_registry import APP_CATALOG, pageless_tools, surface_for, world_color
 
     spec = APP_CATALOG.get(app) or {}
     if not spec:
-        # Lab, Studio : identité déclarée hors catalogue, par l'app elle-même (`register_surface`).
-        declared = surface_for(app)
+        # Lab, Studio : identité déclarée hors catalogue, par l'app elle-même (`register_surface`) ;
+        # un outil sans page (assistant, gestionnaire de fichiers) par `register_pageless_tool`.
+        declared = surface_for(app) or next((t for t in pageless_tools() if t['app'] == app), None)
         if declared:
             return (declared.get('label') or app,
                     declared.get('color') or world_color(declared['world']))

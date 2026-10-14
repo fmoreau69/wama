@@ -34,20 +34,30 @@ def is_admin_or_dev(user):
     barèmes pour une même question ne restent d'accord que par chance.
 
     La forme est conservée (52 décorateurs inchangés) ; seule la DÉCISION change de domicile.
+
+    ⚠ Depuis le 2026-10-13 (décision de Fabien) le model manager est une page des REGISTRES : le
+    LIRE relève de leur droit (tout compte), le GÉRER de leur règle unique —
+    `can_manage_registries`, celle qui permet d'actualiser un registre. Le droit `model_manager`
+    qu'elle lisait mêlait les deux.
     """
-    from wama.accounts.permissions import accessible
-    return bool(getattr(user, 'is_authenticated', False)
-                and accessible(user, 'app', 'model_manager'))
+    from wama.accounts.permissions import can_manage_registries
+    return can_manage_registries(user)
 
 
 @login_required
-@user_passes_test(is_admin_or_dev)
 def index(request):
-    """Main Model Manager dashboard - fast initial load, models loaded via AJAX."""
+    """Main Model Manager dashboard - fast initial load, models loaded via AJAX.
+
+    Lisible par tout compte (le middleware la garde sous le droit des Registres) ; `can_manage`
+    ôte de la page les gestes et les relevés d'infrastructure, que leurs routes refusent de
+    toute façon à un non-développeur."""
+    can_manage = is_admin_or_dev(request.user)
     # Get memory stats from centralized SystemMonitor
-    stats = SystemMonitor.get_model_manager_stats()
+    stats = SystemMonitor.get_model_manager_stats() if can_manage else {
+        'cpu_info': None, 'gpu_info': None, 'system_info': None}
 
     context = {
+        'can_manage': can_manage,
         'model_types': [t.value for t in ModelType],
         'cpu_info': stats['cpu_info'],
         'gpu_info': stats['gpu_info'],

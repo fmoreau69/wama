@@ -277,8 +277,14 @@ class SurfacesTransversalesTests(TestCase):
         # 🔴 LA propriété qui referme l'écart : rien ne peut être soumis au contrôle d'accès sans
         # être montré quelque part. Une app ajoutée à DEFAULT_APP_ACCESS sans card ni extra_link
         # serait invisible ET immasquable — ce test la fait tomber le jour où elle est ajoutée.
+        # Seule exception, DÉCLARÉE et non tolérée : un outil SANS PAGE (2026-10-13 — le
+        # gestionnaire de fichiers, l'assistant) se montre ailleurs (un volet, une conversation)
+        # et se déclare comme tel, `register_pageless_tool` ; n'ayant rien à afficher, il n'a rien
+        # à masquer.
         from wama.accounts.permissions import all_gated_apps
-        self.assertEqual(all_gated_apps() - _surfaces_catalogue(), set())
+        from wama.common.app_registry import pageless_tools
+        pageless = {t['gate'] for t in pageless_tools()}
+        self.assertEqual(all_gated_apps() - _surfaces_catalogue() - pageless, set())
 
     def test_une_surface_transversale_porte_la_meme_bascule(self):
         r = self.client.get(reverse('common:apps_catalog'))

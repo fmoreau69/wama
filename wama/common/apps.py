@@ -140,6 +140,23 @@ class CommonConfig(AppConfig):
             from . import registries_builtin  # noqa: F401
             from .registries import run_startup
             run_startup()
+            # Les Registres sont un OUTIL gardé par la politique d'accès (2026-10-13) : comme tout
+            # outil gardé, ils se déclarent en SURFACE (monde, page) — masquables par
+            # l'abonnement, relevés par la scène des droits. `nav_hide` : leur entrée reste
+            # celle du menu du compte.
+            from .app_registry import register_pageless_tool, register_surface
+            register_surface('registries', world='transverse', label='Registres',
+                             url_name='common:registries', icon='fa-layer-group',
+                             description="La carte de ce que WAMA sait nommer, et de la façon "
+                                         "dont chaque catalogue se tient à jour.",
+                             nav_hide=True, order=40)
+            # L'assistant est une APPLICATION sans page (une conversation : web, voix, Discord,
+            # API) — outil sans page, gardé sur ses routes web ET dans `conversation_turn`,
+            # le tour commun à toutes ses surfaces (2026-10-13).
+            register_pageless_tool('assistant', world='transverse', label='Assistant',
+                                   icon='fa-robot', paths=('api/ai-chat',),
+                                   probe='/api/ai-chat/thread/',
+                                   description="La conversation avec WAMA : web, voix, Discord, API.")
         except Exception:
             import logging
             logging.getLogger(__name__).warning(

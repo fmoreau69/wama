@@ -138,7 +138,8 @@ class Registry:
     #: compté, pas cité. Il ne fait PAS partie du contrat d'actualisation — il le lit.
     entries: Optional[Callable[[], Dict[str, object]]] = None
     url_name: str = ''
-    #: 'staff' (une actualisation qui ÉCRIT) ou 'auth' (sans effet de bord partagé).
+    #: 'staff' (une actualisation qui ÉCRIT) ou 'auth' (sans effet de bord partagé — ouverte aux
+    #: développeurs : un compte utilisateur LIT les registres sans les actualiser, cf. `is_authorized`).
     permission: str = 'staff'
     #: Passé au démarrage du serveur. RÉSERVÉ aux rafraîchisseurs en mémoire et bon marché :
     #: un scan disque à chaque boot de worker gunicorn se paie ×4 et court après lui-même.
@@ -196,9 +197,26 @@ def get(key: str) -> Registry:
 
 
 def is_authorized(r: Registry, user) -> bool:
+    """Ce compte peut-il ACTUALISER ce registre ? Le lire relève de l'accès à l'outil « Registres »
+    (`accounts.permissions`, tout compte) — actualiser est un geste à part.
+
+    Décision de Fabien (2026-10-13) : un compte UTILISATEUR lit les registres sans les actualiser.
+    Un registre 'auth' s'actualise donc à partir du profil développeur (`can_manage_registries`,
+    la règle unique de gestion des registres), un registre 'staff' reste à l'administration.
+    """
+    if not (user and user.is_authenticated):
+        return False
     if r.permission == 'staff':
-        return bool(user and user.is_authenticated and user.is_staff)
-    return bool(user and user.is_authenticated)
+        return bool(user.is_staff)
+    from wama.accounts.permissions import can_manage_registries
+    return can_manage_registries(user)
+
+
+def refusal(r: Registry) -> str:
+    """Le motif d'un refus d'actualisation, lisible tel quel (les vues y lisent « réservé »)."""
+    if r.permission == 'staff':
+        return "actualisation réservée aux administrateurs"
+    return "actualisation réservée aux développeurs : un compte utilisateur lit les registres"
 
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -295,7 +313,7 @@ def refresh(key: str, *, user=None) -> RefreshResult:
     """
     r = get(key)
     if user is not None and not is_authorized(r, user):
-        return RefreshResult(ok=False, messages=(f"réservé au {r.permission}",))
+        return RefreshResult(ok=False, messages=(refusal(r),))
     if r.nature == DERIVED:
         return RefreshResult(ok=True, total=_count(r),
                              messages=("dérivé à chaque affichage — rien à actualiser",))
@@ -327,7 +345,7 @@ def launch(key: str, *, user=None) -> dict:
     """
     r = get(key)
     if user is not None and not is_authorized(r, user):
-        return {'ok': False, 'error': f"réservé au {r.permission}"}
+        return {'ok': False, 'error': refusal(r)}
     if r.nature == DERIVED:
         return dict(refresh(key).as_dict(), **{'async': False})
 

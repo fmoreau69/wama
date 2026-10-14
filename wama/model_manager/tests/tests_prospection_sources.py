@@ -247,7 +247,7 @@ class ProspectVerbTest(TestCase):
     def test_the_tool_runs_the_shared_body_and_reports_each_source(self):
         from django.contrib.auth import get_user_model
         from wama import tool_api
-        user = get_user_model().objects.create_user('prospect_verb', password='x')
+        user = get_user_model().objects.create_superuser('prospect_verb', password='x')
         with patch.object(p, 'run_prospection', return_value=dict(self.SUMMARY)) as run:
             out = tool_api.prospect_models(user)
         run.assert_called_once_with()

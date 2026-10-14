@@ -203,16 +203,24 @@ def gated_surfaces():
     (politique déclarée pour une app qu'aucune URL n'expose) qui vaut d'être vu.
     """
     from django.urls import NoReverseMatch, reverse
-    from wama.accounts.permissions import all_gated_apps
+    from wama.accounts.permissions import PATH_APP_MAP, all_gated_apps
 
     complets = _namespaces_complets()
+    # Un outil gardé sans namespace propre (les Registres, sous `/common/`, 2026-10-13) se lit
+    # par le préfixe qui le désigne au middleware : c'est par lui qu'il est gardé.
+    prefixes = {}
+    for prefix, app_id in PATH_APP_MAP:
+        prefixes.setdefault(app_id, f'/{prefix}/')
     surfaces, sans_url = [], []
     for app_id in sorted(all_gated_apps()):
         try:
             surfaces.append(Surface(app_id=app_id,
                                     url=reverse(f'{complets.get(app_id, app_id)}:index')))
         except NoReverseMatch:
-            sans_url.append(app_id)
+            if app_id in prefixes:
+                surfaces.append(Surface(app_id=app_id, url=prefixes[app_id]))
+            else:
+                sans_url.append(app_id)
 
     # Une surface d'API, pour éprouver l'AUTRE branche de `_deny` (403 JSON). Elle est choisie
     # parmi les URLs réellement appelées par les pages : mesuré le 28/08, sept pages d'app
@@ -226,7 +234,14 @@ def gated_surfaces():
     # `attendu_commun` : cette API est un CATALOGUE consommé par sept pages d'apps — son
     # contrat est « authentifié suffit » (@login_required délibéré), pas le droit du
     # model_manager (cf. Surface.attendu_commun).
-    surfaces.append(Surface(app_id='model_manager', url=api, json=True, attendu_commun=True))
+    # (Le model manager est une page des Registres depuis le 2026-10-13 : sa clé est la leur.)
+    surfaces.append(Surface(app_id='registries', url=api, json=True, attendu_commun=True))
+    # Outils SANS PAGE (2026-10-13) : leur SONDE déclarée, une lecture qui répond à un membre.
+    from wama.common.app_registry import pageless_tools
+    gated = all_gated_apps()
+    for tool in pageless_tools():
+        if tool['app'] in gated:
+            surfaces.append(Surface(app_id=tool['app'], url=tool['probe'], json=True))
     return surfaces, sans_url
 
 
