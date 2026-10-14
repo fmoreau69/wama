@@ -2719,6 +2719,10 @@
     {
       "key": "ultralytics",
       "kind": "library"
+    },
+    {
+      "key": "yt-dlp",
+      "kind": "library"
     }
   ],
   "schema_version": "1.0",
