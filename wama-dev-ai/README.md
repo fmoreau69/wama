@@ -31,27 +31,33 @@ python wama-dev-ai/run_scout.py …         # prospection de modèles (fiches ca
 python wama-dev-ai/run_integrator.py …    # propositions d'intégration
 ```
 
-**Modèle des rôles — BRIDÉ au niveau développement (2026-09-22, Fabien)** : sans `--model`, un rôle
-en local prend le modèle que rend `wama.common.services.development_models.development_model`
-(plancher sur le score coding du banc, curseur 100, jamais de repli sur un petit modèle) ; sans
-modèle de ce niveau, le rôle **s'arrête en le disant** au lieu de tourner sur `fast`. La chaîne de
-`config.py` ne sert plus qu'au cas « catalogue injoignable ». Détail : `WAMA_LLM.md §1ter`.
+**Modèle des rôles — tiré par WAMA, pour le COMPTE (2026-10-13)** : lancé depuis l'assistant ou
+un client MCP (surface de développement, `dev_tools.dev_run_role`), un rôle reçoit le modèle que
+la surface a TIRÉ pour le compte qui le lance — `development_models.development_model`, au-dessus
+du sélecteur commun `select_model` : niveau développement (plancher sur le score coding du banc,
+curseur 100), modèles locaux installés ET distants que son profil et ses clés ouvrent (Albert,
+ILaaS…). Le rôle ne retire pas ; le compte le suit dans son process (`ROLE_USER_ENV`), si bien que
+l'appel distant part avec SA clé et sous la garde cloud commune. Détail : `WAMA_LLM.md`
+§« 2026-10-13 — wama-dev-ai sur la route commune ».
 
-**Fournisseur des rôles** (2026-09-15) : les cinq rôles ci-dessus (codegen, librarian, model,
-scout, integrator) acceptent `--provider`. Défaut `ollama` (local, comportement d'avant).
-`--provider albert` fait passer l'appel par `llm_chat` vers Albert API (DINUM) : clé
-`ALBERT_API_KEY` dans `.env`, modèle par `--model` ou `ALBERT_MODEL`. Poser
-`WAMA_DEV_AI_PROVIDER=albert` dans `.env` bascule TOUS les rôles sans changer les commandes. Un
-fournisseur distant ne charge rien sur le GPU : `run_model_manifest.py` saute alors l'attente de
-VRAM. `run.py` et `run_audit.py` ne passent pas par `role_utils` et restent sur Ollama.
+**Lancé à la main** (`python wama-dev-ai/run_*.py`) : `--provider` (défaut `ollama`, ou
+`WAMA_DEV_AI_PROVIDER`) et `--model`. Sans `--model`, un rôle local prend le modèle de niveau
+développement (2026-09-22) et **s'arrête en le disant** s'il n'y en a pas — la chaîne de
+`config.py` ne sert plus qu'au cas « catalogue injoignable » (`WAMA_LLM.md §1ter`). ⚠ Un
+fournisseur distant nommé sans `--model` prend encore son modèle par défaut.
 
-⚠ `run_model_manifest.py` **coopère** avec `WAMA_GPU_SAFE_MODE` au lieu de s'y dérober : le
-mode dépannage réduit la SUPERPOSITION de charges, il n'interdit pas de charger. Le rôle
-emploie donc ses deux parades — `wait_for_free_vram()` avant l'appel (pas d'empilement) et
-`keep_alive='0'` (déchargement sitôt la réponse rendue). `--force` saute l'attente, jamais le
-keep_alive. Tout rôle qui appellera Ollama devrait faire de même (`call_ollama(...,
-keep_alive=pipeline_keep_alive())`) — un refus en bloc rendrait l'agent inutilisable pendant
-tout le mode dépannage, et l'ignorer a crashé l'hôte deux fois le 2026-09-02.
+⚠ **Garde GPU commune** (`role_utils.local_llm_guard`, les six rôles et l'audit depuis le
+2026-10-13 — elle vivait dans le seul `run_model_manifest.py`) : le mode dépannage
+(`WAMA_GPU_SAFE_MODE`) réduit la SUPERPOSITION de charges, il n'interdit pas de charger. La garde
+attend donc la VRAM que le CATALOGUE dit nécessaire (`wait_for_free_vram`, pas d'empilement) et
+pose `keep_alive='0'` (déchargement sitôt la réponse rendue). `--force` saute l'attente, jamais
+le keep_alive ; `--wait-max` la borne. Hors mode dépannage, rien n'est mesuré ni attendu. Un
+fournisseur distant ne charge rien sur ce GPU : aucune garde. Un refus en bloc rendrait l'agent
+inutilisable pendant tout le mode dépannage, et l'ignorer a crashé l'hôte deux fois le 2026-09-02.
+
+**L'audit** (`run_audit.py`) passe par la même garde et ne décharge plus que SON modèle en fin
+de run. Libérer la carte pour lui (demander aux services résidents de se décharger) exige
+l'accord explicite `--free-vram` — règle du gouverneur : on attend, on ne décharge jamais d'office.
 
 ## Les rôles (le cœur actuel de l'outil)
 

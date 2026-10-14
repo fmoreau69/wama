@@ -41,7 +41,8 @@ import django
 django.setup()
 
 from role_utils import (  # noqa: E402
-    REPO_ROOT, add_llm_arguments, call_llm, extract_json, resolve_model, write_output)
+    REPO_ROOT, add_llm_arguments, call_llm, extract_json, local_llm_guard, resolve_model,
+    write_output)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'integrator.txt').read_text(encoding='utf-8')
 
@@ -122,7 +123,10 @@ def main():
 
     model = resolve_model(args.provider, 'dev', args.model)
     print(f'[integrator] {args.provider} / {model} | manifeste : {origine}')
-    verdict = extract_json(call_llm(args.provider, model, PROMPT, user_msg))
+    keep_alive = local_llm_guard(args.provider, model, force=args.force, wait_max=args.wait_max,
+                                 log=lambda m: print(f'[integrator] {m}'))
+    verdict = extract_json(call_llm(args.provider, model, PROMPT, user_msg,
+                                    keep_alive=keep_alive))
 
     # ── Contrôles MÉCANIQUES : jamais d'app imaginée, new_app = route existante.
     from wama.common.app_registry import APP_CATALOG

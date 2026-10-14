@@ -175,8 +175,31 @@ class CoeurPasserelleTests(TestCase):
         with patch('wama.common.services.assistant_engine.run_assistant_turn',
                    side_effect=_simulated_reply) as moteur:
             reply = core.handle_message(self._msg('bonjour'))
-        self.assertEqual(reply.text, 'reponse simulee')
+        # La réponse, puis la ligne du modèle (`engine_footer`, 2026-10-12).
+        self.assertEqual(reply.text, 'reponse simulee\n-# faux:1b')
         self.assertEqual(moteur.call_args.args[0], self.user)
+
+    def test_the_footer_says_which_model_answered_and_where(self):
+        """Fil #43 : « je ne sais pas si c'est un modèle distant ou local »."""
+        cloud = {'engine': {'provider': 'albert', 'model': 'deepseek-v4-flash', 'local': False,
+                            'development': False}, 'timing': {'total': 4.2}}
+        local = {'engine': {'provider': 'wama-dev-ai', 'model': 'qwen3.8:latest',
+                            'local': True}, 'timing': {'total': 169}}
+        self.assertEqual('\n-# ☁️ albert · deepseek-v4-flash · 4 s', core.engine_footer(cloud))
+        self.assertEqual('\n-# 🖥️ local · qwen3.8:latest · 2 min 49 s',
+                         core.engine_footer(local))
+        self.assertEqual('', core.engine_footer({'response': 'x'}))
+
+    def test_an_error_turn_still_says_its_model(self):
+        lien = request_link(CANAL, EXT_ID)
+        confirm_link(self.user, lien.code)
+        error = {'error': 'Ollama : aucune réponse depuis 3 min.', 'status': 504,
+                 'engine': {'provider': 'wama-dev-ai', 'model': 'qwen3.8:latest', 'local': True},
+                 'tool_steps': []}
+        with patch('wama.common.services.assistant_engine.run_assistant_turn', return_value=error):
+            reply = core.handle_message(self._msg('on en est où ?'))
+        self.assertIn('aucune réponse depuis 3 min', reply.text)
+        self.assertIn('🖥️ local · qwen3.8:latest', reply.text)
 
     def test_piece_jointe_deposee_et_annoncee(self):
         lien = request_link(CANAL, EXT_ID)
@@ -918,3 +941,68 @@ class DiscordFollowUpDeliveryTests(TestCase):
         channel = self._channel(spec=discord.DMChannel)
         self._deliver(channel)
         self.assertTrue(channel.send.await_args.args[0].startswith('✅'))
+
+
+class GatewayWatchdogTests(TestCase):
+    """Le chien de garde (2026-10-12) : une boucle gelée se DIT, puis se relance ; une coupure
+    trop longue aussi."""
+
+    def test_the_verdicts(self):
+        from wama.gateway.adapters import discord_bot as bot
+        now = 10_000.0
+        self.assertEqual('ok', bot.watchdog_verdict(now, now - 5, None))
+        self.assertEqual('frozen', bot.watchdog_verdict(now, now - bot.LOOP_FROZEN_S - 1, None))
+        self.assertEqual('restart', bot.watchdog_verdict(now, now - bot.RESTART_FROZEN_S - 1, None))
+        self.assertEqual('ok', bot.watchdog_verdict(now, now - 5, now - 60),
+                         "une coupure brève : la bibliothèque se reconnecte seule")
+        self.assertEqual('restart', bot.watchdog_verdict(
+            now, now - 5, now - bot.RESTART_DISCONNECTED_S - 1))
+
+
+class CatchUpAfterNewSessionTests(TestCase):
+    """Fil #43 (2026-10-12) : deux sessions Discord RENOUVELÉES (14:58, 15:16) — Discord ne rejoue
+    pas ce qui a été écrit pendant la coupure, et deux messages sont restés sans réponse. Le
+    rattrapage relit l'historique des salons actifs. Faux client : aucun réseau."""
+
+    def _run(self, messages, last_seen):
+        import asyncio
+        from types import SimpleNamespace
+
+        from wama.gateway.adapters import discord_bot
+
+        class Channel:
+            after = None
+
+            def history(self, after, oldest_first, limit):
+                Channel.after = after.id
+
+                async def generate():
+                    for message in messages:
+                        yield message
+                return generate()
+
+        client = SimpleNamespace(get_channel=lambda channel_id: Channel())
+        handled = []
+
+        async def handle(message, missed=False):
+            handled.append((message.id, missed))
+        count = asyncio.run(discord_bot._catch_up(client, last_seen, handle))
+        return handled, count, Channel.after
+
+    @staticmethod
+    def _message(message_id, bot=False, age_s=60):
+        from types import SimpleNamespace
+        return SimpleNamespace(id=message_id, author=SimpleNamespace(bot=bot),
+                               created_at=timezone.now() - timedelta(seconds=age_s))
+
+    def test_missed_messages_are_handled_in_order_and_flagged(self):
+        handled, count, after = self._run([self._message(11), self._message(12)], {5: 10})
+        self.assertEqual([(11, True), (12, True)], handled)
+        self.assertEqual(2, count)
+        self.assertEqual(10, after, "la relecture part du dernier message TRAITÉ du salon")
+
+    def test_bots_and_stale_messages_are_left_alone(self):
+        handled, count, _ = self._run(
+            [self._message(11, bot=True), self._message(12, age_s=2 * 3600)], {5: 10})
+        self.assertEqual([], handled)
+        self.assertEqual(0, count)

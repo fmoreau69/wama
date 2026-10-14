@@ -801,6 +801,126 @@ class AdapterParentTest(SimpleTestCase):
         self.assertEqual([], concerns)
 
 
+class RoleGpuGuardTest(SimpleTestCase):
+    """La garde GPU COMMUNE des rôles et de l'audit (`role_utils.local_llm_guard`, 2026-10-13).
+
+    Elle vivait dans le seul rôle `model`, avec un besoin VRAM lu dans `config.py` ; l'audit,
+    lui, déchargeait TOUT Ollama au début et à la fin de chaque run. Ce qui est gardé : la règle
+    du gouverneur (on attend en mode dépannage ; on ne libère que sur ACCORD), le besoin lu au
+    CATALOGUE, et aucune sonde quand rien n'est à décider — `effective_free_gb` ouvre un contexte
+    CUDA dans le process du rôle."""
+
+    GOV = 'wama.common.services.resource_governor'
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role_utils = _charger('role_utils')
+
+    def _guard(self, *, safe=True, need=12.0, free=20.0, wait=(True, 20.0), **kw):
+        from unittest.mock import patch
+        self.logs = []
+        with patch(f'{self.GOV}.gpu_safe_mode', return_value=safe), \
+                patch(f'{self.GOV}.effective_free_gb', return_value=free) as probe, \
+                patch(f'{self.GOV}.wait_for_free_vram', return_value=wait) as waiting, \
+                patch(f'{self.GOV}.obtain_vram', return_value=(True, 30.0)) as obtain, \
+                patch(f'{self.GOV}.holders_summary', return_value='résidents : x (9 Go)'), \
+                patch('wama.common.utils.auto_model.vram_needed_gb', return_value=need) as needed:
+            self.result = self.role_utils.local_llm_guard(kw.pop('provider', 'ollama'),
+                                                          'big:8b', log=self.logs.append, **kw)
+        return probe, waiting, obtain, needed
+
+    def test_a_remote_provider_is_not_guarded_and_nothing_is_probed(self):
+        probe, waiting, obtain, _ = self._guard(provider='albert')
+        self.assertIsNone(self.result)
+        for call in (probe, waiting, obtain):
+            call.assert_not_called()
+
+    def test_out_of_safe_mode_nothing_is_probed_nor_awaited(self):
+        probe, waiting, obtain, needed = self._guard(safe=False)
+        self.assertIsNone(self.result, "keep_alive nominal : le défaut d'Ollama")
+        for call in (probe, waiting, obtain, needed):
+            call.assert_not_called()
+
+    def test_in_safe_mode_the_role_waits_for_the_need_read_in_the_catalogue(self):
+        _, waiting, obtain, needed = self._guard()
+        needed.assert_called_once_with('ollama:big:8b')
+        self.assertEqual(12.0, waiting.call_args.args[0])
+        obtain.assert_not_called()
+        self.assertEqual('0', self.result, 'déchargement sitôt la réponse rendue')
+
+    def test_an_unknown_need_is_said_and_not_awaited(self):
+        _, waiting, _, _ = self._guard(need=None)
+        waiting.assert_not_called()
+        self.assertTrue(any('inconnu au catalogue' in m for m in self.logs), self.logs)
+
+    def test_a_wait_that_runs_out_refuses_and_says_who_holds_the_card(self):
+        with self.assertRaises(SystemExit) as raised:
+            self._guard(wait=(False, 4.0))
+        self.assertIn('résidents : x', str(raised.exception))
+
+    def test_force_skips_the_wait_never_the_keep_alive(self):
+        _, waiting, _, _ = self._guard(force=True)
+        waiting.assert_not_called()
+        self.assertEqual('0', self.result)
+
+    def test_freeing_the_card_needs_the_explicit_consent(self):
+        _, _, obtain, _ = self._guard(safe=False, free=4.0)
+        obtain.assert_not_called()
+        _, waiting, obtain, _ = self._guard(safe=False, free=4.0, release_reason='audit')
+        obtain.assert_called_once()
+        self.assertEqual('audit', obtain.call_args.kwargs['reason'])
+        waiting.assert_not_called()
+
+    def test_consent_is_not_used_when_the_model_already_fits(self):
+        _, _, obtain, _ = self._guard(safe=False, free=20.0, release_reason='audit')
+        obtain.assert_not_called()
+
+
+class RolesFollowTheCommonRouteTest(SimpleTestCase):
+    """Gardes de STRUCTURE, faute de pouvoir exécuter un rôle sans modèle : chaque rôle qui appelle
+    un modèle passe par la garde commune, aucun rôle ne retire son modèle par la chaîne de
+    `config.py`, et l'audit ne décharge plus que SON modèle."""
+
+    def _roles_calling_a_model(self):
+        return sorted(p.name for p in DEV_AI.glob('run_*.py')
+                      if 'call_llm(' in p.read_text(encoding='utf-8'))
+
+    def test_every_role_calling_a_model_applies_the_gpu_guard(self):
+        roles = self._roles_calling_a_model()
+        self.assertEqual(6, len(roles), f"garde d'instrument : {roles}")
+        for name in roles:
+            source = (DEV_AI / name).read_text(encoding='utf-8')
+            with self.subTest(role=name):
+                self.assertIn('local_llm_guard(', source)
+                self.assertEqual(source.count('call_llm('),
+                                 source.count('keep_alive=keep_alive'),
+                                 f"{name} : un appel au modèle ignore le keep_alive de la garde")
+
+    def test_no_role_draws_its_model_from_the_config_chain(self):
+        for name in self._roles_calling_a_model():
+            with self.subTest(role=name):
+                self.assertNotIn('select_model_for_role', self._code_only(DEV_AI / name))
+
+    @staticmethod
+    def _code_only(path):
+        """Le source SANS ses commentaires : l'audit raconte, en commentaire, les gestes retirés
+        — c'est le code qu'on garde, pas le récit."""
+        import io
+        import tokenize
+        tokens = tokenize.generate_tokens(io.StringIO(path.read_text(encoding='utf-8')).readline)
+        return tokenize.untokenize((t.type, t.string) for t in tokens if t.type != tokenize.COMMENT)
+
+    def test_the_audit_no_longer_unloads_the_others(self):
+        code = self._code_only(DEV_AI / 'run_audit.py')
+        for gesture in ('/api/ps', 'clear-gpu', 'getpass', 'WAMA_PASSWORD'):
+            with self.subTest(gesture=gesture):
+                self.assertNotIn(gesture, code)
+        source = (DEV_AI / 'run_audit.py').read_text(encoding='utf-8')
+        self.assertIn('MemoryManager.unload_model(', source)
+        self.assertIn('local_llm_guard(', source)
+
+
 class FournisseurDesRolesTest(SimpleTestCase):
     """`role_utils.call_llm` (2026-09-15, Albert API) : les rôles choisissent leur fournisseur.
 

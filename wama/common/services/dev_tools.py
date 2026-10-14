@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import logging
 import os
 import re
 import shlex
@@ -45,6 +46,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 #: Rôles lançables et arguments ADMIS pour chacun. Nom = option CLI sans `--`, tirets en
 #: soulignés ; `bool` = option sans valeur.
@@ -94,11 +97,26 @@ def outputs_dir() -> Path:
     return base_dir() / 'wama-dev-ai' / 'outputs'
 
 
+#: Longueur maximale d'une valeur passée en option de ligne de commande à un rôle.
+MAX_VALUE_CHARS = 500
+
+
 def _clean(value, name: str) -> str:
+    # Le refus dit POURQUOI (2026-10-12, fil Discord #43) : « valeur refusée : 'Permettre à
+    # l'API assistant de lire le contenu texte des sor' » ne disait ni la longueur ni la règle,
+    # et le modèle a dû deviner en raccourcissant au hasard.
     text = str(value)
-    if not text or len(text) > 500 or _UNSAFE_CHARS.search(text) or text.startswith('-'):
-        raise DevToolError(f"valeur refusée pour « {name} » : {text[:60]!r}")
-    return text
+    if not text:
+        reason = "valeur vide"
+    elif len(text) > MAX_VALUE_CHARS:
+        reason = f"{len(text)} caractères, {MAX_VALUE_CHARS} au plus"
+    elif _UNSAFE_CHARS.search(text):
+        reason = "saut de ligne ou caractère de contrôle — une seule ligne"
+    elif text.startswith('-'):
+        reason = "commence par « - » (lu comme une option)"
+    else:
+        return text
+    raise DevToolError(f"valeur refusée pour « {name} » ({reason}) : {text[:60]!r}…")
 
 
 # ── Construction des commandes — une LISTE d'arguments, jamais une chaîne ───────────────────
@@ -124,6 +142,34 @@ def role_command(role: str, args=None, provider: str = '', model: str = '') -> l
     if model:
         argv += ['--model', _clean(model, 'model')]
     return argv
+
+
+def role_model(user, provider: str = '', model: str = '') -> dict:
+    """Le modèle d'un rôle, TIRÉ pour le compte qui le lance : `{'key', 'provider', 'model',
+    'note'}` — `provider`/`model` sont ce que le rôle reçoit en `--provider`/`--model`.
+
+    POURQUOI ICI (2026-10-13). Le rôle est un process détaché : il ne connaît pas le compte, et
+    son propre tirage (`role_utils.resolve_model`) se faisait donc SANS lui — local seulement, le
+    profil cloud et les clés de l'utilisateur ignorés ; un `provider` distant prenait le modèle
+    par défaut du fournisseur, hors niveau développement. La surface, elle, connaît le compte :
+    elle tire avec la brique commune (`development_models.development_model`, au-dessus du
+    sélecteur `select_model`) et passe le modèle RÉSOLU. Un seul tirage : le modèle que la fiche
+    annonce est celui qui répond.
+
+    `provider` borne le tirage à ce fournisseur ; `model` est un choix, respecté s'il a le niveau,
+    REMPLACÉ sinon — `note` le dit, pour que l'assistant ne raconte pas le modèle demandé."""
+    from wama.common.services.development_models import development_model, development_refusal
+    from wama.common.utils.model_keys import catalog_key, split_key
+
+    requested = catalog_key(_clean(model, 'model'), provider or 'ollama') if model else None
+    key = development_model(user, requested, source=provider)
+    if not key:
+        raise DevToolError(development_refusal(user, source=provider))
+    source, model_id = split_key(key)
+    note = ''
+    if requested and key != requested:
+        note = f"{requested} n'a pas le niveau développement : remplacé par {key}"
+    return {'key': key, 'provider': source, 'model': model_id, 'note': note}
 
 
 def sandbox_command(action: str, app: str = '', target: str = '', owner: str = '') -> list:
@@ -153,22 +199,34 @@ def regen_check_command(app: str) -> list:
 
 # ── Tâches détachées ─────────────────────────────────────────────────────────────────────────
 
-def start_job(user, tool: str, argv: list) -> dict:
-    """Lance `argv` détaché ; le journal et le code de retour sont écrits à côté de la fiche."""
+#: Ce que le résultat d'un lancement dit au modèle (2026-10-12, fil Discord #43) : l'assistant
+#: suivait la tâche DANS son tour — cinq `dev_job_status` d'affilée, six minutes pendant
+#: lesquelles il ne répondait à rien. La fin arrive désormais d'elle-même (`notify_finished_jobs`).
+JOB_STARTED_NOTICE = ("Tâche lancée en ARRIÈRE-PLAN. Ne la suis pas dans ce tour : réponds "
+                      "maintenant à l'utilisateur. Sa fin sera annoncée dans ce fil et dans les "
+                      "notifications de WAMA ; dev_job_status ne sert que si l'utilisateur "
+                      "demande où elle en est.")
+
+
+def start_job(user, tool: str, argv: list, env: dict = None, shown: list = None) -> dict:
+    """Lance `argv` détaché ; le journal et le code de retour sont écrits à côté de la fiche.
+
+    `env` : l'environnement du process (sinon celui du serveur) — un SECRET y passe (jeton
+    personnel de Claude Code), jamais dans `argv`, qui est écrit dans la fiche et le script.
+    `shown` : la commande telle que la fiche la montre (par défaut `argv` sans l'exécutable)."""
     job_id = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-') + uuid.uuid4().hex[:6]
     directory = jobs_dir()
     log, rc = directory / f'{job_id}.log', directory / f'{job_id}.rc'
     script = f"{shlex.join(argv)} > {shlex.quote(str(log))} 2>&1; echo $? > {shlex.quote(str(rc))}"
-    proc = subprocess.Popen(['bash', '-c', script], cwd=str(base_dir()),
+    proc = subprocess.Popen(['bash', '-c', script], cwd=str(base_dir()), env=env,
                             start_new_session=True, stdin=subprocess.DEVNULL,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    meta = {'id': job_id, 'tool': tool, 'command': argv[1:],
+    meta = {'id': job_id, 'tool': tool, 'command': shown if shown is not None else argv[1:],
             'user': getattr(user, 'username', ''), 'pid': proc.pid,
             'started_at': datetime.now(timezone.utc).isoformat(timespec='seconds')}
     (directory / f'{job_id}.json').write_text(json.dumps(meta, ensure_ascii=False, indent=1),
                                               encoding='utf-8')
-    return {'job_id': job_id, 'status': 'running', 'tool': tool,
-            'follow': "dev_job_status(job_id) — la tâche peut durer plusieurs minutes"}
+    return {'job_id': job_id, 'status': 'running', 'tool': tool, 'next_step': JOB_STARTED_NOTICE}
 
 
 def _pid_alive(pid) -> bool:
@@ -199,7 +257,98 @@ def job_state(job_id: str, with_log: bool = True) -> dict:
         text = log_path.read_text(encoding='utf-8', errors='replace')
         state['log_tail'] = text[-LOG_TAIL_CHARS:]
         state['outputs'] = sorted(set(_OUTPUT_LINE.findall(text)))
+        if str(state.get('tool', '')).startswith(CLAUDE_CODE_TOOL) and state['status'] != 'running':
+            # Le journal d'une tâche Claude Code EST sa réponse JSON : on la lit comme l'appel
+            # synchrone (`claude_code.read_output`), pas comme une fin de journal brute.
+            from wama.common.services.claude_code import read_output
+            answer = read_output(text)
+            state['response'] = (answer.get('texte') or answer.get('error') or '')[:LOG_TAIL_CHARS]
+            state['model'] = answer.get('modele', '')
+            state['cost_usd'] = answer.get('cout_usd')
     return state
+
+
+# ── La FIN d'une tâche, annoncée — plus jamais suivie dans un tour (2026-10-12) ────────────────
+
+#: Une fin plus ancienne n'est plus annoncée (serveur arrêté longtemps) : elle reste lisible par
+#: `dev_list_jobs`, mais une notification de la veille surprendrait plus qu'elle n'aiderait.
+NOTIFY_MAX_AGE_S = 6 * 3600
+#: Intervalle du veilleur (s) — celui de la relève des canaux (`gateway.core.FOLLOW_UP_INTERVAL_S`).
+WATCH_INTERVAL_S = 15
+
+
+def _job_summary(state: dict) -> str:
+    """Le corps de la notification : la réponse (Claude Code), les propositions écrites (rôles),
+    sinon la fin du journal — de quoi décider sans rouvrir la tâche."""
+    if state.get('response'):
+        return state['response'][:1500]
+    lines = []
+    if state.get('outputs'):
+        lines.append("Propositions écrites (en attente de validation) : "
+                     + ', '.join(state['outputs']))
+    if state['status'] != 'done' or not lines:
+        tail = [line for line in (state.get('log_tail') or '').splitlines()
+                if line.strip() and 'Warning' not in line and 'warn(' not in line][-6:]
+        if tail:
+            lines.append('\n'.join(tail))
+    return '\n'.join(lines)[:1500]
+
+
+def notify_finished_jobs() -> int:
+    """Annonce, une fois, chaque tâche de développement TERMINÉE : une notification DANS WAMA
+    (cloche du web) que la passerelle relaie dans le fil d'où la tâche a été demandée — le chemin
+    des tâches d'app (`notify_job_end` → `gateway.core.collect_job_follow_ups`), sans en écrire un
+    second. Marque la fiche (`notified`) ; rend le nombre de notifications créées."""
+    import time
+
+    from django.contrib.auth import get_user_model
+
+    from wama.common.utils.notifications import DEV_JOB_APP, DEV_JOB_TYPE, notify_in_app
+
+    created = 0
+    for meta_path in jobs_dir().glob('*.json'):
+        try:
+            meta = json.loads(meta_path.read_text(encoding='utf-8'))
+            rc_path = meta_path.with_suffix('.rc')
+            if meta.get('notified') or not rc_path.exists():
+                continue
+            meta['notified'] = True
+            if time.time() - rc_path.stat().st_mtime <= NOTIFY_MAX_AGE_S:
+                user = get_user_model().objects.filter(username=meta.get('user', '')).first()
+                if user is not None:
+                    state = job_state(meta['id'])
+                    success = state['status'] == 'done'
+                    title = (f"Tâche de développement « {meta.get('tool', '')} » "
+                             f"{'terminée' if success else 'en échec'}")
+                    created += notify_in_app([user], 'job_done' if success else 'job_failed',
+                                             title, body=_job_summary(state),
+                                             app=DEV_JOB_APP, object_type=DEV_JOB_TYPE,
+                                             object_id=meta['id'])
+            meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding='utf-8')
+        except Exception:
+            logger.exception("[dev_tools] fin de tâche non annoncée : %s", meta_path.name)
+    return created
+
+
+def start_job_watcher() -> None:
+    """Le veilleur des fins de tâche, dans le process du serveur de développement — celui qui
+    POSSÈDE les tâches (`run_mcp_server --surface dev`). Un fil démon ; une erreur n'arrête pas
+    la ronde suivante."""
+    import threading
+    import time
+
+    def watch():
+        while True:
+            try:
+                notify_finished_jobs()
+            except Exception:
+                logger.exception("[dev_tools] ronde du veilleur en échec")
+            finally:
+                from django.db import connection
+                connection.close()
+            time.sleep(WATCH_INTERVAL_S)
+
+    threading.Thread(target=watch, name='dev-job-watcher', daemon=True).start()
 
 
 # ── Les outils ───────────────────────────────────────────────────────────────────────────────
@@ -208,14 +357,28 @@ def dev_run_role(user, role: str, args: dict = None, provider: str = '', model: 
     """Lance un rôle wama-dev-ai en tâche de fond ; il écrit une PROPOSITION en attente de validation, n'applique rien.
 
     role : librarian (args dist | repo), model (catalog | hf, force), scout (hf, dry_run),
-    integrator (manifest, besoin, dry_run), codegen (app, task, truth), backend (catalog,
-    dry_run, no_smoke). Intégrer un modèle INSTALLÉ : model d'abord (manifeste : moteur,
+    integrator (manifest, besoin, dry_run), codegen (app = id d'une app du catalogue, task = NOM
+    de sa tâche Celery comme read_document_task, truth = module:fonction de référence — écrit la
+    GLU de cette seule tâche ; ce n'est PAS un rôle de modification générale du code : pour cela,
+    dev_claude_code avec write=true), backend (catalog, dry_run, no_smoke). Valeurs d'une ligne,
+    500 caractères au plus. Intégrer un modèle INSTALLÉ : model d'abord (manifeste : moteur,
     composants), validation au model manager, PUIS backend (il exige le moteur déclaré).
-    provider : ollama (local, charge le GPU) ou un fournisseur distant comme albert. model :
-    modèle précis (sinon défaut du rôle). Rend job_id — suivre avec dev_job_status, lire la
-    proposition avec dev_read_output.
+    Modèle : laisser vide = tirage du niveau développement pour ton compte (local, ou souverain
+    selon ton profil). provider borne ce tirage à un fournisseur (ollama = local, charge le GPU ;
+    albert…) ; model est un choix précis, remplacé s'il n'a pas le niveau. Rend job_id et le
+    modèle retenu — la fin de la tâche est annoncée ; dev_read_output lit la proposition.
     """
-    return start_job(user, f'role:{role}', role_command(role, args, provider, model))
+    role_command(role, args)          # les arguments d'abord : on ne tire pas pour une commande refusée
+    chosen = role_model(user, provider, model)
+    # Le COMPTE suit le rôle dans son process : sa clé et sa garde cloud servent l'appel.
+    from wama.common.services.development_models import ROLE_USER_ENV
+    env = {**os.environ, ROLE_USER_ENV: str(user.pk)}
+    job = start_job(user, f'role:{role}',
+                    role_command(role, args, chosen['provider'], chosen['model']), env=env)
+    job['model'] = chosen['key']
+    if chosen['note']:
+        job['model_note'] = chosen['note']
+    return job
 
 
 def dev_sandbox(user, action: str, app: str = '', target: str = '') -> dict:
@@ -245,6 +408,41 @@ def dev_reload_web(user) -> dict:
     return {'error': "gunicorn introuvable — aucun rechargement (serveur arrêté ?)"}
 
 
+#: Préfixe du nom de tâche Claude Code (`claude_code` ou `claude_code:write`).
+CLAUDE_CODE_TOOL = 'claude_code'
+#: Délai d'une tâche Claude Code DÉTACHÉE (s) : sans spectateur qui attend, la borne de l'appel
+#: synchrone (15 min) n'a plus de raison ; elle évite seulement un process orphelin éternel.
+CLAUDE_CODE_JOB_TIMEOUT_S = 3600
+
+
+def dev_claude_code(user, task: str, write: bool = False, model: str = '') -> dict:
+    """Confie une tâche de développement à Claude Code (abonnement du demandeur) en TÂCHE DE FOND : audit, explication, ou modification du dépôt avec write=true. Réponds aussitôt à l'utilisateur ; la réponse de Claude Code arrive dans le fil à la fin.
+
+    task : la tâche en clair. write : autoriser la modification du dépôt (sinon lecture seule).
+    model : un modèle déclaré de l'abonnement (opus, sonnet…) — vide = choix du CLI.
+    """
+    from wama.common.services.claude_code import (ClaudeCodeIndisponible, prepare,
+                                                  subscription_allowed)
+
+    if not subscription_allowed(user):
+        return {'error': 'forbidden', 'detail': "Claude Code est réservé aux développeurs et "
+                                                "administrateurs."}
+    task = (task or '').strip()
+    if not task:
+        raise DevToolError("« task » vide : décrivez la tâche à confier à Claude Code.")
+    try:
+        prepared = prepare(task, ecriture=bool(write), user=user, model=model)
+    except ClaudeCodeIndisponible as e:
+        return {'error': str(e)}
+    if 'error' in prepared:
+        return {'error': prepared['error']}
+    argv = ['timeout', str(CLAUDE_CODE_JOB_TIMEOUT_S), *prepared['argv']]
+    # La fiche montre la tâche, pas les options du CLI ; le jeton reste dans `env`.
+    shown = [f"write={bool(write)}", f"model={model or 'défaut'}", task[:300]]
+    return start_job(user, CLAUDE_CODE_TOOL + (':write' if write else ''), argv,
+                     env=prepared['env'], shown=shown)
+
+
 def dev_job_status(user, job_id: str) -> dict:
     """État d'une tâche de développement : en cours, terminée, échouée ou interrompue ; fin du journal et propositions écrites."""
     return job_state(job_id)
@@ -267,7 +465,8 @@ def dev_read_output(user, path: str) -> dict:
 
 
 DEV_TOOLS = {fn.__name__: fn for fn in (dev_run_role, dev_sandbox, dev_regen_check, dev_reload_web,
-                                         dev_job_status, dev_list_jobs, dev_read_output)}
+                                         dev_claude_code, dev_job_status, dev_list_jobs,
+                                         dev_read_output)}
 
 
 # ── L'interface qu'attend `mcp_server` : lister, appeler ────────────────────────────────────

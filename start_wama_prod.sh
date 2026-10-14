@@ -439,55 +439,72 @@ fi
 # vérifie dans un process neuf). La garde d'accès, elle, reste `is_developer`, vérifiée par
 # le serveur à CHAQUE appel — la liste d'outils n'est qu'un confort.
 #
-# Port DÉCLARÉ par `external_sources['wama_mcp_dev']` ; repris ici pour la seule sonde de
-# disponibilité, comme le 8001 du service TTS plus haut.
-MCP_DEV_PORT=8771
+# Ports DÉCLARÉS par `external_sources['wama_mcp']` / `['wama_mcp_dev']` ; repris ici pour la
+# seule sonde de disponibilité, comme le 8001 du service TTS plus haut.
+#
+# 2026-10-12 : la surface « wama » (8770) n'était lancée par RIEN — la page des sources
+# externes la déclarait « injoignable » depuis le 15/09, sans qu'aucune panne ait eu lieu.
+# Les deux surfaces passent désormais par la même supervision : deux process, deux ports, la
+# règle §16 inchangée (la surface prod n'importe jamais `dev_tools`).
 
 # Sonde SANS jeton : un **401** prouve que le serveur écoute ET authentifie. C'est la seule
 # vérification possible sans clé, et elle distingue « démarré » d'un port pris par autre
-# chose, qui ne répondrait pas 401 ; `000` = rien n'écoute encore.
-mcp_dev_repond() {
+# chose, qui ne répondrait pas 401 ; `000` = rien n'écoute encore. $1 = port.
+mcp_repond() {
     [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 -X POST \
-        "http://127.0.0.1:$MCP_DEV_PORT/mcp" -H 'Content-Type: application/json' \
+        "http://127.0.0.1:$1/mcp" -H 'Content-Type: application/json' \
         -d '{}' 2>/dev/null)" = "401" ]
 }
-# $1 = secondes d'attente maximales. ⚠ MESURÉ le 2026-09-26 : **61 s** entre le lancement et
-# le premier 401 — le serveur importe Django et torch depuis `/mnt/d` (drvfs, lent). Une
-# première version attendait 45 s et aurait donc crié au défaut sur un démarrage SAIN.
-mcp_dev_attend() {
-    for _ in $(seq 1 $(( $1 / 2 ))); do
-        mcp_dev_repond && return 0
+# $1 = port, $2 = secondes d'attente maximales. ⚠ MESURÉ le 2026-09-26 : **61 s** entre le
+# lancement et le premier 401 — le serveur importe Django et torch depuis `/mnt/d` (drvfs,
+# lent ; 60 s remesurées le 12/10 pour la surface « wama »). Une première version attendait
+# 45 s et aurait donc crié au défaut sur un démarrage SAIN.
+mcp_attend() {
+    for _ in $(seq 1 $(( $2 / 2 ))); do
+        mcp_repond "$1" && return 0
         sleep 2
     done
     return 1
 }
 
-if ! pgrep -f "manage.py run_mcp_server --surface dev" > /dev/null; then
-    echo "=== Starting MCP dev server (port $MCP_DEV_PORT) ==="
-    nohup python manage.py run_mcp_server --surface dev --settings=$DJANGO_SETTINGS_MODULE \
-        >> $LOG_DIR/mcp-dev.log 2>&1 &
-    MCP_DEV_PID=$!
-    disown $MCP_DEV_PID
-    if [ $FAST -eq 1 ]; then
-        echo "  MCP dev server started (PID $MCP_DEV_PID) — fire & forget (--fast)"
-    elif mcp_dev_attend 150; then
-        echo "  MCP dev server ready (PID $MCP_DEV_PID) — outils dev_* visibles de l'assistant"
+# $1 = surface (wama|dev), $2 = port, $3 = journal, $4 = ce qui manque s'il ne répond pas.
+supervise_mcp() {
+    local surface=$1 port=$2 log=$3 missing=$4
+    # Motif EXACT de la ligne de commande : `run_mcp_server --surface wama` ne serait pas
+    # trouvé par `--surface dev`, et inversement — d'où l'option toujours explicite.
+    local motif="manage.py run_mcp_server --surface $surface"
+    if ! pgrep -f "$motif" > /dev/null; then
+        echo "=== Starting MCP $surface server (port $port) ==="
+        nohup python manage.py run_mcp_server --surface "$surface" \
+            --settings=$DJANGO_SETTINGS_MODULE >> "$LOG_DIR/$log" 2>&1 &
+        local pid=$!
+        disown $pid
+        if [ $FAST -eq 1 ]; then
+            echo "  MCP $surface server started (PID $pid) — fire & forget (--fast)"
+        elif mcp_attend "$port" 150; then
+            echo "  MCP $surface server ready (PID $pid)"
+        else
+            echo "  WARNING: MCP $surface server n'a pas répondu 401 après 150s — $LOG_DIR/$log"
+            echo "  ($missing)"
+        fi
+    # ⚠⚠ UN PROCESS N'EST PAS UN SERVICE, et c'est tout l'objet de ce bloc : `pgrep` a trouvé
+    # un process le 26/09 alors que RIEN n'écoutait — il démarrait encore. Un process PLANTÉ
+    # resterait visible de la même façon, et un « already running » nu rendrait muette
+    # exactement la panne qu'on ferme ici. On sonde donc AUSSI dans cette branche,
+    # brièvement : s'il devait écouter, il écouterait déjà.
+    elif mcp_attend "$port" 40; then
+        echo "MCP $surface server is already running and answering."
     else
-        echo "  WARNING: MCP dev server n'a pas répondu 401 après 150s — $LOG_DIR/mcp-dev.log"
-        echo "  (l'assistant répondra normalement, mais SANS outil de développement)"
+        echo "WARNING: un process MCP $surface existe mais n'écoute pas sur $port."
+        echo "  Le relancer : pkill -f 'manage.py run_[m]cp_server --surface $surface' puis ce script."
+        echo "  Détail : tail -n 20 $LOG_DIR/$log"
     fi
-# ⚠⚠ UN PROCESS N'EST PAS UN SERVICE, et c'est tout l'objet de ce bloc : `pgrep` a trouvé un
-# process le 26/09 alors que RIEN n'écoutait — il démarrait encore. Un process PLANTÉ resterait
-# visible de la même façon, et un « already running » nu rendrait muette exactement la panne
-# qu'on ferme ici. On sonde donc AUSSI dans cette branche, brièvement : s'il devait écouter, il
-# écouterait déjà.
-elif mcp_dev_attend 40; then
-    echo "MCP dev server is already running and answering."
-else
-    echo "WARNING: un process MCP dev existe mais n'écoute pas sur $MCP_DEV_PORT."
-    echo "  Le relancer : pkill -f 'manage.py run_[m]cp_server --surface dev' puis ce script."
-    echo "  Détail : tail -n 20 $LOG_DIR/mcp-dev.log"
-fi
+}
+
+supervise_mcp wama 8770 mcp.log \
+    "aucun client MCP externe (Claude Code, IDE) ne joindra les outils tool_api"
+supervise_mcp dev 8771 mcp-dev.log \
+    "l'assistant répondra normalement, mais SANS outil de développement"
 
 # ------------------------------------------------------
 # FIN

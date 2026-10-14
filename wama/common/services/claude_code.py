@@ -179,6 +179,46 @@ def declared_model_ids() -> tuple:
     return tuple(m[0] for m in external_sources.get(SUBSCRIPTION_SOURCE).declared_models)
 
 
+def prepare(prompt: str, *, outils=OUTILS_LECTURE, ecriture: bool = False, user=None,
+            model: str = '') -> dict:
+    """La commande du CLI et son environnement, GARDES COMPRISES — `{'argv', 'env'}` ou
+    `{'error'}`. Partagée par l'appel SYNCHRONE (`demander`) et la tâche DÉTACHÉE de la surface
+    de développement (`dev_tools.dev_claude_code`, 2026-10-12) : un modèle non déclaré, un profil
+    « 100 % local » ou l'absence de jeton personnel se refusent au même endroit, quelle que soit
+    la voie. Les paramètres sont ceux de `demander`."""
+    model = (model or '').strip()
+    if model and model not in declared_model_ids():
+        return {'error': f"Modèle « {model} » non déclaré pour l'abonnement Claude Code "
+                         f"(déclarés : {', '.join(declared_model_ids())})."}
+    oauth_token = None
+    if user is not None and getattr(user, 'is_authenticated', False):
+        from wama.model_manager.services.cloud_models import cloud_refusal
+        refus = cloud_refusal(user, SUBSCRIPTION_SOURCE)
+        if refus:
+            return {'error': refus}
+        from wama.accounts.api_keys import key_for
+        oauth_token = key_for(user, SUBSCRIPTION_SOURCE)
+        if not oauth_token:
+            return {'error': "Aucun jeton d'abonnement Claude dans votre profil : générez-le avec "
+                             "`claude setup-token`, puis collez-le dans le volet « Clés d'API » "
+                             "de la page Profil."}
+    commande = [chemin_cli(), '-p', prompt, '--output-format', 'json']
+    if model and model != 'default':
+        # Un ALIAS du CLI (« the latest model ») : il suit les sorties de modèles tout seul.
+        commande += ['--model', model]
+    if not ecriture:
+        # Restriction de surface : les outils non listés déclenchent une demande de
+        # permission, qui en non-interactif équivaut à un refus.
+        commande += ['--allowedTools', *outils]
+    return {'argv': commande, 'env': _environnement(oauth_token)}
+
+
+def read_output(raw: str) -> dict:
+    """Le résultat d'une sortie `--output-format json` déjà écrite — celle d'une tâche détachée,
+    lue dans son journal. Même lecture que l'appel synchrone (`_lire_sortie`)."""
+    return _lire_sortie(raw)
+
+
 def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
              outils=OUTILS_LECTURE, ecriture: bool = False, user=None, model: str = '') -> dict:
     """
@@ -202,43 +242,18 @@ def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
          'modele': str}   # `modele` = le modèle RÉELLEMENT servi, lu dans la réponse du CLI
         {'success': False, 'error': str}
     """
-    model = (model or '').strip()
-    if model and model not in declared_model_ids():
-        return {'success': False,
-                'error': f"Modèle « {model} » non déclaré pour l'abonnement Claude Code "
-                         f"(déclarés : {', '.join(declared_model_ids())})."}
-    oauth_token = None
-    if user is not None and getattr(user, 'is_authenticated', False):
-        from wama.model_manager.services.cloud_models import cloud_refusal
-        refus = cloud_refusal(user, SUBSCRIPTION_SOURCE)
-        if refus:
-            return {'success': False, 'error': refus}
-        from wama.accounts.api_keys import key_for
-        oauth_token = key_for(user, SUBSCRIPTION_SOURCE)
-        if not oauth_token:
-            return {'success': False,
-                    'error': "Aucun jeton d'abonnement Claude dans votre profil : générez-le avec "
-                             "`claude setup-token`, puis collez-le dans le volet « Clés d'API » "
-                             "de la page Profil."}
-    cli = chemin_cli()
+    prepared = prepare(prompt, outils=outils, ecriture=ecriture, user=user, model=model)
+    if 'error' in prepared:
+        return {'success': False, 'error': prepared['error']}
     racine = str(cwd or settings.BASE_DIR)
     delai = max(10, min(int(delai or DELAI_DEFAUT), DELAI_MAX))
-
-    commande = [cli, '-p', prompt, '--output-format', 'json']
-    if model and model != 'default':
-        # Un ALIAS du CLI (« the latest model ») : il suit les sorties de modèles tout seul.
-        commande += ['--model', model]
-    if not ecriture:
-        # Restriction de surface : les outils non listés déclenchent une demande de
-        # permission, qui en non-interactif équivaut à un refus.
-        commande += ['--allowedTools', *outils]
 
     logger.info("[claude_code] tâche soumise (%d caractères, %s, délai %ds)",
                 len(prompt or ''), 'écriture' if ecriture else 'lecture seule', delai)
 
     try:
         acheve = subprocess.run(
-            commande, cwd=racine, env=_environnement(oauth_token),
+            prepared['argv'], cwd=racine, env=prepared['env'],
             capture_output=True, text=True, timeout=delai,
         )
     except subprocess.TimeoutExpired:

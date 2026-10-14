@@ -944,6 +944,14 @@ def add_llm_arguments(parser, role='dev'):
         '--model', default=None,
         help=f"Modèle (défaut : chaîne du rôle {role} en local, modèle par défaut du "
              f"fournisseur sinon)")
+    # La garde GPU (`local_llm_guard`) est celle de TOUS les rôles depuis le 2026-10-13 : ses
+    # options vivent donc ici. `--wait-max` s'appelait `--attente-max`, dans le seul rôle `model`.
+    parser.add_argument(
+        '--force', action='store_true',
+        help="Sauter l'ATTENTE de VRAM libre en mode dépannage (GO explicite ; le keep_alive reste)")
+    parser.add_argument(
+        '--wait-max', type=float, default=300.0,
+        help="Attente maximale de VRAM libre en mode dépannage, en secondes (défaut 300)")
 
 
 def resolve_model(provider, role, model=None):
@@ -963,17 +971,27 @@ def resolve_model(provider, role, model=None):
         # finissait sur `fast`/`ultra_fast` dès que la VRAM manquait : c'est exactement le
         # modèle qui invente des imports. Sans catalogue (première installation), la chaîne
         # historique reste le dernier recours — et le dit.
+        # Lancé par la surface de développement, le rôle reçoit le modèle DÉJÀ tiré pour le
+        # compte (`dev_tools.role_model`) et n'arrive pas ici. Ce tirage-ci est celui d'un rôle
+        # lancé à la main — avec le compte s'il est posé (`ROLE_USER_ENV`), borné au LOCAL
+        # puisque le fournisseur demandé est `ollama` (le lot de ce compte peut contenir un
+        # distant souverain, qu'un appel Ollama ne saurait pas servir).
         try:
             from wama.common.services.development_models import (
-                development_model, development_refusal)
-            key = development_model(None)
+                development_model, development_refusal, role_user)
+            user = role_user()
+            key = development_model(user, source='ollama')
         except Exception as e:      # catalogue injoignable : pas une raison de bloquer un rôle
             print(f"[role_utils] catalogue indisponible ({e}) — chaîne de repli de config.py")
             from config import select_model_for_role
             return select_model_for_role(role)[1].ollama_id
         if not key:
-            raise RuntimeError(development_refusal(None))
-        return key.split(':', 1)[1]
+            raise RuntimeError(development_refusal(user))
+        from wama.common.utils.model_keys import model_id
+        return model_id(key)
+    # ⚠ Reste HORS du niveau développement (2026-10-13, consigné `WAMA_LLM.md`) : un fournisseur
+    # distant nommé à la main SANS modèle prend son modèle par défaut. La surface de
+    # développement ne passe jamais par ici (elle donne toujours le modèle tiré).
     from wama.common.utils.llm_utils import default_cloud_model
     return default_cloud_model(provider)
 
@@ -989,18 +1007,89 @@ def call_llm(provider, model, system, user_msg, num_ctx=16384, keep_alive=None,
 
     Lève `RuntimeError` en cas d'échec, comme `call_ollama` lève sur une erreur HTTP : les
     pilotes n'ont pas à distinguer les deux chemins.
+
+    Distant : par `chat_with_source`, la brique de l'appel à un fournisseur DÉCLARÉ (2026-10-13)
+    — avec le COMPTE du rôle quand la surface l'a posé (`role_user`) : SA clé, et la garde cloud
+    commune (profil « 100 % local », modèle non ouvert par sa clé) qui refuse AVANT l'appel. Sans
+    compte (rôle lancé à la main), aucune clé n'est passée : celle de l'instance, comme avant.
+    `think=True` : la valeur que `llm_chat` prenait par défaut ici — rien ne change pour le modèle.
     """
     if provider == 'ollama':
         return call_ollama(model, system, user_msg, num_ctx=num_ctx, keep_alive=keep_alive,
                            temperature=temperature, timeout=timeout)
-    from wama.common.utils.llm_utils import llm_chat
-    text, error = llm_chat(
-        [{'role': 'system', 'content': system}, {'role': 'user', 'content': user_msg}],
-        model=model or None, provider=provider, num_predict=None,
-        temperature=temperature, timeout=timeout)
+    from wama.common.services.development_models import role_user
+    from wama.common.utils.llm_utils import chat_with_source
+    from wama.model_manager.services.cloud_models import CloudAccessRefused
+    try:
+        text, error = chat_with_source(
+            provider, model or None,
+            [{'role': 'system', 'content': system}, {'role': 'user', 'content': user_msg}],
+            user=role_user(), num_predict=None, think=True,
+            temperature=temperature, timeout=timeout)
+    except CloudAccessRefused as refused:
+        raise RuntimeError(f'{provider} : {refused}') from refused
     if text is None:
         raise RuntimeError(f'{provider} : {error}')
     return text
+
+
+def local_llm_guard(provider, model, *, force=False, wait_max=300.0, release_reason='',
+                    log=print):
+    """La garde GPU d'un appel de rôle — `keep_alive` à passer à `call_llm`.
+
+    La parade du gouverneur en mode dépannage (`WAMA_GPU_SAFE_MODE`), écrite dans le seul rôle
+    `model` jusqu'au 2026-10-13 alors que ce README la demandait à « tout rôle qui appellera
+    Ollama » : `wait_for_free_vram()` avant l'appel (on ne s'empile pas sur une charge en cours)
+    et `keep_alive='0'` (déchargement sitôt la réponse rendue). Mode dépannage éteint : on ne
+    mesure rien et on n'attend pas — Ollama range ses propres résidents. Un fournisseur distant
+    ne charge rien sur ce GPU : aucune garde.
+
+    `release_reason` : l'ACCORD EXPLICITE de libérer la carte (règle du gouverneur, B1 — jamais
+    de déchargement d'office) ; la garde le transmet par le canal commun (`obtain_vram` : les
+    services résidents se déchargent s'ils ne servent pas), quel que soit le mode.
+
+    Le BESOIN se lit au catalogue (`auto_model.vram_needed_gb`, la cascade commune : mesurée →
+    source → déclarée → preset), jamais dans `config.py` — la table d'un modèle n'est pas
+    forcément celle du modèle tiré. Besoin inconnu : pas d'attente, et on le DIT.
+    `force` saute l'ATTENTE, jamais le keep_alive. Refus : `SystemExit`, avec qui tient la carte.
+    ⚠ Ne sonder la VRAM que si l'on doit décider : `effective_free_gb` ouvre un contexte CUDA dans
+    ce process (quelques centaines de Mo tenus pendant tout l'appel du modèle).
+    """
+    if provider != 'ollama':
+        log(f'[gpu] fournisseur distant ({provider}) — aucune charge GPU locale, pas d\'attente')
+        return None
+    from wama.common.services.resource_governor import (
+        effective_free_gb, gpu_safe_mode, holders_summary, obtain_vram, pipeline_keep_alive,
+        tenant_id, wait_for_free_vram)
+    from wama.common.utils.auto_model import vram_needed_gb
+    from wama.common.utils.model_keys import catalog_key
+    keep_alive = pipeline_keep_alive()
+    must_wait = gpu_safe_mode() and not force
+    if not (must_wait or release_reason):
+        log(f'[gpu] keep_alive={keep_alive!r} (mode dépannage éteint : aucune attente)')
+        return keep_alive
+    need = vram_needed_gb(catalog_key(model, 'ollama'))
+    if need is None:
+        log(f'[gpu] besoin VRAM de {model} inconnu au catalogue — ni attente ni libération '
+            f'possibles ; keep_alive={keep_alive!r}')
+        return keep_alive
+    if release_reason and effective_free_gb() < need:
+        log(f'[gpu] libération de la carte ACCORDÉE ({release_reason}) : {need:.1f} Go requis — '
+            'demande envoyée aux services résidents')
+        obtain_vram(need, requester=tenant_id(), reason=release_reason,
+                    console=lambda m: log(f'[gpu] {m}'))
+    if not must_wait:
+        return keep_alive
+    ok, free = wait_for_free_vram(need, timeout_s=wait_max, console=lambda m: log(f'[gpu] {m}'))
+    if not ok:
+        who = holders_summary()
+        # Refus DIT, jamais un défaut silencieux (contrat de `wait_for_free_vram`).
+        raise SystemExit(
+            f"[gpu] REFUS : {free:.1f} Go libres < {need:.1f} Go requis pour {model} après "
+            f"{wait_max:.0f} s d'attente (mode dépannage GPU)" + (f" — {who}" if who else '')
+            + ". Réessayer plus tard, ou --force sur GO explicite.")
+    log(f'[gpu] VRAM libre {free:.1f} Go ≥ {need:.1f} Go requis — keep_alive={keep_alive!r}')
+    return keep_alive
 
 
 def extract_json(text):

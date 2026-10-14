@@ -212,6 +212,30 @@ class CadenceTest(SimpleTestCase):
         self.assertEqual(['t.gesture'], [s.id for s in played[0]])
         self.assertEqual('daily', kwargs['cadence'])
 
+    def test_a_redelivered_campaign_is_never_replayed(self):
+        """Measured on 2026-10-13: the 04:30 campaign outlived the broker visibility timeout
+        (6 h 25 > 6 h); the restarted worker received the SAME message and replayed the whole
+        campaign in the afternoon, users' GPU work waiting behind it."""
+        from unittest import mock
+        from wama.common import tasks
+        task = tasks.run_nightly_tests_task
+        with mock.patch.object(nightly_tests, 'run_all', return_value={'summary': {}}) as run_all:
+            task.push_request(id='redelivered', delivery_info={'redelivered': True})
+            try:
+                result = task.run(cadence='daily')
+            finally:
+                task.pop_request()
+            run_all.assert_not_called()
+            self.assertEqual({'refused': 'redelivered'}, result)
+            # Counter-proof: a first delivery plays.
+            task.push_request(id='first', delivery_info={'redelivered': False})
+            try:
+                with mock.patch.object(nightly_tests, '_sandbox_apps', return_value={'t_01'}):
+                    task.run(cadence='daily')
+            finally:
+                task.pop_request()
+            run_all.assert_called_once()
+
 
 class CadenceOnTheRealRegistryTest(SimpleTestCase):
     """On the registry the apps really fill: the nightly part stays SHORT and GPU-free."""

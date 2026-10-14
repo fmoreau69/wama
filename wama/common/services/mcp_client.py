@@ -138,8 +138,10 @@ def tools_block(tools: list) -> str:
         "Development tools (the user is a WAMA developer; these run in the separate development "
         "surface): a role writes a PROPOSAL awaiting human validation and never applies it; the "
         "sandbox only touches twin apps (<app>_NN), never the original app. Launches are "
-        "background jobs — follow them with dev_job_status and read proposals with "
-        "dev_read_output. Report the job id and what the developer should check.",
+        "background jobs: report the job id and answer NOW — do not poll them in the same turn; "
+        "their end is announced in this thread by itself. dev_job_status only when the user asks "
+        "where a job stands; read proposals with dev_read_output and say what the developer "
+        "should check.",
     ]
     for t in tools:
         lines.append(f"- {t['name']}({', '.join(t.get('args') or [])}): {t.get('description', '')}")

@@ -35,8 +35,8 @@ django.setup()
 from role_utils import (  # noqa: E402
     PACKAGING_FILES, add_llm_arguments, call_llm, complete_library_envelope,
     enforce_install_channel, extract_json,
-    fetch as _fetch, github_head_sha, pypi_published, repo_requirements, requirements_verdict,
-    resolve_model)
+    fetch as _fetch, github_head_sha, local_llm_guard, pypi_published, repo_requirements,
+    requirements_verdict, resolve_model)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'librarian.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'libraries'
@@ -109,11 +109,13 @@ def main():
                            for f in sorted(EXEMPLES_DIR.glob('*.json'))[:2])
     model = resolve_model(args.provider, 'dev', args.model)
     print(f'[librarian] {args.provider} / {model} | provenance : {provenance}')
+    keep_alive = local_llm_guard(args.provider, model, force=args.force, wait_max=args.wait_max,
+                                 log=lambda m: print(f'[librarian] {m}'))
 
     user_msg = (f'EXEMPLE(S) de manifeste `library` valide :\n{exemples}\n\n'
                 f'SOURCES du projet à traduire :\n{matiere}\n\n'
                 f'Produis le manifeste `library` de ce projet (JSON seul).')
-    reponse = call_llm(args.provider, model, PROMPT, user_msg)
+    reponse = call_llm(args.provider, model, PROMPT, user_msg, keep_alive=keep_alive)
     manifest = extract_json(reponse)
 
     # ── Contrôles MÉCANIQUES (le LLM propose, la chaîne d'ingest juge) ──────────

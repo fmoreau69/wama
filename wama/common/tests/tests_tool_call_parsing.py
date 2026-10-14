@@ -36,6 +36,17 @@ class ToolCallParsingTest(SimpleTestCase):
         call = _parse_tool_call('<think>{"tool": "x", "args": {}}</think>{"tool": "y", "args": {}}')
         self.assertEqual('y', call['tool'])
 
+    def test_arguments_beside_tool_without_args_key_are_recognised(self):
+        """Fil Discord #43 (2026-10-12) : cet appel exact a été AFFICHÉ à l'utilisateur."""
+        call = _parse_tool_call('{"tool": "get_item_preview", "app": "reader", '
+                                '"side": "result", "pk": 1335}')
+        self.assertEqual({'tool': 'get_item_preview',
+                          'args': {'app': 'reader', 'side': 'result', 'pk': 1335}}, call)
+
+    def test_an_args_key_that_is_not_an_object_is_not_read_as_flat(self):
+        """Contre-épreuve : `args` présent mais mal formé reste refusé, il n'est pas « aplati »."""
+        self.assertIsNone(_parse_tool_call('{"tool": "x", "args": "a=1"}'))
+
     def test_no_call_broken_json_or_missing_args_is_none(self):
         self.assertIsNone(_parse_tool_call('Bonjour, rien à faire.'))
         self.assertIsNone(_parse_tool_call('{"tool": "x", "args": {"a": 1}'))

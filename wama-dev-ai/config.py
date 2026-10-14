@@ -58,14 +58,10 @@ _ollama_host = _urlparse(OLLAMA_HOST).hostname or '127.0.0.1'
 os.environ['NO_PROXY'] = f'localhost,127.0.0.1,::1,{_ollama_host}'
 os.environ['no_proxy'] = os.environ['NO_PROXY']
 
-# ============================================================================
-# WAMA API Configuration (for VRAM clearing and Phase 2 health checks)
-# Loaded from .env at project root or from environment variables.
-# ============================================================================
-
-WAMA_BASE_URL = os.environ.get('WAMA_BASE_URL', 'http://localhost')
-WAMA_USERNAME  = os.environ.get('WAMA_USERNAME', '')
-WAMA_PASSWORD  = os.environ.get('WAMA_PASSWORD', '')
+# ⚠ `WAMA_BASE_URL` / `WAMA_USERNAME` / `WAMA_PASSWORD` RETIRÉS le 2026-10-13 : leur seul
+# lecteur était le vidage VRAM de l'audit par l'API web (connexion par mot de passe lu dans
+# `.env`), qui ne vidait que le process web. L'audit passe désormais par le gouverneur
+# (`role_utils.local_llm_guard`). Les « Phase 2 health checks » annoncés ici n'ont jamais existé.
 
 
 # ============================================================================

@@ -745,6 +745,15 @@ surface (`common/services/mcp_client.py`, `ROADMAP §8d étape 5 moitié dev`) �
 qui converse avec un modèle local voit les outils `dev_*` et peut lancer un rôle ou une jumelle ;
 le serveur dev garde la porte.
 
+> 🔓 **LEVÉ pour la CONVERSATION le 2026-10-12** (décision de Fabien : *« le bridage était valable
+> tant qu'on n'avait pas d'API souveraine ; maintenant qu'on a Albert et ILaaS, on peut le
+> lever »*). Mesuré le même jour (fil Discord #43, §2026-10-12 plus bas) : un seul `dev_run_role`
+> faisait passer la conversation d'Albert au modèle local de niveau dev, réflexion imposée —
+> 2 min 49 au premier appel, puis un délai dépassé. **La conversation garde son modèle et son
+> curseur** ; ni le domaine dev, ni la compétence dev, ni un outil `dev_*` ne la font plus
+> basculer. **Le niveau dev reste exigé des RÔLES wama-dev-ai** (`role_utils.resolve_model`), là où
+> le code s'écrit, en tâche de fond. Le texte ci-dessous est la trace du 22/09.
+
 **Bridage « qualité max » du travail sur le code — ✅ câblé le 22/09** (Fabien, après le test
 réel : le 4b sans réflexion inventait des jumelles ; « brider en qualité max, limiter les modèles
 possibles, de façon globale à wama-dev-ai, peut-être Albert avec gpt-oss »). Domicile UNIQUE :
@@ -1869,6 +1878,153 @@ réelles, écritures bouchonnées.
   APPROUVÉS de l'utilisateur, en lexical, dans le prompt du domaine général — est une DÉCISION,
   signalée et pas prise.
 
+### ⭐ 2026-10-12 — « tu disparais quand tu lances des tâches » : sept défauts sous un fil Discord (n° 43)
+
+Fil lu en base (`tool_steps`), croisé avec les journaux d'Ollama, `wama.log` et `logs/dev_jobs/`.
+Demande : OCR d'une photo, puis « renvoie-moi le texte », puis « corrige l'API via wama-dev-ai,
+fais contrôler par Claude en Opus ». **Ce que l'utilisateur a lu comme une lacune d'API était
+d'abord un OCR en échec maquillé en succès.**
+
+| # | défaut mesuré | correctif |
+|---|---|---|
+| 1 | Card reader #1335 `SUCCESS` à **0 caractère** : Ollama 500 « token repeat limit reached » (glm-ocr sur une note manuscrite 1848×4000, photographiée couchée), `_ocr_image` journalisait et rendait `''` | l'erreur fait échouer la page ; une sortie en BOUCLE est coupée au premier passage (`trim_repetition`), et échoue si elle reste en boucle (`is_degenerate_output`, rapport de compression > 8 ; textes réels ≈ 2). ⚠ Pas de nouvel essai échantillonné : il répète le même paragraphe sans lever (mesuré). Cause racine : l'orientation, cf. plus bas |
+| 2 | `{"tool": "get_item_preview", "app": …, "pk": 1335}` AFFICHÉ à l'utilisateur (Albert/deepseek, forme à plat sans `args`) | `_parse_tool_call` lit la forme à plat (au moins un argument) |
+| 3 | `add_to_reader(mode=null)` → `NOT NULL` en base | la porte (`sanitize_tool_args`) traite `null` comme « non fourni » pour un paramètre à défaut |
+| 4 | aucun outil ne lisait le CONTENU d'un résultat late-binding (seul l'aperçu tronqué à 300 car.) | `get_item_result` : le rendu du bouton ⬇ (`export_builder_for`), ownership dans le corps ; early-binding → `output_url`, que le canal joint |
+| 5 | « délai dépassé » à 3 min pile sur Discord : sans flux, le délai httpx plafonnait la génération ENTIÈRE (réflexion du niveau dev comprise), le web n'étant coupé que par 180 s de silence | `_ollama_call` demande toujours le flux ; sans écouteur les fragments sont jetés |
+| 6 | **deux messages perdus** (14:54, 15:09) : sessions Discord RENOUVELÉES à 14:58 et 15:16 (`on_ready`, pas `on_resumed`) — Discord ne rejoue rien ; aucune ligne ne disait la coupure (`log_handler=None`, journal de discord.py sans gestionnaire) | rattrapage des salons actifs après une nouvelle session (`discord_bot._catch_up`, ≤ 1 h, annoncé) ; `on_disconnect`/`on_resumed` journalisés ; journal `discord` → `gateway-discord.log`. ⏳ La CAUSE des coupures reste à lire au prochain épisode |
+| 7 | rien ne disait quel modèle répondait ; un tour en erreur n'entrait pas au fil (outils joués perdus) ; `dev_run_role` refusait sans dire pourquoi ; `codegen` pris pour un rôle de modification générale ; `ask_claude_code` sans choix de modèle | `engine` au résultat + ligne `-# ☁️ albert · … · 4 s` sous chaque réponse de canal ; tour en erreur enregistré ; refus motivé (longueur, ligne) ; description de `codegen` (glu d'UNE tâche) ; `ask_claude_code(model=…)` |
+
+**Suites du même jour (décisions de Fabien) :**
+- **Bridage dev de la conversation LEVÉ** (§1ter) : c'est lui qui faisait passer le fil d'Albert
+  à `qwen3.8` local avec réflexion dès un `dev_run_role`.
+- **Redressement automatique des images avant l'OCR** — CAUSE RACINE de la card #1335 : la note
+  était photographiée COUCHÉE (90°, sans étiquette EXIF) ; glm-ocr n'y lit rien, et la lit juste
+  une fois redressée. `ocr_base.upright_image` : EXIF, puis le classifieur d'orientation de page
+  de **docTR** (`mobilenet_v3_small_page_orientation`, 6 Mo, CPU, ~0,04 s ; confiance mesurée
+  0,89-0,98 sur les quatre rotations). Appelé par le reader pour une image en entrée, par
+  glm-ocr pour les pages d'un PDF ; l'original n'est jamais réécrit. Poids sous
+  `DOCTR_CACHE_DIR`, posé une fois dans `settings.py`. ⚠ Le téléchargeur de docTR coupait à 81 %
+  (empreinte refusée) : fichier récupéré par curl, empreinte vérifiée (`8e60325c…`), déposé à la
+  main. Tesseract écarté : paquet système absent, docTR déjà au venv. Mesuré bout à bout :
+  photo redressée → note lue, boucle coupée au premier passage (`trim_repetition`).
+- **L'assistant reste disponible pendant le développement** (« il faut que l'assistant reste
+  toujours disponible ») — trois points, gardés par `tests_dev_job_follow_up` :
+  1. **fin de tâche ANNONCÉE, plus jamais suivie dans le tour** : le serveur de dev, qui possède
+     les tâches, émet à leur fin une notification `app='dev'` (`dev_tools.notify_finished_jobs`,
+     veilleur lancé par `run_mcp_server --surface dev`) ; la cloche du web l'affiche et la
+     passerelle la poste dans le fil d'origine (`gateway.core._dev_job_follow_up`, étape
+     `dev_job_status` réellement jouée) — le chemin des tâches d'app, pas un second. Un second
+     `dev_job_status` d'une tâche en cours dans le même tour n'est plus relayé (contrôle de la
+     boucle, `_already_polled`) ; le résultat d'un lancement le dit (`JOB_STARTED_NOTICE`) ;
+  2. **Claude Code en tâche de fond** : `dev_claude_code(task, write, model)` sur la surface de
+     dev, mêmes gardes que l'appel synchrone (`claude_code.prepare`), jeton dans l'environnement
+     du process, jamais dans la fiche. `ask_claude_code` reste synchrone pour une QUESTION
+     courte et refuse `write=true` en renvoyant vers `dev_claude_code` ;
+  3. **chien de garde de la passerelle** (`discord_bot.watchdog_verdict`) : boucle sans
+     battement 60 s → pile de tous les fils dans `gateway-discord.log` (la cause des coupures,
+     enfin lisible) ; 300 s gelée ou 600 s déconnectée → le process se relance (`os.execv`).
+
+### ⭐ 2026-10-13 — wama-dev-ai sur la route commune : le modèle tiré pour le COMPTE, la VRAM au gouverneur
+
+Question de Fabien : *« on avait géré les choix de modèles via des workflows dans wama-dev-ai…
+il faut automatiser au maximum à partir du model manager et des infos des registres pour ne pas
+créer de chemin parallèle »*. Route déjà tracée, et suivie ici : `ROADMAP §8d` (« c'est à LUI
+d'adopter la brique », décision du 15/09) et §C ci-dessous (« coopération du rôle `model` avec
+le gouverneur, à généraliser »).
+
+**État des lieux MESURÉ — trois couches de choix de modèle, de trois âges :**
+
+| couche | où | lue par | état au 13/10 |
+|---|---|---|---|
+| `MODELS` (14 entrées : rôle, priorité, RAM), `MODEL_FALLBACK_CHAINS`, `select_model_for_role` (VRAM libre par nvidia-smi − 2 Go, filtrée par `/api/tags`) et **13 `WORKFLOWS`** — des enchaînements de MODÈLES (`standard` = dev → debug, `full` = dev → debug → architect, `ui` = vision → coder…) | `wama-dev-ai/config.py:91-501,654` | l'agent interactif `cli.py` (`run_task` joue un workflow : chaque modèle RÉÉCRIT chaque fichier en entier, pris dans `MODELS` sans mesure de mémoire ni chaîne, consignes pour dev/debug/architect seules) ; `run_audit.py` (chaîne `audit` MESURÉE le 20/08 : les Qwen échouent sur un long prompt d'outils) | un catalogue PARALLÈLE à `AIModel` ; jamais joint par WAMA (la surface ne lance que les six rôles, `dev_tools.ROLES`) |
+| bridage « niveau développement » (22/09) | `development_models.development_model` → `select_model` | les six rôles (`role_utils.resolve_model`) | le sélecteur COMMUN, mais tiré SANS compte (`user=None`) — donc local seulement, profil cloud et clés ignorés ; un `provider` distant prenait le modèle par défaut du fournisseur ; le rôle `model` y échappait (chaîne de `config.py`, besoin VRAM de sa table) |
+| gouverneur | `resource_governor` | le rôle `model` seul (attente en mode dépannage), `backend` (keep_alive) | l'AUDIT déchargeait TOUT Ollama au début et à la fin de chaque run — le modèle de l'assistant compris — et vidait par l'API web (mot de passe dans `.env`) un process qui ne tient pas la carte |
+
+**Ce qui change :**
+1. **La surface tire pour le compte, le rôle ne retire pas.** `dev_tools.role_model` →
+   `development_model(user, requested, source=provider)` ; le rôle reçoit `--provider`/`--model`
+   RÉSOLUS : un seul tirage, et le modèle que la fiche annonce est celui qui répond (`job['model']`).
+   `provider` borne le tirage à ce fournisseur ; un choix sous le niveau est remplacé et
+   `model_note` le dit ; sans modèle, refus AVANT tout lancement ; les arguments sont validés
+   avant le tirage. Le compte SUIT le rôle dans son process (`development_models.ROLE_USER_ENV`,
+   `role_user()`), et l'appel distant passe par `chat_with_source(user=…)` : SA clé, la garde
+   cloud commune. **Mesuré pour le compte admin** (profil « cloud autorisé ») : tirage
+   `ilaas:qwen-3.8-27b` ; rôle `integrator` joué bout à bout par ILaaS, aucune charge GPU,
+   décision juste (« lire une note manuscrite » → reader, 0,93). Jusque-là : `qwen3.8` local, 17 Go.
+2. **Une garde GPU commune** (`role_utils.local_llm_guard`) pour les six rôles et l'audit — la
+   parade du rôle `model`, généralisée comme son README le demandait : besoin lu au CATALOGUE
+   (`auto_model.vram_needed_gb`, la cascade commune), attente en mode dépannage, libération de
+   la carte SEULEMENT sur accord (`release_reason` → `obtain_vram`, règle B1), et aucune sonde
+   quand rien n'est à décider (`effective_free_gb` ouvre un contexte CUDA dans le process — le
+   rôle `model` en ouvrait un à chaque run). `--force` et `--wait-max` (ex-`--attente-max`, rôle
+   `model` seul) vivent dans `add_llm_arguments`.
+3. **L'audit ne décharge plus personne.** `django.setup()` comme les rôles ; il libère SON modèle
+   (`MemoryManager.unload_model`, ligne de résidence comprise) ; `--free-vram` est l'accord.
+   Retirés avec leur périmètre : `_free_ollama_models`, `_free_wama_vram`, `--no-free-vram`,
+   `--ask-password`, `WAMA_BASE_URL`/`WAMA_USERNAME`/`WAMA_PASSWORD` (`config.py`, `.env.example`).
+   ⚠ Un `.env` local peut encore porter `WAMA_PASSWORD` : plus lu, à retirer à la main.
+
+Gardes : `tests_development_models.RoleModelDrawnForTheAccountTest`,
+`tests_dev_ai_bridge.RoleGpuGuardTest` et `RolesFollowTheCommonRouteTest`.
+
+**Ce qui reste — le principe des workflows est ACTÉ, la mise en œuvre est à faire proprement :**
+une étape ne nomme ni un modèle ni une chaîne ; elle DÉCLARE ce que la tâche exige, comme un
+process d'app : capacités (`requires` : completion, vision, appel d'outils…), famille de banc
+(`benchmark_family`), intention de qualité. Le sélecteur commun tire alors au catalogue `AIModel`
+(VRAM, résidence, profil cloud, saturation — la session de routage, `ROADMAP §8d`). D'où :
+- `MODELS`, `MODEL_FALLBACK_CHAINS` et `WORKFLOWS` de `config.py` sont le chemin parallèle à
+  retirer, APRÈS avoir porté ce qu'ils résument de MESURÉ (`ROADMAP` l.5066 : sinon on perd une
+  capacité) — la chaîne `audit` doit devenir une mesure portée par la ligne `AIModel` (« appel
+  d'outils fiable sur ce build »), pas une liste écrite à la main ;
+- `cli.py` et ses workflows ne sont joignables que du terminal et choisissent sans le bridage :
+  les reprendre (workflows de RÔLES joués par la surface, en tâche de fond) ou les retirer est une
+  décision de Fabien — c'est aussi le 3ᵉ concurrent de l'essai d'agent de code (Aider, OpenCode) ;
+- hors route, consigné : un rôle lancé À LA MAIN avec `--provider <distant>` sans modèle prend le
+  défaut du fournisseur (`role_utils.resolve_model`) ; deux mesures de VRAM copiées
+  (`config.get_available_vram_gb`, `run_audit._get_free_vram_gb`) ; `effective_free_gb` ouvre un
+  contexte CUDA — une sonde sans contexte, comme `total_vram_gb` depuis le 10/10, serait au
+  gouverneur de l'offrir.
+
+### ⭐ 2026-10-13 — « les tests bloquent-ils ma tâche ? » : l'assistant lit la place que montre la card
+
+Fil Discord, OCR #1485 : *« Je pense que les tests en cours bloquent le traitement. Peux-tu me
+confirmer ? »* — réponse : *« Je ne peux pas confirmer cette hypothèse »*. Lu en base
+(`tool_steps`) : l'assistant avait appelé `get_reader_status`, qui rendait `RUNNING, 0 %` et rien
+d'autre, pendant que la card affichait « ⏳ En file · 3 tâches avant ». **L'API ne lui donnait
+pas ce que l'utilisateur voyait** — et la pastille elle-même se trompait. Question de Fabien :
+*« le problème est peut-être simplement que l'API est à compléter ? »* — oui, et sans outil neuf
+(un `explain_wait` proposé d'abord aurait été une 2ᵉ lecture de la file, à côté de celle de la
+card). Deux corrections, à la source puis à l'API :
+
+1. **La file globale lit ce que le worker TIENT** (`global_queue.held_messages`, table `unacked`
+   du broker). La cause réelle : la campagne de tests de 04:30, plus longue que le délai de
+   visibilité (6 h), RE-LIVRÉE au worker GPU relancé et rejouée l'après-midi — hors gouverneur,
+   donc invisible de la file. **Mesuré sur un worker jetable** (mêmes versions) : en pool `solo`,
+   la tâche EN COURS reste non acquittée jusqu'à sa fin ; au repos, un message à échéance (le
+   report « faute de VRAM » du squelette) est tenu hors des listes. D'où trois cas : en cours non
+   déclaré (compté, NOMMÉ s'il est système — « Évaluation de modèles » ; la campagne, elle, a
+   quitté la file `gpu` le même jour et son titre avec elle, `REMOVAL_LEDGER R122`), orphelin
+   d'un worker mort (écarté : délivré avant le démarrage noté au `worker_ready`,
+   `note_consumer_ready`), différé (placé à son échéance). ⚠ Deux constats rectifiés au passage : `process_control.is_task_lost`
+   (« une tâche qu'il exécute a été acquittée ») et `scripts/wama_services.sh` (« rien à
+   redélivrer après un crash »).
+2. **L'API porte la place** — la ligne de la pastille, par la même fonction (`place_of`) : `queue`
+   dans chaque travail de `get_<app>_status` (générés par `TRIAD_SPECS`) et dans
+   `get_item_detail`, avec `before` (ce qui passe avant, nommé si système, anonyme sinon — la règle
+   du calendrier). La description d'outil le dit au modèle : « RUNNING à 0 % avec `queue` = en
+   file, pas bloqué ». La file n'est lue que si un élément est en mouvement ; illisible, elle ne
+   casse jamais la réponse.
+
+Gardes : `tests_global_queue` (`HeldMessagesReadTest`, `HeldSnapshotTest`, `ConsumerReadyTest`,
+`AssistantSeesTheQueueTest` — six contre-épreuves par mutation, toutes rouges). Le skill de
+diagnostic envisagé n'est PAS fait : l'assistant n'avait rien à observer, le skill aurait raisonné
+à vide ; à reconsidérer s'il se trompe encore en VOYANT l'état.
+⏳ Restes : effectif au redémarrage de gunicorn ET du worker GPU (le démarrage noté n'existe
+qu'à partir du prochain `worker_ready` ; d'ici là, un orphelin n'est écarté que par la règle « un
+seul en cours »). Les tâches déclarées au gouverneur hors file GPU (converter, file `default`)
+restent comptées dans la file GPU, comme avant — consigné, non tranché.
+
 ## Intake universel de fichiers par l'assistant — inventaire MESURÉ 2026-08-29, plan PROPOSÉ (⏳ validation Fabien)
 
 > Demande de Fabien : livrer n'importe quel fichier via l'assistant (Discord/web) en précisant
@@ -2080,7 +2236,9 @@ seul) ; validation de `history` (API seule) ; découpage de longueur (Discord se
   `user=NULL`), catalogue de skills, `check_model_declarations`, et `role_utils` qui appelle
   `ollama_base`/`llm_chat`/`prompt_skills`.
 - **Doublons à faire passer par le commun** : sélection (`config.py` `MODELS` + `MODEL_FALLBACK_CHAINS`
-  + `select_model_for_role` vs `select_model` — adoption déjà décidée, ROADMAP l.1192-1195) ; **quatre**
+  + `select_model_for_role` vs `select_model` — adoption déjà décidée, ROADMAP l.1192-1195 ; 🔄 **les six
+  rôles l'ont adoptée le 2026-10-13**, tirée pour le compte par la surface ; restent `cli.py` et la
+  chaîne mesurée de l'audit, cf. §« 2026-10-13 — wama-dev-ai sur la route commune ») ; **quatre**
   chats Ollama (`llm_utils.ollama_chat`, `_ollama_call`, `role_utils.call_ollama`, `core/llm.LLMClient`) ;
   deux mesures de VRAM copiées (`config.py:575`, `run_audit.py:341`) ; historique `core/history.py` vs
   `conversation_store` ; RAG en mémoire vive (`core/files.py`, `core/tools.py`) vs `recall()` ;
@@ -2092,7 +2250,8 @@ seul) ; validation de `history` (API seule) ; découpage de longueur (Discord se
 - **À ne pas perdre** : température par appel et réglages codegen (32 768 / 0,2 / 900 s) ;
   `num_predict=None` ; chaînes de repli qui résument une MESURE (audit sans Qwen, codegen) ; savoir-faire
   de l'audit (détection du « thinking » par `/api/show`, `num_ctx` selon VRAM, `keep_alive` + déchargement
-  en `finally`, retries EOF) ; coopération du rôle `model` avec le gouverneur (à généraliser) ; principe
+  en `finally` — ✅ de SON seul modèle depuis le 2026-10-13, il déchargeait tout Ollama —, retries EOF) ;
+  coopération du rôle `model` avec le gouverneur (✅ généralisée le 2026-10-13 : `local_llm_guard`) ; principe
   des pilotes (faits calculés, `ingest.validate`, contrôle AST, `PENDING_HUMAN_VALIDATION`) ; `corpus.py`.
 - **Dette à NE PAS reprendre** : la règle « muter `HF_HUB_CACHE` » encore dans `memory.json:33` (injectée
   au prompt d'audit) et dans le contrôle de `run_codegen.py:219-224` — interdite par `AGENTS.md` depuis le

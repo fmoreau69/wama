@@ -966,10 +966,20 @@ Le champ `claude_review_notes` contient les questions spécifiques à analyser.
 
 ### Sélection de modèles — wama-dev-ai vs WAMA
 
-wama-dev-ai dispose d'une sélection RAM-aware avec fallback chains (`config.py : select_model_for_role()`).
-WAMA utilise une sélection simplifiée par tier (`llm_utils.py : get_describer_model()`).
-**À terme :** exposer la logique de `config.py` via MCP pour unifier la sélection dans WAMA.
-**Ne pas précipiter** — garder les deux systèmes découplés jusqu'à Phase 4.
+> ⚠ **Corrigé le 2026-10-13 sur mesure** — ce paragraphe disait « exposer `config.py` via MCP »
+> et « garder les deux systèmes découplés jusqu'à Phase 4 ». Le sens a été tranché par Fabien le
+> 15/09 (`ROADMAP §8d` : c'est wama-dev-ai qui ADOPTE la brique commune, MCP = outils) et
+> confirmé le 13/10 : *« automatiser au maximum à partir du model manager et des registres pour
+> ne pas créer de chemin parallèle »*.
+
+- **Les six rôles** tirent leur modèle par le sélecteur commun (`select_model`, niveau
+  développement), et depuis le 13/10 la surface de développement le tire POUR LE COMPTE qui les
+  lance (local ou distant selon son profil) ; la VRAM passe par le gouverneur
+  (`role_utils.local_llm_guard`). Détail : `docs/construction/ia/WAMA_LLM.md` §« 2026-10-13 ».
+- **Reste parallèle** : `config.py` (`MODELS`, chaînes de repli, `WORKFLOWS`), lu par l'agent
+  interactif `cli.py` et par l'audit — à retirer APRÈS avoir porté au catalogue ce que ses chaînes
+  résument de MESURÉ. Une étape de workflow DÉCLARE ce que la tâche exige ; elle ne nomme jamais
+  un modèle.
 
 ---
 

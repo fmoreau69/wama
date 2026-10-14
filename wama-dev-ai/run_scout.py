@@ -46,7 +46,7 @@ django.setup()
 from role_utils import (  # noqa: E402
     REPO_ROOT, add_llm_arguments, call_llm, enforce_category_facts, enforce_component_facts,
     enforce_engine_facts, enforce_resolution_facts, enforce_task_facts, extract_json, fetch,
-    manifest_examples, model_vocabularies, resolve_model, write_output)
+    local_llm_guard, manifest_examples, model_vocabularies, resolve_model, write_output)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'scout.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'models'
@@ -257,7 +257,10 @@ def main():
 
     model = resolve_model(args.provider, 'dev', args.model)
     print(f'[scout] {args.provider} / {model} | dépôt : {ref}')
-    reponse = extract_json(call_llm(args.provider, model, PROMPT, user_msg))
+    keep_alive = local_llm_guard(args.provider, model, force=args.force, wait_max=args.wait_max,
+                                 log=lambda m: print(f'[scout] {m}'))
+    reponse = extract_json(call_llm(args.provider, model, PROMPT, user_msg,
+                                    keep_alive=keep_alive))
     manifest = reponse.get('manifest') or {}
     concerns = reponse.get('concerns') or []
 

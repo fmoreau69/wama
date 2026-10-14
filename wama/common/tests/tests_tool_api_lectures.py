@@ -387,7 +387,8 @@ class AddItemToMediaLibraryTest(TestCase):
         self.assertIsNone(T.app_id_for_tool('add_item_to_media_library'))
 
 
-_LECTURES = ('list_my_items', 'get_item_detail', 'get_item_preview', 'list_registries',
+_LECTURES = ('list_my_items', 'get_item_detail', 'get_item_preview', 'get_item_result',
+             'list_registries',
              'get_my_access', 'list_my_memories')
 _ECRITURES = ('delete_item', 'duplicate_item', 'clear_my_queue',
               'add_item_to_media_library')

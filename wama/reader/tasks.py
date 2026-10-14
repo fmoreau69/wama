@@ -252,10 +252,20 @@ def _read(item, ctx):
         # `if/elif` par moteur vivait ici : un OCR installé demain — Ollama, un fournisseur — n'aurait
         # pas eu sa branche.
         from wama.common.backends.manager import backend_instance_for_key, run_contract
+        from wama.common.backends.ocr_base import upright_image
+        from wama.common.utils.work_dir import work_dir
         engine = backend_instance_for_key(backend, user=item.user)
-        raw_text = run_contract(engine, work_file=item.input_file.path, mode=item.mode,
-                                language=item.language, progress_callback=ctx.progress,
-                                on_partial=_partial)
+        with work_dir('reader_upright') as travail:
+            # Une IMAGE est redressée avant tout moteur (EXIF, puis classifieur d'orientation de
+            # docTR) — card #1335 : une note photographiée de côté, illisible couchée. L'original
+            # reste intact ; la copie droite vit le temps de la lecture. Les PDF sont rastérisés
+            # par le moteur, qui redresse ses pages lui-même.
+            work_file = item.input_file.path
+            if not work_file.lower().endswith('.pdf'):
+                work_file = upright_image(work_file, str(travail))
+            raw_text = run_contract(engine, work_file=work_file, mode=item.mode,
+                                    language=item.language, progress_callback=ctx.progress,
+                                    on_partial=_partial)
 
         result_text = _extract_natural_text(raw_text)
 

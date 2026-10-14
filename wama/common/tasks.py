@@ -145,15 +145,26 @@ def refresh_registry(key: str):
     return res.as_dict()
 
 
-@shared_task(name='common.run_nightly_tests')
-def run_nightly_tests_task(app=None, stage=None, cadence=None):
+@shared_task(bind=True, name='common.run_nightly_tests')
+def run_nightly_tests_task(self, app=None, stage=None, cadence=None):
     """
     Joue la suite de tests fonctionnels nocturnes (sérialisée, VRAM-aware).
     Planifiée par Celery beat dans la plage RÉSERVÉE des tests nocturnes (settings : cohérence
     04:15 ; quotidiens 04:30 du lundi au samedi ; hebdomadaires le dimanche 04:30 ;
     `NIGHTLY_TESTS_ENABLED=0` retire les deux dernières).
     Filtrable par `app` / `stage` / `cadence` (`nightly_tests.select_scenarios`). Retourne le résumé.
+
+    ⚠ Une campagne RE-LIVRÉE ne se rejoue jamais (2026-10-13). Mesuré ce jour-là : la campagne de
+    04:30 a duré 6 h 25, au-delà du délai de visibilité du broker (6 h) ; le worker relancé à
+    10:56 a reçu le MÊME message et rejoué toute la campagne en pleine journée, sur la file `gpu`
+    — les traitements des utilisateurs attendaient derrière. Une campagne a sa plage réservée ;
+    la suivante viendra à son heure.
     """
+    delivery = getattr(self.request, 'delivery_info', None) or {}
+    if delivery.get('redelivered'):
+        logger.warning("[nightly] campagne %s RE-LIVRÉE par le broker — non rejouée hors de sa "
+                       "plage (la suivante partira à son heure)", self.request.id)
+        return {'refused': 'redelivered'}
     from wama.common.services.nightly_tests import run_all, select_scenarios
 
     scenarios = select_scenarios(app=app, stage=stage, cadence=cadence)

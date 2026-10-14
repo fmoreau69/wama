@@ -2312,20 +2312,25 @@ def charger_competence(user, domaine: str, question: str = '') -> dict:
     }
 
 
-def ask_claude_code(user, task: str, write: bool = False, timeout: int = 300) -> dict:
+def ask_claude_code(user, task: str, write: bool = False, timeout: int = 300,
+                    model: str = '') -> dict:
     """
     Delegate a DEVELOPMENT task to Claude Code, running on the owner's subscription.
 
-    Read-only by default (Read/Grep/Glob): code audits, cartography, "where does X live",
-    "why does Y break". Reserved to developers and admins.
+    SYNCHRONOUS and read-only (Read/Grep/Glob): a SHORT question — "where does X live", "why
+    does Y break". The conversation waits for the answer. Anything long, and ANY change to the
+    repository, goes through the background tool `dev_claude_code` (its end is announced in the
+    thread). Reserved to developers and admins.
 
     Args:
         task:    The development task, in plain language.
-        write:   Allow Claude Code to MODIFY the repository. Off by default.
+        write:   Refused here — a change to the repository is `dev_claude_code(write=true)`.
         timeout: Maximum seconds to wait (10-900).
+        model:   A model declared for the subscription (e.g. opus, sonnet) — empty = the CLI's
+                 default. Use it when the user names one.
 
     Returns:
-        {"response": str, "cost_usd": float|None, "duration_ms": int|None}
+        {"response": str, "model": str, "cost_usd": float|None, "duration_ms": int|None}
     """
     # ⚠ GARDE EXPLICITE, ET NON PAS le gating d'app. Un outil sans app (`None` dans
     # TOOL_APP_OVERRIDE) est AUTORISÉ À TOUS par `tool_accessible` — ce qui serait ici une
@@ -2344,11 +2349,22 @@ def ask_claude_code(user, task: str, write: bool = False, timeout: int = 300) ->
     tache = (task or '').strip()
     if not tache:
         return {"error": "Champ 'task' vide : décrivez la tâche à confier à Claude Code."}
+    if write:
+        # Une MODIFICATION du dépôt ne se fait plus dans le tour (2026-10-12, fil Discord #43 :
+        # l'assistant « disparaissait » pendant les tâches de développement). Elle part en tâche
+        # de fond par la surface de développement, dont la fin est annoncée dans le fil.
+        return {"error": "Une modification du dépôt se fait en tâche de fond : appelle "
+                         "`dev_claude_code` avec write=true (même tâche, même modèle). "
+                         "Réponds à l'utilisateur sans attendre ; la fin sera annoncée dans le fil."}
 
     from wama.common.services.claude_code import ClaudeCodeIndisponible, demander
 
     try:
-        resultat = demander(tache, delai=timeout, ecriture=bool(write), user=user)
+        # `model` (2026-10-12, fil Discord #43) : « demande à Claude abonnement en Opus » — la
+        # brique savait choisir le modèle (`demander(model=…)`, bornée aux modèles DÉCLARÉS de
+        # l'abonnement), l'outil ne l'exposait pas : l'assistant ne pouvait pas obéir.
+        resultat = demander(tache, delai=timeout, ecriture=bool(write), user=user,
+                            model=(model or '').strip())
     except ClaudeCodeIndisponible as e:
         return {"error": str(e)}
 
@@ -2357,6 +2373,7 @@ def ask_claude_code(user, task: str, write: bool = False, timeout: int = 300) ->
 
     return {
         "response": resultat.get('texte', ''),
+        "model": resultat.get('modele', ''),
         "cost_usd": resultat.get('cout_usd'),
         "duration_ms": resultat.get('duree_ms'),
     }
@@ -2435,21 +2452,52 @@ def list_my_items(user, app: str = '', limite: int = 25, statut: str = 'all', q:
     return {'items': items, 'total': total, 'returned': len(items)}
 
 
+def _queue_places(viewer, items) -> dict:
+    """`{pk: place}` des éléments NON TERMINÉS de `items` dans la file GPU — la ligne de la
+    pastille « En file » de leur card (`global_queue.place_of` : place, tâches devant, début et
+    fin prévus, et ce qui passe AVANT, nommé si c'est une tâche système).
+
+    Ajouté le 2026-10-13 (fil Discord, OCR #1485) : l'assistant lisait « RUNNING, 0 % » là où la
+    card disait « En file · 3 tâches avant », et ne pouvait que deviner — il a répondu qu'il ne
+    pouvait pas confirmer que des tests bloquaient le traitement, alors qu'une campagne de tests
+    occupait le worker GPU. La file n'est lue que si un élément est encore en mouvement ; une file
+    illisible ne casse jamais la réponse (aucune place, plutôt qu'une place inventée)."""
+    from wama.common.models import JOB_STATUS_TERMINAL, normalize_job_status
+
+    moving = [i for i in items
+              if normalize_job_status(getattr(i, 'status', '') or '') not in JOB_STATUS_TERMINAL]
+    if not moving:
+        return {}
+    try:
+        from wama.common.services.global_queue import place_of, snapshot
+        entries = snapshot()
+        places = {i.pk: place_of(i, viewer, entries) for i in moving}
+    except Exception as exc:
+        logger.warning(f"[tool_api] file GPU illisible : {exc}")
+        return {}
+    return {pk: place for pk, place in places.items() if place}
+
+
 def get_item_detail(user, app: str, pk: int) -> dict:
     """
     Everything known about ONE item, in the canonical schema — exactly what the user sees in
-    the right-hand inspector.
+    the right-hand inspector, and, while it waits, its place in the GPU queue.
 
     Use it after `list_my_items` to look at one row closely: source file, engine actually used,
     settings, result, error message. `detail` is formatted for reading; `raw` carries the same
-    state unformatted, for when you need to compare or compute.
+    state unformatted, for when you need to compare or compute. `queue` is present while the item
+    is in the GPU queue: `state` (running/queued), `ahead` (tasks before it), `expectedStart`,
+    `expectedEnd`, `deferredUntil` (postponed until then), and `before` — what runs or waits
+    ahead of it (a SYSTEM task such as the model evaluation is named; other users' work is not).
+    A RUNNING item at 0 % with a `queue` in state `queued` is WAITING, not stuck.
 
     Args:
         app: app id the item belongs to (as returned by `list_my_items`).
         pk:  item id.
 
     Returns:
-        {"app","id","detail":{…},"raw":{"status","progress","created_at"}} or {"error"}
+        {"app","id","detail":{…},"raw":{"status","progress","created_at"},"queue"?:{…}}
+        or {"error"}
     """
     if user is None or not getattr(user, 'is_authenticated', False):
         return {'error': "Lecture réservée aux utilisateurs identifiés."}
@@ -2481,7 +2529,11 @@ def get_item_detail(user, app: str, pk: int) -> dict:
     cree = getattr(instance, 'created_at', None) or getattr(instance, 'uploaded_at', None)
     if cree:
         raw['created_at'] = cree.isoformat()
-    return {'app': app, 'id': pk, 'detail': detail, 'raw': raw}
+    result = {'app': app, 'id': pk, 'detail': detail, 'raw': raw}
+    place = _queue_places(user, [instance]).get(instance.pk)
+    if place:
+        result['queue'] = place
+    return result
 
 
 #: Hôte de la requête SYNTHÉTISÉE ci-dessous. Il ne sort jamais des réponses : `_url_relative`
@@ -2564,6 +2616,88 @@ def get_item_preview(user, app: str, pk: int, side: str = 'input') -> dict:
     charge = _url_relative(charge)
     charge.update({'app': app, 'id': pk})
     return charge
+
+
+#: Caractères de résultat rendus DANS la réponse d'outil. Au-delà, le texte est coupé et le
+#: résultat le DIT (`truncated`, `total_chars`) — un OCR de 40 pages ne doit pas saturer la
+#: fenêtre d'un modèle local, et l'utilisateur garde le téléchargement complet.
+RESULT_TEXT_LIMIT = 20000
+
+
+def get_item_result(user, app: str, pk: int, output_format: str = '') -> dict:
+    """
+    Read the RESULT of a finished item — the extracted text of an OCR, a transcript, a
+    description — exactly what the ⬇ download button would give the user.
+
+    Use it when the user asks for the content of a result ("send me the text", "what did the
+    OCR read?"). Late-binding apps (reader, transcriber, describer) keep a structured master and
+    render a format on demand: this tool renders it the SAME way as the download, so a result
+    exists even though no file was ever written. For apps that render at generation time, it
+    returns the output file URL instead (the channel attaches it).
+
+    Args:
+        app:           app id the item belongs to (as returned by `list_my_items`).
+        pk:            item id.
+        output_format: a TEXT format declared by the app (txt, md, srt, vtt, json…) — empty =
+                       the app's default download format.
+
+    Returns:
+        late binding : {"app","id","status","format","text","total_chars","truncated"}
+        early binding: {"app","id","status","output_url","name"}
+        or {"error", …} — including when the job finished WITHOUT producing anything.
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    from wama.common.utils.detail_registry import DetailRegistry
+    from wama.common.utils.export_formats import (RAW, TEXT, entries_for_app, entry,
+                                                  export_builder_for, is_late_binding)
+
+    registry_entry = DetailRegistry.get(app)
+    if not registry_entry:
+        known = ', '.join(DetailRegistry.registered_apps())
+        return {'error': f"App inconnue : '{app}'. Connues : {known}"}
+    instance = registry_entry['model'].objects.filter(pk=pk).first()
+    if instance is None:
+        return {'error': f"Élément #{pk} introuvable dans '{app}'."}
+    # MÊME règle d'ownership que `get_item_detail` et l'inspecteur.
+    owner = getattr(instance, 'user', None)
+    if owner is not None and owner != user and not getattr(user, 'is_staff', False):
+        return {'error': 'forbidden', 'detail': "Cet élément appartient à un autre utilisateur."}
+
+    status = getattr(instance, 'status', '')
+    base = {'app': app, 'id': pk, 'status': status}
+    if status and status != 'SUCCESS':
+        return {**base, 'error': f"Pas encore de résultat : l'élément est au statut {status}."}
+
+    builder = export_builder_for(app) if is_late_binding(app) else None
+    if builder is None:
+        # Early binding : le fichier EST le résultat — celui que la face SORTIE de l'aperçu montre.
+        preview = get_item_preview(user, app, pk, side='output')
+        if 'error' in preview:
+            return {**base, 'error': preview['error']}
+        if preview.get('side') != 'output' or not preview.get('url'):
+            # ⚠ L'aperçu retombe sur la face ENTRÉE quand il n'y a pas de sortie : ne jamais
+            # rendre l'entrée comme si c'était le résultat.
+            return {**base, 'error': "Aucun fichier de sortie pour cet élément."}
+        return {**base, 'output_url': preview['url'], 'name': preview.get('name', '')}
+
+    text_formats = [e['value'] for e in entries_for_app(app) if e['group'] in (TEXT, RAW)]
+    fmt = (output_format or '').lower().lstrip('.') or (text_formats[0] if text_formats else 'txt')
+    if fmt not in text_formats:
+        return {**base, 'error': f"Format « {fmt} » non lisible ici (fichier binaire ou non "
+                                 f"déclaré). Formats texte de '{app}' : {', '.join(text_formats)}."}
+    rendered = builder(instance, fmt)
+    if not rendered:
+        # Le cas de la card reader #1335 : SUCCESS, mais rien à rendre. Le DIRE, avec ce qui a
+        # tourné, plutôt que laisser croire à un résultat inaccessible.
+        engine = getattr(instance, 'used_backend', '') or ''
+        return {**base, 'error': "Le traitement est terminé mais n'a produit aucun contenu"
+                                 + (f" (moteur {engine})" if engine else '') + ".",
+                'hint': "Relancer l'élément, éventuellement avec un autre moteur."}
+    ext, payload = rendered
+    text = payload.decode('utf-8', errors='replace') if isinstance(payload, bytes) else str(payload)
+    return {**base, 'format': entry(ext)['value'], 'text': text[:RESULT_TEXT_LIMIT],
+            'total_chars': len(text), 'truncated': len(text) > RESULT_TEXT_LIMIT}
 
 
 # ---------------------------------------------------------------------------
@@ -2979,6 +3113,10 @@ TOOL_REGISTRY = {
     # Aperçu — dont le côté PENDANT : « où en est mon job » se répond avec la sortie partielle
     # réelle, pas avec un pourcentage. Réutilise l'endpoint de l'inspecteur (permission comprise).
     'get_item_preview': get_item_preview,
+    # Le CONTENU du résultat (2026-10-12) — le rendu du bouton ⬇, pour une app late-binding dont
+    # la sortie n'est un fichier qu'au téléchargement : sans lui l'assistant n'en voyait que
+    # l'aperçu tronqué de `get_<app>_status`. Ownership dans le corps, comme les deux ci-dessus.
+    'get_item_result':  get_item_result,
     # VERBES DE CYCLE — premières ÉCRITURES. 🔴 Transverses par leur nom, donc NI `tool_accessible`
     # NI `AppAccessMiddleware` ne les gardent : la garde d'app est écrite DANS leurs corps
     # (`_refus_app`). Ne jamais leur donner un nom d'app sans relire ce bloc.
@@ -3503,10 +3641,13 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
     def _status(user) -> dict:
         from django.core.cache import cache
         model = import_string(spec['model'])
-        qs = (model.objects.filter(user=user, **(spec.get('queue_filter') or {}))
-              .order_by(spec.get('status_order', '-id'))[:10])
+        items = list(model.objects.filter(user=user, **(spec.get('queue_filter') or {}))
+                     .order_by(spec.get('status_order', '-id'))[:10])
+        # La place dans la file GPU, celle de la pastille de la card (2026-10-13) — sans elle, un
+        # travail qui ATTEND se lisait « RUNNING, 0 % », comme un travail bloqué.
+        places = _queue_places(user, items)
         jobs = []
-        for item in qs:
+        for item in items:
             row = {}
             for key, field in (spec.get('status_fields') or {}).items():
                 if key == 'progress':
@@ -3516,11 +3657,14 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
                                 else (stored if live is None else live))
                 else:
                     row[key] = _value(item, field)
+            if item.pk in places:
+                row['queue'] = places[item.pk]
             jobs.append(row)
         return {'jobs': jobs}
 
     _status.__name__ = _status.__qualname__ = f'get_{app_id}_status'
-    _status.__doc__ = (f"État des 10 derniers travaux {app_id} de l'utilisateur. "
+    _status.__doc__ = (f"État des 10 derniers travaux {app_id} de l'utilisateur, et pour ceux qui "
+                       f"attendent leur place dans la file GPU (`queue`). "
                        f"(Construit depuis TRIAD_SPECS['{app_id}'].)")
     return _start, _status
 
@@ -3617,7 +3761,9 @@ def items_of_step(tool_name, args, result) -> list:
 _ROLE_SENTENCE = {
     'add':    "Ajoute un élément à la file d'attente de {label} ({desc}) et renvoie son item_id.",
     'start':  "Lance le traitement {label} : l'item indiqué, ou tous ceux en attente si aucun id.",
-    'status': "État des travaux {label} de l'utilisateur : statut, progression, résultat.",
+    'status': ("État des travaux {label} de l'utilisateur : statut, progression, résultat — et, "
+               "pour un travail qui attend, sa place dans la file GPU (`queue` : tâches devant, "
+               "début prévu, ce qui passe avant). RUNNING à 0 % avec `queue` = en file, pas bloqué."),
 }
 
 
@@ -3896,7 +4042,16 @@ def sanitize_tool_args(tool_name: str, args: dict):
             return merged, []          # alias sans schéma : on ne sait pas filtrer, on transmet
         allowed |= extra
     keep = {k: v for k, v in merged.items() if k in allowed and k != 'user'}
-    return keep, sorted(set(merged) - set(keep))
+    # `null` = « non fourni » : la valeur par DÉFAUT de l'outil s'applique (2026-10-12, fil
+    # Discord #43). Un modèle qui écrit chaque argument du schéma, `null` compris, envoyait
+    # `add_to_reader(mode=None)`, qui écrasait le défaut `'auto'` et cassait l'insertion en base
+    # (`NOT NULL`) — l'outil a échoué sur un appel que l'utilisateur n'avait pas mal formé. Un
+    # paramètre OBLIGATOIRE garde son `None` : l'outil dit alors lui-même ce qui manque.
+    for name in [k for k, v in keep.items() if v is None]:
+        param = sig.parameters.get(name)
+        if param is None or param.default is not param.empty:
+            del keep[name]
+    return keep, sorted(set(merged) - set(keep) - {k for k, v in merged.items() if v is None})
 
 
 def relay_quality_intent(user, tool_name: str, result: dict) -> dict:

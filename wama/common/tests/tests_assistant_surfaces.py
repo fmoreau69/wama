@@ -177,16 +177,16 @@ class ChoixDuModeleTest(TestCase):
     def test_le_domaine_dev_declare_la_competence_que_le_tirage_privilegie(self):
         """`benchmark_domain` existait dans `select_model` depuis août sans aucun appelant ; les
         anciens rôles Dev/Coder disaient la même chose par une sous-chaîne de nom de modèle.
-        Depuis le 22/09 le domaine dev passe par le BRIDAGE (`development_models`, qui tire lui
-        aussi sur la famille coding) ; le domaine général reste sur le tirage commun sans famille."""
+        Le BRIDAGE du domaine dev (22/09) est levé le 2026-10-12 : le domaine dev repasse par le
+        tirage COMMUN, qui privilégie la famille coding ; le domaine général, sans famille."""
         from wama.common.services import assistant_engine
         with mock.patch('wama.common.utils.auto_model.resolve_model_choice',
                         return_value='ollama:x') as tirage, \
              mock.patch('wama.common.services.development_models.development_model',
                         return_value='ollama:y') as bridage:
-            self.assertEqual(('ollama', 'y'), assistant_engine.resolve_turn_model(self.user, domain='dev'))
-            bridage.assert_called_once()
-            tirage.assert_not_called()
+            self.assertEqual(('ollama', 'x'), assistant_engine.resolve_turn_model(self.user, domain='dev'))
+            bridage.assert_not_called()
+            self.assertEqual('coding', tirage.call_args.kwargs['benchmark_family'])
             assistant_engine.resolve_turn_model(self.user, domain='general')
             self.assertIsNone(tirage.call_args.kwargs['benchmark_family'])
 
@@ -335,13 +335,21 @@ class LatencyLeversTest(TestCase):
         from wama.common.services.assistant_engine import _ollama_call
         seen = []
 
+        class FakeResponse:
+            status_code = 200
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def iter_lines(self):
+                return iter(['{"message": {"content": "ok"}, "done": true}'])
+
         class FakeClient:
+            # `_ollama_call` demande TOUJOURS le flux depuis le 2026-10-12 (plus de POST unique).
             def __init__(self, *a, **k): pass
             def __enter__(self): return self
             def __exit__(self, *a): return False
-            def post(self, url, json=None):
+            def stream(self, method, url, json=None):
                 seen.append(json)
-                return mock.Mock(status_code=200, json=lambda: {'message': {'content': 'ok'}})
+                return FakeResponse()
         with mock.patch('httpx.Client', FakeClient):
             _ollama_call([{'role': 'user', 'content': 'x'}], 'm', think=False)
             _ollama_call([{'role': 'user', 'content': 'x'}], 'm')

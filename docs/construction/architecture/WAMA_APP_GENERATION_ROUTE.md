@@ -5763,7 +5763,9 @@ l'utilisateur puisse savoir où en est sa tâche*. Brique `common/services/globa
   ancien d'abord). Message → élément par son `task_id`.
 - **Heures prévues = somme de durées MESURÉES** : la file GPU est SÉRIELLE (`--pool=solo`,
   `scripts/wama_services.sh:87`) ; durée typique = médiane des `processing_seconds` récents du même
-  modèle ; ce qui tourne finit au débit observé ; une campagne nocturne dure sa plage réservée.
+  modèle ; ce qui tourne finit au débit observé ; ~~une campagne nocturne dure sa plage réservée~~
+  *(plus vrai depuis le 2026-10-13 : la campagne a quitté la file `gpu` pour sa file `nightly`, et
+  `_system_task_seconds` rend la durée déclarée — sa plage reste celle du calendrier)*.
 - **Confidentialité** : la PLACE et la DURÉE des traitements des autres, jamais leur titre.
 - **Placement `auto`** (nouveau, par défaut dans la fenêtre — le schéma le déclare, la fenêtre,
   l'API et le fichier batch le reçoivent sans autre changement) : pas avant que la carte se libère ;
@@ -5780,6 +5782,18 @@ l'utilisateur puisse savoir où en est sa tâche*. Brique `common/services/globa
   les traitements des autres en blocs anonymes « GPU occupé » (couche de l'instance).
 - Gardes : `tests_global_queue` (15 ; contre-épreuves : comptes de test réintégrés → rouge, durée
   ignorée face aux plages → rouge).
+- ⚠ **2026-10-13 — « la file se LIT » ne lisait que deux endroits sur trois.** Une campagne de tests
+  RE-LIVRÉE (plus longue que les 6 h de visibilité) a occupé le worker GPU tout un après-midi sans
+  être déclarée au gouverneur : la pastille d'un OCR disait « 3 tâches avant » et une heure fausse,
+  et l'assistant lisait « RUNNING, 0 % ». La file lit désormais aussi ce que le worker TIENT
+  (`held_messages`, table `unacked`) — MESURÉ sur un worker jetable : en pool `solo` la tâche en
+  cours y reste jusqu'à sa fin, et au repos un message à échéance (report « faute de VRAM ») y est
+  tenu hors des listes. En cours non déclaré → compté (nommé s'il est système) ; orphelin d'un worker
+  mort → écarté (délivré avant le démarrage noté au `worker_ready`) ; différé → placé à son échéance,
+  devant la liste dès qu'elle est atteinte. **Quatrième lecteur** : l'API de l'assistant
+  (`place_of` → `queue` dans `get_<app>_status` et `get_item_detail`), la même ligne que la
+  pastille. Détail et restes : `WAMA_LLM.md` §« 2026-10-13 — les tests bloquent-ils ma tâche ? ».
+  Gardes : `tests_global_queue` (+21 ; six contre-épreuves par mutation, rouges).
 - ✅ **Relevés en chemin, TRAITÉS le même soir (GO de Fabien)** : (1) `settings.py` réaffectait
   `CELERY_BROKER_TRANSPORT_OPTIONS` depuis `8360b3e2` (29/07) et PERDAIT le `visibility_timeout` de
   6 h — redélivrance au défaut Redis d'une heure, sous la durée de la suite nocturne GPU : le bloc

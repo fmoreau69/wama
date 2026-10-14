@@ -106,6 +106,20 @@ def _wama_settle_dead_predecessor(sender=None, **_kwargs):
         pass
 
 
+# Le même instant DATE les messages de la table `unacked` (2026-10-13) : un message délivré AVANT
+# le démarrage du worker de sa file l'a été à un prédécesseur mort — un orphelin, qui attend
+# l'échéance de visibilité et n'occupe rien. Sans cette date, la file globale le comptait comme la
+# tâche en cours (`global_queue._classify_held`). `sender` est le Consumer : ses files sont celles
+# de `-Q` (mesuré sur un worker jetable, celery 5.5.3).
+@worker_ready.connect
+def _wama_note_consumer_ready(sender=None, **_kwargs):
+    try:
+        from wama.common.services.global_queue import note_consumer_ready
+        note_consumer_ready(sorted(sender.app.amqp.queues.consume_from))
+    except Exception:
+        pass                            # jamais bloquant pour le démarrage d'un worker
+
+
 # ---------------------------------------------------------------------------
 # Un envoi depuis WINDOWS ne part nulle part — et le dit (2026-09-29)
 # ---------------------------------------------------------------------------

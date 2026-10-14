@@ -34,6 +34,7 @@ au lieu de ~5 min de résidence). Refuser en bloc, comme le faisait la 1ʳᵉ ve
 pilote, aurait rendu le rôle inutilisable pendant tout le mode dépannage — l'excès inverse
 du triage VLM qui, lui, ignorait la parade et a crashé l'hôte deux fois le 02/09.
 `--force` saute l'ATTENTE (jamais le keep_alive) pour un GO explicite.
+Depuis le 2026-10-13, cette garde est `role_utils.local_llm_guard`, partagée par les six rôles.
 
 Usage (depuis la racine du repo, venv_linux) :
     python wama-dev-ai/run_model_manifest.py --catalog huggingface:Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
@@ -54,7 +55,6 @@ import django  # noqa: E402
 
 django.setup()
 
-from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
 from role_utils import (  # noqa: E402
     add_llm_arguments, call_llm, card_languages, enforce_adapter_parent, enforce_category_facts,
     enforce_component_facts, enforce_engine_facts,
@@ -62,7 +62,7 @@ from role_utils import (  # noqa: E402
     enforce_language_facts, enforce_resolution_facts, enforce_task_facts,
     enforce_vendor_engine, extract_json,
     fetch as _fetch,
-    manifest_examples, model_vocabularies, resolve_model, write_output)
+    local_llm_guard, manifest_examples, model_vocabularies, resolve_model, write_output)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'model.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'models'
@@ -165,11 +165,7 @@ def main():
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument('--catalog', help='Clé AIModel d\'un modèle INSTALLÉ (huggingface:org/nom)')
     g.add_argument('--hf', help='Dépôt HuggingFace org/nom (non installé)')
-    add_llm_arguments(ap, role='dev')
-    ap.add_argument('--force', action='store_true',
-                    help="Sauter l'ATTENTE de VRAM libre (GO explicite ; le keep_alive reste)")
-    ap.add_argument('--attente-max', type=float, default=300.0,
-                    help='Délai max d\'attente de VRAM libre, en secondes (défaut 300)')
+    add_llm_arguments(ap, role='dev')     # porte aussi --force et --wait-max (garde GPU commune)
     args = ap.parse_args()
 
     provenance, matiere = (sources_catalog(args.catalog) if args.catalog
@@ -178,38 +174,15 @@ def main():
     full_sources = matiere
     matiere = matiere[:MAX_SOURCE_CHARS]
 
-    # En local, `cfg` sert AUSSI au besoin en VRAM plus bas : le modèle et ce besoin doivent venir
-    # de la MÊME sélection — deux appels à `select_model_for_role` pourraient choisir deux modèles
-    # différents si la VRAM libre bouge entre les deux.
-    cfg = select_model_for_role('dev')[1] if args.provider == 'ollama' else None
-    model = args.model or (cfg.ollama_id if cfg else resolve_model(args.provider, 'dev'))
+    # Le modèle vient du tirage du NIVEAU DÉVELOPPEMENT, comme les cinq autres rôles (2026-10-13).
+    # Ce rôle-ci prenait, en local, la chaîne de `config.py` (`select_model_for_role('dev')`) :
+    # il ÉCHAPPAIT au bridage que le README annonçait global, et son besoin VRAM était celui de la
+    # table de `config.py`. Le besoin se lit désormais au catalogue, dans la garde commune.
+    model = resolve_model(args.provider, 'dev', args.model)
     print(f'[model] {args.provider} / {model} | provenance : {provenance}')
-
-    keep_alive = None
-    if args.provider != 'ollama':
-        # Le modèle tourne chez le fournisseur : rien ne se charge sur le GPU de l'hôte, la
-        # garde du mode dépannage n'a donc rien à protéger ici.
-        print('[model] fournisseur distant — aucune charge GPU locale, pas d\'attente de VRAM')
-    else:
-        # ── Coopération avec le mode dépannage GPU (cf. docstring) ──────────────
-        from wama.common.services.resource_governor import (
-            effective_free_gb, gpu_safe_mode, pipeline_keep_alive, wait_for_free_vram)
-        keep_alive = pipeline_keep_alive()
-        besoin = float(getattr(cfg, 'ram_required_gb', 8.0) or 8.0)
-        if gpu_safe_mode() and not args.force:
-            ok, libre = wait_for_free_vram(besoin, timeout_s=args.attente_max,
-                                           console=lambda m: print(f'[model] {m}'))
-            if not ok:
-                # Refus DIT, jamais un défaut silencieux (contrat de wait_for_free_vram).
-                raise SystemExit(
-                    f"[model] REFUS : {libre:.1f} Go libres < {besoin:.1f} Go requis pour "
-                    f"{model} après {args.attente_max:.0f}s d'attente (mode dépannage GPU). "
-                    "Réessayer plus tard, ou --force sur GO explicite.")
-            print(f'[model] VRAM libre {libre:.1f} Go ≥ {besoin:.1f} Go requis — '
-                  f"appel avec keep_alive={keep_alive!r} (déchargement immédiat)")
-        else:
-            print(f'[model] VRAM libre {effective_free_gb():.1f} Go | '
-                  f'keep_alive={keep_alive!r}')
+    # ── Coopération avec le mode dépannage GPU (cf. docstring) : la garde COMMUNE ──
+    keep_alive = local_llm_guard(args.provider, model, force=args.force, wait_max=args.wait_max,
+                                 log=lambda m: print(f'[model] {m}'))
 
     user_msg = (f'EXEMPLES de manifestes `model` valides :\n{exemples()}\n\n'
                 f'VOCABULAIRES AUTORISÉS (choisir dedans, ne rien inventer) :\n{model_vocabularies()}\n\n'

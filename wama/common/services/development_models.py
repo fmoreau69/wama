@@ -8,11 +8,14 @@ performant, donc limiter les modèles possibles pour le dev — de façon GLOBAL
 seulement l'assistant ; et peut-être autoriser Albert avec le plus gros modèle, gpt-oss. »
 
 UN SEUL DOMICILE pour « qu'est-ce qu'un modèle de niveau développement ? », lu par :
-  • l'assistant (`assistant_engine.resolve_turn_model`, domaine `dev` — et la BASCULE en cours de
-    tour dès que la compétence dev ou un outil `dev_*` est appelé) ;
-  • les rôles wama-dev-ai (`role_utils.resolve_model`) — les chaînes de repli de `config.py`
-    finissaient sur `fast`/`ultra_fast`, c'est-à-dire précisément sur un petit modèle quand la
-    VRAM manque.
+  • la surface de développement (`dev_tools.dev_run_role`, 2026-10-13) — elle TIRE le modèle d'un
+    rôle pour le compte qui le lance, et le lui passe ; le rôle ne retire pas ;
+  • les rôles wama-dev-ai lancés hors surface (`role_utils.resolve_model`, ligne de commande) — les
+    chaînes de repli de `config.py` finissaient sur `fast`/`ultra_fast`, c'est-à-dire précisément
+    sur un petit modèle quand la VRAM manque.
+⚠ L'ASSISTANT n'est plus lecteur du bridage depuis le 2026-10-12 (levé pour la conversation,
+décision de Fabien : `assistant_engine.resolve_turn_model`) ; il garde le plancher de l'assistant
+OUTILLÉ, plus bas (section du bas).
 
 LA RÈGLE, SUR UNE MESURE ET PAS AU GOÛT : le sous-indice **coding** du banc tiers
 (`AIModel.benchmark_meta['family_scores']['coding']`, `sync_benchmarks`) doit atteindre
@@ -64,6 +67,21 @@ DEV_SOVEREIGN_AUTOMATIC = True
 #: Préfixe des outils de la surface de développement (`mcp_client.DEV_TOOL_PREFIX`, redit ici pour
 #: ne pas faire dépendre le store de conversation du client MCP).
 DEV_TOOL_PREFIX = 'dev_'
+#: Variable d'environnement qui porte, du lanceur au process d'un rôle, le COMPTE pour lequel il
+#: travaille (`dev_tools.dev_run_role` la pose, `role_utils` la lit) : c'est elle qui fait arriver
+#: sa clé et sa garde cloud jusqu'à l'appel du modèle. Absente = rôle lancé à la main, sans compte.
+ROLE_USER_ENV = 'WAMA_DEV_AI_USER_ID'
+
+
+def role_user():
+    """Le compte pour lequel ce process de rôle travaille (`ROLE_USER_ENV`), ou None."""
+    import os
+
+    user_id = os.environ.get(ROLE_USER_ENV, '').strip()
+    if not user_id.isdigit():
+        return None
+    from django.contrib.auth import get_user_model
+    return get_user_model().objects.filter(pk=int(user_id), is_active=True).first()
 
 
 def coding_score(model) -> float | None:
@@ -118,21 +136,28 @@ def _graded_candidates(cloud: set, grade) -> list:
             if grade(m)]
 
 
-def development_candidates(user) -> list:
+def development_candidates(user, source: str = '') -> list:
     """`model_key` des modèles de conversation de niveau dev que `user` peut lancer : locaux
-    installés, distants qu'il autorise (`dev_cloud_keys`)."""
-    return _graded_candidates(dev_cloud_keys(user), is_development_grade)
+    installés, distants qu'il autorise (`dev_cloud_keys`). `source` borne le lot à UN
+    fournisseur (`ollama`, `albert`…) — quand la demande le nomme (« fais-le avec Albert »)."""
+    from wama.common.utils.model_keys import split_key
+
+    candidates = _graded_candidates(dev_cloud_keys(user), is_development_grade)
+    if source:
+        candidates = [k for k in candidates if split_key(k)[0] == source]
+    return candidates
 
 
-def development_model(user, requested: str = None) -> str | None:
+def development_model(user, requested: str = None, source: str = '') -> str | None:
     """Le modèle de niveau dev pour ce travail — `model_key` complet (`ollama:…`, `albert:…`), ou
     None s'il n'y en a aucun (l'appelant REFUSE, cf. `development_refusal`).
 
     `requested` : un choix explicite (réglage durable, ligne de commande) est respecté s'il a
-    le niveau ; sinon il est REMPLACÉ par le tirage — c'est le bridage."""
+    le niveau ; sinon il est REMPLACÉ par le tirage — c'est le bridage.
+    `source` : le tirage ne regarde que ce fournisseur (cf. `development_candidates`)."""
     from wama.common.utils.auto_model import is_auto
 
-    candidates = development_candidates(user)
+    candidates = development_candidates(user, source=source)
     if not candidates:
         return None
     if requested and not is_auto(requested):
@@ -155,9 +180,13 @@ def development_model(user, requested: str = None) -> str | None:
     return candidates[0]
 
 
-def development_refusal(user=None) -> str:
+def development_refusal(user=None, source: str = '') -> str:
     """La raison, lisible, quand aucun modèle de niveau dev n'est disponible."""
     unscored = ', '.join(DEV_UNSCORED_ALLOWED)
+    if source:
+        return (f"Aucun modèle de niveau développement chez « {source} » pour ce compte (score "
+                f"coding ≥ {DEV_CODING_FLOOR:g} au banc, ou {unscored}) : choisir un autre "
+                "fournisseur, ou laisser le tirage choisir.")
     return (f"Aucun modèle de niveau développement disponible (score coding ≥ {DEV_CODING_FLOOR:g} "
             f"au banc, ou {unscored}) : installez un modèle local qui l'atteint, ou ouvrez Albert "
             "dans votre profil (le niveau « cloud si WAMA est saturé » suffit pour le "

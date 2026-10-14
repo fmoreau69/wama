@@ -89,10 +89,21 @@ def _format_memory_for_prompt(memory: dict) -> str:
         lines.append("")
     return "\n".join(lines)
 
-from config import (
+# DJANGO, COMME LES SIX RÔLES (2026-10-13). L'audit s'en passait — le choix était consigné ici
+# le 2026-09-07 : « un import cassé dans une app ne peut pas l'empêcher de tourner ». Il en
+# payait le prix ailleurs : sans le gouverneur (réglages, registre Redis, catalogue), il ne
+# pouvait que DÉCHARGER TOUT Ollama au début et à la fin de chaque run — le modèle de
+# l'assistant compris, en pleine conversation —, et demander par l'API web, avec un mot de
+# passe en clair dans `.env`, un vidage qui ne touchait que le process web. Un import cassé
+# dans une app casse WAMA entier ; l'audit le dit désormais au lieu de tourner à côté.
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wama.settings')
+import django  # noqa: E402
+
+django.setup()
+
+from config import (  # noqa: E402
     BASE_DIR, OUTPUT_DIR, PROMPTS_DIR,
     select_model_for_role, get_memory_status,
-    WAMA_BASE_URL, WAMA_USERNAME, WAMA_PASSWORD,
 )
 # Adresse d'Ollama : la brique COMMUNE, comme les 5 rôles (2026-09-07).
 #
@@ -100,14 +111,7 @@ from config import (
 # WSL2 désigne la VM Linux et PAS l'hôte Windows où tourne Ollama. Il ne fonctionnait que
 # par accident d'environnement (un shell ou un cron qui exporte `OLLAMA_HOST`) : c'est
 # exactement le piège n°1 que la brique commune documente et corrige.
-#
-# ⚠ Aucun `django.setup()` n'est requis, et c'est ce qui rend l'adoption possible ici :
-# `base_url()` résout réglage Django → variable d'environnement → défaut déclaré, l'accès
-# aux settings étant dans un `try`. Vérifié le 2026-09-07 avec `DJANGO_SETTINGS_MODULE`
-# NON DÉFINI (`settings.configured is False`) : l'appel rend bien la passerelle.
-# L'audit ne charge donc PAS `INSTALLED_APPS` — un import cassé dans une app ne peut pas
-# l'empêcher de tourner, ce qui était la seule objection sérieuse à ce rattachement.
-from wama.common.utils.ollama_host import ollama_base
+from wama.common.utils.ollama_host import ollama_base  # noqa: E402
 from core.llm import LLMClient
 from core.tools import ToolRegistry, ToolCall, Tool, ToolResult
 from core.history import ConversationHistory
@@ -221,121 +225,25 @@ class AuditToolRegistry(ToolRegistry):
 
 
 # =============================================================================
-# VRAM Pre-flight
+# VRAM — le gouverneur, pas un déchargement d'office (2026-10-13)
 # =============================================================================
+# Ce bloc portait `_free_ollama_models` — décharger TOUS les modèles d'Ollama, au début ET à la
+# fin de chaque run, le modèle de l'assistant compris — et `_free_wama_vram`, un vidage par
+# l'API web (`/model-manager/api/clear-gpu/`, mot de passe lu dans `.env`) qui ne vidait que le
+# process WEB, pas les workers qui tiennent la carte. La règle du gouverneur (B1, Fabien, 16 et
+# 20/09) dit l'inverse : on ATTEND ; libérer la carte n'intervient que sur ACCORD EXPLICITE, par
+# le canal commun. C'est `role_utils.local_llm_guard` qui l'applique, comme pour les six rôles ;
+# l'accord est l'option `--free-vram`.
 
-def _free_ollama_models(ollama_host: str = None, verbose: bool = True) -> bool:
-    """
-    Unload all models currently resident in Ollama (frees VRAM and RAM).
-    Uses Ollama's /api/ps endpoint to list loaded models, then sends
-    keep_alive=0 to each one to trigger immediate unloading.
-
-    `ollama_host=None` → adresse commune (`ollama_base()`). Le défaut est résolu À L'APPEL
-    et non plus à l'import : une adresse figée dans une signature ne peut pas tenir compte
-    de la réécriture WSL2, qui dépend de l'environnement d'exécution.
-    """
-    try:
-        import requests
-
-        ollama_host = ollama_host or ollama_base()
-        resp = requests.get(f"{ollama_host}/api/ps", timeout=5)
-        if resp.status_code != 200:
-            if verbose:
-                print(f"[Ollama] /api/ps returned {resp.status_code} — skipping unload")
-            return False
-
-        models = resp.json().get("models", [])
-        if not models:
-            if verbose:
-                print("[Ollama] No models currently loaded")
-            return True
-
-        for m in models:
-            name = m.get("name", "")
-            size_mb = m.get("size", 0) / (1024 ** 2)
-            vram_mb = m.get("size_vram", 0) / (1024 ** 2)
-            requests.post(
-                f"{ollama_host}/api/generate",
-                json={"model": name, "keep_alive": 0, "prompt": ""},
-                timeout=15,
-            )
-            if verbose:
-                print(f"[Ollama] Unloaded: {name} "
-                      f"(RAM {size_mb:.0f} MB / VRAM {vram_mb:.0f} MB)")
-
-        return True
-
-    except Exception as e:
-        if verbose:
-            print(f"[Ollama] Error unloading models: {e} — skipping")
-        return False
-
-
-def _free_wama_vram(base_url: str, username: str, password: str, verbose: bool = True) -> bool:
-    """
-    Call WAMA's model-manager clear-gpu API to free GPU VRAM before model selection.
-    Uses Django session auth (username + password from env vars).
-    Returns True if VRAM was successfully cleared.
-    """
-    try:
-        import re
-        import requests
-
-        session = requests.Session()
-        login_url = f"{base_url}/accounts/login/"
-
-        # Step 1: GET login page → extract CSRF token
-        resp = session.get(login_url, timeout=5)
-        csrf = session.cookies.get('csrftoken', '')
-        if not csrf:
-            m = re.search(r'csrfmiddlewaretoken[^>]+value=["\'](\w+)["\']', resp.text)
-            if m:
-                csrf = m.group(1)
-        if not csrf:
-            if verbose:
-                print("[VRAM] Cannot extract CSRF token — skipping")
-            return False
-
-        # Step 2: POST login
-        resp = session.post(
-            login_url,
-            data={'username': username, 'password': password, 'csrfmiddlewaretoken': csrf},
-            headers={'Referer': login_url},
-            timeout=10,
-            allow_redirects=True,
-        )
-        if '/accounts/login' in resp.url:
-            if verbose:
-                print("[VRAM] Login failed (bad credentials?) — skipping")
-            return False
-
-        # Step 3: POST clear-gpu
-        csrf = session.cookies.get('csrftoken', csrf)
-        resp = session.post(
-            f"{base_url}/model-manager/api/clear-gpu/",
-            headers={'X-CSRFToken': csrf, 'Referer': f"{base_url}/model-manager/"},
-            timeout=15,
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            if verbose:
-                mem = data.get('memory', {})
-                free_gb = mem.get('free_gb', '?')
-                print(f"[VRAM] GPU memory cleared — {free_gb} GiB free")
-            return True
-        else:
-            if verbose:
-                print(f"[VRAM] API returned {resp.status_code} — skipping")
-            return False
-
-    except requests.exceptions.ConnectionError:
-        if verbose:
-            print("[VRAM] WAMA inaccessible (serveur arrêté ?) — skipping GPU clear")
-        return False
-    except Exception as e:
-        if verbose:
-            print(f"[VRAM] Error: {e} — skipping")
-        return False
+def _release_own_model(model_id: str, verbose: bool = True) -> bool:
+    """Décharge le SEUL modèle de ce run, par la brique commune (`MemoryManager.unload_model` :
+    `keep_alive: 0` sur ce modèle, et retrait de sa ligne de résidence au gouverneur)."""
+    from wama.model_manager.services.memory_manager import MemoryManager
+    from wama.common.utils.model_keys import catalog_key
+    ok = MemoryManager.unload_model(catalog_key(model_id, 'ollama'))
+    if verbose:
+        print(f"[Audit] {model_id} {'déchargé' if ok else 'NON déchargé (voir le journal)'}")
+    return ok
 
 
 def _get_free_vram_gb() -> float:
@@ -557,15 +465,25 @@ class AuditAgent:
         transitoire EOF que ce build d'Ollama produit au premier appel après un (re)chargement.
         La durée d'un run n'étant pas prévisible, c'est le run LUI-MÊME qui libère, ici, en
         `finally` : fin normale, exception ou Ctrl-C laissent la VRAM propre pour la suite.
+        ⚠ Il ne libère que SON modèle (2026-10-13) : jusque-là, ce `finally` déchargeait TOUS
+        les modèles d'Ollama, ceux des autres compris.
+        ⚠ La résidence indéfinie déroge au `keep_alive='0'` du mode dépannage, À DESSEIN : ce
+        mode veut éviter l'empilement, et un rechargement à chaque tour d'outil serait pire
+        (crash EOF au premier appel après chargement, cf. `_run_loop`).
         """
         try:
             return self._run_loop(task)
         finally:
             try:
-                _free_ollama_models(verbose=self.verbose)
+                _release_own_model(self.model_id, verbose=self.verbose)
             except Exception as exc:      # libérer ne doit JAMAIS masquer le résultat du run
                 if self.verbose:
                     print(f"[Audit] Déchargement final impossible : {exc}")
+
+    @property
+    def model_id(self) -> str:
+        """Le modèle Ollama de ce run (choisi, forcé, ou repli stable)."""
+        return self._model_cfg.ollama_id if self._model_cfg else self._FALLBACK_MODEL
 
     def _run_loop(self, task: str) -> str:
         """Boucle agentique proprement dite (cf. `run`, qui en garantit la libération)."""
@@ -579,7 +497,7 @@ class AuditAgent:
                   .replace("{tools}", tools_desc)
                   .replace("{task}", task))
 
-        model_id = self._model_cfg.ollama_id if self._model_cfg else self._FALLBACK_MODEL
+        model_id = self.model_id
 
         # Compute num_ctx from actual free VRAM (not system RAM).
         # Thinking models need larger context for their <think> blocks.
@@ -729,7 +647,7 @@ def main():
         "--force-model", "-F",
         default=None,
         help="Bypass the RAM-gated selector and use this exact Ollama model id "
-             "(e.g. 'gemma4:e4b'). Pair with --no-free-vram to keep it warm.",
+             "(e.g. 'gemma4:e4b').",
     )
     parser.add_argument(
         "--non-interactive", "-n",
@@ -737,22 +655,23 @@ def main():
         help="Non-interactive mode (for cron/scheduled runs)",
     )
     parser.add_argument(
-        "--no-free-vram",
+        "--free-vram",
         action="store_true",
-        help="Skip automatic VRAM clearing before model selection",
+        help="ACCORD EXPLICITE de libérer la carte si le modèle n'y tient pas : demande aux "
+             "services résidents de se décharger (canal du gouverneur ; un service qui sert "
+             "n'est pas interrompu). Sans lui, l'audit attend, et ne décharge personne.",
+    )
+    parser.add_argument(
+        "--wait-max",
+        type=float,
+        default=300.0,
+        help="Attente maximale de VRAM libre en mode dépannage GPU, en secondes (défaut 300)",
     )
     parser.add_argument(
         "--prompt", "-p",
         default="audit",
         help="Nom du prompt système dans prompts/ (sans .txt). Ex : 'cartography' pour "
              "cartographier un corpus externe (bind, pynd). Défaut : 'audit'.",
-    )
-    parser.add_argument(
-        "--ask-password",
-        action="store_true",
-        help="Autoriser la demande interactive du mot de passe WAMA (libération VRAM par l'API). "
-             "SANS ce drapeau, l'outil ne demande JAMAIS rien et saute l'étape : c'est le défaut, "
-             "parce qu'un prompt dans un run non surveillé bloque indéfiniment sans message.",
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
@@ -770,62 +689,14 @@ def main():
     print(f"[wama-dev-ai] Audit mode — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"[wama-dev-ai] Outputs: {OUTPUT_DIR}")
 
-    # Step 1: Unload all Ollama models from VRAM/RAM (Ollama keeps models resident
-    # by default for 5 min — this often occupies 2-8 GB that blocks the audit model).
-    if not args.no_free_vram:
-        print(f"[wama-dev-ai] Déchargement des modèles Ollama ({ollama_base()})…")
-        unloaded = _free_ollama_models(verbose=True)
-        if unloaded:
-            import time
-            time.sleep(1)
-
-        # Show which processes are using VRAM (helps diagnose residual usage)
-        try:
-            import subprocess
-            result = subprocess.run(
-                ["nvidia-smi",
-                 "--query-compute-apps=pid,process_name,used_memory",
-                 "--format=csv,noheader,nounits"],
-                capture_output=True, text=True, timeout=5,
-            )
-            if result.stdout.strip():
-                print("[VRAM] Processus GPU actifs :")
-                for line in result.stdout.strip().splitlines():
-                    print(f"  {line}")
-            else:
-                print("[VRAM] Aucun processus GPU détecté par nvidia-smi")
-        except Exception:
-            pass  # nvidia-smi not available
-
-    # Step 2: Free WAMA GPU cache (PyTorch) via WAMA API.
-    # Password: from WAMA_PASSWORD env var, or prompted interactively if username is known.
-    wama_password = WAMA_PASSWORD
-    # ⚠ NE JAMAIS demander un mot de passe SAUF si l'opérateur l'a demandé (`--ask-password`).
-    # Historique du 2026-08-20, trois lancements perdus : la condition portait sur `verbose`, si
-    # bien qu'un run lancé sans `--non-interactive` appelait `getpass` et attendait indéfiniment
-    # une saisie impossible — sans afficher quoi que ce soit, le processus paraissant vivant.
-    # `isatty()` NE SUFFIT PAS : mesuré, il renvoie True sous un hôte qui attache un handle de
-    # console alors qu'aucun humain n'est derrière. Le seul critère fiable est une intention
-    # EXPLICITE. Par défaut, l'outil ne demande rien et saute proprement l'étape.
-    if (not args.no_free_vram and WAMA_USERNAME and not wama_password
-            and args.ask_password and sys.stdin is not None and sys.stdin.isatty()):
-        import getpass
-        wama_password = getpass.getpass(
-            f"[wama-dev-ai] Mot de passe WAMA pour '{WAMA_USERNAME}': "
-        )
-    elif not args.no_free_vram and WAMA_USERNAME and not wama_password:
-        print("[wama-dev-ai] WAMA_PASSWORD absent et --ask-password non passé — libération VRAM "
-              "par l'API WAMA sautée (le déchargement Ollama, lui, a bien eu lieu).")
-
-    if not args.no_free_vram and WAMA_USERNAME and wama_password:
-        print(f"[wama-dev-ai] Libération VRAM via WAMA API ({WAMA_BASE_URL})…")
-        freed = _free_wama_vram(WAMA_BASE_URL, WAMA_USERNAME, wama_password, verbose=True)
-        if freed:
-            import time
-            time.sleep(2)  # Give the GPU a moment to settle
-
     agent = AuditAgent(model_role=args.model, verbose=verbose, force_model=args.force_model,
                        prompt=args.prompt)
+    # La garde GPU COMMUNE des rôles (2026-10-13) — elle remplace le déchargement de TOUT Ollama
+    # et le vidage par l'API web : on attend en mode dépannage, on ne libère que sur accord.
+    from role_utils import local_llm_guard
+    local_llm_guard('ollama', agent.model_id, wait_max=args.wait_max,
+                    release_reason='audit wama-dev-ai' if args.free_vram else '',
+                    log=lambda m: print(f'[Audit] {m}'))
     result = agent.run(args.task)
 
     if not verbose:

@@ -67,17 +67,29 @@ def notification_sound(notification, user) -> str:
     return SOUND_BY_KIND.get(getattr(notification, 'kind', ''), '')
 
 
-def notify_in_app(users, kind, title, body='', url='', *, app='', item=None):
+#: `app` des notifications de fin de tâche de DÉVELOPPEMENT (élément `DevJob`, id de fiche).
+#: Domicile commun aux deux côtés de la frontière §16 : le serveur de dev l'écrit
+#: (`dev_tools.notify_finished_jobs`), la passerelle la reconnaît (`gateway.core`) sans
+#: importer `dev_tools`.
+DEV_JOB_APP = 'dev'
+DEV_JOB_TYPE = 'DevJob'
+
+
+def notify_in_app(users, kind, title, body='', url='', *, app='', item=None, object_type='',
+                  object_id=''):
     """Crée une notification DANS WAMA pour chaque utilisateur (`common.Notification`, badge de
     l'en-tête + page `/common/notifications/`). Fail-safe ; rend le nombre créé.
 
     `app` + `item` : l'ÉLÉMENT dont elle parle (convention `RunOutcome` — type = nom de classe).
+    `object_type` + `object_id` : le même élément quand il n'est pas un modèle Django — une tâche
+    de développement, désignée par son identifiant de fiche (`dev_tools`, 2026-10-12).
     """
     try:
         from wama.common.models import Notification
         element = {'app': app or '',
-                   'object_type': type(item).__name__ if item is not None else '',
-                   'object_id': str(getattr(item, 'pk', '') or '') if item is not None else ''}
+                   'object_type': type(item).__name__ if item is not None else object_type,
+                   'object_id': (str(getattr(item, 'pk', '') or '') if item is not None
+                                 else str(object_id or ''))}
         rows = [Notification(recipient=u, kind=kind, title=title[:255], body=body or '',
                              url=url or '', **element)
                 for u in (users or []) if getattr(u, 'pk', None)]

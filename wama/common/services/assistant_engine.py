@@ -294,17 +294,14 @@ def resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple:
         return provider, model
     reglages = assistant_settings(user)
     cle = model or reglages.get('model') or AUTO
-    # Domaine de DÉVELOPPEMENT : BRIDÉ aux modèles de niveau dev (Fabien, 22/09) — le choix
-    # manuel est respecté s'il a le niveau, remplacé sinon ; rien de disponible → (None, None),
-    # que `run_assistant_turn` transforme en refus lisible, jamais en petit modèle.
-    from wama.common.utils.assistant_skills import resolve_domain
-    if resolve_domain(domain).development and user is not None:
-        from wama.common.services.development_models import development_model
-        key = development_model(user, requested=None if is_auto(cle) else cle)
-        if not key:
-            return None, None
-        source, _, model_id = str(key).partition(':')
-        return SOURCE_PROVIDERS.get(source, 'wama-dev-ai'), (model_id or None)
+    # ⚠ Le BRIDAGE du domaine de développement (22/09 : modèle de niveau dev imposé, réflexion
+    # forcée) est LEVÉ le 2026-10-12 — décision de Fabien : « il valait tant qu'on n'avait pas
+    # d'API souveraine ; maintenant qu'on a Albert et ILaaS, on peut le lever ». Mesuré le même
+    # jour (fil Discord #43) : un seul `dev_run_role` faisait passer la conversation d'Albert
+    # (quelques secondes) au modèle local de niveau dev, réflexion imposée — 2 min 49 au premier
+    # appel, puis un délai dépassé. La conversation garde désormais SON modèle ; le niveau dev
+    # reste exigé là où le code s'ÉCRIT : les rôles wama-dev-ai, en tâche de fond
+    # (`development_models.development_model`, lu par `role_utils.resolve_model`).
     if is_auto(cle):
         try:
             from wama.common.utils.assistant_skills import resolve_domain
@@ -469,10 +466,9 @@ def _ollama_call(messages: list, ollama_model: str, think: bool = None, on_delta
     `think` : None = défaut du modèle (réflexion ON pour les modèles qui la portent) ; False la
     coupe ; True la demande. Dérivé du curseur par `thinking_wanted`, jamais figé ici.
 
-    `on_delta(fragment)` : si fourni, la réponse est demandée EN FLUX (`stream: True`) et chaque
-    fragment est remis à l'appelant au fil de l'eau — levier 5 de `WAMA_LLM §1bis`. Sans lui,
-    le corps est IDENTIQUE à ce qu'il était : un seul POST, une seule réponse. Ce défaut compte,
-    car l'API v1 et la passerelle n'ont aucune raison de payer un flux qu'elles n'affichent pas.
+    `on_delta(fragment)` : si fourni, chaque fragment est remis à l'appelant au fil de l'eau —
+    levier 5 de `WAMA_LLM §1bis`. La réponse est demandée en flux DANS TOUS LES CAS (cf. le
+    corps) : sans écouteur, les fragments sont jetés et seul le texte entier revient.
 
     Returns:
         (text: str, usage: dict) on success
@@ -498,30 +494,22 @@ def _ollama_call(messages: list, ollama_model: str, think: bool = None, on_delta
     ollama_host = (os.environ.get('OLLAMA_HOST') or ollama_base()).rstrip('/')
     ollama_url = f"{ollama_host}/api/chat"
 
+    # TOUJOURS EN FLUX, avec ou sans écouteur (2026-10-12, fil Discord #43). Sans flux, le délai
+    # de 180 s du client plafonnait la génération ENTIÈRE, réflexion comprise : un tour local de
+    # niveau dev (réflexion imposée, `DEV_QUALITY_INTENT`) mourait sur « délai dépassé » après
+    # 3 min pile — mesuré à 15:17→15:20 dans les journaux d'Ollama —, alors que le MÊME tour sur
+    # le web, en flux, n'était coupé que par 180 s de SILENCE. Le flux ne coûte rien de visible :
+    # sans écouteur, les fragments sont simplement jetés, et le texte rendu est le même.
     payload = {
         "model": ollama_model,
         "messages": messages,
         "options": {"temperature": 0.7, "num_predict": 4096},
-        "stream": bool(on_delta),
+        "stream": True,
     }
     if think is not None:
         payload["think"] = bool(think)
     try:
-        if on_delta:
-            return _ollama_stream(ollama_url, payload, on_delta)
-        with httpx.Client(timeout=180.0, trust_env=False) as client:
-            resp = client.post(ollama_url, json=payload)
-        if resp.status_code != 200:
-            return None, {'error': f'Ollama error: {resp.text}', 'status': resp.status_code}
-
-        data = resp.json()
-        text = data.get("message", {}).get("content", "")
-        usage = {
-            'input_tokens': data.get("prompt_eval_count", 0),
-            'output_tokens': data.get("eval_count", 0),
-        }
-        return text, usage
-
+        return _ollama_stream(ollama_url, payload, on_delta or (lambda _fragment: None))
     except httpx.ConnectError:
         # Le RÉGLAGE (sans la réécriture WSL2) — c'est lui que l'utilisateur peut corriger.
         from wama.common.external_sources import base_url
@@ -535,7 +523,11 @@ def _ollama_call(messages: list, ollama_model: str, think: bool = None, on_delta
             'status': 503,
         }
     except httpx.TimeoutException:
-        return None, {'error': 'Ollama : délai dépassé. Le modèle est peut-être en cours de chargement.', 'status': 504}
+        # En flux, ce délai mesure un SILENCE de 180 s (aucun fragment, réflexion comprise) — pas
+        # une génération longue : chargement du modèle, ou GPU tenu par une autre tâche.
+        return None, {'error': "Ollama : aucune réponse depuis 3 min. Le modèle est peut-être "
+                               "en cours de chargement, ou le GPU occupé par une autre tâche.",
+                      'status': 504}
     except Exception as e:
         logger.error(f"Ollama error: {e}")
         return None, {'error': f'Ollama error: {e}', 'status': 500}
@@ -1099,6 +1091,29 @@ def _invented_turn(user, message, *, provider, llm_model, local, etiquette, tota
     }
 
 
+_POLL_AGAIN_NOTICE = ("Toujours en cours — déjà vérifié dans ce tour. Ne la suis plus : réponds "
+                      "maintenant à l'utilisateur ; sa fin sera annoncée dans ce fil.")
+
+
+def _already_polled(tool_steps: list, tool_name: str, tool_args: dict) -> bool:
+    """Ce tour a-t-il DÉJÀ lu le statut de cette tâche de fond, encore en cours ?"""
+    if tool_name != 'dev_job_status':
+        return False
+    job_id = (tool_args or {}).get('job_id')
+    return any(step.get('tool') == 'dev_job_status'
+               and (step.get('args') or {}).get('job_id') == job_id
+               and isinstance(step.get('result'), dict)
+               and step['result'].get('status') == 'running'
+               for step in tool_steps)
+
+
+def _engine(provider: str, llm_model: str | None, local: bool) -> dict:
+    """Le modèle qui a RÉPONDU, en données — à côté de l'étiquette `model`, qui est un libellé.
+    Une surface sans sélecteur (un canal) ne voyait rien de ce choix : Discord ne disait pas si
+    Albert ou le modèle local avait répondu (fil #43, 2026-10-12)."""
+    return {'provider': provider or '', 'model': llm_model or '', 'local': bool(local)}
+
+
 def _parse_tool_call(text: str) -> dict | None:
     """
     Detect a JSON tool call in the LLM response.
@@ -1120,9 +1135,20 @@ def _parse_tool_call(text: str) -> dict | None:
             call, _ = decoder.raw_decode(clean, start.start())
         except json.JSONDecodeError:
             continue
-        if isinstance(call, dict) and isinstance(call.get('tool'), str) \
-                and isinstance(call.get('args'), dict):
+        if not (isinstance(call, dict) and isinstance(call.get('tool'), str)):
+            continue
+        if isinstance(call.get('args'), dict):
             return call
+        if 'args' not in call and len(call) > 1:
+            # Forme À PLAT — les arguments à côté de `tool`, sans `args`. Mesurée le 2026-10-12
+            # (Discord, fil #43) : Albert/deepseek a rendu `{"tool": "get_item_preview", "app":
+            # "reader", "side": "result", "pk": 1335}` ; non reconnu, l'appel était AFFICHÉ à
+            # l'utilisateur comme réponse. La forme est sans ambiguïté — tout ce qui n'est pas
+            # `tool` est un argument — et la porte `execute_tool` valide ensuite comme toujours.
+            # ⚠ Un `{"tool": "x"}` NU reste du texte (garde de `tests_tool_call_parsing`) : sans
+            # argument, rien ne le distingue d'un exemple de format cité dans une phrase.
+            return {'tool': call['tool'],
+                    'args': {k: v for k, v in call.items() if k != 'tool'}}
     return None
 
 
@@ -1312,9 +1338,17 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
         if on_event is not None:
             _learn_wait(watch['model_key'], first_text, user)
 
-    if fil is not None and 'error' not in resultat:
+    if fil is not None:
         try:
-            conversation_store.record_exchange(fil, message, resultat)
+            if 'error' in resultat:
+                # Un tour en ÉCHEC entre aussi au fil (2026-10-12, fil Discord #43) : sans lui, la
+                # question disparaissait avec les outils déjà joués, et le tour suivant répondait
+                # comme si rien n'avait été tenté. L'erreur tient lieu de réponse — c'est ce que
+                # l'utilisateur a lu.
+                conversation_store.record_exchange(
+                    fil, message, {**resultat, 'response': f"⚠ {resultat['error']}"})
+            else:
+                conversation_store.record_exchange(fil, message, resultat)
             resultat['conversation_id'] = fil.pk
         except Exception:
             logger.exception("[ai_chat] échange non enregistré (fil %s)", fil.pk)
@@ -1369,12 +1403,6 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # Un modèle TIRÉ peut basculer sur panne ; un modèle CHOISI, non (`_failover_target`).
     drawn = _turn_is_drawn(user, provider, model) if user is not None else False
     provider, llm_model = resolve_turn_model(user, provider, model, domain=domain)
-    from wama.common.utils.assistant_skills import resolve_domain
-    development = resolve_domain(domain).development
-    if provider is None:
-        # Seul cas : domaine de développement sans modèle de niveau dev — on le DIT.
-        from wama.common.services.development_models import development_refusal
-        return {'error': development_refusal(user), 'status': 503}
 
     # ⚠ GARDE DE L'ABONNEMENT — posée ICI, et pas dans la vue de chat. `run_assistant_turn`
     # est le passage OBLIGÉ des TROIS surfaces (web `views.ai_chat`, `/api/v1/assistant/`,
@@ -1458,11 +1486,9 @@ def run_assistant_turn(user, message: str, provider: str = None,
                      + contexte_labo + wama_context)
 
     # Réflexion du modèle (chemin local) DÉRIVÉE du curseur Rapide ↔ Qualité de l'utilisateur —
-    # le même réglage que le tirage automatique lit (`resolve_turn_model`). En domaine de
-    # développement le curseur vaut 100 (bridage) : réflexion demandée.
-    from wama.common.services.development_models import DEV_QUALITY_INTENT
-    quality = DEV_QUALITY_INTENT if development else assistant_settings(user).get('quality_intent')
-    think = thinking_wanted(quality) if local else None
+    # le même réglage que le tirage automatique lit (`resolve_turn_model`). Le domaine de
+    # développement ne l'impose plus (bridage levé le 2026-10-12).
+    think = thinking_wanted(assistant_settings(user).get('quality_intent')) if local else None
 
     def _label(provider, llm_model, local, served=''):
         # `served` : le modèle que le fournisseur dit avoir RÉELLEMENT employé (abonnement
@@ -1470,10 +1496,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
         chosen = llm_model or 'défaut'
         if served and served != chosen:
             chosen = f"{chosen} → {served}"
-        base_label = f"wama-dev-ai ({llm_model})" if local else f"{provider} ({chosen})"
-        # « · dev » : le bridage est VISIBLE — l'utilisateur voit que le tour est passé au
-        # modèle de niveau développement (demande de Fabien : le rendre explicite).
-        return f"{base_label} · dev" if development else base_label
+        return f"wama-dev-ai ({llm_model})" if local else f"{provider} ({chosen})"
 
     # Build messages: system + prior history (capped) + current user message
     prior = _sanitize_history(history)  # 10 derniers échanges, outils dépliés
@@ -1560,7 +1583,12 @@ def run_assistant_turn(user, message: str, provider: str = None,
                 f"répond pas pour l'instant ; le choix automatique répondrait avec {proposed}."),
                 fallback={'model_key': turn_model_key(new_provider, new_model), 'label': proposed})
         if text is None:
-            return result  # error dict
+            # L'erreur EMPORTE ce qui a déjà été fait (2026-10-12, fil Discord #43) : un tour qui
+            # avait lancé deux tâches `dev_run_role` puis butait sur le LLM rendait une erreur nue,
+            # les étapes étaient perdues, et le tour suivant — « où en est-on ? » — ne savait plus
+            # qu'une tâche tournait. `conversation_turn` enregistre désormais ce tour au fil.
+            return {**result, 'model': etiquette, 'tool_steps': tool_steps,
+                    'engine': _engine(provider, llm_model, local)}
 
         # Accumulate token usage
         total_usage['input_tokens']  += result.get('input_tokens', 0)
@@ -1610,6 +1638,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
                 'success': True,
                 'response': clean_text,
                 'model': etiquette,
+                'engine': _engine(provider, llm_model, local),
                 'usage': total_usage,
                 'tool_steps': tool_steps,
             }
@@ -1619,7 +1648,14 @@ def run_assistant_turn(user, message: str, provider: str = None,
         tool_args  = tool_call.get('args', {})
         logger.info(f"[ai_chat] tool_call: {tool_name}({tool_args})")
 
-        if tool_name in dev_names:
+        if tool_name in dev_names and _already_polled(tool_steps, tool_name, tool_args):
+            # Le SUIVI d'une tâche de fond dans le tour, CONTRÔLÉ (2026-10-12, fil Discord #43 :
+            # cinq `dev_job_status` d'affilée, six minutes sans répondre à personne). Un second
+            # statut d'une tâche encore en cours n'est pas relayé : la boucle répond à sa place,
+            # et la fin arrivera d'elle-même dans le fil.
+            tool_result = {'job_id': tool_args.get('job_id'), 'status': 'running',
+                           'next_step': _POLL_AGAIN_NOTICE}
+        elif tool_name in dev_names:
             tool_result = mcp_client.call_dev_tool(user, tool_name, tool_args)
         else:
             tool_result = execute_tool(tool_name, tool_args, user)
@@ -1638,29 +1674,9 @@ def run_assistant_turn(user, message: str, provider: str = None,
             except Exception:
                 logger.debug("[ai_chat] relais de l'étape suivante impossible", exc_info=True)
 
-        # BASCULE EN COURS DE TOUR (22/09) : le tour a commencé sur le modèle du curseur, et le
-        # modèle vient de charger la compétence dev ou d'appeler un outil de dev — la SUITE du
-        # tour (et le fil, cf. `conversation_store.last_loaded_domain`) passe au niveau
-        # développement. Sans modèle de ce niveau, l'outil le dit au modèle, qui le dit à
-        # l'utilisateur ; on ne continue jamais « comme si ».
-        from wama.common.services.development_models import (
-            development_model, development_refusal, is_development_step)
-        if (not development and user is not None
-                and is_development_step({'tool': tool_name, 'args': tool_args})):
-            key = development_model(user)
-            if key:
-                source, _, model_id = str(key).partition(':')
-                provider, llm_model = SOURCE_PROVIDERS.get(source, 'wama-dev-ai'), (model_id or None)
-                local = provider in _LOCAL_PROVIDERS
-                development = True
-                think = thinking_wanted(DEV_QUALITY_INTENT) if local else None
-                etiquette = _label(provider, llm_model, local)
-                # La déclaration native suit le NOUVEAU fournisseur (il peut ne pas l'accepter).
-                native_tools = _native_tool_specs(user, provider, dev_tools, llm_model)
-                native_kwargs = {'tools': native_tools} if native_tools else {}
-                logger.info("[ai_chat] passage au niveau développement : %s", etiquette)
-            elif isinstance(tool_result, dict):
-                tool_result = dict(tool_result, warning=development_refusal(user))
+        # (La BASCULE EN COURS DE TOUR vers un modèle de niveau dev, 22/09, est levée avec le
+        # bridage le 2026-10-12 — cf. `resolve_turn_model`. Le fil se souvient toujours de la
+        # compétence dev chargée : c'est une CONSIGNE, plus un changement de modèle.)
         tool_steps.append({'tool': tool_name, 'args': tool_args, 'result': tool_result})
         if on_event is not None:
             # L'étape part DÈS qu'elle est jouée : « ce qui est pénible n'est pas d'attendre,
@@ -1708,6 +1724,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
         'response': _strip_unsourced_urls(final, tool_steps, message)
                     + (f"\n\n{refusals}" if refusals else ''),
         'model': etiquette,
+        'engine': _engine(provider, llm_model, local),
         'usage': total_usage,
         'tool_steps': tool_steps,
     }

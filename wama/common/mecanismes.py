@@ -774,10 +774,12 @@ MECHANISMS = (
               annexes=('wama/common/static/common/js/wama-schedule.js',
                        'wama/common/tests/tests_scheduled_actions.py')),
     Mechanism('global_queue', "File globale GPU (où en est chaque tâche)",
-              "Lue, jamais devinée : ce qui tourne au gouverneur, ce qui attend dans les listes du "
-              "broker dans l'ordre de consommation. Heures prévues = somme de durées MESURÉES "
-              "(file sérielle) ; place et durée des traitements des autres, jamais leur titre. "
-              "Nourrit le placement `auto`, la pastille « En file » et le calendrier",
+              "Lue, jamais devinée : ce qui tourne au gouverneur, ce que le worker GPU TIENT au "
+              "broker (`unacked` : tâche en cours non déclarée, orphelin écarté, différé à son "
+              "échéance), ce qui attend dans les listes dans l'ordre de consommation. Heures "
+              "prévues = somme de durées MESURÉES (file sérielle) ; place et durée des traitements "
+              "des autres, jamais leur titre (une tâche système se nomme). Nourrit le placement "
+              "`auto`, la pastille « En file », le calendrier et l'API de l'assistant (`place_of`)",
               'wama/common/services/global_queue.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=('wama/common/tests/tests_global_queue.py',)),

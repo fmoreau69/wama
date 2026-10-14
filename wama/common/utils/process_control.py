@@ -313,7 +313,8 @@ def _broker_holds(task_id: str):
     """Le broker détient-il un message de cette tâche ? True / False, ou None si on ne sait pas.
 
     Parcourt les files (listes Redis, paliers de priorité compris : `gpu`, `gpu:3`…) et la
-    table `unacked` (messages délivrés à un worker, réservés ou à échéance différée).
+    table `unacked` (messages délivrés à un worker : réservés, à échéance différée, et — en pool
+    `solo` — EN COURS d'exécution, mesuré le 2026-10-13 ; cf. `global_queue.held_messages`).
     """
     try:
         conn, ch = _broker_channel()
@@ -351,9 +352,14 @@ def is_task_lost(task_id: str, snapshot) -> bool:
 
     Pourquoi chaque condition est nécessaire :
       - `PENDING` + absent du broker SEUL serait le signal inversé du 2026-07-25 : un worker
-        `--pool=solo` occupé ne répond pas, et une tâche qu'il exécute a été acquittée (donc
-        hors broker). D'où l'exigence que TOUS les nœuds connus aient répondu : un worker muet
-        est le plus souvent un worker occupé — par cette tâche peut-être.
+        `--pool=solo` occupé ne répond pas. D'où l'exigence que TOUS les nœuds connus aient
+        répondu : un worker muet est le plus souvent un worker occupé — par cette tâche peut-être.
+        ⚠ Corrigé le 2026-10-13 sur MESURE : cette ligne ajoutait « une tâche qu'il exécute a été
+        acquittée (donc hors broker) ». C'est faux en pool `solo` — l'accusé de réception passe
+        par la boucle d'événements que la tâche bloque, le message reste dans `unacked` jusqu'à
+        la fin (worker jetable, celery 5.5.3 : STARTED et tenu à 5, 10, 15, 20 s, retiré à la
+        fin). La conclusion ne change pas — `_broker_holds` le voit, donc rien n'est déclaré
+        perdu à tort ; c'est même une garde de plus.
       - une tâche en file (non préchargée) est `PENDING` aussi : elle est dans une liste du
         broker, on la voit.
       - l'état est relu APRÈS le parcours du broker : une tâche prise entre-temps par un worker

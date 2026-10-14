@@ -88,6 +88,15 @@ class Command(BaseCommand):
                 "Configuration valide — client construit, AUCUNE connexion établie."))
             return
 
+        # Le journal de la BIBLIOTHÈQUE (connexions, reprises, sessions renouvelées, battement
+        # de cœur bloqué) dans celui de la passerelle. `log_handler=None` ci-dessous la laissait
+        # sans aucun gestionnaire : le 2026-10-12, deux sessions renouvelées (14:58, 15:16) ont
+        # fait perdre deux messages sans qu'une seule ligne dise pourquoi la connexion était
+        # tombée. On voit désormais la coupure ; sa cause, au prochain épisode.
+        from wama.common.utils.log_rotation import attach_dedicated_log
+        attach_dedicated_log('discord', 'gateway-discord.log', level=logging.INFO,
+                             fmt='%(asctime)s [%(levelname)s] [%(name)s] %(message)s')
+
         self.stdout.write(self.style.SUCCESS("Connexion à Discord…  (Ctrl+C pour arrêter)"))
         try:
             client.run(bot_token, log_handler=None)   # log_handler=None : garder les logs WAMA

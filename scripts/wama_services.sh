@@ -83,7 +83,11 @@ start_celery_worker() {
     case "$1" in
         # GPU : tout ce qui est lourd en IA, UNE tâche à la fois (anonymizer, imager, enhancer,
         # synthesizer, transcriber, describer…). `--prefetch-multiplier=1` : aucun message
-        # préchargé, donc rien à redélivrer après un crash (boucle freeze-relance du 26/07).
+        # préchargé AU-DELÀ de celui qui s'exécute (boucle freeze-relance du 26/07). ⚠ Corrigé
+        # le 2026-10-13 : « rien à redélivrer après un crash » était faux — en pool solo, le
+        # message EN COURS reste non acquitté jusqu'à sa fin (mesuré) ; un crash le laisse dans
+        # `unacked`, Redis le rend à l'échéance de visibilité (6 h). Un démarrage note son heure
+        # (`global_queue.note_consumer_ready`) : la file globale y reconnaît les orphelins.
         gpu)
             celery -A wama worker --pool=solo --queues=gpu --hostname=gpu@%h \
                 --prefetch-multiplier=1 --statedb="$LOG_DIR/celery-gpu.state" \

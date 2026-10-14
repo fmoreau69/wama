@@ -52,6 +52,11 @@ class Command(BaseCommand):
             return
 
         import uvicorn
+        if surface == mcp_server.SURFACE_DEV:
+            # Ce process POSSÈDE les tâches de développement : c'est lui qui en annonce la fin
+            # (notification relayée dans le fil d'origine — `dev_tools.notify_finished_jobs`).
+            from wama.common.services.dev_tools import start_job_watcher
+            start_job_watcher()
         host, port = mcp_server.http_address(options['host'], options['port'], surface)
         self.stderr.write(f"Serveur MCP {surface} → http://{host}:{port}{mcp_server.MCP_PATH}")
         uvicorn.run(mcp_server.build_http_app(host, port, surface), host=host, port=port,

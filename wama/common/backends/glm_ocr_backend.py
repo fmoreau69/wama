@@ -22,7 +22,10 @@ from wama.common.backends.ocr_base import OCRBackend
 logger = logging.getLogger(__name__)
 
 def _image_to_b64(image_path: str) -> str:
-    """Read an image file and return its base64-encoded content."""
+    """Read an image file and return its base64-encoded content.
+
+    ⚠ Le décodeur d'Ollama ignore l'EXIF : l'image doit arriver DÉJÀ droite — c'est le rôle de
+    `ocr_base.upright_image`, appelé par le reader (image en entrée) et par `run` (pages de PDF)."""
     with open(image_path, 'rb') as fh:
         return base64.b64encode(fh.read()).decode('utf-8')
 
@@ -109,9 +112,29 @@ def _ocr_image(model: str, image_path: str, language_hint: str = '') -> str:
                              'images': [_image_to_b64(image_path)]}],
                            model=model, provider='ollama', num_predict=4096, think=False,
                            timeout=180.0, temperature=0.0)
+    # ⚠⚠ L'ÉCHEC N'EST PLUS AVALÉ (2026-10-12, card reader #1335). L'erreur était journalisée
+    # puis la page rendait '' : un OCR EN ÉCHEC devenait un SUCCÈS à 0 caractère, et l'assistant,
+    # interrogé sur le texte, ne pouvait que dire qu'il n'y en avait pas — l'utilisateur y a lu
+    # une lacune d'API. Mesuré : Ollama 500 « prediction aborted, token repeat limit reached » sur
+    # une note manuscrite de 1848×4000. ⚠ PAS de nouvel essai : échantillonné (0,2) ou découpé en
+    # bandes, le modèle ne lève plus d'erreur mais rend le même paragraphe en boucle (mesuré) —
+    # un faux succès pire que l'échec. Le remède est un AUTRE moteur, et l'erreur le dit.
     if error:
-        logger.warning(f"[GlmOcr] {error}")
-    return (text or '').strip()
+        raise RuntimeError(f"OCR {model} en échec : {error} — essayer un autre moteur.")
+    text = (text or '').strip()
+    from wama.common.backends.ocr_base import is_degenerate_output, trim_repetition
+    if is_degenerate_output(text):
+        # Une boucle APRÈS une lecture juste est le cas mesuré : on garde le premier passage, et
+        # on ne déclare l'échec que si ce qui reste tourne encore en boucle.
+        text, trimmed = trim_repetition(text)
+        if trimmed:
+            logger.warning(f"[GlmOcr] sortie en boucle coupée au premier passage "
+                           f"({len(text)} caractères gardés) : {image_path}")
+        if is_degenerate_output(text):
+            raise RuntimeError(f"OCR {model} : la sortie tourne en boucle (le même passage "
+                               f"répété) — le modèle ne lit pas ce document ; essayer un autre "
+                               f"moteur.")
+    return text
 
 
 class GlmOcrBackend(OCRBackend):
@@ -216,6 +239,10 @@ class GlmOcrBackend(OCRBackend):
                 tmp_images = _pdf_to_images(work_file, dpi=200, dest_dir=str(travail))
                 if not tmp_images:
                     raise RuntimeError("Impossible de convertir le PDF en images")
+                # Un PDF de photos ou de scans peut porter des pages couchées : chacune est
+                # redressée (le reader ne redresse que les images qu'il reçoit telles quelles).
+                from wama.common.backends.ocr_base import upright_image
+                tmp_images = [upright_image(page, str(travail)) for page in tmp_images]
             else:
                 # Single image file — use directly
                 tmp_images = [work_file]

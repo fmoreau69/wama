@@ -233,6 +233,11 @@ os.environ.setdefault('HUGGINGFACE_HUB_CACHE', str(HF_DEFAULT_CACHE))
 # une variable propre à UNE lib, posée au démarrage, n'a aucun des effets de bord de `HF_HUB_CACHE`
 # (qui, lui, emporte tout ce que la lib télécharge ensuite — cf. la règle du AGENTS.md).
 os.environ.setdefault('DEEPFACE_HOME', str(MODEL_PATHS['vision']['deepface']))
+# docTR — MÊME IDIOME (2026-10-12) : ses poids (OCR, et le classifieur d'ORIENTATION de page qui
+# redresse une photo avant tout moteur d'OCR — `ocr_base.upright_image`) vont sous
+# `<DOCTR_CACHE_DIR>/models`. Sans cette ligne, la brique d'orientation, appelée hors du moteur
+# docTR (qui posait la variable lui-même dans `run()`), les aurait rangés dans `~/.cache/doctr`.
+os.environ.setdefault('DOCTR_CACHE_DIR', str(MODEL_PATHS['ocr']['doctr']))
 
 # HuggingFace access token — required for gated models (pyannote/speaker-diarization-3.1,
 # FLUX.1-schnell…). Generate at https://huggingface.co/settings/tokens (read access), and

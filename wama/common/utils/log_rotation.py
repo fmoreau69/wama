@@ -59,6 +59,7 @@ RUNTIME_LOGS = (
     "gateway-discord.log",  # passerelle de canaux (start_wama_prod.sh, §19)
     "gunicorn-access.log",
     "gunicorn-error.log",
+    "mcp.log",            # serveur MCP des outils tool_api (start_wama_prod.sh, §8d)
     "mcp-dev.log",        # serveur MCP des outils de dév. (start_wama_prod.sh, §8d)
     "model-sync.log",
     "tts-service.log",

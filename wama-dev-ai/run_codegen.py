@@ -668,6 +668,9 @@ def main():
 
     model = resolve_model(args.provider, 'codegen', args.model)
     print(f'[codegen] {args.provider} / {model} | app : {args.app} | glu : {nom_impose}')
+    # La garde GPU COMMUNE des rôles (2026-10-13) ; elle vaut pour l'appel ET pour les réparations.
+    keep_alive = local_llm_guard(args.provider, model, force=args.force, wait_max=args.wait_max,
+                                 log=lambda m: print(f'[codegen] {m}'))
     def judge(code: str) -> dict:
         verif = controles(code, nom_impose, args.app,
                           item_fields=[c.split(' (')[0] for c in champs],
@@ -690,7 +693,8 @@ def main():
         return verif
 
     response = call_llm(args.provider, model, PROMPT, user_msg, num_ctx=CODEGEN_NUM_CTX,
-                       temperature=CODEGEN_TEMPERATURE, timeout=CODEGEN_TIMEOUT)
+                       temperature=CODEGEN_TEMPERATURE, timeout=CODEGEN_TIMEOUT,
+                       keep_alive=keep_alive)
     code = extract_code(response)
     verif = judge(code)
     # Tour de RÉPARATION (2026-10-05) : les contrôles mécaniques relevaient un défaut que le
@@ -711,7 +715,8 @@ def main():
                   f"(bloc ```python seul).")
         repair_msg = user_msg[:max(0, MAX_MATTER_CHARS - len(tail))] + tail
         response = call_llm(args.provider, model, PROMPT, repair_msg, num_ctx=CODEGEN_NUM_CTX,
-                           temperature=CODEGEN_TEMPERATURE, timeout=CODEGEN_TIMEOUT)
+                           temperature=CODEGEN_TEMPERATURE, timeout=CODEGEN_TIMEOUT,
+                           keep_alive=keep_alive)
         code = extract_code(response)
         verif = judge(code)
 

@@ -35,6 +35,7 @@ import asyncio
 import io
 import logging
 import os
+import time
 from pathlib import Path
 
 from django.conf import settings
@@ -88,17 +89,44 @@ def build_client():
     client = discord.Client(intents=intents)
     salons_autorises = _allowed_channels()
     relays = []
+    #: Dernier message TRAITÉ par salon (id Discord) — le point de reprise du rattrapage.
+    last_seen: dict = {}
+
+    health = {'tick': time.monotonic(), 'disconnected_since': None}
 
     @client.event
     async def on_ready():
         logger.info("[gateway/discord] connecté comme %s (%s salon(s) autorisé(s))",
                     client.user, len(salons_autorises) or 'tous')
+        health['disconnected_since'] = None
         # ⚠ `on_ready` revient à CHAQUE reconnexion : une seule relève, jamais deux en parallèle.
         if not relays:
             relays.append(asyncio.create_task(_relay_job_follow_ups(client)))
+            relays.append(asyncio.create_task(_loop_heartbeat(health)))
+            _start_watchdog(health)
+        elif last_seen:
+            # NOUVELLE SESSION après une coupure (une simple reprise passe par `on_resumed`) :
+            # Discord ne rejoue PAS ce qui a été écrit pendant la coupure. Mesuré le 2026-10-12
+            # (fil #43) : deux sessions renouvelées, 14:58 et 15:16, et deux messages de Fabien
+            # (14:54, 15:09) restés sans réponse ni trace — « tu disparais quand tu lances des
+            # tâches ». On relit l'historique des salons actifs et on traite ce qui manque.
+            logger.warning("[gateway/discord] session RENOUVELÉE après coupure — rattrapage "
+                           "de %d salon(s)", len(last_seen))
+            asyncio.create_task(_catch_up(client, last_seen, on_message))
 
     @client.event
-    async def on_message(message):
+    async def on_disconnect():
+        logger.warning("[gateway/discord] connexion à Discord perdue")
+        if health['disconnected_since'] is None:
+            health['disconnected_since'] = time.monotonic()
+
+    @client.event
+    async def on_resumed():
+        logger.info("[gateway/discord] session reprise (Discord rejoue les messages manqués)")
+        health['disconnected_since'] = None
+
+    @client.event
+    async def on_message(message, missed: bool = False):
         if message.author.bot:                       # soi-même et les autres bots
             return
 
@@ -117,6 +145,16 @@ def build_client():
         if salons_autorises and not prive and not dedie:
             logger.debug("[gateway/discord] salon %s non autorisé", message.channel.id)
             return
+
+        # Point de reprise du rattrapage — seulement pour un message que le bot SERT.
+        if last_seen.get(message.channel.id, 0) >= message.id:
+            return                                   # déjà traité (rattrapage ∩ reprise)
+        last_seen[message.channel.id] = message.id
+        if missed:
+            # Le DIRE : l'utilisateur a vu le bot absent, la réponse arrive en retard.
+            await message.channel.send(
+                f"↩️ Message de {message.created_at.astimezone():%H:%M} reçu pendant une coupure "
+                f"de ma connexion à Discord — je le traite maintenant.")
 
         text = message.content or ''
         if mentionne:                                # retirer la mention du texte utile
@@ -143,6 +181,110 @@ def build_client():
         await _reply_to_message(message, reponse)
 
     return client
+
+
+# ── Le CHIEN DE GARDE de la passerelle (2026-10-12, fil #43) ─────────────────────────────────
+# Deux sessions Discord renouvelées en vingt minutes, deux messages perdus, et aucune ligne pour
+# dire pourquoi. Un fil SÉPARÉ de la boucle d'événements la surveille : si elle cesse de battre,
+# il écrit la pile de TOUS les fils dans le journal — la cause, enfin lisible — puis relance le
+# process si elle ne repart pas ; et il relance aussi une passerelle restée déconnectée.
+
+#: Battement de la boucle d'événements (s).
+HEARTBEAT_S = 5
+#: Sans battement depuis tant de secondes, la boucle est GELÉE : pile des fils au journal.
+LOOP_FROZEN_S = 60
+#: Gelée depuis tant de secondes : le process se relance lui-même.
+RESTART_FROZEN_S = 300
+#: Déconnectée de Discord depuis tant de secondes : relance aussi (la bibliothèque n'y arrive plus).
+RESTART_DISCONNECTED_S = 600
+
+
+def watchdog_verdict(now: float, last_tick: float, disconnected_since) -> str:
+    """`'ok'`, `'frozen'` (boucle sans battement) ou `'restart'`."""
+    if now - last_tick > RESTART_FROZEN_S:
+        return 'restart'
+    if disconnected_since is not None and now - disconnected_since > RESTART_DISCONNECTED_S:
+        return 'restart'
+    if now - last_tick > LOOP_FROZEN_S:
+        return 'frozen'
+    return 'ok'
+
+
+async def _loop_heartbeat(health: dict):
+    while True:
+        health['tick'] = time.monotonic()
+        await asyncio.sleep(HEARTBEAT_S)
+
+
+def _dump_threads(reason: str):
+    """La pile de TOUS les fils dans le journal de la passerelle (sa sortie d'erreur)."""
+    import faulthandler
+    import sys
+
+    logger.error("[gateway/discord] %s — pile des fils dans gateway-discord.log", reason)
+    try:
+        sys.stderr.write(f"\n===== {reason} =====\n")
+        sys.stderr.flush()
+        faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+    except Exception:
+        logger.exception("[gateway/discord] pile des fils impossible")
+
+
+def _start_watchdog(health: dict):
+    import sys
+    import threading
+
+    def watch():
+        dumped = False
+        while True:
+            time.sleep(HEARTBEAT_S * 3)
+            verdict = watchdog_verdict(time.monotonic(), health['tick'],
+                                       health['disconnected_since'])
+            if verdict == 'ok':
+                dumped = False
+            elif verdict == 'frozen' and not dumped:
+                _dump_threads(f"boucle d'événements GELÉE depuis plus de {LOOP_FROZEN_S} s")
+                dumped = True
+            elif verdict == 'restart':
+                _dump_threads("passerelle relancée par son chien de garde")
+                # Même process (pid, journaux redirigés), code et connexion neufs.
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+
+    threading.Thread(target=watch, name='gateway-watchdog', daemon=True).start()
+
+
+#: Au-delà de cet âge, un message manqué n'est plus rattrapé : y répondre des heures plus tard
+#: surprendrait plus qu'il n'aiderait. Et un plafond de messages par salon.
+CATCH_UP_MAX_AGE_S = 3600
+CATCH_UP_MAX_MESSAGES = 20
+
+
+async def _catch_up(client, last_seen: dict, handle) -> int:
+    """Traite, dans l'ordre, les messages écrits pendant une coupure dans les salons ACTIFS
+    (ceux où le bot a déjà répondu dans ce process). `handle(message, missed=True)` est le
+    `on_message` du client : mêmes filtres, même tour — rien n'est dupliqué. Rend le nombre de
+    messages repris. Une erreur de lecture d'un salon n'arrête pas les autres."""
+    from datetime import datetime, timedelta, timezone
+
+    import discord
+
+    oldest = datetime.now(timezone.utc) - timedelta(seconds=CATCH_UP_MAX_AGE_S)
+    count = 0
+    for channel_id, last_id in list(last_seen.items()):
+        try:
+            channel = client.get_channel(channel_id) or await client.fetch_channel(channel_id)
+            async for message in channel.history(after=discord.Object(id=last_id),
+                                                 oldest_first=True,
+                                                 limit=CATCH_UP_MAX_MESSAGES):
+                if message.author.bot or message.created_at < oldest:
+                    continue
+                await handle(message, missed=True)
+                count += 1
+        except Exception:
+            logger.exception("[gateway/discord] rattrapage impossible pour le salon %s", channel_id)
+    if count:
+        logger.warning("[gateway/discord] %d message(s) manqué(s) rattrapé(s)", count)
+    return count
 
 
 async def _recuperer_pieces_jointes(message) -> list:

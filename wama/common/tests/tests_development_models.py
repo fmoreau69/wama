@@ -191,7 +191,142 @@ class DevelopmentRoleModelTest(TestCase):
         fallback.assert_called_once_with('codegen')
 
 
-class AssistantDevelopmentBridleTest(TestCase):
+class RoleModelDrawnForTheAccountTest(TestCase):
+    """Le modèle d'un rôle lancé par la surface de développement est TIRÉ pour le compte qui le
+    lance (2026-10-13), puis passé au rôle — qui ne retire pas.
+
+    Défaut corrigé : le rôle, process détaché, tirait SANS compte (`development_model(None)`) —
+    local seulement, profil cloud et clés de l'utilisateur ignorés —, et `provider=albert` prenait
+    le modèle par défaut du fournisseur, hors niveau développement. Ces gardes tiennent : le tirage
+    est celui du niveau dev pour CE compte ; le rôle reçoit le modèle résolu ; le compte le suit
+    dans son process ; un choix sous le niveau est remplacé ET le résultat le dit."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        self.user = get_user_model().objects.create_user('role_draw', password='x')
+        self.user.groups.add(Group.objects.get_or_create(name='dev')[0])
+        self.small = _model('ollama:small:4b', coding=22.6, vram=3.4)
+        self.big = _model('ollama:big:8b', coding=58.2, vram=17.0)
+        vram = mock.patch('wama.model_manager.services.model_selector.get_free_vram_gb',
+                          return_value=24.0)
+        vram.start()
+        self.addCleanup(vram.stop)
+
+    def _launch(self, **kw):
+        from wama.common.services import dev_tools
+        with mock.patch.object(dev_tools, 'start_job',
+                               return_value={'job_id': 'J', 'status': 'running'}) as start:
+            job = dev_tools.dev_run_role(self.user, 'librarian', {'dist': 'requests'}, **kw)
+        return job, start
+
+    def _open_albert(self):
+        from wama.accounts.models import UserApiKey
+        _model('albert:gpt-oss-120b', execution='cloud', source='albert', downloaded=False, vram=0)
+        self.user.profile.cloud_policy = 'cloud_when_saturated'
+        self.user.profile.save()
+        with mock.patch('wama.common.utils.secret_crypto.storage_available', return_value=True):
+            UserApiKey.objects.create(user=self.user, source='albert', api_key='k',
+                                      open_models=['albert:gpt-oss-120b'])
+
+    def test_the_role_receives_the_model_drawn_for_the_account_and_the_account_follows(self):
+        from wama.common.services.development_models import ROLE_USER_ENV
+        job, start = self._launch()
+        argv = start.call_args.args[2]
+        self.assertEqual(['--provider', 'ollama', '--model', 'big:8b'], argv[-4:])
+        self.assertEqual(str(self.user.pk), start.call_args.kwargs['env'][ROLE_USER_ENV])
+        self.assertEqual('ollama:big:8b', job['model'])
+        self.assertNotIn('model_note', job)
+
+    def test_a_choice_below_the_level_is_replaced_and_said(self):
+        job, start = self._launch(model='small:4b')
+        self.assertEqual(['--model', 'big:8b'], start.call_args.args[2][-2:])
+        self.assertIn('ollama:small:4b', job['model_note'])
+        self.assertIn('ollama:big:8b', job['model_note'])
+
+    def test_a_named_provider_bounds_the_draw_and_its_key_serves(self):
+        self._open_albert()
+        job, start = self._launch(provider='albert')
+        self.assertEqual(['--provider', 'albert', '--model', 'gpt-oss-120b'],
+                         start.call_args.args[2][-4:])
+        self.assertEqual('albert:gpt-oss-120b', job['model'])
+
+    def test_a_provider_without_a_development_model_is_refused_before_any_launch(self):
+        """Contre-épreuve : Albert non ouvert pour ce compte → refus DIT, aucune tâche lancée.
+        Avant, le rôle partait sur le modèle par défaut d'Albert avec la clé de l'instance."""
+        from wama.common.services import dev_tools
+        with mock.patch.object(dev_tools, 'start_job') as start:
+            result = dev_tools.call(self.user, 'dev_run_role',
+                                    {'role': 'librarian', 'args': {'dist': 'requests'},
+                                     'provider': 'albert'})
+        start.assert_not_called()
+        self.assertIn('« albert »', result['error'])
+
+    def test_a_refused_argument_is_said_before_any_draw(self):
+        from wama.common.services import dev_tools
+        with mock.patch.object(dev_tools, 'role_model') as draw:
+            result = dev_tools.call(self.user, 'dev_run_role',
+                                    {'role': 'librarian', 'args': {'dist': '--evil'}})
+        draw.assert_not_called()
+        self.assertIn('refusée', result['error'])
+
+    def test_the_source_bound_keeps_only_that_provider(self):
+        self._open_albert()
+        self.assertEqual({'ollama:big:8b', 'albert:gpt-oss-120b'},
+                         set(dm.development_candidates(self.user)))
+        self.assertEqual(['albert:gpt-oss-120b'], dm.development_candidates(self.user, 'albert'))
+        self.assertEqual(['ollama:big:8b'], dm.development_candidates(self.user, 'ollama'))
+
+    def test_the_role_process_finds_its_account_and_only_an_active_one(self):
+        from wama.common.services.development_models import ROLE_USER_ENV, role_user
+        with mock.patch.dict('os.environ', {ROLE_USER_ENV: str(self.user.pk)}):
+            self.assertEqual(self.user, role_user())
+            self.user.is_active = False
+            self.user.save()
+            self.assertIsNone(role_user())
+        with mock.patch.dict('os.environ', {ROLE_USER_ENV: 'nobody'}):
+            self.assertIsNone(role_user())
+        with mock.patch.dict('os.environ', {}, clear=True):
+            self.assertIsNone(role_user())
+
+    def test_the_role_cloud_call_carries_the_account(self):
+        """Le compte arrive jusqu'à l'appel : SA clé et la garde cloud commune servent
+        (`chat_with_source`), plus la clé de l'instance."""
+        from wama.common.services.development_models import ROLE_USER_ENV
+        role_utils = DevelopmentRoleModelTest._role_utils()
+        with mock.patch.dict('os.environ', {ROLE_USER_ENV: str(self.user.pk)}), \
+             mock.patch('wama.common.utils.llm_utils.chat_with_source',
+                        return_value=('OK', None)) as chat:
+            self.assertEqual('OK', role_utils.call_llm('albert', 'gpt-oss-120b', 's', 'm'))
+        self.assertEqual(('albert', 'gpt-oss-120b'), chat.call_args.args[:2])
+        self.assertEqual(self.user, chat.call_args.kwargs['user'])
+
+    def test_a_refusal_of_the_cloud_guard_stops_the_role_with_its_reason(self):
+        from wama.model_manager.services.cloud_models import CloudAccessRefused
+        role_utils = DevelopmentRoleModelTest._role_utils()
+        with mock.patch('wama.common.utils.llm_utils.chat_with_source',
+                        side_effect=CloudAccessRefused('profil « 100 % local »')):
+            with self.assertRaises(RuntimeError) as raised:
+                role_utils.call_llm('albert', 'gpt-oss-120b', 's', 'm')
+        self.assertIn('100 % local', str(raised.exception))
+
+    def test_a_local_role_launched_by_hand_with_an_account_stays_local(self):
+        """Le lot du compte contient un distant souverain ; un rôle `--provider ollama` ne doit
+        jamais le recevoir (un appel Ollama ne sait pas le servir)."""
+        from wama.common.services.development_models import ROLE_USER_ENV
+        self._open_albert()
+        self.big.delete()
+        role_utils = DevelopmentRoleModelTest._role_utils()
+        with mock.patch.dict('os.environ', {ROLE_USER_ENV: str(self.user.pk)}):
+            with self.assertRaises(RuntimeError):
+                role_utils.resolve_model('ollama', 'codegen')
+
+
+class AssistantDevelopmentBridleLiftedTest(TestCase):
+    """Le BRIDAGE de la conversation en domaine dev (22/09) est LEVÉ le 2026-10-12 — décision de
+    Fabien, une fois Albert et ILaaS disponibles. Mesuré sur le fil Discord #43 : un seul
+    `dev_run_role` faisait passer la conversation d'Albert au modèle local de niveau dev,
+    réflexion imposée (2 min 49, puis un délai dépassé). Ces tests gardaient le bridage ; ils
+    gardent désormais son ABSENCE. Le niveau dev reste exigé des RÔLES (`DevelopmentRoleModelTest`)."""
 
     def setUp(self):
         self.user = get_user_model().objects.create_user('dev_bridle', password='x')
@@ -207,13 +342,13 @@ class AssistantDevelopmentBridleTest(TestCase):
             result = assistant_engine.run_assistant_turn(self.user, 'améliore le reader', **kw)
         return result, call
 
-    def test_the_dev_domain_takes_the_development_model_with_reflection_and_says_so(self):
+    def test_the_dev_domain_keeps_the_users_model_and_slider(self):
         from wama.common.utils.user_settings import save_user_app_settings
         save_user_app_settings(self.user, 'assistant', {'model': 'ollama:small:4b', 'quality_intent': 15})
         result, call = self._turn(lambda *a, **k: ('ok', USAGE), domain='dev')
-        self.assertEqual('big:8b', call.call_args.args[1])
-        self.assertIs(True, call.call_args.kwargs['think'])
-        self.assertTrue(result['model'].endswith('· dev'), result['model'])
+        self.assertEqual('small:4b', call.call_args.args[1])
+        self.assertIs(False, call.call_args.kwargs['think'])
+        self.assertNotIn('· dev', result['model'])
 
     def test_a_general_turn_is_not_bridled(self):
         from wama.common.utils.user_settings import save_user_app_settings
@@ -223,7 +358,7 @@ class AssistantDevelopmentBridleTest(TestCase):
         self.assertIs(False, call.call_args.kwargs['think'])
         self.assertNotIn('· dev', result['model'])
 
-    def test_loading_the_dev_competence_switches_the_rest_of_the_turn(self):
+    def test_loading_the_dev_competence_no_longer_switches_the_turn(self):
         from wama.common.utils.user_settings import save_user_app_settings
         save_user_app_settings(self.user, 'assistant', {'model': 'ollama:small:4b'})
 
@@ -234,9 +369,8 @@ class AssistantDevelopmentBridleTest(TestCase):
         result, call = self._turn(llm)
         first, second = call.call_args_list
         self.assertEqual('small:4b', first.args[1])
-        self.assertEqual('big:8b', second.args[1])
-        self.assertIs(True, second.kwargs['think'])
-        self.assertTrue(result['model'].endswith('· dev'))
+        self.assertEqual('small:4b', second.args[1])
+        self.assertNotIn('· dev', result['model'])
 
     def test_the_thread_remembers_the_dev_domain_for_the_next_turn(self):
         from wama.common.services import conversation_store
@@ -261,9 +395,10 @@ class AssistantDevelopmentBridleTest(TestCase):
             assistant_engine.conversation_turn(self.user, 'et ensuite', surface='api')
         self.assertIsNone(engine.call_args.kwargs['domain'])
 
-    def test_without_a_development_model_the_dev_turn_is_refused_legibly(self):
+    def test_without_a_development_model_the_dev_turn_is_still_answered(self):
+        """Le refus « aucun modèle de niveau dev » ne vaut plus pour la CONVERSATION : un
+        administrateur 100 % local qui pose une question de code obtient une réponse."""
         self.big.delete()
         result, call = self._turn(lambda *a, **k: ('ok', USAGE), domain='dev')
-        call.assert_not_called()
-        self.assertEqual(503, result['status'])
-        self.assertIn('niveau développement', result['error'])
+        call.assert_called_once()
+        self.assertNotIn('error', result)

@@ -106,22 +106,24 @@ class OllamaStreamTest(SimpleTestCase):
         self.assertEqual('Bonjour', text)
         self.assertEqual({'input_tokens': 12, 'output_tokens': 3}, usage)
 
-    def test_without_a_callback_no_stream_is_asked_of_ollama(self):
-        """Contre-épreuve : c'est ce qui garantit que l'API et la passerelle ne changent pas."""
+    def test_without_a_callback_the_stream_is_still_asked_and_the_whole_text_returned(self):
+        """Sans flux, le délai de 180 s du client plafonnait la génération ENTIÈRE : la passerelle
+        Discord mourait à 3 min pile sur un tour local avec réflexion (fil #43, 2026-10-12), pendant
+        que le web, en flux, n'était coupé que par 180 s de silence. Cette garde disait l'inverse
+        jusqu'à ce jour (« aucune raison de payer un flux qu'on n'affiche pas »)."""
         sent = {}
+        lines = [json.dumps({'message': {'content': 'o'}}),
+                 json.dumps({'message': {'content': 'k'}, 'done': True})]
+        stream_client = self._fake_stream(lines)
 
-        class FakeClient:
-            def __init__(self, *a, **k): pass
-            def __enter__(self): return self
-            def __exit__(self, *a): return False
-
-            def post(self, url, json=None):
+        class RecordingClient(stream_client):
+            def stream(self, method, url, json=None, **k):
                 sent.update(json or {})
-                return mock.Mock(status_code=200,
-                                 json=lambda: {'message': {'content': 'ok'}})
-        with mock.patch('httpx.Client', FakeClient):
-            assistant_engine._ollama_call([{'role': 'user', 'content': 'x'}], 'm')
-        self.assertIs(False, sent['stream'])
+                return super().stream(method, url, json=json, **k)
+        with mock.patch('httpx.Client', RecordingClient):
+            text, _ = assistant_engine._ollama_call([{'role': 'user', 'content': 'x'}], 'm')
+        self.assertIs(True, sent['stream'])
+        self.assertEqual('ok', text)
 
 
 class CloudStreamTest(SimpleTestCase):

@@ -229,14 +229,43 @@ def _handle(msg: IncomingMessage) -> Reply:
     resultat = conversation_turn(user, invite, surface=msg.channel,
                                     thread_key=_thread_key(msg))
 
+    footer = engine_footer(resultat)
     if 'error' in resultat:
-        return Reply(text=f"⚠ {resultat['error']}")
+        return Reply(text=f"⚠ {resultat['error']}{footer}")
 
     # Les fichiers PRODUITS pendant le tour repartent avec la réponse : sans ça, le code
     # d'envoi des adaptateurs est mort et l'utilisateur reçoit un lien `/media/…` protégé
     # par session, inutilisable hors WAMA (défaut mesuré 2026-08-29, WAMA_LLM §Vérification).
-    return _reply_with_outputs(resultat.get('response') or '(réponse vide)',
+    return _reply_with_outputs((resultat.get('response') or '(réponse vide)') + footer,
                                resultat.get('tool_steps'))
+
+
+def _duration(seconds: float) -> str:
+    seconds = int(round(seconds or 0))
+    return f"{seconds // 60} min {seconds % 60:02d} s" if seconds >= 60 else f"{seconds} s"
+
+
+def engine_footer(resultat: dict) -> str:
+    """La ligne discrète sous chaque réponse : QUEL modèle a répondu, où, et en combien de temps.
+
+    Demande de Fabien (2026-10-12, fil #43) : « depuis Discord, je ne sais pas si c'est un modèle
+    distant (Albert, ILaaS…) ou local ». Le web a son sélecteur ; un canal n'a rien. Or c'est ce
+    qui expliquait la latence : le même fil était passé d'Albert (quelques secondes) au modèle local
+    de niveau dev, réflexion imposée (2 min 49 au premier appel) — sans que rien ne le montre.
+    Forme `-# …` : le sous-texte de Discord ; un autre canal l'affiche comme une ligne ordinaire.
+    """
+    engine = resultat.get('engine') or {}
+    if engine:
+        where = '🖥️ local' if engine.get('local') else f"☁️ {engine.get('provider') or 'distant'}"
+        parts = [where] + ([engine['model']] if engine.get('model') else [])
+    elif resultat.get('model'):
+        parts = [str(resultat['model'])]
+    else:
+        return ''
+    total = (resultat.get('timing') or {}).get('total')
+    if total:
+        parts.append(_duration(total))
+    return '\n-# ' + ' · '.join(parts)
 
 
 def _reply_with_outputs(body: str, tool_steps) -> Reply:
@@ -481,6 +510,9 @@ def _follow_up(note, channel: str):
     external_id = linked_identity(user, channel)
     if not external_id:
         return None
+    from wama.common.utils.notifications import DEV_JOB_APP
+    if note.app == DEV_JOB_APP:
+        return _dev_job_follow_up(note, channel, user, external_id)
     conversation = _origin_conversation(note, channel)
     if conversation is None:
         return None
@@ -500,6 +532,39 @@ def _follow_up(note, channel: str):
     return FollowUp(channel=channel, thread=conversation.thread_key, external_id=external_id,
                     reply=reply, conversation_id=conversation.pk, notice=note.title,
                     step={'tool': status_tool, 'args': {}, 'result': result})
+
+
+def _dev_job_follow_up(note, channel: str, user, external_id: str):
+    """La fin d'une tâche de DÉVELOPPEMENT (rôle wama-dev-ai, jumelle, Claude Code), postée dans le
+    fil qui l'a lancée (2026-10-12, fil #43 : l'assistant suivait la tâche dans son tour et ne
+    répondait plus à rien pendant six minutes). Le fil d'origine est celui dont une étape `dev_*` a
+    rendu ce `job_id` ; l'étape enregistrée est un `dev_job_status` RÉELLEMENT joué, par le relais
+    MCP — la passerelle n'importe jamais `dev_tools` (§16)."""
+    from wama.common.models import ConversationTurn
+    from wama.common.services import mcp_client
+
+    turns = (ConversationTurn.objects
+             .filter(conversation__user_id=note.recipient_id, conversation__surface=channel,
+                     role='assistant', created_at__lte=note.created_at)
+             .exclude(tool_steps=[])
+             .select_related('conversation')
+             .order_by('-created_at', '-pk')[:_ORIGIN_SCAN_TURNS])
+    conversation = next(
+        (turn.conversation for turn in turns for step in (turn.tool_steps or [])
+         if isinstance(step, dict) and mcp_client.is_dev_tool(str(step.get('tool') or ''))
+         and isinstance(step.get('result'), dict)
+         and step['result'].get('job_id') == note.object_id), None)
+    if conversation is None:
+        return None
+    args = {'job_id': note.object_id}
+    result = mcp_client.call_dev_tool(user, 'dev_job_status', args)
+    lines = [f"{'✅' if note.kind == 'job_done' else '⚠'} {note.title}"]
+    if note.body:
+        lines.append(note.body)
+    return FollowUp(channel=channel, thread=conversation.thread_key, external_id=external_id,
+                    reply=Reply(text='\n'.join(lines)), conversation_id=conversation.pk,
+                    notice=note.title,
+                    step={'tool': 'dev_job_status', 'args': args, 'result': result})
 
 
 def _declared_outputs(note) -> list:

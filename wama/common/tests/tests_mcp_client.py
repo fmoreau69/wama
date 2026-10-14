@@ -105,10 +105,10 @@ class DevToolsThroughTheAssistantTest(TestCase):
         gate.assert_not_called()
         step, = result['tool_steps']
         self.assertEqual(('dev_sandbox', 'j-1'), (step['tool'], step['result']['job_id']))
-        # Un outil de dev fait entrer le tour dans le travail sur le code ; sans modèle de niveau
-        # développement au catalogue (cas de ce test), le résultat porte la raison — jamais un
-        # repli silencieux (`development_models`).
-        self.assertIn('niveau développement', step['result']['warning'])
+        # Un outil de dev ne fait plus BASCULER le tour vers un modèle de niveau dev (bridage
+        # levé le 2026-10-12) : aucun avertissement n'est greffé au résultat, le tour continue
+        # sur son modèle.
+        self.assertNotIn('warning', step['result'])
         self.assertEqual('fait', result['response'])
 
     def test_a_dev_tool_name_nobody_announced_goes_to_the_gate_which_rejects_it(self):
