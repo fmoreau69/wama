@@ -23,7 +23,8 @@ from unittest import mock
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase, override_settings
 
-from wama.common.models import JOB_FAILURE, JOB_PENDING, JOB_RUNNING, JOB_STALE, JOB_SUCCESS
+from wama.common.models import (JOB_FAILURE, JOB_PENDING, JOB_RUNNING, JOB_STALE, JOB_SUCCESS,
+                                ProcessRun)
 from wama.common.services import process_runs
 from wama.common.services.process_pipeline import (APP_PIPELINES, UPSTREAM_KEY, AppPipeline,
                                                    ProcessSpec, register_app_pipeline)
@@ -654,6 +655,32 @@ class SkeletonRunsThePipelineTest(TestCase):
         self.model.objects.filter(pk=item.pk).update(status='RUNNING')
         self._run(item, render=render)
         self.assertEqual(seen[0][0], seen[1][1], 'the photo of its last render, not the new one')
+
+    def test_a_handed_over_launch_still_sees_the_photo_of_its_last_render(self):
+        """The Writer's « Appliquer » on the live (2026-10-14) : the launch plans its lines on the
+        default queue, then is handed over to the GPU queue under the SAME task id ; the second
+        delivery read the lines after that plan, found no render, and the layout redid it all."""
+        seen = []
+
+        def render(element, ctx):
+            seen.append(ctx.previous_snapshot)
+            return {}
+        item = self._run(self._element('pipeline_handed_over'), render=render)
+        rendered = dict(process_runs.line(item, 'render').settings_snapshot)
+        task_id = _task().request.id
+        process_runs.plan(item, [('render', 'render', 'function')], task_id=task_id)
+        process_runs.plan(item, [('render', 'render', 'function')], task_id=task_id)
+        self.model.objects.filter(pk=item.pk).update(status='RUNNING')
+        self._run(item, render=render)
+        self.assertEqual(rendered, seen[-1], 'the second delivery lost the last render')
+        # Not a render : a line another launch announced, or one planned over a failure.
+        line = process_runs.line(item, 'render')
+        self.assertTrue(process_runs.rendered_before(line, task_id))
+        process_runs.plan(item, [('render', 'render', 'function')], task_id='another-task')
+        self.assertFalse(process_runs.rendered_before(process_runs.line(item, 'render'), task_id))
+        ProcessRun.objects.filter(pk=line.pk).update(status=JOB_FAILURE)
+        process_runs.plan(item, [('render', 'render', 'function')], task_id=task_id)
+        self.assertFalse(process_runs.rendered_before(process_runs.line(item, 'render'), task_id))
 
     def test_a_failure_closes_the_line_of_the_process_that_failed_only(self):
         def broken(element, ctx):

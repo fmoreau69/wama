@@ -115,16 +115,42 @@ def plan(item, steps, *, task_id: str = '') -> int:
     taille, sortie, photo) est GARDÉ : `start` en relit la durée, la péremption la sortie. Seule
     l'erreur d'un échec passé est effacée — il ne décrit plus le lancement. Une ligne `PENDING`
     n'est pas « ouverte » (`OPEN_STATES`) : un arrêt la laisse telle quelle, « pas encore
-    lancée ». Rend le nombre de lignes écrites."""
+    lancée ». Rend le nombre de lignes écrites.
+
+    Le statut REMPLACÉ est gardé (`output_summary[PLANNED_FROM_KEY]`) : la photo de la ligne
+    vient-elle d'un rendu ou d'un échec ? Une re-livraison (process suivant sur une autre file)
+    relit les lignes APRÈS ce plan ; sans lui, la glu de mise en forme du Writer ne retrouvait
+    jamais son dernier rendu et refaisait tout (mesuré sur le live le 2026-10-14). Une ligne déjà
+    `PENDING` n'a rien rendu depuis : ce qu'elle disait est gardé tel quel."""
     written = 0
     for node_id, process_key, kind in steps:
         defaults = {'status': JOB_PENDING, 'task_id': task_id or '', 'error_message': ''}
-        if line(item, node_id) is None:
+        row = line(item, node_id)
+        if row is None:
             defaults.update({'process_key': process_key or item._meta.app_label,
                              'process_kind': kind})
+        elif row.status != JOB_PENDING:
+            defaults['output_summary'] = {**(row.output_summary or {}), PLANNED_FROM_KEY: row.status}
         _write(item, node_id, '', defaults)
         written += 1
     return written
+
+
+#: Clé de `output_summary` où `plan` garde le statut qu'il a remplacé.
+PLANNED_FROM_KEY = 'planned_from'
+
+
+def rendered_before(row, task_id: str = '') -> bool:
+    """La photo de réglages de `row` est-elle celle d'un RENDU (un succès, ou un succès devenu
+    périmé) ? Vrai aussi pour une ligne que CE lancement (`task_id`) a annoncée par `plan` alors
+    qu'elle portait un rendu : Celery garde l'identifiant de la tâche à travers ses re-livraisons
+    (même lecture que `task_skeleton._launch_done`)."""
+    if row is None:
+        return False
+    if row.status in (JOB_SUCCESS, JOB_STALE):
+        return True
+    return bool(task_id and row.status == JOB_PENDING and row.task_id == task_id
+                and (row.output_summary or {}).get(PLANNED_FROM_KEY) in (JOB_SUCCESS, JOB_STALE))
 
 
 def start(item, node_id: str = MAIN_NODE, *, process_key: str = '', kind: str = 'app',

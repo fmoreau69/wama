@@ -628,7 +628,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
     # ⚠ Corrigé le 2026-09-14 : un commentaire disait « avant `ctx.progress(0)` qui bascule
     # l'item en RUNNING » — faux, `TaskContext.progress` n'écrit que le cache et `progress`.
     # RUNNING est posé par les VUES de lancement, avant `.delay()`.
-    from wama.common.models import JOB_AWAITING_RESOURCES, JOB_RUNNING, JOB_STALE, JOB_SUCCESS
+    from wama.common.models import JOB_AWAITING_RESOURCES, JOB_RUNNING
     essais = int(getattr(getattr(task, 'request', None), 'retries', 0) or 0)
     if essais and getattr(item, 'status', None) not in (JOB_AWAITING_RESOURCES, JOB_RUNNING):
         # RE-LIVRAISON (`task.retry` : attente de VRAM, ou process suivant sur une autre file)
@@ -701,9 +701,12 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                                     only=only)
             # Ce que chaque process avait RENDU, lu AVANT que le plan ne repasse ses lignes en
             # attente : la photo de son dernier succès (ou d'un succès devenu périmé), offerte à
-            # sa glu (`ctx.previous_snapshot`) pour qu'elle sache ce qui a changé depuis.
+            # sa glu (`ctx.previous_snapshot`) pour qu'elle sache ce qui a changé depuis. Après une
+            # re-livraison, le plan de la 1ʳᵉ livraison est déjà posé : `rendered_before` reconnaît
+            # les lignes que CE lancement a annoncées (2026-10-14, mesuré sur le live).
             prior = ({key: row for key, row in pipeline.rows(item).items()
-                      if row.status in (JOB_SUCCESS, JOB_STALE)} if pipeline is not None else {})
+                      if process_runs.rendered_before(row, task_ref)}
+                     if pipeline is not None else {})
             if pipeline is not None:
                 # Le PLAN du lancement sur les lignes (2026-10-05) : chaque process retenu passe
                 # `PENDING` (« son tour n'est pas venu ») et porte cette tâche. C'est ce qui dit,
