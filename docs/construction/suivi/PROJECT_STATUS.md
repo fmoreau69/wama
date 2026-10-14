@@ -23888,3 +23888,25 @@ max reste au grain de la card, (5) le cam_analyzer est hors squelette et sans go
 points 1 à 3 ont une même racine : la garde lit un drapeau STATIQUE, alors que le modèle d'un
 process (local ou distant, et lequel) n'est connu qu'au tirage. Domicile : `ROUTE §10.6` 4.5,
 bloc du 2026-10-14.
+
+## §CLÔTURE 2026-10-14 — backfill, enhancer sur `decorate_cards`, ▶ d'étape par l'assistant (`a53ef392`, `b04b78d9`, `13e1450b`) — non poussés
+
+- **Relance** : gunicorn et les cinq workers (+ beat) tournent depuis 15:07–15:08, après les trois
+  commits — le 🔴 des §CORRECTIF et §PALIER du jour est SOLDÉ. Base vivante : 0 ligne
+  `output_summary.adopted`, 546 `backfilled`.
+- **Tests remesurés (15:09)** — `tests_process_pipeline`, `tests_tool_api_start`,
+  `tests_process_views`, `wama.enhancer`, `tests_identifier_language` : 162 tests, 6 rouges.
+  Cinq sont la garde de langue (`test_no_budget_is_exceeded`, `test_budgets_stay_pinned_…` ×4 :
+  budgets dépassés par d'autres commits, aucun identifiant de ce chantier). Le sixième,
+  `EveryAppPipelineTest.test_the_exported_manifest_is_the_one_of_the_corpus (app='transcriber')`,
+  était PASSAGER : `transcriber/function_specs.py` modifié par une autre instance à 14:53, son
+  manifeste de pipeline régénéré à 15:03, pendant le run — rejoué : 5/5 OK.
+- **`check_redundancy`** : 110 trouvailles, aucune née de ce chantier (la seule dans un fichier
+  touché, `enhancer/views.py` l. 746, date du 26/09).
+- **Non gardé** : l'alignement de l'enhancer sur `decorate_cards` — aucun test ne dit qu'une page
+  de file lit ses lignes d'exécution en UNE requête ; mesuré à la main sur la base vivante
+  (1 requête par file, 1 bande par card, image/vidéo et audio). Une garde générique sur les dix
+  apps est à DÉCIDER (Fabien), pas posée d'office.
+- 🔚 **Pendings** : pousser (sur demande) · actions programmées sans étape (pas de besoin,
+  `ROUTE §10.6`) · garde de langue rouge (autres chantiers) · `manifest_export --out` ignore
+  `--kind` (piège d'outil, §PALIER du jour) · garde « une requête par file » à décider.
