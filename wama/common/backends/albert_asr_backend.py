@@ -96,10 +96,13 @@ class AlbertTranscriptionBackend(SpeechToTextBackend):
     def __init__(self):
         super().__init__()
         self._api_key = ''
+        self._scope = 'instance'
 
-    def authorize(self, api_key: str) -> None:
-        """Clé de l'appel suivant — posée par l'appelant APRÈS la garde commune."""
+    def authorize(self, api_key: str, scope: str = 'instance') -> None:
+        """Clé de l'appel suivant — posée par l'appelant APRÈS la garde commune — et sa PORTÉE
+        (`source_quota.saturation_scope`) : c'est pour elle que les appels se comptent."""
         self._api_key = api_key or ''
+        self._scope = scope or 'instance'
 
     def load(self, model_name: str = None) -> bool:
         """Rien à charger : retient seulement l'identifiant du modèle chez le fournisseur."""
@@ -151,7 +154,9 @@ class AlbertTranscriptionBackend(SpeechToTextBackend):
         `retries=0` : un appelant qui a un repli (la conversation vocale) ne veut pas attendre."""
         import requests
         from wama.common import external_sources
+        from wama.common.services import source_quota
         retries = self.RATE_LIMIT_RETRIES if retries is None else retries
+        model = data.get('model') or ''
         for attempt in range(retries + 1):
             with open(path, 'rb') as fh:
                 response = requests.post(
@@ -159,11 +164,21 @@ class AlbertTranscriptionBackend(SpeechToTextBackend):
                     headers={'Authorization': f'Bearer {self._api_key}'},
                     files={'file': (os.path.basename(path), fh, 'audio/wav')},
                     data=data, timeout=self.REQUEST_TIMEOUT_S)
-            if response.status_code == 429 and attempt < retries:
-                wait = response.headers.get('Retry-After') if response.headers else None
-                time.sleep(float(wait) if wait and str(wait).replace('.', '', 1).isdigit()
-                           else self.RATE_LIMIT_WAIT_S)
-                continue
+            asked = response.headers.get('Retry-After') if response.headers else None
+            # L'attente DEMANDÉE (0 compris), sinon celle mesurée chez Albert.
+            wait = (float(asked) if asked and str(asked).replace('.', '', 1).isdigit()
+                    else self.RATE_LIMIT_WAIT_S)
+            if response.status_code == 429:
+                # Le refus se note et s'apprend comme celui du chat (brique commune des services
+                # externes, `ROADMAP §8d` étapes 2-3) : la dictée et le tirage le voient.
+                source_quota.learn_from_refusal(self.ENGINE, self._scope, model, retry_after_s=wait)
+                source_quota.note_saturation(self.ENGINE, scope=self._scope, seconds=wait,
+                                             reason='limite de débit')
+                if attempt < retries:
+                    time.sleep(wait)
+                    continue
+            elif response.status_code == 200:
+                source_quota.record(self.ENGINE, self._scope, model)
             if response.status_code != 200:
                 try:
                     detail = response.json().get('detail') or response.text

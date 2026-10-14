@@ -529,9 +529,10 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
     C'est ici, à l'ADMISSION, que le coût s'arbitre — pas dans le score du sélecteur.
 
     SATURATION (2026-10-13, `ROADMAP §8d` étape 2) : au tirage automatique, une source qui vient
-    de refuser (limite de débit de la clé, panne) est écartée le temps de sa note
-    (`note_saturation`). Le choix MANUEL n'est pas concerné : il reste un consentement explicite,
-    et c'est l'appelant qui propose alors un relais.
+    de refuser (limite de débit de la clé, panne) est écartée le temps de sa note ; depuis le
+    14/10 (étape 3), un modèle dont le quota est atteint l'est aussi, AVANT le refus — les deux
+    vivent dans `common/services/source_quota.py`. Le choix MANUEL n'est pas concerné : il reste
+    un consentement explicite, et c'est l'appelant qui propose alors un relais.
     """
     if user is None or not getattr(user, 'is_authenticated', False):
         return set()
@@ -582,78 +583,21 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
                 keys.discard(key)
     if automatic and keys:
         # La portée d'une limite de débit est la CLÉ : la sienne s'il l'a posée, sinon l'instance.
-        busy = saturated_sources({s: (f'user:{user.pk}' if s in personal else 'instance')
-                                  for s in ouvertes})
+        # Écartés : une source notée saturée (refus récent, panne) ou un modèle dont le quota est
+        # atteint — compté par la brique commune des services externes (étape 3, 14/10).
+        from wama.common.services.source_quota import unavailable_keys
+        busy = unavailable_keys(keys, lambda s: f'user:{user.pk}' if s in personal else 'instance')
         if busy:
-            keys = {k for k in keys if k.split(':', 1)[0] not in busy}
-            # Dit dans les journaux : « pourquoi le tirage n'a-t-il pas pris ce fournisseur ? »
+            keys = {k for k in keys if k not in busy}
+            # Dit dans les journaux : « pourquoi le tirage n'a-t-il pas pris ce modèle ? »
             logger.info('[cloud] écartées du tirage de %s : %s', getattr(user, 'pk', None),
-                        ', '.join(f'{s} ({r})' for s, r in sorted(busy.items())))
+                        ', '.join(f'{k} ({r})' for k, r in sorted(busy.items())))
     return keys
 
 
-# ── Saturation d'un fournisseur (bascule sur panne, `ROADMAP §8d` étape 2, 2026-10-13) ──────────
-# Un fournisseur qui vient de refuser est NOTÉ quelques instants, et le tirage automatique l'écarte
-# pendant ce temps (`allowed_cloud_keys`) — pour TOUT appelant : assistant, apps, transcription
-# distante, rôles de développement. C'est l'admission qui lit la note, pas chacun d'eux.
-# Mesuré le 12/10 : sans note, un modèle `:free` d'OpenRouter en 429 coûtait 83,8 s à CHAQUE tour
-# (attente, nouvel essai sur le même fournisseur, puis l'erreur).
-# La note vit dans le cache partagé (Redis) : les workers web et Celery la voient tous.
-
-SATURATION_CACHE_PREFIX = 'wama:cloud_saturated:'
-#: Durée de la note d'une PANNE (5xx, connexion refusée, délai dépassé) : rien ne dit quand le
-#: fournisseur revient, on réessaie au bout de quelques minutes.
-OUTAGE_NOTE_S = 180.0
-SATURATION_NOTE_MAX_S = 3600.0
-#: Portée d'une panne : le fournisseur, pour toutes les clés.
-ALL_KEYS = 'all'
-
-
-def saturation_scope(user, source: str) -> str:
-    """Portée de la limite de débit de `source` pour `user` — elle tient à la CLÉ (Albert compte
-    par clé, OpenRouter aussi) : la sienne s'il l'a posée, sinon la clé d'instance (partagée, ou
-    seule en usage sans utilisateur). Même règle que `api_keys.key_for`."""
-    if user is not None and getattr(user, 'is_authenticated', False):
-        from wama.accounts.models import UserApiKey
-        if UserApiKey.objects.filter(user=user, source=source).exclude(api_key='').exists():
-            return f'user:{user.pk}'
-    return 'instance'
-
-
-def note_saturation(source: str, *, scope: str, seconds: float, reason: str) -> None:
-    """Note `source` saturée pour la portée `scope` (`saturation_scope`, ou `ALL_KEYS` pour une
-    panne) pendant `seconds`. Ne lève jamais : sans cache, la bascule perd sa mémoire, pas l'appel."""
-    from django.core.cache import cache
-    seconds = min(max(float(seconds or 0), 1.0), SATURATION_NOTE_MAX_S)
-    try:
-        cache.set(f'{SATURATION_CACHE_PREFIX}{source}:{scope}', reason or 'saturé', timeout=seconds)
-        logger.warning('[cloud] %s noté saturé (%s, portée %s) pour %.0f s',
-                       source, reason or 'saturé', scope, seconds)
-    except Exception:
-        logger.debug('[cloud] note de saturation non écrite (%s)', source, exc_info=True)
-
-
-def saturated_sources(scopes: dict) -> dict:
-    """{source: motif} des sources notées saturées — `scopes` : {source: portée de la clé}. Une
-    panne notée pour toutes les clés vaut quelle que soit la portée. Cache injoignable : rien."""
-    from django.core.cache import cache
-    names = {}
-    for source, scope in scopes.items():
-        names[f'{SATURATION_CACHE_PREFIX}{source}:{scope}'] = source
-        names[f'{SATURATION_CACHE_PREFIX}{source}:{ALL_KEYS}'] = source
-    if not names:
-        return {}
-    try:
-        found = cache.get_many(list(names))
-    except Exception:
-        logger.debug('[cloud] notes de saturation illisibles', exc_info=True)
-        return {}
-    return {names[name]: reason for name, reason in found.items()}
-
-
-def saturation_reason(user, source: str) -> str:
-    """Le motif de saturation de `source` pour `user` (« limite de débit », « indisponible »), ou ''."""
-    return saturated_sources({source: saturation_scope(user, source)}).get(source, '')
+# La NOTE de saturation d'un fournisseur (étape 2, 13/10) a déménagé le 14/10 dans la brique
+# commune des services externes, `common/services/source_quota.py` (étape 3) : la même note sert
+# désormais à TOUT service qui refuse, LLM ou non, et le compte des quotas vit à côté d'elle.
 
 
 class CloudAccessRefused(RuntimeError):

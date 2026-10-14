@@ -14,6 +14,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
 from wama.model_manager.models import AIModel
+from wama.common.services import source_quota
 from wama.model_manager.services import cloud_models
 from wama.model_manager.services.model_selector import get_registry_models, select_model
 
@@ -766,27 +767,61 @@ class SaturatedSourceOutOfTheDrawTest(TestCase):
     def test_a_rate_limited_key_leaves_its_source_out_of_the_draw(self):
         self.assertEqual({'albert:chat', 'anthropic:claude-x'}, self._keys())
         user = get_user_model().objects.get(pk=self.user.pk)
-        self.assertEqual(f'user:{self.user.pk}', cloud_models.saturation_scope(user, 'albert'))
-        cloud_models.note_saturation('albert', scope=f'user:{self.user.pk}', seconds=60,
-                                     reason='limite de débit')
+        self.assertEqual(f'user:{self.user.pk}', source_quota.saturation_scope(user, 'albert'))
+        source_quota.note_saturation('albert', scope=f'user:{self.user.pk}', seconds=60,
+                                    reason='limite de débit')
         self.assertEqual({'anthropic:claude-x'}, self._keys())
-        self.assertEqual('limite de débit', cloud_models.saturation_reason(user, 'albert'))
+        self.assertEqual('limite de débit', source_quota.saturation_reason(user, 'albert'))
 
     def test_the_manual_choice_keeps_a_saturated_source(self):
         """Counter-test: naming a model is a consent — the caller proposes a relay instead."""
-        cloud_models.note_saturation('albert', scope=cloud_models.ALL_KEYS, seconds=60,
-                                     reason='indisponible')
+        source_quota.note_saturation('albert', scope=source_quota.ALL_KEYS, seconds=60,
+                                    reason='indisponible')
         self.assertEqual({'albert:chat', 'anthropic:claude-x'}, self._keys(automatic=False))
 
     def test_another_keys_limit_does_not_concern_this_user(self):
-        cloud_models.note_saturation('albert', scope='instance', seconds=60, reason='x')
-        cloud_models.note_saturation('albert', scope='user:0', seconds=60, reason='x')
+        source_quota.note_saturation('albert', scope='instance', seconds=60, reason='x')
+        source_quota.note_saturation('albert', scope='user:0', seconds=60, reason='x')
         self.assertEqual({'albert:chat', 'anthropic:claude-x'}, self._keys())
 
     def test_an_outage_is_out_of_the_draw_for_every_key(self):
-        cloud_models.note_saturation('anthropic', scope=cloud_models.ALL_KEYS, seconds=60,
-                                     reason='indisponible')
+        source_quota.note_saturation('anthropic', scope=source_quota.ALL_KEYS, seconds=60,
+                                    reason='indisponible')
         self.assertEqual({'albert:chat'}, self._keys())
+
+
+class QuotaOutOfTheDrawTest(TestCase):
+    """2026-10-14 (ROADMAP §8d step 3): a model whose quota is reached leaves the AUTOMATIC draw
+    BEFORE the provider refuses — the count is the common brick `source_quota`. Declared here:
+    the free models of OpenRouter share 20 requests a minute."""
+
+    FREE, PAID = FreeModelsOfAMeteredSourceTest.FREE, FreeModelsOfAMeteredSourceTest.PAID
+    _keys = HostingCeilingTest._keys
+    _set = HostingCeilingTest._set
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        FreeModelsOfAMeteredSourceTest.setUp(self)
+        self._set(cloud_hosting_max='third_party_all', cloud_metered_auto=True)
+
+    def tearDown(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def test_the_free_models_leave_the_draw_once_their_shared_quota_is_used(self):
+        self.assertIn(self.FREE, self._keys())
+        for _ in range(20):
+            source_quota.record('openrouter', f'user:{self.user.pk}', 'other/model:free')
+        keys = self._keys()
+        self.assertNotIn(self.FREE, keys)
+        # Counter-tests: the paid model of the same source, and the other sources, stay.
+        self.assertEqual({'albert:chat', 'anthropic:claude-x', self.PAID}, keys)
+
+    def test_the_manual_choice_is_not_filtered_by_the_count(self):
+        for _ in range(20):
+            source_quota.record('openrouter', f'user:{self.user.pk}', 'other/model:free')
+        self.assertIn(self.FREE, self._keys(automatic=False))
 
 
 @override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])

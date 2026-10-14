@@ -811,7 +811,7 @@ def _failover_target(user, provider, domain, tried) -> tuple | None:
     alors PROPOSÉ (le choix manuel est un consentement explicite)."""
     if user is None or provider in _LOCAL_PROVIDERS or provider in _SUBSCRIPTION_PROVIDERS:
         return None
-    from wama.model_manager.services.cloud_models import saturation_reason
+    from wama.common.services.source_quota import saturation_reason
     reason = saturation_reason(user, _provider_source(provider))
     if not reason:
         return None

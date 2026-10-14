@@ -349,7 +349,7 @@ RATE_LIMIT_RETRIES = 1
 RATE_LIMIT_WAIT_S = 60.0
 RATE_LIMIT_MAX_WAIT_S = 60.0
 
-#: Motifs d'une note de saturation (`cloud_models.note_saturation`) — affichés à l'utilisateur.
+#: Motifs d'une note de saturation (`source_quota.note_saturation`) — affichés à l'utilisateur.
 RATE_LIMITED = 'limite de débit'
 UNAVAILABLE = 'indisponible'
 #: Une PANNE du fournisseur, pas une faute de la requête : statut HTTP, ou type d'erreur LiteLLM.
@@ -381,28 +381,58 @@ def provider_saturation(exc, wait_s: float = RATE_LIMIT_WAIT_S):
         return 'key', _retry_after(exc, wait_s), RATE_LIMITED
     if (getattr(exc, 'status_code', None) in _OUTAGE_STATUSES
             or type(exc).__name__ in _OUTAGE_TYPES):
-        from wama.model_manager.services.cloud_models import OUTAGE_NOTE_S
+        from wama.common.services.source_quota import OUTAGE_NOTE_S
         return 'all', OUTAGE_NOTE_S, UNAVAILABLE
     return None
 
 
-def _note_provider_failure(provider: str, exc, wait_s: float, scope) -> None:
+def _scope_of(scope) -> str:
+    """La portée de la clé : telle quelle, ou calculée par la fonction qui la porte."""
+    return scope() if callable(scope) else (scope or 'instance')
+
+
+def _note_provider_failure(provider: str, exc, wait_s: float, scope, model: str = '') -> None:
     """Note le fournisseur saturé quand l'échec le dit (`provider_saturation`) — le tirage
-    automatique l'écarte alors le temps de la note (bascule, `ROADMAP §8d` étape 2). `scope` :
-    la portée de la clé, ou la fonction qui la calcule (lue seulement ici, en cas d'échec)."""
+    automatique l'écarte alors le temps de la note (bascule, `ROADMAP §8d` étape 2). Un refus de
+    DÉBIT apprend aussi le plafond de cette clé pour ce modèle (étape 3) : la fois suivante, le
+    compte l'écarte avant le refus. `scope` : la portée de la clé, ou la fonction qui la calcule."""
     found = provider_saturation(exc, wait_s)
     if found is None:
         return
     reach, seconds, reason = found
     try:
-        from wama.model_manager.services.cloud_models import ALL_KEYS, note_saturation
+        from wama.common.services import source_quota
         if reach != 'key':
-            scope = ALL_KEYS
-        elif callable(scope):
-            scope = scope()
-        note_saturation(provider, scope=scope, seconds=seconds, reason=reason)
+            source_quota.note_saturation(provider, scope=source_quota.ALL_KEYS, seconds=seconds,
+                                         reason=reason)
+            return
+        scope = _scope_of(scope)
+        source_quota.note_saturation(provider, scope=scope, seconds=seconds, reason=reason)
+        source_quota.learn_from_refusal(provider, scope, model, retry_after_s=_retry_after_asked(exc))
     except Exception:
         logger.debug('[llm_utils] note de saturation impossible (%s)', provider, exc_info=True)
+
+
+def _retry_after_asked(exc) -> float:
+    """L'attente que le fournisseur DEMANDE, NON plafonnée (0 s'il ne dit rien) : c'est elle qui
+    dit si la limite heurtée est celle de la minute ou celle du jour."""
+    headers = getattr(getattr(exc, 'response', None), 'headers', None) or {}
+    try:
+        return float(headers.get('retry-after'))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _record_served(provider: str, scope, model: str, response=None) -> None:
+    """Compte UN appel servi par le fournisseur (et ses jetons quand la réponse les dit) — le
+    compte commun des services externes (`source_quota`, étape 3)."""
+    try:
+        from wama.common.services.source_quota import record
+        usage = getattr(response, 'usage', None)
+        record(provider, _scope_of(scope), model or '',
+               tokens=int(getattr(usage, 'total_tokens', 0) or 0))
+    except Exception:
+        logger.debug('[llm_utils] appel non compté (%s)', provider, exc_info=True)
 
 
 def _completion(litellm, wait_s: float = RATE_LIMIT_WAIT_S, retries: Optional[int] = None,
@@ -484,10 +514,10 @@ def llm_chat(
                     défaut — un appel sans utilisateur reste strict (2026-10-12).
         rate_limit_wait: Cloud only. Faux : un 429 échoue TOUT DE SUITE, sans l'attente ni le
                     nouvel essai — l'appelant a un autre fournisseur (tirage rejoué, 2026-10-13).
-        saturation_scope: Cloud only. Portée de la CLÉ employée (`cloud_models.saturation_scope`),
-                    ou la fonction sans argument qui la calcule — lue seulement en cas d'échec.
-                    Un échec qui dit le fournisseur saturé le NOTE pour elle, et le tirage
-                    automatique l'écarte le temps de la note (`ROADMAP §8d` étape 2).
+        saturation_scope: Cloud only. Portée de la CLÉ employée (`source_quota.saturation_scope`),
+                    ou la fonction sans argument qui la calcule. Chaque appel servi est COMPTÉ
+                    pour elle (étape 3) ; un échec qui dit le fournisseur saturé le NOTE pour
+                    elle, et le tirage automatique l'écarte le temps de la note (étape 2).
 
     Returns:
         (text, None) on success · (None, error_string) on failure
@@ -596,6 +626,7 @@ def llm_chat(
                     fn = getattr(part, 'function', None)
                     slot[0] += getattr(fn, 'name', None) or ''
                     slot[1] += getattr(fn, 'arguments', None) or ''
+            _record_served(provider, saturation_scope, model)
             if calls:
                 return tool_call_text(*calls[min(calls)]), None
             text = ''.join(pieces)
@@ -603,6 +634,7 @@ def llm_chat(
                 return None, EMPTY_RESPONSE_ERROR
             return text.strip(), None
         response = _completion(litellm, wait_s, retries, **kwargs)
+        _record_served(provider, saturation_scope, model, response)
         message = response.choices[0].message
         for call in _listed(getattr(message, 'tool_calls', None))[:1]:
             return tool_call_text(call.function.name, call.function.arguments), None
@@ -612,7 +644,7 @@ def llm_chat(
         return text.strip(), None
     except Exception as e:
         logger.error(f"[llm_utils] LiteLLM error ({provider}/{model}): {e}")
-        _note_provider_failure(provider, e, wait_s, saturation_scope)
+        _note_provider_failure(provider, e, wait_s, saturation_scope, model)
         return None, str(e)
 
 
@@ -732,12 +764,12 @@ def chat_with_source(source: str, model_id: Optional[str], messages: list, *, us
     data_reuse_ok = False
     scope = 'instance'
     if user is not None and getattr(user, 'is_authenticated', False):
-        from wama.model_manager.services.cloud_models import (
-            cloud_access, data_reuse_accepted, saturation_scope)
+        from wama.common.services.source_quota import saturation_scope
+        from wama.model_manager.services.cloud_models import cloud_access, data_reuse_accepted
         api_key = cloud_access(user, source, model_id or '')
         # La règle de collecte suit le PLAFOND du profil (Fabien, 2026-10-12).
         data_reuse_ok = data_reuse_accepted(user)
-        # La portée de la clé ne se lit qu'en cas d'échec : une requête de moins par appel.
+        # La portée de la clé se calcule quand on en a besoin : au compte, ou à l'échec.
         scope = lambda: saturation_scope(user, source)  # noqa: E731
     return llm_chat(messages, model=model_id or None, provider=source, api_key=api_key,
                     num_predict=num_predict, think=think, timeout=timeout,

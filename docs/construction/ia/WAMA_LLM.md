@@ -1778,12 +1778,14 @@ Le fil a été éprouvé par l'assistant : prospecter, puis installer trois OCR.
      C'est une seule attente d'une fenêtre entière (60 s, ou `Retry-After`) : trois essais à 20 s
      d'écart ont tous été refusés.
    - C'est la brique commune : assistant et apps.
-   - Les copies locales (ASR d'Albert, Hub dans le prospecteur) restent à rallier.
+   - Les copies locales : l'ASR d'Albert garde son attente mais note et compte par la brique
+     commune depuis le 14/10 (ci-dessous) ; le Hub dans le prospecteur reste à rallier.
    - **Bascule sur panne (2026-10-13, `ROADMAP §8d` étape 2).** Un échec qui dit le FOURNISSEUR
      saturé — 429, 5xx, connexion refusée, délai dépassé ; jamais une faute de la requête (clé
      refusée, modèle inconnu) — le NOTE dans le cache partagé (`llm_utils.provider_saturation` →
-     `cloud_models.note_saturation`) : pour la CLÉ employée s'il s'agit d'une limite de débit
-     (durée : `Retry-After`, sinon l'attente de la source), pour toutes s'il s'agit d'une panne
+     `source_quota.note_saturation`, dans `cloud_models` jusqu'au 14/10) : pour la CLÉ employée
+     s'il s'agit d'une limite de débit (durée : `Retry-After`, sinon l'attente de la source),
+     pour toutes s'il s'agit d'une panne
      (3 min). Le tirage AUTOMATIQUE l'écarte le temps de la note (`allowed_cloud_keys`) : donc
      PARTOUT — assistant, apps, transcription distante, rôles de dev — sans qu'aucun ne le lise.
      L'assistant, premier utilisateur (`run_assistant_turn`) : modèle TIRÉ → pas d'attente d'une
@@ -1805,6 +1807,25 @@ Le fil a été éprouvé par l'assistant : prospecter, puis installer trois OCR.
      soupçonner un quota, lire le COMPTE du tour : le 13/10, un tour « passé en local » venait
      d'un compte de démonstration réglé en local seul. Gardes : `tests_cloud_failover` (dont le
      bouton « Répondre avec … », exécuté en V8).
+   - **Quotas COMPTÉS (2026-10-14, `ROADMAP §8d` étape 3, décision de Fabien : « un
+     fonctionnement unique, commun et centralisé »).** La note ci-dessus a déménagé dans la brique
+     commune des services externes, `common/services/source_quota.py`, qui COMPTE aussi chaque
+     appel servi — par (source, portée de la clé, modèle), en requêtes et en jetons, sur une
+     fenêtre GLISSANTE d'une minute et d'un jour. Les plafonds viennent du registre des sources
+     (`ExternalSource.quotas`, un `Quota` par limite, qui peut ne viser que certains modèles —
+     les gratuits d'OpenRouter partagent 20 requêtes par minute) ou s'APPRENNENT au premier
+     refus réel (ce qui a été servi sur la fenêtre devient le plafond de cette clé pour ce
+     modèle ; une attente demandée de plus d'une minute vise la limite du jour). Le tirage
+     automatique écarte le MODÈLE dont le quota est atteint AVANT le refus
+     (`source_quota.unavailable_keys`, lu par `allowed_cloud_keys`). Comptent et notent par elle :
+     le chat (`llm_chat`), la transcription d'Albert (sa propre attente gardée, désormais notée
+     et comptée), les moteurs de recherche (un moteur qui refuse cède la recherche suivante au
+     moteur utilisable suivant — aucun repli n'existait). **Pas encore** : le Hub de Hugging
+     Face (33 appels dans 12 fichiers, sans point de passage commun — à créer d'abord),
+     Artificial Analysis et GitHub dans la prospection. Mesuré le 14/10 : Albert annonce ses
+     limites PAR MODÈLE (`/v1/me/info`), mais sous un numéro de routeur que `/v1/models` ne
+     relie à aucun modèle — non lues ; ILaaS n'annonce rien. Gardes : `tests_source_quota`,
+     `tests_cloud_models.QuotaOutOfTheDrawTest`, `tests_llm_providers` (compte et plafond appris).
 
 **Et la donnée porte la correction des clés** : le modèle recomposait `reader:hf:org/dépôt` au
 lieu de la clé `proposed:hf:org/dépôt` écrite par l'utilisateur. Le refus `not_found` de

@@ -1489,6 +1489,25 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
   3. ⏳ **Quotas comptés** : requêtes par (utilisateur, source) et par fenêtre, contre les quotas
      DÉCLARÉS sur la source (OpenRouter sans crédit : 20/min et 50/jour ; Albert) → la source est
      tenue pour saturée AVANT le 429.
+     ➕ **Mesuré le 14/10** (une vraie réponse par fournisseur, compte `fabien.moreau`) :
+     - **Albert** dit ses limites PAR MODÈLE sur `GET /v1/me/info` (`limits[]` : `router_id`,
+       `type` ∈ rpm/rpd/tpm/tpd, `value`) — 11 groupes pour 11 modèles, de 10/min · 1000/jour à
+       500/min · 50 000/jour ; et ce qui a été consommé sur `GET /v1/me/usage` (par tranche,
+       filtrable par modèle, `requests` compris). ⚠ `/v1/models` ne porte pas le `router_id` :
+       QUELLE limite vaut pour QUEL modèle ne se lit pas encore. Aucun en-tête de limite sur la
+       réponse de chat ;
+     - **ILaaS** (`llm.ilaas.fr`) : aucun en-tête de limite, pas de `/me/info` (404) — rien
+       d'annoncé ; **ILaaS RAG** (même passerelle qu'Albert) : `gpt-oss-120b` sans aucune limite
+       (rpm/rpd/tpm/tpd vides) ;
+     - **OpenRouter** : pas mesuré (aucune clé sur ce compte) ; sa doc annonce `GET /api/v1/key`.
+     **Tranché par Fabien le 14/10** : un quota peut dépendre du MODÈLE (Claude, Albert) ou être
+     PARTAGÉ par un groupe de modèles (les gratuits d'OpenRouter) — la SOURCE le déclare par
+     défaut, le modèle distant le surcharge (patron du coût, étape 1). Domicile : le registre des
+     sources (`external_sources`) + UNE brique commune de comptage et de saturation, pour TOUT
+     service externe — pas `llm_chat` seul : cinq endroits gèrent aujourd'hui un 429 chacun à sa
+     façon (`llm_utils`, `albert_asr_backend`, `search_engines/base`, `prospector` pour le Hub et
+     Artificial Analysis, GitHub). La note de saturation de l'étape 2 y déménage. Un service sans
+     quota annoncé n'est jamais bloqué par le compte ; le 1ᵉʳ 429 réel apprend le plafond.
   4. ⏳ **Ordre de préférence décidé par le profil** (demande de Fabien) : au dernier cran
      (« commercial, même s'il garde mes données »), les modèles GRATUITS commerciaux passent
      d'abord, pour épargner le GPU local et les quotas souverains ; puis le souverain ; puis le
@@ -1506,6 +1525,31 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
      propre au distant — sa vitesse apprise (`eta_estimator.comparable_speeds`, lue seulement si
      TOUT le lot en a une) ou sa latence. À trancher avec le rang de préférence : décision de
      Fabien.
+     ✅ **Tranché par Fabien le 14/10** :
+     - l'ordre du dernier cran est CONFIRMÉ ; c'est le réglage « QUAND » qui décide de l'ordre
+       (« en dessous » disparaît) : « cloud si saturé » → le local d'abord, le distant quand le
+       local est saturé ; « cloud autorisé » → le distant gratuit d'abord (commercial puis
+       souverain au dernier cran), puis le local, le payant sur consentement ;
+     - SATURÉ = la demande ne tient pas tout de suite en VRAM (`resource_governor.
+       effective_free_gb`) ET ne se traitera pas avant un délai réglable par l'utilisateur
+       (`global_queue.free_at`) — **défaut 0** : qui a choisi « cloud si saturé » a accepté que
+       ses données sortent, on ne le fait pas attendre ;
+     - l'ASSISTANT n'est pas une tâche : il doit être toujours disponible — un distant admis
+       passe avant tout chargement local, le local ne sert que si aucun distant n'est admis ;
+     - le coût d'un distant au curseur : la VITESSE MESURÉE pour une tâche d'app, le TEMPS DE
+       RÉPONSE (délai avant le 1ᵉʳ mot, chargement compris) pour l'assistant — ce dernier n'est
+       pas encore chronométré ;
+     - un modèle tiré en DISTANT ne prend ni la file GPU, ni de place au planning, ni de VRAM.
+       ⚠ Mesuré : la file et la déclaration au gouverneur suivent aujourd'hui le PROCESS
+       (`task_skeleton.queue_of`, `spec.gpu`, l. 726-743), pas le modèle tiré, et
+       `auto_model.vram_needed_gb` ne regarde pas l'exécution : le gouverneur doit savoir si le
+       modèle est local ou distant.
+     ⏳ **Ouvert** : séparer au profil l'assistant des traitements d'app (assistant en cloud,
+     données traitées en local) — et ce qu'un assistant distant LIT d'un résultat traité en
+     local. Mesuré le 14/10 : le FICHIER ne transite pas (l'assistant ne reçoit que
+     `{id, name, path, size}`, `filemanager.services.enregistrer_fichier_utilisateur`, et l'app
+     le lit sur le disque) ; le CONTENU du résultat, si : aperçus de 300 caractères dans les
+     statuts et texte lu par l'outil de lecture de résultat (`tool_api.py:2722`).
   5. ⏳ **Un seul chemin partout** : `remote_stt_key`, `dev_cloud_keys` et `role_utils.resolve_model`
      passent par le même tirage ; les mondes Data et Lab l'héritent par `resolve_model_choice`.
      ➕ **L'enrichissement des prompts de génération** (relevé le 13/10 en relisant le harnais) :

@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**198 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**199 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1089,7 +1089,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
 
 - **Domicile** : `wama/model_manager/services/cloud_models.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Modèles DISTANTS au catalogue — découverte par la clé d'un UTILISATEUR (ROADMAP §8d Phase 3, 4b).
-- **API publique** (23) :
+- **API publique** (19) :
   - `abilities_for(task: str, remote_type: str='') -> dict` — Drapeaux `ModelAbility` qu'une TÂCHE distante garantit — ceux que `select_model(requires=…)`
   - `class CloudDiscoveryError(RuntimeError)` — Découverte impossible — message lisible par l'utilisateur, jamais la clé.
   - `task_and_type(remote_type: str)` — (tâche NÔTRE, model_type) d'un type annoncé par le fournisseur, ou (None, None).
@@ -1107,10 +1107,6 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
   - `data_reuse_accepted(user) -> bool` — `user` accepte-t-il qu'un hébergeur garde ou réutilise ses requêtes ? Le dernier cran de
   - `cloud_refusal(user, source: str='') -> str` — Motif de refus d'un appel distant pour `user`, sinon ''. Sans utilisateur : ''.
   - `allowed_cloud_keys(user, automatic: bool=True) -> set` — `model_key` des modèles distants que `user` autorise — à passer à `select_model(cloud_keys=…)`.
-  - `saturation_scope(user, source: str) -> str` — Portée de la limite de débit de `source` pour `user` — elle tient à la CLÉ (Albert compte
-  - `note_saturation(source: str, *, scope: str, seconds: float, reason: str) -> None` — Note `source` saturée pour la portée `scope` (`saturation_scope`, ou `ALL_KEYS` pour une
-  - `saturated_sources(scopes: dict) -> dict` — {source: motif} des sources notées saturées — `scopes` : {source: portée de la clé}. Une
-  - `saturation_reason(user, source: str) -> str` — Le motif de saturation de `source` pour `user` (« limite de débit », « indisponible »), ou ''.
   - `class CloudAccessRefused(RuntimeError)` — Appel distant refusé — message lisible par l'utilisateur ; `status` = code HTTP à rendre.
   - `cloud_access(user, source: str, model_id: str='') -> str` — La CLÉ avec laquelle `user` appelle `source` (et le modèle `model_id` s'il est nommé), ou
 
@@ -1255,6 +1251,23 @@ L'index des cards qui DÉSIGNENT un chemin, et les deux gestes qui le tiennent �
   - `usage(path, *, folder=False) -> dict` — Ce que le gestionnaire de fichiers doit savoir AVANT de supprimer.
   - `repoint(old_path, new_path, *, folder=False) -> dict` — Le fichier (ou le dossier) a bougé : chaque lien suit, directs et sources.
   - `detach(path, *, folder=False) -> int` — Le fichier a été supprimé (après confirmation) : les cards qui le désignaient restent,
+
+### Quotas des services externes
+
+UNE brique pour tout service externe qui limite son débit : la NOTE de saturation (un refus récent ou une panne écarte la source du tirage automatique), le COMPTE de chaque appel servi par (source, portée de la clé, modèle) sur une fenêtre glissante, et les PLAFONDS — déclarés au registre des sources (`ExternalSource.quotas`, par source ou par groupe de modèles) ou APPRIS au premier refus réel. Un modèle dont le quota est atteint sort du tirage AVANT le refus. Portée = la CLÉ (personnelle, ou d'instance partagée par tous)
+
+- **Domicile** : `wama/common/services/source_quota.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
+- **Module** : Quotas des SERVICES EXTERNES — une seule brique pour tous (`ROADMAP §8d` étape 3, 2026-10-14).
+- **API publique** (9) :
+  - `saturation_scope(user, source: str) -> str` — Portée de la limite de `source` pour `user` — elle tient à la CLÉ : la sienne s'il l'a
+  - `note_saturation(source: str, *, scope: str, seconds: float, reason: str) -> None` — Note `source` saturée pour la portée `scope` (`saturation_scope`, ou `ALL_KEYS` pour une
+  - `saturated_sources(scopes: dict) -> dict` — {source: motif} des sources notées saturées — `scopes` : {source: portée de la clé}. Une
+  - `saturation_reason(user, source: str) -> str` — Le motif de saturation de `source` pour `user` (« limite de débit », « indisponible »), ou ''.
+  - `record(source: str, scope: str, model: str='', *, tokens: int=0, now: float=None) -> None` — Compte UN appel servi par `source` (et ses `tokens`, s'ils sont connus).
+  - `used(source: str, scope: str, bucket: str, unit: str, window_s: int, now: float=None) -> int` — Ce qui a été servi sur les `window_s` DERNIÈRES secondes — estimation glissante : la
+  - `learn_from_refusal(source: str, scope: str, model: str='', *, retry_after_s: float=0.0, now: float=None) -> int` — Un refus de débit RÉEL : ce qui a été servi sur la fenêtre devient le plafond de cette
+  - `exhausted(source: str, scope: str, model: str='', now: float=None) -> str` — '' si `source` peut encore servir `model` à cette clé ; sinon le motif — le plafond (déclaré
+  - `unavailable_keys(keys, scope_of) -> dict` — {model_key: motif} des clés de catalogue `<source>:<modèle>` que le tirage automatique doit
 
 ### Repli des volets latéraux par leur frontière
 
@@ -2774,7 +2787,7 @@ Un adaptateur par moteur (Exa, Staan, SearXNG, DuckDuckGo) derrière UN contrat 
   - `key_for(user, slug: str) -> str` — La clé de CET utilisateur pour ce moteur — règle commune (`accounts.api_keys`) : un
   - `usable_slugs(user) -> list[str]` — Les moteurs que CET utilisateur peut employer : sa clé posée, ou aucune clé requise —
   - `preferred_slug(user) -> str` — Le moteur de cet utilisateur : sa préférence, sinon le défaut d'instance, sinon le
-  - `get_engine(slug: str, api_key: str='') -> BaseSearchEngine | None`
+  - `get_engine(slug: str, api_key: str='', scope: str='instance') -> BaseSearchEngine | None`
   - `engine_for(user) -> BaseSearchEngine` — Le moteur à employer pour cet utilisateur, prêt à interroger.
 
 ### Médias de test isolés
@@ -2929,13 +2942,14 @@ Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la s
 
 - **Domicile** : `wama/common/external_sources.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : external_sources — registre DÉCLARATIF des sources externes joignables par WAMA.
-- **API publique** (25) :
+- **API publique** (26) :
   - `cost_label(tier: str) -> str` — « gratuit (quota) », « facturé à l'usage », « abonnement » — '' pour un coût inconnu.
   - `remote_origin_label(source: str, cost_tier: str='') -> str` — LE libellé d'un modèle distant, calculé de ce qui est DÉCLARÉ : hébergement · fournisseur ·
   - `source_origin_label(source: str) -> str` — Où partent les données d'un FOURNISSEUR et ce qu'il coûte, sans son nom (que l'écran
   - `model_origin(model_key: str, execution: str='', cost_tier: str='') -> tuple` — `(clé, libellé, rang)` de l'ORIGINE d'un modèle — où son inférence a lieu.
   - `hosting_within(hosting: str, ceiling: str) -> bool` — `hosting` est-il admis par un profil plafonné à `ceiling` ?
   - `data_reuse_accepted(ceiling: str) -> bool` — Un profil plafonné à `ceiling` accepte-t-il qu'un hébergeur garde ou réutilise ses
+  - `class Quota` — Une limite de débit DÉCLARÉE sur une source (`ExternalSource.quotas`) — lue par la brique
   - `class ExternalSource` — Une source externe : ce qu'elle est et comment on l'adresse — jamais comment on la lit.
   - `by_key() -> dict[str, ExternalSource]`
   - `serves_many_tasks(key: str) -> bool` — La source `key` sert-elle des modèles de plusieurs tâches sous un même moteur, hors du

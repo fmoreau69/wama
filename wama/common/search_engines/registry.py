@@ -100,9 +100,9 @@ def preferred_slug(user) -> str:
     return usable[0] if usable else ''
 
 
-def get_engine(slug: str, api_key: str = '') -> BaseSearchEngine | None:
+def get_engine(slug: str, api_key: str = '', scope: str = 'instance') -> BaseSearchEngine | None:
     cls = _ENGINES.get(slug)
-    return cls(api_key=api_key) if cls else None
+    return cls(api_key=api_key, scope=scope) if cls else None
 
 
 def engine_for(user) -> BaseSearchEngine:
@@ -118,4 +118,11 @@ def engine_for(user) -> BaseSearchEngine:
         raise SearchEngineUnavailable(
             "aucun moteur de recherche n'est utilisable : posez la clé d'un moteur sur votre "
             f"page de profil ({noms}), ou déclarez une instance SearXNG")
-    return get_engine(slug, key_for(user, slug))
+    from wama.common.services.source_quota import saturation_scope, unavailable_keys
+    # Le moteur préféré qui vient de refuser (ou dont le quota est atteint) cède sa place au
+    # suivant utilisable, le temps de la note — brique commune des services externes (`ROADMAP
+    # §8d` étape 3, 2026-10-14). Tous saturés : le préféré, dont le refus se dira en clair.
+    order = [slug] + [s for s in usable_slugs(user) if s != slug]
+    busy = unavailable_keys([f'{s}:' for s in order], lambda s: saturation_scope(user, s))
+    chosen = next((s for s in order if f'{s}:' not in busy), slug)
+    return get_engine(chosen, key_for(user, chosen), saturation_scope(user, chosen))

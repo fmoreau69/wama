@@ -2,7 +2,7 @@
 
 Measured on 2026-10-12: a free OpenRouter model answering 429 cost 83.8 s — the minute's wait,
 one more try on the SAME provider, then the error. Since 2026-10-13 a failure that says the
-provider is saturated NOTES it (`llm_chat` → `cloud_models.note_saturation`), and:
+provider is saturated NOTES it (`llm_chat` → `source_quota.note_saturation`), and:
   - a DRAWN model (« auto ») switches at once: the common draw is replayed — the note already
     leaves the provider out of the admission — and the switch is SAID;
   - a CHOSEN model does not switch on its own (Fabien's decision, 13/10): the relay is PROPOSED,
@@ -19,7 +19,7 @@ from django.core.cache import cache
 from django.test import SimpleTestCase, TestCase
 
 from wama.common.services import assistant_engine
-from wama.model_manager.services import cloud_models
+from wama.common.services import source_quota
 
 USAGE = {'input_tokens': 0, 'output_tokens': 0}
 REFUSED = {'error': 'RateLimitError: 429', 'status': 502}
@@ -47,7 +47,7 @@ class CloudFailoverTest(TestCase):
             self.asked.append(messages[1]['content'])
             answer = next(answers)
             if answer is None:
-                cloud_models.note_saturation(assistant_engine._provider_source(provider),
+                source_quota.note_saturation(assistant_engine._provider_source(provider),
                                              scope='instance', seconds=60,
                                              reason='limite de débit')
                 return None, dict(REFUSED)

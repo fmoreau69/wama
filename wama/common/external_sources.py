@@ -265,6 +265,37 @@ KINDS = {
 
 
 @dataclass(frozen=True)
+class Quota:
+    """Une limite de débit DÉCLARÉE sur une source (`ExternalSource.quotas`) — lue par la brique
+    commune `common/services/source_quota.py`, qui compte et apprend le reste (2026-10-14).
+
+    `count` par `window_s` secondes, en `unit` ('requests' ou 'tokens'). `models` : préfixe ou
+    suffixe des modèles visés ('' = tous ; ':free' = ceux qui finissent ainsi). `per_model` :
+    chaque modèle a son propre compteur ; sinon les modèles visés en partagent UN — c'est ce qui
+    distingue la limite par modèle (Albert, Claude) du quota d'un groupe (les gratuits
+    d'OpenRouter). Ne déclarer qu'une limite DOCUMENTÉE ou MESURÉE : celle qu'on ignore
+    s'apprend au premier refus réel.
+    """
+    count: int
+    window_s: int
+    unit: str = 'requests'
+    models: str = ''
+    per_model: bool = False
+
+    def applies_to(self, model: str) -> bool:
+        if not self.models:
+            return True
+        model = model or ''
+        return model.startswith(self.models) or model.endswith(self.models)
+
+    def bucket(self, model: str) -> str:
+        """Le compteur que ce plafond lit : celui du modèle, ou celui du groupe qu'il vise."""
+        if self.per_model:
+            return f'm:{model or ""}'
+        return f'g:{self.models or "*"}'
+
+
+@dataclass(frozen=True)
 class ExternalSource:
     """Une source externe : ce qu'elle est et comment on l'adresse — jamais comment on la lit."""
 
@@ -364,6 +395,11 @@ class ExternalSource:
     #: reprise est le seul profil qui diffère d'un fournisseur à l'autre ; le DÉLAI, lui, reste
     #: celui de l'appelant (un tour interactif n'attend pas comme une tâche).
     rate_limit_wait_s: float = 0.0
+    #: Limites de débit DOCUMENTÉES ou MESURÉES (`Quota`) — la source les porte par défaut, un
+    #: `Quota` peut ne viser que certains modèles. Vide = rien d'annoncé : le compte commun
+    #: (`source_quota`) n'écarte alors la source qu'après un premier refus réel, dont il apprend
+    #: le plafond (`ROADMAP §8d` étape 3, 2026-10-14).
+    quotas: tuple = ()
     #: Fournisseur LLM : les outils de l'assistant lui sont DÉCLARÉS au format standard
     #: (`tools=`, appels rendus nommés dans `tool_calls`) en plus de la liste du prompt
     #: (2026-10-11). Mesuré sur Albert/gpt-oss : sans déclaration, son appel d'outil natif
@@ -495,6 +531,10 @@ SOURCES: tuple[ExternalSource, ...] = (
         # saturée, rien à conclure).
         no_reuse_request_body='{"provider": {"data_collection": "deny"}}',
         free_models_need_data_reuse=True,
+        # Doc d'OpenRouter (« rate limits ») : les modèles `:free` partagent 20 requêtes par
+        # minute et par compte. Leur plafond du JOUR dépend des crédits achetés (50 sans, 1000
+        # avec 10 $) : non déclaré, il s'apprend au premier refus plutôt que de bloquer à tort.
+        quotas=(Quota(20, 60, models=':free'),),
         doc='docs/construction/ia/WAMA_LLM.md'),
     # 2026-09-15 : l'API Anthropic (fournisseur « claude » de l'assistant) et l'ABONNEMENT Claude
     # Code — deux canaux de facturation opposés vers les mêmes modèles (cf. `claude_code.py`).

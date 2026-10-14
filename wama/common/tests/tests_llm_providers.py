@@ -291,7 +291,7 @@ class ProviderSaturationNoteTest(SimpleTestCase):
         return result, sleep
 
     def _noted(self, scope):
-        from wama.model_manager.services.cloud_models import saturated_sources
+        from wama.common.services.source_quota import saturated_sources
         return saturated_sources({'albert': scope}).get('albert', '')
 
     def test_a_rate_limit_without_waiting_fails_at_once_and_notes_the_key(self):
@@ -303,14 +303,34 @@ class ProviderSaturationNoteTest(SimpleTestCase):
         # The limit belongs to THAT key: another key is not concerned.
         self.assertEqual('', self._noted('instance'))
 
-    def test_the_scope_is_computed_only_when_a_failure_is_noted(self):
+    def test_a_served_call_is_counted_for_the_key_that_made_it(self):
+        """2026-10-14 (ROADMAP §8d step 3): the scope is computed on success too — it is the one
+        the call is COUNTED for (`source_quota`), so the draw can stop before the refusal."""
+        from wama.common.services import source_quota
         scope = MagicMock(return_value='user:8')
         with patch.dict(sys.modules, {'litellm': _fake_litellm()}):
             llm_utils.llm_chat(MESSAGES, provider='albert', model='m', api_key='k',
                                saturation_scope=scope)
-        scope.assert_not_called()
+        self.assertEqual(1, source_quota.used('albert', 'user:8', 'm:m', source_quota.REQUESTS,
+                                              source_quota.MINUTE))
+        self.assertEqual(0, source_quota.used('albert', 'instance', 'm:m', source_quota.REQUESTS,
+                                              source_quota.MINUTE))
         self._fail(self.RateLimitError(), rate_limit_wait=False, saturation_scope=scope)
         self.assertEqual(llm_utils.RATE_LIMITED, self._noted('user:8'))
+
+    def test_a_rate_limit_teaches_the_ceiling_of_that_key_for_that_model(self):
+        """The refusal turns what was served into the ceiling: once the note is gone, the count
+        alone keeps the model out of the draw before the next refusal."""
+        from wama.common.services import source_quota
+        with patch.dict(sys.modules, {'litellm': _fake_litellm()}):
+            for _ in range(3):
+                llm_utils.llm_chat(MESSAGES, provider='albert', model='m', api_key='k',
+                                   saturation_scope='user:5')
+        self.assertEqual('', source_quota.exhausted('albert', 'user:5', 'm'))
+        self._fail(self.RateLimitError(), rate_limit_wait=False, saturation_scope='user:5')
+        self.assertEqual(source_quota.QUOTA_REACHED, source_quota.exhausted('albert', 'user:5', 'm'))
+        # Counter-test: another model of the same key is not concerned.
+        self.assertEqual('', source_quota.exhausted('albert', 'user:5', 'other'))
 
     def test_an_outage_is_noted_for_every_key(self):
         self._fail(self.ServiceUnavailableError('down'))

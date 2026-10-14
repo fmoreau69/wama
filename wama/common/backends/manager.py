@@ -270,10 +270,12 @@ def backend_instance(cls, model_key: str = '', user=None):
     if model_key:
         from wama.model_manager.models import AIModel, EXECUTION_CLOUD
         if AIModel.objects.filter(model_key=model_key, execution=EXECUTION_CLOUD).exists():
+            from wama.common.services.source_quota import saturation_scope
             from wama.common.utils.model_keys import split_key
             from wama.model_manager.services.cloud_models import cloud_access
             source, model_id = split_key(model_key)
-            instance.authorize(cloud_access(user, source, model_id))
+            instance.authorize(cloud_access(user, source, model_id),
+                               scope=saturation_scope(user, source))
     return instance
 
 

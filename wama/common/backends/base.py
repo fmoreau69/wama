@@ -521,11 +521,14 @@ class BaseModelBackend(ABC):
     #: parole le 2026-10-07 : TOUTE app doit pouvoir accueillir demain un modèle distant.
     catalogue_key: str = ''
 
-    def authorize(self, api_key: str) -> None:
+    def authorize(self, api_key: str, scope: str = 'instance') -> None:
         """Clé d'API de l'appel suivant, posée par la porte commune APRÈS la garde
-        `cloud_access` (modèle d'un fournisseur). No-op pour un moteur local ; un backend
-        de fournisseur la retient (patron `AlbertTranscriptionBackend`)."""
+        `cloud_access` (modèle d'un fournisseur), et la PORTÉE de cette clé
+        (`source_quota.saturation_scope`) : un backend de fournisseur compte ses appels pour
+        elle. No-op pour un moteur local ; un backend de fournisseur les retient (patron
+        `AlbertTranscriptionBackend`)."""
         self._api_key = api_key or ''
+        self._scope = scope or 'instance'
 
     @classmethod
     def vendor_dir(cls) -> Path:

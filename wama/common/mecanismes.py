@@ -893,6 +893,19 @@ MECHANISMS = (
               'wama/model_manager/services/cloud_models.py',
               'docs/construction/suivi/ROADMAP.md §8d',
               annexes=('wama/model_manager/tests/tests_cloud_models.py',)),
+    # 2026-10-14 (ROADMAP §8d étape 3, décision de Fabien : « un fonctionnement unique, commun et
+    # centralisé ») : cinq endroits géraient un refus de débit chacun à sa façon, aucun ne comptait.
+    Mechanism('source_quota', 'Quotas des services externes',
+              "UNE brique pour tout service externe qui limite son débit : la NOTE de saturation "
+              "(un refus récent ou une panne écarte la source du tirage automatique), le COMPTE "
+              "de chaque appel servi par (source, portée de la clé, modèle) sur une fenêtre "
+              "glissante, et les PLAFONDS — déclarés au registre des sources "
+              "(`ExternalSource.quotas`, par source ou par groupe de modèles) ou APPRIS au "
+              "premier refus réel. Un modèle dont le quota est atteint sort du tirage AVANT le "
+              "refus. Portée = la CLÉ (personnelle, ou d'instance partagée par tous)",
+              'wama/common/services/source_quota.py',
+              'docs/construction/suivi/ROADMAP.md §8d',
+              annexes=('wama/common/tests/tests_source_quota.py',)),
     Mechanism('secret_crypto', "Chiffrement RÉVERSIBLE des secrets d'utilisateur",
               "Les clés d'API de fournisseurs cloud sont chiffrées en base, pas hachées : WAMA doit "
               "les RELIRE pour appeler le fournisseur à la place de l'utilisateur. Clé DÉRIVÉE de "

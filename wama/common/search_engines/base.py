@@ -50,8 +50,10 @@ class BaseSearchEngine(ABC):
     #: Le moteur exige-t-il une clé ? (dérivé du registre par `requires_key()`, surchargeable)
     timeout_s: float = 15.0
 
-    def __init__(self, api_key: str = ''):
+    def __init__(self, api_key: str = '', scope: str = 'instance'):
         self.api_key = api_key
+        #: Portée de la clé (`source_quota.saturation_scope`) : les appels se comptent pour elle.
+        self.scope = scope or 'instance'
 
     # ── Ce que chaque moteur implémente ──────────────────────────────────────────────────
     @abstractmethod
@@ -99,9 +101,21 @@ class BaseSearchEngine(ABC):
             raise SearchEngineUnavailable(
                 f"{self.label} a refusé la clé d'API (HTTP {resp.status_code}) — "
                 f"vérifier celle posée au profil")
+        from wama.common.services import source_quota
         if resp.status_code == 429:
+            # Brique commune des services externes (`ROADMAP §8d` étape 3) : le refus se note et
+            # apprend le plafond — la recherche suivante passe au moteur utilisable suivant.
+            try:
+                wait = float((getattr(resp, 'headers', None) or {}).get('Retry-After') or 0)
+            except (TypeError, ValueError):
+                wait = 0.0
+            source_quota.learn_from_refusal(self.slug, self.scope, retry_after_s=wait)
+            source_quota.note_saturation(self.slug, scope=self.scope,
+                                         seconds=wait or source_quota.MINUTE,
+                                         reason='limite de débit')
             raise SearchEngineUnavailable(f"{self.label} : quota atteint (HTTP 429)")
         resp.raise_for_status()
+        source_quota.record(self.slug, self.scope)
         try:
             return resp.json()
         except ValueError as exc:
