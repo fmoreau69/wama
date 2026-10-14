@@ -23840,3 +23840,36 @@ des comportements à construire, et un test ne fige pas l'état qu'on veut quitt
 - `check_docs` : 0 cassée sur 2787 ; `doc_facts --check` : 3 blocs périmés (mécanismes, outils,
   briques) par le travail NON commité d'autres sessions — mes deux lignes générées (squelette,
   gouverneur) sont identiques à HEAD, recalculées sans écrire.
+
+## §PALIER 2026-10-14 — l'assistant lance UNE étape d'une card (`start_<app>(id, process=…)`) ; enhancer aligné sur `decorate_cards` — non poussé — 🔴 relancer gunicorn + workers
+
+Décisions de Fabien : *« oui, aligne l'enhancer »* ; sur le backfill au lancement, *« on garde car
+l'API de l'assistant reste à compléter […] je proposerais plutôt d'ajouter la capacité à l'API
+d'exécuter les sous-process aussi. Pour les actions programmées, c'est moins évident »* → *« lance
+le point 1 »*.
+
+- **Enhancer** (`b04b78d9`) : ses deux files (image/vidéo ET audio) décorent leurs cards par
+  `decorate_cards`, comme les neuf autres apps — une lecture des lignes d'exécution par file, plus
+  une par card. Mesuré sur la base vivante, un compte par file : page 200, une bande par card.
+- **Le ▶ d'étape est UNE fonction** : `process_views.start_one_process`, appelée par la vue
+  (`make_process_start_view`, comportement inchangé — la card d'autrui lève toujours `Http404`) et
+  par l'outil `start_<app>` de l'assistant, qui gagne l'argument `process` (signature synthétisée
+  de `_triad_fns`, donc les dix apps et l'audio de l'enhancer d'un coup). Une étape inconnue est
+  refusée en NOMMANT celles du pipeline — c'est ce qui les apprend à l'assistant. La phrase que
+  l'assistant lit vient de `_ROLE_SENTENCE['start']` (pas de la docstring) : c'est elle qui dit
+  `process`. Remise à zéro propre à l'étape : `TRIAD_SPECS[…]['reset_for_process']` (composer
+  seul, même nom que le paramètre de la vue), validée à l'ingest du manifeste comme `reset`.
+- **Gardes** : `tests_tool_api_start.StartOneProcessFromTheAssistantTest` (étape lancée comme par
+  le bouton, étape inconnue nommée, id manquant, card d'autrui, reset par étape du composer) —
+  contre-épreuve par mutation (l'outil ignore `process`) : 3 ROUGES. 272 tests (outils, vues
+  d'étape des apps, actions programmées, MCP, corpus de docs) : verts sauf 6 rouges ÉTRANGERS —
+  garde de langue (2671 > 2668, 133 > 132, 1307 > 1301 ; aucun identifiant de ce palier, vérifié
+  par `--detail`) et `tests_tool_api_lectures.AddItemToMediaLibraryTest.test_ne_DEVINE_pas_le_role_et_rend_les_candidats`
+  (aucun hunk de ce palier ne touche la médiathèque).
+- **Manifestes** : seules les entrées `start_<app>` (args + description) et le `triad_spec` du
+  composer sont reportées, depuis une extraction fraîche (`ingest.extract`) — le reste du corpus
+  était déjà périmé par d'autres chantiers et n'est pas touché. ⚠ `manifest_export --out` IGNORE
+  `--kind` et écrit à plat : des homonymes de sortes différentes s'y écrasent (`anonymizer.json`
+  app ← pipeline) — piège d'outil, signalé, pas corrigé.
+- ⏳ **Actions programmées** : même outil, mais l'étape n'est pas retenue — non ouvert, faute de
+  besoin (`ROUTE §10.6`, ▶ par process).

@@ -3334,6 +3334,9 @@ TOOL_APP_ALIAS = {'audio_enhancer': 'enhancer'}
 # une clé que plus rien n'écrit (`anon_progress:`), quatre lançaient sans verrou.
 #   task | task_for  : tâche Celery, ou fonction(élément) → tâche (chemin pointé)
 #   reset            : dict (+ progression à 0) OU chemin d'une fonction(élément) de l'app
+#   reset_for_process: chemin d'une fonction(élément, process) — la remise à zéro du ▶ d'UNE
+#                      étape quand elle dépend de l'étape (`make_process_start_view`, même nom) ;
+#                      absente, l'étape reprend `reset`
 #   pending / pending_exclude : ce que lance « tout » (défaut : statut PENDING)
 # STATUT — une valeur de `status_fields` est un champ, ou un dict :
 #   attr · call (méthode à appeler) · url (fichier → son URL) · basename (fichier → son nom)
@@ -3444,6 +3447,7 @@ TRIAD_SPECS = {
         'task_for': 'wama.composer.views._task_for',
         'id_kwarg': 'generation_id',
         'reset': 'wama.composer.views._reset_for_relaunch',
+        'reset_for_process': 'wama.composer.views._reset_for_relaunch',
         'empty_msg': 'Aucune composition en attente.',
         'status_order': '-id',
         'status_fields': {
@@ -3606,6 +3610,26 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
             item.save(update_fields=['task_id'])
             return t, None
 
+        process = kwargs.get('process') or (args[1] if len(args) > 1 else None)
+        if process:
+            # Le ▶ d'UNE étape de la card (`process_views.start_one_process`, même geste que le
+            # bouton) : cette étape, précédée des seuls amonts qui ne sont plus à jour.
+            if item_id is None:
+                return {'error': "process : indiquer l'élément dont lancer l'étape."}
+            from django.http import Http404
+            from wama.common.utils.process_views import start_one_process
+            try:
+                item, t, refused = start_one_process(
+                    model, item_id, process, user=user, task_for=task_for,
+                    reset_on_start=reset,
+                    reset_for_process=(import_string(spec['reset_for_process'])
+                                       if spec.get('reset_for_process') else None))
+            except Http404:
+                return {'error': f'{label} #{item_id} introuvable ou non autorisé.'}
+            if refused:
+                return {'error': f'{label} #{item_id} : {refused[1]}.'}
+            return {'task_id': t.id, 'status': 'started', 'item_id': item_id, 'process': process}
+
         if item_id is not None:
             t, err = _launch(item_id)
             if err == 'not_found':
@@ -3629,7 +3653,9 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
     _start.__signature__ = inspect.Signature(
         [inspect.Parameter('user', inspect.Parameter.POSITIONAL_OR_KEYWORD),
          inspect.Parameter(id_kwarg, inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                           default=None, annotation=int)],
+                           default=None, annotation=int),
+         inspect.Parameter('process', inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                           default=None, annotation=str)],
         return_annotation=dict)
 
     def _value(item, field):
@@ -3785,7 +3811,9 @@ def items_of_step(tool_name, args, result) -> list:
 
 _ROLE_SENTENCE = {
     'add':    "Ajoute un élément à la file d'attente de {label} ({desc}) et renvoie son item_id.",
-    'start':  "Lance le traitement {label} : l'item indiqué, ou tous ceux en attente si aucun id.",
+    'start':  ("Lance le traitement {label} : l'item indiqué, ou tous ceux en attente si aucun id. "
+               "Avec `process` et l'id : UNE étape de l'item, comme son ▶ d'étape — les étapes "
+               "d'amont encore à jour sont reprises, pas rejouées."),
     'status': ("État des travaux {label} de l'utilisateur : statut, progression, résultat — et, "
                "pour un travail qui attend, sa place dans la file GPU (`queue` : tâches devant, "
                "début prévu, ce qui passe avant). RUNNING à 0 % avec `queue` = en file, pas bloqué."),

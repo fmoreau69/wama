@@ -2420,9 +2420,10 @@
         },
         "start_anonymizer": {
           "args": {
-            "media_id": "int"
+            "media_id": "int",
+            "process": "str"
           },
-          "description": "Lance le traitement Anonymizer : l'item indiqué, ou tous ceux en attente si aucun id."
+          "description": "Lance le traitement Anonymizer : l'item indiqué, ou tous ceux en attente si aucun id. Avec `process` et l'id : UNE étape de l'item, comme son ▶ d'étape — les étapes d'amont encore à jour sont reprises, pas rejouées."
         }
       },
       "start": "start_anonymizer",

@@ -1928,11 +1928,12 @@ Inventaire des moteurs de WAMA, dérivé À CHAQUE AFFICHAGE des déclarations `
 
 ### ▶ d'un process (fabrique commune)
 
-La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_view` (2026-10-04) : process connu, ayant lieu pour cette card (`AppPipeline.applicable`), anti-course (`begin_processing`), tâche lancée bornée à ce process. Écrite à la main dans six apps avec trois formes de refus ; mêmes crochets que `make_batch_views` (`task_for`, `reset_on_start`). Le pipeline se lit de l'app de l'élément (`pipeline_of`), il n'est pas un argument
+La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_view` (2026-10-04) : process connu, ayant lieu pour cette card (`AppPipeline.applicable`), anti-course (`begin_processing`), tâche lancée bornée à ce process. Écrite à la main dans six apps avec trois formes de refus ; mêmes crochets que `make_batch_views` (`task_for`, `reset_on_start`). Le pipeline se lit de l'app de l'élément (`pipeline_of`), il n'est pas un argument. Le geste est `start_one_process` : la vue et l'outil `start_<app>(…, process=…)` de l'assistant l'appellent tous deux (2026-10-14)
 
 - **Domicile** : `wama/common/utils/process_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — La vue « ▶ d'UN process » d'une card : fabrique commune (`make_process_start_view`).
-- **API publique** (1) :
+- **API publique** (2) :
+  - `start_one_process(work_model, pk, process, *, user, task_for, reset_on_start=None, reset_for_process=None)` — Le ▶ d'UNE étape d'un élément : `(élément, tâche, None)`, ou `(None, None, (statut HTTP,
   - `make_process_start_view(*, work_model, task_for, get_user=request_user, reset_on_start=None, reset_for_process=None)` — La vue `start_process(request, pk, process)` d'une app à pipeline.
 
 ## File d'attente & lots

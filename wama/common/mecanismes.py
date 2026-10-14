@@ -1420,7 +1420,9 @@ MECHANISMS = (
               "anti-course (`begin_processing`), tâche lancée bornée à ce process. Écrite à la main "
               "dans six apps avec trois formes de refus ; mêmes crochets que `make_batch_views` "
               "(`task_for`, `reset_on_start`). Le pipeline se lit de l'app de l'élément "
-              "(`pipeline_of`), il n'est pas un argument",
+              "(`pipeline_of`), il n'est pas un argument. Le geste est `start_one_process` : "
+              "la vue et l'outil `start_<app>(…, process=…)` de l'assistant l'appellent tous deux "
+              "(2026-10-14)",
               'wama/common/utils/process_views.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               depends_on=('process_pipeline',)),

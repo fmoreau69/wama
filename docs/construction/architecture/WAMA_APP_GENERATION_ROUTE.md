@@ -5073,6 +5073,14 @@ Objectif : les gabarits d'app ne portent que l'emballage.
 >   `start/<pk>/<process>/` (inconnu / sans objet → 400 qui le dit ; « auto » → la tâche
 >   tranche). « ▶ tout / compléter manquant + périmé » EST le ▶ de la card depuis P3
 >   (`steps_to_run` sans `only`) — pas de pièce à part.
+>   ✅ **L'assistant a le même ▶ d'étape (2026-10-14, décision de Fabien)** : `start_<app>(id,
+>   process=…)`. Le geste est UNE fonction, `process_views.start_one_process`, derrière le bouton
+>   (`make_process_start_view`) et derrière l'outil (`tool_api._triad_fns`) ; une étape inconnue
+>   est refusée en nommant celles du pipeline — c'est ce qui les apprend à l'assistant. La remise
+>   à zéro propre à l'étape se déclare à `TRIAD_SPECS` (`reset_for_process`, le nom du paramètre
+>   de la vue ; le composer seul). ⏳ Les actions PROGRAMMÉES passent par le même outil mais ne
+>   retiennent pas d'étape : non ouvert, faute de besoin (on y programme des traitements
+>   complets) — l'ajout se limiterait à retenir l'étape et à l'offrir au menu « Programmer… ».
 > - ✅ **⚙ par process (2026-10-03, 5ᵉ pièce)** : chaque ligne de la bande porte le MÊME
 >   `.settings-btn[data-id]` que la card, avec `data-only` = les réglages que le process
 >   SURVEILLE (`ProcessSpec.watched`, remonté par `card_rows`) ; `queue-actions.js` le passe à

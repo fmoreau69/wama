@@ -11,6 +11,10 @@ de `make_batch_views` dont elle reprend les crochets (`task_for`, `reset_on_star
 Ni le pipeline ni le modèle ne sont des arguments : le pipeline se lit de l'app de l'élément
 (`pipeline_of`), et « le modèle que la card demande » de sa déclaration (`requested_model`).
 
+Le geste lui-même est `start_one_process` : la vue le traduit en HTTP, l'outil `start_<app>` de
+l'assistant (`tool_api._triad_fns`, argument `process`) en réponse d'outil — un seul ▶ d'étape,
+deux portes (2026-10-14, décision de Fabien).
+
 Usage (views.py de l'app) :
     from wama.common.utils.process_views import make_process_start_view
     start_process = make_process_start_view(
@@ -20,6 +24,45 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
 from wama.common.utils.progress_views import request_user
+
+
+def start_one_process(work_model, pk, process, *, user, task_for,
+                      reset_on_start=None, reset_for_process=None):
+    """Le ▶ d'UNE étape d'un élément : `(élément, tâche, None)`, ou `(None, None, (statut HTTP,
+    message))` quand il est refusé. Arguments : ceux de `make_process_start_view`.
+
+    Refusé : étape inconnue — le message nomme celles du pipeline, c'est ce qui les apprend à
+    l'assistant (400) ; étape qui n'a pas lieu pour cette card (400) ; élément déjà en cours
+    (409). Un élément introuvable ou non modifiable par `user` LÈVE `Http404`
+    (`editable_or_404`), comme la vue l'a toujours fait ; l'outil le traduit."""
+    from wama.common.services.process_pipeline import pipeline_of
+    from wama.common.utils.process_control import begin_processing
+    from wama.common.utils.scoping import editable_or_404
+
+    item = editable_or_404(work_model, user, pk=pk)
+    pipeline = pipeline_of(item)
+    if pipeline is None or process not in {s.key for s in pipeline.specs}:
+        known = ', '.join(f'{s.key} (« {s.label or s.key} »)'
+                          for s in (pipeline.ordered() if pipeline else ()))
+        return None, None, (400, f"process inconnu : {process}"
+                                 + (f" — étapes : {known}" if known else ''))
+    key = pipeline.requested_model(item)
+    if key is not None and process not in {s.key for s in pipeline.applicable(item, key)}:
+        return None, None, (400, f"« {pipeline.spec(process).label} » n'a pas lieu "
+                                 "pour cette card")
+
+    reset = ((lambda element: reset_for_process(element, process))
+             if reset_for_process is not None else reset_on_start)
+    item, err = begin_processing(work_model, pk, user=user, reset=reset)
+    if err == 'not_found':
+        return None, None, (404, 'Élément introuvable')
+    if err:
+        return None, None, (409, 'Traitement déjà en cours')
+    task = task_for(item).apply_async(args=(item.pk,), kwargs={'process': process})
+    item.task_id = task.id
+    item.save(update_fields=['task_id'])
+    return item, task, None
+
 
 def make_process_start_view(*, work_model, task_for, get_user=request_user,
                             reset_on_start=None, reset_for_process=None):
@@ -43,30 +86,12 @@ def make_process_start_view(*, work_model, task_for, get_user=request_user,
 
     @require_POST
     def start_process(request, pk, process):
-        from wama.common.services.process_pipeline import pipeline_of
-        from wama.common.utils.process_control import begin_processing
-        from wama.common.utils.scoping import editable_or_404
-
-        user = get_user(request)
-        item = editable_or_404(work_model, user, pk=pk)
-        pipeline = pipeline_of(item)
-        if pipeline is None or process not in {s.key for s in pipeline.specs}:
-            return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
-        key = pipeline.requested_model(item)
-        if key is not None and process not in {s.key for s in pipeline.applicable(item, key)}:
-            return JsonResponse({'error': f"« {pipeline.spec(process).label} » n'a pas lieu "
-                                          "pour cette card"}, status=400)
-
-        reset = ((lambda element: reset_for_process(element, process))
-                 if reset_for_process is not None else reset_on_start)
-        item, err = begin_processing(work_model, pk, user=user, reset=reset)
-        if err == 'not_found':
-            return JsonResponse({'error': 'Élément introuvable'}, status=404)
-        if err:
-            return JsonResponse({'error': 'Traitement déjà en cours'}, status=409)
-        task = task_for(item).apply_async(args=(item.pk,), kwargs={'process': process})
-        item.task_id = task.id
-        item.save(update_fields=['task_id'])
+        item, task, refused = start_one_process(
+            work_model, pk, process, user=get_user(request), task_for=task_for,
+            reset_on_start=reset_on_start, reset_for_process=reset_for_process)
+        if refused:
+            status, message = refused
+            return JsonResponse({'error': message}, status=status)
         return JsonResponse({'success': True, 'id': item.pk, 'task_id': task.id,
                              'status': 'RUNNING', 'process': process})
 

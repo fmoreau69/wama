@@ -2171,9 +2171,10 @@
         },
         "start_transcriber": {
           "args": {
+            "process": "str",
             "transcript_id": "int"
           },
-          "description": "Lance le traitement Transcriber : l'item indiqué, ou tous ceux en attente si aucun id."
+          "description": "Lance le traitement Transcriber : l'item indiqué, ou tous ceux en attente si aucun id. Avec `process` et l'id : UNE étape de l'item, comme son ▶ d'étape — les étapes d'amont encore à jour sont reprises, pas rejouées."
         }
       },
       "start": "start_transcriber",

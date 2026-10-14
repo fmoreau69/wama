@@ -132,6 +132,68 @@ class StartTranscriberTest(TestCase):
         task.delay.assert_not_called()
 
 
+class StartOneProcessFromTheAssistantTest(TestCase):
+    """2026-10-14 (Fabien's decision) — the assistant launches ONE step of a card, as the ▶ of
+    that step does : the same function (`process_views.start_one_process`), behind the button
+    and behind `start_<app>(…, process=…)`. Without it, the assistant could only relaunch the
+    whole card."""
+
+    def setUp(self):
+        from wama.transcriber.models import Transcript
+        self.user = get_user_model().objects.create_user('step-starter', password='x')
+        self.t = Transcript.objects.create(user=self.user, status='SUCCESS', text='bonjour',
+                                           language='fr', generate_summary=True,
+                                           audio=SimpleUploadedFile('a.wav', b'x'))
+
+    def test_one_step_is_launched_as_its_card_button_does(self):
+        from wama.transcriber import views
+        task = mock.Mock(**{'apply_async.return_value': _FakeTask()})
+        with mock.patch.object(views, '_task_for', return_value=task):
+            result = T.start_transcriber(self.user, transcript_id=self.t.pk, process='summarize')
+        self.assertEqual(('started', 'summarize'), (result.get('status'), result.get('process')),
+                         result)
+        task.apply_async.assert_called_once_with(args=(self.t.pk,), kwargs={'process': 'summarize'})
+        task.delay.assert_not_called()
+        self.t.refresh_from_db()
+        self.assertEqual(('RUNNING', 'fake-task-id', 'bonjour'),
+                         (self.t.status, self.t.task_id, self.t.text))
+
+    def test_an_unknown_step_is_refused_and_the_steps_are_named(self):
+        from wama.transcriber import views
+        task = mock.Mock()
+        with mock.patch.object(views, '_task_for', return_value=task):
+            result = T.start_transcriber(self.user, transcript_id=self.t.pk, process='nope')
+        self.assertIn('process inconnu', result['error'])
+        self.assertIn('summarize', result['error'], 'the assistant learns the steps from here')
+        task.apply_async.assert_not_called()
+        self.t.refresh_from_db()
+        self.assertEqual('SUCCESS', self.t.status)
+
+    def test_a_step_needs_the_element(self):
+        self.assertIn('error', T.start_transcriber(self.user, process='summarize'))
+
+    def test_a_step_of_someone_elses_card_is_not_found(self):
+        stranger = get_user_model().objects.create_user('step-stranger', password='x')
+        result = T.start_transcriber(stranger, transcript_id=self.t.pk, process='summarize')
+        self.assertIn('introuvable', result.get('error', ''))
+        self.t.refresh_from_db()
+        self.assertEqual('SUCCESS', self.t.status)
+
+    def test_the_step_reset_of_the_composer_receives_the_step(self):
+        """The composer replaces only the outputs of the step it relaunches : its declared
+        `reset_for_process` gets the step, as the card ▶ gives it."""
+        from wama.composer import views
+        from wama.composer.models import ComposerGeneration
+        gen = ComposerGeneration.objects.create(user=self.user, prompt='a calm piano',
+                                                status='SUCCESS')
+        task = mock.Mock(**{'apply_async.return_value': _FakeTask()})
+        with mock.patch.object(views, '_task_for', return_value=task), \
+                mock.patch.object(views, '_reset_for_relaunch') as reset:
+            result = T.start_composer(self.user, generation_id=gen.pk, process='render')
+        self.assertEqual('started', result.get('status'), result)
+        self.assertEqual('render', reset.call_args.args[1])
+
+
 class StartImagerTest(TestCase):
     """The hand-written `start_imager` sent the IMAGE task to every generation, video included —
     its card ▶ picks the task by `_task_for` (2026-10-12). The declared triad names that function."""
@@ -168,7 +230,7 @@ class EveryTriadIsDeclaredTest(TestCase):
         from django.utils.module_loading import import_string
         for app in self.APPS:
             spec = T.TRIAD_SPECS[app]
-            for key in ('model', 'task', 'task_for', 'reset'):
+            for key in ('model', 'task', 'task_for', 'reset', 'reset_for_process'):
                 if isinstance(spec.get(key), str):
                     with self.subTest(app=app, key=key):
                         self.assertTrue(callable(import_string(spec[key])))

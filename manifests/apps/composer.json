@@ -1443,9 +1443,10 @@
         },
         "start_composer": {
           "args": {
-            "generation_id": "int"
+            "generation_id": "int",
+            "process": "str"
           },
-          "description": "Lance le traitement Composer : l'item indiqué, ou tous ceux en attente si aucun id."
+          "description": "Lance le traitement Composer : l'item indiqué, ou tous ceux en attente si aucun id. Avec `process` et l'id : UNE étape de l'item, comme son ▶ d'étape — les étapes d'amont encore à jour sont reprises, pas rejouées."
         }
       },
       "start": "start_composer",
@@ -1455,6 +1456,7 @@
         "id_kwarg": "generation_id",
         "model": "wama.composer.models.ComposerGeneration",
         "reset": "wama.composer.views._reset_for_relaunch",
+        "reset_for_process": "wama.composer.views._reset_for_relaunch",
         "status_fields": {
           "audio_url": {
             "attr": "audio_output",

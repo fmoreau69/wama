@@ -134,6 +134,11 @@ def validate_app_body(body: dict) -> list[str]:
                                           or (isinstance(reset, str) and '.' in reset)):
                 errs.append("tool_api.triad_spec.reset : dict de champs ou chemin pointé "
                             f"d'une fonction(élément) : {reset!r}")
+            per_process = spec.get('reset_for_process')
+            if per_process is not None and not (isinstance(per_process, str)
+                                                and '.' in per_process):
+                errs.append("tool_api.triad_spec.reset_for_process : chemin pointé d'une "
+                            f"fonction(élément, process) : {per_process!r}")
             sf = spec.get('status_fields')
             if sf is not None and (not isinstance(sf, dict) or any(
                     not (isinstance(v, str)
