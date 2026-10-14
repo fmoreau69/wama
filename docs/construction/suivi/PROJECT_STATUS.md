@@ -23669,3 +23669,58 @@ un téléchargement asynchrone (`WAMA_VERIFICATION §Geste 14`, note du 13/10) ;
 `check_identifier_language` dépassés par du travail en cours d'autres sessions (aucun de ces
 identifiants n'est dans ce commit) ; ⑦ une page rendue par JavaScript (`ai.meta.com/vjepa`) ne donne
 rien, en `.html` comme en texte.
+
+## §CLÔTURE — 2026-10-12→13, « FIL DISCORD #43 ; WAMA-DEV-AI SUR LA ROUTE COMMUNE ; OCR #1485 : LA FILE LIT CE QUE LE WORKER TIENT, L'ASSISTANT VOIT LA PLACE » — ✅ LIVRÉ (non poussé) — 🔴 relancer gunicorn + worker GPU + passerelle + MCP 8770/8771
+
+🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : relancer gunicorn, le worker GPU (il note son démarrage au
+`worker_ready` — sans cela un orphelin n'est écarté que par la règle « un seul en cours »), la
+passerelle Discord et les deux serveurs MCP ; puis reposer au fil la question « qu'est-ce qui passe
+avant ma tâche ? » sur un élément en attente et lire `tool_steps` (`/diagnostic-assistant`).
+
+**Commits** : `735933dd` (code, tests, docs — index construit hunk par hunk : huit fichiers
+portaient aussi le travail non commité d'une autre session, laissé dans l'arbre ; reporté par
+fusion à trois voies sur deux commits arrivés pendant la vérification, lignes changées identiques)
+· + le commit de cette clôture (ce bloc, et MES seules lignes des docs générées : la description de
+la file globale et le compte d'outils — une régénération en worktree fausse la conformité, faute
+de `logs/conformity_report.json`, et `WAMA_DATA_WORLD`).
+
+**Livré** (détail : `WAMA_LLM.md` §« 2026-10-12 » et §« 2026-10-13 », deux sections) :
+- fil #43 — OCR jamais vide en SUCCESS (sortie dégénérée levée, EXIF, redressement docTR
+  `ocr_base.upright_image`) ; passerelle : rattrapage après session renouvelée, journal `discord` ;
+  `_ollama_call` toujours en flux ; `get_item_result` ; fin de tâche dev annoncée dans le fil ;
+  surface MCP « wama » (8770) supervisée par `start_wama_prod.sh` ;
+- wama-dev-ai — les six rôles tirés POUR LE COMPTE (`select_model`), garde GPU commune
+  `role_utils.local_llm_guard` ; l'audit ne décharge plus personne (`REMOVAL_LEDGER R128`) ;
+- OCR #1485 — campagne RE-LIVRÉE refusée (`redelivered`) ; `global_queue.held_messages` (table
+  `unacked` : en cours non déclaré, orphelin, différé — mesuré sur worker jetable) ; `place_of` →
+  `queue` dans `get_<app>_status` et `get_item_detail`. Le titre « Tests nocturnes », remis par
+  erreur dans `_system_title`, en est ressorti à la clôture : R122 l'avait retiré le matin même
+  (garde `test_the_nightly_campaign_held_by_the_gpu_worker_is_not_named`).
+
+**Gardes** : `tests_global_queue` (+21 ; sept contre-épreuves par mutation, rouges, jouées en
+worktree), `tests_tool_api_result`, `tests_dev_job_follow_up`, `tests_development_models`,
+`tests_dev_ai_bridge.RoleGpuGuardTest` / `RolesFollowTheCommonRouteTest`, `gateway.tests`,
+`reader.tests_glm_ocr`, `tests_assistant_stream`, `tests_nightly_modes`.
+**Contrôles** (sur le commit, en worktree, WSL) : suite `common` entière + passerelle + OCR + model
+manager, **4558 tests, 21 rouges, aucun dû à la session** — 16 rouges aussi sur le HEAD d'avant
+(contre-épreuve : docs dérivées, garde de langue, `AddItemToMediaLibraryTest`, convertisseur,
+`yue2`, surfaces de réglages, gabarits, tactile, disposition des tests…), 4 `FileManagerGesturesTest`
+par interblocage Postgres avec un autre passage sur la base de test partagée (verts rejoués), 1
+`process_watched` rouge aussi sur HEAD. Après les corrections de clôture : 478 tests ciblés (1
+rouge, l'ancien), 144 après le report sur le nouveau HEAD, verts.
+
+**Laissé de côté, nommément** : skill de diagnostic de file (non fait : à reconsidérer si
+l'assistant se trompe en VOYANT l'état) · tâches déclarées au gouverneur hors file GPU (converter)
+comptées dans la file GPU, comme avant — non tranché · méta STARTED du backend de résultats non
+fiable (redémarrage de Redis à 14:43, cause non cherchée) · cause des coupures Discord, à lire au
+prochain épisode · essai à trois de l'agent de code (non lancé) · `config.py` de wama-dev-ai
+encore parallèle (chaînes de repli, `cli.py`, audit) · un `.env` local peut porter `WAMA_PASSWORD`,
+plus lu · `AddItemToMediaLibraryTest.test_ne_DEVINE_pas_le_role…` rouge, antérieur (le Composer
+déclare son rôle depuis `52fa7362`) · garde de langue rouge par d'autres commits (aucun nom de
+cette session).
+
+**Artefacts** : scripts de mesure dans le scratchpad (jetables, dont le worker Celery jetable de
+la mesure `unacked`, arrêté) · campagne nocturne `d2d9c394` révoquée et worker GPU relancé le
+13/10 avec l'accord de Fabien · worktrees de vérification retirés.
+⚠ `wama-schedule.js` (relectures des pastilles), écrit par cette session le 13/10 à 15:11, a été
+ADOPTÉ et réparé par une autre dans `0b9502b3` — rien à commiter de ce côté.

@@ -929,17 +929,21 @@ Une balise `WAMA:FAIT(registre/clé/champ)` dans un .md va chercher sa valeur da
 
 ### File globale GPU (où en est chaque tâche)
 
-Lue, jamais devinée : ce qui tourne au gouverneur, ce qui attend dans les listes du broker dans l'ordre de consommation. Heures prévues = somme de durées MESURÉES (file sérielle) ; place et durée des traitements des autres, jamais leur titre. Nourrit le placement `auto`, la pastille « En file » et le calendrier
+Lue, jamais devinée : ce qui tourne au gouverneur, ce que le worker GPU TIENT au broker (`unacked` : tâche en cours non déclarée, orphelin écarté, différé à son échéance), ce qui attend dans les listes dans l'ordre de consommation. Heures prévues = somme de durées MESURÉES (file sérielle) ; place et durée des traitements des autres, jamais leur titre (une tâche système se nomme). Nourrit le placement `auto`, la pastille « En file », le calendrier et l'API de l'assistant (`place_of`)
 
 - **Domicile** : `wama/common/services/global_queue.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : La FILE GLOBALE de WAMA — où en est chaque traitement GPU, pour tous (calendrier, étape 4). Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` point 13.8 ; la vue : `WAMA_MEMORY.md §9bis.1`.
-- **API publique** (6) :
+- **API publique** (10) :
   - `class QueueEntry`
   - `broker_messages(queue=GPU_QUEUE, client=None) -> list[dict]` — Messages en ATTENTE sur `queue`, dans l'ordre où le worker les prendra.
+  - `held_messages(queue=GPU_QUEUE, client=None, *, keys=('unacked', 'unacked_index')) -> list[dict]` — Messages DÉLIVRÉS à un worker de `queue` et pas encore confirmés — la table `unacked`.
+  - `note_consumer_ready(queues, at=None) -> None` — Note l'instant où un worker consommant `queues` est PRÊT (`wama/celery.py`, `worker_ready`).
+  - `consumer_ready_at(queue=GPU_QUEUE)` — Instant de démarrage du worker de `queue`, ou None s'il n'est pas connu (cache perdu,
   - `typical_seconds(model, _cache=None) -> tuple[float, str]` — Durée TYPIQUE d'un traitement de `model` : `(secondes, 'measured' | 'declared')`.
-  - `snapshot(now=None, *, running=None, queued=None) -> list[QueueEntry]` — La file GPU telle qu'elle s'exécutera : en cours, puis en attente, avec des heures PRÉVUES.
+  - `snapshot(now=None, *, running=None, queued=None, held=None, ready_at=None) -> list[QueueEntry]` — La file GPU telle qu'elle s'exécutera : en cours, puis en attente, avec des heures PRÉVUES.
   - `free_at(now=None, entries=None)` — Instant où la file GPU sera VIDE, d'après l'instantané.
   - `for_user(user, now=None, entries=None) -> list[dict]` — Les éléments de `user` dans la file, avec leur place et le nombre de tâches devant eux.
+  - `place_of(obj, viewer, entries=None) -> dict | None` — Où en est l'élément `obj` dans la file GPU, vu par `viewer` — None s'il n'y est pas.
 
 ### Fuites de secrets
 
