@@ -718,6 +718,7 @@
       // PRÉVISION annonçait un autre modèle que celui que le lancement retient.
       if (p.options_auto && p.options_resolution) {
         Object.keys(p.options_resolution).sort().forEach(function (k) {
+          if (k === 'needs') return;   // des CHAMPS, dont la valeur est lue plus bas (`needsQuery`)
           var v = p.options_resolution[k];
           if (v && v.length) url += (url.indexOf('?') >= 0 ? '&' : '?') +
             encodeURIComponent(k) + '=' + encodeURIComponent([].concat(v).join(','));
@@ -750,8 +751,31 @@
         return v ? ((baseUrl.indexOf('?') >= 0 ? '&' : '?') + 'app=' + encodeURIComponent(om.app) +
                     '&domain=' + encodeURIComponent(om.domain) + '&mode=' + encodeURIComponent(v)) : '';
       };
+      // `options_resolution.needs` (2026-10-14) : le BESOIN de l'élément, {capacité: champ}. La
+      // valeur du champ (enhancer : le facteur ×2/×4) part avec la requête — le lancement lit le
+      // même champ sur l'élément ; sans elle la prévision se taisait (liste multi-tâches) et en
+      // liste simple aurait annoncé un ×2 pour un élément ×4. Elle entre dans l'URL, donc dans la
+      // clé de cache, et son changement rafraîchit la prévision comme celui de l'intention.
+      var needEls = [];
+      if (p.options_auto && p.options_resolution && p.options_resolution.needs) {
+        Object.keys(p.options_resolution.needs).sort().forEach(function (cap) {
+          var field = p.options_resolution.needs[cap];
+          var pf = (schema || []).filter(function (x) { return x.name === field; })[0];
+          needEls.push({ cap: cap, field: field,
+                         el: pf ? document.getElementById(perCtx(pf.dom_id, ctx) || ('wp-' + ctx + '-' + field)) : null });
+        });
+      }
+      var needsQuery = function () {
+        var pairs = needEls.map(function (n) {
+          var v = n.el ? n.el.value : _siblingValue(root, n.field);
+          return v ? n.cap + ':' + v : '';
+        }).filter(Boolean);
+        return pairs.length ? 'needs=' + encodeURIComponent(pairs.join(',')) : '';
+      };
       var urlWithIntent = function () {
         var u = baseUrl + modeQuery();
+        var nq = needsQuery();
+        if (nq) u += (u.indexOf('?') >= 0 ? '&' : '?') + nq;
         return u + (intentEl && intentEl.value
           ? (u.indexOf('?') >= 0 ? '&' : '?') + 'quality_intent=' + encodeURIComponent(intentEl.value) : '');
       };
@@ -802,20 +826,27 @@
         sel.dispatchEvent(new CustomEvent('wama:options-filled', { bubbles: true }));
         sel.dispatchEvent(new Event('change', { bubbles: true }));   // re-déclenche WamaInputMatch/conditionnel
       };
-      // Changement d'intention → seule la PRÉVISION se rafraîchit (les options du domaine
-      // ne dépendent pas de l'intention — re-remplir le select perdrait la sélection).
+      // Changement d'intention ou d'un BESOIN → seule la PRÉVISION se rafraîchit (les options du
+      // domaine n'en dépendent pas — re-remplir le select perdrait la sélection).
+      var refreshPreview = function () {
+        var u = urlWithIntent();
+        var use = function (d) { _bindAutoPreview(sel, (d || {}).auto_preview); };
+        if (_optionSourceCache[u]) { use(_optionSourceCache[u]); return; }
+        fetch(u, { credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (d) { _optionSourceCache[u] = d || {}; use(_optionSourceCache[u]); })
+          .catch(function () {});
+      };
       if (intentEl && !intentEl._wpIntentPreviewBound) {
         intentEl._wpIntentPreviewBound = true;
-        intentEl.addEventListener('change', function () {
-          var u = urlWithIntent();
-          var use = function (d) { _bindAutoPreview(sel, (d || {}).auto_preview); };
-          if (_optionSourceCache[u]) { use(_optionSourceCache[u]); return; }
-          fetch(u, { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (d) { _optionSourceCache[u] = d || {}; use(_optionSourceCache[u]); })
-            .catch(function () {});
-        });
+        intentEl.addEventListener('change', refreshPreview);
       }
+      needEls.forEach(function (n) {
+        if (n.el && !n.el._wpNeedPreviewBound) {
+          n.el._wpNeedPreviewBound = true;
+          n.el.addEventListener('change', refreshPreview);
+        }
+      });
       // La DERNIÈRE demande seule remplit le select : la première part avant que le mode ne
       // soit connu, et sa réponse peut arriver APRÈS celle du mode — elle remettait alors la
       // liste non bornée (mesuré au smoke du 2026-09-27 : SAM3 proposé en mode « Classes »).

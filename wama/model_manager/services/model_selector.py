@@ -192,6 +192,45 @@ def is_cloud(model) -> bool:
     return getattr(model, 'execution', None) == EXECUTION_CLOUD
 
 
+def _internal_values(batch) -> dict:
+    """Étage MESURE INTERNE — `{id(m): valeur}` (plus haut = mieux) sur les modèles du lot mesurés
+    par WAMA sur la MÊME échelle et le MÊME jeu de références (`internal_quality.internal_scores`,
+    `reference_set`), ou {} si rien ne s'y compare.
+
+    Branché le 2026-10-14 (Q3, `WAMA_QUALITE §4.1`, tranchée par Fabien : générique). Trois règles,
+    toutes déjà écrites ailleurs et reprises telles quelles :
+      • une POPULATION : deux modèles ne se comparent que mesurés sur exactement les mêmes
+        références (`internal_quality`) — et il en faut au moins DEUX dans le lot, sinon le seul
+        mesuré gagnerait par défaut ;
+      • le SENS voyage avec l'échelle (`direction`) : un LPIPS ou un taux manqué se lisent à
+        l'envers d'un score ;
+      • UNE échelle ou aucune : si le lot se compare sur plusieurs (des détecteurs mesurés sur les
+        visages ET sur les plaques), on ne choisit pas laquelle compte — l'étage s'abstient, et le
+        tri descend d'un étage comme avant. *Mieux vaut l'égalité qu'un classement inventé.*"""
+    keyed = {}
+    for m in batch:
+        if getattr(m, 'model_key', ''):
+            keyed.setdefault(m.model_key, []).append(m)
+    if len(keyed) < 2:
+        return {}
+    try:
+        from .internal_quality import internal_scores
+        scores = internal_scores(list(keyed))
+    except Exception:
+        logger.debug('[model_selector] mesures internes illisibles', exc_info=True)
+        return {}
+    groups = {}
+    for key, entries in scores.items():
+        for e in entries:
+            groups.setdefault((e['scale'], e['reference_set'], e['direction']), {})[key] = e['value']
+    comparable = [(g, values) for g, values in groups.items() if len(values) >= 2]
+    if len(comparable) != 1:
+        return {}
+    (_scale, _refs, direction), values = comparable[0]
+    sign = -1.0 if direction == 'lower' else 1.0
+    return {id(m): sign * value for key, value in values.items() for m in keyed[key]}
+
+
 def _quality_scalars(pool, family=None):
     """Valeur de QUALITÉ scalaire par modèle — l'ÉCHELLE DES SIGNAUX, en un seul domicile.
 
@@ -237,6 +276,13 @@ def _quality_scalars(pool, family=None):
     batch = list(pool)
     if not batch:
         return {}, False
+
+    # Étage MESURE INTERNE — celui qui « primera toujours » (contrainte `qc.py`, ROADMAP §16.5),
+    # en tête depuis le 2026-10-14 (Q3) : ce que WAMA a mesuré lui-même, sur une référence,
+    # passe devant tout banc tiers et tout a priori (`_internal_values`).
+    internal = _internal_values(batch)
+    if internal:
+        return internal, False
 
     if family:
         covered = [m for m in batch if _family_score(m) is not None]
@@ -745,8 +791,9 @@ def select_model_id(source: Optional[str] = None, requires=None,
                 # brique. Elles ne se contredisaient pas (mesuré), mais la table de la
                 # prospection ignorait 20 de nos tâches : la borne par catégorie ne
                 # s'activait pas pour elles.
-                from ..models import model_type_for_task
-                mt = model_type_for_task(task)
+                # PLUSIEURS tâches (2026-10-14) : la règle du listage, `model_type_for_tasks`.
+                from ..models import model_type_for_tasks
+                mt = model_type_for_tasks(task)
             if mt:
                 kwargs['model_type'] = mt
         if modality or task or consumes or available_inputs is not None:
@@ -892,9 +939,8 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
         # encore décrit finement, reste proposable DANS SA CATÉGORIE — jamais ailleurs.
         mt = model_type
         if not mt and len(tasks) > 1:
-            from ..models import model_type_for_task
-            kinds = {model_type_for_task(x) for x in tasks}
-            mt = kinds.pop() if len(kinds) == 1 else None
+            from ..models import model_type_for_tasks
+            mt = model_type_for_tasks(','.join(tasks))
         if not mt and task:
             # Table task → model_type DÉJÀ écrite pour la prospection : on la réutilise,
             # on n'en invente pas une seconde. Elle est indexée sur les tags HF : on y

@@ -1011,6 +1011,18 @@ d'annoncer un modèle que le lancement ne retiendrait pas (règle du 27/09).
   (`options_resolution` : `priority`, `available_inputs`), le lancement les lit
   (`auto_model.declared_resolution`), le navigateur les transmet à l'endpoint qui les passe à la
   prévision. Garde : `ThePreviewSaysWhatTheLaunchDrawsTest` (avec contre-épreuve).
+  ✅ **2026-10-14 — le BESOIN de l'élément, 3ᵉ clé (`needs`)** : `{capacité: champ}` — le modèle
+  tiré doit porter la capacité à la VALEUR d'un champ de l'élément (enhancer : `scale` ←
+  `upscale_factor`). Le lancement lit le champ sur l'élément, le navigateur le lit dans le
+  formulaire (`needs=scale:4`) et rafraîchit la prévision quand il change ; le lot se restreint
+  AVANT le classement (`auto_model.need_candidates`), la LISTE jamais. Une liste multi-tâches
+  (« agrandir, débruiter ») prévoit dès que ses besoins voyagent. Le filtre par facteur qui vivait
+  dans l'enhancer seul (`media_candidates`, `REMOVAL_LEDGER R131`) disparaît : la prévision se
+  taisait. ⚠ Trouvé au passage : `select_model_id` passait la chaîne « upscale,denoise » ENTIÈRE à
+  `model_type_for_task` → aucune catégorie → `select_model` refusait → l'« auto » de l'enhancer
+  rendait son REPLI quel que soit le curseur depuis le 06/10 ; la règle du listage est remontée
+  (`models.model_type_for_tasks`, un seul lieu). Gardes : `tests_auto_model.DeclaredNeedsTest`,
+  `MultiTaskDomainDrawTest` (contre-épreuves rouges).
 - **Retirés** : l'endpoint `/transcriber/backends/` et `get_backends_info`, `loadBackendsAsync`,
   les deux recopies d'options vers les modales, `#backendHelp` et son pont `data-selected`, et le
   grisage de la diarisation par `WamaModelCaps` — il la désactivait pour WHISPER (le catalogue dit

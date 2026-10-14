@@ -5,6 +5,10 @@ Les trois étages vivent côte à côte, un module chacun : `model_quality` (a p
 `benchmark_sync` (bancs TIERS), et celui-ci (ce que WAMA a MESURÉ elle-même, sur les données du
 labo, contre une référence humaine — `common.models.ResultEvaluation`).
 
+⭐ DANS LE TRI depuis le 2026-10-14 (Q3 tranchée par Fabien : « étage 3 générique ») — la
+sélection la LIT ici (`model_selector._internal_values`), toujours sans rien écrire au catalogue :
+la projection que le paragraphe suivant annonçait est une lecture, pas une écriture.
+
 RABATTUE À LA LECTURE, JAMAIS ÉCRITE AU CATALOGUE (2026-09-23) — même motif que la résidence
 des modèles dans `api_models_db`. Deux raisons, toutes deux mesurées au code :
   • « en lecture d'abord » (décision Q3) : la sélection lit `benchmark_index` et
@@ -42,10 +46,14 @@ def internal_scores(model_keys: Optional[Iterable[str]] = None) -> Dict[str, Lis
     """Les échelles internes de chaque modèle mesuré : `{model_key: [échelle, …]}`.
 
     Une échelle : `{scale, metric, protocol, direction, value, items, references,
-    reference_words, unit, measured_until, population, rank}` — `rank` (1 = le meilleur) et
-    `population` ne valent que parmi les modèles mesurés sur EXACTEMENT les mêmes références ;
-    `rank` est None quand le modèle y est seul. Un modèle jamais mesuré est absent du dict.
+    reference_set, reference_words, unit, measured_until, population, rank}` — `rank` (1 = le
+    meilleur) et `population` ne valent que parmi les modèles mesurés sur EXACTEMENT les mêmes
+    références ; `rank` est None quand le modèle y est seul. `reference_set` NOMME ce jeu de
+    références (empreinte courte) : deux échelles de même nom ne se comparent que s'il est égal —
+    c'est ce que la sélection vérifie (`model_selector._internal_values`, 2026-10-14). Un modèle
+    jamais mesuré est absent du dict.
     """
+    import hashlib
     from wama.common.models import ResultEvaluation
     from wama.common.services.result_evaluation import EXTERNAL_PREFIX
 
@@ -81,6 +89,9 @@ def internal_scores(model_keys: Optional[Iterable[str]] = None) -> Dict[str, Lis
                  'direction': direction,
                  'value': round(g['errors'] / g['reference_words'], 4),
                  'items': len(g['items']), 'references': len(g['references']),
+                 'reference_set': hashlib.sha256(
+                     '\n'.join(sorted(str(r) for r in g['references'])).encode('utf-8')
+                 ).hexdigest()[:16],
                  'reference_words': round(g['reference_words'], 1),
                  # 'word' | 'character' | 'second' — ce que compte `reference_words`.
                  'unit': g.get('unit') or 'word',

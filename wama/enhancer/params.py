@@ -95,6 +95,11 @@ MEDIA_PARAMS = [
           # vivait ici est LEVÉE). Le lancement résout dans `utils/auto_model.py` : domaine =
           # celui-ci, restreint au FACTEUR demandé, classé au poids du curseur.
           options_auto=True,
+          # Le FACTEUR est un BESOIN de l'élément (`needs`, 2026-10-14) : un modèle dont la
+          # capacité `scale` vaut `upscale_factor`. Déclaré ICI, il est lu par le lancement (sur
+          # l'élément) ET par la prévision (dans le formulaire) — elle se taisait jusque-là
+          # (liste « agrandir, débruiter » multi-tâches), ou aurait annoncé un ×2 pour un ×4.
+          options_resolution={'needs': {'scale': 'upscale_factor'}},
           # Catalogue (desc + VRAM) lu sur le DOMAINE du select (clés entières) ; le repli
           # statique reste.
           help_source='enhancer',

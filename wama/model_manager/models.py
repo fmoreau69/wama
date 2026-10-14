@@ -245,6 +245,18 @@ def model_type_for_task(task: str):
     return None
 
 
+def model_type_for_tasks(task: str):
+    """Catégorie d'une OU PLUSIEURS tâches (« upscale,denoise ») : celle qu'elles partagent toutes,
+    None si elles en ont plusieurs ou si l'une est inconnue — on ne devine pas.
+
+    Une règle, deux lecteurs : le listage (`get_registry_models`) et le tirage (`select_model_id`).
+    Jusqu'au 2026-10-14 le tirage passait la chaîne ENTIÈRE à `model_type_for_task`, qui rendait
+    None : sans catégorie, `select_model` refuse de tirer, et l'« auto » de l'enhancer (domaine
+    « agrandir, débruiter ») rendait son REPLI quel que soit le curseur, depuis le 2026-10-06."""
+    kinds = {model_type_for_task(t.strip()) for t in str(task or '').split(',') if t.strip()}
+    return kinds.pop() if len(kinds) == 1 else None
+
+
 def uninstalled_q():
     """Le filtre (`Q`) des lignes DÉSINSTALLÉES : poids retirés par `uninstall_model`, ligne
     gardée pour son historique et marquée `uninstalled_at`.

@@ -61,8 +61,9 @@ class InternalScoreTest(TestCase):
 
 
 class ReadOnlyByConstructionTest(TestCase):
-    """Q3 « en lecture d'abord »: the note must not reach selection — it is never written to
-    the catalogue fields that `_quality_scalars` reads."""
+    """The note is never WRITTEN to the catalogue fields (`benchmark_*`, which `sync_benchmarks`
+    replaces whole). Since 2026-10-14 (Q3) selection READS it at sort time instead
+    (`InternalStageInSelectionTest` below) — a read, still not a write."""
 
     def test_the_catalogue_list_carries_the_note_without_touching_the_model_row(self):
         from wama.model_manager.models import AIModel
@@ -77,3 +78,63 @@ class ReadOnlyByConstructionTest(TestCase):
         model.refresh_from_db()
         self.assertIsNone(model.benchmark_index)
         self.assertNotIn('internal', model.benchmark_meta or {})
+
+
+def _upscaler(key, vram_gb):
+    from wama.model_manager.models import AIModel
+    return AIModel.objects.create(
+        model_key=key, name=key.split(':')[1], model_type='upscaling', source='enhancer',
+        vram_gb=vram_gb, is_available=True, is_downloaded=True, is_proposed=False,
+        capabilities={'task': 'upscale', 'scale': 4})
+
+
+def _bench_row(object_id, model_key, value, *, metric='lpips', direction='lower',
+               reference='div2k-val'):
+    return ResultEvaluation.objects.create(
+        app='model_manager', object_type='UpscaleBench', object_id=object_id, model_key=model_key,
+        metric=metric, value=value, direction=direction, protocol='bicubic_x4_v1',
+        reference_sha256=reference, detail={'errors': value * 100, 'reference_length': 100,
+                                            'unit': 'image'})
+
+
+class InternalStageInSelectionTest(TestCase):
+    """Q3 settled by Fabien on 2026-10-14 — « étage 3 générique »: what WAMA measured itself on a
+    reference comes FIRST in the ladder (`model_selector._internal_values`). Seeded on upscalers,
+    whose catalogue carried no quality at all: the slider drew the same model at 0 and at 100."""
+
+    def setUp(self):
+        _upscaler('enhancer:big', 0.3)
+        _upscaler('enhancer:small', 0.1)
+        _upscaler('enhancer:mid', 0.2)
+
+    def _drawn(self, intent=100):
+        from wama.model_manager.services.model_selector import select_model
+        return select_model(model_type='upscaling', quality_intent=intent).model_key
+
+    def test_without_a_measure_quality_is_only_the_size(self):
+        self.assertEqual('enhancer:big', self._drawn())
+
+    def test_the_measured_quality_drives_the_slider(self):
+        _bench_row(1, 'enhancer:big', 0.30)
+        _bench_row(2, 'enhancer:small', 0.20)
+        _bench_row(3, 'enhancer:mid', 0.25)
+        self.assertEqual('enhancer:small', self._drawn(100),
+                         'the lowest LPIPS is the best, whatever its size')
+
+    def test_a_lone_measured_model_does_not_win_by_default(self):
+        _bench_row(2, 'enhancer:small', 0.20)
+        self.assertEqual('enhancer:big', self._drawn())
+
+    def test_models_measured_on_different_references_do_not_compare(self):
+        _bench_row(1, 'enhancer:big', 0.30, reference='div2k-val')
+        _bench_row(2, 'enhancer:small', 0.20, reference='another-set')
+        self.assertEqual('enhancer:big', self._drawn())
+
+    def test_two_comparable_scales_abstain_rather_than_pick_one(self):
+        """LPIPS says « small », PSNR says « big »: which one counts is not ours to choose."""
+        _bench_row(1, 'enhancer:big', 0.30)
+        _bench_row(2, 'enhancer:small', 0.20)
+        _bench_row(1, 'enhancer:big', 32.0, metric='psnr', direction='higher')
+        _bench_row(2, 'enhancer:small', 29.0, metric='psnr', direction='higher')
+        self.assertEqual('enhancer:big', self._drawn(),
+                         'the stage abstains: the ladder goes down to the size, as before')

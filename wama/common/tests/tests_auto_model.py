@@ -700,3 +700,96 @@ class PredicatDeVoixClonéeDéfiniUneFoisTest(TestCase):
                       'un slot doit pouvoir porter son propre prédicat de compatibilité')
         # Et la brique d'appariement NE recopie PAS le prédicat : elle le LIT.
         self.assertIn('mc.isClonedVoice(v)', match_js)
+
+
+def _upscaler(key, task, scale=None):
+    return AIModel.objects.create(
+        model_key=key, name=key.split(':')[1], model_type='upscaling', source='enhancer',
+        vram_gb=0.1, is_available=True, is_downloaded=True, is_proposed=False,
+        capabilities={'task': task, **({'scale': scale} if scale else {})})
+
+
+class MultiTaskDomainDrawTest(TestCase):
+    """2026-10-14 — a domain of SEVERAL tasks (enhancer: « upscale,denoise ») drew nothing: the
+    whole string went to `model_type_for_task`, which answered None, and `select_model` refuses
+    to draw without a category. Every « auto » of the enhancer returned its FALLBACK, whatever
+    the slider, since the domain became tasks (2026-10-06). The listing already had the rule."""
+
+    def setUp(self):
+        _upscaler('enhancer:up2', 'upscale', 2)
+        _upscaler('enhancer:up4', 'upscale', 4)
+        _upscaler('enhancer:dn1', 'denoise')
+
+    def test_several_tasks_sharing_a_category_are_drawn_from(self):
+        chosen = resolve_model_choice('auto', spec={'task': 'upscale,denoise'}, fallback='FALLBACK')
+        self.assertIn(chosen, {'enhancer:up2', 'enhancer:up4', 'enhancer:dn1'})
+
+    def test_one_rule_for_the_listing_and_the_draw(self):
+        from wama.model_manager.models import model_type_for_tasks
+        self.assertEqual('upscaling', model_type_for_tasks('upscale,denoise'))
+        self.assertEqual('upscaling', model_type_for_tasks('upscale'))
+        self.assertIsNone(model_type_for_tasks('upscale,text-to-speech'),
+                          'two categories: no guess')
+
+
+class DeclaredNeedsTest(TestCase):
+    """2026-10-14 — the element's NEED (`options_resolution.needs`, {capability: field}) bounds
+    the draw BEFORE ranking, read on the element at launch and in the form for the forecast:
+    one declaration, the same answer. The enhancer's factor ×2/×4 is the first one."""
+
+    URL = '/model-manager/api/models/options/'
+
+    def setUp(self):
+        _upscaler('enhancer:up2', 'upscale', 2)
+        _upscaler('enhancer:up4', 'upscale', 4)
+        _upscaler('enhancer:dn1', 'denoise')
+        user = get_user_model().objects.create_user(username='needs_test', password='x')
+        self.client = Client()
+        self.client.force_login(user)
+
+    def test_the_need_narrows_the_draw_to_the_models_that_meet_it(self):
+        for factor, expected in ((2, 'enhancer:up2'), (4, 'enhancer:up4')):
+            with self.subTest(factor=factor):
+                self.assertEqual(expected, resolve_model_choice(
+                    'auto', spec={'task': 'upscale,denoise', 'needs': {'scale': factor}},
+                    fallback='FALLBACK'))
+
+    def test_an_unmet_need_leaves_the_whole_domain(self):
+        from wama.common.utils.auto_model import need_candidates
+        self.assertIsNone(need_candidates({'scale': 3}, {'task': 'upscale,denoise'}))
+        self.assertIsNone(need_candidates({'scale': ''}, {'task': 'upscale,denoise'}))
+
+    def test_the_launch_reads_the_need_on_the_element(self):
+        from django.contrib.auth import get_user_model as users
+        from wama.enhancer.models import Enhancement
+        owner = users().objects.create_user(username='needs_owner', password='x')
+        for factor, expected in ((2, 'enhancer:up2'), (4, 'enhancer:up4')):
+            with self.subTest(factor=factor):
+                item = Enhancement.objects.create(user=owner, media_type='image',
+                                                  ai_model='auto', upscale_factor=factor)
+                self.assertEqual(expected, resolve_model_choice(
+                    'auto', app_id='enhancer', item=item, fallback='FALLBACK'))
+
+    def test_a_multi_task_menu_forecasts_once_the_need_travels(self):
+        def preview(**query):
+            r = self.client.get(self.URL, {'task': 'upscale,denoise', 'auto': '1', **query})
+            self.assertEqual(200, r.status_code)
+            return r.json().get('auto_preview')
+        self.assertIsNone(preview(), 'without the need, the draw is not known: silence')
+        self.assertEqual('enhancer:up4', preview(needs='scale:4')['id'])
+        self.assertEqual('enhancer:up2', preview(needs='scale:2')['id'])
+
+    def test_the_need_does_not_narrow_the_list(self):
+        """Listing is not choosing (`INPUT_MODEL_MATCHING §2`): the need bounds the DRAW only."""
+        r = self.client.get(self.URL, {'task': 'upscale,denoise', 'auto': '1', 'needs': 'scale:4'})
+        values = {o[0] if isinstance(o, list) else o['value']
+                  for g in r.json()['groups'] for o in g['options']}
+        self.assertEqual({'auto', 'enhancer:up2', 'enhancer:up4', 'enhancer:dn1'}, values)
+
+    def test_the_browser_reads_the_need_in_the_form_and_refreshes_the_forecast(self):
+        from pathlib import Path
+        from django.conf import settings
+        js = (Path(settings.BASE_DIR) / 'wama/common/static/common/js/wama-params.js').read_text(
+            encoding='utf-8')
+        self.assertIn("'needs=' + encodeURIComponent(pairs.join(','))", js)
+        self.assertIn("n.el.addEventListener('change', refreshPreview)", js)

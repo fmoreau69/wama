@@ -22,6 +22,11 @@ ecartee) sur un echantillon regulier d'un banc « vraies boites ». Comme `detec
 materiel) — le curseur rapide/qualite de toutes les apps le lit (`eta_estimator.comparable_speeds`).
     python manage.py bench --task detect-speed --benchmark faces_wider_val_v1
 
+`upscale` (2026-10-14) : agrandissement PAR CONSTRUCTION — chaque image nette est reduite du
+facteur du modele, agrandie, puis comparee a l'original (LPIPS, plus bas = mieux). `--record` la
+range (`ResultEvaluation`) ; la vitesse va dans la boucle d'ETA (secondes par megapixel).
+    python manage.py bench --task upscale --benchmark upscale_div2k_val_v1 --record
+
 Pour `text-generation`, l'echantillon est un fichier TEXTE : le prompt. Le protocole CHARGE
 chaque modele sur l'Ollama hote (rampe VRAM — cf. INFRA §crashs) : lancer un modele a la fois,
 machine sous les yeux ; refuse sous WAMA_GPU_SAFE_MODE.
@@ -31,7 +36,7 @@ import os
 from django.core.management.base import BaseCommand, CommandError
 
 from wama.model_manager.services.bench import (
-    CANDIDATES, available_tasks, models_for_task, run_bench,
+    CANDIDATES, RECORDING, SAMPLING, available_tasks, models_for_task, run_bench,
 )
 
 
@@ -53,9 +58,11 @@ class Command(BaseCommand):
                             help="Generation de texte : passes mesurees par modele (defaut 3, "
                                  "apres une passe de chauffe non comptee).")
         parser.add_argument('--record', action='store_true',
-                            help="detect-recall / detect-boxes : range chaque mesure (ResultEvaluation).")
+                            help="detect-recall / detect-boxes / upscale : range chaque mesure "
+                                 "(ResultEvaluation).")
         parser.add_argument('--limit', type=int, default=0,
-                            help="detect-boxes : echantillon regulier de N images (0 = tout le jeu) ; "
+                            help="detect-boxes / upscale : echantillon regulier de N images (0 = tout "
+                                 "le jeu) ; "
                                  "detect-speed : idem, 0 = SPEED_SAMPLE images.")
 
     def handle(self, *args, **options):
@@ -79,9 +86,9 @@ class Command(BaseCommand):
             protocol_options['runs'] = options['runs']
         elif task != 'captioning':
             protocol_options['conf'] = options['conf']
-        if task in CANDIDATES:
+        if task in RECORDING:
             protocol_options['record'] = options['record']
-        if task in ('detect-boxes', 'detect-speed'):
+        if task in SAMPLING:
             protocol_options['limit'] = options['limit']
 
         try:
@@ -103,6 +110,8 @@ class Command(BaseCommand):
         def _order(x):
             if generation:
                 return (x['error'] is not None, -(x.get('tokens_per_s') or 0))
+            if task == 'upscale':                       # LPIPS : plus bas = mieux, par facteur
+                return (x['error'] is not None, x.get('scale') or 0, x.get('lpips') or 9)
             if recall:
                 return (x['error'] is not None, -(x.get('recall') or 0))
             return (x['error'] is not None, -(x['outputs'] or 0))
@@ -120,7 +129,9 @@ class Command(BaseCommand):
                 line += (f" {str(m.get('tokens_per_s') or '—'):>9s} "
                           f"{str(m.get('prefill_ms')) + ' ms':>9s} "
                           f"{(str(load) + ' s') if load else 'résid.':>7s}")
-            if task == 'detect-speed':
+            if task == 'upscale':
+                line += f"  ×{m.get('scale')}  LPIPS {m.get('lpips')}  {m.get('ms_per_frame')} ms/img"
+            elif task == 'detect-speed':
                 line += f"  {m.get('ms_per_frame')} ms/img (temps propre)"
             elif recall and 'precision' in m:
                 sizes = ' '.join(f"{k}:{v['recall']}" for k, v in sorted((m.get('by_size') or {}).items()))

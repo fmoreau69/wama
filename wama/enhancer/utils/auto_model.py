@@ -42,36 +42,19 @@ AUDIO_FALLBACK = f'{APP_ID}:resemble'
 NFE_BY_PRESET = {'fast': 32, 'balanced': 64, 'quality': 128}
 
 
-def media_candidates(factor) -> list:
-    """Clés catalogue des upscalers qui RENDENT le facteur demandé (capacité `scale`), ou []
-    (facteur inconnu / catalogue muet → le domaine entier reste au tirage)."""
-    try:
-        factor = int(factor or 0)
-    except (TypeError, ValueError):
-        return []
-    if factor <= 0:
-        return []
-    # Filtre COMMUN (2026-09-30) : le même que le post-traitement de sortie des autres apps — et
-    # le même DOMAINE (`UPSCALER_SPEC`, 2026-10-06) : « un agrandisseur qui rend ×N » est un seul
-    # besoin, qu'il vienne de l'enhancer ou du réglage « Agrandir la sortie ».
-    from wama.common.utils.auto_model import candidates_with
-    from wama.common.utils.output_formats import UPSCALER_SPEC
-    return candidates_with('scale', factor, **UPSCALER_SPEC)
-
-
 def resolve_media_model(enhancement) -> str:
     """Modèle d'upscaling pour CE lancement : le choix explicite tel quel, sinon tirage dans
-    le domaine des upscalers, restreint au facteur demandé, au poids du curseur de l'item."""
+    le domaine des upscalers, restreint au facteur demandé, au poids du curseur de l'item.
+
+    Domaine ET besoin (le facteur, capacité `scale`) sont lus au SCHÉMA du select (`params.py`,
+    `options_query` + `options_resolution.needs`) — la déclaration que la prévision lit aussi.
+    Jusqu'au 2026-10-14 le filtre par facteur vivait ici seul (`media_candidates`) : la prévision
+    ne pouvait pas le connaître, et se taisait."""
     from wama.common.utils.model_keys import catalog_key
     requested = catalog_key(enhancement.ai_model or '', APP_ID)
     if requested and not is_auto(requested):
         return requested
-    overrides = {}
-    candidates = media_candidates(getattr(enhancement, 'upscale_factor', None))
-    if candidates:
-        overrides['candidates'] = candidates
-    chosen = resolve_model_choice(AUTO, app_id=APP_ID, spec=MEDIA_SPEC,
-                                  fallback=MEDIA_FALLBACK, item=enhancement, **overrides)
+    chosen = resolve_model_choice(AUTO, app_id=APP_ID, fallback=MEDIA_FALLBACK, item=enhancement)
     return chosen or MEDIA_FALLBACK
 
 

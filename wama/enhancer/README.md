@@ -14,6 +14,15 @@ Elle exploite la librairie **[QualityScaler](https://github.com/Djdefrag/Quality
   (×2 / ×4) et pesé par le **curseur Rapide ↔ Qualité** ; côté audio, « Automatique » arbitre
   DeepFilterNet (rapide) ↔ Resemble (qualité) et décline le NFE du curseur. Un modèle désigné
   reste respecté tel quel. Déclarations de l'app : `utils/auto_model.py`.
+- **Prévision et qualité MESURÉE (2026-10-14)** : le facteur est un BESOIN déclaré au schéma du
+  select (`params.py`, `options_resolution.needs`) — le lancement le lit sur l'élément, la
+  prévision « Prévu : … — réévalué au lancement » dans le formulaire ; elle s'affiche de nouveau
+  et suit le facteur. ⚠ Jusqu'à ce jour, l'« auto » image rendait son REPLI (`RealESR_Gx4`) quel
+  que soit le curseur : la liste « agrandir, débruiter » n'avait pas de catégorie au tirage
+  (`ROUTE §F4b`, bloc du 14/10). Le curseur classe sur une mesure WAMA : le banc par construction
+  `manage.py bench --task upscale --benchmark upscale_div2k_val_v1 --record` (DIV2K val, LPIPS —
+  `WAMA_QUALITE §3`), relu au tri (étage 3) ; la vitesse mesurée y sert de coût. Un agrandisseur
+  installé ensuite n'entre dans le classement qu'une fois passé au banc.
 
 ## ✨ Fonctionnalités
 

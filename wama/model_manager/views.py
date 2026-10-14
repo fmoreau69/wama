@@ -1425,11 +1425,22 @@ def api_model_options(request):
         # `quality_intent` (curseur de qualité 0-100) : la prévision arbitre comme le
         # tirage réel arbitrera — valeur inconnue repliée sur équilibré par le sélecteur.
         quality_intent = request.GET.get('quality_intent') or None
+        # Affinages du tirage DÉCLARÉS au schéma de l'app (`options_resolution`), transmis par
+        # le navigateur : sans eux la prévision ignorait la politique de l'app (2026-10-01 :
+        # « Qwen3-ASR » annoncé, Whisper tiré au lancement). `needs` arrive en paires
+        # `capacité:valeur` lues dans le formulaire (2026-10-14).
+        from wama.common.utils.auto_model import RESOLUTION_KEYS, read_needs
+        refine = {k: (read_needs(request.GET[k]) if k == 'needs' else
+                      [v for v in request.GET.get(k, '').split(',') if v])
+                  for k in RESOLUTION_KEYS if request.GET.get(k)}
         # Pas de PRÉVISION pour une liste qui réunit plusieurs tâches (2026-09-27) : l'app y
         # tranche « auto » au lancement avec ce que le domaine ne dit pas (anonymizer : les
         # classes de l'élément × le curseur). Une prévision par capacité seule annoncerait un
         # autre modèle que celui du lancement — la prévision doit dire la vérité ou se taire.
-        multi_task = ',' in (task or '')
+        # SAUF quand ce que le domaine ne dit pas ARRIVE avec la requête : les besoins de
+        # l'élément (`needs`, 2026-10-14 — enhancer : le facteur ×2/×4 borne le lot aux seuls
+        # agrandisseurs, la liste « agrandir, débruiter » n'est plus ambiguë pour le tirage).
+        multi_task = ',' in (task or '') and not refine.get('needs')
         # `auto=silent` (2026-10-03) : le SCHÉMA déclare que la prévision ne peut pas dire vrai
         # — le tirage dépend des entrées de CHAQUE élément, que cet appel ne connaît pas
         # (avatarizer : une photo → MuseTalk, un GLB → TalkingHead). Même règle que la liste
@@ -1446,12 +1457,6 @@ def api_model_options(request):
             if cloud_keys is not None:
                 from .services.cloud_models import allowed_cloud_keys
                 auto_cloud = allowed_cloud_keys(request.user, automatic=True)
-            # Affinages du tirage DÉCLARÉS au schéma de l'app (`options_resolution`), transmis par
-            # le navigateur : sans eux la prévision ignorait la politique de l'app (2026-10-01 :
-            # « Qwen3-ASR » annoncé, Whisper tiré au lancement).
-            from wama.common.utils.auto_model import RESOLUTION_KEYS
-            refine = {k: [v for v in request.GET.get(k, '').split(',') if v]
-                      for k in RESOLUTION_KEYS if request.GET.get(k)}
             preview = predict_model_choice(
                 {'task': task, 'model_type': model_type,
                  'modality': modality, 'source': source, **refine,

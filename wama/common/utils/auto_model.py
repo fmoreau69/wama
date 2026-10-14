@@ -110,9 +110,10 @@ def is_auto(value) -> bool:
     return not value or str(value).strip().lower() == AUTO or bool(auto_task(str(value)))
 
 
-def candidates_with(capability: str, value, **filters) -> list:
-    """Clés catalogue des modèles du domaine `filters` (champs d'`AIModel` ou `capabilities__…`)
-    dont la capacité `capability` vaut `value` — [] si la valeur est vide ou le catalogue muet.
+def candidates_with(capability: str, value, q=None, **filters) -> list:
+    """Clés catalogue des modèles du domaine `filters` (champs d'`AIModel` ou `capabilities__…`,
+    ou un `Q` — celui d'un domaine déclaré, `model_selector.domain_q`) dont la capacité
+    `capability` vaut `value` — [] si la valeur est vide ou le catalogue muet.
 
     C'est le BESOIN qui filtre avant le classement : ×2 et ×4 ne sont pas deux qualités, ce
     sont deux résultats (`scale`). Remonté de l'enhancer (`media_candidates`, 2026-09-21) au
@@ -129,7 +130,8 @@ def candidates_with(capability: str, value, **filters) -> list:
 
     try:
         from wama.model_manager.models import AIModel
-        rows = AIModel.objects.filter(**filters).only('model_key', 'capabilities')
+        rows = AIModel.objects.filter(*([q] if q is not None else []), **filters)
+        rows = rows.only('model_key', 'capabilities')
         return [m.model_key for m in rows
                 if _same((m.capabilities or {}).get(capability), value)]
     except Exception as exc:                          # catalogue absent : on ne filtre pas
@@ -181,16 +183,47 @@ def declared_cloud_keys(app_id: str, user):
 
 #: Affinages du tirage qu'un schéma peut déclarer (`options_resolution`) — les autres clés sont
 #: ignorées : une borne de DOMAINE n'a rien à faire là (elle vit dans `options_query`).
-RESOLUTION_KEYS = ('priority', 'available_inputs')
+#: `needs` (2026-10-14) : le BESOIN de l'élément, `{capacité: champ}` — le modèle tiré doit porter
+#: la capacité à la valeur du champ (enhancer : `scale` = `upscale_factor`). Les deux autres sont
+#: des constantes du schéma ; celui-ci se LIT sur l'élément au lancement, dans le formulaire pour
+#: la prévision (le navigateur transmet `needs=<capacité>:<valeur>,…`).
+RESOLUTION_KEYS = ('priority', 'available_inputs', 'needs')
 
 
 def declared_resolution(app_id: str) -> dict:
     """Les affinages du tirage « auto » DÉCLARÉS au schéma de `app_id` (`options_resolution`),
     {} sinon. Le lancement les lit ici ; la prévision les reçoit du navigateur, qui les tient du
-    même schéma — c'est ce qui fait dire la même chose aux deux (2026-10-01)."""
+    même schéma — c'est ce qui fait dire la même chose aux deux (2026-10-01). `needs` garde sa
+    forme `{capacité: champ}`."""
     field = catalog_field(app_id) if app_id else None
     declared = (field or {}).get('options_resolution') or {}
-    return {k: list(v) for k, v in declared.items() if k in RESOLUTION_KEYS and v}
+    return {k: (dict(v) if isinstance(v, dict) else list(v))
+            for k, v in declared.items() if k in RESOLUTION_KEYS and v}
+
+
+def read_needs(text: str) -> dict:
+    """`needs` tel que le navigateur le transmet (`scale:4,autre:x`) → `{capacité: valeur}`."""
+    pairs = (part.split(':', 1) for part in str(text or '').split(',') if ':' in part)
+    return {cap.strip(): value.strip() for cap, value in pairs if cap.strip() and value.strip()}
+
+
+def need_candidates(needs: dict, domain: dict):
+    """Les clés du DOMAINE qui satisfont TOUS les besoins `{capacité: valeur}` — None quand aucun
+    besoin n'est posé, ou qu'aucun modèle du domaine n'y répond : le domaine entier reste alors au
+    tirage (facteur inconnu, catalogue muet — la règle de l'enhancer depuis le 2026-09-21)."""
+    wanted = {cap: v for cap, v in (needs or {}).items() if v not in (None, '')}
+    if not wanted:
+        return None
+    from wama.model_manager.services.model_selector import domain_q
+    q = domain_q(domain)
+    keys = None
+    for cap, value in wanted.items():
+        found = set(candidates_with(cap, value, q=q))
+        keys = found if keys is None else keys & found
+    # L'espace de clés du DOMAINE (règle `select_model_id`) : id nu quand une source le borne.
+    prefix = f"{domain['source']}:" if domain.get('source') else ''
+    return sorted(k[len(prefix):] if prefix and k.startswith(prefix) else k
+                  for k in keys) or None
 
 
 def intent_field_for(app_id: str):
@@ -269,6 +302,10 @@ def resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, it
     # (l'imager pose `available_inputs` selon l'élément).
     if spec is None:
         for key, value in declared_resolution(app_id).items():
+            if key == 'needs':
+                # Le besoin déclaré nomme des CHAMPS : au lancement, leurs valeurs sont l'élément.
+                value = ({cap: getattr(item, field, None) for cap, field in value.items()}
+                         if item is not None else {})
             overrides.setdefault(key, value)
     # Distants DÉCLARÉS au schéma et autorisés par le profil (`declared_cloud_keys`) ; un
     # appelant qui passe lui-même `cloud_keys` (l'assistant) garde la main.
@@ -278,6 +315,12 @@ def resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, it
         if cloud:
             overrides['cloud_keys'] = cloud
     domain.update(overrides)
+    # Besoins de l'élément (`needs`) : le lot se restreint aux modèles qui y répondent, AVANT le
+    # classement — le même geste au lancement et pour la prévision.
+    narrowed = need_candidates(domain.pop('needs', None), domain)
+    if narrowed:
+        domain['candidates'] = ([k for k in domain['candidates'] if k in narrowed]
+                                if domain.get('candidates') else narrowed)
     source = domain.pop('source', None)
     from wama.model_manager.services import select_model_id
     return select_model_id(source, requested=AUTO, fallback=fallback, **domain)

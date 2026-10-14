@@ -122,7 +122,9 @@ class Param:
     options_resolution: Optional[dict] = None   # select `catalog` à `options_auto` : affinages du
                                                 # TIRAGE « auto » — {"priority": [sous-chaînes de
                                                 # clé], "available_inputs": [entrées que l'élément
-                                                # FOURNIT]}. Lus par le LANCEMENT
+                                                # FOURNIT], "needs": {capacité: champ de
+                                                # l'élément} — 2026-10-14, enhancer `scale` ←
+                                                # `upscale_factor`}. Lus par le LANCEMENT
                                                 # (`auto_model.resolve_model_choice`) ET par la
                                                 # PRÉVISION (le navigateur les transmet à l'endpoint) :
                                                 # un seul lieu. Jusqu'au 2026-10-01 le transcriber les

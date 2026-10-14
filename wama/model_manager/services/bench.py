@@ -631,6 +631,156 @@ def _bench_speed(entry: AIModel, sample: str, *, conf: float = 0.25, record: boo
             'ms_per_frame': clock.record(entry.model_key)}
 
 
+# ── Agrandissement « PAR CONSTRUCTION » (2026-10-14) — une vérité exacte sans humain ─────────
+# `WAMA_QUALITE §4` (⑤, la vérité la plus gratuite de toutes) : on RÉDUIT une image nette du
+# facteur du modèle (bicubique), le modèle l'agrandit, et sa sortie se compare à l'ORIGINAL. La
+# métrique retenue est LPIPS (distance perceptuelle, plus bas = mieux — décision de Fabien : ce que
+# l'œil juge sur une photo agrandie ; PSNR et SSIM pourront s'y ajouter, chacun son échelle).
+# Le PROTOCOLE porte le facteur : ×2 et ×4 ne se mesurent pas sur la même image d'entrée, ce sont
+# deux populations (`internal_quality`). Chaque modèle passe par le MÊME chemin que l'enhancer
+# et la sortie commune (`backend_for_key` → classe du moteur déclaré, identifiant de SON
+# vocabulaire). La vitesse va dans la boucle d'ETA commune (secondes par MÉGAPIXEL d'entrée, clé
+# de catalogue, ce matériel) — c'est là que le curseur lit le coût (`comparable_speeds`).
+UPSCALE_PROTOCOL = 'bicubic_x{scale}_v1'
+UPSCALE_OBJECT = 'UpscaleBench'
+UPSCALE_METRIC = 'lpips'
+#: Unité de la vitesse d'un agrandisseur : un mégapixel d'ENTRÉE.
+MEGAPIXEL_UNIT = 'megapixel'
+#: Extensions lues comme images d'une référence « dossier d'images ».
+IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.webp', '.bmp')
+
+
+def read_image_reference(sample: str) -> dict:
+    """Une référence « dossier d'images nettes » : `images` (dossier, relatif au fichier de
+    référence ou absolu) ; `entries` = les noms d'images, triés (ordre reproductible)."""
+    import json
+    with open(sample, encoding='utf-8') as f:
+        ref = json.load(f)
+    images = ref.get('images') or ''
+    if images and not os.path.isabs(images):
+        images = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(sample)), images))
+    if not os.path.isdir(images):
+        raise ValueError(f"{sample} : dossier d'images introuvable ({images})")
+    ref['images'] = images
+    ref['entries'] = sorted(n for n in os.listdir(images) if n.lower().endswith(IMAGE_EXTENSIONS))
+    if not ref['entries']:
+        raise ValueError(f"{sample} : aucune image dans {images}")
+    return ref
+
+
+_LPIPS = {}
+
+
+def lpips_metric(device: str):
+    """LPIPS (réseau AlexNet), chargé une fois par processus. Les couches linéaires viennent du
+    paquet ; l'AlexNet de torchvision est tiré dans `MODEL_PATHS['vision']['lpips']` — jamais
+    dans le $HOME, où `torch.hub` le rangerait de lui-même (règle AGENTS « aucune librairie ne
+    dépose ses poids dans le $HOME »)."""
+    if device not in _LPIPS:
+        import lpips
+        import torch
+        from django.conf import settings
+        from torchvision.models import AlexNet_Weights
+        state = torch.hub.load_state_dict_from_url(
+            AlexNet_Weights.IMAGENET1K_V1.url, model_dir=str(settings.MODEL_PATHS['vision']['lpips']),
+            # Le nom du fichier porte le début de son empreinte : un téléchargement TRONQUÉ est
+            # refusé au lieu d'être gardé (mesuré le 2026-10-14 : 241 Mo sur 244 sans proxy).
+            progress=False, check_hash=True)
+        metric = lpips.LPIPS(net='alex', pnet_rand=True, verbose=False)
+        # Le réseau de LPIPS range les couches de `alexnet.features` par TRANCHES (`slice1.0`…),
+        # sous leur indice d'origine : `features.<i>.<p>` → `slice<k>.<i>.<p>`.
+        mapped = {}
+        for key in metric.net.state_dict():
+            _slice, index, param = key.split('.', 2)
+            mapped[key] = state[f'features.{index}.{param}']
+        metric.net.load_state_dict(mapped)
+        _LPIPS[device] = metric.eval().to(device)
+    return _LPIPS[device]
+
+
+def _as_tensor(bgr, device: str):
+    """Image BGR uint8 → tenseur RGB [-1, 1] (N, C, H, W), la convention de LPIPS."""
+    import torch
+    rgb = bgr[:, :, ::-1].copy()
+    return (torch.from_numpy(rgb).permute(2, 0, 1).unsqueeze(0).float().div(127.5).sub(1.0)
+            .to(device))
+
+
+def _bench_upscale(entry: AIModel, sample: str, *, record: bool = False, limit: int = 0,
+                   **_) -> dict:
+    """LPIPS d'UN agrandisseur sur une référence d'images nettes, réduites de SON facteur."""
+    import hashlib
+
+    import cv2
+    import torch
+
+    from wama.common.backends.manager import backend_for_key
+    from wama.common.services.resource_governor import gpu_safe_mode
+    from wama.common.utils.model_keys import backend_model_id
+    from wama.model_manager.services.eta_estimator import record_run
+
+    if gpu_safe_mode():
+        raise RuntimeError("WAMA_GPU_SAFE_MODE actif : chargement d'un agrandisseur refusé")
+    scale = int((entry.capabilities or {}).get('scale') or 0)
+    if scale < 2:
+        raise ValueError(f"capacité `scale` absente ou < 2 ({scale}) : rien à agrandir")
+    backend_class = backend_for_key(entry.model_key)
+    if backend_class is None:
+        raise RuntimeError(f"{entry.model_key} : aucun backend résolu depuis le catalogue")
+    ref = read_image_reference(sample)
+    entries = _sampled(ref['entries'], limit)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    metric = lpips_metric(device)
+    upscaler = backend_class(model_name=backend_model_id(entry.model_key))
+    total, elapsed, megapixels, warm = 0.0, 0.0, 0.0, True
+    try:
+        for name in entries:
+            hr = cv2.imread(os.path.join(ref['images'], name))
+            if hr is None:
+                raise ValueError(f"image illisible : {name}")
+            h, w = (hr.shape[0] // scale) * scale, (hr.shape[1] // scale) * scale
+            hr = hr[:h, :w]
+            lr = cv2.resize(hr, (w // scale, h // scale), interpolation=cv2.INTER_CUBIC)
+            if warm:                      # chauffe : chargement de la session, non comptée
+                upscaler.upscale_image(lr)
+                warm = False
+            start = time.perf_counter()
+            sr = upscaler.upscale_image(lr)
+            elapsed += time.perf_counter() - start
+            megapixels += lr.shape[0] * lr.shape[1] / 1e6
+            if sr.shape != hr.shape:
+                raise ValueError(f"{name} : sortie {sr.shape[:2]} au lieu de {hr.shape[:2]}")
+            with torch.no_grad():
+                total += float(metric(_as_tensor(sr, device), _as_tensor(hr, device)).item())
+    finally:
+        upscaler.close()
+    count = len(entries)
+    if megapixels:
+        record_run(entry.model_key, size=megapixels, unit=MEGAPIXEL_UNIT, process_seconds=elapsed)
+    mean = round(total / count, 4)
+    if record:
+        from wama.common.models import ResultEvaluation
+        # L'identité de la référence : son fichier ET les images retenues (un échantillon `limit`
+        # est une autre population que le jeu entier).
+        digest = hashlib.sha256()
+        with open(sample, 'rb') as f:
+            digest.update(f.read())
+        digest.update('\n'.join(entries).encode('utf-8'))
+        ResultEvaluation.objects.update_or_create(
+            app=RECALL_APP, object_type=UPSCALE_OBJECT, object_id=entry.pk, metric=UPSCALE_METRIC,
+            defaults={'model_key': entry.model_key, 'value': mean, 'direction': 'lower',
+                      'protocol': UPSCALE_PROTOCOL.format(scale=scale),
+                      'reference_sha256': digest.hexdigest(),
+                      'reference_name': ref.get('name') or os.path.basename(sample),
+                      'detail': {'errors': round(total, 4), 'reference_length': count,
+                                 'unit': 'image', 'scale': scale,
+                                 'ms_per_megapixel': round(1000 * elapsed / megapixels, 1)
+                                 if megapixels else None}})
+    return {'outputs': count, 'mean_confidence': None, 'load_s': None,
+            'inference_s': round(elapsed, 2), 'saturated': False, 'lpips': mean,
+            'scale': scale, 'ms_per_frame': round(1000 * elapsed / count, 1) if count else None}
+
+
 def boxes_candidates(sample: str) -> list:
     """Detecteurs installes qui couvrent la classe d'une reference « vraies boites »."""
     import json
@@ -667,11 +817,17 @@ PROTOCOLS: dict[str, Callable] = {
     'detect-boxes': _bench_boxes,
     # Le temps propre seul, sur la référence d'un banc « vraies boîtes » — cf. `_bench_speed`.
     'detect-speed': _bench_speed,
+    # Agrandissement par construction (LPIPS contre l'original) — cf. `_bench_upscale`.
+    ModelTask.UPSCALE.value: _bench_upscale,
 }
 
 #: Protocoles dont les candidats ne se lisent pas par `models_for_task(tache)`.
 CANDIDATES = {'detect-recall': recall_candidates, 'detect-boxes': boxes_candidates,
               'detect-speed': boxes_candidates}
+
+#: Protocoles qui savent RANGER leur mesure (`--record`) et échantillonner (`--limit`).
+RECORDING = ('detect-recall', 'detect-boxes', 'detect-speed', ModelTask.UPSCALE.value)
+SAMPLING = ('detect-boxes', 'detect-speed', ModelTask.UPSCALE.value)
 
 
 def available_tasks() -> list:

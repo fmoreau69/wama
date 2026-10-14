@@ -96,6 +96,11 @@ MODEL_PATHS = {
         'egoblur': AI_MODELS_DIR / "models" / "vision" / "egoblur",
         # Détecteurs d'objets `transformers` (RT-DETR…) — dossier de famille, `cache_dir=`.
         'object_detection': AI_MODELS_DIR / "models" / "vision" / "object-detection",
+        # LPIPS (distance perceptuelle, 2026-10-14) — un INSTRUMENT de mesure du banc
+        # d'agrandissement (`model_manager/services/bench.py`), pas un modèle du catalogue : le
+        # paquet `lpips` embarque ses couches linéaires, l'AlexNet de torchvision est tiré ICI par
+        # `load_state_dict_from_url(model_dir=…)` — sinon `torch.hub` le rangeait dans le $HOME.
+        'lpips': AI_MODELS_DIR / "models" / "vision" / "lpips",
     },
     # Upscaling/Enhancement models (ONNX)
     'upscaling': {

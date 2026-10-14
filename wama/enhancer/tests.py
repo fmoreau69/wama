@@ -52,8 +52,28 @@ class MediaAutoResolutionTest(TestCase):
         self.assertEqual(set(seen['candidates']), {'enhancer:BSRGANx4', 'enhancer:RealESRGANx4'})
 
     def test_a_factor_of_two_keeps_only_the_x2_models(self):
-        self.assertEqual(am.media_candidates(2), ['enhancer:BSRGANx2'])
-        self.assertEqual(am.media_candidates(None), [])       # facteur inconnu : domaine entier
+        """The factor is a NEED declared on the select (`options_resolution.needs`), read on the
+        item at launch — the declaration the forecast reads too (2026-10-14)."""
+        e = Enhancement.objects.create(user=self.user, media_type='image', ai_model='auto',
+                                       upscale_factor=2)
+        seen, fake = self._select('enhancer:BSRGANx2')
+        with mock.patch('wama.model_manager.services.select_model_id', fake):
+            am.resolve_media_model(e)
+        self.assertEqual(['enhancer:BSRGANx2'], seen['candidates'])
+
+    def test_an_unknown_factor_leaves_the_whole_domain_to_the_draw(self):
+        e = Enhancement.objects.create(user=self.user, media_type='image', ai_model='auto',
+                                       upscale_factor=3)
+        seen, fake = self._select('enhancer:BSRGANx4')
+        with mock.patch('wama.model_manager.services.select_model_id', fake):
+            am.resolve_media_model(e)
+        self.assertNotIn('candidates', seen)
+
+    def test_the_factor_is_declared_once_on_the_select_schema(self):
+        from wama.common.utils.auto_model import declared_resolution
+        self.assertEqual({'needs': {'scale': 'upscale_factor'}}, declared_resolution('enhancer'))
+        self.assertFalse(hasattr(am, 'media_candidates'),
+                         'a second filter by factor in the app is the truth the forecast missed')
 
     def test_a_designated_model_is_kept_as_is_without_any_draw(self):
         e = Enhancement.objects.create(user=self.user, media_type='image', ai_model='BSRGANx2')
@@ -138,7 +158,9 @@ class CatalogueKeysTest(TestCase):
                 self.assertEqual({}, invalid_choice_values(schema, {'ai_model': value}))
 
     def test_auto_at_x4_may_draw_the_installed_upscaler(self):
-        self.assertEqual({'enhancer:BSRGANx4', SWIN2SR_KEY}, set(am.media_candidates(4)))
+        from wama.common.utils.auto_model import need_candidates
+        self.assertEqual({'enhancer:BSRGANx4', SWIN2SR_KEY},
+                         set(need_candidates({'scale': 4}, am.MEDIA_SPEC)))
 
     def test_the_route_resolves_a_key_or_a_bare_id_to_the_backend_with_its_identifier(self):
         from wama.enhancer.backends import media_backend
