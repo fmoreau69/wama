@@ -72,6 +72,25 @@ class PresentationRoutesTests(TestCase):
         self.assertNotIn('Frise illisible', page)
         self.assertIs(PDF_PAGES['presentation']['context'], presentation_context)
 
+    def test_every_video_of_the_presentation_and_its_poster_are_shipped(self):
+        """A missing video breaks its slide in the browser only: the page still answers 200 and
+        nothing reaches the server log. Each `<video>` source and poster must resolve to a
+        static file, and play on arrival (`data-autoplay`, read by wama-presentation.js)."""
+        import re
+
+        from django.conf import settings
+        from django.contrib.staticfiles import finders
+        page = self.client.get(reverse('presentation')).content.decode()
+        videos = re.findall(r'<video\b[^>]*>', page)
+        self.assertTrue(videos, 'the nightly-gestures slide carries a video')
+        for tag in videos:
+            self.assertIn('data-autoplay', tag)
+            for attr in ('src', 'poster'):
+                url = re.search(rf'\b{attr}="([^"?]+)', tag)
+                self.assertIsNotNone(url, f'{attr} missing on {tag}')
+                rel = url.group(1)[len(settings.STATIC_URL):]
+                self.assertTrue(finders.find(rel), f'static file not shipped: {rel}')
+
     def test_the_transcription_report_is_served_with_its_three_charts(self):
         """Added to « Présentations & annexes » on 2026-10-02: a generated snapshot of the report,
         whose three charts the export had dropped — they are redrawn, none may be missing."""

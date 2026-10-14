@@ -190,6 +190,18 @@
     if (steps[current] && steps[current].id !== id) goId(id);
   });
 
+  // Vidéos : une <video data-autoplay> se lit quand la caméra est ARRIVÉE sur sa frame, et se met
+  // en pause dès qu'on la quitte — sinon elle tournerait hors champ. Une vidéo finie repart du
+  // début au retour (comportement de `play()`). Écouté AVANT le démarrage : un lien profond
+  // (#tests-gestes) la lance aussi.
+  document.addEventListener('wama:step', e => {
+    const { frame, settled } = e.detail;
+    document.querySelectorAll('.frame video[data-autoplay]').forEach(v => {
+      if (settled && frame && frame.contains(v)) v.play().catch(() => { /* lecture refusée : les contrôles restent */ });
+      else if (!v.paused) v.pause();
+    });
+  });
+
   // Démarrage : ancre d'URL (#id ou #n), sinon première frame.
   const h = decodeURIComponent(location.hash.slice(1));
   let start = steps.findIndex(f => f.id === h);

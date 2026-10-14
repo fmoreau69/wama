@@ -52,7 +52,7 @@
         <path d="M-2600 5500 C0 5400 1800 5000 2700 4700" stroke="var(--data)" class="flow" />
         <path d="M0 2440 L0 6800" stroke="var(--trans)" />
         <path d="M1600 7700 L3740 7700" /><path d="M4700 8240 L4700 8380" /><path d="M4700 8920 L4700 9050" /><path d="M4250 9950 C3000 10300 1800 10300 960 10200" />
-        <path d="M-960 10200 C-2200 10300 -3600 10300 -4700 9950" /><path d="M-4700 9950 C-4500 10600 -3900 11000 -3400 11200" /><path d="M-1800 11400 C-1500 11700 -1300 11900 -1120 12000" />
+        <path d="M-960 10200 C-2200 10300 -3600 10300 -4700 9950" /><path d="M0 10740 L0 10790" /><path d="M-4700 9950 C-4500 10600 -3900 11000 -3400 11200" /><path d="M-1800 11400 C-1500 11700 -1300 11900 -1120 12000" />
       </svg>
 
       <!-- ═════════════════════ 0 · TITRE ═════════════════════ -->
@@ -553,6 +553,17 @@
           </div>
         </div>
         <div class="src">nightly_tests.REGISTRY · settings.CELERY_BEAT_SCHEDULE · WAMA_VERIFICATION.md · check_app_conformity</div>
+      </section>
+
+      <!-- Vidéo filmée en rejouant des gestes de la campagne nocturne (Playwright, compte de test),
+           temps morts retirés. `data-autoplay` : lue à l'arrivée de la caméra, en pause au départ
+           (wama-presentation.js). `preload="none"` : l'export PDF ne charge que l'affiche. -->
+      <section class="frame boxed" id="tests-gestes" data-x="0" data-y="11060" data-s="0.6" data-title="Tests nocturnes · les gestes rejoués">
+        <div class="kicker">09 — La fabrique · gestes rejoués</div>
+        <video class="frame-video" src="{% static_v 'presentation/videos/wama_gestes_nocturnes.mp4' %}"
+               poster="{% static_v 'presentation/videos/wama_gestes_nocturnes.jpg' %}"
+               data-autoplay muted playsinline controls preload="none"></video>
+        <div class="src">common/services/ui_smoke*.py · nightly_tests.REGISTRY · extraits accélérés, temps morts retirés</div>
       </section>
 
       <!-- ═════════════════════ 5 · ROADMAP ═════════════════════ -->
