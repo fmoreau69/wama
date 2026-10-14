@@ -150,13 +150,14 @@ class CommonConfig(AppConfig):
                              description="La carte de ce que WAMA sait nommer, et de la façon "
                                          "dont chaque catalogue se tient à jour.",
                              nav_hide=True, order=40)
-            # L'assistant est une APPLICATION sans page (une conversation : web, voix, Discord,
-            # API) — outil sans page, gardé sur ses routes web ET dans `conversation_turn`,
-            # le tour commun à toutes ses surfaces (2026-10-13).
+            # L'assistant est une APPLICATION sans page (une conversation : web, API,
+            # connecteurs, conversation vocale) — outil sans page, gardé sur ses routes web
+            # (`permissions.PATH_APP_MAP`) ET dans `conversation_turn`, le tour commun à toutes
+            # ses surfaces (2026-10-13).
             register_pageless_tool('assistant', world='transverse', label='Assistant',
-                                   icon='fa-robot', paths=('api/ai-chat',),
-                                   probe='/api/ai-chat/thread/',
-                                   description="La conversation avec WAMA : web, voix, Discord, API.")
+                                   icon='fa-robot', probe='/api/ai-chat/thread/',
+                                   description="La conversation avec WAMA : web, API, connecteurs, "
+                                               "conversation vocale.")
         except Exception:
             import logging
             logging.getLogger(__name__).warning(

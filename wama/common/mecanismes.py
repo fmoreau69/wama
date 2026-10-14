@@ -2360,7 +2360,7 @@ MECHANISMS = (
               "unique ne garde que ce que ses POINTS D'APPLICATION lisent réellement (§8.9). "
               "Un outil gardé est une PAGE (card ou `register_surface`) ou, depuis le 2026-10-13, "
               "un OUTIL SANS PAGE (`register_pageless_tool` : gestionnaire de fichiers, "
-              "assistant — chemins gardés déclarés, l'assistant gardé aussi dans "
+              "assistant — routes résolues comme celles de toute app, l'assistant gardé aussi dans "
               "`conversation_turn`). `access_cases()` énumère tous les cas pour la présentation",
               'wama/accounts/permissions.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
               annexes=('wama/accounts/tests.py', 'wama/accounts/tests_access_points.py'),

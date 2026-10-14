@@ -921,20 +921,20 @@ def register_surface(app_id: str, *, world: str, label: str, url_name: str, icon
 # ─── OUTILS SANS PAGE (2026-10-13, décision de Fabien) ────────────────────────────────────────
 # Un outil gardé par la politique d'accès est d'ordinaire une PAGE (une card d'`APP_CATALOG` ou
 # une surface ci-dessus). Le gestionnaire de fichiers (un volet) et l'assistant (une
-# conversation) n'en ont pas : ils se déclarent ici, avec les CHEMINS par lesquels le middleware
-# les garde et un chemin de SONDE (une lecture qui répond à un membre) pour la mesure nocturne
-# des droits. Ni menu, ni carte `/apps/`, ni masquage : il n'y a rien à afficher ni à masquer.
+# conversation) n'en ont pas : ils se déclarent ici, avec leur identité et un chemin de SONDE
+# (une lecture qui répond à un membre) pour la mesure nocturne des droits. Le CHEMIN qui les
+# garde se résout comme pour toute app — premier segment, sinon `permissions.PATH_APP_MAP` :
+# une seule table chemin → outil. Ni menu, ni carte `/apps/`, ni masquage : rien à afficher.
 _PAGELESS_TOOLS: dict = {}
 
 
-def register_pageless_tool(app_id: str, *, world: str, label: str, icon: str, paths: tuple,
-                           probe: str, description: str = '') -> None:
-    """Déclare un outil gardé SANS PAGE : son monde, son identité et ses chemins gardés.
-    Idempotent, comme `register_surface`."""
+def register_pageless_tool(app_id: str, *, world: str, label: str, icon: str, probe: str,
+                           description: str = '') -> None:
+    """Déclare un outil gardé SANS PAGE : son monde et son identité. Idempotent, comme
+    `register_surface`."""
     register_app_world(app_id, world)
     _PAGELESS_TOOLS[app_id] = {'app': app_id, 'gate': app_id, 'world': world, 'label': label,
-                               'icon': icon, 'description': description,
-                               'paths': tuple(p.strip('/') for p in paths), 'probe': probe}
+                               'icon': icon, 'description': description, 'probe': probe}
 
 
 def pageless_tools() -> list:
@@ -942,14 +942,17 @@ def pageless_tools() -> list:
     return sorted((dict(t) for t in _PAGELESS_TOOLS.values()), key=lambda t: t['label'])
 
 
-def pageless_tool_for_path(path: str) -> str | None:
-    """L'outil sans page qu'un chemin de requête désigne, ou None."""
-    p = path.strip('/')
-    for tool in _PAGELESS_TOOLS.values():
-        for prefix in tool['paths']:
-            if p == prefix or p.startswith(prefix + '/'):
-                return tool['app']
-    return None
+def pageless_tool_for(app: str) -> dict | None:
+    """L'outil sans page `app`, ou None — le pendant de `surface_for`."""
+    tool = _PAGELESS_TOOLS.get(app)
+    return dict(tool) if tool else None
+
+
+def declared_identity(app: str) -> dict | None:
+    """L'identité DÉCLARÉE d'une app hors catalogue (libellé, monde, description…) : sa surface,
+    sinon sa déclaration d'outil sans page. Une lecture pour le journal, le calendrier et la
+    matrice d'accès — aucune ne redit un libellé ou une description ailleurs."""
+    return surface_for(app) or pageless_tool_for(app)
 
 
 def surfaces(world: str | None = None) -> list:

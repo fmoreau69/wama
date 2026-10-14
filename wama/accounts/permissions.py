@@ -79,17 +79,6 @@ ROLE_DESCRIPTIONS = {
     'ingenierie': "Outils techniques : gestion des modèles IA, conversion, analyse vidéo (lab).",
     'administratif': "Gestion documentaire, exports et anonymisation à des fins administratives.",
 }
-# Descriptions de secours pour les apps hors APP_CATALOG (qui n'ont pas de meta description).
-APP_DESCRIPTIONS_FALLBACK = {
-    'media_library': "Médiathèque : vos assets (voix, images, audio…) et mots-clés de prompt.",
-    'studio': "Studio (méta-app) : orchestration de pipelines en reliant les apps sur un canvas.",
-    'face_analyzer': "WAMA-Lab : analyse de visages (recherche).",
-    'cam_analyzer': "WAMA-Lab : analyse de vidéos de caméras embarquées (transport).",
-    'registries': "Registres : la carte de ce que WAMA sait nommer et de la façon dont elle se "
-                  "tient à jour — catalogue des modèles compris (model manager).",
-    'filemanager': "Gestionnaire de fichiers : le volet de vos dossiers, imports et envois vers les apps.",
-    'assistant': "Assistant : la conversation avec WAMA (web, voix, Discord, API).",
-}
 GROUP_PREFIX = 'role:'   # un rôle = un Group nommé 'role:<clé>'
 
 # ── Valeurs de SEED du mapping app→accès (éditable ensuite en base) ─────────
@@ -123,7 +112,8 @@ DEFAULT_APP_ACCESS = {
     'registries':   {'roles': []},
     # Outils SANS PAGE (2026-10-13, décision de Fabien) : un volet ou une conversation, pas une
     # page du catalogue `/apps/`. Déclarés par `app_registry.register_pageless_tool` (monde,
-    # libellé, chemins gardés). Tout compte, jamais le visiteur.
+    # libellé, sonde) ; leurs routes se résolvent comme toute app (1er segment, sinon
+    # `PATH_APP_MAP`). Tout compte, jamais le visiteur.
     'filemanager':  {'roles': []},
     'assistant':    {'roles': []},
     # Orchestration (méta-app)
@@ -196,8 +186,10 @@ PATH_APP_MAP = [
     ('common/registries',   'registries'),
     ('common/registres',    'registries'),
     ('common/api/registres', 'registries'),
-    # Outils sans page (2026-10-13) : leurs chemins sont DÉCLARÉS avec eux
-    # (`app_registry.register_pageless_tool`) et lus par `app_id_for_path`.
+    # L'assistant, outil SANS PAGE (2026-10-13, `app_registry.register_pageless_tool`) : ses
+    # routes web. Le gestionnaire de fichiers, autre outil sans page, se résout par son 1er
+    # segment (`/filemanager/`), comme toute app.
+    ('api/ai-chat',       'assistant'),
     # 'studio' est désormais une vraie app montée sur /studio/ → résolu par le 1er segment.
 ]
 
@@ -243,10 +235,6 @@ def app_id_for_path(path):
     for prefix, app_id in PATH_APP_MAP:
         if p == prefix or p.startswith(prefix + '/'):
             return app_id
-    from wama.common.app_registry import pageless_tool_for_path
-    tool = pageless_tool_for_path(p)
-    if tool in DEFAULT_APP_ACCESS:
-        return tool
     seg = p.split('/', 1)[0]
     return seg if seg in DEFAULT_APP_ACCESS else None
 

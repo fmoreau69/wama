@@ -136,16 +136,17 @@ class PointDApplicationTests(TestCase):
         self.assertEqual(manquantes, [],
                          f"surfaces gardées sans url_name relevable : {manquantes}")
 
-    def test_every_pageless_tool_is_guarded_on_its_declared_paths(self):
-        """A tool WITHOUT a page (2026-10-13) has no URL name to resolve: what keeps it guarded
-        is its declared paths — each, and its probe, must resolve to the tool."""
+    def test_every_pageless_tool_is_guarded_on_its_own_routes(self):
+        """A tool WITHOUT a page (2026-10-13) has no URL name to resolve: its declared probe — a
+        real route of the tool — must resolve to the tool through the ONE path table
+        (`app_id_for_path`: first segment, else `PATH_APP_MAP`)."""
         from wama.common.app_registry import pageless_tools
         tools = [t for t in pageless_tools() if t['gate'] in all_gated_apps()]
         self.assertTrue(tools, 'no pageless tool: the test would measure nothing')
         for tool in tools:
-            for path in tool['paths'] + (tool['probe'],):
-                self.assertEqual(tool['gate'], app_id_for_path(f'/{path.strip("/")}/'),
-                                 f"{tool['app']}: {path} escapes the middleware")
+            self.assertEqual(tool['gate'], app_id_for_path(tool['probe']),
+                             f"{tool['app']}: {tool['probe']} escapes the middleware")
+        self.assertEqual('assistant', app_id_for_path(reverse('ai_chat_stream')))
 
 
 class FamillesDElementsTests(TestCase):
