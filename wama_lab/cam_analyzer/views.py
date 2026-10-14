@@ -12,6 +12,10 @@ import re
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.core.serializers.json import DjangoJSONEncoder
+from django.db import connection
+from django.db.models import TextField
+from django.db.models.functions import Cast
 from django.http import FileResponse, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
@@ -1319,20 +1323,30 @@ def get_detections(request, session_id, camera_id):
     start_frame = int(request.GET.get('start', 0))
     end_frame = int(request.GET.get('end', 100000))
 
-    frames = DetectionFrame.objects.filter(
-        camera=camera,
-        frame_number__gte=start_frame,
-        frame_number__lt=end_frame,
-    ).order_by('frame_number').values('frame_number', 'timestamp', 'detections')
-
-    return JsonResponse({
+    # Les détections sont servies TELLES QUE STOCKÉES (texte jsonb), sans les décoder puis les
+    # réencoder en Python : à l'ouverture d'une session, l'interface demande toutes les images de
+    # chaque caméra (257 Mo pour l'avant de 4da52df3 — 18,8 s, puis 3,6 s ainsi). Réponse
+    # identique à l'octet près, mesurée sur les quatre caméras (2026-10-14) : Postgres rend le
+    # jsonb avec les mêmes séparateurs que json.dumps, et dans l'ordre de clés que Python
+    # recevait déjà.
+    head = json.dumps({
         'camera_id': camera_id,
         'position': camera.position,
         'fps': camera.fps,
         'width': camera.width,
         'height': camera.height,
-        'frames': list(frames),
-    })
+        'frames': [],
+    }, cls=DjangoJSONEncoder)
+    rows = (DetectionFrame.objects
+            .filter(camera=camera, frame_number__gte=start_frame, frame_number__lt=end_frame)
+            .order_by('frame_number')
+            .annotate(raw=Cast('detections', TextField()))
+            .values_list('frame_number', 'timestamp', 'raw'))
+    frames = ', '.join('{"frame_number": %d, "timestamp": %s, "detections": %s}'
+                       % (number, json.dumps(ts), raw if raw is not None else 'null')
+                       for number, ts, raw in rows.iterator(chunk_size=5000))
+    # `head` finit par `[]}` : on insère les images entre les crochets
+    return HttpResponse(head[:-2] + frames + ']}', content_type='application/json')
 
 
 # =============================================================================
@@ -1999,6 +2013,22 @@ def get_segments(request, session_id):
     return JsonResponse({'segments': segments})
 
 
+def _max_proximity_by_bin(camera, bin_size):
+    """(indice de case, proximité maximale) des images d'une caméra — `trunc` comme le `int()` de
+    Python ; une proximité absente ou non numérique compte pour 0."""
+    sql = f"""
+        SELECT trunc(f.timestamp / %s),
+               MAX(CASE WHEN jsonb_typeof(d->'proximity') = 'number'
+                        THEN (d->>'proximity')::float8 ELSE 0 END)
+        FROM {DetectionFrame._meta.db_table} f
+        CROSS JOIN LATERAL jsonb_array_elements(f.detections) d
+        WHERE f.camera_id = %s
+        GROUP BY 1"""
+    with connection.cursor() as cursor:
+        cursor.execute(sql, [bin_size, camera.id])
+        return cursor.fetchall()
+
+
 @login_required
 @require_http_methods(["GET"])
 def get_analytics_data(request, session_id):
@@ -2023,17 +2053,14 @@ def get_analytics_data(request, session_id):
 
             for cam in cameras:
                 series = [0.0] * num_bins
-                frames = DetectionFrame.objects.filter(camera=cam).order_by('frame_number')
-
-                for frame in frames:
-                    bin_idx = int(frame.timestamp / bin_size)
-                    if 0 <= bin_idx < num_bins:
-                        max_prox = max(
-                            (d.get('proximity', 0) for d in frame.detections),
-                            default=0
-                        )
-                        if max_prox > series[bin_idx]:
-                            series[bin_idx] = round(max_prox, 3)
+                # Maximum de proximité par seconde, calculé PAR LA BASE : la boucle Python lisait
+                # chaque image avec toutes ses détections (23 s pour 4da52df3, 0,9 s ainsi, mêmes
+                # 4 × 8 383 valeurs — 2026-10-14). Une détection sans proximité compte pour 0,
+                # comme `d.get('proximity', 0)` ; l'arrondi reste celui de Python.
+                for second, max_prox in _max_proximity_by_bin(cam, bin_size):
+                    bin_idx = int(second)
+                    if 0 <= bin_idx < num_bins and max_prox > series[bin_idx]:
+                        series[bin_idx] = round(max_prox, 3)
 
                 proximity_timeline['series'][cam.position] = series
 

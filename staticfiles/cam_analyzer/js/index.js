@@ -2118,25 +2118,33 @@ document.addEventListener('DOMContentLoaded', function () {
         detectionData = {};
         proximityByTime = [];
 
-        for (const pos of positions) {
+        // Les quatre caméras sont demandées EN PARALLÈLE (elles l'étaient l'une après l'autre :
+        // l'attente était la somme des quatre), puis rangées dans l'ordre de `positions`, comme avant.
+        const loaded = await Promise.all(positions.map(async pos => {
             const cam = cameras[pos];
-            if (!cam) continue;
-
+            if (!cam) return null;
             try {
                 const resp = await fetch(
                     `${config.urls.getDetections}${sessionId}/cameras/${cam.id}/detections/?start=0&end=999999`
                 );
-                const data = await resp.json();
-                detectionData[pos] = {
-                    fps: data.fps || cam.fps || 30,
-                    width: data.width || cam.width || 1920,
-                    height: data.height || cam.height || 1080,
-                    frames: data.frames || [],
-                };
+                return { pos, cam, data: await resp.json() };
             } catch (e) {
                 console.error(`Error loading detections for ${pos}:`, e);
+                return null;
             }
-        }
+        }));
+        // Une autre session ouverte pendant le chargement : ses détections ne sont pas celles-ci
+        if (sessionId !== currentSessionId) return;
+        loaded.forEach(item => {
+            if (!item) return;
+            const { pos, cam, data } = item;
+            detectionData[pos] = {
+                fps: data.fps || cam.fps || 30,
+                width: data.width || cam.width || 1920,
+                height: data.height || cam.height || 1080,
+                frames: data.frames || [],
+            };
+        });
 
         // Build proximity timeline from all cameras
         buildProximityTimeline();
