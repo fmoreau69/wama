@@ -23977,3 +23977,39 @@ l'API) […] en réutilisant l'existant. On ne réinvente rien »*. Détail et d
   lira le registre. Relevés hors R1, non corrigés : `api_run_options` sans filtre d'accès (à
   solder dans R2) ; écarts de projection préexistants `modes` (10 apps), `ports` (5), `processing`
   (6). Pousser + supprimer la sauvegarde d'historique : décisions de Fabien en attente.
+
+## §CLÔTURE — 2026-10-15, « VIDÉO DES GESTES NOCTURNES + DIAPOSITIVE » — clos (`3416d487`, `af608fb2`, non poussés) — aucun redémarrage requis
+
+- **Demande de Fabien** : une vidéo d'environ 2 min, accélérée, des gestes utilisateurs simulés par
+  les tests nocturnes, pour la présentation. Mesure préalable (rapport nocturne du 2026-10-14) :
+  **300 gestes navigateur** (20 familles × 13 apps + ~40 transverses), ~210 OK, ~90 min de temps
+  réel — d'où une SÉLECTION de 30 gestes variés, pas la campagne entière (×45 illisible).
+- **Enregistrement** : 32 scénarios rejoués par `nightly_tests.run_one` sur le compte de test, avec
+  `Browser.new_context` enveloppé à l'exécution (vidéo + curseur visible) — aucun code du dépôt
+  modifié pour filmer. GPU vérifié libre avant. 9 témoins balayés en sortie.
+- **Montage** : images figées retirées (`mpdecimate`), chaque clip accéléré au budget, légende
+  (geste + app) et vitesse effective (×3 à ×19), cartes de titre et de fin → 120 s, 1080p, 31 Mo.
+- **Diapositive** `#tests-gestes` (33/36), juste après « Les tests nocturnes » : vidéo dans
+  `wama/static/presentation/videos/` (+ copie servie dans `staticfiles/`), PAS à la racine de
+  `media/` — `check_media_integrity` l'y compterait égarée (budget 2, contrôle nocturne rouge).
+  Moteur : toute `<video data-autoplay>` se lit à l'arrivée de la caméra, pause au départ.
+  Validé au navigateur (lecture / pause / reprise, 0 erreur console) ; servie à chaud par le
+  8000 (aucun redémarrage).
+- **Garde** `test_every_video_of_the_presentation_and_its_poster_are_shipped`
+  (`wama/accounts/tests_access_cases.py`) — contre-épreuve faite : vidéo retirée → ROUGE.
+  ⚠ Le comportement lecture/pause du JS n'est PAS gardé par un test (pas de harnais navigateur
+  dans la suite) : seul le smoke manuel l'atteste.
+- **Skill CANDIDAT `video-gestes`** (n=1) : scripts d'enregistrement et de montage + plan versionnés
+  dans son dossier — refaire la vidéo quand l'UI aura changé.
+- **Contrôles** : `tests_access_cases` 13/13 OK ; `check_docs` 0 cassée sur 2798 ; `check_skills`
+  0 défaut ; `check_redundancy` 0 trouvaille dans les fichiers de la session (110 au total, à
+  d'autres). ⚠ `tests_identifier_language` ROUGE (budgets code / classes / méthodes de test) —
+  préexistant, aucun identifiant des fichiers de la session (déjà noté au handoff du 14/10).
+- 🔚 **Pendings** : (1) **pousser** — ⚠ `af608fb2` ajoute ~61 Mo au dépôt PUBLIC (la vidéo en
+  source + copie servie), isolé dans son propre commit (les 4 fichiers binaires seuls) : à
+  retirer avant la poussée si Fabien préfère ne pas versionner la vidéo (la garde rougira alors
+  sur un clone frais — décision à prendre ensemble) ; (2) deux gestes OK la nuit ont ÉCHOUÉ pendant
+  l'enregistrement, non examinés : `reader.panel_reflect` (une requête reste en vol, repos réseau
+  jamais atteint) et `media_library.natures_3d` (bouton de fermeture de l'aperçu introuvable en
+  30 s) — à surveiller au prochain rapport nocturne ; (3) le serveur 8000 ne sert pas les plages
+  d'octets (réponse 200 entière) : la barre de lecture de la vidéo peut ne pas permettre de sauter.

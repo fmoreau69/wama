@@ -1,0 +1,207 @@
+{
+ "title": [
+  {
+   "text": "WAMA",
+   "size": 96,
+   "bold": true
+  },
+  {
+   "text": "",
+   "size": 20
+  },
+  {
+   "text": "Gestes utilisateurs simulés — tests nocturnes",
+   "size": 48,
+   "bold": true
+  },
+  {
+   "text": "Un navigateur automatisé rejoue chaque nuit ~300 gestes sur 13 apps",
+   "size": 32,
+   "color": "0x9fb3d1"
+  },
+  {
+   "text": "Extraits en accéléré — temps morts retirés",
+   "size": 28,
+   "color": "0xffb347"
+  }
+ ],
+ "end": [
+  {
+   "text": "~300 gestes rejoués chaque nuit",
+   "size": 54,
+   "bold": true
+  },
+  {
+   "text": "20 familles de gestes × 13 apps + gestes transverses",
+   "size": 32,
+   "color": "0x9fb3d1"
+  },
+  {
+   "text": "Zéro erreur console exigée · résultat vérifié en base · rapport au matin",
+   "size": 30,
+   "color": "0x9fb3d1"
+  },
+  {
+   "text": "",
+   "size": 20
+  },
+  {
+   "text": "WAMA — Web App for Media Automation",
+   "size": 34,
+   "bold": true,
+   "color": "0xffb347"
+  }
+ ],
+ "clips": [
+  {
+   "id": "imager.ui",
+   "label": "Ouvrir une app et parcourir ses onglets",
+   "sub": "Imager — génération d'images"
+  },
+  {
+   "id": "synthesizer.add",
+   "label": "Créer un élément : un texte → la file d'attente",
+   "sub": "Synthesizer — synthèse vocale"
+  },
+  {
+   "id": "transcriber.import",
+   "label": "Importer un fichier",
+   "sub": "Transcriber — transcription audio"
+  },
+  {
+   "id": "anonymizer.url_import",
+   "label": "Importer un média par URL",
+   "sub": "Anonymizer — floutage de visages et plaques"
+  },
+  {
+   "id": "reader.folder_import",
+   "label": "Importer un dossier entier",
+   "sub": "Reader — OCR de documents"
+  },
+  {
+   "id": "describer.tree_drop",
+   "label": "Glisser un fichier depuis l'explorateur",
+   "sub": "Describer — description de médias"
+  },
+  {
+   "id": "enhancer.batch_import",
+   "label": "Importer un lot (fichier batch)",
+   "sub": "Enhancer — amélioration image / vidéo / audio"
+  },
+  {
+   "id": "converter.settings",
+   "label": "Régler un élément dans sa modale",
+   "sub": "Converter — conversion de formats"
+  },
+  {
+   "id": "describer.duplicate_delete",
+   "label": "Dupliquer puis supprimer une card",
+   "sub": "Describer"
+  },
+  {
+   "id": "avatarizer.batch_actions",
+   "label": "Actions sur un lot",
+   "sub": "Avatarizer — avatars parlants"
+  },
+  {
+   "id": "composer.delete_from_batch",
+   "label": "Retirer un élément d'un lot",
+   "sub": "Composer — musique et sons"
+  },
+  {
+   "id": "transcriber.batch_extract",
+   "label": "Extraire un élément d'un lot",
+   "sub": "Transcriber"
+  },
+  {
+   "id": "imager.queue_dnd",
+   "label": "Réordonner la file par glisser-déposer",
+   "sub": "Imager"
+  },
+  {
+   "id": "synthesizer.queue_search",
+   "label": "Chercher dans la file d'attente",
+   "sub": "Synthesizer"
+  },
+  {
+   "id": "transcriber.inspector_actions",
+   "label": "Volet droit : agir depuis l'inspecteur",
+   "sub": "Transcriber"
+  },
+  {
+   "id": "anonymizer.preview",
+   "label": "Aperçu entrée / sortie",
+   "sub": "Anonymizer"
+  },
+  {
+   "id": "common.preview_navigation",
+   "label": "Naviguer d'un aperçu à l'autre",
+   "sub": "Brique commune — toutes les apps"
+  },
+  {
+   "id": "converter.send_to",
+   "label": "Envoyer un résultat vers une autre app",
+   "sub": "Converter"
+  },
+  {
+   "id": "common.tree_send_to_menus",
+   "label": "Menus « Envoyer vers… » de l'explorateur",
+   "sub": "Brique commune — explorateur de fichiers"
+  },
+  {
+   "id": "imager.prompt_enrich_trigger",
+   "label": "Enrichir un prompt par l'IA",
+   "sub": "Imager — chaîne de prompts commune"
+  },
+  {
+   "id": "composer.vocals_matching",
+   "label": "Appariement entrée ↔ modèle",
+   "sub": "Composer — seuls les moteurs compatibles sont proposés"
+  },
+  {
+   "id": "avatarizer.voice_library_pick",
+   "label": "Choisir une voix dans la bibliothèque",
+   "sub": "Avatarizer"
+  },
+  {
+   "id": "media_library.filter_bar",
+   "label": "Filtrer la médiathèque",
+   "sub": "Médiathèque"
+  },
+  {
+   "id": "common.person_share_cycle",
+   "label": "Partager un élément avec une personne",
+   "sub": "Collaboration — deux comptes de test"
+  },
+  {
+   "id": "common.notification_open_marks_read",
+   "label": "Ouvrir une notification",
+   "sub": "Collaboration"
+  },
+  {
+   "id": "common.card_state_color",
+   "label": "La couleur d'une card dit son état",
+   "sub": "Brique commune — file d'attente"
+  },
+  {
+   "id": "common.calendar.ui",
+   "label": "Calendrier des traitements",
+   "sub": "Substrat"
+  },
+  {
+   "id": "common.journal.ui",
+   "label": "Journal de l'utilisateur",
+   "sub": "Substrat — mémoire"
+  },
+  {
+   "id": "common.released_files",
+   "label": "Supprimer en gardant (ou non) les fichiers",
+   "sub": "Brique commune — retrait d'une card"
+  },
+  {
+   "id": "enhancer.clear_all",
+   "label": "Tout effacer",
+   "sub": "Enhancer"
+  }
+ ]
+}
