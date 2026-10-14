@@ -23635,3 +23635,37 @@ antérieurs à la session (non renumérotés : cités ailleurs).
 arrêté · worktrees de vérification retirés · sessions Django des passages navigateur supprimées ·
 lignes `ProcessRun` adoptées en base (voir la décision ci-dessus) · un changement non commité
 d'une autre session (pastilles de `wama-schedule.js`, 15:11) ADOPTÉ et réparé dans `0b9502b3`.
+
+## §CLÔTURE — 2026-10-13→14, « ENTRÉE PAR URL : TÉLÉCHARGÉE À LA CRÉATION, HORS REQUÊTE, POUR TOUTES LES APPS » — ✅ LIVRÉ (`15099b32`, non poussé) — 🔴 relancer workers ET gunicorn
+
+**Constat de Fabien** : Describer #1923, page GitHub ajoutée par URL, « le fichier d'entrée n'a pas
+été généré » (#50, comparé, était un `.html` DÉPOSÉ). Rien de cassé : le régime « paresseux » ne
+téléchargeait qu'au lancement. Cartographie mesurée (`MEDIA_STORAGE_TIERING §8.2` note 7) : huit
+apps au lancement, le converter DANS la requête (gunicorn coupe à 120 s).
+
+**Décisions de Fabien (13/10)** : un seul fonctionnement, sans seuil de taille ; une page web gardée
+en `.html` ; réutiliser le mécanisme existant de détection (`url_ingest`), le compléter au commun.
+
+**Livré** : récepteur `post_save` générique (`source_ingest.register_source_ingest_receivers`) →
+tâche `common.ingest_source` (file `default`) ; le lancement rattrape un échec et ATTEND un
+téléchargement en cours (verrou en cache) ; `derive` DÉCLARÉ dans `WAMA_INGEST` (4 apps, corpus de
+manifestes régénéré, aller-retour propre) ; `url_nature`/`is_media_platform` extraits de la décision
+page/média ; page → `.html` ; garde SSRF sur les redirections du GET générique ; Entrée d'une card
+sans fichier = URL + état ; converter et branches URL résiduelles (anonymizer, describer, enhancer,
+`upload_youtube`) ramenés au même geste ; URL audio d'un lot avatarizer plus ignorée ; `.html`
+déclaré au Describer. Tests : `tests_source_ingest` (21, gestes compris), 608 verts autour, 154
+verts sur HEAD en worktree. Vérif réelle WSL : #1923 → `turgu1_uPDF.html` (304 Ko, 0,9 s).
+
+🔴 **Relancer** : workers (tâche `common.ingest_source` NOUVELLE — un worker ancien la refuserait)
+ET gunicorn (récepteur, aperçu). #1923 lui-même : son entrée arrivera à son lancement (rattrapage),
+ou par un nouvel ajout de l'URL.
+
+🔚 **Restes, non faits** : ① `/media/` servi sans contrôle (`PROFILES_PERMISSIONS.md:249`, reste 2 « avant toute mise en production ») —
+un `.html` gardé s'y ouvre comme une page sur l'origine de WAMA : à trancher avant la production ;
+② la card ne se rafraîchit pas d'elle-même à l'arrivée du fichier (rouvrir l'aperçu le montre) ;
+③ YouTube obtenu en 360p alors que le code dit « meilleure qualité » ; ④ synthesizer : `WAMA_INGEST`
+déclaré, aucune vue n'enregistre d'URL ; ⑤ geste nocturne 14 : le contrôle anti-SSRF lit désormais
+un téléchargement asynchrone (`WAMA_VERIFICATION §Geste 14`, note du 13/10) ; ⑥ budgets de
+`check_identifier_language` dépassés par du travail en cours d'autres sessions (aucun de ces
+identifiants n'est dans ce commit) ; ⑦ une page rendue par JavaScript (`ai.meta.com/vjepa`) ne donne
+rien, en `.html` comme en texte.
