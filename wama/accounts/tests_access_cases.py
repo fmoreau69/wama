@@ -56,6 +56,22 @@ class PresentationRoutesTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn('matrix', r.json())
 
+    def test_the_roadmap_slide_shows_every_milestone_of_the_roadmap_document(self):
+        """The timeline is DERIVED from ROADMAP.md (2026-10-13): each milestone written there
+        appears on the slide, and the PDF export receives the same context as the page."""
+        from django.utils.html import escape
+
+        from wama.common.roadmap_timeline import milestones
+        from wama.views import PDF_PAGES, presentation_context
+        items = milestones()
+        self.assertGreaterEqual(len(items), 5, "a timeline of fewer than five milestones says nothing")
+        page = self.client.get(reverse('presentation')).content.decode()
+        self.assertIn('id="roadmap"', page)
+        for item in items:
+            self.assertIn(escape(item['label']), page, f"milestone missing from the slide: {item['label']}")
+        self.assertNotIn('Frise illisible', page)
+        self.assertIs(PDF_PAGES['presentation']['context'], presentation_context)
+
     def test_the_transcription_report_is_served_with_its_three_charts(self):
         """Added to « Présentations & annexes » on 2026-10-02: a generated snapshot of the report,
         whose three charts the export had dropped — they are redrawn, none may be missing."""

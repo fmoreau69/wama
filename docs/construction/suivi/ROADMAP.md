@@ -5,6 +5,36 @@
 
 ---
 
+## Frise — les grands jalons
+
+> Vue d'ensemble pour un lecteur qui arrive (demande de Fabien, 2026-10-13) : un jalon par
+> ligne, au mois près, **sans le détail des chantiers** — ce détail vit dans les sections
+> ci-dessous et dans `PROJECT_STATUS`. Cette table est **LUE par la présentation**
+> (`wama/common/roadmap_timeline.py` → diapositive « Roadmap ») : un jalon s'ajoute ou se
+> corrige ICI, jamais dans le gabarit. Colonnes : Quand (texte court, affiché tel quel) ·
+> État (✅ / 🔄 / ⏳ seulement) · Jalon (quelques mots) · Détail (une phrase, facultative).
+> Dates relevées dans l'historique git le 2026-10-13 ; les jalons ⏳ ne portent pas de date
+> tant qu'aucune décision n'en a fixé une.
+
+| Quand | État | Jalon | Détail |
+|---|---|---|---|
+| 2023 | ✅ | Premiers pas | Un anonymiseur pour les vidéos du labo, développé à la main. |
+| 2025-10 | ✅ | Socle de production | PostgreSQL, Celery et le Transcriber. |
+| 2025-11 → 2026-04 | ✅ | Dix apps Médias | Voix, images, vidéo, musique, lecture, description, conversion. |
+| 2026-01 → 02 | ✅ | Le monde Lab | Face Analyzer, puis Cam Analyzer pour la navette autonome. |
+| 2026-06 | ✅ | Studio et tests de nuit | Les apps se chaînent ; chaque nuit, WAMA se remesure. |
+| 2026-07 | ✅ | Quatre mondes, une conformité mesurée | Médias, Data, Lab, Transversal ; les règles se vérifient sur le code. |
+| 2026-08 | ✅ | Bac à sable, monde Data, mémoire | Apps régénérées à part ; WAMA Data devient un monde ; RAG sur pgvector. |
+| 2026-09 | ✅ | Un modèle de pipeline commun | Une card porte un pipeline ; le Studio l'édite en graphe. |
+| 2026-10 | ✅ | Dix apps en pipeline, assistant vocal | Toutes les apps décrites dans le même modèle ; on parle à WAMA. |
+| 2026-10 | 🔄 | Writer, née d'une fiche | Une fiche écrite à la main, le reste généré dans le bac à sable. |
+| prochain | ⏳ | Writer sort du bac à sable | La première app générée passe en production. |
+| prochain | ⏳ | Data Analyzer | L'app du monde Data. |
+| ensuite | ⏳ | Droits sur modèles et fonctions | Le contrôle d'accès s'étend au-delà des apps. |
+| ensuite | ⏳ | Serveur dédié | WAMA quitte le poste du labo pour un serveur Linux. |
+
+---
+
 ## Horizons — boussole de priorités (2026-07-20)
 
 > Hiérarchise TOUT le document par horizon pour ne pas s'éparpiller. Vision + statut vision ↔ code :

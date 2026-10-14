@@ -2,19 +2,24 @@
 {% load static %}
 {% load wama_static %}
 {% comment %}
-  Présentation WAMA v2 (2026-09-25) — un canvas zoomable plutôt qu'un diaporama.
-  L'ancienne version est ARCHIVÉE, pas détruite : includes/archive/wama_presentation_2026-v1.html
-  (route `presentation_archive`, liste déclarée dans `wama/views.py::ARCHIVED_PRESENTATIONS`).
+  Présentation WAMA v3 (2026-10-13) — resserrée pour un exposé de 20 minutes (30 avec démo et
+  questions), sur le canvas zoomable de la v2. Les versions précédentes sont ARCHIVÉES, jamais
+  détruites : includes/archive/wama_presentation_2026-v1.html et _2026-v2.html (route
+  `presentation_archive`, liste déclarée dans `wama/views.py::ARCHIVED_PRESENTATIONS`).
+
+  Règle de contenu de la v3 (Fabien) : des MOTS-CLÉS qui servent de repères à l'oral, pas un état
+  des lieux daté ; pas de dates d'événements dans le texte. Ce qui est fait et à venir se lit sur
+  la diapositive « Roadmap », dont la frise est LUE dans ROADMAP.md (`common/roadmap_timeline.py`).
 
   Anatomie : chaque .frame est posée dans #world par data-x / data-y (centre, px monde),
   data-s (échelle) et data-r (rotation). Une frame « enfant » est posée DANS l'emprise de sa
   frame parente, à petite échelle : la caméra y plonge (moteur : static/presentation/).
   L'ordre de parcours est l'ordre du DOM ; data-section marque le début d'une section.
 
-  ⚠ Les chiffres sont DATÉS et sourcés (pied de frame) : ce sont des relevés, pas des mesures en
-  direct — sauf la scène des droits, calculée par `accounts.permissions.access_cases()` sur la
-  politique d'accès effective. Tous CONFRONTÉS AU CODE le 2026-10-03 (demande de Fabien) : une
-  affirmation périmée se corrige ici, à la mesure, jamais en recopiant une doc.
+  ⚠ Les chiffres sont des RELEVÉS sourcés (pied de frame), pas des mesures en direct — sauf la
+  scène des droits, calculée par `accounts.permissions.access_cases()` sur la politique d'accès
+  effective, et la frise de la roadmap. Confrontés au code le 2026-10-03, puis le 2026-10-13 :
+  une affirmation périmée se corrige ici, à la mesure, jamais en recopiant une doc.
 {% endcomment %}
 <html lang="fr">
 <head>
@@ -46,8 +51,8 @@
         <path d="M-2600 3600 C0 3700 1800 4000 2700 4400" stroke="var(--media)" class="flow" />
         <path d="M-2600 5500 C0 5400 1800 5000 2700 4700" stroke="var(--data)" class="flow" />
         <path d="M0 2440 L0 6800" stroke="var(--trans)" />
-        <path d="M1600 7700 L3740 7700" /><path d="M4700 8240 L4700 9050" /><path d="M4250 9950 C3000 10300 1800 10300 960 10200" />
-        <path d="M-960 10200 C-2200 10300 -3600 10300 -4700 9950" /><path d="M-4700 9950 C-4000 11200 -2000 11800 -1120 12000" />
+        <path d="M1600 7700 L3740 7700" /><path d="M4700 8240 L4700 8380" /><path d="M4700 8920 L4700 9050" /><path d="M4250 9950 C3000 10300 1800 10300 960 10200" />
+        <path d="M-960 10200 C-2200 10300 -3600 10300 -4700 9950" /><path d="M-4700 9950 C-4500 10600 -3900 11000 -3400 11200" /><path d="M-1800 11400 C-1500 11700 -1300 11900 -1120 12000" />
       </svg>
 
       <!-- ═════════════════════ 0 · TITRE ═════════════════════ -->
@@ -77,10 +82,10 @@
                Oublis de consigne, hallucinations. Un modèle peut aussi se tromper de façon stable.</p></div>
           <div class="card accent"><h3>Ce que WAMA en fait</h3>
             <p><b>Le LLM propose, la machine vérifie.</b> Chaque proposition passe par des contrôles
-               puis une validation humaine, et rien ne s'applique tout seul.
-               Mesuré : des affirmations d'absence étaient fausses dans 4 rapports sur 6.</p></div>
+               puis une validation humaine, et rien ne s'applique tout seul.</p>
+            <div class="kw"><span>proposer</span><span>contrôler</span><span>valider</span></div></div>
         </div>
-        <div class="src">WAMA_VISION_COMPLET §Partie 5 · WAMA_QUALITE.md · wama_data/dataset.py · ROADMAP (prospection)</div>
+        <div class="src">WAMA_VISION_COMPLET §Partie 5 · WAMA_QUALITE.md · ROADMAP (prospection)</div>
       </section>
 
       <section class="frame boxed" id="constat-commun" data-x="-4200" data-y="-270" data-s="0.36" data-title="Constat · Capitalisation">
@@ -111,14 +116,13 @@
             <h2 style="font-size:54px">La souveraineté, à plusieurs niveaux</h2>
             <ul>
               <li><b>Local par défaut</b>, via Ollama. Les données sensibles restent en local.</li>
-              <li><b>Clouds souverains</b> : l'API Albert de la DINUM (SecNumCloud) est branchée depuis le 15/09.</li>
-              <li><b>Clouds commerciaux</b> : l'API Anthropic, avec la clé de l'utilisateur, seulement si on la choisit.</li>
+              <li><b>Clouds souverains</b> : Albert (DINUM) et ILaaS, la fédération d'inférence de l'enseignement supérieur et de la recherche.</li>
+              <li><b>Clouds commerciaux</b> : OpenRouter, Anthropic, avec la clé de l'utilisateur, seulement si on les choisit.</li>
               <li>Chaque compte est <b>100 % local par défaut</b> ; le cloud s'ouvre par un choix explicite.</li>
-              <li><span class="st todo">⏳</span> Filtre de confidentialité qui examine le contenu avant tout envoi au cloud : décidé, pas encore construit.</li>
             </ul>
           </div>
         </div>
-        <div class="src">external_sources.py (fournisseurs déclarés) · accounts.UserProfile.cloud_policy · WAMA_LLM.md (Albert) · relevé du 03/10</div>
+        <div class="src">common/external_sources.py (fournisseurs déclarés) · accounts.UserProfile.cloud_policy · WAMA_LLM.md</div>
       </section>
 
       <section class="frame boxed" id="constat-repro" data-x="-4840" data-y="110" data-s="0.36" data-title="Constat · Reproductibilité">
@@ -129,8 +133,8 @@
               Pas de dépôt cloné.</p></div>
           <div class="card"><h3>Tout se décrit</h3><p>Les apps, les modèles, les pipelines et les corpus sont décrits par des fiches,
               des manifestes relus et contrôlés.</p></div>
-          <div class="card"><h3>Tout se trace</h3><p>Objectif : noter pour chaque exécution le modèle, sa version, les paramètres et
-              les entrées, et produire une fiche de méthode citable. <span class="st wip">🔄</span></p></div>
+          <div class="card"><h3>Tout se trace</h3><p>Pour chaque exécution : le modèle, sa version, les paramètres et
+              les entrées. Le but : une fiche de méthode citable.</p></div>
         </div>
         <div class="src">VISION §1.5 · ROADMAP §16.7 (verrous library) · WAMA_MANIFEST_SPEC.md</div>
       </section>
@@ -176,7 +180,7 @@
           <p class="scene-hint"><i class="fas fa-hand-pointer"></i> Faites tourner le schéma · cliquez un monde pour y plonger</p>
         </div>
         <div class="scene-slot" data-scene="worlds" style="left:600px;top:60px;width:950px;height:780px"></div>
-        <div class="src">WAMA_VISION_COMPLET Partie 2 · AGENTS.md « un monde n'est pas un sous-dossier du substrat »</div>
+        <div class="src">WAMA_VISION_COMPLET Partie 2 · AGENTS.md</div>
       </section>
 
       <!-- ── Monde Médias ─────────────────────────────────────── -->
@@ -187,19 +191,19 @@
           <p style="font-size:20px;margin-bottom:6px">Du média en entrée, du média en sortie. Les mêmes gestes partout :
             même file d'attente, même volet, mêmes boutons.</p>
           <div class="cards c2 compact">
-            <div class="card media"><p><b>Transcriber</b> : la parole en texte, avec correction assistée</p></div>
-            <div class="card media"><p><b>Anonymizer</b> : floute visages et plaques (YOLO)</p></div>
-            <div class="card media"><p><b>Synthesizer</b> : synthèse et clonage de voix</p></div>
-            <div class="card media"><p><b>Describer</b> : décrit un média avec un LLM multimodal</p></div>
-            <div class="card media"><p><b>Reader</b> : lit le texte des scans et PDF (olmOCR, EasyOCR)</p></div>
-            <div class="card media"><p><b>Imager</b> : génère images et vidéos (Hunyuan, Qwen, LTX…)</p></div>
-            <div class="card media"><p><b>Composer</b> : musique et bruitages (AudioCraft, ACE-Step, YuE)</p></div>
-            <div class="card media"><p><b>Avatarizer</b> : avatar parlant (MuseTalk)</p></div>
-            <div class="card media"><p><b>Enhancer</b> : améliore image, vidéo et audio</p></div>
-            <div class="card media"><p><b>Converter</b> : convertit tous les formats</p></div>
+            <div class="card media"><p><b>Transcriber</b> : la parole en texte, avec correction assistée (Whisper, Qwen3-ASR, Canary, pyannote…)</p></div>
+            <div class="card media"><p><b>Anonymizer</b> : floute visages et plaques (YOLO, EgoBlur, SAM3, LocateAnything…)</p></div>
+            <div class="card media"><p><b>Synthesizer</b> : synthèse et clonage de voix (Kokoro, XTTS v2, Higgs Audio…)</p></div>
+            <div class="card media"><p><b>Describer</b> : décrit un média (BLIP, Gemma 4, Moondream…)</p></div>
+            <div class="card media"><p><b>Reader</b> : lit le texte des scans et PDF (olmOCR, docTR, GLM-OCR…)</p></div>
+            <div class="card media"><p><b>Imager</b> : génère images et vidéos (Hunyuan, Qwen Image, FLUX, LTX…)</p></div>
+            <div class="card media"><p><b>Composer</b> : musique et bruitages (MusicGen, AudioGen, ACE-Step, YuE…)</p></div>
+            <div class="card media"><p><b>Avatarizer</b> : avatar parlant (MuseTalk, TalkingHead 3D, CodeFormer)</p></div>
+            <div class="card media"><p><b>Enhancer</b> : améliore image, vidéo et audio (Real-ESRGAN, BSRGAN, DeepFilterNet…)</p></div>
+            <div class="card media"><p><b>Converter</b> : convertit tous les formats, sans modèle d'IA</p></div>
           </div>
         </div>
-        <div class="src">README.md · VISION §2.1</div>
+        <div class="src">README.md · VISION §2.1 · catalogue AIModel (modèles par app)</div>
       </section>
 
       <section class="frame boxed" id="transcriber" data-x="-3185" data-y="3355" data-s="0.5" data-title="Médias · Transcriber, la chaîne">
@@ -218,23 +222,22 @@
         </div>
         <p style="margin-top:28px"><b>Mode « Speak »</b> : transcription en direct dans le navigateur. Le texte est gardé
            et peut repasser ensuite dans la chaîne complète.</p>
-        <div class="src">TRANSCRIBER_CORRECTION.md · catalogue AIModel (tâche transcription, 03/10) · pyannote_diarizer.py · transcriber/views.py</div>
+        <div class="src">TRANSCRIBER_CORRECTION.md · catalogue AIModel (tâche transcription) · pyannote_diarizer.py · transcriber/views.py</div>
       </section>
 
       <section class="frame boxed" id="transcriber-correction" data-x="-3185" data-y="3845" data-s="0.5" data-title="Médias · Correction assistée">
         <div class="kicker media">Zoom — la correction assistée</div>
         <h2>Aider l'humain, sans trahir la donnée</h2>
         <div class="cards c3">
-          <div class="card media"><span class="st ok">✅</span><h3>Éditeur</h3>
+          <div class="card media"><h3>Éditeur</h3>
             <p>Forme d'onde, segments synchronisés, raccourcis clavier. La transcription d'origine n'est
                jamais modifiée : la correction est rangée à part.</p></div>
-          <div class="card media"><span class="st ok">✅</span><h3>Carte de chaleur</h3>
+          <div class="card media"><h3>Carte de chaleur</h3>
             <p>Chaque segment est coloré selon la confiance du moteur, ou selon la cohérence jugée par un LLM
                (en un seul appel).</p></div>
-          <div class="card media"><span class="st wip">🔄</span><h3>Le biais repéré</h3>
+          <div class="card media accent"><h3>Le biais repéré</h3>
             <p>Un LLM juge la fluidité, pas la fidélité. Or, dans un entretien en sciences humaines, <b>une hésitation
-               est une donnée</b>. La parade : comparer deux moteurs de transcription. Elle sert déjà à évaluer les lots ;
-               elle ne guide pas encore la carte de chaleur.</p></div>
+               est une donnée</b>. La parade : comparer deux moteurs de transcription.</p></div>
         </div>
         <div class="src">TRANSCRIBER_CORRECTION.md §phases 1–2, §8.3 · common/services/divergence.py · transcriber/apps.py (évaluation)</div>
       </section>
@@ -250,47 +253,49 @@
                GPS 1 Hz, vidéo 25 i/s, regard 60 Hz, ECG 1 kHz</p></div>
             <div class="card data"><h3 style="font-size:21px">Lecteurs</h3><p>RTMaps <code>.rec</code>, bases <code>.trip</code>, format natif
                <code>.wdat</code> compatible BIND. Aucun format n'est privilégié.</p></div>
-            <div class="card data"><h3 style="font-size:21px">Fonctions typées</h3><p>73 fonctions au catalogue, qui ne s'enchaînent
-               que si leurs types sont compatibles</p></div>
-            <div class="card data"><h3 style="font-size:21px">État réel</h3><p>7 modules livrés, dont un seul déjà utilisé hors du monde Data ;
-               3 à venir. Le moteur est testé ; son interface reste à construire. <span class="st wip">🔄</span></p></div>
+            <div class="card data"><h3 style="font-size:21px">Fonctions typées</h3><p>plus de 100 fonctions au catalogue commun, qui ne
+               s'enchaînent que si leurs types sont compatibles</p></div>
+            <div class="card data"><h3 style="font-size:21px">Un moteur indépendant du site</h3><p>les calculs Data se lancent
+               aussi depuis un simple script Python ; le Data Analyzer en sera l'interface</p></div>
           </div>
         </div>
-        <div class="src">wama_data/modules.measure() et function_catalog, relevés du 03/10 · WAMA_DATA_WORLD.md</div>
+        <div class="src">wama_data/modules.py · common/catalog/function_catalog.py · WAMA_DATA_WORLD.md</div>
       </section>
 
-      <section class="frame boxed" id="data-chaine" data-x="-3185" data-y="5255" data-s="0.5" data-title="Data · Une chaîne réelle">
-        <div class="kicker data">Zoom — un traitement de données réel (étude BIND)</div>
-        <h2>De l'acquisition aux indicateurs</h2>
+      <section class="frame boxed" id="data-chaine" data-x="-3185" data-y="5255" data-s="0.5" data-title="Data · La chaîne">
+        <div class="kicker data">Zoom — la chaîne du monde Data</div>
+        <h2>De l'acquisition à l'export</h2>
         <div class="chain data">
-          <div class="node"><span class="n">01</span><h3>Acquisition</h3><p>enregistrement RTMaps <code>.rec</code></p></div>
+          <div class="node"><span class="n">01</span><h3>Acquisition</h3><p>capteurs, véhicule, simulateur : des flux à cadences différentes</p></div>
           <div class="arrow">→</div>
-          <div class="node"><span class="n">02</span><h3>Base <code>.trip</code></h3><p>1,28 Go pour un participant et 34 min</p></div>
+          <div class="node"><span class="n">02</span><h3>Base de données</h3><p>flux, événements et situations rangés ensemble (format natif <code>.wdat</code>)</p></div>
           <div class="arrow">→</div>
-          <div class="node"><span class="n">03</span><h3>Découpage</h3><p>8 flux, 6 tables d'événements, 12 tables de situations</p></div>
+          <div class="node"><span class="n">03</span><h3>Découpage</h3><p>par événements et par situations</p></div>
           <div class="arrow">→</div>
-          <div class="node"><span class="n">04</span><h3>Export</h3><p>un tableur de 12 onglets</p></div>
+          <div class="node"><span class="n">04</span><h3>Calculs et indicateurs</h3><p>physiologie, regard, conduite…</p></div>
           <div class="arrow">→</div>
-          <div class="node"><span class="n">05</span><h3>Indicateurs</h3><p>393 colonnes (ECG, regard, EDA…)</p></div>
+          <div class="node"><span class="n">05</span><h3>Export</h3><p>CSV, TSV, tableur, MATLAB</p></div>
         </div>
-        <p style="margin-top:26px">WAMA reprend cette chaîne dans des briques typées et testées,
-           héritées des outils du labo : BIND (MATLAB) et pynd (Python).</p>
-        <div class="src">WAMA_DATA_WORLD.md §étude BIND</div>
+        <p style="margin-top:26px">Chaque étape est une brique <b>typée et testée</b> du catalogue commun de fonctions.</p>
+        <div class="src">WAMA_DATA_WORLD.md · wama_data/containers/ · wama_data/core/export.py (formats)</div>
       </section>
 
-      <section class="frame boxed" id="data-plan" data-x="-3185" data-y="5745" data-s="0.5" data-title="Data · Le plan d'expérience">
-        <div class="kicker data">Zoom — décrire un corpus, et que cette description serve</div>
-        <h2>Le plan d'expérience, pas l'arborescence</h2>
+      <section class="frame boxed" id="data-plan" data-x="-3185" data-y="5745" data-s="0.5" data-title="Data · Deux plans">
+        <div class="kicker data">Zoom — automatiser les traitements</div>
+        <h2>Deux plans, et le traitement s'automatise</h2>
         <div class="cards c2">
-          <div class="card data"><h3>Un manifeste qui s'exécute</h3>
-            <p>On décrit le corpus, et cette description suffit à le charger :
-               <code>manifeste → référentiel → vue → fonctions → export</code>.
-               Le manifeste dit ce qu'est le corpus, jamais ce qu'une analyse en fera.</p></div>
-          <div class="card data"><h3>Quatre rôles pour tout décrire</h3>
-            <p><b>Unité, regroupement, facteur, covariable.</b> Ces quatre rôles décrivent aussi bien une étude de
-               conduite qu'une série d'essais mécaniques. L'IA peut proposer un plan ; c'est le corpus qui le valide.</p></div>
+          <div class="card data"><h3>Le plan d'expérience</h3>
+            <p>Le manifeste <b>dataset</b> décrit le corpus, et cette description suffit à le charger.
+               Quatre rôles : <b>unité, regroupement, facteur, covariable</b> — aussi bien pour une étude de
+               conduite que pour une série d'essais mécaniques.</p></div>
+          <div class="card data"><h3>Le plan de traitement</h3>
+            <p>Le manifeste <b>pipeline</b> décrit les process et leur enchaînement, entrées et sorties typées.
+               Il se sauvegarde et se rejoue ; l'IA peut le proposer, la machine le vérifie.</p></div>
         </div>
-        <div class="src">VISION §8.1–8.2 · wama_data/dataset.py · WAMA_DATA_WORLD.md (axes)</div>
+        <div class="kw big" style="margin-top:22px">
+          <span>quoi : le corpus</span><span>comment : les process</span><span>la machine applique l'un à l'autre</span>
+        </div>
+        <div class="src">VISION §8.1–8.2 · wama_data/dataset.py · WAMA_DATA_WORLD.md (axes ; protocole de traitement → manifeste pipeline)</div>
       </section>
 
       <!-- ── Monde Lab ────────────────────────────────────────── -->
@@ -303,9 +308,9 @@
           <p style="font-size:18px;font-family:var(--mono);color:var(--ink-mute);margin:16px 0 22px">import → prétraitement → extraction →
              modèles → analyse → visualisation → export</p>
           <div class="cards c2" style="gap:12px">
-            <div class="card lab"><span class="st wip">🔄</span><h3 style="font-size:22px">Cam Analyzer</h3><p>Caméras d'une navette autonome :
+            <div class="card lab"><h3 style="font-size:22px">Cam Analyzer</h3><p>Caméras d'une navette autonome :
                comment les autres usagers s'insèrent aux intersections</p></div>
-            <div class="card lab"><span class="st wip">🔄</span><h3 style="font-size:22px">Face Analyzer</h3><p>Émotions (FER, DeepFace), rythme
+            <div class="card lab"><h3 style="font-size:22px">Face Analyzer</h3><p>Émotions (FER, DeepFace), rythme
                cardiaque par caméra (rPPG), respiration, regard (MediaPipe)</p></div>
           </div>
         </div>
@@ -326,24 +331,25 @@
           <div class="arrow">→</div>
           <div class="node"><span class="n">05</span><h3>Indicateurs</h3><p>conflits, TTC, PET, distance minimale</p></div>
         </div>
-        <p style="margin-top:26px">La chaîne est complète ; sa validation dans le navigateur est en cours. C'est le premier pipeline
-           décrit dans le modèle commun : <b>18 nœuds et 24 liens</b>.</p>
-        <div class="src">CAM_ANALYZER_CHAINE_TRAITEMENT.md · manifests/pipelines/cam_analyzer.json (03/10) · ROUTE §10.6</div>
+        <p class="say" style="margin-top:30px">Le premier pipeline décrit dans le modèle commun : <b>20 nœuds, 27 liens</b>.</p>
+        <div class="src">CAM_ANALYZER_CHAINE_TRAITEMENT.md · manifests/pipelines/cam_analyzer.json · ROUTE §10.6</div>
       </section>
 
-      <section class="frame boxed" id="cam-honnete" data-x="4515" data-y="4795" data-s="0.5" data-title="Lab · Ce qui tourne vraiment">
-        <div class="kicker lab">Zoom — un état sans maquillage</div>
-        <h2>Ce qui tourne, et ce qui ne tourne pas</h2>
+      <section class="frame boxed" id="cam-honnete" data-x="4515" data-y="4795" data-s="0.5" data-title="Lab · Mesurer, calculer">
+        <div class="kicker lab">Zoom — deux étages, un pipeline</div>
+        <h2>Ce qui est mesuré, ce qui est calculé</h2>
         <div class="cards c3">
-          <div class="card lab"><span class="st ok">câblé</span><h3>Branché</h3><p>YOLO + BoTSORT, YOLOPv2 (zone roulable et voies), SAM3 (marquages),
-              ZoeDepth (profondeur, par défaut)</p></div>
-          <div class="card lab"><span class="st wip">mesure</span><h3>En mesure</h3><p>SAM3 appliqué à l'orthophoto IGN ; recalage de la pose de la navette</p></div>
-          <div class="card lab"><span class="st todo">écarté</span><h3>Mesuré, écarté</h3><p>Apple Depth Pro : exécuté le 28/09, ses cartes de profondeur
-              sont inexploitables sur ces caméras</p></div>
+          <div class="card lab"><h3>Mesuré</h3><p>Les modèles regardent les images (GPU) : détection et suivi (YOLO + BoTSORT),
+              zone roulable et voies (YOLOPv2), marquages (SAM3), profondeur (ZoeDepth ou Apple Depth Pro),
+              recalage sur l'orthophoto IGN.</p></div>
+          <div class="card lab"><h3>Calculé</h3><p>Dérivé de ce qui est mesuré, sans GPU et rejouable : distance, vitesse, TTC,
+              plan de sol, cap de la navette, suivi à 360°, indicateurs (TTC, PET) et conflits.</p></div>
+          <div class="card lab accent"><h3>Le pipeline</h3><p>Chaque étage est un pipeline du modèle commun :
+              <b>9 passes</b> d'analyse, <b>11</b> de calcul. Une passe est un process, chaque dépendance un lien.</p></div>
         </div>
         <p style="margin-top:24px">L'app a <b>39 bascules A/B</b> et une analyse incrémentale : quand une étape change, seules
            les passes devenues obsolètes (<code>STALE</code>) sont recalculées.</p>
-        <div class="src">CAM_ANALYZER_CHAINE_TRAITEMENT.md §F (table des modèles) · cam_analyzer/utils/features.py (39, relevé du 03/10)</div>
+        <div class="src">cam_analyzer/utils/pass_tracking.py (PASSES, étages) · manifests/pipelines/cam_analyzer.analyse.json · cam_analyzer.calcul.json · utils/features.py</div>
       </section>
 
       <!-- ── Monde Transversal ───────────────────────────────── -->
@@ -356,116 +362,117 @@
       <section class="frame boxed" id="t-studio" data-x="-720" data-y="7460" data-s="0.4" data-title="Transversal · Studio & pipelines">
         <div class="kicker trans">Chaîner</div>
         <h2><i class="fas fa-diagram-project c-trans"></i> Studio et pipelines</h2>
-        <p>Le Studio construit des chaînes de traitement <b>en graphe</b>. Il relie les apps Médias, les fonctions
-           Data et les analyses Lab.</p>
-        <ul>
-          <li>Un seul modèle, acté le 15/09 : une <b>card</b> porte un <b>pipeline</b>, c'est-à-dire des entrées, des étapes et des sorties.</li>
-          <li>Le Studio est l'éditeur en graphe de ce même objet. Un pipeline devient à son tour une capacité.</li>
-          <li><span class="st wip">🔄</span> Les 10 apps et les fonctions du catalogue sont déjà des nœuds ; le traitement par lots reste à faire.</li>
-        </ul>
+        <p class="say">Le Studio construit des chaînes de traitement <b>en graphe</b>. Il relie les apps Médias,
+           les fonctions Data et les analyses Lab.</p>
+        <div class="kw big">
+          <span>une card porte un pipeline</span><span>entrées → process → sorties</span>
+          <span>un process : une app Médias, une fonction Data</span><span>un pipeline devient une capacité</span>
+        </div>
         <div class="src">ROUTE §10.6 · VISION §Studio</div>
       </section>
 
       <section class="frame boxed" id="t-mediatheque" data-x="0" data-y="7460" data-s="0.4" data-title="Transversal · Médiathèque">
         <div class="kicker trans">Partager</div>
         <h2><i class="fas fa-photo-film c-trans"></i> Médiathèque</h2>
-        <p>Des ressources partagées : voix, images, sons, documents, avatars, objets 3D, partitions. <b>10 types</b> sont déclarés ;
-           en ajouter un demande une seule entrée, sans migration de base.</p>
-        <ul>
-          <li>Chaque média garde sa licence et son origine (Wikimedia, Pixabay, Freesound…).</li>
-          <li>On choisit avec qui le partager : moi seul, mon unité, un projet, tout le monde.</li>
-          <li><span class="st todo">⏳</span> Recherche par le sens (embeddings).</li>
-        </ul>
+        <p class="say">Des ressources <b>partagées</b> entre les apps : voix, images, sons, documents, avatars,
+           objets 3D, partitions.</p>
+        <div class="kw big">
+          <span>10 types déclarés</span><span>un type de plus = une entrée, sans migration</span>
+          <span>licence et origine gardées</span><span>moi, mon unité, un projet, tout le monde</span>
+        </div>
         <div class="src">media_library/natures.py · VISION §médiathèque</div>
       </section>
 
       <section class="frame boxed" id="t-registres" data-x="720" data-y="7460" data-s="0.4" data-title="Transversal · Registres">
         <div class="kicker trans">Savoir ce qu'on a</div>
         <h2><i class="fas fa-table-list c-trans"></i> Registres</h2>
-        <p>Un registre dit ce que WAMA sait <b>nommer</b>, et il est confronté à ce qui existe vraiment :
-           modèles, apps, fonctions, skills, librairies, formats, licences, backends, docs, mémoire…</p>
-        <ul>
-          <li>Quatre façons de les tenir à jour : scan, mesure, redéclaration, dérivation.</li>
-          <li>Un registre des registres, visible par les administrateurs.</li>
-        </ul>
+        <p class="say">Un registre dit ce que WAMA sait <b>nommer</b>, confronté à ce qui existe vraiment :
+           modèles, apps, fonctions, skills, librairies, formats, licences…</p>
+        <div class="kw big">
+          <span>scan · mesure · redéclaration · dérivation</span><span>un registre des registres</span>
+          <span>tout compte les lit</span><span>les développeurs les actualisent</span>
+        </div>
         <div class="src">wama/common/registries.py · registries_builtin.py · wama_data/apps.py</div>
       </section>
 
       <section class="frame boxed" id="t-manifestes" data-x="-720" data-y="7900" data-s="0.4" data-title="Transversal · Manifestes & auto-génération">
         <div class="kicker trans">Décrire → générer</div>
-        <h2><i class="fas fa-file-code c-trans"></i> Manifestes et apps générées</h2>
-        <p><b>7 types de fiches</b> : app, librairie, modèle, fonction, pipeline, projet, jeu de données.
-           L'interface se génère à partir de ces descriptions. Le parcours complet d'une app compte 8 étapes (F1 à F8) :
-           identité, ports, paramètres, modèles, traitement, prompts, droits, Studio.</p>
-        <ul>
-          <li>Chaîne « dépôt GitHub → app » : 6 rôles d'agent, et un humain valide toujours.</li>
-          <li>La fiche d'une nouvelle app s'écrit <b>à la main, par choix</b> : un dépôt apporte une capacité, l'app est une
-              décision. Tout le reste se génère : Writer est née d'une fiche le 30/09, et ses traitements ont été écrits par un modèle local.</li>
-        </ul>
-        <div class="src">WAMA_MANIFEST_SPEC.md · ROUTE F1–F8 · ROUTE §10.5 · manifests/app_drafts/writer.json</div>
+        <h2><i class="fas fa-file-code c-trans"></i> Décrire une app, la générer</h2>
+        <p class="say"><b>7 types de fiches</b> — app, librairie, modèle, fonction, pipeline, projet, jeu de
+           données — et l'interface se génère à partir d'elles.</p>
+        <div class="chain trans mini">
+          <div class="node"><h3>Une fiche</h3><p>écrite à la main</p></div><div class="arrow">→</div>
+          <div class="node"><h3>Le bac à sable</h3><p>l'app y est générée</p></div><div class="arrow">→</div>
+          <div class="node"><h3>Les agents</h3><p>écrivent ses traitements</p></div><div class="arrow">→</div>
+          <div class="node"><h3>Un humain</h3><p>valide, puis l'app sort</p></div>
+        </div>
+        <p style="margin-top:20px"><b>L'exemple : Writer</b>, prochaine app à sortir du bac à sable. À partir d'une consigne et d'un
+           document de référence, elle écrit un document (rapport, présentation, page web) : un LLM écrit le fond,
+           une seconde étape le met en forme.</p>
+        <div class="src">WAMA_MANIFEST_SPEC.md · ROUTE F1–F8, §10.3, §10.5 · manifests/app_drafts/writer.json · ROADMAP §21</div>
       </section>
 
       <section class="frame boxed" id="t-capacites" data-x="0" data-y="7900" data-s="0.4" data-title="Transversal · Capacités & ports typés">
         <div class="kicker trans">Agréger</div>
         <h2><i class="fas fa-plug c-trans"></i> Capacités et ports typés</h2>
-        <p>Trois catalogues se complètent : les apps, les fonctions, et les types de données. Les types forment
-           une hiérarchie (une trace GPS est une série temporelle, qui est une table).</p>
-        <ul>
-          <li>Les ports se déduisent du catalogue, <b>sans adaptateur écrit à la main</b>.</li>
-          <li>Une app regroupe des capacités, et le Studio sert aussi de bibliothèque.</li>
-          <li>Ce registre ne connaît jamais ceux qui l'alimentent : chaque monde déclare lui-même ses fonctions.</li>
-        </ul>
+        <p class="say">Trois catalogues se complètent : les <b>apps</b>, les <b>fonctions</b> et les
+           <b>types de données</b>.</p>
+        <div class="kw big">
+          <span>trace GPS ⊂ série temporelle ⊂ table</span><span>ports déduits, sans adaptateur</span>
+          <span>une app regroupe des capacités</span><span>chaque monde déclare ses fonctions</span>
+        </div>
         <div class="src">common/catalog/ · ROUTE §10.4 (marche D)</div>
       </section>
 
       <section class="frame boxed" id="t-llm" data-x="720" data-y="7900" data-s="0.4" data-title="Transversal · Harnais LLM">
         <div class="kicker trans">Parler aux modèles</div>
         <h2><i class="fas fa-robot c-trans"></i> Harnais LLM et prompts</h2>
-        <p>Une <b>seule chaîne de traitement des prompts</b>, sans rustine par app : on détecte la langue, on route,
-           on traduit, on enrichit, on ajoute les documents de référence.</p>
-        <ul>
-          <li>L'assistant : un seul cerveau pour plusieurs points d'accès (web, API, messageries), avec 71 outils au 03/10.</li>
-          <li>Vider une file exige un accord explicite. <span class="st todo">⏳</span> Supprimer un seul élément ne repose encore
-              que sur la consigne donnée au modèle : une confirmation dans l'interface reste à faire.</li>
-        </ul>
-        <div class="src">WAMA_LLM.md · WAMA_HARNESS.md §5 écart 1 (14 axes) · tool_api.py (delete_item, clear_my_queue)</div>
+        <p class="say">Une <b>seule chaîne de traitement des prompts</b>, sans rustine par app, et
+           <b>un seul assistant</b> pour tous les points d'accès.</p>
+        <div class="kw big">
+          <span>traduit dans la langue du modèle, si besoin</span><span>enrichi selon la nature du prompt</span>
+          <span>documents de référence</span>
+          <span>web, API, connecteurs, conversation vocale</span><span>près de 80 outils</span>
+          <span>détruire exige un accord</span>
+        </div>
+        <div class="src">WAMA_LLM.md · WAMA_HARNESS.md · tool_api.py (TOOL_REGISTRY)</div>
       </section>
 
       <section class="frame boxed" id="t-gouverneur" data-x="-720" data-y="8340" data-s="0.4" data-title="Transversal · Gouverneur de ressources">
         <div class="kicker trans">Arbitrer</div>
         <h2><i class="fas fa-gauge-high c-trans"></i> Gouverneur et choix de modèle</h2>
-        <p>Un <b>point d'entrée unique</b> pour le GPU, le CPU et la RAM. Il est né d'un incident le 29/07 : 24 Go de VRAM
-           ont été dépassés, jusqu'à 38,1 Go.</p>
-        <ul>
-          <li>Plafond CUDA, registre VRAM partagé, priorités par app.</li>
-          <li>Le choix du modèle tient compte de la VRAM et préfère un modèle déjà chargé.</li>
-          <li><span class="st todo">⏳</span> Gestion du CPU et de la RAM, équité entre utilisateurs, passage à plusieurs GPU.</li>
-        </ul>
-        <div class="src">common/services/resource_governor.py · model_manager/services/model_selector.py</div>
+        <p class="say">Le modèle se tire par <b>un sélecteur commun</b>, qui pèse ces critères ; le gouverneur
+           arbitre la carte graphique.</p>
+        <div class="kw big"><span>la tâche et ses capacités</span><span>installé et utilisable</span>
+          <span>déjà chargé d'abord</span><span>la VRAM libre</span><span>la performance mesurée</span>
+          <span>curseur rapide ↔ qualité</span><span>local ou distant selon le profil</span>
+          <span>le choix manuel reste possible</span></div>
+        <div class="src">model_manager/services/model_selector.py (select_model) · common/services/resource_governor.py · ROADMAP §8d</div>
       </section>
 
       <section class="frame boxed" id="t-memoire" data-x="0" data-y="8340" data-s="0.4" data-title="Transversal · Mémoire & RAG">
         <div class="kicker trans">Se souvenir</div>
         <h2><i class="fas fa-brain c-trans"></i> Mémoire et RAG</h2>
-        <p>Postgres avec pgvector (bge-m3, 1024 dimensions). Deux tables : les <b>souvenirs</b>, qui ne se purgent jamais,
-           et les <b>fragments</b>, qui se réindexent.</p>
-        <ul>
-          <li>Plusieurs niveaux : université → labo ou service → équipe → utilisateur, plus les projets.</li>
-          <li>Un contenu entre dans le RAG par un <b>geste</b> volontaire, jamais par un balayage automatique.</li>
-        </ul>
+        <p class="say">WAMA se souvient, et cherche dans ce qu'on lui confie : <b>Postgres + pgvector</b>
+           (bge-m3, 1024 dimensions).</p>
+        <div class="kw big">
+          <span>souvenirs : jamais purgés</span><span>fragments : réindexés</span>
+          <span>université → labo → équipe → utilisateur, et les projets</span>
+          <span>on y entre par un geste, jamais par balayage</span>
+        </div>
         <div class="src">WAMA_MEMORY.md</div>
       </section>
 
       <section class="frame boxed" id="t-modeles" data-x="720" data-y="8340" data-s="0.4" data-title="Transversal · Model manager">
         <div class="kicker trans">Choisir ses modèles</div>
         <h2><i class="fas fa-cubes c-trans"></i> Model manager</h2>
-        <p>Il tient le catalogue des modèles installés, leur place sur le disque et leur provenance.</p>
-        <ul>
-          <li>Chaque modèle est rangé par famille ; un contrôle vérifie qu'aucun fichier étranger ne s'y mêle.</li>
-          <li>Plusieurs fournisseurs : Ollama en local ; Albert (DINUM) et l'API Anthropic sur choix explicite, avec la clé de l'utilisateur.</li>
-          <li>Un modèle proposé reste une proposition, qu'on peut refuser.</li>
-        </ul>
-        <div class="src">AGENTS.md §ajout d'un modèle · check_model_layout · llm_utils.py</div>
+        <p class="say">Le <b>registre des modèles</b> : ce qui est installé, où sur le disque, et d'où cela vient.</p>
+        <div class="kw big">
+          <span>rangé par famille</span><span>aucun fichier étranger (contrôlé)</span>
+          <span>lisible par tout compte, géré par les développeurs</span>
+          <span>un modèle proposé reste une proposition</span>
+        </div>
+        <div class="src">AGENTS.md §ajout d'un modèle · check_model_layout · model_manager/views.py (is_admin_or_dev) · ROADMAP §8d</div>
       </section>
 
       <!-- ═════════════════════ 3 · DROITS (3D) ═════════════════════ -->
@@ -474,15 +481,28 @@
           <div class="kicker">07 — Droits</div>
           <h2 style="font-size:54px">Qui accède à quoi ? Tous les cas</h2>
           <p style="font-size:21px"><b>Profil</b> (un seul, hiérarchique) × <b>rôles métier</b> (cumulables).
-            Chaque cube est une décision prise par la <b>vraie</b> fonction d'accès, sur la politique réellement en base.</p>
+            Chaque cube est une décision prise par la <b>vraie</b> fonction d'accès.</p>
+          <p style="font-size:21px;margin-top:14px">La scène est <b>calculée en direct</b> depuis la politique réglée
+            dans WAMA, sur sa page d'administration des accès.</p>
           <p style="font-size:19px;margin-top:14px">S'ajoutent l'<b>organisation</b> (université → département → labo → équipe),
             qui règle le partage et le RAG, et les <b>projets</b>, qui traversent les organisations.</p>
-          <p style="font-size:17px;margin-top:14px;color:var(--ink-mute)">Aujourd'hui, seule la famille « app » est contrôlée.
-            Modèles, librairies, fonctions et skills : ⏳ étape S3.</p>
         </div>
         <div class="scene-slot" data-scene="access" data-src="{% url 'presentation_access_cases' %}"
              style="left:560px;top:40px;width:1000px;height:820px"></div>
-        <div class="src">accounts/permissions.py · PROFILES_PERMISSIONS.md · VISION §2.3</div>
+        <div class="src">accounts/permissions.py (access_cases) · AppAccessPolicy · PROFILES_PERMISSIONS.md</div>
+      </section>
+
+      <section class="frame boxed" id="partage" data-x="4700" data-y="8650" data-s="0.6" data-title="Droits · Partager">
+        <div class="kicker">07 — Droits · Partage</div>
+        <h2><i class="fas fa-share-nodes c-trans"></i> Partager, du même geste partout</h2>
+        <p class="say">Tout élément se partage de la même façon, dans tous les mondes : une card, un lot, un document.
+           Il naît <b>privé</b>, et c'est celui qui partage qui fixe les droits.</p>
+        <div class="kw big">
+          <span>une personne · mon unité · un projet · tous</span><span>lecture seule ou collaboration</span>
+          <span>reçu dans sa propre file</span><span>demander l'accès · dupliquer · transférer</span>
+          <span>prévenu dans WAMA et par e-mail</span><span>chaque modification tracée et attribuée</span>
+        </div>
+        <div class="src">WAMA_COLLABORATION.md §3bis · common/services/sharing.py (SHARE_MODES) · ObjectGrant · /common/shares/</div>
       </section>
 
       <!-- ═════════════════════ 4 · LA FABRIQUE ═════════════════════ -->
@@ -490,17 +510,17 @@
         <div class="kicker">08 — La fabrique · documentation</div>
         <h2>Une documentation qui se <span class="grad">confronte au code</span></h2>
         <div class="cards c3">
-          <div class="card"><span class="st ok">✅</span><h3>Construction</h3><p>Le récit vivant : décisions, raisons, pièges, vision.
+          <div class="card"><h3>Construction</h3><p>Le récit vivant : décisions, raisons, pièges, vision.
               C'est une trace datée, pas un manuel.</p></div>
-          <div class="card"><span class="st wip">🔄</span><h3>Développeur</h3><p>3 docs produites à partir de la construction et
-              <b>nourries des registres</b> : le parcours, les registres, les briques.</p></div>
-          <div class="card"><span class="st wip">🔄</span><h3>Utilisateur</h3><p>Un passage n'y entre que si un registre confirme
-              ce qu'il décrit. Première doc produite le 14/09.</p></div>
+          <div class="card"><h3>Développeur</h3><p>Produite à partir de la construction et
+              <b>nourrie des registres</b> : le parcours, les registres, les briques.</p></div>
+          <div class="card"><h3>Utilisateur</h3><p>Un passage n'y entre que si un registre confirme
+              ce qu'il décrit.</p></div>
         </div>
         <div class="cards c4" style="margin-top:20px">
           <div class="card"><p><code>WAMA:FAIT(…)</code> : le chiffre est lu dans le registre, jamais recopié à la main.</p></div>
-          <div class="card"><p><code>doc_facts</code> régénère les tables ; la carte des 180 mécanismes est produite ainsi.</p></div>
-          <div class="card"><p><code>check_docs</code> : 2 552 références vérifiées, <b>5 cassées</b> (03/10). Il les nomme une à une.</p></div>
+          <div class="card"><p><code>doc_facts</code> régénère les tables ; la carte des 198 mécanismes est produite ainsi.</p></div>
+          <div class="card"><p><code>check_docs</code>, chaque nuit : <b>0 référence cassée</b>. Il les nommerait une à une.</p></div>
           <div class="card"><p>Un chiffre sans source (commande, date ou bloc généré) est signalé.</p></div>
         </div>
         <div class="src">AGENTS.md §Trois docs, trois publics · ROADMAP §25 · docs_catalog.py · fact_tags.py</div>
@@ -512,57 +532,80 @@
         <div style="display:flex;gap:50px;align-items:flex-start">
           <div style="flex:1">
             <div class="stats">
-              <div class="stat"><div class="big grad">431</div><span>scénarios au 03/10</span></div>
-              <div class="stat"><div class="big">5014</div><span>tests Django, nuit du 03/10</span></div>
-              <div class="stat"><div class="big">100</div><span>critères de conformité</span></div>
+              <div class="stat"><div class="big grad">614</div><span>scénarios</span></div>
+              <div class="stat"><div class="big">3 000+</div><span>tests Django</span></div>
+              <div class="stat"><div class="big">103</div><span>critères de conformité</span></div>
             </div>
             <ul style="margin-top:34px">
               <li><b>04:15</b>, contrôles de cohérence : docs, conformité, manifestes, gabarits, redondance, vulnérabilités, secrets.
                   Tolérance : zéro.</li>
-              <li><b>04:30</b>, tests fonctionnels sur le GPU, chaque nuit depuis le 28/09 : l'instabilité de l'hôte est résolue.</li>
+              <li><b>04:30</b>, tests fonctionnels sur le GPU ; la campagne complète, le dimanche.</li>
               <li>Parcours d'interface avec Playwright : réponse HTTP 200, aucune erreur console, tous les onglets visités.</li>
             </ul>
           </div>
           <div style="flex:0 0 560px">
             <div class="card" style="margin-bottom:14px"><h3>Grille d'adoption</h3><p>Toutes les apps suivent-elles les mêmes règles ?
-               <b>917 / 940</b> au 03/10. Cette grille ne prouve pas que ça marche.</p></div>
+               <b>Les 10 apps à 100 %</b>. Cette grille ne prouve pas que ça marche.</p></div>
             <div class="card" style="margin-bottom:14px"><h3>Grille fonctionnelle</h3><p>Est-ce que ça marche vraiment ? Des scénarios
-               rejouent les gestes (couverture 17,5 sur 19 au 07/09).</p></div>
+               rejouent les gestes de l'utilisateur, app par app.</p></div>
             <div class="card"><h3>Budgets à sens unique</h3><p>Certains compteurs ne peuvent que baisser : noms en français dans le code,
                écritures sauvages dans le cache HF (0). Ajouter un défaut devient impossible.</p></div>
           </div>
         </div>
-        <div class="src">nightly_tests.REGISTRY · rapport nightly_20261003_084219 · settings.CELERY_BEAT_SCHEDULE · WAMA_VERIFICATION.md · check_app_conformity (03/10)</div>
+        <div class="src">nightly_tests.REGISTRY · settings.CELERY_BEAT_SCHEDULE · WAMA_VERIFICATION.md · check_app_conformity</div>
       </section>
 
-      <!-- ═════════════════════ 5 · CAP ═════════════════════ -->
-      <section class="frame boxed" id="cap" data-x="-4700" data-y="9500" data-s="1" data-section="1" data-title="Le cap">
-        <div class="kicker">10 — Le cap</div>
-        <h2>Ce qui est fait, en cours, à venir</h2>
-        <div class="cards c3">
-          <div class="card"><h3><span class="st ok">✅ fait</span></h3>
-            <ul><li>10 apps Médias en production</li><li>Accès par profils et rôles, arbre d'organisation</li>
-                <li>Socle mémoire et RAG (pgvector)</li><li>Doc confrontée au code, contrôles chaque nuit</li></ul></div>
-          <div class="card"><h3><span class="st wip">🔄 en cours</span></h3>
-            <ul><li>Docs développeur et utilisateur produites automatiquement</li><li>Cam Analyzer : validation</li>
-                <li>Adoption des briques communes par toutes les apps</li><li>Studio : traitement par lots</li>
-                <li>Un moteur de pipeline commun à tous les mondes : une card d'app porte déjà ses étapes (pilote : Composer)</li></ul></div>
-          <div class="card"><h3><span class="st todo">⏳ à venir</span></h3>
-            <ul><li>Data Analyzer, l'app du monde Data</li><li>Rapports d'évaluation des modèles générés automatiquement</li>
-                <li>Filtre de confidentialité avant le cloud</li><li>Rapport de sobriété, passage multi-GPU</li></ul></div>
+      <!-- ═════════════════════ 5 · ROADMAP ═════════════════════ -->
+      <!-- La frise est LUE dans ROADMAP.md §« Frise — les grands jalons » (common/roadmap_timeline.py) :
+           un jalon s'ajoute ou se corrige LÀ-BAS, jamais ici. -->
+      <section class="frame boxed" id="roadmap" data-x="-4700" data-y="9500" data-s="1" data-section="1" data-title="Roadmap">
+        <div class="kicker">10 — Roadmap</div>
+        <h2>D'où vient WAMA, <span class="grad">où il va</span></h2>
+        {% if timeline %}
+        <ol class="timeline">
+          {% for m in timeline %}
+          <li class="ms {{ m.css }}"><div class="ms-body"><span class="when">{{ m.when }}</span><h3>{{ m.label }}</h3>{% if m.detail %}<p>{{ m.detail }}</p>{% endif %}</div><i class="dot"></i></li>
+          {% endfor %}
+        </ol>
+        {% else %}
+        <p class="say">Frise illisible : {{ timeline_error }}</p>
+        {% endif %}
+        <div class="src">ROADMAP.md §Frise — les grands jalons (lue à chaque affichage)</div>
+      </section>
+
+      <!-- ═════════════════════ 6 · LE MESSAGE ═════════════════════ -->
+      <section class="frame boxed" id="message" data-x="-2600" data-y="11200" data-s="1" data-section="1" data-title="Le message">
+        <div class="kicker">11 — Le message</div>
+        <h2>Une IA locale et gouvernée, <span class="grad">au service de la recherche</span></h2>
+        <div class="cards c2">
+          <div class="card"><h3>WAMA</h3>
+            <ul>
+              <li>Une plateforme pour <b>uniformiser et automatiser</b> le traitement des données.</li>
+              <li><b>Contrôle, efficience, souveraineté</b> des données.</li>
+              <li>L'<b>humain dans la boucle</b> corrige et valide les résultats de l'IA.</li>
+            </ul></div>
+          <div class="card accent"><h3>À notre portée</h3>
+            <ul>
+              <li>Ne pas dépendre des seuls modèles <b>commerciaux ou distants</b>.</li>
+              <li>Traiter <b>en local, sur du matériel réduit</b> : c'est possible, pertinent, et gage d'<b>efficience</b>.</li>
+              <li>L'<b>open source</b> au centre de l'écosystème.</li>
+            </ul></div>
         </div>
-        <div class="src">PROJECT_STATUS.md · ROADMAP.md · VISION (marquage ✅/🔄/⏳)</div>
+        <p class="say" style="margin-top:34px"><i class="fas fa-envelope c-trans"></i>&nbsp;
+          <a class="contact" href="mailto:fabien.moreau@univ-eiffel.fr">fabien.moreau@univ-eiffel.fr</a></p>
       </section>
 
       <section class="frame" id="fin" data-x="0" data-y="12000" data-s="1.4" data-title="Démonstration">
         <div class="kicker">WAMA</div>
         <h1 style="font-size:120px">Place à la démo</h1>
         <p class="lead" style="margin-top:26px">Local d'abord · gouverné · reproductible · sobre · ouvert.</p>
+        <p style="margin-top:18px;font-size:24px"><i class="fas fa-envelope c-trans"></i>&nbsp;
+          <a class="contact" href="mailto:fabien.moreau@univ-eiffel.fr">fabien.moreau@univ-eiffel.fr</a></p>
         <div style="display:flex;gap:14px;margin-top:44px;flex-wrap:wrap">
           <a class="hud-btn" style="height:48px;font-size:17px" href="/"><i class="fas fa-house"></i> Ouvrir WAMA</a>
           <a class="hud-btn" style="height:48px;font-size:17px" href="{% url 'architecture' %}"><i class="fas fa-sitemap"></i> Architecture</a>
           <a class="hud-btn" style="height:48px;font-size:17px" href="{% url 'fiches' %}"><i class="fas fa-folder-open"></i> Le système de fiches</a>
-          <a class="hud-btn" style="height:48px;font-size:17px" href="{% url 'presentation_archive' '2026-v1' %}"><i class="fas fa-box-archive"></i> Présentation v1 (archive)</a>
+          <a class="hud-btn" style="height:48px;font-size:17px" href="{% url 'presentation_archive' '2026-v2' %}"><i class="fas fa-box-archive"></i> Présentation précédente (archive)</a>
         </div>
       </section>
 

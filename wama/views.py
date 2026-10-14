@@ -124,8 +124,22 @@ def home(request):
 
 
 def presentation(request):
-    """WAMA presentation — canvas zoomable (constat → quatre mondes → accès → fabrique)."""
-    return render(request, 'includes/wama_presentation.html')
+    """WAMA presentation — canvas zoomable (constat → quatre mondes → accès → fabrique → roadmap).
+
+    La frise de la roadmap est LUE dans `ROADMAP.md` (`common/roadmap_timeline.py`), jamais
+    recopiée dans le gabarit. Illisible, elle le DIT sur sa diapositive au lieu de casser la page.
+    """
+    return render(request, 'includes/wama_presentation.html', presentation_context())
+
+
+def presentation_context():
+    """Ce que le gabarit de la présentation reçoit — partagé par la page et son export PDF."""
+    from wama.common.roadmap_timeline import milestones
+    try:
+        timeline, timeline_error = milestones(), ''
+    except (OSError, ValueError) as exc:
+        timeline, timeline_error = [], str(exc)
+    return {'timeline': timeline, 'timeline_error': timeline_error}
 
 
 # Présentations ARCHIVÉES (jamais détruites, décision Fabien 2026-09-25) : slug → gabarit.
@@ -135,6 +149,11 @@ ARCHIVED_PRESENTATIONS = {
     '2026-v1': {
         'template': 'includes/archive/wama_presentation_2026-v1.html',
         'label': 'Présentation v1 (diaporama, 2026)',
+    },
+    # Remplacée le 2026-10-13 par la v3, resserrée pour un exposé de 20 minutes.
+    '2026-v2': {
+        'template': 'includes/archive/wama_presentation_2026-v2.html',
+        'label': 'Présentation v2 (canvas, octobre 2026)',
     },
     # Remplacée le 2026-10-03 par l'architecture sur le moteur « canvas » de la présentation v2.
     'architecture-2026-v1': {
@@ -215,7 +234,9 @@ def report(request, slug):
 # présentation « canvas » (une page 16:9 par étape) plutôt qu'un document A4. Les rapports de
 # `REPORTS` le sont tous, en document. Les archives ne le sont pas : autre moteur de diaporama.
 PDF_PAGES = {
-    'presentation': {'template': 'includes/wama_presentation.html', 'slides': True},
+    # `context` : la fonction qui donne au gabarit ce que lui donne sa vue (la frise, ici).
+    'presentation': {'template': 'includes/wama_presentation.html', 'slides': True,
+                     'context': presentation_context},
     'architecture': {'template': 'includes/wama_architecture.html', 'slides': True},
     'fiches': {'template': 'includes/wama_fiches.html', 'slides': False},
 }
@@ -236,7 +257,8 @@ def page_pdf(request, page, slug=None):
         template, slides, page_path, name = entry['template'], entry['slides'], reverse(page), page
     else:
         raise Http404(f"Page sans export PDF : {page}")
-    pdf = build_pdf(request, template, page_path=page_path, slides=slides)
+    context = entry['context']() if entry.get('context') else None
+    pdf = build_pdf(request, template, page_path=page_path, slides=slides, context=context)
     if pdf is None:
         return HttpResponse("Export PDF indisponible : le navigateur de rendu (Chromium) n'a pas pu "
                             "produire le document sur ce serveur.", status=503,

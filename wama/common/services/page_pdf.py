@@ -54,12 +54,16 @@ def make_fetcher(request):
     return fetch
 
 
-def page_pdf(request, template, *, page_path, slides=False):
-    """Chemin du PDF de `template` tel que le voit `request.user`, ou None si aucun moteur n'a pu le faire."""
+def page_pdf(request, template, *, page_path, slides=False, context=None):
+    """Chemin du PDF de `template` tel que le voit `request.user`, ou None si aucun moteur n'a pu le faire.
+
+    `context` : celui que la VUE de la page passe à son gabarit — sans lui, le PDF montrerait
+    une autre page que celle qu'on lit (la frise de la présentation, par exemple).
+    """
     from django.template.loader import render_to_string
     from wama.common.utils.html_render import render_page_to_pdf
 
-    html = render_to_string(template, request=request)
+    html = render_to_string(template, context, request=request)
     key = hashlib.sha256(f'{slides}\n{page_path}\n{html}'.encode('utf-8')).hexdigest()[:24]
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     out = CACHE_DIR / f'{key}.pdf'

@@ -182,8 +182,13 @@ function buildWorlds() {
 
 // ── Scène 2 : les droits, tous les cas ───────────────────────────────────
 const TIER_COLORS = [0x94a3b8, COLORS.media, COLORS.data, COLORS.lab];
-const APP_LABELS = { media_library: 'Médiathèque', model_manager: 'Model manager', face_analyzer: 'Face Analyzer', cam_analyzer: 'Cam Analyzer' };
-const appLabel = id => APP_LABELS[id] || id.charAt(0).toUpperCase() + id.slice(1);
+// Libellé d'un outil : l'identité commune que `access_cases()` transmet (`calendar.app_identity`)
+// — jamais une table de noms recopiée ici.
+const appLabel = app => app.label || app.id;
+// Monde déclaré d'un outil (`access_cases()` le transmet, avec le libellé de chaque monde, celui
+// des sections du menu) → la couleur de son nom : la palette de la scène des mondes.
+const WORLD_COLORS = { media: COLORS.media, data: COLORS.data, lab: COLORS.lab, transverse: COLORS.trans };
+const cssColor = hex => '#' + hex.toString(16).padStart(6, '0');
 
 function buildAccess(slot) {
   const scene = new THREE.Scene();
@@ -194,7 +199,11 @@ function buildAccess(slot) {
   const controls = new OrbitControls(camera, renderer.domElement);
   Object.assign(controls, { enableDamping: true, enablePan: false, minDistance: 14, maxDistance: 70,
                             autoRotate: !reduceMotion, autoRotateSpeed: 0.35 });
-  const sc = { scene, camera, controls, labels: [], labelsBox, anims: [], listeners: {}, ready: false };
+  // Écouteurs posés dès maintenant et qui délèguent au survol : `attach()` les accroche à
+  // l'arrivée sur la frame, AVANT que les cas ne soient chargés. Remplis par `populate()`, ils
+  // n'étaient accrochés qu'à la visite suivante — d'où un survol muet à la première arrivée.
+  const sc = { scene, camera, controls, labels: [], labelsBox, anims: [], ready: false, hover: null };
+  sc.listeners = { pointermove: ev => sc.hover && sc.hover(ev), pointerleave: ev => showTip(ev, null) };
   const panel = document.getElementById('access-panel');
   sc.panel = panel;
 
@@ -235,16 +244,35 @@ function populate(sc, data) {
     const anchor = new THREE.Object3D(); anchor.position.set(ox - 1.2, plate.position.y, oz - 1.4); scene.add(anchor);
     sc.labels.push({ obj: anchor, el: makeLabel(sc.labelsBox, data.tiers[t].label, 'minor') });
   }
-  // Noms d'apps au pied de la pile.
+  // Noms des outils au pied de la pile, à la couleur de leur monde (rangés par monde côté serveur).
   for (let a = 0; a < nA; a++) {
     const anchor = new THREE.Object3D(); anchor.position.set(ox + a * DX, oy - 1.0, oz + (nR - 1) * DZ + 1.1); scene.add(anchor);
-    const el = makeLabel(sc.labelsBox, appLabel(data.apps[a].id), 'minor');
+    const el = makeLabel(sc.labelsBox, appLabel(data.apps[a]), 'minor');
     el.style.transform = 'translate(-100%, -50%) rotate(-50deg)'; el.style.transformOrigin = '100% 50%';
+    const world = data.apps[a].world;
+    if (WORLD_COLORS[world] !== undefined) { el.style.color = cssColor(WORLD_COLORS[world]); el.title = (data.worlds || {})[world] || ''; }
     sc.labels.push({ obj: anchor, el });
   }
+  // Jeux de rôles au bout des rangées : une colonne par rôle, son initiale s'il en fait partie.
+  // Initiale tirée du libellé, allongée tant que deux rôles la partagent.
+  let width = 1;
+  const initials = () => data.roles.map(r => r.label.slice(0, width).toUpperCase());
+  while (width < 4 && new Set(initials()).size < data.roles.length) width++;
+  const short = initials(), blank = '·'.padEnd(width, ' ');
+  const roleRowLabels = data.role_sets.map((set, r) => {
+    const anchor = new THREE.Object3D(); anchor.position.set(ox + (nA - 1) * DX + 2.2, oy - 0.25, oz + r * DZ); scene.add(anchor);
+    const el = makeLabel(sc.labelsBox, data.roles.map((x, i) => set.includes(x.key) ? short[i] : blank).join(' '), 'minor roleset');
+    el.title = set.length ? set.map(k => data.roles.find(x => x.key === k).label).join(' + ') : 'aucun rôle';
+    sc.labels.push({ obj: anchor, el });
+    return el;
+  });
+  const head = new THREE.Object3D(); head.position.set(ox + (nA - 1) * DX + 2.2, oy - 0.25, oz - 4.2); scene.add(head);
+  // La clé des initiales est portée par les puces du panneau, qu'une étiquette flottante ne
+  // rejoindrait pas : la scène tourne, et le panneau la masquerait.
+  sc.labels.push({ obj: head, el: makeLabel(sc.labelsBox, 'Rôles', 'minor roleset-head') });
   controls.target.set(5, -2.5, 1);
 
-  // Repère de la rangée sélectionnée : un cadre lumineux autour des 15 décisions du cas.
+  // Repère de la rangée sélectionnée : un cadre lumineux autour des décisions du cas.
   const marker = new THREE.Mesh(new THREE.BoxGeometry(nA * DX + 0.3, 0.7, DZ * 0.95),
     new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.10, depthWrite: false }));
   const markerEdges = new THREE.LineSegments(new THREE.EdgesGeometry(marker.geometry),
@@ -265,6 +293,7 @@ function populate(sc, data) {
       mesh.setColorAt(i, col);
     }
     mesh.instanceColor.needsUpdate = true;
+    roleRowLabels.forEach((el, r) => el.classList.toggle('on', sel.r === r));
     describe();
   }
 
@@ -273,8 +302,11 @@ function populate(sc, data) {
   let roles = new Set();
   const rsIndex = () => data.role_sets.findIndex(s => s.length === roles.size && s.every(x => roles.has(x)));
   panel.querySelector('.stats-line').innerHTML =
-    `<b>${data.configurations}</b> configurations (${nT} profils × ${nR} jeux de rôles) × <b>${nA}</b> apps` +
-    ` = <b>${data.configurations * nA}</b> décisions · <b>${data.distinct_rows}</b> comportements distincts`;
+    `<b>${data.configurations}</b> configurations (${nT} profils × ${nR} jeux de rôles) × <b>${nA}</b> outils présentés` +
+    ` = <b>${data.configurations * nA}</b> décisions · <b>${data.distinct_rows}</b> comportements distincts` +
+    // La clé des couleurs des noms d'outils : leurs mondes, dans l'ordre des colonnes.
+    `<br>Outils par monde : ${[...new Set(data.apps.map(a => a.world))].filter(w => (data.worlds || {})[w] && WORLD_COLORS[w] !== undefined)
+      .map(w => `<span style="color:${cssColor(WORLD_COLORS[w])}">${data.worlds[w]}</span>`).join(' · ')}`;
   const tierBox = panel.querySelector('.tiers'), roleBox = panel.querySelector('.roles');
   tierBox.innerHTML = ''; roleBox.innerHTML = '';
   const allChip = document.createElement('span'); allChip.className = 'chip on'; allChip.textContent = 'Tous';
@@ -282,8 +314,9 @@ function populate(sc, data) {
   const tierChips = data.tiers.map((t, i) => {
     const c = document.createElement('span'); c.className = `chip t${i}`; c.textContent = t.label; tierBox.appendChild(c); return c;
   });
-  const roleChips = data.roles.map(r => {
-    const c = document.createElement('span'); c.className = 'chip'; c.textContent = r.label; c.title = r.help; roleBox.appendChild(c); return c;
+  const roleChips = data.roles.map((r, i) => {
+    const c = document.createElement('span'); c.className = 'chip'; c.title = r.help;
+    c.innerHTML = `<b class="initial">${short[i]}</b> ${r.label}`; roleBox.appendChild(c); return c;
   });
   function sync() {
     allChip.classList.toggle('on', sel.t === null);
@@ -301,14 +334,14 @@ function populate(sc, data) {
   function describe() {
     const out = panel.querySelector('.result');
     if (sel.t === null || sel.r === null) {
-      out.innerHTML = '<em>Choisissez un profil et des rôles, ou lancez le parcours : chaque plateau est un profil, chaque rangée un jeu de rôles, chaque colonne une app.</em>';
+      out.innerHTML = '<em>Choisissez un profil et des rôles, ou lancez le parcours : chaque plateau est un profil, chaque rangée un jeu de rôles, chaque colonne un outil.</em>';
       return;
     }
     const row = data.matrix[sel.t][sel.r];
-    const apps = data.apps.filter((_, a) => row[a]).map(a => appLabel(a.id));
+    const apps = data.apps.filter((_, a) => row[a]).map(a => appLabel(a));
     const rs = data.role_sets[sel.r].map(k => data.roles.find(r => r.key === k).label);
     out.innerHTML = `<b>${data.tiers[sel.t].label}</b> · ${rs.length ? rs.join(' + ') : 'aucun rôle'}<br>` +
-      `→ <b>${apps.length}/${nA}</b> apps${apps.length ? ' : ' + apps.join(', ') : ''}`;
+      `→ <b>${apps.length}/${nA}</b> outils${apps.length ? ' : ' + apps.join(', ') : ''}`;
   }
 
   // Parcours automatique de tous les cas.
@@ -328,18 +361,17 @@ function populate(sc, data) {
 
   // Survol : détail de la cellule.
   const ray = new THREE.Raycaster();
-  sc.listeners.pointermove = ev => {
+  sc.hover = ev => {
     ray.setFromCamera(pointer(ev), camera);
     const h = ray.intersectObject(mesh)[0];
     if (!h) { showTip(ev, null); return; }
     const [t, r, a] = idx[h.instanceId], app = data.apps[a];
     const rs = data.role_sets[r].map(k => data.roles.find(x => x.key === k).label);
     const pol = app.min_tier ? `profil min. ${app.min_tier}` : '';
-    const need = app.roles.length ? `rôles ouvrant l'accès : ${app.roles.join(', ')}` : 'app commune (tout compte)';
-    showTip(ev, `<b>${appLabel(app.id)}</b> — ${data.matrix[t][r][a] ? '<span style="color:#34d399">accès</span>' : '<span style="color:#f87171">refus</span>'}<br>` +
+    const need = app.roles.length ? `rôles ouvrant l'accès : ${app.roles.join(', ')}` : 'outil commun (tout compte)';
+    showTip(ev, `<b>${appLabel(app)}</b> — ${data.matrix[t][r][a] ? '<span style="color:#34d399">accès</span>' : '<span style="color:#f87171">refus</span>'}<br>` +
       `${data.tiers[t].label} · ${rs.length ? rs.join(' + ') : 'aucun rôle'}<br><span style="color:#8a94b0">${need}${pol ? ' · ' + pol : ''}</span>`);
   };
-  sc.listeners.pointerleave = ev => showTip(ev, null);
   paint(); sc.ready = true;
 }
 

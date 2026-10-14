@@ -58,6 +58,12 @@ body {
   color: var(--ink-soft); font-size: 11px; margin-top: 2px;
 }
 .scene-label.minor { font-size: 10.5px; font-weight: 500; color: var(--ink-soft); cursor: default; }
+/* Légende des rôles de la scène des droits : alignée à gauche de son point d'ancrage, en
+   colonnes (chasse fixe) pour qu'un même rôle tombe toujours au même endroit d'une rangée. */
+.scene-label.roleset, .scene-label.roleset-head { transform: translate(0, -50%); text-align: left; pointer-events: auto; }
+.scene-label.roleset { font: 500 11px/1 var(--mono); letter-spacing: 0; white-space: pre; }
+.scene-label.roleset.on { color: var(--ink); }
+.chip .initial { font-family: var(--mono); font-weight: 600; margin-right: 2px; opacity: .7; }
 .scene-tooltip {
   position: absolute; pointer-events: none; padding: 8px 10px; border-radius: 8px;
   background: var(--glass-strong); border: 1px solid var(--line); backdrop-filter: blur(8px);
@@ -105,8 +111,10 @@ body.moving .frame { pointer-events: none; }
 .frame ul li::before {
   content: ""; position: absolute; left: 0; top: .62em; width: 10px; height: 2px; background: var(--ink-mute);
 }
+/* Assez haut pour passer au-dessus de la barre de navigation, de taille fixe à l'écran : en
+   1280×720, une source à 36px du bas en recouvrait 25 px (mesuré le 2026-10-13). */
 .frame .src {
-  position: absolute; left: 96px; bottom: 36px; font: 14px/1.3 var(--mono); color: var(--ink-mute);
+  position: absolute; left: 96px; bottom: 76px; font: 14px/1.3 var(--mono); color: var(--ink-mute);
   letter-spacing: .02em;
 }
 .grad { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -202,6 +210,51 @@ svg.links path.flow { stroke-width: 14; animation: flow 3s linear infinite; }
 .big { font-size: 96px; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
 .stats { display: flex; gap: 60px; margin-top: 26px; }
 .stats .stat span { display: block; font-size: 18px; color: var(--ink-mute); margin-top: 6px; }
+
+/* Phrase à dire, en grand, et mots-clés : les repères de l'oral (v3, 2026-10-13) */
+.frame p.say { font-size: 33px; line-height: 1.35; color: var(--ink); max-width: 1320px; }
+.kw { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+.kw span {
+  font: 500 19px/1.1 var(--font); color: var(--ink); padding: 11px 18px; border-radius: 999px;
+  /* Une frame à petite échelle est agrandie par la caméra : en gras, Chrome y tasse les lettres. */
+  letter-spacing: .01em;
+  background: rgba(139,123,255,.14); border: 1px solid rgba(139,123,255,.42);
+}
+.kw.big { gap: 16px; margin-top: 36px; }
+.kw.big span { font-size: 27px; padding: 16px 26px; }
+.card .kw { margin-top: 16px; }
+.card .kw span { font-size: 16px; padding: 8px 14px; }
+.frame a.contact { color: var(--ink); text-decoration: none; border-bottom: 2px solid rgba(139,123,255,.55); }
+.chain.mini { margin-top: 22px; }
+.chain.mini .node { padding: 16px 18px; }
+.chain.mini .node h3 { font-size: 21px; margin-bottom: 4px; }
+.chain.mini .node p { font-size: 16px; }
+
+/* Frise de la roadmap : un jalon sur deux au-dessus de la ligne, l'autre en dessous */
+.timeline { list-style: none; position: relative; display: flex; height: 540px; margin-top: 4px; padding: 0 40px; }
+.timeline::before {
+  content: ""; position: absolute; left: 10px; right: 10px; top: 50%; height: 3px; margin-top: -1px;
+  background: var(--grad); opacity: .55; border-radius: 2px;
+}
+.timeline .ms { flex: 1; position: relative; }
+.timeline .dot {
+  position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; border-radius: 50%;
+  transform: translate(-50%, -50%); background: var(--ok); box-shadow: 0 0 0 5px rgba(52,211,153,.16);
+}
+.timeline .ms.wip .dot { background: var(--warn); box-shadow: 0 0 0 5px rgba(251,191,36,.18); }
+.timeline .ms.todo .dot { background: var(--bg-1); border: 2px dashed var(--todo); box-shadow: none; }
+.timeline .ms-body { position: absolute; left: 50%; width: 178px; transform: translateX(-50%); text-align: center; }
+.timeline .ms:nth-child(odd) .ms-body  { bottom: calc(50% + 28px); }
+.timeline .ms:nth-child(even) .ms-body { top: calc(50% + 28px); }
+.timeline .ms-body::after { content: ""; position: absolute; left: 50%; width: 1px; height: 18px; background: var(--line); }
+.timeline .ms:nth-child(odd) .ms-body::after  { bottom: -23px; }
+.timeline .ms:nth-child(even) .ms-body::after { top: -23px; }
+.timeline .when { display: block; font: 600 14px/1.2 var(--mono); letter-spacing: .05em; color: var(--ink-mute); margin-bottom: 6px; }
+.timeline h3 { display: block; font-size: 19px; line-height: 1.2; margin-bottom: 6px; }
+.timeline p { font-size: 14.5px; line-height: 1.35; }
+.timeline .ms.wip .when { color: var(--warn); }
+.timeline .ms.todo .when { color: var(--todo); }
+.timeline .ms.todo h3 { color: var(--ink-soft); }
 
 /* Emplacement d'une scène 3D */
 .scene-slot {
