@@ -835,9 +835,6 @@ def _queue_context(request, user):
         from wama.common.utils.card_chips import common_chips_for_items
         from wama.anonymizer.params import PARAMS_JSON
         success_count = sum(1 for m in medias if m.status == 'SUCCESS')
-        # Les lignes d'exécution des cards du lot sont lues en une requête.
-        from wama.common.services.process_pipeline import decorate_cards
-        decorate_cards(medias, _decorate_card)
         return {
             'success_pct': int(success_count / batch.total * 100) if batch.total else 0,
             # ETA agrégée de la card mère (brique _batch_card.html) — CSV, pas liste
@@ -850,6 +847,11 @@ def _queue_context(request, user):
     batches_list = build_batches_list(user, batch_model=BatchAnonymizer,
                                       work_attr='media', order_by='-created_at',
                                       extra=_extra)
+    # Les lignes d'exécution de TOUTES les cards de la page en une requête (`decorate_cards`,
+    # comme les neuf autres apps) — elle se faisait dans `_extra`, donc une fois PAR LOT
+    # (mesuré le 2026-10-14 par `tests_page_cost.QueuePageReadsStepStatesOnceTest`).
+    from wama.common.services.process_pipeline import decorate_cards
+    decorate_cards([link.media for b in batches_list for link in b['items']], _decorate_card)
 
     def _name(b):
         m = b['items'][0].media if b['obj'].total == 1 and b['items'] and b['items'][0].media else None

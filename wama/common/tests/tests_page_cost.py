@@ -7,7 +7,10 @@ CE QUE CES GARDES TIENNENT :
 - `static_v` garde le chemin résolu et ne relit la date d'un statique qu'au-delà de son délai —
   mais il VOIT une modification ensuite (sinon un JS corrigé n'arriverait pas au navigateur) ;
 - le registre des bacs à sable n'est relu que s'il a changé — mais il EST relu quand il change,
-  et un appelant ne peut pas altérer la copie gardée.
+  et un appelant ne peut pas altérer la copie gardée ;
+- (2026-10-14) la page de FILE de chaque app à pipeline lit l'état des étapes de toutes ses cards
+  en une fois (`decorate_cards`) : autant de lectures pour une card que pour quatre, réparties
+  en deux lots — contrat générique, aucune app nommée.
 """
 import json
 import os
@@ -180,3 +183,59 @@ class SurfaceDeclarationsLoadedOnceTest(SimpleTestCase):
             surfaces.surface('anonymizer', 'review')
             surfaces.surfaces_of('anonymizer')
         imported.assert_not_called()
+
+
+class QueuePageReadsStepStatesOnceTest(TestCase):
+    """Every app's QUEUE page reads the step states (`ProcessRun` lines) of all its cards at once
+    — `process_pipeline.decorate_cards` — never once per card.
+
+    Measured on 2026-10-03: the process strip cost six queries PER CARD. The brick that reads a
+    page in one query is guarded on its own (`tests_process_pipeline`), but nothing checked that
+    an APP's page goes through it: the enhancer kept decorating card by card until 2026-10-14
+    (`b04b78d9`, measured by hand on the live base). One generic contract, every app that
+    declares a pipeline: the lines are read the same number of times for one card and for four.
+    """
+
+    TABLE = 'common_processrun'
+
+    def _apps(self):
+        from django.urls import NoReverseMatch, reverse
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.sandbox import twins_with_copied_views
+        from wama.common.services.process_pipeline import pipeline_of
+        from wama.common.utils.preview_registry import PreviewRegistry
+        copied, out = twins_with_copied_views(), []
+        for app, spec in APP_CATALOG.items():
+            if app in copied or (spec or {}).get('sandbox'):
+                continue
+            model = PreviewRegistry.get_model(app)
+            try:
+                url = reverse(f'{app}:index')
+            except NoReverseMatch:
+                continue
+            if model is not None and pipeline_of(model()) is not None:
+                out.append((app, model, url))
+        return out
+
+    def _step_reads(self, url):
+        with CaptureQueriesContext(connection) as page:
+            response = self.client.get(url)
+        self.assertEqual(200, response.status_code)
+        return sum(self.TABLE in q['sql'] for q in page)
+
+    def test_the_step_states_are_read_once_per_page_not_once_per_card(self):
+        from wama.common.tests.tests_endpoints import EveryEndpointAnswersTest
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        apps = self._apps()
+        self.assertGreaterEqual(len(apps), 10, [a for a, _, _ in apps])
+        for app, model, url in apps:
+            with self.subTest(app=app):
+                account = EveryEndpointAnswersTest._account_for(self, app)
+                self.client.force_login(account)
+                _lot_de(model, account, 1)
+                one = self._step_reads(url)
+                # Non-vacuity: a page that shows no strip would pass with zero reads.
+                self.assertGreaterEqual(one, 1, f'{app}: the card was not decorated')
+                _lot_de(model, account, 3)
+                self.assertEqual(one, self._step_reads(url),
+                                 f'{app}: the step states are read again for each card')
