@@ -23948,3 +23948,32 @@ l'API) […] en réutilisant l'existant. On ne réinvente rien »*. Détail et d
 - 🔚 **Restes** : la médiathèque (avec son alignement sur le menu commun, verdict du 22/09) ; un
   dossier entier (refusé aujourd'hui, « sélectionner ses fichiers ») ; le fichier de CONTEXTE d'une
   card (`WAMA_LLM` « contexte jetable ») n'aura qu'à appeler le même geste.
+
+## §PALIER — 2026-10-14, « RÉGLAGES TOUS MONDES : vérification de R1 avant R2 » — deux régressions de R1 rattrapées (`ff786efc`, `a3d1c9dc`, non poussés) — 🔴 relancer gunicorn + Ctrl+F5 (Studio)
+
+- **Vérification demandée par Fabien** (« `node_params` est-il aligné sur tous les mondes ? le monde
+  Médias ? les manifestes et leur injection dans les registres ? ») : relu le kind `pipeline`
+  (`PIPELINE_SOURCES`), `process_pipeline` (`APP_PIPELINES`, `watched_of`), `GENERIC_APPS` et la
+  facette `studio` du manifeste d'app, `codegen/pipeline_decl`, `studio/tasks` + `launch`, les
+  modules déclarants (`load_all`). Verdict : nœud d'app = schéma complet de l'app (même `Param`
+  que la ⚙ de la card), nœud fonction = pont `ParamSpec → Param`, une seule porte — aligné.
+- **Régression A (`ff786efc`)** : R1 avait posé une EXPRESSION dans `GENERIC_APPS`, registre écrit
+  par la facette `studio`, qui ne relit que des littéraux → écart de projection perpétuel, écriture
+  refusée. Littéral rétabli, `avatarizer.json` régénéré (WSL), garde
+  `TheNodeRegistryIsWhatTheCorpusDeclaresTest` (projection des 10 manifestes = `noop`).
+- **Régression B (`a3d1c9dc`)** : l'inspecteur du Studio REMPLAÇAIT `node.params` par les seuls
+  champs rendus → effaçait la déclaration du process d'un pipeline déclaré (`degree`, `watched`,
+  `outputs`…) et les réglages non rendus. Les valeurs COMPLÈTENT désormais le dict ; garde
+  `test_a_settings_gesture_completes_the_node_params_never_replaces_them`.
+- **Contrôles** : studio 38 tests OK, `manifest_roundtrip avatarizer` fidèle. ⚠ Suite complète NON
+  relancée après ces deux correctifs.
+- 🔚 **Décisions demandées à Fabien avant R2** (arbitrages a et b ACTÉS : `label` sur `ParamSpec`,
+  registre des nœuds intégrés dans `manifests/builtin/pipeline.py` ; ordre R2 → R4 → R3 acté) :
+  **D1** les `params` d'un nœud ont deux sens (valeurs au Studio, DÉCLARATION du process dans les
+  pipelines déclarés, relue par `pipeline_decl.process_specs`) → séparer (clé `process`), ce que
+  `ROUTE §10.6` 3.2 prévoyait ; **D2** un process Médias (`function:<app>.<process>`) montre au
+  Studio les kwargs de sa tâche, pas les réglages de sa ⚙ de card (`watched_of`) → même schéma ;
+  **D3** `prompt_batch` n'existe que dans la palette JS (`tasks.py:10`) → retiré quand la palette
+  lira le registre. Relevés hors R1, non corrigés : `api_run_options` sans filtre d'accès (à
+  solder dans R2) ; écarts de projection préexistants `modes` (10 apps), `ports` (5), `processing`
+  (6). Pousser + supprimer la sauvegarde d'historique : décisions de Fabien en attente.
