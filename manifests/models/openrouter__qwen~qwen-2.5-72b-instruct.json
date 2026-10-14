@@ -1,0 +1,68 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "task": "text-generation"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "openrouter"
+      }
+    },
+    "extra_info": {
+      "aliases": [
+        "Qwen/Qwen2.5-72B-Instruct"
+      ],
+      "hosting": "third_party",
+      "remote_type": "text-generation"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "hf_id": "Qwen/Qwen2.5-72B-Instruct",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": "huggingface:Qwen/Qwen2.5-72B-Instruct",
+      "source": "openrouter"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "openrouter",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "OpenRouter — modèle distant (text-generation)",
+  "key": "openrouter:qwen/qwen-2.5-72b-instruct",
+  "manifest_kind": "model",
+  "name": "Qwen2.5 72B Instruct",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:openrouter:qwen/qwen-2.5-72b-instruct",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,0 +1,68 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "task": "text-generation"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "openrouter"
+      }
+    },
+    "extra_info": {
+      "aliases": [
+        "Qwen/Qwen3-235B-A22B-Thinking-2507"
+      ],
+      "hosting": "third_party",
+      "remote_type": "text-generation"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "hf_id": "Qwen/Qwen3-235B-A22B-Thinking-2507",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": "huggingface:Qwen/Qwen3-235B-A22B-Thinking-2507",
+      "source": "openrouter"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "openrouter",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "OpenRouter — modèle distant (text-generation)",
+  "key": "openrouter:qwen/qwen3-235b-a22b-thinking-2507",
+  "manifest_kind": "model",
+  "name": "Qwen: Qwen3 235B A22B Thinking 2507",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:openrouter:qwen/qwen3-235b-a22b-thinking-2507",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

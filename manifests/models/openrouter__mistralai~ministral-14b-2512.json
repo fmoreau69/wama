@@ -1,0 +1,70 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "task": "text-generation",
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "openrouter"
+      }
+    },
+    "extra_info": {
+      "aliases": [
+        "mistralai/Ministral-3-14B-Instruct-2512"
+      ],
+      "hosting": "third_party",
+      "remote_type": "image-text-to-text"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "hf_id": "mistralai/Ministral-3-14B-Instruct-2512",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": "huggingface:mistralai/Ministral-3-14B-Instruct-2512",
+      "source": "openrouter"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "openrouter",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "key": "openrouter:mistralai/ministral-14b-2512",
+  "manifest_kind": "model",
+  "name": "Mistral: Ministral 3 14B 2512",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:openrouter:mistralai/ministral-14b-2512",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

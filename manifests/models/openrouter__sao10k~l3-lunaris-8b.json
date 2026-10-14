@@ -1,0 +1,68 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "task": "text-generation"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "openrouter"
+      }
+    },
+    "extra_info": {
+      "aliases": [
+        "Sao10K/L3-8B-Lunaris-v1"
+      ],
+      "hosting": "third_party",
+      "remote_type": "text-generation"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "hf_id": "Sao10K/L3-8B-Lunaris-v1",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": "huggingface:Sao10K/L3-8B-Lunaris-v1",
+      "source": "openrouter"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "openrouter",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "OpenRouter — modèle distant (text-generation)",
+  "key": "openrouter:sao10k/l3-lunaris-8b",
+  "manifest_kind": "model",
+  "name": "Sao10K: Llama 3 8B Lunaris",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:openrouter:sao10k/l3-lunaris-8b",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
