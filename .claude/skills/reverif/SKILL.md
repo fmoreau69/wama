@@ -5,8 +5,9 @@ description: Revérification COMPLÈTE de ce qu'une session a livré, à la dema
 
 # /reverif — revérifier une session, en profondeur, sans la clore
 
-> ⚠ CANDIDAT (n=1, 2026-10-12) — distillé d'une revérification unique, demandée par Fabien
-> (« je le demande très souvent »), non confrontée à une 2ᵉ occurrence.
+> PROMU (n=2 : 2026-10-12, distillé d'une revérification demandée par Fabien — « je le demande
+> très souvent » ; 2026-10-14, déroulé deux fois dans la session présentation + droits, où il a
+> ramené quatre recopies — voir le « Vécu le 2026-10-14 » du §1).
 
 **Posture, une fois pour toutes** : méticuleusement, en profondeur, en confrontant la doc au
 CODE. Toute affirmation nomme la LIGNE (ou la sortie de commande, ou l'assertion de test) qui la
@@ -46,6 +47,16 @@ du juge d'imports d'`app_sandbox`) ; une lignée de classes recalculée à côt�
 de `create --from-manifest` ; et un SECOND LANGAGE de champs (lignes de statut de la triade) à
 côté de celui de la spec de détail (`common/utils/detail_registry.py`). ⇒ `/cloture §2a ter` le
 dit déjà (« faux négatifs ») ; ici c'est l'étape, pas une note.
+
+🔴 **Vécu le 2026-10-14 — une PREMIÈRE revérification ne suffit pas, la seconde a encore trouvé.**
+Session présentation + droits : la revérification d'avant le commit avait ramené deux recopies
+(libellés de mondes et d'outils écrits dans le JS de la scène, alors que `WORLD_SECTIONS` et
+`calendar.app_identity` les portent). Celle d'après le commit, à la demande de Fabien, en a
+trouvé deux de plus, de MA main : une table de secours de descriptions (`APP_DESCRIPTIONS_FALLBACK`)
+que j'avais prolongée alors que chaque surface déclare la sienne, et une seconde table chemin →
+outil à côté de `PATH_APP_MAP`. ✅ La question qui les a trouvées : **pour chaque DONNÉE que le
+livrable déclare (un libellé, une description, un chemin, une couleur), qui la déclare DÉJÀ ?**
+— pas « quelle fonction ressemble à la mienne ». Une donnée recopiée ne ressemble à aucun code.
 
 ## 2. Testé — lancer, garder, prouver
 

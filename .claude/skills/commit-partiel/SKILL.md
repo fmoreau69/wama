@@ -303,6 +303,18 @@ commité d'une autre instance).
 **worktree de HEAD** (après le commit du registre) — il ne projette que du code COMMITÉ — puis
 poser ces fichiers dans un index temporaire (`git hash-object -w --path=<f> <worktree>/<f>` +
 `update-index --cacheinfo`) et commiter.
+⚠⚠ **Mais un worktree n'a pas ce qui est NON VERSIONNÉ, et deux docs générées le lisent**
+(vécu le 2026-10-14, deux fois de suite) : la table de `WAMA_MECANISMES.md` y sortait des
+DÉCOMPTES de consommateurs différents sur toute la table (22 au lieu de 33, 362 au lieu de 419 —
+le décompte balaie aussi des fichiers ignorés), et le bloc généré du skill `conformite` y
+annonçait « aucun rapport mesuré », faute de `logs/`. Commiter ces versions aurait été un
+artefact du worktree présenté comme une régénération.
+✅ **Le geste qui a tenu** : comparer chaque doc régénérée entre le worktree et l'arbre principal
+(`diff --strip-trailing-cr`). Identique → la version du worktree est sûre (`docs/dev/briques.md`
+l'était). Différente → n'en prendre que SES lignes, recomposées sur le blob de HEAD (pour la
+table des mécanismes : le texte régénéré de ses lignes, la cellule de décompte de HEAD), avec
+une garde qui exige le nombre exact de lignes changées ; et laisser de côté un bloc qui dépend
+de `logs/`.
 🔴 **Et NE PAS « nettoyer » l'arbre ensuite par `git checkout -- <doc générée>`** : vécu le jour
 même, une autre instance avait régénéré ces fichiers entre la vérification et le geste, et le
 checkout a effacé sa régénération (projection pure, donc rattrapable par `doc_facts`, mais c'est

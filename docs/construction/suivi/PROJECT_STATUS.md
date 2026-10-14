@@ -24013,3 +24013,42 @@ l'API) […] en réutilisant l'existant. On ne réinvente rien »*. Détail et d
   jamais atteint) et `media_library.natures_3d` (bouton de fermeture de l'aperçu introuvable en
   30 s) — à surveiller au prochain rapport nocturne ; (3) le serveur 8000 ne sert pas les plages
   d'octets (réponse 200 entière) : la barre de lecture de la vidéo peut ne pas permettre de sauter.
+
+## §CLÔTURE — 2026-10-15, « PRÉSENTATION v3 + DROITS (Registres, model manager, outils sans page) » — clos (`a44b890a`, `7d25c2ed`, `4dc98186`, `b20a3957`, `0f86e394`, non poussés) — 🔴 relancer gunicorn
+
+- **Présentation v3** (demandes de Fabien, exposé de 30 min) : la v2 archivée d'abord
+  (`includes/archive/`, menu « Présentations & annexes ») ; sources remontées au-dessus de la barre
+  de navigation (cadrage d'origine gardé) ; slides en phrase principale + mots-clés, sans état
+  d'avancement ni dates ; « Le cap » → **Roadmap**, frise LUE dans `ROADMAP.md` § Frise
+  (`wama/common/roadmap_timeline.py`, export PDF compris) ; « Le message » (+ contact) ; slide
+  « Partager » ; scène 3D des droits par outil et par monde (libellés et mondes lus du serveur).
+  Règles de rédaction des slides : fiche mémoire `feedback_slides_presentation`.
+- **Droits** (décisions de Fabien, `PROFILES_PERMISSIONS.md §1.5bis`) : les **Registres** entrent
+  dans la politique (tout compte, jamais le visiteur ; un utilisateur lit sans actualiser) ; le
+  **model manager est un registre** (lu sous `registries`, lecture seule pour un utilisateur ; le
+  droit `model_manager` est retiré) ; **gérer** = `permissions.can_manage_registries` (52 vues,
+  actualisation, 4 outils de l'assistant, alertes d'infrastructure) ; **outils sans page**
+  (`register_pageless_tool`) : gestionnaire de fichiers et assistant — ce dernier gardé aussi dans
+  `conversation_turn` (connecteurs, API).
+- **Revérifications (`/reverif`, deux passes)** : quatre recopies ramenées — libellés de mondes et
+  d'outils écrits dans le JS de la scène (→ `WORLD_SECTIONS`, `calendar.app_identity`), table de
+  secours des descriptions et seconde table chemin → outil (→ `declared_identity`, `PATH_APP_MAP`,
+  **R130**). Leçon écrite dans le skill `reverif` (promu, n=2) ; celle du worktree qui fausse deux
+  docs générées, dans `commit-partiel §4`.
+- **Contrôles** (mesurés le 2026-10-15) : 1144 tests du périmètre (accounts, registres, catalogues,
+  abonnements, calendrier, assistant, frise, model_manager) — **1 rouge, pas de la session** :
+  `tests_catalogues.StandaloneMechanismsAreNotDeadCodeTest` (`bench` déclaré autonome alors que
+  `cf8dc8c9`, l'« auto » de l'enhancer, lui a donné un consommateur) ; contre-épreuves : 5 gardes
+  neuves neutralisées → 5 rouges ; `check_redundancy` 0 trouvaille dans les fichiers de la session
+  (110 au total) ; `check_docs` 0 cassée sur 2790 ; `check_skills` 0 défaut. Restent hors de la
+  session : les montages rclone du gestionnaire (rouges à l'identique sans le changement — tests
+  faits pour WSL) et `discord` absent du venv Windows.
+- 🔚 **Pendings** : (1) **relancer gunicorn** (vues, middleware, gabarits ; `seed_access` crée au
+  démarrage les lignes des nouveaux outils) ; (2) ⏳ **DÉCISION de Fabien** — quatre façons de dire
+  « peut gérer » coexistent (`can_manage_registries` = profil ; `is_developer` = profil OU Groups
+  hérités ; `is_staff` ; ancien droit d'app) : n'en garder qu'une, recommandé le profil ; (3) la
+  ligne `AppAccessPolicy(model_manager)` reste en base, inerte (`seed_access --prune` la retirerait) ;
+  (4) les décomptes de consommateurs de `WAMA_MECANISMES.md` dépendent de l'environnement qui
+  régénère (fichiers non versionnés) — chaque régénération les fait bouger sur toute la table ;
+  (5) ⏳ Fabien enregistrera son oral et le transcrira dans WAMA : affiner les slides dessus ;
+  (6) pousser.
