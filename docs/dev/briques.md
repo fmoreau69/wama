@@ -406,17 +406,19 @@ Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domai
 
 - **Domicile** : `wama/common/utils/auto_model.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Auto-sélection de modèle — brique COMMUNE (valeur « auto » d'un select de modèle).
-- **API publique** (15) :
+- **API publique** (17) :
   - `read_quality_intent(value) -> int` — Valeur 0-100 SÛRE depuis un POST/JSON : bornée, défaut équilibré, ne lève jamais.
   - `posted_quality_intent(source)` — Curseur POSTÉ (POST ou dict JSON) → entier borné, ou **None** s'il n'est pas posté ou
   - `preset_key_for_intent(intent) -> str` — La POSITION NOMMÉE la plus proche d'une valeur de curseur (`QUALITY_PRESETS` du sélecteur :
   - `intent_param(**overrides) -> dict` — Surcouche STANDARD du curseur de qualité pour un schéma d'app (`derive_from_model`).
   - `is_auto(value) -> bool` — Cette valeur demande-t-elle le tirage automatique ? (vide compris, et l'« auto » borné à
-  - `candidates_with(capability: str, value, **filters) -> list` — Clés catalogue des modèles du domaine `filters` (champs d'`AIModel` ou `capabilities__…`)
+  - `candidates_with(capability: str, value, q=None, **filters) -> list` — Clés catalogue des modèles du domaine `filters` (champs d'`AIModel` ou `capabilities__…`,
   - `catalog_domain(app_id: str)` — DOMAINE déclaré au schéma de l'app pour son select de modèle, ou None.
   - `catalog_field(app_id: str)` — Le paramètre `options_source='catalog'` du schéma de l'app (le premier), ou None — le
   - `declared_cloud_keys(app_id: str, user)` — Les modèles DISTANTS que le tirage AUTOMATIQUE de `app_id` peut retenir pour `user`, ou
   - `declared_resolution(app_id: str) -> dict` — Les affinages du tirage « auto » DÉCLARÉS au schéma de `app_id` (`options_resolution`),
+  - `read_needs(text: str) -> dict` — `needs` tel que le navigateur le transmet (`scale:4,autre:x`) → `{capacité: valeur}`.
+  - `need_candidates(needs: dict, domain: dict)` — Les clés du DOMAINE qui satisfont TOUS les besoins `{capacité: valeur}` — None quand aucun
   - `intent_field_for(app_id: str)` — Nom du champ « curseur » déclaré au schéma de l'app (`type='intent'`), ou None.
   - `quality_intent_of(item=None, app_id=None, user=None) -> int` — La valeur du curseur qui vaut pour CE lancement, en UN endroit (chantier C, 2026-09-20).
   - `resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, item=None, user=None, **overrides)` — Valeur finale du modèle pour un lancement : `requested` explicite, sinon tirage.
@@ -429,7 +431,7 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
 
 - **Domicile** : `wama/model_manager/services/bench.py` · **doc** : [docs/construction/suivi/ROADMAP.md §16.2](../construction/suivi/ROADMAP.md)
 - **Module** : Banc de comparaison de modeles, indexe sur la TACHE et non sur l'app.
-- **API publique** (11) :
+- **API publique** (13) :
   - `models_for_task(task: str, *, installed_only: bool=True)` — Modeles du catalogue qui declarent cette tache. Le catalogue est la seule source.
   - `read_recall_reference(sample: str) -> dict` — La reference d'un banc de rappel (JSON) : `media` (chemin, relatif au fichier ou
   - `containment_counts(doc: dict, ref: dict) -> dict` — Les comptes du rappel par contenant — sans interpretation (cf. en-tete du protocole).
@@ -437,6 +439,8 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
   - `read_boxes_reference(sample: str) -> dict` — Une reference « vraies boites » : `class`, `format`, `images` (dossier), `annotations`
   - `merged(found, iou: float=0.5) -> list` — Les detections d'UNE image sans leurs DOUBLONS : un meme objet vu a deux echelles (une
   - `match_boxes(found, truth, ignore, iou: float=0.5) -> dict` — Comptes d'UNE image : `found` = [(box, conf)], `truth`/`ignore` = [box]. Les doublons de
+  - `read_image_reference(sample: str) -> dict` — Une référence « dossier d'images nettes » : `images` (dossier, relatif au fichier de
+  - `lpips_metric(device: str)` — LPIPS (réseau AlexNet), chargé une fois par processus. Les couches linéaires viennent du
   - `boxes_candidates(sample: str) -> list` — Detecteurs installes qui couvrent la classe d'une reference « vraies boites ».
   - `recall_candidates(sample: str) -> list` — Les modeles a mesurer pour une reference : detecteurs installes qui couvrent sa classe.
   - `available_tasks() -> list` — Taches pour lesquelles un protocole existe — les autres restent a ecrire.
@@ -814,7 +818,7 @@ Le journal sur l'axe du TEMPS — mêmes sources (Médias, Lab, Studio), interva
 
 - **Domicile** : `wama/common/services/calendar.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §9bis.1](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Calendrier — l'activité de WAMA posée sur l'axe du TEMPS. Doc : `WAMA_MEMORY.md §9bis.1` (la vue) ; plan d'ensemble — trois natures de temps, actions programmées, placement — : `WAMA_APP_GENERATION_ROUTE.md §10.6` point 13 (« le QUAND »).
-- **API publique** (18) :
+- **API publique** (19) :
   - `app_identity(app) -> tuple[str, str]` — `(libellé, couleur d'identité)` d'une app, pour les événements ET la légende.
   - `class CalendarEvent` — Un événement du calendrier. Volontairement MINCE, comme l'entrée du journal : le détail
   - `predicted_end(started_at, progress, now) -> datetime | None` — Fin prévue par le DÉBIT OBSERVÉ — la même règle que `wama-eta.js` côté navigateur :
@@ -831,6 +835,7 @@ Le journal sur l'axe du TEMPS — mêmes sources (Médias, Lab, Studio), interva
   - `register_instance_layer(key, *, label, app, events)` — Inscrit `events(start, end) -> list[CalendarEvent]` comme couche de l'instance.
   - `nature_labels() -> dict` — Valeurs de la facette « Nature » : les natures de temps, la maintenance, puis les couches.
   - `instance_layer_events(user, start, end) -> list[CalendarEvent]`
+  - `calendar_window(start=None, end=None, *, days_back=31, days_ahead=31, max_days=400)` — Fenêtre `[start, end)` d'une lecture du calendrier, depuis deux bornes ISO 8601 (date ou
   - `events_for(user, start, end, *, with_maintenance=True) -> list[CalendarEvent]`
   - `to_ics(events, *, host='wama', now=None) -> str` — Les événements au format iCalendar. `host` qualifie les UID (uniques et STABLES : un
 
@@ -937,8 +942,9 @@ La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studi
 
 - **Domicile** : `wama/common/services/send_to.py` · **doc** : [docs/construction/architecture/WAMA_VERIFICATION.md](../construction/architecture/WAMA_VERIFICATION.md)
 - **Module** : ENVOYER VERS — la sortie d'une card devient l'entrée d'une autre app.
-- **API publique** (4) :
+- **API publique** (5) :
   - `sorties_de(surface: str, instance) -> list` — Chemins RELATIFS à `media/` des sorties DÉCLARÉES de cet élément.
+  - `batch_outputs(surface: str, batch) -> tuple` — Les sorties DÉCLARÉES de tous les éléments d'un LOT — `(chemins, éléments, sans_sortie)`.
   - `item_for_output_path(user, chemin: str)` — L'élément dont `chemin` (relatif à `media/`) est une SORTIE déclarée — `(surface,
   - `destinations(user, chemins, partiel: bool=False) -> list` — Apps qui savent RECEVOIR ces fichiers. Trois conditions, toutes nécessaires.
   - `destinations_dossier(user) -> list` — Apps qui savent recevoir un DOSSIER entier : importeur + accès (`_apps_receveuses`).
@@ -1561,13 +1567,15 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
 
 ### Pages qu'un utilisateur peut ouvrir (« emmène-moi sur… »)
 
-Les pages du menu Applications — apps du catalogue et surfaces déclarées, lues par `get_app_groups` — filtrées par le DROIT du menu (`accessible_apps`) mais pas par la préférence d'affichage, qui ne retire aucun droit. Sert l'outil `open_page` ; le chat web suit la page une fois la réponse dite (`applyActions`, 2026-10-11). ⚠ Le gestionnaire de fichiers, le journal, le calendrier et les catalogues ne sont déclarés nulle part comme pages : les ouvrir demande de les DÉCLARER
+Les pages du menu Applications — apps du catalogue et surfaces déclarées, lues par `get_app_groups` — filtrées par le DROIT du menu (`accessible_apps`) mais pas par la préférence d'affichage, qui ne retire aucun droit. Sert l'outil `open_page` ; le chat web suit la page une fois la réponse dite (`applyActions`, 2026-10-11). Et depuis le 2026-10-14 les pages du COMPTE (profil, journal, calendrier, catalogues…), DÉCLARÉES par l'app qui les porte (`register_account_page`) : le menu du compte en est GÉNÉRÉ, et leur droit est celui de la requête réelle (`can_open_page` : fermeture au visiteur, politique du chemin, décorateur de la vue) — une garde de PARITÉ confronte chaque déclaration à la réponse de sa vue
 
 - **Domicile** : `wama/common/services/navigation.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
-- **Module** : Les PAGES qu'un utilisateur peut ouvrir — ce que l'assistant propose quand on lui demande « emmène-moi sur… » (outil `open_page`, 2026-10-11).
-- **API publique** (3) :
-  - `navigable_pages(user) -> list` — Les pages que `user` a le DROIT d'ouvrir : `[{'key', 'label', 'url', 'world',
-  - `find_page(user, page: str)` — La page que `page` désigne (clé ou libellé, casse et accents ignorés) parmi celles que
+- **Module** : Les PAGES qu'un utilisateur peut ouvrir — ce que l'assistant propose quand on lui demande « emmène-moi sur… » (outil `open_page`, 2026-10-11), et le menu du compte (2026-10-14).
+- **API publique** (5) :
+  - `account_pages_for(user, allowed_apps=None) -> list` — Les pages du COMPTE que `user` peut ouvrir, dans l'ordre du menu : `[{'key', 'label',
+  - `account_menu(user, allowed_apps=None) -> list` — Le menu du COMPTE de `user` : `[{'key', 'label', 'pages': […]}]`, une entrée par section
+  - `navigable_pages(user) -> list` — Les pages que `user` a le DROIT d'ouvrir : `[{'key', 'label', 'url', 'world', 'section',
+  - `find_page(user, page: str)` — La page que `page` désigne (clé, libellé ou alias, casse et accents ignorés) parmi celles
   - `absolute_url(path: str) -> str` — L'adresse COMPLÈTE d'une page, pour une surface hors navigateur (un canal) — '' si
 
 ### Pipeline de prompts
@@ -2144,9 +2152,10 @@ Un clic sur la cloche ouvre ses notifications SANS quitter la page (2026-10-13) 
 
 - **Domicile** : `wama/common/services/notification_panel.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md](../construction/exploitation/WAMA_COLLABORATION.md)
 - **Module** : Ce que le PANNEAU de la cloche montre d'une notification (`WAMA_COLLABORATION.md §2.3`, 2026-10-13, demande de Fabien : *« quand je clique sur la cloche, une petite fenêtre… je veux pouvoir interagir avec les notifications directement dans la petite fenêtre »*).
-- **API publique** (2) :
+- **API publique** (3) :
   - `notification_actions(notification, user) -> list`
   - `notification_payload(notification, user) -> dict` — La notification telle que le panneau la rend : texte, état, style, gestes.
+  - `notification_list(user, *, unread_only: bool=False, limit: int=20) -> dict` — Les notifications de `user`, les plus récentes d'abord : `{'unread', 'total', 'items'}`.
 
 ### Réglages de référence d'un lot (promotion fille ↔ mère)
 
@@ -2490,11 +2499,13 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
 
 - **Domicile** : `wama/accounts/permissions.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Modèle d'accès WAMA à DEUX AXES (voir PROFILES_PERMISSIONS.md) : - PROFIL DE COMPTE (tier, unique, hiérarchique) : anonymous < utilisateur < developpeur < admin. - RÔLES MÉTIER (cumulatifs, = Django Groups préfixés 'role:') : communication / recherche / …
-- **API publique** (15) :
+- **API publique** (17) :
   - `is_guest_account(user) -> bool` — Ce compte est-il un compte de SERVICE pour visiteur non connecté — le compte `anonymous`
   - `account_kind(user) -> str` — 'test' pour un compte de test (préfixe `wama_`) ou le compte système anonyme, 'person'
   - `app_group(app_id)`
   - `app_id_for_path(path)` — app_id gardé correspondant à un chemin de requête, ou None.
+  - `refused_app(user, path, allowed_apps=None)` — L'app gardée que `path` désigne et que `user` (connecté) n'a PAS le droit d'ouvrir, sinon
+  - `can_open_page(user, access, path, allowed_apps=None) -> bool` — `user` peut-il ouvrir la page servie à `path` ? La MÊME décision que la requête réelle,
   - `tool_accessible(user, tool_name)` — Un user peut-il exécuter cet outil `tool_api` ? MÊME décision que `accessible()` : la
   - `can_manage_registries(user)` — GÉRER un registre — l'actualiser, et pour le registre des modèles : installer, supprimer,
   - `is_developer(user)` — Développeur ou administrateur — DOMICILE UNIQUE du prédicat (2026-09-15).
@@ -2739,7 +2750,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) : dans son entr�
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (36) :
+- **API publique** (38) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -2762,6 +2773,8 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) : dans son entr�
   - `pageless_tools() -> list` — Les outils sans page déclarés (copies), par libellé.
   - `pageless_tool_for(app: str) -> dict | None` — L'outil sans page `app`, ou None — le pendant de `surface_for`.
   - `declared_identity(app: str) -> dict | None` — L'identité DÉCLARÉE d'une app hors catalogue (libellé, monde, description…) : sa surface,
+  - `register_account_page(key: str, *, section: str, label: str, icon: str, access: str, url_name: str='', surface: str='', tone: str='', color: str='', order: int…` — Déclare une page du COMPTE. Idempotent, comme `register_surface`.
+  - `account_pages() -> list` — Les pages du compte déclarées (copies), dans l'ordre du menu : section, rang, libellé.
   - `surfaces(world: str | None=None) -> list` — Surfaces déclarées (copies), d'un monde ou de tous, dans l'ordre de leur section.
   - `surface_for(app: str) -> dict | None` — Surface d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —, ou None. Le
   - `app_media_folders(app_id: str) -> tuple` — Dossiers qu'une app montre dans l'explorateur de fichiers : `((sous-dossier, libellé), …)`.
@@ -2979,7 +2992,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (36) :
+- **API publique** (38) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -3002,6 +3015,8 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `pageless_tools() -> list` — Les outils sans page déclarés (copies), par libellé.
   - `pageless_tool_for(app: str) -> dict | None` — L'outil sans page `app`, ou None — le pendant de `surface_for`.
   - `declared_identity(app: str) -> dict | None` — L'identité DÉCLARÉE d'une app hors catalogue (libellé, monde, description…) : sa surface,
+  - `register_account_page(key: str, *, section: str, label: str, icon: str, access: str, url_name: str='', surface: str='', tone: str='', color: str='', order: int…` — Déclare une page du COMPTE. Idempotent, comme `register_surface`.
+  - `account_pages() -> list` — Les pages du compte déclarées (copies), dans l'ordre du menu : section, rang, libellé.
   - `surfaces(world: str | None=None) -> list` — Surfaces déclarées (copies), d'un monde ou de tous, dans l'ordre de leur section.
   - `surface_for(app: str) -> dict | None` — Surface d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —, ou None. Le
   - `app_media_folders(app_id: str) -> tuple` — Dossiers qu'une app montre dans l'explorateur de fichiers : `((sous-dossier, libellé), …)`.
@@ -3203,7 +3218,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (83) :
+- **API publique** (88) :
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
   - `find_user_files(user, query: str, limit: int=20) -> dict` — Find the user's files BY NAME everywhere the File Manager shows them: the temporary folder,
   - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
@@ -3219,7 +3234,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `convert_file(user, file_path: str, output_format: str, quality_preset: str='balanced', **params) -> dict` — Queue a file conversion and start it immediately.
   - `list_media_assets(user, asset_type: str='', q: str='') -> dict` — List the user's personal media library assets.
   - `switch_ui_mode(user, mode: str='simple') -> dict` — Switch the WAMA interface mode for the current user.
-  - `open_page(user, page: str) -> dict` — Take the user to a WAMA application page — "emmène-moi sur l'Anonymizer", "ouvre la
+  - `open_page(user, page: str) -> dict` — Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la
   - `get_media_asset_url(user, asset_id: int) -> dict` — Get the file URL of a specific media library asset.
   - `inspect_user_file(user, file_path: str) -> dict` — Ask WAMA what it can do with one of the user's files: which app PORT can take it
   - `look_at_image(user, file_path: str, question: str='') -> dict` — Look at ONE of the user's images with a vision model and return what it shows.
@@ -3262,6 +3277,11 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `list_registries(user) -> dict` — List what WAMA knows how to NAME: its registries (apps, models, backends, functions,
   - `get_my_access(user) -> dict` — What the current user is allowed to do: account tier, business roles, and which apps they
   - `list_my_memories(user, kind: str='', limite: int=25) -> dict` — List what WAMA remembers for this user — facts, events and procedures it has kept.
+  - `get_my_calendar(user, start: str='', end: str='', with_instance: bool=False, limit: int=100) -> dict` — Read the user's calendar ("Mon calendrier"): what they ran, what is planned or scheduled,
+  - `list_my_notifications(user, unread_only: bool=False, limit: int=20) -> dict` — List the user's notifications in WAMA (the bell): finished or failed tasks, access
+  - `list_my_shares(user) -> dict` — What the user shared and what was shared with them ("Mes partages"): for each entry its
+  - `list_my_rag(user, level: str='', query: str='', limit: int=50) -> dict` — List the documents the user has entrusted to the RAG ("Mon RAG"): each source, at which
+  - `get_my_profile(user) -> dict` — Read the user's profile ("Profil"): identity, preferences (language, interface mode,
   - `remember_fact(user, content: str, kind: str='semantic', subject: str='') -> dict` — Save something the user wants WAMA to remember — a fact, a correction, a preference, the
   - `tool_role(tool_name)` — Rôle d'un outil dans la triade : 'add' | 'start' | 'status', sinon None.
   - `app_id_for_tool(tool_name)` — app_id gardé correspondant à un outil, ou None si l'outil est transverse.

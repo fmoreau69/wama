@@ -19,7 +19,7 @@ python -c "import json;c=json.load(open('logs/conformity_report.json'))['criteri
 ```
 
 <!-- WAMA:FAITS(conformite) — généré par « python manage.py doc_facts », ne pas éditer -->
-- Critères de la grille : **102** — F1:4 F2:12 F3:21 F4:11 F5:41 F6:6 F7:5 F8:2 *(relevé du 2026-10-13)*
+- Critères de la grille : **102** — F1:4 F2:12 F3:21 F4:11 F5:41 F6:6 F7:5 F8:2 *(relevé du 2026-10-14)*
 - Apps mesurées : **10** ; dénominateur par app : **86 à 101** (un critère **non applicable** sort du calcul)
 <!-- /WAMA:FAITS(conformite) -->
 
