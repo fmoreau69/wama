@@ -688,6 +688,39 @@ def instance_layer_events(user, start, end) -> list[CalendarEvent]:
     return events
 
 
+def calendar_window(start=None, end=None, *, days_back=31, days_ahead=31, max_days=400):
+    """Fenêtre `[start, end)` d'une lecture du calendrier, depuis deux bornes ISO 8601 (date ou
+    date-heure ; absentes : `days_back` jours avant et `days_ahead` jours après maintenant).
+
+    Bornée à `max_days` : la fenêtre vient de l'appelant (une URL, un argument d'outil), et une
+    fenêtre de dix ans lirait tout l'historique de chaque source pour rien. Une lecture pour la
+    page (`views._calendar_range`) et pour l'assistant (`tool_api.get_my_calendar`)."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+    from django.utils.dateparse import parse_date, parse_datetime
+
+    def _parse(value):
+        if not value:
+            return None
+        moment = parse_datetime(value)
+        if moment is None:
+            day = parse_date(value[:10])
+            moment = timezone.datetime(day.year, day.month, day.day) if day else None
+        if moment is not None and timezone.is_naive(moment):
+            moment = timezone.make_aware(moment)
+        return moment
+
+    now = timezone.now()
+    start = _parse(start) or now - timedelta(days=days_back)
+    end = _parse(end) or now + timedelta(days=days_ahead)
+    if end <= start:
+        end = start + timedelta(days=1)
+    if end - start > timedelta(days=max_days):
+        end = start + timedelta(days=max_days)
+    return start, end
+
+
 def events_for(user, start, end, *, with_maintenance=True) -> list[CalendarEvent]:
     from .global_queue import snapshot
 

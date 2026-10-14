@@ -1106,16 +1106,18 @@ def switch_ui_mode(user, mode: str = 'simple') -> dict:
 
 def open_page(user, page: str) -> dict:
     """
-    Take the user to a WAMA application page — "emmène-moi sur l'Anonymizer", "ouvre la
-    médiathèque".
+    Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la
+    médiathèque") or a page of their account menu ("mon profil", "mon journal", "mes
+    partages", "les registres", "la documentation"…).
 
     In the web chat the page opens by itself in the user's browser once your answer has been
     written and read aloud: just say where you are taking them. On another surface (a channel),
-    give the returned `link` instead. Only pages this user is allowed to open are offered.
+    give the returned `link` instead. Only pages this user is allowed to open are offered: a
+    page reserved to administrators is never proposed to anyone else.
 
     Args:
-        page: the application's key or its name as shown in the Applications menu
-              (e.g. 'anonymizer', 'Transcriber', 'Médiathèque', 'Studio').
+        page: the page's key or its name as shown in the menus (e.g. 'anonymizer',
+              'Transcriber', 'Médiathèque', 'Profil', 'Mon journal', 'Registres').
 
     Returns:
         {"action": "navigate", "url", "link", "label", "message"} or
@@ -3123,6 +3125,216 @@ def list_my_memories(user, kind: str = '', limite: int = 25) -> dict:
     return {'memories': out, 'total': total, 'returned': len(out)}
 
 
+# ── Les pages du COMPTE, lues (2026-10-14, demande de Fabien) ──────────────────────────────
+# Chaque outil lit la BRIQUE de sa page, jamais une requête recopiée : ce que l'assistant dit est
+# ce que la page montre. Tous transverses (`TOOL_APP_OVERRIDE` : aucune app ne les garde),
+# LECTURE SEULE et sur le compte de l'appelant — le refus des non-identifiés est dans les corps.
+# Le journal a déjà le sien (`list_my_items`), les souvenirs aussi (`list_my_memories`), les
+# droits (`get_my_access`), les registres (`list_registries`) et la documentation
+# (`search_docs`, `read_doc`). Pour EMMENER l'utilisateur sur une de ces pages : `open_page`.
+
+def _signed_in_refusal(user) -> dict | None:
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    return None
+
+
+def get_my_calendar(user, start: str = '', end: str = '', with_instance: bool = False,
+                    limit: int = 100) -> dict:
+    """
+    Read the user's calendar ("Mon calendrier"): what they ran, what is planned or scheduled,
+    on a time axis — the same events as their calendar page.
+
+    Use it for "what did I run yesterday?", "what is planned this week?", "when does my task
+    finish?". Without dates, the window is the last 7 days and the next 7.
+
+    Args:
+        start:         window start, ISO date or date-time (e.g. '2026-10-01').
+        end:           window end, same format. The window is capped at 400 days.
+        with_instance: also include WAMA's own maintenance windows and the shared queue
+                       (default false: only the user's own activity).
+        limit:        how many events (1-200, default 100), earliest first.
+
+    Returns:
+        {"events": [{"title","start","end","nature","app","status","url","item_id"}],
+         "window": {"start","end"}, "total", "returned"} or {"error"}
+    """
+    refusal = _signed_in_refusal(user)
+    if refusal:
+        return refusal
+    from wama.common.services.calendar import NATURE_LABELS, calendar_window, events_for
+
+    try:
+        window_start, window_end = calendar_window(start or None, end or None,
+                                                   days_back=7, days_ahead=7)
+    except ValueError as e:
+        return {'error': f"Date invalide : {e}"}
+    try:
+        limit = max(1, min(int(limit or 100), 200))
+    except (TypeError, ValueError):
+        limit = 100
+    events = sorted(events_for(user, window_start, window_end,
+                               with_maintenance=bool(with_instance)),
+                    key=lambda e: e.start)
+    rows = [{
+        'title': e.title,
+        'start': e.start.isoformat(),
+        'end': e.end.isoformat(),
+        'nature': NATURE_LABELS.get(e.nature, e.nature),
+        'app': e.app,
+        'status': e.status,
+        'url': e.url,
+        'item_id': e.item_id,
+    } for e in events[:limit]]
+    return {'events': rows,
+            'window': {'start': window_start.isoformat(), 'end': window_end.isoformat()},
+            'total': len(events), 'returned': len(rows)}
+
+
+def list_my_notifications(user, unread_only: bool = False, limit: int = 20) -> dict:
+    """
+    List the user's notifications in WAMA (the bell): finished or failed tasks, access
+    requests, shares received… newest first — the same list as the bell's panel.
+
+    Use it for "do I have new notifications?", "what happened while I was away?".
+
+    Args:
+        unread_only: only the unread ones (default false: all).
+        limit:      how many (1-50, default 20).
+
+    Returns:
+        {"notifications": [{"id","kind","title","body","app","created_at","read","open_url"}],
+         "unread", "total", "returned"} or {"error"}
+    """
+    refusal = _signed_in_refusal(user)
+    if refusal:
+        return refusal
+    from wama.common.services.notification_panel import notification_list
+
+    try:
+        limit = int(limit or 20)
+    except (TypeError, ValueError):
+        limit = 20
+    listing = notification_list(user, unread_only=bool(unread_only), limit=limit)
+    # Les GESTES du panneau (accorder, refuser…) sont des boutons de l'interface : l'assistant
+    # lit, il ne les présente pas comme des actions qu'il pourrait faire.
+    rows = [{k: n[k] for k in ('id', 'kind', 'title', 'body', 'app', 'created_at', 'read',
+                               'open_url')} for n in listing['items']]
+    return {'notifications': rows, 'unread': listing['unread'], 'total': listing['total'],
+            'returned': len(rows)}
+
+
+def list_my_shares(user) -> dict:
+    """
+    What the user shared and what was shared with them ("Mes partages"): for each entry its
+    scope and the people it is shared with (or who shared it, and with which access), plus the
+    access requests waiting in both directions — the same as their shares page.
+
+    Use it for "what have I shared?", "who can see my work?", "what did others share with me?".
+    Removing a share is done on the page itself (`open_page('Mes partages')`).
+
+    Returns:
+        {"shared": [...], "received": [...], "incoming_requests": [...],
+         "outgoing_requests": [...]} or {"error"}
+    """
+    refusal = _signed_in_refusal(user)
+    if refusal:
+        return refusal
+    from wama.common.services.revisions import json_safe
+    from wama.common.services.sharing import shares_overview
+
+    overview = shares_overview(user, limit=50)
+    return json_safe({'shared': overview['shared'], 'received': overview['received'],
+                      'incoming_requests': overview['incoming'],
+                      'outgoing_requests': overview['outgoing']})
+
+
+def list_my_rag(user, level: str = '', query: str = '', limit: int = 50) -> dict:
+    """
+    List the documents the user has entrusted to the RAG ("Mon RAG"): each source, at which
+    level it is shared, how many fragments, and whether a reindex is still due — the same as
+    their RAG page. To SEARCH their content, call `memory_recall` instead.
+
+    Args:
+        level:  'user' (private), 'unit' (lab), 'project' or 'public'; empty = every level.
+        query:  text to find in the source reference (file path or item).
+        limit: how many (1-200, default 50), newest first.
+
+    Returns:
+        {"documents": [{"source_id","source_ref","level","fragments","vectorised",
+                        "reindex_due","added_at"}], "total", "returned"} or {"error"}
+    """
+    refusal = _signed_in_refusal(user)
+    if refusal:
+        return refusal
+    from wama.common.memory.index import list_rag
+
+    try:
+        limit = max(1, min(int(limit or 50), 200))
+    except (TypeError, ValueError):
+        limit = 50
+    docs = list_rag(user, level=level or '', query=query or '')
+    rows = [{
+        'source_id': d['source_id'],
+        'source_ref': d['source_ref'],
+        'level': d['niveau'],
+        'fragments': d['fragments'],
+        'vectorised': d['vectorises'],
+        'reindex_due': d['vectorises'] < d['fragments'],
+        'added_at': d['ajoute_le'].isoformat() if d['ajoute_le'] else None,
+    } for d in docs[:limit]]
+    return {'documents': rows, 'total': len(docs), 'returned': len(rows)}
+
+
+def get_my_profile(user) -> dict:
+    """
+    Read the user's profile ("Profil"): identity, preferences (language, interface mode,
+    notifications, retention), use of remote models, default RAG level, and institutional
+    affiliation — every setting of their profile page, with its label. Never a key or a token.
+
+    Use it for "what is my language / my cloud setting?", "which lab am I attached to?".
+    Changing a setting is done on the page (`open_page('Profil')`). For rights and roles, call
+    `get_my_access`.
+
+    Returns:
+        {"username","first_name","last_name","email","settings": {name: {"label","value"}},
+         "affiliation": [...], "linked_channels": [...]} or {"error"}
+    """
+    refusal = _signed_in_refusal(user)
+    if refusal:
+        return refusal
+    from wama.accounts.models import UserProfile
+    from wama.accounts.views import rattachement_institutionnel
+    from wama.common.services.revisions import json_safe
+
+    profile = UserProfile.objects.filter(user=user).first()
+    # Les réglages se lisent des MÉTADONNÉES du modèle (libellé, valeur affichée d'un choix) :
+    # un réglage ajouté au profil apparaît ici sans une ligne de plus. Le profil ne porte aucun
+    # secret — le jeton d'API et les clés vivent dans leurs propres tables.
+    settings_out = {}
+    for field in (UserProfile._meta.concrete_fields if profile else ()):
+        if field.name in ('id', 'user'):
+            continue
+        value = (getattr(profile, f'get_{field.name}_display')() if field.choices
+                 else getattr(profile, field.attname))
+        settings_out[field.name] = {'label': str(field.verbose_name), 'value': json_safe(value)}
+    try:
+        from wama.gateway.models import ChannelLink
+        channels = sorted({link.channel for link in ChannelLink.objects.filter(user=user)
+                           .exclude(confirmed_at__isnull=True)})
+    except Exception:
+        channels = []
+    return {
+        'username': user.username,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'email': user.email,
+        'settings': settings_out,
+        'affiliation': json_safe(rattachement_institutionnel(profile)) if profile else [],
+        'linked_channels': channels,
+    }
+
+
 def _memory_kinds() -> tuple:
     """Natures qu'un souvenir PROPOSÉ peut prendre — celles du modèle, pas une liste de plus
     (`MemoryItem.KIND_CHOICES` : fait, événement, procédure)."""
@@ -3222,6 +3434,12 @@ TOOL_REGISTRY = {
     # `get_my_access` n'ÉLARGIT aucun droit : il DIT la décision que `accessible()` prend déjà.
     'get_my_access':    get_my_access,
     'list_my_memories': list_my_memories,
+    # …et les autres pages du compte, chacune par la brique de sa page (2026-10-14).
+    'get_my_calendar':       get_my_calendar,
+    'list_my_notifications': list_my_notifications,
+    'list_my_shares':        list_my_shares,
+    'list_my_rag':           list_my_rag,
+    'get_my_profile':        get_my_profile,
     # Mémoire & RAG — LECTURE SEULE et scopée (jalon 8, WAMA_MEMORY.md). Transverse : ce que
     # l'assistant retrouve, c'est ce que SON utilisateur possède, dans n'importe quelle app.
     'memory_recall':  memory_recall,
@@ -3331,6 +3549,13 @@ TOOL_APP_OVERRIDE = {
     # Ouvrir une page : transverse — le droit est celui de la PAGE, décidé dans le corps par la
     # brique de navigation (même décision que le menu).
     'open_page':           None,
+    # Les pages du COMPTE, lues (2026-10-14) : sur le compte de l'appelant, comme leurs pages —
+    # qui ne relèvent d'aucune app (`login_required` seul). Refus des non-identifiés dans les corps.
+    'get_my_calendar':       None,
+    'list_my_notifications': None,
+    'list_my_shares':        None,
+    'list_my_rag':           None,
+    'get_my_profile':        None,
     # Mémoire : transverse par nature (elle agrège les 12 apps) et LECTURE SEULE, scopée par
     # `scoped_visible_q`. La garder derrière une app la rendrait inutile depuis les autres.
     'memory_recall':       None,

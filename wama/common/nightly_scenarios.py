@@ -294,7 +294,10 @@ def _run_tool_api_lectures(ctx):
                  # dessein : ils EXIGENT (app, pk), un appel à vide rendrait une erreur
                  # légitime que ce scénario compterait comme un échec. Leurs gardes sont
                  # unitaires (`tests_tool_api_lectures.py`), pas nocturnes.
-                 'list_my_items', 'list_registries', 'get_my_access', 'list_my_memories']
+                 'list_my_items', 'list_registries', 'get_my_access', 'list_my_memories',
+                 # Les autres pages du compte (2026-10-14).
+                 'get_my_calendar', 'list_my_notifications', 'list_my_shares', 'list_my_rag',
+                 'get_my_profile']
     echecs, refus, ok = [], [], 0
     for tool in lectures:
         try:

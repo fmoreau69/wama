@@ -1011,35 +1011,12 @@ def journal_view(request):
 
 
 def _calendar_range(request, default_days_back=31, default_days_ahead=31, max_days=400):
-    """Fenêtre `[start, end)` lue de la requête (FullCalendar envoie `start`/`end` en ISO 8601).
-
-    Bornée à `max_days` : la fenêtre vient de l'URL, et une fenêtre de dix ans lirait tout
-    l'historique de chaque source pour rien.
-    """
-    from datetime import timedelta
-
-    from django.utils import timezone
-    from django.utils.dateparse import parse_date, parse_datetime
-
-    def _parse(value):
-        if not value:
-            return None
-        moment = parse_datetime(value)
-        if moment is None:
-            day = parse_date(value[:10])
-            moment = timezone.datetime(day.year, day.month, day.day) if day else None
-        if moment is not None and timezone.is_naive(moment):
-            moment = timezone.make_aware(moment)
-        return moment
-
-    now = timezone.now()
-    start = _parse(request.GET.get('start')) or now - timedelta(days=default_days_back)
-    end = _parse(request.GET.get('end')) or now + timedelta(days=default_days_ahead)
-    if end <= start:
-        end = start + timedelta(days=1)
-    if end - start > timedelta(days=max_days):
-        end = start + timedelta(days=max_days)
-    return start, end
+    """Fenêtre `[start, end)` lue de la requête (FullCalendar envoie `start`/`end` en ISO 8601) —
+    la décision est celle du service (`calendar.calendar_window`), que l'assistant lit aussi."""
+    from .services.calendar import calendar_window
+    return calendar_window(request.GET.get('start'), request.GET.get('end'),
+                           days_back=default_days_back, days_ahead=default_days_ahead,
+                           max_days=max_days)
 
 
 @login_required
@@ -1413,14 +1390,9 @@ def rag_view(request):
     LIBELLE = {'user': 'Mon RAG (privé)', 'unit': 'RAG du labo',
                'project': 'RAG du projet', 'public': 'Public'}
 
-    docs = list_rag(request.user)
-
     niveau_actif = (request.GET.get('niveau') or '').strip()
     q = (request.GET.get('q') or '').strip()
-    if niveau_actif and niveau_actif != 'all':
-        docs = [d for d in docs if d['niveau'] == niveau_actif]
-    if q:
-        docs = [d for d in docs if q.lower() in (d['source_ref'] or '').lower()]
+    docs = list_rag(request.user, level=niveau_actif, query=q)
 
     for d in docs:
         # `source_id` = `<app>:<pk>` pour un élément d'app ; `file:…` pour un fichier (son chemin
@@ -2036,27 +2008,19 @@ def api_notifications_recent(request):
     return JsonResponse({'unread': unread.count(), 'last_id': last, 'items': items})
 
 
-#: Ce que le panneau de la cloche montre au plus (la page complète en garde 200).
-NOTIFICATION_PANEL_MAX = 50
-
-
 @login_required
 def api_notifications_list(request):
     """GET `filter` (`unread` | `all`, défaut), `limit` (défaut 20, au plus 50) — les
     notifications du PANNEAU de la cloche (`WAMA_COLLABORATION.md §2.3`, 2026-10-13) : les plus
     récentes d'abord, chacune avec son style et ses gestes (`services.notification_panel`)."""
-    from wama.common.models import Notification
-    from wama.common.services.notification_panel import notification_payload
-    mine = Notification.objects.filter(recipient=request.user)
-    unread = mine.filter(read_at__isnull=True)
-    shown = unread if request.GET.get('filter') == 'unread' else mine
+    from wama.common.services.notification_panel import notification_list
     try:
-        limit = max(1, min(NOTIFICATION_PANEL_MAX, int(request.GET.get('limit') or 20)))
+        limit = int(request.GET.get('limit') or 20)
     except ValueError:
         limit = 20
-    rows = list(shown.order_by('-created_at', '-pk')[:limit])
-    return JsonResponse({'unread': unread.count(), 'total': shown.count(),
-                         'items': [notification_payload(n, request.user) for n in rows]})
+    return JsonResponse(notification_list(request.user,
+                                          unread_only=request.GET.get('filter') == 'unread',
+                                          limit=limit))
 
 
 @login_required

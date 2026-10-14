@@ -210,136 +210,23 @@
                       « WAMA » = ce que la PLATEFORME est (ses apps, ses briques, ses obligations,
                       la carte des registres). Un menu plat de 10+ entrées ne se lisait plus.
 
-                      ORDRE ALPHABÉTIQUE dans chaque section, et TOUTES les icônes colorées
-                      (arbitrages Fabien, 01/09 — le mélange coloré/blanc donnait « une
-                      impression d'inachevé » : on a REMPLI les manquantes, pas retiré).
+                      GÉNÉRÉ depuis le 2026-10-14 (demande de Fabien) des pages DÉCLARÉES — chacune
+                      depuis le `ready()` de l'app qui la porte (`app_registry.register_account_page`)
+                      — et filtré par la décision de la requête réelle (`permissions.can_open_page`) :
+                      l'assistant lit la MÊME liste (`open_page`). Ajouter une entrée = la déclarer.
+                      L'ordre, l'icône et sa teinte (toutes colorées, arbitrage du 01/09) sont dans
+                      la déclaration ; la déconnexion, un geste et pas une page, reste écrite ici.
                     {% endcomment %}
                     <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end" aria-labelledby="userDropdown">
-                        <li><h6 class="dropdown-header">Mon espace</h6></li>
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'model_manager:functions_catalog' %}">
-                                <i class="fas fa-project-diagram me-2 text-info"></i> Fonctions
+                        {% for section in account_menu %}
+                        {% if not forloop.first %}<li><hr class="dropdown-divider"></li>{% endif %}
+                        <li><h6 class="dropdown-header">{{ section.label }}</h6></li>
+                        {% for p in section.pages %}<li>
+                            <a class="dropdown-item d-flex align-items-center" href="{{ p.url }}">
+                                <i class="fas {{ p.icon }} me-2{% if p.tone %} text-{{ p.tone }}{% endif %}"{% if p.color %} style="color:{{ p.color }};"{% endif %}></i> {{ p.label }}
                             </a>
-                        </li>
-                        {% comment %}Le TRIO, et il se lit dans cet ordre : ce que l'utilisateur
-                        a FAIT (journal) · ce qu'il a CONFIÉ à l'IA (RAG, consentement
-                        vérifiable, WAMA_MEMORY §7ter) · ce que WAMA RETIENT de lui (souvenirs).
-                        Les souvenirs manquaient ici jusqu'au 2026-09-09 : la page existait sans
-                        qu'aucun chemin d'interface n'y mène — une page qu'on ne peut atteindre
-                        que par son URL n'est pas une surface.{% endcomment %}
-                        {% comment %}Le calendrier (2026-09-28, WAMA_MEMORY §9bis.1) est le JUMEAU
-                        du journal — la même activité, sur l'axe du temps : il le précède (ordre
-                        alphabétique) sans entrer dans le trio.{% endcomment %}
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:calendar' %}">
-                                <i class="fas fa-calendar-days me-2 text-primary"></i> Mon calendrier
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:journal' %}">
-                                <i class="fas fa-clock-rotate-left me-2 text-info"></i> Mon journal
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:rag' %}">
-                                <i class="fas fa-book-open-reader me-2 text-success"></i> Mon RAG
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:memories' %}">
-                                <i class="fas fa-brain me-2 text-warning"></i> Mes souvenirs
-                            </a>
-                        </li>
-                        {% comment %}Mes partages (2026-10-03, WAMA_COLLABORATION §5.3) : adresse LITTÉRALE et
-                        non `url` — un gabarit est relu à chaud en production, une route encore inconnue
-                        du processus y lèverait NoReverseMatch sur TOUTES les pages jusqu'à la relance.{% endcomment %}
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="/common/shares/">
-                                <i class="fas fa-share-nodes me-2" style="color:#c4b5fd;"></i> Mes partages
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'accounts:profile' %}">
-                                <i class="fas fa-user-edit me-2 text-primary"></i> Profil
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:skills_catalog' %}">
-                                <i class="fas fa-wand-magic-sparkles me-2 text-info"></i> Skills
-                            </a>
-                        </li>
-                        {% if is_admin %}
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'accounts:user-management' %}">
-                                <i class="fas fa-users-cog me-2 text-warning"></i> Users
-                            </a>
-                        </li>
-                        {% endif %}
-
-                        <li><hr class="dropdown-divider"></li>
-                        <li><h6 class="dropdown-header">WAMA</h6></li>
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:apps_catalog' %}">
-                                <i class="fas fa-cubes me-2 text-primary"></i> Apps
-                            </a>
-                        </li>
-                        {% comment %}Documentation (15ᵉ registre, 11/09) : ouverte à tout compte
-                        connecté le 14/09 (décision Fabien) — la page ne lui montre que la doc
-                        UTILISATEUR ; construction et développeur restent aux admins
-                        (`docs_catalog.visible_to`, appliqué par la vue).{% endcomment %}
-                        {% if user.is_authenticated %}
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:docs_catalog' %}">
-                                <i class="fas fa-file-lines me-2 text-success"></i> Documentation
-                            </a>
-                        </li>
-                        {% endif %}
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'model_manager:libraries_catalog' %}">
-                                <i class="fas fa-book me-2 text-warning"></i> Librairies
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:licenses_catalog' %}">
-                                <i class="fas fa-scale-balanced me-2 text-success"></i> Licences
-                            </a>
-                        </li>
-                        {% comment %}Models : le registre des modèles, lisible par tout compte depuis
-                        le 2026-10-13 (ses gestes restent aux développeurs) — même rang que les
-                        autres catalogues de cette section.{% endcomment %}
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'model_manager:index' %}">
-                                <i class="fas fa-microchip me-2 text-info"></i> Models
-                            </a>
-                        </li>
-                        {% comment %}Backends (12ᵉ registre, 03/09) : la page existait et n'était
-                        atteignable que par la carte des registres — constat Fabien. Même rang que
-                        les autres catalogues de cette section.{% endcomment %}
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:backends_catalog' %}">
-                                <i class="fas fa-gears me-2 text-info"></i> Backends
-                            </a>
-                        </li>
-                        {% comment %}Formats médias (2026-09-17, demande Fabien) : même motif que
-                        Backends ci-dessus — une page atteignable seulement par la carte des
-                        registres n'est pas atteignable.{% endcomment %}
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:media_formats_catalog' %}">
-                                <i class="fas fa-photo-film me-2 text-primary"></i> Formats médias
-                            </a>
-                        </li>
-                        {% comment %}Registres = la CARTE des catalogues, désormais navigable
-                        (chaque card y porte « Ouvrir ») — c'est le hub de cette section.{% endcomment %}
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:registries' %}">
-                                <i class="fas fa-layer-group me-2 text-warning"></i> Registres
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:sources_catalog' %}">
-                                <i class="fas fa-satellite-dish me-2 text-danger"></i> Sources
-                            </a>
-                        </li>
+                        </li>{% endfor %}
+                        {% endfor %}
                         <li><hr class="dropdown-divider"></li>
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'accounts:logout' %}">

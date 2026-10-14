@@ -45,6 +45,18 @@ class ModelManagerConfig(AppConfig):
         register_surface('model_manager', world='transverse', label='Gestion des modèles',
                          url_name='model_manager:index', icon='fa-microchip',
                          nav_hide=True, order=30, gate='registries')
+        # Ses pages du menu du compte (2026-10-14) — la gestion des modèles y RENVOIE à sa
+        # surface, sans redire sa route. `access='account'` : les trois vues sont `login_required`
+        # (la politique `registries` et la fermeture au visiteur se lisent du chemin).
+        from wama.common.app_registry import register_account_page
+        register_account_page('functions', section='mine', label='Fonctions',
+                              icon='fa-project-diagram', tone='info', access='account',
+                              url_name='model_manager:functions_catalog', order=10)
+        register_account_page('libraries', section='wama', label='Librairies', icon='fa-book',
+                              tone='warning', access='account',
+                              url_name='model_manager:libraries_catalog', order=30)
+        register_account_page('models', section='wama', label='Models', icon='fa-microchip',
+                              tone='info', access='account', surface='model_manager', order=50)
 
         # Journal DÉDIÉ pour la synchro du catalogue (brique COMMUNE) : `[ModelSync]`
         # émet une ligne par modèle à chaque réconciliation et représentait 71 % de

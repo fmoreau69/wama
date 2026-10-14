@@ -315,12 +315,15 @@ def remove_from_rag(user, source_id):
     return n
 
 
-def list_rag(user):
+def list_rag(user, level: str = '', query: str = ''):
     """
-    Les documents de `user` au RAG — la matière de la future page de gestion.
+    Les documents de `user` au RAG — ce que montre la page « Mon RAG », et ce que lit
+    l'assistant (`tool_api.list_my_rag`, 2026-10-14).
 
     Rend [{'source_id', 'source_ref', 'fragments', 'vectorises', 'niveau', 'ajoute_le'}].
-    `vectorises < fragments` signale qu'un `reindex` est à faire — la page pourra l'afficher.
+    `vectorises < fragments` signale qu'un `reindex` est à faire — la page l'affiche.
+    `level` (`user`, `unit`, `project`, `public` ; vide ou `all` = tous) et `query` (dans la
+    référence de la source, casse ignorée) sont les deux filtres de la page.
     """
     from django.db.models import Count, Min, Q
 
@@ -334,10 +337,15 @@ def list_rag(user):
                         vectorises=Count('id', filter=Q(embedding__isnull=False)),
                         ajoute_le=Min('created_at'))
               .order_by('-ajoute_le'))
-    return [{'source_id': l['source_id'], 'source_ref': l['source_ref'],
+    docs = [{'source_id': l['source_id'], 'source_ref': l['source_ref'],
              'fragments': l['fragments'], 'vectorises': l['vectorises'],
              'niveau': niveau_de.get(l['visibility'], '?'), 'ajoute_le': l['ajoute_le']}
             for l in lignes]
+    if level and level != 'all':
+        docs = [d for d in docs if d['niveau'] == level]
+    if query:
+        docs = [d for d in docs if query.lower() in (d['source_ref'] or '').lower()]
+    return docs
 
 
 def lab_share_target(user):

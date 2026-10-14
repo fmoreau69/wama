@@ -181,7 +181,13 @@ class OpenPageTest(TestCase):
         with mock.patch('wama.accounts.permissions.accessible_apps', return_value=['anonymizer']):
             refused = tool_api.open_page(self.user, 'studio')
         self.assertIn('error', refused)
-        self.assertEqual(['anonymizer'], [p['key'] for p in refused['pages']])
+        offered = {p['key'] for p in refused['pages']}
+        self.assertIn('anonymizer', offered)
+        # Ni une app refusée, ni une page du compte qui relève d'une politique refusée (les
+        # Registres et leurs pages) ; une page du compte sans politique reste offerte (2026-10-14).
+        self.assertFalse(offered & {'studio', 'media_library', 'registries', 'model_manager',
+                                    'models', 'functions', 'libraries'})
+        self.assertIn('profile', offered)
 
     @override_settings(WAMA_PUBLIC_URL='https://wama.exemple.fr')
     def test_a_channel_gets_a_full_link(self):

@@ -1877,8 +1877,49 @@ parfaitement aligné avec le fonctionnement de WAMA ; on ne réinvente rien ».
    - Le chat retient la page (`applyActions`) et la suit quand la réponse est dite
      (`followPendingPage`). Il ne suit jamais une adresse externe.
    - Le fil suit, puisque chaque chat le recharge.
-   - ⚠ Le gestionnaire de fichiers, le journal, le calendrier et les catalogues ne sont déclarés
-     nulle part comme pages. La `permission` d'un registre garde l'actualisation, pas la lecture.
+   - ~~⚠ Le gestionnaire de fichiers, le journal, le calendrier et les catalogues ne sont déclarés
+     nulle part comme pages.~~ Soldé le 2026-10-14 pour les pages du menu du compte (bloc
+     ci-dessous). Le gestionnaire de fichiers reste hors de portée : c'est un volet, sans page.
+     La `permission` d'un registre garde toujours l'actualisation, pas la lecture.
+
+**Les pages du COMPTE (2026-10-14, demande de Fabien : « ajouter l'accès aux pages … du menu
+profil depuis l'assistant … en fonction des droits de l'utilisateur comme pour toutes les autres
+pages »).** Le menu du compte était du HTML écrit à la main (`header.html`, 18 entrées, une seule
+conditionnée : Users, par `is_admin`) ; l'assistant n'en atteignait que Registres et Models,
+parce que ce sont des surfaces.
+- **Déclaration** `app_registry.register_account_page`, sœur de `register_surface` mais PAS une
+  surface (une surface est une app : menu Applications, `/apps/`, abonnement). Chaque app déclare
+  ses pages depuis son `ready()` — `accounts` (Profil, Users), `model_manager` (Fonctions,
+  Librairies, Models), `common` (le reste, dont la cloche, ouvrable sans entrée de menu). Une page
+  qui est aussi une surface y RENVOIE (`surface=`) : sa route n'est pas redite. Une page catalogue
+  sans description prend celle de son registre (même route).
+- **Le menu du compte est GÉNÉRÉ** de cette déclaration (`navigation.account_menu`, servi par
+  `context_processors.user_role`) : le menu et l'assistant ne peuvent plus diverger. La
+  déconnexion, un geste et pas une page, reste écrite au gabarit.
+- **Le droit est celui de la requête RÉELLE** — `permissions.can_open_page` : la fermeture au
+  visiteur (`middleware.visitor_refusal`, extraite du middleware qui l'appelle), la politique de
+  l'app du chemin (`permissions.refused_app`, idem), puis le décorateur de la vue, que la page
+  DÉCLARE (`public`, `account`, `admin`). Mesuré avant d'écrire : un seul refus par rôle (Users,
+  `admin_required`) ; Registres, Models, Fonctions et Librairies relèvent de la politique
+  `registries` et sont fermés au visiteur ; Apps, Skills, Licences, Backends, Formats médias et
+  Sources sont ouverts à tous. Plusieurs pages montrent MOINS selon le rôle (Documentation,
+  Sources, Models, Mes souvenirs) : c'est la page qui filtre, l'ouvrir reste permis.
+- **Lectures** — chacune par la brique de sa page : `get_my_calendar` (`calendar.events_for`, la
+  fenêtre par `calendar_window`, sortie de la vue), `list_my_notifications`
+  (`notification_panel.notification_list`, sortie de la vue du panneau), `list_my_shares`
+  (`sharing.shares_overview`), `list_my_rag` (`memory.index.list_rag`, qui porte désormais les
+  deux filtres de la page), `get_my_profile` (les champs de `UserProfile` lus par leurs
+  MÉTADONNÉES — libellé, valeur affichée — ; aucun secret : jeton et clés ont leurs tables). Le
+  journal, les souvenirs, les droits, les registres et la documentation avaient déjà les leurs.
+- Gardes : `common/tests/tests_account_pages.py` — la PARITÉ (chaque page déclarée × visiteur,
+  compte de service de visiteur, membre, membre privé des registres par la politique,
+  administrateur : la décision de l'assistant = la réponse de la vue), le menu généré et ses
+  deux sections, `open_page` sur les pages du compte, les cinq lectures.
+- ⚠ **Incohérence relevée, NON corrigée** : trois définitions d'« administrateur » coexistent —
+  `accounts.views.is_admin` (superutilisateur ou groupe `admin`, celle de `admin_required` et du
+  menu), le niveau de compte `admin` du profil (`permissions.user_tier`), et
+  `can_manage_registries` (niveau développeur ou administrateur). Un compte de niveau « admin »
+  hors du groupe `admin` n'ouvre pas Users. Décision à prendre, pas un défaut de ce chantier.
 
 Tests : `tests_assistant_reach` — consignes, mémoire, fichiers et montages, pages, et le chat en
 V8 sur le fichier servi.

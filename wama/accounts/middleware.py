@@ -64,20 +64,33 @@ VISITOR_CLOSED = {
 VISITOR_CLOSED_PREFIXES = tuple(VISITOR_CLOSED)
 
 
+def visitor_refusal(user, path: str) -> str | None:
+    """Le motif que lit `user` sur `path` si ce chemin est FERMÉ au visiteur (lecture comprise)
+    et que `user` en est un — sans session, ou compte de service de visiteur —, sinon None.
+
+    Domicile UNIQUE de cette décision (2026-10-14) : le middleware l'applique à chaque requête,
+    et l'assistant la lit avant de proposer une page (`permissions.can_open_page`)."""
+    from wama.accounts.permissions import is_guest_account
+    if not path.startswith(VISITOR_CLOSED_PREFIXES):
+        return None
+    if user is not None and user.is_authenticated and not is_guest_account(user):
+        return None
+    return next(m for p, m in VISITOR_CLOSED.items() if path.startswith(p))
+
+
 class AppAccessMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
         user = getattr(request, 'user', None)
-        from wama.accounts.permissions import app_id_for_path, accessible, is_guest_account
-        if (request.path.startswith(VISITOR_CLOSED_PREFIXES)
-                and (user is None or not user.is_authenticated or is_guest_account(user))):
-            reason = next(m for p, m in VISITOR_CLOSED.items() if request.path.startswith(p))
+        from wama.accounts.permissions import accessible, app_id_for_path, refused_app
+        reason = visitor_refusal(user, request.path)
+        if reason:
             return JsonResponse({'error': reason, 'detail': reason, 'login_required': True}, status=403)
         if user is not None and user.is_authenticated:
-            app_id = app_id_for_path(request.path)
-            if app_id and not accessible(user, 'app', app_id):
+            app_id = refused_app(user, request.path)
+            if app_id:
                 return self._deny(request, app_id)
         else:
             app_id = app_id_for_path(request.path)

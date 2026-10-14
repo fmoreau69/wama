@@ -239,6 +239,45 @@ def app_id_for_path(path):
     return seg if seg in DEFAULT_APP_ACCESS else None
 
 
+def refused_app(user, path, allowed_apps=None):
+    """L'app gardée que `path` désigne et que `user` (connecté) n'a PAS le droit d'ouvrir, sinon
+    None. Ce que `AppAccessMiddleware` refuse à un compte, dit une fois pour lui et pour
+    l'assistant (`can_open_page`). `allowed_apps` : la lecture groupée `accessible_apps` déjà
+    faite par l'appelant (le menu) — même décision, sans une requête par page."""
+    app_id = app_id_for_path(path)
+    if not app_id:
+        return None
+    allowed = (app_id in allowed_apps) if allowed_apps is not None else accessible(user, 'app', app_id)
+    return None if allowed else app_id
+
+
+def can_open_page(user, access, path, allowed_apps=None) -> bool:
+    """`user` peut-il ouvrir la page servie à `path` ? La MÊME décision que la requête réelle,
+    dans l'ordre où elle est prise (2026-10-14, pages du compte) :
+      1. le middleware d'accès — chemin fermé au visiteur (`middleware.visitor_refusal`), puis,
+         pour un compte, la politique de l'app du chemin (`refused_app`) ;
+      2. le décorateur de la vue, que la page DÉCLARE (`app_registry.ACCOUNT_PAGE_ACCESS`) :
+         `public`, `account` (`login_required`), `admin` (`accounts.views.is_admin`, le
+         prédicat de `admin_required`).
+    Une page peut montrer moins selon le rôle (la documentation, les sources) : c'est la page
+    qui filtre, l'ouvrir reste permis. `tests_account_pages` confronte cette décision à la
+    réponse de chaque vue déclarée."""
+    from wama.accounts.middleware import visitor_refusal
+    authenticated = bool(user is not None and getattr(user, 'is_authenticated', False))
+    if visitor_refusal(user, path):
+        return False
+    if authenticated and refused_app(user, path, allowed_apps):
+        return False
+    if access == 'public':
+        return True
+    if access == 'account':
+        return authenticated
+    if access == 'admin':
+        from wama.accounts.views import is_admin
+        return authenticated and is_admin(user)
+    raise ValueError(f"accès de page inconnu : {access!r}")
+
+
 def tool_accessible(user, tool_name):
     """
     Un user peut-il exécuter cet outil `tool_api` ? MÊME décision que `accessible()` : la

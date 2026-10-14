@@ -174,6 +174,17 @@ def user_role(request):
     except Exception:
         nav_apps_grouped = []
 
+    # Menu du COMPTE (2026-10-14) — GÉNÉRÉ des pages déclarées (`register_account_page`) et
+    # filtré par la décision de la requête réelle (`permissions.can_open_page`), avec la lecture
+    # groupée des droits ci-dessus. L'assistant lit la MÊME liste (`navigation.navigable_pages`).
+    try:
+        from wama.common.services.navigation import account_menu as _account_menu
+        account_menu = _account_menu(user, accessible_apps) if user.is_authenticated else []
+    except Exception:
+        import logging
+        logging.getLogger('wama.nav').warning('Menu du compte non construit', exc_info=True)
+        account_menu = []
+
     # Couleur d'IDENTITÉ de l'app courante (liseré des cards — CARD_DESIGN §9) : dérivée du
     # 1er segment du path si c'est une app du catalogue. Identité ≠ état (jamais sur les barres).
     # `current_app` : l'ID d'app était DÉJÀ dérivé ici pour la couleur, mais jeté après usage —
@@ -203,6 +214,7 @@ def user_role(request):
         'inspector_autoplay': inspector_autoplay,
         'app_catalog_json': app_catalog_json,
         'nav_apps_grouped': nav_apps_grouped,
+        'account_menu': account_menu,
         'current_app': current_app,
         'current_app_color': current_app_color,
         'current_app_spec': current_app_spec,

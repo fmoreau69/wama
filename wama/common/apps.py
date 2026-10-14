@@ -163,6 +163,62 @@ class CommonConfig(AppConfig):
             logging.getLogger(__name__).warning(
                 'registres catalogués non déclarés', exc_info=True)
 
+        self._register_account_pages()
+
         # ⚠ Le substrat n'enregistre PLUS les fonctions du monde Data (déport du 2026-08-22) :
         # chaque monde se déclare dans son propre `ready()` — `wama_data/apps.py`,
         # `wama_lab/cam_analyzer/apps.py`. Le substrat ne doit connaître aucun monde par son nom.
+
+    @staticmethod
+    def _register_account_pages():
+        """Les pages du menu du COMPTE que porte le substrat (2026-10-14, demande de Fabien) : le
+        menu en est GÉNÉRÉ et l'assistant y emmène (`app_registry.register_account_page`).
+
+        `access` = le décorateur de la vue, et lui seul : `account` pour `login_required`,
+        `public` pour une vue sans décorateur. Une page catalogue sans `description` prend celle
+        de son registre (même route). L'ordre est celui du menu tel qu'arbitré le 01/09 — le
+        trio journal · RAG · souvenirs se lit dans cet ordre, le calendrier le précède.
+        """
+        from .app_registry import register_account_page as page
+        try:
+            page('calendar', section='mine', label='Mon calendrier', icon='fa-calendar-days',
+                 tone='primary', access='account', url_name='common:calendar', order=20,
+                 description="Votre activité sur l'axe du temps : traitements réalisés, prévus "
+                             "et programmés, et les fenêtres de maintenance de WAMA.")
+            page('journal', section='mine', label='Mon journal', icon='fa-clock-rotate-left',
+                 tone='info', access='account', url_name='common:journal', order=30,
+                 description="Tout ce que vous avez produit, dans toutes les applications.")
+            page('rag', section='mine', label='Mon RAG', icon='fa-book-open-reader',
+                 tone='success', access='account', url_name='common:rag', order=40)
+            page('memories', section='mine', label='Mes souvenirs', icon='fa-brain',
+                 tone='warning', access='account', url_name='common:memories', order=50)
+            page('shares', section='mine', label='Mes partages', icon='fa-share-nodes',
+                 color='#c4b5fd', access='account', url_name='common:shares', order=60,
+                 description="Ce que vous avez partagé et ce qu'on vous a partagé, avec les "
+                             "demandes d'accès en attente.")
+            page('skills', section='mine', label='Skills', icon='fa-wand-magic-sparkles',
+                 tone='info', access='public', url_name='common:skills_catalog', order=80)
+            page('notifications', section='mine', label='Notifications', icon='fa-bell',
+                 access='account', url_name='common:notifications', menu=False,
+                 description="Vos notifications dans WAMA, lues et non lues.")
+            page('apps', section='wama', label='Apps', icon='fa-cubes', tone='primary',
+                 access='public', url_name='common:apps_catalog', order=10)
+            page('docs', section='wama', label='Documentation', icon='fa-file-lines',
+                 tone='success', access='account', url_name='common:docs_catalog', order=20)
+            page('licenses', section='wama', label='Licences', icon='fa-scale-balanced',
+                 tone='success', access='public', url_name='common:licenses_catalog', order=40)
+            page('backends', section='wama', label='Backends', icon='fa-gears', tone='info',
+                 access='public', url_name='common:backends_catalog', order=60)
+            page('media_formats', section='wama', label='Formats médias', icon='fa-photo-film',
+                 tone='primary', access='public', url_name='common:media_formats_catalog',
+                 order=70)
+            # Les Registres : une SURFACE (outil gardé, 2026-10-13), dont la page est aussi le
+            # hub de cette section. Sa vue n'a pas de décorateur : le middleware la ferme au
+            # visiteur et la garde par la politique `registries`.
+            page('registries', section='wama', label='Registres', icon='fa-layer-group',
+                 tone='warning', access='public', surface='registries', order=80)
+            page('sources', section='wama', label='Sources', icon='fa-satellite-dish',
+                 tone='danger', access='public', url_name='common:sources_catalog', order=90)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning('pages du compte non déclarées', exc_info=True)

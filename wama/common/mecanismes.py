@@ -1133,10 +1133,14 @@ MECHANISMS = (
               "Les pages du menu Applications — apps du catalogue et surfaces déclarées, lues par "
               "`get_app_groups` — filtrées par le DROIT du menu (`accessible_apps`) mais pas par la "
               "préférence d'affichage, qui ne retire aucun droit. Sert l'outil `open_page` ; le chat "
-              "web suit la page une fois la réponse dite (`applyActions`, 2026-10-11). ⚠ Le "
-              "gestionnaire de fichiers, le journal, le calendrier et les catalogues ne sont "
-              "déclarés nulle part comme pages : les ouvrir demande de les DÉCLARER",
-              'wama/common/services/navigation.py', 'docs/construction/ia/WAMA_LLM.md'),
+              "web suit la page une fois la réponse dite (`applyActions`, 2026-10-11). Et depuis "
+              "le 2026-10-14 les pages du COMPTE (profil, journal, calendrier, catalogues…), "
+              "DÉCLARÉES par l'app qui les porte (`register_account_page`) : le menu du compte en "
+              "est GÉNÉRÉ, et leur droit est celui de la requête réelle (`can_open_page` : "
+              "fermeture au visiteur, politique du chemin, décorateur de la vue) — une garde de "
+              "PARITÉ confronte chaque déclaration à la réponse de sa vue",
+              'wama/common/services/navigation.py', 'docs/construction/ia/WAMA_LLM.md',
+              annexes=('wama/common/app_registry.py', 'wama/accounts/permissions.py')),
     Mechanism('conversation_store', "Historique de conversation (serveur)",
               "L'historique de l'assistant côté SERVEUR — remplace le localStorage web et le "
               "dict en mémoire de la passerelle (perdus au changement de navigateur / au "

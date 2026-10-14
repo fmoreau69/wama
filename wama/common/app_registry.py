@@ -955,6 +955,81 @@ def declared_identity(app: str) -> dict | None:
     return surface_for(app) or pageless_tool_for(app)
 
 
+# ─── PAGES DU COMPTE (2026-10-14, demande de Fabien) ───────────────────────────────────────────
+# Le menu du compte (en-tête, à droite) était écrit à la main dans `header.html` : ses pages —
+# profil, journal, calendrier, catalogues… — n'étaient déclarées nulle part, donc l'assistant ne
+# pouvait pas y emmener (`common/services/navigation.py`). Elles se DÉCLARENT ici, depuis le
+# `ready()` de l'app qui les porte, comme une surface : le menu est GÉNÉRÉ de cette déclaration
+# et `open_page` la lit — un menu et un assistant qui ne peuvent plus diverger.
+#
+# Ce ne sont PAS des surfaces : une surface est une APP (menu Applications, catalogue `/apps/`,
+# abonnement, monde). Une page du compte n'est ni l'une ni l'autre ; elle peut en revanche RENVOYER
+# à une surface qui est aussi une entrée de ce menu (Registres, Models) — sa route et son droit
+# se lisent alors chez la surface, sans seconde déclaration.
+
+#: Les sections du menu, dans leur ordre (arbitrage de Fabien du 01/09) : ce qui appartient à
+#: l'UTILISATEUR, puis ce que la PLATEFORME est.
+ACCOUNT_SECTIONS = {
+    'mine': {'label': 'Mon espace', 'order': 1},
+    'wama': {'label': 'WAMA', 'order': 2},
+}
+
+#: Ce que la VUE de la page exige, et rien d'autre — la même chose que son décorateur :
+#: `public` (aucun), `account` (`login_required`), `admin` (`accounts.views.admin_required`).
+#: La politique d'accès d'un chemin (`registries`…) et sa fermeture aux visiteurs ne se
+#: déclarent PAS : elles se lisent du chemin, là où le middleware les applique
+#: (`accounts.permissions.can_open_page`). `tests_account_pages` confronte chaque déclaration à
+#: la réponse RÉELLE de sa vue.
+ACCOUNT_PAGE_ACCESS = ('public', 'account', 'admin')
+
+_ACCOUNT_PAGES: dict = {}
+
+
+def register_account_page(key: str, *, section: str, label: str, icon: str, access: str,
+                          url_name: str = '', surface: str = '', tone: str = '',
+                          color: str = '', order: int = 50, menu: bool = True,
+                          description: str = '') -> None:
+    """Déclare une page du COMPTE. Idempotent, comme `register_surface`.
+
+    `url_name` OU `surface` (jamais les deux) : la route de la page, ou la surface déclarée à
+    laquelle elle renvoie. `icon` : classe Font Awesome (`fa-…`) ; `tone` : teinte Bootstrap de
+    l'icône (`info`, `warning`…) ou `color` : une couleur CSS. `order` : rang dans sa section.
+    `menu=False` : ouvrable par l'assistant, sans entrée dans le menu du compte (la cloche a sa
+    propre place dans l'en-tête). `description` : ce que l'assistant lit pour choisir la page.
+    """
+    if section not in ACCOUNT_SECTIONS:
+        raise ValueError(f"section {section!r} inconnue pour {key!r} "
+                         f"(attendu : {', '.join(ACCOUNT_SECTIONS)})")
+    if access not in ACCOUNT_PAGE_ACCESS:
+        raise ValueError(f"accès {access!r} inconnu pour {key!r} "
+                         f"(attendu : {', '.join(ACCOUNT_PAGE_ACCESS)})")
+    if bool(url_name) == bool(surface):
+        raise ValueError(f"{key!r} : déclarer `url_name` OU `surface`, l'un des deux")
+    _ACCOUNT_PAGES[key] = {'key': key, 'section': section, 'label': label, 'icon': icon,
+                           'access': access, 'url_name': url_name, 'surface': surface,
+                           'tone': tone, 'color': color, 'order': order, 'menu': menu,
+                           'description': description}
+
+
+def account_pages() -> list:
+    """Les pages du compte déclarées (copies), dans l'ordre du menu : section, rang, libellé.
+
+    Une page qui renvoie à une surface y lit sa route et sa clé de droit À L'APPEL (les
+    surfaces se déclarent au `ready()`, comme elle). Une surface introuvable laisse la route
+    vide : l'appelant omet la page et le dit, comme une route irrésolvable."""
+    out = []
+    for page in _ACCOUNT_PAGES.values():
+        page = dict(page)
+        if page['surface']:
+            target = _SURFACES.get(page['surface']) or {}
+            page['url_name'] = target.get('url_name', '')
+            if not page['description']:
+                page['description'] = target.get('description', '')
+        out.append(page)
+    return sorted(out, key=lambda p: (ACCOUNT_SECTIONS[p['section']]['order'], p['order'],
+                                      p['label']))
+
+
 def surfaces(world: str | None = None) -> list:
     """Surfaces déclarées (copies), d'un monde ou de tous, dans l'ordre de leur section."""
     found = [dict(s) for s in _SURFACES.values() if world is None or s['world'] == world]

@@ -88,3 +88,22 @@ def notification_payload(notification, user) -> dict:
         'tone': tone,
         'actions': notification_actions(notification, user),
     }
+
+
+#: Ce que le panneau de la cloche montre au plus (la page complète en garde 200).
+PANEL_MAX = 50
+
+
+def notification_list(user, *, unread_only: bool = False, limit: int = 20) -> dict:
+    """Les notifications de `user`, les plus récentes d'abord : `{'unread', 'total', 'items'}`.
+    Une lecture pour le panneau de la cloche (`views.api_notifications_list`) et pour
+    l'assistant (`tool_api.list_my_notifications`, 2026-10-14) — ils montrent la même chose.
+    `limit` est borné à `PANEL_MAX`."""
+    from wama.common.models import Notification
+    mine = Notification.objects.filter(recipient=user)
+    unread = mine.filter(read_at__isnull=True)
+    shown = unread if unread_only else mine
+    limit = max(1, min(PANEL_MAX, int(limit or 20)))
+    rows = list(shown.order_by('-created_at', '-pk')[:limit])
+    return {'unread': unread.count(), 'total': shown.count(),
+            'items': [notification_payload(n, user) for n in rows]}
