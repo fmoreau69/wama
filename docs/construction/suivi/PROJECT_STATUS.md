@@ -23808,3 +23808,35 @@ VRAM = modèle de la card pour tout process GPU (un process ne déclare pas son 
 post-traitement du converter sans modèle déclaré (sérialisé, déclaré, sans attente de VRAM) ·
 durée max au grain de la card · cam_analyzer : même règle de file (`Pass.gpu`) hors squelette,
 sans gouverneur.
+
+## §CLÔTURE — 2026-10-14, « LE GOUVERNEUR AU GRAIN DU PROCESS ; CHAQUE PROCESS SUR SA FILE » — ✅ CLOS (`5cc7ab57`, `698435a0`, non poussés) — 🔴 relancer les workers `gpu` ET `default` (+ gunicorn)
+
+🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : celui du §PALIER du même titre, plus haut (relancer les
+deux workers ENSEMBLE, puis jouer une conversion avec post-traitement IA et lire la ligne « Étape
+suivante sur la file « gpu » » dans la console de la card).
+
+**Décision à valider par Fabien (non bloquante)** : le sens donné à `ProcessSpec.gpu` — « modèle
+dans le worker OU service local (Ollama, TTS) ». Huit process LLM/TTS sont passés à `gpu=True`
+(ils tournaient déjà sur la file GPU ; les en sortir ferait charger Ollama en parallèle des
+traitements, la cause de la chute de l'hôte du 19/08). Le contraire se fait en retirant le
+`'llm'`/`'tts'` de la garde de cohérence (`tests_process_governance`) puis des huit specs.
+
+**Les restes nommés sont ceux de CE palier** (limites de ce qui a été construit, pas d'autres
+sessions) ; leur domicile est `ROUTE §10.6` 4.5, bloc du 2026-10-14. Aucun n'a de test : ce sont
+des comportements à construire, et un test ne fige pas l'état qu'on veut quitter.
+
+**Contrôles de clôture, mesurés à la fermeture** :
+- tests ciblés : squelette, gouverneur, attente de VRAM, re-livraison, ETA, lignes de process et
+  les dix apps — **1 006 tests** (deux lancements ; plus un module de test au nom mal deviné,
+  sans objet), un seul rouge :
+  `tests_process_watched.EverySettingSaysWhatItMakesStaleTest` (converter, réglage `media_type`),
+  déjà rouge avant le palier (liste du §PALIER), sans rapport avec la file ni le gouverneur ;
+- gardes : chaque symbole neuf est nommé par `tests_process_governance` (`queue_of`,
+  `_delivered_on`, `resident_here_gb`, `holders_summary` avec le process) ou par
+  `composer.tests_pipeline` / `enhancer.tests` (`_vram_need`) ; la re-livraison et le report
+  du lancement sont tenus par leur comportement (onze mutations rouges) ;
+- `check_redundancy` : 110 trouvailles, **aucune dans le code neuf** (le `_model_key` du composer
+  précède le palier) ;
+- `check_docs` : 0 cassée sur 2787 ; `doc_facts --check` : 3 blocs périmés (mécanismes, outils,
+  briques) par le travail NON commité d'autres sessions — mes deux lignes générées (squelette,
+  gouverneur) sont identiques à HEAD, recalculées sans écrire.
