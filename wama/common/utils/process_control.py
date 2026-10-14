@@ -64,6 +64,13 @@ def begin_processing(model, pk, *, user=None, reset=None,
             by_collaborator = True
         if getattr(instance, status_field, None) == running_value:
             return None, 'already_running'
+        # Un résultat antérieur au pipeline reçoit ses lignes AVANT le passage à RUNNING (après,
+        # il n'est plus « réussi ») : un ▶ par process reprend alors ses amonts au lieu de tout
+        # rejouer, même sur une card qu'aucune page n'a relue (`backfill_prior_runs`).
+        from wama.common.services.process_pipeline import pipeline_of
+        pipeline = pipeline_of(instance)
+        if pipeline is not None:
+            pipeline.backfill_prior_runs(instance)
         old_task = getattr(instance, task_field, "") or ""
         if old_task:
             try:

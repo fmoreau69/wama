@@ -4199,12 +4199,17 @@ panneau parle `JOB_*`).
 >   lanceur a déjà retiré l'ancienne sortie quand la tâche pose la question (`reset` de
 >   `begin_processing`) — lire le fichier d'abord ferait d'une relance complète une reprise du
 >   dernier process.
-> - **Un résultat ANTÉRIEUR au pipeline est adopté** (2026-10-13, `adopt_prior_result`, appelé par
->   `preload`) : un élément réussi avant que son app ne déclare son pipeline n'avait aucune ligne,
->   donc rien d'« à jour » — le ▶ « Locuteurs » d'une transcription du 28/09 réécoutait tout
->   l'audio (constat de Fabien). Son succès prouve ses `required` : ils reçoivent une ligne
->   `SUCCESS` (photo des réglages du jour, `output_summary.adopted`) à la première lecture de la
->   card ; un `optional`, dont on ignore s'il a tourné, reste à jouer. Toutes les apps en pipeline.
+> - **Un résultat ANTÉRIEUR au pipeline reçoit ses lignes après coup — BACKFILL** (2026-10-13,
+>   `backfill_prior_runs`, appelé par `preload` ET, depuis le 2026-10-14, par `begin_processing`) :
+>   un élément réussi avant que son app ne déclare son pipeline n'avait aucune ligne, donc rien
+>   d'« à jour » — le ▶ « Locuteurs » d'une transcription du 28/09 réécoutait tout l'audio
+>   (constat de Fabien). Son succès prouve ses `required` : ils reçoivent une ligne `SUCCESS`
+>   (photo des réglages du jour, `output_summary.backfilled`) à la première lecture de la card ou
+>   à son lancement ; un `optional`, dont on ignore s'il a tourné, reste à jouer. **Commun à toutes
+>   les apps en pipeline, sans exception.** ⚠ Nommé d'abord « adoption » (`adopt_prior_result`,
+>   marqueur `adopted`) : le mot se lisait comme l'ADOPTION D'UNE BRIQUE par une app, et « 9 apps
+>   touchées » (un compte de lignes écrites, non de code) a fait croire le transcriber à part.
+>   Renommé le 14/10, marqueur des 546 lignes déjà posées compris.
 > - **Les trois causes de péremption de 4.3 sont écrites** (`refresh`) : réglage surveillé
 >   changé ; amont périmé ou en échec (cascade) ; **entrée remplacée** — la photo d'un process
 >   garde l'EMPREINTE de la sortie de chaque amont (`@upstream` : `provenance.sha256_of`, la

@@ -23348,7 +23348,10 @@ Constat de Fabien : Transcriber et Imager lents à charger ; dans l'Imager, moda
   repli/dépli continu) : l'« arbre » porté est du code mort, seule la conversion rapide tournait.
   L'adoption des résultats antérieurs écrit des lignes à la LECTURE d'une page : 9 apps touchées
   (+ la jumelle `enhancer_01`), conformes à l'applicabilité (mesuré), doublon impossible
-  (`process_run_unique_line`).
+  (`process_run_unique_line`). ⚠ **Corrigé le 2026-10-14** : le code est COMMUN (`preload`), et
+  le remesure trouve des lignes dans les **10** apps, transcriber compris (39) — le « 9 » était un
+  compte de lignes déjà écrites, pas d'apps couvertes. Mécanisme renommé « backfill »
+  (`backfill_prior_runs`), voir §CORRECTIF 2026-10-14 plus bas.
 - ⏳ Restes ajoutés : `wama-schedule.js` relit `/common/schedule/active/` à CHAQUE mutation de la
   file (`MutationObserver`, anti-rebond 400 ms) — ≈ 1 appel/s tant qu'une card avance (13 en 16 s
   sur le Transcriber) ; ce n'est pas un `setInterval`, la garde ne le voit pas ; le reader
@@ -23629,6 +23632,7 @@ LANCEMENT non rejoués au navigateur · le reader redemande card + progression �
 antérieurs à la session (non renumérotés : cités ailleurs).
 **Décision ouverte** : l'adoption des résultats antérieurs aux pipelines ÉCRIT des lignes
 `SUCCESS` à la lecture d'une page (9 apps + `enhancer_01` ce jour) — à valider ou à borner.
+*(Corrigé le 2026-10-14 : 10 apps sur 10, et aussi au lancement — §CORRECTIF 2026-10-14.)*
 
 **Artefacts et effets de bord** : scripts de mesure et de scénario dans le scratchpad de session
 (jetables) · compte jetable du scénario de la cloche créé puis SUPPRIMÉ · serveur de dev éphémère
@@ -23724,3 +23728,36 @@ la mesure `unacked`, arrêté) · campagne nocturne `d2d9c394` révoquée et wor
 13/10 avec l'accord de Fabien · worktrees de vérification retirés.
 ⚠ `wama-schedule.js` (relectures des pastilles), écrit par cette session le 13/10 à 15:11, a été
 ADOPTÉ et réparé par une autre dans `0b9502b3` — rien à commiter de ce côté.
+
+## §CORRECTIF 2026-10-14 — « adoption des résultats antérieurs » → BACKFILL, commun 10/10, posé aussi AU LANCEMENT — non poussé — 🔴 relancer gunicorn + workers
+
+Question de Fabien sur la clôture du 13/10 : *« le Transcriber a le même comportement que les
+autres applications, c'est du commun, pourquoi est-ce que ça différerait ? »*, puis *« il faut
+aligner le nommage, sinon on laisse des pièges »*.
+
+**Mesuré** : le mécanisme vit dans `process_pipeline.preload` (`decorate_cards` : 9 apps ;
+`decorate` → `card_view` → `preload` : l'enhancer) — aucune app n'y échappe. Lignes en base : les
+**10** apps en ont, transcriber compris (39). Le « 9 apps » de la clôture était un compte de lignes
+déjà écrites, lu comme une couverture — et le mot « adoption », qui dans WAMA désigne l'adoption
+d'une BRIQUE par une app (`adoption_matrix`, grille), faisait lire « 9 apps sur 10 l'ont adopté ».
+
+**Trou trouvé en revérifiant** : les lignes ne se posaient qu'à la LECTURE d'une page. `steps_to_run`
+(la tâche, au lancement) ne les pose pas, et après `begin_processing` l'élément n'est plus réussi.
+Un ▶ par process venu de l'assistant ou d'une action programmée, sur une card qu'aucune page n'a
+relue, rejouait donc tout — **372 transcriptions réussies étaient encore sans ligne**.
+
+**Fait** :
+- `adopt_prior_result` → **`backfill_prior_runs`** (le mot de `backfill_platform_refs`,
+  `backfill_playback_copies`) ; marqueur stocké `output_summary.adopted` → **`backfilled`**, les
+  **546** lignes déjà posées renommées en base (0 restante).
+- `begin_processing` (`common/utils/process_control.py`, tout lancement de toute app) l'appelle
+  AVANT le passage à RUNNING.
+- Garde : `tests_process_pipeline.AResultOlderThanThePipelineTest.test_a_launch_backfills_a_card_no_page_has_read`
+  — contre-épreuve par mutation (appel retiré) : ROUGE. 346 tests (pipeline, lancements, lots,
+  `tool_api_start`, composer, transcriber) : OK.
+- `ROUTE §10.6` (le paragraphe du mécanisme) et les deux lignes de la clôture du 13/10 corrigés
+  et datés.
+
+**Décision ouverte, reformulée** : le backfill ÉCRIT des lignes `SUCCESS` à la lecture d'une page
+et au lancement — à garder ou à borner (par exemple : au lancement seul).
+⚠ Tant que gunicorn et les workers n'ont pas été relancés, l'ancien code écrit encore `adopted`.

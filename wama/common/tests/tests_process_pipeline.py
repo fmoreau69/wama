@@ -288,7 +288,8 @@ class AResultOlderThanThePipelineTest(TestCase):
     """2026-10-13 — Fabien's transcript #739 (28/09) predates the transcriber pipeline (03/10): no
     line, so nothing was « up to date » and the ▶ of « Locuteurs » re-listened to the whole audio.
     A SUCCESSFUL element proves its `required` processes rendered: the first read of the element
-    (a queue page, `preload`) gives them a line ; an `optional` one, unknown, stays to be played."""
+    (a queue page, `preload`) or its launch (`begin_processing`) BACKFILLS them a line ; an
+    `optional` one, unknown, stays to be played. Common to every app with a pipeline."""
 
     def _pipeline(self):
         return AppPipeline('demo_pipeline', (
@@ -297,12 +298,12 @@ class AResultOlderThanThePipelineTest(TestCase):
                         toggle='wants_speakers'),
         ), label='Demo')
 
-    def test_the_required_process_is_adopted_and_the_option_alone_is_played(self):
+    def test_the_required_process_is_backfilled_and_the_option_alone_is_played(self):
         from wama.common.services import process_pipeline
         pipeline = self._pipeline()
         item = _Element(status=JOB_SUCCESS, wants_speakers=True)
         self.assertEqual(['transcribe', 'diarize'], _keys(pipeline.steps_to_run(item)),
-                         'without the adoption, everything is replayed — the defect')
+                         'without the backfill, everything is replayed — the defect')
         with mock.patch.dict(APP_PIPELINES, {'demo_pipeline': pipeline}):
             process_pipeline.preload([item])
         process_pipeline.release(item)
@@ -311,21 +312,42 @@ class AResultOlderThanThePipelineTest(TestCase):
         self.assertEqual(['diarize'], _keys(pipeline.steps_to_run(item, only='diarize')))
         self.assertEqual(['diarize'], _keys(pipeline.steps_to_run(item)))
 
-    def test_nothing_is_adopted_for_an_element_not_successful_or_already_tracked(self):
+    def test_nothing_is_backfilled_for_an_element_not_successful_or_already_tracked(self):
         pipeline = self._pipeline()
-        self.assertEqual({}, pipeline.adopt_prior_result(_Element(status=JOB_PENDING)))
-        self.assertEqual({}, pipeline.adopt_prior_result(_Element(status=JOB_RUNNING)))
+        self.assertEqual({}, pipeline.backfill_prior_runs(_Element(status=JOB_PENDING)))
+        self.assertEqual({}, pipeline.backfill_prior_runs(_Element(status=JOB_RUNNING)))
         tracked = _Element(status=JOB_SUCCESS)
         process_runs.fail(tracked, 'transcribe', 'out of memory')
-        self.assertEqual({}, pipeline.adopt_prior_result(tracked))
+        self.assertEqual({}, pipeline.backfill_prior_runs(tracked))
         self.assertEqual(JOB_FAILURE, process_runs.line(tracked, 'transcribe').status)
 
-    def test_a_setting_changed_after_the_adoption_makes_it_stale(self):
+    def test_a_setting_changed_after_the_backfill_makes_it_stale(self):
         pipeline = self._pipeline()
         item = _Element(status=JOB_SUCCESS)
-        pipeline.adopt_prior_result(item)
+        pipeline.backfill_prior_runs(item)
         item.prompt = 'another language'
         self.assertEqual(['transcribe'], _keys(pipeline.steps_to_run(item)))
+
+    def test_a_launch_backfills_a_card_no_page_has_read(self):
+        """2026-10-14 — the backfill only ran on a page read: a ▶ from the assistant or a
+        scheduled action, on a card never displayed since, replayed everything. The launch
+        (`begin_processing`, every app) backfills before RUNNING, while the element is still
+        successful."""
+        from wama.common.utils.process_control import begin_processing
+        item = _Element(status=JOB_SUCCESS, task_id='', save=lambda: None)
+
+        class _Model:
+            class objects:
+                @staticmethod
+                def select_for_update():
+                    return mock.Mock(get=lambda pk: item)
+
+        with mock.patch.dict(APP_PIPELINES, {'demo_pipeline': self._pipeline()}):
+            obj, err = begin_processing(_Model, item.pk)
+        self.assertIsNone(err)
+        self.assertEqual('RUNNING', obj.status)
+        self.assertEqual(JOB_SUCCESS, process_runs.line(item, 'transcribe').status)
+        self.assertEqual({'backfilled': True}, process_runs.line(item, 'transcribe').output_summary)
 
 
 class WhatTheCardShowsTest(TestCase):

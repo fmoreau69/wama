@@ -81,7 +81,7 @@ def preload(items) -> None:
     for item in items:
         setattr(item, PRELOADED, grouped.get(str(item.pk), []))
         item.__dict__.setdefault(APPLIES_MEMO, {})
-        if pipeline is not None and pipeline.adopt_prior_result(item):
+        if pipeline is not None and pipeline.backfill_prior_runs(item):
             setattr(item, PRELOADED, list(process_runs.lines(item)))
 
 
@@ -511,8 +511,13 @@ class AppPipeline:
         """Les process qui ont lieu pour cet élément, dans l'ordre de lancement (`takes_place`)."""
         return [spec for spec in self.ordered() if self.takes_place(spec, item, model_key)]
 
-    def adopt_prior_result(self, item) -> dict:
-        """Un élément RÉUSSI avant que son app ne déclare ce pipeline n'a aucune ligne : rien n'y
+    def backfill_prior_runs(self, item) -> dict:
+        """BACKFILL (le mot de `backfill_platform_refs` : poser après coup ce qu'un enregistrement
+        antérieur n'a pas reçu). Le même pour toutes les apps à pipeline — rien n'y dépend de
+        l'app ; « adoption », son premier nom (13/10), se lisait comme l'adoption d'une BRIQUE par
+        une app et a fait croire le transcriber à part (relevé par Fabien, 2026-10-14).
+
+        Un élément RÉUSSI avant que son app ne déclare ce pipeline n'a aucune ligne : rien n'y
         était « à jour », donc toute relance rejouait TOUT — le ▶ « Locuteurs » d'une transcription
         du 28/09 (pipeline du 03/10) réécoutait l'audio entier (constat de Fabien, 2026-10-13 ;
         65 transcriptions seulement avaient une ligne).
@@ -521,14 +526,17 @@ class AppPipeline:
         fait échouer la card) : ils reçoivent une ligne `SUCCESS`, photo des réglages d'aujourd'hui
         — ceux qui ont produit le résultat, l'élément n'ayant pas été relancé depuis. Un `optional`
         n'en reçoit pas : on ne sait pas s'il a tourné, il reste à jouer. Rien pour un élément qui
-        a déjà une ligne de ce pipeline, ou qui n'est pas réussi. Rend `{clé: ligne}` adoptées.
+        a déjà une ligne de ce pipeline, ou qui n'est pas réussi. Rend `{clé: ligne}` posées.
 
-        Appelé par `preload` (toute page de file, toute card relue) : c'est la première lecture
-        de l'élément depuis la déclaration du pipeline, donc AVANT qu'un réglage n'y change."""
+        Appelé par `preload` (toute page de file, toute card relue) et par `begin_processing`
+        (tout lancement, avant le passage à RUNNING) : un ▶ venu de l'assistant ou d'une action
+        programmée, sur une card qu'aucune page n'a relue, rejouait sinon tout (mesuré le
+        2026-10-14 : 372 transcriptions réussies encore sans ligne). La photo est celle de la
+        première de ces lectures, donc AVANT qu'un réglage n'y change."""
         if getattr(item, 'status', None) != JOB_SUCCESS or self.rows(item):
             return {}
         model_key = self.requested_model(item)
-        adopted = {}
+        backfilled = {}
         for spec in self.applicable(item, model_key):
             if spec.degree != REQUIRED:
                 continue
@@ -537,11 +545,11 @@ class AppPipeline:
             row = process_runs.safely(
                 process_runs.succeed, item, spec.key, process_key=self.function_key(spec),
                 output_ref=output_ref, model_key=model_key or '',
-                output_summary={'adopted': True},
-                settings_snapshot=self.snapshot(spec, item, adopted))
+                output_summary={'backfilled': True},
+                settings_snapshot=self.snapshot(spec, item, backfilled))
             if row is not None:
-                adopted[spec.key] = row
-        return adopted
+                backfilled[spec.key] = row
+        return backfilled
 
     # ── Péremption, sélection, état ─────────────────────────────────────────────────────────
     def refresh(self, item) -> set:
