@@ -119,6 +119,12 @@ VRAM et fichier sont lus au registre). Premier cas : **Swin2SR realworld ×4**
 (`onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX`, Apache-2.0), le plus FIDÈLE au banc
 du 2026-10-06 (rendu doux, peu d'invention). Détail, banc et restes (SPAN, GaterV3 : poids publiés
 hors HuggingFace) : `wama/model_manager/PROSPECTION_PIPELINE.md §Session du 2026-10-06`.
+⚠ **Jusqu'au 2026-10-14, Swin2SR plantait** sur toute image dont un côté n'est pas multiple de 8
+(`Reshape /swin2sr/patch_unembed`, onnxruntime) : ses fenêtres découpent l'image en carreaux de
+8 px. Le modèle le DÉCLARE dans son `preprocessor_config.json` (`do_pad`, `pad_size: 8`) ;
+`AIUpscaler` le lit, complète l'entrée en symétrique (image entière comme tuiles) et recadre la
+sortie. Mesuré ensuite au banc DIV2K : LPIPS 0,326 en ×4, derrière SPAN, RealESRGAN, BSRGAN et
+RealESR_G — fidèle mais doux, ce que LPIPS pénalise (`WAMA_QUALITE §3`, ligne `upscale`).
 
 ### Étape 3 : Migrations Django
 

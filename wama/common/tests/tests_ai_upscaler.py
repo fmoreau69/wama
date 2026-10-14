@@ -46,6 +46,25 @@ def _tiny_x4_graph(path: Path):
     onnx.save(model, str(path))
 
 
+def _windowed_x4_graph(path: Path):
+    """The same ×4, behind a round trip through 8-pixel blocks (`SpaceToDepth`/`DepthToSpace`):
+    like Swin2SR's windows, onnxruntime refuses a height or width that is not a multiple of 8."""
+    import onnx
+    from onnx import TensorProto, helper
+    scales = helper.make_tensor('scales', TensorProto.FLOAT, [4], [1.0, 1.0, 4.0, 4.0])
+    nodes = [helper.make_node('SpaceToDepth', ['input'], ['blocks'], blocksize=8),
+             helper.make_node('DepthToSpace', ['blocks'], ['restored'], blocksize=8, mode='DCR'),
+             helper.make_node('Resize', ['restored', '', 'scales'], ['output'], mode='nearest')]
+    graph = helper.make_graph(
+        nodes, 'windowed_x4',
+        [helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 3, 'h', 'w'])],
+        [helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 3, 'H', 'W'])],
+        initializer=[scales])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid('', 13)])
+    model.ir_version = 8
+    onnx.save(model, str(path))
+
+
 def _cpu_providers(device_id=0, cpu_only=False, _original=onnx_utils.onnx_providers):
     return _original(device_id, cpu_only=True)
 
@@ -123,6 +142,50 @@ class CatalogueUpscalerTest(TestCase):
                                  composition={'runtime': {'engine': 'onnxruntime'}},
                                  capabilities={'task': 'text-to-image'})
         self.assertNotEqual('AIUpscaler', backend_for_model(supra2).__name__)
+
+    def _run_windowed(self, image, declared, tile_size=0):
+        """The snapshot layout of the real model: `onnx/model.onnx`, and at the snapshot root a
+        `preprocessor_config.json` (written only when `declared` is given)."""
+        import json
+        from wama.model_manager.models import AIModel
+        if not AIModel.objects.filter(model_key=SWIN2SR_KEY).exists():
+            _catalogue_row(scale=4)
+        with TemporaryDirectory() as d:
+            graph = Path(d) / 'onnx' / 'model.onnx'
+            graph.parent.mkdir()
+            _windowed_x4_graph(graph)
+            if declared is not None:
+                (Path(d) / 'preprocessor_config.json').write_text(json.dumps(declared))
+            with mock.patch('wama.common.utils.model_components.component_paths',
+                            return_value={'model': graph}), \
+                    mock.patch('wama.common.utils.onnx_utils.onnx_providers', new=_cpu_providers):
+                upscaler = ai_upscaler.AIUpscaler(model_name=SWIN2SR, tile_size=tile_size)
+                try:
+                    return upscaler.upscale_image(image)
+                finally:
+                    upscaler.close()
+
+    def test_the_padding_the_model_declares_is_applied_then_cropped(self):
+        """2026-10-14, Swin2SR: a 510×339 DIV2K input fell on `Reshape /swin2sr/patch_unembed`.
+        The model's own `preprocessor_config.json` says `do_pad` / `pad_size: 8` — read, applied,
+        and the padding is cropped off the output, whole image and tiles alike."""
+        image = (np.arange(21 * 37 * 3) % 251).astype(np.uint8).reshape(21, 37, 3)
+        swin2sr = {'do_pad': True, 'pad_size': 8, 'image_processor_type': 'Swin2SRImageProcessor'}
+        for tile_size in (0, 24):
+            with self.subTest(tile_size=tile_size):
+                out = self._run_windowed(image, swin2sr, tile_size=tile_size)
+                self.assertEqual((84, 148, 3), out.shape, 'exactly ×4, no padding left')
+                self.assertTrue(np.array_equal(image[20, 36], out[80, 144]),
+                                'the last real pixel stays in place')
+
+    def test_without_the_declaration_the_strict_graph_refuses_the_same_input(self):
+        """Counter-case: the same graph and input, nothing declared — onnxruntime refuses, so it
+        is the declaration that makes the previous test pass, not a lenient graph. And a model
+        that pads nothing (`do_pad` false) keeps its input untouched."""
+        image = np.zeros((21, 37, 3), np.uint8)
+        for declared in (None, {'do_pad': False, 'pad_size': 8}):
+            with self.subTest(declared=declared), self.assertRaises(Exception):
+                self._run_windowed(image, declared)
 
     def test_an_installed_github_release_resolves_aiupscaler_too(self):
         """A GitHub release key has three segments (`github:owner/repo:tag`) : the entry is named

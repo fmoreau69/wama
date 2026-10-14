@@ -126,6 +126,30 @@ def _catalogued_facts(model_key: str) -> dict:
     return {'scale': int(scale), 'vram_usage': float(row.vram_gb or 0.0)}
 
 
+def _declared_padding(model_path: str) -> int:
+    """Multiple auquel l'entrée doit être COMPLÉTÉE, tel que le modèle le DÉCLARE dans son
+    `preprocessor_config.json` (`do_pad` + `pad_size`), 0 sinon — à côté du graphe ou à la racine
+    du snapshot (`onnx/model.onnx`).
+
+    Vécu le 2026-10-14 (Swin2SR, au banc DIV2K puis dans l'app) : un transformeur à fenêtres
+    découpe l'image en carreaux de 8 px — une entrée 510×339 tombait sur `Reshape
+    /swin2sr/patch_unembed` et onnxruntime levait. Le prétraitement d'origine
+    (`Swin2SRImageProcessor`) complète en symétrique vers le bas et la droite ; on fait de même,
+    et la sortie est recadrée. Les agrandisseurs convolutifs ne déclarent rien : inchangés."""
+    import json
+    from pathlib import Path
+    graph = Path(model_path)
+    for folder in (graph.parent, graph.parent.parent):
+        config = folder / 'preprocessor_config.json'
+        if config.is_file():
+            try:
+                declared = json.loads(config.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                return 0
+            return int(declared.get('pad_size') or 0) if declared.get('do_pad') else 0
+    return 0
+
+
 class AIUpscaler(BaseModelBackend):
     """
     AI-based image upscaler using ONNX Runtime.
@@ -228,6 +252,7 @@ class AIUpscaler(BaseModelBackend):
         if not os.path.exists(self.model_path):
             logger.warning(f"Model file not found: {self.model_path}")
             logger.info(f"Please download models from QualityScaler repository")
+        self.pad_multiple = _declared_padding(self.model_path)
 
         # ONNX Runtime session (lazy loading)
         self.session = None
@@ -320,6 +345,13 @@ class AIUpscaler(BaseModelBackend):
 
     def _upscale_simple(self, image: np.ndarray) -> np.ndarray:
         """Upscale image without tiling."""
+        # Entrée complétée au multiple DÉCLARÉ par le modèle (`_declared_padding`) — ici, donc
+        # pour l'image entière comme pour chaque tuile ; la sortie est recadrée plus bas.
+        h, w = image.shape[:2]
+        m = self.pad_multiple
+        if m > 1 and (h % m or w % m):
+            image = np.pad(image, ((0, -h % m), (0, -w % m), (0, 0)), mode='symmetric')
+
         # Convert BGR to RGB
         rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
@@ -332,8 +364,8 @@ class AIUpscaler(BaseModelBackend):
         # Run inference
         output = self.session.run(None, {self.session.get_inputs()[0].name: input_tensor})[0]
 
-        # Remove batch dimension and transpose back to HWC
-        output = np.transpose(output[0], (1, 2, 0))
+        # Remove batch dimension and transpose back to HWC — and drop the padding, if any
+        output = np.transpose(output[0], (1, 2, 0))[:h * self.scale_factor, :w * self.scale_factor]
 
         # Denormalize and clip
         output = np.clip(output * 255.0, 0, 255).astype(np.uint8)
