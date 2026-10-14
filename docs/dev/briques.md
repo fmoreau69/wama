@@ -139,11 +139,11 @@ Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines ;
 
 ### Gouverneur de ressources
 
-Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une ligne de réservation ou de tâche dont le process écrivain est MORT (même espace de pid) sort sans attendre son TTL (29/09 : 4 lignes sur 8 après une relance, ~24 Go fantômes retranchés du tirage)
+Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une ligne de réservation ou de tâche dont le process écrivain est MORT (même espace de pid) sort sans attendre son TTL (29/09 : 4 lignes sur 8 après une relance, ~24 Go fantômes retranchés du tirage). Une ligne « tâche en cours » vaut pour UN process GPU de la card depuis le 2026-10-14 ; `resident_here_gb` dit ce que CE process tient déjà d'un modèle (un rechargement idempotent n'est pas un besoin)
 
 - **Domicile** : `wama/common/services/resource_governor.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Gouvernance des ressources WAMA (GPU / CPU / RAM) — POINT D'ENTRÉE UNIQUE.
-- **API publique** (52) :
+- **API publique** (53) :
   - `configure_cuda_process() -> bool` — Plafonne l'allocateur CUDA de CE process à `ALLOCATOR_CAP_FRACTION` de la
   - `total_vram_gb() -> float` — VRAM physique de la carte, 0.0 si pas de GPU — la SEULE mesure de WAMA (2026-10-10).
   - `owner_pid(owner: str) -> int | None` — Pid porté par une clé d'owner (`<module>.<Classe>:<pid>#…`, `composer.audiocpp:<pid>`),
@@ -155,6 +155,7 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une li
   - `resident_models() -> dict[str, float]` — Modèles actuellement RÉSIDENTS en VRAM — `AIModel.model_key` → Go — tous process
   - `model_keys_of(owner: str) -> list[str]` — Clés catalogue du modèle porté par une clé d'owner — [] s'il n'en porte pas, ou si le
   - `model_key_of(owner: str) -> str | None` — Première clé de `model_keys_of` — pour un appelant qui n'en attend qu'une.
+  - `resident_here_gb(model_key: str) -> float` — Go que CE process tient déjà pour `model_key` (ses backends résidents) — 0.0 sinon.
   - `ollama_host_owner(name: str) -> str` — Clé d'owner de la résidence du modèle Ollama `name`.
   - `unseen_reserved_gb(probe: str='driver', exclude: str | None=None) -> float` — VRAM réservée que la SONDE `probe` ne voit pas encore — la seule part à lui retrancher.
   - `mark_used(owner: str) -> bool` — Horodate le dernier USAGE de `owner` (appelé à chaque `process()` d'un backend).
@@ -169,7 +170,7 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une li
   - `tenant_id() -> str` — Identité d'un TENANT = un process (le worker gpu, le service TTS, gunicorn…). Les clés
   - `tenant_of_owner(owner: str) -> str | None` — Tenant (pid) d'une clé d'owner du contrat, None pour une ligne sans process (Ollama hôte).
   - `fits_alone(needed_gb: float) -> bool | None` — `needed_gb` tiendrait-il sur la carte VIDE ? None sans GPU (on ne conclut pas d'une
-  - `task_started(app_id: str, item_id, needed_gb: float=0.0, *, max_s: float | None=None) -> str` — Déclare une tâche GPU EN COURS ; rend son jeton. Posé par le squelette commun autour de
+  - `task_started(app_id: str, item_id, needed_gb: float=0.0, *, max_s: float | None=None, process: str='') -> str` — Déclare une tâche GPU EN COURS ; rend son jeton. Posé par le squelette commun autour de
   - `task_finished(token: str) -> None`
   - `running_tasks() -> list[dict]` — Tâches GPU en cours, tous process confondus — lignes expirées purgées, ET lignes dont le
   - `mark_busy(tenant: str | None=None) -> bool` — Un tenant se déclare OCCUPÉ (le service TTS quand son verrou de synthèse est pris).
@@ -350,15 +351,16 @@ Recherche PAR NOM (casse et accents ignorés) dans ce que l'arbre du gestionnair
 
 ### Squelette de tâche
 
-Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA
+Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA. Depuis le 2026-10-14 le gouverneur y est au grain du PROCESS : avant chaque process GPU (`ProcessSpec.gpu`), attente de VRAM (besoin déclaré, sinon celui du modèle de la card, moins ce que le worker tient) et déclaration « en cours » ; chaque process se joue sur SA file (GPU ou par défaut), la tâche se re-livrant à l'autre entre deux process (`queue_of`, barre et durées du lancement reportées)
 
 - **Domicile** : `wama/common/utils/task_skeleton.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Squelette COMMUN des tâches Celery d'item (brique F5 — marche A2 de la route §10.3).
-- **API publique** (4) :
+- **API publique** (5) :
   - `class TaskContext` — Poignées offertes à la glu : progress + console. `progress_fn` permet à une app de
   - `class TaskTimeLimitExceeded(Exception)` — Le traitement a dépassé sa durée max (`resource_governor.task_time_limit_s`).
   - `class ServiceNotReady(Exception)` — Ce dont le traitement DÉPEND n'est pas encore prêt — un service qui charge (le service TTS
-  - `run_item_task(task, *, app_id: str, model, item_id: int, process=None, vram_needed=None, model_key=None, error_field: str='error_message', ingest_derive=None,…` — Exécute la glu `process` dans le squelette conventionnel. Voir le contrat en tête de
+  - `queue_of(spec) -> str | None` — La FILE Celery où se joue ce process : la file GPU pour un process qui sollicite la carte
+  - `run_item_task(task, *, app_id: str, model, item_id: int, process=None, vram_needed=None, model_key=None, error_field: str='error_message', notify_label: str=No…` — Exécute la glu `process` dans le squelette conventionnel. Voir le contrat en tête de
 
 ### Tests nocturnes
 

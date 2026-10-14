@@ -23761,3 +23761,50 @@ relue, rejouait donc tout — **372 transcriptions réussies étaient encore san
 **Décision ouverte, reformulée** : le backfill ÉCRIT des lignes `SUCCESS` à la lecture d'une page
 et au lancement — à garder ou à borner (par exemple : au lancement seul).
 ⚠ Tant que gunicorn et les workers n'ont pas été relancés, l'ancien code écrit encore `adopted`.
+
+## §PALIER — 2026-10-14, « LE GOUVERNEUR AU GRAIN DU PROCESS ; CHAQUE PROCESS SUR SA FILE » — ✅ LIVRÉ (non poussé) — 🔴 relancer les workers `gpu` ET `default` (+ gunicorn)
+
+🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : relancer les deux workers ENSEMBLE (un worker resté sur
+l'ancien code joue le reste du pipeline sur place : compatible, mais la règle ne vaut qu'une fois
+les deux relancés), puis jouer une conversion avec post-traitement IA et lire `celery-default.log`
+(conversion) puis `celery-gpu.log` (post-traitement) : la ligne « Étape suivante sur la file
+« gpu » » dans la console de la card.
+
+**Question de Fabien** : *« une conversion vidéo longue se fait sur le GPU ou sur le CPU en
+réservant un créneau sur le GPU ? […] déclarer au gouverneur les étapes d'un pipeline de card et
+non le process complet d'une card d'app […] revérifie bien en profondeur si ce n'est pas déjà le
+cas »*. Mesuré : la route l'avait écrit (`ROUTE §10.6` 4.5, nuance du 15/09), seule l'ETA par
+process était livrée — déclaration, attente de VRAM et durée max étaient posées pour la CARD
+(`task_skeleton`), la file était celle du module. Détail et restes : `ROUTE §10.6` 4.5, bloc du
+2026-10-14.
+
+**Livré** (`5cc7ab57` ; + le commit de ce bloc, avec mes seules lignes des docs générées) :
+- `ProcessSpec.gpu` devient la GARDE : file GPU, déclaration « en cours » (`task_started(process=)`),
+  attente de VRAM — au grain du process ; un process sans GPU part sur la file par défaut ;
+- besoin VRAM : déclaré, sinon dérivé du modèle de la card (`auto_model.vram_needed_gb`), moins ce
+  que le worker tient (`resource_governor.resident_here_gb`, neuf) ; copies du composer et de
+  l'enhancer retirées (`REMOVAL_LEDGER R129`) ;
+- re-livraison vers l'autre file (`task.retry(queue=, priority=)`) : barre, secondes et modèles du
+  lancement reportés (`_launch_done`) ; priorité = celle de l'app (MESURÉ : un message sans
+  priorité se relit `priority: 0`) ;
+- sens du drapeau tranché, 8 process LLM/TTS à `gpu=True` (ils étaient déjà sur la file GPU) ;
+  manifestes `pipeline` régénérés (+ rattrapage du corpus cam_analyzer de `d0ecb98d`).
+
+**Gardes** : `tests_process_governance` (13) ; `tests_process_pipeline` (attente dite sur la ligne
+du process, test réécrit) ; `composer.tests_pipeline` (deux tests réécrits) ; `enhancer.tests`.
+Onze contre-épreuves par mutation, toutes ROUGES. Sonde Celery jetable (`hopprobe`) : file,
+palier de priorité et `delivery_info` après re-livraison.
+**Contrôles** : suite complète dans l'arbre (wama, wama_lab, wama_data — 7 782 tests) : 252 rouges,
+dont 237 dans les JUMELLES de bac à sable (mesure de convergence, hors suite ; une seule touchée
+par ce palier : la copie, dans `composer_01`, du test réécrit « l'attente n'écrit aucune ligne ») ;
+hors jumelles, 15 rouges — la liste connue rouge sur HEAD avant le palier (garde de langue,
+tactile, gabarits, surfaces de réglages, disposition des tests, convertisseur, `process_watched`,
+`AddItemToMediaLibraryTest`, docs dérivées) et `box_iou` du cam_analyzer (étranger). Sur le
+commit, en worktree : 975 tests du squelette, du gouverneur et des dix apps — verts, hors deux
+artefacts de worktree (poids d'`AI-models`, un nom de module mal deviné).
+
+**Laissé de côté, nommément** : un appel LLM vers un modèle distant compte encore GPU · besoin
+VRAM = modèle de la card pour tout process GPU (un process ne déclare pas son modèle) ·
+post-traitement du converter sans modèle déclaré (sérialisé, déclaré, sans attente de VRAM) ·
+durée max au grain de la card · cam_analyzer : même règle de file (`Pass.gpu`) hors squelette,
+sans gouverneur.
