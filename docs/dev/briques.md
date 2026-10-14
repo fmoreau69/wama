@@ -257,13 +257,14 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
 
 - **Domicile** : `wama/common/services/process_runs.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lignes d'exécution des process — la pièce du MOTEUR COMMUN de pipeline qui dit « tel process, pour telle card, dans tel état ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 4.1 à 4.5 (marche P3).
-- **API publique** (21) :
+- **API publique** (22) :
   - `address(item) -> dict` — Adresse d'un élément : `{app, object_type, object_id}` — dérivée de l'élément SEUL, pour
   - `lines(item)` — Les lignes d'exécution d'un élément (une requête, ordonnée par nœud).
   - `lines_by_item(items) -> dict` — `{pk (texte): [lignes]}` des éléments d'UN même modèle — UNE requête pour toute une page
   - `line(item, node_id: str=MAIN_NODE, instance_key: str='')` — La ligne d'un nœud, ou None s'il n'a jamais été lancé.
   - `snapshot(settings, watched) -> dict` — Photo des réglages SURVEILLÉS : `{clé: valeur}` pour chaque clé de `watched`, lue d'un
   - `plan(item, steps, *, task_id: str='') -> int` — Le lancement ANNONCE les process qu'il va jouer : leurs lignes passent `PENDING` — « son
+  - `rendered_before(row, task_id: str='') -> bool` — La photo de réglages de `row` est-elle celle d'un RENDU (un succès, ou un succès devenu
   - `start(item, node_id: str=MAIN_NODE, *, process_key: str='', kind: str='app', version: str='', instance_key: str='', settings_snapshot: dict | None=None, model_…` — Le process PART : la ligne passe `RUNNING`, sa photo de réglages est prise, l'erreur et
   - `await_resources(item, node_id: str=MAIN_NODE, *, process_key: str='', instance_key: str='', task_id: str='')` — Le tour du process est venu, la VRAM libre ne suffit pas : la ligne le dit, sans effacer
   - `succeed(item, node_id: str=MAIN_NODE, *, instance_key: str='', output_ref: str='', output_summary: dict | None=None, model_key: str | None=None, process_key: s…` — Le process a RENDU son résultat : `SUCCESS`, durée mesurée depuis `start`.
@@ -2484,7 +2485,7 @@ PRÉFÉRENCE d'affichage, appliquée APRÈS le droit et seulement à l'affichage
 
 ### Accès aux éléments (apps aujourd'hui)
 
-Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du compte (anonymous < utilisateur < developpeur < admin, tranche en premier) et les RÔLES métier (groupes `role:*`, intersection avec la politique de l'app). Le compte de service `anonymous` y est FERMÉ par code, pas par état de base. Signature GÉNÉRALE depuis S2 — accessible(user, kind, element_id) : chaque FAMILLE d'élément déclare dans KIND_DECISION qui décide pour elle, un kind inconnu LÈVE, et une décision unique ne garde que ce que ses POINTS D'APPLICATION lisent réellement (§8.9). Un outil gardé est une PAGE (card ou `register_surface`) ou, depuis le 2026-10-13, un OUTIL SANS PAGE (`register_pageless_tool` : gestionnaire de fichiers, assistant — chemins gardés déclarés, l'assistant gardé aussi dans `conversation_turn`). `access_cases()` énumère tous les cas pour la présentation
+Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du compte (anonymous < utilisateur < developpeur < admin, tranche en premier) et les RÔLES métier (groupes `role:*`, intersection avec la politique de l'app). Le compte de service `anonymous` y est FERMÉ par code, pas par état de base. Signature GÉNÉRALE depuis S2 — accessible(user, kind, element_id) : chaque FAMILLE d'élément déclare dans KIND_DECISION qui décide pour elle, un kind inconnu LÈVE, et une décision unique ne garde que ce que ses POINTS D'APPLICATION lisent réellement (§8.9). Un outil gardé est une PAGE (card ou `register_surface`) ou, depuis le 2026-10-13, un OUTIL SANS PAGE (`register_pageless_tool` : gestionnaire de fichiers, assistant — routes résolues comme celles de toute app, l'assistant gardé aussi dans `conversation_turn`). `access_cases()` énumère tous les cas pour la présentation
 
 - **Domicile** : `wama/accounts/permissions.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Modèle d'accès WAMA à DEUX AXES (voir PROFILES_PERMISSIONS.md) : - PROFIL DE COMPTE (tier, unique, hiérarchique) : anonymous < utilisateur < developpeur < admin. - RÔLES MÉTIER (cumulatifs, = Django Groups préfixés 'role:') : communication / recherche / …
@@ -2737,7 +2738,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) : dans son entr�
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (35) :
+- **API publique** (36) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -2756,9 +2757,10 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) : dans son entr�
   - `world_label(world: str) -> str` — Libellé d'un monde ; le nom brut si le monde est inconnu (jamais une chaîne vide).
   - `register_app_world(app_id: str, world: str) -> None` — Déclare le monde d'une app hors catalogue. Refuse un monde hors vocabulaire, et refuse
   - `register_surface(app_id: str, *, world: str, label: str, url_name: str, icon: str, description: str='', color: str | None=None, nav_hide: bool=False, order: in…` — Déclare la PAGE d'une app hors catalogue : son monde et son identité (libellé, route,
-  - `register_pageless_tool(app_id: str, *, world: str, label: str, icon: str, paths: tuple, probe: str, description: str='') -> None` — Déclare un outil gardé SANS PAGE : son monde, son identité et ses chemins gardés.
+  - `register_pageless_tool(app_id: str, *, world: str, label: str, icon: str, probe: str, description: str='') -> None` — Déclare un outil gardé SANS PAGE : son monde et son identité. Idempotent, comme
   - `pageless_tools() -> list` — Les outils sans page déclarés (copies), par libellé.
-  - `pageless_tool_for_path(path: str) -> str | None` — L'outil sans page qu'un chemin de requête désigne, ou None.
+  - `pageless_tool_for(app: str) -> dict | None` — L'outil sans page `app`, ou None — le pendant de `surface_for`.
+  - `declared_identity(app: str) -> dict | None` — L'identité DÉCLARÉE d'une app hors catalogue (libellé, monde, description…) : sa surface,
   - `surfaces(world: str | None=None) -> list` — Surfaces déclarées (copies), d'un monde ou de tous, dans l'ordre de leur section.
   - `surface_for(app: str) -> dict | None` — Surface d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —, ou None. Le
   - `app_media_folders(app_id: str) -> tuple` — Dossiers qu'une app montre dans l'explorateur de fichiers : `((sous-dossier, libellé), …)`.
@@ -2976,7 +2978,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (35) :
+- **API publique** (36) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -2995,9 +2997,10 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `world_label(world: str) -> str` — Libellé d'un monde ; le nom brut si le monde est inconnu (jamais une chaîne vide).
   - `register_app_world(app_id: str, world: str) -> None` — Déclare le monde d'une app hors catalogue. Refuse un monde hors vocabulaire, et refuse
   - `register_surface(app_id: str, *, world: str, label: str, url_name: str, icon: str, description: str='', color: str | None=None, nav_hide: bool=False, order: in…` — Déclare la PAGE d'une app hors catalogue : son monde et son identité (libellé, route,
-  - `register_pageless_tool(app_id: str, *, world: str, label: str, icon: str, paths: tuple, probe: str, description: str='') -> None` — Déclare un outil gardé SANS PAGE : son monde, son identité et ses chemins gardés.
+  - `register_pageless_tool(app_id: str, *, world: str, label: str, icon: str, probe: str, description: str='') -> None` — Déclare un outil gardé SANS PAGE : son monde et son identité. Idempotent, comme
   - `pageless_tools() -> list` — Les outils sans page déclarés (copies), par libellé.
-  - `pageless_tool_for_path(path: str) -> str | None` — L'outil sans page qu'un chemin de requête désigne, ou None.
+  - `pageless_tool_for(app: str) -> dict | None` — L'outil sans page `app`, ou None — le pendant de `surface_for`.
+  - `declared_identity(app: str) -> dict | None` — L'identité DÉCLARÉE d'une app hors catalogue (libellé, monde, description…) : sa surface,
   - `surfaces(world: str | None=None) -> list` — Surfaces déclarées (copies), d'un monde ou de tous, dans l'ordre de leur section.
   - `surface_for(app: str) -> dict | None` — Surface d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —, ou None. Le
   - `app_media_folders(app_id: str) -> tuple` — Dossiers qu'une app montre dans l'explorateur de fichiers : `((sous-dossier, libellé), …)`.
