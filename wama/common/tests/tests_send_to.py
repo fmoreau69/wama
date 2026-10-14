@@ -429,6 +429,179 @@ class ElementPourCheminTest(TestCase):
         self.assertEqual((None, None), item_for_output_path(AnonymousUser(), 'users/1/converter/output/a.webp'))
 
 
+def _surfaces_with_batches():
+    """`(surface, modèle d'élément)` de chaque surface à LOT — registre de preview, jumelles de
+    bac à sable exclues (leurs tables ne sont pas celles de la base de test). Aucune app nommée :
+    une app de plus est couverte sans toucher ce fichier."""
+    from wama.common.app_registry import APP_CATALOG
+    from wama.common.utils.batch_common import batch_model_for_app
+    from wama.common.utils.preview_registry import PreviewRegistry
+    found = []
+    for surface in PreviewRegistry.list_registered():
+        spec = APP_CATALOG.get(surface) or {}
+        if spec.get('generated_from') or spec.get('sandbox'):
+            continue
+        model = PreviewRegistry.get_model(surface)
+        if model is not None and batch_model_for_app(surface) is not None:
+            found.append((surface, model))
+    return found
+
+
+class BatchSendToContractTest(TestCase):
+    """« Envoyer le lot vers… » (2026-10-14) — contrat GÉNÉRIQUE, toutes les surfaces à lot.
+
+    Un lot envoie exactement la somme de ses cards : les sorties de `sorties_de`, élément par
+    élément, dans l'ordre des lignes ; les éléments sans sortie sont comptés, jamais envoyés.
+    """
+
+    def setUp(self):
+        self.u = _utilisateur('batch_send_contract')
+        self.client.force_login(self.u)
+
+    def _url(self, surface, pk):
+        return reverse('common:api_send_batch_to', args=[surface, pk])
+
+    def test_every_batch_sends_the_outputs_of_its_cards_in_row_order(self):
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        surfaces = _surfaces_with_batches()
+        self.assertGreaterEqual(len(surfaces), 10, [s for s, _ in surfaces])
+        for surface, model in surfaces:
+            with self.subTest(surface=surface):
+                batch, elements = _lot_de(model, self.u, 2)
+                response = self.client.get(self._url(surface, batch.pk))
+                self.assertEqual(200, response.status_code, response.content[:200])
+                data = response.json()
+                expected = []
+                for element in elements:
+                    expected += [p for p in sorties_de(surface, element) if p not in expected]
+                self.assertEqual(expected, data['chemins'])
+                self.assertEqual(2, data['elements'])
+                self.assertEqual(sum(not sorties_de(surface, e) for e in elements),
+                                 data['without_output'])
+                # L'envoi passe par l'import EXISTANT — rendu, jamais écrit dans le JS.
+                self.assertEqual(reverse('filemanager:api_import'), data['endpoint'])
+
+    def test_a_batch_of_another_user_is_never_resolved(self):
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        other = _utilisateur('batch_send_other')
+        for surface, model in _surfaces_with_batches():
+            with self.subTest(surface=surface):
+                batch, _ = _lot_de(model, other, 1)
+                self.assertEqual(404, self.client.get(self._url(surface, batch.pk)).status_code)
+
+    def test_an_unknown_surface_answers_404(self):
+        self.assertEqual(404, self.client.get(self._url('not_an_app', 1)).status_code)
+
+
+class BatchSendToConverterTest(TestCase):
+    """Le cas concret, sur des sorties réelles : ordre, élément sans résultat, partiel annoncé."""
+
+    def setUp(self):
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        from wama.common.utils.media_paths import app_media_dir
+        from wama.converter.models import ConversionJob
+        self.u = _utilisateur('batch_send_converter')
+        self.client.force_login(self.u)
+        self.batch, jobs = _lot_de(ConversionJob, self.u, 3)
+        folder = app_media_dir('converter', self.u.id, 'output')
+        # Lignes 0 et 2 rendues, ligne 1 sans résultat ; un .wav pour mêler deux formats.
+        for job, name in zip(jobs, ('b.png', '', 'a.wav')):
+            job.output_file.name = f'{folder}/{name}' if name else ''
+            job.save(update_fields=['output_file'])
+        self.expected = [f'{folder}/b.png', f'{folder}/a.wav']
+
+    def _get(self):
+        response = self.client.get(reverse('common:api_send_batch_to',
+                                           args=['converter', self.batch.pk]))
+        self.assertEqual(200, response.status_code, response.content[:200])
+        return response.json()
+
+    def test_the_outputs_leave_in_row_order_and_the_missing_one_is_counted(self):
+        data = self._get()
+        self.assertEqual(self.expected, data['chemins'])
+        self.assertEqual((3, 1), (data['elements'], data['without_output']))
+
+    def test_each_destination_says_which_files_it_takes(self):
+        from wama.common.app_registry import APP_CATALOG
+        data = self._get()
+        self.assertTrue(data['destinations'], 'aucune app pour png + wav, même en partiel')
+        for destination in data['destinations']:
+            accepted = {e.lower() for e in
+                        (APP_CATALOG.get(destination['app']) or {}).get('input_extensions', ())}
+            self.assertTrue(destination['acceptes'], destination)
+            for path in destination['acceptes']:
+                self.assertIn(path, self.expected)
+                self.assertIn('.' + path.rsplit('.', 1)[-1], accepted, destination)
+
+    def test_every_resolved_path_passes_the_import_guard(self):
+        from wama.filemanager.views import is_path_allowed
+        for path in self._get()['chemins']:
+            self.assertTrue(is_path_allowed(path, self.u), path)
+
+    def test_resolving_changes_nothing(self):
+        before = list(self.batch.items.order_by('batch_row_index')
+                      .values_list('pk', 'output_file'))
+        self._get()
+        self.assertEqual(before, list(self.batch.items.order_by('batch_row_index')
+                                      .values_list('pk', 'output_file')))
+
+
+class BatchSentArrivesAsABatchTest(TestCase):
+    """Le geste ENTIER, par les deux endpoints réels : résoudre le lot, puis l'envoyer comme le
+    fait la brique JS — les fichiers arrivent en UN lot chez la destination (regroupement « par
+    arrivée » de l'import), dans l'ordre des lignes du lot source."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from pathlib import Path
+        from django.test import override_settings
+        media = tempfile.mkdtemp(prefix='wama_batch_send_')
+        self.addCleanup(shutil.rmtree, media, ignore_errors=True)
+        setting = override_settings(MEDIA_ROOT=media)
+        setting.enable()
+        self.addCleanup(setting.disable)
+        self.media = Path(media)
+        self.u = User.objects.create_user('batch_send_e2e', password='x', is_staff=True,
+                                          is_superuser=True)
+        self.client.force_login(self.u)
+
+    def test_a_converter_batch_sent_to_the_reader_arrives_as_one_batch(self):
+        import io
+        import json
+        from PIL import Image
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        from wama.common.utils.media_paths import app_media_dir
+        from wama.converter.models import ConversionJob
+        from wama.reader.models import BatchReadingItem, ReadingItem
+        batch, jobs = _lot_de(ConversionJob, self.u, 2)
+        folder = app_media_dir('converter', self.u.id, 'output')
+        for job, name in zip(jobs, ('first.png', 'second.png')):
+            buffer = io.BytesIO()
+            Image.new('RGB', (8, 8), (20, 120, 200)).save(buffer, format='PNG')
+            (self.media / folder).mkdir(parents=True, exist_ok=True)
+            (self.media / folder / name).write_bytes(buffer.getvalue())
+            job.output_file.name = f'{folder}/{name}'
+            job.save(update_fields=['output_file'])
+
+        resolved = self.client.get(reverse('common:api_send_batch_to',
+                                           args=['converter', batch.pk])).json()
+        reader = next(d for d in resolved['destinations'] if d['app'] == 'reader')
+        before = set(BatchReadingItem.objects.filter(user=self.u).values_list('pk', flat=True))
+        sent = self.client.post(resolved['endpoint'],
+                                json.dumps({'paths': reader['acceptes'], 'app': 'reader'}),
+                                content_type='application/json')
+        self.assertEqual(200, sent.status_code, sent.content[:300])
+        self.assertEqual(2, sent.json()['count'], sent.json())
+
+        new_batches = BatchReadingItem.objects.filter(user=self.u).exclude(pk__in=before)
+        self.assertEqual(1, new_batches.count(), 'le lot envoyé est arrivé en plusieurs morceaux')
+        names = [link.reading.original_filename
+                 for link in new_batches.get().items.select_related('reading').order_by('row_index')]
+        self.assertEqual(['first.png', 'second.png'], names)
+        self.assertEqual(2, ReadingItem.objects.filter(user=self.u).count())
+
+
 class ApiElementPourCheminTest(TestCase):
     """L'endpoint du menu de l'arbre : même garde de chemin que l'import, coordonnées ou nulls."""
 

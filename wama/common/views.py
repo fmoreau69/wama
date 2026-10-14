@@ -2212,6 +2212,43 @@ def api_envoyer_vers(request, surface: str, pk: int):
 
 
 @login_required
+def api_send_batch_to(request, surface: str, pk: int):
+    """ENVOYER LE LOT VERS — le résolveur d'`api_envoyer_vers`, pour la card MÈRE (2026-10-14).
+
+    Mêmes trois pièces, aucune nouvelle : les sorties de CHAQUE élément du lot
+    (`send_to.batch_outputs`), les destinations dérivées (`send_to.destinations`), et l'endpoint
+    qui reçoit (`filemanager:api_import`). Les fichiers partent dans UNE requête : l'import les
+    range alors en lot chez la destination (regroupement « par arrivée »), comme une sélection
+    de l'arbre de fichiers.
+
+    En PARTIEL ANNONCÉ, comme une sélection (`destinations(partiel=True)`) : un lot peut mêler
+    des formats (images et vidéos d'un imager), et chaque destination dit quels fichiers elle
+    prend. Les éléments SANS résultat sont comptés (`without_output`) : le menu le dit.
+    Même périmètre que l'élément et que le partage d'un lot : un lot étranger rend 404.
+    """
+    from django.shortcuts import get_object_or_404
+    from django.urls import reverse
+    from wama.common.services.send_to import batch_outputs, destinations
+    from wama.common.utils.batch_common import batch_model_for_app
+
+    batch_model = batch_model_for_app(surface)
+    if batch_model is None:
+        return JsonResponse({'error': f"{surface} n'a pas de modèle de lot"}, status=404)
+    batch = get_object_or_404(batch_model, pk=pk, user=request.user)
+
+    paths, elements, without_output = batch_outputs(surface, batch)
+    return JsonResponse({
+        'ok': True, 'surface': surface, 'pk': pk, 'nature': 'lot',
+        # Mêmes clés que le résolveur d'un élément : le client les lit avec le même code.
+        'chemins': paths,
+        'destinations': destinations(request.user, paths, partiel=True),
+        'endpoint': reverse('filemanager:api_import'),
+        'elements': elements,
+        'without_output': without_output,
+    })
+
+
+@login_required
 def api_result_reference(request, surface: str, nature: str, pk: int):
     """RÉSULTAT DE RÉFÉRENCE d'un élément ou d'un lot — le port `reference_result`.
 

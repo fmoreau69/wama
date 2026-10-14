@@ -77,6 +77,35 @@ def sorties_de(surface: str, instance) -> list:
     return chemins
 
 
+def batch_outputs(surface: str, batch) -> tuple:
+    """Les sorties DÉCLARÉES de tous les éléments d'un LOT — `(chemins, éléments, sans_sortie)`.
+
+    « Envoyer le lot vers… » (2026-10-14, demande de Fabien : « envoyer un batch d'une app à une
+    autre comme on le fait déjà pour une card fille ou unitaire »). Rien de neuf : les éléments
+    viennent de `batch_elements` (dans l'ORDRE DES LIGNES — l'ordre d'arrivée chez la
+    destination, que l'import conserve), et la sortie de chacun de `sorties_de`, l'accesseur de
+    la card. Un lot est donc exactement la somme de ses cards.
+
+    Un élément sans résultat (pas encore traité, en échec) ne part pas ; il est COMPTÉ, pour que
+    le menu le dise au lieu d'envoyer en silence moins que le lot. Un chemin commun à deux
+    éléments ne part qu'une fois.
+    """
+    from wama.common.utils.batch_common import batch_elements
+    from wama.common.utils.preview_registry import PreviewRegistry
+
+    elements = list(batch_elements(batch, PreviewRegistry.get_model(surface)))
+    paths, seen, without_output = [], set(), 0
+    for element in elements:
+        outputs = sorties_de(surface, element)
+        if not outputs:
+            without_output += 1
+        for path in outputs:
+            if path not in seen:
+                seen.add(path)
+                paths.append(path)
+    return paths, len(elements), without_output
+
+
 def _requete_candidats(model, chemin: str):
     """La requête qui SÉLECTIONNE les candidats sans connaître l'app : un `FileField` égal au
     chemin (9 apps sur 10 rangent leur sortie ainsi), ou un `JSONField` qui CONTIENT le nom du

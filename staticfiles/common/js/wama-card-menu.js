@@ -783,6 +783,19 @@
                 charger: function () { return WamaSendTo.entrees(card); },
             });
         }
+        // ENVOYER LE LOT VERS (2026-10-14, demande de Fabien) — la même entrée sur la card MÈRE :
+        // les sorties de TOUS ses éléments, un seul envoi, rangé en lot chez la destination.
+        // Pas sur un lot REÇU : le résolveur ne sert que les lots de l'utilisateur (comme pour un
+        // élément), l'offrir n'ouvrirait qu'un sous-menu vide.
+        if (cibles.length === 1 && estLot && !recue && global.WamaSendTo && WamaSendTo.entriesForBatch
+                && global.WamaShare && WamaShare.coordonneesDuLot(card)) {
+            entrees.push({
+                icone: 'fas fa-share-from-square', libelle: 'Envoyer le lot vers…',
+                sous: [{ chargement: true }],
+                videLibelle: 'Aucune app ne prend ces formats',
+                charger: function () { return WamaSendTo.entriesForBatch(card); },
+            });
+        }
 
         // ── LES DEUX « SORTIES COMPLÉMENTAIRES » : médiathèque + RAG (`entreesGarder`) ───────
         // Une card UNITAIRE qui porte ses coordonnées. Le bloc lui-même vit plus haut, partagé

@@ -141,6 +141,7 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 |---|---|---|
 | Partager… | 2026-09-08 | modale ; une card à la fois |
 | Envoyer vers… | 2026-09-08 | sous-menu **chargé à l'ouverture** |
+| **Envoyer le lot vers…** | **2026-10-14** | le même, sur la card **MÈRE** : les sorties de toutes ses cards |
 | **Ajouter à la médiathèque…** | **2026-09-11** | sous-menu des **RÔLES** admissibles — ✓ = déjà rangé, clic = retrait (2026-09-14) |
 | **Ajouter au RAG** | **2026-09-11** | action directe |
 
@@ -173,6 +174,23 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 - ⭐ **« Envoyer vers… » : UNE source, au serveur** (2026-09-14) : l'arbre de fichiers et la card
   interrogent le même résolveur (`common/services/send_to.py`). Une sortie de card reste en
   tout-ou-rien ; une sélection mêlée de l'arbre est en **partiel annoncé** (« Imager (1/2 fichiers) »).
+- ⭐ **« Envoyer le lot vers… »** (2026-10-14, demande de Fabien : « envoyer un batch d'une app à une
+  autre comme on le fait déjà pour une card fille ou unitaire »). La card mère n'avait que le partage,
+  le transfert, la programmation et la référence. Rien de neuf côté serveur : le résolveur du lot
+  (`common:api_send_batch_to`, `send_to.batch_outputs`) prend les éléments par `batch_elements`
+  (ordre des lignes) et la sortie de chacun par `sorties_de`, l'accesseur de la card. L'envoi passe
+  ensuite par `filemanager:api_import`, en UNE requête, et l'import range les fichiers **en lot chez
+  la destination** (regroupement « par arrivée »). Le geste est en **partiel annoncé**, comme une
+  sélection, parce qu'un lot peut mêler des formats. Les éléments sans résultat ne partent pas, et le
+  sous-menu le dit (« 1 élément sans résultat — non envoyé »). L'entrée n'est pas offerte sur un lot
+  REÇU, faute de résolveur pour un lot d'autrui.
+  Gardes : `BatchSendToContractTest` (générique, 11 surfaces à lot), `BatchSendToConverterTest`,
+  `BatchSentArrivesAsABatchTest` (le geste entier, deux endpoints réels), `BatchSendToMenuUnderV8Test`,
+  `BatchSendToEntriesUnderV8Test`.
+  ⚠ **La réception ne regroupe pas partout.** Le regroupement à l'arrivée est une liste écrite dans
+  `api_import_to_app`, qui couvre reader, anonymizer, describer, transcriber, enhancer et converter.
+  Un lot envoyé à l'**imager** (images de référence) ou au **synthesizer** (textes) arrive donc en
+  cards séparées, comme une sélection de l'arbre aujourd'hui.
 - ⚠ **Le « … » suit les cards insérées ou remplacées** (2026-09-15). Il n'était posé qu'au chargement de la
   page : une card redemandée au serveur (lot réduit à une card, `refreshCard` d'une app) arrivait sans lui,
   alors que le clic droit — délégué sur la file — la voyait. La brique observe désormais la file. **Il reste

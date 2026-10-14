@@ -138,6 +138,9 @@ urlpatterns = [
          name='api_envoyer_vers_chemins'),
     path('api/envoyer-vers/<str:surface>/<int:pk>/', views.api_envoyer_vers,
          name='api_envoyer_vers'),
+    # …et pour un LOT (card mère) : les sorties de tous ses éléments, même envoi (2026-10-14).
+    path('api/envoyer-vers/<str:surface>/lot/<int:pk>/', views.api_send_batch_to,
+         name='api_send_batch_to'),
     # RÉSULTAT DE RÉFÉRENCE (port `reference_result`) — même forme que le partage : un élément
     # ou un lot, une route pour toutes les surfaces qui DÉCLARENT leur évaluation.
     path('api/result-reference/<str:surface>/<str:nature>/<int:pk>/',

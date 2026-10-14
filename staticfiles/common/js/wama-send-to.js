@@ -6,7 +6,8 @@
  *
  * DEUX APPELS, ET AUCUN DISPATCH NOUVEAU :
  *   ① `/common/api/envoyer-vers/<surface>/<pk>/` (GET) — RÉSOLVEUR : les chemins de sortie
- *      déclarés, les apps éligibles, et l'endpoint qui reçoit ;
+ *      déclarés, les apps éligibles, et l'endpoint qui reçoit — `…/<surface>/lot/<pk>/` pour un
+ *      LOT (2026-10-14) : les sorties de tous ses éléments, même réponse ;
  *   ② cet endpoint, `filemanager:api_import` — celui qui sert DÉJÀ « Envoyer vers… » depuis le
  *      gestionnaire de fichiers (critère de grille `filemanager_import` 10/10, scénario nocturne
  *      `<app>.send_to`). On ne réimplémente donc ni l'import ni ses gardes : il revalide
@@ -186,9 +187,57 @@
         });
     }
 
+    /** Résout les sorties d'un LOT — celles de tous ses éléments (`api_send_batch_to`). */
+    function resolveBatch(surface, pk) {
+        return fetch('/common/api/envoyer-vers/' + encodeURIComponent(surface) + '/lot/'
+                     + encodeURIComponent(pk) + '/', { credentials: 'same-origin' })
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            });
+    }
+
+    /**
+     * « Envoyer le lot vers… » (2026-10-14) — les entrées pour la card MÈRE d'un lot.
+     *
+     * Les sorties de tous les éléments partent en UN envoi : l'import les range en lot chez la
+     * destination. Partiel ANNONCÉ, comme une sélection de l'arbre : une app qui ne prend qu'une
+     * partie des fichiers le dit dans son libellé. Les éléments sans résultat ne partent pas,
+     * et le sous-menu le DIT sous les destinations. Coordonnées du lot = celles du partage
+     * (`WamaShare.coordonneesDuLot` : pk sur l'enveloppe, surface lue sur une fille).
+     */
+    function entriesForBatch(card) {
+        var c = (global.WamaShare && WamaShare.coordonneesDuLot) ? WamaShare.coordonneesDuLot(card) : null;
+        if (!c) return Promise.resolve([]);
+        return resolveBatch(c.surface, c.pk).then(function (d) {
+            var paths = (d && d.chemins) || [];
+            if (!paths.length) {
+                return [{ vide: true, libelle: 'Aucun résultat dans ce lot pour l’instant' }];
+            }
+            var entries = (d.destinations || []).map(function (dest) {
+                var accepted = dest.acceptes || paths;
+                return {
+                    icone: dest.icone || 'fas fa-cube',
+                    libelle: accepted.length < paths.length
+                        ? dest.libelle + ' (' + accepted.length + '/' + paths.length + ' fichiers)'
+                        : dest.libelle,
+                    agir: function () { envoyer(d.endpoint, accepted, dest.app, dest.libelle); },
+                };
+            });
+            var missing = d.without_output || 0;
+            if (entries.length && missing) {
+                entries.push({ separateur: true });
+                entries.push({ vide: true, libelle: missing + ' élément' + (missing > 1 ? 's' : '')
+                               + ' sans résultat — non envoyé' + (missing > 1 ? 's' : '') });
+            }
+            return entries;
+        });
+    }
+
     global.WamaSendTo = { entrees: entrees, coordonnees: coordonnees,
                           resoudre: resoudre, envoyer: envoyer,
                           resoudreChemins: resoudreChemins,
                           entreesPourChemins: entreesPourChemins,
-                          entreesPourDossier: entreesPourDossier };
+                          entreesPourDossier: entreesPourDossier,
+                          resolveBatch: resolveBatch, entriesForBatch: entriesForBatch };
 })(window);

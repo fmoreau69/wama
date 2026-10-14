@@ -1077,3 +1077,143 @@ class SousMenuMediathequeSousV8Test(TestCase):
         self.ctx.eval('__sous[0].agir()')
         self.assertEqual(json_v8(self.ctx, '__posts[0].champs'),
                          {'asset_type': 'image', 'output_format': ''})
+
+
+# ── « Envoyer le lot vers… » (2026-10-14) ─────────────────────────────────────────────────────
+#
+# La card MÈRE d'un lot avait le partage, le transfert, la programmation, la référence — pas
+# l'envoi vers une autre app, que seules les cards d'élément portaient. Le menu ET le
+# constructeur de sous-menu (`wama-send-to.js`) sont exécutés ici sous V8.
+
+_MOTHER_CARD = """
+var __batchAsked = [];
+var __received = null;
+var motherCard = {
+  dataset: {}, textContent: ' mon lot ',
+  classList: { contains: function (c) { return c === 'is-batch'; } },
+  closest: function (sel) {
+    if (sel === '[data-wama-dnd]') return __file;
+    if (sel === '[data-received-from]') return __received;
+    return null;
+  },
+  querySelector: function () { return null; },
+};
+WamaShare.coordonneesDuLot = function (card) {
+  return card === motherCard ? { surface: 'converter', pk: '9', nature: 'lot' } : null;
+};
+WamaSendTo.entriesForBatch = function (card) {
+  __batchAsked.push(card === motherCard); return Promise.resolve([]);
+};
+"""
+
+MOTHER_LABELS = "WamaCardMenu.entreesCompletes(motherCard, [motherCard])." + LIBELLES
+
+
+class BatchSendToMenuUnderV8Test(TestCase):
+
+    def setUp(self):
+        self.ctx = brique_menu_sous_v8(_MOTHER_CARD)
+        if self.ctx is None:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+
+    def test_the_mother_card_offers_sending_the_batch_where_a_card_offers_sending_itself(self):
+        self.assertEqual(json_v8(self.ctx, MOTHER_LABELS), ['Partager le lot…', 'Envoyer le lot vers…'])
+
+    def test_the_submenu_is_built_by_the_send_to_brick_for_this_card(self):
+        self.ctx.eval("var __entry = WamaCardMenu.entreesCompletes(motherCard, [motherCard])"
+                      ".filter(function (e) { return e.libelle === 'Envoyer le lot vers…'; })[0];"
+                      "__entry.charger();")
+        self.assertEqual(json_v8(self.ctx, '__batchAsked'), [True])
+        self.assertEqual(json_v8(self.ctx, '__entry.sous'), [{'chargement': True}])
+        self.assertTrue(json_v8(self.ctx, '__entry.videLibelle'))
+
+    def test_a_received_batch_is_not_offered_to_be_sent(self):
+        """Le résolveur ne sert que les lots de l'utilisateur : l'entrée n'ouvrirait qu'un vide."""
+        self.ctx.eval("__received = { classList: { contains: function () { return true; } } };")
+        self.assertNotIn('Envoyer le lot vers…', json_v8(self.ctx, MOTHER_LABELS))
+
+    def test_an_element_card_keeps_its_own_entry_and_never_the_batch_one(self):
+        vus = json_v8(self.ctx, "(function () { var c = carteFactice({surface: 'converter', pk: '7'});"
+                                "return WamaCardMenu.entreesCompletes(c, [c])." + LIBELLES + "; })()")
+        self.assertIn('Envoyer vers…', vus)
+        self.assertNotIn('Envoyer le lot vers…', vus)
+
+    def test_without_the_batch_resolver_the_entry_disappears_without_breaking(self):
+        self.ctx.eval('WamaSendTo.entriesForBatch = undefined')
+        self.assertEqual(json_v8(self.ctx, MOTHER_LABELS), ['Partager le lot…'])
+
+
+class BatchSendToEntriesUnderV8Test(TestCase):
+    """`WamaSendTo.entriesForBatch` (la SOURCE `wama-send-to.js`) : une requête au résolveur du
+    lot, un libellé qui annonce le partiel, les éléments sans résultat DITS, et l'envoi des
+    seuls fichiers que l'app prend — vers l'endpoint RENDU."""
+
+    PRELUDE = """
+    var __posts = [], __toasts = [];
+    var __resolved = null;
+    var CustomEvent = function (name, init) { this.type = name; this.detail = init && init.detail; };
+    document.dispatchEvent = function () {};
+    var WamaApp = { toast: function (m, t) { __toasts.push([t, m]); } };
+    fetch = function (url, init) {
+      if (init && init.method === 'POST') {
+        __posts.push({ url: String(url), body: JSON.parse(init.body) });
+        return Promise.resolve({ ok: true, json: function () {
+          return Promise.resolve({ imported: true, count: 1, results: [{ id: 1 }], errors: [] }); } });
+      }
+      __fetch.push(String(url));
+      return Promise.resolve({ ok: true, json: function () { return Promise.resolve(__resolved); } });
+    };
+    WamaShare.coordonneesDuLot = function () { return { surface: 'converter', pk: '9', nature: 'lot' }; };
+    """
+
+    def setUp(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+        self.ctx = MiniRacer()
+        self.ctx.eval(_DOM_FACTICE + self.PRELUDE)
+        self.ctx.eval((RACINE / 'wama' / 'common' / 'static' / 'common' / 'js'
+                       / 'wama-send-to.js').read_text(encoding='utf-8'))
+
+    def _entries(self, resolved):
+        import json
+        self.ctx.eval('__resolved = ' + json.dumps(resolved) + ';'
+                      'var __entries = null; WamaSendTo.entriesForBatch({})'
+                      '.then(function (l) { __entries = l; });')
+        return json_v8(self.ctx, '__entries')
+
+    RESOLVED = {'chemins': ['o/a.png', 'o/b.wav'], 'endpoint': '/import-endpoint/',
+                'elements': 3, 'without_output': 1,
+                'destinations': [
+                    {'app': 'reader', 'libelle': 'Reader', 'icone': 'fa-r', 'acceptes': ['o/a.png']},
+                    {'app': 'converter', 'libelle': 'Converter', 'icone': 'fa-c',
+                     'acceptes': ['o/a.png', 'o/b.wav']}]}
+
+    def test_the_batch_resolver_is_asked_once(self):
+        self._entries(self.RESOLVED)
+        self.assertEqual(json_v8(self.ctx, '__fetch'), ['/common/api/envoyer-vers/converter/lot/9/'])
+
+    def test_a_partial_destination_says_how_many_files_it_takes_and_the_missing_results_are_said(self):
+        entries = self._entries(self.RESOLVED)
+        self.assertEqual([e.get('libelle') for e in entries],
+                         ['Reader (1/2 fichiers)', 'Converter', None,
+                          '1 élément sans résultat — non envoyé'])
+        self.assertTrue(entries[2].get('separateur'))
+        self.assertTrue(entries[3].get('vide'))
+
+    def test_sending_posts_only_the_accepted_files_to_the_rendered_endpoint(self):
+        self._entries(self.RESOLVED)
+        self.ctx.eval('__entries[0].agir()')
+        self.assertEqual(json_v8(self.ctx, '__posts'),
+                         [{'url': '/import-endpoint/', 'body': {'paths': ['o/a.png'], 'app': 'reader'}}])
+
+    def test_a_batch_without_any_result_says_so(self):
+        entries = self._entries({'chemins': [], 'destinations': [], 'endpoint': '/x/',
+                                 'elements': 2, 'without_output': 2})
+        self.assertEqual(entries, [{'vide': True, 'libelle': 'Aucun résultat dans ce lot pour l’instant'}])
+
+    def test_no_destination_leaves_the_list_empty_for_the_menu_to_say(self):
+        """Le menu affiche alors son `videLibelle` — pas une ligne « sans résultat » orpheline."""
+        self.assertEqual(self._entries({'chemins': ['o/a.zzz'], 'destinations': [], 'endpoint': '/x/',
+                                        'elements': 2, 'without_output': 1}), [])
