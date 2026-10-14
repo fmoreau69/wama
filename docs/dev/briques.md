@@ -771,7 +771,7 @@ Programmer le lancement d'une card, d'une sélection ou d'un lot — menu commun
 
 ### Ajout au RAG (geste explicite)
 
-Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique, aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision
+Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique, aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision. Surfaces : inspecteur, menu « … » des cards, arbre de fichiers et assistant (outils `add_item_to_rag` / `add_file_to_rag`) — UN endpoint, deux gestes de la brique (`memory.index.add_item_to_rag` / `add_file_to_rag`, 2026-10-14) : un élément par son texte canonique, un FICHIER remonté à l'élément dont il est la sortie, sinon lu s'il porte déjà du texte (`reference_comprehension.read_document_text`) et refusé, en le disant, s'il n'en porte pas
 
 - **Domicile** : `wama/common/static/common/js/wama-inspector.js` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §7ter](../construction/ia/WAMA_MEMORY.md)
 
@@ -1061,7 +1061,7 @@ Une balise `WAMA:SECTION(audience=…; type=…; nature=…; etat=…)` sous un 
 
 ### Menu contextuel de card/lot + débordement « … »
 
-Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales (bouton édition compris — décision Fabien 2026-09-08). Modèle HYBRIDE : les actions EXISTANTES sont LUES sur le `.btn-group-actions` de la card (contrat de `cloneActions`, donc zéro ligne par app et clic PROXIFIÉ vers le vrai bouton), les TRANSVERSES sont déclarées et leurs URLs viennent de `queue_dnd_attrs` — une route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus en CASCADE, au survol et au clic, le parent restant ouvert (2026-09-14) et DIFFÉRÉS (« Recherche… » puis rempli : il n'attend pas le réseau). Se ferme sur un geste de l'UTILISATEUR hors du menu, jamais sur un `scroll` (un focus programmatique le refermait en 7 ms). 2ᵉ surface : l'arbre de fichiers (`ouvrir()` depuis `filemanager.js`, 2026-09-14), qui obtient depuis le 2026-09-18 les gestes d'ÉLÉMENT (Partager…, Ajouter à la médiathèque…, Ajouter au RAG) sur un fichier de SORTIE par `entreesPourChemin` — le serveur remonte à l'élément (`send_to.item_for_output_path`), les entrées sont CELLES de la card (`entreesPourElement`, une seule liste), posées en ENTRÉE DIFFÉRÉE à la racine du menu (`{chargement, charger}` : « Recherche… » puis remplacement, le menu n'attend pas le réseau). ⚠ Le menu est posé sur `document.body` : une card vit dans un conteneur à `overflow` qui le rognerait. Le « … » suit les cards INSÉRÉES ou REMPLACÉES après le chargement (observation de la file, 2026-09-15)
+Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales (bouton édition compris — décision Fabien 2026-09-08). Modèle HYBRIDE : les actions EXISTANTES sont LUES sur le `.btn-group-actions` de la card (contrat de `cloneActions`, donc zéro ligne par app et clic PROXIFIÉ vers le vrai bouton), les TRANSVERSES sont déclarées et leurs URLs viennent de `queue_dnd_attrs` — une route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus en CASCADE, au survol et au clic, le parent restant ouvert (2026-09-14) et DIFFÉRÉS (« Recherche… » puis rempli : il n'attend pas le réseau). Se ferme sur un geste de l'UTILISATEUR hors du menu, jamais sur un `scroll` (un focus programmatique le refermait en 7 ms). 2ᵉ surface : l'arbre de fichiers (`ouvrir()` depuis `filemanager.js`, 2026-09-14), qui obtient depuis le 2026-09-18 les gestes d'ÉLÉMENT (Partager…, Ajouter à la médiathèque…, Ajouter au RAG) sur un fichier de SORTIE par `entreesPourChemin` — le serveur remonte à l'élément (`send_to.item_for_output_path`), les entrées sont CELLES de la card (`entreesPourElement`, une seule liste), posées en ENTRÉE DIFFÉRÉE à la racine du menu (`{chargement, charger}` : « Recherche… » puis remplacement, le menu n'attend pas le réseau). Depuis le 2026-10-14, un fichier qui n'est la sortie de RIEN (dépôt temporaire, entrée d'app, dossier connecté) a « Ajouter au RAG » sur le FICHIER, et une sélection de N fichiers « Ajouter N fichiers au RAG » (`entreesPourChemins`). ⚠ Le menu est posé sur `document.body` : une card vit dans un conteneur à `overflow` qui le rognerait. Le « … » suit les cards INSÉRÉES ou REMPLACÉES après le chargement (observation de la file, 2026-09-15)
 
 - **Domicile** : `wama/common/static/common/js/wama-card-menu.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
@@ -3203,7 +3203,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (81) :
+- **API publique** (83) :
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
   - `find_user_files(user, query: str, limit: int=20) -> dict` — Find the user's files BY NAME everywhere the File Manager shows them: the temporary folder,
   - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
@@ -3257,6 +3257,8 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `duplicate_item(user, app: str, pk: int) -> dict` — Duplicate ONE of the user's items, so it can be re-run with different settings.
   - `clear_my_queue(user, app: str, confirm: bool=False) -> dict` — Empty the user's WHOLE queue for one app — every item, at once.
   - `add_item_to_media_library(user, app: str, pk: int, asset_type: str='', name: str='', output_format: str='') -> dict` — Keep the RESULT of one of the user's items in their media library, so it can be reused as
+  - `add_file_to_rag(user, path: str, level: str='', org_unit: str='') -> dict` — Add one of the user's FILES to their RAG, so `memory_recall` (and the lab context of every
+  - `add_item_to_rag(user, app: str, pk: int, level: str='', org_unit: str='') -> dict` — Add the TEXT of one of the user's items (a transcription, an OCR, a description…) to their
   - `list_registries(user) -> dict` — List what WAMA knows how to NAME: its registries (apps, models, backends, functions,
   - `get_my_access(user) -> dict` — What the current user is allowed to do: account tier, business roles, and which apps they
   - `list_my_memories(user, kind: str='', limite: int=25) -> dict` — List what WAMA remembers for this user — facts, events and procedures it has kept.

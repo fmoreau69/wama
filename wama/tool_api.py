@@ -2214,8 +2214,10 @@ def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
         resultats.append({
             "source": h.source,                       # 'memory' | 'rag'
             # La RÉFÉRENCE est rendue avec l'extrait : un contexte sans provenance n'est pas
-            # vérifiable par l'utilisateur, et l'assistant doit pouvoir la citer.
-            "reference": (getattr(obj, 'source_id', '')
+            # vérifiable par l'utilisateur, et l'assistant doit pouvoir la citer. `source_ref`
+            # d'abord : pour un élément c'est `<app>:<pk>` comme `source_id`, pour un FICHIER
+            # c'est son chemin, quand `source_id` n'en est qu'une empreinte (2026-10-14).
+            "reference": (getattr(obj, 'source_ref', '') or getattr(obj, 'source_id', '')
                           or f"{getattr(obj, 'source_app', '')}#{getattr(obj, 'source_object_id', '')}"
                           or f"memoire#{obj.pk}"),
             "content": obj.content,
@@ -2941,6 +2943,72 @@ def add_item_to_media_library(user, app: str, pk: int, asset_type: str = '',
                                   output_format=output_format)
 
 
+def _rag_answer(res: dict) -> dict:
+    """La réponse d'un geste RAG pour l'assistant : le contrat des outils (`error`), et ce qu'il
+    doit DIRE — sans vecteur, le document ne remonte pas encore au rappel sémantique."""
+    res = dict(res)
+    res.pop('status', None)
+    if res.get('erreur'):
+        return {'error': res.pop('erreur')}
+    res['message'] = (f"{res.get('fragments')} fragment(s) au RAG, niveau {res.get('niveau')} — "
+                      "en attente de vectorisation : retrouvable par mots tout de suite, par sens "
+                      "après le prochain passage de vectorisation. Retrait possible depuis « Mon RAG ».")
+    return res
+
+
+def add_file_to_rag(user, path: str, level: str = '', org_unit: str = '') -> dict:
+    """
+    Add one of the user's FILES to their RAG, so `memory_recall` (and the lab context of every
+    later answer) can find its content.
+
+    Call it only when the user asks to add, keep or index a document in the RAG — never on your
+    own initiative. `path` is the one returned by `find_user_files` / `list_user_files` (a
+    connected folder `mounts/<id>/…` included).
+
+    A file that is the RESULT of one of the user's items is added as that item (its text as the
+    app produced it). Otherwise only documents that already carry text are accepted (txt, md, csv,
+    pdf with a text layer, docx, html); for an image, a sound or a scanned PDF the answer says
+    which gesture produces the text first (reader, transcriber, describer).
+
+    Args:
+        path:     the file, as the file manager names it.
+        level:    'user' (private, default of the profile) or 'unit' (shared with the lab).
+        org_unit: the lab code, only when the user belongs to several.
+
+    Returns:
+        {"source_id", "fragments", "etat", "niveau", "origine", "message"} or {"error"}
+    """
+    # MÊME geste que le menu de l'arbre de fichiers (`/common/api/rag/ajouter/`, `path`) : la
+    # garde de chemin, la remontée à l'élément et les refus vivent dans la brique.
+    from wama.common.memory import index as rag_index
+    return _rag_answer(rag_index.add_file_to_rag(user, path, level=level, org_unit=org_unit))
+
+
+def add_item_to_rag(user, app: str, pk: int, level: str = '', org_unit: str = '') -> dict:
+    """
+    Add the TEXT of one of the user's items (a transcription, an OCR, a description…) to their
+    RAG — the same gesture as "Ajouter au RAG" in the card menu and the side panel.
+
+    Call it only when the user asks for it. Prefer it over `add_file_to_rag` when you know the
+    item (`list_my_items`): no path to guess.
+
+    Args:
+        app:      app id the item belongs to (as returned by `list_my_items`).
+        pk:       item id.
+        level:    'user' (private, default of the profile) or 'unit' (shared with the lab).
+        org_unit: the lab code, only when the user belongs to several.
+
+    Returns:
+        {"source_id", "fragments", "etat", "niveau", "origine", "message"} or {"error"}
+    """
+    from wama.common.memory import index as rag_index
+    try:
+        pk = int(pk)
+    except (TypeError, ValueError):
+        return {'error': f"pk invalide : {pk!r}"}
+    return _rag_answer(rag_index.add_item_to_rag(user, app, pk, level=level, org_unit=org_unit))
+
+
 def list_registries(user) -> dict:
     """
     List what WAMA knows how to NAME: its registries (apps, models, backends, functions,
@@ -3160,6 +3228,11 @@ TOOL_REGISTRY = {
     # …et la seule ÉCRITURE (2026-10-11) : un souvenir PROPOSÉ, non approuvé, que la page « Mes
     # souvenirs » valide (`WAMA_MEMORY §6`). Transverse, sur SON compte.
     'remember_fact':  remember_fact,
+    # …et le RAG (2026-10-14) : le geste « Ajouter au RAG » des cards et de l'arbre de fichiers,
+    # sur SES éléments et SES fichiers (gardes dans `memory.index`). Toujours à la demande de
+    # l'utilisateur, jamais un balayage (`WAMA_MEMORY §7ter`).
+    'add_file_to_rag': add_file_to_rag,
+    'add_item_to_rag': add_item_to_rag,
     # La doc de WAMA elle-même (corpus SYSTÈME, WAMA_MEMORY §7quinquies) — LECTURE SEULE,
     # gardée par le prédicat du lecteur de docs. Jamais les fichiers de l'utilisateur.
     'search_docs':    search_docs,

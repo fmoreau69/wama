@@ -1301,89 +1301,36 @@ def notification_open(request, pk: int):
 # journal ; l'alternative (un bouton dans chaque gabarit de card) aurait été 10 portages à
 # maintenir pour le même geste.
 
-def _texte_indexable(detail):
-    """Le texte d'un item, tel que le schéma canonique l'expose. `(texte, origine)`.
-
-    On ne fabrique RIEN : `result_text` (sortie produite par WAMA — OCR, transcription,
-    description) puis `source_text` (le document était déjà textuel). Un item sans texte n'est
-    pas indexable, et c'est ce qui data-gate le bouton : pas de « Ajouter au RAG » sur une vidéo.
-    """
-    for cle, origine in (('result_text', 'sortie'), ('source_text', 'entrée')):
-        v = (detail.get(cle) or '').strip()
-        if v:
-            return v, origine
-    return '', ''
-
-
-def _item_pour_rag(request, app_name, pk):
-    """Résout (detail, erreur_http). Mutualise la garde de propriété d'`unified_detail`."""
-    from django.http import JsonResponse
-    from django.shortcuts import get_object_or_404
-
-    from .utils.detail_registry import DetailRegistry
-
-    entry = DetailRegistry.get(app_name)
-    if not entry:
-        return None, JsonResponse({'erreur': f"app inconnue : {app_name}"}, status=404)
-    instance = get_object_or_404(entry['model'], pk=pk)
-    proprio = getattr(instance, 'user', None)
-    # Un item d'un collègue ne s'ajoute pas à MON rag : ce serait recopier son contenu sous mon
-    # identité, donc contourner le partage par NIVEAU au lieu de l'utiliser.
-    if proprio is not None and proprio != request.user and not request.user.is_staff:
-        return None, JsonResponse({'erreur': "cet élément ne vous appartient pas"}, status=403)
-    return entry['adapter'](instance), None
-
-
 @login_required
 @require_POST
 def rag_ajouter(request):
-    """Ajoute au RAG le texte d'un item d'app — LA porte d'écriture des surfaces.
+    """Ajoute au RAG — LA porte d'écriture des surfaces, pour deux désignations :
 
-    Générique par construction : `app`/`pk` suffisent, le texte vient du schéma canonique.
-    `source_id` = `<app>:<pk>` — stable, donc le geste est IDEMPOTENT (re-cliquer ne duplique
-    pas, changer de niveau ne recalcule pas les vecteurs) et la page de gestion sait remonter
-    à l'item d'origine.
+      • un ÉLÉMENT d'app (`app` + `pk`) — inspecteur, menu « … » des cards ;
+      • un FICHIER (`path`, chemin du gestionnaire de fichiers) — menu de l'arbre, 2026-10-14.
+
+    Les gestes vivent dans la brique (`memory.index.add_item_to_rag` / `add_file_to_rag`), que
+    l'outil de l'assistant appelle aussi : cette vue ne fait que lire la requête et rendre le
+    code HTTP du refus. `niveau` / `org_unit` sont optionnels — défauts du profil sinon.
     """
-    from .memory.index import WRITE_LEVELS, add_to_rag
+    from .memory.index import add_file_to_rag, add_item_to_rag
 
-    app_name = (request.POST.get('app') or '').strip()
-    try:
-        pk = int(request.POST.get('pk') or 0)
-    except (TypeError, ValueError):
-        pk = 0
-    if not app_name or not pk:
-        return JsonResponse({'erreur': 'app et pk requis'}, status=400)
-
-    detail, erreur = _item_pour_rag(request, app_name, pk)
-    if erreur is not None:
-        return erreur
-
-    texte, origine = _texte_indexable(detail)
-    if not texte:
-        return JsonResponse({'erreur': "cet élément ne porte pas de texte à indexer"}, status=400)
-
-    prof = getattr(request.user, 'profile', None)
-    niveau = (request.POST.get('niveau') or '').strip() \
-        or (getattr(prof, 'rag_niveau_defaut', '') if prof else '') or 'user'
-    if niveau not in WRITE_LEVELS:
-        return JsonResponse({'erreur': f"niveau non ouvert : {niveau}"}, status=400)
-
-    # L'unité cible ne se DEVINE pas quand il y en a plusieurs (`_resolve_unit` refuse) : on
-    # la prend du geste, sinon du réglage de profil. Sans ce repli, un utilisateur à plusieurs
-    # rattachements — cas courant à l'UGE, où les codes hérités coexistent avec les actuels —
-    # ne pourrait jamais partager au labo depuis le bouton.
-    unite = (request.POST.get('org_unit') or '').strip() \
-        or (getattr(prof, 'rag_unite_defaut', '') if prof else '')
-    res = add_to_rag(
-        request.user, texte,
-        # Référence CITABLE : c'est elle que le rappel affiche à côté de l'extrait ([reader:12]).
-        source_ref=f'{app_name}:{pk}', source_id=f'{app_name}:{pk}',
-        source_kind=app_name, niveau=niveau,
-        org_unit=unite or None)
-    if res.get('erreur'):
-        return JsonResponse({'erreur': res['erreur']}, status=400)
-    res['origine'] = origine
-    return JsonResponse(res)
+    level = request.POST.get('niveau') or ''
+    unit = request.POST.get('org_unit') or ''
+    path = (request.POST.get('path') or '').strip()
+    if path:
+        res = add_file_to_rag(request.user, path, level=level, org_unit=unit)
+    else:
+        app_name = (request.POST.get('app') or '').strip()
+        try:
+            pk = int(request.POST.get('pk') or 0)
+        except (TypeError, ValueError):
+            pk = 0
+        if not app_name or not pk:
+            return JsonResponse({'erreur': 'app et pk requis (ou path)'}, status=400)
+        res = add_item_to_rag(request.user, app_name, pk, level=level, org_unit=unit)
+    status = res.pop('status', 200)
+    return JsonResponse(res, status=status)
 
 
 @login_required
@@ -1476,7 +1423,8 @@ def rag_view(request):
         docs = [d for d in docs if q.lower() in (d['source_ref'] or '').lower()]
 
     for d in docs:
-        # `source_id` = `<app>:<pk>` pour les ajouts venus de l'inspecteur ; `adhoc:…` sinon.
+        # `source_id` = `<app>:<pk>` pour un élément d'app ; `file:…` pour un fichier (son chemin
+        # est le `source_ref`, affiché tel quel) ; `adhoc:…` sinon.
         app_id, _, pk = (d['source_id'] or '').partition(':')
         spec = APP_CATALOG.get(app_id) or {}
         d['app'] = app_id if spec else ''

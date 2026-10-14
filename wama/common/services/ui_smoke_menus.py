@@ -410,12 +410,16 @@ GESTES_D_ELEMENT = ('Partager…', 'Ajouter à la médiathèque…', 'Ajouter au
 
 
 def check_tree_item_menu():
-    """L'arbre offre, sur un fichier de SORTIE, les gestes d'élément du menu « … » — et rien de
-    tel sur un dépôt temporaire. (ok, detail)
+    """L'arbre offre, sur un fichier de SORTIE, les gestes d'élément du menu « … » — et sur un
+    dépôt temporaire le seul geste du FICHIER, « Ajouter au RAG ». (ok, detail)
 
     2026-09-18 (demande de Fabien). L'attendu n'est pas recopié : il est RELEVÉ sur la card du
     même job, sur la même page — l'arbre doit montrer la même liste (moins « Envoyer vers… »,
     qu'il possède déjà par chemin), résolue au serveur APRÈS l'ouverture du menu.
+    2026-10-14 (Fabien : « ajouter des fichiers au RAG depuis le filemanager ») : un fichier qui
+    n'est la sortie de rien a « Ajouter au RAG » — et le geste est JOUÉ sur un texte témoin,
+    le fragment constaté en base après la fermeture du navigateur (l'ORM ne s'appelle pas dans
+    le contexte Playwright).
     """
     from playwright.sync_api import sync_playwright
     from wama.common.services.nightly_tests import SkipScenario
@@ -431,6 +435,10 @@ def check_tree_item_menu():
     dossier_temp = Path(settings.MEDIA_ROOT) / f'users/{uid}/temp'
     dossier_temp.mkdir(parents=True, exist_ok=True)
     temoin_temp = _temoin(dossier_temp, 'wama_temoin_menu_temp.png', '.png')
+    rag_witness = dossier_temp / 'wama_temoin_menu_rag.txt'
+    rag_witness.write_text('Témoin nocturne : le protocole des essais sur le consentement.',
+                           encoding='utf-8')
+    rag_ref = f'users/{uid}/temp/{rag_witness.name}'
     carte = f'.wama-card[data-id="{job.id}"]:not(.is-batch)'
     libelles = dict(ASSET_TYPES)
     # Extension PUIS rôle déclaré par l'app (converter déclare « image ») — la MÊME fonction
@@ -458,7 +466,7 @@ def check_tree_item_menu():
                                  f'la card offre les 3 gestes d’élément : {sur_card}'))
 
                 # ② L'arbre : le fichier de sortie, dans Converter › Output (chargé à la demande).
-                _arbre_pret(page, [temoin_temp.name])
+                _arbre_pret(page, [temoin_temp.name, rag_witness.name])
                 page.evaluate("""() => { const t = jQuery('#filemanager-tree').jstree(true);
                     t.open_node('converter', () => t.open_node('converter_output')); }""")
                 ancre = f'{ARBRE} .jstree-anchor:text-is("{sortie.name}")'
@@ -488,22 +496,35 @@ def check_tree_item_menu():
                                  f'rôles du sous-menu {roles} / serveur {roles_attendus}'))
                 _fermer_menus(page)
 
-                # ④ Contre-épreuve : un dépôt TEMPORAIRE n'a ni « Recherche… » ni geste d'élément.
+                # ④ Contre-épreuve : un dépôt TEMPORAIRE n'a aucun geste d'ÉLÉMENT (Partager,
+                #    médiathèque) — seulement celui du fichier, « Ajouter au RAG », sans attente.
                 page.click(f'{ARBRE} .jstree-anchor:text-is("{temoin_temp.name}")', button='right')
                 page.wait_for_timeout(500)
                 sur_temp = page.evaluate(JS_RACINE)
                 verdicts.append((not page.evaluate(JS_ATTENTE)
-                                 and not any(e in GESTES_D_ELEMENT for e in sur_temp),
-                                 f'temp : ni attente ni geste d’élément {sur_temp}'))
+                                 and [e for e in sur_temp if e in GESTES_D_ELEMENT] == ['Ajouter au RAG'],
+                                 f'temp : le seul geste du fichier, « Ajouter au RAG » {sur_temp}'))
                 _fermer_menus(page)
+
+                # ⑤ Le geste JOUÉ sur un texte témoin du dépôt temporaire (constaté en base après).
+                page.click(f'{ARBRE} .jstree-anchor:text-is("{rag_witness.name}")', button='right')
+                page.wait_for_timeout(500)
+                page.click('.wama-card-menu:not(.wama-cm-sous) .wama-cm-item:has-text("Ajouter au RAG")')
+                page.wait_for_timeout(1500)
                 verdicts.append(_console(errors))
             finally:
                 nav.close()
+        from wama.common.models import RagChunk
+        verdicts.append((RagChunk.objects.filter(user_id=uid, source_ref=rag_ref).exists(),
+                         f'« Ajouter au RAG » sur {rag_ref} : fragment écrit pour le compte de test'))
     finally:
         _drop_new_sessions(before)
         ConversionJob.objects.filter(pk=job.pk).delete()
         sortie.unlink(missing_ok=True)
         temoin_temp.unlink(missing_ok=True)
+        from wama.common.models import RagChunk
+        RagChunk.objects.filter(user_id=uid, source_ref=rag_ref).delete()
+        rag_witness.unlink(missing_ok=True)
     return _bilan(verdicts)
 
 

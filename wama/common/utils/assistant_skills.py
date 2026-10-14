@@ -183,8 +183,9 @@ def laboratory_context(user, question: str, key: str = None) -> str:
         if not contenu:
             continue
         # La RÉFÉRENCE accompagne l'extrait : un contexte sans provenance n'est pas
-        # vérifiable par l'utilisateur, et l'assistant doit pouvoir la citer.
-        ref = (getattr(obj, 'source_id', '')
+        # vérifiable par l'utilisateur, et l'assistant doit pouvoir la citer — `source_ref` d'abord
+        # (le chemin d'un FICHIER, dont `source_id` n'est qu'une empreinte ; `<app>:<pk>` sinon).
+        ref = (getattr(obj, 'source_ref', '') or getattr(obj, 'source_id', '')
                or getattr(obj, 'subject', '')
                or f"memoire#{getattr(obj, 'pk', '?')}")
         extraits.append(f"[{ref}] {contenu}")

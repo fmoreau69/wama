@@ -908,19 +908,43 @@ class MenuDeCardSousV8Test(TestCase):
         self.assertEqual(json_v8(self.ctx, '__fetch'),
                          ['/common/api/element-pour-chemin/?path=users%2F1%2Fconverter%2Foutput%2Fx%20y.png'])
 
-    def test_un_chemin_qui_n_est_la_sortie_de_rien_rend_une_liste_VIDE(self):
-        """Une liste vide est une RÉPONSE : l'entrée différée disparaît du menu, elle n'affiche
-        pas un vide. Même règle qu'« Envoyer vers… »."""
+    def test_a_file_that_is_the_output_of_nothing_offers_adding_the_file_to_the_rag(self):
+        """2026-10-14 (Fabien : « ajouter des fichiers au RAG depuis le filemanager ») : un fichier
+        qui n'est la sortie d'aucun élément n'a plus une liste VIDE — il a le geste du FICHIER.
+        Jusque-là, seule une sortie d'élément pouvait entrer au RAG depuis l'arbre."""
         self.ctx.eval("__reponse = { ok: true, surface: null, pk: null };"
-                      "var __vus = null; WamaCardMenu.entreesPourChemin('users/1/temp/x.png', 'x.png')"
-                      ".then(function (l) { __vus = l; })")
-        self.assertEqual(json_v8(self.ctx, '__vus'), [])
+                      "var __vus = null; WamaCardMenu.entreesPourChemin('users/1/reader/input/x.pdf', 'x.pdf')"
+                      ".then(function (l) { __vus = l." + LIBELLES + "; })")
+        self.assertEqual(json_v8(self.ctx, '__vus'), ['Ajouter au RAG'])
+        self.assertEqual(len(json_v8(self.ctx, '__fetch')), 1, 'une entrée d\'app peut être une sortie')
 
-    def test_un_serveur_qui_refuse_rend_aussi_une_liste_vide_sans_lever(self):
+    def test_a_temporary_or_connected_file_offers_the_rag_without_asking_the_server(self):
+        """Un dépôt temporaire ou un dossier connecté n'est la sortie de rien : la brique ne
+        l'interroge pas (la règle vivait dans l'arbre, elle vit dans la brique depuis le 14/10)."""
+        for path in ('users/1/temp/notes.md', 'users/1/temp', 'mounts/4/rapport.docx'):
+            self.ctx.eval("__fetch = []; var __vus = null; WamaCardMenu.entreesPourChemin('"
+                          + path + "', 'n').then(function (l) { __vus = l." + LIBELLES + "; })")
+            self.assertEqual(json_v8(self.ctx, '__vus'), ['Ajouter au RAG'], path)
+            self.assertEqual(json_v8(self.ctx, '__fetch'), [], path)
+
+    def test_a_refusing_server_still_offers_the_file_gesture_without_throwing(self):
         self.ctx.eval("fetch = function () { return Promise.resolve({ ok: false, json: function () { throw new Error('x'); } }); };"
                       "var __vus = null; WamaCardMenu.entreesPourChemin('users/2/converter/output/x.png', 'x.png')"
-                      ".then(function (l) { __vus = l; })")
-        self.assertEqual(json_v8(self.ctx, '__vus'), [])
+                      ".then(function (l) { __vus = l." + LIBELLES + "; })")
+        self.assertEqual(json_v8(self.ctx, '__vus'), ['Ajouter au RAG'])
+
+    def test_a_selection_of_files_gets_one_rag_entry_and_one_file_its_element_gestures(self):
+        """`entreesPourChemins` — ce que l'arbre appelle pour sa SÉLECTION : un fichier seul a les
+        gestes de son élément (inchangé), N fichiers « Ajouter N fichiers au RAG », sans requête."""
+        self.ctx.eval("var __un = null; WamaCardMenu.entreesPourChemins(['users/1/converter/output/x.png'], 'x')"
+                      ".then(function (l) { __un = l." + LIBELLES + "; })")
+        self.assertEqual(json_v8(self.ctx, '__un'),
+                         ['Partager…', 'Ajouter à la médiathèque…', 'Ajouter au RAG'])
+        self.ctx.eval("__fetch = []; var __n = null;"
+                      "WamaCardMenu.entreesPourChemins(['users/1/temp/a.md', 'mounts/2/b.pdf', ''], 'x')"
+                      ".then(function (l) { __n = l." + LIBELLES + "; })")
+        self.assertEqual(json_v8(self.ctx, '__n'), ['Ajouter 2 fichiers au RAG'])
+        self.assertEqual(json_v8(self.ctx, '__fetch'), [])
 
     def test_la_copie_SERVIE_de_la_brique_est_la_source(self):
         src = RACINE / 'wama' / 'common' / 'static' / 'common' / 'js' / 'wama-card-menu.js'
@@ -936,6 +960,57 @@ class MenuDeCardSousV8Test(TestCase):
         self.assertIn('function chargerDifferee(', js)
         self.assertIn("e.chargement && typeof e.charger === 'function'", js)
         self.assertIn('entreesPourChemin: entreesPourChemin', js)
+
+
+class RagGestureUnderV8Test(TestCase):
+    """« Ajouter au RAG » POSTE sur le MÊME endpoint pour un élément (`app`/`pk`) et pour un ou
+    plusieurs FICHIERS (`path`, un POST par fichier, en série) — exécuté sous V8."""
+
+    PRELUDE = """
+    var __posts = [], __toasts = [];
+    var FormData = function () { this.d = {}; };
+    FormData.prototype.append = function (k, v) { this.d[k] = String(v); };
+    var __rag = function (champs) {
+      return champs.path && champs.path.indexOf('.png') > 0
+        ? { ok: false, status: 400, body: { erreur: 'pas un document texte', fragments: 0 } }
+        : { ok: true, status: 200, body: { fragments: 2, niveau: 'user', etat: 'indexé' } };
+    };
+    fetch = function (url, init) {
+      if (init && init.method === 'POST') {
+        __posts.push({ url: String(url), champs: init.body.d });
+        var r = __rag(init.body.d);
+        return Promise.resolve({ ok: r.ok, status: r.status, json: function () { return Promise.resolve(r.body); } });
+      }
+      return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ ok: true, surface: null, pk: null }); } });
+    };
+    var WamaApp = { toast: function (m, t) { __toasts.push([t, m]); } };
+    """
+
+    def setUp(self):
+        self.ctx = brique_menu_sous_v8(self.PRELUDE)
+        if self.ctx is None:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+
+    def test_the_element_gesture_still_posts_app_and_pk(self):
+        self.ctx.eval("WamaCardMenu.entreesPourElement({surface: 'reader', pk: '9'}, 'n')[2].agir()")
+        self.assertEqual(json_v8(self.ctx, '__posts'),
+                         [{'url': '/common/api/rag/ajouter/', 'champs': {'app': 'reader', 'pk': '9'}}])
+
+    def test_the_file_gesture_posts_the_path_to_the_same_endpoint(self):
+        self.ctx.eval("WamaCardMenu.entreesPourChemin('users/1/temp/notes.md', 'n')"
+                      ".then(function (l) { l[0].agir(); })")
+        self.assertEqual(json_v8(self.ctx, '__posts'),
+                         [{'url': '/common/api/rag/ajouter/', 'champs': {'path': 'users/1/temp/notes.md'}}])
+        self.assertEqual(json_v8(self.ctx, '__toasts')[0][0], 'ok')
+
+    def test_several_files_are_posted_one_by_one_and_refusals_are_named(self):
+        self.ctx.eval("WamaCardMenu.entreesPourChemins(['users/1/temp/a.md', 'users/1/temp/b.png',"
+                      " 'users/1/temp/c.txt'], 'n').then(function (l) { l[0].agir(); })")
+        self.assertEqual([p['champs']['path'] for p in json_v8(self.ctx, '__posts')],
+                         ['users/1/temp/a.md', 'users/1/temp/b.png', 'users/1/temp/c.txt'])
+        toasts = json_v8(self.ctx, '__toasts')
+        self.assertEqual(toasts[0], ['ok', '2 fichiers au RAG · 4 fragments · en attente de vectorisation'])
+        self.assertEqual(toasts[1], ['error', 'RAG — non ajouté : b.png : pas un document texte'])
 
 
 class SousMenuMediathequeSousV8Test(TestCase):

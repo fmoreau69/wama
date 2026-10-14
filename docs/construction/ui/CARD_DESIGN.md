@@ -195,6 +195,11 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   Un **gardien AST** refuse qu'une vue d'app recopie la copie de fichier
   (`media_library/tests/tests_export_service.py`) — par AST et non par grep, parce qu'une 1ʳᵉ version
   par motif accusait la docstring qui explique la correction.
+- ⭐ **Le geste RAG suit la même règle, sur un FICHIER aussi** (2026-10-14, demande de Fabien) :
+  dans l'arbre, un fichier qui n'est la sortie de rien (dépôt temporaire, entrée d'app, dossier
+  connecté) a « Ajouter au RAG » sur le fichier, et une sélection de N fichiers « Ajouter N
+  fichiers au RAG » — entrées de la brique (`WamaCardMenu.entreesPourChemins`), MÊME endpoint que la
+  card, l'inspecteur et l'outil `add_file_to_rag` de l'assistant (`WAMA_MEMORY §9quater`).
 - ⚠ **Le bouton DÉDIÉ du composer est retiré** (2026-09-18, demande de Fabien). La card composer
   portait encore, dans sa rangée, un bouton « Exporter vers médiathèque » (`.export-btn`, plus une
   coche « Déjà exporté ») — la seule app du parc à le faire, mesuré : il **dupliquait** l'entrée

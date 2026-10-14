@@ -547,3 +547,166 @@ class SyncOrgUnitsTests(TestCase):
         self.assertEqual(deviner_type('{EIFFEL}CR-LR', 'CFR - LESCOT'), 'labo')
         self.assertEqual(deviner_type('', 'UNIV-EIFFEL'), 'universite')
         self.assertEqual(deviner_type('', '{IFSTTAR}'), 'autre')     # repli silencieux
+
+
+class FileToRagTest(TestCase):
+    """« Ajouter au RAG » sur un FICHIER (2026-10-14, demande de Fabien : depuis le gestionnaire de
+    fichiers ET depuis l'assistant, « en réutilisant l'existant »). Les deux surfaces passent par
+    la MÊME brique (`memory.index.add_file_to_rag`) : l'endpoint commun reçoit `path`, l'outil
+    `add_file_to_rag` l'appelle. Ce qui est tenu : la garde de chemin du gestionnaire, la remontée
+    à l'élément dont le fichier est la sortie, le refus DIT d'un fichier sans texte, l'idempotence,
+    et la référence citable (le chemin, pas son empreinte).
+    """
+
+    def setUp(self):
+        from pathlib import Path
+
+        from django.conf import settings
+
+        self.u = User.objects.create_user('rag_file_a', password='x')
+        self.other = User.objects.create_user('rag_file_b', password='x')
+        self.media = Path(settings.MEDIA_ROOT)
+        self.client.force_login(self.u)
+
+    def _file(self, user, name, data):
+        rel = f'users/{user.id}/temp/{name}'
+        target = self.media / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data.encode('utf-8') if isinstance(data, str) else data)
+        self.addCleanup(lambda: target.unlink(missing_ok=True))
+        return rel
+
+    def _add(self, path):
+        return self.client.post('/common/api/rag/ajouter/', {'path': path})
+
+    def _register_item(self, text):
+        from wama.common.utils.detail_registry import DetailRegistry
+
+        item = MemoryItem.objects.create(subject='p', content='x', user=self.u,
+                                         provenance=MemoryItem.PROV_PROJECTION)
+        before = dict(DetailRegistry._registry)
+        DetailRegistry.register('apptest', MemoryItem, lambda i: {'id': i.pk, 'result_text': text})
+        self.addCleanup(lambda: DetailRegistry._registry.clear()
+                        or DetailRegistry._registry.update(before))
+        return item
+
+    def test_a_text_document_of_my_tree_enters_my_rag_under_its_path(self):
+        rel = self._file(self.u, 'notes.md',
+                         '# Protocole\n\nLes essais portent sur les chevaux miniatures.')
+        r = self._add(rel)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertGreaterEqual(r.json()['fragments'], 1)
+        chunk = RagChunk.objects.filter(user=self.u).first()
+        self.assertIsNotNone(chunk)
+        self.assertEqual(chunk.source_ref, rel)                 # ce que « Mon RAG » affiche
+        self.assertTrue(chunk.source_id.startswith(f'file:{self.u.pk}:'))
+        self.assertLessEqual(len(chunk.source_id), 64)          # le champ tient 64 caractères
+        self.assertEqual(chunk.source_kind, 'doc')
+        self.assertIsNone(chunk.embedding)                      # jamais de GPU au geste
+        self.assertIn('chevaux miniatures', chunk.content)
+
+    def test_my_rag_page_lists_the_file_by_its_path_and_takes_it_back(self):
+        rel = self._file(self.u, 'liste.txt', 'un document à retrouver sur la page')
+        source_id = self._add(rel).json()['source_id']
+        page = self.client.get('/common/rag/')
+        self.assertEqual(page.context['total'], 1)
+        self.assertContains(page, rel)                          # le chemin, pas l'empreinte
+        r = self.client.post('/common/api/rag/retirer/', {'source_id': source_id})
+        self.assertGreaterEqual(r.json()['retires'], 1)         # ce qui entre par un geste sort par un geste
+        self.assertEqual(RagChunk.objects.count(), 0)
+
+    def test_an_html_page_enters_as_readable_text_without_its_markup(self):
+        rel = self._file(self.u, 'page.html', '<html><body><h1>Titre</h1><p>Le consentement '
+                                              'des participants.</p><script>x()</script></body></html>')
+        self.assertEqual(self._add(rel).status_code, 200)
+        content = ' '.join(RagChunk.objects.filter(user=self.u).values_list('content', flat=True))
+        self.assertIn('consentement', content)
+        self.assertNotIn('<p>', content)
+
+    def test_adding_the_same_file_twice_changes_nothing_the_second_time(self):
+        rel = self._file(self.u, 'a.txt', 'un document court')
+        self._add(rel)
+        n = RagChunk.objects.count()
+        r = self._add(rel)
+        self.assertEqual(r.json()['etat'], 'inchangé')
+        self.assertEqual(RagChunk.objects.count(), n)
+
+    def test_a_file_without_text_is_refused_with_the_way_to_get_its_text(self):
+        rel = self._file(self.u, 'photo.png', b'\x89PNG\r\n\x1a\n')
+        r = self._add(rel)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('Envoyer vers', r.json()['erreur'])
+        empty = self._file(self.u, 'vide.txt', '   \n')
+        self.assertEqual(self._add(empty).status_code, 400)
+        self.assertEqual(RagChunk.objects.count(), 0)
+
+    def test_another_users_file_or_a_traversal_never_enters_my_rag(self):
+        theirs = self._file(self.other, 'secret.txt', 'le texte de quelqu un d autre')
+        self.assertEqual(self._add(theirs).status_code, 403)
+        self.assertEqual(self._add(f'users/{self.u.id}/temp/../../{self.other.id}/temp/secret.txt')
+                         .status_code, 403)
+        self.assertEqual(self._add(f'users/{self.u.id}/temp/absent.txt').status_code, 404)
+        self.assertEqual(RagChunk.objects.count(), 0)
+
+    def test_a_folder_is_refused(self):
+        self._file(self.u, 'dossier/a.txt', 'texte')
+        r = self._add(f'users/{self.u.id}/temp/dossier')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(RagChunk.objects.count(), 0)
+
+    def test_the_output_file_of_an_element_enters_as_that_element(self):
+        """Le fichier est la SORTIE d'un élément : c'est le texte de l'élément tel que l'app l'a
+        produit qui entre, sous `<app>:<pk>` — pas une seconde extraction du fichier."""
+        from unittest import mock
+
+        item = self._register_item('le texte produit par l app')
+        rel = self._file(self.u, 'sortie.txt', 'un AUTRE texte, celui du fichier')
+        with mock.patch('wama.common.services.send_to.item_for_output_path',
+                        return_value=('apptest', item)):
+            r = self._add(rel)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.json()['via'], f'apptest:{item.pk}')
+        chunk = RagChunk.objects.get(user=self.u)
+        self.assertEqual(chunk.source_id, f'apptest:{item.pk}')
+        self.assertEqual(chunk.content, 'le texte produit par l app')
+
+    def test_the_assistant_tool_takes_the_same_path_and_says_the_vectors_are_pending(self):
+        from wama import tool_api
+
+        rel = self._file(self.u, 'cr.txt', 'compte rendu de la réunion sur le consentement')
+        out = tool_api.execute_tool('add_file_to_rag', {'path': rel}, user=self.u)
+        self.assertNotIn('error', out, out)
+        self.assertGreaterEqual(out['fragments'], 1)
+        self.assertIn('vectorisation', out['message'])
+        self.assertNotIn('status', out)
+        refused = tool_api.add_file_to_rag(self.u, f'users/{self.other.id}/temp/x.txt')
+        self.assertEqual(set(refused), {'error'})
+        # Transverse : sur SES fichiers, aucune app ne garde le geste.
+        self.assertIsNone(tool_api.app_id_for_tool('add_file_to_rag'))
+        self.assertIsNone(tool_api.app_id_for_tool('add_item_to_rag'))
+
+    def test_the_assistant_item_tool_is_the_card_gesture(self):
+        from wama import tool_api
+
+        item = self._register_item('ocr du scan')
+        out = tool_api.add_item_to_rag(self.u, 'apptest', item.pk)
+        self.assertNotIn('error', out, out)
+        self.assertTrue(RagChunk.objects.filter(user=self.u, source_id=f'apptest:{item.pk}').exists())
+        item.user = self.other
+        item.save(update_fields=['user'])
+        self.assertIn('error', tool_api.add_item_to_rag(self.u, 'apptest', item.pk))
+
+    def test_the_recall_cites_the_file_path_not_its_fingerprint(self):
+        from unittest import mock
+
+        from wama import tool_api
+
+        rel = self._file(self.u, 'protocole.txt', 'le protocole des essais sur les chevaux miniatures')
+        self._add(rel)
+        # Rappel LEXICAL : aucun modèle d'embedding chargé par un test (en-tête de ce fichier).
+        from wama.common import memory
+        real = memory.recall
+        with mock.patch('wama.common.memory.recall',
+                        lambda *a, **k: real(*a, **dict(k, semantic=False))):
+            hits = tool_api.memory_recall(self.u, 'chevaux miniatures', include_memory=False)
+        self.assertIn(rel, [h['reference'] for h in hits.get('results', [])], hits)

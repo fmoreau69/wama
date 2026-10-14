@@ -37,6 +37,9 @@ _IMAGE_EXTS = {'.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif', '.tiff'}
 _DOC_EXTS = {'.txt', '.md', '.csv', '.pdf', '.docx'}
 _HTML_EXTS = {'.html', '.htm'}
 
+#: Les documents dont le TEXTE se lit tel quel (`read_document_text`) — sans OCR ni modèle.
+TEXT_DOCUMENT_EXTS = frozenset(_DOC_EXTS | _HTML_EXTS)
+
 #: Les deux lectures d'une référence (voir l'en-tête).
 READINGS = ('content', 'form')
 
@@ -79,10 +82,10 @@ def comprehend_files(paths, *, language: str = 'en', console=None, timeout: int 
                     continue
                 chunk = _describe_image(p, language, timeout, reading)
                 images_done += 1
-            elif ext in _HTML_EXTS:
-                chunk = _html_form(p) if reading == 'form' else _html_text(p)
-            elif ext in _DOC_EXTS and reading == 'content':
-                chunk = _extract_doc(p)
+            elif ext in _HTML_EXTS and reading == 'form':
+                chunk = _html_form(p)
+            elif ext in TEXT_DOCUMENT_EXTS and reading == 'content':
+                chunk = read_document_text(p)
             else:
                 if reading == 'form':
                     skipped.append(name)
@@ -113,6 +116,24 @@ def comprehend_files(paths, *, language: str = 'en', console=None, timeout: int 
         what = 'de mise en page' if reading == 'form' else 'de référence'
         console(f"📎 {len(parts)} fichier(s) {what} pris en compte ({used} caractères de contexte).")
     return "\n".join(parts)
+
+
+def read_document_text(path) -> str:
+    """Le texte COMPLET d'un document déjà textuel (`TEXT_DOCUMENT_EXTS`), '' pour tout autre
+    format. C'est la lecture `content` de `comprehend_files`, sans son budget.
+
+    Second lecteur (2026-10-14) : le geste « Ajouter au RAG » d'un FICHIER
+    (`memory.index.add_file_to_rag`, `WAMA_MEMORY §9quater`). Aucun OCR ni modèle ici : une image,
+    un son ou un PDF scanné rendent '' — leur texte, c'est une app qui le produit (reader,
+    transcriber, describer). Lève l'erreur de l'extracteur (dépendance manquante, fichier abîmé) :
+    à l'appelant de dire pourquoi, `comprehend_files` l'ignore."""
+    p = str(path)
+    ext = os.path.splitext(p)[1].lower()
+    if ext in _HTML_EXTS:
+        return _html_text(p)
+    if ext in _DOC_EXTS:
+        return _extract_doc(p)
+    return ''
 
 
 # ── interne ──────────────────────────────────────────────────────────────────────

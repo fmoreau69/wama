@@ -23910,3 +23910,41 @@ bloc du 2026-10-14.
 - 🔚 **Pendings** : pousser (sur demande) · actions programmées sans étape (pas de besoin,
   `ROUTE §10.6`) · garde de langue rouge (autres chantiers) · `manifest_export --out` ignore
   `--kind` (piège d'outil, §PALIER du jour) · garde « une requête par file » à décider.
+
+## §PALIER 2026-10-14 — « AJOUTER DES FICHIERS AU RAG » depuis le gestionnaire de fichiers ET depuis l'assistant — non poussé — 🔴 relancer gunicorn
+
+Demande de Fabien : *« ajouter des fichiers au RAG depuis le filemanager et depuis l'assistant (via
+l'API) […] en réutilisant l'existant. On ne réinvente rien »*. Détail et décisions : `WAMA_MEMORY
+§9quater` (encadré « 5ᵉ et 6ᵉ surfaces »).
+
+- **Le trou, mesuré** : l'arbre n'offrait « Ajouter au RAG » que sur un fichier de SORTIE d'élément
+  (`entreesPourChemin` rendait `[]` sinon) ; l'assistant n'avait AUCUNE écriture RAG
+  (`memory_recall` seul). Un document déposé, une entrée d'app, un fichier de dossier connecté
+  n'avaient pas de porte.
+- **Réutilisé** : le MÊME endpoint `/common/api/rag/ajouter/` (reçoit `path` en plus d'`app`/`pk`),
+  ses gestes sortis de la vue vers `memory.index` (`add_item_to_rag` = l'ancien corps de la vue ;
+  `add_file_to_rag`) ; la garde du gestionnaire (`resoudre_chemin_lisible`) ; le résolveur
+  sortie → élément (`send_to.item_for_output_path`) ; le lecteur de la compréhension de références
+  rendu public (`reference_comprehension.read_document_text`, `comprehend_files` le lit aussi) ; la
+  brique de menu (`WamaCardMenu.entreesPourChemins`, la règle « dépôt temporaire / montage : pas de
+  requête » déplacée de l'arbre vers elle) ; `TOOL_REGISTRY` (outils `add_file_to_rag`,
+  `add_item_to_rag` → assistant, API v1, MCP sans ligne de plus). Le rappel cite `source_ref`
+  d'abord (le chemin d'un fichier ; `<app>:<pk>` inchangé pour un élément).
+- **Refus DITS** : image, son, PDF scanné (« Envoyer vers… » une app qui produit le texte), dossier,
+  fichier d'autrui, `..`. Pas de « tout ajouter » : N fichiers SÉLECTIONNÉS, un POST chacun.
+- **Attesté** : `tests_memory.FileToRagTest` (11), `tests_queue_dnd` (V8 : 4 tests de menu réécrits
+  ou neufs + `RagGestureUnderV8Test` ×3), `filemanager.tests` (2 ajustés) — 238 tests verts sur les
+  suites touchées ; 4 contre-épreuves ROUGES (lecteur inerte 3/3, garde aveuglée, remontée coupée,
+  brique de HEAD 6/6) ; scénario nocturne `common.tree_item_menu` étendu (le geste JOUÉ sur un texte
+  du dépôt temporaire, fragment constaté en base puis retiré) : 8/8 sur un 8011 éphémère ;
+  `check_docs` 0/0. Les 28 rouges de `filemanager.tests` sous venv_win sont les montages SMB/rclone/
+  OAuth (Windows seul, verts sous WSL) ; `AddItemToMediaLibraryTest.test_ne_DEVINE_pas_le_role…`
+  est rouge aussi sous WSL, hors de ce chantier (rôle de la médiathèque du composer).
+- **Langue** : −5 identifiants français (vue `rag_ajouter`), aucun ajouté ; les budgets restent
+  dépassés par d'autres chantiers (2678 > 2668 au relevé), donc non recalés ici.
+- 🔴 **Relancer gunicorn** : avant, le menu de l'arbre (JS servi neuf) poste `path` sur l'ancienne
+  vue, qui répond « app et pk requis ». L'outil de l'assistant suit la relance des processus qui
+  l'importent (gunicorn, passerelle, MCP).
+- 🔚 **Restes** : la médiathèque (avec son alignement sur le menu commun, verdict du 22/09) ; un
+  dossier entier (refusé aujourd'hui, « sélectionner ses fichiers ») ; le fichier de CONTEXTE d'une
+  card (`WAMA_LLM` « contexte jetable ») n'aura qu'à appeler le même geste.

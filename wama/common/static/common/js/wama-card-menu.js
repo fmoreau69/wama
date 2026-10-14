@@ -213,15 +213,49 @@
      * déboguerait deux chemins pour la même promesse.
      * Le NIVEAU n'est pas demandé ici non plus : il vient du défaut de profil (décision du
      * 21/08 — le changer reste possible depuis « Mon RAG », où l'on voit ce qu'on a partagé).
+     * `champs` désigne un ÉLÉMENT (`{app, pk}`) ou, depuis le 2026-10-14, un FICHIER de l'arbre
+     * (`{path}`) — même endpoint, même brique serveur (`memory.index`).
      */
-    function ajouterAuRag(co) {
-        poster('/common/api/rag/ajouter/', { app: co.surface, pk: co.pk }).then(function (res) {
-            if (res && res.erreur) { dire('RAG — ' + res.erreur, 'error'); return; }
-            if (!res || res.fragments == null) { dire('RAG — échec', 'error'); return; }
+    var URL_RAG = '/common/api/rag/ajouter/';
+
+    function refusRag(res) {
+        if (res && (res.erreur || res.success === false)) return res.erreur || res.reason || 'refusé';
+        if (!res || res.fragments == null) return 'échec';
+        return '';
+    }
+
+    function ajouterAuRag(champs) {
+        poster(URL_RAG, champs).then(function (res) {
+            var refus = refusRag(res);
+            if (refus) { dire('RAG — ' + refus, 'error'); return; }
             // « en attente de vectorisation » est DIT, pas tu : sans embedding le document ne
             // remonte pas encore au rappel sémantique (mêmes mots que l'inspecteur, exprès).
             dire(res.fragments + ' fragment' + (res.fragments > 1 ? 's' : '')
                 + ' au RAG · ' + (res.niveau || '') + ' · en attente de vectorisation', 'ok');
+        });
+    }
+
+    /**
+     * Plusieurs FICHIERS de l'arbre (sélection multiple) : un POST par fichier, EN SÉRIE (le
+     * serveur découpe chaque document), puis UN bilan — les refus nommés un par un, un document
+     * scanné ou une image disant pourquoi. Ce n'est pas un « tout ajouter » (décision du 21/08) :
+     * ce sont les fichiers que l'utilisateur a désignés.
+     */
+    function ajouterFichiersAuRag(chemins) {
+        if (chemins.length === 1) { ajouterAuRag({ path: chemins[0] }); return; }
+        var faits = 0, fragments = 0, refus = [];
+        chemins.reduce(function (suite, chemin) {
+            return suite.then(function () {
+                return poster(URL_RAG, { path: chemin }).then(function (res) {
+                    var motif = refusRag(res);
+                    if (motif) refus.push(chemin.split('/').pop() + ' : ' + motif);
+                    else { faits += 1; fragments += res.fragments; }
+                }, function () { refus.push(chemin.split('/').pop() + ' : échec'); });
+            });
+        }, Promise.resolve()).then(function () {
+            if (faits) dire(faits + ' fichier' + (faits > 1 ? 's' : '') + ' au RAG · ' + fragments
+                + ' fragment' + (fragments > 1 ? 's' : '') + ' · en attente de vectorisation', 'ok');
+            if (refus.length) dire('RAG — non ajouté : ' + refus.join(' ; '), 'error');
         });
     }
 
@@ -300,7 +334,7 @@
             },
             {
                 icone: 'fas fa-book-open-reader', libelle: 'Ajouter au RAG',
-                agir: function () { ajouterAuRag(co); },
+                agir: function () { ajouterAuRag({ app: co.surface, pk: co.pk }); },
             },
         ];
     }
@@ -316,21 +350,57 @@
     }
 
     /**
+     * « Ajouter au RAG » pour des FICHIERS de l'arbre (2026-10-14, demande de Fabien) — UNE
+     * entrée, quel que soit leur nombre. Le serveur remonte d'un fichier à l'élément dont il est
+     * la sortie, lit sinon le texte d'un document déjà textuel, et refuse en le DISANT une image,
+     * un son, un PDF scanné (`memory.index.add_file_to_rag`).
+     */
+    function entreeRagPourChemins(chemins) {
+        var n = chemins.length;
+        return {
+            icone: 'fas fa-book-open-reader',
+            libelle: n > 1 ? 'Ajouter ' + n + ' fichiers au RAG' : 'Ajouter au RAG',
+            agir: function () { ajouterFichiersAuRag(chemins); },
+        };
+    }
+
+    /** Un dépôt temporaire ou un dossier connecté n'est la sortie d'aucun élément : on n'interroge
+     *  pas le serveur pour l'entendre dire (même forme que `is_path_allowed`). */
+    function peutEtreUneSortie(chemin) {
+        return !!chemin && chemin.indexOf('mounts/') !== 0 && !/^users\/\d+\/temp(\/|$)/.test(chemin);
+    }
+
+    /**
      * Les gestes d'élément pour un CHEMIN de `media/` (2026-09-18) : le serveur dit de quel
      * élément ce fichier est la SORTIE (`/common/api/element-pour-chemin/`, inverse du résolveur
      * « Envoyer vers »), puis ce sont exactement les entrées ci-dessus. Un fichier qui n'est la
-     * sortie de rien (dépôt temporaire, entrée d'app, montage) rend une liste VIDE — l'entrée
-     * différée disparaît alors du menu, elle n'affiche pas un vide.
+     * sortie de rien (dépôt temporaire, entrée d'app, montage) n'a qu'un geste : « Ajouter au
+     * RAG » sur le FICHIER (2026-10-14) — il rendait une liste vide jusque-là.
      */
     function entreesPourChemin(chemin, nom) {
+        var fichier = [entreeRagPourChemins([chemin])];
+        if (!peutEtreUneSortie(chemin)) return Promise.resolve(fichier);
         return fetch('/common/api/element-pour-chemin/?path=' + encodeURIComponent(chemin),
                      { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
-                if (!d || !d.surface || !d.pk) return [];
+                if (!d || !d.surface || !d.pk) return fichier;
                 return entreesPourElement({ surface: d.surface, pk: String(d.pk) }, nom);
             })
-            .catch(function () { return []; });
+            .catch(function () { return fichier; });
+    }
+
+    /**
+     * Les gestes de fichier de l'ARBRE pour sa sélection : un fichier seul → `entreesPourChemin`
+     * (gestes de son élément, ou du fichier) ; plusieurs → « Ajouter N fichiers au RAG », le seul
+     * geste qui vaille pour un groupe (partager N éléments exigerait N portées, comme sur les
+     * cards). Pendant d'`WamaSendTo.entreesPourChemins`.
+     */
+    function entreesPourChemins(chemins, nom) {
+        chemins = (chemins || []).filter(Boolean);
+        if (!chemins.length) return Promise.resolve([]);
+        if (chemins.length === 1) return entreesPourChemin(chemins[0], nom);
+        return Promise.resolve([entreeRagPourChemins(chemins)]);
     }
 
     // ── Résultat de référence (port `reference_result`) ──────────────────────────────────
@@ -1502,6 +1572,8 @@
         // Les gestes d'ÉLÉMENT pour d'autres surfaces que la card (l'arbre de fichiers) :
         // par coordonnées, ou par chemin de `media/` résolu au serveur (2026-09-18).
         entreesPourElement: entreesPourElement, entreesPourChemin: entreesPourChemin,
+        // …et pour une SÉLECTION de fichiers de l'arbre (« Ajouter N fichiers au RAG », 2026-10-14).
+        entreesPourChemins: entreesPourChemins,
         NOMINAL: NOMINAL,
         // Le verrou doux d'un élément édité (E4), pour les pages d'édition longues (2026-10-07).
         holdEditLock: holdEditLock,

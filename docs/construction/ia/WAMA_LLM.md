@@ -2156,6 +2156,11 @@ image → vision, document → lecteurs de lot, budgets bornés) et les replie d
    fichier de contexte, « + Ajouter à mon RAG », même endpoint que l'inspecteur et le menu « … »
    (`/common/api/rag/ajouter/`), niveau par défaut du profil. 4ᵉ surface du geste
    (`WAMA_MEMORY §9quater`).
+   ✅ **Le geste sur un FICHIER existe depuis le 2026-10-14** (arbre de fichiers + outils de
+   l'assistant `add_file_to_rag` / `add_item_to_rag`, dans `TOOL_REGISTRY` donc aussi à l'API v1
+   et au MCP) : l'endpoint reçoit `path`, la brique (`memory.index.add_file_to_rag`) remonte une
+   sortie à son élément et lit sinon un document déjà textuel. Le fichier de contexte d'une card
+   n'aura qu'à l'appeler sur son chemin — rien à construire de plus pour cette 4ᵉ surface.
 4. **1er adopteur : le DESCRIBER** (VLM/LLM : un document de domaine guide la description) ;
    **2ᵉ : l'ASSISTANT** (même brique, portée conversation).
 

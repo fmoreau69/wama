@@ -582,7 +582,51 @@ sémantiquement alors que les vecteurs se calculent par lot.
 > **constatable** — la contrepartie directe de l'objection du 21/08.
 
 Reste ouvert : le sélecteur de niveau **par requête** (en plus du défaut), et l'entrée depuis la
-médiathèque pour un document qui n'est passé par aucune app.
+médiathèque pour un document qui n'est passé par aucune app. ✅ **Ce second point est soldé pour
+le GESTIONNAIRE DE FICHIERS et l'ASSISTANT le 2026-10-14** (encadré ci-dessous) ; la médiathèque
+reste à faire, avec son alignement sur le menu commun (`PROJECT_STATUS`, verdict du 22/09).
+
+> ✅ **5ᵉ ET 6ᵉ SURFACES le 2026-10-14 : un FICHIER, depuis l'arbre et depuis l'assistant**
+> (demande de Fabien : *« ajouter des fichiers au RAG depuis le filemanager et depuis l'assistant
+> (via l'API) […] en réutilisant l'existant, on ne réinvente rien »*).
+> L'arbre n'offrait « Ajouter au RAG » que sur un fichier de SORTIE d'élément (gestes de la card,
+> 18/09) : un document déposé, une entrée d'app ou un fichier d'un dossier connecté n'avaient
+> aucune porte. **Ce qui a été réutilisé, sans rien recopier** :
+> - **le même endpoint** `/common/api/rag/ajouter/`, qui reçoit `path` en plus d'`app`/`pk` ; ses
+>   gestes sont sortis de la vue vers la brique — `memory.index.add_item_to_rag` (l'ancien corps
+>   de la vue, inchangé) et `add_file_to_rag` —, que l'outil de l'assistant appelle aussi. Les
+>   deux finissent dans `add_to_rag`, toujours la seule écriture ;
+> - **la garde de chemin du gestionnaire** (`filemanager.services.resoudre_chemin_lisible`, donc
+>   `is_path_allowed` : son arbre, ses dossiers connectés, jamais `..`) ;
+> - **le résolveur « de quel élément ce fichier est-il la sortie ? »** (`send_to.item_for_output_path`) :
+>   une sortie entre comme son ÉLÉMENT, sous `<app>:<pk>`, avec le texte que l'app a produit — ré-
+>   extraire le fichier ferait un second texte (§7ter, « on n'extrait rien ») ;
+> - **le lecteur de documents** de la compréhension de références (`reference_comprehension`,
+>   rendu public sous `read_document_text` : txt, md, csv, pdf à couche texte, docx, html — sans budget,
+>   sans OCR ni modèle). Une image, un son, un PDF scanné sont **refusés en le disant**, avec la
+>   marche à suivre (« Envoyer vers… » une app qui en produit le texte, puis ajouter son résultat) ;
+> - **la brique de menu** (`WamaCardMenu.entreesPourChemins`) : un fichier seul garde les gestes
+>   de son élément, sinon « Ajouter au RAG » ; N fichiers sélectionnés, « Ajouter N fichiers au
+>   RAG » (un POST par fichier, en série, un bilan qui NOMME les refus). Ce n'est pas un « tout
+>   ajouter » : ce sont les fichiers désignés. L'arbre n'écrit toujours aucune entrée ;
+> - **le registre d'outils** : `add_file_to_rag` et `add_item_to_rag` (pendants de
+>   `add_to_media_library` / `add_item_to_media_library`) sont dans `TOOL_REGISTRY`, donc servis
+>   sans ligne de plus à l'assistant, à l'API v1 (`/api/v1/tools/`) et au serveur MCP. Transverses
+>   (sur SES éléments et SES fichiers) ; à la demande de l'utilisateur seulement.
+>
+> Le niveau reste le défaut du profil (un `niveau`/`level` explicite est accepté, comme avant).
+> `source_id` d'un fichier = `file:<uid>:<empreinte du chemin>` (le champ tient 64 caractères) ;
+> `source_ref` = le chemin — c'est ce que « Mon RAG » affiche et, depuis ce jour, ce que le rappel
+> CITE (`memory_recall` et le contexte de laboratoire lisent `source_ref` d'abord : pour un
+> élément il vaut `<app>:<pk>`, rien ne change). Re-ajouter le même fichier ne duplique rien ; un
+> contenu modifié est redécoupé. Un DOSSIER est refusé (sélectionner ses fichiers).
+> **Attesté** : `tests_memory.FileToRagTest` (11 tests : texte, html, idempotence, refus dit,
+> fichier d'autrui et traversée, dossier, sortie → élément, outils, rappel cité, page « Mon RAG »
+> et retrait), `tests_queue_dnd` (brique sous V8 : entrées, aucune requête pour un dépôt
+> temporaire ou un montage, POST par fichier, bilan) ; contre-épreuves à blanc ROUGES (lecteur
+> inerte, garde aveuglée, remontée coupée, brique de HEAD) ; scénario nocturne
+> `common.tree_item_menu` étendu (le geste JOUÉ sur un texte témoin, fragment constaté en base),
+> 8/8 sur le code neuf.
 
 > ⏳ **4ᵉ SURFACE décidée le 2026-09-30 (Fabien) : le fichier de CONTEXTE d'une card ou d'une
 > conversation.** Le contexte « jetable » (`WAMA_LLM.md`, « CONTEXTE JETABLE ») n'entre PAS dans
@@ -654,7 +698,8 @@ compte-rendu depuis une transcription de réunion. La chaîne peut aller loin ; 
 tiennent : **on n'extrait rien** (les apps l'ont déjà fait — ré-extraire produirait un second
 texte, différent de celui que l'utilisateur voit), et **rien n'entre sans geste**.
 
-**Le seul point d'entrée** : `index.add_to_rag(user, texte, source_ref=…, niveau=…)` —
+**Le seul point d'entrée** (les gestes des surfaces, `add_item_to_rag` / `add_file_to_rag`,
+2026-10-14, y aboutissent tous — §9quater) : `index.add_to_rag(user, texte, source_ref=…, niveau=…)` —
 idempotent par `source_id`, `embedding=NULL` au geste (les vecteurs viennent par `reindex()`,
 §5bis), et un changement de **niveau** met à jour la visibilité **sans perdre les vecteurs**
 (changer la portée d'un document ne doit pas coûter un réindex). Ses pendants :

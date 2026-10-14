@@ -285,7 +285,9 @@ class GestesDElementDansLArbreTests(SimpleTestCase):
 
     def test_l_arbre_appelle_la_brique_commune_par_chemin(self):
         code = self._code()
-        self.assertIn('WamaCardMenu.entreesPourChemin(', code)
+        # Par SÉLECTION depuis le 2026-10-14 : un fichier seul garde les gestes de son élément,
+        # N fichiers reçoivent « Ajouter N fichiers au RAG » — la brique tranche, pas l'arbre.
+        self.assertIn('WamaCardMenu.entreesPourChemins(cheminsEnvoyables', code)
         self.assertIn('differe: true', code, "l'entrée doit être DIFFÉRÉE : le menu ne doit pas attendre le serveur")
 
     def test_l_arbre_n_ecrit_AUCUNE_des_entrees_ni_leurs_endpoints(self):
@@ -297,13 +299,17 @@ class GestesDElementDansLArbreTests(SimpleTestCase):
                          '/common/api/element-pour-chemin'):
             self.assertNotIn(interdit, code, f"l'arbre réécrit un geste de la brique : `{interdit}`")
 
-    def test_les_depots_temporaires_et_les_montages_ne_sont_pas_interroges(self):
+    def test_the_rule_for_temporary_and_connected_files_lives_in_the_common_brick(self):
+        """2026-10-14 : ces fichiers reçoivent désormais « Ajouter au RAG » — la règle « on
+        n'interroge pas le serveur pour eux » est passée de l'arbre à la brique, qui seule décide
+        des entrées (son comportement est tenu sous V8, `tests_queue_dnd`). L'arbre ne doit plus
+        la porter : deux copies d'une règle finissent par en dire deux."""
         code = self._code()
-        i = code.index('WamaCardMenu.entreesPourChemin(')
-        bloc = code[max(0, i - 900):i]
-        self.assertIn("startsWith('mounts/')", bloc)
-        self.assertIn(r'/^users\/\d+\/temp(\/|$)/', bloc)
-        self.assertIn('!isMultiSelect', bloc, 'un fichier seul, comme sur les cards')
+        self.assertNotIn(r'/^users\/\d+\/temp(\/|$)/', code)
+        brick = _sans_commentaires((REPO / 'wama/common/static/common/js/wama-card-menu.js')
+                                   .read_text(encoding='utf-8'))
+        self.assertIn("chemin.indexOf('mounts/') !== 0", brick)
+        self.assertIn(r'/^users\/\d+\/temp(\/|$)/', brick)
 
     def test_envoyer_vers_n_a_pas_bouge(self):
         code = self._code()

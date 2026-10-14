@@ -699,17 +699,17 @@
             // résolveur « Envoyer vers »), et les entrées sont alors EXACTEMENT celles de la card
             // (`WamaCardMenu.entreesPourChemin` → `entreesPourElement`) — zéro entrée écrite ici.
             // Différé : le menu s'ouvre tout de suite, la ligne « Recherche… » se remplace.
-            //   • un fichier seul (partager N éléments exigerait N portées, comme sur les cards) ;
-            //   • jamais un dépôt temporaire ni un montage : ils ne sont la sortie de rien, on
-            //     n'interroge pas le serveur pour l'entendre dire (même forme que `is_path_allowed`).
-            const peutEtreUneSortie = filePath && !filePath.startsWith('mounts/')
-                && !/^users\/\d+\/temp(\/|$)/.test(filePath);
-            if (!isMultiSelect && peutEtreUneSortie && window.WamaCardMenu
-                    && WamaCardMenu.entreesPourChemin) {
+            // Depuis le 2026-10-14 (demande de Fabien : « ajouter des fichiers au RAG depuis le
+            // filemanager »), un fichier qui n'est la sortie de RIEN — dépôt temporaire, entrée
+            // d'app, dossier connecté — reçoit aussi « Ajouter au RAG », sur le fichier lui-même,
+            // et une sélection de N fichiers « Ajouter N fichiers au RAG ». Toujours zéro entrée
+            // écrite ici : la brique décide (`WamaCardMenu.entreesPourChemins`), y compris de ne
+            // pas interroger le serveur pour un dépôt temporaire ou un montage.
+            if (cheminsEnvoyables.length && window.WamaCardMenu && WamaCardMenu.entreesPourChemins) {
                 items.element = {
                     separator_before: true,
                     differe: true,
-                    charger: () => WamaCardMenu.entreesPourChemin(filePath, node.text),
+                    charger: () => WamaCardMenu.entreesPourChemins(cheminsEnvoyables, node.text),
                 };
             }
 
