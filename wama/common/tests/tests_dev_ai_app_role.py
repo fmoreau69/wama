@@ -10,7 +10,7 @@ Chargé par chemin, comme `tests_dev_ai_bridge` (`wama-dev-ai` n'est pas importa
 from pathlib import Path
 
 from django.conf import settings
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.common.tests.tests_dev_ai_bridge import _charger as load_dev_ai_module
 
@@ -95,22 +95,55 @@ class RepoToAppChainTest(SimpleTestCase):
         self.assertEqual(1, read.call_count)
         self.assertEqual({}, self.chain.output_of('[app] verdict : clean\n'))
 
-    def test_a_remote_cut_is_replayed_once_locally_and_a_role_error_is_not(self):
+    def test_a_remote_cut_is_replayed_once_locally_by_every_role_and_an_error_is_not(self):
+        """La reprise vit dans `role_utils.call_llm` (2026-10-16) : le rôle `app` lancé SEUL par
+        l'assistant n'en avait aucune quand elle vivait dans la chaîne."""
         from unittest import mock
-        cut = (1, 'RuntimeError: ilaas : litellm.InternalServerError: Connection error.')
-        for first, expected_calls in ((cut, 2), ((1, 'SystemExit: [app] REFUS : clé'), 1),
-                                      ((0, 'ok'), 1)):
-            with self.subTest(first=first[1][:30]):
-                log = []
-                with mock.patch.object(self.chain, 'run', side_effect=[first, (0, 'ok')]) as run:
-                    self.chain.run_role('run_app_manifest.py', ['--key', 'x'], 'ilaas', 'qwen', log)
-                self.assertEqual(expected_calls, run.call_count)
-                if expected_calls == 2:
-                    self.assertEqual(['--provider', 'ollama'], run.call_args_list[1].args[0][-2:])
-        # Un rôle LOCAL qui échoue n'est jamais rejoué : il n'y a pas de « plus local ».
-        with mock.patch.object(self.chain, 'run', side_effect=[cut, (0, 'ok')]) as run:
-            self.chain.run_role('run_app_manifest.py', [], 'ollama', '', [])
-        self.assertEqual(1, run.call_count)
+        from wama.common.utils import llm_utils
+        role_utils = load_dev_ai_module('role_utils')
+        for error, replayed in (('litellm.InternalServerError: Connection error.', True),
+                                ('401 clé refusée', False)):
+            with self.subTest(error=error), \
+                    mock.patch.object(llm_utils, 'chat_with_source', return_value=(None, error)), \
+                    mock.patch.object(role_utils, 'resolve_model', return_value='qwen3.8:latest'), \
+                    mock.patch.object(role_utils, 'local_llm_guard', return_value='0') as guard, \
+                    mock.patch.object(role_utils, 'call_ollama', return_value='ok') as local:
+                if replayed:
+                    self.assertEqual('ok', role_utils.call_llm('ilaas', 'qwen', 's', 'u'))
+                    self.assertEqual('qwen3.8:latest', local.call_args.args[0])
+                    self.assertEqual('0', local.call_args.kwargs['keep_alive'])
+                    guard.assert_called_once()
+                else:
+                    with self.assertRaises(RuntimeError):
+                        role_utils.call_llm('ilaas', 'qwen', 's', 'u')
+                    local.assert_not_called()
+
+
+class ValidatedLibraryIsNeverReproposedTest(TestCase):
+    """Relancer la chaîne sur un dépôt dont la librairie est VALIDÉE ne la repropose pas :
+    `propose()` la remettrait en visibilité privée, défaisant la validation humaine."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.chain = load_dev_ai_module('run_repo_app')
+
+    def test_a_registered_library_is_reused_and_the_librarian_not_run(self):
+        import sys
+        from unittest import mock
+        from wama.common.models import Library
+        Library.objects.create(key='zz_lib_test', name='zz',
+                               vendor={'repo': 'Owner/ZzRepo', 'commit': 'abc', 'engine': 'zz'})
+        self.assertEqual('zz_lib_test', self.chain.validated_library('Owner/ZzRepo'))
+        self.assertEqual('', self.chain.validated_library('Owner/Other'))
+        argv = ['run_repo_app.py', '--repo', 'Owner/ZzRepo', '--key', 'zz_app', '--need', 'x']
+        with mock.patch.object(sys, 'argv', argv), \
+                mock.patch.object(self.chain, 'run_role', return_value=(1, '')) as role, \
+                mock.patch.object(self.chain, 'finish') as finish:
+            self.chain.main()
+        self.assertEqual(['run_app_manifest.py'], [c.args[0] for c in role.call_args_list])
+        self.assertIn('library:zz_lib_test', role.call_args.args[1])
+        self.assertTrue(finish.call_args.args[1]['library']['reused'])
 
 
 class PlanAppIntegrationReadsPriorDecisionsTest(SimpleTestCase):

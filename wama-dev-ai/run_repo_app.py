@@ -19,7 +19,7 @@ Ce qu'il ne fait pas, délibérément :
   - promouvoir l'app hors du bac à sable, ni écrire sa glu (rôle `codegen`, ensuite).
 
 Un fournisseur DISTANT qui coupe une marche (vécu le 2026-10-15 : ILaaS coupe vers 3 min 30 une
-tâche de réflexion) est rejoué UNE fois en local, le même tirage de niveau développement.
+tâche de réflexion) est rejoué UNE fois en local — par le rôle lui-même (`role_utils.call_llm`).
 
 Usage (racine du repo, venv_linux) :
     python wama-dev-ai/run_repo_app.py --repo LibreTranslate/LibreTranslate --key translator \
@@ -45,8 +45,6 @@ django.setup()
 from role_utils import REPO_ROOT, write_output  # noqa: E402
 
 _OUTPUT = re.compile(r'^\[(?:librarian|app)\] → (?P<path>\S+\.json)\s*$', re.M)
-#: Signature d'une coupure côté fournisseur distant (litellm), qui vaut une reprise en local.
-_REMOTE_CUT = re.compile(r'Connection error|InternalServerError|timed out', re.I)
 _BORN = re.compile(r'App DE ZÉRO : \S+ → wama/(?P<label>\w+)')
 _HOLES = re.compile(r'(\d+) trou\(s\) de glu')
 STEP_TIMEOUT_S = 1800
@@ -63,16 +61,13 @@ def run(argv: list) -> tuple:
 
 
 def run_role(script: str, args: list, provider: str, model: str, log: list) -> tuple:
-    """Une marche-rôle, rejouée UNE fois en local si un distant l'a coupée."""
-    base = [sys.executable, str(DEV_AI / script), *args]
+    """Une marche-rôle. Une coupure d'un fournisseur distant est rejouée en local DANS le rôle
+    (`role_utils.call_llm`, 2026-10-16) — la chaîne la rejouait elle-même la veille, et le rôle
+    `app` lancé seul par l'assistant n'en avait aucune."""
     llm = (['--provider', provider] if provider else []) + (['--model', model] if model else [])
-    rc, out = run(base + llm)
+    rc, out = run([sys.executable, str(DEV_AI / script), *args, *llm])
     log.append({'step': script, 'provider': provider or 'ollama', 'rc': rc,
                 'tail': out.strip().splitlines()[-12:]})
-    if rc != 0 and provider not in ('', 'ollama') and _REMOTE_CUT.search(out):
-        rc, out = run(base + ['--provider', 'ollama'])
-        log.append({'step': script, 'provider': 'ollama (reprise après coupure distante)',
-                    'rc': rc, 'tail': out.strip().splitlines()[-12:]})
     return rc, out
 
 
@@ -85,6 +80,20 @@ def output_of(stdout: str) -> dict:
             except (OSError, ValueError):
                 return {}
     return {}
+
+
+def validated_library(repo: str) -> str:
+    """La clé d'une librairie DÉJÀ inscrite au registre pour ce dépôt, ou ''.
+
+    Relancer le `librarian` sur un dépôt validé redéposerait sa proposition, et `propose()` remet
+    un manifeste en visibilité PRIVÉE (`manifests/proposals.py`) : la validation humaine serait
+    défaite en silence (relevé le 2026-10-16, après la validation de `library:libretranslate`)."""
+    from django.db.models import Q
+    from wama.common.models import Library
+    lib = (Library.objects.filter(Q(vendor__repo=repo)
+                                  | Q(repository__iexact=f'https://github.com/{repo}'))
+           .order_by('key').first())
+    return lib.key if lib else ''
 
 
 def main():
@@ -102,14 +111,23 @@ def main():
     log, summary = [], {'repo': args.repo, 'key': args.key, 'need': args.need,
                         'like': args.like}
 
-    # 1. La brique librairie.
-    rc, out = run_role('run_librarian.py', ['--repo', args.repo], args.provider, args.model, log)
-    library = output_of(out)
-    lib_key = (library.get('manifest') or {}).get('key') or ''
-    summary['library'] = {'key': lib_key, 'validation_errors': library.get('validation_errors'),
-                          'install_channel_notes': library.get('install_channel_notes')}
-    if rc != 0 or not lib_key:
-        return finish(args, summary, log, f"marche librarian en échec (rc={rc}) — rien d'autre lancé")
+    # 1. La brique librairie — réutilisée si elle est déjà inscrite, jamais reproposée.
+    lib_key = validated_library(args.repo)
+    if lib_key:
+        log.append({'step': 'run_librarian.py', 'rc': 0,
+                    'tail': [f'librairie {lib_key} déjà inscrite au registre — réutilisée']})
+        summary['library'] = {'key': lib_key, 'reused': True}
+    else:
+        rc, out = run_role('run_librarian.py', ['--repo', args.repo], args.provider, args.model,
+                           log)
+        library = output_of(out)
+        lib_key = (library.get('manifest') or {}).get('key') or ''
+        summary['library'] = {'key': lib_key,
+                              'validation_errors': library.get('validation_errors'),
+                              'install_channel_notes': library.get('install_channel_notes')}
+        if rc != 0 or not lib_key:
+            return finish(args, summary, log,
+                          f"marche librarian en échec (rc={rc}) — rien d'autre lancé")
 
     # 2. Le brouillon du manifeste `app`.
     app_args = ['--key', args.key, '--need', args.need, '--requires', f'library:{lib_key}']
@@ -152,9 +170,11 @@ def finish(args, summary: dict, log: list, outcome: str):
     print(f'[repo_app] → {out.relative_to(REPO_ROOT)}')
     print(f'[repo_app] {outcome}')
     lib = summary.get('library') or {}
-    if lib.get('key'):
+    if lib.get('key') and not lib.get('reused'):
         print(f"[repo_app] librairie {lib['key']} : à VALIDER (model manager, « Propositions ») "
               "puis à installer par la route WAMA avant la glu")
+    elif lib.get('key'):
+        print(f"[repo_app] librairie {lib['key']} : déjà inscrite — réutilisée, pas reproposée")
     for brick in (summary.get('draft') or {}).get('pending_bricks') or []:
         print(f'[repo_app] ⏳ brique en attente : {brick}')
     return None

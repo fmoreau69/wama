@@ -1028,9 +1028,29 @@ def call_llm(provider, model, system, user_msg, num_ctx=16384, keep_alive=None,
             temperature=temperature, timeout=timeout)
     except CloudAccessRefused as refused:
         raise RuntimeError(f'{provider} : {refused}') from refused
+    if text is None and REMOTE_CUT.search(error or ''):
+        return _replay_locally(provider, error, system, user_msg, num_ctx, temperature, timeout)
     if text is None:
         raise RuntimeError(f'{provider} : {error}')
     return text
+
+
+#: Une COUPURE côté fournisseur distant (pas un refus, pas une erreur du rôle) : ILaaS ferme les
+#: requêtes longues — 2 min 55 à 5 min, cinq fois sur cinq pour le brouillon d'app du 15-16/10,
+#: AVEC ou SANS flux (mesuré : le flux n'y change rien, c'est une limite de durée).
+REMOTE_CUT = re.compile(r'Connection error|InternalServerError|timed out', re.I)
+
+
+def _replay_locally(provider, error, system, user_msg, num_ctx, temperature, timeout):
+    """L'appel coupé, rejoué UNE fois sur le modèle LOCAL de niveau développement du compte —
+    le même tirage (`resolve_model`), sous la garde GPU commune. Vivait dans la seule chaîne
+    `repo_app` (2026-10-15) : le rôle `app` lancé seul par l'assistant n'avait aucune reprise."""
+    local = resolve_model('ollama', 'dev')
+    print(f'[role_utils] {provider} a coupé ({(error or "")[:90]}) — reprise UNE fois en local : '
+          f'{local}')
+    keep_alive = local_llm_guard('ollama', local, log=lambda m: print(f'[role_utils] {m}'))
+    return call_ollama(local, system, user_msg, num_ctx=num_ctx, keep_alive=keep_alive,
+                       temperature=temperature, timeout=timeout)
 
 
 def local_llm_guard(provider, model, *, force=False, wait_max=300.0, release_reason='',

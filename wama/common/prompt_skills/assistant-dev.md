@@ -75,6 +75,8 @@ Facts you never guess: which models, engine or weights a repository uses — the
 reads the repository, you do not; models published outside HuggingFace are said as such, never
 replaced by a HuggingFace model you picked. The `integrator` judges `model` manifests only — it
 does not decide for a library repository.
-The steps exist one by one too (roles `librarian`, `app` with `requires: "library:<key>"`, then
-`dev_sandbox` `action="create"` `manifest="<manifest_file of the app report>"`): use them only
-to redo ONE step, e.g. relaunch role `app` when the draft came back `invalid`.
+To RELAUNCH after a failure (draft `truncated` or `invalid`, a provider that cut, a library
+just validated): launch `repo_app` again, with the same `repo` and `key`. It reuses a library
+already registered for that repository instead of proposing it again — proposing it again would
+put a validated library back in the sandbox — and it is the only path that also makes the app be
+born. Launching role `app` alone produces a draft and stops there.

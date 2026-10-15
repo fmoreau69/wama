@@ -1,0 +1,60 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "APScheduler",
+      "Flask",
+      "Flask-Babel",
+      "Flask-Limiter",
+      "Werkzeug",
+      "argos-translate-files",
+      "argos-translate-lt",
+      "expiringdict",
+      "flask-swagger",
+      "flask-swagger-ui",
+      "itsdangerous",
+      "langdetect",
+      "lexilang",
+      "minisbd",
+      "numpy",
+      "packaging",
+      "polib",
+      "prometheus-client",
+      "redis",
+      "requests",
+      "waitress"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "libretranslate",
+        "ltmanage"
+      ]
+    },
+    "identity": {
+      "author": "Piero Toffanin",
+      "license": "AGPL-3.0",
+      "repository": "https://github.com/LibreTranslate/LibreTranslate",
+      "summary": "Free and Open Source Machine Translation API",
+      "version": "89e8a56b9324"
+    },
+    "install": {
+      "vendor": {
+        "commit": "89e8a56b93244cf3803b9a0496a9b51b9fbc6186",
+        "engine": "libretranslate",
+        "repo": "LibreTranslate/LibreTranslate"
+      }
+    }
+  },
+  "description": "Free and Open Source Machine Translation API",
+  "key": "libretranslate",
+  "manifest_kind": "library",
+  "name": "LibreTranslate",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "github:LibreTranslate/LibreTranslate@89e8a56b93244cf3803b9a0496a9b51b9fbc6186",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
