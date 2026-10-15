@@ -1945,6 +1945,14 @@ MECHANISMS = (
               'wama/common/static/common/js/wama-axis.js',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               depends_on=('shuttle',)),
+    Mechanism('audio_rhythm', 'Grille des temps d\'un audio',
+              "L'instant de chaque temps joué d'un audio et les hauteurs qui y sonnent (chroma par "
+              "temps), en cache par fichier et date — de quoi caler une partition TEMPS PAR TEMPS "
+              "sur ce qui est joué plutôt que par son tempo écrit (né le 2026-10-16 : #754 écrit à "
+              "88, joué à 89,1). Ne connaît aucune partition ; le calage est `WamaScore.align`",
+              'wama/common/utils/audio_rhythm.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
+              depends_on=('audio_decode',)),
     Mechanism('ranged_response', 'Servir un fichier par morceaux (HTTP Range)',
               "Réponse 206 à une requête `Range` — ce qui rend un média seekable au-delà du "
               "déjà-téléchargé ; sert `/media/` (`wama/urls.py`) et la vidéo du cam_analyzer, "

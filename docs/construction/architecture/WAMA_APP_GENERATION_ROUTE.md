@@ -554,7 +554,43 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       de CHAQUE voix se colore (une longue note d'une voix reste allumée pendant que l'autre
       avance) ; défilement ; clic sur une note = aller ; glisser = transposer d'un degré par cran
       (altération écrite retirée : la note suit l'armure ; accord en bloc) — un cran d'historique ;
-      « Caler sur le média » étire le tempo écrit (`Q:`) sur la durée de l'audio.
+      ~~« Caler sur le média » étire le tempo écrit (`Q:`) sur la durée de l'audio~~ → remplacé le
+      2026-10-16 par le calage temps par temps (point suivant).
+    - ✅ **2026-10-16 — retours de Fabien sur la page vivante (#754, une partition extraite)** :
+      *« Les partitions des instruments ne s'affichent pas. L'anacrouse n'est pas synchronisée
+      avec l'audio. C'est le temps de la partition qui doit guider »* (« apoggiature » dans le
+      message, précisé : l'anacrouse).
+      - **Mesuré avant d'écrire** : abcjs compte juste le temps ÉCRIT (79 mesures × 2,727 s à
+        `Q:1/4=88` = 215,4 s), mais l'audio est joué à **89,1** temps par minute, stable (librosa,
+        rendu ET source), et commence à 0,8 s : le tempo écrit est un ARRONDI, caler par lui fait
+        dériver d'≈ 2,5 s en fin de morceau et rate l'anacrouse. « Caler sur le média » (un étirement
+        global) ne règle pas le début.
+      - **Le temps de la partition guide** : chaque temps ÉCRIT n est calé sur le temps JOUÉ n + k de
+        l'audio, au prorata entre deux. La grille des temps joués et leurs hauteurs (chroma par
+        temps) viennent d'une brique COMMUNE `common/utils/audio_rhythm.py` (mécanisme
+        `audio_rhythm` ; décodage par `audio_decode`, cache par fichier et date, ~1,5 s pour 3 min
+        une fois le fichier lu), servie à part (`data/?only=rhythm&role=…`) pour que la page ne
+        l'attende pas. Le décalage k se choisit côté navigateur (`WamaScore.align`, sur la
+        partition GRAVÉE, hauteurs MIDI d'abcjs) : celui où les notes écrites sonnent le mieux,
+        moyenne prise sur TOUTES les notes et, à égalité, le plus petit — une chanson se répète, un
+        refrain plus loin sonne pareil. Une grille trouvée au double ou à la moitié du tempo écrit
+        est repliée. Mesuré sur les cards réelles : #754 décalage −2 (anacrouse à 1,49 s ; elle
+        était placée à 2,05 s), #755/#756 −3, #343 0 (grille au double tempo, repliée) ; le meilleur
+        décalage dépasse chaque fois nettement ses voisins (0,46 / 0,41 ; 0,52 / 0,45). Décocher
+        « Calée sur les temps joués » rend le tempo écrit seul. ⚠ Le calage ne se juge vraiment qu'à
+        l'oreille : à confirmer par Fabien.
+      - **Instruments — décision de Fabien** : SheetSage2 ne sait extraire que deux mélodies
+        (`Vocal`, `Ins`) et des accords, pas une partie par instrument ; et le composer lui
+        demandait la MÉLODIE SEULE (`melody_only=True`, chaîne du cover de la doc du moteur), donc
+        sans accords. Désormais l'extraction est **complète** (accords compris, montrés et
+        éditables ; repli sur la mélodie seule si la notation complète échoue) et le **rendu** n'en
+        reçoit que la mélodie (`yue2_3b_backend.melody_only_abc`, une copie jetable) : YuE2 reste
+        en `cot="melody"` pour un cover, comme avant. ⚠ Les cards extraites avant le 16/10 n'ont pas
+        d'accords : rejouer leur process « Partition extraite » — l'empreinte de la partition change,
+        le rendu passera périmé alors que la mélodie qu'il joue est la même.
+      - **noyau** : « Appliquer » émet `redone` quand le process rejoué et son aval ont réussi ; le
+        transport recharge son audio et la partition redemande sa grille sur ce SEUL signal (la
+        règle était écrite dans le transport).
     - **versions** : le composer est la 2ᵉ app à GARDER ses sorties (`KeptOutputsMixin`, migration
       `0021` additive appliquée avant le modèle, `keep_outputs('composer', 20, fields=SCORE_FIELDS)`
       — la PARTITION seule : `keep_outputs` accepte désormais les champs gardés, sinon chaque
@@ -4340,7 +4376,9 @@ panneau parle `JOB_*`).
 >   une relance complète retire au sort.
 >   **3ᵉ process le 2026-10-03, `extract_score`** (coordonné avec l'instance du pipeline) :
 >   l'audio du morceau à reprendre → sa partition, mélodie seule (SheetSage2, tâche
->   `audio-to-score`, contrat `ScoreExtractionBackend`). Il a lieu pour un COVER par un modèle
+>   `audio-to-score`, contrat `ScoreExtractionBackend`) — ⚠ **complète depuis le 2026-10-16**
+>   (accords compris, pour la page d'édition ; le rendu n'en reçoit que la mélodie, voir `§F3b`,
+>   bloc « 3ᵉ SURFACE »). Il a lieu pour un COVER par un modèle
 >   qui suit une partition sans prendre l'audio (YuE2), quand un modèle d'extraction est
 >   installé, et REMPLACE alors `plan` : deux amonts ALTERNATIFS du rendu, exclusifs par
 >   `applies` (`render.depends_on=('extract_score', 'plan')`). Il emploie un AUTRE modèle que

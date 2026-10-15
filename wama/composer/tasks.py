@@ -269,8 +269,11 @@ def _output_place(gen, ctx, catalog_key, ext, nature=''):
 
 def _extract_score(gen, ctx):
     """GLU du process `extract_score` (2026-10-03) : l'audio du morceau à reprendre → sa partition
-    (mélodie seule, la forme qu'un cover reprend), rangée comme une sortie de la card
-    (`extracted_score`).
+    COMPLÈTE — mélodies et accords, pour être lue et éditée sur la surface « Éditer la partition »
+    (décision de Fabien, 2026-10-16 ; jusque-là mélodie seule) —, rangée comme une sortie de la
+    card (`extracted_score`). Le rendu n'en reçoit que la mélodie (`_render`). Une notation
+    complète impossible (le mode complet de SheetSage2 peut en rendre aucune) retombe sur la
+    mélodie seule, en le disant.
 
     Le modèle n'est PAS celui de la card : c'est celui de la tâche `audio-to-score`, tiré par le
     sélecteur commun. Son backend est propre à ce process et DÉCHARGÉ aussitôt — la carte
@@ -297,10 +300,17 @@ def _extract_score(gen, ctx):
                 f"{os.path.basename(gen.melody_reference.name)}")
     backend = backend_class()
     try:
-        with tempfile.TemporaryDirectory() as annexes:   # MIDI, temps, accords : non gardés
-            text = backend.extract_score(model_id=model_id(extractor_key), audio_path=audio_abs,
-                                         output_dir=annexes, melody_only=True,
-                                         progress_callback=ctx.progress)
+        with tempfile.TemporaryDirectory() as annexes:   # MIDI, temps : non gardés
+            def extract(melody_only):
+                return backend.extract_score(model_id=model_id(extractor_key), audio_path=audio_abs,
+                                             output_dir=annexes, melody_only=melody_only,
+                                             progress_callback=ctx.progress)
+            try:
+                text = extract(False)
+            except RuntimeError as error:
+                ctx.console(f"[Composer] Partition complète impossible ({error}) — "
+                            "mélodie seule, sans accords")
+                text = extract(True)
     except Exception:
         ctx.reset_progress()
         raise
@@ -396,6 +406,9 @@ def _render(gen, ctx):
     # un moteur qui ne la suit pas la refuse en le disant.
     score = _score_to_follow(gen, catalog_key)
     score_abs = os.path.join(settings.MEDIA_ROOT, score) if score else None
+    # La partition EXTRAITE porte ses accords (pour la page d'édition) ; le cover n'en joue que la
+    # mélodie (`cot="melody"`, chaîne prescrite par le moteur) — une copie jetable sans accords.
+    melody_copy = _melody_copy(score_abs) if score and score == _name(gen.extracted_score) else None
 
     try:
         _backend(gen, catalog_key).generate(
@@ -404,7 +417,7 @@ def _render(gen, ctx):
             duration=duration,
             output_path=output_abs_path,
             melody_path=melody_abs,
-            score_path=score_abs,
+            score_path=melody_copy or score_abs,
             progress_callback=ctx.progress,
             # Preview « pendant » (COMMUN) : publie l'audio produit → onde de la face during.
             # Dormant tant que composer ne déclare pas la capacité during_preview.
@@ -415,6 +428,11 @@ def _render(gen, ctx):
         raise
     finally:
         clear_partial(ctx.app_id, gen.id)   # la face SORTIE prend le relais (ou rien, à l'échec)
+        if melody_copy:
+            try:
+                os.remove(melody_copy)
+            except OSError:
+                pass
 
     output_rel = f'{output_rel_dir}/{output_filename}'
     # Le format et la qualité de sortie sont le process suivant, `output` (brique commune) : ici
@@ -434,6 +452,27 @@ def _output(gen, ctx):
     (`output_process.output_step`) — le WAV du rendu est gardé tant que la sortie le transforme."""
     from wama.common.services.output_process import output_step
     return output_step('audio_output', domain='audio', app_id='composer')(gen, ctx)
+
+
+def _name(field) -> str:
+    return getattr(field, 'name', field) or ''
+
+
+def _melody_copy(score_abs: str):
+    """Une copie JETABLE de la partition sans ses accords (`yue2_3b_backend.melody_only_abc`),
+    None si elle n'en porte pas — le rendu lit alors la partition elle-même."""
+    import tempfile
+
+    from wama.common.backends.yue2_3b_backend import melody_only_abc
+    with open(score_abs, encoding='utf-8') as source:
+        text = source.read()
+    melody = melody_only_abc(text)
+    if melody == text:
+        return None
+    handle, path = tempfile.mkstemp(suffix='.abc', prefix='melody_')
+    with os.fdopen(handle, 'w', encoding='utf-8') as out:
+        out.write(melody)
+    return path
 
 
 def _score_to_follow(gen, catalog_key) -> str:

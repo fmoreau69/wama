@@ -20,7 +20,8 @@
  *     });
  * `refresh()` est rappelé quand la valeur change (`change`) ou que l'élément est redimensionné
  * (`resize`). `help` : les gestes de la brique, que la brique d'actions affiche (`ctx.helps()`).
- * Événements du bus : `change`, `select`, `resize`, `saved`, `applied`, `focus`.
+ * Événements du bus : `change`, `select`, `resize`, `saved`, `applied`, `focus`, `processes`,
+ * `redone` (le process rejoué par « Appliquer » et son aval ont réussi : les médias lus sont neufs).
  *
  * L'AXE PARTAGÉ (2026-10-15, `wama-axis.js`) : `ctx.axis()` rend LE temps de la surface — un
  * seul par page, créé au premier appel. Le transport le pilote, les vues s'y abonnent ; une
@@ -251,7 +252,12 @@
                         var busy = Object.keys(state.processes).some(function (k) {
                             return BUSY.indexOf(state.processes[k]) >= 0;
                         });
-                        if (((s === 'SUCCESS' || s === 'FAILURE') && !busy) || Date.now() > until) return;
+                        if (((s === 'SUCCESS' || s === 'FAILURE') && !busy) || Date.now() > until) {
+                            // `redone` : les médias lus ont été refaits — une brique qui les montre
+                            // (ou en tire une grille) les recharge ; une règle, pas une par brique.
+                            if (s === 'SUCCESS' && !busy) emit('redone', state.reads);
+                            return;
+                        }
                         tracking = setTimeout(tick, TRACK_EVERY_MS);
                     })
                     .catch(function () { tracking = setTimeout(tick, TRACK_EVERY_MS * 2); });

@@ -35,7 +35,7 @@ def _score_available(generation) -> tuple:
 register_surface(Surface(
     app='composer', key='score', label='Éditer la partition',
     model='composer.ComposerGeneration',
-    slots=(BrickSlot('score', 'score_view', 0, 0, 8, 12),
+    slots=(BrickSlot('score', 'score_view', 0, 0, 8, 12, {'media': 'audio'}),
            BrickSlot('transport', 'media_transport', 0, 12, 8, 4, {'role': 'audio'}),
            BrickSlot('source', 'text_sections', 8, 0, 4, 8, {'title': 'Source ABC'}),
            BrickSlot('versions', 'revision_history', 8, 8, 4, 4),

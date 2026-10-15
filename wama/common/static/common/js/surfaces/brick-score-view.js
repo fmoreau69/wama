@@ -12,9 +12,14 @@
  *   • elle défile pour garder la note jouée visible ;
  *   • un clic sur une note y amène la lecture (`axis.seek`) ;
  *   • glisser une note vers le haut ou le bas la transpose d'un degré par cran (le glisser
- *     d'abcjs) : UN geste d'édition, `ctx.edit` — Ctrl+Z l'annule ;
- *   • « Caler sur le média » étire le tempo de la partition sur la durée de l'axe (un rendu qui
- *     n'a pas tenu exactement le tempo écrit) ; sinon le temps est celui du tempo écrit (`Q:`).
+ *     d'abcjs) : UN geste d'édition, `ctx.edit` — Ctrl+Z l'annule.
+ *
+ * LE TEMPS DE LA PARTITION GUIDE (2026-10-16, remarque de Fabien — l'anacrouse ne tombait pas où
+ * on l'entend) : le temps ÉCRIT n est calé sur le temps JOUÉ n + k de l'audio (`options.media`,
+ * le rôle lu ; grille servie par `data/?only=rhythm`, `common/utils/audio_rhythm.py`), au prorata
+ * entre deux temps — un tempo écrit arrondi (#754 : 88 écrit, 89,1 joué) ne fait plus dériver le
+ * morceau. Tant que la grille n'est pas là, ou si on décoche « Calée sur les temps joués », le
+ * temps est celui du tempo écrit (`Q:`).
  */
 (function (global) {
     'use strict';
@@ -22,8 +27,10 @@
     var RENDER_DELAY_MS = 250;
     var PLAYING = 'wama-score-playing';
 
-    function mount(body, ctx) {
-        var ABCJS = global.ABCJS, Score = global.WamaScore;
+    function mount(body, ctx, options) {
+        options = options || {};
+        var ABCJS = global.ABCJS, Score = global.WamaScore, Axis = global.WamaAxis;
+        var App = global.WamaApp || {};
         var axis = ctx.axis();
         body.classList.add('wama-brick-score');
         var paper = document.createElement('div');
@@ -34,25 +41,51 @@
         tools.className = 'wama-brick-tools';
         var warn = document.createElement('span');
         warn.className = 'badge text-bg-warning d-none';
-        var fitLabel = document.createElement('label');
-        fitLabel.className = 'wama-score-fit';
-        fitLabel.title = 'Étirer le tempo de la partition sur la durée du média';
-        var fit = document.createElement('input');
-        fit.type = 'checkbox';
-        fitLabel.appendChild(fit);
-        fitLabel.appendChild(document.createTextNode(' Caler sur le média'));
+        var syncLabel = document.createElement('label');
+        syncLabel.className = 'wama-score-fit';
+        var sync = document.createElement('input');
+        sync.type = 'checkbox';
+        sync.checked = true;
+        sync.disabled = true;
+        var syncText = document.createElement('span');
+        syncText.textContent = ' Temps joués : calcul…';
+        syncLabel.appendChild(sync);
+        syncLabel.appendChild(syncText);
         tools.appendChild(warn);
-        tools.appendChild(fitLabel);
+        tools.appendChild(syncLabel);
         // Les outils vivent dans la poignée de la brique : un clic ne doit pas la déplacer.
         tools.addEventListener('mousedown', function (e) { e.stopPropagation(); });
 
         var timings = [], tl = null, lit = [], rendered = null, pending = null;
+        var msPerBeat = 0, notes = [], grid = null, alignment = null;
 
         function text() { var v = ctx.value(); return typeof v === 'string' ? v : ''; }
 
-        function stretch() {
-            var d = axis ? axis.duration() : 0;
-            return (fit.checked && tl && tl.end && d) ? tl.end / (d * 1000) : 1;
+        /** Le temps ÉCRIT (ms au tempo de la partition) qui sonne à l'instant `seconds` de l'axe. */
+        function scoreMs(seconds) {
+            if (alignment && sync.checked) return alignment.toScore(seconds) * msPerBeat;
+            return seconds * 1000;
+        }
+        /** L'instant de l'axe (s) où sonne le temps écrit `ms`. */
+        function axisSeconds(ms) {
+            if (alignment && sync.checked) return alignment.toAudio(ms / msPerBeat);
+            return ms / 1000;
+        }
+
+        function realign() {
+            alignment = (grid && notes.length && msPerBeat) ? Score.align(notes, msPerBeat / 1000, grid) : null;
+            sync.disabled = !alignment;
+            if (alignment) {
+                var first = notes[0].beat;
+                syncText.textContent = ' Calée sur les temps joués';
+                syncLabel.title = 'Chaque temps écrit est calé sur un temps joué de l’audio (1re note à ' +
+                    Axis.formatTime(alignment.toAudio(first), true) + ', décalage ' + alignment.shift +
+                    ' temps). Décocher : le tempo écrit seul.';
+            } else {
+                syncText.textContent = grid === false ? ' Tempo écrit (pas de grille de temps)'
+                    : (grid ? ' Tempo écrit (calage impossible)' : ' Temps joués : calcul…');
+                syncLabel.title = 'Le temps suit le tempo écrit de la partition (Q:).';
+            }
         }
 
         function render() {
@@ -63,16 +96,22 @@
             var top = body.scrollTop;
             lit = [];
             timings = [];
+            notes = [];
             tl = null;
             if (!abc.trim() || !ABCJS) {
                 paper.textContent = ABCJS ? 'Partition vide.' : 'Moteur de partition non chargé.';
+                realign();
                 return;
             }
             var tune = ABCJS.renderAbc(paper, abc, {
                 add_classes: true, responsive: 'resize', selectTypes: ['note'],
                 dragging: !!ctx.canEdit, clickListener: onNote,
             })[0];
+            // La séquence audio d'abcjs donne aux notes leurs hauteurs MIDI — de quoi les caler sur
+            // ce qui sonne. Aucun son n'est produit.
+            try { tune.setUpAudio({}); } catch (e) { /* hauteurs absentes : tempo écrit */ }
             try { timings = new ABCJS.TimingCallbacks(tune, {}).noteTimings || []; } catch (e) { timings = []; }
+            try { msPerBeat = 60000 / tune.getBpm(); } catch (e) { msPerBeat = 0; }
             var events = [], endMs = 0;
             timings.forEach(function (ev) {
                 endMs = Math.max(endMs, ev.milliseconds);
@@ -84,10 +123,12 @@
                 }) });
             });
             tl = Score.timeline(events, endMs);
+            notes = msPerBeat ? Score.notesFromTimings(timings, msPerBeat) : [];
             var warnings = (tune && tune.warnings) || [];
             warn.classList.toggle('d-none', !warnings.length);
             warn.textContent = warnings.length + ' avert.';
             warn.title = warnings.map(function (w) { return String(w).replace(/<[^>]*>/g, ''); }).join('\n');
+            realign();
             body.scrollTop = top;
             if (axis) paint(axis.time(), false);
         }
@@ -98,7 +139,7 @@
         }
 
         function paint(seconds, follow) {
-            var now = tl ? Score.playingAt(tl, seconds * 1000 * stretch()) : [];
+            var now = tl ? Score.playingAt(tl, scoreMs(seconds)) : [];
             var keep = new Set(now);
             lit.forEach(function (els) {
                 if (!keep.has(els)) els.forEach(function (el) { el.classList && el.classList.remove(PLAYING); });
@@ -124,17 +165,31 @@
                 return;
             }
             var ms = Score.eventTime(timings, abcelem.startChar);
-            if (ms != null && axis) axis.seek(ms / 1000 / stretch());
+            if (ms != null && axis) axis.seek(axisSeconds(ms));
         }
 
-        fit.addEventListener('change', function () { if (axis) paint(axis.time(), true); });
+        /** La grille des temps de l'audio, demandée à part : quelques secondes la 1re fois. */
+        function loadGrid() {
+            var role = options.media || 'audio';
+            if (!(ctx.reads() || {})[role]) { grid = false; realign(); return; }
+            fetch(ctx.config.data_url + '?only=rhythm&role=' + encodeURIComponent(role), { credentials: 'same-origin' })
+                .then(App.jsonOrExplain)
+                .then(function (res) { grid = (res && res.rhythm && res.rhythm.beats && res.rhythm.beats.length) ? res.rhythm : false; })
+                .catch(function () { grid = false; })
+                .then(function () { realign(); if (axis) paint(axis.time(), false); });
+        }
+
+        sync.addEventListener('change', function () { if (axis) paint(axis.time(), true); });
         if (axis) axis.subscribe(function (snap) { paint(snap.time, snap.playing || snap.reason === 'seek'); });
+        // Un rendu refait (« Appliquer ») est un autre audio : sa grille se redemande.
+        ctx.on('redone', function () { grid = null; realign(); loadGrid(); });
 
         render();
+        loadGrid();
         return {
             refresh: function () { if (text() !== rendered) schedule(); },
             tools: tools,
-            help: 'Partition : clic sur une note = y aller · glisser une note vers le haut ou le bas = la transposer d’un degré (Ctrl+Z annule) · « Caler sur le média » étire le tempo sur la durée de l’audio',
+            help: 'Partition : clic sur une note = y aller · glisser une note vers le haut ou le bas = la transposer d’un degré (Ctrl+Z annule) · les temps écrits sont calés sur les temps joués de l’audio',
         };
     }
 

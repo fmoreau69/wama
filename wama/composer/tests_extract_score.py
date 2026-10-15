@@ -8,6 +8,8 @@ What each test holds:
   * the extraction model is not the card's: drawn by task, released before the render, named on
     its execution line ;
   * the score is an output of the card, followed by the render, which never receives the audio ;
+    it is extracted FULL (chords included, to be read and edited — Fabien, 2026-10-16) and the
+    render plays its melody only ;
   * the card, the creation view and the assistant tool accept the audio of a cover for such a model
     (`accepts_input`) ;
   * YuE2 plays a chord-free score in `melody`, a score with chords in `full`.
@@ -36,6 +38,9 @@ MELODY_MODEL = 'composer:musicgen-melody'
 #: What SheetSage2 returns with `melody_only=True` (shape measured on a real song, 2026-10-03).
 MELODY_ABC = ('X:1\nM:4/4\nL:1/32\nV: Vocal clef=treble name="Vocal Melody" snm="Vocal"\nK:C\n'
               '% verse\nV: Vocal\nG4c4z4c4c4B4A4G2G2-|\n')
+#: What SheetSage2 returns by default (`melody_only=False`): the same melody, chords in quotes.
+FULL_ABC = ('X:1\nM:4/4\nL:1/32\nV: Vocal clef=treble name="Vocal Melody" snm="Vocal"\nK:C\n'
+            '% verse\nV: Vocal\n"C"G4c4z4c4"Am"c4B4A4G2G2-|\n')
 #: What YuE2 plans with `cot="full"` (shape of the real score of element #313): chords in quotes.
 PLANNED_ABC = ('X:1\nM:4/4\nV: Vocal clef=treble name="Vocal Melody" snm="Vocal"\nK:F\n'
                'V: Vocal\n"F"f4c4B2AB2A3|"C"e4c4B2AB2A3|\n')
@@ -44,7 +49,7 @@ PLANNED_ABC = ('X:1\nM:4/4\nV: Vocal clef=treble name="Vocal Melody" snm="Vocal"
 class _Extractor:
     """Stand-in of a score-extraction backend (`ScoreExtractionBackend`)."""
     built, unloaded, calls = 0, 0, []
-    error = None
+    error = full_error = None
 
     def __init__(self):
         type(self).built += 1
@@ -56,7 +61,9 @@ class _Extractor:
         _Extractor.calls.append(kwargs)
         if _Extractor.error:
             raise _Extractor.error
-        return MELODY_ABC
+        if not kwargs['melody_only'] and _Extractor.full_error:
+            raise _Extractor.full_error
+        return MELODY_ABC if kwargs['melody_only'] else FULL_ABC
 
 
 def _consumes(value, token):
@@ -77,6 +84,7 @@ class ExtractThenRenderTest(TestCase):
         _ScoreEngine.unloaded, _ScoreEngine.error = 0, None
         _PlainEngine.renders = []
         _Extractor.built, _Extractor.unloaded, _Extractor.calls, _Extractor.error = 0, 0, [], None
+        _Extractor.full_error = None
         self.extractor = EXTRACTOR
 
     def _cover(self, model=SCORE_MODEL, **fields):
@@ -115,18 +123,30 @@ class ExtractThenRenderTest(TestCase):
         self.assertEqual('SUCCESS', gen.status, gen.error_message)
         self.assertEqual({'extract_score': JOB_SUCCESS, 'render': JOB_SUCCESS, 'output': JOB_SUCCESS}, self._states(gen))
         self.assertEqual([], _ScoreEngine.plans, 'the score comes from the audio, not the prompt')
-        self.assertTrue(_Extractor.calls[0]['melody_only'], 'a cover takes the melody only')
+        self.assertFalse(_Extractor.calls[0]['melody_only'],
+                         'the FULL score is extracted, chords included, to be read and edited')
         self.assertTrue(_Extractor.calls[0]['audio_path'].replace('\\', '/')
                         .endswith(gen.melody_reference.name))
 
-    def test_the_extracted_score_is_an_output_of_the_card_and_the_render_follows_it(self):
+    def test_the_extracted_score_keeps_its_chords_and_the_render_plays_its_melody_only(self):
+        from wama.common.backends.yue2_3b_backend import cot_for_score
         gen = self._run(self._cover())
         self.assertIn(f'/score{gen.pk}_', gen.extracted_score.name)
         written = Path(self.tmp) / gen.extracted_score.name
-        self.assertEqual(MELODY_ABC, written.read_text(encoding='utf-8'))
+        self.assertEqual(FULL_ABC, written.read_text(encoding='utf-8'), 'the card keeps the chords')
         render = _ScoreEngine.renders[0]
-        self.assertEqual(str(written), str(Path(render['score_path'])))
+        self.assertEqual(MELODY_ABC, render['score_text'],
+                         'the cover plays the melody alone : chords removed, nothing else')
+        self.assertEqual('melody', cot_for_score(render['score_text']))
+        self.assertFalse(Path(render['score_path']).exists(), 'the chord-free copy is thrown away')
         self.assertIsNone(render['melody_path'], 'YuE2 refuses the audio: it gets the score')
+
+    def test_a_full_score_that_cannot_be_written_falls_back_on_the_melody(self):
+        _Extractor.full_error = RuntimeError('no notation')
+        gen = self._run(self._cover())
+        self.assertEqual('SUCCESS', gen.status, gen.error_message)
+        self.assertEqual([False, True], [c['melody_only'] for c in _Extractor.calls])
+        self.assertEqual(MELODY_ABC, (Path(self.tmp) / gen.extracted_score.name).read_text(encoding='utf-8'))
         line = process_runs.line(gen, 'extract_score')
         self.assertEqual((gen.extracted_score.name, 'composer.extract_score', EXTRACTOR),
                          (line.output_ref, line.process_key, line.model_key))

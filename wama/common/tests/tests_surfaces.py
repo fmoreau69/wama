@@ -357,6 +357,52 @@ class ScoreRulesTest(SimpleTestCase):
         self.assertEqual([], at(3000), 'nothing after the end')
         self.assertEqual([], at(-1))
 
+    # The measured case (#754, 2026-10-16) : written at 88 (0.682 s a beat), played at 89.1
+    # (0.673 s), the pickup on written beat 3, the music starting at 0.8 s.
+    ALIGN_SETUP = '''
+        // A tune that REPEATS every 12 beats, like a chorus : a shift of a whole period sounds the
+        // same — the alignment must still pick the right one.
+        var melody = [0, 4, 7, 2, 5, 9, 11, 0, 7, 4, 2, 9];
+        var notes = [];
+        for (var b = 3; b < 60; b++) notes.push({beat: b, pcs: [melody[b % 12]]});
+        function grid(step, perWritten) {
+            var beats = [], chroma = [];
+            for (var i = 0; i < 80 * perWritten; i++) {
+                beats.push(0.8 + i * step);
+                var written = Math.floor(i / perWritten) + 3;      // played beat 0 = written beat 3
+                var v = [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20];
+                v[melody[written % 12]] = 255;
+                chroma.push(v);
+            }
+            return {beats: beats, chroma: chroma};
+        }
+    '''
+
+    def _align(self, script):
+        return json.loads(self.engine.eval('(function(){' + self.ALIGN_SETUP + script + '})()'))
+
+    def test_the_written_beats_are_set_on_the_played_beats_pickup_included(self):
+        out = self._align('''
+            var a = window.WamaScore.align(notes, 0.682, grid(0.673, 1));
+            return JSON.stringify({shift: a.shift, pickup: a.toAudio(3), late: a.toAudio(53),
+                                   back: a.toScore(a.toAudio(10.5))});''')
+        self.assertEqual(-3, out['shift'], 'the pickup is anchored by the pitches that sound')
+        self.assertAlmostEqual(0.8, out['pickup'], places=3)
+        self.assertAlmostEqual(0.8 + 50 * 0.673, out['late'], places=3,
+                               msg='fifty beats on, the rounded written tempo has not drifted')
+        self.assertAlmostEqual(10.5, out['back'], places=6)
+
+    def test_a_grid_found_at_twice_the_written_tempo_is_folded_back(self):
+        out = self._align('''
+            var a = window.WamaScore.align(notes, 0.682, grid(0.3365, 2));
+            return JSON.stringify({pickup: a.toAudio(3), next: a.toAudio(4)});''')
+        self.assertAlmostEqual(0.8, out['pickup'], places=3)
+        self.assertAlmostEqual(0.8 + 0.673, out['next'], places=3)
+
+    def test_without_a_grid_or_notes_there_is_no_alignment(self):
+        self.assertIsNone(self._align('return JSON.stringify(window.WamaScore.align(notes, 0.682, null));'))
+        self.assertIsNone(self._align('return JSON.stringify(window.WamaScore.align([], 0.682, grid(0.673, 1)));'))
+
     def test_a_clicked_note_gives_its_time_and_its_voice(self):
         timings = json.dumps([{'type': 'bar', 'milliseconds': 0},
                               {'type': 'event', 'milliseconds': 750, 'startCharArray': [12, 40]}])
@@ -536,6 +582,24 @@ class ComposerScoreSurfaceTest(TestCase):
         self.gen.refresh_from_db()
         self.assertEqual(['extracted_score'], [e['field'] for e in self.gen.kept_outputs],
                          'a render is redone from its score : twenty copies of it are not kept')
+
+    def test_the_beat_grid_of_the_audio_is_served_on_demand(self):
+        """A real click track at 120 per minute : the grid finds a beat every half second."""
+        import soundfile as sf
+        rate = 22050
+        track = np.zeros(rate * 12, dtype=np.float32)
+        burst = np.sin(2 * np.pi * 880 * np.arange(int(0.03 * rate)) / rate).astype(np.float32)
+        for start in range(int(0.5 * rate), len(track) - len(burst), int(0.5 * rate)):
+            track[start:start + len(burst)] = burst
+        rel = self.rel.replace('score_extracted.abc', 'clicks.wav')
+        sf.write(str(Path(settings.MEDIA_ROOT) / rel), track, rate)
+        type(self.gen).objects.filter(pk=self.gen.pk).update(audio_output=rel)
+        grid = self.client.get(self.base + 'data/?only=rhythm&role=audio').json()['rhythm']
+        gaps = np.diff(grid['beats'])
+        self.assertAlmostEqual(0.5, float(np.median(gaps)), delta=0.03)
+        self.assertEqual(len(grid['beats']), len(grid['chroma']))
+        self.assertTrue(all(len(c) == 12 and max(c) <= 255 for c in grid['chroma']))
+        self.assertIsNone(self.client.get(self.base + 'data/?only=rhythm&role=nope').json()['rhythm'])
 
     def test_an_unchanged_score_keeps_nothing(self):
         from wama.common.models import ItemRevision

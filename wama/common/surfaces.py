@@ -349,8 +349,10 @@ register_brick(UIBrick(
     description="Une partition ABC gravée (abcjs, vendorisé), abonnée à l'axe partagé : les notes "
                 "JOUÉES se colorent, voix par voix, et la partition défile avec elles ; un clic sur "
                 "une note y amène la lecture. Glisser une note vers le haut ou le bas la transpose "
-                "d'un degré par cran — un geste d'édition annulable. Le tempo est celui de la "
-                "partition ; « Caler sur le média » l'étire sur la durée de l'audio.",
+                "d'un degré par cran — un geste d'édition annulable. Le temps de la PARTITION "
+                "guide : chaque temps écrit est calé sur un temps joué de l'audio lu "
+                "(`options.media`, grille de `audio_rhythm` servie par `data/?only=rhythm`), "
+                "le premier ancré par les hauteurs qui sonnent ; le tempo écrit sinon.",
     script='common/js/surfaces/brick-score-view.js',
     requires=('vendors/abcjs-6.4.4/abcjs-basic-min.js', 'common/js/wama-axis.js',
               'common/js/wama-score.js'),

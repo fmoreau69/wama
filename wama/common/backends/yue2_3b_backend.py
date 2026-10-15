@@ -38,6 +38,16 @@ def cot_for_score(abc: str) -> str:
     body = (line for line in (abc or '').splitlines() if not _ABC_HEADER.match(line))
     return 'full' if any(_ABC_CHORD.search(line) for line in body) else 'melody'
 
+
+def melody_only_abc(abc: str) -> str:
+    """La partition SANS ses accords — ce que SheetSage2 rend en `melody_only=True`, que la chaîne
+    du cover donne à jouer (`cot="melody"`). Le composer extrait désormais la partition COMPLÈTE,
+    pour la montrer et l'éditer accords compris, et n'en passe que celle-ci au rendu (décision de
+    Fabien, 2026-10-16). Les lignes d'en-tête sont laissées telles quelles, comme pour
+    `cot_for_score` : même définition d'un accord, un seul lieu."""
+    return '\n'.join(line if _ABC_HEADER.match(line) else _ABC_CHORD.sub('', line)
+                     for line in (abc or '').split('\n'))
+
 # ----------------------------------------------------------------------
 # Inventaire des modèles supportés (module‑level)
 # ----------------------------------------------------------------------

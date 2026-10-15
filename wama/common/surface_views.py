@@ -3,6 +3,7 @@ n'écrit ni page, ni lecture, ni enregistrement (2026-10-10, chantier SURFACES).
 
   page    GET   /common/surface/<app>/<clé>/<pk>/        la page : grille des briques
   data    GET   …/data/                                  ce que les briques lisent (JSON)
+                …/data/?only=rhythm&role=<rôle>          la grille des temps d'un audio lu
   save    POST  …/save/                                  le champ édité, validé par la surface
 
 Droits : LIRE = voir la card (la règle de l'aperçu, `PreviewRegistry.check_permission`, cards
@@ -92,6 +93,8 @@ def surface_data(request, app: str, key: str, pk: int):
     ok, reason = found.can_open(item)
     if not ok:
         return JsonResponse({'error': reason}, status=409)
+    if request.GET.get('only') == 'rhythm':
+        return JsonResponse({'rhythm': _rhythm_of(found, item, request.GET.get('role') or '')})
     from wama.common.services.edit_lock import state_token
     reads, media = {}, {}
     for role, field_name in found.reads.items():
@@ -193,6 +196,26 @@ def _server_peaks(url: str):
     try:
         from wama.common.utils.preview_utils import server_peaks
         return server_peaks(url)
+    except Exception:
+        return None
+
+
+def _rhythm_of(found, item, role: str):
+    """La grille des temps (`audio_rhythm.beat_grid`) de l'AUDIO lu sous `role` — demandée à part
+    (`?only=rhythm`) par une brique qui cale une partition dessus : quelques secondes au premier
+    appel, la page ne l'attend pas. None pour un rôle inconnu, un document ou un non-audio."""
+    field_name = found.reads.get(role)
+    if not field_name or role in found.documents:
+        return None
+    value = getattr(item, field_name, None)
+    if not getattr(value, 'name', ''):
+        return None
+    from wama.common.utils.mime_utils import guess_mime_type
+    if not guess_mime_type(value.name).startswith('audio/'):
+        return None
+    from wama.common.utils.audio_rhythm import beat_grid
+    try:
+        return beat_grid(value.path)
     except Exception:
         return None
 

@@ -127,7 +127,6 @@
             }
         });
 
-        var last = (ctx.processes() || {})[rerun] || '';
         function showState(states) {
             var now = (states || {})[rerun] || '';
             var shown = STATES[now];
@@ -140,18 +139,10 @@
             return now;
         }
         showState(ctx.processes());
-        ctx.on('processes', function (states) {
-            var now = showState(states);
-            var busy = Object.keys(states || {}).some(function (k) {
-                return ['PENDING', 'RUNNING', 'AWAITING_RESOURCES'].indexOf(states[k]) >= 0;
-            });
-            var url = (ctx.reads() || {})[role] || '';
-            // Le média refait : son adresse a changé, ou le process rejoué vient de finir (même
-            // chemin réécrit — d'où l'adresse « fraîche » qui contourne le cache).
-            if (url !== source) load(url, true);
-            else if (now === 'SUCCESS' && last !== 'SUCCESS' && !busy) load(url, true);
-            if (!busy) last = now;
-        });
+        ctx.on('processes', showState);
+        // Le média refait (le noyau le dit, `redone`) : même chemin réécrit le plus souvent —
+        // d'où l'adresse « fraîche » qui contourne le cache du navigateur.
+        ctx.on('redone', function (reads) { load((reads || {})[role] || '', true); });
 
         load((ctx.reads() || {})[role] || '');
         return {

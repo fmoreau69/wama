@@ -55,6 +55,9 @@ class _ScoreEngine:
         return SCORE
 
     def generate(self, **kwargs):
+        # What the engine READ (a copy handed to it may be gone once the render is over).
+        score = kwargs.get('score_path')
+        kwargs['score_text'] = Path(score).read_text(encoding='utf-8') if score else None
         _ScoreEngine.renders.append(kwargs)
         if _ScoreEngine.error:
             raise _ScoreEngine.error

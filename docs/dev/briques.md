@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**201 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**202 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -2314,6 +2314,16 @@ Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, gr
   - `is_late_binding(app_name: str) -> bool` — L'app choisit-elle son format AU TÉLÉCHARGEMENT (`export_binding='late'`, §6.4) ?
   - `register_export_builder(app_name: str, builder) -> None` — `builder` : callable `(instance, fmt) -> (ext, bytes) | None`, ou son chemin pointé
   - `export_builder_for(app_name: str)` — Le rendu déclaré par l'app, ou `None`. Une app early-binding n'en déclare pas : son
+
+### Grille des temps d'un audio
+
+L'instant de chaque temps joué d'un audio et les hauteurs qui y sonnent (chroma par temps), en cache par fichier et date — de quoi caler une partition TEMPS PAR TEMPS sur ce qui est joué plutôt que par son tempo écrit (né le 2026-10-16 : #754 écrit à 88, joué à 89,1). Ne connaît aucune partition ; le calage est `WamaScore.align`
+
+- **Domicile** : `wama/common/utils/audio_rhythm.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : La grille des TEMPS d'un audio — où tombe chaque temps joué, et quelles hauteurs y sonnent.
+- **API publique** (2) :
+  - `beat_grid(path: str)` — `{beats, chroma, duration}` de l'audio `path` (voir l'en-tête) ; None s'il est illisible.
+  - `compute_beat_grid(path: str) -> dict`
 
 ### Import de dossier récursif
 
