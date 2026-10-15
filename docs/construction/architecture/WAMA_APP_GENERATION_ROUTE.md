@@ -3531,6 +3531,28 @@ s'arrête à `new_app` et renvoie ici ; `codegen` exige une app **déjà déclar
 <app>`). Vérifié : aucun `run_app*.py`, aucun `prompts/app*.txt`, et `manifest_kind: 'app'`
 n'est écrit que par `manifests/builtin/app.py` (l'extraction d'une app EXISTANTE).
 
+> ✅ **OUTILLÉ le 2026-10-15 — décision de Fabien (levée progressive, `AGENTS.md §Collaboration
+> wama-dev-ai`)**, après un échange où l'assistant a relayé ce trou et s'est arrêté à « écris le
+> manifeste ». Le constat ci-dessus reste vrai jusqu'à cette date ; l'analyse des deux raisons
+> plus bas aussi — un dépôt ne contient pas l'app. Ce qui change : la DÉCISION WAMA qu'est le
+> manifeste est PROPOSÉE par un modèle de WAMA et JUGÉE par un humain, au lieu d'être écrite à
+> la main.
+> - **rôle `app`** (`wama-dev-ai/run_app_manifest.py`, consigne `prompts/app.txt`) : FORME tirée
+>   de `manifests/app_drafts/writer.json` (le seul brouillon né de zéro), NATURE de l'app la plus
+>   proche (`--like`, extraite), briques `requires` résolues, catalogue et vocabulaires fermés ;
+>   enveloppe IMPOSÉE, `ingest.validate` ; une brique pas encore validée ni installée est
+>   `pending_bricks`, pas une erreur. Sort `outputs/app_<clé>_<date>.json` + `.manifest.json` ;
+> - **`dev_sandbox create manifest=…`** : la surface fait naître l'app DE ZÉRO, depuis un
+>   brouillon de `manifests/app_drafts/` ou une sortie du rôle seulement ;
+> - **rôle `repo_app`** (`run_repo_app.py`) : la chaîne entière en UNE tâche — `librarian` →
+>   `app` → `app_sandbox create --from-manifest` → rechargement —, parce qu'une fin de tâche est
+>   ANNONCÉE au fil sans relancer l'assistant (`gateway/core.py::_dev_job_follow_up`) ;
+> - ⚠ l'`integrator` ne juge que des manifestes `model` (`run_integrator.py`, refus du kind) : pour
+>   un dépôt-LIBRAIRIE, le catalogue montré au rôle `app` et la recherche des décisions déjà prises
+>   (skill de l'assistant `assistant-dev.md`) tiennent sa place.
+> Restent humains : valider et installer la librairie (route `library`, `ROADMAP §16.7`), juger
+> le brouillon et l'app née au bac à sable, la PROMOUVOIR. Gardes : `tests_dev_ai_app_role`.
+
 **Et ce n'est pas un oubli — c'est une difficulté réelle, mesurée.** Deux raisons :
 
 1. **Il n'y a pas de gabarit à hériter.** Sur les 10 manifestes d'app du corpus, les facettes

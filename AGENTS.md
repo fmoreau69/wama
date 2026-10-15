@@ -956,6 +956,25 @@ tant que la fiabilité n'est pas éprouvée sur plus de runs.
 > glu `codegen`), la règle ci-dessus vaut entière. Chaîne et trous : `PROSPECTION_PIPELINE.md
 > §Session du 2026-09-29`.
 
+> 🔓 **Seconde levée, PROGRESSIVE — décision de Fabien le 2026-10-15** : *« La règle tenait tant
+> que je n'avais pas branché des modèles souverains. Avec ILaaS qwen3.8, on peut commencer à la
+> lever progressivement. »* Le rôle **`task`** (`wama-dev-ai/run_task.py`, surface de
+> développement `dev_run_role(role="task")`, donc aussi l'assistant et Discord) prend une tâche de
+> DÉVELOPPEMENT en clair, bornée à des fichiers NOMMÉS — l'autre voie, à côté des rôles de
+> génération et d'intégration, qu'on ne mélange pas :
+> 1. **lecture seule** : une réponse dont chaque affirmation cite sa ligne (citations contrôlées) ;
+> 2. **petits ajustements** (`write=true`) : des édits PROPOSÉS, contrôlés (`old` unique, fichier
+>    qui se compile ou se parse, diff) ; jamais une migration, `staticfiles/`, un secret, un venv.
+>
+> **Appliquer reste un geste du superviseur** (`run_task.py --apply <sortie>`, contrôles refaits sur
+> le fichier du moment) : la surface ne l'expose pas. Rien n'est commité par le rôle. Chaque palier
+> suivant (plus de fichiers, application directe, commit) est une DÉCISION, pas une dérive.
+>
+> Même jour, même décision : le **manifeste `app` de départ** d'une app nouvelle n'est plus
+> « écrit à la main » (`ROUTE §10.5`) — le rôle **`app`** le PROPOSE, la chaîne **`repo_app`**
+> mène un dépôt jusqu'à l'app née au bac à sable ; valider la librairie, juger l'app et la
+> promouvoir restent humains.
+
 ### Format des rapports
 Voir `wama-dev-ai/README.md` §Format des sorties — objet plat `{status, role, **payload}`, statut
 toujours `PENDING_HUMAN_VALIDATION` (l'ex-`AUDIT_FORMAT.md`, jamais conforme au code, est archivé).

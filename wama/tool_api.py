@@ -2104,38 +2104,59 @@ def plan_app_integration(user, target: str) -> dict:
       - `target` looks like a repo ('owner/name'): reports the route and what is NOT
         automated yet (producing an app manifest FROM a repository).
     """
+    import re
+
     from wama.common.manifests.ingest import resolve_requires
     from wama.common.manifests.builtin.app import extract_app
 
     if '/' in target:
+        repo = re.sub(r'^(?:https?://)?(?:www\.)?github\.com/', '', target.strip()).strip('/')
+        repo = repo.removesuffix('.git')
+        # Les DÉCISIONS déjà prises sur ce dépôt, cherchées ICI et non laissées au modèle
+        # (2026-10-15) : la consigne « search_docs d'abord » vit dans le skill de développement,
+        # que l'assistant ne charge pas toujours — et il a lancé la chaîne sur LibreTranslate sans
+        # voir que le 12/08 l'avait déjà tranché (backend dédié du Translator, ROUTE §10.5).
+        found = search_docs(user, f"{repo.rsplit('/', 1)[-1]} intégration décision app", k=4)
+        prior = [{k: hit.get(k) for k in ('label', 'section', 'doc', 'caution')}
+                 | {'excerpt': (hit.get('content') or '')[:400]}
+                 for hit in found.get('results') or []]
         return {
-            'target': target, 'state': {'known_app': False},
+            'target': target, 'repo': repo, 'state': {'known_app': False},
+            'prior_decisions': prior,
+            'read_first': ("DIRE à l'utilisateur ce que `prior_decisions` établit déjà sur ce "
+                           "dépôt (document, section) AVANT de lancer quoi que ce soit ; si une "
+                           "décision dit « pas comme app » ou « pas maintenant », le demander"),
             'next_step': ("une app se compose de TROIS briques déclarées — UI (facettes du "
-                          "manifeste `app`), MODÈLES et LIBRAIRIES (son `requires`). La "
-                          "production du manifeste `app` LUI-MÊME est le seul maillon non "
-                          "automatisé — tout ce qui l'entoure a son rôle (voir `roles`)"),
+                          "manifeste `app`), MODÈLES et LIBRAIRIES (son `requires`). Chaque "
+                          "maillon a son rôle (voir `roles`), le manifeste `app` compris depuis "
+                          "le 2026-10-15 ; d'abord chercher si WAMA a déjà tranché ce dépôt ou "
+                          "cette capacité (search_docs), puis enchaîner les rôles dans l'ordre"),
             # ⚠ Cette réponse envoyait tout faire À LA MAIN, y compris l'étape « quelle app ? »
             # que `run_integrator.py` OUTILLE depuis le 2026-08-27 (mesuré le 2026-09-07 :
             # 6 rôles existent, la réponse n'en citait aucun). Un planificateur qui ignore les
             # outils disponibles fait refaire à la main du travail déjà outillé — c'est le
             # défaut que ce champ corrige.
             'roles': [
+                "repo_app (run_repo_app.py --repo owner/name --key … --need … --like …) → LA "
+                "CHAÎNE en une tâche : librarian, brouillon `app`, naissance au bac à sable",
                 "librarian (run_librarian.py --repo owner/name) → manifeste `library`",
                 "scout (run_scout.py --hf org/depot) → manifeste `model`, squelette MÉCANIQUE",
                 "model (run_model_manifest.py) → manifeste `model` : runtime.engine, capabilities",
                 "integrator (run_integrator.py --manifest …) → app EXISTANTE vs `new_app`",
+                "app (run_app_manifest.py --key … --need … --like … --requires …) → "
+                "BROUILLON du manifeste `app` (+ `*.manifest.json`)",
+                "dev_sandbox create manifest=<*.manifest.json> → l'app naît DE ZÉRO dans le "
+                "bac à sable, ses générateurs la rendent ou refusent en disant pourquoi",
                 "codegen (run_codegen.py --app <app>) → corps de glu, APRÈS que l'app existe",
             ],
-            'gap': ("aucun rôle ne produit un manifeste `app` : `integrator` s'arrête à "
-                    "`new_app` et renvoie à WAMA_APP_GENERATION_ROUTE.md, `codegen` exige "
-                    "une app déjà déclarée. Les 13 facettes sont propres à chaque app "
-                    "(mesuré : 10 valeurs distinctes sur 10 apps pour 8 d'entre elles) — "
-                    "il n'y a donc pas de gabarit à hériter, et un dépôt ne contient pas "
-                    "l'app : il porte une CAPACITÉ, l'app est une décision WAMA"),
-            'human_gesture': ("les briques d'abord (plan_library_integration / "
-                              "plan_model_integration), puis `run_integrator.py` pour "
-                              "trancher app existante vs nouvelle ; le manifeste `app` "
-                              "reste écrit à la main, et le codegen prend le relais"),
+            # « Le trou unique » (ROUTE §10.5) est outillé depuis le 2026-10-15 (décision de
+            # Fabien, levée progressive) : un dépôt porte une CAPACITÉ, l'app reste une
+            # décision WAMA — c'est ce que le rôle `app` PROPOSE et qu'un humain juge.
+            'gap': ("le manifeste `app` est une DÉCISION WAMA, absente du dépôt (13 facettes "
+                    "propres à chaque app) : le rôle `app` la PROPOSE à partir des briques "
+                    "produites et de l'app existante la plus proche, un humain la juge"),
+            'human_gesture': ("juger le brouillon (`decisions`, `concerns`) puis l'app née dans "
+                              "le bac à sable ; sa PROMOTION hors du bac à sable reste humaine"),
         }
     manifeste = extract_app(target)
     if manifeste is None:

@@ -70,6 +70,23 @@ ROLES = {
     # au model manager, qui seul l'écrit dans wama/common/backends/.
     'backend':    {'script': 'run_backend.py',
                    'args': {'catalog': str, 'dry_run': bool, 'no_smoke': bool}},
+    # Tâche de DÉVELOPPEMENT (2026-10-15, décision de Fabien : levée progressive de la règle
+    # « wama-dev-ai ne touche pas au code ») — l'autre voie, à côté de la génération et de
+    # l'intégration. Lecture seule, ou édits PROPOSÉS ; `--apply` n'est volontairement pas admis.
+    'task':       {'script': 'run_task.py',
+                   'args': {'task': str, 'files': str, 'write': bool}},
+    # Brouillon du manifeste `app` d'une app NOUVELLE (2026-10-15, même décision) : le maillon de
+    # la route « dépôt → app » qu'aucun rôle ne produisait (ROUTE §10.5). L'app naît ensuite par
+    # `dev_sandbox(action="create", manifest=…)`, dans le bac à sable.
+    'app':        {'script': 'run_app_manifest.py',
+                   'args': {'key': str, 'need': str, 'like': str, 'requires': str,
+                            'dry_run': bool}},
+    # La chaîne « dépôt → app » en UNE tâche : librarian → app → naissance au bac à sable. Les fins
+    # de tâche sont annoncées, elles ne relancent pas l'assistant — rôle par rôle, la route
+    # attendait un « continue » humain à chaque marche.
+    'repo_app':   {'script': 'run_repo_app.py',
+                   'args': {'repo': str, 'key': str, 'need': str, 'like': str,
+                            'no_sandbox': bool}},
 }
 SANDBOX_ACTIONS = ('create', 'substitute', 'revert', 'remove', 'list')
 
@@ -125,6 +142,11 @@ def role_command(role: str, args=None, provider: str = '', model: str = '') -> l
     spec = ROLES.get(role)
     if spec is None:
         raise DevToolError(f"rôle inconnu : {role!r} (connus : {', '.join(sorted(ROLES))})")
+    # Vécu le 2026-10-15 : `args="repo=…, key=…"` (une CHAÎNE) rendait une erreur Python brute
+    # (« 'str' object has no attribute 'items' ») — le modèle s'est corrigé seul, au jugé.
+    if args is not None and not isinstance(args, dict):
+        raise DevToolError(f"`args` doit être un OBJET {{nom: valeur}} — ex. "
+                           f"{{\"{next(iter(spec['args']))}\": \"…\"}} —, pas une chaîne")
     argv = [sys.executable, str(base_dir() / 'wama-dev-ai' / spec['script'])]
     for name, value in (args or {}).items():
         kind = spec['args'].get(name)
@@ -172,10 +194,33 @@ def role_model(user, provider: str = '', model: str = '') -> dict:
     return {'key': key, 'provider': source, 'model': model_id, 'note': note}
 
 
-def sandbox_command(action: str, app: str = '', target: str = '', owner: str = '') -> list:
+def sandbox_manifest(path: str) -> str:
+    """Le manifeste d'où une app naît DE ZÉRO — un brouillon du corpus (`manifests/app_drafts/`)
+    ou une sortie du rôle `app` (`wama-dev-ai/outputs/app_*.manifest.json`), rien d'autre : la
+    surface ne fait pas naître une app d'un fichier quelconque du disque."""
+    from wama.common.manifests.codegen.pipeline_decl import DRAFTS_DIR
+    rel = _clean(path, 'manifest').replace('\\', '/').removeprefix('./')
+    full = (base_dir() / rel).resolve()
+    drafts = (base_dir() / DRAFTS_DIR).resolve()
+    allowed = (full.parent == drafts and full.suffix == '.json') or (
+        full.parent == outputs_dir().resolve() and full.name.startswith('app_')
+        and full.name.endswith('.manifest.json'))
+    if not allowed or not full.is_file():
+        raise DevToolError(f"manifeste refusé : {rel!r} — un brouillon de manifests/app_drafts/ "
+                           "ou une sortie du rôle app (wama-dev-ai/outputs/app_*.manifest.json)")
+    return full.relative_to(base_dir()).as_posix()
+
+
+def sandbox_command(action: str, app: str = '', target: str = '', owner: str = '',
+                    manifest: str = '') -> list:
     if action not in SANDBOX_ACTIONS:
         raise DevToolError(f"action inconnue : {action!r} (connues : {', '.join(SANDBOX_ACTIONS)})")
     argv = [sys.executable, str(base_dir() / 'manage.py'), 'app_sandbox', action]
+    if action == 'create' and manifest:
+        argv += ['--from-manifest', sandbox_manifest(manifest)]
+        if owner:
+            argv += ['--owner', _clean(owner, 'owner')]
+        return argv
     if action != 'list':
         if not app:
             raise DevToolError(f"« {action} » exige `app` (app source pour create, "
@@ -360,7 +405,16 @@ def dev_run_role(user, role: str, args: dict = None, provider: str = '', model: 
     integrator (manifest, besoin, dry_run), codegen (app = id d'une app du catalogue, task = NOM
     de sa tâche Celery comme read_document_task, truth = module:fonction de référence — écrit la
     GLU de cette seule tâche ; ce n'est PAS un rôle de modification générale du code : pour cela,
-    dev_claude_code avec write=true), backend (catalog, dry_run, no_smoke). Valeurs d'une ligne,
+    dev_claude_code avec write=true), backend (catalog, dry_run, no_smoke), task (tâche de
+    DÉVELOPPEMENT par wama-dev-ai : task = la tâche en clair, files = chemins du dépôt séparés par
+    des virgules, `chemin:début-fin` pour une tranche, 8 au plus ; sans write, réponse citée
+    ligne par ligne ; write=true, édits PROPOSÉS et contrôlés, appliqués après validation
+    humaine — jamais par toi), app (BROUILLON du manifeste d'une app NOUVELLE : key =
+    underscore_case libre, need = ce qu'elle fait, like = app existante la plus proche, requires =
+    briques déjà produites `library:<clé>,model:<clé>` ; sa sortie *.manifest.json fait naître
+    l'app par dev_sandbox create manifest=…), repo_app (la CHAÎNE entière en une tâche : repo =
+    owner/name, key, need, like — librarian, brouillon app, naissance au bac à sable et
+    rechargement ; no_sandbox = s'arrêter au brouillon). Valeurs d'une ligne,
     500 caractères au plus. Intégrer un modèle INSTALLÉ : model d'abord (manifeste : moteur,
     composants), validation au model manager, PUIS backend (il exige le moteur déclaré).
     Modèle : laisser vide = tirage du niveau développement pour ton compte (local, ou souverain
@@ -381,15 +435,19 @@ def dev_run_role(user, role: str, args: dict = None, provider: str = '', model: 
     return job
 
 
-def dev_sandbox(user, action: str, app: str = '', target: str = '') -> dict:
+def dev_sandbox(user, action: str, app: str = '', target: str = '', manifest: str = '') -> dict:
     """Bac à sable d'apps en tâche de fond : create, substitute, revert, remove, list — l'app d'origine n'est jamais modifiée.
 
-    create app=<app source> : jumelle <app>_NN dont le demandeur est le créateur. substitute /
-    revert app=<jumelle> target=<apps|urls|models|params|tasks|views|templates>. remove
-    app=<jumelle>. Après create, revert ou remove : dev_reload_web pour servir le changement.
+    create app=<app source> : jumelle <app>_NN dont le demandeur est le créateur. create
+    manifest=<chemin> (sans app) : app NOUVELLE née DE ZÉRO d'un manifeste `app` — la sortie
+    `*.manifest.json` du rôle app, ou un brouillon de manifests/app_drafts/ ; ses trous de glu se
+    remplissent ensuite par le rôle codegen. substitute / revert app=<jumelle>
+    target=<apps|urls|models|params|tasks|views|templates>. remove app=<jumelle>. Après create,
+    revert ou remove : dev_reload_web pour servir le changement.
     """
     owner = getattr(user, 'username', '') if action == 'create' else ''
-    return start_job(user, f'sandbox:{action}', sandbox_command(action, app, target, owner))
+    return start_job(user, f'sandbox:{action}',
+                     sandbox_command(action, app, target, owner, manifest))
 
 
 def dev_regen_check(user, app: str) -> dict:

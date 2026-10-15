@@ -59,7 +59,7 @@ def _sync_cloud_seul(test):
 
 class TypesDistantsTest(TestCase):
 
-    def test_chaque_type_d_albert_trouve_sa_categorie_ou_n_entre_pas(self):
+    def test_each_albert_type_maps_to_a_category_or_is_excluded(self):
         attendu = {
             'text-generation': ('text-generation', 'llm'),
             # Un modèle de chat qui accepte des images est rangé comme Ollama range les siens :
@@ -86,7 +86,7 @@ class DecouverteTest(TestCase):
         with mock.patch.object(cloud_models, 'list_remote_models', return_value=annonces):
             return cloud_models.refresh_key(row or self.row)
 
-    def test_la_cle_ouvre_les_modeles_rangeables_et_les_garde(self):
+    def test_key_opens_classifiable_models_and_persists_them(self):
         count, error = self._relire(ALBERT_MODELS)
         self.assertEqual((4, ''), (count, error))
         self.row.refresh_from_db()
@@ -100,7 +100,7 @@ class DecouverteTest(TestCase):
         self.assertTrue(m.capabilities.get('completion'))
         self.assertFalse(AIModel.objects.filter(model_key='albert:bge-reranker-v2-m3').exists())
 
-    def test_la_ligne_distante_passe_par_la_synchronisation_commune(self):
+    def test_remote_row_goes_through_common_synchronization(self):
         """Plus d'écriture à part : c'est `_sync_model` qui crée la ligne, donc les mêmes règles
         de fusion que pour un modèle Ollama (une capacité posée par un manifeste survit)."""
         self._relire(ALBERT_MODELS)
@@ -112,7 +112,7 @@ class DecouverteTest(TestCase):
         self.assertEqual(['fr', 'en'], m.capabilities.get('languages'))
         self.assertTrue(m.capabilities.get('vision'))
 
-    def test_un_embedding_distant_porte_le_drapeau_embedding_et_son_depot(self):
+    def test_remote_embedding_carries_embedding_flag_and_repo(self):
         """`requires=['embedding']` doit voir `albert:bge-m3` comme il voit `ollama:bge-m3`
         (mesuré le 18/09 : le drapeau manquait). Et le dépôt servi devient son identité, par
         la provenance — la même que celle d'une installation."""
@@ -122,7 +122,7 @@ class DecouverteTest(TestCase):
         self.assertNotIn('completion', m.capabilities)
         self.assertEqual(('BAAI/bge-m3', 'huggingface:BAAI/bge-m3'), (m.hf_id, m.platform_ref))
 
-    def test_un_identifiant_renomme_retire_l_ancienne_ligne_sans_la_supprimer(self):
+    def test_renamed_identifier_marks_old_row_unavailable_without_deleting(self):
         """Albert a renommé `openai/gpt-oss-120b` en `gpt-oss-120b` (18/09) : la ligne d'avant
         est MARQUÉE indisponible (elle porte l'historique), la nouvelle prend sa place — et si
         le fournisseur re-liste l'ancien identifiant, la ligne redevient disponible."""
@@ -138,7 +138,7 @@ class DecouverteTest(TestCase):
         ancienne.refresh_from_db()
         self.assertTrue(ancienne.is_available)
 
-    def test_une_ligne_reste_ouverte_tant_qu_une_autre_cle_l_ouvre(self):
+    def test_row_stays_available_while_another_key_opens_it(self):
         """L'union se fait sur TOUTES les clés de la source : une clé qui n'ouvre pas un modèle
         ne prouve pas que le fournisseur l'a retiré."""
         from wama.accounts.models import UserApiKey
@@ -150,7 +150,7 @@ class DecouverteTest(TestCase):
         self.row.refresh_from_db()
         self.assertNotIn('albert:openai/gpt-oss-120b', self.row.open_models)
 
-    def test_une_famille_distante_declaree_impose_sa_tache(self):
+    def test_declared_remote_family_imposes_its_task(self):
         """Albert sert `lightonocr` en `image-text-to-text` (« chat qui voit ») — c'est un OCR.
         Même règle que pour Ollama : la tâche est DÉCLARÉE, et la catégorie en dérive."""
         # La déclaration porte sur la FAMILLE : une version que WAMA n'a jamais vue doit être
@@ -168,13 +168,13 @@ class DecouverteTest(TestCase):
         chat = AIModel.objects.get(model_key='albert:gemma-4-31b-it')
         self.assertEqual(('llm', True), (chat.model_type, chat.capabilities.get('vision')))
 
-    def test_le_moteur_distant_n_est_pas_juge_sans_backend(self):
+    def test_remote_engine_is_not_flagged_without_backend(self):
         from wama.common.backends.manager import backend_missing
         with mock.patch.object(cloud_models, 'list_remote_models', return_value=ALBERT_MODELS):
             cloud_models.refresh_key(self.row)
         self.assertIsNone(backend_missing(AIModel.objects.get(model_key='albert:bge-m3')))
 
-    def test_un_echec_garde_la_liste_precedente_et_se_dit(self):
+    def test_failure_keeps_previous_list_and_reports_error(self):
         with mock.patch.object(cloud_models, 'list_remote_models', return_value=ALBERT_MODELS):
             cloud_models.refresh_key(self.row)
         with mock.patch.object(cloud_models, 'list_remote_models',
@@ -184,7 +184,7 @@ class DecouverteTest(TestCase):
         self.assertEqual((0, 'clé refusée'), (count, error))
         self.assertEqual(4, len(self.row.open_models))
 
-    def test_le_niveau_cloud_du_profil_gouverne_l_autorisation(self):
+    def test_profile_cloud_policy_governs_authorization(self):
         with mock.patch.object(cloud_models, 'list_remote_models', return_value=ALBERT_MODELS):
             cloud_models.refresh_key(self.row)
         profile = self.user.profile
@@ -208,12 +208,12 @@ class ProtocolesTest(TestCase):
             modeles = cloud_models.list_remote_models(source, 'secret')
         return get.call_args.kwargs['headers'], modeles
 
-    def test_albert_bearer_et_type_annonce(self):
+    def test_albert_uses_bearer_auth_and_announced_type(self):
         entetes, modeles = self._appel('albert', [{'id': 'm', 'type': 'text-generation'}])
         self.assertEqual('Bearer secret', entetes['Authorization'])
         self.assertEqual('text-generation', modeles[0]['type'])
 
-    def test_anthropic_x_api_key_et_type_declare_par_la_source(self):
+    def test_anthropic_uses_x_api_key_and_source_declared_type(self):
         entetes, modeles = self._appel('anthropic', [
             {'id': 'claude-x', 'type': 'model', 'display_name': 'Claude X'}])
         self.assertEqual('secret', entetes['x-api-key'])
@@ -222,7 +222,7 @@ class ProtocolesTest(TestCase):
         self.assertEqual(('image-text-to-text', 'Claude X'), (modeles[0]['type'], modeles[0]['name']))
 
     @override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
-    def test_l_abonnement_n_a_pas_de_liste_et_ne_s_en_plaint_pas(self):
+    def test_subscription_without_list_produces_no_error(self):
         """Mesuré le 15/09 : le jeton d'abonnement est refusé par `/v1/models` mais fait tourner
         le CLI. Aucun appel, aucune erreur affichée au profil."""
         from wama.accounts.models import UserApiKey
@@ -256,7 +256,7 @@ class AbonnementPersonnelTest(TestCase):
         self.dev.profile.cloud_hosting_max = 'third_party'
         self.dev.profile.save()
 
-    def test_en_100_pour_cent_local_l_abonnement_n_est_pas_lance(self):
+    def test_local_only_policy_prevents_subscription_launch(self):
         from wama.accounts.models import UserApiKey
         from wama.common.services import claude_code
         UserApiKey.objects.create(user=self.dev, source='claude_code', api_key='jeton-perso')
@@ -277,7 +277,7 @@ class AbonnementPersonnelTest(TestCase):
                    for o in g['options']]
         return [(o[0] if isinstance(o, list) else o['value']) for o in groupes]
 
-    def test_le_selecteur_commun_propose_les_modeles_ouverts_et_pas_ceux_des_autres(self):
+    def test_common_selector_shows_own_open_models_not_others(self):
         """Le sélecteur de l'assistant est celui des apps : c'est l'ENDPOINT commun qui décide,
         avec les clés de CET utilisateur et son niveau cloud."""
         from wama.accounts.models import UserApiKey
@@ -302,21 +302,21 @@ class AbonnementPersonnelTest(TestCase):
         self.dev.profile.save()
         self.assertNotIn('albert:chat', self._options(self.dev))
 
-    def test_le_jeton_n_est_propose_qu_aux_developpeurs(self):
+    def test_token_is_only_offered_to_developers(self):
         from wama.accounts.api_keys import llm_sources
         ordinaire = get_user_model().objects.create_user('ordinaire_abo', password='x')
         self.assertNotIn('claude_code', [s.key for s in llm_sources(ordinaire)])
         self.assertIn('claude_code', [s.key for s in llm_sources(self.dev)])
         self.assertIn('anthropic', [s.key for s in llm_sources(ordinaire)])
 
-    def test_sans_jeton_personnel_le_cli_n_est_pas_lance(self):
+    def test_without_personal_token_cli_is_not_launched(self):
         from wama.common.services import claude_code
         with mock.patch('subprocess.run') as run:
             res = claude_code.demander('bonjour', user=self.dev)
         self.assertFalse(res['success'])
         run.assert_not_called()
 
-    def test_le_jeton_personnel_est_transmis_au_cli_et_pas_celui_du_env(self):
+    def test_personal_token_is_passed_to_cli_not_env_one(self):
         from wama.accounts.models import UserApiKey
         from wama.common.services import claude_code
         UserApiKey.objects.create(user=self.dev, source='claude_code', api_key='jeton-perso')
@@ -342,14 +342,14 @@ class NonRegressionTest(TestCase):
         return select_model(model_type='llm', candidates=[self.local.model_key, self.cloud.model_key],
                             prefer_loaded=False, vram_budget_gb=24.0, quality_intent=100, **kw)
 
-    def test_sans_autorisation_le_tirage_ignore_le_distant(self):
+    def test_without_authorization_draw_ignores_remote(self):
         self.assertEqual(self.local, self._tirage())
         self.assertEqual(self.local, self._tirage(downloaded_only=False))
 
-    def test_avec_autorisation_le_distant_concourt(self):
+    def test_with_authorization_remote_is_considered(self):
         self.assertEqual(self.cloud, self._tirage(cloud_keys={self.cloud.model_key}))
 
-    def test_les_listes_n_exposent_pas_le_distant_sans_autorisation(self):
+    def test_lists_do_not_expose_remote_without_authorization(self):
         ids = [d['id'] for d in get_registry_models(model_type='llm')[1]]
         self.assertIn(self.local.model_key, ids)
         self.assertNotIn(self.cloud.model_key, ids)
@@ -357,7 +357,7 @@ class NonRegressionTest(TestCase):
                                                     cloud_keys={self.cloud.model_key})[1]]
         self.assertIn(self.cloud.model_key, ids)
 
-    def test_la_synchronisation_reconcilie_le_distant_comme_le_local(self):
+    def test_sync_reconciles_remote_like_local(self):
         """Depuis le 18/09 la découverte cloud relit les clés d'API : une ligne qu'une clé
         ouvre survit à la réconciliation, une ligne que plus aucune clé n'ouvre est traitée
         comme un local absent du disque — une seule règle, pas deux."""
@@ -378,14 +378,14 @@ class NonRegressionTest(TestCase):
         self.assertFalse(AIModel.objects.filter(pk=self.cloud.pk).exists(),
                          "plus aucune clé ne l'ouvre : réconcilié comme un local disparu")
 
-    def test_un_distant_ne_se_desinstalle_pas(self):
+    def test_remote_model_cannot_be_uninstalled(self):
         from wama.model_manager.services.model_installer import uninstall_model
         res = uninstall_model(self.cloud.model_key)
         self.assertFalse(res['ok'])
 
 
 @override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
-class CleDeLAssistantTest(TestCase):
+class AssistantPersonalKeyTest(TestCase):
 
     def setUp(self):
         self.user = get_user_model().objects.create_user('assistant_cle', password='x')
@@ -394,7 +394,7 @@ class CleDeLAssistantTest(TestCase):
         self.user.profile.cloud_hosting_max = 'third_party'
         self.user.profile.save()
 
-    def test_en_100_pour_cent_local_le_distant_est_refuse_meme_avec_une_cle(self):
+    def test_local_only_policy_rejects_remote_even_with_key(self):
         from wama.accounts.models import UserApiKey
         from wama.common.services import assistant_engine
         UserApiKey.objects.create(user=self.user, source='albert', api_key='sk-perso')
@@ -405,7 +405,7 @@ class CleDeLAssistantTest(TestCase):
         self.assertEqual((None, 403), (text, err['status']))
         chat.assert_not_called()
 
-    def test_un_modele_que_la_cle_n_ouvre_pas_est_refuse(self):
+    def test_model_not_opened_by_key_is_rejected(self):
         from wama.accounts.models import UserApiKey
         from wama.common.services import assistant_engine
         UserApiKey.objects.create(user=self.user, source='albert', api_key='sk-perso',
@@ -417,7 +417,7 @@ class CleDeLAssistantTest(TestCase):
         self.assertEqual('ok', text)
         self.assertEqual(1, chat.call_count)
 
-    def test_sans_cle_personnelle_l_assistant_refuse_sans_se_replier_sur_le_env(self):
+    def test_without_personal_key_assistant_refuses_without_falling_back_to_env(self):
         from wama.common.services import assistant_engine
         with mock.patch('wama.common.utils.llm_utils.llm_chat') as chat, \
              mock.patch.dict('os.environ', {'ALBERT_API_KEY': 'cle-instance'}):
@@ -426,7 +426,7 @@ class CleDeLAssistantTest(TestCase):
         self.assertEqual(400, err['status'])
         chat.assert_not_called()
 
-    def test_le_fournisseur_claude_prend_la_cle_anthropic_du_profil(self):
+    def test_claude_provider_uses_anthropic_key_from_profile(self):
         from wama.accounts.models import UserApiKey
         from wama.common.services import assistant_engine
         UserApiKey.objects.create(user=self.user, source='anthropic', api_key='sk-ant-perso')
@@ -435,7 +435,7 @@ class CleDeLAssistantTest(TestCase):
         self.assertEqual('sk-ant-perso', chat.call_args.kwargs['api_key'])
         self.assertEqual('anthropic', chat.call_args.kwargs['provider'])
 
-    def test_avec_cle_personnelle_l_assistant_l_utilise(self):
+    def test_with_personal_key_assistant_uses_it(self):
         from wama.accounts.models import UserApiKey
         from wama.common.services import assistant_engine
         UserApiKey.objects.create(user=self.user, source='albert', api_key='sk-perso')

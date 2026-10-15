@@ -325,6 +325,45 @@ class PullModelOllamaTakesTheRouteTest(TestCase):
         self.assertEqual(keys, {'proposed:ollama:bge-m3:latest'})
 
 
+class EmbeddingRoleWinsOverVisionTest(TestCase):
+    """`embeddinggemma-2` est rangé par la bibliothèque Ollama sous `vision` ET `embedding`
+    (mesuré le 2026-10-15) : le rôle `vlm`, parcouru le premier, l'écrivait `vlm`/`captioning`."""
+
+    def _prospect(self, lists):
+        from wama.model_manager.services import ollama_registry as reg
+        from wama.model_manager.services import prospect_ollama
+        with mock.patch.object(reg, 'search',
+                               side_effect=lambda requete='', capacite='': lists.get(capacite, ())), \
+                mock.patch.object(reg, 'tag_equivalent', return_value='latest'), \
+                mock.patch('wama.model_manager.services.update_checker.check_updates',
+                           return_value={'ollama_review': []}), \
+                mock.patch('wama.model_manager.services.update_checker.local_digests',
+                           return_value={}):
+            prospect_ollama.prospect_ollama()
+
+    def test_a_model_listed_as_embedding_is_never_proposed_as_a_vlm(self):
+        self._prospect({'vision': ('embeddinggemma-2', 'minicpm-v4.6'),
+                        'embedding': ('embeddinggemma-2',)})
+        emb = AIModel.objects.get(model_key='proposed:ollama:embeddinggemma-2:latest')
+        self.assertEqual(emb.model_type, 'embedding')
+        self.assertEqual(emb.capabilities, {'task': 'feature-extraction'})
+        self.assertEqual(emb.extra_info['prospect']['role'], 'embedding')
+        # Contre-épreuve : un VLM que la bibliothèque ne range pas sous `embedding` reste un VLM.
+        vlm = AIModel.objects.get(model_key='proposed:ollama:minicpm-v4.6:latest')
+        self.assertEqual(vlm.model_type, 'vlm')
+
+    def test_a_row_already_written_as_vlm_is_corrected_by_the_next_pass(self):
+        AIModel.objects.create(model_key='proposed:ollama:embeddinggemma-2:latest',
+                               name='embeddinggemma-2:latest', model_type='vlm',
+                               source='ollama', is_proposed=True, proposal_kind='new',
+                               capabilities={'task': 'captioning'},
+                               extra_info={'prospect': {'role': 'vlm'}})
+        self._prospect({'vision': ('embeddinggemma-2',), 'embedding': ('embeddinggemma-2',)})
+        emb = AIModel.objects.get(model_key='proposed:ollama:embeddinggemma-2:latest')
+        self.assertEqual((emb.model_type, emb.capabilities['task']),
+                         ('embedding', 'feature-extraction'))
+
+
 class DepthModelsAreInstallableByTheRouteTest(SimpleTestCase):
     """Les lignes de profondeur déclarent leur `install_dir` (2026-10-10) : la route en dérive
     EXACTEMENT le dossier que le moteur lit (`depth_engine`, `cache_dir=`). Avant, rien ne les

@@ -86,7 +86,8 @@ class DevToolsThroughTheAssistantTest(TestCase):
                 return 'ok', {'input_tokens': 0, 'output_tokens': 0}
             self._turn(self.dev, llm)
         self.assertIn('dev_sandbox', {t['name'] for t in tools})
-        self.assertIn('dev_sandbox(action, app, target)', seen[0])
+        # `manifest` (2026-10-15) : une app NOUVELLE naît d'un manifeste au bac à sable.
+        self.assertIn('dev_sandbox(action, app, target, manifest)', seen[0])
         self.assertIn('never applies it', seen[0])
 
     def test_a_dev_tool_call_is_relayed_to_the_dev_surface_not_to_the_local_gate(self):

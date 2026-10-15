@@ -44,6 +44,10 @@ APP_FACETS = ('identity', 'ports', 'capabilities', 'modes', 'params', 'data', 'i
 # Endpoints standard (convention §3) — CIBLE documentaire. N'est PLUS extraite comme réalité :
 # depuis A1 (2026-08-11), `processing.endpoints` porte les routes RÉELLES lues de l'URLconf
 # (codegen/urls_gen.app_routes) — la vraie convention mesurée vit dans ROUTE_TABLE.
+#: Groupes d'un port d'ENTRÉE d'app — le vocabulaire FERMÉ que le validateur applique et que le
+#: rôle `app` de wama-dev-ai sert au modèle (une seule déclaration, 2026-10-15).
+APP_INPUT_GROUPS = ('travail', 'prompt', 'reference')
+
 STANDARD_ENDPOINTS = ['index', 'upload', 'start', 'status', 'download', 'delete', 'duplicate',
                       'update', 'start_all', 'clear_all', 'download_all', 'global_progress']
 
@@ -82,8 +86,9 @@ def validate_app_body(body: dict) -> list[str]:
             if side == 'inputs':
                 for p in plist:
                     g = isinstance(p, dict) and p.get('group')
-                    if g and g not in ('travail', 'prompt', 'reference'):
-                        errs.append(f"ports.inputs group '{g}' invalide (travail|prompt|reference)")
+                    if g and g not in APP_INPUT_GROUPS:
+                        errs.append(f"ports.inputs group '{g}' invalide "
+                                    f"({'|'.join(APP_INPUT_GROUPS)})")
     if 'params' in body:
         p = body['params']
         if isinstance(p, list):

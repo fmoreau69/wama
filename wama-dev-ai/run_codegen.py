@@ -43,7 +43,7 @@ django.setup()
 # Ce fichier portait sa PROPRE copie de `ollama_host`, `_OPENER_DIRECT`, `call_ollama` et de
 # l'écriture de sortie : 4 rôles sur 5 adoptaient déjà `role_utils`, celui-ci non.
 from role_utils import (  # noqa: E402
-    add_llm_arguments, call_llm, consigne_role, resolve_model, write_output)
+    add_llm_arguments, call_llm, consigne_role, local_llm_guard, resolve_model, write_output)
 
 # ⚠ Ce chemin était ÉCRIT EN DUR ici — la 3ᵉ lecture du même dossier, et la seule qui ne
 # passait même pas par `config.PROMPTS_DIR`. Même défaut que les copies de `ollama_host` et

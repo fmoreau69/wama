@@ -10,7 +10,10 @@ CE QUE CES GARDES TIENNENT :
   et un appelant ne peut pas altérer la copie gardée ;
 - (2026-10-14) la page de FILE de chaque app à pipeline lit l'état des étapes de toutes ses cards
   en une fois (`decorate_cards`) : autant de lectures pour une card que pour quatre, réparties
-  en deux lots — contrat générique, aucune app nommée.
+  en deux lots — contrat générique, aucune app nommée ;
+- (2026-10-15, `/audit-lenteurs`) la grille fonctionnelle de `/common/apps/` ne relit ses
+  rapports nocturnes que si l'un s'ajoute ou si le dernier est réécrit — et le résultat est celui
+  du calcul direct.
 """
 import json
 import os
@@ -239,3 +242,53 @@ class QueuePageReadsStepStatesOnceTest(TestCase):
                 _lot_de(model, account, 3)
                 self.assertEqual(one, self._step_reads(url),
                                  f'{app}: the step states are read again for each card')
+
+
+class FunctionalGridReadsReportsOnceTest(SimpleTestCase):
+    """`/common/apps/` relisait les 749 rapports nocturnes à chaque visite (1,4 s mesurées le
+    2026-10-15). La grille est mémorisée : relue quand un rapport s'AJOUTE ou quand le DERNIER
+    est réécrit (une campagne en cours), jamais sinon — et toujours égale au calcul direct."""
+
+    def setUp(self):
+        from wama.common.services import nightly_tests
+        self.nightly = nightly_tests
+        self.scenario = next(sc for sc in nightly_tests.REGISTRY if sc.enabled)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.reports = Path(self._tmp.name) / 'logs' / 'nightly_tests'
+        self.reports.mkdir(parents=True)
+        settings_override = override_settings(BASE_DIR=Path(self._tmp.name))
+        settings_override.enable()
+        self.addCleanup(settings_override.disable)
+        nightly_tests._functional_grid_cache.clear()
+        self.addCleanup(nightly_tests._functional_grid_cache.clear)
+
+    def _write(self, stamp, ok):
+        (self.reports / f'nightly_{stamp}.json').write_text(json.dumps({
+            'generated_at': stamp, 'results': [{'scenario_id': self.scenario.id, 'ok': ok}]}),
+            encoding='utf-8')
+
+    def _line(self, grid):
+        return next(s for s in grid[self.scenario.app]['scenarios'] if s['id'] == self.scenario.id)
+
+    def test_reports_are_read_again_only_when_one_is_added_or_the_latest_rewritten(self):
+        self._write('20261001_010000', ok=False)
+        self._write('20261002_010000', ok=True)
+        direct = self.nightly._compute_functional_grid(self.reports)
+        compute = mock.Mock(wraps=self.nightly._compute_functional_grid)
+        with mock.patch.object(self.nightly, '_compute_functional_grid', compute):
+            first = self.nightly.functional_grid()
+            self.assertEqual(direct, first)
+            self.assertEqual(first, self.nightly.functional_grid())
+            self.assertEqual(1, compute.call_count, 'unchanged reports were read again')
+
+            self._write('20261003_010000', ok=False)           # a new report
+            self.assertFalse(self._line(self.nightly.functional_grid())['ok'])
+            self.assertEqual(2, compute.call_count)
+
+            self._write('20261003_010000', ok=True)            # the latest, rewritten
+            self.assertTrue(self._line(self.nightly.functional_grid())['ok'])
+            self.assertEqual(3, compute.call_count)
+
+    def test_without_any_report_every_scenario_is_never_run(self):
+        self.assertTrue(self._line(self.nightly.functional_grid())['never_run'])

@@ -1168,21 +1168,22 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
 
 - **Domicile** : `wama/common/services/dev_tools.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Outils de DÉVELOPPEMENT de WAMA — la surface du serveur MCP « wama-dev » (ROADMAP §8d Phase 3, étape 3).
-- **API publique** (22) :
+- **API publique** (23) :
   - `class DevToolError(ValueError)` — Refus LISIBLE — rendu comme `{'error': …}`, jamais comme une trace.
   - `base_dir() -> Path`
   - `jobs_dir() -> Path`
   - `outputs_dir() -> Path`
   - `role_command(role: str, args=None, provider: str='', model: str='') -> list`
   - `role_model(user, provider: str='', model: str='') -> dict` — Le modèle d'un rôle, TIRÉ pour le compte qui le lance : `{'key', 'provider', 'model',
-  - `sandbox_command(action: str, app: str='', target: str='', owner: str='') -> list`
+  - `sandbox_manifest(path: str) -> str` — Le manifeste d'où une app naît DE ZÉRO — un brouillon du corpus (`manifests/app_drafts/`)
+  - `sandbox_command(action: str, app: str='', target: str='', owner: str='', manifest: str='') -> list`
   - `regen_check_command(app: str) -> list` — `--force` n'est JAMAIS ajouté : la garde du harnais (refus sur dev/main) reste entière.
   - `start_job(user, tool: str, argv: list, env: dict=None, shown: list=None) -> dict` — Lance `argv` détaché ; le journal et le code de retour sont écrits à côté de la fiche.
   - `job_state(job_id: str, with_log: bool=True) -> dict`
   - `notify_finished_jobs() -> int` — Annonce, une fois, chaque tâche de développement TERMINÉE : une notification DANS WAMA
   - `start_job_watcher() -> None` — Le veilleur des fins de tâche, dans le process du serveur de développement — celui qui
   - `dev_run_role(user, role: str, args: dict=None, provider: str='', model: str='') -> dict` — Lance un rôle wama-dev-ai en tâche de fond ; il écrit une PROPOSITION en attente de validation, n'applique rien.
-  - `dev_sandbox(user, action: str, app: str='', target: str='') -> dict` — Bac à sable d'apps en tâche de fond : create, substitute, revert, remove, list — l'app d'origine n'est jamais modifiée.
+  - `dev_sandbox(user, action: str, app: str='', target: str='', manifest: str='') -> dict` — Bac à sable d'apps en tâche de fond : create, substitute, revert, remove, list — l'app d'origine n'est jamais modifiée.
   - `dev_regen_check(user, app: str) -> dict` — Harnais de régénération d'une app (app_regen_check) en tâche de fond — refusé sur dev/main par sa propre garde.
   - `dev_reload_web(user) -> dict` — Recharge gunicorn (signal HUP, rechargement gracieux) — nécessaire après la création, la restauration ou le retrait d'une jumelle.
   - `dev_claude_code(user, task: str, write: bool=False, model: str='') -> dict` — Confie une tâche de développement à Claude Code (abonnement du demandeur) en TÂCHE DE FOND : audit, explication, ou modification du dépôt avec write=true. Réponds aussitôt à l'utilisateur ; la réponse de Claude Code arrive dans le fil à la…

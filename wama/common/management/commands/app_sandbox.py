@@ -461,6 +461,21 @@ def _superseded_task_modules(manifest: dict, fname: str = 'tasks.py') -> list:
     return out
 
 
+def new_app_key_error(key: str) -> str:
+    """'' si `key` peut nommer une app NOUVELLE née d'un manifeste ; sinon la raison du refus.
+
+    La règle de la création de zéro, sortie du corps de `_create_from_manifest` (2026-10-15) pour
+    que le rôle `app` de wama-dev-ai refuse AVANT d'appeler un modèle exactement ce que la
+    naissance refuserait après : il en tenait une copie qui admettait les chiffres."""
+    from wama.common.app_registry import APP_CATALOG
+    if not re.fullmatch(r'[a-z_]+', key or ''):
+        return f'Clé d\'app invalide : {key!r} (underscore_case, AGENTS.md).'
+    if key in APP_CATALOG or (WAMA_DIR / key).exists():
+        return (f'{key} existe déjà : on ne crée DE ZÉRO qu\'une app nouvelle '
+                f'(pour une app existante : `app_sandbox create {key}`).')
+    return ''
+
+
 def _app_manifest_file(path) -> tuple:
     """`(manifeste, chemin)` d'un manifeste `app` FICHIER, lu et VALIDÉ — la lecture commune de
     la création de zéro et de la substitution d'une app née d'un manifeste (2026-10-12)."""
@@ -805,17 +820,14 @@ class Command(BaseCommand):
         import importlib
         import json
 
-        from wama.common.app_registry import APP_CATALOG
         from wama.common.manifests.builtin.app import (_capabilities_target, _identity_target,
                                                        _ports_target)
 
         manifest, manifest_path = _app_manifest_file(path)
         key = manifest.get('key') or ''
-        if not re.fullmatch(r'[a-z_]+', key):
-            raise CommandError(f'Clé d\'app invalide : {key!r} (underscore_case, AGENTS.md).')
-        if key in APP_CATALOG or (WAMA_DIR / key).exists():
-            raise CommandError(f'{key} existe déjà : on ne crée DE ZÉRO qu\'une app nouvelle '
-                               f'(pour une app existante : `app_sandbox create {key}`).')
+        error = new_app_key_error(key)
+        if error:
+            raise CommandError(error)
 
         label = _next_label(key)
         pkg = WAMA_DIR / label

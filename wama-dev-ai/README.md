@@ -67,8 +67,24 @@ et la sortie atterrit dans `outputs/` en `PENDING_HUMAN_VALIDATION`. Les prompts
 `prompts/*.txt` (un par rôle). Détail de la chaîne prospection (scout/integrator) :
 `wama/model_manager/PROSPECTION_PIPELINE.md §rôles`.
 
-**Ce que wama-dev-ai ne fait JAMAIS** : écrire dans les fichiers de production, commiter,
-appliquer quoi que ce soit sans validation humaine.
+**Ce que wama-dev-ai ne fait JAMAIS** : commiter, appliquer quoi que ce soit sans validation
+humaine.
+
+**Le rôle `task` (2026-10-15, levée progressive décidée par Fabien — `AGENTS.md §Collaboration
+wama-dev-ai`)** : une tâche de développement en clair, bornée à des fichiers nommés
+(`--files` : chemins du dépôt séparés par des virgules, `chemin:début-fin` pour une tranche,
+8 au plus). Sans `--write`, une réponse citée ligne par ligne ; avec,
+des édits PROPOSÉS et contrôlés (`old` unique, fichier lisible après, diff). `--apply <sortie>`
+applique une proposition validée en refaisant les contrôles — geste du superviseur, que la surface
+de développement n'expose pas. Lecture des lenteurs : skill `/audit-lenteurs`.
+
+**Les rôles `app` et `repo_app` (2026-10-15, même décision — `WAMA_APP_GENERATION_ROUTE.md
+§10.5`)** : `run_app_manifest.py` rédige le BROUILLON du manifeste `app` d'une app nouvelle
+(`--key`, `--need`, `--like`, `--requires library:<clé>`), enveloppe imposée et `ingest.validate` ;
+il écrit le rapport et `*.manifest.json`, la forme que lit `app_sandbox create --from-manifest`.
+`run_repo_app.py` mène un dépôt jusqu'à l'app née au bac à sable en UNE tâche (`librarian` →
+`app` → naissance → rechargement), parce qu'une fin de tâche annoncée ne relance pas l'assistant.
+Valider et installer la librairie, juger l'app et la promouvoir restent humains.
 
 ## Workflows et commandes
 

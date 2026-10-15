@@ -11,6 +11,7 @@ précisément de passer 14 mois à ne pas exister pendant que trois documents l'
 modules se chargent donc par CHEMIN, exactement comme ses lanceurs le font. C'est le seul
 endroit d'où ce contrat peut être tenu automatiquement.
 """
+import ast
 import importlib.util
 import sys
 
@@ -144,7 +145,10 @@ class ModelVocabulariesServedToEveryRoleTest(SimpleTestCase):
     """
 
     #: Rôles qui valident un manifeste d'un AUTRE kind — exemptés, avec leur raison.
-    OTHER_KINDS = {'run_librarian.py': 'écrit des manifestes `library` (vocabulaire pip)'}
+    OTHER_KINDS = {'run_librarian.py': 'écrit des manifestes `library` (vocabulaire pip)',
+                   'run_app_manifest.py': 'écrit des manifestes `app` — ses vocabulaires fermés '
+                                          '(types de port, états, groupes) servis par '
+                                          '`vocabularies()`'}
 
     @classmethod
     def setUpClass(cls):
@@ -888,11 +892,20 @@ class RolesFollowTheCommonRouteTest(SimpleTestCase):
 
     def test_every_role_calling_a_model_applies_the_gpu_guard(self):
         roles = self._roles_calling_a_model()
-        self.assertEqual(6, len(roles), f"garde d'instrument : {roles}")
+        self.assertEqual(8, len(roles), f"garde d'instrument : {roles}")
         for name in roles:
             source = (DEV_AI / name).read_text(encoding='utf-8')
             with self.subTest(role=name):
                 self.assertIn('local_llm_guard(', source)
+                # L'APPEL ne suffit pas : `run_codegen.py` appelait la garde sans l'importer
+                # (relevé le 2026-10-15 par l'assistant) — `NameError` au premier lancement, que
+                # cette garde, qui ne lisait que le texte, laissait passer.
+                imported = {alias.asname or alias.name
+                            for node in ast.walk(ast.parse(source))
+                            if isinstance(node, ast.ImportFrom) and node.module == 'role_utils'
+                            for alias in node.names}
+                self.assertIn('local_llm_guard', imported,
+                              f"{name} appelle local_llm_guard sans l'importer de role_utils")
                 self.assertEqual(source.count('call_llm('),
                                  source.count('keep_alive=keep_alive'),
                                  f"{name} : un appel au modèle ignore le keep_alive de la garde")

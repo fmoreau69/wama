@@ -249,6 +249,18 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
         # candidat (`concurrence`) : c'est ce que la card affiche pour répondre à « qu'est-ce
         # que ce nouveau modèle pourrait remplacer ? » (demande Fabien 2026-08-18).
         _refs_type: dict = {}
+        # Un modèle que la bibliothèque range sous `embedding` ne GÉNÈRE rien, même quand elle
+        # le range AUSSI sous `vision` (mesuré le 2026-10-15 : `embeddinggemma-2` figure dans
+        # les deux filtres). Sans cette garde, le rôle `vlm`, parcouru avant `embedding`, le
+        # prenait le premier et l'écrivait `vlm`/`captioning`. On tranche par la capacité
+        # déclarée, pas par l'ordre des rôles ni par le nom du modèle — la règle même de la
+        # découverte locale (`model_registry`, `embarque = 'embedding' in brutes`), appliquée ici
+        # à la liste du registre au lieu des capacités du modèle installé.
+        embedders = set()
+        for role in ROLES.values():
+            if role['model_type'] == 'embedding':
+                for req in (role['requetes'] or ('',)):
+                    embedders.update(reg.search(requete=req, capacite=role['capacite']) or ())
         for nom_role, role in ROLES.items():
             if role['model_type'] not in _refs_type:
                 _refs_type[role['model_type']] = [
@@ -260,6 +272,8 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
                     if retenus >= max_par_role:
                         break
                     if nom in deja or any(i.split(':')[0] == nom for i in installes):
+                        continue
+                    if role['model_type'] != 'embedding' and nom in embedders:
                         continue
                     tag = reg.tag_equivalent(nom, '')   # → 'latest' vérifié, ou None
                     if not tag:
