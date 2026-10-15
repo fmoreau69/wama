@@ -39,14 +39,17 @@ class RegistryTest(SimpleTestCase):
                                  'a brick never invents a third vocabulary')
 
     def test_every_declared_script_exists_and_parses_under_v8(self):
+        from django.contrib.staticfiles import finders
         from py_mini_racer import MiniRacer
         from wama.common.surfaces import BRICKS
         paths = {p for b in BRICKS.values() for p in b.scripts()} | {'common/js/surfaces/wama-surface.js'}
         for path in sorted(paths):
             with self.subTest(script=path):
-                self.assertTrue((STATIC / path).is_file(), path)
+                # Resolved like the page resolves it : a vendored library lives under `wama/static`.
+                found = finders.find(path)
+                self.assertTrue(found, path)
                 # Parse WITHOUT executing (the bricks touch the DOM) : a function wrapping it.
-                MiniRacer().eval('(function(){' + _js(path) + '})')
+                MiniRacer().eval('(function(){' + Path(found).read_text(encoding='utf-8') + '})')
 
     def test_the_anonymizer_review_surface_is_declared_and_complete(self):
         from wama.common.surfaces import surface
@@ -313,6 +316,243 @@ class TextSurfaceViewsTest(TestCase):
 
     def test_a_non_string_value_is_refused(self):
         self.assertEqual(400, self._save({'not': 'text'}).status_code)
+
+
+class ScoreRulesTest(SimpleTestCase):
+    """`wama-score.js` — what the score brick does without a DOM : which notes sound at a time
+    (voice by voice), where a clicked note starts, how a dragged note is rewritten."""
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.engine = MiniRacer()
+        self.engine.eval('var window = {};' + _js('common/js/wama-score.js'))
+
+    def _call(self, expr):
+        return json.loads(self.engine.eval('JSON.stringify(window.WamaScore.%s)' % expr))
+
+    def _transpose(self, abc, note, step):
+        start = abc.index(note)
+        return self._call('transposeAt(%s, %d, %d, %d)' % (json.dumps(abc), start, start + len(note), step))
+
+    def test_a_dragged_note_moves_by_degrees_and_follows_the_key(self):
+        abc = 'K:C\nC2 ^F/2 "Am"[CEG]2 c\' B,|'
+        self.assertEqual('K:C\nD2 ^F/2 "Am"[CEG]2 c\' B,|', self._transpose(abc, 'C2', -1), 'up one degree')
+        self.assertEqual('K:C\nB,2 ^F/2 "Am"[CEG]2 c\' B,|', self._transpose(abc, 'C2', 1), 'down across the octave')
+        self.assertEqual('K:C\nC2 G/2 "Am"[CEG]2 c\' B,|', self._transpose(abc, '^F/2', -1),
+                         'the written accidental is dropped : the moved note follows the key')
+        self.assertEqual('K:C\nC2 ^F/2 "Am"[A,CE]2 c\' B,|', self._transpose(abc, '"Am"[CEG]2', 2),
+                         'a chord moves as a block, its chord symbol does not')
+        self.assertEqual("K:C\nC2 ^F/2 \"Am\"[CEG]2 d' B,|", self._transpose(abc, "c'", -1))
+        self.assertEqual('K:C\nC2 ^F/2 "Am"[CEG]2 c\' A,|', self._transpose(abc, 'B,', 1))
+        self.assertEqual(abc, self._transpose(abc, 'C2', 0), 'no step, no change')
+
+    def test_each_voice_keeps_its_sounding_note_lit(self):
+        tl = ('timeline([{ms: 0, sets: [{voice: 0, ref: "a"}, {voice: 1, ref: "x"}]},'
+              ' {ms: 1000, sets: [{voice: 0, ref: "b"}]}, {ms: 2000, sets: [{voice: 0, ref: "c"}]},'
+              ' {ms: 2500, sets: [{voice: 1, ref: "y"}]}], 3000)')
+        at = lambda ms: sorted(self._call('playingAt(%s, %d)' % (tl.replace('timeline', 'window.WamaScore.timeline'), ms)))
+        self.assertEqual(['a', 'x'], at(500))
+        self.assertEqual(['b', 'x'], at(1500), "a long note of one voice stays lit while the other moves")
+        self.assertEqual(['c', 'y'], at(2600))
+        self.assertEqual([], at(3000), 'nothing after the end')
+        self.assertEqual([], at(-1))
+
+    def test_a_clicked_note_gives_its_time_and_its_voice(self):
+        timings = json.dumps([{'type': 'bar', 'milliseconds': 0},
+                              {'type': 'event', 'milliseconds': 750, 'startCharArray': [12, 40]}])
+        self.assertEqual(750, self._call('eventTime(%s, 40)' % timings))
+        self.assertIsNone(self._call('eventTime(%s, 99)' % timings))
+        self.assertEqual(1, self._call('voiceOf("abcjs-note abcjs-v1 abcjs-n2")'))
+        self.assertEqual(12, self._call('voiceOf("abcjs-v12")'))
+        self.assertEqual(0, self._call('voiceOf("")'))
+
+
+class AxisTest(SimpleTestCase):
+    """`wama-axis.js` — the shared time axis, run under V8 with an injected clock : commands move
+    the axis, observers follow, an attached medium is the CLOCK forward and is silenced backward."""
+
+    SETUP = '''
+        var window = {}; var T = 0, pending = null;
+        var opts = {now: function () { return T; }, frame: function (fn) { pending = fn; return 1; },
+                    cancelFrame: function () { pending = null; }};
+        function step(ms) { T += ms; var fn = pending; pending = null; if (fn) fn(T); }
+        function fakeMedia(duration) {
+            var listeners = {};
+            var m = {currentTime: 0, duration: duration, paused: true, playbackRate: 1,
+                     addEventListener: function (k, fn) { (listeners[k] = listeners[k] || []).push(fn); },
+                     removeEventListener: function () {},
+                     fire: function (k) { (listeners[k] || []).forEach(function (fn) { fn(); }); },
+                     play: function () { m.paused = false; m.fire('play'); return null; },
+                     pause: function () { m.paused = true; m.fire('pause'); }};
+            return m;
+        }
+    '''
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.engine = MiniRacer()
+        self.engine.eval(self.SETUP + _js('common/js/wama-axis.js'))
+
+    def _eval(self, script):
+        return json.loads(self.engine.eval('JSON.stringify((function(){' + script + '})())'))
+
+    def test_commands_move_the_axis_and_observers_follow(self):
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 10}, opts)), seen = [];
+            axis.subscribe(function (s) { seen.push(s.reason); });
+            axis.seek(12); var clamped = axis.time(); axis.seek(-3); var floor = axis.time();
+            axis.play(); step(1000); var played = axis.time();
+            axis.setRate(-2); step(250); var back = axis.time(); step(400);
+            var stopped = [axis.time(), axis.playing()];
+            axis.jump(4); axis.shuttle(0);
+            return {clamped: clamped, floor: floor, played: played, back: back, stopped: stopped,
+                    jumped: axis.time(), rate: axis.rate(), first: seen[0]};
+        ''')
+        self.assertEqual(10, out['clamped'])
+        self.assertEqual(0, out['floor'])
+        self.assertAlmostEqual(1.0, out['played'])
+        self.assertAlmostEqual(0.5, out['back'], msg='backward at twice the speed')
+        self.assertEqual([0, False], out['stopped'], 'backward play stops at the start')
+        self.assertEqual(4, out['jumped'])
+        self.assertEqual(1, out['rate'], 'the shuttle stop resets the speed')
+        self.assertEqual('subscribe', out['first'], 'an observer gets the present state at once')
+
+    def test_an_attached_medium_is_the_clock_forward_and_silent_backward(self):
+        out = self._eval('''
+            var axis = window.WamaAxis.create(opts), media = fakeMedia(8);
+            axis.attach(media);
+            var duration = axis.duration();
+            axis.play(); var audible = !media.paused;
+            media.currentTime = 3; step(16); var followed = axis.time();
+            axis.setRate(-1); var silenced = media.paused; var stillPlaying = axis.playing();
+            step(1000);
+            var back = [axis.time(), media.currentTime];
+            axis.setRate(1); var resumed = !media.paused;
+            media.pause(); var userPaused = !axis.playing();
+            media.currentTime = 6; media.fire('seeked');
+            return {duration: duration, audible: audible, followed: followed, silenced: silenced,
+                    stillPlaying: stillPlaying, back: back, resumed: resumed, userPaused: userPaused,
+                    sought: axis.time()};
+        ''')
+        self.assertEqual(8, out['duration'], 'the medium gives its duration')
+        self.assertTrue(out['audible'])
+        self.assertEqual(3, out['followed'], "forward, the medium's time is the axis time")
+        self.assertTrue(out['silenced'])
+        self.assertTrue(out['stillPlaying'], 'pausing the medium for backward play does not stop the axis')
+        self.assertAlmostEqual(2.0, out['back'][0], places=2)
+        self.assertAlmostEqual(2.0, out['back'][1], places=2, msg='the medium is set back in step')
+        self.assertTrue(out['resumed'], 'forward again : the medium plays again')
+        self.assertTrue(out['userPaused'], 'a pause made on the medium itself stops the axis')
+        self.assertEqual(6, out['sought'], 'a seek made on the medium itself moves the axis')
+
+    def test_times_are_written_and_read_back(self):
+        self.assertEqual('1:23.4', self._eval('return window.WamaAxis.formatTime(83.45, true);'))
+        self.assertEqual('1:02:05', self._eval('return window.WamaAxis.formatTime(3725);'))
+        self.assertAlmostEqual(83.4, self._eval('return window.WamaAxis.parseTime("1:23.4");'))
+        self.assertIsNone(self._eval('return window.WamaAxis.parseTime("x");'))
+
+
+ABC = 'X:1\nM:4/4\nL:1/8\nQ:1/4=80\nK:C\nC2 D2 E2 F2|G8|\n'
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class ComposerScoreSurfaceTest(TestCase):
+    """The composer's `score` surface : a score written by EITHER of two alternative processes is
+    edited as text ; correcting it keeps the original as a version, then stales the render."""
+
+    def setUp(self):
+        from wama.common.utils.media_paths import app_media_dir, get_app_media_path
+        from wama.composer.models import ComposerGeneration
+        self.addCleanup(shutil.rmtree, settings.MEDIA_ROOT, True)
+        self.user = get_user_model().objects.create_user('score_owner', password='x')
+        out = get_app_media_path('composer', self.user.id, 'output')
+        out.mkdir(parents=True, exist_ok=True)
+        (out / 'score_extracted.abc').write_text(ABC, encoding='utf-8')
+        self.rel = f"{app_media_dir('composer', self.user.id, 'output')}/score_extracted.abc"
+        self.gen = ComposerGeneration.objects.create(user=self.user, prompt='pop', extracted_score=self.rel)
+        self.base = f'/common/surface/composer/score/{self.gen.pk}/'
+        self.client.force_login(self.user)
+
+    def _save(self, value, base=None):
+        body = {'value': value, **({'base': base} if base else {})}
+        return self.client.post(self.base + 'save/', json.dumps(body), content_type='application/json')
+
+    def test_the_page_composes_the_score_the_transport_and_the_versions(self):
+        from wama.common.surfaces import surface
+        score = surface('composer', 'score')
+        self.assertEqual(['score_view', 'media_transport', 'text_sections', 'revision_history',
+                          'surface_actions'], [s.brick for s in score.slots])
+        scripts = score.scripts()
+        self.assertLess(scripts.index('vendors/abcjs-6.4.4/abcjs-basic-min.js'),
+                        scripts.index('common/js/surfaces/brick-score-view.js'))
+        self.assertEqual(1, scripts.count('common/js/wama-axis.js'), 'one axis module for two bricks')
+        page = self.client.get(self.base)
+        self.assertEqual(200, page.status_code)
+        self.assertContains(page, 'abcjs-6.4.4/abcjs-basic-min.js')
+        self.assertContains(page, 'brick-media-transport.js')
+
+    def test_the_filled_alternative_is_the_one_edited(self):
+        from wama.common.surfaces import surface
+        score = surface('composer', 'score')
+        self.assertEqual('extracted_score', score.edited(self.gen))
+        data = self.client.get(self.base + 'data/').json()
+        self.assertEqual(ABC, data['value'])
+        self.assertEqual('', data['reads']['audio'], 'no render yet : nothing to play')
+        type(self.gen).objects.filter(pk=self.gen.pk).update(planned_score=self.rel)
+        self.gen.refresh_from_db()
+        self.assertEqual('planned_score', score.edited(self.gen), 'the declared order decides')
+
+    def test_a_correction_keeps_the_original_as_a_version_and_stales_the_render(self):
+        from wama.common.models import ItemRevision
+        from wama.common.services import process_runs
+        from wama.composer.function_specs import PIPELINE
+        process_runs.succeed(self.gen, 'extract_score', output_ref=self.rel, process_key='composer.extract_score',
+                             settings_snapshot=PIPELINE.snapshot(PIPELINE.spec('extract_score'), self.gen))
+        process_runs.succeed(self.gen, 'render', process_key='composer.render',
+                             settings_snapshot=PIPELINE.snapshot(PIPELINE.spec('render'), self.gen))
+        token = self.client.get(self.base + 'data/').json()['token']
+        corrected = ABC.replace('C2 D2', 'D2 D2')
+        res = self._save(corrected, base=token)
+        self.assertEqual(200, res.status_code, res.content)
+        self.assertIn('render', res.json()['stale'], 'the render follows the corrected score')
+        origins = list(ItemRevision.objects.filter(app='composer', object_id=self.gen.pk)
+                       .order_by('number').values_list('origin', flat=True))
+        self.assertEqual([ItemRevision.ORIGIN_PROCESS, ItemRevision.ORIGIN_MANUAL], origins,
+                         'the extracted original is kept BEFORE it is rewritten in place')
+        listed = self.client.get(self.base + 'revisions/').json()
+        self.assertTrue(listed['keeps'])
+        self.assertTrue(all(r['kept'] for r in listed['revisions']))
+        self.assertEqual(ABC, self.client.get(self.base + 'revisions/1/').json()['value'])
+        self.assertEqual(corrected, self.client.get(self.base + 'revisions/2/').json()['value'])
+
+    def test_only_the_score_is_kept_never_the_render(self):
+        from wama.common.services.revisions import record_revision
+        audio = Path(settings.MEDIA_ROOT) / self.rel.replace('score_extracted.abc', 'song.wav')
+        audio.write_bytes(b'RIFF' + b'\0' * 64)
+        type(self.gen).objects.filter(pk=self.gen.pk).update(audio_output=self.rel.replace('.abc', '.wav')
+                                                             .replace('score_extracted', 'song'))
+        self.gen.refresh_from_db()
+        record_revision('composer', self.gen, output_fields=['audio_output', 'extracted_score'])
+        self.gen.refresh_from_db()
+        self.assertEqual(['extracted_score'], [e['field'] for e in self.gen.kept_outputs],
+                         'a render is redone from its score : twenty copies of it are not kept')
+
+    def test_an_unchanged_score_keeps_nothing(self):
+        from wama.common.models import ItemRevision
+        self.assertEqual(200, self._save(ABC).status_code)
+        self.assertFalse(ItemRevision.objects.filter(app='composer', object_id=self.gen.pk).exists())
+
+    def test_a_model_that_composes_without_a_score_says_so(self):
+        from wama.composer.models import ComposerGeneration
+        plain = ComposerGeneration.objects.create(user=self.user, prompt='rain', model='composer:musicgen-small')
+        page = self.client.get(f'/common/surface/composer/score/{plain.pk}/')
+        self.assertContains(page, 'compose sans partition')
+
+    def test_someone_else_neither_reads_nor_writes(self):
+        other = get_user_model().objects.create_user('score_other', password='x')
+        self.client.force_login(other)
+        self.assertEqual(404, self.client.get(self.base + 'data/').status_code)
+        self.assertEqual(404, self._save('X:1\n').status_code)
 
 
 class SurfacesGeneratorTest(SimpleTestCase):

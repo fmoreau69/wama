@@ -113,7 +113,9 @@ class RemovingACardReleasesItsListedFilesTest(TestCase):
                 rels = [p.relative_to(self.tmp).as_posix() for p in listed]
                 self.assertFalse(set(rels) & set(freed_by([first])),
                                  'l’aperçu annonce un fichier que l’autre card liste encore')
-                self.assertEqual(rels, [r for r in freed_by([first, second]) if r in rels])
+                # `freed_by` rend une liste TRIÉE : comparée triée (la composer a deux listes depuis
+                # le 2026-10-15, l'ordre de création des témoins n'est plus l'ordre alphabétique).
+                self.assertEqual(sorted(rels), [r for r in freed_by([first, second]) if r in rels])
                 self._delete_card(route, first)
                 self.assertEqual([p.name for p in listed], self._not_released(listed),
                                  'un fichier que l’autre card liste encore est annoncé orphelin')

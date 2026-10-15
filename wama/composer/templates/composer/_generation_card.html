@@ -104,6 +104,10 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
           <i class="fas fa-cog"></i>
         </button>
         {% include 'common/_cycle_button.html' with id=elem.id status=elem.shown_state|default:elem.status %}
+        {% comment %}✎ ÉDITER (2026-10-15, chantier SURFACES) : ouvre la surface DÉCLARÉE
+        `composer.score` (`composer/surfaces.py`) — voir, écouter et corriger la partition. Grisé,
+        avec sa raison, quand la card n'a pas (encore) de partition.{% endcomment %}
+        {% surface_button 'composer' 'score' elem %}
         {% url 'composer:download' elem.id as url_dl %}
         {% download_button 'composer' url_dl elem.audio_output %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"

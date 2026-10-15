@@ -8,7 +8,6 @@ import logging
 import os
 
 import mimetypes
-import re
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -134,39 +133,11 @@ def stream_video(request, camera_id):
     if not os.path.isfile(file_path):
         return HttpResponse(status=404)
 
-    file_size = os.path.getsize(file_path)
-    content_type = mimetypes.guess_type(file_path)[0] or 'video/mp4'
-
-    range_header = request.META.get('HTTP_RANGE', '')
-    range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
-
-    if range_match:
-        start = int(range_match.group(1))
-        end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
-        end = min(end, file_size - 1)
-        length = end - start + 1
-
-        def file_iterator():
-            with open(file_path, 'rb') as f:
-                f.seek(start)
-                remaining = length
-                while remaining > 0:
-                    chunk_size = min(8192, remaining)
-                    data = f.read(chunk_size)
-                    if not data:
-                        break
-                    remaining -= len(data)
-                    yield data
-
-        response = StreamingHttpResponse(file_iterator(), status=206, content_type=content_type)
-        response['Content-Length'] = length
-        response['Content-Range'] = f'bytes {start}-{end}/{file_size}'
-    else:
-        response = FileResponse(open(file_path, 'rb'), content_type=content_type)
-        response['Content-Length'] = file_size
-
-    response['Accept-Ranges'] = 'bytes'
-    return response
+    # La règle des morceaux est COMMUNE depuis le 2026-10-15 (extraite d'ici) : `/media/` la
+    # sert aussi, pour tous les lecteurs de WAMA.
+    from wama.common.utils.ranged_response import ranged_file_response
+    return ranged_file_response(request, file_path,
+                                mimetypes.guess_type(file_path)[0] or 'video/mp4')
 
 
 # =============================================================================

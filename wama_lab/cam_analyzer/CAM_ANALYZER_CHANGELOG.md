@@ -119,6 +119,12 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 
 ---
 
+## 2026-10-15
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| (ce commit — morceaux HTTP au commun) | `stream_video` sert sa vidéo par la brique COMMUNE `common/utils/ranged_response.ranged_file_response` — la règle des requêtes `Range` (206) qu'elle portait seule a été extraite de cette vue. Même comportement : un morceau demandé → 206 + `Content-Range`, sinon le fichier entier ; `Accept-Ranges` toujours. Gagné au passage : `bytes=-N` (fin du fichier) et 416 hors du fichier, que l'ancienne écriture ne lisait pas. Aucun transport ni lecteur du cam touché | Le smoke de la page d'édition de la partition du composer : `/media/` ne servait pas de morceaux (cards, volet, éditeurs ne pouvaient aller qu'au déjà-téléchargé) — la règle existait ici seulement ; zéro duplication | `tests_ranged_response` (morceau, fin de fichier, hors fichier, sans `Range`, chemin hors racine) ; la vue `stream_video` n'a pas de test propre (aucun avant non plus) — smoke du lecteur 4 caméras à faire. Annulation : revert |
+
 ## 2026-10-14
 
 | Commit | Quoi | Pourquoi | Validation/annulation |

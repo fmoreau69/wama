@@ -365,15 +365,20 @@ MECHANISMS = (
               "le fond du Writer — un champ FICHIER s'édite comme texte (règles communes), la "
               "surface se déclare au manifeste (facette `surfaces`) et se génère ; refus 409 sur "
               "état périmé et verrou doux pour toutes les surfaces ; brique « Versions » : reprendre "
-              "le texte d'une révision GARDÉE, un geste d'édition annulable",
+              "le texte d'une révision GARDÉE, un geste d'édition annulable. 3ᵉ (2026-10-15) : la "
+              "partition du composer — champs ALTERNATIFS (sortie de l'un de deux process), "
+              "briques `score_view` (gravure abcjs, notes jouées colorées, glisser = transposer) "
+              "et `media_transport`, sur l'AXE partagé de la surface (`ctx.axis()`)",
               'wama/common/surfaces.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/surface_views.py',
                        'wama/common/templates/common/surface.html',
                        'wama/common/static/common/js/surfaces/wama-surface.js',
                        'wama/common/static/common/js/wama-detections.js',
+                       'wama/common/static/common/js/wama-score.js',
                        'wama/common/manifests/codegen/surfaces_gen.py',
-                       'wama/common/tests/tests_surfaces.py')),
+                       'wama/common/tests/tests_surfaces.py'),
+              depends_on=('media_axis',)),
     Mechanism('document_layout', 'Mise en forme AJUSTÉE d\'un document (fond en sections)',
               "Le fond Markdown découpé en sections (règle de la brique `text_sections`, tenue sous "
               "V8), un PLAN d'après la part de mots changés par section (`text_metrics`) : un bout "
@@ -1928,8 +1933,25 @@ MECHANISMS = (
               symbol='WamaAudioPlayer'),    # global de base.html : compté par son symbole
     Mechanism('shuttle', 'Shuttle J/K/L',
               "État de vitesse/direction de lecture (paliers éditeur) + binding clavier ; l'app "
-              "fournit apply(speed) — la commande est commune, l'application au lecteur reste locale",
+              "fournit apply(speed) — la commande est commune ; depuis le 2026-10-15 elle peut "
+              "s'appliquer à l'AXE commun (`axis.shuttle`) plutôt qu'à un lecteur",
               'wama/common/static/common/js/wama-shuttle.js', ''),
+    Mechanism('media_axis', 'Axe de temps partagé (transport commun)',
+              "L'AXE auquel les vues s'abonnent et que le magnéto pilote — jamais une vue "
+              "(`WAMA_DATA_WORLD §5bis`) : lecture, pause, aller, sauts, vitesse signée, shuttle ; "
+              "un média attaché est l'horloge en avant, l'axe avance seul et le recale en arrière "
+              "(lecture silencieuse) ; clavier du magnéto. Né le 2026-10-15 À CÔTÉ des transports "
+              "existants (éditeur du transcriber et cam_analyzer non portés, matrice de parité)",
+              'wama/common/static/common/js/wama-axis.js',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
+              depends_on=('shuttle',)),
+    Mechanism('ranged_response', 'Servir un fichier par morceaux (HTTP Range)',
+              "Réponse 206 à une requête `Range` — ce qui rend un média seekable au-delà du "
+              "déjà-téléchargé ; sert `/media/` (`wama/urls.py`) et la vidéo du cam_analyzer, "
+              "dont la règle a été extraite (2026-10-15)",
+              'wama/common/utils/ranged_response.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
+              annexes=('wama/common/tests/tests_ranged_response.py',)),
     Mechanism('playhead_follow', 'Suivre la tête de lecture (traitement au fil de la lecture)',
               "Le navigateur pose un curseur, une tâche longue le suit tranche par tranche, modèle "
               "gardé chargé, et s'arrête d'elle-même (arrêt demandé, 90 s d'inactivité, traitement "

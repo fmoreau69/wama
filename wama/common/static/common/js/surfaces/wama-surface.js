@@ -22,6 +22,11 @@
  * (`resize`). `help` : les gestes de la brique, que la brique d'actions affiche (`ctx.helps()`).
  * Événements du bus : `change`, `select`, `resize`, `saved`, `applied`, `focus`.
  *
+ * L'AXE PARTAGÉ (2026-10-15, `wama-axis.js`) : `ctx.axis()` rend LE temps de la surface — un
+ * seul par page, créé au premier appel. Le transport le pilote, les vues s'y abonnent ; une
+ * brique ne parle jamais à une autre (`WAMA_DATA_WORLD §5bis`). Un emplacement peut nommer son
+ * titre (`options.title`) : la même brique sert deux rôles sur une page.
+ *
  * Un geste de FRAPPE passe `ctx.edit(fn, {burst: true})` : une rafale = UN cran d'annulation
  * (`WamaHistory.beginBurst`, la règle de la page de correction du Transcriber). Un geste
  * structurel (tracer, déplacer, retirer) reste un cran à lui seul.
@@ -57,7 +62,8 @@
         var surface = config.surface;
         var listeners = {};
         var statusEl = document.querySelector('.wama-surface-status');
-        var state = { reads: {}, context: {}, value: {}, saved: '{}', selected: null, token: '' };
+        var state = { reads: {}, media: {}, context: {}, value: {}, saved: '{}', selected: null, token: '' };
+        var axis = null;
         var conflicted = false;
         var inFlight = null, queued = false;
         var helps = [];
@@ -105,7 +111,15 @@
             config: config,
             canEdit: !!config.can_edit,
             reads: function () { return state.reads; },
+            /** `{rôle: {peaks, duration}}` des médias lus que le serveur a préparés (pics d'un audio long). */
+            media: function () { return state.media; },
             context: function () { return state.context; },
+            /** L'axe de temps PARTAGÉ de la surface (`WamaAxis`), créé au premier appel ; null si
+             *  aucune brique chargée ne l'a demandé (`requires`). */
+            axis: function () {
+                if (!axis && global.WamaAxis) axis = global.WamaAxis.create();
+                return axis;
+            },
             /** `{process: état}` de l'élément (`STALE`, `RUNNING`, `SUCCESS`…). */
             processes: function () { return state.processes || {}; },
             value: function () { return state.value; },
@@ -213,9 +227,12 @@
         // ── Suivi du process rejoué ───────────────────────────────────────────────────────
         // Après « Appliquer », la page relit l'état des process (lecture légère `only=state`)
         // jusqu'à ce que le process rejoué ait FINI — réussi ou échoué ; `STALE` ou en attente,
-        // il n'a pas encore été pris. Chaque relecture émet `processes` ; les rôles lus
-        // (`reads`) sont rafraîchis au passage : un rendu refait peut changer d'adresse.
+        // il n'a pas encore été pris — ET que son aval ne tourne plus (2026-10-15 : le rendu du
+        // composer est suivi du process de sortie, qui écrit l'audio que la page relit). Chaque
+        // relecture émet `processes` ; les rôles lus (`reads`) sont rafraîchis au passage : un
+        // rendu refait peut changer d'adresse.
         var TRACK_EVERY_MS = 4000, TRACK_MAX_MS = 20 * 60 * 1000;
+        var BUSY = ['PENDING', 'RUNNING', 'AWAITING_RESOURCES'];
         var tracking = null;
 
         function track(key) {
@@ -227,10 +244,14 @@
                     .then(App.jsonOrExplain)
                     .then(function (res) {
                         state.reads = res.reads || state.reads;
+                        state.media = res.media || state.media;
                         state.processes = res.processes || {};
                         emit('processes', state.processes);
                         var s = state.processes[key];
-                        if ((s === 'SUCCESS' || s === 'FAILURE') || Date.now() > until) return;
+                        var busy = Object.keys(state.processes).some(function (k) {
+                            return BUSY.indexOf(state.processes[k]) >= 0;
+                        });
+                        if (((s === 'SUCCESS' || s === 'FAILURE') && !busy) || Date.now() > until) return;
                         tracking = setTimeout(tick, TRACK_EVERY_MS);
                     })
                     .catch(function () { tracking = setTimeout(tick, TRACK_EVERY_MS * 2); });
@@ -263,7 +284,8 @@
             head.className = 'wama-brick-head';
             var title = document.createElement('span');
             title.className = 'wama-brick-title';
-            title.textContent = def.title || (surface.bricks[slot.brick] || {}).name || slot.brick;
+            title.textContent = (slot.options || {}).title || def.title
+                || (surface.bricks[slot.brick] || {}).name || slot.brick;
             head.appendChild(title);
             var body = document.createElement('div');
             body.className = 'wama-brick-body';
@@ -333,6 +355,7 @@
             .then(function (data) {
                 if (data.error) throw new Error(data.error);
                 state.reads = data.reads || {};
+                state.media = data.media || {};
                 state.context = data.context || {};
                 state.value = data.value == null ? {} : data.value;
                 state.saved = JSON.stringify(state.value);

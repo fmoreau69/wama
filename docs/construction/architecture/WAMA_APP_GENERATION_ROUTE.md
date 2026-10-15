@@ -525,6 +525,69 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       (`substitute writer_01 tasks` puis `glue` des deux process ; fichier identique à l'octet au
       rendu à blanc) ; banc hors application : bout de phrase 0 appel, section 1, forme changée →
       tout refait avec le fond et sa nature dans les messages.
+  - ✅ **3ᵉ SURFACE — 2026-10-15, la PARTITION du composer, et l'AXE COMMUN né** (demande de
+    Fabien : *« visualiser la partition et pouvoir l'éditer avec undo et la gestion des versions,
+    avec le transport média commun […] lire la partition synchronisée à l'audio et une coloration
+    des notes jouées »*). C'est le « consommateur pilote YuE2 » de l'élargissement du 01/10.
+    - **déclarée, pas écrite** : `wama/composer/surfaces.py` (surface `score`), bouton ✎ de la card
+      par `{% surface_button %}` ; cinq briques, toutes universelles : `score_view` + `media_transport`
+      (neuves), `text_sections` (la source ABC — même brique que le fond du Writer, titre par
+      emplacement `options.title`), `revision_history`, `surface_actions`.
+    - **champs ALTERNATIFS** (au noyau, `Surface.edits` en tuple, `Surface.edited(item)`) : la
+      partition est la sortie de `plan` OU d'`extract_score`, process exclusifs par `applies` ; la
+      page édite celle qui est remplie. Mesuré sur la base : les 4 partitions existantes sont des
+      partitions EXTRAITES (SheetSage2) — sans cela la page n'aurait rien ouvert. `available` est
+      jugé AVANT la règle commune (un modèle sans partition le dit : « compose sans partition »).
+    - **l'AXE** (`common/js/wama-axis.js`, mécanisme `media_axis`) — le premier objet axe de WAMA :
+      commandes (lecture, pause, aller, sauts, vitesse signée, shuttle), abonnés, un média attaché
+      HORLOGE en avant, lecture arrière silencieuse par l'axe, clavier du magnéto (Espace, ←/→,
+      Début/Fin, J/K/L par `WamaShuttle`). `ctx.axis()` le partage dans la surface. Le transport
+      PILOTE l'axe ; la partition s'y ABONNE ; ils ne se parlent pas (`§5bis`). Le lecteur commun
+      fournit l'onde (pics serveur au-delà de 30 Mo, `preview_utils.server_peaks`, nouveaux
+      `media` du `data/` des surfaces) — aucun lecteur réécrit. **Contrainte du 19/08 tenue** : ni
+      l'éditeur du transcriber ni le cam_analyzer ne sont portés ; de la matrice de parité, l'axe
+      couvre lecture exclusive, vitesse, shuttle + arrière silencieux, Espace / ←→ / saut déclaré,
+      format et lecture du temps ; **restent** le pas image fps-aware, N médias + dérive + décalage,
+      la position persistée, les vues fenêtrées (onde zoomable, carte de chaleur, minimap, segments).
+    - **la partition** (`score_view`, règles sans DOM dans `common/js/wama-score.js`) : gravure
+      **abcjs 6.4.4** (MIT, build `basic`, vendorisé par `tools/update_vendors.sh`) ; la note JOUÉE
+      de CHAQUE voix se colore (une longue note d'une voix reste allumée pendant que l'autre
+      avance) ; défilement ; clic sur une note = aller ; glisser = transposer d'un degré par cran
+      (altération écrite retirée : la note suit l'armure ; accord en bloc) — un cran d'historique ;
+      « Caler sur le média » étire le tempo écrit (`Q:`) sur la durée de l'audio.
+    - **versions** : le composer est la 2ᵉ app à GARDER ses sorties (`KeptOutputsMixin`, migration
+      `0021` additive appliquée avant le modèle, `keep_outputs('composer', 20, fields=SCORE_FIELDS)`
+      — la PARTITION seule : `keep_outputs` accepte désormais les champs gardés, sinon chaque
+      révision du rendu copiait l'audio (≈ 100 Mo) —, ligne de rétention). Défaut COMMUN corrigé au passage : la 1ʳᵉ correction d'une card produite AVANT
+      que l'app ne garde ses sorties réécrivait l'original en place, sans retour →
+      `revisions.ensure_kept` le garde d'abord (révision « produit par un traitement », son origine
+      réelle) ; vaut pour le Writer aussi.
+    - **« Appliquer »** suit désormais le process rejoué ET son aval (le `render` du composer est
+      suivi du process `output`, qui écrit l'audio relu) ; le transport recharge alors le rendu.
+    - **défaut d'INFRASTRUCTURE trouvé par le smoke** : un clic sur une note ramenait la lecture à
+      0:00 — `/media/` répondait `200` sans morceaux, sur le 8011 comme sur le gunicorn vivant, donc
+      aucun lecteur de WAMA ne pouvait aller au-delà du déjà-téléchargé d'un long média. La règle
+      `Range` existait UNE fois, dans `cam_analyzer.views.stream_video` : extraite en brique
+      `common/utils/ranged_response.py` (mécanisme `ranged_response`), elle sert `/media/` et le cam
+      la consomme (`CAM_ANALYZER_CHANGELOG` 2026-10-15, `REMOVAL_LEDGER R132`). ⚠ Le service de
+      `/media/` ne change qu'au rechargement de gunicorn.
+    - **éprouvé** : `tests_surfaces` (+13 : règles de partition et d'axe sous V8, surface du
+      composer de bout en bout, partition seule gardée) et `tests_ranged_response` (5) ; deux
+      contrats existants ajustés à la mesure (`tests_kept_revision_outputs` : l'original est
+      désormais la 1ʳᵉ version ; `tests_card_listed_files` comparait une liste TRIÉE à l'ordre de
+      création — invisible tant qu'une app n'avait qu'une liste) ; périmètre 688 tests verts ;
+      neuf contre-épreuves ROUGES (dont une qui a montré un drapeau `selfPause` mort, retiré) ; smoke navigateur sur serveur éphémère,
+      témoin semé sous le compte de test (copie d'une partition et d'un rendu YuE2 réels) puis
+      retiré : ✎ actif sur la card, 460 notes / 2 voix, onde de pics serveur, une note allumée par
+      voix en lecture, clic sur une note → 0:42.7, glisser → transposé → annuler / rétablir →
+      enregistrer → v1 « produit par un traitement » + v2 « corrigé à la main », badge « périmé »,
+      0 erreur console.
+    - ⏳ **Restes** : les PAROLES (`lyrics`, champ texte — la surface n'écrit qu'un champ ; la
+      modale ⚙ les édite) ; l'écoute de la partition SANS rendu (synthé abcjs : demande une police
+      de sons à vendoriser) ; le clic sur une note ne sélectionne pas son texte dans la source ; la
+      facette `surfaces` du manifeste du composer et de sa jumelle `composer_01` (l'extraction des
+      apps existantes, déjà au reste du Writer) ; le smoke du lecteur 4 caméras après adoption de
+      la brique `ranged_response` ; Leaflet hors de `tools/update_vendors.sh`.
 - 🔄 **FACES DU PIPELINE — la preview suit le pipeline (Fabien, 2026-10-12)**. *« Avant, une card
   portait tout le process sans distinction et la preview de même […]. Maintenant, la card porte un
   pipeline de process, les médias intermédiaires sont conservés. Le pipeline étant l'unité commune à

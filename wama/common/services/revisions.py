@@ -169,21 +169,32 @@ KEEP_DEFAULT = 20
 #: Sous-dossier, à côté du fichier vivant, où vivent ses copies de révision.
 KEPT_FOLDER = 'revisions'
 
-#: `{app: nombre de révisions dont les fichiers se gardent}` — rempli par `keep_outputs`, appelé
-#: depuis le `ready()` de l'app qui le déclare (`processing.revisions` du manifeste) : ce module
-#: ne nomme aucune app.
+#: `{app: (nombre de révisions dont les fichiers se gardent, champs gardés ou None = tous)}` —
+#: rempli par `keep_outputs`, appelé depuis le `ready()` de l'app qui le déclare
+#: (`processing.revisions` du manifeste) : ce module ne nomme aucune app. UNE déclaration, un
+#: dictionnaire (2026-10-15) : deux tables se seraient désaccordées à la première restauration.
 _KEEPING = {}
 
 
-def keep_outputs(app_id: str, keep: int = KEEP_DEFAULT) -> None:
+def keep_outputs(app_id: str, keep: int = KEEP_DEFAULT, fields=None) -> None:
     """Déclare que `app_id` GARDE les fichiers de ses `keep` dernières révisions (+ les publiées).
-    Son modèle d'élément hérite `KeptOutputsMixin` et déclare `kept_outputs` à la rétention."""
-    _KEEPING[app_id] = max(1, int(keep))
+    Son modèle d'élément hérite `KeptOutputsMixin` et déclare `kept_outputs` à la rétention.
+
+    `fields` (2026-10-15, le composer) : les seules sorties dont la copie se garde. Une révision du
+    rendu copierait sinon l'audio entier (≈ 100 Mo) vingt fois par card, quand seule la partition
+    s'édite. Sans `fields`, toutes — la règle du Writer, dont les sorties sont des textes."""
+    _KEEPING[app_id] = (max(1, int(keep)), tuple(fields) if fields else None)
 
 
 def kept_count(app_id: str) -> int:
     """Combien de révisions gardent leurs fichiers pour `app_id` — 0 : l'app n'en garde pas."""
-    return _KEEPING.get(app_id, 0)
+    return _KEEPING.get(app_id, (0, None))[0]
+
+
+def keeps_field(app_id: str, field: str) -> bool:
+    """La copie de la sortie `field` se garde-t-elle pour `app_id` ?"""
+    keep, fields = _KEEPING.get(app_id, (0, None))
+    return bool(keep) and (fields is None or field in fields)
 
 
 def kept_path(path: str, number: int) -> str:
@@ -216,6 +227,8 @@ def keep_files(app_id: str, item, revision) -> list:
         from django.conf import settings
         added = []
         for ref in revision.outputs or []:
+            if not keeps_field(app_id, ref.get('field') or ''):
+                continue
             path = ref.get('path') or ''
             source = os.path.join(settings.MEDIA_ROOT, path) if path else ''
             if not source or not os.path.isfile(source):
@@ -284,6 +297,34 @@ def prune_kept(app_id: str, item) -> list:
                             for ref in revision.outputs or []]
         revision.save(update_fields=['outputs'])
     return removed
+
+
+def ensure_kept(app_id: str, item, field: str):
+    """Garde l'état PRÉSENT du fichier `field` avant qu'une correction à la main ne le réécrive
+    en place (2026-10-15, surface « Éditer la partition » du composer).
+
+    Un état qu'aucune copie gardée ne porte ne peut venir que d'un traitement joué AVANT que
+    l'app ne garde ses sorties (une correction à la main est toujours gardée, et la dernière
+    révision n'est jamais purgée) : sans ce geste, la 1ʳᵉ correction d'une card ancienne effaçait
+    l'original sans retour. Il devient une révision « produit par un traitement » — son origine
+    réelle. Rend la révision créée, ou None (rien à garder, app qui ne garde pas). Best-effort."""
+    if not keeps_field(app_id, field) or not hasattr(item, KEPT_FIELD):
+        return None
+    try:
+        from wama.common.utils.provenance import sha256_of
+        value = getattr(item, field, None)
+        if not getattr(value, 'name', ''):
+            return None
+        current = sha256_of(value.path)
+        if any(e.get('field') == field and e.get('sha256') == current for e in _kept_entries(item)):
+            return None
+        from wama.common.models import ItemRevision
+        return record_revision(app_id, item, origin=ItemRevision.ORIGIN_PROCESS,
+                               output_fields=[field])
+    except Exception as exc:
+        logger.warning("[revisions] état présent de %s non gardé (%s: %s)", field,
+                       type(exc).__name__, exc)
+        return None
 
 
 def kept_file(app_id: str, item, number: int, field: str) -> str:

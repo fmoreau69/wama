@@ -41,7 +41,8 @@ RETENTION_MODELS = [
     {'model': 'imager.ImageGeneration', 'path_lists': ['generated_images', 'native_outputs']},
     {'model': 'enhancer.Enhancement', 'path_lists': ['native_outputs']},
     {'model': 'enhancer.AudioEnhancement', 'path_lists': ['native_outputs']},
-    {'model': 'composer.ComposerGeneration', 'path_lists': ['native_outputs']},
+    # `kept_outputs` : les versions gardées de la partition (`KeptOutputsMixin`, 2026-10-15).
+    {'model': 'composer.ComposerGeneration', 'path_lists': ['native_outputs', 'kept_outputs']},
     {'model': 'synthesizer.VoiceSynthesis', 'path_lists': ['native_outputs']},
     {'model': 'transcriber.Transcript'},
     {'model': 'anonymizer.Media', 'date': 'uploaded_at', 'path_lists': ['native_outputs']},

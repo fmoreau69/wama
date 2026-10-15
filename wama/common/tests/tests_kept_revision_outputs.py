@@ -207,7 +207,12 @@ class KeptVersionsInASurfaceTest(TestCase):
             self.assertTrue(all(r['kept'] for r in listed['revisions']))
             oldest = min(numbers)
             back = self.client.get(f'{base}revisions/{oldest}/').json()
-            self.assertEqual('# Fond\nDeuxième texte.\n', back['value'],
+            # The state BEFORE the first correction is kept first (`revisions.ensure_kept`,
+            # 2026-10-15) : produced before the app kept its outputs, it would be lost otherwise.
+            self.assertEqual('# Fond\nPremier texte.\n', back['value'],
+                             'the original produced state is kept before it is rewritten in place')
+            second = self.client.get(f'{base}revisions/{oldest + 1}/').json()
+            self.assertEqual('# Fond\nDeuxième texte.\n', second['value'],
                              'the kept copy, not the live file that moved on')
             self.assertEqual(404, self.client.get(f'{base}revisions/{max(numbers) + 9}/').status_code)
 

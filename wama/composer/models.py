@@ -1,8 +1,8 @@
 from functools import cached_property
 
 from django.db import models
-from wama.common.models import (JOB_STATUS_CHOICES, NativeOutputsMixin, ProcessingTimeMixin,
-                                PromptScoped, ScopedManager, ScopedVisibility)
+from wama.common.models import (JOB_STATUS_CHOICES, KeptOutputsMixin, NativeOutputsMixin,
+                                ProcessingTimeMixin, PromptScoped, ScopedManager, ScopedVisibility)
 from django.contrib.auth.models import User
 
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
@@ -11,7 +11,10 @@ from wama.composer.utils.vocals import AUTO as VOCALS_AUTO, CHOICES as VOCALS_CH
 
 # `PromptScoped` (2026-10-04, la route de l'imager) : `prompt` reste ce que l'utilisateur a tapé,
 # `prompt_processed` ce qui part au modèle — enrichi à l'ingestion, éditable à deux états, annulable.
-class ComposerGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, ScopedVisibility):
+# `KeptOutputsMixin` (2026-10-15, 2ᵉ app après le Writer) : chaque révision GARDE sa partition —
+# la brique « Versions » de la surface « Éditer la partition » (`surfaces.py`) la reprend.
+class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMixin, PromptScoped,
+                         ScopedVisibility):
     # Partage F7 (PROFILES_PERMISSIONS §7.4bis) : lectures via visible_to()/visible_or_404,
     # mutations inchangées (filtrées par user) → lecture seule par construction.
     objects = ScopedManager()
@@ -97,6 +100,9 @@ class ComposerGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, 
         upload_to=upload_to_user_output('composer'),
         blank=True, null=True,
     )
+    #: Les deux sorties « partition », sorties de process ALTERNATIFS (`plan`, `extract_score`),
+    #: dans l'ordre où on les cherche — ce que la surface édite et dont les versions se gardent.
+    SCORE_FIELDS = ('planned_score', 'extracted_score')
 
     # Format de sortie (conversion inline via Converter) — 'original' = WAV natif
     output_format = models.CharField(max_length=20, default='original')

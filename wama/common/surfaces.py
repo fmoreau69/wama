@@ -37,6 +37,16 @@ le fond du Writer) :
     sont alors communes (`text_value`) : une app n'a rien à écrire. Quand ce fichier est la
     SORTIE d'un process, le réécrire périme son aval par l'empreinte de sortie
     (`process_pipeline.output_fingerprint`) — sans une ligne de plus.
+
+DES CHAMPS ALTERNATIFS (2026-10-15, 3ᵉ surface : la partition du composer) : `edits` peut nommer
+plusieurs champs de même nature, sorties de process ALTERNATIFS — la partition écrite par `plan`
+ou extraite par `extract_score`, exclusifs par `applies` (`ROUTE §10.6`, « deux amonts
+alternatifs »). La page édite le premier qui est rempli (`edited`) ; une app ne déclare pas une
+surface par champ.
+
+L'AXE PARTAGÉ (2026-10-15, chantier « transport commun », `ROUTE §F3b`) : une surface qui monte
+une brique temporelle a UN axe de temps (`wama-axis.js`, `ctx.axis()`). Le transport le PILOTE ;
+les vues s'y ABONNENT — elles ne se parlent jamais (`WAMA_DATA_WORLD §5bis`).
 """
 from __future__ import annotations
 
@@ -112,12 +122,14 @@ class Surface:
     reads: dict
     #: Champ ÉCRIT par la page et sa validation (rend la valeur assainie, lève `ValueError`).
     #: Un champ FICHIER est édité comme TEXTE et validé par la règle commune (`validate_text`) :
-    #: `validate` ne se déclare que pour un champ de donnée.
-    edits: str
+    #: `validate` ne se déclare que pour un champ de donnée. Un TUPLE nomme des champs
+    #: ALTERNATIFS de même nature : la page édite le premier rempli (`edited`).
+    edits: object
     validate: Optional[Callable] = None
     #: Process que l'écriture périme et que « Appliquer » rejoue (`<app>:start_process`).
     reruns: str = ''
     #: L'élément peut-il s'ouvrir dans cette surface ? `(bool, raison)` — la raison s'affiche.
+    #: Jugé AVANT la règle commune (un champ fichier vide nomme le process qui le produit).
     available: Optional[Callable] = None
     #: Rôles lus en JSON (document), les autres étant des fichiers servis par URL.
     documents: tuple = ()
@@ -138,11 +150,27 @@ class Surface:
         return apps.get_model(self.model)
 
     @property
+    def fields(self) -> tuple:
+        """Les champs que la page peut écrire — un seul, ou des ALTERNATIFS de même nature."""
+        return tuple(self.edits) if isinstance(self.edits, (tuple, list)) else (self.edits,)
+
+    def edited(self, item) -> str:
+        """Le champ que la page écrit POUR CET élément : le premier alternatif rempli, sinon le
+        premier déclaré (un champ de donnée vide s'édite ; un fichier vide se refuse à l'ouverture)."""
+        for name in self.fields:
+            value = getattr(item, name, None)
+            if (getattr(value, 'name', '') if self.text_value else value):
+                return name
+        return self.fields[0]
+
+    @property
     def text_value(self) -> bool:
-        """Le champ écrit est-il un FICHIER, édité comme texte ? Lu du modèle, jamais déclaré."""
+        """Les champs écrits sont-ils des FICHIERS, édités comme texte ? Lu du modèle, jamais
+        déclaré ; des alternatifs de natures différentes ne sont pas une surface."""
         from django.db.models import FileField
         try:
-            return isinstance(self.model_class()._meta.get_field(self.edits), FileField)
+            meta = self.model_class()._meta
+            return all(isinstance(meta.get_field(name), FileField) for name in self.fields)
         except Exception:
             return False
 
@@ -156,23 +184,27 @@ class Surface:
 
     def can_open(self, item) -> tuple:
         if self.available is not None:
-            return self.available(item)
-        if self.text_value and not getattr(getattr(item, self.edits, None), 'name', ''):
-            return False, f"Rien à éditer : lancer d'abord « {self._producer_label(item)} »."
+            ok, reason = self.available(item)
+            if not ok:
+                return ok, reason
+        if self.text_value and not getattr(getattr(item, self.edited(item), None), 'name', ''):
+            return False, f"Rien à éditer : lancer d'abord {self._producer_label(item)}."
         return True, ''
 
     def _producer_label(self, item) -> str:
-        """Le libellé du process qui PRODUIT le fichier édité (sa sortie déclarée), lu du pipeline
-        de l'élément — sinon le nom du champ."""
+        """Le libellé du (des) process qui PRODUIT le fichier édité (sa sortie déclarée), lu du
+        pipeline de l'élément — sinon le nom du champ. Des alternatifs se disent « ou »."""
+        labels = []
         try:
             from wama.common.services.process_pipeline import pipeline_of
             pipeline = pipeline_of(item)
-            for spec in (pipeline.specs if pipeline is not None else ()):
-                if self.edits in (spec.outputs or ()):
-                    return spec.label or spec.key
+            for name in self.fields:
+                for spec in (pipeline.specs if pipeline is not None else ()):
+                    if name in (spec.outputs or ()):
+                        labels.append(spec.label or spec.key)
         except Exception:
             pass
-        return self.edits
+        return ' ou '.join(f'« {label} »' for label in (labels or self.fields))
 
     def bricks(self) -> list:
         return [BRICKS[slot.brick] for slot in self.slots]
@@ -300,6 +332,29 @@ register_brick(UIBrick(
                 "l'enregistrement fait révision nouvelle : restaurer ne détruit rien (§7.1).",
     script='common/js/surfaces/brick-revision-history.js',
     consumes=('document',), emits=('document',)))
+
+register_brick(UIBrick(
+    key='media_transport', name='Transport média',
+    description="Le magnéto de la surface : un média attaché à l'AXE partagé (`wama-axis.js`), son "
+                "onde (le lecteur commun, pics serveur pour un long fichier), lecture / pause, "
+                "début, sauts, vitesse, shuttle J/K/L dont l'arrière silencieux. Il PILOTE l'axe, "
+                "jamais une vue (`WAMA_DATA_WORLD §5bis`) ; il dit si le média est périmé par une "
+                "modification et le recharge quand le process qui le produit a été rejoué.",
+    script='common/js/surfaces/brick-media-transport.js',
+    requires=('common/js/wama-axis.js', 'common/js/wama-shuttle.js'),
+    consumes=('audio',)))
+
+register_brick(UIBrick(
+    key='score_view', name='Partition',
+    description="Une partition ABC gravée (abcjs, vendorisé), abonnée à l'axe partagé : les notes "
+                "JOUÉES se colorent, voix par voix, et la partition défile avec elles ; un clic sur "
+                "une note y amène la lecture. Glisser une note vers le haut ou le bas la transpose "
+                "d'un degré par cran — un geste d'édition annulable. Le tempo est celui de la "
+                "partition ; « Caler sur le média » l'étire sur la durée de l'audio.",
+    script='common/js/surfaces/brick-score-view.js',
+    requires=('vendors/abcjs-6.4.4/abcjs-basic-min.js', 'common/js/wama-axis.js',
+              'common/js/wama-score.js'),
+    consumes=('score',), emits=('score',)))
 
 register_brick(UIBrick(
     key='surface_actions', name='Actions de la surface',

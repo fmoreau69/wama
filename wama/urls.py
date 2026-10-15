@@ -75,5 +75,8 @@ except Exception:
     pass
 
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Par MORCEAUX (`Range`, 206) : sans eux un navigateur ne peut aller qu'à ce qu'il a déjà
+    # téléchargé d'un média (2026-10-15, `common/utils/ranged_response.py`).
+    from wama.common.utils.ranged_response import serve as ranged_serve
+    urlpatterns += static(settings.MEDIA_URL, view=ranged_serve, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

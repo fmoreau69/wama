@@ -76,6 +76,23 @@
 .wama-revision-meta { color: #8b949e; font-size: .74rem; }
 .wama-revision-empty { padding: .8rem .6rem; font-size: .8rem; color: #8b949e; }
 
+/* Transport média (magnéto de l'axe partagé) — l'onde est celle du lecteur commun ; ses propres
+   boutons sont masqués : c'est la barre du transport qui pilote, par l'axe. */
+.wama-brick-transport { display: flex; flex-direction: column; gap: .35rem; padding: .45rem .55rem; }
+.wama-transport-wave .wama-audio-player > .d-flex { display: none !important; }
+.wama-transport-bar { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem; }
+.wama-transport-bar .btn { padding: .15rem .45rem; font-size: .8rem; }
+.wama-transport-rate { width: auto; padding: .1rem 1.6rem .1rem .45rem; font-size: .78rem;
+  background-color: #16161a; color: #e6edf3; border-color: #3a3a42; }
+.wama-transport-clock { margin-left: auto; font-size: .8rem; color: #e6edf3; font-variant-numeric: tabular-nums; }
+
+/* Partition — gravée sur PAPIER blanc (les notes d'abcjs sont noires) ; la note jouée se colore */
+.wama-brick-score { background: #fff; }
+.wama-score-paper { padding: .4rem .6rem 1.5rem; color: #111; }
+.wama-score-paper svg .wama-score-playing { fill: #d9480f; stroke: #d9480f; }
+.wama-score-fit { display: flex; align-items: center; gap: .25rem; font-size: .72rem; color: #c9d1d9;
+  margin: 0; cursor: pointer; }
+
 /* Actions */
 .wama-brick-actions { display: flex; flex-direction: column; gap: .45rem; padding: .55rem; }
 .wama-actions-row { display: flex; gap: .35rem; }

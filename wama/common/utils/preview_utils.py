@@ -204,6 +204,17 @@ def _add_server_peaks(data):
         data.setdefault('duration', entry.get('duration'))
 
 
+def server_peaks(url: str):
+    """`{peaks, duration}` de l'audio servi à `url` quand il est trop lourd pour le navigateur —
+    la même règle et le même cache que l'aperçu (`_add_server_peaks`) ; None sinon (petit fichier
+    décodé par le lecteur, pas un audio). Lu par les SURFACES (brique `media_transport`,
+    2026-10-15) : une page d'édition n'a pas à refaire l'aperçu pour avoir l'onde."""
+    from .mime_utils import guess_mime_type
+    data = {'url': url, 'mime_type': guess_mime_type(url or '')}
+    _add_server_peaks(data)
+    return {'peaks': data['peaks'], 'duration': data.get('duration')} if data.get('peaks') else None
+
+
 def _input_port_group(app_name):
     """Groupe du port d'ENTRÉE de l'app, lu par l'UNIQUE accesseur de ports `studio_node_ports`.
 

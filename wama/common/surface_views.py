@@ -93,21 +93,25 @@ def surface_data(request, app: str, key: str, pk: int):
     if not ok:
         return JsonResponse({'error': reason}, status=409)
     from wama.common.services.edit_lock import state_token
-    reads = {}
+    reads, media = {}, {}
     for role, field_name in found.reads.items():
         value = getattr(item, field_name, None)
         if role in found.documents:
             reads[role] = _document(value)
         else:
             reads[role] = value.url if value else ''
+            peaks = _server_peaks(reads[role])
+            if peaks:
+                media[role] = peaks
     if request.GET.get('only') == 'state':
         # Le SUIVI d'un process rejoué (« Appliquer ») : ce que les briques relisent, sans la
         # valeur éditée — que la page tient déjà, et qui peut peser un document entier.
-        return JsonResponse({'reads': reads, 'processes': _process_states(item)})
+        return JsonResponse({'reads': reads, 'media': media, 'processes': _process_states(item)})
     value = _value_of(found, item)
     return JsonResponse({
         'processes': _process_states(item),
         'reads': reads,
+        'media': media,
         'value': value,
         'context': found.context_of(item),
         'can_edit': _can_edit(request.user, item),
@@ -128,6 +132,7 @@ def surface_revisions(request, app: str, key: str, pk: int):
         return JsonResponse({'revisions': [], 'keeps': False})
     from wama.common.models import ItemRevision
     labels = dict(ItemRevision.ORIGIN_CHOICES)
+    edited = found.edited(item)
     out = []
     for revision in revisions_of(app, item).select_related('user')[:200]:
         user = revision.user
@@ -139,7 +144,7 @@ def surface_revisions(request, app: str, key: str, pk: int):
             'user': (user.get_full_name() or user.username) if user else '',
             'models': revision.model_keys or [],
             'published': revision.published_at is not None,
-            'kept': bool(kept_file(app, item, revision.number, found.edits)),
+            'kept': bool(kept_file(app, item, revision.number, edited)),
         })
     return JsonResponse({'revisions': out, 'keeps': True, 'keep': kept_count(app)})
 
@@ -155,7 +160,7 @@ def surface_revision_value(request, app: str, key: str, pk: int, number: int):
     from wama.common.surfaces import validate_text
     found = _surface_or_404(app, key)
     item = _readable_or_404(found, request.user, pk)
-    rel = kept_file(app, item, number, found.edits) if found.text_value else ''
+    rel = kept_file(app, item, number, found.edited(item)) if found.text_value else ''
     if not rel:
         raise Http404("aucune version gardée pour cette révision")
     try:
@@ -180,10 +185,23 @@ def _process_states(item) -> dict:
         return {}
 
 
+def _server_peaks(url: str):
+    """`{peaks, duration}` d'un AUDIO trop lourd pour être décodé par le navigateur — la brique de
+    l'aperçu (`preview_utils.server_peaks`, calcul ffmpeg mis en cache) ; None sinon."""
+    if not url:
+        return None
+    try:
+        from wama.common.utils.preview_utils import server_peaks
+        return server_peaks(url)
+    except Exception:
+        return None
+
+
 def _value_of(found, item):
     """La valeur ÉDITÉE telle que la page la reçoit : le texte du fichier, ou le champ de donnée."""
+    edited = found.edited(item)
     if found.text_value:
-        field = getattr(item, found.edits, None)
+        field = getattr(item, edited, None)
         if not getattr(field, 'name', ''):
             return ''
         try:
@@ -191,7 +209,7 @@ def _value_of(found, item):
                 return source.read()
         except OSError:
             return ''
-    return getattr(item, found.edits, None) or {}
+    return getattr(item, edited, None) or {}
 
 
 def _write_text(item, field_name: str, text: str) -> bool:
@@ -258,6 +276,7 @@ def surface_save(request, app: str, key: str, pk: int):
     except (ValueError, KeyError, TypeError) as error:
         return JsonResponse({'error': str(error)}, status=400)
     changed = True
+    edited = found.edited(item)
     with transaction.atomic():
         item = type(item).objects.select_for_update().get(pk=item.pk)
         conflict = edit_lock.stale_edit(request.user, item, payload.get('base'),
@@ -265,17 +284,22 @@ def surface_save(request, app: str, key: str, pk: int):
         if conflict:
             return JsonResponse(conflict, status=409)
         if found.text_value:
-            changed = _write_text(item, found.edits, value)
+            # L'état présent d'abord, s'il n'est encore gardé par aucune révision (produit avant
+            # que l'app ne garde ses sorties) : réécrit en place, il serait perdu sans retour.
+            from wama.common.services.revisions import ensure_kept
+            if value != _value_of(found, item):
+                ensure_kept(app, item, edited)
+            changed = _write_text(item, edited, value)
         else:
-            setattr(item, found.edits, value)
-            item.save(update_fields=[found.edits])
+            setattr(item, edited, value)
+            item.save(update_fields=[edited])
     if found.text_value and changed:
         # Un fichier corrigé à la main est un état de la card : une RÉVISION « corrigé à la
         # main » (marche 8a) — la même trace qu'un résultat produit, jamais un geste ajouté.
         from wama.common.models import ItemRevision
         from wama.common.services.revisions import record_revision
         record_revision(app, item, origin=ItemRevision.ORIGIN_MANUAL, user=request.user,
-                        output_fields=[found.edits])
+                        output_fields=[edited])
     stale = []
     if found.reruns:
         # La péremption suit le champ SURVEILLÉ — on la recalcule ici pour la dire à la page.

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Met à jour les assets front vendorés en LOCAL (Bootstrap / Font Awesome / jsTree).
+# Met à jour les assets front vendorés en LOCAL (Bootstrap / Font Awesome / jsTree / three /
+# TalkingHead / FullCalendar / gridstack / abcjs). ⚠ Leaflet (cam_analyzer) n'y est pas encore.
 #
 # WAMA est LOCAL-FIRST (cf. memory/reference_offline_assets_local) : aucune dépendance
 # CDN au runtime → fonctionne hors-ligne. Ce script garde les liens de récupération et
@@ -32,6 +33,13 @@ TALKINGHEAD_VER=1.7
 # regroupe cœur + daygrid + timegrid + list + interaction ; ses plugins PREMIUM (resource,
 # timeline) sont sous licence commerciale : ne pas les ajouter.
 FULLCALENDAR_VER=6.1.15
+# gridstack (MIT) — la grille des SURFACES (pages d'édition, `common/surfaces.py`). Vendorisé à la
+# main le 2026-10-10, rattaché ici le 2026-10-15 (fichiers identiques à l'octet, vérifié par `cmp`).
+GRIDSTACK_VER=13.3.0
+# abcjs (MIT) — la gravure des partitions ABC (brique `score_view`, 2026-10-15). Le build
+# « basic » suffit : la page n'en tire ni synthé ni éditeur (le son est celui du rendu, le texte
+# s'édite par la brique commune) — pas de police de sons à vendoriser.
+ABCJS_VER=6.4.4
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 V="$ROOT/wama/static/vendors"
@@ -121,6 +129,17 @@ mkdir -p "$V/fullcalendar-$FULLCALENDAR_VER/locales"
 dl "https://cdn.jsdelivr.net/npm/fullcalendar@$FULLCALENDAR_VER/index.global.min.js"           "$V/fullcalendar-$FULLCALENDAR_VER/index.global.min.js"
 dl "https://cdn.jsdelivr.net/npm/@fullcalendar/core@$FULLCALENDAR_VER/locales/fr.global.min.js" "$V/fullcalendar-$FULLCALENDAR_VER/locales/fr.global.min.js"
 dl "https://cdn.jsdelivr.net/npm/fullcalendar@$FULLCALENDAR_VER/LICENSE.md"                      "$V/fullcalendar-$FULLCALENDAR_VER/LICENSE.md"
+
+echo "== gridstack $GRIDSTACK_VER (bundle + css) =="
+mkdir -p "$V/gridstack-$GRIDSTACK_VER"
+dl "https://cdn.jsdelivr.net/npm/gridstack@$GRIDSTACK_VER/dist/gridstack-all.js"  "$V/gridstack-$GRIDSTACK_VER/gridstack-all.js"
+dl "https://cdn.jsdelivr.net/npm/gridstack@$GRIDSTACK_VER/dist/gridstack.min.css" "$V/gridstack-$GRIDSTACK_VER/gridstack.min.css"
+dl "https://cdn.jsdelivr.net/npm/gridstack@$GRIDSTACK_VER/LICENSE"                "$V/gridstack-$GRIDSTACK_VER/LICENSE"
+
+echo "== abcjs $ABCJS_VER (build basic) =="
+mkdir -p "$V/abcjs-$ABCJS_VER"
+dl "https://cdn.jsdelivr.net/npm/abcjs@$ABCJS_VER/dist/abcjs-basic-min.js" "$V/abcjs-$ABCJS_VER/abcjs-basic-min.js"
+dl "https://cdn.jsdelivr.net/npm/abcjs@$ABCJS_VER/LICENSE.md"              "$V/abcjs-$ABCJS_VER/LICENSE.md"
 
 echo "== Avatar de test (GLB) — NON COMMITÉ =="
 # 4,7 Mo de binaire : téléchargé comme MuseTalk l'est par setup_avatarizer.sh, PAS versionné

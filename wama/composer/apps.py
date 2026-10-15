@@ -62,3 +62,13 @@ class ComposerConfig(AppConfig):
             })
         except Exception:
             pass
+
+        # Versions GARDÉES (2026-10-15, 2ᵉ app après le Writer — `WAMA_COLLABORATION §7.2`) :
+        # chaque révision copie sa partition (planifiée, extraite, ou corrigée à la main sur la
+        # surface « Éditer la partition ») ; la brique « Versions » les reprend. Même règle V3 que
+        # le Writer : les 20 dernières + les publiées. La liste est déclarée à la rétention
+        # (`retention.RETENTION_MODELS`, ligne du composer). La PARTITION seule : une copie du
+        # rendu (≈ 100 Mo) par révision ne se garde pas — il se refait depuis sa partition.
+        from wama.common.services.revisions import keep_outputs
+        from .models import ComposerGeneration
+        keep_outputs('composer', keep=20, fields=ComposerGeneration.SCORE_FIELDS)

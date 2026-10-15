@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**199 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**201 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -710,7 +710,7 @@ Décrit une image via un modèle multimodal Ollama local (bench, smoke UI, fichi
 
 ### Surfaces — pages d'édition composées de briques
 
-Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit et sa validation, process que l'écriture périme), servie par des vues COMMUNES et composée de briques UI universelles — déplaçables, redimensionnables (gridstack), historique commun. 1ʳᵉ surface : la correction des détections de l'anonymizer (2026-10-10). Registre `ui_bricks` = le catalogue des briques. 2ᵉ (2026-10-13) : le fond du Writer — un champ FICHIER s'édite comme texte (règles communes), la surface se déclare au manifeste (facette `surfaces`) et se génère ; refus 409 sur état périmé et verrou doux pour toutes les surfaces ; brique « Versions » : reprendre le texte d'une révision GARDÉE, un geste d'édition annulable
+Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit et sa validation, process que l'écriture périme), servie par des vues COMMUNES et composée de briques UI universelles — déplaçables, redimensionnables (gridstack), historique commun. 1ʳᵉ surface : la correction des détections de l'anonymizer (2026-10-10). Registre `ui_bricks` = le catalogue des briques. 2ᵉ (2026-10-13) : le fond du Writer — un champ FICHIER s'édite comme texte (règles communes), la surface se déclare au manifeste (facette `surfaces`) et se génère ; refus 409 sur état périmé et verrou doux pour toutes les surfaces ; brique « Versions » : reprendre le texte d'une révision GARDÉE, un geste d'édition annulable. 3ᵉ (2026-10-15) : la partition du composer — champs ALTERNATIFS (sortie de l'un de deux process), briques `score_view` (gravure abcjs, notes jouées colorées, glisser = transposer) et `media_transport`, sur l'AXE partagé de la surface (`ctx.axis()`)
 
 - **Domicile** : `wama/common/surfaces.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : SURFACES et BRIQUES UI — le registre (2026-10-10, ouverture du chantier SURFACES).
@@ -1289,17 +1289,19 @@ Chaque résultat produit donne à l'élément une révision numérotée — rég
 
 - **Domicile** : `wama/common/services/revisions.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md §7.1](../construction/exploitation/WAMA_COLLABORATION.md)
 - **Module** : Révisions d'un élément — la brique de la marche 8a (`WAMA_COLLABORATION.md §7.1`).
-- **API publique** (18) :
+- **API publique** (20) :
   - `json_safe(value)` — Une valeur de réglage telle qu'un JSONField la gardera (Decimal, date… → chaîne ; un
   - `settings_snapshot(app_id: str, item) -> dict` — Réglages de `item` à cet instant, dérivés du schéma de son app. `{}` sans schéma.
   - `text_fingerprint(value) -> str` — Empreinte d'une sortie qui est un TEXTE (pas un fichier) — celle des révisions, et celle
   - `output_references(item, fields=None) -> list` — `[{field, path, sha256}]` des SORTIES de `item`.
   - `record_revision(app_id: str, item, *, origin: str='process', user=None, outcome=None, model_keys=None, instruction: str='', output_fields=None)` — Donne à `item` sa révision suivante. Rend la ligne créée, ou None si rien n'a pu
-  - `keep_outputs(app_id: str, keep: int=KEEP_DEFAULT) -> None` — Déclare que `app_id` GARDE les fichiers de ses `keep` dernières révisions (+ les publiées).
+  - `keep_outputs(app_id: str, keep: int=KEEP_DEFAULT, fields=None) -> None` — Déclare que `app_id` GARDE les fichiers de ses `keep` dernières révisions (+ les publiées).
   - `kept_count(app_id: str) -> int` — Combien de révisions gardent leurs fichiers pour `app_id` — 0 : l'app n'en garde pas.
+  - `keeps_field(app_id: str, field: str) -> bool` — La copie de la sortie `field` se garde-t-elle pour `app_id` ?
   - `kept_path(path: str, number: int) -> str` — Où vit la copie de `path` pour la révision `number` : à côté de lui, dans `revisions/`,
   - `keep_files(app_id: str, item, revision) -> list` — Copie les fichiers de sortie de `revision` dans la liste gardée de `item`, puis applique la
   - `prune_kept(app_id: str, item) -> list` — La rétention V3 : seuls les fichiers des `kept_count` dernières révisions et des révisions
+  - `ensure_kept(app_id: str, item, field: str)` — Garde l'état PRÉSENT du fichier `field` avant qu'une correction à la main ne le réécrive
   - `kept_file(app_id: str, item, number: int, field: str) -> str` — Le fichier GARDÉ du champ `field` à la révision `number` (chemin relatif à MEDIA_ROOT), ''
   - `revisions_of(app_id: str, item)` — Toutes les révisions de `item`, la plus récente d'abord.
   - `current_revision(app_id: str, item)` — La dernière révision de `item`, ou None s'il n'a encore rien produit.
@@ -1639,9 +1641,10 @@ Un worker publie plusieurs vues du même instant (`publish_partial(variant=, lab
 
 - **Domicile** : `wama/common/utils/preview_utils.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common - Preview Utilities
-- **API publique** (14) :
+- **API publique** (15) :
   - `get_or_create_anonymous_user()` — Get or create the anonymous user.
   - `file_face(url, path=None, name=None)` — Payload d'aperçu d'UN fichier : `{name, url, mime_type}`, plus `content` (le texte
+  - `server_peaks(url: str)` — `{peaks, duration}` de l'audio servi à `url` quand il est trop lourd pour le navigateur —
   - `publish_partial(app_name, pk, url_or_path, variant=None, label=None)` — Worker : publie l'URL (média) d'un aperçu PARTIEL courant, servi par `?side=during`.
   - `class PartialFrames` — L'aperçu « pendant » en IMAGES d'une vidéo en cours de traitement : une frame (ou
   - `publish_partial_peaks(app_name, pk, peaks, duration=None)` — Worker : publie des PICS d'onde partiels (« waveform par parties », cf. `waveform.compute_peaks`)
@@ -2210,6 +2213,12 @@ Bouton « Ajouter à la file » de la card d'entrée : consigne + réglages du v
 
 - **Domicile** : `wama/common/static/common/js/wama-app-base.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
+### Axe de temps partagé (transport commun)
+
+L'AXE auquel les vues s'abonnent et que le magnéto pilote — jamais une vue (`WAMA_DATA_WORLD §5bis`) : lecture, pause, aller, sauts, vitesse signée, shuttle ; un média attaché est l'horloge en avant, l'axe avance seul et le recale en arrière (lecture silencieuse) ; clavier du magnéto. Né le 2026-10-15 À CÔTÉ des transports existants (éditeur du transcriber et cam_analyzer non portés, matrice de parité)
+
+- **Domicile** : `wama/common/static/common/js/wama-axis.js` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+
 ### Bouton de cycle
 
 Bouton commun ▶/⏹/↻ toujours vert — l'icône porte l'action, l'état vit sur la card
@@ -2406,9 +2415,20 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `checked_values(schema, data) -> dict` — Les valeurs FOURNIES, refusées si le schéma les refuse, sinon typées et bornées — la porte
   - `param_from_spec(spec) -> Param` — Le `Param` d'un `ParamSpec`. Lève `ValueError` sur un type que le pont ne connaît pas —
 
+### Servir un fichier par morceaux (HTTP Range)
+
+Réponse 206 à une requête `Range` — ce qui rend un média seekable au-delà du déjà-téléchargé ; sert `/media/` (`wama/urls.py`) et la vidéo du cam_analyzer, dont la règle a été extraite (2026-10-15)
+
+- **Domicile** : `wama/common/utils/ranged_response.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : Servir un fichier PAR MORCEAUX (requêtes HTTP `Range`) — ce qui rend un média SEEKABLE.
+- **API publique** (3) :
+  - `parse_range(header: str, size: int)` — `(début, fin)` inclusifs d'un en-tête `Range` à UN intervalle, bornés à la taille ; None si
+  - `ranged_file_response(request, path: str, content_type: str | None=None)` — La réponse qui sert `path` — son morceau (206) si la requête en demande un, sinon le
+  - `serve(request, path, document_root=None, show_indexes=False)` — `django.views.static.serve`, plus les requêtes `Range` (206) — le service de `/media/`.
+
 ### Shuttle J/K/L
 
-État de vitesse/direction de lecture (paliers éditeur) + binding clavier ; l'app fournit apply(speed) — la commande est commune, l'application au lecteur reste locale
+État de vitesse/direction de lecture (paliers éditeur) + binding clavier ; l'app fournit apply(speed) — la commande est commune ; depuis le 2026-10-15 elle peut s'appliquer à l'AXE commun (`axis.shuttle`) plutôt qu'à un lecteur
 
 - **Domicile** : `wama/common/static/common/js/wama-shuttle.js`
 
