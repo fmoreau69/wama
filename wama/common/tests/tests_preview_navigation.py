@@ -179,13 +179,57 @@ class OneFaceSwitchTest(SimpleTestCase):
                 go: function (k) { went.push(k); }, compare: function () { compared++; }});
             bar.children.forEach(function (b) { b.listeners.click(); });
             return [bar.children.map(function (b) { return b.attrs['data-side']; }),
-                    bar.children.map(function (b) { return / btn-info$/.test(b.className); }),
-                    went, compared];
+                    bar.children.map(function (b) { return / is-active$/.test(b.className)
+                                                           && b.attrs['aria-selected'] === 'true'; }),
+                    went, compared, bar.attrs.role, bar.children.map(function (b) { return b.attrs.role; })];
         })()""")
         self.assertEqual(['input', 'compare', 'output'], list(out[0]))
-        self.assertEqual([False, False, True], list(out[1]), 'the face shown is the filled one')
+        self.assertEqual([False, False, True], list(out[1]), 'the face shown is the active tab')
+        self.assertEqual('tablist', out[4])
+        self.assertEqual(['tab'] * 3, list(out[5]))
         self.assertEqual(['input', 'output'], list(out[2]))
         self.assertEqual(1, out[3])
+
+    def test_the_playback_follows_the_face(self):
+        """Asked by Fabien (2026-10-15) : switching from the Entry to the Detection then the Output of
+        a video restarted it from 0 ; and the audio of the side panel (a player OUTSIDE the DOM) went
+        on playing, unseen, once its face was left. The clock is taken (the medium STOPS), and given
+        to the medium of the face shown — the same item only ; a face without medium keeps it."""
+        out = self.v8.eval("""(function () {
+            var P = window.WamaMediaPreview;
+            var medium = function (t, paused) { var m = {currentTime: t, paused: paused, ended: false, readyState: 4,
+                duration: 60, played: 0, pause: function () { m.paused = true; },
+                play: function () { m.played++; m.paused = false; return {catch: function () {}}; }}; return m; };
+            var host = function (m) { return {querySelector: function (sel) {
+                return (m && sel.indexOf('video') >= 0) ? m : null; }}; };
+            var old = medium(12.5, false);
+            var clock = P.takeClock(host(old), '/p/1/', null);
+            var text = P.takeClock(host(null), '/p/1/', clock);            // left for a text face
+            var next = medium(0, true), other = medium(0, true);
+            P.giveClock(host(next), clock, '/p/1/');
+            P.giveClock(host(other), clock, '/p/2/');                     // another item
+            return [clock, old.paused, text, next.currentTime, next.played, other.currentTime, other.played,
+                    P.takeClock(host(null), '/p/1/', null)];
+        })()""")
+        self.assertEqual({'base': '/p/1/', 'time': 12.5, 'playing': True}, dict(out[0]))
+        self.assertTrue(out[1], 'the medium left is stopped')
+        self.assertEqual({'base': '/p/1/', 'time': 12.5, 'playing': False}, dict(out[2]),
+                         'a face without medium keeps the position, paused')
+        self.assertEqual([12.5, 1], [out[3], out[4]], 'the next face resumes where the first one was')
+        self.assertEqual([0, 0], [out[5], out[6]], 'never from one item to another')
+        self.assertIsNone(out[7])
+
+    def test_the_viewer_width_follows_what_it_shows(self):
+        """A media takes the room, a text keeps a reading width, a sound stays narrow (2026-10-14 :
+        the viewer was 800 px whatever it showed)."""
+        kinds = self.v8.eval("""(function () {
+            var k = window.WamaMediaPreview.viewerKind;
+            return [k({mime_type: 'image/png'}), k({mime_type: 'video/mp4'}), k({mime_type: 'application/pdf'}),
+                    k({mime_type: 'text/html'}), k({mime_type: 'model/gltf-binary'}), k({side: 'compare'}),
+                    k({mime_type: 'text/plain'}), k({content: 'x'}), k({mime_type: 'text/csv'}),
+                    k({mime_type: 'audio/wav'}), k({})];
+        })()""")
+        self.assertEqual(['media'] * 6 + ['text'] * 3 + ['audio', 'media'], list(kinds))
 
     def test_compare_is_titled_by_the_two_files_it_confronts(self):
         """The title kept the face shown before (the entry, or « 4 fichiers ») — 2026-10-13."""
@@ -199,14 +243,43 @@ class OneFaceSwitchTest(SimpleTestCase):
         out = self.v8.eval("""(function () {
             var P = window.WamaMediaPreview, face = {sides: {has_input: true, has_output: true}};
             var panel = P.sidesBar(face, {compact: true}), viewer = P.sidesBar(face, {});
-            return [panel.className, panel.children[0].className, viewer.className,
-                    viewer.children[0].className, P.sidesBar({sides: {has_input: true}}, {}) === null];
+            return [panel.className, viewer.className, panel.children[0].attrs['data-label'],
+                    P.sidesBar({sides: {has_input: true}}, {}) === null];
         })()""")
-        self.assertIn('w-100', out[0])
-        self.assertIn('flex-fill', out[1])
-        self.assertNotIn('w-100', out[2])
-        self.assertIn('px-3', out[3])
-        self.assertTrue(out[4], 'one face : nothing to switch between, no bar')
+        self.assertIn('is-compact', out[0])
+        self.assertNotIn('is-compact', out[1])
+        self.assertEqual('Entrée', out[2], 'the name an icon shows on hover once the row is condensed')
+        self.assertTrue(out[3], 'one face : nothing to switch between, no bar')
+
+    def test_a_row_too_narrow_keeps_the_icons_and_the_active_name(self):
+        """Asked by Fabien (2026-10-14) : in the side panel the row of faces did not fit (« Résumé »
+        cut at 280 px). When the names do not fit, the row CONDENSES (icons, the active tab keeps its
+        name) ; when even that overflows, it scrolls ; widened again, it shows every name."""
+        out = self.v8.eval("""(function () {
+            var observed = [];
+            window.ResizeObserver = function (fn) { this.observe = function (el) { observed.push([fn, el]); }; };
+            var face = {side: 'output', sides: {has_input: true, has_output: true,
+                        faces: [{key: 'transcribe', label: 'Transcription'}]}};
+            var bar = window.WamaMediaPreview.sidesBar(face, {compact: true});
+            var set = {};
+            bar.classList = {add: function () { for (var i = 0; i < arguments.length; i++) set[arguments[i]] = 1; },
+                             remove: function () { for (var i = 0; i < arguments.length; i++) delete set[arguments[i]]; },
+                             contains: function (c) { return !!set[c]; }};
+            // Natural widths : 300 px with every name, 150 px condensed.
+            Object.defineProperty(bar, 'scrollWidth', {get: function () { return set['is-condensed'] ? 150 : 300; }});
+            bar.querySelector = function () { return {offsetLeft: 40, offsetWidth: 90}; };
+            var measure = observed[0][0], states = [];
+            [400, 260, 120, 500].forEach(function (w) {
+                bar.clientWidth = w; measure();
+                states.push([!!set['is-condensed'], !!set['is-scrolling']]);
+            });
+            delete window.ResizeObserver;
+            return [observed.length, observed[0][1] === bar, states];
+        })()""")
+        self.assertEqual(1, out[0])
+        self.assertTrue(out[1], 'the row watches its own width')
+        self.assertEqual([[False, False], [True, False], [True, True], [False, False]],
+                         [list(s) for s in out[2]])
 
 
 class OnePreviewBrickTest(SimpleTestCase):

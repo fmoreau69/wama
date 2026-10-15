@@ -231,9 +231,10 @@
         /* Évènements audio ---------------------------------------------- */
         audio.addEventListener('loadedmetadata', function() {
             if (totalEl) totalEl.textContent = formatTime(audio.duration);
+            if (audio.currentTime) showProgress();
         });
 
-        audio.addEventListener('timeupdate', function() {
+        function showProgress() {
             if (currentEl) currentEl.textContent = formatTime(audio.currentTime);
             if (!audio.duration) return;
             var progress = audio.currentTime / audio.duration;
@@ -242,7 +243,11 @@
             if (Math.abs(canvas.width - w) > 2) { canvas.width = w; canvas.height = height; }
             if (state.channelData) drawWaveform(canvas, state.channelData, progress);
             else if (state.fallback) drawTimeline(canvas, progress);
-        });
+        }
+        audio.addEventListener('timeupdate', showProgress);
+        // Une position posée À L'ARRÊT (la lecture qui suit le changement de face, 2026-10-15) :
+        // l'onde montre la tête de lecture là où elle est, pas au début.
+        audio.addEventListener('seeked', showProgress);
 
         audio.addEventListener('play', function() {
             pauseOthers(playerId);
@@ -416,9 +421,28 @@
          *  Permet aux apps (ex. éditeur transcriber) d'écouter timeupdate / seek. */
         getAudio: function(playerId) {
             var id = String(playerId);
-            if (!registry.has(id)) this.ensureInit(id);
-            var s = registry.get(id);
+            // Un conteneur RECONSTRUIT sous le même id (le volet : `insp` pour toute face) n'est pas
+            // le player enregistré : on initialise le nouveau. Jusqu'au 2026-10-15 l'appel rendait
+            // l'ANCIEN audio, qui jouait encore hors du DOM — revenir sur l'entrée audio du volet
+            // montrait un lecteur sans onde ni lecture pendant que l'autre continuait (Fabien).
+            var s = registry.get(id), c = getContainer(id);
+            if (!s || (c && s.container !== c)) this.ensureInit(id);
+            s = registry.get(id);
             return s ? s.audio : null;
+        },
+
+        /** L'audio du player AFFICHÉ sous cet id, s'il a été initialisé — sans rien initialiser ;
+         *  null sinon (lecteur jamais lancé, ou enregistré pour un conteneur remplacé). */
+        current: function(playerId) {
+            var id = String(playerId);
+            var s = registry.get(id), c = getContainer(id);
+            return (s && c && s.container === c) ? s.audio : null;
+        },
+
+        /** Arrête et oublie le player `playerId` SANS toucher au DOM — à appeler avant de remplacer
+         *  le contenu qui le porte, sinon son audio (hors DOM) continue de jouer, invisible. */
+        release: function(playerId) {
+            forget(String(playerId));
         },
 
         /** Démarre un player EN EXCLUSIVITÉ : coupe les autres players, les
@@ -441,6 +465,24 @@
         seek: function(playerId, seconds, play) {
             var a = this.getAudio(playerId);
             if (!a || !isFinite(seconds)) return;
+            // Pas encore de métadonnées : la position se REPOSE dès que le fichier permet d'y aller
+            // (2026-10-15, la lecture qui suit le changement de face). Mesuré au navigateur : posée
+            // avant, elle était ramenée à 0 quand le fichier n'était pas encore « positionnable ».
+            // Un player à pics serveur (`preload='none'`) ne chargerait rien seul : on lui demande
+            // ses métadonnées ; un chargement déjà en cours n'est jamais relancé.
+            if (a.readyState < 1) {
+                var target = Math.max(0, seconds);
+                var settle = function () {
+                    var n = a.seekable ? a.seekable.length : 0;
+                    if (!n || a.seekable.end(n - 1) < Math.min(target, a.duration || target)) return;
+                    ['loadedmetadata', 'canplay', 'progress'].forEach(function (ev) { a.removeEventListener(ev, settle); });
+                    if (Math.abs((a.currentTime || 0) - target) > 0.05) {
+                        try { a.currentTime = Math.min(target, a.duration || target); } catch (e) {}
+                    }
+                };
+                ['loadedmetadata', 'canplay', 'progress'].forEach(function (ev) { a.addEventListener(ev, settle); });
+                if (a.preload === 'none') { a.preload = 'metadata'; if (!play) { try { a.load(); } catch (e) {} } }
+            }
             try { a.currentTime = Math.max(0, seconds); } catch (e) {}
             // pauseOthers (et non pauseAll) : exclusivité COMPLÈTE — players + DOM + voix.
             if (play) { pauseOthers(String(playerId)); a.play().catch(function() {}); }

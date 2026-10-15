@@ -479,7 +479,9 @@
       previewHost.title = 'Double-clic : plein écran';
       previewHost.ondblclick = function (e) {
         // Une vignette de la grille ouvre déjà la visionneuse sur SON fichier (au clic).
-        if (e && e.target && e.target.closest && e.target.closest('.wama-preview-tile')) return;
+        // Et un double-clic sur les onglets des faces change de face, il n'agrandit pas.
+        if (e && e.target && e.target.closest
+            && e.target.closest('.wama-preview-tile, .wama-face-tabs, .wama-preview-variants')) return;
         _openViewer();
       };
       _showExpandButton();
@@ -514,6 +516,9 @@
     function restorePreview() {
       _stopDuring();
       _openViewer = null;
+      _clock = null;
+      // Ce qui jouait s'arrête : un lecteur audio commun vit hors du DOM (2026-10-15).
+      if (previewHost && _P().releaseMedia) _P().releaseMedia(previewHost);
       if (previewHost) previewHost.innerHTML = previewPlaceholder;
       _setPreviewTitle(null);
     }
@@ -521,6 +526,7 @@
       _stopDuring();
       if (!previewHost || !card) return;
       _panelCard = card;
+      _clock = null;                     // une autre card : sa lecture part de son début
       var link = (card.matches && card.matches('[data-preview-url]')) ? card : card.querySelector('[data-preview-url]');
       var url = link && link.getAttribute('data-preview-url');
       if (!url) { restorePreview(); return; }
@@ -564,6 +570,10 @@
       _during = follower;
     }
 
+    // L'horloge de lecture de la card montrée (`WamaMediaPreview.takeClock`, 2026-10-15) : changer
+    // de face garde la position et la lecture d'une vidéo ou d'un son, au lieu de repartir de 0.
+    var _clock = null;
+
     function _fetchPreviewSide(baseUrl, side, title) {
       var P = _P();
       fetch(P.faceUrl(baseUrl, side)).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
@@ -572,6 +582,7 @@
         var autoplay = (cfg.autoplay != null) ? cfg.autoplay : global.WAMA_INSPECTOR_AUTOPLAY;
         d._baseUrl = baseUrl;          // une vignette de la grille ouvre l'élément sur son fichier
         P.renderInline(previewHost, d, !!autoplay);
+        if (P.giveClock) P.giveClock(previewHost, _clock, baseUrl);
         _attachFullscreen(d, baseUrl);
         _renderSides(baseUrl, d, title);
         if (title) _setPreviewTitle(title);
@@ -587,12 +598,18 @@
         compact: true,
         go: function (side) {
           _stopDuring();
+          if (P.takeClock) _clock = P.takeClock(previewHost, baseUrl, _clock);
           if (side === 'during') _startDuring(baseUrl, _panelCard, title);
           else _fetchPreviewSide(baseUrl, side, title);
         },
-        compare: function () { _stopDuring(); _renderCompare(baseUrl, title, d.sides); },
+        compare: function () {
+          _stopDuring();
+          if (P.takeClock) _clock = P.takeClock(previewHost, baseUrl, _clock);
+          _renderCompare(baseUrl, title, d.sides);
+        },
       });
-      if (bar) previewHost.appendChild(bar);
+      // Des onglets AU-DESSUS de l'aperçu (2026-10-14), comme dans la visionneuse.
+      if (bar) previewHost.insertBefore(bar, previewHost.firstChild);
     }
 
     // Comparer dans le volet : les faces de `compareFaces`, la vue `compareView` — celles de la
@@ -602,8 +619,10 @@
       var s = sides || { has_input: true, has_output: true, comparable: true };
       P.compareFaces(baseUrl, s).then(function (pair) {
         if (!pair) return;
+        if (P.releaseMedia) P.releaseMedia(previewHost);
         previewHost.innerHTML = '';
         previewHost.appendChild(P.compareView(pair.din, pair.dout, pair.baseLabel));
+        if (P.giveClock) P.giveClock(previewHost, _clock, baseUrl);
         _renderSides(baseUrl, { side: 'compare', sides: s }, title);
       });
     }

@@ -8,20 +8,126 @@
 .wama-card-preview { cursor: zoom-in; transition: background-color .15s ease; }
 .wama-card-preview:hover { background-color: rgba(13, 202, 240, 0.12) !important; }
 
-/* === PREVIEW MODAL === */
+/* === VISIONNEUSE (#wamaMediaPreviewModal) — refonte visuelle du 2026-10-14 ===
+   Demande de Fabien : l'aspect des anciennes modales de résultat du transcriber (onglets en haut,
+   un cadre par face), « moderne, dont le contenu se redimensionne correctement ». Les styles qui
+   vivaient EN LIGNE dans `media-preview.js` (fond #111, 300 px, 70vh, 65vh, #1e1e1e, 13 px) sont
+   ici, nommés.
+     • la LARGEUR suit la nature montrée (`data-kind`, posé par `_setKind`) : un média prend la
+       place (`modal-xl`), un texte garde une largeur de lecture, un son reste étroit ;
+     • la HAUTEUR de l'aperçu est celle que laisse l'écran (`--wv-stage` = la fenêtre moins la
+       marge sous la barre de navigation, l'en-tête, les onglets et le pied) : une image, une vidéo,
+       un PDF, une page ou un texte long tiennent sans faire défiler la modale entière ;
+     • seul le contenu défile ; l'en-tête, les onglets et le pied restent en place. */
+#wamaMediaPreviewModal {
+    --wv-accent: #0dcaf0;
+    --wv-bg: #161b26;
+    --wv-surface: #1b2130;
+    --wv-stage-bg: #0d1017;
+    --wv-border: #2a3344;
+    --wv-text: #e6e9ef;
+    --wv-muted: #8f9bb0;
+}
+/* La place de l'aperçu, déclarée sur la boîte de dialogue : à tout l'écran, il n'y a plus la marge
+   de 70 px sous la barre de navigation (`app_modern.css`) — 236 px de cadre à sa taille, 150 à
+   tout l'écran (mesurés : en-tête 49, onglets 41, pied 37, marges). */
+#wamaMediaPreviewModal .modal-dialog { --wv-stage: calc(100vh - 236px); }
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen { --wv-stage: calc(100vh - 150px); }
+@supports (height: 100dvh) {
+    #wamaMediaPreviewModal .modal-dialog { --wv-stage: calc(100dvh - 236px); }
+    #wamaMediaPreviewModal .modal-dialog.modal-fullscreen { --wv-stage: calc(100dvh - 150px); }
+}
+@media (min-width: 992px) {
+    #wamaMediaPreviewModal[data-kind="text"] .modal-dialog:not(.modal-fullscreen) { --bs-modal-width: 960px; }
+}
 
 #wamaMediaPreviewModal .modal-content {
-    background: #1a1f2e;
-    border: 1px solid #2d3748;
+    background: var(--wv-bg);
+    color: var(--wv-text);
+    border: 1px solid var(--wv-border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, .55);
 }
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .modal-content { border-radius: 0; border: 0; }
 
+/* En-tête : le nom du fichier montré et sa place dans la séquence, puis trois icônes. */
 #wamaMediaPreviewModal .modal-header {
-    padding: .6rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .5rem .5rem .5rem 1rem;
+    background: var(--wv-surface);
+    border-bottom: 1px solid var(--wv-border);
 }
+#wamaMediaPreviewModal .wama-viewer-heading {
+    display: flex;
+    align-items: baseline;
+    gap: .6rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+#wamaMediaPreviewModal .modal-title {
+    margin: 0;
+    font-size: .95rem;
+    font-weight: 600;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#wamaMediaPreviewModal .wama-viewer-heading .wama-preview-counter { white-space: nowrap; flex-shrink: 0; }
+#wamaMediaPreviewModal .wama-viewer-actions { display: flex; gap: .15rem; flex-shrink: 0; }
+.wama-viewer-icon {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--wv-muted, #8f9bb0);
+    text-decoration: none;
+    transition: background-color .15s ease, color .15s ease;
+}
+.wama-viewer-icon:hover, .wama-viewer-icon:focus-visible { background: rgba(255, 255, 255, .08); color: var(--wv-text, #e6e9ef); }
+.wama-viewer-icon[hidden] { display: none; }
 
+/* Les onglets des faces et les vues de la face Pendant, au-dessus de l'aperçu (`_sidesSlot`). */
+#wamaMediaPreviewModal .wama-modal-sides-slot {
+    flex-direction: column;
+    flex-shrink: 0;
+    padding: 0 .75rem;
+    background: var(--wv-surface);
+}
+#wamaMediaPreviewModal .wama-modal-variants { display: flex; justify-content: center; padding: .45rem 0; }
+#wamaMediaPreviewModal .wama-modal-variants .wama-preview-variants { width: auto !important; }
+
+/* La scène : un fond sombre derrière un média, celui du cadre derrière un texte. */
+#wamaMediaPreviewModal .modal-body {
+    padding: 0;
+    position: relative;
+    max-height: calc(var(--wv-stage) + 2px);
+    overflow: auto;
+    background: var(--wv-stage-bg);
+}
 #wamaMediaPreviewModal .preview-container {
     position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 220px;
 }
+/* Les flèches de navigation ont leurs marges (`has-nav`, `_syncNavButtons`) : l'aperçu se range
+   entre elles, rien de lui n'est sous une flèche (2026-10-15 — elles masquaient le bouton de
+   lecture d'un son). */
+#wamaMediaPreviewModal .modal-body.has-nav .preview-container { margin-inline: 44px; }
+#wamaMediaPreviewModal .modal-body .wama-preview-nav-btn { width: 44px; }
+#wamaMediaPreviewModal[data-kind="text"] .modal-body,
+#wamaMediaPreviewModal[data-kind="audio"] .modal-body { background: var(--wv-bg); }
+#wamaMediaPreviewModal[data-kind="text"] .preview-container { align-items: stretch; min-height: 0; }
+#wamaMediaPreviewModal[data-kind="audio"] .preview-container { min-height: 160px; }
 
 /* Les médias d'une FACE (image, vidéo) — jamais ceux de COMPARER : le composant `.wama-compare`
    possède sa géométrie (fin de cette feuille, la même dans le volet et ici). Ces règles d'hôte y
@@ -31,17 +137,99 @@
 #wamaMediaPreviewModal .preview-container img:not(.wama-compare img),
 #wamaMediaPreviewModal .preview-container video:not(.wama-compare video) {
     max-width: 100%;
+    max-height: var(--wv-stage);
+    object-fit: contain;
     margin: 0 auto;
     display: block;
 }
+/* PDF, page HTML, objet 3D : un cadre de la hauteur de la scène. */
+#wamaMediaPreviewModal .wama-viewer-frame {
+    display: block;
+    width: 100%;
+    height: var(--wv-stage);
+    min-height: 320px;
+    border: 0;
+}
+#wamaMediaPreviewModal .wama-viewer-frame--page { background: #fff; }
+
+/* Le pied : propriétés du fichier à gauche, téléchargements à droite ; retiré quand il est vide
+   (`_syncFooter`). */
+#wamaMediaPreviewModal .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .5rem;
+    padding: .4rem 1rem;
+    background: var(--wv-surface);
+    border-top: 1px solid var(--wv-border);
+}
+#wamaMediaPreviewModal .modal-footer > * { margin: 0; }
+#wamaMediaPreviewModal .preview-meta { color: var(--wv-muted); font-size: .78rem; margin-right: auto; }
+#wamaMediaPreviewModal .wama-preview-downloads { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin-left: auto; }
+#wamaMediaPreviewModal .wama-preview-downloads-icon { color: var(--wv-muted); font-size: .8rem; margin-right: .15rem; }
+#wamaMediaPreviewModal .wama-preview-downloads .btn { font-size: .75rem; padding: .1rem .6rem; border-radius: 6px; }
+
+/* ── Une face TEXTE (`_textPane`) : une barre, puis le texte qui défile seul ───────────────── */
+.wama-text-pane { width: 100%; display: flex; flex-direction: column; min-height: 0; }
+.wama-text-toolbar {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .45rem 1rem;
+    border-bottom: 1px solid var(--wv-border, #2a3344);
+}
+.wama-preview-words {
+    font-size: .75rem;
+    color: var(--wv-muted, #8f9bb0);
+    background: rgba(255, 255, 255, .06);
+    border-radius: 999px;
+    padding: .15rem .65rem;
+}
+.wama-text-action {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    font-size: .8rem;
+    padding: .25rem .7rem;
+    border-radius: 6px;
+    border: 1px solid var(--wv-border, #2a3344);
+    background: transparent;
+    color: var(--wv-muted, #8f9bb0);
+    transition: color .15s ease, border-color .15s ease;
+}
+.wama-text-action:hover, .wama-text-action:focus-visible { color: var(--wv-text, #e6e9ef); border-color: var(--wv-accent, #0dcaf0); }
+.wama-text-action.is-done { color: #3fb950; border-color: #3fb950; }
+.wama-text-body {
+    margin: 0;
+    padding: 1.25rem 1.75rem 1.5rem;
+    max-height: calc(var(--wv-stage, 65vh) - 42px);
+    overflow-y: auto;
+    color: var(--wv-text, #e6e9ef);
+    font-size: .95rem;
+    line-height: 1.65;
+    scrollbar-width: thin;
+    scrollbar-color: #3a4558 transparent;
+}
+/* Un texte qui se LIT (transcription, description, markdown) : police de texte, en colonne de
+   lecture (~78 caractères) centrée — elle s'élargit seule à tout l'écran sans allonger les lignes. */
+.wama-text-body.is-plain, .wama-text-body.wama-result-formatted {
+    padding-inline: max(1.75rem, calc((100% - 78ch) / 2));
+}
+.wama-text-body.is-plain {
+    font-family: var(--bs-body-font-family);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+.wama-text-body.wama-result-formatted { word-break: break-word; }
+/* Des colonnes ou du code (CSV, JSON…) : chasse fixe, plus serré. */
+.wama-text-body.is-code { font-family: var(--bs-font-monospace); font-size: .82rem; line-height: 1.5; white-space: pre; }
 
 /* PLEIN ÉCRAN = la modale à tout l'écran (2026-10-05, demande de Fabien) : ses faces (Entrée,
    Détection, Pendant, Comparer, Sortie), la comparaison et le direct y restent — la surcouche
-   image seule (#wamaFullscreenOverlay) ne sert plus qu'aux galeries sans élément. */
-/* À tout l'écran, l'aperçu prend la place qui RESTE : en-tête, emplacement des bascules (faces,
-   vues) et pied gardent la leur. Jusqu'au 2026-10-13 des hauteurs figées (`100vh - 110/130/230px`)
-   supposaient la barre des faces POSÉE SUR l'aperçu ; elle a son emplacement dédié sous lui
-   (`media-preview.js`, `_sidesSlot`), qu'une hauteur figée aurait poussé hors de l'écran. */
+   image seule (#wamaFullscreenOverlay) ne sert plus qu'aux galeries sans élément. L'aperçu prend
+   la place qui RESTE : en-tête, onglets et pied gardent la leur. */
 /* La règle COMMUNE des modales (`app_modern.css` : `.modal-dialog { margin-top: 70px !important }`,
    sous la barre de navigation) décalait aussi la modale À TOUT L'ÉCRAN : haute de 100 % mais posée à
    70 px, son bas sortait de l'écran — mesuré le 2026-10-13, la bande des bascules à 1 005 px pour
@@ -52,12 +240,17 @@
 #wamaMediaPreviewModal .modal-dialog.modal-fullscreen .modal-body {
     display: flex;
     flex-direction: column;
+    flex: 1 1 auto;
     min-height: 0;
+    max-height: none;
 }
 #wamaMediaPreviewModal .modal-dialog.modal-fullscreen .preview-container {
     flex: 1 1 auto;
-    min-height: 0 !important;   /* le conteneur porte `min-height:300px` en ligne */
+    min-height: 0;
 }
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .wama-viewer-frame,
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .wama-text-pane { height: 100%; }
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .wama-text-body { flex: 1 1 auto; max-height: none; }
 /* Le média PREND la hauteur (une image ne grandit pas seule au-delà de sa taille naturelle) ;
    `contain` garde les proportions — c'est aussi ce que suppose la surcouche des détections. */
 /* L'image est ENVELOPPÉE (`.preview-image-wrapper`, qui porte son bouton d'agrandissement) : une
@@ -84,9 +277,10 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    padding: .5rem 0;
 }
 #wamaMediaPreviewModal .wama-modal-compare .wama-compare-base {
-    max-height: 70vh;
+    max-height: calc(var(--wv-stage) - 3rem);
 }
 #wamaMediaPreviewModal .wama-modal-compare .wama-compare-range {
     width: 100%;
@@ -362,7 +556,95 @@
    même rang dans la cascade qu'avant (juste après cette feuille), aucune règle ne change de poids. */
 
 /* ── Preview entrée/sortie + slider comparatif (2026-07-12, STUDIO_VISION) ── */
-.wama-preview-sides { display: inline-flex; }
+/* ── Les FACES en ONGLETS (`sidesBar`, 2026-10-14) — la même rangée dans la visionneuse et le
+   volet. Onglets soulignés : l'actif en couleur d'accent. Quand les noms ne tiennent pas
+   (`_fitFaceTabs`, `is-condensed`), les onglets inactifs gardent leur icône seule et l'actif son
+   nom ; le survol ou le focus d'une icône montre son nom dans une bulle (`data-label`) — au doigt,
+   toucher l'icône ouvre la face, et son nom apparaît dans l'onglet devenu actif. Si même les
+   icônes ne tiennent pas (`is-scrolling`), la rangée défile, l'onglet actif amené en vue. */
+.wama-face-tabs {
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    max-width: 100%;
+    border-bottom: 1px solid var(--wv-border, #2a3344);
+}
+/* Répartis sur toute la largeur, à parts égales (2026-10-15, demande de Fabien : comme dans le
+   volet) ; un onglet ne descend jamais sous la largeur de son nom (largeur minimale du contenu),
+   c'est ce que mesure `_fitFaceTabs` pour décider de resserrer. */
+.wama-face-tab {
+    position: relative;
+    flex: 1 1 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    padding: .6rem .9rem .55rem;
+    margin-bottom: -1px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 6px 6px 0 0;
+    background: transparent;
+    color: var(--wv-muted, #8f9bb0);
+    font-size: .85rem;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+}
+.wama-face-tab i { font-size: .85em; }
+.wama-face-tab:hover { color: var(--wv-text, #e6e9ef); background: rgba(255, 255, 255, .04); }
+.wama-face-tab.is-active { color: var(--wv-accent, #0dcaf0); border-bottom-color: var(--wv-accent, #0dcaf0); }
+.wama-face-tab:focus-visible { outline: 2px solid var(--wv-accent, #0dcaf0); outline-offset: -2px; }
+/* À tout l'écran, des onglets de 500 px ne se lisent plus comme des onglets : chacun est borné,
+   la rangée centrée. */
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .wama-face-tabs { justify-content: center; }
+#wamaMediaPreviewModal .modal-dialog.modal-fullscreen .wama-face-tab { max-width: 280px; }
+/* Le volet : plus serré, collé au-dessus de l'aperçu. */
+.wama-face-tabs.is-compact { margin-bottom: .5rem; }
+.wama-face-tabs.is-compact .wama-face-tab { padding: .4rem .55rem .35rem; font-size: .78rem; gap: .35rem; }
+/* Resserrée : icônes seules, sauf l'onglet actif ; les icônes se partagent la place restante. */
+.wama-face-tabs.is-condensed .wama-face-tab { flex: 1 1 0; min-width: 1.75rem; padding-inline: .3rem; }
+/* L'onglet actif cède en premier : son nom s'abrège (…) plutôt que de pousser une icône dehors. */
+.wama-face-tabs.is-condensed .wama-face-tab.is-active { flex: 0 1 auto; min-width: 0; padding-inline: .55rem; }
+.wama-face-tabs.is-condensed .wama-face-tab.is-active .wama-face-tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wama-face-tabs.is-condensed .wama-face-tab:not(.is-active) .wama-face-tab-label { display: none; }
+.wama-face-tabs.is-condensed .wama-face-tab:not(.is-active)::after {
+    content: attr(data-label);
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translate(-50%, -2px);
+    padding: .2rem .5rem;
+    border-radius: 6px;
+    background: #0b0e14;
+    border: 1px solid var(--wv-border, #2a3344);
+    color: var(--wv-text, #e6e9ef);
+    font-size: .72rem;
+    font-weight: 500;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 20;
+    transition: opacity .12s ease .15s, transform .12s ease .15s;
+}
+/* Aux bords, la bulle s'aligne sur l'onglet au lieu de déborder du volet. */
+.wama-face-tabs.is-condensed .wama-face-tab:first-child::after { left: 0; transform: translate(0, -2px); }
+.wama-face-tabs.is-condensed .wama-face-tab:last-child::after { left: auto; right: 0; transform: translate(0, -2px); }
+.wama-face-tabs.is-condensed .wama-face-tab:not(.is-active):hover::after,
+.wama-face-tabs.is-condensed .wama-face-tab:not(.is-active):focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+.wama-face-tabs.is-condensed .wama-face-tab:first-child:hover::after,
+.wama-face-tabs.is-condensed .wama-face-tab:first-child:focus-visible::after,
+.wama-face-tabs.is-condensed .wama-face-tab:last-child:hover::after,
+.wama-face-tabs.is-condensed .wama-face-tab:last-child:focus-visible::after { transform: translate(0, 0); }
+/* Débordante même resserrée : elle défile (barre masquée — la molette et le doigt suffisent). */
+.wama-face-tabs.is-scrolling { overflow-x: auto; scrollbar-width: none; }
+.wama-face-tabs.is-scrolling::-webkit-scrollbar { display: none; }
+.wama-face-tabs.is-scrolling .wama-face-tab { flex: 0 0 auto; }
+.wama-face-tabs.is-scrolling .wama-face-tab::after { display: none; }
+/* Le texte de l'aperçu du volet se lit dans la police du texte, comme dans la visionneuse. */
+.wama-inspector-preview pre { font-family: var(--bs-body-font-family); }
 .wama-compare { position: relative; display: inline-block; max-width: 100%; }
 .wama-compare img, .wama-compare video { max-width: 100%; max-height: 220px; border-radius: 6px; display: block; }
 .wama-compare-top { position: absolute; inset: 0; width: 50%; overflow: hidden;

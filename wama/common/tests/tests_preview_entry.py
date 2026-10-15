@@ -370,21 +370,22 @@ class CardPreviewsOpenTheCommonViewerTest(SimpleTestCase):
 
 
 class SidesSwitchHasItsOwnPlaceTest(SimpleTestCase):
-    """The switch of faces (Entrée | … | Sortie) has a DEDICATED place UNDER the preview — asked by
-    Fabien (2026-10-13): laid ON the preview, it covered the toolbar of the PDF reader, the top of a
-    text, the image or the video full screen. The geometry is measured in a browser by the nightly
-    scenarios (`common.preview_layout`, and each `<app>.preview`); held here : the rule they apply,
-    and the place the viewer gives the switch."""
+    """The switch of faces (Entrée | … | Sortie) has a DEDICATED place outside the preview — asked
+    by Fabien (2026-10-13): laid ON the preview, it covered the toolbar of the PDF reader, the top of
+    a text, the image or the video full screen. Under the preview first, ABOVE it since 2026-10-14
+    (the faces are tabs — the look of the old transcriber modal). The geometry is measured in a
+    browser by the nightly scenarios (`common.preview_layout`, and each `<app>.preview`); held
+    here : the rule they apply, and the place the viewer gives the switch."""
 
     def test_the_verdict_names_what_is_wrong(self):
         from wama.common.services.ui_smoke_preview import sides_layout_fault
-        good = {'cross': False, 'below': True, 'visible': True}
+        good = {'cross': False, 'above': True, 'visible': True}
         self.assertEqual('', sides_layout_fault(None, 'x'))
         self.assertEqual('', sides_layout_fault({'bars': [good], 'fills': True}, 'x'))
         self.assertIn('RECOUVRE', sides_layout_fault(
-            {'bars': [dict(good, cross=True, below=False)], 'fills': True}, 'pdf'))
-        self.assertIn("n'est pas SOUS", sides_layout_fault(
-            {'bars': [dict(good, below=False)], 'fills': True}, 'pdf'))
+            {'bars': [dict(good, cross=True, above=False)], 'fills': True}, 'pdf'))
+        self.assertIn("n'est pas AU-DESSUS", sides_layout_fault(
+            {'bars': [dict(good, above=False)], 'fills': True}, 'pdf'))
         self.assertIn("sort de l'écran", sides_layout_fault(
             {'bars': [dict(good, visible=False)], 'fills': True}, 'pdf'))
         self.assertIn('hauteur', sides_layout_fault({'bars': [good], 'fills': False}, 'image',
@@ -394,10 +395,14 @@ class SidesSwitchHasItsOwnPlaceTest(SimpleTestCase):
     def test_the_viewer_gives_the_switch_a_slot_outside_the_preview(self):
         source = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / 'common' / 'js'
                   / 'media-preview.js').read_text(encoding='utf-8')
-        # The slot is a sibling AFTER the scrolling body, never inside `.preview-container`.
+        # The slot is a sibling BEFORE the scrolling body, never inside `.preview-container`.
         markup = source[source.index('function createPreviewModal'):]
-        self.assertLess(markup.index('class="preview-container'), markup.index('${SLOT_CLASS}'))
-        self.assertLess(markup.index('${SLOT_CLASS}'), markup.index('modal-footer'))
+        self.assertLess(markup.index('class="modal-header'), markup.index('${SLOT_CLASS}'))
+        self.assertLess(markup.index('${SLOT_CLASS}'), markup.index('class="modal-body'))
+        self.assertLess(markup.index('class="modal-body'), markup.index('class="preview-container'))
+        # A modal built by an older version (page left open) gets its slot before the body too.
+        slot = source[source.index('function _sidesSlot'):source.index('function viewerKind')]
+        self.assertIn("insertBefore(slot, body)", slot)
         # And no switch is laid absolutely on the preview any more.
         self.assertNotRegex(source, r"wama-modal-(sides|variants)[^\n]*\n[^\n]*position:absolute")
 

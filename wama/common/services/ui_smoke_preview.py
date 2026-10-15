@@ -82,9 +82,10 @@ JS_SHOWN = """() => {
 
 
 #: La PLACE de la bascule des faces (Entrée | … | Sortie) et des vues dans la visionneuse : sa boîte
-#: ne croise pas celle de l'aperçu, elle est SOUS lui, et visible sans défiler. Demande de Fabien
-#: (2026-10-13) : posée sur l'aperçu, elle recouvrait la barre d'outils du lecteur PDF, le haut d'un
-#: texte, l'image ou la vidéo à tout l'écran. `null` : pas de visionneuse ou pas de bascule.
+#: ne croise pas celle de l'aperçu, elle est AU-DESSUS de lui (des onglets, depuis le 2026-10-14 —
+#: sous lui avant), et visible sans défiler. Demande de Fabien (2026-10-13) : posée sur l'aperçu,
+#: elle recouvrait la barre d'outils du lecteur PDF, le haut d'un texte, l'image ou la vidéo à tout
+#: l'écran. `null` : pas de visionneuse ou pas de bascule.
 JS_SIDES_LAYOUT = """() => {
     const m = document.querySelector('#wamaMediaPreviewModal.show');
     if (!m) return null;
@@ -98,7 +99,7 @@ JS_SIDES_LAYOUT = """() => {
     return {
         bars: bars.map(b => { const s = r(b); return {
             cross: !(s.bottom <= c.top || s.top >= c.bottom || s.right <= c.left || s.left >= c.right),
-            below: s.top >= c.bottom - 0.5,
+            above: s.bottom <= c.top + 0.5,
             visible: s.top >= 0 && s.bottom <= window.innerHeight}; }),
         fills: media ? r(media).height >= c.height - 2 : true,
     };
@@ -165,15 +166,15 @@ def _check_panel_expand(page, card_sel: str, faults: list, findings: list):
 
 
 def sides_layout_fault(layout, where: str, must_fill: bool = False) -> str:
-    """'' si la bascule a SA place (sous l'aperçu, sans le croiser, visible), sinon ce qui cloche.
-    `must_fill` : à tout l'écran, une image ou une vidéo prend la hauteur disponible."""
+    """'' si la bascule a SA place (au-dessus de l'aperçu, sans le croiser, visible), sinon ce qui
+    cloche. `must_fill` : à tout l'écran, une image ou une vidéo prend la hauteur disponible."""
     if not layout:
         return ''
     for bar in layout['bars']:
         if bar['cross']:
             return f"{where} : la bascule des faces RECOUVRE l'aperçu"
-        if not bar['below']:
-            return f"{where} : la bascule des faces n'est pas SOUS l'aperçu"
+        if not bar['above']:
+            return f"{where} : la bascule des faces n'est pas AU-DESSUS de l'aperçu"
         if not bar['visible']:
             return f"{where} : la bascule des faces sort de l'écran"
     if must_fill and not layout['fills']:
@@ -520,7 +521,7 @@ def check_app_preview(app: str, url_path: str):
     return True, detail
 
 
-#: Les natures de fichier que la visionneuse rend différemment — chacune pose sa bascule sous elle.
+#: Les natures de fichier que la visionneuse rend différemment — chacune pose ses onglets au-dessus d'elle.
 LAYOUT_CASES = (('image', 'w.png', 'image/png'), ('vidéo', 'w.mp4', 'video/mp4'),
                 ('audio', 'w.wav', 'audio/wav'), ('pdf', 'w.pdf', 'application/pdf'),
                 ('texte', None, 'text/plain'))
@@ -633,7 +634,7 @@ def check_preview_layout():
         return False, ' ; '.join(faults)
     return True, (f"{measured} mises en page mesurées ({len(LAYOUT_CASES)} natures + Comparer, "
                   f"modale et tout l'écran, {len(LAYOUT_VIEWPORTS)} tailles d'écran) : la bascule "
-                  "est sous l'aperçu, sans le recouvrir")
+                  "est au-dessus de l'aperçu, sans le recouvrir")
 
 
 #: L'état de la visionneuse que lisent les gestes de navigation : le fichier montré (titre), le
@@ -641,7 +642,7 @@ def check_preview_layout():
 JS_NAV_STATE = """() => {
     const m = document.querySelector('#wamaMediaPreviewModal.show');
     if (!m) return null;
-    const active = m.querySelector('.wama-modal-sides .btn-info');
+    const active = m.querySelector('.wama-modal-sides .is-active');
     const counter = m.querySelector('.wama-preview-counter');
     return {title: m.querySelector('.modal-title').textContent.trim(),
             counter: counter && counter.style.display !== 'none' ? counter.textContent.trim() : '',
@@ -718,7 +719,7 @@ def _expect(page, title: str, counter: str = None, face: str = None, compare: bo
             """(w) => { const m = document.querySelector('#wamaMediaPreviewModal.show');
                 if (!m) return false;
                 const c = m.querySelector('.wama-preview-counter');
-                const a = m.querySelector('.wama-modal-sides .btn-info');
+                const a = m.querySelector('.wama-modal-sides .is-active');
                 return m.querySelector('.modal-title').textContent.trim() === w.title
                     && (w.counter == null || (c && c.style.display !== 'none' ? c.textContent.trim() : '') === w.counter)
                     && (w.face == null || (a ? a.textContent.trim() : '') === w.face)
@@ -935,7 +936,7 @@ def register_preview_scenarios():
 
     register(
         id="common.preview_layout", app="common", stage="ui",
-        description=("Visionneuse : la bascule des faces (Entrée | … | Sortie) est SOUS l'aperçu, "
+        description=("Visionneuse : la bascule des faces (Entrée | … | Sortie) est AU-DESSUS de l'aperçu, "
                      "sans le recouvrir, pour chaque nature de fichier (image, vidéo, audio, PDF, "
                      "texte, Comparer), à sa taille et à tout l'écran, sur deux tailles d'écran"),
         run=lambda ctx: check_preview_layout(),

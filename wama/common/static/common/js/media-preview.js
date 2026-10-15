@@ -46,11 +46,11 @@
     const _SVG_CLOSE = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
     const _SVG_EXPAND = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 
-    // L'emplacement DÉDIÉ des bascules (faces, vues) de la modale — sous l'aperçu, hors de la zone
-    // qui défile, jamais superposé au contenu (`_sidesSlot`). Masqué tant qu'il est vide.
-    const SLOT_CLASS = 'wama-modal-sides-slot border-top border-secondary';
-    const SLOT_STYLE = 'display:none;flex-direction:column;align-items:center;gap:.35rem;'
-        + 'padding:.5rem .75rem;flex-shrink:0;';
+    // L'emplacement DÉDIÉ des bascules (faces en onglets, vues) de la modale — AU-DESSUS de
+    // l'aperçu depuis le 2026-10-14 (sous lui avant), hors de la zone qui défile, jamais superposé
+    // au contenu (`_sidesSlot`). Masqué tant qu'il est vide ; sa mise en forme est dans la feuille.
+    const SLOT_CLASS = 'wama-modal-sides-slot';
+    const SLOT_STYLE = 'display:none;';
 
     /** Une card d'élément de la file (la card mère d'un lot n'en est pas une). */
     const CARD_SEL = '.wama-card[data-id]:not(.is-batch)';
@@ -280,11 +280,76 @@
         _previewCaption(host, files.length + ' fichiers');
     }
 
+    // ── La LECTURE suit le changement de face (2026-10-15, demande de Fabien) ────────────────
+    // Passer de l'Entrée à la Détection puis à la Sortie d'une vidéo la faisait repartir de 0 ; et
+    // l'audio d'un lecteur commun (hors DOM) continuait de jouer, invisible, une fois sa face
+    // quittée. `takeClock` relève la position et l'état du média montré, puis l'ARRÊTE ;
+    // `giveClock` les rend au média de la face d'arrivée — s'il y en a un, et pour le MÊME élément
+    // seulement (`base`). Une face sans média (texte) garde l'horloge : y revenir reprend à la
+    // position, en pause.
+
+    /** Le média que montre `host` : la référence de Comparer, une vidéo ou un son du DOM, sinon
+     *  l'identifiant du lecteur audio commun. */
+    function _hostMedia(host) {
+        if (!host || !host.querySelector) return null;
+        const el = host.querySelector('.wama-compare-base') || host.querySelector('video, audio');
+        if (el) return { el: el };
+        const player = host.querySelector('.wama-audio-player[id^="audioPlayer_"]');
+        return player ? { player: player.id.replace('audioPlayer_', '') } : null;
+    }
+
+    /** {base, time, playing} du média montré par `host` (il est arrêté), ou `previous` quand la
+     *  face montrée n'en a pas (on revient d'un texte : l'horloge d'avant reste valable). */
+    function takeClock(host, base, previous) {
+        const m = _hostMedia(host);
+        let media = m && m.el;
+        if (m && m.player && window.WamaAudioPlayer && window.WamaAudioPlayer.current) {
+            media = window.WamaAudioPlayer.current(m.player);
+        }
+        if (!media) return (previous && previous.base === base) ? Object.assign({}, previous, { playing: false }) : null;
+        const clock = { base: base, time: media.currentTime || 0, playing: !media.paused && !media.ended };
+        try { media.pause(); } catch (e) { /* déjà arrêté */ }
+        return clock;
+    }
+
+    /** Rend l'horloge au média de la face montrée par `host`, s'il s'agit du même élément. */
+    function giveClock(host, clock, base) {
+        if (!clock || clock.base !== base || !(clock.time > 0 || clock.playing)) return;
+        const m = _hostMedia(host);
+        if (!m) return;
+        if (m.player) {
+            if (window.WamaAudioPlayer && window.WamaAudioPlayer.seek) {
+                window.WamaAudioPlayer.seek(m.player, clock.time, clock.playing);
+            }
+            return;
+        }
+        const el = m.el;
+        const apply = function () {
+            try { el.currentTime = Math.min(clock.time, Math.max(0, (el.duration || clock.time) - 0.05)); } catch (e) {}
+            if (clock.playing && el.play) el.play().catch(function () {});
+        };
+        if (el.readyState >= 1) apply();
+        else el.addEventListener('loadedmetadata', apply, { once: true });
+    }
+
+    /** Arrête ce que joue `host` avant que son contenu soit remplacé : un lecteur audio commun vit
+     *  HORS du DOM et jouait encore après avoir disparu (2026-10-15). */
+    function _releaseHost(host) {
+        if (!host || !host.querySelectorAll) return;
+        host.querySelectorAll('video, audio').forEach(function (m) { try { m.pause(); } catch (e) {} });
+        const player = host.querySelector('.wama-audio-player[id^="audioPlayer_"]');
+        if (player && window.WamaAudioPlayer && window.WamaAudioPlayer.release
+                && window.WamaAudioPlayer.current && window.WamaAudioPlayer.current(player.id.replace('audioPlayer_', ''))) {
+            window.WamaAudioPlayer.release(player.id.replace('audioPlayer_', ''));
+        }
+    }
+
     // Rendu INLINE compact d'un aperçu média (≠ visionneuse). Données = JSON de
     // common:unified_preview {name, url, mime_type, …}. autoplay gated par le profil (jamais de
     // génération : on n'affiche que l'existant — CARD_DESIGN §10.6 / décision Fabien).
     function renderInline(host, data, autoplay) {
         if (!host) return;
+        _releaseHost(host);
         // Collection AVANT l'aiguillage par mime : `files` décrit N sorties, `mime_type` ne décrit
         // que le représentant — trancher sur le mime ferait rendre une seule vignette.
         if (Array.isArray(data.files) && data.files.length > 1) {
@@ -507,30 +572,63 @@
 
     /** La bascule des FACES — UNE construction pour le volet et la visionneuse (le volet en avait
      *  sa copie, sans Pendant, jusqu'au 2026-10-13). `d` = la face montrée ; `opts.go(face)` ouvre
-     *  une face, `opts.compare()` lance Comparer ; `opts.compact` = la densité du volet (pleine
-     *  largeur, boutons serrés), sinon celle de la visionneuse (boutons larges, à la ligne s'ils
-     *  sont nombreux). null quand il n'y a pas deux faces entre lesquelles basculer. */
+     *  une face, `opts.compare()` lance Comparer ; `opts.compact` = la densité du volet, sinon celle
+     *  de la visionneuse. null quand il n'y a pas deux faces entre lesquelles basculer.
+     *
+     *  Des ONGLETS posés AU-DESSUS du contenu (2026-10-14, demande de Fabien : l'aspect des
+     *  anciennes modales du transcriber, sans revenir en arrière) — une rangée de boutons sous
+     *  l'aperçu, qui débordait du volet (« Résumé » coupé, mesuré à 280 px). Quand les noms ne
+     *  tiennent pas, la rangée se RESSERRE (`_fitFaceTabs`) : les onglets inactifs gardent leur
+     *  icône, l'onglet actif garde son nom, le survol (ou le focus) montre le nom d'une icône. */
     function sidesBar(d, opts) {
         opts = opts || {};
         const buttons = faceButtons(d);
         if (buttons.length < 2) return null;
         const bar = document.createElement('div');
-        bar.className = 'btn-group btn-group-sm wama-preview-sides' + (opts.compact ? ' mt-1 w-100' : '');
-        if (!opts.compact) bar.style.cssText = 'flex-wrap:wrap;justify-content:center;max-width:100%;';
+        bar.className = 'wama-face-tabs wama-preview-sides' + (opts.compact ? ' is-compact' : '');
+        bar.setAttribute('role', 'tablist');
         buttons.forEach(function (f) {
+            const active = f.key === d.side;
             const b = document.createElement('button');
             b.type = 'button';
-            b.className = 'btn btn-sm ' + (opts.compact ? 'py-0 px-2 flex-fill ' : 'px-3 ')
-                + (f.key === d.side ? 'btn-info' : 'btn-outline-info');
+            b.className = 'wama-face-tab' + (active ? ' is-active' : '');
+            b.setAttribute('role', 'tab');
+            b.setAttribute('aria-selected', active ? 'true' : 'false');
+            b.setAttribute('aria-label', f.label);
+            b.setAttribute('data-label', f.label);
             b.setAttribute('data-side', f.key);
-            b.innerHTML = '<i class="fas ' + f.icon + ' me-1"></i>' + escapeHtml(f.label);
+            b.innerHTML = '<i class="fas ' + f.icon + '" aria-hidden="true"></i>'
+                + '<span class="wama-face-tab-label">' + escapeHtml(f.label) + '</span>';
             b.addEventListener('click', function () {
                 if (f.key === 'compare') { if (opts.compare) opts.compare(); }
                 else if (opts.go) opts.go(f.key);
             });
             bar.appendChild(b);
         });
+        _fitFaceTabs(bar);
         return bar;
+    }
+
+    /** Resserre la rangée d'onglets quand leurs noms ne tiennent pas dans sa largeur, et la
+     *  desserre quand ils tiennent de nouveau (volet élargi, modale à tout l'écran) : `is-condensed`
+     *  = icônes seules sauf l'onglet actif ; `is-scrolling` = même ainsi elle déborde, elle défile
+     *  (l'onglet actif amené en vue). Mesuré à chaque changement de LARGEUR seulement : basculer
+     *  les classes ne change pas la largeur de la rangée, donc pas de boucle. */
+    function _fitFaceTabs(bar) {
+        if (!window.ResizeObserver) return;
+        let width = -1;
+        new window.ResizeObserver(function () {
+            const w = bar.clientWidth;
+            if (!w || w === width) return;
+            width = w;
+            bar.classList.remove('is-condensed', 'is-scrolling');
+            if (bar.scrollWidth <= w + 1) return;
+            bar.classList.add('is-condensed');
+            if (bar.scrollWidth <= w + 1) return;
+            bar.classList.add('is-scrolling');
+            const on = bar.querySelector('.is-active');
+            if (on) bar.scrollLeft = Math.max(0, on.offsetLeft - (w - on.offsetWidth) / 2);
+        }).observe(bar);
     }
 
     /** Les deux faces de Comparer : la RÉFÉRENCE déclarée par le serveur (`compare_base`, la
@@ -1091,11 +1189,26 @@
         const meta = modal.querySelector('.preview-meta');
 
         title.textContent = shown.name || data.name || 'Preview';
+        title.title = title.textContent;
+        // Le fichier montré, dans un nouvel onglet (les liens sous le PDF et le HTML, et « Ouvrir »
+        // de la barre d'un texte, réunis ici le 2026-10-14).
+        const open = modal.querySelector('.wama-preview-open');
+        if (open) {
+            open.hidden = !shown.url;
+            open.href = shown.url || '#';
+        }
 
         // Clear previous content (keep nav buttons)
         _releaseContent(container);
         container.querySelectorAll(':scope > :not(.wama-preview-nav-btn)').forEach(function(el) { el.remove(); });
+        _setKind(modal, viewerKind(shown));
         container.appendChild(buildPreviewContent(shown));
+        // Un son : son onde tout de suite, par les pics que le serveur joint (comme le volet) — elle
+        // n'apparaissait qu'au premier clic sur lecture.
+        if (Array.isArray(shown.peaks) && shown.peaks.length && window.WamaAudioPlayer
+                && window.WamaAudioPlayer.setPeaks && container.querySelector('#audioPlayer_modal-audio')) {
+            window.WamaAudioPlayer.setPeaks('modal-audio', shown.peaks);
+        }
 
         const metaParts = [];
         [shown, data].some(function (src) {
@@ -1105,11 +1218,12 @@
             if (src.properties) metaParts.push(src.properties);
             return true;
         });
-        meta.textContent = metaParts.join(' | ');
+        meta.textContent = metaParts.join(' · ');
 
         // Les faces de l'élément (Entrée | … | Sortie), dans leur emplacement dédié.
         _renderModalSides(modal, data);
         _renderModalDownloads(modal, data);
+        _syncFooter(modal);
         // La face PENDANT se suit EN DIRECT dans la modale comme dans le volet (2026-10-05,
         // demande de Fabien : voir les détections de l'anonymizer en grand pendant le traitement).
         if (data.side === 'during' && data._baseUrl && !data._duringTick) _startModalDuring(modal, data);
@@ -1155,22 +1269,51 @@
         });
     }
 
-    /** L'emplacement DÉDIÉ des bascules de la modale, SOUS l'aperçu et hors de la zone qui défile
-     *  (2026-10-13, demande de Fabien) : la barre des faces était posée en `position:absolute`
-     *  DANS l'aperçu — elle recouvrait la barre d'outils du lecteur PDF, le haut d'un texte, et
-     *  l'image ou la vidéo à tout l'écran. Visible seulement quand il porte une bascule. Une modale
-     *  créée avant cette version (page restée ouverte) reçoit son emplacement à la volée. */
+    /** L'emplacement DÉDIÉ des bascules de la modale, hors de la zone qui défile (2026-10-13,
+     *  demande de Fabien) : la barre des faces était posée en `position:absolute` DANS l'aperçu —
+     *  elle recouvrait la barre d'outils du lecteur PDF, le haut d'un texte, et l'image ou la vidéo
+     *  à tout l'écran. AU-DESSUS de l'aperçu depuis le 2026-10-14 : les faces sont des onglets.
+     *  Visible seulement quand il porte une bascule. Une modale créée avant cette version (page
+     *  restée ouverte) reçoit son emplacement à la volée. */
     function _sidesSlot(modal) {
         let slot = modal.querySelector('.wama-modal-sides-slot');
         if (!slot) {
             slot = document.createElement('div');
             slot.className = SLOT_CLASS;
             slot.style.cssText = SLOT_STYLE;
-            const footer = modal.querySelector('.modal-footer');
-            if (footer) footer.parentNode.insertBefore(slot, footer);
-            else modal.querySelector('.modal-content').appendChild(slot);
+            const body = modal.querySelector('.modal-body');
+            body.parentNode.insertBefore(slot, body);
         }
         return slot;
+    }
+
+    /** La NATURE de ce que montre la visionneuse — elle règle sa largeur et son fond (feuille) :
+     *  `media` (image, vidéo, PDF, HTML, 3D) prend la place, `text` garde une largeur de lecture,
+     *  `audio` reste étroit. Pure (gardée en V8, `tests_preview_navigation`). */
+    function viewerKind(data) {
+        const mime = String((data && data.mime_type) || '').toLowerCase();
+        if (data && data.side === 'compare') return 'media';
+        if (mime.indexOf('audio/') === 0) return 'audio';
+        if (/^(image|video|model)\//.test(mime) || mime === 'application/pdf' || mime.indexOf('text/html') === 0) return 'media';
+        if (mime.indexOf('text/') === 0 || (data && typeof data.content === 'string')) return 'text';
+        return 'media';
+    }
+
+    function _setKind(modal, kind) {
+        modal.setAttribute('data-kind', kind);
+        const dialog = modal.querySelector('.modal-dialog');
+        dialog.classList.toggle('modal-xl', kind === 'media');
+        dialog.classList.toggle('modal-lg', kind !== 'media');
+    }
+
+    /** Le pied (propriétés du fichier, téléchargements) se retire quand il n'a rien à dire. */
+    function _syncFooter(modal) {
+        const footer = modal && modal.querySelector('.modal-footer');
+        if (!footer) return;
+        const meta = footer.querySelector('.preview-meta');
+        const downloads = footer.querySelector('.wama-preview-downloads');
+        const said = (meta && meta.textContent.trim()) || (downloads && downloads.style.display !== 'none');
+        footer.style.display = said ? '' : 'none';
     }
 
     function _syncSidesSlot(modal) {
@@ -1206,15 +1349,26 @@
         let holder = footer.querySelector('.wama-preview-downloads');
         if (!holder) {
             holder = document.createElement('div');
-            holder.className = 'wama-preview-downloads d-flex flex-wrap gap-1 justify-content-center align-items-center w-100';
+            holder.className = 'wama-preview-downloads';
             footer.appendChild(holder);
         }
         const list = (data.sides && data.sides.downloads) || [];
-        holder.innerHTML = list.length ? '<small class="text-muted me-1">Télécharger :</small>' + downloadsHtml(list) : '';
+        holder.innerHTML = list.length ? '<i class="fas fa-download wama-preview-downloads-icon" title="Télécharger"></i>'
+            + downloadsHtml(list) : '';
         holder.style.display = list.length ? '' : 'none';
     }
 
+    // L'horloge de lecture de l'élément montré par la visionneuse (`takeClock`) : elle passe d'une
+    // face à l'autre, jamais d'un élément à l'autre.
+    let _modalClock = null;
+
+    function _modalContainer() {
+        const modal = document.getElementById('wamaMediaPreviewModal');
+        return modal && modal.querySelector('.preview-container');
+    }
+
     function _goSide(base, sides, side) {
+        _modalClock = takeClock(_modalContainer(), base, _modalClock);
         _json(faceUrl(base, side)).then(function (nd) {
             if (!nd) return;
             nd._baseUrl = base;
@@ -1222,6 +1376,7 @@
             // De Comparer (ou de la Sortie) vers la Sortie : le MÊME fichier ; ailleurs, le premier.
             if (side !== 'output') _sub = 0;
             _display(nd);
+            giveClock(_modalContainer(), _modalClock, base);
         });
     }
 
@@ -1256,12 +1411,14 @@
      *  (2026-10-13) : `sub` = le fichier montré au clic (par défaut celui de la vue courante) ;
      *  ←/→ passent aux autres fichiers EN RESTANT dans Comparer, puis à la card voisine. */
     function _modalCompare(modal, base, s, sub) {
+        _modalClock = takeClock(_modalContainer(), base, _modalClock);
         compareFaces(base, s).then(function (pair) {
             if (!pair) return;
             const files = _filesOf(pair.dout);
             _sub = files ? Math.min(Math.max(0, sub == null ? _sub : sub), files.length - 1) : 0;
             _showCompare(modal, { side: 'compare', sides: s, _baseUrl: base,
                                   files: files || undefined, _pair: pair });
+            giveClock(_modalContainer(), _modalClock, base);
         });
     }
 
@@ -1276,16 +1433,95 @@
         _releaseContent(container);
         Array.prototype.forEach.call(container.querySelectorAll(':scope > :not(.wama-preview-nav-btn)'),
             function (el) { el.remove(); });
+        _setKind(modal, 'media');
         const view = compareView(pair.din, output, pair.baseLabel);
         view.classList.add('wama-modal-compare');
         container.appendChild(view);
         currentPreviewData = face;
         modal.querySelector('.modal-title').textContent = compareTitle(pair.din, output);
+        const open = modal.querySelector('.wama-preview-open');
+        if (open) open.hidden = true;           // deux fichiers confrontés : aucun à ouvrir seul
         // Le pied disait les propriétés de la face d'AVANT : il se tait plutôt que de mentir.
         const meta = modal.querySelector('.preview-meta');
         if (meta) meta.textContent = '';
+        _syncFooter(modal);
         _renderModalSides(modal, face);
         updateNavigationUI(modal);
+    }
+
+    /** Les natures de texte qui se lisent en police à chasse fixe (colonnes, code) ; tout autre
+     *  texte (transcription, description, markdown) se lit en police de texte. */
+    const CODE_TEXT = /^text\/(csv|tab-separated-values|x-|xml|javascript|css)|json/;
+
+    /** Une face TEXTE dans son cadre (2026-10-14, l'aspect des anciennes modales de résultat du
+     *  transcriber et du describer) : une barre (le nombre de mots, Copier) et un corps qui défile
+     *  seul, à la hauteur que laisse l'écran. Le corps est le texte NU (`<pre>`), le HTML mis en
+     *  forme par le serveur (`ProcessSpec.result_format`, neutralisé à la source par
+     *  `docs_catalog.render_markdown`) ou le dessin d'un résultat STRUCTURÉ (`_structured` :
+     *  rapport de cohérence, tours de parole, évaluation). Copier garde le texte d'origine.
+     *  Remplace deux branches à styles en ligne (fond #1e1e1e, 13 px, 65vh). */
+    function _textPane(data, mimeType) {
+        const pane = document.createElement('div');
+        pane.className = 'wama-text-pane';
+
+        const toolbar = document.createElement('div');
+        toolbar.className = 'wama-text-toolbar';
+        // Le nombre de mots de la face (les onglets des anciennes modales de résultat le portaient).
+        const words = document.createElement('span');
+        words.className = 'wama-preview-words';
+        const setWords = (text) => {
+            words.textContent = wordsLabel(text);
+            words.style.display = words.textContent ? '' : 'none';
+        };
+        setWords('');
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'wama-text-action';
+        const copyLabel = '<i class="fas fa-copy" aria-hidden="true"></i><span>Copier</span>';
+        copyBtn.innerHTML = copyLabel;
+        toolbar.appendChild(words);
+        toolbar.appendChild(copyBtn);
+
+        const drawn = _structured(data, false);
+        const formatted = !drawn && typeof data.html === 'string';
+        const body = document.createElement((formatted || drawn) ? 'div' : 'pre');
+        body.className = 'wama-text-body'
+            + (drawn ? ' is-structured' : formatted ? ' wama-result-formatted' : ' is-plain')
+            + (!drawn && !formatted && CODE_TEXT.test(mimeType || '') ? ' is-code' : '');
+        body.textContent = 'Chargement…';
+
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText((formatted || drawn) ? data.content : body.textContent).then(() => {
+                copyBtn.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i><span>Copié</span>';
+                copyBtn.classList.add('is-done');
+                setTimeout(() => { copyBtn.innerHTML = copyLabel; copyBtn.classList.remove('is-done'); }, 2000);
+            }).catch(() => {});
+        });
+
+        pane.appendChild(toolbar);
+        pane.appendChild(body);
+
+        if (drawn) {
+            body.textContent = '';
+            body.appendChild(drawn);
+            setWords(_structuredWords(data));
+        } else if (formatted) {
+            body.innerHTML = data.html;
+            setWords(data.content);
+        } else if (typeof data.content === 'string') {
+            // Texte servi inline (sortie/entrée texte, docx/odt/rtf extrait) — pas de fetch
+            body.textContent = data.content;
+            setWords(data.content);
+        } else if (data.url) {
+            fetch(data.url)
+                .then(r => r.ok ? r.text() : Promise.reject(r.status))
+                .then(text => { body.textContent = text; setWords(text); })
+                .catch(err => { body.textContent = `Erreur lors du chargement (${err}).`; });
+        } else {
+            body.textContent = data.error ? `Aperçu indisponible : ${data.error}` : 'Aperçu indisponible.';
+        }
+        copyBtn.hidden = !(typeof data.content === 'string' || data.url);
+        return pane;
     }
 
     /**
@@ -1295,12 +1531,13 @@
         const mimeType = data.mime_type || '';
 
         if (mimeType.startsWith('video/')) {
+            // Taille : la place que laisse l'écran (`--wv-stage`, media-preview.css), proportions
+            // gardées — plus de hauteur figée en ligne (70vh débordait sur un écran bas).
             const video = document.createElement('video');
             video.src = data.url;
             video.controls = true;
             video.autoplay = false;
-            video.className = 'w-100';
-            video.style.maxHeight = '70vh';
+            video.className = 'wama-viewer-media';
             // Une face à SURCOUCHE (détections) : posée une fois la vidéo dans la page.
             if (data.overlay && window.WamaPreviewOverlay) {
                 setTimeout(function () { window.WamaPreviewOverlay.attach(video, data.overlay); }, 0);
@@ -1332,8 +1569,7 @@
 
             const img = document.createElement('img');
             img.src = data.url;
-            img.className = 'img-fluid';
-            img.style.maxHeight = '70vh';
+            img.className = 'wama-viewer-media';
             img.alt = data.name || 'Image preview';
             wrapper.appendChild(img);
             if (data.overlay && window.WamaPreviewOverlay) {
@@ -1356,9 +1592,8 @@
             // commune (`wama/3d-viewer`). Une page sans importmap n'a pas déclaré savoir rendre du
             // 3D : l'import échoue et l'on retombe sur le téléchargement, sans erreur console.
             const wrapper = document.createElement('div');
-            wrapper.className = 'w-100 position-relative';
+            wrapper.className = 'w-100 position-relative wama-viewer-frame';
             wrapper.setAttribute('data-wama-3d', '');
-            wrapper.style.cssText = 'height:65vh;min-height:320px;';
             const status = document.createElement('div');
             status.className = 'text-muted small text-center p-3';
             status.textContent = 'Chargement de l’objet 3D…';
@@ -1369,11 +1604,13 @@
                 .then((viewer) => {
                     status.remove();
                     wrapper._dispose = viewer.dispose;
-                    const meta = document.getElementById('wamaMediaPreviewModal')?.querySelector('.preview-meta');
+                    const modal = document.getElementById('wamaMediaPreviewModal');
+                    const meta = modal?.querySelector('.preview-meta');
                     if (meta && viewer.info) {
                         const parts = [viewer.info.format.toUpperCase(), viewer.info.meshes + ' maillage(s)'];
                         if (viewer.info.animations.length) parts.push(viewer.info.animations.length + ' animation(s)');
-                        meta.textContent = [meta.textContent, parts.join(' • ')].filter(Boolean).join(' | ');
+                        meta.textContent = [meta.textContent, parts.join(' • ')].filter(Boolean).join(' · ');
+                        _syncFooter(modal);
                     }
                 })
                 .catch((err) => {
@@ -1383,146 +1620,25 @@
                 });
             return wrapper;
         } else if (mimeType === 'application/pdf') {
-            // Use <embed> instead of <iframe> — X-Frame-Options: deny does not apply to <embed>
-            const wrapper = document.createElement('div');
-            wrapper.className = 'w-100';
-
+            // Use <embed> instead of <iframe> — X-Frame-Options: deny does not apply to <embed>.
+            // « Ouvrir dans un nouvel onglet » est dans l'en-tête de la visionneuse (2026-10-14).
             const embed = document.createElement('embed');
             embed.src = data.url;
             embed.type = 'application/pdf';
-            embed.className = 'w-100';
-            embed.style.height = '70vh';
-            wrapper.appendChild(embed);
-
-            const fallbackLink = document.createElement('div');
-            fallbackLink.className = 'text-center mt-2';
-            fallbackLink.innerHTML = `<a href="${escapeHtml(data.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light"><i class="fas fa-external-link-alt me-1"></i>Ouvrir dans un nouvel onglet</a>`;
-            wrapper.appendChild(fallbackLink);
-
-            return wrapper;
+            embed.className = 'wama-viewer-frame';
+            return embed;
         } else if (mimeType.startsWith('text/html')) {
             // HTML (2026-10-13) : le document RENDU, dans un cadre sans aucune permission — la
             // règle de l'aperçu inline, de l'inspecteur et de la brique `html_preview` des
             // surfaces. La visionneuse n'avait pas ce cas : un double-clic sur l'aperçu d'un
             // document du Writer ouvrait « Preview not available ».
-            const wrapper = document.createElement('div');
-            wrapper.className = 'w-100';
             const frame = document.createElement('iframe');
             frame.src = data.url;
             frame.setAttribute('sandbox', '');
-            frame.className = 'w-100';
-            frame.style.cssText = 'height:70vh;border:0;background:#fff;border-radius:4px;';
-            wrapper.appendChild(frame);
-            const openLink = document.createElement('div');
-            openLink.className = 'text-center mt-2';
-            openLink.innerHTML = `<a href="${escapeHtml(data.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light"><i class="fas fa-external-link-alt me-1"></i>Ouvrir dans un nouvel onglet</a>`;
-            wrapper.appendChild(openLink);
-            return wrapper;
-        } else if (mimeType === 'text/plain' || (mimeType.startsWith('text/') && !mimeType.startsWith('text/html'))) {
-            // Text file: fetch content and display in scrollable pre
-            const wrapper = document.createElement('div');
-            wrapper.className = 'w-100';
-
-            const toolbar = document.createElement('div');
-            toolbar.className = 'd-flex justify-content-end mb-2 gap-2';
-
-            const copyBtn = document.createElement('button');
-            copyBtn.className = 'btn btn-sm btn-outline-secondary';
-            copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copier';
-
-            const openBtn = document.createElement('a');
-            openBtn.href = data.url;
-            openBtn.target = '_blank';
-            openBtn.rel = 'noopener';
-            openBtn.className = 'btn btn-sm btn-outline-light';
-            openBtn.innerHTML = '<i class="fas fa-external-link-alt"></i> Ouvrir';
-
-            // Le nombre de mots de la face (les onglets des anciennes modales de résultat le
-            // portaient) : à gauche de la barre, posé dès que le texte est connu.
-            const words = document.createElement('span');
-            words.className = 'badge bg-secondary align-self-center me-auto wama-preview-words';
-            const setWords = (text) => {
-                words.textContent = wordsLabel(text);
-                words.style.display = words.textContent ? '' : 'none';
-            };
-            setWords('');
-
-            toolbar.appendChild(words);
-            toolbar.appendChild(copyBtn);
-            if (data.url) toolbar.appendChild(openBtn);
-
-            // Un résultat MIS EN FORME par le serveur (`ProcessSpec.result_format`, le résumé du
-            // describer, 2026-10-13) : son HTML, neutralisé à la source (`docs_catalog
-            // .render_markdown`) ; un résultat STRUCTURÉ (rapport de cohérence, tours de parole,
-            // évaluation) : son dessin (`_structured`). Copier garde le texte d'origine.
-            const drawn = _structured(data, false);
-            const formatted = !drawn && typeof data.html === 'string';
-            const pre = document.createElement((formatted || drawn) ? 'div' : 'pre');
-            if (drawn) {
-                pre.className = 'text-light mb-0';
-                pre.style.cssText = 'max-height:65vh; overflow-y:auto;';
-            } else {
-                pre.className = 'text-light p-3 mb-0' + (formatted ? ' wama-result-formatted' : '');
-                pre.style.cssText = 'max-height:65vh; overflow-y:auto; background:#1e1e1e; border-radius:4px; font-size:13px; word-wrap:break-word; border:1px solid #495057;'
-                    + (formatted ? '' : ' white-space:pre-wrap;');
-            }
-            pre.textContent = 'Chargement…';
-
-            copyBtn.addEventListener('click', () => {
-                navigator.clipboard.writeText((formatted || drawn) ? data.content : pre.textContent).then(() => {
-                    copyBtn.innerHTML = '<i class="fas fa-check text-success"></i> Copié';
-                    setTimeout(() => { copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copier'; }, 2000);
-                }).catch(() => {});
-            });
-
-            wrapper.appendChild(toolbar);
-            wrapper.appendChild(pre);
-
-            if (drawn) {
-                pre.textContent = '';
-                pre.appendChild(drawn);
-                setWords(_structuredWords(data));
-            } else if (formatted) {
-                pre.innerHTML = data.html;
-                setWords(data.content);
-            } else if (typeof data.content === 'string') {
-                // Texte servi inline (sortie/entrée texte, docx/odt/rtf extrait) — pas de fetch
-                pre.textContent = data.content;
-                setWords(data.content);
-            } else if (data.url) {
-                fetch(data.url)
-                    .then(r => r.ok ? r.text() : Promise.reject(r.status))
-                    .then(text => { pre.textContent = text; setWords(text); })
-                    .catch(err => { pre.textContent = `Erreur lors du chargement (${err}).`; });
-            } else {
-                pre.textContent = data.error ? `Aperçu indisponible : ${data.error}` : 'Aperçu indisponible.';
-            }
-
-            return wrapper;
-        } else if (typeof data.content === 'string') {
-            // Texte inline sans type texte déclaré
-            const wrapper = document.createElement('div');
-            wrapper.className = 'w-100';
-
-            const copyBtn = document.createElement('button');
-            copyBtn.className = 'btn btn-sm btn-outline-secondary mb-2';
-            copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copier';
-
-            const pre = document.createElement('pre');
-            pre.className = 'text-light p-3 mb-0';
-            pre.style.cssText = 'max-height:65vh; overflow-y:auto; background:#1e1e1e; border-radius:4px; font-size:13px; white-space:pre-wrap; word-wrap:break-word; border:1px solid #495057;';
-            pre.textContent = data.content;
-
-            copyBtn.addEventListener('click', () => {
-                navigator.clipboard.writeText(pre.textContent).then(() => {
-                    copyBtn.innerHTML = '<i class="fas fa-check text-success"></i> Copié';
-                    setTimeout(() => { copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copier'; }, 2000);
-                }).catch(() => {});
-            });
-
-            wrapper.appendChild(copyBtn);
-            wrapper.appendChild(pre);
-            return wrapper;
+            frame.className = 'wama-viewer-frame wama-viewer-frame--page';
+            return frame;
+        } else if (mimeType.startsWith('text/') || typeof data.content === 'string') {
+            return _textPane(data, mimeType);
         } else {
             // Fallback: show download link (only if URL available)
             const fallback = document.createElement('div');
@@ -1575,6 +1691,10 @@
             nextBtn.style.display = hasNav ? '' : 'none';
             nextBtn.classList.toggle('disabled', !stepTarget(pos, 1, false));
         }
+        // Les flèches ont leurs MARGES, de part et d'autre de l'aperçu (2026-10-15, Fabien : posées
+        // sur lui, elles masquaient le bouton de lecture d'un son, le bord d'une image).
+        const body = root.querySelector && root.querySelector('.modal-body');
+        if (body) body.classList.toggle('has-nav', hasNav);
         return hasNav;
     }
 
@@ -1599,26 +1719,34 @@
         modal.id = 'wamaMediaPreviewModal';
         modal.className = 'modal fade';
         modal.tabIndex = -1;
+        // Mise en forme : `media-preview.css` (§ VISIONNEUSE) — la largeur suit la nature montrée
+        // (`_setKind`), la hauteur de l'aperçu celle que laisse l'écran (`--wv-stage`).
         modal.innerHTML = `
-            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-                <div class="modal-content bg-dark text-white">
-                    <div class="modal-header border-secondary py-2">
-                        <h6 class="modal-title text-truncate" style="max-width:70%;font-size:.95rem;"></h6>
-                        <span class="wama-preview-counter text-muted small ms-2" style="display:none;white-space:nowrap;flex-shrink:0;"></span>
-                        <button type="button" class="btn btn-sm btn-outline-light ms-auto me-2 py-0 wama-preview-full-toggle" title="Plein écran"><i class="fas fa-expand"></i></button>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-dialog modal-xl modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div class="wama-viewer-heading">
+                            <h6 class="modal-title"></h6>
+                            <span class="wama-preview-counter" style="display:none;"></span>
+                        </div>
+                        <div class="wama-viewer-actions">
+                            <a class="wama-viewer-icon wama-preview-open" href="#" target="_blank" rel="noopener" title="Ouvrir dans un nouvel onglet" hidden><i class="fas fa-arrow-up-right-from-square"></i></a>
+                            <button type="button" class="wama-viewer-icon wama-preview-full-toggle" title="Plein écran"><i class="fas fa-expand"></i></button>
+                            <button type="button" class="wama-viewer-icon" data-bs-dismiss="modal" aria-label="Fermer" title="Fermer (Échap)"><i class="fas fa-xmark"></i></button>
+                        </div>
                     </div>
-                    <div class="modal-body p-0 position-relative">
+                    <!-- Emplacement DÉDIÉ des bascules (faces en onglets, vues) — AU-DESSUS de
+                         l'aperçu, hors de la zone qui défile : jamais superposé au contenu
+                         (2026-10-13 sous l'aperçu, au-dessus depuis le 2026-10-14, cf. _sidesSlot). -->
+                    <div class="${SLOT_CLASS}" style="${SLOT_STYLE}"></div>
+                    <div class="modal-body">
                         <!-- Boutons nav FRÈRES du container (pas dedans) — évite tout conflit z-index/flex -->
                         <button class="wama-preview-nav-btn wama-preview-nav-prev" style="display:none;" title="Précédent (←) — card précédente (↑)">${_SVG_PREV}</button>
                         <button class="wama-preview-nav-btn wama-preview-nav-next" style="display:none;" title="Suivant (→) — card suivante (↓)">${_SVG_NEXT}</button>
-                        <div class="preview-container d-flex justify-content-center align-items-center" style="min-height:300px;background:#111;"></div>
+                        <div class="preview-container"></div>
                     </div>
-                    <!-- Emplacement DÉDIÉ des bascules (faces, vues) — SOUS l'aperçu, hors de la zone
-                         qui défile : jamais superposé au contenu (2026-10-13, cf. _sidesSlot). -->
-                    <div class="${SLOT_CLASS}" style="${SLOT_STYLE}"></div>
-                    <div class="modal-footer border-secondary py-2">
-                        <small class="preview-meta text-muted w-100 text-center"></small>
+                    <div class="modal-footer">
+                        <small class="preview-meta"></small>
                     </div>
                 </div>
             </div>
@@ -1645,6 +1773,7 @@
             _releaseContent(modal.querySelector('.preview-container'));
             _announceCard();
             currentPreviewData = null;
+            _modalClock = null;
             _setSequence(null);
             _sub = 0;
         });
@@ -1662,6 +1791,7 @@
         if (toggle) {
             toggle.title = on ? 'Quitter le plein écran' : 'Plein écran';
             toggle.innerHTML = '<i class="fas ' + (on ? 'fa-compress' : 'fa-expand') + '"></i>';
+        toggle.setAttribute('aria-pressed', on ? 'true' : 'false');
         }
     }
 
@@ -1784,8 +1914,9 @@
         // rendu en ligne
         renderInline: renderInline, hydrateCardPreviews: hydrateCardPreviews,
         // faces
-        sidesBar: sidesBar, compareFaces: compareFaces, compareView: compareView,
+        sidesBar: sidesBar, viewerKind: viewerKind, compareFaces: compareFaces, compareView: compareView,
         variantToggle: variantToggle, followDuring: followDuring,
+        takeClock: takeClock, giveClock: giveClock, releaseMedia: _releaseHost,
         isRunningCard: isRunningCard, cardOfPreview: cardOfPreview,
         // visionneuse et navigation
         show: showPreviewModal, showWithNav: showPreviewModalWithNav,
