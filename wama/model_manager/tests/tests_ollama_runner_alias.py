@@ -46,7 +46,9 @@ class DiscoverySkipsRunnerAliasTest(SimpleTestCase):
             with mock.patch.object(mr.subprocess, 'run', return_value=done), \
                     mock.patch.object(mr.ModelRegistry, '_ollama_charges', return_value={}), \
                     mock.patch.object(mr.ModelRegistry, '_ollama_capacites', return_value={}), \
-                    mock.patch.object(mr.ModelRegistry, '_ollama_fiche', return_value={}):
+                    mock.patch.object(mr.ModelRegistry, '_ollama_fiche', return_value={}), \
+                    mock.patch.object(mr.ModelRegistry, '_ollama_last_measured',
+                                      return_value=set()):
                 registry._discover_ollama_models()
             keys = set(registry._models)
         finally:

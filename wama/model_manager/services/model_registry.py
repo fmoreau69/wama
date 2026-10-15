@@ -2408,6 +2408,28 @@ class ModelRegistry:
             return {}
 
     @staticmethod
+    def _ollama_last_measured(nom: str) -> set:
+        """Les capacités BRUTES qu'Ollama a déclarées pour ce modèle au dernier passage où il a
+        répondu — `capabilities['abilities']` de sa ligne, l'ensemble que la découverte garde
+        tel quel —, ou un ensemble vide pour un modèle jamais mesuré.
+
+        POURQUOI (2026-10-16) : démon injoignable, la découverte retombait sur `set()`, et
+        `_capacites_canoniques` en faisait un modèle de COMPLÉTION. Vécu à 00:45:58, quand le
+        réseau de WSL est tombé : les 11 lignes Ollama réécrites `text-generation` +
+        `completion=True`, dont bge-m3 et qwen3-embedding — et l'assistant a tiré bge-m3 comme
+        modèle de conversation (« does not support chat »). Une panne ne change pas la nature d'un
+        modèle : on recalcule depuis le dernier FAIT mesuré au lieu de supposer."""
+        from wama.model_manager.models import AIModel
+        # Le repli par répertoire nomme un tag `latest` SANS suffixe (`bge-m3`), la ligne s'appelle
+        # `ollama:bge-m3:latest` : les deux formes désignent le même modèle.
+        keys = [f'ollama:{nom}'] + ([f'ollama:{nom}:latest'] if ':' not in nom else [])
+        for caps in AIModel.objects.filter(model_key__in=keys).values_list('capabilities',
+                                                                          flat=True):
+            if (caps or {}).get('abilities'):
+                return set(caps['abilities'])
+        return set()
+
+    @staticmethod
     def _ollama_fiche(nom: str) -> dict:
         """
         Métadonnées RICHES d'un modèle Ollama (`/api/show`) — bien au-delà de `/api/tags`.
@@ -2609,8 +2631,9 @@ class ModelRegistry:
                             # rendait `ollama:bge-m3:latest` — un modèle d'embedding servi comme
                             # modèle de chat. Latent aux budgets courants (8/16 Go → gemma4),
                             # il se déclenche quand la VRAM manque, donc au pire moment.
-                            _caps_ollama = (capacites.get(model_name, set())
-                                            | (fiche.get('capabilities') or set()))
+                            _caps_ollama = ((capacites.get(model_name, set())
+                                             | (fiche.get('capabilities') or set()))
+                                            or self._ollama_last_measured(model_name))
                             # ⭐ CATÉGORIE DÉRIVÉE DE LA TÂCHE (2026-09-16), par la table commune
                             # `model_type_for_task` — celle que tout WAMA utilise déjà. Avant, elle
                             # était posée ici à la main : « embedding, sinon llm ». Un modèle d'OCR
@@ -2671,10 +2694,8 @@ class ModelRegistry:
                                     # découverte réécrit `capabilities` en entier à chaque sync et
                                     # effacerait toute valeur posée en dehors d'elle (constaté le
                                     # 2026-08-05 — 11 modèles renseignés, puis 0 après un sync).
-                                    **({'abilities': sorted(capacites.get(model_name, set())
-                                                            | (fiche.get('capabilities') or set()))}
-                                       if (capacites.get(model_name)
-                                           or fiche.get('capabilities')) else {}),
+                                    # Démon muet : le DERNIER relevé (`_ollama_last_measured`).
+                                    **({'abilities': sorted(_caps_ollama)} if _caps_ollama else {}),
                                     # `context_length` est au vocabulaire canonique et n'était
                                     # jamais rempli ; `params_*_b` séparent explicitement la
                                     # QUALITÉ (totaux) du COÛT (actifs) — voir model_quality.py.
@@ -2766,8 +2787,13 @@ class ModelRegistry:
                                     # portée — la seule différence est qu'elle peut être vide si
                                     # `/api/tags` n'a pas répondu, auquel cas on retombe sur LLM
                                     # comme avant.
-                                    _caps_repli = self._capacites_canoniques(
-                                        capacites.get(full_name, set()), full_name)
+                                    # Démon muet (c'est le cas de ce repli) : le DERNIER relevé
+                                    # mesuré, jamais « un modèle de complétion » supposé.
+                                    _brutes = (capacites.get(full_name, set())
+                                               or self._ollama_last_measured(full_name))
+                                    _caps_repli = self._capacites_canoniques(_brutes, full_name)
+                                    if _brutes:
+                                        _caps_repli['abilities'] = sorted(_brutes)
                                     self._models[f"ollama:{full_name}"] = ModelInfo(
                                         id=f"ollama:{full_name}",
                                         name=full_name,

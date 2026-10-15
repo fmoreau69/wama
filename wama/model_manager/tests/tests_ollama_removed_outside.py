@@ -32,6 +32,8 @@ class DaemonListingIsRecordedTest(SimpleTestCase):
                     mock.patch.object(mr.ModelRegistry, '_ollama_charges', return_value={}), \
                     mock.patch.object(mr.ModelRegistry, '_ollama_capacites', return_value={}), \
                     mock.patch.object(mr.ModelRegistry, '_ollama_fiche', return_value={}), \
+                    mock.patch.object(mr.ModelRegistry, '_ollama_last_measured',
+                                      return_value=set()), \
                     mock.patch.object(mr.ModelRegistry, '_discover_ollama_from_directory') as scan:
                 registry._discover_ollama_models()
             return registry.ollama_listed, scan
