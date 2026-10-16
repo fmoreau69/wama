@@ -93,12 +93,12 @@ def account_menu(user, allowed_apps=None) -> list:
 
 
 def navigable_pages(user) -> list:
-    """Les pages que `user` a le DROIT d'ouvrir : `[{'key', 'label', 'url', 'world', 'section',
+    """Les pages que `user` a le DROIT d'ouvrir : `[{'key', 'label', 'url', 'world',
     'description', 'aliases'}]` — les apps et surfaces dans l'ordre du menu Applications, puis
     les pages du compte. Une page du compte qui renvoie à une surface déjà listée (Registres,
     Models) n'est pas répétée : son libellé de menu devient un ALIAS de la surface."""
     from wama.accounts.permissions import accessible_apps, all_gated_apps
-    from wama.common.app_registry import ACCOUNT_SECTIONS, get_app_groups
+    from wama.common.app_registry import get_app_groups
 
     allowed = set(accessible_apps(user, all_gated_apps()))
     pages = []
@@ -110,7 +110,7 @@ def navigable_pages(user) -> list:
         if url is None:
             return
         pages.append({'key': key, 'label': spec.get('label') or key, 'url': url,
-                      'world': spec.get('world') or '', 'section': 'Applications',
+                      'world': spec.get('world') or '',
                       'description': spec.get('description') or '', 'aliases': []})
 
     for group in get_app_groups():
@@ -126,7 +126,6 @@ def navigable_pages(user) -> list:
             known['aliases'].append(page['label'])
             continue
         entry = {'key': page['key'], 'label': page['label'], 'url': page['url'], 'world': '',
-                 'section': ACCOUNT_SECTIONS[page['section']]['label'],
                  'description': page['description'], 'aliases': []}
         pages.append(entry)
         by_url[entry['url']] = entry

@@ -66,6 +66,15 @@ _FOLDER_MAP = {
 }
 
 
+def _signed_in_refusal(user, action: str = 'Lecture') -> dict | None:
+    """Le refus d'un outil appelé SANS compte identifié (visiteur, appel sans session), ou None.
+    UNE écriture pour tous les outils qui le refusent (2026-10-16) — il était recopié dans dix-sept
+    corps. `action` nomme le geste refusé (« Lecture », « Recherche web »…)."""
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': f"{action} réservée aux utilisateurs identifiés."}
+    return None
+
+
 # ===========================================================================
 # Python tool functions (called directly from the agentic loop)
 # ===========================================================================
@@ -131,8 +140,8 @@ def find_user_files(user, query: str, limit: int = 20) -> dict:
     """
     # La brique COMMUNE (`common/services/user_files.py`) : le périmètre est celui de l'arbre du
     # gestionnaire, lu à sa déclaration — pas une troisième liste de dossiers.
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Recherche réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user, "Recherche"):
+        return refusal
     from wama.common.services.user_files import find_user_files as _find
     try:
         return _find(user, query, limit=limit)
@@ -1126,8 +1135,8 @@ def open_page(user, page: str) -> dict:
     # La brique COMMUNE (`common/services/navigation.py`) : les pages du MENU, avec le droit du
     # menu — aucune liste ici. Le résultat `action: navigate` est exécuté par le chat web
     # (`wama-assistant-chat.js::applyActions`), le pont qui servait déjà `switch_ui_mode`.
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Navigation réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user, "Navigation"):
+        return refusal
     from wama.common.services.navigation import absolute_url, find_page
     entry, pages = find_page(user, page)
     if entry is None:
@@ -1220,8 +1229,8 @@ def inspect_user_file(user, file_path: str) -> dict:
         {"category", "ports": [{"app","port","group","label"}], "batch", "manifest",
          "asset_types", "probes", "size_mb"}
     """
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Inspection réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user, "Inspection"):
+        return refusal
     src, err = _resolve_user_path(user, file_path)
     if err:
         return err
@@ -1252,8 +1261,8 @@ def look_at_image(user, file_path: str, question: str = '') -> dict:
     """
     # Passe VLM sur le GPU hôte : USER-DÉCLENCHÉE (jamais de boucle de fond), et sous
     # WAMA_GPU_SAFE_MODE le modèle est déchargé sitôt la réponse rendue (keep_alive='0').
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Analyse d'image réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user, "Analyse d'image"):
+        return refusal
     src, err = _resolve_user_path(user, file_path)
     if err:
         return err
@@ -1290,8 +1299,8 @@ def add_to_media_library(user, file_path: str, asset_type: str,
     Returns:
         {"id", "name", "asset_type"} or {"error"}
     """
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Médiathèque réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user, "Médiathèque"):
+        return refusal
     # ⚠ Le geste DÉPLACE (D24) un fichier de l'ARBRE de l'utilisateur (`add_file_to_library`).
     # Un dossier CONNECTÉ n'en fait pas partie : le déplacer retirerait le fichier du NAS ou du
     # nuage. `_resolve_user_path` l'accepte en LECTURE depuis le 2026-10-11 — d'où ce refus.
@@ -1340,8 +1349,8 @@ def search_web(user, query: str, max_results: int = 5) -> dict:
     # ⚠ GARDE EXPLICITE, comme ask_claude_code : un outil sans app est autorisé à TOUS par
     # `tool_accessible` — visiteur anonyme compris. Une sortie web pilotée par un anonyme
     # ferait de l'assistant un relais ouvert ; la restriction vit donc DANS le corps.
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Recherche web réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user, "Recherche web"):
+        return refusal
     try:
         from wama.common.utils.web_search import search_web as _chercher
         # `user` décide du MOTEUR (sa préférence de profil, sinon le défaut d'instance) et
@@ -1366,8 +1375,8 @@ def read_web_page(user, url: str, max_chars: int = 8000) -> dict:
     Returns:
         {"url", "final_url", "text", "truncated"} — or {"error"} (private target, media type…)
     """
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Lecture web réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user, "Lecture web"):
+        return refusal
     try:
         from wama.common.utils.web_search import read_web_page as _lire
         return _lire(url, max_chars=max_chars)
@@ -2273,8 +2282,8 @@ def search_docs(user, query: str, k: int = 5) -> dict:
     # ⚠ Outil TRANSVERSE (`TOOL_APP_OVERRIDE` : None), donc autorisé à tous par
     # `tool_accessible` : le refus des non-identifiés est écrit ICI, et qui lit QUOI est décidé
     # par `docs_catalog.visible_to` — le prédicat du lecteur `/common/docs/`, appelé au rappel.
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Lecture réservée aux utilisateurs identifiés.", 'results': [], 'count': 0}
+    if refusal := _signed_in_refusal(user):
+        return {**refusal, 'results': [], 'count': 0}
     if not (query or '').strip():
         return {'error': "query vide", 'results': [], 'count': 0}
     try:
@@ -2307,8 +2316,8 @@ def read_doc(user, doc: str, section: str = '') -> dict:
         {"doc", "label", "description", "outline": [{"title","level","line"}]} without a section,
         {"doc", "label", "section", "line", "content", "truncated"} with one, or {"error"}.
     """
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user):
+        return refusal
     from wama.common.memory.docs_corpus import read
     return read(user, doc, section)
 
@@ -2472,8 +2481,8 @@ def list_my_items(user, app: str = '', limite: int = 25, statut: str = 'all', q:
         {"items": [{"app","monde","id","titre","statut","statut_libelle","modele","date","chips"}],
          "total", "returned"} or {"error"}
     """
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user):
+        return refusal
     from wama.common.services.journal import STATUTS, entrees
 
     if statut and statut not in STATUTS:
@@ -2547,8 +2556,8 @@ def get_item_detail(user, app: str, pk: int) -> dict:
         {"app","id","detail":{…},"raw":{"status","progress","created_at"},"queue"?:{…}}
         or {"error"}
     """
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user):
+        return refusal
     from wama.common.utils.detail_registry import DetailRegistry
 
     entry = DetailRegistry.get(app)
@@ -2627,8 +2636,8 @@ def get_item_preview(user, app: str, pk: int, side: str = 'input') -> dict:
         {"app","id","side","sides":{"has_input","has_output","has_during","during_capable",
          "comparable"}, …preview payload with relative URLs…} or {"error"}
     """
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user):
+        return refusal
     side = (side or 'input').lower()
     if side not in ('input', 'output', 'during'):
         return {'error': f"side invalide : {side!r}. Valides : input, output, during"}
@@ -2694,8 +2703,8 @@ def get_item_result(user, app: str, pk: int, output_format: str = '') -> dict:
         early binding: {"app","id","status","output_url","name"}
         or {"error", …} — including when the job finished WITHOUT producing anything.
     """
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user):
+        return refusal
     from wama.common.utils.detail_registry import DetailRegistry
     from wama.common.utils.export_formats import (RAW, TEXT, entries_for_app, entry,
                                                   export_builder_for, is_late_binding)
@@ -2772,8 +2781,8 @@ def get_item_result(user, app: str, pk: int, output_format: str = '') -> dict:
 # champ ajouté. La route est LUE (`route_variants`, jamais supposée — leçon `stop` vs `cancel`).
 def _refus_app(user, app: str):
     """`None` si l'utilisateur peut AGIR dans cette app, sinon le dict d'erreur à renvoyer."""
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Écriture réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user, "Écriture"):
+        return refusal
     from wama.accounts.permissions import accessible, all_gated_apps
     # Une app hors périmètre gardé (jumelle de bac à sable…) n'a pas de politique : on ne
     # l'invente pas, on laisse l'ownership de la vue trancher.
@@ -3047,8 +3056,8 @@ def list_registries(user) -> dict:
     Returns:
         {"registries": [{"key","label","total","nature","description","refreshable"}], "count"}
     """
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user):
+        return refusal
     from wama.common.registries import overview
 
     lignes = []
@@ -3077,8 +3086,8 @@ def get_my_access(user) -> dict:
         {"tier", "roles": [...], "apps_allowed": [...], "apps_denied": [...], "is_staff"}
         or {"error"}
     """
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user):
+        return refusal
     from wama.accounts.permissions import accessible_apps, all_gated_apps, user_roles, user_tier
 
     gardees = all_gated_apps()
@@ -3111,8 +3120,8 @@ def list_my_memories(user, kind: str = '', limite: int = 25) -> dict:
         {"memories": [{"id","kind","subject","content","provenance","source_app",
                        "confidence","niveau","cree_le","sans_vecteur"}], "total", "returned"}
     """
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user):
+        return refusal
     from wama.common.memory.store import list_memories
 
     try:
@@ -3154,12 +3163,6 @@ def list_my_memories(user, kind: str = '', limite: int = 25) -> dict:
 # droits (`get_my_access`), les registres (`list_registries`) et la documentation
 # (`search_docs`, `read_doc`). Pour EMMENER l'utilisateur sur une de ces pages : `open_page`.
 
-def _signed_in_refusal(user) -> dict | None:
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Lecture réservée aux utilisateurs identifiés."}
-    return None
-
-
 def get_my_calendar(user, start: str = '', end: str = '', with_instance: bool = False,
                     limit: int = 100) -> dict:
     """
@@ -3180,8 +3183,7 @@ def get_my_calendar(user, start: str = '', end: str = '', with_instance: bool = 
         {"events": [{"title","start","end","nature","app","status","url","item_id"}],
          "window": {"start","end"}, "total", "returned"} or {"error"}
     """
-    refusal = _signed_in_refusal(user)
-    if refusal:
+    if refusal := _signed_in_refusal(user):
         return refusal
     from wama.common.services.calendar import NATURE_LABELS, calendar_window, events_for
 
@@ -3227,8 +3229,7 @@ def list_my_notifications(user, unread_only: bool = False, limit: int = 20) -> d
         {"notifications": [{"id","kind","title","body","app","created_at","read","open_url"}],
          "unread", "total", "returned"} or {"error"}
     """
-    refusal = _signed_in_refusal(user)
-    if refusal:
+    if refusal := _signed_in_refusal(user):
         return refusal
     from wama.common.services.notification_panel import notification_list
 
@@ -3258,8 +3259,7 @@ def list_my_shares(user) -> dict:
         {"shared": [...], "received": [...], "incoming_requests": [...],
          "outgoing_requests": [...]} or {"error"}
     """
-    refusal = _signed_in_refusal(user)
-    if refusal:
+    if refusal := _signed_in_refusal(user):
         return refusal
     from wama.common.services.revisions import json_safe
     from wama.common.services.sharing import shares_overview
@@ -3285,8 +3285,7 @@ def list_my_rag(user, level: str = '', query: str = '', limit: int = 50) -> dict
         {"documents": [{"source_id","source_ref","level","fragments","vectorised",
                         "reindex_due","added_at"}], "total", "returned"} or {"error"}
     """
-    refusal = _signed_in_refusal(user)
-    if refusal:
+    if refusal := _signed_in_refusal(user):
         return refusal
     from wama.common.memory.index import list_rag
 
@@ -3321,8 +3320,7 @@ def get_my_profile(user) -> dict:
         {"username","first_name","last_name","email","settings": {name: {"label","value"}},
          "affiliation": [...], "linked_channels": [...]} or {"error"}
     """
-    refusal = _signed_in_refusal(user)
-    if refusal:
+    if refusal := _signed_in_refusal(user):
         return refusal
     from wama.accounts.models import UserProfile
     from wama.accounts.views import rattachement_institutionnel
@@ -3390,12 +3388,12 @@ def remember_fact(user, content: str, kind: str = 'semantic', subject: str = '')
     # qu'un humain ne l'a pas validé sur la page « Mes souvenirs » (`memories_approve`). Aucun
     # contournement ici — c'est un écrit de LLM, même quand il reformule l'utilisateur.
     # `embed=False` : écrire n'est pas vectoriser (§5bis) — le rappel lexical le retrouve, le
-    # vecteur vient de `sync_memory --reindex`, geste explicite.
+    # vecteur vient du lot nocturne `common.reindex_memory` (ou du bouton de « Mon RAG »).
     # POURQUOI (2026-10-11, fil web n° 32) : à « mets à jour ta mémoire », l'assistant a répondu
     # « je vais enregistrer ce fait » — aucun outil d'écriture n'existait, rien n'a été écrit.
     # `PROV_ASSISTANT` était déclaré au modèle depuis août, sans aucun producteur.
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return {'error': "Écriture réservée aux utilisateurs identifiés."}
+    if refusal := _signed_in_refusal(user, "Écriture"):
+        return refusal
     content = ' '.join((content or '').split())
     if not content:
         return {'error': "content vide : rien à retenir."}
