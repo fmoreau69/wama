@@ -2957,7 +2957,7 @@ ci-dessous a été relu à la source, sauf mention ⚠ non vérifié.
 
 | moteur | sortie | licence code / poids | intégrable ici ? |
 |---|---|---|---|
-| **MuScriptor** (Kyutai + Mirelo, 2026-07, arXiv 2607.08168) | MIDI multi-instrument (36 groupes, voix et batterie comprises), tempo / mesures / quantification ; `--format sheets` → MusicXML + PDF (exige MuseScore 4) | MIT / **CC BY-NC 4.0**, dépôts HF à accès à accepter (jeton HF au 1er téléchargement) | PyPI `muscriptor` 0.3.0, PyTorch ≥ 2.3, numpy ≥ 2 ✓ ; mais `fastapi>=0.136.3`, `uvicorn>=0.48`, `soundfile>=0.14` (venv : 0.115.14 / 0.38 / 0.13.1) — `fastapi` emporterait le `starlette==0.46.2` épinglé du serveur MCP. Ces trois paquets servent son interface web, pas l'inférence → installation sans dépendances + `beat-this`, que la route `library` ne sait pas encore déclarer (même trou que `manifests/libraries/chatterbox-tts.json`) |
+| **MuScriptor** (Kyutai + Mirelo, 2026-07, arXiv 2607.08168) | MIDI multi-instrument (36 groupes, voix et batterie comprises), tempo / mesures / quantification ; `--format sheets` → MusicXML + PDF (exige MuseScore 4) | MIT / **CC BY-NC 4.0**, dépôts HF à accès à accepter (jeton HF au 1er téléchargement) | PyPI `muscriptor` 0.3.0, PyTorch ≥ 2.3, numpy ≥ 2 ✓ ; mais `fastapi>=0.136.3`, `uvicorn>=0.48`, `soundfile>=0.14` (venv : 0.115.14 / 0.38 / 0.13.1) — `fastapi` emporterait le `starlette==0.46.2` épinglé du serveur MCP. Ces trois paquets servent son interface web, pas l'inférence → installation sans dépendances + `beat-this`, par la route `library` (`constraints.no_deps`, en place depuis le 2026-10-01 — voir la correction plus bas) |
 | **YourMT3+** (2024) | un MIDI multi-programmes, voix et batterie comprises | ⚠ GPL-3.0 (GitHub) contre Apache-2.0 (Space HF) : à éclaircir | code et poids seulement dans un Space HF ; épingle `transformers==4.45.1`, `numpy==1.26.4` (venv : 4.57.6 / 2.3.5) et des paquets `git+` (refusés par la route `library`) → vendorisation + venv dédié |
 | MT3 / MR-MT3 | MIDI multi-instrument | Apache-2.0 / MIT | piles anciennes (JAX + TF ; transformers 4.18, TF 2.11) — dépassés en qualité |
 | Basic Pitch (Spotify) | MIDI polyphonique SANS étiquette d'instrument, pas de batterie | Apache-2.0 | ONNX possible ; sur Python 3.12 la résolution pip passe par TF < 2.15.1 (⚠ déduit) → installation sans dépendances + onnxruntime |
@@ -2991,8 +2991,23 @@ abcjs suppose une conversion MIDI → ABC (brique commune à écrire sur `pretty
    batterie ADTOF, voix SheetSage2) : le plus modulaire et le moins cher en licences, le plus
    faible sur la piste « autre » (un bloc polyphonique sans étiquette).
 
-**Décisions qui attendent Fabien** : (a) l'architecture ; (b) les licences non commerciales
-(MuScriptor CC BY-NC + clause « droits sur la musique » ; même régime que SheetSage2 et MusicGen,
-`docs/construction/exploitation/LICENSING.md`) ; (c) l'installation sans dépendances par la route
-`library` (étendre la route plutôt qu'un `pip` direct) ; (d) MuseScore 4 (GPL-3, binaire hôte) ou
-une brique MIDI → ABC à nous ; (e) le jeton Hugging Face pour un dépôt à accès contrôlé.
+**Décisions de Fabien (2026-10-16)** :
+- (a) **architecture : le second process, à côté** (option 1 ci-dessus) — `extract_score` reste
+  le lead sheet que le rendu suit ; « Partition complète » est un process OPTIONNEL à part ;
+- (b) **licences non commerciales acceptées** (MuScriptor CC BY-NC 4.0 et sa clause « droits sur
+  la musique » ; même régime que SheetSage2 et MusicGen, `docs/construction/exploitation/LICENSING.md`) ;
+- (d) **la notation : les deux voies acceptées** — MuseScore 4 (GPL-3, binaire hôte : export
+  MusicXML et PDF) ou une brique MIDI → ABC à nous ; le choix se fera à l'implémentation.
+- ⚠ **Correction (relevée par Fabien le jour même : « tu n'as pas regardé ce qui est déjà en
+  place »)** — les points (c) et (e) de la première version de cette veille n'étaient PAS des
+  décisions à prendre, ils sont ACQUIS. La recherche n'avait balayé que les manifestes JSON
+  (`manifests/libraries/*.json`), pas le code qui les lit :
+  - (c) installer sans dépendances : `constraints.no_deps` du manifeste `library`, depuis le
+    2026-10-01 (`wama/common/manifests/builtin/library.py:66-71`, appliqué par
+    `model_installer.py:2265-2307`, tenu par `model_manager/tests/tests_library_install.py:135`) ;
+    pendant côté backend : `PIP_NO_DEPS` (`common/backends/base.py:453`, NeMo et Qwen3-ASR) ;
+  - (e) dépôt à accès contrôlé : jeton Hugging Face au domicile unique `.env`, promu en `HF_TOKEN`
+    au démarrage (`common/backends/sam3_processor.py:28-41`), ou jeton personnel du profil
+    (`accounts/api_keys.py:175`, `download_token`) ; le catalogue porte `gated` (SAM3, pyannote).
+    Reste à faire, hors code : accepter la licence de MuScriptor sur Hugging Face avec le compte
+    du jeton qui téléchargera.
