@@ -1,7 +1,8 @@
 {% extends 'base.html' %}
+{% load wama_catalog %}
 {% load static %}
 {% load wama_static %}
-{% block title %}Documentation — WAMA{% endblock %}
+{% block title %}{% page_heading as heading %}{{ heading.label }} — WAMA{% endblock %}
 {% block console_app_name %}common{% endblock %}
 
 {% comment %}
@@ -35,7 +36,7 @@
 {% block content %}
 <div class="wama-cat-wrap">
 
-  {% include 'common/_catalog_header.html' with titre='Documentation' icone='fa-file-lines' registre='docs' %}
+  {% include 'common/_catalog_header.html' with registre='docs' %}
 
   <div class="wama-cat-stats">
     <span class="wama-cat-stat"><b>{{ docs|length }}</b> documents</span>

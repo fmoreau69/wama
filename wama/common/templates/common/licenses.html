@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% load wama_catalog %}
-{% block title %}Catalogue des licences - WAMA{% endblock %}
+{% block title %}{% page_heading as heading %}{{ heading.label }} — WAMA{% endblock %}
 {% block console_app_name %}common{% endblock %}
 
 {% comment %}
@@ -55,7 +55,7 @@
 
 {% block content %}
 <div class="wama-cat-wrap">
-  {% include 'common/_catalog_header.html' with titre='Catalogue des licences' icone='fa-scale-balanced' registre='licenses' %}
+  {% include 'common/_catalog_header.html' with registre='licenses' %}
   <p class="text-secondary small mb-3">
     Vue <b>transversale et dérivée</b> : elle agrège les modèles, les librairies et les médias,
     et suit la composition déclarée par les <code>requires</code> des manifestes d'app.

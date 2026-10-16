@@ -23666,8 +23666,15 @@ ou par un nouvel ajout de l'URL.
 
 🔚 **Restes, non faits** : ① `/media/` servi sans contrôle (`PROFILES_PERMISSIONS.md:249`, reste 2 « avant toute mise en production ») —
 un `.html` gardé s'y ouvre comme une page sur l'origine de WAMA : à trancher avant la production ;
-② la card ne se rafraîchit pas d'elle-même à l'arrivée du fichier (rouvrir l'aperçu le montre) ;
-③ YouTube obtenu en 360p alors que le code dit « meilleure qualité » ; ④ synthesizer : `WAMA_INGEST`
+~~② la card ne se rafraîchit pas d'elle-même à l'arrivée du fichier~~ ✅ 2026-10-14 (`c11206a` :
+marqueur `data-ingest-pending` de la bande commune `_card_processes.html`, boucle `WamaApp.Poller`
+de `wama-app-base.js` ; remplacée 2,2 s après l'arrivée, mesuré au navigateur) ;
+~~③ YouTube obtenu en 360p~~ ✅ 2026-10-14 (`c11206a` : yt-dlp 2026.8.19 + `yt-dlp-ejs` + `deno`,
+clients forcés retirés, H.264 d'abord — le « meilleur » brut est de l'AV1 4K qu'OpenCV ne lit pas ;
+1080p mesuré). ⚠ Les trois librairies avaient été installées par `pip` direct : entrées par la route
+`library` ensuite (`e7a0e498` : manifestes, registre `Library` donc page Licences, `install_library`),
+l'anonymizer déclarant yt-dlp dans son `requires` (`6c6c2298`) ; venv_win non mis à jour ;
+④ synthesizer : `WAMA_INGEST`
 déclaré, aucune vue n'enregistre d'URL ; ⑤ geste nocturne 14 : le contrôle anti-SSRF lit désormais
 un téléchargement asynchrone (`WAMA_VERIFICATION §Geste 14`, note du 13/10) ; ⑥ budgets de
 `check_identifier_language` dépassés par du travail en cours d'autres sessions (aucun de ces

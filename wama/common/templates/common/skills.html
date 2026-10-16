@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% load wama_catalog %}
-{% block title %}Skills — WAMA{% endblock %}
+{% block title %}{% page_heading as heading %}{{ heading.label }} — WAMA{% endblock %}
 {% block console_app_name %}common{% endblock %}
 
 {% comment %}
@@ -66,7 +66,7 @@
   {% comment %}Le bouton du registre `skills` (REDECLARATION : « actualiser » vide le cache de
   lecture, un `.md` modifié à chaud est repris sans redémarrage) vivait en PIED de page —
   remonté dans l'en-tête commun, comme partout.{% endcomment %}
-  {% include 'common/_catalog_header.html' with titre='Skills' icone='fa-wand-magic-sparkles' registre='skills' %}
+  {% include 'common/_catalog_header.html' with registre='skills' %}
 
   <div class="wama-cat-hero">
     <h3>Les consignes données aux modèles de langage</h3>

@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% load wama_catalog %}
-{% block title %}Formats médias — WAMA{% endblock %}
+{% block title %}{% page_heading as heading %}{{ heading.label }} — WAMA{% endblock %}
 {% block console_app_name %}common{% endblock %}
 
 {% comment %}
@@ -23,7 +23,7 @@
 {% block content %}
 <div class="wama-cat-wrap">
 
-  {% include 'common/_catalog_header.html' with titre='Formats médias' icone='fa-photo-film' registre='media_formats' %}
+  {% include 'common/_catalog_header.html' with registre='media_formats' %}
 
   <div class="wama-cat-stats">
     <span class="wama-cat-stat"><b>{{ total_extensions }}</b> extension{{ total_extensions|pluralize }} reconnue{{ total_extensions|pluralize }}</span>

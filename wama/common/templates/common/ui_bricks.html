@@ -2,7 +2,7 @@
 {% load static %}
 {% load wama_static %}
 {% load wama_catalog %}
-{% block title %}Briques UI — WAMA{% endblock %}
+{% block title %}{% page_heading as heading %}{{ heading.label }} — WAMA{% endblock %}
 {% block console_app_name %}common{% endblock %}
 
 {% comment %}
@@ -38,7 +38,7 @@
 {% block content %}
 <div class="wama-cat-wrap">
 
-  {% include 'common/_catalog_header.html' with titre='Briques UI' icone='fa-puzzle-piece' registre='ui_bricks' %}
+  {% include 'common/_catalog_header.html' with registre='ui_bricks' %}
 
   <div class="wama-cat-stats">
     <span class="wama-cat-stat"><b>{{ bricks|length }}</b> brique{{ bricks|length|pluralize }}</span>

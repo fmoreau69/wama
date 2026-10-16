@@ -786,6 +786,35 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     ROUGE) ; chaque `<app>.preview` mesure la même règle sur la card réelle ;
     `tests_preview_entry.SidesSwitchHasItsOwnPlaceTest`. ~~⏳ Le volet recopie la construction de
     la bascule (`_renderSideToggle`, sans la face Pendant)~~ — ✅ soldé le jour même, bloc suivant.
+  - ✅ **Les faces en ONGLETS AU-DESSUS de l'aperçu, la lecture qui SUIT la face — 2026-10-14→15**
+    (`78c4c084` ; Fabien : *« je préférais l'esthétique de la preview du Transcriber avant […]
+    quelque chose de moderne, dont le contenu se redimensionne correctement »*, puis : *« les barres
+    latérales pour naviguer masquent une partie de la preview »*, *« quand je change d'onglet
+    vidéo, la vidéo repart de 0 »*). La règle du bloc précédent change de côté, pas de principe :
+    l'emplacement dédié est AU-DESSUS, jamais sur le contenu.
+    - **Visionneuse** : `sidesBar` rend des onglets (`role=tablist`), répartis sur la largeur
+      (bornés à 280 px à tout l'écran) ; une face texte a son cadre (`_textPane` : mots, Copier,
+      colonne de lecture, chasse fixe pour CSV/JSON) ; largeur selon la nature (`viewerKind`),
+      hauteur = ce que laisse l'écran (`--wv-stage`) au lieu de 70vh/65vh figés ; ouvrir / plein
+      écran / fermer dans l'en-tête ; flèches de navigation dans leurs MARGES (`has-nav`).
+    - **Volet** : les mêmes onglets ; trop étroits, ils se RESSERRENT (`_fitFaceTabs` : icônes,
+      l'onglet actif garde son nom, bulle au survol, défilement en dernier recours).
+    - **La lecture suit la face** (`takeClock` / `giveClock`, volet et visionneuse) : même élément
+      → même position et même état ; une face texte met en pause et garde la position.
+    - **Défaut corrigé** (`wama-audio-player.js`) : `getAudio` rendait l'audio d'un conteneur
+      REMPLACÉ sous le même id — l'onde et la lecture disparaissaient au retour sur l'entrée audio
+      du volet pendant que l'ancien audio jouait hors du DOM ; `current` / `release`, et `seek` qui
+      pose la position dès que le fichier est positionnable. ⚠ `/media/` n'est positionnable que
+      servi par Apache (206) ; gunicorn direct répond 200 — un banc doit servir en 206.
+    - Gardes : `tests_preview_navigation` (onglets, resserrement, largeur, lecture qui suit),
+      `tests_audio_player_rebuilt` (conteneur reconstruit, position différée — contre-épreuve sur
+      l'ancien code rouge), `common.preview_layout` (onglets au-dessus, flèches qui ne recouvrent
+      pas l'aperçu, en séquence, 2026-10-16), `<app>.preview` joué sur le site réel (9 apps OK).
+    - ⏳ Restes : le nombre de mots dans les onglets (il faudrait charger toutes les faces) ;
+      l'habillage de la bascule Détection | Floutage et des encadrés du rapport de cohérence ;
+      un geste nocturne de bout en bout pour « la lecture suit la face » (aujourd'hui : briques
+      sous V8 + banc navigateur de session) ; l'aperçu construit à partir des BRIQUES UI (décidé :
+      après la refonte visuelle).
   - ✅ **UNE brique d'aperçu, UNE bascule, UNE navigation — 2026-10-13** (Fabien : *« une seule
     brique commune de preview devrait suffire, contenant toutes les possibilités et s'adaptant à
     l'appel (filemanager, preview modale de card, volet droit, plein écran) »*, puis *« quand

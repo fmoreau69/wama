@@ -86,6 +86,8 @@ JS_SHOWN = """() => {
 #: sous lui avant), et visible sans défiler. Demande de Fabien (2026-10-13) : posée sur l'aperçu,
 #: elle recouvrait la barre d'outils du lecteur PDF, le haut d'un texte, l'image ou la vidéo à tout
 #: l'écran. `null` : pas de visionneuse ou pas de bascule.
+#: Et les FLÈCHES de navigation (2026-10-15, Fabien : posées sur l'aperçu, elles masquaient le
+#: bouton de lecture d'un son) : `nav_cross` = une flèche AFFICHÉE croise le contenu.
 JS_SIDES_LAYOUT = """() => {
     const m = document.querySelector('#wamaMediaPreviewModal.show');
     if (!m) return null;
@@ -96,7 +98,12 @@ JS_SIDES_LAYOUT = """() => {
     const r = e => e.getBoundingClientRect();
     const c = r(content);
     const media = box.querySelector('img, video, embed, pre');
+    const navs = Array.from(m.querySelectorAll('.wama-preview-nav-btn'))
+        .filter(b => getComputedStyle(b).display !== 'none' && r(b).width > 0);
     return {
+        navs: navs.length,
+        nav_cross: navs.some(b => { const s = r(b);
+            return !(s.right <= c.left + 0.5 || s.left >= c.right - 0.5 || s.bottom <= c.top || s.top >= c.bottom); }),
         bars: bars.map(b => { const s = r(b); return {
             cross: !(s.bottom <= c.top || s.top >= c.bottom || s.right <= c.left || s.left >= c.right),
             above: s.bottom <= c.top + 0.5,
@@ -177,6 +184,8 @@ def sides_layout_fault(layout, where: str, must_fill: bool = False) -> str:
             return f"{where} : la bascule des faces n'est pas AU-DESSUS de l'aperçu"
         if not bar['visible']:
             return f"{where} : la bascule des faces sort de l'écran"
+    if layout.get('nav_cross'):
+        return f"{where} : une flèche de navigation recouvre l'aperçu"
     if must_fill and not layout['fills']:
         return f"{where} : le média ne prend pas la hauteur disponible"
     return ''
@@ -570,9 +579,11 @@ def check_preview_layout():
     folder = os.path.join(str(settings.MEDIA_ROOT), 'smoke_preview_layout')
     base = settings.MEDIA_URL + 'smoke_preview_layout/'
     _in_plain_thread(_layout_witnesses, folder)
-    opened = """([data, sides, item]) => window.showPreviewModal(Object.assign({}, data,
-        {name: 'témoin', side: 'output', sides: sides, _baseUrl: item}))"""
-    faults, measured = [], 0
+    # Une SÉQUENCE de deux éléments : les flèches de navigation s'affichent, leur place se mesure.
+    opened = """([data, sides, item]) => { const face = Object.assign({}, data,
+        {name: 'témoin', side: 'output', sides: sides, _baseUrl: item});
+        window.showPreviewModalWithNav(face, [face, face], 0); }"""
+    faults, measured, arrows = [], 0, 0
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
@@ -599,11 +610,16 @@ def check_preview_layout():
                         for full in (False, True):
                             page.evaluate(JS_FULL, full)
                             page.wait_for_timeout(600)
+                            layout = page.evaluate(JS_SIDES_LAYOUT)
                             fault = sides_layout_fault(
-                                page.evaluate(JS_SIDES_LAYOUT),
-                                f"{name}, {'tout l’écran' if full else 'modale'}, {screen}",
+                                layout, f"{name}, {'tout l’écran' if full else 'modale'}, {screen}",
                                 must_fill=full and name in ('image', 'vidéo'))
                             measured += 1
+                            # Une séquence est ouverte : sans flèche affichée, leur place n'est
+                            # pas mesurée — le contrôle passerait à vide.
+                            if layout and not layout.get('navs'):
+                                fault = fault or f"{name}, {screen} : aucune flèche de navigation affichée"
+                            arrows += bool(layout and layout.get('navs'))
                             if fault:
                                 faults.append(fault)
                         page.evaluate(JS_FULL, False)
@@ -634,7 +650,8 @@ def check_preview_layout():
         return False, ' ; '.join(faults)
     return True, (f"{measured} mises en page mesurées ({len(LAYOUT_CASES)} natures + Comparer, "
                   f"modale et tout l'écran, {len(LAYOUT_VIEWPORTS)} tailles d'écran) : la bascule "
-                  "est au-dessus de l'aperçu, sans le recouvrir")
+                  f"est au-dessus de l'aperçu, sans le recouvrir ; les flèches ({arrows} mesures) "
+                  "ne le recouvrent pas")
 
 
 #: L'état de la visionneuse que lisent les gestes de navigation : le fichier montré (titre), le
@@ -938,7 +955,8 @@ def register_preview_scenarios():
         id="common.preview_layout", app="common", stage="ui",
         description=("Visionneuse : la bascule des faces (Entrée | … | Sortie) est AU-DESSUS de l'aperçu, "
                      "sans le recouvrir, pour chaque nature de fichier (image, vidéo, audio, PDF, "
-                     "texte, Comparer), à sa taille et à tout l'écran, sur deux tailles d'écran"),
+                     "texte, Comparer), à sa taille et à tout l'écran, sur deux tailles d'écran ; "
+                     "les flèches de navigation ne le recouvrent pas non plus"),
         run=lambda ctx: check_preview_layout(),
         timeout_s=240, vram_gb=0.0,
     )

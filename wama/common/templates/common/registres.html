@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% load wama_catalog %}
-{% block title %}Registres — WAMA{% endblock %}
+{% block title %}{% page_heading as heading %}{{ heading.label }} — WAMA{% endblock %}
 {% block console_app_name %}common{% endblock %}
 
 {% comment %}
@@ -42,7 +42,7 @@
 
   {% comment %}Pas de `registre=` : cette page porte un bouton PAR card, un bouton global
   d'en-tête serait ambigu (actualiser quoi ?).{% endcomment %}
-  {% include 'common/_catalog_header.html' with titre='Registres' icone='fa-layer-group' %}
+  {% include 'common/_catalog_header.html' %}
 
   <div class="wama-cat-hero">
     <h3>Ce qui se tient à jour, et comment</h3>

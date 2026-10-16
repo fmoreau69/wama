@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% load wama_catalog %}
-{% block title %}Catalogue des librairies - WAMA{% endblock %}
+{% block title %}{% page_heading as heading %}{{ heading.label }} — WAMA{% endblock %}
 {% block console_app_name %}model_manager{% endblock %}
 
 {% block extra_css %}
@@ -18,7 +18,7 @@
 
 {% block content %}
 <div class="wama-cat-wrap">
-  {% include 'common/_catalog_header.html' with titre='Catalogue des librairies' icone='fa-book' registre='libraries' %}
+  {% include 'common/_catalog_header.html' with registre='libraries' %}
   <p class="text-secondary small mb-3">
     Registre <code>Library</code> — alimenté par la <b>projection des manifestes</b>
     (<code>write_back_library</code>), jamais édité à la main. L'installation mesurée ici est

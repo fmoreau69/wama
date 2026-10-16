@@ -2,7 +2,7 @@
 {% load static %}
 {% load wama_static %}
 {% load wama_catalog %}
-{% block title %}Sources externes — WAMA{% endblock %}
+{% block title %}{% page_heading as heading %}{{ heading.label }} — WAMA{% endblock %}
 {% block console_app_name %}common{% endblock %}
 
 {% comment %}
@@ -42,7 +42,7 @@ smoke.{% endcomment %}
 
   {% comment %}Cette page n'avait AUCUN titre (constat au portage de l'en-tête commun) —
   elle ouvrait sur le bandeau de stats. Icône = celle de son entrée de menu.{% endcomment %}
-  {% include 'common/_catalog_header.html' with titre='Sources externes' icone='fa-satellite-dish' registre='external_sources' %}
+  {% include 'common/_catalog_header.html' with registre='external_sources' %}
 
   <div class="wama-cat-stats">
     <span class="wama-cat-stat"><b>{{ lignes|length }}</b> sources déclarées</span>

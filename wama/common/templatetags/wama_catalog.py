@@ -14,6 +14,19 @@ from ..registries import (CELERY, DERIVED, EXECUTIONS, NATURES, REGISTRIES, exec
 register = template.Library()
 
 
+@register.simple_tag(takes_context=True)
+def page_heading(context, title='', icon=''):
+    """`{label, icon}` de la page servie : ceux de son ENTRÉE DE MENU (`account_page_of`, lue par
+    la route de la requête) — l'en-tête commun et le titre de l'onglet les lisent, aucun gabarit ne
+    les recopie (2026-10-16). Un titre ou une icône PASSÉ explicitement l'emporte : une page hors
+    menu (la lecture d'un doc, titrée par le doc lu) dit le sien. '' quand rien ne le déclare —
+    `tests_catalog_heading` exige qu'aucune page catalogue n'en soit là."""
+    from ..app_registry import account_page_of
+    match = getattr(context.get('request'), 'resolver_match', None)
+    page = account_page_of(getattr(match, 'view_name', '') or '') or {}
+    return {'label': title or page.get('label', ''), 'icon': icon or page.get('icon', '')}
+
+
 @register.inclusion_tag('common/_catalog_refresh.html', takes_context=True)
 def refresh_button(context, key, reload_page=True):
     """Rend le contrôle d'actualisation du registre `key`.

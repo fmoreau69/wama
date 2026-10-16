@@ -1922,6 +1922,17 @@ parce que ce sont des surfaces.
   deux filtres de la page), `get_my_profile` (les champs de `UserProfile` lus par leurs
   MÉTADONNÉES — libellé, valeur affichée — ; aucun secret : jeton et clés ont leurs tables). Le
   journal, les souvenirs, les droits, les registres et la documentation avaient déjà les leurs.
+- **La page porte le nom de son entrée (2026-10-16, demande de Fabien).** L'en-tête commun des
+  pages catalogue (`_catalog_header.html`) et le titre de l'onglet lisent libellé et icône de
+  l'entrée de menu par la route de la requête (`app_registry.account_page_of`, tag
+  `wama_catalog.page_heading`) : dix gabarits les recopiaient — l'icône identique dix fois sur dix,
+  le titre en trois variantes pour la même page (« Licences » au menu, « Catalogue des licences »
+  en titre, « - » ou « — » dans l'onglet). Quatre titres visibles changent donc : Licences,
+  Fonctions, Librairies, Sources. Seule une page HORS menu (la lecture d'un doc) passe le sien.
+  Le libellé d'un REGISTRE reste à part : il nomme le registre, pas la page (Skills montre les
+  registres `skills` et `prompts`). Garde : `tests_catalog_heading`.
+- **Briques UI** (2026-10-16) : la page du registre `ui_bricks` (`/common/ui-bricks/`) entre au
+  menu, section WAMA, après Formats médias.
 - Gardes : `common/tests/tests_account_pages.py` — la PARITÉ (chaque page déclarée × visiteur,
   compte de service de visiteur, membre, membre privé des registres par la politique,
   administrateur : la décision de l'assistant = la réponse de la vue), le menu généré et ses

@@ -1040,6 +1040,18 @@ def account_pages() -> list:
                                       p['label']))
 
 
+def account_page_of(url_name: str) -> dict | None:
+    """La page du compte que sert la route `url_name` (`'common:licenses_catalog'`), ou None.
+
+    C'est ce que lit l'en-tête d'une page catalogue pour son titre et son icône (`page_heading`,
+    2026-10-16) : chaque gabarit les RECOPIAIT de son entrée de menu — l'icône à l'identique dix
+    fois sur dix, le titre en trois variantes pour la même page (« Licences » au menu, « Catalogue
+    des licences » en titre). Une page du menu est nommée comme son entrée, à un seul endroit."""
+    if not url_name:
+        return None
+    return next((p for p in account_pages() if p['url_name'] == url_name), None)
+
+
 def surfaces(world: str | None = None) -> list:
     """Surfaces déclarées (copies), d'un monde ou de tous, dans l'ordre de leur section."""
     found = [dict(s) for s in _SURFACES.values() if world is None or s['world'] == world]

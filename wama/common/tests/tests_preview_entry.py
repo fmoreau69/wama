@@ -388,6 +388,11 @@ class SidesSwitchHasItsOwnPlaceTest(SimpleTestCase):
             {'bars': [dict(good, above=False)], 'fills': True}, 'pdf'))
         self.assertIn("sort de l'écran", sides_layout_fault(
             {'bars': [dict(good, visible=False)], 'fills': True}, 'pdf'))
+        # 2026-10-15 : les flèches de navigation masquaient le bouton de lecture d'un son.
+        self.assertIn('flèche', sides_layout_fault(
+            {'bars': [good], 'fills': True, 'navs': 2, 'nav_cross': True}, 'audio'))
+        self.assertEqual('', sides_layout_fault(
+            {'bars': [good], 'fills': True, 'navs': 2, 'nav_cross': False}, 'audio'))
         self.assertIn('hauteur', sides_layout_fault({'bars': [good], 'fills': False}, 'image',
                                                     must_fill=True))
         self.assertEqual('', sides_layout_fault({'bars': [good], 'fills': False}, 'audio'))
