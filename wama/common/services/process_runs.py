@@ -45,6 +45,9 @@ MAIN_NODE = 'main'
 
 #: États d'une ligne « ouverte » : le process est parti (ou attend son tour), rien n'est rendu.
 OPEN_STATES = frozenset({JOB_RUNNING, JOB_AWAITING_RESOURCES})
+#: États d'une ligne dont la photo de réglages est celle d'un RENDU : un succès, ou un succès
+#: devenu périmé (`rendered_before`).
+RENDERED_STATES = frozenset({JOB_SUCCESS, JOB_STALE})
 
 #: Degrés de liberté d'un process dans son pipeline (point 3.2).
 REQUIRED = 'required'
@@ -147,10 +150,10 @@ def rendered_before(row, task_id: str = '') -> bool:
     (même lecture que `task_skeleton._launch_done`)."""
     if row is None:
         return False
-    if row.status in (JOB_SUCCESS, JOB_STALE):
+    if row.status in RENDERED_STATES:
         return True
     return bool(task_id and row.status == JOB_PENDING and row.task_id == task_id
-                and (row.output_summary or {}).get(PLANNED_FROM_KEY) in (JOB_SUCCESS, JOB_STALE))
+                and (row.output_summary or {}).get(PLANNED_FROM_KEY) in RENDERED_STATES)
 
 
 def start(item, node_id: str = MAIN_NODE, *, process_key: str = '', kind: str = 'app',

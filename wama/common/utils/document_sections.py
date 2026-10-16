@@ -212,6 +212,14 @@ def patch_section(tag, old: str, new: str) -> bool:
     return True
 
 
+def _form_hints(*, style: str = '', language: str = '', kind: str = '') -> str:
+    """Ce que le modèle doit savoir de la FORME demandée, en fin de consigne — dit une fois pour
+    les deux mises en forme (une section, le document entier)."""
+    return ((f" Nature du document : {kind}." if kind else '')
+            + (f" Langue du document : {language}." if language else '')
+            + (f" Consigne de forme : {style}" if style else ''))
+
+
 def section_relayout_messages(index: int, new_text: str, current_html: str, *,
                               style: str = '', language: str = '') -> list:
     """Les messages qui demandent au modèle de remettre en forme UNE section, en reprenant la
@@ -222,8 +230,7 @@ def section_relayout_messages(index: int, new_text: str, current_html: str, *,
         f'{SECTION_ATTR}="{index}", avec la même structure, les mêmes classes et le même style '
         "que le fragment actuel. Reprends le texte fourni sans le modifier, le résumer ni le "
         "compléter. Pas de <html>, de <head>, de <style>, de commentaire ni de bloc de code."
-        + (f" Langue du document : {language}." if language else '')
-        + (f" Consigne de forme : {style}" if style else ''))
+        + _form_hints(style=style, language=language))
     user = (f"Fragment actuel de la section :\n{current_html}\n\n"
             f"Nouveau texte de la section (Markdown) :\n{new_text}")
     return [{'role': 'system', 'content': system}, {'role': 'user', 'content': user}]
@@ -337,10 +344,7 @@ def full_layout_messages(text: str, *, style: str = '', language: str = '',
     Les deux glus générées sur la seule règle, le 2026-10-13, n'envoyaient pas le fond au modèle :
     le nom faisait croire qu'elle le contenait (elle n'en lit que le nombre de sections). Une glu
     passe donc par cette brique, puis par `finish_document`."""
-    system = (full_layout_instruction(text)
-              + (f" Nature du document : {kind}." if kind else '')
-              + (f" Langue du document : {language}." if language else '')
-              + (f" Consigne de forme : {style}" if style else ''))
+    system = full_layout_instruction(text) + _form_hints(style=style, language=language, kind=kind)
     return [{'role': 'system', 'content': system},
             {'role': 'user', 'content': f"Fond à mettre en forme (Markdown) :\n{text}"}]
 

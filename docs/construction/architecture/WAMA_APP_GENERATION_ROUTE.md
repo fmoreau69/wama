@@ -4630,7 +4630,11 @@ process** (clé ETA du process, pas de l'app), signal `RunOutcome` par process, 
 >   l'attente de VRAM — pas une chaîne Celery à côté du moteur, 4.8). Les process rendus ne se
 >   rejouent pas (`steps_to_run`), leurs lignes portent la tâche (`plan`), Celery garde son
 >   identifiant : la barre, les secondes mesurées (`processing_seconds`, que lit la file globale)
->   et les modèles employés (signal `produit`) du lancement sont reportés (`_launch_done`). Une
+>   et les modèles employés (signal `produit`) du lancement sont reportés (`_launch_done`), et la
+>   PHOTO du dernier rendu offerte aux glues (`ctx.previous_snapshot`) survit au plan : `plan`
+>   garde le statut qu'il remplace (`output_summary.planned_from`), `process_runs.rendered_before`
+>   reconnaît les lignes que CE lancement a annoncées (2026-10-14, `b20a3957` — mesuré sur le
+>   live : sans elle, chaque « Appliquer » du Writer refaisait toute la mise en forme). Une
 >   longue conversion CPU ne réserve plus la file GPU ; le post-traitement IA du converter y entre
 >   à son tour ; la sortie d'une card GPU rend la file GPU dès que le modèle a rendu ;
 > - **la priorité** d'une re-livraison est celle de l'app (`celery_priority_for`, la source des

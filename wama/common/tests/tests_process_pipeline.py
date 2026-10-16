@@ -678,6 +678,10 @@ class SkeletonRunsThePipelineTest(TestCase):
         self.assertTrue(process_runs.rendered_before(line, task_id))
         process_runs.plan(item, [('render', 'render', 'function')], task_id='another-task')
         self.assertFalse(process_runs.rendered_before(process_runs.line(item, 'render'), task_id))
+        # A launch stopped before its turn, then launched again : the line was already PENDING,
+        # nothing rendered since — the new launch still sees the last render.
+        self.assertTrue(process_runs.rendered_before(process_runs.line(item, 'render'),
+                                                     'another-task'))
         ProcessRun.objects.filter(pk=line.pk).update(status=JOB_FAILURE)
         process_runs.plan(item, [('render', 'render', 'function')], task_id=task_id)
         self.assertFalse(process_runs.rendered_before(process_runs.line(item, 'render'), task_id))

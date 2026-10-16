@@ -4496,6 +4496,11 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
      Base = copies gardées + photo de ce que le process surveille (`ctx.previous_snapshot`,
      squelette) : la forme demandée a changé → tout refaire. Montrées au rôle `codegen` pour le
      seul process qu'une surface rejoue. La GLU `layout` se régénère PAR LE RÔLE (D5).
+     ✅ **Glu appliquée le 2026-10-13 et VALIDÉE SUR LE LIVE le 2026-10-14** (card du compte de
+     test, trois « Appliquer » depuis la page d'édition) : bout de phrase → texte remplacé sans
+     appel (6 s), section réécrite → elle seule remise en forme (6 s), rien changé → « Fond
+     inchangé », HTML identique à l'octet (3 s). Il a fallu un correctif du squelette : la photo
+     du dernier rendu se perdait au passage à la file GPU (`ROUTE §10.6` 4.5, `b20a3957`).
    - ✅ **Styles** : le chemin existe sans geste neuf — « Ajouter à la médiathèque » range le
      HTML rendu (Document), le port « Modèle de mise en page » en reprend la FORME, jamais le texte
      (`reference_comprehension`, lecture `form`). ⏳ Une nature « Style de présentation » à part
