@@ -1,0 +1,70 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "task": "text-generation",
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "openrouter"
+      }
+    },
+    "extra_info": {
+      "aliases": [
+        "meta-models/Muse-Spark-Open-816B-A42B"
+      ],
+      "hosting": "third_party",
+      "remote_type": "image-text-to-text"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "hf_id": "meta-models/Muse-Spark-Open-816B-A42B",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": "huggingface:meta-models/Muse-Spark-Open-816B-A42B",
+      "source": "openrouter"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "openrouter",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "key": "openrouter:meta/muse-spark-open",
+  "manifest_kind": "model",
+  "name": "Meta: Muse Spark Open",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:openrouter:meta/muse-spark-open",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
