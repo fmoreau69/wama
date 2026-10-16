@@ -79,6 +79,16 @@ class AppRoleChecksTest(SimpleTestCase):
         errors, _ = self.role.split_checks(draft)
         self.assertTrue(any(e.startswith('Gabarit surfaces') for e in errors), errors)
 
+    def test_the_category_is_derived_from_the_types_not_chosen_by_the_model(self):
+        concerns = []
+        kept = self.role.enforce_envelope(
+            {'body': {'identity': {'category': 'transform'},
+                      'ports': {'inputs': [{'id': 'text', 'group': 'prompt', 'types': ['prompt']}],
+                                'outputs': [{'id': 'out', 'types': ['audio']}]}}},
+            'translator', [], concerns)
+        self.assertEqual('create', kept['body']['identity']['category'])
+        self.assertTrue(any('transform' in c for c in concerns), concerns)
+
     def test_the_writer_surface_is_neither_shown_nor_kept(self):
         import json
         self.assertNotIn('surfaces', json.loads(self.role.shape_example())['body'])

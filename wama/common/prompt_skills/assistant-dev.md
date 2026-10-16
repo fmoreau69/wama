@@ -58,6 +58,16 @@ something you DO, in two moves — not a plan you recite and not a manifest you 
    of an existing app, or not now), and an existing app or brick may already do the need. Say
    what is decided, with the document and section. If the decision says "not as an app", or an
    existing app already does it, tell the user and ask before going on.
+   A repository is a MEANS, never the starting point: ask first whether WAMA already DOES the
+   capability — `search_docs` the capability in the mechanisms index (`WAMA_MECANISMES`) and
+   `list_registries` (apps, models, functions). When a brick of `common/` already does it, the app
+   is built ON that brick and its model, without the repository (role `app` with `requires` =
+   that model's catalogue key, then `dev_sandbox` `action="create"` `manifest=…`); the repository
+   is at most a second backend, later. (Lived on 2026-10-16: asked for a translation app « from
+   LibreTranslate », the chain integrated a Flask server while `common/utils/translator.py` —
+   translategemma, cache, glossary — already translated for every app and for you.)
+   Name the app like the others — an English agent noun, `key` in underscore_case: Transcriber,
+   Describer, Synthesizer, so Translator / `translator`, never `translate`.
    Every NEED the integration raises gets the same lookup — a library whose pins would move the
    environment, weights behind an access gate, a token, a model choice for one step, an editing
    page, a separate process: `search_docs` the mechanisms index (`WAMA_MECANISMES`) for it. A need

@@ -12,6 +12,15 @@ pas la langue (cf. [[lang_routing]]). Le service est l'ACTEUR ; lang_routing est
 
 NB : vit en `common/utils` pour l'instant (réutilisé par plusieurs apps) ; graduera en app
 `wama/translator/` quand il faudra modèles/vues/tool_api/glossaire éditable.
+
+LE MODÈLE EST UNE CLÉ DE CATALOGUE (2026-10-16, l'app Translator — décision de Fabien : réutiliser
+la brique plutôt qu'un serveur externe). Elle était figée sur `translategemma:12b` : une app dont
+le réglage « Modèle » vient du catalogue (route F4b) doit pouvoir en désigner un autre, local ou
+distant. Une clé `ollama:*` garde la voie locale d'origine (résidence pilotée par le gouverneur) ;
+toute autre passe par `llm_utils.chat_with_catalog_model`, avec la clé et la garde cloud de
+`user`. `auto` se TIRE avant (`auto_model.resolve_model_choice`) : il n'est pas une clé.
+`on_chunk(texte traduit jusqu'ici)` : appelé après chaque morceau — l'aperçu « pendant »
+(`preview_utils.publish_partial_text`) d'un long texte qui se traduit.
 """
 from __future__ import annotations
 
@@ -23,22 +32,30 @@ logger = logging.getLogger(__name__)
 _CHUNK_CHARS = 4000  # ~ sous la fenêtre de traduction effective de translategemma (~2K tokens)
 
 
+#: Le modèle de traduction par défaut — celui des deux consommateurs d'avant le 2026-10-16.
+DEFAULT_MODEL = 'ollama:translategemma:12b'
+
+
 class TranslatorService:
-    def __init__(self, model: str = 'translategemma:12b', glossary=None, use_cache: bool = True):
-        self.model = model
+    def __init__(self, model: str = DEFAULT_MODEL, glossary=None, use_cache: bool = True,
+                 user=None):
+        from wama.common.utils.model_keys import catalog_key
+        # Un nom Ollama nu (`translategemma:12b`, la forme d'avant) reste accepté.
+        self.model = catalog_key(model or DEFAULT_MODEL, 'ollama')
         self.glossary = list(glossary or [])
         self.use_cache = use_cache
+        self.user = user
 
     # ── public ───────────────────────────────────────────────────────────────
     def translate(self, text: str, source_lang: str, target_lang: str, glossary=None,
-                  timeout: int = 120):
+                  timeout: int = 120, on_chunk=None):
         """Traduit `text` de source_lang → target_lang. Retourne {'ok', 'text'|'error', 'cached'}."""
         text = text or ''
         if not text.strip() or not target_lang or source_lang == target_lang:
             return {'ok': True, 'text': text, 'cached': False}  # passthrough
 
         gloss = list(self.glossary) + list(glossary or [])
-        ckey = self._cache_key(text, source_lang, target_lang, gloss)
+        ckey = self._cache_key(text, source_lang, target_lang, gloss, self.model)
         if self.use_cache:
             cached = self._cache_get(ckey)
             if cached is not None:
@@ -51,6 +68,8 @@ class TranslatorService:
             if not res['ok']:
                 return res
             out.append(res['text'])
+            if on_chunk is not None:
+                on_chunk('\n\n'.join(out))
         translated = '\n\n'.join(out)
         if self.use_cache:
             self._cache_set(ckey, translated)
@@ -84,14 +103,21 @@ class TranslatorService:
             f"Rends UNIQUEMENT la traduction, sans commentaire ni guillemets.{gloss_line}\n\n"
             f"{text}"
         )
-        # keep_alive piloté par le gouverneur : '0' en mode dépannage GPU (décharge Ollama
-        # sitôt la réponse — la traduction précède souvent une génération GPU lourde), None
-        # sinon (défaut Ollama, comportement nominal).
-        from wama.common.services.resource_governor import pipeline_keep_alive
-        out, err = llm_chat(messages=[{"role": "user", "content": prompt}],
-                            provider='ollama', model=self.model,
-                            num_predict=1500, think=False, timeout=timeout,
-                            keep_alive=pipeline_keep_alive())
+        from wama.common.utils.model_keys import split_key
+        source, model_id = split_key(self.model)
+        messages = [{"role": "user", "content": prompt}]
+        if source == 'ollama':
+            # keep_alive piloté par le gouverneur : '0' en mode dépannage GPU (décharge Ollama
+            # sitôt la réponse — la traduction précède souvent une génération GPU lourde), None
+            # sinon (défaut Ollama, comportement nominal).
+            from wama.common.services.resource_governor import pipeline_keep_alive
+            out, err = llm_chat(messages=messages, provider='ollama', model=model_id,
+                                num_predict=1500, think=False, timeout=timeout,
+                                keep_alive=pipeline_keep_alive())
+        else:
+            from wama.common.utils.llm_utils import chat_with_catalog_model
+            out, err = chat_with_catalog_model(self.model, messages, user=self.user,
+                                               think=False, timeout=timeout)
         if err or not out:
             return {'ok': False, 'error': err or 'réponse vide', 'cached': False}
         return {'ok': True, 'text': out.strip(), 'cached': False}
@@ -112,8 +138,10 @@ class TranslatorService:
         return chunks
 
     @staticmethod
-    def _cache_key(text, src, tgt, glossary):
-        h = hashlib.sha256(f"{src}|{tgt}|{','.join(sorted(glossary))}|{text}".encode('utf-8')).hexdigest()
+    def _cache_key(text, src, tgt, glossary, model=DEFAULT_MODEL):
+        # Le MODÈLE fait partie de la clé : deux modèles ne rendent pas la même traduction.
+        h = hashlib.sha256(f"{model}|{src}|{tgt}|{','.join(sorted(glossary))}|{text}"
+                           .encode('utf-8')).hexdigest()
         return f"wama:translate:{h}"
 
     @staticmethod

@@ -163,6 +163,16 @@ def enforce_envelope(manifest: dict, key: str, refs: list, concerns: list) -> di
                             "brouillon : une page d'édition se déclare une fois les process faits)")
     identity = body.setdefault('identity', {})
     identity['url_name'] = f'{key}:index'
+    # La CATÉGORIE se DÉRIVE des types (`app_registry.derive_category`, par la projection que lit
+    # le catalogue à la naissance) — vécu le 2026-10-16 : le modèle avait choisi `transform` pour
+    # le Translator, que le contrôle du catalogue refusait (« prend du texte = Créer »).
+    from wama.common.app_registry import derive_category
+    from wama.common.manifests.builtin.app import _ports_target
+    category = derive_category(_ports_target({'body': body}))
+    if identity.get('category') not in (None, category):
+        concerns.append(f"catégorie `{identity.get('category')}` remplacée par `{category}`, "
+                        "dérivée des types d'entrée et de sortie")
+    identity['category'] = category
     return {**manifest, 'key': key, 'manifest_kind': 'app', 'schema_version': '1.0',
             'visibility': 'private', 'requires': refs,
             'source': {'type': 'authored',

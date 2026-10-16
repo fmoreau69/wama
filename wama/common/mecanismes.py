@@ -1071,6 +1071,22 @@ MECHANISMS = (
                        'wama/common/utils/reference_comprehension.py',
                        'wama/common/static/common/js/wama-prompt-chips.js',
                        'wama/common/static/common/js/wama-prompt-enrich.js')),
+    # Promu d'`ASSUMED_LOCAL` le 2026-10-16 (« un module assumé qui gagne des consommateurs
+    # multi-apps doit repasser en `Mechanism` ») : il servait déjà le pipeline de prompts de TOUTES
+    # les apps et l'assistant, sans figurer à la carte — l'assistant, à qui l'on demandait une app
+    # de traduction, est parti d'un dépôt externe faute de la trouver. Il devient le moteur de
+    # l'app Translator (décision de Fabien).
+    Mechanism('translator', 'Traduction de texte',
+              "Traduit un texte d'une langue à l'autre : passthrough si source = cible, cache "
+              "(clé : modèle, langues, glossaire, texte), glossaire de termes à ne pas traduire, "
+              "découpage par paragraphes, `on_chunk` pour l'aperçu « pendant ». Le modèle est "
+              "une CLÉ DE CATALOGUE (défaut `ollama:translategemma:12b`) : locale par la voie "
+              "Ollama gouvernée, distante par `chat_with_catalog_model` avec la clé de "
+              "l'utilisateur. `lang_routing` DÉCIDE quand traduire une consigne avant un modèle "
+              "qui ne parle pas sa langue ; le service EXÉCUTE",
+              'wama/common/utils/translator.py', 'docs/construction/suivi/ROADMAP.md §10',
+              annexes=('wama/common/utils/lang_routing.py',),
+              depends_on=('llm',)),
     Mechanism('llm', 'Accès LLM',
               "Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local). "
               "`chat_with_catalog_model` (2026-09-30) : un appel désigné par une CLÉ DE CATALOGUE "
@@ -2523,12 +2539,10 @@ ASSUMED_LOCAL = {
     # devenus les annexes du mécanisme `external_sources`. Ils n'étaient pas mal classés — le
     # mécanisme qui les rassemble n'existait pas encore, et une plomberie sans mécanisme
     # au-dessus n'a effectivement rien de transversal à déclarer.
-    'wama/common/utils/lang_routing.py': "routage de langue — sera absorbé par le Translator (ROADMAP §10)",
     'wama/common/utils/log_rotation.py': "décalage des journaux au démarrage (politique : on décale, on ne vide pas)",
     'wama/common/utils/mime_utils.py': "détection MIME — helper fin (filemanager/studio)",
     'wama/common/utils/model_locations.py': "chemins de modèles — plomberie model_manager",
     'wama/common/utils/safetensors_utils.py': "inspection de poids safetensors — plomberie chaîne modèles",
-    'wama/common/utils/translator.py': "brique deep-translator — sera absorbée par le Translator (ROADMAP §10)",
     'wama/common/utils/voice_options.py': "pendant VOIX d'output_formats (avatarizer) — promouvoir si adoption s'élargit",
     'wama/common/utils/waveform.py': "rendu de forme d'onde — fusion des 2 renderers encore pendante (REPRISE)",
     'wama/model_manager/services/format_converter.py': "conversion de formats de poids — plomberie chaîne modèles (avec format_policy)",
