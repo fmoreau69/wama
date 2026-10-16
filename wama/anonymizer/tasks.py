@@ -275,11 +275,29 @@ def _detection_kwargs(media, user):
         c.lower() in specialty_classes_set for c in kwargs['classes2blur']
     )
 
-    # Enable parallel detection check if:
-    # - SAM3 is not being used AND
-    # - Either no user model is specified OR specialty classes are requested
-    #   (specialty classes need dedicated models, can't rely on user's COCO model)
-    should_check_parallel = not use_sam3 and (not user_specified_model or specialty_classes_requested)
+    # Le modèle DÉSIGNÉ sur la card couvre-t-il les classes demandées ? Alors c'est LUI qui tourne,
+    # même quand la couverture en aurait réuni plusieurs. Jusqu'au 2026-10-15, une demande
+    # « visage » ou « plaque » consultait la couverture quel que soit le modèle de la card, et
+    # quand elle retenait un ENSEMBLE (yolov9c + yolov9e pour « visage »), il remplaçait le choix
+    # en silence — relevé en comparant quatre détecteurs sur le lot #685 : douze cards, quatre
+    # modèles demandés, un seul et même ensemble exécuté. Le choix n'était respecté que si la
+    # couverture rendait UN modèle.
+    user_covers = False
+    if user_specified_model and specialty_classes_requested:
+        try:
+            from .utils.model_selector import get_model_classes
+            user_classes = {str(c).lower()
+                            for c in get_model_classes(model_path_for(user_specified_model)).values()}
+            requested = {c.lower() for c in kwargs['classes2blur']}
+            user_covers = bool(requested) and requested.issubset(user_classes)
+        except Exception as e:
+            logger.warning(f"[ModelSelection] Could not verify user model classes: {e}")
+
+    # La couverture est consultée hors SAM3, quand la card ne désigne aucun modèle, ou quand le
+    # modèle désigné ne couvre pas les classes spéciales demandées (un modèle COCO ne voit pas
+    # les visages).
+    should_check_parallel = not use_sam3 and (
+        not user_specified_model or (specialty_classes_requested and not user_covers))
 
     # Debug: Log parallel detection decision
     logger.info(f"[ParallelCheck] use_sam3={use_sam3}, user_specified_model={user_specified_model}")
@@ -317,41 +335,18 @@ def _detection_kwargs(media, user):
             ]
 
         elif not parallel_info['parallel'] and len(parallel_info['models']) == 1:
-            # Single model selected by ModelSelector.
-            # The override is only legitimate when the user's model does NOT
-            # support the requested classes (e.g. user has yolo11n.pt but needs
-            # face detection). If the user EXPLICITLY chose a model that already
-            # covers the requested classes (e.g. yolov9s-face-lindevs.pt for
-            # 'face'), respect that choice instead of forcing another model.
+            # UN modèle retenu par la couverture. Un modèle désigné qui couvre les classes n'arrive
+            # plus ici (`user_covers`, plus haut) : celui-ci ne remplace qu'un modèle désigné qui ne
+            # les couvre pas, ou l'« auto ».
             selected = parallel_info['models'][0]
             from .utils.yolo_utils import get_model_path as _gmp
-
-            keep_user_model = False
-            if user_specified_model:
-                try:
-                    from .utils.model_selector import get_model_classes
-                    user_model_abs = model_path_for(user_specified_model)
-                    user_classes = set(get_model_classes(user_model_abs).values())
-                    requested = {c.lower() for c in kwargs['classes2blur']}
-                    if requested and requested.issubset(user_classes):
-                        keep_user_model = True
-                except Exception as e:
-                    logger.warning(f"[ModelSelection] Could not verify user model classes: {e}")
-
-            if keep_user_model:
-                kwargs['model_path'] = model_path_for(user_specified_model)
-                kwargs['model_key'] = user_specified_key
-                _console(user.id, f"Respecting user-specified model: {user_specified_model}")
-                logger.info(f"[ModelSelection] Keeping user-specified model {user_specified_model} "
-                            f"(already covers {kwargs['classes2blur']}) — no override")
-            else:
-                # La couverture rend déjà le chemin disque du catalogue : le re-résoudre
-                # depuis l'identifiant rouvrirait une seconde route (et échouerait pour un
-                # modèle rangé hors de l'arborescence historique). `_gmp` reste le repli.
-                kwargs['model_path'] = selected.get('path') or _gmp(selected['id'])
-                kwargs['model_key'] = selected.get('model_key')
-                _console(user.id, f"Auto-selected model: {selected['id']} for classes {selected['classes']}")
-                logger.info(f"[ModelSelection] Using ModelSelector result: {selected['id']} (overriding user default)")
+            # La couverture rend déjà le chemin disque du catalogue : le re-résoudre depuis
+            # l'identifiant rouvrirait une seconde route (et échouerait pour un modèle rangé hors
+            # de l'arborescence historique). `_gmp` reste le repli.
+            kwargs['model_path'] = selected.get('path') or _gmp(selected['id'])
+            kwargs['model_key'] = selected.get('model_key')
+            _console(user.id, f"Auto-selected model: {selected['id']} for classes {selected['classes']}")
+            logger.info(f"[ModelSelection] Using ModelSelector result: {selected['id']} (overriding user default)")
 
     # ======================================================================
     # SINGLE MODEL PATH: Standard processing (existing flow)

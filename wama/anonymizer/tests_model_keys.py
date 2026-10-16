@@ -124,6 +124,52 @@ class WritersAndReadersTest(TestCase):
         self.assertEqual('yolo:yolo11n.pt', path_for.call_args.args[0])
 
 
+class DesignatedModelAgainstCoverageTest(TestCase):
+    """2026-10-15 — a card asking for « face » with a designated face model ran the coverage's
+    ENSEMBLE instead (yolov9c + yolov9e), silently: four detectors compared on batch #685, one
+    single ensemble executed. The designated model runs when it covers the requested classes; the
+    coverage decides only when it does not (a COCO model does not see faces)."""
+
+    ENSEMBLE = {'parallel': True, 'coverage': 1.0, 'unsupported_classes': [], 'models': [
+        {'id': 'yolo:a-face.pt', 'path': '/w/a-face.pt', 'name': 'a', 'classes': ['face'],
+         'model_key': 'anonymizer:yolo:a-face.pt'},
+        {'id': 'yolo:b-face.pt', 'path': '/w/b-face.pt', 'name': 'b', 'classes': ['face'],
+         'model_key': 'anonymizer:yolo:b-face.pt'}]}
+
+    def setUp(self):
+        _catalogue_rows()
+        self.user = User.objects.create_user('anon_designated', password='x')
+
+    def _kwargs(self, model_classes):
+        from wama.anonymizer import tasks
+        media = Media.objects.create(user=self.user, file='anonymizer/x/input/sample.png',
+                                     model_to_use=YOLO_KEY, classes2blur=['face'],
+                                     target_mode='classes')
+        with mock.patch('wama.common.backends.manager.backend_for_key', return_value=object), \
+                mock.patch('wama.anonymizer.utils.yolo_utils.model_path_for',
+                           return_value='/weights/chosen.pt'), \
+                mock.patch('wama.anonymizer.utils.model_selector.get_model_classes',
+                           return_value=dict(enumerate(model_classes))), \
+                mock.patch.object(tasks, 'needs_parallel_detection',
+                                  return_value=self.ENSEMBLE) as coverage, \
+                mock.patch.object(tasks, '_console'):
+            kwargs = tasks._detection_kwargs(media, self.user)
+        return (kwargs[0] if isinstance(kwargs, tuple) else kwargs), coverage
+
+    def test_a_designated_model_that_sees_faces_runs_alone(self):
+        kwargs, coverage = self._kwargs(['Face'])
+        self.assertEqual('/weights/chosen.pt', kwargs.get('model_path'))
+        self.assertEqual(YOLO_KEY, kwargs.get('model_key'))
+        self.assertNotIn('models', kwargs, 'the ensemble replaced the designated model')
+        coverage.assert_not_called()
+
+    def test_a_designated_model_blind_to_faces_lets_the_coverage_choose(self):
+        kwargs, coverage = self._kwargs(['person', 'car'])
+        coverage.assert_called_once()
+        self.assertEqual(['anonymizer:yolo:a-face.pt', 'anonymizer:yolo:b-face.pt'],
+                         [m['model_key'] for m in kwargs.get('models') or []])
+
+
 class ModelKeysMigrationTest(SimpleTestCase):
     """`0036_model_to_use_catalog_keys`: PURE prefixing, `default` (which never designated a
     model) becomes « auto », a path of before is left for the reader."""
