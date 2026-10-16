@@ -107,7 +107,7 @@ class AccountMenuTest(TestCase):
                           'Mes partages', 'Profil', 'Skills', 'Users'],
                          [p['label'] for p in menu[0]['pages']])
         self.assertEqual(['Apps', 'Documentation', 'Librairies', 'Licences', 'Models', 'Backends',
-                          'Formats médias', 'Registres', 'Sources'],
+                          'Formats médias', 'Briques UI', 'Registres', 'Sources'],
                          [p['label'] for p in menu[1]['pages']])
 
     def test_the_bell_page_is_openable_but_not_in_the_menu(self):

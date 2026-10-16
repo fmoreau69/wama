@@ -583,6 +583,62 @@ def media_formats_view(request):
     })
 
 
+def ui_bricks_view(request):
+    """
+    Page du registre `ui_bricks` — les BRIQUES dont une page d'édition se compose (2026-10-16,
+    demande de Fabien : la carte des registres la nommait, rien ne la montrait).
+
+    Ce qu'elle montre, et d'où elle le lit — le registre `common/surfaces.py`, rien d'autre :
+      • chaque brique : ce qu'elle LIT (`consumes`, dans les deux vocabulaires existants — natures
+        de média, types de données), ce qu'elle PRODUIT (`emits`), ses mondes, son script et ses
+        dépendances ;
+      • les SURFACES des apps qui la composent : une brique qu'aucune surface ne monte se voit.
+    C'est la liste que la palette du Studio lira — jamais une seconde liste.
+
+    La page DÉRIVE du code à chaque affichage : elle ne peut pas être périmée, donc aucun bouton
+    d'actualisation (`refresh_button` le décide seul de la nature déclarée).
+    """
+    from .app_registry import MEDIA_CATEGORIES
+    from .catalog.data_types import known_types
+    from .surfaces import BRICKS, SURFACES, WORLDS, load_all
+
+    load_all()
+    data_types = known_types()
+
+    def vocabulary(value):
+        if value in MEDIA_CATEGORIES:
+            return 'nature de média'
+        return 'type de données' if value in data_types else ''
+
+    used_by = {}
+    for surface in SURFACES.values():
+        for key in dict.fromkeys(slot.brick for slot in surface.slots):
+            used_by.setdefault(key, []).append({'app': surface.app, 'label': surface.label})
+
+    bricks = []
+    for brick in sorted(BRICKS.values(), key=lambda b: b.name.lower()):
+        bricks.append({
+            'key': brick.key, 'name': brick.name, 'description': brick.description,
+            'reads': [{'value': v, 'vocabulary': vocabulary(v)} for v in brick.consumes],
+            'emits': list(brick.emits),
+            'usage': 'Édite' if brick.emits else 'Montre',
+            'worlds': list(brick.worlds), 'all_worlds': set(brick.worlds) == set(WORLDS),
+            'script': brick.script, 'requires': list(brick.requires),
+            'surfaces': used_by.get(brick.key, []),
+        })
+
+    return render(request, 'common/ui_bricks.html', {
+        'bricks': bricks,
+        'surfaces_count': len(SURFACES),
+        'unused_count': sum(1 for b in bricks if not b['surfaces']),
+        # La clé de la facette nomme aussi sa ligne dans le volet (`_libelleDeCle`) : « usage ».
+        'facets': [{'cle': 'usage', 'label': 'Usage', 'tous': 'Tous les usages',
+                    'options': {u: u for u in sorted({b['usage'] for b in bricks})}}],
+        # Détail au clic dans le volet (l'inspecteur de registre) ; rien à prévisualiser.
+        'volet': volet(medias=False, actions=False),
+    })
+
+
 def external_sources_view(request):
     """
     Page du registre `sources_externes` — à quoi WAMA se connecte, et est-ce que ça répond.

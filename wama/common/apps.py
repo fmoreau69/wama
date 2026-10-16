@@ -212,6 +212,8 @@ class CommonConfig(AppConfig):
             page('media_formats', section='wama', label='Formats médias', icon='fa-photo-film',
                  tone='primary', access='public', url_name='common:media_formats_catalog',
                  order=70)
+            page('ui_bricks', section='wama', label='Briques UI', icon='fa-puzzle-piece',
+                 tone='info', access='public', url_name='common:ui_bricks_catalog', order=75)
             # Les Registres : une SURFACE (outil gardé, 2026-10-13), dont la page est aussi le
             # hub de cette section. Sa vue n'a pas de décorateur : le middleware la ferme au
             # visiteur et la garde par la politique `registries`.

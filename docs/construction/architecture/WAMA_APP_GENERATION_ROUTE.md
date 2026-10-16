@@ -454,8 +454,10 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     - ⚠ **Vocabulaire** : le paramètre `<surface>` des routes `api/partage/<surface>/…` désigne la
       clé du registre d'aperçu (une app), PAS une surface au sens de `§10.6` — les routes neuves
       disent `<app>`.
-    - ⏳ **Restes** : l'éditeur de diagramme du Studio (palette `ui_bricks`) ; la page catalogue
-      des briques ; la disposition côté serveur (aujourd'hui stockage local du navigateur) ; la
+    - ⏳ **Restes** : l'éditeur de diagramme du Studio (palette `ui_bricks`) ; ~~la page catalogue
+      des briques~~ ✅ 2026-10-16 (`/common/ui-bricks/`, `ui_bricks_view` : ce que chaque brique
+      lit et produit, les surfaces qui la composent, lu de `surfaces.py` à chaque affichage ;
+      menu du compte + carte du registre) ; la disposition côté serveur (aujourd'hui stockage local du navigateur) ; la
       vidéo (axe commun) ; l'évaluation dans l'anonymizer (corrections = vérité terrain, WIDER
       FACE val, `WAMA_APPRENTISSAGE §8bis`) ; porter vers ces briques les pilotes en attente
       (YuE2, retouche Imager).

@@ -363,6 +363,7 @@ register(Registry(
            "script) ; les surfaces des apps les composent",
     count=lambda: len(_ui_bricks()),
     entries=lambda: {key: brick.to_dict() for key, brick in _ui_bricks().items()},
+    url_name='common:ui_bricks_catalog',
     doc='docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
     description="Les briques dont une page d'édition se COMPOSE — déplaçables, redimensionnables, "
                 "communes à tous les mondes. Déclarées par le code : la liste ne peut pas être "

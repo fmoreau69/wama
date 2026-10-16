@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load wama_static %}
+{% load wama_catalog %}
+{% block title %}Briques UI — WAMA{% endblock %}
+{% block console_app_name %}common{% endblock %}
+
+{% comment %}
+  Page du registre `ui_bricks` (2026-10-16, demande de Fabien). Charte commune des catalogues
+  (`wama-catalog.css` : bandeau de stats, encart d'intention, cartes filtrables), détail au clic
+  dans le volet (inspecteur de registre : titre, description, `data-f-*`, ligne méta). Tout vient
+  de la vue, qui lit `common/surfaces.py` à chaque affichage : registre DÉRIVÉ, donc aucun bouton
+  d'actualisation — `refresh_button` le décide seul de la nature.
+{% endcomment %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
+<style>
+  /* Squelette = brique COMMUNE `wama-catalog.css` — restent les spécificités. */
+  .ub-key     { background: #263238; color: #b0bec5; font-family: monospace; }
+  .ub-edit    { background: #1b5e20; color: #c8e6c9; }
+  .ub-show    { background: #0d47a1; color: #bbdefb; }
+  .ub-chip    { display: inline-block; margin: 2px 4px 2px 0; padding: 1px 8px; border-radius: 10px;
+                background: rgba(255,255,255,.07); font-size: .78rem; }
+  .ub-chip small { color: #90a4ae; margin-left: .3rem; }
+  .ub-emit    { background: rgba(102,187,106,.16); color: #c8e6c9; }
+  .ub-surface { background: rgba(13,202,240,.12); color: #b2ebf2; }
+  .ub-row     { font-size: .8rem; color: #b0bec5; margin-top: .35rem; }
+  .ub-row > b { color: #cfd8dc; font-weight: 600; margin-right: .3rem; }
+  .ub-none    { color: #ffcc80; font-size: .78rem; }
+  .ub-path    { font-size: .74rem; color: #90a4ae; word-break: break-all; }
+</style>
+{% endblock %}
+
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail de l'élément{% endblock %}
+{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}{% endblock %}
+
+{% block content %}
+<div class="wama-cat-wrap">
+
+  {% include 'common/_catalog_header.html' with titre='Briques UI' icone='fa-puzzle-piece' registre='ui_bricks' %}
+
+  <div class="wama-cat-stats">
+    <span class="wama-cat-stat"><b>{{ bricks|length }}</b> brique{{ bricks|length|pluralize }}</span>
+    <span class="wama-cat-stat"><b>{{ surfaces_count }}</b> surface{{ surfaces_count|pluralize }} qui les compose{{ surfaces_count|pluralize:"nt" }}</span>
+    {% if unused_count %}
+      <span class="wama-cat-stat ub-none"><b>{{ unused_count }}</b> brique{{ unused_count|pluralize }} qu'aucune surface ne monte</span>
+    {% endif %}
+  </div>
+
+  <div class="wama-cat-hero">
+    <h3>Les pièces dont une page d'édition se compose</h3>
+    <p>Une <b>surface</b> est la page qu'on ouvre depuis une card pour regarder et corriger&nbsp;:
+       les zones d'une image, le fond d'un document, une partition. Elle ne s'écrit pas à la main&nbsp;:
+       elle <b>assemble des briques</b>, que l'on déplace et redimensionne sur la page.</p>
+    <p>Une brique est <b>commune à tous les mondes</b> (Médias, Data, Lab, Studio) et ne connaît
+       aucune app. Elle déclare ce qu'elle <b>lit</b> — dans les vocabulaires qui existent déjà,
+       natures de média et types de données — et ce qu'elle <b>produit</b> quand on s'en sert pour
+       éditer. C'est ce qui permet de la poser sur n'importe quelle surface sans code d'app.</p>
+    <p>La liste <b>dérive du code</b> (<code>common/surfaces.py</code>) à chaque affichage&nbsp;: elle
+       ne peut pas être périmée. C'est aussi celle que lira la palette du <b>Studio</b> pour
+       composer une surface en diagramme — il n'y en aura jamais une seconde.</p>
+  </div>
+
+  {% include 'common/_filter_bar.html' with facettes=facets cible='.wama-cat-card' mode='client' placeholder='Filtrer (brique, nature lue, app…)' %}
+
+  {% comment %}`data-id` = la clé de la brique, lue par l'inspecteur au clic ; `data-f-usage` = la
+  facette déclarée par la vue, AUSSI visible en badge ; `data-f-text` = l'index de recherche
+  (clé, nom, ce qu'elle lit et produit, les apps qui la montent).{% endcomment %}
+  <div class="wama-cat-grid" id="uiBricksGrid" style="--cat-card-min: 340px;"
+       data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
+    {% for b in bricks %}
+    <div class="wama-cat-card" data-id="{{ b.key }}" data-f-usage="{{ b.usage }}"
+         data-f-text="{{ b.key }} {{ b.name }}{% for r in b.reads %} {{ r.value }}{% endfor %}{% for e in b.emits %} {{ e }}{% endfor %}{% for s in b.surfaces %} {{ s.app }} {{ s.label }}{% endfor %}">
+      <h4>{{ b.name }}
+        <span class="wama-cat-badge ub-key">{{ b.key }}</span>
+        <span class="wama-cat-badge {% if b.emits %}ub-edit{% else %}ub-show{% endif %}">{{ b.usage }}</span>
+      </h4>
+      <div class="wama-cat-desc">{{ b.description }}</div>
+
+      <div class="ub-row"><b>Lit</b>
+        {% for r in b.reads %}<span class="ub-chip">{{ r.value }}{% if r.vocabulary %}<small>{{ r.vocabulary }}</small>{% endif %}</span>{% empty %}<span class="ub-chip">rien — elle agit sur la surface</span>{% endfor %}
+      </div>
+      {% if b.emits %}
+      <div class="ub-row"><b>Produit</b>
+        {% for e in b.emits %}<span class="ub-chip ub-emit">{{ e }}</span>{% endfor %}
+      </div>
+      {% endif %}
+      <div class="ub-row"><b>Utilisée par</b>
+        {% for s in b.surfaces %}<span class="ub-chip ub-surface">{{ s.app }} · {{ s.label }}</span>{% empty %}<span class="ub-none">aucune surface pour l'instant</span>{% endfor %}
+      </div>
+
+      <div class="wama-cat-meta">
+        {% if b.all_worlds %}Tous les mondes{% else %}Mondes : {{ b.worlds|join:", " }}{% endif %}
+        · script <code class="ub-path">{{ b.script }}</code>{% if b.requires %} · dépend de <code class="ub-path">{{ b.requires|join:", " }}</code>{% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <p class="text-white-50">Aucune brique déclarée.</p>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

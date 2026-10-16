@@ -34,6 +34,8 @@ PAGES = {
     'skills.html': ('.wama-cat-card',),
     'backends.html': ('.wama-cat-card',),
     'rag.html': ('.rag-doc',),
+    # 2026-10-16 : la page des briques UI naît avec son volet de détail.
+    'ui_bricks.html': ('.wama-cat-card',),
 }
 
 
@@ -90,7 +92,8 @@ class CablageDeLInspecteurDeRegistreTest(SimpleTestCase):
         """Elles déclaraient `VOLET_AUCUN` (retrait délibéré du 2026-08-22, qui supprimait 51
         cadres vides). On ne rouvre que ce qu'on REMPLIT : `medias=False, actions=False`."""
         vues = (RACINE / 'wama' / 'common' / 'views.py').read_text(encoding='utf-8')
-        for vue in ('licenses_catalog_view', 'registres_view', 'skills_catalog_view', 'rag_view'):
+        for vue in ('licenses_catalog_view', 'registres_view', 'skills_catalog_view', 'rag_view',
+                    'ui_bricks_view'):
             i = vues.find(f'def {vue}(')
             self.assertNotEqual(-1, i, f"vue {vue} introuvable")
             corps = vues[i:vues.find('\ndef ', i + 1)]
