@@ -593,6 +593,36 @@
                     <option value="unknown">Unknown</option>
                 </select>
             </div>
+            {% comment %} Où le modèle s'exécute et ce qu'il coûte (2026-10-16) : libellés tirés du
+            registre des sources (`external_sources`), passés par la vue. « Pour moi » lit la règle
+            d'admission commune (`allowed_cloud_keys`) : « ouverts » = ce que mon profil me laisse
+            choisir, « tirables » = ce que le tirage automatique peut prendre maintenant. {% endcomment %}
+            <div class="col-auto">
+                <label class="text-muted small me-2" for="filter-origin">Origine :</label>
+                <select class="form-select form-select-sm filter-select d-inline-block w-auto" id="filter-origin">
+                    <option value="all">Toutes</option>
+                    {% for key, label in origin_choices %}<option value="{{ key }}">{{ label }}</option>
+                    {% endfor %}<option value="cloud">Tous les distants</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="text-muted small me-2" for="filter-cost">Coût :</label>
+                <select class="form-select form-select-sm filter-select d-inline-block w-auto" id="filter-cost"
+                        title="Ce que coûte un modèle distant ; un modèle local ne coûte rien et sort de ces filtres.">
+                    <option value="all">Tous</option>
+                    {% for key, label in cost_choices %}<option value="{{ key }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="text-muted small me-2" for="filter-mine">Pour moi :</label>
+                <select class="form-select form-select-sm filter-select d-inline-block w-auto" id="filter-mine"
+                        title="Selon les réglages « Modèles cloud » de votre profil.">
+                    <option value="all">Tous</option>
+                    <option value="open">Ouverts par mon profil</option>
+                    <option value="drawn">Tirables en automatique</option>
+                </select>
+            </div>
             <div class="col-auto">
                 <label class="text-muted small me-2">Status:</label>
                 <select class="form-select form-select-sm filter-select d-inline-block w-auto" id="filter-status">
@@ -600,7 +630,6 @@
                     <option value="loaded">Loaded</option>
                     <option value="downloaded">Downloaded</option>
                     <option value="not-downloaded">Not Downloaded</option>
-                    <option value="remote">Distants (cloud)</option>
                     <option value="needs-conversion">Needs Conversion</option>
                     <option value="proposed">✨ Proposés par IA</option>
                 </select>
@@ -615,6 +644,7 @@
                     <option value="perf:desc">Performance (rang dans son banc)</option>
                     <option value="confidence:desc">Confiance (proposés)</option>
                     <option value="disk:asc">Disque (le plus léger d'abord)</option>
+                    <option value="origin:asc">Origine (la plus proche d'abord)</option>
                 </select>
             </div>
             <div class="col-auto">
@@ -1079,6 +1109,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const out = {
             name: (model.name || '').replace(/"/g, '&quot;'),
             vram: vram, perf: rank, confidence: model.confidence, disk: model.disk_gb || null,
+            origin: model.origin_rank,
         };
         return Object.keys(out).filter(k => out[k] != null && out[k] !== '')
             .map(k => `data-s-${k}="${out[k]}"`).join(' ');
@@ -1114,6 +1145,11 @@ document.addEventListener('DOMContentLoaded', function() {
                  data-loaded="${model.is_loaded}"
                  data-downloaded="${model.is_downloaded}"
                  data-remote="${model.execution === 'cloud' ? 'true' : 'false'}"
+                 data-hosting="${model.hosting || ''}"
+                 data-cost="${model.cost_tier || ''}"
+                 data-open="${model.open_to_me ? 'true' : 'false'}"
+                 data-drawn="${model.drawn_for_me ? 'true' : 'false'}"
+                 data-origin="${(model.origin || '').replace(/"/g, '&quot;')}"
                  data-needs-conversion="${needsConversion(model)}"
                  data-model-id="${model.id}"
                  data-id="${model.id}"
@@ -2209,6 +2245,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const sourceFilter = document.getElementById('filter-source').value;
         const formatFilter = document.getElementById('filter-format').value;
         const statusFilter = document.getElementById('filter-status').value;
+        const originFilter = document.getElementById('filter-origin').value;
+        const costFilter = document.getElementById('filter-cost').value;
+        const mineFilter = document.getElementById('filter-mine').value;
         const searchQuery = document.getElementById('search-input').value.toLowerCase().trim();
 
         // Show/hide clear button based on search query
@@ -2229,15 +2268,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 visible = false;
             }
 
-            // Search filter - check name, description, and model_key
+            // Recherche : nom, description, clé — et l'ORIGINE (« souverain », « Albert »,
+            // « gratuit » trouvent les modèles qu'elle nomme).
             if (searchQuery) {
                 const name = (item.dataset.name || '').toLowerCase();
                 const description = (item.dataset.description || '').toLowerCase();
                 const modelKey = (item.dataset.modelKey || '').toLowerCase();
+                const origin = (item.dataset.origin || '').toLowerCase();
 
                 if (!name.includes(searchQuery) &&
                     !description.includes(searchQuery) &&
-                    !modelKey.includes(searchQuery)) {
+                    !modelKey.includes(searchQuery) &&
+                    !origin.includes(searchQuery)) {
                     visible = false;
                 }
             }
@@ -2249,6 +2291,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Source filter
             if (visible && sourceFilter !== 'all' && item.dataset.source !== sourceFilter) {
+                visible = false;
+            }
+
+            // Origine : un anneau (local, privé, souverain, commercial) ou tous les distants.
+            if (visible && originFilter !== 'all') {
+                if (originFilter === 'cloud' ? item.dataset.remote !== 'true'
+                                             : item.dataset.hosting !== originFilter) {
+                    visible = false;
+                }
+            }
+
+            // Coût d'un modèle distant (un local n'en porte pas : il sort du filtre).
+            if (visible && costFilter !== 'all' && item.dataset.cost !== costFilter) {
+                visible = false;
+            }
+
+            // Pour moi : ce que mon profil ouvre, ou ce que le tirage automatique peut prendre.
+            if (visible && mineFilter !== 'all' && item.dataset[mineFilter] !== 'true') {
                 visible = false;
             }
 
@@ -2269,8 +2329,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else if (statusFilter === 'not-downloaded'
                            && (item.dataset.downloaded !== 'false' || item.dataset.remote === 'true')) {
                     visible = false;
-                } else if (statusFilter === 'remote' && item.dataset.remote !== 'true') {
-                    visible = false;
                 } else if (statusFilter === 'needs-conversion' && item.dataset.needsConversion !== 'true') {
                     visible = false;
                 }
@@ -2286,7 +2344,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Attach filter event listeners
-    ['filter-type', 'filter-source', 'filter-format', 'filter-status'].forEach(id => {
+    ['filter-type', 'filter-source', 'filter-format', 'filter-status',
+     'filter-origin', 'filter-cost', 'filter-mine'].forEach(id => {
         document.getElementById(id).addEventListener('change', applyFilters);
     });
 

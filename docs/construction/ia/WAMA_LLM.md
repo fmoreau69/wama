@@ -987,6 +987,15 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   `COST_TIER_CHOICES` dérive. Le nom de la source Claude Code perd « (abonnement) » ; ⚠ le
   libellé de l'énumération `ModelSource.CLAUDE_CODE` (admin seulement) le garde : le changer
   demande une migration.
+- **La barre du model manager filtre par origine, coût et profil — 2026-10-16** (demande de
+  Fabien ; 438 modèles OpenRouter facturés au catalogue, mesuré). Trois filtres : **Origine**
+  (WAMA local · cloud privé · souverain · commercial, ou tous les distants — `AIModel.hosting`,
+  la clé du même calcul que `origin_label`), **Coût** (`COST_TIERS`) et **Pour moi** —
+  « ouverts par mon profil » / « tirables en automatique », rabattus à la lecture par
+  `api_models_db` depuis `allowed_cloud_keys(automatic=False/True)`, jamais recalculés. Tri
+  « origine, la plus proche d'abord » (`origin_rank`, le rang de `model_origin`) ; la recherche
+  lit aussi l'origine (« souverain », « gratuit »). L'option « Distants (cloud) » du statut part :
+  l'Origine la dit. Garde : `tests_cloud_models.FilterBarForMeTest`.
 - **Clés d'INSTANCE posées depuis WAMA — 2026-10-07** (décision de Fabien : *« c'est la page
   Sources externes qui doit gérer les clés système »*). Un admin pose la clé d'une source dans
   l'inspecteur de `/common/sources/` (`accounts.InstanceApiKey`, chiffrée comme les clés

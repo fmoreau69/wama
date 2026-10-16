@@ -918,6 +918,67 @@ class OriginLabelTest(TestCase):
     def test_the_catalogue_api_carries_the_origin(self):
         self.assertEqual('WAMA local · Ollama', self._row('ollama:x').to_dict()['origin'])
 
+    def test_the_ring_is_also_a_key_and_a_rank(self):
+        # 2026-10-16: the model manager filter bar filters on the key and sorts on the rank.
+        local = self._row('ollama:x').to_dict()
+        albert = self._row('albert:x', execution='cloud', cost_tier='free').to_dict()
+        anthropic = self._row('anthropic:x', execution='cloud', cost_tier='metered').to_dict()
+        self.assertEqual(['local', 'sovereign', 'third_party'],
+                         [d['hosting'] for d in (local, albert, anthropic)])
+        self.assertLess(local['origin_rank'], albert['origin_rank'])
+        self.assertLess(albert['origin_rank'], anthropic['origin_rank'])
+
+    def test_an_undeclared_remote_source_has_no_ring(self):
+        self.assertEqual('', self._row('nowhere:x', execution='cloud').hosting)
+
+
+class FilterBarForMeTest(TestCase):
+    """The catalogue list says, for the user who reads it, which models his profile OPENS and
+    which the automatic draw may take — read from the common admission rule, never re-derived
+    (2026-10-16, « Pour moi » filter of the model manager)."""
+
+    def setUp(self):
+        for key, execution in (('imager:x', 'local'), ('albert:a', 'cloud'),
+                               ('openrouter:paid', 'cloud'), ('anthropic:closed', 'cloud')):
+            AIModel.objects.create(model_key=key, name=key, model_type='llm',
+                                   source=key.split(':')[0], execution=execution,
+                                   is_available=True)
+        self.user = get_user_model().objects.create_user('filter_bar_reader', password='x')
+        self.client.force_login(self.user)
+
+    def _rows(self):
+        with mock.patch('wama.model_manager.services.cloud_models.allowed_cloud_keys',
+                        side_effect=lambda user, automatic=True:
+                        {'albert:a'} if automatic else {'albert:a', 'openrouter:paid'}) as rule:
+            rows = self.client.get('/model-manager/api/models/db/').json()['models']
+        self.assertEqual({self.user.pk}, {c.args[0].pk for c in rule.call_args_list})
+        return {r['model_key']: (r['open_to_me'], r['drawn_for_me']) for r in rows}
+
+    def test_a_paid_model_is_open_by_hand_but_not_drawn(self):
+        rows = self._rows()
+        self.assertEqual((True, True), rows['albert:a'])
+        self.assertEqual((True, False), rows['openrouter:paid'])
+
+    def test_a_remote_model_beyond_the_profile_is_neither_open_nor_drawn(self):
+        self.assertEqual((False, False), self._rows()['anthropic:closed'])
+
+    def test_a_local_model_is_always_open(self):
+        self.assertEqual((True, True), self._rows()['imager:x'])
+
+    def test_the_bar_offers_the_rings_and_costs_of_the_registry(self):
+        from wama.common import external_sources
+        admin = get_user_model().objects.create_superuser('filter_bar_admin', password='x')
+        self.client.force_login(admin)
+        page = self.client.get('/model-manager/')
+        self.assertEqual(200, page.status_code)
+        html = page.content.decode()
+        for label in (external_sources.LOCAL_ORIGIN_LABEL,
+                      *external_sources.CLOUD_ORIGIN_LABELS.values()):
+            self.assertIn(f'>{label}</option>', html)
+        for key, _label in external_sources.COST_TIERS:
+            self.assertIn(f'<option value="{key}">', html)
+        self.assertIn('id="filter-mine"', html)
+
 
 class OpenRouterListingTest(TestCase):
     """OpenRouter (2026-10-10): its list publishes no `type` but the MODALITIES of each model, and

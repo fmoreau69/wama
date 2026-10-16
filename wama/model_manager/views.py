@@ -56,8 +56,16 @@ def index(request):
     stats = SystemMonitor.get_model_manager_stats() if can_manage else {
         'cpu_info': None, 'gpu_info': None, 'system_info': None}
 
+    # Filtres « Origine » et « Coût » de la barre (2026-10-16) : les libellés viennent du registre
+    # des sources, jamais recopiés dans le gabarit — l'échelle des anneaux, puis les coûts.
+    from wama.common import external_sources as xs
+    origin_choices = [(xs.LOCAL_ORIGIN_KEY, xs.LOCAL_ORIGIN_LABEL)] + [
+        (h, xs.CLOUD_ORIGIN_LABELS[h]) for h in xs.HOSTING_SCALE if h in xs.CLOUD_ORIGIN_LABELS]
+
     context = {
         'can_manage': can_manage,
+        'origin_choices': origin_choices,
+        'cost_choices': list(xs.COST_TIERS),
         'model_types': [t.value for t in ModelType],
         'cpu_info': stats['cpu_info'],
         'gpu_info': stats['gpu_info'],
@@ -1150,7 +1158,7 @@ def api_models_db(request):
     côté tool_api). Les champs d'EXPLOITATION (local_path, extra_info, backend_ref)
     restent réservés admin/dev ; toute action d'ÉCRITURE reste gardée (api_sync_models…).
     """
-    from .models import AIModel
+    from .models import AIModel, EXECUTION_CLOUD
 
     # Optional filters
     source = request.GET.get('source')
@@ -1205,12 +1213,26 @@ def api_models_db(request):
     except Exception:
         internal = {}
 
+    # Ce que le profil de CET utilisateur ouvre, rabattu à la lecture (filtre « Pour moi »,
+    # 2026-10-16) — la règle d'admission commune, jamais recopiée : `chosen` = ce qu'il peut
+    # nommer à la main, `drawn` = ce que le tirage automatique peut prendre en ce moment (sans les
+    # payants non consentis ni les sources saturées). Un modèle local est toujours ouvert.
+    try:
+        from .services.cloud_models import allowed_cloud_keys
+        chosen = allowed_cloud_keys(request.user, automatic=False)
+        drawn = allowed_cloud_keys(request.user, automatic=True)
+    except Exception:
+        chosen = drawn = set()
+
     models = []
     full = is_admin_or_dev(request.user)
     for model in queryset:
         data = model.to_dict()
         if not data.get('is_loaded') and model.model_key in residents:
             data['is_loaded'] = True
+        remote = model.execution == EXECUTION_CLOUD
+        data['open_to_me'] = not remote or model.model_key in chosen
+        data['drawn_for_me'] = not remote or model.model_key in drawn
         data['internal_quality'] = internal.get(model.model_key) or []
         if not full:
             # Expurgé hors admin/dev : chemins locaux et détails d'exploitation.

@@ -925,10 +925,25 @@ class AIModel(models.Model):
         # pour dire d'où vient un modèle distant et ce qu'il coûte.
         return external_sources.remote_origin_label(self.source, self.cost_tier)
 
+    @property
+    def hosting(self) -> str:
+        """L'ANNEAU où ce modèle s'exécute, en clé : `local`, ou l'hébergement DÉCLARÉ de sa source
+        (`private`, `sovereign`, `third_party`) — '' pour une source distante qui ne le dit pas.
+        Le même calcul que `origin_label`, sans la phrase : la barre de filtres du model manager
+        le lit (2026-10-16)."""
+        from wama.common import external_sources
+        if self.execution != EXECUTION_CLOUD:
+            return external_sources.LOCAL_ORIGIN_KEY
+        return getattr(external_sources.by_key().get(self.source), 'hosting', '') or ''
+
     def to_dict(self):
         """Convert to dictionary for API responses."""
+        from wama.common.external_sources import model_origin
         return {
             'origin': self.origin_label,
+            'hosting': self.hosting,
+            # Rang sur l'échelle des hébergements (0 = local) : le tri « le plus proche d'abord ».
+            'origin_rank': model_origin(self.model_key, self.execution, self.cost_tier)[2],
             'id': self.model_key,
             'model_key': self.model_key,
             'name': self.name,
