@@ -47,7 +47,7 @@ def compose_task(self, generation_id: int, process: str | None = None):
         run_item_task(self, app_id='composer', model=ComposerGeneration, item_id=generation_id,
                       pipeline=PIPELINE,
                       processes={'extract_score': _extract_score, 'plan': _plan, 'render': _render,
-                                 'output': _output},
+                                 'output': _output, 'parts': _parts},
                       model_key=_model_key, notify_label='Composer',
                       only=process)
     finally:
@@ -110,6 +110,18 @@ def extract_score_eta_key_size(gen) -> tuple[str, float, str]:
 def extract_score_eta(gen):
     """ETA déclarée du process `extract_score` : apprise seulement (clé de process, cf. `plan_eta`)."""
     return (*extract_score_eta_key_size(gen), False, 0.0)
+
+
+def parts_eta_key_size(gen) -> tuple[str, float, str]:
+    """(clé, taille, unité) de l'ETA du process `parts` : ∝ durée du morceau rendu (mesuré le
+    2026-10-16, MuScriptor large : 99 s pour 210 s d'audio) — la durée DEMANDÉE de la card en
+    tient lieu, le fichier n'étant pas sondé à chaque relevé de progression."""
+    return 'composer:parts', float(gen.duration or 0), 'audio_sec'
+
+
+def parts_eta(gen):
+    """ETA déclarée du process `parts` : apprise seulement (clé de process, cf. `plan_eta`)."""
+    return (*parts_eta_key_size(gen), False, 0.0)
 
 
 #: Moteurs ouverts par les lancements EN COURS dans ce process : {id de génération: instance}.
@@ -331,6 +343,61 @@ def _extract_score(gen, ctx):
         'console_success': f"✓ Partition extraite : {name}",
         'models': [extractor_key],
         'eta': extract_score_eta_key_size(gen),
+    }
+
+
+def _parts(gen, ctx):
+    """GLU du process `parts` (2026-10-16) : le morceau RENDU → sa partition complète, une partie par
+    instrument, rangée comme une sortie de la card (`parts_score`).
+
+    Le modèle est celui de la tâche `audio-to-midi`, tiré par le sélecteur commun et DÉCHARGÉ
+    aussitôt (la règle d'`extract_score`). Le moteur rend un MIDI ; la notation est la brique
+    commune `midi_score`, qui place les notes sur les temps JOUÉS du morceau (`audio_rhythm`) quand
+    le moteur n'a pas trouvé de tempo constant."""
+    from django.conf import settings
+    from wama.common.backends.manager import backend_for_key
+    from wama.common.utils.audio_rhythm import beat_grid
+    from wama.common.utils.midi_score import midi_to_abc
+    from wama.common.utils.model_keys import model_id
+    from .utils.model_choice import parts_extractor
+
+    extractor_key = parts_extractor()
+    if not extractor_key:
+        raise RuntimeError("Aucun modèle de partition complète n'est installé (tâche « audio-to-midi »).")
+    if not gen.audio_output:
+        raise RuntimeError("Aucun morceau rendu : la partition complète se lit sur le rendu.")
+    backend_class = backend_for_key(extractor_key)
+    if backend_class is None:
+        raise RuntimeError(f"« {extractor_key} » : aucun backend résolu depuis le catalogue.")
+    audio_abs = os.path.join(settings.MEDIA_ROOT, gen.audio_output.name)
+    ctx.console(f"[Composer] Partition complète : {extractor_key} — "
+                f"{os.path.basename(gen.audio_output.name)}")
+    backend = backend_class()
+    try:
+        midi = backend.extract_midi(model_id=model_id(extractor_key), audio_path=audio_abs,
+                                    progress_callback=ctx.progress)
+    except Exception:
+        ctx.reset_progress()
+        raise
+    finally:
+        try:
+            backend.unload()
+        except Exception:
+            logger.warning("[composer] modèle de partition complète de #%s non déchargé", gen.pk,
+                           exc_info=True)
+    grid = beat_grid(audio_abs) or {}
+    text = midi_to_abc(midi, title=f'#{gen.pk}', beat_times=grid.get('beats'))
+    rel_dir, name, abs_path = _output_place(gen, ctx, extractor_key, '.abc', nature='score')
+    with open(abs_path, 'w', encoding='utf-8') as handle:
+        handle.write(text)
+    score_rel = f'{rel_dir}/{name}'
+    return {
+        'fields': {'parts_score': score_rel},
+        'output_ref': score_rel,
+        'label': name,
+        'console_success': f"✓ Partition complète : {name}",
+        'models': [extractor_key],
+        'eta': parts_eta_key_size(gen),
     }
 
 

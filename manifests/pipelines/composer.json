@@ -16,6 +16,11 @@
         "from": "render",
         "to": "output",
         "to_port": null
+      },
+      {
+        "from": "output",
+        "to": "parts",
+        "to_port": null
       }
     ],
     "nodes": [
@@ -104,13 +109,33 @@
             "output_upscale"
           ]
         }
+      },
+      {
+        "app": null,
+        "function": "composer.parts",
+        "id": "parts",
+        "kind": "function",
+        "params": {
+          "degree": "optional",
+          "eta": "composer.tasks:parts_eta",
+          "gpu": true,
+          "label": "Partition complète",
+          "outputs": [
+            "parts_score"
+          ],
+          "share": 2,
+          "toggle": "extract_parts",
+          "watched": [
+            "extract_parts"
+          ]
+        }
       }
     ]
   },
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "composer",
   "manifest_kind": "pipeline",
-  "name": "Composer — partition, rendu, sortie (4 process)",
+  "name": "Composer — partition, rendu, sortie (5 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

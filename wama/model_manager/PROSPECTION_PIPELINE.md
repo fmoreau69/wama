@@ -3011,3 +3011,41 @@ abcjs suppose une conversion MIDI → ABC (brique commune à écrire sur `pretty
     (`accounts/api_keys.py:175`, `download_token`) ; le catalogue porte `gated` (SAM3, pyannote).
     Reste à faire, hors code : accepter la licence de MuScriptor sur Hugging Face avec le compte
     du jeton qui téléchargera.
+
+## Session du 2026-10-16 : MuScriptor intégré — une tâche, un contrat et une notation NEUFS
+
+Suite de la veille ci-dessus, décisions (a)(b)(d) appliquées ; licence acceptée par Fabien (poids
+`large` seul). Le process et la page : `WAMA_APP_GENERATION_ROUTE §F3b` (« la PARTITION COMPLÈTE »).
+
+- **librairies par la route** : `muscriptor` 0.3.0, `beat-this` 1.1.0, `rotary-embedding-torch`
+  0.9.1, manifestes AUTORÉS `constraints.no_deps` (commit `de429f1b` ; versions du venv vérifiées
+  inchangées). Le backend déclare le pendant (`PIP_PACKAGES` aux noms pip, `PIP_NO_DEPS`).
+- **tâche neuve `audio-to-midi`** (`ModelTask.AUDIO_TO_MIDI`, type `music`, entrée `work_audio` ;
+  propre à WAMA pour `check_model_taxonomy`), lue sur les cartes HF par `hf_task_to_wama` (tags
+  `audio-to-midi`, `automatic-music-transcription`, `music-transcription`). Contrat
+  `MidiExtractionBackend.extract_midi(...) -> bytes` (`common/backends/midi_extraction_base.py`),
+  déclaré à `backend_inventory.TASK_CONTRACTS` — comme `audio-to-score` pour SheetSage2.
+- **poids** : `pull_model MuScriptor/muscriptor-large` (5,1 Go, dépôt à accès contrôlé, jeton de
+  l'instance) ; le point de contrôle de Beat This! n'a pas de dépôt HF : source DÉCLARÉE
+  `external_sources['beat_this']` (serveur des auteurs), taille et empreinte épinglées dans le
+  backend, tiré au premier usage par `download_asset`, rangé à côté du modèle — jamais dans le
+  `$HOME` où `torch.hub` l'aurait mis.
+- **trois défauts communs trouvés en l'intégrant** :
+  1. la grille de temps de la librairie refusait un tempo « non fixe » dès qu'un temps manquait au
+     suivi (rangs décalés) : repli `robust_tempo` (re-numérotation, phase dominante, première
+     droite Theil-Sen) — #754 accepté à 88,12 bpm, les rendus YuE2 qui changent de phase restent
+     refusés et sont placés sur les temps joués ;
+  2. `manifest_export` ré-extrayait une librairie PyPI depuis ses métadonnées et effaçait les
+     contraintes AUTORÉES (`no_deps`) : un manifeste `source.type: authored` fait désormais foi,
+     comme une librairie vendorisée (`builtin/library.authored_vendor_manifest`) ;
+  3. le `requires` d'un manifeste de modèle (modèle → librairie) sortait VIDE pour tout moteur vu
+     par le seul inventaire statique (`_DeclaredEngine`, sans classe, depuis le 2026-09-07 ; l'erreur
+     tombait dans un `except`) : la classe se résout par `resolve_backend`. Effet mesuré : **68**
+     manifestes de modèle retrouvent leur librairie (ultralytics, audiocraft, deepface,
+     faster-whisper…) — le corpus des modèles, déjà périmé pour 276 manifestes sur les registres,
+     se régénère à sa prochaine passe (`manifest_export`), pas dans ce commit.
+- **mesures (#754, 210 s, RTX 4090)** : chargement 28 s, transcription 99-151 s, pic 9,77 Go ;
+  6 parties (voix, piano, basse électrique, batterie, nappe de synthé, flûtes).
+- ⏳ **restes** : choix manuel du modèle du process ; le balayage générique des snapshots réécrit
+  le nom et la description du modèle au catalogue (« Snapshot HF muscriptor-large », comme
+  SheetSage2) — le manifeste autoré n'y survit que par ses capacités et sa composition.

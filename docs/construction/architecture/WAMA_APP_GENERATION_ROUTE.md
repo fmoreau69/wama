@@ -591,6 +591,40 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       - **noyau** : « Appliquer » émet `redone` quand le process rejoué et son aval ont réussi ; le
         transport recharge son audio et la partition redemande sa grille sur ce SEUL signal (la
         règle était écrite dans le transport).
+    - ✅ **2026-10-16 — la PARTITION COMPLÈTE (une partie par instrument), décisions de Fabien** :
+      process OPTIONNEL à côté d'`extract_score` (pas à sa place), licences NC acceptées, notation
+      par une brique maison ; veille et choix du moteur : `PROSPECTION_PIPELINE §Session du
+      2026-10-16`.
+      - **chaîne** : process `parts` du composer (`ProcessSpec(degree=OPTIONAL, toggle=
+        'extract_parts', available=…, depends_on=('output',))`) — il lit le morceau FINAL, jamais
+        donné au rendu ; son modèle n'est pas celui de la card mais la tâche NEUVE `audio-to-midi`
+        (`ModelTask.AUDIO_TO_MIDI`, contrat `MidiExtractionBackend` déclaré à
+        `backend_inventory.TASK_CONTRACTS`), tirée par `select_model_id` et déchargée aussitôt (la
+        règle d'`extract_score`, factorisée dans `composer/utils/model_choice.model_for_task`).
+        Moteur : MuScriptor large (`muscriptor_backend.py`, librairies par la route `library`, sans
+        dépendances), qui rend un MIDI ; la NOTATION est la brique commune `common/utils/midi_score.py`
+        (mécanisme `midi_score`) : voix par instrument en français, clavier sur deux portées,
+        batterie en portée de percussion, sur la métrique du MIDI si le moteur en a trouvé une, sinon
+        sur les temps JOUÉS de l'audio (`audio_rhythm`), anacrouse reculée d'une mesure entière.
+      - **page** : 2ᵉ brique `score_view` en LECTURE SEULE sous la mélodie (`options.role='parts'`),
+        même axe, mêmes notes colorées ; `Surface.texts` (rôles lus en texte, ni URL ni grille de
+        temps) ; une card sans partition complète dit comment l'obtenir.
+      - **grille de temps** : MuScriptor refusait un tempo « non fixe » sur les rendus YuE2 — un temps
+        manqué par le suivi décalait tous les rangs. `robust_tempo` re-numérote les temps, garde la
+        phase dominante (première droite Theil-Sen : un bloc de contretemps en fin de morceau faisait
+        pencher les moindres carrés, vu au test) : #754 passe à 88,12 bpm (écart 21 ms, 100 % des
+        temps) ; #755/#756/#343 restent refusés (phase dominante < 60 %) et sont placés sur les temps
+        joués.
+      - **éprouvé** : `tests_midi_score` (9), `composer.tests_parts` (5), `tests_surfaces` (+1),
+        contrats du pipeline ajustés ; huit contre-épreuves ROUGES ; smoke navigateur (témoin copié
+        de #754 puis retiré) : 481 + 1 094 notes, 7 portées allumées sur la même mesure à 4,0 s,
+        glisser une note de la partition complète n'écrit rien, 0 erreur console. Mesures GPU réelles
+        (#754) : chargement 28 s, transcription 99-151 s pour 210 s d'audio, pic 9,77 Go.
+      - ⏳ **Restes** : le choix MANUEL du modèle du process (auto + manuel, aujourd'hui tiré seul) ;
+        les rendus à tempo variable sont placés en 4/4 sur les temps joués, sans temps forts ; le
+        nom et la description du modèle au catalogue sont réécrits par le balayage générique des
+        snapshots (comme SheetSage2 : « Snapshot HF … »), son manifeste autoré n'y survit que par ses
+        capacités et sa composition.
     - **versions** : le composer est la 2ᵉ app à GARDER ses sorties (`KeptOutputsMixin`, migration
       `0021` additive appliquée avant le modèle, `keep_outputs('composer', 20, fields=SCORE_FIELDS)`
       — la PARTITION seule : `keep_outputs` accepte désormais les champs gardés, sinon chaque

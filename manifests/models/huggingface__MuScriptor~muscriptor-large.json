@@ -1,0 +1,88 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_audio"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "task": "audio-to-midi"
+    },
+    "composition": {
+      "components": [
+        {
+          "format": "safetensors",
+          "pattern": "model.safetensors",
+          "role": "model"
+        }
+      ],
+      "runtime": {
+        "engine": "muscriptor"
+      }
+    },
+    "extra_info": {
+      "category": "music",
+      "family": "muscriptor-large",
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "MuScriptor (Kyutai x Mirelo)",
+      "description_short": "Transcription multi-instrument audio → MIDI (36 groupes d'instruments, voix et batterie comprises)",
+      "hf_id": "MuScriptor/muscriptor-large",
+      "license": "cc-by-nc-4.0",
+      "model_type": "music",
+      "platform_ref": "huggingface:MuScriptor/muscriptor-large",
+      "publications": [
+        "2607.08168"
+      ],
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 5.47,
+      "ram_gb": 0.0,
+      "vram_gb": 8.0
+    }
+  },
+  "description": "MuScriptor large (1,4 Md de paramètres) — la « Partition complète » du composer : un audio → un MIDI par instrument, calé sur la grille de temps de Beat This!. Poids CC BY-NC 4.0, dépôt à accès contrôlé ; moteur = la librairie `muscriptor` (sans dépendances, route `library`).",
+  "key": "huggingface:MuScriptor/muscriptor-large",
+  "manifest_kind": "model",
+  "name": "MuScriptor large",
+  "projects": [],
+  "requires": [
+    {
+      "key": "beat-this",
+      "kind": "library"
+    },
+    {
+      "key": "muscriptor",
+      "kind": "library"
+    },
+    {
+      "key": "rotary-embedding-torch",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "huggingface:MuScriptor/muscriptor-large@8809fdfbed2affa7ade94a7059e746e3880720e7",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

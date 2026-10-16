@@ -24,6 +24,7 @@ from wama.common.catalog.function_catalog import (Binding, FunctionCategory as F
                                                   PortSpec, register)
 from wama.common.services.output_process import output_spec
 from wama.common.services.process_pipeline import ProcessSpec, register_app_pipeline
+from wama.common.services.process_runs import OPTIONAL
 
 _APP = 'composer'
 _IMPL = 'composer.tasks:compose_task'
@@ -54,6 +55,11 @@ def _extract_applies(gen, model_key) -> bool:
 def _extract_available() -> bool:
     from .utils.model_choice import score_extraction_available
     return score_extraction_available()
+
+
+def _parts_available() -> bool:
+    from .utils.model_choice import parts_extraction_available
+    return parts_extraction_available()
 
 
 def extracts_score(gen, model_key) -> bool:
@@ -87,6 +93,17 @@ register(FunctionSpec(
     inputs=[PortSpec('work_audio', 'audio', group='travail',
                      description="Audio du morceau à reprendre (cover).")],
     outputs=[PortSpec('score', 'score', description="La partition que le rendu suivra.")]))
+
+register(FunctionSpec(
+    key='composer.parts', name='Composer — partition complète',
+    description="Écrit la partition COMPLÈTE du morceau rendu : une partie par instrument entendu "
+                "(voix, piano, basse, batterie…), par un modèle de la tâche `audio-to-midi` "
+                "(MuScriptor) mis en notation par la brique commune. Optionnelle ; montrée et lue "
+                "sur la page d'édition, jamais donnée au rendu.",
+    category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
+    tags=['audio', 'music', 'gpu'],
+    inputs=[PortSpec('audio', 'audio', description="Le morceau rendu.")],
+    outputs=[PortSpec('score', 'score', description="La partition, une partie par instrument.")]))
 
 register(FunctionSpec(
     key='composer.output', name='Composer — réglages de sortie',
@@ -154,5 +171,11 @@ PIPELINE = register_app_pipeline(_APP, (
                 eta='composer.tasks:render_eta'),
     # Les réglages de SORTIE (format, qualité) : process COMMUN (`output_process`), toujours joué.
     output_spec(depends_on=('render',)),
+    # PARTITION COMPLÈTE (2026-10-16) : optionnelle (`extract_parts`), APRÈS la sortie — elle lit
+    # le morceau final. Son modèle n'est pas celui de la card : la tâche `audio-to-midi`, tirée par
+    # le sélecteur commun ; elle n'a lieu que si un tel modèle est installé (`available`).
+    ProcessSpec('parts', label='Partition complète', depends_on=('output',), degree=OPTIONAL,
+                toggle='extract_parts', gpu=True, share=2, available=_parts_available,
+                outputs=('parts_score',), eta='composer.tasks:parts_eta'),
 ), label='Composer — partition, rendu, sortie', source_ref='composer.function_specs:PIPELINE',
    model_of=lambda gen: _requested_model(gen))

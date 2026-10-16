@@ -682,6 +682,9 @@ TASK_CONTRACTS = {
     # 2026-10-03 : l'audio → sa partition (SheetSage2), maillon du cover. Écrit AVANT le backend,
     # pour que le rôle `backend` le reçoive. Non liant, comme `text-to-music`.
     'audio-to-score': ('score_extraction_base', 'ScoreExtractionBackend', False),
+    # 2026-10-16 : l'audio → un MIDI par instrument (MuScriptor), la « Partition complète » du
+    # composer. Écrit avant le backend, non liant comme `audio-to-score`.
+    'audio-to-midi': ('midi_extraction_base', 'MidiExtractionBackend', False),
     'transcription': ('speech_to_text_base', 'SpeechToTextBackend', True),
     # 2026-10-07 : la signature que les trois moteurs OCR partageaient sans la déclarer. LIANT :
     # un modèle d'OCR n'est servi que par un backend OCR — c'est ce qui borne `GlmOcrBackend`

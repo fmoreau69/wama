@@ -94,6 +94,17 @@ PARAMS = [
           cap_from={"field": "model", "capability": "max_duration_s"},
           # La durée est au RENDU seul : la partition ne la lit pas.
           stales=("render",)),
+    # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : la case qui ACTIVE le process optionnel
+    # `parts` (`ProcessSpec.toggle`) — le morceau rendu → une partie par instrument, montrée sur la
+    # page d'édition. Ne périme qu'elle-même : ni la partition suivie ni le rendu n'en dépendent.
+    Param(name="extract_parts", type="toggle", label="Partition complète (instruments)",
+          icon="fa-list-ol",
+          help="Après le rendu, écrit une partie par instrument entendu (voix, piano, basse, "
+               "batterie…) à partir du morceau produit. Lisible et calée sur l'audio dans la page "
+               "« Éditer la partition ». Une transcription automatique : à relire.",
+          dom_id={"panel": "extractParts", "item": "settingsExtractParts",
+                  "batch": "batchSettingsExtractParts"},
+          contexts=PANEL_ITEM_BATCH, stales=("parts",)),
 ]
 
 # Format + qualité de sortie depuis la brique commune (audio, early-binding auto via le catalogue).

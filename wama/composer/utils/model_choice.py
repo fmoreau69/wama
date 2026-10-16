@@ -113,23 +113,48 @@ def consumes_input(value, token: str) -> bool:
 SCORE_EXTRACTION_TASK = 'audio-to-score'
 
 
-def score_extractor() -> str:
-    """Clé de catalogue du modèle qui extrait la partition d'un audio — tirée par le sélecteur
-    commun parmi les modèles INSTALLÉS de la tâche (VRAM du moment comprise), '' s'il n'y en a
-    aucun. Jamais un nom de modèle ici."""
+#: La tâche du modèle qui écrit la PARTITION COMPLÈTE (process `parts`, 2026-10-16) : un MIDI par
+#: instrument, distinct d'`audio-to-score` (la grille mélodie + accords qu'un cover suit).
+PARTS_EXTRACTION_TASK = 'audio-to-midi'
+
+
+def model_for_task(task: str) -> str:
+    """Clé de catalogue du modèle d'un process qui n'emploie PAS le modèle de la card — tirée par
+    le sélecteur commun parmi les modèles INSTALLÉS de `task` (VRAM du moment comprise), '' s'il
+    n'y en a aucun. Jamais un nom de modèle ici."""
     from wama.model_manager.services.model_selector import select_model_id
-    return select_model_id(source=None, task=SCORE_EXTRACTION_TASK, fallback='') or ''
+    return select_model_id(source=None, task=task, fallback='') or ''
 
 
-def score_extraction_available() -> bool:
-    """Un modèle d'extraction de partition est-il INSTALLÉ ? Requête simple, sans tirage : c'est la
-    disponibilité (`ProcessSpec.available`) du process `extract_score`, lue pour chaque card."""
+def task_installed(task: str) -> bool:
+    """Un modèle de `task` est-il INSTALLÉ ? Requête simple, sans tirage : la disponibilité
+    (`ProcessSpec.available`) d'un process, lue pour chaque card."""
     try:
         from wama.model_manager.models import AIModel
-        return AIModel.objects.filter(capabilities__task=SCORE_EXTRACTION_TASK, is_downloaded=True,
+        return AIModel.objects.filter(capabilities__task=task, is_downloaded=True,
                                       is_available=True).exists()
     except Exception:
         return False
+
+
+def score_extractor() -> str:
+    """Le modèle qui extrait la partition d'un audio (process `extract_score`)."""
+    return model_for_task(SCORE_EXTRACTION_TASK)
+
+
+def score_extraction_available() -> bool:
+    """La disponibilité du process `extract_score`."""
+    return task_installed(SCORE_EXTRACTION_TASK)
+
+
+def parts_extractor() -> str:
+    """Le modèle qui écrit la partition complète (process `parts`)."""
+    return model_for_task(PARTS_EXTRACTION_TASK)
+
+
+def parts_extraction_available() -> bool:
+    """La disponibilité du process `parts`."""
+    return task_installed(PARTS_EXTRACTION_TASK)
 
 
 def covers_audio_by_score(value) -> bool:

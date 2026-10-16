@@ -20,6 +20,10 @@
  * entre deux temps — un tempo écrit arrondi (#754 : 88 écrit, 89,1 joué) ne fait plus dériver le
  * morceau. Tant que la grille n'est pas là, ou si on décoche « Calée sur les temps joués », le
  * temps est celui du tempo écrit (`Q:`).
+ *
+ * LECTURE SEULE (2026-10-16, la partition complète du composer) : `options.role` montre un rôle LU
+ * en texte (`Surface.texts`) au lieu de la valeur éditée — même gravure, même axe, mêmes notes
+ * colorées, aucun geste d'édition ; `options.empty` dit pourquoi il n'y a encore rien.
  */
 (function (global) {
     'use strict';
@@ -58,8 +62,14 @@
 
         var timings = [], tl = null, lit = [], rendered = null, pending = null;
         var msPerBeat = 0, notes = [], grid = null, alignment = null;
+        var readOnly = !!options.role;
+        var editable = !readOnly && !!ctx.canEdit;
 
-        function text() { var v = ctx.value(); return typeof v === 'string' ? v : ''; }
+        function text() {
+            if (readOnly) return String((ctx.reads() || {})[options.role] || '');
+            var v = ctx.value();
+            return typeof v === 'string' ? v : '';
+        }
 
         /** Le temps ÉCRIT (ms au tempo de la partition) qui sonne à l'instant `seconds` de l'axe. */
         function scoreMs(seconds) {
@@ -99,13 +109,13 @@
             notes = [];
             tl = null;
             if (!abc.trim() || !ABCJS) {
-                paper.textContent = ABCJS ? 'Partition vide.' : 'Moteur de partition non chargé.';
+                paper.textContent = ABCJS ? (options.empty || 'Partition vide.') : 'Moteur de partition non chargé.';
                 realign();
                 return;
             }
             var tune = ABCJS.renderAbc(paper, abc, {
                 add_classes: true, responsive: 'resize', selectTypes: ['note'],
-                dragging: !!ctx.canEdit, clickListener: onNote,
+                dragging: editable, clickListener: onNote,
             })[0];
             // La séquence audio d'abcjs donne aux notes leurs hauteurs MIDI — de quoi les caler sur
             // ce qui sonne. Aucun son n'est produit.
@@ -160,7 +170,7 @@
 
         function onNote(abcelem, tuneNumber, classes, analysis, drag) {
             if (!abcelem || abcelem.startChar == null) return;
-            if (drag && drag.step && ctx.canEdit) {
+            if (drag && drag.step && editable) {
                 ctx.edit(function (v) { return Score.transposeAt(v, abcelem.startChar, abcelem.endChar, drag.step); });
                 return;
             }
@@ -181,15 +191,18 @@
 
         sync.addEventListener('change', function () { if (axis) paint(axis.time(), true); });
         if (axis) axis.subscribe(function (snap) { paint(snap.time, snap.playing || snap.reason === 'seek'); });
-        // Un rendu refait (« Appliquer ») est un autre audio : sa grille se redemande.
-        ctx.on('redone', function () { grid = null; realign(); loadGrid(); });
+        // Un rendu refait (« Appliquer ») est un autre audio : sa grille se redemande — et une
+        // partition LUE (lecture seule) a pu être réécrite par son process.
+        ctx.on('redone', function () { grid = null; realign(); loadGrid(); if (readOnly) schedule(); });
+        if (readOnly) ctx.on('processes', function () { if (text() !== rendered) schedule(); });
 
         render();
         loadGrid();
         return {
             refresh: function () { if (text() !== rendered) schedule(); },
             tools: tools,
-            help: 'Partition : clic sur une note = y aller · glisser une note vers le haut ou le bas = la transposer d’un degré (Ctrl+Z annule) · les temps écrits sont calés sur les temps joués de l’audio',
+            help: readOnly ? null
+                : 'Partition : clic sur une note = y aller · glisser une note vers le haut ou le bas = la transposer d’un degré (Ctrl+Z annule) · les temps écrits sont calés sur les temps joués de l’audio',
         };
     }
 

@@ -734,6 +734,13 @@ SOURCES: tuple[ExternalSource, ...] = (
         "que MuseTalk charge (l'empreinte du fichier est dans son nom, convention torch.hub)",
         kind='poids'),
     ExternalSource(
+        'beat_this', 'Beat This! (JKU Linz, serveur de ses auteurs)',
+        'https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp',
+        "Points de contrôle publiés par les auteurs du suivi de temps Beat This! (CPJKU) — "
+        "`final0.ckpt`, que MuScriptor charge pour trouver tempo, métrique et barres de mesure ; "
+        "aucun dépôt officiel sur HuggingFace (2026-10-16)",
+        kind='poids'),
+    ExternalSource(
         'osv', 'OSV (Open Source Vulnerabilities)', 'https://api.osv.dev/v1',
         "Audit de vulnérabilités des dépendances (contrôle nocturne)",
         kind='audit', doc='docs/construction/suivi/PROJECT_STATUS.md'),

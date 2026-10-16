@@ -5,6 +5,9 @@
 (les notes jouées se colorent), la corriger — à la gravure (glisser une note) ou dans sa source
 ABC —, avec l'annuler/rétablir et les versions de WAMA. Toutes ses briques sont universelles.
 
+La PARTITION COMPLÈTE (2026-10-16) s'y lit en dessous : une partie par instrument (process
+optionnel `parts`, MuScriptor), en lecture seule, sur le même axe.
+
 La partition est un RÉSULTAT de la card, écrit par l'un de deux process ALTERNATIFS : `plan`
 (la consigne → la partition) ou `extract_score` (l'audio du morceau à reprendre → sa mélodie) —
 la surface édite celui qui est rempli. L'enregistrer change l'empreinte de la sortie : le rendu
@@ -35,11 +38,18 @@ def _score_available(generation) -> tuple:
 register_surface(Surface(
     app='composer', key='score', label='Éditer la partition',
     model='composer.ComposerGeneration',
-    slots=(BrickSlot('score', 'score_view', 0, 0, 8, 12, {'media': 'audio'}),
-           BrickSlot('transport', 'media_transport', 0, 12, 8, 4, {'role': 'audio'}),
-           BrickSlot('source', 'text_sections', 8, 0, 4, 8, {'title': 'Source ABC'}),
-           BrickSlot('versions', 'revision_history', 8, 8, 4, 4),
-           BrickSlot('actions', 'surface_actions', 8, 12, 4, 4)),
-    reads={'audio': 'audio_output'},
+    slots=(BrickSlot('score', 'score_view', 0, 0, 8, 9, {'media': 'audio'}),
+           # La PARTITION COMPLÈTE (2026-10-16) : lue, jamais éditée ici — même axe, mêmes notes
+           # colorées, une partie par instrument (process optionnel `parts`).
+           BrickSlot('parts', 'score_view', 0, 9, 8, 8,
+                     {'role': 'parts', 'media': 'audio', 'title': 'Partition complète',
+                      'empty': "Pas encore de partition complète : cocher « Partition complète "
+                               "(instruments) » dans les réglages de la card, puis relancer."}),
+           BrickSlot('transport', 'media_transport', 0, 17, 8, 4, {'role': 'audio'}),
+           BrickSlot('source', 'text_sections', 8, 0, 4, 11, {'title': 'Source ABC'}),
+           BrickSlot('versions', 'revision_history', 8, 11, 4, 5),
+           BrickSlot('actions', 'surface_actions', 8, 16, 4, 5)),
+    reads={'audio': 'audio_output', 'parts': 'parts_score'},
+    texts=('parts',),
     edits=SCORE_FIELDS,
     reruns='render', available=_score_available))

@@ -2002,6 +2002,16 @@ MECHANISMS = (
               'wama/common/utils/audio_rhythm.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               depends_on=('audio_decode',)),
+    Mechanism('midi_score', 'Notation d\'un MIDI multi-instrument (MIDI → ABC)',
+              "Un MIDI à une piste par instrument → une partition ABC lisible : une voix par "
+              "instrument (libellé français), clavier sur deux portées, batterie en portée de "
+              "percussion, accords, liaisons, altérations par mesure. Sur la métrique du MIDI quand "
+              "le moteur en a trouvé une, sinon sur les temps JOUÉS de l'audio (`audio_rhythm`), "
+              "anacrouse comprise. Né le 2026-10-16 pour la partition complète du composer "
+              "(MuScriptor, tâche `audio-to-midi`) ; ne connaît aucun moteur",
+              'wama/common/utils/midi_score.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
+              annexes=('wama/common/tests/tests_midi_score.py',)),
     Mechanism('ranged_response', 'Servir un fichier par morceaux (HTTP Range)',
               "Réponse 206 à une requête `Range` — ce qui rend un média seekable au-delà du "
               "déjà-téléchargé ; sert `/media/` (`wama/urls.py`) et la vidéo du cam_analyzer, "

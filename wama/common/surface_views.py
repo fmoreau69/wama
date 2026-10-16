@@ -101,6 +101,8 @@ def surface_data(request, app: str, key: str, pk: int):
         value = getattr(item, field_name, None)
         if role in found.documents:
             reads[role] = _document(value)
+        elif role in found.texts:
+            reads[role] = _text(value)
         else:
             reads[role] = value.url if value else ''
             peaks = _server_peaks(reads[role])
@@ -205,7 +207,7 @@ def _rhythm_of(found, item, role: str):
     (`?only=rhythm`) par une brique qui cale une partition dessus : quelques secondes au premier
     appel, la page ne l'attend pas. None pour un rôle inconnu, un document ou un non-audio."""
     field_name = found.reads.get(role)
-    if not field_name or role in found.documents:
+    if not field_name or role in found.documents or role in found.texts:
         return None
     value = getattr(item, field_name, None)
     if not getattr(value, 'name', ''):
@@ -271,6 +273,19 @@ def _write_text(item, field_name: str, text: str) -> bool:
     if old:
         process_runs.lines(item).filter(output_ref=old).update(output_ref=field.name)
     return True
+
+
+def _text(value) -> str:
+    """Le texte d'un fichier lu en lecture seule (`Surface.texts`), plafonné comme un texte édité ;
+    '' sans fichier ou illisible."""
+    if not getattr(value, 'name', ''):
+        return ''
+    from wama.common.surfaces import MAX_TEXT_CHARS
+    try:
+        with open(value.path, encoding='utf-8', errors='replace') as source:
+            return source.read(MAX_TEXT_CHARS)
+    except OSError:
+        return ''
 
 
 def _document(value):

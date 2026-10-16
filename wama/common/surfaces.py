@@ -133,6 +133,9 @@ class Surface:
     available: Optional[Callable] = None
     #: Rôles lus en JSON (document), les autres étant des fichiers servis par URL.
     documents: tuple = ()
+    #: Rôles lus en TEXTE (2026-10-16 : la partition complète du composer, ABC en lecture seule à
+    #: côté de celle qu'on édite) — le contenu du fichier, '' s'il n'y en a pas.
+    texts: tuple = ()
     #: Valeurs de l'élément passées aux briques : nom de champ, ou fonction de l'élément quand la
     #: valeur se lit assainie (`{'classes': lambda media: sane_classes(media.classes2blur)}`).
     context: dict = field(default_factory=dict)

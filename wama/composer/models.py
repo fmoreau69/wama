@@ -104,6 +104,17 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     #: dans l'ordre où on les cherche — ce que la surface édite et dont les versions se gardent.
     SCORE_FIELDS = ('planned_score', 'extracted_score')
 
+    # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : process OPTIONNEL `parts` — le morceau
+    # RENDU → une partie par instrument (tâche `audio-to-midi`, MuScriptor), mise en notation par
+    # la brique commune `midi_score`. Montrée et lue sur la page d'édition, jamais donnée au rendu.
+    # `db_default` : le code en service crée des générations sans connaître la colonne.
+    extract_parts = models.BooleanField(default=False, db_default=False,
+                                        help_text='Partition complète : une partie par instrument')
+    parts_score = models.FileField(
+        upload_to=upload_to_user_output('composer'),
+        blank=True, null=True,
+    )
+
     # Format de sortie (conversion inline via Converter) — 'original' = WAV natif
     output_format = models.CharField(max_length=20, default='original')
     output_quality = models.CharField(max_length=20, default='balanced')

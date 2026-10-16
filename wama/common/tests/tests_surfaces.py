@@ -526,8 +526,9 @@ class ComposerScoreSurfaceTest(TestCase):
     def test_the_page_composes_the_score_the_transport_and_the_versions(self):
         from wama.common.surfaces import surface
         score = surface('composer', 'score')
-        self.assertEqual(['score_view', 'media_transport', 'text_sections', 'revision_history',
-                          'surface_actions'], [s.brick for s in score.slots])
+        self.assertEqual(['score_view', 'score_view', 'media_transport', 'text_sections',
+                          'revision_history', 'surface_actions'], [s.brick for s in score.slots])
+        self.assertEqual('parts', score.slots[1].options['role'], 'the full score, read only')
         scripts = score.scripts()
         self.assertLess(scripts.index('vendors/abcjs-6.4.4/abcjs-basic-min.js'),
                         scripts.index('common/js/surfaces/brick-score-view.js'))
@@ -570,6 +571,17 @@ class ComposerScoreSurfaceTest(TestCase):
         self.assertTrue(all(r['kept'] for r in listed['revisions']))
         self.assertEqual(ABC, self.client.get(self.base + 'revisions/1/').json()['value'])
         self.assertEqual(corrected, self.client.get(self.base + 'revisions/2/').json()['value'])
+
+    def test_the_full_score_is_read_as_text_and_never_as_a_beat_grid(self):
+        data = self.client.get(self.base + 'data/').json()
+        self.assertEqual('', data['reads']['parts'], 'no full score yet')
+        parts = self.rel.replace('score_extracted.abc', 'score_parts.abc')
+        (Path(settings.MEDIA_ROOT) / parts).write_text('X:1\nV:I0\nK:C\nC4|\n', encoding='utf-8')
+        type(self.gen).objects.filter(pk=self.gen.pk).update(parts_score=parts)
+        data = self.client.get(self.base + 'data/').json()
+        self.assertEqual('X:1\nV:I0\nK:C\nC4|\n', data['reads']['parts'], 'its text, not its URL')
+        self.assertEqual(ABC, data['value'], 'the edited score is still the melody')
+        self.assertIsNone(self.client.get(self.base + 'data/?only=rhythm&role=parts').json()['rhythm'])
 
     def test_only_the_score_is_kept_never_the_render(self):
         from wama.common.services.revisions import record_revision

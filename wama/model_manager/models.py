@@ -106,6 +106,12 @@ class ModelTask(models.TextChoices):
     # la nature des partitions (`app_registry.MEDIA_CATEGORIES`) : le domaine de sortie se dérive
     # du nom (`<source>-to-<cible>`). 1er modèle : SheetSage2, le maillon audio → partition du cover.
     AUDIO_TO_SCORE = 'audio-to-score', 'Audio → partition'
+    # Transcription MULTI-INSTRUMENT (2026-10-16, décision de Fabien : la « Partition complète » du
+    # composer) : un audio → un MIDI à une piste PAR INSTRUMENT, voix et batterie comprises. Pas
+    # `audio-to-score` : celui-ci rend la grille mélodie + accords qu'un cover suit (SheetSage2) ;
+    # les confondre ferait tirer un MIDI à N parties pour le rendu. 1er modèle : MuScriptor, dont la
+    # carte se déclare elle-même `audio-to-midi`.
+    AUDIO_TO_MIDI = 'audio-to-midi', 'Audio → MIDI multi-instrument'
     # video
     LIP_SYNC = 'lip-sync', 'Synchronisation labiale'
 
@@ -180,6 +186,9 @@ TASK_TO_PLATFORM_TAGS = {
     # HuggingFace n'a pas de tâche officielle « transcription musicale » (SheetSage2 se range en
     # `feature-extraction`, ce qu'il n'est pas pour nous).
     ModelTask.AUDIO_TO_SCORE:     (None,                           None,        None,        None),
+    # Pas de tâche de PIPELINE chez HuggingFace non plus ; la carte porte le tag `audio-to-midi`
+    # (lu par `prospector.hf_task_to_wama`, comme `layout_detection`).
+    ModelTask.AUDIO_TO_MIDI:      (None,                           None,        None,        None),
     ModelTask.LIP_SYNC:           (None,                           None,        None,        None),
 }
 REFERENCE_PLATFORMS = ('huggingface', 'ultralytics', 'ollama', 'roboflow')
@@ -227,6 +236,7 @@ TASK_TO_MODEL_TYPE = {
     ModelTask.TEXT_TO_MUSIC:      ModelType.MUSIC,
     ModelTask.TEXT_TO_AUDIO:      ModelType.MUSIC,
     ModelTask.AUDIO_TO_SCORE:     ModelType.MUSIC,
+    ModelTask.AUDIO_TO_MIDI:      ModelType.MUSIC,
     ModelTask.LIP_SYNC:           ModelType.LIPSYNC,
 }
 
@@ -315,6 +325,7 @@ TASK_DEFAULT_INPUTS = {
     ModelTask.TEXT_TO_MUSIC:      (('audio',),                     ('prompt',),               ()),
     ModelTask.TEXT_TO_AUDIO:      (('audio',),                     ('prompt',),               ()),
     ModelTask.AUDIO_TO_SCORE:     (('audio',),                     ('work_audio',),           ()),
+    ModelTask.AUDIO_TO_MIDI:      (('audio',),                     ('work_audio',),           ()),
     ModelTask.LIP_SYNC:           (('image', 'audio', 'video'),    ('work_image', 'work_audio'), ()),
 }
 

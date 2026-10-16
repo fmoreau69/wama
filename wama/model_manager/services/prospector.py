@@ -64,6 +64,12 @@ def hf_task_to_wama(pipeline_tag: str, tags=()):
     if bag & {'layout_detection', 'layout-detection', 'document-layout-analysis',
               'table-transformer'}:
         return 'layout-detection', 'vision'
+    # TRANSCRIPTION MUSICALE MULTI-INSTRUMENT (2026-10-16) — tranchée par la CARTE : aucune tâche de
+    # pipeline HuggingFace ne la nomme (`MuScriptor/muscriptor-large` n'en publie AUCUNE, et ses tags
+    # disent `audio-to-midi`, `automatic-music-transcription`). Sans cette règle le dépôt NOMMÉ était
+    # écarté de la prospection (« sa tâche n'entre pas dans le périmètre »).
+    if bag & {'audio-to-midi', 'automatic-music-transcription', 'music-transcription'}:
+        return 'audio-to-midi', 'music'
     if t == 'image-to-image':
         if any(k in bag for k in ('super-resolution', 'upscaling', 'upscale', 'image-restoration')):
             return 'upscale', 'upscaling'
