@@ -152,6 +152,23 @@ plus tard et **par lot**. Trois points, portés par le code et non par la vigila
    `modeles_obsoletes=True` reprend aussi les lignes vectorisées par un autre modèle : c'est ce
    qui rend une bascule d'embedder possible sans corrompre la colonne.
 
+> ✅ **2026-10-16 — le réindex a enfin ses déclencheurs (décision de Fabien).** La règle disait
+> « à déclencher explicitement (commande ou tâche) » ; seule la COMMANDE existait. Un document
+> ajouté au RAG restait « non vectorisé » sans fin, et la page « Mon RAG » promettait « le
+> prochain lot d'indexation », qu'aucun planificateur ne lançait (constaté par Fabien sur sa
+> fiche CPER, 28 fragments). Désormais une seule tâche, `common.reindex_memory`, sur la file
+> GPU au palier le plus bas (`_memory_reindex` : derrière tout traitement, comme la passe de
+> prospection) et sous un verrou (jamais deux passes), appelée :
+> 1. **chaque nuit à 01:45** (`memory-reindex-nightly`, déclarée au calendrier) — après la
+>    reprojection de la doc (01:25), loin de la plage réservée aux tests (04:15) ;
+> 2. **par le bouton « Vectoriser maintenant »** de « Mon RAG », qui ne traite que les lignes du
+>    COMPTE (`reindex(user=…)`). Le bandeau dit l'heure de la prochaine passe, LUE du
+>    planificateur (`calendar.next_occurrence`).
+> Aucun des deux ne vectorise dans une requête. Gardes : `common/tests/tests_memory_reindex.py`.
+> ⚠ `sync_memory --reindex` reste la voie à la main, mais il REPROJETTE AUSSI les résultats de
+> traitements en souvenirs avant les vecteurs (2 396 souvenirs créés au passage, le 16/10) : la
+> tâche, elle, ne fait que les vecteurs.
+
 S'y ajoute **`keep_alive='0'`** sur chaque appel d'embedding (`embed.py`) — le modèle est déchargé
 aussitôt au lieu de résider 5 minutes (défaut Ollama). Sans ça, une série d'écritures laisse
 `bge-m3` squatter la VRAM entre deux appels, en concurrence avec un traitement utilisateur. C'est
@@ -962,6 +979,7 @@ toutes deux SANS modèle ; un fragment inchangé garde son vecteur. Mesuré : 50
 fragments, projection 2 s, vecteurs 79 s. Éprouvé par deux tours réels d'assistant (recherche,
 lecture de section, réponse citée) ; 17 gardes dans `tests_docs_corpus.py`.
 
-⏳ Restes : les vecteurs des fragments NEUFS attendent `sync_memory --reindex` (geste explicite,
-§5bis) — à décider : les calculer aussi la nuit ; `WAMA_MECANISMES.md` et `docs/dev/briques.md` à
+⏳ Restes : ~~les vecteurs des fragments NEUFS attendent `sync_memory --reindex` (geste explicite,
+§5bis) — à décider : les calculer aussi la nuit~~ — décidé et câblé le 2026-10-16 (lot nocturne
+01:45, encadré du §5bis) ; `WAMA_MECANISMES.md` et `docs/dev/briques.md` à
 régénérer (`doc_facts`), tenus par une autre instance ; la doc UTILISATEUR ne compte qu'un doc.

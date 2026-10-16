@@ -129,12 +129,26 @@ du 2026-08-21 (le balayage a été purgé), pas une fonctionnalité oubliée.
     {% include 'common/_filter_bar.html' with facettes=facettes mode='server' recherche=q placeholder='Rechercher un document…' url_reset=url_reset %}
   </form>
 
+  {% comment %}Vectoriser (2026-10-16) : la phrase promettait « le prochain lot d'indexation »
+  alors qu'aucun n'était planifié. Le lot est désormais nocturne, son heure LUE du planificateur
+  (`next_reindex`), et le bouton lance tout de suite la passe du compte (`rag_reindex`).
+  Adresse LITTÉRALE et non `url` : un gabarit est relu à chaud en production, une route encore
+  inconnue du processus y lèverait NoReverseMatch sur la page jusqu'à la relance.{% endcomment %}
   {% if en_attente %}
-  <p class="rag-attente mb-2">
-    <i class="fas fa-hourglass-half"></i>
-    {{ en_attente }} document{{ en_attente|pluralize }} en attente de vectorisation — la recherche
-    par le sens ne les trouvera qu'après le prochain lot d'indexation.
-  </p>
+  <form method="post" action="/common/rag/reindex/"
+        class="rag-attente mb-2 d-flex align-items-center gap-2 flex-wrap">
+    {% csrf_token %}
+    <span>
+      <i class="fas fa-hourglass-half"></i>
+      {{ en_attente }} document{{ en_attente|pluralize }} en attente de vectorisation — la recherche
+      par les mots {{ en_attente|pluralize:"le,les" }} trouve déjà, la recherche par le sens après
+      la vectorisation{% if next_reindex %}, faite chaque nuit (prochaine le
+      {{ next_reindex|date:"d/m à H:i" }}){% endif %}.
+    </span>
+    <button type="submit" class="btn btn-sm btn-outline-primary">
+      <i class="fas fa-bolt me-1"></i>Vectoriser maintenant
+    </button>
+  </form>
   {% endif %}
 
   {% if docs %}

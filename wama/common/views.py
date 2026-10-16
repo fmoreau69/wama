@@ -1325,6 +1325,24 @@ def rag_retirer(request):
 
 @login_required
 @require_POST
+def rag_reindex(request):
+    """« Vectoriser maintenant » (2026-10-16, décision de Fabien) : les vecteurs qui manquent aux
+    documents et souvenirs du COMPTE, calculés par la tâche commune (`common.reindex_memory`, file
+    GPU, derrière tout traitement) — jamais dans la requête (`WAMA_MEMORY §5bis`). Revient à la
+    page avec ce qui a été fait : formulaire simple, comme le marquage des notifications."""
+    from django.contrib import messages
+    from django.shortcuts import redirect
+
+    from .tasks import reindex_memory_task
+
+    reindex_memory_task.delay(user_id=request.user.pk)
+    messages.info(request, "Vectorisation demandée : elle passe dès que la carte graphique est "
+                           "libre. Rechargez la page dans quelques instants.")
+    return redirect('common:rag')
+
+
+@login_required
+@require_POST
 def rag_preference(request):
     """Enregistre les défauts de niveaux du profil (écriture + rappel).
 
@@ -1386,6 +1404,7 @@ def rag_view(request):
     from .app_registry import APP_CATALOG
     from .memory.index import WRITE_LEVELS, list_rag
     from .memory.store import NIVEAUX_RAG
+    from .services.calendar import next_occurrence
 
     LIBELLE = {'user': 'Mon RAG (privé)', 'unit': 'RAG du labo',
                'project': 'RAG du projet', 'public': 'Public'}
@@ -1423,6 +1442,9 @@ def rag_view(request):
         'total': len(docs),
         'fragments': sum(d['fragments'] for d in docs),
         'en_attente': sum(1 for d in docs if d['en_attente']),
+        # Quand passe le lot de vectorisation : lu du planificateur, jamais écrit au gabarit
+        # (la page promettait « le prochain lot » alors qu'aucun n'était planifié).
+        'next_reindex': next_occurrence('memory-reindex-nightly'),
         'facettes': facettes,
         'q': q,
         'url_reset': reverse('common:rag'),

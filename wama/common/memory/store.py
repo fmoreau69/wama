@@ -398,7 +398,7 @@ def _rrf_fusion(listes):
 
 # ──────────────────────────────────────────────────────────── reindex ────────
 
-def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
+def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False, user=None):
     """
     Calcule les vecteurs manquants, PAR LOT. Rend un résumé `{...}`.
 
@@ -414,6 +414,9 @@ def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
     `modeles_obsoletes=True` reprend AUSSI les lignes vectorisées par un autre modèle — c'est ce
     qui rend une bascule d'embedder possible sans corrompre la colonne : les deux espaces
     vectoriels ne cohabitent que le temps du réindex, et on sait lesquels restent à refaire.
+
+    `user` : ne vectoriser que les lignes de CE compte — le bouton « Vectoriser maintenant » de
+    « Mon RAG » (2026-10-16) ; sans lui, tout ce qui attend (commande, lot nocturne).
     """
     from ..models import MemoryItem, RagChunk
     from .embed import (EMBEDDING_MODEL, unload, embed_batch, embedder_available,
@@ -451,7 +454,10 @@ def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
         manquant |= ~Q(embedding_model=EMBEDDING_MODEL)
 
     for modele in (MemoryItem, RagChunk):
-        qs = modele.objects.filter(manquant).order_by('pk')
+        qs = modele.objects.filter(manquant)
+        if user is not None:
+            qs = qs.filter(user=user)
+        qs = qs.order_by('pk')
         resume['restants'] += qs.count()
         if dry_run:
             continue

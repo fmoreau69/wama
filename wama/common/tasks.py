@@ -212,13 +212,48 @@ def purge_access_log_task(dry_run=False):
 def sync_docs_corpus_task(dry_run=False):
     """Projection nocturne de la doc DÉCLARÉE vers le corpus système de l'assistant
     (`common/memory/docs_corpus.py`, 2026-10-03). Mécanique : lecture des `.md`, découpage,
-    écriture — AUCUN modèle chargé. Les vecteurs des fragments neufs restent à calculer par
-    `sync_memory --reindex`, geste explicite (règle GPU, `WAMA_MEMORY §5bis`) ; entre-temps ces
-    fragments se retrouvent en lexical."""
+    écriture — AUCUN modèle chargé. Les vecteurs des fragments neufs sont calculés à part, par le
+    lot nocturne qui suit (`memory-reindex-nightly`, 01:45, `common.reindex_memory` — règle GPU,
+    `WAMA_MEMORY §5bis`) ; entre-temps ces fragments se retrouvent en lexical."""
     from wama.common.memory.docs_corpus import index_docs
     summary = index_docs(dry_run=dry_run)
     if summary['written'] or summary['removed']:
         logger.info("[docs] %s", {k: summary[k] for k in ('written', 'removed', 'fragments')})
+    return summary
+
+
+#: Verrou d'une passe de vectorisation : une seule à la fois (bouton cliqué deux fois, lot
+#: nocturne pendant un clic). Sa durée borne une passe interrompue sans le relâcher.
+REINDEX_LOCK = 'common.reindex_memory.lock'
+REINDEX_LOCK_SECONDS = 3600
+
+
+@shared_task(name='common.reindex_memory')
+def reindex_memory_task(user_id=None):
+    """Calcule les vecteurs qui manquent au RAG et aux souvenirs (`store.reindex`, 2026-10-16) :
+    ceux d'UN compte quand `user_id` est donné (bouton « Vectoriser maintenant » de « Mon RAG »),
+    sinon tout ce qui attend (lot nocturne `memory-reindex-nightly`, 01:45).
+
+    Le geste explicite que demande `WAMA_MEMORY §5bis` — jamais dans une requête : file GPU, au
+    palier le plus bas (`_memory_reindex`), et le gouverneur décide si le modèle peut rester
+    chargé le temps de la passe. Une passe déjà en cours ne s'en voit pas ajouter une seconde."""
+    from django.contrib.auth import get_user_model
+    from django.core.cache import cache
+
+    from wama.common.memory.store import reindex
+
+    if not cache.add(REINDEX_LOCK, 1, timeout=REINDEX_LOCK_SECONDS):
+        logger.info("[memory] vectorisation déjà en cours : rien de plus lancé")
+        return {'skipped': 'en cours'}
+    try:
+        user = get_user_model().objects.filter(pk=user_id).first() if user_id else None
+        if user_id and user is None:
+            return {'skipped': 'compte introuvable'}
+        summary = reindex(user=user)
+    finally:
+        cache.delete(REINDEX_LOCK)
+    if summary.get('traites') or summary.get('echecs'):
+        logger.info("[memory] vectorisation : %s", summary)
     return summary
 
 

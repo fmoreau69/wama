@@ -837,6 +837,9 @@ if ENABLE_CELERY:
         # Passe LLM de la prospection : GPU (Ollama hôte = même carte) en --pool=solo →
         # SÉRIALISÉE derrière tout traitement utilisateur, jamais en concurrence (2026-08-19).
         'model_manager.assess_proposed': {'queue': 'gpu', 'priority': _prio('_prospect_assess')},
+        # Vectorisation du RAG et des souvenirs (2026-10-16) : embeddings dans l'Ollama hôte, même
+        # carte — même règle que la passe ci-dessus, sérialisée derrière les traitements.
+        'common.reindex_memory': {'queue': 'gpu', 'priority': _prio('_memory_reindex')},
     }
     CELERY_TASK_DEFAULT_QUEUE = 'default'
 
@@ -939,6 +942,16 @@ if ENABLE_CELERY:
             'task': 'common.sync_docs_corpus',
             'schedule': crontab(hour=1, minute=25),
             'options': {'queue': 'default'},
+        },
+        # …et ses VECTEURS, avec ceux du RAG des utilisateurs et des souvenirs (2026-10-16,
+        # décision de Fabien) : la page « Mon RAG » annonçait « le prochain lot d'indexation »
+        # alors qu'aucun lot n'était planifié — seule la commande `sync_memory --reindex` les
+        # calculait. 01:45 = après la reprojection de la doc (01:25), qui crée des fragments sans
+        # vecteur, et loin de la plage réservée aux tests (04:15). File GPU (route ci-dessus) : la
+        # passe attend derrière tout traitement, et le gouverneur décide de la résidence du modèle.
+        'memory-reindex-nightly': {
+            'task': 'common.reindex_memory',
+            'schedule': crontab(hour=1, minute=45),
         },
         # Rétention : purge quotidienne des médias expirés (no-op si aucun user n'a de rétention).
         'purge-expired-media': {

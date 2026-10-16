@@ -213,6 +213,7 @@ urlpatterns = [
     path('api/memories/approve/', views.memories_approve, name='memories_approve'),
     path('api/rag/ajouter/', views.rag_ajouter, name='rag_ajouter'),
     path('api/rag/retirer/', views.rag_retirer, name='rag_retirer'),
+    path('rag/reindex/', views.rag_reindex, name='rag_reindex'),
     path('api/rag/preference/', views.rag_preference, name='rag_preference'),
 
     # Schéma domaines→modes d'une app (clé de voûte UX, consommé par WamaModes JS)

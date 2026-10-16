@@ -1389,6 +1389,10 @@ APP_TIERS = {
     # le plus bas. Leçon du 2026-08-19 : enchaînée hors gouverneur, elle a fait tomber
     # l'hôte (pattern « Ollama hôte enchaîné », instabilité sous l'OS).
     "_prospect_assess": "basse",
+    # Pseudo-app : vectorisation du RAG et des souvenirs (`common.reindex_memory`, 2026-10-16) —
+    # embeddings `bge-m3` dans l'Ollama HÔTE, même profil que la passe ci-dessus : file gpu
+    # --pool=solo, derrière tout traitement utilisateur (`WAMA_MEMORY §5bis`).
+    "_memory_reindex": "basse",
 }
 
 DEFAULT_TIER = "normale"

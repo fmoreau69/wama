@@ -80,6 +80,9 @@ BEAT_WINDOWS = {
     'backup-media-daily': {'label': 'Miroir des médias vers le NAS', 'minutes': 60},
     'backup-db-daily': {'label': 'Sauvegarde de la base', 'minutes': 20},
     'purge-expired-media': {'label': 'Purge des médias expirés', 'minutes': 10},
+    # Vectorisation du RAG et des souvenirs (2026-10-16). Mesuré : 6 654 fragments de doc en 79 s ;
+    # une nuit ordinaire n'en a que les nouveaux.
+    'memory-reindex-nightly': {'label': 'Vectorisation du RAG et des souvenirs', 'minutes': 5},
     'nightly-consistency': {'label': 'Tests nocturnes — cohérence', 'minutes': 15,
                             'measure': 'nightly:consistency', 'reserves': ('cpu',)},
     # Deux cadences (2026-10-13, `nightly_tests.scenario_cadence`). Durées DÉCLARÉES = la mesure
@@ -574,6 +577,18 @@ def maintenance_windows(start, end) -> list[CalendarEvent]:
                 extra={'beatEntry': name, 'task': entry.get('task', '')},
             ))
     return events
+
+
+def next_occurrence(entry_name, now=None):
+    """Le prochain passage de l'entrée beat `entry_name` (à horaire), ou None si elle n'est pas
+    planifiée — ce qu'une page DIT de l'heure d'un lot sans la recopier (« Mon RAG », 2026-10-16).
+    Même lecture que la couche de maintenance du calendrier."""
+    from django.utils import timezone
+
+    now = now or timezone.now()
+    starts = [e.start for e in maintenance_windows(now, now + timedelta(days=8))
+              if e.extra.get('beatEntry') == entry_name]
+    return min(starts) if starts else None
 
 
 def reserved_windows(start, end, resource=None) -> list[CalendarEvent]:
