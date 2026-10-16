@@ -434,3 +434,26 @@ class CorrectionsTest(SimpleTestCase):
     def test_no_correction_returns_the_document_itself(self):
         doc = self._doc()
         self.assertIs(doc, dets.apply_corrections(doc, {}))
+
+
+class AgreementTest(SimpleTestCase):
+    """`boxes_at` + `support` — l'accord géométrique entre sorties (M2/M6, 2026-10-16)."""
+
+    def test_a_document_taken_four_times_larger_is_read_at_the_original_width(self):
+        doc = dets.new_document(media='image', width=2320, height=1304)
+        dets.add(doc, 0, [dets.detection(box=[400, 80, 440, 120], conf=0.8)])
+        dets.add(doc, 3, [dets.detection(box=[0, 0, 8, 8])])
+        self.assertEqual([([100.0, 20.0, 110.0, 30.0], 0.8)], dets.boxes_at(doc, width=580))
+        self.assertEqual([([400, 80, 440, 120], 0.8)], dets.boxes_at(doc))
+
+    def test_the_support_of_an_object_names_every_output_that_saw_it(self):
+        groups = dets.support([('a', [10, 10, 20, 20]), ('b', [11, 10, 21, 20]),
+                               ('c', [100, 100, 110, 110]), ('b', [10, 11, 20, 21])])
+        self.assertEqual([{'a', 'b'}, {'c'}], [g['keys'] for g in groups])
+
+    def test_a_shifted_box_below_the_overlap_opens_another_object(self):
+        # Contre-épreuve : un voisin dans une foule n'est pas le même visage.
+        groups = dets.support([('a', [10, 10, 20, 20]), ('b', [18, 10, 28, 20])])
+        self.assertEqual(2, len(groups))
+        self.assertEqual(1, len(dets.support([('a', [10, 10, 20, 20]), ('b', [18, 10, 28, 20])],
+                                             iou=0.1)))

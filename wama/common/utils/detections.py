@@ -141,6 +141,46 @@ def apply_corrections(doc: dict, corrections) -> dict:
     return fixed
 
 
+def boxes_at(doc: dict, *, width: float = 0, frame: int = 0) -> list:
+    """Les `(box, conf)` d'UNE frame, ramenées à la largeur `width` (0 = telles quelles) — pour
+    confronter des documents d'un même sujet pris à des tailles différentes (une image et ses
+    versions agrandies)."""
+    scale = (float(width) / float(doc.get('width') or width)) if width else 1.0
+    return [([v * scale for v in d['box']], d.get('conf', 1.0))
+            for f in doc.get('frames') or [] if int(f['i']) == frame for d in f.get('d') or []]
+
+
+#: Recouvrement à partir duquel deux détecteurs désignent le même objet dans un ACCORD. Plus bas
+#: que celui d'un banc à vérité (0,5) : un visage de quelques pixels, vu à deux tailles d'image,
+#: se décale d'un ou deux pixels, ce qui suffit à faire tomber l'IoU d'une petite boîte.
+AGREEMENT_IOU = 0.3
+
+
+def support(items, *, iou: float = AGREEMENT_IOU) -> list:
+    """L'ACCORD géométrique entre sorties (`WAMA_QUALITE` M2/M6, 2026-10-16) — les objets que
+    plusieurs sorties désignent, et lesquelles.
+
+    `items` : des `(clé, box)` sur une même image et dans les mêmes coordonnées ; la clé nomme la
+    sortie (un détecteur, ou un couple détecteur × version de l'image). Regroupement glouton : une
+    boîte rejoint l'objet qu'elle recouvre le plus (au moins `iou`), sinon en ouvre un. Rend
+    `[{'box', 'keys'}]`, `keys` = l'ensemble des clés qui l'ont vu.
+
+    ⚠ Le SUPPORT d'un objet dit combien de sorties le voient, pas s'il existe : deux détecteurs
+    de même lignée partagent leurs biais. Un signal d'attention, jamais un classement seul."""
+    groups = []
+    for key, box in items:
+        best, best_iou = None, iou
+        for g in groups:
+            value = _iou(box, g['box'])
+            if value >= best_iou:
+                best, best_iou = g, value
+        if best is None:
+            groups.append({'box': list(box), 'keys': {key}})
+        else:
+            best['keys'].add(key)
+    return groups
+
+
 def write(path: str, doc: dict) -> str:
     """Écrit le document (frames ordonnées) ; rend le chemin."""
     clean = {k: v for k, v in doc.items() if not k.startswith('_')}

@@ -213,6 +213,211 @@ def selection_rows():
     return ''.join(out)
 
 
+# ── Une photo de foule et ses versions agrandies (2026-10-16, question de Fabien) ─────────────
+# « Un agrandissement est-il plus propice qu'un autre avant de détecter ? » — l'expérience vit dans
+# l'Anonymizer : un lot porte l'image et ses versions agrandies par l'Enhancer, et chaque détecteur
+# comparé a son lot dupliqué de celui-là. Les chiffres viennent des DÉTECTIONS rangées par ces cards ;
+# les versions sont nommées par la card de l'Enhancer qui les a produites (provenance), les
+# détecteurs par le modèle employé (ligne d'exécution). Sans vérité terrain : l'ACCORD entre
+# détecteurs (`detections.support`, WAMA_QUALITE M2/M6) — un signal, jamais une mesure rangée pour
+# le choix automatique.
+VERSIONS_EXPERIMENT = {'images_batch': 685, 'detector_batches': (688, 689, 690, 691, 692)}
+#: Un visage est « confirmé » quand au moins ce nombre de détecteurs distincts le voient.
+CONFIRMED_BY = 3
+#: Tranches de hauteur, en pixels de l'image d'origine : la foule est sous le seuil des petits
+#: visages de WIDER FACE (16 px), il faut la regarder de plus près.
+VERSION_SIZES = ((6, '&lt; 6 px'), (10, '6 à 10 px'), (16, '10 à 16 px'), (10 ** 9, '16 px et plus'))
+
+
+def versions_experiment():
+    """Les mesures de l'expérience, ou None si ses cards ne sont plus là (le rapport s'en passe)."""
+    from wama.anonymizer.models import BatchAnonymizer, Media
+    from wama.common.backends.anonymize import IMAGE_MIN_INFERENCE_SIZE
+    from wama.common.services import process_runs
+    from wama.common.services.send_to import item_for_output_path
+    from wama.common.utils import detections as dets
+    from wama.common.utils.batch_common import batch_elements
+
+    try:
+        images_batch = BatchAnonymizer.objects.get(pk=VERSIONS_EXPERIMENT['images_batch'])
+        detector_batches = [BatchAnonymizer.objects.get(pk=pk)
+                            for pk in VERSIONS_EXPERIMENT['detector_batches']]
+    except BatchAnonymizer.DoesNotExist:
+        print('⚠ expérience des versions agrandies : lots introuvables, section omise')
+        return None
+
+    def employed(item):
+        keys = [line.model_key for line in process_runs.lines(item) if line.model_key]
+        return keys[0] if keys else ''
+
+    versions = {}                           # nom du fichier -> (libellé, largeur, est-ce la base)
+    for media in batch_elements(images_batch, Media):
+        surface, producer = item_for_output_path(images_batch.user, media.file.name)
+        if producer is None:
+            versions[media.file.name] = ('originale', media.width, True)
+            continue
+        key = employed(producer) or getattr(producer, 'ai_model', '')
+        model = AIModel.objects.filter(model_key=key).first()
+        name = model.name if model else key.rsplit(':', 1)[-1]
+        versions[media.file.name] = (f'agrandie par {name}', media.width, False)
+    base_width = next((w for _, w, base in versions.values() if base), min(w for _, w, _ in versions.values()))
+
+    runs = {}                               # (détecteur, version) -> [(box, conf)] dédoublonnés
+    sam3_prompt = ''
+    for batch in detector_batches:
+        for media in batch_elements(batch, Media):
+            if media.status != 'SUCCESS' or not media.detections_file or media.file.name not in versions:
+                print('⚠ card non exploitable :', media.pk, media.status)
+                continue
+            if media.target_mode == 'description':
+                detector, sam3_prompt = 'SAM3', media.sam3_prompt or ''
+            else:
+                detector = label_of(employed(media) or media.model_to_use, models_all)
+            doc = dets.read(media.detections_file.path)
+            runs[(detector, versions[media.file.name][0])] = bench.merged(
+                dets.boxes_at(doc, width=base_width), 0.5)
+
+    detectors = list(dict.fromkeys(d for d, _ in runs))
+    labels = [v[0] for v in sorted(versions.values(), key=lambda v: (not v[2], v[0]))]
+    groups = dets.support([((d, v), box) for (d, v), found in runs.items() for box, _ in found])
+    for g in groups:
+        g['detectors'] = {d for d, _ in g['keys']}
+    confirmed = [g for g in groups if len(g['detectors']) >= CONFIRMED_BY]
+
+    def seen(key, among):
+        return sum(1 for g in among if key in g['keys'])
+
+    table = {key: {'faces': len(found), 'confirmed': seen(key, confirmed),
+                   'alone': sum(1 for g in groups if key in g['keys'] and g['detectors'] == {key[0]})}
+             for key, found in runs.items()}
+    sizes = []
+    low = 0
+    for ceiling, label in VERSION_SIZES:
+        among = [g for g in confirmed if low <= g['box'][3] - g['box'][1] < ceiling]
+        sizes.append((label, len(among), {key: seen(key, among) for key in runs}))
+        low = ceiling
+    base = labels[0]
+    shifts = {(d, v): (sum(1 for g in confirmed if (d, v) in g['keys'] and (d, base) not in g['keys']),
+                       sum(1 for g in confirmed if (d, base) in g['keys'] and (d, v) not in g['keys']))
+              for d in detectors for v in labels[1:] if (d, v) in runs and (d, base) in runs}
+    union = {d: sum(1 for g in confirmed if any((d, v) in g['keys'] for v in labels)) for d in detectors}
+
+    sam3 = {}
+    try:
+        import inspect
+        from sam3.model.sam3_image_processor import Sam3Processor
+        params = inspect.signature(Sam3Processor.__init__).parameters
+        sam3 = {'resolution': params['resolution'].default,
+                'threshold': params['confidence_threshold'].default}
+    except Exception:
+        print('⚠ SAM3 illisible : ses réglages internes ne seront pas cités')
+
+    return {'versions': versions, 'labels': labels, 'base_width': base_width, 'detectors': detectors,
+            'table': table, 'confirmed': len(confirmed), 'candidates': len(groups), 'sizes': sizes,
+            'shifts': shifts, 'union': union, 'sam3': sam3, 'sam3_prompt': sam3_prompt,
+            'min_size': IMAGE_MIN_INFERENCE_SIZE, 'images_batch': images_batch.pk,
+            'detector_batches': [b.pk for b in detector_batches]}
+
+
+models_all = {m.model_key: m for m in AIModel.objects.all()}
+experiment = versions_experiment()
+
+
+def versions_section(x):
+    """La section « une photo de foule et ses versions » — vide si l'expérience n'est plus là."""
+    if not x:
+        return ''
+    n = x['confirmed']
+    labels, detectors, table = x['labels'], x['detectors'], x['table']
+    base = labels[0]
+    yolo = [d for d in detectors if d != 'SAM3']
+
+    def rate(key):
+        return table[key]['confirmed'] / n if key in table and n else None
+
+    best_base = max(yolo, key=lambda d: rate((d, base)) or 0)
+    best_other = max(((d, v) for d in yolo for v in labels[1:] if (d, v) in table),
+                     key=lambda k: rate(k) or 0)
+    union_best = max(yolo, key=lambda d: x['union'][d])
+    rows = ''.join(
+        f'<div class="br3{" best" if d == best_base else ""}" title="{html.escape(d)}"><span class="lab">'
+        f'{esc(d)}</span>' + ''.join(
+            f'<span class="cell"><span class="cnd">{esc(v)}</span><span class="bar">'
+            f'<i style="width:{100 * (rate((d, v)) or 0):.1f}%"></i><b>{pct(rate((d, v)))}</b></span></span>'
+            for v in labels) + '</div>' for d in detectors)
+    head = '<div class="br3 head"><span></span>' + ''.join(f'<span>{esc(v)}</span>' for v in labels) + '</div>'
+    chart = (f'<figure class="chart"><figcaption><strong>Sur l\'image d\'origine, {esc(best_base)} retrouve '
+             f'{pct(rate((best_base, base)))} des visages confirmés</strong><span>{nb(n)} visages vus par au moins '
+             f'{CONFIRMED_BY} des {len(detectors)} détecteurs, sur l\'une des {len(labels)} images · part retrouvée par '
+             f'chaque détecteur sur chaque image</span></figcaption>{head}{rows}'
+             '<p class="note">Plus long = mieux. Seuil de confiance 0,25 pour les détecteurs de visages.</p></figure>')
+    table_rows = ''.join(
+        f'<tr><td><strong>{esc(d)}</strong></td><td>{esc(v)}</td><td>{nb(table[(d, v)]["faces"])}</td>'
+        f'<td>{pct(rate((d, v)))}</td><td>{nb(table[(d, v)]["alone"])}</td></tr>'
+        for d in detectors for v in labels if (d, v) in table)
+    size_head = ''.join(f'<th>{esc(v)}</th>' for v in labels)
+    size_rows = ''.join(
+        f'<tr><td><strong>{label}</strong> ({nb(count)})</td>' + ''.join(
+            f'<td>{"; ".join(nb(found[(d, v)]) for d in yolo if (d, v) in found)}</td>' for v in labels) + '</tr>'
+        for label, count, found in x['sizes'])
+    shift_rows = ''.join(f'<tr><td>{esc(d)}</td><td>{esc(v)}</td><td>+{nb(g)}</td><td>−{nb(l)}</td></tr>'
+                         for (d, v), (g, l) in x['shifts'].items() if d != 'SAM3')
+    sam3 = x['sam3']
+    sam3_text = (f' SAM3 ramène toute image à un carré de {nb(sam3["resolution"])} pixels de côté et écarte ce qu\'il '
+                 f'voit avec moins de {str(sam3["threshold"]).replace(".", ",")} de confiance : agrandir ne lui '
+                 'apporte presque rien, et les visages de foule tombent sous sa résolution.') if sam3 else ''
+    sam3_rate = rate(('SAM3', base))
+    # Les conclusions se DÉRIVENT des mesures : une régénération qui les contredirait les retourne.
+    factors = sorted({round(w / x['base_width']) for _, w, is_base in x['versions'].values() if not is_base})
+    factor_text = ' ou '.join(f'×{f}' for f in factors)
+    enhanced_count = len(labels) - 1
+    verdict = ('<strong>Aucun agrandissement ne fait mieux que l\'image d\'origine.</strong>'
+               if (rate(best_other) or 0) < (rate((best_base, base)) or 0)
+               else '<strong>Un agrandissement fait mieux que l\'image d\'origine.</strong>')
+
+    def mean_found(bucket, version):
+        _label, _count, found = x['sizes'][bucket]
+        values = [found[(d, version)] for d in yolo if (d, version) in found]
+        return sum(values) / len(values) if values else 0
+
+    smallest_gain = any(mean_found(0, v) > mean_found(0, base) for v in labels[1:])
+    middle_loss = all(mean_found(b, v) < mean_found(b, base) for v in labels[1:] for b in (1, 2))
+    by_size = ''
+    if smallest_gain and middle_loss:
+        by_size = (' L\'agrandissement aide sur les plus petits visages et fait perdre des visages de taille '
+                   'moyenne, que l\'agrandisseur lisse ou déforme.')
+    elif middle_loss:
+        by_size = ' L\'agrandissement fait perdre des visages de taille moyenne.'
+    return f'''
+<h2>Agrandir une photo de foule avant de la détecter ?</h2>
+<p>Une photo de foule de {nb(x["base_width"])} pixels de large, agrandie {factor_text} par l'Enhancer avec
+{enhanced_count} modèle{"s" if enhanced_count > 1 else ""} différent{"s" if enhanced_count > 1 else ""}, a été
+passée aux meilleurs détecteurs de visages et à SAM3 (prompt « {esc(x["sam3_prompt"])} »),
+dans l'Anonymizer — lot {x["images_batch"]} pour les images, lots {", ".join(map(str, x["detector_batches"]))} pour
+les détecteurs. Cette photo n'a pas de cadres tracés à la main : un visage est dit <strong>confirmé</strong>
+quand au moins {CONFIRMED_BY} des {len(detectors)} détecteurs le voient, sur l'une des images. Il y en a
+{nb(n)}, sur {nb(x["candidates"])} visages vus au moins une fois.</p>
+<p>{verdict} Le meilleur résultat sur une image agrandie est celui de {esc(best_other[0])} sur l'image
+{esc(best_other[1])} : {pct(rate(best_other))}, contre {pct(rate((best_base, base)))} pour {esc(best_base)} sur
+l'originale. Les images se complètent : en réunissant ses {len(labels)} passages, {esc(union_best)} retrouve
+{pct(x["union"][union_best] / n if n else None)} des visages confirmés.{by_size}</p>
+{chart}
+<div class="tbl"><table><thead><tr><th>Détecteur</th><th>Image</th><th>Visages</th><th>Confirmés retrouvés</th>
+<th>Vus de lui seul</th></tr></thead><tbody>{table_rows}</tbody></table></div>
+<p>Confirmés retrouvés selon la hauteur du visage sur l'image d'origine — un nombre par détecteur de visages, dans
+l'ordre {esc(", ".join(yolo))} :</p>
+<div class="tbl"><table><thead><tr><th>Hauteur</th>{size_head}</tr></thead><tbody>{size_rows}</tbody></table></div>
+<p>Ce qu'un agrandissement fait gagner et perdre à chaque détecteur, en visages confirmés, par rapport à
+l'originale :</p>
+<div class="tbl"><table><thead><tr><th>Détecteur</th><th>Image</th><th>Gagnés</th><th>Perdus</th></tr></thead>
+<tbody>{shift_rows}</tbody></table></div>
+<p>La comparaison avantage un peu l'originale : l'Anonymizer analyse une petite photo à sa taille et à
+{nb(x["min_size"])} pixels, quand une image agrandie, déjà plus grande, ne l'est qu'à sa taille.
+SAM3 retrouve {pct(sam3_rate)} des visages confirmés : il est fait pour désigner des objets par des mots, pas
+pour une foule.{sam3_text}</p>
+'''
+
+
 tiny_best = max(faces, key=lambda r: (r.detail['by_size'].get('tiny') or {}).get('recall') or 0)
 ego_face = next((r for r in faces if 'egoblur' in r.model_key), None)
 ego_text = (f'EgoBlur visages, conçu par Meta pour anonymiser, trouve {pct(1 - ego_face.value)} des visages : il '
@@ -289,7 +494,7 @@ dit quelle part des détections tombe bien sur un véhicule.</p>
 <p>EgoBlur et RT-DETR ne se trompent pas sur les mêmes plaques : réunis par l'Anonymizer, ils en trouvent
 plus que chacun seul — c'est ce que fait le choix automatique dès qu'il garde plus d'un détecteur par
 classe.</p>
-
+{versions_section(experiment)}
 <h2>Ce que ces chiffres ne disent pas</h2>
 <ul>
 <li><strong>Un détecteur qui encadre la tête</strong> plutôt que le visage (les modèles « visages et plaques »)
@@ -303,6 +508,9 @@ vidéo de surveillance), l'écart avec EgoBlur peut se réduire. Un banc sur nos
 corrections faites dans l'Anonymizer, le dira.</li>
 <li>Le rappel des plaques est mesuré sur <strong>une</strong> vidéo, en basse résolution : il classe les
 détecteurs entre eux, il ne promet pas un taux sur d'autres images.</li>
+<li>L'essai des <strong>versions agrandies</strong> porte sur une seule photo et sans vérité terrain : l'accord
+entre détecteurs dit ce qu'ils voient ensemble, pas ce qui existe. Quatre d'entre eux sont des YOLO entraînés
+sur les mêmes données, donc ils peuvent se tromper ensemble. Il ne sert pas au choix automatique.</li>
 </ul>
 
 <h2>Méthode</h2>
@@ -333,6 +541,9 @@ banc comme un détecteur de plus, avec son temps et son rappel.</li>
 attendu en 2027) ; il entrera dans ce banc à sa sortie.</li>
 <li><strong>Un banc sur nos images</strong>, à partir des corrections saisies dans l'Anonymizer, et des cadres
 de plaques tracés à la main pour remplacer la mesure par véhicule.</li>
+<li><strong>Agrandir avant de détecter</strong> : les versions agrandies trouvent des petits visages que
+l'originale manque. Les analyser aussi, à côté de l'originale, est une piste pour les foules — à mesurer sur
+une photo corrigée à la main avant d'en faire un réglage.</li>
 </ul>
 '''
 

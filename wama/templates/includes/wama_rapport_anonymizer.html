@@ -129,7 +129,7 @@
   <header class="hero">
     <div class="kicker">Évaluation · anonymisation</div>
     <h1>Évaluation des détecteurs de l&#x27;Anonymizer</h1>
-    <p class="sub">Visages et plaques, mesurés dans WAMA contre une vérité tracée à la main · généré le 11 octobre 2026</p>
+    <p class="sub">Visages et plaques, mesurés dans WAMA contre une vérité tracée à la main · généré le 16 octobre 2026</p>
   </header>
   <article>
 {% verbatim %}
@@ -195,6 +195,33 @@ dit quelle part des détections tombe bien sur un véhicule.</p>
 plus que chacun seul — c'est ce que fait le choix automatique dès qu'il garde plus d'un détecteur par
 classe.</p>
 
+<h2>Agrandir une photo de foule avant de la détecter ?</h2>
+<p>Une photo de foule de 580 pixels de large, agrandie ×4 par l'Enhancer avec
+2 modèles différents, a été
+passée aux meilleurs détecteurs de visages et à SAM3 (prompt « face »),
+dans l'Anonymizer — lot 685 pour les images, lots 688, 689, 690, 691, 692 pour
+les détecteurs. Cette photo n'a pas de cadres tracés à la main : un visage est dit <strong>confirmé</strong>
+quand au moins 3 des 5 détecteurs le voient, sur l'une des images. Il y en a
+636, sur 815 visages vus au moins une fois.</p>
+<p><strong>Aucun agrandissement ne fait mieux que l'image d'origine.</strong> Le meilleur résultat sur une image agrandie est celui de yolov9c-face-lindevs sur l'image
+agrandie par 4xNomosUni_span_multijpg : 85,2 %, contre 88,1 % pour yolov12l-face sur
+l'originale. Les images se complètent : en réunissant ses 3 passages, yolov9c-face-lindevs retrouve
+99,5 % des visages confirmés. L'agrandissement aide sur les plus petits visages et fait perdre des visages de taille moyenne, que l'agrandisseur lisse ou déforme.</p>
+<figure class="chart"><figcaption><strong>Sur l'image d'origine, yolov12l-face retrouve 88,1 % des visages confirmés</strong><span>636 visages vus par au moins 3 des 5 détecteurs, sur l'une des 3 images · part retrouvée par chaque détecteur sur chaque image</span></figcaption><div class="br3 head"><span></span><span>originale</span><span>agrandie par 4xNomosUni_span_multijpg</span><span>agrandie par RealESR_Gx4</span></div><div class="br3" title="yolov9e-face-lindevs"><span class="lab">yolov9e-face-lindevs</span><span class="cell"><span class="cnd">originale</span><span class="bar"><i style="width:85.2%"></i><b>85,2 %</b></span></span><span class="cell"><span class="cnd">agrandie par 4xNomosUni_span_multijpg</span><span class="bar"><i style="width:75.6%"></i><b>75,6 %</b></span></span><span class="cell"><span class="cnd">agrandie par RealESR_Gx4</span><span class="bar"><i style="width:75.0%"></i><b>75,0 %</b></span></span></div><div class="br3" title="yolov9c-face-lindevs"><span class="lab">yolov9c-face-lindevs</span><span class="cell"><span class="cnd">originale</span><span class="bar"><i style="width:87.4%"></i><b>87,4 %</b></span></span><span class="cell"><span class="cnd">agrandie par 4xNomosUni_span_multijpg</span><span class="bar"><i style="width:85.2%"></i><b>85,2 %</b></span></span><span class="cell"><span class="cnd">agrandie par RealESR_Gx4</span><span class="bar"><i style="width:78.8%"></i><b>78,8 %</b></span></span></div><div class="br3" title="yolov11l-face"><span class="lab">yolov11l-face</span><span class="cell"><span class="cnd">originale</span><span class="bar"><i style="width:84.1%"></i><b>84,1 %</b></span></span><span class="cell"><span class="cnd">agrandie par 4xNomosUni_span_multijpg</span><span class="bar"><i style="width:81.0%"></i><b>81,0 %</b></span></span><span class="cell"><span class="cnd">agrandie par RealESR_Gx4</span><span class="bar"><i style="width:75.2%"></i><b>75,2 %</b></span></span></div><div class="br3 best" title="yolov12l-face"><span class="lab">yolov12l-face</span><span class="cell"><span class="cnd">originale</span><span class="bar"><i style="width:88.1%"></i><b>88,1 %</b></span></span><span class="cell"><span class="cnd">agrandie par 4xNomosUni_span_multijpg</span><span class="bar"><i style="width:79.6%"></i><b>79,6 %</b></span></span><span class="cell"><span class="cnd">agrandie par RealESR_Gx4</span><span class="bar"><i style="width:75.2%"></i><b>75,2 %</b></span></span></div><div class="br3" title="SAM3"><span class="lab">SAM3</span><span class="cell"><span class="cnd">originale</span><span class="bar"><i style="width:7.4%"></i><b>7,4 %</b></span></span><span class="cell"><span class="cnd">agrandie par 4xNomosUni_span_multijpg</span><span class="bar"><i style="width:8.3%"></i><b>8,3 %</b></span></span><span class="cell"><span class="cnd">agrandie par RealESR_Gx4</span><span class="bar"><i style="width:8.3%"></i><b>8,3 %</b></span></span></div><p class="note">Plus long = mieux. Seuil de confiance 0,25 pour les détecteurs de visages.</p></figure>
+<div class="tbl"><table><thead><tr><th>Détecteur</th><th>Image</th><th>Visages</th><th>Confirmés retrouvés</th>
+<th>Vus de lui seul</th></tr></thead><tbody><tr><td><strong>yolov9e-face-lindevs</strong></td><td>originale</td><td>585</td><td>85,2 %</td><td>13</td></tr><tr><td><strong>yolov9e-face-lindevs</strong></td><td>agrandie par 4xNomosUni_span_multijpg</td><td>494</td><td>75,6 %</td><td>7</td></tr><tr><td><strong>yolov9e-face-lindevs</strong></td><td>agrandie par RealESR_Gx4</td><td>501</td><td>75,0 %</td><td>7</td></tr><tr><td><strong>yolov9c-face-lindevs</strong></td><td>originale</td><td>615</td><td>87,4 %</td><td>20</td></tr><tr><td><strong>yolov9c-face-lindevs</strong></td><td>agrandie par 4xNomosUni_span_multijpg</td><td>595</td><td>85,2 %</td><td>31</td></tr><tr><td><strong>yolov9c-face-lindevs</strong></td><td>agrandie par RealESR_Gx4</td><td>533</td><td>78,8 %</td><td>7</td></tr><tr><td><strong>yolov11l-face</strong></td><td>originale</td><td>562</td><td>84,1 %</td><td>7</td></tr><tr><td><strong>yolov11l-face</strong></td><td>agrandie par 4xNomosUni_span_multijpg</td><td>528</td><td>81,0 %</td><td>5</td></tr><tr><td><strong>yolov11l-face</strong></td><td>agrandie par RealESR_Gx4</td><td>487</td><td>75,2 %</td><td>0</td></tr><tr><td><strong>yolov12l-face</strong></td><td>originale</td><td>590</td><td>88,1 %</td><td>7</td></tr><tr><td><strong>yolov12l-face</strong></td><td>agrandie par 4xNomosUni_span_multijpg</td><td>517</td><td>79,6 %</td><td>2</td></tr><tr><td><strong>yolov12l-face</strong></td><td>agrandie par RealESR_Gx4</td><td>491</td><td>75,2 %</td><td>3</td></tr><tr><td><strong>SAM3</strong></td><td>originale</td><td>47</td><td>7,4 %</td><td>0</td></tr><tr><td><strong>SAM3</strong></td><td>agrandie par 4xNomosUni_span_multijpg</td><td>53</td><td>8,3 %</td><td>0</td></tr><tr><td><strong>SAM3</strong></td><td>agrandie par RealESR_Gx4</td><td>54</td><td>8,3 %</td><td>1</td></tr></tbody></table></div>
+<p>Confirmés retrouvés selon la hauteur du visage sur l'image d'origine — un nombre par détecteur de visages, dans
+l'ordre yolov9e-face-lindevs, yolov9c-face-lindevs, yolov11l-face, yolov12l-face :</p>
+<div class="tbl"><table><thead><tr><th>Hauteur</th><th>originale</th><th>agrandie par 4xNomosUni_span_multijpg</th><th>agrandie par RealESR_Gx4</th></tr></thead><tbody><tr><td><strong>&lt; 6 px</strong> (293)</td><td>209; 222; 200; 221</td><td>201; 246; 230; 219</td><td>199; 209; 195; 190</td></tr><tr><td><strong>6 à 10 px</strong> (195)</td><td>188; 189; 188; 192</td><td>151; 164; 157; 158</td><td>147; 162; 156; 157</td></tr><tr><td><strong>10 à 16 px</strong> (105)</td><td>102; 102; 104; 104</td><td>87; 90; 86; 87</td><td>88; 88; 85; 89</td></tr><tr><td><strong>16 px et plus</strong> (43)</td><td>43; 43; 43; 43</td><td>42; 42; 42; 42</td><td>43; 42; 42; 42</td></tr></tbody></table></div>
+<p>Ce qu'un agrandissement fait gagner et perdre à chaque détecteur, en visages confirmés, par rapport à
+l'originale :</p>
+<div class="tbl"><table><thead><tr><th>Détecteur</th><th>Image</th><th>Gagnés</th><th>Perdus</th></tr></thead>
+<tbody><tr><td>yolov9e-face-lindevs</td><td>agrandie par 4xNomosUni_span_multijpg</td><td>+53</td><td>−114</td></tr><tr><td>yolov9e-face-lindevs</td><td>agrandie par RealESR_Gx4</td><td>+53</td><td>−118</td></tr><tr><td>yolov9c-face-lindevs</td><td>agrandie par 4xNomosUni_span_multijpg</td><td>+66</td><td>−80</td></tr><tr><td>yolov9c-face-lindevs</td><td>agrandie par RealESR_Gx4</td><td>+47</td><td>−102</td></tr><tr><td>yolov11l-face</td><td>agrandie par 4xNomosUni_span_multijpg</td><td>+74</td><td>−94</td></tr><tr><td>yolov11l-face</td><td>agrandie par RealESR_Gx4</td><td>+48</td><td>−105</td></tr><tr><td>yolov12l-face</td><td>agrandie par 4xNomosUni_span_multijpg</td><td>+55</td><td>−109</td></tr><tr><td>yolov12l-face</td><td>agrandie par RealESR_Gx4</td><td>+41</td><td>−123</td></tr></tbody></table></div>
+<p>La comparaison avantage un peu l'originale : l'Anonymizer analyse une petite photo à sa taille et à
+1 280 pixels, quand une image agrandie, déjà plus grande, ne l'est qu'à sa taille.
+SAM3 retrouve 7,4 % des visages confirmés : il est fait pour désigner des objets par des mots, pas
+pour une foule. SAM3 ramène toute image à un carré de 1 008 pixels de côté et écarte ce qu'il voit avec moins de 0,5 de confiance : agrandir ne lui apporte presque rien, et les visages de foule tombent sous sa résolution.</p>
+
 <h2>Ce que ces chiffres ne disent pas</h2>
 <ul>
 <li><strong>Un détecteur qui encadre la tête</strong> plutôt que le visage (les modèles « visages et plaques »)
@@ -208,6 +235,9 @@ vidéo de surveillance), l'écart avec EgoBlur peut se réduire. Un banc sur nos
 corrections faites dans l'Anonymizer, le dira.</li>
 <li>Le rappel des plaques est mesuré sur <strong>une</strong> vidéo, en basse résolution : il classe les
 détecteurs entre eux, il ne promet pas un taux sur d'autres images.</li>
+<li>L'essai des <strong>versions agrandies</strong> porte sur une seule photo et sans vérité terrain : l'accord
+entre détecteurs dit ce qu'ils voient ensemble, pas ce qui existe. Quatre d'entre eux sont des YOLO entraînés
+sur les mêmes données, donc ils peuvent se tromper ensemble. Il ne sert pas au choix automatique.</li>
 </ul>
 
 <h2>Méthode</h2>
@@ -238,6 +268,9 @@ banc comme un détecteur de plus, avec son temps et son rappel.</li>
 attendu en 2027) ; il entrera dans ce banc à sa sortie.</li>
 <li><strong>Un banc sur nos images</strong>, à partir des corrections saisies dans l'Anonymizer, et des cadres
 de plaques tracés à la main pour remplacer la mesure par véhicule.</li>
+<li><strong>Agrandir avant de détecter</strong> : les versions agrandies trouvent des petits visages que
+l'originale manque. Les analyser aussi, à côté de l'originale, est une piste pour les foules — à mesurer sur
+une photo corrigée à la main avant d'en faire un réglage.</li>
 </ul>
 
 {% endverbatim %}

@@ -257,6 +257,17 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
 - **Coût** : nul pour la confrontation.
 - **Code** : rien ; `bench._bench_detection` rend déjà les comptes et confiances mais **jette les
   boîtes** — première chose à changer (§5, chaînon ③).
+  🔄 **Premier morceau, 2026-10-16** : le SUPPORT de chaque objet pour des boîtes —
+  `common/utils/detections.py::support` (regroupement par IoU ≥ `AGREEMENT_IOU` = 0,3), avec
+  `boxes_at` qui ramène des documents pris à des tailles différentes à une même largeur. Son premier
+  consommateur est le rapport des détecteurs de l'Anonymizer (`scripts/reports/build_anonymizer_report.py`,
+  section « Agrandir une photo de foule avant de la détecter ? ») : une photo de foule et ses deux
+  versions agrandies ×4 (SPAN, RealESR_G), passées à quatre détecteurs de visages et à SAM3. Mesuré :
+  aucun agrandissement ne fait mieux que l'originale (88 % des visages confirmés au mieux, 85 % sur la
+  version SPAN), mais réunir les trois images monte un détecteur à 97-99 %. L'accord n'est **rangé
+  nulle part** : une mesure en `ResultEvaluation` donnerait aux détecteurs de visages une seconde
+  échelle, et l'étage de mesure interne du sélecteur s'abstiendrait (« une échelle ou aucune »). Le F1
+  symétrique deux à deux reste à écrire.
 
 ### M3 — Métrique à vérité terrain ⏳ (une seule vivante : la magnitude de correction)
 - **Mesure** : (sortie, référence) → nombre, sens déclaré. Par famille :
