@@ -2449,6 +2449,61 @@ Branche « direct » de §10.B appliquée au Describer : `image_describer._visio
 - **Placement (corrigé)** : la description/synthèse de documents scientifiques est **GÉNÉRIQUE** → sous-page/mode « document » du **Describer** (tout chercheur peut l'utiliser). **OpenScholar** (synthèse de littérature RAG multi-papiers + citations) = sous-page du Describer. **WAMA Lab** est réservé au **spécifique métier** (données expérimentales labo, oculométrie, trajectoires Lescot), PAS la description scientifique générique.
 - Architecture cible : **Reader/Docling** (parse) → **modèle multimodal multilingue** (gemma4:12b) → **synthèse FR directe**. `synthese-doc` à évaluer.
 
+#### L'app Translator — décisions de Fabien du 2026-10-16
+
+> Après un premier essai parti de LibreTranslate (un serveur Flask : 8 dépendances épinglées, un
+> conflit `numpy<2`, 11 manquantes) : *« On a déjà des outils de traduction intégrés dans WAMA,
+> dans le commun. Ne peut-on pas réutiliser ça ? »*
+
+- **Nom : Translator**, clé `translator` — comme les autres apps (Transcriber, Describer…), jamais
+  `translate`. La jumelle `translate_01` est retirée (16/10).
+- **Moteur : la brique commune**, mécanisme `translator` (`common/utils/translator.py`, déclaré le
+  16/10) — modèle désigné par une CLÉ DE CATALOGUE (défaut `ollama:translategemma:12b`), cache,
+  glossaire, découpage, `on_chunk`. LibreTranslate n'est plus le moteur : au mieux un second backend
+  plus tard (`library:libretranslate`, validée et vendorisée le 16/10, reste au registre). Ce qui
+  avait été décidé le 12/08 (« LibreTranslate = backend dédié ») est donc remplacé, pas oublié.
+- **Deux modes, une app** :
+  1. **fichier** (file d'attente) : un document déposé, traduit en tâche ; l'aperçu « pendant » montre
+     le texte qui se traduit (`preview_utils.publish_partial_text`, appelé par `on_chunk`) — la face
+     qu'ont déjà le Transcriber et le Describer ;
+  2. **saisie « à la DeepL »** : la traduction s'affiche PENDANT la frappe, sans passer par la file —
+     le côté instantané. ⏳ La seule pièce NEUVE : un appel SYNCHRONE déclenché à la frappe
+     (délai de saisie, comme `wama-filter-bar.js`), servi par une route de l'app et rendu par la même
+     face texte que l'aperçu « pendant ». Elle se bâtit COMMUNE et DÉCLARÉE (une capacité d'app, lue
+     par les gabarits), pas en dur dans le Translator : toute app texte → texte rapide pourra la
+     déclarer.
+- **⚠ Le garde-fou du 21/06 ci-dessus reste vrai et ne s'oppose pas à ceci** : il interdit de
+  traduire un document structuré EN PRÉTRAITEMENT d'une compréhension. Ici la traduction est le
+  LIVRABLE, et elle doit justement préserver la structure.
+
+##### Documents (PDF, DOCX…) : garder la forme d'origine — chantier progressif ⏳
+
+Intention de Fabien : *« trouver petit à petit le moyen de conserver la mise en forme du document
+d'origine tout en appliquant les traductions au texte, et aux contenus médias (graphes, images…).
+Il y a tout ce qu'il faut ou presque dans WAMA. »* Conforme au 12/08 : un **pipeline** (extraction
+des blocs → traduction segmentée → remise en forme → rendu), pas une app monolithique.
+
+Ce qui EXISTE, vérifié dans le code le 16/10 :
+
+| maillon | brique | état |
+|---|---|---|
+| découper un texte en sections, réécrire UNE section | `common/utils/document_sections.py` (`split_sections`, `patch_section`) | ✅ |
+| DOCX / ODT / HTML / MD ↔ autres formats | `converter/backends/document_backend.py` (pandoc) | ✅ |
+| HTML → PDF fidèle | `common/utils/html_render.py` (Chromium) | ✅ |
+| séparer le FOND de la FORME, et appliquer une forme à un fond | Writer : process `write` / `layout`, port « Modèle de mise en page » (`reference_layout`, lu pour sa FORME) | ✅ |
+| structure des tableaux d'un document | Reader : `table_transformer` | ✅ |
+| texte d'une image (OCR), puis image rééditée | Reader (OCR) ; Imager (édition d'image, qwen-image-edit) | ✅ les deux apps, ⏳ leur enchaînement pour traduire le texte d'une figure |
+| parse structuré des PDF (blocs, figures, ordre de lecture) | Docling, prévu le 21/06 | ⏳ **absent du code** (aucun import) |
+
+Deux voies, complémentaires :
+1. **Traduire, puis ENVOYER VERS le Writer** (« Envoyer vers », déjà commun) : le texte traduit
+   devient le FOND, le document d'origine la FORME (`reference_layout`). Le chemin le plus court,
+   tout existe ; reste à le jouer de bout en bout.
+2. **Traduction en place** : traduire chaque section/bloc et le réécrire dans le document
+   (`patch_section` pour le texte ; DOCX par pandoc ; PDF par HTML + Chromium) ; les figures par
+   OCR → traduction → réédition d'image. Plus fidèle, plus long : à construire maillon par maillon,
+   chaque maillon jugé sur un document réel.
+
 ---
 
 ## 11. Déploiement — Migration vers serveur Linux dédié
