@@ -408,8 +408,10 @@ la lib ouvrait ce chantier-là aussi. Le drag natif HTML5 fait les quatre gestes
     comme Ctrl+clic (Maj : la plage depuis l'ancre) — donc la sélection multiple à la souris
     sans clavier, et au doigt. Visible au survol (convention `.wama-reveal`), toujours quand la
     card est cochée ou qu'une sélection est en cours dans la file, toujours au doigt (24 px). La
-    card mère d'un lot n'en a pas : elle n'entre pas dans la sélection. Geste nocturne :
-    `<app>.queue_dnd` (« deux cases cochées → 2 »).
+    card mère d'un lot n'en a pas : elle n'entre pas dans la sélection. Gestes nocturnes :
+    `<app>.queue_dnd` (« deux cases cochées → 2 », toutes les apps de file),
+    `common.gestures.mouse` (survol, case au clic, à Espace, plage Maj, décocher) et
+    `common.gestures.touch` (deux cases touchées).
   - ✅ *Survol d'une card* (même jour) : UNE règle pour toutes les cards de file
     (`wama-inspector.css`) — voile cyan très léger en surimpression et liseré intérieur, de la
     famille de l'aperçu (`.wama-card-preview`) en plus discret ; ni la card mère (elle a le

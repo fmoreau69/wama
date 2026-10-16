@@ -29,8 +29,15 @@ Second scénario, `common.gestures.touch` (ROADMAP §27 étape 3, 2026-10-16) �
   3. éditeur du transcriber (si le compte de test a une transcription avec audio) : pincer l'onde
      zoome, la toucher déplace la lecture, glisser la poignée ⋮⋮ d'un segment sur un autre le
      désigne comme cible.
+  4. arbre de fichiers : l'appui long ouvre son menu ; cloche : outils visibles sans survol ;
+     la case des cards au doigt (deux touchers → deux sélectionnées) ; la liste qui défile au bord
+     pendant un glisser ; l'outil Bornes de l'onde (une borne glissée demande son recalage).
 ⚠ Toute requête POST des pages mesurées est INTERCEPTÉE et refusée, puis relevée : un geste qui
 enverrait quelque chose est un échec, et le serveur n'en voit rien.
+
+Troisième scénario, `common.gestures.mouse` — les MÊMES pages à la souris, la garde du PC : le
+canvas du studio et l'onde passent par la brique depuis le 2026-10-16, la case et le survol des
+cards sont neufs ; ce qui marchait doit marcher encore.
 """
 from .ui_smoke import (BASE_URL, _drop_new_sessions, _exiger_la_page, _motif_skip,
                        _session_keys, _test_session_key)
@@ -289,6 +296,49 @@ JS_GESTURE_STATE = """() => ({
     urls: (window.__wamaPosted || []).slice(-3),
 })"""
 
+#: Les cards de la file : leur case (visibilité, cochée, taille), leur sélection, leur survol.
+JS_CARDS_STATE = """() => [...document.querySelectorAll('[data-wama-dnd] .wama-card[data-id]:not(.is-batch)')]
+    .filter(c => c.offsetParent !== null).map(c => { const b = c.querySelector('.wama-select-box'), s = getComputedStyle(c);
+        return {id: c.dataset.id, box: b ? getComputedStyle(b).opacity : null, checked: b && b.getAttribute('aria-checked'),
+                w: b ? Math.round(b.getBoundingClientRect().width) : 0, sel: c.classList.contains('wama-dnd-selected'),
+                hover: s.boxShadow.indexOf('rgba(13, 202, 240') >= 0 && s.backgroundImage.indexOf('linear-gradient') >= 0}; })"""
+
+#: Le défilement de la LISTE des cards : son premier ancêtre qui défile (dans WAMA, le conteneur
+#: de la page — la page elle-même ne défile pas).
+JS_LIST_SCROLL = """() => { const c = document.querySelector('[data-wama-dnd] .wama-card[data-id]');
+    for (let e = c; e; e = e.parentElement) { const o = getComputedStyle(e).overflowY;
+        if ((o === 'auto' || o === 'scroll') && e.scrollHeight > e.clientHeight + 1) return Math.round(e.scrollTop); }
+    return Math.round(scrollY); }"""
+
+def _wait_player(page, timeout_ms=20000):
+    """Attend que le lecteur de l'éditeur ait ses métadonnées (sans quoi il ne se positionne pas)."""
+    try:
+        page.wait_for_function("""() => { const id = (window.TRANSCRIBER_EDIT || {}).playerId;
+            const a = id != null && window.WamaAudioPlayer ? WamaAudioPlayer.getAudio(id) : null;
+            return !!a && a.readyState >= 1; }""", timeout=timeout_ms)
+    except Exception:
+        pass                                   # la mesure qui suit le dira (position inchangée)
+
+
+def _wait_time_change(page, before, timeout_ms=3000):
+    """La position de lecture une fois qu'elle a bougé (ou la dernière lue après `timeout_ms`)."""
+    now = page.evaluate(JS_EDITOR_TIME)
+    for _ in range(timeout_ms // 150):
+        if now != before:
+            break
+        page.wait_for_timeout(150)
+        now = page.evaluate(JS_EDITOR_TIME)
+    return now
+
+
+#: La première notification du panneau de la cloche : outils, pastille, « Ouvrir », taille d'un outil.
+JS_BELL_STATE = """() => { const it = document.querySelector('.wn-item'); if (!it) return null;
+    const st = s => { const e = it.querySelector(s); if (!e) return null; const c = getComputedStyle(e);
+        return c.display === 'none' ? 'none' : c.opacity; };
+    const tool = it.querySelector('.wn-tool');
+    return {tools: st('.wn-tools'), dot: st('.wn-dot'), go: st('.wn-go'),
+            toolW: tool ? Math.round(tool.getBoundingClientRect().width) : 0}; }"""
+
 #: La position de lecture du lecteur de l'éditeur (un `Audio` hors du DOM, tenu par la brique).
 JS_EDITOR_TIME = """() => { const id = (window.TRANSCRIBER_EDIT || {}).playerId;
     const a = id != null && window.WamaAudioPlayer ? WamaAudioPlayer.getAudio(id) : null;
@@ -508,8 +558,101 @@ def _gestures_queue(browser, token, url, faults, steps):
         if end['ghost'] or end['posted'] != sent:
             faults.append(f"file : un balayage rapide a lancé un glisser ({end['ghost']} vignette, "
                           f"{end['posted'] - sent} envoi(s))")
+
+        # 5. La CASE au doigt : toujours visible, deux touchers → deux cards sélectionnées.
+        page.keyboard.press('Escape')
+        boxes = page.evaluate(JS_CARDS_STATE)
+        if len(boxes) < 2 or not all(c['box'] == '1' for c in boxes):
+            faults.append(f"file : au doigt, les cases ne sont pas toutes visibles ({[c['box'] for c in boxes]})")
+        for c in boxes[:2]:
+            box = page.locator(f'[data-wama-dnd] .wama-card[data-id="{c["id"]}"] .wama-select-box')
+            box.scroll_into_view_if_needed()
+            box.tap()
+            page.wait_for_timeout(250)
+        ticked = [c for c in page.evaluate(JS_CARDS_STATE) if c['checked'] == 'true' and c['sel']]
+        if len(ticked) != 2:
+            faults.append(f"file : toucher deux cases sélectionne {len(ticked)} card(s) au lieu de 2")
+        else:
+            steps.append(f"deux cases touchées → 2 sélectionnées ({boxes[0]['w']} px)")
+        page.keyboard.press('Escape')
+
+        # 6. Pendant un glisser, la liste DÉFILE quand le doigt approche du bas de l'écran — jusque
+        #    sur le pied de page fixe. Dans WAMA ce n'est pas la page qui défile mais son
+        #    conteneur : on lit le défilement de la LISTE de la card.
+        cards = page.evaluate(JS_TWO_CARDS) or cards
+        a = (cards['a']['x'], cards['a']['y'])
+        y0 = page.evaluate(JS_LIST_SCROLL)
+        finger.hold(*a)
+        edge = (a[0], page.evaluate("() => innerHeight") - 8)
+        finger.move((a, edge))
+        page.wait_for_timeout(900)                       # le défilement avance au rythme de l'écran
+        y1 = page.evaluate(JS_LIST_SCROLL)
+        finger.move((edge, (a[0], 20)), steps=6)
+        finger.up()
+        end = state()
+        if y1 <= y0:
+            faults.append(f"file : au bord bas pendant un glisser, la liste ne défile pas ({y0} → {y1} px)")
+        elif end['posted'] != sent or end['ghost']:
+            faults.append(f"file : glisser avec défilement → {end['posted'] - sent} envoi(s), {end['ghost']} vignette(s)")
+        else:
+            steps.append(f"au bord, la liste défile pendant le glisser ({y0} → {y1} px)")
         if errors:
             faults.append(f"file : erreurs JS {errors}")
+    finally:
+        ctx.close()
+
+
+def _gestures_tree_and_bell(browser, token, url, faults, steps):
+    """Au doigt : l'appui long sur l'arbre ouvre son menu (l'iPad n'émet pas de clic droit), et
+    le panneau de la cloche montre ses outils sans survol."""
+    ctx, page, resp, errors = _tablet_page(browser, token, url)
+    try:
+        wrong = _exiger_la_page(page, resp, url)
+        if wrong:
+            faults.append(f"arbre : {wrong[1]}")
+            return
+        page.wait_for_timeout(1500)
+        finger = _Finger(page)
+        _edge(page, 'left', True)                       # en portrait, l'explorateur est replié
+        # « Temporaires », comme le scénario du menu de l'arbre : la racine « Mes fichiers » n'a pas de menu.
+        anchor = page.locator('#filemanager-tree .jstree-anchor:text-is("Temporaires")').first
+        # Les attentes des scénarios de l'arbre (`ui_smoke_menus`) : l'arbre se charge à la
+        # demande, lentement sur un serveur chargé. Son CHARGEMENT est leur affaire ; ici, s'il
+        # ne vient pas, le geste n'est pas mesuré — ce n'est pas un défaut du geste.
+        try:
+            page.wait_for_selector('#filemanager-tree .jstree-anchor', timeout=30000)
+            anchor.wait_for(timeout=15000)
+            loaded = True
+        except Exception:
+            steps.append("arbre non chargé à temps — appui long sur l'arbre non mesuré")
+            loaded = False
+        if loaded:
+            box = anchor.bounding_box()
+            finger.hold(box['x'] + min(40, box['width'] / 2), box['y'] + box['height'] / 2)
+            finger.up()
+            menu = page.evaluate(JS_GESTURE_STATE)['menu']
+            page.keyboard.press('Escape')
+            page.wait_for_timeout(200)
+            if not menu:
+                faults.append(f"arbre : un appui long sur « {anchor.inner_text().strip()} » n'ouvre pas son menu")
+            else:
+                steps.append("arbre : appui long → menu")
+
+        page.locator('#wamaNotificationsLink').tap()
+        try:
+            page.wait_for_selector('.wn-item', timeout=15000)
+        except Exception:
+            faults.append("cloche : le panneau ne montre aucune notification au doigt")
+            return
+        page.wait_for_timeout(300)
+        bell = page.evaluate(JS_BELL_STATE)
+        if bell['tools'] != '1' or bell['dot'] not in (None, 'none') or bell['toolW'] < 44:
+            faults.append(f"cloche : au doigt, outils {bell['tools']} (attendu 1), pastille {bell['dot']} "
+                          f"(attendu absente), outil {bell['toolW']} px (attendu ≥ 44)")
+        else:
+            steps.append(f"cloche : outils visibles au doigt ({bell['toolW']} px), pastille cédée")
+        if errors:
+            faults.append(f"arbre / cloche : erreurs JS {errors}")
     finally:
         ctx.close()
 
@@ -531,6 +674,33 @@ def _gestures_editor(browser, token, url, faults, steps):
             wave = page.locator('#zoomWave').bounding_box()
             label = lambda: page.locator('#zoomLabel').inner_text().strip()
             y, cx = wave['y'] + wave['height'] / 2, wave['x'] + wave['width'] / 2
+            # Outil Bornes, vue ENTIÈRE (avant le pincement) : la jonction des segments 1 et 2 est
+            # au tiers de l'onde (20 s sur 60). La déplacer au doigt demande le recalage au serveur
+            # — l'écriture est interceptée : la requête relevée EST la preuve du geste.
+            tool = page.locator('#boundaryToolBtn')
+            if tool.count():
+                tool.tap()
+                page.wait_for_timeout(200)
+                sent = state()['posted']
+                bx = wave['x'] + wave['width'] / 3
+                finger.down((bx, y))
+                finger.move(((bx, y), (bx + 40, y)), steps=6)
+                # Le doigt s'IMMOBILISE avant d'être levé, comme qui pose une borne : levé en plein
+                # mouvement, il lance une inertie, et le navigateur prend le toucher suivant pour
+                # l'arrêter — sans clic (mesuré le 2026-10-16 : l'outil ne se refermait pas 2 fois
+                # sur 3 ; immobile, 4/4).
+                page.wait_for_timeout(250)
+                finger.up()
+                page.wait_for_timeout(500)
+                after = state()
+                retimed = [u for u in after['urls'] if '/retime/' in u]
+                if after['posted'] - sent != 1 or not retimed:
+                    faults.append(f"éditeur : outil Bornes, borne glissée au doigt → {after['posted'] - sent} "
+                                  f"envoi(s) {after['urls']} (attendu : un recalage)")
+                else:
+                    steps.append("éditeur : borne déplacée au doigt (recalage demandé)")
+                tool.tap()                                  # l'outil se referme
+                page.wait_for_timeout(200)
             z0 = label()
             finger.down((cx - 30, y), (cx + 30, y))
             finger.move(((cx - 30, y), (cx - 140, y)), ((cx + 30, y), (cx + 140, y)))
@@ -540,15 +710,23 @@ def _gestures_editor(browser, token, url, faults, steps):
                 faults.append(f"éditeur : pincer l'onde ne zoome pas ({z0})")
             else:
                 steps.append(f"éditeur : onde pincée {z0} → {z1}")
+            # Le lecteur ne pose une position qu'une fois les MÉTADONNÉES de l'audio chargées : sur
+            # un serveur chargé, 600 ms ne suffisaient pas (faux rouge du 2026-10-16, rejoué vert
+            # pas à pas). On attend le lecteur, puis la position, sans délai fixe.
+            _wait_player(page)
             t0 = page.evaluate(JS_EDITOR_TIME)
             finger.down((wave['x'] + wave['width'] * .7, y))
             finger.up()
-            page.wait_for_timeout(600)
-            t1 = page.evaluate(JS_EDITOR_TIME)
+            t1 = _wait_time_change(page, t0, timeout_ms=8000)
             if t0 is None:
                 steps.append("lecteur de l'éditeur introuvable — position de lecture non mesurée")
             elif t1 == t0:
-                faults.append(f"éditeur : toucher l'onde ne déplace pas la lecture ({t0} s)")
+                diag = page.evaluate("""() => { const id = (window.TRANSCRIBER_EDIT || {}).playerId;
+                    const a = window.WamaAudioPlayer && id != null ? WamaAudioPlayer.getAudio(id) : null;
+                    const b = document.getElementById('boundaryToolBtn');
+                    return {tool: b && b.getAttribute('aria-pressed'), ready: a && a.readyState,
+                            preload: a && a.preload, net: a && a.networkState, zoom: (document.getElementById('zoomLabel') || {}).textContent}; }""")
+                faults.append(f"éditeur : toucher l'onde ne déplace pas la lecture ({t0} s ; {diag})")
             else:
                 steps.append(f"lecture déplacée au doigt ({t0:.1f} → {t1:.1f} s)")
         rows = page.locator('.seg-row').count()
@@ -575,8 +753,8 @@ def _gestures_editor(browser, token, url, faults, steps):
         ctx.close()
 
 
-def _mount_transcripts(uid):
-    """Deux transcriptions du compte de test, chacune dans son lot : deux cards pour la file, et
+def _mount_transcripts(uid, count=3):
+    """`count` transcriptions du compte de test, chacune dans son lot : des cards pour la file, et
     une page d'éditeur avec une onde à manipuler. Le compte de test ne travaille pas : sa file est
     vide par construction (même constat que `queue_dnd`).
 
@@ -592,7 +770,9 @@ def _mount_transcripts(uid):
 
     user = get_user_model().objects.get(pk=uid)
     made = []
-    for k in range(2):
+    # Trois : une plage Maj a besoin d'une card entre deux, et une file qui DÉPASSE l'écran
+    # (en portrait une card fait ~440 px) est ce qui permet de mesurer le défilement au bord.
+    for k in range(count):
         t = Transcript(user=user, status='SUCCESS', waveform_status='pending', segments_json=[
             {'start_time': i * 20, 'end_time': i * 20 + 20, 'text': word, 'speaker_id': 'A'}
             for i, word in enumerate(('un', 'deux', 'trois'))])
@@ -603,32 +783,38 @@ def _mount_transcripts(uid):
     return made
 
 
-def check_touch_gestures(paths: dict):
-    """Les gestes au doigt : studio, file, éditeur — sur de vrais événements tactiles."""
+def _run_gestures(paths: dict, parts, label: str):
+    """Le montage COMMUN des deux scénarios de gestes : trois transcriptions du compte de test (des
+    cards, une onde) et une notification témoin (le panneau de la cloche), tout retiré en sortie.
+    `parts(browser, token, urls, faults, steps)` joue les gestes. Rend (ok, détail)."""
+    from django.contrib.auth import get_user_model
     from django.urls import reverse
     from playwright.sync_api import sync_playwright
 
+    from wama.common.models import Notification
     from wama.common.services.nightly_tests import SkipScenario
+    from wama.common.utils.notifications import notify_in_app
     from .ui_smoke import _garde_de_montage, _test_account_id, _total_nettoye
 
     base = BASE_URL.rstrip('/')
     sessions_before = _session_keys()
-    token = _test_session_key('transcriber')
-    if not token:
+    token, uid = _test_session_key('transcriber'), _test_account_id('transcriber')
+    if not (token and uid):
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
     faults, steps = [], []
+    kind = f'smoke_{label}'
     # La garde ENVELOPPE Playwright (l'ORM y est interdit) et retire en sortie les transcriptions
     # et les lots créés par ce passage — jamais un objet préexistant.
-    with _garde_de_montage('transcriber', 'gestures_touch') as cleaned:
-        made = _mount_transcripts(_test_account_id('transcriber'))
+    with _garde_de_montage('transcriber', label) as cleaned:
+        made = _mount_transcripts(uid)
+        notify_in_app([get_user_model().objects.get(pk=uid)], kind, 'Témoin : gestes', url=paths['queue'])
+        urls = {k: base + v for k, v in paths.items()}
+        urls['editor'] = base + reverse('transcriber:edit', args=[made[0].pk])
         try:
             with sync_playwright() as p:
                 browser = p.chromium.launch()
                 try:
-                    _gestures_studio(browser, token, base + paths['studio'], faults, steps)
-                    _gestures_queue(browser, token, base + paths['queue'], faults, steps)
-                    _gestures_editor(browser, token, base + reverse('transcriber:edit', args=[made[0].pk]),
-                                     faults, steps)
+                    parts(browser, token, urls, faults, steps)
                 finally:
                     browser.close()
         except SkipScenario:
@@ -637,6 +823,7 @@ def check_touch_gestures(paths: dict):
             raise SkipScenario(_motif_skip(exc))
         finally:
             _drop_new_sessions(sessions_before)
+            Notification.objects.filter(recipient_id=uid, kind=kind).delete()
             for t in made:                     # le FICHIER : la garde ne retire que les lignes
                 try:
                     t.audio.delete(save=False)
@@ -649,9 +836,223 @@ def check_touch_gestures(paths: dict):
     return True, ' → '.join(steps)
 
 
+def check_touch_gestures(paths: dict):
+    """Les gestes au doigt : studio, file, arbre, cloche, éditeur — sur de vrais événements tactiles."""
+    def parts(browser, token, urls, faults, steps):
+        _gestures_studio(browser, token, urls['studio'], faults, steps)
+        _gestures_queue(browser, token, urls['queue'], faults, steps)
+        _gestures_tree_and_bell(browser, token, urls['queue'], faults, steps)
+        _gestures_editor(browser, token, urls['editor'], faults, steps)
+    return _run_gestures(paths, parts, 'gestures_touch')
+
+
+# ══ Les mêmes pages À LA SOURIS : la garde du PC ═════════════════════════════════════════════════
+#
+# Le canvas du studio et l'onde du transcriber passent par `WamaGestures.track` depuis le
+# 2026-10-16 (ils écrivaient leurs mousedown/mousemove/mouseup) ; la case et le survol des cards
+# sont neufs. Ce qui marchait au PC doit marcher encore — c'est CE scénario qui le dit chaque nuit.
+
+def _desktop_page(browser, token, url):
+    ctx = browser.new_context(viewport={'width': 1440, 'height': 900})
+    ctx.add_cookies(_cookie(token))
+    ctx.add_init_script(BLOCK_WRITES)
+    page = ctx.new_page()
+    errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)[:160]))
+    resp = page.goto(url, wait_until='domcontentloaded', timeout=PAGE_TIMEOUT_MS)
+    return ctx, page, resp, errors
+
+
+def _mouse_studio(browser, token, url, faults, steps):
+    ctx, page, resp, errors = _desktop_page(browser, token, url)
+    try:
+        wrong = _exiger_la_page(page, resp, url)
+        if wrong:
+            faults.append(f"studio : {wrong[1]}")
+            return
+        page.wait_for_selector('.studio-pal-item[draggable="true"]', timeout=30000)
+        page.wait_for_timeout(800)
+        # Le glisser NATIF de la souris (la brique n'y touche pas).
+        page.locator('.studio-pal-item[draggable="true"]').first.drag_to(
+            page.locator('#studioCanvas'), target_position={'x': 200, 'y': 150})
+        page.wait_for_timeout(300)
+        if page.locator('.studio-node').count() != 1:
+            faults.append("studio (souris) : le glisser du catalogue n'ajoute pas de nœud")
+            return
+        node = lambda: page.evaluate("() => { const n = document.querySelector('.studio-node'); return [n.style.left, n.style.top]; }")
+        world = lambda: page.evaluate("() => document.getElementById('studioWorld').style.transform")
+        zoom = lambda: page.locator('#studioZoomLabel').inner_text().strip()
+        selected = lambda: page.evaluate("() => document.querySelectorAll('.studio-node.selected, .studio-node.is-selected').length")
+        hb = page.locator('.studio-node-head').first.bounding_box()
+        n0 = node()
+        page.mouse.move(hb['x'] + 20, hb['y'] + hb['height'] / 2)
+        page.mouse.down(); page.mouse.move(hb['x'] + 120, hb['y'] + 60, steps=8); page.mouse.up()
+        checks = [(node() != n0, f"nœud déplacé ({n0} → {node()})")]
+        spot = page.evaluate(JS_STUDIO_BACKGROUND, 120)
+        w0 = world()
+        page.mouse.move(spot['x'], spot['y']); page.mouse.down()
+        page.mouse.move(spot['x'] + 70, spot['y'] + 40, steps=8); page.mouse.up()
+        w1 = world()
+        checks.append((w1 != w0, "fond défilé au bouton gauche"))
+        checks.append((selected() >= 1, "un défilement ne désélectionne pas"))
+        spot = page.evaluate(JS_STUDIO_BACKGROUND, 120)
+        page.mouse.move(spot['x'], spot['y']); page.mouse.down(button='middle')
+        page.mouse.move(spot['x'] - 60, spot['y'] - 30, steps=8); page.mouse.up(button='middle')
+        checks.append((world() != w1, "fond défilé au bouton du milieu"))
+        z0 = zoom()
+        spot = page.evaluate(JS_STUDIO_BACKGROUND, 120)
+        page.mouse.move(spot['x'], spot['y'])           # sur le canvas : le bouton du milieu a pu l'en sortir
+        page.mouse.wheel(0, -300)
+        page.wait_for_timeout(200)
+        checks.append((zoom() != z0, f"molette {z0} → {zoom()}"))
+        spot = page.evaluate(JS_STUDIO_BACKGROUND, 120)
+        page.mouse.click(spot['x'], spot['y'])
+        page.wait_for_timeout(200)
+        checks.append((selected() == 0, "clic sur le fond → désélection"))
+        checks.append((page.locator('.wama-touch-tip').count() == 0, "aucune infobulle tactile à la souris"))
+        _collect('studio (souris)', checks, errors, faults, steps)
+    finally:
+        ctx.close()
+
+
+def _mouse_queue(browser, token, url, faults, steps):
+    ctx, page, resp, errors = _desktop_page(browser, token, url)
+    try:
+        wrong = _exiger_la_page(page, resp, url)
+        if wrong:
+            faults.append(f"file (souris) : {wrong[1]}")
+            return
+        page.wait_for_timeout(2500)
+        cards = page.evaluate(JS_CARDS_STATE)
+        if len(cards) < 3:
+            faults.append(f"file (souris) : {len(cards)} card(s) visible(s), 3 attendues")
+            return
+        ids = [c['id'] for c in cards]
+        card = lambda i: page.locator(f'[data-wama-dnd] .wama-card[data-id="{i}"]')
+        box = lambda i: card(i).locator('.wama-select-box')
+        by_id = lambda: {c['id']: c for c in page.evaluate(JS_CARDS_STATE)}
+        page.mouse.move(2, 450)
+        page.wait_for_timeout(300)
+        rest = by_id()
+        checks = [(all(c['box'] == '0' and not c['hover'] for c in rest.values()),
+                   "au repos : cases cachées, aucun survol")]
+        card(ids[0]).locator('.wcv3-head').hover()
+        page.wait_for_timeout(300)
+        s = by_id()
+        checks.append((s[ids[0]]['hover'] and s[ids[0]]['box'] == '1' and not s[ids[1]]['hover']
+                       and s[ids[1]]['box'] == '0', "survol : la card se teinte et montre SA case, pas les autres"))
+        card(ids[0]).locator('.wcv3-head').click(position={'x': 60, 'y': 4})
+        page.wait_for_timeout(250)
+        page.mouse.move(2, 450)
+        page.wait_for_timeout(250)
+        s = by_id()
+        checks.append((s[ids[0]]['checked'] == 'true' and s[ids[1]]['checked'] == 'false'
+                       and s[ids[1]]['box'] == '1', "clic sur la card → cochée seule, les autres cases visibles"))
+        card(ids[0]).locator('.wcv3-head').hover()
+        page.wait_for_timeout(250)
+        checks.append((not by_id()[ids[0]]['hover'], "une card sélectionnée ne prend pas la teinte du survol"))
+        # Sans case, les gestes qui suivent n'ont rien à toucher : l'absence se DIT (un locator
+        # absent attendrait 30 s et ferait passer le défaut pour un serveur indisponible).
+        if not all(box(i).count() for i in ids):
+            checks.append((False, "des cards sans case de sélection"))
+            page.keyboard.press('Escape')
+            _collect('file (souris)', checks, errors, faults, steps)
+            return
+        box(ids[1]).focus()
+        page.keyboard.press(' ')
+        page.wait_for_timeout(250)
+        s = by_id()
+        checks.append((s[ids[0]]['checked'] == 'true' and s[ids[1]]['checked'] == 'true',
+                       "Espace sur une case → ajoutée"))
+        page.keyboard.press('Escape')
+        page.wait_for_timeout(250)
+        box(ids[0]).click()
+        box(ids[2]).click(modifiers=['Shift'])
+        page.wait_for_timeout(250)
+        checks.append((sum(1 for c in by_id().values() if c['checked'] == 'true') == 3,
+                       "case puis Maj+case → la plage (3)"))
+        box(ids[1]).click()
+        page.wait_for_timeout(250)
+        checks.append((by_id()[ids[1]]['checked'] == 'false', "recocher une case → retirée"))
+        page.keyboard.press('Escape')
+        _collect('file (souris)', checks, errors, faults, steps)
+    finally:
+        ctx.close()
+
+
+def _mouse_editor_and_bell(browser, token, urls, faults, steps):
+    ctx, page, resp, errors = _desktop_page(browser, token, urls['editor'])
+    try:
+        wrong = _exiger_la_page(page, resp, urls['editor'])
+        if wrong:
+            faults.append(f"éditeur (souris) : {wrong[1]}")
+            return
+        page.wait_for_selector('.seg-drag[data-i="1"]', timeout=30000)
+        page.wait_for_timeout(1500)
+        wave = page.locator('#zoomWave')
+        wave.scroll_into_view_if_needed()
+        wb = wave.bounding_box()
+        y = wb['y'] + wb['height'] / 2
+        label = lambda: page.locator('#zoomLabel').inner_text().strip()
+        z0 = label()
+        page.mouse.move(wb['x'] + wb['width'] / 2, y)
+        page.mouse.wheel(0, -200)
+        page.wait_for_timeout(200)
+        checks = [(label() != z0, f"molette sur l'onde {z0} → {label()}")]
+        _wait_player(page)
+        t0 = page.evaluate(JS_EDITOR_TIME)
+        page.mouse.move(wb['x'] + wb['width'] * .5, y); page.mouse.down()
+        page.mouse.move(wb['x'] + wb['width'] * .3, y, steps=8); page.mouse.up()
+        page.wait_for_timeout(300)
+        t1 = page.evaluate(JS_EDITOR_TIME)
+        checks.append((t1 == t0, "glisser l'onde ne déplace pas la lecture"))
+        page.mouse.click(wb['x'] + wb['width'] * .8, y)
+        checks.append((_wait_time_change(page, t1) != t1, "clic sur l'onde → lecture déplacée"))
+        _collect('éditeur (souris)', checks, errors, faults, steps)
+    finally:
+        ctx.close()
+
+    ctx, page, resp, errors = _desktop_page(browser, token, urls['queue'])
+    try:
+        page.wait_for_timeout(1500)
+        page.click('#wamaNotificationsLink')
+        page.wait_for_selector('.wn-item', timeout=15000)
+        page.mouse.move(2, 600)
+        page.wait_for_timeout(300)
+        rest = page.evaluate(JS_BELL_STATE)
+        page.hover('.wn-item .wn-title')
+        page.wait_for_timeout(300)
+        hover = page.evaluate(JS_BELL_STATE)
+        checks = [(rest['tools'] == '0' and rest['dot'] in (None, '1'), f"cloche au repos : outils cachés ({rest})"),
+                  (hover['tools'] == '1' and hover['dot'] in (None, '0'), f"cloche au survol : outils montrés ({hover})")]
+        _collect('cloche (souris)', checks, errors, faults, steps)
+    finally:
+        ctx.close()
+
+
+def _collect(where, checks, errors, faults, steps):
+    """Range des (ok, libellé) : les ratés en défauts, le reste en une étape."""
+    bad = [label for ok, label in checks if not ok]
+    if errors:
+        bad.append(f"erreurs JS {errors}")
+    if bad:
+        faults.append(f"{where} : " + ' ; '.join(bad))
+    else:
+        steps.append(f"{where} : {len(checks)}/{len(checks)}")
+
+
+def check_mouse_gestures(paths: dict):
+    """Les mêmes pages à la SOURIS : studio, file (case, survol), onde, cloche."""
+    def parts(browser, token, urls, faults, steps):
+        _mouse_studio(browser, token, urls['studio'], faults, steps)
+        _mouse_queue(browser, token, urls['queue'], faults, steps)
+        _mouse_editor_and_bell(browser, token, urls, faults, steps)
+    return _run_gestures(paths, parts, 'gestures_mouse')
+
+
 def register_layout_scenarios():
-    """Enregistre `common.layout.tablet` (la mise en page à largeur de tablette) et
-    `common.gestures.touch` (les gestes au doigt)."""
+    """Enregistre `common.layout.tablet` (la mise en page à largeur de tablette),
+    `common.gestures.touch` (les gestes au doigt) et `common.gestures.mouse` (les mêmes à la souris)."""
     from django.urls import NoReverseMatch, reverse
 
     from wama.common.services.nightly_tests import register
@@ -677,5 +1078,13 @@ def register_layout_scenarios():
                      "studio ; glisser une card, menu et infobulle à l'appui long dans la file ; "
                      "onde et segments de l'éditeur du transcriber — sur de vrais événements tactiles"),
         run=(lambda g=gesture_paths: (lambda ctx: check_touch_gestures(g)))(),
+        timeout_s=300, vram_gb=0.0,
+    )
+    register(
+        id="common.gestures.mouse", app="common", stage="ui",
+        description=("Les mêmes pages à la SOURIS, garde du PC : studio (catalogue, nœud, fond aux boutons "
+                     "gauche et du milieu, molette, désélection), file (survol commun, case au clic, à "
+                     "Espace, plage Maj), onde du transcriber, panneau de la cloche"),
+        run=(lambda g=gesture_paths: (lambda ctx: check_mouse_gestures(g)))(),
         timeout_s=240, vram_gb=0.0,
     )

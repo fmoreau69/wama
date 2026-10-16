@@ -2693,7 +2693,8 @@ ce qu'elle porte :
 - **un menu au clic droit** : un `contextmenu` qui `preventDefault` — l'appui long l'émet au doigt,
   y compris sur l'iPad, qui n'en émet pas ;
 - **une commande-icône** : un `title` explicite — l'appui long le montre, sans déclencher la
-  commande.
+  commande. Un `title` qui redit le texte visible (les entrées de l'arbre, pour leurs noms
+  tronqués) n'explique rien : l'appui long y ouvre le menu.
 Ce qu'une page ne doit pas faire : écrire ses propres `touchstart`/`touchmove` pour un geste que
 la brique porte (`tests_gestures` le refuse sur les sites adoptants), ou un
 `mousedown`/`mousemove`/`mouseup` pour suivre un glisser — il ne marcherait pas au doigt. Une zone

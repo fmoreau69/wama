@@ -25,8 +25,9 @@
  *      ⚠ À la souris, la brique ne fait RIEN : le glisser natif reste celui du navigateur.
  *
  *   3. L'APPUI LONG — un doigt ne fait ni clic droit ni survol. Appui long sans bouger :
- *        • sur une commande qui porte un `title` (bouton-icône) → son INFOBULLE s'affiche, et le
- *          clic qui suivrait est retenu (l'appui long n'a pas déclenché le bouton) ;
+ *        • sur une commande dont le `title` l'EXPLIQUE (bouton-icône) → son INFOBULLE s'affiche,
+ *          et le clic qui suivrait est retenu (l'appui long n'a pas déclenché le bouton) ; un
+ *          `title` qui redit le texte visible (entrées de l'arbre) n'explique rien : menu ;
  *        • ailleurs → un `contextmenu` est émis au point touché : le menu de card de la file
  *          (`wama-card-menu.js`) et celui de l'arbre de fichiers s'ouvrent comme au clic droit.
  *          Personne ne le prend ? l'infobulle de l'élément, s'il en a une ;
@@ -223,6 +224,16 @@
         return (el.getAttribute('title') || el.getAttribute('aria-label') || '').trim();
     }
 
+    /** Le `title` d'une commande EXPLIQUE-t-il quelque chose ? Pas s'il redit son texte visible
+     *  (les entrées de l'arbre portent leur propre nom en `title`, pour les noms tronqués) : son
+     *  appui long ouvre alors le menu, comme le clic droit — mesuré le 2026-10-16, l'arbre
+     *  montrait « Temporaires » en infobulle au lieu de son menu. Un bouton-icône, lui, n'a pas de
+     *  texte visible : son `title` est sa seule explication. */
+    function explains(el) {
+        var text = tipText(el);
+        return !!text && text !== (el.textContent || '').replace(/\s+/g, ' ').trim();
+    }
+
     /** L'élément dont l'appui long montre l'infobulle : le plus proche qui en porte une. */
     function tipSource(target) {
         var el = target && target.closest ? target.closest('[title], [aria-label]') : null;
@@ -367,15 +378,23 @@
 
     // Près du bord d'une liste qui défile, le glisser la fait défiler — sinon une card ne pourrait
     // pas rejoindre une place hors de l'écran (la file en a souvent plus qu'il n'en tient).
+    function canScroll(el) { return !!el && el.scrollHeight > el.clientHeight + 1; }
+
     function edgeScroll(under, y) {
         var scroller = under ? scrollerOf(under) : null;
+        // Le doigt sur une barre FIXE (pied de page, en-tête) ou sur ce qui ne défile pas : c'est
+        // la liste de l'élément TENU qui défile. Mesuré le 2026-10-16 : dans WAMA la page ne
+        // défile pas (son conteneur, si), et le bas de l'écran est le pied — un doigt descendu
+        // jusqu'en bas n'y faisait rien défiler.
+        if (!canScroll(scroller)) scroller = scrollerOf(drag.source);
         var speed = 0;
-        if (scroller) {
+        if (canScroll(scroller)) {
             var isDoc = scroller === doc.scrollingElement || scroller === doc.documentElement;
             var r = isDoc ? { top: 0, bottom: global.innerHeight } : scroller.getBoundingClientRect();
             var top = Math.max(0, r.top), bottom = Math.min(global.innerHeight, r.bottom);
-            if (y < top + EDGE) speed = -Math.ceil((top + EDGE - y) / 4);
-            else if (y > bottom - EDGE) speed = Math.ceil((y - (bottom - EDGE)) / 4);
+            // Au-delà du bord (sur la barre), la vitesse plafonne : elle ne s'emballe pas.
+            if (y < top + EDGE) speed = -Math.min(24, Math.ceil((top + EDGE - y) / 4));
+            else if (y > bottom - EDGE) speed = Math.min(24, Math.ceil((y - (bottom - EDGE)) / 4));
         }
         drag.scroller = scroller;
         drag.speed = speed;
@@ -462,8 +481,8 @@
         // Un bouton DANS une card qu'on peut glisser reste un bouton : son appui long l'explique.
         if (source && command && source.contains(command) && command !== source) source = null;
         session = {
-            x: t.clientX, y: t.clientY, id: t.identifier, target: target, source: source,
-            command: command && tipText(command) ? command : null, onCommand: !!command,
+            x: t.clientX, y: t.clientY, id: t.identifier, target: target, source: source, t0: ev.timeStamp,
+            command: command && explains(command) ? command : null, onCommand: !!command,
             tracked: !!closestIn(target, '[data-wama-track]'),
             held: false, acted: false, menuTaken: false, nativeMenu: false,
         };
@@ -549,6 +568,17 @@
         clearTimeout(s.timer);
         session = null;
         unbindTarget();
+        // La DURÉE se lit aux horodatages des événements (doigt posé → doigt levé), pas à l'heure
+        // où la minuterie a tourné : sur une page occupée, le relâcher d'un toucher BREF est traité
+        // après l'échéance de l'appui long. Mesuré sur le live le 2026-10-16 : le bouton de
+        // l'outil Bornes montrait son infobulle et retenait son clic — l'outil ne se refermait pas.
+        if (s.held && ev.timeStamp - s.t0 < HOLD_MS) {
+            if (s.source) s.source.classList.remove('wama-touch-lifted');
+            if (!s.menuTaken) {
+                hideTip();
+                return;                                      // un toucher bref : le clic suit son cours
+            }
+        }
         if (!s.held) return;                                 // un appui bref : le clic suit son cours
         if (s.source) {
             s.source.classList.remove('wama-touch-lifted');

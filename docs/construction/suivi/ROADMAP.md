@@ -5667,6 +5667,24 @@ aucun débordement horizontal**. Les défauts sont ailleurs :
    doigt jusqu'au document. La brique les écoute désormais aussi sur l'élément touché (garde V8
    `test_the_drag_survives_the_page_redrawing_the_held_element`, rouge sur la brique d'avant) ;
    3/3 verts sur le live ensuite.
+   *Couverture des gestes complétée (même jour, question de Fabien : « tous les tests
+   nécessaires, y compris les gestes utilisateurs ? »)* — la souris n'était gardée que par une
+   sonde jetable. Nouveau scénario nocturne **`common.gestures.mouse`**, la garde du PC : studio
+   (catalogue au glisser natif, nœud, fond aux boutons gauche et du milieu, molette, désélection),
+   file (survol commun, case au clic, à Espace, plage Maj, décocher), onde (molette, glisser,
+   clic), cloche (repos / survol) — 19/19 sur le live, contre-épreuve (brique vide, file et
+   feuille d'avant la case) rouge sur chaque geste qui en dépend. `common.gestures.touch` gagne
+   l'appui long sur l'ARBRE, la cloche au doigt, deux cases touchées, la liste qui défile au bord
+   pendant un glisser et l'outil Bornes. Il a trouvé trois défauts de la brique, corrigés et
+   gardés en V8 (chacun rouge sur la brique d'avant) : (1) au bas de l'écran le doigt est sur le
+   PIED fixe et la page ne défile pas (son conteneur, si) — le défilement au bord ne se
+   déclenchait jamais ; c'est désormais la liste de l'élément tenu qui défile ; (2) les entrées
+   de l'arbre portent leur nom en `title` : l'appui long y montrait ce nom au lieu du MENU — un
+   `title` qui redit le texte visible n'explique rien ; (3) la durée d'un appui se lit aux
+   horodatages des événements, pas à la minuterie : sur une page occupée, un toucher bref passait
+   pour un appui long et perdait son clic. Un faux rouge de l'instrument aussi, élucidé par trace :
+   une borne lâchée EN MOUVEMENT lance une inertie, et le navigateur prend le toucher suivant
+   pour l'arrêter, sans clic — le scénario immobilise le doigt avant de le lever, 4/4.
    ⏳ **Reste** : la sélection MULTIPLE de la file au doigt (aujourd'hui Ctrl/Maj ; au doigt on
    porte une card — les actions de groupe de l'inspecteur restent atteignables par le clavier) ;
    un essai sur une vraie tablette (ci-dessous).

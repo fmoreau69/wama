@@ -643,7 +643,8 @@ MECHANISMS = (
               "n'en émet pas) ; sur ce qu'on glisse, il soulève : bouger glisse, relâcher ouvre le "
               "menu. Une page n'écrit ni `touchstart` pour un geste porté ici, ni "
               "mousedown/mousemove pour suivre un glisser ; mesuré chaque nuit sur de vrais "
-              "événements tactiles par `common.gestures.touch`",
+              "événements tactiles par `common.gestures.touch`, et les mêmes pages à la souris "
+              "par `common.gestures.mouse` (la garde du PC)",
               'wama/common/static/common/js/wama-gestures.js',
               'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
               annexes=('wama/common/tests/tests_gestures.py',

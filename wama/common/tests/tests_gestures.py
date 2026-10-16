@@ -193,9 +193,11 @@ function el(tag, attrs, parent, rect) {
                          width: rect[2] - rect[0], height: rect[3] - rect[1] }; hits.push([n].concat(rect)); }
   return n;
 }
-function touch(target, type, x, y) {
+function touch(target, type, x, y, ts) {
   var t = [{ identifier: 1, clientX: x, clientY: y }];
-  var ev = new Event(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : t, changedTouches: t });
+  var init = { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : t, changedTouches: t };
+  if (ts !== undefined) init.timeStamp = ts;           // l'horodatage de l'événement (ms)
+  var ev = new Event(type, init);
   target.dispatchEvent(ev);
   return ev;
 }
@@ -350,6 +352,25 @@ class TouchDragBridgeTest(SimpleTestCase):
         self.assertFalse(r['lifted'], 'a button inside a card is a button, not a drag handle')
         self.assertEqual(r['log'], [], 'no menu, no drag')
 
+    def test_a_title_that_repeats_the_visible_name_gives_way_to_the_menu(self):
+        # L'arbre de fichiers : chaque entrée porte son propre nom en `title`. Son appui long ouvre
+        # le menu (le clic droit d'une tablette), pas une infobulle qui redirait le nom.
+        ctx = self._ctx()
+        ctx.eval("""
+            var tree = el('div', {'data-k': 'tree'}, body, [0, 500, 400, 600]);
+            var entry = el('a', {'href': '#', 'title': 'Temporaires', 'data-k': 'entry'}, tree, [0, 500, 200, 530]);
+            entry.textContent = 'Temporaires';
+            tree.addEventListener('contextmenu', function (e) { log.push('menu'); e.preventDefault(); });
+        """)
+        r = json.loads(ctx.eval("""(function () {
+            touch(entry, 'touchstart', 50, 515); flushTimers();
+            var end = touch(entry, 'touchend', 50, 515);
+            return JSON.stringify({ log: log, tip: tipShown(), endPrevented: end.defaultPrevented });
+        })()"""))
+        self.assertEqual(r['log'], ['menu'])
+        self.assertIsNone(r['tip'])
+        self.assertTrue(r['endPrevented'], 'the menu was opened: the click must not follow')
+
     def test_a_quick_tap_keeps_its_click(self):
         r = json.loads(self._ctx().eval("""(function () {
             touch(gear, 'touchstart', 360, 20);
@@ -359,6 +380,28 @@ class TouchDragBridgeTest(SimpleTestCase):
         })()"""))
         self.assertFalse(r['endPrevented'])
         self.assertIsNone(r['tip'])
+
+    def test_a_quick_tap_on_a_busy_page_is_still_a_tap(self):
+        # Mesuré sur le live le 2026-10-16 : page occupée, le relâcher d'un toucher BREF traité après
+        # l'échéance de l'appui long — l'infobulle s'affichait et le clic était retenu (l'outil
+        # Bornes ne se refermait pas). La durée se lit aux horodatages, pas à la minuterie.
+        r = json.loads(self._ctx().eval("""(function () {
+            touch(gear, 'touchstart', 360, 20, 1000);
+            flushTimers();                                        // la minuterie tourne en retard
+            var end = touch(gear, 'touchend', 360, 20, 1120);     // doigt resté 120 ms
+            return JSON.stringify({ endPrevented: end.defaultPrevented, tip: tipShown() });
+        })()"""))
+        self.assertFalse(r['endPrevented'], 'a 120 ms tap must keep its click')
+        self.assertIsNone(r['tip'])
+
+    def test_a_long_press_measured_by_timestamps_still_explains(self):
+        r = json.loads(self._ctx().eval("""(function () {
+            touch(gear, 'touchstart', 360, 20, 1000); flushTimers();
+            var end = touch(gear, 'touchend', 360, 20, 1700);     // doigt resté 700 ms
+            return JSON.stringify({ endPrevented: end.defaultPrevented, tip: tipShown() });
+        })()"""))
+        self.assertTrue(r['endPrevented'])
+        self.assertEqual(r['tip'], 'Paramètres')
 
     def test_a_slow_press_that_showed_nothing_keeps_its_click(self):
         r = json.loads(self._ctx().eval("""(function () {
@@ -479,7 +522,10 @@ class PagesAdoptTheBrickTest(SimpleTestCase):
 
     def test_the_gestures_are_measured_every_night(self):
         from wama.common.services import nightly_tests
-        self.assertIn('common.gestures.touch', {s.id for s in nightly_tests.REGISTRY})
+        ids = {s.id for s in nightly_tests.REGISTRY}
+        self.assertIn('common.gestures.touch', ids)
+        # La garde du PC : les mêmes pages à la souris (canvas, onde, case, survol, cloche).
+        self.assertIn('common.gestures.mouse', ids)
 
     def test_the_served_copies_are_the_sources(self):
         pairs = [(GESTURES, SERVED / 'common' / 'js' / 'wama-gestures.js'),
