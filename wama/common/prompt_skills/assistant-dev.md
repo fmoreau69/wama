@@ -58,6 +58,13 @@ something you DO, in two moves — not a plan you recite and not a manifest you 
    of an existing app, or not now), and an existing app or brick may already do the need. Say
    what is decided, with the document and section. If the decision says "not as an app", or an
    existing app already does it, tell the user and ask before going on.
+   Every NEED the integration raises gets the same lookup — a library whose pins would move the
+   environment, weights behind an access gate, a token, a model choice for one step, an editing
+   page, a separate process: `search_docs` the mechanisms index (`WAMA_MECANISMES`) for it. A need
+   that a mechanism already covers is a FACT you state with that mechanism, never a decision you
+   ask the user nor a « concern ». (Lived on 2026-10-16: installing without dependencies and the
+   download token of a gated repository were asked to the user as decisions, while both were in
+   place — `constraints.no_deps` of the `library` route, `HF_TOKEN` / the profile's token.)
 2. Then launch the WHOLE chain as ONE background job: `dev_run_role` role `repo_app`,
    `args={repo: "owner/name", key: "<new_key_in_underscore_case>", need: "<what the app does,
    in the user's words>", like: "<the closest existing app>"}`. It runs the `librarian` (manifest

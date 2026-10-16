@@ -484,7 +484,14 @@ MECHANISMS = (
               "désinstallation retire ces fichiers-là seulement, `remove_declared_files`) ; "
               "`download_asset` = le "
               "téléchargement contrôlé commun aux pilotes à "
-              "fichier (empreinte d'un fichier en place : `provenance.sha256_of`)",
+              "fichier (empreinte d'un fichier en place : `provenance.sha256_of`). Dépôt à "
+              "ACCÈS CONTRÔLÉ (`AIModel.gated`) : le jeton est celui du compte qui lance "
+              "(`api_keys.download_token`), sinon celui de l'instance (`HF_TOKEN`, `.env`). "
+              "Route `library` (`install_library`) : PyPI par nom, pin exact — refuse URL, "
+              "`git+`, `file:`, `-e` et contrainte lâche ; `constraints.pip` (pins passés par "
+              "`-c`) et `constraints.no_deps` (installer SANS les dépendances quand leur "
+              "résolution déplacerait le venv, 2026-10-01 ; pendant backend : `PIP_NO_DEPS`) ; "
+              "voie VENDOR pour un dépôt épinglé au commit",
               'wama/model_manager/services/model_installer.py', '',
               # Route `library` (install_library) : voie pip ici, voie VENDOR (dépôt épinglé au
               # commit + correctif, ROADMAP D-a, 2026-09-30) dans son exécuteur délégué.
