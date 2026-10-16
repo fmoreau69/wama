@@ -43,6 +43,13 @@ retrouve-t-elle TOUT ? »*
 - Dérouler `/palier` sur le travail restant : validations empiriques, consignation dans les
   docs de référence, commits par chemins explicites. Rien ne doit rester en working tree
   DANS TON périmètre.
+- 🔴 **« Rien ne reste » se MESURE, après le DERNIER commit** (repris de `/reverif §4`, que ce
+  skill disait inclure sans le faire — ajouté le 2026-10-16) : `git show --stat HEAD` = mes seuls
+  fichiers ; aucune ligne d'attribution ; et le diff de l'arbre contre HEAD ne porte plus AUCUNE
+  de mes lignes — `git diff -U0 HEAD | grep '^+' | grep -E "<mes symboles>|<mon R<n>>|<l'ancre
+  de mon bloc>"` doit être vide. Le `git status`, lui, liste les fichiers modifiés par d'autres
+  sans dire si les miens y sont encore : c'est cette mesure qui répond à « commite ce qui
+  t'appartient ».
 
 ## 2. Contrôles mécaniques
 
@@ -69,6 +76,13 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 > postérieure le périme.* Le §2c (seuils), le §3 (correctifs de balayage) et le §5 (fiches
 > mémoire, si du code y est touché) sont concernés — **relancer le ciblé après la DERNIÈRE
 > écriture**, pas après la première.
+>
+> ⚠ **Les modules ciblés se TROUVENT, ils ne se devinent pas** (vécu deux fois le 2026-10-14 :
+> `tests_resource_governor` n'existe pas, les gardes du gouverneur vivent dans
+> `tests_vram_governance`, `tests_vram_ledger`, `tests_process_governance`…). Un module inventé
+> sort en `ImportError` compté dans `errors=` : il pollue le chiffre et ne teste rien. Partir des
+> SYMBOLES livrés : `grep -rl "<symbole>" --include="tests*.py" wama wama_lab wama_data`
+> (⚠ sans `--` devant le motif : il fait lire `--include` comme un chemin).
 >
 > Ciblé suffit ici (`/reprise` lance la suite complète à l'ouverture) ; ce qui compte est que
 > **le chiffre reporté au §4 soit MESURÉ dans cette session**, pas recopié du handoff précédent.
@@ -213,6 +227,18 @@ python manage.py check_redundancy          # compter AVANT/APRÈS ses propres co
   (vidéo : `media_probe`, `video_utils`, `ffmpeg_utils` ; géométrie : `detections`, `bounds`) —
   le doublon le plus fréquent est à quelques lignes, pas dans un autre monde.
 
+### 2a quater. 🔴 ALIGNÉ — route, mondes, un seul chemin (inconditionnel dès que la session écrit du code)
+
+> **Ajouté le 2026-10-16.** La description de `/reverif` dit que la clôture « inclut ce passage »
+> — elle ne l'incluait pas : seul un renvoi en tête du §2 le nommait, et la table de coche du §6
+> n'avait aucune ligne pour lui. Une étape sans ligne dans la table se saute.
+
+Dérouler **`/reverif §1`** sur chaque livrable — ne pas le recopier ici : la section de ROUTE qui
+le porte, la règle des mondes, et les deux questions qui ont trouvé ce que le gardien du §2a ter
+ne voit pas (*quelle lecture de même NATURE existe déjà ?* et *qui déclare DÉJÀ chaque DONNÉE
+que le livrable déclare ?*). Si `/reverif` a été déroulé dans la session APRÈS le dernier commit
+de code, citer son verdict ; sinon le refaire.
+
 ### 2b. Les autres — seulement ceux que la session a rendus nécessaires
 - Un REGISTRE a bougé (APP_CATALOG, params, capacités, tool_api, mecanismes.py…) →
   `manifest_export --check` (⚠ depuis WSL2 — venv_win = faux périmés sur les libraries) ;
@@ -221,6 +247,12 @@ python manage.py check_redundancy          # compter AVANT/APRÈS ses propres co
   (le kind, les clés) avant de régénérer — régénérer figerait le WIP non commité d'une autre
   instance. Vécu 26/08 : 91 manifestes `model` périmés attribués au monde Data, alors qu'ils
   venaient du chantier « contrat de prompt » d'une autre instance.
+  ✅ **Pour une doc GÉNÉRÉE périmée par autrui, vérifier SA part sans rien écrire** (vécu le
+  2026-10-14 : `doc_facts --check` rendait trois blocs périmés, tous par le WIP d'autres
+  sessions). Appeler la fonction du fait (`doc_facts._fait_<nom>()`) dans un script, extraire SES
+  lignes (ici les deux mécanismes du palier) et les comparer à `git show HEAD:<doc>` : identiques
+  = rien à faire de son côté, et c'est la preuve à citer. Régénérer le fichier aurait écrit le
+  travail d'autrui dans l'arbre.
 - La grille a pu bouger → `check_app_conformity` (rapport global, pas `--app`).
 - Une entrée de `CELERY_BEAT_SCHEDULE` a été ajoutée ou déplacée → `tests_calendar` (plage
   RÉSERVÉE des tests nocturnes, tâche connue de Celery). ⚠ Vécu 03→04/10 : une purge horaire
@@ -236,6 +268,8 @@ python manage.py check_redundancy          # compter AVANT/APRÈS ses propres co
 
 ### 2c. `check_docs` — et le piège qui a récidivé QUATRE fois
 - Des RÉFÉRENCES doc ont bougé → `check_docs` (Windows OU WSL2, rendu identique).
+  ⚠ Un RETRAIT de code compte aussi : il raccourcit le fichier et périme les renvois
+  `fichier:ligne` des traces datées (`/reverif §3`, vécu le 2026-10-12).
 - 🔴 **Le nombre de CASSÉ n'est PAS un seuil** — `check_docs` compte des **références**, pas des
   **cibles manquantes** : le compte monte tout seul dès qu'un `.md` recite la même cible.
   **Le critère est le nombre de CIBLES DISTINCTES** (voir `/reprise §3a`, qui porte la valeur
@@ -374,6 +408,21 @@ python manage.py check_redundancy          # compter AVANT/APRÈS ses propres co
     COMMIT** — même règle que « créer un `.md` de référence = ajouter sa ligne à la table de
     AGENTS.md dans le même commit ». Un critère périmé fait passer une vraie dérive pour du
     normal (vécu 10/08), et le rattrapage différé n'arrive jamais.
+- **Un reste dont le domaine est porté par une AUTRE session vivante se TRANSMET** (geste vécu le
+  2026-10-14, à la demande de Fabien : les restes du gouverneur au grain du process confiés à la
+  session du routage des modèles cloud, qui en a livré un dans l'heure).
+  1. Trouver la session par son dernier commit, jamais par son nom (les noms sont dérivés) :
+     `grep -l "<sujet du commit>"` dans les transcriptions du projet (`~/.claude/projects/<projet>/*.jsonl`
+     — celle qui le cite le plus est l'auteure), puis son `sessionId` dans
+     `~/.claude/sessions/<pid>.json`, dont le champ `name` est l'adresse de `SendMessage`
+     (`ListAgents` pour confirmer qu'elle vit).
+  2. Un message AUTONOME : la décision prise, les shas, le domicile des restes, les lignes de code
+     (`fichier:ligne`), les gardes à faire évoluer, les pièges mesurés — elle ne lira pas ma
+     session.
+  3. La passation s'écrit aussi dans le journal (`## §PASSATION — <date>, « … » → <session>`) et
+     dans la fiche mémoire : un message entre sessions ne survit pas à leur fermeture.
+  4. Ce qu'elle rapporte se VÉRIFIE (`git show --stat <sha>`) avant d'être relayé à
+     l'utilisateur, et se reporte dans la fiche mémoire du chantier.
 
 ## 5. Mémoire persistante
 - Mettre à jour les fichiers mémoire des chantiers touchés (pas de nouveau fichier si un
@@ -403,6 +452,7 @@ python manage.py check_redundancy          # compter AVANT/APRÈS ses propres co
   | 2a tests | ✓/✗ | le chiffre MESURÉ + les noms des rouges s'il y en a |
   | 2a bis gardes AJOUTÉES | ✓/✗ | **une ligne PAR livrable** : son symbole → le fichier de test qui le nomme, ou « non gardé, parce que… ». ⚠ Un chiffre global ne coche PAS cette case — c'est celle du §2a |
   | 2a ter réinvention | ✓/✗ | `check_redundancy` : le total, **et** le nombre de trouvailles dans TES fichiers (attendu : zéro, ou la brique adoptée). ⚠ « je n'ai rien réinventé » ne coche pas cette case — on ne réinvente que ce qu'on ignore |
+  | 2a quater aligné | ✓/✗ | par livrable : la section de ROUTE qui le porte, et ce que `/reverif §1` a trouvé (écart ramené / consigné / aucun, avec la lecture qui l'établit) |
   | 2b/2c contrôles | ✓/–/N-A | chiffres (corpus N, cibles distinctes N) OU « aucun registre n'a bougé » |
   | 3 balayage | ✓/✗ | nb de ⚠ balayés → réglés/pendings ; artefacts+effets de bord déclarés |
   | 4 handoff | ✓/✗ | l'ancre du bloc écrit |
@@ -415,5 +465,10 @@ python manage.py check_redundancy          # compter AVANT/APRÈS ses propres co
 - **Dire aussi ce qu'on a laissé de côté, nommément.** Une clôture qui n'énonce que le livré
   laisse croire que le reste est fait. Ce qui a été *annoncé puis non fait* passe en tête de
   cette liste, avant les décisions ouvertes.
+  ⚠ **Et dire À QUI chaque reste appartient** (vécu le 2026-10-14 : Fabien a pris les restes du
+  palier pour « des restes d'autres sessions »). Deux familles, jamais mêlées : les LIMITES de ce
+  que la session a construit (elles sont à elle, avec leur domicile) et les pendings HÉRITÉS
+  (relances, poussées, décisions d'autres chantiers). Une limite non étiquetée se lit comme un
+  héritage, donc comme le problème de quelqu'un d'autre.
 - ⚠ **Un arbitrage BLOQUANT se signale comme tel, séparément des autres décisions** : la
   prochaine session doit savoir en une ligne ce qu'elle ne peut pas commencer sans réponse.
