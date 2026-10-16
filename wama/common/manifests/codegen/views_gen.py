@@ -61,20 +61,27 @@ def prompt_entry(body: dict, fields=None) -> tuple:
     manifeste ne portent pas `required` aujourd'hui. Avec « sans port de travail » : 0 faux
     positif (Writer, composer) ; imager et avatarizer (travail + consigne, attache déclarée à la
     main) restent hors de la dérivation — un manque nommé, pas une erreur."""
-    inputs = (body.get('ports') or {}).get('inputs') or []
-    groups = {p.get('group') for p in inputs}
+    groups = {p.get('group') for p in ((body.get('ports') or {}).get('inputs') or [])}
     if 'prompt' not in groups or 'travail' in groups:
         return False, ''
+    return True, prompt_port_field(body, fields)
+
+
+def prompt_port_field(body: dict, fields=None) -> str:
+    """Le champ où la SAISIE de la card se pose : sa cible de prompt, sinon le PORT de consigne
+    lui-même, sinon `prompt` — '' si aucune n'est une colonne (`fields`, None = ne pas vérifier).
+
+    Le PORT de consigne nomme son champ, comme tout port (2026-10-16) : translate_01 déclarait son
+    texte à traduire en port `text` du groupe prompt, SANS cible de prompt — à juste titre, le
+    pipeline de prompts traduirait ou enrichirait le texte avant la traduction. Faute de cible et de
+    colonne `prompt`, le champ restait vide : rien de ce qu'on tapait n'était gardé. Partagé par
+    l'ajout en mode attache (`prompt_entry`) et le résultat instantané (`instant`)."""
     exists = (lambda n: True) if fields is None else (lambda n: n in fields)
     targets = (body.get('prompts') or {}).get('targets') or []
-    # Le PORT de consigne nomme son champ, comme tout port (2026-10-16) : translate_01 déclare
-    # son texte à traduire en port `text` du groupe prompt, SANS cible de prompt — à juste titre,
-    # le pipeline de prompts traduirait ou enrichirait le texte avant la traduction. Faute de
-    # cible et de colonne `prompt`, le champ restait vide : rien de ce qu'on tapait n'était gardé.
-    ports = [p['id'] for p in inputs if p.get('group') == 'prompt' and p.get('id')]
-    field = next((t['field'] for t in targets if t.get('field') and exists(t['field'])),
-                 next((p for p in ports if exists(p)), 'prompt' if exists('prompt') else ''))
-    return True, field
+    ports = [p['id'] for p in ((body.get('ports') or {}).get('inputs') or [])
+             if p.get('group') == 'prompt' and p.get('id')]
+    return next((t['field'] for t in targets if t.get('field') and exists(t['field'])),
+                next((p for p in ports if exists(p)), 'prompt' if exists('prompt') else ''))
 
 
 def _donnees(manifest: dict) -> dict:
@@ -658,6 +665,34 @@ def upload(request):
     if f is not None:
         f.record(item, '{d['input_field']}')   # provenance d'un fichier DÉSIGNÉ{record_sec}
     return JsonResponse({{'id': item.id, 'status': item.status, 'warning': _avert}})'''
+
+    # RÉSULTAT INSTANTANÉ (2026-10-16, le Translator « à la DeepL » — capacité `has_instant_result`,
+    # `CARD_DESIGN §11.11 D bis`). La card l'appelle PENDANT la frappe : la glu de l'app
+    # (`tasks.instant_result`) joue sur un élément NON enregistré — rien en file, rien en base.
+    # Le texte vient de la card, les réglages de la MÊME cascade que l'ajout (la saisie retirée du
+    # POST, comme pour une consigne). Sans champ de saisie, pas de corps : le bouchon 501 le dit.
+    input_field = prompt_port_field(manifest.get('body') or {}, set(d['champ_noms']))
+    if input_field:
+        instant_settings = ''
+        if _noms_schema:
+            instant_settings = ("\n    _posted = request.POST.copy()\n    _posted.pop('instant_text', None)"
+                                "\n    _cols, _extras = _reglages_du_depot(user, '', _posted)"
+                                "\n    kwargs.update(_cols)")
+        vues['instant'] = f'''@require_POST
+def instant(request):
+    """Résultat INSTANTANÉ de la saisie (capacité `has_instant_result`) : `tasks.instant_result`
+    joué sur un élément NON enregistré — rien en file, rien en base. La card poste sa saisie sous
+    `instant_text` (contrat de `wama-instant.js`) ; elle se pose ici dans le champ de l'app."""
+    user = _user(request)
+    text = (request.POST.get('instant_text') or '').strip()
+    if not text:
+        return JsonResponse({{'text': ''}})
+    kwargs = {{'user': user, '{input_field}': text}}{instant_settings}
+    from .tasks import instant_result
+    try:
+        return JsonResponse({{'text': instant_result({item}(**kwargs))}})
+    except NotImplementedError as exc:
+        return JsonResponse({{'error': str(exc)}}, status=501)'''
 
     # APERÇU DE LOT — conventionnel, plus un stub (2026-08-22). Le parsing d'un fichier de lot
     # n'a jamais été une « politique d'app » : `batch_media_list_preview_response` fait tout le

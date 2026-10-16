@@ -201,6 +201,22 @@ def live_input_declared(app):
 
 
 @register.simple_tag
+def instant_result_url(app):
+    """L'adresse du résultat INSTANTANÉ de l'app (route `instant`), ou '' si elle ne déclare pas
+    `has_instant_result` — la card d'entrée n'affiche sa zone de résultat que sur cette lecture
+    (2026-10-16, `CARD_DESIGN §11.11 D bis`). Une capacité déclarée sans route se tait au lieu de
+    rendre une zone morte."""
+    from django.urls import NoReverseMatch, reverse
+    from wama.common.app_registry import app_has_instant_result
+    if not app_has_instant_result(app):
+        return ''
+    try:
+        return reverse(f'{app}:instant')
+    except NoReverseMatch:
+        return ''
+
+
+@register.simple_tag
 def input_slots(app, domain=None):
     """Les SLOT-ROWS de la card d'entrée v4 — une par PORT déclaré, avec ses modalités.
 

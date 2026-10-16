@@ -572,6 +572,16 @@ def app_has_live_input(app_id) -> bool:
     return bool((APP_CATALOG.get(app_id) or {}).get('has_live_input'))
 
 
+def app_has_instant_result(app_id) -> bool:
+    """L'app montre-t-elle son résultat PENDANT la frappe (le Translator « à la DeepL ») ?
+
+    Même nature que `has_live_input` : une CAPACITÉ d'app déclarée, lue par la card d'entrée — et
+    littérale pour une jumelle, que son manifeste projette (2026-10-16, `CARD_DESIGN §11.11 D bis`).
+    La card appelle la route `instant` de l'app, qui joue `tasks.instant_result(item)` sur un
+    élément NON enregistré : rien en file, rien en base."""
+    return bool((APP_CATALOG.get(app_id) or {}).get('has_instant_result'))
+
+
 def app_own_input_ports(app_id):
     """Ports d'entrée que l'APP consomme elle-même — aucun modèle ne les déclare (2026-09-30).
 

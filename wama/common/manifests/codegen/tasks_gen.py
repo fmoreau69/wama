@@ -107,6 +107,25 @@ def model_route(manifest: dict):
             'params_fields': list(item.get('params_fields') or [])}
 
 
+def _instant_hole(manifest: dict, mark: str) -> list:
+    """Le TROU DE GLU du résultat instantané, quand la route `instant` est déclarée (2026-10-16,
+    capacité `has_instant_result`) : la vue générée l'appelle sur un élément NON enregistré."""
+    endpoints = (((manifest.get('body') or {}).get('processing') or {}).get('endpoints') or [])
+    if 'instant' not in endpoints:
+        return []
+    return [
+        '',
+        '',
+        'def instant_result(item) -> str:',
+        f'    """TROU DE GLU {mark} — résultat INSTANTANÉ de la saisie, marche B.',
+        '',
+        '    `item` n\'est PAS enregistré (aucun id, aucun fichier) : rendre le texte du résultat à',
+        '    partir de ses champs (la saisie, ses réglages), vite — la card l\'appelle pendant la',
+        '    frappe. Une exception autre que NotImplementedError = un 500 dans la card."""',
+        f"    raise NotImplementedError('{mark} résultat instantané non généré (marche B)')",
+    ]
+
+
 def render_tasks(manifest: dict) -> tuple:
     """(source, raison) — fichier mince complet, ou (None, raison) si la facette ne porte pas
     de quoi le rendre (tasks lifecycle + item_model). Jamais de fichier partiel."""
@@ -225,6 +244,7 @@ def render_tasks(manifest: dict) -> tuple:
                 '    une exception = FAILURE de la card."""',
                 f"    raise NotImplementedError('{mark} process {s['key']} non généré (marche B)')",
             ]
+        lignes.extend(_instant_hole(manifest, mark))
         lignes.append('')
         return '\n'.join(lignes), None
 
@@ -377,5 +397,6 @@ def render_tasks(manifest: dict) -> tuple:
                 '    c\'est exactement ce que cette brique vient de résorber (ROADMAP §23.2bis)."""',
                 f"    raise NotImplementedError('{mark} corps de backend non généré (marche B)')",
             ]
+    lignes.extend(_instant_hole(manifest, mark))
     lignes.append('')
     return '\n'.join(lignes), None

@@ -1324,6 +1324,19 @@ la règle des deux temps du §11.9 A, sans exception). ⚠ Il lui faut sa **déc
 encore le littéral `show_live` (transcriber seul). Le lecteur existe désormais — la condition
 « jamais une déclaration sans consommateur » est levée.
 
+**D bis. Le RÉSULTAT INSTANTANÉ est une capacité, pas une modalité** (décision Fabien du
+2026-10-16 : le Translator « à la DeepL », *« sinon, on perd le côté instantané »*). Sous la
+consigne, la card montre ce que l'app rendrait — PENDANT la frappe, sans rien mettre en file. Même
+patron que le live : une capacité d'app DÉCLARÉE (`has_instant_result`, manifeste → catalogue →
+`app_registry.app_has_instant_result` → tag `instant_result_url`), jamais un littéral de page. Une
+seule source : la route `instant` du manifeste (le validateur exige l'une avec l'autre) ; en
+dérivent la vue (`views_gen` — la glu joue sur un élément NON enregistré, réglages par la cascade
+de l'ajout, saisie postée sous `instant_text`), sa route (`urls_gen`) et le trou de glu
+`instant_result(item)` (`tasks_gen`). Brique : `wama-instant.js` (délai de saisie, seule la
+DERNIÈRE réponse s'affiche, saisie vide = zone vide). Gardes : `tests_instant_result`.
+⏳ Les réglages du volet ne sont postés que si la card nomme leur hôte (`data-instant-params`) ;
+sinon la cascade lit les réglages enregistrés.
+
 **E. Preview ou liste — la règle qui tranche.** La preview d'un *média* n'a de sens qu'à **un
 seul fichier** (miniature / onde / extrait, + `↻` qui **remplace** — exigence 7, jusqu'ici
 impossible). À **N fichiers**, la sous-division rend une **liste de chips retirables** qui défile

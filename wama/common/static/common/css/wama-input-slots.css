@@ -108,3 +108,16 @@
    même card OUVERTE, et avec elle les tuiles d'import — la card de Compact ne savait plus
    rien recevoir. L'aperçu RETIRÉ par ces densités est celui des cards de FILE (le résultat),
    pas cette zone, qui est la surface d'alimentation. */
+
+/* RÉSULTAT INSTANTANÉ de la saisie (CARD_DESIGN §11.11 D bis, 2026-10-16) — sous la consigne, il suit
+   la frappe (le Translator « à la DeepL »). Texte CLAIR sur le fond sombre de la card : le
+   résultat se lit, il ne se devine pas. */
+.wama-instant-text {
+    white-space: pre-wrap;
+    min-height: 1.5em;
+    padding: .35rem .5rem;
+    border-left: 2px solid var(--bs-info, #0dcaf0);
+    color: var(--bs-light, #f8f9fa);
+    font-size: .875rem;
+}
+.wama-instant-text:empty { display: none; }
