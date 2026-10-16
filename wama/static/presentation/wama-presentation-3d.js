@@ -182,7 +182,7 @@ function buildWorlds() {
 
 // ── Scène 2 : les droits, tous les cas ───────────────────────────────────
 const TIER_COLORS = [0x94a3b8, COLORS.media, COLORS.data, COLORS.lab];
-// Libellé d'un outil : l'identité commune que `access_cases()` transmet (`calendar.app_identity`)
+// Libellé d'un outil : l'identité commune que `access_cases()` transmet (`app_registry.app_identity`)
 // — jamais une table de noms recopiée ici.
 const appLabel = app => app.label || app.id;
 // Monde déclaré d'un outil (`access_cases()` le transmet, avec le libellé de chaque monde, celui

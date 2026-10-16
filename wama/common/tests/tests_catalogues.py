@@ -757,6 +757,151 @@ class DeclaredWorldsTest(TestCase):
         self.assertIn('data', set(worlds.values()))
 
 
+class AppIdentityTest(TestCase):
+    """`app_registry.app_identity` — ONE reader for what names an app (label, colour, icon,
+    page, description, world), whatever way the app declares itself (2026-10-16, Fabien: app
+    facts do not live in the calendar). It lived in `services/calendar.py`, borrowed by the rights
+    matrix, the journal and the install history, while five other readers redid it their own way —
+    « Mon RAG » showed the KEY of every app, reading a `name` no catalogue entry carries."""
+
+    def _all_declared(self):
+        from wama.common.app_registry import APP_CATALOG, pageless_tools, surfaces
+        return (list(APP_CATALOG) + [s['app'] for s in surfaces()]
+                + [t['app'] for t in pageless_tools()])
+
+    def test_a_catalog_app_reads_its_catalog_entry(self):
+        from wama.common.app_registry import APP_CATALOG, app_identity
+        entry, identity = APP_CATALOG['transcriber'], app_identity('transcriber')
+        self.assertTrue(identity['declared'])
+        for key in ('label', 'color', 'icon', 'url_name', 'description'):
+            with self.subTest(key=key):
+                self.assertEqual(entry[key], identity[key])
+        self.assertEqual('media', identity['world'])
+
+    def test_a_lab_app_reads_its_own_declaration(self):
+        from wama.common.app_registry import app_identity, surface_for
+        surface, identity = surface_for('face_analyzer'), app_identity('face_analyzer')
+        self.assertTrue(identity['declared'])
+        self.assertEqual(('Face Analyzer', 'lab'), (identity['label'], identity['world']))
+        self.assertEqual(surface['url_name'], identity['url_name'])
+        self.assertEqual(surface['description'], identity['description'])
+        self.assertEqual(surface['color'], identity['color'])
+        self.assertEqual(f"fas {surface['icon']}", identity['icon'],
+                         'the short form a surface declares is completed, like the catalogue form')
+
+    def test_a_pageless_tool_has_an_identity_without_a_page(self):
+        from wama.common.app_registry import app_identity, pageless_tool_for, world_color
+        identity = app_identity('assistant')
+        self.assertTrue(identity['declared'])
+        self.assertEqual(pageless_tool_for('assistant')['label'], identity['label'])
+        self.assertEqual('', identity['url_name'])
+        self.assertEqual('transverse', identity['world'])
+        self.assertEqual(world_color('transverse'), identity['color'],
+                         'a tool that declares no colour takes the colour of its world')
+
+    def test_an_unknown_key_gets_a_readable_label_and_the_shared_world_colour(self):
+        from wama.common.app_registry import app_identity, world_color
+        identity = app_identity('app_without_entry')
+        self.assertFalse(identity['declared'])
+        self.assertEqual('App without entry', identity['label'])
+        self.assertEqual(world_color('transverse'), identity['color'])
+        self.assertEqual(('', '', ''), (identity['icon'], identity['url_name'], identity['world']))
+
+    def test_every_declared_app_is_named_drawn_and_reachable(self):
+        from wama.common.app_registry import app_identity
+        apps = self._all_declared()
+        self.assertGreater(len(apps), 15, 'nothing measured')
+        for app in apps:
+            identity = app_identity(app)
+            with self.subTest(app=app):
+                self.assertTrue(identity['label'])
+                self.assertTrue(identity['color'])
+                self.assertRegex(identity['icon'], r'^fa[a-z]* fa-', 'icon not in its full form')
+                if identity['url_name']:
+                    reverse(identity['url_name'])
+
+    def test_the_readers_of_an_app_name_agree_with_the_identity(self):
+        """The rights scene, the calendar legend and the send-to menu name an app the same way."""
+        from wama.accounts.permissions import access_cases
+        from wama.common.app_registry import app_identity
+        for column in access_cases()['apps']:
+            with self.subTest(scene=column['id']):
+                self.assertEqual(app_identity(column['id'])['label'], column['label'])
+        from wama.common.services.send_to import _destination
+        destination = _destination('cam_analyzer', {})
+        self.assertEqual(('Cam Analyzer', app_identity('cam_analyzer')['icon']),
+                         (destination['libelle'], destination['icone']))
+
+    def test_my_rag_names_an_item_by_its_app_and_links_to_it(self):
+        """« Mon RAG » read `spec.get('name')`: no catalogue entry has one, so the page showed
+        `transcriber · #7`. Counter-check: a Lab item is named too, a file keeps its path."""
+        from django.contrib.auth import get_user_model
+        from wama.common.models import RagChunk
+        from wama.common.services.journal import app_queue_url
+        user = get_user_model().objects.create_user('identity_rag', password='x')
+        for ordinal, source in enumerate(('transcriber:7', 'cam_analyzer:3')):
+            RagChunk.objects.create(content='texte', content_hash=f'id{ordinal}',
+                                    source_kind=source.split(':')[0], source_id=source,
+                                    source_ref=source, ordinal=ordinal, user=user)
+        RagChunk.objects.create(content='fiche', content_hash='idf', source_kind='file',
+                                source_id='file:users/x/fiche.docx',
+                                source_ref='users/x/fiche.docx', ordinal=9, user=user)
+        self.client.force_login(user)
+        page = self.client.get(reverse('common:rag')).content.decode()
+        self.assertIn('Transcriber · #7', page)
+        self.assertIn('Cam Analyzer · #3', page)
+        self.assertNotIn('transcriber · #7', page)
+        self.assertIn('users/x/fiche.docx', page)
+        self.assertIn(app_queue_url('cam_analyzer'), page)
+
+    def test_the_activity_log_filters_name_their_apps(self):
+        """The journal filters showed the KEY (`cam_analyzer`) while the calendar legend, read
+        from the same count, showed the name."""
+        import re
+        from django.contrib.auth import get_user_model
+        from wama_lab.cam_analyzer.models import AnalysisSession
+        user = get_user_model().objects.create_user('identity_journal', password='x')
+        AnalysisSession.objects.create(user=user)
+        self.client.force_login(user)
+        page = self.client.get(reverse('common:journal')).content.decode()
+        self.assertRegex(page, r'\?app=cam_analyzer"[^>]*>\s*Cam Analyzer\s*<span class="n">')
+        self.assertNotRegex(page, r'\?app=cam_analyzer"[^>]*>\s*cam_analyzer\s*<span class="n">')
+
+    def test_the_about_tab_opens_the_page_the_identity_names(self):
+        from django.contrib.auth import get_user_model
+        from wama.common.app_registry import app_identity
+        self.client.force_login(get_user_model().objects.create_superuser('identity_tab', 'i@t.l', 'x'))
+        response = self.client.get(reverse('composer:about'))
+        self.assertRedirects(response, reverse(app_identity('composer')['url_name']) + '#about-pane',
+                             fetch_redirect_response=False)
+
+    def test_the_assistant_tool_sentence_names_the_app_and_says_what_it_does(self):
+        from wama import tool_api
+        from wama.common.app_registry import app_identity
+        identity = app_identity('transcriber')
+        sentence = tool_api._tool_sentence('start_transcriber', lambda: None)
+        self.assertIn(identity['label'], sentence)
+        add = tool_api._tool_sentence('add_to_transcriber', lambda: None)
+        self.assertIn(identity['description'].rstrip('.'), add)
+
+    def test_no_module_reads_the_declarations_outside_the_registry(self):
+        """The guard against a seventh reader: outside `app_registry.py`, nothing reads an app's
+        declaration directly — it asks `app_identity` (or `app_world` for the world alone)."""
+        import re
+        pattern = re.compile(r'\b(surface_for|declared_identity|pageless_tool_for)\(')
+        root = Path(settings.BASE_DIR)
+        offenders = []
+        for base in ('wama', 'wama_lab', 'wama_data'):
+            for path in (root / base).rglob('*.py'):
+                rel = path.relative_to(root).as_posix()
+                if (rel == 'wama/common/app_registry.py' or '/tests' in rel
+                        or path.name.startswith('tests') or '/migrations/' in rel):
+                    continue
+                text = path.read_text(encoding='utf-8', errors='replace')
+                offenders += [f'{rel}: {m.group(1)}' for m in pattern.finditer(text)]
+        self.assertEqual([], offenders)
+
+
 class CardEntreeConformiteTest(TestCase):
     """Le `file_accept` des cards d'entrée ⟷ `input_extensions` du catalogue — les deux sens.
 

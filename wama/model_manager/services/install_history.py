@@ -168,8 +168,9 @@ def calendar_events(start, end):
     from django.urls import reverse
     from django.utils import timezone
 
+    from wama.common.app_registry import app_identity
     from wama.common.services.calendar import (CalendarEvent, NATURE_OBSERVED, POINT_MINUTES,
-                                               SCOPE_INSTANCE, app_identity)
+                                               SCOPE_INSTANCE)
 
     from ..models import InstallEvent
 
@@ -178,7 +179,7 @@ def calendar_events(start, end):
             .filter(started_at__lt=end)
             .filter(Q(finished_at__gte=start) | Q(finished_at__isnull=True, started_at__gte=start
                                                    - timedelta(days=1)))[:500])
-    _label, color = app_identity('model_manager')
+    color = app_identity('model_manager')['color']
     try:
         url = reverse('model_manager:index')
     except Exception:

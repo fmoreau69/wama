@@ -819,7 +819,6 @@ Le journal sur l'axe du TEMPS — mêmes sources (Médias, Lab, Studio), interva
 - **Domicile** : `wama/common/services/calendar.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §9bis.1](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Calendrier — l'activité de WAMA posée sur l'axe du TEMPS. Doc : `WAMA_MEMORY.md §9bis.1` (la vue) ; plan d'ensemble — trois natures de temps, actions programmées, placement — : `WAMA_APP_GENERATION_ROUTE.md §10.6` point 13 (« le QUAND »).
 - **API publique** (19) :
-  - `app_identity(app) -> tuple[str, str]` — `(libellé, couleur d'identité)` d'une app, pour les événements ET la légende.
   - `class CalendarEvent` — Un événement du calendrier. Volontairement MINCE, comme l'entrée du journal : le détail
   - `predicted_end(started_at, progress, now) -> datetime | None` — Fin prévue par le DÉBIT OBSERVÉ — la même règle que `wama-eta.js` côté navigateur :
   - `observed_events(user, start, end, *, now=None, queue=None) -> list[CalendarEvent]` — Items de l'utilisateur dont le dépôt, l'exécution ou la fin tombe dans `[start, end)`, plus
@@ -828,6 +827,7 @@ Le journal sur l'axe du TEMPS — mêmes sources (Médias, Lab, Studio), interva
   - `measured_nightly_minutes(stage=None, reports_dir=None, cadence=None) -> float | None` — Durée MÉDIANE récente d'une campagne nocturne complète, en minutes — `None` sans mesure.
   - `window_minutes(entry_name) -> tuple[int, str]` — Durée réservée pour une entrée beat : `(minutes, 'measured' | 'declared')`.
   - `maintenance_windows(start, end) -> list[CalendarEvent]` — Occurrences des entrées beat À HORAIRE (`crontab`) dans `[start, end)`.
+  - `next_occurrence(entry_name, now=None)` — Le prochain passage de l'entrée beat `entry_name` (à horaire), ou None si elle n'est pas
   - `reserved_windows(start, end, resource=None) -> list[CalendarEvent]` — Fenêtres qui RÉSERVENT une ressource (`gpu`, `cpu`), ou toutes si `resource` est `None`.
   - `reserved_window_conflicts(start, end) -> list[tuple[CalendarEvent, CalendarEvent]]` — Paires `(fenêtre réservée, autre entrée planifiée qui la chevauche)` dans `[start, end)`.
   - `declared_events(user, start, end) -> list[CalendarEvent]` — Les programmations ACTIVES de l'utilisateur (`ScheduledAction`, étape 3) — nature `voulu`.
@@ -2777,6 +2777,54 @@ Sur une app déclarée `public` (le converter, app d'essai), un visiteur non con
   - `attach(request, app_id: str)` — Pose l'identité du visiteur sur la requête d'une app PUBLIQUE. Rend un refus, ou None.
   - `purge_expired(now=None, dry_run: bool=False) -> dict` — Détruit les identités de visiteur sans geste depuis `ttl()` : éléments (cascade) ET
 
+### Identité et monde déclarés d'une app
+
+Chaque app DÉCLARE son monde (media | data | lab | transverse) et son identité : dans son entrée d'APP_CATALOG, ou — hors catalogue — depuis son `ready()` (`register_app_world` ; `register_surface`, qui porte aussi l'identité de sa page ; `register_pageless_tool`, pour un outil gardé sans page). DEUX lectures, et seulement elles : `app_world()` (le manifeste d'app, le monde d'une fonction, le menu, `/apps/`, le journal, le calendrier) et `app_identity()` — libellé, couleur, icône complète, page, description, monde — pour tout ce qui NOMME une app (calendrier, journal, « Mon RAG », scène et page des droits, menu « Envoyer vers », phrases des outils de l'assistant). Rien ne déduit un monde d'un libellé de navigation, et rien ne lit une déclaration hors du registre (garde `AppIdentityTest`)
+
+- **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : WAMA Common — Application Registry
+- **API publique** (40) :
+  - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
+  - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
+  - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
+  - `normalize_types(types)` — ['wav','image','srt'] → ['audio','image','document'] (catégories média + jetons de rôle,
+  - `known_port_types()` — Vocabulaire ADMIS pour le type d'un port — natures média + jetons de rôle + types de DONNÉE.
+  - `app_capabilities(app_id)` — Capacités déclarées d'une app = les drapeaux `conventions` d'APP_CATALOG, retournés à plat.
+  - `app_supports_during_preview(app_id)` — True si l'app déclare la capacité de preview « pendant » : on OBSERVE le média de sortie
+  - `studio_node_ports(app_id)` — Dérive les PORTS d'un nœud studio pour une app, métadonnée-driven :
+  - `app_model_capabilities(app_id) -> list` — Les capacités des modèles DE l'app — l'inventaire UNIQUE dont dérivent ses ports
+  - `app_input_ports(app_id, domain=None)` — Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
+  - `app_has_live_input(app_id) -> bool` — L'app capte-t-elle EN DIRECT (Speak) ? — le port `live` de la card d'entrée.
+  - `app_instant_preview(app_id) -> bool` — L'app montre-t-elle son résultat PENDANT la frappe (le Translator « à la DeepL ») ?
+  - `app_own_input_ports(app_id)` — Ports d'entrée que l'APP consomme elle-même — aucun modèle ne les déclare (2026-09-30).
+  - `ports_for_domain(app_id, domain, ports)` — Les ports d'une card, restreints à un DOMAINE de l'app (2026-09-30, card v4 multi-domaine).
+  - `app_ports_carried_elsewhere(app_id) -> dict` — Ports que la card d'ENTRÉE de l'app ne montre pas, parce qu'un AUTRE geste les porte —
+  - `app_result_ports(app_id)` — Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
+  - `world_label(world: str) -> str` — Libellé d'un monde ; le nom brut si le monde est inconnu (jamais une chaîne vide).
+  - `register_app_world(app_id: str, world: str) -> None` — Déclare le monde d'une app hors catalogue. Refuse un monde hors vocabulaire, et refuse
+  - `register_surface(app_id: str, *, world: str, label: str, url_name: str, icon: str, description: str='', color: str | None=None, nav_hide: bool=False, order: in…` — Déclare la PAGE d'une app hors catalogue : son monde et son identité (libellé, route,
+  - `register_pageless_tool(app_id: str, *, world: str, label: str, icon: str, probe: str, description: str='') -> None` — Déclare un outil gardé SANS PAGE : son monde et son identité. Idempotent, comme
+  - `pageless_tools() -> list` — Les outils sans page déclarés (copies), par libellé.
+  - `pageless_tool_for(app: str) -> dict | None` — L'outil sans page `app`, ou None — le pendant de `surface_for`.
+  - `declared_identity(app: str) -> dict | None` — L'identité DÉCLARÉE d'une app hors catalogue (libellé, monde, description…) : sa surface,
+  - `app_identity(app: str) -> dict` — L'IDENTITÉ d'une app, quelle que soit sa façon de se déclarer — `{'app', 'declared',
+  - `register_account_page(key: str, *, section: str, label: str, icon: str, access: str, url_name: str='', surface: str='', tone: str='', color: str='', order: int…` — Déclare une page du COMPTE. Idempotent, comme `register_surface`.
+  - `account_pages() -> list` — Les pages du compte déclarées (copies), dans l'ordre du menu : section, rang, libellé.
+  - `surfaces(world: str | None=None) -> list` — Surfaces déclarées (copies), d'un monde ou de tous, dans l'ordre de leur section.
+  - `surface_for(app: str) -> dict | None` — Surface d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —, ou None. Le
+  - `app_media_folders(app_id: str) -> tuple` — Dossiers qu'une app montre dans l'explorateur de fichiers : `((sous-dossier, libellé), …)`.
+  - `derive_category(entry) -> str` — Catégorie DÉRIVÉE des types déclarés — la déclaration explicite prime, la dérivation
+  - `get_app_groups() -> list` — Sections de TOUT ce qui se montre groupé — menu Applications, accueil, `/apps/` : UNE
+  - `app_world(app_id: str) -> str | None` — Monde DÉCLARÉ d'une app — `media | data | lab | transverse`, le vocabulaire de
+  - `accepts_file(app_name: str, filename: str) -> bool` — Le serveur prend-il ce fichier pour cette app ? — les extensions DÉCLARÉES
+  - `port_accept(app_name: str, types) -> str` — L'attribut `accept` d'un PORT d'entrée — ce que la tuile Importer propose.
+  - `accept_for_types(declared, types) -> str` — Le cœur de `port_accept`, sur une liste d'extensions DONNÉE — pour le générateur, qui
+  - `get_app_extensions_for_filemanager() -> dict` — Returns a dict suitable for FileManager JS APP_EXTENSIONS:
+  - `world_color(world: str) -> str` — Couleur de RÉFÉRENCE d'un monde — celle d'une surface hors catalogue sans couleur
+  - `sandbox_conformity(report: dict) -> dict` — Mesure des jumelles bac à sable, chacune avec l'écart à SA source (`report['apps']`).
+  - `measure_and_write_conformity() -> dict` — Mesure les 10 apps (conformity_checker.run_checks) et ÉCRIT le rapport JSON.
+  - `get_conformity_summary() -> dict` — Returns per-app conformity score:
+
 ### Importer universel (WAMA Data)
 
 REGISTRE de capacités de lecture — aucun format privilégié : ajouter un format = déposer un lecteur, jamais éditer le moteur. Porte aussi l'HORODATAGE par flux (dont le ré-horodatage par fréquence théorique, qui n'interpole rien et ne s'applique que sur demande). ⚠ La MÉCANIQUE SQLite (ouverture en lecture seule, décodage UTF-8→cp1252 du texte des bases MATLAB, valeurs triées, les trois niveaux d'agrégation) est un socle partagé — un lecteur de base concret n'écrit plus que `can_read`, `probe` et `read`, c'est-à-dire sa seule connaissance du schéma
@@ -2816,53 +2864,6 @@ La langue d'un TEXTE (`langid`, balises de section retirées, verdict peu sûr =
 - **API publique** (2) :
   - `make_audible(text: str) -> str` — Traduit la MISE EN FORME VISUELLE en respirations audibles.
   - `text_for_speech(text: str) -> str` — Prépare un texte pour la synthèse vocale : la TTS doit LIRE, pas décrire.
-
-### Monde déclaré d'une app
-
-Chaque app DÉCLARE son monde (media | data | lab | transverse) : dans son entrée d'APP_CATALOG, ou — hors catalogue — depuis son `ready()` (`register_app_world` ; `register_surface`, qui porte aussi l'identité de sa page ; `register_pageless_tool`, pour un outil gardé sans page). UNE lecture, `app_world()` : le manifeste d'app, le monde d'une fonction, le menu, `/apps/`, le journal et le calendrier la lisent, rien ne le déduit d'un libellé de navigation
-
-- **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
-- **Module** : WAMA Common — Application Registry
-- **API publique** (39) :
-  - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
-  - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
-  - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
-  - `normalize_types(types)` — ['wav','image','srt'] → ['audio','image','document'] (catégories média + jetons de rôle,
-  - `known_port_types()` — Vocabulaire ADMIS pour le type d'un port — natures média + jetons de rôle + types de DONNÉE.
-  - `app_capabilities(app_id)` — Capacités déclarées d'une app = les drapeaux `conventions` d'APP_CATALOG, retournés à plat.
-  - `app_supports_during_preview(app_id)` — True si l'app déclare la capacité de preview « pendant » : on OBSERVE le média de sortie
-  - `studio_node_ports(app_id)` — Dérive les PORTS d'un nœud studio pour une app, métadonnée-driven :
-  - `app_model_capabilities(app_id) -> list` — Les capacités des modèles DE l'app — l'inventaire UNIQUE dont dérivent ses ports
-  - `app_input_ports(app_id, domain=None)` — Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
-  - `app_has_live_input(app_id) -> bool` — L'app capte-t-elle EN DIRECT (Speak) ? — le port `live` de la card d'entrée.
-  - `app_instant_preview(app_id) -> bool` — L'app montre-t-elle son résultat PENDANT la frappe (le Translator « à la DeepL ») ?
-  - `app_own_input_ports(app_id)` — Ports d'entrée que l'APP consomme elle-même — aucun modèle ne les déclare (2026-09-30).
-  - `ports_for_domain(app_id, domain, ports)` — Les ports d'une card, restreints à un DOMAINE de l'app (2026-09-30, card v4 multi-domaine).
-  - `app_ports_carried_elsewhere(app_id) -> dict` — Ports que la card d'ENTRÉE de l'app ne montre pas, parce qu'un AUTRE geste les porte —
-  - `app_result_ports(app_id)` — Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
-  - `world_label(world: str) -> str` — Libellé d'un monde ; le nom brut si le monde est inconnu (jamais une chaîne vide).
-  - `register_app_world(app_id: str, world: str) -> None` — Déclare le monde d'une app hors catalogue. Refuse un monde hors vocabulaire, et refuse
-  - `register_surface(app_id: str, *, world: str, label: str, url_name: str, icon: str, description: str='', color: str | None=None, nav_hide: bool=False, order: in…` — Déclare la PAGE d'une app hors catalogue : son monde et son identité (libellé, route,
-  - `register_pageless_tool(app_id: str, *, world: str, label: str, icon: str, probe: str, description: str='') -> None` — Déclare un outil gardé SANS PAGE : son monde et son identité. Idempotent, comme
-  - `pageless_tools() -> list` — Les outils sans page déclarés (copies), par libellé.
-  - `pageless_tool_for(app: str) -> dict | None` — L'outil sans page `app`, ou None — le pendant de `surface_for`.
-  - `declared_identity(app: str) -> dict | None` — L'identité DÉCLARÉE d'une app hors catalogue (libellé, monde, description…) : sa surface,
-  - `register_account_page(key: str, *, section: str, label: str, icon: str, access: str, url_name: str='', surface: str='', tone: str='', color: str='', order: int…` — Déclare une page du COMPTE. Idempotent, comme `register_surface`.
-  - `account_pages() -> list` — Les pages du compte déclarées (copies), dans l'ordre du menu : section, rang, libellé.
-  - `surfaces(world: str | None=None) -> list` — Surfaces déclarées (copies), d'un monde ou de tous, dans l'ordre de leur section.
-  - `surface_for(app: str) -> dict | None` — Surface d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —, ou None. Le
-  - `app_media_folders(app_id: str) -> tuple` — Dossiers qu'une app montre dans l'explorateur de fichiers : `((sous-dossier, libellé), …)`.
-  - `derive_category(entry) -> str` — Catégorie DÉRIVÉE des types déclarés — la déclaration explicite prime, la dérivation
-  - `get_app_groups() -> list` — Sections de TOUT ce qui se montre groupé — menu Applications, accueil, `/apps/` : UNE
-  - `app_world(app_id: str) -> str | None` — Monde DÉCLARÉ d'une app — `media | data | lab | transverse`, le vocabulaire de
-  - `accepts_file(app_name: str, filename: str) -> bool` — Le serveur prend-il ce fichier pour cette app ? — les extensions DÉCLARÉES
-  - `port_accept(app_name: str, types) -> str` — L'attribut `accept` d'un PORT d'entrée — ce que la tuile Importer propose.
-  - `accept_for_types(declared, types) -> str` — Le cœur de `port_accept`, sur une liste d'extensions DONNÉE — pour le générateur, qui
-  - `get_app_extensions_for_filemanager() -> dict` — Returns a dict suitable for FileManager JS APP_EXTENSIONS:
-  - `world_color(world: str) -> str` — Couleur de RÉFÉRENCE d'un monde — celle d'une surface hors catalogue sans couleur
-  - `sandbox_conformity(report: dict) -> dict` — Mesure des jumelles bac à sable, chacune avec l'écart à SA source (`report['apps']`).
-  - `measure_and_write_conformity() -> dict` — Mesure les 10 apps (conformity_checker.run_checks) et ÉCRIT le rapport JSON.
-  - `get_conformity_summary() -> dict` — Returns per-app conformity score:
 
 ### Moteurs de recherche web
 
@@ -3066,7 +3067,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (39) :
+- **API publique** (40) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -3090,6 +3091,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `pageless_tools() -> list` — Les outils sans page déclarés (copies), par libellé.
   - `pageless_tool_for(app: str) -> dict | None` — L'outil sans page `app`, ou None — le pendant de `surface_for`.
   - `declared_identity(app: str) -> dict | None` — L'identité DÉCLARÉE d'une app hors catalogue (libellé, monde, description…) : sa surface,
+  - `app_identity(app: str) -> dict` — L'IDENTITÉ d'une app, quelle que soit sa façon de se déclarer — `{'app', 'declared',
   - `register_account_page(key: str, *, section: str, label: str, icon: str, access: str, url_name: str='', surface: str='', tone: str='', color: str='', order: int…` — Déclare une page du COMPTE. Idempotent, comme `register_surface`.
   - `account_pages() -> list` — Les pages du compte déclarées (copies), dans l'ordre du menu : section, rang, libellé.
   - `surfaces(world: str | None=None) -> list` — Surfaces déclarées (copies), d'un monde ou de tous, dans l'ordre de leur section.

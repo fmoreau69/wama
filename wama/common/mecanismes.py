@@ -2537,13 +2537,19 @@ MECHANISMS = (
     # Ajouté le 2026-10-02 (pipeline porté par la card, marche P1 — route §10.6 point 6.1). Le
     # monde était DÉDUIT du groupe de la matrice d'accès, les surfaces hors catalogue écrites
     # dans le substrat (`extra_links`) et le journal recevait le monde par un second chemin.
-    Mechanism('app_worlds', "Monde déclaré d'une app",
-              "Chaque app DÉCLARE son monde (media | data | lab | transverse) : dans son entrée "
-              "d'APP_CATALOG, ou — hors catalogue — depuis son `ready()` (`register_app_world` ; "
-              "`register_surface`, qui porte aussi l'identité de sa page ; "
-              "`register_pageless_tool`, pour un outil gardé sans page). UNE lecture, "
-              "`app_world()` : le manifeste d'app, le monde d'une fonction, le menu, `/apps/`, le "
-              "journal et le calendrier la lisent, rien ne le déduit d'un libellé de navigation",
+    # Étendu le 2026-10-16 à l'IDENTITÉ (Fabien : « des infos des apps ne vivent pas dans le
+    # calendrier ») : la lecture du nom, née dans `services/calendar.py`, avait six jumeaux.
+    Mechanism('app_worlds', "Identité et monde déclarés d'une app",
+              "Chaque app DÉCLARE son monde (media | data | lab | transverse) et son identité : dans "
+              "son entrée d'APP_CATALOG, ou — hors catalogue — depuis son `ready()` "
+              "(`register_app_world` ; `register_surface`, qui porte aussi l'identité de sa page ; "
+              "`register_pageless_tool`, pour un outil gardé sans page). DEUX lectures, et seulement "
+              "elles : `app_world()` (le manifeste d'app, le monde d'une fonction, le menu, `/apps/`, "
+              "le journal, le calendrier) et `app_identity()` — libellé, couleur, icône complète, "
+              "page, description, monde — pour tout ce qui NOMME une app (calendrier, journal, « Mon "
+              "RAG », scène et page des droits, menu « Envoyer vers », phrases des outils de "
+              "l'assistant). Rien ne déduit un monde d'un libellé de navigation, et rien ne lit une "
+              "déclaration hors du registre (garde `AppIdentityTest`)",
               'wama/common/app_registry.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               # Domicile très partagé (APP_CATALOG) : compté par son symbole, cf. `media_taxonomy`.
               symbol='app_world'),

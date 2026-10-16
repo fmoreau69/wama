@@ -864,16 +864,16 @@ def app_access_matrix(request):
     from wama.accounts.permissions import (ROLES, ROLE_DESCRIPTIONS, GROUP_PREFIX,
                                            TIER_CHOICES, APP_GROUP_ORDER, all_gated_apps,
                                            app_group)
-    from wama.common.app_registry import APP_CATALOG, declared_identity
+    from wama.common.app_registry import app_identity
 
     # [(key, label, help)] pour les en-têtes de colonnes (tooltip).
     role_keys = [(k, label, ROLE_DESCRIPTIONS.get(k, '')) for k, label in ROLES.items()]
 
     def _app_desc(app_id):
         # La description DÉCLARÉE par l'app — sa card, sinon sa surface ou sa déclaration d'outil
-        # sans page (2026-10-13 : une table de secours la recopiait ici, et dérivait).
-        meta = APP_CATALOG.get(app_id) or declared_identity(app_id) or {}
-        return meta.get('description') or ''
+        # sans page (2026-10-13 : une table de secours la recopiait ici, et dérivait) : son
+        # identité commune (`app_registry.app_identity`, 2026-10-16).
+        return app_identity(app_id)['description']
 
     by_group = {}
     # Seuls les outils GARDÉS : une ligne restée en base pour un droit retiré (`model_manager`,

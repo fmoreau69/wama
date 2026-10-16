@@ -98,17 +98,14 @@ def app_queue_url(app):
     """Page de file d'une app, `''` si elle n'en déclare pas.
 
     Cible du clic du journal ET du calendrier (2026-09-28) — un seul endroit, sinon les deux
-    surfaces n'amèneraient pas au même endroit le jour où une app change de route. La route vient
-    d'`APP_CATALOG`, ou de l'identité déclarée hors catalogue (`surface_for` : Lab, Studio).
+    surfaces n'amèneraient pas au même endroit le jour où une app change de route. La route est
+    celle de l'identité de l'app (`app_registry.app_identity` : catalogue, Lab, Studio).
     """
     from django.urls import NoReverseMatch, reverse
 
-    from ..app_registry import APP_CATALOG, surface_for
+    from ..app_registry import app_identity
 
-    url_name = (APP_CATALOG.get(app) or {}).get('url_name')
-    if not url_name:
-        declared = surface_for(app)
-        url_name = declared.get('url_name') if declared else None
+    url_name = app_identity(app)['url_name']
     if not url_name:
         return ''
     try:
@@ -482,14 +479,17 @@ def _hydrater_gestes(page, user):
 
 
 def compter_par_app(user, **kwargs):
-    """Répartition par app — alimente les filtres de la page sans requête supplémentaire côté vue."""
+    """Répartition par app — alimente les filtres de la page sans requête supplémentaire côté vue.
+    `label` : le nom de l'app (`app_registry.app_identity`) — le filtre affichait sa CLÉ."""
     if not getattr(user, 'is_authenticated', False):
         return []
+    from ..app_registry import app_identity
+
     lignes = []
     for src in sources():
         n = src.model.objects.filter(**{src.champ_user: user}).count()
         if n:
-            lignes.append({'app': src.app, 'monde': src.monde,
-                           'libelle_monde': src.libelle_monde, 'total': n})
+            lignes.append({'app': src.app, 'label': app_identity(src.app)['label'],
+                           'monde': src.monde, 'libelle_monde': src.libelle_monde, 'total': n})
     lignes.sort(key=lambda d: (-d['total'], d['app']))
     return lignes

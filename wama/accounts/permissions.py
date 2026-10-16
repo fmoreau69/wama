@@ -509,8 +509,7 @@ def access_cases():
     from itertools import combinations
     role_keys = list(ROLES)
     role_sets = [list(c) for n in range(len(role_keys) + 1) for c in combinations(role_keys, n)]
-    from wama.common.app_registry import WORLD_SECTIONS, app_world
-    from wama.common.services.calendar import app_identity
+    from wama.common.app_registry import WORLD_SECTIONS, app_identity, app_world
     # Jumelles de bac à sable exclues : dev-only par contrat, elles doubleraient leur app source.
     # Rangées par MONDE déclaré, dans l'ordre des sections du menu (2026-10-13 : la scène des
     # droits les regroupe), puis par groupe.
@@ -533,7 +532,7 @@ def access_cases():
         'roles': [{'key': k, 'label': ROLES[k], 'help': ROLE_DESCRIPTIONS.get(k, '')} for k in role_keys],
         'role_sets': role_sets,
         # `label` : l'identité commune d'une app (catalogue, surface ou outil sans page).
-        'apps': [{'id': a, 'label': app_identity(a)[0], 'group': app_group(a), 'world': app_world(a),
+        'apps': [{'id': a, 'label': app_identity(a)['label'], 'group': app_group(a), 'world': app_world(a),
                   'roles': sorted(policies[a]['roles']), 'public': bool(policies[a]['public']),
                   'min_tier': policies[a]['min_tier']} for a in apps],
         'matrix': matrix,

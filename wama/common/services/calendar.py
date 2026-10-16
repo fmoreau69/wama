@@ -107,25 +107,8 @@ MEASURE_LOOKBACK_REPORTS = 60
 FULL_CAMPAIGN_SHARE = 0.9
 
 
-def app_identity(app) -> tuple[str, str]:
-    """`(libellé, couleur d'identité)` d'une app, pour les événements ET la légende.
-
-    Une source du journal peut ne pas avoir d'entrée propre au catalogue (`audio_enhancer`,
-    mesuré le 2026-09-28) : elle reçoit la couleur du monde TRANSVERSAL plutôt que le bleu par
-    défaut de FullCalendar, qui la ferait passer pour une autre app.
-    """
-    from ..app_registry import APP_CATALOG, declared_identity, world_color
-
-    spec = APP_CATALOG.get(app) or {}
-    if not spec:
-        # Lab, Studio : identité déclarée hors catalogue, par l'app elle-même (`register_surface`) ;
-        # un outil sans page (assistant, gestionnaire de fichiers) par `register_pageless_tool`.
-        declared = declared_identity(app)
-        if declared:
-            return (declared.get('label') or app,
-                    declared.get('color') or world_color(declared['world']))
-    label = spec.get('label') or app.replace('_', ' ').capitalize()
-    return label, spec.get('color') or world_color('transverse')
+# L'identité d'une app (libellé, couleur) se lit chez elle : `app_registry.app_identity` — elle
+# vivait ici jusqu'au 2026-10-16, née pour ce calendrier et empruntée ensuite par d'autres.
 
 
 @dataclass
@@ -304,6 +287,7 @@ def observed_events(user, start, end, *, now=None, queue=None) -> list[CalendarE
     from django.utils import timezone
 
     from ..models import JOB_RUNNING, normalize_job_status
+    from ..app_registry import app_identity
     from .journal import app_queue_url, sources
 
     now = now or timezone.now()
@@ -327,7 +311,7 @@ def observed_events(user, start, end, *, now=None, queue=None) -> list[CalendarE
               .filter(**{src.champ_user: user})
               .filter(wanted)
               .order_by(f'-{src.champ_date}')[:MAX_ITEMS_PER_SOURCE])
-        _label, color = app_identity(src.app)
+        color = app_identity(src.app)['color']
         url = app_queue_url(src.app)
         for obj in qs:
             status = normalize_job_status(getattr(obj, 'status', '') or getattr(obj, 'state', ''))
@@ -391,13 +375,14 @@ def batch_events(user, start, end) -> list[CalendarEvent]:
     """
     if not getattr(user, 'is_authenticated', False):
         return []
+    from ..app_registry import app_identity
     from .journal import app_queue_url, sources
 
     worlds = {src.app: src.monde for src in sources()}
     events = []
     for model in _batch_models(set(worlds)):
         app = model._meta.app_label
-        _label, color = app_identity(app)
+        color = app_identity(app)['color']
         qs = (model.objects.filter(user=user, created_at__gte=start, created_at__lt=end)
               .order_by('-created_at')[:MAX_ITEMS_PER_SOURCE])
         for batch in qs:
@@ -428,6 +413,7 @@ def expiry_events(user, start, end) -> list[CalendarEvent]:
         return []
     from django.conf import settings
 
+    from ..app_registry import app_identity
     from .journal import app_queue_url
     from .retention import expirations_for
 
@@ -442,7 +428,8 @@ def expiry_events(user, start, end) -> list[CalendarEvent]:
             groups.setdefault((item['app'], at), []).append(item['id'])
     events = []
     for (app, at), ids in sorted(groups.items(), key=lambda kv: kv[0][1]):
-        label, color = app_identity(app)
+        identity = app_identity(app)
+        label, color = identity['label'], identity['color']
         events.append(CalendarEvent(
             key=f'expiry:{app}:{at.isoformat()}',
             title=f'Purge : {len(ids)} élément{"s" if len(ids) > 1 else ""} {label}',
@@ -621,6 +608,7 @@ def declared_events(user, start, end) -> list[CalendarEvent]:
     if not getattr(user, 'is_authenticated', False):
         return []
     from ..models import ScheduledAction
+    from ..app_registry import app_identity
     from .journal import app_queue_url, sources
 
     worlds = {src.app: src.monde for src in sources()}
@@ -628,7 +616,7 @@ def declared_events(user, start, end) -> list[CalendarEvent]:
     for action in (ScheduledAction.objects
                    .filter(user=user, state=ScheduledAction.STATE_SCHEDULED,
                            run_at__gte=start, run_at__lt=end)[:MAX_ITEMS_PER_SOURCE]):
-        _label, color = app_identity(action.app) if action.app else ('', MAINTENANCE_COLOR)
+        color = app_identity(action.app)['color'] if action.app else MAINTENANCE_COLOR
         item_id = int(action.object_id) if action.object_id.isdigit() else None
         events.append(CalendarEvent(
             key=f'schedule:{action.pk}', title=f'Programmé : {action.title or action.tool}',

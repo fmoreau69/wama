@@ -78,7 +78,7 @@ les ré-inclure ici. Seule cette feuille de style reste locale : elle n'est pas 
     {% for l in repartition %}
     <a class="journal-filtre {% if app_active == l.app %}actif{% endif %}"
        href="{% url 'common:journal' %}?app={{ l.app }}" title="Monde {{ l.libelle_monde }}">
-      {{ l.app }} <span class="n">{{ l.total }}</span>
+      {{ l.label|default:l.app }} <span class="n">{{ l.total }}</span>
     </a>
     {% endfor %}
   </div>

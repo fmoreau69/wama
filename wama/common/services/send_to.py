@@ -199,8 +199,12 @@ def _apps_receveuses(user):
 
 
 def _destination(app, spec, **extra) -> dict:
-    return {'app': app, 'libelle': spec.get('label') or spec.get('name') or app,
-            'icone': spec.get('icon') or 'fas fa-cube', **extra}
+    """Ce que le menu affiche d'une app : son nom et son icône, lus de son identité commune
+    (`app_registry.app_identity`). `spec` (son entrée de catalogue) ne sert qu'aux extensions."""
+    from wama.common.app_registry import app_identity
+    identity = app_identity(app)
+    return {'app': app, 'libelle': identity['label'], 'icone': identity['icon'] or 'fas fa-cube',
+            **extra}
 
 
 def destinations(user, chemins, partiel: bool = False) -> list:

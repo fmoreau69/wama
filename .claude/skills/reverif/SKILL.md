@@ -58,6 +58,15 @@ outil à côté de `PATH_APP_MAP`. ✅ La question qui les a trouvées : **pour 
 livrable déclare (un libellé, une description, un chemin, une couleur), qui la déclare DÉJÀ ?**
 — pas « quelle fonction ressemble à la mienne ». Une donnée recopiée ne ressemble à aucun code.
 
+🔴 **Vécu le 2026-10-16 — le symbole TROUVÉ n'était pas le DOMICILE.** Le paragraphe ci-dessus
+citait `calendar.app_identity` comme celui qui « porte » le nom des apps ; une revérification l'a
+reproposé comme accesseur à une brique neuve. Fabien : *« des infos des apps ne vivent pas dans le
+calendrier »*. C'était une lecture née POUR le calendrier, empruntée ensuite, et six autres
+lecteurs refaisaient la même chose (dont « Mon RAG », qui affichait la clé de toutes les apps).
+Elle vit depuis dans `app_registry.app_identity`. ✅ Avant de recommander un symbole : **vit-il
+là où la doc dit que vit sa donnée** (ici ROUTE §10.6 P1 : l'identité se déclare dans
+`app_registry`), et **combien de jumeaux a-t-il** (greper la NATURE de la lecture, pas son nom) ?
+
 ## 2. Testé — lancer, garder, prouver
 
 - Lancer : `/cloture §2a` (périmètre ciblé, puis la suite si le substrat a bougé ; lire les NOMS

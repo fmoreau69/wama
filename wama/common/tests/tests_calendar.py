@@ -78,10 +78,18 @@ class ObservedEventsTest(TestCase):
         self.assertFalse(event.extra['executed'])
 
     def test_an_app_without_catalog_entry_keeps_an_identity_color(self):
+        # The identity itself is tested where it lives (`tests_catalogues.AppIdentityTest`);
+        # here, that the calendar NAMES and PAINTS an event with it — a key nothing declares
+        # gets the transversal colour, never the default blue of FullCalendar.
+        from unittest import mock
         from wama.common.app_registry import world_color
-        label, color = cal.app_identity('app_without_entry')
-        self.assertEqual(color, world_color('transverse'))
-        self.assertEqual(label, 'App without entry')
+        now = timezone.now()
+        due = [{'app': 'app_without_entry', 'id': 1, 'expires_at': now + timedelta(days=1)}]
+        with mock.patch('wama.common.services.retention.expirations_for', return_value=due):
+            events = cal.expiry_events(self.user, now - timedelta(days=1), now + timedelta(days=35))
+        self.assertEqual(1, len(events))
+        self.assertEqual(world_color('transverse'), events[0].color)
+        self.assertIn('App without entry', events[0].title)
 
     def test_another_users_items_never_appear(self):
         item = self._description(self.other, datetime(2026, 9, 30, 9, 0, tzinfo=PARIS))
@@ -340,8 +348,10 @@ class OtherWorldsTest(TestCase):
         self.assertEqual(found['transcriber'].end_field, 'finished_at')
 
     def test_an_app_outside_the_catalog_keeps_its_declared_identity(self):
+        from wama.common.app_registry import app_identity
         from wama.common.services.journal import app_queue_url
-        self.assertEqual(cal.app_identity('cam_analyzer'), ('Cam Analyzer', '#ffc107'))
+        identity = app_identity('cam_analyzer')
+        self.assertEqual(('Cam Analyzer', '#ffc107'), (identity['label'], identity['color']))
         self.assertEqual(app_queue_url('cam_analyzer'), reverse('wama_lab:cam_analyzer:index'))
 
     def test_the_activity_page_renders_a_lab_session_with_a_uuid_key(self):

@@ -1188,10 +1188,10 @@ def check_app_send_to(app: str, url_path: str):
     from wama.common.services.nightly_tests import SkipScenario
     from playwright.sync_api import sync_playwright
 
-    from wama.common.app_registry import APP_CATALOG
+    from wama.common.app_registry import APP_CATALOG, app_identity
     spec = APP_CATALOG.get(app) or {}
     exts = list(spec.get('input_extensions') or ())
-    libelle = spec.get('label') or app
+    libelle = app_identity(app)['label']
     if not exts:
         raise SkipScenario("l'app ne déclare aucune extension d'entrée : elle ne peut pas "
                            "apparaître au menu « Envoyer vers… » — geste non applicable")

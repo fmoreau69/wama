@@ -5497,6 +5497,21 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 >   UTILISATEUR reste `data` (elle naît dans le Calculator).
 > - Gardes : `tests_catalogues.DeclaredWorldsTest` (six tests) ; mécanisme `app_worlds` au
 >   registre des mécanismes.
+> - ✅ **Complément du 2026-10-16 — l'IDENTITÉ a sa lecture, comme le monde** (Fabien : *« des
+>   infos des apps ne vivent pas dans le calendrier »*). Cette pièce avait donné au monde UNE
+>   lecture (`app_world`) et des déclarations (`register_surface`…) qui portent aussi l'identité,
+>   mais aucune lecture commune de cette identité. Le trou s'était comblé SEPT fois : la fonction
+>   `calendar.app_identity` (née pour le calendrier le 28/09, empruntée par la scène des droits et
+>   l'historique d'installation), et six lectures locales — « Mon RAG » (une clé `name` qu'aucune
+>   entrée ne porte : la CLÉ de toutes les apps s'affichait), les filtres du journal (la clé),
+>   `journal.app_queue_url`, la page des droits, le menu « Envoyer vers », les phrases des outils
+>   de l'assistant, les onglets À propos / Aide. **`app_registry.app_identity(app)`** rend
+>   libellé, couleur, icône COMPLÈTE (une surface déclare `fa-…`, le catalogue `fas fa-…`), page,
+>   description et monde (lu par `app_world`) ; tous l'appellent, `calendar.app_identity` est
+>   retiré (`REMOVAL_LEDGER` R133). Ne PAS en faire un détour : les PARCOURS de groupes (menu,
+>   `navigable_pages`, explorateur) lisent `get_app_groups()`, et la projection JS
+>   `WAMA_APP_CATALOG` reste le contrat des apps de fichiers. Garde : `tests_catalogues.
+>   AppIdentityTest` (dont « rien ne lit une déclaration hors du registre »).
 >
 > 🔄 **P1, 3ᵉ pièce LIVRÉE le 2026-10-02 — une catégorie n'est plus un monde, et le menu,
 > l'accueil et `/apps/` lisent UN groupage.**

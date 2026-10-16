@@ -4149,12 +4149,12 @@ def _tool_sentence(tool_name, fn):
     app_id = app_id_for_tool(tool_name)
     if role and app_id:
         try:
-            from wama.common.app_registry import APP_CATALOG
-            cat = APP_CATALOG.get(app_id) or {}
+            from wama.common.app_registry import app_identity
+            identity = app_identity(app_id)
         except Exception:
-            cat = {}
-        label = cat.get('label') or app_id
-        desc = (cat.get('description') or '').rstrip('.')
+            identity = {}
+        label = identity.get('label') or app_id
+        desc = (identity.get('description') or '').rstrip('.')
         if desc:
             return _ROLE_SENTENCE[role].format(label=label, desc=desc)
     return _first_doc_line(fn)

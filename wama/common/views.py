@@ -1082,13 +1082,12 @@ def calendar_view(request):
     La MÊME activité que le journal, sur l'axe du temps : la page ne porte aucune donnée, elle
     charge ses événements par `calendar_events` à chaque changement de fenêtre.
     """
-    from .services.calendar import MAINTENANCE_COLOR, app_identity, nature_labels
+    from .app_registry import app_identity
+    from .services.calendar import MAINTENANCE_COLOR, nature_labels
     from .services.journal import STATUTS, compter_par_app
 
-    legend = []
-    for row in compter_par_app(request.user):
-        label, color = app_identity(row['app'])
-        legend.append({'app': row['app'], 'label': label, 'color': color})
+    legend = [{'app': row['app'], 'label': row['label'], 'color': app_identity(row['app'])['color']}
+              for row in compter_par_app(request.user)]
     # Barre de filtrage COMMUNE (`common/_filter_bar.html`) en cible VIVANTE : le calendrier
     # redessine ses événements à chaque vue, les facettes sont donc DÉCLARÉES — les mêmes
     # valeurs que les `data-f-*` posés par `wama-calendar.js`. Les états sont ceux du journal.
@@ -1457,10 +1456,11 @@ def rag_view(request):
     """
     from django.urls import reverse
 
-    from .app_registry import APP_CATALOG
+    from .app_registry import app_identity
     from .memory.index import WRITE_LEVELS, list_rag
     from .memory.store import NIVEAUX_RAG
     from .services.calendar import next_occurrence
+    from .services.journal import app_queue_url
 
     LIBELLE = {'user': 'Mon RAG (privé)', 'unit': 'RAG du labo',
                'project': 'RAG du projet', 'public': 'Public'}
@@ -1473,14 +1473,16 @@ def rag_view(request):
         # `source_id` = `<app>:<pk>` pour un élément d'app ; `file:…` pour un fichier (son chemin
         # est le `source_ref`, affiché tel quel) ; `adhoc:…` sinon.
         app_id, _, pk = (d['source_id'] or '').partition(':')
-        spec = APP_CATALOG.get(app_id) or {}
-        d['app'] = app_id if spec else ''
-        d['app_libelle'] = spec.get('name') or app_id
+        # Le nom et la page de l'app : son identité commune. La page lisait une clé `name` qu'aucune
+        # entrée du catalogue ne porte — elle affichait la CLÉ de toutes les apps (2026-10-16).
+        identity = app_identity(app_id)
+        d['app'] = app_id if identity['declared'] else ''
+        d['app_libelle'] = identity['label']
         d['niveau_libelle'] = LIBELLE.get(d['niveau'], d['niveau'])
         # `vectorises < fragments` = un reindex reste dû : on l'AFFICHE au lieu de le taire,
         # sinon un document ajouté semble actif alors qu'aucun rappel sémantique ne le trouve.
         d['en_attente'] = d['vectorises'] < d['fragments']
-        d['url_item'] = (reverse(spec['url_name']) if spec.get('url_name') else '')
+        d['url_item'] = app_queue_url(app_id) if identity['declared'] else ''
         d['pk'] = pk
 
     prof = getattr(request.user, 'profile', None)
@@ -1680,12 +1682,12 @@ class AppTabRedirectView(RedirectView):
 
     def get_redirect_url(self, *args, **kwargs):
         from django.urls import reverse
-        from .app_registry import APP_CATALOG
+        from .app_registry import app_identity
         app_id = self.app_id or (self.request.path.split('/') + [''])[1]
-        spec = APP_CATALOG.get(app_id)
-        if not spec or not spec.get('url_name'):
+        url_name = app_identity(app_id)['url_name']
+        if not url_name:
             return '/'
-        return reverse(spec['url_name']) + f'#{self.tab_anchor}'
+        return reverse(url_name) + f'#{self.tab_anchor}'
 
 
 class AppAboutView(AppTabRedirectView):

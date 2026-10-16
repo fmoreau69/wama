@@ -422,6 +422,8 @@ déjà, horodaté. Le calendrier **projette** ; il n'écrit rien :
 - **Couleur = IDENTITÉ de l'app** (`APP_CATALOG[…]['color']`, dérivée par catégorie) ; l'**état** se lit
   au liseré (échec, en cours, périmé), jamais au fond (`CARD_DESIGN §9`). Une source sans entrée au
   catalogue (`audio_enhancer`) prend la couleur de la catégorie plateforme (`app_identity`).
+  ⚠ Depuis le 2026-10-16, `app_identity` vit dans `app_registry` (il était né ICI, dans
+  `services/calendar.py`) et rend un dictionnaire : le calendrier n'est qu'un de ses lecteurs.
 - **Maintenance de l'instance** = couche grise commutable (« Tâches planifiées de WAMA »), visible de
   tous : dire quand le GPU est réservé est utile à chacun. Seules les entrées **à horaire** sont
   dessinées — les battements à intervalle (10 min, 1 h) noieraient la grille sans rien dire.

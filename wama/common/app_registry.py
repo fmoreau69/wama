@@ -965,6 +965,54 @@ def declared_identity(app: str) -> dict | None:
     return surface_for(app) or pageless_tool_for(app)
 
 
+def app_identity(app: str) -> dict:
+    """L'IDENTITÉ d'une app, quelle que soit sa façon de se déclarer — `{'app', 'declared',
+    'label', 'color', 'icon', 'url_name', 'description', 'world'}`. Le pendant d'`app_world()`
+    pour tout ce qui NOMME une app : son entrée d'`APP_CATALOG`, sinon sa surface ou sa
+    déclaration d'outil sans page (`declared_identity`).
+
+    Domicile unique depuis le 2026-10-16 (Fabien : *« des infos des apps ne vivent pas dans le
+    calendrier »*). La lecture était née dans `calendar.py` (`8c197f30`, 28/09), puis empruntée
+    par la matrice des droits, le journal et l'historique d'installation, pendant que cinq autres
+    lecteurs la refaisaient chacun à sa façon — « Mon RAG » affichait ainsi la CLÉ de toutes les
+    apps, en lisant un `name` qu'aucune entrée ne porte.
+
+    • `declared` — vrai si quelque chose déclare cette app ; faux pour une clé que rien ne déclare
+      (`audio_enhancer`, une clé de `detail_registry`), qui reçoit un libellé tiré de sa clé et la
+      couleur du monde transversal plutôt que le bleu par défaut d'un composant, qui la ferait
+      passer pour une autre app ;
+    • `color` — celle que l'app déclare, sinon celle de son monde ;
+    • `icon` — la classe COMPLÈTE (`fas fa-…`) : le catalogue la déclare ainsi, une surface et un
+      outil sans page sous sa forme courte (`fa-…`), que les gabarits complétaient chacun ;
+    • `url_name` — vide pour un outil sans page ;
+    • `world` — la lecture unique `app_world()`, '' si rien ne le déclare.
+    """
+    world = app_world(app) or ''
+    entry = APP_CATALOG.get(app)
+    if entry is not None:
+        return {'app': app, 'declared': True,
+                'label': entry.get('label') or _label_from_key(app),
+                'color': entry.get('color') or world_color('transverse'),
+                'icon': entry.get('icon') or '', 'url_name': entry.get('url_name') or '',
+                'description': entry.get('description') or '', 'world': world}
+    declared = declared_identity(app)
+    if declared is not None:
+        icon = declared.get('icon') or ''
+        return {'app': app, 'declared': True, 'label': declared.get('label') or app,
+                'color': declared.get('color') or world_color(declared['world']),
+                'icon': f'fas {icon}' if icon and ' ' not in icon else icon,
+                'url_name': declared.get('url_name') or '',
+                'description': declared.get('description') or '', 'world': world}
+    return {'app': app, 'declared': False, 'label': _label_from_key(app),
+            'color': world_color('transverse'), 'icon': '', 'url_name': '', 'description': '',
+            'world': world}
+
+
+def _label_from_key(app: str) -> str:
+    """« audio_enhancer » → « Audio enhancer » : le nom d'une clé que rien ne nomme."""
+    return str(app).replace('_', ' ').capitalize()
+
+
 # ─── PAGES DU COMPTE (2026-10-14, demande de Fabien) ───────────────────────────────────────────
 # Le menu du compte (en-tête, à droite) était écrit à la main dans `header.html` : ses pages —
 # profil, journal, calendrier, catalogues… — n'étaient déclarées nulle part, donc l'assistant ne
