@@ -145,7 +145,8 @@ def forget_lost_generation(item, field, node: str) -> bool:
 
 
 def output_step(field, *, domain, app_id: str, console=None, extra_fields=None,
-                format_of=None, transform=None, apply=None, what: str = 'Réglages de sortie'):
+                format_of=None, transform=None, apply=None, what: str = 'Réglages de sortie',
+                input_size=None):
     """La GLU du process de sortie, au contrat du squelette (`glu(item, ctx) -> dict`).
 
     `field`  : le champ qui porte le rendu (nom, ou `callable(item) -> nom`) ;
@@ -156,6 +157,10 @@ def output_step(field, *, domain, app_id: str, console=None, extra_fields=None,
                rendu (une heure de fin, des dimensions relevées sur le fichier final) ;
     `format_of` : `callable(item, source) -> format` quand le réglage de l'app n'est pas un
                format à lui seul (l'anonymizer : « le format de l'entrée ») — elle le RÉSOUT.
+
+    `input_size` : `callable(item) -> (largeur, hauteur)` de l'ENTRÉE — ce qui donne un objet au
+               réglage « Garder la résolution d'origine » (`output_keep_size`, 2026-10-16) : une
+               app qui agrandit (l'enhancer) le déclare, la sortie revient alors à ces dimensions.
 
     `transform` / `apply` / `what` : le MÊME process pour une transformation PROPRE à l'app
                (l'amélioration faciale de l'avatarizer, process « Visage ») — `transform(item)`
@@ -181,7 +186,8 @@ def output_step(field, *, domain, app_id: str, console=None, extra_fields=None,
                 output_format=format_of(item, sources[0]) if format_of else None,
                 transform=transform(item) if transform is not None else None,
                 apply=(lambda copy: apply(item, copy, ctx)) if apply is not None else None,
-                previous=[p for p in rendered_files(item, name) if _replaceable(item, p, name)])
+                previous=[p for p in rendered_files(item, name) if _replaceable(item, p, name)],
+                input_size=input_size)
         except Exception as exc:
             ctx.reset_progress()
             raise RuntimeError(f"{what} : {exc}") from exc

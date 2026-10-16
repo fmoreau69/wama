@@ -52,7 +52,7 @@ def convert_video(input_path: str, output_path: str, output_format: str,
         output_format: Target format key (e.g. 'mp4', 'gif', 'mp3', …).
         options: Optional dict:
             - fps: target frame rate (float or int)
-            - width / height: target resolution (0 = keep aspect)
+            - resize_w / resize_h (or width / height): target resolution (0 = keep aspect)
             - video_quality: CRF value for libx264/vp9 (0–51, lower = better; default 23)
             - audio_bitrate: e.g. '192k'
             - gif_fps: FPS for GIF output (default 12)
@@ -152,8 +152,10 @@ def _build_vf(options: dict) -> list:
         flip_v    : bool — vertical flip
     """
     parts = []
-    w = options.get('width', 0)
-    h = options.get('height', 0)
+    # `resize_w` / `resize_h` : les noms du moteur IMAGE, que la sortie commune passe pour toute
+    # nature (« Garder la résolution d'origine », 2026-10-16). `width` / `height` restent lus.
+    w = int(options.get('resize_w') or options.get('width') or 0)
+    h = int(options.get('resize_h') or options.get('height') or 0)
     if w and h:
         parts.append(f"scale={w}:{h}")
     elif w:

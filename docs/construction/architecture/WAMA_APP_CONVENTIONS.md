@@ -809,9 +809,21 @@ média déjà rendu** (→ early binding : reformater = job du Converter) ?
   constat Fabien). L'upscaler est TIRÉ du catalogue (tâche `upscale`, capacité `scale` =
   facteur, curseur qualité de l'item) : un upscaler installé depuis le model manager y entre.
   Adopté par l'imager (image) ; le converter y délègue son option `upscale`.
-  ⏳ Les autres apps render-based gardent leur boucle de conversion (composer, synthesizer,
-  anonymizer, enhancer) : les rallier est de l'ADOPTION, pas un manque de la brique ; la
-  vidéo (upscale image par image) attend l'extraction de la route vidéo de l'enhancer.
+  ~~⏳ Les autres apps render-based gardent leur boucle de conversion (composer, synthesizer,
+  anonymizer, enhancer)~~ — **constat faux, corrigé le 2026-10-16 au code** : les SIX apps
+  render-based passent par le process commun « Sortie » (`output_process.output_step`, qui
+  appelle ce geste) — imager, composer (`tasks.py:521`), synthesizer (`workers.py:170`),
+  anonymizer (`tasks.py:116`), enhancer (`tasks.py`, `_output`) et avatarizer (`workers.py:487`).
+  Reste vrai : la vidéo (upscale image par image) attend l'extraction de la route vidéo de
+  l'enhancer.
+- **« Garder la résolution d'origine »** (2026-10-16, `output_keep_size`) : la sortie revient
+  aux dimensions de l'ENTRÉE, image ou vidéo, par le converter (`resize_w`/`resize_h`, le même
+  vocabulaire pour les deux natures), dans le même passage que le format. OPT-IN par
+  `output_formats.keep_size_param()` ; l'app passe `input_size=callable(item)` à `output_step`
+  — sans elle le réglage n'aurait pas d'objet. Il déclare lui-même le process qu'il périme
+  (`stales=('output',)`) au lieu d'entrer dans `OUTPUT_PARAM_NAMES` : seul le pipeline d'une app
+  qui l'offre le surveille. Une taille non atteinte arrête la Sortie en le disant. Adopté par
+  l'enhancer (`wama/enhancer/README.md`).
 
 - **Le geste « ranger en médiathèque » suit le même archétype** (2026-09-18, `CARD_DESIGN §2bis`) :
   early-binding → le fichier rendu est copié, le choix est le RÔLE d'asset (déclaré par l'app,

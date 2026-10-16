@@ -148,6 +148,21 @@
             },
             {
               "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                }
+              },
+              "name": "output_keep_size"
+            },
+            {
+              "args": [],
               "class": "django.db.models.IntegerField",
               "kwargs": {
                 "default": {
@@ -1239,6 +1254,7 @@
                 "denoise",
                 "blend_factor",
                 "tile_size",
+                "output_keep_size",
                 "output_format",
                 "output_quality"
               ]
@@ -1826,7 +1842,11 @@
             "options_query": {
               "task": "upscale,denoise"
             },
-            "options_resolution": null,
+            "options_resolution": {
+              "needs": {
+                "scale": "upscale_factor"
+              }
+            },
             "options_source": "catalog",
             "pills": [],
             "radio_name": "",
@@ -2056,6 +2076,57 @@
             ],
             "step": 0.1,
             "type": "range",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": true,
+            "chip_label": "Résolution d'origine",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": false,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "item": "settingsOutputKeepSize",
+              "panel": "outputKeepSize"
+            },
+            "group": null,
+            "help": "Améliore la qualité sans agrandir : la sortie est ramenée aux dimensions du fichier d'entrée.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-compress",
+            "inline": false,
+            "label": "Garder la résolution d'origine",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "output_keep_size",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "output"
+            ],
+            "step": null,
+            "type": "toggle",
             "unit": ""
           },
           {
@@ -2598,6 +2669,7 @@
             "quality_intent",
             "denoise",
             "blend_factor",
+            "output_keep_size",
             "output_format",
             "output_quality"
           ],

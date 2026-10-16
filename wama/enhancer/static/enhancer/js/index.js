@@ -55,6 +55,9 @@ document.addEventListener('DOMContentLoaded', function () {
       extraFields:      function (fd) {
         fd.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
         fd.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
+        // « Garder la résolution d'origine » (2026-10-16) : appliqué au process « Sortie ».
+        const keepSize = document.getElementById('outputKeepSize');
+        if (keepSize) fd.append('output_keep_size', keepSize.checked ? 'true' : 'false');
         // Tirage auto : facteur + curseur du volet voyagent avec le dépôt (curseur C, 21/09).
         const auto = panelAutoValues();
         fd.append('upscale_factor', auto.upscale_factor);

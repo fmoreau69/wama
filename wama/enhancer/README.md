@@ -40,6 +40,18 @@ Elle exploite la librairie **[QualityScaler](https://github.com/Djdefrag/Quality
 - ✅ **Préservation FPS** original
 - ✅ **Encodage H.264** haute qualité
 
+### Garder la résolution d'origine (images et vidéos, 2026-10-16)
+
+Un réglage du volet et de la modale ⚙ (`output_keep_size`, chip « Résolution d'origine ») : la
+qualité gagnée par l'amélioration, **sans le poids d'un fichier agrandi**. La sortie revient aux
+dimensions de l'ENTRÉE (`width`/`height` de l'élément), par le **converter**, au process
+**« Sortie »** de la card (`output_process.output_step(input_size=…)`, brique commune) — dans le
+même passage que le format de sortie ; « Original » réencode dans le format du fichier. L'image
+agrandie est gardée à côté (`native_outputs`) : cocher ou décocher ne relance que la Sortie, jamais
+l'amélioration, et la card affiche les dimensions du fichier final. Une taille que le converter n'a
+pas atteinte arrête la Sortie en le disant. Gardes : `tests_output_formats.KeepTheInputSizeTest`
+(vrai converter, image et vidéo), `enhancer.tests.OutputKeepSizeTest`.
+
 ### Audio (branche dédiée)
 
 L'app porte aussi une **amélioration audio** complète (modèle `AudioEnhancement`,

@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 #: au lieu d'être recopiés en littéraux.
 OUTPUT_PARAM_NAMES = ("output_format", "output_quality", "output_upscale")
 
+#: Domaines où la sortie peut revenir à la RÉSOLUTION de l'entrée (`output_keep_size`).
+KEEP_SIZE_DOMAINS = ("image", "video")
+
 # Presets de qualité génériques (indépendants du domaine).
 OUTPUT_QUALITY_CHOICES: List[Tuple[str, str]] = [
     ("web", "Web (léger)"),
@@ -66,6 +69,25 @@ def get_output_formats(domain: str) -> List[Tuple[str, str]]:
 def get_output_qualities(domain: str | None = None) -> List[Tuple[str, str]]:
     """Presets de qualité (web/équilibré/max). `domain` réservé pour d'éventuelles variantes futures."""
     return list(OUTPUT_QUALITY_CHOICES)
+
+
+def keep_size_param(contexts=None, dom_id=None, group: str | None = None, **extra):
+    """Le réglage « Garder la résolution d'origine » (2026-10-16, demande de Fabien) : la sortie
+    revient aux dimensions de l'ENTRÉE, par le converter, au process « Sortie ». Pour une app qui
+    AGRANDIT (l'enhancer) : on garde le gain de qualité sans le poids d'un fichier ×4.
+
+    OPT-IN, comme `output_upscale` : il ne vaut que chez une app qui passe à `output_step` la
+    taille de son entrée (`input_size`) — offert sans elle, ce serait une promesse sans effet.
+    Il déclare lui-même le process qu'il périme (`stales`) plutôt que d'entrer dans
+    `OUTPUT_PARAM_NAMES` : seul le pipeline d'une app qui l'offre le surveille.
+    `extra` : les autres attributs du `Param` (dom_id par surface, `show_if`…)."""
+    from wama.common.services.output_process import OUTPUT_KEY
+    from wama.common.utils.param_schema import Param, ALL_CONTEXTS
+    return Param(name="output_keep_size", type="toggle", label="Garder la résolution d'origine",
+                 icon="fa-compress", default=False, contexts=contexts or ALL_CONTEXTS,
+                 dom_id=dom_id or "output_keep_size", group=group, stales=(OUTPUT_KEY,),
+                 help="Améliore la qualité sans agrandir : la sortie est ramenée aux dimensions "
+                      "du fichier d'entrée.", **extra)
 
 
 def output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_quality=None,
@@ -230,16 +252,33 @@ def wanted_format(item, output_format: str | None = None) -> str:
     return (value or 'original').lower()
 
 
+def keep_size_target(item, domain: str, input_size=None):
+    """Les dimensions `(largeur, hauteur)` auxquelles ramener la sortie, ou None : le réglage
+    `output_keep_size` est coché, le domaine s'y prête, et l'app a dit la taille de son entrée."""
+    if domain not in KEEP_SIZE_DOMAINS or not getattr(item, 'output_keep_size', False):
+        return None
+    size = input_size(item) if callable(input_size) else input_size
+    if not size or not all(int(v or 0) > 0 for v in size[:2]):
+        return None
+    return int(size[0]), int(size[1])
+
+
 def apply_output_settings(paths, item, *, domain: str, app_id: str | None = None,
-                          console=None, output_format: str | None = None) -> list:
+                          console=None, output_format: str | None = None,
+                          input_size=None) -> list:
     """Les réglages de SORTIE de l'item appliqués aux fichiers produits, dans l'ordre du
-    process : agrandissement (image) PUIS conversion de format. Rend les chemins finaux.
+    process : agrandissement (image), retour à la résolution de l'entrée, PUIS conversion de
+    format. Rend les chemins finaux.
 
     Une seule application pour toutes les apps render-based (2026-09-30) : chacune recopiait
     sa boucle de conversion, et l'agrandissement vivait dans UN backend. Lit les champs de
     l'item nommés comme les params de cette brique (`OUTPUT_PARAM_NAMES`).
-    Un échec d'AGRANDISSEMENT lève (il a été demandé) ; un échec de CONVERSION garde le
-    fichier natif et le DIT — le comportement historique des apps, conservé."""
+    `input_size` : `(largeur, hauteur)` de l'entrée, ou `callable(item)` — sans elle,
+    `output_keep_size` n'a pas d'objet.
+    Un échec d'AGRANDISSEMENT lève (il a été demandé), un échec du RETOUR À LA RÉSOLUTION
+    aussi (un fichier à la mauvaise taille rendu en silence serait un mensonge) ; un échec de
+    CONVERSION seule garde le fichier natif et le DIT — le comportement historique des apps."""
+    import os
     say = console or (lambda _msg: None)
     paths = list(paths or [])
     factor = upscale_factor(getattr(item, 'output_upscale', ''))
@@ -249,9 +288,30 @@ def apply_output_settings(paths, item, *, domain: str, app_id: str | None = None
             w, h = upscale_output_image(p, factor, item=item, app_id=app_id)
         say(f"Agrandissement terminé : {w}×{h}")
     fmt = wanted_format(item, output_format)
+    preset = getattr(item, 'output_quality', '') or 'balanced'
+    target = keep_size_target(item, domain, input_size)
+    if target is not None:
+        # Le converter redimensionne ET convertit d'un même passage. « Original » garde le
+        # format du fichier : il est alors réencodé à sa taille d'entrée.
+        from wama.common.utils.video_utils import get_media_info
+        from wama.converter.utils.inline_convert import apply_inline_conversion
+        w, h = target
+        say(f"Retour à la résolution d'origine : {w}×{h}")
+        resized = []
+        for p in paths:
+            same = os.path.splitext(p)[1].lower().lstrip('.')
+            out = apply_inline_conversion(p, same if fmt in ('', 'original') else fmt, preset,
+                                          extra_options={'resize_w': w, 'resize_h': h})
+            # La taille se VÉRIFIE sur le fichier rendu : le converter rend sa source inchangée
+            # quand il ne sait pas faire (format non pris), sans lever.
+            info = get_media_info(out)
+            if (info.get('width'), info.get('height')) != (w, h):
+                raise RuntimeError(f"retour à {w}×{h} impossible — le fichier rendu fait "
+                                   f"{info.get('width')}×{info.get('height')}")
+            resized.append(out)
+        return resized
     if fmt in ('', 'original'):
         return paths
-    preset = getattr(item, 'output_quality', '') or 'balanced'
     try:
         # Le MÉCANISME de conversion vit dans le converter (convention d'appel inline).
         from wama.converter.utils.inline_convert import apply_inline_conversion
@@ -298,16 +358,19 @@ def final_name(path) -> str:
     return f'{stem[:-len(NATIVE_MARK)]}{ext}' if stem.endswith(NATIVE_MARK) else str(path)
 
 
-def transforms_output(item, domain: str, output_format: str | None = None) -> bool:
+def transforms_output(item, domain: str, output_format: str | None = None,
+                      input_size=None) -> bool:
     """Les réglages de sortie de l'item changent-ils le fichier que le moteur a écrit ?"""
     if domain == 'image' and upscale_factor(getattr(item, 'output_upscale', '')) > 1:
+        return True
+    if keep_size_target(item, domain, input_size) is not None:
         return True
     return wanted_format(item, output_format) not in ('', 'original')
 
 
 def render_outputs(sources, item, *, domain: str, app_id: str | None = None, console=None,
                    previous=(), output_format: str | None = None, transform=None,
-                   apply=None) -> tuple:
+                   apply=None, input_size=None) -> tuple:
     """Les réglages de sortie appliqués en GARDANT le fichier d'origine ; rend
     `(rendus, originaux gardés)`, en chemins absolus.
 
@@ -327,7 +390,7 @@ def render_outputs(sources, item, *, domain: str, app_id: str | None = None, con
 
     finals, natives = [], []
     if transform is None:
-        transform = transforms_output(item, domain, output_format)
+        transform = transforms_output(item, domain, output_format, input_size)
     for source in list(sources or []):
         source = str(source)
         target = final_name(source)
@@ -346,7 +409,8 @@ def render_outputs(sources, item, *, domain: str, app_id: str | None = None, con
                 finals.extend([produced] if isinstance(produced, str) else list(produced))
             else:
                 finals.extend(apply_output_settings([target], item, domain=domain, app_id=app_id,
-                                                    console=console, output_format=output_format))
+                                                    console=console, output_format=output_format,
+                                                    input_size=input_size))
         except Exception:
             # Un échec (agrandissement demandé, impossible) ne laisse rien derrière lui : l'original
             # reprend la place d'où il venait, comme si la sortie n'avait pas été tentée.

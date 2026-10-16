@@ -244,6 +244,97 @@ class KeepTheOriginalTest(SimpleTestCase):
         self.assertEqual(['gen7_model.png'], self._names())
 
 
+class KeepTheInputSizeTest(SimpleTestCase):
+    """« Garder la résolution d'origine » (`output_keep_size`, 2026-10-16) — la sortie revient aux
+    dimensions de l'ENTRÉE par le VRAI converter (aucune conversion simulée ici : c'est son moteur
+    vidéo qui a appris `resize_w`/`resize_h`), et l'original gardé laisse décocher sans regénérer."""
+
+    def setUp(self):
+        import shutil
+        self.folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.folder, True)
+
+    def _image(self, name='enhanced.jpg', size=(80, 60)):
+        from PIL import Image
+        path = os.path.join(self.folder, name)
+        Image.new('RGB', size, (30, 120, 200)).save(path)
+        return path
+
+    def _video(self, size=(64, 48)):
+        import cv2
+        import numpy as np
+        path = os.path.join(self.folder, 'enhanced.mp4')
+        writer = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*'mp4v'), 5, size)
+        for k in range(5):
+            writer.write(np.full((size[1], size[0], 3), 40 * k, dtype=np.uint8))
+        writer.release()
+        return path
+
+    def _item(self, **kw):
+        return SimpleNamespace(**{'output_upscale': '', 'output_format': 'original',
+                                  'output_quality': 'balanced', 'output_keep_size': True, **kw})
+
+    def _size(self, path):
+        from wama.common.utils.video_utils import get_media_info
+        info = get_media_info(path)
+        return info['width'], info['height']
+
+    def test_an_image_comes_back_to_the_input_size_in_its_own_format(self):
+        out = of.apply_output_settings([self._image()], self._item(), domain='image',
+                                       input_size=(20, 15))
+        self.assertEqual('.jpg', os.path.splitext(out[0])[1])
+        self.assertEqual((20, 15), self._size(out[0]))
+
+    def test_the_size_and_the_format_are_applied_together(self):
+        out = of.apply_output_settings([self._image()], self._item(output_format='png'),
+                                       domain='image', input_size=lambda item: (20, 15))
+        self.assertEqual('.png', os.path.splitext(out[0])[1])
+        self.assertEqual((20, 15), self._size(out[0]))
+
+    def test_a_video_comes_back_to_the_input_size(self):
+        out = of.apply_output_settings([self._video()], self._item(), domain='video',
+                                       input_size=(32, 24))
+        self.assertEqual((32, 24), self._size(out[0]))
+
+    def test_unchecked_or_without_an_input_size_or_for_audio_nothing_changes(self):
+        image = self._image()
+        for item, domain, size in ((self._item(output_keep_size=False), 'image', (20, 15)),
+                                   (self._item(), 'image', None),
+                                   (self._item(), 'audio', (20, 15))):
+            with self.subTest(domain=domain, size=size):
+                self.assertEqual([image], of.apply_output_settings([image], item, domain=domain,
+                                                                   input_size=size))
+                self.assertFalse(of.transforms_output(item, domain, input_size=size))
+        self.assertEqual((80, 60), self._size(image))
+
+    def test_a_size_the_converter_could_not_reach_is_an_error_not_a_silence(self):
+        with mock.patch(INLINE_CONVERSION, side_effect=lambda p, fmt, q, extra_options=None: p), \
+                self.assertRaisesRegex(RuntimeError, '20×15'):
+            of.apply_output_settings([self._image()], self._item(), domain='image',
+                                     input_size=(20, 15))
+
+    def test_the_enhanced_original_is_kept_and_unchecking_brings_it_back(self):
+        """Décocher ne relance pas l'amélioration : la sortie repart de l'original gardé."""
+        engine_file = self._image('gen.png')
+        finals, natives = of.render_outputs([engine_file], self._item(), domain='image',
+                                            input_size=(20, 15))
+        self.assertEqual((20, 15), self._size(finals[0]))
+        self.assertEqual((80, 60), self._size(natives[0]))
+        back, kept = of.render_outputs(natives, self._item(output_keep_size=False), domain='image',
+                                       previous=finals, input_size=(20, 15))
+        self.assertEqual(([engine_file], []), (back, kept))
+        self.assertEqual((80, 60), self._size(engine_file))
+
+    def test_the_setting_stales_the_output_process_and_only_where_it_is_offered(self):
+        # Le changer périme le process « Sortie », pas la génération ; une app qui ne l'offre pas
+        # ne le surveille pas (il n'entre pas dans les réglages de sortie de TOUTES les apps).
+        from wama.common.services.output_process import OUTPUT_KEY
+        param = of.keep_size_param()
+        self.assertEqual(('output_keep_size', 'toggle', False, (OUTPUT_KEY,)),
+                         (param.name, param.type, param.default, tuple(param.stales)))
+        self.assertNotIn('output_keep_size', of.OUTPUT_PARAM_NAMES)
+
+
 class OutputParamDefaultsTest(SimpleTestCase):
     """Les réglages de sortie de la brique déclarent le défaut de leurs colonnes (2026-10-11).
 

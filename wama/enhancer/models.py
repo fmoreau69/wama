@@ -49,6 +49,11 @@ class Enhancement(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # Format de sortie (conversion inline via Converter) — 'original' = pas de conversion
     output_format = models.CharField(max_length=20, default='original')
     output_quality = models.CharField(max_length=20, default='balanced')
+    # « Garder la résolution d'origine » (2026-10-16) : la SORTIE revient aux dimensions de
+    # l'entrée (`width`/`height`), par le converter, au process « Sortie » — la qualité gagnée
+    # sans le poids d'un fichier ×4. `db_default` : le code d'avant le rechargement crée des
+    # éléments sans connaître ce champ.
+    output_keep_size = models.BooleanField(default=False, db_default=False)
 
     # Media properties
     width = models.IntegerField(default=0)

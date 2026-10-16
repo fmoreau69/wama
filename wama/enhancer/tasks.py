@@ -74,16 +74,28 @@ def enhance_audio(self, audio_enhancement_id: int, process: str = None):
 def _output(item, ctx):
     """GLU du process `output` (les DEUX files) : format et qualité de sortie, par la glu COMMUNE
     (`output_process.output_step`) — le fichier amélioré d'origine est gardé tant que la sortie
-    le transforme. La taille relevée est celle du fichier FINAL (file image/vidéo)."""
+    le transforme. La taille relevée est celle du fichier FINAL (file image/vidéo) : poids ET
+    dimensions — « Garder la résolution d'origine » (2026-10-16) ramène la sortie aux dimensions
+    de l'entrée (`width`/`height` de l'élément), et décocher la rend à celles de l'amélioration."""
     from wama.common.services.output_process import output_step
+    from wama.common.utils.video_utils import get_media_info
     media = isinstance(item, Enhancement)
     domain = ((item.media_type or 'image') if media else 'audio')
 
     def sizes(_item, finals):
-        return {'output_file_size': os.path.getsize(finals[0])} if media else {}
+        if not media:
+            return {}
+        fields = {'output_file_size': os.path.getsize(finals[0])}
+        try:
+            info = get_media_info(finals[0])
+        except Exception:
+            return fields      # dimensions illisibles : celles de l'amélioration restent
+        if info.get('width') and info.get('height'):
+            fields.update(output_width=int(info['width']), output_height=int(info['height']))
+        return fields
 
-    return output_step('output_file', domain=domain, app_id='enhancer',
-                       extra_fields=sizes)(item, ctx)
+    return output_step('output_file', domain=domain, app_id='enhancer', extra_fields=sizes,
+                       input_size=(lambda e: (e.width, e.height)) if media else None)(item, ctx)
 
 
 # ── Tirage « auto » AU LANCEMENT (curseur C, 2026-09-21) ──────────────────────────────────

@@ -10,7 +10,7 @@ catalogue model_manager. Image/vidéo : dérivées de SUPPORTED_MODELS (source u
 """
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.output_formats import (
-    get_output_formats, get_output_qualities, output_format_params,
+    get_output_formats, get_output_qualities, keep_size_param, output_format_params,
 )
 from wama.common.utils.param_schema import Param, schema_to_dicts
 from wama.enhancer.utils.auto_model import AUDIO_SPEC, MEDIA_SPEC
@@ -203,6 +203,11 @@ def _media_format_groups():
 
 
 MEDIA_PARAMS += [
+    # « Garder la résolution d'origine » (2026-10-16, demande de Fabien) : la qualité gagnée, sans
+    # le poids d'un fichier agrandi — la sortie revient aux dimensions de l'entrée, par le
+    # converter, au process « Sortie » (brique commune). Le changer ne relance que la sortie.
+    keep_size_param(contexts=('panel', 'item'), chip=True, chip_label="Résolution d'origine",
+                    dom_id={'panel': 'outputKeepSize', 'item': 'settingsOutputKeepSize'}),
     Param(name='output_format', type='select', label='Format de sortie', icon='fa-file-export',
           chip=True, option_groups=_media_format_groups(), default='original',
           dom_id={'panel': 'output_format', 'item': 'settingsOutputFormat'},

@@ -317,7 +317,8 @@ def new_enhancement_settings(user, model=None, app='enhancer', post=None):
               'denoise': bool(stored.get('denoise')),
               'blend_factor': stored.get('blend_factor') or 0.0,
               'output_format': stored.get('output_format') or 'original',
-              'output_quality': stored.get('output_quality') or 'balanced'}
+              'output_quality': stored.get('output_quality') or 'balanced',
+              'output_keep_size': bool(stored.get('output_keep_size'))}
     values.update({k: v for k, v in schema_model_kwargs('enhancer', post).items()
                    if k not in ('upscale_factor', 'quality_intent') and v not in (None, '')})
     values['upscale_factor'] = _factor_posted(post, 4)
@@ -744,7 +745,7 @@ def _apply_enhancement_settings(e, data):
     from wama.common.utils.batch_views import apply_item_settings
     apply_item_settings(e, {k: v for k, v in data.items() if v not in (None, '')},
                         params_fields=('ai_model', 'denoise', 'blend_factor',
-                                       'output_format', 'output_quality'))
+                                       'output_format', 'output_quality', 'output_keep_size'))
     # Curseur + facteur (chantier C) : clé ABSENTE = inchangé ; posée vide = curseur effacé
     # (la cascade retombe sur le réglage d'app, puis 50).
     e.upscale_factor = _factor_posted(data, e.upscale_factor)

@@ -496,6 +496,55 @@ class _Ctx:
         self.lines.append(msg)
 
 
+class OutputKeepSizeTest(TestCase):
+    """« Garder la résolution d'origine » (2026-10-16) : un réglage du volet et de la modale,
+    appliqué au process « Sortie » — la sortie revient aux dimensions de l'ENTRÉE et la card
+    affiche celles du fichier final."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.user = get_user_model().objects.create_user('enh_keep', password='x')
+
+    def test_the_setting_is_offered_by_the_panel_and_the_modal_and_born_unchecked(self):
+        from wama.enhancer.params import MEDIA_PARAMS
+        param = next(p for p in MEDIA_PARAMS if p.name == 'output_keep_size')
+        self.assertEqual({'panel', 'item'}, set(param.contexts))
+        self.assertFalse(Enhancement._meta.get_field('output_keep_size').get_default())
+
+    def test_changing_it_stales_the_output_not_the_enhancement(self):
+        from wama.enhancer.function_specs import PIPELINE
+        watched = {spec.key: PIPELINE.watched_of(spec) for spec in PIPELINE.specs}
+        self.assertIn('output_keep_size', watched['output'])
+        self.assertNotIn('output_keep_size', watched['generate'])
+
+    def test_the_output_comes_back_to_the_input_size_and_the_card_says_it(self):
+        from PIL import Image
+        from wama.common.services.output_process import output_sources
+        from wama.enhancer import tasks
+        with override_settings(MEDIA_ROOT=self.tmp):
+            e = Enhancement.objects.create(user=self.user, media_type='image', width=20, height=15,
+                                           output_keep_size=True)
+            from wama.common.utils.media_paths import app_media_dir
+            relative = app_media_dir('enhancer', self.user.id, 'output/media')
+            os.makedirs(os.path.join(self.tmp, relative))
+            Image.new('RGB', (80, 60), (200, 80, 20)).save(
+                os.path.join(self.tmp, relative, 'photo_x4.png'))
+            e.output_file.name = f'{relative}/photo_x4.png'
+            e.save()
+            fields = tasks._output(e, _Ctx())['fields']
+            self.assertEqual((20, 15), (fields['output_width'], fields['output_height']))
+            for name, value in fields.items():
+                setattr(e, name, value)
+            e.output_keep_size = False
+            fields = tasks._output(e, _Ctx())['fields']
+            self.assertEqual((80, 60), (fields['output_width'], fields['output_height']),
+                             'unchecked, the output is the enhanced file again')
+            self.assertEqual([], fields['native_outputs'])
+            for name, value in fields.items():
+                setattr(e, name, value)
+            self.assertTrue(all(os.path.isfile(p) for p in output_sources(e, 'output_file')))
+
+
 class GlueTest(TestCase):
     """La glu du squelette : route par nature, modèle résolu dans les options, stockage à la
     convention, champs rendus au squelette, ligne d'exécution (`models`)."""

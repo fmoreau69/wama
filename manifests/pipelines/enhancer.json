@@ -46,6 +46,7 @@
           "gpu": false,
           "label": "Sortie",
           "watched": [
+            "output_keep_size",
             "output_format",
             "output_quality",
             "output_upscale"
