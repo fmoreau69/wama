@@ -1,0 +1,35 @@
+{
+  "body": {
+    "constraints": {
+      "no_deps": true
+    },
+    "dependencies": [
+      "einops",
+      "torch"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Phil Wang (lucidrains)",
+      "license": "MIT",
+      "repository": "https://codeberg.org/lucidrains/rotary-embedding-torch",
+      "summary": "Rotary Embedding - Pytorch",
+      "version": "0.9.1"
+    },
+    "install": {
+      "pip": "rotary-embedding-torch==0.9.1",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "Rotary Embedding - Pytorch (dépendance de beat-this, le suivi des temps de MuScriptor). Sans dépendances : leur résolution RÉTROGRADAIT nvidia-nccl-cu12 2.30.4 → 2.27.5 (simulation du 2026-10-16, même cas qu'accelerate) ; einops et torch sont déjà dans le venv.",
+  "key": "rotary-embedding-torch",
+  "manifest_kind": "library",
+  "name": "rotary-embedding-torch",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "pypi:rotary-embedding-torch==0.9.1",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

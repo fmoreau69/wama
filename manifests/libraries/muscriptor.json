@@ -1,0 +1,46 @@
+{
+  "body": {
+    "constraints": {
+      "no_deps": true
+    },
+    "dependencies": [
+      "beat-this",
+      "einops",
+      "huggingface-hub",
+      "mido",
+      "numpy",
+      "packaging",
+      "safetensors",
+      "soundfile",
+      "torch"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "muscriptor"
+      ]
+    },
+    "identity": {
+      "author": "Kyutai x Mirelo",
+      "license": "MIT",
+      "repository": "https://github.com/muscriptor/muscriptor",
+      "summary": "Audio-to-MIDI transcription using a transformer language model",
+      "version": "0.3.0"
+    },
+    "install": {
+      "pip": "muscriptor==0.3.0",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "MuScriptor (Kyutai + Mirelo) — transcription multi-instrument d'un audio en MIDI (36 groupes d'instruments, voix et batterie comprises). Code MIT ; les POIDS sont CC BY-NC 4.0 (dépôts HF à accès contrôlé). Sans dépendances : celles du PyPI (fastapi>=0.136.3, uvicorn>=0.48, soundfile>=0.14, python-multipart>=0.0.29) servent son interface web et sa ligne de commande — les honorer déplacerait starlette, épinglé pour le serveur MCP ; l'inférence n'importe que les paquets listés ici, tous dans le venv.",
+  "key": "muscriptor",
+  "manifest_kind": "library",
+  "name": "muscriptor",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "pypi:muscriptor==0.3.0",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

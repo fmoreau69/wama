@@ -1,0 +1,39 @@
+{
+  "body": {
+    "constraints": {
+      "no_deps": true
+    },
+    "dependencies": [
+      "einops",
+      "numpy",
+      "rotary-embedding-torch",
+      "soxr",
+      "torch",
+      "torchaudio"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "CPJKU (Johannes Kepler University Linz)",
+      "license": "MIT",
+      "repository": "https://github.com/CPJKU/beat_this",
+      "summary": "Beat This! beat tracker",
+      "version": "1.1.0"
+    },
+    "install": {
+      "pip": "beat-this==1.1.0",
+      "requires_python": ">=3"
+    }
+  },
+  "description": "Beat This! — suivi des temps et des premiers temps de mesure ; MuScriptor en tire tempo, métrique et barres de mesure. Sans dépendances : toutes déjà dans le venv (rotary-embedding-torch par sa propre ligne).",
+  "key": "beat-this",
+  "manifest_kind": "library",
+  "name": "beat-this",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "pypi:beat-this==1.1.0",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
