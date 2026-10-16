@@ -963,33 +963,32 @@
     });
 
     // ── Drag d'un nœud ─────────────────────────────────────────────────────
+    // Par la brique commune des gestes (`WamaGestures.track`, 2026-10-16) : souris, stylet et
+    // doigt passent par le même code. Seuil 0 : le nœud suit dès le premier mouvement, comme
+    // avant à la souris ; seul le bouton gauche (le bouton du milieu défile la vue, voir init).
     function makeDraggable(node, handle) {
-        handle.addEventListener('mousedown', function (e) {
-            if (e.target.closest('.studio-node-del')) return;
-            if (e.button !== 0) return;   // le bouton du milieu défile la vue (init)
-            e.preventDefault();
-            // ── Drag d'abord (les listeners DOIVENT être posés quoi qu'il arrive) ──
-            var startX = e.clientX, startY = e.clientY, ox = node.x, oy = node.y;
-            handle.style.cursor = 'grabbing';
+        WamaGestures.track(handle, {
+            threshold: 0,
+            start: function (e) {
+                if (e.target.closest('.studio-node-del')) return false;
+                handle.style.cursor = 'grabbing';
+                return { ox: node.x, oy: node.y };
+            },
             // Le déplacement écran se divise par le zoom ; plus de butée à 0 : le monde est
             // sans bord depuis que la vue défile.
             // Arrondi : la position finit dans le `layout` du manifeste pipeline, pas de
             // décimales de zoom dans un fichier versionné.
-            function move(ev) {
-                node.x = Math.round(ox + (ev.clientX - startX) / view.k);
-                node.y = Math.round(oy + (ev.clientY - startY) / view.k);
+            move: function (e, start, d) {
+                node.x = Math.round(start.ox + d.dx / view.k);
+                node.y = Math.round(start.oy + d.dy / view.k);
                 node.el.style.left = node.x + 'px';
                 node.el.style.top = node.y + 'px';
                 updateLinks();
-            }
-            function up() {
-                document.removeEventListener('mousemove', move);
-                document.removeEventListener('mouseup', up);
+            },
+            end: function () {
                 handle.style.cursor = 'grab';
                 persistDraft();   // position du nœud conservée
-            }
-            document.addEventListener('mousemove', move);
-            document.addEventListener('mouseup', up);
+            },
         });
     }
 
@@ -1010,34 +1009,38 @@
             pending.path.setAttribute('d', pathD(dotCenter(pending.dot), toWorld(e.clientX, e.clientY)));
         });
 
-        // Défilement : glisser le FOND (bouton gauche), ou n'importe où au bouton du milieu.
+        // Défilement : glisser le FOND (bouton gauche, ou un doigt), ou n'importe où au bouton du
+        // milieu ; PINCER à deux doigts zoome sous les doigts et déplace la vue avec eux. Par la
+        // brique commune des gestes (`WamaGestures.track`, 2026-10-16) — le canvas défile LUI-MÊME,
+        // la page ne bouge pas dessous (`touch-action: none`, posé par la brique).
         // Un glisser qui a bougé n'est pas un clic : il ne désélectionne pas, n'annule pas un lien.
         var panMoved = false;
-        canvas.addEventListener('mousedown', function (e) {
-            var onBackground = !e.target.closest('.studio-node, .studio-zoom')
-                && !e.target.classList.contains('studio-link');
-            if (!(e.button === 1 || (e.button === 0 && onBackground))) return;
-            e.preventDefault();   // bouton du milieu : pas d'auto-défilement du navigateur
-            var sx = e.clientX, sy = e.clientY, ox = view.x, oy = view.y, moved = false;
-            function move(ev) {
-                var dx = ev.clientX - sx, dy = ev.clientY - sy;
-                if (!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
-                if (!moved) { moved = true; canvas.classList.add('is-panning'); }
-                view.x = ox + dx; view.y = oy + dy;
+        WamaGestures.track(canvas, {
+            buttons: [0, 1],
+            start: function (e) {
+                var onBackground = !e.target.closest('.studio-node, .studio-zoom')
+                    && !e.target.classList.contains('studio-link');
+                if (!(e.button === 1 || (e.button === 0 && onBackground))) return false;
+                return { ox: view.x, oy: view.y };
+            },
+            move: function (e, start, d) {
+                canvas.classList.add('is-panning');
+                view.x = start.ox + d.dx; view.y = start.oy + d.dy;
                 applyView(false);
-            }
-            function up() {
-                document.removeEventListener('mousemove', move);
-                document.removeEventListener('mouseup', up);
+            },
+            end: function (e, start, info) {
                 canvas.classList.remove('is-panning');
-                if (moved) {
+                if (info.moved) {
                     applyView();   // retenue une fois, au lâcher
                     panMoved = true;
-                    setTimeout(function () { panMoved = false; }, 0);   // le clic suit le mouseup
+                    setTimeout(function () { panMoved = false; }, 0);   // le clic suit le relâcher
                 }
-            }
-            document.addEventListener('mousemove', move);
-            document.addEventListener('mouseup', up);
+            },
+            pinch: function (p) {
+                var c = canvas.getBoundingClientRect();
+                view.x += p.dx; view.y += p.dy;
+                zoomAt(view.k * p.scale, p.cx - c.left, p.cy - c.top);
+            },
         });
         // Zoom à la molette (et au pincement d'un pavé tactile), centré sous le curseur.
         canvas.addEventListener('wheel', function (e) {

@@ -5343,6 +5343,11 @@ qui DIT quelle fille manque de quoi (`WAMA_DATA_WORLD.md:2913-2916`).
 > `is-drop-target`, pas la `.drag-over` globale, qui est celle des FICHIERS. Gardes :
 > `studio/tests_catalogue.py`. ⚠ Le glisser HTML5 natif ne marche pas au doigt (tablette) :
 > le retrait du clic y laisse le catalogue sans geste d'ajout — non traité, à décider.
+> ✅ **Traité le 2026-10-16** (`ROADMAP §27` étape 3) : la brique commune `wama-gestures.js`
+> traduit l'appui long puis le glisser d'un doigt en glisser HTML5 (le catalogue s'ajoute au
+> doigt, sans code dans le studio), et le canvas défile, zoome au pincement et déplace ses nœuds
+> par `WamaGestures.track` — souris, stylet et doigt par le même code. Mesuré sur de vrais
+> événements tactiles : scénario nocturne `common.gestures.touch`.
 
 #### 6. Les mondes
 

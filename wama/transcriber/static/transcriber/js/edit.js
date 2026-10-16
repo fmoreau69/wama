@@ -932,6 +932,7 @@
   let hoverT = null, hoverHandle = -1;
   let retiming = false;
   const HANDLE_PX = 6;              // distance (px) à laquelle le pointeur saisit une borne
+  const HANDLE_PX_TOUCH = 16;       // … et le doigt, qui couvre davantage et masque ce qu'il vise
   const MIN_SECTION = 0.05;         // une borne glissée n'avale jamais sa section voisine
   let hatch = null;
   function hatchPattern(ctx) {
@@ -954,8 +955,8 @@
     if (D && D - covered > MIN_SECTION) out.push([covered, D]);
     return out;
   }
-  function handleAt(px, W) {        // la jonction la plus proche du pointeur, à HANDLE_PX près
-    let best = -1, bestD = HANDLE_PX + 1;
+  function handleAt(px, W, reach) { // la jonction la plus proche du pointeur, à `reach` px près
+    let best = -1, bestD = (reach || HANDLE_PX) + 1;
     for (let i = 1; i < segments.length; i++) {
       const d = Math.abs(((segments[i].start_time || 0) - viewStart) / viewDur * W - px);
       if (d < bestD) { bestD = d; best = i; }
@@ -1391,17 +1392,67 @@
       }, { passive: false });
       // clic = seek ; glisser = déplacer la vue. Outil Bornes : glisser une poignée = déplacer la
       // borne ; clic ailleurs = couper la section (ciseaux) ; glisser ailleurs = déplacer la vue.
-      let dragging = false, moved = false, lastX = 0;
+      // Pincer (deux doigts) = zoomer autour des doigts. Par la brique commune des gestes
+      // (`WamaGestures.track`, 2026-10-16) : souris, stylet et doigt passent par le même code ;
+      // `pan-y` laisse la page défiler verticalement par-dessus l'onde.
+      let dragging = false;
       function timeAt(clientX) {
         const rect = cv.getBoundingClientRect();
         return viewStart + ((clientX - rect.left) / (cv.clientWidth || 600)) * viewDur;
       }
-      cv.addEventListener('mousedown', function (e) {
-        if (boundaryTool && !retiming) {
-          const i = handleAt(e.offsetX, cv.clientWidth || 600);
-          if (i > 0) { e.preventDefault(); boundaryDrag = { i: i, t: segments[i].start_time || 0 }; return; }
-        }
-        dragging = true; moved = false; lastX = e.clientX;
+      WamaGestures.track(cv, {
+        touchAction: 'pan-y',
+        threshold: 2,                                        // un tremblement d'1 px reste un clic
+        start: function (e) {
+          if (boundaryTool && !retiming) {
+            // Un doigt couvre une borne de plus loin qu'un pointeur de souris.
+            const reach = WamaGestures.isTouch(e) ? HANDLE_PX_TOUCH : HANDLE_PX;
+            const i = handleAt(e.offsetX, cv.clientWidth || 600, reach);
+            if (i > 0) { boundaryDrag = { i: i, t: segments[i].start_time || 0 }; return { boundary: true }; }
+          }
+          dragging = true;
+          return { boundary: false };
+        },
+        move: function (e, ctx, d) {
+          if (ctx.boundary) {                                // la borne suit le pointeur, bornée
+            const i = boundaryDrag.i;                        // par ses deux sections voisines
+            const lo = (segments[i - 1].start_time || 0) + MIN_SECTION;
+            const hi = (segments[i].end_time || 0) - MIN_SECTION;
+            boundaryDrag.t = Math.max(lo, Math.min(hi, timeAt(e.clientX)));
+            drawZoom();
+            return;
+          }
+          const W = cv.clientWidth || 600;
+          viewStart -= (d.mx / W) * viewDur; clampView(); redrawWindow();
+        },
+        end: function (e, ctx, info) {
+          if (ctx.boundary) {
+            const b = boundaryDrag;
+            if (info.cancelled || Math.abs(b.t - (segments[b.i].start_time || 0)) < 0.001) {
+              boundaryDrag = null; drawZoom(); return;
+            }
+            retime('move', b.i - 1, 2, b.t);
+            return;
+          }
+          dragging = false;
+          if (!info.moved && !info.cancelled) {
+            const t = Math.max(0, timeAt(e.clientX));
+            if (boundaryTool) { splitAtTime(t); return; }
+            if (window.WamaAudioPlayer) WamaAudioPlayer.seek(playerId, t, false);
+            redrawWindow();
+          }
+        },
+        pinch: function (p) {
+          const D = fullDur(); if (!D) return;
+          const W = cv.clientWidth || 600;
+          // Le temps sous les doigts RESTE sous les doigts (même règle que la molette du
+          // studio), et la fenêtre suit les doigts quand ils se déplacent ensemble.
+          const at = (p.cx - cv.getBoundingClientRect().left) / W;
+          const ct = viewStart + at * viewDur;
+          viewDur = Math.max(MIN_VIEW, Math.min(D, viewDur / p.scale));
+          viewStart = ct - at * viewDur - (p.dx / W) * viewDur;
+          redrawWindow();
+        },
       });
       cv.addEventListener('mousemove', function (e) {       // survol : poignée ou ciseaux
         if (!boundaryTool || boundaryDrag || dragging) return;
@@ -1414,35 +1465,6 @@
         if (!boundaryTool || boundaryDrag) return;
         hoverT = null; hoverHandle = -1; drawZoom();
       });
-      window.addEventListener('mousemove', function (e) {
-        if (boundaryDrag) {                                  // la borne suit le pointeur, bornée
-          const i = boundaryDrag.i;                          // par ses deux sections voisines
-          const lo = (segments[i - 1].start_time || 0) + MIN_SECTION;
-          const hi = (segments[i].end_time || 0) - MIN_SECTION;
-          boundaryDrag.t = Math.max(lo, Math.min(hi, timeAt(e.clientX)));
-          drawZoom();
-          return;
-        }
-        if (!dragging) return;
-        const W = cv.clientWidth || 600, dx = e.clientX - lastX; lastX = e.clientX;
-        if (Math.abs(dx) > 1) moved = true;
-        viewStart -= (dx / W) * viewDur; clampView(); redrawWindow();
-      });
-      window.addEventListener('mouseup', function (e) {
-        if (boundaryDrag) {
-          const d = boundaryDrag;
-          if (Math.abs(d.t - (segments[d.i].start_time || 0)) < 0.001) { boundaryDrag = null; drawZoom(); return; }
-          retime('move', d.i - 1, 2, d.t);
-          return;
-        }
-        if (!dragging) return; dragging = false;
-        if (!moved) {
-          const t = Math.max(0, timeAt(e.clientX));
-          if (boundaryTool) { splitAtTime(t); return; }
-          if (window.WamaAudioPlayer) WamaAudioPlayer.seek(playerId, t, false);
-          redrawWindow();
-        }
-      });
     }
     if (mini) {
       const jump = function (e) {
@@ -1451,10 +1473,13 @@
         viewStart = ((e.clientX - rect.left) / (mini.clientWidth || 600)) * D - viewDur / 2;
         clampView(); redrawWindow();
       };
-      let mdrag = false;
-      mini.addEventListener('mousedown', function (e) { mdrag = true; jump(e); });
-      window.addEventListener('mousemove', function (e) { if (mdrag) jump(e); });
-      window.addEventListener('mouseup', function () { mdrag = false; });
+      // Appuyer place la fenêtre, glisser la promène (brique commune des gestes).
+      WamaGestures.track(mini, {
+        touchAction: 'pan-y',
+        threshold: 0,
+        start: function (e) { jump(e); return {}; },
+        move: function (e) { jump(e); },
+      });
     }
     window.addEventListener('resize', redrawWindow);
   }

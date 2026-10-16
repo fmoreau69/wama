@@ -411,6 +411,7 @@
     {% if user.is_authenticated %}<template id="wama-mediapicker-add-tpl">{% include 'common/_new_item_card_library.html' with prefix='mp' %}</template>{% endif %}
     <script src="{% static_v 'common/js/wama-model-help.js' %}"></script>  {# WamaModelHelp global : desc modèle (court/long+VRAM) sous les selects help_source (WamaParams) #}
     <script src="{% static_v 'common/js/wama-app-base.js' %}"></script>  {# WamaApp global : csrfFetch/getUrl/Poller/toast/maps statut (plomberie JS commune des apps) #}
+    <script src="{% static_v 'common/js/wama-gestures.js' %}"></script>  {# WamaGestures global : gestes au pointeur (track : glisser/pincer), glisser HTML5 et appui long AU DOIGT — AVANT les pages qui l'adoptent (studio, éditeur du transcriber) #}
     <script src="{% static_v 'common/js/wama-notifications.js' %}"></script>  {# WamaNotifications global : panneau de la cloche — APRÈS wama-app-base (csrfFetch, toast, pastille) #}
     {# WamaAssistantVoice global : la voix de l'assistant (phrases, bouton 🔊/🔇/⏹) — AVANT le volet, qui la configure #}
     <script src="{% static_v 'common/js/wama-assistant-voice.js' %}"></script>

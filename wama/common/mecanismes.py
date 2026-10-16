@@ -619,7 +619,8 @@ MECHANISMS = (
               "44 px au moins (boutons, onglets, menus, titres repliables, `[role=button]`), cases, "
               "interrupteurs et curseurs à 24 px au moins — des PLANCHERS, jamais des tailles. Et "
               "la convention « révélé au survol » : `.wama-reveal-host` sur l'hôte, `.wama-reveal` "
-              "sur l'action — montrée au survol, au clavier, et TOUJOURS au doigt. Une règle "
+              "sur l'action — montrée au survol, au clavier, et TOUJOURS au doigt ; son inverse "
+              "`.wama-reveal-hide` pour ce qui lui cède la place. Une règle "
               "`:hover` locale qui révélerait un élément est refusée par `tests_touch`. Les "
               "briques affinent chez elles, sur le même critère (process des cards v3, lecteur "
               "audio, saisie de l'assistant, ports du studio, variante « large » de l'explorateur)",
@@ -627,6 +628,27 @@ MECHANISMS = (
               'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
               annexes=('wama/common/tests/tests_touch.py',),
               symbol='wama-reveal'),        # classe CSS : comptée par les gabarits/JS qui la posent
+    Mechanism('gestures', "Gestes au pointeur (glisser, défiler, pincer, appui long)",
+              "Montée par base.html, pour toute page des trois mondes (ROADMAP §27, étape 3, "
+              "2026-10-16). Trois choses : (1) `WamaGestures.track(el, {start, move, end, pinch})` "
+              "suit un pointeur sur une surface qui dessine elle-même — seuil entre clic et glisser, "
+              "boutons de souris filtrés, PINCEMENT à deux doigts ; Pointer Events, donc souris, "
+              "stylet et doigt par le même code (canvas du studio, onde de l'éditeur du "
+              "transcriber) ; (2) le glisser HTML5 AU DOIGT, sur tout `[draggable=\"true\"]` : appui "
+              "long puis le doigt bouge → `dragstart`/`dragover`/`drop`/`dragend` avec un "
+              "`dataTransfer` réel, vignette qui suit, liste qui défile au bord — la file, la "
+              "palette du studio et l'ordre des segments marchent au doigt sans une ligne chez eux, "
+              "et la souris garde son glisser natif ; (3) l'APPUI LONG : l'infobulle (`title`) d'une "
+              "commande sans la déclencher, sinon un `contextmenu` (menu de card, arbre — l'iPad "
+              "n'en émet pas) ; sur ce qu'on glisse, il soulève : bouger glisse, relâcher ouvre le "
+              "menu. Une page n'écrit ni `touchstart` pour un geste porté ici, ni "
+              "mousedown/mousemove pour suivre un glisser ; mesuré chaque nuit sur de vrais "
+              "événements tactiles par `common.gestures.touch`",
+              'wama/common/static/common/js/wama-gestures.js',
+              'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
+              annexes=('wama/common/tests/tests_gestures.py',
+                       'wama/common/services/ui_smoke_layout.py'),
+              symbol='WamaGestures'),       # global de base.html : compté par son symbole
     Mechanism('card_menu', "Menu contextuel de card/lot + débordement « … »",
               "Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; "
               "le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales "

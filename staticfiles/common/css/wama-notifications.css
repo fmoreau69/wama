@@ -77,8 +77,9 @@
 }
 .wn-item.is-expanded .wn-text { -webkit-line-clamp: unset; display: block; }
 .wn-meta { margin-top: .3rem; font-size: .75rem; color: #c4b5fd; display: flex; gap: .75rem; }
-.wn-go { color: #ddd6fe; opacity: 0; transition: opacity .12s; }
-.wn-row:hover .wn-go, .wn-row:focus-visible .wn-go { opacity: 1; }
+/* « Ouvrir », les outils et la pastille : révélés / cédés par la convention commune
+   `.wama-reveal` / `.wama-reveal-hide` (wama-touch.css) — survol, clavier, et toujours au doigt. */
+.wn-go { color: #ddd6fe; }
 
 .wn-dot {
   position: absolute; top: 1.05rem; right: .8rem;
@@ -86,12 +87,7 @@
 }
 
 /* Outils de ligne : lu / non lu, supprimer — au survol (souris), toujours (toucher) */
-.wn-tools {
-  position: absolute; top: .45rem; right: .5rem; display: flex; gap: .15rem;
-  opacity: 0; transition: opacity .12s;
-}
-.wn-item:hover .wn-tools, .wn-item:has(:focus-visible) .wn-tools { opacity: 1; }
-.wn-item:hover .wn-dot, .wn-item:has(:focus-visible) .wn-dot { opacity: 0; }
+.wn-tools { position: absolute; top: .45rem; right: .5rem; display: flex; gap: .15rem; }
 .wn-tool {
   border: 0; background: transparent; color: #ddd6fe;
   width: 1.9rem; height: 1.9rem; border-radius: 6px; cursor: pointer;
@@ -142,13 +138,10 @@
 }
 .wn-foot:hover, .wn-foot:focus-visible { color: #fff; background: rgba(167, 139, 250, .16); outline: none; }
 
-/* Toucher : outils toujours visibles, cibles à la taille d'un doigt */
-@media (hover: none) {
-  .wn-tools { opacity: 1; }
-  .wn-dot { display: none; }
+/* Toucher : cibles à la taille d'un doigt (outils toujours visibles : la convention commune) */
+@media (pointer: coarse) {
   .wn-tool { width: var(--wama-touch-target, 44px); height: var(--wama-touch-target, 44px); }
   .wn-row { padding-right: 6.2rem; }
-  .wn-go { opacity: 1; }
 }
 @media (max-width: 576px) {
   .wn-panel { width: auto; max-height: calc(100vh - 80px); }

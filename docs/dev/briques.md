@@ -990,6 +990,12 @@ gitleaks sur l'historique git COMPLET, aucune ligne d'attribution dans les messa
   - `binaire_gitleaks() -> Path`
   - `class Command(BaseCommand)`
 
+### Gestes au pointeur (glisser, défiler, pincer, appui long)
+
+Montée par base.html, pour toute page des trois mondes (ROADMAP §27, étape 3, 2026-10-16). Trois choses : (1) `WamaGestures.track(el, {start, move, end, pinch})` suit un pointeur sur une surface qui dessine elle-même — seuil entre clic et glisser, boutons de souris filtrés, PINCEMENT à deux doigts ; Pointer Events, donc souris, stylet et doigt par le même code (canvas du studio, onde de l'éditeur du transcriber) ; (2) le glisser HTML5 AU DOIGT, sur tout `[draggable="true"]` : appui long puis le doigt bouge → `dragstart`/`dragover`/`drop`/`dragend` avec un `dataTransfer` réel, vignette qui suit, liste qui défile au bord — la file, la palette du studio et l'ordre des segments marchent au doigt sans une ligne chez eux, et la souris garde son glisser natif ; (3) l'APPUI LONG : l'infobulle (`title`) d'une commande sans la déclencher, sinon un `contextmenu` (menu de card, arbre — l'iPad n'en émet pas) ; sur ce qu'on glisse, il soulève : bouger glisse, relâcher ouvre le menu. Une page n'écrit ni `touchstart` pour un geste porté ici, ni mousedown/mousemove pour suivre un glisser ; mesuré chaque nuit sur de vrais événements tactiles par `common.gestures.touch`
+
+- **Domicile** : `wama/common/static/common/js/wama-gestures.js` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
+
 ### Intégrité des gabarits
 
 Attrape la famille de fautes qui a récidivé SEPT fois : le commentaire `{# … #}` MULTI-LIGNE, que le lexer de Django (pas de re.DOTALL) rend en TEXTE littéral — et le nom de balise avaleuse écrit dans un commentaire. Un scan de 5 s contre des diagnostics qui ont coûté des sessions. Depuis le 01/09, signale AUSSI tout `{% load %}` vers une bibliothèque de balises absente (garde posée le jour où un retrait de templatetag a laissé son load — page reader en TemplateSyntaxError)
@@ -1384,7 +1390,7 @@ CVE des paquets INSTALLÉS du venv courant via l'API OSV.dev (pas les requiremen
 
 ### WAMA au doigt (écrans tactiles)
 
-Une règle commune, montée par base.html EN DERNIER, pour tout écran dont le pointeur principal est un doigt — critère UNIQUE `(pointer: coarse)` : commandes à 44 px au moins (boutons, onglets, menus, titres repliables, `[role=button]`), cases, interrupteurs et curseurs à 24 px au moins — des PLANCHERS, jamais des tailles. Et la convention « révélé au survol » : `.wama-reveal-host` sur l'hôte, `.wama-reveal` sur l'action — montrée au survol, au clavier, et TOUJOURS au doigt. Une règle `:hover` locale qui révélerait un élément est refusée par `tests_touch`. Les briques affinent chez elles, sur le même critère (process des cards v3, lecteur audio, saisie de l'assistant, ports du studio, variante « large » de l'explorateur)
+Une règle commune, montée par base.html EN DERNIER, pour tout écran dont le pointeur principal est un doigt — critère UNIQUE `(pointer: coarse)` : commandes à 44 px au moins (boutons, onglets, menus, titres repliables, `[role=button]`), cases, interrupteurs et curseurs à 24 px au moins — des PLANCHERS, jamais des tailles. Et la convention « révélé au survol » : `.wama-reveal-host` sur l'hôte, `.wama-reveal` sur l'action — montrée au survol, au clavier, et TOUJOURS au doigt ; son inverse `.wama-reveal-hide` pour ce qui lui cède la place. Une règle `:hover` locale qui révélerait un élément est refusée par `tests_touch`. Les briques affinent chez elles, sur le même critère (process des cards v3, lecteur audio, saisie de l'assistant, ports du studio, variante « large » de l'explorateur)
 
 - **Domicile** : `wama/common/static/common/css/wama-touch.css` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 

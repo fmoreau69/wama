@@ -396,6 +396,11 @@ la lib ouvrait ce chantier-là aussi. Le drag natif HTML5 fait les quatre gestes
     en lot) → déplacer un item `RUNNING` n'affecte pas sa tâche ; encadrer (pas de réordre destructif).
   - *Clavier / tactile* : le drag est souris-centré → **menu contextuel** + commandes clavier
     (« déplacer vers batch X ») en lien avec la nav clavier (§1quater).
+    ✅ **Tactile tenu le 2026-10-16** (`ROADMAP §27` étape 3) : la brique commune
+    `wama-gestures.js` traduit l'appui long puis le glisser d'un doigt en glisser HTML5 — les
+    quatre gestes de la file marchent au doigt sans une ligne de plus dans `wama-queue-dnd.js` —,
+    et un appui long relâché sur place ouvre ce menu contextuel. Reste au clavier : la sélection
+    MULTIPLE (au doigt, on porte une card).
   - *Persistance / concurrence* : ordre + appartenance en DB, **UI optimiste**, ne pas écraser un drag en
     cours quand le polling re-render. ✅ Tenu : un **pur réordonnancement ne recharge pas** (l'écran
     est déjà juste) ; tout ce qui **change la composition** d'un lot recharge, parce que le serveur

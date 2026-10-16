@@ -2601,7 +2601,7 @@ la philosophie *métadonnée-driven* (voir `AGENTS.md` § Philosophie générale
 
 ---
 
-## 23. Écrans tactiles — WAMA au doigt (2026-10-12, `ROADMAP §27` étapes 1 et 2)
+## 23. Écrans tactiles — WAMA au doigt (2026-10-12 et 16, `ROADMAP §27` étapes 1 à 3)
 
 > Toute page de tout monde passe par `base.html`, qui monte `common/css/wama-touch.css` **en
 > dernier** : une app n'a rien à écrire pour être utilisable au doigt. Ce paragraphe dit ce
@@ -2636,6 +2636,10 @@ médiathèque, import d'un résultat de recherche, plein écran de l'aperçu).
 
 - ❌ `.ma-carte:hover .mes-actions { opacity: 1; }` — refusé par la garde, qui balaie le dépôt.
 - Un délai d'apparition se pose sur l'hôte : `--wama-reveal-delay: .12s` (frontière des volets).
+- Ce qui **cède la place** à l'action révélée (un indicateur au même endroit) porte
+  `wama-reveal-hide` : visible au repos, effacé au survol et au clavier, jamais montré au doigt
+  (la pastille « non lue » sous les outils des notifications, 2026-10-16). Un second critère
+  tactile — `(hover: none)`, que le panneau de la cloche avait posé le 13/10 — est refusé aussi.
 - Un **décor** de l'élément survolé lui-même (`:hover::after`, une bordure, une ombre) n'est pas
   une action cachée et reste libre ; au doigt, s'il porte une information, le montrer
   (« 🃏 toucher pour désempiler », `wama-inspector.css`).
@@ -2654,7 +2658,30 @@ mémoire à part (`WAMA_VOLETS §9.5`). Ce qu'une page ne doit pas défaire :
 
 **Ce que les étapes 1 et 2 ne couvrent pas** (`ROADMAP §27`) : les gestes de glisser, défiler,
 pincer (étape 3), et les boutons-icônes qui ne s'expliquent que par leur infobulle (`title`),
-invisible au doigt.
+invisible au doigt. *(Couverts par l'étape 3 ci-dessous.)*
+
+**Les GESTES passent par une brique** (étape 3, 2026-10-16) : `common/js/wama-gestures.js`
+(`WamaGestures`), montée par `base.html` avant les scripts des pages. Ce qu'une page fait, selon
+ce qu'elle porte :
+- **un glisser-déposer** (réordonner, déposer sur une cible) : le glisser HTML5 ordinaire —
+  `draggable="true"`, `dragstart` / `dragover` (qui `preventDefault` pour accepter) / `drop` /
+  `dragend`. **Rien d'autre** : au doigt, la brique traduit l'appui long puis le glisser en ces
+  mêmes événements, avec un `dataTransfer` réel. La file, la palette du studio et l'ordre des
+  segments du transcriber n'ont aucune ligne tactile ;
+- **une surface qui dessine elle-même** (canvas, onde, carte) : `WamaGestures.track(el, {start,
+  move, end, pinch})` — seuil entre clic et glisser, boutons de souris filtrés, pincement à deux
+  doigts. La surface ne fait plus défiler la page sous le doigt (`touch-action: none`, ou
+  `'pan-y'` pour la laisser défiler verticalement par-dessus). `WamaGestures.isTouch(ev)` pour
+  agrandir une zone de saisie au doigt (bornes de l'onde : 16 px contre 6) ;
+- **un menu au clic droit** : un `contextmenu` qui `preventDefault` — l'appui long l'émet au doigt,
+  y compris sur l'iPad, qui n'en émet pas ;
+- **une commande-icône** : un `title` explicite — l'appui long le montre, sans déclencher la
+  commande.
+Ce qu'une page ne doit pas faire : écrire ses propres `touchstart`/`touchmove` pour un geste que
+la brique porte (`tests_gestures` le refuse sur les sites adoptants), ou un
+`mousedown`/`mousemove`/`mouseup` pour suivre un glisser — il ne marcherait pas au doigt. Une zone
+qui doit garder l'appui long natif (rare : les champs de saisie le gardent déjà) pose
+`data-wama-gestures="off"`.
 
 ---
 

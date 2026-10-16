@@ -5534,7 +5534,7 @@ registre (⑤), la confrontation dans les deux sens.
 | retrait | que deviennent les sorties produites avec une voix/un visage dont le consentement est retiré ? | aujourd'hui : elles restent, seules les FUTURES échouent (`VoiceUnavailable`) |
 | registre RGPD | fiche de traitement « clonage de voix », AIPD | côté université : WAMA RÉFÉRENCE, n'absorbe pas (`WAMA_DATA_WORLD §13.16`) |
 
-## 27. WAMA sur TABLETTE — relevé du 2026-10-10, chantier ouvert
+## 27. WAMA sur TABLETTE — relevé du 2026-10-10, trois étapes livrées (12 et 16/10)
 
 > Question de Fabien, le 10/10 : *« Ce serait bien de pouvoir utiliser WAMA sur tablette
 > aussi. Est-ce faisable rapidement ou un chantier à part ? »* Réponse mesurée : **un chantier à
@@ -5571,6 +5571,7 @@ aucun débordement horizontal**. Les défauts sont ailleurs :
    frontière) ; les autres changeaient l'apparence de l'élément survolé lui-même, ou venaient
    des bibliothèques tierces. ⏳ **Reste** : les boutons-icônes qui ne s'expliquent que par leur
    infobulle (`title`, invisible au doigt) — à traiter avec les gestes (étape 3).
+   ✅ Traité à l'étape 3 (2026-10-16) : l'appui long sur une commande montre son `title`.
 2. ✅ **Les volets et les barres** — **LIVRÉE le 2026-10-12** (le repli manuel par la
    frontière l'était le 10/10) : deux **contextes de largeur** sous le `lg` de Bootstrap
    (volets repliés d'office, un seul ouvert, mémoire à part — le choix fait en grand n'est
@@ -5582,13 +5583,50 @@ aucun débordement horizontal**. Les défauts sont ailleurs :
    834 px. Gardes : `tests_panel_toggle` (amorce + brique jouées dans V8) et le scénario nocturne
    `common.layout.tablet`, vérifié rouge sur l'ancienne mise en page. Détail et raisons :
    `WAMA_VOLETS §9.5`.
-3. ⏳ **Une brique commune de gestes au pointeur** dans `wama/common/` (glisser, défiler,
-   pincer) : le studio l'adopte d'abord, puis la file — le plus gros morceau, elle touche toutes
-   les apps — et l'éditeur du transcriber. Pas cinq versions du même geste : le glisser HTML5
-   porte aujourd'hui des gestes centraux à cinq endroits (explorateur, file, studio, éditeur,
-   cam_analyzer).
+3. ✅ **Une brique commune de gestes au pointeur** — **LIVRÉE le 2026-10-16** :
+   `common/js/wama-gestures.js` (`WamaGestures`), montée par `base.html`. Trois choses :
+   - **suivre un pointeur** (`WamaGestures.track`) sur une surface qui dessine elle-même :
+     glisser avec seuil (un appui qui tremble reste un clic), PINCER à deux doigts ; Pointer
+     Events, donc souris, stylet et doigt par le même code. Adoptée par le **studio** (nœud,
+     fond, pincement) et l'**onde** de l'éditeur du transcriber (vue, borne — saisie à 16 px au
+     doigt contre 6 à la souris —, lecture, mini-carte, pincement) : plus aucun
+     mousedown/mousemove/mouseup chez eux ;
+   - **le glisser HTML5 au doigt**, sur tout `[draggable="true"]` : appui long puis le doigt bouge
+     → `dragstart`, `dragover` sous le doigt, `drop` seulement si accepté, `dragend`, avec un
+     `dataTransfer` réel et une vignette qui suit ; la liste défile au bord. La **file**
+     (`wama-queue-dnd`), la **palette** du studio et l'**ordre des segments** marchent au doigt
+     SANS une ligne de plus chez eux. À la souris, la brique ne fait rien (glisser natif) ;
+   - **l'appui long** : sur une commande qui porte un `title`, son INFOBULLE (le reste de l'étape 1)
+     sans déclencher la commande ; ailleurs, un `contextmenu` — le menu de card et celui de l'arbre
+     s'ouvrent comme au clic droit, ce que l'iPad n'offre pas ; sur ce qu'on glisse, l'appui long
+     SOULÈVE : bouger glisse, relâcher ouvre le menu. Un appui seulement lent, qui n'a rien
+     montré, garde son clic ; les champs de saisie gardent leur appui long natif.
+   **Le cam_analyzer n'avait rien à porter** : ses deux glisser sont un dépôt de FICHIERS depuis
+   le bureau et un marqueur Leaflet (qui gère le doigt lui-même). L'explorateur non plus
+   (jsTree, ✅ au relevé).
+   **Mesuré** sur de VRAIS événements tactiles (protocole de Chromium, iPad portrait) — scénario
+   nocturne `common.gestures.touch`, écritures du navigateur interceptées : catalogue → canvas
+   (+1 nœud), nœud déplacé, fond défilé, pincement 100 → 250 %, appui long « Zoomer » → infobulle
+   sans zoomer ; card glissée sur une autre (cadre de fusion), lâchée dehors sans envoi, appui
+   long → menu de card, appui long ⚙ → « Paramètres » sans modale ; onde pincée ×1,0 → ×4,7,
+   lecture déplacée au toucher, segment glissé sur un autre (cible désignée). **Contre-épreuve**
+   (brique remplacée par une coquille de même API) : les **dix** gestes rouges — dont ⚙ qui ouvre
+   sa modale et « Zoomer » qui zoome à l'appui long. **À la souris rien ne change** : les neuf
+   scénarios existants qui touchent ces pages verts sur le code neuf (`common.history.studio`,
+   `transcriber.queue_dnd`, `common.correction_conflict`…), et une sonde souris (nœud, fond aux
+   boutons gauche et du milieu, molette, désélection, onde glissée / cliquée / molette) 13/13.
+   Garde : `tests_gestures` (la brique jouée dans V8 sur un faux DOM : séquence du glisser, refus
+   du dépôt, balayage qui reste un défilement, menu, infobulle, clic gardé ou retenu ; `track` :
+   seuil, boutons, pincement ; et aucun code tactile dans les pages). Forme d'emploi :
+   `WAMA_APP_CONVENTIONS §23`.
+   ⏳ **Reste** : la sélection MULTIPLE de la file au doigt (aujourd'hui Ctrl/Maj ; au doigt on
+   porte une card — les actions de groupe de l'inspecteur restent atteignables par le clavier) ;
+   un essai sur une vraie tablette (ci-dessous).
 
 **Ce que le relevé ne dit pas** : c'est Chromium qui émule, pas Safari sur un vrai iPad — Safari
 gère peut-être le glisser HTML5 natif par appui long ; un essai sur une vraie tablette tranche ce
 seul point. Les pages du Lab n'ont pas été passées (adresses non résolues par la sonde) ;
 l'éditeur du transcriber a été lu, pas joué.
+*(2026-10-16 : l'éditeur est désormais joué, au doigt et à la souris. Le glisser natif de Safari,
+s'il démarre, est écarté pendant un appui suivi par la brique — deux glisser du même élément se
+marcheraient dessus ; l'essai sur un vrai iPad reste le seul juge de ce point.)*

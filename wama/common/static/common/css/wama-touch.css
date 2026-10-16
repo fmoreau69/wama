@@ -41,9 +41,19 @@
   opacity: 1;
   transition-delay: var(--wama-reveal-delay, 0s);
 }
+/* L'inverse, `.wama-reveal-hide` : ce qui CÈDE la place à l'action révélée (la pastille « non
+   lue » des notifications, sous les outils qui apparaissent — 2026-10-16). Visible au repos,
+   effacé quand l'hôte révèle ; au doigt, où l'action est toujours là, jamais montré. */
+:where(.wama-reveal-hide) { transition: opacity .15s ease; }
+.wama-reveal-host:hover .wama-reveal-hide,
+.wama-reveal-host:focus-visible .wama-reveal-hide,
+.wama-reveal-host:has(:focus-visible) .wama-reveal-hide {
+  opacity: 0;
+}
 
 @media (pointer: coarse) {
   .wama-reveal { opacity: 1; }
+  .wama-reveal-hide { display: none; }
 
   /* ── Commandes : cible confortable ──────────────────────────────────────────────────────────
      `align-content: center` centre le libellé dans la hauteur gagnée sans changer le `display`
@@ -88,4 +98,66 @@
   input[type="range"] { min-height: var(--wama-touch-min); }
   .form-range::-webkit-slider-thumb { width: 1.5rem; height: 1.5rem; margin-top: -.5rem; }
   .form-range::-moz-range-thumb { width: 1.5rem; height: 1.5rem; }
+
+  /* ── L'appui long appartient à WAMA (wama-gestures.js) ─────────────────────────────────────
+     Sur ce qu'on glisse et sur les commandes qui s'expliquent par leur infobulle, l'appui long
+     ouvre le menu ou montre l'infobulle : la loupe de sélection et le menu natif d'iOS (aperçu
+     de lien, « Copier ») le recouvriraient. Le texte des champs n'est pas concerné. */
+  [draggable="true"],
+  .btn[title],
+  button[title],
+  [role="button"][title] {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* ── Gestes au doigt (wama-gestures.js, ROADMAP §27 étape 3) ─────────────────────────────────────
+   Hors de la requête `(pointer: coarse)` : la brique suit l'ÉVÉNEMENT (un doigt sur un portable
+   piloté à la souris reste un doigt), son rendu doit donc valoir partout. */
+
+/* L'élément soulevé par un appui long : bouger le glisse, relâcher ouvre son menu. */
+.wama-touch-lifted {
+  transform: scale(1.02);
+  box-shadow: 0 0 0 2px var(--bs-info, #0dcaf0), 0 .5rem 1.25rem rgba(0, 0, 0, .45);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+
+/* La vignette qui suit le doigt pendant un glisser. Elle ne reçoit aucun événement : la brique
+   lit ce qu'il y a SOUS le doigt. */
+.wama-touch-ghost {
+  position: fixed !important;
+  left: 0 !important;
+  top: 0 !important;
+  margin: 0 !important;
+  z-index: 2000;
+  pointer-events: none;
+  opacity: .85;
+  box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .5);
+  border-radius: .5rem;
+  overflow: hidden;
+}
+
+/* Pendant un glisser, rien ne se sélectionne sous le doigt. */
+html.wama-touch-dragging,
+html.wama-touch-dragging * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+/* L'infobulle d'un appui long : le `title` qu'un doigt ne peut pas survoler. */
+.wama-touch-tip {
+  position: fixed;
+  z-index: 2100;
+  max-width: min(18rem, calc(100vw - 16px));
+  padding: .4rem .65rem;
+  border-radius: .375rem;
+  background: var(--bs-dark, #212529);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, .25);
+  font-size: .875rem;
+  line-height: 1.3;
+  box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .4);
+  pointer-events: none;
 }

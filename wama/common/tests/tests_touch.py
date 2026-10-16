@@ -149,6 +149,14 @@ class NothingRevealedOnHoverAloneTest(SimpleTestCase):
         coarse = css[css.index('@media (pointer: coarse)'):]
         self.assertIn('.wama-reveal { opacity: 1; }', coarse)
 
+    def test_what_gives_way_to_a_revealed_action_hides_with_the_same_triggers(self):
+        # `.wama-reveal-hide`, l'inverse : effacé au survol et au clavier, jamais montré au doigt.
+        css = _read(TOUCH_CSS)
+        self.assertIn('.wama-reveal-host:hover .wama-reveal-hide', css)
+        self.assertIn('.wama-reveal-host:has(:focus-visible) .wama-reveal-hide', css)
+        coarse = css[css.index('@media (pointer: coarse)'):]
+        self.assertIn('.wama-reveal-hide { display: none; }', coarse)
+
     def test_the_former_hover_sites_adopted_the_convention(self):
         sites = {
             # (le filemanager n'est plus un site : sa copie de l'aperçu — `updatePreviewContent`,
@@ -160,6 +168,10 @@ class NothingRevealedOnHoverAloneTest(SimpleTestCase):
                 "'sr-card wama-reveal-host'", 'sr-import-btn wama-reveal'),
             COMMON / 'js' / 'wama-panel-toggle.js': ("'wama-panel-edge wama-reveal-host'",
                                                      'wama-panel-edge-pill wama-reveal'),
+            # Panneau de la cloche (2026-10-13), porté sur la convention le 2026-10-16 : il écrivait
+            # ses propres `:hover` et un second critère tactile, `(hover: none)`.
+            COMMON / 'js' / 'wama-notifications.js': (' wama-reveal-host"', 'wn-go wama-reveal',
+                                                      'wn-dot wama-reveal-hide', 'wn-tools wama-reveal'),
         }
         for path, needles in sites.items():
             src = _read(path)
@@ -176,6 +188,7 @@ class TouchServedCopiesTest(SimpleTestCase):
         'common/js/media-preview.js', 'common/js/wama-panel-toggle.js',
         'filemanager/css/filemanager.css', 'filemanager/js/filemanager.js',
         'media_library/js/media-library.js', 'studio/css/wama-studio.css',
+        'common/css/wama-notifications.css', 'common/js/wama-notifications.js',
     )
 
     def test_the_served_copies_are_the_sources(self):

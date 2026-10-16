@@ -89,7 +89,9 @@
     }
     const expanded = !!state.expanded[n.id];
     const label = n.read ? 'Marquer comme non lue' : 'Marquer comme lue';
-    return '<li class="wn-item' + (n.read ? '' : ' is-unread') + (expanded ? ' is-expanded' : '') + '"'
+    // Outils et « Ouvrir » révélés par la convention commune (`wama-touch.css`) : au survol, au
+    // clavier, et toujours au doigt ; la pastille « non lue » leur cède la place.
+    return '<li class="wn-item' + (n.read ? '' : ' is-unread') + (expanded ? ' is-expanded' : '') + ' wama-reveal-host"'
       + ' data-id="' + n.id + '">'
       + '<div class="wn-row" tabindex="0" data-wn-open'
       + ' aria-label="' + esc((n.read ? '' : 'Non lue : ') + n.title) + '">'
@@ -100,13 +102,13 @@
       + (n.body ? '<div class="wn-text">' + esc(n.body) + '</div>' : '')
       + '<div class="wn-meta"><time datetime="' + esc(n.created_at) + '" title="'
       + esc(absoluteTime(n.created_at)) + '">' + esc(relativeTime(n.created_at, now)) + '</time>'
-      + (n.open_url ? '<span class="wn-go">Ouvrir <i class="fas fa-arrow-right" aria-hidden="true"></i></span>' : '')
+      + (n.open_url ? '<span class="wn-go wama-reveal">Ouvrir <i class="fas fa-arrow-right" aria-hidden="true"></i></span>' : '')
       + '</div>'
       + '</div>'
-      + (n.read ? '' : '<span class="wn-dot" aria-hidden="true"></span>')
+      + (n.read ? '' : '<span class="wn-dot wama-reveal-hide" aria-hidden="true"></span>')
       + '</div>'
       + renderActions(n, state)
-      + '<div class="wn-tools">'
+      + '<div class="wn-tools wama-reveal">'
       + '<button type="button" class="wn-tool" data-wn-toggle title="' + label + '" aria-label="' + label + '">'
       + '<i class="fas ' + (n.read ? 'fa-envelope' : 'fa-envelope-open') + '" aria-hidden="true"></i></button>'
       + '<button type="button" class="wn-tool" data-wn-delete title="Supprimer" aria-label="Supprimer">'

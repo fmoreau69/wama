@@ -36,9 +36,14 @@
  *
  * ══ CE QUE LA BRIQUE NE FAIT PAS ════════════════════════════════════════════════════════
  *
- * Le drag est souris-centré (§3bis « vigilance ») : ni tactile, ni clavier. Les mêmes
- * opérations restent atteignables par les actions de groupe de l'inspecteur, qui LISENT cette
- * même sélection — c'est là que le clavier les trouvera. Ne pas ajouter de second chemin ici.
+ * Le clavier : les mêmes opérations restent atteignables par les actions de groupe de
+ * l'inspecteur, qui LISENT cette même sélection — c'est là que le clavier les trouvera.
+ *
+ * Le DOIGT, sans une ligne ici (2026-10-16) : la brique commune `wama-gestures.js` traduit
+ * l'appui long puis le glisser d'un doigt en `dragstart`/`dragover`/`drop`/`dragend` — les
+ * gestionnaires ci-dessous sont donc les mêmes à la souris et au doigt, et un appui long relâché
+ * sans bouger ouvre le menu de card (le clic droit d'une tablette). La sélection MULTIPLE reste
+ * au clavier : au doigt on porte une card. Ne pas ajouter de second chemin tactile ici.
  */
 
 (function () {

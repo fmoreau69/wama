@@ -69,7 +69,9 @@ class CatalogueContractTest(SimpleTestCase):
         self.assertIn("x += e.offsetLeft; y += e.offsetTop;", js,
                       'links are drawn in world coordinates, whatever the view')
         self.assertNotIn("dot.getBoundingClientRect()", js)
-        self.assertIn("node.x = Math.round(ox + (ev.clientX - startX) / view.k);", js,
+        # Since 2026-10-16 the drag goes through the common gesture brick (`WamaGestures.track`):
+        # the offset it reports is in screen px, still divided by the zoom.
+        self.assertIn("node.x = Math.round(start.ox + d.dx / view.k);", js,
                       'a node drag follows the zoom')
         page = _src('templates/studio/index.html')
         self.assertIn('id="studioWorld"', page)
