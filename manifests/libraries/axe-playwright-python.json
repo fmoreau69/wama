@@ -1,0 +1,34 @@
+{
+  "body": {
+    "constraints": {
+      "no_deps": true
+    },
+    "dependencies": [
+      "playwright"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Ruslan Iskov, Pamela Fox",
+      "license": "MIT AND MPL-2.0",
+      "repository": "https://github.com/pamelafox/axe-playwright-python",
+      "summary": "Automated web accessibility testing using axe-core engine and Playwright.",
+      "version": "0.1.8"
+    },
+    "install": {
+      "pip": "axe-playwright-python==0.1.8",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "axe-core (v4.12.1, MPL-2.0, embarqué dans la roue) piloté par Playwright — la règle `color-contrast` des scénarios nocturnes (un texte de la couleur de son fond). Utilisé par les TESTS seulement, jamais servi aux pages. Sans dépendances : playwright est déjà dans le venv (1.61).",
+  "key": "axe-playwright-python",
+  "manifest_kind": "library",
+  "name": "axe-playwright-python",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "pypi:axe-playwright-python==0.1.8",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1914,3 +1914,38 @@ recherche) et `studio.queue_search` — surfaces non portées sur la file commun
 l'avatarizer est ouvert par l'app SANS ouvreur déclaré à la brique (un avertissement console,
 pas de double geste) ; contrôles de cohérence (corpus de manifestes, `doc_facts`, redondances,
 intégrité des médias, vulnérabilités) — maintenance, pas des gestes.
+
+## 10. Le CONTRASTE du texte — une mesure de RENDU, pas un geste (2026-10-16)
+
+> Demande de Fabien : *« parfois le texte est écrit de la même couleur que le fond et est
+> illisible »* — un défaut RÉCURRENT (gris sur le thème sombre, `text-dark` posé sur un fond
+> sombre) qu'aucune des trois grilles ne voyait : ce n'est ni une adoption, ni un geste, ni un
+> droit, c'est un RENDU.
+
+**Deux moitiés, parce qu'aucune ne voit ce que voit l'autre :**
+- **le navigateur mesure les couleurs RÉELLES** — `common.contrast` (`ui_smoke_contrast.py`) sur
+  la page de chaque app réelle et chaque page du menu du compte, et la même mesure dans
+  `<app>.preview`, sur les états qu'une file HABITÉE seule montre (cards, volet de la card
+  sélectionnée, visionneuse ouverte). Le moteur est la règle `color-contrast` d'**axe-core** (la
+  référence du domaine, v4.12.1, MPL-2.0), embarqué par `axe-playwright-python`, entré par la
+  route `library` (manifeste, registre `Library`, page Licences) — jamais servi aux pages ;
+- **le code refuse au commit** l'erreur qui n'a pas besoin d'un navigateur pour se voir : une
+  classe de texte sombre (`text-dark`, `text-black`, `link-dark`, `btn-outline-dark`) sur un
+  élément sans fond clair (`tests_contrast.DarkTextNeedsALightBackgroundTest`). Deux exceptions
+  DÉCLARÉES, avec leur raison — le fond clair vient d'un PARENT, qu'une ligne ne montre pas ; une
+  exception qui ne correspond plus à rien échoue aussi. ⚠ Une couleur RÉELLE ne se juge pas dans
+  une source (classes, variables du thème, styles posés par le JS, fond hérité) : la moitié
+  « code » ne prétend qu'à cette erreur-là.
+
+**Le verdict** : rapport < 1,5 (le texte a presque la couleur du fond) → ÉCHEC ; sous le seuil
+WCAG (4,5, ou 3 pour un grand texte) → listé par COMPOSANT (balise + première classe), sans échec —
+un rouge permanent ne se lit plus, et un compte par nœud varierait avec les données.
+
+**Mesuré le 2026-10-16** (site réel, compte de test) : aucun texte illisible sur 30 pages ; deux
+composants communs sous 3:1, corrigés à leur domicile le jour même — le compteur de la barre de
+filtres (`#6c757d` sur `#2b3035`, 2,83 → `#adb5bd`, 6,4 ; présent sur TOUTES les pages catalogue)
+et la ligne méta des cards de la médiathèque (`#666`, 2,98 → `#a0a8b0`, 7,1).
+🔚 **Restent faibles** (entre 3 et 4,5, listés chaque nuit) : les petits libellés de la card
+commune (`wcv3-lbl` « ENTRÉE / PROCESS », `wcv3-head`, `wcv3-proc-name`), des `span` sans classe
+(Mes souvenirs, Journal), `ext-type-label` (Sources), `conformity-label` (Apps), `p.hint` — une
+décision de charte (CARD_DESIGN), pas un défaut à corriger en passant.

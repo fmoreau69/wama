@@ -637,6 +637,10 @@ try:
     # joué que sur le converter : « No media URL » (Describer) et l'entrée inerte (Reader) n'étaient
     # vus par aucun scénario.
     register_preview_scenarios()
+    # 2026-10-16 — le CONTRASTE (Fabien : « parfois le texte est écrit de la même couleur que le
+    # fond »). Une couleur réelle ne se lit que dans le navigateur ; axe-core la tranche. Aucun GPU.
+    from wama.common.services.ui_smoke_contrast import register_contrast_scenarios
+    register_contrast_scenarios()
     # 2026-08-27 — geste 14 (moitié « fichier de lot »), enregistré À LA PLACE du geste 7 qui
     # devait suivre. Le geste 7 (« créer par le bouton primaire ») débloquait d'un coup
     # `inspector_actions` et `batch_actions` sur les trois apps dont la file reste vide — mais

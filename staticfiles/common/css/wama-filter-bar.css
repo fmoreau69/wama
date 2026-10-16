@@ -94,9 +94,11 @@
 }
 
 /* Compteur « X sur Y » — discret, à droite. Il n'apparaît qu'une fois la brique montée :
-   sans JS, afficher un compteur figé mentirait. */
+   sans JS, afficher un compteur figé mentirait. Discret ne veut pas dire illisible : `#6c757d`
+   sur la barre (`#2b3035`) faisait 2,83:1 sur TOUTES les pages catalogue (mesuré par
+   `common.contrast`, 2026-10-16) ; `#adb5bd` fait 6,4:1 (seuil WCAG du petit texte : 4,5). */
 .wama-filter-count {
-    color: #6c757d;
+    color: #adb5bd;
     font-size: 0.82rem;
     white-space: nowrap;
 }

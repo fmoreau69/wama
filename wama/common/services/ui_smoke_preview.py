@@ -203,6 +203,20 @@ def _check_sides_layout(page, where: str, faults: list):
     page.evaluate(JS_FULL, False)
 
 
+def _check_contrast(page, where: str, faults: list, findings: list, context: str = ''):
+    """Le contraste de l'état montré (`ui_smoke_contrast`) : un texte illisible est un défaut ;
+    les composants faibles se disent dans les constats."""
+    from .ui_smoke_contrast import contrast_verdict, measure_contrast
+    try:
+        found, weak = contrast_verdict(measure_contrast(page, context), where)
+    except Exception as exc:                      # la mesure ne doit pas masquer le geste mesuré
+        findings.append(f"contraste ({where}) non mesuré : {type(exc).__name__}")
+        return
+    faults.extend(found)
+    if weak:
+        findings.append(f"contraste ({where}) : faibles " + ', '.join(f'{k} ×{v}' for k, v in weak.most_common(4)))
+
+
 def _store_a_witness_result(app: str, item_id) -> tuple:
     """Pose sur l'élément le résultat que sa spec DÉCLARE, et SUCCESS. Rend (ce qui a été posé,
     fichier témoin à retirer ou None) — ou (None, raison) si la spec ne nomme aucun champ."""
@@ -501,10 +515,15 @@ def check_app_preview(app: str, url_path: str):
                         else:
                             findings.append(f"sortie → {_seen(shown)}")
                             _check_sides_layout(page, 'sortie', faults)
+                            _check_contrast(page, 'visionneuse', faults, findings,
+                                            context='#wamaMediaPreviewModal')
                         _close(page)
 
                 # ── VOLET : l'aperçu de la card sélectionnée s'agrandit par son bouton ──────
                 _check_panel_expand(page, card.format(ident), faults, findings)
+                # La file HABITÉE et le volet de la card sélectionnée : les états que la page vide
+                # de `common.contrast` ne montre pas (2026-10-16).
+                _check_contrast(page, 'file et volet', faults, findings)
 
                 # ── NAVIGATION : d'une card à l'autre, la face gardée, le volet resynchronisé ──
                 if other:

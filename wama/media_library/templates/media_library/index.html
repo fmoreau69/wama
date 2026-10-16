@@ -101,7 +101,8 @@
     cursor: pointer;
 }
 .asset-name:hover { color: #fff; text-decoration: underline dotted #666; }
-.asset-meta { font-size: .72rem; color: #666; margin-top: .2rem; }
+/* `#666` sur le fond des cards faisait 2,98:1 (`common.contrast`, 2026-10-16) ; `#a0a8b0` : 7,1:1. */
+.asset-meta { font-size: .72rem; color: #a0a8b0; margin-top: .2rem; }
 .asset-meta span { margin-right: .5rem; }
 /* Attributs DÉCLARÉS par la nature (langue, âge, genre…) — distincts des tags, qui sont
    libres et cliquables : ceux-ci sont du vocabulaire, on les lit, on ne filtre pas avec. */
