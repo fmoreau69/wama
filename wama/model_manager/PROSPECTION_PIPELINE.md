@@ -2919,3 +2919,80 @@ retirer SyncNet, go pour la clé GITHUB_TOKEN », puis « on termine tout ça »
   `get_model_path`, un repli `auto_download_model` (requête directe sur l'asset Ultralytics, sans
   empreinte) atteint seulement quand ni le catalogue ni le disque n'ont le fichier. À retirer ;
   non touché, une autre instance remanie la résolution de ses modèles (12/10).
+
+## Veille du 2026-10-16 : extraire la partition COMPLÈTE d'une chanson — moteurs possibles, rien d'installé
+
+Question de Fabien (après la page d'édition de la partition du composer, `ROUTE §F3b`) : *« Est-on
+contraint d'utiliser SheetSage2 ? Comme on fonctionne par process, on pourrait proposer plusieurs
+moteurs d'extraction de partitions dans ce process ? Regarder en profondeur ce qui serait faisable
+pour obtenir la partition complète. »* Étude seule : **aucun modèle ni librairie installé**, aucune
+décision prise. Faits relevés le 2026-10-16 (dépôts, fiches, articles, PyPI) ; chaque chiffre
+ci-dessous a été relu à la source, sauf mention ⚠ non vérifié.
+
+### Ce que WAMA permet DÉJÀ (lu au code)
+
+- **Pas de contrainte à SheetSage2.** Le process `composer.extract_score` tire son modèle par le
+  sélecteur commun sur la TÂCHE `audio-to-score` (`composer/utils/model_choice.py:116`,
+  `select_model_id(task=…)`), parmi les modèles installés ; le contrat est
+  `ScoreExtractionBackend.extract_score() → texte ABC` (`common/backends/score_extraction_base.py`).
+  Tout moteur qui remplit ce contrat entre au tirage — la route est celle de SheetSage2 (séance
+  du 2026-10-03 ci-dessus : tâche, contrat, essai, rôles `model` puis `backend`).
+- **Ce qui manque pour « plusieurs moteurs » au sens de l'utilisateur** : un CHOIX par process.
+  Le motif existe — l'avatarizer : `tts_model`, select tiré du catalogue par tâche, « auto » +
+  curseur de qualité, `stales=("speak",)` (`avatarizer/params.py:70-84`). Le composer aurait un
+  champ `score_model` (« auto » par défaut, migration additive) qui ne périme que
+  `extract_score`. La nature de la sortie (mélodie + accords / toutes les parties) se déclarerait
+  en CAPACITÉ au catalogue, lue par le tirage (`select_model(requires=…)`), jamais en dur.
+- **SheetSage2 plafonne au « lead sheet »** : deux mélodies (`Vocal`, `Ins`) + accords + temps /
+  tonalité / structure — pas une partie par instrument (doc du moteur,
+  `vendor/yue/skills/yue2-music/references/models-and-setup.md:220-232`). C'est la limite vue sur
+  #754 (voix `Ins` presque vide).
+- **Déjà dans `venv_linux`** (mesuré) : `demucs` (via audiocraft ; poids NON téléchargés),
+  `pretty_midi`, `mido`, `mir_eval`, `librosa`, `onnxruntime`. Absents : `basic_pitch`, `music21`,
+  `verovio`, `madmom`, `audio_separator`.
+- **L'affichage n'est pas le verrou** : abcjs (vendorisé) lit `%%score` avec accolades (piano sur
+  deux portées), `clef=perc` et `%%percmap` (batterie) — relu dans sa source.
+
+### Les moteurs, relus à la source
+
+| moteur | sortie | licence code / poids | intégrable ici ? |
+|---|---|---|---|
+| **MuScriptor** (Kyutai + Mirelo, 2026-07, arXiv 2607.08168) | MIDI multi-instrument (36 groupes, voix et batterie comprises), tempo / mesures / quantification ; `--format sheets` → MusicXML + PDF (exige MuseScore 4) | MIT / **CC BY-NC 4.0**, dépôts HF à accès à accepter (jeton HF au 1er téléchargement) | PyPI `muscriptor` 0.3.0, PyTorch ≥ 2.3, numpy ≥ 2 ✓ ; mais `fastapi>=0.136.3`, `uvicorn>=0.48`, `soundfile>=0.14` (venv : 0.115.14 / 0.38 / 0.13.1) — `fastapi` emporterait le `starlette==0.46.2` épinglé du serveur MCP. Ces trois paquets servent son interface web, pas l'inférence → installation sans dépendances + `beat-this`, que la route `library` ne sait pas encore déclarer (même trou que `manifests/libraries/chatterbox-tts.json`) |
+| **YourMT3+** (2024) | un MIDI multi-programmes, voix et batterie comprises | ⚠ GPL-3.0 (GitHub) contre Apache-2.0 (Space HF) : à éclaircir | code et poids seulement dans un Space HF ; épingle `transformers==4.45.1`, `numpy==1.26.4` (venv : 4.57.6 / 2.3.5) et des paquets `git+` (refusés par la route `library`) → vendorisation + venv dédié |
+| MT3 / MR-MT3 | MIDI multi-instrument | Apache-2.0 / MIT | piles anciennes (JAX + TF ; transformers 4.18, TF 2.11) — dépassés en qualité |
+| Basic Pitch (Spotify) | MIDI polyphonique SANS étiquette d'instrument, pas de batterie | Apache-2.0 | ONNX possible ; sur Python 3.12 la résolution pip passe par TF < 2.15.1 (⚠ déduit) → installation sans dépendances + onnxruntime |
+| Piano haute résolution (ByteDance) | piano + pédale | poids CC BY 4.0, code ⚠ licence non trouvée | PyTorch, 172 Mo |
+| ADTOF | batterie, 5 classes | **CC BY-NC-SA 4.0** | portage PyTorch existant, sans licence propre |
+| Séparation : HTDemucs / BS- et Mel-RoFormer | pistes voix / batterie / basse / « autre » (6 pistes : + guitare, piano, ce dernier « beaucoup de fuites ») | MIT (code) ; poids : ⚠ licences non précisées | `demucs` déjà là ; `audio-separator` (MIT) ajoute les RoFormer |
+
+**Qualité, telle que les auteurs la mesurent** : MuScriptor, Multi F1 48,2 sur son jeu réel
+(YourMT3+ 21,9) et 25,6 sur RWC-Pop (19,1) ; YourMT3+ : *« for non-main instruments (excluding
+piano, bass, vocals, and drums), our models performed below 10% »* sur de la pop commerciale.
+Une partition complète extraite d'un mix dense reste un BROUILLON à corriger (octaves, instruments
+secondaires manqués, notes attribuées au mauvais instrument) ; un tempo non métronomique dégrade
+la quantification (README de MuScriptor).
+
+**Notation** : du MIDI multi-pistes à une partition lisible, `music21` (BSD-3) écrit le MusicXML
+mais pas l'ABC ; `midi2abc` (GPL-2) écrit de l'ABC ; `xml2abc` (LGPL) passe du MusicXML à l'ABC ;
+Verovio (LGPL-3) rend MusicXML / MEI / ABC et donne la correspondance temps ↔ notes. Rester sur
+abcjs suppose une conversion MIDI → ABC (brique commune à écrire sur `pretty_midi`, ou `midi2abc`).
+
+### Trois architectures, dans l'ordre recommandé (à trancher)
+
+1. **Un second process, à côté** : `extract_score` reste le « lead sheet » SheetSage2 que le rendu
+   suit (YuE2 n'en joue que la mélodie, décision du 2026-10-16) ; un process OPTIONNEL « Partition
+   complète » (case à cocher, `toggle`) produit un fichier à part — MuScriptor en tête —, calé sur
+   la même grille de temps, montré sur la page comme une seconde partition (lecture et
+   correction). Le rendu n'en dépend pas : rien ne casse les covers.
+2. **Plusieurs moteurs DANS `extract_score`** (`score_model`, « auto » + manuel) : simple à
+   déclarer, mais une partition à N parties donnée au rendu ferait jouer à YuE2 autre chose qu'une
+   mélodie — il faudrait en extraire la voix chantée (convention de nom de voix), fragile.
+3. **Séparation puis transcription par piste** (Demucs / RoFormer → Basic Pitch, piano ByteDance,
+   batterie ADTOF, voix SheetSage2) : le plus modulaire et le moins cher en licences, le plus
+   faible sur la piste « autre » (un bloc polyphonique sans étiquette).
+
+**Décisions qui attendent Fabien** : (a) l'architecture ; (b) les licences non commerciales
+(MuScriptor CC BY-NC + clause « droits sur la musique » ; même régime que SheetSage2 et MusicGen,
+`docs/construction/exploitation/LICENSING.md`) ; (c) l'installation sans dépendances par la route
+`library` (étendre la route plutôt qu'un `pip` direct) ; (d) MuseScore 4 (GPL-3, binaire hôte) ou
+une brique MIDI → ABC à nous ; (e) le jeton Hugging Face pour un dépôt à accès contrôlé.
