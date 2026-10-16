@@ -242,6 +242,15 @@ class VendoredEnginesCorpusTest(TestCase):
         self.assertEqual(write_back_library(extracted)['would_change'], [],
                          "l'aller-retour registre → manifeste → registre ne change rien")
 
+    def test_an_authored_pip_library_keeps_what_its_package_does_not_say(self):
+        """2026-10-16 : un manifeste PyPI écrit à la main porte `constraints.no_deps` ; ré-extrait du
+        paquet installé, il le perdait — l'export ne doit pas le remplacer."""
+        for key in ('muscriptor', 'beat-this', 'rotary-embedding-torch'):
+            manifest = extract_library(key)
+            self.assertEqual('authored', manifest['source']['type'], key)
+            self.assertIs(True, manifest['body']['constraints'].get('no_deps'), key)
+            self.assertEqual([], validate_library_body(manifest['body']), key)
+
     def test_a_pip_library_still_goes_through_pip(self):
         """Contre-épreuve : la délégation ne capte que les librairies vendorisées."""
         Library.objects.create(key='some-pip-lib', name='x', pip_spec='some-pip-lib==1.0')

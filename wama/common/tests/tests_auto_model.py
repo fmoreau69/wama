@@ -495,6 +495,19 @@ class CurseurDeQualiteTest(TestCase):
         # (d) aucun moteur déclaré → rien (cas général du modèle mono-fichier).
         self.assertEqual(_requires_librairies({'composition': {}}), [])
 
+    def test_an_engine_seen_only_by_the_static_inventory_still_names_its_libraries(self):
+        """2026-10-16 : l'inventaire STATIQUE rend un porteur sans classe (`_DeclaredEngine`) ;
+        son `pip_install_spec` manquant tombait dans le `except` et le modèle sortait sans
+        `requires` — 68 manifestes de modèle ce jour-là, MuScriptor compris."""
+        from wama.common.backends.manager import engine_backends
+        from wama.common.manifests.builtin.model import _requires_librairies
+        self.assertFalse(hasattr(engine_backends()['muscriptor'], 'pip_install_spec'),
+                         'the case : a carrier, not a class')
+        self.assertEqual([{'kind': 'library', 'key': 'beat-this'},
+                          {'kind': 'library', 'key': 'muscriptor'},
+                          {'kind': 'library', 'key': 'rotary-embedding-torch'}],
+                         _requires_librairies({'composition': {'runtime': {'engine': 'muscriptor'}}}))
+
     def test_l_inventaire_expose_les_CLASSES_et_le_commun_filtre_l_executable(self):
         """La politique « exécutable » vit au COMMUN (03/09) : un producteur qui filtrait
         lui-même privait `engine_backends()` de la carte moteur→backend — celle dont la

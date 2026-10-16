@@ -291,6 +291,16 @@ def _requires_librairies(body: dict) -> list:
         cls = engine_backends().get(engine)
         if cls is None:
             return []
+        # L'inventaire STATIQUE (`backend_inventory._DeclaredEngine`, 2026-09-07) rend un porteur
+        # sans classe : on résout alors la classe par le chemin commun (`resolve_backend`). Sans
+        # ce retour, l'`AttributeError` tombait dans le `except` ci-dessous et tout modèle dont le
+        # moteur n'est vu QUE par cet inventaire sortait sans `requires` (mesuré le 2026-10-16 :
+        # MuScriptor, dont le manifeste autoré citait muscriptor et beat-this).
+        if not hasattr(cls, 'pip_install_spec'):
+            from wama.common.services.backend_inventory import resolve_backend
+            cls = resolve_backend(engine)
+            if cls is None:
+                return []
         # Nom de DISTRIBUTION seul : `pip_install_spec` rend des pins exacts
         # (« qwen-tts==0.1.1 ») ; une référence `requires` désigne la lib, pas sa version.
         dists = {s.partition('==')[0].strip() for s in (cls.pip_install_spec() or [])}

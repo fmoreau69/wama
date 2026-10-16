@@ -167,6 +167,12 @@ def authored_vendor_manifest(key: str) -> Optional[dict]:
     rien à extraire. Comme un `dataset`, son manifeste EST l'origine. Sans ce retour,
     `manifest_export` la déclarait « extraction impossible » et ne la VALIDAIT jamais — le même
     angle mort que celui des manifestes autorés du 2026-09-07.
+
+    Un manifeste PyPI déclaré AUTORÉ (`source.type`, 2026-10-16) fait foi de la même façon : il
+    porte ce que les métadonnées du paquet ne disent pas — `constraints.no_deps` et la raison de
+    l'écart (muscriptor, beat-this, rotary-embedding-torch). Ré-extrait du paquet installé, il
+    perdait ces contraintes : la réinstallation suivante aurait tiré les dépendances que la
+    contrainte écartait (starlette, épinglé pour le serveur MCP).
     """
     import json
     from pathlib import Path
@@ -179,7 +185,8 @@ def authored_vendor_manifest(key: str) -> Optional[dict]:
     except (OSError, ValueError):
         return _vendor_manifest_from_registry(key)
     install = ((manifest.get('body') or {}).get('install') or {})
-    return manifest if install.get('vendor') else None
+    authored = (manifest.get('source') or {}).get('type') == 'authored'
+    return manifest if install.get('vendor') or authored else None
 
 
 def _vendor_manifest_from_registry(key: str) -> Optional[dict]:
@@ -215,8 +222,9 @@ def _vendor_manifest_from_registry(key: str) -> Optional[dict]:
 def extract_library(key: str) -> Optional[dict]:
     import importlib.metadata as im
 
-    # Vendorisée : le manifeste autoré fait foi, AVANT toute recherche de distribution — un
-    # paquet PyPI homonyme ne doit jamais se substituer au dépôt épinglé.
+    # Vendorisée ou AUTORÉE : le manifeste du corpus fait foi, AVANT toute recherche de
+    # distribution — un paquet PyPI homonyme ne doit jamais se substituer au dépôt épinglé, ni ses
+    # métadonnées effacer les contraintes déclarées.
     authored = authored_vendor_manifest(key)
     if authored is not None:
         return authored
