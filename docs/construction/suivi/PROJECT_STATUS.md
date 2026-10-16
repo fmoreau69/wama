@@ -24097,3 +24097,62 @@ de la revérification (refus des outils, navigation) · pousser les commits de l
 
 **🔚 POINT D'ENTRÉE** : trancher la définition d'« administrateur » ; éprouver au vrai micro la
 conversation vocale (§CLÔTURE du 13/10).
+
+## §CLÔTURE — 2026-10-14→16, « ENVOYER LE LOT · AGRANDIR AVANT DE DÉTECTER · RÉSOLUTION D'ORIGINE » — ✅ LIVRÉ — 🔚 regroupement à l'arrivée (imager, synthesizer)
+
+Demandes de Fabien, dans l'ordre : vérifier que la file de l'enhancer lit l'état des étapes en
+une requête (« des tests génériques sur toutes les apps ») ; envoyer un LOT d'une app à une
+autre comme une card ; comparer les meilleurs détecteurs de visages et SAM3 sur une photo et ses
+versions agrandies (lot #685) ; compléter le rapport de la page d'accueil ; un bouton « garder la
+résolution d'origine » dans l'enhancer ; `/reverif` puis clôture.
+
+- `e7c76ae6` **Coût de page** — `tests_page_cost.QueuePageReadsStepStatesOnceTest` (10 apps, aucune
+  nommée) ; il a trouvé l'anonymizer, qui lisait les étapes une fois par LOT.
+- `96df4fba` **« Envoyer le lot vers… »** sur la card mère — `send_to.batch_outputs`,
+  `common:api_send_batch_to`, `WamaSendTo.entriesForBatch`. Détail : `CARD_DESIGN` (menu « … »).
+- `a4c669ff` **Le modèle DÉSIGNÉ tourne** — l'ensemble de la couverture remplaçait en silence le
+  modèle choisi dès « visage »/« plaque » (`anonymizer/tasks._detection_kwargs`).
+- `b2fe80c6` **Rapport anonymizer** — section « Agrandir une photo de foule avant de la
+  détecter ? », lue des cards des lots #685 et #688-#692 ; `detections.support` (M2/M6, rien rangé
+  pour le choix automatique). Mesure : aucune version agrandie ne bat l'originale, réunir les trois
+  monte un détecteur à 97-99 %. Détail : `WAMA_QUALITE` M2.
+- `1e265052` **« Garder la résolution d'origine »** (enhancer, sortie commune) — réglage du volet et
+  de la modale, appliqué par le converter au process « Sortie », taille VÉRIFIÉE ; le moteur vidéo
+  du converter lit `resize_w`/`resize_h`. Migration `enhancer 0020` appliquée à la base réelle.
+  Détail : `WAMA_APP_CONVENTIONS §6.4`, README de l'enhancer.
+- **Revérification** — ramenés : le réglage ne périme plus la Sortie de TOUTES les apps
+  (`stales` déclaré au lieu de `OUTPUT_PARAM_NAMES`), mode « Amélioration » complété, import du
+  converter remis sous sa garde ; un CONSTAT FAUX corrigé (`WAMA_APP_CONVENTIONS §6.4` : les six
+  apps render-based passent par la Sortie commune) ; `c975e0d0` la liste des réglages de la
+  modale de l'enhancer LUE du schéma (`check_redundancy`) ; `ced44a18` mes seuls hunks de
+  `docs/dev/briques.md` (régénéré dans l'arbre par une autre session).
+
+**Restes nommés** (limites de ce que la session a construit) : la réception d'un envoi de
+plusieurs fichiers ne regroupe en lot que pour reader, anonymizer, describer, transcriber,
+enhancer et converter (liste écrite dans `filemanager.api_import_to_app`) — imager et
+synthesizer reçoivent des cards séparées ; « Envoyer vers… » est OFFERT sur une card REÇUE alors
+que `api_envoyer_vers` ne sert que les cards du compte (sous-menu « aucune app ne prend ce
+format », faux) ; le seuil 0,3 de SAM3 (`sam3_processor.confidence_threshold`) est sans effet,
+sa librairie filtre à 0,5 ; piste à décider : analyser aussi la version agrandie à côté de
+l'originale pour les foules (à mesurer sur une photo corrigée à la main).
+
+**Laissé à d'autres sessions** : `manifests/pipelines/composer.json` (WIP d'une autre session)
+portait `output_keep_size` dans la Sortie, inscrit par sa régénération pendant que ma première
+version l'avait mis dans `OUTPUT_PARAM_NAMES` — la ligne est RETIRÉE de son fichier, non commitée
+(c'est son fichier). `doc_facts --check` : `WAMA_MECANISMES.md` et `docs/dev/briques.md` restent
+périmés par leur WIP de registres.
+
+**Contrôles attendus au prochain /reprise** : 127 OK (sortie commune, enhancer, converter,
+contrat des réglages) ; 724 (envoi, menu, coût de page, détections, pipelines, anonymizer,
+imager, synthesizer, avatarizer, composer, filemanager) avec un seul rouge, le manifeste de
+pipeline du composer, ramené (pipelines : 67 OK) ; puis 98 OK après `c975e0d0` ; contre-épreuves rouges : moteur vidéo d'avant, enhancer sans taille
+d'entrée, `tasks.py` d'avant `a4c669ff`, lot illisible (11 surfaces) ; `check_docs` 0 cassée sur
+2 851 ; `check_redundancy` 115, aucune dans les fichiers de la session hors faux positif de nom
+(`_output` ↔ `output_fingerprint`, antérieur).
+
+**Pendings système** : 🔴 relancer gunicorn + workers (sortie commune, enhancer, anonymizer,
+envoi de lot) puis Ctrl+F5 · pousser les commits de la session · le bouton n'a pas été éprouvé au
+navigateur.
+
+**🔚 POINT D'ENTRÉE** : décider du regroupement à l'arrivée commun (imager, synthesizer) — puis
+éprouver « Garder la résolution d'origine » sur une vraie image et une vraie vidéo.
