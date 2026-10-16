@@ -165,10 +165,10 @@ def _get_batches_list(user):
     batches = build_batches_list(user, batch_model=ComposerBatch, work_attr='generation',
                                  order_by='-created_at',
                                  has_output=lambda g: bool(g.audio_output),
-                                 # ETA agrégée + réglages COMMUNS aux filles de la card
-                                 # mère (slot meta_template — porté le 31/08).
+                                 # Réglages COMMUNS aux filles de la card mère (slot
+                                 # meta_template — porté le 31/08) ; l'ETA agrégée
+                                 # (`eta_ids`) vient de `build_batches_list`.
                                  extra=lambda b, items, gens: {
-                                     'eta_ids': ','.join(str(g.id) for g in gens),
                                      'common_chips': common_chips_for_items(
                                          gens, _COMPOSER_PARAMS_JSON)})
     # Chips de card GÉNÉRÉS du schéma — même décoration que card_html. Les lignes d'exécution de

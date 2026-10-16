@@ -17,7 +17,10 @@ Slots/options (tous optionnels) :
   download_url           : URL du ZIP du lot (`<app>:batch_download`). Sa FORME — lien simple ou
                            menu des formats — se lit de la déclaration de l'app (`export_formats`),
                            par la brique du bouton ⬇ commun ; rien d'autre à passer.
-  eta_ids                : ids des éléments (CSV) pour l'ETA agrégée (sinon pas d'ETA).
+  eta_ids                : SURCHARGE facultative. L'ETA agrégée lit `batch_info.eta_ids` (CSV des
+                           éléments), que pose `build_batches_list` — et la ligne de lot du
+                           converter, même contrat (2026-10-16 : chaque app le recalculait, deux
+                           l'oubliaient, une le passait en liste).
   show_start             : défaut True — bouton ▶ Lancer/relancer le batch (pos. 2, conventions §6).
   app                    : NAMESPACE d'URL de l'app (ex. 'transcriber').
   actions_communes       : True → le partial ÉMET `data-batch-{delete,duplicate,start}-url` et la
@@ -109,7 +112,8 @@ connaître aucun sélecteur d'app (2026-08-23). Absent = app mono-domaine, rien 
                     <div class="wama-progress-track">
                         <div class="wama-progress-fill" data-batch-field="progress" style="width:{% widthratio batch_info.success_count batch_info.obj.total 100 %}%;"></div>
                     </div>
-                    {% if eta_ids %}<span class="wama-eta" data-eta-ids="{{ eta_ids }}"></span>{% endif %}
+                    {% firstof eta_ids batch_info.eta_ids as batch_eta_ids %}
+                    {% if batch_eta_ids %}<span class="wama-eta" data-eta-ids="{{ batch_eta_ids }}"></span>{% endif %}
                     <i class="fas fa-chevron-down text-muted ms-1" style="font-size:.7rem;"></i>
                 </div>
             </div>

@@ -19,8 +19,8 @@ python -c "import json;c=json.load(open('logs/conformity_report.json'))['criteri
 ```
 
 <!-- WAMA:FAITS(conformite) — généré par « python manage.py doc_facts », ne pas éditer -->
-- Critères de la grille : **102** — F1:4 F2:12 F3:21 F4:11 F5:41 F6:6 F7:5 F8:2 *(relevé du 2026-10-14)*
-- Apps mesurées : **10** ; dénominateur par app : **86 à 101** (un critère **non applicable** sort du calcul)
+- Critères de la grille : **103** — F1:4 F2:12 F3:21 F4:11 F5:42 F6:6 F7:5 F8:2 *(relevé du 2026-10-16)*
+- Apps mesurées : **10** ; dénominateur par app : **87 à 102** (un critère **non applicable** sort du calcul)
 <!-- /WAMA:FAITS(conformite) -->
 
 > Les 8 facettes de `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` sont **toutes** couvertes depuis le 30/07 —
@@ -36,8 +36,14 @@ python -c "import json;c=json.load(open('logs/conformity_report.json'))['criteri
 > Conséquences pratiques, à dire à l'utilisateur quand on annonce un score :
 > - le score compte des **mécanismes détectés dans le code**, pas des « fonctionnalités finies » ;
 >   l'inventaire narratif des briques reste **`wama/common/README.md`** ;
-> - un critère mesuré **écrase** son homonyme déclaré dans `_conv(...)` ; les clés déclarées
->   SANS critère mesuré subsistent (d'où le total affiché sur `/apps/`, union des deux) ;
+> - un critère mesuré **écrase** son homonyme déclaré dans `_conv(...)` — y compris quand il le
+>   mesure **non applicable**, et une clé déclarée qui est le **mécanisme** de critères mesurés
+>   (`inspector` → `init_from_schema`, `inspector_actions`) ne compte plus en plus d'eux
+>   (`app_registry._measured_conformity`, 2026-10-16 : trois apps affichées sous 100 % sur
+>   `/apps/` alors que la grille les mesurait à 100 %) ; seules les clés que RIEN ne mesure
+>   subsistent (d'où le total affiché sur `/apps/`, union des deux). Une clé déclarée qui ment
+>   se MIGRE vers un critère mesuré, jamais un booléen retourné à la main (`eta_batch` : déclaré
+>   vrai chez l'avatarizer qui n'avait aucune ETA de lot, mesuré depuis le 2026-10-16) ;
 > - **ne jamais conclure « portage terminé » sur le score seul** — il détecte surtout les
 >   régressions et les trous d'adoption.
 > - 🔴 **un critère VERT peut mesurer la FORME sans la ROUTE** (vécu le 2026-10-06) :

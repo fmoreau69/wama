@@ -508,6 +508,33 @@ def _queue_entry(f: _AppFiles):
     return False, "bloc `card seule / lot` encore écrit dans le gabarit d'app"
 
 
+def _eta_batch(f: _AppFiles):
+    """La card MÈRE d'un lot affiche-t-elle l'ETA agrégée de ses éléments ?
+
+    Mesuré depuis le 2026-10-16 — c'était un booléen DÉCLARÉ (`_conv(eta_batch=…)`), et il
+    mentait deux fois : l'avatarizer déclaré vrai ne transmettait aucun `eta_ids` à sa card de
+    lot, le synthesizer les transmettait en LISTE (`"[12, 13]"`, que `wama-eta.js` ne découpe
+    pas). La card commune lit `batch_info.eta_ids` (CSV) ; la ligne de lot le porte quand elle
+    vient de `build_batches_list`, ou de l'app qui construit ses lignes elle-même (converter,
+    clé étrangère directe) à condition de l'y poser en CSV.
+    """
+    if not f.find(TEMPLATES, r'batch-group|_batch_card\.html|common/_queue_entry\.html'):
+        return None, None          # pas de file à lots : rien à agréger
+    entry = f.find(TEMPLATES, r'common/_queue_entry\.html|common/_batch_card\.html')
+    if not entry:
+        return False, "card de lot écrite dans le gabarit d'app (pas la card commune)"
+    # Le CODE, pas les commentaires (`find_code`) : un commentaire qui raconte l'ancienne liste
+    # ne doit pas rougir l'app qui l'a retirée.
+    as_list = f.find_code(VIEWS, r"""['"]eta_ids['"]\s*:\s*\[""")
+    if as_list:
+        return False, f"`eta_ids` posé en LISTE ({as_list}) : la card attend un CSV"
+    rows = (f.find_code(VIEWS, r'build_batches_list\(')
+            or f.find_code(VIEWS, r"""['"]eta_ids['"]\s*:\s*','\.join"""))
+    if rows:
+        return True, rows
+    return False, "aucune ligne de lot ne porte `eta_ids` (ni `build_batches_list`, ni CSV posé)"
+
+
 def _has_engine_select(f: _AppFiles) -> bool:
     """Y a-t-il un SÉLECTEUR de moteur dans l'UI ? — précondition commune des critères
     model_help / input_match_ui / model_caps_ui (gate « composant sans hôte → N/A »,
@@ -2344,6 +2371,9 @@ CRITERIA: list[Criterion] = [
     Criterion('eta_individual', 'F5', 'ETA affichée par card (.wama-eta)',
               lambda f: _present(f, TEMPLATES, r'wama-eta|common/_card_progress\.html'),
               mechanism='progress_ui'),
+    # ETA de LOT : mesurée depuis le 2026-10-16 (le booléen déclaré était faux pour deux apps).
+    Criterion('eta_batch', 'F5', 'ETA agrégée sur la card de lot (batch_info.eta_ids)',
+              _eta_batch, mechanism='progress_ui'),
     Criterion('eta_queue', 'F5', 'Barre globale (_global_progress)',
               lambda f: _present(f, TEMPLATES, r"common/_global_progress\.html"),
               mechanism='progress_ui'),
@@ -2481,7 +2511,11 @@ CRITERIA: list[Criterion] = [
 
 def run_checks(app_ids: list[str]) -> dict:
     """Exécute tous les critères sur chaque app. Retourne le rapport sérialisable."""
-    report = {'criteria': {c.key: {'facette': c.facette, 'label': c.label} for c in CRITERIA},
+    # `mechanism` (2026-10-16) : la page `/apps/` en déduit les clés DÉCLARÉES que des critères
+    # mesurés couvrent déjà (`app_registry._measured_conformity`).
+    report = {'criteria': {c.key: {'facette': c.facette, 'label': c.label,
+                                   'mechanism': getattr(c, 'mechanism', None)}
+                           for c in CRITERIA},
               'apps': {}}
     for app in app_ids:
         f = _AppFiles(app)

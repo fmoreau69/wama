@@ -242,8 +242,7 @@ class IndexView(View):
                 'first_backend': first.backend if first else '',
                 'first_mode': first.mode if first else '',
                 'first_language': first.language if first else '',
-                # ETA agrégée de la card mère (brique _batch_card.html)
-                'eta_ids': ','.join(str(r.id) for r in readings),
+                # (l'ETA agrégée de la card mère, `eta_ids`, vient de `build_batches_list`)
                 # Réglages COMMUNS aux filles (slot meta_template — porté le 31/08 ;
                 # readings déjà décorées ci-dessus, attributs à jour).
                 'common_chips': _ccfi(readings, _RD_PARAMS_JSON),

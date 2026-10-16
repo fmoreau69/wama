@@ -167,7 +167,8 @@ class IndexView(View):
             first_s = works[0] if works else None
             return {
                 'success_pct': int(done / batch.total * 100) if batch.total > 0 else 0,
-                'eta_ids': [w.id for w in works],
+                # (l'ETA agrégée de la card mère, `eta_ids`, vient de `build_batches_list` —
+                # elle était posée ici en LISTE, que `wama-eta.js` ne découpe pas : lot sans ETA)
                 'first_tts_model': first_s.tts_model if first_s else DEFAULT_TTS_MODEL,
                 'first_language': first_s.language if first_s else 'fr',
                 'first_voice_preset': first_s.voice_preset if first_s else 'default',

@@ -413,7 +413,7 @@ document.addEventListener('DOMContentLoaded', function () {
         la brique, donc rien à passer —, et `data-media-type` sur le wrapper de groupe, que
         `converter.js:378` lit pour ouvrir la modale de lot sur la bonne nature.{% endcomment %}
         {% url 'converter:batch_download' b.obj.id as batch_dl_url %}
-        {% include 'common/_queue_entry.html' with batch_info=b card_template='converter/_job_card.html' card_class='job-card' meta_template='converter/_batch_card_meta.html' eta_ids=b.eta_ids download_url=batch_dl_url app='converter' actions_communes=True %}
+        {% include 'common/_queue_entry.html' with batch_info=b card_template='converter/_job_card.html' card_class='job-card' meta_template='converter/_batch_card_meta.html' download_url=batch_dl_url app='converter' actions_communes=True %}
         {% empty %}
         {% comment %}`empty-queue` AJOUTÉ le 2026-08-23 : c'est la classe que la brique commune
         `WamaApp.emptyState` cherche. Sans elle, le rendu SERVEUR et le rendu JS ne se voyaient

@@ -24163,3 +24163,41 @@ navigateur.
 
 **🔚 POINT D'ENTRÉE** : décider du regroupement à l'arrivée commun (imager, synthesizer) — puis
 éprouver « Garder la résolution d'origine » sur une vraie image et une vraie vidéo.
+
+## §PALIER 2026-10-16 — « 3 apps pas à 100 % » : la page `/apps/` réconciliée avec la grille, et l'ETA de LOT devenue commune et mesurée — non poussé — 🔴 relancer gunicorn
+
+Demande de Fabien : *« il y a 3 apps qui ne sont pas à 100 %, on les termine ? »*. La grille
+(`check_app_conformity`) mesurait les dix apps à 100 % ; la page `/apps/` montrait anonymizer 99,
+composer 99, imager 97 — le chantier nommé le 17/08 (« réconciliation /apps/ ↔ grille : confronter
+/ migrer ces déclarations, pas de flip à la devinette », §REPRISE 17/08).
+
+- **Cause 1 — le non applicable MESURÉ ne passait pas.** `run_checks` n'écrit pas un critère
+  `None` dans `conv` ; le `recursive_import=False` déclaré survivait donc chez composer et imager,
+  mesurés « card en mode ATTACHE ». `app_registry._measured_conformity` rend désormais `None` pour
+  tout critère du rapport absent de `conv`.
+- **Cause 2 — une clé déclarée couverte par des critères comptait en plus d'eux.** `inspector=False`
+  (anonymizer, imager, écrit en juillet) contre `init_from_schema` / `inspector_actions` /
+  `inspector_detail_wired` verts. Le rapport porte le `mechanism` de chaque critère ; une clé
+  déclarée qui EST le mécanisme de critères mesurés ne compte plus. Une clé que rien ne mesure
+  garde son verdict (contre-épreuve dans le test).
+- **Cause 3 — un VRAI trou derrière un faux vert : l'ETA de la card de LOT.** Huit apps
+  recalculaient chacune `eta_ids` ; l'imager ne le faisait pas, l'**avatarizer** non plus (déclaré
+  `eta_batch=True` : faux vert), le **synthesizer** le passait en LISTE (`"[12, 13]"`, que
+  `wama-eta.js` ne découpe pas — lot sans ETA, déclaré vrai lui aussi). → `build_batches_list` pose
+  `eta_ids` (CSV), `_batch_card.html` le lit dans `batch_info` (le paramètre reste une surcharge),
+  les sept copies locales et les huit paramètres de gabarit sont retirés, le générateur (forme à
+  liaison) aussi ; la ligne construite à la main du converter (clé étrangère directe) garde sa clé,
+  c'est le contrat de la ligne. `eta_batch` est **mesuré** (critère F5, `_eta_batch`) : grille
+  102 → **103** critères.
+- **Mesuré** : grille 10/10 à 100 % (87 à 102 critères par app) ; page `/apps/` 10/10 à 100 %.
+- **Gardes** : `tests_batch_eta` (10 tests : ligne en CSV, card sans paramètre, surcharge, critère
+  — liste rouge, commentaire neutre, dix apps vertes —, anti-copie sur les dix apps, fusion de la
+  page ×3, générateur) ; contre-épreuves à blanc ROUGES (ligne de HEAD, card de HEAD, critère
+  aveuglé, vues d'app de HEAD 2/2, fusion de HEAD 2/2).
+- 🔴 **Relancer gunicorn** (vues + gabarits). ⚠ Les suites d'app n'ont pas pu tourner sur l'arbre
+  partagé : une autre instance y retirait `consolidate` des vues (enhancer, anonymizer, describer,
+  reader, synthesizer) et son état intermédiaire ne chargeait pas les URL — vérification faite sur
+  un worktree de HEAD (ci-dessous, après commit).
+- 🔚 **Restes** : les jumelles bac à sable gardent leur `eta_ids` local (code généré, gitignoré —
+  régénérées au prochain `app_sandbox`) ; les autres clés déclarées-seulement (`streaming`,
+  `cross_app_options`…) restent à confronter une par une, même règle : migrer vers la mesure.

@@ -586,7 +586,7 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
                 31/08 — filles pleine largeur et toujours dépliées — reste corrigé : c'est
                 la brique qui le tient maintenant, et pour toutes les apps à la fois.
             {{% endcomment %}}
-            {{% include 'common/_queue_entry.html' with batch_info=b card_template='{app}/_generic_card.html' card_class='job-card' meta_template='common/_batch_meta_chips.html' batch_key='{app}' eta_ids=b.eta_ids{lot_bits} %}}
+            {{% include 'common/_queue_entry.html' with batch_info=b card_template='{app}/_generic_card.html' card_class='job-card' meta_template='common/_batch_meta_chips.html' batch_key='{app}'{lot_bits} %}}
         {{% empty %}}
             <p class="text-muted small">Aucun élément dans la file.</p>
         {{% endfor %}}

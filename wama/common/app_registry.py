@@ -1886,7 +1886,8 @@ _CONFORMITY_REPORT = {'mtime': None, 'data': None}
 
 
 def _measured_conformity(app_name: str) -> tuple[dict, str | None]:
-    """(valeurs mesurées {clé: True|'partial'|False}, date du rapport) — ({}, None) sans rapport."""
+    """(valeurs mesurées {clé: True|'partial'|False|None}, date du rapport) — ({}, None) sans
+    rapport. `None` = non applicable à la mesure, ou clé couverte par ses critères (ci-dessous)."""
     import json as _json
     from pathlib import Path as _Path
     try:
@@ -1904,7 +1905,24 @@ def _measured_conformity(app_name: str) -> tuple[dict, str | None]:
     data = _CONFORMITY_REPORT['data'] or {}
     # Une jumelle se lit dans `sandbox_apps` (hors photo globale, 2026-09-29).
     app = data.get('apps', {}).get(app_name) or data.get('sandbox_apps', {}).get(app_name) or {}
-    return app.get('conv', {}), data.get('generated_at')
+    if not app:
+        return {}, data.get('generated_at')
+    measured = dict(app.get('conv', {}))
+    # Ce que la mesure dit SANS l'écrire dans `conv` (2026-10-16 — trois apps affichées sous
+    # 100 % sur `/apps/` alors que la grille les mesurait à 100 %) :
+    #  • un critère NON APPLICABLE n'entre pas dans `conv` (`run_checks`) — le booléen déclaré
+    #    homonyme survivait donc à la mesure (`recursive_import=False` chez composer et imager,
+    #    mesurés « card en mode ATTACHE ») ;
+    #  • une clé déclarée qui est le MÉCANISME de critères mesurés (`inspector` →
+    #    `init_from_schema`, `inspector_actions`) est déjà jugée par eux — la compter en plus,
+    #    c'était laisser un `False` écrit en juillet contredire trois critères verts.
+    # Les deux deviennent « non applicable » au déclaré : c'est le RÉEL qui parle.
+    for key, info in (data.get('criteria') or {}).items():
+        measured.setdefault(key, None)
+        mechanism = (info or {}).get('mechanism')
+        if mechanism and mechanism not in (data.get('criteria') or {}):
+            measured.setdefault(mechanism, None)
+    return measured, data.get('generated_at')
 
 
 def sandbox_conformity(report: dict) -> dict:

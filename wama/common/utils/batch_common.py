@@ -431,7 +431,13 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
         works = [it.elem for it in items if it.elem]
         statuses = normalized_statuses(works)
         row = {'obj': batch, 'items': items, **status_counts(works),
-               'evaluation': _batch_evaluation(works)}
+               'evaluation': _batch_evaluation(works),
+               # ETA AGRÉGÉE de la card mère (`_batch_card.html`, `data-eta-ids`, lue par
+               # `wama-eta.js`) — un CSV. Posée ICI le 2026-10-16 : huit apps la recalculaient
+               # chacune dans leur `extra`, deux l'avaient oubliée (imager, avatarizer : lot sans
+               # ETA), et une la passait en LISTE (synthesizer : `"[12, 13]"` ne se découpe pas en
+               # identifiants, l'ETA du lot restait vide).
+               'eta_ids': ','.join(str(w.pk) for w in works)}
         # Sans mesure contre une référence : l'accord ENTRE les moteurs du lot (M1/M6).
         row['agreement'] = None if row['evaluation'] else _batch_agreement(works)
         row['reference'] = ({'source': references[batch.pk]} if batch.pk in references

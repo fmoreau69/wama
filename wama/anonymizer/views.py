@@ -837,8 +837,7 @@ def _queue_context(request, user):
         success_count = sum(1 for m in medias if m.status == 'SUCCESS')
         return {
             'success_pct': int(success_count / batch.total * 100) if batch.total else 0,
-            # ETA agrégée de la card mère (brique _batch_card.html) — CSV, pas liste
-            'eta_ids': ','.join(str(m.id) for m in medias),
+            # (l'ETA agrégée de la card mère, `eta_ids`, vient de `build_batches_list`)
             # Réglages COMMUNS aux filles (slot meta_template, mécanisme du parc — porté
             # le 31/08 depuis le pilote transcriber, brique commune schéma-driven).
             'common_chips': common_chips_for_items(medias, PARAMS_JSON),

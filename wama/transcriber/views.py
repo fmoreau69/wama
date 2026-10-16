@@ -241,8 +241,7 @@ class IndexView(View):
                 'common_backend': _common('backend'),
                 'common_language': _common('language'),
                 'common_diarization': _common('enable_diarization'),
-                # ETA agrégée de la card mère (brique _batch_card.html)
-                'eta_ids': ','.join(str(t.id) for t in transcripts),
+                # (l'ETA agrégée de la card mère, `eta_ids`, vient de `build_batches_list`)
             }
 
         batches_list = build_batches_list(user, batch_model=BatchTranscript,

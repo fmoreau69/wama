@@ -496,8 +496,9 @@ def _reglages_du_depot(user, nature, poste=None):
     # pas de variante FK-directe, et le motif est désormais écrit à 4 endroits.
     # FORME À LIAISON : la file est construite par la brique commune `build_batches_list`
     # (contrat de la toolbar, 9 apps réelles) — les entrées sont les LIAISONS, l'élément
-    # voyage sous `elem` (alias posé par la brique) et se décore là. Le `extra` rend ce que
-    # la card MÈRE lit (`eta_ids`, réglages communs) — même assiette que la forme directe.
+    # voyage sous `elem` (alias posé par la brique) et se décore là. Le `extra` rend les
+    # réglages communs que la card MÈRE lit ; son ETA agrégée (`eta_ids`) vient de la brique
+    # (2026-10-16). La forme DIRECTE, qui construit ses lignes elle-même, la pose encore.
     index_link = f'''class IndexView(View):
     def get(self, request):
         user = _user(request)
@@ -506,7 +507,7 @@ def _reglages_du_depot(user, nature, poste=None):
         def _extra(b, liens, items):
             for e in items:
                 _decorer(e){ligne_commun}
-            return {{{cle_commun} 'eta_ids': ','.join(str(e.id) for e in items)}}
+            return {{{cle_commun}}}
 
         batches_list = build_batches_list(user, batch_model={batch}, work_attr='{link_fk}',
                                           items_related='{items_related}', order_by='-id',

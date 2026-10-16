@@ -233,8 +233,7 @@ class IndexView(View):
                 done = sum(1 for w in works if w.status == 'SUCCESS')
                 return {
                     'success_pct': int(done / batch.total * 100) if batch.total > 0 else 0,
-                    # CSV (contrat _batch_card data-eta-ids) — une LISTE ne matche jamais
-                    'eta_ids': ','.join(str(w.id) for w in works),
+                    # (l'ETA agrégée de la card mère, `eta_ids`, vient de `build_batches_list`)
                     'common_chips': common_chips_for_items(works, schema),
                 }
             return _extra
