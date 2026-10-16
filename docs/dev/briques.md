@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**202 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**204 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1624,6 +1624,15 @@ Posture et domaine de l'assistant (science, design, dev) + rappel du contexte de
   - `laboratory_context(user, question: str, key: str=None) -> str` — Extraits du corpus du laboratoire pertinents pour la question — '' si rien.
   - `greeting(user) -> dict` — Textes d'accueil pour cette surface : {'message', 'attente', 'attente_apres_ms'}.
 
+### Traduction de texte
+
+Traduit un texte d'une langue à l'autre : passthrough si source = cible, cache (clé : modèle, langues, glossaire, texte), glossaire de termes à ne pas traduire, découpage par paragraphes, `on_chunk` pour l'aperçu « pendant ». Le modèle est une CLÉ DE CATALOGUE (défaut `ollama:translategemma:12b`) : locale par la voie Ollama gouvernée, distante par `chat_with_catalog_model` avec la clé de l'utilisateur. `lang_routing` DÉCIDE quand traduire une consigne avant un modèle qui ne parle pas sa langue ; le service EXÉCUTE
+
+- **Domicile** : `wama/common/utils/translator.py` · **doc** : [docs/construction/suivi/ROADMAP.md §10](../construction/suivi/ROADMAP.md)
+- **Module** : TranslatorService (ROADMAP §10.B) — exécute une décision de routing langue ([[lang_routing]]).
+- **API publique** (1) :
+  - `class TranslatorService`
+
 ## Manifestes & registres
 
 ### Adoption des mécanismes
@@ -2394,6 +2403,12 @@ L'APPARENCE d'un état (libellé, classe de badge, classe de texte, icône) déc
   - `states() -> list` — Les états AFFICHABLES, dans l'ordre : `DRAFT` puis les six du vocabulaire commun.
   - `js_payload() -> dict` — Ce que le CLIENT reçoit — même source que les gabarits, donc rien à resynchroniser.
 
+### Résultat instantané de la saisie
+
+Sous la consigne de la card d'entrée, ce que l'app rendrait — PENDANT la frappe, sans rien mettre en file. Capacité d'app DÉCLARÉE (`has_instant_result`, lue par `instant_result_url`) ; une source, la route `instant` du manifeste, d'où dérivent la vue générée (la glu `tasks.instant_result` sur un élément NON enregistré, réglages par la cascade de l'ajout), sa route et le trou de glu. Délai de saisie, seule la dernière réponse s'affiche (`CARD_DESIGN §11.11 D bis`)
+
+- **Domicile** : `wama/common/static/common/js/wama-instant.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
+
 ### Schéma de paramètres
 
 Source unique des réglages d'app : volet droit, modales (item ET lot, `context`) et DÉFAUTS APPLICABLES d'un élément naissant (applicable_defaults, filtre show_if au vocabulaire du moteur JS) sont dérivés de lui. Depuis le 01/09 il porte AUSSI LA cascade des valeurs effectives (effective_settings : défauts du schéma ← preset ← réglages POSÉS — formulation Fabien, ROADMAP §23.2bis) : la base ne stocke que le POSÉ (vide = « le preset décide »), les défauts restent au schéma — c'est ce qui rend un preset POSSIBLE, et ce qui a remplacé resolve_options du converter + les défauts en dur des backends. Depuis le 12/10 (ROUTE §10.6 3.3bis, R1) c'est LA forme de tous les mondes : le pont `param_from_spec` projette les `ParamSpec` d'une fonction sans perte, le Studio rend tous ses nœuds par WamaParams (renderer commun `media_picker`, `isGesture`), et la PORTE des refus (`schema_refusals`/`checked_values` : choix hors liste, nombre illisible ou hors grille) est lue par la porte des outils, le lancement d'un graphe, l'exécution d'une fonction et le moteur de vue Data
@@ -2787,7 +2802,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) : dans son entr�
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (38) :
+- **API publique** (39) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -2799,6 +2814,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) : dans son entr�
   - `app_model_capabilities(app_id) -> list` — Les capacités des modèles DE l'app — l'inventaire UNIQUE dont dérivent ses ports
   - `app_input_ports(app_id, domain=None)` — Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
   - `app_has_live_input(app_id) -> bool` — L'app capte-t-elle EN DIRECT (Speak) ? — le port `live` de la card d'entrée.
+  - `app_has_instant_result(app_id) -> bool` — L'app montre-t-elle son résultat PENDANT la frappe (le Translator « à la DeepL ») ?
   - `app_own_input_ports(app_id)` — Ports d'entrée que l'APP consomme elle-même — aucun modèle ne les déclare (2026-09-30).
   - `ports_for_domain(app_id, domain, ports)` — Les ports d'une card, restreints à un DOMAINE de l'app (2026-09-30, card v4 multi-domaine).
   - `app_ports_carried_elsewhere(app_id) -> dict` — Ports que la card d'ENTRÉE de l'app ne montre pas, parce qu'un AUTRE geste les porte —
@@ -3029,7 +3045,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (38) :
+- **API publique** (39) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -3041,6 +3057,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `app_model_capabilities(app_id) -> list` — Les capacités des modèles DE l'app — l'inventaire UNIQUE dont dérivent ses ports
   - `app_input_ports(app_id, domain=None)` — Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
   - `app_has_live_input(app_id) -> bool` — L'app capte-t-elle EN DIRECT (Speak) ? — le port `live` de la card d'entrée.
+  - `app_has_instant_result(app_id) -> bool` — L'app montre-t-elle son résultat PENDANT la frappe (le Translator « à la DeepL ») ?
   - `app_own_input_ports(app_id)` — Ports d'entrée que l'APP consomme elle-même — aucun modèle ne les déclare (2026-09-30).
   - `ports_for_domain(app_id, domain, ports)` — Les ports d'une card, restreints à un DOMAINE de l'app (2026-09-30, card v4 multi-domaine).
   - `app_ports_carried_elsewhere(app_id) -> dict` — Ports que la card d'ENTRÉE de l'app ne montre pas, parce qu'un AUTRE geste les porte —
