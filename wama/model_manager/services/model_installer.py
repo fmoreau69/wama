@@ -1004,9 +1004,14 @@ def remove_declared_files(model, include_shared: bool = False) -> dict:
     return {'ok': True, 'freed_gb': freed / 1024 ** 3, 'sharing': sharing}
 
 
-def pull_declared_files(spec: dict, timeout: int = 600, dry_run: bool = False) -> dict:
+def pull_declared_files(spec: dict, timeout: int = 600, dry_run: bool = False,
+                        token: str | None = None) -> dict:
     """Les fichiers qu'une app DÉCLARE, posés SOUS son dossier (`target_dir`), chacun tiré de
     son ORIGINE déclarée (cf. l'en-tête du pilote).
+
+    `token` (2026-10-16, MuScriptor) : le jeton Hugging Face du téléchargement, envoyé aux SEULES
+    origines `huggingface` — un dépôt à accès contrôlé répond 401 sans lui. Jamais aux autres
+    sources : un secret ne part que là où il sert.
 
     Un fichier présent à la bonne empreinte est gardé ; un fichier présent à une AUTRE empreinte
     arrête tout AVANT le moindre téléchargement (on ne remplace pas en silence ce qu'on n'a pas
@@ -1047,8 +1052,10 @@ def pull_declared_files(spec: dict, timeout: int = 600, dry_run: bool = False) -
     done = [provenance(f, t, 'kept') for f, t in kept]
     for f, target in missing:
         target.parent.mkdir(parents=True, exist_ok=True)
+        hub = f['origin']['source'] == 'huggingface'
         res = download_asset(declared_file_url(f['origin']), str(target), timeout=timeout,
-                             sha256=f['sha256'], proxies=proxies_for(f['origin']['source']))
+                             sha256=f['sha256'], proxies=proxies_for(f['origin']['source']),
+                             headers={'Authorization': f'Bearer {token}'} if hub and token else None)
         if not res.get('ok'):
             return {'ok': False, 'error': res.get('error'), 'files': done}
         done.append(provenance(f, target, 'downloaded'))
@@ -1058,7 +1065,7 @@ def pull_declared_files(spec: dict, timeout: int = 600, dry_run: bool = False) -
 
 
 def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int = 0,
-                   sha256: str = '', proxies=None) -> dict:
+                   sha256: str = '', proxies=None, headers=None) -> dict:
     """Télécharge UN fichier publié (asset de version GitHub…) vers `target`, sans jamais laisser
     un fichier partiel à sa place : écriture dans `<target>.part`, contrôles, puis remplacement
     atomique. Retourne {'ok': True, 'path', 'url', 'sha256'} (l'empreinte calculée au fil du
@@ -1075,6 +1082,8 @@ def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int 
         fichier : c'est la garantie qu'on installe ce qui a été jugé, pas ce que le serveur
         sert aujourd'hui.
     `proxies` : ceux de la source déclarée (`external_sources.proxies_for`) ; None = l'environnement.
+    `headers` : ceux de la requête (le jeton d'un dépôt à accès contrôlé) — `requests` ne les
+    renvoie pas vers un autre hôte quand le Hub redirige vers son stockage.
     """
     import hashlib
 
@@ -1084,7 +1093,7 @@ def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int 
     try:
         digest = hashlib.sha256()
         with requests.get(url, stream=True, timeout=timeout, allow_redirects=True,
-                          proxies=proxies) as r:
+                          proxies=proxies, headers=headers) as r:
             r.raise_for_status()
             with open(tmp, 'wb') as fh:
                 for chunk in r.iter_content(chunk_size=1 << 20):
@@ -1918,7 +1927,7 @@ def install_from_spec(spec: dict, token=None) -> dict:
     elif kind == 'github':
         res = pull_github_asset(spec)
     elif kind == 'files':
-        res = pull_declared_files(spec)
+        res = pull_declared_files(spec, token=token)
     elif kind == 'hf':
         if not spec.get('category'):
             return {'ok': False, 'error': "spec.category requis pour kind='hf'"}

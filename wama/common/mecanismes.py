@@ -480,7 +480,9 @@ MECHANISMS = (
               "2026-10-07), files (les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE "
               "parmi les sources déclarées — dépôt du Hub figé au commit, version GitHub, adresse "
               "fixe d'une source « poids » — taille et empreinte épinglées, 2026-10-11 : "
-              "CodeFormer, MuseTalk, enhancer, Face Analyzer, DeepFace le 12/10 ; la "
+              "CodeFormer, MuseTalk, enhancer, Face Analyzer, DeepFace le 12/10, MuScriptor le "
+              "16/10 — le jeton d'un dépôt du Hub à accès contrôlé n'est envoyé qu'aux origines "
+              "`huggingface` ; la "
               "désinstallation retire ces fichiers-là seulement, `remove_declared_files`) ; "
               "`download_asset` = le "
               "téléchargement contrôlé commun aux pilotes à "
@@ -491,11 +493,14 @@ MECHANISMS = (
               "`git+`, `file:`, `-e` et contrainte lâche ; `constraints.pip` (pins passés par "
               "`-c`) et `constraints.no_deps` (installer SANS les dépendances quand leur "
               "résolution déplacerait le venv, 2026-10-01 ; pendant backend : `PIP_NO_DEPS`) ; "
-              "voie VENDOR pour un dépôt épinglé au commit",
+              "voie VENDOR pour un dépôt épinglé au commit. AUCUNE DÉRIVE (`AGENTS.md`, "
+              "2026-10-16) : rien ne télécharge un poids ni ne lance pip à côté — contrôle "
+              "`tests_install_route`, budget des dérives existantes qui ne peut que descendre",
               'wama/model_manager/services/model_installer.py', '',
               # Route `library` (install_library) : voie pip ici, voie VENDOR (dépôt épinglé au
               # commit + correctif, ROADMAP D-a, 2026-09-30) dans son exécuteur délégué.
-              annexes=('wama/model_manager/services/vendor_installer.py',)),
+              annexes=('wama/model_manager/services/vendor_installer.py',
+                       'wama/common/tests/tests_install_route.py')),
     Mechanism('install_history', 'Journal des installations',
               "Date chaque installation et désinstallation (modèle, librairie) avec son issue et "
               "sa VOIE (model manager, assistant, marcheur d'app, ligne de commande), aux points "

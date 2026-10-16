@@ -725,6 +725,25 @@ class DeclaredFilesTest(TestCase):
                           for f in DECLARED})
         self.assertTrue(all(d['url'] and d['sha256'] for d in res['files']))
 
+    def test_the_hub_token_goes_to_the_hub_files_only(self):
+        """2026-10-16, MuScriptor : a gated Hub repository answers 401 without the token — and a
+        secret is sent only where it serves, never to GitHub or an authors' server."""
+        with patch.object(mi, 'download_asset', return_value={'ok': True}) as dl:
+            mi.pull_declared_files(self._spec(), token='hf_secret')
+        sent = [c.kwargs['headers'] for c in dl.call_args_list]
+        self.assertEqual([None, {'Authorization': 'Bearer hf_secret'}, None], sent,
+                         'github, huggingface, pytorch_download — in the declared order')
+        with patch.object(mi, 'download_asset', return_value={'ok': True}) as dl:
+            mi.pull_declared_files(self._spec())
+        self.assertEqual([None, None, None], [c.kwargs['headers'] for c in dl.call_args_list],
+                         'no token, no header')
+
+    def test_install_from_spec_hands_the_token_to_the_files_driver(self):
+        with patch.object(mi, 'pull_declared_files', return_value={'ok': True}) as files, \
+                patch.object(mi, 'record_provenance', side_effect=lambda s, r: r):
+            mi.install_from_spec(self._spec(), token='hf_secret')
+        self.assertEqual('hf_secret', files.call_args.kwargs['token'])
+
     def test_a_file_in_place_is_kept_and_a_different_one_stops_everything(self):
         good = os.path.join(self.app_dir, 'CodeFormer', 'codeformer.pth')
         os.makedirs(os.path.dirname(good))

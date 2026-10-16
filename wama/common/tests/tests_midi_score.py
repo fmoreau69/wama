@@ -150,6 +150,44 @@ class ReadMidiTest(SimpleTestCase):
         self.assertEqual(2.0, song.quarters(960))
 
 
+class MuScriptorIsInstalledByTheRouteTest(SimpleTestCase):
+    """2026-10-16 : the Beat This! checkpoint was fetched by the BACKEND at first use, beside the
+    `files` driver that does exactly that. The model's three files are now DECLARED, installed and
+    removed by the route ; the backend only reads them."""
+
+    def test_every_declared_file_passes_the_lock_of_the_files_driver(self):
+        from wama.common.backends.muscriptor_backend import MUSCRIPTOR_FILES, model_folder
+        from wama.model_manager.services.model_installer import declared_files_error
+        spec = {'kind': 'files', 'files': MUSCRIPTOR_FILES, 'target_dir': str(model_folder())}
+        self.assertIsNone(declared_files_error(spec))
+        self.assertEqual({'huggingface', 'beat_this'},
+                         {f['origin']['source'] for f in MUSCRIPTOR_FILES})
+
+    def test_the_discovery_makes_a_row_the_route_installs_with_its_files(self):
+        from wama.common.backends.muscriptor_backend import MODEL_KEY, MUSCRIPTOR_FILES
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = object.__new__(ModelRegistry)       # not the process's singleton
+        registry._models, registry.discovery_errors = {}, []
+        registry._discover_midi_extraction_models()
+        self.assertEqual([], registry.discovery_errors)
+        info = registry._models[MODEL_KEY]
+        self.assertEqual(MUSCRIPTOR_FILES, info.extra_info['declared_files'])
+        self.assertEqual(('audio-to-midi', 'muscriptor'),
+                         (info.capabilities['task'], info.composition['runtime']['engine']))
+
+    def test_a_missing_file_says_to_install_it_and_downloads_nothing(self):
+        import tempfile
+        from unittest import mock
+        from django.conf import settings
+        from wama.common.backends import muscriptor_backend
+        paths = {**settings.MODEL_PATHS, 'music': {'muscriptor': tempfile.mkdtemp()}}
+        with self.settings(MODEL_PATHS=paths), \
+                mock.patch('wama.model_manager.services.model_installer.download_asset') as dl:
+            with self.assertRaisesMessage(RuntimeError, 'pull_model huggingface:MuScriptor'):
+                muscriptor_backend.installed_file(muscriptor_backend.BEAT_CHECKPOINT)
+        dl.assert_not_called()
+
+
 class RobustTempoTest(SimpleTestCase):
     """`robust_tempo` renumbers the beats on their median interval, then keeps the dominant
     phase : measured on YuE2 renders, where the library's own fit refused a constant tempo."""

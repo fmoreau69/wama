@@ -3025,11 +3025,15 @@ Suite de la veille ci-dessus, décisions (a)(b)(d) appliquées ; licence accept�
   `audio-to-midi`, `automatic-music-transcription`, `music-transcription`). Contrat
   `MidiExtractionBackend.extract_midi(...) -> bytes` (`common/backends/midi_extraction_base.py`),
   déclaré à `backend_inventory.TASK_CONTRACTS` — comme `audio-to-score` pour SheetSage2.
-- **poids** : `pull_model MuScriptor/muscriptor-large` (5,1 Go, dépôt à accès contrôlé, jeton de
-  l'instance) ; le point de contrôle de Beat This! n'a pas de dépôt HF : source DÉCLARÉE
-  `external_sources['beat_this']` (serveur des auteurs), taille et empreinte épinglées dans le
-  backend, tiré au premier usage par `download_asset`, rangé à côté du modèle — jamais dans le
-  `$HOME` où `torch.hub` l'aurait mis.
+- **poids — par le pilote `files`** (forme corrigée le soir même, voir la fin de cette section) :
+  trois fichiers DÉCLARÉS `{path, size, sha256, origin}` (`muscriptor_backend.MUSCRIPTOR_FILES`) —
+  `model.safetensors` et `config.json` du Hub au commit `8809fdf…`, le point de contrôle de Beat
+  This! depuis la source déclarée `external_sources['beat_this']` (serveur des auteurs, pas de
+  dépôt sur le Hub). Ligne de catalogue posée par la découverte du model manager
+  (`_discover_midi_extraction_models`, patron Depth Pro : backend commun, aucune app propriétaire),
+  dossier `settings.MODEL_PATHS['music']['muscriptor']` ; `pull_model
+  huggingface:MuScriptor/muscriptor-large` les installe, la désinstallation les retire. Le
+  backend ne télécharge rien — jamais le `$HOME` où `torch.hub` et la librairie les auraient mis.
 - **trois défauts communs trouvés en l'intégrant** :
   1. la grille de temps de la librairie refusait un tempo « non fixe » dès qu'un temps manquait au
      suivi (rangs décalés) : repli `robust_tempo` (re-numérotation, phase dominante, première
@@ -3046,16 +3050,19 @@ Suite de la veille ci-dessus, décisions (a)(b)(d) appliquées ; licence accept�
      se régénère à sa prochaine passe (`manifest_export`), pas dans ce commit.
 - **mesures (#754, 210 s, RTX 4090)** : chargement 28 s, transcription 99-151 s, pic 9,77 Go ;
   6 parties (voix, piano, basse électrique, batterie, nappe de synthé, flûtes).
-- ⏳ **restes** : choix manuel du modèle du process ; le balayage générique des snapshots réécrit
-  le nom et la description du modèle au catalogue (« Snapshot HF muscriptor-large », comme
-  SheetSage2) — le manifeste autoré n'y survit que par ses capacités et sa composition.
-- ⏳ **chantier (trouvé à la revérification)** : un COMPOSANT HORS HUGGING FACE d'un modèle HF n'a
-  pas de forme déclarée. `composition.components` n'admet que `pattern` (fichier du dépôt) ou
-  `repo` (dépôt HF frère, `builtin/model._validate_composition`) ; le pilote `files`
-  (`pull_declared_files`, fichiers `{path, size, sha256, origin}`) et le pilote `hf` s'excluent
-  (`spec_for_catalog_row`). Le point de contrôle de Beat This! est donc tiré par le BACKEND au premier
-  usage (forme du parent MERT de SheetSage2, mais hors HF), avec la même forme de descripteur que
-  `files` — et la désinstallation, qui retire le seul snapshot (`weights_dir_of`), laisse
-  `muscriptor-large/beat_this/final0.ckpt` (81 Mo) derrière. Le geste : un troisième genre de
-  composant (`origin`, le descripteur de `files`), tiré par le pilote `hf` après le snapshot et
-  retiré avec lui.
+- ⏳ **reste** : choix manuel du modèle du process.
+- ⚠ **Correction du soir (relevée par Fabien : « un fichier venu d'ailleurs doit passer par les
+  mécanismes en place »)** — la première forme livrée faisait tirer le point de contrôle de Beat
+  This! par le BACKEND au premier usage, et la revérification avait écrit ici qu'un « composant
+  hors Hugging Face d'un modèle HF n'a pas de forme déclarée ». C'était FAUX : seule
+  `composition.components` avait été lue, pas l'installeur. Le pilote `files`
+  (`model_installer.py`, en-tête « Pilote `files` », 2026-10-11) déclare des fichiers de
+  PLUSIEURS origines pour un même modèle — MuseTalk (quatre dépôts du Hub, un poids torchvision, le
+  détecteur S3FD de son auteur) le fait depuis cinq jours. MuScriptor y est passé (ci-dessus) ;
+  le seul manque RÉEL, mesuré, était dans la route : `download_asset` n'envoyait aucun jeton, et
+  MuScriptor est à accès contrôlé — le jeton passe désormais d'`install_from_spec` au pilote, aux
+  seules origines `huggingface`. Les 5,2 Go déjà là ont été DÉPLACÉS dans la disposition déclarée
+  (empreintes vérifiées avant de retirer l'ancien snapshot), rien retéléchargé. Effet de bord
+  heureux : la ligne de catalogue porte désormais le nom et la description DÉCLARÉS (le balayage
+  générique ne l'écrase plus). Suite : la règle « librairies et modèles par la route, aucune
+  dérive » d'`AGENTS.md` et son contrôle `tests_install_route`.

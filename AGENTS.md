@@ -627,6 +627,38 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 
 ---
 
+## 🔴 RÈGLE OBLIGATOIRE : LIBRAIRIES ET MODÈLES S'INSTALLENT PAR LA ROUTE — AUCUNE DÉRIVE
+
+> Décision de Fabien, 2026-10-16 : *« Il faut ajouter une règle systématique pour utiliser la
+> route en place pour installer des librairies et des modèles. Aucune dérive acceptée, sauf si je
+> le demande explicitement. »* Vécu le jour même : le backend de MuScriptor téléchargeait LUI-MÊME
+> le point de contrôle de Beat This! au premier usage, puis une revérification en a conclu que
+> « rien ne permet de déclarer un fichier venu d'ailleurs » — alors que le pilote `files` le fait
+> depuis le 2026-10-11 (MuseTalk : quatre dépôts du Hub, un poids torchvision, un détecteur publié
+> par son auteur). Le fichier n'était ni installé par le catalogue, ni retiré à la désinstallation.
+
+| ce qu'on installe | LA route | jamais |
+|---|---|---|
+| une **librairie** | manifeste `library` → `write_back` → `manage.py install_library <clé> --apply` (allowlist, pin exact, `constraints.pip` / `no_deps`, journal, patches rejoués) | `pip install` à la main, un `pip` en sous-processus, `pip_install_packages` hors de l'installeur |
+| un **modèle** | une ligne de catalogue → `install_from_spec` (bouton, `pull_model`, assistant) et ses pilotes `hf` / `github` / `files` / `yolo` / `ollama` | un téléchargement écrit dans un backend, une app, une commande |
+| un **fichier hors du Hub** (point de contrôle, poids publié par un auteur, miroir) | DÉCLARÉ `{path, size, sha256, origin}` sur la ligne (`extra_info['declared_files']` + `install_dir`), origine FIGÉE : Hub à un commit, version GitHub, ou source « poids » d'`external_sources` — pilote `files`, qui installe, vérifie et désinstalle | une URL en dur, un « tiré au premier usage » |
+| le **chargement** d'un modèle installé | les leviers A–D de `common/utils/hf_weights.py` (`cache_dir=`, `poids_locaux`, variable de la lib posée dans `settings.py`, `hf_cache_scope` déclaré) | — |
+
+- **Un manque de la route se comble DANS la route**, jamais à côté. Exemple du 2026-10-16 : le
+  pilote `files` n'envoyait pas le jeton d'un dépôt du Hub à accès contrôlé — le jeton passe
+  désormais d'`install_from_spec` au pilote, aux seules origines `huggingface`.
+- **Avant d'écrire « aucun mécanisme ne permet… »**, lire l'installeur
+  (`model_manager/services/model_installer.py`, en-têtes des pilotes), `common/external_sources.py`
+  et la checklist ci-dessous ; nommer la ligne qui fonde l'affirmation (§ VÉRIFIER LA ROUTE).
+- **Seule exception : une demande EXPLICITE de Fabien**, citée dans le code et dans le commit.
+- **Tenue par un contrôle** : `wama/common/tests/tests_install_route.py` relève par AST tout
+  téléchargement de poids et tout `pip` hors de la route, dans `wama/`, `wama_lab/`, `wama_data/`.
+  Trois listes DÉCLARÉES : `ROUTE`, `DATA` (corpus, tables de bancs, voix de référence — ni
+  modèle ni librairie, chacune avec sa raison) et `DRIFT_BUDGET`, les dérives qui existaient le
+  jour de la règle, qui **ne peut que descendre** : 5 sites dans 4 fichiers (YOLOPv2 du
+  cam_analyzer, l'AlexNet de LPIPS du banc, TripoSR au premier chargement, les poids « fichier
+  unique » de `memory_manager`). Porter l'un d'eux = baisser son compte dans le même commit.
+
 ## ⚠️ RÈGLE OBLIGATOIRE : AJOUT D'UN NOUVEAU MODÈLE AI
 
 **Cette règle s'applique à TOUS les modèles téléchargés via HuggingFace Hub,

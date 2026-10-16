@@ -22,18 +22,55 @@
       }
     },
     "extra_info": {
-      "category": "music",
-      "family": "muscriptor-large",
-      "vram_provenance": "estimated"
+      "declared_files": [
+        {
+          "origin": {
+            "file": "model.safetensors",
+            "repo": "MuScriptor/muscriptor-large",
+            "revision": "8809fdfbed2affa7ade94a7059e746e3880720e7",
+            "source": "huggingface"
+          },
+          "path": "model.safetensors",
+          "sha256": "ac4eb6ea87dfc26b6ca6b954c6b967ab87ad4c7d08e078b25214f13ed051f397",
+          "size": 5465642136
+        },
+        {
+          "origin": {
+            "file": "config.json",
+            "repo": "MuScriptor/muscriptor-large",
+            "revision": "8809fdfbed2affa7ade94a7059e746e3880720e7",
+            "source": "huggingface"
+          },
+          "path": "config.json",
+          "sha256": "16bedd02b18770e43740419b0d5777f231047e96e8987f498e8a1123c39c9852",
+          "size": 125
+        },
+        {
+          "origin": {
+            "file": "final0.ckpt",
+            "source": "beat_this"
+          },
+          "path": "beat_this/final0.ckpt",
+          "sha256": "8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331",
+          "size": 81058141
+        }
+      ],
+      "vram_measured": {
+        "at": "2026-10-16T17:07:11+00:00",
+        "last_gb": 5.14,
+        "max_gb": 5.14,
+        "n": 4
+      },
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],
       "format": "safetensors",
-      "preferred_format": null
+      "preferred_format": "safetensors"
     },
     "identity": {
       "author": "MuScriptor (Kyutai x Mirelo)",
-      "description_short": "Transcription multi-instrument audio → MIDI (36 groupes d'instruments, voix et batterie comprises)",
+      "description_short": "Transcription multi-instrument audio → MIDI",
       "hf_id": "MuScriptor/muscriptor-large",
       "license": "cc-by-nc-4.0",
       "model_type": "music",
@@ -54,12 +91,12 @@
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 5.47,
+      "disk_gb": 5.16576729901135,
       "ram_gb": 0.0,
-      "vram_gb": 8.0
+      "vram_gb": 9.8
     }
   },
-  "description": "MuScriptor large (1,4 Md de paramètres) — la « Partition complète » du composer : un audio → un MIDI par instrument, calé sur la grille de temps de Beat This!. Poids CC BY-NC 4.0, dépôt à accès contrôlé ; moteur = la librairie `muscriptor` (sans dépendances, route `library`).",
+  "description": "MuScriptor large (Kyutai + Mirelo, 1,4 Md de paramètres) : un audio → un MIDI par instrument entendu (voix et batterie comprises), calé sur la grille de temps de Beat This!. Poids CC BY-NC 4.0, dépôt à accès contrôlé.",
   "key": "huggingface:MuScriptor/muscriptor-large",
   "manifest_kind": "model",
   "name": "MuScriptor large",
@@ -80,8 +117,8 @@
   ],
   "schema_version": "1.0",
   "source": {
-    "ref": "huggingface:MuScriptor/muscriptor-large@8809fdfbed2affa7ade94a7059e746e3880720e7",
-    "type": "authored"
+    "ref": "AIModel:huggingface:MuScriptor/muscriptor-large",
+    "type": "extract"
   },
   "visibility": "public",
   "world": "transverse"

@@ -325,6 +325,7 @@ class ModelRegistry:
         self._discover_composer_models()
         self._discover_reader_models()
         self._discover_depth_models()
+        self._discover_midi_extraction_models()
         self._discover_image_to_3d_models()
         self._discover_face_analyzer_models()
 
@@ -1367,6 +1368,50 @@ class ModelRegistry:
                 )
         except Exception as e:
             logger.debug(f"Could not discover depth models: {e}")
+
+    def _discover_midi_extraction_models(self):
+        """Transcription audio → MIDI multi-instrument (task=audio-to-midi, 2026-10-16) — la
+        « Partition complète » du composer, tirée par tâche par le sélecteur commun.
+
+        Même patron que `_discover_depth_models` (le consommateur est un backend COMMUN, aucune
+        app n'en est propriétaire), avec les fichiers DÉCLARÉS de MediaPipe et MuseTalk : la ligne
+        existe même absente, installable et désinstallable par le pilote `files` — trois
+        fichiers, deux du Hub et le point de contrôle de Beat This! depuis sa source déclarée.
+        La déclaration vit à côté du moteur (`muscriptor_backend.MUSCRIPTOR_FILES`)."""
+        try:
+            from wama.common.backends.muscriptor_backend import (
+                HF_ID, MODEL_KEY, MUSCRIPTOR_FILES, model_folder,
+            )
+            from wama.model_manager.services.model_installer import declared_files_present
+            root = model_folder()
+            self._models[MODEL_KEY] = ModelInfo(
+                id=MODEL_KEY,
+                name='MuScriptor large',
+                model_type=ModelType.MUSIC,
+                source=ModelSource.HUGGINGFACE,
+                description="MuScriptor large (Kyutai + Mirelo, 1,4 Md de paramètres) : un audio "
+                            "→ un MIDI par instrument entendu (voix et batterie comprises), calé "
+                            "sur la grille de temps de Beat This!. Poids CC BY-NC 4.0, dépôt à "
+                            "accès contrôlé.",
+                description_short="Transcription multi-instrument audio → MIDI",
+                hf_id=HF_ID,
+                # Pic MESURÉ le 2026-10-16 sur #754 (210 s, RTX 4090) : 9,77 Go.
+                vram_gb=9.8,
+                format='safetensors',
+                preferred_format='safetensors',
+                is_downloaded=declared_files_present(root, MUSCRIPTOR_FILES),
+                extra_info={'path': str(root),
+                            'size_bytes': sum(f['size'] for f in MUSCRIPTOR_FILES),
+                            'install_dir': str(root),
+                            'declared_files': MUSCRIPTOR_FILES},
+                capabilities={'task': 'audio-to-midi', 'modalities': ['audio'],
+                              'inputs_required': ['work_audio']},
+                composition={'runtime': {'engine': 'muscriptor'},
+                             'components': [{'role': 'model', 'pattern': 'model.safetensors',
+                                             'format': 'safetensors'}]},
+            )
+        except Exception as e:
+            self.discovery_errors.append(f'audio-to-midi: {e}')
 
     def _discover_image_to_3d_models(self):
         """Reconstruction image → objet 3D (task=image-to-3d) — ROADMAP §17ter trou 4.

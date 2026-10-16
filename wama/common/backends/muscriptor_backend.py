@@ -8,13 +8,13 @@ CC BY-NC 4.0, dépôt HuggingFace à accès contrôlé (`PROSPECTION_PIPELINE`, 
 Librairies par la route `library`, sans dépendances (`manifests/libraries/muscriptor.json`).
 
 Ce que ce backend décide, et pourquoi :
-  • les POIDS viennent du catalogue (`installed_snapshot`), jamais de `~/.cache/muscriptor` : on
-    passe le fichier local à `load_model`, son `config.json` est à côté — aucun téléchargement ;
-  • le point de contrôle de Beat This! n'a pas de dépôt officiel sur HuggingFace : il est tiré au
-    PREMIER USAGE de sa source déclarée (`external_sources`, `beat_this`), empreinte épinglée, par
-    le téléchargement commun de la route (`download_asset`), et rangé À CÔTÉ du modèle — le
-    précédent du parent MERT de SheetSage2. La librairie, laissée à elle-même, le rangerait dans
-    le `$HOME` par `torch.hub` ;
+  • il ne TÉLÉCHARGE RIEN : les fichiers du modèle sont DÉCLARÉS ici (`MUSCRIPTOR_FILES`, chacun
+    avec son origine), lus par la découverte du catalogue et installés par le pilote `files` du
+    model manager — comme MuseTalk. Deux viennent du Hub (dépôt à accès contrôlé : le jeton passe
+    par l'installation), le point de contrôle de Beat This! du serveur de ses auteurs (source
+    déclarée `beat_this`, pas de dépôt officiel sur le Hub). Désinstaller retire les trois.
+    Laissées à elles-mêmes, les librairies rangeraient poids et point de contrôle dans le `$HOME`
+    (`~/.cache/muscriptor`, `torch.hub`) : on leur passe les CHEMINS locaux ;
   • l'audio est décodé par la brique commune (`audio_decode`) : `beat_this` lit un fichier par
     `torchaudio.load`, cassé en WSL (`reference_torchcodec_broken`) — on lui passe le signal.
 """
@@ -38,40 +38,45 @@ SUPPORTED_MODELS = {
     "MuScriptor/muscriptor-large": {"model_key": "huggingface:MuScriptor/muscriptor-large"},
 }
 
-#: Le point de contrôle de Beat This! que MuScriptor emploie (`detect_grid`, « final0 »), DÉCLARÉ :
-#: chemin sous le dossier du modèle, taille et empreinte relevées le 2026-10-16 sur le serveur des
-#: auteurs (81 058 141 octets, conforme à son `content-length`).
-BEAT_CHECKPOINT = {
-    'path': 'beat_this/final0.ckpt',
-    'size': 81058141,
-    'sha256': '8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331',
-    'origin': {'source': 'beat_this', 'file': 'final0.ckpt'},
-}
+#: Le commit du dépôt du Hub dont les deux fichiers sont tirés (révision FIGÉE, pilote `files`).
+HF_REVISION = "8809fdfbed2affa7ade94a7059e746e3880720e7"
+WEIGHTS = 'model.safetensors'
+BEAT_CHECKPOINT = 'beat_this/final0.ckpt'
+
+#: Les fichiers du modèle, DÉCLARÉS (forme du pilote `files` : chemin sous le dossier du modèle,
+#: taille et empreinte MESURÉES le 2026-10-16 sur les fichiers installés qui ont servi aux
+#: transcriptions réussies, origine figée). `config.json` est lu par `load_model` à côté des
+#: poids ; le point de contrôle de Beat This! (« final0 », celui de `detect_grid`) n'a pas de
+#: dépôt sur le Hub — sa taille égale le `content-length` du serveur des auteurs.
+MUSCRIPTOR_FILES = [
+    {'path': WEIGHTS, 'size': 5465642136,
+     'sha256': 'ac4eb6ea87dfc26b6ca6b954c6b967ab87ad4c7d08e078b25214f13ed051f397',
+     'origin': {'source': 'huggingface', 'repo': HF_ID, 'revision': HF_REVISION, 'file': WEIGHTS}},
+    {'path': 'config.json', 'size': 125,
+     'sha256': '16bedd02b18770e43740419b0d5777f231047e96e8987f498e8a1123c39c9852',
+     'origin': {'source': 'huggingface', 'repo': HF_ID, 'revision': HF_REVISION,
+                'file': 'config.json'}},
+    {'path': BEAT_CHECKPOINT, 'size': 81058141,
+     'sha256': '8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331',
+     'origin': {'source': 'beat_this', 'file': 'final0.ckpt'}},
+]
 
 
 def model_folder() -> Path:
-    """Le dossier de la famille du modèle dans `AI-models` (le parent du dépôt HF)."""
-    from wama.common.utils.model_components import installed_snapshot
-    return installed_snapshot(MODEL_KEY).parent.parent.parent
+    """Le dossier du modèle (`settings.MODEL_PATHS['music']['muscriptor']`), où le pilote
+    `files` pose les fichiers déclarés."""
+    from django.conf import settings
+    return Path(settings.MODEL_PATHS['music']['muscriptor'])
 
 
-def beat_checkpoint(folder: Path) -> Path:
-    """Le point de contrôle de Beat This!, tiré de sa source déclarée s'il manque (empreinte
-    vérifiée au fil du flux, jamais de fichier partiel à sa place). Lève si le téléchargement
-    échoue : sans grille de temps, la partition n'aurait ni mesures ni tempo."""
-    target = folder / BEAT_CHECKPOINT['path']
-    if target.exists():
-        return target
-    from wama.common.external_sources import proxies_for
-    from wama.model_manager.services.model_installer import declared_file_url, download_asset
-    target.parent.mkdir(parents=True, exist_ok=True)
-    origin = BEAT_CHECKPOINT['origin']
-    res = download_asset(declared_file_url(origin), str(target), sha256=BEAT_CHECKPOINT['sha256'],
-                         min_bytes=BEAT_CHECKPOINT['size'] // 2,
-                         proxies=proxies_for(origin['source']))
-    if not res.get('ok'):
-        raise RuntimeError(f"Beat This! : point de contrôle non obtenu — {res.get('error')}")
-    return target
+def installed_file(relative: str) -> Path:
+    """Un fichier déclaré, présent — sinon une erreur qui dit d'installer par le catalogue (ce
+    backend ne télécharge rien)."""
+    path = model_folder() / relative
+    if not path.exists():
+        raise RuntimeError(f"MuScriptor : {path} absent — installer « MuScriptor large » depuis le "
+                           f"model manager (`pull_model {MODEL_KEY}`)")
+    return path
 
 
 #: Tolérance (en temps) d'un temps à la phase dominante, et la part des temps qu'elle doit garder.
@@ -164,26 +169,21 @@ class MuScriptorBackend(MidiExtractionBackend):
     def __init__(self):
         super().__init__()
         self._model = None
-        self._folder = None
 
     def load(self, model: Optional[str] = None) -> bool:
         if self._model is not None:
             return True
         import torch
         from muscriptor.transcription_model import TranscriptionModel
-        from wama.common.utils.model_components import installed_snapshot
 
-        snapshot = installed_snapshot(MODEL_KEY)
-        weights = snapshot / 'model.safetensors'
-        if not weights.exists():
-            raise RuntimeError(f"MuScriptor : {weights} absent du snapshot installé")
+        weights = installed_file(WEIGHTS)
+        installed_file('config.json')
         device = "cuda" if torch.cuda.is_available() else "cpu"
         # float32 + autocast fp16 sur CUDA : le choix par défaut de la librairie hors MPS.
         self._model = TranscriptionModel.load_model(weights_path=weights, device=device)
-        self._folder = snapshot.parent.parent.parent
         self._loaded = True
         self._current_model = HF_ID
-        logger.info("[MuScriptor] chargé (%s, %s)", snapshot.name[:12], device)
+        logger.info("[MuScriptor] chargé (%s, %s)", HF_REVISION[:12], device)
         return True
 
     def unload(self) -> None:
@@ -219,7 +219,7 @@ class MuScriptorBackend(MidiExtractionBackend):
         samples, rate = decode_audio_at(audio_path, SAMPLE_RATE)
         wav = torch.from_numpy(samples).float().unsqueeze(0)          # [1, T], mono 16 kHz
         try:
-            grid = beat_grid(wav, rate, str(beat_checkpoint(self._folder)), str(self._model._device))
+            grid = beat_grid(wav, rate, str(installed_file(BEAT_CHECKPOINT)), str(self._model._device))
         except BeatDetectionError as error:
             # Un morceau sans tempo stable s'écrit au tempo de remplacement, sans métrique —
             # la règle « best-effort » de la librairie, dite au journal.

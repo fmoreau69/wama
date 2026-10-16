@@ -634,11 +634,12 @@ manifeste** (ce que le kind `app` capte + cible de projection).
         finit était perdue par l'ancienne règle d'appariement (celle de YuE2 aussi) : règle de
         pretty_midi reprise. (3) Le texte d'un fichier de surface se lisait à deux endroits
         (`_value_of`, `_text`) : un seul lecteur.
+      - **les fichiers du modèle par la route (correction du soir, relevée par Fabien)** : le backend
+        tirait lui-même le point de contrôle de Beat This! — les trois fichiers sont désormais
+        DÉCLARÉS et installés par le pilote `files` (`PROSPECTION_PIPELINE §Session du 2026-10-16`,
+        règle « librairies et modèles par la route » d'`AGENTS.md`).
       - ⏳ **Restes** : le choix MANUEL du modèle du process (auto + manuel, aujourd'hui tiré seul) ;
-        les rendus à tempo variable sont placés en 4/4 sur les temps joués, sans temps forts ; le
-        nom et la description du modèle au catalogue sont réécrits par le balayage générique des
-        snapshots (comme SheetSage2 : « Snapshot HF … »), son manifeste autoré n'y survit que par ses
-        capacités et sa composition.
+        les rendus à tempo variable sont placés en 4/4 sur les temps joués, sans temps forts.
     - **versions** : le composer est la 2ᵉ app à GARDER ses sorties (`KeptOutputsMixin`, migration
       `0021` additive appliquée avant le modèle, `keep_outputs('composer', 20, fields=SCORE_FIELDS)`
       — la PARTITION seule : `keep_outputs` accepte désormais les champs gardés, sinon chaque

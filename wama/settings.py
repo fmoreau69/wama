@@ -178,6 +178,12 @@ MODEL_PATHS = {
         # Declarer la famille ici fait aussi sortir ses snapshots du balayage generique
         # du catalogue : l'app composer en devient l'autorite.
         'minimax_music3': AI_MODELS_DIR / "models" / "music" / "MiniMax-Music3",
+        # MuScriptor large (audio → MIDI multi-instrument, la « Partition complète » du composer,
+        # 2026-10-16) : ses fichiers sont DÉCLARÉS avec leur origine (`muscriptor_backend.
+        # MUSCRIPTOR_FILES` — deux du Hub, le point de contrôle de Beat This! depuis le serveur
+        # de ses auteurs) et installés par le pilote `files`. Déclarer la famille la sort du
+        # balayage générique : la découverte `_discover_midi_extraction_models` en est l'autorité.
+        'muscriptor': AI_MODELS_DIR / "models" / "music" / "muscriptor-large",
     },
     # LLM models (reference to Ollama)
     'llm': {
