@@ -29,7 +29,8 @@ Rules — an app manifest is a WAMA DECISION, not a copy of the repository:
 - `ports` and `modes` use port types from VOCABULARIES only; input groups are
   travail | prompt | reference;
 - `models.catalog_keys` lists only keys present in REQUIRES (or leave it empty);
-- do not write the `data` facet (it is introspected after generation) nor `tool_api`;
+- do not write the `data` facet (it is introspected after generation), nor `tool_api`, nor
+  `surfaces` (an editing page is declared once the app's processes exist);
 - keep `access` private (`public: false`) and `studio.runnable: true`.
 
 Reply with ONE JSON object and nothing else:

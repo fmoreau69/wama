@@ -58,6 +58,11 @@ SHAPE_EXAMPLE = REPO_ROOT / DRAFTS_DIR / 'writer.json'
 #: Facettes d'une app existante qui ne s'écrivent pas dans un brouillon : `data` est introspectée
 #: APRÈS la génération, `tool_api` dérive des tâches — les montrer apprendrait à les recopier.
 NOT_AUTHORED_FACETS = ('data', 'tool_api')
+#: Facettes propres à l'app de l'EXEMPLE, retirées avant de le montrer : la surface d'édition du
+#: Writer nomme SES fichiers (`draft_file`) — recopiée telle quelle dans le premier brouillon du
+#: Translator (2026-10-16), la naissance l'a refusée. Une page d'édition se déclare une fois que
+#: les process de l'app existent, pas dans un premier brouillon.
+EXAMPLE_ONLY_FACETS = ('surfaces',)
 #: Plafond d'un manifeste montré en contexte (caractères). 24 000 au premier essai (2026-10-15) :
 #: contexte de ~30 000 caractères + un manifeste de ~11 000 en réponse + la réflexion de qwen3.8
 #: remplissaient la fenêtre d'Ollama (16 384 jetons, `call_ollama`) et COUPAIENT la réponse au
@@ -90,6 +95,13 @@ def check_key(key: str) -> None:
     error = new_app_key_error(key)
     if error:
         raise AppDraftRefused(f'[app] REFUS : {error}')
+
+
+def shape_example() -> str:
+    """L'exemple de FORME, sans ce qui n'appartient qu'à son app (`EXAMPLE_ONLY_FACETS`)."""
+    example = json.loads(SHAPE_EXAMPLE.read_text(encoding='utf-8'))
+    body = {k: v for k, v in (example.get('body') or {}).items() if k not in EXAMPLE_ONLY_FACETS}
+    return json.dumps({**example, 'body': body}, ensure_ascii=False, indent=1)
 
 
 def shown(manifest: dict) -> str:
@@ -145,9 +157,10 @@ def enforce_envelope(manifest: dict, key: str, refs: list, concerns: list) -> di
     if dropped:
         concerns.append(f"références ajoutées par le modèle, écartées : {dropped}")
     body = manifest.get('body') if isinstance(manifest.get('body'), dict) else {}
-    for facet in NOT_AUTHORED_FACETS:
+    for facet in NOT_AUTHORED_FACETS + EXAMPLE_ONLY_FACETS:
         if body.pop(facet, None) is not None:
-            concerns.append(f"facette `{facet}` retirée (elle ne s'écrit pas dans un brouillon)")
+            concerns.append(f"facette `{facet}` retirée (elle ne s'écrit pas dans un premier "
+                            "brouillon : une page d'édition se déclare une fois les process faits)")
     identity = body.setdefault('identity', {})
     identity['url_name'] = f'{key}:index'
     return {**manifest, 'key': key, 'manifest_kind': 'app', 'schema_version': '1.0',
@@ -173,6 +186,11 @@ def split_checks(manifest: dict) -> tuple:
     for error in validate(manifest):
         m = _DANGLING.match(error)
         (pending.append(m['ref']) if m else errors.append(error))
+    if not errors:
+        # Le JUGE d'un brouillon est la génération (`app_sandbox.first_pass_refusals`, les
+        # gabarits mêmes de la naissance, à blanc) : `validate` ne regarde que la forme.
+        from wama.common.management.commands.app_sandbox import first_pass_refusals
+        errors += first_pass_refusals(manifest)
     return errors, pending
 
 
@@ -192,7 +210,7 @@ def main():
     req_text, dangling = requires_context(refs)
     concerns: list = []
     user_msg = (f"NEED:\n{args.need}\n\nKEY: {args.key}\n\n"
-                f"EXAMPLE (writer.json — the SHAPE only):\n{SHAPE_EXAMPLE.read_text(encoding='utf-8')}\n\n"
+                f"EXAMPLE (writer.json — the SHAPE only):\n{shape_example()}\n\n"
                 f"LIKE ({args.like or 'none'}):\n{like_manifest(args.like)}\n\n"
                 f"REQUIRES:\n{req_text}\n\nCATALOG:\n{catalog_context()}\n\n"
                 f"VOCABULARIES:\n{vocabularies()}\n")

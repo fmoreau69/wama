@@ -2789,11 +2789,11 @@ class ModelRegistry:
                                     # comme avant.
                                     # Démon muet (c'est le cas de ce repli) : le DERNIER relevé
                                     # mesuré, jamais « un modèle de complétion » supposé.
-                                    _brutes = (capacites.get(full_name, set())
-                                               or self._ollama_last_measured(full_name))
-                                    _caps_repli = self._capacites_canoniques(_brutes, full_name)
-                                    if _brutes:
-                                        _caps_repli['abilities'] = sorted(_brutes)
+                                    _raw_caps = (capacites.get(full_name, set())
+                                                 or self._ollama_last_measured(full_name))
+                                    _caps_repli = self._capacites_canoniques(_raw_caps, full_name)
+                                    if _raw_caps:
+                                        _caps_repli['abilities'] = sorted(_raw_caps)
                                     self._models[f"ollama:{full_name}"] = ModelInfo(
                                         id=f"ollama:{full_name}",
                                         name=full_name,

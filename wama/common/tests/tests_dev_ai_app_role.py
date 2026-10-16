@@ -67,6 +67,27 @@ class AppRoleChecksTest(SimpleTestCase):
         # Contre-épreuve : une faute de FORME du brouillon reste une erreur.
         self.assertTrue(any('ports.inputs' in e for e in errors), errors)
 
+    def test_the_generators_judge_the_draft_before_any_birth(self):
+        """Vécu le 2026-10-16 : un brouillon « clean » portait la surface d'édition du Writer
+        (`draft_file`) ; seule la naissance l'a refusé. Le rôle passe désormais le brouillon dans
+        les gabarits mêmes de la naissance, à blanc."""
+        import json
+        draft = json.loads(self.role.SHAPE_EXAMPLE.read_text(encoding='utf-8'))
+        draft = self.role.enforce_envelope(draft, 'translator_judge_test', [], [])
+        draft['body']['surfaces'] = [{'key': 'edit', 'label': 'x', 'edits': 'draft_file',
+                                      'slots': []}]
+        errors, _ = self.role.split_checks(draft)
+        self.assertTrue(any(e.startswith('Gabarit surfaces') for e in errors), errors)
+
+    def test_the_writer_surface_is_neither_shown_nor_kept(self):
+        import json
+        self.assertNotIn('surfaces', json.loads(self.role.shape_example())['body'])
+        concerns = []
+        kept = self.role.enforce_envelope({'body': {'surfaces': [{'key': 'edit'}]}},
+                                          'translator', [], concerns)
+        self.assertNotIn('surfaces', kept['body'])
+        self.assertTrue(any('surfaces' in c for c in concerns), concerns)
+
     def test_the_shape_example_is_a_valid_app_draft(self):
         """Le seul brouillon né de zéro sert d'exemple de FORME : s'il ne valide plus, le rôle
         enseignerait une forme fausse."""

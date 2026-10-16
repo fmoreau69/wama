@@ -476,6 +476,38 @@ def new_app_key_error(key: str) -> str:
     return ''
 
 
+def first_pass_targets(manifest: dict) -> list:
+    """Les gabarits du PREMIER temps d'une naissance de zéro — ce qui ne dépend que du manifeste.
+    Le pipeline (une app à plusieurs process) se lit par la CLÉ, comme au corpus (`pipeline_decl`) :
+    `function_specs.py` n'est rendu que s'il est déclaré — sans lui, une app à un process, le cas
+    normal ; `surfaces` seulement si le manifeste en déclare."""
+    from wama.common.manifests.codegen.pipeline_decl import declared_pipeline
+    from wama.common.manifests.codegen.surfaces_gen import declared_surfaces
+    targets = ['apps', 'models', 'params', 'tasks']
+    if declared_pipeline(manifest.get('key') or '')[0]:
+        targets.append('function_specs')
+    if declared_surfaces(manifest):
+        targets.append('surfaces')
+    return targets
+
+
+def first_pass_refusals(manifest: dict) -> list:
+    """Les refus des gabarits du premier temps, rendus À BLANC — rien n'est écrit.
+
+    Le juge d'un brouillon, c'est la génération : la validation du kind ne regarde que la forme.
+    Vécu le 2026-10-16 : un brouillon du rôle `app` jugé « clean » portait la surface d'édition du
+    Writer (`draft_file`, sortie d'aucun process de l'app) ; seule la naissance l'a refusé. Le rôle
+    appelle désormais ce rendu avant de rendre son verdict."""
+    import importlib
+    refusals = []
+    for target in first_pass_targets(manifest):
+        _, mod_path, fn_name = _SUBSTITUTABLE[target]
+        rendered, reason = getattr(importlib.import_module(mod_path), fn_name)(manifest)
+        if rendered is None:
+            refusals.append(f'Gabarit {target} : rien à générer — {reason}')
+    return refusals
+
+
 def _app_manifest_file(path) -> tuple:
     """`(manifeste, chemin)` d'un manifeste `app` FICHIER, lu et VALIDÉ — la lecture commune de
     la création de zéro et de la substitution d'une app née d'un manifeste (2026-10-12)."""
@@ -862,17 +894,8 @@ class Command(BaseCommand):
                                       f'({len(text.splitlines())} lignes, '
                                       f'{holes[str(dest.relative_to(pkg))]} trou(s) de glu)')
 
-        # 1. Premier temps : ce qui ne dépend que du manifeste. Le pipeline (une app à plusieurs
-        # process) se lit par la CLÉ, comme au corpus (`pipeline_decl`) : `function_specs.py`
-        # n'est rendu que s'il est déclaré — sans lui, une app à un process, le cas normal.
-        from wama.common.manifests.codegen.pipeline_decl import declared_pipeline
-        from wama.common.manifests.codegen.surfaces_gen import declared_surfaces
-        targets = ['apps', 'models', 'params', 'tasks']
-        if declared_pipeline(key)[0]:
-            targets.append('function_specs')
-        if declared_surfaces(manifest):
-            targets.append('surfaces')
-        first = render(targets, manifest)
+        # 1. Premier temps : ce qui ne dépend que du manifeste (`first_pass_targets`).
+        first = render(first_pass_targets(manifest), manifest)
         (pkg / 'migrations').mkdir(parents=True, exist_ok=True)
         (pkg / '__init__.py').write_text('', encoding='utf-8')
         (pkg / 'migrations' / '__init__.py').write_text('', encoding='utf-8')
