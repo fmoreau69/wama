@@ -61,13 +61,19 @@ def prompt_entry(body: dict, fields=None) -> tuple:
     manifeste ne portent pas `required` aujourd'hui. Avec « sans port de travail » : 0 faux
     positif (Writer, composer) ; imager et avatarizer (travail + consigne, attache déclarée à la
     main) restent hors de la dérivation — un manque nommé, pas une erreur."""
-    groups = {p.get('group') for p in ((body.get('ports') or {}).get('inputs') or [])}
+    inputs = (body.get('ports') or {}).get('inputs') or []
+    groups = {p.get('group') for p in inputs}
     if 'prompt' not in groups or 'travail' in groups:
         return False, ''
     exists = (lambda n: True) if fields is None else (lambda n: n in fields)
     targets = (body.get('prompts') or {}).get('targets') or []
+    # Le PORT de consigne nomme son champ, comme tout port (2026-10-16) : translate_01 déclare
+    # son texte à traduire en port `text` du groupe prompt, SANS cible de prompt — à juste titre,
+    # le pipeline de prompts traduirait ou enrichirait le texte avant la traduction. Faute de
+    # cible et de colonne `prompt`, le champ restait vide : rien de ce qu'on tapait n'était gardé.
+    ports = [p['id'] for p in inputs if p.get('group') == 'prompt' and p.get('id')]
     field = next((t['field'] for t in targets if t.get('field') and exists(t['field'])),
-                 'prompt' if exists('prompt') else '')
+                 next((p for p in ports if exists(p)), 'prompt' if exists('prompt') else ''))
     return True, field
 
 
@@ -616,10 +622,14 @@ def upload(request):
         # La CONSIGNE vient de la card seule : passée par la cascade, une consigne vide
         # retomberait sur la DERNIÈRE consigne enregistrée, et chaque ajout l'enregistrerait
         # comme défaut du suivant. Elle sort du POST donné à la cascade et se pose après.
-        att_reglages = up_reglages.replace('request.POST', '_poste')
+        # ⚠ `_poste` n'existe QUE s'il y a une consigne à retirer (2026-10-16) : la substitution
+        # était faite pour toute app, la définition seulement avec `p_field` — une app SANS champ
+        # de consigne (translate_01 : on dépose un texte, pas une consigne) levait `NameError:
+        # name '_poste' is not defined` à chaque ajout, en 500.
+        att_reglages = up_reglages
         if p_field:
             att_reglages = (f"\n    _poste = request.POST.copy()\n    _poste.pop('{p_field}', None)"
-                            + att_reglages
+                            + up_reglages.replace('request.POST', '_poste')
                             + f"\n    kwargs['{p_field}'] = (request.POST.get('{p_field}') or '').strip()")
         vues['upload'] = f'''@require_POST
 def upload(request):
