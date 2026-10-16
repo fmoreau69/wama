@@ -253,6 +253,15 @@ de code, citer son verdict ; sinon le refaire.
   lignes (ici les deux mécanismes du palier) et les comparer à `git show HEAD:<doc>` : identiques
   = rien à faire de son côté, et c'est la preuve à citer. Régénérer le fichier aurait écrit le
   travail d'autrui dans l'arbre.
+  🔴 **Et dans l'autre sens : un fichier régénéré PAR AUTRUI a pu figer TON WIP** (vécu le
+  2026-10-16). Une autre session a régénéré ses manifestes pendant que ma première version
+  ajoutait `output_keep_size` à `OUTPUT_PARAM_NAMES` (surveillé par la Sortie de toutes les
+  apps) ; je l'ai retiré en revérification, mais SON `manifests/pipelines/composer.json` le
+  portait encore — seul `tests_process_pipeline` (« le manifeste exporté est celui du corpus »)
+  l'a montré. ✅ Après avoir RETIRÉ ou renommé un symbole de son WIP, le chercher dans les
+  fichiers GÉNÉRÉS modifiés de l'arbre (`grep -l <symbole>` sur manifestes et docs dérivées) ;
+  ce qui y reste de soi se retire dans LEUR fichier (la ligne seule, non commitée) et se dit au
+  handoff.
 - La grille a pu bouger → `check_app_conformity` (rapport global, pas `--app`).
 - Une entrée de `CELERY_BEAT_SCHEDULE` a été ajoutée ou déplacée → `tests_calendar` (plage
   RÉSERVÉE des tests nocturnes, tâche connue de Celery). ⚠ Vécu 03→04/10 : une purge horaire
