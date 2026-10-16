@@ -63,7 +63,8 @@ class YuE2Backend(MusicGenerationBackend):
 
     # ── métadonnées requises par le contrat commun ───────────────────────
     ENGINE = "yue"
-    # `mido` (2026-10-01, route library) : lecture des partitions MIDI (`_midi_events`).
+    # `mido` (2026-10-01, route library) : lecture des partitions MIDI (`_midi_events`, par la
+    # lecture commune `midi_score.read_midi`).
     REQUIRED_PACKAGES = ["torch", "soundfile", "mido"]
     name = "YuE2-3B"
     display_name = "YuE2‑3B – Text‑to‑Music"
@@ -163,7 +164,8 @@ class YuE2Backend(MusicGenerationBackend):
         """Le texte ABC d'une partition — ou un refus qui DIT pourquoi.
 
         - `.abc` : donné tel quel ;
-        - `.mid`/`.midi` (2026-10-01) : lu par `mido` (route `library`), réduit à UNE ligne
+        - `.mid`/`.midi` (2026-10-01) : lu par la lecture MIDI commune (`midi_score.read_midi`,
+          `mido` par la route `library`), réduit à UNE ligne
           mélodique (`_midi_events`), puis compilé par le compilateur du moteur — un
           convertisseur générique produirait un ABC hors des conventions de YuE2 ;
         - MusicXML : refusé en le disant (mido ne lit que le MIDI)."""
@@ -192,31 +194,19 @@ class YuE2Backend(MusicGenerationBackend):
         Le compilateur n'accepte qu'UNE ligne mélodique : la polyphonie est réduite à la note la
         plus HAUTE de chaque attaque (ligne de dessus), chaque note s'arrête à l'attaque suivante,
         et la batterie (canal 10) est écartée. Tempo, mesure et tonalité : les premiers que le
-        fichier déclare, sinon 120, 4/4, Do. Une seule consommatrice aujourd'hui — à extraire
-        dans `common/` au second consommateur d'une lecture MIDI."""
+        fichier déclare, sinon 120, 4/4, Do. Le fichier se lit par la LECTURE MIDI commune
+        (`common/utils/midi_score.read_midi`), extraite au second consommateur le 2026-10-16 (la
+        notation de la partition complète du composer)."""
         import math
         from fractions import Fraction
 
-        import mido
+        from wama.common.utils.midi_score import read_midi
 
-        midi = mido.MidiFile(midi_path)
-        tpb = midi.ticks_per_beat or 480
-        tempo, meter, key = None, None, None
-        started, notes, tick = {}, [], 0
-        for msg in mido.merge_tracks(midi.tracks):
-            tick += msg.time
-            if msg.type == "set_tempo" and tempo is None:
-                tempo = msg.tempo
-            elif msg.type == "time_signature" and meter is None:
-                meter = (msg.numerator, msg.denominator)
-            elif msg.type == "key_signature" and key is None:
-                key = msg.key
-            elif msg.type in ("note_on", "note_off") and getattr(msg, "channel", 0) != 9:
-                slot = (msg.channel, msg.note)
-                if msg.type == "note_on" and msg.velocity > 0:
-                    started.setdefault(slot, tick)
-                elif slot in started:
-                    notes.append((started.pop(slot), tick, msg.note))
+        song = read_midi(midi_path)
+        tpb = song.ticks_per_beat
+        tempo = song.tempi[0][1] if song.tempi else None
+        meter, key = song.meter, song.key
+        notes = [note for part in song.parts if not part.is_drum for note in part.notes]
         if not notes:
             raise ValueError("aucune note jouée dans le fichier MIDI (batterie exceptée)")
 
@@ -246,7 +236,7 @@ class YuE2Backend(MusicGenerationBackend):
         except Exception:
             key = None                                   # tonalité illisible : Do, sans deviner
         return {
-            "bpm": max(1, round(mido.tempo2bpm(tempo))) if tempo else 120,
+            "bpm": max(1, round(60_000_000 / tempo)) if tempo else 120,
             "key": key or "C",
             "bars": [{"meter": f"{num}/{den}"}] + [{} for _ in range(n_bars - 1)],
             "notes": events,

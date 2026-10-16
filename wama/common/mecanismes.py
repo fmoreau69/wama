@@ -2008,7 +2008,9 @@ MECHANISMS = (
               "percussion, accords, liaisons, altérations par mesure. Sur la métrique du MIDI quand "
               "le moteur en a trouvé une, sinon sur les temps JOUÉS de l'audio (`audio_rhythm`), "
               "anacrouse comprise. Né le 2026-10-16 pour la partition complète du composer "
-              "(MuScriptor, tâche `audio-to-midi`) ; ne connaît aucun moteur",
+              "(MuScriptor, tâche `audio-to-midi`) ; ne connaît aucun moteur. Porte aussi la "
+              "LECTURE MIDI commune (`read_midi` : tempos, mesure, tonalité, marqueurs, une partie "
+              "par piste et canal), que le moteur YuE2 consomme pour suivre une partition MIDI",
               'wama/common/utils/midi_score.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/tests/tests_midi_score.py',)),

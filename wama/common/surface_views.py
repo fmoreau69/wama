@@ -102,7 +102,8 @@ def surface_data(request, app: str, key: str, pk: int):
         if role in found.documents:
             reads[role] = _document(value)
         elif role in found.texts:
-            reads[role] = _text(value)
+            from wama.common.surfaces import MAX_TEXT_CHARS
+            reads[role] = _text(value, MAX_TEXT_CHARS)
         else:
             reads[role] = value.url if value else ''
             peaks = _server_peaks(reads[role])
@@ -226,14 +227,7 @@ def _value_of(found, item):
     """La valeur ÉDITÉE telle que la page la reçoit : le texte du fichier, ou le champ de donnée."""
     edited = found.edited(item)
     if found.text_value:
-        field = getattr(item, edited, None)
-        if not getattr(field, 'name', ''):
-            return ''
-        try:
-            with open(field.path, encoding='utf-8', errors='replace') as source:
-                return source.read()
-        except OSError:
-            return ''
+        return _text(getattr(item, edited, None))
     return getattr(item, edited, None) or {}
 
 
@@ -275,15 +269,14 @@ def _write_text(item, field_name: str, text: str) -> bool:
     return True
 
 
-def _text(value) -> str:
-    """Le texte d'un fichier lu en lecture seule (`Surface.texts`), plafonné comme un texte édité ;
-    '' sans fichier ou illisible."""
+def _text(value, limit: int = -1) -> str:
+    """Le texte du fichier d'un champ — l'édité entier (`_value_of`), un rôle lu en lecture seule
+    plafonné (`Surface.texts`, `MAX_TEXT_CHARS`) ; '' sans fichier ou illisible."""
     if not getattr(value, 'name', ''):
         return ''
-    from wama.common.surfaces import MAX_TEXT_CHARS
     try:
         with open(value.path, encoding='utf-8', errors='replace') as source:
-            return source.read(MAX_TEXT_CHARS)
+            return source.read(limit)
     except OSError:
         return ''
 

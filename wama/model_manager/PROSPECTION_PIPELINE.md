@@ -3049,3 +3049,13 @@ Suite de la veille ci-dessus, décisions (a)(b)(d) appliquées ; licence accept�
 - ⏳ **restes** : choix manuel du modèle du process ; le balayage générique des snapshots réécrit
   le nom et la description du modèle au catalogue (« Snapshot HF muscriptor-large », comme
   SheetSage2) — le manifeste autoré n'y survit que par ses capacités et sa composition.
+- ⏳ **chantier (trouvé à la revérification)** : un COMPOSANT HORS HUGGING FACE d'un modèle HF n'a
+  pas de forme déclarée. `composition.components` n'admet que `pattern` (fichier du dépôt) ou
+  `repo` (dépôt HF frère, `builtin/model._validate_composition`) ; le pilote `files`
+  (`pull_declared_files`, fichiers `{path, size, sha256, origin}`) et le pilote `hf` s'excluent
+  (`spec_for_catalog_row`). Le point de contrôle de Beat This! est donc tiré par le BACKEND au premier
+  usage (forme du parent MERT de SheetSage2, mais hors HF), avec la même forme de descripteur que
+  `files` — et la désinstallation, qui retire le seul snapshot (`weights_dir_of`), laisse
+  `muscriptor-large/beat_this/final0.ckpt` (81 Mo) derrière. Le geste : un troisième genre de
+  composant (`origin`, le descripteur de `files`), tiré par le pilote `hf` après le snapshot et
+  retiré avec lui.

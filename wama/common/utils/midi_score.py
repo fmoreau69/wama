@@ -18,6 +18,9 @@ Ce qu'elle écrit :
     bécarre (`=`) est écrit quand la même note revient naturelle dans la mesure.
 Elle ne devine PAS la tonalité (`K:C`, altérations écrites) : la partition extraite (SheetSage2) la
 porte, celle-ci rend ce qui sonne.
+
+Le fichier se lit par `read_midi`, la LECTURE MIDI commune : le moteur YuE2 la consomme aussi
+(`yue2_3b_backend._midi_events`, une partition MIDI ramenée à sa ligne mélodique).
 """
 from __future__ import annotations
 
@@ -70,6 +73,92 @@ def instrument_label(name: str) -> str:
     return INSTRUMENT_LABELS.get(key) or (name or '').strip().capitalize()
 
 
+class MidiPart:
+    """Une partie du MIDI — une piste et un canal : son nom (`track_name`), batterie ou non (canal
+    10), ses notes `(début, fin, hauteur)` en TICKS."""
+    __slots__ = ('name', 'is_drum', 'notes')
+
+    def __init__(self, name: str, is_drum: bool, notes: list):
+        self.name, self.is_drum, self.notes = name, is_drum, notes
+
+
+class MidiSong:
+    """Ce qu'un fichier MIDI déclare, lu une fois (`read_midi`) : la base de temps, la carte des
+    tempos `[(tick, µs par noire)]`, la PREMIÈRE mesure et la PREMIÈRE tonalité déclarées (None
+    sinon), les marqueurs et les parties qui ont des notes."""
+
+    def __init__(self, ticks_per_beat: int, tempi: list, meter, key, markers: list, parts: list):
+        self.ticks_per_beat, self.tempi, self.meter, self.key = ticks_per_beat, tempi, meter, key
+        self.markers, self.parts = markers, parts
+
+    def quarters(self, tick) -> float:
+        """Un instant en noires écrites (la grille du MIDI, quel que soit son tempo)."""
+        return tick / self.ticks_per_beat
+
+    def seconds(self, tick) -> float:
+        """Un instant en secondes, à travers la carte des tempos (120 à la noire avant le 1er)."""
+        total, last, tempo = 0.0, 0, 500000
+        for at, value in self.tempi:
+            if at >= tick:
+                break
+            total += (at - last) * tempo / (self.ticks_per_beat * 1e6)
+            last, tempo = at, value
+        return total + (tick - last) * tempo / (self.ticks_per_beat * 1e6)
+
+
+def read_midi(source) -> MidiSong:
+    """La LECTURE MIDI commune (2026-10-16) — un chemin ou des octets → `MidiSong`, par `mido`.
+
+    Extraite au second consommateur, comme son premier l'annonçait : le moteur YuE2 qui suit une
+    partition MIDI (`yue2_3b_backend._midi_events`) et la notation d'ici. Une partie par PISTE ET
+    CANAL (un MIDI de type 0 porte tous ses instruments dans une seule piste) ; une note commence
+    à un `note_on` de vélocité non nulle et finit au `note_off` (ou `note_on` à 0) suivant."""
+    import mido
+
+    song = (mido.MidiFile(file=io.BytesIO(source)) if isinstance(source, (bytes, bytearray))
+            else mido.MidiFile(str(source)))
+    tempi, meter, key, markers, tick = [], None, None, [], 0
+    for msg in mido.merge_tracks(song.tracks):
+        tick += msg.time
+        if msg.type == 'set_tempo':
+            # Un tempo RÉPÉTÉ d'une piste à l'autre (MuScriptor le recopie pour MuseScore) n'en
+            # est pas un nouveau.
+            if not tempi or tempi[-1][1] != msg.tempo:
+                tempi.append((tick, msg.tempo))
+        elif msg.type == 'time_signature' and meter is None:
+            meter = (msg.numerator, msg.denominator)
+        elif msg.type == 'key_signature' and key is None:
+            key = msg.key
+        elif msg.type == 'marker':
+            markers.append(msg.text)
+    parts = []
+    for track in song.tracks:
+        name, tick, started, by_channel = '', 0, {}, {}
+        for msg in track:
+            tick += msg.time
+            if msg.type == 'track_name' and not name:
+                name = msg.name
+            elif msg.type in ('note_on', 'note_off'):
+                slot = (msg.channel, msg.note)
+                if msg.type == 'note_on' and msg.velocity > 0:
+                    started.setdefault(slot, []).append(tick)
+                elif slot in started:
+                    # Une fin ferme toutes les attaques ouvertes de cette hauteur SAUF celles de
+                    # cet instant : une note re-frappée au tick où la précédente finit commence
+                    # là (la règle de pretty_midi ; garder la seule 1re attaque perdait la note,
+                    # mesuré le 2026-10-16 sur des MIDI écrits par MuScriptor).
+                    keep = [s for s in started[slot] if s == tick]
+                    closing = [s for s in started[slot] if s != tick]
+                    by_channel.setdefault(msg.channel, []).extend((s, tick, msg.note) for s in closing)
+                    if closing and keep:
+                        started[slot] = keep
+                    else:
+                        del started[slot]
+        parts += [MidiPart(name.strip(), channel == 9, sorted(notes))
+                  for channel, notes in sorted(by_channel.items())]
+    return MidiSong(song.ticks_per_beat or 480, tempi, meter, key, markers, parts)
+
+
 def abc_pitch(pitch: int) -> tuple:
     """(lettre ABC avec octave, dièse ?) d'une hauteur MIDI : 60 → ('C', False), 73 → ('c', True)."""
     letter, sharp = _PITCH_CLASSES[pitch % 12]
@@ -104,22 +193,22 @@ class _Voice:
 
 
 def _quantize(notes, to_steps) -> list:
-    """`[(début, fin, hauteur)]` en pas de grille (`to_steps` : secondes MIDI → pas, réel) ; une
+    """`[(début, fin, hauteur)]` en pas de grille (`to_steps` : ticks MIDI → pas, réel) ; une
     note dure au moins un pas."""
     out = []
-    for n in notes:
-        start = int(round(to_steps(n.start)))
-        end = max(start + 1, int(round(to_steps(n.end))))
-        out.append((start, end, int(n.pitch)))       # négatif possible : `midi_to_abc` décale
+    for start_tick, end_tick, pitch in notes:
+        start = int(round(to_steps(start_tick)))
+        end = max(start + 1, int(round(to_steps(end_tick))))
+        out.append((start, end, int(pitch)))         # négatif possible : `midi_to_abc` décale
     return out
 
 
-def bar_offset_of(pm) -> float:
+def bar_offset_of(markers) -> float:
     """Le décalage (s) qu'un moteur a ajouté pour poser la mesure 1 sur un temps fort — marqueur
     `…bar_offset=<s>` (convention de MuScriptor, lue sans le nommer) ; 0 s'il n'y en a pas.
     Temps de l'audio ≈ temps du MIDI − ce décalage (à la latence d'attaque près, < 25 ms)."""
     import re
-    for text in [m.text for m in getattr(pm, 'markers', [])]:
+    for text in markers:
         found = re.search(r'bar_offset=([-0-9.]+)', text or '')
         if found:
             return float(found.group(1))
@@ -201,13 +290,11 @@ def _bar_tokens(notes, bar_start: int, bar_steps: int, drum: bool) -> str:
     return ''.join(tokens)
 
 
-def _voices_of(pm, to_steps) -> list:
+def _voices_of(song: MidiSong, to_steps) -> list:
     voices = []
-    for index, inst in enumerate(pm.instruments):
-        if not inst.notes:
-            continue
+    for index, inst in enumerate(song.parts):
         notes = _quantize(inst.notes, to_steps)
-        original = (inst.name or '').strip()
+        original = inst.name
         label = (instrument_label(original) if original
                  else ('Batterie' if inst.is_drum else f'Instrument {index + 1}')).replace('"', "'")
         if inst.is_drum:
@@ -238,22 +325,16 @@ def midi_to_abc(midi_bytes: bytes, *, title: str = '', grid: int = 4, bars_per_l
         `common/utils/audio_rhythm.py`) : chaque note est placée sur ces temps-là
         (`played_beat_steps`), en 4/4, la mesure 1 au premier temps joué. Les barres suivent alors
         la musique au lieu d'un 120 bpm qui n'a jamais été joué."""
-    import pretty_midi
-
-    pm = pretty_midi.PrettyMIDI(io.BytesIO(midi_bytes))
-    _times, tempi = pm.get_tempo_changes()
-    bpm = float(tempi[0]) if len(tempi) else 120.0
-    numerator, denominator = 4, 4
-    if pm.time_signature_changes:
-        ts = pm.time_signature_changes[0]
-        numerator, denominator = int(ts.numerator), int(ts.denominator)
-        to_steps = lambda t: t * bpm / 60.0 * grid      # noqa: E731 — `grid` pas par NOIRE
-    elif beat_times is not None and len(beat_times) >= 8:
-        to_steps, bpm = played_beat_steps(beat_times, grid, bar_offset_of(pm))
-    else:
-        to_steps = lambda t: t * bpm / 60.0 * grid      # noqa: E731
+    song = read_midi(midi_bytes)
+    bpm = 60e6 / song.tempi[0][1] if song.tempi else 120.0
+    numerator, denominator = song.meter or (4, 4)
+    # `grid` pas par NOIRE écrite : la grille du MIDI lui-même, sauf sans métrique (ci-dessus).
+    to_steps = lambda tick: song.quarters(tick) * grid    # noqa: E731
+    if song.meter is None and beat_times is not None and len(beat_times) >= 8:
+        on_beats, bpm = played_beat_steps(beat_times, grid, bar_offset_of(song.markers))
+        to_steps = lambda tick: on_beats(song.seconds(tick))    # noqa: E731
     bar_steps = int(round(numerator * 4 / denominator * grid))
-    voices = _voices_of(pm, to_steps)
+    voices = _voices_of(song, to_steps)
     if not voices:
         raise ValueError("MIDI sans aucune note : rien à écrire")
     # Une note AVANT la mesure 1 (anacrouse avant le premier temps joué) : toute la partition

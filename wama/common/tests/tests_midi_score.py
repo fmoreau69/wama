@@ -20,9 +20,9 @@ from django.test import SimpleTestCase
 from wama.common.utils.midi_score import instrument_label, midi_to_abc
 
 
-def _midi(instruments, metre=True, tempo=120.0) -> bytes:
+def _midi(instruments, metre=True, tempo=120.0, marker=None) -> bytes:
     """A MIDI of `(name, is_drum, [(start s, end s, pitch)])` ; `metre=False` writes NO time
-    signature, as MuScriptor does when it finds no constant tempo."""
+    signature, as MuScriptor does when it finds no constant tempo ; `marker` adds a marker."""
     import mido
     import pretty_midi
     pm = pretty_midi.PrettyMIDI(initial_tempo=tempo)
@@ -33,12 +33,14 @@ def _midi(instruments, metre=True, tempo=120.0) -> bytes:
         pm.instruments.append(inst)
     buffer = io.BytesIO()
     pm.write(buffer)
-    if metre:
+    if metre and marker is None:
         return buffer.getvalue()
     buffer.seek(0)
     song = mido.MidiFile(file=buffer)
     for track in song.tracks:
-        track[:] = [m for m in track if m.type != 'time_signature']
+        track[:] = [m for m in track if metre or m.type != 'time_signature']
+    if marker is not None:
+        song.tracks[0].insert(0, mido.MetaMessage('marker', text=marker, time=0))
     out = io.BytesIO()
     song.save(file=out)
     return out.getvalue()
@@ -85,6 +87,16 @@ class MidiToAbcTest(SimpleTestCase):
         self.assertEqual('z12G4|A4B4z8|', _body(abc, 'I0'),
                          'the pickup before the first beat moves the score back by a whole bar')
 
+    def test_the_bar_offset_the_engine_added_is_taken_back_before_placing(self):
+        """MuScriptor delays every note so its bars land on downbeats, and says by how much in a
+        marker. 2026-10-16 : read through `pretty_midi` (which keeps no markers), it was ignored
+        and the full score of a song without a constant tempo came out shifted by it."""
+        beats = [1.0 + 0.6 * i for i in range(12)]
+        shifted = [(0.4 + 1.2, 1.0 + 1.2, 67), (1.0 + 1.2, 1.6 + 1.2, 69), (1.6 + 1.2, 2.2 + 1.2, 71)]
+        abc = midi_to_abc(_midi([('voice', False, shifted)], metre=False,
+                                marker='muscriptor:bar_offset=1.2000'), beat_times=beats)
+        self.assertEqual('z12G4|A4B4z8|', _body(abc, 'I0'), 'the same score as without the delay')
+
     def test_too_few_played_beats_keep_the_midi_tempo(self):
         abc = midi_to_abc(_midi([('voice', False, [(0, .5, 67)])], metre=False), beat_times=[0, .6, 1.2])
         self.assertIn('Q:1/4=120', abc)
@@ -98,6 +110,44 @@ class MidiToAbcTest(SimpleTestCase):
         self.assertEqual('Voix', instrument_label('Voice'))
         self.assertEqual('Guitare saturée', instrument_label('distorted_electric_guitar'))
         self.assertEqual('Kazoo', instrument_label('kazoo'))
+
+
+class ReadMidiTest(SimpleTestCase):
+    """`read_midi`, the MIDI reading shared by the notation and the YuE2 engine."""
+
+    def _bytes(self, messages, ticks_per_beat=480) -> bytes:
+        import mido
+        song = mido.MidiFile(ticks_per_beat=ticks_per_beat, type=0)
+        song.tracks.append(mido.MidiTrack(messages))
+        out = io.BytesIO()
+        song.save(file=out)
+        return out.getvalue()
+
+    def test_a_note_struck_again_as_the_previous_one_ends_is_kept(self):
+        import mido
+        from wama.common.utils.midi_score import read_midi
+        song = read_midi(self._bytes([
+            mido.Message('note_on', note=60, velocity=80, time=0),
+            mido.Message('note_on', note=60, velocity=80, time=480),     # struck again…
+            mido.Message('note_off', note=60, time=0),                   # …as the first one ends
+            mido.Message('note_off', note=60, time=480)]))
+        self.assertEqual([(0, 480, 60), (480, 960, 60)], song.parts[0].notes)
+
+    def test_one_track_splits_by_channel_and_seconds_follow_the_tempo_map(self):
+        import mido
+        from wama.common.utils.midi_score import read_midi
+        song = read_midi(self._bytes([
+            mido.MetaMessage('set_tempo', tempo=500000, time=0),
+            mido.Message('note_on', note=64, velocity=80, channel=0, time=0),
+            mido.Message('note_on', note=36, velocity=80, channel=9, time=0),
+            mido.Message('note_off', note=36, channel=9, time=240),
+            mido.MetaMessage('set_tempo', tempo=1000000, time=240),
+            mido.Message('note_off', note=64, channel=0, time=480)]))
+        self.assertEqual([(False, [(0, 960, 64)]), (True, [(0, 240, 36)])],
+                         [(p.is_drum, p.notes) for p in song.parts])
+        self.assertEqual([(0, 500000), (480, 1000000)], song.tempi)
+        self.assertAlmostEqual(0.5 + 1.0, song.seconds(960), msg='a beat at 120, then one at 60')
+        self.assertEqual(2.0, song.quarters(960))
 
 
 class RobustTempoTest(SimpleTestCase):

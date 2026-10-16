@@ -2383,15 +2383,18 @@ Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivi
 
 ### Notation d'un MIDI multi-instrument (MIDI → ABC)
 
-Un MIDI à une piste par instrument → une partition ABC lisible : une voix par instrument (libellé français), clavier sur deux portées, batterie en portée de percussion, accords, liaisons, altérations par mesure. Sur la métrique du MIDI quand le moteur en a trouvé une, sinon sur les temps JOUÉS de l'audio (`audio_rhythm`), anacrouse comprise. Né le 2026-10-16 pour la partition complète du composer (MuScriptor, tâche `audio-to-midi`) ; ne connaît aucun moteur
+Un MIDI à une piste par instrument → une partition ABC lisible : une voix par instrument (libellé français), clavier sur deux portées, batterie en portée de percussion, accords, liaisons, altérations par mesure. Sur la métrique du MIDI quand le moteur en a trouvé une, sinon sur les temps JOUÉS de l'audio (`audio_rhythm`), anacrouse comprise. Né le 2026-10-16 pour la partition complète du composer (MuScriptor, tâche `audio-to-midi`) ; ne connaît aucun moteur. Porte aussi la LECTURE MIDI commune (`read_midi` : tempos, mesure, tonalité, marqueurs, une partie par piste et canal), que le moteur YuE2 consomme pour suivre une partition MIDI
 
 - **Domicile** : `wama/common/utils/midi_score.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Un MIDI multi-pistes → une partition ABC LISIBLE (2026-10-16, la « Partition complète » du composer).
-- **API publique** (6) :
+- **API publique** (9) :
   - `instrument_label(name: str) -> str` — Le libellé français d'une piste nommée par le moteur (`INSTRUMENT_LABELS`).
+  - `class MidiPart` — Une partie du MIDI — une piste et un canal : son nom (`track_name`), batterie ou non (canal
+  - `class MidiSong` — Ce qu'un fichier MIDI déclare, lu une fois (`read_midi`) : la base de temps, la carte des
+  - `read_midi(source) -> MidiSong` — La LECTURE MIDI commune (2026-10-16) — un chemin ou des octets → `MidiSong`, par `mido`.
   - `abc_pitch(pitch: int) -> tuple` — (lettre ABC avec octave, dièse ?) d'une hauteur MIDI : 60 → ('C', False), 73 → ('c', True).
   - `split_length(steps: int) -> list` — Une durée en pas découpée en valeurs écrivables (la plus longue d'abord).
-  - `bar_offset_of(pm) -> float` — Le décalage (s) qu'un moteur a ajouté pour poser la mesure 1 sur un temps fort — marqueur
+  - `bar_offset_of(markers) -> float` — Le décalage (s) qu'un moteur a ajouté pour poser la mesure 1 sur un temps fort — marqueur
   - `played_beat_steps(beat_times, grid: int, offset: float)` — `(secondes MIDI → pas)` sur les temps JOUÉS : une note se place entre les deux temps de
   - `midi_to_abc(midi_bytes: bytes, *, title: str='', grid: int=4, bars_per_line: int=4, beat_times=None) -> str` — Le texte ABC d'un MIDI multi-pistes (voir l'en-tête). Lève `ValueError` sans aucune note.
 

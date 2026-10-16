@@ -622,6 +622,18 @@ manifeste** (ce que le kind `app` capte + cible de projection).
         de #754 puis retiré) : 481 + 1 094 notes, 7 portées allumées sur la même mesure à 4,0 s,
         glisser une note de la partition complète n'écrit rien, 0 erreur console. Mesures GPU réelles
         (#754) : chargement 28 s, transcription 99-151 s pour 210 s d'audio, pic 9,77 Go.
+      - **revérification du jour même** (`/reverif`) : trois écarts ramenés. (1) Une SECONDE lecture
+        MIDI — `yue2_3b_backend._midi_events` lisait déjà le MIDI (par `mido`) et l'annonçait « à
+        extraire dans `common/` au second consommateur » : la lecture est désormais COMMUNE
+        (`midi_score.read_midi`), les deux l'emploient ; équivalence mesurée sur 60 MIDI écrits par
+        le writer de MuScriptor (56 identiques, 4 écarts d'arrondi ou de décalage, ci-dessous).
+        (2) Un DÉFAUT : `pretty_midi` 0.2.10 ne garde pas les marqueurs, le `getattr(pm,
+        'markers', [])` rendait vide en silence — le décalage de mesure de MuScriptor n'était jamais
+        retiré et la partition complète d'un morceau sans tempo constant sortait décalée (jusqu'à
+        1,2 s) ; la lecture commune le lit. Au passage, une note re-frappée au tick où la précédente
+        finit était perdue par l'ancienne règle d'appariement (celle de YuE2 aussi) : règle de
+        pretty_midi reprise. (3) Le texte d'un fichier de surface se lisait à deux endroits
+        (`_value_of`, `_text`) : un seul lecteur.
       - ⏳ **Restes** : le choix MANUEL du modèle du process (auto + manuel, aujourd'hui tiré seul) ;
         les rendus à tempo variable sont placés en 4/4 sur les temps joués, sans temps forts ; le
         nom et la description du modèle au catalogue sont réécrits par le balayage générique des
