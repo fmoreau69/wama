@@ -265,6 +265,11 @@ io = {
 `batch`, `export_binding` (`'late'` = format choisi à l'export / `'early'` = format figé à la
 génération, cf. §6.4) … → composent le template (cf. §4) et informent l'agent de ce que l'app sait faire.
 
+**`instant_preview` (DÉFINI le 2026-10-16, réservé depuis le 17/06)** : l'app montre, sous la
+consigne de sa card d'entrée, ce qu'elle rendrait — PENDANT la frappe, sans rien mettre en file
+(le Translator « à la DeepL »). Exige la route `instant` ; détail : `docs/construction/ui/
+CARD_DESIGN.md §11.11 D bis`.
+
 **`has_result_import` / `has_reference_result` (2026-09-23)** : l'app accepte un résultat produit
 ailleurs (il tient lieu de traitement) / un résultat attendu (la sortie lui est comparée). Ils
 ouvrent les ports `work_result` / `reference_result`, dont la nature est celle de la SORTIE de

@@ -84,7 +84,7 @@ class AppRoleChecksTest(SimpleTestCase):
         faute de capacité — la génération à blanc ne jouait qu'en l'absence de faute de forme."""
         draft = self.role.enforce_envelope(
             {'name': 'T', 'description': 'd',
-             'body': {'capabilities': {'has_instant_result': True}}}, 'translator', [], [])
+             'body': {'capabilities': {'instant_preview': True}}}, 'translator', [], [])
         errors, _ = self.role.split_checks(draft)
         self.assertTrue(any('instant' in e for e in errors), errors)
         self.assertTrue(any(e.startswith('Gabarit tasks') for e in errors), errors)
@@ -99,6 +99,15 @@ class AppRoleChecksTest(SimpleTestCase):
         self.assertEqual('TranslatorText', kept['body']['processing']['item_model'])
         self.assertNotIn('processing', kept)
         self.assertTrue(any('processing' in c for c in concerns), concerns)
+
+    def test_the_roles_that_write_a_long_object_share_one_window(self):
+        """Trois rôles portaient chacun 32 768 (2026-10-16) : une valeur, dans `role_utils`."""
+        from pathlib import Path
+        root = Path(self.role.__file__).parent
+        for name in ('run_app_manifest.py', 'run_codegen.py', 'run_backend.py'):
+            src = (root / name).read_text(encoding='utf-8')
+            self.assertIn('LONG_WRITE_NUM_CTX', src, name)
+            self.assertNotIn('32768', src, f'{name} : fenêtre recopiée au lieu de lue')
 
     def test_the_category_is_derived_from_the_types_not_chosen_by_the_model(self):
         concerns = []

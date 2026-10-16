@@ -666,7 +666,7 @@ def upload(request):
         f.record(item, '{d['input_field']}')   # provenance d'un fichier DÉSIGNÉ{record_sec}
     return JsonResponse({{'id': item.id, 'status': item.status, 'warning': _avert}})'''
 
-    # RÉSULTAT INSTANTANÉ (2026-10-16, le Translator « à la DeepL » — capacité `has_instant_result`,
+    # RÉSULTAT INSTANTANÉ (2026-10-16, le Translator « à la DeepL » — capacité `instant_preview`,
     # `CARD_DESIGN §11.11 D bis`). La card l'appelle PENDANT la frappe : la glu de l'app
     # (`tasks.instant_result`) joue sur un élément NON enregistré — rien en file, rien en base.
     # Le texte vient de la card, les réglages de la MÊME cascade que l'ajout (la saisie retirée du
@@ -680,7 +680,7 @@ def upload(request):
                                 "\n    kwargs.update(_cols)")
         vues['instant'] = f'''@require_POST
 def instant(request):
-    """Résultat INSTANTANÉ de la saisie (capacité `has_instant_result`) : `tasks.instant_result`
+    """Résultat INSTANTANÉ de la saisie (capacité `instant_preview`) : `tasks.instant_result`
     joué sur un élément NON enregistré — rien en file, rien en base. La card poste sa saisie sous
     `instant_text` (contrat de `wama-instant.js`) ; elle se pose ici dans le champ de l'app."""
     user = _user(request)

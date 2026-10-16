@@ -37,7 +37,7 @@
       "batch_type": "pipe",
       "during_preview": true,
       "has_batch": true,
-      "has_instant_result": true,
+      "instant_preview": true,
       "has_url_import": false,
       "has_youtube": false,
       "inspector": true,
@@ -161,8 +161,24 @@
                 "Português"
               ],
               [
+                "pl",
+                "Polski"
+              ],
+              [
+                "tr",
+                "Türkçe"
+              ],
+              [
+                "ru",
+                "Русский"
+              ],
+              [
                 "nl",
                 "Nederlands"
+              ],
+              [
+                "cs",
+                "Čeština"
               ],
               [
                 "ar",
@@ -179,14 +195,6 @@
               [
                 "ko",
                 "한국어"
-              ],
-              [
-                "ru",
-                "Русский"
-              ],
-              [
-                "tr",
-                "Türkçe"
               ]
             ],
             "contexts": [
@@ -233,8 +241,24 @@
                 "Português"
               ],
               [
+                "pl",
+                "Polski"
+              ],
+              [
+                "tr",
+                "Türkçe"
+              ],
+              [
+                "ru",
+                "Русский"
+              ],
+              [
                 "nl",
                 "Nederlands"
+              ],
+              [
+                "cs",
+                "Čeština"
               ],
               [
                 "ar",
@@ -251,14 +275,6 @@
               [
                 "ko",
                 "한국어"
-              ],
-              [
-                "ru",
-                "Русский"
-              ],
-              [
-                "tr",
-                "Türkçe"
               ]
             ],
             "contexts": [

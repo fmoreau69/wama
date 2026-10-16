@@ -57,7 +57,7 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                       placeholder="{{ prompt_placeholder|default:'Décrivez ce que vous voulez générer…' }}"></textarea>
             {% if prompt_hint %}<small class="text-muted">{{ prompt_hint }}</small>{% endif %}
             {% if prompt_counter_id %}<small class="text-muted d-block"><span id="{{ prompt_counter_id }}">0</span> mots</small>{% endif %}
-            {% comment %}RÉSULTAT INSTANTANÉ (§11.11 D bis, 2026-10-16) : capacité d'app `has_instant_result`,
+            {% comment %}RÉSULTAT INSTANTANÉ (§11.11 D bis, 2026-10-16) : capacité d'app `instant_preview`,
             lue par `instant_result_url` — le résultat suit la frappe (le Translator « à la DeepL »),
             sans rien mettre en file. Une app qui ne la déclare pas n'a pas cette zone.{% endcomment %}
             {% instant_result_url app_id as instant_url %}

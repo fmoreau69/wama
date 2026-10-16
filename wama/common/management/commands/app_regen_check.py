@@ -36,8 +36,10 @@ from django.core.management.base import BaseCommand, CommandError
 # défauts `_conv(...)` de l'entrée) et champs de `processing` dérivés de `conventions`.
 # L'entrée régénérée ne porte que le DÉCLARATIF, donc ces drapeaux bougent sans qu'aucun
 # comportement mesurable ne change (vérifié à la passe intégrée : grille et smoke identiques).
+# (`instant_preview` en est sorti le 2026-10-16 : aucune grille ne le mesurait, et c'est désormais
+# une capacité DÉCLARÉE — un écart sur lui est un vrai écart.)
 _MESURE_CAP_FLAGS = ('settings_modal_item', 'settings_modal_batch', 'inspector', 'realtime',
-                     'edit_page', 'instant_preview', 'during_preview',
+                     'edit_page', 'during_preview',
                      'multi_format_download', 'layout', 'anti_race')
 _MESURE_PATHS = tuple(f'body.capabilities.{f}' for f in _MESURE_CAP_FLAGS) + (
     'body.processing.anti_race', 'body.processing.processing_time', 'body.processing.statuses')

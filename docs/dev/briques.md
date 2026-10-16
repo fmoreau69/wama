@@ -2426,7 +2426,7 @@ L'APPARENCE d'un état (libellé, classe de badge, classe de texte, icône) déc
 
 ### Résultat instantané de la saisie
 
-Sous la consigne de la card d'entrée, ce que l'app rendrait — PENDANT la frappe, sans rien mettre en file. Capacité d'app DÉCLARÉE (`has_instant_result`, lue par `instant_result_url`) ; une source, la route `instant` du manifeste, d'où dérivent la vue générée (la glu `tasks.instant_result` sur un élément NON enregistré, réglages par la cascade de l'ajout), sa route et le trou de glu. Délai de saisie, seule la dernière réponse s'affiche (`CARD_DESIGN §11.11 D bis`)
+Sous la consigne de la card d'entrée, ce que l'app rendrait — PENDANT la frappe, sans rien mettre en file. Capacité d'app DÉCLARÉE (`instant_preview`, lue par `instant_result_url`) ; une source, la route `instant` du manifeste, d'où dérivent la vue générée (la glu `tasks.instant_result` sur un élément NON enregistré, réglages par la cascade de l'ajout), sa route et le trou de glu. Délai de saisie, seule la dernière réponse s'affiche (`CARD_DESIGN §11.11 D bis`)
 
 - **Domicile** : `wama/common/static/common/js/wama-instant.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
@@ -2835,7 +2835,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) : dans son entr�
   - `app_model_capabilities(app_id) -> list` — Les capacités des modèles DE l'app — l'inventaire UNIQUE dont dérivent ses ports
   - `app_input_ports(app_id, domain=None)` — Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
   - `app_has_live_input(app_id) -> bool` — L'app capte-t-elle EN DIRECT (Speak) ? — le port `live` de la card d'entrée.
-  - `app_has_instant_result(app_id) -> bool` — L'app montre-t-elle son résultat PENDANT la frappe (le Translator « à la DeepL ») ?
+  - `app_instant_preview(app_id) -> bool` — L'app montre-t-elle son résultat PENDANT la frappe (le Translator « à la DeepL ») ?
   - `app_own_input_ports(app_id)` — Ports d'entrée que l'APP consomme elle-même — aucun modèle ne les déclare (2026-09-30).
   - `ports_for_domain(app_id, domain, ports)` — Les ports d'une card, restreints à un DOMAINE de l'app (2026-09-30, card v4 multi-domaine).
   - `app_ports_carried_elsewhere(app_id) -> dict` — Ports que la card d'ENTRÉE de l'app ne montre pas, parce qu'un AUTRE geste les porte —
@@ -3078,7 +3078,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `app_model_capabilities(app_id) -> list` — Les capacités des modèles DE l'app — l'inventaire UNIQUE dont dérivent ses ports
   - `app_input_ports(app_id, domain=None)` — Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
   - `app_has_live_input(app_id) -> bool` — L'app capte-t-elle EN DIRECT (Speak) ? — le port `live` de la card d'entrée.
-  - `app_has_instant_result(app_id) -> bool` — L'app montre-t-elle son résultat PENDANT la frappe (le Translator « à la DeepL ») ?
+  - `app_instant_preview(app_id) -> bool` — L'app montre-t-elle son résultat PENDANT la frappe (le Translator « à la DeepL ») ?
   - `app_own_input_ports(app_id)` — Ports d'entrée que l'APP consomme elle-même — aucun modèle ne les déclare (2026-09-30).
   - `ports_for_domain(app_id, domain, ports)` — Les ports d'une card, restreints à un DOMAINE de l'app (2026-09-30, card v4 multi-domaine).
   - `app_ports_carried_elsewhere(app_id) -> dict` — Ports que la card d'ENTRÉE de l'app ne montre pas, parce qu'un AUTRE geste les porte —

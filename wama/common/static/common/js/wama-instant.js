@@ -1,7 +1,7 @@
 /**
  * WamaInstant — le résultat INSTANTANÉ de la saisie (CARD_DESIGN §11.11 D bis, 2026-10-16).
  *
- * Une app qui DÉCLARE `has_instant_result` (le Translator « à la DeepL ») reçoit, sous la consigne
+ * Une app qui DÉCLARE `instant_preview` (le Translator « à la DeepL ») reçoit, sous la consigne
  * de sa card d'entrée, une zone `[data-wama-instant]` (`_new_item_card_v4.html`, tag
  * `instant_result_url`). Pendant la frappe, la saisie part à la route `instant` de l'app, qui
  * joue sa glu `instant_result(item)` sur un élément NON enregistré : rien en file, rien en base.

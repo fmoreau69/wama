@@ -46,8 +46,8 @@ import django  # noqa: E402
 django.setup()
 
 from role_utils import (  # noqa: E402
-    REPO_ROOT, add_llm_arguments, call_llm, consigne_role, extract_json, local_llm_guard,
-    resolve_model, write_output)
+    LONG_WRITE_NUM_CTX, REPO_ROOT, add_llm_arguments, call_llm, consigne_role, extract_json,
+    local_llm_guard, resolve_model, write_output)
 
 from wama.common.manifests.codegen.pipeline_decl import DRAFTS_DIR  # noqa: E402
 
@@ -68,10 +68,6 @@ EXAMPLE_ONLY_FACETS = ('surfaces',)
 #: remplissaient la fenêtre d'Ollama (16 384 jetons, `call_ollama`) et COUPAIENT la réponse au
 #: milieu d'une phrase. L'élargir coûterait des Go de VRAM sur un 27B : on montre moins.
 MAX_SHOWN_CHARS = 12000
-#: Fenêtre d'Ollama pour ce rôle — celle de `run_codegen`, l'autre rôle qui ÉCRIT un long objet.
-#: Vécu le 2026-10-16 (Translator, deux essais) : à 16 384, la réponse s'arrêtait APRÈS `params`,
-#: sans `processing` ni `decisions`/`concerns` — un manifeste qu'aucun gabarit ne peut rendre.
-NUM_CTX = 32768
 #: Ce qui, d'une app existante, se DÉRIVE et n'apprend rien de sa nature : sa liste de routes.
 DERIVED_PROCESSING_KEYS = ('endpoints', 'extra_routes')
 
@@ -260,7 +256,7 @@ def main():
     print(f'[app] {args.provider} / {model} | clé {args.key} | like {args.like or "—"}')
     keep_alive = local_llm_guard(args.provider, model, force=args.force, wait_max=args.wait_max,
                                  log=lambda m: print(f'[app] {m}'))
-    raw = call_llm(args.provider, model, PROMPT, user_msg, num_ctx=NUM_CTX, keep_alive=keep_alive,
+    raw = call_llm(args.provider, model, PROMPT, user_msg, num_ctx=LONG_WRITE_NUM_CTX, keep_alive=keep_alive,
                    timeout=900)
     try:
         answer = extract_json(raw)

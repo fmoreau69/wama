@@ -203,12 +203,12 @@ def live_input_declared(app):
 @register.simple_tag
 def instant_result_url(app):
     """L'adresse du résultat INSTANTANÉ de l'app (route `instant`), ou '' si elle ne déclare pas
-    `has_instant_result` — la card d'entrée n'affiche sa zone de résultat que sur cette lecture
+    `instant_preview` — la card d'entrée n'affiche sa zone de résultat que sur cette lecture
     (2026-10-16, `CARD_DESIGN §11.11 D bis`). Une capacité déclarée sans route se tait au lieu de
     rendre une zone morte."""
     from django.urls import NoReverseMatch, reverse
-    from wama.common.app_registry import app_has_instant_result
-    if not app_has_instant_result(app):
+    from wama.common.app_registry import app_instant_preview
+    if not app_instant_preview(app):
         return ''
     try:
         return reverse(f'{app}:instant')

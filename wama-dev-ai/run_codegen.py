@@ -43,7 +43,8 @@ django.setup()
 # Ce fichier portait sa PROPRE copie de `ollama_host`, `_OPENER_DIRECT`, `call_ollama` et de
 # l'écriture de sortie : 4 rôles sur 5 adoptaient déjà `role_utils`, celui-ci non.
 from role_utils import (  # noqa: E402
-    add_llm_arguments, call_llm, consigne_role, local_llm_guard, resolve_model, write_output)
+    LONG_WRITE_NUM_CTX, add_llm_arguments, call_llm, consigne_role, local_llm_guard, resolve_model,
+    write_output)
 
 # ⚠ Ce chemin était ÉCRIT EN DUR ici — la 3ᵉ lecture du même dossier, et la seule qui ne
 # passait même pas par `config.PROMPTS_DIR`. Même défaut que les copies de `ollama_host` et
@@ -250,7 +251,7 @@ def matiere_manifeste(app_id: str, manifest_path: str = '') -> tuple:
 #: (2026-09-07). Ils ne sont PAS cosmétiques : la matière servie va jusqu'à
 #: `MAX_MATTER_CHARS` (60 000 caractères), illisible au num_ctx de 16384 du défaut commun —
 #: et écrire du code prend plus longtemps qu'un verdict JSON.
-CODEGEN_NUM_CTX, CODEGEN_TEMPERATURE, CODEGEN_TIMEOUT = 32768, 0.2, 900
+CODEGEN_NUM_CTX, CODEGEN_TEMPERATURE, CODEGEN_TIMEOUT = LONG_WRITE_NUM_CTX, 0.2, 900
 
 
 def extract_code(text: str) -> str:

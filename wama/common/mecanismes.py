@@ -2098,7 +2098,7 @@ MECHANISMS = (
     # Ajouté le 2026-10-16 (le Translator « à la DeepL », décision de Fabien).
     Mechanism('instant_result', 'Résultat instantané de la saisie',
               "Sous la consigne de la card d'entrée, ce que l'app rendrait — PENDANT la frappe, sans "
-              "rien mettre en file. Capacité d'app DÉCLARÉE (`has_instant_result`, lue par "
+              "rien mettre en file. Capacité d'app DÉCLARÉE (`instant_preview`, lue par "
               "`instant_result_url`) ; une source, la route `instant` du manifeste, d'où dérivent "
               "la vue générée (la glu `tasks.instant_result` sur un élément NON enregistré, "
               "réglages par la cascade de l'ajout), sa route et le trou de glu. Délai de saisie, "

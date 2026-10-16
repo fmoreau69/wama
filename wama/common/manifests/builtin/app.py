@@ -107,8 +107,8 @@ def validate_app_body(body: dict) -> list[str]:
     # Le résultat instantané a UNE source : la route `instant` déclarée — la vue, sa route et la
     # glu `instant_result` en dérivent. Une capacité sans route ne donnerait rien à la card.
     caps = body.get('capabilities') if isinstance(body.get('capabilities'), dict) else {}
-    if caps.get('has_instant_result') and 'instant' not in ((proc or {}).get('endpoints') or []):
-        errs.append("capabilities.has_instant_result exige la route `instant` dans "
+    if caps.get('instant_preview') and 'instant' not in ((proc or {}).get('endpoints') or []):
+        errs.append("capabilities.instant_preview exige la route `instant` dans "
                     "processing.endpoints")
     if proc and isinstance(proc, dict):
         st = proc.get('statuses')
@@ -401,8 +401,9 @@ def _capabilities(cat: dict, app_id: str) -> dict:
     except Exception:
         d = _to_dict(cat.get('conventions'))
     # drapeaux de capacité utiles (spec F2) — présents seulement s'ils existent
+    # (`instant_preview` n'y est plus depuis le 2026-10-16 : capacité DÉCLARÉE, lue ci-dessus.)
     for k in ('settings_modal_item', 'settings_modal_batch', 'inspector', 'realtime',
-              'edit_page', 'instant_preview', 'during_preview',
+              'edit_page', 'during_preview',
               'multi_format_download', 'layout', 'anti_race'):
         if k in d:
             caps[k] = d[k]
@@ -897,7 +898,7 @@ def _project_access(app_id: str, access: dict, *, apply: bool) -> dict:
 CATALOG_FIELD_ORDER = ('label', 'category', 'world', 'icon', 'url_name', 'description',
                        'input_extensions', 'input_types', 'batch_type', 'has_batch',
                        'has_url_import', 'has_youtube', 'has_result_import',
-                       'has_reference_result', 'has_live_input', 'has_instant_result',
+                       'has_reference_result', 'has_live_input', 'instant_preview',
                        'output_types')
 IDENTITY_FIELDS = ('label', 'category', 'world', 'icon', 'url_name', 'description',
                    'input_extensions')
@@ -907,10 +908,10 @@ RESULT_CAPABILITY_FIELDS = ('has_result_import', 'has_reference_result')
 #: Capacités qui ouvrent un port d'APP qu'aucun modèle ne déclare, écrites SEULEMENT si vraies :
 #: celles du résultat, et la capture EN DIRECT (`has_live_input`, 2026-09-28 — remplace le
 #: littéral `show_live` de la card, `CARD_DESIGN §11.11 D` : le live est un PORT).
-#: Et le résultat INSTANTANÉ de la saisie (`has_instant_result`, 2026-10-16 — le Translator « à la
+#: Et le résultat INSTANTANÉ de la saisie (`instant_preview`, 2026-10-16 — le Translator « à la
 #: DeepL ») : la card montre, pendant la frappe, ce que la fonction de l'app rend sur un élément NON
 #: enregistré (route `instant`, `CARD_DESIGN §11.11 D bis`).
-DECLARED_ONLY_CAPABILITY_FIELDS = RESULT_CAPABILITY_FIELDS + ('has_live_input', 'has_instant_result')
+DECLARED_ONLY_CAPABILITY_FIELDS = RESULT_CAPABILITY_FIELDS + ('has_live_input', 'instant_preview')
 CAPABILITY_FIELDS = ('has_batch', 'batch_type', 'has_url_import', 'has_youtube') + DECLARED_ONLY_CAPABILITY_FIELDS
 _GEN_MARK = '[manifest-gen app:{app_id}]'
 

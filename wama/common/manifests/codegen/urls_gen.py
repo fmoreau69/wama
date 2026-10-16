@@ -29,7 +29,7 @@ from pathlib import Path
 ROUTE_TABLE = {
     'index':             ('',                              'views.IndexView.as_view()'),
     'upload':            ('upload/',                       'views.upload'),
-    # Résultat INSTANTANÉ de la saisie (capacité `has_instant_result`, 2026-10-16).
+    # Résultat INSTANTANÉ de la saisie (capacité `instant_preview`, 2026-10-16).
     'instant':           ('instant/',                      'views.instant'),
     'start':             ('<int:pk>/start/',               'views.start'),
     'stop':              ('<int:pk>/stop/',                'views.stop'),

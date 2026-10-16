@@ -32,7 +32,7 @@ Rules — an app manifest is a WAMA DECISION, not a copy of the repository:
 - `ports` and `modes` use port types from VOCABULARIES only; input groups are
   travail | prompt | reference;
 - a result shown WHILE THE USER TYPES (a translation that follows the keystrokes, « à la
-  DeepL ») is a declared capability: `capabilities.has_instant_result: true` AND `instant` in
+  DeepL ») is a declared capability: `capabilities.instant_preview: true` AND `instant` in
   `processing.endpoints` — one never without the other;
 - `models.catalog_keys` lists only keys present in REQUIRES (or leave it empty);
 - do not write the `data` facet (it is introspected after generation), nor `tool_api`, nor

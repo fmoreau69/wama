@@ -1343,8 +1343,11 @@ encore le littéral `show_live` (transcriber seul). Le lecteur existe désormais
 **D bis. Le RÉSULTAT INSTANTANÉ est une capacité, pas une modalité** (décision Fabien du
 2026-10-16 : le Translator « à la DeepL », *« sinon, on perd le côté instantané »*). Sous la
 consigne, la card montre ce que l'app rendrait — PENDANT la frappe, sans rien mettre en file. Même
-patron que le live : une capacité d'app DÉCLARÉE (`has_instant_result`, manifeste → catalogue →
-`app_registry.app_has_instant_result` → tag `instant_result_url`), jamais un littéral de page. Une
+patron que le live : une capacité d'app DÉCLARÉE (`instant_preview`, manifeste → catalogue →
+`app_registry.app_instant_preview` → tag `instant_result_url`), jamais un littéral de page — le
+nom que la spec du manifeste réservait depuis le 2026-06-17 (`WAMA_MANIFEST_SPEC`,
+`WAMA_APP_CONVENTIONS §2bis.3`) sans l'avoir défini ; écrit d'abord `has_instant_result`, renommé
+le jour même à la revérification (deux noms pour une chose). Une
 seule source : la route `instant` du manifeste (le validateur exige l'une avec l'autre) ; en
 dérivent la vue (`views_gen` — la glu joue sur un élément NON enregistré, réglages par la cascade
 de l'ajout, saisie postée sous `instant_text`), sa route (`urls_gen`) et le trou de glu

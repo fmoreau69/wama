@@ -2468,7 +2468,7 @@ Branche « direct » de §10.B appliquée au Describer : `image_describer._visio
      qu'ont déjà le Transcriber et le Describer ;
   2. **saisie « à la DeepL »** : la traduction s'affiche PENDANT la frappe, sans passer par la file —
      le côté instantané. ✅ **Bâtie COMMUNE et DÉCLARÉE le 16/10** (`45e2cac6`) : capacité d'app
-     `has_instant_result` + route `instant` du manifeste, d'où dérivent la vue générée, sa route et
+     `instant_preview` + route `instant` du manifeste, d'où dérivent la vue générée, sa route et
      le trou de glu `instant_result(item)` ; brique `wama-instant.js` (délai de saisie, seule la
      dernière réponse s'affiche) — `CARD_DESIGN §11.11 D bis`, mécanisme `instant_result`. Toute
      app texte → texte rapide peut la déclarer.
@@ -2535,6 +2535,12 @@ Deux voies, complémentaires :
   langues se nomment par code ISO 639-1 et une source inconnue se fait détecter — mesuré 9/9 puis
   16/16 (la forme « vers « en » » seule : 4 ratés sur 9) ; `PROMPT_VERSION` entre dans la clé de
   cache, pour qu'une consigne corrigée ne resserve pas 30 jours les traductions fausses.
+- **Revérification du même jour** : la capacité, écrite `has_instant_result`, prend le nom que la
+  spec réservait (`instant_preview`) ; les langues du brouillon, recopiées par le rôle en 13
+  entrées, sont projetées du vocabulaire commun `common/tts/constants.LANGUAGE_CHOICES` (15).
+  ⏳ Manque de mécanisme : un schéma d'app NÉE D'UN MANIFESTE ne porte que des choix LITTÉRAUX
+  (une app réelle les dérive de son modèle, `derive_from_model`) — rien ne lui fait lire un
+  vocabulaire déclaré ; la liste se re-projette donc à la main si le vocabulaire bouge.
 - ⏳ Reste : relancer gunicorn + workers pour servir l'app et sa tâche ; juger l'app à l'usage ;
   vérifier « Envoyer vers » le Writer sur un vrai document (voie 1 ci-dessus).
 

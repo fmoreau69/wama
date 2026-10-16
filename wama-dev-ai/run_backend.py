@@ -41,7 +41,7 @@ import django  # noqa: E402
 django.setup()
 
 from role_utils import (  # noqa: E402
-    add_llm_arguments, call_llm, local_llm_guard, resolve_model, write_output)
+    LONG_WRITE_NUM_CTX, add_llm_arguments, call_llm, local_llm_guard, resolve_model, write_output)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'backend.txt').read_text(encoding='utf-8')
 CONTRACT_CHARS = 9000
@@ -246,7 +246,7 @@ def main():
     # La garde GPU COMMUNE des rôles (2026-10-13) : ce rôle ne posait que le keep_alive.
     keep_alive = local_llm_guard(args.provider, model, force=args.force, wait_max=args.wait_max,
                                  log=lambda m: print(f'[backend] {m}'))
-    reply = call_llm(args.provider, model, PROMPT, user_msg, num_ctx=32768,
+    reply = call_llm(args.provider, model, PROMPT, user_msg, num_ctx=LONG_WRITE_NUM_CTX,
                      keep_alive=keep_alive, timeout=1800)
     code = extract_code(reply)
 

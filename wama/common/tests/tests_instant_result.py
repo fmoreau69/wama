@@ -1,4 +1,4 @@
-"""Le résultat INSTANTANÉ de la saisie — capacité `has_instant_result` (2026-10-16, CARD_DESIGN
+"""Le résultat INSTANTANÉ de la saisie — capacité `instant_preview` (2026-10-16, CARD_DESIGN
 §11.11 D bis ; le Translator « à la DeepL », décision de Fabien).
 
 UNE source : la route `instant` déclarée au manifeste. La vue générée joue la glu de l'app
@@ -19,7 +19,7 @@ def _composer_with_instant():
     from wama.common.manifests.ingest import extract
     manifest = extract('app', 'composer')
     body = manifest['body']
-    body.setdefault('capabilities', {})['has_instant_result'] = True
+    body.setdefault('capabilities', {})['instant_preview'] = True
     endpoints = body['processing'].setdefault('endpoints', [])
     if 'instant' not in endpoints:
         endpoints.append('instant')
@@ -35,19 +35,19 @@ class InstantResultDeclarationTest(SimpleTestCase):
 
     def test_the_capability_without_its_route_is_refused(self):
         from wama.common.manifests.builtin.app import validate_app_body
-        errors = validate_app_body({'capabilities': {'has_instant_result': True},
+        errors = validate_app_body({'capabilities': {'instant_preview': True},
                                     'processing': {'endpoints': ['index']}})
         self.assertTrue(any('instant' in e for e in errors), errors)
         self.assertFalse(any('instant' in e for e in validate_app_body(
-            {'capabilities': {'has_instant_result': True},
+            {'capabilities': {'instant_preview': True},
              'processing': {'endpoints': ['index', 'instant']}})))
 
     def test_the_capability_travels_to_the_catalogue_like_the_live_input(self):
         from wama.common.manifests.builtin.app import (DECLARED_ONLY_CAPABILITY_FIELDS,
                                                        _capabilities_target)
-        self.assertIn('has_instant_result', DECLARED_ONLY_CAPABILITY_FIELDS)
+        self.assertIn('instant_preview', DECLARED_ONLY_CAPABILITY_FIELDS)
         self.assertIs(True, _capabilities_target(
-            {'body': {'capabilities': {'has_instant_result': True}}})['has_instant_result'])
+            {'body': {'capabilities': {'instant_preview': True}}})['instant_preview'])
 
     def test_the_route_is_conventional(self):
         from wama.common.manifests.codegen.urls_gen import ROUTE_TABLE
@@ -90,7 +90,7 @@ class InstantResultCardTest(SimpleTestCase):
     def test_the_card_zone_appears_only_for_a_declaring_app(self):
         from wama.common.templatetags.wama_actions import instant_result_url
         self.assertEqual('', instant_result_url('reader'))       # ne déclare pas la capacité
-        with mock.patch('wama.common.app_registry.app_has_instant_result', return_value=True), \
+        with mock.patch('wama.common.app_registry.app_instant_preview', return_value=True), \
                 mock.patch('django.urls.reverse', return_value='/translator_02/instant/'):
             self.assertEqual('/translator_02/instant/', instant_result_url('translator_02'))
 

@@ -895,6 +895,12 @@ def fetch(url, user_agent='wama-dev-ai'):
         return r.read().decode('utf-8', 'replace')
 
 
+#: Fenêtre Ollama des rôles qui ÉCRIVENT un long objet (code de `codegen` et `backend`, manifeste
+#: d'app du rôle `app`) — une valeur, que les trois portaient chacun (2026-10-16). À 16 384, le
+#: défaut, la réponse se coupait : le manifeste du Translator s'arrêtait après `params`.
+LONG_WRITE_NUM_CTX = 32768
+
+
 def call_ollama(model, system, user_msg, num_ctx=16384, keep_alive=None,
                 temperature=0.1, timeout=600):
     """Appel Ollama one-shot. `keep_alive='0'` décharge le modèle SITÔT la réponse rendue

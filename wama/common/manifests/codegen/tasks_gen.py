@@ -109,7 +109,7 @@ def model_route(manifest: dict):
 
 def _instant_hole(manifest: dict, mark: str) -> list:
     """Le TROU DE GLU du résultat instantané, quand la route `instant` est déclarée (2026-10-16,
-    capacité `has_instant_result`) : la vue générée l'appelle sur un élément NON enregistré."""
+    capacité `instant_preview`) : la vue générée l'appelle sur un élément NON enregistré."""
     endpoints = (((manifest.get('body') or {}).get('processing') or {}).get('endpoints') or [])
     if 'instant' not in endpoints:
         return []
