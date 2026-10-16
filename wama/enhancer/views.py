@@ -743,9 +743,13 @@ def _apply_enhancement_settings(e, data):
     brique COMMUNE (valeur hors choix ignorée) ; restent ici le facteur (×2/×4) et le curseur,
     propres à l'enhancer."""
     from wama.common.utils.batch_views import apply_item_settings
+    from wama.enhancer.params import MEDIA_PARAMS
+    # Les colonnes simples = le schéma MÉDIA, moins les deux réglages traités ci-dessous. Lues du
+    # schéma (2026-10-16) : la liste écrite ici en recopiait les noms (`check_redundancy`), et un
+    # réglage ajouté au schéma n'était pas appliqué tant qu'on ne l'y recopiait pas.
     apply_item_settings(e, {k: v for k, v in data.items() if v not in (None, '')},
-                        params_fields=('ai_model', 'denoise', 'blend_factor',
-                                       'output_format', 'output_quality', 'output_keep_size'))
+                        params_fields=tuple(p.name for p in MEDIA_PARAMS
+                                            if p.name not in ('upscale_factor', 'quality_intent')))
     # Curseur + facteur (chantier C) : clé ABSENTE = inchangé ; posée vide = curseur effacé
     # (la cascade retombe sur le réglage d'app, puis 50).
     e.upscale_factor = _factor_posted(data, e.upscale_factor)
