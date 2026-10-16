@@ -1134,7 +1134,7 @@ class SelectionBoxTest(TestCase):
 #: `job-card`, `reader-card`, `journal-card`). Le nom exact (`.wama-card-preview` est un autre
 #: élément), une vraie règle (`{` : pas un commentaire), et pas un simple curseur.
 CARD_HOVER = re.compile(r'\.(?:wama-card|synthesis-card|job-card|reader-card|journal-card)(?![\w-])'
-                        r'[^{,]*:hover[^{]*\{[^}]*\b(?:background|border|box-shadow|outline)')
+                        r'[^{,\n]*:hover[^{\n]*\{[^}]*\b(?:background|border|box-shadow|outline)')
 
 
 class CardHoverIsCommonTest(TestCase):
@@ -1154,14 +1154,20 @@ class CardHoverIsCommonTest(TestCase):
                 parts = path.relative_to(RACINE).parts
                 if 'vendors' in parts or 'staticfiles' in parts or any(re.search(r'_\d+$', p) for p in parts):
                     continue
-                for n, line in enumerate(path.read_text(encoding='utf-8', errors='ignore').splitlines(), 1):
-                    if CARD_HOVER.search(line):
-                        offenders.append(f'{path.relative_to(RACINE)}:{n}: {line.strip()[:90]}')
+                # Le fichier ENTIER, pas ligne à ligne : une règle s'écrit souvent sur plusieurs
+                # lignes (`.synthesis-card:hover {` puis la déclaration) — la contre-épreuve du
+                # 2026-10-16 a montré la lecture par ligne aveugle à l'ombre qu'elle devait voir.
+                text = path.read_text(encoding='utf-8', errors='ignore')
+                for m in CARD_HOVER.finditer(text):
+                    n = text.count('\n', 0, m.start()) + 1
+                    offenders.append(f'{path.relative_to(RACINE)}:{n}: {m.group(0).splitlines()[0][:90]}')
         self.assertEqual(offenders, [], 'the hover of a queue card is the common rule (wama-inspector.css):\n'
                                         + '\n'.join(offenders))
 
     def test_the_guard_sees_a_local_card_hover(self):
         self.assertTrue(CARD_HOVER.search('.synthesis-card:hover { box-shadow: 0 4px 8px #000; }'))
+        # La forme d'avant le 2026-10-16, sur PLUSIEURS lignes (`app_modern.css`).
+        self.assertTrue(CARD_HOVER.search('.synthesis-card:hover {\n    box-shadow: 0 4px 8px rgba(0,0,0,0.3);\n}'))
         self.assertTrue(CARD_HOVER.search('    .job-card:hover { border-color: #444c5a; }'))
         self.assertFalse(CARD_HOVER.search('.asset-card:hover { border-color: #4a4a7a; }'))
         self.assertFalse(CARD_HOVER.search('.wama-card-preview:hover { background-color: #000; }'))

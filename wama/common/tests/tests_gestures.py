@@ -159,7 +159,8 @@ Node.prototype.dispatchEvent = function (ev) {
   if (!ev.target) ev.target = this;
   var path = [];
   for (var n = this; n; n = n.parentElement) path.push(n);
-  path.push(document, window);
+  // Comme un navigateur : un élément retiré de la page ne fait plus remonter ses événements.
+  if (path[path.length - 1] === html) path.push(document, window);
   for (var i = 0; i < path.length && !ev._stop; i++) {
     (path[i].listeners[ev.type] || []).slice().forEach(function (fn) { if (!ev._stop) fn(ev); });
     if (!ev.bubbles) break;
@@ -263,6 +264,34 @@ class TouchDragBridgeTest(SimpleTestCase):
         self.assertEqual(r['log'], ['dragstart:card', 'dragenter:zone', 'dragover:zone', 'drop:zone', 'dragend:card'])
         self.assertTrue(r['endPrevented'], 'no click after a drag')
         self.assertEqual((r['ghostLeft'], r['dragging']), (0, False), 'the drag leaves nothing behind')
+
+    def test_the_drag_survives_the_page_redrawing_the_held_element(self):
+        # Mesuré sur le live le 2026-10-16 : le catalogue du studio se redessine pendant l'appui
+        # long, l'élément tenu quitte la page et ses `touchmove` ne remontent plus au document.
+        r = json.loads(self._ctx().eval("""(function () {
+            touch(card, 'touchstart', 50, 40);
+            flushTimers();
+            list.removeChild(card);                               // la page redessine
+            touch(card, 'touchmove', 50, 120);
+            touch(card, 'touchmove', 60, 250);
+            var end = touch(card, 'touchend', 60, 250);
+            return JSON.stringify({ dropped: dropped, log: log, endPrevented: end.defaultPrevented });
+        })()"""))
+        self.assertEqual(r['dropped'], '42', 'the drop must still happen')
+        self.assertEqual(r['log'], ['dragstart:card', 'dragenter:zone', 'dragover:zone', 'drop:zone', 'dragend:card'])
+        self.assertTrue(r['endPrevented'])
+
+    def test_an_event_seen_twice_is_handled_once(self):
+        # Écouté sur le document ET sur l'élément touché : un événement qui remonte passe par les
+        # deux, et ne doit faire avancer le geste qu'une fois.
+        r = json.loads(self._ctx().eval("""(function () {
+            touch(card, 'touchstart', 50, 40); flushTimers();
+            touch(card, 'touchmove', 50, 120); touch(card, 'touchmove', 60, 250);
+            touch(card, 'touchend', 60, 250);
+            return JSON.stringify({ log: log });
+        })()"""))
+        self.assertEqual(r['log'].count('drop:zone'), 1)
+        self.assertEqual(r['log'].count('dragstart:card'), 1)
 
     def test_no_drop_where_the_last_dragover_refused(self):
         ctx = self._ctx()

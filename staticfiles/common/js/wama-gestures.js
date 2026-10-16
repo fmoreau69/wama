@@ -308,8 +308,9 @@
     }
 
     // ── Le glisser traduit ──────────────────────────────────────────────────────────────────────
-    function makeGhost(source, x, y) {
-        var r = source.getBoundingClientRect();
+    function makeGhost(source, x, y, held) {
+        // La boîte relevée à l'appui si l'élément a quitté la page depuis (voir `bindTarget`).
+        var r = source.isConnected === false && held ? held : source.getBoundingClientRect();
         var ghost = source.cloneNode(true);
         ghost.removeAttribute('id');
         Array.prototype.forEach.call(ghost.querySelectorAll('[id]'), function (n) { n.removeAttribute('id'); });
@@ -344,7 +345,7 @@
         var start = fire(s.source, 'dragstart', s.x, s.y, dt);
         if (start.defaultPrevented) { drag = null; s.source.classList.remove('wama-touch-lifted'); return false; }
         s.source.classList.remove('wama-touch-lifted');
-        drag.ghost = makeGhost(s.source, s.x, s.y);
+        drag.ghost = makeGhost(s.source, s.x, s.y, s.rect);
         placeGhost(s.x, s.y);
         doc.documentElement.classList.add('wama-touch-dragging');
         hideTip();
@@ -394,6 +395,7 @@
     function endDrag(cancelled) {
         var d = drag;
         drag = null;
+        unbindTarget();
         if (d.raf) global.cancelAnimationFrame(d.raf);
         if (d.ghost && d.ghost.el.parentNode) d.ghost.el.parentNode.removeChild(d.ghost.el);
         doc.documentElement.classList.remove('wama-touch-dragging');
@@ -425,7 +427,10 @@
         if (!s) return;
         s.held = true;
         if (s.source) {
-            // Soulevée : bouger la glisse, relâcher ouvre son menu (voir `onTouchEnd`).
+            // Soulevée : bouger la glisse, relâcher ouvre son menu (voir `onTouchEnd`). Sa boîte
+            // est relevée MAINTENANT : la page peut la retirer d'ici le glisser (voir `bindTarget`).
+            var r = s.source.getBoundingClientRect();
+            s.rect = { left: r.left, top: r.top, width: r.width, height: r.height };
             s.source.classList.add('wama-touch-lifted');
             if (global.navigator && global.navigator.vibrate) { try { global.navigator.vibrate(12); } catch (e) {} }
             return;
@@ -463,6 +468,34 @@
             held: false, acted: false, menuTaken: false, nativeMenu: false,
         };
         session.timer = setTimeout(onHold, HOLD_MS);
+        bindTarget(target);
+    }
+
+    // ⚠ L'élément touché peut QUITTER LA PAGE pendant le geste — mesuré sur le live le
+    // 2026-10-16 : le catalogue du studio se redessine à l'arrivée de sa seconde réponse réseau,
+    // parfois pendant l'appui long. Le navigateur continue d'adresser les `touchmove`/`touchend`
+    // à l'élément d'origine, qui, hors de la page, ne les fait plus remonter jusqu'au document :
+    // le glisser mourait sans un mot. On les écoute donc AUSSI sur l'élément lui-même ; une marque
+    // sur l'événement évite de traiter deux fois celui qui, lui, remonte.
+    var bound = null;
+    function bindTarget(el) {
+        unbindTarget();
+        bound = el;
+        el.addEventListener('touchmove', onTouchMove, { passive: false });
+        el.addEventListener('touchend', onTouchEnd, { passive: false });
+        el.addEventListener('touchcancel', onTouchEnd, { passive: false });
+    }
+    function unbindTarget() {
+        if (!bound) return;
+        bound.removeEventListener('touchmove', onTouchMove, { passive: false });
+        bound.removeEventListener('touchend', onTouchEnd, { passive: false });
+        bound.removeEventListener('touchcancel', onTouchEnd, { passive: false });
+        bound = null;
+    }
+    function firstSight(ev) {
+        if (ev.__wamaGestures) return false;
+        ev.__wamaGestures = true;
+        return true;
     }
 
     function touchOf(ev, id) {
@@ -473,6 +506,7 @@
     }
 
     function onTouchMove(ev) {
+        if (!firstSight(ev)) return;
         if (drag) {
             var td = touchOf(ev, drag.touchId);
             if (!td) return;
@@ -503,6 +537,7 @@
     }
 
     function onTouchEnd(ev) {
+        if (!firstSight(ev)) return;
         if (drag) {
             if (!touchOf(ev, drag.touchId)) return;
             if (ev.cancelable) ev.preventDefault();          // ni clic ni souris émulée après un glisser
@@ -513,6 +548,7 @@
         if (!s || !touchOf(ev, s.id)) return;
         clearTimeout(s.timer);
         session = null;
+        unbindTarget();
         if (!s.held) return;                                 // un appui bref : le clic suit son cours
         if (s.source) {
             s.source.classList.remove('wama-touch-lifted');
@@ -529,6 +565,7 @@
         clearTimeout(session.timer);
         if (session.source) session.source.classList.remove('wama-touch-lifted');
         session = null;
+        unbindTarget();
     }
 
     // Le `contextmenu` NATIF d'un appui long (Android) : sur un élément qu'on peut glisser, c'est
@@ -569,5 +606,6 @@
         showTip: showTip,
         hideTip: hideTip,
         HOLD_MS: HOLD_MS,
+        INTERACTIVE: INTERACTIVE,       // ce qu'un appui long explique au lieu de le glisser
     };
 })(window);

@@ -5655,6 +5655,12 @@ aucun débordement horizontal**. Les défauts sont ailleurs :
    du dépôt, balayage qui reste un défilement, menu, infobulle, clic gardé ou retenu ; `track` :
    seuil, boutons, pincement ; et aucun code tactile dans les pages). Forme d'emploi :
    `WAMA_APP_CONVENTIONS §23`.
+   *Revérification sur le live relancé (même jour)* : le glisser du catalogue a échoué une fois
+   sur cinq — le catalogue du studio se redessine à sa seconde réponse réseau, parfois PENDANT
+   l'appui long, et l'élément tenu, retiré de la page, ne faisait plus remonter les mouvements du
+   doigt jusqu'au document. La brique les écoute désormais aussi sur l'élément touché (garde V8
+   `test_the_drag_survives_the_page_redrawing_the_held_element`, rouge sur la brique d'avant) ;
+   3/3 verts sur le live ensuite.
    ⏳ **Reste** : la sélection MULTIPLE de la file au doigt (aujourd'hui Ctrl/Maj ; au doigt on
    porte une card — les actions de groupe de l'inspecteur restent atteignables par le clavier) ;
    un essai sur une vraie tablette (ci-dessous).

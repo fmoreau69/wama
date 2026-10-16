@@ -88,6 +88,14 @@ def _clean_layout(state, where):
     return faults
 
 
+def _ipad_context(browser, token):
+    """UN profil tablette pour les deux scénarios : iPad Pro 11 en portrait, doigt, compte de test."""
+    ctx = browser.new_context(viewport={'width': 834, 'height': 1194}, device_scale_factor=2,
+                              is_mobile=True, has_touch=True, user_agent=IPAD_UA)
+    ctx.add_cookies(_cookie(token))
+    return ctx
+
+
 def _edge(page, side, touch):
     """Toucher (ou cliquer) la frontière d'un volet — le geste de WamaPanels."""
     edge = page.locator(f'.wama-panel-edge[data-side="{side}"]')
@@ -115,9 +123,7 @@ def check_tablet_layout(app: str, url_path: str):
             browser = p.chromium.launch()
             try:
                 # ── Tablette : portrait, rotation, retour ─────────────────────────────────
-                ctx = browser.new_context(viewport={'width': 834, 'height': 1194}, device_scale_factor=2,
-                                          is_mobile=True, has_touch=True, user_agent=IPAD_UA)
-                ctx.add_cookies(_cookie(token))
+                ctx = _ipad_context(browser, token)
                 page = ctx.new_page()
                 resp = page.goto(url, wait_until='domcontentloaded', timeout=PAGE_TIMEOUT_MS)
                 wrong = _exiger_la_page(page, resp, url)
@@ -255,7 +261,8 @@ JS_TWO_CARDS = """() => {
     // la card montrerait l'infobulle d'un bouton — ce que fait un vrai doigt, à juste titre.
     const grip = c => {
         const r = c.getBoundingClientRect(), far = 32;
-        const cmds = [...c.querySelectorAll('button, a[href], input, select, textarea, label, summary, [role="button"], [data-bs-toggle], .btn')]
+        // Les commandes au sens de la BRIQUE (une seule liste, lue dans la page).
+        const cmds = [...c.querySelectorAll((window.WamaGestures || {}).INTERACTIVE || 'button, a[href]')]
             .map(e => e.getBoundingClientRect()).filter(q => q.width > 0);
         for (let y = r.top + 12; y < Math.min(r.bottom, innerHeight) - 12; y += 8)
             for (let x = r.left + 12; x < r.right - 12; x += 8)
@@ -320,9 +327,7 @@ class _Finger:
 
 
 def _tablet_page(browser, token, url):
-    ctx = browser.new_context(viewport={'width': 834, 'height': 1194}, device_scale_factor=2,
-                              is_mobile=True, has_touch=True, user_agent=IPAD_UA)
-    ctx.add_cookies(_cookie(token))
+    ctx = _ipad_context(browser, token)
     ctx.add_init_script(BLOCK_WRITES)
     page = ctx.new_page()
     errors = []
