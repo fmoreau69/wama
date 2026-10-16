@@ -34,6 +34,9 @@ _CHUNK_CHARS = 4000  # ~ sous la fenêtre de traduction effective de translatege
 
 #: Le modèle de traduction par défaut — celui des deux consommateurs d'avant le 2026-10-16.
 DEFAULT_MODEL = 'ollama:translategemma:12b'
+#: Version de la consigne de `_translate_chunk`, inscrite dans la clé de cache : la changer à
+#: chaque réécriture de la consigne. 2 = langues nommées par code ISO 639-1, source détectée.
+PROMPT_VERSION = 2
 
 
 class TranslatorService:
@@ -98,8 +101,19 @@ class TranslatorService:
         if glossary:
             gloss_line = ("\nNe traduis PAS ces termes (garde-les tels quels) : "
                           + ", ".join(glossary) + ".")
+        # Les langues se nomment par leur CODE ISO 639-1, et dit comme tel ; une source inconnue
+        # (« auto », la valeur par défaut du Translator) se fait DÉTECTER. Mesuré le 2026-10-16 sur
+        # translategemma, 3 textes × 3 cibles : « de « auto » vers « en » » rendait le texte source
+        # INCHANGÉ, « vers « en » » ratait 4 cas sur 9 (texte inchangé, ou en néerlandais) ; la
+        # forme ci-dessous, 9 sur 9.
+        if (source_lang or 'auto') == 'auto':
+            direction = (f"dans la langue de code ISO 639-1 « {target_lang} » (détecte toi-même "
+                         "la langue d'origine)")
+        else:
+            direction = (f"de la langue de code ISO 639-1 « {source_lang} » vers la langue de "
+                         f"code « {target_lang} »")
         prompt = (
-            f"Traduis le texte suivant de « {source_lang} » vers « {target_lang} ».\n"
+            f"Traduis le texte suivant {direction}.\n"
             f"Rends UNIQUEMENT la traduction, sans commentaire ni guillemets.{gloss_line}\n\n"
             f"{text}"
         )
@@ -139,9 +153,11 @@ class TranslatorService:
 
     @staticmethod
     def _cache_key(text, src, tgt, glossary, model=DEFAULT_MODEL):
-        # Le MODÈLE fait partie de la clé : deux modèles ne rendent pas la même traduction.
-        h = hashlib.sha256(f"{model}|{src}|{tgt}|{','.join(sorted(glossary))}|{text}"
-                           .encode('utf-8')).hexdigest()
+        # Le MODÈLE fait partie de la clé : deux modèles ne rendent pas la même traduction. La
+        # CONSIGNE aussi, par sa version : une consigne corrigée ne doit pas resservir 30 jours ce
+        # que l'ancienne rendait de faux (2026-10-16, « auto » rendu non traduit).
+        h = hashlib.sha256(f"{PROMPT_VERSION}|{model}|{src}|{tgt}|{','.join(sorted(glossary))}|"
+                           f"{text}".encode('utf-8')).hexdigest()
         return f"wama:translate:{h}"
 
     @staticmethod

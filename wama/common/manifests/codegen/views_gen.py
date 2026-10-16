@@ -687,12 +687,15 @@ def instant(request):
     text = (request.POST.get('instant_text') or '').strip()
     if not text:
         return JsonResponse({{'text': ''}})
-    kwargs = {{'user': user, '{input_field}': text}}{instant_settings}
+    kwargs = {{'user': user}}{instant_settings}
+    kwargs['{input_field}'] = text   # APRÈS les réglages : la saisie n'est jamais écrasée
     from .tasks import instant_result
     try:
         return JsonResponse({{'text': instant_result({item}(**kwargs))}})
     except NotImplementedError as exc:
-        return JsonResponse({{'error': str(exc)}}, status=501)'''
+        return JsonResponse({{'error': str(exc)}}, status=501)
+    except Exception as exc:  # le modèle indisponible se DIT dans la zone, jamais un 500 muet
+        return JsonResponse({{'error': f'Résultat indisponible : {{exc}}'}}, status=502)'''
 
     # APERÇU DE LOT — conventionnel, plus un stub (2026-08-22). Le parsing d'un fichier de lot
     # n'a jamais été une « politique d'app » : `batch_media_list_preview_response` fait tout le

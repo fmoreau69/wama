@@ -2467,11 +2467,11 @@ Branche « direct » de §10.B appliquée au Describer : `image_describer._visio
      le texte qui se traduit (`preview_utils.publish_partial_text`, appelé par `on_chunk`) — la face
      qu'ont déjà le Transcriber et le Describer ;
   2. **saisie « à la DeepL »** : la traduction s'affiche PENDANT la frappe, sans passer par la file —
-     le côté instantané. ⏳ La seule pièce NEUVE : un appel SYNCHRONE déclenché à la frappe
-     (délai de saisie, comme `wama-filter-bar.js`), servi par une route de l'app et rendu par la même
-     face texte que l'aperçu « pendant ». Elle se bâtit COMMUNE et DÉCLARÉE (une capacité d'app, lue
-     par les gabarits), pas en dur dans le Translator : toute app texte → texte rapide pourra la
-     déclarer.
+     le côté instantané. ✅ **Bâtie COMMUNE et DÉCLARÉE le 16/10** (`45e2cac6`) : capacité d'app
+     `has_instant_result` + route `instant` du manifeste, d'où dérivent la vue générée, sa route et
+     le trou de glu `instant_result(item)` ; brique `wama-instant.js` (délai de saisie, seule la
+     dernière réponse s'affiche) — `CARD_DESIGN §11.11 D bis`, mécanisme `instant_result`. Toute
+     app texte → texte rapide peut la déclarer.
 - **⚠ Le garde-fou du 21/06 ci-dessus reste vrai et ne s'oppose pas à ceci** : il interdit de
   traduire un document structuré EN PRÉTRAITEMENT d'une compréhension. Ici la traduction est le
   LIVRABLE, et elle doit justement préserver la structure.
@@ -2506,6 +2506,37 @@ Deux voies, complémentaires :
    (`patch_section` pour le texte ; DOCX par pandoc ; PDF par HTML + Chromium) ; les figures par
    OCR → traduction → réédition d'image. Plus fidèle, plus long : à construire maillon par maillon,
    chaque maillon jugé sur un document réel.
+
+##### Naissance du Translator au bac à sable — 2026-10-16 (soir) 🔄
+
+- **Brouillon** rédigé par le rôle `app` de wama-dev-ai (local, qwen3.8 ; `--like synthesizer
+  --requires model:ollama:translategemma:12b`), trois essais. Deux défauts du RÔLE réparés en route :
+  la génération à blanc ne jouait qu'en l'absence de faute de forme (un brouillon sans `processing`
+  ne rapportait qu'une faute) ; et le modèle refermait `body` après `params`, posant `processing`,
+  `models`, `inspector`, `access`, `studio` À LA RACINE — l'enveloppe les remet dans le corps et le
+  dit (`run_app_manifest.enforce_envelope`, vocabulaire fermé `APP_FACETS`).
+- **Corrections du superviseur**, chacune pour une raison vérifiée — le brouillon validé est
+  `manifests/app_drafts/translator.json` : monde `media` (comme synthesizer/reader/writer) ; route
+  `instant` en DOUBLE dans `extra_routes` retirée ; `prompts.targets` retiré (le pipeline de prompts
+  traduirait ou enrichirait le texte AVANT de le traduire) ; la saisie déclarée en RÉGLAGE `prompt`,
+  comme la consigne du Writer — c'est ce qui lui donne sa colonne, le port seul n'en crée aucune
+  (mesuré : anonymizer, avatarizer et synthesizer ont un port `prompt` SANS colonne, donc pas de
+  règle de gabarit « un port de consigne = une colonne ») ; sélecteur `options_query: {model_type:
+  llm}` — translategemma est rangé `text-generation` + `specialisation: translation`, la requête
+  `task: translation` ne trouvait rien et le repli servait… les modèles de l'imager.
+- **Né** : `translator_01` (`app_sandbox create --from-manifest`, smoke de file habitée vert). Glu
+  écrite par le superviseur sur les briques : `TranslatorService` (modèle tiré par
+  `resolve_model_choice(..., specialisation='translation')` → translategemma), lecture du document
+  par `reference_comprehension.read_document_text`, aperçu par `publish_partial_text`. Essayé pour
+  de vrai : saisie (1,7 s, 0,05 s en cache) ; `.md` traduit en gardant titres et paragraphes, le
+  terme du glossaire préservé. ⚠ La glu vit dans le bac à sable (non versionné) : la promotion reste
+  un geste humain.
+- **Brique `translator` corrigée** : « de « auto » vers « en » » rendait le texte INCHANGÉ. Les
+  langues se nomment par code ISO 639-1 et une source inconnue se fait détecter — mesuré 9/9 puis
+  16/16 (la forme « vers « en » » seule : 4 ratés sur 9) ; `PROMPT_VERSION` entre dans la clé de
+  cache, pour qu'une consigne corrigée ne resserve pas 30 jours les traductions fausses.
+- ⏳ Reste : relancer gunicorn + workers pour servir l'app et sa tâche ; juger l'app à l'usage ;
+  vérifier « Envoyer vers » le Writer sur un vrai document (voie 1 ci-dessus).
 
 ---
 

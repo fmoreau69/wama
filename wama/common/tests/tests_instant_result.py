@@ -65,6 +65,12 @@ class InstantResultGenerationTest(SimpleTestCase):
         code = ast.unparse(view)
         self.assertIn('instant_result', code)
         self.assertIn("request.POST.get('instant_text')", code)
+        # La saisie se pose APRÈS la cascade des réglages : une consigne déclarée en RÉGLAGE (le
+        # Translator, comme le Writer) serait sinon écrasée par sa valeur enregistrée.
+        self.assertIn('kwargs.update(_cols)', code)
+        self.assertGreater(code.index("] = text"), code.index('kwargs.update(_cols)'))
+        # Une erreur du modèle se DIT dans la zone (502), jamais un 500 muet.
+        self.assertIn('status=502', code)
         # Rien en file, rien en base : ni création, ni enregistrement, ni tâche.
         for forbidden in ('.objects.create(', '.save(', '.delay(', 'apply_async'):
             self.assertNotIn(forbidden, code)

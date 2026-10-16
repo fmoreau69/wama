@@ -121,7 +121,7 @@ def _instant_hole(manifest: dict, mark: str) -> list:
         '',
         '    `item` n\'est PAS enregistré (aucun id, aucun fichier) : rendre le texte du résultat à',
         '    partir de ses champs (la saisie, ses réglages), vite — la card l\'appelle pendant la',
-        '    frappe. Une exception autre que NotImplementedError = un 500 dans la card."""',
+        '    frappe. Une exception = son message affiché dans la zone de la card (502)."""',
         f"    raise NotImplementedError('{mark} résultat instantané non généré (marche B)')",
     ]
 

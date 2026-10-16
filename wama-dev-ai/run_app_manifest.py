@@ -68,6 +68,10 @@ EXAMPLE_ONLY_FACETS = ('surfaces',)
 #: remplissaient la fenêtre d'Ollama (16 384 jetons, `call_ollama`) et COUPAIENT la réponse au
 #: milieu d'une phrase. L'élargir coûterait des Go de VRAM sur un 27B : on montre moins.
 MAX_SHOWN_CHARS = 12000
+#: Fenêtre d'Ollama pour ce rôle — celle de `run_codegen`, l'autre rôle qui ÉCRIT un long objet.
+#: Vécu le 2026-10-16 (Translator, deux essais) : à 16 384, la réponse s'arrêtait APRÈS `params`,
+#: sans `processing` ni `decisions`/`concerns` — un manifeste qu'aucun gabarit ne peut rendre.
+NUM_CTX = 32768
 #: Ce qui, d'une app existante, se DÉRIVE et n'apprend rien de sa nature : sa liste de routes.
 DERIVED_PROCESSING_KEYS = ('endpoints', 'extra_routes')
 
@@ -157,6 +161,21 @@ def enforce_envelope(manifest: dict, key: str, refs: list, concerns: list) -> di
     if dropped:
         concerns.append(f"références ajoutées par le modèle, écartées : {dropped}")
     body = manifest.get('body') if isinstance(manifest.get('body'), dict) else {}
+    # Une facette écrite À LA RACINE est une facette du corps posée hors de lui — vécu le
+    # 2026-10-16 (Translator, trois essais) : le modèle refermait `body` après `params` et posait
+    # `processing`, `models`, `inspector`, `access`, `studio` à côté de l'enveloppe. Les facettes
+    # sont un vocabulaire FERMÉ (`APP_FACETS`) : la remettre à sa place ne décide rien.
+    from wama.common.manifests.builtin.app import APP_FACETS
+    manifest = dict(manifest)
+    for facet in APP_FACETS:
+        if facet in manifest:
+            value = manifest.pop(facet)
+            if facet in body:
+                concerns.append(f"facette `{facet}` écrite deux fois (corps et racine) : celle "
+                                "du corps est gardée")
+            else:
+                body[facet] = value
+                concerns.append(f"facette `{facet}` écrite hors du corps, remise dans `body`")
     for facet in NOT_AUTHORED_FACETS + EXAMPLE_ONLY_FACETS:
         if body.pop(facet, None) is not None:
             concerns.append(f"facette `{facet}` retirée (elle ne s'écrit pas dans un premier "
@@ -196,11 +215,16 @@ def split_checks(manifest: dict) -> tuple:
     for error in validate(manifest):
         m = _DANGLING.match(error)
         (pending.append(m['ref']) if m else errors.append(error))
-    if not errors:
-        # Le JUGE d'un brouillon est la génération (`app_sandbox.first_pass_refusals`, les
-        # gabarits mêmes de la naissance, à blanc) : `validate` ne regarde que la forme.
-        from wama.common.management.commands.app_sandbox import first_pass_refusals
+    # Le JUGE d'un brouillon est la génération (`app_sandbox.first_pass_refusals`, les gabarits
+    # mêmes de la naissance, à blanc) : `validate` ne regarde que la forme — et n'EXIGE aucune
+    # facette. Vécu le 2026-10-16 : un brouillon sans `ports` ni `processing` n'a rapporté qu'une
+    # faute de capacité, la génération n'ayant pas été jouée. Elle l'est toujours désormais : le
+    # rapport dit TOUT ce que la naissance refuserait, pas la première faute de forme.
+    from wama.common.management.commands.app_sandbox import first_pass_refusals
+    try:
         errors += first_pass_refusals(manifest)
+    except Exception as exc:  # un brouillon malformé peut faire tomber un gabarit : le dire
+        errors.append(f'génération à blanc impossible : {type(exc).__name__}: {exc}')
     return errors, pending
 
 
@@ -236,7 +260,8 @@ def main():
     print(f'[app] {args.provider} / {model} | clé {args.key} | like {args.like or "—"}')
     keep_alive = local_llm_guard(args.provider, model, force=args.force, wait_max=args.wait_max,
                                  log=lambda m: print(f'[app] {m}'))
-    raw = call_llm(args.provider, model, PROMPT, user_msg, keep_alive=keep_alive, timeout=900)
+    raw = call_llm(args.provider, model, PROMPT, user_msg, num_ctx=NUM_CTX, keep_alive=keep_alive,
+                   timeout=900)
     try:
         answer = extract_json(raw)
         manifest = answer['manifest'] if isinstance(answer.get('manifest'), dict) else answer

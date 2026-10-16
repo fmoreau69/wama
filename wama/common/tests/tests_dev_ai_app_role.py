@@ -79,6 +79,27 @@ class AppRoleChecksTest(SimpleTestCase):
         errors, _ = self.role.split_checks(draft)
         self.assertTrue(any(e.startswith('Gabarit surfaces') for e in errors), errors)
 
+    def test_a_draft_without_facets_says_every_refusal_not_only_the_first_form_fault(self):
+        """Vécu le 2026-10-16 : un brouillon sans `ports` ni `processing` ne rapportait que sa
+        faute de capacité — la génération à blanc ne jouait qu'en l'absence de faute de forme."""
+        draft = self.role.enforce_envelope(
+            {'name': 'T', 'description': 'd',
+             'body': {'capabilities': {'has_instant_result': True}}}, 'translator', [], [])
+        errors, _ = self.role.split_checks(draft)
+        self.assertTrue(any('instant' in e for e in errors), errors)
+        self.assertTrue(any(e.startswith('Gabarit tasks') for e in errors), errors)
+
+    def test_a_facet_written_beside_the_body_goes_back_into_it(self):
+        """Vécu le 2026-10-16 : le modèle refermait `body` après `params` et posait `processing`
+        à la racine — aucun gabarit ne le voyait."""
+        concerns = []
+        kept = self.role.enforce_envelope(
+            {'name': 'T', 'description': 'd', 'body': {'params': {'primary': 'P'}},
+             'processing': {'item_model': 'TranslatorText'}}, 'translator', [], concerns)
+        self.assertEqual('TranslatorText', kept['body']['processing']['item_model'])
+        self.assertNotIn('processing', kept)
+        self.assertTrue(any('processing' in c for c in concerns), concerns)
+
     def test_the_category_is_derived_from_the_types_not_chosen_by_the_model(self):
         concerns = []
         kept = self.role.enforce_envelope(

@@ -16,6 +16,9 @@ What you receive (the user message):
 - VOCABULARIES: closed lists (port types, statuses, input groups) — choose inside them only.
 
 Rules — an app manifest is a WAMA DECISION, not a copy of the repository:
+- the body carries EVERY facet of the example except the excluded ones below — `identity`,
+  `capabilities`, `ports` (inputs AND outputs), `modes`, `params`, `processing`, `models`,
+  `inspector`, `access`, `studio`: a facet left out is an app WAMA cannot generate;
 - one item = one unit of work in the queue (one document, one file, one text to translate…);
   name the item model `<Key>Item` style in English (`TranslatorDocument`, `TranslatorText`);
 - every identifier you invent (model names, field names, task function, param names) is in
@@ -28,6 +31,9 @@ Rules — an app manifest is a WAMA DECISION, not a copy of the repository:
   `processing.statuses` = the canonical list given in VOCABULARIES;
 - `ports` and `modes` use port types from VOCABULARIES only; input groups are
   travail | prompt | reference;
+- a result shown WHILE THE USER TYPES (a translation that follows the keystrokes, « à la
+  DeepL ») is a declared capability: `capabilities.has_instant_result: true` AND `instant` in
+  `processing.endpoints` — one never without the other;
 - `models.catalog_keys` lists only keys present in REQUIRES (or leave it empty);
 - do not write the `data` facet (it is introspected after generation), nor `tool_api`, nor
   `surfaces` (an editing page is declared once the app's processes exist);

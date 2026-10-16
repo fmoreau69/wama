@@ -56,6 +56,25 @@ class TranslatorServiceTest(SimpleTestCase):
         self.assertEqual(['A', 'A\n\nB'], seen)
         self.assertEqual('A\n\nB', out['text'])
 
+    def test_an_unknown_source_is_left_to_the_model_and_never_named_auto(self):
+        """Mesuré le 2026-10-16 sur translategemma : « de « auto » vers « en » » rendait le texte
+        INCHANGÉ. La consigne nomme les langues par code ISO et fait détecter la source."""
+        with mock.patch.object(llm_utils, 'llm_chat', return_value=('Hello', None)) as local:
+            self._service().translate('Bonjour', 'auto', 'en')
+            unknown = local.call_args.kwargs['messages'][0]['content']
+            self._service().translate('Bonjour', 'fr', 'en')
+            known = local.call_args.kwargs['messages'][0]['content']
+        self.assertNotIn('« auto »', unknown)
+        self.assertIn('détecte', unknown)
+        self.assertIn('ISO 639-1 « en »', unknown)
+        self.assertIn('« fr »', known)                    # contre-épreuve : la source connue se dit
+
+    def test_a_rewritten_prompt_does_not_serve_the_old_cached_translations(self):
+        key = translator.TranslatorService._cache_key
+        before = key('Bonjour', 'auto', 'en', [], 'ollama:translategemma:12b')
+        with mock.patch.object(translator, 'PROMPT_VERSION', translator.PROMPT_VERSION + 1):
+            self.assertNotEqual(before, key('Bonjour', 'auto', 'en', [], 'ollama:translategemma:12b'))
+
     def test_two_models_never_share_a_cached_translation(self):
         key = translator.TranslatorService._cache_key
         self.assertNotEqual(key('Bonjour', 'fr', 'en', [], 'ollama:translategemma:12b'),

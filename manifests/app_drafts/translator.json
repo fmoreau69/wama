@@ -1,0 +1,499 @@
+{
+  "key": "translator",
+  "name": "Translator",
+  "description": "Traduit du texte et des documents (TXT, MD, DOCX, PDF) d'une langue à l'autre via un modèle de traduction du catalogue. Deux modes : saisie libre avec résultat instantané à la frappe (à la DeepL), ou dépôt d'un fichier traduit en tâche avec aperçu au fil des morceaux. Réglages : langue source (auto), langue cible, glossaire de termes à préserver, modèle.",
+  "manifest_kind": "app",
+  "schema_version": "1.0",
+  "world": "media",
+  "visibility": "private",
+  "projects": [],
+  "requires": [
+    {
+      "kind": "model",
+      "key": "ollama:translategemma:12b"
+    }
+  ],
+  "source": {
+    "type": "authored",
+    "ref": "wama-dev-ai rôle app (2026-10-16), corrigé et validé par le superviseur"
+  },
+  "body": {
+    "identity": {
+      "category": "create",
+      "color": "#2e86ab",
+      "icon": "fas fa-language",
+      "input_extensions": [
+        ".txt",
+        ".md",
+        ".docx",
+        ".pdf"
+      ],
+      "url_name": "translator:index",
+      "verbose_name": "Translator"
+    },
+    "capabilities": {
+      "accepts_url": false,
+      "anti_race": true,
+      "batch_type": "pipe",
+      "during_preview": true,
+      "has_batch": true,
+      "has_instant_result": true,
+      "has_url_import": false,
+      "has_youtube": false,
+      "inspector": true,
+      "layout": true,
+      "multi_format_download": null,
+      "settings_modal_item": true,
+      "streaming": true
+    },
+    "ports": {
+      "inputs": [
+        {
+          "description": "Le texte à traduire, saisi directement dans la card. La traduction s'affiche pendant la frappe.",
+          "group": "prompt",
+          "id": "prompt",
+          "label": "Texte à traduire",
+          "multi": false,
+          "types": [
+            "prompt"
+          ]
+        },
+        {
+          "description": "Un fichier texte ou document (TXT, MD, DOCX, PDF) à traduire en tâche, avec aperçu au fil des morceaux.",
+          "group": "travail",
+          "id": "source_document",
+          "label": "Document source",
+          "multi": false,
+          "types": [
+            "document"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out",
+          "label": "Texte traduit",
+          "types": [
+            "document"
+          ]
+        }
+      ]
+    },
+    "modes": {
+      "domains": [
+        {
+          "accepts": [
+            "prompt"
+          ],
+          "icon": "fa-keyboard",
+          "id": "text",
+          "inputs": [
+            "prompt"
+          ],
+          "label": "Texte",
+          "modes": []
+        },
+        {
+          "accepts": [
+            "document"
+          ],
+          "icon": "fa-file-lines",
+          "id": "document",
+          "inputs": [
+            "source_document"
+          ],
+          "label": "Document",
+          "modes": []
+        }
+      ]
+    },
+    "params": {
+      "primary": "PARAMS_JSON",
+      "schemas": {
+        "PARAMS_JSON": [
+          {
+            "chip": false,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "",
+            "help": "Le texte à traduire. Sa traduction s'affiche pendant la frappe.",
+            "icon": "fa-keyboard",
+            "label": "Texte à traduire",
+            "name": "prompt",
+            "section": "settings",
+            "stales": [
+              "translate"
+            ],
+            "type": "textarea"
+          },
+          {
+            "chip": true,
+            "choices": [
+              [
+                "auto",
+                "Auto"
+              ],
+              [
+                "fr",
+                "Français"
+              ],
+              [
+                "en",
+                "English"
+              ],
+              [
+                "es",
+                "Español"
+              ],
+              [
+                "de",
+                "Deutsch"
+              ],
+              [
+                "it",
+                "Italiano"
+              ],
+              [
+                "pt",
+                "Português"
+              ],
+              [
+                "nl",
+                "Nederlands"
+              ],
+              [
+                "ar",
+                "العربية"
+              ],
+              [
+                "zh-cn",
+                "中文"
+              ],
+              [
+                "ja",
+                "日本語"
+              ],
+              [
+                "ko",
+                "한국어"
+              ],
+              [
+                "ru",
+                "Русский"
+              ],
+              [
+                "tr",
+                "Türkçe"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "auto",
+            "help": "Langue du texte source. « Auto » détecte la langue automatiquement.",
+            "icon": "fa-globe",
+            "label": "Langue source",
+            "name": "source_language",
+            "section": "settings",
+            "stales": [
+              "translate"
+            ],
+            "type": "select"
+          },
+          {
+            "chip": true,
+            "choices": [
+              [
+                "fr",
+                "Français"
+              ],
+              [
+                "en",
+                "English"
+              ],
+              [
+                "es",
+                "Español"
+              ],
+              [
+                "de",
+                "Deutsch"
+              ],
+              [
+                "it",
+                "Italiano"
+              ],
+              [
+                "pt",
+                "Português"
+              ],
+              [
+                "nl",
+                "Nederlands"
+              ],
+              [
+                "ar",
+                "العربية"
+              ],
+              [
+                "zh-cn",
+                "中文"
+              ],
+              [
+                "ja",
+                "日本語"
+              ],
+              [
+                "ko",
+                "한국어"
+              ],
+              [
+                "ru",
+                "Русский"
+              ],
+              [
+                "tr",
+                "Türkçe"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "fr",
+            "help": "Langue cible de la traduction.",
+            "icon": "fa-globe",
+            "label": "Langue cible",
+            "name": "target_language",
+            "section": "settings",
+            "stales": [
+              "translate"
+            ],
+            "type": "select"
+          },
+          {
+            "chip": false,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "",
+            "help": "Termes ou expressions à ne PAS traduire (un par ligne). Ex. : nom de produit, sigle, jargon métier.",
+            "icon": "fa-bookmark",
+            "label": "Glossaire",
+            "name": "glossary",
+            "section": "settings",
+            "stales": [
+              "translate"
+            ],
+            "type": "textarea"
+          },
+          {
+            "chip": true,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "auto",
+            "group": "modele",
+            "help": "Modèle de traduction (Auto = tirage au lancement selon la qualité visée).",
+            "icon": "fa-microchip",
+            "label": "Modèle",
+            "name": "model",
+            "options_auto": true,
+            "options_cloud": true,
+            "options_query": {
+              "model_type": "llm"
+            },
+            "options_source": "catalog",
+            "section": "settings",
+            "stales": [
+              "translate"
+            ],
+            "type": "select"
+          },
+          {
+            "chip": false,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 50,
+            "group": "modele",
+            "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
+            "icon": "fa-gauge-high",
+            "label": "Rapide ↔ Qualité",
+            "max": 100,
+            "min": 0,
+            "name": "quality_intent",
+            "section": "settings",
+            "show_if": {
+              "equals": "auto",
+              "field": "model"
+            },
+            "stales": [
+              "translate"
+            ],
+            "step": 1,
+            "type": "intent"
+          }
+        ]
+      }
+    },
+    "inspector": {
+      "detail_registered": true,
+      "detail_spec": {
+        "extra": [
+          {
+            "display": true,
+            "field": "source_language",
+            "label": "Langue source"
+          },
+          {
+            "display": true,
+            "field": "target_language",
+            "label": "Langue cible"
+          },
+          {
+            "display": true,
+            "field": "model",
+            "label": "Modèle"
+          }
+        ],
+        "result_file": "output_file",
+        "source_file": "source_document",
+        "source_text": "prompt"
+      },
+      "preview": {
+        "file_field": "output_file",
+        "user_field": "user"
+      },
+      "preview_registered": true
+    },
+    "models": {
+      "catalog_keys": [
+        "ollama:translategemma:12b"
+      ]
+    },
+    "processing": {
+      "anti_race": true,
+      "backend_result": {
+        "field": "output_file",
+        "kind": "file"
+      },
+      "batch_link_model": "TranslatorBatchItem",
+      "endpoints": [
+        "about",
+        "batch_create",
+        "batch_delete",
+        "batch_download",
+        "batch_duplicate",
+        "batch_preview",
+        "batch_start",
+        "batch_template",
+        "batch_update",
+        "card_html",
+        "clear_all",
+        "consolidate",
+        "console",
+        "delete",
+        "download",
+        "download_all",
+        "duplicate",
+        "global_progress",
+        "help",
+        "index",
+        "instant",
+        "merge",
+        "move_to_batch",
+        "progress",
+        "remove_from_batch",
+        "reorder",
+        "reorder_queue",
+        "start",
+        "start_all",
+        "start_process",
+        "stop",
+        "update_settings",
+        "upload"
+      ],
+      "extra_routes": [
+        {
+          "name": "update_settings",
+          "pattern": "settings/<int:pk>/",
+          "view": "views.update_settings"
+        },
+        {
+          "name": "start_process",
+          "pattern": "start/<int:pk>/<str:process>/",
+          "view": "views.start_process"
+        }
+      ],
+      "item_model": "TranslatorText",
+      "model_spec": {
+        "batch": {
+          "link_batch_field": "batch",
+          "link_batch_related": "items",
+          "link_item_field": "text",
+          "link_item_related": "batch_item",
+          "link_name": "TranslatorBatchItem",
+          "name": "TranslatorBatch",
+          "user_related_name": "translator_batches",
+          "verbose_name": "Lot de traductions",
+          "verbose_name_plural": "Lots de traductions"
+        },
+        "item": {
+          "input_field": "source_document",
+          "name": "TranslatorText",
+          "ordering": [
+            "-created_at"
+          ],
+          "params_fields": [
+            "prompt",
+            "source_language",
+            "target_language",
+            "glossary",
+            "model",
+            "quality_intent"
+          ],
+          "user_related_name": "translator_texts"
+        }
+      },
+      "processing_time": true,
+      "statuses": [
+        "PENDING",
+        "AWAITING_RESOURCES",
+        "RUNNING",
+        "SUCCESS",
+        "FAILURE"
+      ],
+      "tasks": [
+        {
+          "file": "tasks.py",
+          "function": "translate_text_task",
+          "lifecycle": true,
+          "task_name": null
+        }
+      ]
+    },
+    "access": {
+      "min_tier": null,
+      "public": false,
+      "roles": []
+    },
+    "studio": {
+      "params_attr": "PARAMS_JSON",
+      "params_module": "wama.translator.params",
+      "runnable": true
+    }
+  }
+}
