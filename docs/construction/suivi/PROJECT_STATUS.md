@@ -24052,3 +24052,48 @@ l'API) […] en réutilisant l'existant. On ne réinvente rien »*. Détail et d
   régénère (fichiers non versionnés) — chaque régénération les fait bouger sur toute la table ;
   (5) ⏳ Fabien enregistrera son oral et le transcrira dans WAMA : affiner les slides dessus ;
   (6) pousser.
+
+## §CLÔTURE — 2026-10-13→16, « CURSEUR · PAGES DU COMPTE DANS L'ASSISTANT · VECTORISATION DU RAG » — ✅ LIVRÉ — 🔚 trois définitions d'« administrateur » à trancher
+
+Suite de la §CLÔTURE du 13/10 « ASSISTANT VOCAL », même session. Demandes de Fabien, dans l'ordre :
+les graduations du curseur de qualité mal placées sur l'accueil ; « ajouter l'accès aux pages du
+menu profil depuis l'assistant … en fonction des droits » ; « je ne peux pas lancer la
+vectorisation » d'un document ajouté au RAG ; puis `/reverif` de toute la session et clôture.
+
+- `3d4a42c9` **Curseur de qualité** — graduations dans la colonne du curseur, valeur alignée sur
+  lui ; les deux rendus du contrat (`wama-params.js`, `_intent_slider.html`).
+- `f52d0e54` **Pages du compte** — déclarées (`app_registry.register_account_page`, par l'app qui
+  les porte), menu du compte GÉNÉRÉ, `open_page` y emmène avec le droit de la requête réelle
+  (`permissions.can_open_page`), cinq lectures par la brique de chaque page. Détail :
+  `WAMA_LLM` §« Les pages du COMPTE ».
+- **Vectorisation du RAG** (commit de ce bloc) — la page promettait « le prochain lot
+  d'indexation », aucun n'était planifié. Tâche `common.reindex_memory` (file GPU, palier bas,
+  verrou), lot nocturne `memory-reindex-nightly` (01:45, au calendrier), bouton « Vectoriser
+  maintenant » (la passe du COMPTE). Détail : `WAMA_MEMORY §5bis` (encadré du 16/10). Le
+  document de Fabien a été vectorisé à la main le 16/10 (`sync_memory --reindex` : 4 578
+  vecteurs, et 2 396 souvenirs reprojetés au passage — la commande le fait toujours).
+- **Revérification** (commit de ce bloc) — deux écarts de ma main ramenés : l'aide
+  `_signed_in_refusal` de `tool_api` (créée le 14/10) laissait 18 gardes recopiées en ligne, elles
+  passent toutes par elle ; une clé `section` sans lecteur retirée de `navigation.navigable_pages`.
+
+**Décision pour Fabien** : trois définitions d'« administrateur » coexistent —
+`accounts.views.is_admin` (superutilisateur ou groupe `admin` : celle de `admin_required` et du
+menu), le niveau de compte `admin` du profil (`permissions.user_tier`), `can_manage_registries`
+(développeur ou administrateur). Un compte de niveau « admin » hors du groupe n'ouvre pas Users.
+
+**Restes nommés** : la liste d'outils du scénario nocturne des lectures recopie des noms du
+registre (relevé ANTÉRIEUR de `check_redundancy`, 9 → 14 noms) — la dériver demande de DÉCLARER
+quels outils sont en lecture seule. `AddItemToMediaLibraryTest.test_ne_DEVINE_pas_le_role…`
+rouge AVANT cette session de travail (suite large du 14/10) : pas de ce chantier.
+
+**Contrôles attendus au prochain /reprise** : `tests_account_pages` (21) + `tests_memory_reindex`
+(14) verts ; 410 tests côté WSL (outils, assistant, mémoire, calendrier, accounts) avec le seul
+rouge antérieur ci-dessus ; 10 + 6 + 1 mutations rouges ; `check_docs` 0 cassée sur 2846,
+`doc_facts --check` à jour.
+
+**Pendings système** : WAMA relancé par Fabien le 16/10 avec la vectorisation (bouton vérifié :
+caché quand rien n'attend, comme voulu) ; 🔴 relancer gunicorn une fois de plus pour les retouches
+de la revérification (refus des outils, navigation) · pousser les commits de la session.
+
+**🔚 POINT D'ENTRÉE** : trancher la définition d'« administrateur » ; éprouver au vrai micro la
+conversation vocale (§CLÔTURE du 13/10).
