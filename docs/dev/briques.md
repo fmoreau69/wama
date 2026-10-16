@@ -1751,12 +1751,14 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
 
 - **Domicile** : `wama/common/utils/detections.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Les DÉTECTIONS d'un média, sur disque — le type de donnée commun `detections` (`common/catalog/data_types.DataType.DETECTIONS` : objets détectés par frame — frame, bbox, classe, piste).
-- **API publique** (18) :
+- **API publique** (20) :
   - `new_document(*, media: str, width: int, height: int, fps: float=0.0, frame_count: int=1, engine: str='', models=(), classes=(), prompt: str='') -> dict` — Un document vide, prêt à recevoir ses frames (`add`).
   - `detection(*, box, label: str='', conf: float=1.0, track=None, polygons=None) -> dict` — Une détection au format du document : entiers pour les pixels, confiance arrondie.
   - `add(doc: dict, frame_index: int, detections) -> None` — Range les détections d'UNE frame (rien n'est écrit pour une frame vide). Deux appels
   - `merge(docs) -> dict` — L'UNION de documents du même média (2026-10-10) — un par détecteur d'un ensemble : leurs
   - `apply_corrections(doc: dict, corrections) -> dict` — Le document CORRIGÉ par l'humain (2026-10-10, chantier SURFACES) — une copie, l'original
+  - `boxes_at(doc: dict, *, width: float=0, frame: int=0) -> list` — Les `(box, conf)` d'UNE frame, ramenées à la largeur `width` (0 = telles quelles) — pour
+  - `support(items, *, iou: float=AGREEMENT_IOU) -> list` — L'ACCORD géométrique entre sorties (`WAMA_QUALITE` M2/M6, 2026-10-16) — les objets que
   - `write(path: str, doc: dict) -> str` — Écrit le document (frames ordonnées) ; rend le chemin.
   - `read(path: str) -> dict` — Lit un document ; lève `ValueError` si ce n'en est pas un.
   - `count(doc: dict) -> int` — Le nombre de détections du document (toutes frames).
@@ -1873,7 +1875,7 @@ Le second temps de toute app qui rend un fichier, en process À PART : `output_s
   - `drop_previous_outputs(item, field, keep=(), natives: bool=True) -> None` — Le moteur REJOUE : les originaux gardés et les rendus de la fois d'avant qu'il n'a pas
   - `generated(paths, **result) -> dict` — Le retour d'une glu de MOTEUR, complété de ce que la brique attend d'elle : plus aucun
   - `forget_lost_generation(item, field, node: str) -> bool` — La sortie repart des fichiers que le moteur a laissés. S'ils ne sont plus là (retirés,
-  - `output_step(field, *, domain, app_id: str, console=None, extra_fields=None, format_of=None, transform=None, apply=None, what: str='Réglages de sortie')` — La GLU du process de sortie, au contrat du squelette (`glu(item, ctx) -> dict`).
+  - `output_step(field, *, domain, app_id: str, console=None, extra_fields=None, format_of=None, transform=None, apply=None, what: str='Réglages de sortie', input_s…` — La GLU du process de sortie, au contrat du squelette (`glu(item, ctx) -> dict`).
 
 ### Propositions de manifestes (geste « Valider »)
 
@@ -1904,20 +1906,22 @@ Source commune des formats+qualités de fichier par domaine (réutilise le vocab
 
 - **Domicile** : `wama/common/utils/output_formats.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.4](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : Source COMMUNE des formats + qualités de FICHIER de sortie — pendant de voice_options pour la sortie.
-- **API publique** (13) :
+- **API publique** (15) :
   - `get_output_formats(domain: str) -> List[Tuple[str, str]]` — [(valeur, libellé)] des formats de fichier de sortie pour un domaine. 'original' = inchangé.
   - `get_output_qualities(domain: str | None=None) -> List[Tuple[str, str]]` — Presets de qualité (web/équilibré/max). `domain` réservé pour d'éventuelles variantes futures.
+  - `keep_size_param(contexts=None, dom_id=None, group: str | None=None, **extra)` — Le réglage « Garder la résolution d'origine » (2026-10-16, demande de Fabien) : la sortie
   - `output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None, include_upscale:…` — Fabrique les Param COMMUNS output_format (+ output_quality) pour un domaine, prêts à concaténer au
   - `output_format_params_for_app(app_name: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None, domain:…` — AUTO depuis APP_CATALOG : lit `multi_format_download` (early/late) + déduit le domaine des
   - `upscale_factor(value) -> int` — `'x4'` → 4, `'x2'` → 2 ; 0 pour « aucun » ou une valeur illisible.
   - `upscale_output_image(path: str, factor, *, item=None, app_id=None, denoise: bool=False, progress_callback=None) -> tuple` — Agrandit l'image `path` EN PLACE par un upscaler TIRÉ du catalogue ; rend `(largeur,
   - `wanted_format(item, output_format: str | None=None) -> str` — Le format de sortie DEMANDÉ, en minuscules ('original' = inchangé). `output_format` : la
-  - `apply_output_settings(paths, item, *, domain: str, app_id: str | None=None, console=None, output_format: str | None=None) -> list` — Les réglages de SORTIE de l'item appliqués aux fichiers produits, dans l'ordre du
+  - `keep_size_target(item, domain: str, input_size=None)` — Les dimensions `(largeur, hauteur)` auxquelles ramener la sortie, ou None : le réglage
+  - `apply_output_settings(paths, item, *, domain: str, app_id: str | None=None, console=None, output_format: str | None=None, input_size=None) -> list` — Les réglages de SORTIE de l'item appliqués aux fichiers produits, dans l'ordre du
   - `is_native(path) -> bool` — Ce chemin porte-t-il la marque d'un fichier d'origine gardé ?
   - `native_name(path) -> str` — Le nom sous lequel le fichier d'origine de `path` est gardé (idempotent).
   - `final_name(path) -> str` — Le nom du rendu d'un fichier d'origine gardé, avant conversion (idempotent).
-  - `transforms_output(item, domain: str, output_format: str | None=None) -> bool` — Les réglages de sortie de l'item changent-ils le fichier que le moteur a écrit ?
-  - `render_outputs(sources, item, *, domain: str, app_id: str | None=None, console=None, previous=(), output_format: str | None=None, transform=None, apply=None) -…` — Les réglages de sortie appliqués en GARDANT le fichier d'origine ; rend
+  - `transforms_output(item, domain: str, output_format: str | None=None, input_size=None) -> bool` — Les réglages de sortie de l'item changent-ils le fichier que le moteur a écrit ?
+  - `render_outputs(sources, item, *, domain: str, app_id: str | None=None, console=None, previous=(), output_format: str | None=None, transform=None, apply=None, i…` — Les réglages de sortie appliqués en GARDANT le fichier d'origine ; rend
 
 ### Résolution de backend par DÉCLARATION
 
