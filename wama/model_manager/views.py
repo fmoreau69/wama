@@ -1217,12 +1217,16 @@ def api_models_db(request):
     # 2026-10-16) — la règle d'admission commune, jamais recopiée : `chosen` = ce qu'il peut
     # nommer à la main, `drawn` = ce que le tirage automatique peut prendre en ce moment (sans les
     # payants non consentis ni les sources saturées). Un modèle local est toujours ouvert.
-    try:
-        from .services.cloud_models import allowed_cloud_keys
-        chosen = allowed_cloud_keys(request.user, automatic=False)
-        drawn = allowed_cloud_keys(request.user, automatic=True)
-    except Exception:
-        chosen = drawn = set()
+    # Seulement si la liste porte un distant : les sélecteurs des apps lisent cette API à chaque
+    # page (`?source=`, `?task=`), et la règle y coûte ~10 ms à chaud (mesuré le 16/10).
+    chosen = drawn = set()
+    if any(m.execution == EXECUTION_CLOUD for m in queryset):
+        try:
+            from .services.cloud_models import allowed_cloud_keys
+            chosen = allowed_cloud_keys(request.user, automatic=False)
+            drawn = allowed_cloud_keys(request.user, automatic=True)
+        except Exception:
+            chosen = drawn = set()
 
     models = []
     full = is_admin_or_dev(request.user)

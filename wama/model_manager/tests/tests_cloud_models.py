@@ -965,6 +965,13 @@ class FilterBarForMeTest(TestCase):
     def test_a_local_model_is_always_open(self):
         self.assertEqual((True, True), self._rows()['imager:x'])
 
+    def test_a_list_without_remote_models_does_not_ask_the_rule(self):
+        # The app selectors read this API on every page (`?source=`): the rule is not paid there.
+        with mock.patch('wama.model_manager.services.cloud_models.allowed_cloud_keys') as rule:
+            rows = self.client.get('/model-manager/api/models/db/?source=imager').json()['models']
+        rule.assert_not_called()
+        self.assertEqual([(True, True)], [(r['open_to_me'], r['drawn_for_me']) for r in rows])
+
     def test_the_bar_offers_the_rings_and_costs_of_the_registry(self):
         from wama.common import external_sources
         admin = get_user_model().objects.create_superuser('filter_bar_admin', password='x')

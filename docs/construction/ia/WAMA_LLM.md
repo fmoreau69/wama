@@ -992,7 +992,9 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   (WAMA local · cloud privé · souverain · commercial, ou tous les distants — `AIModel.hosting`,
   la clé du même calcul que `origin_label`), **Coût** (`COST_TIERS`) et **Pour moi** —
   « ouverts par mon profil » / « tirables en automatique », rabattus à la lecture par
-  `api_models_db` depuis `allowed_cloud_keys(automatic=False/True)`, jamais recalculés. Tri
+  `api_models_db` depuis `allowed_cloud_keys(automatic=False/True)`, jamais recalculés — et
+  seulement quand la liste porte un distant : les sélecteurs des apps lisent cette API à chaque
+  page, la règle y coûtait ~10 ms à chaud pour rien (mesuré à la revérification). Tri
   « origine, la plus proche d'abord » (`origin_rank`, le rang de `model_origin`) ; la recherche
   lit aussi l'origine (« souverain », « gratuit »). L'option « Distants (cloud) » du statut part :
   l'Origine la dit. Garde : `tests_cloud_models.FilterBarForMeTest`.
