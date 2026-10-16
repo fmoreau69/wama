@@ -2496,9 +2496,12 @@ Ce qui EXISTE, vérifié dans le code le 16/10 :
 | parse structuré des PDF (blocs, figures, ordre de lecture) | Docling, prévu le 21/06 | ⏳ **absent du code** (aucun import) |
 
 Deux voies, complémentaires :
-1. **Traduire, puis ENVOYER VERS le Writer** (« Envoyer vers », déjà commun) : le texte traduit
-   devient le FOND, le document d'origine la FORME (`reference_layout`). Le chemin le plus court,
-   tout existe ; reste à le jouer de bout en bout.
+1. **Traduire, puis ENVOYER VERS le Writer** — EXISTE (« Envoyer vers », `common/services/
+   send_to.py` → import du Writer) : le texte traduit arrive en ENTRÉE PRINCIPALE du Writer
+   (`reference_document`, le FOND) ; le document d'origine se pose comme « Modèle de mise en page »
+   (`reference_layout`) dans la card du Writer, à la main — le geste envoie vers l'entrée
+   principale, sans choix de port. ⏳ Seule extension possible, non décidée : choisir le port
+   d'arrivée à l'envoi. Rien d'autre à construire ; reste à le vérifier sur un vrai document.
 2. **Traduction en place** : traduire chaque section/bloc et le réécrire dans le document
    (`patch_section` pour le texte ; DOCX par pandoc ; PDF par HTML + Chromium) ; les figures par
    OCR → traduction → réédition d'image. Plus fidèle, plus long : à construire maillon par maillon,
