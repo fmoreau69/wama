@@ -399,8 +399,24 @@ la lib ouvrait ce chantier-là aussi. Le drag natif HTML5 fait les quatre gestes
     ✅ **Tactile tenu le 2026-10-16** (`ROADMAP §27` étape 3) : la brique commune
     `wama-gestures.js` traduit l'appui long puis le glisser d'un doigt en glisser HTML5 — les
     quatre gestes de la file marchent au doigt sans une ligne de plus dans `wama-queue-dnd.js` —,
-    et un appui long relâché sur place ouvre ce menu contextuel. Reste au clavier : la sélection
-    MULTIPLE (au doigt, on porte une card).
+    et un appui long relâché sur place ouvre ce menu contextuel. La sélection MULTIPLE passe
+    par la case de chaque card (ci-dessous).
+  - ✅ *Case de sélection* (2026-10-16, demande de Fabien — « comme dans Suno ») : une case en
+    tête du bandeau « #id · date » de chaque card, posée par `wama-queue-dnd.js` (aucun gabarit
+    d'app). C'est la MÊME sélection dessinée autrement (projection du jeu d'ids, `aria-checked`) :
+    cliquer la card la sélectionne seule, comme avant ; cocher la case l'AJOUTE ou la retire,
+    comme Ctrl+clic (Maj : la plage depuis l'ancre) — donc la sélection multiple à la souris
+    sans clavier, et au doigt. Visible au survol (convention `.wama-reveal`), toujours quand la
+    card est cochée ou qu'une sélection est en cours dans la file, toujours au doigt (24 px). La
+    card mère d'un lot n'en a pas : elle n'entre pas dans la sélection. Geste nocturne :
+    `<app>.queue_dnd` (« deux cases cochées → 2 »).
+  - ✅ *Survol d'une card* (même jour) : UNE règle pour toutes les cards de file
+    (`wama-inspector.css`) — voile cyan très léger en surimpression et liseré intérieur, de la
+    famille de l'aperçu (`.wama-card-preview`) en plus discret ; ni la card mère (elle a le
+    sien), ni une card sélectionnée. Elle remplace une ombre noire invisible sur fond sombre
+    (`.synthesis-card`, 8 apps) et deux bordures locales (converter, journal) ; le reader et le
+    composer n'en avaient pas. Une règle locale de survol sur une card est refusée par
+    `tests_queue_dnd`.
   - *Persistance / concurrence* : ordre + appartenance en DB, **UI optimiste**, ne pas écraser un drag en
     cours quand le polling re-render. ✅ Tenu : un **pur réordonnancement ne recharge pas** (l'écran
     est déjà juste) ; tout ce qui **change la composition** d'un lot recharge, parce que le serveur

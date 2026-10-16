@@ -1633,7 +1633,11 @@ MECHANISMS = (
               "lot / en former un), déposer ENTRE deux cards change l'ORDRE (file ou lot) ; "
               "sélection multiple clic/Ctrl/Maj, qui EST celle de l'inspecteur (une seule "
               "sélection dans WAMA — la brique ANNONCE `wama:selection-change`, l'inspecteur "
-              "REND). Auto-monté sur `[data-wama-dnd]`, posé par le templatetag "
+              "REND). Une CASE en tête de chaque card la dessine (2026-10-16) : la cocher AJOUTE "
+              "à la sélection, comme Ctrl+clic — à la souris sans clavier comme au doigt ; "
+              "visible au survol, cochée ou dès qu'une sélection est en cours. Le SURVOL d'une "
+              "card de file est une règle commune (`wama-inspector.css`), aucune app n'écrit le "
+              "sien. Auto-monté sur `[data-wama-dnd]`, posé par le templatetag "
               "`queue_dnd_attrs` : une app qui ne le pose pas garde une file strictement inerte. "
               "SortableJS écarté (multi-sélection + fusion sur une card + règle « pas de CDN »)",
               'wama/common/static/common/js/wama-queue-dnd.js', 'docs/construction/ui/CARD_DESIGN.md §3bis',

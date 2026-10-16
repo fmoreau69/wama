@@ -96,6 +96,8 @@
     margin-left: -3.25em;
   }
   input[type="range"] { min-height: var(--wama-touch-min); }
+  /* La case de sélection des cards (wama-queue-dnd) : au plancher, comme une case. */
+  .wama-select-box { width: var(--wama-touch-min); height: var(--wama-touch-min); vertical-align: middle; }
   .form-range::-webkit-slider-thumb { width: 1.5rem; height: 1.5rem; margin-top: -.5rem; }
   .form-range::-moz-range-thumb { width: 1.5rem; height: 1.5rem; }
 

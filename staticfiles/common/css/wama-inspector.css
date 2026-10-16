@@ -126,6 +126,20 @@ body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--collapsed { dis
 }
 .wama-card.is-batch:hover { background: #0f2222; }
 
+/* ── Survol d'une card de file — UNE règle pour toutes les apps (2026-10-16, demande de Fabien) ─
+   Il n'y en avait pas de commune : une ombre noire sur fond sombre, invisible
+   (`.synthesis-card`, 8 apps), une bordure locale au converter et au journal, rien au reader ni
+   au composer. Même famille que l'aperçu (`.wama-card-preview`, teinte cyan) en plus discret :
+   un voile en SURIMPRESSION (il s'accorde à tous les fonds, `bg-dark` compris, qui est en
+   `!important`) et un liseré INTÉRIEUR (le bord gauche porte l'ÉTAT de la card, en
+   `!important` : on n'y touche pas). Ni la card mère de lot (elle a le sien, ci-dessus), ni une
+   card sélectionnée (sa teinte doit rester lisible), ni une card de la famille surlignée. */
+.wama-card:not(.is-batch) { transition: box-shadow .15s ease; }
+.wama-card:not(.is-batch):not(.wama-dnd-selected):not(.wcv3-family-hl):hover {
+    background-image: linear-gradient(rgba(13, 202, 240, .045), rgba(13, 202, 240, .045));
+    box-shadow: inset 0 0 0 1px rgba(13, 202, 240, .3);
+}
+
 /* ── Liseré d'IDENTITÉ d'app (CARD_DESIGN §9) : teinte de catégorie dérivée, posée par la
    variable --wama-app-color (base.html, via le catalogue). Identité ≠ état : le liseré est à
    GAUCHE et discret ; le tricolore d'état garde bordure/badge/barre. ─────────────────────── */

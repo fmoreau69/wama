@@ -1079,6 +1079,96 @@ class SousMenuMediathequeSousV8Test(TestCase):
                          {'asset_type': 'image', 'output_format': ''})
 
 
+# ── La case de sélection et le survol des cards (2026-10-16, demande de Fabien) ──────────────
+#
+# Le comportement se mesure au navigateur : le geste nocturne `<app>.queue_dnd` coche deux cases
+# dans chaque app de file. Ici, la FORME qui le rend possible et qui ne doit pas dériver.
+
+COMMON_STATIC = RACINE / 'wama' / 'common' / 'static' / 'common'
+
+
+def _common(rel):
+    return (COMMON_STATIC / rel).read_text(encoding='utf-8')
+
+
+class SelectionBoxTest(TestCase):
+
+    def test_the_box_is_a_projection_of_the_one_selection(self):
+        # Aucun état à elle : elle se recoche à chaque annonce de sélection et à chaque ré-armement
+        # (le rendu serveur remplace des cards entières, cf. `stateOf`).
+        js = _common('js/wama-queue-dnd.js')
+        self.assertIn('function syncBoxes(queue)', js)
+        self.assertIn("boxFor(c).setAttribute('aria-checked', on ? 'true' : 'false');", js)
+        self.assertRegex(js, r'function announce\(queue\) \{\s+syncBoxes\(queue\);')
+        self.assertRegex(js, r'reproject\(queue\);\s+syncBoxes\(queue\);')
+
+    def test_ticking_the_box_adds_like_a_ctrl_click_and_nothing_else_runs(self):
+        js = _common('js/wama-queue-dnd.js')
+        self.assertIn('handleSelectionClick(queue, card, { ctrlKey: true, metaKey: false, shiftKey: ev.shiftKey });', js)
+        # L'écouteur de sélection unique vit sur la MÊME file : seule l'arrêt IMMÉDIAT le retient.
+        self.assertIn('ev.stopImmediatePropagation();', js)
+
+    def test_the_box_shows_by_the_common_reveal_convention(self):
+        js, css = _common('js/wama-queue-dnd.js'), _common('css/wama-queue-dnd.css')
+        self.assertIn("box.className = BOX + ' wama-reveal';", js)
+        self.assertIn("card.classList.add('wama-reveal-host');", js)
+        # Toujours visible quand la card est cochée ou qu'une sélection est en cours.
+        self.assertIn('.wama-dnd-selected .wama-select-box,\n.wama-dnd-has-selection .wama-select-box { opacity: 1; }', css)
+        # Au doigt : au plancher d'une case (WCAG 2.5.8).
+        self.assertIn('.wama-select-box { width: var(--wama-touch-min); height: var(--wama-touch-min);',
+                      _common('css/wama-touch.css'))
+
+    def test_the_nightly_gesture_ticks_two_boxes(self):
+        smoke = (RACINE / 'wama' / 'common' / 'services' / 'ui_smoke.py').read_text(encoding='utf-8')
+        self.assertIn('constats.append("deux cases cochées → 2")', smoke)
+
+    def test_the_served_copies_are_the_sources(self):
+        for rel in ('js/wama-queue-dnd.js', 'css/wama-queue-dnd.css', 'css/wama-inspector.css',
+                    'css/app_modern.css', 'css/wama-touch.css'):
+            self.assertEqual(_common(rel), (RACINE / 'staticfiles' / 'common' / rel).read_text(encoding='utf-8'),
+                             f'staticfiles/common/{rel} differs from its source — resync')
+
+
+#: Une RÈGLE de survol qui change l'ASPECT d'une card de file (fond, bordure, ombre, contour) :
+#: la classe commune, ou celles que les apps posent sur la même racine (`synthesis-card`,
+#: `job-card`, `reader-card`, `journal-card`). Le nom exact (`.wama-card-preview` est un autre
+#: élément), une vraie règle (`{` : pas un commentaire), et pas un simple curseur.
+CARD_HOVER = re.compile(r'\.(?:wama-card|synthesis-card|job-card|reader-card|journal-card)(?![\w-])'
+                        r'[^{,]*:hover[^{]*\{[^}]*\b(?:background|border|box-shadow|outline)')
+
+
+class CardHoverIsCommonTest(TestCase):
+    """UN survol pour toutes les cards de file — il y en avait trois, dont une ombre invisible."""
+
+    def test_the_common_hover_lives_in_one_place(self):
+        css = _common('css/wama-inspector.css')
+        self.assertIn('.wama-card:not(.is-batch):not(.wama-dnd-selected):not(.wcv3-family-hl):hover {', css)
+
+    def test_no_app_writes_its_own_card_hover(self):
+        allowed = COMMON_STATIC / 'css' / 'wama-inspector.css'     # le commun, et le lot qui a le sien
+        offenders = []
+        for root in ('wama', 'wama_lab', 'wama_data'):
+            for path in (RACINE / root).rglob('*'):
+                if path.suffix not in ('.css', '.html') or not path.is_file() or path == allowed:
+                    continue
+                parts = path.relative_to(RACINE).parts
+                if 'vendors' in parts or 'staticfiles' in parts or any(re.search(r'_\d+$', p) for p in parts):
+                    continue
+                for n, line in enumerate(path.read_text(encoding='utf-8', errors='ignore').splitlines(), 1):
+                    if CARD_HOVER.search(line):
+                        offenders.append(f'{path.relative_to(RACINE)}:{n}: {line.strip()[:90]}')
+        self.assertEqual(offenders, [], 'the hover of a queue card is the common rule (wama-inspector.css):\n'
+                                        + '\n'.join(offenders))
+
+    def test_the_guard_sees_a_local_card_hover(self):
+        self.assertTrue(CARD_HOVER.search('.synthesis-card:hover { box-shadow: 0 4px 8px #000; }'))
+        self.assertTrue(CARD_HOVER.search('    .job-card:hover { border-color: #444c5a; }'))
+        self.assertFalse(CARD_HOVER.search('.asset-card:hover { border-color: #4a4a7a; }'))
+        self.assertFalse(CARD_HOVER.search('.wama-card-preview:hover { background-color: #000; }'))
+        self.assertFalse(CARD_HOVER.search('[data-wama-dnd] .wama-card[draggable="true"]:hover { cursor: grab; }'))
+        self.assertFalse(CARD_HOVER.search('/* (`.wama-card:hover`, 2026-10-16) — l\'ombre */'))
+
+
 # ── « Envoyer le lot vers… » (2026-10-14) ─────────────────────────────────────────────────────
 #
 # La card MÈRE d'un lot avait le partage, le transfert, la programmation, la référence — pas

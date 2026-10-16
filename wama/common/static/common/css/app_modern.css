@@ -427,12 +427,9 @@ textarea {
     margin-bottom: 10px;
     background: #212529;
     color: #f8f9fa;
-    transition: box-shadow 0.2s;
 }
-
-.synthesis-card:hover {
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-}
+/* Le survol des cards de file est COMMUN à toutes les apps : `wama-inspector.css`
+   (`.wama-card:hover`, 2026-10-16) — l'ombre qui vivait ici était invisible sur fond sombre. */
 
 /* ── Bord GAUCHE tricolore des cards de file (CARD_DESIGN : ambre=en cours · vert=fini ·
    rouge=échec · orange=attente de ressources) — domicile UNIQUE, sur `.wama-card` que

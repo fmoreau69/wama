@@ -5039,6 +5039,35 @@ def check_app_queue_dnd(app: str, url_path: str):
                   return False, "Échap ne relâche pas la sélection (sélection FANTÔME)"
               constats.append("Échap → 0")
 
+              # ── 1 bis. La CASE de sélection (2026-10-16) : cocher AJOUTE, comme Ctrl+clic ──
+              # Vrai clic quand c'est possible, sinon événement synthétique (card hors écran,
+              # lot replié) — même contrat que `_clic`. La case doit être COCHÉE (aria-checked),
+              # pas seulement la classe posée : c'est elle que l'utilisateur lit.
+              for ident in (ids[0], ids[-1]):
+                  case = page.locator(f'[data-wama-dnd] .wama-card[data-id="{ident}"]:not(.is-batch) '
+                                      '.wama-select-box').first
+                  try:
+                      case.scroll_into_view_if_needed(timeout=3000)
+                      case.click(timeout=4000)
+                  except Exception:
+                      if not page.evaluate(
+                              """(id) => { const b = document.querySelector('[data-wama-dnd] .wama-card[data-id="'
+                                     + id + '"]:not(.is-batch) .wama-select-box');
+                                     if (!b) return false;
+                                     b.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}));
+                                     return true; }""", str(ident)):
+                          return False, (f"card #{ident} sans case de sélection — `wama-queue-dnd.js` "
+                                         "ne l'a pas posée (bandeau d'identité absent ?)")
+                  page.wait_for_timeout(200)
+              cochees = page.evaluate(
+                  "() => document.querySelectorAll('[data-wama-dnd] .wama-select-box[aria-checked=\"true\"]').length")
+              if page.evaluate(SELECTION) != 2 or cochees != 2:
+                  return False, (f"cocher deux cases : {page.evaluate(SELECTION)} sélectionnée(s), {cochees} "
+                                 "case(s) cochée(s) au lieu de 2 — la case doit AJOUTER à la sélection")
+              page.keyboard.press('Escape')
+              page.wait_for_timeout(250)
+              constats.append("deux cases cochées → 2")
+
               # ── 2. Le SEUIL de dépôt : tiers médian vs tiers haut/bas ─────────────────
               # C'est la règle qui sépare les quatre gestes. On simule un drag depuis la
               # première card vers la dernière, et on lit le RETOUR VISUEL — jamais on ne lâche.

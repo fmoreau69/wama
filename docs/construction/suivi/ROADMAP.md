@@ -5627,6 +5627,9 @@ aucun débordement horizontal**. Les défauts sont ailleurs :
    ⏳ **Reste** : la sélection MULTIPLE de la file au doigt (aujourd'hui Ctrl/Maj ; au doigt on
    porte une card — les actions de groupe de l'inspecteur restent atteignables par le clavier) ;
    un essai sur une vraie tablette (ci-dessous).
+   ✅ *Sélection multiple au doigt : soldée le jour même* par la CASE de sélection des cards
+   (demande de Fabien, « comme dans Suno ») — cocher ajoute, comme Ctrl+clic, à la souris comme
+   au doigt (`CARD_DESIGN §3bis`). Reste l'essai sur une vraie tablette.
 
 **Ce que le relevé ne dit pas** : c'est Chromium qui émule, pas Safari sur un vrai iPad — Safari
 gère peut-être le glisser HTML5 natif par appui long ; un essai sur une vraie tablette tranche ce

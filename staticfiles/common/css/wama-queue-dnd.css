@@ -22,6 +22,46 @@
     background-image: linear-gradient(rgba(13, 202, 240, .10), rgba(13, 202, 240, .10));
 }
 
+/* ── Case de sélection (2026-10-16) ───────────────────────────────────────────────────────
+   La MÊME sélection, dessinée en case : posée par `wama-queue-dnd.js` en tête du bandeau
+   « #id · date ». Apparition par la convention commune `.wama-reveal` (survol, clavier, toujours
+   au doigt) ; reste visible quand la card est cochée ou qu'une sélection est en cours dans la
+   file — on voit alors d'un coup d'œil ce qui est pris et ce qui ne l'est pas. */
+.wama-select-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    margin-right: .4rem;
+    vertical-align: -2px;
+    border: 1.5px solid rgba(255, 255, 255, .45);
+    border-radius: 3px;
+    background: rgba(0, 0, 0, .25);
+    cursor: pointer;
+    transition: opacity .15s ease, background-color .12s ease, border-color .12s ease;
+}
+.wama-select-box:hover,
+.wama-select-box:focus-visible { border-color: #0dcaf0; outline: none; }
+.wama-select-box[aria-checked="true"] {
+    background: #0dcaf0;
+    border-color: #0dcaf0;
+}
+.wama-select-box[aria-checked="true"]::after {
+    content: '';
+    width: 4px;
+    height: 8px;
+    margin-top: -2px;
+    border: solid #0b1f24;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+.wama-dnd-selected .wama-select-box,
+.wama-dnd-has-selection .wama-select-box { opacity: 1; }
+/* Une card sans bandeau d'identité : la case en coin, sans rien déplacer. */
+.wama-select-corner { position: relative; }
+.wama-select-corner > .wama-select-box { position: absolute; top: .45rem; left: .45rem; z-index: 2; }
+
 /* La card sous le curseur pendant un drag : on l'allège pour que la barre d'insertion et le
    cadre de fusion restent les éléments les plus lisibles de l'écran. */
 .wama-dnd-active .wama-card { transition: opacity .12s ease; }

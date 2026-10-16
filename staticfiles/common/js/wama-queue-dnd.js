@@ -42,8 +42,9 @@
  * Le DOIGT, sans une ligne ici (2026-10-16) : la brique commune `wama-gestures.js` traduit
  * l'appui long puis le glisser d'un doigt en `dragstart`/`dragover`/`drop`/`dragend` — les
  * gestionnaires ci-dessous sont donc les mêmes à la souris et au doigt, et un appui long relâché
- * sans bouger ouvre le menu de card (le clic droit d'une tablette). La sélection MULTIPLE reste
- * au clavier : au doigt on porte une card. Ne pas ajouter de second chemin tactile ici.
+ * sans bouger ouvre le menu de card (le clic droit d'une tablette). La sélection MULTIPLE passe
+ * par la CASE de chaque card (2026-10-16) : la cocher ajoute, comme Ctrl+clic — à la souris comme
+ * au doigt. Ne pas ajouter de second chemin tactile ici.
  */
 
 (function () {
@@ -219,7 +220,48 @@
         return selectedCards(queue).map(function (c) { return c.dataset.id; });
     }
 
+    // ══ LA CASE DE SÉLECTION (2026-10-16, demande de Fabien) ═══════════════════════════════
+    //
+    // Une case en tête du bandeau « #id · date » de chaque card : la MÊME sélection, dessinée
+    // autrement — elle ne porte aucun état à elle (le jeu d'ids fait foi, la case en est une
+    // projection, comme la classe). Cliquer la card la sélectionne seule, comme avant ; cliquer
+    // la CASE l'ajoute ou la retire, comme Ctrl+clic — la sélection multiple sans clavier, donc
+    // aussi au doigt (le reste de ROADMAP §27, étape 3). Visible au survol de la card (convention
+    // `.wama-reveal`), toujours quand la card est cochée ou qu'une sélection est en cours, et
+    // toujours au doigt. La card mère d'un lot n'en a pas : elle n'entre pas dans la sélection.
+    const BOX = 'wama-select-box';
+
+    function boxFor(card) {
+        let box = card.querySelector('.' + BOX);
+        if (box) return box;
+        box = document.createElement('span');
+        box.className = BOX + ' wama-reveal';
+        box.setAttribute('role', 'checkbox');
+        box.setAttribute('tabindex', '0');
+        box.setAttribute('aria-checked', 'false');
+        box.title = 'Sélectionner (ajouter à la sélection)';
+        box.setAttribute('aria-label', 'Sélectionner #' + card.dataset.id);
+        card.classList.add('wama-reveal-host');
+        // En tête du bandeau d'identité, que portent les cards des dix apps ; sinon, en coin.
+        const head = card.querySelector('.wcv3-head');
+        if (head) head.insertBefore(box, head.firstChild);
+        else { card.classList.add('wama-select-corner'); card.insertBefore(box, card.firstChild); }
+        return box;
+    }
+
+    /** Reprojette la sélection sur les cases (et le marqueur « sélection en cours » de la file). */
+    function syncBoxes(queue) {
+        let any = false;
+        cards(queue).forEach(function (c) {
+            const on = c.classList.contains(SEL);
+            if (on) any = true;
+            boxFor(c).setAttribute('aria-checked', on ? 'true' : 'false');
+        });
+        queue.classList.toggle('wama-dnd-has-selection', any);
+    }
+
     function announce(queue) {
+        syncBoxes(queue);
         const sel = selectedCards(queue);
         // L'inspecteur (et qui voudra) écoute : la brique dit CE QUI EST SÉLECTIONNÉ, elle ne
         // dicte pas ce qu'on en affiche.
@@ -358,6 +400,27 @@
         };
 
         // ── Sélection ────────────────────────────────────────────────────────────────────
+        // La CASE d'abord : elle ajoute ou retire (comme Ctrl+clic), Maj étend la plage depuis
+        // l'ancre. Gardée pour nous : ni sélection unique derrière, ni inspecteur rempli.
+        function toggleFromBox(ev, box) {
+            const card = box.closest('.wama-card[data-id]');
+            if (!card || card.classList.contains('is-batch')) return;
+            handleSelectionClick(queue, card, { ctrlKey: true, metaKey: false, shiftKey: ev.shiftKey });
+            ev.preventDefault();
+            // IMMÉDIATE : l'écouteur de sélection ci-dessous vit sur la MÊME file ; un simple
+            // `stopPropagation` le laissait passer, et le clic sur la case retombait en
+            // sélection unique (mesuré au navigateur le jour même).
+            ev.stopImmediatePropagation();
+        }
+        queue.addEventListener('click', function (ev) {
+            const box = ev.target.closest('.' + BOX);
+            if (box) toggleFromBox(ev, box);
+        }, true);
+        queue.addEventListener('keydown', function (ev) {
+            const box = ev.target.closest && ev.target.closest('.' + BOX);
+            if (box && (ev.key === ' ' || ev.key === 'Enter')) toggleFromBox(ev, box);
+        });
+
         queue.addEventListener('click', function (ev) {
             // Un clic sur un bouton, un lien ou un champ n'est PAS un geste de sélection.
             // Sans ce garde, Ctrl+clic sur ⚙ aurait sélectionné la card en plus d'ouvrir la
@@ -390,6 +453,7 @@
             // Le rendu serveur remplace des nœuds ENTIERS : ré-armer ne suffit pas, il faut
             // aussi remettre la sélection, qui est partie avec l'ancien nœud. Voir `stateOf`.
             reproject(queue);
+            syncBoxes(queue);       // la case des nœuds neufs, cochée selon le jeu d'ids
         }
         arm();
         new MutationObserver(arm).observe(queue, { childList: true, subtree: true });

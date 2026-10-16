@@ -38,7 +38,8 @@
  *
  *   • Elle ne décide d'aucune action : elle traduit des gestes, la page garde ses gestionnaires.
  *   • La molette reste aux pages (zoom sous le curseur) : ce n'est pas un geste de doigt.
- *   • La sélection MULTIPLE de la file reste au clavier (Ctrl/Maj) : au doigt on porte une card.
+ *   • La sélection MULTIPLE de la file n'est pas un geste : c'est la case de chaque card
+ *     (`wama-queue-dnd.js`, 2026-10-16), qu'un doigt coche comme une souris.
  *
  * Critère tactile : celui de l'événement (`pointerType`, `touchstart`), jamais une détection de
  * l'appareil — un portable tactile piloté à la souris garde ses gestes de souris.
