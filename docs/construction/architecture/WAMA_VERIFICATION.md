@@ -1949,3 +1949,21 @@ et la ligne méta des cards de la médiathèque (`#666`, 2,98 → `#a0a8b0`, 7,1
 commune (`wcv3-lbl` « ENTRÉE / PROCESS », `wcv3-head`, `wcv3-proc-name`), des `span` sans classe
 (Mes souvenirs, Journal), `ext-type-label` (Sources), `conformity-label` (Apps), `p.hint` — une
 décision de charte (CARD_DESIGN), pas un défaut à corriger en passant.
+
+⏳ **Quand WAMA aura plusieurs THÈMES** (sombre / clair / UGE… — intention `ROADMAP` « Voies
+alignées » : `data-bs-theme` de Bootstrap 5.3 + tokens CSS dans `common/`, `CARD_DESIGN §9.3`) :
+- la moitié **navigateur** vaut pour tout thème par construction — axe mesure les couleurs RENDUES,
+  d'où qu'elles viennent — mais elle ne mesure que le thème que la page affiche : le scénario devra
+  jouer chaque page UNE FOIS PAR THÈME, en lisant la liste des thèmes là où elle sera DÉCLARÉE
+  (jamais une liste écrite dans le scénario), et en posant le thème par le même geste que
+  l'utilisateur (préférence du profil ou attribut de la page) ;
+- la moitié **code** est propre au thème sombre : `text-dark` sans fond clair y est une faute, mais
+  il est JUSTE sur un thème clair, où la faute inverse (`text-light`, `text-white(-50)` sans fond
+  sombre — des centaines d'usages aujourd'hui) apparaît. Sa forme multi-thème : un ton de texte
+  FIXE exige un fond FIXE sur le même élément, dans les deux sens — et partout ailleurs, des
+  tokens qui suivent le thème (`text-body`, `text-body-secondary`, variables `--bs-*`, ou celles
+  d'un composant comme `--wv-*` de la visionneuse).
+⚠ Mesuré le 2026-10-17 : **aucun mécanisme de thème n'existe encore** (seuls les rapports exportés
+lisent `prefers-color-scheme`), et les feuilles communes portent des couleurs EN DUR
+(`app_modern.css` : 122 valeurs hexadécimales). Le chantier des thèmes sera d'abord celui des
+tokens ; ce scénario en sera le filet, thème par thème.
