@@ -108,16 +108,16 @@
     }).catch(function () {});
   }
 
-  function stripMarkdown(text) {
-    return String(text || '')
-      .replace(/```[\s\S]*?```/g, ' (bloc de code) ')
-      .replace(/`[^`]+`/g, '')
-      .replace(/\*\*(.+?)\*\*/g, '$1')
-      .replace(/\*(.+?)\*/g, '$1')
-      .replace(/#+\s+/g, '')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .replace(/^\s*[-*>]\s+/gm, '')
-      .trim();
+  // ⚠ PLUS DE NETTOYAGE ICI (2026-10-18). Un `stripMarkdown` vivait à cette place, double de la
+  // brique serveur `tts_text.text_for_speech` par laquelle passe de toute façon tout texte dit,
+  // et il faisait PIRE : il EFFAÇAIT le code en ligne — « (`instant_preview`) » arrivait à la voix
+  // en « () », d'où « les mots entre parenthèses ne sont pas lus » (Fabien). Le texte part tel
+  // quel ; le serveur rend `spoken`, le texte effectivement dit, sur lequel se calent les lèvres.
+
+  /** Une fin de phrase à `end` tombe-t-elle DANS un bloc de code (nombre impair de ``` avant) ?
+   *  Couper là donnerait au serveur un bloc sans sa clôture, qu'il ne saurait plus annoncer. */
+  function insideCodeBlock(text, end) {
+    return (text.slice(0, end).match(/```/g) || []).length % 2 === 1;
   }
 
   /**
@@ -136,7 +136,9 @@
     var boundary = /[.!?…](?=\s)/g, match;
     while ((match = boundary.exec(text))) {
       var end = match.index + 1;
-      if (end >= CHUNK_MIN_CHARS) return { chunk: text.slice(0, end), rest: text.slice(end) };
+      if (end >= CHUNK_MIN_CHARS && !insideCodeBlock(text, end)) {
+        return { chunk: text.slice(0, end), rest: text.slice(end) };
+      }
     }
     return { chunk: '', rest: text };
   }
@@ -153,7 +155,9 @@
       var binStr = atob(data.audio_b64);
       var bytes = new Uint8Array(binStr.length);
       for (var i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
-      return new Blob([bytes], { type: 'audio/wav' });
+      // `spoken` : ce que le serveur a DIT après sa préparation (`tts_text`) — repli sur le
+      // texte envoyé pour un serveur d'avant le 2026-10-18.
+      return { blob: new Blob([bytes], { type: 'audio/wav' }), spoken: data.spoken || text };
     });
   }
 
@@ -266,22 +270,23 @@
     var requests = Promise.resolve();
 
     function enqueue(text) {
-      // Le Markdown se retire sur la PHRASE prête, jamais fragment par fragment : nettoyer
-      // chaque fragment retirait son espace de tête, donc les mots arrivaient COLLÉS au
-      // service de voix (« Bonjour » + « je » → « Bonjourje ») dès que la réponse venait en
-      // flux — et un marqueur coupé entre deux fragments n'était jamais reconnu.
-      var clean = stripMarkdown(text);
-      if (!clean) return;
-      said.words = said.words.concat(speechWords(clean));
+      // La PHRASE prête part entière, jamais fragment par fragment : préparer chaque fragment
+      // retirait son espace de tête, donc les mots arrivaient COLLÉS au service de voix
+      // (« Bonjour » + « je » → « Bonjourje ») — et un marqueur coupé entre deux fragments
+      // n'était jamais reconnu. La préparation elle-même est au serveur (`tts_text`).
+      var sentence = String(text || '').trim();
+      if (!sentence) return;
+      // Les mots de l'ÉCHO : ceux de la phrase (le Markdown n'y laisse aucune lettre de plus).
+      said.words = said.words.concat(speechWords(sentence));
       var audio = requests.then(function () {
         if (!turn.valid()) return null;
-        return fetchSpeech(clean, turn.signal);
+        return fetchSpeech(sentence, turn.signal);
       }).catch(function (e) { report(e); return null; });
       requests = audio;
       playback = playback.then(function () {
-        return audio.then(function (blob) {
-          if (!turn.valid() || !blob) return;
-          return playChunk(blob, clean, turn);
+        return audio.then(function (speech) {
+          if (!turn.valid() || !speech) return;
+          return playChunk(speech.blob, speech.spoken, turn);
         });
       }).catch(report);
     }
@@ -310,8 +315,7 @@
   // explicite, pas une lecture automatique. Un texte ENTIER est le cas particulier d'un flux
   // qui reçoit tout d'un coup : une seule mécanique, donc un seul comportement à garder.
   function speak(text, options) {
-    var clean = stripMarkdown(text);
-    if (!clean) return Promise.resolve(false);
+    if (!String(text || '').trim()) return Promise.resolve(false);
     var stream = speakStream(options);
     stream.push(text);
     return stream.end();
@@ -366,7 +370,6 @@
     isOwnSpeech: isOwnSpeech,
     bindButton: bindButton,
     onChange: function (fn) { listeners.push(fn); },
-    stripMarkdown: stripMarkdown,
     takeSentences: takeSentences,
   };
 })(window);

@@ -21,7 +21,8 @@ fusionnait la liste entière en une phrase).
 """
 from django.test import SimpleTestCase
 
-from wama.common.utils.tts_text import make_audible, text_for_speech
+from wama.common.utils.tts_text import (make_audible, pause_segments, say_emphasis,
+                                        text_for_speech)
 
 
 class PronounceableTest(SimpleTestCase):
@@ -111,6 +112,78 @@ class AudibleTest(SimpleTestCase):
 
     def test_an_ampersand_is_said(self):
         self.assertEqual('images et vidéos.', make_audible('images & vidéos'))
+
+
+class HeardAsWrittenTest(SimpleTestCase):
+    """Ce que Fabien ENTENDAIT de travers (2026-10-18), mesuré par un aller-retour voix →
+    transcription : chaque règle porte le défaut entendu, et sa contre-épreuve."""
+
+    def test_a_parenthesis_is_said_as_an_aside_between_commas(self):
+        """« Le chat (gris et blanc) dort » était entendu « Le chat gris est blanc d'or »."""
+        self.assertEqual('Le chat, gris et blanc, dort sur le canapé.',
+                         text_for_speech('Le chat (gris et blanc) dort sur le canapé.'))
+
+    def test_an_aside_closing_the_sentence_keeps_its_full_stop(self):
+        self.assertEqual('Il dort, vraiment.', text_for_speech('Il dort (vraiment).'))
+        self.assertEqual('Il dort, vraiment.', text_for_speech('Il dort (vraiment)'))
+
+    def test_a_glued_optional_plural_merges_instead_of_pausing(self):
+        """Contre-épreuve : « fichier(s) » n'est pas une incise."""
+        self.assertEqual('Choisir les fichiers.', text_for_speech('Choisir les fichier(s)'))
+
+    def test_inline_code_is_said_and_an_identifier_keeps_its_words_apart(self):
+        """Le navigateur EFFAÇAIT le code en ligne (« (`instant_preview`) » → « () ») ; une fois
+        gardé, le tiret bas retiré collait les mots (« instant-travilleux »)."""
+        said = text_for_speech('Le champ `instant_preview` est lu par la card.')
+        self.assertEqual('Le champ instant preview est lu par la card.', said)
+
+    def test_an_italic_underscore_is_still_a_markdown_marker(self):
+        """Contre-épreuve : `_mot_` est de l'italique, pas un identifiant."""
+        self.assertEqual('Un mot souligné.', text_for_speech('Un _mot_ souligné'))
+
+    def test_a_code_block_is_announced_not_read(self):
+        said = text_for_speech('Voici :\n```python\nprint("x")\n```\nFin.')
+        self.assertIn('bloc de code', said)
+        self.assertNotIn('print', said)
+
+    def test_a_short_emphasis_word_is_no_longer_spelled(self):
+        """espeak épelait « UNE », « CE », « NE », « MOT », « DIT » (mesuré) ; les longs passaient."""
+        self.assertEqual("Ce n'est pas une erreur, ne le dites pas.",
+                         say_emphasis("CE n'est PAS UNE erreur, NE le dites pas."))
+
+    def test_an_acronym_stays_an_acronym(self):
+        """Contre-épreuve : un sigle mis en minuscules se lirait comme un mot (« rag »)."""
+        self.assertEqual('Le RAG et la carte GPU.', say_emphasis('Le RAG et la carte GPU.'))
+        self.assertEqual('Une phrase normale.', say_emphasis('Une phrase normale.'))
+
+    def test_the_lexicon_says_wama_the_french_way(self):
+        """espeak lit « WAMA » à l'anglaise quelle que soit sa casse (entendu « WAM »)."""
+        self.assertEqual("Bienvenue dans Ouama.", say_emphasis('Bienvenue dans WAMA.'))
+        # Contre-épreuve : mot ENTIER — un nom qui le contient ne bouge pas.
+        self.assertEqual('wama_data', say_emphasis('wama_data'))
+
+
+class PauseSegmentsTest(SimpleTestCase):
+    """Où la voix respire, et combien — le réglage des pauses (2026-10-18)."""
+
+    TEXT = 'Le chat dort, puis il mange. Ensuite il joue ; enfin il dort.'
+
+    def test_each_mark_ends_a_segment_with_the_pause_it_asks_for(self):
+        self.assertEqual([('Le chat dort,', 0.2), ('puis il mange.', 0.6),
+                          ('Ensuite il joue ;', 0.2), ('enfin il dort.', 0.0)],
+                         pause_segments(self.TEXT, 0.6, 0.2))
+
+    def test_no_pause_asked_keeps_the_text_whole(self):
+        """Contre-épreuve : réglages à zéro = le comportement d'avant, un seul appel au moteur."""
+        self.assertEqual([(self.TEXT, 0.0)], pause_segments(self.TEXT, 0, 0))
+
+    def test_a_clause_pause_at_zero_cuts_only_at_sentences(self):
+        self.assertEqual([('Le chat dort, puis il mange.', 0.5),
+                          ('Ensuite il joue ; enfin il dort.', 0.0)],
+                         pause_segments(self.TEXT, 0.5, 0))
+
+    def test_a_decimal_comma_is_not_a_pause(self):
+        self.assertEqual([('Il pèse 3,5 kilos.', 0.0)], pause_segments('Il pèse 3,5 kilos.', 0.5, 0.2))
 
 
 class NothingToSayTest(SimpleTestCase):

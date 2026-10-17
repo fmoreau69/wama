@@ -2872,12 +2872,15 @@ La langue d'un TEXTE (`langid`, balises de section retirées, verdict peu sûr =
 
 ### Le texte À DIRE (préparation avant vocalisation)
 
-`text_for_speech` (la chaîne, dans un ordre dont chaque place se justifie) et `make_audible` (la mise en forme visuelle traduite en respirations : puce de tête, point en fin de ligne non ponctuée, tiret d'incise → virgule, `/` → « ou »). ⚠ Le domaine était écrit DEUX FOIS, sous le MÊME NOM de fonction : la vue de vocalisation avait les emojis, le Markdown et les respirations, `synthesizer/utils/text_extractor.py` avait les URL et les e-mails — donc le synthesizer, dont le métier est de lire un document à voix haute, lisait les listes d'un trait. Unifié le 2026-09-26 (demande de Fabien) ; le nom du synthesizer DÉLÈGUE, ses six appelants sont intacts. Consommateurs : la vue `kokoro_tts` (donc toute surface qui vocalise — accueil, volet, canaux) et le synthesizer
+`text_for_speech` (la chaîne, dans un ordre dont chaque place se justifie) et `make_audible` (la mise en forme visuelle traduite en respirations : puce de tête, point en fin de ligne non ponctuée, tiret d'incise → virgule, `/` → « ou »). ⚠ Le domaine était écrit DEUX FOIS, sous le MÊME NOM de fonction : la vue de vocalisation avait les emojis, le Markdown et les respirations, `synthesizer/utils/text_extractor.py` avait les URL et les e-mails — donc le synthesizer, dont le métier est de lire un document à voix haute, lisait les listes d'un trait. Unifié le 2026-09-26 (demande de Fabien) ; le nom du synthesizer DÉLÈGUE, ses six appelants sont intacts. Consommateurs : la vue `kokoro_tts` (donc toute surface qui vocalise — accueil, volet, canaux) et le synthesizer. Depuis le 2026-10-18 (défauts entendus, mesurés par aller-retour voix → transcription) : parenthèses dites en incises (`say_incises`), emphase courte en majuscules et LEXIQUE de prononciation (`say_emphasis`, `SPOKEN_FORMS`), code en ligne dit, et `pause_segments` — où la voix respire, et combien : le réglage des pauses de l'assistant, appliqué par Kokoro-ONNX. Le second nettoyage du navigateur est RETIRÉ
 
 - **Domicile** : `wama/common/utils/tts_text.py` · **doc** : [docs/construction/ia/WAMA_LLM.md §1bis](../construction/ia/WAMA_LLM.md)
 - **Module** : Le texte À DIRE — brique commune de préparation d'un texte pour la synthèse vocale.
-- **API publique** (2) :
+- **API publique** (5) :
   - `make_audible(text: str) -> str` — Traduit la MISE EN FORME VISUELLE en respirations audibles.
+  - `say_incises(text: str) -> str` — Parenthèses et crochets dits comme des INCISES — entre deux virgules (voir
+  - `say_emphasis(text: str) -> str` — Les mots courts d'EMPHASE en majuscules (`_SHORT_EMPHASIS_WORDS`) passent en minuscules ;
+  - `pause_segments(text: str, sentence_pause: float=0.0, clause_pause: float=0.0) -> list` — Le texte À DIRE découpé là où la voix doit RESPIRER : `[(segment, pause en s), …]`.
   - `text_for_speech(text: str) -> str` — Prépare un texte pour la synthèse vocale : la TTS doit LIRE, pas décrire.
 
 ### Moteurs de recherche web

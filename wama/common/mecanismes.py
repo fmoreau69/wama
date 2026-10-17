@@ -2436,7 +2436,12 @@ MECHANISMS = (
               "synthesizer, dont le métier est de lire un document à voix haute, lisait les listes "
               "d'un trait. Unifié le 2026-09-26 (demande de Fabien) ; le nom du synthesizer "
               "DÉLÈGUE, ses six appelants sont intacts. Consommateurs : la vue `kokoro_tts` (donc "
-              "toute surface qui vocalise — accueil, volet, canaux) et le synthesizer",
+              "toute surface qui vocalise — accueil, volet, canaux) et le synthesizer. Depuis le "
+              "2026-10-18 (défauts entendus, mesurés par aller-retour voix → transcription) : "
+              "parenthèses dites en incises (`say_incises`), emphase courte en majuscules et "
+              "LEXIQUE de prononciation (`say_emphasis`, `SPOKEN_FORMS`), code en ligne dit, et "
+              "`pause_segments` — où la voix respire, et combien : le réglage des pauses de "
+              "l'assistant, appliqué par Kokoro-ONNX. Le second nettoyage du navigateur est RETIRÉ",
               'wama/common/utils/tts_text.py', 'docs/construction/ia/WAMA_LLM.md §1bis',
               annexes=('wama/common/tests/tests_tts_text.py',
                        'wama/synthesizer/utils/text_extractor.py'),

@@ -545,7 +545,17 @@ def _get_kokoro(lang_code: str):
 # emojis, l'autre celui des URL. Les deux surfaces passent par la meme chaine maintenant.
 
 
-def _tts_via_service(text: str, voice: str):
+def _voice_options(user) -> dict:
+    """Les PAUSES de la voix, du réglage DURABLE de l'assistant (`assistant/params.py`,
+    2026-10-18) — lues ici, côté serveur, pour toute surface qui vocalise : le navigateur n'a
+    rien à transmettre, et une surface sans volet (API, canal) parle pareil."""
+    from wama.common.services.assistant_engine import assistant_settings
+    settings_ = assistant_settings(user)
+    return {'sentence_pause': settings_.get('voice_sentence_pause'),
+            'clause_pause': settings_.get('voice_clause_pause')}
+
+
+def _tts_via_service(text: str, voice: str, options: dict = None):
     """
     Génère la vocalisation via le microservice TTS (modèle chaud, process dédié → pas de
     course env dans Django). Renvoie le WAV en base64, ou None si le service est indisponible
@@ -574,7 +584,8 @@ def _tts_via_service(text: str, voice: str):
         # littéral ici. Les NOMS DE VOIX sont identiques entre les deux moteurs
         # (mêmes voix Kokoro), donc le calcul voix→langue ci-dessus vaut pour les deux.
         wav = tts_via_service(text, ASSISTANT_TTS_ENGINE, language=language,
-                              voice_preset=voice_preset, read_timeout=30, raw=True)
+                              voice_preset=voice_preset, options=options, read_timeout=30,
+                              raw=True)
         return base64.b64encode(wav).decode('utf-8')
     except Exception as e:
         logger.info(f"[kokoro_tts] TTS service indisponible ({e}) → repli en-process")
@@ -616,9 +627,12 @@ def kokoro_tts(request):
             return JsonResponse({'error': _RELEASE_WAIT_MESSAGE, 'busy': True}, status=503)
 
         # 1) Voie normale : microservice TTS (modèle chaud, hors process Django).
-        audio_b64 = _tts_via_service(text, voice)
+        # `spoken` : le texte EFFECTIVEMENT dit (2026-10-18). Le navigateur cale les lèvres de
+        # l'avatar et reconnaît l'écho de la voix sur CE texte — il ne nettoie plus rien
+        # lui-même : il le faisait à sa façon, en effaçant le code en ligne.
+        audio_b64 = _tts_via_service(text, voice, _voice_options(request.user))
         if audio_b64 is not None:
-            return JsonResponse({'audio_b64': audio_b64})
+            return JsonResponse({'audio_b64': audio_b64, 'spoken': text})
 
         # 2) Repli en-process (service indisponible) — comportement historique, même voix.
         # Derive lang_code from voice prefix (ff_siwis → 'f', am_adam → 'a')
@@ -653,7 +667,9 @@ def kokoro_tts(request):
             wf.writeframes(audio_int16.tobytes())
 
         audio_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-        return JsonResponse({'audio_b64': audio_b64})
+        # Repli en-process (Kokoro .pt, service indisponible) : sans les pauses réglées — la
+        # voie de secours garde le comportement d'avant.
+        return JsonResponse({'audio_b64': audio_b64, 'spoken': text})
 
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)

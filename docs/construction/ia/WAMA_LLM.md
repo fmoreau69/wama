@@ -733,6 +733,46 @@ plus chaque fois que l'assistant doit d'abord charger. À décider sur l'usage, 
 ✅ **Les cinq leviers du 2026-10-04 sont câblés.** Levier ANTÉRIEUR toujours ouvert : le ③
 du 22/09 (réduire le prompt d'outils — 19 534 caractères de prompt par tour, mesuré ce jour).
 
+✅ **La voix dit ce qui est écrit, et prend son temps (2026-10-18, défauts ENTENDUS par Fabien :
+« les mots entre parenthèses ne sont pas lus », « les mots en majuscule sont lus lettre à lettre »,
+« la voix pourrait prendre un peu plus son temps sur les ponctuations »).** Mesuré par un
+ALLER-RETOUR (texte → Kokoro-ONNX, le moteur de l'assistant → Whisper → texte entendu), jamais à
+l'intuition :
+- **Les parenthèses** étaient lues côté serveur, mais sans respirer (« Le chat (gris et blanc) dort »
+  entendu « Le chat gris est blanc d'or ») ; et le navigateur EFFAÇAIT le code en ligne — un
+  second nettoyage, `stripMarkdown`, écrit dans `wama-assistant-voice.js` à côté de la brique
+  serveur : « (`instant_preview`) » partait en « () ». Il est RETIRÉ ; la brique `tts_text` est le
+  seul nettoyage, et la vue rend `spoken`, le texte effectivement dit, sur lequel l'avatar cale ses
+  lèvres. Parenthèses et crochets se disent en INCISES, entre deux virgules (`say_incises`) ; le
+  tiret bas d'un identifiant se dit comme une espace ; un bloc de code s'annonce (« bloc de code »)
+  et n'est jamais coupé entre deux envois.
+- **Les majuscules** : espeak-ng épelle les mots COURTS d'emphase (« UNE », « UN », « MOT », « CE »,
+  « DIT », « NE » ; les longs passent). Liste FERMÉE de mots courants remis en minuscules
+  (`say_emphasis`) — un sigle (RAG, GPU) reste un sigle : mis en minuscules, il se lirait comme un
+  mot. Un LEXIQUE (`tts_text.SPOKEN_FORMS`) dit ce qui se prononce autrement : « WAMA », lu à
+  l'anglaise par espeak quelle que soit sa casse, devient « Ouama ».
+- **Les pauses** : `kokoro_onnx` sait allonger la pause après chaque marque (`sentence_pause`,
+  `clause_pause`), mais seulement avec un modèle qui rend la durée de ses phonèmes ; le nôtre ne la
+  rend pas (`has_timings` faux — mesuré : 3,58 s de son pour des pauses de 0, 0,25 et 0,8 s). Le
+  texte est donc découpé là où il respire (`tts_text.pause_segments`), chaque segment synthétisé,
+  et le silence posé entre eux (`kokoro_onnx_backend.process`, lu dans `options` du contrat
+  uniforme). Deux RÉGLAGES de l'assistant (`assistant/params.py`, volet de l'accueil) : fin de
+  phrase (défaut 0,4 s) et virgule, parenthèse, tiret (0,15 s) ; la vue les lit dans le réglage
+  durable. L'accueil enregistre désormais TOUT son schéma (`WamaParams.read`) — il ne relisait que
+  deux champs nommés à la main.
+- Mesuré après : emphase et code dits mot pour mot, « Il dort — vraiment — » 1,83 s → 2,95 s.
+- ⏳ Les autres moteurs (synthesizer) ne lisent pas encore `pause_segments` ; le repli en-process
+  (Kokoro .pt, service indisponible) parle sans les pauses réglées. ⏳ Un modèle ONNX qui rendrait
+  les durées (export de `kokoro_onnx`) donnerait les pauses DANS le moteur et des horaires de mots
+  MESURÉS pour les lèvres — piste, pas décidée. ⏳ Les nombres, dates et monnaies ne sont pas
+  normalisés (espeak les lit lui-même) ; recettes publiques relevées : NVIDIA NeMo-text-processing
+  (normalisation par grammaires, `pynini`), `kokorog2p` (phonémisation pour Kokoro, dictionnaire
+  français) — à évaluer par la route `library`.
+- Gardes : `tests_tts_text.HeardAsWrittenTest` / `PauseSegmentsTest`,
+  `tests_kokoro_onnx_phonemes.VoicePausesAreSilencesBetweenSegmentsTest`,
+  `tests_assistant_surfaces.VoicePausesTest`, `tests_assistant_voice_js` (code en ligne envoyé,
+  bloc jamais coupé, lèvres sur `spoken`) — cinq contre-épreuves par mutation, toutes rouges.
+
 #### 1ter. L'assistant agit sur le CODE — pour les développeurs et administrateurs (22/09)
 
 Demande de Fabien : *« utiliser un modèle local ou cloud souverain, performant en code, pour

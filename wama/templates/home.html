@@ -112,9 +112,11 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
       // Le menu de modèles est peuplé par `options_source: 'catalog'` (route commune), « auto »
       // et la prévision par `options_auto`, les modèles distants par `options_cloud`. Ce que
       // l'utilisateur choisit vaut pour TOUTES ses surfaces : on l'enregistre au changement.
+      // TOUT le schéma rendu, par la lecture commune (`WamaParams.read`) — plus deux champs
+      // nommés à la main (2026-10-18) : les réglages de pause de la voix s'affichaient sans
+      // jamais être enregistrés.
       function lireReglages() {
-        const val = (id) => (document.getElementById(id) || {}).value;
-        return { model: val('ai-model'), quality_intent: val('ai-quality') };
+        return window.WamaParams.read(settingsBox);
       }
       if (settingsBox && window.WamaParams) {
         const schema = JSON.parse(document.getElementById('ai-chat-params').textContent);

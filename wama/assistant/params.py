@@ -56,6 +56,19 @@ PARAMS = [
     # qu'une clé de `localStorage` de l'accueil, et le mini-chat du volet (toutes les pages) doit
     # parler pareil. Surface = le bouton 🔊/🔇/⏹ commun (`wama-assistant-voice.js`).
     Param(name='voice', type='toggle', label="Voix de l'assistant", default=True, contexts=()),
+    # Les PAUSES de la voix (2026-10-18, demande de Fabien : « la voix pourrait prendre un peu
+    # plus son temps sur les ponctuations »). Deux réglages parce que le moteur connaît DEUX
+    # marques : fin de phrase (`. ! ? …`) et fin de proposition (`, ; :`) — parenthèses et tirets
+    # d'incise y arrivent réécrits en virgules (`tts_text.say_incises`). Le moteur les lit dans
+    # `options` (`kokoro_onnx_backend.process`) ; la vue de vocalisation les lui passe.
+    # Défauts plus longs que ceux du moteur (0,25 / 0,1 s) : c'est l'objet de la demande.
+    Param(name='voice_sentence_pause', type='range', label="Pause en fin de phrase",
+          icon='fa-pause', default=0.4, min=0, max=1.5, step=0.05, contexts=('panel',),
+          help="Silence, en secondes, après un point, un point d'exclamation ou d'interrogation."),
+    Param(name='voice_clause_pause', type='range', label="Pause sur virgule, parenthèse, tiret",
+          icon='fa-pause', default=0.15, min=0, max=1, step=0.05, contexts=('panel',),
+          help="Silence, en secondes, après une virgule, un point-virgule, deux-points, une "
+               "parenthèse ou un tiret d'incise. À 0, la phrase est dite d'un seul souffle."),
 ]
 
 #: Défauts des réglages utilisateur — DÉRIVÉS du schéma (patron imager) : aucune seconde liste.

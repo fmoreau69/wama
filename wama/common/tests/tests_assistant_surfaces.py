@@ -564,3 +564,46 @@ class ToolsListBuiltOncePerProcessTest(TestCase):
         self.assertNotIn('brand_new_tool', before)
         self.assertIn('- brand_new_tool(', during)
         self.assertEqual(before, after)
+
+
+class VoicePausesTest(TestCase):
+    """Les PAUSES de la voix (2026-10-18) : réglage durable de l'assistant, borné par le schéma,
+    lu par la vue de vocalisation et passé au moteur — qui rend aussi le texte effectivement dit."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('voice_pauses', password='x')
+        self.client.force_login(self.user)
+
+    def _set(self, **values):
+        return self.client.post(reverse('ai_chat_settings'), data=json.dumps(values),
+                                content_type='application/json')
+
+    def test_a_pause_is_saved_and_bounded_by_the_schema(self):
+        from wama.common.services.assistant_engine import assistant_settings
+        self.assertEqual(200, self._set(voice_sentence_pause=0.7, voice_clause_pause=9).status_code)
+        saved = assistant_settings(self.user)
+        self.assertAlmostEqual(0.7, float(saved['voice_sentence_pause']))
+        self.assertAlmostEqual(1.0, float(saved['voice_clause_pause']), msg='borne max du schéma')
+
+    def test_the_voice_view_passes_the_pauses_and_returns_what_was_said(self):
+        self._set(voice_sentence_pause=0.6, voice_clause_pause=0.2)
+        with mock.patch('wama.views._tts_via_service', return_value='AA==') as tts, \
+                mock.patch('wama.common.services.resource_governor.release_in_progress',
+                           return_value=False):
+            r = self.client.post(reverse('kokoro_tts'),
+                                 data=json.dumps({'text': 'Bienvenue dans **WAMA** (le site).'}),
+                                 content_type='application/json')
+        self.assertEqual(200, r.status_code)
+        options = tts.call_args.args[2]
+        self.assertAlmostEqual(0.6, float(options['sentence_pause']))
+        self.assertAlmostEqual(0.2, float(options['clause_pause']))
+        # Le texte DIT, après la brique `tts_text` : lexique et incise appliqués.
+        self.assertEqual('Bienvenue dans Ouama, le site.', r.json()['spoken'])
+
+    def test_an_untouched_profile_gets_the_declared_defaults(self):
+        """Contre-épreuve : sans réglage, les défauts DU SCHÉMA — pas ceux du moteur (0,25/0,1)."""
+        from wama.assistant.params import USER_SETTINGS_DEFAULTS
+        from wama.views import _voice_options
+        self.assertEqual({'sentence_pause': USER_SETTINGS_DEFAULTS['voice_sentence_pause'],
+                          'clause_pause': USER_SETTINGS_DEFAULTS['voice_clause_pause']},
+                         _voice_options(self.user))

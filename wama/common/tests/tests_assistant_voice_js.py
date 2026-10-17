@@ -79,9 +79,47 @@ class NextSentenceIsRequestedDuringPlaybackTest(SimpleTestCase):
              ' à', ' vos', ' questions', ' **en', ' gras**', ' aussi', '.', ' Suite']
               .forEach(function (piece) { turn.push(piece); });
         """)
+        # Le Markdown part TEL QUEL depuis le 2026-10-18 : sa préparation est au serveur
+        # (`tts_text`). Ce que garde ce test : les mots restent séparés.
         self.assertEqual(
-            ['Bonjour je suis votre assistant et je réponds à vos questions en gras aussi.'],
+            ['Bonjour je suis votre assistant et je réponds à vos questions **en gras** aussi.'],
             list(ctx.eval("asked")))
+
+    def test_inline_code_reaches_the_server_instead_of_being_erased(self):
+        """Le navigateur EFFAÇAIT le code en ligne : « (`instant_preview`) » partait en « () » —
+        les mots entre parenthèses « n'étaient pas lus » (Fabien, 2026-10-18)."""
+        ctx = self._ctx()
+        ctx.eval("turn.push(%r); turn.end();" % "Le réglage (`instant_preview`) suit la frappe.")
+        self.assertEqual(['Le réglage (`instant_preview`) suit la frappe.'], list(ctx.eval("asked")))
+
+    def test_a_code_block_is_never_cut_in_two(self):
+        """Une fin de phrase DANS un bloc de code ne découpe pas : le serveur recevrait un bloc
+        sans sa clôture, et le lirait au lieu de l'annoncer."""
+        ctx = self._ctx()
+        reply = ("Voici un exemple de code que vous pouvez utiliser tel quel dans votre script :\n"
+                 "```python\nprint('Bonjour. Ceci est une phrase entière du code.')\n```\n"
+                 "Ensuite, relancez simplement le traitement depuis la file d'attente.")
+        ctx.eval("turn.push(%r); turn.end();" % reply)
+        for piece in ctx.eval("asked"):
+            self.assertEqual(0, piece.count('```') % 2, piece)
+
+    def test_the_lips_follow_what_the_server_said(self):
+        """L'avatar cale ses lèvres sur le texte EFFECTIVEMENT dit (`spoken`), pas sur le texte
+        envoyé — ils diffèrent dès que la préparation réécrit (incises, lexique, code)."""
+        ctx = self._ctx()
+        ctx.eval("""
+            var lips = [];
+            window.WamaAvatar = { isReady: function () { return true; }, stop: function () {},
+                                  instance: function () { return null; },
+                                  speak: function (blob, text) { lips.push(text); return Promise.resolve(true); } };
+            fetch = function (url, options) {
+              asked.push(JSON.parse(options.body).text);
+              return Promise.resolve({ json: function () {
+                return Promise.resolve({ audio_b64: 'AA==', spoken: 'Bienvenue dans Ouama.' }); } });
+            };
+            turn.push('Bienvenue dans WAMA.'); turn.end();
+        """)
+        self.assertEqual(['Bienvenue dans Ouama.'], list(ctx.eval("lips")))
 
     def test_the_service_is_asked_one_request_at_a_time(self):
         """Une réponse de dix phrases ne doit pas ouvrir dix requêtes d'un coup."""
