@@ -2084,11 +2084,12 @@ Audit MESURÉ de `media/` en 4 états : RÉFÉRENCÉ (une ligne de base pointe d
 
 ### Manipulation directe de la file
 
-Endpoints génériques : sortir une card d'un batch, réordonner DANS un lot, ordonner la FILE (`reorder_queue`, 2026-09-04), déplacer, FUSIONNER (`merge`) et consolider. ⚠ `merge` ≠ `consolidate` : le premier fusionne en UN lot et REFUSE si les natures ne cohabitent pas (geste du drag&drop, on a visé une card) ; le second RANGE par nature en N lots (chemin d'import) et 5 apps le redéfinissent. La compatibilité n'est pas redéclarée : `group_key` reçoit la MÊME fonction que le `nature_of` de l'import (vérifié par AST, tests_queue_dnd)
+Endpoints génériques : sortir une card d'un batch, réordonner DANS un lot, ordonner la FILE (`reorder_queue`, 2026-09-04), déplacer, FUSIONNER (`merge`) et consolider. ⚠ `merge` ≠ `consolidate` : le premier fusionne en UN lot et REFUSE si les natures ne cohabitent pas (geste du drag&drop, on a visé une card) ; le second RANGE par nature en N lots. La nature est déclarée UNE fois (`group_key`) et la fabrique INSCRIT le regroupement à l'arrivée de son modèle : `consolidate_arrival`, appelé par tout chemin d'arrivée (dépôt de N fichiers, import du gestionnaire de fichiers, fichier de lot) — aucune app ne le redéfinit depuis le 2026-10-16 (tests_arrival_consolidation)
 
 - **Domicile** : `wama/common/utils/queue_manipulation.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : WAMA Common — Manipulation DIRECTE de la file (CARD_DESIGN §3bis) : vues génériques.
-- **API publique** (3) :
+- **API publique** (4) :
+  - `consolidate_arrival(work_model, ids, user) -> list` — Range des éléments arrivés ENSEMBLE (un dépôt, un import, un fichier de lot) : un lot PAR
   - `ids_from_request(request, field: str='ids')` — Identifiants postés — quelle que soit la FORME de la requête.
   - `make_queue_manipulation_views(*, work_model, batch_model, item_model, fk_name, get_user, item_extra=None, batch_extra=None, group_key=None)` — Retourne {'remove_from_batch', 'reorder', 'reorder_queue', 'move_to_batch',
   - `make_queue_manipulation_views_direct(*, work_model, batch_model, batch_fk='batch', row_field='batch_row_index', get_user, batch_extra=None, group_key=None)` — Variante FK-DIRECTE de ``make_queue_manipulation_views`` — pour les apps dont

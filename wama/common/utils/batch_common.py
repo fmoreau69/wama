@@ -213,8 +213,8 @@ def auto_wrap_orphans(user, *, work_model, batch_model, item_model, fk_name,
 
     Stratégie de regroupement :
       - défaut : chaque orphelin → SON batch-of-1 — **la règle depuis 2026-08-14** (10 apps).
-        Le regroupement (par nature / of-N) se fait AU MOMENT d'un import groupé
-        (`api_import_to_app` → helper `consolidate_*_into_batches` de l'app), jamais ici :
+        Le regroupement (par nature / of-N) se fait AU MOMENT de l'arrivée groupée
+        (`queue_manipulation.consolidate_arrival`, la déclaration de la fabrique), jamais ici :
         indexé sur l'ACCUMULATION, ce wrap fusionnait des envois individuels espacés dans
         le temps dès que la page n'avait pas été chargée entre deux (constat Fabien 14/08,
         anonymizer — la même dérive existait sur enhancer/describer/transcriber).

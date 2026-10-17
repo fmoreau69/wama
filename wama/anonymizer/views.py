@@ -759,41 +759,15 @@ def start_all(request):
 def _anonymizer_nature(m):
     """Nature d'un média (image / vidéo / audio) — ce qui peut cohabiter dans un lot.
 
-    DEUX consommateurs, une seule déclaration : le regroupement à l'import
-    (`group_into_batches_by_nature`) et la fusion par drag&drop (`group_key`)."""
+    DEUX consommateurs, une seule déclaration, toutes deux par la fabrique commune (`group_key`) :
+    le regroupement à l'arrivée (`consolidate_arrival`) et la fusion par drag&drop (`merge`)."""
     return m.media_type or 'video'
-
-
-def _group_medias_into_batches(user, medias, unwrap_singletons=None):
-    """Crée UN batch PAR NATURE (image/vidéo/audio) — règle commune."""
-    from wama.common.utils.batch_common import group_into_batches_by_nature
-    group_into_batches_by_nature(
-        medias,
-        nature_of=_anonymizer_nature,
-        create_batch=lambda nature, total: BatchAnonymizer.objects.create(user=user, total=total),
-        link_item=lambda batch, m, idx: BatchAnonymizerItem.objects.create(
-            batch=batch, media=m, row_index=idx),
-        unwrap_singletons=unwrap_singletons,
-    )
-
-
-def consolidate_medias_into_batches(media_ids, user):
-    """Regroupe des Media importés ENSEMBLE (même requête) par nature — helper PUBLIC
-    exposé au filemanager (`api_import_to_app`), même découplage que le converter."""
-    from wama.common.utils.batch_common import delete_singleton_batches, load_in_import_order
-    items = load_in_import_order(Media, media_ids, user)
-    if not items:
-        return
-    _group_medias_into_batches(
-        user, items,
-        unwrap_singletons=lambda ids: delete_singleton_batches(
-            BatchAnonymizer, 'media', user, ids))
 
 
 def _auto_wrap_orphans(user):
     """Range les Media pas encore en batch — brique COMMUNE, stratégie par défaut
     (chaque orphelin → batch-of-1). Le regroupement par nature ne se fait plus qu'à
-    l'IMPORT GROUPÉ (consolidate_medias_into_batches) : indexé sur l'accumulation,
+    l'ARRIVÉE (`queue_manipulation.consolidate_arrival`) : indexé sur l'accumulation,
     il fusionnait des envois individuels espacés (constat Fabien 14/08)."""
     from wama.common.utils.batch_common import auto_wrap_orphans
     auto_wrap_orphans(
@@ -877,43 +851,25 @@ def _queue_context(request, user):
 # batch unifiée (BatchAnonymizer + BatchAnonymizerItem + FK `media`) que la fabrique demande ;
 # personne n'était simplement venu la brancher, faute d'UI qui l'exige.
 #
-# Son `consolidate` local est CONSERVÉ (la fabrique le permet explicitement) : il regroupe PAR
-# NATURE, ce que le consolidate commun ne sait pas faire — même partage que describer et converter.
-# `group_key` porte cette même règle jusqu'au geste de drag&drop : sans elle, glisser une vidéo
-# dans un lot d'images produisait un lot mixte qu'aucun import n'aurait pu créer.
+# `consolidate` vient de la fabrique (2026-10-16) : elle range désormais PAR NATURE, par ce même
+# `group_key` — la version locale qui le faisait, et le helper que l'import du gestionnaire de
+# fichiers appelait, sont retirés (`queue_manipulation.consolidate_arrival`). `group_key` porte
+# la règle jusqu'au geste de drag&drop : sans elle, glisser une vidéo dans un lot d'images
+# produisait un lot mixte qu'aucun import n'aurait pu créer.
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views as _make_qm
 
 _qm = _make_qm(
     work_model=Media, batch_model=BatchAnonymizer, item_model=BatchAnonymizerItem,
     fk_name='media',
     get_user=lambda r: r.user if r.user.is_authenticated else get_or_create_anonymous_user(),
-    group_key=_anonymizer_nature,      # jumeau du `nature_of` de l'import
+    group_key=_anonymizer_nature,      # l'arrivée (`consolidate_arrival`) ET le glisser-déposer
 )
 remove_from_batch = _qm['remove_from_batch']
 reorder           = _qm['reorder']
 reorder_queue     = _qm['reorder_queue']
 merge             = _qm['merge']
 move_to_batch     = _qm['move_to_batch']
-
-
-def consolidate(request):
-    """Regroupe plusieurs Media importés ensemble en UN batch-of-N."""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST requis'}, status=405)
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # Lecteur COMMUN (JSON ou multipart) — jumeau des consolidate describer/synthesizer/enhancer,
-    # corrigés le 2026-09-07 (500 sur FormData : `request.body` après le middleware CSRF).
-    from wama.common.utils.queue_manipulation import ids_from_request
-    ids = ids_from_request(request)
-
-    from wama.common.utils.batch_common import load_in_import_order
-    items = load_in_import_order(Media, ids, user)
-    if len(items) < 2:
-        return JsonResponse({'consolidated': False})
-
-    # Regroupement PAR NATURE (image / vidéo / audio) — même helper que l'import filemanager.
-    consolidate_medias_into_batches(ids, user)
-    return JsonResponse({'consolidated': True, 'count': len(items)})
+consolidate       = _qm['consolidate']
 
 
 # ── Réglages UTILISATEUR — brique commune `user_settings`, dérivés du schéma (2026-09-27) ──

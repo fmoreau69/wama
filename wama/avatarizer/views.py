@@ -25,7 +25,6 @@ from wama.accounts.views import get_or_create_anonymous_user
 from wama.accounts.permissions import app_access
 from wama.common.tts.constants import DEFAULT_TTS_MODEL, tts_catalog_key
 from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
-from wama.common.utils.batch_common import group_into_batches_by_nature
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views
@@ -930,13 +929,10 @@ def batch_create(request):
 
     jobs = [_make_job(r) for r in rows]
 
-    batches = group_into_batches_by_nature(
-        jobs,
-        nature_of=_avatar_nature,
-        create_batch=lambda nature, total: BatchAvatarJob.objects.create(user=user, total=total),
-        link_item=lambda batch, job, idx: BatchAvatarJobItem.objects.create(
-            batch=batch, job=job, row_index=idx),
-    )
+    # Rangés à l'ARRIVÉE par la déclaration de la fabrique (`group_key`, un lot par nature) —
+    # le regroupement écrit ici à la main est retiré le 2026-10-16.
+    from wama.common.utils.queue_manipulation import consolidate_arrival
+    batches = consolidate_arrival(AvatarJob, [j.id for j in jobs], user)
 
     return JsonResponse({
         'status': 'created',
@@ -952,7 +948,7 @@ def batch_create(request):
 _qm = make_queue_manipulation_views(
     work_model=AvatarJob, batch_model=BatchAvatarJob,
     item_model=BatchAvatarJobItem, fk_name='job',
-    group_key=_avatar_nature,           # jumeau du `nature_of` de l'import
+    group_key=_avatar_nature,           # l'arrivée (`consolidate_arrival`) ET le glisser-déposer
     get_user=_get_user,
 )
 

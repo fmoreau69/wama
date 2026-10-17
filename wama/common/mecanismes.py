@@ -1577,9 +1577,11 @@ MECHANISMS = (
               "ordonner la FILE (`reorder_queue`, 2026-09-04), déplacer, FUSIONNER (`merge`) et "
               "consolider. ⚠ `merge` ≠ `consolidate` : le premier fusionne en UN lot et REFUSE "
               "si les natures ne cohabitent pas (geste du drag&drop, on a visé une card) ; le "
-              "second RANGE par nature en N lots (chemin d'import) et 5 apps le redéfinissent. "
-              "La compatibilité n'est pas redéclarée : `group_key` reçoit la MÊME fonction que "
-              "le `nature_of` de l'import (vérifié par AST, tests_queue_dnd)",
+              "second RANGE par nature en N lots. La nature est déclarée UNE fois (`group_key`) "
+              "et la fabrique INSCRIT le regroupement à l'arrivée de son modèle : "
+              "`consolidate_arrival`, appelé par tout chemin d'arrivée (dépôt de N fichiers, "
+              "import du gestionnaire de fichiers, fichier de lot) — aucune app ne le "
+              "redéfinit depuis le 2026-10-16 (tests_arrival_consolidation)",
               'wama/common/utils/queue_manipulation.py', 'docs/construction/ui/CARD_DESIGN.md §3bis'),
     Mechanism('batch_views', 'Vues de lot (fabrique commune)',
               "Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, "

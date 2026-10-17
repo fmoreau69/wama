@@ -143,10 +143,11 @@ class CodegenJumelleTest(TestCase):
         source_vues = Path(views_gen.__file__).read_text(encoding='utf-8')
         for cle in ("_qm['reorder_queue']", "_qm['merge']"):
             self.assertIn(cle, source_vues, f"{cle} non exporté par le gabarit de vues")
-        # La nature EST partagée : émise comme fonction nommée, consommée des deux côtés.
+        # La nature EST partagée : émise comme fonction nommée, lue par la fabrique, qui sert les
+        # deux gestes — l'import (`consolidate_arrival`, 2026-10-16) et le glisser-déposer.
         self.assertIn('def _nature_de_lot(', source_vues)
-        self.assertIn('nature_of=_nature_de_lot', source_vues)
         self.assertIn('group_key=_nature_de_lot', source_vues)
+        self.assertIn('consolidate_arrival(', source_vues)
         self.assertNotIn('nature_of=lambda o:', source_vues,
                          "une lambda inline ne se partage pas — cf. `_jumelles()`")
 
@@ -307,12 +308,9 @@ class RefusDeFusionTest(TestCase):
         img = ConversionJob.objects.create(user=self.user, media_type='image')
         vid = ConversionJob.objects.create(user=self.user, media_type='video')
 
-        # ⚠ `job_ids`, pas `ids` : le consolidate LOCAL du converter garde son champ
-        # historique (c'est pourquoi `wama-import.js` expose `consolidateField`). Une raison
-        # de plus de ne pas router le drag&drop dessus — les cinq consolidate locaux ne
-        # partagent même pas leur contrat d'entrée, là où `merge` vient tout entier de la
-        # fabrique commune.
-        r = self.rf.post('/', {'job_ids': [str(img.id), str(vid.id)]})
+        # `ids` : depuis le 2026-10-16 le `consolidate` du converter est celui de la fabrique
+        # (son champ historique `job_ids` est parti avec la version locale).
+        r = self.rf.post('/', {'ids': [str(img.id), str(vid.id)]})
         r.user = self.user
         rep = consolidate(r)
 
@@ -338,10 +336,11 @@ class LecteurDIdsSurMultipartTest(TestCase):
     ci-dessous, `request.body` reste lisible et ces tests seraient verts sur le code cassé.
     """
 
-    #: (app, vue, champ) — TOUTES les vues `consolidate` écrites par une app (les autres viennent
-    #: de la fabrique `queue_manipulation`, déjà tenue par `ids_from_request`).
+    #: (app, vue, champ) — les vues `consolidate` qu'écrivaient des apps. Depuis le 2026-10-16
+    #: elles viennent TOUTES de la fabrique (`ArrivalIsDeclaredOnceTest` le garde) : la liste
+    #: reste, comme épreuve du lecteur sur le geste réel de chaque app.
     VUES = [
-        ('converter', 'consolidate', 'job_ids'),
+        ('converter', 'consolidate', 'ids'),
         ('describer', 'consolidate', 'ids'),
         ('synthesizer', 'consolidate', 'ids'),
         ('enhancer', 'consolidate', 'ids'),

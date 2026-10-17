@@ -79,43 +79,6 @@ def _converter_nature(job):
     return job.media_type
 
 
-def consolidate_jobs_into_batches(job_ids, user, app_label='converter'):
-    """Regroupe des jobs par NATURE → un ConversionBatch par nature.
-
-    Les jobs importés sont des orphelins (pas de batch-of-1 préalable), donc on
-    crée directement les batchs-of-N. Réglages de sortie communs par batch →
-    on ne mélange jamais les natures. Retourne la liste des batchs créés.
-
-    `app_label` : re-cible le helper sur une JUMELLE de bac à sable (`converter_01`) —
-    même mécanique que `import_to_converter` (filemanager). Sans lui, l'import groupé
-    de la jumelle restait en cards unitaires (mesuré par Fabien le 2026-08-31), ou pire
-    aurait consolidé dans les tables de la SOURCE.
-    """
-    from django.apps import apps as django_apps
-    from wama.common.utils.batch_common import group_into_batches_by_nature
-
-    Job = django_apps.get_model(app_label, 'ConversionJob')
-    # (la nature est déclarée UNE fois, `_converter_nature` — voir plus bas son second
-    #  consommateur, `group_key` de la fabrique de manipulation de file)
-    ConversionBatch = django_apps.get_model(app_label, 'ConversionBatch')
-
-    jobs = list(Job.objects.filter(id__in=job_ids, user=user, ephemeral=False))
-
-    def _link(batch, job, idx):
-        job.batch = batch
-        job.batch_row_index = idx
-        job.save(update_fields=['batch', 'batch_row_index'])
-
-    # Règle commune : un ConversionBatch PAR NATURE (la nature est stockée sur le batch).
-    return group_into_batches_by_nature(
-        jobs,
-        nature_of=_converter_nature,
-        create_batch=lambda nature, total: ConversionBatch.objects.create(
-            user=user, media_type=nature, total=total),
-        link_item=_link,
-    )
-
-
 class IndexView(View):
     def get(self, request):
         import json
@@ -725,25 +688,9 @@ def clear_all(request):
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# Batch import — consolidation multi-fichiers + fichier batch d'URLs
+# Batch import — fichier batch d'URLs (la consolidation multi-fichiers est celle de la fabrique,
+# `consolidate` plus bas, depuis le 2026-10-16)
 # ────────────────────────────────────────────────────────────────────────────
-
-@login_required
-@require_POST
-def consolidate(request):
-    """Regroupe des jobs (créés par upload multi-fichiers) en batchs par nature.
-
-    Appelé par le front après avoir uploadé plusieurs fichiers d'un coup :
-    chaque /upload/ crée un job orphelin, puis on consolide ici → 1 batch/nature.
-    """
-    # Lecteur COMMUN (JSON ou multipart), champ HISTORIQUE `job_ids` — l'`except Exception`
-    # d'origine attrapait par chance la `RawPostDataException` d'un FormData ; ses jumeaux
-    # (describer, synthesizer, enhancer) ne l'attrapaient pas (500, 2026-09-07). Un lecteur.
-    from wama.common.utils.queue_manipulation import ids_from_request
-    ids = ids_from_request(request, field='job_ids')
-    batches = consolidate_jobs_into_batches(ids, request.user)
-    return JsonResponse({'success': True, 'batches': len(batches)})
-
 
 @login_required
 @require_POST
@@ -837,7 +784,9 @@ def batch_create(request):
         except Exception as e:
             warnings.append(f'{src} : {e}')
 
-    batches = consolidate_jobs_into_batches(job_ids, user)
+    # Rangés à l'ARRIVÉE par la déclaration de la fabrique (un lot par nature — 2026-10-16).
+    from wama.common.utils.queue_manipulation import consolidate_arrival
+    batches = consolidate_arrival(ConversionJob, job_ids, user)
     return JsonResponse({
         'success': True,
         'count': len(job_ids),
@@ -1184,8 +1133,9 @@ def batch_template(request):
 
 # ── Manipulation directe de la file (fabrique COMMUNE, variante FK-directe) ──
 # ConversionJob porte lui-même batch + batch_row_index (pas de modèle de liaison).
-# On garde le consolidate LOCAL (groupement par nature) ; les 3 autres viennent
-# de la brique.
+# `consolidate` compris depuis le 2026-10-16 : la fabrique range PAR NATURE (`group_key`), le lot
+# portant la sienne (`batch_extra`). Le consolidate local, son champ historique `job_ids` et le
+# helper `consolidate_jobs_into_batches` sont retirés.
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views_direct
 
 _qm = make_queue_manipulation_views_direct(
@@ -1196,7 +1146,7 @@ _qm = make_queue_manipulation_views_direct(
     # Un lot de conversion = UNE nature (le lot porte `media_type`, et le format de sortie en
     # découle). `batch_extra` la posait à la création ; `group_key` la DÉFEND ensuite — sans
     # lui, glisser une vidéo dans un lot d'images passait, et tout le lot repartait au mauvais
-    # format. MÊME fonction que le `nature_of` de l'import, pas une seconde règle.
+    # format. La même fonction range aussi l'arrivée (`consolidate_arrival`), pas une seconde règle.
     group_key=_converter_nature,
 )
 remove_from_batch = _qm['remove_from_batch']
@@ -1204,3 +1154,4 @@ reorder           = _qm['reorder']
 reorder_queue     = _qm['reorder_queue']
 merge             = _qm['merge']
 move_to_batch     = _qm['move_to_batch']
+consolidate       = _qm['consolidate']

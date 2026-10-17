@@ -106,9 +106,12 @@ class CheminDeLotTest(SimpleTestCase):
         self.assertNotIn('501', corps,
                          'batch_create est encore un bouchon — trou 22 rouvert')
         # Il doit s'appuyer sur les briques COMMUNES, pas réécrire le parsing/regroupement.
-        for brique in ('parse_batch_file_from_request', 'group_into_batches_by_nature',
+        # Le regroupement est celui de la fabrique de l'app (`consolidate_arrival`, 2026-10-16) :
+        # le généré ne recompose plus `group_into_batches_by_nature` à côté d'elle.
+        for brique in ('parse_batch_file_from_request', 'consolidate_arrival(',
                        'copy_into_app_input'):
             self.assertIn(brique, corps, f'{brique} : la brique commune n\'est plus utilisée')
+        self.assertNotIn('group_into_batches_by_nature', corps, 'regroupement recomposé à côté de la fabrique')
 
     def test_a_copied_batch_line_records_its_provenance(self):
         """Le lot généré était le dernier site de copie sans trace de provenance (instance
@@ -817,10 +820,12 @@ class LinkFormViewsTest(SimpleTestCase):
             self.assertIn(f"{view:15s} = _bv['{view}']", self.src)
 
     def test_linking_goes_through_the_common_brick_in_both_creation_paths(self):
-        link = self._fonction('_link_to_batch')
-        self.assertIn("attach_to_batch(obj, lot, idx, item_model=BatchDescriptionItem, fk_name='description')", link)
-        self.assertNotIn('objects.create', link, 'la ligne de liaison se crée par la brique')
-        self.assertIn('link_item=_link_to_batch', self._fonction('batch_create'))
+        # Le lot importé est rangé par la FABRIQUE, qui rattache avec la liaison déclarée
+        # (2026-10-16) : le généré ne porte plus de helper de liaison à lui.
+        self.assertIn('consolidate_arrival(Description, ', self._fonction('batch_create'))
+        qm = self.src[self.src.index('_qm = make_queue_manipulation_views('):]
+        self.assertIn("item_model=BatchDescriptionItem, fk_name='description',", qm[:qm.index('\n)')])
+        self.assertIsNone(_fonction(self.src, '_link_to_batch'), 'helper de liaison sans appelant')
         # Le dépôt unitaire ENVELOPPE à la création (idiome des apps réelles), par la brique.
         self.assertIn("wrap_in_batch(item, batch_model=BatchDescription, "
                       "item_model=BatchDescriptionItem, fk_name='description')",
@@ -958,11 +963,13 @@ class NatureFieldAgreementTest(SimpleTestCase):
 
     def test_the_batch_gets_the_nature_only_if_it_has_the_column(self):
         """Counter-check: `BatchDescription` has no `detected_type` — creating a batch with it
-        would raise TypeError at import time."""
+        would raise TypeError at import time. The batch is created by the factory (`batch_extra`,
+        2026-10-16, `consolidate_arrival`); the generated file must not declare it any."""
         from wama.common.manifests.ingest import extract
         src, why = render_views(extract('app', 'describer'))
         self.assertTrue(src, why)
-        self.assertIn('BatchDescription.objects.create(\n            user=user, total=total)', src)
+        self.assertIn('consolidate_arrival(Description, ', _fonction(src, 'batch_create') or '')
+        self.assertNotIn('objects.create(\n            user=user, total=total', src)
         self.assertNotIn('batch_extra=', src)
 
 

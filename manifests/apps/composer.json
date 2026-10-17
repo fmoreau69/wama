@@ -1420,11 +1420,6 @@
           "view": "views.duplicate"
         },
         {
-          "name": "consolidate",
-          "pattern": "consolidate/",
-          "view": "views.merge"
-        },
-        {
           "name": "start_all",
           "pattern": "start_all/",
           "view": "views.start_all"

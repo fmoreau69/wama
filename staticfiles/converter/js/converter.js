@@ -190,8 +190,8 @@
     //                     avec le format du 1ᵉʳ) ;
     //   • `extraFields` : `output_format` + les réglages POSÉS du volet (vides ignorés — c'est
     //                     ce qui laisse le préréglage serveur agir, ROADMAP §23.2bis) ;
-    //   • `consolidateField:'job_ids'` : contrat HISTORIQUE de `converter:consolidate` (la vue
-    //                     lit JSON `job_ids` ou champ répété — `views.py`, `consolidate`).
+    //   • (le champ HISTORIQUE `job_ids` de la consolidation est parti le 2026-10-16 :
+    //     `converter:consolidate` est celle de la fabrique commune, qui lit `ids`.)
     // PRÉSERVÉ par les défauts de la brique : lot détecté sur un fichier déposé SEUL, `id` /
     // `job_id` / `pk` lus en repli (trou #24), `WamaFM.uploaded()`, reload à la fin.
     // ⚠ Différence assumée : l'ancienne boucle consolidait AUSSI un fichier seul (batch-of-1
@@ -217,7 +217,6 @@
         window._import = WamaImport({
             uploadUrl:        APP.urls.upload,
             consolidateUrl:   APP.urls.consolidate,
-            consolidateField: 'job_ids',
             csrfToken:        csrf,
             dropZoneId:       'converterDropZone',
             fileInputId:      'converterFileInput',

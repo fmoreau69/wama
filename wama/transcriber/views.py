@@ -171,23 +171,6 @@ move_to_batch = _qm['move_to_batch']
 consolidate = _qm['consolidate']
 
 
-def consolidate_transcripts_into_batches(ids, user):
-    """Regroupe des Transcript importés ENSEMBLE en UN of-N — helper PUBLIC (filemanager)."""
-    from wama.common.utils.batch_common import (
-        consolidate_into_batch, delete_singleton_batches, load_in_import_order,
-    )
-    items = load_in_import_order(Transcript, ids, user)
-    if len(items) < 2:
-        return None
-    return consolidate_into_batch(
-        items,
-        create_batch=lambda total: BatchTranscript.objects.create(user=user, total=total),
-        link_item=lambda batch, t, idx: BatchTranscriptItem.objects.create(
-            batch=batch, transcript=t, row_index=idx),
-        unwrap_singletons=lambda i: delete_singleton_batches(
-            BatchTranscript, 'transcript', user, i))
-
-
 def _auto_wrap_orphans(user):
     """Range les Transcript pas encore en batch (appelé au chargement de page) —
     brique COMMUNE, stratégie par défaut (orphelin → batch-of-1). L'of-N ne se fait

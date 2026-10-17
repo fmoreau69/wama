@@ -53,84 +53,21 @@ def _wrap_enhancement_in_batch(enhancement):
 def _enhancement_nature(e):
     """Nature d'une amélioration (image / vidéo) — ce qui peut cohabiter dans un lot.
 
-    DEUX consommateurs, une seule déclaration : le regroupement à l'import
-    (`group_into_batches_by_nature`) et la fusion par drag&drop (`group_key` de la fabrique
-    de manipulation). Écrite en lambda jusqu'au 2026-09-04, donc impartageable."""
+    DEUX consommateurs, une seule déclaration, toutes deux par la fabrique commune (`group_key`) :
+    le regroupement à l'arrivée (`consolidate_arrival`) et la fusion par drag&drop (`merge`).
+    Écrite en lambda jusqu'au 2026-09-04, donc impartageable."""
     return e.media_type or 'image'
-
-
-def _group_enhancements_into_batches(user, enhancements, unwrap_singletons=None):
-    """Crée UN batch PAR NATURE (image/vidéo) — règle commune group_into_batches_by_nature."""
-    from wama.common.utils.batch_common import group_into_batches_by_nature
-    group_into_batches_by_nature(
-        enhancements,
-        nature_of=_enhancement_nature,
-        create_batch=lambda nature, total: BatchEnhancement.objects.create(user=user, total=total),
-        link_item=lambda batch, e, idx: BatchEnhancementItem.objects.create(
-            batch=batch, enhancement=e, row_index=idx),
-        unwrap_singletons=unwrap_singletons,
-    )
-
-
-def consolidate_enhancements_into_batches(ids, user):
-    """Regroupe des Enhancement importés ENSEMBLE par nature — helper PUBLIC (filemanager)."""
-    from wama.common.utils.batch_common import delete_singleton_batches, load_in_import_order
-    items = load_in_import_order(Enhancement, ids, user)
-    if not items:
-        return
-    _group_enhancements_into_batches(
-        user, items,
-        unwrap_singletons=lambda i: delete_singleton_batches(
-            BatchEnhancement, 'enhancement', user, i))
 
 
 def _auto_wrap_orphans(user):
     """Range les Enhancement (médias) pas encore en batch — brique COMMUNE, stratégie
     par défaut (orphelin → batch-of-1). Le regroupement par nature ne se fait plus
-    qu'à l'import GROUPÉ (cf. auto_wrap_orphans, constat Fabien 14/08)."""
+    qu'à l'ARRIVÉE (`queue_manipulation.consolidate_arrival`, constat Fabien 14/08)."""
     from wama.common.utils.batch_common import auto_wrap_orphans
     auto_wrap_orphans(
         user, work_model=Enhancement, batch_model=BatchEnhancement,
         item_model=BatchEnhancementItem, fk_name='enhancement',
     )
-
-
-@require_POST
-def consolidate(request):
-    """Regroupe plusieurs enhancements (médias) importés ensemble en UN batch-of-N."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # Lecteur COMMUN (JSON ou multipart) — ne jamais lire `request.body` ici : sur un FormData,
-    # le middleware CSRF a consommé le flux et `request.body` lève `RawPostDataException`
-    # (500 mesuré le 2026-09-07 au 1er appel par la brique WamaImport ; cf. queue_manipulation).
-    from wama.common.utils.queue_manipulation import ids_from_request
-    ids = ids_from_request(request)
-
-    from wama.common.utils.batch_common import load_in_import_order
-    items = load_in_import_order(Enhancement, ids, user)
-    if len(items) < 2:
-        return JsonResponse({'consolidated': False})
-
-    # Regroupement PAR NATURE (image / vidéo) — même helper que l'import filemanager.
-    consolidate_enhancements_into_batches(ids, user)
-    return JsonResponse({'consolidated': True, 'count': len(items)})
-
-
-def audio_consolidate(request):
-    """Regroupe plusieurs AudioEnhancement importés ensemble en UN batch-of-N.
-
-    Audio = nature unique → consolidation simple (défait les batch-of-1 créés à
-    l'upload). Mirroir de la consolidation média / synthesizer.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.queue_manipulation import ids_from_request   # jumeau du précédent
-    ids = ids_from_request(request)
-
-    # Même helper que l'import filemanager (of-N, défait les of-1).
-    batch = consolidate_audio_into_batches(ids, user)
-    if batch is None:
-        return JsonResponse({'consolidated': False})
-    return JsonResponse({'consolidated': True, 'batch_id': batch.id,
-                         'count': batch.items.count()})
 
 
 def _wrap_audio_in_batch(audio_enhancement):
@@ -140,26 +77,9 @@ def _wrap_audio_in_batch(audio_enhancement):
     return batch
 
 
-def consolidate_audio_into_batches(ids, user):
-    """Regroupe des AudioEnhancement importés ENSEMBLE en UN of-N — helper PUBLIC (filemanager)."""
-    from wama.common.utils.batch_common import (
-        consolidate_into_batch, delete_singleton_batches, load_in_import_order,
-    )
-    items = load_in_import_order(AudioEnhancement, ids, user)
-    if len(items) < 2:
-        return None
-    return consolidate_into_batch(
-        items,
-        create_batch=lambda total: BatchAudioEnhancement.objects.create(user=user, total=total),
-        link_item=lambda batch, ae, idx: BatchAudioEnhancementItem.objects.create(
-            batch=batch, audio_enhancement=ae, row_index=idx),
-        unwrap_singletons=lambda i: delete_singleton_batches(
-            BatchAudioEnhancement, 'audio_enhancement', user, i))
-
-
 def _auto_wrap_audio_orphans(user):
     """Range les AudioEnhancement pas encore en batch — brique COMMUNE, stratégie par
-    défaut (orphelin → batch-of-1) ; l'of-N ne se fait plus qu'à l'import GROUPÉ
+    défaut (orphelin → batch-of-1) ; l'of-N ne se fait plus qu'à l'ARRIVÉE
     (cf. auto_wrap_orphans, constat Fabien 14/08). Le scope user=user est porté par
     la brique : on n'enrôle jamais la card partagée d'autrui."""
     from wama.common.utils.batch_common import auto_wrap_orphans
@@ -1557,14 +1477,13 @@ def audio_card_html(request, pk):
 
 # ── Manipulation directe de la file (fabrique COMMUNE, variante liaison) ──────
 # Les deux domaines ont un MODÈLE DE LIAISON (BatchEnhancementItem /
-# BatchAudioEnhancementItem) → fabrique standard. Les consolidate LOCAUX
-# (groupement par nature) sont conservés.
+# BatchAudioEnhancementItem) → fabrique standard, `consolidate` compris (2026-10-16).
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views
 
 _qm_media = make_queue_manipulation_views(
     work_model=Enhancement, batch_model=BatchEnhancement,
     item_model=BatchEnhancementItem, fk_name='enhancement', get_user=_req_user,
-    group_key=_enhancement_nature,      # jumeau du `nature_of` de l'import
+    group_key=_enhancement_nature,      # l'arrivée (`consolidate_arrival`) ET le glisser-déposer
 )
 remove_from_batch = _qm_media['remove_from_batch']
 reorder           = _qm_media['reorder']
@@ -1581,3 +1500,7 @@ audio_reorder           = _qm_audio['reorder']
 audio_reorder_queue     = _qm_audio['reorder_queue']
 audio_merge             = _qm_audio['merge']
 audio_move_to_batch     = _qm_audio['move_to_batch']
+# `consolidate` des deux files (2026-10-16) : la fabrique range PAR NATURE à l'arrivée
+# (`consolidate_arrival`) — les deux versions locales et leurs helpers sont retirés.
+consolidate             = _qm_media['consolidate']
+audio_consolidate       = _qm_audio['consolidate']

@@ -103,68 +103,24 @@ def _wrap_description_in_batch(description):
     return batch
 
 
-def _group_descriptions_into_batches(user, descriptions, unwrap_singletons=None):
-    """Crée UN batch PAR NATURE — règle commune `group_into_batches_by_nature`."""
-    from wama.common.utils.batch_common import group_into_batches_by_nature
-    group_into_batches_by_nature(
-        descriptions,
-        nature_of=_describer_nature,
-        create_batch=lambda nature, total: BatchDescription.objects.create(user=user, total=total),
-        link_item=lambda batch, d, idx: BatchDescriptionItem.objects.create(
-            batch=batch, description=d, row_index=idx),
-        unwrap_singletons=unwrap_singletons,
-    )
-
-
-def consolidate_descriptions_into_batches(ids, user):
-    """Regroupe des Description importées ENSEMBLE par nature — helper PUBLIC (filemanager)."""
-    from wama.common.utils.batch_common import delete_singleton_batches, load_in_import_order
-    items = load_in_import_order(Description, ids, user)
-    if not items:
-        return
-    _group_descriptions_into_batches(
-        user, items,
-        unwrap_singletons=lambda i: delete_singleton_batches(
-            BatchDescription, 'description', user, i))
-
-
 def _auto_wrap_orphans(user):
     """Range les Description pas encore en batch — brique COMMUNE, stratégie par défaut
-    (orphelin → batch-of-1). Le regroupement par nature ne se fait plus qu'à l'import
-    GROUPÉ (cf. auto_wrap_orphans, constat Fabien 14/08)."""
+    (orphelin → batch-of-1). Le regroupement par nature ne se fait plus qu'à l'ARRIVÉE
+    (`queue_manipulation.consolidate_arrival`, constat Fabien 14/08)."""
     from wama.common.utils.batch_common import auto_wrap_orphans
     auto_wrap_orphans(user, work_model=Description, batch_model=BatchDescription,
                       item_model=BatchDescriptionItem, fk_name='description')
 
 
-@require_POST
-def consolidate(request):
-    """Regroupe plusieurs descriptions importées ensemble en UN batch-of-N."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # Lecteur COMMUN (JSON ou multipart) — ne jamais lire `request.body` ici : sur un FormData,
-    # le middleware CSRF a consommé le flux et `request.body` lève `RawPostDataException`
-    # (500 mesuré le 2026-09-07 au 1er appel par la brique WamaImport ; cf. queue_manipulation).
-    from wama.common.utils.queue_manipulation import ids_from_request
-    ids = ids_from_request(request)
-
-    from wama.common.utils.batch_common import load_in_import_order
-    items = load_in_import_order(Description, ids, user)
-    if len(items) < 2:
-        return JsonResponse({'consolidated': False})
-
-    # Regroupement PAR NATURE — même helper que l'import filemanager (défait les of-1).
-    consolidate_descriptions_into_batches(ids, user)
-    return JsonResponse({'consolidated': True, 'count': len(items)})
-
-
-# Manipulation directe de la file (CARD_DESIGN §3bis) — vues GÉNÉRÉES par la brique commune
-# (describer garde SON consolidate ci-dessus : regroupement par NATURE de contenu).
+# Manipulation directe de la file (CARD_DESIGN §3bis) — vues GÉNÉRÉES par la brique commune.
+# `consolidate` aussi depuis le 2026-10-16 : la fabrique range PAR NATURE par ce `group_key` — la
+# version locale et le helper de l'import du gestionnaire de fichiers sont retirés.
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views
 
 _qm = make_queue_manipulation_views(
     work_model=Description, batch_model=BatchDescription,
     item_model=BatchDescriptionItem, fk_name='description',
-    group_key=_describer_nature,        # jumeau du `nature_of` de l'import
+    group_key=_describer_nature,        # l'arrivée (`consolidate_arrival`) ET le glisser-déposer
     get_user=get_user,
 )
 remove_from_batch = _qm['remove_from_batch']
@@ -172,6 +128,7 @@ reorder = _qm['reorder']
 reorder_queue = _qm['reorder_queue']
 merge = _qm['merge']
 move_to_batch = _qm['move_to_batch']
+consolidate = _qm['consolidate']
 
 
 class IndexView(TemplateView):

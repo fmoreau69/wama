@@ -1905,11 +1905,6 @@
       ],
       "extra_routes": [
         {
-          "name": "consolidate",
-          "pattern": "consolidate/",
-          "view": "views.merge"
-        },
-        {
           "name": "upload_youtube",
           "pattern": "upload_youtube/",
           "view": "views.upload_youtube"

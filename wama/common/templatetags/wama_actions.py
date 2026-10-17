@@ -146,9 +146,9 @@ def queue_dnd_attrs(app, domain=None):
         ('data-dnd-move-url',         _url('move_to_batch', avec_pk=True)),
         ('data-dnd-remove-url',       _url('remove_from_batch', avec_pk=True)),
         # ⚠ `merge`, PAS `consolidate` — deux opérations distinctes (cf. le bloc du même nom
-        # dans `queue_manipulation.py`). `consolidate` est l'import : cinq apps le redéfinissent
-        # en version PAR NATURE, qui RANGE en plusieurs lots au lieu de refuser. Router le geste
-        # de fusion dessus rendait « succès » après n'avoir rien fait de visible.
+        # dans `queue_manipulation.py`). `consolidate` est l'arrivée (`consolidate_arrival`) : il
+        # RANGE par nature en plusieurs lots au lieu de refuser. Router le geste de fusion dessus
+        # rendait « succès » après n'avoir rien fait de visible.
         ('data-dnd-merge-url',        _url('merge')),
         # Geste « Résultat de référence… » (port `reference_result`) : émis SEULEMENT pour une
         # surface qui a déclaré son évaluation — le menu de card n'offre pas un port que rien ne

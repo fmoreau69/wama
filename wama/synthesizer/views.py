@@ -55,63 +55,15 @@ def _wrap_synthesis_in_batch(synthesis):
     return wrap_in_batch(synthesis)
 
 
-def consolidate(request):
-    """Regroupe plusieurs synthèses importées ensemble en UN seul batch-de-N.
-
-    Appelé après un import multi-fichiers (drag&drop / explorateur). Défait les
-    batch-of-1 créés à l'upload puis crée le batch-de-N (généralisation common).
-    Si < 2 ids → ne fait rien.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    # Lecteur COMMUN (JSON ou multipart) — ne jamais lire `request.body` ici : sur un FormData,
-    # le middleware CSRF a consommé le flux et `request.body` lève `RawPostDataException`
-    # (500 mesuré le 2026-09-07 au 1er appel par la brique WamaImport ; cf. queue_manipulation).
-    from wama.common.utils.queue_manipulation import ids_from_request
-    ids = ids_from_request(request)
-
-    syntheses = list(VoiceSynthesis.objects.filter(id__in=ids, user=user))
-    order = {sid: pos for pos, sid in enumerate(ids)}
-    syntheses.sort(key=lambda s: order.get(s.id, 0))
-
-    if len(syntheses) < 2:
-        return JsonResponse({'consolidated': False})
-
-    from wama.common.utils.batch_common import consolidate_into_batch
-
-    def _create(total):
-        return BatchSynthesis.objects.create(user=user, total=total)
-
-    def _link(batch, s, idx):
-        stem = (os.path.splitext(os.path.basename(s.text_file.name))[0]
-                if s.text_file else f'synthesis_{s.id}')
-        BatchSynthesisItem.objects.create(
-            batch=batch, synthesis=s, output_filename=stem + '.wav', row_index=idx,
-        )
-
-    def _unwrap(item_ids):
-        BatchSynthesis.objects.filter(
-            user=user, total=1, items__synthesis_id__in=item_ids
-        ).distinct().delete()
-
-    batch = consolidate_into_batch(
-        syntheses, create_batch=_create, link_item=_link, unwrap_singletons=_unwrap,
-    )
-    return JsonResponse({'consolidated': True, 'batch_id': batch.id, 'count': len(syntheses)})
-
-
 def _auto_wrap_orphans(user):
-    """Lazily wrap any VoiceSynthesis not yet in a batch into a batch-of-1 (on page load)."""
-    existing_batch_ids = set(
-        BatchSynthesisItem.objects.filter(batch__user=user)
-        .values_list('synthesis_id', flat=True)
-    )
-    orphans = VoiceSynthesis.objects.filter(user=user).exclude(id__in=existing_batch_ids)
-    for orphan in orphans:
-        try:
-            _wrap_synthesis_in_batch(orphan)
-        except Exception:
-            pass
+    """Range les VoiceSynthesis pas encore en lot — brique COMMUNE (`auto_wrap_orphans`, orphelin →
+    lot d'un), avec le nom de sortie de la liaison (`services.batch_link_extra`). Écrite à la main
+    ici jusqu'au 2026-10-16 ; `consolidate` vient de la fabrique (`_qm`, plus bas)."""
+    from wama.common.utils.batch_common import auto_wrap_orphans
+    from .services import batch_link_extra
+    auto_wrap_orphans(user, work_model=VoiceSynthesis, batch_model=BatchSynthesis,
+                      item_model=BatchSynthesisItem, fk_name='synthesis',
+                      item_extra=batch_link_extra)
 
 
 #: Réglages du volet MÉMORISÉS à la création d'une synthèse, sous leurs clés historiques
@@ -524,11 +476,9 @@ def duplicate(request, pk: int):
         from django.db.models import Max
         batch = orig_item.batch
         next_idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
-        stem = (os.path.splitext(os.path.basename(new_s.text_file.name))[0]
-                if new_s.text_file else f'synthesis_{new_s.id}')
-        BatchSynthesisItem.objects.create(
-            batch=batch, synthesis=new_s, output_filename=stem + '.wav', row_index=next_idx,
-        )
+        from .services import batch_link_extra
+        BatchSynthesisItem.objects.create(batch=batch, synthesis=new_s, row_index=next_idx,
+                                          **batch_link_extra(new_s))
         batch.total = batch.items.count()
         batch.save(update_fields=['total'])
     else:
@@ -1192,18 +1142,23 @@ def voice_preview(request):
 
 
 # ── Manipulation directe de la file (fabrique COMMUNE, variante liaison) ──────
-# BatchSynthesisItem est le modèle de liaison (synthesis OneToOne, row_index).
-# Le consolidate LOCAL (déjà bâti sur batch_common.consolidate_into_batch) est
-# conservé ; les 3 autres vues viennent de la brique.
+# BatchSynthesisItem est le modèle de liaison (synthesis OneToOne, row_index). Toutes les vues,
+# `consolidate` compris depuis le 2026-10-16 (le consolidate local est retiré).
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views
+
+from .services import batch_link_extra  # noqa: E402
 
 _qm = make_queue_manipulation_views(
     work_model=VoiceSynthesis, batch_model=BatchSynthesis,
     item_model=BatchSynthesisItem, fk_name='synthesis',
     get_user=lambda r: r.user if r.user.is_authenticated else get_or_create_anonymous_user(),
+    # Le nom de sortie de la liaison, déclaré UNE fois (2026-10-16) : la fusion, le déplacement
+    # et le regroupement à l'arrivée créaient des liaisons sans lui.
+    item_extra=batch_link_extra,
 )
 remove_from_batch = _qm['remove_from_batch']
 reorder           = _qm['reorder']
 reorder_queue     = _qm['reorder_queue']
 merge             = _qm['merge']
 move_to_batch     = _qm['move_to_batch']
+consolidate       = _qm['consolidate']

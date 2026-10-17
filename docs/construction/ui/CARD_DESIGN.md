@@ -182,15 +182,20 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   ensuite par `filemanager:api_import`, en UNE requête, et l'import range les fichiers **en lot chez
   la destination** (regroupement « par arrivée »). Le geste est en **partiel annoncé**, comme une
   sélection, parce qu'un lot peut mêler des formats. Les éléments sans résultat ne partent pas, et le
-  sous-menu le dit (« 1 élément sans résultat — non envoyé »). L'entrée n'est pas offerte sur un lot
-  REÇU, faute de résolveur pour un lot d'autrui.
+  sous-menu le dit (« 1 élément sans résultat — non envoyé »).
   Gardes : `BatchSendToContractTest` (générique, 11 surfaces à lot), `BatchSendToConverterTest`,
   `BatchSentArrivesAsABatchTest` (le geste entier, deux endpoints réels), `BatchSendToMenuUnderV8Test`,
   `BatchSendToEntriesUnderV8Test`.
-  ⚠ **La réception ne regroupe pas partout.** Le regroupement à l'arrivée est une liste écrite dans
-  `api_import_to_app`, qui couvre reader, anonymizer, describer, transcriber, enhancer et converter.
-  Un lot envoyé à l'**imager** (images de référence) ou au **synthesizer** (textes) arrive donc en
-  cards séparées, comme une sélection de l'arbre aujourd'hui.
+  ✅ **Une card ou un lot REÇUS s'envoient aussi** (2026-10-16) : en mode lecture, le destinataire peut
+  « envoyer vers une autre app » (`WAMA_COLLABORATION §3bis`). Le menu l'offrait sur une card reçue, le
+  résolveur ne servait que les cards du compte — sous-menu « Indisponible ». Les deux portes suivent
+  désormais la règle qui MONTRE la card : les résolveurs par `visible_or_404` (et, d'un lot, les seuls
+  éléments que le compte voit), l'import par `media_paths.readable_by`, étendue à la sortie déclarée
+  d'un élément partagé ; le fichier est COPIÉ chez le destinataire. Garde `ReceivedCardSendToTest`.
+  ✅ **La réception regroupe partout** (2026-10-16, `REMOVAL_LEDGER R134`) : la liste écrite dans
+  `api_import_to_app` (six apps — imager et synthesizer recevaient N cards) est remplacée par le
+  regroupement que CHAQUE app déclare à sa fabrique de file (`queue_manipulation.consolidate_arrival`) :
+  un lot par nature, un fichier seul dans son lot d'un. Garde `tests_arrival_consolidation`.
 - ⚠ **Le « … » suit les cards insérées ou remplacées** (2026-09-15). Il n'était posé qu'au chargement de la
   page : une card redemandée au serveur (lot réduit à une card, `refreshCard` d'une app) arrivait sans lui,
   alors que le clic droit — délégué sur la file — la voyait. La brique observe désormais la file. **Il reste

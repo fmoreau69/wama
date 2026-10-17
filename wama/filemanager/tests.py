@@ -169,25 +169,28 @@ class ImporteurDeriveTests(TestCase):
         Constat Fabien 2026-08-31 : deux fichiers chargés depuis le filemanager vers
         converter_01 arrivaient en cards UNITAIRES — le dispatch de consolidation est une
         2ᵉ liste écrite à la main (`target_app == 'converter'`) qui ratait les jumelles.
-        Le helper est désormais re-ciblé par `app_label` (même mécanique qu'`importer_for`).
+        Depuis le 2026-10-16 il n'y a plus de liste : l'importeur dit le modèle qu'il a créé
+        (celui de la JUMELLE) et le regroupement est celui de SA fabrique (`consolidate_arrival`).
         """
         import tempfile
         from django.apps import apps as django_apps
         from wama.common.app_registry import APP_CATALOG
+        from wama.common.utils.queue_manipulation import consolidate_arrival
         if 'converter_01' not in APP_CATALOG:
             self.skipTest('jumelle converter_01 non enregistrée sur cette machine')
 
-        from wama.converter.views import consolidate_jobs_into_batches
         User = get_user_model()
         dev = User.objects.create_user('dev-filemanager-conso')
         fn = importer_for('converter_01')
-        ids = []
+        created = []
         with tempfile.TemporaryDirectory() as d:
             for nom in ('a.txt', 'b.txt'):
                 src = Path(d) / nom
                 src.write_text('x', encoding='utf-8')
-                ids.append(fn(src, dev)['id'])
-        consolidate_jobs_into_batches(ids, dev, app_label='converter_01')
+                created.append(fn(src, dev))
+        self.assertEqual({'converter_01.ConversionJob'}, {r['model'] for r in created})
+        consolidate_arrival(django_apps.get_model(created[0]['model']),
+                            [r['id'] for r in created], dev)
 
         JumelleJob = django_apps.get_model('converter_01', 'ConversionJob')
         JumelleBatch = django_apps.get_model('converter_01', 'ConversionBatch')

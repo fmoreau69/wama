@@ -25,17 +25,16 @@ Usage (urls.py de l'app) :
                                         get_user=_get_user)
     path('reorder/', _qm['reorder'], name='reorder'), ...
 
-L'app peut ne consommer qu'une partie (ex. describer garde SON consolidate par nature).
-
 ══ DEUX OPÉRATIONS, DEUX NOMS : `consolidate` vs `merge` (2026-09-04) ══════════════════════
 
 Elles prennent les mêmes ids et paraissent identiques. Elles ne le sont pas, et les confondre
 produit un défaut SILENCIEUX — mesuré par le test le jour même :
 
-  `consolidate` = « range ces éléments importés ensemble ». Cinq apps le REDÉFINISSENT en
-      version PAR NATURE (`group_into_batches_by_nature`) : trois images et deux vidéos
+  `consolidate` = « range ces éléments importés ensemble », PAR NATURE
+      (`group_into_batches_by_nature` sur le `group_key` déclaré) : trois images et deux vidéos
       donnent DEUX lots. C'est le bon comportement à l'import — on vient de déposer un
-      dossier mélangé, on veut qu'il se range.
+      dossier mélangé, on veut qu'il se range. (Cinq apps le redéfinissaient pour cela jusqu'au
+      2026-10-16 : la fabrique le fait désormais, cf. plus bas.)
 
   `merge` = « fusionne ces éléments en UN lot ». C'est le geste du glisser-déposer : on a
       visé une card précise. Si les natures ne cohabitent pas, la réponse est un REFUS
@@ -47,7 +46,22 @@ rendait `{"consolidated": true}` après avoir créé deux lots-de-1… c'est-à-
 visible**, avec un accusé de succès. Le pire des retours.
 
 `merge` est donc rendu par la fabrique et **jamais redéfini par une app** — c'est ce qui
-garantit qu'il reste strict partout. Une app garde son `consolidate` autant qu'elle veut.
+garantit qu'il reste strict partout.
+
+══ LE REGROUPEMENT À L'ARRIVÉE EST COMMUN (2026-10-16, demande de Fabien) ══════════════════════
+
+Jusque-là, `consolidate` de la fabrique ÉTAIT `merge` (strict) : quatre apps le redéfinissaient
+pour ranger par nature (anonymizer, describer, enhancer ×2, converter), le synthesizer pour poser
+le nom de sortie de sa liaison, et l'import du gestionnaire de fichiers gardait une liste écrite
+à la main de SIX helpers `consolidate_*_into_batches` — imager et synthesizer, absents de la
+liste, recevaient un envoi de N fichiers en N cards. Le besoin est UN : des éléments arrivés
+ensemble forment un lot par nature, et la fabrique connaît déjà tout ce qu'il faut — le modèle
+de lot, la liaison, `group_key` (la nature, jumelle de l'import), `batch_extra`, `item_extra`.
+
+D'où `consolidate_arrival(modèle, ids, user)` : chaque fabrique INSCRIT son regroupement pour son
+modèle d'élément, et tout chemin d'arrivée l'appelle — la vue `consolidate` (dépôt de N fichiers),
+l'import du gestionnaire (« Envoyer vers », dossier, sélection), un fichier de lot. Une app
+nouvelle, ou une jumelle générée, est couverte dès qu'elle déclare sa fabrique.
 """
 
 import json
@@ -57,7 +71,38 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
 
-from wama.common.utils.batch_common import attach_to_batch, consolidate_into_batch, wrap_in_batch
+from wama.common.utils.batch_common import (attach_to_batch, consolidate_into_batch,
+                                            delete_singleton_batches, group_into_batches_by_nature,
+                                            load_in_import_order, wrap_in_batch)
+
+#: Le regroupement À L'ARRIVÉE de chaque modèle d'élément, inscrit par sa fabrique.
+_ARRIVALS = {}
+
+
+def consolidate_arrival(work_model, ids, user) -> list:
+    """Range des éléments arrivés ENSEMBLE (un dépôt, un import, un fichier de lot) : un lot PAR
+    NATURE (`group_key` déclaré à la fabrique ; aucune nature = un seul lot), dans l'ordre des
+    `ids` ; un élément seul est rangé dans son lot d'un. Rend les lots créés.
+
+    La déclaration est celle que l'app donne à `make_queue_manipulation_views[_direct]` : la vue
+    qui la porte est importée si besoin (un worker, l'assistant n'ont pas chargé les URLs)."""
+    arrive = _ARRIVALS.get(work_model)
+    if arrive is None:
+        import importlib
+        from django.apps import apps as django_apps
+        importlib.import_module(f'{django_apps.get_app_config(work_model._meta.app_label).name}.views')
+        arrive = _ARRIVALS.get(work_model)
+    if arrive is None:
+        raise LookupError(f"{work_model._meta.label} : aucune fabrique de file déclarée")
+    return arrive(list(ids or []), user)
+
+
+def _representatives(works, nature_of) -> dict:
+    """Le premier élément de chaque nature — celui dont `batch_extra` tire les champs du lot."""
+    firsts = {}
+    for work in works:
+        firsts.setdefault(nature_of(work), work)
+    return firsts
 
 
 def ids_from_request(request, field: str = 'ids'):
@@ -240,44 +285,72 @@ def make_queue_manipulation_views(*, work_model, batch_model, item_model, fk_nam
                         item_extra=item_extra)
         return JsonResponse({'moved': True})
 
+    def _batch_kwargs(user, work, total):
+        kw = {'user': user, 'total': total}
+        if batch_extra:
+            kw.update(batch_extra(work) if callable(batch_extra) else dict(batch_extra))
+        return kw
+
+    def _link(batch, work, idx):
+        attach_to_batch(work, batch, idx, item_model=item_model, fk_name=fk_name,
+                        item_extra=item_extra)
+
+    def _unwrap(user):
+        # Supprime les lots d'UN créés au dépôt (les objets métier survivent).
+        return lambda item_ids: delete_singleton_batches(batch_model, fk_name, user, item_ids)
+
+    def arrival(ids, user):
+        """Le regroupement À L'ARRIVÉE de ce modèle (`consolidate_arrival`)."""
+        works = load_in_import_order(work_model, ids, user)
+        if not works:
+            return []
+        nature_of = group_key or (lambda _work: '')
+        firsts = _representatives(works, nature_of)
+        return group_into_batches_by_nature(
+            works, nature_of=nature_of,
+            create_batch=lambda nature, total: batch_model.objects.create(
+                **_batch_kwargs(user, firsts[nature], total)),
+            link_item=_link, unwrap_singletons=_unwrap(user))
+
+    _ARRIVALS[work_model] = arrival
+
     @require_POST
     def consolidate(request):
-        """Regroupe plusieurs éléments importés ensemble en UN batch-of-N.
+        """« Range ces éléments importés ensemble » — un lot PAR NATURE (`consolidate_arrival`).
 
-        POST/JSON : ids (ordre d'import conservé). < 2 ids → no-op.
-        Défait les batch-of-1 créés à l'upload puis crée le batch-of-N.
+        POST/JSON : ids (ordre d'import conservé). < 2 éléments → no-op. Défait les lots d'un
+        créés au dépôt puis crée les lots. Jamais un refus : c'est `merge` qui refuse.
+        """
+        user = get_user(request)
+        ids = ids_from_request(request)
+        if len(load_in_import_order(work_model, ids, user)) < 2:
+            return JsonResponse({'consolidated': False})
+        batches = arrival(ids, user)
+        return JsonResponse({'consolidated': True, 'batch_ids': [b.id for b in batches],
+                             'batch_id': batches[0].id, 'count': sum(b.total for b in batches)})
+
+    @require_POST
+    def merge(request):
+        """FUSIONNE ces éléments en UN lot — le geste du glisser-déposer : des natures qui ne
+        cohabitent pas sont REFUSÉES (409 + motif), jamais rangées.
+
+        POST/JSON : ids (ordre conservé). < 2 ids → no-op.
         """
         user = get_user(request)
         ids = ids_from_request(request)
 
-        works = list(work_model.objects.filter(id__in=ids, user=user))
-        pos = {wid: p for p, wid in enumerate(ids)}
-        works.sort(key=lambda w: pos.get(w.id, 0))
+        works = load_in_import_order(work_model, ids, user)
         if len(works) < 2:
             return JsonResponse({'consolidated': False})
         motif = _refus_de_groupe(group_key, works[0], works[1:])
         if motif:
             return JsonResponse({'consolidated': False, 'reason': motif}, status=409)
-
-        def _create(total):
-            kw = {'user': user, 'total': total}
-            if batch_extra:
-                # Les works consolidés appartiennent à la MÊME surface de file (on consolide
-                # une sélection d'un onglet) : le premier porte donc le champ pour le lot.
-                kw.update(batch_extra(works[0]) if callable(batch_extra) else dict(batch_extra))
-            return batch_model.objects.create(**kw)
-
-        def _link(batch, work, idx):
-            attach_to_batch(work, batch, idx, item_model=item_model, fk_name=fk_name,
-                            item_extra=item_extra)
-
-        def _unwrap(item_ids):
-            # Supprime les batch-of-1 créés à l'upload (les objets métier survivent).
-            from wama.common.utils.batch_common import delete_singleton_batches
-            delete_singleton_batches(batch_model, fk_name, user, item_ids)
-
-        batch = consolidate_into_batch(works, create_batch=_create, link_item=_link,
-                                       unwrap_singletons=_unwrap)
+        # Les éléments fusionnés appartiennent à la MÊME surface de file (on fusionne une
+        # sélection d'un onglet) : le premier porte donc les champs du lot.
+        batch = consolidate_into_batch(
+            works, create_batch=lambda total: batch_model.objects.create(
+                **_batch_kwargs(user, works[0], total)),
+            link_item=_link, unwrap_singletons=_unwrap(user))
         return JsonResponse({'consolidated': True, 'batch_id': batch.id, 'count': len(works)})
 
     return {
@@ -286,9 +359,9 @@ def make_queue_manipulation_views(*, work_model, batch_model, item_model, fk_nam
         'reorder_queue': _make_reorder_queue(batch_model=batch_model, get_user=get_user),
         'move_to_batch': move_to_batch,
         'consolidate': consolidate,
-        # `merge` EST `consolidate`, sous un nom que les apps ne redéfinissent jamais. Voir
-        # le bloc « DEUX OPÉRATIONS, DEUX NOMS » en tête de module.
-        'merge': consolidate,
+        # `merge` : la fusion STRICTE, que les apps ne redéfinissent jamais. Voir le bloc
+        # « DEUX OPÉRATIONS, DEUX NOMS » en tête de module.
+        'merge': merge,
     }
 
 
@@ -377,19 +450,53 @@ def make_queue_manipulation_views_direct(*, work_model, batch_model,
         _recalc(old)
         return JsonResponse({'moved': True})
 
+    def _link(batch, work, idx):
+        attach_to_batch(work, batch, idx, batch_attr=batch_fk, row_field=row_field)
+
+    def _purge(old_ids):
+        # Re-parenter d'abord, purger les anciens lots VIDÉS ensuite — jamais la suppression
+        # d'un lot encore peuplé (cf. CASCADE).
+        for old in batch_model.objects.filter(id__in=old_ids):
+            _recalc(old)
+
+    def arrival(ids, user):
+        """Le regroupement À L'ARRIVÉE de ce modèle (`consolidate_arrival`)."""
+        works = load_in_import_order(work_model, ids, user)
+        if not works:
+            return []
+        nature_of = group_key or (lambda _work: '')
+        firsts = _representatives(works, nature_of)
+        old_ids = {getattr(w, f'{batch_fk}_id') for w in works} - {None}
+        batches = group_into_batches_by_nature(
+            works, nature_of=nature_of,
+            create_batch=lambda nature, total: batch_model.objects.create(
+                **_batch_kwargs(user, firsts[nature], total)),
+            link_item=_link)
+        _purge(old_ids)
+        return batches
+
+    _ARRIVALS[work_model] = arrival
+
     @require_POST
     def consolidate(request):
-        """Regroupe plusieurs éléments en UN batch-of-N (ordre des ids conservé).
+        """« Range ces éléments importés ensemble » — un lot PAR NATURE (`consolidate_arrival`).
+        < 2 éléments → no-op. Jamais un refus : c'est `merge` qui refuse."""
+        user = get_user(request)
+        ids = ids_from_request(request)
+        if len(load_in_import_order(work_model, ids, user)) < 2:
+            return JsonResponse({'consolidated': False})
+        batches = arrival(ids, user)
+        return JsonResponse({'consolidated': True, 'batch_ids': [b.id for b in batches],
+                             'batch_id': batches[0].id, 'count': sum(b.total for b in batches)})
 
-        Re-parente d'abord, purge les anciens batches VIDÉS ensuite (jamais de
-        delete d'un batch encore peuplé — cf. CASCADE).
-        """
+    @require_POST
+    def merge(request):
+        """FUSIONNE ces éléments en UN lot (ordre des ids conservé) — le geste du glisser-déposer :
+        des natures qui ne cohabitent pas sont REFUSÉES (409 + motif)."""
         user = get_user(request)
         ids = ids_from_request(request)
 
-        works = list(work_model.objects.filter(id__in=ids, user=user))
-        pos = {wid: p for p, wid in enumerate(ids)}
-        works.sort(key=lambda w: pos.get(w.id, 0))
+        works = load_in_import_order(work_model, ids, user)
         if len(works) < 2:
             return JsonResponse({'consolidated': False})
         motif = _refus_de_groupe(group_key, works[0], works[1:])
@@ -399,9 +506,8 @@ def make_queue_manipulation_views_direct(*, work_model, batch_model,
         old_ids = {getattr(w, f'{batch_fk}_id') for w in works} - {None}
         batch = batch_model.objects.create(**_batch_kwargs(user, works[0], len(works)))
         for idx, w in enumerate(works):
-            attach_to_batch(w, batch, idx, batch_attr=batch_fk, row_field=row_field)
-        for old in batch_model.objects.filter(id__in=old_ids):
-            _recalc(old)
+            _link(batch, w, idx)
+        _purge(old_ids)
         return JsonResponse({'consolidated': True, 'batch_id': batch.id, 'count': len(works)})
 
     return {
@@ -410,7 +516,7 @@ def make_queue_manipulation_views_direct(*, work_model, batch_model,
         'reorder_queue': _make_reorder_queue(batch_model=batch_model, get_user=get_user),
         'move_to_batch': move_to_batch,
         'consolidate': consolidate,
-        # `merge` EST `consolidate`, sous un nom que les apps ne redéfinissent jamais. Voir
-        # le bloc « DEUX OPÉRATIONS, DEUX NOMS » en tête de module.
-        'merge': consolidate,
+        # `merge` : la fusion STRICTE, que les apps ne redéfinissent jamais. Voir le bloc
+        # « DEUX OPÉRATIONS, DEUX NOMS » en tête de module.
+        'merge': merge,
     }

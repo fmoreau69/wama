@@ -1336,11 +1336,6 @@
           "name": "consolidate",
           "pattern": "batch/consolidate/",
           "view": "views.consolidate"
-        },
-        {
-          "name": "merge",
-          "pattern": "merge/",
-          "view": "views.consolidate"
         }
       ],
       "ingest": {

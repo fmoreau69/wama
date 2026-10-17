@@ -1316,63 +1316,31 @@ def api_import_to_app(request):
             result.setdefault('path', fp)
             results.append(result)
 
-    # ── Regroupement PAR ARRIVÉE (généralisé 2026-08-14) ────────────────────────────
-    # Les items importés ENSEMBLE (même requête : multi-sélection, « Envoyer dossier
-    # vers… ») forment un batch — par nature pour les apps multi-natures, of-N sinon.
-    # Chaque app expose son helper `consolidate_*_into_batches` (découplage, pattern
-    # converter). Un fichier seul reste une card isolée (batch-of-1 à l'auto-wrap).
-    # L'ancien regroupement par ACCUMULATION au chargement de page est supprimé — il
+    # ── Regroupement PAR ARRIVÉE — la déclaration COMMUNE de chaque app (2026-10-16) ──────
+    # Les éléments importés ENSEMBLE (même requête : sélection, dossier, lot envoyé depuis une
+    # autre app) forment un lot PAR NATURE ; un fichier seul, son lot d'un. Chaque importeur dit
+    # ce qu'il a créé (`id` + `model`), et le regroupement est celui que l'app déclare à sa
+    # fabrique de file (`queue_manipulation.consolidate_arrival` : `group_key`, `batch_extra`,
+    # `item_extra`). Aucune app n'est nommée ici : une jumelle générée, ou une app nouvelle, est
+    # couverte par sa fabrique.
+    # ⚠ Il y avait ici une liste écrite à la main de SIX helpers `consolidate_*_into_batches`
+    # (et une seconde pour le converter et ses jumelles) : imager et synthesizer n'y étaient pas,
+    # et un lot envoyé vers eux arrivait en N cards séparées.
+    # L'ancien regroupement par ACCUMULATION au chargement de page reste supprimé — il
     # fusionnait des envois individuels espacés dans le temps (constat Fabien 14/08).
-    if len(results) > 1:
-        item_ids = [r['id'] for r in results if r.get('id')]
-        try:
-            if target_app == 'reader' and len(item_ids) > 1:
-                from wama.reader.views import consolidate_readings_into_batches
-                consolidate_readings_into_batches(item_ids, user)
-            elif target_app == 'anonymizer' and len(item_ids) > 1:
-                from wama.anonymizer.views import consolidate_medias_into_batches
-                consolidate_medias_into_batches(item_ids, user)
-            elif target_app == 'describer' and len(item_ids) > 1:
-                from wama.describer.views import consolidate_descriptions_into_batches
-                consolidate_descriptions_into_batches(item_ids, user)
-            elif target_app == 'transcriber' and len(item_ids) > 1:
-                from wama.transcriber.views import consolidate_transcripts_into_batches
-                consolidate_transcripts_into_batches(item_ids, user)
-            elif target_app == 'enhancer':
-                # Bi-modèle : l'audio part dans AudioEnhancement, le reste dans Enhancement —
-                # deux consolidations distinctes, chacune sur SES ids.
-                from wama.enhancer.views import (
-                    consolidate_audio_into_batches, consolidate_enhancements_into_batches,
-                )
-                media_ids = [r['id'] for r in results if r.get('id') and r.get('media_type') != 'audio']
-                audio_ids = [r['id'] for r in results if r.get('id') and r.get('media_type') == 'audio']
-                if len(media_ids) > 1:
-                    consolidate_enhancements_into_batches(media_ids, user)
-                if len(audio_ids) > 1:
-                    consolidate_audio_into_batches(audio_ids, user)
-        except Exception as e:
-            logger.warning(f"[filemanager] {target_app} batch consolidation failed: {e}")
-
-    # Converter : regroupe les jobs importés par NATURE → 1 batch par nature
-    # (batch-of-1 pour un fichier seul). Helper exposé par l'app (découplage).
-    # ⚠ Une JUMELLE de bac à sable (`generated_from='converter'`) suit la MÊME voie, re-ciblée
-    # sur SES tables via `app_label` — même mécanique que `importer_for()`. Sans ça, l'import
-    # groupé de converter_01 restait en cards unitaires : ce dispatch est une liste écrite à
-    # la main, la 2ᵉ du même fichier à rater les jumelles (mesuré par Fabien, 2026-08-31).
-    _src_consolidation = target_app
-    try:
-        from wama.common.app_registry import APP_CATALOG
-        _src_consolidation = (APP_CATALOG.get(target_app) or {}).get('generated_from') or target_app
-    except Exception:
-        pass
-    if _src_consolidation == 'converter' and results:
-        try:
-            from wama.converter.views import consolidate_jobs_into_batches
-            job_ids = [r['id'] for r in results if r.get('id')]
-            if job_ids:
-                consolidate_jobs_into_batches(job_ids, user, app_label=target_app)
-        except Exception as e:
-            logger.warning(f"[filemanager] {target_app} batch consolidation failed: {e}")
+    arrived = {}
+    for r in results:
+        if r.get('id') and r.get('model'):
+            arrived.setdefault(r['model'], []).append(r['id'])
+    if arrived:
+        from django.apps import apps as django_apps
+        from wama.common.utils.queue_manipulation import consolidate_arrival
+        for label, ids in arrived.items():
+            try:
+                consolidate_arrival(django_apps.get_model(label), ids, user)
+            except Exception as e:
+                logger.warning(f"[filemanager] {target_app} : regroupement à l'arrivée échoué "
+                               f"({label}) : {e}")
 
     if len(file_paths) == 1:
         # Backward compatibility: single path → return single result
@@ -1426,7 +1394,7 @@ def import_to_describer(source_path, user, app_label='describer'):
     return {
         'imported': True,
         'app': app_label,
-        'id': description.id,
+        'id': description.id, 'model': description._meta.label,
         'filename': dest_path.name,
         'path': relative_path,
     }
@@ -1468,7 +1436,7 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
         ae.save()
         return {
             'imported': True, 'app': app_label, 'media_type': 'audio',
-            'id': ae.id, 'filename': dest_path.name,
+            'id': ae.id, 'model': ae._meta.label, 'filename': dest_path.name,
             'duration': duration, 'status': ae.status, 'progress': ae.progress,
             'path': relative_path,
         }
@@ -1495,7 +1463,7 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
         enhancement.save()
         return {
             'imported': True, 'app': app_label, 'media_type': media_type,
-            'id': enhancement.id, 'filename': dest_path.name,
+            'id': enhancement.id, 'model': enhancement._meta.label, 'filename': dest_path.name,
             'path': relative_path,
             'width': media_info['width'], 'height': media_info['height'],
         }
@@ -1568,7 +1536,7 @@ def import_to_imager(source_path, user, app_label='imager'):
     return {
         'imported': True,
         'app': app_label,
-        'id': generation.id,
+        'id': generation.id, 'model': generation._meta.label,
         'type': file_type,
         'mode': generation_mode,
         'filename': dest_path.name,
@@ -1616,7 +1584,7 @@ def import_to_anonymizer(source_path, user, app_label='anonymizer'):
     return {
         'imported': True,
         'app': app_label,
-        'id': media.id,
+        'id': media.id, 'model': media._meta.label,
         'filename': dest_path.name,
         'path': relative_path,
     }
@@ -1672,6 +1640,9 @@ def import_to_synthesizer(source_path, user, app_label='synthesizer'):
         'filename': dest_path.name,
         'path': relative_path,
         'synthesis_id': synthesis.id,
+        # `id` + `model` : le contrat de TOUS les importeurs (2026-10-16) — le regroupement à
+        # l'arrivée (`consolidate_arrival`) range ce qu'ils ont créé.
+        'id': synthesis.id, 'model': synthesis._meta.label,
     }
 
 
@@ -1716,7 +1687,7 @@ def import_to_reader(source_path, user, app_label='reader'):
     return {
         'imported': True,
         'app': app_label,
-        'id': item.id,
+        'id': item.id, 'model': item._meta.label,
         'filename': dest_path.name,
         'path': relative_path,
     }
@@ -1770,7 +1741,7 @@ def import_to_converter(source_path, user, app_label='converter'):
     return {
         'imported': True,
         'app': app_label,
-        'id': job.id,
+        'id': job.id, 'model': job._meta.label,
         'filename': dest_path.name,
         'path': relative_path,
     }
@@ -1804,7 +1775,7 @@ def import_to_transcriber(source_path, user, app_label='transcriber'):
     return {
         'imported': True,
         'app': app_label,
-        'id': transcript.id,
+        'id': transcript.id, 'model': transcript._meta.label,
         'filename': dest_path.name,
         'path': relative_path,
         'staged': True,

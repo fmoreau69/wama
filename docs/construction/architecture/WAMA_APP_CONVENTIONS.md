@@ -1184,25 +1184,33 @@ on crée **UN batch par nature de média** (image / vidéo / audio / document…
 - App **multi-natures** (converter, describer, enhancer, anonymizer) → un batch par
   nature → réglages cohérents par groupe + UI plus lisible.
 
-**Helper commun** : `group_into_batches_by_nature()` de `common/utils/batch_common.py`.
-Chaque app fournit seulement :
+**Une déclaration, aucun regroupement écrit par l'app** (2026-10-16, `REMOVAL_LEDGER R134`) :
+l'app déclare sa file à la fabrique commune (`queue_manipulation.make_queue_manipulation_views`
+ou sa variante `_direct`) — et c'est TOUT :
 
 ```python
-from wama.common.utils.batch_common import group_into_batches_by_nature
-group_into_batches_by_nature(
-    items,
-    nature_of=lambda x: x.media_type,                 # ou un classifier par extension
-    create_batch=lambda nature, total: MyBatch.objects.create(user=user, total=total),
-    link_item=lambda batch, x, idx: MyItem.objects.create(batch=batch, <fk>=x, row_index=idx),
-    unwrap_singletons=_unwrap,                         # optionnel (défait les batch-of-1)
+_qm = make_queue_manipulation_views(
+    work_model=MyItem, batch_model=MyBatch, item_model=MyLink, fk_name='<fk>',
+    get_user=_user,
+    group_key=_my_nature,            # la nature (classifier) ; absente = une seule nature
+    batch_extra=..., item_extra=..., # champs propres du lot / de la liaison, s'il y en a
 )
+consolidate = _qm['consolidate']     # range PAR NATURE ; `merge` = fusion stricte (glisser-déposer)
 ```
 
-`_auto_wrap_orphans()` **et** `consolidate()` doivent passer par ce helper (ne pas
-réécrire de regroupement par-app). Classifiers : `media_type` quand le modèle le porte
-(enhancer, anonymizer, converter), sinon par extension (describer : `_describer_nature`).
-**Conformes :** converter, describer, enhancer, anonymizer. Mono-nature (transcriber,
-reader, synthesizer) = cas trivial (un seul batch).
+La fabrique INSCRIT alors le regroupement à l'arrivée de ce modèle
+(`queue_manipulation.consolidate_arrival`, bâti sur `group_into_batches_by_nature`), et TOUT chemin
+d'arrivée l'appelle : la vue `consolidate` (dépôt de N fichiers), l'import du gestionnaire de
+fichiers (« Envoyer vers », sélection, dossier, lot envoyé depuis une autre app — chaque importeur
+rend `id` + `model`), un fichier de lot (`batch_create` de l'avatarizer, du converter, du code
+généré). `_auto_wrap_orphans()` (le lot d'un au chargement de page) passe par
+`batch_common.auto_wrap_orphans`. Classifiers : `media_type` quand le modèle le porte (enhancer,
+anonymizer, converter, avatarizer), le domaine pour l'imager (`_generation_domain`, jumeau de son
+`batch_extra`, ajouté le 2026-10-16), sinon par extension (describer : `_describer_nature`).
+Mono-nature (transcriber, reader, synthesizer) = pas de `group_key`, un seul lot.
+⚠ Jusqu'au 2026-10-16, la `consolidate` de la fabrique ÉTAIT `merge` : cinq apps la redéfinissaient
+et l'import tenait une liste de six helpers — imager et synthesizer recevaient N cards. Garde
+`tests_arrival_consolidation`.
 
 ### 9.3 Utilitaires de duplication batch (dans `wama/common/`)
 

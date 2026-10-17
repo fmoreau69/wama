@@ -110,13 +110,22 @@ def create_synthesis(user, *, prompt: str = '', work_file=None, reference_voice=
     return synthesis
 
 
-def wrap_in_batch(synthesis):
-    """Un lot d'UN élément — la file est construite à partir des lots."""
+def batch_link_extra(synthesis) -> dict:
+    """Les champs PROPRES de la liaison d'une synthèse à son lot : le nom de son fichier de
+    sortie, tiré de son fichier texte. UNE déclaration (2026-10-16), lue par le lot d'un
+    (`wrap_in_batch`) et par la fabrique commune de la file (`item_extra` : regroupement à
+    l'arrivée, fusion, déplacement) — elle était écrite deux fois, et les gestes de la fabrique
+    créaient des liaisons sans nom de sortie."""
     import os
-    from .models import BatchSynthesis, BatchSynthesisItem
     stem = (os.path.splitext(os.path.basename(synthesis.text_file.name))[0]
             if synthesis.text_file else f'synthesis_{synthesis.id}')
+    return {'output_filename': stem + '.wav'}
+
+
+def wrap_in_batch(synthesis):
+    """Un lot d'UN élément — la file est construite à partir des lots."""
+    from .models import BatchSynthesis, BatchSynthesisItem
     batch = BatchSynthesis.objects.create(user=synthesis.user, total=1)
-    BatchSynthesisItem.objects.create(batch=batch, synthesis=synthesis,
-                                      output_filename=stem + '.wav', row_index=0)
+    BatchSynthesisItem.objects.create(batch=batch, synthesis=synthesis, row_index=0,
+                                      **batch_link_extra(synthesis))
     return batch

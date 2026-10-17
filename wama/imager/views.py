@@ -53,11 +53,20 @@ _RESET_DUPLICATION = {
 }
 
 
+def _generation_domain(gen):
+    """Le DOMAINE d'une génération (image / vidéo) — sa NATURE : ce qui peut cohabiter dans un lot.
+    UNE déclaration, deux lectures par la fabrique commune : le domaine du lot (`_batch_domain`,
+    `batch_extra`) et `group_key` (2026-10-16 — sans lui, une arrivée mêlant images et vidéos
+    formait UN lot au domaine du premier élément, donc dans le mauvais onglet ; la fabrique le
+    prescrit : « une app qui fige une nature sur le lot passe le `group_key` jumeau »)."""
+    return 'video' if gen.is_video_generation else 'image'
+
+
 def _batch_domain(gen):
     """Champs du BATCH dérivés de la génération — l'imager scope sa file par onglet.
     Passé en `batch_extra` aux briques communes (auto_wrap_orphans, fabrique de
     manipulation) : c'est ce qui évite qu'une vidéo isolée atterrisse dans l'onglet Images."""
-    return {'domain': 'video' if gen.is_video_generation else 'image'}
+    return {'domain': _generation_domain(gen)}
 
 
 @app_access('imager')
@@ -1374,6 +1383,7 @@ _qm = make_queue_manipulation_views(
     item_model=GenerationBatchItem, fk_name='generation',
     get_user=_qm_user,
     batch_extra=_batch_domain,
+    group_key=_generation_domain,       # jumeau de `batch_extra` : la nature figée sur le lot
 )
 remove_from_batch = _qm['remove_from_batch']
 reorder = _qm['reorder']

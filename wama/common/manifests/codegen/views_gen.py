@@ -35,7 +35,7 @@ Formes de file — LES DEUX sont rendues depuis le 2026-09-22 (trou #30 de la RO
     `link_batch_field`, `link_batch_related`), jamais devinée sur un nom de classe.
 Les vues de lot lisent le lot par la BRIQUE (`batch_common.batch_elements`, ordre des lignes
 garanti, les deux formes) et y rattachent par la brique (`attach_to_batch`) : le fichier généré
-ne porte de sa forme que les kwargs déclarés, dans `_link_to_batch`. Un seul corps par vue.
+ne porte de sa forme que les kwargs déclarés, passés aux fabriques. Un seul corps par vue.
 Jusqu'au 22/09 la seconde forme était un « trou déclaré » : `describer_01`, `composer_01` et
 `imager_01` gardaient leurs vues COPIÉES et ne suivaient plus le commun.
 """
@@ -715,7 +715,8 @@ def batch_preview(request):
     # neuf n'est écrit ici, tout existait —
     #   `parse_batch_file_from_request` (lecture du fichier, déjà utilisée par batch_preview),
     #   `copy_into_app_input` (copie sûre + chemin relatif MEDIA_ROOT),
-    #   `group_into_batches_by_nature` (règle générale de regroupement, conventions §9).
+    #   `consolidate_arrival` (le regroupement à l'arrivée déclaré par la fabrique, un lot par
+    #   nature — conventions §9 ; 2026-10-16, il était recopié ici).
     #
     # ⚠ UNE URL N'EST PAS TÉLÉCHARGÉE ICI. On enregistre la SOURCE ; le récepteur commun
     # (`source_ingest`, 2026-10-13) la télécharge dès la création, HORS de la requête, et
@@ -745,10 +746,11 @@ def batch_preview(request):
                          if nature_champ else "pass")
     bc_nature = (f"str(getattr(o, '{nature_champ}', '') or '')" if nature_champ else "''")
     # ⚠ ÉMISE COMME FONCTION NOMMÉE, plus comme lambda inline (2026-09-04). Ce n'est pas du
-    # style : elle a DEUX consommateurs — le groupement à l'import (`nature_of`) et la fusion
-    # par glisser-déposer (`group_key` de la fabrique de manipulation). Une lambda inline ne
-    # se partage pas, donc la jumelle générée serait née avec la règle appliquée d'un seul
-    # côté : import refusant de mélanger les natures, drag&drop les mélangeant.
+    # style : elle servait DEUX consommateurs — le groupement à l'import (`nature_of`) et la
+    # fusion par glisser-déposer (`group_key` de la fabrique de manipulation) — et une lambda
+    # inline ne se partage pas : import refusant de mélanger les natures, drag&drop les
+    # mélangeant. Depuis le 2026-10-16 l'import passe lui-même par la fabrique
+    # (`consolidate_arrival`) : un seul consommateur, `group_key`, pour les deux gestes.
     # ⚠ NOM DISTINCT de `bloc_nature` (ligne ~161), qui porte `_TYPES_ENTREE` + `def _nature`.
     # Ma première graphie réutilisait ce nom et l'ÉCRASAIT : l'app générée perdait son
     # vocabulaire d'entrée et sa détection de nature, tout en gardant les appels `_nature(...)`
@@ -757,11 +759,9 @@ def batch_preview(request):
     bloc_nature_de_lot = f'''def _nature_de_lot(o):
     """Nature de l'élément — ce qui peut cohabiter dans un lot.
 
-    UNE déclaration, DEUX consommateurs : `group_into_batches_by_nature` (import groupé) et
-    `group_key` de la fabrique de manipulation de file (fusion par drag&drop)."""
+    UNE déclaration, lue par la fabrique de manipulation de file (`group_key`) pour ses DEUX
+    gestes : le regroupement à l'arrivée et la fusion par drag&drop."""
     return {bc_nature}'''
-    # Le LOT ne reçoit la nature que s'il porte la colonne (`batch_extra`) — describer : non.
-    bc_nature_kw = (f", **{{'{d['batch_extra']}': nature}}" if d['batch_extra'] else "")
     # Émis sous CHAQUE orthographe admise (`urls_gen.ROUTE_ALIASES` : composer dit
     # `import_batch`) — même doctrine que `stop`/`cancel` : le corps est la convention, le nom
     # est lu au manifeste. L'assemblage plus bas ne retient que le nom déclaré par l'app.
@@ -771,7 +771,6 @@ def {_nom_bc}(request):
     """Crée N éléments depuis un fichier de lot, puis les regroupe — briques communes."""
     from pathlib import Path as _Path
     from django.conf import settings as _settings
-    from wama.common.utils.batch_common import group_into_batches_by_nature
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
     from wama.common.utils.media_paths import OutsideMediaRoot, copy_into_app_input, resolve_under_media_root
 
@@ -833,14 +832,10 @@ def {_nom_bc}(request):
     # par `_nature` — et `upload` la renseigne pareillement. Doter un seul des deux chemins est
     # ce qui a produit les trois derniers défauts de codegen ; le groupement ci-dessous en
     # dépend directement (`nature_of` lisait un champ que personne n'écrivait, donc UN lot
-    # fourre-tout au lieu d'un lot par nature).
-    lots = group_into_batches_by_nature(
-        crees,
-        nature_of=_nature_de_lot,
-        create_batch=lambda nature, total: {batch}.objects.create(
-            user=user, total=total{bc_nature_kw}),
-        link_item=_link_to_batch,
-    )
+    # fourre-tout au lieu d'un lot par nature). Le regroupement est celui de la FABRIQUE
+    # déclarée plus bas (`group_key`, `batch_extra`) : `consolidate_arrival`, commun aux apps.
+    from wama.common.utils.queue_manipulation import consolidate_arrival
+    lots = consolidate_arrival({item}, [o.id for o in crees], user)
     return JsonResponse({{'success': True, 'count': len(crees),
                          'batches': len(lots), 'warnings': avertissements}})'''
 
@@ -1200,7 +1195,7 @@ def {nom}(request, pk):
 
     batch_extra_kw = (f"""
     batch_extra=lambda w: {{'{d['batch_extra']}': w.{d['batch_extra']}}},""" if d['batch_extra'] else '')
-    # Fabrique des VUES DE LOT — les kwargs de forme sont ceux de `_link_to_batch` ; le reste
+    # Fabrique des VUES DE LOT — les kwargs de forme sont ceux de `attach_to_batch` ; le reste
     # est LU au manifeste (champs fichier de la facette data, params déclarés, schéma).
     form_kwargs = (f"item_model={link}, fk_name='{link_fk}'" if is_link
                    else f"batch_attr='{fk}', row_field='{row}'")
@@ -1236,8 +1231,8 @@ _qm = make_queue_manipulation_views(
     work_model={item}, batch_model={batch},
     item_model={link}, fk_name='{link_fk}',
     get_user=_user,{batch_extra_kw}
-    # JUMEAU du `nature_of` de l'import : la meme regle decide de ce qui peut cohabiter dans
-    # un lot, qu'on y arrive par import groupe ou par glisser-deposer.
+    # La meme regle decide de ce qui peut cohabiter dans un lot, qu'on y arrive par import
+    # groupe (`consolidate_arrival`) ou par glisser-deposer.
     group_key=_nature_de_lot,
 )'''
     fabrique_direct = f'''# Fabrique COMMUNE de manipulation de file (forme FK-DIRECTE — dérivée de la facette data).
@@ -1245,8 +1240,8 @@ _qm = make_queue_manipulation_views_direct(
     work_model={item}, batch_model={batch},
     batch_fk='{fk}', row_field='{row}',
     get_user=_user,{batch_extra_kw}
-    # JUMEAU du `nature_of` de l'import : la meme regle decide de ce qui peut cohabiter dans
-    # un lot, qu'on y arrive par import groupe ou par glisser-deposer.
+    # La meme regle decide de ce qui peut cohabiter dans un lot, qu'on y arrive par import
+    # groupe (`consolidate_arrival`) ou par glisser-deposer.
     group_key=_nature_de_lot,
 )'''
     fabrique = (fabrique_link if is_link else fabrique_direct) + fabrique_lot + f'''
@@ -1334,21 +1329,17 @@ consolidate       = _qm['consolidate']'''
     blocs.append(bloc_nature_de_lot)
     blocs.append(fabrique)
 
-    # ── Le helper de forme — tout ce que les vues de lot savent de la forme de file ──
-    # `_link_to_batch(lot, obj, idx)` : rattacher un élément à un lot à la ligne idx, par la
-    # brique. Émis selon la forme ; les corps de vues (batch_start/update/delete/duplicate/
-    # download, batch_create) sont IDENTIQUES d'une forme à l'autre. Une forme = un endroit.
-    # Ce que le fichier généré sait de sa forme tient en UNE ligne : les kwargs de
-    # `attach_to_batch` (brique commune, les deux formes). La lecture d'un lot passe par
-    # `batch_elements(b, <Item>)` (brique, ordre des lignes garanti) — un helper généré
-    # `_batch_elements` a vécu quelques heures le 22/09 : c'était un chemin parallèle.
+    # ── Ce que le fichier généré sait de sa forme de file ──
+    # Les kwargs de forme sont passés aux FABRIQUES (manipulation de file, vues de lot), qui
+    # rattachent par `attach_to_batch` — les corps de vues sont IDENTIQUES d'une forme à
+    # l'autre. Une forme = un endroit. La lecture d'un lot passe par `batch_elements(b,
+    # <Item>)` (brique, ordre des lignes garanti) — un helper généré `_batch_elements` a vécu
+    # quelques heures le 22/09 : c'était un chemin parallèle.
+    # `_link_to_batch` n'est plus émis qu'en forme DIRECTE, pour sa boucle d'orphelins : en
+    # forme à liaison, son dernier appelant était `batch_create`, qui délègue son regroupement
+    # à la fabrique depuis le 2026-10-16 (`consolidate_arrival`).
     if is_link:
         helpers_forme = f'''
-
-def _link_to_batch(lot, obj, idx):
-    """Rattache un élément à un lot — brique commune, forme à LIAISON déclarée au manifeste."""
-    return attach_to_batch(obj, lot, idx, item_model={link}, fk_name='{link_fk}')
-
 
 def _auto_wrap_orphans(user):
     """Chaque item HORS LOT devient son propre lot-de-1 — brique COMMUNE, stratégie par
@@ -1356,7 +1347,7 @@ def _auto_wrap_orphans(user):
     auto_wrap_orphans(user, work_model={item}, batch_model={batch},
                       item_model={link}, fk_name='{link_fk}')
 '''
-        imports_forme = f'''from wama.common.utils.batch_common import (attach_to_batch, auto_wrap_orphans, batch_elements,
+        imports_forme = f'''from wama.common.utils.batch_common import (auto_wrap_orphans, batch_elements,
                                             build_batches_list, wrap_in_batch)
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views'''
         import_models = f'from .models import {batch}, {link}, {item}'
