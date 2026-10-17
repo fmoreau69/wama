@@ -24258,3 +24258,50 @@ niveau app qu'AUCUN critère de grille ne vérifie** (`WAMA_MECANISMES.md`, sect
 app peut sortir à 100 % sans les avoir adoptés. Ce n'est pas du déclaré qui ment (il n'y en a plus),
 c'est de la mesure qui manque : à trier mécanisme par mécanisme (critère à écrire, ou mécanisme
 non concerné par une app), même règle que ce palier.
+
+## §CLÔTURE — 2026-10-17, « ARRIVÉE UNIVERSELLE · ENVOYER VERS UNE CARD REÇUE · SEUIL SAM3 » — ✅ LIVRÉ (non poussé) — 🔴 relancer gunicorn + workers
+
+Suite de la clôture du 2026-10-14→16 : ses trois restes nommés sont soldés. Demandes de Fabien :
+« aucun pansement, tout commun, universel et uniforme » pour le regroupement à l'arrivée ;
+corriger « Envoyer vers » sur une card reçue ; comprendre le seuil 0,5 de SAM3 ; commiter ;
+`/reverif` (avec la question `_readable` / `readable_by`).
+
+- `99ca99e8` **Regroupement à l'ARRIVÉE déclaré une fois, à la fabrique de file** —
+  `queue_manipulation.consolidate_arrival` (registre `_ARRIVALS`), appelé par tout chemin
+  d'arrivée (dépôt, import du gestionnaire de fichiers, fichier de lot) ; la nature vient du
+  `group_key` déclaré, les dix apps et le générateur l'adoptent, la liste écrite dans
+  `filemanager.api_import_to_app` disparaît (R134). Détail : `CARD_DESIGN §3bis`.
+- `a145651c` **Une card ou un lot REÇUS s'envoient vers une autre app** (`WAMA_COLLABORATION
+  §3bis`) — les résolveurs (`api_envoyer_vers`, `api_send_batch_to`) suivent la règle qui MONTRE
+  la card (`scoping.visible_or_404`, `listable_by` pour les éléments d'un lot), l'import accepte
+  le chemin d'autrui par `media_paths.readable_by` ; le sous-menu affichait « Indisponible » (404
+  du résolveur, qui ne servait que les cards du compte).
+- `19f5631e` **Seuil SAM3 passé à la librairie** — le 0,3 du processeur était sans effet (la lib
+  filtrait à 0,5). Une autre session a MESURÉ 0,30 et garde 0,50 (`91971cac`) : décision close.
+- `35832869` `tests_bench_upscale.py` compté comme annexe du banc (rouge de `tests_catalogues`).
+- `c7e01896` **Revérification** — la garde `JumelageNatureGroupKeyTest` testait du vide depuis
+  R134 (plus aucun `nature_of=`) : réécrite par AST sur l'invariant restant (aucun regroupement à
+  côté de la fabrique ; `batch_extra` ⇒ `group_key`), contre-épreuve ROUGE (imager sans
+  `group_key`) ; `ids_from_request(field=)` et l'alias `_ids_de_la_requete` sans appelant
+  retirés (R135) ; `_readable` du transcriber renommé `_text_or_none` — ce n'était PAS
+  `readable_by` (droit d'accès, plus ancien : `2d2f4e26`), mais une jointure de lignes de texte,
+  usage unique, homonyme relevé par `check_redundancy` sur le nom seul ; constat périmé de
+  `CARD_DESIGN §3bis` corrigé ; budgets de langue baissés à la mesure (2662 / 1292).
+
+**Restes nommés** : la jumelle `transcriber_01` (non versionnée) porte encore `_readable` jusqu'à
+sa régénération ; un troisième `_readable` (`accounts/views.py:356`, libellé d'unité, autre sens)
+est dans un fichier d'une autre session ; `check_redundancy` : deux trouvailles de l'avatarizer
+(`views.py:397/977`, antérieures, 23 et 26/09) ; piste encore ouverte de la clôture précédente :
+analyser aussi la version agrandie à côté de l'originale pour les foules.
+
+**Contrôles attendus au prochain /reprise** : 305 OK le 2026-10-17 sur l'arbre qui porte tous les
+commits de l'après-midi (`tests_queue_dnd`, `tests_arrival_consolidation`,
+`tests_identifier_language`, `tests_send_to`, transcriber) ; `check_docs` 0 cassée ;
+`doc_facts --check` : `mecanismes` et `conformite` périmés par le WIP d'autres sessions (ma part
+est dans HEAD).
+
+**Pendings système** : 🔴 relancer gunicorn + workers puis Ctrl+F5 · pousser les commits ·
+« Garder la résolution d'origine » et l'envoi d'une card reçue à éprouver au navigateur.
+
+**🔚 POINT D'ENTRÉE** : régénérer les jumelles `_01` ; éprouver au navigateur l'arrivée mêlée
+(images + vidéos) dans l'imager et l'envoi d'une card reçue.
