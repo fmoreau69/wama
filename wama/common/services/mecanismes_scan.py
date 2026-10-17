@@ -146,8 +146,13 @@ def consumers(mechanism, sources: dict[str, str]) -> list[str]:
         # par l'inclusion d'une ANNEXE (`_filter_bar.html`, `_queue_toolbar.html`). Mesuré en
         # posant les symboles : le remplacement faisait tomber la barre de filtrage de 14 à 2
         # et la file de 81 à 2 — vrai d'un côté, faux de l'autre. Les deux sont des adoptions.
+        # ⚠ SAUF le fichier qu'un AUTRE mécanisme tient aussi (2026-10-17) : `wama-app-base.js`
+        # est le domicile d'`app_base_js` ET d'`add_to_queue` — compté par son nom, il faisait
+        # adopter l'ajout à la file par chaque page qui charge le socle JS. Sur un fichier
+        # partagé, un mécanisme qui a un symbole se compte par ce SEUL symbole.
+    shared = _shared_with_others(mechanism) if mechanism.symbol else set()
     patterns, own_py = [], set()
-    for path in own:
+    for path in own - shared:
         if path.endswith('.py'):
             dotted = path[:-3].replace('/', '.')       # wama/common/x.py → wama.common.x
             parent, leaf = dotted.rsplit('.', 1)       # → wama.common, x
@@ -173,6 +178,25 @@ def consumers(mechanism, sources: dict[str, str]) -> list[str]:
                                and (any(lit in src and p.search(src) for lit, p in patterns)
                                     or (own_py and any(leaf in src for leaf in leaves)
                                         and own_py & _relative_modules(rel, src)))})
+
+
+@lru_cache(maxsize=1)
+def _owners() -> dict:
+    """{fichier: {clés des mécanismes qui le tiennent, en domicile ou en annexe}}."""
+    from wama.common.mecanismes import MECHANISMS
+    owners = {}
+    for m in MECHANISMS:
+        for path in (m.home, *m.annexes):
+            owners.setdefault(path, set()).add(m.key)
+    return owners
+
+
+def _shared_with_others(mechanism) -> set:
+    """Les fichiers de `mechanism` qu'un AUTRE mécanisme tient aussi (règle du 2026-09-15 : un
+    fichier appartient à UN mécanisme — un partage n'est admis que compté par symbole)."""
+    owners = _owners()
+    return {p for p in (mechanism.home, *mechanism.annexes)
+            if owners.get(p, set()) - {mechanism.key}}
 
 
 #: `from .x import …` / `from ..a.b import …` / `from . import x, y` — les imports RELATIFS.

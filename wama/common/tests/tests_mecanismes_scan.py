@@ -19,6 +19,35 @@ GATEWAY = Mechanism('fake_gateway', 'Passerelle', 'rôle', 'wama/gateway/service
 PATHS = Mechanism('fake_paths', 'Chemins', 'rôle', 'wama/common/utils/media_paths.py')
 
 
+class OneFileOneOwnerTest(SimpleTestCase):
+    """La règle du 2026-09-15 (« un FICHIER appartient à UN mécanisme ; la relation se DÉCLARE
+    en `depends_on`, jamais en rangeant le domicile de l'un parmi les annexes de l'autre »), tenue
+    là où elle COMPTE : un fichier partagé n'est compté par son NOM que par un seul propriétaire,
+    les autres s'y comptent par leur symbole. Mesuré le 2026-10-17 : 18 fichiers la violaient —
+    `app_registry.py` en annexe de la navigation faisait « adopter » celle-ci par toute vue qui
+    importe le registre d'apps, `wama-inspector.js` faisait adopter le geste RAG par l'inspecteur."""
+
+    def test_a_shared_file_is_counted_by_name_by_one_owner_at_most(self):
+        from collections import defaultdict
+
+        from wama.common.mecanismes import MECHANISMS
+        by_name = defaultdict(list)
+        for m in MECHANISMS:
+            for path in (m.home, *m.annexes):
+                if not m.symbol:
+                    by_name[path].append(m.key)
+        self.assertEqual({}, {p: keys for p, keys in by_name.items() if len(keys) > 1})
+
+    def test_a_shared_front_home_is_counted_by_symbol_alone(self):
+        """`wama-app-base.js` : domicile d'`app_base_js` ET d'`add_to_queue` ; l'ajout à la file
+        ne s'adopte pas parce qu'une page charge le socle JS."""
+        from wama.common.mecanismes import MECHANISMS
+        add = next(m for m in MECHANISMS if m.key == 'add_to_queue')
+        sources = {'wama/fake/templates/fake/index.html': "<script src='wama-app-base.js'></script>",
+                   'wama/fake/static/fake/x.js': 'WamaApp.addToQueue(card);'}
+        self.assertEqual(['wama/fake/static/fake/x.js'], consumers(add, sources))
+
+
 class ScanResolvesImportsTest(SimpleTestCase):
 
     def test_a_same_named_module_of_another_package_is_not_a_consumer(self):

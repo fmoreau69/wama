@@ -147,7 +147,7 @@ MECHANISMS = (
               "l'autre entre deux process (`queue_of`, barre et durées du lancement reportées)",
               'wama/common/utils/task_skeleton.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/tests/tests_process_governance.py',),
-              depends_on=('process_runs', 'resource_governor')),
+              depends_on=('process_runs', 'resource_governor', 'model_readiness')),
     # Ajouté le 2026-10-02 (pipeline porté par la card, marche P3 — route §10.6 points 4.1 à 4.4).
     # Généralise le suivi de passes du cam_analyzer (`AnalysisPass`, `pass_tracking`) : c'est la
     # 1ʳᵉ pièce du moteur commun, écrite par le squelette pour son unique process.
@@ -198,8 +198,7 @@ MECHANISMS = (
               "n'avertit plus de rien (celui de l'imager vidéo, en dur et à chaque lancement avec "
               "un volume inventé, a été retiré ce jour-là)",
               'wama/common/utils/model_readiness.py', 'docs/construction/suivi/PROJECT_STATUS.md',
-              annexes=('wama/common/utils/task_skeleton.py',
-                       'wama/common/tests/tests_model_readiness.py')),
+              annexes=('wama/common/tests/tests_model_readiness.py',)),
     Mechanism('file_cache', 'Cache par empreinte de fichier',
               "Garde une valeur calculée depuis un fichier (lecture AST, rendu markdown, compte "
               "de lignes) tant que son empreinte — date de modification, taille — n'a pas "
@@ -398,8 +397,8 @@ MECHANISMS = (
               "par le banc de rappel (`bench --task detect-recall`), qui mesure par le MÊME chemin",
               'wama/common/services/detection_ensemble.py', 'docs/construction/ia/WAMA_QUALITE.md',
               annexes=('wama/common/backends/detection_base.py',
-                       'wama/common/utils/detections.py',
-                       'wama/common/tests/tests_detection_ensemble.py')),
+                       'wama/common/tests/tests_detection_ensemble.py'),
+              depends_on=('detections_document',)),
     Mechanism('model_quality', 'Indice de qualité a priori',
               "Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.)",
               'wama/model_manager/services/model_quality.py', ''),
@@ -413,8 +412,7 @@ MECHANISMS = (
               "bancs indépendants ; banc mis en file À L'INSTALLATION (`queue_benchmarks`), "
               "synchro chaque nuit, cache disque des sources",
               'wama/model_manager/services/benchmark_sync.py', 'docs/construction/ia/WAMA_QUALITE.md',
-              annexes=('wama/model_manager/management/commands/sync_benchmarks.py',
-                       'wama/model_manager/tests/tests_benchmark_chain.py')),
+              annexes=('wama/model_manager/management/commands/sync_benchmarks.py',)),
     Mechanism('internal_quality', 'Mesure interne des modèles',
               "Étage 3 qualité : ce que WAMA a MESURÉ elle-même contre une référence humaine "
               "(`ResultEvaluation`), agrégé par modèle — taux de CORPUS, échelle nommée "
@@ -586,7 +584,8 @@ MECHANISMS = (
               "l'ajout d'un fichier du dossier temporaire (`tool_api.add_to_media_library`). Le "
               "PARTAGE n'a rien à suivre : il sert le chemin RÉEL de la ligne.",
               'wama/media_library/services.py', 'docs/construction/ui/CARD_DESIGN.md §2bis',
-              symbol='export_item_to_library'),
+              symbol='export_item_to_library',
+              depends_on=('asset_natures',)),
     Mechanism('filter_bar', 'Barre de filtrage',
               "Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclarées "
               "(server). Depuis le 2026-09-08 la recherche est un OUTIL du registre de barre "
@@ -775,8 +774,8 @@ MECHANISMS = (
               "une URL, les deux lots `-i` qui copient une ligne serveur ; nouveau `kind` `app` "
               "— « Envoyer vers » part aussi de l'entrée ou de la sortie d'une autre card",
               'wama/common/utils/provenance.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
-              annexes=('wama/common/utils/file_references.py',
-                       'wama/common/tests/tests_file_references.py')),
+              annexes=(),
+              depends_on=('file_references',)),
     Mechanism('file_references', "Qui désigne ce fichier ? (déplacer, supprimer sans casser)",
               "L'index des cards qui DÉSIGNENT un chemin, et les deux gestes qui le tiennent à "
               "jour — `repoint` quand le fichier bouge, `detach` quand il disparaît. Décision de "
@@ -852,7 +851,9 @@ MECHANISMS = (
               'wama/common/static/common/js/wama-inspector.js', 'docs/construction/ia/WAMA_MEMORY.md §7ter',
               # Le domicile est le JS : c'est LUI qui rend le geste universel (inspecteur global).
               # Les vues sont l'annexe serveur — la seule porte d'écriture offerte à l'UI.
-              annexes=('wama/common/templates/common/rag.html', 'wama/common/memory/index.py')),
+              annexes=('wama/common/templates/common/rag.html',),
+              symbol='rag/ajouter',
+              depends_on=('inspector', 'memory')),
     Mechanism('qc', 'Contrôle qualité de sortie',
               "Note une sortie par un validateur LLM INDÉPENDANT ; signal relatif, escalade humaine",
               'wama/common/utils/qc.py', 'docs/construction/suivi/ROADMAP.md §16.5',
@@ -1202,7 +1203,8 @@ MECHANISMS = (
               "fermeture au visiteur, politique du chemin, décorateur de la vue) — une garde de "
               "PARITÉ confronte chaque déclaration à la réponse de sa vue",
               'wama/common/services/navigation.py', 'docs/construction/ia/WAMA_LLM.md',
-              annexes=('wama/common/app_registry.py', 'wama/accounts/permissions.py')),
+              annexes=(),
+              depends_on=('app_access', 'app_worlds')),
     Mechanism('conversation_store', "Historique de conversation (serveur)",
               "L'historique de l'assistant côté SERVEUR — remplace le localStorage web et le "
               "dict en mémoire de la passerelle (perdus au changement de navigateur / au "
@@ -1239,7 +1241,8 @@ MECHANISMS = (
               "Recherche internet + page → texte plafonné (octets ET caractères) pour "
               "l'investigation de l'assistant (outils search_web/read_web_page)",
               'wama/common/utils/web_search.py', 'docs/construction/ia/WAMA_LLM.md',
-              symbol='search_web'),
+              symbol='search_web',
+              depends_on=('search_engines',)),
     # L'index inverse « fichier → capacités » : cibles par PORT (travail/référence), jamais
     # par input_types à plat ; les mondes s'y déclarent par SONDE (wama_data pousse la sienne).
     Mechanism('intake', 'Intake universel de fichiers',
@@ -1474,7 +1477,8 @@ MECHANISMS = (
               "l'amélioration faciale de l'avatarizer (process « Visage », 2026-10-04)",
               'wama/common/services/output_process.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
-              annexes=('wama/common/utils/output_formats.py',)),
+              annexes=(),
+              depends_on=('output_formats',)),
     Mechanism('detections_document', "Document de détections (type `detections` sur disque)",
               "Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) "
               "— le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de "
@@ -1501,7 +1505,8 @@ MECHANISMS = (
               "`preview` — il vivait dans l'inspecteur jusqu'au 2026-10-13). Né le 2026-10-04 pour "
               "basculer entre détection et floutage de l'anonymizer — toute app peut publier ses vues",
               'wama/common/utils/preview_utils.py',
-              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6'),
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
+              symbol='PartialFrames'),
     Mechanism('process_start_view', "▶ d'un process (fabrique commune)",
               "La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_view` "
               "(2026-10-04) : process connu, ayant lieu pour cette card (`AppPipeline.applicable`), "
@@ -1577,7 +1582,8 @@ MECHANISMS = (
                        'wama/common/static/common/js/batch-import.js')),
     Mechanism('queue_view', 'Tri/filtrage de la file',
               "Tri + filtrage communs de la file unifiée, préférence persistée et PARTAGÉE entre apps",
-              'wama/common/utils/queue_view.py', 'docs/construction/ui/CARD_DESIGN.md'),
+              'wama/common/utils/queue_view.py', 'docs/construction/ui/CARD_DESIGN.md',
+              depends_on=('queue_order',)),
     Mechanism('queue_manipulation', 'Manipulation directe de la file',
               "Endpoints génériques : sortir une card d'un batch, réordonner DANS un lot, "
               "ordonner la FILE (`reorder_queue`, 2026-09-04), déplacer, FUSIONNER (`merge`) et "
@@ -1688,8 +1694,8 @@ MECHANISMS = (
               "`recent`, et un import arrivé après un classement manuel apparaît en haut au lieu "
               "de se noyer dans un ordre qu'il n'a pas connu. `reorder_queue` écrit 1..N",
               'wama/common/models.py', 'docs/construction/ui/CARD_DESIGN.md §3bis',
-              annexes=('wama/common/utils/queue_view.py',
-                       'wama/common/templates/common/_queue_toolbar.html')),
+              annexes=(),
+              symbol='QueueOrderMixin'),
     Mechanism('queue_front', "File d'attente (front)",
               "Comportements communs des files : collapse de batch persisté, mode Solitaire "
               "(accordéon), toggle Ligne/Mosaïque, les 3 densités et le modificateur PILE "
@@ -1719,10 +1725,8 @@ MECHANISMS = (
               "jour sans rechargement de la page (la vue dit l'état du lot : "
               "`batch_common.batch_state` ; la position d'une card seule : `is_batch_child`)",
               'wama/common/templates/common/_queue_entry.html', 'docs/construction/ui/CARD_DESIGN.md §11.2',
-              annexes=('wama/common/utils/batch_common.py',
-                       'wama/common/models.py',
-                       'wama/common/static/common/js/queue-actions.js',
-                       'wama/common/tests/tests_queue_delete_contract.py')),
+              annexes=('wama/common/tests/tests_queue_delete_contract.py',),
+              depends_on=('queue_order', 'batch', 'queue_front')),
     Mechanism('output_naming', 'Nom du fichier de sortie',
               "Une règle unique pour les 8 apps à liaison PRÉCOCE, en deux familles : entrée "
               "FICHIER → `<stem>_<process>_<modèle>[_<i>]<ext>` (l'utilisateur retrouve SON nom, "
@@ -1857,9 +1861,7 @@ MECHANISMS = (
     Mechanism('detail_registry', 'Inspecteur — champs de détail',
               "Schéma canonique des infos d'item affichées au volet droit",
               'wama/common/utils/detail_registry.py', 'docs/construction/ui/INSPECTOR_DETAIL_FIELDS.md',
-              annexes=('wama/common/static/common/js/wama-inspector.js',
-                       'wama/common/static/common/js/wama-inspector-autofill.js',
-                       'wama/common/templates/common/_inspector_actions.html',
+              annexes=('wama/common/static/common/js/wama-inspector-autofill.js',
                        'wama/common/templates/common/_inspector_banner.html')),
     Mechanism('preview', 'Preview unifiée',
               "Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; "
@@ -1936,7 +1938,8 @@ MECHANISMS = (
               "il l'hébergeait, et recopiait la bascule des faces)",
               'wama/common/static/common/js/wama-inspector.js', 'docs/construction/ui/WAMA_VOLETS.md',
               annexes=('wama/common/templates/common/_inspector_actions.html',),
-              symbol='WamaInspector'),      # global de base.html : compté par son symbole
+              symbol='WamaInspector',
+              depends_on=('detail_registry',)),      # global de base.html : compté par son symbole
     Mechanism('export_formats', 'Formats de téléchargement (⬇ late-binding)',
               "Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, "
               "groupe) + split-button dérivé de la déclaration export_binding — pendant "
@@ -2195,9 +2198,8 @@ MECHANISMS = (
               "résultats LÈVE (`SearchEngineUnavailable`) au lieu de rendre une liste vide : un "
               "échec qui emprunte la forme d'un succès se croit",
               'wama/common/search_engines/registry.py', 'docs/construction/ia/WAMA_LLM.md',
-              annexes=('wama/common/search_engines/base.py',
-                       'wama/common/utils/web_search.py',
-                       'wama/accounts/api_keys.py')),
+              annexes=('wama/common/search_engines/base.py',),
+              depends_on=('external_sources',)),
     Mechanism('units_display', "Unités d'affichage",
               "Moteur UNIQUE de conversion d'unités pour la PRÉSENTATION (pint) : la donnée "
               "reste dans SON unité (`WamaVariables.unit`, `ParamSpec.unit`), la préférence "
@@ -2390,7 +2392,6 @@ MECHANISMS = (
               "Décision Fabien 2026-09-13 — ni colonnes ni table par nature, ni `tags`",
               'wama/media_library/natures.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §9',
               annexes=('wama/media_library/models.py',
-                       'wama/media_library/services.py',
                        'wama/media_library/tests/tests_natures.py')),
     Mechanism('voice_refs', 'Voix de référence (médiathèque) et voix de clonage',
               "LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur, "
@@ -2452,9 +2453,8 @@ MECHANISMS = (
               "(`media_probe.probe_video_format`) ; l'écriture partage le geste de `ensure_h264`",
               'wama/common/utils/video_compat.py',
               'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
-              annexes=('wama/common/utils/preview_utils.py',
-                       'wama/common/utils/media_probe.py',
-                       'wama/common/management/commands/playback_copies.py')),
+              annexes=('wama/common/management/commands/playback_copies.py',),
+              depends_on=('media_probe', 'preview')),
     Mechanism('media_paths', 'Chemins média',
               "Emplacements canoniques des entrées/sorties par app et par utilisateur "
               "(`app_media_dir` : `users/<uid>/<app>/input|output`). ⭐ Depuis le 2026-09-23 la "
