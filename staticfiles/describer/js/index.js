@@ -54,7 +54,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
                 stopPolling(id);
-                if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
                 // Transition d'état → re-rendu SERVEUR (source unique du markup). AUSSI en
                 // FAILURE depuis la card v3 (13/08) : l'update en place ciblait .status-badge,
                 // qui n'existe plus — sans re-rendu la card restait affichée « En cours ».

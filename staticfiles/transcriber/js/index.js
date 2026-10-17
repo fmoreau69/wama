@@ -225,7 +225,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // progress>=100 seul, qui peut précéder le passage en SUCCESS).
     if (status === 'SUCCESS') {
       stopPolling(id);
-      if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
       // Reload → rendu serveur complet : preview compacte, options à jour,
       // onglet cohérence, barre à 100 %. Évite le « revert » des options.
       setTimeout(() => location.reload(), 300);

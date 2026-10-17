@@ -5,16 +5,19 @@
  * (qui écoute media:uploaded / media:processed / media:deleted et rafraîchit
  * son arborescence, de façon débouncée).
  *
- * Les apps appellent ces helpers plutôt que de dispatcher les events à la main
- * → noms d'events centralisés, comportement homogène (logique d'import unifiée).
- *
- *   WamaFM.uploaded()    → un fichier de travail vient d'être ajouté (input)
- *   WamaFM.processed()   → une sortie vient d'être créée (fin de traitement)
- *   WamaFM.deleted()     → un fichier a été supprimé
+ * Les BRIQUES COMMUNES appellent ces helpers — une app n'a rien à écrire (2026-10-17) :
+ *   WamaFM.uploaded()    → un fichier de travail vient d'être ajouté (`WamaImport`, socle JS)
+ *   WamaFM.processed()   → une sortie vient d'être créée : la barre de progression globale
+ *                          émet `media:processed` quand le compte des tâches terminées monte
+ *                          (`wama-global-progress.js`, montée par les dix apps) — six apps le
+ *                          répétaient dans leur propre suivi, doublons retirés ce jour-là
+ *   WamaFM.deleted()     → un fichier a été supprimé (`queue-actions.js`, fichiers libérés)
  *   WamaFM.refresh()     → forcer un rafraîchissement
+ * Reste écrit dans les apps : le `deleted()` de leur propre « Tout effacer », tant qu'elles ne
+ * passent pas par celui de la brique de file (`data-queue-clear-url`, qui le fait).
  *
- * Filet de sécurité complémentaire : le filemanager poll aussi les mtime
- * (~5 s) et détecte les changements même sans appel explicite.
+ * ⚠ Il n'y a PLUS de filet de sécurité : la surveillance périodique de l'arbre a été retirée
+ * le 2026-10-13 (`filemanager.js`). Un événement non émis = un arbre qui ne se met pas à jour.
  * ======================================================================== */
 (function () {
     'use strict';

@@ -183,7 +183,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (status === 'SUCCESS') {
       stopPolling(id);
-      if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
     } else if (status === 'FAILURE' || progress >= 100) {
       stopPolling(id);
     }

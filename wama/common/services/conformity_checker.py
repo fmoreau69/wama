@@ -575,6 +575,50 @@ def _settings_profiles(f: _AppFiles):
     return (True, routed) if routed else (None, None)
 
 
+def _pipeline_declared(f: _AppFiles):
+    """L'app déclare-t-elle son PIPELINE de process par la brique (`register_app_pipeline`) ?
+    Mesuré depuis le 2026-10-17 (`ROUTE §10.6`) : les dix apps le font, rien ne le gardait."""
+    found = f.find_code(['function_specs.py'], r'\bregister_app_pipeline\s*\(')
+    return (True, found) if found else (False, "aucun pipeline déclaré (`function_specs.py`)")
+
+
+def _media_paths(f: _AppFiles):
+    """Chaque champ fichier range ses médias par un assistant COMMUN de chemins
+    (`media_paths` : `upload_to_user_input/output`, `UploadToUserPath`, `UploadToSystemAssetPath`)
+    — un `upload_to` écrit à la main recrée un second plan de rangement (mesuré 2026-10-17 :
+    aucun dans les dix apps)."""
+    helpers = r'(?:upload_to_user_input|upload_to_user_output|UploadToUserPath|UploadToSystemAssetPath)'
+    any_field = f.find_code(MODELS, r'\bupload_to\s*=')
+    if not any_field:
+        return None, None          # aucun champ fichier : rien à ranger
+    hand = f.find_code(MODELS, rf'\bupload_to\s*=\s*(?!{helpers}\b)')
+    if hand:
+        return False, f"`upload_to` hors des assistants communs ({hand})"
+    return True, any_field
+
+
+def _static_versioning(f: _AppFiles):
+    """Les JS/CSS de l'app sont chargés par `{% static_v %}` (cache-busting), jamais par un
+    `{% static %}` nu — sinon le navigateur garde l'ancien fichier après une mise à jour.
+    Mesuré depuis le 2026-10-17 : les dix apps s'y tiennent."""
+    plain = f.find(TEMPLATES, r"""\{%\s*static\s+['"][^'"]+\.(?:js|css)['"]""")
+    if plain:
+        return False, f"`{{% static %}}` nu sur un JS/CSS ({plain})"
+    versioned = f.find(TEMPLATES, r'\{%\s*static_v\s')
+    return (True, versioned) if versioned else (None, None)
+
+
+def _fm_notify(f: _AppFiles):
+    """Le gestionnaire de fichiers est prévenu par les briques COMMUNES — l'app ne répète pas le
+    signal « sortie créée » que la barre globale émet déjà (`wama-global-progress.js` →
+    `media:processed`). Mesuré depuis le 2026-10-17 : six apps le recopiaient, retirés."""
+    copy = f.find_code(JS, r'\bWamaFM\s*\.\s*processed\s*\(')
+    if copy:
+        return False, f"`WamaFM.processed()` recopié ({copy}) — la barre globale l'émet"
+    mounted = f.find(TEMPLATES, r'common/_global_progress\.html')
+    return (True, mounted) if mounted else (False, "barre globale absente : rien n'émet la fin")
+
+
 def _has_engine_select(f: _AppFiles) -> bool:
     """Y a-t-il un SÉLECTEUR de moteur dans l'UI ? — précondition commune des critères
     model_help / input_match_ui / model_caps_ui (gate « composant sans hôte → N/A »,
@@ -2490,6 +2534,16 @@ CRITERIA: list[Criterion] = [
               _output_settings, mechanism='output_process', covers=('cross_app_options',)),
     Criterion('settings_profiles', 'F3', 'Profils de réglages (sauver / réappliquer, optionnel)',
               _settings_profiles, covers=('save_profile',)),
+    # 2026-10-17 — conventions que les dix apps tenaient sans qu'aucun critère ne les garde (la
+    # liste des mécanismes de niveau app sans critère, une fois le balayage corrigé).
+    Criterion('pipeline_declared', 'F5', 'Pipeline de process déclaré (register_app_pipeline)',
+              _pipeline_declared, mechanism='process_pipeline'),
+    Criterion('media_paths', 'F5', 'Champs fichier rangés par les assistants communs (media_paths)',
+              _media_paths, mechanism='media_paths'),
+    Criterion('static_versioning', 'F3', 'JS/CSS chargés par {% static_v %} (cache-busting)',
+              _static_versioning, mechanism='static_versioning'),
+    Criterion('fm_notify', 'F5', 'Gestionnaire de fichiers prévenu par les briques communes',
+              _fm_notify, mechanism='fm_notify'),
     Criterion('duplicate_instance', 'F5', 'duplicate_instance() (brique commune)',
               lambda f: _present(f, VIEWS, r'duplicate_instance'),
               mechanism='queue_duplication'),

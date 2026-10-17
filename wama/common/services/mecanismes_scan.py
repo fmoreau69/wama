@@ -169,9 +169,12 @@ def consumers(mechanism, sources: dict[str, str]) -> list[str]:
                 rf'|from\s+{re.escape(parent)}\s+import\s+(?:\([^)]*|[^\n]*)\b{re.escape(leaf)}\b)')))
         else:
             # Brique front (.js/.html) : consommée par la référence de son NOM de fichier
-            # (balise <script src=…>, {% include %}, {% static %}).
+            # (balise <script src=…>, {% include %}, {% static %}) — le nom ENTIER : précédé
+            # d'un `/`, d'un guillemet ou d'une espace (2026-10-17 : `_toolbar.html` se trouvait
+            # dans chaque `_queue_toolbar.html`, et les dix apps « adoptaient » le registre
+            # d'outils qu'elles ne font que traverser par la façade de file).
             name = path.rsplit('/', 1)[-1]
-            patterns.append((name, re.compile(re.escape(name))))
+            patterns.append((name, re.compile(r'(?<![\w.-])' + re.escape(name))))
     leaves = {p.rsplit('/', 1)[-1][:-3] for p in own_py}
     return sorted(by_symbol | {rel for rel, src in sources.items()
                                if rel not in own

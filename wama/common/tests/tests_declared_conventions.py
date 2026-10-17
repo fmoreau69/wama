@@ -108,3 +108,47 @@ class SettingsProfilesCriterionTest(SimpleTestCase):
         c'est voulu : il dit ce qui EST, la feuille de route dit ce qui vient."""
         states = {a: checker._settings_profiles(checker._AppFiles(a))[0] for a in REAL_APPS}
         self.assertEqual({a: (True if a == 'converter' else None) for a in REAL_APPS}, states)
+
+
+class ConventionCriteriaTest(SimpleTestCase):
+    """Les quatre conventions que les dix apps tenaient sans critère (2026-10-17, une fois le
+    balayage d'adoption corrigé) : chacune ROUGIT sur une fausse app qui s'en écarte."""
+
+    def _fake(self, tmp, files):
+        for rel, text in files.items():
+            path = tmp / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding='utf-8')
+        app = checker._AppFiles('fake')
+        app.root = tmp
+        return app
+
+    def _state(self, fn, files):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            return fn(self._fake(Path(d), files))[0]
+
+    def test_each_convention_turns_red_when_an_app_departs_from_it(self):
+        cases = (
+            (checker._pipeline_declared, {'function_specs.py': 'PIPELINE = register_app_pipeline(_APP, ())\n'}, True),
+            (checker._pipeline_declared, {'function_specs.py': '# register_app_pipeline( raconté\n'}, False),
+            (checker._media_paths, {'models.py': "f = FileField(upload_to=upload_to_user_input('x'))\n"}, True),
+            (checker._media_paths, {'models.py': "f = FileField(upload_to='x/input/')\n"}, False),
+            (checker._media_paths, {'models.py': 'class A: pass\n'}, None),
+            (checker._static_versioning, {'templates/x/index.html': "{% static_v 'x/js/i.js' %}"}, True),
+            (checker._static_versioning, {'templates/x/index.html': "{% static 'x/js/i.js' %}"}, False),
+            (checker._fm_notify, {'templates/x/index.html': "{% include 'common/_global_progress.html' %}",
+                                  'static/x/i.js': '// WamaFM.processed() raconté\n'}, True),
+            (checker._fm_notify, {'templates/x/index.html': "{% include 'common/_global_progress.html' %}",
+                                  'static/x/i.js': 'if (window.WamaFM) WamaFM.processed();\n'}, False),
+        )
+        for fn, files, expected in cases:
+            with self.subTest(fn=fn.__name__, files=files):
+                self.assertIs(self._state(fn, files), expected)
+
+    def test_the_ten_apps_hold_the_four_conventions(self):
+        for fn in (checker._pipeline_declared, checker._media_paths, checker._static_versioning,
+                   checker._fm_notify):
+            with self.subTest(fn=fn.__name__):
+                self.assertEqual({a: True for a in REAL_APPS},
+                                 {a: fn(checker._AppFiles(a))[0] for a in REAL_APPS})

@@ -388,7 +388,6 @@
 
             if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
                 stopPolling(genId);
-                if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
                 // Card FINALE rendue serveur (waveform + boutons complets) — plus d'injection JS.
                 insertRenderedCard(genId);
                 if (data.status === 'SUCCESS') {

@@ -129,7 +129,6 @@
             upsertCard(item);
             if (item.status !== 'RUNNING' && item.status !== 'PENDING') {
                 poller.stop(id);
-                if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
             }
         },
     });

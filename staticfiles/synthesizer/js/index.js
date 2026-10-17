@@ -340,7 +340,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 2026-09-22 — la copie en ligne du fetch + parse vivait ici).
                 const newCard = await WamaApp.fetchCard(URLS.cardHtml, id);
                 if (newCard) card.replaceWith(newCard);
-                if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
             }
         },
     });
