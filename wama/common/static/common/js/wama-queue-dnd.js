@@ -571,7 +571,7 @@
             const targetId = target.card.dataset.id;
             const allIds = [targetId].concat(ids.filter(function (i) { return i !== targetId; }));
             if (allIds.length < 2) return;
-            // ⚠ Champs RÉPÉTÉS, jamais CSV : `_ids_de_la_requete` lit `ids[]`/`ids` en liste ou
+            // ⚠ Champs RÉPÉTÉS, jamais CSV : `ids_from_request` lit `ids[]`/`ids` en liste ou
             // un corps JSON — un CSV lui donnerait UN id non numérique, donc zéro élément et un
             // `{"consolidated": false}` parfaitement SILENCIEUX.
             const fd = new FormData();

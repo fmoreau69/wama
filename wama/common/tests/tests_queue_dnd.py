@@ -78,47 +78,35 @@ class JumelageNatureGroupKeyTest(TestCase):
 
     Analyse AST et non grep : un grep compte des occurrences d'un motif, il ne dit pas quel
     argument d'quel appel les porte (leçon « un relevé par motif NE CONCLUT PAS »).
+
+    ⚠ 2026-10-17 — la forme ci-dessus est DEVENUE SANS OBJET : depuis le 2026-10-16 aucune app
+    n'appelle plus `nature_of=` (l'arrivée est la fabrique, `consolidate_arrival`, qui lit
+    `group_key` pour ses deux gestes). L'ancien corps passait donc sur RIEN — chaque app tombait
+    dans son « mono-nature : rien à défendre ». La divergence import/drag&drop est désormais
+    impossible par construction ; ce qui reste à tenir est sa cousine, celle qui a cassé l'imager :
+    une app qui FIGE une nature sur le lot (`batch_extra`) doit ranger par elle (`group_key`), et
+    aucune app ne regroupe plus à côté de sa fabrique.
     """
 
-    def test_toute_app_qui_groupe_par_nature_defend_la_meme_nature_au_drag(self):
-        manquants, incoherents = [], []
-        for app, chemin in _apps_de_file():
-            arbre = ast.parse(chemin.read_text(encoding='utf-8'))
-            appels = _appels(arbre)
-
-            natures = []
-            for a in appels:
-                v = _kwarg(a, 'nature_of')
-                if v is not None:
-                    natures.append(ast.unparse(v))
-            if not natures:
-                continue    # app mono-nature : rien à défendre
-
-            cles = []
-            for a in appels:
-                nom = (a.func.id if isinstance(a.func, ast.Name)
-                       else getattr(a.func, 'attr', None))
-                if nom in FABRIQUES:
-                    v = _kwarg(a, 'group_key')
-                    cles.append(ast.unparse(v) if v is not None else None)
-            if not cles:
-                continue    # app sans fabrique de manipulation : hors périmètre
-
-            for n in natures:
-                if n.startswith('lambda'):
-                    incoherents.append(
-                        f"{app} : `nature_of={n}` est une LAMBDA — impartageable, "
-                        f"donc le drag&drop ne peut pas appliquer la même règle. "
-                        f"La nommer (`def _{app}_nature(...)`) et la passer aux deux.")
-                elif n not in cles:
-                    manquants.append(
-                        f"{app} : groupe à l'import par `{n}` mais la fabrique de "
-                        f"manipulation ne reçoit pas `group_key={n}` "
-                        f"(reçu : {cles}) → une fusion par drag&drop y produirait un lot "
-                        f"mixte que l'import n'aurait jamais créé.")
-
-        self.assertEqual([], incoherents + manquants,
-                         "\n".join(incoherents + manquants))
+    def test_an_app_that_sets_a_nature_on_the_batch_groups_by_it(self):
+        problems, factories = [], 0
+        for app, path in _apps_de_file():
+            calls = _appels(ast.parse(path.read_text(encoding='utf-8')))
+            for call in calls:
+                name = (call.func.id if isinstance(call.func, ast.Name)
+                        else getattr(call.func, 'attr', None))
+                if name == 'group_into_batches_by_nature' or _kwarg(call, 'nature_of') is not None:
+                    problems.append(f"{app} : regroupement écrit à côté de la fabrique "
+                                    f"(`{ast.unparse(call)[:60]}…`) — `consolidate_arrival`")
+                if name not in FABRIQUES:
+                    continue
+                factories += 1
+                if _kwarg(call, 'batch_extra') is not None and _kwarg(call, 'group_key') is None:
+                    problems.append(f"{app} : `batch_extra` fige une nature sur le lot sans "
+                                    f"`group_key` — une arrivée mêlée forme UN lot à la nature "
+                                    f"du premier élément (le défaut de l'imager, 2026-10-16)")
+        self.assertGreaterEqual(factories, 10, 'la relève des fabriques ne voit plus les apps')
+        self.assertEqual([], problems, '\n'.join(problems))
 
 
 class CodegenJumelleTest(TestCase):
@@ -336,16 +324,16 @@ class LecteurDIdsSurMultipartTest(TestCase):
     ci-dessous, `request.body` reste lisible et ces tests seraient verts sur le code cassé.
     """
 
-    #: (app, vue, champ) — les vues `consolidate` qu'écrivaient des apps. Depuis le 2026-10-16
-    #: elles viennent TOUTES de la fabrique (`ArrivalIsDeclaredOnceTest` le garde) : la liste
-    #: reste, comme épreuve du lecteur sur le geste réel de chaque app.
+    #: (app, vue) — les vues `consolidate` qu'écrivaient des apps. Depuis le 2026-10-16 elles
+    #: viennent TOUTES de la fabrique (`ArrivalIsDeclaredOnceTest` le garde) et lisent toutes
+    #: `ids` : la liste reste, comme épreuve du lecteur sur le geste réel de chaque app.
     VUES = [
-        ('converter', 'consolidate', 'ids'),
-        ('describer', 'consolidate', 'ids'),
-        ('synthesizer', 'consolidate', 'ids'),
-        ('enhancer', 'consolidate', 'ids'),
-        ('enhancer', 'audio_consolidate', 'ids'),
-        ('anonymizer', 'consolidate', 'ids'),
+        ('converter', 'consolidate'),
+        ('describer', 'consolidate'),
+        ('synthesizer', 'consolidate'),
+        ('enhancer', 'consolidate'),
+        ('enhancer', 'audio_consolidate'),
+        ('anonymizer', 'consolidate'),
     ]
 
     def setUp(self):
@@ -367,22 +355,21 @@ class LecteurDIdsSurMultipartTest(TestCase):
     def test_le_lecteur_commun_lit_les_ids_d_un_formdata_consomme(self):
         from wama.common.utils.queue_manipulation import ids_from_request
         self.assertEqual([1, 2], ids_from_request(self._formdata_consomme('ids')))
-        self.assertEqual([1, 2], ids_from_request(self._formdata_consomme('job_ids'), field='job_ids'))
 
     def test_chaque_consolidate_d_app_repond_sur_un_formdata_consomme(self):
         """Ids inconnus → réponse « rien à consolider », jamais un 500 : c'est le lecteur qu'on éprouve."""
         import importlib
-        for app, nom, champ in self.VUES:
+        for app, nom in self.VUES:
             with self.subTest(app=app, vue=nom):
                 vue = getattr(importlib.import_module(f'wama.{app}.views'), nom)
-                rep = vue(self._formdata_consomme(champ))
+                rep = vue(self._formdata_consomme('ids'))
                 self.assertEqual(200, rep.status_code)
 
     def test_aucun_consolidate_d_app_ne_lit_request_body(self):
         """Garde mécanique : la prochaine vue qui recopie l'ancien `try/except` sort ici en rouge."""
         import importlib
         import inspect
-        for app, nom, _champ in self.VUES:
+        for app, nom in self.VUES:
             with self.subTest(app=app, vue=nom):
                 vue = getattr(importlib.import_module(f'wama.{app}.views'), nom)
                 # CODE seul : le commentaire qui explique POURQUOI on ne lit pas `request.body`

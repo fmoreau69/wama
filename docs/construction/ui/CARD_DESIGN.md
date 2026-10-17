@@ -340,28 +340,35 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 
 > Le piège de ce chantier, trouvé par une remarque de Fabien puis mesuré par un test le jour même.
 
-- `consolidate` = **l'import** : « range ces éléments déposés ensemble ». **Cinq apps le
-  redéfinissent** en version PAR NATURE (`group_into_batches_by_nature`) → 3 images + 2 vidéos
-  donnent **deux lots**. C'est le bon comportement quand on vient de déposer un dossier mélangé.
+- `consolidate` = **l'arrivée** : « range ces éléments arrivés ensemble ». PAR NATURE → 3 images
+  + 2 vidéos donnent **deux lots**. C'est le bon comportement quand on vient de déposer un dossier
+  mélangé. Depuis le 2026-10-16 c'est la vue de la FABRIQUE dans les dix apps
+  (`queue_manipulation.consolidate_arrival`, `REMOVAL_LEDGER R134`) ; jusque-là cinq apps la
+  redéfinissaient, la fabrique n'offrant que la fusion stricte.
 - `merge` = **le drag&drop** : « fusionne ces éléments en UN lot ». On a visé une card précise ;
   si les natures ne cohabitent pas, la réponse est un **refus** (409 + motif au toast).
 - Router le geste sur `consolidate` semblait gratuit — même signature, même effet apparent. Le
   résultat réel dans ces cinq apps : déposer une vidéo sur une image répondait
   `{"consolidated": true}` après avoir créé deux lots-de-1, **c'est-à-dire rien de visible, avec
   un accusé de succès**. `merge` vient donc de la fabrique commune et **aucune app ne le
-  redéfinit** — c'est ce qui le garde strict partout. (Les cinq `consolidate` locaux ne
-  partagent même pas leur contrat d'entrée : le converter lit `job_ids`.)
+  redéfinit** — c'est ce qui le garde strict partout. (Les cinq `consolidate` locaux d'alors ne
+  partageaient même pas leur contrat d'entrée : le converter lisait `job_ids`.)
 
-### La compatibilité de fusion est celle de l'IMPORT — une déclaration, deux consommateurs
+### La compatibilité de fusion est celle de l'ARRIVÉE — une déclaration, deux gestes
 
-- La question « ces deux cards peuvent-elles fusionner ? » avait **déjà** sa réponse :
-  `group_into_batches_by_nature(nature_of=…)`, qui décide à l'import de ce qui va ensemble
-  (converter, anonymizer, describer, enhancer, avatarizer). La MÊME fonction est passée en
-  `group_key=` à la fabrique de manipulation — jamais une seconde règle.
+- La question « ces deux cards peuvent-elles fusionner ? » a la même réponse que « ces éléments
+  arrivés ensemble vont-ils dans le même lot ? » : la NATURE que l'app déclare à sa fabrique de
+  file (`group_key=`, converter, anonymizer, describer, enhancer, avatarizer, imager). La fabrique
+  la lit pour ses deux gestes — l'arrivée (`consolidate_arrival`) et la fusion (`merge`) —, jamais
+  une seconde règle. (Jusqu'au 2026-10-16 l'import la recevait à part en `nature_of=` ; une garde
+  AST exigeait que ce soit la même fonction que le `group_key`.)
 - Cela force à la **nommer** : une lambda inline ne se partage pas, et c'est sous cette forme
-  qu'elle vivait dans 3 apps. Vérifié par **AST** (jamais grep) :
-  `wama/common/tests/tests_queue_dnd.py::JumelageNatureGroupKeyTest`. Le codegen émet la même paire,
-  donc une app générée naît avec la garde.
+  qu'elle vivait dans 3 apps. Et une app qui FIGE une nature sur le lot (`batch_extra` : converter,
+  imager) range par elle — sinon une arrivée mêlée forme un lot à la nature du premier élément
+  (défaut de l'imager, 2026-10-16). Vérifié par **AST** (jamais grep) :
+  `wama/common/tests/tests_queue_dnd.py::JumelageNatureGroupKeyTest`, qui interdit aussi tout
+  regroupement écrit à côté de la fabrique. Le codegen émet la même paire, donc une app générée
+  naît avec la garde.
 
 ### Ce qui n'existait pas et qu'il a fallu créer
 

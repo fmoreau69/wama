@@ -2090,7 +2090,7 @@ Endpoints génériques : sortir une card d'un batch, réordonner DANS un lot, or
 - **Module** : WAMA Common — Manipulation DIRECTE de la file (CARD_DESIGN §3bis) : vues génériques.
 - **API publique** (4) :
   - `consolidate_arrival(work_model, ids, user) -> list` — Range des éléments arrivés ENSEMBLE (un dépôt, un import, un fichier de lot) : un lot PAR
-  - `ids_from_request(request, field: str='ids')` — Identifiants postés — quelle que soit la FORME de la requête.
+  - `ids_from_request(request)` — Identifiants postés — quelle que soit la FORME de la requête.
   - `make_queue_manipulation_views(*, work_model, batch_model, item_model, fk_name, get_user, item_extra=None, batch_extra=None, group_key=None)` — Retourne {'remove_from_batch', 'reorder', 'reorder_queue', 'move_to_batch',
   - `make_queue_manipulation_views_direct(*, work_model, batch_model, batch_fk='batch', row_field='batch_row_index', get_user, batch_extra=None, group_key=None)` — Variante FK-DIRECTE de ``make_queue_manipulation_views`` — pour les apps dont
 

@@ -300,14 +300,17 @@ def enriched_text(transcript) -> str:
     return '\n'.join(parts)
 
 
-def _readable(lines) -> Optional[str]:
+def _text_or_none(lines) -> Optional[str]:
+    """Les lignes jointes en un texte, ou None s'il n'y a rien à lire (convention des lecteurs de
+    résultat : `None` = pas de résultat). Nommée `_readable` jusqu'au 2026-10-17 — homonyme
+    trompeur de `media_paths.readable_by`, qui est un DROIT d'accès à un fichier."""
     text = '\n'.join(lines).strip('\n')
     return text if text.strip() else None
 
 
 def transcription_text(transcript) -> Optional[str]:
     """Résultat lisible des process `transcribe` / `import` — le texte, ou None."""
-    return _readable(_transcription_body(transcript))
+    return _text_or_none(_transcription_body(transcript))
 
 
 def diarization_segments(transcript) -> Optional[list]:

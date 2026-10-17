@@ -105,7 +105,7 @@ def _representatives(works, nature_of) -> dict:
     return firsts
 
 
-def ids_from_request(request, field: str = 'ids'):
+def ids_from_request(request):
     """Identifiants postés — quelle que soit la FORME de la requête.
 
     ⚠ Ne JAMAIS toucher `request.body` sans avoir vérifié le type de contenu. Sur un POST
@@ -125,24 +125,21 @@ def ids_from_request(request, field: str = 'ids'):
     d'import commune (`WamaImport`, FormData) les a appelées, le lot de 2 fichiers a cessé de se
     former, en 500, sur les trois apps portées. « Une garde se pose avec ses JUMEAUX » : le
     lecteur est désormais PUBLIC et importé par ces vues — plus aucune ne lit `request.body`.
-    Nom anglais parce qu'IMPORTÉ (règle de nommage) ; `field` pour le contrat historique du
-    converter (`job_ids`).
+    Nom anglais parce qu'IMPORTÉ (règle de nommage). Le paramètre `field` (contrat historique
+    `job_ids` du converter) et l'alias français `_ids_de_la_requete` sont retirés le 2026-10-17 :
+    le converter lit `ids` depuis que sa `consolidate` est celle de la fabrique (R134), et l'alias
+    n'a jamais eu de consommateur.
 
-    Formes acceptées : JSON `{"<field>": [...]}`, et champs répétés `<field>` ou `<field>[]`.
+    Formes acceptées : JSON `{"ids": [...]}`, et champs répétés `ids` ou `ids[]`.
     """
     if (request.content_type or '').startswith('application/json'):
         try:
-            return [int(i) for i in (json.loads(request.body or '{}').get(field) or [])
+            return [int(i) for i in (json.loads(request.body or '{}').get('ids') or [])
                     if str(i).isdigit()]
         except (ValueError, TypeError):
             return []
-    brut = request.POST.getlist(field + '[]') or request.POST.getlist(field)
-    return [int(i) for i in brut if str(i).isdigit()]
-
-
-#: Ancien nom (privé, français) — conservé le temps d'un cycle pour les lecteurs de diff ;
-#: aucun consommateur hors de ce module ne l'a jamais importé (grep 2026-09-07).
-_ids_de_la_requete = ids_from_request
+    raw = request.POST.getlist('ids[]') or request.POST.getlist('ids')
+    return [int(i) for i in raw if str(i).isdigit()]
 
 
 def _refus_de_groupe(group_key, work, membres):

@@ -3350,6 +3350,10 @@ partir de 2) — `_auto_wrap_orphans` l'enveloppe au reload, même état à l'é
 4/5 + 1 skip (garde anti-bouclage de `url_import`, identique avant/après), famille `converter.`
 **13/14 + le même skip** dont `processing` et `batch_processing` ; smoke 0 erreur JS ; 77 tests
 (converter, import_wired, codegen_templates, sandbox_coherence) OK ; grille converter **100 %**.
+*(2026-10-16 : `consolidateField:'job_ids'` est retiré — la `consolidate` du converter est celle de
+la fabrique commune, qui lit `ids`, et range à l'arrivée par `consolidate_arrival` ; `REMOVAL_LEDGER
+R134`. Le `field=` d'`ids_from_request` évoqué plus bas, resté sans appelant, est retiré le
+2026-10-17 avec l'alias `_ids_de_la_requete`.)*
 
 **3ᵉ adoption — describer, 2026-09-07 (soir)** : `extraFields` = les 3 réglages du volet ;
 `afterImport` porte la BIFURCATION de l'app (1 élément → card rendue serveur insérée sans reload,
