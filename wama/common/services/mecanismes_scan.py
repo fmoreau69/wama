@@ -57,6 +57,17 @@ EXCLUDED_DIRS = {
 ROOTS = ('wama', 'wama_lab', 'wama_data')
 
 
+def _is_twin(start, folder, name: str) -> bool:
+    """Le dossier est-il une JUMELLE bac à sable (`wama/<app>_NN/`, gitignorée) ? Exclue du
+    balayage depuis le 2026-10-17, comme de la garde de langue et du compte d'outils : du code
+    GÉNÉRÉ, copie d'une app déjà comptée, absent d'un clone — un compte écrit dans une doc
+    versionnée doit valoir sur un clone comme sur ce disque."""
+    if Path(folder) != Path(start):
+        return False
+    from wama.common.sandbox import LABEL_RE
+    return bool(LABEL_RE.match(name))
+
+
 def python_modules(base: Path):
     """Chemins .py de notre code (relatifs à base), vendored et artefacts élagués."""
     for root in ROOTS:
@@ -64,7 +75,8 @@ def python_modules(base: Path):
         if not start.is_dir():
             continue
         for folder, subdirs, files in os.walk(start):
-            subdirs[:] = [d for d in subdirs if d not in EXCLUDED_DIRS]
+            subdirs[:] = [d for d in subdirs if d not in EXCLUDED_DIRS
+                          and not _is_twin(start, folder, d)]
             for f in files:
                 if f.endswith('.py'):
                     yield Path(folder, f).relative_to(base).as_posix()
@@ -84,7 +96,8 @@ def front_sources(base: Path):
         if not start.is_dir():
             continue
         for folder, subdirs, files in os.walk(start):
-            subdirs[:] = [d for d in subdirs if d not in excluded]
+            subdirs[:] = [d for d in subdirs if d not in excluded
+                          and not _is_twin(start, folder, d)]
             for f in files:
                 if f.endswith(('.html', '.js')):
                     yield Path(folder, f).relative_to(base).as_posix()
@@ -133,23 +146,56 @@ def consumers(mechanism, sources: dict[str, str]) -> list[str]:
         # par l'inclusion d'une ANNEXE (`_filter_bar.html`, `_queue_toolbar.html`). Mesuré en
         # posant les symboles : le remplacement faisait tomber la barre de filtrage de 14 à 2
         # et la file de 81 à 2 — vrai d'un côté, faux de l'autre. Les deux sont des adoptions.
-    patterns = []
+    patterns, own_py = [], set()
     for path in own:
         if path.endswith('.py'):
             dotted = path[:-3].replace('/', '.')       # wama/common/x.py → wama.common.x
-            leaf = path.rsplit('/', 1)[-1][:-3]        # → x
-            # Les trois alternatives contiennent `leaf` (`dotted` finit par elle).
+            parent, leaf = dotted.rsplit('.', 1)       # → wama.common, x
+            own_py.add(path)
+            # ABSOLU seulement : le module nommé en entier, ou `from <paquet> import <feuille>`.
+            # ⚠ Jusqu'au 2026-10-17, une 3ᵉ alternative `from [.\w]*\.?<feuille> import` acceptait
+            # N'IMPORTE QUEL paquet devant la feuille : `wama/gateway/services.py` était
+            # « consommé » par chaque `from .services import` et `from wama.media_library.services
+            # import` du dépôt — les dix apps « adoptaient » l'appariement d'identité Discord, et
+            # la liste des mécanismes de niveau app sans critère en était gonflée. Le relatif est
+            # désormais RÉSOLU (`_relative_modules`), ci-dessous.
             patterns.append((leaf, re.compile(
                 rf'(?:from\s+{re.escape(dotted)}\s+import|import\s+{re.escape(dotted)}\b'
-                rf'|from\s+[.\w]*\.?{re.escape(leaf)}\s+import)')))
+                rf'|from\s+{re.escape(parent)}\s+import\s+(?:\([^)]*|[^\n]*)\b{re.escape(leaf)}\b)')))
         else:
             # Brique front (.js/.html) : consommée par la référence de son NOM de fichier
             # (balise <script src=…>, {% include %}, {% static %}).
             name = path.rsplit('/', 1)[-1]
             patterns.append((name, re.compile(re.escape(name))))
+    leaves = {p.rsplit('/', 1)[-1][:-3] for p in own_py}
     return sorted(by_symbol | {rel for rel, src in sources.items()
                                if rel not in own
-                               and any(lit in src and p.search(src) for lit, p in patterns)})
+                               and (any(lit in src and p.search(src) for lit, p in patterns)
+                                    or (own_py and any(leaf in src for leaf in leaves)
+                                        and own_py & _relative_modules(rel, src)))})
+
+
+#: `from .x import …` / `from ..a.b import …` / `from . import x, y` — les imports RELATIFS.
+_RELATIVE_FROM = re.compile(r'^[ \t]*from\s+(\.+)([\w.]*)\s+import\s+(\([^)]*\)|[^\n#]+)', re.M)
+
+
+def _relative_modules(rel: str, src: str) -> set:
+    """Les modules qu'un fichier importe en RELATIF, RÉSOLUS en chemins (relatifs à la base) —
+    depuis le dossier du fichier, un point par niveau. C'est ce qui distingue
+    `wama/gateway/services.py` du `services.py` de chaque app, que le nom seul confondait."""
+    here = Path(rel).parent
+    out = set()
+    for dots, module, names in _RELATIVE_FROM.findall(src):
+        base = here
+        for _ in range(len(dots) - 1):
+            base = base.parent
+        folder = base / module.replace('.', '/') if module else base
+        if module:
+            out.add((base / (module.replace('.', '/') + '.py')).as_posix())
+            out.add((folder / '__init__.py').as_posix())
+        # `from ..utils import media_paths` : le nom importé peut être lui-même un MODULE.
+        out.update((folder / f'{name}.py').as_posix() for name in re.findall(r'\w+', names))
+    return out
 
 
 @lru_cache(maxsize=1)

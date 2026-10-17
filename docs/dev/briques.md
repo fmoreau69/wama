@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**204 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**206 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1135,7 +1135,7 @@ Souvenirs + fragments sur pgvector, scope hérité de ScopedVisibility ; 5 opér
   - `content_hash(text: str) -> str` — SHA-256 du contenu NORMALISÉ (espaces repliés, casse pliée).
   - `remember(content, *, kind, provenance, user=None, subject='', source_app='', source_object_type='', source_object_id=None, confidence=None, visibility=None, sc…` — Écrit un souvenir. Rend le `MemoryItem` (créé ou déjà existant), ou `None` en cas d'échec.
   - `recall(query, *, user, kinds=None, subject=None, k=8, include_rag=True, include_memory=True, semantic=True, resident=True, rag_niveaux=None, include_docs=False)` — Retrouve les `k` meilleurs éléments visibles par `user`.
-  - `reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False)` — Calcule les vecteurs manquants, PAR LOT. Rend un résumé `{...}`.
+  - `reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False, user=None)` — Calcule les vecteurs manquants, PAR LOT. Rend un résumé `{...}`.
   - `forget(item, *, reason='', hard=False, at=None)` — Invalide un souvenir — `valid_to = maintenant`. Il cesse d'être rappelé, sans disparaître.
   - `merge(items, *, seuil=0.92)` — PROPOSE de fusionner des souvenirs proches. N'ÉCRIT RIEN.
   - `apply_fusion(proposition, *, par_utilisateur)` — Applique UNE proposition de `merge()`. Réservé à un geste humain explicite.
@@ -1583,7 +1583,7 @@ Les pages du menu Applications — apps du catalogue et surfaces déclarées, lu
 - **API publique** (5) :
   - `account_pages_for(user, allowed_apps=None) -> list` — Les pages du COMPTE que `user` peut ouvrir, dans l'ordre du menu : `[{'key', 'label',
   - `account_menu(user, allowed_apps=None) -> list` — Le menu du COMPTE de `user` : `[{'key', 'label', 'pages': […]}]`, une entrée par section
-  - `navigable_pages(user) -> list` — Les pages que `user` a le DROIT d'ouvrir : `[{'key', 'label', 'url', 'world', 'section',
+  - `navigable_pages(user) -> list` — Les pages que `user` a le DROIT d'ouvrir : `[{'key', 'label', 'url', 'world',
   - `find_page(user, page: str)` — La page que `page` désigne (clé, libellé ou alias, casse et accents ignorés) parmi celles
   - `absolute_url(path: str) -> str` — L'adresse COMPLÈTE d'une page, pour une surface hors navigateur (un canal) — '' si
 
@@ -2784,7 +2784,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) et son identité
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (40) :
+- **API publique** (41) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -2811,6 +2811,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) et son identité
   - `app_identity(app: str) -> dict` — L'IDENTITÉ d'une app, quelle que soit sa façon de se déclarer — `{'app', 'declared',
   - `register_account_page(key: str, *, section: str, label: str, icon: str, access: str, url_name: str='', surface: str='', tone: str='', color: str='', order: int…` — Déclare une page du COMPTE. Idempotent, comme `register_surface`.
   - `account_pages() -> list` — Les pages du compte déclarées (copies), dans l'ordre du menu : section, rang, libellé.
+  - `account_page_of(url_name: str) -> dict | None` — La page du compte que sert la route `url_name` (`'common:licenses_catalog'`), ou None.
   - `surfaces(world: str | None=None) -> list` — Surfaces déclarées (copies), d'un monde ou de tous, dans l'ordre de leur section.
   - `surface_for(app: str) -> dict | None` — Surface d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —, ou None. Le
   - `app_media_folders(app_id: str) -> tuple` — Dossiers qu'une app montre dans l'explorateur de fichiers : `((sous-dossier, libellé), …)`.
@@ -3068,7 +3069,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (40) :
+- **API publique** (41) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -3095,6 +3096,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `app_identity(app: str) -> dict` — L'IDENTITÉ d'une app, quelle que soit sa façon de se déclarer — `{'app', 'declared',
   - `register_account_page(key: str, *, section: str, label: str, icon: str, access: str, url_name: str='', surface: str='', tone: str='', color: str='', order: int…` — Déclare une page du COMPTE. Idempotent, comme `register_surface`.
   - `account_pages() -> list` — Les pages du compte déclarées (copies), dans l'ordre du menu : section, rang, libellé.
+  - `account_page_of(url_name: str) -> dict | None` — La page du compte que sert la route `url_name` (`'common:licenses_catalog'`), ou None.
   - `surfaces(world: str | None=None) -> list` — Surfaces déclarées (copies), d'un monde ou de tous, dans l'ordre de leur section.
   - `surface_for(app: str) -> dict | None` — Surface d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —, ou None. Le
   - `app_media_folders(app_id: str) -> tuple` — Dossiers qu'une app montre dans l'explorateur de fichiers : `((sous-dossier, libellé), …)`.

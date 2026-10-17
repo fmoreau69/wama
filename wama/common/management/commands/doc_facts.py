@@ -169,10 +169,10 @@ def _fait_mecanismes():
     # Balayage d'adoption : la logique vivait ICI en closure, elle a un 2ᵉ consommateur depuis
     # le 19/08 (contrôle de jonction mécanismes↔grille) → extraite dans le commun plutôt que
     # dupliquée. Le rendu ci-dessous est INCHANGÉ (fidélité vérifiée par `doc_facts --check`).
-    # ⚠ Forme d'import IMPORTANTE : `from wama.common.services.mecanismes_scan import …`.
-    # Le détecteur de consommateurs cherche `from <module> import` / `import <module>` — la
-    # forme `from wama.common.services import mecanismes_scan` lui ÉCHAPPE, et le module
-    # apparaissait « sans consommateur » alors que cette ligne l'utilise (mesuré 19/08).
+    # Forme d'import : la forme `from wama.common.services import mecanismes_scan` ÉCHAPPAIT au
+    # détecteur de consommateurs jusqu'au 2026-10-17 (le module apparaissait « sans
+    # consommateur », mesuré 19/08) ; elle est vue depuis, avec les imports relatifs RÉSOLUS
+    # (`mecanismes_scan.consumers`).
     from wama.common.services.mecanismes_scan import (load_sources, consumers,
                                                       orphan_criteria,
                                                       mechanisms_without_criterion, python_modules)
