@@ -291,6 +291,16 @@ mais c'est défaire son geste dans son dos.
   `grep -q` ferme le tube à la PREMIÈRE correspondance, `git show` meurt en SIGPIPE, `pipefail`
   rend l'échec et `set -e` arrête un index CORRECT juste avant le commit. Écrire le blob indexé
   dans un fichier (`git show :<f> > <scratchpad>/x`), puis `grep -q` sur ce fichier.
+- 🔴 **2026-10-18 — un relevé TRONQUÉ ne mesure pas, et un DÉPLACEMENT ne porte aucun mot
+  d'autrui.** `git diff -U0 <f> | grep '^[-+]' | head -30` n'a montré que mes lignes de
+  `mecanismes.py` ; une autre instance y avait déplacé 232 lignes à l'identique, plus bas que la
+  coupure — commitées sous mon message (`42157a42`, 245/240 pour ~8 lignes miennes), vu au
+  `--numstat` du commit. Un `grep` des mots-clés de son chantier ne le voit pas non plus : un bloc
+  déplacé n'en contient aucun. ✅ Comparer le `--numstat` à ce qu'on attend (la garde `expect` du §1
+  d) ; après coup, `git show --numstat HEAD` puis un relevé « lignes retirées ET réajoutées à
+  l'identique » par fichier. Réparé par le blob recomposé (parent + mes seules éditions) et
+  `commit-tree` + `update-ref <nouveau> <fautif>` (`5ffd611e`) ; le déplacement est resté intact
+  dans l'arbre.
 
 ## 4. Docs générées
 
