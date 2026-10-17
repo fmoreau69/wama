@@ -434,7 +434,8 @@ MECHANISMS = (
               # Ses tests sont SON corps, pas des consommateurs (2026-10-12 : deux fichiers de
               # test l'importaient sans être annexés, et le compte « 0 » devenait faux).
               annexes=('wama/model_manager/management/commands/bench.py',
-                       'wama/model_manager/tests/tests_bench_boxes.py'),
+                       'wama/model_manager/tests/tests_bench_boxes.py',
+                       'wama/model_manager/tests/tests_bench_upscale.py'),
               standalone="POINT D'ENTRÉE : son seul appelant est sa propre commande "
                          "(`manage.py bench`), déclarée en annexe — un banc se LANCE, il ne "
                          "s'importe pas. 0 consommateur est donc le compte JUSTE"),

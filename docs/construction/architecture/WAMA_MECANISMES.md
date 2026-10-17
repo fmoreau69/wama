@@ -346,10 +346,11 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `docs/construction/mondes/STUDIO_VISION.md` | 16 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` | 38 |
 
-**Mécanismes déclarés : 202** · domiciles absents : 0 · sans consommateur : 1 (+ 1 autonomes DÉCLARÉS) · assumés locaux : 16 · modules balayés non rattachés : 118 · **de niveau app sans critère de grille : 66**
+**Mécanismes déclarés : 202** · domiciles absents : 0 · sans consommateur : 1 (+ 2 autonomes DÉCLARÉS) · assumés locaux : 16 · modules balayés non rattachés : 118 · **de niveau app sans critère de grille : 66**
 - ❌ **Assumé ET déclaré** (contradiction, retirer d'un des deux) : `wama/common/utils/voice_options.py`
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `mcp_client` (wama/common/services/mcp_client.py)
 - ℹ️ **Sans consommateur, et c'est DÉCLARÉ** (point d'entrée de process, ou intention consignée — pas du code mort) :
+  - `bench` — POINT D'ENTRÉE : son seul appelant est sa propre commande (`manage.py bench`), déclarée en annexe — un banc se LANCE, il ne s'importe pas. 0 consommateur est donc le compte JUSTE
   - `qc` — INTENTION CONSIGNÉE, pas une brique morte (ROADMAP §16.5) : le 3ᵉ étage de l'échelle des signaux — la MESURE INTERNE — est vide, et ce juge l'attend. Mesuré le 2026-09-19 : 0 consommateur, bench compris
 
 <details><summary>⚠ <b>66 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mechanism</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
