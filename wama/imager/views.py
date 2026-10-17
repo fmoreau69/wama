@@ -980,6 +980,9 @@ batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
 batch_promote = _bv['batch_promote']
 batch_realign = _bv['batch_realign']
+# Le ZIP de LOT (2026-10-17) : l'imager n'en avait pas — un écrivain qui lisait un NOM de champ ne
+# savait pas servir ses images (une liste de chemins) ; l'écrivain commun lit ses sorties DÉCLARÉES.
+batch_download = _bv['batch_download']
 
 
 @require_http_methods(["POST"])
@@ -1414,37 +1417,9 @@ def clear_all(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-def download_all(request):
-    """Download all generated images as a zip file"""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        generations = ImageGeneration.objects.filter(user=user, status='SUCCESS')
-
-        if not generations.exists():
-            return HttpResponse("No completed generations to download", status=404)
-
-        import zipfile
-        from io import BytesIO
-
-        zip_buffer = BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for generation in generations:
-                for image_path in generation.generated_images:
-                    if os.path.exists(image_path):
-                        # Create a subfolder per generation
-                        folder_name = f"generation_{generation.id}"
-                        arcname = f"{folder_name}/{os.path.basename(image_path)}"
-                        zip_file.write(image_path, arcname)
-
-        zip_buffer.seek(0)
-        response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
-        response['Content-Disposition'] = 'attachment; filename="imager_all_images.zip"'
-        return response
-
-    except Exception as e:
-        logger.error(f"Error downloading all images: {str(e)}")
-        return HttpResponse(f"Error: {str(e)}", status=500)
+# ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
+# par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
+download_all = _pv['download_all']
 
 
 def console_content(request):

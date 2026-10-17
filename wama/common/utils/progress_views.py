@@ -82,8 +82,9 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
                         progress_of=None, error_field: str = 'error_message', eta_for=None,
                         eta_fallback=None, extra=None, pipeline_model=None, queryset=None,
                         domains=None, read_lookup=None):
-    """Les deux vues de progression d'une app : `{'progress': vue(request, pk),
-    'global_progress': vue(request)}`.
+    """Les vues de FILE d'une app : `{'progress': vue(request, pk), 'global_progress':
+    vue(request), 'download_all': vue(request)}` — la troisième (2026-10-17) est le ZIP de la
+    file que compte la deuxième, sur la même déclaration.
 
     Args:
         work_model     : le modèle de l'élément de file (porte `status`, la progression, l'erreur).
@@ -236,8 +237,36 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
             first = first or payload[name]
         return JsonResponse({**first, **payload})
 
+    def download_all(request):
+        """⬇ « Télécharger tout » de la barre de file (2026-10-17) : le ZIP des résultats de la
+        file que compte `global_progress` — la MÊME déclaration (`queryset`, `domains`), donc le ⬇
+        rendu prêt par la barre (au moins un terminé) a toujours quelque chose à servir. Les
+        entrées s'écrivent par `batch_views.zip_elements`, l'écrivain du ZIP de lot. `?domain=`
+        (imager) borne à une file de domaine ; `?format=` (apps late-binding) choisit le rendu."""
+        import datetime
+
+        from django.http import FileResponse
+        from wama.common.utils.batch_views import zip_elements
+        if request.method != 'GET':
+            from django.http import HttpResponseNotAllowed
+            return HttpResponseNotAllowed(['GET'])
+        user = get_user(request)
+        qs = queryset(user) if queryset is not None else work_model.objects.filter(user=user)
+        domain = request.GET.get('domain') or ''
+        if domain:
+            if domain not in (domains or {}):
+                return JsonResponse({'error': f'file inconnue : {domain}'}, status=400)
+            qs = domains[domain](qs)
+        qs = qs.filter(status='SUCCESS').order_by('pk')
+        if not qs.exists():
+            return JsonResponse({'error': 'Aucun résultat à télécharger'}, status=404)
+        buf, fmt = zip_elements(work_model, qs, request)
+        parts = [app_id, 'all'] + [p for p in (domain, fmt) if p] + [str(datetime.date.today())]
+        return FileResponse(buf, as_attachment=True, filename='_'.join(parts) + '.zip')
+
     progress.__name__, global_progress.__name__ = 'progress', 'global_progress'
-    return {'progress': progress, 'global_progress': global_progress}
+    download_all.__name__ = 'download_all'
+    return {'progress': progress, 'global_progress': global_progress, 'download_all': download_all}
 
 
 class _Row:

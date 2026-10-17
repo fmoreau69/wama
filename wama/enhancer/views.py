@@ -1,6 +1,4 @@
 import os
-import io
-import zipfile
 import logging
 from django.shortcuts import render, get_object_or_404
 from wama.accounts.permissions import app_access
@@ -615,29 +613,9 @@ def clear_all(request):
     return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})
 
 
-def download_all(request):
-    """Download all enhanced files as ZIP."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # LECTURE : inclut les cards partagées (leur résultat est consultable, pas modifiable).
-    enhancements = Enhancement.objects.visible_to(user).filter(
-        status='SUCCESS').exclude(output_file='')
-
-    if not enhancements.exists():
-        return HttpResponseBadRequest('No enhanced files available')
-
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for enhancement in enhancements:
-            if enhancement.output_file:
-                try:
-                    filename = enhancement.get_output_filename()
-                    with enhancement.output_file.open('rb') as f:
-                        archive.writestr(filename, f.read())
-                except:
-                    pass
-
-    buffer.seek(0)
-    return FileResponse(buffer, as_attachment=True, filename="enhanced_files.zip")
+# ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
+# par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
+download_all = _pv['download_all']
 
 
 #: Réglages pour lesquels une valeur postée VIDE est une valeur (curseur effacé) — lus par la
@@ -1247,26 +1225,9 @@ def audio_clear_all(request):
     return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})
 
 
-def audio_download_all(request):
-    """Download all enhanced audio files as ZIP."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    aes = AudioEnhancement.objects.filter(user=user, status='SUCCESS').exclude(output_file='')
-
-    if not aes.exists():
-        return HttpResponseBadRequest('No enhanced audio files available')
-
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for ae in aes:
-            if ae.output_file:
-                try:
-                    with ae.output_file.open('rb') as f:
-                        archive.writestr(ae.get_output_filename(), f.read())
-                except Exception:
-                    pass
-
-    buffer.seek(0)
-    return FileResponse(buffer, as_attachment=True, filename="enhanced_audio_files.zip")
+# ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
+# par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
+audio_download_all = _apv['download_all']
 
 
 

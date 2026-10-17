@@ -15,7 +15,6 @@ Endpoints:
 """
 
 import logging
-import os
 from pathlib import Path
 
 from django.shortcuts import render, get_object_or_404
@@ -619,30 +618,9 @@ def duplicate(request, pk):
     return JsonResponse({'success': True, 'id': new_job.id})   # contrat commun (cf. upload)
 
 
-@login_required
-def download_all(request):
-    """ZIP de TOUTES les sorties réussies de l'utilisateur (bouton global de la toolbar).
-
-    Complète batch_download (par lot) — écart download_all comblé à l'audit 2026-07-11
-    (PROJECT_STATUS §31.5).
-    """
-    import io
-    import zipfile
-    jobs = (ConversionJob.objects.filter(user=request.user, status='SUCCESS')
-            .exclude(output_file=''))
-    if not jobs.exists():
-        return JsonResponse({'error': 'Aucune conversion terminée à télécharger'}, status=400)
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for job in jobs:
-            try:
-                path = job.output_file.path
-                if os.path.exists(path):
-                    zf.write(path, os.path.basename(path))
-            except Exception:
-                pass
-    buf.seek(0)
-    return FileResponse(buf, as_attachment=True, filename='converter_all.zip')
+# ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
+# par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
+download_all = login_required(_pv['download_all'])
 
 
 @login_required

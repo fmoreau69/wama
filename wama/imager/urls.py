@@ -76,6 +76,7 @@ urlpatterns = [
     path('batch/<int:pk>/start/', views.batch_start, name='batch_start'),
     path('batch/<int:pk>/delete/', views.batch_delete, name='batch_delete'),
     path('batch/<int:pk>/duplicate/', views.batch_duplicate, name='batch_duplicate'),
+    path('batch/<int:pk>/download/', views.batch_download, name='batch_download'),
 
     # Prompt enhancement (Ollama)
 

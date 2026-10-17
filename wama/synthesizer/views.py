@@ -5,8 +5,6 @@ Interface de synthèse vocale
 
 import os
 from wama.accounts.permissions import app_access
-import io
-import zipfile
 import logging
 from pathlib import Path
 from django.conf import settings
@@ -631,35 +629,9 @@ def clear_all(request):
     })
 
 
-def download_all(request):
-    """
-    Télécharge toutes les synthèses terminées dans un ZIP.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    syntheses = VoiceSynthesis.objects.filter(
-        user=user,
-        status='SUCCESS'
-    ).exclude(audio_output='')
-
-    if not syntheses.exists():
-        return HttpResponseBadRequest('Aucune synthèse prête')
-
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for synthesis in syntheses:
-            if synthesis.audio_output:
-                filename = f"synthesis_{synthesis.id}_{synthesis.filename}"
-                filename = filename.replace('.txt', '.wav').replace('.pdf', '.wav')
-
-                with synthesis.audio_output.open('rb') as audio_file:
-                    archive.writestr(filename, audio_file.read())
-
-    buffer.seek(0)
-    return FileResponse(
-        buffer,
-        as_attachment=True,
-        filename="voice_syntheses.zip"
-    )
+# ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
+# par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
+download_all = _pv['download_all']
 
 
 def _apply_synthesis_settings(synthesis, data):

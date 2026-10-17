@@ -785,34 +785,9 @@ def duplicate(request, pk):
     return JsonResponse({'success': True, 'id': new_gen.id, 'duplicated': new_gen.id})
 
 
-def download_all(request):
-    """Download all completed audio outputs as a ZIP archive."""
-    import io as _io
-    import zipfile
-    from django.http import HttpResponse
-
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    gens = (ComposerGeneration.objects
-            .filter(user=user, status='SUCCESS')
-            .exclude(audio_output=''))
-
-    if not gens.exists():
-        return JsonResponse({'error': 'Aucun fichier disponible'}, status=404)
-
-    buffer = _io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for gen in gens:
-            if not gen.audio_output:
-                continue
-            try:
-                zf.write(gen.audio_output.path, os.path.basename(gen.audio_output.name))
-            except Exception:
-                pass
-
-    buffer.seek(0)
-    response = HttpResponse(buffer.getvalue(), content_type='application/zip')
-    response['Content-Disposition'] = 'attachment; filename="composer_audio.zip"'
-    return response
+# ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
+# par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
+download_all = _pv['download_all']
 
 
 # ---------------------------------------------------------------------------

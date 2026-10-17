@@ -9,8 +9,6 @@ import json
 import logging
 import mimetypes
 from pathlib import Path
-from zipfile import ZipFile
-from io import BytesIO
 
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse, FileResponse
@@ -751,53 +749,9 @@ def clear_all(request):
     return JsonResponse({'deleted': count})
 
 
-@require_GET
-def download_all(request):
-    """ZIP de tous les résultats, au format demandé (`?format=` txt/pdf/docx).
-
-    Lit ENFIN la query que le menu ▾ du ⬇ commun envoie (`export_formats` déclarés) : jusqu'au
-    2026-08-30 seule la vue d'ITEM la lisait — porter le menu sans cette vue aurait produit
-    un « vert d'ADOPTION, faux en FONCTIONNEMENT » (WAMA_VERIFICATION §Geste 14). Idiome du
-    transcriber : un item qui échoue dans un format retombe en txt, jamais un ZIP en erreur.
-    """
-    user = get_user(request)
-    descriptions = Description.objects.filter(user=user, status='SUCCESS')
-
-    if not descriptions.exists():
-        return JsonResponse({'error': 'No results available'}, status=400)
-
-    fmt = (request.GET.get('format') or '').lower()
-    buffer = BytesIO()
-    with ZipFile(buffer, 'w') as zf:
-        for desc in descriptions:
-            from wama.common.utils.output_naming import compose_output_name
-            base_name = os.path.splitext(compose_output_name(
-                app='describer', source_name=desc.filename, item_id=desc.pk))[0]
-
-            entry = None
-            try:
-                if fmt == 'pdf':
-                    from wama.common.utils.document_export import generate_description_pdf
-                    entry = (f"{base_name}.pdf", generate_description_pdf(desc))
-                elif fmt == 'docx':
-                    from wama.common.utils.document_export import generate_description_docx
-                    entry = (f"{base_name}.docx", generate_description_docx(desc))
-            except Exception as e:
-                logger.warning(f"[Describer] download_all: {fmt} failed for #{desc.pk} ({e}); falling back to txt")
-                entry = None
-            if entry is not None:
-                zf.writestr(*entry)
-            elif desc.result_file and os.path.exists(desc.result_file.path):
-                zf.write(desc.result_file.path, f"{base_name}.txt")
-            elif desc.result_text:
-                zf.writestr(f"{base_name}.txt", desc.result_text.encode('utf-8'))
-
-    buffer.seek(0)
-
-    suffix = f'_{fmt}' if fmt else ''
-    response = HttpResponse(buffer.getvalue(), content_type='application/zip')
-    response['Content-Disposition'] = content_disposition_header(True, f'descriptions{suffix}.zip')
-    return response
+# ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
+# par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
+download_all = _pv['download_all']
 
 
 @require_POST

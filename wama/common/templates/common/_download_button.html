@@ -46,6 +46,8 @@ pas en profiter pour le changer.
               `data-queue-download`, que `wama-global-progress.js` bascule (cf. le tag).
 {% endcomment %}
 {% load i18n %}
+{# `?format=` s'ajoute à une URL qui peut déjà porter sa query (`?domain=` d'une file de domaine). #}
+{% if '?' in url %}{% firstof '&' as join %}{% else %}{% firstof '?' as join %}{% endif %}
 {% if split is False and formats %}
   {# MENU SEUL (barre de file) — un bouton, un ▾ : la rangée d'actions ne s'élargit pas. #}
   <div class="dropdown d-inline-block">
@@ -59,7 +61,7 @@ pas en profiter pour le changer.
       {% for f in formats %}
         {% if f.separator %}<li><hr class="dropdown-divider"></li>{% endif %}
         <li>
-          <a class="dropdown-item" href="{{ url }}?format={{ f.value }}">
+          <a class="dropdown-item" href="{{ url }}{{ join }}format={{ f.value }}">
             <i class="{{ f.icon }} me-2"></i>{{ f.label }}
           </a>
         </li>
@@ -80,7 +82,7 @@ pas en profiter pour le changer.
   </a>
 {% else %}
   <div class="btn-group btn-group-sm">
-    <a{% if id %} id="{{ id }}"{% endif %} href="{{ url }}?format={{ formats.0.value }}"
+    <a{% if id %} id="{{ id }}"{% endif %} href="{{ url }}{{ join }}format={{ formats.0.value }}"
        class="btn {{ css_class|default:'btn-outline-info' }} download-btn"
        title="{{ title|default:_('Télécharger') }}">
       <i class="fas fa-download"></i>{% if label %} <span class="wama-btn-label">{{ label }}</span>{% endif %}
@@ -94,7 +96,7 @@ pas en profiter pour le changer.
       {% for f in formats %}
         {% if f.separator %}<li><hr class="dropdown-divider"></li>{% endif %}
         <li>
-          <a class="dropdown-item" href="{{ url }}?format={{ f.value }}">
+          <a class="dropdown-item" href="{{ url }}{{ join }}format={{ f.value }}">
             <i class="{{ f.icon }} me-2"></i>{{ f.label }}
           </a>
         </li>

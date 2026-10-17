@@ -3,7 +3,6 @@ import io
 import json
 import re
 import logging
-import zipfile
 import shutil
 import platform
 from django.shortcuts import render, get_object_or_404, redirect
@@ -1360,29 +1359,9 @@ def clear_all(request):
     return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})
 
 
-def download_all(request):
-    """Download all ready transcripts as a ZIP in the requested format (txt/srt/pdf/docx)."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    transcripts = Transcript.objects.filter(user=user).exclude(text='')
-    if not transcripts.exists():
-        return HttpResponseBadRequest('No transcripts ready')
-    fmt = request.GET.get('format', 'txt').lower()
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for transcript in transcripts:
-            stem = _output_stem(transcript)
-            try:
-                result = build_transcript_bytes(transcript, fmt)
-            except Exception as e:
-                logger.warning(f"[Transcriber] download_all: {fmt} failed for #{transcript.pk} ({e}); falling back to txt")
-                result = None
-            if result:
-                ext, data = result
-            else:
-                ext, data = 'txt', (transcript.text or '').encode('utf-8')
-            archive.writestr(f"{stem}.{ext}", data)
-    buffer.seek(0)
-    return FileResponse(buffer, as_attachment=True, filename=f"transcripts_{fmt}.zip")
+# ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
+# par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
+download_all = _pv['download_all']
 
 
 # =============================================================================

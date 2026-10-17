@@ -159,9 +159,10 @@ Tout telecharger. ⚠ AVANT le conteneur de file, JAMAIS dedans : en mosaïque
 2026-09-08, 592 px en ligne contre 290 px (une colonne) en mosaïque. L'imager était la seule
 app du parc à l'inclure dedans ; tenu depuis par `tests_queue_toolbar_placement`.
 ▶ et 🗑 câblés par la brique `queue-actions.js` ; les deux files partagent les mêmes routes
-(`start_all` lance tout élément en attente, `clear_all` vide les deux). {% endcomment %}
+(`start_all` lance tout élément en attente, `clear_all` vide les deux) ; le ⬇ est borné à SA file
+(`?domain=`, les domaines déclarés à `make_progress_views` — ceux que compte sa barre). {% endcomment %}
 {% url 'imager:start_all' as q_start_url %}{% url 'imager:clear_all' as q_clear_url %}{% url 'imager:download_all' as q_download_url %}
-{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-image-start-all' clear_id='imager-image-clear-all' download_id='imager-image-download-all' show_download=True app='imager' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url %}
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-image-start-all' clear_id='imager-image-clear-all' download_id='imager-image-download-all' show_download=True app='imager' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url|add:'?domain=image' %}
 
         {% comment %}`wama-queue-{{ card_layout }}` : bascule Ligne/Mosaïque commune. La valeur
         vient du context processor global (accounts) et persiste sur UserProfile ; le toggle est
@@ -169,7 +170,8 @@ app du parc à l'inclure dedans ; tenu depuis par `tests_queue_toolbar_placement
         <div id="generationsQueue" class="wama-queue-{{ card_layout|default:'list' }}"
          {% queue_dnd_attrs 'imager' 'image' %}>
 {% for batch_info in image_batches %}
-    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='image' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
+    {% url 'imager:batch_download' batch_info.obj.id as batch_download_url %}
+    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='image' download_url=batch_download_url actions_communes=True meta_template='common/_batch_meta_chips.html' %}
 {% empty %}
     <div class="card bg-dark border-secondary">
         <div class="card-body text-center text-white-50 py-4">
@@ -214,12 +216,13 @@ sa propre voie de lot (`vidBatch`). {% endcomment %}
 
 {% comment %} Toolbar commune — AVANT le conteneur (cf. la file images ci-dessus). {% endcomment %}
 {% url 'imager:start_all' as q_start_url %}{% url 'imager:clear_all' as q_clear_url %}{% url 'imager:download_all' as q_download_url %}
-{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-video-start-all' clear_id='imager-video-clear-all' download_id='imager-video-download-all' show_download=True app='imager' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url %}
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-video-start-all' clear_id='imager-video-clear-all' download_id='imager-video-download-all' show_download=True app='imager' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url|add:'?domain=video' %}
 
         <div id="videoGenerationsQueue" class="wama-queue-{{ card_layout|default:'list' }}"
          {% queue_dnd_attrs 'imager' 'video' %}>
 {% for batch_info in video_batches %}
-    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='video' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
+    {% url 'imager:batch_download' batch_info.obj.id as batch_download_url %}
+    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='video' download_url=batch_download_url actions_communes=True meta_template='common/_batch_meta_chips.html' %}
 {% empty %}
     <div class="card bg-dark border-secondary">
         <div class="card-body text-center text-white-50 py-4">

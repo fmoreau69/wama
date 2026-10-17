@@ -1,10 +1,8 @@
 import os
 import re
-import io
 import json
 import cv2
 import yt_dlp
-import zipfile
 import mimetypes
 import requests
 from PIL import Image
@@ -15,7 +13,7 @@ from celery.result import AsyncResult
 from django.http import FileResponse, Http404, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_POST
 from django.db import close_old_connections, transaction
 from django.core.cache import cache
 from django.contrib.auth.models import User
@@ -539,57 +537,9 @@ def _servir_media_traite(request, media):
                         filename=os.path.basename(out.name))
 
 
-# @login_required
-@require_GET
-def download_all_media(request):
-    """ZIP des sorties de la file. Une LECTURE, donc un GET, comme le `download_all` des neuf
-    autres apps (2026-10-17) : le ⬇ de la barre de file commune est un lien. Il exigeait un POST,
-    d'où un formulaire fabriqué en JS par `queue.js` pour ce seul bouton."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    print(f"[download_all_media] User: {user.username} (ID: {user.id})")
-
-    # Check all user media first
-    all_medias = Media.objects.filter(user=user)
-    processed_medias = all_medias.filter(status='SUCCESS')
-
-    print(f"[download_all_media] Total user media: {all_medias.count()}")
-    print(f"[download_all_media] Processed media: {processed_medias.count()}")
-
-    # Log each media status
-    for media in all_medias:
-        print(f"[download_all_media] Media ID {media.id}: {media.file.name} - processed={media.processed}")
-
-    if not processed_medias.exists():
-        error_msg = f"No processed media found. Total media: {all_medias.count()}, Processed: 0"
-        print(f"[download_all_media] ERROR: {error_msg}")
-        return HttpResponseBadRequest(error_msg)
-
-    # Create a ZIP archive in memory
-    zip_buffer = io.BytesIO()
-    files_added = 0
-    missing_files = []
-
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for media in processed_medias:
-            # La sortie DE LA CARD (2026-09-27). Ce lecteur cherchait le seul nom exact
-            # `<entrée>_blurred`, qu'aucun moteur n'écrit plus : l'archive restait vide.
-            out = media.output_file
-            if out and os.path.exists(out.path):
-                zip_file.write(out.path, arcname=os.path.basename(out.name))
-                files_added += 1
-            else:
-                missing_files.append(f"#{media.id}")
-
-    print(f"[download_all_media] ZIP created with {files_added} files, {len(missing_files)} missing")
-
-    if files_added == 0:
-        error_msg = f"No files found on disk. Processed in DB: {processed_medias.count()}, Missing files: {', '.join(missing_files)}"
-        print(f"[download_all_media] ERROR: {error_msg}")
-        return HttpResponseBadRequest(error_msg)
-
-    zip_buffer.seek(0)
-    print(f"[download_all_media] ✓ Sending ZIP with {files_added} files")
-    return FileResponse(zip_buffer, as_attachment=True, filename="blurred_media.zip")
+# ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
+# par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
+download_all_media = _pv['download_all']
 
 
 def stop_process_view(request):

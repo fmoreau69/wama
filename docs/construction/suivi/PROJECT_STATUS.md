@@ -24508,6 +24508,55 @@ rendu des formats déclarés recopiés), alors que le ZIP de LOT a sa fabrique (
 → `batch_download`). Et les deux lisent un NOM de champ au lieu des sorties DÉCLARÉES de la card
 (`send_to.sorties_de`, spec de détail) : `imager.download_all` ne zippe que `generated_images`
 (`views.py:1433`) — les vidéos (`output_video`, `models.py:273`) n'y entrent pas, alors que le ⬇
-de la file VIDÉO vient de devenir vivant —, et le ZIP de LOT de l'imager répond 404 (la fabrique
-sert `output_field='output_file'` par défaut, champ que `ImageGeneration` n'a pas,
-`batch_views.py:502-504`).
+de la file VIDÉO vient de devenir vivant —, et l'imager n'a pas de ZIP de LOT : la fabrique sert
+`output_field='output_file'` par défaut, champ que `ImageGeneration` n'a pas
+(`batch_views.py:502-504`), et ses cards de lot ne reçoivent aucune `download_url`.
+⚠ *Corrigé le même jour* : cette ligne disait « le ZIP de lot de l'imager répond 404 » — il n'a
+pas de route du tout (`grep batch_download` vide dans `imager/views.py` et `imager/urls.py`) ; la
+sonde avait aussi supposé le défaut au composer, qui passe `output_field='audio_output'`.
+
+## §PALIER 2026-10-17→18 — le ZIP de FILE par la fabrique, un écrivain de ZIP partagé avec le lot (10/10) — non poussé — 🔴 relancer gunicorn (vues + gabarit imager)
+
+Suite du ⬇ de barre (`edcc49c4`), même consigne : *« Il faut tout aligner et tout porter. »*
+
+**Mesuré** : onze vues `download_all` écrites dans les dix apps (nom d'archive, nommage des
+entrées, périmètre, réponse « vide » en 400 / 404 / JSON / texte, et trois recopies du rendu des
+formats déclarés), plus celle que le générateur émettait. L'écrivain du ZIP de LOT, lui, servait
+un NOM de champ (`output_field`, défaut `output_file`). L'imager en payait le prix des deux côtés :
+son ZIP de file ne contenait que `generated_images` (les VIDÉOS de la file vidéo n'y entraient
+pas), et il n'avait pas de ZIP de lot (`ImageGeneration` n'a pas d'`output_file` ; aucune route).
+
+**Livré (R142)** :
+- `batch_views.zip_elements` : UN écrivain — rendu late-binding (avec repli sur le premier format
+  déclaré, l'idiome des trois vues), texte déclaré, sinon les sorties DÉCLARÉES de la card
+  (`send_to.sorties_de` : `result_file` + `result_files` de la spec de détail — la lecture
+  d'« Envoyer vers… »), repli sur le champ servi ; deux entrées homonymes ne s'écrasent pas. Le
+  nommage se DÉCLARE une fois à la fabrique de lot ; seule la fabrique du module de l'app l'inscrit
+  (une fabrique de test sur le même modèle ne le réécrit pas) ;
+- le ZIP de file = la vue `download_all` de `make_progress_views`, sur la file DÉCLARÉE à la barre
+  globale (`queryset`, `domains` ; `?domain=` pour l'imager) : ce que compte la barre est ce que sert
+  le ⬇ qu'elle rend prêt. Les onze vues deviennent une ligne ; le générateur aussi ;
+- l'imager : chaque ⬇ de barre borné à SA file, et le ZIP de LOT (route `batch_download`,
+  `download_url` de ses cards de lot) ; la brique ⬇ joint `?format=` à une URL qui porte déjà sa
+  query ;
+- critère `download_all` : il lisait la seule ROUTE, il lit la vue de la fabrique (HEAD : « partiel »
+  10/10, arbre : 10/10).
+
+**Écarts de comportement assumés, à connaître** : le nom des archives est uniforme
+(`<app>_all[_<domaine>][_<format>]_<date>.zip`) ; une file vide répond 404 JSON partout ; le ZIP de
+l'enhancer ne prend plus les cards PARTAGÉES (il suivait `visible_to`, la barre compte les siennes
+— c'est la déclaration de la file qui décide, pour les deux à la fois) ; sans `?format=`, le reader
+rend le premier format déclaré (`.txt`) au lieu de l'extension de `output_format`.
+
+**Gardes** : `tests_queue_zip` (les onze routes sont la vue de la fabrique ; chaque file de
+l'imager ne zippe que la sienne, vidéo comprise ; son ZIP de lot sert ses sorties déclarées ;
+repli late-binding ; 404 / 400), `tests_batch_views` (le test qui fixait « sans `output_file`,
+404 » sur l'imager — le défaut pris pour un contrat — réécrit sur « rien de servable → 404 »),
+`tests_output_naming` (noms conservés). Contre-épreuves ROUGES : écrivain réduit au champ nommé,
+rendu sans repli. Suite élargie : 4883 tests — aucun rouge neuf de ma main (ceux de la suite
+précédente, plus `tests_doc_plans` le temps d'une doc dérivée périmée par mon propre changement,
+régénérée).
+
+**Partagé avec une autre instance (thèmes)** : la carte des mécanismes régénérée portait aussi trois
+lignes que son travail en cours fait bouger (Notifications, Actualisation des catalogues,
+Cache-busting) — laissées hors de mon commit, comme `docs/dev/registres.md`.

@@ -1598,6 +1598,8 @@ MECHANISMS = (
     Mechanism('batch_views', 'Vues de lot (fabrique commune)',
               "Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, "
               "batch_update, batch_delete, batch_duplicate, batch_download, batch_status — "
+              "et l'ÉCRIVAIN de ZIP partagé avec la file (`zip_elements`, 2026-10-17 : rendu "
+              "late-binding, sinon les sorties DÉCLARÉES de la card ; nommage déclaré ici une fois) — "
               "paramétrée comme la fabrique de file (les deux formes de rattachement par "
               "`batch_elements`/`attach_to_batch`). EXTRAITE le 2026-09-22 des corps "
               "conventionnels du générateur d'apps (`views_gen`), qui la consomme ; les apps "
@@ -1612,7 +1614,9 @@ MECHANISMS = (
               "`tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest`",
               'wama/common/utils/batch_views.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11'),
     Mechanism('progress_views', 'Vues de progression (fabrique commune)',
-              "Le suivi d'UNE card (`progress`) et la barre de FILE (`global_progress`) en une "
+              "Le suivi d'UNE card (`progress`), la barre de FILE (`global_progress`) et le ZIP "
+              "de cette file (`download_all`, 2026-10-17 : la même déclaration `queryset` / "
+              "`domains`, les entrées par `batch_views.zip_elements`) en une "
               "fabrique — `make_progress_views` (`ROUTE §11 #37`, 2026-10-03). Les dix apps les "
               "écrivaient à la main : trois formules de progression d'ensemble, quatre "
               "vocabulaires de clés que le JS commun absorbait. UNE formule, celle du contrat de "
@@ -1628,8 +1632,9 @@ MECHANISMS = (
               "`progress_views_common` ; contrat générique "
               "`tests_item_lifecycle_contract` (clés d'une card et de la file, toutes les apps)",
               'wama/common/utils/progress_views.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11',
-              annexes=('wama/common/tests/tests_progress_views.py',),
-              depends_on=('task_skeleton',)),
+              annexes=('wama/common/tests/tests_progress_views.py',
+                       'wama/common/tests/tests_queue_zip.py'),
+              depends_on=('task_skeleton', 'batch_views')),
     # Ajouté le 2026-10-03 (P5, 5.3) : la décision du 2026-08-25 (`MODES_QUEUE_UX §5ter`) enfin
     # construite — elle attendait une MÉMOIRE que les modèles de lot n'avaient pas.
     Mechanism('batch_settings', "Réglages de référence d'un lot (promotion fille ↔ mère)",

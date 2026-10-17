@@ -2372,6 +2372,7 @@
         "auto_prompt",
         "batch_children",
         "batch_delete",
+        "batch_download",
         "batch_duplicate",
         "batch_preview",
         "batch_promote",

@@ -640,6 +640,23 @@ def _app_js_reads_id(f: _AppFiles, ident: str) -> str | None:
     return None
 
 
+def _queue_zip_common(f: _AppFiles):
+    """Le ZIP de la FILE (`download_all`) est la vue de la fabrique commune
+    (`make_progress_views` → `download_all`), jamais une vue écrite dans l'app.
+
+    Mesuré depuis le 2026-10-17 ; ce critère ne lisait que la ROUTE (`download_all` dans les
+    urls) et restait vert 10/10 sur onze vues recopiées — nom d'archive, nommage des entrées,
+    périmètre, formats rendus —, dont celle de l'imager qui oubliait ses vidéos."""
+    route = f.find(URLS, r'download_all|download-all')
+    if not route:
+        return False, None
+    hand = f.find_code(VIEWS, r'(?m)^def (?:audio_)?download_all(?:_media)?\s*\(')
+    if hand:
+        return 'partial', f"ZIP de file écrit dans l'app ({hand}) — `_pv['download_all']`"
+    factory = f.find_code(VIEWS, r"_a?pv\[['\"]download_all['\"]\]")
+    return (True, factory) if factory else (False, f"route {route} sans la vue de la fabrique")
+
+
 def _queue_actions_common(f: _AppFiles):
     """▶ Démarrer tout, ⬇ Télécharger tout et 🗑 Tout effacer de la FILE câblés par les briques
     communes : chaque barre reçoit `start_url`, `clear_url` et — si elle montre le ⬇ —
@@ -2623,8 +2640,8 @@ CRITERIA: list[Criterion] = [
     # des trois boutons de la barre (2026-10-17).
     Criterion('queue_actions_common', 'F5', 'Barre de file (▶ ⬇ 🗑) câblée par les briques communes',
               _queue_actions_common, mechanism='queue_front'),
-    Criterion('download_all', 'F5', 'Vue download_all',
-              lambda f: _present(f, URLS, r'download_all|download-all')),
+    Criterion('download_all', 'F5', 'Vue download_all : le ZIP de la file par la fabrique commune',
+              _queue_zip_common, mechanism='progress_views'),
     Criterion('batch_template', 'F5', 'Gabarit batch téléchargeable',
               lambda f: _present(f, URLS, r'batch_template|batch-template')),
     Criterion('btn_order', 'F5', 'Ordre canonique des boutons ⚙▶⬇⧉🗑', _btn_order),

@@ -520,11 +520,20 @@ class LinkFormBatchViewsTest(TestCase):
         self.assertFalse(GenerationBatchItem.objects.filter(batch_id=self.lot.pk).exists())
         self.assertFalse(GenerationBatch.objects.filter(pk=self.lot.pk).exists())
 
-    def test_download_without_an_output_field_answers_404_json(self):
+    def test_download_without_anything_servable_answers_404_json(self):
+        """Ni rendu, ni texte, ni sortie DÉCLARÉE, ni champ servi → 404. Ce test disait « sans
+        `output_file`, 404 » sur l'imager, et fixait ainsi le défaut comme contrat : ses sorties
+        sont déclarées (spec de détail) et se servent depuis le 2026-10-17 (`tests_queue_zip`).
+        Le modèle « sans rien de déclaré » est simulé ici en retirant sa surface de détail."""
+        from unittest import mock
+
+        from wama.common.utils import batch_views
         req = self.rf.get('/x/')
         req.user = self.u
-        r = self.views['batch_download'](req, self.lot.pk)
+        with mock.patch.object(batch_views, '_surface_of', lambda model: None):
+            r = self.views['batch_download'](req, self.lot.pk)
         self.assertEqual(r.status_code, 404)
+        self.assertIn('error', json.loads(r.content))
 
     def test_hooks_can_name_after_the_link_row_that_carries_each_element(self):
         """synthesizer / composer : le nom du fichier et le libellé viennent de la LIGNE DE

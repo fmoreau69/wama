@@ -6,7 +6,6 @@ from wama.accounts.permissions import app_access
 import os
 import json
 import logging
-import zipfile
 import tempfile
 
 from django.shortcuts import render, get_object_or_404
@@ -655,59 +654,9 @@ def start_all(request):
 
 
 
-def download_all(request):
-    """ZIP de tous les résultats, au format demandé (`?format=` txt/md/pdf/docx/json).
-
-    Lit ENFIN la query que le menu ▾ du ⬇ commun envoie (`export_formats` déclarés) : jusqu'au
-    2026-08-30 seule la vue d'ITEM la lisait — porter le menu sans cette vue aurait produit
-    un « vert d'ADOPTION, faux en FONCTIONNEMENT » (WAMA_VERIFICATION §Geste 14). Idiome du
-    transcriber : un item qui échoue dans un format retombe en txt, jamais un ZIP en erreur.
-    Sans `?format=`, comportement historique inchangé (extension selon `output_format`).
-    """
-    from io import BytesIO
-    user = _get_user(request)
-    items = ReadingItem.objects.filter(user=user, status='SUCCESS')
-    if not items.exists():
-        return JsonResponse({'error': 'Aucun résultat disponible'}, status=400)
-
-    fmt = (request.GET.get('format') or '').lower()
-    buf = BytesIO()
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for item in items:
-            # ⚠ Ce site-ci a failli partir SANS être porté, alors que les entrées qu'il
-            # compose plus bas avaient déjà perdu leur `_ocr` : le ZIP serait sorti avec des
-            # noms NUS. La relecture du diff avant commit l'a rattrapé — un portage se vérifie
-            # sur le site qui DÉFINIT la souche, pas seulement sur ceux qui la consomment.
-            from wama.common.utils.output_naming import compose_output_name
-            base = os.path.splitext(compose_output_name(
-                app='reader', source_name=item.original_filename or f'item_{item.id}',
-                item_id=item.pk))[0]
-            entry = None
-            try:
-                if fmt == 'json' and item.raw_result:
-                    entry = (f'{base}_raw.json', item.raw_result.encode('utf-8'))
-                elif fmt == 'pdf' and item.result_text:
-                    from wama.common.utils.document_export import generate_reader_pdf
-                    entry = (f'{base}.pdf', generate_reader_pdf(item))
-                elif fmt == 'docx' and item.result_text:
-                    from wama.common.utils.document_export import generate_reader_docx
-                    entry = (f'{base}.docx', generate_reader_docx(item))
-                elif fmt in ('txt', 'md') and item.result_text:
-                    entry = (f"{base}.{fmt}",
-                             _extract_natural_text(item.result_text).encode('utf-8'))
-            except Exception as e:
-                logger.warning(f"[Reader] download_all: {fmt} failed for #{item.pk} ({e}); falling back to txt")
-                entry = None
-            if entry is None and item.result_text:
-                ext = '.md' if item.output_format == 'markdown' else '.txt'
-                entry = (f'{base}{ext}', item.result_text.encode('utf-8'))
-            if entry:
-                zf.writestr(*entry)
-    buf.seek(0)
-    suffix = f'_{fmt}' if fmt else ''
-    response = HttpResponse(buf.read(), content_type='application/zip')
-    response['Content-Disposition'] = content_disposition_header(True, f'reader_results{suffix}.zip')
-    return response
+# ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
+# par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
+download_all = _pv['download_all']
 
 
 @require_POST

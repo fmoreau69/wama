@@ -1119,20 +1119,9 @@ def clear_all(request):
     return JsonResponse({{'cleared': n}})'''
 
     if out_file or out_text:
-        zip_entry = (f'''            if item.{out_file}:
-                z.writestr(Path(item.{out_file}.name).name, item.{out_file}.read())''' if out_file
-                      else f'''            if getattr(item, '{out_text}', ''):
-                z.writestr({text_name}, item.{out_text})''')
-        name_import = ('' if out_file else
-                      "    from wama.common.utils.output_naming import compose_output_name\n")
-        vues['download_all'] = f'''def download_all(request):
-{name_import}    user = _user(request)
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
-        for item in {item}.objects.filter(user=user, status='SUCCESS'):
-{zip_entry}
-    buf.seek(0)
-    return FileResponse(buf, as_attachment=True, filename='{app}_outputs.zip')'''
+        # Le ZIP de FILE par la fabrique (2026-10-17) : la file que compte `_pv`, les entrées
+        # écrites comme celles du lot (déclarées à `make_batch_views`, `bv_output` plus bas).
+        vues['download_all'] = "download_all = _pv['download_all']"
     else:
         vues['download_all'] = stub('download_all')
 
@@ -1393,9 +1382,7 @@ CONVENTIONNEL paramétré par le manifeste (item={item}, batch={batch}, forme de
 {forme_doc}, tâche {task}) ; les endpoints hors convention sont des STUBS 501 marqués
 TROU DE GLU (marche B) — la page boote, la fonctionnalité manque VISIBLEMENT (détecteur).
 """
-import io
 import json
-import zipfile
 from pathlib import Path
 
 from django.http import FileResponse, HttpResponse, JsonResponse

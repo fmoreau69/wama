@@ -120,6 +120,140 @@ def apply_item_settings(item, data, *, params_fields=(), options_field=None, ext
     return touched
 
 
+#: Comment s'écrivent les entrées du ZIP d'un modèle d'élément — DÉCLARÉ une fois, par sa
+#: fabrique de lot (`make_batch_views` : `output_name`, `output_field`, `output_text`,
+#: `item_label`), et lu par les DEUX ZIP : celui d'un lot (`batch_download`) et celui de la file
+#: (`progress_views.make_progress_views` → `download_all`, 2026-10-17). Avant, onze vues
+#: `download_all` écrites dans les dix apps recopiaient chacune ce savoir — nom d'archive, nom des
+#: entrées, formats rendus — et deux s'y trompaient (l'imager oubliait ses vidéos).
+_ZIP_DECLARATIONS = {}
+
+
+def _surface_of(work_model):
+    """La surface du registre de détail qui DÉCLARE ce modèle (`enhancer`, `audio_enhancer`…)."""
+    from wama.common.utils.detail_registry import DetailRegistry
+    return next((s for s in DetailRegistry.registered_apps()
+                 if (DetailRegistry.get(s) or {}).get('model') is work_model), None)
+
+
+def _render_safely(render, item, fmt):
+    try:
+        return render(item, fmt)
+    except Exception:
+        return None
+
+
+def zip_elements(work_model, items, request, declaration=None):
+    """Le ZIP des RÉSULTATS de `items` (seuls les éléments réussis y entrent) : `(tampon, format)`.
+
+    Une règle, dans cet ordre :
+      1. app LATE-BINDING (`export_binding='late'` : describer, reader, transcriber) — chaque
+         entrée est RENDUE au format demandé (`?format=`, borné aux formats déclarés), par le rendu
+         que l'app a enregistré ; un rendu qui échoue retombe sur le premier format déclaré (l'idiome
+         des trois vues de file, « jamais un ZIP en erreur pour un élément ») ;
+      2. résultat TEXTE déclaré (`output_text`, apps générées) — une entrée `.txt` ;
+      3. sinon les sorties DÉCLARÉES de la card (`send_to.sorties_de` : `result_file` et
+         `result_files` de sa spec de détail — la même lecture qu'« Envoyer vers… ») ; repli sur le
+         champ servi (`output_field`) pour un modèle sans spec. ⚠ Lire un NOM de champ au lieu de
+         la déclaration faisait répondre 404 au ZIP de lot de l'imager et du composer
+         (`output_file` par défaut, champ qu'ils n'ont pas — mesuré le 2026-10-17).
+    Une entrée prend le nom DÉCLARÉ (`output_name`, quand l'élément n'a qu'un fichier) ou celui de
+    son fichier ; deux entrées de même nom ne s'écrasent pas.
+
+    `declaration` : celle de la fabrique appelante (le ZIP de lot passe la sienne) ; absente, celle
+    que l'app a inscrite pour ce modèle (`_ZIP_DECLARATIONS`, lue par le ZIP de file).
+    """
+    import os
+    from urllib.parse import unquote
+
+    from django.conf import settings
+    from wama.common.utils.export_formats import (export_builder_for, is_late_binding,
+                                                  requested_format)
+    app = work_model._meta.app_label
+    decl = declaration if declaration is not None else (_ZIP_DECLARATIONS.get(work_model) or {})
+    output_name, output_field = decl.get('output_name'), decl.get('output_field')
+    output_text = decl.get('output_text')
+    render = export_builder_for(app) if is_late_binding(app) else None
+    fmt = requested_format(app, request.GET) if render is not None else ''
+    first = requested_format(app, {}) if render is not None else ''
+    surface = _surface_of(work_model) if render is None and not output_text else None
+    used = set()
+
+    def _unique(name):
+        stem, ext = os.path.splitext(name)
+        n, candidate = 1, name
+        while candidate in used:
+            n += 1
+            candidate = f'{stem}_{n}{ext}'
+        used.add(candidate)
+        return candidate
+
+    buf = io.BytesIO()
+    # ZIP_DEFLATED : l'idiome des `batch_download` d'app (anonymizer, synthesizer, converter).
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+        for item in items:
+            if getattr(item, 'status', '') != 'SUCCESS':
+                continue
+            if render is not None:
+                built = _render_safely(render, item, fmt) or (
+                    fmt != first and _render_safely(render, item, first))
+                if built:
+                    ext, data = built
+                    z.writestr(_unique(f'{export_stem(work_model, item, decl)}.{ext}'), data)
+                continue
+            if output_text:
+                text = getattr(item, output_text, '') or ''
+                if text:
+                    from wama.common.utils.output_naming import compose_output_name
+                    src = getattr(item, 'input_file', None)
+                    name = (output_name(item) if output_name is not None else '') or \
+                        compose_output_name(app=app, ext='.txt', item_id=item.pk,
+                                            source_name=Path(src.name).name if src else '')
+                    z.writestr(_unique(name), text)
+                continue
+            paths = []
+            if surface:
+                from wama.common.services.send_to import sorties_de
+                root = Path(settings.MEDIA_ROOT)
+                paths = [p for p in (root / unquote(rel) for rel in sorties_de(surface, item))
+                         if p.is_file()]
+            if paths:
+                declared = (output_name(item) if output_name is not None and len(paths) == 1
+                            else '') or ''
+                for path in paths:
+                    z.write(path, _unique(declared or path.name))
+                continue
+            out = getattr(item, output_field, None) if output_field else None
+            if out:
+                name = (output_name(item) if output_name is not None else '') or Path(out.name).name
+                z.writestr(_unique(name), out.read())
+    buf.seek(0)
+    return buf, fmt
+
+
+def export_stem(work_model, item, declaration=None):
+    """Souche d'une entrée RENDUE : celle que l'app déclare (`output_name`), sinon la règle
+    commune de nommage sur le nom lisible de l'élément (`item_label`, sinon ses champs de nom)."""
+    import os
+    from wama.common.utils.output_naming import compose_output_name
+    decl = declaration if declaration is not None else (_ZIP_DECLARATIONS.get(work_model) or {})
+    if decl.get('output_name') is not None:
+        stem = decl['output_name'](item)
+        if stem:
+            return stem
+    label = ''
+    if decl.get('item_label') is not None:
+        label = decl['item_label'](item)
+    else:
+        for name in ('input_filename', 'filename', 'name', 'title'):
+            value = getattr(item, name, None)
+            if value:
+                label = str(value)
+                break
+    return os.path.splitext(compose_output_name(
+        app=work_model._meta.app_label, item_id=item.pk, source_name=label or f'item_{item.pk}'))[0]
+
+
 def _revoke_quietly(item):
     """Révoque la tâche Celery d'un élément qu'on va supprimer (sans la tuer : `terminate=False`,
     l'idiome mesuré des `batch_delete` d'app). Broker absent → on supprime quand même."""
@@ -251,6 +385,17 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     schema_names = (() if callable(schema) else
                     tuple(p.get('name') for p in (schema or [])
                           if isinstance(p, dict) and p.get('name')))
+    # Le nommage des entrées de ZIP, déclaré ICI une fois, lu aussi par le ZIP de FILE. Seule la
+    # fabrique de l'APP l'inscrit (appelée depuis un module de l'app qui porte le modèle, hors
+    # tests) : une fabrique construite ailleurs sur le même modèle — un test — ne réécrit pas le
+    # nommage de l'app, quel que soit l'ordre de chargement.
+    zip_declaration = {'output_name': output_name, 'output_field': output_field,
+                       'output_text': output_text, 'item_label': item_label}
+    import sys
+    caller = sys._getframe(1).f_globals.get('__name__', '')
+    owner = work_model._meta.app_config.name
+    if (caller == owner or caller.startswith(owner + '.')) and '.tests' not in caller:
+        _ZIP_DECLARATIONS[work_model] = zip_declaration
     if reset_on_start is None:
         start_reset = {k: v for k, v in DEFAULT_RESET.items() if k not in ('status', 'task_id')}
     else:
@@ -478,57 +623,18 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             batch_settings.remember(new_b, reference)
         return JsonResponse({'success': True, 'id': new_b.id, 'batch_id': new_b.id})
 
-    def _export_stem(item):
-        """Souche d'une entrée RENDUE : celle que l'app déclare (`output_name`), sinon la règle
-        commune de nommage sur le nom lisible de l'élément."""
-        if output_name is not None:
-            stem = output_name(item)
-            if stem:
-                return stem
-        import os
-        from wama.common.utils.output_naming import compose_output_name
-        return os.path.splitext(compose_output_name(
-            app=work_model._meta.app_label, item_id=item.pk,
-            source_name=_label(item) or f'item_{item.pk}'))[0]
-
     @require_GET
     def batch_download(request, pk):
         b = _batch_read(request, pk)
-        from wama.common.utils.export_formats import (export_builder_for, is_late_binding,
-                                                      requested_format)
+        from wama.common.utils.export_formats import export_builder_for, is_late_binding
         app = work_model._meta.app_label
         render = export_builder_for(app) if is_late_binding(app) else None
-        fmt = requested_format(app, request.GET) if render is not None else ''
+        # Rien de servable : ni rendu, ni texte, ni sortie DÉCLARÉE, ni champ servi.
         served = output_text or output_field
-        if render is None and not any(f.name == served for f in work_model._meta.get_fields()):
+        if (render is None and not _surface_of(work_model)
+                and not any(f.name == served for f in work_model._meta.get_fields())):
             return JsonResponse({'error': 'aucune sortie fichier pour ce lot'}, status=404)
-        buf = io.BytesIO()
-        # ZIP_DEFLATED : l'idiome des `batch_download` d'app (anonymizer, synthesizer, converter).
-        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
-            for item in _members(request, b):
-                if render is not None:
-                    # Late-binding : le master est RENDU au format demandé, par le rendu déclaré.
-                    built = render(item, fmt) if getattr(item, 'status', '') == 'SUCCESS' else None
-                    if built:
-                        ext, data = built
-                        z.writestr(f'{_export_stem(item)}.{ext}', data)
-                    continue
-                if output_text:
-                    text = getattr(item, output_text, '') or ''
-                    if getattr(item, 'status', '') == 'SUCCESS' and text:
-                        from wama.common.utils.output_naming import compose_output_name
-                        src = getattr(item, 'input_file', None)
-                        name = (output_name(item) if output_name is not None else '') or \
-                            compose_output_name(app=work_model._meta.app_label, ext='.txt',
-                                                item_id=item.pk,
-                                                source_name=Path(src.name).name if src else '')
-                        z.writestr(name, text)
-                    continue
-                out = getattr(item, output_field, None)
-                if getattr(item, 'status', '') == 'SUCCESS' and out:
-                    name = (output_name(item) if output_name is not None else '') or Path(out.name).name
-                    z.writestr(name, out.read())
-        buf.seek(0)
+        buf, fmt = zip_elements(work_model, _members(request, b), request, zip_declaration)
         name = (zip_name(b) if callable(zip_name) else zip_name) or (
             # L'idiome MESURÉ des trois apps late-binding : le format et le jour dans le nom.
             f"batch_{app}_{b.id}_{fmt}_{datetime.date.today()}.zip" if render is not None

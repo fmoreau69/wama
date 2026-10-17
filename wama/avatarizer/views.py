@@ -557,26 +557,9 @@ def clear_all(request):
     return JsonResponse({'deleted': count})
 
 
-def download_all(request):
-    """GET : ZIP de toutes les vidéos générées (bouton global) — audit 2026-07-11."""
-    import io
-    import zipfile
-    user = _get_user(request)
-    jobs = (AvatarJob.objects.filter(user=user, status='SUCCESS')
-            .exclude(output_video=''))
-    if not jobs.exists():
-        return JsonResponse({'error': 'Aucune vidéo à télécharger'}, status=400)
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for job in jobs:
-            try:
-                path = job.output_video.path
-                if os.path.exists(path):
-                    zf.write(path, os.path.basename(path))
-            except Exception:
-                pass
-    buf.seek(0)
-    return FileResponse(buf, as_attachment=True, filename='avatarizer_all.zip')
+# ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
+# par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
+download_all = _pv['download_all']
 
 
 @require_POST
