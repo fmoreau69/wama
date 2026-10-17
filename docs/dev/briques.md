@@ -944,8 +944,8 @@ La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studi
 - **Module** : ENVOYER VERS — la sortie d'une card devient l'entrée d'une autre app.
 - **API publique** (5) :
   - `sorties_de(surface: str, instance) -> list` — Chemins RELATIFS à `media/` des sorties DÉCLARÉES de cet élément.
-  - `batch_outputs(surface: str, batch) -> tuple` — Les sorties DÉCLARÉES de tous les éléments d'un LOT — `(chemins, éléments, sans_sortie)`.
-  - `item_for_output_path(user, chemin: str)` — L'élément dont `chemin` (relatif à `media/`) est une SORTIE déclarée — `(surface,
+  - `batch_outputs(surface: str, batch, viewer=None) -> tuple` — Les sorties DÉCLARÉES de tous les éléments d'un LOT — `(chemins, éléments, sans_sortie)`.
+  - `item_for_output_path(user, chemin: str, *, visible: bool=False)` — L'élément dont `chemin` (relatif à `media/`) est une SORTIE déclarée — `(surface,
   - `destinations(user, chemins, partiel: bool=False) -> list` — Apps qui savent RECEVOIR ces fichiers. Trois conditions, toutes nécessaires.
   - `destinations_dossier(user) -> list` — Apps qui savent recevoir un DOSSIER entier : importeur + accès (`_apps_receveuses`).
 

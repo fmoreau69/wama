@@ -368,14 +368,28 @@ def readable_by(rel_path, user) -> bool:
     de visibilité est celle qui LISTE (`scoping.listable_by`) : aucune seconde règle, et le compte
     anonyme de service n'en hérite pas. Le chiffrement par utilisateur viendra plus tard ; il
     devra donner aux groupes concernés l'accès aux clés de ce qui leur est partagé.
-    ⚠ Le fichier d'un autre utilisateur qui n'est PAS un asset partagé (sortie d'app, temporaire)
-    reste illisible ici.
+    Et, depuis le 2026-10-16, **la sortie déclarée d'un élément qu'un autre lui partage** : en
+    mode lecture, le destinataire d'une card peut « voir, télécharger, ENVOYER VERS une autre
+    app, dupliquer » (`WAMA_COLLABORATION §3bis`). Le menu de la card reçue offrait le geste, le
+    résolveur et l'import le refusaient (« Indisponible »). La règle est celle qui la LUI MONTRE
+    (`scoping.listable_by`, par `send_to.item_for_output_path(visible=True)`) ; le fichier est
+    alors COPIÉ chez lui (`reference_or_copy` ne pointe jamais l'arbre d'un autre).
+    ⚠ Le fichier d'un autre utilisateur qui n'est ni un asset partagé ni la sortie d'un élément
+    partagé (temporaire, entrée d'app) reste illisible ici.
     """
     rel = str(rel_path or '').replace('\\', '/').lstrip('/')
     user_id = getattr(user, 'id', None)
     if not user_id:
         return False
-    return in_user_home(rel, user_id) or is_system_asset_file(rel) or _is_shared_asset_file(rel, user)
+    return (in_user_home(rel, user_id) or is_system_asset_file(rel)
+            or _is_shared_asset_file(rel, user) or _is_shared_item_output(rel, user))
+
+
+def _is_shared_item_output(rel, user) -> bool:
+    """Ce chemin est-il la SORTIE déclarée d'un élément que `user` voit (partagé avec lui) ?"""
+    from wama.common.services.send_to import item_for_output_path
+    _surface, item = item_for_output_path(user, rel, visible=True)
+    return item is not None
 
 
 def _is_shared_asset_file(rel, user) -> bool:

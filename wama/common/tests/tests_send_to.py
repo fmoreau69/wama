@@ -602,6 +602,109 @@ class BatchSentArrivesAsABatchTest(TestCase):
         self.assertEqual(2, ReadingItem.objects.filter(user=self.u).count())
 
 
+class ReceivedCardSendToTest(TestCase):
+    """« Envoyer vers » depuis une card REÇUE (2026-10-16). En mode lecture, le destinataire peut
+    « voir, télécharger, ENVOYER VERS une autre app, dupliquer » (`WAMA_COLLABORATION §3bis`) :
+    le menu offrait le geste, le résolveur ne servait que les cards du compte (404 → sous-menu
+    « Indisponible ») et l'import refusait le chemin. Les deux portes suivent désormais la règle
+    qui MONTRE la card (`listable_by`), et le fichier est COPIÉ chez le destinataire."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from pathlib import Path
+        from django.test import override_settings
+        media = tempfile.mkdtemp(prefix='wama_received_send_')
+        self.addCleanup(shutil.rmtree, media, ignore_errors=True)
+        setting = override_settings(MEDIA_ROOT=media)
+        setting.enable()
+        self.addCleanup(setting.disable)
+        self.media = Path(media)
+        self.owner = _utilisateur('received_send_owner')
+        self.bob = _utilisateur('received_send_bob')
+        self.stranger = _utilisateur('received_send_stranger')
+
+    def _job_with_output(self, name='shared.png'):
+        import io
+        from PIL import Image
+        from wama.common.utils.media_paths import app_media_dir
+        from wama.converter.models import ConversionJob
+        folder = app_media_dir('converter', self.owner.id, 'output')
+        (self.media / folder).mkdir(parents=True, exist_ok=True)
+        buffer = io.BytesIO()
+        Image.new('RGB', (8, 8), (90, 20, 200)).save(buffer, format='PNG')
+        (self.media / folder / name).write_bytes(buffer.getvalue())
+        job = ConversionJob.objects.create(user=self.owner, input_filename='a.png')
+        job.output_file.name = f'{folder}/{name}'
+        job.save(update_fields=['output_file'])
+        return job
+
+    def _share(self, target, nature='element'):
+        from wama.common.services.sharing import share_with_person
+        from wama.converter.models import ConversionJob
+        share_with_person(self.owner, target, ConversionJob, self.bob, nature=nature)
+
+    def test_a_received_card_resolves_its_output_and_its_destinations(self):
+        job = self._job_with_output()
+        self._share(job)
+        self.client.force_login(self.bob)
+        data = self.client.get(reverse('common:api_envoyer_vers', args=['converter', job.pk])).json()
+        self.assertEqual([job.output_file.name], data['chemins'])
+        self.assertTrue(data['destinations'])
+
+    def test_the_output_is_readable_by_the_recipient_only(self):
+        from wama.common.utils.media_paths import readable_by
+        job = self._job_with_output()
+        self._share(job)
+        self.assertTrue(readable_by(job.output_file.name, self.bob))
+        self.assertFalse(readable_by(job.output_file.name, self.stranger))
+
+    def test_sending_it_gives_the_recipient_his_own_copy(self):
+        import json
+        from wama.reader.models import ReadingItem
+        job = self._job_with_output()
+        self._share(job)
+        self.client.force_login(self.bob)
+        sent = self.client.post(reverse('filemanager:api_import'),
+                                json.dumps({'path': job.output_file.name, 'app': 'reader'}),
+                                content_type='application/json')
+        self.assertEqual(200, sent.status_code, sent.content[:300])
+        self.assertTrue(sent.json().get('imported'), sent.json())
+        item = ReadingItem.objects.get(pk=sent.json()['id'])
+        self.assertEqual(self.bob, item.user)
+        self.assertTrue(item.input_file.name.startswith(f'users/{self.bob.id}/'),
+                        f"{item.input_file.name} : l'entrée du destinataire doit être SA copie")
+
+    def test_a_card_that_is_not_shared_stays_refused_at_both_doors(self):
+        import json
+        job = self._job_with_output()
+        self.client.force_login(self.stranger)
+        self.assertEqual(404, self.client.get(
+            reverse('common:api_envoyer_vers', args=['converter', job.pk])).status_code)
+        refused = self.client.post(reverse('filemanager:api_import'),
+                                   json.dumps({'path': job.output_file.name, 'app': 'reader'}),
+                                   content_type='application/json').json()
+        self.assertFalse(refused.get('imported'))
+        self.assertEqual('Access denied', refused.get('error'))
+
+    def test_a_received_batch_sends_the_outputs_its_recipient_sees(self):
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        from wama.converter.models import ConversionJob
+        batch, jobs = _lot_de(ConversionJob, self.owner, 2)
+        for job, name in zip(jobs, ('one.png', 'two.png')):
+            source = self._job_with_output(name)
+            job.output_file.name = source.output_file.name
+            job.save(update_fields=['output_file'])
+        self._share(batch, nature='lot')
+        self.client.force_login(self.bob)
+        data = self.client.get(reverse('common:api_send_batch_to',
+                                       args=['converter', batch.pk])).json()
+        self.assertEqual(sorted(j.output_file.name for j in jobs), sorted(data['chemins']))
+        self.client.force_login(self.stranger)
+        self.assertEqual(404, self.client.get(reverse('common:api_send_batch_to',
+                                                      args=['converter', batch.pk])).status_code)
+
+
 class ApiElementPourCheminTest(TestCase):
     """L'endpoint du menu de l'arbre : même garde de chemin que l'import, coordonnées ou nulls."""
 

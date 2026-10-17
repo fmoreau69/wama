@@ -77,7 +77,7 @@ def sorties_de(surface: str, instance) -> list:
     return chemins
 
 
-def batch_outputs(surface: str, batch) -> tuple:
+def batch_outputs(surface: str, batch, viewer=None) -> tuple:
     """Les sorties DÉCLARÉES de tous les éléments d'un LOT — `(chemins, éléments, sans_sortie)`.
 
     « Envoyer le lot vers… » (2026-10-14, demande de Fabien : « envoyer un batch d'une app à une
@@ -89,11 +89,21 @@ def batch_outputs(surface: str, batch) -> tuple:
     Un élément sans résultat (pas encore traité, en échec) ne part pas ; il est COMPTÉ, pour que
     le menu le dise au lieu d'envoyer en silence moins que le lot. Un chemin commun à deux
     éléments ne part qu'une fois.
+
+    `viewer` : le compte qui envoie. Un lot REÇU (`WAMA_COLLABORATION §3bis`, mode lecture :
+    « envoyer vers une autre app ») n'envoie que les éléments que ce compte VOIT — la règle qui
+    les LISTE (`scoping.listable_by`), jamais une seconde.
     """
     from wama.common.utils.batch_common import batch_elements
     from wama.common.utils.preview_registry import PreviewRegistry
 
-    elements = list(batch_elements(batch, PreviewRegistry.get_model(surface)))
+    model = PreviewRegistry.get_model(surface)
+    elements = list(batch_elements(batch, model))
+    if viewer is not None and elements:
+        from wama.common.utils.scoping import listable_by
+        seen_ids = set(listable_by(model._default_manager.filter(
+            pk__in=[e.pk for e in elements]), viewer).values_list('pk', flat=True))
+        elements = [e for e in elements if e.pk in seen_ids]
     paths, seen, without_output = [], set(), 0
     for element in elements:
         outputs = sorties_de(surface, element)
@@ -126,7 +136,7 @@ def _requete_candidats(model, chemin: str):
     return q
 
 
-def item_for_output_path(user, chemin: str):
+def item_for_output_path(user, chemin: str, *, visible: bool = False):
     """L'élément dont `chemin` (relatif à `media/`) est une SORTIE déclarée — `(surface,
     instance)`, ou `(None, None)`.
 
@@ -146,6 +156,10 @@ def item_for_output_path(user, chemin: str):
     ⚠ Périmètre de l'UTILISATEUR : on ne cherche que parmi SES éléments (un modèle sans champ
     `user` est ignoré — il n'a pas de propriétaire à qui offrir le geste). Un chemin étranger
     rend donc `(None, None)`, comme `api_partage` rend 404 et non 403.
+    `visible=True` (2026-10-16) : parmi les éléments que l'utilisateur VOIT (`listable_by` —
+    les siens et ceux qu'on lui partage). C'est la question de la LECTURE d'un fichier
+    (`media_paths.readable_by`) : la sortie d'une card reçue s'envoie vers une autre app
+    (`WAMA_COLLABORATION §3bis`, mode lecture) ; les gestes de l'arbre restent sur les siens.
     ⚠ Une surface n'est rendue que si les DEUX registres la connaissent (détail ET preview) :
     ce sont les coordonnées qu'une card porte (`data-preview-url`), celles que partage,
     médiathèque et RAG consomment. `sorties_de` rend des URL DÉCODÉES ici (`unquote`) : le
@@ -171,8 +185,12 @@ def item_for_output_path(user, chemin: str):
         if q is None:
             continue
         try:
-            candidats = list(model._default_manager.filter(q, user=user)
-                             .order_by('-pk')[:_CANDIDATS_MAX])
+            if visible:
+                from wama.common.utils.scoping import listable_by
+                found = listable_by(model._default_manager.filter(q), user)
+            else:
+                found = model._default_manager.filter(q, user=user)
+            candidats = list(found.order_by('-pk')[:_CANDIDATS_MAX])
         except Exception:
             continue
         for instance in candidats:

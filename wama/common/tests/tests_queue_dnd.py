@@ -1223,10 +1223,11 @@ class BatchSendToMenuUnderV8Test(TestCase):
         self.assertEqual(json_v8(self.ctx, '__entry.sous'), [{'chargement': True}])
         self.assertTrue(json_v8(self.ctx, '__entry.videLibelle'))
 
-    def test_a_received_batch_is_not_offered_to_be_sent(self):
-        """Le résolveur ne sert que les lots de l'utilisateur : l'entrée n'ouvrirait qu'un vide."""
+    def test_a_received_batch_is_offered_to_be_sent_too(self):
+        """Mode lecture (`WAMA_COLLABORATION §3bis`) : le destinataire peut « envoyer vers une
+        autre app » — le résolveur sert ce que le compte VOIT (2026-10-16)."""
         self.ctx.eval("__received = { classList: { contains: function () { return true; } } };")
-        self.assertNotIn('Envoyer le lot vers…', json_v8(self.ctx, MOTHER_LABELS))
+        self.assertIn('Envoyer le lot vers…', json_v8(self.ctx, MOTHER_LABELS))
 
     def test_an_element_card_keeps_its_own_entry_and_never_the_batch_one(self):
         vus = json_v8(self.ctx, "(function () { var c = carteFactice({surface: 'converter', pk: '7'});"

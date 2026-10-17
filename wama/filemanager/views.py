@@ -1269,8 +1269,13 @@ def api_import_to_app(request):
 
     def _import_single_file(fp):
         """Import a single file path into target_app. Returns result dict."""
-        # Security check
-        if not is_path_allowed(fp, user):
+        # Garde : l'arbre et les montages du compte (`is_path_allowed`), OU ce qu'il peut DÉSIGNER
+        # comme entrée (`media_paths.readable_by` — la règle d'une désignation, par le glisser,
+        # la médiathèque ou l'assistant) : un asset partagé, la sortie d'une card reçue
+        # (« Envoyer vers » en mode lecture, `WAMA_COLLABORATION §3bis`, 2026-10-16). Le fichier
+        # d'un autre est alors COPIÉ chez lui par l'importeur (`reference_or_copy`).
+        from wama.common.utils.media_paths import readable_by
+        if not (is_path_allowed(fp, user) or readable_by(fp, user)):
             return {'error': 'Access denied'}
 
         if fp.startswith('mounts/'):

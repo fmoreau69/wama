@@ -785,9 +785,9 @@
         }
         // ENVOYER LE LOT VERS (2026-10-14, demande de Fabien) — la même entrée sur la card MÈRE :
         // les sorties de TOUS ses éléments, un seul envoi, rangé en lot chez la destination.
-        // Pas sur un lot REÇU : le résolveur ne sert que les lots de l'utilisateur (comme pour un
-        // élément), l'offrir n'ouvrirait qu'un sous-menu vide.
-        if (cibles.length === 1 && estLot && !recue && global.WamaSendTo && WamaSendTo.entriesForBatch
+        // Un lot REÇU aussi (2026-10-16) : en mode lecture, le destinataire peut « envoyer vers
+        // une autre app » (`WAMA_COLLABORATION §3bis`) — le résolveur sert ce que le compte VOIT.
+        if (cibles.length === 1 && estLot && global.WamaSendTo && WamaSendTo.entriesForBatch
                 && global.WamaShare && WamaShare.coordonneesDuLot(card)) {
             entrees.push({
                 icone: 'fas fa-share-from-square', libelle: 'Envoyer le lot vers…',

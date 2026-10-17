@@ -2233,16 +2233,19 @@ def api_envoyer_vers(request, surface: str, pk: int):
     jamais listées : le menu du gestionnaire de fichiers a offert pendant des semaines trois apps
     que le serveur refusait (`WAMA_VERIFICATION §Geste 14`). Une liste vide est une RÉPONSE.
     """
-    from django.shortcuts import get_object_or_404
     from django.urls import reverse
     from wama.common.services.send_to import destinations, sorties_de
     from wama.common.utils.preview_registry import PreviewRegistry
+    from wama.common.utils.scoping import visible_or_404
 
     modele = PreviewRegistry.get_model(surface)
     if modele is None:
         return JsonResponse({'error': f"surface inconnue : {surface}"}, status=404)
-    # Périmètre de l'utilisateur : un pk étranger rend 404, pas 403 (cf. `api_partage`).
-    element = get_object_or_404(modele, pk=pk, user=request.user)
+    # Ce que le compte VOIT — le sien ou une card REÇUE (2026-10-16 : en mode lecture, le
+    # destinataire peut « envoyer vers une autre app », `WAMA_COLLABORATION §3bis` ; le menu le lui
+    # offrait, ce résolveur rendait 404 et le sous-menu « Indisponible »). Un pk qu'il ne voit pas
+    # rend 404, pas 403 (cf. `api_partage`). L'import revalide le chemin (`readable_by`).
+    element = visible_or_404(modele, request.user, pk=pk)
 
     chemins = sorties_de(surface, element)
     return JsonResponse({
@@ -2268,19 +2271,20 @@ def api_send_batch_to(request, surface: str, pk: int):
     En PARTIEL ANNONCÉ, comme une sélection (`destinations(partiel=True)`) : un lot peut mêler
     des formats (images et vidéos d'un imager), et chaque destination dit quels fichiers elle
     prend. Les éléments SANS résultat sont comptés (`without_output`) : le menu le dit.
-    Même périmètre que l'élément et que le partage d'un lot : un lot étranger rend 404.
+    Même périmètre que l'élément : un lot que le compte VOIT (le sien ou un lot REÇU), dont
+    seuls les éléments qu'il voit partent ; un lot qu'il ne voit pas rend 404.
     """
-    from django.shortcuts import get_object_or_404
     from django.urls import reverse
     from wama.common.services.send_to import batch_outputs, destinations
     from wama.common.utils.batch_common import batch_model_for_app
+    from wama.common.utils.scoping import visible_or_404
 
     batch_model = batch_model_for_app(surface)
     if batch_model is None:
         return JsonResponse({'error': f"{surface} n'a pas de modèle de lot"}, status=404)
-    batch = get_object_or_404(batch_model, pk=pk, user=request.user)
+    batch = visible_or_404(batch_model, request.user, pk=pk)
 
-    paths, elements, without_output = batch_outputs(surface, batch)
+    paths, elements, without_output = batch_outputs(surface, batch, viewer=request.user)
     return JsonResponse({
         'ok': True, 'surface': surface, 'pk': pk, 'nature': 'lot',
         # Mêmes clés que le résolveur d'un élément : le client les lit avec le même code.
