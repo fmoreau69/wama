@@ -1218,6 +1218,19 @@ MECHANISMS = (
               # conversation_store` — le compteur d'imports ne voit pas cette graphie (même
               # faux positif que le middleware, cf. plus haut).
               symbol='conversation_store'),
+    # Ajouté le 2026-10-18 (Fabien : « l'assistant ne semble pas recevoir de trigger quand un
+    # travail est terminé, alors qu'une notification arrive »).
+    Mechanism('job_follow_ups', "Fin de tâche racontée dans le fil d'origine",
+              "La fin d'un traitement (notification `job_done`/`job_failed`, qui DÉSIGNE l'élément) "
+              "racontée dans le fil de l'assistant d'où la tâche a été demandée : origine LUE dans "
+              "les étapes d'outils persistées (`tool_api.items_of_step`), geste « statut » "
+              "RÉELLEMENT joué, sorties déclarées, enregistrement au fil — une fois. Commun aux "
+              "surfaces : la passerelle la relève par un curseur de canal et joint les fichiers ; le "
+              "fil WEB par la relève de la cloche (`wama:notifications`), le chat la DIT",
+              'wama/common/services/job_follow_ups.py', 'docs/construction/suivi/ROADMAP.md §19.2',
+              annexes=('wama/gateway/core.py', 'wama/common/static/common/js/wama-assistant-chat.js',
+                       'wama/common/tests/tests_job_follow_ups_web.py'),
+              depends_on=('conversation_store', 'notifications')),
     Mechanism('source_ingest', 'Ingest de source',
               "Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST. "
               "⭐ Depuis le 2026-10-13 (décision de Fabien) : DÈS LA CRÉATION, hors requête — "

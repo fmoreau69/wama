@@ -4135,6 +4135,21 @@ différence est mesurée (Discord, card #1047 : « vous serez notifié dès la f
   légende de l'original), et l'échange s'enregistre au fil avec cette étape RÉELLE.
 Détail, contrôles et contre-épreuves : `WAMA_LLM.md §2026-10-06`.
 
+✅ **Le FIL WEB aussi, le 2026-10-18** — Fabien : *« l'assistant ne semble pas recevoir de trigger
+quand un travail est terminé, alors qu'une notification arrive. Il doit manquer un câblage
+ici »*. La ligne « une tâche lancée du web n'y poste rien » parlait des CANAUX ; le fil web n'avait
+lui-même aucun récit de fin. Ce qui ne dépend pas de la surface (origine, geste « statut », sorties,
+enregistrement au fil) est SORTI de `gateway/core.py` dans la brique commune
+`common/services/job_follow_ups.py` (mécanisme `job_follow_ups`) ; la passerelle la lit, le web
+aussi. Côté web, pas de relève de plus : la cloche annonce déjà chaque relève
+(`wama:notifications`) ; le chat y poste les ids des fins de tâche (`api/ai-chat/follow-ups/`), le
+serveur raconte au fil celles d'une tâche lancée DEPUIS ce fil — une fois, quel que soit le nombre
+d'onglets —, et le chat les affiche et les DIT (sauf pendant une réponse ou une lecture en cours).
+La sortie part en lien absolu (le chat ne fait des liens que des adresses http(s)).
+⚠ Délai : celui de la cloche (60 s au plus). Gardes : `tests_job_follow_ups_web` (chaîne réelle,
+une fois, contre-épreuves : tâche lancée depuis sa page, depuis un canal, notification d'un autre ;
+V8 : une demande par relève, un seul chat parle) — cinq contre-épreuves par mutation, rouges.
+
 ### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) ⏳
 
 - **wama-dev-ai** n'a **aucune API** (CLI pur : `run_audit.py`, `run_codegen.py`). Wrapper

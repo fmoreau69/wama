@@ -334,6 +334,27 @@ def ai_chat(request):
 
 @require_http_methods(["POST"])
 @csrf_protect
+def ai_chat_follow_ups(request):
+    """Les FINS DE TÂCHE à raconter dans le fil web de l'assistant (2026-10-18).
+
+    La cloche du navigateur relève les notifications et en annonce l'arrivée
+    (`wama:notifications`) ; le chat poste ici leurs ids. Celles d'une tâche lancée DEPUIS ce fil
+    sont enregistrées au fil et rendues comme des tours de l'assistant — la brique commune
+    `job_follow_ups`, celle de la passerelle pour les canaux. Une notification se raconte une fois,
+    quel que soit le nombre d'onglets ouverts."""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentification requise'}, status=401)
+    try:
+        data = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    from wama.common.services.job_follow_ups import web_follow_ups
+    return JsonResponse({'follow_ups': web_follow_ups(request.user, data.get('ids') or [],
+                                                      absolute=request.build_absolute_uri)})
+
+
+@require_http_methods(["POST"])
+@csrf_protect
 def ai_chat_settings(request):
     """Réglages de l'assistant (modèle, curseur) — enregistrés par la brique commune.
 

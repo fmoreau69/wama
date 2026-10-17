@@ -1496,6 +1496,23 @@ Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app
   - `generate_reader_docx(item) -> bytes` — Generate a DOCX from a ReadingItem instance. Returns raw bytes.
   - `generate_transcript_docx(transcript) -> bytes` — Generate a DOCX from a Transcript instance. Returns raw bytes.
 
+### Fin de tâche racontée dans le fil d'origine
+
+La fin d'un traitement (notification `job_done`/`job_failed`, qui DÉSIGNE l'élément) racontée dans le fil de l'assistant d'où la tâche a été demandée : origine LUE dans les étapes d'outils persistées (`tool_api.items_of_step`), geste « statut » RÉELLEMENT joué, sorties déclarées, enregistrement au fil — une fois. Commun aux surfaces : la passerelle la relève par un curseur de canal et joint les fichiers ; le fil WEB par la relève de la cloche (`wama:notifications`), le chat la DIT
+
+- **Domicile** : `wama/common/services/job_follow_ups.py` · **doc** : [docs/construction/suivi/ROADMAP.md §19.2](../construction/suivi/ROADMAP.md)
+- **Module** : La FIN D'UNE TÂCHE racontée dans le fil d'où elle a été demandée — brique commune à toute surface de l'assistant (canaux de la passerelle, fil web).
+- **API publique** (9) :
+  - `notice_text(note) -> str` — Le texte d'une fin de tâche : son titre (« … terminé » / « … a échoué ») et son détail.
+  - `origin_conversation(note, surface: str)` — Le fil de CETTE surface où l'élément de la notification a été créé ou lancé — lu dans les
+  - `dev_origin_conversation(note, surface: str)` — Le fil de CETTE surface dont une étape `dev_*` a rendu le `job_id` de la notification — la
+  - `status_step(note, user) -> dict` — Le geste « statut », RÉELLEMENT joué : c'est l'étape que l'échange enregistre au fil. Une
+  - `declared_output_urls(note) -> list` — Les sorties DÉCLARÉES de l'élément d'une fin RÉUSSIE, en URL `/media/…` décodées
+  - `origin_of(note, surface: str)` — Le fil d'origine d'une notification sur cette surface, quelle que soit la nature de la
+  - `already_told(conversation, note) -> bool` — Cette fin a-t-elle déjà été racontée dans ce fil ? Une notification se relève par chaque
+  - `record(conversation, note, response: str, step: dict) -> None` — Enregistre au fil la fin de tâche — un échange comme un autre
+  - `web_follow_ups(user, notification_ids, absolute=lambda url: url) -> list` — Les fins de tâche à raconter dans le fil WEB de `user`, pour les notifications que sa cloche
+
 ### Garde des URL sortantes
 
 Valide toute cible de téléchargement pilotée par une saisie : schéma, identifiants, et adresses privées/bouclage/lien-local — anti-SSRF

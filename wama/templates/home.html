@@ -390,6 +390,7 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
                  data-stream-url="{% url 'ai_chat_stream' %}"
                  data-stt-url="{% url 'speech_to_text' %}"
                  data-clear-url="{% url 'ai_chat_clear' %}"
+                 data-follow-ups-url="{% url 'ai_chat_follow_ups' %}"
                  data-thread-el="ai-chat-thread"
                  data-waiting="{{ accueil_assistant.attente }}"
                  data-waiting-after-ms="{{ accueil_assistant.attente_apres_ms }}">

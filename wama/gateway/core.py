@@ -439,13 +439,16 @@ def _store_attachments(user, pieces) -> list:
 # Une tâche lancée depuis le web n'a pas de fil d'origine : rien n'est posté (décision de Fabien,
 # la cloche de WAMA la signale déjà).
 
-#: Les notifications que la passerelle relaie : les deux issues d'un traitement.
-JOB_NOTICE_KINDS = ('job_done', 'job_failed')
+# ⚠ Depuis le 2026-10-18, ce qui ne dépend pas du CANAL (origine, geste « statut », sorties,
+# enregistrement au fil) vit dans la brique commune `common/services/job_follow_ups.py` : le fil
+# WEB de l'assistant raconte lui aussi ses fins de tâche. Restent ici la RELÈVE (curseur par canal)
+# et la FORME (pièces jointes d'un canal).
+from wama.common.services.job_follow_ups import JOB_NOTICE_KINDS  # noqa: E402
+
 #: Intervalle de relève (s). Le web relève toutes les 60 s ; une conversation attend plus vite.
 FOLLOW_UP_INTERVAL_S = 15
-#: Bornes d'une relève : notifications traitées, tours remontés pour trouver l'origine.
+#: Borne d'une relève : notifications traitées.
 _MAX_NOTICES_PER_ROUND = 50
-_ORIGIN_SCAN_TURNS = 200
 
 
 @dataclass
@@ -506,121 +509,25 @@ def collect_job_follow_ups(channel: str) -> list:
 def _follow_up(note, channel: str):
     """La fin de tâche d'UNE notification, ou None : personne reliée sur ce canal, ou tâche qui
     n'a pas été demandée depuis l'un de ses fils."""
+    from wama.common.services import job_follow_ups
+    from wama.common.utils.notifications import DEV_JOB_APP
+
     user = note.recipient
     external_id = linked_identity(user, channel)
     if not external_id:
         return None
-    from wama.common.utils.notifications import DEV_JOB_APP
-    if note.app == DEV_JOB_APP:
-        return _dev_job_follow_up(note, channel, user, external_id)
-    conversation = _origin_conversation(note, channel)
+    # Le fil d'origine (tâche d'app, ou tâche de DÉVELOPPEMENT — 2026-10-12, fil #43 : l'assistant
+    # suivait la tâche dans son tour et ne répondait plus à rien pendant six minutes).
+    conversation = job_follow_ups.origin_of(note, channel)
     if conversation is None:
         return None
-
-    # Le geste « statut », RÉELLEMENT joué : c'est l'étape que l'échange enregistre au fil.
-    from wama.tool_api import execute_tool
-    status_tool = f'get_{note.app}_status'
-    result = execute_tool(status_tool, {}, user)
-
-    lines = [f"{'✅' if note.kind == 'job_done' else '⚠'} {note.title}"]
-    if note.body:
-        lines.append(note.body)
-    # Les fichiers : les sorties DÉCLARÉES de CET élément (`send_to.sorties_de`, l'adapter de
-    # détail — l'accesseur de « Envoyer vers », de l'inspecteur et du Studio). Pas le statut : il
-    # ne liste que les DIX derniers éléments, et le premier d'un lot de vingt n'y est plus.
-    reply = _reply_with_outputs('\n'.join(lines), _declared_outputs(note))
+    step = job_follow_ups.status_step(note, user)
+    text = job_follow_ups.notice_text(note)
+    # Les fichiers d'une tâche d'app : ses sorties DÉCLARÉES, joints au message du canal.
+    urls = [] if note.app == DEV_JOB_APP else job_follow_ups.declared_output_urls(note)
+    reply = _reply_with_outputs(text, [{'result': {'output_urls': urls}}] if urls else [])
     return FollowUp(channel=channel, thread=conversation.thread_key, external_id=external_id,
-                    reply=reply, conversation_id=conversation.pk, notice=note.title,
-                    step={'tool': status_tool, 'args': {}, 'result': result})
-
-
-def _dev_job_follow_up(note, channel: str, user, external_id: str):
-    """La fin d'une tâche de DÉVELOPPEMENT (rôle wama-dev-ai, jumelle, Claude Code), postée dans le
-    fil qui l'a lancée (2026-10-12, fil #43 : l'assistant suivait la tâche dans son tour et ne
-    répondait plus à rien pendant six minutes). Le fil d'origine est celui dont une étape `dev_*` a
-    rendu ce `job_id` ; l'étape enregistrée est un `dev_job_status` RÉELLEMENT joué, par le relais
-    MCP — la passerelle n'importe jamais `dev_tools` (§16)."""
-    from wama.common.models import ConversationTurn
-    from wama.common.services import mcp_client
-
-    turns = (ConversationTurn.objects
-             .filter(conversation__user_id=note.recipient_id, conversation__surface=channel,
-                     role='assistant', created_at__lte=note.created_at)
-             .exclude(tool_steps=[])
-             .select_related('conversation')
-             .order_by('-created_at', '-pk')[:_ORIGIN_SCAN_TURNS])
-    conversation = next(
-        (turn.conversation for turn in turns for step in (turn.tool_steps or [])
-         if isinstance(step, dict) and mcp_client.is_dev_tool(str(step.get('tool') or ''))
-         and isinstance(step.get('result'), dict)
-         and step['result'].get('job_id') == note.object_id), None)
-    if conversation is None:
-        return None
-    args = {'job_id': note.object_id}
-    result = mcp_client.call_dev_tool(user, 'dev_job_status', args)
-    lines = [f"{'✅' if note.kind == 'job_done' else '⚠'} {note.title}"]
-    if note.body:
-        lines.append(note.body)
-    return FollowUp(channel=channel, thread=conversation.thread_key, external_id=external_id,
-                    reply=Reply(text='\n'.join(lines)), conversation_id=conversation.pk,
-                    notice=note.title,
-                    step={'tool': 'dev_job_status', 'args': args, 'result': result})
-
-
-def _declared_outputs(note) -> list:
-    """Les sorties d'un élément TERMINÉ, sous la forme qu'attend `_reply_with_outputs` (une étape
-    portant des URL `/media/…`). `sorties_de` rend des chemins ENCODÉS (`FieldFile.url`) : décodés
-    ici, comme le font ses autres appelants — sans quoi un nom accentué ne se joindrait pas."""
-    from urllib.parse import unquote
-
-    from django.conf import settings
-
-    from wama.common.services.send_to import sorties_de
-    from wama.common.utils.detail_registry import DetailRegistry
-
-    if note.kind != 'job_done':
-        return []
-    entry = DetailRegistry.get(note.app)
-    instance = entry['model'].objects.filter(pk=note.object_id).first() if entry else None
-    if instance is None:
-        return []
-    media_url = settings.MEDIA_URL or '/media/'
-    urls = [media_url + unquote(rel) for rel in sorties_de(note.app, instance)]
-    return [{'result': {'output_urls': urls}}] if urls else []
-
-
-def _origin_conversation(note, channel: str):
-    """Le fil de CE canal où l'élément de la notification a été créé ou lancé — lu dans les
-    étapes d'outils persistées (`tool_api.items_of_step`), du plus récent au plus ancien.
-
-    L'élément est désigné par sa FAMILLE (clé du `DetailRegistry` : `audio_enhancer` et `enhancer`
-    sont deux modèles d'une même app) et son id ; la famille doit bien porter le modèle nommé par
-    la notification — sinon deux éléments de même numéro dans deux modèles se confondraient."""
-    from wama.common.models import ConversationTurn
-    from wama.common.utils.detail_registry import DetailRegistry
-    from wama.tool_api import items_of_step
-
-    entry = DetailRegistry.get(note.app)
-    if entry is None or entry['model'].__name__ != note.object_type:
-        return None
-    try:
-        wanted = (note.app, int(note.object_id))
-    except (TypeError, ValueError):
-        return None
-    turns = (ConversationTurn.objects
-             .filter(conversation__user_id=note.recipient_id, conversation__surface=channel,
-                     role='assistant', created_at__lte=note.created_at)
-             .exclude(tool_steps=[])
-             .select_related('conversation')
-             .order_by('-created_at', '-pk')[:_ORIGIN_SCAN_TURNS])
-    for turn in turns:
-        for step in turn.tool_steps or []:
-            if not isinstance(step, dict):
-                continue
-            if wanted in items_of_step(str(step.get('tool') or ''), step.get('args'),
-                                       step.get('result')):
-                return turn.conversation
-    return None
+                    reply=reply, conversation_id=conversation.pk, notice=note.title, step=step)
 
 
 def record_follow_up(follow_up: FollowUp) -> None:
@@ -633,11 +540,12 @@ def record_follow_up(follow_up: FollowUp) -> None:
     """
     from wama.common.models import Conversation
     from wama.common.services import conversation_store
+    from wama.common.services.job_follow_ups import NOTICE_PREFIX
 
     conversation = Conversation.objects.filter(pk=follow_up.conversation_id).first()
     if conversation is None:
         return
     conversation_store.record_exchange(
-        conversation, f"[Notification WAMA] {follow_up.notice}",
+        conversation, NOTICE_PREFIX + follow_up.notice,
         {'response': follow_up.reply.text, 'tool_steps': [follow_up.step],
          'model': 'notification WAMA'})

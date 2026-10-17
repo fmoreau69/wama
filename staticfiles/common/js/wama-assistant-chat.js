@@ -87,6 +87,7 @@
       threadUrl: root.dataset.threadUrl || '',
       threadEl: root.dataset.threadEl || '',
       clearUrl: root.dataset.clearUrl || '',
+      followUpsUrl: root.dataset.followUpsUrl || '',
       greeting: root.dataset.greeting || '',
       greetingHtml: root.dataset.greetingHtml || '',
       waiting: root.dataset.waiting || '',
@@ -537,8 +538,55 @@
     });
   };
 
+  /** Une FIN DE TÂCHE racontée dans le fil (2026-10-18) : rendue comme un tour de l'assistant —
+   *  l'étape « statut » réellement jouée, puis la réponse. `speak` : ce chat la dit à voix haute
+   *  (un seul des chats de la page), sauf si l'assistant parle ou répond déjà — une fin de tâche
+   *  ne coupe pas une réponse en cours, elle reste écrite au fil. */
+  Chat.prototype.tellFollowUp = function (followUp, speak) {
+    this.dropGreeting();
+    if (followUp.tool_steps && followUp.tool_steps.length) {
+      this.feed.appendChild(this.toolSteps(followUp.tool_steps));
+    }
+    this.feed.appendChild(this.bubble(followUp.response, 'assistant', followUp.model));
+    this.scrollToEnd();
+    var voice = global.WamaAssistantVoice;
+    if (speak && voice && !this.isBusy() && !voice.isSpeaking()) voice.speak(followUp.response);
+  };
+
+  // ── Fins de tâche : la cloche les relève, le fil les raconte (2026-10-18) ───────────────
+  // Fabien : « l'assistant ne semble pas recevoir de trigger quand un travail est terminé, alors
+  // qu'une notification arrive ». La cloche (`wama-app-base.js`) annonce chaque relève par
+  // `wama:notifications` ; les fins de tâche y sont postées au serveur, qui raconte dans le fil
+  // celles d'une tâche lancée DEPUIS ce fil (`common/services/job_follow_ups.py`, la brique de la
+  // passerelle pour les canaux). Une seule demande par relève, quel que soit le nombre de chats.
+  var JOB_NOTICE_KINDS = ['job_done', 'job_failed'];
+
+  function onNotifications(evt) {
+    var chat = null;
+    for (var i = 0; i < instances.length; i++) {
+      if (instances[i].cfg.followUpsUrl) { chat = instances[i]; break; }
+    }
+    if (!chat || !global.fetch) return;
+    var items = (evt && evt.detail && evt.detail.items) || [];
+    var ids = [];
+    items.forEach(function (item) {
+      if (item && JOB_NOTICE_KINDS.indexOf(item.kind) !== -1) ids.push(item.id);
+    });
+    if (!ids.length) return;
+    fetch(chat.cfg.followUpsUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+      body: JSON.stringify({ ids: ids }),
+    }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+      ((data && data.follow_ups) || []).forEach(function (followUp) {
+        instances.forEach(function (c) { c.tellFollowUp(followUp, c === chat); });
+      });
+    }).catch(function () { /* hors ligne : le fil serveur l'a gardé, il se relira */ });
+  }
+
   // ── Montage ──────────────────────────────────────────────────────────────────
   var instances = [];
+  if (document.addEventListener) document.addEventListener('wama:notifications', onNotifications);
 
   function mount() {
     Array.prototype.forEach.call(document.querySelectorAll('[data-wama-chat]'), function (root) {
