@@ -952,78 +952,15 @@ small,
     color: #e5e7eb !important;
 }
 
-/* IMPORTANT: Alerts keep their default dark text on light backgrounds */
-/* Use wildcard to ensure ALL child elements inherit the alert color */
-.alert-info,
-.alert-info *,
-.modal-content .alert-info,
-.modal-content .alert-info *,
-.info-card .alert-info,
-.info-card .alert-info * {
-    color: #055160 !important;
-}
-
-.alert-warning,
-.alert-warning *,
-.modal-content .alert-warning,
-.modal-content .alert-warning *,
-.info-card .alert-warning,
-.info-card .alert-warning * {
-    color: #664d03 !important;
-}
-
-.alert-success,
-.alert-success *,
-.modal-content .alert-success,
-.modal-content .alert-success *,
-.info-card .alert-success,
-.info-card .alert-success * {
-    color: #0f5132 !important;
-}
-
-.alert-danger,
-.alert-danger *,
-.modal-content .alert-danger,
-.modal-content .alert-danger *,
-.info-card .alert-danger,
-.info-card .alert-danger * {
-    color: #842029 !important;
-}
-
-.alert-primary,
-.alert-primary *,
-.modal-content .alert-primary,
-.modal-content .alert-primary *,
-.info-card .alert-primary,
-.info-card .alert-primary * {
-    color: #084298 !important;
-}
-
-.alert-secondary,
-.alert-secondary *,
-.modal-content .alert-secondary,
-.modal-content .alert-secondary *,
-.info-card .alert-secondary,
-.info-card .alert-secondary * {
-    color: #41464b !important;
-}
-
-.alert-light,
-.alert-light *,
-.modal-content .alert-light,
-.modal-content .alert-light *,
-.info-card .alert-light,
-.info-card .alert-light * {
-    color: #636464 !important;
-}
-
-.alert-dark,
-.alert-dark *,
-.modal-content .alert-dark,
-.modal-content .alert-dark *,
-.info-card .alert-dark,
-.info-card .alert-dark * {
-    color: #141619 !important;
+/* Une alerte garde la couleur de texte que Bootstrap accorde à SON fond, dans le mode de la
+   page : chaque `.alert-<variante>` pose `--bs-alert-color` (texte « emphasis » sur fond
+   « subtle »). Le joker `*` la fait gagner sur les textes clairs forcés plus haut (petits
+   textes, paragraphes de modale). Ce bloc écrivait jusqu'au 2026-10-17 les huit couleurs du
+   mode CLAIR en dur (les teintes « emphasis » claires) : justes sur le fond clair de l'alerte, à 1,9:1
+   dès que le fond suit le thème sombre (`ROADMAP §28`, étape 2). Mêmes valeurs en mode clair. */
+.alert,
+.alert * {
+    color: var(--bs-alert-color) !important;
 }
 
 /* Form labels - ensure visibility on dark theme */

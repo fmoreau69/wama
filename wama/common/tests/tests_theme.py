@@ -40,8 +40,9 @@ OUTSIDE_FAMILIES = (
 #: Le JS n'y est pas : ses couleurs sont surtout des palettes de DESSIN (canvas, graphes), que le
 #: scénario de contraste mesure au rendu.
 #: Mesuré le 2026-10-17, card commune portée : 862 dans les feuilles, 883 dans les gabarits
-#: (`app_modern.css` en tête, 163).
-BUDGET = {'.css': 862, '.html': 883}
+#: (`app_modern.css` en tête, 163) ; 854 le même jour, les huit textes d'alerte fixes retirés
+#: (étape 2, `ROADMAP §28`).
+BUDGET = {'.css': 854, '.html': 883}
 
 #: Fichiers PORTÉS sur les tokens : ils restent à zéro.
 TOKENISED = (
@@ -183,6 +184,23 @@ class ThemeTokensTest(SimpleTestCase):
                               ':root[data-wama-theme="light"] { --wama-a: #000; }')
         self.assertEqual({':root', 'dark', 'light'}, set(blocks))
         self.assertEqual({'--wama-b'}, set(blocks[':root']) - set(blocks['light']))
+
+
+class ModeFollowingComponentsTest(SimpleTestCase):
+    """Étape 2 (2026-10-17) : le sombre repose sur le mode natif de Bootstrap. Un composant dont
+    Bootstrap accorde texte et fond au mode ne se repeint pas d'une couleur fixe — vécu : les
+    huit variantes d'alerte forçaient le texte du mode clair, 1,9:1 sur leur fond devenu sombre."""
+
+    ALERT_FIXED = re.compile(r'\.alert-(?:info|warning|success|danger|primary|secondary|light|dark)\b'
+                             r'[^{}]*\{[^{}]*\bcolor\s*:\s*(?:#|rgba?\(|hsla?\()')
+
+    def test_no_sheet_repaints_an_alert_with_a_fixed_text_colour(self):
+        offenders = [rel for rel, text in _sources(('.css',)) if self.ALERT_FIXED.search(text)]
+        self.assertEqual([], offenders, 'read `var(--bs-alert-color)`, which follows the mode')
+
+    def test_the_guard_sees_a_fixed_alert_colour(self):
+        self.assertTrue(self.ALERT_FIXED.search('.modal-content .alert-warning * { color: #664d03 !important; }'))
+        self.assertFalse(self.ALERT_FIXED.search('.alert, .alert * { color: var(--bs-alert-color) !important; }'))
 
 
 class HardCodedColourBudgetTest(SimpleTestCase):

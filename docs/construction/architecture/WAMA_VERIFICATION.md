@@ -1978,3 +1978,8 @@ tokens ; ce scénario en sera le filet, thème par thème.
 de `<html>` que `base.html` pose (`_APPLY_THEME`) — avec un seul thème déclaré, le scénario mesure
 ce qui est servi. ⏳ La moitié code reste propre au sombre : sa forme symétrique viendra avec le
 second thème, qui la rendra mesurable.
+✅ **Étape 2 (même jour) : le sombre repose sur le mode NATIF de Bootstrap** (`ROADMAP §28`). La
+bascule a été mesurée AVANT, sur les états que les pages cachent (menus ouverts, chaque modale) —
+une méthode qui vaut pour tout changement de thème : comparer les styles CALCULÉS de chaque élément
+entre les deux états, pas seulement les contrastes. Un défaut trouvé (les alertes, 1,88:1), corrigé
+et gardé ; l'exception `btn-outline-dark` de la garde de code est tombée avec lui.

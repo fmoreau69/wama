@@ -5756,10 +5756,24 @@ listes déroulantes.
 
 **Ordre retenu :**
 1. ✅ Socle + card commune (ci-dessus).
-2. ⏳ **Basculer le sombre sur le mode natif** (`bootstrap='dark'`) : jouer les scénarios qui
-   OUVRENT les états interactifs (aperçu, mise en page, menus, gestes) dans les deux modes, et lire
-   les écarts avant de trancher. Ce qui y gagne : `text-muted`, `text-body-secondary`, les liens,
-   les champs suivent le thème sans une ligne de CSS.
+2. ✅ **Basculer le sombre sur le mode natif** (`bootstrap='dark'`, 2026-10-17, GO de Fabien).
+   *Mesuré avant de trancher* (site réel, lecture seule) : 166 états — les 30 pages de
+   `common.contrast`, leurs menus déroulants ouverts, chacune de leurs modales ouverte tour à
+   tour —, styles calculés de chaque élément visible comparés entre les deux modes (même DOM,
+   transitions coupées) et contraste axe des deux modes. Aucun texte illisible ni avant ni après ;
+   75 sortes de changements (3 087 éléments), presque tous des gains : liens `#0d6efd` → `#6ea8fe`,
+   `code` éclairci, séparateurs et menus déroulants sombres (celui de la page Users était BLANC),
+   onglets, croix `btn-close` blanche d'office. **Un seul défaut** : les alertes — `app_modern.css`
+   forçait sur toutes les variantes le texte « emphasis » du mode CLAIR, en `!important` ; leur fond
+   suivant le mode, `alert-secondary` des modales de lot (composer, describer) tombait à **1,88:1**.
+   Les huit blocs deviennent une règle qui lit `--bs-alert-color` (mêmes valeurs en mode clair,
+   justes en sombre) ; garde `tests_theme.ModeFollowingComponentsTest`. Le `btn-outline-dark` posé
+   dans une alerte du transcriber devient `btn-outline-warning` (son exception de `tests_contrast`
+   tombe), et `bg-body` sort des fonds clairs de la garde de code. Ce que la mesure ne voyait pas,
+   relu dans le code : toasts et accordéon portent des fonds fixes (`bg-success`, `bg-dark`), aucune
+   infobulle ni popover Bootstrap n'est employée. Joué ensuite sur serveur éphémère :
+   `common.contrast` vert, plus aucun faible dans les modales, `transcriber.preview` et
+   `anonymizer.preview` verts. Budget CSS 862 → 854.
 3. ⏳ **Porter les feuilles communes** sur les tokens, par ordre de poids (`app_modern.css` 163,
    `wama-notifications.css` 60, `media-preview.css` 58 — ses `--wv-*` deviennent des alias —,
    `wama-surface.css` 51, `wama-inspector.css` 50…), puis les `<style>` des pages (le reste des

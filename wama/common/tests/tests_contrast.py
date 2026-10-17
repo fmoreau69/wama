@@ -17,7 +17,9 @@ from django.test import SimpleTestCase
 
 ROOT = Path(settings.BASE_DIR)
 DARK = re.compile(r'\b(text-dark|text-black|link-dark|btn-outline-dark)\b')
-LIGHT = re.compile(r'\b(bg-(warning|info|light|white|success|primary|danger|secondary|body)'
+#: Fonds clairs FIXES — ceux qui ne suivent pas le mode. `bg-body` en est sorti le 2026-10-17 :
+#: depuis que le sombre repose sur le mode natif de Bootstrap, il est sombre.
+LIGHT = re.compile(r'\b(bg-(warning|info|light|white|success|primary|danger|secondary)'
                    r'|btn-(warning|info|light|success))\b')
 #: A class string : `class="…"`, or a JS literal that holds classes.
 CHUNK = re.compile(r'class="([^"]*)"|class=\'([^\']*)\'|\'([^\'\n]*)\'|"([^"\n]*)"|`([^`]*)`')
@@ -29,9 +31,10 @@ TWIN = re.compile(r'^wama/[a-z_]+_\d\d/')
 EXEMPT = {
     ('wama/anonymizer/static/anonymizer/js/right_panel.js', 'link-dark'):
         "lien posé DANS le badge `bg-warning text-dark` de l'état SAM3",
-    ('wama/transcriber/templates/transcriber/edit.html', 'btn-outline-dark'):
-        "bouton posé DANS une `alert-warning` (fond clair)",
 }
+#: (Le `btn-outline-dark` posé dans une `alert-warning` du transcriber en est sorti le 2026-10-17 :
+#: le fond d'une alerte suit le mode, il est sombre depuis l'étape 2 des thèmes — le bouton est
+#: devenu `btn-outline-warning`.)
 
 
 def _dark_without_light():

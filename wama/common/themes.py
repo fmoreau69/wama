@@ -8,12 +8,12 @@ Un thème, c'est :
     composant ne pose plus de couleur, il lit un token (`var(--wama-text-label)`) ;
   • le mode natif de Bootstrap 5.3 sur lequel il s'appuie (`data-bs-theme`).
 
-⚠ Le sombre d'aujourd'hui est PEINT À LA MAIN sur un Bootstrap en mode CLAIR — d'où
-`bootstrap='light'`, qui est la vérité, pas une faute de frappe. Mesuré le 2026-10-17 : poser
-`data-bs-theme="dark"` ne change aucun contraste des 30 pages de `common.contrast` (sauf un lien,
-qui y gagne), mais il change les états INTERACTIFS que ces pages ne montrent pas — alertes,
-champs de formulaire, tableaux, modales. Basculer est donc l'étape suivante du chantier, mesurée
-à part (`WAMA_VERIFICATION §10`).
+Le sombre a été PEINT À LA MAIN sur un Bootstrap en mode CLAIR jusqu'au 2026-10-17 ; il repose
+depuis sur le mode sombre NATIF (`ROADMAP §28`, étape 2). Mesuré avant de basculer, sur 166 états
+(les 30 pages de `common.contrast`, leurs menus ouverts, chacune de leurs modales) : aucun texte
+illisible dans aucun des deux modes ; liens, `code`, menus, onglets et croix de fermeture y
+gagnent ; un seul défaut, les alertes, dont `app_modern.css` forçait le texte du mode clair
+(1,9:1 sur leur fond sombre) — elles lisent désormais `--bs-alert-color`.
 
 Tenu par `tests_theme` : chaque thème déclaré définit chaque token, base.html pose le thème, les
 couleurs écrites en dur ne peuvent que diminuer."""
@@ -34,7 +34,7 @@ class Theme:
 
 
 THEMES = (
-    Theme('dark', 'Sombre', bootstrap='light'),
+    Theme('dark', 'Sombre', bootstrap='dark'),
 )
 
 #: Le thème de qui n'a rien choisi — aussi celui que `wama-theme.css` pose sur `:root` seul.
