@@ -2162,7 +2162,7 @@
         },
         "get_transcriber_status": {
           "args": {},
-          "description": "État des travaux Transcriber de l'utilisateur : statut, progression, résultat."
+          "description": "État des travaux Transcriber de l'utilisateur : statut, progression, résultat — et, pour un travail qui attend, sa place dans la file GPU (`queue` : tâches devant, début prévu, ce qui passe avant). RUNNING à 0 % avec `queue` = en file, pas bloqué."
         },
         "start_transcriber": {
           "args": {
