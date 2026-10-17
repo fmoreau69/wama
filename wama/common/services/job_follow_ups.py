@@ -187,8 +187,12 @@ def web_follow_ups(user, notification_ids, absolute=lambda url: url) -> list:
                     lines.append(f"[{url.rsplit('/', 1)[-1]}]({absolute(url)})")
                 response = '\n'.join(lines)
                 record(conversation, note, response, step)
-            told.append({'notification_id': note.pk, 'response': response,
-                         'tool_steps': [step], 'model': 'notification WAMA'})
+            # Le chat montre LE fil web (clé vide, `views._chat_thread`). Une tâche lancée d'un
+            # AUTRE fil web (fil de vérification ouvert par l'API) y est racontée — elle n'apparaît
+            # pas dans une conversation où elle n'a jamais été demandée.
+            if not conversation.thread_key:
+                told.append({'notification_id': note.pk, 'response': response,
+                             'tool_steps': [step], 'model': 'notification WAMA'})
         except Exception:
             logger.exception("[job_follow_ups] fin de tâche non racontée (notification #%s)",
                              note.pk)

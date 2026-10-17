@@ -87,6 +87,18 @@ class WebThreadTellsTheEndOfItsTasksTest(TestCase):
         note = self._end()
         self.assertEqual([], self._relay(note.pk))
 
+    def test_a_task_from_another_web_thread_is_told_there_not_in_the_chat(self):
+        """Le chat montre LE fil web (clé vide) : une tâche lancée d'un fil de vérification y est
+        enregistrée, sans s'afficher dans une conversation où elle n'a pas été demandée."""
+        conversation = self.store.thread(self.user, surface='web', thread_key='verif-api')
+        self.store.record_exchange(conversation, 'décris', {
+            'response': 'Lancé.', 'tool_steps': [{'tool': 'add_to_describer', 'args': {},
+                                                  'result': {'item_id': self.card.pk}}]})
+        note = self._end()
+        self.assertEqual([], self._relay(note.pk))
+        self.assertEqual('get_describer_status',
+                         conversation.turns.order_by('-pk').first().tool_steps[0]['tool'])
+
     def test_someone_else_s_notification_is_never_told(self):
         self._launched_from('web')
         note = self._end()
