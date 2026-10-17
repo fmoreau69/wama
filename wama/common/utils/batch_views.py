@@ -130,10 +130,21 @@ _ZIP_DECLARATIONS = {}
 
 
 def _surface_of(work_model):
-    """La surface du registre de détail qui DÉCLARE ce modèle (`enhancer`, `audio_enhancer`…)."""
+    """La surface du registre de détail qui DÉCLARE ce modèle — son accesseur (`surface_of`)."""
     from wama.common.utils.detail_registry import DetailRegistry
-    return next((s for s in DetailRegistry.registered_apps()
-                 if (DetailRegistry.get(s) or {}).get('model') is work_model), None)
+    return DetailRegistry.surface_of(work_model)
+
+
+def element_label(item, item_label=None) -> str:
+    """Le nom LISIBLE d'un élément : celui que l'app déclare (`item_label`), sinon le premier de ses
+    champs de nom — une règle, lue par la fabrique (`batch_status`) et par l'écrivain de ZIP."""
+    if item_label is not None:
+        return item_label(item)
+    for name in ('input_filename', 'filename', 'name', 'title'):
+        value = getattr(item, name, None)
+        if value:
+            return str(value)
+    return ''
 
 
 def _render_safely(render, item, fmt):
@@ -241,15 +252,7 @@ def export_stem(work_model, item, declaration=None):
         stem = decl['output_name'](item)
         if stem:
             return stem
-    label = ''
-    if decl.get('item_label') is not None:
-        label = decl['item_label'](item)
-    else:
-        for name in ('input_filename', 'filename', 'name', 'title'):
-            value = getattr(item, name, None)
-            if value:
-                label = str(value)
-                break
+    label = element_label(item, decl.get('item_label'))
     return os.path.splitext(compose_output_name(
         app=work_model._meta.app_label, item_id=item.pk, source_name=label or f'item_{item.pk}'))[0]
 
@@ -413,13 +416,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         return int(getattr(item, 'progress', 0) or 0)
 
     def _label(item):
-        if item_label is not None:
-            return item_label(item)
-        for name in ('input_filename', 'filename', 'name', 'title'):
-            value = getattr(item, name, None)
-            if value:
-                return str(value)
-        return ''
+        return element_label(item, item_label)
 
     def _batch(request, pk):
         return get_object_or_404(batch_model, pk=pk, user=get_user(request))

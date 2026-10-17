@@ -108,6 +108,9 @@ class ImagerZipTest(TestCase):
         self.assertEqual(200, response.status_code)
         names = _names(response)
         self.assertEqual(3, len(names), names)
+        # …et la PAGE l'offre : la card de lot porte le lien (le ⬇ de lot n'avait pas d'adresse).
+        page = self.client.get(reverse('imager:index')).content.decode('utf-8', errors='replace')
+        self.assertIn(reverse('imager:batch_download', args=[lot.pk]), page)
 
 
 class LateBindingFallbackTest(TestCase):

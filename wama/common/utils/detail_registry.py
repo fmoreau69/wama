@@ -60,6 +60,13 @@ class DetailRegistry:
         return cls._registry.get(app_name)
 
     @classmethod
+    def surface_of(cls, model_class):
+        """La surface qui DÉCLARE ce modèle d'élément (`enhancer`, `audio_enhancer`…), ou None —
+        l'accesseur inverse de `get` (2026-10-17, lu par l'écrivain de ZIP `batch_views`)."""
+        return next((name for name, entry in sorted(cls._registry.items())
+                     if entry.get('model') is model_class), None)
+
+    @classmethod
     def registered_apps(cls):
         """Apps ayant un adapter de détail, triées. Accesseur PUBLIC : `tool_api` en a besoin
         pour nommer les cibles valides d'une erreur, et lire `_registry` de l'extérieur ferait

@@ -2213,6 +2213,7 @@ Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, bat
 - **API publique** (5) :
   - `read_settings_payload(request, schema=None, schema_names=(), empty_is_value=())` — Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
   - `apply_item_settings(item, data, *, params_fields=(), options_field=None, extra_names=())` — Pose sur `item` les réglages présents dans `data` — colonnes déclarées (`params_fields`)
+  - `element_label(item, item_label=None) -> str` — Le nom LISIBLE d'un élément : celui que l'app déclare (`item_label`), sinon le premier de ses
   - `zip_elements(work_model, items, request, declaration=None)` — Le ZIP des RÉSULTATS de `items` (seuls les éléments réussis y entrent) : `(tampon, format)`.
   - `export_stem(work_model, item, declaration=None)` — Souche d'une entrée RENDUE : celle que l'app déclare (`output_name`), sinon la règle
   - `make_batch_views(*, work_model, batch_model, get_user, task=None, file_fields=(), output_fields=(), output_field='output_file', params_fields=(), schema=None,…` — Retourne les huit vues de lot : {'batch_start', 'batch_update', 'batch_delete',

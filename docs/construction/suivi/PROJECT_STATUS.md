@@ -24560,3 +24560,17 @@ régénérée).
 **Partagé avec une autre instance (thèmes)** : la carte des mécanismes régénérée portait aussi trois
 lignes que son travail en cours fait bouger (Notifications, Actualisation des catalogues,
 Cache-busting) — laissées hors de mon commit, comme `docs/dev/registres.md`.
+
+### Revérification du 2026-10-18 (`/reverif`, demande de Fabien) — barre de file ▶ ⬇ 🗑 et ZIP (`e4996ae1`, `edcc49c4`, `5ffd611e`)
+
+| étape | verdict | preuve |
+|---|---|---|
+| 1 aligné | ✓ après correctifs | ROUTE §11 #29 (barre de file) et #37 (fabrique de progression, troisième vue `download_all`) ; aucun monde cité dans le substrat. **Deux écarts de ma main, ramenés** : ① la règle du NOM LISIBLE d'un élément (`input_filename`, `filename`, `name`, `title`) recopiée dans mon `export_stem` à côté du `_label` de la fabrique — une fonction `batch_views.element_label`, lue par les deux ; ② la recherche « modèle → surface » écrite dans `batch_views` — accesseur du registre lui-même, `DetailRegistry.surface_of`. Cherchés sans jumeau : bascule actif/désactivé JS (les `setEnabled` existants ont un autre sens), noms d'entrées uniques dans une archive (`media_paths.get_unique_filename` = unicité sur DISQUE, autre nature). Noms neufs (`queue_actions_common`, `zip_elements`, `data-queue-download`, `clear_confirm`, `element_label`, `surface_of`) : réservés nulle part dans `docs/construction/`. |
+| 2 testé | ✓ | 193 verts (gardes de la session). Ajouté : le ⬇ de LOT de l'imager vérifié sur la PAGE servie (pas seulement sa route) — contre-épreuve ROUGE (`{% url … as batch_download_url %}` neutralisé). Gardes antérieures : contre-épreuves rouges consignées aux paliers. |
+| 3 consigné | ✓ | `check_docs` 0/0 ; `docs/dev/briques.md` : ma seule ligne (`element_label`) — la régénération porte surtout le travail d'autres instances (sections réordonnées, `measured_adoption`, signatures `tool_api`, vignettes), laissé hors de mon commit ; la carte des mécanismes ne bouge pas pour moi. |
+| 4 commité | ✓ | voir le commit de ce bloc ; l'arbre restant : chantier des THÈMES (`themes.py`, `wama-theme.css`, `tests_theme.py`, `base.html`, `settings.py`, `context_processors.py`, `registries_builtin.py`, `ui_smoke_contrast.py`, `wama-card-v3.css`, le déplacement de blocs de `mecanismes.py`), `tts_text`, docs `WAMA_VERIFICATION` / `ROADMAP` / `CARD_DESIGN`, deux manifestes OpenRouter — d'autres sessions. |
+
+**Reste consigné, non ramené** : `task_skeleton._item_label` (`task_skeleton.py:197`) lit la même
+règle de nom lisible (autre ordre, repli `#id` pour la console) — antérieur ; l'unifier ferait
+dépendre le squelette de tâche des vues de lot : à porter vers un domicile neutre si un troisième
+lecteur apparaît.
