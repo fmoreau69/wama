@@ -24305,3 +24305,49 @@ est dans HEAD).
 
 **🔚 POINT D'ENTRÉE** : régénérer les jumelles `_01` ; éprouver au navigateur l'arrivée mêlée
 (images + vidéos) dans l'imager et l'envoi d'une card reçue.
+
+## §PALIER 2026-10-17 (soir) — « AJOUTER LES MESURES » : le balayage d'adoption corrigé, quatre conventions mesurées — non poussé — 🔴 relancer gunicorn (JS servi)
+
+Demande de Fabien : *« wama est relancé. Peux-tu ajouter les mesures ? »* — le chantier nommé par
+la revérification ci-dessus (65 mécanismes de niveau app sans critère). Premier constat : **le
+chiffre était gonflé par le balayage lui-même**, à corriger avant d'écrire un seul critère.
+
+- `f3699a98` **Le balayage ne confond plus deux modules de même nom** (`mecanismes_scan`) : les
+  imports relatifs sont RÉSOLUS (`from .utils import x` dans une app ne compte plus pour un
+  `utils` du commun), `from <parent> import <feuille>` reconnu, jumelles bac à sable exclues
+  (`sandbox.LABEL_RE`) — **3016 faux consommateurs retirés, 242 vrais retrouvés** ; annexes du
+  banc complétées (ses fichiers de test, règle du 12/10). Garde `ScanResolvesImportsTest`.
+- `fc6fbc68` **Un fichier = un mécanisme** (règle du 2026-09-15, option B) : 18 fichiers que deux
+  mécanismes revendiquaient par leur nom ramenés à un seul propriétaire, la relation en
+  `depends_on` (13 mécanismes) ; un fichier FRONT partagé n'est compté que par le `symbol` de
+  chaque mécanisme (`QueueOrderMixin`, `PartialFrames`, `rag/ajouter`). Garde
+  `OneFileOneOwnerTest`.
+- `642414e6` **Quatre conventions mesurées** — `pipeline_declared`, `media_paths`,
+  `static_versioning`, `fm_notify` (grille **109** critères, dix apps à 100 %, WSL) ; un nom de
+  fichier front se cherche ENTIER (`_toolbar.html` se trouvait dans `_queue_toolbar.html`) ;
+  **remonté au commun, déjà là** : la barre de progression globale émet `media:processed` pour
+  les dix apps, six apps le répétaient — doublons retirés ; en-tête de `wama-fm-notify.js` corrigé
+  (il promettait un filet de sécurité retiré le 13/10). Gardes `ConventionCriteriaTest`,
+  contre-épreuves ROUGES (critères aveuglés, JS d'app de HEAD).
+- **Mesuré** : mécanismes de niveau app sans critère **69 → 63 → 60 → 55** (69 au relevé de départ de ce palier, 65 au bloc de revérification
+  ci-dessus ; la section repliable de
+  `WAMA_MECANISMES.md` les nomme) ; 213 tests verts ; `check_docs` 0/0.
+
+**Les 55 restants — tri proposé, rien d'écrit** :
+- *outils pris au besoin*, qu'une app n'a pas à « adopter » : `ffmpeg`, `llm`, `audio_decode`,
+  `audio_degradation`, `audio_rhythm`, `speech_activity`, `speech_leveling`, `tts_*` (3),
+  `video_utils`, `media_probe`, `midi_score`, `detection_ensemble`, `detections_document`,
+  `word_anchoring`, `voice_refs`, `translator`, `hf_weights`, `work_dir`… — proposition : un
+  marqueur de registre « outil à la demande » avec sa raison écrite, comme `standalone` ;
+- *conventions CONDITIONNELLES* (critère à écrire, applicabilité lue au schéma) : `audio_player`
+  (sorties audio), `visitor_identity` (apps ouvertes aux visiteurs), `add_to_queue` (mode
+  ATTACHE), `document_export` (liaison tardive) ;
+- *déjà vérifiés par un critère voisin* : `output_formats` / `export_formats` (par
+  `output_settings` / `download_wiring`) — il manque à `Criterion` un moyen de déclarer qu'il
+  vérifie PLUSIEURS mécanismes.
+
+🔚 **Trouvaille à trancher (Fabien)** : la brique commune « Démarrer tout » / « Tout effacer »
+(`queue-actions.js`, `data-queue-start-url` / `data-queue-clear-url`) n'est empruntée par
+**aucune** des dix apps — chacune garde son propre gestionnaire. Un critère `queue_actions_common`
+serait rouge 10/10 : c'est un portage, pas une mesure. Et le portage des profils au commun
+(`ROADMAP §22.5`) reste proposé.
