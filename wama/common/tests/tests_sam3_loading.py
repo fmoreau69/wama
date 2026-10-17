@@ -69,5 +69,64 @@ class Sam3SingleLoaderTest(SimpleTestCase):
             analyzer = SAM3RoadAnalyzer()
             analyzer.load()
         loader.assert_called_once_with()
-        fake.Sam3Processor.assert_called_once_with('image-model')
+        # Le seuil DÉCLARÉ part avec la construction (2026-10-16) — construit nu, le processeur
+        # coupait à 0,5 quel que soit `CONFIDENCE_THRESHOLD`.
+        from wama_lab.cam_analyzer.utils.sam3_road_analyzer import CONFIDENCE_THRESHOLD
+        fake.Sam3Processor.assert_called_once_with('image-model',
+                                                   confidence_threshold=CONFIDENCE_THRESHOLD)
         self.assertEqual('processor', analyzer._processor)
+
+
+def _processor_stubs():
+    fake = types.ModuleType('sam3.model.sam3_image_processor')
+    fake.Sam3Processor = mock.Mock(return_value='processor')
+    return fake, {'sam3': types.ModuleType('sam3'), 'sam3.model': types.ModuleType('sam3.model'),
+                  'sam3.model.sam3_image_processor': fake}
+
+
+class Sam3ThresholdReachesTheLibraryTest(SimpleTestCase):
+    """2026-10-16 — `Sam3Processor` TRIE ses sorties avant de les rendre (`keep = out_probs >
+    self.confidence_threshold`, défaut 0,5) : construit sans seuil, il ignorait le 0,3 déclaré
+    par l'anonymizer comme par le cam_analyzer. Mesuré sur faces_02 : 39 visages à 0,5, 83 à 0,3,
+    aucune détection sous 0,502 avant la correction."""
+
+    def test_only_the_common_constructor_builds_the_sam3_processor(self):
+        callers = []
+        for path in project_modules():
+            try:
+                tree = ast.parse(path.read_text(encoding='utf-8'))
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module == 'sam3.model.sam3_image_processor':
+                    callers.append(path.relative_to(settings.BASE_DIR).as_posix())
+        self.assertEqual([LOADER_HOME.as_posix()], sorted(set(callers)),
+                         'Sam3Processor built outside sam3_image_processor')
+
+    def test_the_caller_threshold_is_given_to_the_library(self):
+        fake, stubs = _processor_stubs()
+        with mock.patch.dict(sys.modules, stubs):
+            from wama.common.backends.sam3_processor import sam3_image_processor
+            self.assertEqual('processor', sam3_image_processor('model', 0.3))
+        fake.Sam3Processor.assert_called_once_with('model', confidence_threshold=0.3)
+
+    def test_the_anonymizer_engine_builds_it_with_its_own_threshold(self):
+        fake, stubs = _processor_stubs()
+        with mock.patch.dict(sys.modules, stubs), \
+                mock.patch('wama.common.backends.sam3_processor.load_sam3_image_model',
+                           return_value='image-model'):
+            from wama.common.backends.sam3_processor import SAM3Processor
+            engine = SAM3Processor()
+            engine.load_model('image')
+        fake.Sam3Processor.assert_called_once_with('image-model',
+                                                   confidence_threshold=engine.confidence_threshold)
+
+    def test_the_cam_analyzer_sets_the_threshold_of_each_call(self):
+        """Le diagnostic à seuil 0 (« tous les masks ») ne voyait rien sous 0,5."""
+        from wama_lab.cam_analyzer.utils.sam3_road_analyzer import SAM3RoadAnalyzer
+        import numpy as np
+        analyzer = SAM3RoadAnalyzer(road_fallback=False)
+        analyzer._processor = mock.Mock()
+        analyzer._processor.set_text_prompt.return_value = {}
+        analyzer.analyze_frame(np.zeros((8, 8, 3), dtype=np.uint8), min_confidence=0.0)
+        analyzer._processor.set_confidence_threshold.assert_called_once_with(0.0)

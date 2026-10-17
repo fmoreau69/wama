@@ -119,6 +119,12 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 
 ---
 
+## 2026-10-16
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| (ce commit — seuil SAM3 passé à la librairie) | `SAM3RoadAnalyzer.load` construit son processeur par la brique COMMUNE `sam3_processor.sam3_image_processor(modèle, seuil)` ; `analyze_frame` règle le seuil de CHAQUE appel dans la librairie (`set_confidence_threshold(thr)`). `CONFIDENCE_THRESHOLD` passe de 0.30 à **0.50**, écrit avec sa raison. Aucun résultat de production ne change | Le `Sam3Processor` de `sam3` 0.1.2 TRIE ses sorties avant de les rendre (`keep = out_probs > confidence_threshold`, défaut 0,5) : construit nu, il coupait à 0,5 — le 0.30 de ce module (depuis `10e6d5a3`, 2026-03-26) n'a JAMAIS agi, et le diagnostic `sam3_test_frame_task` à seuil 0 (« tous les masks ») ne voyait rien sous 0,5. Tous les réglages validés l'ont été à 0,5 effectif : c'est la valeur désormais écrite. Descendre à 0,30 (l'intention d'origine) est une décision à MESURER avec le diagnostic, qui montre maintenant ce qui est sous 0,5. Même défaut chez l'anonymizer (mesuré sur une photo : 39 visages à 0,5, 83 à 0,3) | `tests_sam3_loading` (le seuil part avec la construction, chaque appel règle le sien, une seule construction du processeur dans le dépôt). Annulation : revert |
+
 ## 2026-10-15
 
 | Commit | Quoi | Pourquoi | Validation/annulation |

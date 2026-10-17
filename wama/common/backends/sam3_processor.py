@@ -77,6 +77,20 @@ def load_sam3_image_model():
                                   load_from_HF=False)
 
 
+def sam3_image_processor(image_model, confidence_threshold: float):
+    """Le PROCESSEUR image de SAM3 sur `image_model`, avec le SEUIL de l'appelant — la seule
+    construction (2026-10-16 ; l'anonymizer et le cam_analyzer construisaient chacun le leur).
+
+    ⚠ Le seuil se PASSE à la librairie, il ne s'applique pas après coup : `Sam3Processor` trie
+    ses propres sorties (`_forward_grounding` : `keep = out_probs > self.confidence_threshold`)
+    avant de rendre quoi que ce soit, et son défaut est 0,5. Construit nu, il coupait donc à 0,5
+    sous un seuil déclaré de 0,3 — chez les deux appelants, où ce 0,3 n'a jamais agi (mesuré au
+    code de `sam3` 0.1.2). Le seuil se règle ensuite par `set_confidence_threshold`, prévu par la
+    librairie pour ça."""
+    from sam3.model.sam3_image_processor import Sam3Processor
+    return Sam3Processor(image_model, confidence_threshold=float(confidence_threshold))
+
+
 class SAM3Processor(FrameDetectionBackend):
     """
     SAM3-based processor for prompt-driven object segmentation and blurring.
@@ -171,10 +185,7 @@ class SAM3Processor(FrameDetectionBackend):
         # Token HF (global, inoffensif) — la bascule du CACHE, elle, est confinée ci-dessous.
 
         try:
-            # Import SAM3 modules
             # Note: We only import the image model as video predictor requires 'triton' (Linux only)
-            from sam3.model.sam3_image_processor import Sam3Processor as Sam3ImageProcessor
-
             if model_type in ['image', 'auto']:
                 logger.info("[SAM3] Loading image model...")
                 print("[SAM3] Loading image model...")
@@ -196,7 +207,10 @@ class SAM3Processor(FrameDetectionBackend):
                 # (Corps extrait le 2026-09-27 dans `load_sam3_image_model`, que le cam_analyzer
                 # appelle aussi : un seul chargement de SAM3.)
                 self.image_model = load_sam3_image_model()
-                self.image_processor = Sam3ImageProcessor(self.image_model)
+                # Le seuil de CE moteur passé à la librairie (`sam3_image_processor`) : construit
+                # nu, le processeur coupait à 0,5 et `confidence_threshold` (0,3) n'agissait pas.
+                self.image_processor = sam3_image_processor(self.image_model,
+                                                            self.confidence_threshold)
                 logger.info("[SAM3] Image model loaded successfully")
                 print("[SAM3] Image model loaded successfully")
 

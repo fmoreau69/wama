@@ -37,7 +37,14 @@ DEFAULT_MARKING_PROMPTS = [
 
 DEFAULT_ROAD_PROMPT = 'drivable road surface area in front of the vehicle'
 
-CONFIDENCE_THRESHOLD = 0.30
+#: Seuil de PRODUCTION des marquages. ⚠ Il valait 0.30 depuis la création du module (2026-03-26,
+#: `10e6d5a3`) et n'a JAMAIS agi : le processeur de la librairie, construit sans seuil, coupait
+#: lui-même à 0,5 avant de rendre ses masques (`common.backends.sam3_processor.sam3_image_processor`,
+#: mesuré le 2026-10-16). Tous les réglages et toutes les sessions validés l'ont donc été à 0,5 :
+#: c'est la valeur ÉCRITE ici, pour que rien ne change. Descendre (0,30 était l'intention d'origine)
+#: est une décision à MESURER — le diagnostic `sam3_test_frame_task` (seuil 0 = tout) montre
+#: désormais vraiment ce que SAM3 voit sous 0,5.
+CONFIDENCE_THRESHOLD = 0.50
 
 
 def _as_seq(x):
@@ -165,14 +172,15 @@ class SAM3RoadAnalyzer:
         # cache n''est jamais muté. L''appel de préparation a été retiré le 2026-09-07.
 
         try:
-            from sam3.model.sam3_image_processor import Sam3Processor as _Sam3Proc
-
             # MÊME chargement que la brique commune (2026-09-27) : poids LOCAUX, par chemin —
             # l'appel nu `build_sam3_image_model()` passait par le Hub (jeton d'instance, cache
             # partagé) au lieu du dossier du modèle (`ROADMAP §17` : le 2ᵉ wrapper SAM3).
-            from wama.common.backends.sam3_processor import load_sam3_image_model
+            # MÊME construction du processeur (2026-10-16) : le seuil lui est PASSÉ — construit
+            # nu, il coupait à 0,5 et `CONFIDENCE_THRESHOLD` n'agissait pas.
+            from wama.common.backends.sam3_processor import (load_sam3_image_model,
+                                                             sam3_image_processor)
             image_model = load_sam3_image_model()
-            self._processor = _Sam3Proc(image_model)
+            self._processor = sam3_image_processor(image_model, CONFIDENCE_THRESHOLD)
             logger.info("[SAM3RoadAnalyzer] Model loaded")
         except ImportError as e:
             raise ImportError(f"SAM3 not installed. pip install sam3\n{e}")
@@ -216,6 +224,9 @@ class SAM3RoadAnalyzer:
         from PIL import Image
 
         thr = CONFIDENCE_THRESHOLD if min_confidence is None else float(min_confidence)
+        # Le seuil de CET appel va à la librairie, qui trie avant de rendre : sans lui, un
+        # diagnostic à 0 (« tous les masks ») ne voyait rien sous 0,5.
+        self._processor.set_confidence_threshold(thr)
         frame_rgb  = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         pil_frame  = Image.fromarray(frame_rgb)
         h, w       = frame_bgr.shape[:2]
@@ -238,13 +249,13 @@ class SAM3RoadAnalyzer:
             masks  = _as_seq(output.get('masks'))
             scores = _as_seq(output.get('scores'))
 
-            # Diagnostic : voir ce que SAM3 renvoie RÉELLEMENT (avant seuil). Permet
-            # de distinguer « rien détecté » (0 mask) de « détecté mais score faible »
-            # (masks présents mais < seuil) → ajuster CONFIDENCE_THRESHOLD si besoin.
+            # Diagnostic : ce que SAM3 renvoie au seuil de CET appel (la librairie trie avant de
+            # rendre — jusqu'au 2026-10-16 elle coupait à 0,5 quel que soit le seuil demandé).
+            # Avec un seuil bas, il distingue « rien détecté » de « détecté mais score faible ».
             if len(masks):
                 logger.info("[SAM3] '%s' : %d mask(s), scores=%s (seuil %.2f)",
                             label, len(masks),
-                            [round(float(s), 3) for s in scores[:6]], CONFIDENCE_THRESHOLD)
+                            [round(float(s), 3) for s in scores[:6]], thr)
 
             for i, mask in enumerate(masks):
                 score = float(scores[i]) if i < len(scores) else 1.0
