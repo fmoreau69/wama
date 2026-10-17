@@ -24400,3 +24400,66 @@ tout » reste câblé à la main dans 6 apps (`window.location` : avatarizer, co
 imager, synthesizer ; POST de formulaire : anonymizer) alors que la brique offre `download_url`
 — même nature, non porté ce soir · les
 gestes navigateur ▶/🗑 de file à rejouer après relance (`<app>.clear_all`, `batch_processing`).
+
+## §CLÔTURE — 2026-10-17, « TRANSLATOR : saisie instantanée commune, rôle `app`, brique `translator` » (15→17/10) — 🔚 la forme d'entrée MIXTE est TRANSMISE au portage
+
+**Livré** (commits locaux, non poussés) : rôles wama-dev-ai `task` / `app` / `repo_app` + reprise
+locale d'un distant coupé + démon Ollama muet réparé (`bcebdec6` `5a673baa` `ba7f7e57` `1de1accd`
+`6663425a`) ; brique `translator` = moteur du Translator, clé de catalogue (`0dde65be`) ; décisions
+de Fabien en ROADMAP §10.B (`6dde6bd3` `d174380f`) ; capacité COMMUNE de résultat instantané (`45e2cac6`
+`5a6183fd`, CARD_DESIGN §11.11 D bis) ; Translator né au bac à sable du brouillon du rôle `app`,
+corrigé (`d82cd006`, `manifests/app_drafts/translator.json`) ; revérification : capacité renommée
+`instant_preview` (nom réservé par la spec depuis le 17/06), langues projetées de
+`LANGUAGE_CHOICES`, fenêtre `role_utils.LONG_WRITE_NUM_CTX` (`568637f3`). Brique `translator`
+corrigée : une source « auto » se fait détecter (rendait le texte inchangé), `PROMPT_VERSION` dans
+la clé de cache.
+
+**🔴 BLOQUANT TRANSMIS** (§PASSATION ci-dessous) : la page `/translator_01/` n'a NI saisie NI zone
+instantanée — la forme d'entrée MIXTE n'est pas dérivée. Mesuré au smoke après relance (17/10) : la
+route `instant` traduit, la page ne la montre pas.
+
+**Pendings** :
+- ⏳ la DÉCLARATION de la forme d'entrée (par port « suffit à créer », `required`, ou capacité
+  d'app) — décision de Fabien, soumise par la session de portage ;
+- ⏳ juger le Translator à l'usage ; vérifier « Envoyer vers » le Writer sur un vrai document ;
+- ⏳ un schéma d'app née d'un manifeste ne lit aucun vocabulaire déclaré (langues re-projetées à
+  la main si `LANGUAGE_CHOICES` bouge) — ROADMAP §10.B ;
+- ⏳ la glu de `translator_01` vit au bac à sable (non versionnée) ; promotion = geste humain ;
+- hérités, à décider par Fabien : 2 API sans consommateur (`api/formats/` 24,5 s,
+  `api/catalog/stats/` 1884 requêtes), `backup/status` 3 s à chaque ouverture du model manager ;
+  `library:libretranslate` validée reste au registre (second backend possible) ;
+- pousser : les douze commits ci-dessus.
+
+**Rouges vus, aucun de la session** : `tests_catalogues` mécanisme `bench` (préexistant) ;
+`tests_codegen_from_scratch` `composer.parts` sans manifeste `function` (`4172550d`, autre
+instance) ; `tests_tasks_gen_model_route` (le converter rend son pipeline depuis le 13/10) ;
+`tests_identifier_language` noms de méthodes de test 1295 > 1293 (aucun nom français dans les
+fichiers de test de la session : `tests_instant_result`, `tests_dev_ai_app_role`, `tests_translator`).
+
+**Artefacts et effets de bord** : trois rapports `app_translator_*` PENDING_HUMAN_VALIDATION dans
+les sorties de wama-dev-ai (le brouillon validé est celui de `manifests/app_drafts/`) ; tables
+`translator_01_*` orphelines retirées de la base de TEST (sans ligne de migration, cause non
+établie) ; le registre local du bac à sable corrigé à la main (`instant_preview: true`,
+naissance faite pendant le renommage) ; une traduction fausse retirée du cache ; scripts de
+mesure et de smoke dans le scratchpad de session (jetables).
+
+**Contrôles attendus au prochain /reprise** : `check_docs` 0 cassée / 0 périmée sur 2861 ;
+`doc_facts --check` : 1 bloc périmé (`mecanismes`) par le travail d'autrui — mes lignes y sont
+identiques à HEAD ; `check_redundancy` 113 trouvailles, dont les noms de réglages recopiés par
+`views_gen` dans huit jumelles (générateur, transmis) ; tests de la session : 381 en trois passes,
+les 5 rouges ci-dessus et aucun autre.
+
+## §PASSATION — 2026-10-17, « forme d'entrée de la card dérivée pour les dix apps » → session « Portage apps media » (`add-text-file-rag-ingestion`, commit `e4996ae1`)
+
+Décision de Fabien : *« C'est du travail de portage ou de construction. ça doit être transmis à la
+session "Portage apps media" »* ; consigne : *« pas de pansement ni de réinvention […] Toutes les
+apps doivent être alignées »*. Message autonome envoyé (+ deux ajouts) : constat mesuré sur les dix
+apps (dépôt : anonymizer, converter, describer, enhancer, reader, transcriber ; attache + saisie :
+imager, avatarizer, composer ; mixte : synthesizer et Translator), trou déjà nommé
+(`tests_codegen_templates`, `expectedFailure` du 03/10), piège mesuré (les `modes.domains` parlent
+le vocabulaire des slots, pas celui des ports — critère essayé puis retiré), trois déclarations
+possibles à soumettre à Fabien, et ce qui sert déjà (la vue `upload` du mode attache accepte la
+consigne seule OU le fichier seul). Ajouts : les noms de réglages recopiés par `views_gen` (huit
+jumelles) ; passer l'hôte des réglages du volet à la zone instantanée (`data-instant-params`, le ⏳
+de CARD_DESIGN §11.11 D bis). Précaution transmise : copier la glu de `translator_01` avant toute
+re-naissance.

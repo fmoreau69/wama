@@ -67,6 +67,15 @@ Elle vit depuis dans `app_registry.app_identity`. ✅ Avant de recommander un sy
 là où la doc dit que vit sa donnée** (ici ROUTE §10.6 P1 : l'identité se déclare dans
 `app_registry`), et **combien de jumeaux a-t-il** (greper la NATURE de la lecture, pas son nom) ?
 
+🔴 **Vécu le 2026-10-16 — un NOM peut être déjà réservé par une INTENTION que le code ignore.** La
+capacité `has_instant_result` (résultat pendant la frappe) a été écrite, testée et commitée ; le
+grep du CODE ne trouvait rien de voisin. La spec du manifeste et `WAMA_APP_CONVENTIONS §2bis.3`
+réservaient pourtant `instant_preview` pour cette intention depuis le 17/06, jamais définie, et
+deux listes de drapeaux « mesurés » le citaient sans qu'aucune grille le mesure. Renommé à la
+revérification. ✅ Pour un NOM neuf (capacité, champ de manifeste, clé de vocabulaire) : greper
+aussi `docs/construction/` (spec, conventions, route) — une intention réservée vit dans la doc,
+pas dans le code.
+
 ## 2. Testé — lancer, garder, prouver
 
 - Lancer : `/cloture §2a` (périmètre ciblé, puis la suite si le substrat a bougé ; lire les NOMS
@@ -74,6 +83,12 @@ là où la doc dit que vit sa donnée** (ici ROUTE §10.6 P1 : l'identité se d�
 - Garder : `/cloture §2a bis` — une ligne par livrable : son symbole → le test qui le nomme.
 - Prouver : `/contre-epreuve` sur chaque garde neuve (brique neutralisée → ROUGE exigé). Vécu le
   2026-10-12 : sept gardes, toutes rouges — mais c'est la seule façon de le SAVOIR.
+- 🔴 **Un livrable VISIBLE se vérifie sur la PAGE servie, pas sur sa route** (vécu le 2026-10-17).
+  La zone de saisie instantanée avait ses tests (déclaration, vue, tag, V8) et sa route traduisait
+  au smoke ; la page `/translator_01/` ne l'affichait pas — le gabarit généré ne rendait aucune
+  saisie (forme d'entrée non dérivée). Le geste qui l'a vu : client connecté, `GET` de la page,
+  présence de l'attribut de la zone et de son script — plus la contre-épreuve sur une app qui ne
+  déclare rien.
 
 ## 3. Consigné — la doc confrontée au code
 

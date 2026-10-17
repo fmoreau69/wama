@@ -2541,8 +2541,18 @@ Deux voies, complémentaires :
   ⏳ Manque de mécanisme : un schéma d'app NÉE D'UN MANIFESTE ne porte que des choix LITTÉRAUX
   (une app réelle les dérive de son modèle, `derive_from_model`) — rien ne lui fait lire un
   vocabulaire déclaré ; la liste se re-projette donc à la main si le vocabulaire bouge.
-- ⏳ Reste : relancer gunicorn + workers pour servir l'app et sa tâche ; juger l'app à l'usage ;
-  vérifier « Envoyer vers » le Writer sur un vrai document (voie 1 ci-dessus).
+- 🔴 **BLOQUANT, mesuré au smoke du 2026-10-17 après relance** : la route `instant` traduit, mais
+  la page `/translator_01/` n'a NI saisie NI zone instantanée. `views_gen.prompt_entry` ne connaît
+  que deux formes d'entrée (attache = consigne sans port de travail ; sinon dépôt), et la forme
+  MIXTE (l'un OU l'autre crée un élément, celle du synthesizer) n'est déclarée nulle part — les dix
+  pages réelles l'écrivent à la main. Même trou que `tests_codegen_templates`
+  (`test_a_prompt_first_app_with_optional_cover_ports_stays_in_attach_mode`, en `expectedFailure`
+  depuis le 03/10). Un critère par `modes.domains` a été essayé puis RETIRÉ : les domaines parlent
+  le vocabulaire des slots, pas celui des ports (pansement). **Transmis le 2026-10-17 à la session
+  « Portage apps media »** (décision de Fabien : c'est du portage) — la déclaration (par port « suffit
+  à créer », `required`, ou capacité d'app) reste à soumettre à Fabien.
+- ⏳ Reste : juger l'app à l'usage ; vérifier « Envoyer vers » le Writer sur un vrai document
+  (voie 1 ci-dessus).
 
 ---
 
