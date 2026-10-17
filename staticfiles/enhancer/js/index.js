@@ -2,7 +2,6 @@ document.addEventListener('DOMContentLoaded', function () {
   const config = window.ENHANCER_APP || {};
   const csrfToken = config.csrfToken;
   const queueTable = document.getElementById('enhancer-queue');
-  const downloadAllBtn = document.getElementById('enhancer-download-all-btn');
 
   // Délégué à WamaApp (brique commune wama-app-base.js) ; repli local si non chargé.
   function getUrl(template, id) {
@@ -107,7 +106,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     queueTable.prepend(card);
     bindRowActions(card);
-    updateDownloadAllState();
 
     if (typeof initMediaPreview === 'function') {
       initMediaPreview();
@@ -185,7 +183,6 @@ document.addEventListener('DOMContentLoaded', function () {
       stopPolling(id);
     }
 
-    updateDownloadAllState();
   }
 
   // ⏹ Stop : arrête l'amélioration image/vidéo → item relançable (↻ via autoSync sur data-status).
@@ -279,7 +276,6 @@ document.addEventListener('DOMContentLoaded', function () {
   WamaQueueActions.onDeleted(function (id) {
     stopPolling(id);
     insertEmptyRowIfNeeded();
-    updateDownloadAllState();
   });
 
   // ── Volet : réglages du tirage « auto » (facteur + curseur) ──
@@ -303,18 +299,12 @@ document.addEventListener('DOMContentLoaded', function () {
         startPolling(id);
       }
     });
-    updateDownloadAllState();
   }
 
   // ▶ Démarrer tout et 🗑 Tout effacer : brique `queue-actions.js` (2026-10-17) — corps et suite
-  // du ▶ déclarés plus bas (`onQueueStartBody` / `onQueueStarted`, domaine image_video).
-  function initBulkActions() {
-    if (downloadAllBtn) {
-      downloadAllBtn.addEventListener('click', () => {
-        window.location.href = config.downloadAllUrl;
-      });
-    }
-  }
+  // du ▶ déclarés plus bas (`onQueueStartBody` / `onQueueStarted`, domaine image_video). ⬇ Tout
+  // télécharger : lien de la brique `_download_button.html`, rendu prêt par la barre globale
+  // (`initBulkActions` et `updateDownloadAllState` retirés le même jour).
 
   function insertEmptyRowIfNeeded(force = false) {
     if (!queueTable) return;
@@ -330,16 +320,6 @@ document.addEventListener('DOMContentLoaded', function () {
       queueTable.appendChild(el);
     } else if (existingEmpty) {
       existingEmpty.remove();
-    }
-  }
-
-  function updateDownloadAllState() {
-    if (!downloadAllBtn || !queueTable) return;
-    const hasSuccess = !!queueTable.querySelector('[data-status="SUCCESS"]');
-    if (hasSuccess) {
-      downloadAllBtn.removeAttribute('disabled');
-    } else {
-      downloadAllBtn.setAttribute('disabled', 'true');
     }
   }
 
@@ -388,7 +368,6 @@ document.addEventListener('DOMContentLoaded', function () {
   initImport();
   initUrlUpload();
   initExistingRows();
-  initBulkActions();
   bindRowActions(document);
 
   // Bind actions to existing modals (loaded from Django template)

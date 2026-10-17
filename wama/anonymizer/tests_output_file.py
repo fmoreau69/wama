@@ -148,7 +148,7 @@ class CardOutputTest(TestCase):
         b = self._file('output', 'shared_blurred_sam3_2.png', b'b')
         for path in (a, b):
             self._media(status='SUCCESS', output_file=os.path.relpath(path, self.root).replace(os.sep, '/'))
-        response = self.client.post('/anonymizer/download_all_media/')
+        response = self.client.get('/anonymizer/download_all_media/')
         archive = zipfile.ZipFile(BytesIO(b''.join(response.streaming_content)))
         self.assertEqual(['shared_blurred_sam3_1.png', 'shared_blurred_sam3_2.png'],
                          sorted(archive.namelist()))

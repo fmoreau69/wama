@@ -624,15 +624,35 @@ _QUEUE_BAR_INCLUDE = re.compile(
 _INCLUDE_ARG = re.compile(r"(\w+)=('[^']*'|\"[^\"]*\"|[\w.]+)")
 
 
-def _queue_actions_common(f: _AppFiles):
-    """▶ Démarrer tout et 🗑 Tout effacer de la FILE câblés par la brique `queue-actions.js` :
-    chaque barre de file reçoit `start_url` et `clear_url` (posées par `{% url … as … %}`), et le
-    JS de l'app ne s'accroche plus aux boutons par leur id.
+def _app_js_reads_id(f: _AppFiles, ident: str) -> str | None:
+    """Le JS de l'app nomme-t-il cet id (preuve `fichier:ligne`) — hors de la seule forme
+    permise, la DÉCLARATION à la barre globale commune (`download: '<id>'`, ⬇ d'une file de
+    domaine) ? Commentaires neutralisés."""
+    rx = re.compile(rf"""['"#]{re.escape(ident)}['"]""")
+    for path in f.glob(JS[0]):
+        code = _sans_commentaires(f._read(path), '.js')
+        for m in rx.finditer(code):
+            start = code.rfind('\n', 0, m.start()) + 1
+            if re.search(r'\bdownload\s*:\s*$', code[start:m.start()]):
+                continue
+            rel = path.relative_to(f.root).as_posix() if path.is_relative_to(f.root) else path.as_posix()
+            return f"{f.app}/{rel}:{code.count(chr(10), 0, m.start()) + 1}"
+    return None
 
-    Mesuré depuis le 2026-10-17. Les critères `start_all` / `clear_all` ne lisent que la ROUTE :
-    ils étaient verts 10/10 pendant que les dix apps gardaient chacune leur handler (12 barres,
-    `ROUTE §11 #29` le relevait le 15/09 : « 0/12 passent `start_url`/`clear_url` »). Un handler
-    gardé À CÔTÉ des URLs ferait partir le POST deux fois : il rend le critère partiel.
+
+def _queue_actions_common(f: _AppFiles):
+    """▶ Démarrer tout, ⬇ Télécharger tout et 🗑 Tout effacer de la FILE câblés par les briques
+    communes : chaque barre reçoit `start_url`, `clear_url` et — si elle montre le ⬇ —
+    `download_url` (posées par `{% url … as … %}`) et `app` (les formats DÉCLARÉS du menu) ; le JS
+    de l'app ne s'accroche plus aux boutons par leur id.
+
+    Mesuré depuis le 2026-10-17. Les critères `start_all` / `clear_all` / `download_all` ne lisent
+    que la ROUTE : ils étaient verts 10/10 pendant que les dix apps gardaient chacune leurs
+    handlers (12 barres, `ROUTE §11 #29` le relevait le 15/09 : « 0/12 passent
+    `start_url`/`clear_url` », « Télécharger tout désactivé à vie sur plusieurs apps » — sans
+    `download_url`, le partial rend un bouton désactivé auquel six apps accrochaient un clic qui
+    ne partait jamais). Un handler gardé À CÔTÉ des URLs ferait partir le POST deux fois, une
+    bascule locale du ⬇ contredirait la barre globale : le critère est alors partiel.
     """
     bars = []
     for path in f.glob(TEMPLATES[0]):
@@ -644,18 +664,22 @@ def _queue_actions_common(f: _AppFiles):
     if not bars:
         return None, None                  # aucune barre de file : rien à câbler
     for proof, code, args in bars:
-        for key in ('start_url', 'clear_url'):
+        shows_download = args.get('show_download', '') not in ('', 'False')
+        for key in ('start_url', 'clear_url') + (('download_url',) if shows_download else ()):
             value = args.get(key, '')
             if not value:
                 return False, f"{proof} sans `{key}` — le bouton est câblé par l'app"
             if value[0] not in '\'"' and not re.search(rf"\{{%\s*url\s[^%]*\bas\s+{re.escape(value)}\s*%\}}", code):
                 return False, f"{proof} : `{key}={value}` jamais posée par `{{% url … as {value} %}}` (attribut vide)"
+        if shows_download and not args.get('app'):
+            return False, f"{proof} sans `app` — le menu ⬇ ne lit pas les formats déclarés"
     for proof, _code, args in bars:
-        for key in ('start_id', 'clear_id'):
+        for key in ('start_id', 'clear_id', 'download_id'):
             ident = args.get(key, '').strip('\'"')
-            local = ident and f.find_code(JS, rf"""['"#]{re.escape(ident)}['"]""")
+            local = ident and _app_js_reads_id(f, ident)
             if local:
-                return 'partial', f"{proof} : `#{ident}` encore lu par le JS de l'app ({local}) — double POST"
+                return 'partial', (f"{proof} : `#{ident}` encore lu par le JS de l'app ({local}) — "
+                                   f"geste ou bascule écrit à côté de la brique")
     return True, bars[0][0]
 
 
@@ -2595,8 +2619,9 @@ CRITERIA: list[Criterion] = [
               lambda f: _present(f, URLS, r'start_all|start-all')),
     Criterion('clear_all', 'F5', 'Vue clear_all',
               lambda f: _present(f, URLS, r'clear_all|clear-all')),
-    # Les deux critères ci-dessus ne lisent que la ROUTE ; celui-ci lit le CÂBLAGE (2026-10-17).
-    Criterion('queue_actions_common', 'F5', 'Démarrer tout / Tout effacer via la brique de file',
+    # `start_all` / `clear_all` / `download_all` ne lisent que la ROUTE ; celui-ci lit le CÂBLAGE
+    # des trois boutons de la barre (2026-10-17).
+    Criterion('queue_actions_common', 'F5', 'Barre de file (▶ ⬇ 🗑) câblée par les briques communes',
               _queue_actions_common, mechanism='queue_front'),
     Criterion('download_all', 'F5', 'Vue download_all',
               lambda f: _present(f, URLS, r'download_all|download-all')),

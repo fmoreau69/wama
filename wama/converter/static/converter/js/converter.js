@@ -42,8 +42,7 @@
 
     // Options panels
 
-    // Global action buttons (▶ and 🗑 of the queue: shared `queue-actions.js` brick)
-    const downloadAllBtn = document.getElementById('converterDownloadAllBtn');
+    // Global action buttons of the queue (▶ ⬇ 🗑): shared bricks, nothing wired here
 
     // Profile dropdown
     const profileSelect    = document.getElementById('converterProfileSelect');
@@ -453,12 +452,9 @@
 
     // ── Global buttons ────────────────────────────────────────────────────────
 
-    // ▶ Démarrer tout et 🗑 Tout effacer : brique `queue-actions.js` (URLs passées au partial,
-    // 2026-10-17) — POST, confirmation des fichiers libérés, rechargement.
-
-    downloadAllBtn && downloadAllBtn.addEventListener('click', () => {
-        window.location.href = APP.urls.downloadAll;
-    });
+    // ▶ Démarrer tout et 🗑 Tout effacer : brique `queue-actions.js` ; ⬇ Télécharger tout : lien
+    // de la brique `_download_button.html`, rendu prêt par la barre globale (2026-10-17, URLs
+    // passées au partial). Rien à écrire ici.
 
     // ── Settings modal — dynamic form + apply / restart ───────────────────────
 

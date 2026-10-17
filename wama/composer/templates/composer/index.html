@@ -88,7 +88,7 @@ comme l'imager et l'avatarizer — le drapeau `primary_import_self` du 03/10 est
 {# Barre d'outils COMMUNE : actions globales à gauche · tri + filtre + disposition à droite. #}
 {# ▶ et 🗑 de file câblés par la brique `queue-actions.js` (URLs passées au partial). #}
 {% url 'composer:download_all' as download_all_url %}{% url 'composer:start_all' as q_start_url %}{% url 'composer:clear_all' as q_clear_url %}
-{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True download_url=download_all_url start_url=q_start_url clear_url=q_clear_url clear_confirm='Supprimer toutes les générations (sauf celles en cours) ?' %}
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True app='composer' download_url=download_all_url start_url=q_start_url clear_url=q_clear_url clear_confirm='Supprimer toutes les générations (sauf celles en cours) ?' %}
 <div id="composerQueue" class="wama-queue-{{ card_layout|default:'list' }}"
          {% queue_dnd_attrs 'composer' %}>
 

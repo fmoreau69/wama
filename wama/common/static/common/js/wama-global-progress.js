@@ -8,7 +8,7 @@
  *
  * Apps MULTI-domaines (N barres : imager image/vidéo, enhancer audio…) — réutiliser
  * la MÊME fonction, 1 appel par barre (pas de poller bespoke par app) :
- *   WamaGlobalProgress.init({ url, dataKey, bar, stats, pct, eta, status, interval, onData })
+ *   WamaGlobalProgress.init({ url, dataKey, bar, stats, pct, eta, status, interval, download, onData })
  *
  * L'endpoint renvoie un JSON tolérant : { total, done|success|completed,
  *   running, failed|failure|error, overall_progress? }  (overall_progress dérivé si absent).
@@ -22,10 +22,41 @@
  *   - barre toujours visible (file vide → "Aucune tâche", 0 %)
  *   - ETA agrégée via WamaEta (si un élément eta existe)
  *   - event `media:processed` quand une tâche se termine (rafraîchit le filemanager)
- *   - onData(payload) optionnel après chaque tick (ex. activer un bouton download-all)
+ *   - le ⬇ « Télécharger tout » de la MÊME file (`data-queue-download`, rendu par la brique
+ *     `_download_button.html`) est prêt dès qu'un élément est terminé (`done > 0`), désactivé
+ *     sinon (2026-10-17) — le compte vient du SERVEUR, donc un filtre de statut qui masque les
+ *     cards réussies ne trompe pas le bouton. Barre par défaut : les ⬇ que nulle autre barre ne
+ *     réclame ; barre d'un domaine : `init({ …, download: '<id du ⬇ de sa file>' })`. Remplace
+ *     quatre bascules écrites dans les apps (DOM des cards ×3, `onData` de l'audio).
+ *   - onData(payload) optionnel après chaque tick
  * ======================================================================== */
 (function (global) {
     'use strict';
+
+    // Les ⬇ réclamés par une barre de DOMAINE ; la barre par défaut prend les autres.
+    var claimedDownloads = [];
+
+    function downloadTargets(own) {
+        if (own) {
+            var el = document.getElementById(own);
+            return el ? [el] : [];
+        }
+        return Array.prototype.filter.call(
+            document.querySelectorAll('[data-queue-download]'),
+            function (el) { return claimedDownloads.indexOf(el.id) < 0; });
+    }
+
+    function setDownloadReady(el, ready) {
+        if (el.tagName === 'BUTTON') el.disabled = !ready;
+        el.classList.toggle('disabled', !ready);
+        if (ready) {
+            el.removeAttribute('aria-disabled');
+            el.removeAttribute('tabindex');
+        } else {
+            el.setAttribute('aria-disabled', 'true');
+            el.setAttribute('tabindex', '-1');
+        }
+    }
 
     function startBar(opts) {
         opts = opts || {};
@@ -40,6 +71,8 @@
         var interval = opts.interval || 1500;
         var dataKey  = opts.dataKey || null;
         var onData   = (typeof opts.onData === 'function') ? opts.onData : null;
+        var download = opts.download || null;
+        if (download) claimedDownloads.push(download);
         var lastDone = -1;
 
         // Barre toujours visible (homogène) : neutralise un éventuel opacity:0 inline.
@@ -95,6 +128,10 @@
             }
             lastDone = done;
 
+            // Lu au TOUR, pas à l'init : toutes les barres de la page sont alors déclarées, et
+            // un ⬇ ré-rendu (barre de file rechargée) est retrouvé.
+            downloadTargets(download).forEach(function (el) { setDownloadReady(el, done > 0); });
+
             if (onData) { try { onData(d); } catch (e) { /* callback app : ignorer */ } }
         }
 
@@ -124,7 +161,7 @@
         poller.start('global');
     }
 
-    global.WamaGlobalProgress = { init: startBar };
+    global.WamaGlobalProgress = { init: startBar, setDownloadReady: setDownloadReady };
 
     // Auto-init de la barre par défaut (apps mono-domaine) si l'URL est posée.
     function autoInit() {

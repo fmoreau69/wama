@@ -217,20 +217,9 @@
   });
 
   // ── Toolbar commune ─────────────────────────────────────────────────────
-  // ▶ Tout lancer et 🗑 Tout effacer : brique `queue-actions.js` (URLs passées au partial,
-  // 2026-10-17) — POST, confirmation des fichiers libérés, rechargement. Rien à écrire ici.
-  const dlAllBtn = document.getElementById('anon-download-all-btn');
-  if (dlAllBtn) {
-    dlAllBtn.addEventListener('click', () => {
-      const f = document.createElement('form');
-      f.method = 'POST';
-      f.action = cfg.downloadAllUrl;
-      f.innerHTML = '<input type="hidden" name="csrfmiddlewaretoken" value="' + cfg.csrfToken + '">';
-      document.body.appendChild(f);
-      f.submit();
-      f.remove();
-    });
-  }
+  // ▶ Tout lancer et 🗑 Tout effacer : brique `queue-actions.js` ; ⬇ Tout télécharger : lien de
+  // la brique `_download_button.html`, rendu prêt par la barre globale (2026-10-17, URLs passées
+  // au partial). Rien à écrire ici — le formulaire POST fabriqué pour le ⬇ est retiré avec lui.
 
   // Le volet lu par le lecteur DÉRIVÉ du schéma (inspecteur commun) — jamais tout le conteneur,
   // qui porte aussi les cases des classes à flouter : leurs valeurs brutes (`'false'`) finissaient

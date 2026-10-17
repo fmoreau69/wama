@@ -16,7 +16,7 @@ register = template.Library()
 
 @register.inclusion_tag('common/_download_button.html')
 def download_button(app, url, ready, available=None, title=None, empty_title=None, css_class=None,
-                    html_id=None, label=None, split=True, item=None):
+                    html_id=None, label=None, split=True, item=None, queue=False):
     """Rend le bouton ⬇ de l'app `app` selon `WAMA_APP_CONVENTIONS §6.3`.
 
     `url`       : URL de téléchargement SANS query (`{% url 'app:download' o.id %}`).
@@ -37,8 +37,16 @@ def download_button(app, url, ready, available=None, title=None, empty_title=Non
     formats », il dit à quel NIVEAU on est. `split=False` est la forme d'une action de BARRE DE
     FILE, où il n'existe pas de « format par défaut » cliquable sans ouvrir le menu — la barre
     télécharge TOUT, ou rien. Les formats offerts restent, eux, ceux de la DÉCLARATION.
-    `html_id` / `label` existent pour la même raison (le JS d'app cible le bouton de barre par
-    son id, et une barre porte un libellé là où une card n'a qu'une icône).
+    `html_id` / `label` existent pour la même raison (une barre porte un libellé là où une card
+    n'a qu'une icône).
+
+    `queue` (2026-10-17) : le bouton de la BARRE DE FILE. Son état « prêt » change pendant que la
+    page est ouverte (une tâche finit) : il est donc rendu basculable — un LIEN même pas encore
+    prêt (classe `disabled`), jamais un `<button>` sans adresse qu'aucun JS ne pourrait rendre
+    utile — et marqué `data-queue-download`, que la barre de progression globale de la même file
+    bascule (`wama-global-progress.js`, « prêt » = au moins un élément terminé). Avant, six apps
+    rendaient un bouton désactivé PAR CONSTRUCTION et y accrochaient un clic qui ne partait jamais,
+    et quatre recettes de bascule différentes vivaient dans les autres.
 
     ⚠ Renommé le 2026-08-30 (ex-`bouton_telecharger`, params `pret`/`disponibles`/`titre`/
     `titre_vide`/`classe`) : un tag est lu dans 12 gabarits, donc une API — anglais obligatoire.
@@ -56,6 +64,7 @@ def download_button(app, url, ready, available=None, title=None, empty_title=Non
         'id': html_id,
         'label': label,
         'split': bool(split),
+        'queue': bool(queue),
     }
 
 

@@ -158,6 +158,42 @@ class PollerLoopTest(SimpleTestCase):
         self.v8.eval('tick();')
         self.assertEqual(2, self._js('calls.length'), 'one call per turn, not one per bar')
 
+    def test_each_bar_makes_the_download_button_of_its_own_queue_ready(self):
+        """⬇ « Télécharger tout » (2026-10-17) : prêt dès qu'un élément de SA file est terminé,
+        compté par le serveur. Une barre de domaine nomme son ⬇ (`download:`), la barre par défaut
+        prend les autres — une file d'images terminée ne rend pas prêt le ⬇ de la file vidéo."""
+        self.v8.eval("""
+            function bar() { return {style: {}, classList: classList(), textContent: ''}; }
+            function dl(id, tag) {
+                var attrs = {};
+                return {id: id, tagName: tag, disabled: true, classList: classList(),
+                        setAttribute: function (k, v) { attrs[k] = v; },
+                        removeAttribute: function (k) { delete attrs[k]; }, attrs: attrs};
+            }
+            var els = {globalProgressBar: bar(), videoGlobalProgressBar: bar(),
+                       imgDl: dl('imgDl', 'A'), vidDl: dl('vidDl', 'BUTTON')};
+            els.imgDl.classList.add('disabled');
+            document.getElementById = function (id) { return els[id] || null; };
+            document.querySelectorAll = function (sel) {
+                return sel === '[data-queue-download]' ? [els.imgDl, els.vidDl] : []; };
+            var CustomEvent = function (t) { this.type = t; };
+            document.dispatchEvent = function () {};
+        """)
+        self.v8.eval((JS / 'wama-global-progress.js').read_text(encoding='utf-8'))
+        self.v8.eval("""
+            window.WamaGlobalProgress.init({url: '/g/', dataKey: 'image'});
+            window.WamaGlobalProgress.init({url: '/g/', dataKey: 'video',
+                bar: 'videoGlobalProgressBar', download: 'vidDl'});
+            answer({image: {total: 3, done: 1}, video: {total: 2, done: 0}});
+        """)
+        state = ('[els.imgDl.classList.contains("disabled"), els.imgDl.attrs["aria-disabled"] || null,'
+                 ' els.vidDl.disabled, els.vidDl.classList.contains("disabled")]')
+        self.assertEqual([False, None, True, True], self._js(state),
+                         'the images queue has a result, the videos queue has none')
+        self.v8.eval("tick(); answer({image: {total: 0, done: 0}, video: {total: 2, done: 2}});")
+        self.assertEqual([True, 'true', False, False], self._js(state),
+                         'the readiness follows each new answer, queue by queue')
+
 
 class EveryPollingLoopIsTheCommonOneTest(SimpleTestCase):
     """2026-10-13 — douze apps et pages interrogeaient le serveur par un `setInterval` local

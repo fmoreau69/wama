@@ -84,7 +84,6 @@
         if (!card) return null;
         if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(item.id, { progress: item.progress, status: item.status, seedSeconds: item.estimated_seconds, modelLoaded: false }));
         bindCardActions(card, item);
-        updateDownloadAllBtn();
         return card;
     }
 
@@ -292,13 +291,6 @@
 
     // ─── Global actions ───────────────────────────────────────────────────────
 
-    function updateDownloadAllBtn() {
-        const btn = document.getElementById('reader-download-all-btn');
-        if (!btn) return;
-        const hasSuccess = document.querySelector('.reader-card[data-status="SUCCESS"], .reader-card[data-status="DONE"]') !== null;
-        btn.disabled = !hasSuccess;
-    }
-
     function initGlobalButtons() {
         // ▶ Démarrer tout et 🗑 Tout effacer : brique `queue-actions.js` (2026-10-17, URLs passées
         // au partial). Le ▶ déclare sa suite : suivre les cards lancées au lieu de recharger.
@@ -313,8 +305,9 @@
 
         // ⬇ « Télécharger tout » : PLUS de handler ici (2026-08-30) — le bouton est rendu par
         // la brique commune _download_button (menu des formats déclarés, navigation par <a>).
-        // Un window.location au clic détournerait l'OUVERTURE du menu. Ne reste côté app que
-        // le bascule d'état updateDownloadAllBtn() ci-dessus (le bouton naît disabled).
+        // Un window.location au clic détournerait l'OUVERTURE du menu. Son état « prêt » est
+        // basculé par la barre globale commune depuis le 2026-10-17 (`updateDownloadAllBtn`
+        // retiré : il comptait les cards du DOM, qu'un filtre de statut pouvait masquer).
 
         document.getElementById('resetOptions')?.addEventListener('click', () => {
             const fields = [
@@ -502,7 +495,6 @@
         initInspector();
         initCycleButton();
         bindBatchGroupActions();
-        updateDownloadAllBtn();
 
         // (Aperçu du fichier source : geste COMMUN `.preview-media-link` de la card, écouté par
         // `media-preview.js` — l'écoute locale de `.source-preview-btn` est retirée le 2026-10-12.)

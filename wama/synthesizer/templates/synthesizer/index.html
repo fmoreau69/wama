@@ -109,10 +109,11 @@ Le titre reste dans la zone étendue (il nomme l'ENTRÉE ; voix, vitesse et aper
         </h4>
 
         {% comment %}Toolbar de file COMMUNE (tri/filtre/layout + actions globales) — les ids
-startAllBtn/downloadAllBtn/clearAllBtn migrent ici depuis le volet droit. ▶ et 🗑 : brique
+startAllBtn/downloadAllBtn/clearAllBtn migrent ici depuis le volet droit. ⬇ : brique
+`_download_button.html` (2026-10-17). ▶ et 🗑 : brique
 `queue-actions.js` (URLs passées au partial, 2026-10-17 ; le corps du ▶ est déclaré par index.js).{% endcomment %}
-        {% url 'synthesizer:start_all' as q_start_url %}{% url 'synthesizer:clear_all' as q_clear_url %}
-        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True start_url=q_start_url clear_url=q_clear_url %}
+        {% url 'synthesizer:start_all' as q_start_url %}{% url 'synthesizer:clear_all' as q_clear_url %}{% url 'synthesizer:download_all' as q_download_url %}
+        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True app='synthesizer' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url %}
 
         <div id="synthesisQueue" class="wama-queue-{{ card_layout|default:'list' }}"
          {% queue_dnd_attrs 'synthesizer' %}>
@@ -218,7 +219,6 @@ greffe, avec les classes qu'il délègue (`save-settings-btn` / `save-and-restar
             globalProgress: "{% url 'synthesizer:global_progress' %}",
             delete: "/synthesizer/delete/",
             duplicate: "/synthesizer/duplicate/",
-            downloadAll: "{% url 'synthesizer:download_all' %}",
             console: "{% url 'synthesizer:console' %}",
             updateSettings: "{% url 'synthesizer:update_settings' 0 %}",
             batchPreview: "{% url 'synthesizer:batch_preview' %}",

@@ -10,7 +10,6 @@ document.addEventListener('DOMContentLoaded', function () {
   const speakButton = document.getElementById('transcriber-speak-btn');
   const liveOutput = document.getElementById('live-transcription-output');
   const liveStatus = document.getElementById('live-transcription-status');
-  const downloadAllBtn = document.getElementById('transcriber-download-all-btn');
 
   // Polling + état vide délégués au module commun (common/js/wama-app-base.js).
   const _poller = new WamaApp.Poller({
@@ -231,7 +230,6 @@ document.addEventListener('DOMContentLoaded', function () {
       refreshCard(id);
     }
 
-    updateDownloadAllState();
   }
 
   // Card RENDUE SERVEUR — source unique : partial _transcript_card.html via
@@ -354,7 +352,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (_inspector && String(id) === String(_inspector.state().itemId)) _inspector.deselect();  // évite des actions inspecteur orphelines
     stopPolling(id);
     insertEmptyStateIfNeeded();
-    updateDownloadAllState();
   });
 
 
@@ -494,8 +491,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // ⚠ Bulk download: NO wiring here (2026-08-30). The dropdown used to be rebuilt in JS —
     // four formats HARD-CODED, URL forged by `startAllUrl.replace('start_all','download_all')`.
     // The queue toolbar now renders it from the catalogue (`export_formats`) via
-    // `common/_download_button.html` with `split=False`. This code only toggles `disabled`
-    // (see `updateDownloadAllState`); the menu is server-rendered and always present.
+    // `common/_download_button.html` with `split=False`; its `disabled` state is toggled by the
+    // shared global progress bar since 2026-10-17 (`updateDownloadAllState` removed: it counted
+    // DOM cards, which a status filter can hide — the bar reads the server count).
     // Enregistrement automatique : `autoSave` de l'inspecteur commun (2026-09-27), sur les seuls
     // gestes réels — l'écouteur local d'avant partait aussi sur les `change` que l'inspecteur
     // émet en affichant une card, et réécrivait l'élément à chaque clic.
@@ -516,14 +514,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  function updateDownloadAllState() {
-    if (!downloadAllBtn || !queueContainer) return;
-    // Un résultat existe dès que l'ÉLÉMENT a réussi — même si la card se montre « périmée » ou
-    // « à compléter » (état déduit de ses process).
-    const hasSuccess = !!queueContainer.querySelector(
-      '.synthesis-card[data-element-status="SUCCESS"], .synthesis-card[data-status="SUCCESS"]');
-    downloadAllBtn.disabled = !hasSuccess;
-  }
 
 
   // ======================================================================
@@ -764,7 +754,6 @@ document.addEventListener('DOMContentLoaded', function () {
         startPolling(card.dataset.id);
       }
     });
-    updateDownloadAllState();
   }
 
   // The model select is filled from the CATALOGUE by the common brick (WamaParams, `catalog`

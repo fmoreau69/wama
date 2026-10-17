@@ -141,15 +141,9 @@
         // ── Actions globales : barre d'outils COMMUNE de la file (_queue_toolbar) ────────
         // ▶ Démarrer tout et 🗑 Tout effacer des deux files (image + vidéo) : brique
         // `queue-actions.js` depuis le 2026-10-17 (URLs passées au partial) — les deux handlers
-        // `startAllGenerations` / `clearAllGenerations` d'ici sont retirés. Le volet droit reste
-        // réservé aux actions de SÉLECTION (_inspector_actions), comme dans reader.
-        ['imager-image-download-all', 'imager-video-download-all'].forEach(function (id) {
-            const el = document.getElementById(id);
-            if (el) el.addEventListener('click', function () {
-                window.location.href = config.urls.downloadAll;
-            });
-        });
-
+        // `startAllGenerations` / `clearAllGenerations` d'ici sont retirés ; ⬇ est le lien de la
+        // brique `_download_button.html` (son clic local aussi). Le volet droit reste réservé
+        // aux actions de SÉLECTION (_inspector_actions), comme dans reader.
 
         // 🗑 (image ET vidéo) : plus de handler ici — brique commune queue-actions.js, une seule
         // délégation pour les deux domaines depuis que la graphie est unifiée (2026-08-23).
@@ -307,12 +301,16 @@
         // indépendante (sa part de données, ses propres éléments DOM), chacune s'auto-poll.
         if (window.WamaGlobalProgress) {
             // File images → IDs par défaut (#globalProgressBar/Stats/Pct, partial commun).
-            WamaGlobalProgress.init({ url: config.urls.globalProgress, dataKey: 'image' });
+            // `download` : le ⬇ de CETTE file, que la barre rend prêt dès qu'un élément du domaine
+            // est terminé (règle commune, 2026-10-17).
+            WamaGlobalProgress.init({ url: config.urls.globalProgress, dataKey: 'image',
+                                      download: 'imager-image-download-all' });
             // File vidéos → IDs dédiés de la barre vidéo.
             WamaGlobalProgress.init({
                 url: config.urls.globalProgress, dataKey: 'video',
                 bar: 'videoGlobalProgressBar', stats: 'videoGlobalProgressStats',
                 pct: 'videoGlobalProgressPct', status: 'videoGlobalStatus', eta: 'videoGlobalEta',
+                download: 'imager-video-download-all',
             });
         }
 

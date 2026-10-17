@@ -213,7 +213,6 @@ window.CONVERTER_APP = {
     csrfToken: '{{ csrf_token }}',
     urls: {
         upload:        "{% url 'converter:upload' %}",
-        downloadAll:   "{% url 'converter:download_all' %}",
         start:         "{% url 'converter:start' 0 %}",
         cancel:        "{% url 'converter:cancel' 0 %}",
         status:        "{% url 'converter:status' 0 %}",
@@ -387,8 +386,8 @@ document.addEventListener('DOMContentLoaded', function () {
     {% comment %}Barre d'outils commune (tri/filtre/disposition Ligne-Mosaïque/actions globales),
     alignement reader/composer/transcriber/describer (2026-07-10, absente jusqu'ici).
     ▶ et 🗑 de file câblés par la brique `queue-actions.js` (URLs passées au partial).{% endcomment %}
-    {% url 'converter:start_all' as q_start_url %}{% url 'converter:clear_all' as q_clear_url %}
-    {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='converterStartAllBtn' clear_id='converterClearAllBtn' download_id='converterDownloadAllBtn' show_download=True start_url=q_start_url clear_url=q_clear_url %}
+    {% url 'converter:start_all' as q_start_url %}{% url 'converter:clear_all' as q_clear_url %}{% url 'converter:download_all' as q_download_url %}
+    {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='converterStartAllBtn' clear_id='converterClearAllBtn' download_id='converterDownloadAllBtn' show_download=True app='converter' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url %}
 
     <div id="converterQueue" class="wama-queue-{{ card_layout|default:'list' }}"
          {% queue_dnd_attrs 'converter' %}>

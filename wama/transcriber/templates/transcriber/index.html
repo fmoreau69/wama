@@ -226,8 +226,9 @@ ne sont PAS des onglets : ils portent sur une card existante, leur geste est son
         `common/_download_button.html`, qui rend le menu des formats DÉCLARÉS au catalogue
         (`export_formats` = txt/srt/pdf/docx). Avant, ce dropdown était reconstruit en JS avec les
         quatre formats CODÉS EN DUR et l'URL fabriquée par `replace('start_all','download_all')`.
-        Le bouton naît `disabled` (aucun `download_ready`) : `updateDownloadAllState()` l'active
-        dès qu'une transcription réussit — le menu, lui, est déjà en place.
+        Le bouton naît `disabled` (aucun `download_ready`) : la barre de progression globale
+        commune l'active dès qu'une transcription réussit (2026-10-17 — c'était
+        `updateDownloadAllState()`, écrit ici) ; le menu, lui, est déjà en place.
         ▶ et 🗑 de file : brique `queue-actions.js` (URLs passées au partial, 2026-10-17).{% endcomment %}
         {% url 'transcriber:download_all' as download_all_url %}{% url 'transcriber:start_all' as q_start_url %}{% url 'transcriber:clear_all' as q_clear_url %}
         {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True app='transcriber' download_url=download_all_url start_url=q_start_url clear_url=q_clear_url %}

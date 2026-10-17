@@ -589,14 +589,9 @@
     // -----------------------------------------------------------------------
     // Boutons globaux de la file
     // -----------------------------------------------------------------------
-    // ▶ Démarrer tout et 🗑 Tout effacer : brique `queue-actions.js` (URLs passées au partial,
-    // 2026-10-17) — POST, confirmation des fichiers libérés, rechargement.
-    const btnDownloadAll = $('#downloadAllBtn');
-    if (btnDownloadAll) {
-        btnDownloadAll.addEventListener('click', () => {
-            window.location.href = cfg.urls.downloadAll;
-        });
-    }
+    // ▶ Démarrer tout et 🗑 Tout effacer : brique `queue-actions.js` ; ⬇ Télécharger tout : lien
+    // de la brique `_download_button.html`, rendu prêt par la barre globale (2026-10-17, URLs
+    // passées au partial). Rien à écrire ici.
 
     /* ============================================================
      * Import par fichier batch (format à balises)

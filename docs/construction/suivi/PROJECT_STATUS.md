@@ -24463,3 +24463,51 @@ consigne seule OU le fichier seul). Ajouts : les noms de réglages recopiés par
 jumelles) ; passer l'hôte des réglages du volet à la zone instantanée (`data-instant-params`, le ⏳
 de CARD_DESIGN §11.11 D bis). Précaution transmise : copier la glu de `translator_01` avant toute
 re-naissance.
+
+## §PALIER 2026-10-17 (nuit, suite) — ⬇ « Télécharger tout » de FILE porté sur la brique (10/10) — non poussé — 🔴 relancer gunicorn (gabarits + JS servis + vue anonymizer)
+
+Fabien : *« Oui tu peux faire le bouton télécharger tout. Il faut tout aligner et tout porter.
+Ensuite on s'occupera des jumelles. »*
+
+**Mesuré avant d'écrire** : trois FORMES de ⬇ de barre (brique + menu chez describer, reader et
+transcriber ; lien nu chez le composer ; bouton DÉSACTIVÉ par construction ailleurs —
+`_queue_actions.html` sans `download_url`) et quatre RÈGLES de « prêt » (cards du DOM chez
+l'enhancer, le reader et le transcriber ; `onData` de la barre audio ; `download_ready=True` figé au
+describer ; rien ailleurs). Les six apps du 3ᵉ cas accrochaient un clic à un bouton désactivé : le
+geste ne partait JAMAIS. L'anonymizer exigeait en plus un POST (formulaire fabriqué en JS) quand
+les dix autres `download_all` répondent en GET.
+
+**Livré (R141)** :
+- une forme : le ⬇ de toute barre est `_download_button.html` (`queue=True` — un LIEN même pas
+  encore prêt, marqué `data-queue-download`), avec `app` pour les formats DÉCLARÉS ;
+- une règle : « prêt » = au moins un élément terminé, compté par le SERVEUR, appliqué par
+  `wama-global-progress.js` à la file de chaque barre (une barre de domaine nomme son ⬇ par
+  `download:` — imager images/vidéos, enhancer audio —, la barre par défaut prend les autres). Un
+  filtre de statut qui masque les cards réussies ne trompe plus le bouton ;
+- `anonymizer.download_all_media` en GET (`@require_GET`), comme les autres ;
+- le générateur passe `app` avec le ⬇ (`templates_gen`) : une jumelle d'app multi-format rendait
+  un lien nu ;
+- critère `queue_actions_common` étendu aux trois boutons (barre sans `download_url` ou sans
+  `app` = rouge ; id lu par le JS de l'app = partiel, sauf la déclaration `download:`) — grille
+  110 critères, dix apps à 100 % (WSL).
+
+**Gardes et preuves** : `tests_declared_conventions` (écarts du ⬇, pages RENDUES : chaque ⬇ mène
+à la route `download_all`), `tests_poller_js` (V8 : chaque barre rend prêt le ⬇ de SA file, et
+bascule à chaque réponse), `anonymizer.tests_output_file` (le ZIP en GET). Contre-épreuves ROUGES :
+gabarits+JS de HEAD (9/10 rouges), JS de HEAD seul (8/10 partiels), règle retirée de la brique,
+`{% url … as %}` neutralisé. JS servis parsés par V8, gabarits compilés, `check_docs` 0/0.
+
+🔚 **Restes nommés** : les jumelles (`converter_01`, `reader_01`, `translator_01` rouges au
+critère — `app` manquant, et le double POST de `converter_01`) se soldent à leur régénération,
+prochain chantier annoncé par Fabien · geste navigateur à rejouer après relance : le ⬇ de barre
+(aucun geste nocturne ne le couvre — celui du geste 13 est le ⬇ de LOT).
+
+🔴 **Trouvé en portant, palier suivant** : le ZIP de FILE (`download_all`) est écrit à la main
+dans les dix apps (11 vues : nom d'archive, nommage des entrées, périmètre, réponse « vide » et
+rendu des formats déclarés recopiés), alors que le ZIP de LOT a sa fabrique (`make_batch_views`
+→ `batch_download`). Et les deux lisent un NOM de champ au lieu des sorties DÉCLARÉES de la card
+(`send_to.sorties_de`, spec de détail) : `imager.download_all` ne zippe que `generated_images`
+(`views.py:1433`) — les vidéos (`output_video`, `models.py:273`) n'y entrent pas, alors que le ⬇
+de la file VIDÉO vient de devenir vivant —, et le ZIP de LOT de l'imager répond 404 (la fabrique
+sert `output_field='output_file'` par défaut, champ que `ImageGeneration` n'a pas,
+`batch_views.py:502-504`).

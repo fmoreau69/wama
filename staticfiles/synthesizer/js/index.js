@@ -245,12 +245,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return formData;
     });
 
-    const downloadAllBtn = document.getElementById('downloadAllBtn');
-    if (downloadAllBtn) {
-        downloadAllBtn.addEventListener('click', () => {
-            window.location.href = URLS.downloadAll;
-        });
-    }
+    // ⬇ Télécharger tout : lien de la brique `_download_button.html`, rendu prêt par la barre
+    // globale (2026-10-17) — son clic local est retiré.
 
     // Console toggle
     const toggleConsoleBtn = document.getElementById('toggleConsole');

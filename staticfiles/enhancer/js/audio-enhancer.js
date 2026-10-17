@@ -282,15 +282,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function initButtons() {
     // ▶ Start all et 🗑 Clear all : brique `queue-actions.js` (2026-10-17) — corps et suite du ▶
-    // déclarés plus bas avec ceux du lot, scopés au domaine audio.
-
-    // Download all
-    const dlAllBtn = document.getElementById('audio-download-all-btn');
-    if (dlAllBtn) {
-      dlAllBtn.addEventListener('click', () => {
-        window.location.href = cfg.audioDownloadAllUrl;
-      });
-    }
+    // déclarés plus bas avec ceux du lot, scopés au domaine audio. ⬇ Download all : lien de la
+    // brique `_download_button.html`, rendu prêt par la barre globale AUDIO (`download:` plus bas).
 
     // Queue table: per-row buttons (event delegation)
     const queueTable = document.getElementById('audio-enhancer-queue');
@@ -360,16 +353,14 @@ document.addEventListener('DOMContentLoaded', function () {
   initButtons();
 
   // Barre globale AUDIO : réutilise la fonction commune (zéro duplication), endpoint audio dédié.
-  // onData : (dés)active le bouton « tout télécharger » selon le nombre de succès.
+  // `download` : le ⬇ de la file audio, que la barre rend prêt dès qu'un élément est terminé
+  // (règle commune ; c'était un `onData` écrit ici, le seul des quatre à lire le compte serveur).
   if (window.WamaGlobalProgress && cfg.audioGlobalProgressUrl) {
     WamaGlobalProgress.init({
       url: cfg.audioGlobalProgressUrl,
       bar: 'audioGlobalProgressBar', stats: 'audioGlobalProgressStats',
       pct: 'audioGlobalProgressPct', status: 'audioGlobalStatus', eta: 'audioGlobalEta',
-      onData: function (d) {
-        var b = document.getElementById('audio-download-all-btn');
-        if (b) b.disabled = (d.success || 0) === 0;
-      },
+      download: 'audio-download-all-btn',
     });
   }
 });

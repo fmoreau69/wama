@@ -15,7 +15,7 @@ from celery.result import AsyncResult
 from django.http import FileResponse, Http404, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 from django.db import close_old_connections, transaction
 from django.core.cache import cache
 from django.contrib.auth.models import User
@@ -540,10 +540,11 @@ def _servir_media_traite(request, media):
 
 
 # @login_required
+@require_GET
 def download_all_media(request):
-    if request.method != 'POST':
-        return HttpResponseNotAllowed(['POST'])
-
+    """ZIP des sorties de la file. Une LECTURE, donc un GET, comme le `download_all` des neuf
+    autres apps (2026-10-17) : le ⬇ de la barre de file commune est un lien. Il exigeait un POST,
+    d'où un formulaire fabriqué en JS par `queue.js` pour ce seul bouton."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     print(f"[download_all_media] User: {user.username} (ID: {user.id})")
 

@@ -150,16 +150,26 @@ class ConventionCriteriaTest(SimpleTestCase):
         """▶ / 🗑 de FILE (2026-10-17) : `start_all`/`clear_all` ne lisaient que la route, verts
         10/10 sur dix handlers recopiés. Chaque écart du câblage commun doit rougir."""
         bar = ("{% include 'common/_queue_toolbar.html' with q_sort=q_sort start_id='go' "
-               "clear_id='wipe' show_download=True ARGS %}")
-        urls = "{% url 'x:start_all' as q_start_url %}{% url 'x:clear_all' as q_clear_url %}"
-        wired = 'start_url=q_start_url clear_url=q_clear_url'
+               "clear_id='wipe' download_id='dl' show_download=True ARGS %}")
+        urls = ("{% url 'x:start_all' as q_start_url %}{% url 'x:clear_all' as q_clear_url %}"
+                "{% url 'x:download_all' as q_download_url %}")
+        wired = "app='x' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url"
+        page = urls + bar.replace('ARGS', wired)
         cases = (
             ({'templates/x/index.html': urls + bar.replace('ARGS', '')}, False),
             ({'templates/x/index.html': bar.replace('ARGS', wired)}, False),     # variables jamais posées
-            ({'templates/x/index.html': urls + bar.replace('ARGS', wired)}, True),
-            ({'templates/x/index.html': urls + bar.replace('ARGS', wired),
+            ({'templates/x/index.html': page}, True),
+            ({'templates/x/index.html': page.replace(' download_url=q_download_url', '')}, False),
+            ({'templates/x/index.html': page.replace("app='x' ", '')}, False),  # ⬇ sans formats déclarés
+            ({'templates/x/index.html': page.replace('show_download=True', 'show_download=False')
+              .replace(' download_url=q_download_url', '')}, True),             # pas de ⬇ : rien à exiger
+            ({'templates/x/index.html': page,
               'static/x/i.js': "document.getElementById('go').addEventListener('click', f);\n"}, 'partial'),
-            ({'templates/x/index.html': urls + bar.replace('ARGS', wired),
+            ({'templates/x/index.html': page,
+              'static/x/i.js': "document.getElementById('dl').disabled = !ok;\n"}, 'partial'),
+            ({'templates/x/index.html': page,
+              'static/x/i.js': "WamaGlobalProgress.init({ url: u, download: 'dl' });\n"}, True),
+            ({'templates/x/index.html': page,
               'static/x/i.js': "// l'ancien handler de 'go' est retiré\n"}, True),
             ({'templates/x/index.html': '<p>pas de file</p>'}, None),
         )
@@ -184,7 +194,7 @@ class QueueBarRenderedWiringTest(TestCase):
     (2026-10-17). Le critère `queue_actions_common` lit le gabarit ; ici on lit ce que reçoit le
     navigateur — un `{% url … as %}` posé hors du bloc de la barre rendrait l'attribut VIDE."""
 
-    def test_every_queue_bar_of_every_app_page_carries_both_urls(self):
+    def test_every_queue_bar_of_every_app_page_carries_its_three_urls(self):
         import re
 
         from django.urls import resolve, reverse
@@ -210,5 +220,13 @@ class QueueBarRenderedWiringTest(TestCase):
                     name = resolve(m.group(1)).url_name if m else None
                     if not (name and route in name):
                         wrong.append(f'{app} : {attr} = {m.group(1) if m else "absent"}')
+                # ⬇ : la brique (`data-queue-download`), avant le 🗑, et son lien (direct ou premier
+                # format du menu) mène à la route `download_all` de la file.
+                clear_at = page.find('btn btn-outline-danger btn-sm', at)
+                marker = page.find('data-queue-download', at, clear_at)
+                href = re.compile(r'href="([^"?]+)').search(page, marker) if marker >= 0 else None
+                name = resolve(href.group(1)).url_name if href and href.start() < clear_at else None
+                if not (name and 'download_all' in name):
+                    wrong.append(f'{app} : ⬇ = {"brique absente" if marker < 0 else href and href.group(1)}')
         self.assertEqual({a: n for a, n in seen.items() if n}, seen, 'une page sans barre de file')
         self.assertEqual([], wrong)

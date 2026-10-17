@@ -160,8 +160,8 @@ Tout telecharger. ⚠ AVANT le conteneur de file, JAMAIS dedans : en mosaïque
 app du parc à l'inclure dedans ; tenu depuis par `tests_queue_toolbar_placement`.
 ▶ et 🗑 câblés par la brique `queue-actions.js` ; les deux files partagent les mêmes routes
 (`start_all` lance tout élément en attente, `clear_all` vide les deux). {% endcomment %}
-{% url 'imager:start_all' as q_start_url %}{% url 'imager:clear_all' as q_clear_url %}
-{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-image-start-all' clear_id='imager-image-clear-all' download_id='imager-image-download-all' show_download=True start_url=q_start_url clear_url=q_clear_url %}
+{% url 'imager:start_all' as q_start_url %}{% url 'imager:clear_all' as q_clear_url %}{% url 'imager:download_all' as q_download_url %}
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-image-start-all' clear_id='imager-image-clear-all' download_id='imager-image-download-all' show_download=True app='imager' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url %}
 
         {% comment %}`wama-queue-{{ card_layout }}` : bascule Ligne/Mosaïque commune. La valeur
         vient du context processor global (accounts) et persiste sur UserProfile ; le toggle est
@@ -213,8 +213,8 @@ sa propre voie de lot (`vidBatch`). {% endcomment %}
         </h4>
 
 {% comment %} Toolbar commune — AVANT le conteneur (cf. la file images ci-dessus). {% endcomment %}
-{% url 'imager:start_all' as q_start_url %}{% url 'imager:clear_all' as q_clear_url %}
-{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-video-start-all' clear_id='imager-video-clear-all' download_id='imager-video-download-all' show_download=True start_url=q_start_url clear_url=q_clear_url %}
+{% url 'imager:start_all' as q_start_url %}{% url 'imager:clear_all' as q_clear_url %}{% url 'imager:download_all' as q_download_url %}
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-video-start-all' clear_id='imager-video-clear-all' download_id='imager-video-download-all' show_download=True app='imager' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url %}
 
         <div id="videoGenerationsQueue" class="wama-queue-{{ card_layout|default:'list' }}"
          {% queue_dnd_attrs 'imager' 'video' %}>
@@ -332,7 +332,6 @@ function _mpInjectImage(file, inputId, previewId) {
             progress: "{% url 'imager:progress' 0 %}",
             globalProgress: "{% url 'imager:global_progress' %}",
             download: "{% url 'imager:download' 0 %}",
-            downloadAll: "{% url 'imager:download_all' %}",
             delete: "{% url 'imager:delete' 0 %}",
             getSettings: "{% url 'imager:update_settings' 0 %}",   {# même adresse : GET lit, POST enregistre #}
             updateSettings: "{% url 'imager:update_settings' 0 %}",

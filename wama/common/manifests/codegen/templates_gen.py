@@ -397,9 +397,12 @@ def render_index(manifest: dict) -> tuple:
         f"""    {{% url '{app}:{cle}' as {var} %}}\n"""
         for cle, var in ((route_start_all, 'q_start_url'), (route_clear_all, 'q_clear_url'),
                          (route_dl_all, 'q_download_url')) if cle)
+    # `app` avec le ⬇ : c'est lui qui donne au menu les formats DÉCLARÉS (`export_formats`) ; sans
+    # lui, une jumelle d'une app multi-format rendait un lien nu (2026-10-17, critère
+    # `queue_actions_common`).
     bits_file = ''.join(bit for cle, bit in (
         (route_start_all, ' start_url=q_start_url'), (route_clear_all, ' clear_url=q_clear_url'),
-        (route_dl_all, ' download_url=q_download_url')) if cle)
+        (route_dl_all, f" app='{app}' download_url=q_download_url")) if cle)
 
     # Actions COMMUNES de la card MÈRE de lot — émises SEULEMENT si les trois routes de lot
     # existent au manifeste (contrat `_batch_card.html` : l'opt-in fait émettre les

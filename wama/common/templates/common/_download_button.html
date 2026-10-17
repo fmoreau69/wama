@@ -40,12 +40,16 @@ apps multi-format (`?format=txt` en dur sur leur lien principal). J'avais d'abor
 nue « pour laisser la vue décider de son défaut » — le relevé des gabarits a montré que c'était
 inventer un comportement au lieu d'en reprendre un. Généraliser, c'est déplacer le code existant,
 pas en profiter pour le changer.
+
+  queue       (option, 2026-10-17) bouton de BARRE DE FILE : jamais un `<button>` sans adresse —
+              pas encore prêt, il reste un LIEN marqué `disabled` ; l'élément interactif porte
+              `data-queue-download`, que `wama-global-progress.js` bascule (cf. le tag).
 {% endcomment %}
 {% load i18n %}
 {% if split is False and formats %}
   {# MENU SEUL (barre de file) — un bouton, un ▾ : la rangée d'actions ne s'élargit pas. #}
   <div class="dropdown d-inline-block">
-    <button type="button"{% if id %} id="{{ id }}"{% endif %}
+    <button type="button"{% if id %} id="{{ id }}"{% endif %}{% if queue %} data-queue-download{% endif %}
             class="btn btn-sm {{ css_class|default:'btn-outline-info' }} dropdown-toggle"
             data-bs-toggle="dropdown" aria-expanded="false"{% if not ready %} disabled{% endif %}
             title="{% if ready %}{{ title|default:_('Télécharger') }}{% else %}{{ empty_title|default:_('Pas encore de résultat') }}{% endif %}">
@@ -62,14 +66,15 @@ pas en profiter pour le changer.
       {% endfor %}
     </ul>
   </div>
-{% elif not ready %}
+{% elif not ready and not queue %}
   <button{% if id %} id="{{ id }}"{% endif %} class="btn btn-sm {{ css_class|default:'btn-outline-info' }}" disabled
           aria-disabled="true" tabindex="-1"
           title="{{ empty_title|default:_('Pas encore de résultat') }}">
     <i class="fas fa-download"></i>{% if label %} <span class="wama-btn-label">{{ label }}</span>{% endif %}
   </button>
 {% elif not formats %}
-  <a{% if id %} id="{{ id }}"{% endif %} href="{{ url }}" class="btn btn-sm {{ css_class|default:'btn-outline-info' }} download-btn"
+  <a{% if id %} id="{{ id }}"{% endif %}{% if queue %} data-queue-download{% endif %} href="{{ url }}"
+     class="btn btn-sm {{ css_class|default:'btn-outline-info' }} download-btn{% if not ready %} disabled{% endif %}"{% if not ready %} aria-disabled="true" tabindex="-1"{% endif %}
      title="{{ title|default:_('Télécharger') }}">
     <i class="fas fa-download"></i>{% if label %} <span class="wama-btn-label">{{ label }}</span>{% endif %}
   </a>

@@ -284,9 +284,9 @@ window.WAMA_ANON = {
     commune (`data-delete-url` → `anonymizer:delete`), plus aucun JS ne lisait cette clé.
     Laisser une URL morte dans la config d'app, c'est promettre un chemin qui n'existe plus.
     `startAllUrl` et `clearAllUrl` RETIRÉS le 2026-10-17 pour la même raison : ▶ et 🗑 de file
-    passent par la brique, qui lit les URLs posées sur les boutons de la barre.
+    passent par la brique, qui lit les URLs posées sur les boutons de la barre — `downloadAllUrl`
+    aussi, le ⬇ de la barre étant le lien de la brique `_download_button.html`.
     {% endcomment %}
-    downloadAllUrl:      '{% url "anonymizer:download_all_media" %}',
     batchStartUrlTemplate:  '{% url "anonymizer:batch_start" 0 %}',
     batchUpdateUrlTemplate: '{% url "anonymizer:batch_update" 0 %}',
     csrfToken:           '{{ csrf_token }}',
@@ -407,8 +407,8 @@ la file n'est pas vide. La DESCRIPTION des objets à flouter reste un réglage d
 
 {% comment %} Toolbar commune : tri/filtre (session) + Tout lancer / Tout effacer / Tout télécharger.
 ▶ et 🗑 de file câblés par la brique `queue-actions.js` (URLs passées au partial). {% endcomment %}
-{% url 'anonymizer:start_all' as q_start_url %}{% url 'anonymizer:clear_all_media' as q_clear_url %}
-{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='anon-start-all-btn' clear_id='anon-clear-all-btn' download_id='anon-download-all-btn' show_download=True start_url=q_start_url clear_url=q_clear_url %}
+{% url 'anonymizer:start_all' as q_start_url %}{% url 'anonymizer:clear_all_media' as q_clear_url %}{% url 'anonymizer:download_all_media' as q_download_url %}
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='anon-start-all-btn' clear_id='anon-clear-all-btn' download_id='anon-download-all-btn' show_download=True app='anonymizer' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url %}
 
 <div id="anonymizer-queue" class="wama-queue-{{ card_layout|default:'list' }}"
          {% queue_dnd_attrs 'anonymizer' %}>

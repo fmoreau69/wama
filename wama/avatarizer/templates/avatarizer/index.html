@@ -56,8 +56,8 @@ le 17/08 (gate durci depuis : un nom doit être en position d'ATTRIBUT, pas dans
 action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate inchangé).
 Le trio Tout démarrer/télécharger/vider a quitté ce volet (2026-08-03) : le volet ACTIONS
 est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commune
-(startAllBtn/downloadAllBtn/clearAllBtn) ; ▶ et 🗑 y sont câblés par la brique `queue-actions.js`
-depuis le 2026-10-17.{% endcomment %}
+(startAllBtn/downloadAllBtn/clearAllBtn) ; ▶ ⬇ 🗑 y sont câblés par les briques communes
+(`queue-actions.js`, `_download_button.html`) depuis le 2026-10-17.{% endcomment %}
 {% endblock %}
 
 {# ===================================================================== #}
@@ -91,8 +91,8 @@ depuis le 2026-10-17.{% endcomment %}
           `q_sort`/`q_filter` viennent de `apply_queue_sort_filter` (persistés en session).
           ▶ et 🗑 de file câblés par la brique `queue-actions.js` (URLs passées au partial).
         {% endcomment %}
-        {% url 'avatarizer:start_all' as q_start_url %}{% url 'avatarizer:clear_all' as q_clear_url %}
-        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True start_url=q_start_url clear_url=q_clear_url %}
+        {% url 'avatarizer:start_all' as q_start_url %}{% url 'avatarizer:clear_all' as q_clear_url %}{% url 'avatarizer:download_all' as q_download_url %}
+        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True app='avatarizer' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url %}
 
         <div id="jobs-container" class="wama-queue-{{ card_layout|default:'list' }}"
          {% queue_dnd_attrs 'avatarizer' %}>
@@ -228,7 +228,6 @@ window.AVATARIZER_CONFIG = {
         updateSettings: "{% url 'avatarizer:update_settings' 0 %}",
         duplicate:     "/avatarizer/duplicate/",
         extractText:   "{% url 'avatarizer:extract_text' %}",
-        downloadAll:   "{% url 'avatarizer:download_all' %}",
         batchTemplate: "{% url 'avatarizer:batch_template' %}",
         batchPreview:  "{% url 'avatarizer:batch_preview' %}",
         batchCreate:   "{% url 'avatarizer:batch_create' %}",
