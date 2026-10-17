@@ -711,6 +711,11 @@ def app_result_ports(app_id):
 # ---------------------------------------------------------------------------
 
 def _conv(
+    # ⚠ Depuis le 2026-10-16, AUCUNE de ces valeurs ne fait foi sur `/apps/` : chaque clé comptée
+    # est MESURÉE (critère homonyme, mécanisme d'un critère, ou `Criterion(covers=…)`), et la
+    # mesure l'emporte (`_measured_conformity` ; garde `tests_declared_conventions`). Les corriger
+    # à la main ne change rien au score — corriger le CODE, ou le critère s'il se trompe.
+    # Restent lues comme DONNÉES : `export_binding`, `export_formats`.
     # Boutons & queue de base (existants)
     settings=True, start=True, download=True, duplicate=True, delete=True,
     start_all=True, clear_all=True, download_all=True, drag_drop=True, batch=True,
@@ -722,7 +727,6 @@ def _conv(
     eta_individual=False,          # §7.2 — ETA par item
     eta_batch=False,               # §7.2 — ETA par batch
     eta_queue=False,               # §7.2 — ETA queue globale
-    multi_format_download=False,   # §6.3 — split-button download multi-format
     export_binding='early',        # §6.4 — 'early' (format réglé AVANT génération, render-based) |
                                    #        'late' (format choisi AU TÉLÉCHARGEMENT, master-based)
     # §6.3 — formats offerts par le split-button, DÉCLARÉS (2026-08-23). Liste de valeurs de
@@ -774,7 +778,10 @@ def _conv(
         'eta_individual':         eta_individual,
         'eta_batch':              eta_batch,
         'eta_queue':              eta_queue,
-        'multi_format_download':  multi_format_download,
+        # DÉRIVÉ de `export_formats` (2026-10-16) — il se déclarait à côté, deux fois la même
+        # chose : plusieurs formats = un menu au ⬇ (§6.3), sinon non applicable (lien simple).
+        # Mesuré par `download_wiring`, qui dérive déjà la forme du bouton de la déclaration.
+        'multi_format_download':  True if len(tuple(export_formats or ())) > 1 else None,
         'export_binding':         export_binding,
         'export_formats':         tuple(export_formats or ()),
         'filemanager_import':     filemanager_import,
@@ -1223,7 +1230,6 @@ APP_CATALOG = {
             eta_queue=True,            # _global_progress.html (content.html:10)
             filemanager_import=True,   # wama:fileimported écouté (right_panel.js:581)
             cross_app_options=True,    # select output_format + apply_inline_conversion (tasks.py:81)
-            multi_format_download=None,  # N/A — format réglé en amont (early binding via output_format)
             # Portage 2026-07-11 (suite audit §31) — le PRÉREQUIS le plus profond est tombé :
             status_vocab=True,         # champ `status` PENDING/RUNNING/SUCCESS/FAILURE (migration 0021
                                        # avec conversion des données AVANT drop de `processed` ;
@@ -1286,7 +1292,6 @@ APP_CATALOG = {
             status_vocab=True,   # SUCCESS/FAILURE (models.py:19)
             during_preview=True, # image COURANTE du rendu 3D (TalkingHead, ~2 s, PartialFrames —
                                  # 2026-10-06) ; MuseTalk, en sous-processus, ne montre rien avant la fin
-            multi_format_download=None,  # N/A — sortie vidéo MP4 unique (conversion = rôle converter)
             model_help=None,     # N/A — MuseTalk fixe (v1.5), aucun select de modèle exposé
             # Passe conservatrice 2026-07-11 (suite audit §31) :
             anti_race=True,      # begin_processing sur start + start_all (verrou + revoke)
@@ -1340,7 +1345,6 @@ APP_CATALOG = {
             eta_batch=True,        # data-eta-ids en-tête de batch (index l.154)
             eta_queue=True,        # barre globale (brique _global_progress + endpoint au contrat, 2026-07-04)
             layout=True,           # Ligne/Mosaïque commun (wama-queue.js + wama-card, 2026-07-03)
-            multi_format_download=None,  # N/A — EARLY binding (format/qualité réglés AVANT génération)
             modes=None,          # N/A — plus de mode (switch retiré, type dérivé du modèle)
             filemanager_import=None,     # N/A — app à entrée TEXTE (prompt), pas de médias à recevoir
             # Audit empirique 2026-07-10 :
@@ -1397,7 +1401,6 @@ APP_CATALOG = {
             eta_queue=True,
             model_help=None,         # N/A — pas de modèles IA (ffmpeg/pandoc/Pillow)
             # Audit empirique 2026-07-10 :
-            multi_format_download=None,  # N/A — le format de sortie EST le paramètre central du job
             layout=True,               # wama-queue-{{ card_layout }} (index.html:381)
             new_item_card=True,        # _new_item_card.html en tête de file (index.html:375)
             queue_toolbar=True,        # _queue_toolbar + apply_queue_sort_filter (views.py:148)
@@ -1440,7 +1443,6 @@ APP_CATALOG = {
         'output_types': ('txt',),
         'conventions': _conv(
             settings_modal_item=True,
-            multi_format_download=True,
             export_binding='late',
             export_formats=('txt', 'pdf', 'docx'),  # §6.3 — mesurés sur `_description_card.html`
             tool_api=True,
@@ -1504,7 +1506,6 @@ APP_CATALOG = {
             eta_queue=True,            # _global_progress.html (index.html:271)
             filemanager_import=True,   # wama:fileimported écouté (index.js:958)
             cross_app_options=True,    # select output_format converter inline (index.html:205)
-            multi_format_download=None,  # N/A — format réglé en amont (early binding output_format)
             status_vocab=True,         # SUCCESS/FAILURE (models.py:15/123)
             # Portage 2026-07-11 (suite audit §31) :
             anti_race=True,            # begin_processing sur start + audio_start (verrou + revoke)
@@ -1564,7 +1565,6 @@ APP_CATALOG = {
             eta_individual=True,       # .wama-eta (index.html:526/889) + WamaEta.render (index.js:1267)
             eta_queue=True,            # _global_progress.html (index.html:482)
             cross_app_options=True,    # output_format/quality (models.py:307) + apply_inline_conversion (tasks.py:284)
-            multi_format_download=None,  # N/A — format choisi à la GÉNÉRATION (early binding)
             status_vocab=True,         # PENDING/RUNNING/SUCCESS/FAILURE (models.py:165)
             during_preview=True,       # image APPROCHÉE des latents à chaque pas (~2 s), sans VAE
                                        # (`latent_preview`, 2026-10-06) — images ET vidéos (la
@@ -1599,7 +1599,6 @@ APP_CATALOG = {
         'output_types': ('txt', 'markdown'),
         'conventions': _conv(
             settings_modal_item=True,
-            multi_format_download=True,
             export_binding='late',
             export_formats=('txt', 'md', 'pdf', 'docx', 'json'),  # §6.3 — `json` n'est offert que si `item.raw_result` — déclaré dans `reader/apps.py` (`register_export_missing`)
             tool_api=True,
@@ -1666,7 +1665,6 @@ APP_CATALOG = {
             eta_queue=True,            # _global_progress.html (index.html:311)
             filemanager_import=True,   # wama:fileimported écouté (index.js:1401)
             cross_app_options=True,    # output_format_params_for_app (params.py:48)
-            multi_format_download=None,  # N/A — early binding per-item (output_format/output_quality)
             cycle_button=True,         # _cycle_button.html (_synthesis_card.html:76)
             status_vocab=True,         # SUCCESS/FAILURE (models.py:20/150)
             modes=None,                # N/A depuis le 2026-08-30 — les modes normal/realtime (identiques,
@@ -1717,7 +1715,6 @@ APP_CATALOG = {
         'output_types': ('txt', 'srt', 'vtt', 'json'),
         'conventions': _conv(
             settings_modal_item=True,
-            multi_format_download=True,
             export_binding='late',
             export_formats=('txt', 'srt', 'pdf', 'docx'),  # §6.3 — ⚠ diffère d'`output_types` ('txt','srt','vtt','json') : ce sont deux choses
             tool_api=True,
@@ -1917,11 +1914,15 @@ def _measured_conformity(app_name: str) -> tuple[dict, str | None]:
     #    `init_from_schema`, `inspector_actions`) est déjà jugée par eux — la compter en plus,
     #    c'était laisser un `False` écrit en juillet contredire trois critères verts.
     # Les deux deviennent « non applicable » au déclaré : c'est le RÉEL qui parle.
+    #  • une clé déclarée qu'un critère dit COUVRIR (`covers`, même date : `download_wiring` →
+    #    `download_btn`, `output_settings` → `cross_app_options`…) est mesurée sous son nom.
     for key, info in (data.get('criteria') or {}).items():
         measured.setdefault(key, None)
         mechanism = (info or {}).get('mechanism')
         if mechanism and mechanism not in (data.get('criteria') or {}):
             measured.setdefault(mechanism, None)
+        for covered in (info or {}).get('covers') or ():
+            measured.setdefault(covered, None)
     return measured, data.get('generated_at')
 
 

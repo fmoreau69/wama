@@ -19,8 +19,8 @@ python -c "import json;c=json.load(open('logs/conformity_report.json'))['criteri
 ```
 
 <!-- WAMA:FAITS(conformite) — généré par « python manage.py doc_facts », ne pas éditer -->
-- Critères de la grille : **103** — F1:4 F2:12 F3:21 F4:11 F5:42 F6:6 F7:5 F8:2 *(relevé du 2026-10-16)*
-- Apps mesurées : **10** ; dénominateur par app : **87 à 102** (un critère **non applicable** sort du calcul)
+- Critères de la grille : **105** — F1:4 F2:12 F3:23 F4:11 F5:42 F6:6 F7:5 F8:2 *(relevé du 2026-10-17)*
+- Apps mesurées : **10** ; dénominateur par app : **88 à 103** (un critère **non applicable** sort du calcul)
 <!-- /WAMA:FAITS(conformite) -->
 
 > Les 8 facettes de `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` sont **toutes** couvertes depuis le 30/07 —
@@ -40,10 +40,13 @@ python -c "import json;c=json.load(open('logs/conformity_report.json'))['criteri
 >   mesure **non applicable**, et une clé déclarée qui est le **mécanisme** de critères mesurés
 >   (`inspector` → `init_from_schema`, `inspector_actions`) ne compte plus en plus d'eux
 >   (`app_registry._measured_conformity`, 2026-10-16 : trois apps affichées sous 100 % sur
->   `/apps/` alors que la grille les mesurait à 100 %) ; seules les clés que RIEN ne mesure
->   subsistent (d'où le total affiché sur `/apps/`, union des deux). Une clé déclarée qui ment
->   se MIGRE vers un critère mesuré, jamais un booléen retourné à la main (`eta_batch` : déclaré
->   vrai chez l'avatarizer qui n'avait aucune ETA de lot, mesuré depuis le 2026-10-16) ;
+>   `/apps/` alors que la grille les mesurait à 100 %), et une clé qu'un critère dit COUVRIR
+>   (`Criterion(covers=…)` : `download_wiring` → `download_btn`, `output_settings` →
+>   `cross_app_options`…) est mesurée sous son nom. **Il ne reste plus aucun booléen de
+>   conformité écrit à la main** (garde `tests_declared_conventions`) ; seules subsistent des
+>   DONNÉES déclarées, non comptées (`export_binding`, `export_formats`). Une clé déclarée qui
+>   ment se MIGRE vers un critère mesuré, jamais un booléen retourné à la main (`eta_batch` :
+>   déclaré vrai chez l'avatarizer qui n'avait aucune ETA de lot, mesuré depuis le 2026-10-16) ;
 > - **ne jamais conclure « portage terminé » sur le score seul** — il détecte surtout les
 >   régressions et les trous d'adoption.
 > - 🔴 **un critère VERT peut mesurer la FORME sans la ROUTE** (vécu le 2026-10-06) :

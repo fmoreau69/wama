@@ -24201,3 +24201,45 @@ composer 99, imager 97 — le chantier nommé le 17/08 (« réconciliation /apps
 - 🔚 **Restes** : les jumelles bac à sable gardent leur `eta_ids` local (code généré, gitignoré —
   régénérées au prochain `app_sandbox`) ; les autres clés déclarées-seulement (`streaming`,
   `cross_app_options`…) restent à confronter une par une, même règle : migrer vers la mesure.
+
+## §PALIER 2026-10-17 — plus AUCUN booléen de conformité écrit à la main : tout ce que `/apps/` compte est MESURÉ — non poussé — 🔴 relancer gunicorn
+
+Suite du palier du 16/10, demande de Fabien : *« poursuis sur ce qui est écrit à la main, on fait
+remonter au commun si c'est utile »*. Correction d'abord : `streaming`, que j'avais cité comme
+clé déclarée restante (d'après la note du 17/08), n'existe plus — retiré le 2026-10-06 au profit de
+`during_preview`, qui est mesuré (`REMOVAL_LEDGER`).
+
+- **Ce qui restait écrit à la main et comptait** : `settings_btn`, `start_btn`, `download_btn`,
+  `duplicate_btn`, `delete_btn` (vrais partout), `multi_format_download`, `cross_app_options`,
+  `save_profile`.
+- **Mesurés sous un autre nom** — `Criterion(covers=…)` (nouveau champ, porté au rapport, lu par
+  `_measured_conformity`) : `settings_wiring` → `settings_btn`, `cycle_button` → `start_btn`,
+  `download_wiring` → `download_btn` + `multi_format_download`, `duplicate_wiring` →
+  `duplicate_btn`, `delete_wiring` → `delete_btn`.
+- **`multi_format_download` DÉRIVÉ** de `export_formats` dans `_conv` (plusieurs formats = menu,
+  sinon non applicable) — il se déclarait à côté, valeurs identiques dans les dix apps ; les dix
+  déclarations sont retirées, les manifestes d'app inchangés.
+- **`cross_app_options` → critère `output_settings`** (F3, mécanisme `output_process`) : le nom
+  portait deux sens (apps : conversion du résultat ; converter : post-traitement par l'enhancer).
+  Applicabilité LUE au schéma : réglages de sortie COMMUNS déclarés (`output_format_params…`,
+  `keep_size_param`, `get_output_formats/qualities`) ⇒ process « Sortie » commun (`output_spec`).
+  Mesuré : anonymizer, composer, enhancer, imager, synthesizer ✅ ; avatarizer, describer, reader,
+  transcriber et **converter** non applicables — le converter était déclaré vrai alors que son
+  format de sortie EST son process (« devrait être N/A », §REPRISE 17/08).
+- **`save_profile` → critère `settings_profiles`** (optionnel) : seul le converter a des profils
+  (`profile_list/save`). Le portage AU COMMUN est déjà décidé et décrit — `ROADMAP §22.5`
+  (modèle commun, fabrique des trois vues, ligne « Profil ▾ · 💾 · 🗑 » dans
+  `WamaParams.settingsModal`, adoption converter puis transcriber et ses trois profils d'usage),
+  « en session dédiée » : non engagé ce soir (converter et transcriber en cours d'édition par une
+  autre instance) — **proposé à Fabien**.
+- **Restent déclarées, NON comptées** : `export_binding`, `export_formats` — des données lues par
+  le code (le bouton ⬇ commun), pas des jugements.
+- **Mesuré** : grille **105** critères, 10/10 à 100 % ; page `/apps/` 10/10 à 100 %.
+- **Gardes** : `tests_declared_conventions` (7 : aucune clé comptée non mesurée, `covers` bien
+  orthographiés, la page ignore une clé couverte, dérivation, `output_settings` ×2, profils) ;
+  contre-épreuves à blanc ROUGES (critères sans `covers`, fusion de HEAD, `_conv` de HEAD, les deux
+  critères aveuglés).
+- **Corpus** : six manifestes d'app (avatarizer, composer, imager, reader, synthesizer,
+  transcriber) ré-exportés — la description « place dans la file GPU » de `get_<app>_status`
+  (735933dd) n'y avait jamais été écrite (composer : écrite le 16/10 par le suivi du corpus, jamais
+  commitée).

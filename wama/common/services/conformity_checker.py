@@ -239,6 +239,11 @@ class Criterion:
     #: vérifie) et `orphan_criteria()` (clé mal orthographiée = liaison silencieusement
     #: inerte, le pire des deux mondes).
     mechanism: str = ''
+    #: Clés DÉCLARÉES de `_conv(...)` que ce critère MESURE sous un autre nom (2026-10-16) — la
+    #: page `/apps/` ne les compte plus (`app_registry._measured_conformity`) : un booléen écrit à
+    #: la main ne peut plus dire autre chose que la mesure. Ex. `download_wiring` couvre
+    #: `download_btn` et `multi_format_download` (la forme du ⬇ dérive de `export_formats`).
+    covers: tuple = ()
 
 
 def _present(f: _AppFiles, patterns, regex, label_ok=None, code=False):
@@ -533,6 +538,41 @@ def _eta_batch(f: _AppFiles):
     if rows:
         return True, rows
     return False, "aucune ligne de lot ne porte `eta_ids` (ni `build_batches_list`, ni CSV posé)"
+
+
+def _output_settings(f: _AppFiles):
+    """Les réglages de SORTIE communs (format, qualité, agrandissement) s'appliquent-ils par le
+    process « Sortie » commun (`output_process.output_spec`) ?
+
+    Mesuré depuis le 2026-10-16 — c'était `cross_app_options`, un booléen DÉCLARÉ qui portait deux
+    sens sous un nom : chez les apps, « select `output_format` + conversion en ligne » ; au
+    converter, l'inverse (il appelle l'enhancer). Applicabilité LUE au schéma, sans nommer d'app :
+    une app dont le schéma déclare les réglages de sortie COMMUNS (`output_format_params…`,
+    `keep_size_param`) doit les appliquer par le process commun ; une app qui n'en déclare pas
+    (texte rendu au téléchargement, converter dont le format EST le process) n'a rien à appliquer.
+    """
+    # Les bâtisseurs de paramètres, OU le vocabulaire commun lu directement (`get_output_formats`,
+    # `get_output_qualities`) — l'anonymizer, bi-domaine, compose ses optgroups ainsi.
+    declared = f.find_code(PARAMS, r'\b(output_format_params(?:_for_app)?|keep_size_param'
+                                   r'|get_output_formats|get_output_qualities)\s*\(')
+    if not declared:
+        return None, None
+    applied = f.find_code(['function_specs.py'], r'\boutput_spec\s*\(')
+    if applied:
+        return True, applied
+    return False, f"réglages de sortie déclarés ({declared}) sans process « Sortie » (`output_spec`)"
+
+
+def _settings_profiles(f: _AppFiles):
+    """L'app offre-t-elle des PROFILS de réglages (sauver la configuration, la réappliquer) ?
+
+    Mesuré depuis le 2026-10-16 (c'était `save_profile`, déclaré). Capacité OPTIONNELLE — une app
+    sans profils n'est pas en défaut (None). Seul le converter en a aujourd'hui
+    (`profile_list/save/delete`) ; le portage au commun puis l'adoption sont tracés par
+    `ROADMAP §22.5` — ce critère lira alors la fabrique commune.
+    """
+    routed = f.find_code(URLS, r"name=['\"]profile_(?:list|save)['\"]")
+    return (True, routed) if routed else (None, None)
 
 
 def _has_engine_select(f: _AppFiles) -> bool:
@@ -2333,7 +2373,7 @@ CRITERIA: list[Criterion] = [
               lambda f: _present(f, MODELS, r"'SUCCESS'|JOB_STATUS_CHOICES")),
     Criterion('cycle_button', 'F5', 'Bouton de cycle commun (_cycle_button)',
               lambda f: _present(f, TEMPLATES, r"common/_cycle_button\.html"),
-              mechanism='cycle_button'),
+              mechanism='cycle_button', covers=('start_btn',)),
     Criterion('card_html_endpoint', 'F5', 'Card = partial serveur + endpoint card_html',
               lambda f: _present(f, URLS, r'card_html'),
               mechanism='card_system'),
@@ -2380,18 +2420,18 @@ CRITERIA: list[Criterion] = [
     Criterion('toast', 'F5', 'WamaApp.toast (zéro alert())', _toast,
               mechanism='app_base_js'),
     Criterion('duplicate_wiring', 'F5', 'Duplication via la brique (handler UNIQUE)', _duplicate_wiring,
-              mechanism='queue_duplication'),
+              mechanism='queue_duplication', covers=('duplicate_btn',)),
     # Jumeau du précédent, ajouté le 2026-08-22 EN MÊME TEMPS que la brique de suppression :
     # tant qu'aucun domicile commun n'existait, il n'y avait rien à mesurer (cf. `_delete_wiring`).
     Criterion('delete_wiring', 'F5', 'Suppression via la brique (handler UNIQUE)', _delete_wiring,
-              mechanism='queue_front'),
+              mechanism='queue_front', covers=('delete_btn',)),
     # Troisième jumeau (2026-08-23) : la brique ⚙ a rejoint queue-actions.js. Les trois actions
     # de card qui SONT des comportements (dupliquer, supprimer, paramétrer) ont désormais chacune
     # leur critère — c'est la réponse à la « maille trop grossière » du §5 de WAMA_VERIFICATION :
     # on note des ACTIONS, pas un mécanisme fourre-tout qui passe au vert dès qu'un seul de ses
     # cinq comportements est vérifié.
     Criterion('settings_wiring', 'F5', 'Paramètres via la brique (bouton + ouvreur déclaré)',
-              _settings_wiring, mechanism='queue_front'),
+              _settings_wiring, mechanism='queue_front', covers=('settings_btn',)),
     # 2026-09-24 — même geste, quatre noms de route : question de Fabien (« ne faut-il pas
     # uniformiser le nom des réglages ? »), la convention §3.1 existait déjà.
     Criterion('settings_route', 'F5', "Réglages d'un élément : route conventionnelle (settings/<int:pk>/, update_settings)",
@@ -2441,9 +2481,15 @@ CRITERIA: list[Criterion] = [
     # dictée par une DÉCLARATION du catalogue (`export_formats`/`export_binding`), pas par le
     # comportement de la file.
     Criterion('download_wiring', 'F3', 'Téléchargement via la brique (forme dérivée de la déclaration)',
-              _download_wiring, mechanism='param_schema'),
+              _download_wiring, mechanism='param_schema',
+              covers=('download_btn', 'multi_format_download')),
     Criterion('output_naming', 'F3', 'Nom de sortie par la brique (process + modèle + id)',
               _output_naming, mechanism='output_naming'),
+    # 2026-10-16 — deux booléens DÉCLARÉS passés à la mesure (`cross_app_options`, `save_profile`).
+    Criterion('output_settings', 'F3', 'Réglages de sortie appliqués par le process « Sortie » commun',
+              _output_settings, mechanism='output_process', covers=('cross_app_options',)),
+    Criterion('settings_profiles', 'F3', 'Profils de réglages (sauver / réappliquer, optionnel)',
+              _settings_profiles, covers=('save_profile',)),
     Criterion('duplicate_instance', 'F5', 'duplicate_instance() (brique commune)',
               lambda f: _present(f, VIEWS, r'duplicate_instance'),
               mechanism='queue_duplication'),
@@ -2514,7 +2560,8 @@ def run_checks(app_ids: list[str]) -> dict:
     # `mechanism` (2026-10-16) : la page `/apps/` en déduit les clés DÉCLARÉES que des critères
     # mesurés couvrent déjà (`app_registry._measured_conformity`).
     report = {'criteria': {c.key: {'facette': c.facette, 'label': c.label,
-                                   'mechanism': getattr(c, 'mechanism', None)}
+                                   'mechanism': getattr(c, 'mechanism', None),
+                                   'covers': list(getattr(c, 'covers', ()) or ())}
                            for c in CRITERIA},
               'apps': {}}
     for app in app_ids:
