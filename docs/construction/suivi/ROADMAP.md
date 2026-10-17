@@ -5800,3 +5800,131 @@ listes déroulantes.
 5. ⏳ **Le choix de l'utilisateur** : une préférence des réglages durables (`user_settings`), lue
    par `theme_for` comme l'est celle de l'avatar ; un sélecteur dans le menu du compte. Sans second
    thème, il n'y a rien à choisir : cette étape vient après la 4.
+
+## 29. PROVENANCE de tout ce qui entre dans WAMA — privé à son auteur, « Système » une fois promu (ouvert le 2026-10-18, demande de Fabien)
+
+> *« Tout ce qui entre dans WAMA, les briques UI, les modèles, les librairies, les fonctions, etc.,
+> suit la logique des droits, comme les apps. L'idée étant de pouvoir restreindre certains modèles
+> ou éléments en privé. Les publics sont estampillés "système" comme pour les médias. Ça
+> permettrait aux utilisateurs d'avoir leurs propres briques UI, notamment à la création d'app
+> bac à sable. L'app reste à son auteur tant qu'elle n'est pas promue. On aligne ça sur toutes les
+> capacités qui s'ajoutent dans WAMA. »* Intention ⏳ : rien n'est construit au-delà de l'existant
+> relevé ci-dessous. Décisions a–d rendues le jour même (plus bas).
+
+**Deux axes existent déjà, et ce ne sont pas les mêmes :**
+- **qui a le DROIT** — profil et rôles : `accessible(user, kind, element_id)`, point unique de
+  décision (`PROFILES_PERMISSIONS §8.2`) ;
+- **à QUI c'est** — propriétaire et portée : `ScopedVisibility` + `scoped_visible_q`
+  (`WAMA_COLLABORATION §4`).
+
+Les INSTANCES (cards, lots, médiathèque, fonctions d'utilisateur, mémoire, RAG) ont le second. Les
+éléments du CATALOGUE n'ont que le premier, et seule la famille `app` y est réellement gardée. La
+demande revient à donner le second axe aux éléments du catalogue, **avec le même mixin et le même
+vocabulaire**. On n'ajoute pas un troisième axe.
+
+**Relevé du 2026-10-18 (lu dans le code) :**
+
+| famille | ce qui existe | ce qui manque |
+|---|---|---|
+| médias | DEUX tables : `SystemAsset`, sans propriétaire, gérée par les admins (`media_library/models.py:161`), et `UserAsset`, `ScopedVisibility` (`:71`) | — c'est le modèle à suivre |
+| apps et jumelles | `accessible(user, 'app', …)` ; le créateur d'une jumelle y accède quel que soit son profil (`accounts/permissions.py:432-445`), lu de `created_by` dans le registre gitignoré `sandbox_apps.json` (`common/sandbox.py:56`) | une provenance hors de `ScopedVisibility`, et aucun geste de promotion commun aux autres familles |
+| modèle, librairie, fonction, skill | déclarées dans `KIND_DECISION` comme « S3 » (`accounts/permissions.py:135-142`) : `accessible()` répond OUI (`:420-421`) | tout : aucun propriétaire sur `AIModel` (`model_manager/models.py:509`) ni sur `Library` (`common/models.py:954`) ; `FunctionSpec.visibility/owner` sont déclarés mais jamais filtrés (`catalog/function_catalog.py:232-238`) |
+| manifestes, la porte d'entrée de toute capacité | `owner` + `visibility` stockés, bac à sable = `private` (`common/models.py:905-909`) | jamais filtrés, et les portées sont des CODES (CharField) que `scoped_visible_q` ne sait pas lire (`PROFILES_PERMISSIONS §1.6`) |
+| pipelines du Studio | propriétaire seul (`studio/models.py:30`) | la portée |
+| briques UI | déclarées dans le code (`common/mecanismes.py`), donc système par construction | une brique d'UTILISATEUR n'a aucun lieu |
+| sélection automatique | `select_model()` (`model_selector.py:505`) | elle ne reçoit pas le compte : un modèle privé y serait choisi pour n'importe qui |
+
+**Le modèle proposé :**
+1. **Tout élément du catalogue a une provenance.** Soit il est **système** : sans propriétaire,
+   géré par les admins, comme `SystemAsset`. Soit il a **un auteur et une portée**
+   (`private` / `unit` / `project` / `public`). Un élément qu'un utilisateur ajoute **naît privé**,
+   comme toute chose dans WAMA (`WAMA_COLLABORATION`, principe 1).
+2. **La décision reste UNIQUE.** `accessible(user, kind, id)` = *visible pour lui* (sa portée)
+   **ET** *permis* (la politique de rôle ou de profil, puis `AccessGrant` à S3). Chaque famille
+   déclare dans `KIND_DECISION` où vit sa provenance. Aucun lecteur ne la relit à sa façon.
+3. **Promouvoir est UN geste, le même pour toutes les familles.** L'élément passe de privé à
+   système, validé par un ADMIN (décision b) dans la file de `PROFILES_PERMISSIONS §8.7 S4`. L'auteur reste
+   cité, pour l'attribution, mais ne possède plus l'élément. Pour du CODE (brique UI, backend, app
+   jumelle), promouvoir revient à le DÉPLACER vers `common/` ou vers l'app réelle, et à le
+   déclarer au registre. Ce geste de développement reste humain (`ROUTE §10.5`).
+4. **Toute capacité NOUVELLE déclare sa provenance, et un contrôle la tient** : une garde parcourt
+   les familles du catalogue (`registries.overview()`). Elle échoue si l'une d'elles n'a pas de
+   porteur déclaré. La liste n'est pas close, et le contrôle ne la ferme pas.
+5. **L'utilisateur voit la provenance partout de la même façon** : une pastille « Système »,
+   « à moi » ou « partagé par X » sur chaque card du catalogue, comme celle de la médiathèque, et
+   une facette standard dans la barre de filtres (« mes / système / partagés », celle de S1).
+
+**Frontières voulues :**
+- une **librairie** s'installe dans un venv PARTAGÉ : « privée » veut dire *non proposée aux
+  autres*, jamais *isolée* ;
+- les poids d'un **modèle** vivent dans `AI-models`, qui est partagé : « privé » veut dire
+  invisible des catalogues, des sélecteurs des apps, de la palette du Studio, de l'assistant et de
+  `select_model`. Ce sont autant de lecteurs à porter, et une seule lecture oubliée suffit à tout
+  ouvrir (`WAMA_COLLABORATION §4.4`) : d'où un critère de conformité, comme `scoped_reads`.
+
+**Décisions de Fabien (2026-10-18) :**
+- a. **Système ≠ public partagé : OUI.** Un auteur qui partage en « public » garde la main sur
+  l'élément ; un élément système est tenu par WAMA (la distinction `UserAsset` public /
+  `SystemAsset`). L'enveloppe le dit déjà : `owner: None = système/builtin`
+  (`manifests/envelope.py:36`).
+- b. **Une promotion est validée par un ADMIN seul.**
+- c. **Pour le moment, l'admin voit tout**, éléments privés d'autrui compris. On ajustera plus tard.
+- d. **Le porteur de la provenance : LES DEUX**, le registre et le manifeste, puisque le manifeste
+  est la projection des registres. Point vérifié en profondeur ci-dessous.
+
+**Vérification du point d (2026-10-18, lue dans le code).** Le manifeste et le registre ne
+s'échangent pas la provenance dans le même SENS pour chaque famille
+(`WAMA_MANIFEST_ARCHITECTURE §7bis`). Donc « les deux » veut dire : **la ligne du registre porte la
+provenance pour filtrer** (`visible_to`, rapide, au runtime), **l'enveloppe la porte pour voyager**
+(export, ré-import, aller-retour), et `extract` comme `write_back` la transmettent dans les deux
+sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT** :
+
+| famille | sens mesuré | la provenance aujourd'hui | où elle doit naître |
+|---|---|---|---|
+| fonction d'utilisateur | les deux sens | ✅ **déjà portée des deux côtés** : `extract` lit propriétaire, portée et scopes sur `UserFunction` (`builtin/function.py:102-115`), `write_back` les écrit et EXIGE un propriétaire (`:157-191`) | **le modèle à suivre** |
+| librairie | ENTRANT (manifeste → `Library`) | perdue : `extract` écrit `public` en dur (`builtin/library.py:207`, `:282`), `Library` n'a aucun propriétaire | dans le manifeste, puis projetée sur la ligne |
+| modèle | SORTANT (disque → `AIModel` → manifeste) | perdue : la ligne naît du disque, jamais d'un manifeste (`builtin/model.py:398-400`) ; `extract` écrit `public` en dur (`:259`) ; `install_from_spec(spec, token)` ne reçoit pas le compte (`model_installer.py:1879`) | au GESTE d'installation (qui l'a lancé), écrite sur la ligne, puis extraite |
+| pipeline du Studio | SORTANT, pas de `write_back` | propriétaire extrait, portée `private` en dur (`builtin/pipeline.py:395-396`) | sur la ligne (`studio/models.py:30`) |
+| app jumelle | fichier de manifeste → code généré | seulement `created_by` dans le registre gitignoré des jumelles (`app_sandbox.py:918-921`) ; les apps livrées sont `public` en dur (`builtin/app.py:324`) | au registre des jumelles ET dans l'enveloppe du brouillon |
+| brique UI, skill | aucun kind de manifeste ; registre = le CODE (`mecanismes.py`) | système par construction ; une brique d'utilisateur n'a aucun lieu | proposition : une brique d'utilisateur vit dans le paquet de SA jumelle et en hérite la provenance — pas de registre neuf ; sa promotion la déplace vers `common/` et l'inscrit à `mecanismes.py` |
+
+**Trois écarts que la vérification a trouvés, à refermer AVANT de rendre quoi que ce soit privé :**
+1. **« privé » veut dire aujourd'hui « en attente de validation ».** `Manifest.is_sandbox` vaut
+   `visibility == 'private'` (`common/models.py:927-929`), et `proposals.pending()` liste TOUT
+   manifeste privé comme une proposition à valider (`manifests/proposals.py:85-91`). Le manifeste
+   d'un modèle privé d'utilisateur tomberait donc dans « Propositions à valider » de l'admin. Il
+   faut séparer les deux états : *privé* est une portée, *promotion demandée* est une demande (la
+   file de S4).
+2. **Une promotion donne aujourd'hui l'élément à l'admin qui valide, au lieu de le rendre
+   système.** `proposals.apply` écrit `owner = <valideur>` puis promeut (`proposals.py:142-145`) ;
+   `ingest.promote` ne change que la portée (`ingest.py:115-122`). Avec la décision a, promouvoir
+   met `owner` à `None` et garde l'auteur pour l'attribution (dans `source`), sans écraser le
+   proposant.
+3. **Le corpus VERSIONNÉ suit le registre à chaud** (`manifests/corpus.py:3-5`) : l'installation
+   réexporte le manifeste dans `manifests/`, qui est publié avec le dépôt PUBLIC. Un modèle privé y
+   serait exporté. La règle existe déjà pour deux familles — les pipelines du canvas n'y vont
+   jamais, les fonctions d'utilisateur seulement à la clé explicite
+   (`commands/manifest_export.py:23-26`, `:60`). Elle se généralise : **seul un élément système
+   entre au corpus versionné.** ⚠ Les brouillons d'app de `manifests/app_drafts/` sont déjà
+   versionnés alors qu'ils sont `private` (`writer.json`, `translator.json`) : le brouillon d'un
+   utilisateur ne doit pas y atterrir.
+
+**Ordre proposé :**
+1. Le contrat : `KIND_DECISION` déclare le porteur de chaque famille, et la garde d'énumération est
+   posée. Aucune décision ne change à cette étape.
+2. `Manifest` : séparer *privé* et *promotion demandée* (écart 1), faire de la promotion un passage
+   au système (écart 2), réserver le corpus versionné aux éléments système (écart 3), et rendre les
+   portées lisibles par `scoped_visible_q` avec un `ScopedManager`. C'est la porte d'entrée :
+   `extract` et `write_back` transmettent la provenance, sur le modèle des fonctions d'utilisateur.
+3. `AIModel` et TOUS ses lecteurs, `select_model(user=…)` compris ; la provenance naît au geste
+   d'installation (`install_from_spec` reçoit le compte). C'est la famille la plus exposée à une
+   fuite.
+4. Les fonctions (`FunctionSpec` filtré ; `UserFunction` l'est déjà), les pipelines du Studio, les
+   skills.
+5. Les briques UI d'utilisateur et les jumelles : la provenance déclarée, et la promotion par
+   déplacement vers `common/`.
+6. La pastille et la facette.
+
+Relation avec S3 (`AccessGrant`, `PROFILES_PERMISSIONS §8.7`) : S3 répond à « qui a le droit »,
+ce chantier répond à « à qui c'est ». Les deux se composent dans `accessible()`, et aucun ne
+remplace l'autre.
