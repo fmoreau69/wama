@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 {% load static %}
 {% load wama_static %}
-<html lang="fr">
+<html lang="fr" data-wama-theme="{{ theme.key }}" data-bs-theme="{{ theme.bootstrap }}">
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -10,6 +10,8 @@
 
     <!-- Bootstrap 5 CSS -->
     <link href="{% static_v 'vendors/bootstrap-5.3.0/css/bootstrap.min.css' %}" rel="stylesheet">
+    {# Tokens du THÈME (common/themes.py) : chargés avant toute feuille qui les lit #}
+    <link href="{% static_v 'common/css/wama-theme.css' %}" rel="stylesheet">
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="{% static_v 'vendors/font-awesome-6.4.0/css/all.min.css' %}">

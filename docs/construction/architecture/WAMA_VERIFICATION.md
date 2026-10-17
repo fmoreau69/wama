@@ -1945,10 +1945,16 @@ un rouge permanent ne se lit plus, et un compte par nœud varierait avec les don
 composants communs sous 3:1, corrigés à leur domicile le jour même — le compteur de la barre de
 filtres (`#6c757d` sur `#2b3035`, 2,83 → `#adb5bd`, 6,4 ; présent sur TOUTES les pages catalogue)
 et la ligne méta des cards de la médiathèque (`#666`, 2,98 → `#a0a8b0`, 7,1).
-🔚 **Restent faibles** (entre 3 et 4,5, listés chaque nuit) : les petits libellés de la card
-commune (`wcv3-lbl` « ENTRÉE / PROCESS », `wcv3-head`, `wcv3-proc-name`), des `span` sans classe
-(Mes souvenirs, Journal), `ext-type-label` (Sources), `conformity-label` (Apps), `p.hint` — une
-décision de charte (CARD_DESIGN), pas un défaut à corriger en passant.
+🔚 **Restent faibles** (entre 3 et 4,5, listés chaque nuit) : des `span` sans classe (Mes
+souvenirs), `ext-type-label` et `conformity-label` (Apps), `p.hint` (Mon RAG), un `btn-outline-secondary`
+(Apps) et deux liens `#0d6efd` (Profil, Mon RAG) — tous écrits en `#6c757d` / bleu Bootstrap clair
+DANS leur page ; ils se porteront sur les tokens avec elle (`ROADMAP §28`).
+✅ **2026-10-17 — les libellés de la card commune sont remontés** (décision de Fabien) : `wcv3-lbl`
+(`#7a838c`, 4,0:1), `wcv3-head` (`#6c757d`, 3,3:1) et le nom d'un process désactivé (opacité .45,
+3,8:1) lisent le token `--wama-text-label` (`#9aa3ab`, 6,0:1 ; 5,2:1 au survol) ; le process
+désactivé s'estompe par sa couleur, plus par l'opacité. Mesuré sur le serveur éphémère :
+`common.contrast` vert, plus aucun `wcv3-*` faible ; `transcriber.preview` et `anonymizer.preview`
+verts sans aucun faible dans la file, le volet ni la visionneuse.
 
 ⏳ **Quand WAMA aura plusieurs THÈMES** (sombre / clair / UGE… — intention `ROADMAP` « Voies
 alignées » : `data-bs-theme` de Bootstrap 5.3 + tokens CSS dans `common/`, `CARD_DESIGN §9.3`) :
@@ -1967,3 +1973,8 @@ alignées » : `data-bs-theme` de Bootstrap 5.3 + tokens CSS dans `common/`, `CA
 lisent `prefers-color-scheme`), et les feuilles communes portent des couleurs EN DUR
 (`app_modern.css` : 122 valeurs hexadécimales). Le chantier des thèmes sera d'abord celui des
 tokens ; ce scénario en sera le filet, thème par thème.
+✅ **Le même jour, le chantier est OUVERT (`ROADMAP §28`) et la moitié navigateur est prête** :
+`check_contrast` joue chaque thème de `common/themes.py` (`THEMES`), posé par les deux attributs
+de `<html>` que `base.html` pose (`_APPLY_THEME`) — avec un seul thème déclaré, le scénario mesure
+ce qui est servi. ⏳ La moitié code reste propre au sombre : sa forme symétrique viendra avec le
+second thème, qui la rendra mesurable.

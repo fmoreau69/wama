@@ -46,7 +46,7 @@
    PERCEPTIBLE (l'œil suit la colonne). Hauteur uniforme = les sections s'étirent (align-items
    par défaut : stretch — surtout ne pas remettre `start`, les traits seraient inégaux). */
 .wcv3-sec + .wcv3-sec {
-  border-left: 1px solid rgba(255, 255, 255, .08);
+  border-left: 1px solid var(--wama-border-subtle);
   padding-left: .55rem;
 }
 
@@ -58,7 +58,7 @@
   font-size: .62rem;
   text-transform: uppercase;
   letter-spacing: .06em;
-  color: #7a838c;
+  color: var(--wama-text-label);
   margin-bottom: .2rem;
   user-select: none;
 }
@@ -70,7 +70,7 @@
    propre bandeau, hors des 5 sections — discret, au-dessus de la grille. */
 .wcv3-head {
   font-size: .66rem;
-  color: #6c757d;
+  color: var(--wama-text-label);
   margin-bottom: .3rem;
   user-select: none;
 }
@@ -90,10 +90,10 @@
   background: transparent;
   border: 1px solid transparent;
   display: flex; align-items: center; justify-content: center;
-  color: #6c757d;
+  color: var(--wama-text-label);
   transition: background .12s, border-color .12s;
 }
-.wcv3-thumb:hover { background: #16191c; border-color: #2a2d30; }
+.wcv3-thumb:hover { background: var(--wama-surface-sunken); border-color: var(--wama-border); }
 
 .wcv3-in-lines { min-width: 0; }
 
@@ -102,14 +102,14 @@
 .wcv3-in-name {
   display: block;
   font-weight: 600;
-  color: #e9ecef;
+  color: var(--wama-text-strong);
   font-size: .88rem;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* Propriétés RÉELLES du média (mp3 · 44,1 kHz · stéréo · durée / pdf · 12 pages · 2,4 Mo) —
    relevées de l'entrée, jamais des réglages. */
-.wcv3-in-props { font-size: .72rem; color: #adb5bd; }
+.wcv3-in-props { font-size: .72rem; color: var(--wama-text-secondary); }
 .wcv3-in-props .sep { opacity: .45; margin: 0 .28rem; }
 
 
@@ -120,19 +120,19 @@
 .wama-chip--blueprint {
   border-style: dashed;
   background: transparent;
-  color: #8d969e;
-  border-color: rgba(255, 255, 255, .22);
+  color: var(--wama-text-label);
+  border-color: var(--wama-border-dashed);
 }
 
 /* ── Section SORTIE — temporelle : blueprint AVANT → étape live PENDANT → solide APRÈS ── */
 .wcv3-out { display: flex; flex-wrap: wrap; gap: .25rem; align-items: center; }
 
-.wcv3-out-step { font-size: .74rem; color: #9ec5d4; }
-.wcv3-out-step .pct { font-weight: 600; color: #e9ecef; }
+.wcv3-out-step { font-size: .74rem; color: var(--wama-text-info); }
+.wcv3-out-step .pct { font-weight: 600; color: var(--wama-text-strong); }
 
 /* En ÉCHEC l'erreur REMPLACE la sortie au même endroit (§11) — même piste, même altitude. */
 .wcv3-out-error {
-  font-size: .74rem; color: #ea868f;
+  font-size: .74rem; color: var(--wama-text-danger);
   display: block;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
@@ -140,7 +140,7 @@
 /* ── Section ÉTAT — point + libellé + ETA/durée + barre ─────────────────────────────
    Barre VERTE sur tout le cycle (décision Fabien : l'état est déjà porté par le liseré,
    le point et le badge — une 4e redite en couleur sature la card). Réversible. */
-.wcv3-state { font-size: .78rem; color: rgba(255, 255, 255, .72); }
+.wcv3-state { font-size: .78rem; color: var(--wama-text-state); }
 .wcv3-state-line { display: flex; align-items: center; gap: .35rem; }
 
 /* ÉCHEC : la barre reste FIGÉE au % atteint et GARDE le dégradé vert — on voit OÙ le
@@ -202,7 +202,7 @@
      fond différent des cards simples, et une pastille détourée à la couleur d'UN fond y aurait
      dessiné un halo faux. Un assombrissement fonctionne sur les deux (première version : une
      var `--wcv3-card-bg` qui n'existait nulle part et retombait toujours sur le fond normal). */
-  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .55);
+  box-shadow: 0 0 0 1.5px var(--wama-ring-shadow);
 }
 
 /* ── Zone de PREVIEW PERMANENTE (§11 : jamais retirée) ──────────────────────────────
@@ -213,10 +213,10 @@
   margin-top: .5rem;
   padding: .4rem .55rem;
   border-radius: .3rem;
-  background: rgba(0, 0, 0, .32);
-  border: 1px solid rgba(255, 255, 255, .05);
+  background: var(--wama-surface-inset);
+  border: 1px solid var(--wama-border-faint);
   font-size: .76rem;
-  color: #dee2e6;
+  color: var(--wama-text);
   max-height: 80px;      /* aligné sur expandPreview() (reader.js) qui replie à '80px' */
   overflow: hidden;
   word-break: break-word;
@@ -245,10 +245,11 @@
 .wcv3-preview:has(img, video, audio, embed, iframe, .wama-audio-player) { max-height: none; }
 
 /* État « rien encore produit » : récapitulatif de ce qui sortira, en retrait typographique. */
-.wcv3-preview--blueprint { color: #868e96; font-style: italic; }
+.wcv3-preview--blueprint { color: var(--wama-text-label); font-style: italic; }
 
 /* ── Famille de LOT — cyan des codes RÉELS is-batch (§11 v3.5) ──────────────────────
-   #0d1a1a / #0dcaf0 relevés de l'existant (reader/index.html), pas réinventés.
+   Teintes relevées de l'existant (reader/index.html), pas réinventées — tokens
+   `--wama-surface-batch` / `--wama-accent-batch` depuis le 2026-10-17.
    Pointillés VOLONTAIREMENT non utilisés ici : ils sont réservés à la card d'entrée. */
 /* Le padding/arrondi de la card MÈRE est passé au COMMUN (.wama-card.is-batch,
    wama-inspector.css, 2026-08-03) — le patch scopé reader .wcv3--batch-parent est absorbé
@@ -262,12 +263,12 @@
    se lisait pas comme une soudure mais comme un défaut de rendu. Le rail suffit à dire
    l'appartenance ; la card reste une card. */
 .wcv3--batch-child {
-  background: #0d1a1a !important;
+  background: var(--wama-surface-batch) !important;
   border-radius: .375rem !important;
 }
 
 /* Survol-famille : trait PLEIN cyan (jamais pointillé) sur la mère ET ses filles. */
-.wcv3-family-hl { box-shadow: 0 0 0 1px #0dcaf0 inset; }
+.wcv3-family-hl { box-shadow: 0 0 0 1px var(--wama-accent-batch) inset; }
 
 /* ── Repli responsive — CONTAINER queries, PAS media queries ────────────────────────
    Leçon du pilote reader (mesurée, 2026-08-01) : la largeur utile de la file ne découle
@@ -331,7 +332,7 @@
   .wcv3 { grid-template-columns: minmax(0, 1fr); row-gap: .35rem; }
   .wcv3-sec { grid-column: 1 / -1; border-left: none; padding-left: 0; }
   .wcv3-sec + .wcv3-sec {
-    border-top: 1px solid rgba(255, 255, 255, .08);
+    border-top: 1px solid var(--wama-border-subtle);
     padding-top: .35rem;
   }
 }
@@ -414,12 +415,15 @@
 .wcv3-proc { display: inline-flex; align-items: center; gap: .3rem; font-size: .8rem; white-space: nowrap; }
 /* Couleur EXPLICITE : sans elle le nom héritait d'un texte sombre et disparaissait sur la
    card (mesuré au 1er smoke, 2026-10-03 — le piège de contraste récurrent). */
-.wcv3-proc-name { color: #e9ecef; font-weight: 600; }
+.wcv3-proc-name { color: var(--wama-text-strong); font-weight: 600; }
 .wcv3-proc--optional .wcv3-proc-name { font-style: italic; }
-/* Process optionnel DÉSACTIVÉ : estompé, sa case reste nette (c'est elle qu'on vise). */
-.wcv3-proc--off > :not(.wcv3-proc-toggle) { opacity: .45; }
+/* Process optionnel DÉSACTIVÉ : estompé, sa case reste nette (c'est elle qu'on vise). Le NOM
+   s'estompe par sa COULEUR, pas par l'opacité : à .45 il tombait à 3,8:1 (mesuré le
+   2026-10-16) ; en teinte d'étiquette il reste lisible (6:1) et se distingue de l'actif. */
+.wcv3-proc--off > :not(.wcv3-proc-toggle):not(.wcv3-proc-name) { opacity: .45; }
+.wcv3-proc--off .wcv3-proc-name { color: var(--wama-text-label); font-weight: 400; }
 .wcv3-proc-toggle { margin: 0; width: .85rem; height: .85rem; cursor: pointer; }
-.wcv3-proc-sep { font-size: .7rem; color: #7a838c; }
+.wcv3-proc-sep { font-size: .7rem; color: var(--wama-text-label); }
 /* ▶ et ⚙ par process : discrets ; le ▶ est absent tant que la card est en vol (un seul lancement
    à la fois), le ⚙ reste (la modale s'ouvre en consultation). */
 .wcv3-proc-run, .wcv3-proc-settings { padding: 0 .3rem; font-size: .62rem; line-height: 1.3; }

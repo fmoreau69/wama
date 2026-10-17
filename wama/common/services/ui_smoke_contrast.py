@@ -15,6 +15,9 @@ LE VERDICT, et pourquoi deux régimes :
     COMPOSANT (`signature` : balise + première classe), pas par nœud — une médiathèque de 22 voix
     n'est pas 22 défauts, et un compte par nœud varierait d'une nuit à l'autre avec les données.
 
+CHAQUE THÈME déclaré (`common/themes.py`) est joué, posé comme `base.html` le pose : une
+couleur juste dans le sombre peut disparaître dans le clair, et c'est ce scénario qui le verra.
+
 La mesure (`measure_contrast`) est aussi jouée par `<app>.preview` sur les états que seule une
 file HABITÉE montre : cards, volet de l'élément sélectionné, visionneuse ouverte.
 
@@ -116,11 +119,20 @@ def contrast_pages() -> list:
     return pages
 
 
+#: Le thème posé comme `base.html` le pose : les deux attributs de <html>, rien d'autre.
+_APPLY_THEME = """([key, bootstrap]) => {
+    document.documentElement.setAttribute('data-wama-theme', key);
+    document.documentElement.setAttribute('data-bs-theme', bootstrap);
+}"""
+
+
 def check_contrast():
-    """Chaque page mesurée : aucun texte illisible. (ok, détail)."""
+    """Chaque page mesurée, dans CHAQUE thème déclaré (`common/themes.py`) : aucun texte
+    illisible. (ok, détail)."""
     from playwright.sync_api import sync_playwright
 
     from wama.common.services.nightly_tests import SkipScenario
+    from wama.common.themes import THEMES
 
     token = _test_session_key()
     if not token:
@@ -132,20 +144,23 @@ def check_contrast():
             context = browser.new_context(viewport={'width': 1600, 'height': 1000})
             context.add_cookies(_cookie(token))
             page = context.new_page()
-            for name, path in contrast_pages():
-                try:
-                    response = page.goto(f"{BASE_URL.rstrip('/')}{path}", wait_until='networkidle',
-                                         timeout=PAGE_TIMEOUT_MS)
-                except Exception as exc:
-                    skipped.append(f"{name} ({_motif_skip(exc)})")
-                    continue
-                if not response or response.status != 200:
-                    continue            # page refusée au compte de test : son droit, pas un défaut
-                page.wait_for_timeout(600)
-                page_faults, page_weak = contrast_verdict(measure_contrast(page), name)
-                faults += page_faults
-                weak.update(page_weak)
-                measured += 1
+            for theme in THEMES:
+                for name, path in contrast_pages():
+                    where = name if len(THEMES) == 1 else f"{name} [{theme.label}]"
+                    try:
+                        response = page.goto(f"{BASE_URL.rstrip('/')}{path}", wait_until='networkidle',
+                                             timeout=PAGE_TIMEOUT_MS)
+                    except Exception as exc:
+                        skipped.append(f"{where} ({_motif_skip(exc)})")
+                        continue
+                    if not response or response.status != 200:
+                        continue        # page refusée au compte de test : son droit, pas un défaut
+                    page.evaluate(_APPLY_THEME, [theme.key, theme.bootstrap])
+                    page.wait_for_timeout(600)
+                    page_faults, page_weak = contrast_verdict(measure_contrast(page), where)
+                    faults += page_faults
+                    weak.update(page_weak)
+                    measured += 1
         finally:
             browser.close()
     if not measured:
@@ -153,7 +168,8 @@ def check_contrast():
     weak_text = ', '.join(f"{sig} ×{n}" for sig, n in weak.most_common(8)) or 'aucun'
     if faults:
         return False, ' ; '.join(faults)
-    return True, (f"{measured} pages mesurées : aucun texte illisible (rapport < {ILLEGIBLE}) ; "
+    themes = ', '.join(t.label for t in THEMES)
+    return True, (f"{measured} pages mesurées (thème : {themes}) : aucun texte illisible (rapport < {ILLEGIBLE}) ; "
                   f"composants faibles (sous le seuil WCAG) : {weak_text}"
                   + (f" ; non mesurées : {', '.join(skipped)}" if skipped else ''))
 

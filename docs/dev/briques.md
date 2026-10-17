@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**206 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**207 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -2522,6 +2522,17 @@ Le navigateur pose un curseur, une tâche longue le suit tranche par tranche, mo
 Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue à l'appelant sous forme de File + méta (`onSelect`), ou de l'asset SEUL, sans téléchargement, pour qui le DÉSIGNE (`onPick`, 2026-09-28 — la tuile de card)
 
 - **Domicile** : `wama/common/static/common/js/media-picker.js`
+
+### Thèmes et tokens de couleur
+
+Les thèmes DÉCLARÉS (`THEMES` : clé, libellé, mode natif de Bootstrap), passés à toute page par le contexte et posés par base.html sur `<html>` (`data-wama-theme`, `data-bs-theme`) ; leurs VALEURS dans `wama-theme.css`, un bloc par thème, chargé avant toute feuille. Un composant lit un token (`var(--wama-text-label)`), il n'écrit plus de couleur : la card commune est le 1ᵉʳ adopteur (2026-10-17). `common.contrast` joue chaque thème déclaré ; `tests_theme` exige que chaque thème définisse chaque token et tient le BUDGET des couleurs écrites en dur, qui ne peut que descendre
+
+- **Domicile** : `wama/common/themes.py` · **doc** : [docs/construction/suivi/ROADMAP.md §28](../construction/suivi/ROADMAP.md)
+- **Module** : Thèmes de WAMA — LA déclaration (chantier ouvert le 2026-10-17, demande de Fabien : « ça fonctionnera aussi quand on aura mis en place plusieurs thèmes/modes (sombre/clair/UGE/etc) »).
+- **API publique** (3) :
+  - `class Theme`
+  - `theme(key: str) -> Theme` — Le thème déclaré sous `key`, sinon le thème par défaut (jamais une page sans thème).
+  - `theme_for(request) -> Theme` — Le thème d'une requête. Aucune préférence n'existe encore : c'est le défaut. ⏳ La
 
 ### Vocabulaire des capacités
 

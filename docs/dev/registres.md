@@ -65,7 +65,7 @@ la réponse n'est pas « tout en registre ».
 
 ## Les registres, un par un
 
-**17 registres**, par ordre alphabétique de libellé.
+**18 registres**, par ordre alphabétique de libellé.
 
 ### Applications
 
@@ -226,6 +226,15 @@ Vide le cache de lecture des skills : un `.md` modifié à chaud est repris sans
 - **Citable dans une doc** : `WAMA:FAIT(external_sources/<clé>/<champ>)`
 
 Sonde chaque source déclarée : clé d'API de l'instance posée ? adresse joignable (proxy UGE compris) ? Une clé de CHAQUE utilisateur (fournisseurs LLM, banques de médias) se pose au profil, pas ici. La déclaration, elle, ne s'actualise pas — elle vit en code. Réservé au staff : la sonde émet des requêtes sortantes et écrit un rapport.
+
+### Thèmes
+
+- **Clé** : `themes` — Dérivé à chaque affichage — toujours à jour
+- **Source** : `common/themes.py` — les thèmes déclarés ; leurs valeurs dans `common/css/wama-theme.css`
+- **Doc** : [docs/construction/suivi/ROADMAP.md §28](../construction/suivi/ROADMAP.md)
+- **Citable dans une doc** : `WAMA:FAIT(themes/<clé>/<champ>)`
+
+Les thèmes que WAMA sait poser sur une page. Un thème est un jeu de TOKENS (un composant lit `var(--wama-…)`, il n'écrit plus de couleur) et le mode de Bootstrap qu'il prend pour base. Le scénario de contraste mesure chaque thème de cette liste.
 
 ## Kinds de manifeste
 

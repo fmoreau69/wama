@@ -371,6 +371,23 @@ register(Registry(
 ))
 
 
+def _themes():
+    from wama.common.themes import THEMES
+    return THEMES
+
+
+register(Registry(
+    key='themes', label='Thèmes', nature=DERIVED,
+    source="`common/themes.py` — les thèmes déclarés ; leurs valeurs dans `common/css/wama-theme.css`",
+    count=lambda: len(_themes()),
+    entries=lambda: {t.key: t.to_dict() for t in _themes()},
+    doc='docs/construction/suivi/ROADMAP.md §28',
+    description="Les thèmes que WAMA sait poser sur une page. Un thème est un jeu de TOKENS (un "
+                "composant lit `var(--wama-…)`, il n'écrit plus de couleur) et le mode de Bootstrap "
+                "qu'il prend pour base. Le scénario de contraste mesure chaque thème de cette liste.",
+))
+
+
 register(Registry(
     key='licenses', label='Licences', nature=DERIVED,
     source="Agrégation de `AIModel`, `Library`, médias et des `requires` des manifestes d'app",

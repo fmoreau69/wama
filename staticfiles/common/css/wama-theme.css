@@ -1,0 +1,42 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   WAMA — TOKENS DE THÈME   (chantier thèmes, ouvert le 2026-10-17)
+
+   LE domicile des couleurs partagées. Un thème est DÉCLARÉ dans `wama/common/themes.py` ;
+   ses VALEURS vivent ici, dans un bloc `:root[data-wama-theme="<clé>"]` que `base.html` active.
+   Le thème par défaut est aussi posé sur `:root` seul : une page qui ne passe pas par base.html
+   garde des couleurs lisibles au lieu de retomber sur le noir du navigateur.
+
+   Un composant ne pose plus de couleur : il lit un token. Un thème de plus (clair, UGE…) =
+   un bloc de plus ici, qui redéfinit CHAQUE token — `tests_theme` refuse un bloc incomplet.
+
+   Les rapports de contraste notés sont mesurés sur le fond de la card (#212529) et sur son
+   survol (#2b3035) ; le seuil WCAG d'un petit texte est 4,5:1 (`WAMA_VERIFICATION §10`).
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+:root,
+:root[data-wama-theme="dark"] {
+  /* ── Texte, du plus lu au plus discret ── */
+  --wama-text-strong: #e9ecef;              /* nom, valeur courante — 13:1 */
+  --wama-text: #dee2e6;                     /* texte courant d'un aperçu */
+  --wama-text-secondary: #adb5bd;           /* propriétés — 7,4:1 */
+  /* Micro-étiquettes, bandeau d'identité, séparateurs, prévisions. Était #7a838c (4,0:1) et
+     #6c757d (3,3:1) dans la card — sous le seuil (mesuré le 2026-10-16, décision de Fabien le
+     17/10 : les remonter). 6,0:1 ; 5,2:1 au survol. */
+  --wama-text-label: #9aa3ab;
+  --wama-text-state: rgba(255, 255, 255, .72);
+  --wama-text-info: #9ec5d4;
+  --wama-text-danger: #ea868f;
+
+  /* ── Surfaces ── */
+  --wama-surface-sunken: #16191c;           /* creux : survol d'une vignette */
+  --wama-surface-inset: rgba(0, 0, 0, .32); /* encart : zone d'aperçu de la card */
+  --wama-surface-batch: #0d1a1a;            /* card fille d'un lot */
+
+  /* ── Traits ── */
+  --wama-border: #2a2d30;
+  --wama-border-subtle: rgba(255, 255, 255, .08);   /* séparateurs de section */
+  --wama-border-faint: rgba(255, 255, 255, .05);
+  --wama-border-dashed: rgba(255, 255, 255, .22);   /* contour d'une prévision */
+  --wama-ring-shadow: rgba(0, 0, 0, .55);           /* détourage d'une pastille */
+  --wama-accent-batch: #0dcaf0;                     /* famille de lot */
+}

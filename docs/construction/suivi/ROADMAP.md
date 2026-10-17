@@ -229,6 +229,9 @@
     `CARD_DESIGN §9.3`, différé « fonctionnel d'abord ») appliqués aux cards et aux deux volets,
     puis quelques web components. Point de raccroche naturel : la card v4 (`CARD_DESIGN §11.11`),
     le skill `frontend-design` étant disponible pour cadrer la direction.
+  - 🔄 **Tokens et thèmes : chantier OUVERT le 2026-10-17 → `§28`** (déclaration
+    `common/themes.py`, valeurs `common/css/wama-theme.css`, card commune portée ; le mode natif
+    `data-bs-theme` est son étape 2).
 
 ---
 
@@ -5709,3 +5712,62 @@ l'éditeur du transcriber a été lu, pas joué.
 *(2026-10-16 : l'éditeur est désormais joué, au doigt et à la souris. Le glisser natif de Safari,
 s'il démarre, est écarté pendant un appui suivi par la brique — deux glisser du même élément se
 marcheraient dessus ; l'essai sur un vrai iPad reste le seul juge de ce point.)*
+
+---
+
+## 28. THÈMES — sombre, clair, UGE… (ouvert le 2026-10-17, demande de Fabien)
+
+> *« On commence le chantier de thème »* — après le contrôle de contraste (`WAMA_VERIFICATION
+> §10`), qui devait tenir quand WAMA aurait plusieurs thèmes ou modes (« sombre / clair / UGE /
+> etc »). Ce paragraphe est le domicile du chantier ; il prolonge la recommandation « Voies
+> alignées » (début du document : `data-bs-theme` de Bootstrap 5.3 + tokens CSS dans `common/`)
+> et `CARD_DESIGN §9.3` (tokens des tuiles).
+
+**Le modèle, posé le 2026-10-17 :**
+- **Déclaration** : `wama/common/themes.py` — `THEMES` (clé, libellé, mode natif de Bootstrap),
+  `DEFAULT`, `theme_for(request)`. Registre `themes` (DÉRIVÉ, page Registres). Le contexte
+  (`context_processors.theme`) le passe à toute page ; `base.html` le pose sur `<html>` :
+  `data-wama-theme` (les tokens) et `data-bs-theme` (le mode de Bootstrap).
+- **Valeurs** : `common/css/wama-theme.css`, chargé avant toute autre feuille — un bloc
+  `:root[data-wama-theme="<clé>"]` par thème, le thème par défaut aussi sur `:root` seul (une page
+  hors de `base.html` reste lisible). Un composant ne pose plus de couleur, il lit un token
+  (`var(--wama-text-label)`).
+- **Mesure** : `common.contrast` joue chaque thème déclaré (`WAMA_VERIFICATION §10`).
+- **Garde** (`tests_theme`) : chaque thème déclaré définit CHAQUE token ; aucun bloc sans thème
+  déclaré ; aucun `var(--wama-…)` sans repli qui ne soit défini quelque part ; les fichiers portés
+  restent à zéro couleur ; et le **budget des couleurs écrites en dur**, égal à la mesure, qui ne
+  peut que descendre — **862** dans les feuilles CSS, **883** dans les gabarits au 2026-10-17
+  (`app_modern.css` en tête, 163). Hors budget, chacun avec sa raison : `wama-theme.css` (le
+  domicile), une copie de Bootstrap, les documents EXPORTÉS (palette `prefers-color-scheme`), les
+  maquettes rangées en `docs/`. Le JS n'y est pas : ses couleurs sont surtout des palettes de
+  dessin (canvas, graphes), mesurées au rendu.
+
+**Ce que le premier palier a livré (2026-10-17)** : le socle ci-dessus et un premier adopteur, la
+**card commune** (`wama-card-v3.css`, 17 couleurs → 0), dont les libellés faibles sont remontés
+(`--wama-text-label`, 6,0:1 — décision de Fabien).
+
+⚠ **Constat qui ordonne la suite** : le sombre d'aujourd'hui est PEINT À LA MAIN sur un Bootstrap
+en mode CLAIR — d'où `bootstrap='light'` dans sa déclaration. Mesuré : poser `data-bs-theme="dark"`
+sur les 30 pages de `common.contrast` ne change aucun rapport (un lien y gagne : `#0d6efd` →
+`#6ea8fe`) et rien de visible sur les pages capturées — mais ces pages ne montrent pas les états
+INTERACTIFS que le mode natif repeint : alertes (une `alert-warning` devient sombre, et l'exception
+`btn-outline-dark` de `tests_contrast` deviendrait fausse), champs de formulaire, tableaux, modales,
+listes déroulantes.
+
+**Ordre retenu :**
+1. ✅ Socle + card commune (ci-dessus).
+2. ⏳ **Basculer le sombre sur le mode natif** (`bootstrap='dark'`) : jouer les scénarios qui
+   OUVRENT les états interactifs (aperçu, mise en page, menus, gestes) dans les deux modes, et lire
+   les écarts avant de trancher. Ce qui y gagne : `text-muted`, `text-body-secondary`, les liens,
+   les champs suivent le thème sans une ligne de CSS.
+3. ⏳ **Porter les feuilles communes** sur les tokens, par ordre de poids (`app_modern.css` 163,
+   `wama-notifications.css` 60, `media-preview.css` 58 — ses `--wv-*` deviennent des alias —,
+   `wama-surface.css` 51, `wama-inspector.css` 50…), puis les `<style>` des pages (le reste des
+   faibles de `WAMA_VERIFICATION §10` y vit : `#6c757d` écrit dans la page). Chaque portage BAISSE
+   le budget dans le même commit.
+4. ⏳ **Un second thème** (clair, ou UGE) = un bloc de `wama-theme.css` + une ligne de `THEMES` ;
+   la garde de code de `tests_contrast` passe à sa forme symétrique (un ton de texte fixe exige un
+   fond fixe, dans les deux sens).
+5. ⏳ **Le choix de l'utilisateur** : une préférence des réglages durables (`user_settings`), lue
+   par `theme_for` comme l'est celle de l'avatar ; un sélecteur dans le menu du compte. Sans second
+   thème, il n'y a rien à choisir : cette étape vient après la 4.

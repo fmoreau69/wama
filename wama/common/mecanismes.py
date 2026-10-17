@@ -2163,6 +2163,18 @@ MECHANISMS = (
               "Traversée récursive d'un drop/webkitdirectory — brique F2 montée globale (base.html)",
               'wama/common/static/common/js/wama-folder-import.js', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               symbol='WamaFolderImport'),   # global de base.html : compté par son symbole
+    Mechanism('themes', "Thèmes et tokens de couleur",
+              "Les thèmes DÉCLARÉS (`THEMES` : clé, libellé, mode natif de Bootstrap), passés à "
+              "toute page par le contexte et posés par base.html sur `<html>` (`data-wama-theme`, "
+              "`data-bs-theme`) ; leurs VALEURS dans `wama-theme.css`, un bloc par thème, chargé "
+              "avant toute feuille. Un composant lit un token (`var(--wama-text-label)`), il "
+              "n'écrit plus de couleur : la card commune est le 1ᵉʳ adopteur (2026-10-17). "
+              "`common.contrast` joue chaque thème déclaré ; `tests_theme` exige que chaque thème "
+              "définisse chaque token et tient le BUDGET des couleurs écrites en dur, qui ne peut "
+              "que descendre",
+              'wama/common/themes.py', 'docs/construction/suivi/ROADMAP.md §28',
+              annexes=('wama/common/static/common/css/wama-theme.css',
+                       'wama/common/tests/tests_theme.py')),
 
     )),
 

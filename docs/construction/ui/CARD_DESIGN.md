@@ -605,6 +605,10 @@ densité) via des **tokens CSS communs** (`.wama-tile` ou variables `--wama-card
 global) — chaque surface les adopte sans se faire imposer sa structure interne. À traiter dans la
 continuité de la brique card commune (le formalisme de CE document) ; **différé** tant que le
 schéma-driven des apps n'est pas fini (priorité Fabien : fonctionnel d'abord, passe UI ensuite).
+🔄 *2026-10-17* : les tokens existent — `common/css/wama-theme.css`, chantier des thèmes
+(`ROADMAP §28`) — et la card de travail (`wama-card-v3.css`) est la première à les lire : plus
+aucune couleur écrite en dur, libellés remontés à 6:1 (`--wama-text-label`). Les autres tuiles
+(accueil, app manager, model manager) restent à porter.
 > Bibliothèques externes pour cette passe (21st.dev écarté : React/Tailwind ; thèmes Bootstrap,
 > web components) : verdict et voies alignées consignés dans `ROADMAP.md §Études / veille`
 > (2026-09-07, rien d'engagé).
