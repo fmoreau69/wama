@@ -10,8 +10,6 @@ document.addEventListener('DOMContentLoaded', function () {
   const speakButton = document.getElementById('transcriber-speak-btn');
   const liveOutput = document.getElementById('live-transcription-output');
   const liveStatus = document.getElementById('live-transcription-status');
-  const startProcessBtn = document.getElementById('transcriber-process-btn');
-  const clearAllBtn = document.getElementById('transcriber-clear-btn');
   const downloadAllBtn = document.getElementById('transcriber-download-all-btn');
 
   // Polling + état vide délégués au module commun (common/js/wama-app-base.js).
@@ -486,8 +484,13 @@ document.addEventListener('DOMContentLoaded', function () {
   // Bulk actions
   // ======================================================================
   function initBulkActions() {
-    if (startProcessBtn) startProcessBtn.addEventListener('click', handleStartAll);
-    if (clearAllBtn) clearAllBtn.addEventListener('click', handleClearAll);
+    // ▶ Start all and 🗑 Clear all: shared `queue-actions.js` brick (2026-10-17, URLs passed to
+    // the partial). The ▶ declares its follow-up: say so when nothing was left to start,
+    // otherwise reload to get fresh card states.
+    WamaQueueActions.onQueueStarted(data => {
+      if (!(data.started_ids || []).length) { showToast('Aucune transcription à démarrer.', 'info'); return; }
+      window.location.reload();
+    });
     // ⚠ Bulk download: NO wiring here (2026-08-30). The dropdown used to be rebuilt in JS —
     // four formats HARD-CODED, URL forged by `startAllUrl.replace('start_all','download_all')`.
     // The queue toolbar now renders it from the catalogue (`export_formats`) via
@@ -511,50 +514,6 @@ document.addEventListener('DOMContentLoaded', function () {
         savePanelSettings();
       });
     }
-  }
-
-  function handleStartAll() {
-    if (!config.startAllUrl) return;
-    startProcessBtn.disabled = true;
-    fetch(config.startAllUrl, {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({}),
-    })
-      .then(r => r.json())
-      .then(data => {
-        const started = data.started_ids || [];
-        if (!started.length) { showToast('Aucune transcription à démarrer.', 'info'); return; }
-        started.forEach(id => startPolling(id));
-        // Reload to get fresh card states
-        window.location.reload();
-      })
-      .catch(err => showToast(err.message || 'Erreur', 'danger'))
-      .finally(() => { startProcessBtn.disabled = false; });
-  }
-
-  function handleClearAll() {
-    if (!config.clearUrl) return;
-    if (!confirm('Supprimer toutes les transcriptions ?')) return;
-
-    clearAllBtn.disabled = true;
-    fetch(config.clearUrl, {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({}),
-    })
-      .then(r => r.json())
-      .then(() => {
-        if (queueContainer) {
-          queueContainer.querySelectorAll('.synthesis-card').forEach(c => c.remove());
-        }
-        _poller.stopAll();
-        insertEmptyStateIfNeeded();
-        updateDownloadAllState();
-        if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
-      })
-      .catch(err => showToast(err.message || 'Erreur', 'danger'))
-      .finally(() => { clearAllBtn.disabled = false; });
   }
 
   function updateDownloadAllState() {

@@ -40,8 +40,6 @@
     const promptInput    = document.getElementById('promptInput');
     const melodyInput    = document.getElementById('melodyInput');
     const generateBtn          = document.getElementById('generateBtn');
-    const startAllBtn          = document.getElementById('startAllBtn');
-    const clearAllBtn          = document.getElementById('clearAllBtn');
     // (La barre de lot — #batchDetectBar & co — est pilotée par la brique commune
     //  WamaBatchImport ; ses constantes, jamais lues ici, sont retirées le 2026-09-29.)
 
@@ -317,24 +315,8 @@
     });
 
     // ---------------------------------------------------------------------------
-    // Start all / Clear all
+    // Start all / Clear all : brique `queue-actions.js` (URLs passées au partial, 2026-10-17)
     // ---------------------------------------------------------------------------
-
-    if (startAllBtn) {
-        startAllBtn.addEventListener('click', () => {
-            fetch(APP.startAllUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
-                .then(r => r.json())
-                .then(d => { if (d.launched > 0) { showToast(`${d.launched} génération(s) relancée(s)`, 'info'); location.reload(); } });
-        });
-    }
-
-    if (clearAllBtn) {
-        clearAllBtn.addEventListener('click', () => {
-            if (!confirm('Supprimer toutes les générations (sauf celles en cours) ?')) return;
-            fetch(APP.clearAllUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
-                .then(() => location.reload());
-        });
-    }
 
     // ---------------------------------------------------------------------------
     // Card actions

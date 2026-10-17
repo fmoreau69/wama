@@ -24351,3 +24351,52 @@ chiffre était gonflé par le balayage lui-même**, à corriger avant d'écrire 
 **aucune** des dix apps — chacune garde son propre gestionnaire. Un critère `queue_actions_common`
 serait rouge 10/10 : c'est un portage, pas une mesure. Et le portage des profils au commun
 (`ROADMAP §22.5`) reste proposé.
+
+## §PALIER 2026-10-17 (nuit) — ▶ Démarrer tout / 🗑 Tout effacer de FILE portés sur `queue-actions.js` (10/10) + REMOVAL_LEDGER actualisé — non poussé — 🔴 relancer gunicorn (JS servis + gabarits)
+
+Fabien, sur la trouvaille du palier précédent : *« Ce que tu dis n'est pas possible. On a très
+clairement porté queue-actions sur les apps. Si ce n'est pas fait, il faut le faire […] Peux-tu
+revérifier en confrontant doc/code dont remove ledger ? »*
+
+**Confronté au code — les deux étaient vrais, à deux étages différents** :
+- ✅ **portés** : les actions de CARD (⧉ 🗑 ⚙, `delete_wiring` / `duplicate_wiring` /
+  `settings_wiring`, depuis le 2026-08-22→23) et de LOT (▶ ⧉ 🗑 ⚙ de la card mère, R121 pour le
+  reader) passent par `queue-actions.js` ;
+- ❌ **jamais adoptés** : le 3ᵉ étage, la barre de FILE (`data-queue-start-url` /
+  `data-queue-clear-url`, livré le 2026-08-29 avec ses hooks). Les 10 apps (12 barres) gardaient
+  leurs handlers par id. `ROUTE §11 #29` l'écrivait le 15/09 (« **0/12** ») ; aucune entrée au
+  ledger. Ce qui l'a caché : les critères `start_all` / `clear_all` (`conformity_checker.py`) ne
+  lisaient que la ROUTE — verts 10/10.
+
+**Livré** :
+- les 12 barres reçoivent `start_url` / `clear_url` ; ~22 handlers et les clés de config sans
+  lecteur retirés (**R136**) ; spécificités DÉCLARÉES aux hooks : suite sans rechargement
+  (describer — même fonction que son ▶ de lot —, reader, enhancer image/vidéo et audio,
+  transcriber « rien à démarrer »), corps (enhancer : réglages par défaut du volet ; audio :
+  `panelAudioBody` ; synthesizer : `FormData` des options et de la voix de référence) ;
+- remonté au commun : option `clear_confirm` du partial (`_queue_actions.html`), pour la
+  confirmation propre au composer (« sauf celles en cours ») ; le 🗑 de file passe désormais
+  partout par la confirmation commune des fichiers libérés ;
+- critère **`queue_actions_common`** (F5) : grille **110** critères, **dix apps à 100 %** (WSL) ;
+- `wama-fm-notify.js` : son en-tête (corrigé deux heures plus tôt) redevenu juste — plus aucune
+  app n'appelle `WamaFM.*` elle-même.
+
+**REMOVAL_LEDGER actualisé** : R136 ; les quatre doublons relevés depuis le 2026-09-13
+**renumérotés** (seconde allocation → numéro neuf, ancien gardé en tête de cellule) : R43 voix
+`custom` → **R137**, R64/R65/R66 du synthesizer → **R138/R139/R140** ; renvois vivants suivis
+(`tts/constants.py`, `ROUTE`, `WAMA_COLLABORATION`) ; garde **`tests_removal_ledger`** (un numéro,
+une ligne — elle nommait les quatre doublons sur HEAD).
+
+**Gardes et preuves** : `tests_declared_conventions` (écarts rouges, dix apps vertes, et les pages
+RENDUES portent les deux URLs) ; contre-épreuves ROUGES — critère aveuglé, gabarits+JS de HEAD
+(rouge 10/10), JS de HEAD seul (« partiel » 10/10 : le double POST), `{% url … as %}` neutralisé
+(page rouge) ; JS servis parsés par V8, gabarits compilés. Une sonde fautive de ma main corrigée
+avant de conclure : `(.*?)</div>` s'arrêtait dans le menu ⬇ du describer/reader/transcriber.
+
+🔚 **Restes nommés** : la jumelle `converter_01` (non versionnée) passe les URLs ET garde le
+handler copié — « partiel », double POST : se solde à la régénération des jumelles · le
+commentaire de `synthesizer/migrations/0021` (non versionné) cite encore R43 · le ⬇ « Télécharger
+tout » reste câblé à la main dans 6 apps (`window.location` : avatarizer, converter, enhancer ×2,
+imager, synthesizer ; POST de formulaire : anonymizer) alors que la brique offre `download_url`
+— même nature, non porté ce soir · les
+gestes navigateur ▶/🗑 de file à rejouer après relance (`<app>.clear_all`, `batch_processing`).

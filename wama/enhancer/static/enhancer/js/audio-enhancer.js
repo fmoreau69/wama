@@ -281,48 +281,8 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── Button handlers ───────────────────────────────────────────────────────
 
   function initButtons() {
-    // Start all
-    const startAllBtn = document.getElementById('audio-process-btn');
-    if (startAllBtn) {
-      startAllBtn.addEventListener('click', async () => {
-        try {
-          const resp = await fetch(cfg.audioStartAllUrl, {
-            method: 'POST',
-            headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify(panelAudioBody()),
-          });
-          const data = await resp.json();
-          data.started_ids?.forEach(id => {
-            updateRow(id, { status: 'RUNNING', progress: 0 });
-            pollAudioProgress(id);
-          });
-        } catch (err) {
-          WamaApp.toast('Erreur: ' + err.message);
-        }
-      });
-    }
-
-    // Clear all
-    const clearBtn = document.getElementById('audio-clear-btn');
-    if (clearBtn) {
-      clearBtn.addEventListener('click', async () => {
-        if (!confirm('Effacer tous les fichiers audio ?')) return;
-        try {
-          await fetch(cfg.audioClearUrl, { method: 'POST', headers: csrfHeaders() });
-          const container = document.getElementById('audio-enhancer-queue');
-          if (container) {
-            container.querySelectorAll('[data-id]').forEach(card => card.remove());
-            const el = document.createElement('div');
-            el.className = 'empty-state text-center py-4 text-white-50';
-            el.textContent = 'Aucun fichier audio en attente.';
-            container.appendChild(el);
-          }
-          poller.stopAll();
-        } catch (err) {
-          WamaApp.toast('Erreur: ' + err.message);
-        }
-      });
-    }
+    // ▶ Start all et 🗑 Clear all : brique `queue-actions.js` (2026-10-17) — corps et suite du ▶
+    // déclarés plus bas avec ceux du lot, scopés au domaine audio.
 
     // Download all
     const dlAllBtn = document.getElementById('audio-download-all-btn');
@@ -380,6 +340,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
       WamaQueueActions.onBatchStarted(function (data) {
         (data.started || []).forEach(id => {
+          updateRow(id, { status: 'RUNNING', progress: 0 });
+          pollAudioProgress(id);
+        });
+      }, { domain: 'audio' });
+
+      // ▶ de FILE audio : même corps, même suite (la vue rend `started_ids`, pas `started`).
+      WamaQueueActions.onQueueStartBody(function () { return panelAudioBody(); }, { domain: 'audio' });
+      WamaQueueActions.onQueueStarted(function (data) {
+        (data.started_ids || []).forEach(id => {
           updateRow(id, { status: 'RUNNING', progress: 0 });
           pollAudioProgress(id);
         });

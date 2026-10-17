@@ -300,43 +300,21 @@
     }
 
     function initGlobalButtons() {
-        document.getElementById('reader-process-btn')?.addEventListener('click', async () => {
-            try {
-                const r = await csrfFetch(urls.startAll, { method: 'POST' });
-                const data = await r.json();
-                // Start polling for all RUNNING/PENDING cards
-                document.querySelectorAll('.reader-card').forEach(card => {
-                    const st = card.dataset.status;
-                    if (st === 'RUNNING' || st === 'PENDING') {
-                        startPolling(parseInt(card.dataset.id));
-                    }
-                });
-            } catch (e) {
-                console.error('[Reader] start_all error:', e);
-            }
+        // ▶ Démarrer tout et 🗑 Tout effacer : brique `queue-actions.js` (2026-10-17, URLs passées
+        // au partial). Le ▶ déclare sa suite : suivre les cards lancées au lieu de recharger.
+        WamaQueueActions.onQueueStarted(() => {
+            document.querySelectorAll('.reader-card').forEach(card => {
+                const st = card.dataset.status;
+                if (st === 'RUNNING' || st === 'PENDING') {
+                    startPolling(parseInt(card.dataset.id));
+                }
+            });
         });
 
         // ⬇ « Télécharger tout » : PLUS de handler ici (2026-08-30) — le bouton est rendu par
         // la brique commune _download_button (menu des formats déclarés, navigation par <a>).
         // Un window.location au clic détournerait l'OUVERTURE du menu. Ne reste côté app que
         // le bascule d'état updateDownloadAllBtn() ci-dessus (le bouton naît disabled).
-
-        document.getElementById('reader-clear-btn')?.addEventListener('click', async () => {
-            if (!confirm('Supprimer tous les éléments de la file ?')) return;
-            poller.stopAll();
-            try {
-                await csrfFetch(urls.clearAll, { method: 'POST' });
-                if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
-                document.getElementById('queueContainer').innerHTML =
-                    `<div id="emptyState" class="text-center text-secondary py-5">
-                        <i class="fas fa-inbox fa-3x mb-3 opacity-50"></i>
-                        <p>File d'attente vide — importez des documents pour commencer</p>
-                    </div>`;
-                updateDownloadAllBtn();
-            } catch (e) {
-                console.error('[Reader] clear_all error:', e);
-            }
-        });
 
         document.getElementById('resetOptions')?.addEventListener('click', () => {
             const fields = [

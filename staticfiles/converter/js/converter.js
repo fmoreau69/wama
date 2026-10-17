@@ -7,7 +7,7 @@
  *  - Options panels (image / video / audio) — main panel + modal
  *  - Conversion profiles (save / load / delete)
  *  - Job queue rendering & polling
- *  - Start / delete / duplicate / clear-all / start-all actions
+ *  - Start action (delete / duplicate / clear-all / start-all: shared `queue-actions.js` brick)
  *  - Per-job settings modal (edit output_format + options, then restart)
  */
 
@@ -42,10 +42,8 @@
 
     // Options panels
 
-    // Global action buttons
-    const startAllBtn = document.getElementById('converterStartAllBtn');
+    // Global action buttons (▶ and 🗑 of the queue: shared `queue-actions.js` brick)
     const downloadAllBtn = document.getElementById('converterDownloadAllBtn');
-    const clearAllBtn = document.getElementById('converterClearAllBtn');
 
     // Profile dropdown
     const profileSelect    = document.getElementById('converterProfileSelect');
@@ -455,31 +453,11 @@
 
     // ── Global buttons ────────────────────────────────────────────────────────
 
-    startAllBtn && startAllBtn.addEventListener('click', async () => {
-        try {
-            const resp = await csrfPost(APP.urls.startAll);
-            const data = await resp.json();
-            if (data.started && data.started.length) {
-                data.started.forEach(id => startPolling(id));
-            }
-            location.reload();
-        } catch (err) {
-            WamaApp.toast('Erreur : ' + err.message, 'error');
-        }
-    });
+    // ▶ Démarrer tout et 🗑 Tout effacer : brique `queue-actions.js` (URLs passées au partial,
+    // 2026-10-17) — POST, confirmation des fichiers libérés, rechargement.
 
     downloadAllBtn && downloadAllBtn.addEventListener('click', () => {
         window.location.href = APP.urls.downloadAll;
-    });
-
-    clearAllBtn && clearAllBtn.addEventListener('click', async () => {
-        if (!confirm('Effacer toutes les conversions ?')) return;
-        try {
-            await csrfPost(APP.urls.clearAll);
-            location.reload();
-        } catch (err) {
-            WamaApp.toast('Erreur : ' + err.message, 'error');
-        }
     });
 
     // ── Settings modal — dynamic form + apply / restart ───────────────────────

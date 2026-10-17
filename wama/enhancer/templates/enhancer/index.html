@@ -101,7 +101,9 @@ modèle) et les encadrés d'information.{% endcomment %}
 <div class="row">
     <div class="col-12">
         <h4 class="mb-3"><i class="fas fa-list"></i> File d'attente — Images &amp; Vidéos</h4>
-{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='enhancer-process-btn' clear_id='enhancer-clear-btn' download_id='enhancer-download-all-btn' show_download=True %}
+{# ▶ et 🗑 de chaque file câblés par la brique `queue-actions.js` (URLs passées au partial, scopés au domaine). #}
+{% url 'enhancer:start_all' as q_start_url %}{% url 'enhancer:clear_all' as q_clear_url %}
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='enhancer-process-btn' clear_id='enhancer-clear-btn' download_id='enhancer-download-all-btn' show_download=True start_url=q_start_url clear_url=q_clear_url %}
         <div id="enhancer-queue" class="wama-queue-{{ card_layout|default:'list' }}"
          {% queue_dnd_attrs 'enhancer' 'image_video' %}>
             {% for batch_info in batches_list %}
@@ -144,7 +146,8 @@ modèle) et les encadrés d'information.{% endcomment %}
 <div class="row">
     <div class="col-12">
         <h4 class="mb-3"><i class="fas fa-headphones"></i> File d'attente — Audio</h4>
-{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='audio-process-btn' clear_id='audio-clear-btn' download_id='audio-download-all-btn' show_download=True %}
+{% url 'enhancer:audio_start_all' as q_audio_start_url %}{% url 'enhancer:audio_clear_all' as q_audio_clear_url %}
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='audio-process-btn' clear_id='audio-clear-btn' download_id='audio-download-all-btn' show_download=True start_url=q_audio_start_url clear_url=q_audio_clear_url %}
         <div id="audio-enhancer-queue" class="wama-queue-{{ card_layout|default:'list' }}"
          {% queue_dnd_attrs 'enhancer' 'audio' %}>
             {% for batch_info in audio_batches_list %}
@@ -178,8 +181,6 @@ modèle) et les encadrés d'information.{% endcomment %}
       deleteUrlTemplate: '{% url "enhancer:delete" 0 %}',
       downloadUrlTemplate: '{% url "enhancer:download" 0 %}',
       updateSettingsUrlTemplate: '{% url "enhancer:update_settings" 0 %}',
-      startAllUrl: '{% url "enhancer:start_all" %}',
-      clearUrl: '{% url "enhancer:clear_all" %}',
       downloadAllUrl: '{% url "enhancer:download_all" %}',
       globalProgressUrl: '{% url "enhancer:global_progress" %}',
       // Batch URLs
@@ -204,8 +205,6 @@ modèle) et les encadrés d'information.{% endcomment %}
       audioDeleteUrlTemplate: '{% url "enhancer:audio_delete" 0 %}',
       audioDownloadUrlTemplate: '{% url "enhancer:audio_download" 0 %}',
       audioUpdateUrlTemplate: '{% url "enhancer:audio_update" 0 %}',
-      audioStartAllUrl: '{% url "enhancer:audio_start_all" %}',
-      audioClearUrl: '{% url "enhancer:audio_clear_all" %}',
       audioDownloadAllUrl: '{% url "enhancer:audio_download_all" %}',
       audioGlobalProgressUrl: '{% url "enhancer:audio_global_progress" %}',
       // Audio batch URLs

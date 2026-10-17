@@ -58,7 +58,9 @@ Ids dropZone/fileInput/describerFolderInput/media_url/mediaUrlSubmit conservés.
         {% url 'describer:download_all' as download_all_url %}
         {# `download_ready=True` : ce bouton a TOUJOURS été actif chez le describer (aucun toggle #}
         {# JS, contrairement au reader/transcriber) — on déplace l'existant, on ne le change pas. #}
-        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True app='describer' download_url=download_all_url download_ready=True %}
+        {# ▶ et 🗑 de file câblés par la brique `queue-actions.js` (URLs passées au partial). #}
+        {% url 'describer:start_all' as q_start_url %}{% url 'describer:clear_all' as q_clear_url %}
+        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True app='describer' download_url=download_all_url download_ready=True start_url=q_start_url clear_url=q_clear_url %}
 
         <div id="descriptionQueue" class="wama-queue-{{ card_layout|default:'list' }}"
          {% queue_dnd_attrs 'describer' %}>
@@ -131,9 +133,7 @@ item (_settingsBatchId + titre échangé). Corps GÉNÉRÉ du MÊME schéma (con
             delete: "{% url 'describer:delete' pk=0 %}",
             download: "{% url 'describer:download' pk=0 %}",
             preview: "{% url 'describer:preview' pk=0 %}",
-            startAll: "{% url 'describer:start_all' %}",
             downloadAll: "{% url 'describer:download_all' %}",
-            clearAll: "{% url 'describer:clear_all' %}",
             console: "{% url 'describer:console' %}",
             updateSettings: "{% url 'describer:update_settings' pk=0 %}",
             batchUpdate: "{% url 'describer:batch_update' pk=0 %}",

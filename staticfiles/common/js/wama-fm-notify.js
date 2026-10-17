@@ -11,10 +11,12 @@
  *                          émet `media:processed` quand le compte des tâches terminées monte
  *                          (`wama-global-progress.js`, montée par les dix apps) — six apps le
  *                          répétaient dans leur propre suivi, doublons retirés ce jour-là
- *   WamaFM.deleted()     → un fichier a été supprimé (`queue-actions.js`, fichiers libérés)
+ *   WamaFM.deleted()     → un fichier a été supprimé (`queue-actions.js` : 🗑 d'élément, de lot
+ *                          et « Tout effacer » de file — les dix apps y passent depuis le
+ *                          2026-10-17, leurs `deleted()` locaux sont retirés avec leurs handlers)
  *   WamaFM.refresh()     → forcer un rafraîchissement
- * Reste écrit dans les apps : le `deleted()` de leur propre « Tout effacer », tant qu'elles ne
- * passent pas par celui de la brique de file (`data-queue-clear-url`, qui le fait).
+ * Aucune app n'appelle plus ces helpers elle-même : un nouvel appel dans une app signale un
+ * geste écrit à côté d'une brique commune.
  *
  * ⚠ Il n'y a PLUS de filet de sécurité : la surveillance périodique de l'arbre a été retirée
  * le 2026-10-13 (`filemanager.js`). Un événement non émis = un arbre qui ne se met pas à jour.

@@ -227,68 +227,28 @@ document.addEventListener('DOMContentLoaded', function() {
     // `WamaParams.settingsModal` (openSettingsModal ci-dessus).
     WamaQueueActions.onSettings(function (id, settingsBtn) { openSettingsModal(id, settingsBtn); });
 
-    // Bulk actions
-    const startAllBtn = document.getElementById('startAllBtn');
-    if (startAllBtn) {
-        startAllBtn.addEventListener('click', async () => {
-            try {
-                // Récupérer les options du formulaire
-                const formData = new FormData();
-                formData.append('tts_model', document.getElementById('tts_model').value);
-                formData.append('quality_intent', (document.getElementById('quality_intent') || { value: '50' }).value);
-                formData.append('language', document.getElementById('language').value);
-                formData.append('voice_preset', document.getElementById('voice_preset').value);
-                formData.append('speed', document.getElementById('speed').value);
-                formData.append('pitch', document.getElementById('pitch').value);
-                formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
-                formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
-                appendHiggsFields(formData);
-
-
-                const response = await fetch(URLS.startAll, {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': csrfToken },
-                    body: formData
-                });
-
-                if (response.ok) {
-                    location.reload();
-                } else {
-                    const data = await response.json();
-                    WamaApp.toast('Erreur: ' + (data.error || 'Échec du démarrage'), 'error');
-                }
-            } catch (error) {
-                WamaApp.toast('Erreur: ' + error.message, 'error');
-            }
-        });
-    }
+    // Bulk actions — ▶ Démarrer tout et 🗑 Tout effacer : brique `queue-actions.js` (2026-10-17,
+    // URLs passées au partial). « Démarrer tout » vaut ici « appliquer à tout » : le CORPS porte
+    // les options du volet (la vue `start_all` lit `request.POST`, et la voix de référence est un
+    // fichier — d'où un FormData, que la brique envoie tel quel en multipart).
+    WamaQueueActions.onQueueStartBody(function () {
+        const formData = new FormData();
+        formData.append('tts_model', document.getElementById('tts_model').value);
+        formData.append('quality_intent', (document.getElementById('quality_intent') || { value: '50' }).value);
+        formData.append('language', document.getElementById('language').value);
+        formData.append('voice_preset', document.getElementById('voice_preset').value);
+        formData.append('speed', document.getElementById('speed').value);
+        formData.append('pitch', document.getElementById('pitch').value);
+        formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
+        formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
+        appendHiggsFields(formData);
+        return formData;
+    });
 
     const downloadAllBtn = document.getElementById('downloadAllBtn');
     if (downloadAllBtn) {
         downloadAllBtn.addEventListener('click', () => {
             window.location.href = URLS.downloadAll;
-        });
-    }
-
-    const clearAllBtn = document.getElementById('clearAllBtn');
-    if (clearAllBtn) {
-        clearAllBtn.addEventListener('click', async () => {
-            if (!confirm('Supprimer toutes les synthèses ?')) return;
-
-            try {
-                const response = await fetch(URLS.clearAll, {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': csrfToken }
-                });
-
-                if (response.ok) {
-                    location.reload();
-                } else {
-                    WamaApp.toast('Erreur lors de la suppression', 'error');
-                }
-            } catch (error) {
-                WamaApp.toast('Erreur: ' + error.message, 'error');
-            }
         });
     }
 

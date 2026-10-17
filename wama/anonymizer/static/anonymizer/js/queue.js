@@ -216,33 +216,9 @@
     if (e.target.closest('#saveBatchSettingsAndStartBtn')) saveBatchSettings(true);
   });
 
-  // ── Toolbar commune (Tout lancer / Tout effacer / Tout télécharger) ─────
-  const startAllBtn = document.getElementById('anon-start-all-btn');
-  if (startAllBtn) {
-    startAllBtn.addEventListener('click', async () => {
-      try {
-        const d = await (await fetch(cfg.startAllUrl, { method: 'POST', headers: csrfHeaders() })).json();
-        if (d.error) {
-          if (window.WamaApp) WamaApp.toast(d.error, 'warning');
-          return;
-        }
-        if (window.WamaApp) WamaApp.toast('Traitement global lancé', 'success');
-        setTimeout(() => location.reload(), 400); // cards re-rendues PENDING → polling au chargement
-      } catch (e) { /* réseau */ }
-    });
-  }
-  const clearAllBtn = document.getElementById('anon-clear-all-btn');
-  if (clearAllBtn) {
-    clearAllBtn.addEventListener('click', async () => {
-      if (!confirm('Supprimer tous les médias de la file ?')) return;
-      const fd = new FormData();
-      fd.append('csrfmiddlewaretoken', cfg.csrfToken);
-      try {
-        await fetch(cfg.clearAllUrl, { method: 'POST', body: fd });
-      } catch (e) { /* réseau */ }
-      location.reload();
-    });
-  }
+  // ── Toolbar commune ─────────────────────────────────────────────────────
+  // ▶ Tout lancer et 🗑 Tout effacer : brique `queue-actions.js` (URLs passées au partial,
+  // 2026-10-17) — POST, confirmation des fichiers libérés, rechargement. Rien à écrire ici.
   const dlAllBtn = document.getElementById('anon-download-all-btn');
   if (dlAllBtn) {
     dlAllBtn.addEventListener('click', () => {

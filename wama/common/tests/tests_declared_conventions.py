@@ -11,7 +11,7 @@ non comptées (`export_binding`, `export_formats`) : elles décrivent l'app, ell
 from pathlib import Path
 from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.common import app_registry
 from wama.common.services import conformity_checker as checker
@@ -146,9 +146,69 @@ class ConventionCriteriaTest(SimpleTestCase):
             with self.subTest(fn=fn.__name__, files=files):
                 self.assertIs(self._state(fn, files), expected)
 
+    def test_queue_actions_turn_red_when_the_bar_is_wired_by_the_app(self):
+        """▶ / 🗑 de FILE (2026-10-17) : `start_all`/`clear_all` ne lisaient que la route, verts
+        10/10 sur dix handlers recopiés. Chaque écart du câblage commun doit rougir."""
+        bar = ("{% include 'common/_queue_toolbar.html' with q_sort=q_sort start_id='go' "
+               "clear_id='wipe' show_download=True ARGS %}")
+        urls = "{% url 'x:start_all' as q_start_url %}{% url 'x:clear_all' as q_clear_url %}"
+        wired = 'start_url=q_start_url clear_url=q_clear_url'
+        cases = (
+            ({'templates/x/index.html': urls + bar.replace('ARGS', '')}, False),
+            ({'templates/x/index.html': bar.replace('ARGS', wired)}, False),     # variables jamais posées
+            ({'templates/x/index.html': urls + bar.replace('ARGS', wired)}, True),
+            ({'templates/x/index.html': urls + bar.replace('ARGS', wired),
+              'static/x/i.js': "document.getElementById('go').addEventListener('click', f);\n"}, 'partial'),
+            ({'templates/x/index.html': urls + bar.replace('ARGS', wired),
+              'static/x/i.js': "// l'ancien handler de 'go' est retiré\n"}, True),
+            ({'templates/x/index.html': '<p>pas de file</p>'}, None),
+        )
+        for files, expected in cases:
+            with self.subTest(files=files):
+                self.assertEqual(expected, self._state(checker._queue_actions_common, files))
+
+    def test_the_ten_apps_wire_their_queue_bars_through_the_brick(self):
+        self.assertEqual({a: True for a in REAL_APPS},
+                         {a: checker._queue_actions_common(checker._AppFiles(a))[0] for a in REAL_APPS})
+
     def test_the_ten_apps_hold_the_four_conventions(self):
         for fn in (checker._pipeline_declared, checker._media_paths, checker._static_versioning,
                    checker._fm_notify):
             with self.subTest(fn=fn.__name__):
                 self.assertEqual({a: True for a in REAL_APPS},
                                  {a: fn(checker._AppFiles(a))[0] for a in REAL_APPS})
+
+
+class QueueBarRenderedWiringTest(TestCase):
+    """Sur la page RENDUE de chaque app, chaque ▶ et 🗑 de file porte l'URL que lit la brique
+    (2026-10-17). Le critère `queue_actions_common` lit le gabarit ; ici on lit ce que reçoit le
+    navigateur — un `{% url … as %}` posé hors du bloc de la barre rendrait l'attribut VIDE."""
+
+    def test_every_queue_bar_of_every_app_page_carries_both_urls(self):
+        import re
+
+        from django.urls import resolve, reverse
+
+        from wama.common.tests.tests_endpoints import EveryEndpointAnswersTest
+        # Chaque bouton se lit à partir du DÉBUT de sa barre : le ⬇ peut être un menu
+        # (`_download_button`) avec ses propres `</div>`, qui couperait un motif « jusqu'au </div> ».
+        opening = '<div class="d-flex gap-2 flex-wrap wama-queue-actions">'
+        buttons = (('data-queue-start-url', 'start_all', 'btn btn-success btn-sm'),
+                   ('data-queue-clear-url', 'clear_all', 'btn btn-outline-danger btn-sm'))
+        seen, wrong = {}, []
+        for app in REAL_APPS:
+            self.client.force_login(EveryEndpointAnswersTest._account_for(self, app))
+            response = self.client.get(reverse(f'{app}:index'))
+            self.assertEqual(200, response.status_code, app)
+            page = response.content.decode('utf-8', errors='replace')
+            starts = [m.end() for m in re.finditer(re.escape(opening), page)]
+            seen[app] = len(starts)
+            for at in starts:
+                for attr, route, css in buttons:
+                    tag = re.compile(r'<button id="[^"]*" class="' + css + r'"([^>]*)>').search(page, at)
+                    m = tag and re.search(attr + r'="([^"]+)"', tag.group(1))
+                    name = resolve(m.group(1)).url_name if m else None
+                    if not (name and route in name):
+                        wrong.append(f'{app} : {attr} = {m.group(1) if m else "absent"}')
+        self.assertEqual({a: n for a, n in seen.items() if n}, seen, 'une page sans barre de file')
+        self.assertEqual([], wrong)

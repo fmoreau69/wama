@@ -12,6 +12,9 @@ Variables :
   start_url, clear_url — (option) URL des routes `start_all` / `clear_all`. Si fournies,
                  `queue-actions.js` câble le bouton LUI-MÊME (POST + rechargement, avec
                  confirmation pour l'effacement) : l'app n'écrit plus de handler.
+  clear_confirm — (option) texte de la confirmation de « Tout effacer » quand la vue de l'app
+                 ne retire pas tout (le composer garde les éléments en cours) ; sinon le texte
+                 commun de la brique.
   start_label, clear_label, download_label — libellés (défauts ci-dessous)
 
 ⚠ CORRECTION du 2026-08-29 — ce paragraphe affirmait que les trois boutons « ont longtemps été
@@ -70,7 +73,7 @@ ensemble, jamais l'un sans l'autre. Hors barre de file, l'enrobage ne change rie
     </button>
     {% endif %}
     {% endif %}
-    <button id="{{ clear_id }}" class="btn btn-outline-danger btn-sm"{% if clear_url %} data-queue-clear-url="{{ clear_url }}"{% endif %}
+    <button id="{{ clear_id }}" class="btn btn-outline-danger btn-sm"{% if clear_url %} data-queue-clear-url="{{ clear_url }}"{% endif %}{% if clear_confirm %} data-confirm="{{ clear_confirm }}"{% endif %}
             title="{{ clear_label|default:'Tout effacer' }}">
         <i class="fas fa-trash"></i> <span class="wama-btn-label">{{ clear_label|default:'Tout effacer' }}</span>
     </button>

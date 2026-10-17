@@ -277,15 +277,15 @@ window.WAMA_ANON = {
     cardHtmlUrlTemplate: '{% url "anonymizer:card_html" 0 %}',
     startUrlTemplate:    '{% url "anonymizer:start" 0 %}',
     stopUrlTemplate:     '{% url "anonymizer:stop" 0 %}',
-    startAllUrl:         '{% url "anonymizer:start_all" %}',
     progressUrlTemplate: '{% url "anonymizer:progress" 0 %}',
     settingsGetUrlTemplate: '{% url "anonymizer:get_media_settings" 0 %}',
     settingsSaveUrl:     '{% url "anonymizer:save_media_settings" %}',
     {% comment %}`clearMediaUrl` RETIRÉ le 2026-08-23 : la suppression passe par la brique
     commune (`data-delete-url` → `anonymizer:delete`), plus aucun JS ne lisait cette clé.
     Laisser une URL morte dans la config d'app, c'est promettre un chemin qui n'existe plus.
+    `startAllUrl` et `clearAllUrl` RETIRÉS le 2026-10-17 pour la même raison : ▶ et 🗑 de file
+    passent par la brique, qui lit les URLs posées sur les boutons de la barre.
     {% endcomment %}
-    clearAllUrl:         '{% url "anonymizer:clear_all_media" %}',
     downloadAllUrl:      '{% url "anonymizer:download_all_media" %}',
     batchStartUrlTemplate:  '{% url "anonymizer:batch_start" 0 %}',
     batchUpdateUrlTemplate: '{% url "anonymizer:batch_update" 0 %}',
@@ -405,8 +405,10 @@ la file n'est pas vide. La DESCRIPTION des objets à flouter reste un réglage d
     <span class="badge bg-secondary" id="queueCount">{{ queue_count }}</span>
 </h4>
 
-{% comment %} Toolbar commune : tri/filtre (session) + Tout lancer / Tout effacer / Tout télécharger. {% endcomment %}
-{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='anon-start-all-btn' clear_id='anon-clear-all-btn' download_id='anon-download-all-btn' show_download=True %}
+{% comment %} Toolbar commune : tri/filtre (session) + Tout lancer / Tout effacer / Tout télécharger.
+▶ et 🗑 de file câblés par la brique `queue-actions.js` (URLs passées au partial). {% endcomment %}
+{% url 'anonymizer:start_all' as q_start_url %}{% url 'anonymizer:clear_all_media' as q_clear_url %}
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='anon-start-all-btn' clear_id='anon-clear-all-btn' download_id='anon-download-all-btn' show_download=True start_url=q_start_url clear_url=q_clear_url %}
 
 <div id="anonymizer-queue" class="wama-queue-{{ card_layout|default:'list' }}"
          {% queue_dnd_attrs 'anonymizer' %}>

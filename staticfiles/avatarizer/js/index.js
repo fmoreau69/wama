@@ -587,71 +587,14 @@
     });
 
     // -----------------------------------------------------------------------
-    // Clear all
+    // Boutons globaux de la file
     // -----------------------------------------------------------------------
-    // Boutons globaux serveur (audit 2026-07-11)
-    const btnStartAll = $('#startAllBtn');
-    if (btnStartAll) {
-        btnStartAll.addEventListener('click', async () => {
-            try {
-                const r = await fetch(cfg.urls.startAll, {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': csrf },
-                });
-                const data = await r.json().catch(() => ({}));
-                if (!r.ok) {
-                    WamaApp.toast(data.error || 'Démarrage impossible', 'error');
-                    return;
-                }
-                WamaApp.toast(`${data.count} job(s) démarré(s)`, 'success');
-                location.reload();
-            } catch (_) {
-                WamaApp.toast('Erreur réseau', 'error');
-            }
-        });
-    }
-
+    // ▶ Démarrer tout et 🗑 Tout effacer : brique `queue-actions.js` (URLs passées au partial,
+    // 2026-10-17) — POST, confirmation des fichiers libérés, rechargement.
     const btnDownloadAll = $('#downloadAllBtn');
     if (btnDownloadAll) {
         btnDownloadAll.addEventListener('click', () => {
             window.location.href = cfg.urls.downloadAll;
-        });
-    }
-
-    const btnClearAll = $('#clearAllBtn');
-    if (btnClearAll) {
-        btnClearAll.addEventListener('click', async () => {
-            if (!confirm('Supprimer tous les jobs et leurs fichiers ?')) return;
-            // Vue serveur commune (audit 2026-07-11) — remplace la boucle de DELETE unitaires
-            try {
-                const r = await fetch(cfg.urls.clearAll, {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': csrf },
-                });
-                const data = await r.json().catch(() => ({}));
-                if (!r.ok) {
-                    WamaApp.toast(data.error || 'Suppression impossible', 'error');
-                    return;
-                }
-            } catch (_) {
-                WamaApp.toast('Erreur réseau', 'error');
-                return;
-            }
-            $$('.synthesis-card').forEach((card) => {
-                jobPoller.stop(card.dataset.jobId);
-                card.remove();
-            });
-            if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
-            const container = $('#jobs-container');
-            if (container && !$('.synthesis-card')) {
-                container.innerHTML = `
-                    <div id="no-jobs-msg" class="text-center text-muted py-4">
-                        <i class="fas fa-film fa-3x mb-2 d-block opacity-50"></i>
-                        <p>Aucune vidéo générée pour l'instant.</p>
-                    </div>`;
-            }
-            const counter = $('#jobs-count');
-            if (counter) counter.textContent = '0';
         });
     }
 

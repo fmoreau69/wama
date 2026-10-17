@@ -139,19 +139,10 @@
     function initializeEventListeners() {
 
         // ── Actions globales : barre d'outils COMMUNE de la file (_queue_toolbar) ────────
-        // `start_id`/`clear_id`/`download_id` sont REQUIS par la brique mais leurs handlers
-        // sont à la charge de l'app (doc du partial). Ils n'étaient câblés NULLE PART :
-        // les deux toolbars (image + vidéo) étaient donc décoratives — support ≠ adoption.
-        // Les boutons globaux du volet droit, eux, marchaient : le volet est désormais réservé
-        // aux actions de SÉLECTION (_inspector_actions), comme dans reader.
-        [['imager-image-start-all', startAllGenerations],
-         ['imager-video-start-all', startAllGenerations],
-         ['imager-image-clear-all', clearAllGenerations],
-         ['imager-video-clear-all', clearAllGenerations],
-        ].forEach(function (pair) {
-            const el = document.getElementById(pair[0]);
-            if (el) el.addEventListener('click', pair[1]);
-        });
+        // ▶ Démarrer tout et 🗑 Tout effacer des deux files (image + vidéo) : brique
+        // `queue-actions.js` depuis le 2026-10-17 (URLs passées au partial) — les deux handlers
+        // `startAllGenerations` / `clearAllGenerations` d'ici sont retirés. Le volet droit reste
+        // réservé aux actions de SÉLECTION (_inspector_actions), comme dans reader.
         ['imager-image-download-all', 'imager-video-download-all'].forEach(function (id) {
             const el = document.getElementById(id);
             if (el) el.addEventListener('click', function () {
@@ -294,46 +285,6 @@
 
 
     /**
-     * Start all pending generations
-     */
-    function startAllGenerations(e) {
-        // Bouton réel = celui de la toolbar cliquée (il y en a deux, une par file). L'ancien
-        // `#startAllBtn` n'existe pas dans l'imager : `btn.disabled` levait un TypeError AVANT
-        // le fetch — « Démarrer tout » était inopérant sur les deux toolbars.
-        const btn = e && e.currentTarget ? e.currentTarget : null;
-        const prev = btn ? btn.innerHTML : '';
-        if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        }
-        function restore() {
-            if (btn) { btn.disabled = false; btn.innerHTML = prev; }
-        }
-
-        fetch(config.urls.startAll, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': config.csrfToken
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                WamaApp.toast(`Started ${data.started} generation(s)!`, 'success');
-                setTimeout(() => location.reload(), 500);
-            } else {
-                WamaApp.toast('Error: ' + (data.error || 'Unknown error'), 'error');
-                restore();
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            WamaApp.toast('Error starting generations', 'error');
-            restore();
-        });
-    }
-
-    /**
      * Delete a specific generation (image or video)
      */
     // 🗑 RÉSIDU de suppression — la brique commune (queue-actions.js) porte la confirmation, le
@@ -345,35 +296,6 @@
         updateQueueCount();
         updateVideoQueueCount();
     });
-
-    /**
-     * Clear all generations
-     */
-    function clearAllGenerations() {
-        if (!confirm('Delete ALL generations? This cannot be undone!')) {
-            return;
-        }
-
-        fetch(config.urls.clearAll, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': config.csrfToken
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                WamaApp.toast(`Deleted ${data.deleted} generation(s)`, 'success');
-                setTimeout(() => location.reload(), 500);
-            } else {
-                WamaApp.toast('Error: ' + (data.error || 'Unknown error'), 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            WamaApp.toast('Error clearing generations', 'error');
-        });
-    }
 
     /**
      * Start polling for progress updates

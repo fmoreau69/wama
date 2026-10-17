@@ -105,7 +105,7 @@ VOICE_PRESET_CHOICES = [
     ('male_2',         'Voix masculine 2'),
     ('female_1',       'Voix féminine 1'),
     ('female_2',       'Voix féminine 2'),
-    # ⚠ `('custom', 'Voix personnalisée (clonage)')` RETIRÉ le 2026-09-01 (REMOVAL_LEDGER R43).
+    # ⚠ `('custom', 'Voix personnalisée (clonage)')` RETIRÉ le 2026-09-01 (REMOVAL_LEDGER R137, ex-R43).
     # Sentinelle héritée d'AVANT les voix réelles (`ua_<id>` UserAsset, `cv_<id>` CustomVoice) :
     # elle ne désignait aucun fichier — `resolve_voice_preset('custom')` rendait `None`, donc le
     # moteur parlait avec sa voix par DÉFAUT pendant que la card annonçait « Voix personnalisée

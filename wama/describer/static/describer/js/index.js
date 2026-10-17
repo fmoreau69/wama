@@ -28,10 +28,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const maxLength = document.getElementById('max_length');
     const maxLengthValue = document.getElementById('max_length_value');
 
-    // Action buttons
-    const startAllBtn = document.getElementById('startAllBtn');
-    // (`downloadAllBtn` : const retirée le 2026-08-30 avec son handler — bouton = brique commune.)
-    const clearAllBtn = document.getElementById('clearAllBtn');
+    // Action buttons — (`downloadAllBtn` : const retirée le 2026-08-30 avec son handler ;
+    // `startAllBtn` / `clearAllBtn` le 2026-10-17 : les trois boutons = briques communes.)
 
     // Progress tracking — boucle COMMUNE `WamaApp.Poller` (2026-10-13 — un `setInterval` local à
     // la seconde, qui relançait sans attendre la réponse et tournait en onglet caché).
@@ -385,59 +383,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // === Batch Actions ===
-
-    if (startAllBtn) {
-        startAllBtn.addEventListener('click', async () => {
-            try {
-                const response = await fetch(config.urls.startAll, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': config.csrfToken
-                    }
-                });
-
-                const data = await response.json();
-
-                if (data.started && data.started.length > 0) {
-                    data.started.forEach(id => startPolling(id));
-                    showToast(`${data.count} description(s) lancee(s)`, 'success');
-                } else {
-                    showToast('Aucune description a lancer', 'info');
-                }
-
-            } catch (error) {
-                console.error('Start all error:', error);
-                showToast('Erreur', 'danger');
-            }
-        });
-    }
+    // ▶ Démarrer tout et 🗑 Tout effacer : brique `queue-actions.js` (2026-10-17) — la suite
+    // du ▶ est déclarée plus bas (`onQueueStarted`), le 🗑 recharge.
 
     // ⬇ « Télécharger tout » : PLUS de handler ici (2026-08-30) — bouton rendu par la brique
     // commune _download_button (menu des formats déclarés, navigation par <a> du menu).
     // Un window.location au clic détournerait l'OUVERTURE du menu.
-
-    if (clearAllBtn) {
-        clearAllBtn.addEventListener('click', async () => {
-            if (!confirm('Supprimer toutes les descriptions ?')) return;
-
-            try {
-                const response = await fetch(config.urls.clearAll, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': config.csrfToken
-                    }
-                });
-
-                const data = await response.json();
-                showToast(`${data.deleted} description(s) supprimee(s)`, 'success');
-                window.location.reload();
-
-            } catch (error) {
-                console.error('Clear all error:', error);
-                showToast('Erreur', 'danger');
-            }
-        });
-    }
 
     // Reset settings
     document.getElementById('resetOptions')?.addEventListener('click', () => {
@@ -485,10 +436,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // 🗑 et ⧉ de LOT : brique commune queue-actions.js (portage 2026-08-23) — mêmes
     // confirm+POST+reload que dans 7 autres apps, URLs émises par `_batch_card.html`.
 
-    // ▶ de LOT — suite DÉCLARÉE : describer rafraîchit les cards démarrées et lance leur
-    // polling au lieu de recharger (divergence RÉELLE, mesurée — cf. la brique).
-    WamaQueueActions.onBatchStarted(function (data) {
+    // ▶ de LOT et ▶ de FILE — même suite DÉCLARÉE : describer rafraîchit les cards démarrées et
+    // lance leur polling au lieu de recharger (divergence RÉELLE, mesurée — cf. la brique).
+    // Le ▶ de FILE est câblé par la brique depuis le 2026-10-17 (URLs passées au partial).
+    function followStarted(data) {
         (data.started || []).forEach(id => { refreshCard(id); startPolling(id); });
+    }
+    WamaQueueActions.onBatchStarted(followStarted);
+    WamaQueueActions.onQueueStarted(function (data) {
+        followStarted(data);
+        if ((data.started || []).length) showToast(`${data.count} description(s) lancée(s)`, 'success');
+        else showToast('Aucune description à lancer', 'info');
     });
 
 });

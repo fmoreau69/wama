@@ -2,8 +2,6 @@ document.addEventListener('DOMContentLoaded', function () {
   const config = window.ENHANCER_APP || {};
   const csrfToken = config.csrfToken;
   const queueTable = document.getElementById('enhancer-queue');
-  const startProcessBtn = document.getElementById('enhancer-process-btn');
-  const clearAllBtn = document.getElementById('enhancer-clear-btn');
   const downloadAllBtn = document.getElementById('enhancer-download-all-btn');
 
   // Délégué à WamaApp (brique commune wama-app-base.js) ; repli local si non chargé.
@@ -308,106 +306,14 @@ document.addEventListener('DOMContentLoaded', function () {
     updateDownloadAllState();
   }
 
+  // ▶ Démarrer tout et 🗑 Tout effacer : brique `queue-actions.js` (2026-10-17) — corps et suite
+  // du ▶ déclarés plus bas (`onQueueStartBody` / `onQueueStarted`, domaine image_video).
   function initBulkActions() {
-    if (startProcessBtn) {
-      startProcessBtn.addEventListener('click', handleStartAll);
-    }
-    if (clearAllBtn) {
-      clearAllBtn.addEventListener('click', handleClearAll);
-    }
     if (downloadAllBtn) {
       downloadAllBtn.addEventListener('click', () => {
         window.location.href = config.downloadAllUrl;
       });
     }
-  }
-
-  function handleStartAll() {
-    if (!config.startAllUrl || !queueTable) return;
-
-    // Get default settings
-    const defaultAiModel = document.getElementById('defaultAiModel')?.value;
-    const defaultDenoise = document.getElementById('defaultDenoise')?.checked;
-    const defaultBlendFactor = document.getElementById('defaultBlendFactor')?.value;
-
-    startProcessBtn.disabled = true;
-
-    fetch(config.startAllUrl, {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(Object.assign({
-        ai_model: defaultAiModel,
-        denoise: defaultDenoise,
-        blend_factor: defaultBlendFactor
-      }, panelAutoValues())),
-    })
-      .then((response) => {
-        if (!response.ok) {
-          return response.json().then((err) => {
-            throw new Error(err.message || 'Erreur serveur');
-          });
-        }
-        return response.json();
-      })
-      .then((data) => {
-        const started = data.started_ids || [];
-        const errors = data.errors || [];
-
-        if (errors.length > 0) {
-          console.error('Erreurs lors du démarrage:', errors);
-          WamaApp.toast(`Certains fichiers n'ont pas pu démarrer. Vérifiez que Celery est lancé.\n${errors[0].error}`, 'error');
-        }
-
-        if (!started.length) {
-          if (!errors.length) {
-            WamaApp.toast('Aucun fichier à traiter.', 'warning');
-          }
-          return;
-        }
-        started.forEach((id) => {
-          startPolling(id);
-        });
-      })
-      .catch((error) => {
-        console.error('Erreur start_all:', error);
-        WamaApp.toast(error.message || 'Erreur lors du démarrage des traitements.', 'error');
-      })
-      .finally(() => {
-        startProcessBtn.disabled = false;
-      });
-  }
-
-  function handleClearAll() {
-    if (!config.clearUrl || !queueTable) return;
-    if (!confirm('Supprimer tous les fichiers ?')) {
-      return;
-    }
-
-    clearAllBtn.disabled = true;
-
-    fetch(config.clearUrl, {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({}),
-    })
-      .then((response) => response.json())
-      .then(() => {
-        // Cards d'élément ET cards mères de lot : `[data-id]` seul laissait le lot à l'écran
-        // jusqu'au rechargement. Brique commune (`wama-queue.js`), chargée par `base.html`
-        // sur TOUTES les pages : appel direct, sans garde `if (window.…)` — une garde
-        // rendrait muette la seule chose qu'on veut voir si elle casse.
-        WamaQueue.clearCards(queueTable);
-        poller.stopAll();
-        if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
-        insertEmptyRowIfNeeded(true);
-        updateDownloadAllState();
-      })
-      .catch((error) => {
-        WamaApp.toast(error.message || 'Erreur lors de la suppression.', 'error');
-      })
-      .finally(() => {
-        clearAllBtn.disabled = false;
-      });
   }
 
   function insertEmptyRowIfNeeded(force = false) {
@@ -505,6 +411,27 @@ document.addEventListener('DOMContentLoaded', function () {
   if (window.WamaQueueActions) {
     WamaQueueActions.onBatchStarted(function (d) {
       (d.started || []).forEach(id => startPolling(id));
+    }, { domain: 'image_video' });
+
+    // ▶ de FILE (2026-10-17, ex-`handleStartAll`) — mêmes deux spécificités qu'au lot : le CORPS
+    // porte les réglages par défaut du volet (la vue `start_all` les applique à tout l'élément),
+    // et la SUITE polle au lieu de recharger.
+    WamaQueueActions.onQueueStartBody(function () {
+      return Object.assign({
+        ai_model: document.getElementById('defaultAiModel')?.value,
+        denoise: document.getElementById('defaultDenoise')?.checked,
+        blend_factor: document.getElementById('defaultBlendFactor')?.value,
+      }, panelAutoValues());
+    }, { domain: 'image_video' });
+    WamaQueueActions.onQueueStarted(function (data) {
+      const started = data.started_ids || [];
+      const errors = data.errors || [];
+      if (errors.length) {
+        console.error('Erreurs lors du démarrage:', errors);
+        WamaApp.toast(`Certains fichiers n'ont pas pu démarrer. Vérifiez que Celery est lancé.\n${errors[0].error}`, 'error');
+      }
+      if (!started.length && !errors.length) WamaApp.toast('Aucun fichier à traiter.', 'warning');
+      started.forEach(id => startPolling(id));
     }, { domain: 'image_video' });
   }
 

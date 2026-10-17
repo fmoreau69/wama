@@ -97,7 +97,8 @@ la modale d'item (settings_modal.js, hook `decorate` + groupBody).
 {% comment %}Actions GLOBALES (Démarrer / Télécharger tout / Tout effacer) déplacées dans la
 barre d'outils commune de chaque file (_queue_toolbar) — cohérence T/D/C, comme reader. Elles
 y étaient DÉCORATIVES : `start_id`/`clear_id`/`download_id` n'étaient câblés nulle part
-(support ≠ adoption) ; index.js les branche désormais. Reste ici ce qui dépend de la
+(support ≠ adoption) ; index.js les a branchés, puis la brique `queue-actions.js` (▶ et 🗑,
+2026-10-17, URLs passées au partial). Reste ici ce qui dépend de la
 SÉLECTION, cloné par WamaInspector.{% endcomment %}
 {% include 'common/_inspector_actions.html' %}
 {% endblock %}
@@ -156,8 +157,11 @@ bouton AJOUTE (la création ne lance rien — règle des deux temps, Étape 3 po
 Tout telecharger. ⚠ AVANT le conteneur de file, JAMAIS dedans : en mosaïque
 `.wama-queue-grid` devient une grille CSS et la barre y deviendrait une CELLULE — mesuré le
 2026-09-08, 592 px en ligne contre 290 px (une colonne) en mosaïque. L'imager était la seule
-app du parc à l'inclure dedans ; tenu depuis par `tests_queue_toolbar_placement`. {% endcomment %}
-{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-image-start-all' clear_id='imager-image-clear-all' download_id='imager-image-download-all' show_download=True %}
+app du parc à l'inclure dedans ; tenu depuis par `tests_queue_toolbar_placement`.
+▶ et 🗑 câblés par la brique `queue-actions.js` ; les deux files partagent les mêmes routes
+(`start_all` lance tout élément en attente, `clear_all` vide les deux). {% endcomment %}
+{% url 'imager:start_all' as q_start_url %}{% url 'imager:clear_all' as q_clear_url %}
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-image-start-all' clear_id='imager-image-clear-all' download_id='imager-image-download-all' show_download=True start_url=q_start_url clear_url=q_clear_url %}
 
         {% comment %}`wama-queue-{{ card_layout }}` : bascule Ligne/Mosaïque commune. La valeur
         vient du context processor global (accounts) et persiste sur UserProfile ; le toggle est
@@ -209,7 +213,8 @@ sa propre voie de lot (`vidBatch`). {% endcomment %}
         </h4>
 
 {% comment %} Toolbar commune — AVANT le conteneur (cf. la file images ci-dessus). {% endcomment %}
-{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-video-start-all' clear_id='imager-video-clear-all' download_id='imager-video-download-all' show_download=True %}
+{% url 'imager:start_all' as q_start_url %}{% url 'imager:clear_all' as q_clear_url %}
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-video-start-all' clear_id='imager-video-clear-all' download_id='imager-video-download-all' show_download=True start_url=q_start_url clear_url=q_clear_url %}
 
         <div id="videoGenerationsQueue" class="wama-queue-{{ card_layout|default:'list' }}"
          {% queue_dnd_attrs 'imager' 'video' %}>
@@ -329,8 +334,6 @@ function _mpInjectImage(file, inputId, previewId) {
             download: "{% url 'imager:download' 0 %}",
             downloadAll: "{% url 'imager:download_all' %}",
             delete: "{% url 'imager:delete' 0 %}",
-            startAll: "{% url 'imager:start_all' %}",
-            clearAll: "{% url 'imager:clear_all' %}",
             getSettings: "{% url 'imager:update_settings' 0 %}",   {# même adresse : GET lit, POST enregistre #}
             updateSettings: "{% url 'imager:update_settings' 0 %}",
             autoPrompt: "{% url 'imager:auto_prompt' %}",

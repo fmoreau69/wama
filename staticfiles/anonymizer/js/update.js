@@ -39,5 +39,5 @@ $(document).ready(function () {
      */
 
     // Le « Tout effacer » du volet droit est MORT (2026-08-03) : l'action vit
-    // dans la toolbar commune (queue.js, #anon-clear-all-btn).
+    // dans la toolbar commune, câblée par la brique `queue-actions.js`.
 });

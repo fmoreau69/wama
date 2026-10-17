@@ -72,8 +72,6 @@ window.READER_APP = Object.assign({}, window.READER_APP || {}, {
     csrfToken: '{{ csrf_token }}',
     urls: {
         upload:          "{% url 'reader:upload' %}",
-        startAll:        "{% url 'reader:start_all' %}",
-        clearAll:        "{% url 'reader:clear_all' %}",
         console:         "{% url 'reader:console' %}",
         start:           "{% url 'reader:start' 0 %}",
         stop:            "{% url 'reader:stop' 0 %}",
@@ -182,9 +180,10 @@ window._batchImport = WamaBatchImport({
     {% comment %}`app` + `download_url` (2026-08-30) : le ⬇ délègue à `common/_download_button.html`
     — menu des formats DÉCLARÉS (`export_formats` = txt/md/pdf/docx/json), servi par la vue
     `download_all` qui lit désormais `?format=` (porter le menu AVANT la vue aurait fait un
-    « vert d'ADOPTION, faux en FONCTIONNEMENT »).{% endcomment %}
-    {% url 'reader:download_all' as download_all_url %}
-    {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='reader-process-btn' clear_id='reader-clear-btn' download_id='reader-download-all-btn' show_download=True app='reader' download_url=download_all_url %}
+    « vert d'ADOPTION, faux en FONCTIONNEMENT »). ▶ et 🗑 de file : brique `queue-actions.js`
+    (URLs passées au partial, 2026-10-17).{% endcomment %}
+    {% url 'reader:download_all' as download_all_url %}{% url 'reader:start_all' as q_start_url %}{% url 'reader:clear_all' as q_clear_url %}
+    {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='reader-process-btn' clear_id='reader-clear-btn' download_id='reader-download-all-btn' show_download=True app='reader' download_url=download_all_url start_url=q_start_url clear_url=q_clear_url %}
 
     <!-- Queue -->
     <div id="queueContainer" class="wama-queue-{{ card_layout|default:'list' }}"
