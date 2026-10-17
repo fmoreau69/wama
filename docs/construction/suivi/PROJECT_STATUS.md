@@ -24243,3 +24243,18 @@ clé déclarée restante (d'après la note du 17/08), n'existe plus — retiré 
   transcriber) ré-exportés — la description « place dans la file GPU » de `get_<app>_status`
   (735933dd) n'y avait jamais été écrite (composer : écrite le 16/10 par le suivi du corpus, jamais
   commitée).
+
+### Revérification du 2026-10-17 (`/reverif`, demande de Fabien) — paliers des 16 et 17/10
+
+| étape | verdict | preuve |
+|---|---|---|
+| 1 aligné | ✓ après correctif | ROUTE §F5 (ETA, file) et grille §F1–F8 ; aucun monde cité dans le substrat ; un seul lecteur du rapport (`get_conformity_summary`, `views.py:198/287`). **Écart trouvé, de ma main** : `multi_format_download` dérivé par une SECONDE règle (« plus d'un format ») à côté de celle de la brique ⬇ (`_download_button.html` : déclaration non vide → split ▾). Ramené à la règle de la brique ; la garde lit désormais le RENDU de la brique (contre-épreuve « plus d'un format » ROUGE). Aucun autre rendu serveur de la card de lot que l'index (`card_html` ne rend que la card d'élément). |
+| 2 testé | ✓ | `d385442b` vérifié sur un worktree de HEAD : 936 tests, 2 rouges ANTÉRIEURS (`composer.tests_parts.FullScoreTest` ×2, rouges aussi sur le parent `3015fc10` — tirage du modèle de partition) ; `tests_batch_eta` 10, `tests_declared_conventions` 7, registre/docs/conformité 247 verts ; toutes les gardes neuves prouvées par contre-épreuve. |
+| 3 consigné | ✓ | `check_docs` 0/0 ; `doc_facts` : bloc `mecanismes` régénéré — ma seule part commitée (`output_process` quitte la liste « de niveau app sans critère de grille », 66 → 65), le reste du bloc porte le travail d'autres sessions ; skill `conformite`, PROJECT_STATUS. |
+| 4 commité | ✓ | `a3ce27d6`, `d385442b`, `915d0182`, `a180b941` + ce correctif ; l'arbre restant appartient à d'autres sessions (file : `queue_manipulation`, `wama-queue-dnd.js` ; cam_analyzer ; transcriber `transcript_documents` ; garde de langue). |
+
+🔚 **Chantier nommé par la revérification** : le registre des mécanismes compte **65 mécanismes de
+niveau app qu'AUCUN critère de grille ne vérifie** (`WAMA_MECANISMES.md`, section repliable) — une
+app peut sortir à 100 % sans les avoir adoptés. Ce n'est pas du déclaré qui ment (il n'y en a plus),
+c'est de la mesure qui manque : à trier mécanisme par mécanisme (critère à écrire, ou mécanisme
+non concerné par une app), même règle que ce palier.

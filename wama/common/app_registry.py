@@ -779,9 +779,10 @@ def _conv(
         'eta_batch':              eta_batch,
         'eta_queue':              eta_queue,
         # DÉRIVÉ de `export_formats` (2026-10-16) — il se déclarait à côté, deux fois la même
-        # chose : plusieurs formats = un menu au ⬇ (§6.3), sinon non applicable (lien simple).
-        # Mesuré par `download_wiring`, qui dérive déjà la forme du bouton de la déclaration.
-        'multi_format_download':  True if len(tuple(export_formats or ())) > 1 else None,
+        # chose. MÊME règle que la brique du ⬇ (`_download_button.html` : formats déclarés →
+        # split ▾, aucun → lien simple), jamais une seconde : déclaration non vide = menu, sinon
+        # non applicable. Mesuré par `download_wiring`.
+        'multi_format_download':  True if tuple(export_formats or ()) else None,
         'export_binding':         export_binding,
         'export_formats':         tuple(export_formats or ()),
         'filemanager_import':     filemanager_import,

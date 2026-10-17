@@ -56,10 +56,19 @@ class NoHandWrittenConformityTest(SimpleTestCase):
 
 
 class MultiFormatDownloadIsDerivedTest(SimpleTestCase):
-    def test_several_formats_mean_a_menu_one_or_none_is_not_applicable(self):
-        self.assertTrue(app_registry._conv(export_formats=('txt', 'pdf'))['multi_format_download'])
-        self.assertIsNone(app_registry._conv(export_formats=('txt',))['multi_format_download'])
-        self.assertIsNone(app_registry._conv()['multi_format_download'])
+    def test_it_says_what_the_download_button_brick_renders(self):
+        """La règle est CELLE de la brique ⬇ (formats déclarés → menu, aucun → lien), lue ici
+        sur son rendu — pas une seconde règle écrite à côté (revérification du 2026-10-17 : la
+        dérivation disait « plus d'un format », la brique « au moins un »)."""
+        from django.template.loader import render_to_string
+
+        from wama.common.utils.export_formats import entries
+        for formats in ((), ('txt',), ('txt', 'pdf')):
+            html = render_to_string('common/_download_button.html',
+                                    {'url': '/x/', 'ready': True, 'formats': entries(formats)})
+            menu = 'dropdown' in html
+            derived = app_registry._conv(export_formats=formats)['multi_format_download']
+            self.assertEqual(menu, bool(derived), formats)
 
 
 class OutputSettingsCriterionTest(SimpleTestCase):
