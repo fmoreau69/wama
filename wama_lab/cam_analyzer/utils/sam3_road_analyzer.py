@@ -44,6 +44,11 @@ DEFAULT_ROAD_PROMPT = 'drivable road surface area in front of the vehicle'
 #: c'est la valeur ÉCRITE ici, pour que rien ne change. Descendre (0,30 était l'intention d'origine)
 #: est une décision à MESURER — le diagnostic `sam3_test_frame_task` (seuil 0 = tout) montre
 #: désormais vraiment ce que SAM3 voit sous 0,5.
+#: MESURÉ le 2026-10-17 (4da52df3, caméra avant, 42 images de 14 passages en intersection) : 0,30
+#: fait passer les marquages de 160 à 361. Les 155 `stop_line` ajoutées sont des lignes de rive ou
+#: d'axe et des flèches d'îlot (aucune vraie ligne d'arrêt sur les incrustations relues) ; les 46
+#: `crossing` ajoutés sont surtout des bandes réelles de passages déjà vus au-dessus de 0,5 dans la
+#: même image. Gain marginal, bruit doublé : on GARDE 0,50 (CHANGELOG du 2026-10-17).
 CONFIDENCE_THRESHOLD = 0.50
 
 
