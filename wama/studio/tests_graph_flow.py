@@ -56,6 +56,16 @@ class WhatANodeReceivesTest(TestCase):
         image = _visible(PARAMS_JSON, {'media_type': 'image'})
         self.assertLess(len(image), len(_visible(PARAMS_JSON, unchosen['values'])))
 
+    def test_an_unknown_nature_stays_within_what_the_node_accepts(self):
+        """Les natures possibles sont celles que le NŒUD accepte (`input_kinds` du runner), pas
+        tout ce que le port de l'app accepte : le nœud enhancer est image + vidéo (`io_scope`),
+        son port admet aussi l'audio."""
+        from wama.studio.services.generic_runner import GENERIC_APPS
+        from wama.studio.services.graph_flow import node_context
+        ctx = node_context(_graph([{'id': 'e', 'app': 'enhancer', 'params': {}}]), 'e')
+        self.assertEqual(list(GENERIC_APPS['enhancer']['input_kinds']), ctx['values']['media_type'])
+        self.assertNotIn('audio', ctx['values']['media_type'])
+
     def test_a_text_node_gives_the_avatar_its_text_and_so_its_voice(self):
         from wama.avatarizer.params import PARAMS_JSON
         from wama.studio.services.graph_flow import node_context
@@ -94,12 +104,22 @@ class WhatANodeReceivesTest(TestCase):
 
 class AStepNodeIsCarriedByItsElementTest(TestCase):
 
-    def test_the_toggle_of_the_step_is_true_and_its_settings_show(self):
+    def test_the_step_shows_its_card_gear_switch_included_with_the_element_values(self):
+        """La ⚙ de l'étape, comme sur la card : l'interrupteur qui commande le type de résumé est
+        MONTRÉ ; il prend la valeur ACTUELLE de l'élément (sous ce que le nœud décide)."""
+        from wama.studio.services.graph_flow import node_context
         from wama.studio.services.node_params import node_schema
+        from wama.transcriber.models import Transcript
         params = node_schema('function:transcriber.summarize')['params']
-        toggle = next(p for p in params if p['name'] == 'generate_summary')
-        self.assertEqual(('hidden', True), (toggle['type'], toggle['default']))
+        self.assertEqual('toggle', next(p for p in params if p['name'] == 'generate_summary')['type'])
+        owner = User.objects.create_user('flow_summary', password='x')
+        item = Transcript.objects.create(user=owner, status='SUCCESS', generate_summary=True)
+        ctx = node_context(_graph([{'id': 's', 'app': 'function:transcriber.summarize',
+                                    'params': {'transcript_id': str(item.pk)}}]), 's', owner)
+        self.assertIs(True, ctx['defaults']['generate_summary'])
+        self.assertNotIn('generate_summary', ctx['provided'], 'décidable au nœud, pas fourni')
         values = {p['name']: p.get('default') for p in params}
+        values.update(ctx['defaults'])
         self.assertIn('summary_type', _visible(params, values))
 
     def test_the_element_designated_carries_its_nature(self):

@@ -583,15 +583,17 @@
     function typesText(types) {
         return (types || []).length ? types.join(' ou ') : 'inconnue';
     }
-    // Les réglages du nœud rendus SOUS ce qu'il reçoit : `context.values` (nature, texte, valeurs
-    // de l'élément) prime sur `node.params` — un champ fourni par un lien ne se saisit pas, le lien
-    // gagne au lancement (`generic_runner.create`). Rien de `context` n'entre dans `node.params` :
-    // seul un GESTE l'écrit (`sync`), et un champ fourni est désactivé.
+    // Les réglages du nœud rendus entre deux couches de ce qu'il reçoit : `context.defaults` (les
+    // valeurs ACTUELLES de l'élément d'une étape, comme dans la ⚙ de la card) SOUS `node.params`
+    // (ce que le nœud a décidé), `context.values` (nature, texte : FOURNI) AU-DESSUS — un champ
+    // fourni par un lien ne se saisit pas, le lien gagne au lancement (`generic_runner.create`).
+    // Rien de `context` n'entre dans `node.params` : seul un GESTE l'écrit (`sync`), et un champ
+    // fourni est désactivé.
     function renderNodeSettings(host, received, schema, node, context) {
         var ctx = context || {};
         WamaParams.render(host, schema.params, {
             context: 'item', groups: schema.groups || [],
-            values: Object.assign({}, node.params || {}, ctx.values || {}) });
+            values: Object.assign({}, ctx.defaults || {}, node.params || {}, ctx.values || {}) });
         var lines = [];
         var ports = metaOf(node).inputs || [];
         Object.keys(ctx.inputs || {}).forEach(function (port) {

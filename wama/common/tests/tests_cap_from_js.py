@@ -375,6 +375,24 @@ class ScopedSettingsModalTest(SimpleTestCase):
                          'a command that has its own command is kept with it')
         self.assertEqual(['language'], names("['language']"), 'nothing more when nothing commands')
 
+    def test_the_server_twin_reduces_exactly_like_the_card(self):
+        """`param_schema.scoped_names` — the Studio step node and its executor — is the twin of
+        `scopedSchema` (2026-10-18): every case above, and a hidden carrier, on both sides."""
+        import json
+        from wama.common.utils.param_schema import scoped_names
+        schema = [{'name': 'media_type', 'type': 'hidden'},
+                  {'name': 'generate_summary', 'type': 'toggle'},
+                  {'name': 'summary_type', 'type': 'radio', 'show_if': 'generate_summary'},
+                  {'name': 'engine', 'type': 'select', 'show_if': {'field': 'mode', 'equals': 'x'}},
+                  {'name': 'mode', 'type': 'select', 'show_if': 'advanced'},
+                  {'name': 'advanced', 'type': 'toggle'}, {'name': 'language', 'type': 'select'}]
+        for wanted in (['summary_type'], ['engine'], ['language'], [], ['nope']):
+            with self.subTest(wanted=wanted):
+                browser = list(self.v8.eval(
+                    f"window.WamaParams.scopedSchema({json.dumps(schema)}, {json.dumps(wanted)})"
+                    ".map(function (p) {{ return p.name; }})"))
+                self.assertEqual(browser, scoped_names(schema, wanted))
+
     def test_a_scope_is_taken_once_by_the_next_modal_and_expires_by_itself(self):
         # `settingsModal` itself builds a DOM modal (too DOM-bound for V8) : what it does first —
         # take the pending scope — is exercised through the same function, exposed.

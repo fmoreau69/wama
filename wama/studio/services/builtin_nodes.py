@@ -134,24 +134,27 @@ def _asset_type_for(params, filename) -> str:
     """Le type d'asset d'un fichier rangé par le nœud Sortie — AUTOMATIQUE selon ce qu'il reçoit
     (2026-10-18, décision de Fabien : « ça dépend simplement de l'entrée »).
 
-    La CATÉGORIE se lit sur le fichier (`category_of_path`) ; l'USAGE dans cette catégorie (avatar,
-    fond, voix…) ne se devine pas (`media_library` : « la nature n'est jamais devinée ») : vide, il
-    prend le défaut DÉCLARÉ de la catégorie (`natures.CATEGORY_DEFAULT`). Un usage choisi d'une
-    AUTRE catégorie est refusé en le disant — le défaut fixe `video` rangeait une image comme une
-    vidéo (`resolve_asset_type('video', 'x.png')` rend `video`)."""
+    Les usages ADMISSIBLES sont ceux du geste commun de la médiathèque
+    (`media_library.services.candidate_asset_types` : sa politique d'acceptation par extension,
+    « jamais une seconde table ») — ramené à la revérification : un premier jet jugeait par une
+    comparaison de catégories écrite ici. Un usage choisi hors de ces admissibles est refusé en le
+    disant (le défaut fixe `video` rangeait une image comme une vidéo). Vide, c'est le défaut
+    DÉCLARÉ pour un puits du Studio — celui de la catégorie du fichier (`natures.CATEGORY_DEFAULT`,
+    `category_of_path`) —, s'il est admissible, sinon le premier admissible."""
     from wama.common.app_registry import category_of_path
     from wama.media_library.natures import ASSET_NATURES, CATEGORY_DEFAULT, resolve_asset_type
-    category = category_of_path(filename)
+    from wama.media_library.services import candidate_asset_types
+    admissible = candidate_asset_types(filename)
+    if not admissible:
+        raise ValueError(f"Nœud « Sortie » : la médiathèque n'accepte pas ce fichier ({filename}).")
     chosen = (params.get('asset_type') or '').strip()
     if not chosen:
-        if category not in CATEGORY_DEFAULT:
-            raise ValueError(f"Nœud « Sortie » : la médiathèque ne range pas un fichier de nature "
-                             f"« {category} » ({filename}).")
-        return resolve_asset_type(category, filename)
+        preferred = CATEGORY_DEFAULT.get(category_of_path(filename))
+        return preferred if preferred in admissible else admissible[0]
     asset_type = resolve_asset_type(chosen, filename)
-    if category in CATEGORY_DEFAULT and ASSET_NATURES[asset_type].category != category:
+    if asset_type not in admissible:
         raise ValueError(f"Nœud « Sortie » : le type « {ASSET_NATURES[asset_type].label} » ne "
-                         f"convient pas à ce fichier ({category}) — laissez « Automatique ».")
+                         f"convient pas à ce fichier ({filename}) — laissez « Automatique ».")
     return asset_type
 
 

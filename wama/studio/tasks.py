@@ -212,7 +212,7 @@ def _run_app_function(spec, params: dict, save_state, deadline_s: float, inputs:
 def _run_app_process(pipeline, process, spec, params: dict, user, save_state, deadline_s: float):
     """Une ÉTAPE de card lancée depuis le Studio, comme le ▶ de l'étape sur la card (D2,
     2026-10-18) : l'élément désigné reçoit d'abord les réglages DÉCIDÉS au nœud — ceux de la ⚙ de
-    l'étape (`watched_of`), posés par l'écrivain de réglages de l'app, celui de sa ⚙ —, puis l'étape part
+    l'étape (`node_params.step_schema`), posés par l'écrivain de réglages de l'app, celui de sa ⚙ —, puis l'étape part
     par `start_<app>(id, process=…)` (`process_views.start_one_process` : l'étape, précédée des
     seuls amonts périmés) ; on attend sa tâche, puis la sortie de l'élément se lit comme celle
     d'un nœud d'app (`runner['poll']`).
@@ -249,7 +249,12 @@ def _run_app_process(pipeline, process, spec, params: dict, user, save_state, de
     # route d'élément et son lot partagent (`batch_views.write_element_settings`), avec ses règles
     # propres et ses refus : un `setattr` les contournerait.
     from wama.common.utils.batch_views import write_element_settings
-    names = set(pipeline.watched_of(process))
+    from wama.studio.services.node_params import step_schema
+    # Ce que montre la ⚙ de l'étape (`step_schema`, la règle de la card) — l'interrupteur qui
+    # COMMANDE un réglage retenu compris (2026-10-18) : sans lui, une étape éteinte sur l'élément
+    # (`ProcessSpec.toggle`) ne se lançait pas, quoi que le nœud ait décidé. Jamais un porteur
+    # caché : l'élément porte sa nature, le nœud ne la décide pas.
+    names = {p['name'] for p in step_schema(pipeline, process) if p.get('type') != 'hidden'}
     decided = {k: v for k, v in params.items() if k in names and v not in (None, '')}
     if decided:
         try:

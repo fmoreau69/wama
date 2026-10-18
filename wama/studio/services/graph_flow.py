@@ -100,14 +100,14 @@ def _detail_spec(app_id) -> dict:
 
 def _accepted_natures(app_id) -> list:
     """Les natures que l'entrée principale du nœud de l'app ACCEPTE — ce que peut être une nature
-    encore inconnue."""
+    encore inconnue. LUES dans `input_kinds` du runner (déclarées, ou dérivées des ports par
+    `generic_runner._fill_io_from_ports`, rétrécissement `io_scope` compris) — ramené à la
+    revérification : un premier jet les recalculait depuis les ports, plus larges qu'un
+    rétrécissement déclaré."""
     from wama.common.app_registry import MEDIA_CATEGORIES
-    from wama.studio.services.generic_runner import GENERIC_APPS, _node_ports, primary_ports
-    if app_id not in GENERIC_APPS:
-        return []
-    primary = primary_ports(app_id)
-    return list(dict.fromkeys(t for p in _node_ports(app_id) if p['id'] in primary
-                              for t in (p.get('types') or []) if t in MEDIA_CATEGORIES))
+    from wama.studio.services.generic_runner import GENERIC_APPS
+    kinds = (GENERIC_APPS.get(app_id) or {}).get('input_kinds') or ()
+    return [t for t in kinds if t in MEDIA_CATEGORIES]
 
 
 def _put_nature(values, field, possible):
@@ -144,23 +144,26 @@ def _app_carriers(app_id, inputs, values, provided):
         provided[source_text] = {'node': received['from'], 'at_run': not received['text']}
 
 
-def _step_carriers(node, user, values, provided):
-    """Une ÉTAPE de card : l'élément désigné porte ses valeurs — les porteurs cachés que lisent
-    les conditions de la ⚙ de l'étape (`node_params.step_carriers`) sont lus sur lui."""
+def _step_carriers(node, user, values, provided, defaults):
+    """Une ÉTAPE de card : l'élément désigné porte ses valeurs. Sa ⚙ (`node_params.step_schema`,
+    la règle de la card) se lit sur lui : un porteur CACHÉ (`media_type`) est FOURNI (`values`, il
+    prime) ; un réglage montré — l'interrupteur de l'étape compris — en reçoit la valeur ACTUELLE
+    (`defaults`, sous les réglages décidés au nœud, qui priment), comme la ⚙ de la card."""
     from wama.common.catalog import function_catalog as fc
     from wama.common.manifests.builtin.pipeline import function_key
     from wama.common.services.process_pipeline import process_of_function
     from wama.common.utils.detail_registry import DetailRegistry
-    from wama.studio.services.node_params import step_carriers
+    from wama.studio.services.node_params import step_schema
     spec = fc.get(function_key(node))
     if spec is None or spec.binding != fc.Binding.APP or not spec.impl:
         return
     pipeline, process = process_of_function(spec.key)
     if process is None:
         return
-    carriers = step_carriers(pipeline, process)
+    schema = step_schema(pipeline, process)
+    carriers = [p['name'] for p in schema if p.get('type') == 'hidden']
     model = (DetailRegistry.get(pipeline.app) or {}).get('model')
-    if not carriers or model is None:
+    if not schema or model is None:
         return
     from wama.studio.tasks import app_function_job_kwargs
     try:
@@ -180,23 +183,28 @@ def _step_carriers(node, user, values, provided):
         if source_type in carriers:
             _put_nature(values, source_type, _accepted_natures(pipeline.app))
         return
-    for name in carriers:
-        value = getattr(item, name, None)
-        if value not in (None, ''):
-            values[name] = value
-            provided[name] = {'element': item.pk}
+    for p in schema:
+        value = getattr(item, p['name'], None)
+        if value in (None, ''):
+            continue
+        if p['name'] in carriers:
+            values[p['name']] = value
+            provided[p['name']] = {'element': item.pk}
+        else:
+            defaults[p['name']] = value
 
 
 def node_context(graph, node_id, user=None) -> dict:
     """Ce que REÇOIT le nœud `node_id` du graphe : `{'inputs': {port: {'from', 'types', 'text'}},
-    'values': {champ: valeur | [valeurs possibles]}, 'provided': {champ: {'node'|'element', …}}}`.
-    `values` se pose SOUS les réglages du nœud au rendu de l'inspecteur ; rien ne s'enregistre :
-    l'élément déduira les siennes à sa création, comme sur une card."""
+    'values': {champ: valeur | [valeurs possibles]}, 'provided': {champ: {'node'|'element', …}},
+    'defaults': {champ: valeur actuelle de l'élément d'une étape}}`. Au rendu de l'inspecteur :
+    `defaults` SOUS les réglages décidés au nœud, `values` (fourni) AU-DESSUS ; rien ne
+    s'enregistre — l'élément déduira les siennes à sa création, comme sur une card."""
     from wama.common.manifests.builtin.pipeline import node_kind
     graph = graph or {}
     node = next((n for n in graph.get('nodes', []) or [] if n.get('id') == node_id), None)
     if node is None:
-        return {'inputs': {}, 'values': {}, 'provided': {}}
+        return {'inputs': {}, 'values': {}, 'provided': {}, 'defaults': {}}
     flows = node_flows(graph)
     inputs = {}
     for l in graph.get('links', []) or []:
@@ -205,10 +213,10 @@ def node_context(graph, node_id, user=None) -> dict:
         flow = flows.get(l.get('from')) or {}
         inputs[l.get('to_port') or ''] = {'from': l.get('from'), 'types': flow.get('types') or [],
                                           'text': flow.get('text')}
-    values, provided = {}, {}
+    values, provided, defaults = {}, {}, {}
     kind = node_kind(node)
     if kind == 'app':
         _app_carriers(node.get('app') or '', inputs, values, provided)
     elif kind == 'function':
-        _step_carriers(node, user, values, provided)
-    return {'inputs': inputs, 'values': values, 'provided': provided}
+        _step_carriers(node, user, values, provided, defaults)
+    return {'inputs': inputs, 'values': values, 'provided': provided, 'defaults': defaults}

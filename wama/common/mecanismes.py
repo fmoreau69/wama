@@ -1692,7 +1692,8 @@ MECHANISMS = (
               "l'exécution d'une fonction et le moteur de vue Data. Depuis le 18/10 un PORTEUR "
               "peut valoir une LISTE, lue « l'une de » par les deux juges de `show_if` (la nature "
               "encore inconnue de ce que reçoit un nœud du Studio : les réglages de chaque nature "
-              "possible se montrent)",
+              "possible se montrent), et la réduction de la ⚙ d'UN process a son jumeau serveur "
+              "(`scoped_names` ⟷ `scopedSchema`), lu par le nœud d'étape et son exécuteur",
               'wama/common/utils/param_schema.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/static/common/js/wama-params.js',
                        'wama/common/templates/common/_settings_modal_footer.html')),

@@ -4261,9 +4261,16 @@ voix jamais, et un lien « Texte » refusait le lancement) ; les étapes `summar
   LISTE, lue « l'une de » par les deux juges de `show_if` (`param_schema._show_if_met` et
   `wama-params.js::met`, champ caché `data-any-of`) et par la source `formats` (formats réunis) :
   le nœud montre les réglages de CHAQUE nature possible, chaque élément appliquera les siens.
-- **Une étape de card** : son interrupteur (`ProcessSpec.toggle`) est un porteur caché VRAI (lancer
-  l'étape, c'est l'activer) ; l'élément désigné porte ses valeurs (`graph_flow._step_carriers`,
-  l'élément d'un autre compte n'est jamais lu).
+- **Une étape de card montre la ⚙ de son étape, par la règle de la card** : `param_schema.
+  scoped_names`, jumeau serveur de `wama-params.js::scopedSchema` (garde de parité) — ce qu'elle
+  surveille, le champ qui COMMANDE un réglage retenu (l'interrupteur du résumé), les porteurs
+  cachés. `node_params.step_schema` la sert au nœud, au contexte et à l'EXÉCUTEUR, qui écrit
+  désormais l'interrupteur décidé. L'élément désigné porte ses valeurs (`graph_flow.
+  _step_carriers`) : un porteur caché est FOURNI, un réglage montré prend sa valeur ACTUELLE sous
+  ce que le nœud décide ; l'élément d'un autre compte n'est jamais lu. ⚠ Ramené à la
+  revérification : un premier jet (commité dans `ae4d6db7`) avait sa propre règle — interrupteur
+  caché « vrai », jamais écrit —, si bien qu'une étape éteinte sur l'élément (`AppPipeline.
+  takes_place`) ne partait pas, quoi que le nœud montrât.
 - **Le port de saisie** arrive dans le champ que l'app déclare porter son texte source
   (`generic_runner.port_argument_name` : le port du même nom, sinon `source_text`) — l'avatarizer
   parle depuis un nœud « Texte » (budget `UNWIRED_PORTS_BUDGET` descendu d'un port) ; un nœud
@@ -4280,21 +4287,31 @@ voix jamais, et un lien « Texte » refusait le lancement) ; les étapes `summar
   le format (`read_settings_payload(empty_is_value=…)`). Des résultats de natures différentes n'ont
   pas de format commun : le ZIP commun (`batch_views.zip_elements`) range chaque fichier dans le
   sien — le ZIP d'un run du Studio est la passe suivante, acceptée par Fabien.
-- **Le nœud Sortie** ne fait plus CLASSER à la main : « Automatique » prend la catégorie du fichier
-  reçu et son usage par défaut (`natures.CATEGORY_DEFAULT`) ; un usage d'une autre catégorie est
-  refusé en le disant (le défaut fixe `video` rangeait une image comme une vidéo).
+- **Le nœud Sortie** ne fait plus CLASSER à la main : les usages admissibles sont ceux du geste
+  commun de la médiathèque (`media_library.services.candidate_asset_types`, sa politique
+  d'acceptation — ramené à la revérification, un premier jet comparait des catégories) ;
+  « Automatique » prend le défaut déclaré pour un puits du Studio (`natures.CATEGORY_DEFAULT` de la
+  catégorie du fichier) s'il est admissible ; un usage non admissible est refusé en le disant (le
+  défaut fixe `video` rangeait une image comme une vidéo).
 - **Mesuré après** (mêmes règles que l'écran) : Converter non branché 19/19 réglages, branché sur une
   image ou une vidéo 10/19 (ceux de sa nature) ; Avatarizer relié à « Texte » 8/9 ; les étapes
   `transcriber.summarize` / `diarize`, `describer.summarize` montrent tous leurs réglages.
 - **Gardes** : `studio.tests_graph_flow`, `converter.tests_output_format`,
-  `tests_cap_from_js` (liste « l'une de » des deux côtés, formats d'une nature inconnue) — chacune à
-  contre-épreuve rouge, brique neutralisée en mémoire ou JS de HEAD rejoué.
+  `tests_cap_from_js` (liste « l'une de » des deux côtés, formats d'une nature inconnue, parité
+  `scoped_names` / `scopedSchema`), `studio.tests_node_settings` (chaque étape = la ⚙ de la card ;
+  l'interrupteur décidé au nœud atteint l'élément) — chacune à contre-épreuve rouge, brique
+  neutralisée en mémoire ou JS de HEAD rejoué.
 - ⏳ **Reste** : la nature qui SUIT l'amont (anonymizer, enhancer : la sortie a la nature de l'entrée ;
   converter : celle de son format) — un amont ambigu se porte en liste d'ici là ; les deux tables
   d'extensions recopiées (`converter/format_router.detect_media_type`, `describer/views.
   detect_type_from_extension`) à ramener à `category_of_path` ; le grisage des modèles par les entrées
   branchées (`WamaInputMatch`) et les colonnes d'une table branchée pour un réglage `column` (Data,
-  R4) — le parcours `node_flows` porte déjà ces champs.
+  R4) — le parcours `node_flows` porte déjà ces champs. Relevés à la revérification, ANTÉRIEURS à
+  R2bis : `detail_registry.MEDIA_CATEGORY_ROLE` traduit une catégorie en nature d'asset à côté de
+  `natures.CATEGORY_DEFAULT` (domicile A′, déclaré pour les puits du Studio) ; le nœud Sortie
+  écrit son `UserAsset` lui-même au lieu de passer par `media_library.services.add_file_to_library`,
+  et ne lit pas encore l'usage DÉCLARÉ par l'app amont (`result_role`, que `admissible_roles`
+  ferait primer) — à ramener avec le ZIP d'un run.
 
 **3.4 Étages = sous-pipelines.** Le champ `stage` de cam_analyzer (`analyse` / `calcul`,
 `cam_analyzer.json` lignes 105 et 195) devient une STRUCTURE : deux pipelines (« analyse d'image »,

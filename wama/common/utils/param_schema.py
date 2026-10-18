@@ -361,6 +361,32 @@ def _show_if_met(cond, values) -> bool:
     return bool(cur) and cur not in ('false', '0')
 
 
+def scoped_names(schema, names) -> List[str]:
+    """Les réglages de la ⚙ d'UN process : `names` (ce qu'il surveille), plus le champ qui COMMANDE
+    la condition d'un réglage retenu (et la commande de cette commande), plus les porteurs cachés —
+    dans l'ordre du schéma. JUMEAU SERVEUR de `wama-params.js::scopedSchema` (la ⚙ d'une étape sur
+    la card, 2026-10-13), même règle — garde de parité `tests_cap_from_js`. Lu par le nœud d'étape
+    du Studio, qui montre la ⚙ de son étape, et par son exécuteur, qui écrit ce que le nœud a décidé
+    (2026-10-18 : une seconde règle cachait l'interrupteur de l'étape et ne l'écrivait jamais — une
+    étape éteinte sur l'élément ne se lançait pas)."""
+    wanted = set(names or ())
+
+    def command(p):
+        cond = _pget(p, 'show_if')
+        return cond.get('field') if isinstance(cond, dict) else (cond or None)
+
+    grew = True
+    while grew:
+        grew = False
+        for p in schema:
+            field = command(p) if _pget(p, 'name') in wanted else None
+            if field and field not in wanted:
+                wanted.add(field)
+                grew = True
+    return [_pget(p, 'name') for p in schema
+            if _pget(p, 'type') == 'hidden' or _pget(p, 'name') in wanted]
+
+
 def applicable_defaults(schema, values=None) -> dict:
     """Défauts APPLICABLES d'un schéma pour un élément NAISSANT : params de contexte 'item'
     dont `default` est renseigné et dont le `show_if` est satisfait par `values` (typiquement

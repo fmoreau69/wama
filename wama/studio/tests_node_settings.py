@@ -255,23 +255,26 @@ class AProcessNodeIsTheStepOfItsCardTest(TestCase):
 
     def test_every_step_node_shows_the_settings_of_its_card_step(self):
         """Générique, aucune app nommée : pour CHAQUE process de CHAQUE pipeline d'app, les
-        réglages d'app MONTRÉS par le nœud sont exactement ceux que l'étape surveille
-        (`watched_of`). Les porteurs cachés (interrupteur de l'étape, nature de l'élément) ne
-        sont pas des réglages : ils pilotent les conditions (garde ci-dessous, 2026-10-18)."""
+        réglages d'app du nœud sont exactement ceux de la ⚙ de l'étape sur la card — ce qu'elle
+        surveille (`watched_of`), plus le champ qui COMMANDE un réglage retenu, plus les porteurs
+        cachés (`scoped_names`, jumeau de `scopedSchema`, 2026-10-18). Une seconde règle,
+        écrite pour le nœud seul, cachait l'interrupteur de l'étape et ne l'écrivait jamais."""
         from wama.common.services.process_pipeline import APP_PIPELINES, _load_declarations
-        from wama.common.utils.param_schema import schema_for_app
+        from wama.common.utils.param_schema import schema_for_app, scoped_names
         from wama.studio.services.node_params import node_schema
         _load_declarations()
         measured = 0
         for app, pipeline in sorted(APP_PIPELINES.items()):
-            app_names = {p['name'] for p in schema_for_app(app)}
+            app_schema = schema_for_app(app)
+            app_names = {p['name'] for p in app_schema}
             for process in pipeline.specs:
                 schema = node_schema(f'function:{pipeline.function_key(process)}')
                 if schema is None:
                     continue          # étape hors catalogue (le process « Sortie » commun)
-                shown = {p['name'] for p in schema['params'] if p.get('type') != 'hidden'} & app_names
+                shown = {p['name'] for p in schema['params']} & app_names
                 with self.subTest(step=f'{app}.{process.key}'):
-                    self.assertEqual(set(pipeline.watched_of(process)) & app_names, shown)
+                    self.assertEqual(set(scoped_names(app_schema, pipeline.watched_of(process))),
+                                     shown)
                 measured += 1
         self.assertGreater(measured, 15, 'non-vacuité : les étapes des pipelines d’app')
 
@@ -307,6 +310,33 @@ class AProcessNodeIsTheStepOfItsCardTest(TestCase):
         self.assertEqual(120, ComposerGeneration.objects.get(pk=item_id).duration)
         tool, args, _user = call.call_args.args
         self.assertEqual(('start_composer', 'render'), (tool, args['process']))
+
+    def test_the_switch_of_an_optional_step_decided_at_the_node_reaches_the_card(self):
+        """Une étape FACULTATIVE n'a lieu que si son interrupteur est vrai sur l'élément
+        (`AppPipeline.takes_place`). L'interrupteur est dans la ⚙ de l'étape (il commande le
+        réglage retenu) : décidé au nœud, il est ÉCRIT, comme par la ⚙ de la card (2026-10-18 —
+        une seconde règle le cachait au nœud et ne l'écrivait jamais : l'étape ne partait pas)."""
+        from wama.common.catalog import function_catalog as fc
+        from wama.common.services.process_pipeline import process_of_function
+        from wama.studio.services.node_params import node_schema
+        from wama.studio.tasks import _run_app_process
+        from wama.transcriber.models import Transcript
+        from wama import tool_api
+        pipeline, process = process_of_function('transcriber.summarize')
+        self.assertTrue(process.toggle)
+        shown = {p['name']: p['type'] for p in node_schema('function:transcriber.summarize')['params']}
+        self.assertEqual('toggle', shown.get(process.toggle), 'l’interrupteur est montré, décidable')
+        item = Transcript.objects.create(user=self.user, status='SUCCESS',
+                                         **{process.toggle: False})
+        finished = mock.Mock(**{'ready.return_value': True, 'failed.return_value': False})
+        with mock.patch('celery.result.AsyncResult', return_value=finished), \
+                mock.patch.object(tool_api, 'execute_tool',
+                                  return_value={'task_id': 'no-task'}):
+            _run_app_process(pipeline, process, fc.get('transcriber.summarize'),
+                             {'transcript_id': str(item.pk), process.toggle: True},
+                             self.user, lambda **k: None, 5)
+        item.refresh_from_db()
+        self.assertTrue(getattr(item, process.toggle))
 
     def test_a_card_the_account_cannot_edit_is_refused_and_left_untouched(self):
         from django.contrib.auth import get_user_model
