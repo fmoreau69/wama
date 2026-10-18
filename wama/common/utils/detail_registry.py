@@ -73,6 +73,18 @@ class DetailRegistry:
         d'un attribut privé une API de fait."""
         return sorted(cls._registry)
 
+    @classmethod
+    def preview_url(cls, app_name, pk) -> str:
+        """L'aperçu commun d'un élément (`common:unified_preview`) — LE crochet de l'inspecteur
+        (`data-preview-url`, dont `fillDetail` dérive le détail). Vide pour une source hors du
+        registre ou à clé non entière : le Lab a des clés UUID, et `reverse` levait alors au point
+        de faire tomber toute la page du journal (2026-09-28). Lu par le journal et le calendrier,
+        qui montrent la card d'un élément hors de son app (2026-10-18)."""
+        if app_name not in cls._registry or not isinstance(pk, int):
+            return ''
+        from django.urls import reverse
+        return reverse('common:unified_preview', args=[app_name, pk])
+
 
 def register_app_detail(app_name, model_class, adapter):
     """Enregistre l'adapter de détail d'une app. `adapter(instance) -> dict canonique`."""

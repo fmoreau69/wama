@@ -88,6 +88,51 @@ class NavigationStepTest(SimpleTestCase):
 
 
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class SelectionAcrossAppsTest(SimpleTestCase):
+    """The journal and the calendar mix the items of ten apps : two cards there carry the same
+    `data-id` (item 5 of the transcriber, item 5 of the imager). A click selects the card that was
+    CLICKED (2026-10-18) ; the search by number took the first one. Counter-proof : called with a
+    number only (an app's own call), the selection is the one of before."""
+
+    SETUP = """
+    function fakeCard(app) {
+      return {dataset: {id: '5', app: app}, classList: classList(),
+              matches: function () { return false; }, querySelector: function () { return null; }};
+    }
+    var first = fakeCard('transcriber'), second = fakeCard('imager'), handlers = {};
+    var qc = {addEventListener: function (t, fn) { handlers[t] = fn; },
+              contains: function (el) { return el === first || el === second; },
+              querySelector: function () { return first; },
+              querySelectorAll: function (sel) {     // the highlighted cards, for `clearHighlight`
+                return [first, second].filter(function (c) {
+                  return sel === '.inspector-selected' && c.classList.contains('inspector-selected'); });
+              }};
+    var insp = window.WamaInspector.init({queueContainer: qc, cardSelector: '.c', keyboardNav: false});
+    function selected() {
+      return [first, second].filter(function (c) { return c.classList.contains('inspector-selected'); })
+                            .map(function (c) { return c.dataset.app; }).join(',');
+    }
+    """
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM)
+        self.v8.eval((JS / 'wama-inspector.js').read_text(encoding='utf-8'))
+        self.v8.eval(self.SETUP)
+
+    def test_a_click_selects_the_clicked_card_not_the_first_with_its_number(self):
+        self.v8.eval("handlers.click({target: {closest: function (s) { return s === '.c' ? second : null; }}})")
+        self.assertEqual('imager', self.v8.eval('selected()'))
+
+    def test_the_card_given_by_the_caller_is_the_one_selected(self):
+        self.v8.eval("insp.selectItem('5', second)")
+        self.assertEqual('imager', self.v8.eval('selected()'))
+        self.v8.eval("insp.selectItem('5')")
+        self.assertEqual('transcriber', self.v8.eval('selected()'))
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
 class QueueKeyboardStopsTest(SimpleTestCase):
     """↑/↓ of the panel walk the WHOLE queue : single cards, each batch (its mother card), its
     children. Asked by Fabien (2026-10-14) : « avant je pouvais naviguer à travers toutes les cards

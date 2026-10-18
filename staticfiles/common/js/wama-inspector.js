@@ -835,8 +835,12 @@
       });
     }
 
-    function selectItem(id) {
-      const card = qc.querySelector(CARD_SEL + '[data-id="' + id + '"]');
+    // `el` : la card VISÉE, quand l'appelant la tient (clic, flèches, visionneuse). Le journal et le
+    // calendrier mêlent les éléments de dix apps : deux cards y portent le même `data-id` (le n° 5
+    // du transcriber et celui de l'imager), et la recherche par numéro prenait la première
+    // (2026-10-18). Sans `el`, l'appel d'une app reste celui d'avant.
+    function selectItem(id, el) {
+      const card = (el && qc.contains(el)) ? el : qc.querySelector(CARD_SEL + '[data-id="' + id + '"]');
       if (!card) return;
       // APRÈS le garde : une sélection qui échoue ne doit pas défaire celle d'à côté.
       _cederLaMain(api);
@@ -896,7 +900,7 @@
     qc.addEventListener('click', function (e) {
       if (e.target.closest('button, a, input, select, textarea, .wama-card-preview, .btn-group-actions')) return;
       const card = e.target.closest(CARD_SEL);
-      if (card && card.dataset.id) { selectItem(card.dataset.id); return; }
+      if (card && card.dataset.id) { selectItem(card.dataset.id, card); return; }
       const batch = e.target.closest(BATCH_SEL);
       if (batch && batch.dataset[BATCH_ATTR]) selectBatch(batch.dataset[BATCH_ATTR]);
     });
@@ -918,7 +922,7 @@
     qc.addEventListener('wama:preview-card', function (e) {
       const card = e.target && e.target.closest && e.target.closest(CARD_SEL);
       if (!card || !card.dataset.id || !qc.contains(card)) return;
-      selectItem(card.dataset.id);
+      selectItem(card.dataset.id, card);
       if (card.scrollIntoView) card.scrollIntoView({ block: 'nearest' });
     });
 
@@ -961,7 +965,7 @@
       const i = nextStop(queueStops(entries), { id: itemId, batch: batchId }, dir);
       if (i < 0) return;
       const e = entries[i];
-      if (e.id) selectItem(e.id); else selectBatch(e.batch);
+      if (e.id) selectItem(e.id, e.el); else selectBatch(e.batch);
       _reveal(e.id ? e.el : (e.el.querySelector('.is-batch') || e.el));
     }
     if (cfg.keyboardNav !== false) {

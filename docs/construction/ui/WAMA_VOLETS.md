@@ -74,6 +74,15 @@ utilisateurs · matrice d'accès · connexion (×2) · validation d'inscription 
 > (consigne de Fabien) : `volet(medias=False, actions=False)`, et sa section Paramètres porte
 > tout ce qui touche aux clés — jeton d'API, clés des fournisseurs LLM, connecteurs de la
 > médiathèque. L'invariant gardé par `tests_volet.py` reste le même : aucun cadre VIDE.
+>
+> ⚠ **2026-10-18 — le journal et le calendrier** (relevé par Fabien sur le calendrier : « Médias /
+> Sélectionnez un fichier / Aucun paramètre disponible / Actions » vides). Les deux pages montrent
+> la card cliquée par l'inspecteur commun (aperçu + fiche) et déclarent ce qu'elles remplissent :
+> journal `volet(parametres=False, actions=False)`, calendrier `volet(parametres=False)` (son action
+> « Ouvrir dans <app> » vit au volet, faute de card sur la page). Médias garde une invite PROPRE à
+> la page (bloc `right_panel_media_hint` de `base.html`, `keepMediaSection: true`). L'invariant de
+> `tests_volet` a été affûté le même jour : Médias se reconnaît à l'invite par défaut, son
+> conteneur d'aperçu étant aussi l'hôte de l'inspecteur ; les deux pages y sont mesurées.
 
 ### Le mécanisme existe, c'est l'ADOPTION qui manque
 
@@ -81,8 +90,10 @@ utilisateurs · matrice d'accès · connexion (×2) · validation d'inscription 
 |---|---|
 | `hideOnInspect` | 4 / 16 |
 | `onDeselect` | 2 / 16 |
-| `keepMediaSection` | **2 / 16** (model_manager ; + avatarizer le 22/08, cf. §4③) |
-| `showOnInspect` · `settingsTitleInspect` | **1 / 16** chacune |
+| `keepMediaSection` | **2 / 16** (model_manager ; + avatarizer le 22/08, cf. §4③) — + journal et calendrier le 2026-10-18 |
+| `showOnInspect` · `settingsTitleInspect` | **1 / 16** chacune — `showOnInspect` + calendrier le 2026-10-18 |
+
+> Chiffres du 22/08, non remesurés depuis : seuls les ajouts du 2026-10-18 sont comptés à la main.
 
 **Une seule page exploite les quatre leviers : `model_manager/index.html`.** C'est donc
 **lui la référence à généraliser**, pas les apps média — elles consomment le socle sans le

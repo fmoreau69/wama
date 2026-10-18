@@ -91,6 +91,26 @@ class ObservedEventsTest(TestCase):
         self.assertEqual(world_color('transverse'), events[0].color)
         self.assertIn('App without entry', events[0].title)
 
+    def test_an_item_carries_the_hook_that_shows_its_card_in_the_panel(self):
+        """Le clic montre la card au volet, comme le journal : l'événement porte l'aperçu commun
+        (`data-preview-url` côté page, d'où l'inspecteur dérive la fiche) et le NOM déclaré de
+        son app. Contre-épreuve : un lot n'a pas de card, donc pas d'aperçu."""
+        from wama.common.utils.detail_registry import DetailRegistry
+        item = self._description(self.user, datetime(2026, 9, 30, 14, 0, tzinfo=PARIS))
+        event = {e.key: e for e in cal.observed_events(self.user, *_week())}[
+            f'describer:Description:{item.pk}']
+        props = event.as_fullcalendar()['extendedProps']
+        self.assertEqual(DetailRegistry.preview_url('describer', item.pk), props['previewUrl'])
+        self.assertEqual(reverse('common:unified_preview', args=['describer', item.pk]),
+                         props['previewUrl'])
+        self.assertEqual('Describer', props['appLabel'])
+        from wama.describer.models import BatchDescription
+        batch = BatchDescription.objects.create(user=self.user, total=3)
+        BatchDescription.objects.filter(pk=batch.pk).update(
+            created_at=datetime(2026, 9, 30, 15, 0, tzinfo=PARIS))
+        (lot,) = [e for e in cal.batch_events(self.user, *_week()) if e.extra.get('batchId') == batch.pk]
+        self.assertEqual('', lot.as_fullcalendar()['extendedProps']['previewUrl'])
+
     def test_another_users_items_never_appear(self):
         item = self._description(self.other, datetime(2026, 9, 30, 9, 0, tzinfo=PARIS))
         keys = {e.key for e in cal.observed_events(self.user, *_week())}
@@ -248,6 +268,37 @@ class CalendarRoutesTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'href="%s"' % reverse('common:calendar'))
         self.assertContains(response, 'vendors/fullcalendar-6.1.15/index.global.min.js')
+
+    def test_the_panel_hosts_the_card_of_the_clicked_item_and_nothing_empty(self):
+        """Fabien (2026-10-18) : le volet montrait Médias / « Aucun paramètre disponible » /
+        Actions vides. Il héberge la card cliquée — aperçu et fiche par l'inspecteur COMMUN,
+        l'action « ouvrir dans l'app » — et rien qui ne se remplisse pas."""
+        self.client.force_login(self.user)
+        html = self.client.get(reverse('common:calendar')).content.decode()
+        self.assertIn('id="media-section"', html)
+        self.assertIn('id="inspectorActions"', html)
+        self.assertIn('Cliquez un élément', html)
+        self.assertNotIn('Aucun paramètre disponible', html)
+        self.assertNotIn('id="settings-section"', html)
+        js = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / 'common' / 'js'
+              / 'wama-calendar.js').read_text(encoding='utf-8')
+        self.assertIn('WamaInspector.init', js)
+        self.assertIn("setAttribute('data-preview-url'", js)
+        self.assertIn('inspector.selectItem(String(p.itemId), info.el)', js)
+
+    def test_going_to_a_card_in_its_app_is_written_once(self):
+        """Le passage « ouvrir l'élément dans son app, sélectionné » s'écrit à côté de sa lecture
+        (`WamaQueue.openCard`, à côté de `focusFromSession`) : le journal et le calendrier
+        l'appellent, aucun ne le recopie."""
+        root = Path(settings.BASE_DIR) / 'wama' / 'common'
+        queue = (root / 'static' / 'common' / 'js' / 'wama-queue.js').read_text(encoding='utf-8')
+        self.assertIn('window.WamaQueue.openCard = openCard', queue)
+        for path in (root / 'static' / 'common' / 'js' / 'wama-calendar.js',
+                     root / 'templates' / 'common' / 'journal.html'):
+            with self.subTest(page=path.name):
+                src = path.read_text(encoding='utf-8')
+                self.assertIn('WamaQueue.openCard(', src)
+                self.assertNotIn("setItem('wama_focus_select'", src)
 
     def test_events_require_a_login(self):
         response = self.client.get(reverse('common:calendar_events'))

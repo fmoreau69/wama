@@ -1092,6 +1092,9 @@ def journal_view(request):
         'fin': offset + len(page),
         'precedent': max(0, offset - limite) if offset else None,
         'suivant': offset + limite if offset + limite < total else None,
+        # La card cliquée au volet (aperçu + fiche) ; son action vit sur la card (→) : ni
+        # Paramètres ni Actions, qui restaient des cadres vides (2026-10-18).
+        'volet': volet(parametres=False, actions=False),
     })
 
 
@@ -1131,6 +1134,9 @@ def calendar_view(request):
         'legend': legend,
         'facettes': facettes,
         'maintenance_color': MAINTENANCE_COLOR,
+        # La card de l'élément cliqué (aperçu + fiche) et l'action « ouvrir dans l'app », comme
+        # le journal ; aucun réglage ne s'édite ici (2026-10-18).
+        'volet': volet(parametres=False),
     })
 
 

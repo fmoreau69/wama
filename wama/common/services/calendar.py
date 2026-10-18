@@ -128,6 +128,9 @@ class CalendarEvent:
     color: str = ''
     url: str = ''
     item_id: int | None = None
+    #: L'aperçu commun de l'élément (`DetailRegistry.preview_url`) : le crochet de l'inspecteur,
+    #: qui montre sa card au volet droit comme le journal (2026-10-18). Vide hors du registre.
+    preview_url: str = ''
     reserves: tuple = ()
     #: `measured` | `declared` — d'où vient la DURÉE. Une fenêtre déclarée n'est qu'une borne.
     duration_source: str = ''
@@ -140,6 +143,7 @@ class CalendarEvent:
             classes.append(f'wama-cal-status-{self.status.lower()}')
         if self.reserves:
             classes.append('wama-cal-reserved')
+        from ..app_registry import app_identity
         return {
             'id': self.key,
             'title': self.title,
@@ -150,8 +154,10 @@ class CalendarEvent:
             'classNames': classes,
             'extendedProps': {
                 'nature': self.nature, 'scope': self.scope, 'app': self.app,
+                'appLabel': app_identity(self.app)['label'] if self.app else '',
                 'world': self.world, 'status': self.status, 'appUrl': self.url,
-                'itemId': self.item_id, 'reserves': list(self.reserves),
+                'itemId': self.item_id, 'previewUrl': self.preview_url,
+                'reserves': list(self.reserves),
                 'durationSource': self.duration_source, **self.extra,
             },
         }
@@ -288,6 +294,7 @@ def observed_events(user, start, end, *, now=None, queue=None) -> list[CalendarE
 
     from ..models import JOB_RUNNING, normalize_job_status
     from ..app_registry import app_identity
+    from ..utils.detail_registry import DetailRegistry
     from .journal import app_queue_url, sources
 
     now = now or timezone.now()
@@ -328,7 +335,8 @@ def observed_events(user, start, end, *, now=None, queue=None) -> list[CalendarE
                 key=f'{src.app}:{model_name}:{obj.pk}', title=str(obj),
                 start=began, end=ended, nature=nature, scope=SCOPE_USER,
                 app=src.app, world=src.monde, status=status, color=color, url=url,
-                item_id=obj.pk, duration_source=duration_source, extra=extra,
+                item_id=obj.pk, preview_url=DetailRegistry.preview_url(src.app, obj.pk),
+                duration_source=duration_source, extra=extra,
             ))
     return events
 

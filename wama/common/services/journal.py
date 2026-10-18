@@ -240,38 +240,13 @@ class Entree:
         return app_queue_url(self.app)
 
     @property
-    def url_detail(self):
-        """
-        Endpoint canonique de détail (`detail_registry.unified_detail`).
-
-        ⚠ IL EST PORTEUR, pas dormant : `wama-inspector.js::fillDetail()` le FETCH pour remplir
-        la section « Infos » du volet droit. Il ne le nomme jamais littéralement — il dérive
-        l'URL de `data-preview-url` par `replace('/preview/', '/detail/')` (l.328), ce qui le
-        rend invisible à toute recherche du chemin. Ne pas le retirer ni en changer le contrat
-        sans passer par l'inspecteur.
-
-        Non utilisé par le clic du journal, qui emmène sur la page de l'app (cf. `url_app`).
-        """
-        if not self._has_unified_views:
-            return ''
-        from django.urls import reverse
-        return reverse('common:unified_detail', args=[self.app, self.pk])
-
-    @property
     def url_preview(self):
-        if not self._has_unified_views:
-            return ''
-        from django.urls import reverse
-        return reverse('common:unified_preview', args=[self.app, self.pk])
-
-    @property
-    def _has_unified_views(self):
-        """Les endpoints transversaux ne servent que les apps de `detail_registry`, par clé
-        ENTIÈRE. Une source inscrite hors de lui (Lab, Studio — 2026-09-28) n'en a pas : le Lab
-        a des clés UUID, et `reverse` levait alors, ce qui faisait tomber TOUTE la page du
-        journal. L'inspecteur reste vide pour ces entrées ; le bouton mène à l'app."""
+        """L'aperçu commun de l'élément (`DetailRegistry.preview_url`) : le crochet de
+        l'inspecteur, qui en DÉRIVE l'endpoint de détail (`replace('/preview/', '/detail/')`) et
+        remplit le volet droit. Vide hors du registre (Lab, Studio) : l'inspecteur reste vide pour
+        ces entrées, le bouton mène à l'app."""
         from ..utils.detail_registry import DetailRegistry
-        return self.app in DetailRegistry._registry and isinstance(self.pk, int)
+        return DetailRegistry.preview_url(self.app, self.pk)
 
 
 #: Tris du journal. Vocabulaire ALIGNÉ sur `_queue_toolbar.html` pour que le geste soit le même

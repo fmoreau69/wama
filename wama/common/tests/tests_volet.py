@@ -32,8 +32,12 @@ MARQUEURS = {
 #: 2026-08-22 a supprimé — c'est ce couple (section rendue + contenu par défaut) qui se
 #: mesure, jamais la présence de la section seule : une page peut légitimement rouvrir une
 #: section POUR LA REMPLIR (cf. `PagesDeclarantesTest`).
+#: ⚠ Médias se reconnaît à son INVITE par défaut, plus à son conteneur d'aperçu (2026-10-18) : ce
+#: conteneur est aussi l'hôte de l'inspecteur, qui y montre la card cliquée (journal, calendrier).
+#: Une page qui l'héberge dit SA propre invite (`right_panel_media_hint`) ; l'invite de `base.html`
+#: (« Sélectionnez un fichier ») n'a de sens que là où un fichier se sélectionne.
 DEFAUTS = {
-    'medias': 'id="preview-placeholder"',
+    'medias': "Sélectionnez un fichier<br>pour l'aperçu",
     'parametres': 'Aucun paramètre disponible',
     'actions': '<!-- Actions will be added by apps -->',
 }
@@ -171,6 +175,9 @@ class PagesDeclarantesTest(TestCase):
         # Namespaces IMBRIQUÉS : les apps du Lab sont incluses sous `wama_lab`
         # (wama/urls.py:48 → wama_lab/urls.py). `face_analyzer:index` ne résout pas.
         ('face_analyzer', 'wama_lab:face_analyzer:index'),
+        # 2026-10-18 : la card de l'élément cliqué au volet, sans cadre « Aucun paramètre ».
+        ('journal', 'common:journal'),
+        ('calendrier', 'common:calendar'),
     ]
 
     def _pages_rendues(self):

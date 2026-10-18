@@ -405,6 +405,20 @@
         }, 120);
     }
 
+    // Le pendant de `focusFromSession` : ALLER à une card dans la file de son app, sélectionnée à
+    // l'arrivée — le geste des pages qui montrent des éléments hors de leur app (journal,
+    // calendrier), écrit une fois à côté de sa lecture (2026-10-18 ; il était recopié dans chacune).
+    function openCard(url, id) {
+        if (!url) return;
+        if (id != null && id !== '') {
+            try {
+                sessionStorage.setItem('wama_focus_card', '.wama-card[data-id="' + id + '"]');
+                sessionStorage.setItem('wama_focus_select', '1');
+            } catch (e) { /* stockage indisponible : on navigue quand même, sans mise au point */ }
+        }
+        window.location.href = url;
+    }
+
     // ── Vider la file À L'ÉCRAN ──────────────────────────────────────────────
     //
     // Après un « Tout effacer », le serveur a tout supprimé ; l'app, elle, retire les cards
@@ -436,6 +450,7 @@
     window.WamaQueue = window.WamaQueue || {};
     window.WamaQueue.focusCard = focusCard;
     window.WamaQueue.clearCards = clearCards;
+    window.WamaQueue.openCard = openCard;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);

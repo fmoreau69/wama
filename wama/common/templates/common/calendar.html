@@ -83,7 +83,7 @@ Couleurs : l'IDENTITÉ de l'app (`APP_CATALOG[…]['color']`, dérivée par cat�
   <h1>Mon calendrier</h1>
   <p class="subtitle">
     Ce que vous avez lancé dans WAMA, sur l'axe du temps, et les tâches planifiées de la plateforme.
-    Cliquez un élément pour retrouver sa card dans son application.
+    Cliquez un élément pour voir sa card dans le volet, et l'ouvrir dans son application.
   </p>
 
   {% comment %}Barre de filtrage COMMUNE en cible VIVANTE (`_filter_bar.html`) : FullCalendar
@@ -147,6 +147,14 @@ Couleurs : l'IDENTITÉ de l'app (`APP_CATALOG[…]['color']`, dérivée par cat�
        data-ics-url="{% url 'common:calendar_ics' %}"></div>
 </div>
 {% endblock %}
+
+{% comment %}VOLET DROIT — la card de l'élément cliqué, comme le JOURNAL (2026-10-18, Fabien : le
+volet montrait Médias / « Aucun paramètre disponible » / Actions vides). Rien de propre au
+calendrier : l'inspecteur commun (`WamaInspector`, monté par `wama-calendar.js`) remplit l'aperçu
+et la fiche par `data-preview-url`, et l'unique action est celle du journal — ouvrir l'élément
+dans son app, où toutes ses actions existent. Paramètres : non déclarés (`calendar_view`).{% endcomment %}
+{% block right_panel_media_hint %}Cliquez un élément<br>pour voir sa card{% endblock %}
+{% block right_panel_actions %}{% include 'common/_inspector_actions.html' %}{% endblock %}
 
 {% block extra_js %}
 <script src="{% static 'vendors/fullcalendar-6.1.15/index.global.min.js' %}"></script>

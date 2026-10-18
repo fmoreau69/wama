@@ -129,6 +129,8 @@ les ré-inclure ici. Seule cette feuille de style reste locale : elle n'est pas 
 </div>
 {% endblock %}
 
+{% block right_panel_media_hint %}Cliquez une card<br>pour son aperçu{% endblock %}
+
 {% block extra_js %}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
 <script>
@@ -143,6 +145,8 @@ les ré-inclure ici. Seule cette feuille de style reste locale : elle n'est pas 
     window.WamaInspector.init({
       queueContainer: liste,
       cardSelector: '.journal-card',
+      // Le volet n'a que Médias (et sa fiche) : visible sans sélection, il porte l'invite.
+      keepMediaSection: true,
       itemLabel: function (id) { return "l'élément #" + id; },
     });
   }
@@ -150,21 +154,15 @@ les ré-inclure ici. Seule cette feuille de style reste locale : elle n'est pas 
   // ── Bouton → : ALLER à l'item dans son app, sélectionné à l'arrivée ────────────────
   // `stopPropagation` : sans lui, le clic remonterait à la card et déclencherait AUSSI la
   // sélection dans l'inspecteur juste avant de quitter la page.
-  // `wama_focus_select` demande la sélection à l'arrivée (support ajouté à `wama-queue.js`) :
-  // sans elle on atterrissait sur une card centrée et pulsée 1,3 s, puis plus aucune trace —
-  // d'où le « on est un peu perdu en arrivant ».
+  // `WamaQueue.openCard` demande la sélection à l'arrivée : sans elle on atterrissait sur une
+  // card centrée et pulsée 1,3 s, puis plus aucune trace — d'où le « on est un peu perdu en
+  // arrivant ».
   document.querySelectorAll('.journal-goto').forEach(function (btn) {
     btn.addEventListener('click', function (ev) {
       ev.stopPropagation();
       var card = btn.closest('.journal-card');
-      var url = card && card.dataset.appUrl;
-      if (!url) { return; }              // app sans route déclarée : bouton inopérant
-      try {
-        sessionStorage.setItem('wama_focus_card',
-                               '.wama-card[data-id="' + card.dataset.id + '"]');
-        sessionStorage.setItem('wama_focus_select', '1');
-      } catch (e) { /* mode privé : on navigue quand même, sans mise au point */ }
-      window.location.href = url;
+      // App sans route déclarée : `appUrl` vide, le bouton est inopérant.
+      if (card && window.WamaQueue) { WamaQueue.openCard(card.dataset.appUrl, card.dataset.id); }
     });
   });
 })();

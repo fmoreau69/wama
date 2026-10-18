@@ -323,10 +323,13 @@ clé entière — et le Lab a des clés UUID. Mesuré le jour même : `reverse` 
 du journal tombait**. `Entree.url_preview` rend donc `''` hors `detail_registry` (le bouton mène à
 l'app) ; garde : `tests_calendar.OtherWorldsTest`.
 
-**Le clic ne réinvente pas de volet** : il pose `sessionStorage['wama_focus_card']` puis navigue
-vers la page de l'app — passage inter-pages que `wama-queue.js` documente lui-même, et le sélecteur
-`[data-id]` fonctionne sur les 14 gabarits de cards d'items (vérifié). L'utilisateur atterrit sur sa
-card, mise en évidence, avec **toutes** les actions de l'app.
+**Le clic ne réinvente pas de volet** : ~~il pose `sessionStorage['wama_focus_card']` puis navigue
+vers la page de l'app~~ — *constat périmé, corrigé le 2026-10-18* : le clic sur une card peuple le
+volet par l'inspecteur COMMUN (`WamaInspector`, crochet `data-preview-url` → aperçu et fiche), comme
+dans une file d'app ; c'est le bouton → qui ouvre l'élément dans son app, sélectionné à l'arrivée
+(`WamaQueue.openCard`, écrit à côté de sa lecture `focusFromSession` dans `wama-queue.js`). Le volet
+ne déclare que Médias (`volet(parametres=False, actions=False)`) : plus de cadre « Aucun paramètre
+disponible ». L'utilisateur garde **toutes** les actions de l'app, là où elles vivent.
 
 > ⚠ **ERREUR CORRIGÉE LE MÊME JOUR — `/common/detail/<app>/<pk>/` EST porteur.** J'avais écrit
 > ici qu'il n'avait « aucun consommateur ». C'est FAUX : `wama-inspector.js::fillDetail()` (l.328)
@@ -427,9 +430,18 @@ déjà, horodaté. Le calendrier **projette** ; il n'écrit rien :
 - **Maintenance de l'instance** = couche grise commutable (« Tâches planifiées de WAMA »), visible de
   tous : dire quand le GPU est réservé est utile à chacun. Seules les entrées **à horaire** sont
   dessinées — les battements à intervalle (10 min, 1 h) noieraient la grille sans rien dire.
-- **Le clic** reprend le geste du journal (`wama_focus_card` + `wama_focus_select`) : on atterrit sur
-  la card sélectionnée dans sa file ; rien n'est réimplémenté. `journal.app_queue_url()` est la cible
-  UNIQUE des deux surfaces.
+- **Le clic** reprend le geste du journal : ~~on atterrit sur la card sélectionnée dans sa file~~ —
+  depuis le 2026-10-18 (Fabien : le volet montrait Médias / « Aucun paramètre disponible » / Actions
+  vides), un ÉLÉMENT montre sa card au volet droit — aperçu et fiche par l'inspecteur commun
+  (l'événement porte `previewUrl` = `DetailRegistry.preview_url`, lu aussi par le journal) — et
+  l'unique action « Ouvrir dans <app> » l'ouvre dans sa file, sélectionné (`WamaQueue.openCard`).
+  Un lot, une purge n'ont pas de card : leur clic ouvre la file. Volet déclaré
+  `volet(parametres=False)`. `journal.app_queue_url()` reste la cible UNIQUE des deux surfaces.
+  La brique a gagné au passage `selectItem(id, el)` : les deux pages mêlent dix apps, deux cards y
+  portent le même `data-id`, et la sélection prenait la première (gardes : `tests_calendar`,
+  `tests_volet`, `tests_preview_navigation.SelectionAcrossAppsTest`). ⚠ Limite connue : ↑/↓ et
+  Entrée retrouvent encore la position par le numéro (`nextStop`) — sur deux numéros égaux, la
+  flèche repart du premier.
 - **Export `.ics`** (RFC 5545, UID stables, lignes repliées) authentifié par la SESSION : c'est un
   téléchargement. L'**abonnement** d'un client (Outlook, Thunderbird) exige un jeton propre à
   l'utilisateur et **révocable**, donc une table : il arrive avec l'étape 3.
