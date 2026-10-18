@@ -24724,3 +24724,89 @@ documentés » de la ROUTE (fait `outils`, 314 → 329) mêle d'autres travaux e
 
 🔚 **POINT D'ENTRÉE** : trancher la relève Discord par `tell`, puis porter la modale de lot
 « — inchangé — » commune (`MODES_QUEUE_UX §5ter`) pour ouvrir les pauses au lot.
+
+## §CLÔTURE — 2026-10-16→18, « MESURES · BARRE DE FILE ▶ ⬇ 🗑 · ZIP DE FILE ET DE LOT · FRONT DU SYNTHESIZER PAR LE SCHÉMA » — ✅ LIVRÉ (non poussé) — 🔴 relancer gunicorn
+
+Demandes de Fabien, dans l'ordre : ajouter les mesures (mécanismes sans critère) ; porter la barre
+de file sur `queue-actions.js` (« on a très clairement porté queue-actions… si ce n'est pas fait, il
+faut le faire ») et actualiser le REMOVAL_LEDGER ; porter « Télécharger tout » (« tout aligner et
+tout porter ») ; puis le reste de portage du synthesizer transmis par la session assistant.
+
+**Livré (commits de cette session, tous locaux)** :
+- `f3699a98` `fc6fbc68` `642414e6` `7ffae594` — balayage d'adoption corrigé (imports relatifs,
+  jumelles exclues, un fichier = un mécanisme, noms front entiers), quatre conventions mesurées ;
+  mécanismes de niveau app sans critère **69 → 55** ;
+- `e4996ae1` — ▶ Démarrer tout / 🗑 Tout effacer de FILE par la brique dans les dix apps (R136) ;
+  REMOVAL_LEDGER : doublons R43/R64/R65/R66 renumérotés **R137–R140**, garde `tests_removal_ledger` ;
+- `edcc49c4` — ⬇ de barre = `_download_button` (`queue=True`), « prêt » par la barre globale (R141) ;
+- `5ffd611e` — ZIP de FILE = `make_progress_views` → `download_all`, écrivain `batch_views.zip_elements`
+  partagé avec le lot, sorties DÉCLARÉES de la card ; l'imager zippe ses vidéos et gagne son ZIP de
+  lot (R142) ; `94c00e33` — revérification (`element_label`, `DetailRegistry.surface_of`, ⬇ de lot
+  vu sur la page) ;
+- `188f732b` — front du synthesizer par le schéma (R147) : inspecteur, modale de lot sur le cycle
+  commun, un lecteur pour toute création, `start_all` / `upload_text` par les briques communes ;
+- `00f42885` `8c56a8b8` — `/commit-partiel` : un relevé tronqué ne mesure pas ; un compteur `expect`
+  recopié du `numstat` de l'arbre ne garde rien.
+⚠ `42157a42` (déplacement de 232 lignes d'une autre instance dans `mecanismes.py`, emporté) a été
+REMPLACÉ par `5ffd611e` ; `188f732b` a emporté deux tests de la session assistant dans
+`synthesizer/tests.py` (contenu juste, attribution fausse — elle l'a écrit dans `b3cbfa08`).
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : régénérer les jumelles de bac à sable depuis les apps
+portées (Fabien : « ensuite on s'occupera des jumelles »), puis la modale de lot « — inchangé — »
+commune.
+
+**File des chantiers ouverts (ordre ; ⛔ = bloqué par une décision)** :
+1. **Jumelles à régénérer** — `converter_01` passe les URLs de barre ET garde le handler copié (double
+   POST, critère `queue_actions_common` « partiel ») ; `converter_01`, `reader_01`, `translator_01`
+   rouges au même critère (`app` absent avec le ⬇ — le générateur est corrigé) ; `synthesizer_01` est
+   une copie du gabarit d'avant le portage (liste de clés). ⚠ La glu du Translator n'est pas versionnée :
+   la copier avant sa re-naissance (passation de la session Translator, `§CLÔTURE … Translator` du 17/10).
+2. **« — inchangé — » de la modale de lot COMMUNE** (`MODES_QUEUE_UX §5ter`, ⏳) — elle reposte toutes
+   ses valeurs : un réglage où les filles divergent est écrasé par son défaut. Prérequis pour ouvrir
+   `sentence_pause` / `clause_pause` au contexte `batch` (`synthesizer/params.py` ; le test
+   `test_the_pauses_are_declared_once_…` de la session assistant sera à mettre à jour avec).
+3. ⛔ **Forme d'entrée de la card dérivée du manifeste** (dépôt / attache / mixte), passation de la
+   session Translator — **décision de Fabien attendue** sur la déclaration : (1, recommandée) par PORT
+   « suffit à créer un élément » ; (2) `required` par port (ne dit pas « l'un OU l'autre ») ; (3)
+   capacité d'app à trois valeurs. Ensuite : `views_gen.prompt_entry`, `templates_gen` (saisie hors
+   mode attache), retirer l'`expectedFailure` de `tests_codegen_templates` (prompt-first), re-naître
+   `translator_01`, poser `data-instant-params` sur la zone instantanée de la card v4.
+4. **Le générateur écrit en LITTÉRAL les noms de réglages** dans les vues des jumelles
+   (`check_redundancy` : « valeurs recopiées des noms de params du schéma », huit jumelles) — signalé
+   par la session Translator, à traiter avec les jumelles.
+5. **Tri des 55 mécanismes sans critère** (proposé, rien d'écrit — `§PALIER 2026-10-17 (soir)`) :
+   marqueur de registre « outil à la demande » ; critères conditionnels (`audio_player`,
+   `visitor_identity`, `add_to_queue`, `document_export`) ; un `Criterion` qui vérifie PLUSIEURS
+   mécanismes (`output_formats` / `export_formats`).
+6. `task_skeleton._item_label` (`task_skeleton.py:197`) — jumeau antérieur d'`element_label`, non porté
+   (l'unifier ferait dépendre le squelette de tâche des vues de lot).
+7. Profils de réglages au commun (`ROADMAP §22.5`) — proposé, non engagé.
+
+**Écarts de comportement assumés (à connaître)** : le ZIP de l'enhancer ne prend plus les cards
+PARTAGÉES (il suit la file déclarée, comme sa barre) ; noms d'archive uniformes ; file vide = 404
+JSON ; le reader sans `?format=` rend le premier format déclaré ; describer : ⬇ inactif sur une file
+sans résultat (il était `download_ready=True`).
+
+**Pendings système** : 🔴 relancer gunicorn (vues, gabarits, JS servis) · pousser (10 commits non
+poussés sur `dev` à ce point, toutes sessions) · gestes navigateur à rejouer : ⬇ de barre (aucun geste
+nocturne ne le couvre), ⚙ de lot du synthesizer (pré-remplissage, « Sauvegarder et relancer »), ZIP de
+lot de l'imager, `<app>.clear_all` et `batch_processing`.
+
+**Hors de mon périmètre, vu en clôture** : manifestes d'app `avatarizer`, `enhancer`, `reader`
+PÉRIMÉS par des paramètres ajoutés aux outils de l'assistant (`add_to_enhancer`, `add_to_reader`… —
+chantier `tool_api` d'une autre session), non régénérés ici ; REMOVAL_LEDGER R148–R149 (installation
+par la route) en cours d'écriture par une autre session ; chantier des thèmes (une soixantaine de
+gabarits, `mecanismes.py` dont un déplacement de blocs non commité, `briques.md`, `registres.md`) ;
+deux manifestes OpenRouter non suivis.
+
+**Artefacts** : scripts jetables de mesure et de contre-épreuve dans le scratchpad de session (rien à
+garder) ; aucun compte ni élément semé hors des bases de test (les tests passent par `TestCase`) ;
+aucun worker recyclé, aucune file touchée.
+
+**Contrôles attendus au prochain /reprise** (mesurés le 2026-10-18) : 325 tests de mon périmètre OK
+(1 échec attendu) ; grille **110** critères, dix apps à **100 %** ; `check_docs` **0** cassée sur 2916 ;
+`doc_facts --check` rien de périmé ; `check_redundancy` 114 trouvailles au total, **aucune** dans mes
+fichiers ; ledger sans doublon de numéro (`tests_removal_ledger`) ; suite élargie du 18/10 : aucun
+rouge neuf de cette session (les rouges hérités — MuseTalk, MIDI, `tests_dev_ai_bridge`,
+`tests_codegen_from_scratch`, `accounts` ×12 fichiers de test, `profile.html` multi-ligne… — sont à
+d'autres chantiers).
