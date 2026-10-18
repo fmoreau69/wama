@@ -1,12 +1,21 @@
 """The page of the UI bricks registry (2026-10-16, asked by Fabien : the map of the registries named
 « Briques UI », nothing showed them). It derives from `common/surfaces.py` on each display, is reached
 from the registry card and from the account menu, and shows which surfaces compose each brick."""
+import tempfile
+from unittest import mock
+
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from wama.common import registries
-from wama.common.surfaces import BRICKS, SURFACES, load_all
+from wama.common.app_registry import measured_adoption
+from wama.common.mecanismes import MECHANISMS, UI_DOMAIN
+from wama.common.surfaces import (BRICK_FAMILIES, BRICKS, SURFACES, THUMBNAILS_DIR, load_all,
+                                  thumbnail_path)
+
+#: The components of the interface, sorted — the « Système » family reads them, nothing else.
+SYSTEM = sorted(m.key for m in MECHANISMS if m.domain == UI_DOMAIN)
 
 
 class UIBricksPageTest(TestCase):
@@ -53,3 +62,85 @@ class UIBricksPageTest(TestCase):
         page = self._page()
         self.assertNotIn('data-wama-refresh="ui_bricks"', page)
         self.assertIn('toujours à jour', page)
+
+
+class SystemComponentsTest(TestCase):
+    """The « Système » family (2026-10-18, Fabien) : the shared components of the interface, read
+    from the `UI_DOMAIN` of the mechanisms registry — and « used by » is the adoption MEASURED by
+    the conformity grid, the report `/apps/` reads, never a scan of the repository."""
+
+    def setUp(self):
+        self.client.force_login(get_user_model().objects.create_user('ui-system', password='x'))
+        load_all()
+
+    def _page(self, report=None):
+        with mock.patch('wama.common.app_registry._conformity_report', return_value=report):
+            response = self.client.get(reverse('common:ui_bricks_catalog'))
+        self.assertEqual(200, response.status_code)
+        return response.content.decode('utf-8', 'replace')
+
+    def test_every_component_of_the_interface_domain_has_its_card_and_no_other(self):
+        page = self._page()
+        self.assertTrue(SYSTEM, 'the instrument sees the domain')
+        self.assertIn(f'data-f-famille="{BRICK_FAMILIES["system"]}"', page)
+        for key in SYSTEM:
+            with self.subTest(component=key):
+                self.assertIn(f'data-id="{key}"', page)
+        for mechanism in MECHANISMS:
+            if mechanism.domain != UI_DOMAIN and mechanism.key not in BRICKS:
+                with self.subTest(outside=mechanism.key):
+                    self.assertNotIn(f'data-id="{mechanism.key}"', page)
+
+    def test_used_by_is_the_adoption_the_grid_measured(self):
+        checked, unchecked = SYSTEM[0], SYSTEM[1]
+        report = {'generated_at': '2026-10-18T00:00:00+00:00',
+                  'criteria': {'c_one': {'mechanism': checked}, 'c_two': {'mechanism': checked}},
+                  'apps': {'app_all': {'conv': {'c_one': True, 'c_two': True}},
+                           'app_part': {'conv': {'c_one': True, 'c_two': False}},
+                           'app_none': {'conv': {'c_one': False, 'c_two': False}},
+                           'app_na': {'conv': {}}}}
+        with mock.patch('wama.common.app_registry._conformity_report', return_value=report):
+            adoption = measured_adoption(checked)
+            self.assertEqual(['c_one', 'c_two'], adoption['criteria'])
+            self.assertEqual({'app_all': True, 'app_part': 'partial', 'app_none': False},
+                             adoption['apps'])
+            self.assertEqual([], measured_adoption(unchecked)['criteria'])
+        page = self._page(report)
+        card = page.split(f'data-id="{checked}"', 1)[1].split('wama-cat-card', 1)[0]
+        self.assertIn('app_all', card)
+        self.assertIn('app_part<small>partiel</small>', card)
+        self.assertNotIn('app_none', card)
+        other = page.split(f'data-id="{unchecked}"', 1)[1].split('wama-cat-card', 1)[0]
+        self.assertIn('aucun critère de la grille ne le vérifie', other)
+
+    def test_without_a_measured_report_nothing_is_invented(self):
+        self.assertEqual({'criteria': [], 'apps': {}, 'measured_at': None},
+                         self._adoption_without_report())
+        self.assertIn('aucun critère de la grille ne le vérifie', self._page(None))
+
+    def _adoption_without_report(self):
+        with mock.patch('wama.common.app_registry._conformity_report', return_value=None):
+            return measured_adoption(SYSTEM[0])
+
+
+class BrickThumbnailTest(TestCase):
+    """A brick's thumbnail is the capture the nightly took (`surfaces.thumbnail`), served from
+    `STATIC_ROOT` under an address that changes with the capture ; without one, the card says so."""
+
+    def setUp(self):
+        self.client.force_login(get_user_model().objects.create_user('ui-thumb', password='x'))
+        load_all()
+
+    def test_a_captured_brick_shows_its_capture_and_an_uncaptured_one_says_so(self):
+        shot, bare = sorted(BRICKS)[:2]
+        with tempfile.TemporaryDirectory() as root, override_settings(STATIC_ROOT=root):
+            path = thumbnail_path(shot)
+            path.parent.mkdir(parents=True)
+            path.write_bytes(b'capture')
+            response = self.client.get(reverse('common:ui_bricks_catalog'))
+        page = response.content.decode('utf-8', 'replace')
+        card = page.split(f'data-id="{shot}"', 1)[1].split('wama-cat-card', 1)[0]
+        self.assertIn(f'class="wama-cat-thumb" src="/static/{THUMBNAILS_DIR}/{shot}.png?v=', card)
+        other = page.split(f'data-id="{bare}"', 1)[1].split('wama-cat-card', 1)[0]
+        self.assertIn('aucune capture', other)
+        self.assertNotIn('<img class="wama-cat-thumb"', other)

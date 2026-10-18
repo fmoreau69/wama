@@ -278,7 +278,8 @@
           {"id": "preview", "brick": "html_preview", "x": 7, "y": 0, "w": 5, "h": 10,
            "options": {"role": "preview"}},
           {"id": "actions", "brick": "surface_actions", "x": 7, "y": 10, "w": 5, "h": 6}
-        ]
+        ],
+        "witness": {"draft_file": ".md", "output_file": ".html"}
       }
     ]
   },

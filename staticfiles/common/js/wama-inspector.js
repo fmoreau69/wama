@@ -1360,8 +1360,30 @@
           hote.innerHTML = (global.WamaDetails && WamaDetails.renderSections)
             ? WamaDetails.renderSections(d.donnees, d.schema)
             : '';
+          // La VIGNETTE de la tuile (2026-10-18, catalogue des briques UI) : la même image en
+          // tête du détail, agrandie au même clic. Une tuile qui n'en porte pas n'en montre pas.
+          var thumb = el.querySelector('img.wama-cat-thumb');
+          if (thumb) { hote.insertBefore(thumb.cloneNode(false), hote.firstChild); }
         },
       });
+    });
+    wireThumbnails();
+  }
+
+  /**
+   * Un clic sur une vignette de tuile (`img.wama-cat-thumb`, dans la grille ou dans le volet)
+   * l'agrandit dans la visionneuse COMMUNE — sa surcouche image, celle « des galeries sans
+   * élément » (`media-preview.js`, `openWamaFullscreen`) : aucune visionneuse de plus. Délégué
+   * sur le document, posé une fois : il survit au re-rendu du volet.
+   */
+  var _thumbnailsWired = false;
+  function wireThumbnails() {
+    if (_thumbnailsWired) return;
+    _thumbnailsWired = true;
+    document.addEventListener('click', function (e) {
+      var img = e.target.closest && e.target.closest('img.wama-cat-thumb');
+      if (!img || typeof global.openWamaFullscreen !== 'function') return;
+      global.openWamaFullscreen(img.currentSrc || img.src, img.alt || '');
     });
   }
 

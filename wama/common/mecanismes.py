@@ -103,6 +103,14 @@ def _domain(name: str, mechanisms: tuple) -> tuple:
     return tuple(replace(m, domain=name) for m in mechanisms)
 
 
+#: Le domaine des COMPOSANTS COMMUNS DE L'INTERFACE — ce que l'on voit et manipule, partagé par
+#: toutes les pages. La page des briques UI en fait sa famille « Système » (2026-10-18, décision
+#: de Fabien) : une lecture de ce domaine, jamais une seconde liste. D'où le rangement du même
+#: jour — les composants d'interface égarés y sont entrés, les pièces sans rien de visible
+#: (réponses par morceaux, cache-busting, grille des temps, notation MIDI) en sont sorties.
+UI_DOMAIN = 'UI générée'
+
+
 #: ⚠ ORDRE : par domaine (= ordre des sous-tables de la carte) ; alphabétique à la génération.
 MECHANISMS = (
     *_domain('Ressources & exécution', (
@@ -258,6 +266,7 @@ MECHANISMS = (
                        'wama/common/services/ui_smoke_states.py',
                        'wama/common/services/ui_smoke_panel.py',
                        'wama/common/services/ui_smoke_preview.py',
+                       'wama/common/services/ui_smoke_surfaces.py',
                        'wama/common/services/rights_matrix.py',
                        'wama/common/nightly_scenarios.py',
                        'wama/common/nightly_suite.py')),
@@ -367,7 +376,10 @@ MECHANISMS = (
               "le texte d'une révision GARDÉE, un geste d'édition annulable. 3ᵉ (2026-10-15) : la "
               "partition du composer — champs ALTERNATIFS (sortie de l'un de deux process), "
               "briques `score_view` (gravure abcjs, notes jouées colorées, glisser = transposer) "
-              "et `media_transport`, sur l'AXE partagé de la surface (`ctx.axis()`)",
+              "et `media_transport`, sur l'AXE partagé de la surface (`ctx.axis()`). 2026-10-18 : "
+              "chaque surface DÉCLARE son élément témoin (`witness`), sur lequel le nocturne "
+              "l'ouvre et capture ses briques — les vignettes du catalogue (`thumbnail`), qui "
+              "montre aussi les composants SYSTÈME (domaine `UI_DOMAIN`)",
               'wama/common/surfaces.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/surface_views.py',
@@ -586,106 +598,6 @@ MECHANISMS = (
               'wama/media_library/services.py', 'docs/construction/ui/CARD_DESIGN.md §2bis',
               symbol='export_item_to_library',
               depends_on=('asset_natures',)),
-    Mechanism('filter_bar', 'Barre de filtrage',
-              "Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclarées "
-              "(server). Depuis le 2026-09-08 la recherche est un OUTIL du registre de barre "
-              "(`toolbar_registry`), donc la même dans les registres et dans les 12 files. "
-              "Masquage PAR CLASSE (`.wama-f-hors-filtre`) et non par `style.display` : une "
-              "cible à `display` inline (l'entrée unitaire de file est en `display:contents`) "
-              "ne survivait pas à la restauration. `data-cible-dans` BORNE la recherche — sans "
-              "quoi deux files sur une même page se filtreraient l'une l'autre. `data-cible-vivante` "
-              "(2026-09-28, calendrier) : une liste RE-RENDUE par un composant est relue à chaque "
-              "application, et le composant appelle `WamaFilterBar.refresh(barre)` après rendu. "
-              "Mode `remote` (2026-10-01, médiathèque) : la page charge sa liste elle-même, la "
-              "barre émet `wama:filter-change` ({q, facets, sort}) ; outil de tri `sort_by` déclaré "
-              "par la page",
-              'wama/common/static/common/js/wama-filter-bar.js', 'docs/construction/ui/CARD_DESIGN.md',
-              annexes=('wama/common/templates/common/_filter_bar.html',),
-              symbol='WamaFilterBar'),      # global de base.html : compté par son symbole
-    Mechanism('panel_toggle', "Repli des volets latéraux par leur frontière",
-              "Un clic sur la FRONTIÈRE d'un volet (explorateur, panneau) le replie ou le rouvre, "
-              "sur toute page : au repos rien de plus que le liseré, au survol une ligne et une "
-              "pastille à chevron qui suit le pointeur ; volet replié, une trace fine au bord de la "
-              "fenêtre. État par NAVIGATEUR (localStorage), appliqué avant le premier rendu. La "
-              "place des volets a une SOURCE UNIQUE : les marges `--wama-left-gutter` / "
-              "`--wama-right-gutter` (0 replié, sans volet ou en mode simplifié) que lisent le "
-              "corps, l'en-tête et les barres fixes des pages ; une règle qui se calerait sur la "
-              "largeur brute d'un volet est refusée par `tests_panel_toggle`. Au doigt (tablette), "
-              "la pastille reste visible. Après chaque bascule : `resize` + `wama:panels`. DEUX "
-              "CONTEXTES DE LARGEUR (2026-10-12) : sous le point de rupture `lg` de Bootstrap "
-              "(tablette en portrait, fenêtre étroite), volets repliés d'office, un seul ouvert à "
-              "la fois, mémoire à part — le choix fait en grand n'est jamais écrasé "
-              "(`WamaPanelsContext`, posé par base.html avant le premier rendu). La barre du haut "
-              "et le pied sont des grilles `1fr auto 1fr` : rien ne s'y chevauche, les libellés "
-              "s'effacent derrière leur icône quand la barre manque de place (requête de "
-              "conteneur) ; mesuré chaque nuit par `common.layout.tablet`",
-              'wama/common/static/common/js/wama-panel-toggle.js', 'docs/construction/ui/WAMA_VOLETS.md',
-              annexes=('wama/common/static/common/css/wama-panel-toggle.css',
-                       'wama/common/services/ui_smoke_layout.py'),
-              symbol='WamaPanels'),         # global de base.html : compté par son symbole
-    Mechanism('touch', "WAMA au doigt (écrans tactiles)",
-              "Une règle commune, montée par base.html EN DERNIER, pour tout écran dont le "
-              "pointeur principal est un doigt — critère UNIQUE `(pointer: coarse)` : commandes à "
-              "44 px au moins (boutons, onglets, menus, titres repliables, `[role=button]`), cases, "
-              "interrupteurs et curseurs à 24 px au moins — des PLANCHERS, jamais des tailles. Et "
-              "la convention « révélé au survol » : `.wama-reveal-host` sur l'hôte, `.wama-reveal` "
-              "sur l'action — montrée au survol, au clavier, et TOUJOURS au doigt ; son inverse "
-              "`.wama-reveal-hide` pour ce qui lui cède la place. Une règle "
-              "`:hover` locale qui révélerait un élément est refusée par `tests_touch`. Les "
-              "briques affinent chez elles, sur le même critère (process des cards v3, lecteur "
-              "audio, saisie de l'assistant, ports du studio, variante « large » de l'explorateur)",
-              'wama/common/static/common/css/wama-touch.css',
-              'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
-              annexes=('wama/common/tests/tests_touch.py',),
-              symbol='wama-reveal'),        # classe CSS : comptée par les gabarits/JS qui la posent
-    Mechanism('gestures', "Gestes au pointeur (glisser, défiler, pincer, appui long)",
-              "Montée par base.html, pour toute page des trois mondes (ROADMAP §27, étape 3, "
-              "2026-10-16). Trois choses : (1) `WamaGestures.track(el, {start, move, end, pinch})` "
-              "suit un pointeur sur une surface qui dessine elle-même — seuil entre clic et glisser, "
-              "boutons de souris filtrés, PINCEMENT à deux doigts ; Pointer Events, donc souris, "
-              "stylet et doigt par le même code (canvas du studio, onde de l'éditeur du "
-              "transcriber) ; (2) le glisser HTML5 AU DOIGT, sur tout `[draggable=\"true\"]` : appui "
-              "long puis le doigt bouge → `dragstart`/`dragover`/`drop`/`dragend` avec un "
-              "`dataTransfer` réel, vignette qui suit, liste qui défile au bord — la file, la "
-              "palette du studio et l'ordre des segments marchent au doigt sans une ligne chez eux, "
-              "et la souris garde son glisser natif ; (3) l'APPUI LONG : l'infobulle (`title`) d'une "
-              "commande sans la déclencher, sinon un `contextmenu` (menu de card, arbre — l'iPad "
-              "n'en émet pas) ; sur ce qu'on glisse, il soulève : bouger glisse, relâcher ouvre le "
-              "menu. Une page n'écrit ni `touchstart` pour un geste porté ici, ni "
-              "mousedown/mousemove pour suivre un glisser ; mesuré chaque nuit sur de vrais "
-              "événements tactiles par `common.gestures.touch`, et les mêmes pages à la souris "
-              "par `common.gestures.mouse` (la garde du PC)",
-              'wama/common/static/common/js/wama-gestures.js',
-              'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
-              annexes=('wama/common/tests/tests_gestures.py',
-                       'wama/common/services/ui_smoke_layout.py'),
-              symbol='WamaGestures'),       # global de base.html : compté par son symbole
-    Mechanism('card_menu', "Menu contextuel de card/lot + débordement « … »",
-              "Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; "
-              "le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales "
-              "(bouton édition compris — décision Fabien 2026-09-08). Modèle HYBRIDE : les "
-              "actions EXISTANTES sont LUES sur le `.btn-group-actions` de la card (contrat de "
-              "`cloneActions`, donc zéro ligne par app et clic PROXIFIÉ vers le vrai bouton), "
-              "les TRANSVERSES sont déclarées et leurs URLs viennent de `queue_dnd_attrs` — une "
-              "route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus en "
-              "CASCADE, au survol et au clic, le parent restant ouvert (2026-09-14) et DIFFÉRÉS "
-              "(« Recherche… » puis rempli : il n'attend pas le réseau). Se ferme sur un geste de "
-              "l'UTILISATEUR hors du menu, jamais sur un `scroll` (un focus programmatique le "
-              "refermait en 7 ms). 2ᵉ surface : l'arbre de fichiers (`ouvrir()` depuis "
-              "`filemanager.js`, 2026-09-14), qui obtient depuis le 2026-09-18 les gestes "
-              "d'ÉLÉMENT (Partager…, Ajouter à la médiathèque…, Ajouter au RAG) sur un fichier "
-              "de SORTIE par `entreesPourChemin` — le serveur remonte à l'élément "
-              "(`send_to.item_for_output_path`), les entrées sont CELLES de la card "
-              "(`entreesPourElement`, une seule liste), posées en ENTRÉE DIFFÉRÉE à la racine "
-              "du menu (`{chargement, charger}` : « Recherche… » puis remplacement, le menu "
-              "n'attend pas le réseau). Depuis le 2026-10-14, un fichier qui n'est la sortie de "
-              "RIEN (dépôt temporaire, entrée d'app, dossier connecté) a « Ajouter au RAG » sur "
-              "le FICHIER, et une sélection de N fichiers « Ajouter N fichiers au RAG » "
-              "(`entreesPourChemins`). ⚠ Le menu est posé sur `document.body` : une card "
-              "vit dans un conteneur à `overflow` qui le rognerait. Le « … » suit les cards INSÉRÉES "
-              "ou REMPLACÉES après le chargement (observation de la file, 2026-09-15)",
-              'wama/common/static/common/js/wama-card-menu.js', 'docs/construction/ui/CARD_DESIGN.md',
-              symbol='WamaCardMenu'),
     Mechanism('item_revisions', "Révisions d'un élément (historique DANS la card)",
               "Chaque résultat produit donne à l'élément une révision numérotée — réglages dérivés "
               "du schéma, fichiers et leur empreinte, instruction — rattachée au fait `produit` de "
@@ -795,18 +707,6 @@ MECHANISMS = (
               'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
               annexes=('wama/common/tests/tests_file_references.py',
                        'wama/common/tests/tests_card_listed_files.py')),
-    Mechanism('toolbar_registry', "Barre d'outils générale (registre + profils)",
-              "UN registre d'outils (l'UNION de toutes les barres) et des PROFILS par nature de "
-              "surface : `file` (12 files d'app) et `registre` (15 catalogues). Une surface tire "
-              "des outils, elle ne les énumère pas — ajouter un outil à toutes les files est UNE "
-              "clé, plus jamais douze gabarits (demande Fabien 2026-09-08 : « de façon globale, "
-              "pas par app »). Les deux barres historiques SURVIVENT en façades vers "
-              "`_toolbar.html`, ce qui laisse les 27 pages appelantes inchangées ; les deux "
-              "ENVELOPPES sont conservées telles quelles (les fondre aurait changé les deux "
-              "apparences). Chaque outil est un partial sous `common/toolbar/`",
-              'wama/common/toolbar.py', 'docs/construction/ui/CARD_DESIGN.md',
-              annexes=('wama/common/templates/common/_toolbar.html',
-                       'wama/common/templatetags/wama_toolbar.py')),
     Mechanism('journal', "Journal transversal de l'utilisateur",
               "Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune ligne par app",
               'wama/common/services/journal.py', 'docs/construction/ia/WAMA_MEMORY.md §9bis'),
@@ -1665,45 +1565,6 @@ MECHANISMS = (
               'wama/common/services/batch_settings.py', 'docs/construction/ui/MODES_QUEUE_UX.md §5ter',
               annexes=('wama/common/tests/tests_batch_views.py',),
               depends_on=('batch_views', 'item_revisions')),
-    Mechanism('queue_dnd', 'Glisser-déposer et sélection multiple de la file',
-              "Les QUATRE gestes de manipulation directe, hérités par les 12 apps sans qu'aucune "
-              "n'écrive une ligne : déposer SUR une card change l'APPARTENANCE (entrer dans un "
-              "lot / en former un), déposer ENTRE deux cards change l'ORDRE (file ou lot) ; "
-              "sélection multiple clic/Ctrl/Maj, qui EST celle de l'inspecteur (une seule "
-              "sélection dans WAMA — la brique ANNONCE `wama:selection-change`, l'inspecteur "
-              "REND). Une CASE en tête de chaque card la dessine (2026-10-16) : la cocher AJOUTE "
-              "à la sélection, comme Ctrl+clic — à la souris sans clavier comme au doigt ; "
-              "visible au survol, cochée ou dès qu'une sélection est en cours. Le SURVOL d'une "
-              "card de file est une règle commune (`wama-inspector.css`), aucune app n'écrit le "
-              "sien. Auto-monté sur `[data-wama-dnd]`, posé par le templatetag "
-              "`queue_dnd_attrs` : une app qui ne le pose pas garde une file strictement inerte. "
-              "SortableJS écarté (multi-sélection + fusion sur une card + règle « pas de CDN »)",
-              'wama/common/static/common/js/wama-queue-dnd.js', 'docs/construction/ui/CARD_DESIGN.md §3bis',
-              symbol='WamaQueueDnd',        # global de base.html : compté par son symbole
-              annexes=('wama/common/static/common/css/wama-queue-dnd.css',
-                       'wama/common/templatetags/wama_actions.py',
-                       'wama/common/tests/tests_queue_dnd.py')),
-    Mechanism('history', 'Historique annuler / rétablir',
-              "Deux piles + plafond + état des boutons + raccourcis Ctrl+Z / Ctrl+Maj+Z / Ctrl+Y. "
-              "PORTABLE parce que la machinerie ne touche JAMAIS le modèle : elle ne le connaît "
-              "que par `snapshot()` et `restore(state)`, que l'appelant fournit. La coalescence "
-              "des rafales de frappe (`burstWindow`) est une OPTION, pas un acquis — elle n'a "
-              "aucun sens sur un éditeur non textuel, où chaque mutation est déjà atomique. "
-              "⚠⚠ La FILE D'ATTENTE ne peut PAS l'utiliser : ses gestes sont commis côté serveur "
-              "à l'instant du dépôt, il n'y a pas de modèle client à photographier — son "
-              "« annuler » est un REJEU D'OPÉRATION INVERSE, même mot, mécanisme différent. Les "
-              "réunir ici donnerait une API qui MENT sur ce qu'elle garantit. "
-              "DEUX consommateurs, et deux façons de marquer un cran — c'est l'ADOPTION qui l'a "
-              "révélé : `push()` AVANT la mutation (transcriber, qui marque en tête de chaque "
-              "opération) et `commit()` APRÈS (studio, dont les 9 opérations passent par UN "
-              "entonnoir, `persistDraft`). La v1 n'offrait que `push()` : suffisant pour le "
-              "consommateur dont elle sortait, insuffisant pour le suivant. `silence(fn)` couvre "
-              "le chargement programmatique, et la garde de RÉ-ENTRANCE vit dans la brique — "
-              "restaurer c'est muter (`loadGraph`→`clearCanvas`→`removeNode`→l'entonnoir), donc "
-              "tout consommateur à entonnoir remplirait son historique de son propre travail",
-              'wama/common/static/common/js/wama-history.js', 'docs/construction/ui/CARD_DESIGN.md',
-              annexes=('wama/transcriber/static/transcriber/js/edit.js',
-                       'wama/studio/static/studio/js/wama-studio.js')),
     Mechanism('queue_order', 'Ordre MANUEL de la file',
               "Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin."
               "queue_index`, 13 modèles de batch) + 6ᵉ tri « Manuel » — le SEUL tri qui LIT une "
@@ -1714,37 +1575,6 @@ MECHANISMS = (
               'wama/common/models.py', 'docs/construction/ui/CARD_DESIGN.md §3bis',
               annexes=(),
               symbol='QueueOrderMixin'),
-    Mechanism('queue_front', "File d'attente (front)",
-              "Comportements communs des files : collapse de batch persisté, mode Solitaire "
-              "(accordéon), toggle Ligne/Mosaïque, les 3 densités et le modificateur PILE "
-              "(CARD_DESIGN §11.4/§11.9), focus card, clearCards, data-wama-*",
-              'wama/common/static/common/js/wama-queue.js', 'docs/construction/ui/CARD_DESIGN.md',
-              symbol='WamaQueue',           # global de base.html : compté par son symbole
-              annexes=('wama/common/static/common/js/queue-actions.js',
-                       'wama/common/templates/common/_queue_toolbar.html',
-                       'wama/common/templates/common/_queue_actions.html',
-                       'wama/common/templates/common/_batch_card.html')),
-    Mechanism('queue_entry', "Entrée de file (card seule OU lot)",
-              "Décide, pour une entrée de file, si elle s'affiche en card unique ou en card MÈRE "
-              "avec ses filles repliables — et rend l'un ou l'autre. Le bloc vivait recopié À "
-              "L'IDENTIQUE dans les gabarits d'app (10 au dernier compte — le partial fait foi) ; "
-              "il n'a pu être centralisé (2026-08-25) qu'une fois "
-              "deux verrous levés : `is_unitary` adopté (la décision se lit sur le modèle) et "
-              "`elem` (les cards filles reçoivent leur élément sous le MÊME nom — avant, 8 "
-              "graphies). Signature à 3 paramètres : `card_template`, plus `collapse_prefix` et "
-              "`batch_key` pour la seule app à deux files sur une page (enhancer audio). ⚠ Tout "
-              "le reste TRAVERSE PAR LE CONTEXTE — les ~9 paramètres de `_batch_card.html` sont "
-              "fournis par l'app et passent au travers, sinon la signature atteindrait la "
-              "quinzaine. Apparence uniformisée sur le TRANSCRIBER (référence), conforme à "
-              "`CARD_DESIGN §11.2` (famille de lot = cyan #0dcaf0) : les 3 couleurs et 2 "
-              "habillages qui coexistaient étaient des séquelles d'implémentations successives. "
-              "Depuis le 2026-09-15 l'entrée porte `data-card-url` : quand une suppression réduit "
-              "un lot à une card, `queue-actions.js` la redemande au serveur et la file se met à "
-              "jour sans rechargement de la page (la vue dit l'état du lot : "
-              "`batch_common.batch_state` ; la position d'une card seule : `is_batch_child`)",
-              'wama/common/templates/common/_queue_entry.html', 'docs/construction/ui/CARD_DESIGN.md §11.2',
-              annexes=('wama/common/tests/tests_queue_delete_contract.py',),
-              depends_on=('queue_order', 'batch', 'queue_front')),
     Mechanism('output_naming', 'Nom du fichier de sortie',
               "Une règle unique pour les 8 apps à liaison PRÉCOCE, en deux familles : entrée "
               "FICHIER → `<stem>_<process>_<modèle>[_<i>]<ext>` (l'utilisateur retrouve SON nom, "
@@ -1802,17 +1632,6 @@ MECHANISMS = (
               'wama/common/utils/work_dir.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
               annexes=('wama/common/backends/codeformer_backend.py',
                        'wama/avatarizer/views.py')),
-    Mechanism('console', 'Console utilisateur',
-              "Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », "
-              "mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des "
-              "`requirements` (vérifié 2026-08-22) : la console tourne DEPUIS TOUJOURS sur son "
-              "repli cache, qui fonctionne mais n'est pas atomique (lire/insérer/réécrire, donc "
-              "des lignes perdues quand gunicorn et les workers Celery poussent en même temps). "
-              "Le correctif n'est PAS d'ajouter la dépendance : le client `redis` brut est déjà "
-              "installé et la brique d'accès existe (`resource_governor._redis`, via "
-              "`CELERY_BROKER_URL`)",
-              'wama/common/utils/console_utils.py', '',
-              annexes=('wama/common/static/common/js/console.js',)),
     Mechanism('notifications', 'Notifications',
               "notify_job_end() — LA fin d'un traitement (squelette de tâche) : e-mail "
               "(notify_job) et notification DANS WAMA au propriétaire selon ses préférences, "
@@ -1825,20 +1644,10 @@ MECHANISMS = (
               'wama/common/utils/notifications.py', 'docs/construction/exploitation/WAMA_COLLABORATION.md',
               annexes=('wama/common/context_processors.py',
                        'wama/common/templates/common/notifications.html')),
-    Mechanism('notification_panel', 'Panneau de la cloche',
-              "Un clic sur la cloche ouvre ses notifications SANS quitter la page (2026-10-13) : "
-              "ouvrir, lu / non lu, supprimer (avec « Annuler »), tout lire, et les gestes PROPRES "
-              "à un type — déclarés par le serveur (STYLE_BY_KIND, ACTIONS_BY_KIND : « Accorder / "
-              "Refuser » une demande d'accès), la page ne connaît aucun type. Ouvrir le panneau ne "
-              "marque rien comme lu ; le lien de la cloche reste la page complète (Ctrl-clic)",
-              'wama/common/services/notification_panel.py',
-              'docs/construction/exploitation/WAMA_COLLABORATION.md',
-              annexes=('wama/common/static/common/js/wama-notifications.js',
-                       'wama/common/static/common/css/wama-notifications.css')),
 
     )),
 
-    *_domain('UI générée', (
+    *_domain(UI_DOMAIN, (
     # Les briques FRONT d'un mécanisme (js/partials) sont ses ANNEXES : même identité, le
     # comptage voit alors aussi les gabarits qui les référencent (balise <script>, include).
     Mechanism('param_schema', 'Schéma de paramètres',
@@ -2029,33 +1838,6 @@ MECHANISMS = (
               'wama/common/static/common/js/wama-axis.js',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               depends_on=('shuttle',)),
-    Mechanism('audio_rhythm', 'Grille des temps d\'un audio',
-              "L'instant de chaque temps joué d'un audio et les hauteurs qui y sonnent (chroma par "
-              "temps), en cache par fichier et date — de quoi caler une partition TEMPS PAR TEMPS "
-              "sur ce qui est joué plutôt que par son tempo écrit (né le 2026-10-16 : #754 écrit à "
-              "88, joué à 89,1). Ne connaît aucune partition ; le calage est `WamaScore.align`",
-              'wama/common/utils/audio_rhythm.py',
-              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
-              depends_on=('audio_decode',)),
-    Mechanism('midi_score', 'Notation d\'un MIDI multi-instrument (MIDI → ABC)',
-              "Un MIDI à une piste par instrument → une partition ABC lisible : une voix par "
-              "instrument (libellé français), clavier sur deux portées, batterie en portée de "
-              "percussion, accords, liaisons, altérations par mesure. Sur la métrique du MIDI quand "
-              "le moteur en a trouvé une, sinon sur les temps JOUÉS de l'audio (`audio_rhythm`), "
-              "anacrouse comprise. Né le 2026-10-16 pour la partition complète du composer "
-              "(MuScriptor, tâche `audio-to-midi`) ; ne connaît aucun moteur. Porte aussi la "
-              "LECTURE MIDI commune (`read_midi` : tempos, mesure, tonalité, marqueurs, une partie "
-              "par piste et canal), que le moteur YuE2 consomme pour suivre une partition MIDI",
-              'wama/common/utils/midi_score.py',
-              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
-              annexes=('wama/common/tests/tests_midi_score.py',)),
-    Mechanism('ranged_response', 'Servir un fichier par morceaux (HTTP Range)',
-              "Réponse 206 à une requête `Range` — ce qui rend un média seekable au-delà du "
-              "déjà-téléchargé ; sert `/media/` (`wama/urls.py`) et la vidéo du cam_analyzer, "
-              "dont la règle a été extraite (2026-10-15)",
-              'wama/common/utils/ranged_response.py',
-              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
-              annexes=('wama/common/tests/tests_ranged_response.py',)),
     Mechanism('playhead_follow', 'Suivre la tête de lecture (traitement au fil de la lecture)',
               "Le navigateur pose un curseur, une tâche longue le suit tranche par tranche, modèle "
               "gardé chargé, et s'arrête d'elle-même (arrêt demandé, 90 s d'inactivité, traitement "
@@ -2085,13 +1867,6 @@ MECHANISMS = (
               'wama/common/static/common/js/wama-card-v3.js', 'docs/construction/ui/CARD_DESIGN.md §11',
               annexes=('wama/common/templates/common/_card_state.html',),
               symbol='WamaCardV3'),         # global de base.html : compté par son symbole
-    Mechanism('static_versioning', 'Cache-busting statique',
-              "`{% static_v %}` = `{% static %}` + `?v=<mtime>` : le navigateur re-télécharge "
-              "un fichier statique dès qu'il change, le garde en cache sinon",
-              'wama/common/templatetags/wama_static.py', '',
-              # Consommé par la balise de gabarit, jamais par import Python : sans symbole,
-              # le compteur (imports du module) rendait 0 — brique « morte » à 100+ pages.
-              symbol='static_v'),
     # Ajouté le 2026-10-03 (ROUTE §11 #25) : le socle existait depuis le 2026-08-22, rattaché
     # en simple annexe d'`import_front` — donc ni compté ni vérifié pour lui-même, à 0/10 dans
     # le parc réel pendant six semaines.
@@ -2189,6 +1964,209 @@ MECHANISMS = (
               annexes=('wama/common/static/common/css/wama-theme.css',
                        'wama/common/tests/tests_theme.py')),
 
+    Mechanism('filter_bar', 'Barre de filtrage',
+              "Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclarées "
+              "(server). Depuis le 2026-09-08 la recherche est un OUTIL du registre de barre "
+              "(`toolbar_registry`), donc la même dans les registres et dans les 12 files. "
+              "Masquage PAR CLASSE (`.wama-f-hors-filtre`) et non par `style.display` : une "
+              "cible à `display` inline (l'entrée unitaire de file est en `display:contents`) "
+              "ne survivait pas à la restauration. `data-cible-dans` BORNE la recherche — sans "
+              "quoi deux files sur une même page se filtreraient l'une l'autre. `data-cible-vivante` "
+              "(2026-09-28, calendrier) : une liste RE-RENDUE par un composant est relue à chaque "
+              "application, et le composant appelle `WamaFilterBar.refresh(barre)` après rendu. "
+              "Mode `remote` (2026-10-01, médiathèque) : la page charge sa liste elle-même, la "
+              "barre émet `wama:filter-change` ({q, facets, sort}) ; outil de tri `sort_by` déclaré "
+              "par la page",
+              'wama/common/static/common/js/wama-filter-bar.js', 'docs/construction/ui/CARD_DESIGN.md',
+              annexes=('wama/common/templates/common/_filter_bar.html',),
+              symbol='WamaFilterBar'),      # global de base.html : compté par son symbole
+    Mechanism('panel_toggle', "Repli des volets latéraux par leur frontière",
+              "Un clic sur la FRONTIÈRE d'un volet (explorateur, panneau) le replie ou le rouvre, "
+              "sur toute page : au repos rien de plus que le liseré, au survol une ligne et une "
+              "pastille à chevron qui suit le pointeur ; volet replié, une trace fine au bord de la "
+              "fenêtre. État par NAVIGATEUR (localStorage), appliqué avant le premier rendu. La "
+              "place des volets a une SOURCE UNIQUE : les marges `--wama-left-gutter` / "
+              "`--wama-right-gutter` (0 replié, sans volet ou en mode simplifié) que lisent le "
+              "corps, l'en-tête et les barres fixes des pages ; une règle qui se calerait sur la "
+              "largeur brute d'un volet est refusée par `tests_panel_toggle`. Au doigt (tablette), "
+              "la pastille reste visible. Après chaque bascule : `resize` + `wama:panels`. DEUX "
+              "CONTEXTES DE LARGEUR (2026-10-12) : sous le point de rupture `lg` de Bootstrap "
+              "(tablette en portrait, fenêtre étroite), volets repliés d'office, un seul ouvert à "
+              "la fois, mémoire à part — le choix fait en grand n'est jamais écrasé "
+              "(`WamaPanelsContext`, posé par base.html avant le premier rendu). La barre du haut "
+              "et le pied sont des grilles `1fr auto 1fr` : rien ne s'y chevauche, les libellés "
+              "s'effacent derrière leur icône quand la barre manque de place (requête de "
+              "conteneur) ; mesuré chaque nuit par `common.layout.tablet`",
+              'wama/common/static/common/js/wama-panel-toggle.js', 'docs/construction/ui/WAMA_VOLETS.md',
+              annexes=('wama/common/static/common/css/wama-panel-toggle.css',
+                       'wama/common/services/ui_smoke_layout.py'),
+              symbol='WamaPanels'),         # global de base.html : compté par son symbole
+    Mechanism('touch', "WAMA au doigt (écrans tactiles)",
+              "Une règle commune, montée par base.html EN DERNIER, pour tout écran dont le "
+              "pointeur principal est un doigt — critère UNIQUE `(pointer: coarse)` : commandes à "
+              "44 px au moins (boutons, onglets, menus, titres repliables, `[role=button]`), cases, "
+              "interrupteurs et curseurs à 24 px au moins — des PLANCHERS, jamais des tailles. Et "
+              "la convention « révélé au survol » : `.wama-reveal-host` sur l'hôte, `.wama-reveal` "
+              "sur l'action — montrée au survol, au clavier, et TOUJOURS au doigt ; son inverse "
+              "`.wama-reveal-hide` pour ce qui lui cède la place. Une règle "
+              "`:hover` locale qui révélerait un élément est refusée par `tests_touch`. Les "
+              "briques affinent chez elles, sur le même critère (process des cards v3, lecteur "
+              "audio, saisie de l'assistant, ports du studio, variante « large » de l'explorateur)",
+              'wama/common/static/common/css/wama-touch.css',
+              'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
+              annexes=('wama/common/tests/tests_touch.py',),
+              symbol='wama-reveal'),        # classe CSS : comptée par les gabarits/JS qui la posent
+    Mechanism('gestures', "Gestes au pointeur (glisser, défiler, pincer, appui long)",
+              "Montée par base.html, pour toute page des trois mondes (ROADMAP §27, étape 3, "
+              "2026-10-16). Trois choses : (1) `WamaGestures.track(el, {start, move, end, pinch})` "
+              "suit un pointeur sur une surface qui dessine elle-même — seuil entre clic et glisser, "
+              "boutons de souris filtrés, PINCEMENT à deux doigts ; Pointer Events, donc souris, "
+              "stylet et doigt par le même code (canvas du studio, onde de l'éditeur du "
+              "transcriber) ; (2) le glisser HTML5 AU DOIGT, sur tout `[draggable=\"true\"]` : appui "
+              "long puis le doigt bouge → `dragstart`/`dragover`/`drop`/`dragend` avec un "
+              "`dataTransfer` réel, vignette qui suit, liste qui défile au bord — la file, la "
+              "palette du studio et l'ordre des segments marchent au doigt sans une ligne chez eux, "
+              "et la souris garde son glisser natif ; (3) l'APPUI LONG : l'infobulle (`title`) d'une "
+              "commande sans la déclencher, sinon un `contextmenu` (menu de card, arbre — l'iPad "
+              "n'en émet pas) ; sur ce qu'on glisse, il soulève : bouger glisse, relâcher ouvre le "
+              "menu. Une page n'écrit ni `touchstart` pour un geste porté ici, ni "
+              "mousedown/mousemove pour suivre un glisser ; mesuré chaque nuit sur de vrais "
+              "événements tactiles par `common.gestures.touch`, et les mêmes pages à la souris "
+              "par `common.gestures.mouse` (la garde du PC)",
+              'wama/common/static/common/js/wama-gestures.js',
+              'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
+              annexes=('wama/common/tests/tests_gestures.py',
+                       'wama/common/services/ui_smoke_layout.py'),
+              symbol='WamaGestures'),       # global de base.html : compté par son symbole
+    Mechanism('card_menu', "Menu contextuel de card/lot + débordement « … »",
+              "Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; "
+              "le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales "
+              "(bouton édition compris — décision Fabien 2026-09-08). Modèle HYBRIDE : les "
+              "actions EXISTANTES sont LUES sur le `.btn-group-actions` de la card (contrat de "
+              "`cloneActions`, donc zéro ligne par app et clic PROXIFIÉ vers le vrai bouton), "
+              "les TRANSVERSES sont déclarées et leurs URLs viennent de `queue_dnd_attrs` — une "
+              "route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus en "
+              "CASCADE, au survol et au clic, le parent restant ouvert (2026-09-14) et DIFFÉRÉS "
+              "(« Recherche… » puis rempli : il n'attend pas le réseau). Se ferme sur un geste de "
+              "l'UTILISATEUR hors du menu, jamais sur un `scroll` (un focus programmatique le "
+              "refermait en 7 ms). 2ᵉ surface : l'arbre de fichiers (`ouvrir()` depuis "
+              "`filemanager.js`, 2026-09-14), qui obtient depuis le 2026-09-18 les gestes "
+              "d'ÉLÉMENT (Partager…, Ajouter à la médiathèque…, Ajouter au RAG) sur un fichier "
+              "de SORTIE par `entreesPourChemin` — le serveur remonte à l'élément "
+              "(`send_to.item_for_output_path`), les entrées sont CELLES de la card "
+              "(`entreesPourElement`, une seule liste), posées en ENTRÉE DIFFÉRÉE à la racine "
+              "du menu (`{chargement, charger}` : « Recherche… » puis remplacement, le menu "
+              "n'attend pas le réseau). Depuis le 2026-10-14, un fichier qui n'est la sortie de "
+              "RIEN (dépôt temporaire, entrée d'app, dossier connecté) a « Ajouter au RAG » sur "
+              "le FICHIER, et une sélection de N fichiers « Ajouter N fichiers au RAG » "
+              "(`entreesPourChemins`). ⚠ Le menu est posé sur `document.body` : une card "
+              "vit dans un conteneur à `overflow` qui le rognerait. Le « … » suit les cards INSÉRÉES "
+              "ou REMPLACÉES après le chargement (observation de la file, 2026-09-15)",
+              'wama/common/static/common/js/wama-card-menu.js', 'docs/construction/ui/CARD_DESIGN.md',
+              symbol='WamaCardMenu'),
+    Mechanism('toolbar_registry', "Barre d'outils générale (registre + profils)",
+              "UN registre d'outils (l'UNION de toutes les barres) et des PROFILS par nature de "
+              "surface : `file` (12 files d'app) et `registre` (15 catalogues). Une surface tire "
+              "des outils, elle ne les énumère pas — ajouter un outil à toutes les files est UNE "
+              "clé, plus jamais douze gabarits (demande Fabien 2026-09-08 : « de façon globale, "
+              "pas par app »). Les deux barres historiques SURVIVENT en façades vers "
+              "`_toolbar.html`, ce qui laisse les 27 pages appelantes inchangées ; les deux "
+              "ENVELOPPES sont conservées telles quelles (les fondre aurait changé les deux "
+              "apparences). Chaque outil est un partial sous `common/toolbar/`",
+              'wama/common/toolbar.py', 'docs/construction/ui/CARD_DESIGN.md',
+              annexes=('wama/common/templates/common/_toolbar.html',
+                       'wama/common/templatetags/wama_toolbar.py')),
+    Mechanism('queue_front', "File d'attente (front)",
+              "Comportements communs des files : collapse de batch persisté, mode Solitaire "
+              "(accordéon), toggle Ligne/Mosaïque, les 3 densités et le modificateur PILE "
+              "(CARD_DESIGN §11.4/§11.9), focus card, clearCards, data-wama-*",
+              'wama/common/static/common/js/wama-queue.js', 'docs/construction/ui/CARD_DESIGN.md',
+              symbol='WamaQueue',           # global de base.html : compté par son symbole
+              annexes=('wama/common/static/common/js/queue-actions.js',
+                       'wama/common/templates/common/_queue_toolbar.html',
+                       'wama/common/templates/common/_queue_actions.html',
+                       'wama/common/templates/common/_batch_card.html')),
+    Mechanism('queue_entry', "Entrée de file (card seule OU lot)",
+              "Décide, pour une entrée de file, si elle s'affiche en card unique ou en card MÈRE "
+              "avec ses filles repliables — et rend l'un ou l'autre. Le bloc vivait recopié À "
+              "L'IDENTIQUE dans les gabarits d'app (10 au dernier compte — le partial fait foi) ; "
+              "il n'a pu être centralisé (2026-08-25) qu'une fois "
+              "deux verrous levés : `is_unitary` adopté (la décision se lit sur le modèle) et "
+              "`elem` (les cards filles reçoivent leur élément sous le MÊME nom — avant, 8 "
+              "graphies). Signature à 3 paramètres : `card_template`, plus `collapse_prefix` et "
+              "`batch_key` pour la seule app à deux files sur une page (enhancer audio). ⚠ Tout "
+              "le reste TRAVERSE PAR LE CONTEXTE — les ~9 paramètres de `_batch_card.html` sont "
+              "fournis par l'app et passent au travers, sinon la signature atteindrait la "
+              "quinzaine. Apparence uniformisée sur le TRANSCRIBER (référence), conforme à "
+              "`CARD_DESIGN §11.2` (famille de lot = cyan #0dcaf0) : les 3 couleurs et 2 "
+              "habillages qui coexistaient étaient des séquelles d'implémentations successives. "
+              "Depuis le 2026-09-15 l'entrée porte `data-card-url` : quand une suppression réduit "
+              "un lot à une card, `queue-actions.js` la redemande au serveur et la file se met à "
+              "jour sans rechargement de la page (la vue dit l'état du lot : "
+              "`batch_common.batch_state` ; la position d'une card seule : `is_batch_child`)",
+              'wama/common/templates/common/_queue_entry.html', 'docs/construction/ui/CARD_DESIGN.md §11.2',
+              annexes=('wama/common/tests/tests_queue_delete_contract.py',),
+              depends_on=('queue_order', 'batch', 'queue_front')),
+    Mechanism('queue_dnd', 'Glisser-déposer et sélection multiple de la file',
+              "Les QUATRE gestes de manipulation directe, hérités par les 12 apps sans qu'aucune "
+              "n'écrive une ligne : déposer SUR une card change l'APPARTENANCE (entrer dans un "
+              "lot / en former un), déposer ENTRE deux cards change l'ORDRE (file ou lot) ; "
+              "sélection multiple clic/Ctrl/Maj, qui EST celle de l'inspecteur (une seule "
+              "sélection dans WAMA — la brique ANNONCE `wama:selection-change`, l'inspecteur "
+              "REND). Une CASE en tête de chaque card la dessine (2026-10-16) : la cocher AJOUTE "
+              "à la sélection, comme Ctrl+clic — à la souris sans clavier comme au doigt ; "
+              "visible au survol, cochée ou dès qu'une sélection est en cours. Le SURVOL d'une "
+              "card de file est une règle commune (`wama-inspector.css`), aucune app n'écrit le "
+              "sien. Auto-monté sur `[data-wama-dnd]`, posé par le templatetag "
+              "`queue_dnd_attrs` : une app qui ne le pose pas garde une file strictement inerte. "
+              "SortableJS écarté (multi-sélection + fusion sur une card + règle « pas de CDN »)",
+              'wama/common/static/common/js/wama-queue-dnd.js', 'docs/construction/ui/CARD_DESIGN.md §3bis',
+              symbol='WamaQueueDnd',        # global de base.html : compté par son symbole
+              annexes=('wama/common/static/common/css/wama-queue-dnd.css',
+                       'wama/common/templatetags/wama_actions.py',
+                       'wama/common/tests/tests_queue_dnd.py')),
+    Mechanism('history', 'Historique annuler / rétablir',
+              "Deux piles + plafond + état des boutons + raccourcis Ctrl+Z / Ctrl+Maj+Z / Ctrl+Y. "
+              "PORTABLE parce que la machinerie ne touche JAMAIS le modèle : elle ne le connaît "
+              "que par `snapshot()` et `restore(state)`, que l'appelant fournit. La coalescence "
+              "des rafales de frappe (`burstWindow`) est une OPTION, pas un acquis — elle n'a "
+              "aucun sens sur un éditeur non textuel, où chaque mutation est déjà atomique. "
+              "⚠⚠ La FILE D'ATTENTE ne peut PAS l'utiliser : ses gestes sont commis côté serveur "
+              "à l'instant du dépôt, il n'y a pas de modèle client à photographier — son "
+              "« annuler » est un REJEU D'OPÉRATION INVERSE, même mot, mécanisme différent. Les "
+              "réunir ici donnerait une API qui MENT sur ce qu'elle garantit. "
+              "DEUX consommateurs, et deux façons de marquer un cran — c'est l'ADOPTION qui l'a "
+              "révélé : `push()` AVANT la mutation (transcriber, qui marque en tête de chaque "
+              "opération) et `commit()` APRÈS (studio, dont les 9 opérations passent par UN "
+              "entonnoir, `persistDraft`). La v1 n'offrait que `push()` : suffisant pour le "
+              "consommateur dont elle sortait, insuffisant pour le suivant. `silence(fn)` couvre "
+              "le chargement programmatique, et la garde de RÉ-ENTRANCE vit dans la brique — "
+              "restaurer c'est muter (`loadGraph`→`clearCanvas`→`removeNode`→l'entonnoir), donc "
+              "tout consommateur à entonnoir remplirait son historique de son propre travail",
+              'wama/common/static/common/js/wama-history.js', 'docs/construction/ui/CARD_DESIGN.md',
+              annexes=('wama/transcriber/static/transcriber/js/edit.js',
+                       'wama/studio/static/studio/js/wama-studio.js')),
+    Mechanism('console', 'Console utilisateur',
+              "Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », "
+              "mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des "
+              "`requirements` (vérifié 2026-08-22) : la console tourne DEPUIS TOUJOURS sur son "
+              "repli cache, qui fonctionne mais n'est pas atomique (lire/insérer/réécrire, donc "
+              "des lignes perdues quand gunicorn et les workers Celery poussent en même temps). "
+              "Le correctif n'est PAS d'ajouter la dépendance : le client `redis` brut est déjà "
+              "installé et la brique d'accès existe (`resource_governor._redis`, via "
+              "`CELERY_BROKER_URL`)",
+              'wama/common/utils/console_utils.py', '',
+              annexes=('wama/common/static/common/js/console.js',)),
+    Mechanism('notification_panel', 'Panneau de la cloche',
+              "Un clic sur la cloche ouvre ses notifications SANS quitter la page (2026-10-13) : "
+              "ouvrir, lu / non lu, supprimer (avec « Annuler »), tout lire, et les gestes PROPRES "
+              "à un type — déclarés par le serveur (STYLE_BY_KIND, ACTIONS_BY_KIND : « Accorder / "
+              "Refuser » une demande d'accès), la page ne connaît aucun type. Ouvrir le panneau ne "
+              "marque rien comme lu ; le lien de la cloche reste la page complète (Ctrl-clic)",
+              'wama/common/services/notification_panel.py',
+              'docs/construction/exploitation/WAMA_COLLABORATION.md',
+              annexes=('wama/common/static/common/js/wama-notifications.js',
+                       'wama/common/static/common/css/wama-notifications.css')),
     )),
 
     *_domain('Données & infrastructure', (
@@ -2608,6 +2586,40 @@ MECHANISMS = (
               "Registre de Feature par app + surcharges JSON de l'objet porteur — comparer AVEC/SANS",
               'wama/common/utils/feature_flags.py', ''),
 
+    Mechanism('ranged_response', 'Servir un fichier par morceaux (HTTP Range)',
+              "Réponse 206 à une requête `Range` — ce qui rend un média seekable au-delà du "
+              "déjà-téléchargé ; sert `/media/` (`wama/urls.py`) et la vidéo du cam_analyzer, "
+              "dont la règle a été extraite (2026-10-15)",
+              'wama/common/utils/ranged_response.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
+              annexes=('wama/common/tests/tests_ranged_response.py',)),
+    Mechanism('static_versioning', 'Cache-busting statique',
+              "`{% static_v %}` = `{% static %}` + `?v=<mtime>` : le navigateur re-télécharge "
+              "un fichier statique dès qu'il change, le garde en cache sinon",
+              'wama/common/templatetags/wama_static.py', '',
+              # Consommé par la balise de gabarit, jamais par import Python : sans symbole,
+              # le compteur (imports du module) rendait 0 — brique « morte » à 100+ pages.
+              symbol='static_v'),
+    Mechanism('audio_rhythm', 'Grille des temps d\'un audio',
+              "L'instant de chaque temps joué d'un audio et les hauteurs qui y sonnent (chroma par "
+              "temps), en cache par fichier et date — de quoi caler une partition TEMPS PAR TEMPS "
+              "sur ce qui est joué plutôt que par son tempo écrit (né le 2026-10-16 : #754 écrit à "
+              "88, joué à 89,1). Ne connaît aucune partition ; le calage est `WamaScore.align`",
+              'wama/common/utils/audio_rhythm.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
+              depends_on=('audio_decode',)),
+    Mechanism('midi_score', 'Notation d\'un MIDI multi-instrument (MIDI → ABC)',
+              "Un MIDI à une piste par instrument → une partition ABC lisible : une voix par "
+              "instrument (libellé français), clavier sur deux portées, batterie en portée de "
+              "percussion, accords, liaisons, altérations par mesure. Sur la métrique du MIDI quand "
+              "le moteur en a trouvé une, sinon sur les temps JOUÉS de l'audio (`audio_rhythm`), "
+              "anacrouse comprise. Né le 2026-10-16 pour la partition complète du composer "
+              "(MuScriptor, tâche `audio-to-midi`) ; ne connaît aucun moteur. Porte aussi la "
+              "LECTURE MIDI commune (`read_midi` : tempos, mesure, tonalité, marqueurs, une partie "
+              "par piste et canal), que le moteur YuE2 consomme pour suivre une partition MIDI",
+              'wama/common/utils/midi_score.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
+              annexes=('wama/common/tests/tests_midi_score.py',)),
     )),
 
     *_domain("Studio & surface d'outils (API)", (

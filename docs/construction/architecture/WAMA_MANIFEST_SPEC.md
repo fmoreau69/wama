@@ -174,7 +174,11 @@ body:                                   # (sous l'enveloppe commune)
   # `ui_bricks`) et servies par les vues communes. Rendue en `<app>/surfaces.py` par
   # `codegen/surfaces_gen` ; la card générée porte un ✎ par surface (`templates_gen`).
   surfaces: [{key, label, edits, reruns?, reads: {rôle: champ},
-              slots: [{id, brick, x, y, w, h, options?}]}]
+              slots: [{id, brick, x, y, w, h, options?}], witness?: {champ: valeur}}]
+  # `witness` (2026-10-18) : l'élément TÉMOIN sur lequel le nocturne ouvre la surface et capture
+  # ses briques (vignettes du catalogue `ui_bricks`). Pour un champ FICHIER la valeur nomme un
+  # contenu — une extension connue de la taxonomie (`.md`, `.html`, `.png`…) ou un type de données
+  # (`detections`) ; pour un autre champ, la valeur littérale. Jugé par `Surface.witness_problems`.
   # `edits` doit être un FICHIER produit par un process déclaré (`pipeline.outputs`) : il s'édite
   # comme TEXTE, validation/disponibilité/écriture communes. Une couche de DONNÉES (corrections de
   # l'anonymizer) porte sa validation en Python : elle s'écrit dans l'app, le gabarit la REFUSE.

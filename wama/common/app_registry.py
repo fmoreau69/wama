@@ -1883,9 +1883,10 @@ _assign_derived_colors()
 _CONFORMITY_REPORT = {'mtime': None, 'data': None}
 
 
-def _measured_conformity(app_name: str) -> tuple[dict, str | None]:
-    """(valeurs mesurées {clé: True|'partial'|False|None}, date du rapport) — ({}, None) sans
-    rapport. `None` = non applicable à la mesure, ou clé couverte par ses critères (ci-dessous)."""
+def _conformity_report() -> dict | None:
+    """Le rapport mesuré (`logs/conformity_report.json`), relu seulement quand il a changé —
+    None sans rapport lisible. Lu par `_measured_conformity` (par app) et `measured_adoption`
+    (par mécanisme)."""
     import json as _json
     from pathlib import Path as _Path
     try:
@@ -1893,14 +1894,46 @@ def _measured_conformity(app_name: str) -> tuple[dict, str | None]:
         path = _Path(_settings.BASE_DIR) / 'logs' / 'conformity_report.json'
         mtime = path.stat().st_mtime
     except Exception:
-        return {}, None
+        return None
     if _CONFORMITY_REPORT['mtime'] != mtime:
         try:
             _CONFORMITY_REPORT['data'] = _json.loads(path.read_text(encoding='utf-8'))
             _CONFORMITY_REPORT['mtime'] = mtime
         except Exception:
-            return {}, None
-    data = _CONFORMITY_REPORT['data'] or {}
+            return None
+    return _CONFORMITY_REPORT['data'] or {}
+
+
+def measured_adoption(mechanism: str) -> dict:
+    """Ce que la grille MESURÉE dit d'un mécanisme : les critères qui le vérifient
+    (`Criterion.mechanism`) et, par app notée, l'état de ses critères — True s'ils sont tous
+    verts, 'partial' si une partie l'est, False sinon (non applicable : l'app n'est pas citée).
+
+    `{'criteria': [clés], 'apps': {app: état}, 'measured_at': date}` — `criteria` vide quand
+    aucun critère ne le vérifie (`mecanismes_scan.mechanisms_without_criterion`) : c'est alors à
+    DIRE, pas à taire. Les jumelles bac à sable sont hors de la photo globale, comme sur `/apps/`."""
+    data = _conformity_report()
+    if data is None:
+        return {'criteria': [], 'apps': {}, 'measured_at': None}
+    criteria = sorted(key for key, info in (data.get('criteria') or {}).items()
+                      if (info or {}).get('mechanism') == mechanism)
+    apps = {}
+    for app, measure in sorted((data.get('apps') or {}).items()):
+        conv = (measure or {}).get('conv') or {}
+        states = [conv[key] for key in criteria if conv.get(key) is not None]
+        if not states:
+            continue
+        apps[app] = (True if all(s is True for s in states)
+                     else 'partial' if any(s in (True, 'partial') for s in states) else False)
+    return {'criteria': criteria, 'apps': apps, 'measured_at': data.get('generated_at')}
+
+
+def _measured_conformity(app_name: str) -> tuple[dict, str | None]:
+    """(valeurs mesurées {clé: True|'partial'|False|None}, date du rapport) — ({}, None) sans
+    rapport. `None` = non applicable à la mesure, ou clé couverte par ses critères (ci-dessous)."""
+    data = _conformity_report()
+    if data is None:
+        return {}, None
     # Une jumelle se lit dans `sandbox_apps` (hors photo globale, 2026-09-29).
     app = data.get('apps', {}).get(app_name) or data.get('sandbox_apps', {}).get(app_name) or {}
     if not app:

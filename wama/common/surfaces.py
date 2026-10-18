@@ -55,10 +55,42 @@ from typing import Callable, Optional
 
 #: Mondes où une brique se monte — par défaut TOUS : une brique est universelle (décision 10/10).
 WORLDS = ('media', 'data', 'lab', 'studio')
+#: Les deux familles du catalogue des briques UI (2026-10-18, décision de Fabien) : les briques
+#: CONSTITUTIVES des pages d'édition, déclarées ici, et les composants SYSTÈME — le commun de
+#: l'interface, lus du domaine `mecanismes.UI_DOMAIN` (jamais une seconde liste).
+BRICK_FAMILIES = {'constitutive': 'Constitutive', 'system': 'Système'}
 #: Colonnes de la grille de mise en page (gridstack, défaut 12).
 GRID_COLUMNS = 12
 #: Plafond d'un texte édité sur une surface : un document qu'on relit et corrige, pas un flux.
 MAX_TEXT_CHARS = 2_000_000
+#: Dossier des VIGNETTES des briques sous `STATIC_ROOT` (2026-10-18, décision de Fabien) : une
+#: capture par brique (`<clé>.png`), prise par le nocturne sur une vraie surface ouverte sur un
+#: élément témoin, jamais versionnée (`.gitignore`) — la capture suivante la remplace.
+THUMBNAILS_DIR = 'ui_bricks'
+
+
+def thumbnail_path(key: str):
+    """Le fichier de la vignette d'une brique (qu'il existe ou non)."""
+    from pathlib import Path
+
+    from django.conf import settings
+    return Path(settings.STATIC_ROOT) / THUMBNAILS_DIR / f'{key}.png'
+
+
+def thumbnail(key: str) -> Optional[dict]:
+    """La vignette d'une brique — `{'url', 'taken_at'}`, ou None tant qu'aucune capture n'existe
+    (la page le dit, elle n'invente rien). L'URL porte `?v=<mtime>` comme `static_v` : une capture
+    refaite change d'adresse, le navigateur ne garde pas l'ancienne. `static_v` lui-même ne la
+    trouverait pas — il cherche dans les dossiers statiques SOURCES, la capture n'est que servie."""
+    from datetime import datetime, timezone
+
+    from django.templatetags.static import static
+    try:
+        mtime = thumbnail_path(key).stat().st_mtime
+    except OSError:
+        return None
+    return {'url': f"{static(f'{THUMBNAILS_DIR}/{key}.png')}?v={int(mtime)}",
+            'taken_at': datetime.fromtimestamp(mtime, tz=timezone.utc)}
 
 
 def validate_text(value) -> str:
@@ -139,6 +171,43 @@ class Surface:
     #: Valeurs de l'élément passées aux briques : nom de champ, ou fonction de l'élément quand la
     #: valeur se lit assainie (`{'classes': lambda media: sane_classes(media.classes2blur)}`).
     context: dict = field(default_factory=dict)
+    #: L'élément TÉMOIN sur lequel le nocturne ouvre la surface pour capturer ses briques
+    #: (2026-10-18, décision de Fabien : vignettes du catalogue des briques UI) — `{champ: valeur}`,
+    #: une DONNÉE, donc aussi écrite au manifeste d'une app générée. Le sens d'une valeur se
+    #: DÉDUIT du type du champ, comme `text_value` : pour un champ FICHIER elle nomme un CONTENU,
+    #: dans les vocabulaires existants — une extension dont `app_registry.category_of_path` connaît
+    #: la nature (`.png`, `.md`, `.html`, `.abc`, `.wav`), ou un type de `catalog.data_types`
+    #: (`detections`) ; pour un autre champ, c'est la valeur littérale (`media_type: image`). Le
+    #: contenu se fabrique au harnais (`ui_smoke.witness_sample`). Vide : aucun témoin, aucune
+    #: capture — la page le dit.
+    witness: dict = field(default_factory=dict)
+
+    def witness_problems(self) -> list:
+        """Ce qui empêche de fabriquer le témoin déclaré — [] s'il se fabrique."""
+        from django.db.models import FileField
+
+        from wama.common.app_registry import media_extensions
+        from wama.common.catalog.data_types import known_types
+        extensions = {ext for exts in media_extensions().values() for ext in exts}
+        problems = []
+        try:
+            meta = self.model_class()._meta
+        except Exception as error:
+            return [f"surface {self.id} : modèle {self.model} introuvable ({error})"]
+        for name, value in (self.witness or {}).items():
+            try:
+                model_field = meta.get_field(name)
+            except Exception:
+                problems.append(f"surface {self.id} : témoin — champ inconnu « {name} »")
+                continue
+            if not isinstance(model_field, FileField):
+                continue
+            if not isinstance(value, str) or not (
+                    value in known_types()
+                    or (value.startswith('.') and value[1:].lower() in extensions)):
+                problems.append(f"surface {self.id} : témoin — « {name} » attend une extension "
+                                f"connue ou un type de données, pas {value!r}")
+        return problems
 
     def context_of(self, item) -> dict:
         return {name: (source(item) if callable(source) else getattr(item, source, None))

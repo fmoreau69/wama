@@ -142,6 +142,11 @@ staticfiles/*_[0-9][0-9]/
 wama/static/vendors/avatars/
 staticfiles/vendors/avatars/
 
+# Vignettes des briques UI (2026-10-18, decision de Fabien) -- des CAPTURES refaites par le
+# nocturne sur de vraies surfaces (`surfaces.THUMBNAILS_DIR`), servies depuis STATIC_ROOT ; une
+# capture remplace la precedente, l historique n en garderait que du poids.
+staticfiles/ui_bricks/
+
 # 🔴 RATTRAPAGE (2026-09-12, decision de Fabien) — `build/` ligne 31 est un motif Python de
 # PACKAGING (setuptools) : il avalait `vendors/three-0.180.0/build/three.module.js`, c'est-a-dire
 # LE COEUR DE THREE.JS, pendant que ses 11 addons etaient suivis. Consequence mesuree : un CLONE

@@ -9,7 +9,8 @@ lieu de la faire écrire à la main dans l'app (règle D5, ROUTE §10.5 : seul l
 rédige à la main ; le reste se génère).
 
 Ce qui est rendu : un `register_surface(Surface(...))` par surface — emplacements (brique,
-position et taille par défaut), rôles lus, champ écrit, process rejoué.
+position et taille par défaut), rôles lus, champ écrit, process rejoué, et l'élément TÉMOIN des
+vignettes du catalogue des briques (`witness`, 2026-10-18).
 
 Ce qui est REFUSÉ, en le disant (rien n'est deviné) :
   • une brique absente du registre (`surfaces.BRICKS`) ;
@@ -64,6 +65,11 @@ def _check(surface: dict, outputs: dict, processes: set) -> str:
         return f"surface {key} : process rejoué inconnu {reruns!r} (déclarés : {', '.join(sorted(processes))})"
     if not all(isinstance(r, str) and isinstance(f, str) for r, f in (surface.get('reads') or {}).items()):
         return f"surface {key} : `reads` attend {{rôle: champ}}"
+    # Le témoin des vignettes (2026-10-18) : {champ: valeur}, des chaînes ; leur SENS (contenu
+    # d'un champ fichier, ou valeur littérale) se juge une fois le modèle connu
+    # (`Surface.witness_problems`, tenu par `tests_surfaces`).
+    if not all(isinstance(f, str) and isinstance(v, str) for f, v in (surface.get('witness') or {}).items()):
+        return f"surface {key} : `witness` attend {{champ: valeur}}"
     return ''
 
 
@@ -119,5 +125,7 @@ def render_surfaces(manifest: dict) -> tuple:
         ]
         if surface.get('reruns'):
             args.append(f"reruns={surface['reruns']!r}")
+        if surface.get('witness'):
+            args.append(f"witness={dict(surface['witness'])!r}")
         lines += ['', '', 'register_surface(Surface(', '    ' + ',\n    '.join(args) + '))']
     return '\n'.join(lines) + '\n', None

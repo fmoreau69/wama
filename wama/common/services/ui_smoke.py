@@ -569,6 +569,125 @@ def _fichier_temoin(extensions: str) -> Path:
     return Path(f.name)
 
 
+#: Le CANEVAS de l'image témoin des surfaces et les objets qu'elle montre — PARTAGÉS par l'image
+#: et ses détections (`witness_sample`), qui doivent coïncider : une zone posée à côté de l'objet
+#: ferait une vignette fausse.
+WITNESS_IMAGE_SIZE = (640, 400)
+WITNESS_OBJECTS = (('face', (90, 70, 230, 250)), ('face', (300, 60, 430, 230)),
+                   ('plate', (430, 300, 610, 352)))
+
+_WITNESS_SECTIONS = (
+    ('Contexte', "La page d'édition d'un document se compose de briques communes à tout WAMA."),
+    ('Méthode', "Chaque section se corrige à la main ; la mise en forme suit, ajustée."),
+    ('Résultats', "Une vignette par brique, capturée sur une vraie surface ouverte sur ce témoin."),
+)
+_WITNESS_ABC = ("X:1\nT:Témoin\nM:4/4\nL:1/4\nQ:1/4=120\nK:C\n"
+                'V:1 name="Mélodie"\nC E G c | B G E C | D F A d | c G E C |]\n'
+                'V:2 name="Basse" clef=bass\nC,2 G,,2 | C,2 G,,2 | D,2 A,,2 | C,4 |]\n')
+
+
+def _witness_image(ext: str) -> bytes:
+    """L'image témoin : deux visages et une plaque sur fond sombre (Pillow, dépendance dure du
+    converter ; repli sur l'image valide minimale si l'import échoue)."""
+    try:
+        import io as _io
+
+        from PIL import Image, ImageDraw
+    except Exception:
+        return _image_temoin(ext)
+    image = Image.new('RGB', WITNESS_IMAGE_SIZE, (28, 36, 48))
+    draw = ImageDraw.Draw(image)
+    for label, (x1, y1, x2, y2) in WITNESS_OBJECTS:
+        if label == 'face':
+            draw.ellipse((x1, y1, x2, y2), fill=(222, 184, 150))
+            eye_y, w = y1 + (y2 - y1) * 0.4, x2 - x1
+            for ex in (x1 + w * 0.3, x1 + w * 0.7):
+                draw.ellipse((ex - 7, eye_y - 7, ex + 7, eye_y + 7), fill=(40, 40, 40))
+        else:
+            draw.rectangle((x1, y1, x2, y2), fill=(235, 235, 235), outline=(30, 60, 160), width=4)
+            draw.text((x1 + 20, y1 + 18), 'AB-123-CD', fill=(20, 20, 20))
+    buffer = _io.BytesIO()
+    image.save(buffer, format={'.jpg': 'JPEG', '.jpeg': 'JPEG', '.webp': 'WEBP'}.get(ext, 'PNG'))
+    return buffer.getvalue()
+
+
+def _witness_tones(notes=(261.63, 329.63, 392.0, 523.25), seconds: float = 0.5,
+                   taux: int = 16000) -> bytes:
+    """Un WAV PCM VALIDE qui SONNE (quatre notes), pour qu'une onde se voie — le silence de
+    `_wav_silence` donne une ligne plate."""
+    import math
+    import struct
+    n = int(taux * seconds)
+    samples = bytearray()
+    for freq in notes:
+        for i in range(n):
+            fade = min(1.0, i / 400, (n - i) / 400)
+            samples += struct.pack('<h', int(9000 * fade * math.sin(2 * math.pi * freq * i / taux)))
+    data = bytes(samples)
+    return (b'RIFF' + struct.pack('<I', 36 + len(data)) + b'WAVE'
+            + b'fmt ' + struct.pack('<IHHIIHH', 16, 1, 1, taux, taux * 2, 2, 16)
+            + b'data' + struct.pack('<I', len(data)) + data)
+
+
+def _witness_detections() -> bytes:
+    """Les détections de l'image témoin, au format du type commun — écrites par SON écrivain
+    (`detections.write`), jamais resérialisées ici."""
+    import os
+    import tempfile
+
+    from wama.common.utils import detections
+    width, height = WITNESS_IMAGE_SIZE
+    doc = detections.new_document(media='image', width=width, height=height, engine='temoin',
+                                  classes=sorted({label for label, _box in WITNESS_OBJECTS}))
+    detections.add(doc, 0, [detections.detection(box=box, label=label, conf=0.9)
+                            for label, box in WITNESS_OBJECTS])
+    fd, path = tempfile.mkstemp(prefix='wama_temoin_', suffix='.json')
+    os.close(fd)
+    try:
+        detections.write(path, doc)
+        return Path(path).read_bytes()
+    finally:
+        Path(path).unlink(missing_ok=True)
+
+
+def _witness_html() -> bytes:
+    """Le document témoin RENDU, sections repérées comme les pose une mise en forme
+    (`document_sections.SECTION_ATTR`)."""
+    from html import escape
+
+    from wama.common.utils.document_sections import SECTION_ATTR
+    sections = ''.join(f'<section {SECTION_ATTR}="{i + 1}"><h2>{escape(title)}</h2>'
+                       f'<p>{escape(text)}</p></section>'
+                       for i, (title, text) in enumerate(_WITNESS_SECTIONS))
+    return ('<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Témoin</title>'
+            '<style>body{font-family:Georgia,serif;margin:2em;color:#1d2b44}'
+            'h1,h2{color:#1d3d7a}</style></head><body>'
+            f'<h1 {SECTION_ATTR}="0">Témoin</h1>{sections}</body></html>').encode('utf-8')
+
+
+def witness_sample(kind: str) -> tuple:
+    """Le CONTENU témoin d'un champ fichier de surface (`Surface.witness`) — `(octets, extension)`.
+
+    `kind` est ce que la surface déclare : une extension (`.png`/`.jpg`/`.webp`, `.wav`, `.md`,
+    `.html`, `.abc`) ou un type de données (`detections`). Lisible par la brique qui le montre :
+    une vignette de carré blanc ne dirait rien de la brique. Un contenu inconnu est REFUSÉ, en le
+    disant : `Surface.witness_problems` l'aura déjà signalé."""
+    if kind in ('.png', '.jpg', '.jpeg', '.webp'):
+        return _witness_image(kind), kind
+    if kind == '.wav':
+        return _witness_tones(), kind
+    if kind == '.abc':
+        return _WITNESS_ABC.encode('utf-8'), kind
+    if kind == '.md':
+        body = '\n\n'.join(f'## {title}\n\n{text}' for title, text in _WITNESS_SECTIONS)
+        return f'# Témoin\n\n{body}\n'.encode('utf-8'), kind
+    if kind == '.html':
+        return _witness_html(), kind
+    if kind == 'detections':
+        return _witness_detections(), '.json'
+    raise ValueError(f"contenu témoin inconnu : {kind!r}")
+
+
 def _fill_required_ports(page) -> list:
     """Pose un fichier TÉMOIN dans chaque AUTRE port requis de la card v4 (2026-09-29).
 
@@ -727,6 +846,24 @@ def _deplier_autour(page, selecteur: str) -> bool:
     return True
 
 
+def _uses_dev_account(app: str | None) -> bool:
+    """L'app vit-elle au BAC À SABLE (dev-gated), donc sous le compte dev de test ? Jumelle
+    (`generated_from`) OU app née d'un manifeste (`sandbox` sans source, 2026-10-01 — writer_01).
+
+    La règle de `_test_session_key` ET de `_test_account_id`, écrite UNE fois (2026-10-18) : elle
+    vivait recopiée dans les deux, et la copie de `_test_account_id` n'avait pas suivi le cas
+    « né d'un manifeste » — le témoin du Writer était créé pour le compte standard (22) et la page
+    ouverte par le compte dev (189) : « élément introuvable »."""
+    if not app:
+        return False
+    try:
+        from wama.common.app_registry import APP_CATALOG
+        entry = APP_CATALOG.get(app) or {}
+    except Exception:
+        return False
+    return bool(entry.get('generated_from') or entry.get('sandbox'))
+
+
 def _test_session_key(app: str | None = None):
     """Clé de session d'un compte de TEST existant, ou None.
 
@@ -743,15 +880,10 @@ def _test_session_key(app: str | None = None):
     from django.contrib.auth import get_user_model
 
     u = None
-    if app:
+    if _uses_dev_account(app):
         try:
-            from wama.common.app_registry import APP_CATALOG
-            # Jumelle (`generated_from`) OU app née d'un manifeste (`sandbox` sans source,
-            # 2026-10-01 — writer_01) : toutes deux vivent au bac à sable, dev-gated.
-            entry = APP_CATALOG.get(app) or {}
-            if entry.get('generated_from') or entry.get('sandbox'):
-                from wama.common.services.nightly_tests import get_test_dev_user
-                u = get_test_dev_user()
+            from wama.common.services.nightly_tests import get_test_dev_user
+            u = get_test_dev_user()
         except Exception:
             u = None
     if u is None:
@@ -3216,14 +3348,7 @@ def _test_account_id(app: str | None = None):
     """
     def _read():
         from wama.common.services.nightly_tests import get_test_dev_user, get_test_user
-        twin = False
-        if app:
-            try:
-                from wama.common.app_registry import APP_CATALOG
-                twin = bool((APP_CATALOG.get(app) or {}).get('generated_from'))
-            except Exception:
-                twin = False
-        u = get_test_dev_user() if twin else get_test_user()
+        u = get_test_dev_user() if _uses_dev_account(app) else get_test_user()
         return getattr(u, 'id', None)
 
     return _in_plain_thread(_read, timeout=20)

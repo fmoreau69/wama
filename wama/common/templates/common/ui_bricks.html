@@ -9,8 +9,9 @@
   Page du registre `ui_bricks` (2026-10-16, demande de Fabien). Charte commune des catalogues
   (`wama-catalog.css` : bandeau de stats, encart d'intention, cartes filtrables), détail au clic
   dans le volet (inspecteur de registre : titre, description, `data-f-*`, ligne méta). Tout vient
-  de la vue, qui lit `common/surfaces.py` à chaque affichage : registre DÉRIVÉ, donc aucun bouton
-  d'actualisation — `refresh_button` le décide seul de la nature.
+  de la vue, qui lit à chaque affichage `common/surfaces.py` (briques constitutives) et le
+  domaine `UI_DOMAIN` de `common/mecanismes.py` (composants système, 2026-10-18) : registre
+  DÉRIVÉ, donc aucun bouton d'actualisation — `refresh_button` le décide seul de la nature.
 {% endcomment %}
 
 {% block extra_css %}
@@ -29,6 +30,11 @@
   .ub-row > b { color: #cfd8dc; font-weight: 600; margin-right: .3rem; }
   .ub-none    { color: #ffcc80; font-size: .78rem; }
   .ub-path    { font-size: .74rem; color: #90a4ae; word-break: break-all; }
+  /* Les ajouts du 2026-10-18 lisent les tokens du thème (`wama-theme.css`, ROADMAP §28). */
+  .ub-family  { background: var(--wama-border); color: var(--wama-text-strong); }
+  .ub-system  { background: var(--wama-surface-inset); color: var(--wama-text-info); }
+  .ub-app     { background: var(--wama-border-subtle); }
+  .ub-partial { background: var(--wama-border-faint); border: 1px dashed var(--wama-border-dashed); }
 </style>
 {% endblock %}
 
@@ -41,10 +47,14 @@
   {% include 'common/_catalog_header.html' with registre='ui_bricks' %}
 
   <div class="wama-cat-stats">
-    <span class="wama-cat-stat"><b>{{ bricks|length }}</b> brique{{ bricks|length|pluralize }}</span>
+    <span class="wama-cat-stat"><b>{{ bricks|length }}</b> brique{{ bricks|length|pluralize }} constitutive{{ bricks|length|pluralize }}</span>
     <span class="wama-cat-stat"><b>{{ surfaces_count }}</b> surface{{ surfaces_count|pluralize }} qui les compose{{ surfaces_count|pluralize:"nt" }}</span>
     {% if unused_count %}
       <span class="wama-cat-stat ub-none"><b>{{ unused_count }}</b> brique{{ unused_count|pluralize }} qu'aucune surface ne monte</span>
+    {% endif %}
+    <span class="wama-cat-stat"><b>{{ system|length }}</b> composant{{ system|length|pluralize }} système</span>
+    {% if unmeasured_count %}
+      <span class="wama-cat-stat ub-none"><b>{{ unmeasured_count }}</b> qu'aucun critère de la grille ne vérifie</span>
     {% endif %}
   </div>
 
@@ -60,6 +70,11 @@
     <p>La liste <b>dérive du code</b> (<code>common/surfaces.py</code>) à chaque affichage&nbsp;: elle
        ne peut pas être périmée. C'est aussi celle que lira la palette du <b>Studio</b> pour
        composer une surface en diagramme — il n'y en aura jamais une seconde.</p>
+    <p>Les composants <b>système</b> sont le commun de l'interface, présent sur toutes les
+       pages&nbsp;: inspecteur, file d'attente, aperçu, barre de filtres… Ils sont lus du
+       registre des mécanismes (domaine «&nbsp;UI générée&nbsp;»). Les apps qui les utilisent
+       viennent de la <b>grille de conformité</b> mesurée&nbsp;; un composant qu'aucun critère ne
+       vérifie le dit.</p>
   </div>
 
   {% include 'common/_filter_bar.html' with facettes=facets cible='.wama-cat-card' mode='client' placeholder='Filtrer (brique, nature lue, app…)' %}
@@ -70,12 +85,21 @@
   <div class="wama-cat-grid" id="uiBricksGrid" style="--cat-card-min: 340px;"
        data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
     {% for b in bricks %}
-    <div class="wama-cat-card" data-id="{{ b.key }}" data-f-usage="{{ b.usage }}"
+    <div class="wama-cat-card" data-id="{{ b.key }}" data-f-famille="{{ b.family }}" data-f-usage="{{ b.usage }}"
          data-f-text="{{ b.key }} {{ b.name }}{% for r in b.reads %} {{ r.value }}{% endfor %}{% for e in b.emits %} {{ e }}{% endfor %}{% for s in b.surfaces %} {{ s.app }} {{ s.label }}{% endfor %}">
       <h4>{{ b.name }}
+        <span class="wama-cat-badge ub-family">{{ b.family }}</span>
         <span class="wama-cat-badge ub-key">{{ b.key }}</span>
         <span class="wama-cat-badge {% if b.emits %}ub-edit{% else %}ub-show{% endif %}">{{ b.usage }}</span>
       </h4>
+      {% comment %}Vignette = capture du nocturne (`surfaces.thumbnail`) ; un clic l'agrandit dans
+      la visionneuse commune (l'inspecteur de registre le câble, aucun JS ici).{% endcomment %}
+      {% if b.thumbnail %}
+        <img class="wama-cat-thumb" src="{{ b.thumbnail.url }}" alt="Aperçu : {{ b.name }}" loading="lazy"
+             title="Capture du {{ b.thumbnail.taken_at|date:'j F Y, H:i' }} — cliquer pour agrandir">
+      {% else %}
+        <div class="wama-cat-thumb is-empty">aucune capture</div>
+      {% endif %}
       <div class="wama-cat-desc">{{ b.description }}</div>
 
       <div class="ub-row"><b>Lit</b>
@@ -97,6 +121,26 @@
     </div>
     {% empty %}
     <p class="text-white-50">Aucune brique déclarée.</p>
+    {% endfor %}
+
+    {% comment %}Composants SYSTÈME : mêmes tuiles, donc même détail au clic dans le volet.
+    `data-id` = la clé du mécanisme ; « Utilisé par » = l'adoption mesurée par la grille.{% endcomment %}
+    {% for s in system %}
+    <div class="wama-cat-card" data-id="{{ s.key }}" data-f-famille="{{ s.family }}"
+         data-f-text="{{ s.key }} {{ s.name }}{% for a in s.apps %} {{ a.app }}{% endfor %}">
+      <h4>{{ s.name }}
+        <span class="wama-cat-badge ub-system">{{ s.family }}</span>
+        <span class="wama-cat-badge ub-key">{{ s.key }}</span>
+      </h4>
+      <div class="wama-cat-desc">{{ s.description }}</div>
+      <div class="ub-row"><b>Utilisé par</b>
+        {% if not s.criteria %}<span class="ub-none">aucun critère de la grille ne le vérifie</span>
+        {% else %}{% for a in s.apps %}<span class="ub-chip {% if a.state == 'partial' %}ub-partial{% else %}ub-app{% endif %}">{{ a.app }}{% if a.state == 'partial' %}<small>partiel</small>{% endif %}</span>{% empty %}<span class="ub-none">aucune app, d'après la grille</span>{% endfor %}{% endif %}
+      </div>
+      <div class="wama-cat-meta">
+        domicile <code class="ub-path">{{ s.home }}</code>{% if s.doc %} · doc <code class="ub-path">{{ s.doc }}</code>{% endif %}{% if s.criteria %} · critère{{ s.criteria|length|pluralize }} {{ s.criteria|join:", " }}{% endif %}
+      </div>
+    </div>
     {% endfor %}
   </div>
 

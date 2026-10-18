@@ -52,4 +52,8 @@ register_surface(Surface(
     reads={'audio': 'audio_output', 'parts': 'parts_score'},
     texts=('parts',),
     edits=SCORE_FIELDS,
-    reruns='render', available=_score_available))
+    reruns='render', available=_score_available,
+    # L'élément témoin des vignettes du catalogue des briques (nocturne) : une partition, sa
+    # partition complète et un rendu audio — rien n'est lancé, les fichiers sont des témoins.
+    witness={'prompt': "Témoin — la page d'édition de la partition", 'planned_score': '.abc',
+             'parts_score': '.abc', 'audio_output': '.wav'}))

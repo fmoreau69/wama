@@ -50,6 +50,14 @@
                   letter-spacing: .03em; padding: 2px 7px; border-radius: 5px;
                   white-space: nowrap; }
 
+/* VIGNETTE d'une tuile (2026-10-18, catalogue des briques UI) : une capture, agrandie au clic
+   dans la visionneuse commune par l'inspecteur de registre — le même rendu dans le volet. */
+.wama-cat-thumb { display: block; width: 100%; max-height: 150px; object-fit: contain;
+                  border-radius: 6px; background: var(--wama-surface-inset); cursor: zoom-in; }
+.wama-cat-thumb.is-empty { display: flex; align-items: center; justify-content: center;
+                           height: 60px; font-size: .74rem; color: var(--wama-text-label);
+                           cursor: default; }
+
 .wama-cat-desc { font-size: .8rem; color: #b0bac4; line-height: 1.4; }
 .wama-cat-meta { font-size: .74rem; color: #8fa3b3; }
 .wama-cat-meta code { color: #c8d6e5; }

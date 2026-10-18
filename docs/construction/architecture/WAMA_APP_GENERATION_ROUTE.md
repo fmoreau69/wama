@@ -457,7 +457,24 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     - ⏳ **Restes** : l'éditeur de diagramme du Studio (palette `ui_bricks`) ; ~~la page catalogue
       des briques~~ ✅ 2026-10-16 (`/common/ui-bricks/`, `ui_bricks_view` : ce que chaque brique
       lit et produit, les surfaces qui la composent, lu de `surfaces.py` à chaque affichage ;
-      menu du compte + carte du registre) ; la disposition côté serveur (aujourd'hui stockage local du navigateur) ; la
+      menu du compte + carte du registre) — ✅ **2026-10-18, décisions de Fabien** : DEUX familles,
+      les briques CONSTITUTIVES et les composants SYSTÈME (le commun de l'interface), ceux-ci LUS du
+      domaine « UI générée » du registre des mécanismes (`mecanismes.UI_DOMAIN`, jamais une seconde
+      liste), « utilisé par » = l'adoption MESURÉE par la grille (`app_registry.measured_adoption`,
+      le rapport que lit `/apps/` — pas le balayage du dépôt, trop coûteux pour une page) ; registre
+      RANGÉ pour cela (12 composants d'interface entrés dans le domaine, 4 pièces sans rien de
+      visible sorties vers « Données & infrastructure ») ; une VIGNETTE par brique constitutive,
+      agrandie au clic dans la visionneuse commune (sa surcouche « galerie sans élément ») et
+      reprise au volet par l'inspecteur de registre — capturée par le scénario nocturne
+      `common.ui_bricks_capture` (`ui_smoke_surfaces`, le 1ᵉʳ qui ouvre les surfaces) sur un
+      élément TÉMOIN que chaque surface DÉCLARE (`Surface.witness`, une donnée : au manifeste pour
+      une app générée, `WAMA_MANIFEST_SPEC`), contenus par `ui_smoke.witness_sample` ; vignettes
+      sous `staticfiles/ui_bricks/`, non versionnées. Mesuré : 3 surfaces ouvertes, 8/8 briques.
+      ⏳ Vignettes des composants SYSTÈME (décision : listés sans vignette d'abord — il faudra
+      déclarer où les cadrer) ; « Versions » capturée vide (le témoin n'a pas de révision gardée) ;
+      le domaine « Qualité & auto-amélioration » porte encore des fonctionnalités qui n'en sont pas
+      (mémoire, MCP, modèles distants, calendrier, partage…), rangement non fait. ;
+      la disposition côté serveur (aujourd'hui stockage local du navigateur) ; la
       vidéo (axe commun) ; l'évaluation dans l'anonymizer (corrections = vérité terrain, WIDER
       FACE val, `WAMA_APPRENTISSAGE §8bis`) ; porter vers ces briques les pilotes en attente
       (YuE2, retouche Imager).

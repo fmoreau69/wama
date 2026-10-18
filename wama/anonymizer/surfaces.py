@@ -51,4 +51,8 @@ register_surface(Surface(
     edits='detection_corrections', validate=validate_corrections,
     reruns='blur', available=_review_available,
     # Assainies : une ancienne sauvegarde a laissé 'false' dans des listes de classes.
-    context={'classes': lambda media: sane_classes(media.classes2blur)}))
+    context={'classes': lambda media: sane_classes(media.classes2blur)},
+    # L'élément témoin des vignettes du catalogue des briques (nocturne) : une image et ses
+    # détections ; `media_type` et `file_ext` sont ce que l'import de l'app poserait.
+    witness={'file': '.png', 'detections_file': 'detections', 'media_type': 'image',
+             'file_ext': '.png'}))

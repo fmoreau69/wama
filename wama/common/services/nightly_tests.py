@@ -641,6 +641,11 @@ try:
     # fond »). Une couleur réelle ne se lit que dans le navigateur ; axe-core la tranche. Aucun GPU.
     from wama.common.services.ui_smoke_contrast import register_contrast_scenarios
     register_contrast_scenarios()
+    # 2026-10-18 — les SURFACES : aucune page d'édition n'était ouverte par le nocturne, et le
+    # catalogue des briques UI veut une vignette par brique (Fabien). Chaque surface s'ouvre sur
+    # l'élément témoin qu'elle déclare (`Surface.witness`), ses briques y sont capturées. Aucun GPU.
+    from wama.common.services.ui_smoke_surfaces import register_surface_scenarios
+    register_surface_scenarios()
     # 2026-08-27 — geste 14 (moitié « fichier de lot »), enregistré À LA PLACE du geste 7 qui
     # devait suivre. Le geste 7 (« créer par le bouton primaire ») débloquait d'un coup
     # `inspector_actions` et `batch_actions` sur les trois apps dont la file reste vide — mais
