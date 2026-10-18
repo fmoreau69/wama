@@ -8,8 +8,9 @@ Propriétés NON négociables (spec §2) :
   - TRAÇABLE        : `source` conservé ; les dérivés (quand projection) portent `_manifest_key`.
   - VERIFY          : `verify` diffe la projection-depuis-manifeste contre l'état courant des registres.
 
-SANDBOX = un manifeste `visibility='private'`. `promote()` le fait passer au commun (project/unit/public)
-après test — réutilise EXACTEMENT ScopedVisibility, pas un nouveau système.
+SANDBOX = un manifeste `visibility='private'` — une PORTÉE, réutilise EXACTEMENT ScopedVisibility.
+La DEMANDE de promotion est un autre état (`Manifest.promotion_requested_at`), et `promote()` fait
+passer le manifeste AU SYSTÈME (sans propriétaire), pas seulement au public (2026-10-18).
 
 Le manifeste est la SOURCE AUTORITAIRE. Les entrées dérivées ne s'éditent JAMAIS à la main.
 """
@@ -112,13 +113,29 @@ def ingest(manifest: dict, *, user=None, promote_to: Optional[str] = None,
     return obj
 
 
-def promote(obj, visibility: str, *, scope_project: str = '', scope_org_unit: str = ''):
-    """Fait sortir un manifeste du sandbox vers le commun. Le GATING (droit de promouvoir vers telle
-    unité/tel projet) est fait par la couche vue (réutilise user_scope_org_ids / user_projects)."""
-    obj.visibility = visibility
-    obj.scope_project = scope_project
-    obj.scope_org_unit = scope_org_unit
-    obj.save(update_fields=['visibility', 'scope_project', 'scope_org_unit', 'updated_at'])
+def promote(obj, *, by=None):
+    """Passe un manifeste AU SYSTÈME : plus de propriétaire, portée publique, demande close.
+
+    Promouvoir n'est pas partager (décisions de Fabien, 2026-10-18, `ROADMAP §29`) : un élément
+    partagé à tous reste à son auteur ; un élément promu n'est plus à personne. Le geste est celui
+    d'un admin, gardé par la vue. L'auteur reste nommé pour l'attribution (`source.proposed_by`,
+    jamais écrasé par une promotion suivante), et le valideur aussi (`source.promoted_by`).
+
+    Jusqu'à cette date, `promote(obj, visibility, scopes)` ne changeait que la portée, et son seul
+    appelant (`proposals.apply`) donnait l'élément à l'admin qui validait : 8 des 13 manifestes
+    du magasin appartenaient à leur valideur."""
+    source = dict(obj.source or {})
+    if obj.owner_id and not source.get('proposed_by'):
+        source['proposed_by'] = obj.owner.get_username()
+    if by is not None:
+        source['promoted_by'] = by.get_username()
+    obj.owner = None
+    obj.visibility = 'public'
+    obj.scope_project = obj.scope_org_unit = ''
+    obj.promotion_requested_at = None
+    obj.source = source
+    obj.save(update_fields=['owner', 'visibility', 'scope_project', 'scope_org_unit',
+                            'promotion_requested_at', 'source', 'updated_at'])
     return obj
 
 

@@ -21,7 +21,7 @@ utilisation tient ») : le kind `function` existait (extract/validate/write-back
 `binding=user`) mais n'était JAMAIS exporté — le corpus n'avait que apps/libraries/models.
 Exportées par ÉNUMÉRATION du `FUNCTION_CATALOG` (fonctions SYSTÈME, `pure` + `app`) ; les
 `UserFunction` (binding `user`, données en base, scopées) ne sont pas un corpus d'exemples et
-ne s'exportent qu'à la clé explicite. Sans clé : `--kind function` n'exporte QUE les fonctions
+ne s'exportent JAMAIS, même à la clé explicite (règle « système seul » ci-dessous). Sans clé : `--kind function` n'exporte QUE les fonctions
 — c'est le seul mode qui ne touche pas aux libraries, donc le seul sûr depuis venv_win (cf. ⚠
 ENVIRONNEMENT ci-dessous) ; l'export complet (sans `--kind`) les inclut désormais aussi.
 
@@ -38,6 +38,13 @@ Windows → nom assaini `transcriber__whisper.json` (réversible au glob).
 Le corpus est un artefact DÉRIVÉ mais VERSIONNÉ : le `git diff` du corpus est la revue de ce
 qui change dans la surface déclarée d'une app. `--check` permet de refuser un commit qui
 modifie un registre sans régénérer le corpus.
+
+SEUL UN ÉLÉMENT SYSTÈME ENTRE AU CORPUS (2026-10-18, `ROADMAP §29`, écart 3) : le corpus est
+publié avec le dépôt PUBLIC, et l'installation le réécrit à chaud (`manifests/corpus.py`). Un
+manifeste qui a un PROPRIÉTAIRE est refusé, `--force` compris, qu'il soit extrait ou autoré. La
+règle existait déjà par morceaux (pipelines du canvas jamais exportés, fonctions d'utilisateur à
+la clé seule) ; elle vaut désormais pour tous les kinds. Un brouillon système (sans propriétaire,
+privé, `manifests/app_drafts/`) reste admis : il est au projet.
 
 ⚠ ENVIRONNEMENT (vécu 2026-08-26) : les manifestes LIBRARY s'extraient des métadonnées pip
 du venv COURANT — les régénérer depuis venv_win a écrit transformers 5.12.1 (la dérive
@@ -223,6 +230,11 @@ class Command(BaseCommand):
         from django.conf import settings
         from wama.common.app_registry import APP_CATALOG
         from wama.common.manifests.ingest import extract, validate
+        from wama.common.manifests.ownership import is_system
+
+        def _owned(manifest) -> str:
+            return (f"élément de {manifest.get('owner')!r} : seul un élément système entre au "
+                    f"corpus versionné, publié avec le dépôt")
 
         base = Path(settings.BASE_DIR)
         extraits = {}          # (kind, clé) → manifeste : la pré-passe requires ne ré-extrait pas
@@ -309,6 +321,10 @@ class Command(BaseCommand):
             if not manifest:
                 w(e(f"  {app_id:14s} extraction impossible"))
                 continue
+            if not is_system(manifest):         # avant la validation : `--force` n'y peut rien
+                refuses.append(app_id)
+                w(e(f"  {app_id:14s} REFUSÉ — {_owned(manifest)}"))
+                continue
 
             erreurs = list(validate(manifest) or [])
             if erreurs and not o['force']:
@@ -374,6 +390,8 @@ class Command(BaseCommand):
                 invalides.append((f, [f"illisible : {exc}"]))
                 continue
             erreurs_a = list(validate(manuel) or [])
+            if not is_system(manuel):
+                erreurs_a.append(_owned(manuel))
             if erreurs_a:
                 invalides.append((f, erreurs_a))
         if autores:

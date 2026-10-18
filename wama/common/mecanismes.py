@@ -1194,7 +1194,11 @@ MECHANISMS = (
                        'wama/common/manifests/builtin/project.py',
                        # La porte du corpus à chaud (2026-10-12) et sa garde « une seule porte ».
                        'wama/common/manifests/corpus.py',
-                       'wama/common/tests/tests_manifest_corpus.py')),
+                       'wama/common/tests/tests_manifest_corpus.py',
+                       # À QUI EST un élément, enveloppe ↔ ligne de registre, et « seul le
+                       # système entre au corpus » (ROADMAP §29, étape 2 — 2026-10-18).
+                       'wama/common/manifests/ownership.py',
+                       'wama/common/tests/tests_manifest_ownership.py')),
     Mechanism('manifest_proposals', 'Propositions de manifestes (geste « Valider »)',
               "Le cycle sandbox → vérifié → promu (WAMA_MANIFEST_ARCHITECTURE §4) reçoit son "
               "premier appelant (29/09) : un rôle LLM DÉPOSE son manifeste au magasin (bac à "
@@ -1202,7 +1206,8 @@ MECHANISMS = (
               "appliquées, erreurs), « Valider » SUPERPOSE à l'extraction en ne comblant que des "
               "vides (un manifeste brut effaçait la licence), projette, promeut, exporte au "
               "corpus ; « Rejeter » ne passe pas par un_ingest, qui déferait une projection "
-              "jamais faite",
+              "jamais faite. Depuis le 18/10 (ROADMAP §29) la file lit la DEMANDE de promotion, "
+              "plus le privé, et valider rend l'élément au SYSTÈME, plus à l'admin qui valide",
               'wama/common/manifests/proposals.py',
               'docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md',
               depends_on=('manifests',),

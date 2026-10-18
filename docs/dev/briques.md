@@ -1826,7 +1826,7 @@ Extraction/validation/projection des 7 kinds vers les registres. Le corpus versi
   - `validate(manifest: dict) -> list[str]` — Erreurs d'enveloppe + erreurs de body (déléguées au kind) + références pendantes.
   - `resolve_requires(manifest: dict) -> tuple[list[dict], list[str]]` — Résout les références `requires` de l'ENVELOPPE (SPEC §7.3) — kind-agnostique.
   - `ingest(manifest: dict, *, user=None, promote_to: Optional[str]=None, strict: bool=True)` — Crée ou met à jour la ligne `Manifest` (idempotent sur kind+key).
-  - `promote(obj, visibility: str, *, scope_project: str='', scope_org_unit: str='')` — Fait sortir un manifeste du sandbox vers le commun. Le GATING (droit de promouvoir vers telle
+  - `promote(obj, *, by=None)` — Passe un manifeste AU SYSTÈME : plus de propriétaire, portée publique, demande close.
   - `extract(kind: str, key: str) -> Optional[dict]` — Produit le manifeste d'un objet EXISTANT en lisant les registres courants (round-trip).
   - `write_back(manifest: dict, *, apply: bool=False)` — Projette (write-back) le manifeste vers l'état committé — geste EXPLICITE, jamais automatique
   - `verify(manifest: dict) -> list[dict]` — Retourne la liste des écarts entre le manifeste fourni et l'état courant des registres.
@@ -1862,17 +1862,17 @@ Le second temps de toute app qui rend un fichier, en process À PART : `output_s
 
 ### Propositions de manifestes (geste « Valider »)
 
-Le cycle sandbox → vérifié → promu (WAMA_MANIFEST_ARCHITECTURE §4) reçoit son premier appelant (29/09) : un rôle LLM DÉPOSE son manifeste au magasin (bac à sable), le model manager en montre le PLAN (champs comblés, divergences NON appliquées, erreurs), « Valider » SUPERPOSE à l'extraction en ne comblant que des vides (un manifeste brut effaçait la licence), projette, promeut, exporte au corpus ; « Rejeter » ne passe pas par un_ingest, qui déferait une projection jamais faite
+Le cycle sandbox → vérifié → promu (WAMA_MANIFEST_ARCHITECTURE §4) reçoit son premier appelant (29/09) : un rôle LLM DÉPOSE son manifeste au magasin (bac à sable), le model manager en montre le PLAN (champs comblés, divergences NON appliquées, erreurs), « Valider » SUPERPOSE à l'extraction en ne comblant que des vides (un manifeste brut effaçait la licence), projette, promeut, exporte au corpus ; « Rejeter » ne passe pas par un_ingest, qui déferait une projection jamais faite. Depuis le 18/10 (ROADMAP §29) la file lit la DEMANDE de promotion, plus le privé, et valider rend l'élément au SYSTÈME, plus à l'admin qui valide
 
 - **Domicile** : `wama/common/manifests/proposals.py` · **doc** : [docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md](../construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md)
 - **Module** : PROPOSITIONS de manifestes — le geste de validation qui manquait entre un rôle LLM et l'ingest.
 - **API publique** (6) :
   - `fill_empty(current, proposed, path='')` — Superpose `proposed` sur `current` en ne comblant que les VIDES — récursif sur les dicts.
   - `propose(manifest: dict, *, origin: str='', user=None)` — Dépose un manifeste PROPOSÉ au magasin, en bac à sable. Rien n'est projeté.
-  - `pending(kind: str=None)` — Propositions en attente (bac à sable), plus récentes d'abord.
+  - `pending(kind: str=None)` — Promotions DEMANDÉES et non tranchées, plus récentes d'abord — pas tout ce qui est privé.
   - `plan(obj) -> dict` — Ce que `apply()` FERAIT — sans rien écrire. `write_back` est le dry-run du kind.
   - `apply(obj, user=None) -> dict` — Applique une proposition : superposition, write-back RÉEL, promotion, export au corpus.
-  - `reject(obj) -> bool` — Retire une proposition du magasin. N'appelle PAS `un_ingest` (cf. docstring du module).
+  - `reject(obj) -> bool` — Close une demande de promotion. N'appelle PAS `un_ingest` (cf. docstring du module).
 
 ### Routage des poids hors HuggingFace
 

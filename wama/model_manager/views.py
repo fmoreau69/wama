@@ -1988,7 +1988,6 @@ def api_manifest_proposal_decide(request):
     import json as _json
 
     import wama.common.manifests.proposals as proposals
-    from wama.common.models import Manifest
     try:
         data = _json.loads(request.body or '{}')
     except ValueError:
@@ -2011,7 +2010,8 @@ def api_manifest_proposal_decide(request):
                                 status=404)
         return JsonResponse({'success': False, 'error': f"décision inconnue : {decision!r}"},
                             status=400)
-    obj = Manifest.objects.filter(pk=data.get('id'), visibility='private').first()
+    # Une DEMANDE en cours, pas « un manifeste privé » : privé est une portée (`ROADMAP §29`).
+    obj = proposals.pending().filter(pk=data.get('id')).first()
     if obj is None:
         return JsonResponse({'success': False, 'error': 'proposition introuvable'}, status=404)
     if decision == 'reject':

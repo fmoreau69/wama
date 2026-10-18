@@ -8,10 +8,17 @@ appelant en production (mesuré le 2026-09-29). Les rôles `wama-dev-ai` déposa
 manifeste dans `outputs/`, d'où seul un terminal pouvait le projeter (`write_back(apply=True)`).
 Ce module RELIE ce qui existait ; il n'ajoute ni état ni kind.
 
-  propose()  → le manifeste d'un rôle entre au magasin, en bac à sable (jamais projeté) ;
+  propose()  → le manifeste d'un rôle entre au magasin, en bac à sable (jamais projeté), avec
+               sa DEMANDE de promotion ;
   plan()     → ce que l'application FERAIT : champs comblés, divergences, dry-run du write-back ;
-  apply()    → superposition, write-back RÉEL, promotion, export au corpus ;
-  reject()   → la proposition sort du magasin, rien n'est défait (rien n'avait été fait).
+  apply()    → superposition, write-back RÉEL, promotion AU SYSTÈME, export au corpus ;
+  reject()   → la demande est close, rien n'est défait (rien n'avait été fait) ; la proposition
+               d'un rôle, qui n'est à personne, sort du magasin.
+
+PRIVÉ N'EST PAS « EN ATTENTE » (2026-10-18, `ROADMAP §29` étape 2). La file listait tout manifeste
+privé : le modèle privé d'un utilisateur y serait tombé. Elle lit désormais la DEMANDE
+(`Manifest.promotion_requested_at`), et valider rend l'élément au SYSTÈME (`ingest.promote`) au
+lieu de le donner à l'admin qui valide.
 
 ⚠⚠ LA SUPERPOSITION NE COMBLE QUE DES VIDES (mesuré avant d'écrire une ligne). Projeter tel quel
 le manifeste brut d'un LLM EFFAÇAIT des valeurs curées : `_CHAMPS_PROJETES` (kind `model`) rend
@@ -33,9 +40,6 @@ import logging
 from django.db import transaction
 
 logger = logging.getLogger(__name__)
-
-#: Visibilité d'une proposition APPLIQUÉE : elle rejoint le commun (le corpus est public).
-PROMOTED_VISIBILITY = 'public'
 
 _EMPTY = (None, '', [], {})
 
@@ -75,17 +79,22 @@ def propose(manifest: dict, *, origin: str = '', user=None):
     Un manifeste invalide est stocké AVEC ses erreurs (`strict=False`) : le plan les montrera,
     plutôt que de laisser la proposition mourir dans un fichier.
     """
+    from django.utils import timezone
+
     from .ingest import ingest
     proposal = dict(manifest)
     proposal['visibility'] = 'private'
     proposal['source'] = {'type': 'proposal', 'ref': origin or 'inconnue'}
-    return ingest(proposal, user=user, strict=False)
+    obj = ingest(proposal, user=user, strict=False)
+    obj.promotion_requested_at = timezone.now()
+    obj.save(update_fields=['promotion_requested_at'])
+    return obj
 
 
 def pending(kind: str = None):
-    """Propositions en attente (bac à sable), plus récentes d'abord."""
+    """Promotions DEMANDÉES et non tranchées, plus récentes d'abord — pas tout ce qui est privé."""
     from ..models import Manifest
-    qs = Manifest.objects.filter(visibility='private')
+    qs = Manifest.objects.filter(promotion_requested_at__isnull=False)
     if kind:
         qs = qs.filter(manifest_kind=kind)
     return qs.order_by('-updated_at')
@@ -139,10 +148,8 @@ def apply(obj, user=None) -> dict:
         return {'applied': False, 'errors': [projection.get('erreur') or 'cible absente']}
     obj.body = merged.get('body') or {}
     obj.errors = []
-    if user is not None:
-        obj.owner = user
-    obj.save(update_fields=['body', 'errors', 'owner', 'updated_at'])
-    promote(obj, PROMOTED_VISIBILITY)
+    obj.save(update_fields=['body', 'errors', 'updated_at'])
+    promote(obj, by=user)
     corpus = None
     try:
         from .corpus import follow
@@ -155,8 +162,15 @@ def apply(obj, user=None) -> dict:
 
 
 def reject(obj) -> bool:
-    """Retire une proposition du magasin. N'appelle PAS `un_ingest` (cf. docstring du module)."""
-    if not obj.is_sandbox:
+    """Close une demande de promotion. N'appelle PAS `un_ingest` (cf. docstring du module).
+
+    La proposition d'un RÔLE n'est à personne : elle sort du magasin. Le manifeste d'un AUTEUR
+    reste le sien, privé comme avant sa demande."""
+    if not obj.is_pending:
         return False
-    obj.delete()
+    if obj.is_system:
+        obj.delete()
+        return True
+    obj.promotion_requested_at = None
+    obj.save(update_fields=['promotion_requested_at', 'updated_at'])
     return True

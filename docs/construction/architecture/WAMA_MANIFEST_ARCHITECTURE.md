@@ -40,7 +40,7 @@ flowchart TD
         V["validate()<br/>enveloppe + body(kind)"]
         SB["store SANDBOX<br/>visibility=private"]
         VF["verify()<br/>diff manifeste ↔ courant"]
-        PR["promote()<br/>private → project/unit/public"]
+        PR["promote()<br/>demande → SYSTÈME (sans propriétaire)"]
         V --> SB --> VF --> PR
     end
 
@@ -159,9 +159,11 @@ stateDiagram-v2
     Draft --> Rejected : validate() KO
     Draft --> Sandbox : validate() OK (store private)
     Sandbox --> Sandbox : ré-ingest (idempotent, UPDATE)
-    Sandbox --> Verified : verify() diff analysé
+    Sandbox --> Requested : propose() — DEMANDE de promotion
+    Requested --> Verified : verify() / plan() diff analysé
     Verified --> Sandbox : diff → corrige le manifeste
-    Verified --> Promoted : promote() (gating org/projet)
+    Requested --> Sandbox : reject() — l'auteur garde son manifeste
+    Verified --> Promoted : promote() — au SYSTÈME, geste d'un admin
     Promoted --> Sandbox : un_ingest / dépublier (réversible)
     Promoted --> [*]
     Rejected --> [*]
@@ -179,6 +181,24 @@ comblés, divergences, dry-run du write-back), « Promoted » = `proposals.apply
 proposition à l'extraction courante en ne comblant que des vides (un manifeste brut effaçait la
 licence — les champs projetés rendent `''` pour une clé absente) ; et « Rejeter » ne passe PAS par
 `un_ingest`, qui défait une projection que la proposition n'a jamais faite.
+
+✅ **Deux axes séparés le 2026-10-18** (`ROADMAP §29`, étape 2 du chantier PROVENANCE). Jusque-là
+« privé » voulait dire « en attente » : `proposals.pending()` listait tout manifeste privé, et le
+modèle privé d'un utilisateur serait tombé dans la file de l'admin. Désormais :
+- **privé est une PORTÉE** (`Manifest.is_sandbox`), lue par le filtre commun
+  `Manifest.objects.visible_to(user, owner_field='owner')`, qui compare les portées en CODES
+  (`scoped_visible_q`) ;
+- **la demande est un ÉTAT** (`Manifest.promotion_requested_at`, `is_pending`) : `propose()` la
+  pose, la file la lit, « Rejeter » la close. La proposition d'un rôle, qui n'est à personne, sort
+  du magasin ; le manifeste d'un auteur lui reste, privé ;
+- **promouvoir rend l'élément au SYSTÈME** (`ingest.promote(obj, by=…)`) : plus de propriétaire,
+  portée publique, l'auteur et le valideur nommés dans `source` (`proposed_by`, `promoted_by`).
+  Avant, `apply` donnait l'élément à l'admin qui validait (8 des 13 manifestes du magasin ;
+  migration `common/0030` les a passés au système, valideur gardé dans `source`) ;
+- **seul un élément système entre au corpus versionné** (`manifest_export`, `--force` compris).
+La traduction propriétaire/portée entre enveloppe et ligne de registre vit dans
+`common/manifests/ownership.py` (`envelope_of`, `row_fields`, `is_system`) — tirée du kind
+`function`, le seul qui la faisait, pour les kinds qui suivront (modèle, librairie, pipeline).
 
 ---
 

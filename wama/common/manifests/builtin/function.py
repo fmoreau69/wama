@@ -98,21 +98,10 @@ def extract_function(key: str) -> Optional[dict]:
     except Exception:
         uf = None
     if uf is not None:
-        d = uf.to_dict()
-        env = _envelope_from_spec(
-            key, d,
-            # Une fonction UTILISATEUR naît dans le Calculator, module du monde Data (route
-            # §10.6 point 6.3 B) : elle n'a pas d'app porteuse d'où déduire son monde.
-            world='data',
-            owner=uf.owner.get_username() if getattr(uf, 'owner_id', None) else None,
-            visibility=uf.visibility,
-            # `qualified_code`, pas `code` : un manifeste VOYAGE (§8.6). Le code nu n'est unique
-            # que dans son établissement — c'est ici, au moment où il sort de WAMA, qu'il doit
-            # porter son autorité. Sans autorité déclarée, la forme reste le code nu.
-            scope_org_unit=(uf.scope_org_unit.qualified_code
-                            if getattr(uf, 'scope_org_unit_id', None) else None),
-            scope_project=uf.scope_project.code if getattr(uf, 'scope_project_id', None) else None,
-        )
+        from ..ownership import envelope_of
+        # Une fonction UTILISATEUR naît dans le Calculator, module du monde Data (route §10.6
+        # point 6.3 B) : elle n'a pas d'app porteuse d'où déduire son monde.
+        env = _envelope_from_spec(key, uf.to_dict(), world='data', **envelope_of(uf))
         env['source'] = {'type': 'extract', 'ref': f'UserFunction:{key}'}
         return env
     return None
@@ -133,9 +122,10 @@ def write_back_function(manifest: dict, *, apply: bool = False) -> dict:
     """Projette un manifeste `function` (binding=user) vers `UserFunction`. Dry-run par défaut,
     idempotent (update_or_create par key), réversible (tag `_manifest-gen`). Refuse la collision
     avec une fonction SYSTÈME du catalogue code."""
-    from django.contrib.auth import get_user_model
     from django.db import transaction
-    from wama.common.models import UserFunction, OrgUnit
+    from wama.common.models import UserFunction
+
+    from ..ownership import row_fields
 
     key = manifest.get('key') or ''
     body = manifest.get('body') or {}
@@ -155,7 +145,8 @@ def write_back_function(manifest: dict, *, apply: bool = False) -> dict:
         return {'function': key, 'error': "collision : une fonction SYSTÈME porte déjà cette clé"}
 
     owner_name = manifest.get('owner') or body.get('owner') or ''
-    owner = get_user_model().objects.filter(username=owner_name).first() if owner_name else None
+    fields = row_fields({**manifest, 'owner': owner_name})
+    owner = fields['owner']
     if owner is None:
         return {'function': key, 'error': "owner requis (username existant) pour une fonction "
                                           "`user` — l'enveloppe n'en porte pas de résoluble"}
@@ -164,11 +155,7 @@ def write_back_function(manifest: dict, *, apply: bool = False) -> dict:
              for c in _CHAMPS_FONCTION}
     voulu['name'] = manifest.get('name') or key
     voulu['description'] = manifest.get('description') or ''
-    voulu['visibility'] = manifest.get('visibility') or 'private'
-    unit_code = manifest.get('scope_org_unit') or ''
-    # Accepte les DEUX formes (qualifiée « autorité:code » et code nu) : les manifestes
-    # écrits avant le 27/08 portent le code nu, et les casser irait contre le but.
-    unit = OrgUnit.resolve_qualified(unit_code) if unit_code else None
+    voulu['visibility'] = fields['visibility']
 
     existant = UserFunction.objects.filter(key=key).first()
     actuel = None
@@ -181,14 +168,16 @@ def write_back_function(manifest: dict, *, apply: bool = False) -> dict:
     if not apply:
         return {'function': key, 'created': existant is None, 'owner': owner_name,
                 'would_change': deltas, 'target': voulu,
-                'unresolved_org_unit': unit_code if unit_code and unit is None else None}
+                'unresolved_org_unit': fields['unresolved'].get('scope_org_unit'),
+                'unresolved_project': fields['unresolved'].get('scope_project')}
     tags = list(voulu['tags'] or [])
     if _TAG_GEN not in tags:
         tags.append(_TAG_GEN)
     voulu['tags'] = tags
     with transaction.atomic():
         obj, cree = UserFunction.objects.update_or_create(
-            key=key, defaults={**voulu, 'owner': owner, 'scope_org_unit': unit})
+            key=key, defaults={**voulu, 'owner': owner, 'scope_org_unit': fields['scope_org_unit'],
+                               'scope_project': fields['scope_project']})
     return {'function': key, 'created': cree, 'changed': deltas,
             '_manifest_key': f'function:{key}'}
 

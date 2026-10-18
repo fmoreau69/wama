@@ -24,6 +24,11 @@ visibilité. La mécanique existe pourtant et sert ailleurs (`scoped_visible_q`,
 `ScopedQuerySet.visible_to`, 15 appels dans anonymizer/composer/batch_common) — elle n'est
 simplement pas câblée ici. À noter : `Manifest.scope_project` est un CODE (chaîne) là où les
 modèles d'app portent une FK, donc le câblage n'est pas une simple ligne.
+
+✅ CÂBLÉ le 2026-10-18 (`ROADMAP §29`, étape 2) : `Manifest.objects` est un `ScopedManager`, et
+`scoped_visible_q` compare les portées en CODES quand le modèle les porte en clair. Un manifeste
+partagé à un projet est vu de ses membres (`tests_manifest_ownership`). Reste qu'aucune surface
+ne liste encore les manifestes d'un compte : la seule lecture est la file des propositions, admin.
 """
 
 from __future__ import annotations

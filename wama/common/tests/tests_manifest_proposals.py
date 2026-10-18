@@ -10,7 +10,10 @@ CE QUE CES GARDES TIENNENT :
      manifeste brut qui ne dit rien de la licence la remettait à vide ;
   3. une valeur proposée qui contredit une valeur établie est MONTRÉE, pas appliquée ;
   4. rejeter ne défait rien (contre-épreuve : `un_ingest` aurait vidé la licence) ;
-  5. une proposition pour un modèle absent du catalogue est refusée sans rien écrire.
+  5. une proposition pour un modèle absent du catalogue est refusée sans rien écrire ;
+  6. (2026-10-18, `ROADMAP §29` étape 2) privé n'est pas « en attente » : seule une DEMANDE entre
+     dans la file ; valider rend l'élément au SYSTÈME, pas à l'admin qui valide ; rejeter la
+     demande d'un auteur lui laisse son manifeste.
 """
 from django.test import TestCase
 
@@ -66,7 +69,7 @@ class ManifestProposalTest(TestCase):
         self.assertEqual(COMPOSITION, self.row.composition)
         self.assertEqual(('apache-2.0', 'Org'), (self.row.license, self.row.author))
         obj.refresh_from_db()
-        self.assertEqual(proposals.PROMOTED_VISIBILITY, obj.visibility)
+        self.assertEqual(('public', True, False), (obj.visibility, obj.is_system, obj.is_pending))
         self.export.assert_called_once_with('manifest_export', KEY, kind='model', verbosity=0)
 
     def test_a_contradiction_is_shown_not_applied(self):
@@ -85,6 +88,39 @@ class ManifestProposalTest(TestCase):
         self.row.refresh_from_db()
         self.assertEqual('apache-2.0', self.row.license,
                          "un rejet passé par un_ingest aurait vidé la licence")
+
+    def test_a_private_manifest_without_a_request_is_not_pending(self):
+        """Écart 1 : la file listait TOUT le privé — le modèle privé d'un utilisateur y tombait."""
+        from django.contrib.auth import get_user_model
+
+        from wama.common.manifests.ingest import ingest
+        author = get_user_model().objects.create_user('manifest_author', password='x')
+        mine = ingest({**_llm_manifest(), 'visibility': 'private'}, user=author)
+        self.assertEqual((True, False), (mine.is_sandbox, mine.is_pending))
+        self.assertEqual([], list(proposals.pending()))
+
+    def test_validating_gives_the_element_to_the_system_not_to_the_validator(self):
+        """Écart 2 : `apply` écrivait `owner = <valideur>` (8 des 13 manifestes du magasin)."""
+        from django.contrib.auth import get_user_model
+        users = get_user_model().objects
+        author = users.create_user('manifest_author', password='x')
+        admin = users.create_user('manifest_admin', password='x', is_superuser=True)
+        obj = proposals.propose(_llm_manifest(), origin='outputs/model_x.json', user=author)
+        self.assertTrue(proposals.apply(obj, user=admin)['applied'])
+        obj.refresh_from_db()
+        self.assertIsNone(obj.owner)
+        self.assertEqual(('proposal', 'outputs/model_x.json', 'manifest_author', 'manifest_admin'),
+                         tuple(obj.source.get(k) for k in ('type', 'ref', 'proposed_by',
+                                                           'promoted_by')))
+
+    def test_rejecting_an_authors_request_leaves_the_author_the_manifest(self):
+        from django.contrib.auth import get_user_model
+        author = get_user_model().objects.create_user('manifest_author', password='x')
+        obj = proposals.propose(_llm_manifest(), user=author)
+        self.assertTrue(proposals.reject(obj))
+        obj.refresh_from_db()
+        self.assertEqual((author, 'private', False), (obj.owner, obj.visibility, obj.is_pending))
+        self.assertFalse(proposals.reject(obj), "une demande close ne se rejette pas deux fois")
 
     def test_a_proposal_for_an_uncatalogued_model_is_refused_without_writing(self):
         m = _llm_manifest()

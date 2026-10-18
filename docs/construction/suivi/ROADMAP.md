@@ -5994,10 +5994,37 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
    - **Mesuré** : 9 registres `system` (dont les trois du monde Data), `rag` et `memories`
      `owned`, `functions` `mixed` (`UserFunction`), `licenses` `aggregate`, et les cinq du budget.
    - **Affichage** : la provenance se lit sur la page des Registres et dans `docs/dev/registres.md`.
-2. `Manifest` : séparer *privé* et *promotion demandée* (écart 1), faire de la promotion un passage
-   au système (écart 2), réserver le corpus versionné aux éléments système (écart 3), et rendre les
-   portées lisibles par `scoped_visible_q` avec un `ScopedManager`. C'est la porte d'entrée :
-   `extract` et `write_back` transmettent la provenance, sur le modèle des fonctions d'utilisateur.
+2. ✅ **`Manifest`, la porte d'entrée (2026-10-18).** Aucune décision d'accès d'un registre ne
+   change ; ce qui a été posé :
+   - **Écart 1 — privé ≠ promotion demandée.** La demande est un état
+     (`Manifest.promotion_requested_at`, `is_pending`) que `proposals.propose` pose et que la file
+     lit (`proposals.pending`, et la vue « Valider/Rejeter » du model manager). « Rejeter » close
+     la demande : la proposition d'un rôle, qui n'est à personne, sort du magasin ; le manifeste
+     d'un auteur lui reste, privé.
+   - **Écart 2 — promouvoir rend au système.** `ingest.promote(obj, by=…)` vide le propriétaire,
+     publie, close la demande, et nomme l'auteur et le valideur dans `source` (`proposed_by`,
+     `promoted_by`). L'ancienne forme `promote(obj, visibility, scopes)` ne changeait que la
+     portée, et `proposals.apply` donnait l'élément à l'admin qui validait : **8 des 13**
+     manifestes du magasin, passés au système par la migration `common/0030` (valideur gardé).
+   - **Écart 3 — seul le système entre au corpus versionné.** `manifest_export` refuse un manifeste
+     qui a un propriétaire, extrait ou autoré, `--force` compris. Mesuré avant : les 539 fichiers du
+     corpus sur disque sont tous sans propriétaire ; les brouillons `app_drafts/` aussi (privés, mais au
+     projet). La garde relit tout le dossier `manifests/`.
+   - **Portées lisibles par le filtre commun.** `Manifest.objects` est un `ScopedManager`, et
+     `scoped_visible_q` compare les portées en CODES quand le modèle les porte en clair (lu sur le
+     type du champ) : aucune seconde lecture des portées.
+   - **La traduction propriétaire/portée** entre enveloppe et ligne de registre vit dans
+     `common/manifests/ownership.py` (`envelope_of`, `row_fields`, `is_system`), tirée du kind
+     `function`, le seul qui la faisait. Son `write_back` perdait au passage la portée PROJET.
+   - **Gardes** : `tests_manifest_ownership` (aller-retour, quatre comptes sur le filtre, export
+     refusé, corpus relu) et trois tests de plus dans `tests_manifest_proposals`. Six
+     contre-épreuves, une par brique neutralisée : toutes rouges.
+   - **Ce que l'étape ne fait PAS** : aucune page ne liste encore les manifestes d'un compte ; la
+     promotion d'une FONCTION d'utilisateur passe le manifeste au système, mais sa ligne
+     `UserFunction` reste à l'auteur (devenir système, pour une fonction, c'est entrer au catalogue
+     CODE : étape 4). ⚠ **À trancher** : le geste « Valider » reste ouvert aux comptes
+     admin **et dev** (décision du 2026-09-29), là où la décision b dit « admin seul » — à régler
+     avec les quatre prédicats « gérer » à unifier (`PROFILES_PERMISSIONS`).
 3. `AIModel` et TOUS ses lecteurs, `select_model(user=…)` compris ; la provenance naît au geste
    d'installation (`install_from_spec` reçoit le compte). C'est la famille la plus exposée à une
    fuite.

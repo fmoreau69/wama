@@ -591,20 +591,45 @@ def scoped_visible_q(user, owner_field='user', model=None):
     `model` (2026-10-06) : + ceux partagés à `user` EN PERSONNE — une ligne `ObjectGrant`
     accordée (`WAMA_COLLABORATION §2.1` : « les partages à une personne vivent dans les
     lignes » ; §4.5 : en EXTENSION de ce filtre, jamais un second chemin). Sans `model` (appel
-    direct sur une table sans partage nominatif : mémoire, RAG, fonctions), rien ne change."""
+    direct sur une table sans partage nominatif : mémoire, RAG, fonctions), rien ne change.
+
+    Portées en CODES (2026-10-18, `ROADMAP §29` étape 2) : `Manifest` porte ses portées en codes,
+    pas en clés étrangères, parce qu'un manifeste voyage. Le filtre le lit sur le `model` : un
+    champ de portée qui n'est pas une relation se compare aux codes des unités et des projets de
+    `user`. Même filtre, aucune seconde lecture des portées."""
     from django.db.models import Q
     q = Q(visibility=ScopedVisibility.VIS_PUBLIC)
     if getattr(user, 'is_authenticated', False):
         q |= Q(**{owner_field: user})
         ids = user_scope_org_ids(user)
         if ids:
-            q |= Q(visibility=ScopedVisibility.VIS_UNIT, scope_org_unit_id__in=ids)
+            q |= Q(visibility=ScopedVisibility.VIS_UNIT,
+                   **_scope_lookup(model, 'scope_org_unit', ids, _unit_codes))
         pids = user_projects(user)
         if pids:
-            q |= Q(visibility=ScopedVisibility.VIS_PROJECT, scope_project_id__in=pids)
+            q |= Q(visibility=ScopedVisibility.VIS_PROJECT,
+                   **_scope_lookup(model, 'scope_project', pids, _project_codes))
         if model is not None:
             q |= Q(pk__in=ObjectGrant.visible_ids_for(user, model))
     return q
+
+
+def _scope_lookup(model, field, ids, codes_of):
+    """La condition d'une portée : `<champ>_id__in` sur une clé étrangère, `<champ>__in` sur
+    les codes quand le modèle porte la portée en clair (`Manifest`)."""
+    if model is not None and not model._meta.get_field(field).is_relation:
+        return {f'{field}__in': codes_of(ids)}
+    return {f'{field}_id__in': ids}
+
+
+def _unit_codes(ids):
+    """Les codes sous lesquels un manifeste nomme ces unités : `qualified_code`, la forme que
+    l'extraction écrit — le code nu pour une unité de cette instance, `autorité:code` sinon."""
+    return sorted({unit.qualified_code for unit in OrgUnit.objects.filter(id__in=ids)})
+
+
+def _project_codes(ids):
+    return list(Project.objects.filter(id__in=ids).values_list('code', flat=True))
 
 
 class ShareConsent(models.Model):
@@ -892,7 +917,16 @@ class Manifest(models.Model):
     Source AUTORITAIRE re-synchronisable. L'enveloppe (identité/monde/confidentialité) est en colonnes ;
     le `body` spécifique au kind est un JSON. `scope_project`/`scope_org_unit` sont des CODES (str), pas
     des FK : un manifeste peut référencer un projet/une unité pas encore créés (portabilité). SANDBOX =
-    `visibility='private'` ; `promote()` publie au commun. Idempotent sur (manifest_kind, key)."""
+    `visibility='private'` ; `promote()` publie au commun. Idempotent sur (manifest_kind, key).
+
+    Deux axes distincts depuis le 2026-10-18 (`ROADMAP §29`, étape 2) :
+      - À QUI C'EST : `owner` vide = SYSTÈME (`manifests/ownership.py`), sinon l'élément est à son
+        auteur, quelle que soit sa portée ;
+      - LA PROMOTION DEMANDÉE : `promotion_requested_at`. Privé est une PORTÉE, pas une demande :
+        avant cette date, tout manifeste privé était listé comme une proposition à valider, et le
+        modèle privé d'un utilisateur serait tombé dans la file de l'admin.
+    Lire les manifestes d'un compte passe par `Manifest.objects.visible_to(user, owner_field='owner')`
+    — le filtre commun, qui lit les portées en codes (`scoped_visible_q`)."""
 
     manifest_kind = models.CharField(max_length=32, db_index=True)   # app|function|dataset|model|pipeline|project
     key = models.CharField(max_length=128, db_index=True)            # unique DANS le kind
@@ -912,9 +946,14 @@ class Manifest(models.Model):
     source = models.JSONField(default=dict, blank=True)              # {type, ref}
     body = models.JSONField(default=dict, blank=True)                # spécifique au kind
     errors = models.JSONField(default=list, blank=True)             # dernières erreurs de validation
+    #: La DEMANDE de promotion au système (rôle qui propose, auteur qui demande) ; vide = aucune.
+    #: Nullable : le code en service avant sa relance insère sans cette colonne.
+    promotion_requested_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = ScopedManager()
 
     class Meta:
         unique_together = (('manifest_kind', 'key'),)
@@ -926,7 +965,18 @@ class Manifest(models.Model):
 
     @property
     def is_sandbox(self) -> bool:
+        """Privé — une PORTÉE. Ne dit pas si une promotion est demandée (`is_pending`)."""
         return self.visibility == 'private'
+
+    @property
+    def is_pending(self) -> bool:
+        """Une promotion au système est demandée et n'a pas encore été tranchée."""
+        return self.promotion_requested_at is not None
+
+    @property
+    def is_system(self) -> bool:
+        """Sans propriétaire : l'élément est au système (`manifests/ownership.py`)."""
+        return self.owner_id is None
 
     @property
     def is_valid(self) -> bool:
