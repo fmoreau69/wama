@@ -279,30 +279,27 @@ class IndexView(View):
         })
 
 
-def new_reading_settings(user, app='reader', post=None) -> dict:
-    """Les réglages d'une lecture NAISSANTE — moteur, mode, format, langue, plus le curseur
-    rapide/qualité (réglage d'APP, pas de colonne : l'appelant le retire avant de créer).
-    Réglages persistés (brique user_settings, clés = noms de params.py) : le POST prime, sinon
-    DERNIER réglage utilisé (pattern converter). Le dépôt de la card et l'import du gestionnaire
-    de fichiers (« Envoyer vers », sans volet donc sans POST) passent ici ; `app` : une jumelle
-    de bac à sable passe le sien. ⚠ `language` : '' POSTé = auto-détection VOULUE → test de
-    présence, pas `or` (qui écraserait un champ vidé exprès)."""
-    from wama.common.utils.auto_model import INTENT_DEFAULT, read_quality_intent
-    from wama.common.utils.user_settings import get_user_app_settings
-    post = post if post is not None else {}
-    last = get_user_app_settings(user, app, {
-        'backend': 'auto', 'mode': 'auto', 'output_format': 'txt', 'language': '',
-        'quality_intent': INTENT_DEFAULT})
-    # Le curseur est lu au lancement par `quality_intent_of` quand le moteur est sur « auto ».
-    # Borné, ne lève jamais.
-    return {
-        'backend': post.get('backend') or last['backend'],
-        'mode': post.get('mode') or last['mode'],
-        'output_format': post.get('output_format') or last['output_format'],
-        'language': post['language'] if 'language' in post else last['language'],
-        'quality_intent': (read_quality_intent(post.get('quality_intent'))
-                           if post.get('quality_intent', '') != '' else last['quality_intent']),
-    }
+def new_reading_settings(user, model=None, app='reader', post=None) -> dict:
+    """Les colonnes de réglage d'une lecture NAISSANTE, par la cascade COMMUNE (défauts du
+    schéma ← réglages de l'auteur ← ce que le dépôt poste, `user_settings.new_element_settings`,
+    2026-10-18). Le dépôt de la card, le lot et l'import du gestionnaire de fichiers (« Envoyer
+    vers », sans volet donc sans POST) passent ici ; `model`/`app` : une jumelle de bac à sable
+    passe les siens. Le curseur rapide/qualité n'a pas de colonne : la brique l'écarte, et
+    `quality_intent_of` le relit au lancement dans les réglages de l'auteur. Une langue postée
+    VIDE (détection automatique voulue) retire la préférence au dépôt : le défaut, vide, joue."""
+    from wama.common.utils.user_settings import new_element_settings
+    from wama.reader.params import PARAMS_JSON, user_setting_key
+    return new_element_settings(user, app, PARAMS_JSON, model or ReadingItem, post=post,
+                                key=user_setting_key)
+
+
+def _deposit_settings(user, post):
+    """Les réglages d'un DÉPÔT (fichiers, lot) : ce que le volet poste est gardé comme
+    préférences (`save_panel_settings`, curseur compris), puis la lecture naît par la cascade."""
+    from wama.common.utils.user_settings import save_panel_settings
+    from wama.reader.params import PARAMS_JSON, user_setting_key
+    save_panel_settings(user, 'reader', PARAMS_JSON, post, key=user_setting_key)
+    return new_reading_settings(user, post=post)
 
 
 @require_POST
@@ -316,14 +313,8 @@ def upload(request):
     if not files:
         return JsonResponse({'error': files.refusal or 'Aucun fichier reçu'}, status=400)
 
-    from wama.common.utils.user_settings import save_user_app_settings
-    reading = new_reading_settings(user, post=request.POST)
-    # Curseur rapide/qualité (chantier C) : réglage d'APP, pas de colonne — gardé, pas posé.
-    quality_intent = reading.pop('quality_intent')
-
-    from wama.common.utils.batch_views import read_settings_payload
-    pipeline_settings = {k: v for k, v in read_settings_payload(
-        request, _SCHEMA, PIPELINE_SETTINGS).items() if k in PIPELINE_SETTINGS}
+    # Tous les réglages, ceux du pipeline compris, par la cascade COMMUNE d'un dépôt.
+    reading = _deposit_settings(user, request.POST)
 
     from wama.common.app_registry import accepts_file
     items_created = []
@@ -341,11 +332,6 @@ def upload(request):
             **reading,
         )
         f.record(item, 'input_file')
-        # Le modèle de langage et les interrupteurs des process optionnels (2026-10-13) : ceux du
-        # volet quand il les poste, coercés au schéma ; sinon les défauts du modèle.
-        touched = _apply_reading_settings(item, pipeline_settings)
-        if touched:
-            item.save(update_fields=touched)
 
         # Count PDF pages immediately (quick, synchronous)
         if ext == '.pdf':
@@ -364,9 +350,6 @@ def upload(request):
         # Un refus se DIT : le 200 vide laissait la brique d'import sans rien afficher.
         return JsonResponse({'created': [], 'error': 'Aucun fichier au format pris en charge'},
                             status=400)
-
-    # Re-persiste les choix comme défauts du prochain dépôt.
-    save_user_app_settings(user, 'reader', {**reading, 'quality_intent': quality_intent})
 
     if len(items_created) > 1:
         # Multiple files → one multi-item batch
@@ -436,8 +419,6 @@ def _output_stem(r):
 #: Réglages d'une lecture écrits par la modale ⚙, le volet et la modale de LOT (schéma `params.py`).
 SETTINGS_FIELDS = ('backend', 'mode', 'output_format', 'language', 'llm_model',
                    'format_markdown', 'generate_analysis')
-#: Ceux du PIPELINE (2026-10-13) — le dépôt les lit aussi, quand le volet les poste.
-PIPELINE_SETTINGS = ('llm_model', 'format_markdown', 'generate_analysis')
 #: `language` vide EST une valeur (auto-détection) — lu par la route d'élément et par la fabrique.
 SETTINGS_EMPTY_IS_VALUE = ('language',)
 
@@ -742,10 +723,9 @@ def batch_create(request):
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
 
     user = _get_user(request)
-    backend = request.POST.get('backend', 'auto')
-    mode = request.POST.get('mode', 'auto')
-    output_format = request.POST.get('output_format', 'txt')
-    language = request.POST.get('language', '')
+    # Chaque fille naît par la cascade COMMUNE, comme un fichier déposé (2026-10-18) : elle lisait
+    # quatre réglages dans le POST, avec leur défaut écrit ici, et pas ceux du pipeline.
+    reading_settings = _deposit_settings(user, request.POST)
 
     try:
         items, warnings = parse_batch_file_from_request(request)
@@ -768,13 +748,10 @@ def batch_create(request):
         fname = url_or_path.split('/')[-1].split('\\')[-1] or url_or_path
 
         reading = ReadingItem.objects.create(
+            **reading_settings,
             user=user,
             source_url=url_or_path,
             original_filename=fname,
-            backend=backend,
-            mode=mode,
-            output_format=output_format,
-            language=language,
             status='PENDING',
         )
         BatchReadingItemLink.objects.create(batch=batch, reading=reading, row_index=i)

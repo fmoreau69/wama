@@ -1400,9 +1400,10 @@ def batch_create(request):
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    backend = request.POST.get('backend', 'auto')
-    hotwords = request.POST.get('hotwords', '')
-    preprocess_audio = str(request.POST.get('preprocess_audio', '')).lower() in ('1', 'true', 'on')
+    # Chaque fille naît par la cascade COMMUNE, comme un fichier déposé (`_deposit_settings`,
+    # 2026-10-18) : elle lisait trois réglages dans le POST, avec leur défaut écrit ici, et prenait
+    # pour tous les autres le défaut du modèle au lieu de la préférence de l'auteur.
+    settings_values = _deposit_settings(user, request.POST)
 
     try:
         items, warnings = parse_batch_file_from_request(request)
@@ -1428,12 +1429,10 @@ def batch_create(request):
         url_or_path = item['path']
         # Create a Transcript with source_url, no audio file yet
         t = Transcript.objects.create(
+            **settings_values,
             user=user,
             source_url=url_or_path,
             audio='',  # empty — populated by the common receiver right after creation
-            backend=backend,
-            hotwords=hotwords,
-            preprocess_audio=preprocess_audio,
         )
         BatchTranscriptItem.objects.create(batch=batch, transcript=t, row_index=i)
         created_ids.append(t.id)

@@ -172,55 +172,67 @@ class CheminDeLotTest(SimpleTestCase):
         corps = _fonction(src, 'update_settings')
         self.assertIsNotNone(corps)
         # Depuis le 22/09 le routage vit dans la brique `apply_item_settings` : la vue générée
-        # lui PASSE le conteneur et les hors-colonnes (elle ne réécrit plus l'idiome).
-        self.assertIn("options_field='options'", corps, 'update ne route pas les champs hors-colonnes')
-        self.assertIn("'quality'", corps, 'le champ retiré des colonnes doit être routé')
+        # lui PASSE le conteneur et les hors-colonnes (elle ne réécrit plus l'idiome). Depuis le
+        # 2026-10-18 les deux listes sont LUES par le module (schéma × colonnes du modèle), plus
+        # figées à la génération : une liste figée dérivait au premier réglage ajouté.
+        self.assertIn('options_field=_OPTIONS_FIELD, extra_names=_SETTINGS_OUTSIDE', corps,
+                      'update ne route pas les champs hors-colonnes')
+        self.assertNotIn("'quality'", corps, 'un nom de réglage recopié dans la vue')
+        self.assertIn("_OPTIONS_FIELD = 'options' if _SETTINGS_OUTSIDE and 'options' in _ITEM_COLUMNS",
+                      src, 'le conteneur doit se décider au modèle généré')
         deco = _fonction(src, '_decorer')
         self.assertIsNotNone(deco)
         self.assertIn('_opts', deco, "_decorer n'aplatit pas le conteneur sur l'instance")
+        self.assertIn('for _k in _SETTINGS_OUTSIDE', deco)
 
     def test_une_app_SANS_hors_colonne_n_emet_aucun_idiome_de_conteneur(self):
         # Le pendant, et la preuve que la bascule du converter a bien eu lieu : quand tous
         # les réglages sont des colonnes (son cas depuis le 2026-09-01), il n'y a plus rien
-        # à router — émettre l'idiome quand même écrirait dans un conteneur pour rien.
-        corps = _fonction(self.src, 'update_settings') or ''
-        self.assertIn('options_field=None', corps,
-                      'le converter n’a plus de réglage hors colonne : aucun conteneur à viser')
+        # à aplatir — émettre l'idiome quand même lirait un conteneur pour rien.
+        self.assertNotIn('_opts', _fonction(self.src, '_decorer') or '',
+                         'le converter n’a plus de réglage hors colonne : aucun conteneur à lire')
 
-    def test_le_depot_deroule_la_cascade_de_reglages_de_l_app_reelle(self):
+    def test_the_deposit_runs_the_common_cascade(self):
         """Un élément FRAIS doit naître avec des valeurs — défauts applicables du schéma ←
-        derniers réglages persistés (user_settings) ← POST, POST re-persisté. Sans la cascade,
-        la section RÉGLAGES de la card et le volet restaient vides jusqu'au premier passage
-        par la modale (constat Fabien 31/08 sur la jumelle ; l'app réelle fait ce chemin dans
-        converter/views.py::upload)."""
-        # La cascade vit dans une fonction PARTAGÉE (`_reglages_du_depot`) : elle ne vivait
-        # que dans upload et les filles de LOT naissaient sans valeurs (chips vides,
-        # constat Fabien 31/08).
-        fn = _fonction(self.src, '_reglages_du_depot')
-        self.assertIsNotNone(fn, 'la cascade partagée _reglages_du_depot manque')
-        self.assertIn('applicable_defaults', fn, 'les défauts du schéma ne se posent pas')
-        self.assertIn('get_user_app_settings', fn, 'les réglages persistés ne sont pas relus')
-        self.assertIn('save_user_app_settings', fn, 'le POST ne se re-persiste pas')
-        # ⚠ Contrat de la brique : `defaults` définit l'ensemble des clés LUES — un {} figé
-        # ici ne relirait jamais rien (piège évité à l'écriture, gardé par ce test).
-        self.assertIn("{n: '' for n in noms}", fn)
-        # La nature détectée prime : elle ne traverse JAMAIS la cascade.
-        self.assertIn("if n != 'media_type'", fn)
+        préférences du volet de l'auteur ← POST. Sans la cascade, la section RÉGLAGES de la card
+        et le volet restaient vides jusqu'au premier passage par la modale (constat Fabien 31/08
+        sur la jumelle). Depuis le 2026-10-18 c'est la cascade COMMUNE
+        (`user_settings.new_element_settings`), que le générateur APPELLE : il en émettait sa propre
+        copie, `_reglages_du_depot`, recopiée du converter réel."""
+        self.assertIsNone(_fonction(self.src, '_reglages_du_depot'), 'la copie de la cascade est réémise')
+        # Une fonction PARTAGÉE : la cascade ne vivait que dans upload et les filles de LOT
+        # naissaient sans valeurs (chips vides, constat Fabien 31/08).
+        fn = _fonction(self.src, '_element_settings')
+        self.assertIsNotNone(fn, 'la naissance partagée _element_settings manque')
+        self.assertIn("new_element_settings(user, 'converter', _SCHEMA, ConversionJob, post=post", fn)
+        self.assertIn("context={'media_type': nature}", fn, 'la nature ne borne pas les défauts')
+        # La nature détectée prime : elle ne sort JAMAIS de la cascade pour écraser la détection.
+        self.assertIn("values.pop('media_type', None)", fn)
+        self.assertIn('options_field=_OPTIONS_FIELD', fn,
+                      'sur un modèle à hors-colonne, la brique range les extras dans le conteneur')
+        # Un DÉPÔT garde ce qu'il poste comme mémoire du volet — le geste du transcriber.
+        dep = _fonction(self.src, '_deposit_settings')
+        self.assertIsNotNone(dep, '_deposit_settings manque')
+        self.assertIn("save_panel_settings(user, 'converter', _SCHEMA, post)", dep)
+        self.assertIn('return _element_settings(user, nature, post)', dep)
         corps = _fonction(self.src, 'upload')
-        self.assertIn('_reglages_du_depot(user, kwargs.get(\'media_type\', \'\'), request.POST)',
+        self.assertIn("kwargs.update(_deposit_settings(user, kwargs.get('media_type', ''), request.POST))",
                       corps, "upload ne déroule pas la cascade")
-        # Les valeurs issues de la cascade atterrissent sur l'ITEM — en colonnes quand le
-        # modèle en a (cas du converter depuis le 2026-09-01), dans le conteneur JSON sinon.
-        # C'est la MÊME cascade : seule sa destination suit la forme du modèle.
-        self.assertIn('kwargs.update(_cols)', corps,
-                      'les valeurs cascadées ne rejoignent pas les colonnes de l’item')
-        src_extras = self._src_avec_hors_colonnes()
-        self.assertIn("kwargs['options'] = _extras", _fonction(src_extras, 'upload'),
-                      'sur un modèle à hors-colonne, les extras doivent rejoindre le conteneur')
         bc = _fonction(self.src, 'batch_create')
-        self.assertEqual(bc.count("_reglages_du_depot(user, kwargs.get('media_type', ''))"), 2,
+        self.assertEqual(bc.count("kwargs.update(_element_settings(user, kwargs.get('media_type', '')))"), 2,
                          'les DEUX branches de batch_create (URL, fichier) doivent dérouler '
                          'la cascade — les filles de lot naissaient sans valeurs')
+
+    def test_setting_names_are_read_never_copied(self):
+        """Reste n°4 de la file du 2026-10-18 : `check_redundancy` relevait les noms de réglages
+        recopiés par ce gabarit dans huit jumelles. Ils se LISENT au schéma et au modèle."""
+        self.assertIn("_SETTING_NAMES = [p['name'] for p in _SCHEMA if p.get('name')]", self.src)
+        self.assertIn('_ITEM_COLUMNS = {f.name for f in ConversionJob._meta.concrete_fields}', self.src)
+        from wama.converter.params import PARAMS_JSON
+        names = [p['name'] for p in PARAMS_JSON]
+        literal = [line for line in self.src.splitlines()
+                   if sum(f"'{n}'" in line for n in names) >= 3]
+        self.assertEqual([], literal, 'des noms de réglages recopiés dans le module généré')
 
     def test_B1_le_corps_des_taches_est_COMPOSE_quand_le_manifeste_route(self):
         """Marche B1 (02/09) : `processing.backend_routes` (← backends/__init__.ROUTES)
@@ -269,10 +281,14 @@ class CheminDeLotTest(SimpleTestCase):
         # acceptait ; un BooleanField refuse 'false' (ValidationError) — et batch_create
         # avalait l'erreur en warning : 2 POST « acceptés », 0 élément créé. Aucun test unit
         # ne le voyait (leurs POST étaient déjà typés) ; seule la batterie NAVIGATEUR l'a vu.
-        fn = _fonction(self.src, '_reglages_du_depot')
-        self.assertIn('coerce_schema_values', fn,
+        # La coercition vit dans la brique (`new_element_settings` coerce le posté par le schéma —
+        # tenu par `tests_birth_settings`) : le généré doit y passer, jamais poser le POST brut.
+        fn = _fonction(self.src, '_element_settings')
+        self.assertIn('new_element_settings(', fn,
                       'la cascade doit coercer selon le schéma avant de poser sur des '
                       'colonnes typées')
+        self.assertNotIn('request.POST.get(', _fonction(self.src, 'upload') or '',
+                         'un réglage lu brut dans le POST, hors de la cascade')
 
     def test_deletion_relies_on_the_brick_alone_no_generated_ownership_guard(self):
         """Trou A5 (audit 31/08) : `safe_delete_file` inconditionnel pouvait supprimer un

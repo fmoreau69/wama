@@ -257,15 +257,12 @@ def create_generation(request):
 
         # Réglages user — écriture À LA CRÉATION (patron transcriber, brique A5-22) : les
         # valeurs du volet voyagent avec le POST de la card, on les persiste ICI, au point de
-        # routage unique. Il n'existe aucun endpoint « enregistrer le volet » dans les apps
-        # portées. Sans cette écriture, get_user_app_settings ne rend que les défauts et le
-        # volet oublie tout réglage au rechargement.
-        from wama.common.utils.user_settings import save_user_app_settings
-        from .params import IMAGE_PARAMS, VIDEO_PARAMS, panel_prefs_from_post
-        _params = VIDEO_PARAMS if generation_mode in ('txt2vid', 'img2vid') else IMAGE_PARAMS
-        _prefs = panel_prefs_from_post(request.POST, _params)
-        if _prefs:
-            save_user_app_settings(user, 'imager', _prefs)
+        # routage unique — par l'écrivain COMMUN du volet (`save_panel_settings`, 2026-10-18 : un
+        # réglage remis à son défaut retire la préférence, au lieu de la figer).
+        from wama.common.utils.user_settings import save_panel_settings
+        from .params import IMAGE_PARAMS, VIDEO_PARAMS
+        _params = VIDEO_PARAMS if generation_mode in VIDEO_MODES else IMAGE_PARAMS
+        save_panel_settings(user, 'imager', _params, request.POST)
 
         # Route to appropriate handler
         if generation_mode == 'file2img':
@@ -281,7 +278,6 @@ def create_generation(request):
         else:
             # Default: txt2img mode
             response = handle_txt2img(request, user)
-        _apply_posted_output(response, request.POST, _params)
         return response
 
     except Exception as e:
@@ -289,38 +285,42 @@ def create_generation(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-def _apply_posted_output(response, post, params):
-    """Le FORMAT DE SORTIE posté au dépôt, appliqué à ce que le dépôt a créé — pour TOUS les modes.
-
-    Seul `handle_txt2img` le lisait : les cinq autres routes (lot, description, img2img, les deux
-    vidéo) créaient la génération sans lui, et le choix fait sur la card tombait (relevé le
-    2026-09-23, question de Fabien sur la sortie vidéo). Lu ici, au point de routage UNIQUE, par
-    la coercition du SCHÉMA — les champs de la brique commune, pas une liste recopiée.
-    """
-    if getattr(response, 'status_code', 500) != 200:
-        return
-    from wama.common.utils.output_formats import OUTPUT_PARAM_NAMES
-    from wama.common.utils.param_schema import coerce_schema_values
-    output_params = [p for p in params if p.name in OUTPUT_PARAM_NAMES]
-    allowed = {p.name: {str(c[0]) for c in (p.choices or [])} for p in output_params}
-    # Une valeur hors des choix du DOMAINE est ignorée (un « webp » d'image posté pour une vidéo).
-    values = {k: v for k, v in coerce_schema_values(output_params, post).items()
-              if str(v) in allowed.get(k, ())}
-    if not values:
-        return
-    try:
-        payload = json.loads(response.content or b'{}')
-    except ValueError:
-        return
-    ids = payload.get('children_ids') or ([payload['generation_id']]
-                                          if payload.get('generation_id') else [])
-    if ids:
-        ImageGeneration.objects.filter(pk__in=ids).update(**values)
+#: Une graine postée VIDE est un choix (aléatoire) — la déclaration que lit aussi la route d'élément.
+SETTINGS_EMPTY_IS_VALUE = ('seed',)
 
 
-# Curseur POSTÉ (chantier C) : lecteur COMMUN — None quand il n'est pas posté. La copie locale
-# (identique chez composer et enhancer) est remontée dans la brique le 2026-09-21.
-from wama.common.utils.auto_model import posted_quality_intent as _intent_posted  # noqa: E402
+def new_generation_settings(user, mode, post=None, model=None, app='imager') -> dict:
+    """Les colonnes de réglage d'une génération NAISSANTE, quel que soit son mode, par la cascade
+    COMMUNE (`user_settings.new_element_settings`, 2026-10-18) sur le schéma de son DOMAINE (vidéo
+    pour `VIDEO_MODES`, image sinon) : défauts du schéma ← défauts DÉCLARÉS du modèle choisi
+    (`get_model_defaults`, en préréglage — 512×512 / 30 étapes / 7.5 sont les valeurs de l'ère
+    SD 1.5) ← réglages retenus de l'auteur ← ce qui est posté. Avant, chacun des six modes lisait
+    le POST champ par champ, avec ses défauts écrits dans la vue (la vidéo : 5 s, 16 i/s, 480p,
+    50 étapes, guidance 5 — le schéma en déclarait d'autres), et le format de sortie se posait
+    après coup (`_apply_posted_output`, retiré). Largeur et hauteur ne sont pas des réglages du
+    schéma : l'appelant les lit (POST, sinon défauts du modèle). `model`/`app` : une jumelle de
+    bac à sable passe les siens."""
+    from wama.common.utils.user_settings import new_element_settings
+    from .params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
+    schema = VIDEO_PARAMS_JSON if mode in VIDEO_MODES else IMAGE_PARAMS_JSON
+    item_model = model or ImageGeneration
+    kwargs = dict(post=post, empty_is_value=SETTINGS_EMPTY_IS_VALUE)
+    # Le MODÈLE est lui-même un réglage : on le lit par la cascade, puis ses défauts déclarés
+    # deviennent le préréglage de la cascade complète.
+    chosen = new_element_settings(user, app, schema, item_model, **kwargs).get('model') or 'auto'
+    preset = {k: v for k, v in get_model_defaults(chosen).items()
+              if k in ('steps', 'guidance_scale')}
+    values = new_element_settings(user, app, schema, item_model, preset=preset, **kwargs)
+    if 'negative_prompt' in values:
+        values['negative_prompt'] = str(values['negative_prompt'] or '').strip()
+    return values
+
+
+def _dimensions(post, model):
+    """Largeur et hauteur d'une génération d'IMAGE : postées, sinon les défauts déclarés du modèle."""
+    defaults = get_model_defaults(model or 'auto')
+    return {'width': int((post or {}).get('width') or defaults['width']),
+            'height': int((post or {}).get('height') or defaults['height'])}
 
 
 def handle_txt2img(request, user):
@@ -329,43 +329,18 @@ def handle_txt2img(request, user):
     if not prompt:
         return JsonResponse({'error': 'Prompt is required'}, status=400)
 
-    negative_prompt = request.POST.get('negative_prompt', '').strip()
-    # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur ici :
-    # 512x512 / 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout
-    # modèle 1024 px en rectified flow (Qwen, FLUX).
-    # On ENREGISTRE le choix (ou 'auto') — le tirage a lieu au LANCEMENT de la tâche, où la
-    # VRAM libre est celle du moment (cf. utils/auto_model.py). Résoudre ici serait périmé.
-    model = request.POST.get('model') or 'auto'
-    _def = get_model_defaults(model)
-    width = int(request.POST.get('width', _def['width']))
-    height = int(request.POST.get('height', _def['height']))
-    steps = int(request.POST.get('steps', _def['steps']))
-    guidance_scale = float(request.POST.get('guidance_scale', _def['guidance_scale']))
-    seed = request.POST.get('seed')
-    if seed:
-        seed = int(seed)
-    else:
-        seed = None
-    num_images = int(request.POST.get('num_images', 1))
-    # L'agrandissement de sortie (`output_upscale`) arrive avec les autres réglages de SORTIE,
-    # par `_apply_posted_output` (brique commune) — plus un booléen lu ici.
+    # Réglages : la cascade COMMUNE (`new_generation_settings`) — sortie et agrandissement compris.
+    # On ENREGISTRE le choix du modèle (ou 'auto') — le tirage a lieu au LANCEMENT de la tâche, où
+    # la VRAM libre est celle du moment (cf. utils/auto_model.py). Résoudre ici serait périmé.
+    settings_values = new_generation_settings(user, 'txt2img', request.POST)
 
     # Create generation object
     generation = ImageGeneration.objects.create(
+        **settings_values,
+        **_dimensions(request.POST, settings_values.get('model')),
         user=user,
         generation_mode='txt2img',
         prompt=prompt,
-        negative_prompt=negative_prompt,
-        model=model,
-        quality_intent=_intent_posted(request.POST),
-        width=width,
-        height=height,
-        steps=steps,
-        guidance_scale=guidance_scale,
-        seed=seed,
-        num_images=num_images,
-        output_format=request.POST.get('output_format', 'original'),
-        output_quality=request.POST.get('output_quality', 'balanced'),
         status='PENDING'
     )
 
@@ -422,48 +397,27 @@ def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=
     GenerationBatchItem = django_apps.get_model(app_label, 'GenerationBatchItem')
 
     r = dict(reglages or {})
-    model = r.get('model') or 'auto'
-    _def = get_model_defaults(model)
-    # Le curseur rapide/qualité (chantier C) n'existe que sur le modèle RÉEL : une jumelle bac à
-    # sable régénérée avant ce champ n'en a pas — on ne pose la clé que si la colonne existe.
-    _has_intent = any(getattr(f, 'name', None) == 'quality_intent'
-                      for f in ImageGeneration._meta.get_fields())
-    width = int(r.get('width', _def['width']))
-    height = int(r.get('height', _def['height']))
-    steps = int(r.get('steps', _def['steps']))
-    guidance_scale = float(r.get('guidance_scale', _def['guidance_scale']))
     domain = 'video' if domain == 'video' else 'image'
     mode = 'txt2vid' if domain == 'video' else 'txt2img'
-    video_kwargs = {}
-    if domain == 'video':
-        video_kwargs = {
-            'video_duration': float(r.get('video_duration', 5.0)),
-            'video_fps': int(r.get('video_fps', 16)),
-            'video_resolution': r.get('video_resolution', '480p'),
-        }
+    # Chaque génération du lot naît par la cascade COMMUNE (`new_generation_settings`) ; une ligne
+    # surcharge ce qu'elle précise. Les colonnes que le modèle de l'app (ou d'une jumelle) n'a pas
+    # sont écartées par la brique — la garde `_has_intent` écrite ici n'a plus d'objet.
+    base = new_generation_settings(user, mode, post=r, model=ImageGeneration, app=app_label)
+    if domain == 'image':
+        base.update(_dimensions(r, base.get('model')))
 
     prompts = parse_prompt_file(str(chemin))
     if not prompts:
         return None, []
 
+    columns = {f.name for f in ImageGeneration._meta.concrete_fields}
     generations = [
         ImageGeneration.objects.create(
+            **{**base, **{k: val for k, val in v.items() if k in columns and k != 'prompt'}},
             user=user,
             generation_mode=mode,
             prompt=v.get('prompt', ''),
-            negative_prompt=v.get('negative_prompt', ''),
-            model=v.get('model', model),
-            **({'quality_intent': _intent_posted(
-                {'quality_intent': v.get('quality_intent', r.get('quality_intent'))})}
-               if _has_intent else {}),
-            width=v.get('width', width),
-            height=v.get('height', height),
-            steps=v.get('steps', steps),
-            guidance_scale=v.get('guidance_scale', guidance_scale),
-            seed=v.get('seed'),
-            num_images=v.get('num_images', 1),
             status='PENDING',
-            **video_kwargs,
         )
         for v in (validate_prompt_config(p) for p in prompts)
     ]
@@ -501,18 +455,13 @@ def handle_file2img(request, user):
     if refusal:
         return JsonResponse({'error': refusal}, status=400)
 
-    # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur : 512x512 /
-    # 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout modèle 1024 px
-    # en rectified flow (Qwen, FLUX). On ENREGISTRE le choix (ou 'auto') — le tirage a lieu au
-    # LANCEMENT, où la VRAM libre est celle du moment. Résoudre ici serait périmé.
+    # Les réglages du lot : tout ce que le dépôt poste, lu par la cascade COMMUNE dans le cœur
+    # (`creer_lot_de_prompts` → `new_generation_settings`) — plus une liste de clés recopiée ici.
     #
     # DOMAINE du lot (2026-09-08, décision Fabien : « je ne vois pas de raison de ne pas
     # permettre de fichier batch dans le domaine vidéo »). Il est DÉCLARÉ par l'appelant (card
-    # vidéo, studio) ; les réglages vidéo suivent le patron de `handle_text_to_video`.
-    reglages = {k: request.POST[k] for k in
-                ('model', 'quality_intent', 'width', 'height', 'steps', 'guidance_scale',
-                 'video_duration', 'video_fps', 'video_resolution')
-                if request.POST.get(k) not in (None, '')}
+    # vidéo, studio) ; les réglages vidéo suivent le schéma vidéo.
+    reglages = request.POST.dict()
     domain = request.POST.get('domain') or 'image'
 
     # Save file temporarily to parse it
@@ -559,30 +508,17 @@ def handle_describe2img(request, user):
     if not reference_image:
         return JsonResponse({'error': refusal or 'No reference image provided'}, status=400)
 
-    # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur ici :
-    # 512x512 / 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout
-    # modèle 1024 px en rectified flow (Qwen, FLUX).
-    # On ENREGISTRE le choix (ou 'auto') — le tirage a lieu au LANCEMENT de la tâche, où la
-    # VRAM libre est celle du moment (cf. utils/auto_model.py). Résoudre ici serait périmé.
-    model = request.POST.get('model') or 'auto'
-    _def = get_model_defaults(model)
-    width = int(request.POST.get('width', _def['width']))
-    height = int(request.POST.get('height', _def['height']))
-    steps = int(request.POST.get('steps', _def['steps']))
-    guidance_scale = float(request.POST.get('guidance_scale', _def['guidance_scale']))
+    # Réglages : la cascade COMMUNE (`new_generation_settings`).
+    settings_values = new_generation_settings(user, 'describe2img', request.POST)
     prompt_style = request.POST.get('prompt_style', 'detailed')
 
     # Create generation with placeholder prompt
     generation = ImageGeneration.objects.create(
+        **settings_values,
+        **_dimensions(request.POST, settings_values.get('model')),
         user=user,
         generation_mode='describe2img',
         prompt='[Generating prompt from image...]',
-        model=model,
-        quality_intent=_intent_posted(request.POST),
-        width=width,
-        height=height,
-        steps=steps,
-        guidance_scale=guidance_scale,
         status='PENDING'
     )
     reference_image.assign(generation, 'reference_image')
@@ -635,25 +571,8 @@ def handle_img2img(request, user, mode):
         return JsonResponse({'error': refusal or 'No reference image provided'}, status=400)
 
     prompt = request.POST.get('prompt', '').strip()
-    negative_prompt = request.POST.get('negative_prompt', '').strip()
-    # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur ici :
-    # 512x512 / 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout
-    # modèle 1024 px en rectified flow (Qwen, FLUX).
-    # On ENREGISTRE le choix (ou 'auto') — le tirage a lieu au LANCEMENT de la tâche, où la
-    # VRAM libre est celle du moment (cf. utils/auto_model.py). Résoudre ici serait périmé.
-    model = request.POST.get('model') or 'auto'
-    _def = get_model_defaults(model)
-    width = int(request.POST.get('width', _def['width']))
-    height = int(request.POST.get('height', _def['height']))
-    steps = int(request.POST.get('steps', _def['steps']))
-    guidance_scale = float(request.POST.get('guidance_scale', _def['guidance_scale']))
-    image_strength = float(request.POST.get('image_strength', 0.75))
-    seed = request.POST.get('seed')
-    if seed:
-        seed = int(seed)
-    else:
-        seed = None
-    num_images = int(request.POST.get('num_images', 1))
+    # Réglages : la cascade COMMUNE (`new_generation_settings`) — la force de l'image comprise.
+    settings_values = new_generation_settings(user, mode, request.POST)
 
     # For style2img mode, if no prompt is provided, generate one
     if mode == 'style2img' and not prompt:
@@ -661,19 +580,11 @@ def handle_img2img(request, user, mode):
 
     # Create generation
     generation = ImageGeneration.objects.create(
+        **settings_values,
+        **_dimensions(request.POST, settings_values.get('model')),
         user=user,
         generation_mode=mode,
         prompt=prompt or '[No prompt - pure img2img]',
-        negative_prompt=negative_prompt,
-        model=model,
-        quality_intent=_intent_posted(request.POST),
-        width=width,
-        height=height,
-        steps=steps,
-        guidance_scale=guidance_scale,
-        seed=seed,
-        num_images=num_images,
-        image_strength=image_strength,
         source_url=source_url,
         status='PENDING'
     )
@@ -696,33 +607,16 @@ def handle_txt2vid(request, user):
     if not prompt:
         return JsonResponse({'error': 'Prompt is required'}, status=400)
 
-    negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = request.POST.get('model') or 'auto'
-    video_duration = float(request.POST.get('video_duration', 5.0))
-    video_fps = int(request.POST.get('video_fps', 16))
-    video_resolution = request.POST.get('video_resolution', '480p')
-    steps = int(request.POST.get('steps', 50))
-    guidance_scale = float(request.POST.get('guidance_scale', 5.0))
-    seed = request.POST.get('seed')
-    if seed:
-        seed = int(seed)
-    else:
-        seed = None
+    # Réglages : la cascade COMMUNE (`new_generation_settings`, schéma VIDÉO). La résolution fixe
+    # les dimensions (`ImageGeneration.save`).
+    settings_values = new_generation_settings(user, 'txt2vid', request.POST)
 
     # Create generation object
     generation = ImageGeneration.objects.create(
+        **settings_values,
         user=user,
         generation_mode='txt2vid',
         prompt=prompt,
-        negative_prompt=negative_prompt,
-        model=model,
-        quality_intent=_intent_posted(request.POST),
-        video_duration=video_duration,
-        video_fps=video_fps,
-        video_resolution=video_resolution,
-        steps=steps,
-        guidance_scale=guidance_scale,
-        seed=seed,
         status='PENDING'
     )
 
@@ -746,33 +640,15 @@ def handle_img2vid(request, user):
         return JsonResponse({'error': refusal or 'Reference image is required'}, status=400)
 
     prompt = request.POST.get('prompt', '').strip()
-    negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = request.POST.get('model') or 'auto'
-    video_duration = float(request.POST.get('video_duration', 5.0))
-    video_fps = int(request.POST.get('video_fps', 16))
-    video_resolution = request.POST.get('video_resolution', '480p')
-    steps = int(request.POST.get('steps', 50))
-    guidance_scale = float(request.POST.get('guidance_scale', 5.0))
-    seed = request.POST.get('seed')
-    if seed:
-        seed = int(seed)
-    else:
-        seed = None
+    # Réglages : la cascade COMMUNE (`new_generation_settings`, schéma VIDÉO).
+    settings_values = new_generation_settings(user, 'img2vid', request.POST)
 
     # Create generation object
     generation = ImageGeneration.objects.create(
+        **settings_values,
         user=user,
         generation_mode='img2vid',
         prompt=prompt or 'animate this image',
-        negative_prompt=negative_prompt,
-        model=model,
-        quality_intent=_intent_posted(request.POST),
-        video_duration=video_duration,
-        video_fps=video_fps,
-        video_resolution=video_resolution,
-        steps=steps,
-        guidance_scale=guidance_scale,
-        seed=seed,
         source_url=source_url,
         status='PENDING'
     )

@@ -308,3 +308,33 @@ class TheCardShowsItsProcessesTest(TestCase):
         self.assertEqual(['speak', 'animate', 'enhance'],
                          [p['key'] for p in payload['processes']])
         self.assertEqual('PENDING', payload['shown_state'])
+
+
+class WhatADepositRemembersTest(TestCase):
+    """The avatarizer's own rules on top of the common cascade (`params.user_setting_key`,
+    2026-10-18): the VOICE is remembered only when it was used (a job carrying text), the
+    animation model is never remembered — a named model fits ONE nature of avatar."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('avatar_remember', password='x')
+
+    def test_the_voice_is_kept_only_when_it_spoke_and_the_animation_model_never(self):
+        from wama.avatarizer.views import _remember_settings, new_avatar_settings
+        posted = {'tts_model': 'coqui-xtts', 'language': 'en', 'bbox_shift': '3',
+                  'animation_model': 'avatarizer:talkinghead'}
+        _remember_settings(self.user, posted, spoke=False)
+        born = new_avatar_settings(self.user, post={'text_content': 'Bonjour'})
+        self.assertEqual(3, born['bbox_shift'], 'a panel setting is remembered')
+        self.assertNotEqual('en', born['language'], 'the voice did not speak: not remembered')
+        self.assertEqual('auto', born['animation_model'], 'the animation model is never remembered')
+        _remember_settings(self.user, posted, spoke=True)
+        born = new_avatar_settings(self.user, post={'text_content': 'Bonjour'})
+        self.assertEqual('en', born['language'])
+        self.assertEqual('synthesizer:coqui-xtts', born['tts_model'], 'stored as a catalog key')
+
+    def test_the_voice_applies_only_to_a_job_carrying_text(self):
+        """`show_if="text_content"` holds at birth: a job without text gets no voice settings
+        (the brick read the panel DEFAULTS as choices until 2026-10-18, and wrote them anyway)."""
+        from wama.avatarizer.views import new_avatar_settings
+        self.assertNotIn('language', new_avatar_settings(self.user, post={}))
+        self.assertIn('language', new_avatar_settings(self.user, post={'text_content': 'Bonjour'}))

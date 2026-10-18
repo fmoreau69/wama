@@ -1356,6 +1356,54 @@ def _user_settings(f: _AppFiles):
     return False, None
 
 
+def _declared_setting_names(f: _AppFiles) -> set:
+    """Les noms de réglages que l'app DÉCLARE — tous ses schémas (`declared_param_schemas` : imager
+    image + vidéo, enhancer média + audio), jamais une liste écrite ici."""
+    try:
+        from wama.common.utils.param_schema import _pget, declared_param_schemas
+        declared = declared_param_schemas(f.app) or {}
+    except Exception:
+        return set()
+    return {_pget(p, 'name') for schema in (declared.get('schemas') or {}).values()
+            for p in schema if _pget(p, 'name')}
+
+
+def _birth_settings_common(f: _AppFiles):
+    """Un élément NAÎT par la cascade commune `user_settings.new_element_settings` (2026-10-18).
+
+    La règle (`ROADMAP §23.2quater`) : l'élément naît COMPLET — défauts du schéma ← préférences du
+    volet de l'auteur ← ce que le dépôt poste. Le critère `user_settings` ne mesure que l'ÉCRITURE
+    des préférences ; mesuré le jour même, 2 apps sur 10 faisaient naître leurs éléments par la
+    brique, les autres par une cascade à elles — défauts du schéma recopiés en dictionnaire dans
+    `get_user_app_settings`, défauts du schéma SANS les préférences (`applicable_defaults` seul),
+    ou un défaut écrit dans la vue à la lecture du POST.
+
+    VRAI : la brique est appelée et aucune cascade locale ne reste ; PARTIEL : brique appelée,
+    une voie de création garde sa cascade (transcriber : `batch_create`) ; FAUX : pas de brique.
+    Un défaut lu dans le POST n'est compté que pour un réglage DÉCLARÉ au schéma (`restart`,
+    `url`, `generation_mode` ne sont pas des réglages).
+    """
+    paths = f.code_paths()
+    brick = f._find_in(paths, r'\bnew_element_settings\(', code=True)
+    local = (f._find_in(paths, r"\bget_user_app_settings\(\s*[^,()]+,\s*[^,()]+,\s*\{\s*['\"]",
+                        code=True)
+             or f._find_in(paths, r'\bapplicable_defaults\(', code=True))
+    if not local:
+        names = _declared_setting_names(f)
+        if names:
+            alternatives = '|'.join(sorted(re.escape(n) for n in names))
+            local = f._find_in(
+                paths, r"\.(?:POST|post)\.get\(\s*['\"](?:" + alternatives + r")['\"]\s*,\s*"
+                       r"(?:['\"][^'\"]+['\"]|-?\d|True\b|False\b)", code=True)
+    if brick and local:
+        return 'partial', f"{brick} + cascade locale restante ({local})"
+    if brick:
+        return True, brick
+    return False, (f"cascade de naissance locale ({local}) — porter sur "
+                   "`user_settings.new_element_settings`" if local
+                   else "aucun appel de `user_settings.new_element_settings`")
+
+
 def _queue_manipulation(f: _AppFiles):
     fab = f.find(VIEWS, r'make_queue_manipulation_views')
     if fab:
@@ -2632,6 +2680,11 @@ CRITERIA: list[Criterion] = [
               _release_card_file, mechanism='queue_duplication'),
     Criterion('user_settings', 'F5', 'Réglages user persistés (brique user_settings)', _user_settings,
               mechanism='user_settings'),
+    # 2026-10-18 : `user_settings` ne mesurait que la PERSISTANCE — la naissance d'un élément par
+    # la cascade commune n'était vérifiée nulle part, et deux apps sur dix la portaient.
+    Criterion('birth_settings_common', 'F5',
+              'Un élément naît par la cascade commune (user_settings.new_element_settings)',
+              _birth_settings_common, mechanism='user_settings'),
     Criterion('start_all', 'F5', 'Vue start_all',
               lambda f: _present(f, URLS, r'start_all|start-all')),
     Criterion('clear_all', 'F5', 'Vue clear_all',

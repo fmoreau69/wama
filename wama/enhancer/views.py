@@ -220,27 +220,18 @@ class IndexView(View):
 
 
 def new_enhancement_settings(user, model=None, app='enhancer', post=None):
-    """Les colonnes de réglage d'une amélioration (image/vidéo) NAISSANTE : ceux que
-    l'utilisateur a MÉMORISÉS au volet (brique commune `read_panel_settings`, 2026-09-29 —
-    ex-table `UserSettings` propre à l'enhancer, jamais écrite), puis ce que le dépôt POSTE, lu
-    par le schéma (`schema_model_kwargs`). Le dépôt de la card et l'import du gestionnaire de
-    fichiers (« Envoyer vers », sans volet donc sans POST) passent ici ; `model`/`app` : une
-    jumelle de bac à sable passe les siens."""
-    from wama.common.utils.param_schema import schema_model_kwargs
-    from wama.common.utils.user_settings import element_columns, read_panel_settings
-    from wama.enhancer.params import MEDIA_PARAMS
-    stored = read_panel_settings(user, app, MEDIA_PARAMS)
-    values = {'ai_model': stored.get('ai_model') or 'auto',
-              'denoise': bool(stored.get('denoise')),
-              'blend_factor': stored.get('blend_factor') or 0.0,
-              'output_format': stored.get('output_format') or 'original',
-              'output_quality': stored.get('output_quality') or 'balanced',
-              'output_keep_size': bool(stored.get('output_keep_size'))}
-    values.update({k: v for k, v in schema_model_kwargs('enhancer', post).items()
-                   if k not in ('upscale_factor', 'quality_intent') and v not in (None, '')})
-    values['upscale_factor'] = _factor_posted(post, 4)
-    values['quality_intent'] = _intent_posted(post)
-    return element_columns(values, model or Enhancement)
+    """Les colonnes de réglage d'une amélioration (image/vidéo) NAISSANTE, par la cascade COMMUNE
+    (défauts du schéma ← réglages mémorisés au volet ← ce que le dépôt poste,
+    `user_settings.new_element_settings`, 2026-10-18 — six défauts y étaient recopiés à la main).
+    Règle propre gardée : le facteur d'agrandissement vaut ×2 ou ×4, ×4 sinon (`_factor_posted`).
+    Le dépôt de la card, le lot et l'import du gestionnaire de fichiers (« Envoyer vers », sans
+    volet donc sans POST) passent ici ; `model`/`app` : une jumelle de bac à sable passe les siens."""
+    from wama.common.utils.user_settings import new_element_settings
+    from wama.enhancer.params import MEDIA_PARAMS_JSON
+    values = new_element_settings(user, app, MEDIA_PARAMS_JSON, model or Enhancement, post=post)
+    if 'upscale_factor' in values:
+        values['upscale_factor'] = _factor_posted(values, 4)
+    return values
 
 
 def _deposit_settings(user, post):
@@ -248,11 +239,9 @@ def _deposit_settings(user, post):
     du volet (`save_panel_settings`) : l'élément suivant et la page rechargée partent des
     derniers réglages employés."""
     from wama.common.utils.user_settings import save_panel_settings
-    from wama.enhancer.params import MEDIA_PARAMS
+    from wama.enhancer.params import MEDIA_PARAMS_JSON
     values = new_enhancement_settings(user, post=post)
-    names = {p.name for p in MEDIA_PARAMS}
-    save_panel_settings(user, 'enhancer', MEDIA_PARAMS,
-                        {k: post.get(k) for k in names if k in post})
+    save_panel_settings(user, 'enhancer', MEDIA_PARAMS_JSON, post)
     return values
 
 
@@ -720,13 +709,9 @@ def batch_create(request):
     from wama.common.app_registry import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    ai_model = request.POST.get('ai_model') or 'auto'
-    denoise_val = request.POST.get('denoise', 'false')
-    denoise = denoise_val.lower() in ('1', 'true', 'on')
-    try:
-        blend_factor = float(request.POST.get('blend_factor', '0'))
-    except (ValueError, TypeError):
-        blend_factor = 0.0
+    # Chaque fille naît par la cascade COMMUNE d'un dépôt (2026-10-18) : elle lisait quatre
+    # réglages dans le POST, avec leur défaut écrit ici, et le format de sortie jamais.
+    settings_values = _deposit_settings(user, request.POST)
 
     try:
         items, warnings = parse_batch_file_from_request(request)
@@ -763,14 +748,10 @@ def batch_create(request):
             media_type = 'image'  # default
 
         enhancement = Enhancement.objects.create(
+            **settings_values,
             user=user,
             source_url=url_or_path,
             media_type=media_type,
-            ai_model=ai_model,
-            denoise=denoise,
-            blend_factor=blend_factor,
-            upscale_factor=_factor_posted(request.POST, 4),
-            quality_intent=_intent_posted(request.POST),
         )
         BatchEnhancementItem.objects.create(batch=batch, enhancement=enhancement, row_index=i)
         created_ids.append(enhancement.id)

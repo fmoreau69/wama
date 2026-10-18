@@ -38,7 +38,9 @@ class TtsCatalogKeyTest(SimpleTestCase):
         line = {'reference': 'a.png', 'prompt': 'Bonjour'}
         self.assertEqual(row({**line, 'options': {'tts': 'coqui-xtts'}})['tts_model'],
                          'synthesizer:coqui-xtts')
-        self.assertEqual(row({**line, 'options': {}})['tts_model'], DEFAULT_TTS_MODEL)
+        # A line that names no engine says nothing: the job is born by the common cascade (the
+        # author's remembered engine, then the schema default) — `tests_birth_settings`.
+        self.assertNotIn('tts_model', row({**line, 'options': {}}))
 
 
 class AssistantToolStoresTheCatalogKeyTest(TestCase):

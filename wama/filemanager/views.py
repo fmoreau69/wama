@@ -1661,8 +1661,8 @@ def import_to_reader(source_path, user, app_label='reader'):
     dest_path, relative_path = reference_or_copy(
         source_path, app_label, user.id, 'input', allowed_exts=reader_extensions)
 
+    # Les COLONNES de la cascade commune (le curseur, réglage d'APP sans colonne, n'y est pas).
     settings_values = new_reading_settings(user, app=app_label)
-    settings_values.pop('quality_intent')   # réglage d'APP, pas une colonne de l'élément
     item = ReadingItem(user=user, original_filename=dest_path.name, status='PENDING',
                        **element_columns(settings_values, ReadingItem))
     item.input_file.name = relative_path

@@ -59,6 +59,28 @@ def _auto_wrap_orphans(user):
 _DEFAULT_DURATION = float(ComposerGeneration._meta.get_field('duration').default)
 
 
+def new_generation_settings(user, model=None, app='composer', post=None) -> dict:
+    """Les colonnes de réglage d'une génération NAISSANTE, par la cascade COMMUNE (défauts du
+    schéma ← réglages de l'auteur ← ce qui est posté, `user_settings.new_element_settings`,
+    2026-10-18) — avant, cinq réglages relus avec leurs défauts recopiés ici, les autres au défaut
+    du modèle. Les règles PROPRES au composer s'appliquent ensuite, chez l'appelant : le modèle
+    normalisé et validé, la durée bornée par ce qu'il sait produire, la voix normalisée.
+    `model`/`app` : une jumelle de bac à sable passe les siens."""
+    from wama.common.utils.user_settings import new_element_settings
+    from wama.composer.params import PARAMS_JSON, user_setting_key
+    return new_element_settings(user, app, PARAMS_JSON, model or ComposerGeneration, post=post,
+                                key=user_setting_key)
+
+
+def _remember_settings(user, post):
+    """Ce que le volet a posté devient la mémoire du volet (`save_panel_settings`) — APRÈS la
+    validation : un modèle refusé ne doit pas devenir la préférence qui ferait échouer les
+    dépôts suivants."""
+    from wama.common.utils.user_settings import save_panel_settings
+    from wama.composer.params import PARAMS_JSON, user_setting_key
+    save_panel_settings(user, 'composer', PARAMS_JSON, post, key=user_setting_key)
+
+
 def _reset_for_relaunch(gen, only=None):
     """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race (begin_processing).
 
@@ -269,23 +291,17 @@ def generate(request):
     # L'UI l'annonce dans le placeholder de la card d'entrée (INPUT_MODEL_MATCHING.md).
     prompt = request.POST.get('prompt', '').strip()
 
-    # Réglages persistés (brique user_settings, clés = noms de params.py) : le POST prime,
-    # sinon DERNIER réglage utilisé (pattern converter) — une création sans formulaire
-    # (tool_api/studio) hérite ainsi du modèle préféré au lieu d'un défaut codé en dur.
-    from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
-    last = get_user_app_settings(user, 'composer', {
-        'model': DEFAULT_MODEL, 'duration': _DEFAULT_DURATION, 'vocals': vocals.AUTO,
-        'output_format': 'original', 'output_quality': 'balanced'})
-
-    model_id = normalize(request.POST.get('model') or last['model'])
+    # Réglages : la cascade COMMUNE (défauts du schéma ← réglages de l'auteur ← le POST), puis les
+    # règles du composer — modèle normalisé et validé, durée bornée, voix normalisée.
+    settings_values = new_generation_settings(user, post=request.POST)
+    settings_values.pop('prompt', None)   # la consigne vient de la card seule (ci-dessus)
+    model_id = normalize(settings_values.get('model'))
     if not is_valid(model_id):
         return JsonResponse({'error': 'Modèle invalide'}, status=400)
-
-    try:
-        duration = float(request.POST.get('duration') or last['duration'])
-        duration = clamp_duration(duration)
-    except (ValueError, TypeError):
-        duration = _DEFAULT_DURATION
+    settings_values['model'] = model_id
+    # Bornée par le schéma seul : le plafond du modèle se pose au lancement (`clamp_duration`).
+    settings_values['duration'] = clamp_duration(settings_values.get('duration'))
+    settings_values['vocals'] = vocals.normalize(settings_values.get('vocals'))
 
     # Le MORCEAU À REPRENDRE (cover) — ports de TRAVAIL depuis le 2026-10-03 (décision de Fabien) :
     # l'audio de MusicGen Melody (`work_audio`) et la partition de YuE2 (`work_score`). Chacun est
@@ -313,22 +329,15 @@ def generate(request):
             return JsonResponse({'error': received.refusal}, status=400)
 
     gen = ComposerGeneration.objects.create(
+        **settings_values,
         user=user,
-        prompt=prompt,
-        model=model_id,
-        quality_intent=_intent_posted(request.POST),
-        duration=duration,
-        vocals=vocals.normalize(request.POST.get('vocals') or last.get('vocals')),
-        output_format=request.POST.get('output_format') or last['output_format'],
-        output_quality=request.POST.get('output_quality') or last['output_quality'],
+        prompt=prompt,   # la consigne de la card, nettoyée — jamais une préférence
         # Mélodie par URL (WAMA_INGEST) : téléchargée en tête de tâche par ensure_local_input.
         source_url=request.POST.get('source_url', '').strip(),
     )
 
-    # Re-persiste les choix comme défauts de la prochaine génération.
-    save_user_app_settings(user, 'composer', {
-        'model': model_id, 'duration': duration, 'vocals': gen.vocals,
-        'output_format': gen.output_format, 'output_quality': gen.output_quality})
+    # Ce que le volet a posté devient la mémoire des prochaines générations.
+    _remember_settings(user, request.POST)
 
     for received, field in joined:
         received.assign(gen, field)
@@ -412,15 +421,18 @@ def import_batch(request):
 
     batch_file = request.FILES['batch_file']
 
-    # Default params for items without explicit model/duration
-    default_model = normalize(request.POST.get('default_model') or DEFAULT_MODEL)
+    # Chaque génération du lot naît par la cascade COMMUNE ; une ligne qui précise son modèle ou sa
+    # durée les impose, sinon ceux du lot (`default_model` / `default_duration`), sinon la cascade.
+    base = new_generation_settings(user, post=request.POST)
+    base.pop('prompt', None)
+    default_model = normalize(request.POST.get('default_model') or base.get('model'))
     if not is_valid(default_model):
-        default_model = DEFAULT_MODEL
+        default_model = normalize(base.get('model'))
     try:
-        default_duration = float(request.POST.get('default_duration', _DEFAULT_DURATION))
-        default_duration = clamp_duration(default_duration)
+        default_duration = clamp_duration(float(request.POST.get('default_duration')
+                                                or base.get('duration')))
     except (ValueError, TypeError):
-        default_duration = _DEFAULT_DURATION
+        default_duration = clamp_duration(base.get('duration'))
 
     # Save batch file temporarily to parse it
     from django.conf import settings
@@ -464,10 +476,9 @@ def import_batch(request):
     created_ids = []
     for task_data in tasks:
         gen = ComposerGeneration.objects.create(
+            **{**base, 'model': task_data['model'], 'duration': task_data['duration']},
             user=user,
             prompt=task_data['prompt'],
-            model=task_data['model'],
-            duration=task_data['duration'],
         )
         ComposerBatchItem.objects.create(
             batch=batch,

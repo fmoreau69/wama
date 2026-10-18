@@ -162,20 +162,53 @@ def reset_panel_settings(user, app, params, *, key=None, extra=None, clean=None)
 
 
 def new_element_settings(user, app, params, model, *, post=None, context=None, key=None,
-                         extra=None, clean=None) -> dict:
+                         extra=None, clean=None, options_field=None, preset=None,
+                         empty_is_value=()) -> dict:
     """Les colonnes de réglage d'un élément NAISSANT — il naît complet (`ROADMAP §23.2quater`),
     et sa tâche ne lit plus que ses colonnes.
 
     La cascade est LA cascade commune, `param_schema.effective_settings` : défauts du schéma
     applicables à `context` (la nature détectée, p. ex. `{'media_type': 'image'}`) ← réglages
-    du volet de l'auteur ← ce que le dépôt POSTE. Restreint aux champs concrets de `model`."""
-    from wama.common.utils.param_schema import coerce_schema_values, effective_settings
-    prefs = read_panel_settings(user, app, params, key=key, extra=extra)
+    du volet de l'auteur ← ce que le dépôt POSTE. Restreint aux champs concrets de `model`.
+
+    `options_field` : le conteneur JSON d'un modèle dont des réglages DU SCHÉMA ne sont pas des
+    colonnes (idiome `params_storage` — même mot-clé, même sens que `batch_views.apply_item_settings`,
+    2026-10-18) ; ces réglages y sont rangés au lieu d'être perdus. Sans lui, ils sont écartés.
+
+    `preset` : la couche PRÉRÉGLAGE de la cascade (`effective_settings` : défauts ← préréglage ←
+    posé) — p. ex. les défauts DÉCLARÉS du modèle choisi (imager), qui priment sur ceux du schéma
+    sans écraser un choix de l'auteur.
+    `empty_is_value` : noms pour qui une valeur postée VIDE est un choix — même mot-clé, même sens
+    que `batch_views.read_settings_payload` (la graine vide de l'imager = aléatoire) : elle écarte
+    la préférence retenue, et le défaut du schéma joue."""
+    from wama.common.utils.param_schema import (_pget, coerce_schema_values, effective_settings,
+                                                invalid_choice_values, panel_values_by_name)
+    # Ce que l'auteur a POSÉ, rien d'autre (2026-10-18) : `read_panel_settings` complète par les
+    # défauts du volet, que la cascade prenait pour des choix — un préréglage ne pouvait alors
+    # jamais jouer, ni un `show_if` écarter un défaut. Les défauts viennent d'`effective_settings`.
+    posed = _read(user, app, list(_panel_defaults(params, key, extra)))
+    prefs = panel_values_by_name(posed, params, key=key)
     posted = coerce_schema_values(params, post) if post is not None else {}
-    values = effective_settings(params, posees={**prefs, **posted}, contexte=context)
-    # Réglages HORS schéma : ceux de l'auteur (aucun dépôt ne les poste).
-    values.update({name: prefs[name] for name in (extra or {})})
-    return element_columns(values, model)
+    given = {**prefs, **posted}
+    # Une valeur HORS des choix déclarés n'est jamais écrite — une préférence gardée avant qu'un
+    # choix ne soit retiré (le style « meeting » du describer, devenu un type de résumé), un POST
+    # périmé : le défaut joue. La règle de `batch_views.apply_item_settings` pour un élément
+    # existant, ici pour un élément qui naît (2026-10-18).
+    for name in invalid_choice_values(params, given):
+        given.pop(name)
+    for name in empty_is_value:
+        if post is not None and name in post and post.get(name) in (None, ''):
+            given.pop(name, None)
+    values = effective_settings(params, posees=given, preset=preset, contexte=context)
+    # Réglages HORS schéma : ceux de l'auteur, leur défaut déclaré sinon (aucun dépôt ne les poste).
+    values.update({name: posed.get(name, default) for name, default in (extra or {}).items()})
+    columns = element_columns(values, model)
+    if options_field:
+        declared = {_pget(p, 'name') for p in params}
+        outside = {k: v for k, v in values.items() if k in declared and k not in columns}
+        if outside:
+            columns[options_field] = outside
+    return columns
 
 
 def element_columns(values, model) -> dict:

@@ -20,18 +20,21 @@ from django.utils.http import content_disposition_header
 
 import json
 from .models import AvatarJob, BatchAvatarJob, BatchAvatarJobItem
-from .params import PARAMS_JSON as _AVATAR_PARAMS_JSON
+from .params import PARAMS_JSON as _AVATAR_PARAMS_JSON, VOICE_SETTINGS, user_setting_key
+
+#: Les noms de réglages DÉCLARÉS — lus au schéma, pour reconnaître ce qu'une ligne de lot poste.
+_SETTING_NAMES = {p['name'] for p in _AVATAR_PARAMS_JSON}
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.accounts.permissions import app_access
-from wama.common.tts.constants import DEFAULT_TTS_MODEL, tts_catalog_key
+from wama.common.tts.constants import tts_catalog_key
 from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views
 from wama.common.tts.ui_meta import tts_engine_choices, tts_input_match_meta
 from wama.common.utils.scoping import visible_or_404
-from wama.common.utils.user_settings import (get_user_app_settings, read_panel_settings,
-                                              save_user_app_settings)
+from wama.common.utils.user_settings import (new_element_settings, read_panel_settings,
+                                              save_panel_settings)
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +145,8 @@ class IndexView(View):
             # Valeurs du VOLET généré (contexte 'panel') : les réglages que l'utilisateur a
             # employés en dernier (mémorisés au dépôt, `create`), sous les défauts du schéma.
             'panel_values_json': json.dumps(
-                read_panel_settings(user, 'avatarizer', _AVATAR_PARAMS_JSON)),
+                read_panel_settings(user, 'avatarizer', _AVATAR_PARAMS_JSON,
+                                    key=user_setting_key)),
             # Groupes de voix (brique commune, per-user) pour le select GÉNÉRÉ de la modale
             # (options_source='voices') — remplace les optgroups hardcodés du template.
             # Le repli fail-safe vit DANS la brique depuis le 2026-09-23 (l'aide locale qui
@@ -157,6 +161,30 @@ class IndexView(View):
             'input_labels': json.dumps(input_labels()),
         }
         return render(request, 'avatarizer/index.html', context)
+
+
+def new_avatar_settings(user, model=None, app='avatarizer', post=None) -> dict:
+    """Les colonnes de réglage d'un job NAISSANT, par la cascade COMMUNE (défauts du schéma ←
+    réglages retenus de l'auteur ← ce qui est posté, `user_settings.new_element_settings`,
+    2026-10-18). La voix ne s'applique qu'à un job porteur de texte (`show_if="text_content"`).
+    Le moteur de voix est rendu en clé de catalogue (un réglage retenu avant le 2026-09-29 peut
+    porter le nom COURT) ; les autres règles propres — modèle d'animation validé, amélioration
+    dérivée — restent chez l'appelant. `model`/`app` : une jumelle de bac à sable passe les siens.
+    Avant, cinq réglages relus avec leurs défauts recopiés dans la vue, et une ligne de lot
+    écrivait les siens en dur."""
+    values = new_element_settings(user, app, _AVATAR_PARAMS_JSON, model or AvatarJob, post=post,
+                                  key=user_setting_key)
+    if values.get('tts_model'):
+        values['tts_model'] = tts_catalog_key(values['tts_model'])
+    return values
+
+
+def _remember_settings(user, post, spoke):
+    """Ce que le dépôt a posté devient la mémoire du suivant (`save_panel_settings`) — la voix
+    seulement quand elle a servi (`spoke` : un job porteur de texte)."""
+    if not spoke:
+        post = {k: v for k, v in post.items() if k not in VOICE_SETTINGS}
+    save_panel_settings(user, 'avatarizer', _AVATAR_PARAMS_JSON, post, key=user_setting_key)
 
 
 @app_access('avatarizer')
@@ -181,27 +209,19 @@ def create(request):
         return JsonResponse({'error': audio_received.refusal}, status=400)
     source_url = request.POST.get('source_url', '').strip()
     mode = 'standalone' if (audio_file or source_url) else 'pipeline'
-    job = AvatarJob(user=user, mode=mode)
+    if mode == 'pipeline' and not text_content:
+        return JsonResponse(
+            {'error': "Fournissez un texte à dire, un fichier audio ou une URL."}, status=400)
 
-    # Réglages user (brique commune) : les derniers réglages employés servent de défauts
-    # quand le POST ne les précise pas (dépôt rapide drag & drop sans passer par la modale).
-    prefs = get_user_app_settings(user, 'avatarizer', {  # wama:redondance-ok — défauts du contrat de réglages utilisateur (décision d'app)
-        'use_enhancer': False, 'bbox_shift': 0,
-        'tts_model': DEFAULT_TTS_MODEL, 'language': 'fr', 'voice_preset': 'default'})
-
-    # --- Pipeline : texte + réglages TTS (l'audio sera GÉNÉRÉ, service TTS commun) ---
+    # Réglages : la cascade COMMUNE (défauts du schéma ← réglages retenus de l'auteur ← le POST).
+    # Le texte n'est posé qu'en pipeline : c'est lui qui rend la voix applicable (l'audio fourni
+    # d'un job autonome prime, son texte éventuel ne sert pas).
+    posted = request.POST.copy()
     if mode == 'pipeline':
-        if not text_content:
-            return JsonResponse(
-                {'error': "Fournissez un texte à dire, un fichier audio ou une URL."},
-                status=400)
-        job.text_content = text_content
-        # Un réglage mémorisé avant le 2026-09-29 peut porter le nom COURT : normalisé ici.
-        job.tts_model = tts_catalog_key(request.POST.get('tts_model', prefs['tts_model']))
-        from wama.common.utils.auto_model import read_quality_intent
-        job.quality_intent = read_quality_intent(request.POST.get('quality_intent'))
-        job.language = request.POST.get('language', prefs['language'])
-        job.voice_preset = request.POST.get('voice_preset', prefs['voice_preset'])
+        posted['text_content'] = text_content
+    else:
+        posted.pop('text_content', None)
+    job = AvatarJob(user=user, mode=mode, **new_avatar_settings(user, post=posted))
 
     # --- Standalone : fichier audio OU URL (WAMA_INGEST → téléchargé par le worker) ---
     if mode == 'standalone':
@@ -267,17 +287,12 @@ def create(request):
     # Validé contre le CATALOGUE (la même liste que sert le select) ; une valeur inconnue vaut
     # « auto » — jamais une valeur brute au worker. Pas mémorisé comme dernier réglage : un
     # modèle nommé ne convient qu'à UNE nature d'avatar, et le suivant peut en changer.
-    job.animation_model = _animation_model_or_auto(request.POST.get('animation_model'))
+    job.animation_model = _animation_model_or_auto(job.animation_model)
 
-    # --- Paramètres pipeline MuseTalk ---
-    job.use_enhancer = request.POST.get('use_enhancer', str(prefs['use_enhancer']).lower()) == 'true'
     # quality_mode DÉRIVÉ (2026-08-03) : le backend ne lit que use_enhancer, le champ ne
-    # sert plus qu'aux clés ETA et aux données existantes.
+    # sert plus qu'aux clés ETA et aux données existantes. (`use_enhancer` et `bbox_shift`
+    # viennent de la cascade, coercés et bornés par le schéma.)
     job.quality_mode = 'quality' if job.use_enhancer else 'fast'
-    try:
-        job.bbox_shift = max(-10, min(10, int(request.POST.get('bbox_shift', prefs['bbox_shift']))))
-    except (ValueError, TypeError):
-        job.bbox_shift = 0
 
     job.save()
     # Provenance des ports réellement employés (rien pour un téléversement).
@@ -285,12 +300,8 @@ def create(request):
                             (avatar_file, 'avatar_upload')):
         if received:
             received.record(job, field)
-    derniers = {'use_enhancer': job.use_enhancer, 'bbox_shift': job.bbox_shift}
-    if mode == 'pipeline':
-        # Les réglages TTS ne se mémorisent que lorsqu'ils ont réellement servi.
-        derniers.update({'tts_model': job.tts_model, 'language': job.language,
-                         'voice_preset': job.voice_preset})
-    save_user_app_settings(user, 'avatarizer', derniers)
+    # Ce que le dépôt a posté se retient pour le suivant — la voix seulement si elle a servi.
+    _remember_settings(user, request.POST, spoke=mode == 'pipeline')
     # Clé `id` — contrat COMMUN des vues qui créent un élément (trou #24 de la route). Cette vue
     # et `duplicate` étaient les DEUX seules de l'app à écrire `job_id` : `start`/`stop` (l. 218,
     # 221) émettaient déjà `id`. L'app était donc incohérente avec elle-même, et la normalisation
@@ -802,29 +813,28 @@ def _unified_item_to_avatar_row(it: dict) -> dict:
     else:
         return {'error': 'ni texte (-p) ni audio (-i) fourni'}
 
+    # Les RÉGLAGES que la ligne porte, sous leur nom de schéma — ceux qu'elle tait viennent de la
+    # cascade commune à la création du job (`new_avatar_settings`), comme pour un dépôt. Les
+    # défauts écrits ici (« fr », « default », bbox 0…) sont retirés le 2026-10-18.
     # --quality reste accepté (compat des fichiers batch existants) mais n'est plus
     # qu'un ALIAS de l'amélioration CodeFormer (2026-08-03) — le mode UI est mort.
-    quality = opts.get('quality', 'fast')
-    quality = quality if quality in ('fast', 'quality') else 'fast'
-    try:
-        bbox = max(-10, min(10, int(opts.get('bbox', 0))))
-    except (ValueError, TypeError):
-        bbox = 0
-
-    return {
+    row = {
         'mode': mode,
-        'text_content': prompt or '',
+        'text_content': prompt if mode == 'pipeline' else '',
         'audio_path': audio or '',
         'avatar_gallery_name': reference,
-        'tts_model': tts_catalog_key(opts.get('tts') or opts.get('model') or DEFAULT_TTS_MODEL),
-        'language': opts.get('language', 'fr'),
-        'voice_preset': opts.get('voice', 'default'),
-        'use_enhancer': (str(opts.get('enhancer', '')).lower() in ('1', 'true', 'yes')
-                         or quality == 'quality'),
-        'bbox_shift': bbox,
         'output': it.get('output', ''),
         'line_num': it.get('line_num'),
     }
+    if opts.get('tts') or opts.get('model'):
+        row['tts_model'] = tts_catalog_key(opts.get('tts') or opts.get('model'))
+    for name, option in (('language', 'language'), ('voice_preset', 'voice'), ('bbox_shift', 'bbox')):
+        if opts.get(option) not in (None, ''):
+            row[name] = opts[option]
+    if 'enhancer' in opts or 'quality' in opts:
+        row['use_enhancer'] = (str(opts.get('enhancer', '')).lower() in ('1', 'true', 'yes')
+                               or opts.get('quality') == 'quality')
+    return row
 
 
 @require_POST
@@ -839,7 +849,7 @@ def batch_preview(request):
             'mode': r['mode'],
             'avatar': r['avatar_gallery_name'],
             'text': (r['text_content'] or r['audio_path'])[:60],
-            'language': r['language'],
+            'language': r.get('language', ''),
         }
         for r in rows
     ]
@@ -876,18 +886,16 @@ def batch_create(request):
             avatar = designate_named_avatar(row['avatar_gallery_name'], user)
         except InputRefused:
             avatar = None
+        # La ligne POSTE ses réglages comme un dépôt : la cascade commune fait le reste.
+        values = new_avatar_settings(user, post={k: v for k, v in row.items() if k in _SETTING_NAMES})
+        values['animation_model'] = _animation_model_or_auto(values.get('animation_model'))
         job = AvatarJob(
+            **values,
             user=user,
             mode=row['mode'],
-            text_content=row['text_content'],
-            tts_model=row['tts_model'],
-            language=row['language'],
-            voice_preset=row['voice_preset'],
             avatar_source='upload' if avatar else 'gallery',
             avatar_gallery_name='' if avatar else row['avatar_gallery_name'],
-            use_enhancer=row['use_enhancer'],
-            quality_mode='quality' if row['use_enhancer'] else 'fast',
-            bbox_shift=row['bbox_shift'],
+            quality_mode='quality' if values.get('use_enhancer') else 'fast',
         )
         # Standalone : rattacher l'audio s'il résout sous MEDIA_ROOT (partage, pas de copie) ;
         # une URL devient la SOURCE, téléchargée dès la création (`source_ingest`, WAMA_INGEST) —

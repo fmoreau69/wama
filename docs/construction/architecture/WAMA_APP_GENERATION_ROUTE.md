@@ -179,7 +179,8 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   | `gear_data` (property modèle) | **10/10** | — |
   | écran DÉRIVÉ des capacités du modèle (`cap_from` au schéma, ou `WamaModelCaps`) | ~~synthesizer seul~~ ~~8/8 apps au 2026-10-02~~ **8/8 au 2026-10-13** (grille `model_caps_ui` ; 9 apps à sélecteur de moteur, le describer non applicable) : `cap_from` pour imager, composer, reader, transcriber et enhancer (mode `reads`, 13/10), `WamaModelCaps` appelé pour synthesizer, avatarizer et anonymizer | la forme déclarative (`cap_from`) est la cible. ⚠ Le « 8/8 » du 02/10 comptait le transcriber et l'enhancer VERTS par un commentaire annonçant le retrait de leur brique : le critère compte un APPEL depuis le 13/10 (`INPUT_MODEL_MATCHING §7`) |
   | **champ de VOLET généré** (`WamaParams.render(context:'panel')` + source d'options) | **1/10 au 2026-09-27** — synthesizer, le seul champ de voix | Les autres champs de volet restent écrits à la main, avec leur `name=` ; l'inspecteur lit les DEUX formes (`[name=]`,`[data-param=]`), donc une app peut porter ses champs UN PAR UN. ⚠ Ce qui bloquait n'était pas technique : une phrase (« les options sont SERVER-RENDERED, on NE remplace donc PAS les champs ») recopiée du schéma vers DEUX briques communes **et cette route**. Le portage a d'abord consisté à la retirer. ⚠ Piège mesuré : un champ généré n'a **pas** de `name=` en contexte `panel` — tout lecteur qui n'interroge que `[name=]` cesse d'enregistrer, sans erreur |
-  | **réglages utilisateur persistés** (`user_settings`) | **8/10** | anonymizer + enhancer persistent en TABLE Django maison (`UserSettings`) — architecture différente, pas un oubli |
+  | **réglages utilisateur persistés** (`user_settings`) | ~~8/10~~ **10/10** (remesuré le 2026-10-18 : l'anonymizer est passé à la brique le 27/09, l'enhancer le 29/09 — la ligne disait encore « table Django maison ») | — |
+  | **naissance d'un élément par la cascade COMMUNE** (`user_settings.new_element_settings` : défauts du schéma ← préférences retenues de l'auteur ← le posté ; critère `birth_settings_common`, 2026-10-18) | **9/10** (converter : en attente du commit de la session « réglages des nœuds », qui porte son format automatique par nature) | Mesuré le jour du critère : 2/10. Chaque app avait sa cascade — défauts du schéma recopiés en dictionnaire, défauts du schéma sans les préférences, défauts écrits à la lecture du POST — et le GÉNÉRATEUR émettait la sienne (`_reglages_du_depot`, noms de réglages figés : le reste n°4 du `PROJECT_STATUS §CLÔTURE 2026-09-27`). Les spécificités restent des RÈGLES DÉCLARÉES de l'app, appliquées après la cascade : clé de stockage (`params.user_setting_key` : ce qui se retient et sous quel nom — la voix de l'avatarizer, les `preferred_*` du synthesizer), défauts du modèle choisi en PRÉRÉGLAGE (imager), valeur vide qui est un choix (`empty_is_value` : la graine), refus et normalisations (modèle du composer, facteur de l'enhancer). ⚠ Reste : la naissance de l'amélioration AUDIO de l'enhancer (le réglage `strength` vit dans la colonne `denoising_strength`, traduit à la main en cinq endroits — décision de déclaration à prendre) ; les créateurs de `tool_api` (signatures à défauts écrits) |
 - **Manifeste** : `params` = `{primary, schemas}` **multi-schémas depuis le palier params**
   (trou #10 clos — « un seul params_attr » écrit ici avait survécu à sa résorption) ; ne
   distingue pas **déclaré vs câblé** (c'est le round-trip qui le révèle).
@@ -2232,6 +2233,14 @@ outillé avant d'ouvrir cette marche.
   > mesuré sur `reader_01` : `models` refusé pour six `.filename` du `tasks.py` copié, que le
   > `tasks` généré, accepté juste après, ne lisait plus. L'ancien ordre (`models` avant
   > `views`) datait d'avant ce juge, et le défaut qu'il laissait passer était celui-là.
+  > ⚠ **Recalé le 2026-10-18 sur une jumelle FRAÎCHE** (`converter_01` recréée : `remove` +
+  > `create` + la chaîne) : `params` et `function_specs` en tête sont **revertés** — ce sont les
+  > vues et les tâches COPIÉES qui importent des symboles propres à la source (`GROUPS_JSON`,
+  > `_ENGINE_BY_TYPE`, `enhances`), que les gabarits n'émettent pas. Rejoués APRÈS
+  > `urls+views+templates` et `tasks`, les deux **tiennent**. Ordre mesuré : `apps` →
+  > `urls+views+templates` → `tasks` → `params` → `function_specs` → `models`. *L'argument
+  > « params AVANT views » visait un params COPIÉ périmé ; sur une jumelle fraîche, c'est l'inverse
+  > qui bloque — le même juge des imports, dans l'autre sens.*
   > **Deux gestes ajoutés le 2026-10-12** (Fabien : « régénère writer_01 et les static des
   > jumelles »). ① **`substitute <jumelle> static`** — aucune cible ne couvrait `static/` (pas de
   > gabarit JS) : le JS d'une jumelle restait la copie de sa création (`reader_01` interceptait

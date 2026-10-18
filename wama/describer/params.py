@@ -144,3 +144,13 @@ PARAMS = derive_from_model(
 )
 
 PARAMS_JSON = schema_to_dicts(PARAMS)
+
+# ── Réglages UTILISATEUR — dérivés du schéma (contrat 3 de `WAMA_VERIFICATION §8`, 2026-10-18) ──
+# Le volet est la surface des défauts de l'utilisateur ; la brique commune `user_settings` les
+# garde, les relit et fait naître une description avec eux (`new_element_settings`). Ils se gardent
+# sous le NOM du réglage : les trois préférences d'avant (style, langue, longueur, écrites par une
+# liste à la main dans les vues) l'étaient déjà — frontière des données, rien à migrer.
+from wama.common.utils.param_schema import panel_defaults, panel_name_key  # noqa: E402
+
+user_setting_key = panel_name_key
+USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS, key=user_setting_key)

@@ -24,7 +24,7 @@ from django.core.files.base import ContentFile
 
 import json
 from .models import VoiceSynthesis, BatchSynthesis, BatchSynthesisItem
-from .params import PARAMS_JSON as _SYNTH_PARAMS_JSON
+from .params import PARAMS_JSON as _SYNTH_PARAMS_JSON, user_setting_key
 from wama.common.tts.constants import DEFAULT_TTS_MODEL, tts_catalog_key
 from wama.common.utils.auto_model import read_quality_intent
 from wama.common.utils.console_utils import get_console_lines
@@ -64,25 +64,38 @@ def _auto_wrap_orphans(user):
                       item_extra=batch_link_extra)
 
 
-#: Réglages du volet MÉMORISÉS à la création d'une synthèse, sous leurs clés historiques
-#: (`preferred_*`, frontière des données) — `read_panel_settings(key=…)` les relit par NOM de param.
-#: Les autres réglages du volet ne sont pas mémorisés : ils partent de leur défaut du schéma.
-_PANEL_PREF_KEYS = {'tts_model': 'preferred_tts_model', 'language': 'preferred_language',
-                    'voice_preset': 'preferred_voice_preset'}
-
-
-def _panel_pref_key(param):
-    return _PANEL_PREF_KEYS.get(param.get('name'))
-
-
 def synthesis_panel_values(user, app='synthesizer') -> dict:
     """Les valeurs du VOLET de l'auteur, par NOM de param : ses derniers choix mémorisés, les
     défauts du schéma pour le reste (brique commune `read_panel_settings`). C'est ce que la page
     affiche et ce que la card poste ; une synthèse créée SANS volet (import du gestionnaire de
     fichiers, « Envoyer vers ») le reçoit tel quel en `params` de `create_synthesis`.
-    `app` : une jumelle de bac à sable passe le sien."""
+    `app` : une jumelle de bac à sable passe le sien. Ce qui se retient, et sous quelle clé, est
+    déclaré dans `params.py` (`user_setting_key`)."""
     from wama.common.utils.user_settings import read_panel_settings
-    return read_panel_settings(user, app, _SYNTH_PARAMS_JSON, key=_panel_pref_key)
+    return read_panel_settings(user, app, _SYNTH_PARAMS_JSON, key=user_setting_key)
+
+
+def new_synthesis_settings(user, model=None, app='synthesizer', post=None) -> dict:
+    """Les colonnes de réglage d'une synthèse NAISSANTE, par la cascade COMMUNE (défauts du
+    schéma ← réglages retenus de l'auteur ← ce qui est posté, `user_settings.new_element_settings`,
+    2026-10-18). Le résultat se passe en `params` au chemin unique de l'app
+    (`services.create_synthesis`), dont le contrat ne change pas : `params` = les réglages donnés.
+    `model`/`app` : une jumelle de bac à sable passe les siens."""
+    from wama.common.utils.user_settings import new_element_settings
+    return new_element_settings(user, app, _SYNTH_PARAMS_JSON, model or VoiceSynthesis,
+                                post=post, key=user_setting_key)
+
+
+def _deposit_params(user, post):
+    """Les `params` d'un DÉPÔT (fichier, texte, lot) pour `create_synthesis` : la cascade commune,
+    plus ce que le POST porte hors schéma (réglages Higgs, titre). Ce qui a été posté devient la
+    mémoire du volet (`save_panel_settings`) — le dépôt d'un FICHIER ne la tenait pas, seul celui
+    d'un texte le faisait."""
+    from wama.common.utils.user_settings import save_panel_settings
+    posted = post.dict() if hasattr(post, 'dict') else dict(post)
+    params = {**posted, **new_synthesis_settings(user, post=posted)}
+    save_panel_settings(user, 'synthesizer', _SYNTH_PARAMS_JSON, posted, key=user_setting_key)
+    return params
 
 
 class IndexView(View):
@@ -242,7 +255,7 @@ def upload(request):
     try:
         synthesis = create_synthesis(user, work_file=received[0],
                                      reference_voice=voice[0] if voice else None,
-                                     params=request.POST.dict())
+                                     params=_deposit_params(user, request.POST))
     except (SynthesisRefused, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=400)
     return _card_created_response(synthesis)
@@ -260,19 +273,9 @@ def upload_text(request):
         synthesis = create_synthesis(user, prompt=request.POST.get('text_content', ''),
                                      title=request.POST.get('title', ''),
                                      reference_voice=voice[0] if voice else None,
-                                     params=request.POST.dict())
+                                     params=_deposit_params(user, request.POST))
     except (SynthesisRefused, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=400)
-    # Re-persiste les choix du volet comme défauts du prochain chargement — l'écrivain COMMUN
-    # des réglages du volet, symétrique de `synthesis_panel_values` (même déclaration :
-    # `_panel_pref_key` dit ce qui se mémorise et sous quelle clé historique). Les trois clés
-    # étaient écrites ici à la main, depuis l'élément créé (2026-10-18).
-    try:
-        from wama.common.utils.user_settings import save_panel_settings
-        save_panel_settings(user, 'synthesizer', _SYNTH_PARAMS_JSON, request.POST.dict(),
-                            key=_panel_pref_key)
-    except Exception:
-        pass
     return _card_created_response(synthesis, success=True)
 
 
@@ -709,7 +712,7 @@ def import_individual_from_path(request):
     except InputRefused as exc:
         return JsonResponse({'error': str(exc)}, status=403)
     try:
-        synthesis = create_synthesis(user, work_file=received, params=request.POST.dict())
+        synthesis = create_synthesis(user, work_file=received, params=_deposit_params(user, request.POST))
     except (SynthesisRefused, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=400)
     return JsonResponse({'success': True, 'id': synthesis.id})
@@ -755,11 +758,15 @@ def batch_preview(request):
     if ext not in ('txt', 'pdf', 'docx', 'csv', 'md'):
         return JsonResponse({'error': f'Format non supporté : {ext}'}, status=400)
 
-    default_voice = request.POST.get('default_voice', 'default')
+    # Les défauts de LIGNE (voix, vitesse) : ceux du lot s'il les poste, sinon la cascade commune —
+    # l'aperçu montre ce que la création fera.
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    base = new_synthesis_settings(user, post=request.POST.dict())
+    default_voice = request.POST.get('default_voice') or base.get('voice_preset')
     try:
-        default_speed = float(request.POST.get('default_speed', 1.0))
+        default_speed = float(request.POST.get('default_speed') or base.get('speed'))
     except (ValueError, TypeError):
-        default_speed = 1.0
+        default_speed = base.get('speed')
 
     tmp_path = None
     try:
@@ -807,15 +814,12 @@ def batch_create(request):
     if not batch_file and not server_path:
         return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
 
-    # Les défauts de LIGNE du parseur (voix, vitesse) ; les autres réglages du volet vont tels
-    # quels au service unique, qui les lit par le schéma.
-    default_voice = request.POST.get('voice_preset', 'default')
-    try:
-        default_speed = float(request.POST.get('speed', 1.0))
-    except (ValueError, TypeError):
-        default_speed = 1.0
-
+    # Chaque ligne naît par la cascade commune d'un dépôt (`_deposit_params`) ; la voix et la
+    # vitesse de la cascade sont les défauts de LIGNE du parseur, qu'une ligne peut surcharger.
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    base_params = _deposit_params(user, request.POST)
+    default_voice = base_params.get('voice_preset')
+    default_speed = base_params.get('speed')
 
     tmp_path = None
     try:
@@ -878,7 +882,6 @@ def batch_create(request):
     # Chaque LIGNE est une synthèse créée par le chemin unique de l'app (`services.create_synthesis`)
     # — ses réglages sont ceux du volet, surchargés par la ligne (voix, vitesse).
     from .services import create_synthesis
-    base_params = request.POST.dict()
     created_ids = []
     for i, task in enumerate(tasks):
         synthesis = create_synthesis(
@@ -1042,29 +1045,31 @@ def voice_preview(request):
     text = preview_text(text_for_speech(request.POST.get('text_content', '')))
     if not text:
         return JsonResponse({'error': 'Le texte ne peut pas être vide'}, status=400)
-    try:
-        speed = float(request.POST.get('speed', 1.0))
-        pitch = float(request.POST.get('pitch', 1.0))
-    except ValueError:
-        return JsonResponse({'error': 'Vitesse ou hauteur invalide'}, status=400)
+    # Les réglages de l'aperçu sont ceux que la synthèse aurait — la cascade COMMUNE (défauts du
+    # schéma ← réglages retenus ← le POST), sans rien mémoriser (2026-10-18 : vitesse, hauteur,
+    # voix et langue avaient chacune leur défaut écrit ici). Un nombre illisible est refusé par la
+    # porte commune, il n'est pas remplacé par un défaut en silence.
+    from wama.common.utils.param_schema import describe_refusals, schema_refusals
+    refusals = schema_refusals(_SYNTH_PARAMS_JSON, request.POST)
+    if refusals:
+        return JsonResponse({'error': describe_refusals(refusals)}, status=400)
+    chosen = new_synthesis_settings(user, post=request.POST.dict())
     # Fenêtre de libération de la carte (B1) : pas de voix — même garde que la vocalisation.
     if release_in_progress():
         return JsonResponse({'error': 'La carte graphique se libère : réessayez dans un instant.',
                              'busy': True}, status=503)
 
     default_model = VoiceSynthesis._meta.get_field('tts_model').get_default()
-    voice_preset = request.POST.get('voice_preset') or 'default'
-    language = request.POST.get('language') or 'fr'
+    voice_preset, language = chosen.get('voice_preset'), chosen.get('language')
+    speed, pitch = chosen.get('speed'), chosen.get('pitch')
     try:
-        model = resolve_tts_model(request.POST.get('tts_model') or default_model, voice_preset,
-                                  request.POST.get('quality_intent'), fallback=default_model)
+        model = resolve_tts_model(chosen.get('tts_model') or default_model, voice_preset,
+                                  chosen.get('quality_intent'), fallback=default_model)
         speaker_wav = speaker_wav_for(model, voice_preset, user, language=language)
         folder = Path(get_app_media_path('synthesizer', user.id, 'output')) / 'partials'
         folder.mkdir(parents=True, exist_ok=True)
-        # Les PAUSES du volet (2026-10-18), lues par le lecteur DÉRIVÉ du schéma — celui de la
-        # création : l'aperçu fait entendre ce que la synthèse rendra.
-        from .services import synthesis_settings
-        chosen = synthesis_settings(request.POST.dict())
+        # Les PAUSES du volet (2026-10-18) viennent de la même cascade que le reste : l'aperçu
+        # fait entendre ce que la synthèse rendra.
         final = render_speech(
             text, str(folder / 'voice_preview.wav'),
             model=model, language=language, voice_preset=voice_preset, speaker_wav=speaker_wav,

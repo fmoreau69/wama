@@ -27,37 +27,28 @@ from ..accounts.views import get_or_create_anonymous_user
 # NameError — dont l'import par URL dès sa 1ʳᵉ ligne. Tenu par `tests_unbound_names`.
 logger = logging.getLogger(__name__)
 
-def new_description_settings(user, app='describer', post=None) -> dict:
-    """Options de création (style/langue/longueur) d'une description NAISSANTE : POST
-    prioritaire, sinon DERNIERS réglages persistés de l'utilisateur (brique commune
-    user_settings — point 14 checklist, 2026-07-06). Le dépôt de la card et l'import du
-    gestionnaire de fichiers (« Envoyer vers », sans volet donc sans POST) passent ici ;
-    `app` : une jumelle de bac à sable passe le sien."""
-    from wama.common.utils.user_settings import get_user_app_settings
-    post = post if post is not None else {}
-    stored = get_user_app_settings(user, app, {  # wama:redondance-ok — défauts du contrat de réglages utilisateur (décision d'app)
-        'output_style': 'detailed', 'output_language': 'fr', 'max_length': 500})
-    output_style = post.get('output_style') or stored['output_style']
-    # Un style qui n'en est plus un (« meeting », devenu un type de résumé le 2026-10-13 — un
-    # réglage mémorisé avant peut le porter) retombe sur le défaut.
-    if output_style not in dict(Description.OUTPUT_STYLE_CHOICES):
-        output_style = 'detailed'
-    output_language = post.get('output_language') or stored['output_language']
-    try:
-        max_length = int(post.get('max_length') or stored['max_length'])
-    except (TypeError, ValueError):
-        max_length = 500
-    return {'output_style': output_style, 'output_language': output_language,
-            'max_length': max_length}
+def new_description_settings(user, model=None, app='describer', post=None) -> dict:
+    """Les colonnes de réglage d'une description NAISSANTE, par la cascade COMMUNE (défauts du
+    schéma ← réglages de l'auteur ← ce que le dépôt poste, `user_settings.new_element_settings`,
+    2026-10-18). Le dépôt de la card et l'import du gestionnaire de fichiers (« Envoyer vers »,
+    sans volet donc sans POST) passent ici ; `model`/`app` : une jumelle de bac à sable passe les
+    siens. Avant, seuls le style, la langue et la longueur naissaient de la préférence de l'auteur,
+    avec leurs défauts recopiés ici ; les sept autres réglages prenaient le défaut du modèle. Un
+    style mémorisé qui n'est plus proposé (« meeting », devenu un type de résumé) retombe sur le
+    défaut par la règle de la brique."""
+    from wama.common.utils.user_settings import new_element_settings
+    from wama.describer.params import PARAMS_JSON, user_setting_key
+    return new_element_settings(user, app, PARAMS_JSON, model or Description, post=post,
+                                key=user_setting_key)
 
 
-def _read_creation_options(request, user):
-    """Options de création d'un DÉPÔT (`new_description_settings`), persistées : les prochains
-    éléments héritent des derniers choix. Remplace 4 lectures POST dupliquées."""
-    from wama.common.utils.user_settings import save_user_app_settings
-    values = new_description_settings(user, post=request.POST)
-    save_user_app_settings(user, 'describer', values)
-    return values['output_style'], values['output_language'], values['max_length']
+def _deposit_settings(user, post):
+    """Les réglages d'un DÉPÔT (fichier, lien, lot) : ce que le volet poste est gardé comme
+    préférences (`save_panel_settings`), puis la description naît par la cascade COMMUNE."""
+    from wama.common.utils.user_settings import save_panel_settings
+    from wama.describer.params import PARAMS_JSON, user_setting_key
+    save_panel_settings(user, 'describer', PARAMS_JSON, post, key=user_setting_key)
+    return new_description_settings(user, post=post)
 
 
 def get_user(request):
@@ -242,16 +233,14 @@ def upload(request):
     # de la requête (`source_ingest`, 2026-10-13) — même geste que `batch_create`. La nature
     # exacte arrive avec le fichier (`derive` déclaré dans `WAMA_INGEST`).
     if media_url and not uploaded_file:
-        output_style, output_language, max_length = _read_creation_options(request, user)
+        settings_values = _deposit_settings(user, request.POST)
         fname = media_url.split('?')[0].rstrip('/').split('/')[-1] or media_url
         description = Description.objects.create(
+            **settings_values,
             user=user,
             source_url=media_url,
             filename=fname,
             detected_type=_source_nature(media_url, fname),
-            output_style=output_style,
-            output_language=output_language,
-            max_length=max_length,
         )
         _wrap_description_in_batch(description)
         return JsonResponse({
@@ -273,19 +262,17 @@ def upload(request):
     ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
     detected_type = detect_type_from_extension(ext)
 
-    # Get options from request
-    output_style, output_language, max_length = _read_creation_options(request, user)
+    # Réglages : la cascade COMMUNE d'un dépôt.
+    settings_values = _deposit_settings(user, request.POST)
 
     # Create description record
     description = Description.objects.create(
+        **settings_values,
         user=user,
         input_file=uploaded_file.value,
         filename=filename,
         file_size=uploaded_file.size,
         detected_type=detected_type,
-        output_style=output_style,
-        output_language=output_language,
-        max_length=max_length,
     )
     uploaded_file.record(description, 'input_file')
 
@@ -775,7 +762,7 @@ def batch_import(request):
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
 
     user = get_user(request)
-    output_style, output_language, max_length = _read_creation_options(request, user)
+    settings_values = _deposit_settings(user, request.POST)
 
     try:
         items, warnings = parse_batch_file_from_request(request)
@@ -792,13 +779,11 @@ def batch_import(request):
         detected_type = _source_nature(url_or_path, fname)
 
         desc = Description.objects.create(
+            **settings_values,
             user=user,
             source_url=url_or_path,
             filename=fname,
             detected_type=detected_type,
-            output_style=output_style,
-            output_language=output_language,
-            max_length=max_length,
         )
         created.append({
             'id': desc.id,
@@ -823,7 +808,7 @@ def batch_create(request):
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
 
     user = get_user(request)
-    output_style, output_language, max_length = _read_creation_options(request, user)
+    settings_values = _deposit_settings(user, request.POST)
 
     try:
         items, warnings = parse_batch_file_from_request(request)
@@ -851,13 +836,11 @@ def batch_create(request):
         detected_type = _source_nature(url_or_path, fname)
 
         desc = Description.objects.create(
+            **settings_values,
             user=user,
             source_url=url_or_path,
             filename=fname,
             detected_type=detected_type,
-            output_style=output_style,
-            output_language=output_language,
-            max_length=max_length,
         )
         BatchDescriptionItem.objects.create(batch=batch, description=desc, row_index=i)
         created_ids.append(desc.id)

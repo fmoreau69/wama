@@ -118,3 +118,13 @@ PARAMS += output_format_params_for_app(
 )
 
 PARAMS_JSON = schema_to_dicts(PARAMS)
+
+# ── Réglages UTILISATEUR — dérivés du schéma (contrat 3 de `WAMA_VERIFICATION §8`, 2026-10-18) ──
+# La brique commune `user_settings` les garde, les relit et fait naître une génération avec eux
+# (`new_element_settings`). Ils se gardent sous le NOM du réglage : c'était déjà le cas (modèle,
+# durée, voix, format, qualité, écrits par une liste à la main dans les vues) — frontière des
+# données, rien à migrer.
+from wama.common.utils.param_schema import panel_defaults, panel_name_key  # noqa: E402
+
+user_setting_key = panel_name_key
+USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS, key=user_setting_key)

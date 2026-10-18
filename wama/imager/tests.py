@@ -880,3 +880,41 @@ class ResolutionFromCapabilitiesTest(TestCase):
         self.assertEqual((['256x256'], True, 12, 3.0),
                          (data['recommended'], data['fixed'], data['default_steps'],
                           data['default_guidance_scale']))
+
+
+class GenerationBornByTheCommonCascadeTest(TestCase):
+    """The imager's own rules on top of the common cascade (`views.new_generation_settings`,
+    2026-10-18): the chosen model's DECLARED defaults beat the schema's (the SD 1.5 values), an
+    empty posted seed stays random even when a seed was remembered, and a video is born with the
+    VIDEO schema's defaults (each video mode used to write its own: 50 steps, guidance 5)."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('imager_birth', password='x')
+
+    def test_the_model_defaults_sit_between_the_schema_and_what_is_given(self):
+        from unittest import mock
+        from wama.imager import views
+        with mock.patch.object(views, 'get_model_defaults',
+                               return_value={'width': 1024, 'height': 1024, 'steps': 8,
+                                             'guidance_scale': 1.5}):
+            born = views.new_generation_settings(self.user, 'txt2img', {'model': 'some-model'})
+            self.assertEqual((8, 1.5), (born['steps'], born['guidance_scale']))
+            given = views.new_generation_settings(self.user, 'txt2img',
+                                                  {'model': 'some-model', 'steps': '20'})
+            self.assertEqual(20, given['steps'], 'what is posted wins over the model defaults')
+
+    def test_an_empty_seed_stays_random_even_with_a_remembered_one(self):
+        from wama.common.utils.user_settings import save_panel_settings
+        from wama.imager import views
+        from wama.imager.params import IMAGE_PARAMS
+        save_panel_settings(self.user, 'imager', IMAGE_PARAMS, {'seed': '42'})
+        self.assertEqual(42, views.new_generation_settings(self.user, 'txt2img', {})['seed'])
+        self.assertIsNone(views.new_generation_settings(self.user, 'txt2img', {'seed': ''}).get('seed'))
+
+    def test_a_video_is_born_with_the_video_schema(self):
+        from wama.imager import views
+        from wama.imager.params import VIDEO_PARAMS_JSON
+        declared = {p['name']: p.get('default') for p in VIDEO_PARAMS_JSON}
+        born = views.new_generation_settings(self.user, 'txt2vid', {})
+        for name in ('video_duration', 'video_fps', 'video_resolution'):
+            self.assertEqual(declared[name], born[name], name)

@@ -106,3 +106,29 @@ PARAMS = derive_from_model(
 )
 
 PARAMS_JSON = schema_to_dicts(PARAMS)
+
+# ── Réglages UTILISATEUR — dérivés du schéma (contrat 3 de `WAMA_VERIFICATION §8`, 2026-10-18) ──
+# La brique commune `user_settings` les garde, les relit et fait naître un job avec eux
+# (`new_element_settings`). Ce que l'avatarizer RETIENT d'un dépôt au suivant était écrit à la main
+# dans ses vues ; c'est déclaré ici, par la clé de stockage :
+#   • les réglages du VOLET (amélioration, décalage), sous leur nom — comme avant ;
+#   • la VOIX d'un job porteur de texte (moteur, langue, voix) : réglée dans la modale, pas au volet,
+#     elle se retrouve au job suivant — retenue seulement quand elle a servi (`VOICE_SETTINGS`, lu
+#     par la vue de création) ;
+#   • PAS le modèle d'animation : un modèle nommé ne convient qu'à UNE nature d'avatar, et le
+#     suivant peut en changer.
+from wama.common.utils.param_schema import _pget, panel_defaults, panel_name_key  # noqa: E402
+
+VOICE_SETTINGS = ('tts_model', 'language', 'voice_preset')
+NOT_REMEMBERED = ('animation_model',)
+
+
+def user_setting_key(p):
+    """Clé de stockage d'un réglage RETENU — son nom —, None s'il ne se retient pas."""
+    name = _pget(p, 'name')
+    if name in NOT_REMEMBERED:
+        return None
+    return name if name in VOICE_SETTINGS else panel_name_key(p)
+
+
+USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS, key=user_setting_key)

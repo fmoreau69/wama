@@ -229,3 +229,11 @@ AUDIO_PARAMS += output_format_params(
 
 MEDIA_PARAMS_JSON = schema_to_dicts(MEDIA_PARAMS)
 AUDIO_PARAMS_JSON = schema_to_dicts(AUDIO_PARAMS)
+
+# ── Réglages UTILISATEUR — dérivés du schéma (contrat 3 de `WAMA_VERIFICATION §8`, 2026-10-18) ──
+# Gardés par la brique commune `user_settings` sous la clé du VOLET (`panel_dom_id`, la règle par
+# défaut — c'était déjà le cas depuis le 2026-09-29), pour les deux domaines. Une amélioration
+# image/vidéo naît avec eux (`new_element_settings`).
+from wama.common.utils.param_schema import panel_defaults  # noqa: E402
+
+USER_SETTINGS_DEFAULTS = {**panel_defaults(MEDIA_PARAMS), **panel_defaults(AUDIO_PARAMS)}

@@ -386,8 +386,8 @@ def _nature_url(url):
                 f"        return JsonResponse({{'error': {stub_msg!r}}}, status=501)")
 
     # ── Découpage colonnes ↔ conteneur JSON du schéma (idiome params_storage) ──
-    # Calculé AVANT les corps de vues : l'upload (cascade de réglages du dépôt), le
-    # décorateur et update en dépendent tous trois.
+    # Ne décide ici que de ce qui s'ÉMET (l'aplatissement du conteneur dans `_decorer`) : les
+    # listes de noms, elles, sont LUES à l'exécution par le module généré (`_SETTING_NAMES`…).
     body = manifest.get('body') or {}
     _schemas = (body.get('params') or {}).get('schemas') or {}
     _schema_prim = _schemas.get((body.get('params') or {}).get('primary') or '') or []
@@ -400,63 +400,39 @@ def _nature_url(url):
     hors_colonnes = [n for n in _noms_schema
                      if n not in _champs_item and n not in d['params_fields']]
     conteneur_options = 'options' if ('options' in _champs_item and hors_colonnes) else None
-    colonnes_schema = [n for n in _noms_schema if n not in hors_colonnes and n != nature_champ]
 
-    # ── Réglages du DÉPÔT — cascade de l'app réelle (converter/views.py::upload) ──
-    # défauts APPLICABLES du schéma (show_if satisfait par la nature détectée — brique
-    # `applicable_defaults`) ← derniers réglages persistés de l'utilisateur (brique
-    # user_settings) ← POST non vide ; le POST re-persiste ses clés comme défauts du
-    # prochain dépôt. C'est ce qui donne ses valeurs à un élément FRAIS : sans cette
-    # cascade, la section RÉGLAGES de la card et le volet restaient VIDES jusqu'au premier
-    # passage par la modale (constat Fabien 31/08 sur la jumelle). La nature détectée n'est
-    # JAMAIS écrasée par la cascade (la détection prime — champ porteur, non sauvegardé).
-    ligne_opts = (f"kwargs['{conteneur_options}'] = _extras" if conteneur_options
-                  else "pass  # pas de conteneur JSON déclaré : extras non stockés")
-    # FONCTION module-level PARTAGÉE upload/batch_create : la cascade ne vivait que dans
-    # upload — les filles de LOT naissaient sans valeurs (chips vides, constat Fabien 31/08).
+    # ── Réglages d'un élément NAISSANT — la cascade COMMUNE (2026-10-18) ──
+    # L'élément naît COMPLET (`ROADMAP §23.2quater`) par `user_settings.new_element_settings` :
+    # défauts du schéma applicables à la nature détectée ← préférences du volet de l'auteur ←
+    # ce qui est posté, coercés par le schéma. Ce gabarit en émettait jusque-là sa propre copie
+    # (`_reglages_du_depot`, recopiée du converter réel le 31/08), avec les noms de réglages figés
+    # à la génération — le reste n°4 du `PROJECT_STATUS §CLÔTURE 2026-09-27`. La nature détectée
+    # n'est jamais écrasée (la détection prime). Un DÉPÔT garde aussi ce qu'il poste comme
+    # mémoire du volet (`save_panel_settings`) : le geste du transcriber (`_deposit_settings`).
+    contexte_nature = f"{{{nature_champ!r}: nature}}" if nature_champ else 'None'
+    retrait_nature = f"\n    values.pop({nature_champ!r}, None)" if nature_champ else ''
     bloc_reglages = '' if not _noms_schema else f'''
 
-def _reglages_du_depot(user, nature, poste=None):
-    """Cascade des réglages d'un élément NAISSANT (upload ET batch_create) : défauts
-    APPLICABLES du schéma (show_if ⟂ nature détectée) ← user_settings persistés ← poste
-    non vide, re-persisté. → (colonnes, extras) ; la nature n'est jamais écrasée."""
-    try:
-        from .params import {schema_symbole} as _sch
-    except Exception:
-        return {{}}, {{}}
-    from wama.common.utils.param_schema import applicable_defaults, coerce_schema_values
-    from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
-    noms = [n for n in {_noms_schema!r} if n != {nature_champ!r}]
-    vals = applicable_defaults(_sch, {{{nature_champ!r}: nature}})
-    vals.pop({nature_champ!r}, None)
-    # ⚠ `defaults` définit AUSSI l'ensemble des clés LUES (contrat de la brique) — un {{}}
-    # ici ne relirait jamais rien.
-    vals.update({{k: v for k, v in get_user_app_settings(
-                     user, '{app}', {{n: '' for n in noms}}).items()
-                 if v not in (None, '')}})
-    envoye = ({{k: poste.get(k) for k in noms if poste.get(k) not in (None, '')}}
-              if poste is not None else {{}})
-    vals.update(envoye)
-    # ⚠ COERCER selon le schéma AVANT de poser (défaut VÉCU, 2026-09-01) : le POST et les
-    # user_settings re-persistés portent des CHAÎNES ('false', '72'). Tant que la
-    # destination était un JSON, elles passaient ; sur des colonnes TYPÉES, un
-    # BooleanField refuse 'false' (ValidationError) — et batch_create avalait l'erreur en
-    # warning : 2 POST « acceptés », 0 élément créé, vu à la batterie navigateur seulement.
-    vals = coerce_schema_values(_sch, vals)
-    cols, extras = {{}}, {{}}
-    for k, v in vals.items():
-        (cols if k in {colonnes_schema!r} else extras)[k] = v
-    if envoye:
-        save_user_app_settings(user, '{app}', envoye)
-    return cols, extras
+def _element_settings(user, nature='', post=None):
+    """Les réglages d'un élément NAISSANT (dépôt, lot, résultat instantané) — la cascade COMMUNE
+    `user_settings.new_element_settings` ; la nature détectée n'est jamais écrasée."""
+    from wama.common.utils.user_settings import new_element_settings
+    values = new_element_settings(user, '{app}', _SCHEMA, {item}, post=post,
+                                  context={contexte_nature}, options_field=_OPTIONS_FIELD){retrait_nature}
+    return values
+
+
+def _deposit_settings(user, nature, post):
+    """Un DÉPÔT : ce qu'il poste devient la mémoire du volet (`save_panel_settings`), puis
+    l'élément naît par la cascade commune."""
+    from wama.common.utils.user_settings import save_panel_settings
+    save_panel_settings(user, '{app}', _SCHEMA, post)
+    return _element_settings(user, nature, post)
 '''
+    # Une app sans champ de nature n'a rien à lire (`kwargs.get('', '')` s'émettait).
+    arg_nature = f"kwargs.get({nature_champ!r}, '')" if nature_champ else "''"
     up_reglages = '' if not _noms_schema else f'''
-    _cols, _extras = _reglages_du_depot(user, kwargs.get({nature_champ!r}, ''), request.POST)
-    kwargs.update(_cols)
-    if _extras:
-        {ligne_opts}'''
-    ligne_opts_bc = (f"kwargs['{conteneur_options}'] = _extras" if conteneur_options
-                     else "pass  # pas de conteneur JSON déclaré")
+    kwargs.update(_deposit_settings(user, {arg_nature}, request.POST))'''
     # Méta COMMUNES aux filles pour la card MÈRE (slot `meta_template` de _batch_card.html —
     # mécanisme du PARC : transcriber calcule ses common_* dans l'extra de
     # build_batches_list, « valeur si partagée par toutes les filles, sinon Mixte »).
@@ -471,15 +447,13 @@ def _reglages_du_depot(user, nature, poste=None):
             except Exception:
                 _cc = {{}}'''
     cle_commun = ("'common_chips': _cc," if _noms_schema else "'common_chips': {},")
-    # Défauts de FILE pour le volet (index) — même cascade, sans nature ni POST.
-    ligne_defauts = (("_c, _e = _reglages_du_depot(user, '')\n"
-                      "        panel_defaults = json.dumps({**_c, **_e})")
+    # Défauts de FILE pour le volet (index) : les réglages du volet de l'auteur, par NOM de
+    # param — la brique commune `read_panel_settings`, celle des routes JSON du volet.
+    ligne_defauts = (("from wama.common.utils.user_settings import read_panel_settings\n"
+                      f"        panel_defaults = json.dumps(read_panel_settings(user, '{app}', _SCHEMA))")
                      if _noms_schema else "panel_defaults = '{}'")
     bc_reglages = '' if not _noms_schema else f'''
-                _cols, _extras = _reglages_du_depot(user, kwargs.get({nature_champ!r}, ''))
-                kwargs.update(_cols)
-                if _extras:
-                    {ligne_opts_bc}'''
+                kwargs.update(_element_settings(user, {arg_nature}))'''
 
     # ── Corps conventionnels (idiomes MESURÉS, paramétrés) ─────────────────────
     vues = {}
@@ -677,8 +651,7 @@ def upload(request):
         instant_settings = ''
         if _noms_schema:
             instant_settings = ("\n    _posted = request.POST.copy()\n    _posted.pop('instant_text', None)"
-                                "\n    _cols, _extras = _reglages_du_depot(user, '', _posted)"
-                                "\n    kwargs.update(_cols)")
+                                "\n    kwargs.update(_deposit_settings(user, '', _posted))")
         vues['instant'] = f'''@require_POST
 def instant(request):
     """Résultat INSTANTANÉ de la saisie (capacité `instant_preview`) : `tasks.instant_result`
@@ -923,8 +896,8 @@ def {nom}(request, pk):
     # `_decorer` ci-dessous, qui porte les valeurs du conteneur sur l'instance).
     # ⚠ Glu RESTANTE nommée : le sous-split `cross_app_options` du converter réel (upscale/
     # denoise/audio_enhance) n'est pas dérivé — ces clés atterrissent dans `options`.
-    # (Le découpage colonnes ↔ conteneur — _noms_schema/hors_colonnes/conteneur_options —
-    # est calculé PLUS HAUT, avant l'upload : la cascade de réglages du dépôt en dépend aussi.)
+    # (`conteneur_options` est décidé PLUS HAUT ; les noms aplatis sont ceux que le module
+    # généré lit au schéma, `_SETTINGS_OUTSIDE`.)
 
     aplat = '' if not conteneur_options else f'''
     # Valeurs du conteneur JSON portées sur l'instance (transitoire) : la card émet ses
@@ -932,7 +905,7 @@ def {nom}(request, pk):
     # que ce que `update` écrit (idiome params_storage dérivé).
     try:
         _opts = dict(item.{conteneur_options} or {{}})
-        for _k in {hors_colonnes!r}:
+        for _k in _SETTINGS_OUTSIDE:
             setattr(item, _k, _opts.get(_k, ''))
     except Exception:
         pass'''
@@ -1146,9 +1119,9 @@ def {nom}(request, pk):
     item = editable_or_404({item}, user, pk=pk)   # le sien, ou en collaboration (E1)
     if item.status == 'RUNNING':
         return JsonResponse({{'error': 'Impossible de modifier un élément en cours'}}, status=400)
-    donnees = read_settings_payload(request, _SCHEMA, {_noms_schema!r})
-    touches = apply_item_settings(item, donnees, params_fields={d['params_fields']!r},
-                                  options_field={conteneur_options!r}, extra_names={hors_colonnes!r})
+    donnees = read_settings_payload(request, _SCHEMA, _SETTING_NAMES)
+    touches = apply_item_settings(item, donnees, params_fields=_SETTING_COLUMNS,
+                                  options_field=_OPTIONS_FIELD, extra_names=_SETTINGS_OUTSIDE)
     if touches:
         item.save(update_fields=touches)
     return JsonResponse({{'success': True, 'id': item.id, 'updated': touches}})'''
@@ -1202,8 +1175,8 @@ def {nom}(request, pk):
 _bv = make_batch_views(
     work_model={item}, batch_model={batch}, get_user=_user, task={task},
     output_fields={champs_sortie!r},
-    params_fields={d['params_fields']!r}, schema=_SCHEMA,
-    options_field={conteneur_options!r}, extra_names={hors_colonnes!r},
+    params_fields=_SETTING_COLUMNS, schema=_SCHEMA,
+    options_field=_OPTIONS_FIELD, extra_names=_SETTINGS_OUTSIDE,
     {form_kwargs}, items_related='{items_related}',{bv_extra}{bv_output}
 )
 batch_start     = _bv['batch_start']
@@ -1408,6 +1381,16 @@ try:
     from .params import {schema_symbole} as _SCHEMA
 except Exception:
     _SCHEMA = []
+
+# Les noms de réglages LUS au schéma, et les COLONNES de l'élément parmi eux LUES au modèle —
+# jamais une liste figée à la génération (`check_redundancy` les relevait dans huit jumelles :
+# elles dérivaient au premier réglage ajouté à la source). Un réglage du schéma sans colonne va
+# au conteneur JSON `options` quand le modèle en porte un (idiome `params_storage`).
+_SETTING_NAMES = [p['name'] for p in _SCHEMA if p.get('name')]
+_ITEM_COLUMNS = {{f.name for f in {item}._meta.concrete_fields}}
+_SETTING_COLUMNS = [n for n in _SETTING_NAMES if n in _ITEM_COLUMNS]
+_SETTINGS_OUTSIDE = [n for n in _SETTING_NAMES if n not in _ITEM_COLUMNS]
+_OPTIONS_FIELD = 'options' if _SETTINGS_OUTSIDE and 'options' in _ITEM_COLUMNS else None
 
 
 def _user(request):
