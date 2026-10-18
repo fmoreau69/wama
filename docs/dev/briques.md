@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**207 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**208 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -710,11 +710,13 @@ Décrit une image via un modèle multimodal Ollama local (bench, smoke UI, fichi
 
 ### Surfaces — pages d'édition composées de briques
 
-Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit et sa validation, process que l'écriture périme), servie par des vues COMMUNES et composée de briques UI universelles — déplaçables, redimensionnables (gridstack), historique commun. 1ʳᵉ surface : la correction des détections de l'anonymizer (2026-10-10). Registre `ui_bricks` = le catalogue des briques. 2ᵉ (2026-10-13) : le fond du Writer — un champ FICHIER s'édite comme texte (règles communes), la surface se déclare au manifeste (facette `surfaces`) et se génère ; refus 409 sur état périmé et verrou doux pour toutes les surfaces ; brique « Versions » : reprendre le texte d'une révision GARDÉE, un geste d'édition annulable. 3ᵉ (2026-10-15) : la partition du composer — champs ALTERNATIFS (sortie de l'un de deux process), briques `score_view` (gravure abcjs, notes jouées colorées, glisser = transposer) et `media_transport`, sur l'AXE partagé de la surface (`ctx.axis()`)
+Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit et sa validation, process que l'écriture périme), servie par des vues COMMUNES et composée de briques UI universelles — déplaçables, redimensionnables (gridstack), historique commun. 1ʳᵉ surface : la correction des détections de l'anonymizer (2026-10-10). Registre `ui_bricks` = le catalogue des briques. 2ᵉ (2026-10-13) : le fond du Writer — un champ FICHIER s'édite comme texte (règles communes), la surface se déclare au manifeste (facette `surfaces`) et se génère ; refus 409 sur état périmé et verrou doux pour toutes les surfaces ; brique « Versions » : reprendre le texte d'une révision GARDÉE, un geste d'édition annulable. 3ᵉ (2026-10-15) : la partition du composer — champs ALTERNATIFS (sortie de l'un de deux process), briques `score_view` (gravure abcjs, notes jouées colorées, glisser = transposer) et `media_transport`, sur l'AXE partagé de la surface (`ctx.axis()`). 2026-10-18 : chaque surface DÉCLARE son élément témoin (`witness`), sur lequel le nocturne l'ouvre et capture ses briques — les vignettes du catalogue (`thumbnail`), qui montre aussi les composants SYSTÈME (domaine `UI_DOMAIN`)
 
 - **Domicile** : `wama/common/surfaces.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : SURFACES et BRIQUES UI — le registre (2026-10-10, ouverture du chantier SURFACES).
-- **API publique** (9) :
+- **API publique** (11) :
+  - `thumbnail_path(key: str)` — Le fichier de la vignette d'une brique (qu'il existe ou non).
+  - `thumbnail(key: str) -> Optional[dict]` — La vignette d'une brique — `{'url', 'taken_at'}`, ou None tant qu'aucune capture n'existe
   - `validate_text(value) -> str` — Le texte d'un champ fichier édité, assaini : une chaîne, fins de ligne `\n`, plafonnée.
   - `class UIBrick`
   - `class BrickSlot` — Une brique placée sur une surface : position et taille PAR DÉFAUT (l'utilisateur les
@@ -794,23 +796,6 @@ Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique,
   - `move_boundary(left: dict, right: dict, at: float, reference: Optional[List[dict]]=None) -> Optional[Tuple[dict, dict]]` — Déplace la jonction entre deux tours CONSÉCUTIFS vers `at` : les mots passent d'un côté à
   - `split_turn(turn: dict, at: float, reference: Optional[List[dict]]=None) -> Optional[Tuple[dict, dict]]` — Coupe un tour en deux à `at`, entre deux mots : les mots d'avant restent, ceux d'après
   - `replace_span(turns: List[dict], start: float, end: float, words: List[dict], reference: Optional[List[dict]]=None, new_turn: Optional[dict]=None) -> List[dict]` — Remplace les mots de `turns` dont le MILIEU tombe dans [start, end] par `words` (horodatés).
-
-### Barre d'outils générale (registre + profils)
-
-UN registre d'outils (l'UNION de toutes les barres) et des PROFILS par nature de surface : `file` (12 files d'app) et `registre` (15 catalogues). Une surface tire des outils, elle ne les énumère pas — ajouter un outil à toutes les files est UNE clé, plus jamais douze gabarits (demande Fabien 2026-09-08 : « de façon globale, pas par app »). Les deux barres historiques SURVIVENT en façades vers `_toolbar.html`, ce qui laisse les 27 pages appelantes inchangées ; les deux ENVELOPPES sont conservées telles quelles (les fondre aurait changé les deux apparences). Chaque outil est un partial sous `common/toolbar/`
-
-- **Domicile** : `wama/common/toolbar.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
-- **Module** : Barre d'outils COMMUNE — UN registre d'outils, des PROFILS par nature de surface.
-- **API publique** (3) :
-  - `class Outil` — Un outil de barre. `partial` est la SEULE chose qui rend — le registre ne rend rien.
-  - `outils_du_profil(profil: str) -> list` — Les `Outil` du profil, dans l'ordre déclaré. Profil inconnu → `KeyError` explicite.
-  - `enveloppe_du_profil(profil: str) -> str`
-
-### Barre de filtrage
-
-Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclarées (server). Depuis le 2026-09-08 la recherche est un OUTIL du registre de barre (`toolbar_registry`), donc la même dans les registres et dans les 12 files. Masquage PAR CLASSE (`.wama-f-hors-filtre`) et non par `style.display` : une cible à `display` inline (l'entrée unitaire de file est en `display:contents`) ne survivait pas à la restauration. `data-cible-dans` BORNE la recherche — sans quoi deux files sur une même page se filtreraient l'une l'autre. `data-cible-vivante` (2026-09-28, calendrier) : une liste RE-RENDUE par un composant est relue à chaque application, et le composant appelle `WamaFilterBar.refresh(barre)` après rendu. Mode `remote` (2026-10-01, médiathèque) : la page charge sa liste elle-même, la barre émet `wama:filter-change` ({q, facets, sort}) ; outil de tri `sort_by` déclaré par la page
-
-- **Domicile** : `wama/common/static/common/js/wama-filter-bar.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
 ### Calendrier de l'utilisateur et plages réservées
 
@@ -990,12 +975,6 @@ gitleaks sur l'historique git COMPLET, aucune ligne d'attribution dans les messa
   - `binaire_gitleaks() -> Path`
   - `class Command(BaseCommand)`
 
-### Gestes au pointeur (glisser, défiler, pincer, appui long)
-
-Montée par base.html, pour toute page des trois mondes (ROADMAP §27, étape 3, 2026-10-16). Trois choses : (1) `WamaGestures.track(el, {start, move, end, pinch})` suit un pointeur sur une surface qui dessine elle-même — seuil entre clic et glisser, boutons de souris filtrés, PINCEMENT à deux doigts ; Pointer Events, donc souris, stylet et doigt par le même code (canvas du studio, onde de l'éditeur du transcriber) ; (2) le glisser HTML5 AU DOIGT, sur tout `[draggable="true"]` : appui long puis le doigt bouge → `dragstart`/`dragover`/`drop`/`dragend` avec un `dataTransfer` réel, vignette qui suit, liste qui défile au bord — la file, la palette du studio et l'ordre des segments marchent au doigt sans une ligne chez eux, et la souris garde son glisser natif ; (3) l'APPUI LONG : l'infobulle (`title`) d'une commande sans la déclencher, sinon un `contextmenu` (menu de card, arbre — l'iPad n'en émet pas) ; sur ce qu'on glisse, il soulève : bouger glisse, relâcher ouvre le menu. Une page n'écrit ni `touchstart` pour un geste porté ici, ni mousedown/mousemove pour suivre un glisser ; mesuré chaque nuit sur de vrais événements tactiles par `common.gestures.touch`, et les mêmes pages à la souris par `common.gestures.mouse` (la garde du PC)
-
-- **Domicile** : `wama/common/static/common/js/wama-gestures.js` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
-
 ### Intégrité des gabarits
 
 Attrape la famille de fautes qui a récidivé SEPT fois : le commentaire `{# … #}` MULTI-LIGNE, que le lexer de Django (pas de re.DOTALL) rend en TEXTE littéral — et le nom de balise avaleuse écrit dans un commentaire. Un scan de 5 s contre des diagnostics qui ont coûté des sessions. Depuis le 01/09, signale AUSSI tout `{% load %}` vers une bibliothèque de balises absente (garde posée le jour où un retrait de templatetag a laissé son load — page reader en TemplateSyntaxError)
@@ -1070,12 +1049,6 @@ Une balise `WAMA:SECTION(audience=…; type=…; nature=…; etat=…)` sous un 
   - `parse_attrs(raw: str) -> Tuple[Dict[str, object], List[str]]` — `audience=…; type=…` → attributs + erreurs (vocabulaire ET double vérification).
   - `sections(texte: str) -> Tuple[List[Section], List[Tuple[int, str]]]` — Les sections d'un `.md` avec leurs attributs (propres ou hérités) + les erreurs de
   - `extract(texte: str, audience: str, type_: Optional[str]=None) -> List[Section]` — Les sections destinées à un public (et à un type, si précisé), dans l'ordre du texte.
-
-### Menu contextuel de card/lot + débordement « … »
-
-Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales (bouton édition compris — décision Fabien 2026-09-08). Modèle HYBRIDE : les actions EXISTANTES sont LUES sur le `.btn-group-actions` de la card (contrat de `cloneActions`, donc zéro ligne par app et clic PROXIFIÉ vers le vrai bouton), les TRANSVERSES sont déclarées et leurs URLs viennent de `queue_dnd_attrs` — une route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus en CASCADE, au survol et au clic, le parent restant ouvert (2026-09-14) et DIFFÉRÉS (« Recherche… » puis rempli : il n'attend pas le réseau). Se ferme sur un geste de l'UTILISATEUR hors du menu, jamais sur un `scroll` (un focus programmatique le refermait en 7 ms). 2ᵉ surface : l'arbre de fichiers (`ouvrir()` depuis `filemanager.js`, 2026-09-14), qui obtient depuis le 2026-09-18 les gestes d'ÉLÉMENT (Partager…, Ajouter à la médiathèque…, Ajouter au RAG) sur un fichier de SORTIE par `entreesPourChemin` — le serveur remonte à l'élément (`send_to.item_for_output_path`), les entrées sont CELLES de la card (`entreesPourElement`, une seule liste), posées en ENTRÉE DIFFÉRÉE à la racine du menu (`{chargement, charger}` : « Recherche… » puis remplacement, le menu n'attend pas le réseau). Depuis le 2026-10-14, un fichier qui n'est la sortie de RIEN (dépôt temporaire, entrée d'app, dossier connecté) a « Ajouter au RAG » sur le FICHIER, et une sélection de N fichiers « Ajouter N fichiers au RAG » (`entreesPourChemins`). ⚠ Le menu est posé sur `document.body` : une card vit dans un conteneur à `overflow` qui le rognerait. Le « … » suit les cards INSÉRÉES ou REMPLACÉES après le chargement (observation de la file, 2026-09-15)
-
-- **Domicile** : `wama/common/static/common/js/wama-card-menu.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
 ### Modèles de NIVEAU DÉVELOPPEMENT (bridage « qualité max »)
 
@@ -1284,12 +1257,6 @@ UNE brique pour tout service externe qui limite son débit : la NOTE de saturati
   - `exhausted(source: str, scope: str, model: str='', now: float=None) -> str` — '' si `source` peut encore servir `model` à cette clé ; sinon le motif — le plafond (déclaré
   - `unavailable_keys(keys, scope_of) -> dict` — {model_key: motif} des clés de catalogue `<source>:<modèle>` que le tirage automatique doit
 
-### Repli des volets latéraux par leur frontière
-
-Un clic sur la FRONTIÈRE d'un volet (explorateur, panneau) le replie ou le rouvre, sur toute page : au repos rien de plus que le liseré, au survol une ligne et une pastille à chevron qui suit le pointeur ; volet replié, une trace fine au bord de la fenêtre. État par NAVIGATEUR (localStorage), appliqué avant le premier rendu. La place des volets a une SOURCE UNIQUE : les marges `--wama-left-gutter` / `--wama-right-gutter` (0 replié, sans volet ou en mode simplifié) que lisent le corps, l'en-tête et les barres fixes des pages ; une règle qui se calerait sur la largeur brute d'un volet est refusée par `tests_panel_toggle`. Au doigt (tablette), la pastille reste visible. Après chaque bascule : `resize` + `wama:panels`. DEUX CONTEXTES DE LARGEUR (2026-10-12) : sous le point de rupture `lg` de Bootstrap (tablette en portrait, fenêtre étroite), volets repliés d'office, un seul ouvert à la fois, mémoire à part — le choix fait en grand n'est jamais écrasé (`WamaPanelsContext`, posé par base.html avant le premier rendu). La barre du haut et le pied sont des grilles `1fr auto 1fr` : rien ne s'y chevauche, les libellés s'effacent derrière leur icône quand la barre manque de place (requête de conteneur) ; mesuré chaque nuit par `common.layout.tablet`
-
-- **Domicile** : `wama/common/static/common/js/wama-panel-toggle.js` · **doc** : [docs/construction/ui/WAMA_VOLETS.md](../construction/ui/WAMA_VOLETS.md)
-
 ### Révisions d'un élément (historique DANS la card)
 
 Chaque résultat produit donne à l'élément une révision numérotée — réglages dérivés du schéma, fichiers et leur empreinte, instruction — rattachée au fait `produit` de `RunOutcome` (un journal, pas deux) ; une révision PUBLIÉE est une version. Capture posée une fois dans le squelette de tâche : zéro ligne par app, la file ne voit rien. Une app qui le DÉCLARE (`keep_outputs`, le Writer d'abord, 2026-10-13) GARDE la copie des fichiers de ses 20 dernières révisions + des publiées (`KeptOutputsMixin`, liste déclarée à la rétention) ; au-delà la révision dit « fichier purgé ». ⏳ Restaurer d'un geste, les dix apps, volet Historique : marches suivantes
@@ -1387,12 +1354,6 @@ CVE des paquets INSTALLÉS du venv courant via l'API OSV.dev (pas les requiremen
   - `inventaire() -> list[tuple[str, str]]` — (nom, version) des distributions installées dans CET interpréteur.
   - `interroger_osv(paquets: list[tuple[str, str]]) -> dict[str, list[str]]` — {"nom==version": [ids OSV]} — lève si l'API est injoignable.
   - `class Command(BaseCommand)`
-
-### WAMA au doigt (écrans tactiles)
-
-Une règle commune, montée par base.html EN DERNIER, pour tout écran dont le pointeur principal est un doigt — critère UNIQUE `(pointer: coarse)` : commandes à 44 px au moins (boutons, onglets, menus, titres repliables, `[role=button]`), cases, interrupteurs et curseurs à 24 px au moins — des PLANCHERS, jamais des tailles. Et la convention « révélé au survol » : `.wama-reveal-host` sur l'hôte, `.wama-reveal` sur l'action — montrée au survol, au clavier, et TOUJOURS au doigt ; son inverse `.wama-reveal-hide` pour ce qui lui cède la place. Une règle `:hover` locale qui révélerait un élément est refusée par `tests_touch`. Les briques affinent chez elles, sur le même critère (process des cards v3, lecteur audio, saisie de l'assistant, ports du studio, variante « large » de l'explorateur)
-
-- **Domicile** : `wama/common/static/common/css/wama-touch.css` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 
 ### Évaluation d'un résultat contre sa référence
 
@@ -2001,16 +1962,6 @@ La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_vie
 
 ## File d'attente & lots
 
-### Console utilisateur
-
-Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des `requirements` (vérifié 2026-08-22) : la console tourne DEPUIS TOUJOURS sur son repli cache, qui fonctionne mais n'est pas atomique (lire/insérer/réécrire, donc des lignes perdues quand gunicorn et les workers Celery poussent en même temps). Le correctif n'est PAS d'ajouter la dépendance : le client `redis` brut est déjà installé et la brique d'accès existe (`resource_governor._redis`, via `CELERY_BROKER_URL`)
-
-- **Domicile** : `wama/common/utils/console_utils.py`
-- **Module** : WAMA Unified Console Logging
-- **API publique** (2) :
-  - `push_console_line(user_id: int, line: str, level: str='info', app: str='system', maxlen: int=500) -> None` — Append a structured log line to the user's console buffer.
-  - `get_console_lines(user_id: int, levels: Optional[List[str]]=None, app: Optional[str]=None, limit: int=200) -> List[dict]` — Retrieve structured console lines for a user.
-
 ### Dossier de travail jetable
 
 Les fichiers INTERMÉDIAIRES d'un traitement ne vivent pas dans `media/`. Mesuré le 2026-08-25 : `media/avatarizer/` pesait 1,69 Go pour 2101 fichiers dont 99,6 % de PNG — les frames de CodeFormer, écrites dans le dossier de sortie du job et jamais nettoyées ; `job_11` portait 1715,7 Mo pour une vidéo de 0,70 Mo. `media/` ne contient que `<app>/<user>/input|output/` et `users/` (MEDIA_STORAGE_TIERING.md) : un fichier de travail y est sauvegardé par le miroir, compté par le tiering et servi par Apache pour rien. Le `with` rend le nettoyage STRUCTUREL au lieu d'être une convention qu'on oublie. ADOPTÉ par 5 sites (avatarizer/codeformer, describer/views, enhancer/views, reader/glm_ocr, describer/video_describer) ; le dernier site, la boucle vidéo de l'enhancer (ex-`tasks.py:534`), est porté depuis le 26/08 et vit depuis le 21/09 dans sa route `enhancer/backends/media_backend.py:82` (la glu `enhancer/tasks.py:156` en ouvre un second pour ranger la sortie). ⚠⚠ L'audit AUTOMATIQUE des `mkdtemp` a mal classé 2 sites sur 6 — `glm_ocr` déléguait par contrat DOCUMENTÉ, `enhancer/tasks` nettoyait déjà — mais la lecture site par site a trouvé l'inverse, des fuites qu'aucun motif ne voyait : un `rmdir` conditionné à « si le dossier est vide » qui ne se déclenchait donc jamais, un nettoyage placé APRÈS l'appel qui sautait sur exception, et un `except ImportError` qui empêchait un repli d'exister. Un relevé par motif oriente ; il ne conclut pas. Porte aussi `purge_job_dir` : la suppression d'une card doit emporter le dossier du job — 13 dossiers `job_*` orphelins relevés contre 4 rattachés
@@ -2037,30 +1988,6 @@ duplicate_instance(), release_card_files() (retirer une card libère TOUT ce qu'
   - `is_received(instance, user) -> bool` — La card appartient-elle à QUELQU'UN D'AUTRE que `user` (une card qu'on lui a partagée) ?
   - `duplicate_instance(instance, reset_fields=None, clear_fields=None, *, for_user=None)` — Create a new DB row that shares the same input file(s) as the original.
   - `copy_subfolder(rel: str, app: str) -> str` — Le sous-dossier d'app où COPIER `rel` chez un autre propriétaire : sa place relative dans le
-
-### Entrée de file (card seule OU lot)
-
-Décide, pour une entrée de file, si elle s'affiche en card unique ou en card MÈRE avec ses filles repliables — et rend l'un ou l'autre. Le bloc vivait recopié À L'IDENTIQUE dans les gabarits d'app (10 au dernier compte — le partial fait foi) ; il n'a pu être centralisé (2026-08-25) qu'une fois deux verrous levés : `is_unitary` adopté (la décision se lit sur le modèle) et `elem` (les cards filles reçoivent leur élément sous le MÊME nom — avant, 8 graphies). Signature à 3 paramètres : `card_template`, plus `collapse_prefix` et `batch_key` pour la seule app à deux files sur une page (enhancer audio). ⚠ Tout le reste TRAVERSE PAR LE CONTEXTE — les ~9 paramètres de `_batch_card.html` sont fournis par l'app et passent au travers, sinon la signature atteindrait la quinzaine. Apparence uniformisée sur le TRANSCRIBER (référence), conforme à `CARD_DESIGN §11.2` (famille de lot = cyan #0dcaf0) : les 3 couleurs et 2 habillages qui coexistaient étaient des séquelles d'implémentations successives. Depuis le 2026-09-15 l'entrée porte `data-card-url` : quand une suppression réduit un lot à une card, `queue-actions.js` la redemande au serveur et la file se met à jour sans rechargement de la page (la vue dit l'état du lot : `batch_common.batch_state` ; la position d'une card seule : `is_batch_child`)
-
-- **Domicile** : `wama/common/templates/common/_queue_entry.html` · **doc** : [docs/construction/ui/CARD_DESIGN.md §11.2](../construction/ui/CARD_DESIGN.md)
-
-### File d'attente (front)
-
-Comportements communs des files : collapse de batch persisté, mode Solitaire (accordéon), toggle Ligne/Mosaïque, les 3 densités et le modificateur PILE (CARD_DESIGN §11.4/§11.9), focus card, clearCards, data-wama-*
-
-- **Domicile** : `wama/common/static/common/js/wama-queue.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
-
-### Glisser-déposer et sélection multiple de la file
-
-Les QUATRE gestes de manipulation directe, hérités par les 12 apps sans qu'aucune n'écrive une ligne : déposer SUR une card change l'APPARTENANCE (entrer dans un lot / en former un), déposer ENTRE deux cards change l'ORDRE (file ou lot) ; sélection multiple clic/Ctrl/Maj, qui EST celle de l'inspecteur (une seule sélection dans WAMA — la brique ANNONCE `wama:selection-change`, l'inspecteur REND). Une CASE en tête de chaque card la dessine (2026-10-16) : la cocher AJOUTE à la sélection, comme Ctrl+clic — à la souris sans clavier comme au doigt ; visible au survol, cochée ou dès qu'une sélection est en cours. Le SURVOL d'une card de file est une règle commune (`wama-inspector.css`), aucune app n'écrit le sien. Auto-monté sur `[data-wama-dnd]`, posé par le templatetag `queue_dnd_attrs` : une app qui ne le pose pas garde une file strictement inerte. SortableJS écarté (multi-sélection + fusion sur une card + règle « pas de CDN »)
-
-- **Domicile** : `wama/common/static/common/js/wama-queue-dnd.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
-
-### Historique annuler / rétablir
-
-Deux piles + plafond + état des boutons + raccourcis Ctrl+Z / Ctrl+Maj+Z / Ctrl+Y. PORTABLE parce que la machinerie ne touche JAMAIS le modèle : elle ne le connaît que par `snapshot()` et `restore(state)`, que l'appelant fournit. La coalescence des rafales de frappe (`burstWindow`) est une OPTION, pas un acquis — elle n'a aucun sens sur un éditeur non textuel, où chaque mutation est déjà atomique. ⚠⚠ La FILE D'ATTENTE ne peut PAS l'utiliser : ses gestes sont commis côté serveur à l'instant du dépôt, il n'y a pas de modèle client à photographier — son « annuler » est un REJEU D'OPÉRATION INVERSE, même mot, mécanisme différent. Les réunir ici donnerait une API qui MENT sur ce qu'elle garantit. DEUX consommateurs, et deux façons de marquer un cran — c'est l'ADOPTION qui l'a révélé : `push()` AVANT la mutation (transcriber, qui marque en tête de chaque opération) et `commit()` APRÈS (studio, dont les 9 opérations passent par UN entonnoir, `persistDraft`). La v1 n'offrait que `push()` : suffisant pour le consommateur dont elle sortait, insuffisant pour le suivant. `silence(fn)` couvre le chargement programmatique, et la garde de RÉ-ENTRANCE vit dans la brique — restaurer c'est muter (`loadGraph`→`clearCanvas`→`removeNode`→l'entonnoir), donc tout consommateur à entonnoir remplirait son historique de son propre travail
-
-- **Domicile** : `wama/common/static/common/js/wama-history.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
 ### Import par lot
 
@@ -2187,17 +2114,6 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class ConversationTurn(models.Model)` — Un tour de conversation — ce que l'utilisateur a dit, ou ce que l'assistant a répondu.
   - `class InputProvenance(models.Model)` — D'OÙ vient le fichier d'entrée d'un élément — le LIEN qui manquait.
 
-### Panneau de la cloche
-
-Un clic sur la cloche ouvre ses notifications SANS quitter la page (2026-10-13) : ouvrir, lu / non lu, supprimer (avec « Annuler »), tout lire, et les gestes PROPRES à un type — déclarés par le serveur (STYLE_BY_KIND, ACTIONS_BY_KIND : « Accorder / Refuser » une demande d'accès), la page ne connaît aucun type. Ouvrir le panneau ne marque rien comme lu ; le lien de la cloche reste la page complète (Ctrl-clic)
-
-- **Domicile** : `wama/common/services/notification_panel.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md](../construction/exploitation/WAMA_COLLABORATION.md)
-- **Module** : Ce que le PANNEAU de la cloche montre d'une notification (`WAMA_COLLABORATION.md §2.3`, 2026-10-13, demande de Fabien : *« quand je clique sur la cloche, une petite fenêtre… je veux pouvoir interagir avec les notifications directement dans la petite fenêtre »*).
-- **API publique** (3) :
-  - `notification_actions(notification, user) -> list`
-  - `notification_payload(notification, user) -> dict` — La notification telle que le panneau la rend : texte, état, style, gestes.
-  - `notification_list(user, *, unread_only: bool=False, limit: int=20) -> dict` — Les notifications de `user`, les plus récentes d'abord : `{'unread', 'total', 'items'}`.
-
 ### Réglages de référence d'un lot (promotion fille ↔ mère)
 
 UNE ligne par lot (`BatchSettings`, adressée comme `ProcessRun`) : ce que la mère TIENT pour référence — posé par sa ⚙ (`batch_update` la retient désormais) ou PROMU d'une fille (`batch_promote`, POST `source=`) ; « ↓ réaligner » (`batch_realign`) la repose sur toutes les filles et efface les écarts individuels. La charge utile est DÉCLARÉE (`promote_payload`), par défaut les réglages du SCHÉMA lus par la règle de la révision ; le monde Data y mettra son protocole — même geste, deux charges. Les trois gestes écrivent par le chemin de la ⚙ de lot (deux temps, un refus n'écrit rien) ; la référence suit la duplication et part avec la suppression. Surfaces : bouton ↓ de la card mère (désactivé et DISANT pourquoi sans référence), entrée « Promouvoir ses réglages au lot » du menu « … » d'une fille. 9 apps câblées + le générateur ; le composer suit avec son câblage pipeline
@@ -2227,7 +2143,7 @@ Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, bat
 
 - **Domicile** : `wama/common/utils/batch_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Les VUES DE LOT : fabrique commune (`make_batch_views`).
-- **API publique** (5) :
+- **API publique** (6) :
   - `read_settings_payload(request, schema=None, schema_names=(), empty_is_value=())` — Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
   - `apply_item_settings(item, data, *, params_fields=(), options_field=None, extra_names=())` — Pose sur `item` les réglages présents dans `data` — colonnes déclarées (`params_fields`)
   - `element_label(item, item_label=None) -> str` — Le nom LISIBLE d'un élément : celui que l'app déclare (`item_label`), sinon le premier de ses
@@ -2260,20 +2176,28 @@ L'AXE auquel les vues s'abonnent et que le magnéto pilote — jamais une vue (`
 
 - **Domicile** : `wama/common/static/common/js/wama-axis.js` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 
+### Barre d'outils générale (registre + profils)
+
+UN registre d'outils (l'UNION de toutes les barres) et des PROFILS par nature de surface : `file` (12 files d'app) et `registre` (15 catalogues). Une surface tire des outils, elle ne les énumère pas — ajouter un outil à toutes les files est UNE clé, plus jamais douze gabarits (demande Fabien 2026-09-08 : « de façon globale, pas par app »). Les deux barres historiques SURVIVENT en façades vers `_toolbar.html`, ce qui laisse les 27 pages appelantes inchangées ; les deux ENVELOPPES sont conservées telles quelles (les fondre aurait changé les deux apparences). Chaque outil est un partial sous `common/toolbar/`
+
+- **Domicile** : `wama/common/toolbar.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
+- **Module** : Barre d'outils COMMUNE — UN registre d'outils, des PROFILS par nature de surface.
+- **API publique** (3) :
+  - `class Outil` — Un outil de barre. `partial` est la SEULE chose qui rend — le registre ne rend rien.
+  - `outils_du_profil(profil: str) -> list` — Les `Outil` du profil, dans l'ordre déclaré. Profil inconnu → `KeyError` explicite.
+  - `enveloppe_du_profil(profil: str) -> str`
+
+### Barre de filtrage
+
+Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclarées (server). Depuis le 2026-09-08 la recherche est un OUTIL du registre de barre (`toolbar_registry`), donc la même dans les registres et dans les 12 files. Masquage PAR CLASSE (`.wama-f-hors-filtre`) et non par `style.display` : une cible à `display` inline (l'entrée unitaire de file est en `display:contents`) ne survivait pas à la restauration. `data-cible-dans` BORNE la recherche — sans quoi deux files sur une même page se filtreraient l'une l'autre. `data-cible-vivante` (2026-09-28, calendrier) : une liste RE-RENDUE par un composant est relue à chaque application, et le composant appelle `WamaFilterBar.refresh(barre)` après rendu. Mode `remote` (2026-10-01, médiathèque) : la page charge sa liste elle-même, la barre émet `wama:filter-change` ({q, facets, sort}) ; outil de tri `sort_by` déclaré par la page
+
+- **Domicile** : `wama/common/static/common/js/wama-filter-bar.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
+
 ### Bouton de cycle
 
 Bouton commun ▶/⏹/↻ toujours vert — l'icône porte l'action, l'état vit sur la card
 
 - **Domicile** : `wama/common/static/common/js/wama-cycle-button.js`
-
-### Cache-busting statique
-
-`{% static_v %}` = `{% static %}` + `?v=<mtime>` : le navigateur re-télécharge un fichier statique dès qu'il change, le garde en cache sinon
-
-- **Domicile** : `wama/common/templatetags/wama_static.py`
-- **Module** : Cache-busting statique centralisé pour WAMA.
-- **API publique** (1) :
-  - `static_v(path)` — URL statique + `?v=<mtime>` pour casser le cache navigateur au changement.
 
 ### Card v3
 
@@ -2298,6 +2222,16 @@ Chips des cards GÉNÉRÉS du schéma params (chip=True), groupés par section v
   - `input_props_for(instance, file_field='input_file', name='')` — Sous-ligne « propriétés RÉELLES du média » de la section ENTRÉE (CARD_DESIGN §11).
   - `common_chips_for_items(items, params_json, values_of=None)` — Chips des réglages COMMUNS aux filles d'un lot — pour la card MÈRE (slot
   - `chips_by_section(instance, params_json, extra=None, values=None)` — Mêmes chips que `chips_for`, mais GROUPÉS par section de card v3 (CARD_DESIGN §11).
+
+### Console utilisateur
+
+Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des `requirements` (vérifié 2026-08-22) : la console tourne DEPUIS TOUJOURS sur son repli cache, qui fonctionne mais n'est pas atomique (lire/insérer/réécrire, donc des lignes perdues quand gunicorn et les workers Celery poussent en même temps). Le correctif n'est PAS d'ajouter la dépendance : le client `redis` brut est déjà installé et la brique d'accès existe (`resource_governor._redis`, via `CELERY_BROKER_URL`)
+
+- **Domicile** : `wama/common/utils/console_utils.py`
+- **Module** : WAMA Unified Console Logging
+- **API publique** (2) :
+  - `push_console_line(user_id: int, line: str, level: str='info', app: str='system', maxlen: int=500) -> None` — Append a structured log line to the user's console buffer.
+  - `get_console_lines(user_id: int, levels: Optional[List[str]]=None, app: Optional[str]=None, limit: int=200) -> List[dict]` — Retrieve structured console lines for a user.
 
 ### data-* du gear ⚙ des cards
 
@@ -2338,6 +2272,18 @@ Une page DÉCLARE les sections du volet droit qu'elle garde (retrait, jamais ajo
 - **API publique** (1) :
   - `volet(*, tete: bool=False, medias: bool=True, parametres: bool=True, actions: bool=True) -> dict` — Déclaration de volet, toujours COMPLÈTE (cf. le pourquoi dans l'en-tête du module).
 
+### Entrée de file (card seule OU lot)
+
+Décide, pour une entrée de file, si elle s'affiche en card unique ou en card MÈRE avec ses filles repliables — et rend l'un ou l'autre. Le bloc vivait recopié À L'IDENTIQUE dans les gabarits d'app (10 au dernier compte — le partial fait foi) ; il n'a pu être centralisé (2026-08-25) qu'une fois deux verrous levés : `is_unitary` adopté (la décision se lit sur le modèle) et `elem` (les cards filles reçoivent leur élément sous le MÊME nom — avant, 8 graphies). Signature à 3 paramètres : `card_template`, plus `collapse_prefix` et `batch_key` pour la seule app à deux files sur une page (enhancer audio). ⚠ Tout le reste TRAVERSE PAR LE CONTEXTE — les ~9 paramètres de `_batch_card.html` sont fournis par l'app et passent au travers, sinon la signature atteindrait la quinzaine. Apparence uniformisée sur le TRANSCRIBER (référence), conforme à `CARD_DESIGN §11.2` (famille de lot = cyan #0dcaf0) : les 3 couleurs et 2 habillages qui coexistaient étaient des séquelles d'implémentations successives. Depuis le 2026-09-15 l'entrée porte `data-card-url` : quand une suppression réduit un lot à une card, `queue-actions.js` la redemande au serveur et la file se met à jour sans rechargement de la page (la vue dit l'état du lot : `batch_common.batch_state` ; la position d'une card seule : `is_batch_child`)
+
+- **Domicile** : `wama/common/templates/common/_queue_entry.html` · **doc** : [docs/construction/ui/CARD_DESIGN.md §11.2](../construction/ui/CARD_DESIGN.md)
+
+### File d'attente (front)
+
+Comportements communs des files : collapse de batch persisté, mode Solitaire (accordéon), toggle Ligne/Mosaïque, les 3 densités et le modificateur PILE (CARD_DESIGN §11.4/§11.9), focus card, clearCards, data-wama-*
+
+- **Domicile** : `wama/common/static/common/js/wama-queue.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
+
 ### Formats de téléchargement (⬇ late-binding)
 
 Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, groupe) + split-button dérivé de la déclaration export_binding — pendant late-binding d'output_formats ; 6ᵉ action de card. Depuis le 2026-09-18, porte aussi le REGISTRE des builders de rendu (`register_export_builder`, un par app late-binding, chemin pointé résolu à l'usage) : c'est ce qui permet au geste médiathèque de rendre le format choisi par LE MÊME code que le ⬇. Depuis le 2026-10-02 le ZIP de LOT lit les deux mêmes déclarations (fabrique `make_batch_views`, format borné par `requested_format`, bouton de la card mère rendu par ce même ⬇) : les trois niveaux — card, lot, barre de file — parlent `?format=`. Depuis le 2026-10-13 la visionneuse commune offre les mêmes formats, et ce qu'un ÉLÉMENT ne peut pas rendre se déclare (`register_export_missing` : le `json` du reader sans résultat brut), lu par le ⬇ de la card (`item=`) et par elle
@@ -2355,15 +2301,23 @@ Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, gr
   - `register_export_builder(app_name: str, builder) -> None` — `builder` : callable `(instance, fmt) -> (ext, bytes) | None`, ou son chemin pointé
   - `export_builder_for(app_name: str)` — Le rendu déclaré par l'app, ou `None`. Une app early-binding n'en déclare pas : son
 
-### Grille des temps d'un audio
+### Gestes au pointeur (glisser, défiler, pincer, appui long)
 
-L'instant de chaque temps joué d'un audio et les hauteurs qui y sonnent (chroma par temps), en cache par fichier et date — de quoi caler une partition TEMPS PAR TEMPS sur ce qui est joué plutôt que par son tempo écrit (né le 2026-10-16 : #754 écrit à 88, joué à 89,1). Ne connaît aucune partition ; le calage est `WamaScore.align`
+Montée par base.html, pour toute page des trois mondes (ROADMAP §27, étape 3, 2026-10-16). Trois choses : (1) `WamaGestures.track(el, {start, move, end, pinch})` suit un pointeur sur une surface qui dessine elle-même — seuil entre clic et glisser, boutons de souris filtrés, PINCEMENT à deux doigts ; Pointer Events, donc souris, stylet et doigt par le même code (canvas du studio, onde de l'éditeur du transcriber) ; (2) le glisser HTML5 AU DOIGT, sur tout `[draggable="true"]` : appui long puis le doigt bouge → `dragstart`/`dragover`/`drop`/`dragend` avec un `dataTransfer` réel, vignette qui suit, liste qui défile au bord — la file, la palette du studio et l'ordre des segments marchent au doigt sans une ligne chez eux, et la souris garde son glisser natif ; (3) l'APPUI LONG : l'infobulle (`title`) d'une commande sans la déclencher, sinon un `contextmenu` (menu de card, arbre — l'iPad n'en émet pas) ; sur ce qu'on glisse, il soulève : bouger glisse, relâcher ouvre le menu. Une page n'écrit ni `touchstart` pour un geste porté ici, ni mousedown/mousemove pour suivre un glisser ; mesuré chaque nuit sur de vrais événements tactiles par `common.gestures.touch`, et les mêmes pages à la souris par `common.gestures.mouse` (la garde du PC)
 
-- **Domicile** : `wama/common/utils/audio_rhythm.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
-- **Module** : La grille des TEMPS d'un audio — où tombe chaque temps joué, et quelles hauteurs y sonnent.
-- **API publique** (2) :
-  - `beat_grid(path: str)` — `{beats, chroma, duration}` de l'audio `path` (voir l'en-tête) ; None s'il est illisible.
-  - `compute_beat_grid(path: str) -> dict`
+- **Domicile** : `wama/common/static/common/js/wama-gestures.js` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
+
+### Glisser-déposer et sélection multiple de la file
+
+Les QUATRE gestes de manipulation directe, hérités par les 12 apps sans qu'aucune n'écrive une ligne : déposer SUR une card change l'APPARTENANCE (entrer dans un lot / en former un), déposer ENTRE deux cards change l'ORDRE (file ou lot) ; sélection multiple clic/Ctrl/Maj, qui EST celle de l'inspecteur (une seule sélection dans WAMA — la brique ANNONCE `wama:selection-change`, l'inspecteur REND). Une CASE en tête de chaque card la dessine (2026-10-16) : la cocher AJOUTE à la sélection, comme Ctrl+clic — à la souris sans clavier comme au doigt ; visible au survol, cochée ou dès qu'une sélection est en cours. Le SURVOL d'une card de file est une règle commune (`wama-inspector.css`), aucune app n'écrit le sien. Auto-monté sur `[data-wama-dnd]`, posé par le templatetag `queue_dnd_attrs` : une app qui ne le pose pas garde une file strictement inerte. SortableJS écarté (multi-sélection + fusion sur une card + règle « pas de CDN »)
+
+- **Domicile** : `wama/common/static/common/js/wama-queue-dnd.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
+
+### Historique annuler / rétablir
+
+Deux piles + plafond + état des boutons + raccourcis Ctrl+Z / Ctrl+Maj+Z / Ctrl+Y. PORTABLE parce que la machinerie ne touche JAMAIS le modèle : elle ne le connaît que par `snapshot()` et `restore(state)`, que l'appelant fournit. La coalescence des rafales de frappe (`burstWindow`) est une OPTION, pas un acquis — elle n'a aucun sens sur un éditeur non textuel, où chaque mutation est déjà atomique. ⚠⚠ La FILE D'ATTENTE ne peut PAS l'utiliser : ses gestes sont commis côté serveur à l'instant du dépôt, il n'y a pas de modèle client à photographier — son « annuler » est un REJEU D'OPÉRATION INVERSE, même mot, mécanisme différent. Les réunir ici donnerait une API qui MENT sur ce qu'elle garantit. DEUX consommateurs, et deux façons de marquer un cran — c'est l'ADOPTION qui l'a révélé : `push()` AVANT la mutation (transcriber, qui marque en tête de chaque opération) et `commit()` APRÈS (studio, dont les 9 opérations passent par UN entonnoir, `persistDraft`). La v1 n'offrait que `push()` : suffisant pour le consommateur dont elle sortait, insuffisant pour le suivant. `silence(fn)` couvre le chargement programmatique, et la garde de RÉ-ENTRANCE vit dans la brique — restaurer c'est muter (`loadGraph`→`clearCanvas`→`removeNode`→l'entonnoir), donc tout consommateur à entonnoir remplirait son historique de son propre travail
+
+- **Domicile** : `wama/common/static/common/js/wama-history.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
 ### Import de dossier récursif
 
@@ -2402,22 +2356,22 @@ Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivi
 
 - **Domicile** : `wama/common/static/common/js/wama-audio-player.js`
 
-### Notation d'un MIDI multi-instrument (MIDI → ABC)
+### Menu contextuel de card/lot + débordement « … »
 
-Un MIDI à une piste par instrument → une partition ABC lisible : une voix par instrument (libellé français), clavier sur deux portées, batterie en portée de percussion, accords, liaisons, altérations par mesure. Sur la métrique du MIDI quand le moteur en a trouvé une, sinon sur les temps JOUÉS de l'audio (`audio_rhythm`), anacrouse comprise. Né le 2026-10-16 pour la partition complète du composer (MuScriptor, tâche `audio-to-midi`) ; ne connaît aucun moteur. Porte aussi la LECTURE MIDI commune (`read_midi` : tempos, mesure, tonalité, marqueurs, une partie par piste et canal), que le moteur YuE2 consomme pour suivre une partition MIDI
+Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales (bouton édition compris — décision Fabien 2026-09-08). Modèle HYBRIDE : les actions EXISTANTES sont LUES sur le `.btn-group-actions` de la card (contrat de `cloneActions`, donc zéro ligne par app et clic PROXIFIÉ vers le vrai bouton), les TRANSVERSES sont déclarées et leurs URLs viennent de `queue_dnd_attrs` — une route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus en CASCADE, au survol et au clic, le parent restant ouvert (2026-09-14) et DIFFÉRÉS (« Recherche… » puis rempli : il n'attend pas le réseau). Se ferme sur un geste de l'UTILISATEUR hors du menu, jamais sur un `scroll` (un focus programmatique le refermait en 7 ms). 2ᵉ surface : l'arbre de fichiers (`ouvrir()` depuis `filemanager.js`, 2026-09-14), qui obtient depuis le 2026-09-18 les gestes d'ÉLÉMENT (Partager…, Ajouter à la médiathèque…, Ajouter au RAG) sur un fichier de SORTIE par `entreesPourChemin` — le serveur remonte à l'élément (`send_to.item_for_output_path`), les entrées sont CELLES de la card (`entreesPourElement`, une seule liste), posées en ENTRÉE DIFFÉRÉE à la racine du menu (`{chargement, charger}` : « Recherche… » puis remplacement, le menu n'attend pas le réseau). Depuis le 2026-10-14, un fichier qui n'est la sortie de RIEN (dépôt temporaire, entrée d'app, dossier connecté) a « Ajouter au RAG » sur le FICHIER, et une sélection de N fichiers « Ajouter N fichiers au RAG » (`entreesPourChemins`). ⚠ Le menu est posé sur `document.body` : une card vit dans un conteneur à `overflow` qui le rognerait. Le « … » suit les cards INSÉRÉES ou REMPLACÉES après le chargement (observation de la file, 2026-09-15)
 
-- **Domicile** : `wama/common/utils/midi_score.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
-- **Module** : Un MIDI multi-pistes → une partition ABC LISIBLE (2026-10-16, la « Partition complète » du composer).
-- **API publique** (9) :
-  - `instrument_label(name: str) -> str` — Le libellé français d'une piste nommée par le moteur (`INSTRUMENT_LABELS`).
-  - `class MidiPart` — Une partie du MIDI — une piste et un canal : son nom (`track_name`), batterie ou non (canal
-  - `class MidiSong` — Ce qu'un fichier MIDI déclare, lu une fois (`read_midi`) : la base de temps, la carte des
-  - `read_midi(source) -> MidiSong` — La LECTURE MIDI commune (2026-10-16) — un chemin ou des octets → `MidiSong`, par `mido`.
-  - `abc_pitch(pitch: int) -> tuple` — (lettre ABC avec octave, dièse ?) d'une hauteur MIDI : 60 → ('C', False), 73 → ('c', True).
-  - `split_length(steps: int) -> list` — Une durée en pas découpée en valeurs écrivables (la plus longue d'abord).
-  - `bar_offset_of(markers) -> float` — Le décalage (s) qu'un moteur a ajouté pour poser la mesure 1 sur un temps fort — marqueur
-  - `played_beat_steps(beat_times, grid: int, offset: float)` — `(secondes MIDI → pas)` sur les temps JOUÉS : une note se place entre les deux temps de
-  - `midi_to_abc(midi_bytes: bytes, *, title: str='', grid: int=4, bars_per_line: int=4, beat_times=None) -> str` — Le texte ABC d'un MIDI multi-pistes (voir l'en-tête). Lève `ValueError` sans aucune note.
+- **Domicile** : `wama/common/static/common/js/wama-card-menu.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
+
+### Panneau de la cloche
+
+Un clic sur la cloche ouvre ses notifications SANS quitter la page (2026-10-13) : ouvrir, lu / non lu, supprimer (avec « Annuler »), tout lire, et les gestes PROPRES à un type — déclarés par le serveur (STYLE_BY_KIND, ACTIONS_BY_KIND : « Accorder / Refuser » une demande d'accès), la page ne connaît aucun type. Ouvrir le panneau ne marque rien comme lu ; le lien de la cloche reste la page complète (Ctrl-clic)
+
+- **Domicile** : `wama/common/services/notification_panel.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md](../construction/exploitation/WAMA_COLLABORATION.md)
+- **Module** : Ce que le PANNEAU de la cloche montre d'une notification (`WAMA_COLLABORATION.md §2.3`, 2026-10-13, demande de Fabien : *« quand je clique sur la cloche, une petite fenêtre… je veux pouvoir interagir avec les notifications directement dans la petite fenêtre »*).
+- **API publique** (3) :
+  - `notification_actions(notification, user) -> list`
+  - `notification_payload(notification, user) -> dict` — La notification telle que le panneau la rend : texte, état, style, gestes.
+  - `notification_list(user, *, unread_only: bool=False, limit: int=20) -> dict` — Les notifications de `user`, les plus récentes d'abord : `{'unread', 'total', 'items'}`.
 
 ### Preview unifiée
 
@@ -2444,6 +2398,12 @@ L'APPARENCE d'un état (libellé, classe de badge, classe de texte, icône) déc
 - **API publique** (2) :
   - `states() -> list` — Les états AFFICHABLES, dans l'ordre : `DRAFT` puis les six du vocabulaire commun.
   - `js_payload() -> dict` — Ce que le CLIENT reçoit — même source que les gabarits, donc rien à resynchroniser.
+
+### Repli des volets latéraux par leur frontière
+
+Un clic sur la FRONTIÈRE d'un volet (explorateur, panneau) le replie ou le rouvre, sur toute page : au repos rien de plus que le liseré, au survol une ligne et une pastille à chevron qui suit le pointeur ; volet replié, une trace fine au bord de la fenêtre. État par NAVIGATEUR (localStorage), appliqué avant le premier rendu. La place des volets a une SOURCE UNIQUE : les marges `--wama-left-gutter` / `--wama-right-gutter` (0 replié, sans volet ou en mode simplifié) que lisent le corps, l'en-tête et les barres fixes des pages ; une règle qui se calerait sur la largeur brute d'un volet est refusée par `tests_panel_toggle`. Au doigt (tablette), la pastille reste visible. Après chaque bascule : `resize` + `wama:panels`. DEUX CONTEXTES DE LARGEUR (2026-10-12) : sous le point de rupture `lg` de Bootstrap (tablette en portrait, fenêtre étroite), volets repliés d'office, un seul ouvert à la fois, mémoire à part — le choix fait en grand n'est jamais écrasé (`WamaPanelsContext`, posé par base.html avant le premier rendu). La barre du haut et le pied sont des grilles `1fr auto 1fr` : rien ne s'y chevauche, les libellés s'effacent derrière leur icône quand la barre manque de place (requête de conteneur) ; mesuré chaque nuit par `common.layout.tablet`
+
+- **Domicile** : `wama/common/static/common/js/wama-panel-toggle.js` · **doc** : [docs/construction/ui/WAMA_VOLETS.md](../construction/ui/WAMA_VOLETS.md)
 
 ### Résultat instantané de la saisie
 
@@ -2488,17 +2448,6 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `describe_refusals(refusals: dict) -> str` — Une phrase par valeur refusée, dans l'ordre des noms — le texte d'une erreur montrée.
   - `checked_values(schema, data) -> dict` — Les valeurs FOURNIES, refusées si le schéma les refuse, sinon typées et bornées — la porte
   - `param_from_spec(spec) -> Param` — Le `Param` d'un `ParamSpec`. Lève `ValueError` sur un type que le pont ne connaît pas —
-
-### Servir un fichier par morceaux (HTTP Range)
-
-Réponse 206 à une requête `Range` — ce qui rend un média seekable au-delà du déjà-téléchargé ; sert `/media/` (`wama/urls.py`) et la vidéo du cam_analyzer, dont la règle a été extraite (2026-10-15)
-
-- **Domicile** : `wama/common/utils/ranged_response.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
-- **Module** : Servir un fichier PAR MORCEAUX (requêtes HTTP `Range`) — ce qui rend un média SEEKABLE.
-- **API publique** (3) :
-  - `parse_range(header: str, size: int)` — `(début, fin)` inclusifs d'un en-tête `Range` à UN intervalle, bornés à la taille ; None si
-  - `ranged_file_response(request, path: str, content_type: str | None=None)` — La réponse qui sert `path` — son morceau (206) si la requête en demande un, sinon le
-  - `serve(request, path, document_root=None, show_indexes=False)` — `django.views.static.serve`, plus les requêtes `Range` (206) — le service de `/media/`.
 
 ### Shuttle J/K/L
 
@@ -2581,6 +2530,12 @@ Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage 
 Envoi d'un fichier vers l'endpoint upload de l'app (dépôt, clic), délégation du LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni MIME ni extension). ⭐ Depuis le 2026-09-28 elle DÉSIGNE aussi (`handleDesignations` : médiathèque, arbre — `<champ>__designated`, pointé par le serveur) et se retrouve par l'id de sa zone ou de son input (`forElement`)
 
 - **Domicile** : `wama/common/static/common/js/wama-import.js` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+
+### WAMA au doigt (écrans tactiles)
+
+Une règle commune, montée par base.html EN DERNIER, pour tout écran dont le pointeur principal est un doigt — critère UNIQUE `(pointer: coarse)` : commandes à 44 px au moins (boutons, onglets, menus, titres repliables, `[role=button]`), cases, interrupteurs et curseurs à 24 px au moins — des PLANCHERS, jamais des tailles. Et la convention « révélé au survol » : `.wama-reveal-host` sur l'hôte, `.wama-reveal` sur l'action — montrée au survol, au clavier, et TOUJOURS au doigt ; son inverse `.wama-reveal-hide` pour ce qui lui cède la place. Une règle `:hover` locale qui révélerait un élément est refusée par `tests_touch`. Les briques affinent chez elles, sur le même critère (process des cards v3, lecteur audio, saisie de l'assistant, ports du studio, variante « large » de l'explorateur)
+
+- **Domicile** : `wama/common/static/common/css/wama-touch.css` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 
 ## Données & infrastructure
 
@@ -2710,6 +2665,15 @@ Registre de Feature par app + surcharges JSON de l'objet porteur — comparer AV
   - `describe(registry, config=None)` — Catalogue sérialisable pour l'UI : métadonnées + état effectif de chaque bascule.
   - `sanitize_overrides(registry, raw)` — Filtre un dict de surcharges venu du client : clés connues, valeurs booléennes.
 
+### Cache-busting statique
+
+`{% static_v %}` = `{% static %}` + `?v=<mtime>` : le navigateur re-télécharge un fichier statique dès qu'il change, le garde en cache sinon
+
+- **Domicile** : `wama/common/templatetags/wama_static.py`
+- **Module** : Cache-busting statique centralisé pour WAMA.
+- **API publique** (1) :
+  - `static_v(path)` — URL statique + `?v=<mtime>` pour casser le cache navigateur au changement.
+
 ### Chemins média
 
 Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_media_dir` : `users/<uid>/<app>/input|output`). ⭐ Depuis le 2026-09-23 la brique décide aussi POINTER ou COPIER (`reference_or_copy`, décision de Fabien, cible annoncée le 12/09) : une source déjà sous `users/<uid>/` du MÊME utilisateur est désignée telle quelle — un `FileField` est déjà un pointeur, l'aperçu commun sert `/media/<chemin stocké>` — tandis qu'un dépôt depuis le poste, un dossier connecté (hors `MEDIA_ROOT`, et un traitement ne lit pas un disque réseau), une URL ou l'arbre d'AUTRUI se copient. ⚠ Une app qui lit ses entrées PAR DOSSIER (cam_analyzer, RTMaps) garde la copie, et son site le dit. ⭐ Depuis le 2026-09-28 : un asset SYSTÈME actif se pointe aussi, `readable_by` est LA règle de ce qu'un utilisateur peut désigner, et `received_inputs` est ce qu'une vue d'upload REÇOIT — un fichier téléversé ou DÉSIGNÉ (`<champ>__designated` : médiathèque, arbre), par la même vue, avec l'état du volet ; `designate` est la même désignation pour les outils de l'assistant (`tool_api.add_to_*`). ⭐ Depuis le 2026-09-29 : un asset de médiathèque PARTAGÉ (labo, projet, public) est désignable et POINTÉ par les personnes concernées — même règle de visibilité que la liste (`scoping.listable_by`), le compte anonyme n'en hérite pas
@@ -2792,6 +2756,16 @@ Profils DÉCLARÉS (bruit rose à un rapport signal/bruit donné, champ lointain
   - `reverberate(wave, sr: int, rt60_s: float, rng) -> np.ndarray` — Réverbération synthétique : réponse impulsionnelle = trajet direct + queue de bruit à
   - `degrade(wave, sr: int, profile: str) -> np.ndarray` — Applique le profil déclaré `profile` : réverbération, puis bruit, puis atténuation ;
 
+### Grille des temps d'un audio
+
+L'instant de chaque temps joué d'un audio et les hauteurs qui y sonnent (chroma par temps), en cache par fichier et date — de quoi caler une partition TEMPS PAR TEMPS sur ce qui est joué plutôt que par son tempo écrit (né le 2026-10-16 : #754 écrit à 88, joué à 89,1). Ne connaît aucune partition ; le calage est `WamaScore.align`
+
+- **Domicile** : `wama/common/utils/audio_rhythm.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : La grille des TEMPS d'un audio — où tombe chaque temps joué, et quelles hauteurs y sonnent.
+- **API publique** (2) :
+  - `beat_grid(path: str)` — `{beats, chroma, duration}` de l'audio `path` (voir l'en-tête) ; None s'il est illisible.
+  - `compute_beat_grid(path: str) -> dict`
+
 ### Identité de session du visiteur sans compte
 
 Sur une app déclarée `public` (le converter, app d'essai), un visiteur non connecté agit sous un COMPTE TECHNIQUE propre à sa session (`wama_visitor_<jeton>`, tier `anonymous`, aucun rôle), créé à son premier geste par l'intergiciel d'accès et purgé avec ses éléments ET ses fichiers après sa durée de vie. Une identité, pas une étiquette : toute la logique de propriété existante (file, `users/<id>/`, portée) vaut pour lui sans retoucher une vue d'app. Bornes dans `settings` (taille, nombre d'éléments, identités neuves par adresse) ; routes qui font lire au serveur une adresse ou un chemin fermées ; aucun post-traitement GPU. Sur toute autre app, le visiteur VOIT et ne fait rien (403 de la même garde). `is_guest_account` = le prédicat unique « compte de visiteur » (partagé ou de session)
@@ -2815,7 +2789,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) et son identité
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (41) :
+- **API publique** (42) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -2854,6 +2828,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) et son identité
   - `accept_for_types(declared, types) -> str` — Le cœur de `port_accept`, sur une liste d'extensions DONNÉE — pour le générateur, qui
   - `get_app_extensions_for_filemanager() -> dict` — Returns a dict suitable for FileManager JS APP_EXTENSIONS:
   - `world_color(world: str) -> str` — Couleur de RÉFÉRENCE d'un monde — celle d'une surface hors catalogue sans couleur
+  - `measured_adoption(mechanism: str) -> dict` — Ce que la grille MESURÉE dit d'un mécanisme : les critères qui le vérifient
   - `sandbox_conformity(report: dict) -> dict` — Mesure des jumelles bac à sable, chacune avec l'écart à SA source (`report['apps']`).
   - `measure_and_write_conformity() -> dict` — Mesure les 10 apps (conformity_checker.run_checks) et ÉCRIT le rapport JSON.
   - `get_conformity_summary() -> dict` — Returns per-app conformity score:
@@ -2970,6 +2945,23 @@ DOMICILE UNIQUE de la règle « le nom se DÉRIVE des paramètres, il ne se sais
   - `join_name(table_debut: str, table_fin: str, offset_start: float, offset_end: float) -> str` — Segmentation temporelle double — `deb_fin_0_0`, la graphie de l'outil d'origine.
   - `annex_name(stream: str, fonction: str) -> str` — Table ANNEXE née d'un calcul qui change la clé temporelle — `vitesse_calcul_par_segment`.
 
+### Notation d'un MIDI multi-instrument (MIDI → ABC)
+
+Un MIDI à une piste par instrument → une partition ABC lisible : une voix par instrument (libellé français), clavier sur deux portées, batterie en portée de percussion, accords, liaisons, altérations par mesure. Sur la métrique du MIDI quand le moteur en a trouvé une, sinon sur les temps JOUÉS de l'audio (`audio_rhythm`), anacrouse comprise. Né le 2026-10-16 pour la partition complète du composer (MuScriptor, tâche `audio-to-midi`) ; ne connaît aucun moteur. Porte aussi la LECTURE MIDI commune (`read_midi` : tempos, mesure, tonalité, marqueurs, une partie par piste et canal), que le moteur YuE2 consomme pour suivre une partition MIDI
+
+- **Domicile** : `wama/common/utils/midi_score.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : Un MIDI multi-pistes → une partition ABC LISIBLE (2026-10-16, la « Partition complète » du composer).
+- **API publique** (9) :
+  - `instrument_label(name: str) -> str` — Le libellé français d'une piste nommée par le moteur (`INSTRUMENT_LABELS`).
+  - `class MidiPart` — Une partie du MIDI — une piste et un canal : son nom (`track_name`), batterie ou non (canal
+  - `class MidiSong` — Ce qu'un fichier MIDI déclare, lu une fois (`read_midi`) : la base de temps, la carte des
+  - `read_midi(source) -> MidiSong` — La LECTURE MIDI commune (2026-10-16) — un chemin ou des octets → `MidiSong`, par `mido`.
+  - `abc_pitch(pitch: int) -> tuple` — (lettre ABC avec octave, dièse ?) d'une hauteur MIDI : 60 → ('C', False), 73 → ('c', True).
+  - `split_length(steps: int) -> list` — Une durée en pas découpée en valeurs écrivables (la plus longue d'abord).
+  - `bar_offset_of(markers) -> float` — Le décalage (s) qu'un moteur a ajouté pour poser la mesure 1 sur un temps fort — marqueur
+  - `played_beat_steps(beat_times, grid: int, offset: float)` — `(secondes MIDI → pas)` sur les temps JOUÉS : une note se place entre les deux temps de
+  - `midi_to_abc(midi_bytes: bytes, *, title: str='', grid: int=4, bars_per_line: int=4, beat_times=None) -> str` — Le texte ABC d'un MIDI multi-pistes (voir l'en-tête). Lève `ValueError` sans aucune note.
+
 ### Pont référentiel ↔ cadres typés (WAMA Data)
 
 SEULE frontière entre les deux vocabulaires du monde Data : le référentiel (paresseux, indexé, sans pandas) et le `TypedFrame` que mangent toutes les fonctions du catalogue. Sans lui le référentiel n'avait AUCUN consommateur — non parce qu'on ne s'en servait pas, mais parce qu'on ne POUVAIT pas. Traite quatre pièges mesurés : le temps de SESSION (± offset) vs le temps local du flux, la colonne temporelle brute PÉRIMÉE après ré-horodatage, le contrat `rows` réel mais non déclaré, et la PROVENANCE — ce qui revient d'un calcul ne peut pas se déclarer acquis (`is_base=False` sans échappatoire)
@@ -3048,6 +3040,17 @@ Moteur unique de miroir (modèles, base, médias, secrets) et restauration
   - `last_mirror_run(cache_key: str)` — Bilan de la dernière exécution terminée d'un miroir, ou None s'il n'a jamais tourné.
   - `run_mirror_job(runner, *, cache_key, task_id, label, ttl=24 * 3600)` — Exécute un miroir en publiant son avancement dans le cache — enveloppe COMMUNE aux
 
+### Servir un fichier par morceaux (HTTP Range)
+
+Réponse 206 à une requête `Range` — ce qui rend un média seekable au-delà du déjà-téléchargé ; sert `/media/` (`wama/urls.py`) et la vidéo du cam_analyzer, dont la règle a été extraite (2026-10-15)
+
+- **Domicile** : `wama/common/utils/ranged_response.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : Servir un fichier PAR MORCEAUX (requêtes HTTP `Range`) — ce qui rend un média SEEKABLE.
+- **API publique** (3) :
+  - `parse_range(header: str, size: int)` — `(début, fin)` inclusifs d'un en-tête `Range` à UN intervalle, bornés à la taille ; None si
+  - `ranged_file_response(request, path: str, content_type: str | None=None)` — La réponse qui sert `path` — son morceau (206) si la requête en demande un, sinon le
+  - `serve(request, path, document_root=None, show_indexes=False)` — `django.views.static.serve`, plus les requêtes `Range` (206) — le service de `/media/`.
+
 ### Sonde média
 
 Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils) ; depuis le 2026-09-13, un OBJET 3D livre sa table des matières glTF sans décodage (`probe_object3d` : format, faces, rig, animations) sous la clé `attributes` — ce que la médiathèque pose à l'ingest sur la nature `object3d` (A′)
@@ -3103,7 +3106,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (41) :
+- **API publique** (42) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -3142,6 +3145,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `accept_for_types(declared, types) -> str` — Le cœur de `port_accept`, sur une liste d'extensions DONNÉE — pour le générateur, qui
   - `get_app_extensions_for_filemanager() -> dict` — Returns a dict suitable for FileManager JS APP_EXTENSIONS:
   - `world_color(world: str) -> str` — Couleur de RÉFÉRENCE d'un monde — celle d'une surface hors catalogue sans couleur
+  - `measured_adoption(mechanism: str) -> dict` — Ce que la grille MESURÉE dit d'un mécanisme : les critères qui le vérifient
   - `sandbox_conformity(report: dict) -> dict` — Mesure des jumelles bac à sable, chacune avec l'écart à SA source (`report['apps']`).
   - `measure_and_write_conformity() -> dict` — Mesure les 10 apps (conformity_checker.run_checks) et ÉCRIT le rapport JSON.
   - `get_conformity_summary() -> dict` — Returns per-app conformity score:
