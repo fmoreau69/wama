@@ -10,14 +10,14 @@ html {
 }
 
 body {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    background: linear-gradient(135deg, var(--wama-page-bg-start) 0%, var(--wama-page-bg-end) 100%);
     /*background: linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url('/static/images/bg_anonymize1.png');*/
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
     background-attachment: fixed;
     height: 100%;
-    color: white;
+    color: var(--wama-text-bright);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -108,32 +108,32 @@ footer .container {
 }
 
 .modal-content {
-    background-color: #1a1d20 !important;
-    color: #fff !important;
-    border: 1px solid #495057 !important;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    background-color: var(--wama-surface-modal) !important;
+    color: var(--wama-text-bright) !important;
+    border: 1px solid var(--wama-border-strong) !important;
+    box-shadow: 0 10px 30px var(--wama-shadow-strong);
     position: relative;
     pointer-events: auto !important;
     z-index: 2022 !important;
 }
 
 .modal-header {
-    background-color: #1a1d20 !important;
-    border-bottom: 1px solid #495057 !important;
+    background-color: var(--wama-surface-modal) !important;
+    border-bottom: 1px solid var(--wama-border-strong) !important;
 }
 
 .modal-body {
-    background-color: #1a1d20 !important;
-    color: #fff !important;
+    background-color: var(--wama-surface-modal) !important;
+    color: var(--wama-text-bright) !important;
 }
 
 .modal-footer {
-    background-color: #1a1d20 !important;
-    border-top: 1px solid #495057 !important;
+    background-color: var(--wama-surface-modal) !important;
+    border-top: 1px solid var(--wama-border-strong) !important;
 }
 
 .modal-title {
-    color: #fff !important;
+    color: var(--wama-text-bright) !important;
 }
 
 /* Specific modal fixes */
@@ -163,31 +163,31 @@ footer .container {
 .modal label,
 .modal p,
 .modal span {
-    color: #fff !important;
+    color: var(--wama-text-bright) !important;
 }
 
 /*  === FORMS === */
 .form-select,
 .form-control {
-    background-color: #212529;
-    border-color: #495057;
-    color: #fff;
+    background-color: var(--wama-surface);
+    border-color: var(--wama-border-strong);
+    color: var(--wama-text-bright);
 }
 
 .form-select:focus,
 .form-control:focus {
-    background-color: #212529;
-    border-color: #0d6efd;
-    color: #fff;
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    background-color: var(--wama-surface);
+    border-color: var(--bs-primary);
+    color: var(--wama-text-bright);
+    box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
 }
 
 .form-range::-webkit-slider-thumb {
-    background: #0d6efd;
+    background: var(--bs-primary);
 }
 
 .form-range::-moz-range-thumb {
-    background: #0d6efd;
+    background: var(--bs-primary);
 }
 
 /* Cases à cocher, boutons radio, interrupteurs : même palette sombre que les champs ci-dessus.
@@ -195,13 +195,13 @@ footer .container {
    tache claire des formulaires (relevé par Fabien le 2026-10-03, sélection des passes du
    cam_analyzer ; vrai pour toute app, la feuille est chargée par base.html). */
 .form-check-input {
-    background-color: #212529;
-    border-color: #6c757d;
+    background-color: var(--wama-surface);
+    border-color: var(--bs-secondary);
 }
 
 .form-check-input:focus {
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
 }
 
 /* Interrupteur non coché : la pastille par défaut est GRISE FONCÉE (invisible sur fond sombre) —
@@ -211,8 +211,8 @@ footer .container {
 }
 
 .form-check-input:checked {
-    background-color: #0d6efd !important;
-    border-color: #0d6efd !important;
+    background-color: var(--bs-primary) !important;
+    border-color: var(--bs-primary) !important;
 }
 
 textarea {
@@ -221,38 +221,38 @@ textarea {
 
 /*  === PROGRESS BARS === */
 .progress {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: var(--wama-track-faint);
     border-radius: 5px;
 }
 
 .progress-bar {
-    background: linear-gradient(90deg, #0d6efd 0%, #0dcaf0 100%) !important;
+    background: linear-gradient(90deg, var(--bs-primary) 0%, var(--bs-info) 100%) !important;
     transition: width 0.5s ease;
 }
 
 .progress-bar-custom {
     height: 6px;
     border-radius: 3px;
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: var(--wama-track-faint);
     overflow: hidden;
 }
 
 .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #0d6efd 0%, #0dcaf0 100%);
+    background: linear-gradient(90deg, var(--bs-primary) 0%, var(--bs-info) 100%);
     transition: width 0.5s ease;
 }
 
 /* === WAMA Audio Waveform Player === */
 .wama-audio-player {
-    border-top: 1px solid rgba(255,255,255,0.06);
+    border-top: 1px solid var(--wama-border-hairline);
     padding-top: 6px;
     margin-top: 4px;
 }
 
 .wama-waveform-wrap {
     position: relative;
-    background: rgba(0,0,0,0.25);
+    background: var(--wama-surface-wave);
     border-radius: 4px;
     overflow: hidden;
     cursor: pointer;
@@ -269,7 +269,7 @@ textarea {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(26,29,32,0.65);
+    background: var(--wama-surface-loading);
     pointer-events: none;
 }
 
@@ -278,13 +278,13 @@ textarea {
     border: none;
     padding: 0;
     width: 20px;
-    color: #20c997;
+    color: var(--bs-teal);
     cursor: pointer;
     flex-shrink: 0;
     line-height: 1;
 }
 
-.wama-play-btn:hover { color: #0dcaf0; }
+.wama-play-btn:hover { color: var(--bs-info); }
 /* Au doigt : la cible tactile commune (wama-touch.css) — 20 × 12 px ne se touche pas. */
 @media (pointer: coarse) {
     .wama-play-btn { width: auto; min-width: var(--wama-touch-target, 44px); min-height: var(--wama-touch-target, 44px); }
@@ -292,7 +292,7 @@ textarea {
 
 .wama-audio-time {
     font-size: 0.72rem;
-    color: #6c757d;
+    color: var(--wama-text-label);
     font-variant-numeric: tabular-nums;
 }
 
@@ -306,7 +306,7 @@ textarea {
 
 .wama-progress-track {
     height: 3px;
-    background: #2a2d30;
+    background: var(--wama-track);
     border-radius: 2px;
     overflow: hidden;
 }
@@ -315,11 +315,11 @@ textarea {
     height: 100%;
     border-radius: 2px;
     transition: width 0.6s ease;
-    background: linear-gradient(90deg, #198754, #20c997);
+    background: linear-gradient(90deg, var(--bs-success), var(--bs-teal));
 }
 
 .wama-progress-fill.active {
-    background: linear-gradient(90deg, #0dcaf0, #198754, #0dcaf0);
+    background: linear-gradient(90deg, var(--bs-info), var(--bs-success), var(--bs-info));
     background-size: 200% 100%;
     animation: wamaProgressShimmer 2s linear infinite;
 }
@@ -345,10 +345,10 @@ textarea {
     opacity: 0.75;
     display: inline-block;
 }
-.wama-eta--loading       { color: #8a92a3; font-style: italic; }   /* phase chargement */
+.wama-eta--loading       { color: var(--wama-eta-loading); font-style: italic; }   /* phase chargement */
 .wama-eta--loading::before { content: "\f110"; animation: wamaEtaSpin 1s linear infinite; }  /* fa-spinner */
-.wama-eta--low           { color: #9aa3b2; }                       /* confiance basse */
-.wama-eta--high          { color: #d7dce5; }                       /* confiance haute */
+.wama-eta--low           { color: var(--wama-eta-low); }                       /* confiance basse */
+.wama-eta--high          { color: var(--wama-eta-high); }                       /* confiance haute */
 
 @keyframes wamaEtaSpin { to { transform: rotate(360deg); } }
 
@@ -362,19 +362,19 @@ textarea {
 
 /*  === DROP ZONE === */
 .drop-zone {
-    border: 3px dashed #6c757d;
+    border: 3px dashed var(--bs-secondary);
     border-radius: 10px;
     padding: 60px 20px;
     text-align: center;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--wama-surface-faint);
     cursor: pointer;
     transition: all 0.3s ease;
 }
 
 .drop-zone:hover,
 .drop-zone.drag-over {
-    border-color: #0d6efd;
-    background: rgba(13, 110, 253, 0.1);
+    border-color: var(--bs-primary);
+    background: rgba(var(--bs-primary-rgb), 0.1);
     transform: scale(1.02);
 }
 
@@ -389,7 +389,7 @@ textarea {
     display: block;
     margin-top: 4px;
     font-size: 0.75rem;
-    color: #adb5bd;
+    color: var(--wama-text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -413,20 +413,20 @@ textarea {
 /*  === CARDS === */
 .card {
     border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 6px var(--wama-shadow);
 }
 
 .card-header {
-    color: white;
+    color: var(--wama-text-bright);
 }
 
 .synthesis-card {
-    border: 1px solid #495057;
+    border: 1px solid var(--wama-border-strong);
     border-radius: 8px;
     padding: 15px;
     margin-bottom: 10px;
-    background: #212529;
-    color: #f8f9fa;
+    background: var(--wama-surface);
+    color: var(--wama-text-card);
 }
 /* Le survol des cards de file est COMMUN à toutes les apps : `wama-inspector.css`
    (`.wama-card:hover`, 2026-10-16) — l'ombre qui vivait ici était invisible sur fond sombre. */
@@ -450,13 +450,13 @@ textarea {
 
 /* Badge du même état (partial _card_progress + STATUS_BADGE de wama-app-base.js). */
 .bg-awaiting {
-    background-color: #fd7e14;
-    color: #fff;
+    background-color: var(--wama-state-awaiting);
+    color: var(--wama-text-on-accent);
 }
 
 /* Texte du même état (partial _card_state — pendant du text-warning de RUNNING). */
 .text-awaiting {
-    color: #fd7e14;
+    color: var(--wama-state-awaiting);
 }
 
 /* STALE (2026-09-17, décision Fabien — marche P2 de `ROUTE §10.6 4.3`) : card VIOLETTE. Le
@@ -468,13 +468,13 @@ textarea {
 
 /* Badge du même état (partial _card_progress + STATUS_BADGE de wama-app-base.js). */
 .bg-stale {
-    background-color: #9b59b6;
-    color: #fff;
+    background-color: var(--wama-state-stale);
+    color: var(--wama-text-on-accent);
 }
 
 /* Texte du même état (partial _card_state). */
 .text-stale {
-    color: #9b59b6;
+    color: var(--wama-state-stale);
 }
 
 /* ── BASCULE VERS `data-status` (2026-09-17) — transition, les deux jeux COEXISTENT ──────────
@@ -489,24 +489,24 @@ textarea {
    ⚠ `!important` conservé pour la même raison mesurée qu'au-dessus (`border-secondary` de
    Bootstrap est lui-même `!important` : sans lui le bord d'état reste GRIS). */
 .wama-card[data-status="RUNNING"] {
-    border-left: 4px solid #ffc107 !important;
+    border-left: 4px solid var(--wama-state-running) !important;
     animation: pulse 2s ease-in-out infinite;   /* reprend la règle NUE `.processing` (l. 715) */
 }
 
 .wama-card[data-status="SUCCESS"] {
-    border-left: 4px solid #28a745 !important;
+    border-left: 4px solid var(--wama-state-success-edge) !important;
 }
 
 .wama-card[data-status="FAILURE"] {
-    border-left: 4px solid #dc3545 !important;
+    border-left: 4px solid var(--wama-state-failure) !important;
 }
 
 .wama-card[data-status="AWAITING_RESOURCES"] {
-    border-left: 4px solid #fd7e14 !important;
+    border-left: 4px solid var(--wama-state-awaiting) !important;
 }
 
 .wama-card[data-status="STALE"] {
-    border-left: 4px solid #9b59b6 !important;
+    border-left: 4px solid var(--wama-state-stale) !important;
 }
 
 /* Barre de progression d'une card EN ATTENTE : rendue, mais masquée (2026-10-04). Le gabarit ne
@@ -519,7 +519,7 @@ textarea {
 
 /*  === TABLES === */
 .table-dark thead {
-    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%) !important;
+    background: linear-gradient(135deg, var(--wama-table-head-start) 0%, var(--wama-table-head-end) 100%) !important;
 }
 
 .table-dark tbody tr {
@@ -527,22 +527,22 @@ textarea {
 }
 
 .table-dark tbody tr:hover {
-    background-color: rgba(59, 130, 246, 0.1) !important;
+    background-color: var(--wama-table-row-hover) !important;
 }
 
 .table-dark tbody tr[data-status="RUNNING"],
 .table-dark tbody tr[data-status="PROCESSING"] {
-    background-color: rgba(255, 193, 7, 0.1);
+    background-color: rgba(var(--bs-warning-rgb), 0.1);
 }
 
 .table-dark tbody tr[data-status="SUCCESS"],
 .table-dark tbody tr[data-status="COMPLETED"] {
-    background-color: rgba(25, 135, 84, 0.1);
+    background-color: rgba(var(--bs-success-rgb), 0.1);
 }
 
 .table-dark tbody tr[data-status="FAILURE"],
 .table-dark tbody tr[data-status="failed"] {
-    background-color: rgba(220, 53, 69, 0.1);
+    background-color: rgba(var(--bs-danger-rgb), 0.1);
 }
 
 /*  === BADGES & STATUS === */
@@ -557,24 +557,24 @@ textarea {
 }
 
 tr[data-status="PENDING"] .status {
-    color: #adb5bd;
+    color: var(--wama-state-pending);
 }
 
 tr[data-status="RUNNING"] .status,
 tr[data-status="PROCESSING"] .status {
-    color: #ffc107;
+    color: var(--wama-state-running);
 }
 
 tr[data-status="SUCCESS"] .status,
 tr[data-status="COMPLETED"] .status {
-    color: #198754;
+    color: var(--wama-state-success);
 }
 
 /* `ERROR` retiré le 2026-09-18 (aucune ligne en base) et remplacé par `failed`, la valeur que
    les tables de ce thème affichent RÉELLEMENT (journal de synchronisation du model_manager). */
 tr[data-status="FAILURE"] .status,
 tr[data-status="failed"] .status {
-    color: #dc3545;
+    color: var(--wama-state-failure);
 }
 
 /*  === BUTTONS === */
@@ -585,7 +585,7 @@ tr[data-status="failed"] .status {
 
 .btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 8px var(--wama-shadow);
 }
 
 .btn-group .btn {
@@ -613,7 +613,7 @@ tr[data-status="failed"] .status {
 
 /*  === UTILITIES === */
 .list-group-item {
-    color: white;
+    color: var(--wama-text-bright);
 }
 
 .media img {
@@ -624,18 +624,18 @@ tr[data-status="failed"] .status {
 .unknown_file {
     width: 30px;
     height: 40px;
-    background: #444444;
+    background: var(--wama-surface-placeholder);
 }
 
 .unknown_file > div {
-    border-left: 2px solid white;
-    border-bottom: 2px solid white;
+    border-left: 2px solid var(--wama-text-bright);
+    border-bottom: 2px solid var(--wama-text-bright);
     top: 0;
     right: 0;
     float: right;
     width: 15px;
     height: 15px;
-    background: linear-gradient(45deg, #444444, #444444 50%, white 50%, white);
+    background: linear-gradient(45deg, var(--wama-surface-placeholder), var(--wama-surface-placeholder) 50%, var(--wama-text-bright) 50%, var(--wama-text-bright));
 }
 
 .unknown_file > p {
@@ -643,7 +643,7 @@ tr[data-status="failed"] .status {
     bottom: 0;
     width: 30px;
     text-align: center;
-    color: white;
+    color: var(--wama-text-bright);
     vertical-align: bottom;
     font-size: 1vw;
 }
@@ -667,7 +667,7 @@ tr[data-status="failed"] .status {
     position: absolute;
     top: 0;
     left: 0;
-    background: linear-gradient(transparent, white);
+    background: linear-gradient(transparent, var(--wama-fade-end));
 }
 
 .long-text-faded img {
@@ -692,7 +692,7 @@ ul.modal-menu ul {
 
 /*  === RANGE SLIDERS === */
 .active-filter span.irs-bar {
-    background: rgb(255,160,0);
+    background: var(--wama-accent-filter);
 }
 
 .irs--round .irs-from,
@@ -717,7 +717,7 @@ ul.modal-menu ul {
 
 /*  === SYNTHESIZER === */
 .options-panel {
-    background: #212529;
+    background: var(--wama-surface);
     padding: 20px;
     border-radius: 8px;
     margin-bottom: 20px;
@@ -729,8 +729,8 @@ ul.modal-menu ul {
 }
 
 .console-output {
-    background: #1e1e1e;
-    color: #d4d4d4;
+    background: var(--wama-surface-code);
+    color: var(--wama-text-code);
     padding: 15px;
     border-radius: 5px;
     max-height: 300px;
@@ -791,12 +791,12 @@ ul.modal-menu ul {
 
 /*  === TOOLTIPS === */
 .tooltip-inner {
-    background-color: #212529;
-    color: #fff;
+    background-color: var(--wama-surface);
+    color: var(--wama-text-bright);
 }
 
 .tooltip.bs-tooltip-top .tooltip-arrow::before {
-    border-top-color: #212529;
+    border-top-color: var(--wama-surface);
 }
 
 /*  === RESPONSIVE === */
@@ -831,7 +831,7 @@ ul.modal-menu ul {
 /* Firefox */
 * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(102, 126, 234, 0.5) rgba(30, 41, 59, 0.3);
+    scrollbar-color: var(--wama-scrollbar-thumb) var(--wama-scrollbar-track);
 }
 
 /* Chrome, Safari, Edge */
@@ -841,18 +841,18 @@ ul.modal-menu ul {
 }
 
 ::-webkit-scrollbar-track {
-    background: rgba(30, 41, 59, 0.3);
+    background: var(--wama-scrollbar-track);
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(102, 126, 234, 0.5);
+    background: var(--wama-scrollbar-thumb);
     border-radius: 4px;
     transition: background 0.2s;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(102, 126, 234, 0.8);
+    background: var(--wama-scrollbar-thumb-hover);
 }
 
 ::-webkit-scrollbar-corner {
@@ -879,13 +879,13 @@ ul.modal-menu ul {
 .form-control::placeholder,
 .form-select::placeholder,
 textarea.form-control::placeholder {
-    color: #9ca3af !important;
+    color: var(--wama-text-muted) !important;
     opacity: 1 !important;
 }
 
 /* Base text colors for dark theme */
 body {
-    color: #e5e7eb;
+    color: var(--wama-text-body);
 }
 
 /* Paragraphs and icons in dark containers */
@@ -895,7 +895,7 @@ body {
 .info-card p,
 .container > p,
 .container-fluid > p {
-    color: #e5e7eb;
+    color: var(--wama-text-body);
 }
 
 .bg-dark i.fas,
@@ -904,35 +904,35 @@ body {
 .card.bg-dark i.fas,
 .modal-content i.fas,
 .info-card i.fas {
-    color: #e5e7eb;
+    color: var(--wama-text-body);
 }
 
 /* Preserve colored icons */
-i.text-primary { color: #0d6efd !important; }
-i.text-secondary { color: #6c757d !important; }
-i.text-success { color: #198754 !important; }
-i.text-danger { color: #dc3545 !important; }
-i.text-warning { color: #ffc107 !important; }
-i.text-info { color: #0dcaf0 !important; }
-i.text-light { color: #f8f9fa !important; }
-i.text-white { color: #fff !important; }
+i.text-primary { color: var(--bs-primary) !important; }
+i.text-secondary { color: var(--bs-secondary) !important; }
+i.text-success { color: var(--bs-success) !important; }
+i.text-danger { color: var(--bs-danger) !important; }
+i.text-warning { color: var(--bs-warning) !important; }
+i.text-info { color: var(--bs-info) !important; }
+i.text-light { color: var(--bs-light) !important; }
+i.text-white { color: var(--bs-white) !important; }
 
 /* Text-muted - lighter for dark backgrounds */
 /* Global fix since the entire app uses dark theme */
 .text-muted {
-    color: #9ca3af !important;
+    color: var(--wama-text-muted) !important;
 }
 
 .bg-dark .text-muted,
 .card.bg-dark .text-muted,
 .modal-content .text-muted {
-    color: #9ca3af !important;
+    color: var(--wama-text-muted) !important;
 }
 
 /* Small text - global fix for dark theme */
 small,
 .small {
-    color: #d1d5db !important;
+    color: var(--wama-text-small) !important;
 }
 
 .bg-dark small,
@@ -943,13 +943,13 @@ small,
 .modal-content .small,
 .info-card small,
 .info-card .small {
-    color: #d1d5db !important;
+    color: var(--wama-text-small) !important;
 }
 
 /* Card text in dark cards */
 .card.bg-dark .card-text,
 .bg-dark .card-text {
-    color: #e5e7eb !important;
+    color: var(--wama-text-body) !important;
 }
 
 /* Une alerte garde la couleur de texte que Bootstrap accorde à SON fond, dans le mode de la
@@ -965,36 +965,36 @@ small,
 
 /* Form labels - ensure visibility on dark theme */
 .form-label {
-    color: #e5e7eb !important;
+    color: var(--wama-text-body) !important;
 }
 
 .form-label.small,
 .bg-dark .form-label.small,
 .modal-content .form-label.small {
-    color: #f3f4f6 !important;
+    color: var(--wama-text-label-emphasis) !important;
 }
 
 /* Form help text */
 .form-text,
 small.form-text {
-    color: #9ca3af !important;
+    color: var(--wama-text-muted) !important;
 }
 
 /* Table cells in dark tables */
 .table-dark td.small,
 .table-dark td .small,
 .table-dark small {
-    color: #d1d5db !important;
+    color: var(--wama-text-small) !important;
 }
 
 /* White-50 utility - more visible on dark backgrounds */
 .text-white-50 {
-    color: rgba(255, 255, 255, 0.7) !important;
+    color: var(--wama-text-dimmed) !important;
 }
 
 /*  === AI ASSISTANT CHAT === */
 #ai-chat-messages {
-    color: #e5e7eb;
+    color: var(--wama-text-body);
 }
 
 #ai-chat-messages p,
@@ -1003,18 +1003,18 @@ small.form-text {
 #ai-chat-messages i.fas,
 #ai-chat-messages i.far,
 #ai-chat-messages i.fab {
-    color: #e5e7eb !important;
+    color: var(--wama-text-body) !important;
 }
 
 #ai-chat-messages .text-muted {
-    color: #9ca3af !important;
+    color: var(--wama-text-muted) !important;
 }
 
 /* AI Assistant form labels (Provider, Model selectors) */
 /* Target cards with dark backgrounds on home page */
 .card .card-body .form-label.small,
 .card .card-body label.small {
-    color: #e5e7eb !important;
+    color: var(--wama-text-body) !important;
 }
 
 /*  === HOME PAGE === */
@@ -1028,8 +1028,8 @@ small.form-text {
    du describer (titres info, sous-titres warning). */
 .wama-result-formatted h1, .wama-result-formatted h2,
 .wama-result-formatted h3, .wama-result-formatted h4 { font-size: 1.05em; font-weight: 600;
-                                                      margin: .8em 0 .35em; color: #ffc107; }
-.wama-result-formatted h3, .wama-result-formatted h4 { font-size: 1em; color: #0dcaf0; }
+                                                      margin: .8em 0 .35em; color: var(--bs-warning); }
+.wama-result-formatted h3, .wama-result-formatted h4 { font-size: 1em; color: var(--bs-info); }
 .wama-result-formatted > :first-child                { margin-top: 0; }
 .wama-result-formatted p, .wama-result-formatted ul,
 .wama-result-formatted ol                            { margin: 0 0 .5em; }
@@ -1037,11 +1037,11 @@ small.form-text {
 
 /* Rapport de COHÉRENCE d'une face (`result_format='coherence'`, `WamaMediaPreview.coherenceHtml`) :
    le texte vérifié et la correction proposée en regard, aux couleurs des anciennes modales. */
-.wama-coherence-original { background: #1e1e1e; border: 1px solid #495057; }
-.wama-coherence-proposed { background: #1e2820; border: 1px solid #2ea043; }
-.wama-coherence-text     { color: #d4d4d4; white-space: pre-wrap; word-wrap: break-word;
+.wama-coherence-original { background: var(--wama-surface-code); border: 1px solid var(--wama-border-strong); }
+.wama-coherence-proposed { background: var(--wama-diff-added-bg); border: 1px solid var(--wama-diff-added-border); }
+.wama-coherence-text     { color: var(--wama-text-code); white-space: pre-wrap; word-wrap: break-word;
                            font-size: 13px; max-height: 300px; overflow-y: auto; margin: 0; }
-.wama-coherence-proposed .wama-coherence-text { color: #7ee787; }
+.wama-coherence-proposed .wama-coherence-text { color: var(--wama-diff-added-text); }
 .wama-inspector-preview .wama-coherence-text  { font-size: 12px; max-height: 120px; }
 
 /* TOURS DE PAROLE d'une face (`result_format='segments'`, `WamaMediaPreview.segmentsHtml`) : le
@@ -1057,21 +1057,21 @@ small.form-text {
    lire n'est pas lu. */
 .wama-batch-evaluation         { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .6rem;
                                  margin-top: .45rem; padding-top: .4rem; font-size: .74rem;
-                                 border-top: 1px dashed rgba(103, 232, 249, .28); color: #cbd5e1; }
-.wama-batch-evaluation-title   { color: #67e8f9; font-weight: 600; }
+                                 border-top: 1px dashed var(--wama-eval-border); color: var(--wama-eval-text); }
+.wama-batch-evaluation-title   { color: var(--wama-eval-title); font-weight: 600; }
 .wama-batch-evaluation-model   { padding: .05rem .45rem; border-radius: .7rem;
-                                 background: rgba(148, 163, 184, .14); border: 1px solid rgba(148, 163, 184, .3); }
-.wama-batch-evaluation-model strong { color: #f1f5f9; margin-left: .25rem; }
-.wama-batch-evaluation-model.is-best { border-color: #4ade80; background: rgba(74, 222, 128, .13); }
-.wama-batch-evaluation-model.is-best strong { color: #4ade80; }
-.wama-batch-evaluation-count   { color: #94a3b8; }
-.wama-batch-evaluation-warning { color: #fbbf24; }
+                                 background: var(--wama-eval-model-bg); border: 1px solid var(--wama-eval-model-border); }
+.wama-batch-evaluation-model strong { color: var(--wama-eval-strong); margin-left: .25rem; }
+.wama-batch-evaluation-model.is-best { border-color: var(--wama-eval-best); background: var(--wama-eval-best-bg); }
+.wama-batch-evaluation-model.is-best strong { color: var(--wama-eval-best); }
+.wama-batch-evaluation-count   { color: var(--wama-eval-muted); }
+.wama-batch-evaluation-warning { color: var(--wama-eval-warning); }
 /* Lot SANS référence : le moteur le plus isolé est SIGNALÉ (ambre), jamais déclaré mauvais. */
-.wama-batch-evaluation-model.is-isolated { border-color: #fbbf24; background: rgba(251, 191, 36, .12); }
-.wama-batch-evaluation-model.is-isolated strong { color: #fbbf24; }
-.wama-evaluation-metrics       { width: 100%; font-size: .85rem; color: #e2e8f0; margin-bottom: .75rem; }
-.wama-evaluation-metrics th    { color: #94a3b8; font-weight: 500; padding: .25rem .5rem; }
-.wama-evaluation-metrics td    { padding: .25rem .5rem; border-top: 1px solid #334155; }
-.wama-evaluation-rate          { font-size: 1.05rem; font-weight: 700; color: #f8fafc; }
-.wama-evaluation-meta          { font-size: .78rem; color: #cbd5e1; }
-.wama-evaluation-meta dt       { color: #94a3b8; font-weight: 500; }
+.wama-batch-evaluation-model.is-isolated { border-color: var(--wama-eval-warning); background: var(--wama-eval-isolated-bg); }
+.wama-batch-evaluation-model.is-isolated strong { color: var(--wama-eval-warning); }
+.wama-evaluation-metrics       { width: 100%; font-size: .85rem; color: var(--wama-eval-metrics); margin-bottom: .75rem; }
+.wama-evaluation-metrics th    { color: var(--wama-eval-muted); font-weight: 500; padding: .25rem .5rem; }
+.wama-evaluation-metrics td    { padding: .25rem .5rem; border-top: 1px solid var(--wama-eval-rule); }
+.wama-evaluation-rate          { font-size: 1.05rem; font-weight: 700; color: var(--wama-eval-rate); }
+.wama-evaluation-meta          { font-size: .78rem; color: var(--wama-eval-text); }
+.wama-evaluation-meta dt       { color: var(--wama-eval-muted); font-weight: 500; }

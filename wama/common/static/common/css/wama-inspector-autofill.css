@@ -9,7 +9,7 @@
 
 .wai-desc {
     font-size: .85rem;
-    color: #ced4da;
+    color: var(--wama-text-desc);
     line-height: 1.5;
     white-space: pre-wrap;
     margin-bottom: .9rem;
@@ -19,7 +19,7 @@
     font-size: .72rem;
     text-transform: uppercase;
     letter-spacing: .05em;
-    color: #6c757d;
+    color: var(--wama-text-label);
     font-weight: 600;
     margin: 1.1rem 0 .4rem;
 }
@@ -30,11 +30,11 @@
     justify-content: space-between;
     gap: .75rem;
     padding: .35rem 0;
-    border-bottom: 1px solid #343a40;
+    border-bottom: 1px solid var(--wama-border-row);
     font-size: .85rem;
 }
 .wai-row:last-child { border-bottom: 0; }
-.wai-row .wai-k { color: #adb5bd; white-space: nowrap; }
+.wai-row .wai-k { color: var(--wama-text-secondary); white-space: nowrap; }
 /* ⚠ `min-width: 0` est INDISPENSABLE, pas décoratif (2026-08-25, symptôme signalé par
    Fabien : « le nom de fichier dépassait la largeur de l'inspecteur, le rendant
    scrollable »). `.wai-row` est un conteneur FLEX, et un élément flex a `min-width: auto`
@@ -45,7 +45,7 @@
    (`Reunion_equipe_2026_enhanced_realesrgan.mp4`), qui sont justement la forme de nos
    noms de sortie. */
 .wai-row .wai-v {
-    color: #e9ecef; text-align: right;
+    color: var(--wama-text-strong); text-align: right;
     min-width: 0;
     word-break: break-word;
     overflow-wrap: anywhere;
@@ -55,12 +55,12 @@
     display: block;
     font-family: 'Courier New', monospace;
     font-size: .78rem;
-    color: #7fd8c0;
-    background: #1a1d20;
+    color: var(--wama-autofill-code);
+    background: var(--wama-surface-modal);
     padding: .4rem .55rem;
     border-radius: 4px;
     word-break: break-all;
 }
 
 .wai-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
-.wai-empty { color: #6c757d; font-size: .85rem; }
+.wai-empty { color: var(--wama-text-label); font-size: .85rem; }

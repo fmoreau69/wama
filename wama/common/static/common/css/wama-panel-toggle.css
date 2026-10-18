@@ -63,7 +63,7 @@ body > .container-fluid { transition: margin var(--wama-panel-anim), width var(-
 .wama-panel-edge::before {
     content: '';
     position: absolute; top: 0; bottom: 0; width: 2px;
-    background: var(--wama-app-color, #6ea8fe);
+    background: var(--wama-app-color, var(--wama-link));
     opacity: 0;
     transition: opacity .15s ease;
 }
@@ -79,10 +79,10 @@ body > .container-fluid { transition: margin var(--wama-panel-anim), width var(-
     width: 18px; height: 34px;
     border-radius: 9px;
     display: flex; align-items: center; justify-content: center;
-    background: #1f2437;
-    border: 1px solid rgba(255, 255, 255, .2);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
-    color: #e6e9f0;
+    background: var(--wama-edge-pill-bg);
+    border: 1px solid rgba(var(--wama-overlay-rgb), .2);
+    box-shadow: 0 2px 8px rgba(var(--wama-shadow-rgb), .45);
+    color: var(--wama-text-ui);
     font-size: .62rem;
     pointer-events: none;
 }

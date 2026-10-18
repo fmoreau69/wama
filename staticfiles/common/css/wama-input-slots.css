@@ -15,19 +15,19 @@
 .wama-port-tabs { display: flex; gap: .15rem; flex-wrap: nowrap; min-width: 0; margin-bottom: .35rem; }
 .wama-port-tab {
     font-size: .72rem; padding: .12rem .5rem; border-radius: .3rem; cursor: pointer;
-    color: #6c757d; border: 1px solid transparent; white-space: nowrap; user-select: none;
+    color: var(--wama-text-label); border: 1px solid transparent; white-space: nowrap; user-select: none;
     flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
 }
-.wama-port-tab:hover { color: #adb5bd; background: rgba(255, 255, 255, .05); }
-.wama-port-tab.is-active { color: #0dcaf0; border-color: rgba(13, 202, 240, .4); background: rgba(13, 202, 240, .08); }
-.wama-port-tab.is-required.is-active { color: #ffc107; border-color: rgba(255, 193, 7, .45); background: rgba(255, 193, 7, .08); }
+.wama-port-tab:hover { color: var(--wama-text-secondary); background: rgba(var(--wama-overlay-rgb), .05); }
+.wama-port-tab.is-active { color: var(--wama-accent); border-color: rgba(var(--wama-accent-rgb), .4); background: rgba(var(--wama-accent-rgb), .08); }
+.wama-port-tab.is-required.is-active { color: var(--bs-warning); border-color: rgba(var(--bs-warning-rgb), .45); background: rgba(var(--bs-warning-rgb), .08); }
 .wama-port-tab .wama-port-k { opacity: .55; font-size: .62rem; margin-left: .25rem; }
-.wama-port-tab .wama-port-n { margin-left: .3rem; font-size: .62rem; color: #a9e6f5; }
+.wama-port-tab .wama-port-n { margin-left: .3rem; font-size: .62rem; color: var(--wama-slot-link); }
 
 /* ── La PREVIEW : une boîte, hauteur constante, une seule face visible ───────────────── */
 .wama-input-preview {
-    background: #191c1f;
-    border-top: 1px solid rgba(255, 255, 255, .08);
+    background: var(--wama-slot-preview-bg);
+    border-top: 1px solid rgba(var(--wama-overlay-rgb), .08);
     margin: .35rem -.75rem 0;               /* pleine largeur dans le .card-body py-2 */
     height: 96px;
     box-sizing: border-box;
@@ -41,49 +41,49 @@
 /* Face MODALITÉS — les tuiles côte à côte (empilées en mosaïque) */
 .wama-mods { display: flex; gap: .4rem; width: 100%; align-items: stretch; }
 .wama-mod {
-    flex: 1; min-width: 0; border: 1px dashed rgba(255, 255, 255, .22); border-radius: .35rem;
+    flex: 1; min-width: 0; border: 1px dashed rgba(var(--wama-overlay-rgb), .22); border-radius: .35rem;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: .12rem; color: #adb5bd; font-size: .7rem; text-align: center; padding: .25rem .4rem;
-    background: rgba(255, 255, 255, .015); box-sizing: border-box;
+    gap: .12rem; color: var(--wama-text-secondary); font-size: .7rem; text-align: center; padding: .25rem .4rem;
+    background: rgba(var(--wama-overlay-rgb), .015); box-sizing: border-box;
 }
 .wama-mod .wama-mod-g { font-size: 1rem; line-height: 1.1; font-style: normal; }
-.wama-mod small { font-size: .62rem; color: #adb5bd; }
-.wama-mod a { color: #a9e6f5; text-decoration-color: rgba(169, 230, 245, .4); }
-.wama-mod a:hover { color: #e9ecef; }
+.wama-mod small { font-size: .62rem; color: var(--wama-text-secondary); }
+.wama-mod a { color: var(--wama-slot-link); text-decoration-color: rgba(var(--wama-slot-link-rgb), .4); }
+.wama-mod a:hover { color: var(--wama-text-strong); }
 /* La tuile IMPORT est la plus large : c'est le geste par défaut, et elle EST la dropzone. */
 .wama-mod.wama-mod-import { flex: 2; cursor: pointer; }
 .wama-mod.wama-mod-import:hover, .wama-mod.wama-mod-import.dragover, .wama-mod.wama-mod-import.is-hot {
-    border-color: #0dcaf0; color: #e9ecef; background: rgba(13, 202, 240, .07);
+    border-color: var(--wama-accent); color: var(--wama-text-strong); background: rgba(var(--wama-accent-rgb), .07);
 }
-.is-required .wama-mod.wama-mod-import { border-color: rgba(255, 193, 7, .5); }
+.is-required .wama-mod.wama-mod-import { border-color: rgba(var(--bs-warning-rgb), .5); }
 /* La tuile URL est son propre champ : visible d'un coup, aucune bascule pour saisir. */
 .wama-mod.wama-mod-url { flex: 1.6; justify-content: center; }
 .wama-mod.wama-mod-url .input-group { width: 100%; }
 .wama-mod.wama-mod-library { cursor: pointer; }
-.wama-mod.wama-mod-library:hover { border-color: #0dcaf0; color: #e9ecef; background: rgba(13, 202, 240, .07); }
+.wama-mod.wama-mod-library:hover { border-color: var(--wama-accent); color: var(--wama-text-strong); background: rgba(var(--wama-accent-rgb), .07); }
 .wama-mod.wama-mod-arm { flex: 1; cursor: pointer; }
-.wama-mod.wama-mod-arm:hover { border-color: #ffc107; background: rgba(255, 193, 7, .06); }
+.wama-mod.wama-mod-arm:hover { border-color: var(--bs-warning); background: rgba(var(--bs-warning-rgb), .06); }
 
 /* ── Onglet LOT (2026-09-29) — pas un port : il se tient À DROITE des ports, à l'écart ──── */
 .wama-port-tab.wama-port-tab-lot { margin-left: auto; flex-shrink: 0; }
 .wama-mod.wama-mod-template { text-decoration: none; cursor: pointer; }
-.wama-mod.wama-mod-template:hover { border-color: #0dcaf0; color: #e9ecef; background: rgba(13, 202, 240, .07); }
+.wama-mod.wama-mod-template:hover { border-color: var(--wama-accent); color: var(--wama-text-strong); background: rgba(var(--wama-accent-rgb), .07); }
 
 /* Face FICHIERS — un seul : aperçu ; plusieurs : liste qui défile (§11.11 E) */
 .wama-port-face-files { flex-direction: column; gap: .2rem; }
-.wama-files-head { display: flex; align-items: center; gap: .4rem; font-size: .66rem; color: #6c757d; flex-shrink: 0; }
-.wama-files-head .wama-files-back { cursor: pointer; color: #0dcaf0; }
+.wama-files-head { display: flex; align-items: center; gap: .4rem; font-size: .66rem; color: var(--wama-text-label); flex-shrink: 0; }
+.wama-files-head .wama-files-back { cursor: pointer; color: var(--wama-accent); }
 .wama-files-list {
     display: flex; flex-wrap: wrap; gap: .22rem; overflow-y: auto; flex: 1;
     align-content: flex-start; padding-right: .2rem;
 }
 .wama-files-list::-webkit-scrollbar { width: 6px; }
-.wama-files-list::-webkit-scrollbar-thumb { background: #495057; border-radius: 3px; }
-.wama-file-chip { display: inline-flex; align-items: center; gap: .3rem; font-size: .68rem; color: #a9e6f5;
-    background: rgba(13, 202, 240, .1); border: 1px solid rgba(13, 202, 240, .4); border-radius: 999px;
+.wama-files-list::-webkit-scrollbar-thumb { background: var(--wama-border-strong); border-radius: 3px; }
+.wama-file-chip { display: inline-flex; align-items: center; gap: .3rem; font-size: .68rem; color: var(--wama-slot-link);
+    background: rgba(var(--wama-accent-rgb), .1); border: 1px solid rgba(var(--wama-accent-rgb), .4); border-radius: 999px;
     padding: .06rem .5rem; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .wama-file-chip .wama-file-x { cursor: pointer; opacity: .6; }
-.wama-file-chip .wama-file-x:hover { opacity: 1; color: #dc3545; }
+.wama-file-chip .wama-file-x:hover { opacity: 1; color: var(--bs-danger); }
 /* Au doigt : la croix atteint le plancher tactile commun (wama-touch.css) sans faire de la
    pastille un bouton de 44 px. */
 @media (pointer: coarse) {
@@ -92,7 +92,7 @@
         display: inline-flex; align-items: center; justify-content: center; opacity: .85;
     }
 }
-.wama-files-meta { font-size: .62rem; color: #6c757d; flex-shrink: 0; }
+.wama-files-meta { font-size: .62rem; color: var(--wama-text-label); flex-shrink: 0; }
 
 /* ── Mosaïque : la preview grandit, les tuiles s'empilent (CARD_DESIGN §4) ───────────── */
 .wama-queue-mosaic .wama-input-preview { height: 150px; }
@@ -116,8 +116,8 @@
     white-space: pre-wrap;
     min-height: 1.5em;
     padding: .35rem .5rem;
-    border-left: 2px solid var(--bs-info, #0dcaf0);
-    color: var(--bs-light, #f8f9fa);
+    border-left: 2px solid var(--bs-info, var(--wama-accent));
+    color: var(--bs-light, var(--wama-text-card));
     font-size: .875rem;
 }
 .wama-instant-text:empty { display: none; }

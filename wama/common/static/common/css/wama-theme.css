@@ -8,35 +8,234 @@
 
    Un composant ne pose plus de couleur : il lit un token. Un thème de plus (clair, UGE…) =
    un bloc de plus ici, qui redéfinit CHAQUE token — `tests_theme` refuse un bloc incomplet.
+   Les couleurs de la PALETTE Bootstrap employées pour leur sens (primaire, succès, danger,
+   avertissement, info, teal) ne sont pas recopiées ici : les feuilles lisent `--bs-primary`,
+   `--bs-primary-rgb`… — un thème les redéfinit comme Bootstrap le prévoit.
 
    Les rapports de contraste notés sont mesurés sur le fond de la card (#212529) et sur son
    survol (#2b3035) ; le seuil WCAG d'un petit texte est 4,5:1 (`WAMA_VERIFICATION §10`).
+
+   ⚠ Les valeurs portées depuis `app_modern.css` (étape 3, 2026-10-18) sont celles d'avant, au
+   caractère près — le portage ne change aucun rendu (mesuré). Des valeurs VOISINES coexistent
+   donc (`--wama-text` #dee2e6 / `--wama-text-body` #e5e7eb, `--wama-state-success` #198754 /
+   `--wama-state-success-edge` #28a745…) : les fondre est une décision de CHARTE, pas un portage.
    ═══════════════════════════════════════════════════════════════════════════════════════ */
 
 :root,
 :root[data-wama-theme="dark"] {
+  /* ── Page ── */
+  --wama-page-bg-start: #1a1a2e;            /* dégradé du fond de page */
+  --wama-page-bg-end: #16213e;
+
   /* ── Texte, du plus lu au plus discret ── */
+  --wama-text-bright: #fff;                 /* modales, champs, en-têtes de card */
   --wama-text-strong: #e9ecef;              /* nom, valeur courante — 13:1 */
+  --wama-text-label-emphasis: #f3f4f6;      /* petit libellé de formulaire en modale */
+  --wama-text-card: #f8f9fa;                /* card de synthèse */
+  --wama-text-body: #e5e7eb;                /* texte courant de la page */
   --wama-text: #dee2e6;                     /* texte courant d'un aperçu */
+  --wama-text-small: #d1d5db;               /* `small` */
+  --wama-text-code: #d4d4d4;                /* console, texte comparé */
   --wama-text-secondary: #adb5bd;           /* propriétés — 7,4:1 */
+  --wama-text-muted: #9ca3af;               /* `text-muted`, aides de formulaire, substituts */
   /* Micro-étiquettes, bandeau d'identité, séparateurs, prévisions. Était #7a838c (4,0:1) et
      #6c757d (3,3:1) dans la card — sous le seuil (mesuré le 2026-10-16, décision de Fabien le
-     17/10 : les remonter). 6,0:1 ; 5,2:1 au survol. */
+     17/10 : les remonter). 6,0:1 ; 5,2:1 au survol. Lu aussi par l'heure du lecteur audio. */
   --wama-text-label: #9aa3ab;
+  --wama-text-dimmed: rgba(255, 255, 255, .7);      /* `text-white-50`, éclairci */
   --wama-text-state: rgba(255, 255, 255, .72);
   --wama-text-info: #9ec5d4;
   --wama-text-danger: #ea868f;
+  --wama-text-on-accent: #fff;              /* texte sur un badge d'état plein */
 
   /* ── Surfaces ── */
+  --wama-surface: #212529;                  /* champ, panneau, card de synthèse, infobulle */
+  --wama-surface-modal: #1a1d20;
+  --wama-surface-code: #1e1e1e;             /* console, texte d'origine comparé */
+  --wama-surface-placeholder: #444444;      /* icône d'un fichier inconnu */
   --wama-surface-sunken: #16191c;           /* creux : survol d'une vignette */
   --wama-surface-inset: rgba(0, 0, 0, .32); /* encart : zone d'aperçu de la card */
+  --wama-surface-wave: rgba(0, 0, 0, .25);  /* fond de l'onde audio */
+  --wama-surface-loading: rgba(26, 29, 32, .65);    /* voile « chargement » de l'onde */
+  --wama-surface-faint: rgba(255, 255, 255, .05);   /* zone de dépôt */
   --wama-surface-batch: #0d1a1a;            /* card fille d'un lot */
+  /* Fin du dégradé de `.long-text-faded` : BLANC sur un thème sombre, et aucune page ne pose
+     cette classe (relevé du 2026-10-18) — gardé tel quel, son retrait est un autre geste. */
+  --wama-fade-end: #fff;
+
+  /* ── Pistes et barres ── */
+  --wama-track: #2a2d30;                    /* piste d'une barre de progression */
+  --wama-track-faint: rgba(255, 255, 255, .1);
 
   /* ── Traits ── */
   --wama-border: #2a2d30;
+  --wama-border-strong: #495057;            /* modales, champs, cards de synthèse */
   --wama-border-subtle: rgba(255, 255, 255, .08);   /* séparateurs de section */
+  --wama-border-hairline: rgba(255, 255, 255, .06);
   --wama-border-faint: rgba(255, 255, 255, .05);
   --wama-border-dashed: rgba(255, 255, 255, .22);   /* contour d'une prévision */
   --wama-ring-shadow: rgba(0, 0, 0, .55);           /* détourage d'une pastille */
+  --wama-shadow: rgba(0, 0, 0, .3);
+  --wama-shadow-strong: rgba(0, 0, 0, .5);
   --wama-accent-batch: #0dcaf0;                     /* famille de lot */
+  --wama-accent-filter: rgb(255, 160, 0);           /* filtre actif (curseur de plage) */
+
+  /* ── États d'un élément (liseré de card, statut d'une ligne) ── */
+  --wama-state-pending: #adb5bd;
+  --wama-state-running: #ffc107;
+  --wama-state-success: #198754;
+  --wama-state-success-edge: #28a745;       /* liseré « réussi » de la card */
+  --wama-state-failure: #dc3545;
+  --wama-state-awaiting: #fd7e14;           /* attend une ressource */
+  --wama-state-stale: #9b59b6;              /* périmé */
+
+  /* ── Estimation de durée (confiance croissante) ── */
+  --wama-eta-loading: #8a92a3;
+  --wama-eta-low: #9aa3b2;
+  --wama-eta-high: #d7dce5;
+
+  /* ── Défilement ── */
+  --wama-scrollbar-thumb: rgba(102, 126, 234, .5);
+  --wama-scrollbar-thumb-hover: rgba(102, 126, 234, .8);
+  --wama-scrollbar-track: rgba(30, 41, 59, .3);
+
+  /* ── Tableau sombre ── */
+  --wama-table-head-start: #1e3a8a;
+  --wama-table-head-end: #3b82f6;
+  --wama-table-row-hover: rgba(59, 130, 246, .1);
+
+  /* ── Texte comparé : version proposée ── */
+  --wama-diff-added-bg: #1e2820;
+  --wama-diff-added-border: #2ea043;
+  --wama-diff-added-text: #7ee787;
+
+  /* ── Évaluation d'un lot (modèles comparés) ── */
+  --wama-eval-text: #cbd5e1;
+  --wama-eval-title: #67e8f9;
+  --wama-eval-border: rgba(103, 232, 249, .28);
+  --wama-eval-muted: #94a3b8;
+  --wama-eval-strong: #f1f5f9;
+  --wama-eval-metrics: #e2e8f0;
+  --wama-eval-rate: #f8fafc;
+  --wama-eval-rule: #334155;
+  --wama-eval-model-bg: rgba(148, 163, 184, .14);
+  --wama-eval-model-border: rgba(148, 163, 184, .3);
+  --wama-eval-best: #4ade80;
+  --wama-eval-best-bg: rgba(74, 222, 128, .13);
+  --wama-eval-warning: #fbbf24;
+  --wama-eval-isolated-bg: rgba(251, 191, 36, .12);
+
+  /* ── Palette partagée des feuilles communes (étape 3) — les canaux `-rgb` servent les voiles
+     translucides : rgba(var(--wama-accent-rgb), .12) au lieu d'un token par opacité ── */
+  --wama-overlay-rgb: 255, 255, 255;   /* canaux des VOILES clairs : rgba(var(--wama-overlay-rgb), a) — un thème clair les inverse ici */
+  --wama-shadow-rgb: 0, 0, 0;          /* canaux des ombres et voiles sombres */
+  --wama-accent: #0dcaf0;              /* l'accent de WAMA : sélection, onglet actif, lot */
+  --wama-accent-rgb: 13, 202, 240;
+  --wama-accent-soft: #67e8f9;         /* accent éclairci (en-tête de lot, repère dans un lot) */
+  --wama-paper: #fff;                  /* fond « papier » : page, partition, aperçu HTML */
+  --wama-text-on-bright: #000;         /* texte sur un fond d'accent clair */
+  --wama-surface-raised: #2b3035;      /* menu, barre de filtres */
+  --wama-text-ui: #e6e9f0;             /* libellé de commande, champ de réglage */
+  --wama-text-soft: #cdd3e0;           /* valeur de réglage, en-tête de groupe */
+  --wama-text-desc: #ced4da;           /* description */
+  --wama-border-row: #343a40;          /* trait entre deux lignes */
+  --wama-link: #6ea8fe;
+  --wama-link-rgb: 110, 168, 254;
+  --wama-link-soft: #9ec5fe;
+  --wama-success-soft: #4ade80;
+  --wama-warning-soft: #fbbf24;
+  --wama-warning-soft-rgb: 251, 191, 36;
+  --wama-danger-soft: #f87171;
+  --wama-danger-soft-rgb: 248, 113, 113;
+  --wama-danger-softer: #fca5a5;
+  --wama-error-text: #ff6b6b;
+  --wama-code-text: #c9d1d9;
+  --wama-indigo-rgb: 102, 126, 234;    /* teinte des barres de défilement */
+  --wama-collab: #a78bfa;              /* collaboration : notifications, partage, lecture seule */
+  --wama-collab-rgb: 167, 139, 250;
+  --wama-collab-deep: #7c3aed;
+  --wama-collab-deep-rgb: 124, 58, 237;
+  --wama-collab-mid-rgb: 139, 92, 246;
+  --wama-collab-text: #ddd6fe;
+  --wama-collab-text-rgb: 221, 214, 254;
+  --wama-collab-text-strong: #ede9fe;
+  --wama-collab-link: #c4b5fd;
+
+  /* ── Bord des volets ── */
+  --wama-edge-pill-bg: #1f2437;        /* pastille du bord replié */
+
+  /* ── Inspecteur auto-rempli ── */
+  --wama-autofill-code: #7fd8c0;       /* valeur de code */
+
+  /* ── File : sélection et glisser ── */
+  --wama-select-check: #0b1f24;        /* coche sur la case cochée */
+
+  /* ── Fil de l'assistant (volet) ── */
+  --wama-chat-bg: #1a1d21;             /* fil et saisie */
+  --wama-chat-bubble: #495057;         /* bulle de l'assistant */
+  --wama-chat-link: #a8d8ff;
+  --wama-chat-step-ok: #6fcf97;        /* étape réussie */
+  --wama-chat-code-bg: #0d1117;        /* bloc de code */
+
+  /* ── Menu de card ── */
+  --wama-menu-title: #8fa3b3;          /* titre du menu */
+
+  /* ── Réglages (schéma) ── */
+  --wama-param-field: #0d0d1a;         /* champ */
+  --wama-param-note: #8b93a7;          /* aide, titre de groupe */
+  --wama-param-track: #3d8bfd;         /* curseur : plage permise */
+  --wama-param-capped: #e35d6a;        /* curseur : hors des capacités */
+  --wama-param-continued: #f0a13a;     /* curseur : prolongée */
+  --wama-param-extrapolated-text: #ff8787;
+  --wama-param-continued-text: #f5b95e;
+
+  /* ── Card d'entrée : ports et modalités ── */
+  --wama-slot-link: #a9e6f5;           /* lien, fichier joint, numéro de port */
+  --wama-slot-link-rgb: 169, 230, 245;
+  --wama-slot-preview-bg: #191c1f;     /* aperçu de l'entrée */
+
+  /* ── Pages d'édition (surfaces) ── */
+  --wama-edit-text: #e6edf3;           /* titre, texte de section, horloge */
+  --wama-edit-brick-text: #c9d1d9;     /* corps et titre de brique */
+  --wama-edit-muted: #8a8f98;          /* aide, état */
+  --wama-edit-meta: #8b949e;           /* méta d'une révision */
+  --wama-edit-grid: #121216;           /* fond d'une brique */
+  --wama-edit-head: #19191f;           /* en-tête de brique */
+  --wama-edit-field: #16161a;          /* champ d'outil */
+  --wama-edit-image: #0b0b0d;          /* fond d'une image */
+  --wama-edit-border: #2a2a30;
+  --wama-edit-border-strong: #3a3a42;
+  --wama-edit-playing: #d9480f;        /* note jouée de la partition */
+  --wama-edit-paper-text: #111;        /* encre de la partition */
+
+  /* ── Inspecteur et file ── */
+  --wama-surface-batch-hover: #0f2222; /* card mère d'un lot, survolée */
+  --wama-pulse-warning: #ffc10744;     /* pulsation d'un emplacement requis */
+  --wama-collab-notice-bg: #1e1b2e;    /* avis « lecture seule » */
+  --wama-chip-target-text: #ffd479;    /* chip de cible */
+
+  /* ── Visionneuse et aperçu ── */
+  --wama-viewer-bg: #161b26;
+  --wama-viewer-surface: #1b2130;
+  --wama-viewer-stage: #0d1017;        /* fond de la scène d'aperçu */
+  --wama-viewer-border: #2a3344;
+  --wama-viewer-text: #e6e9ef;
+  --wama-viewer-muted: #8f9bb0;
+  --wama-viewer-done: #3fb950;         /* action faite */
+  --wama-viewer-scrollbar: #3a4558;
+  --wama-viewer-tab-shade: #0b0e14;    /* onglet resserré, au survol */
+
+  /* ── Panneau des notifications ── */
+  --wama-notif-bg: #1a1726;
+  --wama-notif-heading: #f5f3ff;       /* titre, bouton */
+  --wama-notif-title: #e9e5fb;         /* titre d'une notification */
+  --wama-notif-text: #d6d0f0;
+  --wama-notif-count: #ef4444;         /* pastille du compte */
+  --wama-notif-info: #60a5fa;
+  --wama-notif-ok-border: #22c55e;
+  --wama-notif-ok-text: #bbf7d0;
+  --wama-notif-ok-bg: #16a34a;
+  --wama-notif-danger-text: #fecaca;
+  --wama-notif-danger-bg: #dc2626;
+  --wama-notif-consent-text: #fef3c7;
 }

@@ -3,78 +3,78 @@
 
 .wama-surface-page { max-width: none; margin: 0 auto; padding: .5rem 0 2rem; }
 .wama-surface-head { display: flex; align-items: center; gap: .75rem; margin-bottom: .5rem; }
-.wama-surface-title { font-size: 1.1rem; margin: 0; color: #e6edf3; }
-.wama-surface-status { margin-left: auto; font-size: .8rem; color: #8a8f98; }
-.wama-surface-status[data-kind="dirty"] { color: #ffc107; }
-.wama-surface-status[data-kind="ok"] { color: #20c997; }
-.wama-surface-status[data-kind="error"] { color: #ff6b6b; }
+.wama-surface-title { font-size: 1.1rem; margin: 0; color: var(--wama-edit-text); }
+.wama-surface-status { margin-left: auto; font-size: .8rem; color: var(--wama-edit-muted); }
+.wama-surface-status[data-kind="dirty"] { color: var(--bs-warning); }
+.wama-surface-status[data-kind="ok"] { color: var(--bs-teal); }
+.wama-surface-status[data-kind="error"] { color: var(--wama-error-text); }
 
 /* Grille gridstack : chaque brique = un panneau à titre (poignée de déplacement). */
 .wama-surface-grid .grid-stack-item-content {
-  display: flex; flex-direction: column; background: #121216; border: 1px solid #2a2a30;
+  display: flex; flex-direction: column; background: var(--wama-edit-grid); border: 1px solid var(--wama-edit-border);
   border-radius: .45rem; overflow: hidden; inset: 3px;
 }
 .wama-brick-head {
   display: flex; align-items: center; gap: .35rem; padding: .25rem .5rem;
-  background: #19191f; border-bottom: 1px solid #2a2a30; cursor: move; user-select: none;
+  background: var(--wama-edit-head); border-bottom: 1px solid var(--wama-edit-border); cursor: move; user-select: none;
   min-height: 2rem;
 }
-.wama-brick-title { font-size: .78rem; font-weight: 600; color: #c9d1d9; margin-right: auto; }
-.wama-brick-body { flex: 1 1 auto; min-height: 0; position: relative; overflow: auto; color: #c9d1d9; }
+.wama-brick-title { font-size: .78rem; font-weight: 600; color: var(--wama-edit-brick-text); margin-right: auto; }
+.wama-brick-body { flex: 1 1 auto; min-height: 0; position: relative; overflow: auto; color: var(--wama-edit-brick-text); }
 
 .wama-brick-tools { display: flex; align-items: center; gap: .25rem; cursor: default; }
 .wama-brick-tools .btn-xs, .wama-surface-grid .btn-xs {
-  padding: .1rem .35rem; font-size: .75rem; line-height: 1.2; color: #c9d1d9;
-  border: 1px solid #3a3a42; background: transparent;
+  padding: .1rem .35rem; font-size: .75rem; line-height: 1.2; color: var(--wama-edit-brick-text);
+  border: 1px solid var(--wama-edit-border-strong); background: transparent;
 }
-.wama-brick-tools .btn-xs.active { background: #0dcaf0; color: #000; border-color: #0dcaf0; }
+.wama-brick-tools .btn-xs.active { background: var(--wama-accent); color: var(--wama-text-on-bright); border-color: var(--wama-accent); }
 .wama-brick-tools .wama-brick-class { width: auto; padding: .05rem 1.6rem .05rem .4rem; font-size: .75rem;
-  background-color: #16161a; color: #c9d1d9; border-color: #3a3a42; }
-.wama-brick-zoom { font-size: .72rem; color: #8a8f98; min-width: 3.2rem; text-align: right; }
+  background-color: var(--wama-edit-field); color: var(--wama-edit-brick-text); border-color: var(--wama-edit-border-strong); }
+.wama-brick-zoom { font-size: .72rem; color: var(--wama-edit-muted); min-width: 3.2rem; text-align: right; }
 
 /* Image et zones */
-.wama-brick-image { overflow: hidden; background: #0b0b0d; }
+.wama-brick-image { overflow: hidden; background: var(--wama-edit-image); }
 .wama-brick-image canvas { display: block; outline: none; }
 
 /* Liste des objets */
 .wama-brick-objects { display: flex; flex-direction: column; }
-.wama-objects-summary { padding: .4rem .55rem; font-size: .78rem; border-bottom: 1px solid #2a2a30; color: #e6edf3; }
+.wama-objects-summary { padding: .4rem .55rem; font-size: .78rem; border-bottom: 1px solid var(--wama-edit-border); color: var(--wama-edit-text); }
 .wama-objects-list { flex: 1 1 auto; overflow: auto; }
 .wama-object-row { display: flex; align-items: center; gap: .4rem; padding: .2rem .55rem; font-size: .75rem;
   cursor: pointer; border-left: 3px solid transparent; }
-.wama-object-row:hover { background: rgba(255,255,255,.04); }
-.wama-object-row.is-selected { background: rgba(13,202,240,.12); border-left-color: #0dcaf0; }
-.wama-object-row.is-manual .wama-object-label { color: #20c997; }
-.wama-object-row.is-removed .wama-object-label { color: #ff6b6b; text-decoration: line-through; }
+.wama-object-row:hover { background: rgba(var(--wama-overlay-rgb), .04); }
+.wama-object-row.is-selected { background: rgba(var(--wama-accent-rgb), .12); border-left-color: var(--wama-accent); }
+.wama-object-row.is-manual .wama-object-label { color: var(--bs-teal); }
+.wama-object-row.is-removed .wama-object-label { color: var(--wama-error-text); text-decoration: line-through; }
 .wama-object-label { font-weight: 600; min-width: 4rem; }
-.wama-object-meta { color: #8a8f98; margin-right: auto; font-variant-numeric: tabular-nums; }
+.wama-object-meta { color: var(--wama-edit-muted); margin-right: auto; font-variant-numeric: tabular-nums; }
 
 /* Texte en sections — on corrige le FOND : pas de mise en forme, un texte lisible et ses titres */
 .wama-text-sections { padding: .5rem .65rem 2rem; }
 .wama-section-text {
-  white-space: pre-wrap; overflow-wrap: anywhere; font-size: .86rem; line-height: 1.55; color: #e6edf3;
+  white-space: pre-wrap; overflow-wrap: anywhere; font-size: .86rem; line-height: 1.55; color: var(--wama-edit-text);
   padding: .35rem .5rem; margin-bottom: .35rem; border-left: 3px solid transparent; border-radius: .25rem;
   outline: none; min-height: 1.6rem;
 }
-.wama-section-text.has-heading::first-line { font-weight: 700; color: #ffffff; }
-.wama-section-text[contenteditable]:hover { background: rgba(255,255,255,.03); }
-.wama-section-text[contenteditable]:focus { background: rgba(13,202,240,.07); border-left-color: #0dcaf0; }
+.wama-section-text.has-heading::first-line { font-weight: 700; color: var(--wama-text-bright); }
+.wama-section-text[contenteditable]:hover { background: rgba(var(--wama-overlay-rgb), .03); }
+.wama-section-text[contenteditable]:focus { background: rgba(var(--wama-accent-rgb), .07); border-left-color: var(--wama-accent); }
 
 /* Aperçu du document — cadre isolé, fond blanc (le rendu porte ses propres couleurs) */
-.wama-brick-preview { overflow: hidden; background: #fff; }
-.wama-brick-preview iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
-.wama-preview-empty { padding: 1rem; font-size: .8rem; color: #555; }
+.wama-brick-preview { overflow: hidden; background: var(--wama-paper); }
+.wama-brick-preview iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--wama-paper); }
+.wama-preview-empty { padding: 1rem; font-size: .8rem; color: var(--wama-text-label); }
 .wama-preview-state { font-size: .68rem; font-weight: 600; }
 
 /* Versions (révisions gardées du fichier édité) */
 .wama-brick-revisions { overflow: auto; }
 .wama-revision-list { display: flex; flex-direction: column; }
 .wama-revision-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem;
-  padding: .35rem .55rem; border-bottom: 1px solid #2a2a30; }
+  padding: .35rem .55rem; border-bottom: 1px solid var(--wama-edit-border); }
 .wama-revision-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: .4rem; min-width: 0; }
-.wama-revision-head b { color: #e6edf3; font-size: .8rem; }
-.wama-revision-meta { color: #8b949e; font-size: .74rem; }
-.wama-revision-empty { padding: .8rem .6rem; font-size: .8rem; color: #8b949e; }
+.wama-revision-head b { color: var(--wama-edit-text); font-size: .8rem; }
+.wama-revision-meta { color: var(--wama-edit-meta); font-size: .74rem; }
+.wama-revision-empty { padding: .8rem .6rem; font-size: .8rem; color: var(--wama-edit-meta); }
 
 /* Transport média (magnéto de l'axe partagé) — l'onde est celle du lecteur commun ; ses propres
    boutons sont masqués : c'est la barre du transport qui pilote, par l'axe. */
@@ -83,18 +83,18 @@
 .wama-transport-bar { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem; }
 .wama-transport-bar .btn { padding: .15rem .45rem; font-size: .8rem; }
 .wama-transport-rate { width: auto; padding: .1rem 1.6rem .1rem .45rem; font-size: .78rem;
-  background-color: #16161a; color: #e6edf3; border-color: #3a3a42; }
-.wama-transport-clock { margin-left: auto; font-size: .8rem; color: #e6edf3; font-variant-numeric: tabular-nums; }
+  background-color: var(--wama-edit-field); color: var(--wama-edit-text); border-color: var(--wama-edit-border-strong); }
+.wama-transport-clock { margin-left: auto; font-size: .8rem; color: var(--wama-edit-text); font-variant-numeric: tabular-nums; }
 
 /* Partition — gravée sur PAPIER blanc (les notes d'abcjs sont noires) ; la note jouée se colore */
-.wama-brick-score { background: #fff; }
-.wama-score-paper { padding: .4rem .6rem 1.5rem; color: #111; }
-.wama-score-paper svg .wama-score-playing { fill: #d9480f; stroke: #d9480f; }
-.wama-score-fit { display: flex; align-items: center; gap: .25rem; font-size: .72rem; color: #c9d1d9;
+.wama-brick-score { background: var(--wama-paper); }
+.wama-score-paper { padding: .4rem .6rem 1.5rem; color: var(--wama-edit-paper-text); }
+.wama-score-paper svg .wama-score-playing { fill: var(--wama-edit-playing); stroke: var(--wama-edit-playing); }
+.wama-score-fit { display: flex; align-items: center; gap: .25rem; font-size: .72rem; color: var(--wama-edit-brick-text);
   margin: 0; cursor: pointer; }
 
 /* Actions */
 .wama-brick-actions { display: flex; flex-direction: column; gap: .45rem; padding: .55rem; }
 .wama-actions-row { display: flex; gap: .35rem; }
 .wama-actions-row .btn-outline-primary { margin-left: auto; }
-.wama-actions-help { font-size: .7rem; color: #8a8f98; line-height: 1.35; }
+.wama-actions-help { font-size: .7rem; color: var(--wama-edit-muted); line-height: 1.35; }

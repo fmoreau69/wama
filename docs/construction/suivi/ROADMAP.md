@@ -5789,11 +5789,38 @@ listes déroulantes.
    infobulle ni popover Bootstrap n'est employée. Joué ensuite sur serveur éphémère :
    `common.contrast` vert, plus aucun faible dans les modales, `transcriber.preview` et
    `anonymizer.preview` verts. Budget CSS 862 → 854.
-3. ⏳ **Porter les feuilles communes** sur les tokens, par ordre de poids (`app_modern.css` 163,
-   `wama-notifications.css` 60, `media-preview.css` 58 — ses `--wv-*` deviennent des alias —,
-   `wama-surface.css` 51, `wama-inspector.css` 50…), puis les `<style>` des pages (le reste des
-   faibles de `WAMA_VERIFICATION §10` y vit : `#6c757d` écrit dans la page). Chaque portage BAISSE
-   le budget dans le même commit.
+3. ✅ **Porter les feuilles communes** sur les tokens (2026-10-18, GO de Fabien) — les seize
+   feuilles de `common/css/` sauf `wama-catalog.css` (en cours dans une autre session à ce
+   moment-là), ~560 couleurs : budget CSS 854 → **284**, ce qui reste est aux APPS (studio,
+   gestionnaire de fichiers, présentation, enhancer, Lab) et à `wama-catalog.css`.
+   *La règle du portage* : il ne change AUCUN rendu — chaque couleur prend un token dont la valeur
+   sombre est la sienne au caractère près. Une couleur de la palette Bootstrap employée pour son
+   sens lit la variable de Bootstrap (`--bs-primary`, `--bs-danger-rgb`…) ; un VOILE translucide
+   lit les canaux d'un token (`rgba(var(--wama-overlay-rgb), .06)`, `--wama-accent-rgb`,
+   `--wama-collab-rgb`…) au lieu d'un token par opacité — un thème clair inverse
+   `--wama-overlay-rgb` et tous les voiles clairs suivent ; le reste prend un token NOMMÉ par son
+   rôle, par section (visionneuse — `--wv-*` devenues des alias —, notifications, surfaces,
+   réglages, assistant…). Les valeurs voisines (`#e5e7eb` / `#dee2e6`, `#198754` / `#28a745`…)
+   restent distinctes : les fondre est une décision de charte.
+   *Une seule famille de changements, VOLONTAIRE* : les textes gris `#6c757d` / `#7a838c` (3,3 et
+   4,0:1 — la règle « jamais un gris moyen sur fond sombre », celle des libellés de la card), et
+   `#555` / `#6b7280` d'un aperçu vide et d'un compteur, passent sur `--wama-text-label` (6:1) —
+   état de l'assistant, heure du lecteur audio, onglets de port, titre de section de l'inspecteur,
+   menu de card, filtre vide…
+   *La preuve, à deux étages* : (1) statique, à chaque remplacement — l'outil de portage RÉSOUT
+   le token lu (WAMA ou Bootstrap, mode sombre) et exige la valeur remplacée canal par canal,
+   sinon rien n'est écrit ; (2) au navigateur, sur le site réel — les styles calculés de chaque
+   élément visible (et de ses pseudo-éléments) comparés entre les feuilles de HEAD et les feuilles
+   portées : 166 états (30 pages, menus ouverts, chaque modale), plus 41 rejoués DANS LE MÊME
+   CHARGEMENT (feuilles permutées en place) pour neuf pages dont les données avaient bougé entre
+   deux passages — **seul écart : l'état de l'assistant, une des remontées volontaires**. Ce que
+   la preuve navigateur ne voit pas (pages d'édition, états non ouverts) repose sur l'étage 1.
+   *Garde* : les seize feuilles inscrites à zéro couleur (`tests_theme.TOKENISED`), chaque token
+   de canaux vaut trois entiers ; l'instrument a été affûté dans le même geste (une valeur citée
+   en commentaire, une couleur aux canaux lus d'une variable ne comptent plus).
+   ⏳ *Reste de l'étape* : les feuilles d'APPS et `wama-catalog.css`, puis les `<style>` des pages
+   (795 couleurs dans les gabarits ; les derniers textes faibles de `WAMA_VERIFICATION §10` y
+   vivent : `#6c757d` écrit dans la page).
 4. ⏳ **Un second thème** (clair, ou UGE) = un bloc de `wama-theme.css` + une ligne de `THEMES` ;
    la garde de code de `tests_contrast` passe à sa forme symétrique (un ton de texte fixe exige un
    fond fixe, dans les deux sens).

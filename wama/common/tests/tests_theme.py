@@ -19,9 +19,14 @@ ROOT = Path(settings.BASE_DIR)
 THEME_CSS = ROOT / 'wama' / 'common' / 'static' / 'common' / 'css' / 'wama-theme.css'
 BASE_HTML = ROOT / 'wama' / 'templates' / 'base.html'
 
-COLOUR = re.compile(r'#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(')
+#: Une couleur ÉCRITE : hexadécimale, ou fonction de couleur dont les canaux sont des nombres.
+#: `rgba(var(--bs-primary-rgb), .25)` lit un token : ce n'en est pas une (affûté le 2026-10-18).
+COLOUR = re.compile(r'#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\((?!\s*var\()')
 #: Dans un gabarit, une entité (`&#123;`) ou une ancre (`href="#…"`) n'est pas une couleur.
 NOT_COLOUR_HTML = re.compile(r'&#\w+;|href="#[^"]*"')
+#: Une valeur CITÉE dans un commentaire ne peint rien (affûté le 2026-10-18).
+COMMENT_CSS = re.compile(r'/\*.*?\*/', re.S)
+COMMENT_HTML = re.compile(r'<!--.*?-->|\{#.*?#\}|\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', re.S)
 TWIN = re.compile(r'^wama/[a-z_]+_\d\d/')
 
 #: Hors du budget, chacun avec sa raison.
@@ -41,13 +46,18 @@ OUTSIDE_FAMILIES = (
 #: scénario de contraste mesure au rendu.
 #: Mesuré le 2026-10-17, card commune portée : 862 dans les feuilles, 883 dans les gabarits
 #: (`app_modern.css` en tête, 163) ; 854 le même jour, les huit textes d'alerte fixes retirés
-#: (étape 2, `ROADMAP §28`).
-BUDGET = {'.css': 854, '.html': 883}
+#: (étape 2, `ROADMAP §28`). Le 2026-10-18 : `app_modern.css` porté (155 → 0) et l'instrument
+#: AFFÛTÉ dans le même geste (une valeur citée en commentaire, une couleur aux canaux lus d'une
+#: variable ne comptent plus) — 688 et 795 ; puis les quinze autres feuilles communes portées
+#: (sauf `wama-catalog.css`, en cours ailleurs) — 284 : ce qui reste est aux APPS.
+BUDGET = {'.css': 284, '.html': 795}
 
 #: Fichiers PORTÉS sur les tokens : ils restent à zéro.
-TOKENISED = (
-    'wama/common/static/common/css/wama-card-v3.css',
-)
+TOKENISED = tuple(f'wama/common/static/common/css/{name}.css' for name in (
+    'wama-card-v3', 'app_modern', 'media-preview', 'wama-assistant-panel', 'wama-card-menu',
+    'wama-filter-bar', 'wama-input-slots', 'wama-inspector-autofill', 'wama-inspector',
+    'wama-notifications', 'wama-panel-toggle', 'wama-params', 'wama-prompt-chips',
+    'wama-queue-dnd', 'wama-share', 'wama-surface', 'wama-touch'))
 
 
 def _outside(rel):
@@ -64,7 +74,9 @@ def _sources(suffixes):
 
 def colour_count(rel, text):
     if rel.endswith('.html'):
-        text = NOT_COLOUR_HTML.sub('', text)
+        text = NOT_COLOUR_HTML.sub('', COMMENT_HTML.sub('', COMMENT_CSS.sub('', text)))
+    else:
+        text = COMMENT_CSS.sub('', text)
     return len(COLOUR.findall(text))
 
 
@@ -162,6 +174,15 @@ class ThemeTokensTest(SimpleTestCase):
                 self.assertIn(t.key, blocks, 'a declared theme has its block in wama-theme.css')
                 self.assertEqual(reference, set(blocks[t.key]), 'a theme redefines EVERY token')
 
+    def test_every_channel_token_is_three_integers(self):
+        """`rgba(var(--wama-overlay-rgb), .06)` : un token `-rgb` qui ne vaut pas « r, g, b »
+        rend la déclaration invalide, et le voile disparaît sans rien dire."""
+        for key, block in theme_blocks().items():
+            for name, value in block.items():
+                if name.endswith('-rgb'):
+                    with self.subTest(theme=key, token=name):
+                        self.assertRegex(value.strip(), r'^\d{1,3},\s*\d{1,3},\s*\d{1,3}$')
+
     def test_no_block_for_an_undeclared_theme(self):
         from wama.common.themes import THEMES
         self.assertEqual(set(), set(theme_blocks()) - {':root'} - {t.key for t in THEMES})
@@ -224,3 +245,5 @@ class HardCodedColourBudgetTest(SimpleTestCase):
     def test_the_count_sees_colours_and_skips_what_is_not_one(self):
         self.assertEqual(3, colour_count('a.css', 'a{color:#fff;background:rgba(0,0,0,.3);border-color:hsl(1,2%,3%)}'))
         self.assertEqual(1, colour_count('a.html', '<a href="#top">&#8594;</a><i style="color:#abc">'))
+        self.assertEqual(0, colour_count('a.css', '/* était #6c757d */ a{box-shadow:0 0 0 1px rgba(var(--bs-primary-rgb), .25)}'))
+        self.assertEqual(1, colour_count('a.html', '{# #fff #}<!-- #000 --><b style="color:rgb(1,2,3)">'))

@@ -21,13 +21,13 @@
     min-width: 13rem;
     max-width: 22rem;
     padding: .35rem;
-    background: #2b3035;
-    border: 1px solid rgba(255, 255, 255, .09);
+    background: var(--wama-surface-raised);
+    border: 1px solid rgba(var(--wama-overlay-rgb), .09);
     border-radius: 10px;
     /* Deux ombres : une portée large pour détacher du fond, une fine pour le liseré du haut.
        C'est ce qui donne l'impression de flotter au lieu d'être collé. */
-    box-shadow: 0 12px 32px rgba(0, 0, 0, .45), 0 1px 0 rgba(255, 255, 255, .04) inset;
-    color: #e9ecef;
+    box-shadow: 0 12px 32px rgba(var(--wama-shadow-rgb), .45), 0 1px 0 rgba(var(--wama-overlay-rgb), .04) inset;
+    color: var(--wama-text-strong);
     font-size: .85rem;
     animation: wama-cm-apparait .12s ease-out;
 }
@@ -51,7 +51,7 @@
 
 .wama-cm-titre {
     padding: .3rem .6rem .45rem;
-    color: #8fa3b3;
+    color: var(--wama-menu-title);
     font-size: .74rem;
     text-transform: uppercase;
     letter-spacing: .04em;
@@ -78,7 +78,7 @@
 .wama-cm-item > i:first-child {
     flex: 0 0 1.1rem;
     text-align: center;
-    color: #adb5bd;
+    color: var(--wama-text-secondary);
 }
 
 .wama-cm-item > span {
@@ -90,15 +90,15 @@
 
 .wama-cm-item:hover,
 .wama-cm-item:focus-visible {
-    background: rgba(13, 202, 240, .14);
-    color: #fff;
+    background: rgba(var(--wama-accent-rgb), .14);
+    color: var(--wama-text-bright);
     outline: none;
 }
 
 .wama-cm-item:hover > i:first-child,
-.wama-cm-item:focus-visible > i:first-child { color: #0dcaf0; }
+.wama-cm-item:focus-visible > i:first-child { color: var(--wama-accent); }
 
-.wama-cm-item:active { background: rgba(13, 202, 240, .22); }
+.wama-cm-item:active { background: rgba(var(--wama-accent-rgb), .22); }
 
 .wama-cm-item:disabled {
     opacity: .45;
@@ -108,29 +108,29 @@
 
 /* DANGER — le rouge que les entrées destructrices du filemanager portaient déjà avant de
    rejoindre ce menu : « supprimer » garde la couleur qu'on lui connaissait. */
-.wama-cm-danger { color: #f87171; }
-.wama-cm-danger > i:first-child { color: #f87171; }
+.wama-cm-danger { color: var(--wama-danger-soft); }
+.wama-cm-danger > i:first-child { color: var(--wama-danger-soft); }
 .wama-cm-danger:hover,
 .wama-cm-danger:focus-visible {
-    background: rgba(248, 113, 113, .16);
-    color: #fca5a5;
+    background: rgba(var(--wama-danger-soft-rgb), .16);
+    color: var(--wama-danger-softer);
 }
-.wama-cm-danger:hover > i:first-child { color: #fca5a5; }
+.wama-cm-danger:hover > i:first-child { color: var(--wama-danger-softer); }
 
 /* Entrée d'ATTENTE ou d'INFORMATION (« Recherche… », « aucune app ne prend ce format »).
    Un `<span>` et non un `<button>` : rien à cliquer, donc rien qui doive avoir l'air cliquable.
    C'est ce qui distingue « le menu réfléchit » de « le menu est cassé ». */
 .wama-cm-attente {
-    color: #6c757d;
+    color: var(--wama-text-label);
     cursor: default;
     font-style: italic;
 }
-.wama-cm-attente > i:first-child { color: #6c757d; }
+.wama-cm-attente > i:first-child { color: var(--wama-text-label); }
 
 .wama-cm-sep {
     height: 1px;
     margin: .3rem .35rem;
-    background: rgba(255, 255, 255, .08);
+    background: rgba(var(--wama-overlay-rgb), .08);
 }
 
 /* Chevron du sous-menu : discret, aligné à droite, il n'entre pas dans la gouttière d'icône. */
@@ -138,22 +138,22 @@
     flex: 0 0 auto;
     margin-left: .4rem;
     font-size: .7rem;
-    color: #6c757d;
+    color: var(--wama-text-label);
 }
-.wama-cm-item:hover .wama-cm-fleche { color: #0dcaf0; }
+.wama-cm-item:hover .wama-cm-fleche { color: var(--wama-accent); }
 
 /* Entrée dont le sous-menu est OUVERT (cascade, 2026-09-14) : elle reste allumée pendant qu'on
    parcourt le sous-menu — sinon l'œil perd le lien entre le parent et l'enfant. */
 .wama-cm-item.wama-cm-ouvert {
-    background: rgba(13, 202, 240, .14);
-    color: #fff;
+    background: rgba(var(--wama-accent-rgb), .14);
+    color: var(--wama-text-bright);
 }
 .wama-cm-item.wama-cm-ouvert > i:first-child,
-.wama-cm-item.wama-cm-ouvert .wama-cm-fleche { color: #0dcaf0; }
+.wama-cm-item.wama-cm-ouvert .wama-cm-fleche { color: var(--wama-accent); }
 
 /* COCHE « déjà fait » (2026-09-14 — élément déjà rangé en médiathèque) : le vert « succès » que
    Bootstrap pose en thème sombre (`--bs-success-text-emphasis`), pas une teinte inventée. */
-.wama-cm-item > i.wama-cm-coche:first-child { color: #75b798; }
+.wama-cm-item > i.wama-cm-coche:first-child { color: var(--bs-success-text-emphasis); }
 
 /* ── Rangée d'actions : le bouton « … » et le surplus masqué ─────────────────────────────
    Les boutons au-delà du nominal (6, bouton édition compris — décision Fabien) sont retirés de
@@ -167,6 +167,6 @@
 
 /* Pastille « Programmé · … » d'une card (wama-schedule.js, calendrier étape 3). Ambre : c'est une
    INTENTION à venir, pas un état de traitement — la pastille d'état de la card reste inchangée. */
-.wama-schedule-chip { color: #ffc107; line-height: 1.3; }
-.wama-schedule-chip .btn-link { font-size: inherit; color: #9ec5fe; text-decoration: none; vertical-align: baseline; }
-.wama-schedule-chip .btn-link.text-danger { color: #ea868f !important; }
+.wama-schedule-chip { color: var(--bs-warning); line-height: 1.3; }
+.wama-schedule-chip .btn-link { font-size: inherit; color: var(--wama-link-soft); text-decoration: none; vertical-align: baseline; }
+.wama-schedule-chip .btn-link.text-danger { color: var(--wama-text-danger) !important; }

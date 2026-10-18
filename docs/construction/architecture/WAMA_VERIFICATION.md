@@ -1983,3 +1983,9 @@ bascule a été mesurée AVANT, sur les états que les pages cachent (menus ouve
 une méthode qui vaut pour tout changement de thème : comparer les styles CALCULÉS de chaque élément
 entre les deux états, pas seulement les contrastes. Un défaut trouvé (les alertes, 1,88:1), corrigé
 et gardé ; l'exception `btn-outline-dark` de la garde de code est tombée avec lui.
+✅ **Étape 3 (2026-10-18) : un REFACTOR de CSS se prouve SANS rendu changé** — la même comparaison
+de styles calculés, entre les feuilles de HEAD et les feuilles portées servies par interception
+réseau ; quand les données d'une page bougent entre deux passages (le DOM n'a plus le même nombre
+d'éléments, rien n'est comparable), les feuilles se PERMUTENT EN PLACE dans un seul chargement.
+Et un second étage, statique : chaque remplacement est résolu et comparé à la valeur remplacée.
+207 états, un seul écart — volontaire (`ROADMAP §28`, étape 3).

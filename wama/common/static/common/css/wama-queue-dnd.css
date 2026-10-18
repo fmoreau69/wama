@@ -17,9 +17,9 @@
 
 /* ── Sélection ────────────────────────────────────────────────────────────────────────── */
 .wama-dnd-selected {
-    outline: 2px solid rgba(13, 202, 240, .85);
+    outline: 2px solid rgba(var(--wama-accent-rgb), .85);
     outline-offset: -2px;
-    background-image: linear-gradient(rgba(13, 202, 240, .10), rgba(13, 202, 240, .10));
+    background-image: linear-gradient(rgba(var(--wama-accent-rgb), .10), rgba(var(--wama-accent-rgb), .10));
 }
 
 /* ── Case de sélection (2026-10-16) ───────────────────────────────────────────────────────
@@ -35,24 +35,24 @@
     height: 14px;
     margin-right: .4rem;
     vertical-align: -2px;
-    border: 1.5px solid rgba(255, 255, 255, .45);
+    border: 1.5px solid rgba(var(--wama-overlay-rgb), .45);
     border-radius: 3px;
-    background: rgba(0, 0, 0, .25);
+    background: rgba(var(--wama-shadow-rgb), .25);
     cursor: pointer;
     transition: opacity .15s ease, background-color .12s ease, border-color .12s ease;
 }
 .wama-select-box:hover,
-.wama-select-box:focus-visible { border-color: #0dcaf0; outline: none; }
+.wama-select-box:focus-visible { border-color: var(--wama-accent); outline: none; }
 .wama-select-box[aria-checked="true"] {
-    background: #0dcaf0;
-    border-color: #0dcaf0;
+    background: var(--wama-accent);
+    border-color: var(--wama-accent);
 }
 .wama-select-box[aria-checked="true"]::after {
     content: '';
     width: 4px;
     height: 8px;
     margin-top: -2px;
-    border: solid #0b1f24;
+    border: solid var(--wama-select-check);
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
 }
@@ -75,9 +75,9 @@
 /* ── Barre d'insertion : on change l'ORDRE ────────────────────────────────────────────── */
 .wama-dnd-marker {
     height: 0;
-    border-top: 3px solid #0dcaf0;
+    border-top: 3px solid var(--wama-accent);
     border-radius: 3px;
-    box-shadow: 0 0 8px rgba(13, 202, 240, .7);
+    box-shadow: 0 0 8px rgba(var(--wama-accent-rgb), .7);
     margin: 2px 0;
     pointer-events: none;   /* sinon elle se met sous le curseur et devient sa propre cible */
 }
@@ -85,19 +85,19 @@
    file ». Deux gestes différents ne doivent pas produire le même dessin. */
 .wama-dnd-marker.is-in-batch {
     margin-left: 1.5rem;
-    border-top-color: #67e8f9;
+    border-top-color: var(--wama-accent-soft);
 }
 
 /* ── Cadre de fusion : on change l'APPARTENANCE ───────────────────────────────────────── */
 .wama-dnd-over {
-    outline: 3px dashed #0dcaf0 !important;
+    outline: 3px dashed var(--wama-accent) !important;
     outline-offset: 2px;
-    background-image: linear-gradient(rgba(13, 202, 240, .18), rgba(13, 202, 240, .18));
+    background-image: linear-gradient(rgba(var(--wama-accent-rgb), .18), rgba(var(--wama-accent-rgb), .18));
 }
 .wama-dnd-refuse {
-    outline: 3px dashed #dc3545 !important;
+    outline: 3px dashed var(--bs-danger) !important;
     outline-offset: 2px;
-    background-image: linear-gradient(rgba(220, 53, 69, .18), rgba(220, 53, 69, .18));
+    background-image: linear-gradient(rgba(var(--bs-danger-rgb), .18), rgba(var(--bs-danger-rgb), .18));
     cursor: no-drop;
 }
 
@@ -107,7 +107,7 @@
     height: auto;
     align-self: stretch;
     border-top: none;
-    border-left: 3px solid #0dcaf0;
+    border-left: 3px solid var(--wama-accent);
     margin: 0 2px;
 }
 

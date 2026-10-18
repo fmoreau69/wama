@@ -9,31 +9,31 @@
 .wama-share-choix {
     padding: .55rem .7rem;
     margin-bottom: .4rem;
-    background: rgba(255, 255, 255, .03);
-    border: 1px solid rgba(255, 255, 255, .07);
+    background: rgba(var(--wama-overlay-rgb), .03);
+    border: 1px solid rgba(var(--wama-overlay-rgb), .07);
     border-radius: 8px;
     cursor: pointer;
     transition: background-color .12s, border-color .12s;
 }
 
 .wama-share-choix:hover {
-    background: rgba(13, 202, 240, .07);
-    border-color: rgba(13, 202, 240, .28);
+    background: rgba(var(--wama-accent-rgb), .07);
+    border-color: rgba(var(--wama-accent-rgb), .28);
 }
 
 /* L'option RETENUE est cerclée, pas seulement cochée : sur quatre lignes de même densité, un
    simple radio se cherche. */
 .wama-share-choix.est-actif {
-    background: rgba(13, 202, 240, .12);
-    border-color: #0dcaf0;
+    background: rgba(var(--wama-accent-rgb), .12);
+    border-color: var(--wama-accent);
 }
 
 .wama-share-libelle { font-size: .9rem; }
 
 .wama-share-choix .form-select {
-    background: #1a1d20;
-    border-color: #495057;
-    color: #e9ecef;
+    background: var(--wama-surface-modal);
+    border-color: var(--wama-border-strong);
+    color: var(--wama-text-strong);
     font-size: .82rem;
 }
 
@@ -45,9 +45,9 @@
    comportement VOULU, pas une limitation subie. */
 .wama-share-note {
     padding: .5rem .7rem;
-    background: rgba(13, 202, 240, .08);
-    border-left: 2px solid #0dcaf0;
+    background: rgba(var(--wama-accent-rgb), .08);
+    border-left: 2px solid var(--wama-accent);
     border-radius: 4px;
-    color: #adb5bd;
+    color: var(--wama-text-secondary);
     font-size: .8rem;
 }

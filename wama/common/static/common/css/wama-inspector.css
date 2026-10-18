@@ -1,6 +1,6 @@
 /* WamaInspector — surbrillance générique de l'élément sélectionné (toute card/batch). */
 .inspector-selected {
-    outline: 2px solid #0dcaf0;
+    outline: 2px solid var(--wama-accent);
     outline-offset: 1px;
     border-radius: .4rem;
 }
@@ -8,16 +8,16 @@
 /* Bandeau « Réglages de l'élément #N » (common/_inspector_banner.html) — l'encadré était une
    règle inline du Transcriber ; centralisée ici pour que TOUTES les apps aient le même rendu. */
 #inspectorBanner {
-    background: rgba(13, 202, 240, 0.12);
-    border: 1px solid #0dcaf0;
+    background: rgba(var(--wama-accent-rgb), 0.12);
+    border: 1px solid var(--wama-accent);
 }
 
 /* ── Appariement card d entrée ↔ modèles (WamaInputMatch, INPUT_MODEL_MATCHING.md) ─────────
    Slot mis en évidence selon le modèle choisi : REQUIS (ambre, pulse) / SUGGÉRÉ (info). */
-.wama-slot-required { outline: 1px solid #ffc107; border-radius: .375rem; padding: .25rem .5rem;
+.wama-slot-required { outline: 1px solid var(--bs-warning); border-radius: .375rem; padding: .25rem .5rem;
                       animation: wamaSlotPulse 1.6s ease-in-out infinite; }
-.wama-slot-suggested { outline: 1px dashed #0dcaf0; border-radius: .375rem; padding: .25rem .5rem; }
-@keyframes wamaSlotPulse { 0%,100% { outline-color: #ffc107; } 50% { outline-color: #ffc10744; } }
+.wama-slot-suggested { outline: 1px dashed var(--wama-accent); border-radius: .375rem; padding: .25rem .5rem; }
+@keyframes wamaSlotPulse { 0%,100% { outline-color: var(--bs-warning); } 50% { outline-color: var(--wama-pulse-warning); } }
 
 /* ── Affichage Ligne / Mosaïque COMMUN (wama-queue.js initLayoutToggle) ───────────────────
    Version fine GLOBALISÉE du pilote Transcriber (2026-07-03) — contrat :
@@ -45,19 +45,19 @@
 .wama-queue-grid .wama-card .row { flex-direction: column; gap: .35rem; }
 .wama-queue-grid .wama-card .row > [class*="col-"] { width: 100%; max-width: 100%; flex: 0 0 auto; }
 /* Boutons du toggle Ligne/Mosaïque : refléter l'état actif (classe posée par wama-queue.js). */
-.wama-layout-btn.active { background: rgba(255,255,255,.14); }
+.wama-layout-btn.active { background: rgba(var(--wama-overlay-rgb), .14); }
 
 /* ── Card « NOUVEAU » (brique _new_item_card) : gris pointillés = état « nouveau » ──────────
    Look UNIVERSEL du point d'entrée (globalisé du pilote transcriber 2026-07-03). */
 .wama-new-item-card {
-    border: 2px dashed rgba(255,255,255,.22);
+    border: 2px dashed rgba(var(--wama-overlay-rgb), .22);
     border-radius: .7rem;
-    background: rgba(255,255,255,.015);
+    background: rgba(var(--wama-overlay-rgb), .015);
     transition: border-color .15s ease, background .15s ease;
 }
 .wama-new-item-card:hover {
-    border-color: rgba(13,202,240,.45);
-    background: rgba(13,202,240,.04);
+    border-color: rgba(var(--wama-accent-rgb), .45);
+    background: rgba(var(--wama-accent-rgb), .04);
 }
 /* Card dépliable (wama-new-item-card.js) : chevron qui pivote avec l'état. */
 .wama-new-item-card .wama-nic-chevron { transition: transform .2s ease; }
@@ -90,20 +90,20 @@ body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--collapsed { dis
     cursor: pointer;
     transition: transform .15s ease, box-shadow .15s ease;
     box-shadow:
-      3px 6px 0 -1px #0d1a1a,  3px 6px 0 0 rgba(13,202,240,.55),
-      6px 12px 0 -1px #0d1a1a, 6px 12px 0 0 rgba(13,202,240,.32);
+      3px 6px 0 -1px var(--wama-surface-batch),  3px 6px 0 0 rgba(var(--wama-accent-rgb), .55),
+      6px 12px 0 -1px var(--wama-surface-batch), 6px 12px 0 0 rgba(var(--wama-accent-rgb), .32);
 }
 .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header:hover {
     transform: translateY(-2px);
     box-shadow:
-      4px 8px 0 -1px #0d1a1a,  4px 8px 0 0 rgba(13,202,240,.75),
-      8px 16px 0 -1px #0d1a1a, 8px 16px 0 0 rgba(13,202,240,.45);
+      4px 8px 0 -1px var(--wama-surface-batch),  4px 8px 0 0 rgba(var(--wama-accent-rgb), .75),
+      8px 16px 0 -1px var(--wama-surface-batch), 8px 16px 0 0 rgba(var(--wama-accent-rgb), .45);
 }
 /* Libellé « pile » : visible seulement au survol (évite la superposition avec l'empilement). */
 .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header::after {
     content: "🃏 cliquer pour désempiler";
     position: absolute; right: 2.2rem; bottom: -1.05rem;
-    font-size: .62rem; color: #67e8f9; opacity: 0; transition: opacity .15s ease; pointer-events: none;
+    font-size: .62rem; color: var(--wama-accent-soft); opacity: 0; transition: opacity .15s ease; pointer-events: none;
 }
 .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header:hover::after { opacity: .85; }
 /* Au doigt, pas de survol : le libellé reste affiché, et il dit le geste du doigt (wama-touch.css). */
@@ -119,12 +119,12 @@ body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--collapsed { dis
    .wcv3--batch-parent — la brique _batch_card n'a pas de .card-body, sans padding son
    contenu touchait les bords et les angles restaient droits sur 9 apps. */
 .wama-card.is-batch {
-    background: #0d1a1a;
-    border: 1px solid rgba(13, 202, 240, .55);
+    background: var(--wama-surface-batch);
+    border: 1px solid rgba(var(--wama-accent-rgb), .55);
     border-radius: .5rem;
     padding: .45rem .7rem;
 }
-.wama-card.is-batch:hover { background: #0f2222; }
+.wama-card.is-batch:hover { background: var(--wama-surface-batch-hover); }
 
 /* ── Survol d'une card de file — UNE règle pour toutes les apps (2026-10-16, demande de Fabien) ─
    Il n'y en avait pas de commune : une ombre noire sur fond sombre, invisible
@@ -136,14 +136,14 @@ body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--collapsed { dis
    card sélectionnée (sa teinte doit rester lisible), ni une card de la famille surlignée. */
 .wama-card:not(.is-batch) { transition: box-shadow .15s ease; }
 .wama-card:not(.is-batch):not(.wama-dnd-selected):not(.wcv3-family-hl):hover {
-    background-image: linear-gradient(rgba(13, 202, 240, .045), rgba(13, 202, 240, .045));
-    box-shadow: inset 0 0 0 1px rgba(13, 202, 240, .3);
+    background-image: linear-gradient(rgba(var(--wama-accent-rgb), .045), rgba(var(--wama-accent-rgb), .045));
+    box-shadow: inset 0 0 0 1px rgba(var(--wama-accent-rgb), .3);
 }
 
 /* ── Liseré d'IDENTITÉ d'app (CARD_DESIGN §9) : teinte de catégorie dérivée, posée par la
    variable --wama-app-color (base.html, via le catalogue). Identité ≠ état : le liseré est à
    GAUCHE et discret ; le tricolore d'état garde bordure/badge/barre. ─────────────────────── */
-.wama-card { border-left: 3px solid var(--wama-app-color, rgba(255,255,255,.10)); }
+.wama-card { border-left: 3px solid var(--wama-app-color, rgba(var(--wama-overlay-rgb), .10)); }
 
 /* ── PASTILLE DE PARTAGE (2026-10-02 / 10-03, WAMA_COLLABORATION §3bis) : « Reçue de X · 👁 Lecture
    seule » chez le destinataire, « Partagée · LESCOT · 👁 Lecture seule » chez le propriétaire —
@@ -159,9 +159,9 @@ body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--collapsed { dis
 .batch-group:is([data-received-from], [data-shared]) > .wama-card.is-batch::before {
     content: var(--wama-share-label, 'Partagée');
     position: absolute; top: 3px; right: 10px; z-index: 1; pointer-events: none;
-    font-size: .64rem; line-height: 1.3; color: #ddd6fe; letter-spacing: .02em;
+    font-size: .64rem; line-height: 1.3; color: var(--wama-collab-text); letter-spacing: .02em;
     padding: 0 .4rem; border-radius: 999px;
-    background: rgba(139, 92, 246, .18); border: 1px solid rgba(167, 139, 250, .45);
+    background: rgba(var(--wama-collab-mid-rgb), .18); border: 1px solid rgba(var(--wama-collab-rgb), .45);
 }
 
 /* ── Boutons du PROPRIÉTAIRE sur une card reçue (2026-10-03, décision de Fabien) : montrés, pas
@@ -177,10 +177,10 @@ body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--collapsed { dis
 .modal[data-wama-readonly] :is(.save-settings-btn, .save-and-restart-btn) { display: none !important; }
 .wama-readonly-notice {
     position: fixed; z-index: 1080; max-width: 22rem; padding: .6rem .75rem;
-    background: #1e1b2e; color: #ede9fe; border: 1px solid rgba(167, 139, 250, .55);
-    border-radius: .5rem; box-shadow: 0 6px 24px rgba(0,0,0,.45); font-size: .8rem;
+    background: var(--wama-collab-notice-bg); color: var(--wama-collab-text-strong); border: 1px solid rgba(var(--wama-collab-rgb), .55);
+    border-radius: .5rem; box-shadow: 0 6px 24px rgba(var(--wama-shadow-rgb), .45); font-size: .8rem;
 }
-.wama-readonly-notice .btn-link { color: #c4b5fd; padding: 0; font-size: .8rem; vertical-align: baseline; }
+.wama-readonly-notice .btn-link { color: var(--wama-collab-link); padding: 0; font-size: .8rem; vertical-align: baseline; }
 
 /* ── Désempilage batch (solitaire) : les cartes « fan out » en cascade à l'ouverture. ───── */
 @keyframes wama-fan-in { from { opacity: 0; transform: translateY(-14px) scale(.97); } to { opacity: 1; transform: none; } }
@@ -205,37 +205,37 @@ body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--collapsed { dis
   display: inline-block; vertical-align: middle;
   padding: .05rem .5rem; border-radius: 999px;
   font-size: .68rem; line-height: 1.5;
-  color: #9ec5d4; background: rgba(13, 202, 240, .08);
-  border: 1px solid rgba(13, 202, 240, .25);
+  color: var(--wama-text-info); background: rgba(var(--wama-accent-rgb), .08);
+  border: 1px solid rgba(var(--wama-accent-rgb), .25);
   white-space: nowrap;
   max-width: 100%; overflow: hidden; text-overflow: ellipsis;
 }
 .wama-chip i { font-size: .6rem; opacity: .8; margin-right: .3rem; }
 /* Variante « format cible → » (converter/composer : la SORTIE attendue) */
 .wama-chip--target {
-  color: #ffd479; background: rgba(255, 193, 7, .08); border-color: rgba(255, 193, 7, .3);
+  color: var(--wama-chip-target-text); background: rgba(var(--bs-warning-rgb), .08); border-color: rgba(var(--bs-warning-rgb), .3);
 }
 /* Point d'état tricolore compact (concis) — le badge plein reste pour l'étendu/batch. */
 .wama-status-dot {
   display: inline-block; width: .55rem; height: .55rem; border-radius: 50%;
-  background: #6c757d; vertical-align: middle;
+  background: var(--bs-secondary); vertical-align: middle;
 }
 .wama-status-dot[data-s="RUNNING"], .wama-status-dot[data-s="PROCESSING"] {
-  background: #ffc107; animation: wamaDotPulse 1.2s ease-in-out infinite;
+  background: var(--wama-state-running); animation: wamaDotPulse 1.2s ease-in-out infinite;
 }
 /* `DONE`/`ERROR` retirés le 2026-09-18 (aucune ligne en base) ; `COMPLETED`/`FAILED` — le
    vocabulaire VIVANT du Lab — n'avaient jamais été déclarés ici : ils le sont désormais. */
-.wama-status-dot[data-s="SUCCESS"], .wama-status-dot[data-s="COMPLETED"] { background: #198754; }
-.wama-status-dot[data-s="FAILURE"], .wama-status-dot[data-s="FAILED"] { background: #dc3545; }
+.wama-status-dot[data-s="SUCCESS"], .wama-status-dot[data-s="COMPLETED"] { background: var(--wama-state-success); }
+.wama-status-dot[data-s="FAILURE"], .wama-status-dot[data-s="FAILED"] { background: var(--wama-state-failure); }
 /* Attente de ressources : orange plein, pulsation LENTE (vivant mais bloqué — RUNNING pulse
    à 1.2s, la différence de rythme se lit avant la nuance de couleur). */
 .wama-status-dot[data-s="AWAITING_RESOURCES"] {
-  background: #fd7e14; animation: wamaDotPulse 2.4s ease-in-out infinite;
+  background: var(--wama-state-awaiting); animation: wamaDotPulse 2.4s ease-in-out infinite;
 }
 /* Périmé : violet PLEIN, sans pulsation — rien ne tourne, le résultat est là mais il a vieilli.
    La pulsation dit « vivant » (RUNNING vite, attente de ressources lentement) ; l'appliquer ici
    ferait croire à un traitement en cours. */
-.wama-status-dot[data-s="STALE"] { background: #9b59b6; }
+.wama-status-dot[data-s="STALE"] { background: var(--wama-state-stale); }
 @keyframes wamaDotPulse { 50% { opacity: .35; } }
 
 /* L'aperçu (bascule des faces, Comparer, grille d'une sortie multiple) : `media-preview.css`,
@@ -248,7 +248,7 @@ body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--collapsed { dis
    la géométrie « jeu de cartes » du §4.
    Réservé à l'affichage en LIGNE : pile × mosaïque reste un point ouvert du §11, on ne le
    tranche pas ici (d'où l'absence de règle sous .wama-queue-grid). */
-.wama-stack-btn.active { background: rgba(255,255,255,.14); }
+.wama-stack-btn.active { background: rgba(var(--wama-overlay-rgb), .14); }
 
 .wama-queue-stacked .wama-card[data-stack] {
     overflow: hidden;
@@ -307,7 +307,7 @@ body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--collapsed { dis
   font-size: .62rem;
   text-transform: uppercase;
   letter-spacing: .06em;
-  color: #7a838c;
+  color: var(--wama-text-label);
   margin-bottom: .2rem;
   user-select: none;
 }

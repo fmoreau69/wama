@@ -8,20 +8,20 @@
     gap: .4rem;
     padding: .25rem .6rem;
     font-size: .8rem;
-    color: #cdd3e0;
-    background: rgba(255, 255, 255, .04);
-    border: 1px solid rgba(255, 255, 255, .12);
+    color: var(--wama-text-soft);
+    background: rgba(var(--wama-overlay-rgb), .04);
+    border: 1px solid rgba(var(--wama-overlay-rgb), .12);
     border-radius: .5rem;
     cursor: pointer;
     transition: background .15s ease;
 }
-.wpc-head:hover { background: rgba(255, 255, 255, .08); }
+.wpc-head:hover { background: rgba(var(--wama-overlay-rgb), .08); }
 .wpc-count {
     font-size: .7rem;
     padding: 0 .4rem;
     border-radius: 1rem;
-    background: rgba(110, 168, 254, .25);
-    color: #9ec5fe;
+    background: rgba(var(--wama-link-rgb), .25);
+    color: var(--wama-link-soft);
 }
 .wpc-caret { transition: transform .2s ease; font-size: .7rem; opacity: .7; }
 .wpc-collapsible.is-open .wpc-caret { transform: rotate(180deg); }
@@ -42,7 +42,7 @@
     font-size: .68rem;
     text-transform: uppercase;
     letter-spacing: .03em;
-    color: #e6e9f0;
+    color: var(--wama-text-ui);
     min-width: 4.5rem;
     flex: 0 0 auto;
 }

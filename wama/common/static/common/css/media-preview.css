@@ -6,7 +6,7 @@
 /* === PREVIEW COMPACTE EN CARD (niveau 1 → double-clic → overlay niveau 3) === */
 /* Composant commun, généralisé depuis Reader. Cf. CARD_CENTRIC_UI.md §5bis. */
 .wama-card-preview { cursor: zoom-in; transition: background-color .15s ease; }
-.wama-card-preview:hover { background-color: rgba(13, 202, 240, 0.12) !important; }
+.wama-card-preview:hover { background-color: rgba(var(--wama-accent-rgb), 0.12) !important; }
 
 /* === VISIONNEUSE (#wamaMediaPreviewModal) — refonte visuelle du 2026-10-14 ===
    Demande de Fabien : l'aspect des anciennes modales de résultat du transcriber (onglets en haut,
@@ -20,13 +20,13 @@
        un PDF, une page ou un texte long tiennent sans faire défiler la modale entière ;
      • seul le contenu défile ; l'en-tête, les onglets et le pied restent en place. */
 #wamaMediaPreviewModal {
-    --wv-accent: #0dcaf0;
-    --wv-bg: #161b26;
-    --wv-surface: #1b2130;
-    --wv-stage-bg: #0d1017;
-    --wv-border: #2a3344;
-    --wv-text: #e6e9ef;
-    --wv-muted: #8f9bb0;
+    --wv-accent: var(--wama-accent);
+    --wv-bg: var(--wama-viewer-bg);
+    --wv-surface: var(--wama-viewer-surface);
+    --wv-stage-bg: var(--wama-viewer-stage);
+    --wv-border: var(--wama-viewer-border);
+    --wv-text: var(--wama-viewer-text);
+    --wv-muted: var(--wama-viewer-muted);
 }
 /* La place de l'aperçu, déclarée sur la boîte de dialogue : à tout l'écran, il n'y a plus la marge
    de 70 px sous la barre de navigation (`app_modern.css`) — 236 px de cadre à sa taille, 150 à
@@ -47,7 +47,7 @@
     border: 1px solid var(--wv-border);
     border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 24px 64px rgba(0, 0, 0, .55);
+    box-shadow: 0 24px 64px rgba(var(--wama-shadow-rgb), .55);
 }
 #wamaMediaPreviewModal .modal-dialog.modal-fullscreen .modal-content { border-radius: 0; border: 0; }
 
@@ -87,11 +87,11 @@
     border: 0;
     border-radius: 8px;
     background: transparent;
-    color: var(--wv-muted, #8f9bb0);
+    color: var(--wv-muted, var(--wama-viewer-muted));
     text-decoration: none;
     transition: background-color .15s ease, color .15s ease;
 }
-.wama-viewer-icon:hover, .wama-viewer-icon:focus-visible { background: rgba(255, 255, 255, .08); color: var(--wv-text, #e6e9ef); }
+.wama-viewer-icon:hover, .wama-viewer-icon:focus-visible { background: rgba(var(--wama-overlay-rgb), .08); color: var(--wv-text, var(--wama-viewer-text)); }
 .wama-viewer-icon[hidden] { display: none; }
 
 /* Les onglets des faces et les vues de la face Pendant, au-dessus de l'aperçu (`_sidesSlot`). */
@@ -150,7 +150,7 @@
     min-height: 320px;
     border: 0;
 }
-#wamaMediaPreviewModal .wama-viewer-frame--page { background: #fff; }
+#wamaMediaPreviewModal .wama-viewer-frame--page { background: var(--wama-paper); }
 
 /* Le pied : propriétés du fichier à gauche, téléchargements à droite ; retiré quand il est vide
    (`_syncFooter`). */
@@ -177,12 +177,12 @@
     align-items: center;
     gap: .5rem;
     padding: .45rem 1rem;
-    border-bottom: 1px solid var(--wv-border, #2a3344);
+    border-bottom: 1px solid var(--wv-border, var(--wama-viewer-border));
 }
 .wama-preview-words {
     font-size: .75rem;
-    color: var(--wv-muted, #8f9bb0);
-    background: rgba(255, 255, 255, .06);
+    color: var(--wv-muted, var(--wama-viewer-muted));
+    background: rgba(var(--wama-overlay-rgb), .06);
     border-radius: 999px;
     padding: .15rem .65rem;
 }
@@ -194,23 +194,23 @@
     font-size: .8rem;
     padding: .25rem .7rem;
     border-radius: 6px;
-    border: 1px solid var(--wv-border, #2a3344);
+    border: 1px solid var(--wv-border, var(--wama-viewer-border));
     background: transparent;
-    color: var(--wv-muted, #8f9bb0);
+    color: var(--wv-muted, var(--wama-viewer-muted));
     transition: color .15s ease, border-color .15s ease;
 }
-.wama-text-action:hover, .wama-text-action:focus-visible { color: var(--wv-text, #e6e9ef); border-color: var(--wv-accent, #0dcaf0); }
-.wama-text-action.is-done { color: #3fb950; border-color: #3fb950; }
+.wama-text-action:hover, .wama-text-action:focus-visible { color: var(--wv-text, var(--wama-viewer-text)); border-color: var(--wv-accent, var(--wama-accent)); }
+.wama-text-action.is-done { color: var(--wama-viewer-done); border-color: var(--wama-viewer-done); }
 .wama-text-body {
     margin: 0;
     padding: 1.25rem 1.75rem 1.5rem;
     max-height: calc(var(--wv-stage, 65vh) - 42px);
     overflow-y: auto;
-    color: var(--wv-text, #e6e9ef);
+    color: var(--wv-text, var(--wama-viewer-text));
     font-size: .95rem;
     line-height: 1.65;
     scrollbar-width: thin;
-    scrollbar-color: #3a4558 transparent;
+    scrollbar-color: var(--wama-viewer-scrollbar) transparent;
 }
 /* Un texte qui se LIT (transcription, description, markdown) : police de texte, en colonne de
    lecture (~78 caractères) centrée — elle s'élargit seule à tout l'écran sans allonger les lignes. */
@@ -349,8 +349,8 @@
     width: 40px;
     height: 40px;
     border: none;
-    background: rgba(0, 0, 0, 0.6);
-    color: #fff;
+    background: rgba(var(--wama-shadow-rgb), 0.6);
+    color: var(--wama-text-bright);
     border-radius: 8px;
     cursor: pointer;
     display: flex;
@@ -362,7 +362,7 @@
 }
 
 .preview-fullscreen-btn:hover {
-    background: rgba(102, 126, 234, 0.9);
+    background: rgba(var(--wama-indigo-rgb), 0.9);
     transform: scale(1.1);
 }
 
@@ -378,7 +378,7 @@
     width: 40px;
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(var(--wama-overlay-rgb), 0.5);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -393,8 +393,8 @@
 .wama-preview-nav-next { right: 0; }
 
 .wama-preview-nav-btn:hover {
-    background: rgba(0, 0, 0, 0.28);
-    color: #fff;
+    background: rgba(var(--wama-shadow-rgb), 0.28);
+    color: var(--wama-text-bright);
 }
 
 .wama-preview-nav-btn.disabled {
@@ -405,13 +405,13 @@
 
 .wama-preview-nav-btn svg {
     /* légère ombre pour lisibilité sur fond clair */
-    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+    filter: drop-shadow(0 1px 2px rgba(var(--wama-shadow-rgb), 0.6));
 }
 
 /* Compteur dans le header — texte discret */
 .wama-preview-counter {
     font-size: 0.78rem;
-    color: #6b7280;
+    color: var(--wama-text-label);
     font-weight: 400;
 }
 
@@ -422,7 +422,7 @@
     top: 0; left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.96);
+    background: rgba(var(--wama-shadow-rgb), 0.96);
     z-index: 9999;
     display: flex;
     align-items: center;
@@ -469,8 +469,8 @@
     width: 48px;
     height: 48px;
     border: none;
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+    background: rgba(var(--wama-overlay-rgb), 0.1);
+    color: var(--wama-text-bright);
     border-radius: 50%;
     cursor: pointer;
     display: flex;
@@ -482,20 +482,20 @@
 }
 
 .fullscreen-close-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-    color: #fff;
+    background: rgba(var(--wama-overlay-rgb), 0.2);
+    color: var(--wama-text-bright);
     transform: scale(1.1);
 }
 
 /* Boutons nav fullscreen — même classe, positionnement ajusté */
 #wamaFullscreenOverlay .wama-preview-nav-btn {
     width: 56px;
-    color: rgba(255, 255, 255, 0.45);
+    color: rgba(var(--wama-overlay-rgb), 0.45);
 }
 
 #wamaFullscreenOverlay .wama-preview-nav-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.9);
+    background: rgba(var(--wama-overlay-rgb), 0.06);
+    color: rgba(var(--wama-overlay-rgb), 0.9);
 }
 
 #wamaFullscreenOverlay .wama-preview-nav-btn svg {
@@ -509,8 +509,8 @@
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.7);
-    color: #fff;
+    background: rgba(var(--wama-shadow-rgb), 0.7);
+    color: var(--wama-text-bright);
     padding: 10px 20px;
     border-radius: 8px;
     font-size: 0.9rem;
@@ -528,7 +528,7 @@
 }
 
 .fullscreen-info .wama-preview-counter {
-    color: rgba(255, 255, 255, 0.55);
+    color: rgba(var(--wama-overlay-rgb), 0.55);
     font-size: 0.78rem;
 }
 
@@ -567,7 +567,7 @@
     align-items: stretch;
     gap: 2px;
     max-width: 100%;
-    border-bottom: 1px solid var(--wv-border, #2a3344);
+    border-bottom: 1px solid var(--wv-border, var(--wama-viewer-border));
 }
 /* Répartis sur toute la largeur, à parts égales (2026-10-15, demande de Fabien : comme dans le
    volet) ; un onglet ne descend jamais sous la largeur de son nom (largeur minimale du contenu),
@@ -585,7 +585,7 @@
     border-bottom: 2px solid transparent;
     border-radius: 6px 6px 0 0;
     background: transparent;
-    color: var(--wv-muted, #8f9bb0);
+    color: var(--wv-muted, var(--wama-viewer-muted));
     font-size: .85rem;
     font-weight: 500;
     line-height: 1.2;
@@ -594,9 +594,9 @@
     transition: color .15s ease, border-color .15s ease, background-color .15s ease;
 }
 .wama-face-tab i { font-size: .85em; }
-.wama-face-tab:hover { color: var(--wv-text, #e6e9ef); background: rgba(255, 255, 255, .04); }
-.wama-face-tab.is-active { color: var(--wv-accent, #0dcaf0); border-bottom-color: var(--wv-accent, #0dcaf0); }
-.wama-face-tab:focus-visible { outline: 2px solid var(--wv-accent, #0dcaf0); outline-offset: -2px; }
+.wama-face-tab:hover { color: var(--wv-text, var(--wama-viewer-text)); background: rgba(var(--wama-overlay-rgb), .04); }
+.wama-face-tab.is-active { color: var(--wv-accent, var(--wama-accent)); border-bottom-color: var(--wv-accent, var(--wama-accent)); }
+.wama-face-tab:focus-visible { outline: 2px solid var(--wv-accent, var(--wama-accent)); outline-offset: -2px; }
 /* À tout l'écran, des onglets de 500 px ne se lisent plus comme des onglets : chacun est borné,
    la rangée centrée. */
 #wamaMediaPreviewModal .modal-dialog.modal-fullscreen .wama-face-tabs { justify-content: center; }
@@ -618,9 +618,9 @@
     transform: translate(-50%, -2px);
     padding: .2rem .5rem;
     border-radius: 6px;
-    background: #0b0e14;
-    border: 1px solid var(--wv-border, #2a3344);
-    color: var(--wv-text, #e6e9ef);
+    background: var(--wama-viewer-tab-shade);
+    border: 1px solid var(--wv-border, var(--wama-viewer-border));
+    color: var(--wv-text, var(--wama-viewer-text));
     font-size: .72rem;
     font-weight: 500;
     white-space: nowrap;
@@ -648,7 +648,7 @@
 .wama-compare { position: relative; display: inline-block; max-width: 100%; }
 .wama-compare img, .wama-compare video { max-width: 100%; max-height: 220px; border-radius: 6px; display: block; }
 .wama-compare-top { position: absolute; inset: 0; width: 50%; overflow: hidden;
-                    border-right: 2px solid #0dcaf0; }
+                    border-right: 2px solid var(--wama-accent); }
 .wama-compare-top img, .wama-compare-top video { max-width: none; }
 /* La géométrie de Comparer appartient au COMPOSANT, où qu'il soit (volet, modale, plein écran) :
    le média du calque a la BOÎTE de la référence (posée par `compareView`), jamais une borne de
@@ -659,7 +659,7 @@
 /* Comparer des VIDÉOS (2026-10-05) : les contrôles sont ceux de la référence, sous le calque. */
 .wama-compare-top { pointer-events: none; }
 .wama-compare-badge { position: absolute; top: 4px; font-size: .65rem; padding: 1px 6px;
-                      border-radius: 4px; background: rgba(0,0,0,.55); color: #fff; }
+                      border-radius: 4px; background: rgba(var(--wama-shadow-rgb), .55); color: var(--wama-text-bright); }
 /* Le calque SORTIE est rogné depuis la GAUCHE : son badge est à gauche, la référence à droite
    (inversés jusqu'au 2026-10-05 — vu en comparant détection et floutage). */
 .wama-compare-badge.in { right: 4px; }

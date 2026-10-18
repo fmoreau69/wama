@@ -8,22 +8,22 @@
    ═══════════════════════════════════════════════════════════════════════════════════════ */
 
 .wama-filter-bar {
-    background: #2b3035;
+    background: var(--wama-surface-raised);
     border-radius: 8px;
     padding: 12px 15px;
     margin-bottom: 15px;
 }
 
 .wama-filter-bar .filter-select {
-    background: #1a1d20;
-    border: 1px solid #495057;
-    color: #e9ecef;
+    background: var(--wama-surface-modal);
+    border: 1px solid var(--wama-border-strong);
+    color: var(--wama-text-strong);
     font-size: 0.85rem;
 }
 
 .wama-filter-bar .filter-select:focus {
-    border-color: #0dcaf0;
-    box-shadow: 0 0 0 0.2rem rgba(13, 202, 240, 0.25);
+    border-color: var(--wama-accent);
+    box-shadow: 0 0 0 0.2rem rgba(var(--wama-accent-rgb), 0.25);
 }
 
 .wama-filter-bar .wama-filter-search { width: 220px; }
@@ -98,7 +98,7 @@
    sur la barre (`#2b3035`) faisait 2,83:1 sur TOUTES les pages catalogue (mesuré par
    `common.contrast`, 2026-10-16) ; `#adb5bd` fait 6,4:1 (seuil WCAG du petit texte : 4,5). */
 .wama-filter-count {
-    color: #adb5bd;
+    color: var(--wama-text-secondary);
     font-size: 0.82rem;
     white-space: nowrap;
 }
@@ -122,7 +122,7 @@
    le premier est réversible et doit le dire. */
 .wama-filter-empty {
     display: none;
-    color: #6c757d;
+    color: var(--wama-text-label);
     text-align: center;
     padding: 2rem 0;
 }
