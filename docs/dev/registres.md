@@ -65,7 +65,7 @@ la réponse n'est pas « tout en registre ».
 
 ## Les registres, un par un
 
-**18 registres**, par ordre alphabétique de libellé.
+**19 registres**, par ordre alphabétique de libellé.
 
 ### Applications
 
@@ -203,6 +203,17 @@ Réconcilie le catalogue avec ce qui est réellement présent sur le disque. Une
 - **Doc** : [docs/construction/ia/WAMA_MEMORY.md](../construction/ia/WAMA_MEMORY.md)
 
 Liste ce que CE compte a ajouté, lu en base à chaque affichage. L'entrée au RAG est un geste explicite : rien ne s'y ajoute par balayage, donc rien à réconcilier.
+
+### Nœuds intégrés du pipeline
+
+- **Clé** : `pipeline_nodes` — Registre en mémoire, peuplé par import
+- **Source** : le module déclarant de chaque monde — le Studio (texte, médiathèque, jeu de données, sortie), `wama_data` (base connectée, export)…
+- **Provenance des éléments** : Système — déclaré par WAMA, sans auteur
+- **Doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Kind de manifeste** : `pipeline`
+- **Citable dans une doc** : `WAMA:FAIT(pipeline_nodes/<clé>/<champ>)`
+
+Les cards d'ENTRÉE et de SORTIE d'un pipeline (ni l'une ni l'autre n'est un process), chacune déclarée UNE fois par son monde : rôle, libellé, ports, réglages `Param` et exécuteur. La palette du Studio, son inspecteur, la validation au lancement et l'exécuteur les lisent ici (ROUTE §10.6 3.3bis, R2).
 
 ### Prompts déclarés
 

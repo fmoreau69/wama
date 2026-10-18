@@ -315,7 +315,7 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
 
 - **Domicile** : `wama/common/services/process_pipeline.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Pipeline DÉCLARÉ d'une app — la pièce du moteur commun qui dit « cette card porte PLUSIEURS process, dans cet ordre, et voici lesquels sont à (re)jouer ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 3.2, 4.3 à 4.5 (marche P3, palier B) et décision n°11.
-- **API publique** (12) :
+- **API publique** (13) :
   - `segments_text(segments) -> str` — Des SEGMENTS de parole (`result_format='segments'` : `[{speaker, time_range, text}]`) en
   - `preload(items) -> None` — Lit en UNE requête les lignes d'exécution de tous ces éléments (même modèle) et les pose
   - `release(item) -> None` — Referme la fenêtre de `preload` sur cet élément : une instance gardée par l'appelant (un
@@ -324,6 +324,7 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
   - `declared_stales(app: str) -> dict` — `{process: [réglages]}` — ce que chaque réglage du schéma de `app` déclare périmer
   - `class AppPipeline` — Le pipeline déclaré d'une app : ses `ProcessSpec`, et ce qui s'en dérive.
   - `register_app_pipeline(app: str, specs, *, label: str, description: str='', source_ref: str='', model_of=None) -> AppPipeline` — Déclare le pipeline d'une app et l'inscrit comme source de manifeste `pipeline` sous la
+  - `process_of_function(function_key: str)` — `(pipeline, ProcessSpec)` de l'ÉTAPE de card qu'est la fonction `function_key` — le process
   - `pipeline_of(item) -> AppPipeline | None` — Le pipeline déclaré par l'app de cet élément, ou None (app à un seul process). Charge
   - `card_view(item, model_key=DECLARED, preloaded: bool=False)` — Ce que la card et la vue de progression montrent du PIPELINE d'un élément (`§10.6` 5.1) :
   - `decorate(item, model_key=DECLARED, preloaded: bool=False)` — Pose `processes`, `shown_state`, `shown_state_label` sur l'élément — ce que lisent les
@@ -1540,7 +1541,7 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
 
 - **Domicile** : `wama/common/services/assistant_engine.py`
 - **Module** : Moteur de l'assistant IA — boucle agentique multi-surface (chantier « passerelle de canaux », étape 0).
-- **API publique** (10) :
+- **API publique** (11) :
   - `web_voice_prompt(user, surface: str) -> str` — La consigne de voix et d'avatar de la surface web, avec l'état de CET utilisateur —
   - `surface_attaches_files(surface: str) -> bool` — La réponse de cette surface est-elle publiée par un ADAPTATEUR qui joint les fichiers ?
   - `turn_model_key(provider, llm_model) -> str` — Clé de CATALOGUE du modèle d'un tour (`albert:…`, `ollama:…`) — '' sans modèle nommé.
@@ -1549,6 +1550,7 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
   - `resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple` — (fournisseur, modèle) d'un tour — le fournisseur SE DÉRIVE du modèle, comme partout
   - `thinking_wanted(quality_intent) -> bool` — La réflexion du modèle est-elle demandée pour ce réglage de curseur ?
   - `warm_up() -> dict` — Remplit les caches de processus du tour d'assistant — `{étape: secondes | 'erreur : …'}`.
+  - `message_with_deposits(text: str, paths) -> str` — Le message d'un tour qui DÉPOSE des fichiers dans l'espace de l'utilisateur — UNE graphie
   - `conversation_turn(user, message: str, *, surface: str='web', thread_key: str='', provider: str=None, model: str=None, domain: str=None, on_event=None) -> dict` — UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
   - `run_assistant_turn(user, message: str, provider: str=None, model: str=None, history: list=None, domain: str=None, surface: str='web', on_event=None, escalated_…` — UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
 
@@ -2143,9 +2145,10 @@ Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, bat
 
 - **Domicile** : `wama/common/utils/batch_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Les VUES DE LOT : fabrique commune (`make_batch_views`).
-- **API publique** (6) :
+- **API publique** (7) :
   - `read_settings_payload(request, schema=None, schema_names=(), empty_is_value=())` — Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
   - `apply_item_settings(item, data, *, params_fields=(), options_field=None, extra_names=())` — Pose sur `item` les réglages présents dans `data` — colonnes déclarées (`params_fields`)
+  - `write_element_settings(item, data) -> list` — Pose `data` sur l'élément `item` par l'écrivain de réglages DÉCLARÉ de son app — celui de sa
   - `element_label(item, item_label=None) -> str` — Le nom LISIBLE d'un élément : celui que l'app déclare (`item_label`), sinon le premier de ses
   - `zip_elements(work_model, items, request, declaration=None)` — Le ZIP des RÉSULTATS de `items` (seuls les éléments réussis y entrent) : `(tampon, format)`.
   - `export_stem(work_model, item, declaration=None)` — Souche d'une entrée RENDUE : celle que l'app déclare (`output_name`), sinon la règle
@@ -3342,13 +3345,13 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
   - `sam3_examples() -> dict` — Return recommended SAM3 text prompt examples.
   - `create_image(user, prompt: str, model: str='hunyuan-image-2.1', width: int=512, height: int=512, steps: int=30, guidance_scale: float=7.5, negative_prompt: str…` — Create a txt2img generation job (status: PENDING).
-  - `add_to_enhancer(user, file_path: str, ai_model: str='RealESR_Gx4', denoise: bool=False, blend_factor: float=0.0) -> dict` — Register a file for enhancement and create the Enhancement DB entry.
+  - `add_to_enhancer(user, file_path: str, ai_model: str='RealESR_Gx4', denoise: bool=False, blend_factor: float=0.0, **params) -> dict` — Register a file for enhancement and create the Enhancement DB entry.
   - `add_to_audio_enhancer(user, file_path: str, engine: str='resemble', mode: str='both', denoising_strength: float=0.5, quality: int=64) -> dict` — Register an audio file for speech enhancement.
   - `synthesize_text(user, text: str='', work_file: str='', reference_voice: str='', language: str='fr', tts_model: str=DEFAULT_TTS_MODEL, voice_preset: str='defaul…` — Create a VoiceSynthesis job — from raw text OR from a work file, with an optional
   - `compose_music(user, prompt: str, model: str='musicgen-small', duration: float=10.0, work_score: str=None, work_audio: str=None, **params) -> dict` — Create a Composer generation job (music or SFX) and start it immediately.
   - `add_to_describer(user, file_path: str, output_style: str='detailed', output_language: str='fr', max_length: int=500, **params) -> dict` — Copy a file into the describer queue and create a Description DB entry.
   - `add_to_transcriber(user, file_path: str, backend: str='auto', preprocess_audio: bool=False, hotwords: str='', enable_diarization: bool=True, **params) -> dict` — Copy a file into the transcriber queue and create a Transcript DB entry.
-  - `add_to_reader(user, file_path: str, backend: str='auto', mode: str='auto', output_format: str='txt', language: str='') -> dict` — Copy a file into the reader queue and create a ReadingItem DB entry.
+  - `add_to_reader(user, file_path: str, backend: str='auto', mode: str='auto', output_format: str='txt', language: str='', **params) -> dict` — Copy a file into the reader queue and create a ReadingItem DB entry.
   - `convert_file(user, file_path: str, output_format: str, quality_preset: str='balanced', **params) -> dict` — Queue a file conversion and start it immediately.
   - `list_media_assets(user, asset_type: str='', q: str='') -> dict` — List the user's personal media library assets.
   - `switch_ui_mode(user, mode: str='simple') -> dict` — Switch the WAMA interface mode for the current user.

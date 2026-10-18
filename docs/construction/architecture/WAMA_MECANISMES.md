@@ -428,8 +428,6 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 
 `wama/common/static/common/js/` (11) — `library-add.js` · `brick-html-preview.js` · `brick-image-boxes.js` · `brick-media-transport.js` · `brick-object-list.js` · `brick-revision-history.js` · `brick-score-view.js` · `brick-surface-actions.js` · `brick-text-sections.js` · `wama-avatar-render.js` · `wama-input-slots.js`
 
-`wama/studio/services/` (1) — `node_params.py`
-
 </details>
 
 <details><summary>Assumés utilitaires locaux : 14 (chacun avec sa raison — <code>ASSUMED_LOCAL</code>, wama/common/mecanismes.py)</summary>

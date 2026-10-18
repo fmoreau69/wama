@@ -38,12 +38,12 @@
 |---|---|---|---|---|---|---|---|
 | **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wdat` | ✅ | 9/9 | 3 | 8/2 | §6.6, §6.6bis, §9bis.1, §9quater.2, §9duodecies, §9terdecies |
 | **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée, cadres typés | 🔶 | 2/2 | 2 | 3/0 | §2, §3, §9quater.7 |
-| **Connector** | Branche une base existante comme source | base SQLite (`.trip` externe, `.wdat` natif) → référentiel | 🔶 | 4/4 | 1 | 3/0 | §6.2, §9quater.2, §9terdecies |
+| **Connector** | Branche une base existante comme source | base SQLite (`.trip` externe, `.wdat` natif) → référentiel | 🔶 | 4/4 | 1 | 4/0 | §6.2, §9quater.2, §9terdecies |
 | **Explorer** | Explore un dataset en table et en graphe — c'est aussi l'INTERFACE du Calculator : la vue tableur est le lieu où l'on ajoute une colonne calculée et où l'on voit le résultat | référentiel → vues table/graphe + colonnes calculées | 🔶 | 2/2 | 2 | 2/0 | §7, §9quater.6, §9quater.7 |
 | **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par CHAÎNE de conditions (ET/OU/XOR/NON) avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) — la chaîne sort en segments OU en événements, au choix du PORT | `events` ou signal + conditions → `segments` \| `events` | 🔶 | 6/6 | 5 | 16/0 | §9ter (spécification), §9ter.6 A-B (portage), §6.7 |
 | **Calculator** | Calcule des COLONNES DÉRIVÉES (moyenne glissante, dérivée, cumul) et des INDICATEURS PAR SEGMENT qu'il adjoint aux segments | signal → signal enrichi · `segments` + signal → colonnes d'indicateurs | 🔶 | 3/3 | 2 | 5/0 | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
-| **Exporter** | Exporte TOUT le contenu d'un trip de façon configurable — données, méta-infos, événements, situations et leurs indicateurs : sélection ordonnée de colonnes, identité, contexte, regroupement | données/méta/`events`/`segments` + sélection → fichiers (concaténation, jamais pivot) | 🔶 | 2/2 | 2 | 4/0 | §9ter.5, §9ter.6 C |
+| **Exporter** | Exporte TOUT le contenu d'un trip de façon configurable — données, méta-infos, événements, situations et leurs indicateurs : sélection ordonnée de colonnes, identité, contexte, regroupement | données/méta/`events`/`segments` + sélection → fichiers (concaténation, jamais pivot) | 🔶 | 2/2 | 2 | 6/0 | §9ter.5, §9ter.6 C |
 | **Recorder** | Enregistre depuis une source temps réel | flux LSL/RTMaps/ROS → `dataset` | ⏳ | — | — | — | §7 |
 | **Analyzer** | L'app-file du monde Data : ses cards (unitaires ou lots) portent chacune un pipeline — entrées, process, sorties | card (source + manifeste `pipeline`, vide ou composé) → process exécutés par le moteur commun | ⏳ | — | — | — | §11.8, §9bis.2 |
 
