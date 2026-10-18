@@ -327,7 +327,8 @@ l'app) ; garde : `tests_calendar.OtherWorldsTest`.
 vers la page de l'app~~ — *constat périmé, corrigé le 2026-10-18* : le clic sur une card peuple le
 volet par l'inspecteur COMMUN (`WamaInspector`, crochet `data-preview-url` → aperçu et fiche), comme
 dans une file d'app ; c'est le bouton → qui ouvre l'élément dans son app, sélectionné à l'arrivée
-(`WamaQueue.openCard`, écrit à côté de sa lecture `focusFromSession` dans `wama-queue.js`). Le volet
+(`WamaQueue.openCard`, écrit à côté de sa lecture `focusFromSession` dans `wama-queue.js` ; les deux
+clés ne s'écrivent que par `WamaQueue.markFocus`, que la duplication d'une card emprunte aussi). Le volet
 ne déclare que Médias (`volet(parametres=False, actions=False)`) : plus de cadre « Aucun paramètre
 disponible ». L'utilisateur garde **toutes** les actions de l'app, là où elles vivent.
 

@@ -127,7 +127,7 @@ class TheAnalysisWaitsForItTest(SimpleTestCase):
         ensure.assert_not_called()
 
 
-class TheCatalogueDeclaresItOnceTest(SimpleTestCase):
+class TheCatalogueListsItOnceTest(SimpleTestCase):
     """YOLOPv2 has ONE row, its own : the anonymizer's YOLO scan no longer takes the file as an
     Ultralytics weight (its engine cannot load it, and its select is drawn by `detect,segment`)."""
 

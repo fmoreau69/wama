@@ -10,6 +10,7 @@ Trois familles de gardes :
 """
 import json
 import os
+import re
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -299,6 +300,22 @@ class CalendarRoutesTest(TestCase):
                 src = path.read_text(encoding='utf-8')
                 self.assertIn('WamaQueue.openCard(', src)
                 self.assertNotIn("setItem('wama_focus_select'", src)
+
+    def test_the_focus_handoff_has_a_single_writer(self):
+        """Les deux clés que lit `focusFromSession` ne s'écrivent que par `WamaQueue.markFocus`
+        (la duplication de `queue-actions.js` les écrivait elle aussi, au même format)."""
+        writers = set()
+        for root in ('wama', 'wama_lab'):
+            for path in (Path(settings.BASE_DIR) / root).rglob('*'):
+                if path.suffix not in ('.js', '.html') or 'staticfiles' in path.parts:
+                    continue
+                src = path.read_text(encoding='utf-8', errors='replace')
+                if re.search(r"setItem\(\s*'wama_focus_(card|select)'", src):
+                    writers.add(path.name)
+        self.assertEqual(writers, {'wama-queue.js'})
+        actions = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / 'common' / 'js'
+                   / 'queue-actions.js').read_text(encoding='utf-8')
+        self.assertIn('WamaQueue.markFocus(', actions)
 
     def test_events_require_a_login(self):
         response = self.client.get(reverse('common:calendar_events'))

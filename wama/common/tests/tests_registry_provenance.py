@@ -34,7 +34,7 @@ def _real_registries():
 
 class ProvenanceIsDeclaredTest(SimpleTestCase):
 
-    def test_every_registry_declares_where_its_elements_provenance_lives(self):
+    def test_every_registry_states_where_its_elements_provenance_lives(self):
         undeclared = sorted(k for k, r in _real_registries().items()
                             if r.provenance not in PROVENANCES)
         self.assertEqual(undeclared, [],
@@ -98,7 +98,7 @@ class ProvenanceMeetsTheAccessDecisionTest(SimpleTestCase):
             model._meta.get_field('owner')          # le filtre des catalogues lit `owner`
 
 
-class RegisterRefusesAnIncoherentProvenanceTest(SimpleTestCase):
+class RegisterRejectsAnIncoherentProvenanceTest(SimpleTestCase):
 
     def tearDown(self):
         for key in ('_t_prov_unknown', '_t_prov_no_row', '_t_prov_stray_row', '_t_prov_stray_key'):

@@ -171,11 +171,8 @@
                 // Focus la card dupliquée après rechargement (WamaQueue.focusFromSession) —
                 // comportement remonté du transcriber (03/08) : la repérer facilement,
                 // surtout sortie/isolée d'un batch ou si elle n'atterrit pas en tête.
-                if (data.duplicated && data.duplicated !== true) {
-                    try {
-                        sessionStorage.setItem('wama_focus_card',
-                            '.wama-card[data-id="' + data.duplicated + '"]');
-                    } catch (e) { /* stockage indisponible */ }
+                if (data.duplicated && data.duplicated !== true && window.WamaQueue) {
+                    window.WamaQueue.markFocus(data.duplicated, false);
                 }
                 location.reload();
             } else {

@@ -24865,3 +24865,26 @@ par nature reste une règle de l'app, à côté de la cascade commune).
 **Restes nommés** (dans R2bis) : nature qui suit l'amont (anonymizer, enhancer, converter) ; deux
 tables d'extensions recopiées à ramener à `category_of_path` ; `WamaInputMatch` au Studio ; colonnes
 d'une table branchée pour un réglage `column` (R4) ; ZIP d'un run du Studio.
+
+## §PALIER — 2026-10-18→19, « CALENDRIER ET JOURNAL : LA CARD DE L'ÉLÉMENT CLIQUÉ AU VOLET DROIT » — ✅ LIVRÉ (`11f69824` + revérification, non poussés) — 🔴 relancer gunicorn (fait le 19/10, page servie vérifiée)
+
+Relevé de Fabien : le volet droit du calendrier montrait les trois cadres par défaut (Médias vide,
+« Aucun paramètre disponible », Actions) — « rappeler le volet droit de la card comme dans l'app ;
+mon journal le fait déjà ».
+- **Livré** (`11f69824`) : un élément du calendrier porte le contrat de card de l'inspecteur commun
+  (`data-preview-url` = `DetailRegistry.preview_url`) ; clic = aperçu + fiche au volet, action unique
+  « Ouvrir dans <app> » (arrivée sur la file, card sélectionnée) ; lot et purge ouvrent la file comme
+  avant. Journal et calendrier : plus aucun cadre vide. Brique : `WamaInspector.selectItem(id, el)`
+  (deux apps peuvent porter le même numéro). Retraits `REMOVAL_LEDGER R151`.
+- **Revérification du 19/10** : page SERVIE par le gunicorn relancé (navigateur headless) — invite,
+  aperçu Entrée/Sortie + fiche #2129 + « Ouvrir dans Synthesizer », arrivée `/synthesizer/` card
+  sélectionnée, Échap, journal identique, aucune erreur JS. Écart ramené : la clé de focus inter-pages
+  s'écrivait aussi dans la duplication de `queue-actions.js` → `WamaQueue.markFocus`, seul écrivain
+  (garde `tests_calendar.CalendarRoutesTest.test_the_focus_handoff_has_a_single_writer`, contre-épreuve
+  rouge). Suite rouge HÉRITÉE réparée : `tests_identifier_language` (classes 134 > 132, méthodes
+  1292 > 1291) — trois noms ANGLAIS pris par la liste noire (`declares`, `refuses`, mots qui
+  attrapent aussi 72 vrais noms français : non retirés), venus des chantiers provenance et
+  installation ; renommés (`…_states_where…`, `RegisterRejects…`, `TheCatalogueLists…`), budgets
+  intacts.
+- 🔚 **Reste** : ↑/↓ au clavier sur deux numéros identiques (journal, calendrier) peut repartir du
+  premier — limite écrite à `WAMA_MEMORY §9bis.1`.

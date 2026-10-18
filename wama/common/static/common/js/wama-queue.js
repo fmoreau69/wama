@@ -405,17 +405,22 @@
         }, 120);
     }
 
+    // L'écriture que lit `focusFromSession`, à côté d'elle : la card `id` sera mise au point au
+    // prochain chargement (et sélectionnée si `select`). Seul écrivain de ces deux clés.
+    function markFocus(id, select) {
+        if (id == null || id === '') return;
+        try {
+            sessionStorage.setItem('wama_focus_card', '.wama-card[data-id="' + id + '"]');
+            if (select) sessionStorage.setItem('wama_focus_select', '1');
+        } catch (e) { /* stockage indisponible : pas de mise au point, rien d'autre ne change */ }
+    }
+
     // Le pendant de `focusFromSession` : ALLER à une card dans la file de son app, sélectionnée à
     // l'arrivée — le geste des pages qui montrent des éléments hors de leur app (journal,
     // calendrier), écrit une fois à côté de sa lecture (2026-10-18 ; il était recopié dans chacune).
     function openCard(url, id) {
         if (!url) return;
-        if (id != null && id !== '') {
-            try {
-                sessionStorage.setItem('wama_focus_card', '.wama-card[data-id="' + id + '"]');
-                sessionStorage.setItem('wama_focus_select', '1');
-            } catch (e) { /* stockage indisponible : on navigue quand même, sans mise au point */ }
-        }
+        markFocus(id, true);
         window.location.href = url;
     }
 
@@ -451,6 +456,7 @@
     window.WamaQueue.focusCard = focusCard;
     window.WamaQueue.clearCards = clearCards;
     window.WamaQueue.openCard = openCard;
+    window.WamaQueue.markFocus = markFocus;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
