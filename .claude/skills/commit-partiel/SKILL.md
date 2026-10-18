@@ -307,6 +307,14 @@ mais c'est défaire son geste dans son dos.
   l'arbre à lui-même. ✅ Le compte attendu se fait sur CE QU'ON A ÉCRIT (lignes de son bloc, ou les
   `def test_` de sa classe), puis se confronte au `numstat` ; un fichier de tests partagé se relit
   par ses `def test_` ajoutés (`git diff -U0 <f> | grep '^+    def test_'`) avant le commit.
+- ⚠ **2026-10-19 — sous `set -o pipefail`, `git show :<f> | grep -q X` ÉCHOUE quand X EST là.**
+  `grep -q` s'arrête au premier résultat, `git show` reçoit SIGPIPE (code 141), et `pipefail` rend
+  le pipeline rouge : la garde « mon hunk manque » a arrêté un commit dont l'index était juste
+  (vu sur `docs/dev/briques.md`, gros blob). ✅ `grep -c … || true` lit tout le flux, puis on teste
+  le compte. Le second faux arrêt du même script tenait au §3 du 2026-10-06 : la garde affirmait
+  qu'une ligne d'autrui ÉTAIT ABSENTE du blob, alors que HEAD la portait déjà — réécrite contre la
+  DIFFÉRENCE indexée (`git diff --cached -U0 $BASE -- <f> | grep -c '^@@'` = le nombre de MES hunks).
+  *Une garde qui arrête à tort coûte un tour ; une garde qui laisse passer coûte un commit.*
 
 ## 4. Docs générées
 
