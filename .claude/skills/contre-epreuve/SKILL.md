@@ -97,6 +97,17 @@ print('COUNTERPROOF <nom>: failures =', failures,
   reçoit aucun bouton » parcourait les notifications du demandeur — qui ne reçoit jamais ce type :
   vert avec la garde retirée. ✅ Exiger l'élément qu'on vérifie (`(item,) = [...]` plutôt qu'un
   `for`) : le dépaquetage échoue si l'ensemble est vide. Seule la mutation l'a montré.
+- 🔴 **2026-10-18 — une mutation par ÉDITION se restaure PAR POSITION, jamais en recherchant le
+  texte muté.** Quand le patch d'attribut ne suffit pas (un appel retiré d'une vue, une ligne de
+  JS), on mute le fichier. Ma restauration faisait `replace(muté, original, 1)` : le texte muté
+  (« `    step` », quatre espaces et un mot) existait PLUS HAUT dans le fichier — l'original s'est
+  réinséré au mauvais endroit, au milieu d'une autre fonction de `gateway/core.py`. Ce qui l'a
+  vu : l'assertion de fin `octets restaurés == octets d'avant`, qui a arrêté le script ; réparé à
+  la main, revérifié par `git diff --numstat` avant tout commit.
+  ✅ Le geste : exiger que l'original apparaisse UNE fois (`count == 1`), noter sa POSITION, muter
+  à cette position, restaurer à cette même position (`cur[at:at+len(muté)] == muté` vérifié
+  d'abord), puis comparer les octets à ceux d'avant. *Une restauration qui cherche ce qu'elle a
+  écrit trouve aussi ce que d'autres ont écrit.* (Et jamais par copie d'un fichier co-édité.)
 
 ## 5. Ce que la contre-épreuve ne remplace pas
 
