@@ -301,6 +301,12 @@ mais c'est défaire son geste dans son dos.
   l'identique » par fichier. Réparé par le blob recomposé (parent + mes seules éditions) et
   `commit-tree` + `update-ref <nouveau> <fautif>` (`5ffd611e`) ; le déplacement est resté intact
   dans l'arbre.
+- 🔴 **2026-10-18 — un compteur `expect` RECOPIÉ du `numstat` de l'arbre ne garde rien.** Le
+  commit `188f732b` a emporté deux tests d'une autre instance dans `synthesizer/tests.py` : la garde
+  `expect … 79 1` avait été remplie en lisant `git diff --numstat` à l'instant même — elle comparait
+  l'arbre à lui-même. ✅ Le compte attendu se fait sur CE QU'ON A ÉCRIT (lignes de son bloc, ou les
+  `def test_` de sa classe), puis se confronte au `numstat` ; un fichier de tests partagé se relit
+  par ses `def test_` ajoutés (`git diff -U0 <f> | grep '^+    def test_'`) avant le commit.
 
 ## 4. Docs générées
 
