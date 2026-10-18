@@ -18,7 +18,6 @@ vit ici tant qu'elle dépend de `local_model_name` (registre des backends du syn
 """
 import logging
 import os
-import re
 import shutil
 
 from wama.common.tts.service_client import tts_via_service
@@ -68,8 +67,12 @@ def chunk_limit(model):
 
 
 def split_text_into_chunks(text, max_chars):
-    """Découpe un texte en segments d'au plus `max_chars`, aux limites de phrase."""
-    sentences = re.split(r'(?<=[.!?])\s+', text)
+    """Découpe un texte en segments d'au plus `max_chars`, aux limites de phrase.
+
+    Les phrases sont celles de la brique du texte à dire (`tts_text.pause_segments` aux seules
+    fins de phrase, 2026-10-18) : la regex qui vivait ici redisait ses marques, sans `…`."""
+    from wama.common.utils.tts_text import pause_segments
+    sentences = [segment for segment, _ in pause_segments(text, 1.0, 0.0)]
     chunks = []
     current = ''
     for sentence in sentences:

@@ -1948,8 +1948,9 @@ def check_chat_drop(url_paths):
                 browser.close()
     finally:
         def _cleanup():
+            # `UserFile.delete` retire le fichier SAUF si une card le désigne encore (garde de
+            # partage) — l'effacer d'abord à la main casserait la card qui pointe dessus.
             for user_file in UserFile.objects.filter(user_id=uid).exclude(id__in=before):
-                user_file.file.delete(save=False)
                 user_file.delete()
         _in_plain_thread(_cleanup, timeout=30)
         witness.unlink(missing_ok=True)

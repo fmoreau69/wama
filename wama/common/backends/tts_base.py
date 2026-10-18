@@ -105,15 +105,6 @@ def bounded_pause(value) -> float:
         return 0.0
 
 
-def _read_wav_float(path: str):
-    """(fréquence, échantillons float32) d'un WAV écrit par un moteur — int16 ramené à ±1."""
-    from scipy.io.wavfile import read as read_wav
-    rate, data = read_wav(path)
-    if np.issubdtype(data.dtype, np.integer):
-        data = data.astype(np.float32) / float(np.iinfo(data.dtype).max + 1)
-    return rate, np.asarray(data, dtype=np.float32)
-
-
 class TTSBackend(BaseModelBackend):
     """Classe intermédiaire des moteurs TTS (le verbe métier est `synthesize`).
 
@@ -159,6 +150,7 @@ class TTSBackend(BaseModelBackend):
         ⚠ Le mode MULTI-VOIX (Higgs) n'est pas découpé : ses balises de locuteur (`[S1]`)
         valent pour la suite du texte, un segment les perdrait. La description de scène ouvre le
         dialogue : premier segment seulement (la règle de `speech_render`)."""
+        from wama.common.utils.audio_decode import decode_audio
         from wama.common.utils.tts_text import pause_segments
         options = kwargs.get('options') or {}
         segments = [] if kwargs.get('multi_speaker') else pause_segments(
@@ -180,7 +172,8 @@ class TTSBackend(BaseModelBackend):
                                    'scene_description': '' if parts
                                    else kwargs.get('scene_description', '')})
             try:
-                segment_rate, audio = _read_wav_float(path)
+                # Le décodeur COMMUN (branche soundfile : fréquence native, float32, mono).
+                audio, segment_rate = decode_audio(path, mono=True)
             finally:
                 os.remove(path)
             if rate is not None and segment_rate != rate:

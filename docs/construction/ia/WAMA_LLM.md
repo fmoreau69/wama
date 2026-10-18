@@ -778,6 +778,14 @@ l'intuition :
   Le filtrage du texte (incises, emphase, lexique) n'avait rien à porter : le synthesizer passe par
   `text_for_speech` depuis le 2026-09-26. Gardes : `tests_tts_backend_pauses`, `synthesizer.tests`
   (+3), `synthesizer.tests_task` (+1), `tests_kokoro_onnx_phonemes` (+1) — neuf mutations rouges.
+  Revérification le même jour : le contrat lit ses segments par le décodeur COMMUN
+  (`audio_decode.decode_audio`, qui ne charge pas Django) au lieu d'un lecteur recopié, et la
+  découpe par longueur de `render_speech` coupe aux phrases de `tts_text` (`…` compris) au lieu
+  de sa propre regex. Page servie vérifiée : curseurs au volet, valeur postée à la création.
+  ⏳ Même NATURE, encore à part : la regex des phrases recopiée dans le describer
+  (`backends/audio_backend.py`, `text_backend.py`) ; et la découpe par LONGUEUR (`CHUNK_LIMITS` par
+  moteur) vit dans le synthesizer, pas au contrat — l'avatarizer appelle le service sans elle
+  (troncature kokoro au-delà de ~400 caractères, note de `speech_render`).
 - ⏳ Le repli en-process (Kokoro .pt, service indisponible) parle sans les pauses réglées. ⏳ Un modèle ONNX qui rendrait
   les durées (export de `kokoro_onnx`) donnerait les pauses DANS le moteur et des horaires de mots
   MESURÉS pour les lèvres — piste, pas décidée. ⏳ Les nombres, dates et monnaies ne sont pas

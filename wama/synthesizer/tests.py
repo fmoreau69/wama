@@ -480,6 +480,13 @@ class VoicePreviewSharesTheSynthesisChainTest(TestCase):
         self.assertTrue(all(len(c) <= 400 for c in chunks))
         self.assertGreater(len(chunks), 1)
 
+    def test_the_segments_cut_at_the_sentence_marks_of_the_speech_brick(self):
+        """Les phrases sont celles de `tts_text` (2026-10-18) — `…` compris : la regex locale ne
+        connaissait que `. ! ?`."""
+        from wama.synthesizer.utils.speech_render import split_text_into_chunks
+        self.assertEqual(['Il hésite…', 'Puis il part.'],
+                         split_text_into_chunks('Il hésite… Puis il part.', 12))
+
 
 class SynthesisIsHeardWhileItGrowsTest(TestCase):
     """Aperçu « PENDANT » (2026-09-28) : l'audio déjà synthétisé est publié après chaque segment
