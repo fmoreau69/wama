@@ -12,7 +12,8 @@ Relevé du 2026-08-22 avant écriture :
 """
 from __future__ import annotations
 
-from .registries import (DERIVED, MEASURE, REDECLARATION, SCAN, Registry, RefreshResult, register)
+from .registries import (AGGREGATE, DERIVED, MEASURE, MIXED, OWNED, REDECLARATION, SCAN, SYSTEM,
+                         TO_CARRY, Registry, RefreshResult, register)
 
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -37,6 +38,9 @@ register(Registry(
     refresh=_refresh_models, count=_count_models,
     url_name='model_manager:index', manifest_kind='model',
     periodic='model-manager-reconcile',
+    # `AIModel` n'a aucun propriétaire : la ligne naît du disque, l'installation ne sait pas qui
+    # l'a lancée (ROADMAP §29, étape 3).
+    provenance=TO_CARRY, access_kind='model',
     description="Réconcilie le catalogue avec ce qui est réellement présent sur le disque. "
                 "Une entrée dont les fichiers ont disparu est supprimée — d'où la réserve staff.",
 ))
@@ -71,6 +75,9 @@ register(Registry(
     refresh=_refresh_apps, count=_count_apps, entries=_entries_apps,
     url_name='common:apps_catalog', manifest_kind='app',
     periodic='nightly-consistency',
+    # Les jumelles ont un créateur (`sandbox.twin_owner`, registre gitignoré), pas une portée
+    # `ScopedVisibility` (ROADMAP §29, étape 5).
+    provenance=TO_CARRY, access_kind='app',
     doc='docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
     # ⚠ Cette description disait « 72 critères » : la grille en compte 89 (relevé du 2026-09-11).
     # Trouvé par la 1ʳᵉ doc dérivée (`docs/dev/registres.md`), qui la publie telle quelle — un
@@ -183,6 +190,9 @@ register(Registry(
     source="`apps.py:ready()` de chaque monde — `wama_data`, `wama_lab.cam_analyzer`…",
     refresh=_refresh_functions, count=_count_functions, entries=_entries_functions,
     url_name='model_manager:functions_catalog', manifest_kind='function',
+    # Les `FunctionSpec` du code sont système ; une fonction d'UTILISATEUR porte propriétaire et
+    # portée (lue par `scoped_visible_q`, `model_manager/views.py:2203-2204`).
+    provenance=MIXED, owner_model='common.UserFunction', access_kind='function',
     doc='docs/construction/mondes/WAMA_DATA_FUNCTION_CARDS.md',
     description="Recharge les modules qui déclarent des `FunctionSpec`. Rend visibles les "
                 "fonctions ajoutées pendant que le serveur tourne, sans redémarrage.",
@@ -224,6 +234,8 @@ register(Registry(
     # Sa page, enfin (27/08). Il était le seul registre de la carte à n'en désigner aucune :
     # le catalogue n'était lisible que par l'assistant et wama-dev-ai.
     url_name='common:skills_catalog',
+    # Des fichiers du dépôt aujourd'hui ; un skill d'utilisateur n'a encore aucun lieu (§29).
+    provenance=TO_CARRY, access_kind='skill',
     doc='docs/construction/ia/WAMA_LLM.md',
     description="Vide le cache de lecture des skills : un `.md` modifié à chaud est repris sans "
                 "redémarrage. Sans effet de bord partagé, donc ouvert à tout compte connecté.",
@@ -271,6 +283,8 @@ register(Registry(
     refresh=_refresh_external_sources, count=_count_external_sources,
     entries=_entries_external_sources,
     url_name='common:sources_catalog',
+    # La clé d'un utilisateur se pose à son profil : ce n'est pas un élément du registre.
+    provenance=SYSTEM,
     doc='docs/construction/architecture/WAMA_MECANISMES.md',
     description="Sonde chaque source déclarée : clé d'API de l'instance posée ? adresse "
                 "joignable (proxy UGE compris) ? Une clé de CHAQUE utilisateur (fournisseurs LLM, "
@@ -294,6 +308,9 @@ register(Registry(
     source="Registre `Library` (projeté par les manifestes) + mesure live `importlib.metadata`",
     count=_count_libraries,
     url_name='model_manager:libraries_catalog', manifest_kind='library',
+    # `Library` n'a aucun propriétaire ; « privée » voudra dire « non proposée », jamais
+    # « isolée » — le venv est partagé (§29).
+    provenance=TO_CARRY, access_kind='library',
     doc='docs/construction/exploitation/LICENSING.md',
     description="La page mesure l'installation réelle à CHAQUE affichage et compare au déclaré : "
                 "l'écart affiché ne peut pas être périmé. Le registre lui-même s'alimente par la "
@@ -337,7 +354,7 @@ register(Registry(
     source="`app_registry` — natures (`MEDIA_CATEGORIES`) et extensions, y compris celles qu'un "
            "MONDE pousse au démarrage (`register_category_extensions`)",
     count=_count_media_formats, entries=_entries_media_formats,
-    url_name='common:media_formats_catalog',
+    url_name='common:media_formats_catalog', provenance=SYSTEM,
     doc='docs/construction/mondes/WAMA_DATA_WORLD.md §9quinquies',
     description="Ce que WAMA sait RECONNAÎTRE, en entrée comme en sortie — la distinction n'aurait "
                 "pas de sens : un fichier a la même nature des deux côtés. La page dérive du code à "
@@ -364,6 +381,9 @@ register(Registry(
     count=lambda: len(_ui_bricks()),
     entries=lambda: {key: brick.to_dict() for key, brick in _ui_bricks().items()},
     url_name='common:ui_bricks_catalog',
+    # Les briques du code sont système ; une brique d'utilisateur (écrite dans sa jumelle) n'a
+    # encore aucun lieu (§29, étape 5).
+    provenance=TO_CARRY,
     doc='docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
     description="Les briques dont une page d'édition se COMPOSE — déplaçables, redimensionnables, "
                 "communes à tous les mondes. Déclarées par le code : la liste ne peut pas être "
@@ -381,6 +401,7 @@ register(Registry(
     source="`common/themes.py` — les thèmes déclarés ; leurs valeurs dans `common/css/wama-theme.css`",
     count=lambda: len(_themes()),
     entries=lambda: {t.key: t.to_dict() for t in _themes()},
+    provenance=SYSTEM,
     doc='docs/construction/suivi/ROADMAP.md §28',
     description="Les thèmes que WAMA sait poser sur une page. Un thème est un jeu de TOKENS (un "
                 "composant lit `var(--wama-…)`, il n'écrit plus de couleur) et le mode de Bootstrap "
@@ -391,7 +412,7 @@ register(Registry(
 register(Registry(
     key='licenses', label='Licences', nature=DERIVED,
     source="Agrégation de `AIModel`, `Library`, médias et des `requires` des manifestes d'app",
-    url_name='common:licenses_catalog',
+    url_name='common:licenses_catalog', provenance=AGGREGATE,
     doc='docs/construction/exploitation/LICENSING.md',
     description="Vue transversale sans registre propre — « une page qui DÉRIVE ne peut pas "
                 "diverger de ses sources ». Un bouton d'actualisation y serait un mensonge : "
@@ -403,6 +424,7 @@ register(Registry(
     key='rag', label='Mon RAG', nature=DERIVED,
     source="Ce que l'utilisateur a confié au RAG (`common/memory/`, Postgres + pgvector)",
     url_name='common:rag', permission='auth',
+    provenance=OWNED, owner_model='common.RagChunk', access_kind='rag_scope',
     doc='docs/construction/ia/WAMA_MEMORY.md',
     description="Liste ce que CE compte a ajouté, lu en base à chaque affichage. L'entrée au RAG "
                 "est un geste explicite : rien ne s'y ajoute par balayage, donc rien à réconcilier.",
@@ -430,6 +452,7 @@ register(Registry(
     key='memories', label='Mes souvenirs', nature=DERIVED,
     source="`MemoryItem` (`common/memory/`, Postgres + pgvector) — le jumeau du fragment RAG",
     url_name='common:memories', permission='auth',
+    provenance=OWNED, owner_model='common.MemoryItem',
     doc='docs/construction/ia/WAMA_MEMORY.md',
     description="Ce que WAMA retient : faits, événements, procédures. Lu en base à chaque "
                 "affichage — rien à actualiser. La liste ACTIVE est exactement ce que `recall()` "
@@ -465,7 +488,7 @@ register(Registry(
     source="`PROMPT_TARGETS` (`common/utils/app_metadata.py`) — un champ-prompt déclaré par app, "
            "avec son KIND, son modèle cible et son domaine",
     count=_count_prompt_targets,
-    url_name='common:skills_catalog', permission='auth',
+    url_name='common:skills_catalog', permission='auth', provenance=SYSTEM,
     doc='docs/construction/ia/WAMA_LLM.md',
     description="La DÉCLARATION que la pipeline de prompts consomme : quel champ est un prompt, "
                 "de quel KIND, vers quel modèle. Figé dans le code, donc toujours à jour. Partage "
@@ -502,6 +525,8 @@ register(Registry(
            "au catalogue `AIModel` (source, backend_ref, composition.runtime.engine)",
     count=_count_backends,
     url_name='common:backends_catalog', permission='auth',
+    # Un backend proposé par un rôle n'entre qu'après validation humaine, écrit dans le code.
+    provenance=SYSTEM,
     doc='docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
     description="Le VIVIER des BACKENDS — la méthode qui appelle un moteur, jamais le moteur "
                 "lui-même : le MODÈLE porte son moteur, le backend s'en DÉRIVE, et un moteur "
@@ -547,7 +572,7 @@ register(Registry(
     count=_count_docs, entries=_entries_docs,
     # 'auth' depuis le 2026-09-14 : la page s'ouvre à tout compte connecté (doc utilisateur), et
     # un registre DÉRIVÉ n'a aucune actualisation à réserver. Qui lit QUOI : `visible_to`.
-    url_name='common:docs_catalog', permission='auth',
+    url_name='common:docs_catalog', permission='auth', provenance=SYSTEM,
     doc='AGENTS.md',
     description="La doc de WAMA en lecture seule. Chaque doc déclare son AUDIENCE : la doc de "
                 "CONSTRUCTION (doctrine, décisions, vision, chantiers) est écrite à la main ; la "

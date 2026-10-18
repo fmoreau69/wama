@@ -1,0 +1,105 @@
+"""La PROVENANCE des éléments de chaque registre — étape 1 du chantier `ROADMAP §29`.
+
+Deux axes de droits, à ne pas confondre : « qui a le DROIT » (`accounts.permissions.accessible`,
+famille par famille dans `KIND_DECISION`) et « à QUI c'est » (propriétaire et portée,
+`ScopedVisibility`). Ce fichier tient le second pour le CATALOGUE : chaque registre dit où vit la
+provenance de ses éléments, et une capacité nouvelle ne peut pas entrer sans le dire.
+
+Aucune décision d'accès ne change ici : on DÉCLARE et on MESURE. Les familles qui attendent leur
+porteur sont nommées dans un budget qui ne peut que descendre — porter une famille (§29, étapes
+2 à 5) la retire du budget dans le même commit.
+
+⚠ À ne pas confondre avec `tests_provenance` : la provenance d'un FICHIER d'entrée (lien source ⟷
+copie de travail, `MEDIA_STORAGE_TIERING §8.7`), une autre notion qui porte le même mot.
+"""
+from django.apps import apps
+from django.test import SimpleTestCase
+
+from wama.accounts.permissions import KIND_DECISION
+from wama.common.models import ScopedVisibility
+from wama.common.registries import (CARRIED, DERIVED, PROVENANCES, REGISTRIES, TO_CARRY, Registry,
+                                    overview, register)
+
+#: Les registres dont les éléments d'utilisateurs n'ont pas encore de porteur, mesuré le
+#: 2026-10-18. Ne peut que DESCENDRE : y ajouter une clé, c'est faire entrer une capacité sans
+#: dire à qui sont ses éléments ; en garder une qui ne l'est plus, c'est laisser une marge.
+TO_CARRY_BUDGET = {'models', 'apps', 'libraries', 'skills', 'ui_bricks'}
+
+
+def _real_registries():
+    """Les registres de WAMA, sans ceux qu'un test pose le temps d'un cas (`_t_…`)."""
+    return {k: r for k, r in REGISTRIES.items() if not k.startswith('_t_')}
+
+
+class ProvenanceIsDeclaredTest(SimpleTestCase):
+
+    def test_every_registry_declares_where_its_elements_provenance_lives(self):
+        undeclared = sorted(k for k, r in _real_registries().items()
+                            if r.provenance not in PROVENANCES)
+        self.assertEqual(undeclared, [],
+                         f"registre(s) sans provenance déclarée : {undeclared} — dire à QUI sont "
+                         f"leurs éléments (`registries.PROVENANCES`, ROADMAP §29)")
+
+    def test_a_carried_provenance_names_a_row_that_inherits_scoped_visibility(self):
+        carried = {k: r for k, r in _real_registries().items() if r.provenance in CARRIED}
+        self.assertTrue(carried, "aucun registre porté : le test ne mesurerait rien")
+        for key, r in carried.items():
+            model = apps.get_model(r.owner_model)
+            self.assertTrue(issubclass(model, ScopedVisibility),
+                            f"{key} : {r.owner_model} ne porte pas propriétaire et portée")
+
+    def test_the_families_still_to_carry_can_only_shrink(self):
+        measured = {k for k, r in _real_registries().items() if r.provenance == TO_CARRY}
+        self.assertEqual(
+            measured, TO_CARRY_BUDGET,
+            f"en trop : {sorted(measured - TO_CARRY_BUDGET)} — une capacité nouvelle déclare son "
+            f"porteur ; devenues portées : {sorted(TO_CARRY_BUDGET - measured)} — les retirer du "
+            f"budget dans le même commit")
+
+    def test_the_overview_shows_the_provenance(self):
+        rows = {r['key']: r for r in overview()}
+        self.assertEqual(rows['rag']['provenance_label'], PROVENANCES['owned'])
+        self.assertEqual(rows['functions']['owner_model'], 'common.UserFunction')
+
+
+class ProvenanceMeetsTheAccessDecisionTest(SimpleTestCase):
+    """Le lien entre les deux axes : une famille de `KIND_DECISION` = un registre."""
+
+    def test_each_access_family_is_listed_by_exactly_one_registry(self):
+        declared = [r.access_kind for r in _real_registries().values() if r.access_kind]
+        unknown = sorted(set(declared) - set(KIND_DECISION))
+        self.assertEqual(unknown, [], f"famille(s) absente(s) de KIND_DECISION : {unknown}")
+        twice = sorted({k for k in declared if declared.count(k) > 1})
+        self.assertEqual(twice, [], f"famille(s) listée(s) par plusieurs registres : {twice}")
+        self.assertEqual(sorted(set(KIND_DECISION) - set(declared)), [],
+                         "famille d'accès sans registre qui en liste les éléments")
+
+    def test_a_family_decided_by_scoped_visibility_has_carried_elements(self):
+        # `rag_scope` est gardé par la portée héritée : son registre doit la porter réellement.
+        by_kind = {r.access_kind: r for r in _real_registries().values() if r.access_kind}
+        decided = [k for k, d in KIND_DECISION.items() if d == 'ScopedVisibility']
+        self.assertTrue(decided, "aucune famille gardée par la portée : le test ne mesurerait rien")
+        for kind in decided:
+            self.assertIn(by_kind[kind].provenance, CARRIED, kind)
+
+
+class RegisterRefusesAnIncoherentProvenanceTest(SimpleTestCase):
+
+    def tearDown(self):
+        for key in ('_t_prov_unknown', '_t_prov_no_row', '_t_prov_stray_row'):
+            REGISTRIES.pop(key, None)
+
+    def test_an_unknown_provenance_is_refused(self):
+        with self.assertRaises(ValueError):
+            register(Registry(key='_t_prov_unknown', label='x', nature=DERIVED, source='s',
+                              provenance='shared'))
+
+    def test_a_carried_provenance_without_its_row_is_refused(self):
+        with self.assertRaises(ValueError):
+            register(Registry(key='_t_prov_no_row', label='x', nature=DERIVED, source='s',
+                              provenance='owned'))
+
+    def test_a_row_without_a_carried_provenance_is_refused(self):
+        with self.assertRaises(ValueError):
+            register(Registry(key='_t_prov_stray_row', label='x', nature=DERIVED, source='s',
+                              provenance='system', owner_model='common.UserFunction'))

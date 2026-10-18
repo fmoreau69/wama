@@ -79,6 +79,7 @@
       <div class="wama-cat-meta">
         <code>{{ r.key }}</code>
         {% if r.manifest_kind %} · manifeste <code>{{ r.manifest_kind }}</code>{% endif %}
+        {% if r.provenance_label %} · <span title="À qui sont les éléments (ROADMAP §29)">{{ r.provenance_label }}</span>{% endif %}
         {% if r.doc %} · <span title="Document de référence">{{ r.doc }}</span>{% endif %}
       </div>
 

@@ -143,7 +143,7 @@ def registry_entries() -> str:
     """Chaque registre de WAMA : clé, nature, source, page, doc, et s'il est citable par balise."""
     from django.urls import NoReverseMatch, reverse
 
-    from .registries import NATURES, REGISTRIES
+    from .registries import NATURES, PROVENANCES, REGISTRIES
 
     # Les DÉCLARATIONS, jamais `overview()` : celui-ci compte les entrées de chaque registre EN
     # BASE, ce qu'aucune ligne de ce fichier n'affiche. Première version faite avec lui : la
@@ -156,6 +156,13 @@ def registry_entries() -> str:
         out += [f"### {r.label}", "",
                 f"- **Clé** : `{r.key}` — {NATURES[r.nature]}",
                 f"- **Source** : {r.source}"]
+        if r.provenance:
+            line = f"- **Provenance des éléments** : {PROVENANCES[r.provenance]}"
+            if r.owner_model:
+                line += f" — portée par `{r.owner_model}`"
+            if r.access_kind:
+                line += f" ; famille d'accès `{r.access_kind}`"
+            out.append(line)
         if r.url_name:
             try:
                 out.append(f"- **Page dans WAMA** : `{reverse(r.url_name)}`")

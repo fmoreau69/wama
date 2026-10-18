@@ -84,7 +84,8 @@ class WamaDataConfig(AppConfig):
         s'AGRÈGE, comme on ajoute un modèle IA. Une capacité qui s'agrège doit être visible et
         comptable, donc elle entre ici.
         """
-        from wama.common.registries import REDECLARATION, RefreshResult, Registry, register
+        from wama.common.registries import (REDECLARATION, SYSTEM, RefreshResult, Registry,
+                                            register)
 
         # ── Lecteurs d'entrée (Importer + Connector : ils partagent le même registre) ─────────
         def _count_readers() -> int:
@@ -101,6 +102,7 @@ class WamaDataConfig(AppConfig):
             source="`wama_data/sources/` — un lecteur par format, inscrit à l'import",
             refresh=_refresh_readers, count=_count_readers,
             manifest_kind='dataset', doc='docs/construction/mondes/WAMA_DATA_WORLD.md §6.6, §9quinquies',
+            provenance=SYSTEM,
             description="Recharge les lecteurs de sources. Ajouter un format d'import ou de "
                         "connexion = déposer un lecteur, jamais éditer le moteur — l'Importer et "
                         "le Connector partagent ce registre.",
@@ -117,6 +119,7 @@ class WamaDataConfig(AppConfig):
                    "fournis par les adaptateurs",
             count=_count_formats,
             refresh=lambda: _refresh_formats(),
+            provenance=SYSTEM,
             doc='docs/construction/mondes/WAMA_DATA_WORLD.md §9ter.6 C, §9quinquies',
             description="Formats que l'Exporter sait NOMMER, et parmi eux ceux qu'il sait "
                         "ÉCRIRE — l'écart entre les deux est la dette, et elle est mesurée.",
@@ -136,6 +139,7 @@ class WamaDataConfig(AppConfig):
             key='data_containers', label='Schémas de conteneur (WAMA Data)', nature=REDECLARATION,
             source="`wama_data/containers/` — un schéma par format de sortie, inscrit à l'import",
             refresh=_refresh_containers, count=_count_containers,
+            provenance=SYSTEM,
             doc='docs/construction/mondes/WAMA_DATA_WORLD.md §9quater.2 (D3), §9quinquies',
             description="Conteneurs que WAMA Data sait ÉCRIRE : `.wdat` natif et `.trip` pour la "
                         "compatibilité BIND. Un moteur, N schémas — ajouter un format = déposer "

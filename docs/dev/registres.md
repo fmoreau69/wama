@@ -71,6 +71,7 @@ la réponse n'est pas « tout en registre ».
 
 - **Clé** : `apps` — Calcul qui produit un rapport écrit
 - **Source** : `APP_CATALOG` (déclaré en code) + grille de conformité MESURÉE depuis le code réel
+- **Provenance des éléments** : À porter — éléments d'utilisateurs prévus, porteur à construire (ROADMAP §29) ; famille d'accès `app`
 - **Page dans WAMA** : `/common/apps/`
 - **Doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Kind de manifeste** : `app`
@@ -82,6 +83,7 @@ Le catalogue lui-même est déclaré en code — rien à y actualiser. Ce qui s'
 
 - **Clé** : `backends` — Dérivé à chaque affichage — toujours à jour
 - **Source** : Déclarations des paquets `wama/<app>/backends/` (ROUTES/RESULT/NATURE_FIELD + classes BaseModelBackend : ENGINE, ISOLATION, REQUIRED_PACKAGES, VRAM) recoupées au catalogue `AIModel` (source, backend_ref, composition.runtime.engine)
+- **Provenance des éléments** : Système — déclaré par WAMA, sans auteur
 - **Page dans WAMA** : `/common/backends/`
 - **Doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 
@@ -91,6 +93,7 @@ Le VIVIER des BACKENDS — la méthode qui appelle un moteur, jamais le moteur l
 
 - **Clé** : `ui_bricks` — Dérivé à chaque affichage — toujours à jour
 - **Source** : `common/surfaces.py` — briques déclarées (ce qu'elles consomment, émettent, leur script) ; les surfaces des apps les composent
+- **Provenance des éléments** : À porter — éléments d'utilisateurs prévus, porteur à construire (ROADMAP §29)
 - **Page dans WAMA** : `/common/ui-bricks/`
 - **Doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Citable dans une doc** : `WAMA:FAIT(ui_bricks/<clé>/<champ>)`
@@ -101,6 +104,7 @@ Les briques dont une page d'édition se COMPOSE — déplaçables, redimensionna
 
 - **Clé** : `docs` — Dérivé à chaque affichage — toujours à jour
 - **Source** : Déclaration `common/docs_catalog.py` (docs de référence d'AGENTS.md), lus sur le disque à chaque affichage
+- **Provenance des éléments** : Système — déclaré par WAMA, sans auteur
 - **Page dans WAMA** : `/common/docs/`
 - **Doc** : [AGENTS.md](../../AGENTS.md)
 - **Citable dans une doc** : `WAMA:FAIT(docs/<clé>/<champ>)`
@@ -111,6 +115,7 @@ La doc de WAMA en lecture seule. Chaque doc déclare son AUDIENCE : la doc de CO
 
 - **Clé** : `functions` — Registre en mémoire, peuplé par import
 - **Source** : `apps.py:ready()` de chaque monde — `wama_data`, `wama_lab.cam_analyzer`…
+- **Provenance des éléments** : Système et auteurs — des éléments système et des éléments d'utilisateurs — portée par `common.UserFunction` ; famille d'accès `function`
 - **Page dans WAMA** : `/model-manager/functions/`
 - **Doc** : [docs/construction/mondes/WAMA_DATA_FUNCTION_CARDS.md](../construction/mondes/WAMA_DATA_FUNCTION_CARDS.md)
 - **Kind de manifeste** : `function`
@@ -122,6 +127,7 @@ Recharge les modules qui déclarent des `FunctionSpec`. Rend visibles les foncti
 
 - **Clé** : `data_readers` — Registre en mémoire, peuplé par import
 - **Source** : `wama_data/sources/` — un lecteur par format, inscrit à l'import
+- **Provenance des éléments** : Système — déclaré par WAMA, sans auteur
 - **Doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §6.6, §9quinquies](../construction/mondes/WAMA_DATA_WORLD.md)
 - **Kind de manifeste** : `dataset`
 
@@ -131,6 +137,7 @@ Recharge les lecteurs de sources. Ajouter un format d'import ou de connexion = d
 
 - **Clé** : `data_export_formats` — Registre en mémoire, peuplé par import
 - **Source** : `wama_data/core/export.py` — `register_format()`, plus les écrivains fournis par les adaptateurs
+- **Provenance des éléments** : Système — déclaré par WAMA, sans auteur
 - **Doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §9ter.6 C, §9quinquies](../construction/mondes/WAMA_DATA_WORLD.md)
 
 Formats que l'Exporter sait NOMMER, et parmi eux ceux qu'il sait ÉCRIRE — l'écart entre les deux est la dette, et elle est mesurée.
@@ -139,6 +146,7 @@ Formats que l'Exporter sait NOMMER, et parmi eux ceux qu'il sait ÉCRIRE — l'�
 
 - **Clé** : `media_formats` — Dérivé à chaque affichage — toujours à jour
 - **Source** : `app_registry` — natures (`MEDIA_CATEGORIES`) et extensions, y compris celles qu'un MONDE pousse au démarrage (`register_category_extensions`)
+- **Provenance des éléments** : Système — déclaré par WAMA, sans auteur
 - **Page dans WAMA** : `/common/media-formats/`
 - **Doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §9quinquies](../construction/mondes/WAMA_DATA_WORLD.md)
 - **Citable dans une doc** : `WAMA:FAIT(media_formats/<clé>/<champ>)`
@@ -149,6 +157,7 @@ Ce que WAMA sait RECONNAÎTRE, en entrée comme en sortie — la distinction n'a
 
 - **Clé** : `libraries` — Dérivé à chaque affichage — toujours à jour
 - **Source** : Registre `Library` (projeté par les manifestes) + mesure live `importlib.metadata`
+- **Provenance des éléments** : À porter — éléments d'utilisateurs prévus, porteur à construire (ROADMAP §29) ; famille d'accès `library`
 - **Page dans WAMA** : `/model-manager/libraries/`
 - **Doc** : [docs/construction/exploitation/LICENSING.md](../construction/exploitation/LICENSING.md)
 - **Kind de manifeste** : `library`
@@ -159,6 +168,7 @@ La page mesure l'installation réelle à CHAQUE affichage et compare au déclar�
 
 - **Clé** : `licenses` — Dérivé à chaque affichage — toujours à jour
 - **Source** : Agrégation de `AIModel`, `Library`, médias et des `requires` des manifestes d'app
+- **Provenance des éléments** : Agrégat — lit d'autres registres
 - **Page dans WAMA** : `/common/licenses/`
 - **Doc** : [docs/construction/exploitation/LICENSING.md](../construction/exploitation/LICENSING.md)
 
@@ -168,6 +178,7 @@ Vue transversale sans registre propre — « une page qui DÉRIVE ne peut pas di
 
 - **Clé** : `memories` — Dérivé à chaque affichage — toujours à jour
 - **Source** : `MemoryItem` (`common/memory/`, Postgres + pgvector) — le jumeau du fragment RAG
+- **Provenance des éléments** : À son auteur — propriétaire et portée sur chaque élément — portée par `common.MemoryItem`
 - **Page dans WAMA** : `/common/memories/`
 - **Doc** : [docs/construction/ia/WAMA_MEMORY.md](../construction/ia/WAMA_MEMORY.md)
 
@@ -177,6 +188,7 @@ Ce que WAMA retient : faits, événements, procédures. Lu en base à chaque aff
 
 - **Clé** : `models` — Scan d'une source externe vers un registre persistant
 - **Source** : Fichiers de `AI-models/` + déclarations `model_config` des apps
+- **Provenance des éléments** : À porter — éléments d'utilisateurs prévus, porteur à construire (ROADMAP §29) ; famille d'accès `model`
 - **Page dans WAMA** : `/model-manager/`
 - **Kind de manifeste** : `model`
 
@@ -186,6 +198,7 @@ Réconcilie le catalogue avec ce qui est réellement présent sur le disque. Une
 
 - **Clé** : `rag` — Dérivé à chaque affichage — toujours à jour
 - **Source** : Ce que l'utilisateur a confié au RAG (`common/memory/`, Postgres + pgvector)
+- **Provenance des éléments** : À son auteur — propriétaire et portée sur chaque élément — portée par `common.RagChunk` ; famille d'accès `rag_scope`
 - **Page dans WAMA** : `/common/rag/`
 - **Doc** : [docs/construction/ia/WAMA_MEMORY.md](../construction/ia/WAMA_MEMORY.md)
 
@@ -195,6 +208,7 @@ Liste ce que CE compte a ajouté, lu en base à chaque affichage. L'entrée au R
 
 - **Clé** : `prompts` — Dérivé à chaque affichage — toujours à jour
 - **Source** : `PROMPT_TARGETS` (`common/utils/app_metadata.py`) — un champ-prompt déclaré par app, avec son KIND, son modèle cible et son domaine
+- **Provenance des éléments** : Système — déclaré par WAMA, sans auteur
 - **Page dans WAMA** : `/common/skills/`
 - **Doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
 
@@ -204,6 +218,7 @@ La DÉCLARATION que la pipeline de prompts consomme : quel champ est un prompt, 
 
 - **Clé** : `data_containers` — Registre en mémoire, peuplé par import
 - **Source** : `wama_data/containers/` — un schéma par format de sortie, inscrit à l'import
+- **Provenance des éléments** : Système — déclaré par WAMA, sans auteur
 - **Doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §9quater.2 (D3), §9quinquies](../construction/mondes/WAMA_DATA_WORLD.md)
 
 Conteneurs que WAMA Data sait ÉCRIRE : `.wdat` natif et `.trip` pour la compatibilité BIND. Un moteur, N schémas — ajouter un format = déposer un module, jamais éditer le moteur (G1).
@@ -212,6 +227,7 @@ Conteneurs que WAMA Data sait ÉCRIRE : `.wdat` natif et `.trip` pour la compati
 
 - **Clé** : `skills` — Registre en mémoire, peuplé par import
 - **Source** : Fichiers `wama/common/prompt_skills/*.md`
+- **Provenance des éléments** : À porter — éléments d'utilisateurs prévus, porteur à construire (ROADMAP §29) ; famille d'accès `skill`
 - **Page dans WAMA** : `/common/skills/`
 - **Doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
 
@@ -221,6 +237,7 @@ Vide le cache de lecture des skills : un `.md` modifié à chaud est repris sans
 
 - **Clé** : `external_sources` — Calcul qui produit un rapport écrit
 - **Source** : Registre déclaratif `common/external_sources.py` + sonde réseau (clé, joignabilité)
+- **Provenance des éléments** : Système — déclaré par WAMA, sans auteur
 - **Page dans WAMA** : `/common/sources/`
 - **Doc** : [docs/construction/architecture/WAMA_MECANISMES.md](../construction/architecture/WAMA_MECANISMES.md)
 - **Citable dans une doc** : `WAMA:FAIT(external_sources/<clé>/<champ>)`
@@ -231,6 +248,7 @@ Sonde chaque source déclarée : clé d'API de l'instance posée ? adresse joign
 
 - **Clé** : `themes` — Dérivé à chaque affichage — toujours à jour
 - **Source** : `common/themes.py` — les thèmes déclarés ; leurs valeurs dans `common/css/wama-theme.css`
+- **Provenance des éléments** : Système — déclaré par WAMA, sans auteur
 - **Doc** : [docs/construction/suivi/ROADMAP.md §28](../construction/suivi/ROADMAP.md)
 - **Citable dans une doc** : `WAMA:FAIT(themes/<clé>/<champ>)`
 

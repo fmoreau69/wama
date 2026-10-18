@@ -64,6 +64,42 @@ NATURES = {
 }
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
+# PROVENANCE — à QUI sont les éléments d'un registre (ROADMAP §29, ouvert le 2026-10-18)
+#
+# Deux axes de droits existent, et ce n'est pas le même : « qui a le DROIT » (profil, rôles :
+# `accounts.permissions.accessible`) et « à QUI c'est » (propriétaire et portée : `ScopedVisibility`).
+# Les instances portent le second ; les éléments d'un catalogue ne le portaient nulle part. Chaque
+# registre DÉCLARE donc où vit la provenance de ses éléments — et ce qui n'a pas encore de porteur
+# le DIT (`TO_CARRY`), au lieu de passer pour du système par omission. Un registre sans
+# déclaration fait échouer `tests_registry_provenance` : une capacité nouvelle ne peut pas entrer sans dire
+# à qui sont ses éléments. Le système = sans propriétaire, tenu par WAMA (`manifests/envelope.py`,
+# `owner: None = système/builtin`) ; un élément partagé en « public » par son auteur reste à lui.
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+
+#: Tout élément est déclaré par WAMA (code, admins) : aucun n'a d'auteur.
+SYSTEM = 'system'
+#: Chaque élément porte son propriétaire et sa portée sur sa ligne (`owner_model`, `ScopedVisibility`).
+OWNED = 'owned'
+#: Des éléments système (déclarés en code) ET des éléments d'utilisateurs portant leur provenance
+#: sur la ligne de `owner_model`.
+MIXED = 'mixed'
+#: Aucun élément propre : le registre lit d'autres registres, leur provenance fait foi.
+AGGREGATE = 'aggregate'
+#: Des éléments d'utilisateurs sont VOULUS (§29) mais leur porteur n'existe pas encore. Un budget
+#: qui ne peut que descendre (`tests_registry_provenance.TO_CARRY_BUDGET`).
+TO_CARRY = 'to_carry'
+
+PROVENANCES = {
+    SYSTEM: "Système — déclaré par WAMA, sans auteur",
+    OWNED: "À son auteur — propriétaire et portée sur chaque élément",
+    MIXED: "Système et auteurs — des éléments système et des éléments d'utilisateurs",
+    AGGREGATE: "Agrégat — lit d'autres registres",
+    TO_CARRY: "À porter — éléments d'utilisateurs prévus, porteur à construire (ROADMAP §29)",
+}
+#: Les provenances dont les éléments d'utilisateurs ont une ligne qui les porte.
+CARRIED = (OWNED, MIXED)
+
+# ──────────────────────────────────────────────────────────────────────────────────────────────
 # OÙ tourne l'actualisation — et ce n'est PAS un réglage libre : la nature l'impose.
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -149,6 +185,15 @@ class Registry:
     periodic: str = ''
     #: Lien FACULTATIF vers le kind de manifeste correspondant (4 des 7 en ont un).
     manifest_kind: str = ''
+    #: À QUI sont les éléments (`PROVENANCES`). Vide = NON DÉCLARÉ, ce que la garde
+    #: `tests_registry_provenance` refuse ; pas de défaut, sinon tout registre passerait pour du
+    #: système sans l'avoir dit.
+    provenance: str = ''
+    #: `app_label.Model` de la ligne qui porte propriétaire et portée — exigé pour OWNED / MIXED.
+    owner_model: str = ''
+    #: La famille d'`accounts.permissions.KIND_DECISION` dont ce registre liste les éléments : le
+    #: lien entre « à qui c'est » (ici) et « qui a le droit » (là-bas), une famille par registre.
+    access_kind: str = ''
     doc: str = ''
     description: str = ''
 
@@ -184,6 +229,13 @@ def register(r: Registry) -> Registry:
         raise ValueError(
             f"'{r.key}' : nature '{r.nature}' sans rafraîchisseur — déclarer DERIVED si la page "
             f"recalcule à chaque affichage")
+    if r.provenance and r.provenance not in PROVENANCES:
+        raise ValueError(f"'{r.key}' : provenance '{r.provenance}' inconnue "
+                         f"(attendu : {', '.join(PROVENANCES)})")
+    if (r.provenance in CARRIED) != bool(r.owner_model):
+        raise ValueError(
+            f"'{r.key}' : `owner_model` se déclare avec la provenance {' ou '.join(CARRIED)}, et "
+            f"seulement avec elle — c'est la ligne qui porte propriétaire et portée")
     REGISTRIES[r.key] = r
     return r
 
@@ -417,6 +469,8 @@ def overview(with_coverage: bool = False) -> List[dict]:
             'refreshable': r.nature != DERIVED, 'permission': r.permission,
             'url_name': r.url_name, 'on_startup': r.on_startup,
             'periodic': r.periodic, 'manifest_kind': r.manifest_kind,
+            'provenance': r.provenance, 'provenance_label': PROVENANCES.get(r.provenance, ''),
+            'owner_model': r.owner_model, 'access_kind': r.access_kind,
             'total': _count(r), 'doc': r.doc, 'description': r.description,
         })
     return out

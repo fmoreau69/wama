@@ -5910,8 +5910,24 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
    utilisateur ne doit pas y atterrir.
 
 **Ordre proposé :**
-1. Le contrat : `KIND_DECISION` déclare le porteur de chaque famille, et la garde d'énumération est
-   posée. Aucune décision ne change à cette étape.
+1. ✅ **Le contrat (2026-10-18).** Aucune décision d'accès ne change. Ce qui a été posé :
+   - **La déclaration vit sur le REGISTRE**, pas dans `KIND_DECISION` comme proposé plus haut :
+     c'est lui qui liste les éléments, et un registre neuf ne peut pas naître sans passer par
+     `register()`. Chaque `Registry` déclare `provenance` (`registries.PROVENANCES` : `system`,
+     `owned`, `mixed`, `aggregate`, `to_carry`). La ligne porteuse est nommée par `owner_model`, et
+     la famille d'accès par `access_kind`, le lien vers `KIND_DECISION`.
+   - **`register()` refuse** une provenance inconnue, et un `owner_model` sans provenance portée
+     (ou l'inverse).
+   - **La garde `wama/common/tests/tests_registry_provenance.py`** échoue sur :
+     - un registre qui ne déclare pas sa provenance ;
+     - une ligne porteuse qui n'hérite pas de `ScopedVisibility` ;
+     - une famille d'accès listée par zéro ou plusieurs registres ;
+     - une famille gardée « par la portée » sans éléments portés.
+   - **Le budget `TO_CARRY_BUDGET` ne peut que descendre** : `models`, `apps`, `libraries`,
+     `skills`, `ui_bricks`.
+   - **Mesuré** : 9 registres `system` (dont les trois du monde Data), `rag` et `memories`
+     `owned`, `functions` `mixed` (`UserFunction`), `licenses` `aggregate`, et les cinq du budget.
+   - **Affichage** : la provenance se lit sur la page des Registres et dans `docs/dev/registres.md`.
 2. `Manifest` : séparer *privé* et *promotion demandée* (écart 1), faire de la promotion un passage
    au système (écart 2), réserver le corpus versionné aux éléments système (écart 3), et rendre les
    portées lisibles par `scoped_visible_q` avec un `ScopedManager`. C'est la porte d'entrée :
