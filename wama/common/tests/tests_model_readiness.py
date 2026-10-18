@@ -234,6 +234,38 @@ class TheSkeletonInstallsTheCardModelTest(TestCase):
         self.assertIn('Installation', gen.error_message)
 
 
+class RedeliverLaterTest(TestCase):
+    """Outside the skeleton (a studio node, a cam_analyzer analysis) the same policy : re-delivered
+    after the countdown, and an exhausted wait fails SAYING WHY — never Celery's « Can't retry »."""
+
+    def _task(self, effect):
+        from unittest import mock
+        task = mock.MagicMock()
+        task.retry.side_effect = effect
+        return task
+
+    def test_the_task_is_redelivered_after_the_countdown(self):
+        from wama.common.utils.task_skeleton import ServiceNotReady, redeliver_later
+        task = self._task(RuntimeError('re-delivered'))
+        with self.assertRaisesMessage(RuntimeError, 're-delivered'):
+            redeliver_later(task, ServiceNotReady('installing', countdown=30, max_attempts=720))
+        self.assertEqual({'countdown': 30, 'max_retries': 720}, task.retry.call_args.kwargs)
+
+    def test_an_exhausted_wait_says_its_reason(self):
+        from celery.exceptions import MaxRetriesExceededError
+        from wama.common.utils.task_skeleton import ServiceNotReady, redeliver_later
+        task = self._task(MaxRetriesExceededError("Can't retry"))
+        with self.assertRaisesMessage(RuntimeError, 'still not installed after 6 h'):
+            redeliver_later(task, ServiceNotReady('installing', gave_up='still not installed after 6 h'))
+
+    def test_without_a_declared_reason_the_count_is_said(self):
+        from celery.exceptions import MaxRetriesExceededError
+        from wama.common.utils.task_skeleton import ServiceNotReady, redeliver_later
+        task = self._task(MaxRetriesExceededError("Can't retry"))
+        with self.assertRaisesMessage(RuntimeError, 'abandon après 3 tentatives'):
+            redeliver_later(task, ServiceNotReady('service loading', max_attempts=3))
+
+
 class SqueletteAnnonceTest(TestCase):
     """Le squelette commun sait le déclarer — comme `vram_needed`, et OPTIONNEL."""
 

@@ -218,6 +218,9 @@ def _synthesize(synthesis, ctx):
                      f"Choix automatique du moteur → {tts_model} "
                      f"(capacités + VRAM libre au lancement, curseur qualité "
                      f"{read_quality_intent(quality_intent)}/100)")
+        # Le moteur absent : la route l'installe, la tâche attend (le service TTS le chargerait
+        # sinon lui-même, à côté du catalogue).
+        ctx.ensure_model(tts_model)
 
         # Étape 2: Génération audio via le service TTS
         _console(synthesis.user_id, f"Envoi au service TTS (modèle: {tts_model})...")

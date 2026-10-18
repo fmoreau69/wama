@@ -27,7 +27,7 @@ def image_to_3d_task(self, image, user_id: int, resolution: int = 256, foregroun
     from wama.common.backends.manager import backend_for_key
     from wama.common.utils.media_paths import app_media_dir, resolve_under_media_root
     from wama.common.utils.model_readiness import ensure_installed
-    from wama.common.utils.task_skeleton import ServiceNotReady
+    from wama.common.utils.task_skeleton import ServiceNotReady, redeliver_later
 
     src, _rel_src = resolve_under_media_root(image)       # confinement : une entrée vient d'une donnée
     src = str(src)
@@ -38,7 +38,7 @@ def image_to_3d_task(self, image, user_id: int, resolution: int = 256, foregroun
                          redelivered=bool(self.request.retries))
     except ServiceNotReady as wait:
         logger.info('[studio] image_to_3d : %s', wait)
-        raise self.retry(countdown=wait.countdown, max_retries=wait.max_attempts)
+        redeliver_later(self, wait)
     cls = backend_for_key(model)
     if cls is None:
         raise ValueError(f"aucun moteur ne pilote le modèle {model!r} (backend introuvable)")

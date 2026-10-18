@@ -303,7 +303,7 @@ class ExistingResultPlaysTheImportProcessTest(_Pipeline):
 
     align_error = None
 
-    def _aligned(self, transcript):
+    def _aligned(self, transcript, ctx=None):
         if self.align_error:
             raise self.align_error
         return {'aligned': 3, 'failed': 0, 'too_long': 0, 'model_key': 'transcriber:fake-aligner'}

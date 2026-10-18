@@ -338,6 +338,29 @@ class DeclaredCompositionTest(TestCase):
         self.assertEqual({c['role'] for c in fastwan.get('components', [])},
                          {'transformer', 'text_encoder', 'vae'})
 
+    def test_every_model_is_installable_by_the_route_where_the_imager_reads_it(self):
+        """2026-10-18 : sans `install_dir`, une ligne absente ne s'installait qu'AU CHARGEMENT, à
+        côté du catalogue (`spec_for_catalog_row` rendait None). L'emplacement déclaré est le
+        dossier que l'imager passe en `cache_dir=` — et celui où le pilote `hf` installe."""
+        from pathlib import Path
+        from types import SimpleNamespace
+        from wama.imager.utils.model_config import get_model_info
+        from wama.model_manager.services.model_installer import pull_hf_model, spec_for_catalog_row
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = ModelRegistry()
+        registry._models = {}
+        registry._discover_imager_models()
+        for key, info in registry._models.items():
+            with self.subTest(key=key):
+                row = SimpleNamespace(model_key=key, hf_id=info.hf_id, extra_info=info.extra_info,
+                                      composition=info.composition)
+                spec = spec_for_catalog_row(row)
+                self.assertEqual('hf', (spec or {}).get('kind'), f'{key} : pas installable par la route')
+                target = pull_hf_model(spec['ref'], spec['category'], spec.get('family'),
+                                       dry_run=True)['target']
+                self.assertEqual(Path(get_model_info(key.split(':', 1)[1])['cache_dir']).resolve(),
+                                 Path(target).resolve())
+
     def test_an_adapter_declares_nothing_rather_than_a_misleading_weight(self):
         """La LoRA logo ne pèse que 0,04 Go de fichier, mais son empreinte est celle de sa
         dorsale FLUX.1-dev. Declarer sa composition ferait répondre « 0,04 Go » — exact sur les

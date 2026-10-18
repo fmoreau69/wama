@@ -807,11 +807,14 @@ def _diarize_step(t, ctx):
     from wama.common.backends.pyannote_diarizer import is_available as pyannote_ok, diarize
     if not pyannote_ok():
         raise RuntimeError("pyannote non disponible")
+    # Le pipeline choisi sur la card (3.1 ou community-1, 2026-09-30) ; absent : la route
+    # l'installe, la tâche attend.
+    from wama.common.backends.pyannote_diarizer import catalogue_key_for
+    ctx.ensure_model(catalogue_key_for(getattr(t, 'diarization_model', None)))
     _set_status_message(t, "Diarisation des locuteurs…")
     _console(t.user_id, "Diarisation des locuteurs (pyannote)…")
     _set_partial_text(t.id, "🔎 Identification des locuteurs…\n")
     ctx.progress(5)
-    # Le pipeline choisi sur la card (3.1 ou community-1, 2026-09-30).
     segments = diarize(_prepared_audio(t), segments, model=getattr(t, 'diarization_model', None))
     _run_state(t)['segments'] = segments
     _save_segments(t, segments)
@@ -940,7 +943,7 @@ def _align_step(t, ctx):
     Un échec ne fait pas échouer la card : les heures estimées restent, sa ligne le dit."""
     _set_status_message(t, "Alignement des mots sur l'audio…")
     ctx.progress(5)
-    outcome = _align_document(t)
+    outcome = _align_document(t, ctx)
     _run_state(t)['segments'] = None      # les process suivants relisent ce qui vient d'être écrit
     if outcome.get('skipped'):
         return {'label': outcome['skipped'], 'output_fingerprint': _transcript_fingerprint(t)}
@@ -1185,7 +1188,8 @@ def _aligner_model(language: str):
             if (m.capabilities or {}).get('task') == 'alignment'
             and ({'*', language} & set(model_languages(m.capabilities)))]
     # ⚠ `candidates=[]` ne filtre RIEN : sans candidat, on s'arrête ici.
-    # `downloaded_only=False` : le premier alignement télécharge le modèle, comme un premier ASR.
+    # `downloaded_only=False` : un aligneur absent est tiré quand même — la route l'installe au
+    # moment du process, qui attend (`_align_document`, `ctx.ensure_model`).
     return select_model(source='transcriber', candidates=keys, downloaded_only=False) if keys else None
 
 
@@ -1198,7 +1202,7 @@ def _alignment_said(report: dict, model_name: str) -> str:
     return said
 
 
-def _align_document(t: Transcript) -> dict:
+def _align_document(t: Transcript, ctx=None) -> dict:
     """ÉTAGE B de l'alignement forcé — un résultat repris (port `work_result`) sans heures sûres.
 
     1. Des ancres : les mots déjà `exact` de la card ; s'il n'y en a aucune (aucune sortie ASR de
@@ -1252,6 +1256,8 @@ def _align_document(t: Transcript) -> dict:
         _console(t.user_id, f"Alignement acoustique : aucun aligneur au catalogue pour la langue "
                             f"« {t.language or '?'} » — les heures restent estimées.", level='warning')
         return {'skipped': 'aucun aligneur'}
+    if ctx is not None:                   # absent : la route l'installe, la tâche attend
+        ctx.ensure_model(model.model_key)
     aligner_class = backend_for_model(model)
     if aligner_class is None:
         raise RuntimeError(f"aucun moteur installé ne sert {model.name}")

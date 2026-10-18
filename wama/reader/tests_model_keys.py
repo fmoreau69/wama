@@ -40,6 +40,9 @@ class _Ctx:
     def console(self, *a, **k):
         pass
 
+    def ensure_model(self, key):
+        return key
+
 
 class LaunchThroughTheCommonDoorTest(TestCase):
 

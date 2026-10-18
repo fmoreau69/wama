@@ -3099,4 +3099,44 @@ complètement faite, proprement et alignée sur la route. »*
   champs de portée sur `AIModel` (`model_manager/models.py`) sans leur migration encore — toute
   requête ORM sur `AIModel` échoue en base vivante avec ce code (`scope_org_unit_id`), donc la
   synchro aussi : les lignes YOLOPv2 et LPIPS, et les fichiers déclarés de TripoSR, y entreront à
-  la première synchro qui suivra sa migration. La base de TEST les éprouve.
+  la première synchro qui suivra sa migration. La base de TEST les éprouve. *(Soldé le jour même :
+  synchro faite après cette migration — YOLOPv2 et LPIPS installés, TripoSR installable.)*
+
+### Revérification du 2026-10-18 : toutes les glues demandent leur modèle à la route
+
+Fabien : *« /reverif puis aligne »* — les apps qui ne déclaraient pas leur modèle au squelette.
+
+- **Écart de la revérification, ramené** : studio et cam_analyzer recopiaient chacun
+  `raise task.retry(...)` autour de `ServiceNotReady`, SANS la branche d'abandon du squelette —
+  l'attente épuisée échouait sur « Can't retry <tâche> » (`MaxRetriesExceededError`), jamais sur
+  le motif. Une brique : `task_skeleton.redeliver_later` (+ `ServiceNotReady.abandon_message`,
+  que le squelette lit aussi).
+- **Défaut trouvé en alignant** : un process OPTIONNEL dont la glu ATTEND (`ServiceNotReady`)
+  était compté comme un process en échec — l'attente se perdait. La boucle des process la laisse
+  passer, comme le dépassement de durée.
+- **Le geste de la glu** : `ctx.ensure_model(clé)` (`TaskContext`), au moment où elle connaît la
+  clé du modèle qu'elle va charger — l'utilisateur, la console et la re-livraison de la card y
+  sont déjà. Posé dans : imager (ses deux glues, qui écrivaient l'appel à la main), reader
+  (moteur de lecture), describer (transcription, vision désignée, modèle de rédaction désigné),
+  synthesizer et avatarizer (moteur de voix tiré), avatarizer (animation, CodeFormer),
+  anonymizer (chaque détecteur employé, SAM3), transcriber (pipeline de diarisation, aligneur —
+  tiré `downloaded_only=False`, qui « téléchargeait au premier alignement »), et la glu générée
+  de saveur MODÈLE (`tasks_gen`). Les extracteurs du composer sont tirés parmi les modèles
+  INSTALLÉS : rien à demander. Un LLM Ollama retiré n'a pas d'emplacement : la route le refuse
+  (`no_install_location`), l'appel ne fait qu'annoncer.
+- **Mesuré au catalogue réel avant d'aligner** : parmi les modèles LOCAUX absents, deux seulement
+  étaient installables par la route (`composer:musicgen-melody`, TripoSR) — cinq de l'imager et
+  `synthesizer:bark` ne l'étaient pas (aucun emplacement déclaré : levier de chargement). Portés :
+  - **imager** : la découverte déclare `install_dir` = le dossier que l'imager lit (`cache_dir=`) ;
+    mesuré pour les 13 modèles, c'est celui où `pull_hf_model` installe ;
+  - **Bark** : `BARK_FILES` (`common/backends/bark_backend.py`, les trois `_2.pt` que
+    `preload_models()` lit, taille et empreinte publiées par le Hub au commit `70a8a7d3`), dans
+    `suno/bark_v0` du dossier du moteur, pilote `files`. La découverte le disait téléchargé dès
+    qu'UN des fichiers était là.
+- ⚠ **Reste, consigné** : `bark_backend.load` pose `os.environ["XDG_CACHE_HOME"]` — une variable
+  GÉNÉRIQUE (toute librairie qui suit XDG la lit), mutée dans un backend, contre la règle
+  d'`AGENTS.md` (variable propre à une lib, posée UNE fois dans `settings.py`). Antérieur ;
+  le corriger touche au service TTS (processus à part) : à décider.
+- ⚠ **Reste, consigné** : sous « auto », la vision du describer est une cascade du backend (BLIP
+  en dernier repli) et la LoRA logo de l'imager s'appuie sur sa dorsale FLUX.1-dev (un `hf_id`,
+  pas une clé) : ni l'une ni l'autre ne se demande à la route avant le chargement.

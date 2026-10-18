@@ -324,6 +324,8 @@ def render_tasks(manifest: dict) -> tuple:
                 f'        raise ValueError("aucun modèle de la tâche « {r["task"]} » au catalogue")',
                 '',
                 '    ctx.console(f"Modèle : {key}")',
+                # Absent : la ROUTE l'installe et la tâche attend (`ctx.ensure_model`, 2026-10-18).
+                '    ctx.ensure_model(key)',
                 '    engine = backend_instance_for_key(key, user=item.user)',
                 f'    text = run_contract(engine, {r["port"]}=item.{r["input_field"]}.path,',
                 '                        progress_callback=ctx.progress,',

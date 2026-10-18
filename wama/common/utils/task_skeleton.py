@@ -24,6 +24,10 @@ Contrat de la glu `process(item, ctx) -> dict | None` :
                    manifeste (`writer`). Ajouté le 2026-10-01 : la glu du Writer passait
                    `'writer'` à la pipeline de prompts, qui ne trouvait aucune cible et rendait
                    la consigne intacte — document de référence ignoré, sans un message.
+  - `ctx.ensure_model(clé)` : AVANT de charger un modèle, au moment où la glu connaît sa clé de
+                   catalogue — absent, la ROUTE l'installe, la card le dit, la tâche attend
+                   (`ServiceNotReady`) ; rend la clé. Le modèle de la CARD, déclaré
+                   (`model_key=`), est demandé par le squelette lui-même (2026-10-18).
   - retour : {'fields': {champs modèle à persister au succès — des RÉSULTATS, jamais un RÉGLAGE :
                          écrire le modèle tiré dans le champ `model` remplacerait le choix
                          « auto » de l'utilisateur (relance figée, curseur masqué). Le modèle
@@ -45,7 +49,8 @@ Contrat de la glu `process(item, ctx) -> dict | None` :
                             en base) — même rôle qu'`output_ref` pour la péremption de l'aval
                             (2026-10-03, transcriber) ; optionnel}
   - Un process `optional` qui LÈVE ne fait pas échouer la card : sa ligne passe en échec, la
-    console le dit, les process suivants sont joués (règle d'agrégation 4.4).
+    console le dit, les process suivants sont joués (règle d'agrégation 4.4). Une ATTENTE
+    (`ServiceNotReady`) n'est pas un échec, optionnel ou non : la tâche revient.
   - `ctx.step` : clé du process en cours quand la card en porte plusieurs (None sinon) ;
     `ctx.reset_progress()` : barre de la card à zéro, hors de la part du process en cours.
   - `ctx.snapshot` / `ctx.previous_snapshot` (pipeline, 2026-10-13) : la photo de ce que le process
@@ -117,9 +122,20 @@ class TaskContext:
         self.snapshot = None
         self.previous_snapshot = None
         self._window = (0.0, 100.0)
-        #: La tâche revient-elle d'une attente (re-livraison) ? Posé par le squelette ; lu par une
-        #: glu qui installe un modèle secondaire (`model_readiness.ensure_installed`).
+        #: La tâche revient-elle d'une attente (re-livraison) ? Posé par le squelette ; lu par
+        #: `ensure_model`.
         self.redelivered = False
+
+    def ensure_model(self, model_key: str) -> str:
+        """Le modèle que la glu va employer est-il installé ? Sinon la ROUTE l'installe, la card
+        le dit et la tâche attend (`model_readiness.ensure_installed`, décision de Fabien du
+        2026-10-16) — le geste de la glu qui tire un modèle autre que celui de la card (un
+        process d'un pipeline, un modèle secondaire), au moment où elle connaît sa clé. Rend la
+        clé, pour s'écrire en ligne : `key = ctx.ensure_model(asr_key(item))`."""
+        from wama.common.utils.model_readiness import ensure_installed
+        ensure_installed(model_key, user=getattr(self.item, 'user', None), console=self.console,
+                         redelivered=self.redelivered)
+        return model_key
 
     def enter_step(self, step, start_pct: float, end_pct: float) -> None:
         """Le squelette entre dans un process d'un pipeline : la glu continue d'annoncer 0-100
@@ -242,6 +258,25 @@ class ServiceNotReady(Exception):
         self.countdown = int(countdown)
         self.max_attempts = int(max_attempts)
         self.gave_up = gave_up
+
+    def abandon_message(self) -> str:
+        """Ce que dit l'échec quand l'attente s'épuise — le squelette et `redeliver_later`."""
+        return self.gave_up or f"{self} : abandon après {self.max_attempts} tentatives."
+
+
+def redeliver_later(task, wait: ServiceNotReady):
+    """HORS squelette (une tâche Celery qui n'est pas celle d'une card : nœud du studio, analyse du
+    cam_analyzer) : la politique du squelette — la tâche est re-livrée après `wait.countdown`, et
+    l'attente épuisée échoue en DISANT pourquoi (`abandon_message`).
+
+    Extrait le 2026-10-18 (revérification) : studio et cam_analyzer recopiaient
+    `raise task.retry(...)` autour de `ServiceNotReady`, sans la branche d'abandon — l'échec disait
+    alors « Can't retry <tâche>[…] » (`MaxRetriesExceededError`), jamais le motif."""
+    from celery.exceptions import MaxRetriesExceededError
+    try:
+        raise task.retry(countdown=wait.countdown, max_retries=wait.max_attempts)
+    except MaxRetriesExceededError:
+        raise RuntimeError(wait.abandon_message()) from None
 
 
 def _grant_honoured(grant, item) -> bool:
@@ -722,9 +757,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         # card le dit, la tâche rend son worker et revient (`ServiceNotReady`) — décision de Fabien
         # du 2026-10-16, `model_readiness`. HORS du garde de durée : un téléchargement de 20 Go
         # n'est pas du temps de traitement.
-        from wama.common.utils.model_readiness import ensure_installed
-        ensure_installed(resolved_key, user=getattr(item, 'user', None), console=ctx.console,
-                         redelivered=ctx.redelivered)
+        ctx.ensure_model(resolved_key)
         with _time_guard(limit_s):
             steps = _selected_steps(app_id, item, process, pipeline, processes, resolved_key,
                                     only=only)
@@ -795,7 +828,10 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                 t_step = time.time()
                 try:
                     res = glue(item, ctx) or {}
-                except TaskTimeLimitExceeded:
+                except (TaskTimeLimitExceeded, ServiceNotReady):
+                    # Une ATTENTE n'est pas un échec, même d'un process optionnel : la tâche
+                    # revient (2026-10-18 — un modèle qu'un résumé tire s'installait, et la card
+                    # l'aurait lu comme un résumé en échec).
                     raise
                 except Exception as exc:
                     if spec is None or spec.degree != process_runs.OPTIONAL:
@@ -924,7 +960,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         try:
             raise task.retry(countdown=wait.countdown, max_retries=wait.max_attempts)
         except MaxRetriesExceededError:
-            msg = wait.gave_up or f"{wait} : abandon après {wait.max_attempts} tentatives."
+            msg = wait.abandon_message()
             fields = {'status': 'FAILURE'}
             if _has_field(model, error_field):
                 fields[error_field] = msg

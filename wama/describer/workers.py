@@ -129,7 +129,7 @@ def _transcribe_step(item, ctx):
     qu'aucun modèle ne transcrit fait échouer la card ; une vidéo sans piste son lisible se décrit
     sans le son, comme avant le pipeline."""
     from .function_specs import nature_of
-    key = asr_key(item)
+    key = ctx.ensure_model(asr_key(item))       # absent : la route l'installe, la tâche attend
     ctx.progress(5)
     if nature_of(item) == 'video':
         from .backends.video_backend import has_audio, transcribe_track
@@ -154,9 +154,11 @@ def _frames_step(item, ctx):
     from .backends.model_choice import BLIP, catalog_key_of, vision_for
     from .backends.video_backend import caption_frames
     opts = _options(item)
+    chosen = vision_for(opts)
+    if chosen:                                  # désigné (« auto » : la cascade du backend)
+        ctx.ensure_model(catalog_key_of(chosen))
     captions = caption_frames(item.input_file.path, opts, progress_callback=ctx.progress,
                               console=ctx.console)
-    chosen = vision_for(opts)
     return {'fields': {'frame_captions': captions}, 'label': f'{len(captions)} images',
             'models': [catalog_key_of(chosen or BLIP)],
             'output_fingerprint': _fingerprint(captions),
@@ -185,6 +187,10 @@ def _describe_step(item, ctx):
         opts['transcript'] = item.transcript or ''
     if nature == 'video':
         opts['frame_captions'] = list(item.frame_captions or [])
+    from wama.common.utils.auto_model import is_auto
+    designated = opts.get('vision_model' if nature == 'image' else 'llm_model')
+    if not is_auto(designated):
+        ctx.ensure_model(designated)            # absent : la route l'installe, la tâche attend
 
     result = backend(
         item.input_file.path,
@@ -196,8 +202,6 @@ def _describe_step(item, ctx):
     # Le modèle DÉSIGNÉ est celui qui a rédigé (jamais remplacé en silence) ; sous « auto », le
     # backend le tire lui-même et ne le rend pas — la ligne ne nomme alors aucun modèle plutôt
     # que d'en deviner un.
-    from wama.common.utils.auto_model import is_auto
-    designated = opts.get('vision_model' if nature == 'image' else 'llm_model')
     eta = describe_eta(item)
     return {'fields': {'result_text': result},
             'models': [] if is_auto(designated) else [designated],

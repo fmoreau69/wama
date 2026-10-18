@@ -194,6 +194,7 @@ def _speak(job, ctx):
             _console(job.user_id,
                      f"Choix automatique du moteur TTS → {tts_model} "
                      f"(capacités + VRAM libre au lancement, curseur qualité {quality}/100)", 'info')
+        ctx.ensure_model(tts_model)                # absent : la route l'installe, la tâche attend
         _console(job.user_id, "Synthèse audio via service TTS…", 'info')
         job.tts_model = tts_model                  # le temps de l'appel : la brique lit le job
         try:
@@ -306,6 +307,7 @@ def _animate(job, ctx):
         _console(job.user_id, f"Modèle d'animation → {model_key} "
                               + ("(choisi dans les réglages)" if named
                                  else "(choisi d'après l'avatar fourni)"), 'info')
+        ctx.ensure_model(model_key)                # absent : la route l'installe, la tâche attend
 
         # Le fichier a le bon RÔLE ; encore faut-il les ATTRIBUTS que le modèle exige (un objet 3D
         # doit être riggé, au visage ARKit). Jugé sur le FICHIER, avant tout rendu : un maillage
@@ -461,6 +463,7 @@ def _codeformer(job, animated_copy, ctx):
     import time as _time
     from wama.common.utils.output_naming import compose_output_name
     from wama.common.utils.work_dir import work_dir
+    ctx.ensure_model('avatarizer:codeformer')
     _console(job.user_id, "CodeFormer : amélioration faciale en cours…", 'info')
     ctx.progress(20)
     started = _time.time()

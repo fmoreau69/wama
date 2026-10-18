@@ -724,6 +724,49 @@ class SkeletonRunsThePipelineTest(TestCase):
         self.assertEqual([('extra', 'extra')], self.calls)
         self.assertEqual(JOB_SUCCESS, self.pipeline.card_state(item))
 
+    def test_an_optional_process_that_waits_redelivers_the_task_instead_of_failing(self):
+        """2026-10-18 : a glue that installs its model (`ctx.ensure_model`) WAITS — even in an
+        optional process, that is not a failure : the task is redelivered, the card keeps going."""
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        self.pipeline = AppPipeline(self.app, (
+            ProcessSpec('plan'),
+            ProcessSpec('extra', depends_on=('plan',), degree='optional'),
+        ), label='Demo')
+
+        def waiting(element, ctx):
+            raise ServiceNotReady('Installation de « X » en cours', countdown=30, max_attempts=720)
+        task = _task()
+        task.retry = staticmethod(lambda **kw: RuntimeError(f"re-delivered {kw['countdown']}"))
+        item = self._element('pipeline_optional_waits')
+        with mock.patch('wama.common.utils.task_skeleton.close_old_connections'), \
+                self.assertRaisesMessage(RuntimeError, 're-delivered 30'):
+            from wama.common.utils.task_skeleton import run_item_task
+            run_item_task(task, app_id=self.app, model=self.model, item_id=item.pk,
+                          pipeline=self.pipeline,
+                          processes={'plan': lambda element, ctx: {}, 'extra': waiting})
+        item = self.model.objects.get(pk=item.pk)
+        self.assertEqual('RUNNING', item.status)
+        self.assertNotEqual(JOB_FAILURE, process_runs.line(item, 'extra').status)
+
+    def test_a_glue_installs_its_model_through_the_context(self):
+        """`ctx.ensure_model(key)` : the common brick with the card's user, console and redelivery
+        — and the key back, to be written in line."""
+        seen = []
+
+        def render(element, ctx):
+            seen.append(ctx.ensure_model('family:secondary'))
+            return {}
+        with mock.patch('wama.common.utils.model_readiness.ensure_installed') as ensure:
+            item = self._run(self._element('pipeline_ensure_model'), render=render)
+        self.assertEqual(['family:secondary'], seen)
+        keys = [call.args[0] for call in ensure.call_args_list]
+        self.assertEqual(['family:announced', 'family:secondary'], keys,
+                         'the card model by the skeleton, then the glue its own')
+        last = ensure.call_args_list[-1].kwargs
+        self.assertEqual(item.user, last['user'])
+        self.assertIs(False, last['redelivered'])
+        self.assertTrue(callable(last['console']))
+
     def test_a_last_optional_process_that_fails_leaves_the_card_named_and_successful(self):
         self.pipeline = AppPipeline(self.app, (
             ProcessSpec('plan'), ProcessSpec('render', depends_on=('plan',), degree='optional'),

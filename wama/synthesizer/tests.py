@@ -652,3 +652,32 @@ class TheEntryCardKeepsOneHomePerSettingTest(TestCase):
         self.assertNotIn('previewTextBtn', card_zone, "l'aperçu est revenu dans la card d'entrée")
         self.assertNotIn('volet de droite', card_zone.split('{% endcomment %}')[-1],
                          'la card commune le dit pour toutes les apps — pas de phrase par app')
+
+
+class BarkIsInstalledByTheRouteTest(TestCase):
+    """2026-10-18 : Bark's three weights were pulled by the library at first load
+    (`preload_models()`), beside the catalogue. They are DECLARED (`BARK_FILES`) where the library
+    reads them, installed and removed by the `files` driver."""
+
+    def test_the_declared_files_pass_the_lock_of_the_files_driver(self):
+        from wama.common.backends.bark_backend import BARK_FILES, bark_weights_dir
+        from wama.model_manager.services.model_installer import declared_files_error
+        self.assertIsNone(declared_files_error(
+            {'kind': 'files', 'files': BARK_FILES, 'target_dir': str(bark_weights_dir())}))
+        self.assertEqual({'text_2.pt', 'coarse_2.pt', 'fine_2.pt'}, {f['path'] for f in BARK_FILES})
+
+    def test_the_catalogue_row_carries_them_and_one_file_is_not_enough(self):
+        from pathlib import Path
+        from unittest import mock
+        from wama.common.backends import bark_backend
+        from wama.model_manager.services.model_registry import ModelRegistry
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / 'fine_2.pt').write_bytes(b'0')
+            with mock.patch.object(bark_backend, 'bark_weights_dir', return_value=Path(tmp)):
+                registry = ModelRegistry()
+                registry._models = {}
+                registry._discover_synthesizer_models()
+        row = registry._models['synthesizer:bark']
+        self.assertEqual(bark_backend.BARK_FILES, row.extra_info['declared_files'])
+        self.assertEqual(tmp, row.extra_info['install_dir'])
+        self.assertFalse(row.is_downloaded, 'one file of three said « downloaded »')

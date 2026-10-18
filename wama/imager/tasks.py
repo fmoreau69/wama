@@ -275,9 +275,7 @@ def _generate_image(generation, ctx):
         _console(user_id, f"[Imager] Loading model: {model_key}")
         # Le modèle TIRÉ (« auto » résolu ici) absent : la route l'installe, la card le dit, la
         # tâche attend sans tenir le worker (brique commune, 2026-10-16 — ex-annonce du 2026-09-08).
-        from wama.common.utils.model_readiness import ensure_installed
-        ensure_installed(model_key, user=generation.user, redelivered=ctx.redelivered,
-                         console=lambda m: _console(user_id, f"[Imager] {m}"))
+        ctx.ensure_model(model_key)
 
         # Load the model — le backend reçoit l'identifiant qu'il connaît (sa clé de
         # SUPPORTED_MODELS / de déclaration), jamais la clé de catalogue.
@@ -687,9 +685,7 @@ def _generate_video(generation, ctx):
         # `is_downloaded=False`, et elle annonce la taille RÉELLE quand elle la connaît.
         # *Un avertissement permanent n'avertit plus de rien.* Depuis le 2026-10-16, la brique
         # INSTALLE par la route (et la tâche attend) au lieu d'annoncer un téléchargement.
-        from wama.common.utils.model_readiness import ensure_installed
-        ensure_installed(model_key, user=generation.user, redelivered=ctx.redelivered,
-                         console=lambda m: _console(user_id, f"[Imager Video] ⏳ {m}"))
+        ctx.ensure_model(model_key)
 
         model_load_start = time.time()
 

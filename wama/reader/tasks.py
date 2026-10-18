@@ -7,6 +7,8 @@ from celery import shared_task
 from django.core.cache import cache
 from django.db import close_old_connections
 
+from wama.common.utils.task_skeleton import ServiceNotReady
+
 logger = logging.getLogger(__name__)
 
 PROGRESS_CACHE_TTL = 3600  # 1 hour
@@ -238,6 +240,7 @@ def _read(item, ctx):
                         f"(curseur qualité {quality_intent_of(item, 'reader')}/100)")
 
         ctx.progress(5, f"Backend : {backend}")
+        ctx.ensure_model(backend)          # absent : la route l'installe, la tâche attend
 
         # Aperçu « PENDANT » (brique COMMUNE preview_utils, servi par `?side=during`) :
         # le texte OCR se CONSTRUIT page à page dans l'inspecteur (olmocr/glm). Best-effort.
@@ -282,6 +285,8 @@ def _read(item, ctx):
             'console_success': f"[Reader] ✓ {item.filename} — "
                                f"{len(result_text)} caractères extraits",
         }
+    except ServiceNotReady:
+        raise                              # une ATTENTE, pas une erreur : la card la dit
     except Exception as exc:
         # Le front affiche le message d'étape : y refléter l'erreur avant le flux FAILURE
         # standard de la brique (statut, console ✗, notification).

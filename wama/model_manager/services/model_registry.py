@@ -848,11 +848,16 @@ class ModelRegistry:
                     # sa dorsale FLUX.1-dev. ⚠ `base_model` est le `hf_id` de la dorsale, pas une clé
                     # de catalogue : c'est au lecteur de la résoudre (l'empreinte d'un adaptateur est
                     # une décision en attente, cf. `ROADMAP §Gouvernance` item 5).
-                    **({'extra_info': {
+                    # `install_dir` (2026-10-18) : le dossier que l'imager lit (`cache_dir=`) rend la
+                    # ligne installable PAR LA ROUTE (`spec_for_catalog_row`) — un modèle absent au
+                    # moment d'une génération s'installait jusque-là au chargement, à côté du
+                    # catalogue. Mesuré : les 13 dossiers sont ceux où `pull_hf_model` installe.
+                    extra_info={
+                        **({'install_dir': str(cache_dir)} if hf_id else {}),
                         **({'quantization': config['quantization']} if config.get('quantization') else {}),
                         **({'base_model': config['base_model']} if config.get('base_model') else {}),
                         **({'model_type': config['model_type']} if config.get('model_type') else {}),
-                    }} if any(config.get(k) for k in ('quantization', 'base_model', 'model_type')) else {}),
+                    },
                     capabilities={
                         'modalities': ['video'] if _is_video else ['image'],
                         'task': _task,
@@ -1911,22 +1916,14 @@ class ModelRegistry:
                 composition=_tts_composition('coqui-xtts'),
             )
 
-            # Check for Bark TTS
-            bark_downloaded = False
+            # Bark TTS : ses trois fichiers DÉCLARÉS (2026-10-18), que la route installe — la
+            # présence d'UN seul suffisait ici à le dire téléchargé.
+            from wama.common.backends.bark_backend import BARK_FILES, bark_weights_dir
+            from wama.model_manager.services.model_installer import declared_files_present
+            bark_root = bark_weights_dir()
+            bark_downloaded = declared_files_present(bark_root, BARK_FILES)
+            bark_model_path = bark_root if bark_downloaded else None
             bark_format = 'pt'
-            bark_paths = [
-                speech_dir / 'bark' / 'suno' / 'bark_v0' / 'fine_2.pt',
-                speech_dir / 'bark' / 'suno' / 'bark_v0' / 'coarse_2.pt',
-                speech_dir / 'bark' / 'fine_2.pt',
-            ]
-            bark_model_path = None
-            for bpath in bark_paths:
-                if bpath.exists():
-                    bark_downloaded = True
-                    bark_model_path = bpath.parent  # Store the directory
-                    bark_format = bpath.suffix.lstrip('.') or 'pt'
-                    logger.debug(f"[ModelRegistry] Found Bark at: {bpath.parent}")
-                    break
 
             self._models["synthesizer:bark"] = ModelInfo(
                 id="synthesizer:bark",
@@ -1944,7 +1941,9 @@ class ModelRegistry:
                 preferred_format=preferred,
                 # 'onnx' retiré — même raison que coqui ci-dessus (2026-08-31).
                 can_convert_to=['safetensors'],
-                extra_info={'path': str(bark_model_path) if bark_model_path else ''},
+                extra_info={'path': str(bark_model_path) if bark_model_path else '',
+                            'install_dir': str(bark_root), 'declared_files': BARK_FILES,
+                            'size_bytes': sum(f['size'] for f in BARK_FILES)},
                 capabilities=_tts_caps(
                     engine_key='bark',         # clonage LU sur BarkBackend
                     languages=_synth_languages('bark'),

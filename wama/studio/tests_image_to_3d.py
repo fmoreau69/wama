@@ -193,3 +193,18 @@ class TripoSRIsInstalledByTheRouteTest(TestCase):
             with self.assertRaisesMessage(RuntimeError, 're-delivered'):
                 gpu_tasks.image_to_3d_task.run.__func__(task, 'x.png', 7)
         self.assertEqual({'countdown': 30, 'max_retries': 720}, task.retry.call_args.kwargs)
+
+    def test_an_exhausted_wait_fails_saying_why(self):
+        from unittest import mock
+        from celery.exceptions import MaxRetriesExceededError
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        from wama.studio import gpu_tasks
+        task = mock.MagicMock()
+        task.request.retries = 720
+        task.retry.side_effect = MaxRetriesExceededError("Can't retry")
+        with mock.patch('wama.common.utils.media_paths.resolve_under_media_root',
+                        return_value=('/x.png', 'x.png')), \
+                mock.patch('wama.common.utils.model_readiness.ensure_installed',
+                           side_effect=ServiceNotReady('installing', gave_up='still not installed')):
+            with self.assertRaisesMessage(RuntimeError, 'still not installed'):
+                gpu_tasks.image_to_3d_task.run.__func__(task, 'x.png', 7)

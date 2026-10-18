@@ -467,6 +467,10 @@ def _detect(media, ctx):
         raise ValueError("Média sans fichier (ni URL rapatriée) : rien à traiter.")
     user = media.user
     kwargs, used_models = _detection_kwargs(media, user)
+    # Un modèle employé absent (désigné sur la card, ou SAM3) : la route l'installe, la tâche
+    # attend — jamais un téléchargement par la librairie au chargement, ni un repli muet.
+    for key in used_models + (['anonymizer:sam3'] if kwargs.get('use_sam3') else []):
+        ctx.ensure_model(key)
     _console(user.id, f"Détection — média {media.id}…")
     ctx.progress(2)
 

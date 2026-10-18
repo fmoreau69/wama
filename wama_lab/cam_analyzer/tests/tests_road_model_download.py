@@ -102,6 +102,20 @@ class TheAnalysisWaitsForItTest(SimpleTestCase):
         self.assertEqual(YOLOPV2_KEY, ensure.call_args.args[0])
         self.assertEqual({'countdown': 30, 'max_retries': 720}, task.retry.call_args.kwargs)
 
+    def test_an_exhausted_wait_fails_the_analysis_saying_why(self):
+        from celery.exceptions import MaxRetriesExceededError
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        from wama_lab.cam_analyzer.tasks import _await_road_model
+        task, session = self._task(), MagicMock(pk='s1', user_id=3)
+        task.retry.side_effect = MaxRetriesExceededError("Can't retry")
+        declared = str(yolopv2_folder() / 'yolopv2.pt')
+        with patch('os.path.exists', return_value=False), \
+                patch('wama.common.utils.model_readiness.ensure_installed',
+                      side_effect=ServiceNotReady('installing', gave_up='still not installed')), \
+                patch('wama_lab.cam_analyzer.tasks.set_session_progress'):
+            with self.assertRaisesMessage(RuntimeError, 'still not installed'):
+                _await_road_model(task, session, self._profile(declared))
+
     def test_another_road_model_or_a_present_file_is_left_alone(self):
         from wama_lab.cam_analyzer.tasks import _await_road_model
         declared = str(yolopv2_folder() / 'yolopv2.pt')

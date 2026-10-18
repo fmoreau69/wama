@@ -197,8 +197,11 @@ MECHANISMS = (
               "`request_install` : garde d'espace, journal, jeton), l'utilisateur est prévenu, la "
               "tâche rend son worker et revient (`ServiceNotReady`) ; refus ou échec = la tâche "
               "échoue en le disant, une installation échouée n'est pas relancée en boucle. Appelée "
-              "par le squelette (modèle de la card), l'imager (modèle tiré), le studio et le "
-              "cam_analyzer (re-livraison Celery) ; `install_and_wait` pour une commande (le banc). "
+              "par le squelette (modèle de la card), par toute glu qui charge un modèle "
+              "(`ctx.ensure_model`, 2026-10-18 : imager, reader, describer, synthesizer, "
+              "avatarizer, anonymizer, diarisation et alignement du transcriber, glu générée), "
+              "par le studio et le cam_analyzer (re-livraison Celery, `redeliver_later`) ; "
+              "`install_and_wait` pour une commande (le banc). "
               "L'annonce d'origine (`warn_if_weights_missing`) reste pour la seule ligne que la route "
               "ne sait pas installer. — Historique : un modèle jamais utilisé télécharge ses poids "
               "À LA PREMIÈRE EXÉCUTION (37 appels "
@@ -1984,9 +1987,12 @@ MECHANISMS = (
               "n'écrit plus de couleur : la card commune est le 1ᵉʳ adopteur (2026-10-17). "
               "`common.contrast` joue chaque thème déclaré ; `tests_theme` exige que chaque thème "
               "définisse chaque token et tient le BUDGET des couleurs écrites en dur, qui ne peut "
-              "que descendre",
+              "que descendre. Le CLAIR (2026-10-18) est le miroir de luminance du sombre "
+              "(`theme_mirror.mirror`, contrastes conservés), sauf les fixes et surfaces que "
+              "`themes.py` déclare ; une région fixe son thème par `data-wama-theme` (îlot)",
               'wama/common/themes.py', 'docs/construction/suivi/ROADMAP.md §28',
               annexes=('wama/common/static/common/css/wama-theme.css',
+                       'wama/common/theme_mirror.py',
                        'wama/common/tests/tests_theme.py')),
 
     Mechanism('filter_bar', 'Barre de filtrage',

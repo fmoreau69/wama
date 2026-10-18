@@ -57,12 +57,17 @@ class _FakeOCR(OCRBackend):
 class _Ctx:
     def __init__(self):
         self.lines = []
+        self.ensured = []
 
     def progress(self, *a, **k):
         pass
 
     def console(self, line, *a, **k):
         self.lines.append(line)
+
+    def ensure_model(self, key):
+        self.ensured.append(key)
+        return key
 
 
 def _load_generated(source: str):
@@ -148,7 +153,9 @@ class TheComposedBodyRunsTest(TestCase):
         with mock.patch('wama.common.backends.manager.backend_instance_for_key',
                         return_value=engine) as door, \
                 mock.patch('wama.common.utils.preview_utils.publish_partial_text') as partial:
-            result = self.module._process_read_document_task(item, _Ctx())
+            ctx = _Ctx()
+            result = self.module._process_read_document_task(item, ctx)
+        self.assertEqual(['ollama:glm-ocr:latest'], ctx.ensured, 'the route is asked before the door')
         self.assertEqual('ollama:glm-ocr:latest', door.call_args.args[0])
         self.assertEqual(self.user, door.call_args.kwargs['user'])
         self.assertTrue(engine.seen['work_file'].endswith('scan.png'))

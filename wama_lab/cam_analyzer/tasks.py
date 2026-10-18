@@ -685,14 +685,14 @@ def _await_road_model(task, session, profile) -> None:
     if os.path.normpath(path) != os.path.normpath(declared) or os.path.exists(path):
         return
     from wama.common.utils.model_readiness import ensure_installed
-    from wama.common.utils.task_skeleton import ServiceNotReady
+    from wama.common.utils.task_skeleton import ServiceNotReady, redeliver_later
     try:
         ensure_installed(YOLOPV2_KEY, user=session.user, via='cam_analyzer',
                          console=lambda m: _console(session.user_id, m),
                          redelivered=bool(task.request.retries))
     except ServiceNotReady as wait:
         set_session_progress(str(session.pk), 1, str(wait))
-        raise task.retry(countdown=wait.countdown, max_retries=wait.max_attempts)
+        redeliver_later(task, wait)
 
 
 @shared_task(bind=True)

@@ -10,7 +10,9 @@ l'installation soit complètement faite, proprement et alignée sur la route. »
     d'espace disque, journal, jeton, provenance — la même que le bouton), l'utilisateur est
     prévenu, et la tâche ATTEND sans tenir son worker (`task_skeleton.ServiceNotReady` : elle
     revient d'elle-même, la card dit qu'elle attend). Une installation refusée (disque plein…) ou
-    échouée fait échouer la tâche EN LE DISANT — jamais un téléchargement « au chargement » à côté ;
+    échouée fait échouer la tâche EN LE DISANT — jamais un téléchargement « au chargement » à côté.
+    Une glu l'appelle par `ctx.ensure_model(clé)` (`task_skeleton.TaskContext`), une tâche hors
+    squelette par `redeliver_later` ;
   • `install_and_wait` — le même geste pour un appelant SYNCHRONE (une commande : le banc) ;
   • `warn_if_weights_missing` — l'ancienne annonce, gardée pour la seule ligne que la route ne
     sait pas installer (aucun emplacement déclaré) : son backend télécharge au chargement, par un
