@@ -69,7 +69,7 @@
         host.className = 'modal fade wama-schedule-modal';
         host.tabIndex = -1;
         host.innerHTML = '<div class="modal-dialog modal-dialog-centered">'
-            + '<div class="modal-content bg-dark text-light border-secondary"></div></div>';
+            + '<div class="modal-content bg-body text-body-emphasis border-secondary"></div></div>';
         document.body.appendChild(host);
         return host;
     }
@@ -83,7 +83,7 @@
         return '<div class="modal-header border-secondary">'
             + '<h5 class="modal-title"><i class="fas fa-clock me-2"></i>'
             + (opts.action ? 'Modifier la programmation' : 'Programmer le lancement') + '</h5>'
-            + '<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>'
+            + '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>'
             + '<div class="modal-body">'
             + '<p class="small text-secondary mb-3">' + (opts.subject || '') + '</p>'
             + '<div class="wama-schedule-fields"></div>'

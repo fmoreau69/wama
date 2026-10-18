@@ -83,7 +83,7 @@
   .rp-actions { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
   /* Tableau des raccourcis */
   .kbd-table { width: 100%; font-size: .72rem; border-collapse: collapse; }
-  .kbd-table tr.kbd-head td { color: var(--wama-accent); font-weight: 600; padding-top: .5rem; border: none; }
+  .kbd-table tr.kbd-head td { color: var(--wama-accent-text); font-weight: 600; padding-top: .5rem; border: none; }
   .kbd-table td { padding: .2rem .3rem; border-bottom: 1px solid var(--wama-tx-kbd-rule); vertical-align: top; }
   .kbd-table td:first-child { white-space: nowrap; color: var(--wama-edit-text); width: 46%; }
   .kbd-table kbd { font-size: .66rem; padding: .05rem .25rem; }
@@ -100,14 +100,14 @@
   .meta-ro { font-size: .74rem; color: var(--wama-text-muted); margin-top: .3rem; }
   .meta-ro div { padding: .12rem 0; }
   /* Nom de locuteur (mappé) affiché sous l'id canonique dans la ligne de segment */
-  .seg-spk-name { font-size: .64rem; color: var(--wama-accent); display: block; margin-top: .1rem;
+  .seg-spk-name { font-size: .64rem; color: var(--wama-accent-text); display: block; margin-top: .1rem;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* Suivi de relecture : ✓ par segment + atténuation des segments revus */
   .seg-review { flex: 0 0 auto; color: var(--wama-tx-review-idle); background: transparent; border: none; align-self: center; }
   .seg-review:hover { color: var(--wama-text-muted); }
   .seg-row.seg-reviewed { opacity: .6; }
   .seg-row.seg-reviewed:hover, .seg-row.seg-reviewed.seg-active, .seg-row.seg-reviewed.seg-selected { opacity: 1; }
-  .seg-row.seg-reviewed .seg-review { color: var(--wama-tx-reviewed); }
+  .seg-row.seg-reviewed .seg-review { color: var(--wama-tx-reviewed-text); }
   /* Modes d'écriture : propositions (Touch / Latch / Write) à accepter ou refuser */
   .write-proposals { max-height: 110px; overflow-y: auto; margin-top: .35rem; }
   .wp-item { display: flex; align-items: center; gap: .4rem; padding: .15rem .3rem; font-size: .78rem;
@@ -126,24 +126,24 @@
 
   <!-- Toolbar : Retour + nom du fichier + actions (aussi disponibles dans le volet droit) -->
   <div class="editor-toolbar d-flex align-items-center gap-2 flex-wrap">
-    <a href="{% url 'transcriber:index' %}" class="btn btn-sm btn-outline-light">
+    <a href="{% url 'transcriber:index' %}" class="btn btn-sm btn-outline-emphasis">
       <i class="fas fa-arrow-left"></i> Retour
     </a>
     <div class="flex-grow-1 text-truncate">
       <i class="fas fa-pen-to-square text-info"></i>
-      <strong class="text-light">{{ transcript.title|default:transcript.filename }}</strong>
+      <strong class="text-body-emphasis">{{ transcript.title|default:transcript.filename }}</strong>
       <span class="badge bg-secondary ms-1">{{ transcript.used_backend|default:"—" }}</span>
     </div>
-    <button class="t-undo btn btn-sm btn-outline-light" title="Annuler (Ctrl+Z) — texte, locuteur, scission, fusion, compactage" disabled>
+    <button class="t-undo btn btn-sm btn-outline-emphasis" title="Annuler (Ctrl+Z) — texte, locuteur, scission, fusion, compactage" disabled>
       <i class="fas fa-rotate-left"></i>
     </button>
-    <button class="t-redo btn btn-sm btn-outline-light" title="Rétablir (Ctrl+Maj+Z)" disabled>
+    <button class="t-redo btn btn-sm btn-outline-emphasis" title="Rétablir (Ctrl+Maj+Z)" disabled>
       <i class="fas fa-rotate-right"></i>
     </button>
-    <button class="t-compact btn btn-sm btn-outline-light" title="Fusionner les segments consécutifs d'un même locuteur">
+    <button class="t-compact btn btn-sm btn-outline-emphasis" title="Fusionner les segments consécutifs d'un même locuteur">
       <i class="fas fa-compress"></i> Compacter
     </button>
-    <span class="t-savestate save-state text-white-50"><i class="fas fa-check"></i> À jour</span>
+    <span class="t-savestate save-state text-body-secondary"><i class="fas fa-check"></i> À jour</span>
     <button class="t-finalize btn btn-sm btn-success" title="Marquer la correction comme terminée">
       <i class="fas fa-check-double"></i> Terminer la correction
     </button>
@@ -174,23 +174,23 @@
 
       <!-- Transport : aller à + saut + vitesse + zoom + verrou de suivi -->
       <div class="d-flex align-items-center gap-2 mt-2 flex-wrap small">
-        <span class="text-white-50"><i class="fas fa-clock"></i></span>
+        <span class="text-body-secondary"><i class="fas fa-clock"></i></span>
         <input type="text" id="gotoTime" class="form-control form-control-sm" style="width:84px;"
                placeholder="mm:ss" title="Aller à un timecode (mm:ss ou hh:mm:ss) — Entrée">
-        <button class="btn btn-sm btn-outline-light" id="gotoBtn" title="Aller au timecode"><i class="fas fa-arrow-right-to-bracket"></i></button>
-        <span class="text-white-50 ms-1">·</span>
-        <button class="btn btn-sm btn-outline-light" id="skipBack" title="Reculer 5 s (←)"><i class="fas fa-backward"></i> 5s</button>
-        <button class="btn btn-sm btn-outline-light" id="skipFwd" title="Avancer 5 s (→)">5s <i class="fas fa-forward"></i></button>
-        <span class="text-white-50 ms-2"><i class="fas fa-gauge-high"></i></span>
-        <button class="btn btn-sm btn-outline-light" id="speedDown" title="Ralentir"><i class="fas fa-minus"></i></button>
+        <button class="btn btn-sm btn-outline-emphasis" id="gotoBtn" title="Aller au timecode"><i class="fas fa-arrow-right-to-bracket"></i></button>
+        <span class="text-body-secondary ms-1">·</span>
+        <button class="btn btn-sm btn-outline-emphasis" id="skipBack" title="Reculer 5 s (←)"><i class="fas fa-backward"></i> 5s</button>
+        <button class="btn btn-sm btn-outline-emphasis" id="skipFwd" title="Avancer 5 s (→)">5s <i class="fas fa-forward"></i></button>
+        <span class="text-body-secondary ms-2"><i class="fas fa-gauge-high"></i></span>
+        <button class="btn btn-sm btn-outline-emphasis" id="speedDown" title="Ralentir"><i class="fas fa-minus"></i></button>
         <span id="speedVal" class="badge bg-secondary" style="min-width:42px;">1.0×</span>
-        <button class="btn btn-sm btn-outline-light" id="speedUp" title="Accélérer"><i class="fas fa-plus"></i></button>
-        <span class="text-white-50 ms-2"><i class="fas fa-magnifying-glass"></i></span>
-        <button class="btn btn-sm btn-outline-light" id="zoomOut" title="Dézoomer"><i class="fas fa-minus"></i></button>
+        <button class="btn btn-sm btn-outline-emphasis" id="speedUp" title="Accélérer"><i class="fas fa-plus"></i></button>
+        <span class="text-body-secondary ms-2"><i class="fas fa-magnifying-glass"></i></span>
+        <button class="btn btn-sm btn-outline-emphasis" id="zoomOut" title="Dézoomer"><i class="fas fa-minus"></i></button>
         <span id="zoomLabel" class="badge bg-secondary" style="min-width:42px;">×1</span>
-        <button class="btn btn-sm btn-outline-light" id="zoomIn" title="Zoomer"><i class="fas fa-plus"></i></button>
-        <button class="btn btn-sm btn-outline-light ms-2" id="followLockBtn" title="Suivre la lecture — la liste suit l'audio même en édition (Alt+L)"><i class="fas fa-lock-open"></i></button>
-        <button class="btn btn-sm btn-outline-light ms-2" id="boundaryToolBtn" aria-pressed="false"
+        <button class="btn btn-sm btn-outline-emphasis" id="zoomIn" title="Zoomer"><i class="fas fa-plus"></i></button>
+        <button class="btn btn-sm btn-outline-emphasis ms-2" id="followLockBtn" title="Suivre la lecture — la liste suit l'audio même en édition (Alt+L)"><i class="fas fa-lock-open"></i></button>
+        <button class="btn btn-sm btn-outline-emphasis ms-2" id="boundaryToolBtn" aria-pressed="false"
                 title="Outil Bornes (C) — glisser une borne pour la déplacer · cliquer dans une section pour la couper · Échap pour sortir">
           <i class="fas fa-scissors"></i> Bornes
         </button>
@@ -236,7 +236,7 @@
 {% block right_panel_media_title %}<i class="fas fa-headphones me-1"></i> Audio{% endblock %}
 {% block right_panel_media %}
   <audio controls preload="none" style="width:100%;" src="{{ audio_url }}"></audio>
-  {% if transcript.properties %}<div class="small text-white-50 mt-1"><i class="fas fa-wave-square"></i> {{ transcript.properties }}</div>{% endif %}
+  {% if transcript.properties %}<div class="small text-body-secondary mt-1"><i class="fas fa-wave-square"></i> {{ transcript.properties }}</div>{% endif %}
 {% endblock %}
 
 {% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Correction{% endblock %}
@@ -267,9 +267,9 @@
   <!-- Intervenants : renommage en une passe (persisté dans speaker_map) -->
   <hr class="my-2" style="border-color:var(--wama-edit-border);">
   <div class="right-panel-section-title mb-1"><i class="fas fa-users me-1"></i> Intervenants</div>
-  <p class="small text-white-50 mb-2">Renommez chaque intervenant. Les noms apparaissent dans le document de sortie (l'audio et les segments ne sont pas modifiés).</p>
+  <p class="small text-body-secondary mb-2">Renommez chaque intervenant. Les noms apparaissent dans le document de sortie (l'audio et les segments ne sont pas modifiés).</p>
   <div id="speakerList"></div>
-  <p class="small text-white-50 mb-2" id="speakerEmpty" style="display:none;">Aucun locuteur détecté (diarisation désactivée).</p>
+  <p class="small text-body-secondary mb-2" id="speakerEmpty" style="display:none;">Aucun locuteur détecté (diarisation désactivée).</p>
   <button id="suggestSpeakersBtn" class="btn btn-sm btn-outline-info w-100 mb-1" title="Détecter les noms à partir des présentations dans l'audio (IA)">
     <i class="fas fa-wand-magic-sparkles"></i> Identifier automatiquement
   </button>
@@ -279,31 +279,31 @@
 {% block right_panel_actions %}
   <!-- Progression de relecture (segments passés en revue) -->
   <div class="mb-2">
-    <div class="d-flex justify-content-between small text-white-50">
+    <div class="d-flex justify-content-between small text-body-secondary">
       <span><i class="fas fa-list-check"></i> Relecture</span>
       <span id="reviewCount">0 / 0</span>
     </div>
     <div class="review-bar mt-1"><div id="reviewBarFill"></div></div>
   </div>
   <div class="rp-actions mb-2">
-    <button class="t-undo btn btn-sm btn-outline-light" title="Annuler (Ctrl+Z) — texte, locuteur, scission, fusion, compactage" disabled>
+    <button class="t-undo btn btn-sm btn-outline-emphasis" title="Annuler (Ctrl+Z) — texte, locuteur, scission, fusion, compactage" disabled>
       <i class="fas fa-rotate-left"></i>
     </button>
-    <button class="t-redo btn btn-sm btn-outline-light" title="Rétablir (Ctrl+Maj+Z)" disabled>
+    <button class="t-redo btn btn-sm btn-outline-emphasis" title="Rétablir (Ctrl+Maj+Z)" disabled>
       <i class="fas fa-rotate-right"></i>
     </button>
-    <button class="t-compact btn btn-sm btn-outline-light" title="Fusionner les segments consécutifs d'un même locuteur">
+    <button class="t-compact btn btn-sm btn-outline-emphasis" title="Fusionner les segments consécutifs d'un même locuteur">
       <i class="fas fa-compress"></i> Compacter
     </button>
   </div>
   <button class="t-finalize btn btn-sm btn-success w-100 mb-1" title="Marquer la correction comme terminée">
     <i class="fas fa-check-double"></i> Terminer la correction
   </button>
-  <div class="text-end mb-2"><span class="t-savestate save-state text-white-50"><i class="fas fa-check"></i> À jour</span></div>
+  <div class="text-end mb-2"><span class="t-savestate save-state text-body-secondary"><i class="fas fa-check"></i> À jour</span></div>
 
   <!-- Raccourcis clavier (repliable) + légende heatmap -->
   <details class="small">
-    <summary class="text-white-50" style="cursor:pointer;"><i class="fas fa-keyboard"></i> Raccourcis clavier</summary>
+    <summary class="text-body-secondary" style="cursor:pointer;"><i class="fas fa-keyboard"></i> Raccourcis clavier</summary>
     <table class="kbd-table mt-1">
       <tr class="kbd-head"><td colspan="2">🎧 Navigation</td></tr>
       <tr><td><kbd>L</kbd> / <kbd>J</kbd> / <kbd>K</kbd></td><td>+ rapide / + lent puis arrière / stop (1 · 1.25 · 1.5 · 1.75 · 2 · 4 · 8 · 16×)</td></tr>
@@ -327,9 +327,9 @@
       <tr><td><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Maj+Z</kbd></td><td>annuler / rétablir</td></tr>
       <tr><td><i class="fas fa-check"></i> (clic)</td><td>marquer un segment « revu » (auto à l'édition)</td></tr>
     </table>
-    <div class="mt-2 text-white-50">
+    <div class="mt-2 text-body-secondary">
       <strong>Légende heatmap</strong><br>
-      <span style="color:var(--wama-tx-reviewed);">■</span> OK ·
+      <span style="color:var(--wama-tx-reviewed-text);">■</span> OK ·
       <span style="color:var(--wama-tx-attention);">■</span> à vérifier ·
       <span style="color:var(--wama-tx-warning-point);">■</span> à corriger
     </div>

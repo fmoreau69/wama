@@ -46,7 +46,7 @@
         wrap.innerHTML =
             '<label class="form-label small mb-1" for="msPrompt' + id + '">' +
             '<i class="fas fa-pen-to-square me-1"></i>Prompt</label>' +
-            '<textarea class="form-control form-control-sm bg-dark text-light border-secondary" ' +
+            '<textarea class="form-control form-control-sm bg-body text-body-emphasis border-secondary" ' +
             'id="msPrompt' + id + '" name="prompt" rows="3"></textarea>';
         body.insertBefore(wrap, body.firstChild);
 
@@ -74,7 +74,7 @@
         wrap.className = 'wama-param mb-2 d-flex align-items-center gap-2';
         wrap.innerHTML =
             '<img src="' + esc(data.reference_image_url) + '" alt="Référence" ' +
-            'class="img-thumbnail bg-dark border-secondary" style="max-height:70px;">' +
+            'class="img-thumbnail bg-body border-secondary" style="max-height:70px;">' +
             '<small class="text-muted">Image de référence</small>';
         body.appendChild(wrap);
     }

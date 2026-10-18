@@ -2097,10 +2097,10 @@
             modal.className = 'modal fade';
             modal.innerHTML = `
                 <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content bg-dark text-white">
+                    <div class="modal-content bg-body text-body-emphasis">
                         <div class="modal-header border-secondary">
                             <h5 class="modal-title">Informations</h5>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
                             <table class="file-info-table"></table>
@@ -2119,7 +2119,7 @@
         const usageRow = !u ? '' : (u.unused
             ? `<tr><td>Utilisation</td><td class="text-danger fw-semibold">Utilisé par aucune card ni la médiathèque${
                 u.unused_days != null ? ` depuis ${u.unused_days} jour(s)` : ''} — vous pouvez le supprimer s'il ne vous sert plus
-                (<a href="/media-library/?tab=unused" class="link-light">fichiers inutilisés</a>)</td></tr>`
+                (<a href="/media-library/?tab=unused" class="link-body-emphasis">fichiers inutilisés</a>)</td></tr>`
             : `<tr><td>Utilisation</td><td>Utilisé par ${u.cards} élément(s) (cards, médiathèque)</td></tr>`);
         // Ce qu'est le MÉDIA (2026-10-04) : la sonde commune (`api_info` → `media`) — la durée
         // par le formateur commun (« 3:30 »), le reste tel que la sonde le dit.
@@ -2154,7 +2154,7 @@
         toast.innerHTML = `
             <div class="d-flex">
                 <div class="toast-body">${escapeHtml(message)}</div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
             </div>
         `;
 

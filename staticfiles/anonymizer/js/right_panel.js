@@ -115,8 +115,8 @@
                         data.examples.forEach(example => {
                             const item = document.createElement('a');
                             item.href = '#';
-                            item.className = 'list-group-item list-group-item-action bg-dark text-light border-secondary py-1 px-2';
-                            item.innerHTML = '<small><strong>' + example.prompt + '</strong><br><span class="text-white-50">' + example.description + '</span></small>';
+                            item.className = 'list-group-item list-group-item-action bg-body text-body-emphasis border-secondary py-1 px-2';
+                            item.innerHTML = '<small><strong>' + example.prompt + '</strong><br><span class="text-body-secondary">' + example.description + '</span></small>';
                             item.addEventListener('click', function(e) {
                                 e.preventDefault();
                                 if (sam3PromptTextarea) {

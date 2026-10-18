@@ -8,7 +8,7 @@
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="text-light">
+                <h2 class="text-body-emphasis">
                     <i class="fas fa-users-cog"></i> Gestion des utilisateurs
                 </h2>
                 <a href="{% url 'accounts:app-access-matrix' %}" class="btn btn-outline-info me-2">
@@ -29,10 +29,10 @@
 
             {% for section in sections %}
             <!-- Section : {{ section.label }} -->
-            <div class="card bg-dark border-secondary mb-4" data-f-groupe="{{ section.kind }}"
+            <div class="card bg-body border-secondary mb-4" data-f-groupe="{{ section.kind }}"
                  data-account-section="{{ section.kind }}">
                 <div class="card-header border-secondary d-flex align-items-center">
-                    <h5 class="mb-0 text-light">
+                    <h5 class="mb-0 text-body-emphasis">
                         <i class="fas fa-{% if section.kind == 'test' %}flask{% else %}users{% endif %} me-2"></i>{{ section.label }}
                     </h5>
                     <span class="badge bg-secondary ms-2">{{ section.users|length }}</span>
@@ -42,7 +42,7 @@
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-dark table-hover mb-0">
+                        <table class="table table-hover mb-0">
                             <thead>
                                 <tr>
                                     <th>Utilisateur</th>
@@ -81,7 +81,7 @@
                                     <td style="overflow-wrap:anywhere; min-width:7rem;">{{ item.user.email|default:"-" }}</td>
                                     <td>{{ item.user.first_name }} {{ item.user.last_name }}</td>
                                     <td>
-                                        <select class="form-select form-select-sm bg-dark text-white border-secondary role-select"
+                                        <select class="form-select form-select-sm bg-body text-body-emphasis border-secondary role-select"
                                                 style="min-width:9rem;"
                                                 data-user-id="{{ item.user.id }}"
                                                 {% if item.user.username == 'anonymous' %}disabled{% endif %}>
@@ -113,7 +113,7 @@
                                                        data-user-id="{{ item.user.id }}"
                                                        data-role="{{ cell.key }}"
                                                        {% if cell.active %}checked{% endif %}>
-                                                <label class="form-check-label small text-white-50"
+                                                <label class="form-check-label small text-body-secondary"
                                                        for="metier-{{ item.user.id }}-{{ cell.key }}">
                                                     {{ cell.label }}
                                                 </label>
@@ -177,7 +177,7 @@
             {% endfor %}
 
             <!-- Roles Legend -->
-            <div class="card bg-dark border-secondary mt-4">
+            <div class="card bg-body border-secondary mt-4">
                 <div class="card-header border-secondary">
                     <h5 class="mb-0"><i class="fas fa-info-circle"></i> Légende des rôles</h5>
                 </div>
@@ -211,44 +211,44 @@
 <!-- Add User Modal -->
 <div class="modal fade" id="addUserModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bg-dark text-white border-secondary">
+        <div class="modal-content bg-body text-body-emphasis border-secondary">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title"><i class="fas fa-user-plus"></i> Ajouter un utilisateur</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="addUserForm">
                     <div class="mb-3">
                         <label class="form-label">Nom d'utilisateur <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control bg-dark text-white border-secondary"
+                        <input type="text" class="form-control bg-body text-body-emphasis border-secondary"
                                name="username" required autocomplete="off">
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Prénom</label>
-                            <input type="text" class="form-control bg-dark text-white border-secondary"
+                            <input type="text" class="form-control bg-body text-body-emphasis border-secondary"
                                    name="first_name">
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Nom</label>
-                            <input type="text" class="form-control bg-dark text-white border-secondary"
+                            <input type="text" class="form-control bg-body text-body-emphasis border-secondary"
                                    name="last_name">
                         </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Email</label>
-                        <input type="email" class="form-control bg-dark text-white border-secondary"
+                        <input type="email" class="form-control bg-body text-body-emphasis border-secondary"
                                name="email">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Mot de passe</label>
-                        <input type="password" class="form-control bg-dark text-white border-secondary"
+                        <input type="password" class="form-control bg-body text-body-emphasis border-secondary"
                                name="password" placeholder="Laisser vide pour un mot de passe non défini"
                                autocomplete="new-password">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Rôle</label>
-                        <select class="form-select bg-dark text-white border-secondary" name="role">
+                        <select class="form-select bg-body text-body-emphasis border-secondary" name="role">
                             <option value="user" selected>Utilisateur</option>
                             <option value="dev">Développeur</option>
                             <option value="admin">Admin</option>

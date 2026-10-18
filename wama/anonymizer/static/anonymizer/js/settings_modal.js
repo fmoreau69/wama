@@ -35,14 +35,14 @@
     const sec = document.createElement('div');
     sec.className = 'mt-3 anon-classes2blur';
     sec.innerHTML =
-      '<label class="form-label small fw-bold text-light">' +
+      '<label class="form-label small fw-bold text-body-emphasis">' +
       '<i class="fas fa-list-check"></i> Objets à flouter (YOLO)</label>' +
       '<div class="row">' +
       classes.map(c =>
         '<div class="col-md-4 col-sm-6"><div class="form-check">' +
         '<input class="form-check-input" type="checkbox" name="classes2blur" value="' + esc(c.value) + '"' +
         (c.checked ? ' checked' : '') + ' id="msClasses_' + esc(c.value) + '">' +
-        '<label class="form-check-label text-light small" for="msClasses_' + esc(c.value) + '">' +
+        '<label class="form-check-label text-body-emphasis small" for="msClasses_' + esc(c.value) + '">' +
         esc(c.label) + '</label></div></div>'
       ).join('') +
       '</div>';

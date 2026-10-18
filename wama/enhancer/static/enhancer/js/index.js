@@ -315,7 +315,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!hasItems || force) {
       if (existingEmpty) return;
       const el = document.createElement('div');
-      el.className = 'empty-state text-center py-4 text-white-50';
+      el.className = 'empty-state text-center py-4 text-body-secondary';
       el.textContent = 'Aucun fichier en attente.';
       queueTable.appendChild(el);
     } else if (existingEmpty) {

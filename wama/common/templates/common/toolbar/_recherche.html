@@ -9,10 +9,10 @@ profils — un seul comportement à connaître, celui de `wama-filter-bar.js`.
 le dernier mot avec `placeholder`.
 {% endcomment %}
 <div class="input-group input-group-sm wama-filter-search">
-  <span class="input-group-text bg-dark border-secondary">
+  <span class="input-group-text bg-body border-secondary">
     <i class="fas fa-search text-muted"></i>
   </span>
-  <input type="text" class="form-control bg-dark border-secondary text-light"
+  <input type="text" class="form-control bg-body border-secondary text-body-emphasis"
          name="{{ nom_recherche|default:'q' }}" value="{{ recherche|default:'' }}"
          data-f-role="recherche"
          placeholder="{{ placeholder|default:placeholder_defaut }}">

@@ -41,7 +41,7 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
      {% if collapsible %}data-wama-nic{% if show_prompt %} data-nic-primary="{{ prompt_input_id }}"{% endif %}{% endif %}>
     <div class="card-body py-2">
 
-        <div class="d-flex align-items-center gap-2 mb-2 small text-white-50"{% if collapsible %} data-nic-toggle role="button" title="Déplier / replier les options d'import"{% endif %}>
+        <div class="d-flex align-items-center gap-2 mb-2 small text-body-secondary"{% if collapsible %} data-nic-toggle role="button" title="Déplier / replier les options d'import"{% endif %}>
             <i class="fas fa-plus-circle text-info"></i> <strong>Nouvel élément</strong>
             <span class="text-muted">{% if show_prompt %}— décrivez, glissez ou collez{% else %}— glissez un fichier{% endif %}</span>
             {% include 'common/_settings_hint.html' %}
@@ -52,7 +52,7 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
         {% comment %}Le PROMPT est un port lui aussi (`group='prompt'`) — NON-FICHIER : il reste
         au-dessus de la zone de preview, et c'est le SEUL élément autorisé à grandir (§11.9 C).{% endcomment %}
         <div class="mb-2"{% if prompt_zone_id %} id="{{ prompt_zone_id }}"{% endif %}>
-            <textarea class="form-control form-control-sm bg-dark text-light border-secondary"
+            <textarea class="form-control form-control-sm bg-body text-body-emphasis border-secondary"
                       id="{{ prompt_input_id|default:'promptInput' }}" rows="{{ prompt_rows|default:2 }}"
                       placeholder="{{ prompt_placeholder|default:'Décrivez ce que vous voulez générer…' }}"></textarea>
             {% if prompt_hint %}<small class="text-muted">{{ prompt_hint }}</small>{% endif %}
@@ -203,8 +203,8 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                         {% if url_input_id %}
                         <div class="wama-mod wama-mod-url" data-mod="url">
                             <div class="input-group input-group-sm">
-                                <span class="input-group-text bg-dark border-secondary {{ url_icon_class|default:'text-info' }} px-2"><i class="{{ url_icon|default:'fas fa-link' }}"></i></span>
-                                <input type="text" class="form-control bg-dark text-white border-secondary"
+                                <span class="input-group-text bg-body border-secondary {{ url_icon_class|default:'text-info' }} px-2"><i class="{{ url_icon|default:'fas fa-link' }}"></i></span>
+                                <input type="text" class="form-control bg-body text-body-emphasis border-secondary"
                                        id="{{ url_input_id }}" placeholder="{{ url_placeholder|default:'https://…' }}">
                                 {% if url_submit_id %}<button class="btn btn-danger" type="button" id="{{ url_submit_id }}" title="Importer depuis l'URL"><i class="fas fa-download"></i></button>{% endif %}
                             </div>
@@ -252,11 +252,11 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                         </div>
                         <div class="wama-mod wama-mod-url" data-mod="url">
                             <div class="input-group input-group-sm">
-                                <span class="input-group-text bg-dark border-secondary text-info px-2"><i class="fas fa-link"></i></span>
+                                <span class="input-group-text bg-body border-secondary text-info px-2"><i class="fas fa-link"></i></span>
                                 {% comment %}Id DÉCLARABLE (2026-09-29) : sans id, personne ne lisait ce champ — une
                                 URL de référence tapée ici était ignorée. L'app le lit comme en v3
                                 (composer : `#melodyUrlInput`, `source_url` du payload).{% endcomment %}
-                                <input type="text" class="form-control bg-dark text-white border-secondary" placeholder="https://…" data-port-url
+                                <input type="text" class="form-control bg-body text-body-emphasis border-secondary" placeholder="https://…" data-port-url
                                        id="{% firstof reference_url_id rid|add:'Url' %}">
                             </div>
                             <small>téléchargée au lancement — un fichier joint prime</small>

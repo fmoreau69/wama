@@ -61,21 +61,21 @@ const MediaPicker = (() => {
     wrapper.innerHTML = `
 <div class="modal fade" id="${MODAL_ID}" tabindex="-1">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
-    <div class="modal-content bg-dark text-light border-secondary">
+    <div class="modal-content bg-body text-body-emphasis border-secondary">
       <div class="modal-header border-secondary py-2">
         <h6 class="modal-title mb-0">
           <i class="fas fa-photo-video me-2 text-info"></i>Médiathèque
         </h6>
         <div class="d-flex align-items-center gap-2 ms-3">
           <input type="text" id="mp-search-input"
-                 class="form-control form-control-sm bg-dark text-white border-secondary"
+                 class="form-control form-control-sm bg-body text-body-emphasis border-secondary"
                  placeholder="Rechercher…" style="width:180px">
           <button type="button" id="mp-add-toggle" class="btn btn-outline-success btn-sm"
                   title="Ajouter un fichier à ma médiathèque — ou l'enregistrer au micro">
             <i class="fas fa-plus me-1"></i>Ajouter
           </button>
         </div>
-        <button type="button" class="btn-close btn-close-white ms-auto"
+        <button type="button" class="btn-close ms-auto"
                 data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body p-2">
@@ -103,7 +103,7 @@ const MediaPicker = (() => {
               </div>
               <div id="mp-preview-body" style="display:none">
                 <div id="mp-preview-media" class="mb-2 text-center"></div>
-                <div class="small text-light text-break" id="mp-preview-name"></div>
+                <div class="small text-body-emphasis text-break" id="mp-preview-name"></div>
                 <div class="small text-muted" id="mp-preview-meta"></div>
                 <div class="small text-muted mt-1" id="mp-preview-desc"></div>
               </div>
@@ -368,11 +368,11 @@ const MediaPicker = (() => {
   // La PROVENANCE d'un asset partagé ou système se dit sur sa card ; les miens n'ont rien à dire.
   function _originBadge(asset) {
     if (asset.origin === 'system') {
-      return '<span class="badge bg-dark border border-info text-info mp-origin" title="Ressource système">' +
+      return '<span class="badge bg-body border border-info text-info mp-origin" title="Ressource système">' +
              '<i class="fas fa-building-columns me-1"></i>Système</span>';
     }
     if (asset.origin === 'shared') {
-      return `<span class="badge bg-dark border border-warning text-warning mp-origin" title="Partagé avec moi">` +
+      return `<span class="badge bg-body border border-warning text-warning mp-origin" title="Partagé avec moi">` +
              `<i class="fas fa-share-nodes me-1"></i>${_esc(asset.owner || 'partagé')}</span>`;
     }
     return '';
@@ -409,12 +409,12 @@ const MediaPicker = (() => {
     const col = document.createElement('div');
     col.className = 'col';
     col.innerHTML = `
-<div class="card bg-dark border-secondary h-100 mp-asset-card"
+<div class="card bg-body border-secondary h-100 mp-asset-card"
      style="cursor:pointer;transition:border-color .15s"
      title="${_esc(asset.name)} — clic : aperçu · double-clic : choisir">
   ${_thumb(asset)}
   <div class="card-body p-1">
-    <small class="text-light d-block text-truncate" style="font-size:.7rem">${_esc(asset.name)}</small>
+    <small class="text-body-emphasis d-block text-truncate" style="font-size:.7rem">${_esc(asset.name)}</small>
     ${_originBadge(asset)}
     ${asset.duration ? `<small class="text-muted" style="font-size:.65rem">${_esc(asset.duration)}</small>` : ''}
   </div>

@@ -577,14 +577,14 @@
     function mountNodeSettings(body, node) {
         var schema = nodeSchemas[node.app];
         var wrap = el('div', 'studio-node-params mt-2 pt-2 border-top border-secondary');
-        wrap.appendChild(el('div', 'small text-white-50 mb-1',
+        wrap.appendChild(el('div', 'small text-body-secondary mb-1',
             '<i class="fas fa-sliders-h me-1"></i>Paramètres d’exécution'));
         if (!schema || !schema.params || !schema.params.length) {
             var said = settingsState === 'loading'
-                ? '<span class="text-white-50 small"><i class="fas fa-spinner fa-spin me-1"></i>Chargement des réglages…</span>'
+                ? '<span class="text-body-secondary small"><i class="fas fa-spinner fa-spin me-1"></i>Chargement des réglages…</span>'
                 : settingsState === 'error'
                     ? '<span class="text-danger small">Réglages indisponibles : le catalogue des nœuds n’a pas pu être chargé.</span>'
-                    : '<span class="text-white-50 small">Ce nœud n’a pas de réglage.</span>';
+                    : '<span class="text-body-secondary small">Ce nœud n’a pas de réglage.</span>';
             wrap.appendChild(el('div', 'studio-node-params-state', said));
             body.appendChild(wrap);
             return;
@@ -907,7 +907,7 @@
         var s = document.getElementById('studioRunStatus');
         if (!s) return;
         s.textContent = text || '';
-        s.className = 'small ms-2 ' + (cls || 'text-white-50');
+        s.className = 'small ms-2 ' + (cls || 'text-body-secondary');
     }
 
     function runPipeline() {

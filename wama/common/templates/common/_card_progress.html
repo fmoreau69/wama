@@ -32,6 +32,6 @@ Usage :
 {% if not no_bar %}<div class="wama-progress-track mt-2">
     <div class="wama-progress-fill {% if status == 'RUNNING' %}active{% endif %}" style="width: {{ progress|default:0 }}%"></div>
 </div>{% endif %}
-{% if not bar_only %}<small class="text-light progress-text">{{ progress|default:0 }}%</small>
+{% if not bar_only %}<small class="text-body-emphasis progress-text">{{ progress|default:0 }}%</small>
 <span class="wama-eta d-block"></span>
 {% if status == 'SUCCESS' %}<span class="d-block">{% include 'common/_processing_time.html' with elapsed=elapsed %}</span>{% endif %}{% endif %}

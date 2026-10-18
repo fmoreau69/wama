@@ -29,7 +29,7 @@
     function button(icon, title) {
         var b = document.createElement('button');
         b.type = 'button';
-        b.className = 'btn btn-sm btn-outline-light';
+        b.className = 'btn btn-sm btn-outline-emphasis';
         b.title = title;
         b.innerHTML = '<i class="fas ' + icon + '"></i>';
         return b;

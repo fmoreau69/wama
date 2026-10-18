@@ -79,11 +79,16 @@
     .conformity-issues { margin-top: 0.4rem; font-size: 0.7rem; color: var(--bs-danger); }
 
     /* Open button */
+    /* La couleur de l'app est une DONNÉE (`spec.color`) : lue comme texte, elle passe par
+       `--wama-data-ink` — elle-même en sombre, assombrie en clair (une teinte claire sur fond
+       clair tombait à 1,7:1). */
     .app-open-btn {
         display: block; margin-top: 1rem; padding: 0.4rem 0;
         text-align: center; font-size: 0.8rem; font-weight: 500;
         border-radius: 6px; border: 1px solid; text-decoration: none;
         transition: opacity 0.15s;
+        color: color-mix(in oklab, var(--app-color) var(--wama-data-ink), rgb(var(--wama-shadow-rgb)));
+        border-color: color-mix(in srgb, var(--app-color) 27%, transparent);
     }
     .app-open-btn:hover { opacity: 0.8; text-decoration: none; }
 
@@ -114,9 +119,9 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
     autorisées. « Sans accès » n'est pas une case décochée, c'est une card sans bascule.{% endcomment %}
     {% if user.is_authenticated and user.username != 'anonymous' %}
     <div class="d-flex align-items-center flex-wrap gap-2 mb-3 p-2 rounded" style="background:var(--wama-night-surface);border:1px solid var(--wama-night-border);">
-        <span class="small text-white-50">
+        <span class="small text-body-secondary">
             <i class="fas fa-sliders me-1"></i>Mes applications&nbsp;:
-            <strong class="text-light" data-abo-compte>{{ abo.abonnes }} sur {{ abo.total }}</strong>
+            <strong class="text-body-emphasis" data-abo-compte>{{ abo.abonnes }} sur {{ abo.total }}</strong>
         </span>
         <span class="small text-muted">— celles qui apparaissent dans le menu <em>Applications</em>.</span>
         <div class="ms-auto d-flex gap-2">
@@ -143,7 +148,7 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
     {% for group in apps_grouped %}
     <div data-f-groupe="{{ group.meta.label }}">
     <div class="d-flex align-items-baseline gap-2 mt-4 mb-2">
-        <h2 class="h5 mb-0 text-light">{{ group.meta.icon }} {{ group.meta.label }}</h2>
+        <h2 class="h5 mb-0 text-body-emphasis">{{ group.meta.icon }} {{ group.meta.label }}</h2>
         <small class="text-muted">{{ group.meta.tagline }}</small>
     </div>
     <div class="row g-3 mb-4">
@@ -278,7 +283,7 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
                 {% if item.url %}
                 <a href="{{ item.url }}"
                    class="app-open-btn"
-                   style="color:{{ spec.color }};border-color:{{ spec.color }}44;">
+                   style="--app-color:{{ spec.color }};">
                     <i class="{{ spec.icon }} me-1"></i>Ouvrir {{ spec.label }}
                 </a>
                 {% else %}
@@ -336,9 +341,9 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
     de la grille, pas dans l'inspecteur. Même mécanique que manage.py check_app_conformity
     (brique measure_and_write_conformity). {% endcomment %}
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <h2 class="h5 text-white mb-0"><i class="fas fa-table me-2 text-secondary"></i>Grille de conformité</h2>
+        <h2 class="h5 text-body-emphasis mb-0"><i class="fas fa-table me-2 text-secondary"></i>Grille de conformité</h2>
         <div class="d-flex align-items-center gap-2">
-            <small class="text-white-50" id="conformityMeasuredAt">{% if conformity_measured_at %}mesurée le {{ conformity_measured_at }}{% endif %}</small>
+            <small class="text-body-secondary" id="conformityMeasuredAt">{% if conformity_measured_at %}mesurée le {{ conformity_measured_at }}{% endif %}</small>
             {% comment %}
               Le script inline qui vivait ici (30 lignes) est remplacé par le tag commun.
               ⚠ Écrire le bouton À LA MAIN — même avec le bon attribut — perdait deux choses que
@@ -350,7 +355,7 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
         </div>
     </div>
     <div class="table-responsive">
-        <table class="table table-dark table-sm table-hover summary-table align-middle">
+        <table class="table table-sm table-hover summary-table align-middle">
             <thead>
                 <tr>
                     <th>Application</th>
@@ -419,11 +424,11 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
     Agrégat par SCÉNARIO (dernier verdict de chacun), jamais « le dernier run » : un run est
     souvent partiel. Le détail ne liste que les échecs/skips — les verts se lisent au compteur.{% endcomment %}
     <div class="d-flex align-items-center justify-content-between mb-3 mt-4 flex-wrap gap-2">
-        <h2 class="h5 text-white mb-0"><i class="fas fa-vial-circle-check me-2 text-secondary"></i>Grille fonctionnelle</h2>
-        <small class="text-white-50">le geste exécuté, pas la brique adoptée — dernier verdict de chaque scénario nocturne</small>
+        <h2 class="h5 text-body-emphasis mb-0"><i class="fas fa-vial-circle-check me-2 text-secondary"></i>Grille fonctionnelle</h2>
+        <small class="text-body-secondary">le geste exécuté, pas la brique adoptée — dernier verdict de chaque scénario nocturne</small>
     </div>
     <div class="table-responsive">
-        <table class="table table-dark table-sm table-hover summary-table align-middle">
+        <table class="table table-sm table-hover summary-table align-middle">
             <thead>
                 <tr>
                     <th>Application</th>
@@ -442,18 +447,18 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
                     <td class="text-center">{% if g.ko %}<span class="badge bg-danger mini-badge">{{ g.ko }}</span>{% else %}<span class="check-na">0</span>{% endif %}</td>
                     <td class="text-center">{% if g.skip %}<span class="badge bg-warning text-dark mini-badge">{{ g.skip }}</span>{% else %}<span class="check-na">0</span>{% endif %}</td>
                     <td class="text-center">{% if g.never %}<span class="badge bg-secondary mini-badge">{{ g.never }}</span>{% else %}<span class="check-na">0</span>{% endif %}</td>
-                    <td class="text-center"><small class="text-white-50">{{ g.last_at|default:"—" }}</small></td>
+                    <td class="text-center"><small class="text-body-secondary">{{ g.last_at|default:"—" }}</small></td>
                 </tr>
                 {% if g.ko or g.skip or g.never %}
                 <tr><td colspan="6" class="pt-0 border-0">
-                    <details class="small text-white-50 ms-3">
+                    <details class="small text-body-secondary ms-3">
                         <summary style="cursor:pointer">détail des non-verts</summary>
                         <ul class="mb-1 mt-1">
                         {% for sc in g.scenarios %}{% if not sc.ok or sc.skipped or sc.never_run %}
                             <li><code>{{ sc.id }}</code> —
                                 {% if sc.never_run %}jamais exécuté{% elif sc.skipped %}skip{% else %}<span class="check-fail">échec</span>{% endif %}
                                 {% if sc.detail %} · {{ sc.detail|truncatechars:140 }}{% endif %}
-                                {% if sc.at %} <span class="text-white-50">({{ sc.at }})</span>{% endif %}</li>
+                                {% if sc.at %} <span class="text-body-secondary">({{ sc.at }})</span>{% endif %}</li>
                         {% endif %}{% endfor %}
                         </ul>
                     </details>
@@ -472,11 +477,11 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
     WAMA_VERIFICATION §2 — 18 lignes ne la remplissent pas encore.{% endcomment %}
     {% if grille_substrat %}
     <div class="d-flex align-items-center justify-content-between mb-3 mt-4 flex-wrap gap-2">
-        <h2 class="h5 text-white mb-0"><i class="fas fa-layer-group me-2 text-info"></i>Substrat &amp; mondes (hors apps)</h2>
-        <small class="text-white-50">le dépôt est-il sain — suites Django et scénarios transverses</small>
+        <h2 class="h5 text-body-emphasis mb-0"><i class="fas fa-layer-group me-2 text-info"></i>Substrat &amp; mondes (hors apps)</h2>
+        <small class="text-body-secondary">le dépôt est-il sain — suites Django et scénarios transverses</small>
     </div>
     <div class="table-responsive">
-        <table class="table table-dark table-sm table-hover summary-table align-middle">
+        <table class="table table-sm table-hover summary-table align-middle">
             <thead>
                 <tr>
                     <th>Module</th>
@@ -495,18 +500,18 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
                     <td class="text-center">{% if g.ko %}<span class="badge bg-danger mini-badge">{{ g.ko }}</span>{% else %}<span class="check-na">0</span>{% endif %}</td>
                     <td class="text-center">{% if g.skip %}<span class="badge bg-warning text-dark mini-badge">{{ g.skip }}</span>{% else %}<span class="check-na">0</span>{% endif %}</td>
                     <td class="text-center">{% if g.never %}<span class="badge bg-secondary mini-badge">{{ g.never }}</span>{% else %}<span class="check-na">0</span>{% endif %}</td>
-                    <td class="text-center"><small class="text-white-50">{{ g.last_at|default:"—" }}</small></td>
+                    <td class="text-center"><small class="text-body-secondary">{{ g.last_at|default:"—" }}</small></td>
                 </tr>
                 {% if g.ko or g.skip or g.never %}
                 <tr><td colspan="6" class="pt-0 border-0">
-                    <details class="small text-white-50 ms-3">
+                    <details class="small text-body-secondary ms-3">
                         <summary style="cursor:pointer">détail des non-verts</summary>
                         <ul class="mb-1 mt-1">
                         {% for sc in g.scenarios %}{% if not sc.ok or sc.skipped or sc.never_run %}
                             <li><code>{{ sc.id }}</code> —
                                 {% if sc.never_run %}jamais exécuté{% elif sc.skipped %}skip{% else %}<span class="check-fail">échec</span>{% endif %}
                                 {% if sc.detail %} · {{ sc.detail|truncatechars:180 }}{% endif %}
-                                {% if sc.at %} <span class="text-white-50">({{ sc.at }})</span>{% endif %}</li>
+                                {% if sc.at %} <span class="text-body-secondary">({{ sc.at }})</span>{% endif %}</li>
                         {% endif %}{% endfor %}
                         </ul>
                     </details>
@@ -525,11 +530,11 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
     complet — le détail EST la mesure (couples, apps discriminantes, désaccords nommés).{% endcomment %}
     {% if grille_droits %}
     <div class="d-flex align-items-center justify-content-between mb-3 mt-4 flex-wrap gap-2">
-        <h2 class="h5 text-white mb-0"><i class="fas fa-user-shield me-2 text-secondary"></i>Grille des droits</h2>
-        <small class="text-white-50">ce qui est octroyé est-il ce qui est appliqué — décision calculée vs requêtes réelles</small>
+        <h2 class="h5 text-body-emphasis mb-0"><i class="fas fa-user-shield me-2 text-secondary"></i>Grille des droits</h2>
+        <small class="text-body-secondary">ce qui est octroyé est-il ce qui est appliqué — décision calculée vs requêtes réelles</small>
     </div>
     <div class="table-responsive">
-        <table class="table table-dark table-sm summary-table align-middle">
+        <table class="table table-sm summary-table align-middle">
             <thead>
                 <tr><th style="width:14rem">Scénario</th><th class="text-center" style="width:6rem">Verdict</th><th>Dernière mesure — le détail est la mesure</th></tr>
             </thead>
@@ -543,7 +548,7 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
                         {% elif sc.ok %}<span class="badge bg-success mini-badge">accord</span>
                         {% else %}<span class="badge bg-danger mini-badge">désaccord</span>{% endif %}
                     </td>
-                    <td class="small text-white-50">{{ sc.detail }}{% if sc.at %} <span class="text-secondary">({{ sc.at }})</span>{% endif %}</td>
+                    <td class="small text-body-secondary">{{ sc.detail }}{% if sc.at %} <span class="text-secondary">({{ sc.at }})</span>{% endif %}</td>
                 </tr>
                 {% endfor %}
             </tbody>

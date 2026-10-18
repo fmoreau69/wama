@@ -69,7 +69,7 @@ lisait les deux comme un échec. Ce n'est pas une heuristique de DOM qui peut tr
 `primary_btn_id` ne le fait pas (synthesizer en a un ET crée au dépôt, mesuré).{% endcomment %}
 <div class="card mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}" data-wama-depot="{% if depot_cree is False %}attache{% else %}cree{% endif %}"{% if collapsible %} data-wama-nic{% if show_prompt %} data-nic-primary="{{ prompt_input_id }}"{% endif %}{% endif %}>
     <div class="card-body py-2">
-        <div class="d-flex align-items-center gap-2 mb-2 small text-white-50"{% if collapsible %} data-nic-toggle role="button" title="Déplier / replier les options d'import"{% endif %}>
+        <div class="d-flex align-items-center gap-2 mb-2 small text-body-secondary"{% if collapsible %} data-nic-toggle role="button" title="Déplier / replier les options d'import"{% endif %}>
             <i class="fas fa-plus-circle text-info"></i> <strong>Nouvel élément</strong>
             <span class="text-muted">{% if show_prompt %}— décrivez, glissez ou collez{% else %}— glissez un fichier{% if show_url %}, ou collez une URL{% endif %}{% endif %}</span>
             {% include 'common/_settings_hint.html' %}
@@ -79,7 +79,7 @@ lisait les deux comme un échec. Ce n'est pas une heuristique de DOM qui peut tr
         {# PROMPT = entrée primaire des apps génératives (INPUT_MODEL_MATCHING.md) — dans la CARD, #}
         {# pas dans le volet : le volet/la modale n'en gardent que l'édition d'un item existant. #}
         <div class="mb-2"{% if prompt_zone_id %} id="{{ prompt_zone_id }}"{% endif %}>
-            <textarea class="form-control form-control-sm bg-dark text-light border-secondary"
+            <textarea class="form-control form-control-sm bg-body text-body-emphasis border-secondary"
                       id="{{ prompt_input_id|default:'promptInput' }}" rows="{{ prompt_rows|default:2 }}"
                       placeholder="{{ prompt_placeholder|default:'Décrivez ce que vous voulez générer…' }}"></textarea>
             {% if prompt_hint %}<small class="text-muted">{{ prompt_hint }}</small>{% endif %}
@@ -91,7 +91,7 @@ lisait les deux comme un échec. Ce n'est pas une heuristique de DOM qui peut tr
             <div class="{% if show_url %}col-md-6{% else %}col-12{% endif %}">
                 <div class="drop-zone drop-zone-sm mb-0" id="{{ drop_zone_id }}">
                     <i class="fas fa-cloud-upload-alt text-primary"></i>
-                    <p class="mb-0 small text-light mt-1">Glissez ou cliquez pour importer</p>
+                    <p class="mb-0 small text-body-emphasis mt-1">Glissez ou cliquez pour importer</p>
                     <small class="text-muted">{{ formats_label }}{% if batch_format %} — <code style="font-size:0.75rem;">{{ batch_format }}</code>{% endif %}</small>
                     {% if batch_hint %}<small class="text-muted d-block" style="font-size:0.68rem; opacity:.75;">{{ batch_hint }}</small>{% endif %}
                     <input type="file" id="{{ file_input_id }}" multiple accept="{{ file_accept|default:'audio/*,video/*' }}" style="display:none">
@@ -128,12 +128,12 @@ lisait les deux comme un échec. Ce n'est pas une heuristique de DOM qui peut tr
             </div>
             {% if show_url %}
             <div class="col-md-6">
-                <label class="form-label small text-white-50 mb-1">
+                <label class="form-label small text-body-secondary mb-1">
                     <i class="{{ url_icon|default:'fas fa-link' }} {{ url_icon_class|default:'text-info' }}"></i> {{ url_label|default:'ou depuis une URL' }}
                 </label>
                 <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-dark border-secondary {{ url_icon_class|default:'text-info' }} px-2"><i class="{{ url_icon|default:'fas fa-link' }}"></i></span>
-                    <input type="text" class="form-control bg-dark text-white border-secondary"
+                    <span class="input-group-text bg-body border-secondary {{ url_icon_class|default:'text-info' }} px-2"><i class="{{ url_icon|default:'fas fa-link' }}"></i></span>
+                    <input type="text" class="form-control bg-body text-body-emphasis border-secondary"
                            id="{{ url_input_id }}" placeholder="{{ url_placeholder }}">
                     {% if url_submit_id %}
                     {% comment %}Bouton d'import IMMÉDIAT — optionnel : une app dont l'URL fait
@@ -152,7 +152,7 @@ lisait les deux comme un échec. Ce n'est pas une heuristique de DOM qui peut tr
         {% load wama_actions %}{% live_input_declared app_id as live_declared %}
         {% if live_declared %}
         <div class="mt-2 pt-2 border-top border-secondary text-center">
-            <span class="small text-white-50 me-2"><i class="fas fa-bolt text-warning"></i> ou en direct</span>
+            <span class="small text-body-secondary me-2"><i class="fas fa-bolt text-warning"></i> ou en direct</span>
             <button id="{{ live_btn_id }}" class="btn btn-warning btn-sm" type="button">
                 <i class="{{ live_icon|default:'fas fa-microphone' }}"></i> {{ live_label|default:'Speak' }}
             </button>
@@ -165,7 +165,7 @@ lisait les deux comme un échec. Ce n'est pas une heuristique de DOM qui peut tr
         {# retirable ✕ + zone mise en évidence par WamaInputMatch (requis/suggéré selon le modèle). #}
         <div class="mt-2 pt-2 border-top border-secondary" id="{{ reference_zone_id|default:'referenceSlot' }}">
             <div class="d-flex align-items-center gap-2 flex-wrap">
-                <span class="small text-white-50"><i class="fas fa-paperclip text-info"></i>
+                <span class="small text-body-secondary"><i class="fas fa-paperclip text-info"></i>
                     {{ reference_label|default:'Fichier de référence' }}</span>
                 <button type="button" class="btn btn-outline-info btn-sm py-0 px-2"
                         onclick="document.getElementById('{{ reference_input_id|default:'referenceInput' }}').click()">

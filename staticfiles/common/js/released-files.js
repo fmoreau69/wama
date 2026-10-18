@@ -47,7 +47,7 @@
     }).join('');
     var more = files.length > 5 ? '<li class="text-muted">… et ' + (files.length - 5) + ' autre(s)</li>' : '';
     var box = document.createElement('div');
-    box.className = 'card bg-dark text-light border-warning shadow mb-2';
+    box.className = 'card bg-body text-body-emphasis border-warning shadow mb-2';
     box.setAttribute('data-released-files', '');
     box.innerHTML = '<div class="card-body p-2 small">'
       + '<div class="mb-1"><i class="fas fa-file-circle-exclamation text-warning me-1"></i>'
@@ -57,7 +57,7 @@
       + '</div>'
       + '<ul class="mb-2 ps-3">' + names + more + '</ul>'
       + '<div class="d-flex gap-2 justify-content-end align-items-center">'
-      + '<a href="/media-library/?tab=unused" class="link-light small me-auto">Tous les fichiers inutilisés</a>'
+      + '<a href="/media-library/?tab=unused" class="link-body-emphasis small me-auto">Tous les fichiers inutilisés</a>'
       + '<button type="button" class="btn btn-sm btn-outline-secondary" data-released-keep>Garder</button>'
       + '<button type="button" class="btn btn-sm btn-outline-danger" data-released-delete>Supprimer</button>'
       + '</div></div>';

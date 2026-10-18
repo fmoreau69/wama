@@ -7,7 +7,7 @@
         <!-- Left Panel: Video & Controls -->
         <div class="col-lg-6 mb-3">
             <!-- Video Container -->
-            <div class="card bg-dark border-info mb-3">
+            <div class="card bg-body border-info mb-3">
                 <div class="card-header bg-info bg-opacity-25 border-info d-flex justify-content-between align-items-center">
                     <h5 class="mb-0 text-info">
                         <i class="fas fa-video me-2"></i>Webcam
@@ -28,20 +28,20 @@
             </div>
 
             <!-- Controls -->
-            <div class="card bg-dark border-secondary mb-3">
+            <div class="card bg-body border-secondary mb-3">
                 <div class="card-body">
                     <div class="row g-3">
                         <!-- Camera Selection -->
                         <div class="col-md-6">
-                            <label class="form-label text-light small">Caméra</label>
-                            <select id="cameraSelect" class="form-select form-select-sm bg-dark text-light border-secondary">
+                            <label class="form-label text-body-emphasis small">Caméra</label>
+                            <select id="cameraSelect" class="form-select form-select-sm bg-body text-body-emphasis border-secondary">
                                 <option value="">Sélectionner une caméra...</option>
                             </select>
                         </div>
                         <!-- Resolution -->
                         <div class="col-md-6">
-                            <label class="form-label text-light small">Résolution</label>
-                            <select id="resolutionSelect" class="form-select form-select-sm bg-dark text-light border-secondary">
+                            <label class="form-label text-body-emphasis small">Résolution</label>
+                            <select id="resolutionSelect" class="form-select form-select-sm bg-body text-body-emphasis border-secondary">
                                 <option value="640x480">640×480 (VGA)</option>
                                 <option value="1280x720" selected>1280×720 (HD)</option>
                                 <option value="1920x1080">1920×1080 (FHD)</option>
@@ -49,25 +49,25 @@
                         </div>
                         <!-- Emotion Backend -->
                         <div class="col-md-6">
-                            <label class="form-label text-light small">Backend émotions</label>
-                            <select id="emotionBackend" class="form-select form-select-sm bg-dark text-light border-secondary">
+                            <label class="form-label text-body-emphasis small">Backend émotions</label>
+                            <select id="emotionBackend" class="form-select form-select-sm bg-body text-body-emphasis border-secondary">
                                 <option value="fer">FER (rapide)</option>
                                 <option value="deepface" selected>DeepFace (complet)</option>
                             </select>
                         </div>
                         <!-- Age/Gender Toggle -->
                         <div class="col-md-6">
-                            <label class="form-label text-light small">Options DeepFace</label>
+                            <label class="form-label text-body-emphasis small">Options DeepFace</label>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="enableAgeGender" checked>
-                                <label class="form-check-label text-light small" for="enableAgeGender">
+                                <label class="form-check-label text-body-emphasis small" for="enableAgeGender">
                                     <i class="fas fa-user-tag me-1"></i>Âge & Genre
                                 </label>
                             </div>
                         </div>
                         <!-- Analysis Options -->
                         <div class="col-12">
-                            <label class="form-label text-light small">Modules d'analyse</label>
+                            <label class="form-label text-body-emphasis small">Modules d'analyse</label>
                             <div class="d-flex flex-wrap gap-2">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="enableRPPG" checked>
@@ -117,7 +117,7 @@
             <div class="row g-2">
                 <!-- Heart Rate -->
                 <div class="col-6 col-md-2">
-                    <div class="card bg-dark border-danger h-100">
+                    <div class="card bg-body border-danger h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-heartbeat text-danger"></i>
                             <div id="hrValue" class="fs-4 text-danger fw-bold">--</div>
@@ -127,7 +127,7 @@
                 </div>
                 <!-- SpO2 -->
                 <div class="col-6 col-md-2">
-                    <div class="card bg-dark border-primary h-100">
+                    <div class="card bg-body border-primary h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-tint text-primary"></i>
                             <div id="spo2Value" class="fs-4 text-primary fw-bold">--</div>
@@ -137,7 +137,7 @@
                 </div>
                 <!-- Respiration -->
                 <div class="col-6 col-md-2">
-                    <div class="card bg-dark border-success h-100">
+                    <div class="card bg-body border-success h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-lungs text-success"></i>
                             <div id="rrValue" class="fs-4 text-success fw-bold">--</div>
@@ -147,7 +147,7 @@
                 </div>
                 <!-- Blink Rate -->
                 <div class="col-6 col-md-2">
-                    <div class="card bg-dark border-info h-100">
+                    <div class="card bg-body border-info h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-eye text-info"></i>
                             <div id="blinkValue" class="fs-4 text-info fw-bold">--</div>
@@ -157,7 +157,7 @@
                 </div>
                 <!-- Age (DeepFace) -->
                 <div class="col-6 col-md-2" id="ageCard">
-                    <div class="card bg-dark border-warning h-100">
+                    <div class="card bg-body border-warning h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-birthday-cake text-warning"></i>
                             <div id="ageValue" class="fs-4 text-warning fw-bold">--</div>
@@ -167,10 +167,10 @@
                 </div>
                 <!-- Gender (DeepFace) -->
                 <div class="col-6 col-md-2" id="genderCard">
-                    <div class="card bg-dark border-secondary h-100">
+                    <div class="card bg-body border-secondary h-100">
                         <div class="card-body text-center p-2">
                             <i id="genderIcon" class="fas fa-user text-secondary"></i>
-                            <div id="genderValue" class="fs-4 text-light fw-bold">--</div>
+                            <div id="genderValue" class="fs-4 text-body-emphasis fw-bold">--</div>
                             <div class="small text-secondary">Genre</div>
                         </div>
                     </div>
@@ -181,7 +181,7 @@
         <!-- Right Panel: Charts -->
         <div class="col-lg-6">
             <!-- Heart Rate Chart -->
-            <div class="card bg-dark border-danger mb-3">
+            <div class="card bg-body border-danger mb-3">
                 <div class="card-header bg-danger bg-opacity-25 border-danger py-2">
                     <h6 class="mb-0 text-danger">
                         <i class="fas fa-heartbeat me-2"></i>Fréquence Cardiaque
@@ -193,7 +193,7 @@
             </div>
 
             <!-- HRV Chart -->
-            <div class="card bg-dark border-warning mb-3">
+            <div class="card bg-body border-warning mb-3">
                 <div class="card-header bg-warning bg-opacity-25 border-warning py-2">
                     <h6 class="mb-0 text-warning">
                         <i class="fas fa-wave-square me-2"></i>Variabilité Cardiaque (HRV)
@@ -205,7 +205,7 @@
             </div>
 
             <!-- Emotions Chart -->
-            <div class="card bg-dark border-warning mb-3">
+            <div class="card bg-body border-warning mb-3">
                 <div class="card-header bg-warning bg-opacity-25 border-warning py-2">
                     <h6 class="mb-0 text-warning">
                         <i class="fas fa-smile me-2"></i>Émotions
@@ -217,7 +217,7 @@
             </div>
 
             <!-- Eye Tracking Chart -->
-            <div class="card bg-dark border-info mb-3">
+            <div class="card bg-body border-info mb-3">
                 <div class="card-header bg-info bg-opacity-25 border-info py-2">
                     <h6 class="mb-0 text-info">
                         <i class="fas fa-eye me-2"></i>Oculométrie
@@ -236,7 +236,7 @@
             </div>
 
             <!-- Respiration Chart -->
-            <div class="card bg-dark border-success">
+            <div class="card bg-body border-success">
                 <div class="card-header bg-success bg-opacity-25 border-success py-2">
                     <h6 class="mb-0 text-success">
                         <i class="fas fa-lungs me-2"></i>Respiration

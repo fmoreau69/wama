@@ -1,5 +1,5 @@
 {% comment %}OUTIL « statut » — markup DÉPLACÉ de `_queue_toolbar.html`, inchangé.{% endcomment %}
-<select class="form-select form-select-sm bg-dark text-white border-secondary" style="width:auto;"
+<select class="form-select form-select-sm bg-body text-body-emphasis border-secondary" style="width:auto;"
         onchange="location.search='?sort={{ q_sort }}&filter='+this.value" title="Filtrer par statut">
     <option value="all"      {% if q_filter == 'all' %}selected{% endif %}>Tous les statuts</option>
     <option value="draft"    {% if q_filter == 'draft' %}selected{% endif %}>Brouillon</option>

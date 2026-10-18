@@ -25,7 +25,7 @@
   .rg-mesure   { background: var(--wama-tone-blue); color: var(--wama-tone-blue-text); }
   .rg-redecl   { background: var(--wama-tone-green); color: var(--wama-tone-green-text-bright); }
   .rg-derive   { background: var(--wama-tone-grey); color: var(--wama-tone-grey-text); }
-  .rg-total    { background: rgba(var(--wama-cat-accent-rgb), .15); color: var(--wama-cat-accent); }
+  .rg-total    { background: rgba(var(--wama-cat-accent-rgb), .15); color: var(--wama-cat-accent-text); }
 
   .rg-etat { font-size: .74rem; color: var(--wama-cat-meta); flex: 1; }
   .rg-etat.ok { color: var(--wama-cat-ok); }
@@ -128,7 +128,7 @@
       </div>
     </div>
     {% empty %}
-    <p class="text-white-50">Aucun registre déclaré.</p>
+    <p class="text-body-secondary">Aucun registre déclaré.</p>
     {% endfor %}
   </div>
 </div>

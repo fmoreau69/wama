@@ -149,7 +149,7 @@ class UserEdit(UpdateView):
         # Apply dark theme styling to all form fields
         for field_name, field in form.fields.items():
             field.widget.attrs.update({
-                'class': 'form-control bg-dark text-white border-secondary'
+                'class': 'form-control bg-body text-body-emphasis border-secondary'
             })
             # Update labels to French
             if field_name == 'first_name':

@@ -3,10 +3,10 @@
 {% block extra_css %}
 <style>
     /* Form label visibility on dark background */
-    .card.bg-dark .form-label {
+    .card.bg-body .form-label {
         color: var(--wama-text-body) !important;
     }
-    .card.bg-dark .form-text {
+    .card.bg-body .form-text {
         color: var(--wama-text-muted) !important;
     }
 </style>
@@ -18,7 +18,7 @@
         <div class="col-12 col-md-8 col-lg-6">
             <!-- Header -->
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="text-light mb-0">
+                <h2 class="text-body-emphasis mb-0">
                     <i class="fas fa-user-edit"></i> {{ title|default:"Mon profil" }}
                 </h2>
             </div>
@@ -27,7 +27,7 @@
             {% endif %}
 
             <!-- Form Card -->
-            <div class="card bg-dark border-secondary">
+            <div class="card bg-body border-secondary">
                 <div class="card-body">
                     <form method="POST" enctype="multipart/form-data">
                         {% csrf_token %}

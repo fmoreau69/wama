@@ -124,7 +124,7 @@
         const r = report || {};
         const level = ['success', 'warning', 'danger'].indexOf(r.level) >= 0 ? r.level : 'secondary';
         const notes = (r.notes || []).map(function (note) {
-            return '<li class="text-light small">' + escapeHtml(note) + '</li>';
+            return '<li class="text-body-emphasis small">' + escapeHtml(note) + '</li>';
         }).join('');
         const column = function (title, text, kind) {
             return '<div class="' + (compact ? 'mb-2' : 'col-md-6') + '"><div class="card wama-coherence-' + kind + '">' +
@@ -137,7 +137,7 @@
         return '<div class="wama-coherence">' +
             '<div class="d-flex align-items-center mb-2">' +
             '<span class="badge bg-' + level + (compact ? '' : ' fs-5') + ' me-3">' + escapeHtml(r.score) + '/100</span>' +
-            '<span class="text-light">Score de cohérence</span></div>' +
+            '<span class="text-body-emphasis">Score de cohérence</span></div>' +
             (notes ? '<ul class="mt-2">' + notes + '</ul>' : '') +
             (sides ? (compact ? '<div class="mt-2">' + sides + '</div>' : '<div class="row mt-3">' + sides + '</div>') : '') +
             '</div>';
@@ -162,7 +162,7 @@
                 '<div class="wama-segment-who"><span class="badge me-1" style="background-color:' + colors[who] +
                 ';color:#fff;font-size:.75rem;">' + escapeHtml(who) + '</span>' +
                 '<small class="text-muted">' + escapeHtml(s && s.time_range) + '</small></div>' +
-                '<div class="' + (compact ? '' : 'ms-2 ') + 'text-light wama-segment-text">' +
+                '<div class="' + (compact ? '' : 'ms-2 ') + 'text-body-emphasis wama-segment-text">' +
                 escapeHtml(s && s.text) + '</div></div>';
         }).join('') + '</div>';
     }
@@ -265,7 +265,7 @@
                 tile.src = f.url;
                 tile.alt = f.name || '';
             }
-            tile.className = 'wama-preview-tile img-thumbnail bg-dark border-secondary';
+            tile.className = 'wama-preview-tile img-thumbnail bg-body border-secondary';
             tile.title = f.name || '';
             tile.setAttribute('data-file-index', String(i));
             tile.addEventListener('click', function (e) {
@@ -432,7 +432,7 @@
             // Résultat MIS EN FORME par le serveur (`ProcessSpec.result_format`, 2026-10-13) : son
             // HTML neutralisé à la source, à la densité du volet.
             if (typeof data.html === 'string') {
-                host.innerHTML = '<div class="wama-inspector-preview"><div class="small text-white-50 text-start mb-1 wama-result-formatted" ' +
+                host.innerHTML = '<div class="wama-inspector-preview"><div class="small text-body-secondary text-start mb-1 wama-result-formatted" ' +
                     'style="max-height:200px;overflow:auto;word-break:break-word;"></div></div>';
                 host.querySelector('.wama-result-formatted').innerHTML = data.html;
                 _previewCaption(host, name, data);
@@ -440,7 +440,7 @@
             }
             // Texte (plain/markdown/csv… ; ex. le PROMPT en entrée). Contenu inline si fourni
             // (data.content, cas prompt sans fichier), sinon chargé en async depuis l'URL.
-            host.innerHTML = '<div class="wama-inspector-preview"><pre class="small text-white-50 text-start mb-1" ' +
+            host.innerHTML = '<div class="wama-inspector-preview"><pre class="small text-body-secondary text-start mb-1" ' +
                 'style="max-height:200px;overflow:auto;white-space:pre-wrap;word-break:break-word;">…</pre></div>';
             const pre = host.querySelector('pre');
             const renderText = function (t) {
@@ -483,7 +483,7 @@
     function _previewCaption(host, name, data) {
         if (name) {
             const cap = document.createElement('small');
-            cap.className = 'text-white-50 d-block text-truncate mt-1';
+            cap.className = 'text-body-secondary d-block text-truncate mt-1';
             cap.title = name; cap.textContent = name;
             host.appendChild(cap);
         }

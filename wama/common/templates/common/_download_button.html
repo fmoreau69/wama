@@ -57,7 +57,7 @@ pas en profiter pour le changer.
             title="{% if ready %}{{ title|default:_('Télécharger') }}{% else %}{{ empty_title|default:_('Pas encore de résultat') }}{% endif %}">
       <i class="fas fa-download"></i>{% if label %} <span class="wama-btn-label">{{ label }}</span>{% endif %}
     </button>
-    <ul class="dropdown-menu dropdown-menu-dark">
+    <ul class="dropdown-menu">
       {% for f in formats %}
         {% if f.separator %}<li><hr class="dropdown-divider"></li>{% endif %}
         <li>
@@ -92,7 +92,7 @@ pas en profiter pour le changer.
             data-bs-toggle="dropdown" aria-expanded="false">
       <span class="visually-hidden">{% trans "Autres formats" %}</span>
     </button>
-    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+    <ul class="dropdown-menu dropdown-menu-end">
       {% for f in formats %}
         {% if f.separator %}<li><hr class="dropdown-divider"></li>{% endif %}
         <li>

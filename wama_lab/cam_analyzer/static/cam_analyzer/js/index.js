@@ -346,7 +346,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         sessionsContainer.innerHTML = `
             <div class="table-responsive">
-                <table class="table table-dark table-hover mb-0">
+                <table class="table table-hover mb-0">
                     <thead><tr>
                         <th>Nom</th>
                         <th>Caméras</th>
@@ -1048,7 +1048,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="d-flex align-items-center gap-2 py-1" title="${tip}">
                         ${_sel}
                         <span style="width:16px;text-align:center">${icon}</span>
-                        <span class="flex-grow-1 text-light" style="font-size:0.78rem;">${escapeHtml(p.label)}${camSuffix}</span>
+                        <span class="flex-grow-1 text-body-emphasis" style="font-size:0.78rem;">${escapeHtml(p.label)}${camSuffix}</span>
                         ${_eta ? `<span class="text-secondary" style="font-size:0.7rem;" title="Durée restante estimée (apprise des exécutions précédentes)">${_eta}</span>` : ''}
                         <button type="button" class="btn btn-sm btn-outline-success py-0 px-1"
                                 ${dataPayload} title="${_cycleTip}" ${_busy ? 'disabled' : ''}
@@ -1369,14 +1369,14 @@ document.addEventListener('DOMContentLoaded', function () {
         const sam3Enabled = !!p.sam3_markings_enabled;
         summary.innerHTML = `
             <div class="d-flex flex-column gap-1" style="font-size: 0.78rem;">
-                <div><span class="text-secondary">Nom :</span> <span class="text-light fw-semibold">${escapeHtml(p.name)}</span></div>
-                <div><span class="text-secondary">Type :</span> <span class="text-light">${reportLabel}</span></div>
-                <div><span class="text-secondary">Modèle :</span> <span class="text-light">${escapeHtml(modelName)}</span></div>
-                <div><span class="text-secondary">Classes :</span> <span class="text-light">${escapeHtml(classes)}</span></div>
+                <div><span class="text-secondary">Nom :</span> <span class="text-body-emphasis fw-semibold">${escapeHtml(p.name)}</span></div>
+                <div><span class="text-secondary">Type :</span> <span class="text-body-emphasis">${reportLabel}</span></div>
+                <div><span class="text-secondary">Modèle :</span> <span class="text-body-emphasis">${escapeHtml(modelName)}</span></div>
+                <div><span class="text-secondary">Classes :</span> <span class="text-body-emphasis">${escapeHtml(classes)}</span></div>
                 <div><span class="text-secondary">Vues analysées :</span> <span class="text-warning">${escapeHtml(analyzed)}</span></div>
                 ${isIntersection ? `
-                    <div><span class="text-secondary">Intersections :</span> <span class="text-light">${intersectionsCount}</span></div>
-                    <div><span class="text-secondary">Restreint aux fenêtres :</span> <span class="text-light">${p.restrict_to_intersection_windows !== false ? 'Oui' : 'Non'}</span></div>
+                    <div><span class="text-secondary">Intersections :</span> <span class="text-body-emphasis">${intersectionsCount}</span></div>
+                    <div><span class="text-secondary">Restreint aux fenêtres :</span> <span class="text-body-emphasis">${p.restrict_to_intersection_windows !== false ? 'Oui' : 'Non'}</span></div>
                 ` : ''}
             </div>
             <button class="btn btn-sm btn-outline-warning mt-2 w-100" id="rpEditProfileBtn">
@@ -2022,7 +2022,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const otherTotal = other.reduce((s, [, n]) => s + n, 0);
                 const names = other.map(([cls]) => cls).slice(0, 8).join(', ')
                     + (other.length > 8 ? '…' : '');
-                classHtml += `<span class="badge me-1 mb-1 bg-dark border border-secondary text-secondary"
+                classHtml += `<span class="badge me-1 mb-1 bg-body border border-secondary text-secondary"
                     title="${names}">+${otherTotal} hors-scope (${other.length} classes)</span>`;
             }
         }
@@ -2076,9 +2076,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="small text-secondary">segments temporels</div>
                 </div>
             </div>
-            ${classHtml ? `<div class="mb-2"><strong class="small text-light">Classes:</strong><br>${classHtml}</div>` : ''}
+            ${classHtml ? `<div class="mb-2"><strong class="small text-body-emphasis">Classes:</strong><br>${classHtml}</div>` : ''}
             ${cameraHtml ? `<div class="row">${cameraHtml}</div>` : ''}
-            ${videoHtml ? `<div class="mt-2"><strong class="small text-light">Vidéos annotées:</strong><br>${videoHtml}</div>` : ''}
+            ${videoHtml ? `<div class="mt-2"><strong class="small text-body-emphasis">Vidéos annotées:</strong><br>${videoHtml}</div>` : ''}
             ${timeStr ? `<div class="mt-2 small text-secondary">Temps de traitement: ${timeStr}</div>` : ''}
         `;
         resultsPanel.style.display = '';
@@ -4413,7 +4413,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Barre d'en-tête : compteur + bascule "tout afficher"
             const header = `
                 <div class="d-flex align-items-center gap-2 mb-2 pb-1 border-bottom border-secondary">
-                    <span class="small text-light">${visible.length} véhicule(s) d'intérêt</span>
+                    <span class="small text-body-emphasis">${visible.length} véhicule(s) d'intérêt</span>
                     ${hiddenCount ? `
                     <label class="small text-secondary ms-auto mb-0" style="cursor:pointer;">
                         <input type="checkbox" id="toggleAllSegments" ${showAllSegments ? 'checked' : ''}>
@@ -4423,7 +4423,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Chips t0/t1/t2 cliquables (repositionnent la timeline)
             const timeChip = (label, t, title) => (t == null) ? '' :
-                `<span class="segment-tmark badge bg-dark border border-secondary me-1"
+                `<span class="segment-tmark badge bg-body border border-secondary me-1"
                        data-seek="${t}" title="${title}" style="cursor:pointer;">
                     ${label} ${formatTime(t)}</span>`;
 
@@ -4460,7 +4460,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div class="d-flex align-items-center gap-2">
                             <span class="segment-badge ${seg.type}">${seg.type_display}</span>
                             ${camLabel ? `<span class="small text-secondary">${camLabel}</span>` : ''}
-                            <span class="small text-light ms-auto">
+                            <span class="small text-body-emphasis ms-auto">
                                 ${formatTime(seg.start_time)} → ${formatTime(seg.end_time)}
                                 <span class="text-secondary">(${seg.duration.toFixed(1)}s)</span>
                             </span>
@@ -4524,7 +4524,7 @@ document.addEventListener('DOMContentLoaded', function () {
             div.className = 'form-check form-check-inline';
             div.innerHTML = `
                 <input class="form-check-input" type="checkbox" id="class_${id}" value="${id}" checked>
-                <label class="form-check-label small text-light" for="class_${id}">${name} (${id})</label>`;
+                <label class="form-check-label small text-body-emphasis" for="class_${id}">${name} (${id})</label>`;
             container.appendChild(div);
         });
         updateToggleAllBtn();
@@ -4766,13 +4766,13 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         container.innerHTML = sam3Prompts.map((p, i) => `
             <div class="d-flex align-items-center gap-1 mb-1">
-                <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary flex-shrink-0"
+                <input type="text" class="form-control form-control-sm bg-body text-body-emphasis border-secondary flex-shrink-0"
                        style="width:90px;" value="${p.label}" placeholder="label"
                        onchange="(function(el){
                            const idx = ${i};
                            window._sam3LabelChange && window._sam3LabelChange(idx, el.value);
                        })(this)">
-                <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary"
+                <input type="text" class="form-control form-control-sm bg-body text-body-emphasis border-secondary"
                        value="${p.prompt}" placeholder="texte pour SAM3..."
                        onchange="(function(el){
                            const idx = ${i};
@@ -5927,7 +5927,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const div = L.DomUtil.create('div', 'leaflet-bar');
             div.style.cssText = 'background:#1e1e24;padding:3px;display:flex;flex-direction:column;gap:3px;';
             div.innerHTML =
-                '<button id="mapFullscreenBtn" class="btn btn-sm btn-outline-light" style="padding:1px 7px;" title="Plein écran de la carte">⛶</button>'
+                '<button id="mapFullscreenBtn" class="btn btn-sm btn-outline-emphasis" style="padding:1px 7px;" title="Plein écran de la carte">⛶</button>'
                 + '<button id="followToggleBtn" class="btn btn-sm btn-outline-warning" style="padding:1px 7px;" title="Recentrage auto en lecture">🎯</button>';
             L.DomEvent.disableClickPropagation(div);   // clic bouton ≠ déplacement carte
             return div;

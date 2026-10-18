@@ -10,7 +10,7 @@
             <button class="btn btn-warning btn-sm" id="newSessionBtn">
                 <i class="fas fa-plus me-1"></i> Nouvelle session
             </button>
-            <select class="form-select form-select-sm bg-dark text-light border-secondary" id="sessionSelect" style="width: 250px;">
+            <select class="form-select form-select-sm bg-body text-body-emphasis border-secondary" id="sessionSelect" style="width: 250px;">
                 <option value="">-- Sélectionner une session --</option>
                 {% for session in sessions %}
                 <option value="{{ session.id }}">{{ session.name }}</option>
@@ -21,7 +21,7 @@
             </button>
         </div>
         <div class="d-flex align-items-center gap-2">
-            <select class="form-select form-select-sm bg-dark text-light border-secondary" id="profileSelect" style="width: 200px;">
+            <select class="form-select form-select-sm bg-body text-body-emphasis border-secondary" id="profileSelect" style="width: 200px;">
                 <option value="">-- Profil d'analyse --</option>
                 {% for profile in profiles %}
                 <option value="{{ profile.id }}" data-report-type="{{ profile.report_type }}">{{ profile.name }}</option>
@@ -134,7 +134,7 @@
 
     <!-- RTMaps Upload Panel (visible only for intersection_insertion sessions) -->
     <div id="rtmapsPanel" class="mt-3" style="display:none;">
-        <div class="card bg-dark border-warning">
+        <div class="card bg-body border-warning">
             <div class="card-header border-warning d-flex align-items-center gap-2 py-2" style="background:rgba(var(--bs-warning-rgb), 0.1);">
                 <i class="fas fa-file-import text-warning"></i>
                 <span class="fw-semibold text-warning">Source quadrature Navya</span>
@@ -155,17 +155,17 @@
                 <div id="rtmapsAviMode">
                     <div class="row g-2 align-items-end">
                         <div class="col-12 col-md-5">
-                            <label class="form-label small mb-1 text-light">
+                            <label class="form-label small mb-1 text-body-emphasis">
                                 Quadrature AVI <span class="text-muted small">(800×500, exporté par RTMaps Player)</span>
                             </label>
-                            <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
+                            <input type="file" class="form-control form-control-sm bg-body text-body-emphasis border-secondary"
                                    id="rtmapsAviFile" accept=".avi,.mp4,.mkv">
                         </div>
                         <div class="col-12 col-md-4">
-                            <label class="form-label small mb-1 text-light">
+                            <label class="form-label small mb-1 text-body-emphasis">
                                 CSV GPS <span class="text-muted">(optionnel — oPosition RTMaps ou API Navya)</span>
                             </label>
-                            <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
+                            <input type="file" class="form-control form-control-sm bg-body text-body-emphasis border-secondary"
                                    id="rtmapsAviGpsFile" accept=".csv">
                         </div>
                         <div class="col-12 col-md-3">
@@ -180,13 +180,13 @@
                 <div id="rtmapsRecMode" style="display:none;">
                     <div class="row g-2 align-items-end">
                         <div class="col-12 col-md-5">
-                            <label class="form-label small mb-1 text-light">Fichier RTMaps (.rec)</label>
-                            <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
+                            <label class="form-label small mb-1 text-body-emphasis">Fichier RTMaps (.rec)</label>
+                            <input type="file" class="form-control form-control-sm bg-body text-body-emphasis border-secondary"
                                    id="rtmapsRecFile" accept=".rec">
                         </div>
                         <div class="col-12 col-md-4">
-                            <label class="form-label small mb-1 text-light">CSV API <span class="text-muted">(optionnel)</span></label>
-                            <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
+                            <label class="form-label small mb-1 text-body-emphasis">CSV API <span class="text-muted">(optionnel)</span></label>
+                            <input type="file" class="form-control form-control-sm bg-body text-body-emphasis border-secondary"
                                    id="rtmapsCsvFile" accept=".csv">
                         </div>
                         <div class="col-12 col-md-3">
@@ -201,7 +201,7 @@
                 <div id="rtmapsProgress" style="display:none;" class="mt-2">
                     <div class="d-flex align-items-center gap-2 mb-1">
                         <i class="fas fa-spinner fa-spin text-warning"></i>
-                        <span class="text-light small" id="rtmapsProgressLabel">Traitement en cours...</span>
+                        <span class="text-body-emphasis small" id="rtmapsProgressLabel">Traitement en cours...</span>
                         <span class="text-warning small ms-auto" id="rtmapsProgressPct">0%</span>
                     </div>
                     <div class="progress" style="height:4px;">
@@ -233,19 +233,19 @@
         <!-- Synchronized Playback Controls -->
         <div class="playback-controls" id="playbackControls" style="display:none">
             <div class="d-flex align-items-center gap-3">
-                <button class="btn btn-sm btn-outline-light" id="syncPrevFrameBtn" title="Image précédente (←)">
+                <button class="btn btn-sm btn-outline-emphasis" id="syncPrevFrameBtn" title="Image précédente (←)">
                     <i class="fas fa-step-backward"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-light" id="syncReverseBtn" title="Lecture arrière (R)">
+                <button class="btn btn-sm btn-outline-emphasis" id="syncReverseBtn" title="Lecture arrière (R)">
                     <i class="fas fa-backward"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-light" id="syncPlayPauseBtn" title="Lecture/Pause (Espace)">
+                <button class="btn btn-sm btn-outline-emphasis" id="syncPlayPauseBtn" title="Lecture/Pause (Espace)">
                     <i class="fas fa-play" id="playPauseIcon"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-light" id="syncNextFrameBtn" title="Image suivante (→)">
+                <button class="btn btn-sm btn-outline-emphasis" id="syncNextFrameBtn" title="Image suivante (→)">
                     <i class="fas fa-step-forward"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-light" id="syncStopBtn" title="Stop">
+                <button class="btn btn-sm btn-outline-emphasis" id="syncStopBtn" title="Stop">
                     <i class="fas fa-stop"></i>
                 </button>
                 <div class="flex-grow-1 position-relative">
@@ -254,15 +254,15 @@
                     <div id="seekIntersectionMarkers" class="position-absolute top-50 start-0 end-0 translate-middle-y"
                          style="height:6px; pointer-events:none; opacity:0.55;"></div>
                 </div>
-                <span class="text-light small" id="syncTimeDisplay">0:00 / 0:00</span>
+                <span class="text-body-emphasis small" id="syncTimeDisplay">0:00 / 0:00</span>
                 <!-- Intersection jump dropdown (visible when windows exist) -->
-                <select class="form-select form-select-sm bg-dark text-warning border-warning"
+                <select class="form-select form-select-sm bg-body text-warning border-warning"
                         id="intersectionJumpSelect" style="width: 230px; display:none;" title="Aller à une fenêtre d'intersection">
                     <option value="">Aller à l'intersection...</option>
                 </select>
                 <div class="d-flex align-items-center gap-1">
-                    <label class="text-light small me-1">Vitesse:</label>
-                    <select class="form-select form-select-sm bg-dark text-light border-secondary" id="playbackSpeed" style="width: 70px;">
+                    <label class="text-body-emphasis small me-1">Vitesse:</label>
+                    <select class="form-select form-select-sm bg-body text-body-emphasis border-secondary" id="playbackSpeed" style="width: 70px;">
                         <option value="0.25">0.25x</option>
                         <option value="0.5">0.5x</option>
                         <option value="1" selected>1x</option>
@@ -292,7 +292,7 @@
         <div class="analysis-progress mt-2" id="analysisProgress" style="display:none">
             <div class="d-flex align-items-center gap-2 mb-1">
                 <i class="fas fa-spinner fa-spin text-warning"></i>
-                <span class="text-light small" id="progressLabel">Analyse en cours...</span>
+                <span class="text-body-emphasis small" id="progressLabel">Analyse en cours...</span>
                 <span class="text-warning small ms-auto" id="progressPercent">0%</span>
             </div>
             <div class="progress" style="height: 6px;">
@@ -304,9 +304,9 @@
 
     <!-- Results Summary -->
     <div class="results-panel mt-3" id="resultsPanel" style="display:none">
-        <div class="card bg-dark border-success">
+        <div class="card bg-body border-success">
             <div class="card-header bg-success bg-opacity-25 border-success d-flex justify-content-between align-items-center">
-                <h6 class="mb-0 text-light"><i class="fas fa-chart-bar me-2"></i>Résultats de l'analyse</h6>
+                <h6 class="mb-0 text-body-emphasis"><i class="fas fa-chart-bar me-2"></i>Résultats de l'analyse</h6>
                 <div class="d-flex align-items-center gap-2">
                     <div class="btn-group btn-group-sm">
                         <button class="btn btn-outline-info" id="exportCsvBtn" title="Export CSV détections">
@@ -325,7 +325,7 @@
             <div class="card-body" id="resultsContent"></div>
             <!-- Analytics Section (Phase 3) -->
             <div class="card-body border-top border-secondary" id="analyticsSection" style="display:none">
-                <h6 class="text-light mb-3"><i class="fas fa-chart-line me-2"></i>Analytics</h6>
+                <h6 class="text-body-emphasis mb-3"><i class="fas fa-chart-line me-2"></i>Analytics</h6>
                 <div class="row g-3">
                     <div class="col-md-8">
                         <canvas id="proximityChart" height="200"></canvas>
@@ -335,7 +335,7 @@
                     </div>
                 </div>
                 <div class="mt-3" id="segmentsSection">
-                    <h6 class="text-light mb-2"><i class="fas fa-film me-2"></i>Segments temporels</h6>
+                    <h6 class="text-body-emphasis mb-2"><i class="fas fa-film me-2"></i>Segments temporels</h6>
                     <div id="segmentsList"></div>
                 </div>
             </div>
@@ -344,9 +344,9 @@
 
     <!-- Bottom Panel: Sessions -->
     <div class="mt-4">
-        <div class="card bg-dark border-secondary">
+        <div class="card bg-body border-secondary">
             <div class="card-header bg-secondary bg-opacity-25 border-secondary d-flex justify-content-between align-items-center">
-                <h6 class="card-title mb-0 text-light">
+                <h6 class="card-title mb-0 text-body-emphasis">
                     <i class="fas fa-history me-2"></i>Sessions récentes
                 </h6>
                 <button class="btn btn-sm btn-outline-secondary" id="refreshSessionsBtn">
@@ -410,15 +410,15 @@ window.CAM_ANALYZER = {
 <!-- Profile Configuration Modal -->
 <div class="modal fade" id="profileModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content bg-dark text-light">
+        <div class="modal-content bg-body text-body-emphasis">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title"><i class="fas fa-cog me-2"></i>Profil d'analyse</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <!-- Type de rapport — sélection principale -->
                 <div class="mb-4">
-                    <label class="form-label fw-semibold text-light">
+                    <label class="form-label fw-semibold text-body-emphasis">
                         <i class="fas fa-file-alt me-1 text-info"></i> Type de rapport
                     </label>
                     <div class="row g-2" id="reportTypeSelector">
@@ -447,18 +447,18 @@ window.CAM_ANALYZER = {
 
                 <div class="mb-3">
                     <label class="form-label">Nom du profil</label>
-                    <input type="text" class="form-control bg-dark text-light border-secondary" id="profileName" placeholder="Mon profil">
+                    <input type="text" class="form-control bg-body text-body-emphasis border-secondary" id="profileName" placeholder="Mon profil">
                 </div>
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Modèle YOLO</label>
-                        <select class="form-select bg-dark text-light border-secondary" id="profileModel">
+                        <select class="form-select bg-body text-body-emphasis border-secondary" id="profileModel">
                             <option value="">-- Sélectionner --</option>
                         </select>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Tâche</label>
-                        <select class="form-select bg-dark text-light border-secondary" id="profileTaskType">
+                        <select class="form-select bg-body text-body-emphasis border-secondary" id="profileTaskType">
                             <option value="detect">Détection</option>
                             <option value="segment">Segmentation</option>
                         </select>
@@ -476,7 +476,7 @@ window.CAM_ANALYZER = {
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Tracker</label>
-                    <select class="form-select bg-dark text-light border-secondary" id="profileTracker">
+                    <select class="form-select bg-body text-body-emphasis border-secondary" id="profileTracker">
                         <option value="botsort">BoTSORT</option>
                         <option value="bytetrack">ByteTrack</option>
                     </select>
@@ -544,7 +544,7 @@ window.CAM_ANALYZER = {
                             <span class="text-secondary fw-normal">(optionnel)</span>
                         </label>
                         <div class="input-group input-group-sm">
-                            <input type="text" class="form-control bg-dark text-light border-secondary"
+                            <input type="text" class="form-control bg-body text-body-emphasis border-secondary"
                                    id="roadModelPath"
                                    style="color: var(--wama-text-card) !important; background-color: var(--wama-surface) !important;"
                                    placeholder="AI-models/models/vision/yolo/segment/yolov8m-bdd100k-seg.pt">
@@ -654,24 +654,24 @@ window.CAM_ANALYZER = {
                         <div class="row g-2 align-items-end mb-2">
                             <div class="col-12 col-md-2">
                                 <label class="form-label small mb-1">Nom</label>
-                                <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" id="intName" placeholder="Carrefour A">
+                                <input type="text" class="form-control form-control-sm bg-body text-body-emphasis border-secondary" id="intName" placeholder="Carrefour A">
                             </div>
                             <div class="col-6 col-md-2">
                                 <label class="form-label small mb-1">Latitude</label>
-                                <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary" id="intLat" step="0.000001" placeholder="43.621">
+                                <input type="number" class="form-control form-control-sm bg-body text-body-emphasis border-secondary" id="intLat" step="0.000001" placeholder="43.621">
                             </div>
                             <div class="col-6 col-md-2">
                                 <label class="form-label small mb-1">Longitude</label>
-                                <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary" id="intLon" step="0.000001" placeholder="7.074">
+                                <input type="number" class="form-control form-control-sm bg-body text-body-emphasis border-secondary" id="intLon" step="0.000001" placeholder="7.074">
                             </div>
                             <div class="col-6 col-md-2">
                                 <label class="form-label small mb-1">Rayon (m)</label>
-                                <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary" id="intRadius" value="100" min="10" max="500">
+                                <input type="number" class="form-control form-control-sm bg-body text-body-emphasis border-secondary" id="intRadius" value="100" min="10" max="500">
                             </div>
                             <div class="col-6 col-md-2"
                                  title="Rayon autour du centre où un véhicule immobile n'est JAMAIS compté garé (cercle bleu sur la carte). Vide = le rayon d'analyse. Changer ce rayon périme le Tracking 360°.">
                                 <label class="form-label small mb-1" for="intParkedRadius">Garés (m)</label>
-                                <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary" id="intParkedRadius" min="0" max="500" step="1" placeholder="= rayon">
+                                <input type="number" class="form-control form-control-sm bg-body text-body-emphasis border-secondary" id="intParkedRadius" min="0" max="500" step="1" placeholder="= rayon">
                             </div>
                             <div class="col-6 col-md-2 d-flex gap-1">
                                 <button type="button" class="btn btn-sm btn-warning flex-grow-1" id="saveIntersectionBtn">
@@ -684,7 +684,7 @@ window.CAM_ANALYZER = {
                         </div>
                         <!-- Mini-map: search + click to place intersection marker -->
                         <div class="d-flex gap-1 mb-1">
-                            <input type="text" id="mapCitySearch" class="form-control form-control-sm bg-dark text-light border-secondary"
+                            <input type="text" id="mapCitySearch" class="form-control form-control-sm bg-body text-body-emphasis border-secondary"
                                    placeholder="Rechercher une ville…" autocomplete="off" style="font-size:0.8rem;">
                             <button type="button" id="mapCitySearchBtn" class="btn btn-sm btn-outline-secondary px-2" title="Rechercher">
                                 <i class="fas fa-search"></i>
@@ -717,15 +717,15 @@ window.CAM_ANALYZER = {
 <!-- New Session Modal -->
 <div class="modal fade" id="newSessionModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bg-dark text-light">
+        <div class="modal-content bg-body text-body-emphasis">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Nouvelle session</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
                     <label class="form-label">Nom de la session</label>
-                    <input type="text" class="form-control bg-dark text-light border-secondary" id="newSessionName" placeholder="Session d'analyse...">
+                    <input type="text" class="form-control bg-body text-body-emphasis border-secondary" id="newSessionName" placeholder="Session d'analyse...">
                 </div>
             </div>
             <div class="modal-footer border-secondary">

@@ -189,7 +189,7 @@ def theme_blocks(css=None):
     for selectors, body in re.findall(r'([^{}]+)\{([^{}]*)\}', css):
         tokens = dict(re.findall(r'(--wama-[a-z0-9-]+)\s*:\s*([^;]+);', body))
         for selector in selectors.split(','):
-            m = re.fullmatch(r'\s*:root\[data-wama-theme="([a-z0-9_-]+)"\]\s*', selector)
+            m = re.fullmatch(r'\s*(?::root)?\[data-wama-theme="([a-z0-9_-]+)"\]\s*', selector)
             key = m.group(1) if m else (':root' if selector.strip() == ':root' else None)
             if key:
                 blocks.setdefault(key, {}).update(tokens)
@@ -313,6 +313,79 @@ class ThemeTokensTest(SimpleTestCase):
                               ':root[data-wama-theme="light"] { --wama-a: #000; }')
         self.assertEqual({':root', 'dark', 'light'}, set(blocks))
         self.assertEqual({'--wama-b'}, set(blocks[':root']) - set(blocks['light']))
+
+
+class LightThemeIsTheMirrorTest(SimpleTestCase):
+    """Étape 4 (2026-10-18) : le clair est le MIROIR DE LUMINANCE du sombre (`theme_mirror.py`),
+    qui conserve chaque rapport de contraste — sauf les tokens que `themes.py` déclare fixes ou
+    surfaces. Un token clair retouché à la main sans y être déclaré rougit ici."""
+
+    @staticmethod
+    def _ratio_to_white(value):
+        """Rapport au blanc ; une couleur translucide est d'abord posée sur le blanc."""
+        from wama.common.theme_mirror import luminance, parse
+        _kind, rgb, alpha = parse(value)
+        if alpha:
+            a = int(alpha, 16) / 255 if len(alpha) == 2 and not alpha.startswith('.') and '.' not in alpha else float(alpha)
+            rgb = tuple(a * c + (1 - a) * 255 for c in rgb)
+        return 1.05 / (luminance(rgb) + 0.05)
+
+    def test_every_light_token_is_the_mirror_or_declared(self):
+        from wama.common import themes
+        from wama.common.theme_mirror import mirror
+        blocks = theme_blocks()
+        dark, light = blocks['dark'], blocks['light']
+        for name, value in dark.items():
+            with self.subTest(token=name):
+                if name in themes.LIGHT_FIXED or name.startswith(themes.LIGHT_FIXED_PREFIXES):
+                    self.assertEqual(value.strip(), light[name].strip(), 'a FIXED token keeps its value')
+                elif name in themes.LIGHT_HAND:
+                    self.assertNotEqual(value.strip(), light[name].strip(), 'a hand-set token differs')
+                elif name in themes.LIGHT_SURFACES:
+                    # plus claire que son miroir, ou presque blanche (≤ 1,1:1 au blanc : un voile
+                    # d'encart) — un texte sombre n'y perd jamais de contraste qui compte
+                    self.assertLessEqual(self._ratio_to_white(light[name]),
+                                         max(self._ratio_to_white(mirror(value)) * 1.01, 1.1),
+                                         'a structure surface is lighter than its mirror, or near white')
+                else:
+                    expected = mirror(value)
+                    self.assertAlmostEqual(self._ratio_to_white(expected), self._ratio_to_white(light[name]),
+                                           delta=self._ratio_to_white(expected) * 0.03,
+                                           msg=f'the mirror of {value} is {expected}')
+
+    def test_every_declared_exception_names_a_token(self):
+        from wama.common import themes
+        tokens = set(theme_blocks()['dark'])
+        for name in (*themes.LIGHT_FIXED, *themes.LIGHT_SURFACES, *themes.LIGHT_HAND):
+            with self.subTest(token=name):
+                self.assertIn(name, tokens, 'an exception of a removed token is removed')
+        for name, why in {**themes.LIGHT_FIXED, **themes.LIGHT_HAND}.items():
+            self.assertTrue(why.strip())
+
+    def test_the_mirror_keeps_every_contrast_ratio(self):
+        """Contre-épreuve de la règle elle-même : le rapport d'un texte à son fond est conservé,
+        inversé ; le noir et le blanc s'échangent ; un gris reste un gris."""
+        from wama.common.theme_mirror import luminance, mirror, parse
+
+        def ratio(a, b):
+            ya, yb = (luminance(parse(v)[1]) for v in (a, b))
+            return (max(ya, yb) + 0.05) / (min(ya, yb) + 0.05)
+        for text, ground in (('#9aa3ab', '#212529'), ('#ffc107', '#1a1a2e'), ('#dee2e6', '#2b3035')):
+            with self.subTest(pair=(text, ground)):
+                self.assertAlmostEqual(ratio(text, ground), ratio(mirror(text), mirror(ground)), delta=0.15)
+        self.assertEqual(('#000000', '#ffffff'), (mirror('#fff'), mirror('#000')))
+        r, g, b = parse(mirror('#9aa3ab'))[1]
+        self.assertLessEqual(max(r, g, b) - min(r, g, b), 171 - 154, 'a tint kept, not invented')
+        self.assertEqual('rgba(0, 0, 0, .08)', mirror('rgba(255, 255, 255, .08)'), 'opacity kept')
+
+    def test_a_region_can_fix_its_theme(self):
+        """Îlot : `data-wama-theme` sur un élément y redéfinit les tokens (sélecteur non limité à
+        `:root`) — l'encart au dégradé de l'accueil reste sombre en thème clair."""
+        css = THEME_CSS.read_text(encoding='utf-8')
+        self.assertIn(':root,\n[data-wama-theme="dark"] {', css)
+        self.assertIn('\n[data-wama-theme="light"] {', css)
+        home = (ROOT / 'wama' / 'templates' / 'home.html').read_text(encoding='utf-8')
+        self.assertIn('data-wama-theme="dark" data-bs-theme="dark"', home)
 
 
 class ModeFollowingComponentsTest(SimpleTestCase):

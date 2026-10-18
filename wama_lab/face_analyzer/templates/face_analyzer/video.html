@@ -7,7 +7,7 @@
         <!-- Left Panel: Video Player & Controls -->
         <div class="col-lg-6 mb-3">
             <!-- Upload / Video Player -->
-            <div class="card bg-dark border-success mb-3">
+            <div class="card bg-body border-success mb-3">
                 <div class="card-header bg-success bg-opacity-25 border-success d-flex justify-content-between align-items-center">
                     <h5 class="mb-0 text-success">
                         <i class="fas fa-file-video me-2"></i>Vidéo
@@ -22,7 +22,7 @@
                              id="dropZoneFaceAnalyzer"
                              onclick="document.getElementById('videoInput').click()">
                             <i class="fas fa-cloud-upload-alt fa-4x text-secondary mb-3"></i>
-                            <p class="text-light mb-2">Glissez-déposez une vidéo ici</p>
+                            <p class="text-body-emphasis mb-2">Glissez-déposez une vidéo ici</p>
                             <p class="text-secondary small">ou cliquez pour sélectionner</p>
                             <p class="text-secondary small mt-3">Formats supportés: MP4, AVI, MOV, MKV</p>
                         </div>
@@ -37,7 +37,7 @@
             </div>
 
             <!-- VCR Controls -->
-            <div class="card bg-dark border-secondary mb-3" id="controlsCard" style="display: none;">
+            <div class="card bg-body border-secondary mb-3" id="controlsCard" style="display: none;">
                 <div class="card-body">
                     <!-- Progress Bar -->
                     <div class="mb-3">
@@ -73,8 +73,8 @@
                     <!-- Speed & Volume -->
                     <div class="row g-3">
                         <div class="col-6">
-                            <label class="form-label text-light small">Vitesse</label>
-                            <select id="playbackSpeed" class="form-select form-select-sm bg-dark text-light border-secondary">
+                            <label class="form-label text-body-emphasis small">Vitesse</label>
+                            <select id="playbackSpeed" class="form-select form-select-sm bg-body text-body-emphasis border-secondary">
                                 <option value="0.25">0.25x</option>
                                 <option value="0.5">0.5x</option>
                                 <option value="1" selected>1x</option>
@@ -83,7 +83,7 @@
                             </select>
                         </div>
                         <div class="col-6">
-                            <label class="form-label text-light small">Volume</label>
+                            <label class="form-label text-body-emphasis small">Volume</label>
                             <input type="range" class="form-range" id="volumeSlider" min="0" max="100" value="100">
                         </div>
                     </div>
@@ -91,12 +91,12 @@
             </div>
 
             <!-- Analysis Controls -->
-            <div class="card bg-dark border-secondary mb-3" id="analysisCard" style="display: none;">
+            <div class="card bg-body border-secondary mb-3" id="analysisCard" style="display: none;">
                 <div class="card-body">
                     <div class="row g-3">
                         <!-- Analysis Options -->
                         <div class="col-12">
-                            <label class="form-label text-light small">Modules d'analyse</label>
+                            <label class="form-label text-body-emphasis small">Modules d'analyse</label>
                             <div class="d-flex flex-wrap gap-2">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="enableRPPG" checked>
@@ -127,8 +127,8 @@
 
                         <!-- Emotion Backend Selection -->
                         <div class="col-md-6">
-                            <label class="form-label text-light small">Backend émotions</label>
-                            <select id="emotionBackend" class="form-select form-select-sm bg-dark text-light border-secondary">
+                            <label class="form-label text-body-emphasis small">Backend émotions</label>
+                            <select id="emotionBackend" class="form-select form-select-sm bg-body text-body-emphasis border-secondary">
                                 <option value="fer">FER (rapide)</option>
                                 <option value="deepface" selected>DeepFace (complet)</option>
                             </select>
@@ -136,10 +136,10 @@
 
                         <!-- Age/Gender Toggle -->
                         <div class="col-md-6">
-                            <label class="form-label text-light small">Options DeepFace</label>
+                            <label class="form-label text-body-emphasis small">Options DeepFace</label>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="enableAgeGender" checked>
-                                <label class="form-check-label text-light small" for="enableAgeGender">
+                                <label class="form-check-label text-body-emphasis small" for="enableAgeGender">
                                     <i class="fas fa-user-tag me-1"></i>Âge & Genre
                                 </label>
                             </div>
@@ -180,7 +180,7 @@
             <!-- Summary Metrics -->
             <div class="row g-2" id="metricsRow" style="display: none;">
                 <div class="col-6 col-md-2">
-                    <div class="card bg-dark border-danger h-100">
+                    <div class="card bg-body border-danger h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-heartbeat text-danger"></i>
                             <div id="avgHR" class="fs-5 text-danger fw-bold">--</div>
@@ -189,7 +189,7 @@
                     </div>
                 </div>
                 <div class="col-6 col-md-2">
-                    <div class="card bg-dark border-primary h-100">
+                    <div class="card bg-body border-primary h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-tint text-primary"></i>
                             <div id="avgSpO2" class="fs-5 text-primary fw-bold">--</div>
@@ -198,7 +198,7 @@
                     </div>
                 </div>
                 <div class="col-6 col-md-2">
-                    <div class="card bg-dark border-success h-100">
+                    <div class="card bg-body border-success h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-lungs text-success"></i>
                             <div id="avgRR" class="fs-5 text-success fw-bold">--</div>
@@ -207,7 +207,7 @@
                     </div>
                 </div>
                 <div class="col-6 col-md-2">
-                    <div class="card bg-dark border-info h-100">
+                    <div class="card bg-body border-info h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-eye text-info"></i>
                             <div id="avgBlink" class="fs-5 text-info fw-bold">--</div>
@@ -216,7 +216,7 @@
                     </div>
                 </div>
                 <div class="col-6 col-md-2" id="ageCard">
-                    <div class="card bg-dark border-warning h-100">
+                    <div class="card bg-body border-warning h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-birthday-cake text-warning"></i>
                             <div id="detectedAge" class="fs-5 text-warning fw-bold">--</div>
@@ -225,10 +225,10 @@
                     </div>
                 </div>
                 <div class="col-6 col-md-2" id="genderCard">
-                    <div class="card bg-dark border-secondary h-100">
+                    <div class="card bg-body border-secondary h-100">
                         <div class="card-body text-center p-2">
                             <i id="genderIcon" class="fas fa-user text-secondary"></i>
-                            <div id="detectedGender" class="fs-5 text-light fw-bold">--</div>
+                            <div id="detectedGender" class="fs-5 text-body-emphasis fw-bold">--</div>
                             <div class="small text-secondary">Genre</div>
                         </div>
                     </div>
@@ -237,7 +237,7 @@
             <!-- Second row: HRV and Emotion -->
             <div class="row g-2 mt-1" id="metricsRow2" style="display: none;">
                 <div class="col-6">
-                    <div class="card bg-dark border-warning h-100">
+                    <div class="card bg-body border-warning h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-wave-square text-warning"></i>
                             <span class="small text-secondary ms-2">HRV (RMSSD)</span>
@@ -246,7 +246,7 @@
                     </div>
                 </div>
                 <div class="col-6">
-                    <div class="card bg-dark border-info h-100">
+                    <div class="card bg-body border-info h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-smile text-info"></i>
                             <span class="small text-secondary ms-2">Émotion dominante</span>
@@ -266,7 +266,7 @@
             </div>
 
             <!-- Heart Rate Chart -->
-            <div class="card bg-dark border-danger mb-3">
+            <div class="card bg-body border-danger mb-3">
                 <div class="card-header bg-danger bg-opacity-25 border-danger py-2 d-flex justify-content-between">
                     <h6 class="mb-0 text-danger">
                         <i class="fas fa-heartbeat me-2"></i>Fréquence Cardiaque
@@ -279,7 +279,7 @@
             </div>
 
             <!-- HRV Chart -->
-            <div class="card bg-dark border-warning mb-3">
+            <div class="card bg-body border-warning mb-3">
                 <div class="card-header bg-warning bg-opacity-25 border-warning py-2 d-flex justify-content-between">
                     <h6 class="mb-0 text-warning">
                         <i class="fas fa-wave-square me-2"></i>Variabilité Cardiaque (HRV)
@@ -292,7 +292,7 @@
             </div>
 
             <!-- Emotions Chart -->
-            <div class="card bg-dark border-warning mb-3">
+            <div class="card bg-body border-warning mb-3">
                 <div class="card-header bg-warning bg-opacity-25 border-warning py-2 d-flex justify-content-between">
                     <h6 class="mb-0 text-warning">
                         <i class="fas fa-smile me-2"></i>Émotions (évolution)
@@ -305,7 +305,7 @@
             </div>
 
             <!-- Eye Tracking -->
-            <div class="card bg-dark border-info mb-3">
+            <div class="card bg-body border-info mb-3">
                 <div class="card-header bg-info bg-opacity-25 border-info py-2 d-flex justify-content-between">
                     <h6 class="mb-0 text-info">
                         <i class="fas fa-eye me-2"></i>Oculométrie
@@ -325,7 +325,7 @@
             </div>
 
             <!-- Respiration Chart -->
-            <div class="card bg-dark border-success">
+            <div class="card bg-body border-success">
                 <div class="card-header bg-success bg-opacity-25 border-success py-2 d-flex justify-content-between">
                     <h6 class="mb-0 text-success">
                         <i class="fas fa-lungs me-2"></i>Respiration
@@ -549,7 +549,7 @@ function updateVideoInfo(filename, filesize = null, isOutput = false) {
     const videoInfo = document.getElementById('videoInfo');
     const badge = isOutput ? '<span class="badge bg-success ms-2">Résultat</span>' : '';
     const size = filesize ? ` (${filesize})` : '';
-    videoInfo.innerHTML = `<span class="text-light">${filename}</span>${size}${badge}`;
+    videoInfo.innerHTML = `<span class="text-body-emphasis">${filename}</span>${size}${badge}`;
 }
 
 function onVideoLoaded() {

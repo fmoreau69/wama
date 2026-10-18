@@ -1,6 +1,6 @@
 {% comment %}OUTIL « tri » — markup DÉPLACÉ de `_queue_toolbar.html` (2026-09-08), inchangé.
 Tri + filtrage de la file : fonctionnel, persisté en session, recharge la page.{% endcomment %}
-<select class="form-select form-select-sm bg-dark text-white border-secondary" style="width:auto;"
+<select class="form-select form-select-sm bg-body text-body-emphasis border-secondary" style="width:auto;"
         onchange="location.search='?sort='+this.value+'&filter={{ q_filter }}'" title="Trier la file">
     <option value="recent" {% if q_sort == 'recent' %}selected{% endif %}>↓ Plus récent</option>
     <option value="oldest" {% if q_sort == 'oldest' %}selected{% endif %}>↑ Plus ancien</option>

@@ -1,5 +1,5 @@
 <!-- Navigation WAMA - Alignée avec les panneaux latéraux -->
-<nav class="navbar navbar-dark border-bottom border-secondary wama-header">
+<nav class="navbar border-bottom border-secondary wama-header">
     <div class="container-fluid px-3 wama-header-container">
         <!-- Menu déroulant Applications (gauche) -->
         <div class="wama-header-left">
@@ -11,7 +11,7 @@
                     <i class="fas fa-th me-2"></i>
                     <span class="wama-header-label">Applications</span>
                 </button>
-                <ul class="dropdown-menu dropdown-menu-dark wama-apps-menu" aria-labelledby="appsDropdown">
+                <ul class="dropdown-menu wama-apps-menu" aria-labelledby="appsDropdown">
                     {# Menu GÉNÉRÉ des déclarations (get_app_groups, cf. app_registry) — groupé par #}
                     {# monde puis catégorie, filtré par accessible_apps. Plus d'app codée à la main #}
                     {# ici : ajouter une app = l'ajouter au catalogue (décision 2026-07-05). #}
@@ -31,7 +31,7 @@
                                 <span class="badge bg-secondary ms-1">{{ group.apps|length }}</span></span>
                             <i class="fas fa-chevron-right small ms-2"></i>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-dark wama-nav-sous-menu" id="navSousMenu{{ group.id }}">
+                        <ul class="dropdown-menu wama-nav-sous-menu" id="navSousMenu{{ group.id }}">
                             {% for a in group.apps %}<li>
                                 <a class="dropdown-item d-flex align-items-center {% if a.name in request.path %}active{% endif %}" href="{{ a.url }}">
                                     <i class="{{ a.icon }} me-2"{% if a.color %} style="color:{{ a.color }};"{% endif %}></i> {{ a.label }}
@@ -62,7 +62,7 @@
                     {% endcomment %}
                     <li><hr class="dropdown-divider"></li>
                     <li>
-                        <a class="dropdown-item d-flex align-items-center small text-white-50" href="{% url 'common:apps_catalog' %}">
+                        <a class="dropdown-item d-flex align-items-center small text-body-secondary" href="{% url 'common:apps_catalog' %}">
                             <i class="fas fa-sliders me-2"></i>
                             {% if apps_masquees_count %}Toutes les applications ({{ apps_masquees_count }} masquée{{ apps_masquees_count|pluralize }}){% else %}Toutes les applications{% endif %}
                         </a>
@@ -217,7 +217,7 @@
                       L'ordre, l'icône et sa teinte (toutes colorées, arbitrage du 01/09) sont dans
                       la déclaration ; la déconnexion, un geste et pas une page, reste écrite ici.
                     {% endcomment %}
-                    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end" aria-labelledby="userDropdown">
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                         {% for section in account_menu %}
                         {% if not forloop.first %}<li><hr class="dropdown-divider"></li>{% endif %}
                         <li><h6 class="dropdown-header">{{ section.label }}</h6></li>

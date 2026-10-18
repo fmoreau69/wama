@@ -197,13 +197,13 @@ ne sont PAS des onglets : ils portent sur une card existante, leur geste est son
 
 <!-- Zone de transcription LIVE : masquée par défaut, révélée au clic Speak (startAll dans index.js).
      IDs (#live-transcription-status / #live-transcription-output) préservés → JS Speak inchangé. -->
-<div id="transcriberLive" class="card bg-dark mt-3 shadow-sm" style="display:none;">
+<div id="transcriberLive" class="card bg-body mt-3 shadow-sm" style="display:none;">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <span class="text-light"><i class="fas fa-wave-square"></i> Transcription en direct</span>
-        <small class="text-white" id="live-transcription-status">En attente...</small>
+        <span class="text-body-emphasis"><i class="fas fa-wave-square"></i> Transcription en direct</span>
+        <small class="text-body-emphasis" id="live-transcription-status">En attente...</small>
     </div>
     <div class="card-body" style="min-height: 180px;">
-        <div id="live-transcription-output" class="text-white" style="text-align: center; font-size: 1.2rem;">
+        <div id="live-transcription-output" class="text-body-emphasis" style="text-align: center; font-size: 1.2rem;">
             Appuyez sur <strong>Speak</strong> puis commencez à parler pour voir le texte apparaître ici en temps réel.
         </div>
     </div>
@@ -246,9 +246,9 @@ ne sont PAS des onglets : ils portent sur une card existante, leur geste est son
 
             {% empty %}
             <div class="text-center py-5 empty-queue">
-                <i class="fas fa-inbox fa-3x mb-3 text-white-50"></i>
-                <p class="text-white-50">Aucune transcription en attente</p>
-                <p class="text-white-50">Uploadez des fichiers audio pour commencer</p>
+                <i class="fas fa-inbox fa-3x mb-3 text-body-secondary"></i>
+                <p class="text-body-secondary">Aucune transcription en attente</p>
+                <p class="text-body-secondary">Uploadez des fichiers audio pour commencer</p>
             </div>
             {% endfor %}
         </div>
@@ -270,16 +270,16 @@ with the classes the cycle delegates (`save-settings-btn` / `save-and-restart-bt
 appliqués à tous les items non-RUNNING (batch_update_settings). {% endcomment %}
 <div class="modal fade" id="batchSettingsModal" tabindex="-1" aria-labelledby="batchSettingsLabel">
     <div class="modal-dialog">
-        <div class="modal-content bg-dark text-light">
+        <div class="modal-content bg-body text-body-emphasis">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title" id="batchSettingsLabel">
                     <i class="fas fa-layer-group me-2"></i>Paramètres du batch
                     <span class="badge bg-secondary ms-1" id="batchSettingsBatchId"></span>
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p class="small text-white-50 mb-2">Appliqués à tous les éléments du batch (sauf ceux en cours).</p>
+                <p class="small text-body-secondary mb-2">Appliqués à tous les éléments du batch (sauf ceux en cours).</p>
                 <div id="transcriberBatchParams"></div>
             </div>
             {% include 'common/_settings_modal_footer.html' with save_id='saveBatchSettingsBtn' save_label='Appliquer' save_start_id='saveBatchSettingsAndStartBtn' save_start_label='Appliquer et démarrer' %}

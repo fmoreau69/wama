@@ -52,7 +52,7 @@
         if (!container) return false;
         if (!item) { container.innerHTML = ''; return false; }
         if (item.pending) {
-            container.innerHTML = '<p class="text-light py-3 mb-0"><i class="fas fa-hourglass-half"></i> '
+            container.innerHTML = '<p class="text-body-emphasis py-3 mb-0"><i class="fas fa-hourglass-half"></i> '
                 + 'Référence <strong>' + escape(item.reference_name) + '</strong> posée — '
                 + 'la mesure suivra le prochain résultat.</p>';
             return true;
@@ -66,7 +66,7 @@
         }).join('');
         var measured = item.measured_at ? new Date(item.measured_at).toLocaleString() : '';
         container.innerHTML =
-            '<p class="text-light mb-2"><i class="fas fa-scale-balanced text-info"></i> '
+            '<p class="text-body-emphasis mb-2"><i class="fas fa-scale-balanced text-info"></i> '
             + '<strong>' + escape(item.model_label) + '</strong> comparé à '
             + '<strong>' + escape(item.reference_name) + '</strong></p>'
             + '<table class="wama-evaluation-metrics"><thead><tr>'

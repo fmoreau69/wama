@@ -464,10 +464,10 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: var(--wama-surface); border: 1px solid var(--wama-border-strong);">
               <div class="card-body d-flex flex-column">
-                <h5 class="card-title text-light">
+                <h5 class="card-title text-body-emphasis">
                   <i class="{{ a.icon }}"{% if a.color %} style="color:{{ a.color }};"{% endif %}></i> {{ a.label }}
                 </h5>
-                <p class="card-text text-light flex-grow-1">{{ a.description }}</p>
+                <p class="card-text text-body-emphasis flex-grow-1">{{ a.description }}</p>
                 <a href="{{ a.url }}" class="btn mt-auto"
                    style="border:1px solid {{ a.color|default:'var(--bs-secondary)' }}; color:{{ a.color|default:'var(--wama-text-ui)' }};">
                   <i class="fas fa-arrow-right"></i> Ouvrir
@@ -480,10 +480,10 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: var(--wama-surface); border: 1px solid var(--wama-border-strong);">
               <div class="card-body d-flex flex-column">
-                <h5 class="card-title text-light">
+                <h5 class="card-title text-body-emphasis">
                   <i class="fas {{ l.icon }}"{% if l.color %} style="color:{{ l.color }};"{% endif %}></i> {{ l.label }}
                 </h5>
-                <p class="card-text text-light flex-grow-1">{{ l.description }}</p>
+                <p class="card-text text-body-emphasis flex-grow-1">{{ l.description }}</p>
                 <a href="{{ l.url }}" class="btn mt-auto"
                    style="border:1px solid {{ l.color|default:'var(--bs-secondary)' }}; color:{{ l.color|default:'var(--wama-text-ui)' }};">
                   <i class="fas fa-arrow-right"></i> Ouvrir
@@ -506,10 +506,10 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
         <h4 class="mb-3"><i class="fas fa-clock"></i> Upcoming Features</h4>
         <div class="card" style="background: var(--wama-surface); border: 1px solid var(--wama-border-strong);">
           <div class="card-body">
-            <ul class="text-light mb-0">
+            <ul class="text-body-emphasis mb-0">
               <li><strong>More features coming soon...</strong> Stay tuned!</li>
             </ul>
-            <p class="text-light mt-3 mb-0">
+            <p class="text-body-emphasis mt-3 mb-0">
               <i class="fab fa-github"></i> See the
               <a href="https://github.com/fmoreau69/wama" target="_blank" class="text-info">
                 GitHub project
@@ -546,12 +546,13 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
     <!-- WAMA Presentation -->
     <div class="row mb-4">
       <div class="col-12">
-        <div class="card" style="background: linear-gradient(135deg, var(--wama-indigo) 0%, var(--wama-violet) 100%); border: none;">
+        {# Encart au dégradé de WAMA : sombre dans TOUS les thèmes (îlot, `ROADMAP §28` étape 4). #}
+        <div class="card" data-wama-theme="dark" data-bs-theme="dark" style="background: linear-gradient(135deg, var(--wama-indigo) 0%, var(--wama-violet) 100%); border: none;">
           <div class="card-body text-center py-4">
-            <h4 class="text-white mb-3">
+            <h4 class="text-body-emphasis mb-3">
               <i class="fas fa-presentation"></i> Découvrir WAMA
             </h4>
-            <p class="text-white-50 mb-3">
+            <p class="text-body-secondary mb-3">
               Présentations, architecture et annexes — accès direct
             </p>
             <div class="dropdown d-inline-block">
@@ -629,7 +630,7 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
           <div id="dzFiles" class="simple-drop-zone">
             <input type="file" multiple style="display:none">
             <div class="dz-icon text-info"><i class="fas fa-folder-open"></i></div>
-            <div class="dz-label text-light">Mes Fichiers</div>
+            <div class="dz-label text-body-emphasis">Mes Fichiers</div>
             <div class="dz-hint">Glissez des fichiers ici pour les ajouter au FileManager</div>
             <div class="dz-status"></div>
             <a href="/" class="btn btn-sm btn-outline-info mt-2" onclick="event.stopPropagation(); window.wamaSetMode && window.wamaSetMode('advanced');">
@@ -655,7 +656,7 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
           <div id="dzRag" class="simple-drop-zone">
             <input type="file" multiple accept=".pdf,.docx,.txt,.md,.csv" style="display:none">
             <div class="dz-icon text-warning"><i class="fas fa-file-lines"></i></div>
-            <div class="dz-label text-light">Documents</div>
+            <div class="dz-label text-body-emphasis">Documents</div>
             <div class="dz-hint">Déposer dans la Médiathèque (PDF, DOCX, TXT, MD, CSV)</div>
             <div class="dz-status"></div>
             <a href="{% url 'media_library:index' %}" class="btn btn-sm btn-outline-warning mt-2" onclick="event.stopPropagation()">
@@ -669,7 +670,7 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
           <div id="dzReader" class="simple-drop-zone">
             <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp,.webp" style="display:none">
             <div class="dz-icon text-success"><i class="fas fa-book-open"></i></div>
-            <div class="dz-label text-light">Reader / OCR</div>
+            <div class="dz-label text-body-emphasis">Reader / OCR</div>
             <div class="dz-hint">PDF ou images à envoyer pour extraction de texte</div>
             <div class="dz-status"></div>
             <a href="{% url 'reader:index' %}" class="btn btn-sm btn-outline-success mt-2" onclick="event.stopPropagation()">

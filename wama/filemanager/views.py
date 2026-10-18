@@ -140,7 +140,7 @@ def build_file_tree(user):
         {
             'id': 'section_user',
             'text': 'Mes fichiers',
-            'icon': 'fa fa-home text-light',
+            'icon': 'fa fa-home text-body-emphasis',
             'type': 'section',
             'state': {'opened': True},
             'children': user_children,

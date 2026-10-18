@@ -36,8 +36,8 @@ celle des apps serait un choix d'UI distinct, pas un effet de bord de la factori
     d'un lot commence par « le » dans les 9 apps (« le batch #2 »), ce qui donnait « Réglages de
     le batch #2 ». Corriger les 9 sites aurait recopié la rustine ; la contraction est une règle
     de LANGUE, elle vit donc ici, une fois.{% endcomment %}
-    <span class="text-light flex-grow-1 text-truncate">{% if not sans_prefixe %}<span id="inspectorPrefix">{{ prefixe|default:'Réglages de' }}</span> {% endif %}<strong id="inspectorLabel">{% if not sans_prefixe %}{{ defaut|default:"l'élément" }}{% endif %}</strong></span>
-    <button type="button" id="inspectorDeselect" class="btn btn-sm btn-outline-light py-0 px-2"
+    <span class="text-body-emphasis flex-grow-1 text-truncate">{% if not sans_prefixe %}<span id="inspectorPrefix">{{ prefixe|default:'Réglages de' }}</span> {% endif %}<strong id="inspectorLabel">{% if not sans_prefixe %}{{ defaut|default:"l'élément" }}{% endif %}</strong></span>
+    <button type="button" id="inspectorDeselect" class="btn btn-sm btn-outline-emphasis py-0 px-2"
             title="{{ bouton_titre|default:"Quitter l'inspecteur de cet élément (revenir aux réglages par défaut)" }}">
         <i class="{{ bouton_icone|default:'fas fa-rotate-left' }}"></i>
     </button>

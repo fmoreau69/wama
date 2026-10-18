@@ -2010,3 +2010,16 @@ réseau ; quand les données d'une page bougent entre deux passages (le DOM n'a 
 d'éléments, rien n'est comparable), les feuilles se PERMUTENT EN PLACE dans un seul chargement.
 Et un second étage, statique : chaque remplacement est résolu et comparé à la valeur remplacée.
 207 états, un seul écart — volontaire (`ROADMAP §28`, étape 3).
+✅ **Étape 4 (2026-10-18) : un second thème, le CLAIR — les deux moitiés jouent les deux thèmes.**
+La moitié navigateur mesure 60 pages (30 × Sombre, Clair) : aucun texte illisible ; en clair, il
+restait deux familles faibles (un lien Bootstrap sur un encart teinté, la couleur d'une app lue
+comme texte), corrigées à leur domicile, et seuls restent les événements du calendrier, couleur de
+DONNÉE déjà faible en sombre. La moitié code a pris sa forme symétrique, annoncée plus haut :
+`tests_contrast.LightTextNeedsADarkBackgroundTest` — un texte clair fixe (`text-white(-50)`,
+`text-light`, `link-light`, `btn-outline-light`) exige un fond sombre fixe dans sa liste de
+classes, et aucun fond sombre ne s'écrit plus dans une classe (`bg-dark`, `table-dark`,
+`dropdown-menu-dark`, `btn-close-white`, `navbar-dark`) ; trois exemptions, fond venu d'un parent.
+Et une troisième moitié, propre aux thèmes : `tests_theme.LightThemeIsTheMirrorTest` — chaque token
+clair est le miroir de luminance du sombre, qui CONSERVE chaque rapport de contraste
+(`theme_mirror.py`) ; un contraste vérifié en sombre l'est donc en clair par construction, sauf
+pour ce que `themes.py` déclare autrement.

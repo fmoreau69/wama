@@ -5,8 +5,8 @@
 
 {% block extra_css %}
 <style>
-    .card.bg-dark .label-col { color: var(--wama-text-muted); }
-    .card.bg-dark .value-col { color: var(--wama-text-body); }
+    .card.bg-body .label-col { color: var(--wama-text-muted); }
+    .card.bg-body .value-col { color: var(--wama-text-body); }
     #tokenInput { font-family: monospace; letter-spacing: 0.05em; }
     .profile-keys h6 { color: var(--wama-text-body); font-size: .85rem; font-weight: 600; margin: 1rem 0 .4rem; }
     .profile-keys h6:first-child { margin-top: 0; }
@@ -39,18 +39,18 @@
       l'appariement de canal. Question posée par Fabien le 22/08 (« pourquoi les deux ? ») : si
       l'UI la suscite, elle doit y répondre.
     {% endcomment %}
-    <p class="text-white-50 small mb-2">
+    <p class="text-body-secondary small mb-2">
         Pour appeler l'API WAMA depuis <strong>vos propres scripts</strong>, qui agissent alors
-        en votre nom : <code class="text-light">Authorization: Token &lt;votre-token&gt;</code>
+        en votre nom : <code class="text-body-emphasis">Authorization: Token &lt;votre-token&gt;</code>
     </p>
-    <p class="text-white-50 small mb-2">
+    <p class="text-body-secondary small mb-2">
         <i class="fas fa-circle-info me-1"></i>
         Secret <strong>permanent</strong> : ne le collez jamais dans une messagerie. Pour Discord
         ou Tchap, utilisez l'appariement de canal.
     </p>
     <div class="input-group input-group-sm mb-2">
         <input type="password" id="tokenInput"
-               class="form-control bg-dark text-light border-secondary"
+               class="form-control bg-body text-body-emphasis border-secondary"
                value="{{ token }}" readonly autocomplete="new-password">
         <button class="btn btn-outline-secondary" type="button" id="toggleTokenBtn"
                 title="Afficher / masquer">
@@ -67,11 +67,11 @@
     <div id="tokenMsg" class="mt-2" style="display:none;"></div>
 
     <h6><i class="fas fa-robot me-1"></i>Fournisseurs d'IA et moteurs de recherche</h6>
-    <p class="text-white-50 small mb-1">
+    <p class="text-body-secondary small mb-1">
         Votre clé personnelle, chiffrée en base et jamais réaffichée.
     </p>
     <div id="llmKeysList">
-        <div class="text-white-50 small"><i class="fas fa-spinner fa-spin me-1"></i>Chargement…</div>
+        <div class="text-body-secondary small"><i class="fas fa-spinner fa-spin me-1"></i>Chargement…</div>
     </div>
 
     {% comment %}Choix du moteur de recherche de l'assistant (2026-09-26). Les options viennent
@@ -81,7 +81,7 @@
     {% if search_engines %}
     <h6 class="mt-3"><i class="fas fa-magnifying-glass me-1"></i>Moteur de recherche</h6>
     <select id="searchEngineSelect"
-            class="form-select form-select-sm bg-dark text-white border-secondary">
+            class="form-select form-select-sm bg-body text-body-emphasis border-secondary">
         <option value="" {% if not profile.search_engine %}selected{% endif %}>Celui de l'instance</option>
         {% comment %}⚠ DEUX raisons distinctes d'être indisponible, et les confondre est un
         cul-de-sac : un moteur à clé attend la vôtre, un service auto-hébergé attend d'être
@@ -105,7 +105,7 @@
         </a>
     </h6>
     <div id="providersList">
-        <div class="text-white-50 small"><i class="fas fa-spinner fa-spin me-1"></i>Chargement…</div>
+        <div class="text-body-secondary small"><i class="fas fa-spinner fa-spin me-1"></i>Chargement…</div>
     </div>
 </div>
 {% endblock %}
@@ -117,13 +117,13 @@
 
             <!-- Header -->
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="text-light mb-0">
+                <h2 class="text-body-emphasis mb-0">
                     <i class="fas fa-user-circle me-2"></i>Profil
                 </h2>
             </div>
 
             <!-- ── Informations utilisateur ─────────────────────────────── -->
-            <div class="card bg-dark border-secondary mb-4">
+            <div class="card bg-body border-secondary mb-4">
                 <div class="card-header border-secondary">
                     <h5 class="mb-0"><i class="fas fa-user me-2"></i>Informations utilisateur</h5>
                 </div>
@@ -154,24 +154,24 @@
 
             {# Derniers accès au compte (journal des connexions, 2026-10-05) — refus compris. #}
             {% if recent_access %}
-            <div class="card bg-dark border-secondary mb-4">
+            <div class="card bg-body border-secondary mb-4">
                 <div class="card-header border-secondary">
                     <h5 class="mb-0"><i class="fas fa-right-to-bracket me-2"></i>Derniers accès à mon compte</h5>
                 </div>
                 <div class="card-body">
-                    <table class="table table-dark table-sm mb-2">
+                    <table class="table table-sm mb-2">
                         <tbody>
                         {% for row in recent_access %}
                             <tr>
                                 <td class="text-nowrap">{{ row.timestamp|date:"d/m/Y H:i" }}</td>
                                 <td>{{ row.get_event_display }}{% if row.reason %} — {{ row.get_reason_display }}{% endif %}</td>
                                 <td>{% if row.kind != 'person' %}{{ row.get_kind_display }}{% endif %}</td>
-                                <td class="text-light">{{ row.ip|default:"" }}</td>
+                                <td class="text-body-emphasis">{{ row.ip|default:"" }}</td>
                             </tr>
                         {% endfor %}
                         </tbody>
                     </table>
-                    <div class="small text-light">Une ligne qui n'est pas de vous ? Changez votre mot de passe et prévenez un administrateur. Le journal est conservé six mois.</div>
+                    <div class="small text-body-emphasis">Une ligne qui n'est pas de vous ? Changez votre mot de passe et prévenez un administrateur. Le journal est conservé six mois.</div>
                 </div>
             </div>
             {% endif %}
@@ -180,7 +180,7 @@
             connexion LDAP. Ces champs existaient depuis des mois sans être affichés nulle part.
             Les montrer explique à l'utilisateur pourquoi le partage « RAG du labo » lui est
             ouvert ou refusé — voir WAMA_MEMORY.md §7ter.{% endcomment %}
-            <div class="card bg-dark border-secondary mb-4">
+            <div class="card bg-body border-secondary mb-4">
                 <div class="card-header border-secondary">
                     <h5 class="mb-0"><i class="fas fa-building-columns me-2"></i>Rattachement institutionnel</h5>
                 </div>
@@ -209,7 +209,7 @@
                     </p>
                     {% else %}
                     <p class="mb-3">
-                        <i class="fas fa-circle-info text-white-50 me-1"></i>
+                        <i class="fas fa-circle-info text-body-secondary me-1"></i>
                         Aucune de vos unités n'est reconnue dans l'annuaire des structures :
                         le partage au niveau labo reste indisponible.
                     </p>
@@ -221,18 +221,18 @@
                             {% for r in rattachement.reconnus %}
                             <div class="mb-2">
                                 <span class="fw-semibold">{{ r.libelle }}</span>
-                                {% if r.type %}<small class="text-white-50">· {{ r.type }}</small>{% endif %}
+                                {% if r.type %}<small class="text-body-secondary">· {{ r.type }}</small>{% endif %}
                                 {% comment %}L'autorité émettrice DISTINGUE deux unités homonymes :
                                 le compte de Fabien porte « LESCOT » deux fois, l'une venue de
                                 l'annuaire IFSTTAR, l'autre de l'arbre CFR.{% endcomment %}
-                                {% if r.autorite %}<small class="text-white-50">· annuaire {{ r.autorite }}</small>{% endif %}
+                                {% if r.autorite %}<small class="text-body-secondary">· annuaire {{ r.autorite }}</small>{% endif %}
                                 {% if r.principal %}<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1">principale</span>{% endif %}
                                 {% if r.chaine|length > 1 %}
-                                <small class="text-white-50 d-block">{{ r.chaine|join:" › " }}</small>
+                                <small class="text-body-secondary d-block">{{ r.chaine|join:" › " }}</small>
                                 {% endif %}
                             </div>
                             {% empty %}
-                            <span class="text-white-50">aucune unité reconnue</span>
+                            <span class="text-body-secondary">aucune unité reconnue</span>
                             {% endfor %}
                         </div>
                     </div>
@@ -241,7 +241,7 @@
                         <div class="col-8 value-col">
                             {{ rattachement.etablissement_libelle|default:"—" }}
                             {% if rattachement.etablissement_autorite %}
-                            <small class="text-white-50">· code {{ rattachement.etablissement_autorite }}</small>
+                            <small class="text-body-secondary">· code {{ rattachement.etablissement_autorite }}</small>
                             {% endif %}
                         </div>
                     </div>
@@ -256,7 +256,7 @@
                     (un code absent d'`ou=structures` n'est PAS un bug WAMA — mesuré le
                     22/08 sur « {EIFFEL}CFR - LESCOT »), pas à la lecture courante.{% endcomment %}
                     <details class="mt-2">
-                        <summary class="text-white-50 small" style="cursor:pointer">
+                        <summary class="text-body-secondary small" style="cursor:pointer">
                             Codes de l'annuaire ({{ rattachement.rattachements|length }})
                         </summary>
                         <div class="mt-2 ps-2 border-start border-secondary">
@@ -271,19 +271,19 @@
                                     absent des structures
                                 </span>
                                 {% endif %}
-                                {% if r.autorite %}<small class="text-white-50">· émis par {{ r.autorite }}</small>{% endif %}
+                                {% if r.autorite %}<small class="text-body-secondary">· émis par {{ r.autorite }}</small>{% endif %}
                             </div>
                             {% endfor %}
                         </div>
                     </details>
 
-                    <p class="text-white-50 small mb-0 mt-2">
+                    <p class="text-body-secondary small mb-0 mt-2">
                         <i class="fas fa-circle-info me-1"></i>
                         Ces informations viennent de l'annuaire et se rafraîchissent à chaque
                         connexion — elles ne se modifient pas ici.
                     </p>
                     {% else %}
-                    <p class="text-white-50 small mb-0">
+                    <p class="text-body-secondary small mb-0">
                         <i class="fas fa-circle-info me-1"></i>
                         Aucun rattachement institutionnel n'est remonté sur ce compte.
                         {% if is_ldap %}L'annuaire n'expose pas d'entité d'affectation pour vous.
@@ -294,7 +294,7 @@
             </div>
 
             <!-- ── Langue par défaut ────────────────────────────────────── -->
-            <div class="card bg-dark border-secondary mb-4">
+            <div class="card bg-body border-secondary mb-4">
                 <div class="card-header border-secondary">
                     <h5 class="mb-0"><i class="fas fa-language me-2"></i>Langue par défaut</h5>
                 </div>
@@ -304,7 +304,7 @@
                     </p>
                     <div class="d-flex gap-2 align-items-center">
                         <select id="languageSelect"
-                                class="form-select form-select-sm bg-dark text-white border-secondary"
+                                class="form-select form-select-sm bg-body text-body-emphasis border-secondary"
                                 style="max-width: 220px;">
                             {% for value, label in languages %}
                             <option value="{{ value }}"
@@ -322,7 +322,7 @@
             </div>
 
             <!-- ── Système d'unités (D27) ───────────────────────────────── -->
-            <div class="card bg-dark border-secondary mb-4">
+            <div class="card bg-body border-secondary mb-4">
                 <div class="card-header border-secondary">
                     <h5 class="mb-0"><i class="fas fa-ruler-combined me-2"></i>Système d'unités</h5>
                 </div>
@@ -333,7 +333,7 @@
                     </p>
                     <div class="d-flex gap-2 align-items-center">
                         <select id="unitSystemSelect"
-                                class="form-select form-select-sm bg-dark text-white border-secondary"
+                                class="form-select form-select-sm bg-body text-body-emphasis border-secondary"
                                 style="max-width: 220px;">
                             <option value="metric" {% if profile.unit_system != 'imperial' %}selected{% endif %}>Métrique (km, °C)</option>
                             <option value="imperial" {% if profile.unit_system == 'imperial' %}selected{% endif %}>Impérial (miles, °F)</option>
@@ -347,11 +347,11 @@
             </div>
 
             <!-- ── Aperçu inspecteur ──────────────────────────────────── -->
-            <div class="card bg-dark border-secondary mb-4">
+            <div class="card bg-body border-secondary mb-4">
                 <div class="card-header border-secondary">
-                    <h5 class="mb-0 text-light"><i class="fas fa-eye me-2"></i>Aperçu dans l'inspecteur</h5>
+                    <h5 class="mb-0 text-body-emphasis"><i class="fas fa-eye me-2"></i>Aperçu dans l'inspecteur</h5>
                 </div>
-                <div class="card-body text-light">
+                <div class="card-body text-body-emphasis">
                     <div class="form-check form-switch mb-2">
                         <input class="form-check-input" type="checkbox" id="inspectorAutoplay"
                                {% if profile.inspector_autoplay %}checked{% endif %}>
@@ -365,11 +365,11 @@
             </div>
 
             <!-- ── Notifications (WAMA_COLLABORATION §5.2 — absorbe l'ex-carte « Notifications email ») ── -->
-            <div class="card bg-dark border-secondary mb-4">
+            <div class="card bg-body border-secondary mb-4">
                 <div class="card-header border-secondary">
-                    <h5 class="mb-0 text-light"><i class="fas fa-bell me-2"></i>Notifications</h5>
+                    <h5 class="mb-0 text-body-emphasis"><i class="fas fa-bell me-2"></i>Notifications</h5>
                 </div>
-                <div class="card-body text-light">
+                <div class="card-body text-body-emphasis">
                     <p class="text-muted small mb-3">
                         À la fin (ou en cas d'échec) de vos traitements : une notification dans WAMA
                         (cloche et fenêtre en bas à droite), et, si vous le souhaitez, un e-mail.
@@ -394,7 +394,7 @@
                     </div>
                     <div class="d-flex gap-2 align-items-center">
                         <select id="notifyOn"
-                                class="form-select form-select-sm bg-dark text-white border-secondary"
+                                class="form-select form-select-sm bg-body text-body-emphasis border-secondary"
                                 style="max-width: 220px;">
                             <option value="both" {% if profile.notify_on == 'both' %}selected{% endif %}>Fin et échec</option>
                             <option value="completion" {% if profile.notify_on == 'completion' %}selected{% endif %}>Fin seulement</option>
@@ -410,7 +410,7 @@
             </div>
 
             <!-- ── Conservation des médias ──────────────────────────────── -->
-            <div class="card bg-dark border-secondary mb-4">
+            <div class="card bg-body border-secondary mb-4">
                 <div class="card-header border-secondary">
                     <h5 class="mb-0"><i class="fas fa-clock-rotate-left me-2"></i>Conservation des médias</h5>
                 </div>
@@ -420,22 +420,22 @@
                         (vous êtes prévenu quelques jours avant). <strong>0 = illimité.</strong>
                     </p>
                     <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
-                        <label for="retentionDays" class="small text-light" style="min-width: 15rem;">
+                        <label for="retentionDays" class="small text-body-emphasis" style="min-width: 15rem;">
                             Cards des applications et leurs fichiers
                         </label>
                         <input type="number" id="retentionDays" min="0" step="1"
                                value="{{ profile.media_retention_days }}"
-                               class="form-control form-control-sm bg-dark text-white border-secondary"
+                               class="form-control form-control-sm bg-body text-body-emphasis border-secondary"
                                style="max-width: 120px;">
                         <span class="text-muted small">jours</span>
                     </div>
                     <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
-                        <label for="tempRetentionDays" class="small text-light" style="min-width: 15rem;">
+                        <label for="tempRetentionDays" class="small text-body-emphasis" style="min-width: 15rem;">
                             Dossier temporaire
                         </label>
                         <input type="number" id="tempRetentionDays" min="0" step="1"
                                value="{{ profile.temp_retention_days }}"
-                               class="form-control form-control-sm bg-dark text-white border-secondary"
+                               class="form-control form-control-sm bg-body text-body-emphasis border-secondary"
                                style="max-width: 120px;">
                         <span class="text-muted small">jours</span>
                     </div>
@@ -454,19 +454,19 @@
             </div>
 
             <!-- ── Modèles cloud (ROADMAP §8d Phase 3) ──────────────────── -->
-            <div class="card bg-dark border-secondary mb-4">
+            <div class="card bg-body border-secondary mb-4">
                 <div class="card-header border-secondary">
                     <h5 class="mb-0"><i class="fas fa-cloud me-2"></i>Modèles cloud</h5>
                 </div>
                 <div class="card-body">
-                    <p class="text-white-50 small mb-3">
+                    <p class="text-body-secondary small mb-3">
                         Par défaut, WAMA n'utilise que ses modèles locaux. Autoriser le cloud
                         permet de passer par un fournisseur distant avec <strong>votre</strong>
                         clé d'API, à renseigner dans le volet de droite.
                     </p>
                     <div class="d-flex gap-2 align-items-center">
                         <select id="cloudPolicySelect"
-                                class="form-select form-select-sm bg-dark text-white border-secondary"
+                                class="form-select form-select-sm bg-body text-body-emphasis border-secondary"
                                 style="max-width: 260px;">
                             {% for value, label in cloud_policies %}
                             <option value="{{ value }}" {% if value == profile.cloud_policy %}selected{% endif %}>{{ label }}</option>
@@ -474,12 +474,12 @@
                         </select>
                     </div>
                     {% comment %}Second axe (2026-10-03) : le niveau ci-dessus dit QUAND WAMA peut sortir du local, ces deux réglages disent JUSQU'OÙ et À QUEL PRIX.{% endcomment %}
-                    <label for="cloudHostingSelect" class="form-label small text-white-50 mt-3 mb-1">
+                    <label for="cloudHostingSelect" class="form-label small text-body-secondary mt-3 mb-1">
                         Jusqu'où vos données peuvent partir
                     </label>
                     <div class="d-flex gap-2 align-items-center">
                         <select id="cloudHostingSelect"
-                                class="form-select form-select-sm bg-dark text-white border-secondary"
+                                class="form-select form-select-sm bg-body text-body-emphasis border-secondary"
                                 style="max-width: 480px;">
                             {% for value, label in cloud_hostings %}
                             <option value="{{ value }}" {% if value == profile.cloud_hosting_max %}selected{% endif %}>{{ label }}</option>
@@ -487,16 +487,16 @@
                         </select>
                     </div>
                     {% comment %}Dit TOUJOURS, pas seulement une fois le cran choisi : on prévient avant le geste (2026-10-12).{% endcomment %}
-                    <div id="cloudDataReuseWarning" class="small mt-2 {% if profile.cloud_hosting_max == data_reuse_ceiling %}text-warning{% else %}text-white-50{% endif %}">
+                    <div id="cloudDataReuseWarning" class="small mt-2 {% if profile.cloud_hosting_max == data_reuse_ceiling %}text-warning{% else %}text-body-secondary{% endif %}">
                         <i class="fas fa-triangle-exclamation me-1"></i>{{ data_reuse_warning }}
                     </div>
                     <div class="form-check mt-3">
                         <input class="form-check-input" type="checkbox" id="cloudMeteredAuto"
                                {% if profile.cloud_metered_auto %}checked{% endif %}>
-                        <label class="form-check-label small text-white" for="cloudMeteredAuto">
+                        <label class="form-check-label small text-body-emphasis" for="cloudMeteredAuto">
                             Le choix automatique peut retenir un modèle facturé à l'usage
                         </label>
-                        <div class="text-white-50 small">
+                        <div class="text-body-secondary small">
                             Décoché, un modèle payant au jeton ne part que si vous le choisissez vous-même.
                         </div>
                     </div>
@@ -516,14 +516,14 @@
               détermine le compte lié. D'où l'avertissement explicite sur le code : le
               communiquer revient à donner l'accès à son propre compte.
             {% endcomment %}
-            <div class="card bg-dark border-secondary mb-4">
+            <div class="card bg-body border-secondary mb-4">
                 <div class="card-header border-secondary">
                     <h5 class="mb-0"><i class="fas fa-comments me-2"></i>Canaux de discussion</h5>
                 </div>
                 <div class="card-body">
                     <p class="text-muted small mb-3">
                         Reliez votre compte à Discord ou Tchap pour piloter WAMA depuis une
-                        conversation. Envoyez <code class="text-light">!lier</code> au bot,
+                        conversation. Envoyez <code class="text-body-emphasis">!lier</code> au bot,
                         puis saisissez ici le code qu'il vous répond.
                     </p>
                     {% comment %}
@@ -545,7 +545,7 @@
                     {% if channel_links %}
                     <ul class="list-group list-group-flush mb-3">
                         {% for lien in channel_links %}
-                        <li class="list-group-item bg-dark text-light border-secondary d-flex justify-content-between align-items-center px-0">
+                        <li class="list-group-item bg-body text-body-emphasis border-secondary d-flex justify-content-between align-items-center px-0">
                             <span>
                                 <i class="fas fa-link text-success me-2"></i>
                                 <strong>{{ lien.get_channel_display }}</strong>
@@ -565,7 +565,7 @@
 
                     <div class="input-group">
                         <input type="text" id="channelCodeInput" maxlength="16"
-                               class="form-control bg-dark text-light border-secondary text-uppercase"
+                               class="form-control bg-body text-body-emphasis border-secondary text-uppercase"
                                placeholder="Code d'appariement (ex. K7M2P9QR)"
                                autocomplete="one-time-code" style="letter-spacing:0.12em;">
                         <button class="btn btn-outline-primary" type="button" id="channelLinkBtn">
@@ -583,7 +583,7 @@
 
             <!-- ── Mot de passe (comptes locaux uniquement) ─────────── -->
             {% if not is_ldap %}
-            <div class="card bg-dark border-secondary mb-4">
+            <div class="card bg-body border-secondary mb-4">
                 <div class="card-header border-secondary">
                     <h5 class="mb-0"><i class="fas fa-lock me-2"></i>Changer le mot de passe</h5>
                 </div>
@@ -593,19 +593,19 @@
                         {# new-password : le navigateur ne pré-remplit pas l'ancien mot de passe —
                            le redemander n'a de sens que s'il est TAPÉ (Fabien, 13/10). #}
                         <input type="password" id="oldPassword"
-                               class="form-control bg-dark text-light border-secondary"
+                               class="form-control bg-body text-body-emphasis border-secondary"
                                autocomplete="new-password">
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-muted small">Nouveau mot de passe</label>
                         <input type="password" id="newPassword1"
-                               class="form-control bg-dark text-light border-secondary"
+                               class="form-control bg-body text-body-emphasis border-secondary"
                                autocomplete="new-password">
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-muted small">Confirmer le nouveau mot de passe</label>
                         <input type="password" id="newPassword2"
-                               class="form-control bg-dark text-light border-secondary"
+                               class="form-control bg-body text-body-emphasis border-secondary"
                                autocomplete="new-password">
                     </div>
                     <button id="changePasswordBtn" class="btn btn-outline-warning btn-sm">
@@ -623,14 +623,14 @@
 <!-- Confirmation modal for token regen -->
 <div class="modal fade" id="regenModal" tabindex="-1" aria-labelledby="regenModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bg-dark border-secondary">
+        <div class="modal-content bg-body border-secondary">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title text-light" id="regenModalLabel">
+                <h5 class="modal-title text-body-emphasis" id="regenModalLabel">
                     <i class="fas fa-exclamation-triangle text-warning me-2"></i>Regénérer le token
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body text-light">
+            <div class="modal-body text-body-emphasis">
                 L'ancien token sera immédiatement invalidé. Tout script ou bot l'utilisant devra être mis à jour.
                 <br><br>Confirmer la regénération ?
             </div>
@@ -908,7 +908,7 @@ async function loadKeys(group) {
         const data = await (await fetch(cfg.list)).json();
         const providers = data.providers || [];
         if (providers.length === 0) {
-            container.innerHTML = `<div class="text-white-50 small">${cfg.empty}</div>`;
+            container.innerHTML = `<div class="text-body-secondary small">${cfg.empty}</div>`;
             return;
         }
         // Sous-titre quand la FAMILLE change (`kind_label` vient du registre) : depuis le
@@ -931,7 +931,7 @@ async function loadKeys(group) {
             // Où partent les données et ce que coûte le fournisseur (`origin`, calculé par le
             // serveur comme l'intitulé des sélecteurs) — sous le nom, avant de poser une clé.
             const origin = p.origin
-                ? `<div class="small text-white-50 mt-1">${WamaApp.escapeHtml(p.origin)}</div>` : '';
+                ? `<div class="small text-body-secondary mt-1">${WamaApp.escapeHtml(p.origin)}</div>` : '';
             return titre + WamaKeyField.render({
                 id: `${group}-${p.slug}`, name: p.name, hasKey: p.has_key, status: status,
                 label: p.api_key_label, helpUrl: p.api_key_help_url,

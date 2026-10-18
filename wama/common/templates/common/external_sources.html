@@ -229,17 +229,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 '<input class="form-check-input" type="checkbox" id="share-' + s.key + '" data-share-key="' + s.key + '"' +
                 (s.shared ? ' checked' : '') + (ik ? '' : ' disabled') + '>' +
                 '<label class="form-check-label small" for="share-' + s.key + '">Partager avec tous les comptes' +
-                '<span class="text-white-50"> — elle sert à qui n\'a pas posé sa clé au profil</span></label></div>';
+                '<span class="text-body-secondary"> — elle sert à qui n\'a pas posé sa clé au profil</span></label></div>';
         } else if (s.user_key) {
-            share = '<div class="small text-white-50 mt-2">Non partageable : chacun pose sa clé au profil ' +
+            share = '<div class="small text-body-secondary mt-2">Non partageable : chacun pose sa clé au profil ' +
                     '(celle-ci ne sert qu\'aux tâches sans utilisateur).</div>';
         }
         return '<div class="mt-3"><div class="text-info small fw-bold mb-1">Clé de l\'instance</div>' +
             WamaKeyField.render({ id: 'instance-' + s.key, name: s.label, hasKey: !!ik, status: status,
                                   label: s.api_key_label, helpUrl: s.api_key_help_url,
                                   data: { source: s.key },
-                                  extra: (facts.length ? '<div class="small text-white-50 mt-1">' + facts.join(' · ') + '</div>' : '') + share }) +
-            (s.key_origin === 'env' && !ik ? '<div class="small text-white-50 mt-1">Une clé posée ici prime sur celle de .env, qui reste le repli.</div>' : '') +
+                                  extra: (facts.length ? '<div class="small text-body-secondary mt-1">' + facts.join(' · ') + '</div>' : '') + share }) +
+            (s.key_origin === 'env' && !ik ? '<div class="small text-body-secondary mt-1">Une clé posée ici prime sur celle de .env, qui reste le repli.</div>' : '') +
             '</div>';
     }
 
@@ -258,7 +258,7 @@ document.addEventListener('DOMContentLoaded', function () {
             (stored ? '<button class="btn btn-outline-danger" type="button" data-address-clear="' + s.key + '" title="Retirer">' +
                       '<i class="fas fa-trash"></i></button>' : '') +
             '</div><div class="small mt-1" id="msg-address-' + s.key + '"></div>' +
-            '<div class="small text-white-50 mt-1">' + (stored
+            '<div class="small text-body-secondary mt-1">' + (stored
                 ? 'Posée sur cette page : elle prime sur le réglage et sur .env.'
                 : 'Actuellement : ' + WamaApp.escapeHtml(ADDRESS_ORIGINS[s.address_origin || ''] || '') +
                   '. Une adresse posée ici primera.') + '</div></div>';

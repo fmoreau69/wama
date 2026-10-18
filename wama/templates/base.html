@@ -144,7 +144,7 @@
 
     {# Footer - au niveau du body pour pleine largeur #}
     {% block footer %}
-    <footer class="bg-black text-white-50 py-2 border-top border-secondary">
+    <footer class="text-body-secondary py-2 border-top border-secondary">
         {% comment %}Trois colonnes, comme la barre du haut (2026-10-12, ROADMAP §27 étape 2) : les
         ressources système étaient posées en ABSOLU par-dessus le titre centré, qu'elles
         recouvraient dès 834 px (tablette en portrait). En grille, le titre reste centré tant
@@ -152,7 +152,7 @@
         <div class="container-fluid px-3 wama-footer-row">
             <span aria-hidden="true"></span>
             <!-- Center: App name -->
-            <small class="text-white wama-footer-text">
+            <small class="text-body-emphasis wama-footer-text">
                 {% block footer_text %}
                 WAMA - Web App for Multimodal Automation
                 {% endblock %}
@@ -163,7 +163,7 @@
                 <!-- CPU -->
                 <div class="d-flex align-items-center gap-1" title="CPU">
                     <i class="fas fa-microchip text-info" style="width: 14px;"></i>
-                    <div class="progress bg-dark" style="width: 50px; height: 6px;">
+                    <div class="progress bg-body" style="width: 50px; height: 6px;">
                         <div id="cpuBar" class="progress-bar bg-info" style="width: 0%;"></div>
                     </div>
                     <span id="cpuText" style="min-width: 32px;">--%</span>
@@ -172,7 +172,7 @@
                 <!-- RAM -->
                 <div class="d-flex align-items-center gap-1" title="RAM">
                     <i class="fas fa-memory text-success" style="width: 14px;"></i>
-                    <div class="progress bg-dark" style="width: 50px; height: 6px;">
+                    <div class="progress bg-body" style="width: 50px; height: 6px;">
                         <div id="ramBar" class="progress-bar bg-success" style="width: 0%;"></div>
                     </div>
                     <span id="ramText" style="min-width: 32px;">--%</span>
@@ -181,7 +181,7 @@
                 <!-- GPU (hidden if not available) -->
                 <div id="gpuStats" class="d-flex align-items-center gap-1" style="display: none !important;" title="GPU">
                     <i class="fas fa-tv text-warning" style="width: 14px;"></i>
-                    <div class="progress bg-dark" style="width: 50px; height: 6px;">
+                    <div class="progress bg-body" style="width: 50px; height: 6px;">
                         <div id="gpuBar" class="progress-bar bg-warning" style="width: 0%;"></div>
                     </div>
                     <span id="gpuText" style="min-width: 32px;">--%</span>

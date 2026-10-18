@@ -1356,12 +1356,12 @@
     modal.setAttribute('tabindex', '-1');
     modal.innerHTML =
       '<div class="modal-dialog modal-dialog-centered">' +
-      '  <div class="modal-content bg-dark text-white border-secondary">' +
+      '  <div class="modal-content bg-body text-body-emphasis border-secondary">' +
       '    <div class="modal-header border-secondary">' +
       '      <h5 class="modal-title">' +
       (cfg.titleIcon ? '<i class="fas ' + esc(cfg.titleIcon) + ' me-2"></i>' : '') +
       esc(cfg.title || 'Paramètres') + '</h5>' +
-      '      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>' +
+      '      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>' +
       '    </div>' +
       '    <div class="modal-body">' +
       '      <form class="' + esc(cfg.formClass || '') + '">' +

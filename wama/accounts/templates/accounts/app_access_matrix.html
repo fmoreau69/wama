@@ -7,7 +7,7 @@
 <div class="container py-4">
     <div class="d-flex align-items-center justify-content-between mb-3">
         <div>
-            <h4 class="text-light mb-0"><i class="fas fa-table-cells-large me-2"></i>Accès aux applications par rôle</h4>
+            <h4 class="text-body-emphasis mb-0"><i class="fas fa-table-cells-large me-2"></i>Accès aux applications par rôle</h4>
             <small class="text-muted">
                 Cochez les <b>rôles métier</b> qui ouvrent chaque app (vide = commune, tout compte authentifié ; admin/développeur voient tout).
                 <b>Anonyme</b> = visible sans connexion (démo). <b>Tier min.</b> = niveau de compte minimal requis.
@@ -21,7 +21,7 @@
     <div id="aamMsg" class="mb-2" style="display:none;"></div>
 
     <div class="table-responsive">
-        <table class="table table-dark table-hover align-middle border-secondary">
+        <table class="table table-hover align-middle border-secondary">
             <thead>
                 <tr>
                     <th>Application</th>
@@ -58,7 +58,7 @@
                                {% if row.public %}checked{% endif %}>
                     </td>
                     <td>
-                        <select class="form-select form-select-sm bg-dark text-white border-secondary aam-tier"
+                        <select class="form-select form-select-sm bg-body text-body-emphasis border-secondary aam-tier"
                                 data-app="{{ row.app_id }}" style="max-width:150px;">
                             <option value="">— aucun —</option>
                             {% for tval, tlabel in tier_choices %}

@@ -19,7 +19,7 @@
     flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
 }
 .wama-port-tab:hover { color: var(--wama-text-secondary); background: rgba(var(--wama-overlay-rgb), .05); }
-.wama-port-tab.is-active { color: var(--wama-accent); border-color: rgba(var(--wama-accent-rgb), .4); background: rgba(var(--wama-accent-rgb), .08); }
+.wama-port-tab.is-active { color: var(--wama-accent-text); border-color: rgba(var(--wama-accent-rgb), .4); background: rgba(var(--wama-accent-rgb), .08); }
 .wama-port-tab.is-required.is-active { color: var(--bs-warning); border-color: rgba(var(--bs-warning-rgb), .45); background: rgba(var(--bs-warning-rgb), .08); }
 .wama-port-tab .wama-port-k { opacity: .55; font-size: .62rem; margin-left: .25rem; }
 .wama-port-tab .wama-port-n { margin-left: .3rem; font-size: .62rem; color: var(--wama-slot-link); }
@@ -72,7 +72,7 @@
 /* Face FICHIERS — un seul : aperçu ; plusieurs : liste qui défile (§11.11 E) */
 .wama-port-face-files { flex-direction: column; gap: .2rem; }
 .wama-files-head { display: flex; align-items: center; gap: .4rem; font-size: .66rem; color: var(--wama-text-label); flex-shrink: 0; }
-.wama-files-head .wama-files-back { cursor: pointer; color: var(--wama-accent); }
+.wama-files-head .wama-files-back { cursor: pointer; color: var(--wama-accent-text); }
 .wama-files-list {
     display: flex; flex-wrap: wrap; gap: .22rem; overflow-y: auto; flex: 1;
     align-content: flex-start; padding-right: .2rem;

@@ -20,7 +20,7 @@
 
     <div class="mb-4">
         <h5>Qu'est-ce que Face Analyzer ?</h5>
-        <p class="text-light">
+        <p class="text-body-emphasis">
             Face Analyzer est une application de recherche qui analyse les signaux physiologiques
             à partir de vidéo faciale. Elle extrait des indicateurs de santé et de comportement
             de manière non-invasive en utilisant des algorithmes de vision par ordinateur et
@@ -32,12 +32,12 @@
         <h5>Technologies et librairies utilisées</h5>
 
         <!-- MediaPipe -->
-        <div class="card bg-dark border-primary mb-3">
+        <div class="card bg-body border-primary mb-3">
             <div class="card-header bg-primary bg-opacity-25 border-primary">
                 <h6 class="mb-0 text-primary"><i class="fas fa-face-smile me-2"></i>MediaPipe Face Mesh</h6>
             </div>
             <div class="card-body">
-                <p class="text-light small mb-2">
+                <p class="text-body-emphasis small mb-2">
                     Framework Google pour la détection et le tracking de 468 points faciaux en temps réel.
                     Utilisé pour l'extraction des ROI (régions d'intérêt) et le suivi oculaire.
                 </p>
@@ -59,12 +59,12 @@
         </div>
 
         <!-- rPPG -->
-        <div class="card bg-dark border-danger mb-3">
+        <div class="card bg-body border-danger mb-3">
             <div class="card-header bg-danger bg-opacity-25 border-danger">
                 <h6 class="mb-0 text-danger"><i class="fas fa-heartbeat me-2"></i>rPPG (Remote Photoplethysmography)</h6>
             </div>
             <div class="card-body">
-                <p class="text-light small mb-2">
+                <p class="text-body-emphasis small mb-2">
                     Technique de mesure des signaux cardiovasculaires à partir des variations subtiles
                     de couleur de la peau causées par le flux sanguin. Implémentation basée sur rPPG-Toolbox.
                 </p>
@@ -89,12 +89,12 @@
         </div>
 
         <!-- FER -->
-        <div class="card bg-dark border-warning mb-3">
+        <div class="card bg-body border-warning mb-3">
             <div class="card-header bg-warning bg-opacity-25 border-warning">
                 <h6 class="mb-0 text-warning"><i class="fas fa-smile me-2"></i>FER (Facial Expression Recognition)</h6>
             </div>
             <div class="card-body">
-                <p class="text-light small mb-2">
+                <p class="text-body-emphasis small mb-2">
                     Librairie légère pour la reconnaissance d'émotions faciales basée sur un CNN
                     entraîné sur FER2013. Mode rapide recommandé pour le temps réel.
                 </p>
@@ -122,12 +122,12 @@
         </div>
 
         <!-- DeepFace -->
-        <div class="card bg-dark border-info mb-3">
+        <div class="card bg-body border-info mb-3">
             <div class="card-header bg-info bg-opacity-25 border-info">
                 <h6 class="mb-0 text-info"><i class="fas fa-brain me-2"></i>DeepFace</h6>
             </div>
             <div class="card-body">
-                <p class="text-light small mb-2">
+                <p class="text-body-emphasis small mb-2">
                     Framework complet d'analyse faciale supportant plusieurs backends (VGG-Face, Facenet,
                     OpenFace, DeepFace, ArcFace). Fournit une analyse plus riche incluant âge et genre.
                 </p>
@@ -153,12 +153,12 @@
         </div>
 
         <!-- Eye Tracking -->
-        <div class="card bg-dark border-success mb-3">
+        <div class="card bg-body border-success mb-3">
             <div class="card-header bg-success bg-opacity-25 border-success">
                 <h6 class="mb-0 text-success"><i class="fas fa-eye me-2"></i>Oculométrie</h6>
             </div>
             <div class="card-body">
-                <p class="text-light small mb-2">
+                <p class="text-body-emphasis small mb-2">
                     Module d'analyse oculaire basé sur les landmarks MediaPipe. Calcul de la direction
                     du regard, détection des clignements et estimation de la fatigue via PERCLOS.
                 </p>
@@ -184,7 +184,7 @@
     <div class="mb-4">
         <h5>Tableau récapitulatif</h5>
         <div class="table-responsive">
-            <table class="table table-dark table-sm table-bordered">
+            <table class="table table-sm table-bordered">
                 <thead>
                     <tr>
                         <th>Module</th>
@@ -258,19 +258,19 @@ current_app : elle se nomme. Ci-dessus, les LIBRAIRIES et méthodes, qui ne sont
 
     <div class="mb-4">
         <h5>Modes d'analyse</h5>
-        <div class="card bg-dark mb-2">
+        <div class="card bg-body mb-2">
             <div class="card-body">
                 <h6 class="text-info"><i class="fas fa-video me-2"></i>Temps réel (Webcam)</h6>
-                <p class="text-light small mb-0">
+                <p class="text-body-emphasis small mb-0">
                     Analyse en direct via votre webcam. Idéal pour des tests rapides et du monitoring.
                     Latence réduite, affichage instantané des métriques.
                 </p>
             </div>
         </div>
-        <div class="card bg-dark mb-2">
+        <div class="card bg-body mb-2">
             <div class="card-body">
                 <h6 class="text-info"><i class="fas fa-file-video me-2"></i>Post-traitement (Vidéo)</h6>
-                <p class="text-light small mb-0">
+                <p class="text-body-emphasis small mb-0">
                     Analyse complète d'un fichier vidéo enregistré. Génère des graphiques temporels,
                     un résumé statistique et une vidéo annotée avec les mesures superposées.
                 </p>
@@ -282,10 +282,10 @@ current_app : elle se nomme. Ci-dessus, les LIBRAIRIES et méthodes, qui ne sont
         <h5>Configuration des modules</h5>
         <div class="row">
             <div class="col-md-6">
-                <div class="card bg-dark border-warning mb-2">
+                <div class="card bg-body border-warning mb-2">
                     <div class="card-body py-2">
                         <h6 class="text-warning small"><i class="fas fa-smile me-2"></i>Backend émotions</h6>
-                        <ul class="small mb-0 text-light">
+                        <ul class="small mb-0 text-body-emphasis">
                             <li><strong>FER (rapide) :</strong> ~50ms, 7 émotions</li>
                             <li><strong>DeepFace (complet) :</strong> ~200ms, + âge/genre</li>
                         </ul>
@@ -293,10 +293,10 @@ current_app : elle se nomme. Ci-dessus, les LIBRAIRIES et méthodes, qui ne sont
                 </div>
             </div>
             <div class="col-md-6">
-                <div class="card bg-dark border-info mb-2">
+                <div class="card bg-body border-info mb-2">
                     <div class="card-body py-2">
                         <h6 class="text-info small"><i class="fas fa-user-tag me-2"></i>Âge & Genre</h6>
-                        <p class="small mb-0 text-light">
+                        <p class="small mb-0 text-body-emphasis">
                             Disponible uniquement avec DeepFace.
                             Estimation basée sur l'apparence faciale.
                         </p>
@@ -310,14 +310,14 @@ current_app : elle se nomme. Ci-dessus, les LIBRAIRIES et méthodes, qui ne sont
         <h5>Recommandations pour de bonnes mesures</h5>
         <div class="row">
             <div class="col-md-6">
-                <ul class="text-light small">
+                <ul class="text-body-emphasis small">
                     <li><strong>Éclairage :</strong> Naturel et uniforme, éviter contre-jour</li>
                     <li><strong>Position :</strong> Visage de face, bien cadré</li>
                     <li><strong>Stabilité :</strong> Minimiser les mouvements (rPPG)</li>
                 </ul>
             </div>
             <div class="col-md-6">
-                <ul class="text-light small">
+                <ul class="text-body-emphasis small">
                     <li><strong>Résolution :</strong> 720p minimum, 1080p recommandé</li>
                     <li><strong>FPS :</strong> 30 fps min, 60 fps pour micro-expressions</li>
                     <li><strong>Durée :</strong> 30s minimum pour HRV fiable</li>
@@ -329,7 +329,7 @@ current_app : elle se nomme. Ci-dessus, les LIBRAIRIES et méthodes, qui ne sont
     <div class="mb-4">
         <h5>Interprétation des mesures</h5>
         <div class="table-responsive">
-            <table class="table table-dark table-sm small">
+            <table class="table table-sm small">
                 <thead>
                     <tr><th>Mesure</th><th>Plage normale</th><th>Signification</th></tr>
                 </thead>

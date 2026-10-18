@@ -246,7 +246,7 @@
         if (!hasCards && !container.querySelector('.' + emptyClass)) {
           const div = document.createElement('div');
           div.className = 'text-center py-5 ' + emptyClass;
-          div.innerHTML = cfg.html || '<p class="text-white-50">Aucun élément</p>';
+          div.innerHTML = cfg.html || '<p class="text-body-secondary">Aucun élément</p>';
           container.appendChild(div);
         }
       },
@@ -338,7 +338,7 @@
       const input = opts.input ? (
         '<div class="mt-3"><label class="form-label small" for="' + inputId + '">' +
           escapeHtml(opts.input.label || '') + '</label>' +
-          '<input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" id="' +
+          '<input type="text" class="form-control form-control-sm bg-body text-body-emphasis border-secondary" id="' +
           inputId + '" data-confirm-input autocomplete="off" placeholder="' +
           escapeHtml(opts.input.placeholder || '') + '" value="' + escapeHtml(opts.input.value || '') + '">' +
         '</div>') : '';
@@ -352,14 +352,14 @@
           '<input class="form-check-input" type="checkbox" id="' + optionId + '" data-confirm-option' +
           (opts.option.checked ? ' checked' : '') + '>' +
           '<label class="form-check-label" for="' + optionId + '">' + escapeHtml(opts.option.label) + '</label>' +
-          (names ? '<ul class="small mb-0 mt-1 ps-4 text-light">' + names + more + '</ul>' : '') +
+          (names ? '<ul class="small mb-0 mt-1 ps-4 text-body-emphasis">' + names + more + '</ul>' : '') +
         '</div>') : '';
       modal.innerHTML =
-        '<div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark text-light border-secondary">' +
+        '<div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-body text-body-emphasis border-secondary">' +
           '<div class="modal-body"><div style="white-space:pre-wrap">' + escapeHtml(opts.text || '') + '</div>' +
             input + option + '</div>' +
           '<div class="modal-footer border-secondary py-2">' +
-            '<button type="button" class="btn btn-sm btn-outline-light" data-confirm-cancel>Annuler</button>' +
+            '<button type="button" class="btn btn-sm btn-outline-emphasis" data-confirm-cancel>Annuler</button>' +
             '<button type="button" class="btn btn-sm ' + (opts.danger === false ? 'btn-primary' : 'btn-danger') +
               '" data-confirm-ok>' + escapeHtml(opts.okLabel || 'Confirmer') + '</button>' +
           '</div></div></div>';
@@ -1335,13 +1335,13 @@
       'border-radius:8px;padding:10px 14px;box-shadow:0 6px 20px rgba(0,0,0,.45);font-size:.85rem;';
     el.innerHTML = '<div class="d-flex justify-content-between gap-2">' +
       '<b><i class="fas fa-bell me-1" style="color:#c4b5fd;"></i>' + escapeHtml(item.title) + '</b>' +
-      '<button type="button" class="btn-close btn-close-white" style="font-size:.6rem;" ' +
+      '<button type="button" class="btn-close" style="font-size:.6rem;" ' +
       'aria-label="Fermer"></button></div>' +
       (item.body ? '<div class="mt-1" style="color:#ddd6fe;white-space:pre-line;">' +
         escapeHtml(item.body) + '</div>' : '') +
       // « Ouvrir » passe par la route qui MARQUE LUE avant de mener au lien (2026-10-07).
       '<div class="mt-2"><a href="/common/notifications/' + encodeURIComponent(item.id) +
-      '/open/" class="btn btn-sm btn-outline-light py-0">Ouvrir</a></div>';
+      '/open/" class="btn btn-sm btn-outline-emphasis py-0">Ouvrir</a></div>';
     const close = function () { el.remove(); };
     el.querySelector('.btn-close').addEventListener('click', close);
     let timer = setTimeout(close, 20000);

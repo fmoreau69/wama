@@ -15,7 +15,7 @@
   .fc-app  { background: var(--wama-tone-grey); color: var(--wama-tone-grey-text); }
   .fc-cat  { background: rgba(var(--wama-cat-accent-rgb), .15); color: var(--wama-cat-amber); }
   .fc-io { font-size: .74rem; color: var(--wama-cat-meta); font-family: monospace; }
-  .fc-io .arrow { color: var(--wama-cat-accent); }
+  .fc-io .arrow { color: var(--wama-cat-accent-text); }
   .fc-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
   .fc-proj { background: rgba(var(--wama-cat-link-rgb), .15); color: var(--wama-cat-link); }
   .fc-vis-private { background: rgba(var(--wama-cat-alert-rgb), .18); color: var(--wama-cat-alert); }
@@ -54,10 +54,10 @@
     <div class="row align-items-center g-3">
       <div class="col-auto">
         <div class="input-group input-group-sm wama-filter-search">
-          <span class="input-group-text bg-dark border-secondary">
+          <span class="input-group-text bg-body border-secondary">
             <i class="fas fa-search text-muted"></i>
           </span>
-          <input type="text" id="fcSearch" class="form-control bg-dark border-secondary text-light"
+          <input type="text" id="fcSearch" class="form-control bg-body border-secondary text-body-emphasis"
                  placeholder="Rechercher (nom, description, tag)…">
         </div>
       </div>

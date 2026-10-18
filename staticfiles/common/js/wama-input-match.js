@@ -152,7 +152,7 @@
           chip.innerHTML =
             '<span class="badge bg-info text-dark d-inline-flex align-items-center gap-1">' +
             '<i class="fas fa-paperclip"></i> ' + name.replace(/[<>&]/g, '') +
-            ' <button type="button" class="btn-close btn-close-white btn-sm ms-1" ' +
+            ' <button type="button" class="btn-close btn-sm ms-1" ' +
             'title="Retirer (réactive les modèles filtrés)" data-wim-clear="' + sid + '"></button></span>';
           chip.style.display = '';
         } else {

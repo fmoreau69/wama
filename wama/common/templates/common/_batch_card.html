@@ -79,10 +79,10 @@ connaître aucun sélecteur d'app (2026-08-23). Absent = app mono-domaine, rien 
                     <small class="text-muted d-block" style="font-size:.65rem;">
                         <i class="fas fa-calendar-alt" title="Créé le"></i> {{ batch_info.obj.created_at|date:"d/m H:i" }}
                     </small>
-                    <span class="filename text-light">
-                        <i class="fas fa-layer-group" style="color:var(--wama-accent-soft);"></i> Batch #{{ batch_info.obj.id }}
+                    <span class="filename text-body-emphasis">
+                        <i class="fas fa-layer-group" style="color:var(--wama-accent-soft-text);"></i> Batch #{{ batch_info.obj.id }}
                     </span><br>
-                    <small class="text-white-50 d-block">
+                    <small class="text-body-secondary d-block">
                         <i class="fas fa-list"></i> <span data-batch-field="total_label">{{ batch_info.obj.total }} élément{{ batch_info.obj.total|pluralize }}</span>
                     </small>
                 </div>
@@ -92,7 +92,7 @@ connaître aucun sélecteur d'app (2026-08-23). Absent = app mono-domaine, rien 
                 </div>
                 {# État agrégé (≈ colonne « état ») #}
                 <div class="col-md-2">
-                    <span class="badge" style="background:rgba(var(--wama-accent-rgb), .15); color:var(--wama-accent); border:1px solid rgba(var(--wama-accent-rgb), .5);">
+                    <span class="badge" style="background:rgba(var(--wama-accent-rgb), .15); color:var(--wama-accent-text); border:1px solid rgba(var(--wama-accent-rgb), .5);">
                         <i class="fas fa-layer-group"></i> Batch
                     </span>
                     <small class="d-block mt-1" style="font-size:.7rem;">
@@ -104,7 +104,7 @@ connaître aucun sélecteur d'app (2026-08-23). Absent = app mono-domaine, rien 
                         <span class="text-success" title="Terminés"><i class="fas fa-check"></i> <span data-batch-field="success_count">{{ batch_info.success_count }}</span></span>
                         <span class="text-warning ms-1" title="En cours" data-batch-show="running_count"{% if not batch_info.running_count %} hidden{% endif %}><i class="fas fa-spinner"></i> <span data-batch-field="running_count">{{ batch_info.running_count }}</span></span>
                         <span class="text-danger ms-1" title="Échecs" data-batch-show="failure_count"{% if not batch_info.failure_count %} hidden{% endif %}><i class="fas fa-times"></i> <span data-batch-field="failure_count">{{ batch_info.failure_count }}</span></span>
-                        <span class="text-white-50">/ <span data-batch-field="total">{{ batch_info.obj.total }}</span></span>
+                        <span class="text-body-secondary">/ <span data-batch-field="total">{{ batch_info.obj.total }}</span></span>
                     </small>
                 </div>
                 {# Progression agrégée (≈ colonne « progression ») #}

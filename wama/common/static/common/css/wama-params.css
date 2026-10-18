@@ -39,7 +39,7 @@
     color: var(--wama-param-note); border-bottom: 1px solid rgba(var(--wama-overlay-rgb), .08);
     padding-bottom: .3rem; margin-bottom: .6rem;
 }
-.wama-param-group-title .fas { margin-right: .35rem; color: var(--wama-accent); }
+.wama-param-group-title .fas { margin-right: .35rem; color: var(--wama-accent-text); }
 /* Groupe replié (ex. « Avancé ») : details natif, chevron du summary. */
 details.wama-param-group > summary.wama-param-group-title { cursor: pointer; list-style: none; }
 details.wama-param-group > summary.wama-param-group-title::-webkit-details-marker { display: none; }

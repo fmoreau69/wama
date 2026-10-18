@@ -48,7 +48,7 @@
     return '' +
       '<div class="key-row">' +
         '<div class="d-flex justify-content-between align-items-center mb-1">' +
-          '<span class="small text-light">' + esc(opts.name) +
+          '<span class="small text-body-emphasis">' + esc(opts.name) +
             ' <span class="ms-1 badge ' + esc(status.cls) + '">' + esc(status.text) + '</span>' +
           '</span>' +
           (opts.helpUrl ? '<a href="' + esc(opts.helpUrl) + '" target="_blank" rel="noopener"' +
@@ -57,7 +57,7 @@
         '</div>' +
         '<div class="input-group input-group-sm">' +
           '<input type="password" id="key-' + esc(id) + '"' +
-          ' class="form-control bg-dark text-light border-secondary"' +
+          ' class="form-control bg-body text-body-emphasis border-secondary"' +
           // « off » est ignoré par Chrome sur un champ mot de passe : il y remplissait le mot de
           // passe WAMA de l'utilisateur, qu'un clic sur Enregistrer aurait posé comme clé d'API
           // (2026-10-12). « new-password » est la seule valeur qu'il ne remplit pas.

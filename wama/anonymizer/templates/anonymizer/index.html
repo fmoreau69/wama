@@ -44,16 +44,16 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête d
             </span>
         </div>
         <div class="mb-2">
-            <label class="form-label text-light small mb-1" for="user_setting_sam3_prompt">
+            <label class="form-label text-body-emphasis small mb-1" for="user_setting_sam3_prompt">
                 Décrivez ce que vous voulez flouter :
             </label>
-            <textarea class="form-control form-control-sm bg-dark text-white border-secondary setting-button"
+            <textarea class="form-control form-control-sm bg-body text-body-emphasis border-secondary setting-button"
                       id="user_setting_sam3_prompt"
                       name="sam3_prompt"
                       rows="3"
                       placeholder="Ex : tous les visages et plaques d'immatriculation"
                       maxlength="500">{{ gs_values.sam3_prompt|default:"" }}</textarea>
-            <small class="text-white-50 d-flex justify-content-end">
+            <small class="text-body-secondary d-flex justify-content-end">
                 <span id="sam3_prompt_count">0/500</span>
             </small>
         </div>
@@ -74,7 +74,7 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête d
         <i class="fas fa-microchip"></i> Modèle
     </div>
     <div class="mb-2">
-        <label class="form-label small fw-bold text-light mb-0">
+        <label class="form-label small fw-bold text-body-emphasis mb-0">
             <i class="fas fa-gauge-high"></i> Rapide ↔ Qualité
         </label>
         {% comment %}Partial commun. step=5 : le moteur ne distingue que 5 paliers (n/s/m/l/x aux
@@ -86,7 +86,7 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête d
         {% comment %}Options tirées du CATALOGUE par la source commune `catalog` (params.py :
         `options_mode`, `options_group`) — groupées par tâche, bornées par le mode. La seule
         option rendue ici est la valeur courante, le temps que la liste arrive.{% endcomment %}
-        <select id="user_setting_model_to_use" class="form-select form-select-sm bg-dark text-white border-secondary setting-button">
+        <select id="user_setting_model_to_use" class="form-select form-select-sm bg-body text-body-emphasis border-secondary setting-button">
             <option value="{{ gs_values.model_to_use|default:'auto' }}" selected>{{ gs_values.model_to_use|default:'auto' }}</option>
         </select>
         <small id="modelToUseHelp" class="text-muted d-block mt-1"></small>
@@ -116,8 +116,8 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête d
                    min="1" max="99" step="2"
                    style="flex: 0 0 90px;"
                    oninput="this.nextElementSibling.textContent = this.value">
-            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.blur_ratio }}</output>
-            <span class="small text-light text-nowrap">Intensité flou</span>
+            <output class="text-body-emphasis" style="min-width: 2rem; text-align: center;">{{ gs_values.blur_ratio }}</output>
+            <span class="small text-body-emphasis text-nowrap">Intensité flou</span>
         </div>
     </div>
 
@@ -131,8 +131,8 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête d
                    min="0.75" max="1.25" step="0.05"
                    style="flex: 0 0 90px;"
                    oninput="this.nextElementSibling.textContent = this.value">
-            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.roi_enlargement }}</output>
-            <span class="small text-light text-nowrap">Agrandissement ROI</span>
+            <output class="text-body-emphasis" style="min-width: 2rem; text-align: center;">{{ gs_values.roi_enlargement }}</output>
+            <span class="small text-body-emphasis text-nowrap">Agrandissement ROI</span>
         </div>
     </div>
 
@@ -146,8 +146,8 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête d
                    min="0" max="100" step="1"
                    style="flex: 0 0 90px;"
                    oninput="this.nextElementSibling.textContent = this.value">
-            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.progressive_blur }}</output>
-            <span class="small text-light text-nowrap">Flou progressif</span>
+            <output class="text-body-emphasis" style="min-width: 2rem; text-align: center;">{{ gs_values.progressive_blur }}</output>
+            <span class="small text-body-emphasis text-nowrap">Flou progressif</span>
         </div>
     </div>
 
@@ -161,8 +161,8 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête d
                    min="0" max="1" step="0.05"
                    style="flex: 0 0 90px;"
                    oninput="this.nextElementSibling.textContent = this.value">
-            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.detection_threshold }}</output>
-            <span class="small text-light text-nowrap">Seuil détection</span>
+            <output class="text-body-emphasis" style="min-width: 2rem; text-align: center;">{{ gs_values.detection_threshold }}</output>
+            <span class="small text-body-emphasis text-nowrap">Seuil détection</span>
         </div>
     </div>
 </div>
@@ -178,7 +178,7 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête d
             <input class="form-check-input setting-button" type="checkbox" role="switch"
                    name="show_preview" id="user_setting_show_preview"
                    {% if gs_values.show_preview %}checked{% endif %}>
-            <label class="form-check-label text-light small" for="user_setting_show_preview">Prévisualisation</label>
+            <label class="form-check-label text-body-emphasis small" for="user_setting_show_preview">Prévisualisation</label>
         </div>
     </div>
 
@@ -187,7 +187,7 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête d
             <input class="form-check-input setting-button" type="checkbox" role="switch"
                    name="show_boxes" id="user_setting_show_boxes"
                    {% if gs_values.show_boxes %}checked{% endif %}>
-            <label class="form-check-label text-light small" for="user_setting_show_boxes">Boîtes de détection</label>
+            <label class="form-check-label text-body-emphasis small" for="user_setting_show_boxes">Boîtes de détection</label>
         </div>
     </div>
 
@@ -196,7 +196,7 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête d
             <input class="form-check-input setting-button" type="checkbox" role="switch"
                    name="show_labels" id="user_setting_show_labels"
                    {% if gs_values.show_labels %}checked{% endif %}>
-            <label class="form-check-label text-light small" for="user_setting_show_labels">Labels</label>
+            <label class="form-check-label text-body-emphasis small" for="user_setting_show_labels">Labels</label>
         </div>
     </div>
 
@@ -205,7 +205,7 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête d
             <input class="form-check-input setting-button" type="checkbox" role="switch"
                    name="show_conf" id="user_setting_show_conf"
                    {% if gs_values.show_conf %}checked{% endif %}>
-            <label class="form-check-label text-light small" for="user_setting_show_conf">Confiance</label>
+            <label class="form-check-label text-body-emphasis small" for="user_setting_show_conf">Confiance</label>
         </div>
     </div>
 </div>
@@ -213,10 +213,10 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête d
 <!-- Format de sortie (Phase 3 élargie) -->
 <hr class="border-secondary my-2">
 <div class="mb-2">
-    <label for="output_format" class="form-label small fw-bold text-light">
+    <label for="output_format" class="form-label small fw-bold text-body-emphasis">
         <i class="fas fa-file-export"></i> Format de sortie
     </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_format" name="output_format">
+    <select class="form-select form-select-sm bg-body text-body-emphasis border-secondary" id="output_format" name="output_format">
         <option value="original" selected>Par défaut (pipeline)</option>
         <option value="input">Identique à l'entrée</option>
         <optgroup label="Vidéo">
@@ -235,10 +235,10 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête d
     <small class="text-muted">« Identique à l'entrée » reconvertit la sortie vers le format du fichier source.</small>
 </div>
 <div class="mb-2">
-    <label for="output_quality" class="form-label small fw-bold text-light">
+    <label for="output_quality" class="form-label small fw-bold text-body-emphasis">
         <i class="fas fa-sliders-h"></i> Qualité
     </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_quality" name="output_quality">
+    <select class="form-select form-select-sm bg-body text-body-emphasis border-secondary" id="output_quality" name="output_quality">
         <option value="web">Web (léger)</option>
         <option value="balanced" selected>Équilibré</option>
         <option value="max">Maximum</option>
@@ -416,7 +416,7 @@ la file n'est pas vide. La DESCRIPTION des objets à flouter reste un réglage d
     {% url 'anonymizer:batch_download' batch_info.obj.id as batch_dl_url %}
     {% include 'common/_queue_entry.html' with card_template='anonymizer/_media_card.html' card_class='anon-card' download_url=batch_dl_url app='anonymizer' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
     {% empty %}
-    <div class="text-center text-white-50 py-5">
+    <div class="text-center text-body-secondary py-5">
         <i class="fas fa-inbox fa-3x mb-3"></i>
         <p class="mb-2">Aucun fichier dans la file d'attente</p>
         <p class="small">Déposez des photos/vidéos ci-dessus pour commencer</p>
@@ -438,16 +438,16 @@ Délégation par CLASSE (save_class/save_start_class) — la modale est génér�
 WamaParams.render(context:'batch') dans #anonBatchParams, appliqués à tous les items. {% endcomment %}
 <div class="modal fade" id="batchSettingsModal" tabindex="-1" aria-labelledby="batchSettingsLabel">
     <div class="modal-dialog modal-lg">
-        <div class="modal-content bg-dark text-light">
+        <div class="modal-content bg-body text-body-emphasis">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title" id="batchSettingsLabel">
                     <i class="fas fa-layer-group me-2"></i>Paramètres du batch
                     <span class="badge bg-secondary ms-1" id="batchSettingsBatchId"></span>
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
-                <p class="small text-white-50 mb-2">Appliqués à tous les éléments du batch (sauf ceux en cours).</p>
+                <p class="small text-body-secondary mb-2">Appliqués à tous les éléments du batch (sauf ceux en cours).</p>
                 <div id="anonBatchParams"></div>
             </div>
             {% include 'common/_settings_modal_footer.html' with save_id='saveBatchSettingsBtn' save_start_id='saveBatchSettingsAndStartBtn' save_label='Appliquer' save_start_label='Appliquer & lancer' %}
@@ -458,12 +458,12 @@ WamaParams.render(context:'batch') dans #anonBatchParams, appliqués à tous les
 <!-- Classes Selection Modal -->
 <div class="modal fade" id="modal_classes2blur_{{ user.id }}" tabindex="-1" aria-labelledby="modalClasses2blurLabel">
     <div class="modal-dialog modal-lg">
-        <div class="modal-content bg-dark text-light">
+        <div class="modal-content bg-body text-body-emphasis">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title" id="modalClasses2blurLabel">
                     <i class="fas fa-list-check me-2"></i>Sélectionner les classes à flouter
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
                 <div class="mb-3">
@@ -477,7 +477,7 @@ WamaParams.render(context:'batch') dans #anonBatchParams, appliqués à tous les
                                            name="classes2blur" value="{{ cls.0 }}"
                                            id="classes2blur_global_{{ cls.0 }}"
                                            {% if cls.0 in gs_values.classes2blur %}checked{% endif %}>
-                                    <label class="form-check-label text-light" for="classes2blur_global_{{ cls.0 }}">
+                                    <label class="form-check-label text-body-emphasis" for="classes2blur_global_{{ cls.0 }}">
                                         {{ cls.1 }}
                                     </label>
                                 </div>
@@ -498,7 +498,7 @@ WamaParams.render(context:'batch') dans #anonBatchParams, appliqués à tous les
                                            name="classes2blur" value="{{ cls.0 }}"
                                            id="classes2blur_global_{{ cls.0 }}"
                                            {% if cls.0 in gs_values.classes2blur %}checked{% endif %}>
-                                    <label class="form-check-label text-light small" for="classes2blur_global_{{ cls.0 }}">
+                                    <label class="form-check-label text-body-emphasis small" for="classes2blur_global_{{ cls.0 }}">
                                         {{ cls.1 }}
                                     </label>
                                 </div>
@@ -509,7 +509,7 @@ WamaParams.render(context:'batch') dans #anonBatchParams, appliqués à tous les
                 </div>
             </div>
             <div class="modal-footer border-secondary">
-                <span class="text-white-50 me-auto" id="classes2blur_count">0 classe(s) sélectionnée(s)</span>
+                <span class="text-body-secondary me-auto" id="classes2blur_count">0 classe(s) sélectionnée(s)</span>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
             </div>
         </div>

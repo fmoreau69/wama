@@ -16,7 +16,7 @@ Usage :
 {% if status == 'RUNNING' %}
 <small class="card-state text-warning"><i class="fas fa-spinner fa-spin"></i> Traitement…</small>
 {% elif status == 'PENDING' %}
-<small class="card-state text-white-50">En attente</small>
+<small class="card-state text-body-secondary">En attente</small>
 {% elif status == 'AWAITING_RESOURCES' %}
 <small class="card-state text-awaiting"><i class="fas fa-hourglass-half"></i> En attente de ressources{% if app and pk %} · <a href="#" class="vram-grant" data-vram-grant-url="{% url 'model_manager:api_vram_grant' %}" data-app="{{ app }}" data-item="{{ pk }}" title="Décharger tous les modèles résidents le temps de ce traitement, puis les recharger">Libérer la carte et lancer</a>{% endif %}</small>
 {% elif status == 'FAILURE' %}
@@ -28,7 +28,7 @@ n'importe quel état non terminé.{% endcomment %}
 {% elif status == 'STALE' %}
 <small class="card-state text-stale"><i class="fas fa-rotate-right"></i> Périmé</small>
 {% elif status != 'SUCCESS' and text %}
-<small class="card-state text-light result-preview" style="max-height:60px; overflow:hidden; display:block;">{{ text|truncatechars:120 }}</small>
+<small class="card-state text-body-emphasis result-preview" style="max-height:60px; overflow:hidden; display:block;">{{ text|truncatechars:120 }}</small>
 {% else %}
 <small class="card-state"></small>
 {% endif %}

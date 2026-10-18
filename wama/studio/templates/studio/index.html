@@ -12,32 +12,32 @@
 {% block content %}
 <div class="studio-head d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
     <div>
-        <h5 class="mb-0 text-light"><i class="fas fa-diagram-project me-2"></i>Studio <span class="badge bg-secondary">méta-app</span></h5>
-        <small class="text-white-50">Reliez une <b>sortie</b> à une <b>entrée compatible</b>, puis <b>Exécuter</b> — chaque nœud tourne dans son app (V1 : synthesizer → avatarizer).</small>
+        <h5 class="mb-0 text-body-emphasis"><i class="fas fa-diagram-project me-2"></i>Studio <span class="badge bg-secondary">méta-app</span></h5>
+        <small class="text-body-secondary">Reliez une <b>sortie</b> à une <b>entrée compatible</b>, puis <b>Exécuter</b> — chaque nœud tourne dans son app (V1 : synthesizer → avatarizer).</small>
     </div>
     {# Toolbar persistance + exécution (2026-07-11 — PROJECT_STATUS §15) #}
     <div class="d-flex align-items-center gap-2 flex-wrap">
-        <input type="text" id="studioPipelineName" class="form-control form-control-sm bg-dark text-light border-secondary" style="width:170px" placeholder="Nom du pipeline…">
+        <input type="text" id="studioPipelineName" class="form-control form-control-sm bg-body text-body-emphasis border-secondary" style="width:170px" placeholder="Nom du pipeline…">
         <button id="studioSaveBtn" class="btn btn-sm btn-outline-info" title="Sauvegarder le pipeline"><i class="fas fa-save"></i></button>
-        <select id="studioLoadSelect" class="form-select form-select-sm bg-dark text-light border-secondary" style="width:230px">
+        <select id="studioLoadSelect" class="form-select form-select-sm bg-body text-body-emphasis border-secondary" style="width:230px">
             <option value="">Charger un pipeline…</option>
         </select>
         <button id="studioRunBtn" class="btn btn-sm btn-success" title="Exécuter le pipeline"><i class="fas fa-play me-1"></i>Exécuter</button>
-        <span id="studioRunStatus" class="small ms-2 text-white-50"></span>
+        <span id="studioRunStatus" class="small ms-2 text-body-secondary"></span>
         {% comment %}Annuler / Rétablir — brique COMMUNE `wama-history.js` (partagée avec la page
         de correction du transcriber). `disabled` À L'ÉCRITURE : c'est l'historique qui les
         active, et un bouton actif sur une pile vide promet une action qui ne viendra pas.
         Classes `.studio-undo`/`.studio-redo` : la brique délègue sur le document, il n'y a
         aucun câblage JS à écrire ici.{% endcomment %}
         <div class="btn-group btn-group-sm ms-1">
-            <button class="studio-undo btn btn-sm btn-outline-light" title="Annuler (Ctrl+Z)" disabled>
+            <button class="studio-undo btn btn-sm btn-outline-emphasis" title="Annuler (Ctrl+Z)" disabled>
                 <i class="fas fa-rotate-left"></i>
             </button>
-            <button class="studio-redo btn btn-sm btn-outline-light" title="Rétablir (Ctrl+Maj+Z)" disabled>
+            <button class="studio-redo btn btn-sm btn-outline-emphasis" title="Rétablir (Ctrl+Maj+Z)" disabled>
                 <i class="fas fa-rotate-right"></i>
             </button>
         </div>
-        <button id="studioClear" class="btn btn-sm btn-outline-light" title="Vider le canvas"><i class="fas fa-eraser"></i></button>
+        <button id="studioClear" class="btn btn-sm btn-outline-emphasis" title="Vider le canvas"><i class="fas fa-eraser"></i></button>
     </div>
 </div>
 
@@ -48,7 +48,7 @@
          Un nœud se GLISSE à l'endroit voulu du canvas ; un pipeline s'ouvre au clic. -->
     <div class="studio-palette" id="studioPalette">
         <div class="studio-palette-title">Catalogue</div>
-        <div id="studioPaletteList" class="studio-palette-list text-white-50 small">Chargement…</div>
+        <div id="studioPaletteList" class="studio-palette-list text-body-secondary small">Chargement…</div>
     </div>
 
     <!-- Canvas : nœuds (entrées, apps, fonctions, sortie) + connecteurs SVG. Le canvas est la
@@ -60,10 +60,10 @@
         </div>
         <div class="studio-hint" id="studioHint">Glissez un élément du catalogue ici, à l'endroit voulu.</div>
         <div class="studio-zoom btn-group btn-group-sm" id="studioZoom">
-            <button type="button" class="btn btn-outline-light" data-zoom="out" title="Dézoomer"><i class="fas fa-minus"></i></button>
-            <button type="button" class="btn btn-outline-light studio-zoom-label" data-zoom="reset" id="studioZoomLabel" title="Revenir à 100 %">100 %</button>
-            <button type="button" class="btn btn-outline-light" data-zoom="in" title="Zoomer"><i class="fas fa-plus"></i></button>
-            <button type="button" class="btn btn-outline-light" data-zoom="fit" title="Ajuster la vue au graphe"><i class="fas fa-expand"></i></button>
+            <button type="button" class="btn btn-outline-emphasis" data-zoom="out" title="Dézoomer"><i class="fas fa-minus"></i></button>
+            <button type="button" class="btn btn-outline-emphasis studio-zoom-label" data-zoom="reset" id="studioZoomLabel" title="Revenir à 100 %">100 %</button>
+            <button type="button" class="btn btn-outline-emphasis" data-zoom="in" title="Zoomer"><i class="fas fa-plus"></i></button>
+            <button type="button" class="btn btn-outline-emphasis" data-zoom="fit" title="Ajuster la vue au graphe"><i class="fas fa-expand"></i></button>
         </div>
     </div>
 

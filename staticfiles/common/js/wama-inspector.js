@@ -42,7 +42,7 @@
     if (!host) return;
     if (!sourceEl) { host.innerHTML = ''; return; }
     host.innerHTML =
-      '<div class="small text-white-50 mb-1">' + (label || '') + '</div>' +
+      '<div class="small text-body-secondary mb-1">' + (label || '') + '</div>' +
       '<div class="btn-group-actions flex-wrap gap-1">' + sourceEl.innerHTML + '</div>' +
       '<hr class="border-secondary my-2">';
     const real = sourceEl.querySelectorAll('button');
@@ -181,14 +181,14 @@
     var stCls = A.statusBadge ? A.statusBadge(d.status) : 'bg-secondary';
     var stLbl = A.statusLabel ? A.statusLabel(d.status) : st;
     var head = '<div class="d-flex align-items-center gap-2 flex-wrap mb-1">';
-    if (d.id != null) head += '<strong class="text-light">#' + escapeHtml(d.id) + '</strong>';
+    if (d.id != null) head += '<strong class="text-body-emphasis">#' + escapeHtml(d.id) + '</strong>';
     // ⚠ `stCls` est la classe COMPLÈTE (`bg-success`, `bg-stale`), plus un suffixe : préfixer
     // par `bg-` produirait `bg-bg-success`, une classe inexistante — donc un badge GRIS, sans
     // la moindre erreur. Piège mesuré au moment de brancher la déclaration unique.
     if (st) head += '<span class="badge ' + stCls + '">' + escapeHtml(stLbl) + '</span>';
-    if (d.created_at) head += '<small class="text-white-50"><i class="fas fa-calendar-alt"></i> ' + escapeHtml(d.created_at) + '</small>';
-    if (d.processing_time_display) head += '<small class="text-white-50" title="Temps de traitement"><i class="fas fa-stopwatch"></i> ' + escapeHtml(d.processing_time_display) + '</small>';
-    head += '<button type="button" class="btn btn-sm btn-link text-white-50 p-0 ms-auto wama-info-deselect" title="Fermer la sélection"><i class="fas fa-xmark"></i></button>';
+    if (d.created_at) head += '<small class="text-body-secondary"><i class="fas fa-calendar-alt"></i> ' + escapeHtml(d.created_at) + '</small>';
+    if (d.processing_time_display) head += '<small class="text-body-secondary" title="Temps de traitement"><i class="fas fa-stopwatch"></i> ' + escapeHtml(d.processing_time_display) + '</small>';
+    head += '<button type="button" class="btn btn-sm btn-link text-body-secondary p-0 ms-auto wama-info-deselect" title="Fermer la sélection"><i class="fas fa-xmark"></i></button>';
     head += '</div>';
 
     // ── ENTRÉE : fichier source + durée + propriétés ──────────────────────────
@@ -241,7 +241,7 @@
       + ' data-app="' + escapeHtml(ctx.app) + '" data-pk="' + escapeHtml(ctx.pk) + '"'
       + ' title="Indexer ' + origine + ' de cet élément pour que l\'IA puisse s\'en servir">'
       + '<i class="fas fa-book-open-reader"></i> Ajouter au RAG</button>'
-      + '<span class="wama-rag-etat small text-white-50 ms-2"></span></div>';
+      + '<span class="wama-rag-etat small text-body-secondary ms-2"></span></div>';
   }
 
   function _cookie(nom) {
@@ -649,9 +649,9 @@
       var chips = chip('fa-layer-group', 'Total ' + c.total)
         + (c.success ? '<span class="wama-chip"><i class="fas fa-check text-success"></i> ' + c.success + '</span>' : '')
         + (c.running ? '<span class="wama-chip"><i class="fas fa-spinner text-warning"></i> ' + c.running + '</span>' : '')
-        + (c.pending ? '<span class="wama-chip"><i class="fas fa-clock text-white-50"></i> ' + c.pending + '</span>' : '')
+        + (c.pending ? '<span class="wama-chip"><i class="fas fa-clock text-body-secondary"></i> ' + c.pending + '</span>' : '')
         + (c.failure ? '<span class="wama-chip"><i class="fas fa-xmark text-danger"></i> ' + c.failure + '</span>' : '');
-      return '<div class="small text-white-50 mb-1">' + label + '</div><div class="d-flex flex-wrap gap-1">' + chips + '</div>';
+      return '<div class="small text-body-secondary mb-1">' + label + '</div><div class="d-flex flex-wrap gap-1">' + chips + '</div>';
     }
     // #media-section = aperçu du média, qui n'a de sens que pour un ITEM sélectionné.
     // Exceptions déclarées par l'app via keepMediaSection : certaines pages y logent un
@@ -683,8 +683,8 @@
       setMediaSection(false);
       if (!infoHost) return;
       var c = _batchCounts(group);
-      infoHost.innerHTML = '<div class="d-flex align-items-center gap-2 mb-1"><strong class="text-light">Batch #' + escapeHtml(bid) + '</strong>'
-        + '<button type="button" class="btn btn-sm btn-link text-white-50 p-0 ms-auto wama-info-deselect" title="Fermer la sélection"><i class="fas fa-xmark"></i></button></div>'
+      infoHost.innerHTML = '<div class="d-flex align-items-center gap-2 mb-1"><strong class="text-body-emphasis">Batch #' + escapeHtml(bid) + '</strong>'
+        + '<button type="button" class="btn btn-sm btn-link text-body-secondary p-0 ms-auto wama-info-deselect" title="Fermer la sélection"><i class="fas fa-xmark"></i></button></div>'
         + _renderAggInfo('<i class="fas fa-layer-group text-info"></i> ' + c.total + ' élément' + (c.total > 1 ? 's' : ''), c);
       if (infoSection) infoSection.style.display = '';
       var banner = $(ids.banner); if (banner) banner.style.display = 'none';
@@ -745,12 +745,12 @@
       }
       infoHost.innerHTML =
         '<div class="d-flex align-items-center gap-2 mb-2">'
-        + '<strong class="text-light"><i class="fas fa-check-double text-info"></i> '
+        + '<strong class="text-body-emphasis"><i class="fas fa-check-double text-info"></i> '
         + n + ' éléments sélectionnés</strong>'
-        + '<button type="button" class="btn btn-sm btn-link text-white-50 p-0 ms-auto wama-info-deselect"'
+        + '<button type="button" class="btn btn-sm btn-link text-body-secondary p-0 ms-auto wama-info-deselect"'
         + ' title="Fermer la sélection"><i class="fas fa-xmark"></i></button></div>'
         + (actions ? '<div class="d-flex flex-wrap gap-1">' + actions + '</div>' : '')
-        + '<div class="small text-white-50 mt-2">Glissez la sélection sur une card pour former '
+        + '<div class="small text-body-secondary mt-2">Glissez la sélection sur une card pour former '
         + 'un lot, ou entre deux cards pour la déplacer.</div>';
       if (infoSection) infoSection.style.display = '';
       var banner = $(ids.banner); if (banner) banner.style.display = 'none';

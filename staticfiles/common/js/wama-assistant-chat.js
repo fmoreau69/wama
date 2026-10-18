@@ -240,7 +240,7 @@
       chip.textContent = '📎 ' + d.name + ' ';
       var x = document.createElement('button');
       x.type = 'button';
-      x.className = 'btn-close btn-close-white ms-1';
+      x.className = 'btn-close ms-1';
       x.style.fontSize = '.6em';
       x.title = 'Ne pas joindre';
       x.addEventListener('click', function () { self.deposits.splice(i, 1); self.renderDeposits(); });

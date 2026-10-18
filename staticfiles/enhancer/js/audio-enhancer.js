@@ -266,7 +266,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const container = document.getElementById('audio-enhancer-queue');
     if (container && !container.querySelector('[data-id]')) {
       const el = document.createElement('div');
-      el.className = 'empty-state text-center py-4 text-white-50';
+      el.className = 'empty-state text-center py-4 text-body-secondary';
       el.textContent = 'Aucun fichier audio en attente.';
       container.appendChild(el);
     }

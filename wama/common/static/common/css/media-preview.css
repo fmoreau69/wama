@@ -200,7 +200,7 @@
     transition: color .15s ease, border-color .15s ease;
 }
 .wama-text-action:hover, .wama-text-action:focus-visible { color: var(--wv-text, var(--wama-viewer-text)); border-color: var(--wv-accent, var(--wama-accent)); }
-.wama-text-action.is-done { color: var(--wama-viewer-done); border-color: var(--wama-viewer-done); }
+.wama-text-action.is-done { color: var(--wama-viewer-done-text); border-color: var(--wama-viewer-done); }
 .wama-text-body {
     margin: 0;
     padding: 1.25rem 1.75rem 1.5rem;
@@ -595,7 +595,7 @@
 }
 .wama-face-tab i { font-size: .85em; }
 .wama-face-tab:hover { color: var(--wv-text, var(--wama-viewer-text)); background: rgba(var(--wama-overlay-rgb), .04); }
-.wama-face-tab.is-active { color: var(--wv-accent, var(--wama-accent)); border-bottom-color: var(--wv-accent, var(--wama-accent)); }
+.wama-face-tab.is-active { color: var(--wv-accent, var(--wama-accent-text)); border-bottom-color: var(--wv-accent, var(--wama-accent)); }
 .wama-face-tab:focus-visible { outline: 2px solid var(--wv-accent, var(--wama-accent)); outline-offset: -2px; }
 /* À tout l'écran, des onglets de 500 px ne se lisent plus comme des onglets : chacun est borné,
    la rangée centrée. */

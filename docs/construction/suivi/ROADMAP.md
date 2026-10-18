@@ -5920,9 +5920,45 @@ listes déroulantes.
    0** : plus aucune couleur écrite dans WAMA, hors documents exportés et maquettes de la doc.
    ⏳ *Reste* (`WAMA_VERIFICATION §10`) : les boutons Bootstrap « outline » sur fond sombre
    (Apps, Profil) — une règle commune, décision de charte ; la couleur d'un événement du calendrier.
-4. ⏳ **Un second thème** (clair, ou UGE) = un bloc de `wama-theme.css` + une ligne de `THEMES` ;
-   la garde de code de `tests_contrast` passe à sa forme symétrique (un ton de texte fixe exige un
-   fond fixe, dans les deux sens).
+4. ✅ **Le thème CLAIR** (2026-10-18, demande de Fabien : « on passe au second thème clair
+   d'abord », l'UGE ensuite, charte reçue) — `Theme('light', 'Clair', bootstrap='light')`.
+   *Le sombre était aussi écrit dans les CLASSES* : ~1 400 `bg-dark`, `text-light`, `text-white(-50)`,
+   `table-dark`, `btn-outline-light`, `dropdown-menu-dark`, `btn-close-white`, `navbar-dark` dans
+   117 gabarits, JS et Python, portés par script vers leurs équivalents qui suivent le mode
+   (`bg-body`, `text-body-emphasis`, `text-body-secondary`, `.table` seule, menu et croix natifs,
+   `link-body-emphasis`, et une variante commune `btn-outline-emphasis`) — un texte blanc posé sur
+   un fond de palette fixe (badge, toast, bouton plein) reste blanc. Le mode sombre NATIF du
+   Bootstrap 5.3.0 de WAMA est plus terne que les classes `-dark` retirées (tables et menus en
+   #adb5bd, texte secondaire à 4,9:1) : `.table`, `.dropdown-menu`, la barre du haut et
+   `text-body-secondary` portent donc, lues sur les tokens, les valeurs de `table-dark`,
+   `dropdown-menu-dark`, `navbar-dark` et du `text-white-50` éclairci — un seul menu dans WAMA, celui
+   de la barre du haut. Le pied de page lit `--wama-footer-bg`, l'aperçu de la card du transcriber
+   rejoint la zone commune `wcv3-preview`.
+   *Les valeurs ne sont pas peintes à la main* : le clair est le **miroir de luminance** du sombre
+   (`wama/common/theme_mirror.py`, Y' = 0,0525/(Y+0,05) − 0,05, teinte et chroma gardées), qui
+   conserve EXACTEMENT chaque rapport de contraste WCAG — un texte lisible en sombre l'est en clair,
+   la hiérarchie des gris aussi. Exceptions DÉCLARÉES avec leur raison dans `themes.py` :
+   `LIGHT_SURFACES` (structure sur le Bootstrap clair : #fff, #f8f9fa…, jamais plus sombres que
+   leur miroir), `LIGHT_FIXED` (ombres, papier, vidéo, carte, présentations autonomes, et les
+   couleurs VIVES — accent, états, palette des badges — avec le texte qu'on y pose : leur
+   identité ne change pas ; lues comme TEXTE, quatorze d'entre elles passent par un jumeau `-text`
+   qui suit le miroir), `LIGHT_HAND` (`--wama-data-ink` : une couleur de DONNÉE, celle d'une app,
+   assombrie de moitié quand elle est lue comme texte). Bootstrap clair : `text-warning`,
+   `text-info` et leurs boutons à contour lisent la teinte « emphasis » du mode, le lien le miroir
+   de `--wama-link`. Une région peut FIXER son thème (`data-wama-theme` + `data-bs-theme` : l'encart
+   au dégradé de l'accueil) — les blocs ne sont plus limités à `:root`.
+   *Gardes* : `tests_theme.LightThemeIsTheMirrorTest` (chaque token clair = le miroir, ou déclaré ;
+   chaque exception nomme un token ; contre-épreuve de la règle elle-même) ;
+   `tests_contrast.LightTextNeedsADarkBackgroundTest`, la forme symétrique annoncée — un texte clair
+   fixe exige un fond sombre fixe dans sa liste de classes, et aucun fond sombre n'est plus écrit
+   dans une classe (trois exemptions, fond venu d'un parent, chacune avec sa raison).
+   *Preuves* : (1) sombre inchangé — 39 pages RENDUES par HEAD (worktree) et par l'arbre, feuilles
+   servies de chaque côté, ~43 000 éléments : seul écart `text-light` #f8f9fa → #fff (cinq pages
+   aux données qui suivent le code comparées par alignement des éléments) ; (2) `common.contrast`
+   joue les DEUX thèmes, 60 pages : aucun texte illisible ; en clair, il est resté deux familles
+   faibles, puis plus que les événements du calendrier (couleur de donnée, déjà faibles en sombre).
+   ⏳ *Reste* : choisir son thème (étape 5) ; les boutons « outline » faibles et la couleur d'un
+   événement (charte) ; le thème UGE, qui partira de la charte (`claude/Charte_Gustave_Eiffel/`).
 5. ⏳ **Le choix de l'utilisateur** : une préférence des réglages durables (`user_settings`), lue
    par `theme_for` comme l'est celle de l'avatar ; un sélecteur dans le menu du compte. Sans second
    thème, il n'y a rien à choisir : cette étape vient après la 4.

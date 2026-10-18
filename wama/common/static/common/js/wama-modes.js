@@ -141,7 +141,7 @@
         // Switch de MODE (si >1 mode dans le domaine)
         if (modes.length > 1) {
             if (this.modesLabel) {
-                html += `<label class="form-label text-light">${esc(this.modesLabel)}</label>`;
+                html += `<label class="form-label text-body-emphasis">${esc(this.modesLabel)}</label>`;
             }
             // Couleur : priorité au mode (m.variant), sinon override create(), sinon domaine, sinon défaut.
             const domVariant = this.modeVariant || dom.variant || 'secondary';

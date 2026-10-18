@@ -35,7 +35,7 @@
     {% comment %}Visiteur sans compte : pas d'arbre (2026-10-12). Ses routes lui sont fermées
        (`accounts.middleware.VISITOR_CLOSED_PREFIXES`) — l'arbre d'un compte partagé se lisait et
        s'écrivait par tous les visiteurs. Sans `#filemanager-tree`, filemanager.js ne démarre pas.{% endcomment %}
-    <p class="small text-white-50 px-3 py-2 mb-0">
+    <p class="small text-body-secondary px-3 py-2 mb-0">
         <i class="fas fa-right-to-bracket me-1"></i>Connectez-vous pour déposer et retrouver vos
         fichiers : sans compte, aucun fichier n'est gardé.
     </p>
@@ -69,21 +69,21 @@
 <!-- Modal — Connecter un dossier (connecteur, pas d'import) -->
 <div class="modal fade" id="mountModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-sm">
-        <div class="modal-content bg-dark text-light border-secondary">
+        <div class="modal-content bg-body text-body-emphasis border-secondary">
             <div class="modal-header border-secondary py-2">
                 <h6 class="modal-title">
                     <i class="fas fa-plug me-2 text-info"></i>Connecter un dossier
                 </h6>
-                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <p class="small text-muted mb-3">
                     Les fichiers restent à leur emplacement d'origine — aucune copie.
                 </p>
                 <div class="mb-3">
-                    <label class="form-label small text-light fw-bold mb-1">Chemin du dossier</label>
+                    <label class="form-label small text-body-emphasis fw-bold mb-1">Chemin du dossier</label>
                     <input type="text" id="mountPathInput"
-                           class="form-control form-control-sm bg-dark text-light border-secondary"
+                           class="form-control form-control-sm bg-body text-body-emphasis border-secondary"
                            placeholder="\\serveur\partage  ·  D:\dossier  ·  https://nuage…"
                            autocomplete="off" spellcheck="false">
                     <div id="mountPathStatus" class="mt-1" style="font-size:0.72rem; min-height:1.1rem;"></div>
@@ -91,7 +91,7 @@
                 </div>
                 <!-- Identifiants du dossier distant (partage réseau, nuage, Google Drive…) -->
                 <div id="mountSmbSection" class="mb-2 p-2 rounded border border-secondary" style="display:none; font-size:0.8rem;">
-                    <div class="mb-2" style="color:var(--wama-cat-active);">
+                    <div class="mb-2" style="color:var(--wama-cat-active-text);">
                         <i id="mountCredIcon" class="fas fa-network-wired me-1"></i>
                         <span id="mountCredTitle"></span>
                     </div>
@@ -117,9 +117,9 @@
                     </details>
                 </div>
                 <div class="mb-1">
-                    <label class="form-label small text-light fw-bold mb-1">Nom d'affichage</label>
+                    <label class="form-label small text-body-emphasis fw-bold mb-1">Nom d'affichage</label>
                     <input type="text" id="mountNameInput"
-                           class="form-control form-control-sm bg-dark text-light border-secondary"
+                           class="form-control form-control-sm bg-body text-body-emphasis border-secondary"
                            placeholder="Ex : Médias Lescot">
                 </div>
             </div>
@@ -164,22 +164,22 @@
 <!-- Modal — Convertir depuis le FileManager -->
 <div class="modal fade" id="converterQuickModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-sm">
-        <div class="modal-content bg-dark text-light border-secondary">
+        <div class="modal-content bg-body text-body-emphasis border-secondary">
             <div class="modal-header border-secondary py-2">
                 <h6 class="modal-title">
                     <i class="fas fa-exchange-alt me-1" style="color:var(--bs-teal);"></i>
                     Convertir
                 </h6>
-                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body py-2">
                 <p class="small text-muted mb-2" id="converterQuickFilename" style="word-break:break-all;"></p>
                 <label class="form-label small fw-bold mb-1">Format de sortie</label>
-                <select id="converterQuickFormat" class="form-select form-select-sm bg-dark text-light border-secondary">
+                <select id="converterQuickFormat" class="form-select form-select-sm bg-body text-body-emphasis border-secondary">
                     <option value="">— choisissez —</option>
                 </select>
                 <label class="form-label small fw-bold mb-1 mt-2">Qualité</label>
-                <select id="converterQuickPreset" class="form-select form-select-sm bg-dark text-light border-secondary">
+                <select id="converterQuickPreset" class="form-select form-select-sm bg-body text-body-emphasis border-secondary">
                     <option value="web">Rapide (web)</option>
                     <option value="balanced" selected>Équilibré</option>
                     <option value="max">Qualité</option>

@@ -30,7 +30,7 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
 {% endcomment %}
 {% comment %}`data-status` = l'état MONTRÉ, déduit des process (`process_pipeline.decorate`,
 2026-10-13) ; `data-element-status` = celui de l'ÉLÉMENT, sur lequel le suivi se fie.{% endcomment %}
-<div class="job-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
+<div class="job-card card bg-body border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
      data-job-id="{{ elem.id }}" data-id="{{ elem.id }}" data-status="{{ elem.shown_state|default:elem.status }}" data-element-status="{{ elem.status }}"
      data-preview-url="{% url 'common:unified_preview' 'converter' elem.id %}">
 <div class="card-body py-2">

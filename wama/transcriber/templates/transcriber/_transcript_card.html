@@ -34,7 +34,7 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                             {{ elem.filename }}
                         </button>
                         {% else %}
-                        <span class="filename text-light">
+                        <span class="filename text-body-emphasis">
                             <i class="fas fa-link"></i>
                             {{ elem.source_url|truncatechars:40 }}
                         </span>
@@ -42,9 +42,9 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                         <br>
                         {# Propriétés audio source juste sous le nom, puis la durée en dessous #}
                         {% if elem.properties %}
-                        <small class="text-white-50 d-block"><i class="fas fa-wave-square"></i> {{ elem.properties }}</small>
+                        <small class="text-body-secondary d-block"><i class="fas fa-wave-square"></i> {{ elem.properties }}</small>
                         {% endif %}
-                        <small class="text-white-50 d-block">
+                        <small class="text-body-secondary d-block">
                             <i class="fas fa-clock"></i> {{ elem.duration_display|default:"--:--" }}
                             {% if elem.is_realtime %}
                             <span class="badge bg-info text-dark ms-1" title="Transcription temps réel (micro) — provisoire, re-transcriptible"><i class="fas fa-microphone"></i> temps réel</span>
@@ -207,13 +207,15 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                     commun à la densité déclarée, au lieu du `truncatechars:160` écrit ici.
                 Le rendu commun n'écrit que le contenu de l'hôte : le geste, `data-id` et les
                 classes survivent intacts. Le span interne disparaît, ses propriétés visuelles
-                (text-light, 48px, overflow) passent sur l'hôte — aucune CSS ne le ciblait.
+                (48px, overflow) passent sur l'hôte — aucune CSS ne le ciblait. Le fond et le
+                texte sont ceux de la zone d'aperçu COMMUNE des cards (`wcv3-preview`, qui suit le
+                thème) depuis le 2026-10-18 : un voile noir écrit ici restait noir en thème clair.
                 ⚠ Garde `SUCCESS and elem.text` conservée À L'IDENTIQUE : `?side=output` replie
                 silencieusement sur l'ENTRÉE quand il n'y a pas de sortie (mesuré 22/08), et un
                 transcript FAILURE peut porter du texte partiel — l'app avait déjà tranché.{% endcomment %}
                 {% if elem.status == 'SUCCESS' and elem.text %}
                 {% url 'common:unified_preview' 'transcriber' elem.id as pv_out %}
-                <div class="wama-card-preview mt-2 p-2 rounded bg-black bg-opacity-50 small text-light"
+                <div class="wcv3-preview wama-card-preview"
                      style="max-height:48px; overflow:hidden;"
                      data-id="{{ elem.id }}" title="Double-cliquez pour voir le résultat"
                      data-card-preview="{{ pv_out }}?side=output"

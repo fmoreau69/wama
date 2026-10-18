@@ -48,7 +48,7 @@ l'inspection d'une card (hideOnInspect) au profit du host schéma en fin de bloc
      type n'était posable : composer un profil « à froid » était impossible, et le volet
      ne montrait que les champs communs. Le select EST la source ; la détection le remplit. -->
 <div class="mb-2">
-    <label class="form-label small fw-bold text-light mb-1" for="converterComposeType">
+    <label class="form-label small fw-bold text-body-emphasis mb-1" for="converterComposeType">
         <i class="fas fa-photo-film"></i> Type de média
     </label>
     <div class="d-flex align-items-center gap-2">
@@ -146,16 +146,16 @@ so no id would survive).{% endcomment %}
 <!-- Modal "Sauver comme profil" -->
 <div class="modal fade" id="saveProfileModal" tabindex="-1">
     <div class="modal-dialog modal-sm">
-        <div class="modal-content bg-dark text-light border-secondary">
+        <div class="modal-content bg-body text-body-emphasis border-secondary">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title">
                     <i class="fas fa-bookmark" style="color:var(--bs-teal);"></i> Sauver le profil
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-2">
-                    <label class="form-label small text-light mb-1">Nom du profil</label>
+                    <label class="form-label small text-body-emphasis mb-1">Nom du profil</label>
                     <input type="text" id="saveProfileName" class="form-control form-control-sm"
                            placeholder="ex : MP4 H.264 web HD" maxlength="100">
                 </div>
@@ -184,11 +184,11 @@ so no id would survive).{% endcomment %}
     tassés, texte à la ligne à chaque mot ») — la coquille modal-sm datait des 2 selects
     d'origine ; la modale porte maintenant les réglages de la nature en 2 colonnes.{% endcomment %}
     <div class="modal-dialog modal-lg">
-        <div class="modal-content bg-dark text-light border-secondary">
+        <div class="modal-content bg-body text-body-emphasis border-secondary">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title"><i class="fas fa-layer-group" style="color:var(--bs-teal);"></i>
                     Réglages du batch</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 {% comment %} Champs générés du SCHÉMA (context:'batch' — output_format +

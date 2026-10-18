@@ -114,7 +114,7 @@ les ré-inclure ici. Seule cette feuille de style reste locale : elle n'est pas 
         <a class="btn btn-sm btn-outline-secondary"
            href="?{% if app_active %}app={{ app_active }}&{% endif %}offset={{ precedent }}">‹ Plus récent</a>
       {% else %}<span></span>{% endif %}
-      <small class="text-white-50">{{ debut }}–{{ fin }} sur {{ total }}</small>
+      <small class="text-body-secondary">{{ debut }}–{{ fin }} sur {{ total }}</small>
       {% if suivant is not None %}
         <a class="btn btn-sm btn-outline-secondary"
            href="?{% if app_active %}app={{ app_active }}&{% endif %}offset={{ suivant }}">Plus ancien ›</a>

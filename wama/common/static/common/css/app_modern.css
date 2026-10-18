@@ -56,6 +56,7 @@ body > footer {
     height: 40px;
     margin: 0 !important;
     z-index: 1030;
+    background-color: var(--wama-footer-bg);
 }
 
 body > footer .container {
@@ -456,7 +457,7 @@ textarea {
 
 /* Texte du même état (partial _card_state — pendant du text-warning de RUNNING). */
 .text-awaiting {
-    color: var(--wama-state-awaiting);
+    color: var(--wama-state-awaiting-text);
 }
 
 /* STALE (2026-09-17, décision Fabien — marche P2 de `ROUTE §10.6 4.3`) : card VIOLETTE. Le
@@ -474,7 +475,7 @@ textarea {
 
 /* Texte du même état (partial _card_state). */
 .text-stale {
-    color: var(--wama-state-stale);
+    color: var(--wama-state-stale-text);
 }
 
 /* ── BASCULE VERS `data-status` (2026-09-17) — transition, les deux jeux COEXISTENT ──────────
@@ -518,31 +519,65 @@ textarea {
 }
 
 /*  === TABLES === */
-.table-dark thead {
+.table thead {
     background: linear-gradient(135deg, var(--wama-table-head-start) 0%, var(--wama-table-head-end) 100%) !important;
 }
 
-.table-dark tbody tr {
+.table tbody tr {
     transition: background-color 0.2s ease;
 }
 
-.table-dark tbody tr:hover {
+.table tbody tr:hover {
     background-color: var(--wama-table-row-hover) !important;
 }
 
-.table-dark tbody tr[data-status="RUNNING"],
-.table-dark tbody tr[data-status="PROCESSING"] {
+.table tbody tr[data-status="RUNNING"],
+.table tbody tr[data-status="PROCESSING"] {
     background-color: rgba(var(--bs-warning-rgb), 0.1);
 }
 
-.table-dark tbody tr[data-status="SUCCESS"],
-.table-dark tbody tr[data-status="COMPLETED"] {
+.table tbody tr[data-status="SUCCESS"],
+.table tbody tr[data-status="COMPLETED"] {
     background-color: rgba(var(--bs-success-rgb), 0.1);
 }
 
-.table-dark tbody tr[data-status="FAILURE"],
-.table-dark tbody tr[data-status="failed"] {
+.table tbody tr[data-status="FAILURE"],
+.table tbody tr[data-status="failed"] {
     background-color: rgba(var(--bs-danger-rgb), 0.1);
+}
+
+/* `.table` seule suit le thème (étape 4 des thèmes, 2026-10-18) : elle porte les valeurs de
+   `table-dark` (Bootstrap 5.3.0) en sombre, lues sur les tokens. Sans elles, le mode sombre natif
+   de 5.3.0 grisait le texte des tables (#adb5bd au lieu de #fff). */
+.table {
+    --bs-table-color: var(--wama-text-bright);
+    --bs-table-bg: var(--wama-surface);
+    --bs-table-border-color: var(--wama-table-border);
+    --bs-table-striped-bg: var(--wama-table-striped);
+    --bs-table-striped-color: var(--wama-text-bright);
+    --bs-table-active-bg: var(--wama-table-border);
+    --bs-table-active-color: var(--wama-text-bright);
+    --bs-table-hover-bg: var(--wama-table-hover);
+    --bs-table-hover-color: var(--wama-text-bright);
+    color: var(--bs-table-color);
+    border-color: var(--bs-table-border-color);
+}
+
+/* Un seul menu déroulant, qui suit le thème : en sombre, les valeurs de `dropdown-menu-dark`
+   (Bootstrap 5.3.0), celles que portaient les menus de la barre du haut et des téléchargements —
+   le menu natif du mode sombre de 5.3.0 était plus terne (#adb5bd sur #212529). */
+.dropdown-menu {
+    --bs-dropdown-color: var(--wama-text);
+    --bs-dropdown-bg: var(--wama-menu-bg);
+    --bs-dropdown-border-color: rgba(var(--wama-overlay-rgb), .15);
+    --bs-dropdown-link-color: var(--wama-text);
+    --bs-dropdown-link-hover-color: var(--wama-text-bright);
+    --bs-dropdown-divider-bg: rgba(var(--wama-overlay-rgb), .15);
+    --bs-dropdown-link-hover-bg: rgba(var(--wama-overlay-rgb), .15);
+    --bs-dropdown-link-active-color: var(--wama-text-on-accent);
+    --bs-dropdown-link-active-bg: var(--bs-primary);
+    --bs-dropdown-link-disabled-color: var(--wama-text-secondary);
+    --bs-dropdown-header-color: var(--wama-text-secondary);
 }
 
 /*  === BADGES & STATUS === */
@@ -562,19 +597,19 @@ tr[data-status="PENDING"] .status {
 
 tr[data-status="RUNNING"] .status,
 tr[data-status="PROCESSING"] .status {
-    color: var(--wama-state-running);
+    color: var(--wama-state-running-text);
 }
 
 tr[data-status="SUCCESS"] .status,
 tr[data-status="COMPLETED"] .status {
-    color: var(--wama-state-success);
+    color: var(--wama-state-success-text);
 }
 
 /* `ERROR` retiré le 2026-09-18 (aucune ligne en base) et remplacé par `failed`, la valeur que
    les tables de ce thème affichent RÉELLEMENT (journal de synchronisation du model_manager). */
 tr[data-status="FAILURE"] .status,
 tr[data-status="failed"] .status {
-    color: var(--wama-state-failure);
+    color: var(--wama-state-failure-text);
 }
 
 /*  === BUTTONS === */
@@ -889,8 +924,8 @@ body {
 }
 
 /* Paragraphs and icons in dark containers */
-.bg-dark p,
-.card.bg-dark p,
+.bg-body p,
+.card.bg-body p,
 .modal-content p,
 .info-card p,
 .container > p,
@@ -898,10 +933,10 @@ body {
     color: var(--wama-text-body);
 }
 
-.bg-dark i.fas,
-.bg-dark i.far,
-.bg-dark i.fab,
-.card.bg-dark i.fas,
+.bg-body i.fas,
+.bg-body i.far,
+.bg-body i.fab,
+.card.bg-body i.fas,
 .modal-content i.fas,
 .info-card i.fas {
     color: var(--wama-text-body);
@@ -914,7 +949,6 @@ i.text-success { color: var(--bs-success) !important; }
 i.text-danger { color: var(--bs-danger) !important; }
 i.text-warning { color: var(--bs-warning) !important; }
 i.text-info { color: var(--bs-info) !important; }
-i.text-light { color: var(--bs-light) !important; }
 i.text-white { color: var(--bs-white) !important; }
 
 /* Text-muted - lighter for dark backgrounds */
@@ -923,8 +957,8 @@ i.text-white { color: var(--bs-white) !important; }
     color: var(--wama-text-muted) !important;
 }
 
-.bg-dark .text-muted,
-.card.bg-dark .text-muted,
+.bg-body .text-muted,
+.card.bg-body .text-muted,
 .modal-content .text-muted {
     color: var(--wama-text-muted) !important;
 }
@@ -935,10 +969,10 @@ small,
     color: var(--wama-text-small) !important;
 }
 
-.bg-dark small,
-.bg-dark .small,
-.card.bg-dark small,
-.card.bg-dark .small,
+.bg-body small,
+.bg-body .small,
+.card.bg-body small,
+.card.bg-body .small,
 .modal-content small,
 .modal-content .small,
 .info-card small,
@@ -947,8 +981,8 @@ small,
 }
 
 /* Card text in dark cards */
-.card.bg-dark .card-text,
-.bg-dark .card-text {
+.card.bg-body .card-text,
+.bg-body .card-text {
     color: var(--wama-text-body) !important;
 }
 
@@ -969,7 +1003,7 @@ small,
 }
 
 .form-label.small,
-.bg-dark .form-label.small,
+.bg-body .form-label.small,
 .modal-content .form-label.small {
     color: var(--wama-text-label-emphasis) !important;
 }
@@ -981,15 +1015,57 @@ small.form-text {
 }
 
 /* Table cells in dark tables */
-.table-dark td.small,
-.table-dark td .small,
-.table-dark small {
+.table td.small,
+.table td .small,
+.table small {
     color: var(--wama-text-small) !important;
 }
 
-/* White-50 utility - more visible on dark backgrounds */
+/* `text-white-50` éclairci. Il ne se pose plus que sur un fond FIXE (badge `bg-secondary`), où
+   il reste blanc quel que soit le thème : un texte secondaire sur un fond qui suit le thème lit
+   `text-body-secondary` (étape 4 du chantier thèmes, `ROADMAP §28`). */
 .text-white-50 {
+    color: rgba(var(--bs-white-rgb), .7) !important;
+}
+
+/* Texte secondaire qui suit le thème : `text-body-secondary` lit le token qu'avait `text-white-50`
+   (blanc à 70 %, 9,8:1) — le gris natif du mode sombre de 5.3.0 tombait à 4,9:1. */
+.text-body-secondary {
     color: var(--wama-text-dimmed) !important;
+}
+
+/* Les textes « avertissement » et « info » de Bootstrap gardent leur teinte VIVE dans le mode clair
+   (#ffc107 : 1,6:1 sur blanc, #0dcaf0 : 1,9:1) : sur un fond clair, ils lisent la teinte
+   « emphasis » que Bootstrap accorde au mode (#664d03, #055160). Le mode sombre n'est pas touché. */
+[data-bs-theme="light"] .text-warning { color: var(--bs-warning-text-emphasis) !important; }
+[data-bs-theme="light"] .text-info { color: var(--bs-info-text-emphasis) !important; }
+[data-bs-theme="light"] .btn-outline-warning { --bs-btn-color: var(--bs-warning-text-emphasis); }
+[data-bs-theme="light"] .btn-outline-info { --bs-btn-color: var(--bs-info-text-emphasis); }
+/* Le lien du mode clair est le MIROIR de celui du sombre (`--wama-link`, 7:1 sur blanc) : le bleu
+   natif #0d6efd tombait à 4,1:1 sur un encart à peine teinté. */
+[data-bs-theme="light"] {
+    --bs-link-color: var(--wama-link);
+    --bs-link-color-rgb: var(--wama-link-rgb);
+}
+
+/* Bouton à contour du ton FORT du thème — la variante de `btn-outline-light` (dessinée pour un
+   fond sombre) et de `btn-outline-dark` (pour un fond clair) qui suit le thème. Mêmes valeurs que
+   `btn-outline-light` dans le thème sombre, au texte du survol près (le fond de page, et non le
+   noir pur : il reste lisible quand le ton fort devient sombre). */
+.btn-outline-emphasis {
+    --bs-btn-color: var(--wama-text-card);
+    --bs-btn-border-color: var(--wama-text-card);
+    --bs-btn-hover-color: var(--bs-body-bg);
+    --bs-btn-hover-bg: var(--wama-text-card);
+    --bs-btn-hover-border-color: var(--wama-text-card);
+    --bs-btn-focus-shadow-rgb: var(--wama-text-card-rgb);
+    --bs-btn-active-color: var(--bs-body-bg);
+    --bs-btn-active-bg: var(--wama-text-card);
+    --bs-btn-active-border-color: var(--wama-text-card);
+    --bs-btn-disabled-color: var(--wama-text-card);
+    --bs-btn-disabled-bg: transparent;
+    --bs-btn-disabled-border-color: var(--wama-text-card);
+    --bs-gradient: none;
 }
 
 /*  === AI ASSISTANT CHAT === */
@@ -1063,12 +1139,12 @@ small.form-text {
                                  background: var(--wama-eval-model-bg); border: 1px solid var(--wama-eval-model-border); }
 .wama-batch-evaluation-model strong { color: var(--wama-eval-strong); margin-left: .25rem; }
 .wama-batch-evaluation-model.is-best { border-color: var(--wama-eval-best); background: var(--wama-eval-best-bg); }
-.wama-batch-evaluation-model.is-best strong { color: var(--wama-eval-best); }
+.wama-batch-evaluation-model.is-best strong { color: var(--wama-eval-best-text); }
 .wama-batch-evaluation-count   { color: var(--wama-eval-muted); }
-.wama-batch-evaluation-warning { color: var(--wama-eval-warning); }
+.wama-batch-evaluation-warning { color: var(--wama-eval-warning-text); }
 /* Lot SANS référence : le moteur le plus isolé est SIGNALÉ (ambre), jamais déclaré mauvais. */
 .wama-batch-evaluation-model.is-isolated { border-color: var(--wama-eval-warning); background: var(--wama-eval-isolated-bg); }
-.wama-batch-evaluation-model.is-isolated strong { color: var(--wama-eval-warning); }
+.wama-batch-evaluation-model.is-isolated strong { color: var(--wama-eval-warning-text); }
 .wama-evaluation-metrics       { width: 100%; font-size: .85rem; color: var(--wama-eval-metrics); margin-bottom: .75rem; }
 .wama-evaluation-metrics th    { color: var(--wama-eval-muted); font-weight: 500; padding: .25rem .5rem; }
 .wama-evaluation-metrics td    { padding: .25rem .5rem; border-top: 1px solid var(--wama-eval-rule); }

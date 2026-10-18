@@ -36,6 +36,13 @@
    loge entre les volets) — d'où une requête de conteneur, pas de fenêtre, plus bas. */
 .wama-header {
     container: wama-header / inline-size;
+    /* Couleurs de la barre, celles de `navbar-dark` en sombre, qui suivent le thème (étape 4) */
+    --bs-navbar-color: rgba(var(--wama-overlay-rgb), .55);
+    --bs-navbar-hover-color: rgba(var(--wama-overlay-rgb), .75);
+    --bs-navbar-disabled-color: rgba(var(--wama-overlay-rgb), .25);
+    --bs-navbar-active-color: var(--wama-text-bright);
+    --bs-navbar-brand-color: var(--wama-text-bright);
+    --bs-navbar-brand-hover-color: var(--wama-text-bright);
 }
 .wama-header-container {
     height: 100% !important;

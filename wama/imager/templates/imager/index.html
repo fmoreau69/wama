@@ -23,7 +23,7 @@ Elle reste écrite ici et index.js la greffe dans le groupe « Sortie » — mê
 la modale d'item (settings_modal.js, hook `decorate` + groupBody).
 {% endcomment %}
 <div id="imageSettings">
-    <h6 class="text-light mb-3 border-bottom border-secondary pb-2">
+    <h6 class="text-body-emphasis mb-3 border-bottom border-secondary pb-2">
         <i class="fas fa-image text-primary"></i> Paramètres Image
     </h6>
 
@@ -32,10 +32,10 @@ la modale d'item (settings_modal.js, hook `decorate` + groupBody).
     {% comment %}Greffée dans le groupe « Sortie » par index.js après rendu.{% endcomment %}
     <div id="panelResolutionZone" hidden>
         <div class="mb-3">
-            <label for="resolution" class="form-label small fw-bold text-light">
+            <label for="resolution" class="form-label small fw-bold text-body-emphasis">
                 <i class="fas fa-expand"></i> Résolution
             </label>
-            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="resolution" name="resolution">
+            <select class="form-select form-select-sm bg-body text-body-emphasis border-secondary" id="resolution" name="resolution">
                 <optgroup label="Carré (1:1)">
                     <option value="512x512" selected>512x512 (1:1)</option>
                     <option value="768x768">768x768 (1:1)</option>
@@ -81,7 +81,7 @@ la modale d'item (settings_modal.js, hook `decorate` + groupBody).
 
 <!-- VIDEO SETTINGS -->
 <div id="videoSettings" style="display: none;">
-    <h6 class="text-light mb-3 border-bottom border-success pb-2">
+    <h6 class="text-body-emphasis mb-3 border-bottom border-success pb-2">
         <i class="fas fa-film text-success"></i> Paramètres Vidéo
     </h6>
 
@@ -148,7 +148,7 @@ bouton AJOUTE (la création ne lance rien — règle des deux temps, Étape 3 po
 <!-- Generations Queue -->
 <div class="row">
     <div class="col-12">
-        <h4 class="mb-3 text-light">
+        <h4 class="mb-3 text-body-emphasis">
             <i class="fas fa-list"></i> File d'attente images
             <span class="badge bg-secondary" id="queueCount">{{ image_generations|length }}</span>
         </h4>
@@ -173,8 +173,8 @@ app du parc à l'inclure dedans ; tenu depuis par `tests_queue_toolbar_placement
     {% url 'imager:batch_download' batch_info.obj.id as batch_download_url %}
     {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='image' download_url=batch_download_url actions_communes=True meta_template='common/_batch_meta_chips.html' %}
 {% empty %}
-    <div class="card bg-dark border-secondary">
-        <div class="card-body text-center text-white-50 py-4">
+    <div class="card bg-body border-secondary">
+        <div class="card-body text-center text-body-secondary py-4">
             <i class="fas fa-images fa-3x mb-3"></i>
             <p class="mb-0">Aucune génération en attente. Créez-en une ci-dessus !</p>
         </div>
@@ -209,7 +209,7 @@ sa propre voie de lot (`vidBatch`). {% endcomment %}
 <!-- Video Queue -->
 <div class="row">
     <div class="col-12">
-        <h4 class="mb-3 text-light">
+        <h4 class="mb-3 text-body-emphasis">
             <i class="fas fa-list"></i> File d'attente vidéos
             <span class="badge bg-success" id="videoQueueCountInner">{{ video_generations|length }}</span>
         </h4>
@@ -224,8 +224,8 @@ sa propre voie de lot (`vidBatch`). {% endcomment %}
     {% url 'imager:batch_download' batch_info.obj.id as batch_download_url %}
     {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='video' download_url=batch_download_url actions_communes=True meta_template='common/_batch_meta_chips.html' %}
 {% empty %}
-    <div class="card bg-dark border-secondary">
-        <div class="card-body text-center text-white-50 py-4">
+    <div class="card bg-body border-secondary">
+        <div class="card-body text-center text-body-secondary py-4">
             <i class="fas fa-film fa-3x mb-3"></i>
             <p class="mb-0">Aucune génération vidéo en attente. Créez-en une ci-dessus !</p>
         </div>
@@ -251,16 +251,16 @@ supprimées ; seul le PIED commun reste déclaré ici, cloné par le JS. {% endc
 Un seul domaine à la fois : le schéma injecté suit le domaine du batch cliqué. {% endcomment %}
 <div class="modal fade" id="imagerBatchSettingsModal" tabindex="-1" aria-labelledby="imagerBatchSettingsLabel">
     <div class="modal-dialog modal-lg">
-        <div class="modal-content bg-dark text-light">
+        <div class="modal-content bg-body text-body-emphasis">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title" id="imagerBatchSettingsLabel">
                     <i class="fas fa-layer-group me-2"></i>Paramètres du batch
                     <span class="badge bg-secondary ms-1" id="imagerBatchSettingsId"></span>
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
             </div>
             <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
-                <p class="small text-white-50 mb-2">Appliqués à tous les éléments du batch (sauf ceux en cours).</p>
+                <p class="small text-body-secondary mb-2">Appliqués à tous les éléments du batch (sauf ceux en cours).</p>
                 <div id="imagerBatchParams"></div>
             </div>
             {% include 'common/_settings_modal_footer.html' with save_id='imagerSaveBatchSettingsBtn' save_start_id='imagerSaveBatchSettingsAndStartBtn' save_label='Appliquer' save_start_label='Appliquer & lancer' %}

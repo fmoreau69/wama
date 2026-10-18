@@ -6,7 +6,8 @@ Two halves, because neither sees what the other does :
     with cards, the panel and the viewer) — `ui_smoke_contrast`, axe-core's `color-contrast` rule ;
   • the CODE refuses, at commit time, the recurring mistake that needs no browser to be seen : a
     dark-text class (`text-dark`, `text-black`, `link-dark`, `btn-outline-dark`) on an element
-    without a light background — black on the dark theme.
+    without a light background — black on the dark theme ; and its mirror since the light theme
+    (2026-10-18) : a light-text class without a dark background, or a dark surface written in a class.
 Here : the code guard, the pure parts of the measure, and the wiring."""
 import json
 import re
@@ -75,6 +76,76 @@ class DarkTextNeedsALightBackgroundTest(SimpleTestCase):
         hits = [next(g for g in m.groups() if g is not None) for m in CHUNK.finditer(line)]
         flagged = [c for c in hits if DARK.search(c) and not LIGHT.search(c)]
         self.assertEqual(['small text-dark'], flagged)
+
+
+#: Le sens inverse (étape 4 des thèmes, 2026-10-18) : un texte CLAIR fixe exige un fond SOMBRE
+#: fixe, sinon il disparaît sur le thème clair ; et un fond sombre fixe ne suit aucun thème.
+LIGHT_TEXT = re.compile(r'(?<![\w-])(text-white|text-white-50|text-light|link-light|btn-outline-light)(?![\w-])')
+DARK_GROUND = re.compile(r'(?<![\w-])(?:(?:bg|text-bg)-(?:primary|secondary|success|danger|black|\$\{)'
+                         r'|btn-(?:primary|secondary|success|danger|dark|\$\{))')
+#: Classes qui écrivent le sombre dans la page : leur équivalent suit le mode (`bg-body`,
+#: `text-body-emphasis`, `.table` seule, menu et croix natifs, `btn-outline-emphasis`).
+DARK_ONLY = re.compile(r'(?<![\w-])(bg-dark|table-dark|dropdown-menu-dark|btn-close-white|navbar-dark)(?![\w-])')
+QUOTED = re.compile(r'"[^"\n]*"|\'[^\'\n]*\'|`[^`]*`')
+#: (fichier, classe) → pourquoi le texte clair y est LISIBLE : le fond sombre vient d'un PARENT.
+LIGHT_EXEMPT = {
+    ('wama/model_manager/templates/model_manager/index.html', 'text-white'):
+        "dans le voile de chargement, rgba(--wama-shadow-rgb, .7) : sombre dans tous les thèmes",
+    ('wama/media_library/templates/media_library/index.html', 'text-white'):
+        "toast dont media-library.js pose le fond (bg-success / bg-danger)",
+    ('wama/common/utils/state_presentation.py', 'text-white-50'):
+        "classe de texte d'un badge, posée avec le fond `bg-secondary` du même tuple",
+}
+
+
+def _theme_fixed_tones():
+    """[(fichier, classe, extrait)] des textes clairs sans fond sombre et des fonds sombres fixes."""
+    found = []
+    for base in ('wama', 'wama_lab', 'wama_data'):
+        for path in (ROOT / base).rglob('*'):
+            rel = path.relative_to(ROOT).as_posix()
+            if (path.suffix not in ('.html', '.js', '.py') or 'vendors' in path.parts or TWIN.match(rel)
+                    or '/docs/' in rel or '/tests' in rel or path.name.startswith('tests')):
+                continue
+            for line in path.read_text(encoding='utf-8', errors='replace').splitlines():
+                if not (LIGHT_TEXT.search(line) or DARK_ONLY.search(line)):
+                    continue
+                for m in QUOTED.finditer(line):
+                    chunk = m.group(0)
+                    for hit in DARK_ONLY.finditer(chunk):
+                        found.append((rel, hit.group(1), chunk.strip()[:100]))
+                    if not DARK_GROUND.search(chunk):
+                        for hit in LIGHT_TEXT.finditer(chunk):
+                            found.append((rel, hit.group(1), chunk.strip()[:100]))
+    return found
+
+
+class LightTextNeedsADarkBackgroundTest(SimpleTestCase):
+
+    def test_no_light_text_without_a_dark_background_and_no_fixed_dark_surface(self):
+        offenders = [f'{rel} : {cls} — « {chunk} »' for rel, cls, chunk in _theme_fixed_tones()
+                     if (rel, cls) not in LIGHT_EXEMPT]
+        self.assertEqual([], offenders, 'white on the light theme : read a class that follows the mode '
+                                        '(text-body-emphasis, text-body-secondary, bg-body…)')
+
+    def test_every_light_exemption_still_matches_and_says_why(self):
+        seen = {(rel, cls) for rel, cls, _chunk in _theme_fixed_tones()}
+        for key, why in LIGHT_EXEMPT.items():
+            with self.subTest(exemption=key):
+                self.assertIn(key, seen, 'an exemption that no longer matches anything is removed')
+                self.assertTrue(why.strip())
+
+    def test_the_guard_sees_both_directions(self):
+        """Contre-épreuve : texte blanc sans fond, fond sombre fixe — et un badge plein accepté."""
+        line = ('<p class="text-white-50">x</p><div class="card bg-dark">y</div>'
+                '<span class="badge bg-success text-white">ok</span>')
+        hits = []
+        for m in QUOTED.finditer(line):
+            chunk = m.group(0)
+            hits += [h.group(1) for h in DARK_ONLY.finditer(chunk)]
+            if not DARK_GROUND.search(chunk):
+                hits += [h.group(1) for h in LIGHT_TEXT.finditer(chunk)]
+        self.assertEqual(['text-white-50', 'bg-dark'], hits)
 
 
 class ContrastVerdictTest(SimpleTestCase):

@@ -2,11 +2,11 @@
     <div class="modal-dialog modal-md" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title text-white">Login</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title text-body-emphasis">Login</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p class="text-white-50">(Univ-eiffel login)</p>
+                <p class="text-body-secondary">(Univ-eiffel login)</p>
                 <form action="{% url 'accounts:login' %}" method="post" ID="login-form">
                     {% csrf_token %}
                     <div class="form-group">

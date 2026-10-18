@@ -15,7 +15,7 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
 {% comment %}`data-status` = l'état MONTRÉ, déduit des process (`process_pipeline.decorate`) ;
 `data-element-status` = celui de l'ÉLÉMENT, sur lequel le suivi se fie — une card terminée dont un
 process optionnel reste à compléter se montre « en attente » sans être relancée en boucle.{% endcomment %}
-<div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
+<div class="synthesis-card card bg-body border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
      data-id="{{ elem.id }}" data-status="{{ elem.shown_state|default:elem.status }}" data-element-status="{{ elem.status }}"
      data-preview-url="{% url 'common:unified_preview' 'describer' elem.id %}">
 <div class="card-body py-2">

@@ -87,7 +87,7 @@
      */
     function personRows(persons) {
         if (!persons || !persons.length) {
-            return '<div class="small text-white-50" data-person-empty>Partagé avec personne en particulier.</div>';
+            return '<div class="small text-body-secondary" data-person-empty>Partagé avec personne en particulier.</div>';
         }
         return persons.map(function (p) {
             var since = p.since ? new Date(p.since).toLocaleDateString('fr-FR') : '';
@@ -105,7 +105,7 @@
                 + echapper(m.icon) + ' ' + echapper(m.label) + (m.available ? '' : ' (bientôt)')
                 + '</option>';
         }).join('');
-        return '<div class="wama-share-persons mt-3"><div class="small text-white-50 mb-1">'
+        return '<div class="wama-share-persons mt-3"><div class="small text-body-secondary mb-1">'
             + 'Avec une personne</div><div data-person-list>' + personRows(persons) + '</div>'
             + '<div class="d-flex gap-2 mt-2">'
             + '<input type="text" class="form-control form-control-sm" data-person-input autocomplete="off" '
@@ -139,7 +139,7 @@
                 // Depuis quand la portée COURANTE est posée (2026-10-06) — absente d'un partage
                 // antérieur à la tenue de la date : on ne l'invente pas.
                 + (choisi && p.valeur !== 'private' && e.scope_since
-                   ? '<span class="small text-white-50 ms-2">depuis le '
+                   ? '<span class="small text-body-secondary ms-2">depuis le '
                      + echapper(new Date(e.scope_since).toLocaleDateString('fr-FR')) + '</span>'
                    : '')
                 + cibles + '</span></label></div>';
@@ -160,9 +160,9 @@
 
         return '<div class="modal-header border-secondary">'
             + '<h5 class="modal-title"><i class="fas fa-share-nodes text-info me-2"></i>Partager</h5>'
-            + '<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>'
+            + '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>'
             + '</div><div class="modal-body">'
-            + (nom ? '<p class="text-white-50 small mb-3">' + echapper(nom) + '</p>' : '')
+            + (nom ? '<p class="text-body-secondary small mb-3">' + echapper(nom) + '</p>' : '')
             + orpheline
             + lignes
             + (e.consent ? consentBlock(e.consent.statement) : '')
@@ -206,7 +206,7 @@
         el.className = 'modal fade wama-share-modal';
         el.tabIndex = -1;
         el.innerHTML = '<div class="modal-dialog modal-dialog-centered">'
-            + '<div class="modal-content bg-dark text-light border-secondary"></div></div>';
+            + '<div class="modal-content bg-body text-body-emphasis border-secondary"></div></div>';
         document.body.appendChild(el);
         return el;
     }

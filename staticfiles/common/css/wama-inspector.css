@@ -103,7 +103,7 @@ body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--collapsed { dis
 .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header::after {
     content: "🃏 cliquer pour désempiler";
     position: absolute; right: 2.2rem; bottom: -1.05rem;
-    font-size: .62rem; color: var(--wama-accent-soft); opacity: 0; transition: opacity .15s ease; pointer-events: none;
+    font-size: .62rem; color: var(--wama-accent-soft-text); opacity: 0; transition: opacity .15s ease; pointer-events: none;
 }
 .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header:hover::after { opacity: .85; }
 /* Au doigt, pas de survol : le libellé reste affiché, et il dit le geste du doigt (wama-touch.css). */

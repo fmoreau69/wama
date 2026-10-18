@@ -49,7 +49,7 @@
         var bar = document.createElement('div');
         bar.className = 'wama-prompt-enrich small mt-1';
         var panel = document.createElement('pre');
-        panel.className = 'wama-prompt-enrich-original small text-white-50 border border-secondary '
+        panel.className = 'wama-prompt-enrich-original small text-body-secondary border border-secondary '
                         + 'rounded p-2 mt-1 mb-0';
         panel.style.whiteSpace = 'pre-wrap';
         panel.style.display = 'none';
@@ -114,11 +114,11 @@
         }
         this.bar.innerHTML =
             '<span class="text-warning">&#10024; Enrichi</span>'
-            + ' <span class="text-white-50">&middot;</span>'
+            + ' <span class="text-body-secondary">&middot;</span>'
             + ' <a href="#" data-act="show" class="text-info">voir mon prompt</a>'
-            + ' <span class="text-white-50">&middot;</span>'
+            + ' <span class="text-body-secondary">&middot;</span>'
             + ' <a href="#" data-act="revert" class="text-info">revenir au mien</a>'
-            + ' <span class="text-white-50">&middot;</span>'
+            + ' <span class="text-body-secondary">&middot;</span>'
             + ' <a href="#" data-act="redo" class="text-info">&#8635; ré-enrichir</a>';
         this.panel.innerHTML = esc(this.original);
     };

@@ -16,7 +16,7 @@ pas la variable de gabarit.
   .duplicate-btn[data-duplicate-url] (brique globale) ; .step-desc (étape live :462) ;
   .wama-progress-fill ; .progress-text ; .wama-eta ; #preview-row-{{ id }}.
 {% endcomment %}
-<div class="wama-card synthesis-card card bg-dark border-secondary {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
+<div class="wama-card synthesis-card card bg-body border-secondary {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
      id="job-{{ elem.id }}" data-id="{{ elem.id }}" data-job-id="{{ elem.id }}"
      data-status="{{ elem.shown_state|default:elem.status }}" data-element-status="{{ elem.status }}" data-mode="standalone"
      data-preview-url="{% url 'common:unified_preview' 'avatarizer' elem.id %}">

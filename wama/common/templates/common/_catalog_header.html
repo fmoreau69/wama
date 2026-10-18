@@ -21,6 +21,6 @@ Variables :
 {% load wama_catalog %}
 {% page_heading titre icone as heading %}
 <div class="wama-cat-header d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-  <h2 class="mb-0 text-light">{% if heading.icon %}<i class="fas {{ heading.icon }} me-2"></i>{% endif %}{{ heading.label }}</h2>
+  <h2 class="mb-0 text-body-emphasis">{% if heading.icon %}<i class="fas {{ heading.icon }} me-2"></i>{% endif %}{{ heading.label }}</h2>
   {% if registre %}{% refresh_button registre %}{% endif %}
 </div>

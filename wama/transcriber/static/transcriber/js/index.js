@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const _empty = WamaApp.emptyState({
     container: queueContainer,
     cardSelector: '.synthesis-card',
-    html: '<i class="fas fa-inbox fa-3x mb-3 text-white-50"></i><p class="text-white-50">Aucune transcription en attente</p>',
+    html: '<i class="fas fa-inbox fa-3x mb-3 text-body-secondary"></i><p class="text-body-secondary">Aucune transcription en attente</p>',
   });
 
   // Helpers génériques délégués au module commun (common/js/wama-app-base.js).
@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', function () {
         st.className = 'card-state text-warning';
         st.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (msg ? escapeHtml(msg) : 'Traitement…');
       }
-      else if (status === 'PENDING') { st.className = 'card-state text-white-50'; st.textContent = 'En attente'; }
+      else if (status === 'PENDING') { st.className = 'card-state text-body-secondary'; st.textContent = 'En attente'; }
       else if (status === 'FAILURE') { st.className = 'card-state text-danger'; st.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Échec'; }
       else { st.className = 'card-state'; st.textContent = ''; }
     }

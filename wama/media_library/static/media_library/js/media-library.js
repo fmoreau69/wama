@@ -213,7 +213,7 @@
         unusedDays = data.retention_days || 0;
         unusedRetention.hidden = false;
         unusedRetention.innerHTML = unusedDays
-            ? `<i class="fas fa-clock me-1"></i>Votre durée de conservation est de ${unusedDays} jours : un fichier inutilisé est supprimé à son terme (annoncé avant). « Garder » lui redonne ${unusedDays} jours — la durée se règle dans <a href="/accounts/profile/" class="link-light">votre profil</a>.`
+            ? `<i class="fas fa-clock me-1"></i>Votre durée de conservation est de ${unusedDays} jours : un fichier inutilisé est supprimé à son terme (annoncé avant). « Garder » lui redonne ${unusedDays} jours — la durée se règle dans <a href="/accounts/profile/" class="link-body-emphasis">votre profil</a>.`
             : `<i class="fas fa-infinity me-1"></i>Sans durée de conservation, rien n'est supprimé sans vous.`;
         const badge = document.getElementById('badge-unused');
         if (badge) badge.textContent = files.length;
@@ -230,11 +230,11 @@
             <div class="d-flex align-items-center gap-3 py-2 px-2 border-bottom" style="border-color:#2a2a3e !important;" data-unused-row="${f.id}">
                 <input class="form-check-input mt-0" type="checkbox" data-unused-id="${f.id}" aria-label="Sélectionner ${esc(f.name)}">
                 <div class="flex-grow-1 text-truncate">
-                    <a href="/filemanager/api/download/${encodeURI(f.path)}" class="text-light" title="${esc(f.path)}">${esc(f.name)}</a>
+                    <a href="/filemanager/api/download/${encodeURI(f.path)}" class="text-body-emphasis" title="${esc(f.path)}">${esc(f.name)}</a>
                     <div class="small text-truncate" style="color:#a8a8c0;">inutilisé depuis ${f.unused_days} jour(s)${f.origin_label ? ` · ${esc(f.origin_label)}` : ''}${f.deletes_on ? ` · <span style="color:#ffd27a;">supprimé le ${new Date(f.deletes_on).toLocaleDateString('fr-FR')}</span>` : ''}</div>
                 </div>
                 <span class="small text-nowrap" style="color:#c8c8d8;">${window.WamaApp ? WamaApp.formatSize(f.size) : f.size}</span>
-                ${f.deletes_on ? `<button type="button" class="btn btn-sm btn-outline-light" data-unused-renew="${f.id}" title="Garder : ${unusedDays} jours de plus">
+                ${f.deletes_on ? `<button type="button" class="btn btn-sm btn-outline-emphasis" data-unused-renew="${f.id}" title="Garder : ${unusedDays} jours de plus">
                     <i class="fas fa-clock-rotate-left"></i></button>` : ''}
                 <button type="button" class="btn btn-sm btn-outline-danger" data-unused-delete="${f.id}" title="Supprimer ce fichier">
                     <i class="fas fa-trash"></i></button>

@@ -96,7 +96,7 @@
 }
 
 .wama-cm-item:hover > i:first-child,
-.wama-cm-item:focus-visible > i:first-child { color: var(--wama-accent); }
+.wama-cm-item:focus-visible > i:first-child { color: var(--wama-accent-text); }
 
 .wama-cm-item:active { background: rgba(var(--wama-accent-rgb), .22); }
 
@@ -140,7 +140,7 @@
     font-size: .7rem;
     color: var(--wama-text-label);
 }
-.wama-cm-item:hover .wama-cm-fleche { color: var(--wama-accent); }
+.wama-cm-item:hover .wama-cm-fleche { color: var(--wama-accent-text); }
 
 /* Entrée dont le sous-menu est OUVERT (cascade, 2026-09-14) : elle reste allumée pendant qu'on
    parcourt le sous-menu — sinon l'œil perd le lien entre le parent et l'enfant. */
@@ -149,7 +149,7 @@
     color: var(--wama-text-bright);
 }
 .wama-cm-item.wama-cm-ouvert > i:first-child,
-.wama-cm-item.wama-cm-ouvert .wama-cm-fleche { color: var(--wama-accent); }
+.wama-cm-item.wama-cm-ouvert .wama-cm-fleche { color: var(--wama-accent-text); }
 
 /* COCHE « déjà fait » (2026-09-14 — élément déjà rangé en médiathèque) : le vert « succès » que
    Bootstrap pose en thème sombre (`--bs-success-text-emphasis`), pas une teinte inventée. */

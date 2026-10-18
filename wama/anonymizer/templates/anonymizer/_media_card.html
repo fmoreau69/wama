@@ -10,7 +10,7 @@ Contexte : elem (décoré par _decorate_card → elem.chips), in_batch, user.
   .wama-cycle-btn (brique) ; .duplicate-btn[data-duplicate-url] (brique GLOBALE) ;
   .delete-btn[data-id] ; .wama-progress-fill (:85) ; .progress-text (:87).
 {% endcomment %}
-<div class="anon-card synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
+<div class="anon-card synthesis-card card bg-body border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
      data-id="{{ elem.id }}"
      data-status="{{ elem.shown_state|default:elem.status }}" data-element-status="{{ elem.status }}"
      data-media-name="{{ elem.get_filename }}"

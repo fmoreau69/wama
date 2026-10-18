@@ -56,7 +56,7 @@
             }
             var btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'btn btn-xs btn-outline-light';
+            btn.className = 'btn btn-xs btn-outline-emphasis';
             btn.dataset.number = String(r.number);
             btn.textContent = 'Reprendre';
             btn.disabled = !r.kept || !ctx.canEdit;

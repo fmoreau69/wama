@@ -626,7 +626,7 @@
   function applyFollowLock() {
     if (!followLockBtn) return;
     followLockBtn.classList.toggle('btn-info', followLock);
-    followLockBtn.classList.toggle('btn-outline-light', !followLock);
+    followLockBtn.classList.toggle('btn-outline-emphasis', !followLock);
     followLockBtn.innerHTML = followLock ? '<i class="fas fa-lock"></i>' : '<i class="fas fa-lock-open"></i>';
     followLockBtn.title = (followLock ? 'Suivi de lecture ACTIVÉ — clic ou Alt+L pour débrayer'
                                       : 'Suivre la lecture (la liste suit l\'audio même en édition) — Alt+L');
@@ -968,7 +968,7 @@
     const btn = document.getElementById('boundaryToolBtn');
     if (btn) {
       btn.classList.toggle('btn-warning', boundaryTool);
-      btn.classList.toggle('btn-outline-light', !boundaryTool);
+      btn.classList.toggle('btn-outline-emphasis', !boundaryTool);
       btn.setAttribute('aria-pressed', boundaryTool ? 'true' : 'false');
     }
     const cv = document.getElementById('zoomWave');

@@ -68,7 +68,7 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
 
     <!-- COLONNE DROITE : File d'attente -->
     <div class="col-12">
-        <h6 class="text-light mb-2">
+        <h6 class="text-body-emphasis mb-2">
             <i class="fas fa-film me-1"></i> Vidéos générées
             <span class="badge bg-secondary ms-1" id="jobs-count">{{ jobs|length }}</span>
         </h6>
@@ -136,7 +136,7 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
     <h3><i class="fas fa-user-circle me-2"></i>À propos de l'Avatarizer</h3>
     <div class="mb-3">
         <h5>Qu'est-ce que l'Avatarizer ?</h5>
-        <p class="text-light">
+        <p class="text-body-emphasis">
             L'Avatarizer génère des vidéos d'avatars animés synchronisés avec la parole,
             idéales pour créer des consignes vidéo standardisées et engageantes pour les
             expérimentations au Lescot.
@@ -144,25 +144,25 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
     </div>
     <div class="mb-3">
         <h5>Fonctionnement</h5>
-        <p class="text-light">Fournissez un <strong>fichier audio</strong> (ou une voix produite en amont
+        <p class="text-body-emphasis">Fournissez un <strong>fichier audio</strong> (ou une voix produite en amont
         par le Synthesizer, via le Studio) ou un <strong>texte à dire</strong>, et un <strong>avatar</strong> :
         le modèle d'animation synchronise ses lèvres sur la voix. L'enchaînement texte → voix → avatar
         se compose aussi dans le <strong>Studio</strong>.</p>
     </div>
     <div class="mb-3">
         <h5>Avatars</h5>
-        <ul class="text-light">
+        <ul class="text-body-emphasis">
             <li><strong>Photo</strong> : importez un portrait (JPG, PNG, WebP), ou prenez un avatar de la médiathèque</li>
             <li><strong>Avatar 3D</strong> : un fichier <code>.glb</code> riggé (visage ARKit), le même type d'avatar que celui de l'assistant — onglet <strong>Objet 3D</strong> de la card, ou médiathèque « Avatars 3D »</li>
         </ul>
     </div>
     <div class="mb-3">
         <h5>Modèles d'animation</h5>
-        <ul class="text-light">
+        <ul class="text-body-emphasis">
             <li><strong>MuseTalk v1.5</strong> (Tencent Music, MIT) anime une <strong>photo</strong> : rendu photoréaliste, plus long. Amélioration optionnelle par <strong>CodeFormer</strong> (restauration faciale).</li>
             <li><strong>TalkingHead</strong> (MIT) anime un <strong>avatar 3D</strong> : rendu rapide, non photoréaliste, visèmes français.</li>
         </ul>
-        <p class="text-light">Le réglage <strong>Modèle d'animation</strong> vaut « Auto » par défaut : le modèle se choisit
+        <p class="text-body-emphasis">Le réglage <strong>Modèle d'animation</strong> vaut « Auto » par défaut : le modèle se choisit
         d'après l'avatar fourni. Un modèle nommé doit accepter cet avatar, sinon le lancement le dit.</p>
     </div>
 </div>
@@ -176,7 +176,7 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
     <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
     <div class="mb-3">
         <h5>Générer un avatar parlant</h5>
-        <ol class="text-light">
+        <ol class="text-body-emphasis">
             <li>Glissez ou sélectionnez un fichier audio (WAV, MP3…) — la voix de l'avatar</li>
             <li>Onglet <strong>Image de travail</strong> : importez une photo, ou choisissez un avatar dans la médiathèque (onglet Avatar) — ou onglet <strong>Objet 3D</strong> : un avatar 3D <code>.glb</code></li>
             <li>Cliquez sur <strong>Ajouter à la file d’attente</strong>, réglez l’élément si besoin (⚙ ou volet de droite), puis lancez-le par <strong>▶</strong></li>
@@ -184,7 +184,7 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
     </div>
     <div class="mb-3">
         <h5>Paramètres d'animation</h5>
-        <ul class="text-light">
+        <ul class="text-body-emphasis">
             <li><strong>Modèle d'animation</strong> : « Auto » (d'après l'avatar), ou le modèle de votre choix</li>
             <li><strong>Amélioration CodeFormer</strong> (photo animée) : restauration faciale — meilleure netteté, légèrement plus lent</li>
             <li><strong>Décalage visage</strong> (photo animée) : si la zone de la bouche est mal détectée, ajustez de ±1 à ±5</li>
@@ -251,10 +251,10 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
 <!-- Batch Settings Modal (brique WamaParams context='batch' -> batch_update, miroir reader) -->
 <div class="modal fade" id="batchSettingsModal" tabindex="-1">
     <div class="modal-dialog">
-        <div class="modal-content bg-dark text-light border-secondary">
+        <div class="modal-content bg-body text-body-emphasis border-secondary">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title"><i class="fas fa-cog me-2"></i>Paramètres du lot</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body py-2">
                 <input type="hidden" id="batchSettingsBatchId">

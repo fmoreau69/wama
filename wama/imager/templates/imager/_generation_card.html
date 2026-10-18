@@ -13,7 +13,7 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
   .duplicate-btn[data-duplicate-url] ;
   .delete-btn[data-delete-url] ; .wama-eta ; .wama-progress-fill.
 {% endcomment %}
-<div class="imager-card synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
+<div class="imager-card synthesis-card card bg-body border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
      data-id="{{ elem.id }}"
      data-status="{{ elem.shown_state|default:elem.status }}"
      data-element-status="{{ elem.status }}"

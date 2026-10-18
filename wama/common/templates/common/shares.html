@@ -34,11 +34,11 @@ sans lot), celle du partage lui-même. Données : `sharing.shares_overview`.
     un droit prend effet tout de suite ; un traitement déjà lancé va à son terme.</p>
 
   {% if incoming %}
-  <h2 class="h6 text-light mt-2">Demandes qui vous attendent</h2>
+  <h2 class="h6 text-body-emphasis mt-2">Demandes qui vous attendent</h2>
   {% for r in incoming %}
   <div class="share-row d-flex justify-content-between align-items-center gap-2" data-incoming="{{ r.id }}">
     <span><b>{{ r.who }}</b> demande : {{ r.level }} — « {{ r.label }} » ({{ r.app }})</span>
-    <a class="btn btn-sm btn-outline-light" href="/common/requests/{{ r.id }}/">Répondre</a>
+    <a class="btn btn-sm btn-outline-emphasis" href="/common/requests/{{ r.id }}/">Répondre</a>
   </div>
   {% endfor %}
   {% endif %}
@@ -55,7 +55,7 @@ sans lot), celle du partage lui-même. Données : `sharing.shares_overview`.
       <div class="share-row" data-shared-entry="{{ s.surface }}:{{ s.nature }}:{{ s.pk }}">
         <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
           <div>
-            <span class="share-label">{{ s.label }}</span> <span class="text-white-50 small">({{ s.app }})</span>
+            <span class="share-label">{{ s.label }}</span> <span class="text-body-secondary small">({{ s.app }})</span>
             <div class="share-meta mt-1">{% if s.scope %}<span class="share-pill">{{ s.scope }} · 👁 Lecture seule{% if s.scope_since %} · depuis le {{ s.scope_since|date:'d/m/Y' }}{% endif %}</span>{% endif %}
               {% for p in s.persons %}<span class="share-pill" data-person="{{ p.grant }}" title="Depuis le {{ p.since|date:'d/m/Y H:i' }}">{{ p.mode.icon }} {{ p.name }} · {{ p.mode.label }} · depuis le {{ p.since|date:'d/m/Y' }}
                 <button type="button" class="btn btn-link btn-sm p-0 ms-1" style="color:var(--wama-danger-softer);font-size:.72rem;"
@@ -63,7 +63,7 @@ sans lot), celle du partage lui-même. Données : `sharing.shares_overview`.
             </div>
           </div>
           <div class="d-flex gap-2">
-            <a class="btn btn-sm btn-outline-light" href="{{ s.url }}">Ouvrir l'app</a>
+            <a class="btn btn-sm btn-outline-emphasis" href="{{ s.url }}">Ouvrir l'app</a>
             <button type="button" class="btn btn-sm btn-outline-danger" data-unshare
                     data-surface="{{ s.surface }}" data-nature="{{ s.nature }}" data-pk="{{ s.pk }}">Retirer le partage</button>
           </div>
@@ -75,7 +75,7 @@ sans lot), celle du partage lui-même. Données : `sharing.shares_overview`.
     </div>
     <div class="tab-pane fade" id="sharesReceived" role="tabpanel">
       {% if outgoing %}
-      <h2 class="h6 text-light">Vos demandes en attente</h2>
+      <h2 class="h6 text-body-emphasis">Vos demandes en attente</h2>
       {% for r in outgoing %}
       <div class="share-row small">{{ r.level }} — « {{ r.label }} » ({{ r.app }}) · <a href="/common/requests/{{ r.id }}/">voir</a></div>
       {% endfor %}
@@ -83,10 +83,10 @@ sans lot), celle du partage lui-même. Données : `sharing.shares_overview`.
       {% for s in received %}
       <div class="share-row d-flex justify-content-between align-items-center gap-2 flex-wrap">
         <div>
-          <span class="share-label">{{ s.label }}</span> <span class="text-white-50 small">({{ s.app }})</span>
+          <span class="share-label">{{ s.label }}</span> <span class="text-body-secondary small">({{ s.app }})</span>
           <div class="share-meta mt-1">de <b>{{ s.owner }}</b> · <span class="share-pill">{{ s.mode.icon }} {{ s.mode.label }}</span></div>
         </div>
-        <a class="btn btn-sm btn-outline-light" href="{{ s.url }}">Ouvrir l'app</a>
+        <a class="btn btn-sm btn-outline-emphasis" href="{{ s.url }}">Ouvrir l'app</a>
       </div>
       {% empty %}
       <p class="shares-empty">Personne ne vous partage rien pour le moment.</p>
