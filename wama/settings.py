@@ -71,8 +71,8 @@ MODEL_PATHS = {
         # cartes aberrantes (banc consigné dans CAM_ANALYZER_CHANGELOG).
         'zoedepth': AI_MODELS_DIR / "models" / "vision" / "zoedepth",
         # Reconstruction image → objet 3D (TripoSR, MIT — ROADMAP §17ter trou 4, 2026-09-13) :
-        # `config.yaml` + `model.ckpt` tirés de `stabilityai/TripoSR` par `hf_hub_download(
-        # cache_dir=…)` au premier chargement. Retenu vs TRELLIS / Hunyuan3D-2 / SF3D parce que
+        # `config.yaml` + `model.ckpt` de `stabilityai/TripoSR`, DÉCLARÉS et installés par le pilote
+        # `files` (2026-10-18, `TRIPOSR_FILES`). Retenu vs TRELLIS / Hunyuan3D-2 / SF3D parce que
         # SEUL sans extension CUDA à compiler (marching cubes rabattu sur PyMCubes, wheel pip).
         'triposr': AI_MODELS_DIR / "models" / "vision" / "triposr",
         # DeepFace (face_analyzer) — poids `.h5` téléchargés depuis les GitHub Releases de
@@ -98,8 +98,10 @@ MODEL_PATHS = {
         'object_detection': AI_MODELS_DIR / "models" / "vision" / "object-detection",
         # LPIPS (distance perceptuelle, 2026-10-14) — un INSTRUMENT de mesure du banc
         # d'agrandissement (`model_manager/services/bench.py`), pas un modèle du catalogue : le
-        # paquet `lpips` embarque ses couches linéaires, l'AlexNet de torchvision est tiré ICI par
-        # `load_state_dict_from_url(model_dir=…)` — sinon `torch.hub` le rangeait dans le $HOME.
+        # paquet `lpips` embarque ses couches linéaires, l'AlexNet de torchvision est INSTALLÉ ICI
+        # par le model manager (ligne `custom:lpips-alexnet`, tâche `quality-metric`, 2026-10-18) —
+        # il était tiré par `torch.hub` au premier banc. ⚠ « pas un modèle du catalogue » ci-dessus
+        # était vrai jusque-là : il y a désormais sa ligne, que la route installe et désinstalle.
         'lpips': AI_MODELS_DIR / "models" / "vision" / "lpips",
     },
     # Upscaling/Enhancement models (ONNX)

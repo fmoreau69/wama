@@ -740,7 +740,7 @@ class DeclaredFilesTest(TestCase):
 
     def test_install_from_spec_hands_the_token_to_the_files_driver(self):
         with patch.object(mi, 'pull_declared_files', return_value={'ok': True}) as files, \
-                patch.object(mi, 'record_provenance', side_effect=lambda s, r: r):
+                patch.object(mi, 'record_provenance', side_effect=lambda s, r, **kw: r):
             mi.install_from_spec(self._spec(), token='hf_secret')
         self.assertEqual('hf_secret', files.call_args.kwargs['token'])
 

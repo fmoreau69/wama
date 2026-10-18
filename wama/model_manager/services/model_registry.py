@@ -182,6 +182,34 @@ def _check_hf_model_downloaded(cache_dir: Path, hf_id: str, *, weights_required:
 # existants (`from .model_registry import ModelType, ModelSource`) restent valides.
 from ..models import ModelType, ModelSource  # noqa: F401,E402
 
+#: YOLOPv2 (CAIC-AD, MIT) — consommé par le Lab (cam_analyzer), DÉCLARÉ ici (`_discover_road_models`)
+#: : clé d'une version GitHub (`github:{dépôt}:{tag}`, la forme du balayage des versions), fichier
+#: du pilote `files`, origine la version officielle. Taille et empreinte MESURÉES deux fois le
+#: 2026-10-10 (téléchargement neuf et fichier en place) et revérifiées le 2026-10-16.
+YOLOPV2_KEY = 'github:CAIC-AD/YOLOPv2:V0.0.1'
+YOLOPV2_FILES = [
+    {'path': 'yolopv2.pt', 'size': 156380200,
+     'sha256': 'f2a8c8374203ae3e67ff9c184e931f763957de92a993b23269e4e721627f1f8c',
+     'origin': {'source': 'github', 'release': 'CAIC-AD/YOLOPv2:V0.0.1', 'file': 'yolopv2.pt'}},
+]
+
+
+def yolopv2_folder() -> Path:
+    """Le dossier de YOLOPv2 — celui que le profil du cam_analyzer lit depuis toujours
+    (`vision/yolo/segment`)."""
+    from django.conf import settings
+    return Path(settings.MODEL_PATHS['vision']['yolo']) / 'segment'
+
+
+def _declared_here() -> set:
+    """Les fichiers que les lignes DÉCLARÉES par ce registre portent (chemins résolus) : un
+    balayage de dossier ne les reprend pas sous une autre ligne (YOLOPv2 n'est pas un poids
+    YOLO de l'anonymizer)."""
+    try:
+        return {(yolopv2_folder() / f['path']).resolve() for f in YOLOPV2_FILES}
+    except Exception:
+        return set()
+
 
 #: Mode d'app (raccourci imager) -> NOTRE tache canonique. `i2i` n'y figure pas VOLONTAIREMENT :
 #: accepter une image de reference (SD img2img) n'est pas le metier d'un modele d'EDITION, et la
@@ -325,6 +353,8 @@ class ModelRegistry:
         self._discover_composer_models()
         self._discover_reader_models()
         self._discover_depth_models()
+        self._discover_road_models()
+        self._discover_quality_metric_models()
         self._discover_midi_extraction_models()
         self._discover_image_to_3d_models()
         self._discover_face_analyzer_models()
@@ -1001,8 +1031,11 @@ class ModelRegistry:
             )
 
             yolo_models = list_available_yolo_models()
+            declared_here = _declared_here()
             for model_type, models in yolo_models.items():
                 for model in models:
+                    if model.get('path') and Path(model['path']).resolve() in declared_here:
+                        continue      # déclaré par sa propre ligne (YOLOPv2, 2026-10-16)
                     model_name = model['name']
                     specialty = model.get('specialty', '')
                     desc = f"YOLO {model_type}"
@@ -1369,6 +1402,71 @@ class ModelRegistry:
         except Exception as e:
             logger.debug(f"Could not discover depth models: {e}")
 
+    def _discover_road_models(self):
+        """Segmentation de la ROUTE (task=road-segmentation, 2026-10-16) — YOLOPv2, consommé par
+        le Lab (cam_analyzer : zone roulable et voies). Patron `_discover_depth_models` : déclaré
+        ICI, sans importer l'app du Lab (inversion de couche). Fichier DÉCLARÉ, pilote `files`,
+        origine la version GitHub officielle : la vue du cam_analyzer DEMANDE l'installation
+        (`request_install`) au lieu de télécharger elle-même (`road_model_downloader`, retiré)."""
+        try:
+            from wama.model_manager.services.model_installer import declared_files_present
+            root = yolopv2_folder()
+            self._models[YOLOPV2_KEY] = ModelInfo(
+                id='CAIC-AD/YOLOPv2:V0.0.1',
+                name='YOLOPv2',
+                model_type=ModelType.VISION,
+                source=ModelSource.GITHUB,
+                description="YOLOPv2 (CAIC-AD, MIT) : perception de conduite en une passe — zone "
+                            "roulable et lignes de voie (et détection) d'une caméra embarquée. "
+                            "TorchScript multi-tête : PAS un modèle Ultralytics.",
+                description_short="Zone roulable + voies (caméra embarquée)",
+                vram_gb=1.0,
+                format='pt',
+                preferred_format='pt',
+                is_downloaded=declared_files_present(root, YOLOPV2_FILES),
+                extra_info={'path': str(root / YOLOPV2_FILES[0]['path']),
+                            'install_dir': str(root), 'declared_files': YOLOPV2_FILES,
+                            'size_bytes': YOLOPV2_FILES[0]['size']},
+                # Pas de `composition.runtime` : aucun backend commun ne le charge — le Lab le lit
+                # par son segmenteur (`cam_analyzer.utils.yolopv2_segmenter`, `torch.jit`).
+                capabilities={'task': 'road-segmentation', 'modalities': ['image', 'video'],
+                              'inputs_required': ['work_file']},
+            )
+        except Exception as e:
+            self.discovery_errors.append(f'road-segmentation: {e}')
+
+    def _discover_quality_metric_models(self):
+        """Métriques de QUALITÉ (task=quality-metric, 2026-10-16) — LPIPS (AlexNet) du banc
+        d'agrandissement. Une ligne pour que la route installe, vérifie et désinstalle la dorsale
+        que `torch.hub` tirait au premier banc ; aucune sélection d'app ne tire cette tâche. La
+        déclaration vit à côté de l'instrument (`bench.LPIPS_FILES`)."""
+        try:
+            from wama.model_manager.services.bench import LPIPS_FILES, LPIPS_KEY, lpips_folder
+            from wama.model_manager.services.model_installer import declared_files_present
+            root = lpips_folder()
+            self._models[LPIPS_KEY] = ModelInfo(
+                id='lpips-alexnet',
+                name='LPIPS (AlexNet)',
+                model_type=ModelType.VISION,
+                source=ModelSource.CUSTOM,
+                description="LPIPS : distance perceptuelle entre deux images (plus bas = plus "
+                            "proche), sur la dorsale AlexNet de torchvision. Instrument de MESURE du "
+                            "banc d'agrandissement (`WAMA_QUALITE §4`), il ne produit rien.",
+                description_short="Distance perceptuelle (banc d'agrandissement)",
+                vram_gb=0.5,
+                format='pth',
+                preferred_format='pth',
+                is_downloaded=declared_files_present(root, LPIPS_FILES),
+                extra_info={'path': str(root / LPIPS_FILES[0]['path']),
+                            'install_dir': str(root), 'declared_files': LPIPS_FILES,
+                            'size_bytes': LPIPS_FILES[0]['size']},
+                # Pas de `composition.runtime` : le banc le charge lui-même (`lpips_metric`).
+                capabilities={'task': 'quality-metric', 'modalities': ['image'],
+                              'inputs_required': ['work_file']},
+            )
+        except Exception as e:
+            self.discovery_errors.append(f'quality-metric: {e}')
+
     def _discover_midi_extraction_models(self):
         """Transcription audio → MIDI multi-instrument (task=audio-to-midi, 2026-10-16) — la
         « Partition complète » du composer, tirée par tâche par le sélecteur commun.
@@ -1425,13 +1523,9 @@ class ModelRegistry:
         candidats ; en ajouter un = une ligne ModelInfo ici + un backend qui déclare son moteur.
         """
         try:
-            from django.conf import settings
-            from pathlib import Path
-            cfg = (settings.MODEL_PATHS.get('vision', {}) or {}).get('triposr')
-            if not cfg:
-                return
-            root = Path(cfg)
-            cached = root.exists() and any(root.rglob('model.ckpt'))
+            from wama.common.backends.image_to_3d_backend import MODEL_DIR, TRIPOSR_FILES
+            from wama.model_manager.services.model_installer import declared_files_present
+            root = MODEL_DIR
             self._models['huggingface:triposr'] = ModelInfo(
                 id='huggingface:triposr',
                 name='TripoSR',
@@ -1448,14 +1542,18 @@ class ModelRegistry:
                              'components': [{'repo': 'https://github.com/VAST-AI-Research/TripoSR',
                                              'role': 'code', 'pin': '107cefdc'}]},
                 vram_gb=6.0,
-                is_downloaded=cached,
+                # Fichiers DÉCLARÉS (2026-10-16) : installables et désinstallables par le pilote
+                # `files` — le backend les tirait lui-même au premier chargement.
+                is_downloaded=declared_files_present(root, TRIPOSR_FILES),
+                extra_info={'install_dir': str(root), 'declared_files': TRIPOSR_FILES,
+                            'size_bytes': sum(f['size'] for f in TRIPOSR_FILES)},
                 capabilities={'task': 'image-to-3d', 'modalities': ['image'],
                               'inputs_required': ['work_file'],
                               # Déclaré en MÉTADONNÉE, pas en mémoire humaine (§17ter) :
                               'reconstruction': 'plausible'},
             )
         except Exception as e:
-            logger.debug(f"Could not discover image-to-3d models: {e}")
+            self.discovery_errors.append(f'image-to-3d: {e}')
 
     def _discover_transcriber_models(self):
         """Discover Transcriber app models (Whisper, VibeVoice, Qwen3-ASR)."""

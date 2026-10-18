@@ -11,6 +11,7 @@ from typing import Optional
 import cv2
 import torch
 from celery import shared_task
+from celery.exceptions import Retry
 from django.conf import settings
 from django.core.cache import cache
 from django.db import close_old_connections
@@ -668,6 +669,32 @@ def detect_temporal_segments(session):
 # Main Celery Task
 # =============================================================================
 
+def _await_road_model(task, session, profile) -> None:
+    """Le modèle route du profil est YOLOPv2 et il manque : la ROUTE du model manager l'installe
+    (`model_readiness.ensure_installed`, ligne `YOLOPV2_KEY`), la session le dit et la tâche est
+    RE-LIVRÉE quand l'installation a pu avancer — elle ne tourne plus « sans les voies » sur un
+    fichier absent. Un autre chemin de profil (un modèle route choisi à la main) n'est pas touché."""
+    from wama.model_manager.services.model_registry import (
+        YOLOPV2_FILES, YOLOPV2_KEY, yolopv2_folder,
+    )
+    raw = getattr(profile, 'road_model_path', '') or ''
+    if not raw:
+        return
+    path = raw if os.path.isabs(raw) else os.path.join(settings.BASE_DIR, raw)
+    declared = str(yolopv2_folder() / YOLOPV2_FILES[0]['path'])
+    if os.path.normpath(path) != os.path.normpath(declared) or os.path.exists(path):
+        return
+    from wama.common.utils.model_readiness import ensure_installed
+    from wama.common.utils.task_skeleton import ServiceNotReady
+    try:
+        ensure_installed(YOLOPV2_KEY, user=session.user, via='cam_analyzer',
+                         console=lambda m: _console(session.user_id, m),
+                         redelivered=bool(task.request.retries))
+    except ServiceNotReady as wait:
+        set_session_progress(str(session.pk), 1, str(wait))
+        raise task.retry(countdown=wait.countdown, max_retries=wait.max_attempts)
+
+
 @shared_task(bind=True)
 def process_session_task(self, session_id: str, force_rerun: bool = False,
                          chain_sam3: bool = True, positions: list = None,
@@ -731,6 +758,10 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
         session.status = AnalysisSession.Status.PROCESSING
         session.started_at = timezone.now()
         session.save(update_fields=['status', 'started_at'])
+
+        # Le modèle route du profil (YOLOPv2) absent : la ROUTE l'installe et l'analyse ATTEND,
+        # avant de toucher quoi que ce soit (2026-10-16, décision de Fabien).
+        _await_road_model(self, session, profile)
 
         # Cleanup derived events from a previous run (LaneEvent / ConflictEvent).
         # DetectionFrames are deleted per-camera further down. We do this at the
@@ -1625,6 +1656,8 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
 
         return {'processed': session_id}
 
+    except Retry:
+        raise           # une ATTENTE (installation de YOLOPv2) n'est pas un échec de la session
     except InterruptedError as e:
         if model:
             _unload_model(model)

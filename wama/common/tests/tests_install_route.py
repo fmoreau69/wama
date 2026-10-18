@@ -16,7 +16,11 @@ The scan reads the CODE (AST, defined calls), not names in strings. Three declar
     are neither models nor libraries — each with its reason ;
   * `DRIFT_BUDGET` : the drifts that existed when the rule was written, per file. It can ONLY GO
     DOWN : a new site fails, and so does a site that has been ported without lowering the budget
-    (a margin is a permission to add one).
+    (a margin is a permission to add one). EMPTY since 2026-10-16 (all ported).
+
+A model NEEDED at task time is not a drift (Fabien, 2026-10-16) — an INCOMPLETE install beside the
+route is : the task asks the route (`model_readiness.ensure_installed`), the user is told, the task
+waits ; the load-time levers of `hf_weights` remain for a row the route cannot install.
 """
 import ast
 from pathlib import Path
@@ -43,13 +47,11 @@ DATA = {
     'wama/transcriber/management/commands/asr_eval_corpus.py': "evaluation corpus (dataset)",
     'wama/common/tts/voice_refs.py': "reference voices (audio files of the media library)",
 }
-#: Measured on 2026-10-16. Port each one to the route, then LOWER its count (0 = remove the line).
-DRIFT_BUDGET = {
-    'wama_lab/cam_analyzer/utils/road_model_downloader.py': 1,   # YOLOPv2 : a `github` spec, fetched beside `install_from_spec`
-    'wama/model_manager/services/bench.py': 1,                   # LPIPS's AlexNet through `torch.hub`
-    'wama/common/backends/image_to_3d_backend.py': 2,            # TripoSR at first load, beside `poids_locaux`
-    'wama/model_manager/services/memory_manager.py': 1,          # single-file diffusion weights at load
-}
+#: Measured on 2026-10-16 at 5 sites in 4 files, ALL ported the same week (Fabien : « on aligne
+#: tout ») : YOLOPv2 (a declared row the cam_analyzer asks the route for), LPIPS's AlexNet (a
+#: `quality-metric` row the bench installs and waits for), TripoSR (declared files), the dead
+#: single-file diffusion loader (removed, REMOVAL_LEDGER R148). EMPTY : any entry is a new drift.
+DRIFT_BUDGET = {}
 
 
 def _called_name(call: ast.Call) -> str:

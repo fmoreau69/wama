@@ -143,3 +143,53 @@ class LExecuteurPasseLesFichiersDeLAmontTest(TestCase):
         _run_app_function(spec, {'user_id': 7}, lambda **k: None, 10,
                           inputs={'image': 'users/7/x.png'}, console=said.append)
         self.assertEqual([], said)
+
+
+class TripoSRIsInstalledByTheRouteTest(TestCase):
+    """2026-10-18 : TripoSR's weights were pulled by `hf_hub_download` at first load, beside the
+    installer. They are DECLARED (`TRIPOSR_FILES`), installed and removed by the `files` driver ;
+    the backend only reads them, and the studio task waits for the route's installation."""
+
+    def test_the_declared_files_pass_the_lock_of_the_files_driver(self):
+        from wama.common.backends.image_to_3d_backend import MODEL_DIR, TRIPOSR_FILES
+        from wama.model_manager.services.model_installer import declared_files_error
+        self.assertIsNone(declared_files_error(
+            {'kind': 'files', 'files': TRIPOSR_FILES, 'target_dir': str(MODEL_DIR)}))
+        self.assertEqual({'config.yaml', 'model.ckpt'}, {f['path'] for f in TRIPOSR_FILES})
+
+    def test_the_catalogue_row_carries_them(self):
+        from wama.common.backends.image_to_3d_backend import TRIPOSR_FILES
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = object.__new__(ModelRegistry)
+        registry._models, registry.discovery_errors = {}, []
+        registry._discover_image_to_3d_models()
+        self.assertEqual([], registry.discovery_errors)
+        self.assertEqual(TRIPOSR_FILES, registry._models['huggingface:triposr'].extra_info['declared_files'])
+
+    def test_a_missing_file_says_to_install_it_and_downloads_nothing(self):
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        from wama.common.backends import image_to_3d_backend as m
+        # Neutralised so that a REGRESSION never downloads 1.6 GB (lived on 2026-10-18 : the
+        # counter-proof with the old loader did).
+        with mock.patch.object(m, 'MODEL_DIR', Path(tempfile.mkdtemp())), \
+                mock.patch('huggingface_hub.hf_hub_download') as hub:
+            with self.assertRaisesMessage(RuntimeError, 'pull_model huggingface:triposr'):
+                m.TripoSRBackend()._weights_dir()
+        hub.assert_not_called()
+
+    def test_the_studio_task_waits_for_the_route_through_a_redelivery(self):
+        from unittest import mock
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        from wama.studio import gpu_tasks
+        task = mock.MagicMock()
+        task.request.retries = 0
+        task.retry.side_effect = RuntimeError('re-delivered')
+        with mock.patch('wama.common.utils.media_paths.resolve_under_media_root',
+                        return_value=('/x.png', 'x.png')), \
+                mock.patch('wama.common.utils.model_readiness.ensure_installed',
+                           side_effect=ServiceNotReady('installing', countdown=30, max_attempts=720)):
+            with self.assertRaisesMessage(RuntimeError, 're-delivered'):
+                gpu_tasks.image_to_3d_task.run.__func__(task, 'x.png', 7)
+        self.assertEqual({'countdown': 30, 'max_retries': 720}, task.retry.call_args.kwargs)

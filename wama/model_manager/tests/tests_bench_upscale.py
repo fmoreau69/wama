@@ -106,3 +106,40 @@ class UpscaleBenchTest(TestCase):
         whole = ResultEvaluation.objects.get().reference_sha256
         self._run(record=True, limit=1)
         self.assertNotEqual(whole, ResultEvaluation.objects.get().reference_sha256)
+
+
+class LpipsIsInstalledByTheRouteTest(TestCase):
+    """2026-10-18 : LPIPS's AlexNet was pulled by `torch.hub` at the first bench, beside the
+    installer. It has a catalogue row (`quality-metric`) the route installs ; the bench installs it
+    and WAITS (a command), then loads the installed file."""
+
+    def test_the_declared_file_passes_the_lock_of_the_files_driver(self):
+        from wama.model_manager.services.bench import LPIPS_FILES, lpips_folder
+        from wama.model_manager.services.model_installer import declared_files_error
+        self.assertIsNone(declared_files_error(
+            {'kind': 'files', 'files': LPIPS_FILES, 'target_dir': str(lpips_folder())}))
+        self.assertEqual('pytorch_download', LPIPS_FILES[0]['origin']['source'])
+
+    def test_the_row_is_a_quality_metric_no_app_selection_draws(self):
+        from wama.model_manager.services.bench import LPIPS_KEY
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = object.__new__(ModelRegistry)
+        registry._models, registry.discovery_errors = {}, []
+        registry._discover_quality_metric_models()
+        self.assertEqual([], registry.discovery_errors)
+        self.assertEqual('quality-metric', registry._models[LPIPS_KEY].capabilities['task'])
+
+    def test_a_missing_backbone_is_installed_by_the_route_and_awaited(self):
+        from pathlib import Path
+        from wama.model_manager.services import bench
+        folder = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, folder, True)
+        bench._LPIPS.clear()
+        with mock.patch.object(bench, 'lpips_folder', return_value=folder), \
+                mock.patch('wama.common.utils.model_readiness.install_and_wait',
+                           return_value=False) as install, \
+                mock.patch('torch.hub.load_state_dict_from_url') as hub:
+            with self.assertRaisesMessage(RuntimeError, 'pull_model custom:lpips-alexnet'):
+                bench.lpips_metric('cpu')
+        self.assertEqual(bench.LPIPS_KEY, install.call_args.args[0])
+        hub.assert_not_called()

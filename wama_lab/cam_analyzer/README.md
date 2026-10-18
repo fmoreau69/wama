@@ -90,7 +90,7 @@ de la route (détection d'objets, segmentation de voie, proximité, conflits aux
 | `rosbag_extractor.py`, `rosbag_metadata_extractor.py` | Extraction vidéos / métadonnées rosbags. |
 | `rtmaps_parser.py`, `quadrature_video.py` | Parsing RTMaps + vidéo quadrature multi-caméras. |
 | `yolopv2_segmenter.py` | YOLOPv2 : zone roulable + lignes de voie. |
-| `road_segmenter.py`, `road_model_downloader.py` | Segmentation route (BDD100K-seg) + téléchargement modèle. |
+| `road_segmenter.py` | Segmentation route (ultralytics). YOLOPv2 s'INSTALLE par le model manager (ligne `github:CAIC-AD/YOLOPv2:V0.0.1`, 2026-10-18) — l'ex-`road_model_downloader.py` est retiré (`REMOVAL_LEDGER R149`). |
 | `sam3_road_analyzer.py` | Marquages au sol (SAM3 prompté ; cadence `profile.sam3_fps`, l'affichage **interpole** entre keyframes). |
 | `lane_partition.py` | Attribution de voie par franchissements de lignes ; voie navette. |
 | `intersection_analyzer.py` | Moteur intersections : fenêtres GPS, phase d'arrêt, classification d'insertion, t0/t1/t2 (t2 raffiné par ratio d'aspect), densité. |
@@ -140,7 +140,7 @@ enchaîné automatiquement en fin de complétion et de mode Live.
 - **Export & analytics** : `<id>/export/{detections,json,segments,conflicts}/`, `<id>/segments/`,
   `<id>/analytics/`.
 - **Profils** : `api/profiles/`, `profiles/save/`, `profiles/<pid>/delete/`.
-- **Route** : `api/road-model/download/`.
+- **Route** : `api/road-model/download/` (demande l'installation de YOLOPv2 au model manager).
 - **RTMaps** : `<id>/rtmaps/upload/`, `.../upload-avi/`, `.../status/`.
 - **Console** : `console/`.
 

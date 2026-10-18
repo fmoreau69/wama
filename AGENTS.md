@@ -642,7 +642,13 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 | une **librairie** | manifeste `library` → `write_back` → `manage.py install_library <clé> --apply` (allowlist, pin exact, `constraints.pip` / `no_deps`, journal, patches rejoués) | `pip install` à la main, un `pip` en sous-processus, `pip_install_packages` hors de l'installeur |
 | un **modèle** | une ligne de catalogue → `install_from_spec` (bouton, `pull_model`, assistant) et ses pilotes `hf` / `github` / `files` / `yolo` / `ollama` | un téléchargement écrit dans un backend, une app, une commande |
 | un **fichier hors du Hub** (point de contrôle, poids publié par un auteur, miroir) | DÉCLARÉ `{path, size, sha256, origin}` sur la ligne (`extra_info['declared_files']` + `install_dir`), origine FIGÉE : Hub à un commit, version GitHub, ou source « poids » d'`external_sources` — pilote `files`, qui installe, vérifie et désinstalle | une URL en dur, un « tiré au premier usage » |
-| le **chargement** d'un modèle installé | les leviers A–D de `common/utils/hf_weights.py` (`cache_dir=`, `poids_locaux`, variable de la lib posée dans `settings.py`, `hf_cache_scope` déclaré) | — |
+| un modèle **absent au moment d'une tâche** | `model_readiness.ensure_installed` : la route l'installe (`request_install`, la même que le bouton), l'utilisateur est PRÉVENU, la tâche ATTEND sans tenir son worker (`ServiceNotReady`, re-livraison) puis reprend ; un refus ou un échec fait échouer la tâche EN LE DISANT. Appelé par le squelette (modèle de la card), par une glu qui tire un autre modèle, et hors squelette par une re-livraison Celery (studio, cam_analyzer) ; `install_and_wait` pour une commande | un téléchargement « au premier usage » écrit dans le backend |
+| le **chargement** d'un modèle installé | les leviers A–D de `common/utils/hf_weights.py` (`cache_dir=`, `poids_locaux`, variable de la lib posée dans `settings.py`, `hf_cache_scope` déclaré) — seuls admis à télécharger au chargement, pour une ligne que la route ne sait pas installer (aucun emplacement déclaré : l'annonce `warn_if_weights_missing` le dit) | — |
+
+> **Le besoin au moment d'une tâche n'est pas une dérive** (Fabien, 2026-10-16) : *« La dérive
+> arrive si l'installation n'est pas complète. Mais il faut bien prévenir l'utilisateur. La tâche
+> attendra jusqu'à ce que l'installation soit complètement faite, proprement et alignée sur la
+> route. »* — d'où la ligne ci-dessus : installer par la route, prévenir, attendre.
 
 - **Un manque de la route se comble DANS la route**, jamais à côté. Exemple du 2026-10-16 : le
   pilote `files` n'envoyait pas le jeton d'un dépôt du Hub à accès contrôlé — le jeton passe
@@ -655,9 +661,11 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
   téléchargement de poids et tout `pip` hors de la route, dans `wama/`, `wama_lab/`, `wama_data/`.
   Trois listes DÉCLARÉES : `ROUTE`, `DATA` (corpus, tables de bancs, voix de référence — ni
   modèle ni librairie, chacune avec sa raison) et `DRIFT_BUDGET`, les dérives qui existaient le
-  jour de la règle, qui **ne peut que descendre** : 5 sites dans 4 fichiers (YOLOPv2 du
-  cam_analyzer, l'AlexNet de LPIPS du banc, TripoSR au premier chargement, les poids « fichier
-  unique » de `memory_manager`). Porter l'un d'eux = baisser son compte dans le même commit.
+  jour de la règle, qui **ne peut que descendre** — **VIDE depuis le 2026-10-18** : les 5 sites
+  relevés sont portés (YOLOPv2 du cam_analyzer et l'AlexNet de LPIPS du banc : des lignes
+  DÉCLARÉES que la route installe ; TripoSR : fichiers déclarés ; le chargement « fichier
+  unique » de `memory_manager`, mort, retiré — `REMOVAL_LEDGER R148/R149`). Toute entrée y est
+  désormais une dérive nouvelle.
 
 ## ⚠️ RÈGLE OBLIGATOIRE : AJOUT D'UN NOUVEAU MODÈLE AI
 

@@ -1076,40 +1076,9 @@ class MemoryManager:
                 return pipeline_class.from_pretrained(model_id, **kwargs)
             raise
 
-    @staticmethod
-    def load_single_file_pipeline(pipeline_class, repo_id: str, filename: str, cache_dir: str = None, **kwargs):
-        """
-        Load a Diffusers pipeline from a single safetensors/ckpt file on HuggingFace.
-
-        Used for models that are distributed as single checkpoint files
-        (e.g., XpucT/Deliberate) rather than in diffusers multi-folder format.
-
-        Downloads the file first using hf_hub_download (with progress tracking
-        and proper caching), then loads from the local path.
-
-        Args:
-            pipeline_class: The Diffusers pipeline class (e.g., StableDiffusionPipeline)
-            repo_id: HuggingFace repo ID (e.g., 'XpucT/Deliberate')
-            filename: Weight file name (e.g., 'Deliberate_v6.safetensors')
-            cache_dir: Optional cache directory for downloaded files
-            **kwargs: Additional arguments passed to from_single_file()
-
-        Returns:
-            The loaded pipeline instance
-        """
-        from huggingface_hub import hf_hub_download
-
-        logger.info(f"[MemoryManager] Loading single-file model: {repo_id}/{filename}")
-
-        # Download to cache first (with progress bar and proper caching)
-        download_kwargs = {"repo_id": repo_id, "filename": filename}
-        if cache_dir:
-            download_kwargs["cache_dir"] = cache_dir
-        logger.info(f"[MemoryManager] Downloading {filename} from {repo_id} (cache: {cache_dir or 'default'})...")
-        local_path = hf_hub_download(**download_kwargs)
-        logger.info(f"[MemoryManager] File ready: {local_path}")
-
-        return pipeline_class.from_single_file(local_path, **kwargs)
+    # `load_single_file_pipeline` RETIRÉ le 2026-10-16 (REMOVAL_LEDGER R148) : il téléchargeait un
+    # point de contrôle « fichier unique » par `hf_hub_download` au chargement, à côté de la route
+    # d'installation — et plus aucun modèle ne le déclarait (`single_file`, Deliberate retiré).
 
     @staticmethod
     def apply_strategy_for_model(

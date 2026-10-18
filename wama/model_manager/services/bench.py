@@ -670,22 +670,42 @@ def read_image_reference(sample: str) -> dict:
 
 _LPIPS = {}
 
+#: L'instrument LPIPS au catalogue (2026-10-16) : une ligne de tâche `quality-metric`, que le
+#: model manager installe, vérifie et désinstalle comme tout modèle — la dorsale AlexNet de
+#: torchvision était tirée par `torch.hub` au premier banc, à côté de la route d'installation.
+LPIPS_KEY = 'custom:lpips-alexnet'
+LPIPS_WEIGHTS = 'alexnet-owt-7be5be79.pth'
+#: Le fichier DÉCLARÉ (pilote `files`) : la version officielle de torchvision (source déclarée
+#: `pytorch_download`), taille et empreinte MESURÉES le 2026-10-16 sur le fichier installé — son nom
+#: porte le début de cette empreinte (`7be5be79`), la convention de `torch.hub`.
+LPIPS_FILES = [
+    {'path': LPIPS_WEIGHTS, 'size': 244408911,
+     'sha256': '7be5be791159472b1fbf3c69796f7cb30dca7ad8466c2df70058c37116cdee02',
+     'origin': {'source': 'pytorch_download', 'file': f'models/{LPIPS_WEIGHTS}'}},
+]
+
+
+def lpips_folder() -> Path:
+    from django.conf import settings
+    return Path(settings.MODEL_PATHS['vision']['lpips'])
+
 
 def lpips_metric(device: str):
     """LPIPS (réseau AlexNet), chargé une fois par processus. Les couches linéaires viennent du
-    paquet ; l'AlexNet de torchvision est tiré dans `MODEL_PATHS['vision']['lpips']` — jamais
-    dans le $HOME, où `torch.hub` le rangerait de lui-même (règle AGENTS « aucune librairie ne
-    dépose ses poids dans le $HOME »)."""
+    paquet ; la dorsale AlexNet est celle que le model manager installe (`LPIPS_KEY`) — absente,
+    elle s'installe par la route et le banc ATTEND (`model_readiness.install_and_wait`, le banc
+    est une commande). Jamais dans le $HOME, où `torch.hub` la rangeait de lui-même."""
     if device not in _LPIPS:
         import lpips
         import torch
-        from django.conf import settings
-        from torchvision.models import AlexNet_Weights
-        state = torch.hub.load_state_dict_from_url(
-            AlexNet_Weights.IMAGENET1K_V1.url, model_dir=str(settings.MODEL_PATHS['vision']['lpips']),
-            # Le nom du fichier porte le début de son empreinte : un téléchargement TRONQUÉ est
-            # refusé au lieu d'être gardé (mesuré le 2026-10-14 : 241 Mo sur 244 sans proxy).
-            progress=False, check_hash=True)
+        from wama.common.utils.model_readiness import install_and_wait
+        weights = lpips_folder() / LPIPS_WEIGHTS
+        if not weights.exists():
+            install_and_wait(LPIPS_KEY, console=logger.info)
+            if not weights.exists():
+                raise RuntimeError(f"LPIPS : {weights} absent — installer « LPIPS (AlexNet) » depuis "
+                                   f"le model manager (`pull_model {LPIPS_KEY}`)")
+        state = torch.load(weights, map_location='cpu', weights_only=True)
         metric = lpips.LPIPS(net='alex', pnet_rand=True, verbose=False)
         # Le réseau de LPIPS range les couches de `alexnet.features` par TRANCHES (`slice1.0`…),
         # sous leur indice d'origine : `features.<i>.<p>` → `slice<k>.<i>.<p>`.

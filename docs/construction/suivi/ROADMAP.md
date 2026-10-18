@@ -3553,8 +3553,10 @@ approfondir en testant jusqu'où on peut aller (multi-vues, fidélité au véhic
      TRELLIS / Hunyuan3D-2 / SF3D parce que SEUL sans extension CUDA à compiler ;
    - **backend** `common/backends/image_to_3d_backend.TripoSRBackend` (contrat commun, ENGINE
      `triposr`, résolu par `backend_for_key`) sur le code VENDORISÉ (`tools/setup_triposr.sh` :
-     clone épinglé + marching cubes → PyMCubes + `rembg` paresseux) ; poids par
-     `hf_hub_download(cache_dir=…)`, jamais d'env ;
+     clone épinglé + marching cubes → PyMCubes + `rembg` paresseux) ; poids ~~par
+     `hf_hub_download(cache_dir=…)`~~ DÉCLARÉS et installés par le pilote `files` du model
+     manager depuis le 2026-10-18 (`TRIPOSR_FILES`, règle « par la route » d'`AGENTS.md`), la
+     tâche studio attendant l'installation (`model_readiness.ensure_installed`) ;
    - **fonction** `studio.image_to_3d` (`studio/function_specs.py`, ports `image` → `3d` —
      DEUX natures média depuis le 2026-09-17, cf. point 3 ci-dessus ; `OBJECT_3D` jusque-là,
      tâche GPU `studio.gpu_tasks:image_to_3d_task` routée sur la file `gpu`, pas

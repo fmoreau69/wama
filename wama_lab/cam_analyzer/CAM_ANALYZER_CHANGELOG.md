@@ -119,6 +119,12 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 
 ---
 
+## 2026-10-18
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| (ce commit — YOLOPv2 par la route d'installation) | YOLOPv2 a une ligne de catalogue DÉCLARÉE (`github:CAIC-AD/YOLOPv2:V0.0.1`, `model_registry._discover_road_models` : fichier du pilote `files`, origine la version GitHub officielle, même dossier `vision/yolo/segment/yolopv2.pt`, tâche `road-segmentation`) ; le bouton « Installer YOLOPv2 » (`download_road_model`) DEMANDE l'installation au model manager (`request_install`) et rend le même chemin ; une analyse dont le profil vise YOLOPv2 absent ATTEND son installation (`_await_road_model` en tête de `process_session_task`, re-livraison Celery — `except Retry` laissé passer), au lieu de tourner sans les voies. `utils/road_model_downloader.py` est supprimé (`REMOVAL_LEDGER R149`). Aucun calcul ne change | Règle « librairies et modèles par la route, aucune dérive » (`AGENTS.md`, Fabien, 2026-10-16) : le téléchargeur tirait le fichier à côté de la route (ni journal, ni garde d'espace, ni désinstallation) ; et YOLOPv2 n'apparaissait au catalogue que balayé comme poids YOLO de l'anonymizer, moteur `ultralytics` qui ne le charge pas (le banc l'avait relevé) — il en sort | `tests_road_model_download` (module absent, déclaration au verrou du pilote `files`, vue → route : chemin rendu, pas de re-demande si installé, refus dit ; l'analyse attend par re-livraison, un autre modèle route n'est pas touché). Le fichier en place a la MÊME empreinte que la déclaration (relevée le 2026-10-16) : rien à retélécharger. Annulation : revert |
+
 ## 2026-10-17
 
 | Commit | Quoi | Pourquoi | Validation/annulation |

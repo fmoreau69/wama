@@ -114,6 +114,15 @@ class ModelTask(models.TextChoices):
     # les confondre ferait tirer un MIDI à N parties pour le rendu. 1er modèle : MuScriptor, dont la
     # carte se déclare elle-même `audio-to-midi`.
     AUDIO_TO_MIDI = 'audio-to-midi', 'Audio → MIDI multi-instrument'
+    # Segmentation de la ROUTE (2026-10-16) : zone roulable et lignes de voie d'une caméra embarquée
+    # (YOLOPv2, cam_analyzer). Sortie de `segment` pour la raison de `layout-detection` : le select
+    # de l'anonymizer se tire par `detect,segment`, et y proposait YOLOPv2 — qui ne sait pas
+    # anonymiser et que son moteur YOLO ne charge même pas (le banc l'avait relevé).
+    ROAD_SEGMENTATION = 'road-segmentation', 'Segmentation de la route (zone roulable, voies)'
+    # Métrique de QUALITÉ (2026-10-16) : un réseau qui MESURE, ne produit rien — LPIPS (distance
+    # perceptuelle) du banc d'agrandissement (`WAMA_QUALITE §4`, mesure interne). Une tâche à part
+    # pour qu'aucune sélection d'app ne le tire, et qu'il s'installe comme tout modèle.
+    QUALITY_METRIC = 'quality-metric', 'Métrique de qualité (mesure)'
     # video
     LIP_SYNC = 'lip-sync', 'Synchronisation labiale'
 
@@ -191,6 +200,9 @@ TASK_TO_PLATFORM_TAGS = {
     # Pas de tâche de PIPELINE chez HuggingFace non plus ; la carte porte le tag `audio-to-midi`
     # (lu par `prospector.hf_task_to_wama`, comme `layout_detection`).
     ModelTask.AUDIO_TO_MIDI:      (None,                           None,        None,        None),
+    # Ni l'une ni l'autre n'a d'équivalent sur les plateformes (propres à WAMA).
+    ModelTask.ROAD_SEGMENTATION:  (None,                           None,        None,        None),
+    ModelTask.QUALITY_METRIC:     (None,                           None,        None,        None),
     ModelTask.LIP_SYNC:           (None,                           None,        None,        None),
 }
 REFERENCE_PLATFORMS = ('huggingface', 'ultralytics', 'ollama', 'roboflow')
@@ -239,6 +251,8 @@ TASK_TO_MODEL_TYPE = {
     ModelTask.TEXT_TO_AUDIO:      ModelType.MUSIC,
     ModelTask.AUDIO_TO_SCORE:     ModelType.MUSIC,
     ModelTask.AUDIO_TO_MIDI:      ModelType.MUSIC,
+    ModelTask.ROAD_SEGMENTATION:  ModelType.VISION,
+    ModelTask.QUALITY_METRIC:     ModelType.VISION,
     ModelTask.LIP_SYNC:           ModelType.LIPSYNC,
 }
 
@@ -328,6 +342,8 @@ TASK_DEFAULT_INPUTS = {
     ModelTask.TEXT_TO_AUDIO:      (('audio',),                     ('prompt',),               ()),
     ModelTask.AUDIO_TO_SCORE:     (('audio',),                     ('work_audio',),           ()),
     ModelTask.AUDIO_TO_MIDI:      (('audio',),                     ('work_audio',),           ()),
+    ModelTask.ROAD_SEGMENTATION:  (('image', 'video'),             ('work_file',),            ()),
+    ModelTask.QUALITY_METRIC:     (('image',),                     ('work_file',),            ()),
     ModelTask.LIP_SYNC:           (('image', 'audio', 'video'),    ('work_image', 'work_audio'), ()),
 }
 

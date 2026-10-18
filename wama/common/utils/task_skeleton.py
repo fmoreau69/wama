@@ -117,6 +117,9 @@ class TaskContext:
         self.snapshot = None
         self.previous_snapshot = None
         self._window = (0.0, 100.0)
+        #: La tâche revient-elle d'une attente (re-livraison) ? Posé par le squelette ; lu par une
+        #: glu qui installe un modèle secondaire (`model_readiness.ensure_installed`).
+        self.redelivered = False
 
     def enter_step(self, step, start_pct: float, end_pct: float) -> None:
         """Le squelette entre dans un process d'un pipeline : la glu continue d'annoncer 0-100
@@ -668,19 +671,21 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         # (`_launch_done`), elle ne repart pas de zéro à chaque changement de file.
         ctx.progress(0)
 
-    # ── Premier lancement : PRÉVENIR du téléchargement des poids (2026-09-08) ────────────
+    # ── Le MODÈLE de la card : installé PAR LA ROUTE avant de servir (2026-10-16) ────────────
     # `model_key` est OPTIONNEL et se déclare comme `vram_needed` : une chaîne, ou un callable
     # qui la tire de l'item (le champ varie — `model`, `ai_model`, `backend`, `tts_model` : la
-    # convention n'existe pas, on ne la devine donc pas). Placé APRÈS `progress(0)` : la tâche
-    # est réellement partie, l'attente qu'on annonce commence maintenant.
+    # convention n'existe pas, on ne la devine donc pas). L'installation elle-même se joue dans
+    # le `try` ci-dessous (`model_readiness.ensure_installed`) : son attente et son refus y ont
+    # leur traitement commun. Ici, on ne fait que lire la clé.
     resolved_key = None
     if model_key is not None:
         try:
             resolved_key = model_key(item) if callable(model_key) else str(model_key)
-            from wama.common.utils.model_readiness import warn_if_weights_missing
-            warn_if_weights_missing(resolved_key, console=ctx.console)
-        except Exception as exc:      # prévenir est un confort, jamais une condition
-            logger.debug('[%s] annonce de téléchargement impossible : %s', app_id, exc)
+        except Exception as exc:
+            logger.debug('[%s] clé de modèle illisible : %s', app_id, exc)
+    #: Une glu qui tire un modèle SECONDAIRE (celui d'un process) appelle la même brique avec ce
+    #: drapeau : une installation échouée se dit au retour d'une attente au lieu d'être relancée.
+    ctx.redelivered = bool(essais)
 
     # L'entrée d'une card créée avec une URL est téléchargée DÈS LA CRÉATION (`source_ingest`,
     # 2026-10-13) ; ici, le rattrapage : un téléchargement échoué est retenté, un téléchargement
@@ -713,6 +718,13 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
     node = process_runs.MAIN_NODE if pipeline is None else None
     process_key = app_id
     try:
+        # Le modèle de la card absent : la ROUTE l'installe (garde d'espace, journal, jeton), la
+        # card le dit, la tâche rend son worker et revient (`ServiceNotReady`) — décision de Fabien
+        # du 2026-10-16, `model_readiness`. HORS du garde de durée : un téléchargement de 20 Go
+        # n'est pas du temps de traitement.
+        from wama.common.utils.model_readiness import ensure_installed
+        ensure_installed(resolved_key, user=getattr(item, 'user', None), console=ctx.console,
+                         redelivered=ctx.redelivered)
         with _time_guard(limit_s):
             steps = _selected_steps(app_id, item, process, pipeline, processes, resolved_key,
                                     only=only)

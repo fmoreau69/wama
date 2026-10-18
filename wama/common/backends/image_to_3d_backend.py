@@ -4,9 +4,11 @@ Le CODE du modèle est vendorisé (`wama/common/backends/vendor/triposr/`, route
 vendor : `manage.py install_library triposr`, manifeste `manifests/libraries/triposr.json` —
 clone à commit épinglé + le correctif `patches/triposr_pymcubes_lazy_rembg.diff` : marching
 cubes sur PyMCubes au lieu de torchmcubes, qui exige une extension CUDA à compiler ; `rembg`
-importé paresseusement), comme MuseTalk et CodeFormer. Les POIDS (`config.yaml` + `model.ckpt`, `stabilityai/TripoSR`, MIT) sont tirés par
-`hf_hub_download(cache_dir=MODEL_DIR)` au premier chargement — jamais de mutation
-d'environnement (AGENTS.md §Ajout d'un nouveau modèle AI, ROADMAP §5b).
+importé paresseusement), comme MuseTalk et CodeFormer. Les POIDS (`config.yaml` + `model.ckpt`,
+`stabilityai/TripoSR`, MIT) sont DÉCLARÉS (`TRIPOSR_FILES`) et installés par le pilote `files` du
+model manager (2026-10-16, règle « librairies et modèles par la route ») — ils étaient tirés par
+`hf_hub_download` au premier chargement, à côté de la route. Ce backend ne télécharge plus rien :
+la tâche qui l'emploie fait installer le modèle et attend (`model_readiness.ensure_installed`).
 
 ⚠ ÉCRIT LE 2026-09-13, NON EXÉCUTÉ : le premier run GPU se fait AVEC Fabien (règle crashs
 hôte). Ce qui est attesté sans GPU : le contrat (flags, moteur, résolution par la clé de
@@ -30,8 +32,24 @@ from .base import BaseModelBackend
 logger = logging.getLogger(__name__)
 
 HF_REPO = 'stabilityai/TripoSR'
+MODEL_KEY = 'huggingface:triposr'
 MODEL_DIR = Path(settings.MODEL_PATHS.get('vision', {}).get('triposr')
                  or settings.AI_MODELS_DIR / 'models' / 'vision' / 'triposr')
+#: Le commit du dépôt du Hub dont les fichiers sont tirés (révision FIGÉE, pilote `files`).
+HF_REVISION = '5b521936b01fbe1890f6f9baed0254ab6351c04a'
+#: Les fichiers DÉCLARÉS (forme du pilote `files`). `model.ckpt` : taille et empreinte PUBLIÉES par
+#: le Hub (LFS) ; `config.yaml` (hors LFS, sans empreinte publiée) : MESURÉE le 2026-10-16 sur le
+#: fichier de ce commit, tiré dans un dossier jetable.
+TRIPOSR_FILES = [
+    {'path': 'config.yaml', 'size': 987,
+     'sha256': '74ca708ce086bf68e97709ea6b3d91f14717921c04691e84043f0eb8fcc68e62',
+     'origin': {'source': 'huggingface', 'repo': HF_REPO, 'revision': HF_REVISION,
+                'file': 'config.yaml'}},
+    {'path': 'model.ckpt', 'size': 1677246742,
+     'sha256': '429e2c6b22a0923967459de24d67f05962b235f79cde6b032aa7ed2ffcd970ee',
+     'origin': {'source': 'huggingface', 'repo': HF_REPO, 'revision': HF_REVISION,
+                'file': 'model.ckpt'}},
+]
 #: Racine DÉCLARÉE du code tiers (settings.BACKEND_VENDOR_DIR quand il existe, sinon le dossier
 #: `vendor/` de ce paquet).
 VENDOR_DIR = Path(getattr(settings, 'BACKEND_VENDOR_DIR', None)
@@ -65,13 +83,14 @@ class TripoSRBackend(BaseModelBackend):
 
     # ── Cycle de vie ───────────────────────────────────────────────────────────────────
     def _weights_dir(self) -> Path:
-        """Dossier LOCAL des poids : téléchargés une fois sous `MODEL_DIR` (cache_dir), puis
-        rendus par chemin pour que `TSR.from_pretrained` prenne sa branche `isdir`."""
-        from huggingface_hub import hf_hub_download
-        MODEL_DIR.mkdir(parents=True, exist_ok=True)
-        cfg = hf_hub_download(HF_REPO, 'config.yaml', cache_dir=str(MODEL_DIR))
-        hf_hub_download(HF_REPO, 'model.ckpt', cache_dir=str(MODEL_DIR))
-        return Path(cfg).parent
+        """Dossier LOCAL des poids déclarés, rendu par chemin pour que `TSR.from_pretrained`
+        prenne sa branche `isdir`. Un fichier absent se dit — l'installation est celle du model
+        manager, jamais ce backend."""
+        missing = [f['path'] for f in TRIPOSR_FILES if not (MODEL_DIR / f['path']).exists()]
+        if missing:
+            raise RuntimeError(f"TripoSR : {', '.join(missing)} absent(s) de {MODEL_DIR} — installer "
+                               f"« TripoSR » depuis le model manager (`pull_model {MODEL_KEY}`)")
+        return MODEL_DIR
 
     def load(self, model: Optional[str] = None) -> bool:
         if self._model is not None:

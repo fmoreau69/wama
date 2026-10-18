@@ -3066,3 +3066,37 @@ Suite de la veille ci-dessus, décisions (a)(b)(d) appliquées ; licence accept�
   heureux : la ligne de catalogue porte désormais le nom et la description DÉCLARÉS (le balayage
   générique ne l'écrase plus). Suite : la règle « librairies et modèles par la route, aucune
   dérive » d'`AGENTS.md` et son contrôle `tests_install_route`.
+
+## Suite du 2026-10-18 : TOUT par la route — et un modèle absent s'installe au moment de la tâche
+
+Fabien : *« Oui porte les sur la route. On aligne tout. »* — et sur le téléchargement au moment
+du besoin : *« ce n'est pas une dérive. La dérive arrive si l'installation n'est pas complète. Mais
+il faut bien prévenir l'utilisateur. La tâche attendra jusqu'à ce que l'installation soit
+complètement faite, proprement et alignée sur la route. »*
+
+- **Le geste au moment d'une tâche** : `model_readiness.ensure_installed` (mécanisme
+  `model_readiness`). Un modèle du catalogue absent que la route sait installer passe par
+  `request_install` (garde d'espace, journal, jeton : la même entrée que le bouton), l'utilisateur
+  est prévenu, la tâche lève `ServiceNotReady` — elle REND son worker et revient, la card dit
+  qu'elle attend (traitement existant du squelette, `task_skeleton`). Refus ou échec : la tâche
+  échoue en le disant ; une installation échouée n'est pas relancée en boucle au retour d'une
+  attente (état `FAILURE` de l'avancement d'installation), un nouveau lancement la retente.
+  Branché : squelette (modèle de la card, DANS le `try` principal et hors du garde de durée),
+  imager (modèle tiré, image et vidéo), studio `image_to_3d` et cam_analyzer (re-livraison
+  Celery) ; `install_and_wait` pour une commande (le banc). L'ancienne annonce reste pour une ligne
+  sans emplacement d'installation (levier de chargement de `hf_weights`).
+- **Les 5 dérives relevées par `tests_install_route`, portées** (budget à 0) :
+  - TripoSR : `TRIPOSR_FILES` (empreinte de `model.ckpt` publiée par le Hub, celle de
+    `config.yaml` — hors LFS — mesurée sur ce commit dans un dossier jetable) ;
+  - LPIPS : ligne `custom:lpips-alexnet`, tâche neuve `quality-metric` (aucune sélection d'app ne
+    la tire), fichier torchvision officiel (`pytorch_download`) ; le banc l'installe et attend ;
+  - YOLOPv2 : ligne `github:CAIC-AD/YOLOPv2:V0.0.1`, tâche neuve `road-segmentation` (sortie de
+    `segment` : le select de l'anonymizer se tire par `detect,segment`) ; le balayage YOLO de
+    l'anonymizer ne le reprend plus ; vue et analyse du cam_analyzer par la route
+    (`CAM_ANALYZER_CHANGELOG` 2026-10-18, `REMOVAL_LEDGER R149`) ;
+  - le chargement diffusers « fichier unique » : mort (aucun déclarant), retiré (`R148`).
+- ⚠ **Constat au catalogue réel, non de mon fait** : le 2026-10-18, une autre session écrit des
+  champs de portée sur `AIModel` (`model_manager/models.py`) sans leur migration encore — toute
+  requête ORM sur `AIModel` échoue en base vivante avec ce code (`scope_org_unit_id`), donc la
+  synchro aussi : les lignes YOLOPv2 et LPIPS, et les fichiers déclarés de TripoSR, y entreront à
+  la première synchro qui suivra sa migration. La base de TEST les éprouve.

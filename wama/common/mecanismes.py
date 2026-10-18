@@ -190,8 +190,18 @@ MECHANISMS = (
               'wama/common/services/process_pipeline.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/tests/tests_process_pipeline.py',),
               depends_on=('process_runs', 'input_provenance')),
-    Mechanism('model_readiness', 'Annonce de téléchargement des poids',
-              "Un modèle jamais utilisé télécharge ses poids À LA PREMIÈRE EXÉCUTION (37 appels "
+    Mechanism('model_readiness', 'Modèle installé par la route au moment du besoin',
+              "DEPUIS LE 2026-10-16 (décision de Fabien : « la dérive arrive si l'installation n'est "
+              "pas complète ; prévenir l'utilisateur ; la tâche attendra ») : un modèle du catalogue "
+              "ABSENT qu'une tâche demande est installé PAR LA ROUTE (`ensure_installed` → "
+              "`request_install` : garde d'espace, journal, jeton), l'utilisateur est prévenu, la "
+              "tâche rend son worker et revient (`ServiceNotReady`) ; refus ou échec = la tâche "
+              "échoue en le disant, une installation échouée n'est pas relancée en boucle. Appelée "
+              "par le squelette (modèle de la card), l'imager (modèle tiré), le studio et le "
+              "cam_analyzer (re-livraison Celery) ; `install_and_wait` pour une commande (le banc). "
+              "L'annonce d'origine (`warn_if_weights_missing`) reste pour la seule ligne que la route "
+              "ne sait pas installer. — Historique : un modèle jamais utilisé télécharge ses poids "
+              "À LA PREMIÈRE EXÉCUTION (37 appels "
               "`from_pretrained`/`snapshot_download` dans les backends) — et RIEN ne le disait : "
               "ni le squelette, ni les backends, ni la card. Mesuré le 2026-09-08, 4 modèles "
               "catalogués sont dans ce cas (mochi-1-preview, qwen-image-edit, flux2-klein-4b, "
@@ -206,7 +216,8 @@ MECHANISMS = (
               "n'avertit plus de rien (celui de l'imager vidéo, en dur et à chaque lancement avec "
               "un volume inventé, a été retiré ce jour-là)",
               'wama/common/utils/model_readiness.py', 'docs/construction/suivi/PROJECT_STATUS.md',
-              annexes=('wama/common/tests/tests_model_readiness.py',)),
+              annexes=('wama/common/tests/tests_model_readiness.py',),
+              depends_on=('model_installer',)),
     Mechanism('file_cache', 'Cache par empreinte de fichier',
               "Garde une valeur calculée depuis un fichier (lecture AST, rendu markdown, compte "
               "de lignes) tant que son empreinte — date de modification, taille — n'a pas "
@@ -452,9 +463,10 @@ MECHANISMS = (
                        'wama/model_manager/tests/tests_bench_upscale.py',
                        'wama/model_manager/tests/tests.py',
                        'wama/model_manager/tests/tests_benchmark_chain.py'),
-              standalone="POINT D'ENTRÉE : son seul appelant est sa propre commande "
-                         "(`manage.py bench`), déclarée en annexe — un banc se LANCE, il ne "
-                         "s'importe pas. 0 consommateur est donc le compte JUSTE"),
+              # Plus « autonome » depuis le 2026-10-18 : la découverte du catalogue lit la
+              # déclaration de son instrument LPIPS (`LPIPS_FILES`, ligne `quality-metric` que la
+              # route installe) — un consommateur réel, que le compte doit montrer.
+              ),
     Mechanism('provenance', 'Provenance de modèle',
               "Identité chez l'éditeur (licence, auteur, plateforme, publications arXiv de la "
               "carte), posée VIA le manifeste ; les publications s'affichent dans l'onglet "

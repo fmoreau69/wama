@@ -1526,24 +1526,34 @@ def save_profile(request):
 @login_required
 @require_http_methods(["POST"])
 def download_road_model(request):
-    """
-    Auto-download keremberke/yolov8m-bdd100k-seg/best.pt into the segment dir
-    so the model dropdown picks it up. Returns the relative path the user
-    should set on their profile.
-    """
-    from .utils.road_model_downloader import ensure_bdd100k_seg, ROAD_MODELS_DIR, BDD100K_SEG_LOCAL_NAME
+    """YOLOPv2 pour le profil : INSTALLÉ PAR LA ROUTE du model manager (2026-10-16, règle
+    « librairies et modèles par la route ») — sa ligne de catalogue (`YOLOPV2_KEY`, fichier déclaré,
+    origine la version GitHub officielle) passe par `request_install` : garde d'espace disque,
+    journal, désinstallation. Le téléchargement écrit ici (`road_model_downloader`) est retiré.
+    Rend le chemin RELATIF à poser sur le profil — le même qu'avant."""
+    from wama.model_manager.models import AIModel
+    from wama.model_manager.services.model_installer import request_install
+    from wama.model_manager.services.model_registry import (
+        YOLOPV2_FILES, YOLOPV2_KEY, yolopv2_folder,
+    )
 
-    force = bool(request.GET.get('force') or request.POST.get('force'))
-    ok, abs_path, msg = ensure_bdd100k_seg(force=force)
-    if not ok:
-        return JsonResponse({'success': False, 'error': msg}, status=500)
-
-    rel = os.path.relpath(abs_path, settings.BASE_DIR).replace('\\', '/')
+    rel = os.path.relpath(yolopv2_folder() / YOLOPV2_FILES[0]['path'],
+                          settings.BASE_DIR).replace('\\', '/')
+    row = AIModel.objects.filter(model_key=YOLOPV2_KEY).first()
+    if row is not None and row.is_downloaded:
+        return JsonResponse({'success': True, 'path': rel, 'name': row.name,
+                             'message': "YOLOPv2 est déjà installé."})
+    res = request_install(YOLOPV2_KEY, user=request.user, via='cam_analyzer')
+    if not res.get('ok'):
+        blocked = res.get('blocked') or {}
+        error = res.get('error') or blocked.get('message') or res.get('reason') or 'refus'
+        return JsonResponse({'success': False, 'error': f"Installation refusée : {error}"},
+                            status=507 if res.get('reason') == 'insufficient_storage' else 409)
     return JsonResponse({
-        'success': True,
-        'message': msg,
-        'path': rel,
-        'name': BDD100K_SEG_LOCAL_NAME,
+        'success': True, 'path': rel, 'name': 'YOLOPv2', 'installing': True,
+        'message': ("Installation de YOLOPv2 lancée par le model manager (156 Mo) — son "
+                    "avancement s'y suit. Le chemin est posé sur le profil ; une analyse lancée "
+                    "avant la fin de l'installation l'ATTEND, puis reprend d'elle-même."),
     })
 
 

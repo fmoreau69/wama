@@ -22,11 +22,23 @@ def image_to_3d_task(self, image, user_id: int, resolution: int = 256, foregroun
     """
     from django.conf import settings
 
+    from django.contrib.auth import get_user_model
+
     from wama.common.backends.manager import backend_for_key
     from wama.common.utils.media_paths import app_media_dir, resolve_under_media_root
+    from wama.common.utils.model_readiness import ensure_installed
+    from wama.common.utils.task_skeleton import ServiceNotReady
 
     src, _rel_src = resolve_under_media_root(image)       # confinement : une entrée vient d'une donnée
     src = str(src)
+    # Le modèle absent : la ROUTE l'installe et la tâche revient d'elle-même (2026-10-16, décision
+    # de Fabien) — la même politique que le squelette, hors squelette : une re-livraison Celery.
+    try:
+        ensure_installed(model, user=get_user_model().objects.filter(pk=user_id).first(),
+                         redelivered=bool(self.request.retries))
+    except ServiceNotReady as wait:
+        logger.info('[studio] image_to_3d : %s', wait)
+        raise self.retry(countdown=wait.countdown, max_retries=wait.max_attempts)
     cls = backend_for_key(model)
     if cls is None:
         raise ValueError(f"aucun moteur ne pilote le modèle {model!r} (backend introuvable)")

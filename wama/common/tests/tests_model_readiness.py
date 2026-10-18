@@ -86,6 +86,154 @@ class AnnonceTelechargementTest(TestCase):
         self.assertFalse(warn_if_weights_missing(None))
 
 
+class EnsureInstalledTest(TestCase):
+    """2026-10-16, Fabien : a model needed at task time is not a drift — an INCOMPLETE install is.
+    The route installs it, the user is told, the task waits (giving its worker back) ; a refusal or
+    a failed install fails the task SAYING so — never a download beside the route."""
+
+    KEY = 'imager:not-yet-installed'
+
+    def setUp(self):
+        from unittest import mock
+        from wama.model_manager.models import AIModel
+        self.row = AIModel.objects.create(model_key=self.KEY, name='Mochi', model_type='image',
+                                          source='imager', is_downloaded=False, disk_gb=18.0)
+        self.spec = mock.patch('wama.model_manager.services.model_installer.spec_for_catalog_row',
+                               return_value={'kind': 'files'})
+        self.spec.start()
+        self.addCleanup(self.spec.stop)
+        self.last = mock.patch('wama.common.utils.model_readiness._last_install', return_value={})
+        self.last_install = self.last.start()
+        self.addCleanup(self.last.stop)
+
+    def _ensure(self, answer, **kw):
+        from unittest import mock
+        from wama.common.utils.model_readiness import ensure_installed
+        said = []
+        with mock.patch('wama.model_manager.services.model_installer.request_install',
+                        return_value=answer) as install:
+            try:
+                return ensure_installed(self.KEY, console=said.append, **kw), said, install
+            except Exception as exc:
+                return exc, said, install
+
+    def test_a_missing_model_is_installed_by_the_route_and_the_task_waits(self):
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        out, said, install = self._ensure({'ok': True, 'started': True})
+        self.assertIsInstance(out, ServiceNotReady)
+        self.assertEqual(('task',), (install.call_args.kwargs['via'],))
+        self.assertEqual(1, len(said))
+        self.assertIn('~18 Go', said[0])
+        self.assertIn('attend', said[0])
+
+    def test_back_from_a_wait_it_keeps_waiting_without_saying_it_again(self):
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        out, said, _install = self._ensure({'ok': True, 'already_running': True}, redelivered=True)
+        self.assertIsInstance(out, ServiceNotReady)
+        self.assertEqual([], said)
+
+    def test_a_failed_install_is_said_instead_of_relaunched_in_a_loop(self):
+        from wama.common.utils.model_readiness import ModelInstallRefused
+        self.last_install.return_value = {'state': 'FAILURE', 'error': 'HTTP 401'}
+        out, _said, install = self._ensure({'ok': True}, redelivered=True)
+        self.assertIsInstance(out, ModelInstallRefused)
+        self.assertIn('HTTP 401', str(out))
+        install.assert_not_called()
+
+    def test_a_new_launch_retries_an_install_that_failed_before(self):
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        self.last_install.return_value = {'state': 'FAILURE', 'error': 'disque plein'}
+        out, _said, install = self._ensure({'ok': True, 'started': True})
+        self.assertIsInstance(out, ServiceNotReady)
+        install.assert_called_once()
+
+    def test_a_refusal_fails_the_task_saying_why(self):
+        from wama.common.utils.model_readiness import ModelInstallRefused
+        out, _said, _install = self._ensure({'ok': False, 'reason': 'insufficient_storage',
+                                             'blocked': {'message': '2 Go libres'}})
+        self.assertIsInstance(out, ModelInstallRefused)
+        self.assertIn('2 Go libres', str(out))
+
+    def test_without_a_route_location_the_old_announcement_is_kept(self):
+        from unittest import mock
+        with mock.patch('wama.model_manager.services.model_installer.spec_for_catalog_row',
+                        return_value=None):
+            out, said, install = self._ensure({'ok': True})
+        self.assertIs(True, out)
+        self.assertIn('téléchargement', said[0].lower())
+        install.assert_not_called()
+
+    def test_an_installed_or_unknown_model_needs_nothing(self):
+        type(self.row).objects.filter(pk=self.row.pk).update(is_downloaded=True)
+        out, said, install = self._ensure({'ok': True})
+        self.assertIs(True, out)
+        install.assert_not_called()
+        from wama.common.utils.model_readiness import ensure_installed
+        self.assertIs(True, ensure_installed('imager:never-catalogued'))
+        self.assertIs(True, ensure_installed(''))
+
+    def test_a_synchronous_caller_waits_for_the_end_of_the_install(self):
+        from unittest import mock
+        from wama.common.utils.model_readiness import install_and_wait
+
+        def finished(_seconds):
+            type(self.row).objects.filter(pk=self.row.pk).update(is_downloaded=True)
+
+        with mock.patch('wama.model_manager.services.model_installer.request_install',
+                        return_value={'ok': True, 'started': True}), \
+                mock.patch('time.sleep', side_effect=finished):
+            self.assertTrue(install_and_wait(self.KEY, poll_s=0))
+
+
+class TheSkeletonInstallsTheCardModelTest(TestCase):
+    """The skeleton calls the brick INSIDE its main `try` : a wait re-delivers the task, a refusal
+    fails the card with its reason (seen through the composer, a skeleton app)."""
+
+    def setUp(self):
+        import tempfile
+        import shutil
+        self.tmp = tempfile.mkdtemp()
+        media = self.settings(MEDIA_ROOT=self.tmp)
+        media.enable()
+        self.addCleanup(media.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        from django.contrib.auth import get_user_model
+        self.user = get_user_model().objects.create_user('skeleton_install', password='x')
+
+    def _run(self, effect):
+        from unittest import mock
+        from wama.composer import tasks
+        from wama.composer.models import ComposerGeneration
+        from wama.composer.tests_task import _celery_task
+        gen = ComposerGeneration.objects.create(user=self.user, prompt='rain',
+                                                model='composer:musicgen-small', status='RUNNING')
+        task = _celery_task()
+        task.retry = mock.MagicMock(side_effect=RuntimeError('re-delivered'))
+        with mock.patch('wama.common.utils.task_skeleton.close_old_connections'), \
+                mock.patch('wama.common.utils.model_readiness.ensure_installed',
+                           side_effect=effect) as ensure:
+            try:
+                tasks.compose_task.run.__func__(task, gen.pk, None)
+            except RuntimeError as exc:
+                self.assertEqual('re-delivered', str(exc))
+        return ComposerGeneration.objects.get(pk=gen.pk), task, ensure
+
+    def test_a_refusal_fails_the_card_with_its_reason(self):
+        from wama.common.utils.model_readiness import ModelInstallRefused
+        gen, _task, ensure = self._run(ModelInstallRefused("« X » n'est pas installé : disque plein"))
+        self.assertEqual('composer:musicgen-small', ensure.call_args.args[0])
+        self.assertEqual('FAILURE', gen.status)
+        self.assertIn('disque plein', gen.error_message)
+
+    def test_a_wait_redelivers_the_task_and_the_card_says_it_waits(self):
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        gen, task, _ensure = self._run(ServiceNotReady('Installation de « X » en cours',
+                                                       countdown=30, max_attempts=720))
+        self.assertEqual({'countdown': 30, 'max_retries': 720}, task.retry.call_args.kwargs)
+        self.assertEqual('RUNNING', gen.status)
+        self.assertIn('Installation', gen.error_message)
+
+
 class SqueletteAnnonceTest(TestCase):
     """Le squelette commun sait le déclarer — comme `vram_needed`, et OPTIONNEL."""
 

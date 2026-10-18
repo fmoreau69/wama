@@ -7,15 +7,6 @@
 
 ## Ressources & exécution
 
-### Annonce de téléchargement des poids
-
-Un modèle jamais utilisé télécharge ses poids À LA PREMIÈRE EXÉCUTION (37 appels `from_pretrained`/`snapshot_download` dans les backends) — et RIEN ne le disait : ni le squelette, ni les backends, ni la card. Mesuré le 2026-09-08, 4 modèles catalogués sont dans ce cas (mochi-1-preview, qwen-image-edit, flux2-klein-4b, musicgen-melody) : les lancer donnait une tâche figée, sans un mot, le temps de récupérer des dizaines de Go. *Une attente qu'on n'explique pas se lit comme une panne.* La brique ANNONCE et rien d'autre — elle ne télécharge pas (c'est le backend, au chargement), ne bloque pas, ne décide pas ; best-effort intégral. Adressée par la CLÉ DE CATALOGUE, la même qui résout le backend : l'annonce et l'exécution parlent du même modèle. Le squelette la déclare par `model_key` (OPTIONNEL, comme `vram_needed`). ⚠ Elle ne parle QUE si `is_downloaded=False`, et n'annonce la taille que si `disk_gb` la connaît : un avertissement permanent n'avertit plus de rien (celui de l'imager vidéo, en dur et à chaque lancement avec un volume inventé, a été retiré ce jour-là)
-
-- **Domicile** : `wama/common/utils/model_readiness.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md](../construction/suivi/PROJECT_STATUS.md)
-- **Module** : Prévenir l'utilisateur qu'un premier lancement va TÉLÉCHARGER les poids.
-- **API publique** (1) :
-  - `warn_if_weights_missing(model_key: str, console=None) -> bool` — Prévient (console) si les poids de `model_key` sont ABSENTS. Rend True si prévenu.
-
 ### Cache par empreinte de fichier
 
 Garde une valeur calculée depuis un fichier (lecture AST, rendu markdown, compte de lignes) tant que son empreinte — date de modification, taille — n'a pas changé : un fichier modifié est relu, jamais servi périmé. Extrait le 2026-09-14 : le catalogue des docs portait le geste en dur, et l'inventaire des backends relisait 6 237 fois des fichiers pour UNE extraction de manifeste (48 résolutions d'un même vivier). ⚠ Ne convient qu'à ce qui ne dépend QUE du fichier
@@ -281,6 +272,18 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
   - `mark_stale(item, node_ids) -> int` — Passe `STALE` les lignes `SUCCESS` des nœuds donnés. Rend le nombre de lignes changées.
   - `aggregate(processes) -> str` — État d'une CARD déduit de ses process — la règle du point 4.4, validée telle quelle le
 
+### Modèle installé par la route au moment du besoin
+
+DEPUIS LE 2026-10-16 (décision de Fabien : « la dérive arrive si l'installation n'est pas complète ; prévenir l'utilisateur ; la tâche attendra ») : un modèle du catalogue ABSENT qu'une tâche demande est installé PAR LA ROUTE (`ensure_installed` → `request_install` : garde d'espace, journal, jeton), l'utilisateur est prévenu, la tâche rend son worker et revient (`ServiceNotReady`) ; refus ou échec = la tâche échoue en le disant, une installation échouée n'est pas relancée en boucle. Appelée par le squelette (modèle de la card), l'imager (modèle tiré), le studio et le cam_analyzer (re-livraison Celery) ; `install_and_wait` pour une commande (le banc). L'annonce d'origine (`warn_if_weights_missing`) reste pour la seule ligne que la route ne sait pas installer. — Historique : un modèle jamais utilisé télécharge ses poids À LA PREMIÈRE EXÉCUTION (37 appels `from_pretrained`/`snapshot_download` dans les backends) — et RIEN ne le disait : ni le squelette, ni les backends, ni la card. Mesuré le 2026-09-08, 4 modèles catalogués sont dans ce cas (mochi-1-preview, qwen-image-edit, flux2-klein-4b, musicgen-melody) : les lancer donnait une tâche figée, sans un mot, le temps de récupérer des dizaines de Go. *Une attente qu'on n'explique pas se lit comme une panne.* La brique ANNONCE et rien d'autre — elle ne télécharge pas (c'est le backend, au chargement), ne bloque pas, ne décide pas ; best-effort intégral. Adressée par la CLÉ DE CATALOGUE, la même qui résout le backend : l'annonce et l'exécution parlent du même modèle. Le squelette la déclare par `model_key` (OPTIONNEL, comme `vram_needed`). ⚠ Elle ne parle QUE si `is_downloaded=False`, et n'annonce la taille que si `disk_gb` la connaît : un avertissement permanent n'avertit plus de rien (celui de l'imager vidéo, en dur et à chaque lancement avec un volume inventé, a été retiré ce jour-là)
+
+- **Domicile** : `wama/common/utils/model_readiness.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md](../construction/suivi/PROJECT_STATUS.md)
+- **Module** : Un modèle s'INSTALLE par la route avant de servir — et l'utilisateur le sait.
+- **API publique** (4) :
+  - `warn_if_weights_missing(model_key: str, console=None) -> bool` — Prévient (console) si les poids de `model_key` sont ABSENTS. Rend True si prévenu.
+  - `class ModelInstallRefused(RuntimeError)` — La route n'a pas installé le modèle (refus ou échec) : la tâche échoue en le DISANT.
+  - `ensure_installed(model_key: str, *, user=None, console=None, redelivered: bool=False, via: str='task') -> bool` — Pour une TÂCHE : rend True quand le modèle est prêt à servir (ou que rien ne le concerne).
+  - `install_and_wait(model_key: str, *, user=None, console=None, via: str='command', poll_s: float=5, timeout_s: float=None) -> bool` — Le même geste pour un appelant SYNCHRONE (une commande, jamais un worker) : installe par la
+
 ### Moniteur système
 
 Mesure unifiée CPU/RAM/GPU/disque (WSL + hôte Windows) — barre de ressources, model manager
@@ -432,7 +435,7 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
 
 - **Domicile** : `wama/model_manager/services/bench.py` · **doc** : [docs/construction/suivi/ROADMAP.md §16.2](../construction/suivi/ROADMAP.md)
 - **Module** : Banc de comparaison de modeles, indexe sur la TACHE et non sur l'app.
-- **API publique** (13) :
+- **API publique** (14) :
   - `models_for_task(task: str, *, installed_only: bool=True)` — Modeles du catalogue qui declarent cette tache. Le catalogue est la seule source.
   - `read_recall_reference(sample: str) -> dict` — La reference d'un banc de rappel (JSON) : `media` (chemin, relatif au fichier ou
   - `containment_counts(doc: dict, ref: dict) -> dict` — Les comptes du rappel par contenant — sans interpretation (cf. en-tete du protocole).
@@ -441,6 +444,7 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
   - `merged(found, iou: float=0.5) -> list` — Les detections d'UNE image sans leurs DOUBLONS : un meme objet vu a deux echelles (une
   - `match_boxes(found, truth, ignore, iou: float=0.5) -> dict` — Comptes d'UNE image : `found` = [(box, conf)], `truth`/`ignore` = [box]. Les doublons de
   - `read_image_reference(sample: str) -> dict` — Une référence « dossier d'images nettes » : `images` (dossier, relatif au fichier de
+  - `lpips_folder() -> Path`
   - `lpips_metric(device: str)` — LPIPS (réseau AlexNet), chargé une fois par processus. Les couches linéaires viennent du
   - `boxes_candidates(sample: str) -> list` — Detecteurs installes qui couvrent la classe d'une reference « vraies boites ».
   - `recall_candidates(sample: str) -> list` — Les modeles a mesurer pour une reference : detecteurs installes qui couvrent sa classe.
@@ -512,8 +516,9 @@ Découverte unifiée des modèles (apps + sources externes), synchronisée vers 
 
 - **Domicile** : `wama/model_manager/services/model_registry.py`
 - **Module** : Model Registry - Unified model discovery across all WAMA apps and external sources.
-- **API publique** (3) :
+- **API publique** (4) :
   - `is_ollama_runner_alias(name: str) -> bool` — Ce nom Ollama désigne-t-il un manifeste INTERNE du démon plutôt qu'un modèle ?
+  - `yolopv2_folder() -> Path` — Le dossier de YOLOPv2 — celui que le profil du cam_analyzer lit depuis toujours
   - `class ModelInfo` — Unified model information structure.
   - `class ModelRegistry` — Central registry for all WAMA models.
 

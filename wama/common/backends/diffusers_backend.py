@@ -266,19 +266,9 @@ class DiffusersBackend(ImageGenerationBackend):
 
         dtype = self._torch.float16 if self._device == "cuda" else self._torch.float32
 
-        # Single-file loading (e.g., XpucT/Deliberate with single safetensors)
-        single_file = model_info.get("single_file") if model_info else None
-        if single_file:
-            logger.info(f"[Diffusers] Loading single-file model: {model_id}/{single_file}")
-            kwargs = {
-                "torch_dtype": dtype,
-                "safety_checker": None,
-            }
-            return MemoryManager.load_single_file_pipeline(
-                StableDiffusionPipeline, model_id, single_file,
-                cache_dir=_SD_CACHE_DIR, **kwargs
-            )
-
+        # La branche « fichier unique » (`model_info['single_file']`, Deliberate) est RETIRÉE le
+        # 2026-10-16 (REMOVAL_LEDGER R148) : plus aucun modèle ne la déclarait, et elle téléchargeait
+        # au chargement à côté de la route d'installation.
         # Standard diffusers-format loading
         kwargs = {
             "torch_dtype": dtype,
