@@ -51,9 +51,10 @@ OUTSIDE_FAMILIES = (
 #: variable ne comptent plus) — 688 et 795 ; puis les quinze autres feuilles communes portées
 #: (sauf `wama-catalog.css`, en cours ailleurs) — 284 : ce qui reste est aux APPS. Puis les
 #: feuilles d'apps (arbre de fichiers, Studio, Cam Analyzer, catalogue, accueil) portées et deux
-#: feuilles que plus aucune page ne chargeait retirées (R145, R146) — 54 : la présentation, dont
-#: les gabarits chargent déjà les tokens et dont la feuille suit à la relance des workers.
-BUDGET = {'.css': 54, '.html': 795}
+#: feuilles que plus aucune page ne chargeait retirées (R145, R146) — 54 ; puis la présentation,
+#: une fois ses gabarits servis avec les tokens — 0 : AUCUNE feuille de WAMA n'écrit plus de
+#: couleur. Ce qui reste est dans les `<style>` des gabarits.
+BUDGET = {'.css': 0, '.html': 795}
 
 #: Fichiers PORTÉS sur les tokens : ils restent à zéro.
 TOKENISED = tuple(f'wama/common/static/common/css/{name}.css' for name in (
@@ -64,7 +65,8 @@ TOKENISED = tuple(f'wama/common/static/common/css/{name}.css' for name in (
     'wama/filemanager/static/filemanager/css/filemanager.css',
     'wama/studio/static/studio/css/wama-studio.css',
     'wama_lab/cam_analyzer/static/cam_analyzer/css/cam_analyzer.css',
-    'wama/static/css/general_index.css')
+    'wama/static/css/general_index.css',
+    'wama/static/presentation/wama-presentation.css')
 
 
 def _outside(rel):

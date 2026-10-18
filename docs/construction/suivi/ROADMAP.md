@@ -5834,12 +5834,15 @@ listes déroulantes.
    `base.html`, donc ne recevait pas `wama-theme.css`. Ses trois gabarits (présentation,
    architecture, archive v2) le chargent désormais avant sa feuille — garde
    `tests_theme…test_a_standalone_page_loads_the_tokens_before_a_sheet_that_reads_them`, contre-épreuve
-   sur HEAD : les trois relevés. Sa feuille portée (tokens `--wama-pres-*`, déjà déclarés) suit
-   APRÈS la relance des workers : un gabarit est mis en cache par worker, et une feuille portée
-   servie avec l'ancien gabarit rendrait la scène sans couleurs.
-   ⏳ *Reste de l'étape* : la feuille de la présentation (ci-dessus), puis les `<style>` des pages
-   (795 couleurs dans les gabarits ; les derniers textes faibles de `WAMA_VERIFICATION §10` y
-   vivent : `#6c757d` écrit dans la page).
+   sur HEAD : les trois relevés. Sa feuille portée (tokens `--wama-pres-*`) n'a suivi qu'une fois
+   les workers nés APRÈS l'édition des gabarits (relance de 12:06, gabarits de 11:53) : un
+   gabarit est mis en cache par worker, et une feuille portée servie avec l'ancien gabarit aurait
+   rendu la scène sans couleurs. Preuve : les trois pages RENDUES par leurs vues (le compte de test
+   n'y a pas accès), feuilles permutées dans le même chargement — 2 003 éléments, **0 écart** ;
+   contre-épreuve, sans `wama-theme.css` presque tous changent. **Budget CSS 0** : plus aucune
+   feuille de WAMA n'écrit de couleur.
+   ⏳ *Reste de l'étape* : les `<style>` des pages (795 couleurs dans les gabarits ; les derniers
+   textes faibles de `WAMA_VERIFICATION §10` y vivent : `#6c757d` écrit dans la page).
 4. ⏳ **Un second thème** (clair, ou UGE) = un bloc de `wama-theme.css` + une ligne de `THEMES` ;
    la garde de code de `tests_contrast` passe à sa forme symétrique (un ton de texte fixe exige un
    fond fixe, dans les deux sens).
